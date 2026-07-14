@@ -21,6 +21,26 @@ target_compile_definitions(
     imageviewport_test_support INTERFACE IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1
                                          IMAGEVIEWPORT_QML_IMPORT_PATH="${CMAKE_BINARY_DIR}/src")
 
+function(add_imageviewport_public_header_compile_test target source)
+    add_library(${target} OBJECT ${source})
+    target_include_directories(${target} PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    target_link_libraries(${target} PRIVATE Qt6::Core Qt6::Gui Qt6::Qml)
+endfunction()
+
+add_imageviewport_public_header_compile_test(imageviewport_types_header_compile
+                                             public_headers/types.cpp)
+add_imageviewport_public_header_compile_test(imageviewport_sequence_header_compile
+                                             public_headers/sequence.cpp)
+add_imageviewport_public_header_compile_test(imageviewport_provider_header_compile
+                                             public_headers/provider.cpp)
+add_imageviewport_public_header_compile_test(imageviewport_state_header_compile
+                                             public_headers/state.cpp)
+add_imageviewport_public_header_compile_test(imageviewport_umbrella_header_compile
+                                             public_headers/umbrella.cpp)
+add_library(imageviewport_viewport_header_compile OBJECT public_headers/viewport.cpp)
+target_include_directories(imageviewport_viewport_header_compile PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(imageviewport_viewport_header_compile PRIVATE Qt6::Qml Qt6::Quick)
+
 # Add a Qt test executable without private probe declarations.
 function(add_imageviewport_core_qt_test target source)
     add_executable(${target} ${source})
@@ -85,6 +105,7 @@ add_test(
     NAME imageviewport_install_consumer
     COMMAND
         ${CMAKE_COMMAND} -DIMAGEVIEWPORT_BUILD_DIR=${CMAKE_BINARY_DIR}
+        -DIMAGEVIEWPORT_SOURCE_DIR=${CMAKE_SOURCE_DIR}
         -DIMAGEVIEWPORT_CONSUMER_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/install_consumer
         -DIMAGEVIEWPORT_TEST_DIR=${CMAKE_BINARY_DIR}/tests/install-consumer
         -DIMAGEVIEWPORT_OPENGL_INCLUDE_DIR=${OPENGL_INCLUDE_DIR}

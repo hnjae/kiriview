@@ -1,7 +1,7 @@
 #pragma once
 
 #include "coordinateresult_p.h"
-#include "imageviewport.h"
+#include <ImageViewport/ImageViewport>
 
 class PresentationGeometry
 {
@@ -13,9 +13,8 @@ public:
         QSizeF primaryImageSize;
         QSizeF secondaryImageSize;
         double pageGap = 0.0;
-        ImageViewport::SpreadDirection spreadDirection
-            = ImageViewport::SpreadDirection::LeftToRight;
-        ImageViewport::FitMode fitMode = ImageViewport::FitMode::Contain;
+        ImageViewportSpreadDirection spreadDirection = ImageViewportSpreadDirection::LeftToRight;
+        ImageViewportFitMode fitMode = ImageViewportFitMode::Contain;
         int rotationDegrees = 0;
         bool mirrorHorizontally = false;
         bool mirrorVertically = false;

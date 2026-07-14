@@ -1,6 +1,30 @@
 #pragma once
 
-#include "imageviewport.h"
+#include <ImageViewport/ImageViewport>
+
+class RevisionToken
+{
+public:
+    RevisionToken() = default;
+
+    bool isValid() const { return m_value != 0; }
+
+    friend bool operator==(RevisionToken lhs, RevisionToken rhs)
+    {
+        return lhs.m_value == rhs.m_value;
+    }
+    friend bool operator!=(RevisionToken lhs, RevisionToken rhs) { return !(lhs == rhs); }
+
+private:
+    explicit RevisionToken(quint64 value)
+        : m_value(value)
+    {
+    }
+
+    quint64 m_value = 0;
+
+    friend class ImageViewportInternal::RevisionTokenPrivateAccess;
+};
 
 namespace ImageViewportInternal {
 

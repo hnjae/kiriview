@@ -22,8 +22,8 @@ struct AcceptedMetadataFacts
 
 struct MetadataTargetRejection
 {
-    ImageViewport::RequestStatus status = ImageViewport::RequestStatus::Unsupported;
-    ImageViewport::RequestReason reason = ImageViewport::RequestReason::UnsupportedRequest;
+    ImageViewportRequestStatus status = ImageViewportRequestStatus::Unsupported;
+    ImageViewportRequestReason reason = ImageViewportRequestReason::UnsupportedRequest;
     int selectedFrame = -1;
     bool updateActiveTarget = false;
     bool selectedFromPosition = false;
@@ -59,7 +59,7 @@ bool unknownMetadataInitialRequest(const DisplayRequest& request)
 }
 
 void updatePlaybackPhase(
-    PlaybackState& playback, ImageViewport::PlaybackPhase phase, ViewportChangeSet& changes)
+    PlaybackState& playback, ImageViewportPlaybackPhase phase, ViewportChangeSet& changes)
 {
     if (playback.phase == phase) {
         return;
@@ -116,11 +116,10 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
 
     const auto rejectMetadata = [&access, &result, role = input.role](const QString& diagnostic) {
         access.m_playback.providerStartPending = false;
-        result.changes = access.recordTerminal({ role, ImageViewport::RequestStatus::Error,
-            ImageViewport::RequestReason::PayloadRejection, FailureScope::Generation, diagnostic,
-            result.changes });
-        updatePlaybackPhase(
-            access.m_playback, ImageViewport::PlaybackPhase::Stopped, result.changes);
+        result.changes = access.recordTerminal(
+            { role, ImageViewportRequestStatus::Error, ImageViewportRequestReason::PayloadRejection,
+                FailureScope::Generation, diagnostic, result.changes });
+        updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
         result.providerFrameTransport = access.closeSession(role);
     };
 
@@ -184,8 +183,7 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
         }
         result.changes = access.recordTerminal({ role, rejection.status, rejection.reason,
             FailureScope::DisplayRequest, {}, result.changes });
-        updatePlaybackPhase(
-            access.m_playback, ImageViewport::PlaybackPhase::Stopped, result.changes);
+        updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
         result.changes.diagnostics = result.changes.diagnostics || diagnosticsChanged;
     };
 
@@ -211,21 +209,21 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
         target.frame = request.target.frame >= 0 ? request.target.frame : 0;
         target.position = position ? request.target.position : -1;
         if (playback && (!facts.timedMetadata || !provider.facts.timedPlaybackSupport)) {
-            rejectTarget({ ImageViewport::RequestStatus::Unsupported,
-                ImageViewport::RequestReason::UnsupportedRequest, -1, false, false, true });
+            rejectTarget({ ImageViewportRequestStatus::Unsupported,
+                ImageViewportRequestReason::UnsupportedRequest, -1, false, false, true });
             return result;
         }
         if (position) {
             if (!facts.timedMetadata || !provider.facts.positionSeekSupport) {
-                rejectTarget({ ImageViewport::RequestStatus::Unsupported,
-                    ImageViewport::RequestReason::UnsupportedRequest });
+                rejectTarget({ ImageViewportRequestStatus::Unsupported,
+                    ImageViewportRequestReason::UnsupportedRequest });
                 return result;
             }
             target.frame = facts.timingIntervals.frameIndexForPosition(request.target.position);
         }
         if (target.frame < 0 || target.frame >= frameCount) {
-            rejectTarget({ ImageViewport::RequestStatus::Unsupported,
-                ImageViewport::RequestReason::InvalidRequest, target.frame, true, position });
+            rejectTarget({ ImageViewportRequestStatus::Unsupported,
+                ImageViewportRequestReason::InvalidRequest, target.frame, true, position });
             return result;
         }
         const int resolvedPosition
@@ -261,8 +259,8 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
             target = request.target;
             if (target.providerTargetKind == ProviderRequestTargetKind::Playback) {
                 if (!facts.timedMetadata || !provider.facts.timedPlaybackSupport) {
-                    rejectTarget({ ImageViewport::RequestStatus::Unsupported,
-                        ImageViewport::RequestReason::UnsupportedRequest });
+                    rejectTarget({ ImageViewportRequestStatus::Unsupported,
+                        ImageViewportRequestReason::UnsupportedRequest });
                     return result;
                 }
                 target.frame = std::max(target.frame, 0);
@@ -276,8 +274,8 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
                     : -1;
             } else if (target.providerTargetKind == ProviderRequestTargetKind::Position) {
                 if (!facts.timedMetadata || !provider.facts.positionSeekSupport) {
-                    rejectTarget({ ImageViewport::RequestStatus::Unsupported,
-                        ImageViewport::RequestReason::UnsupportedRequest });
+                    rejectTarget({ ImageViewportRequestStatus::Unsupported,
+                        ImageViewportRequestReason::UnsupportedRequest });
                     return result;
                 }
                 target.frame = facts.timingIntervals.frameIndexForPosition(target.position);
@@ -285,8 +283,8 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
                 return result;
             }
             if (target.frame < 0 || target.frame >= frameCount) {
-                rejectTarget({ ImageViewport::RequestStatus::Unsupported,
-                    ImageViewport::RequestReason::InvalidRequest });
+                rejectTarget({ ImageViewportRequestStatus::Unsupported,
+                    ImageViewportRequestReason::InvalidRequest });
                 return result;
             }
         }

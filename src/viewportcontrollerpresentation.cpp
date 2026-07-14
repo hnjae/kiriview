@@ -7,9 +7,8 @@
 ViewportCommandResult ViewportController::setPresentation(
     const ViewportPresentationCommandInput& input)
 {
-    const ViewportEnginePresentationCommandResult engineResult
-        = engine.applyPresentationCommand(
-            { input.command, { itemBounds(), input.devicePixelRatio }, input.anchor });
+    const ViewportEnginePresentationCommandResult engineResult = engine.applyPresentationCommand(
+        { input.command, { itemBounds(), input.devicePixelRatio }, input.anchor });
     ViewportCommandResult result
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
     mergeChanges(result.transition.changes, engineResult.changes);
@@ -20,8 +19,7 @@ ViewportCommandResult ViewportController::setPresentation(
     return result;
 }
 
-ViewportCommandResult ViewportController::setSpreadDirection(
-    ImageViewport::SpreadDirection direction)
+ViewportCommandResult ViewportController::setSpreadDirection(ImageViewportSpreadDirection direction)
 {
     ImageViewportPresentationCommand command;
     command.setSpreadDirection(direction);
@@ -35,7 +33,7 @@ ViewportCommandResult ViewportController::setPageGap(double gap)
     return setPresentation({ command, {}, 1.0 });
 }
 
-ViewportCommandResult ViewportController::setFitMode(ImageViewport::FitMode mode, QPointF anchor)
+ViewportCommandResult ViewportController::setFitMode(ImageViewportFitMode mode, QPointF anchor)
 {
     ImageViewportPresentationCommand command;
     command.setFitMode(mode);
@@ -68,28 +66,14 @@ ViewportCommandResult ViewportController::panBy(QPointF delta)
 ViewportCommandResult ViewportController::panToStart()
 {
     ImageViewportPresentationCommand command;
-    command.setScanDirection(ImageViewport::ScanDirection::Start);
+    command.setContentAnchor(ImageViewportContentAnchor::Start);
     return setPresentation({ command, {}, 1.0 });
 }
 
 ViewportCommandResult ViewportController::panToEnd()
 {
     ImageViewportPresentationCommand command;
-    command.setScanDirection(ImageViewport::ScanDirection::End);
-    return setPresentation({ command, {}, 1.0 });
-}
-
-ViewportCommandResult ViewportController::scanNext()
-{
-    ImageViewportPresentationCommand command;
-    command.setScanDirection(ImageViewport::ScanDirection::Next);
-    return setPresentation({ command, {}, 1.0 });
-}
-
-ViewportCommandResult ViewportController::scanPrevious()
-{
-    ImageViewportPresentationCommand command;
-    command.setScanDirection(ImageViewport::ScanDirection::Previous);
+    command.setContentAnchor(ImageViewportContentAnchor::End);
     return setPresentation({ command, {}, 1.0 });
 }
 

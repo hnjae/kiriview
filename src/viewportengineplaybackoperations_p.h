@@ -1,8 +1,8 @@
 #pragma once
 
-#include "viewportenginestate_p.h"
-#include "viewportengineproviderrequesttokenoperations_p.h"
 #include "viewportengineproviderprojection_p.h"
+#include "viewportengineproviderrequesttokenoperations_p.h"
+#include "viewportenginestate_p.h"
 #include "viewportplaybackcontract_p.h"
 
 class ViewportEngineTestAccess;
@@ -27,7 +27,7 @@ class ViewportEngineAuthoredAutoplayAccess
     ViewportEngineAuthoredAutoplayAccess(const ImageViewportInternal::ImageSequenceSource& source,
         const ImageViewportInternal::ProviderFactsState& providerFacts,
         ImageViewportInternal::DisplayRequest& activeRequest,
-        ImageViewportInternal::PlaybackState& playback, ImageViewport::RequestStatus requestStatus)
+        ImageViewportInternal::PlaybackState& playback, ImageViewportRequestStatus requestStatus)
         : m_source(source)
         , m_providerFacts(providerFacts)
         , m_activeRequest(activeRequest)
@@ -49,14 +49,14 @@ public:
     }
     ImageViewportInternal::DisplayRequest& activeRequest() const { return m_activeRequest; }
     ImageViewportInternal::PlaybackState& playback() const { return m_playback; }
-    ImageViewport::RequestStatus requestStatus() const { return m_requestStatus; }
+    ImageViewportRequestStatus requestStatus() const { return m_requestStatus; }
 
 private:
     const ImageViewportInternal::ImageSequenceSource& m_source;
     const ImageViewportInternal::ProviderFactsState& m_providerFacts;
     ImageViewportInternal::DisplayRequest& m_activeRequest;
     ImageViewportInternal::PlaybackState& m_playback;
-    ImageViewport::RequestStatus m_requestStatus = ImageViewport::RequestStatus::NoRequest;
+    ImageViewportRequestStatus m_requestStatus = ImageViewportRequestStatus::NoRequest;
 };
 
 struct ViewportEnginePlaybackPauseInput
@@ -89,10 +89,9 @@ class ViewportEnginePlaybackStopAccess
 
     ViewportEnginePlaybackStopAccess(ImageViewportInternal::RequestState& request,
         ImageViewportInternal::PlaybackState& playback,
-        ImageViewportInternal::DisplayState& display,
-        std::array<ViewportEngineRoleState, 2>& roles,
-        const ImageViewportInternal::PresentationState& presentation,
-        quint64& nextRevision, quint64 presentationRevision, quint64 presentationTargetGeneration)
+        ImageViewportInternal::DisplayState& display, std::array<ViewportEngineRoleState, 2>& roles,
+        const ImageViewportInternal::PresentationState& presentation, quint64& nextRevision,
+        quint64 presentationRevision, quint64 presentationTargetGeneration)
         : m_request(request)
         , m_playback(playback)
         , m_display(display)
@@ -135,8 +134,8 @@ struct ViewportEnginePlaybackSeekInput
 
 struct ViewportEnginePlaybackSeekReduction
 {
-    ImageViewport::CommandOutcome outcome = ImageViewport::CommandOutcome::Accepted;
-    ImageViewport::CommandReason reason = ImageViewport::CommandReason::NoCommand;
+    ImageViewportCommandOutcome outcome = ImageViewportCommandOutcome::Accepted;
+    ImageViewportCommandReason reason = ImageViewportCommandReason::NoCommand;
     ImageViewportInternal::ViewportChangeSet changes;
     std::array<ViewportProviderFrameTransportEffect, 2> providerFrameTransport;
 };
@@ -149,10 +148,9 @@ class ViewportEnginePlaybackSeekAccess
 
     ViewportEnginePlaybackSeekAccess(ImageViewportInternal::RequestState& request,
         ImageViewportInternal::PlaybackState& playback,
-        ImageViewportInternal::DisplayState& display,
-        std::array<ViewportEngineRoleState, 2>& roles,
-        const ImageViewportInternal::PresentationState& presentation,
-        quint64& nextRevision, quint64 presentationRevision, quint64 presentationTargetGeneration)
+        ImageViewportInternal::DisplayState& display, std::array<ViewportEngineRoleState, 2>& roles,
+        const ImageViewportInternal::PresentationState& presentation, quint64& nextRevision,
+        quint64 presentationRevision, quint64 presentationTargetGeneration)
         : m_request(request)
         , m_playback(playback)
         , m_display(display)
@@ -193,8 +191,8 @@ struct ViewportEnginePlaybackPlayInput
 
 struct ViewportEnginePlaybackPlayReduction
 {
-    ImageViewport::CommandOutcome outcome = ImageViewport::CommandOutcome::Accepted;
-    ImageViewport::CommandReason reason = ImageViewport::CommandReason::NoCommand;
+    ImageViewportCommandOutcome outcome = ImageViewportCommandOutcome::Accepted;
+    ImageViewportCommandReason reason = ImageViewportCommandReason::NoCommand;
     ImageViewportInternal::ViewportChangeSet changes;
     std::array<ViewportProviderFrameTransportEffect, 2> providerFrameTransport;
 };
@@ -207,10 +205,9 @@ class ViewportEnginePlaybackPlayAccess
 
     ViewportEnginePlaybackPlayAccess(ImageViewportInternal::RequestState& request,
         ImageViewportInternal::PlaybackState& playback,
-        ImageViewportInternal::DisplayState& display,
-        std::array<ViewportEngineRoleState, 2>& roles,
-        const ImageViewportInternal::PresentationState& presentation,
-        quint64& nextRevision, quint64 presentationRevision, quint64 presentationTargetGeneration)
+        ImageViewportInternal::DisplayState& display, std::array<ViewportEngineRoleState, 2>& roles,
+        const ImageViewportInternal::PresentationState& presentation, quint64& nextRevision,
+        quint64 presentationRevision, quint64 presentationTargetGeneration)
         : m_request(request)
         , m_playback(playback)
         , m_display(display)
@@ -264,10 +261,9 @@ class ViewportEnginePlaybackTickAccess
 
     ViewportEnginePlaybackTickAccess(ImageViewportInternal::RequestState& request,
         ImageViewportInternal::PlaybackState& playback,
-        ImageViewportInternal::DisplayState& display,
-        std::array<ViewportEngineRoleState, 2>& roles,
-        const ImageViewportInternal::PresentationState& presentation,
-        quint64& nextRevision, quint64 presentationRevision, quint64 presentationTargetGeneration)
+        ImageViewportInternal::DisplayState& display, std::array<ViewportEngineRoleState, 2>& roles,
+        const ImageViewportInternal::PresentationState& presentation, quint64& nextRevision,
+        quint64 presentationRevision, quint64 presentationTargetGeneration)
         : m_request(request)
         , m_playback(playback)
         , m_display(display)

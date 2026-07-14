@@ -5,8 +5,8 @@
 struct ViewportEngineProviderTerminalProjectionInput
 {
     ImageViewportPageRole role = ImageViewportPageRole::Primary;
-    ImageViewport::RequestStatus status = ImageViewport::RequestStatus::Error;
-    ImageViewport::RequestReason reason = ImageViewport::RequestReason::ProviderFailure;
+    ImageViewportRequestStatus status = ImageViewportRequestStatus::Error;
+    ImageViewportRequestReason reason = ImageViewportRequestReason::ProviderFailure;
     ImageViewportInternal::FailureScope scope = ImageViewportInternal::FailureScope::None;
     QString diagnostic;
     ImageViewportInternal::ViewportChangeSet changes;

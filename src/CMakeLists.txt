@@ -8,7 +8,7 @@ qt_add_qml_module(
     URI
     ImageViewport
     VERSION
-    1.0
+    ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
     OUTPUT_DIRECTORY
     "${CMAKE_CURRENT_BINARY_DIR}/ImageViewport"
     SOURCES
@@ -33,7 +33,12 @@ qt_add_qml_module(
     imageviewportrenderhost_p.h
     imageviewportsnapshot.cpp
     imageviewport.cpp
-    imageviewport.h
+    ImageViewport/ImageViewport
+    ImageViewport/imageviewporttypes.h
+    ImageViewport/imagesequence.h
+    ImageViewport/imagesequenceprovider.h
+    ImageViewport/imageviewportstate.h
+    ImageViewport/imageviewport.h
     imageviewport_p.h
     imageviewportstate_p.h
     playbackclock_p.h
@@ -106,8 +111,8 @@ qt_add_qml_module(
 target_include_directories(
     ImageViewport
     PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
-           "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ImageViewport>" ${OPENGL_INCLUDE_DIR}
-    PRIVATE)
+           "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>" ${OPENGL_INCLUDE_DIR}
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/ImageViewport")
 
 target_link_libraries(ImageViewport PUBLIC OpenGL::GL Qt6::Qml Qt6::Quick)
 
@@ -121,26 +126,6 @@ target_compile_definitions(
 
 set_target_properties(ImageViewport PROPERTIES EXPORT_NAME ImageViewport)
 
-set(imageviewport_installed_public_include_dir
-    "${CMAKE_CURRENT_BINARY_DIR}/installed-public-include/ImageViewport")
-set(imageviewport_installed_public_header
-    "${imageviewport_installed_public_include_dir}/imageviewport.h")
-add_custom_command(
-    OUTPUT "${imageviewport_installed_public_header}"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${imageviewport_installed_public_include_dir}"
-    COMMAND
-        "${CMAKE_COMMAND}" "-DINPUT=${CMAKE_CURRENT_SOURCE_DIR}/imageviewport.h"
-        "-DOUTPUT=${imageviewport_installed_public_header}" -P
-        "${CMAKE_CURRENT_SOURCE_DIR}/generate_installed_public_header.cmake"
-    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/imageviewport.h"
-            "${CMAKE_CURRENT_SOURCE_DIR}/generate_installed_public_header.cmake"
-    COMMENT "Generating sanitized installed ImageViewport public header"
-    VERBATIM)
-add_custom_target(
-    ImageViewportInstalledPublicHeader ALL
-    DEPENDS "${imageviewport_installed_public_header}"
-    COMMENT "Preparing sanitized installed ImageViewport public header")
-
 install(
     TARGETS ImageViewport
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -149,8 +134,11 @@ install(
     INCLUDES
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ImageViewport)
 
-install(FILES "${imageviewport_installed_public_header}"
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ImageViewport)
+install(
+    FILES ImageViewport/ImageViewport ImageViewport/imageviewporttypes.h
+          ImageViewport/imagesequence.h ImageViewport/imagesequenceprovider.h
+          ImageViewport/imageviewportstate.h ImageViewport/imageviewport.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ImageViewport)
 
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/ImageViewport/qmldir
               ${CMAKE_CURRENT_BINARY_DIR}/ImageViewport/ImageViewport.qmltypes

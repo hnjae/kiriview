@@ -1,6 +1,6 @@
 #pragma once
 
-#include "imageviewport.h"
+#include <ImageViewport/ImageViewport>
 
 struct ViewportProviderEvent
 {
@@ -26,11 +26,10 @@ struct ViewportProviderEvent
     ImageSequenceProviderMetadata metadata;
     ImageFrame* imageFrame = nullptr;
     ImageSequenceProviderFrameHandle* frameHandle = nullptr;
-    ImageSequenceProviderFrameMetadata frameMetadata;
     ImageSequenceProviderFrameEnvelope frameEnvelope;
     double progress = 0.0;
-    ImageSequenceProviderSession::UnsupportedCause unsupportedCause
-        = ImageSequenceProviderSession::UnsupportedCause::PayloadRejection;
+    ImageSequenceProviderUnsupportedCause unsupportedCause
+        = ImageSequenceProviderUnsupportedCause::PayloadRejection;
     bool unsupportedCauseExplicit = false;
     QString diagnostic;
 };

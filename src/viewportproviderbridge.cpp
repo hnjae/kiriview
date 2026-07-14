@@ -155,28 +155,6 @@ ViewportProviderEvent providerEvent(ImageViewportPageRole role, quint64 sessionS
     return event;
 }
 
-ImageSequenceProviderSession::UnsupportedCause legacyUnsupportedCause(
-    ImageSequenceProviderUnsupportedCause cause)
-{
-    switch (cause) {
-    case ImageSequenceProviderUnsupportedCause::UnsupportedRequest:
-        return ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest;
-    case ImageSequenceProviderUnsupportedCause::PayloadRejection:
-        return ImageSequenceProviderSession::UnsupportedCause::PayloadRejection;
-    }
-    return static_cast<ImageSequenceProviderSession::UnsupportedCause>(static_cast<int>(cause));
-}
-
-ImageSequenceProviderFrameMetadata frameMetadataFor(
-    const ImageSequenceProviderFrameEnvelope& envelope)
-{
-    if (envelope.frameStartPosition() < 0) {
-        return ImageSequenceProviderFrameMetadata::stillFrame();
-    }
-    return ImageSequenceProviderFrameMetadata::timedFrame(
-        envelope.frame(), envelope.frameStartPosition(), envelope.frameDuration());
-}
-
 ViewportProviderEvent viewportProviderEventFromTyped(ImageViewportPageRole role,
     quint64 sessionSerial, quint64 generation, const ImageSequenceProviderEvent& typedEvent)
 {
@@ -197,7 +175,6 @@ ViewportProviderEvent viewportProviderEventFromTyped(ImageViewportPageRole role,
             ViewportProviderEvent event = providerEvent(role, sessionSerial, generation,
                 ViewportProviderEvent::Kind::FrameHandleWithMetadataReady, typedEvent.token());
             event.frameHandle = typedEvent.frameHandle();
-            event.frameMetadata = frameMetadataFor(typedEvent.frameEnvelope());
             event.frameEnvelope = typedEvent.frameEnvelope();
             return event;
         }
@@ -205,7 +182,7 @@ ViewportProviderEvent viewportProviderEventFromTyped(ImageViewportPageRole role,
             && typedEvent.token().isValid()) {
             ViewportProviderEvent event = providerEvent(role, sessionSerial, generation,
                 ViewportProviderEvent::Kind::Unsupported, typedEvent.token());
-            event.unsupportedCause = legacyUnsupportedCause(typedEvent.unsupportedCause());
+            event.unsupportedCause = typedEvent.unsupportedCause();
             event.unsupportedCauseExplicit = true;
             event.diagnostic = typedEvent.diagnostic();
             return event;
@@ -227,7 +204,6 @@ ViewportProviderEvent viewportProviderEventFromTyped(ImageViewportPageRole role,
         ViewportProviderEvent event = providerEvent(role, sessionSerial, generation,
             ViewportProviderEvent::Kind::FrameHandleWithMetadataReady, typedEvent.token());
         event.frameHandle = typedEvent.frameHandle();
-        event.frameMetadata = frameMetadataFor(typedEvent.frameEnvelope());
         event.frameEnvelope = typedEvent.frameEnvelope();
         return event;
     }
@@ -246,7 +222,7 @@ ViewportProviderEvent viewportProviderEventFromTyped(ImageViewportPageRole role,
     case ImageSequenceProviderEventKind::Unsupported: {
         ViewportProviderEvent event = providerEvent(role, sessionSerial, generation,
             ViewportProviderEvent::Kind::Unsupported, typedEvent.token());
-        event.unsupportedCause = legacyUnsupportedCause(typedEvent.unsupportedCause());
+        event.unsupportedCause = typedEvent.unsupportedCause();
         event.unsupportedCauseExplicit = true;
         event.diagnostic = typedEvent.diagnostic();
         return event;

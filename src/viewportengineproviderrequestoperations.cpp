@@ -10,7 +10,7 @@ using namespace ImageViewportInternal;
 DisplayRequest& requestForRole(RequestState& request, ImageViewportPageRole role)
 {
     return role == ImageViewportPageRole::Secondary ? request.roles[1].activeRequest
-                                                      : request.roles[0].activeRequest;
+                                                    : request.roles[0].activeRequest;
 }
 
 void clearQueue(ProviderRequestState& requests)
@@ -47,11 +47,11 @@ ViewportProviderFrameRequestStartResult startFrameRequest(RequestContext context
     } else {
         wait.primary.providerWaiting = true;
     }
-    context.request.status = ImageViewport::RequestStatus::Loading;
+    context.request.status = ImageViewportRequestStatus::Loading;
     context.request.reason = projectWaitReason(wait);
     context.display.status = context.display.roles[0].displayedImageSize.isValid()
-        ? ImageViewport::DisplayStatus::Retained
-        : ImageViewport::DisplayStatus::Empty;
+        ? ImageViewportDisplayStatus::Retained
+        : ImageViewportDisplayStatus::Empty;
 
     const auto allocation = allocate(role);
     result.closeSession = allocation.closeSession;
@@ -69,8 +69,7 @@ ViewportProviderFrameRequestStartResult startFrameRequest(RequestContext context
         secondary.target = target;
         secondary.resolvedFrame = { target.frame, position };
         secondary.providerFrameToken = {};
-        secondary.preparedPayloadId
-            = context.request.roles[0].activeRequest.preparedPayloadId;
+        secondary.preparedPayloadId = context.request.roles[0].activeRequest.preparedPayloadId;
         if (target.providerTargetKind != ProviderRequestTargetKind::Playback && target.frame >= 0) {
             context.request.roles[1].latestNonPlaybackRequest = secondary;
         }
@@ -89,33 +88,34 @@ ViewportProviderFrameRequestStartResult startFrameRequest(RequestContext context
 
 }
 
-#define DEFINE_REQUEST_ACCESS(Type)                                                         \
-    ViewportProviderRequestTokenAllocationResult Type::allocate(ImageViewportPageRole role) \
-    {                                                                                       \
-        return allocateViewportProviderRequestToken(                                        \
-            { role }, { m_roles, m_request, m_playback, m_display });                       \
-    }                                                                                       \
-    ImageSequenceProviderDisplayDemand Type::demand(                                        \
-        ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry)          \
-    {                                                                                       \
-        if (m_nextRevision == std::numeric_limits<quint64>::max()) {                         \
-            qFatal("ImageViewport revision token allocator exhausted");                    \
-        }                                                                                   \
-        auto& active = requestForRole(m_request, role);                                      \
-        active.demandRevision = ImageViewportInternal::RevisionTokenPrivateAccess::          \
-            demandFromValue(++m_nextRevision);                                               \
-        const quint64 revision = m_presentationRevision != 0                                 \
-            ? m_presentationRevision : m_presentationTargetGeneration;                      \
-        return projectViewportProviderDemand(                                                \
-            { role, geometry, active.demandRevision,                                         \
-                ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(  \
-                    m_request.requestRevision),                                              \
-                ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(  \
-                    revision),                                                               \
-                ImageViewportInternal::RevisionTokenPrivateAccess::generationFromValue(      \
-                    m_presentationTargetGeneration) },                                       \
-            { m_request, m_display,                                                          \
-                { m_roles[0].provider.facts, m_roles[1].provider.facts }, m_presentation }); \
+#define DEFINE_REQUEST_ACCESS(Type)                                                                \
+    ViewportProviderRequestTokenAllocationResult Type::allocate(ImageViewportPageRole role)        \
+    {                                                                                              \
+        return allocateViewportProviderRequestToken(                                               \
+            { role }, { m_roles, m_request, m_playback, m_display });                              \
+    }                                                                                              \
+    ImageSequenceProviderDisplayDemand Type::demand(                                               \
+        ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry)                   \
+    {                                                                                              \
+        if (m_nextRevision == std::numeric_limits<quint64>::max()) {                               \
+            qFatal("ImageViewport revision token allocator exhausted");                            \
+        }                                                                                          \
+        auto& active = requestForRole(m_request, role);                                            \
+        active.demandRevision                                                                      \
+            = ImageViewportInternal::RevisionTokenPrivateAccess::demandFromValue(                  \
+                ++m_nextRevision);                                                                 \
+        const quint64 revision = m_presentationRevision != 0 ? m_presentationRevision              \
+                                                             : m_presentationTargetGeneration;     \
+        return projectViewportProviderDemand(                                                      \
+            { role, geometry, active.demandRevision,                                               \
+                ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(        \
+                    m_request.requestRevision),                                                    \
+                ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(        \
+                    revision),                                                                     \
+                ImageViewportInternal::RevisionTokenPrivateAccess::generationFromValue(            \
+                    m_presentationTargetGeneration) },                                             \
+            { m_request, m_display, { m_roles[0].provider.facts, m_roles[1].provider.facts },      \
+                m_presentation });                                                                 \
     }
 
 DEFINE_REQUEST_ACCESS(ViewportEngineProviderSessionOpenedAccess)
@@ -125,7 +125,8 @@ DEFINE_REQUEST_ACCESS(ViewportEngineProviderFrameRequestAccess)
 #undef DEFINE_REQUEST_ACCESS
 
 ViewportProviderSessionOpenResult reduceViewportEngineProviderSessionOpened(
-    ViewportEngineProviderSessionOpenedInput input, ViewportEngineProviderSessionOpenedAccess access)
+    ViewportEngineProviderSessionOpenedInput input,
+    ViewportEngineProviderSessionOpenedAccess access)
 {
     ViewportProviderSessionOpenResult result;
     const auto& terminal = access.m_request.targetSpreadTerminal;
@@ -176,8 +177,8 @@ ViewportProviderFrameQueueFlushResult reduceViewportEngineProviderQueueFlush(
         && provider.session.sessionActive
         && queued.queuedFrameGeneration == access.m_request.sequenceGeneration
         && queued.queuedFrameRequestId == active.identity.id
-        && access.m_request.status == ImageViewport::RequestStatus::Loading
-        && access.m_request.reason == ImageViewport::RequestReason::RequestQueued
+        && access.m_request.status == ImageViewportRequestStatus::Loading
+        && access.m_request.reason == ImageViewportRequestReason::RequestQueued
         && active.target.frame == queued.queuedFrame
         && active.target.position == queued.queuedPosition
         && active.resolvedFrame.frame == queued.queuedResolvedFrame.frame
@@ -202,13 +203,14 @@ ViewportProviderFrameQueueFlushResult reduceViewportEngineProviderQueueFlush(
     result.providerFrameTransport.command = start.command;
     result.changes.requestState = true;
     result.changes.requestRevision = true;
-    result.changes.diagnostics = access.m_request.status == ImageViewport::RequestStatus::Error
-        && access.m_request.reason == ImageViewport::RequestReason::ProviderFailure;
+    result.changes.diagnostics = access.m_request.status == ImageViewportRequestStatus::Error
+        && access.m_request.reason == ImageViewportRequestReason::ProviderFailure;
     return result;
 }
 
 std::array<ViewportProviderFrameTransportEffect, 2> reduceViewportEngineProviderDemandRestage(
-    ViewportEngineProviderDemandRestageInput input, ViewportEngineProviderDemandRestageAccess access)
+    ViewportEngineProviderDemandRestageInput input,
+    ViewportEngineProviderDemandRestageAccess access)
 {
     std::array<ViewportProviderFrameTransportEffect, 2> effects;
     for (const auto role : { ImageViewportPageRole::Primary, ImageViewportPageRole::Secondary }) {
@@ -230,8 +232,7 @@ std::array<ViewportProviderFrameTransportEffect, 2> reduceViewportEngineProvider
             { access.m_request, access.m_display, access.m_roles }, role, request.target,
             input.geometry,
             [&access](ImageViewportPageRole selected) { return access.allocate(selected); },
-            [&access](ImageViewportPageRole selected,
-                const ViewportEngineGeometryInput& geometry) {
+            [&access](ImageViewportPageRole selected, const ViewportEngineGeometryInput& geometry) {
                 return access.demand(selected, geometry);
             });
         effects[index].closeSession = start.closeSession;
@@ -247,8 +248,7 @@ ViewportProviderFrameRequestStartResult startViewportEngineProviderFrameRequest(
 {
     return startFrameRequest(
         { access.m_request, access.m_display, access.m_roles }, input.role, input.target,
-        input.geometry,
-        [&access](ImageViewportPageRole role) { return access.allocate(role); },
+        input.geometry, [&access](ImageViewportPageRole role) { return access.allocate(role); },
         [&access](ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry) {
             return access.demand(role, geometry);
         });

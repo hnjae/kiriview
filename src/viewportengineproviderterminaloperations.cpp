@@ -6,13 +6,13 @@ using namespace ImageViewportInternal;
 TargetSpreadRoleTerminalState& terminalForRole(RequestState& request, ImageViewportPageRole role)
 {
     return role == ImageViewportPageRole::Secondary ? request.targetSpreadTerminal.secondary
-                                                      : request.targetSpreadTerminal.primary;
+                                                    : request.targetSpreadTerminal.primary;
 }
 
 bool roleRequired(const RequestState& request, ImageViewportPageRole role)
 {
     return role == ImageViewportPageRole::Primary ? request.roles[0].source.facts.present
-                                                    : request.roles[1].sequence;
+                                                  : request.roles[1].sequence;
 }
 
 const TargetSpreadRoleTerminalState* currentTerminal(
@@ -37,10 +37,10 @@ const TargetSpreadRoleTerminalState* projectedTerminal(const RequestState& reque
         return secondary;
     }
     if (!secondary || primary->status == secondary->status
-        || primary->status == ImageViewport::RequestStatus::Error) {
+        || primary->status == ImageViewportRequestStatus::Error) {
         return primary;
     }
-    return secondary->status == ImageViewport::RequestStatus::Error ? secondary : primary;
+    return secondary->status == ImageViewportRequestStatus::Error ? secondary : primary;
 }
 }
 

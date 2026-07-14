@@ -1,9 +1,9 @@
 #pragma once
 
-#include "imageviewport.h"
 #include "imageviewportstate_p.h"
 #include "timingintervals_p.h"
 #include "viewportcontrollerprovidercontract_p.h"
+#include <ImageViewport/ImageViewport>
 
 #include <optional>
 
@@ -32,8 +32,8 @@ struct ControllerTransitionPolicy
         = PresentationTargetTransitionPolicy::MirrorTransition::Preserve;
     PresentationTargetTransitionPolicy::ReplacementIntent replacementIntent
         = PresentationTargetTransitionPolicy::ReplacementIntent::NewTarget;
-    std::optional<ImageViewport::FitMode> explicitFitMode;
-    std::optional<ImageViewport::SpreadDirection> explicitSpreadDirection;
+    std::optional<ImageViewportFitMode> explicitFitMode;
+    std::optional<ImageViewportSpreadDirection> explicitSpreadDirection;
     std::optional<double> explicitPageGap;
 };
 

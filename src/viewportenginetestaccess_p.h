@@ -66,7 +66,7 @@ public:
             engine.m_state->playbackState.playback, engine.m_state->requestState.request.status);
         return reduceViewportEngineAuthoredAutoplay({}, std::move(access));
     }
-    static ImageViewport::CommandReason& commandReason(ViewportEngine& engine)
+    static ImageViewportCommandReason& commandReason(ViewportEngine& engine)
     {
         return engine.m_state->commandState.reason;
     }

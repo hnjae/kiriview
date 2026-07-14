@@ -64,7 +64,7 @@ QRectF primaryPageRectForState(const PresentationGeometry::State& state)
         return {};
     }
     if (!isPositiveSize(state.secondaryImageSize)
-        || state.spreadDirection == ImageViewport::SpreadDirection::LeftToRight) {
+        || state.spreadDirection == ImageViewportSpreadDirection::LeftToRight) {
         return QRectF(QPointF(0.0, 0.0), state.primaryImageSize);
     }
 
@@ -77,7 +77,7 @@ QRectF secondaryPageRectForState(const PresentationGeometry::State& state)
     if (!isPositiveSize(state.primaryImageSize) || !isPositiveSize(state.secondaryImageSize)) {
         return {};
     }
-    if (state.spreadDirection == ImageViewport::SpreadDirection::RightToLeft) {
+    if (state.spreadDirection == ImageViewportSpreadDirection::RightToLeft) {
         return QRectF(QPointF(0.0, 0.0), state.secondaryImageSize);
     }
 
@@ -221,15 +221,15 @@ QSizeF placedContentSizeForReadyState(const PresentationGeometry::State& state)
     }
 
     const QSizeF fittingSize = rotatedSize(spreadSize, state.rotationDegrees);
-    if (state.fitMode == ImageViewport::FitMode::FitWidth) {
+    if (state.fitMode == ImageViewportFitMode::FitWidth) {
         const double scale = state.itemBounds.width() / fittingSize.width();
         return fittingSize * scale;
     }
-    if (state.fitMode == ImageViewport::FitMode::FitHeight) {
+    if (state.fitMode == ImageViewportFitMode::FitHeight) {
         const double scale = state.itemBounds.height() / fittingSize.height();
         return fittingSize * scale;
     }
-    if (state.fitMode == ImageViewport::FitMode::Manual) {
+    if (state.fitMode == ImageViewportFitMode::Manual) {
         const double devicePixelRatio = state.devicePixelRatio > 0.0 ? state.devicePixelRatio : 1.0;
         return fittingSize * (state.manualZoom / devicePixelRatio);
     }
@@ -287,8 +287,8 @@ QPointF contentPositionForState(const PresentationGeometry::State& state)
         return {};
     }
 
-    return clampedPoint(state.contentPosition, {},
-        maximumContentPositionForPlacedSize(state, placedSize));
+    return clampedPoint(
+        state.contentPosition, {}, maximumContentPositionForPlacedSize(state, placedSize));
 }
 
 QPointF contentPositionForAnchoredSpreadPointForState(
@@ -307,8 +307,8 @@ QPointF contentPositionForAnchoredSpreadPointForState(
         itemPoint.x() - orientedPoint.x() / fittingSize.width() * placedSize.width(),
         itemPoint.y() - orientedPoint.y() / fittingSize.height() * placedSize.height());
     const QPointF maximum = maximumContentPositionForPlacedSize(state, placedSize);
-    return clampedPoint(QPointF(maximum.x() == 0.0 ? 0.0 : -topLeft.x(),
-                            maximum.y() == 0.0 ? 0.0 : -topLeft.y()),
+    return clampedPoint(
+        QPointF(maximum.x() == 0.0 ? 0.0 : -topLeft.x(), maximum.y() == 0.0 ? 0.0 : -topLeft.y()),
         {}, maximum);
 }
 
@@ -363,8 +363,7 @@ QRectF visibleSpreadRectForState(const PresentationGeometry::State& state)
     return orientedRectToSpreadRect(state, QRectF(orientedTopLeft, orientedBottomRight));
 }
 
-QRectF visiblePageRectForState(
-    const PresentationGeometry::State& state, ImageViewportPageRole role)
+QRectF visiblePageRectForState(const PresentationGeometry::State& state, ImageViewportPageRole role)
 {
     const QRectF pageRect = pageRectForRole(state, role);
     const QRectF visibleSpreadRect = visibleSpreadRectForState(state);

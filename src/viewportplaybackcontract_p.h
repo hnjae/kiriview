@@ -1,6 +1,6 @@
 #pragma once
 
-#include "imageviewport.h"
+#include <ImageViewport/ImageViewport>
 
 struct ViewportPlaybackCommand
 {

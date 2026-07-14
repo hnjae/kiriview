@@ -37,42 +37,17 @@ foreach(required_qml_file IN ITEMS qmldir ImageViewport.qmltypes libImageViewpor
     endif()
 endforeach()
 
-if(NOT EXISTS "${prefix}/include/ImageViewport/imageviewport.h")
-    message(
-        FATAL_ERROR
-            "Installed ImageViewport package did not include the public imageviewport.h header")
-endif()
-file(READ "${prefix}/include/ImageViewport/imageviewport.h" installed_public_header)
-if(installed_public_header MATCHES "ViewportProviderBridge")
-    message(
-        FATAL_ERROR "Installed ImageViewport public header exposed internal provider bridge type")
-endif()
-foreach(
-    forbidden_header_token
-    IN
-    ITEMS
-        IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-        ForTest
-        ImageViewportInternal
-        ImageSequenceData
-        ImageSequencePrivateAccess
-        ImageFramePrivateAccess
-        FramePreparation
-        QSGNode
-        ViewportController
-        RenderAdapter
-        QSGTexture
-        QRhi
-        TimingModel
-        m_provider
-        m_timingIntervals
-        m_frameImages
-        [=[friend class ImageViewportPrivate]=])
-    if(installed_public_header MATCHES "${forbidden_header_token}")
-        message(
-            FATAL_ERROR
-                "Installed ImageViewport public header exposed forbidden token ${forbidden_header_token}"
-        )
+foreach(public_header IN ITEMS ImageViewport imageviewporttypes.h imagesequence.h
+                               imagesequenceprovider.h imageviewportstate.h imageviewport.h)
+    set(source_header "${IMAGEVIEWPORT_SOURCE_DIR}/src/ImageViewport/${public_header}")
+    set(installed_header "${prefix}/include/ImageViewport/${public_header}")
+    if(NOT EXISTS "${installed_header}")
+        message(FATAL_ERROR "Installed ImageViewport package is missing ${public_header}")
+    endif()
+    file(SHA256 "${source_header}" source_header_hash)
+    file(SHA256 "${installed_header}" installed_header_hash)
+    if(NOT source_header_hash STREQUAL installed_header_hash)
+        message(FATAL_ERROR "Installed ${public_header} differs from its canonical source header")
     endif()
 endforeach()
 file(GLOB installed_private_headers "${prefix}/include/ImageViewport/*_p.h")

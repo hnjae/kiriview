@@ -4,24 +4,29 @@ include(CMakeFindDependencyMacro)
 find_dependency(OpenGL)
 find_dependency(Qt6 COMPONENTS Qml Quick)
 
-if(NOT TARGET ImageViewport::ImageViewport)
-    add_library(ImageViewport::ImageViewport STATIC IMPORTED)
+if(NOT TARGET ImageViewport::_Core)
+    add_library(ImageViewport::_Core STATIC IMPORTED)
     set_target_properties(
-        ImageViewport::ImageViewport
+        ImageViewport::_Core
         PROPERTIES
             IMPORTED_LOCATION
             "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@/@CMAKE_STATIC_LIBRARY_PREFIX@ImageViewport@CMAKE_STATIC_LIBRARY_SUFFIX@"
-            INTERFACE_INCLUDE_DIRECTORIES
-            "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_INCLUDEDIR@/ImageViewport"
+            INTERFACE_INCLUDE_DIRECTORIES "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_INCLUDEDIR@"
             INTERFACE_LINK_LIBRARIES "OpenGL::GL;Qt6::Qml;Qt6::Quick")
 endif()
 
-if(NOT TARGET ImageViewport::ImageViewportplugin)
-    add_library(ImageViewport::ImageViewportplugin STATIC IMPORTED)
+if(NOT TARGET ImageViewport::_QmlPlugin)
+    add_library(ImageViewport::_QmlPlugin STATIC IMPORTED)
     set_target_properties(
-        ImageViewport::ImageViewportplugin
+        ImageViewport::_QmlPlugin
         PROPERTIES
             IMPORTED_LOCATION
             "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@/qml/ImageViewport/@CMAKE_STATIC_LIBRARY_PREFIX@ImageViewportplugin@CMAKE_STATIC_LIBRARY_SUFFIX@"
-            INTERFACE_LINK_LIBRARIES "ImageViewport::ImageViewport;Qt6::Qml;Qt6::Quick")
+            INTERFACE_LINK_LIBRARIES "ImageViewport::_Core;Qt6::Qml;Qt6::Quick")
+endif()
+
+if(NOT TARGET ImageViewport::ImageViewport)
+    add_library(ImageViewport::ImageViewport INTERFACE IMPORTED)
+    set_property(TARGET ImageViewport::ImageViewport
+                 PROPERTY INTERFACE_LINK_LIBRARIES "ImageViewport::_Core;ImageViewport::_QmlPlugin")
 endif()

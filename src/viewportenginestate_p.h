@@ -1,6 +1,7 @@
 #pragma once
 
 #include "imageviewportstate_p.h"
+#include "imageviewporttoken_p.h"
 #include "viewportenginecontracts_p.h"
 #include "viewportrendercontract_p.h"
 
@@ -73,7 +74,7 @@ struct ViewportEngineRevisionState
 
 struct ViewportEngineCommandState
 {
-    ImageViewport::CommandReason reason = ImageViewport::CommandReason::NoCommand;
+    ImageViewportCommandReason reason = ImageViewportCommandReason::NoCommand;
     RevisionToken revision;
     quint64 publishedRevision = 0;
 };

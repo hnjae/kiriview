@@ -21,8 +21,8 @@ public:
         };
 
         Cause cause = Cause::Accepted;
-        ImageViewport::RequestStatus status = ImageViewport::RequestStatus::Ready;
-        ImageViewport::RequestReason reason = ImageViewport::RequestReason::Ready;
+        ImageViewportRequestStatus status = ImageViewportRequestStatus::Ready;
+        ImageViewportRequestReason reason = ImageViewportRequestReason::Ready;
         QString diagnostic;
         bool timedMetadata = false;
         QSizeF logicalSize;
@@ -85,8 +85,8 @@ public:
         };
 
         Cause cause = Cause::Accepted;
-        ImageViewport::RequestStatus status = ImageViewport::RequestStatus::Ready;
-        ImageViewport::RequestReason reason = ImageViewport::RequestReason::Ready;
+        ImageViewportRequestStatus status = ImageViewportRequestStatus::Ready;
+        ImageViewportRequestReason reason = ImageViewportRequestReason::Ready;
         QString diagnostic;
         ImageViewportInternal::PreparedPayload preparedPayload;
 
@@ -101,8 +101,8 @@ public:
         };
 
         Cause cause = Cause::Accepted;
-        ImageViewport::RequestStatus status = ImageViewport::RequestStatus::Ready;
-        ImageViewport::RequestReason reason = ImageViewport::RequestReason::Ready;
+        ImageViewportRequestStatus status = ImageViewportRequestStatus::Ready;
+        ImageViewportRequestReason reason = ImageViewportRequestReason::Ready;
         QString diagnostic;
         ImageViewportInternal::PreparedPayload preparedPayload;
 
@@ -114,7 +114,6 @@ public:
     static ProviderKnownFactsAdmissionResult admitProviderKnownFacts(
         const ImageViewportInternal::ImageSequenceProviderKnownFacts& facts);
     static ProviderFrameAdmissionResult admitProviderFrame(ImageFrame* frame,
-        ImageSequenceProviderFrameMetadata metadata,
         const ImageSequenceProviderFrameEnvelope& envelope, const ProviderFrameState& state);
     static BuiltInFrameAdmissionResult admitBuiltInFrame(
         const ImageViewportInternal::ImageSequenceSource& source, int frame,

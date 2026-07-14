@@ -26,8 +26,7 @@ QRectF unrotatedTargetRect(const QRectF& targetRect, int rotationDegrees)
     }
     const QSizeF unrotatedSize(targetRect.height(), targetRect.width());
     return QRectF(targetRect.center().x() - unrotatedSize.width() / 2.0,
-        targetRect.center().y() - unrotatedSize.height() / 2.0,
-        unrotatedSize.width(),
+        targetRect.center().y() - unrotatedSize.height() / 2.0, unrotatedSize.width(),
         unrotatedSize.height());
 }
 
@@ -42,8 +41,8 @@ QMatrix4x4 rotationTransform(const QRectF& targetRect, int rotationDegrees)
 
 }
 
-QSGTexture* RenderAdapterSceneGraph::Factory::createTexture(QQuickWindow* window,
-    const QImage& image, QQuickWindow::CreateTextureOptions options) const
+QSGTexture* RenderAdapterSceneGraph::Factory::createTexture(
+    QQuickWindow* window, const QImage& image, QQuickWindow::CreateTextureOptions options) const
 {
     return window ? window->createTextureFromImage(image, options) : nullptr;
 }
@@ -67,9 +66,8 @@ RenderAdapter::RenderPlan RenderAdapter::createPlan(const Input& input) const
     QVector<Input::ImageLayer> imageLayers = input.imageLayers;
     if (imageLayers.isEmpty() && !input.preparedPayload.image.isNull()) {
         imageLayers.append({ ImageViewportPageRole::Primary, input.preparedPayload,
-            input.targetRect, input.sourceRect,
-            input.rotationDegrees,
-            input.mirrorHorizontally, input.mirrorVertically });
+            input.targetRect, input.sourceRect, input.rotationDegrees, input.mirrorHorizontally,
+            input.mirrorVertically });
     }
     const auto firstPayloadIdentity = [&]() {
         if (imageLayers.isEmpty()) {
@@ -83,11 +81,11 @@ RenderAdapter::RenderPlan RenderAdapter::createPlan(const Input& input) const
         };
     };
 
-    if (input.backgroundMode == ImageViewport::BackgroundMode::SolidColor) {
+    if (input.backgroundMode == ImageViewportBackgroundMode::SolidColor) {
         plan.backgroundRects.append(
             { QRectF(0.0, 0.0, input.itemSize.width(), input.itemSize.height()),
                 input.backgroundColor });
-    } else if (input.backgroundMode == ImageViewport::BackgroundMode::Checkerboard) {
+    } else if (input.backgroundMode == ImageViewportBackgroundMode::Checkerboard) {
         constexpr double checkerboardTileSize = 8.0;
         const QColor lightSquare(238, 238, 238);
         const QColor darkSquare(204, 204, 204);
@@ -137,9 +135,9 @@ RenderAdapter::RenderPlan RenderAdapter::createPlan(const Input& input) const
             layer.sourceRect.y() * devicePixelRatio, layer.sourceRect.width() * devicePixelRatio,
             layer.sourceRect.height() * devicePixelRatio);
         plan.imageLayers.append({ layer.role, payload, payloadIdentity, layer.targetRect,
-            unrotatedTargetRect(layer.targetRect, layer.rotationDegrees),
-            layer.sourceRect, physicalSourceRect, normalizedRotation(layer.rotationDegrees),
-            layer.mirrorHorizontally, layer.mirrorVertically });
+            unrotatedTargetRect(layer.targetRect, layer.rotationDegrees), layer.sourceRect,
+            physicalSourceRect, normalizedRotation(layer.rotationDegrees), layer.mirrorHorizontally,
+            layer.mirrorVertically });
     }
 
     plan.result = CommitResult::Committed;
@@ -175,14 +173,12 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
     if (!input.window) {
         delete root;
         return { oldNode, RenderAdapter::CommitResult::Failed, plan.preparedPayload,
-            plan.rolePayloads, ImageViewportPageRole::Primary,
-            RenderFailureCause::MissingWindow };
+            plan.rolePayloads, ImageViewportPageRole::Primary, RenderFailureCause::MissingWindow };
     }
 
     const Factory defaultSceneGraphFactory;
-    const Factory& sceneGraphFactory = input.sceneGraphFactory
-        ? *input.sceneGraphFactory
-        : defaultSceneGraphFactory;
+    const Factory& sceneGraphFactory
+        = input.sceneGraphFactory ? *input.sceneGraphFactory : defaultSceneGraphFactory;
     QVector<RenderAdapter::RolePayload> rolePayloads;
     rolePayloads.reserve(plan.imageLayers.size());
     for (const RenderAdapter::RenderPlan::ImageLayer& layer : plan.imageLayers) {

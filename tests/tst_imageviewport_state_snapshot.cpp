@@ -29,17 +29,17 @@ void ImageViewportStateSnapshotTest::defaultSnapshotValuesAndCopySemantics()
     ImageViewport item;
     const ImageViewportStateSnapshot snapshot = item.state();
 
-    QCOMPARE(snapshot.request().status(), ImageViewport::RequestStatus::NoRequest);
-    QCOMPARE(snapshot.request().reason(), ImageViewport::RequestReason::NoRequest);
-    QCOMPARE(snapshot.request().playbackPhase(), ImageViewport::PlaybackPhase::Stopped);
+    QCOMPARE(snapshot.request().status(), ImageViewportRequestStatus::NoRequest);
+    QCOMPARE(snapshot.request().reason(), ImageViewportRequestReason::NoRequest);
+    QCOMPARE(snapshot.request().playbackPhase(), ImageViewportPlaybackPhase::Stopped);
     QVERIFY(!snapshot.request().acceptedPresentationTargetGeneration().isValid());
     QCOMPARE(snapshot.request().acceptedRoleSet(), ImageViewportRoleSet(false, false));
     QCOMPARE(snapshot.request().targetRoleSet(), ImageViewportRoleSet(false, false));
     QVERIFY(!snapshot.request().activeRole().isValid());
     QVERIFY(!snapshot.request().playbackRole().isValid());
 
-    QCOMPARE(snapshot.display().status(), ImageViewport::DisplayStatus::Empty);
-    QCOMPARE(snapshot.display().phase(), ImageViewport::DisplayPhase::NoPresentation);
+    QCOMPARE(snapshot.display().status(), ImageViewportDisplayStatus::Empty);
+    QCOMPARE(snapshot.display().phase(), ImageViewportDisplayPhase::NoPresentation);
     QVERIFY(!snapshot.display().displayedPresentationTargetGeneration().isValid());
     QCOMPARE(snapshot.display().displayedRoleSet(), ImageViewportRoleSet(false, false));
     QCOMPARE(snapshot.display().targetRoleSet(), ImageViewportRoleSet(false, false));
@@ -48,15 +48,14 @@ void ImageViewportStateSnapshotTest::defaultSnapshotValuesAndCopySemantics()
     QVERIFY(!snapshot.display().displayedPresentationRevision().isValid());
     QVERIFY(!snapshot.display().targetPresentationRevision().isValid());
 
-    QCOMPARE(snapshot.presentation().fitMode(), ImageViewport::FitMode::Contain);
+    QCOMPARE(snapshot.presentation().fitMode(), ImageViewportFitMode::Contain);
     QCOMPARE(snapshot.presentation().zoomPercent(), 100.0);
     QVERIFY(snapshot.presentation().minimumManualZoomPercent() > 0.0);
     QCOMPARE(snapshot.presentation().maximumManualZoomPercent(),
         ImageViewportDisplayLimits::maximumManualZoomPercent());
     QCOMPARE(snapshot.presentation().manualZoomStepFactor(), 1.25);
     QCOMPARE(snapshot.presentation().rotationDegrees(), 0);
-    QCOMPARE(
-        snapshot.presentation().spreadDirection(), ImageViewport::SpreadDirection::LeftToRight);
+    QCOMPARE(snapshot.presentation().spreadDirection(), ImageViewportSpreadDirection::LeftToRight);
     QCOMPARE(snapshot.presentation().pageGap(), 0.0);
     QCOMPARE(snapshot.presentation().qualityPreference(), ImageViewportQualityPreference::Default);
     QCOMPARE(
@@ -73,7 +72,7 @@ void ImageViewportStateSnapshotTest::defaultSnapshotValuesAndCopySemantics()
 
     QCOMPARE(snapshot.diagnostics().errorString(), QString());
     QCOMPARE(snapshot.diagnostics().warningString(), QString());
-    QCOMPARE(snapshot.diagnostics().commandReason(), ImageViewport::CommandReason::NoCommand);
+    QCOMPARE(snapshot.diagnostics().commandReason(), ImageViewportCommandReason::NoCommand);
     QVERIFY(!snapshot.revisions().request().isValid());
     QVERIFY(!snapshot.revisions().display().isValid());
     QVERIFY(!snapshot.revisions().presentation().isValid());
@@ -102,21 +101,21 @@ void ImageViewportStateSnapshotTest::readyStillSnapshotMatchesFlatProperties()
     QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
                      PresentationTargetTransitionPolicy {})
                  .outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+        ImageViewportCommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
     QVERIFY(stateSpy.count() >= 1);
 
     const ImageViewportStateSnapshot snapshot = item.state();
-    QCOMPARE(snapshot.request().status(), ImageViewport::RequestStatus::Ready);
-    QCOMPARE(snapshot.request().reason(), ImageViewport::RequestReason::Ready);
+    QCOMPARE(snapshot.request().status(), ImageViewportRequestStatus::Ready);
+    QCOMPARE(snapshot.request().reason(), ImageViewportRequestReason::Ready);
     QCOMPARE(snapshot.request().acceptedRoleSet(), ImageViewportRoleSet(true, false));
     QCOMPARE(snapshot.request().targetRoleSet(), ImageViewportRoleSet(true, false));
     QVERIFY(snapshot.request().acceptedPresentationTargetGeneration().isValid());
     QCOMPARE(snapshot.request().activeRole().value<ImageViewportPageRole>(),
         ImageViewportPageRole::Primary);
 
-    QCOMPARE(snapshot.display().status(), ImageViewport::DisplayStatus::Ready);
-    QCOMPARE(snapshot.display().phase(), ImageViewport::DisplayPhase::CommittedActive);
+    QCOMPARE(snapshot.display().status(), ImageViewportDisplayStatus::Ready);
+    QCOMPARE(snapshot.display().phase(), ImageViewportDisplayPhase::CommittedActive);
     QCOMPARE(snapshot.display().displayedRoleSet(), ImageViewportRoleSet(true, false));
     QCOMPARE(snapshot.display().belongsToAcceptedPresentationTarget(), true);
     QCOMPARE(snapshot.display().retained(), false);
@@ -190,25 +189,25 @@ void ImageViewportStateSnapshotTest::loadingReplacementRetainsPreviousDisplaySep
         PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const ImageViewportStateSnapshot readySnapshot = item.state();
-    QCOMPARE(readySnapshot.display().status(), ImageViewport::DisplayStatus::Ready);
+    QCOMPARE(readySnapshot.display().status(), ImageViewportDisplayStatus::Ready);
 
     QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(loadingResult->sequence()),
                      PresentationTargetTransitionPolicy {})
                  .outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+        ImageViewportCommandOutcome::Accepted);
 
     const ImageViewportStateSnapshot snapshot = item.state();
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
-    QCOMPARE(snapshot.request().status(), ImageViewport::RequestStatus::Loading);
-    QCOMPARE(snapshot.request().reason(), ImageViewport::RequestReason::ProviderWaiting);
+    QCOMPARE(snapshot.request().status(), ImageViewportRequestStatus::Loading);
+    QCOMPARE(snapshot.request().reason(), ImageViewportRequestReason::ProviderWaiting);
     QCOMPARE(snapshot.request().acceptedRoleSet(), ImageViewportRoleSet(true, false));
     QVERIFY(snapshot.request().acceptedPresentationTargetGeneration().isValid());
     QVERIFY(snapshot.request().acceptedPresentationTargetGeneration()
         != readySnapshot.request().acceptedPresentationTargetGeneration());
-    QCOMPARE(snapshot.display().status(), ImageViewport::DisplayStatus::Retained);
-    QCOMPARE(snapshot.display().phase(), ImageViewport::DisplayPhase::PreviousActive);
+    QCOMPARE(snapshot.display().status(), ImageViewportDisplayStatus::Retained);
+    QCOMPARE(snapshot.display().phase(), ImageViewportDisplayPhase::PreviousActive);
     QCOMPARE(snapshot.display().retained(), true);
     QCOMPARE(snapshot.display().belongsToAcceptedPresentationTarget(), false);
     QCOMPARE(snapshot.display().displayedRoleSet(), ImageViewportRoleSet(true, false));
@@ -245,7 +244,7 @@ void ImageViewportStateSnapshotTest::retainedDisplayKeepsCommittedPresentationId
     acknowledgePendingRenderCommitForTest(item);
     ImageViewportPresentationCommand rotation;
     rotation.setRotationDegrees(90);
-    QCOMPARE(item.setPresentation(rotation).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setPresentation(rotation).outcome(), ImageViewportCommandOutcome::Accepted);
     const ImageViewportStateSnapshot committed = item.state();
 
     PresentationTargetTransitionPolicy policy;
@@ -253,7 +252,7 @@ void ImageViewportStateSnapshotTest::retainedDisplayKeepsCommittedPresentationId
     item.setPresentationTarget(ImageViewportPresentationTarget(second->sequence()), policy);
     const ImageViewportStateSnapshot retained = item.state();
 
-    QCOMPARE(retained.display().status(), ImageViewport::DisplayStatus::Retained);
+    QCOMPARE(retained.display().status(), ImageViewportDisplayStatus::Retained);
     QVERIFY(
         retained.display().displayedPresentationRevision() != retained.revisions().presentation());
     QCOMPARE(retained.primary().geometry().displayedItemRect(),
@@ -311,9 +310,9 @@ void ImageViewportStateSnapshotTest::terminalProviderFailureProjectsDiagnostics(
     drainQueuedProviderResults();
 
     const ImageViewportStateSnapshot snapshot = item.state();
-    QCOMPARE(snapshot.request().status(), ImageViewport::RequestStatus::Error);
-    QCOMPARE(snapshot.request().reason(), ImageViewport::RequestReason::ProviderFailure);
-    QCOMPARE(snapshot.display().status(), ImageViewport::DisplayStatus::Empty);
+    QCOMPARE(snapshot.request().status(), ImageViewportRequestStatus::Error);
+    QCOMPARE(snapshot.request().reason(), ImageViewportRequestReason::ProviderFailure);
+    QCOMPARE(snapshot.display().status(), ImageViewportDisplayStatus::Empty);
     QCOMPARE(snapshot.primary().request().frame(), -1);
     QCOMPARE(snapshot.diagnostics().errorString().contains(QStringLiteral("metadata unavailable")),
         true);
@@ -345,34 +344,34 @@ void ImageViewportStateSnapshotTest::timedPlaybackSnapshotTracksRequestState()
     acknowledgePendingRenderCommitForTest(item);
 
     ImageViewportStateSnapshot snapshot = item.state();
-    QCOMPARE(snapshot.request().status(), ImageViewport::RequestStatus::Ready);
-    QCOMPARE(snapshot.request().playbackPhase(), ImageViewport::PlaybackPhase::Stopped);
+    QCOMPARE(snapshot.request().status(), ImageViewportRequestStatus::Ready);
+    QCOMPARE(snapshot.request().playbackPhase(), ImageViewportPlaybackPhase::Stopped);
     QVERIFY(!snapshot.request().playbackRole().isValid());
     QCOMPARE(snapshot.primary().request().frame(), 0);
     QCOMPARE(snapshot.primary().request().position(), 0);
 
-    QCOMPARE(item.play(ImageViewportPageRole::Primary).outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        item.play(ImageViewportPageRole::Primary).outcome(), ImageViewportCommandOutcome::Accepted);
     snapshot = item.state();
-    QCOMPARE(snapshot.request().playbackPhase(), ImageViewport::PlaybackPhase::Playing);
+    QCOMPARE(snapshot.request().playbackPhase(), ImageViewportPlaybackPhase::Playing);
     QCOMPARE(snapshot.request().playbackRole().value<ImageViewportPageRole>(),
         ImageViewportPageRole::Primary);
     QCOMPARE(snapshot.primary().request().frame(), 0);
     QCOMPARE(snapshot.primary().request().position(), 0);
 
     QCOMPARE(item.pause(ImageViewportPageRole::Primary).outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+        ImageViewportCommandOutcome::Accepted);
     snapshot = item.state();
-    QCOMPARE(snapshot.request().playbackPhase(), ImageViewport::PlaybackPhase::Paused);
+    QCOMPARE(snapshot.request().playbackPhase(), ImageViewportPlaybackPhase::Paused);
     QCOMPARE(snapshot.request().playbackRole().value<ImageViewportPageRole>(),
         ImageViewportPageRole::Primary);
 
-    QCOMPARE(item.stop(ImageViewportPageRole::Primary).outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        item.stop(ImageViewportPageRole::Primary).outcome(), ImageViewportCommandOutcome::Accepted);
     snapshot = item.state();
-    QCOMPARE(snapshot.request().playbackPhase(), ImageViewport::PlaybackPhase::Stopped);
+    QCOMPARE(snapshot.request().playbackPhase(), ImageViewportPlaybackPhase::Stopped);
     QVERIFY(!snapshot.request().playbackRole().isValid());
-    QCOMPARE(snapshot.request().status(), ImageViewport::RequestStatus::Ready);
+    QCOMPARE(snapshot.request().status(), ImageViewportRequestStatus::Ready);
 }
 
 void ImageViewportStateSnapshotTest::presentationOnlyChangesUpdateSnapshot()
@@ -384,7 +383,7 @@ void ImageViewportStateSnapshotTest::presentationOnlyChangesUpdateSnapshot()
     ImageViewportPresentationCommand smoothingCommand;
     smoothingCommand.setSmoothing(!before.presentation().smoothing());
     QCOMPARE(
-        item.setPresentation(smoothingCommand).outcome(), ImageViewport::CommandOutcome::Accepted);
+        item.setPresentation(smoothingCommand).outcome(), ImageViewportCommandOutcome::Accepted);
     const ImageViewportStateSnapshot after = item.state();
 
     QCOMPARE(stateSpy.count(), 1);
@@ -396,7 +395,7 @@ void ImageViewportStateSnapshotTest::presentationOnlyChangesUpdateSnapshot()
     smoothingCommand = {};
     smoothingCommand.setSmoothing(after.presentation().smoothing());
     QCOMPARE(
-        item.setPresentation(smoothingCommand).outcome(), ImageViewport::CommandOutcome::Accepted);
+        item.setPresentation(smoothingCommand).outcome(), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(stateSpy.count(), 1);
 }
 
@@ -419,16 +418,16 @@ void ImageViewportStateSnapshotTest::presentationCommandUpdatesSnapshotGeometry(
     command.setManualZoomPercent(200.0);
     command.setPanDelta(QPointF(4.0, 2.0));
 
-    QCOMPARE(item.setPresentation(command).outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Invalid);
 
     command = {};
     command.setManualZoomPercent(200.0);
     command.setQualityPreference(ImageViewportQualityPreference::BalancedDetail);
     command.setExactnessPreference(ImageViewportExactnessPreference::PreferExact);
-    QCOMPARE(item.setPresentation(command).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
 
     const ImageViewportStateSnapshot snapshot = item.state();
-    QCOMPARE(snapshot.presentation().fitMode(), ImageViewport::FitMode::Manual);
+    QCOMPARE(snapshot.presentation().fitMode(), ImageViewportFitMode::Manual);
     QCOMPARE(snapshot.presentation().zoomPercent(), 200.0);
     QCOMPARE(snapshot.presentation().qualityPreference(),
         ImageViewportQualityPreference::BalancedDetail);

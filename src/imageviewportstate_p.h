@@ -1,9 +1,9 @@
 #pragma once
 
 #include "imagesequencesource_p.h"
-#include "imageviewport.h"
 #include "renderfailurecause_p.h"
 #include "timingintervals_p.h"
+#include <ImageViewport/ImageViewport>
 
 #include <QtCore/QPointer>
 #include <QtCore/QVector>
@@ -100,8 +100,8 @@ enum class FailureScope {
 struct TargetSpreadRoleTerminalState
 {
     bool terminal = false;
-    ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
-    ImageViewport::RequestReason reason = ImageViewport::RequestReason::NoRequest;
+    ImageViewportRequestStatus status = ImageViewportRequestStatus::NoRequest;
+    ImageViewportRequestReason reason = ImageViewportRequestReason::NoRequest;
     FailureScope failureScope = FailureScope::None;
     QString diagnostic;
 };
@@ -139,7 +139,7 @@ struct TargetSpreadWaitState
     bool requiresSecondary = false;
 };
 
-inline ImageViewport::RequestReason projectWaitReason(TargetSpreadWaitState waitState)
+inline ImageViewportRequestReason projectWaitReason(TargetSpreadWaitState waitState)
 {
     const auto anyRequired = [&waitState](auto member) {
         return waitState.primary.*member
@@ -147,18 +147,18 @@ inline ImageViewport::RequestReason projectWaitReason(TargetSpreadWaitState wait
     };
 
     if (anyRequired(&TargetSpreadRoleWaitState::providerWaiting)) {
-        return ImageViewport::RequestReason::ProviderWaiting;
+        return ImageViewportRequestReason::ProviderWaiting;
     }
     if (anyRequired(&TargetSpreadRoleWaitState::requestQueued)) {
-        return ImageViewport::RequestReason::RequestQueued;
+        return ImageViewportRequestReason::RequestQueued;
     }
     if (anyRequired(&TargetSpreadRoleWaitState::uploadPending)) {
-        return ImageViewport::RequestReason::UploadPending;
+        return ImageViewportRequestReason::UploadPending;
     }
     if (anyRequired(&TargetSpreadRoleWaitState::renderWaiting)) {
-        return ImageViewport::RequestReason::RenderWaiting;
+        return ImageViewportRequestReason::RenderWaiting;
     }
-    return ImageViewport::RequestReason::NoRequest;
+    return ImageViewportRequestReason::NoRequest;
 }
 
 struct DisplayRequestIdentity
@@ -226,9 +226,9 @@ struct PreparedPayload
 
 struct PresentationState
 {
-    ImageViewport::FitMode fitMode = ImageViewport::FitMode::Contain;
-    ImageViewport::SpreadDirection spreadDirection = ImageViewport::SpreadDirection::LeftToRight;
-    ImageViewport::BackgroundMode backgroundMode = ImageViewport::BackgroundMode::Transparent;
+    ImageViewportFitMode fitMode = ImageViewportFitMode::Contain;
+    ImageViewportSpreadDirection spreadDirection = ImageViewportSpreadDirection::LeftToRight;
+    ImageViewportBackgroundMode backgroundMode = ImageViewportBackgroundMode::Transparent;
     ImageViewportQualityPreference qualityPreference = ImageViewportQualityPreference::Default;
     ImageViewportExactnessPreference exactnessPreference
         = ImageViewportExactnessPreference::Default;
@@ -334,8 +334,8 @@ struct DisplayState
     bool hasReadyDisplay(bool hasDisplayableSequence) const
     {
         return hasDisplayableSequence
-            && (status == ImageViewport::DisplayStatus::Ready
-                || status == ImageViewport::DisplayStatus::Retained)
+            && (status == ImageViewportDisplayStatus::Ready
+                || status == ImageViewportDisplayStatus::Retained)
             && roles[0].displayedImageSize.isValid() && roles[0].displayedImageSize.width() > 0.0
             && roles[0].displayedImageSize.height() > 0.0;
     }
@@ -367,7 +367,7 @@ struct DisplayState
         }
     }
 
-    ImageViewport::DisplayStatus status = ImageViewport::DisplayStatus::Empty;
+    ImageViewportDisplayStatus status = ImageViewportDisplayStatus::Empty;
     std::array<RoleState, 2> roles;
     quint64 nextPreparedPayloadId = 0;
     PresentationState displayedPresentation;
@@ -384,7 +384,7 @@ struct PlaybackState
         loopIterationsCompleted = 0;
     }
 
-    ImageViewport::PlaybackPhase phase = ImageViewport::PlaybackPhase::Stopped;
+    ImageViewportPlaybackPhase phase = ImageViewportPlaybackPhase::Stopped;
     bool looping = false;
     bool stopWhenRequestReady = false;
     bool providerStartPending = false;
@@ -479,8 +479,8 @@ struct RequestState
     }
 
     std::array<RoleState, 2> roles;
-    ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
-    ImageViewport::RequestReason reason = ImageViewport::RequestReason::NoRequest;
+    ImageViewportRequestStatus status = ImageViewportRequestStatus::NoRequest;
+    ImageViewportRequestReason reason = ImageViewportRequestReason::NoRequest;
     quint64 sequenceGeneration = 0;
     quint64 nextRequestId = 0;
     TargetSpreadTerminalState targetSpreadTerminal;

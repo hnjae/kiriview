@@ -27,18 +27,18 @@ ImageViewportPresentationTargetGenerationToken generation(quint64 value)
     return RevisionTokenPrivateAccess::generationFromValue(value);
 }
 
-ImageViewport::DisplayPhase displayPhase(
-    ImageViewport::DisplayStatus display, ImageViewport::RequestStatus request)
+ImageViewportDisplayPhase displayPhase(
+    ImageViewportDisplayStatus display, ImageViewportRequestStatus request)
 {
-    if (display == ImageViewport::DisplayStatus::Ready) {
-        return ImageViewport::DisplayPhase::CommittedActive;
+    if (display == ImageViewportDisplayStatus::Ready) {
+        return ImageViewportDisplayPhase::CommittedActive;
     }
-    if (display == ImageViewport::DisplayStatus::Retained) {
-        return ImageViewport::DisplayPhase::PreviousActive;
+    if (display == ImageViewportDisplayStatus::Retained) {
+        return ImageViewportDisplayPhase::PreviousActive;
     }
-    return request == ImageViewport::RequestStatus::NoRequest
-        ? ImageViewport::DisplayPhase::NoPresentation
-        : ImageViewport::DisplayPhase::TransitioningPlaceholder;
+    return request == ImageViewportRequestStatus::NoRequest
+        ? ImageViewportDisplayPhase::NoPresentation
+        : ImageViewportDisplayPhase::TransitioningPlaceholder;
 }
 
 quint64 mix(quint64 seed, quint64 value)
@@ -65,33 +65,33 @@ quint64 snapshotRevision(const RequestState& request, const DisplayState& displa
 const ImageSequenceSource& sourceForRole(const RequestState& request, ImageViewportPageRole role)
 {
     return role == ImageViewportPageRole::Primary ? request.roles[0].source
-                                                    : request.roles[1].source;
+                                                  : request.roles[1].source;
 }
 
 const DisplayRequest& requestForRole(const RequestState& request, ImageViewportPageRole role)
 {
     return role == ImageViewportPageRole::Primary ? request.roles[0].activeRequest
-                                                    : request.roles[1].activeRequest;
+                                                  : request.roles[1].activeRequest;
 }
 
 const DisplayRequestSnapshot& displayedRequestForRole(
     const DisplayState& display, ImageViewportPageRole role)
 {
     return role == ImageViewportPageRole::Primary ? display.roles[0].displayedRequest
-                                                    : display.roles[1].displayedRequest;
+                                                  : display.roles[1].displayedRequest;
 }
 
 QSizeF displayedSizeForRole(const DisplayState& display, ImageViewportPageRole role)
 {
     return role == ImageViewportPageRole::Primary ? display.roles[0].displayedImageSize
-                                                    : display.roles[1].displayedImageSize;
+                                                  : display.roles[1].displayedImageSize;
 }
 
 const PreparedPayload& displayedPayloadForRole(
     const DisplayState& display, ImageViewportPageRole role)
 {
     return role == ImageViewportPageRole::Primary ? display.roles[0].displayedPayload
-                                                    : display.roles[1].displayedPayload;
+                                                  : display.roles[1].displayedPayload;
 }
 
 struct Metadata
@@ -166,8 +166,7 @@ Metadata metadataFor(const RequestState& request, const ProviderFactsState& prim
     if (result.frameCount > 0 && result.frameSeek == ImageViewportCapabilitySupport::True) {
         result.frameBounds = ImageViewportRange(0, result.frameCount - 1);
     }
-    if (result.totalDuration >= 0
-        && result.positionSeek == ImageViewportCapabilitySupport::True) {
+    if (result.totalDuration >= 0 && result.positionSeek == ImageViewportCapabilitySupport::True) {
         result.positionBounds = ImageViewportRange(0, result.totalDuration);
     }
     return result;
@@ -209,9 +208,9 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
         ? access.presentationTarget().generation
         : access.request().sequenceGeneration;
     const auto acceptedGeneration = generation(primaryPresent ? acceptedGenerationValue : 0);
-    const bool primaryDisplayed = access.display().status != ImageViewport::DisplayStatus::Empty
+    const bool primaryDisplayed = access.display().status != ImageViewportDisplayStatus::Empty
         && positive(access.display().roles[0].displayedImageSize);
-    const bool secondaryDisplayed = access.display().status != ImageViewport::DisplayStatus::Empty
+    const bool secondaryDisplayed = access.display().status != ImageViewportDisplayStatus::Empty
         && positive(access.display().roles[1].displayedImageSize);
     const ImageViewportRoleSet displayedRoles(primaryDisplayed, secondaryDisplayed);
     const quint64 displayedGenerationValue
@@ -222,7 +221,7 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
         = projectViewportGeometryState(input.acceptedGeometry, access.presentation());
     const PresentationGeometry::State displayedGeometry
         = projectViewportGeometryState(input.displayedGeometry,
-            access.display().status == ImageViewport::DisplayStatus::Retained
+            access.display().status == ImageViewportDisplayStatus::Retained
                 ? access.display().displayedPresentation
                 : access.presentation());
     const quint64 presentationRevisionValue = access.presentationRevision() != 0
@@ -241,7 +240,7 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
         activeRole = QVariant::fromValue(ImageViewportPageRole::Primary);
     }
     QVariant playbackRole;
-    if (access.playback().phase != ImageViewport::PlaybackPhase::Stopped && primaryPresent) {
+    if (access.playback().phase != ImageViewportPlaybackPhase::Stopped && primaryPresent) {
         playbackRole = QVariant::fromValue(access.playback().role);
     }
 
@@ -252,7 +251,7 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
     const ImageViewportDisplaySnapshot displaySnapshot(access.display().status,
         displayPhase(access.display().status, access.request().status),
         generation(displayedGenerationValue), displayedRoles, targetRoles, displayAccepted,
-        access.display().status == ImageViewport::DisplayStatus::Retained,
+        access.display().status == ImageViewportDisplayStatus::Retained,
         revision(primaryDisplayed ? (access.display().displayedPresentationRevision != 0
                                             ? access.display().displayedPresentationRevision
                                             : access.display().revision)
@@ -282,7 +281,7 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
         const auto& displayedRequest = displayedRequestForRole(access.display(), role);
         const QSizeF displayedSize = displayedSizeForRole(access.display(), role);
         const bool present = source.facts.present;
-        const bool displayed = access.display().status != ImageViewport::DisplayStatus::Empty
+        const bool displayed = access.display().status != ImageViewportDisplayStatus::Empty
             && positive(displayedSize);
         const bool belongs = displayed && displayedRequest.generation == acceptedGenerationValue;
         const Metadata metadata = metadataFor(access.request(),
@@ -320,8 +319,7 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
             = source.facts.provider && providerFor(access.providerFacts(), role).metadataReady
             ? providerFor(access.providerFacts(), role).authoredAnimationFacts
             : source.facts.authoredAnimationFacts;
-        const int loopCount
-            = animation.loopMode() == ImageSequenceAuthoredAnimationLoopMode::Finite
+        const int loopCount = animation.loopMode() == ImageSequenceAuthoredAnimationLoopMode::Finite
             ? animation.loopCount()
             : -1;
         return ImageViewportRoleSnapshot(present, source.sequence,
@@ -330,7 +328,7 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
                 role, active.target.frame, active.target.position, logicalSize,
                 active.demandRevision),
             ImageViewportRoleDisplaySnapshot(belongs,
-                displayed && access.display().status == ImageViewport::DisplayStatus::Retained,
+                displayed && access.display().status == ImageViewportDisplayStatus::Retained,
                 displayed ? displayedRequest.request.resolvedFrame.frame : -1,
                 displayed ? displayedRequest.request.resolvedFrame.position : -1,
                 displayed ? displayedSize : QSizeF(), displayed ? payloadRaster : QSizeF(),

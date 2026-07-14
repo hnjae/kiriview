@@ -145,10 +145,10 @@ bool ImageSequenceAuthoredAnimationFacts::isValid() const
     return false;
 }
 
-std::unique_ptr<ImageSequenceData> ImageSequenceData::still(
+std::unique_ptr<ImageSequence::Data> ImageSequence::Data::still(
     QSizeF logicalSize, QImage stillImage, FramePayloadFacts payloadFacts)
 {
-    auto data = std::make_unique<ImageSequenceData>();
+    auto data = std::make_unique<ImageSequence::Data>();
     data->kind = Kind::Still;
     data->logicalSize = logicalSize;
     data->stillImage = std::move(stillImage);
@@ -156,11 +156,11 @@ std::unique_ptr<ImageSequenceData> ImageSequenceData::still(
     return data;
 }
 
-std::unique_ptr<ImageSequenceData> ImageSequenceData::timedList(QSizeF logicalSize,
+std::unique_ptr<ImageSequence::Data> ImageSequence::Data::timedList(QSizeF logicalSize,
     const QVector<int>& frameDurations, QVector<QImage> frameImages,
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts)
 {
-    auto data = std::make_unique<ImageSequenceData>();
+    auto data = std::make_unique<ImageSequence::Data>();
     data->kind = Kind::TimedList;
     data->logicalSize = logicalSize;
     data->timingIntervals
@@ -170,7 +170,7 @@ std::unique_ptr<ImageSequenceData> ImageSequenceData::timedList(QSizeF logicalSi
     return data;
 }
 
-std::unique_ptr<ImageSequenceData> ImageSequenceData::provider(
+std::unique_ptr<ImageSequence::Data> ImageSequence::Data::provider(
     std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,
     ImageSequenceProviderKnownFacts providerKnownFacts,
     ImageSequenceProviderCapabilitySupport timedPlaybackCapability,
@@ -179,7 +179,7 @@ std::unique_ptr<ImageSequenceData> ImageSequenceData::provider(
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts,
     ImageSequenceProviderThreadingContract providerThreadingContract)
 {
-    auto data = std::make_unique<ImageSequenceData>();
+    auto data = std::make_unique<ImageSequence::Data>();
     data->kind = Kind::Provider;
     data->authoredAnimationFacts = authoredAnimationFacts;
     data->providerSessionFactory = std::move(providerSessionFactory);
@@ -199,7 +199,7 @@ std::unique_ptr<ImageSequenceData> ImageSequenceData::provider(
     return data;
 }
 
-ImageSequence::ImageSequence(std::unique_ptr<ImageSequenceData> data, QObject* parent)
+ImageSequence::ImageSequence(std::unique_ptr<ImageSequence::Data> data, QObject* parent)
     : QObject(parent)
     , d(std::move(data))
 {
@@ -211,7 +211,7 @@ std::shared_ptr<ImageSequence> ImageSequencePrivateAccess::createStill(
     QSizeF logicalSize, QImage stillImage, FramePayloadFacts payloadFacts)
 {
     std::shared_ptr<ImageSequence> sequence(new ImageSequence(
-        ImageSequenceData::still(logicalSize, std::move(stillImage), payloadFacts)));
+        ImageSequence::Data::still(logicalSize, std::move(stillImage), payloadFacts)));
     sequence->d->owner = sequence;
     return sequence;
 }
@@ -220,7 +220,7 @@ std::shared_ptr<ImageSequence> ImageSequencePrivateAccess::createTimedList(QSize
     const QVector<int>& frameDurations, QVector<QImage> frameImages,
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts)
 {
-    std::shared_ptr<ImageSequence> sequence(new ImageSequence(ImageSequenceData::timedList(
+    std::shared_ptr<ImageSequence> sequence(new ImageSequence(ImageSequence::Data::timedList(
         logicalSize, frameDurations, std::move(frameImages), authoredAnimationFacts)));
     sequence->d->owner = sequence;
     return sequence;
@@ -236,7 +236,7 @@ std::shared_ptr<ImageSequence> ImageSequencePrivateAccess::createProvider(
     ImageSequenceProviderThreadingContract providerThreadingContract)
 {
     std::shared_ptr<ImageSequence> sequence(
-        new ImageSequence(ImageSequenceData::provider(std::move(providerSessionFactory),
+        new ImageSequence(ImageSequence::Data::provider(std::move(providerSessionFactory),
             std::move(providerKnownFacts), timedPlaybackCapability, frameSeekCapability,
             positionSeekCapability, authoredAnimationFacts, providerThreadingContract)));
     sequence->d->owner = sequence;
@@ -252,25 +252,26 @@ bool ImageSequencePrivateAccess::isValid(const ImageSequence* sequence)
         return sequence->d->providerSessionFactory != nullptr;
     }
 
-    return sequence->d->kind != ImageSequenceData::Kind::None && sequence->d->logicalSize.isValid()
-        && sequence->d->logicalSize.width() > 0.0 && sequence->d->logicalSize.height() > 0.0
+    return sequence->d->kind != ImageSequence::Data::Kind::None
+        && sequence->d->logicalSize.isValid() && sequence->d->logicalSize.width() > 0.0
+        && sequence->d->logicalSize.height() > 0.0
         && (isStill(sequence)
             || (sequence->d->timingIntervals && sequence->d->timingIntervals->isValid()));
 }
 
 bool ImageSequencePrivateAccess::isStill(const ImageSequence* sequence)
 {
-    return sequence && sequence->d && sequence->d->kind == ImageSequenceData::Kind::Still;
+    return sequence && sequence->d && sequence->d->kind == ImageSequence::Data::Kind::Still;
 }
 
 bool ImageSequencePrivateAccess::isTimedList(const ImageSequence* sequence)
 {
-    return sequence && sequence->d && sequence->d->kind == ImageSequenceData::Kind::TimedList;
+    return sequence && sequence->d && sequence->d->kind == ImageSequence::Data::Kind::TimedList;
 }
 
 bool ImageSequencePrivateAccess::isProvider(const ImageSequence* sequence)
 {
-    return sequence && sequence->d && sequence->d->kind == ImageSequenceData::Kind::Provider;
+    return sequence && sequence->d && sequence->d->kind == ImageSequence::Data::Kind::Provider;
 }
 
 QSizeF ImageSequencePrivateAccess::logicalSize(const ImageSequence* sequence)

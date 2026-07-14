@@ -1,8 +1,8 @@
 #pragma once
 
 #include "imagesequence_p.h"
-#include "imageviewport.h"
 #include "timingintervals_p.h"
+#include <ImageViewport/ImageViewport>
 
 #include <QtGui/QImage>
 

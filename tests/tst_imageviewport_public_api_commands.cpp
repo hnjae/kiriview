@@ -37,30 +37,29 @@ private slots:
     void invalidPresentationCommandsPreserveDiagnostics();
 };
 
-static ImageViewport::CommandOutcome setSpreadDirectionCommand(
-    ImageViewport& item, ImageViewport::SpreadDirection direction)
+static ImageViewportCommandOutcome setSpreadDirectionCommand(
+    ImageViewport& item, ImageViewportSpreadDirection direction)
 {
     ImageViewportPresentationCommand command;
     command.setSpreadDirection(direction);
     return item.setPresentation(command).outcome();
 }
 
-static ImageViewport::CommandOutcome setPageGapCommand(ImageViewport& item, double gap)
+static ImageViewportCommandOutcome setPageGapCommand(ImageViewport& item, double gap)
 {
     ImageViewportPresentationCommand command;
     command.setPageGap(gap);
     return item.setPresentation(command).outcome();
 }
 
-static ImageViewport::CommandOutcome setManualZoomPercentCommand(
-    ImageViewport& item, double percent)
+static ImageViewportCommandOutcome setManualZoomPercentCommand(ImageViewport& item, double percent)
 {
     ImageViewportPresentationCommand command;
     command.setManualZoomPercent(percent);
     return item.setPresentation(command).outcome();
 }
 
-static ImageViewport::CommandOutcome setQualityTogglesCommand(
+static ImageViewportCommandOutcome setQualityTogglesCommand(
     ImageViewport& item, bool smoothing, bool mipmap)
 {
     ImageViewportPresentationCommand command;
@@ -69,8 +68,8 @@ static ImageViewport::CommandOutcome setQualityTogglesCommand(
     return item.setPresentation(command).outcome();
 }
 
-static ImageViewport::CommandOutcome setBackgroundCommand(
-    ImageViewport& item, ImageViewport::BackgroundMode mode, QColor color)
+static ImageViewportCommandOutcome setBackgroundCommand(
+    ImageViewport& item, ImageViewportBackgroundMode mode, QColor color)
 {
     ImageViewportPresentationCommand command;
     command.setBackgroundMode(mode);
@@ -78,7 +77,7 @@ static ImageViewport::CommandOutcome setBackgroundCommand(
     return item.setPresentation(command).outcome();
 }
 
-static ImageViewport::CommandOutcome setLoopingCommand(ImageViewport& item, bool looping)
+static ImageViewportCommandOutcome setLoopingCommand(ImageViewport& item, bool looping)
 {
     ImageViewportPresentationCommand command;
     command.setLooping(looping);
@@ -105,11 +104,14 @@ void ImageViewportPublicApiCommandsTest::removedSequencePropertyWritesAreRejecte
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
-    const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
-    const ImageViewportRevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
+    const ImageViewportRevisionToken requestRevision
+        = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken displayRevision
+        = revisionTokenProperty(item, "displayRevision");
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
 
     const QList<QVariant> unsupportedValues = {
@@ -123,12 +125,9 @@ void ImageViewportPublicApiCommandsTest::removedSequencePropertyWritesAreRejecte
     for (const QVariant& value : unsupportedValues) {
         QCOMPARE(item.setProperty("sequence", value), false);
         QCOMPARE(viewportPrimarySequence(item), result->sequence());
-        QCOMPARE(requestStatusValue(item),
-            enumValue(metaObject, "RequestStatus", "Ready"));
-        QCOMPARE(requestReasonValue(item),
-            enumValue(metaObject, "RequestReason", "Ready"));
-        QCOMPARE(displayStatusValue(item),
-            enumValue(metaObject, "DisplayStatus", "Ready"));
+        QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
+        QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
+        QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
         QCOMPARE(primaryRequestedFrame(item), 0);
         QCOMPARE(primaryDisplayedFrame(item), 0);
         QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
@@ -152,23 +151,21 @@ void ImageViewportPublicApiCommandsTest::presentationTargetAssignmentPreservesCo
     item.setSize(QSizeF(100.0, 100.0));
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.play(ImageViewportPageRole::Primary).outcome(), ImageViewport::CommandOutcome::IgnoredNoRequest);
-    QCOMPARE(commandReasonValue(item),
-        enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
-    const ImageViewportRevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
+    QCOMPARE(item.play(ImageViewportPageRole::Primary).outcome(),
+        ImageViewportCommandOutcome::IgnoredNoRequest);
+    QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
+    const ImageViewportRevisionToken commandRevision
+        = revisionTokenProperty(item, "commandRevision");
 
-    item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(viewportPrimarySequence(item), result->sequence());
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
-    QCOMPARE(
-        requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
-    QCOMPARE(commandReasonValue(item),
-        enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
     QCOMPARE(revisionTokenProperty(item, "commandRevision"), commandRevision);
 }
 
@@ -184,37 +181,37 @@ void ImageViewportPublicApiCommandsTest::commandResultsExposeSnapshotRevisionsAn
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
 
-    auto verifyResult = [&](const ImageViewportCommandResult& commandResult,
-                            ImageViewport::CommandOutcome outcome,
-                            ImageViewport::CommandReason reason) {
-        const ImageViewportStateSnapshot snapshot = item.state();
-        QCOMPARE(commandResult.outcome(), outcome);
-        QCOMPARE(commandResult.reason(), reason);
-        QCOMPARE(commandResult.reason(), snapshot.diagnostics().commandReason());
-        QCOMPARE(commandResult.commandRevision(), snapshot.revisions().command());
-        QCOMPARE(commandResult.snapshotRevision(), snapshot.revisions().snapshot());
-    };
+    auto verifyResult
+        = [&](const ImageViewportCommandResult& commandResult, ImageViewportCommandOutcome outcome,
+              ImageViewportCommandReason reason) {
+              const ImageViewportStateSnapshot snapshot = item.state();
+              QCOMPARE(commandResult.outcome(), outcome);
+              QCOMPARE(commandResult.reason(), reason);
+              QCOMPARE(commandResult.reason(), snapshot.diagnostics().commandReason());
+              QCOMPARE(commandResult.commandRevision(), snapshot.revisions().command());
+              QCOMPARE(commandResult.snapshotRevision(), snapshot.revisions().snapshot());
+          };
 
     const ImageViewportCommandResult ignoredResult = item.play(ImageViewportPageRole::Primary);
-    verifyResult(ignoredResult, ImageViewport::CommandOutcome::IgnoredNoRequest,
-        ImageViewport::CommandReason::IgnoredNoRequest);
+    verifyResult(ignoredResult, ImageViewportCommandOutcome::IgnoredNoRequest,
+        ImageViewportCommandReason::IgnoredNoRequest);
     QVERIFY(ignoredResult.commandRevision().isValid());
     QVERIFY(ignoredResult.snapshotRevision().isValid());
 
     const ImageViewportRevisionToken ignoredCommandRevision = ignoredResult.commandRevision();
     const ImageViewportCommandResult acceptedResult = item.setPresentationTarget(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
-    verifyResult(acceptedResult, ImageViewport::CommandOutcome::Accepted,
-        ImageViewport::CommandReason::IgnoredNoRequest);
+    verifyResult(acceptedResult, ImageViewportCommandOutcome::Accepted,
+        ImageViewportCommandReason::IgnoredNoRequest);
     QCOMPARE(acceptedResult.commandRevision(), ignoredCommandRevision);
     QVERIFY(acceptedResult.snapshotRevision().isValid());
 
     ImageViewportPresentationTarget invalidPresentationTarget;
     invalidPresentationTarget.setSecondary(result->sequence());
-    const ImageViewportCommandResult invalidResult
-        = item.setPresentationTarget(invalidPresentationTarget, PresentationTargetTransitionPolicy {});
-    verifyResult(invalidResult, ImageViewport::CommandOutcome::Invalid,
-        ImageViewport::CommandReason::InvalidRequest);
+    const ImageViewportCommandResult invalidResult = item.setPresentationTarget(
+        invalidPresentationTarget, PresentationTargetTransitionPolicy {});
+    verifyResult(invalidResult, ImageViewportCommandOutcome::Invalid,
+        ImageViewportCommandReason::InvalidRequest);
     QVERIFY(invalidResult.commandRevision().isValid());
     QVERIFY(invalidResult.commandRevision() != acceptedResult.commandRevision());
     QVERIFY(invalidResult.snapshotRevision().isValid());
@@ -238,17 +235,17 @@ void ImageViewportPublicApiCommandsTest::setPresentationTargetAcceptsPrimaryAndS
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     ImageSequence* secondaryObservedDuringStateSignal = nullptr;
-    connect(&item, &ImageViewport::stateChanged, &item, [&] {
-        secondaryObservedDuringStateSignal = viewportSecondarySequence(item);
-    });
+    connect(&item, &ImageViewport::stateChanged, &item,
+        [&] { secondaryObservedDuringStateSignal = viewportSecondarySequence(item); });
 
-    const auto outcome = item.setPresentationTarget(ImageViewportPresentationTarget(primaryResult->sequence(), secondaryResult->sequence()), PresentationTargetTransitionPolicy {});
+    const auto outcome = item.setPresentationTarget(
+        ImageViewportPresentationTarget(primaryResult->sequence(), secondaryResult->sequence()),
+        PresentationTargetTransitionPolicy {});
 
-    QCOMPARE(outcome.outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(outcome.outcome(), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(viewportPrimarySequence(item), primaryResult->sequence());
     QCOMPARE(viewportPrimarySequence(item), primaryResult->sequence());
-    QCOMPARE(
-        viewportSecondarySequence(item), secondaryResult->sequence());
+    QCOMPARE(viewportSecondarySequence(item), secondaryResult->sequence());
     QCOMPARE(secondaryObservedDuringStateSignal, secondaryResult->sequence());
     QCOMPARE(primaryFrameCount(item), 1);
     QCOMPARE(secondaryFrameCount(item), 1);
@@ -259,7 +256,8 @@ void ImageViewportPublicApiCommandsTest::setPresentationTargetAcceptsPrimaryAndS
     QCOMPARE(secondaryTimedPlaybackSupport(item), ImageViewportCapabilitySupport::False);
 }
 
-void ImageViewportPublicApiCommandsTest::cppTypedPresentationTargetOverloadsCompileAndReplaceSpread()
+void ImageViewportPublicApiCommandsTest::
+    cppTypedPresentationTargetOverloadsCompileAndReplaceSpread()
 {
     ImageSequenceFactory factory;
     QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -284,12 +282,11 @@ void ImageViewportPublicApiCommandsTest::cppTypedPresentationTargetOverloadsComp
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
 
-    const auto spreadOutcome
-        = item.setPresentationTarget(
-            ImageViewportPresentationTarget(primaryResult->sequence(), secondaryResult->sequence()),
-            PresentationTargetTransitionPolicy {});
+    const auto spreadOutcome = item.setPresentationTarget(
+        ImageViewportPresentationTarget(primaryResult->sequence(), secondaryResult->sequence()),
+        PresentationTargetTransitionPolicy {});
 
-    QCOMPARE(spreadOutcome.outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(spreadOutcome.outcome(), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(viewportPrimarySequence(item), primaryResult->sequence());
     QCOMPARE(viewportPrimarySequence(item), primaryResult->sequence());
     QCOMPARE(viewportSecondarySequence(item), secondaryResult->sequence());
@@ -299,10 +296,10 @@ void ImageViewportPublicApiCommandsTest::cppTypedPresentationTargetOverloadsComp
     policy.setPageGapTransition(PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit);
     policy.setPageGap(4.0);
 
-    const auto replacementOutcome
-        = item.setPresentationTarget(ImageViewportPresentationTarget(replacementResult->sequence()), policy);
+    const auto replacementOutcome = item.setPresentationTarget(
+        ImageViewportPresentationTarget(replacementResult->sequence()), policy);
 
-    QCOMPARE(replacementOutcome.outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(replacementOutcome.outcome(), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(viewportPrimarySequence(item), replacementResult->sequence());
     QCOMPARE(viewportPrimarySequence(item), replacementResult->sequence());
     QCOMPARE(viewportSecondarySequence(item), nullptr);
@@ -337,7 +334,8 @@ void ImageViewportPublicApiCommandsTest::canonicalPresentationTargetValueDefault
     QCOMPARE(primaryOnly.primary(), primaryResult->sequence());
     QCOMPARE(primaryOnly.secondary(), nullptr);
 
-    const ImageViewportPresentationTarget spread(primaryResult->sequence(), secondaryResult->sequence());
+    const ImageViewportPresentationTarget spread(
+        primaryResult->sequence(), secondaryResult->sequence());
     QVERIFY(spread.isValid());
     QCOMPARE(spread.primary(), primaryResult->sequence());
     QCOMPARE(spread.secondary(), secondaryResult->sequence());
@@ -349,7 +347,8 @@ void ImageViewportPublicApiCommandsTest::canonicalPresentationTargetValueDefault
     QVERIFY(!secondaryOnly.isValid());
 }
 
-void ImageViewportPublicApiCommandsTest::canonicalPresentationTargetOverloadMatchesPrimarySecondaryPath()
+void ImageViewportPublicApiCommandsTest::
+    canonicalPresentationTargetOverloadMatchesPrimarySecondaryPath()
 {
     ImageSequenceFactory factory;
     QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -366,10 +365,11 @@ void ImageViewportPublicApiCommandsTest::canonicalPresentationTargetOverloadMatc
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    const ImageViewportPresentationTarget spread(primaryResult->sequence(), secondaryResult->sequence());
+    const ImageViewportPresentationTarget spread(
+        primaryResult->sequence(), secondaryResult->sequence());
 
     QCOMPARE(item.setPresentationTarget(spread, PresentationTargetTransitionPolicy {}).outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+        ImageViewportCommandOutcome::Accepted);
     QCOMPARE(viewportPrimarySequence(item), primaryResult->sequence());
     QCOMPARE(viewportSecondarySequence(item), secondaryResult->sequence());
     QCOMPARE(item.state().request().acceptedRoleSet(), ImageViewportRoleSet(true, true));
@@ -379,13 +379,14 @@ void ImageViewportPublicApiCommandsTest::canonicalPresentationTargetOverloadMatc
     QCOMPARE(secondaryFrameCount(item), 1);
 
     PresentationTargetTransitionPolicy policy;
-    policy.setDisplayTransition(PresentationTargetTransitionPolicy::DisplayTransition::ClearBeforeLoad);
+    policy.setDisplayTransition(
+        PresentationTargetTransitionPolicy::DisplayTransition::ClearBeforeLoad);
     QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget::clear(), policy).outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+        ImageViewportCommandOutcome::Accepted);
     QCOMPARE(viewportPrimarySequence(item), nullptr);
     QCOMPARE(viewportSecondarySequence(item), nullptr);
     QCOMPARE(item.state().request().acceptedRoleSet(), ImageViewportRoleSet(false, false));
-    QCOMPARE(displayStatus(item), ImageViewport::DisplayStatus::Empty);
+    QCOMPARE(displayStatus(item), ImageViewportDisplayStatus::Empty);
 }
 
 void ImageViewportPublicApiCommandsTest::canonicalPresentationTargetRejectsSecondaryWithoutPrimary()
@@ -404,8 +405,10 @@ void ImageViewportPublicApiCommandsTest::canonicalPresentationTargetRejectsSecon
     QVERIFY(secondaryResult->sequence());
 
     ImageViewport item;
-    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(primaryResult->sequence()), PresentationTargetTransitionPolicy {}).outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(primaryResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
     const ImageViewportRevisionToken requestRevision = viewportRequestRevision(item);
     const ImageViewportRevisionToken displayRevision = viewportDisplayRevision(item);
     const ImageViewportRevisionToken commandRevision = viewportCommandRevision(item);
@@ -413,17 +416,19 @@ void ImageViewportPublicApiCommandsTest::canonicalPresentationTargetRejectsSecon
     ImageViewportPresentationTarget secondaryOnly;
     secondaryOnly.setSecondary(secondaryResult->sequence());
 
-    QCOMPARE(item.setPresentationTarget(secondaryOnly, PresentationTargetTransitionPolicy {}).outcome(),
-        ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(
+        item.setPresentationTarget(secondaryOnly, PresentationTargetTransitionPolicy {}).outcome(),
+        ImageViewportCommandOutcome::Invalid);
     QCOMPARE(viewportPrimarySequence(item), primaryResult->sequence());
     QCOMPARE(viewportSecondarySequence(item), nullptr);
     QCOMPARE(viewportRequestRevision(item), requestRevision);
     QCOMPARE(viewportDisplayRevision(item), displayRevision);
     QVERIFY(viewportCommandRevision(item) != commandRevision);
-    QCOMPARE(viewportCommandReason(item), ImageViewport::CommandReason::InvalidRequest);
+    QCOMPARE(viewportCommandReason(item), ImageViewportCommandReason::InvalidRequest);
 }
 
-void ImageViewportPublicApiCommandsTest::presentationTargetAssignmentUpdatesSnapshotGenerationIdentity()
+void ImageViewportPublicApiCommandsTest::
+    presentationTargetAssignmentUpdatesSnapshotGenerationIdentity()
 {
     ImageSequenceFactory factory;
     QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -444,8 +449,10 @@ void ImageViewportPublicApiCommandsTest::presentationTargetAssignmentUpdatesSnap
     QCOMPARE(item.state().request().acceptedRoleSet(), ImageViewportRoleSet(false, false));
     QCOMPARE(item.state().request().targetRoleSet(), ImageViewportRoleSet(false, false));
 
-    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(primaryResult->sequence()), PresentationTargetTransitionPolicy {}).outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(primaryResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
     const ImageViewportStateSnapshot primarySnapshot = item.state();
     const ImageViewportPresentationTargetGenerationToken primaryGeneration
         = primarySnapshot.request().acceptedPresentationTargetGeneration();
@@ -457,10 +464,11 @@ void ImageViewportPublicApiCommandsTest::presentationTargetAssignmentUpdatesSnap
     QCOMPARE(primarySnapshot.primary().request().presentationTargetGeneration(), primaryGeneration);
     QCOMPARE(primarySnapshot.secondary().present(), false);
 
-    QCOMPARE(item.setPresentationTarget(
-                 ImageViewportPresentationTarget(primaryResult->sequence(), secondaryResult->sequence()),
-                 PresentationTargetTransitionPolicy {}).outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(
+                                            primaryResult->sequence(), secondaryResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
     const ImageViewportStateSnapshot spreadSnapshot = item.state();
     const ImageViewportPresentationTargetGenerationToken spreadGeneration
         = spreadSnapshot.request().acceptedPresentationTargetGeneration();
@@ -473,8 +481,10 @@ void ImageViewportPublicApiCommandsTest::presentationTargetAssignmentUpdatesSnap
     QCOMPARE(spreadSnapshot.secondary().sequence(), secondaryResult->sequence());
     QCOMPARE(spreadSnapshot.secondary().request().presentationTargetGeneration(), spreadGeneration);
 
-    QCOMPARE(
-        item.setPresentationTarget(ImageViewportPresentationTarget::clear(), PresentationTargetTransitionPolicy {}).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget::clear(),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
     const ImageViewportStateSnapshot clearSnapshot = item.state();
     QCOMPARE(clearSnapshot.request().acceptedPresentationTargetGeneration().isValid(), false);
     QCOMPARE(clearSnapshot.request().acceptedRoleSet(), ImageViewportRoleSet(false, false));
@@ -607,19 +617,23 @@ void ImageViewportPublicApiCommandsTest::primaryOnlyPresentationTargetClearsSeco
     QVERIFY(replacementResult->sequence());
 
     ImageViewport item;
-    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(firstResult->sequence(), secondResult->sequence()), PresentationTargetTransitionPolicy {}).outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(
+                                            firstResult->sequence(), secondResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
 
-    item.setPresentationTarget(ImageViewportPresentationTarget(replacementResult->sequence()), PresentationTargetTransitionPolicy {});
+    item.setPresentationTarget(ImageViewportPresentationTarget(replacementResult->sequence()),
+        PresentationTargetTransitionPolicy {});
 
     QCOMPARE(viewportPrimarySequence(item), replacementResult->sequence());
-    QCOMPARE(
-        viewportPrimarySequence(item), replacementResult->sequence());
+    QCOMPARE(viewportPrimarySequence(item), replacementResult->sequence());
     QCOMPARE(viewportSecondarySequence(item), nullptr);
     QCOMPARE(secondaryFrameCount(item), -1);
 }
 
-void ImageViewportPublicApiCommandsTest::clearStylePresentationTargetWithSecondaryClearsAcceptedRoles()
+void ImageViewportPublicApiCommandsTest::
+    clearStylePresentationTargetWithSecondaryClearsAcceptedRoles()
 {
     ImageSequenceFactory factory;
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -632,20 +646,21 @@ void ImageViewportPublicApiCommandsTest::clearStylePresentationTargetWithSeconda
     QVERIFY(secondaryResult->sequence());
 
     ImageViewport item;
-    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(primaryResult->sequence(), secondaryResult->sequence()), PresentationTargetTransitionPolicy {}).outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(
+                                            primaryResult->sequence(), secondaryResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
 
-    const auto outcome
-        = item.setPresentationTarget(ImageViewportPresentationTarget::clear(), PresentationTargetTransitionPolicy {});
+    const auto outcome = item.setPresentationTarget(
+        ImageViewportPresentationTarget::clear(), PresentationTargetTransitionPolicy {});
 
-    QCOMPARE(outcome.outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(outcome.outcome(), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(viewportPrimarySequence(item), nullptr);
     QCOMPARE(viewportPrimarySequence(item), nullptr);
     QCOMPARE(viewportSecondarySequence(item), nullptr);
-    QCOMPARE(requestStatusValue(item),
-        enumValue(item.metaObject(), "RequestStatus", "NoRequest"));
-    QCOMPARE(displayStatusValue(item),
-        enumValue(item.metaObject(), "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(item.metaObject(), "RequestStatus", "NoRequest"));
+    QCOMPARE(displayStatusValue(item), enumValue(item.metaObject(), "DisplayStatus", "Empty"));
 }
 
 void ImageViewportPublicApiCommandsTest::
@@ -671,12 +686,13 @@ void ImageViewportPublicApiCommandsTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPresentationTarget(ImageViewportPresentationTarget(primaryResult->sequence()), PresentationTargetTransitionPolicy {});
+    item.setPresentationTarget(ImageViewportPresentationTarget(primaryResult->sequence()),
+        PresentationTargetTransitionPolicy {});
 
-    const auto outcome
-        = item.setPresentationTarget(ImageViewportPresentationTarget::clear(), PresentationTargetTransitionPolicy {});
+    const auto outcome = item.setPresentationTarget(
+        ImageViewportPresentationTarget::clear(), PresentationTargetTransitionPolicy {});
 
-    QCOMPARE(outcome.outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(outcome.outcome(), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(*sessionCount, 0);
     QCOMPARE(*metadataRequestCount, 0);
     QCOMPARE(*frameRequestCount, 0);
@@ -684,19 +700,17 @@ void ImageViewportPublicApiCommandsTest::
     QCOMPARE(viewportPrimarySequence(item), nullptr);
     QCOMPARE(viewportPrimarySequence(item), nullptr);
     QCOMPARE(viewportSecondarySequence(item), nullptr);
-    QCOMPARE(requestStatusValue(item),
-        enumValue(item.metaObject(), "RequestStatus", "NoRequest"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(item.metaObject(), "RequestReason", "NoRequest"));
-    QCOMPARE(displayStatusValue(item),
-        enumValue(item.metaObject(), "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(item.metaObject(), "RequestStatus", "NoRequest"));
+    QCOMPARE(requestReasonValue(item), enumValue(item.metaObject(), "RequestReason", "NoRequest"));
+    QCOMPARE(displayStatusValue(item), enumValue(item.metaObject(), "DisplayStatus", "Empty"));
     QCOMPARE(contentRect(item), QRectF());
     QCOMPARE(visibleSpreadRect(item), QRectF());
     QCOMPARE(primaryPageRect(item), QRectF());
     QCOMPARE(secondaryPageRect(item), QRectF());
 }
 
-void ImageViewportPublicApiCommandsTest::clearStylePresentationTargetPolicyPreservesPresentationPreferences()
+void ImageViewportPublicApiCommandsTest::
+    clearStylePresentationTargetPolicyPreservesPresentationPreferences()
 {
     ImageSequenceFactory factory;
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -707,23 +721,25 @@ void ImageViewportPublicApiCommandsTest::clearStylePresentationTargetPolicyPrese
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
-    QCOMPARE(setManualZoomPercentCommand(item, 250.0), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(setSpreadDirectionCommand(item, ImageViewport::SpreadDirection::RightToLeft),
-        ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(setPageGapCommand(item, 9.0), ImageViewport::CommandOutcome::Accepted);
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    QCOMPARE(setManualZoomPercentCommand(item, 250.0), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(setSpreadDirectionCommand(item, ImageViewportSpreadDirection::RightToLeft),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(item, 9.0), ImageViewportCommandOutcome::Accepted);
     ImageViewportPresentationCommand rotationCommand;
     rotationCommand.setRotationDegrees(90);
-    QCOMPARE(item.setPresentation(rotationCommand).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        item.setPresentation(rotationCommand).outcome(), ImageViewportCommandOutcome::Accepted);
     ImageViewportPresentationCommand mirrorCommand;
     mirrorCommand.setMirrorHorizontally(true);
     mirrorCommand.setMirrorVertically(true);
-    QCOMPARE(item.setPresentation(mirrorCommand).outcome(), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(setQualityTogglesCommand(item, false, true), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setPresentation(mirrorCommand).outcome(), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(setQualityTogglesCommand(item, false, true), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(setBackgroundCommand(
-                 item, ImageViewport::BackgroundMode::SolidColor, QColor(20, 40, 60, 255)),
-        ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(setLoopingCommand(item, true), ImageViewport::CommandOutcome::Accepted);
+                 item, ImageViewportBackgroundMode::SolidColor, QColor(20, 40, 60, 255)),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(setLoopingCommand(item, true), ImageViewportCommandOutcome::Accepted);
 
     const ImageViewportPresentationSnapshot presentation = item.state().presentation();
     const auto fitMode = presentation.fitMode();
@@ -741,28 +757,29 @@ void ImageViewportPublicApiCommandsTest::clearStylePresentationTargetPolicyPrese
     const bool looping = presentation.looping();
 
     PresentationTargetTransitionPolicy policy;
-    policy.setDisplayTransition(PresentationTargetTransitionPolicy::DisplayTransition::ClearBeforeLoad);
+    policy.setDisplayTransition(
+        PresentationTargetTransitionPolicy::DisplayTransition::ClearBeforeLoad);
     policy.setZoomTransition(PresentationTargetTransitionPolicy::ZoomTransition::ResetToContain);
     policy.setContentPositionTransition(
         PresentationTargetTransitionPolicy::ContentPositionTransition::ScanEnd);
     policy.setRotationTransition(PresentationTargetTransitionPolicy::RotationTransition::Reset);
     policy.setMirrorTransition(PresentationTargetTransitionPolicy::MirrorTransition::Reset);
     policy.setFitModeTransition(PresentationTargetTransitionPolicy::FitModeTransition::SetExplicit);
-    policy.setFitMode(ImageViewport::FitMode::Contain);
+    policy.setFitMode(ImageViewportFitMode::Contain);
     policy.setSpreadDirectionTransition(
         PresentationTargetTransitionPolicy::SpreadDirectionTransition::SetExplicit);
-    policy.setSpreadDirection(ImageViewport::SpreadDirection::LeftToRight);
+    policy.setSpreadDirection(ImageViewportSpreadDirection::LeftToRight);
     policy.setPageGapTransition(PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit);
     policy.setPageGap(0.0);
-    policy.setReplacementIntent(PresentationTargetTransitionPolicy::ReplacementIntent::SameTargetRefinement);
+    policy.setReplacementIntent(
+        PresentationTargetTransitionPolicy::ReplacementIntent::SameTargetRefinement);
 
-    const auto outcome = item.setPresentationTarget(ImageViewportPresentationTarget::clear(), policy);
+    const auto outcome
+        = item.setPresentationTarget(ImageViewportPresentationTarget::clear(), policy);
 
-    QCOMPARE(outcome.outcome(), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(requestStatusValue(item),
-        enumValue(item.metaObject(), "RequestStatus", "NoRequest"));
-    QCOMPARE(displayStatusValue(item),
-        enumValue(item.metaObject(), "DisplayStatus", "Empty"));
+    QCOMPARE(outcome.outcome(), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(requestStatusValue(item), enumValue(item.metaObject(), "RequestStatus", "NoRequest"));
+    QCOMPARE(displayStatusValue(item), enumValue(item.metaObject(), "DisplayStatus", "Empty"));
     const ImageViewportPresentationSnapshot afterClearPresentation = item.state().presentation();
     QCOMPARE(afterClearPresentation.fitMode(), fitMode);
     QCOMPARE(afterClearPresentation.zoomPercent(), zoomPercent);
@@ -793,19 +810,24 @@ void ImageViewportPublicApiCommandsTest::invalidPresentationTargetSecondaryPrese
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(primaryResult->sequence(), secondaryResult->sequence()), PresentationTargetTransitionPolicy {}).outcome(),
-        ImageViewport::CommandOutcome::Accepted);
-    const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
-    const ImageViewportRevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(
+                                            primaryResult->sequence(), secondaryResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    const ImageViewportRevisionToken requestRevision
+        = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken displayRevision
+        = revisionTokenProperty(item, "displayRevision");
 
     ImageViewportPresentationTarget invalidPresentationTarget;
     invalidPresentationTarget.setSecondary(secondaryResult->sequence());
-    const auto outcome = item.setPresentationTarget(invalidPresentationTarget, PresentationTargetTransitionPolicy {});
+    const auto outcome = item.setPresentationTarget(
+        invalidPresentationTarget, PresentationTargetTransitionPolicy {});
 
-    QCOMPARE(outcome.outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(outcome.outcome(), ImageViewportCommandOutcome::Invalid);
     QCOMPARE(viewportPrimarySequence(item), primaryResult->sequence());
-    QCOMPARE(
-        viewportSecondarySequence(item), secondaryResult->sequence());
+    QCOMPARE(viewportSecondarySequence(item), secondaryResult->sequence());
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
 }
@@ -824,11 +846,16 @@ void ImageViewportPublicApiCommandsTest::invalidPresentationTargetCommandsPreser
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(primaryResult->sequence(), secondaryResult->sequence()), PresentationTargetTransitionPolicy {}).outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(
+                                            primaryResult->sequence(), secondaryResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
 
-    const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
-    const ImageViewportRevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
+    const ImageViewportRevisionToken requestRevision
+        = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken displayRevision
+        = revisionTokenProperty(item, "displayRevision");
     ImageViewportRevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
     const int requestStatus = requestStatusValue(item);
     const int displayStatus = displayStatusValue(item);
@@ -841,9 +868,8 @@ void ImageViewportPublicApiCommandsTest::invalidPresentationTargetCommandsPreser
     const auto invalidSecondaryOnlyOutcome
         = item.setPresentationTarget(secondaryOnly, PresentationTargetTransitionPolicy {});
 
-    QCOMPARE(invalidSecondaryOnlyOutcome.outcome(), ImageViewport::CommandOutcome::Invalid);
-    QCOMPARE(commandReasonValue(item),
-        enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    QCOMPARE(invalidSecondaryOnlyOutcome.outcome(), ImageViewportCommandOutcome::Invalid);
+    QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "InvalidRequest"));
     verifyRevisionChanged(item, "commandRevision", commandRevision);
     commandRevision = revisionTokenProperty(item, "commandRevision");
     QCOMPARE(viewportPrimarySequence(item), primaryResult->sequence());
@@ -856,14 +882,15 @@ void ImageViewportPublicApiCommandsTest::invalidPresentationTargetCommandsPreser
     QCOMPARE(stateSpy.count(), 1);
 
     PresentationTargetTransitionPolicy invalidPolicy;
-    invalidPolicy.setPageGapTransition(PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit);
+    invalidPolicy.setPageGapTransition(
+        PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit);
     invalidPolicy.setPageGap(-1.0);
     const auto invalidPolicyOutcome = item.setPresentationTarget(
-        ImageViewportPresentationTarget(primaryResult->sequence(), secondaryResult->sequence()), invalidPolicy);
+        ImageViewportPresentationTarget(primaryResult->sequence(), secondaryResult->sequence()),
+        invalidPolicy);
 
-    QCOMPARE(invalidPolicyOutcome.outcome(), ImageViewport::CommandOutcome::Invalid);
-    QCOMPARE(commandReasonValue(item),
-        enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    QCOMPARE(invalidPolicyOutcome.outcome(), ImageViewportCommandOutcome::Invalid);
+    QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "InvalidRequest"));
     verifyRevisionChanged(item, "commandRevision", commandRevision);
     QCOMPARE(viewportPrimarySequence(item), primaryResult->sequence());
     QCOMPARE(viewportSecondarySequence(item), secondaryResult->sequence());
@@ -886,27 +913,28 @@ void ImageViewportPublicApiCommandsTest::roleCommandsWithInvalidRolePublishComma
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
     const auto invalidRole = static_cast<ImageViewportPageRole>(
         999); // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
-    const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
-    const ImageViewportRevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
+    const ImageViewportRevisionToken requestRevision
+        = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken displayRevision
+        = revisionTokenProperty(item, "displayRevision");
     ImageViewportRevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
 
-    const auto verifyInvalidCommand = [&](ImageViewport::CommandOutcome outcome) {
-        QCOMPARE(outcome, ImageViewport::CommandOutcome::Invalid);
-        QCOMPARE(commandReasonValue(item),
-            enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    const auto verifyInvalidCommand = [&](ImageViewportCommandOutcome outcome) {
+        QCOMPARE(outcome, ImageViewportCommandOutcome::Invalid);
+        QCOMPARE(
+            commandReasonValue(item), enumValue(metaObject, "CommandReason", "InvalidRequest"));
         verifyRevisionChanged(item, "commandRevision", commandRevision);
         commandRevision = revisionTokenProperty(item, "commandRevision");
         QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
         QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
-        QCOMPARE(requestStatusValue(item),
-            enumValue(metaObject, "RequestStatus", "Ready"));
-        QCOMPARE(displayStatusValue(item),
-            enumValue(metaObject, "DisplayStatus", "Ready"));
+        QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
+        QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     };
 
     verifyInvalidCommand(item.play(invalidRole).outcome());
@@ -928,25 +956,26 @@ void ImageViewportPublicApiCommandsTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
-    const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
-    const ImageViewportRevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
+    const ImageViewportRevisionToken requestRevision
+        = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken displayRevision
+        = revisionTokenProperty(item, "displayRevision");
     ImageViewportRevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
 
-    const auto verifyIgnoredCommand = [&](ImageViewport::CommandOutcome outcome) {
-        QCOMPARE(outcome, ImageViewport::CommandOutcome::IgnoredNoRequest);
-        QCOMPARE(commandReasonValue(item),
-            enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
+    const auto verifyIgnoredCommand = [&](ImageViewportCommandOutcome outcome) {
+        QCOMPARE(outcome, ImageViewportCommandOutcome::IgnoredNoRequest);
+        QCOMPARE(
+            commandReasonValue(item), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
         verifyRevisionChanged(item, "commandRevision", commandRevision);
         commandRevision = revisionTokenProperty(item, "commandRevision");
         QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
         QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
-        QCOMPARE(requestStatusValue(item),
-            enumValue(metaObject, "RequestStatus", "Ready"));
-        QCOMPARE(displayStatusValue(item),
-            enumValue(metaObject, "DisplayStatus", "Ready"));
+        QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
+        QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     };
 
     verifyIgnoredCommand(item.play(ImageViewportPageRole::Secondary).outcome());
@@ -956,7 +985,8 @@ void ImageViewportPublicApiCommandsTest::
     verifyIgnoredCommand(item.seekToPosition(ImageViewportPageRole::Secondary, 0).outcome());
 }
 
-void ImageViewportPublicApiCommandsTest::presentationTargetTransitionClearBeforeLoadClearsRetainedDisplay()
+void ImageViewportPublicApiCommandsTest::
+    presentationTargetTransitionClearBeforeLoadClearsRetainedDisplay()
 {
     ImageSequenceFactory factory;
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -978,29 +1008,27 @@ void ImageViewportPublicApiCommandsTest::presentationTargetTransitionClearBefore
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPresentationTarget(ImageViewportPresentationTarget(readyResult->sequence()), PresentationTargetTransitionPolicy {});
+    item.setPresentationTarget(ImageViewportPresentationTarget(readyResult->sequence()),
+        PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
 
     PresentationTargetTransitionPolicy policy;
-    policy.setDisplayTransition(PresentationTargetTransitionPolicy::DisplayTransition::ClearBeforeLoad);
+    policy.setDisplayTransition(
+        PresentationTargetTransitionPolicy::DisplayTransition::ClearBeforeLoad);
 
-    const auto outcome
-        = item.setPresentationTarget(ImageViewportPresentationTarget(loadingResult->sequence()), policy);
+    const auto outcome = item.setPresentationTarget(
+        ImageViewportPresentationTarget(loadingResult->sequence()), policy);
 
-    QCOMPARE(outcome.outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(outcome.outcome(), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(viewportPrimarySequence(item), loadingResult->sequence());
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*metadataRequestCount, 1);
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(displayedImageSize(item), QSizeF(0.0, 0.0));
 }
 
@@ -1015,14 +1043,15 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
 
     const ImageViewportStateSnapshot beforeEmptyCommand = item.state();
     QSignalSpy emptyCommandStateSpy(&item, &ImageViewport::stateChanged);
     const ImageViewportCommandResult emptyCommandResult
         = item.setPresentation(ImageViewportPresentationCommand {});
-    QCOMPARE(emptyCommandResult.outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(emptyCommandResult.outcome(), ImageViewportCommandOutcome::Invalid);
     QCOMPARE(item.state().presentation(), beforeEmptyCommand.presentation());
     QCOMPARE(item.state().request(), beforeEmptyCommand.request());
     QCOMPARE(item.state().display(), beforeEmptyCommand.display());
@@ -1030,9 +1059,9 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
 
     ImageViewportPresentationCommand command;
     command.setManualZoomPercent(150.0);
-    command.setSpreadDirection(ImageViewport::SpreadDirection::RightToLeft);
+    command.setSpreadDirection(ImageViewportSpreadDirection::RightToLeft);
     command.setPageGap(5.0);
-    command.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
+    command.setBackgroundMode(ImageViewportBackgroundMode::SolidColor);
     command.setBackgroundColor(QColor(10, 20, 30, 255));
     command.setSmoothing(false);
     command.setMipmap(true);
@@ -1045,18 +1074,18 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     const QMetaObject::Connection acceptedStateConnection
         = connect(&item, &ImageViewport::stateChanged, &item,
             [&] { observedAcceptedSnapshots.append(item.state()); });
-    QCOMPARE(item.setPresentation(command).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
     disconnect(acceptedStateConnection);
     QCOMPARE(acceptedCommandStateSpy.count(), 1);
     QCOMPARE(observedAcceptedSnapshots.size(), 1);
     QCOMPARE(observedAcceptedSnapshots.constFirst(), item.state());
-    QCOMPARE(item.state().diagnostics().commandReason(), ImageViewport::CommandReason::NoCommand);
-    QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Manual);
+    QCOMPARE(item.state().diagnostics().commandReason(), ImageViewportCommandReason::NoCommand);
+    QCOMPARE(item.state().presentation().fitMode(), ImageViewportFitMode::Manual);
     QCOMPARE(item.state().presentation().zoomPercent(), 150.0);
-    QCOMPARE(item.state().presentation().spreadDirection(),
-        ImageViewport::SpreadDirection::RightToLeft);
+    QCOMPARE(
+        item.state().presentation().spreadDirection(), ImageViewportSpreadDirection::RightToLeft);
     QCOMPARE(item.state().presentation().pageGap(), 5.0);
-    QCOMPARE(item.state().presentation().backgroundMode(), ImageViewport::BackgroundMode::SolidColor);
+    QCOMPARE(item.state().presentation().backgroundMode(), ImageViewportBackgroundMode::SolidColor);
     QCOMPARE(item.state().presentation().backgroundColor(), QColor(10, 20, 30, 255));
     QCOMPARE(item.state().presentation().smoothing(), false);
     QCOMPARE(item.state().presentation().mipmap(), true);
@@ -1066,18 +1095,18 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     QCOMPARE(item.state().presentation().exactnessPreference(),
         ImageViewportExactnessPreference::RequireExact);
 
-    QCOMPARE(setManualZoomPercentCommand(item, 1000.0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setManualZoomPercentCommand(item, 1000.0), ImageViewportCommandOutcome::Accepted);
     QVERIFY(maximumContentPosition(item).x() > 0.0 || maximumContentPosition(item).y() > 0.0);
 
-    ImageViewportPresentationCommand scanCommand;
-    scanCommand.setScanDirection(ImageViewport::ScanDirection::End);
-    QCOMPARE(item.setPresentation(scanCommand).outcome(), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(contentPosition(item), maximumContentPosition(item));
+    ImageViewportPresentationCommand anchorCommand;
+    anchorCommand.setContentAnchor(ImageViewportContentAnchor::End);
+    QCOMPARE(item.setPresentation(anchorCommand).outcome(), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(contentPosition(item), QPointF(0.0, maximumContentPosition(item).y()));
 
-    scanCommand = {};
-    scanCommand.setScanDirection(ImageViewport::ScanDirection::Start);
-    QCOMPARE(item.setPresentation(scanCommand).outcome(), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(contentPosition(item), QPointF());
+    anchorCommand = {};
+    anchorCommand.setContentAnchor(ImageViewportContentAnchor::Start);
+    QCOMPARE(item.setPresentation(anchorCommand).outcome(), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(contentPosition(item), QPointF(maximumContentPosition(item).x(), 0.0));
 
     const ImageViewportRevisionToken requestRevision = viewportRequestRevision(item);
     const ImageViewportRevisionToken displayRevision = viewportDisplayRevision(item);
@@ -1086,93 +1115,100 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
 
     ImageViewportPresentationCommand invalidCommand;
     invalidCommand.setManualZoomPercent(125.0);
-    invalidCommand.setScanDirection(ImageViewport::ScanDirection::Next);
+    invalidCommand.setContentAnchor(static_cast<ImageViewportContentAnchor>(-1));
     invalidCommand.setPageGap(12.0);
 
-    QCOMPARE(item.setPresentation(invalidCommand).outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.setPresentation(invalidCommand).outcome(), ImageViewportCommandOutcome::Invalid);
     QCOMPARE(item.state().presentation().zoomPercent(), preservedPresentation.zoomPercent());
     QCOMPARE(item.state().presentation().pageGap(), preservedPresentation.pageGap());
-    QCOMPARE(item.state().presentation().spreadDirection(), preservedPresentation.spreadDirection());
+    QCOMPARE(
+        item.state().presentation().spreadDirection(), preservedPresentation.spreadDirection());
     QCOMPARE(viewportRequestRevision(item), requestRevision);
     QCOMPARE(viewportDisplayRevision(item), displayRevision);
     QVERIFY(viewportCommandRevision(item) != commandRevision);
-    QCOMPARE(viewportCommandReason(item), ImageViewport::CommandReason::InvalidRequest);
+    QCOMPARE(viewportCommandReason(item), ImageViewportCommandReason::InvalidRequest);
 
     const ImageViewportRevisionToken invalidCommandRevision = viewportCommandRevision(item);
     ImageViewportPresentationCommand invalidDirectionCommand;
-    const auto invalidDirection = static_cast<ImageViewport::SpreadDirection>(
+    const auto invalidDirection = static_cast<ImageViewportSpreadDirection>(
         999); // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
     invalidDirectionCommand.setSpreadDirection(invalidDirection);
     invalidDirectionCommand.setBackgroundColor(Qt::magenta);
-    QCOMPARE(item.setPresentation(invalidDirectionCommand).outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.setPresentation(invalidDirectionCommand).outcome(),
+        ImageViewportCommandOutcome::Invalid);
     QCOMPARE(item.state().presentation(), preservedPresentation);
     QCOMPARE(item.state().presentation().zoomPercent(), preservedPresentation.zoomPercent());
     QCOMPARE(item.state().presentation().pageGap(), preservedPresentation.pageGap());
-    QCOMPARE(item.state().presentation().spreadDirection(), preservedPresentation.spreadDirection());
+    QCOMPARE(
+        item.state().presentation().spreadDirection(), preservedPresentation.spreadDirection());
     QCOMPARE(viewportRequestRevision(item), requestRevision);
     QCOMPARE(viewportDisplayRevision(item), displayRevision);
     QVERIFY(viewportCommandRevision(item) != invalidCommandRevision);
-    QCOMPARE(viewportCommandReason(item), ImageViewport::CommandReason::InvalidRequest);
+    QCOMPARE(viewportCommandReason(item), ImageViewportCommandReason::InvalidRequest);
 
     ImageViewportRevisionToken previousInvalidCommandRevision = viewportCommandRevision(item);
     ImageViewportPresentationCommand invalidPageGapCommand;
     invalidPageGapCommand.setPageGap(-1.0);
-    QCOMPARE(item.setPresentation(invalidPageGapCommand).outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.setPresentation(invalidPageGapCommand).outcome(),
+        ImageViewportCommandOutcome::Invalid);
     QCOMPARE(item.state().presentation().zoomPercent(), preservedPresentation.zoomPercent());
     QCOMPARE(item.state().presentation().pageGap(), preservedPresentation.pageGap());
-    QCOMPARE(item.state().presentation().spreadDirection(), preservedPresentation.spreadDirection());
+    QCOMPARE(
+        item.state().presentation().spreadDirection(), preservedPresentation.spreadDirection());
     QCOMPARE(viewportRequestRevision(item), requestRevision);
     QCOMPARE(viewportDisplayRevision(item), displayRevision);
     QVERIFY(viewportCommandRevision(item) != previousInvalidCommandRevision);
-    QCOMPARE(viewportCommandReason(item), ImageViewport::CommandReason::InvalidRequest);
+    QCOMPARE(viewportCommandReason(item), ImageViewportCommandReason::InvalidRequest);
 
     previousInvalidCommandRevision = viewportCommandRevision(item);
     invalidPageGapCommand = {};
     invalidPageGapCommand.setPageGap(std::numeric_limits<double>::infinity());
-    QCOMPARE(item.setPresentation(invalidPageGapCommand).outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.setPresentation(invalidPageGapCommand).outcome(),
+        ImageViewportCommandOutcome::Invalid);
     QCOMPARE(item.state().presentation().zoomPercent(), preservedPresentation.zoomPercent());
     QCOMPARE(item.state().presentation().pageGap(), preservedPresentation.pageGap());
-    QCOMPARE(item.state().presentation().spreadDirection(), preservedPresentation.spreadDirection());
+    QCOMPARE(
+        item.state().presentation().spreadDirection(), preservedPresentation.spreadDirection());
     QCOMPARE(viewportRequestRevision(item), requestRevision);
     QCOMPARE(viewportDisplayRevision(item), displayRevision);
     QVERIFY(viewportCommandRevision(item) != previousInvalidCommandRevision);
-    QCOMPARE(viewportCommandReason(item), ImageViewport::CommandReason::InvalidRequest);
+    QCOMPARE(viewportCommandReason(item), ImageViewportCommandReason::InvalidRequest);
 
     ImageViewportPresentationCommand transformCommand;
     transformCommand.setRotationDegrees(90);
     transformCommand.setMirrorHorizontally(true);
     transformCommand.setMirrorVertically(true);
     QCOMPARE(
-        item.setPresentation(transformCommand).outcome(), ImageViewport::CommandOutcome::Accepted);
+        item.setPresentation(transformCommand).outcome(), ImageViewportCommandOutcome::Accepted);
 
     ImageViewportPresentationCommand resetCommand
         = ImageViewportPresentationCommand::resetViewCommand();
-    resetCommand.setBackgroundMode(ImageViewport::BackgroundMode::Checkerboard);
+    resetCommand.setBackgroundMode(ImageViewportBackgroundMode::Checkerboard);
 
-    QCOMPARE(item.setPresentation(resetCommand).outcome(), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Contain);
+    QCOMPARE(item.setPresentation(resetCommand).outcome(), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(item.state().presentation().fitMode(), ImageViewportFitMode::Contain);
     QCOMPARE(item.state().presentation().rotationDegrees(), 0);
     QCOMPARE(item.state().presentation().mirrorHorizontally(), false);
     QCOMPARE(item.state().presentation().mirrorVertically(), false);
     QCOMPARE(
-        item.state().presentation().backgroundMode(), ImageViewport::BackgroundMode::Checkerboard);
+        item.state().presentation().backgroundMode(), ImageViewportBackgroundMode::Checkerboard);
 
     ImageViewportCoordinateInput mapInput;
-    mapInput.setSourceSpace(ImageViewport::CoordinateSpace::Item);
-    mapInput.setTargetSpace(ImageViewport::CoordinateSpace::DisplayedSpread);
+    mapInput.setSourceSpace(ImageViewportCoordinateSpace::Item);
+    mapInput.setTargetSpace(ImageViewportCoordinateSpace::DisplayedSpread);
     mapInput.setPoint(QPointF(50.0, 50.0));
     const ImageViewportCoordinateResult mapped = item.mapPoint(mapInput);
     QVERIFY(mapped.isValid());
-    QCOMPARE(mapped.space(), ImageViewport::CoordinateSpace::DisplayedSpread);
+    QCOMPARE(mapped.space(), ImageViewportCoordinateSpace::DisplayedSpread);
     QVERIFY(mapped.role().isNull());
     QCOMPARE(item.containsPoint(mapInput), true);
 
     ImageViewportCoordinateInput pageInput = mapInput;
-    pageInput.setTargetSpace(ImageViewport::CoordinateSpace::DisplayedPage);
+    pageInput.setTargetSpace(ImageViewportCoordinateSpace::DisplayedPage);
     pageInput.setRole(QVariant::fromValue(ImageViewportPageRole::Primary));
     const ImageViewportCoordinateResult pageResult = item.mapPoint(pageInput);
     QVERIFY(pageResult.isValid());
-    QCOMPARE(pageResult.space(), ImageViewport::CoordinateSpace::DisplayedPage);
+    QCOMPARE(pageResult.space(), ImageViewportCoordinateSpace::DisplayedPage);
     QCOMPARE(pageResult.role().value<ImageViewportPageRole>(), ImageViewportPageRole::Primary);
 
     ImageViewportCoordinateInput rolelessPageInput = pageInput;
@@ -1201,32 +1237,35 @@ void ImageViewportPublicApiCommandsTest::invalidPresentationTargetTransitionPoli
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPresentationTarget(ImageViewportPresentationTarget(firstResult->sequence()), PresentationTargetTransitionPolicy {});
+    item.setPresentationTarget(ImageViewportPresentationTarget(firstResult->sequence()),
+        PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
-    const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
-    const ImageViewportRevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
-    const ImageViewportRevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
+    const ImageViewportRevisionToken requestRevision
+        = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken displayRevision
+        = revisionTokenProperty(item, "displayRevision");
+    const ImageViewportRevisionToken commandRevision
+        = revisionTokenProperty(item, "commandRevision");
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
 
     PresentationTargetTransitionPolicy invalidPolicy;
-    invalidPolicy.setPageGapTransition(PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit);
+    invalidPolicy.setPageGapTransition(
+        PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit);
     invalidPolicy.setPageGap(-1.0);
 
-    const auto outcome = item.setPresentationTarget(ImageViewportPresentationTarget(replacementResult->sequence()), invalidPolicy);
+    const auto outcome = item.setPresentationTarget(
+        ImageViewportPresentationTarget(replacementResult->sequence()), invalidPolicy);
 
-    QCOMPARE(outcome.outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(outcome.outcome(), ImageViewportCommandOutcome::Invalid);
     QCOMPARE(viewportPrimarySequence(item), firstResult->sequence());
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
     verifyRevisionChanged(item, "commandRevision", commandRevision);
     QCOMPARE(stateSpy.count(), 1);
-    QCOMPARE(commandReasonValue(item),
-        enumValue(metaObject, "CommandReason", "InvalidRequest"));
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
 }
 
 void ImageViewportPublicApiCommandsTest::invalidClearStyleTransitionPolicyPreservesState()
@@ -1243,25 +1282,31 @@ void ImageViewportPublicApiCommandsTest::invalidClearStyleTransitionPolicyPreser
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(primaryResult->sequence(), secondaryResult->sequence()), PresentationTargetTransitionPolicy {}).outcome(),
-        ImageViewport::CommandOutcome::Accepted);
-    const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
-    const ImageViewportRevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(
+                                            primaryResult->sequence(), secondaryResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    const ImageViewportRevisionToken requestRevision
+        = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken displayRevision
+        = revisionTokenProperty(item, "displayRevision");
 
     PresentationTargetTransitionPolicy invalidPolicy;
-    invalidPolicy.setPageGapTransition(PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit);
+    invalidPolicy.setPageGapTransition(
+        PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit);
     invalidPolicy.setPageGap(-1.0);
 
-    const auto outcome = item.setPresentationTarget(ImageViewportPresentationTarget::clear(), invalidPolicy);
+    const auto outcome
+        = item.setPresentationTarget(ImageViewportPresentationTarget::clear(), invalidPolicy);
 
-    QCOMPARE(outcome.outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(outcome.outcome(), ImageViewportCommandOutcome::Invalid);
     QCOMPARE(viewportPrimarySequence(item), primaryResult->sequence());
-    QCOMPARE(
-        viewportSecondarySequence(item), secondaryResult->sequence());
+    QCOMPARE(viewportSecondarySequence(item), secondaryResult->sequence());
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
-    QCOMPARE(commandReasonValue(item),
-        enumValue(item.metaObject(), "CommandReason", "InvalidRequest"));
+    QCOMPARE(
+        commandReasonValue(item), enumValue(item.metaObject(), "CommandReason", "InvalidRequest"));
 }
 
 void ImageViewportPublicApiCommandsTest::invalidPresentationCommandsPreserveDiagnostics()
@@ -1275,31 +1320,34 @@ void ImageViewportPublicApiCommandsTest::invalidPresentationCommandsPreserveDiag
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.play(ImageViewportPageRole::Secondary).outcome(),
-        ImageViewport::CommandOutcome::IgnoredNoRequest);
-    QCOMPARE(commandReasonValue(item),
-        enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
+        ImageViewportCommandOutcome::IgnoredNoRequest);
+    QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
 
-    const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
-    const ImageViewportRevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
-    const ImageViewportRevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
+    const ImageViewportRevisionToken requestRevision
+        = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken displayRevision
+        = revisionTokenProperty(item, "displayRevision");
+    const ImageViewportRevisionToken commandRevision
+        = revisionTokenProperty(item, "commandRevision");
     const auto spreadDirection = item.state().presentation().spreadDirection();
     const double pageGap = item.state().presentation().pageGap();
     const int commandReason = commandReasonValue(item);
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
 
     QCOMPARE(
-        setSpreadDirectionCommand(item, spreadDirection), ImageViewport::CommandOutcome::Accepted);
+        setSpreadDirectionCommand(item, spreadDirection), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(commandReasonValue(item), commandReason);
     QCOMPARE(revisionTokenProperty(item, "commandRevision"), commandRevision);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
 
-    QCOMPARE(setPageGapCommand(item, pageGap), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(item, pageGap), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(commandReasonValue(item), commandReason);
     QCOMPARE(revisionTokenProperty(item, "commandRevision"), commandRevision);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
@@ -1311,32 +1359,27 @@ void ImageViewportPublicApiCommandsTest::invalidPresentationCommandsPreserveDiag
     ImageViewportPresentationCommand compositeNoop;
     compositeNoop.setFitMode(beforeCompositeNoop.presentation().fitMode());
     compositeNoop.setRotationDegrees(beforeCompositeNoop.presentation().rotationDegrees());
-    compositeNoop.setMirrorHorizontally(
-        beforeCompositeNoop.presentation().mirrorHorizontally());
+    compositeNoop.setMirrorHorizontally(beforeCompositeNoop.presentation().mirrorHorizontally());
     compositeNoop.setMirrorVertically(beforeCompositeNoop.presentation().mirrorVertically());
     compositeNoop.setBackgroundMode(beforeCompositeNoop.presentation().backgroundMode());
     compositeNoop.setBackgroundColor(beforeCompositeNoop.presentation().backgroundColor());
     compositeNoop.setSmoothing(beforeCompositeNoop.presentation().smoothing());
     compositeNoop.setMipmap(beforeCompositeNoop.presentation().mipmap());
     compositeNoop.setLooping(beforeCompositeNoop.presentation().looping());
-    compositeNoop.setQualityPreference(
-        beforeCompositeNoop.presentation().qualityPreference());
-    compositeNoop.setExactnessPreference(
-        beforeCompositeNoop.presentation().exactnessPreference());
+    compositeNoop.setQualityPreference(beforeCompositeNoop.presentation().qualityPreference());
+    compositeNoop.setExactnessPreference(beforeCompositeNoop.presentation().exactnessPreference());
 
     const ImageViewportCommandResult compositeNoopResult = item.setPresentation(compositeNoop);
-    QCOMPARE(compositeNoopResult.outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(compositeNoopResult.outcome(), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(item.state(), beforeCompositeNoop);
-    QCOMPARE(compositeNoopResult.snapshotRevision(),
-        beforeCompositeNoop.revisions().snapshot());
+    QCOMPARE(compositeNoopResult.snapshotRevision(), beforeCompositeNoop.revisions().snapshot());
     QCOMPARE(stateSpy.count(), 0);
 
-    QCOMPARE(setSpreadDirectionCommand(item, ImageViewport::SpreadDirection::RightToLeft),
-        ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.state().presentation().spreadDirection(),
-        ImageViewport::SpreadDirection::RightToLeft);
-    QCOMPARE(commandReasonValue(item),
-        enumValue(metaObject, "CommandReason", "NoCommand"));
+    QCOMPARE(setSpreadDirectionCommand(item, ImageViewportSpreadDirection::RightToLeft),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(
+        item.state().presentation().spreadDirection(), ImageViewportSpreadDirection::RightToLeft);
+    QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "NoCommand"));
     verifyRevisionChanged(item, "commandRevision", commandRevision);
     verifyRevisionChanged(item, "displayRevision", displayRevision);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);

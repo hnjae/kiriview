@@ -201,9 +201,9 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
         result.changes = reduceViewportEngineProviderFrameReady(
             { event.role, event.token, event.imageFrame,
                 event.kind == ViewportProviderEvent::Kind::ImageFrameReady
-                    ? ImageSequenceProviderFrameMetadata::stillFrame()
-                    : event.frameMetadata,
-                event.frameEnvelope, geometry },
+                    ? ImageSequenceProviderFrameEnvelope::stillFrame()
+                    : event.frameEnvelope,
+                geometry },
             std::move(access))
                              .changes;
         break;
@@ -218,9 +218,9 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
         result.changes = reduceViewportEngineProviderFrameReady(
             { event.role, event.token, owned ? owned->frame() : nullptr,
                 event.kind == ViewportProviderEvent::Kind::FrameHandleReady
-                    ? ImageSequenceProviderFrameMetadata::stillFrame()
-                    : event.frameMetadata,
-                event.frameEnvelope, geometry },
+                    ? ImageSequenceProviderFrameEnvelope::stillFrame()
+                    : event.frameEnvelope,
+                geometry },
             std::move(access))
                              .changes;
         break;

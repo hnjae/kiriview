@@ -1,8 +1,8 @@
 #pragma once
 
-#include "imageviewport.h"
 #include "imageviewportstate_p.h"
 #include "renderfailurecause_p.h"
+#include <ImageViewport/ImageViewport>
 
 #include <QtCore/QRectF>
 #include <QtCore/QSizeF>
@@ -38,7 +38,7 @@ public:
         };
 
         QSizeF itemSize;
-        ImageViewport::BackgroundMode backgroundMode = ImageViewport::BackgroundMode::Transparent;
+        ImageViewportBackgroundMode backgroundMode = ImageViewportBackgroundMode::Transparent;
         QColor backgroundColor = Qt::transparent;
         ImageViewportInternal::PreparedPayload preparedPayload;
         QRectF targetRect;

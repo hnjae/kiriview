@@ -361,8 +361,7 @@ void ImageSequenceProviderMetadata::setAuthoredAnimationFacts(
     m_authoredAnimationFacts = authoredAnimationFacts;
 }
 
-void ImageSequenceProviderMetadata::setTimedPlaybackSupport(
-    ImageViewportCapabilitySupport support)
+void ImageSequenceProviderMetadata::setTimedPlaybackSupport(ImageViewportCapabilitySupport support)
 {
     if (support == ImageViewportCapabilitySupport::Unavailable) {
         m_timedPlaybackSupport.reset();
@@ -380,8 +379,7 @@ void ImageSequenceProviderMetadata::setFrameSeekSupport(ImageViewportCapabilityS
     }
 }
 
-void ImageSequenceProviderMetadata::setPositionSeekSupport(
-    ImageViewportCapabilitySupport support)
+void ImageSequenceProviderMetadata::setPositionSeekSupport(ImageViewportCapabilitySupport support)
 {
     if (support == ImageViewportCapabilitySupport::Unavailable) {
         m_positionSeekSupport.reset();
@@ -458,47 +456,22 @@ ImageViewportRange ImageSequenceProviderMetadata::positionSeekBounds() const
     return { 0, totalDuration() };
 }
 
-ImageSequenceProviderFrameMetadata ImageSequenceProviderFrameMetadata::stillFrame()
+ImageSequenceProviderFrameEnvelope ImageSequenceProviderFrameEnvelope::stillFrame()
 {
-    ImageSequenceProviderFrameMetadata metadata;
-    metadata.m_kind = Kind::Still;
-    metadata.m_frame = 0;
-    return metadata;
+    ImageSequenceProviderFrameEnvelope envelope;
+    envelope.m_frame = 0;
+    return envelope;
 }
 
-ImageSequenceProviderFrameMetadata ImageSequenceProviderFrameMetadata::timedFrame(
+ImageSequenceProviderFrameEnvelope ImageSequenceProviderFrameEnvelope::timedFrame(
     int frame, int frameStartPosition, int frameDuration)
 {
-    ImageSequenceProviderFrameMetadata metadata;
-    metadata.m_kind = Kind::TimedFrame;
-    metadata.m_frame = frame;
-    metadata.m_frameStartPosition = frameStartPosition;
-    metadata.m_frameDuration = frameDuration;
-    return metadata;
+    ImageSequenceProviderFrameEnvelope envelope;
+    envelope.m_frame = frame;
+    envelope.m_frameStartPosition = frameStartPosition;
+    envelope.m_frameDuration = frameDuration;
+    return envelope;
 }
-
-bool ImageSequenceProviderFrameMetadata::isValid() const
-{
-    if (isStillFrame()) {
-        return m_frame == 0;
-    }
-    if (isTimedFrame()) {
-        return m_frame >= 0 && m_frameStartPosition >= 0
-            && (m_frameDuration == -1 || m_frameDuration > 0);
-    }
-
-    return false;
-}
-
-bool ImageSequenceProviderFrameMetadata::isStillFrame() const { return m_kind == Kind::Still; }
-
-bool ImageSequenceProviderFrameMetadata::isTimedFrame() const { return m_kind == Kind::TimedFrame; }
-
-int ImageSequenceProviderFrameMetadata::frame() const { return m_frame; }
-
-int ImageSequenceProviderFrameMetadata::frameStartPosition() const { return m_frameStartPosition; }
-
-int ImageSequenceProviderFrameMetadata::frameDuration() const { return m_frameDuration; }
 
 ImageSequenceProviderSession::ImageSequenceProviderSession(QObject* parent)
     : QObject(parent)
@@ -514,6 +487,16 @@ bool ImageSequenceProviderFrameEnvelope::isValid() const
         return m_frame == 0 && m_frameStartPosition == -1 && m_frameDuration == -1;
     }
     return m_frameDuration > 0;
+}
+
+bool ImageSequenceProviderFrameEnvelope::isStillFrame() const
+{
+    return m_frame == 0 && m_frameStartPosition == -1 && m_frameDuration == -1;
+}
+
+bool ImageSequenceProviderFrameEnvelope::isTimedFrame() const
+{
+    return m_frame >= 0 && m_frameStartPosition >= 0;
 }
 
 ImageSequenceProviderRequest ImageSequenceProviderRequest::metadata(

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "coordinateresult_p.h"
-#include "imageviewport.h"
 #include "imageviewport_testhooks_p.h"
+#include <ImageViewport/ImageViewport>
 
 #include <QtCore/QList>
 #include <QtCore/QMetaEnum>
@@ -29,34 +29,38 @@ using namespace ImageViewportTestHooks;
 
 int enumValue(const QMetaObject* metaObject, const char* enumName, const char* key)
 {
-    const int index = metaObject->indexOfEnumerator(enumName);
+    int index = metaObject->indexOfEnumerator(enumName);
+    if (index < 0) {
+        metaObject = &ImageViewportEnums::staticMetaObject;
+        index = metaObject->indexOfEnumerator(enumName);
+    }
     if (index < 0) {
         return -1;
     }
     return metaObject->enumerator(index).keyToValue(key);
 }
 
-ImageViewport::RequestStatus requestStatus(const ImageViewport& item)
+ImageViewportRequestStatus requestStatus(const ImageViewport& item)
 {
     return item.state().request().status();
 }
 
-ImageViewport::RequestReason requestReason(const ImageViewport& item)
+ImageViewportRequestReason requestReason(const ImageViewport& item)
 {
     return item.state().request().reason();
 }
 
-ImageViewport::DisplayStatus displayStatus(const ImageViewport& item)
+ImageViewportDisplayStatus displayStatus(const ImageViewport& item)
 {
     return item.state().display().status();
 }
 
-ImageViewport::PlaybackPhase playbackPhase(const ImageViewport& item)
+ImageViewportPlaybackPhase playbackPhase(const ImageViewport& item)
 {
     return item.state().request().playbackPhase();
 }
 
-ImageViewport::CommandReason viewportCommandReason(const ImageViewport& item)
+ImageViewportCommandReason viewportCommandReason(const ImageViewport& item)
 {
     return item.state().diagnostics().commandReason();
 }
@@ -71,25 +75,13 @@ QString viewportWarningString(const ImageViewport& item)
     return item.state().diagnostics().warningString();
 }
 
-int requestStatusValue(const ImageViewport& item)
-{
-    return static_cast<int>(requestStatus(item));
-}
+int requestStatusValue(const ImageViewport& item) { return static_cast<int>(requestStatus(item)); }
 
-int requestReasonValue(const ImageViewport& item)
-{
-    return static_cast<int>(requestReason(item));
-}
+int requestReasonValue(const ImageViewport& item) { return static_cast<int>(requestReason(item)); }
 
-int displayStatusValue(const ImageViewport& item)
-{
-    return static_cast<int>(displayStatus(item));
-}
+int displayStatusValue(const ImageViewport& item) { return static_cast<int>(displayStatus(item)); }
 
-int playbackPhaseValue(const ImageViewport& item)
-{
-    return static_cast<int>(playbackPhase(item));
-}
+int playbackPhaseValue(const ImageViewport& item) { return static_cast<int>(playbackPhase(item)); }
 
 int commandReasonValue(const ImageViewport& item)
 {
@@ -99,7 +91,11 @@ int commandReasonValue(const ImageViewport& item)
 void verifyEnumValues(
     const QMetaObject* metaObject, const char* enumName, const QList<QByteArray>& keys)
 {
-    const int index = metaObject->indexOfEnumerator(enumName);
+    int index = metaObject->indexOfEnumerator(enumName);
+    if (index < 0) {
+        metaObject = &ImageViewportEnums::staticMetaObject;
+        index = metaObject->indexOfEnumerator(enumName);
+    }
     QVERIFY2(index >= 0, enumName);
     const QMetaEnum enumerator = metaObject->enumerator(index);
     for (const QByteArray& key : keys) {
@@ -109,30 +105,29 @@ void verifyEnumValues(
 
 void verifyRequestStatusReasonPair(const ImageViewport& item)
 {
-    const ImageViewport::RequestStatus status = requestStatus(item);
-    const ImageViewport::RequestReason reason = requestReason(item);
+    const ImageViewportRequestStatus status = requestStatus(item);
+    const ImageViewportRequestReason reason = requestReason(item);
 
-    const bool valid = (status == ImageViewport::RequestStatus::NoRequest
-                           && reason == ImageViewport::RequestReason::NoRequest)
-        || (status == ImageViewport::RequestStatus::Loading
-            && (reason == ImageViewport::RequestReason::ProviderWaiting
-                || reason == ImageViewport::RequestReason::RequestQueued
-                || reason == ImageViewport::RequestReason::UploadPending
-                || reason == ImageViewport::RequestReason::RenderWaiting))
-        || (status == ImageViewport::RequestStatus::Ready
-            && reason == ImageViewport::RequestReason::Ready)
-        || (status == ImageViewport::RequestStatus::Unsupported
-            && (reason == ImageViewport::RequestReason::UnsupportedRequest
-                || reason == ImageViewport::RequestReason::InvalidRequest
-                || reason == ImageViewport::RequestReason::PayloadRejection))
-        || (status == ImageViewport::RequestStatus::Error
-            && (reason == ImageViewport::RequestReason::ProviderFailure
-                || reason == ImageViewport::RequestReason::PayloadRejection
-                || reason == ImageViewport::RequestReason::RenderFailure));
-    const QString message
-        = QStringLiteral("invalid request status/reason pair: %1/%2")
-              .arg(static_cast<int>(status))
-              .arg(static_cast<int>(reason));
+    const bool valid = (status == ImageViewportRequestStatus::NoRequest
+                           && reason == ImageViewportRequestReason::NoRequest)
+        || (status == ImageViewportRequestStatus::Loading
+            && (reason == ImageViewportRequestReason::ProviderWaiting
+                || reason == ImageViewportRequestReason::RequestQueued
+                || reason == ImageViewportRequestReason::UploadPending
+                || reason == ImageViewportRequestReason::RenderWaiting))
+        || (status == ImageViewportRequestStatus::Ready
+            && reason == ImageViewportRequestReason::Ready)
+        || (status == ImageViewportRequestStatus::Unsupported
+            && (reason == ImageViewportRequestReason::UnsupportedRequest
+                || reason == ImageViewportRequestReason::InvalidRequest
+                || reason == ImageViewportRequestReason::PayloadRejection))
+        || (status == ImageViewportRequestStatus::Error
+            && (reason == ImageViewportRequestReason::ProviderFailure
+                || reason == ImageViewportRequestReason::PayloadRejection
+                || reason == ImageViewportRequestReason::RenderFailure));
+    const QString message = QStringLiteral("invalid request status/reason pair: %1/%2")
+                                .arg(static_cast<int>(status))
+                                .arg(static_cast<int>(reason));
     QVERIFY2(valid, qPrintable(message));
 }
 
@@ -149,8 +144,8 @@ void verifyInvalidCoordinateResult(const ImageViewportCoordinateResult& result)
     QCOMPARE(result.point(), QPointF());
 }
 
-ImageViewportCoordinateInput coordinateInput(ImageViewport::CoordinateSpace sourceSpace,
-    ImageViewport::CoordinateSpace targetSpace, QPointF point, QVariant role = {})
+ImageViewportCoordinateInput coordinateInput(ImageViewportCoordinateSpace sourceSpace,
+    ImageViewportCoordinateSpace targetSpace, QPointF point, QVariant role = {})
 {
     ImageViewportCoordinateInput input;
     input.setSourceSpace(sourceSpace);
@@ -162,60 +157,58 @@ ImageViewportCoordinateInput coordinateInput(ImageViewport::CoordinateSpace sour
 
 ImageViewportCoordinateResult mapItemToSpread(const ImageViewport& item, double x, double y)
 {
-    return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::Item,
-        ImageViewport::CoordinateSpace::DisplayedSpread, QPointF(x, y)));
+    return item.mapPoint(coordinateInput(ImageViewportCoordinateSpace::Item,
+        ImageViewportCoordinateSpace::DisplayedSpread, QPointF(x, y)));
 }
 
 ImageViewportCoordinateResult mapSpreadToItem(const ImageViewport& item, double x, double y)
 {
-    return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::DisplayedSpread,
-        ImageViewport::CoordinateSpace::Item, QPointF(x, y)));
+    return item.mapPoint(coordinateInput(ImageViewportCoordinateSpace::DisplayedSpread,
+        ImageViewportCoordinateSpace::Item, QPointF(x, y)));
 }
 
 ImageViewportCoordinateResult mapItemToPage(
     const ImageViewport& item, ImageViewportPageRole role, double x, double y)
 {
-    return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::Item,
-        ImageViewport::CoordinateSpace::DisplayedPage, QPointF(x, y), QVariant::fromValue(role)));
+    return item.mapPoint(coordinateInput(ImageViewportCoordinateSpace::Item,
+        ImageViewportCoordinateSpace::DisplayedPage, QPointF(x, y), QVariant::fromValue(role)));
 }
 
 ImageViewportCoordinateResult mapPageToItem(
     const ImageViewport& item, ImageViewportPageRole role, double x, double y)
 {
-    return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::DisplayedPage,
-        ImageViewport::CoordinateSpace::Item, QPointF(x, y), QVariant::fromValue(role)));
+    return item.mapPoint(coordinateInput(ImageViewportCoordinateSpace::DisplayedPage,
+        ImageViewportCoordinateSpace::Item, QPointF(x, y), QVariant::fromValue(role)));
 }
 
 ImageViewportCoordinateResult mapSpreadToPage(
     const ImageViewport& item, ImageViewportPageRole role, double x, double y)
 {
-    return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::DisplayedSpread,
-        ImageViewport::CoordinateSpace::DisplayedPage, QPointF(x, y), QVariant::fromValue(role)));
+    return item.mapPoint(coordinateInput(ImageViewportCoordinateSpace::DisplayedSpread,
+        ImageViewportCoordinateSpace::DisplayedPage, QPointF(x, y), QVariant::fromValue(role)));
 }
 
 ImageViewportCoordinateResult mapPageToSpread(
     const ImageViewport& item, ImageViewportPageRole role, double x, double y)
 {
-    return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::DisplayedPage,
-        ImageViewport::CoordinateSpace::DisplayedSpread, QPointF(x, y), QVariant::fromValue(role)));
+    return item.mapPoint(coordinateInput(ImageViewportCoordinateSpace::DisplayedPage,
+        ImageViewportCoordinateSpace::DisplayedSpread, QPointF(x, y), QVariant::fromValue(role)));
 }
 
-ImageViewportCoordinateResult mapItemToPrimaryPage(
-    const ImageViewport& item, double x, double y)
+ImageViewportCoordinateResult mapItemToPrimaryPage(const ImageViewport& item, double x, double y)
 {
     return mapItemToPage(item, ImageViewportPageRole::Primary, x, y);
 }
 
-ImageViewportCoordinateResult mapPrimaryPageToItem(
-    const ImageViewport& item, double x, double y)
+ImageViewportCoordinateResult mapPrimaryPageToItem(const ImageViewport& item, double x, double y)
 {
     return mapPageToItem(item, ImageViewportPageRole::Primary, x, y);
 }
 
 bool containsPrimaryPagePoint(const ImageViewport& item, double x, double y)
 {
-    return item.containsPoint(coordinateInput(ImageViewport::CoordinateSpace::DisplayedPage,
-        ImageViewport::CoordinateSpace::DisplayedPage, QPointF(x, y),
+    return item.containsPoint(coordinateInput(ImageViewportCoordinateSpace::DisplayedPage,
+        ImageViewportCoordinateSpace::DisplayedPage, QPointF(x, y),
         QVariant::fromValue(ImageViewportPageRole::Primary)));
 }
 
@@ -234,7 +227,8 @@ ImageViewportRevisionToken viewportCommandRevision(const ImageViewport& item)
     return item.state().revisions().command();
 }
 
-ImageViewportRevisionToken revisionTokenProperty(const ImageViewport& item, const char* propertyName)
+ImageViewportRevisionToken revisionTokenProperty(
+    const ImageViewport& item, const char* propertyName)
 {
     if (qstrcmp(propertyName, "requestRevision") == 0) {
         return viewportRequestRevision(item);
@@ -245,9 +239,8 @@ ImageViewportRevisionToken revisionTokenProperty(const ImageViewport& item, cons
     if (qstrcmp(propertyName, "commandRevision") == 0) {
         return viewportCommandRevision(item);
     }
-    QTest::qFail(
-        qPrintable(QStringLiteral("unknown revision property: %1").arg(propertyName)), __FILE__,
-        __LINE__);
+    QTest::qFail(qPrintable(QStringLiteral("unknown revision property: %1").arg(propertyName)),
+        __FILE__, __LINE__);
     return {};
 }
 
@@ -327,10 +320,7 @@ QRectF visibleSpreadRect(const ImageViewport& item)
     return item.state().display().visibleSpreadRect();
 }
 
-QRectF contentRect(const ImageViewport& item)
-{
-    return item.state().display().contentRect();
-}
+QRectF contentRect(const ImageViewport& item) { return item.state().display().contentRect(); }
 
 QRectF visibleImageRect(const ImageViewport& item)
 {
@@ -437,10 +427,7 @@ QRectF visibleSecondaryPageRect(const ImageViewport& item)
     return item.state().secondary().geometry().displayedVisiblePageRect();
 }
 
-QSizeF contentSize(const ImageViewport& item)
-{
-    return item.state().display().contentSize();
-}
+QSizeF contentSize(const ImageViewport& item) { return item.state().display().contentSize(); }
 
 QPointF contentPosition(const ImageViewport& item)
 {

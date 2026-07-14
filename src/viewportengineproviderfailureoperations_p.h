@@ -14,8 +14,8 @@ struct ViewportEngineProviderTerminalEventInput
     ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ImageSequenceProviderRequestToken token;
     Kind kind = Kind::Failure;
-    ImageSequenceProviderSession::UnsupportedCause unsupportedCause
-        = ImageSequenceProviderSession::UnsupportedCause::PayloadRejection;
+    ImageSequenceProviderUnsupportedCause unsupportedCause
+        = ImageSequenceProviderUnsupportedCause::PayloadRejection;
     QString diagnostic;
     bool unsupportedCauseExplicit = false;
 };

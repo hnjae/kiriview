@@ -103,7 +103,7 @@ bool commandHasOperation(const ImageViewportPresentationCommand& command)
 {
     return command.resetView() || command.hasFitMode() || command.hasManualZoomPercent()
         || command.hasZoomStepDelta() || command.hasContentPosition() || command.hasPanDelta()
-        || command.hasScanDirection() || command.hasRotationDegrees()
+        || command.hasContentAnchor() || command.hasRotationDegrees()
         || command.hasMirrorHorizontally() || command.hasMirrorVertically()
         || command.hasSpreadDirection() || command.hasPageGap() || command.hasBackgroundMode()
         || command.hasBackgroundColor() || command.hasSmoothing() || command.hasMipmap()
@@ -116,12 +116,12 @@ bool commandValid(const ViewportEnginePresentationCommandInput& input)
     const ImageViewportPresentationCommand& command = input.command;
     const bool resetConflicts = command.resetView()
         && (command.hasFitMode() || command.hasManualZoomPercent() || command.hasZoomStepDelta()
-            || command.hasContentPosition() || command.hasPanDelta() || command.hasScanDirection()
+            || command.hasContentPosition() || command.hasPanDelta() || command.hasContentAnchor()
             || command.hasRotationDegrees() || command.hasMirrorHorizontally()
             || command.hasMirrorVertically());
     const int geometryPositioningOperations = (command.hasManualZoomPercent() ? 1 : 0)
         + (command.hasZoomStepDelta() ? 1 : 0) + (command.hasContentPosition() ? 1 : 0)
-        + (command.hasPanDelta() ? 1 : 0) + (command.hasScanDirection() ? 1 : 0);
+        + (command.hasPanDelta() ? 1 : 0) + (command.hasContentAnchor() ? 1 : 0);
     const auto validRotation = [](int degrees) {
         return degrees == 0 || degrees == 90 || degrees == 180 || degrees == 270;
     };
@@ -142,8 +142,8 @@ bool commandValid(const ViewportEnginePresentationCommandInput& input)
         && (!command.hasContentPosition()
             || ImageViewportInternal::isFinitePoint(command.contentPosition()))
         && (!command.hasPanDelta() || ImageViewportInternal::isFinitePoint(command.panDelta()))
-        && (!command.hasScanDirection()
-            || ImageViewportInternal::isValidScanDirection(command.scanDirection()))
+        && (!command.hasContentAnchor()
+            || ImageViewportInternal::isValidContentAnchor(command.contentAnchor()))
         && (!command.hasRotationDegrees() || validRotation(command.rotationDegrees()))
         && (!command.hasSpreadDirection()
             || ImageViewportInternal::isValidSpreadDirection(command.spreadDirection()))
@@ -195,7 +195,7 @@ ViewportEnginePresentationCommandReduction reduceViewportEnginePresentationComma
     const ImageViewportPresentationCommand& command = input.command;
 
     if (command.resetView()) {
-        next.fitMode = ImageViewport::FitMode::Contain;
+        next.fitMode = ImageViewportFitMode::Contain;
         next.manualZoom = 1.0;
         next.contentPosition = {};
         next.rotationDegrees = 0;
@@ -208,18 +208,18 @@ ViewportEnginePresentationCommandReduction reduceViewportEnginePresentationComma
     }
     if (command.hasManualZoomPercent()) {
         const double manualZoom = command.manualZoomPercent() / 100.0;
-        if (next.fitMode != ImageViewport::FitMode::Manual || next.manualZoom != manualZoom) {
+        if (next.fitMode != ImageViewportFitMode::Manual || next.manualZoom != manualZoom) {
             applyAnchored([&] {
-                next.fitMode = ImageViewport::FitMode::Manual;
+                next.fitMode = ImageViewportFitMode::Manual;
                 next.manualZoom = manualZoom;
             });
         }
     }
     if (command.hasZoomStepDelta()) {
         const double manualZoom = steppedZoomPercent(command.zoomStepDelta(), geometry()) / 100.0;
-        if (next.fitMode != ImageViewport::FitMode::Manual || next.manualZoom != manualZoom) {
+        if (next.fitMode != ImageViewportFitMode::Manual || next.manualZoom != manualZoom) {
             applyAnchored([&] {
-                next.fitMode = ImageViewport::FitMode::Manual;
+                next.fitMode = ImageViewportFitMode::Manual;
                 next.manualZoom = manualZoom;
             });
         }
@@ -233,28 +233,17 @@ ViewportEnginePresentationCommandReduction reduceViewportEnginePresentationComma
         affectsGeometry = applyContentPosition(next, geometry(), current + command.panDelta())
             || affectsGeometry;
     }
-    if (command.hasScanDirection()) {
+    if (command.hasContentAnchor()) {
         QPointF requested;
         const PresentationGeometry::State currentGeometry = geometry();
         const QPointF maximum = PresentationGeometry::maximumContentPosition(currentGeometry);
-        switch (command.scanDirection()) {
-        case ImageViewport::ScanDirection::Start:
-            requested = {};
+        const bool rightToLeft = next.spreadDirection == ImageViewportSpreadDirection::RightToLeft;
+        switch (command.contentAnchor()) {
+        case ImageViewportContentAnchor::Start:
+            requested = QPointF(rightToLeft ? maximum.x() : 0.0, 0.0);
             break;
-        case ImageViewport::ScanDirection::End:
-            requested = maximum;
-            break;
-        case ImageViewport::ScanDirection::Next:
-            requested = PresentationGeometry::contentPosition(currentGeometry)
-                + (maximum.y() > 0.0
-                        ? QPointF(0.0, std::max(1.0, input.geometry.itemBounds.height() * 0.9))
-                        : QPointF(std::max(1.0, input.geometry.itemBounds.width() * 0.9), 0.0));
-            break;
-        case ImageViewport::ScanDirection::Previous:
-            requested = PresentationGeometry::contentPosition(currentGeometry)
-                + (maximum.y() > 0.0
-                        ? QPointF(0.0, -std::max(1.0, input.geometry.itemBounds.height() * 0.9))
-                        : QPointF(-std::max(1.0, input.geometry.itemBounds.width() * 0.9), 0.0));
+        case ImageViewportContentAnchor::End:
+            requested = QPointF(rightToLeft ? 0.0 : maximum.x(), maximum.y());
             break;
         }
         affectsGeometry = applyContentPosition(next, currentGeometry, requested) || affectsGeometry;
@@ -380,14 +369,14 @@ reduceViewportEnginePresentationTargetTransition(
     PresentationState next = previousPresentation;
     if (input.zoomTransition
         == PresentationTargetTransitionPolicy::ZoomTransition::ResetToContain) {
-        next.fitMode = ImageViewport::FitMode::Contain;
+        next.fitMode = ImageViewportFitMode::Contain;
         next.manualZoom = 1.0;
     }
     if (input.explicitFitMode) {
         next.fitMode = *input.explicitFitMode;
     }
     if (input.zoomTransition == PresentationTargetTransitionPolicy::ZoomTransition::Preserve
-        && next.fitMode == ImageViewport::FitMode::Manual
+        && next.fitMode == ImageViewportFitMode::Manual
         && ImageViewportInternal::isFinitePositive(input.previousZoomPercent)) {
         next.manualZoom = input.previousZoomPercent / 100.0;
     }

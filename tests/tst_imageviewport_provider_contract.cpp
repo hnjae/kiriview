@@ -188,7 +188,7 @@ void ImageViewportProviderContractTest::providerPublicValueTypesValidateTiming()
     QCOMPARE(invalidFixedDurationMetadata.isSpecified(), true);
     QCOMPARE(invalidFixedDurationMetadata.isValid(), false);
 
-    const ImageSequenceProviderFrameMetadata emptyFrameMetadata;
+    const ImageSequenceProviderFrameEnvelope emptyFrameMetadata;
     QCOMPARE(emptyFrameMetadata.isValid(), false);
     QCOMPARE(emptyFrameMetadata.isStillFrame(), false);
     QCOMPARE(emptyFrameMetadata.isTimedFrame(), false);
@@ -196,8 +196,8 @@ void ImageViewportProviderContractTest::providerPublicValueTypesValidateTiming()
     QCOMPARE(emptyFrameMetadata.frameStartPosition(), -1);
     QCOMPARE(emptyFrameMetadata.frameDuration(), -1);
 
-    const ImageSequenceProviderFrameMetadata stillFrameMetadata
-        = ImageSequenceProviderFrameMetadata::stillFrame();
+    const ImageSequenceProviderFrameEnvelope stillFrameMetadata
+        = ImageSequenceProviderFrameEnvelope::stillFrame();
     QCOMPARE(stillFrameMetadata.isValid(), true);
     QCOMPARE(stillFrameMetadata.isStillFrame(), true);
     QCOMPARE(stillFrameMetadata.isTimedFrame(), false);
@@ -205,8 +205,8 @@ void ImageViewportProviderContractTest::providerPublicValueTypesValidateTiming()
     QCOMPARE(stillFrameMetadata.frameStartPosition(), -1);
     QCOMPARE(stillFrameMetadata.frameDuration(), -1);
 
-    const ImageSequenceProviderFrameMetadata timedFrameMetadata
-        = ImageSequenceProviderFrameMetadata::timedFrame(1, 100, 250);
+    const ImageSequenceProviderFrameEnvelope timedFrameMetadata
+        = ImageSequenceProviderFrameEnvelope::timedFrame(1, 100, 250);
     QCOMPARE(timedFrameMetadata.isValid(), true);
     QCOMPARE(timedFrameMetadata.isStillFrame(), false);
     QCOMPARE(timedFrameMetadata.isTimedFrame(), true);
@@ -214,17 +214,17 @@ void ImageViewportProviderContractTest::providerPublicValueTypesValidateTiming()
     QCOMPARE(timedFrameMetadata.frameStartPosition(), 100);
     QCOMPARE(timedFrameMetadata.frameDuration(), 250);
 
-    const ImageSequenceProviderFrameMetadata unknownDurationTimedFrameMetadata
-        = ImageSequenceProviderFrameMetadata::timedFrame(1, 100);
-    QCOMPARE(unknownDurationTimedFrameMetadata.isValid(), true);
+    const ImageSequenceProviderFrameEnvelope unknownDurationTimedFrameMetadata
+        = ImageSequenceProviderFrameEnvelope::timedFrame(1, 100, -1);
+    QCOMPARE(unknownDurationTimedFrameMetadata.isValid(), false);
     QCOMPARE(unknownDurationTimedFrameMetadata.isTimedFrame(), true);
     QCOMPARE(unknownDurationTimedFrameMetadata.frame(), 1);
     QCOMPARE(unknownDurationTimedFrameMetadata.frameStartPosition(), 100);
     QCOMPARE(unknownDurationTimedFrameMetadata.frameDuration(), -1);
 
-    QCOMPARE(ImageSequenceProviderFrameMetadata::timedFrame(-1, 100).isValid(), false);
-    QCOMPARE(ImageSequenceProviderFrameMetadata::timedFrame(1, -1).isValid(), false);
-    QCOMPARE(ImageSequenceProviderFrameMetadata::timedFrame(1, 100, 0).isValid(), false);
+    QCOMPARE(ImageSequenceProviderFrameEnvelope::timedFrame(-1, 100, 250).isValid(), false);
+    QCOMPARE(ImageSequenceProviderFrameEnvelope::timedFrame(1, -1, 250).isValid(), false);
+    QCOMPARE(ImageSequenceProviderFrameEnvelope::timedFrame(1, 100, 0).isValid(), false);
 
     const ImageSequenceProviderMetadata emptyFacts;
     QCOMPARE(emptyFacts.isSpecified(), false);
@@ -435,19 +435,19 @@ void ImageViewportProviderContractTest::typedDescriptorFactoryAndSessionBridgeMa
     QCOMPARE(frameRequest.demand().visibleSourceRect(), QRectF(0.0, 0.0, 16.0, 8.0));
     QCOMPARE(frameRequest.demand().targetDisplaySizePixels(), QSizeF(100.0, 50.0));
     QCOMPARE(frameRequest.demand().effectiveDevicePixelRatio(), 1.0);
-    QCOMPARE(frameRequest.demand().maximumPayloadBytes(),
-        ImageSequenceLimits::maximumPayloadBytes());
+    QCOMPARE(
+        frameRequest.demand().maximumPayloadBytes(), ImageSequenceLimits::maximumPayloadBytes());
     QCOMPARE(frameRequest.demand().allocationGeneration().isValid(), true);
 
     sessionFactory->lastSession->emitFrameReady(frameRequest.token());
 
-    QCOMPARE(requestStatus(item), ImageViewport::RequestStatus::Loading);
-    QCOMPARE(requestReason(item), ImageViewport::RequestReason::UploadPending);
+    QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Loading);
+    QCOMPARE(requestReason(item), ImageViewportRequestReason::UploadPending);
     QVERIFY(hasPendingRenderCommitForTest(item));
     acknowledgePendingPrimaryRenderCommitForTest(item);
-    QCOMPARE(requestStatus(item), ImageViewport::RequestStatus::Ready);
-    QCOMPARE(requestReason(item), ImageViewport::RequestReason::Ready);
-    QCOMPARE(displayStatus(item), ImageViewport::DisplayStatus::Ready);
+    QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Ready);
+    QCOMPARE(requestReason(item), ImageViewportRequestReason::Ready);
+    QCOMPARE(displayStatus(item), ImageViewportDisplayStatus::Ready);
     QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
 }
 
@@ -581,18 +581,18 @@ void ImageViewportProviderContractTest::providerFactoryRejectsPublishedKnownMeta
               QCOMPARE(*frameRequestCount, 0);
           };
 
-    verifyRejectedKnownMetadata(ImageSequenceProviderMetadata::still(
-                                    QSizeF(ImageSequenceLimits::maximumSourceLogicalWidth() + 1, 8.0)),
+    verifyRejectedKnownMetadata(ImageSequenceProviderMetadata::still(QSizeF(
+                                    ImageSequenceLimits::maximumSourceLogicalWidth() + 1, 8.0)),
         QStringLiteral("maximumSourceLogicalWidth"));
-    verifyRejectedKnownMetadata(ImageSequenceProviderMetadata::still(
-                                    QSizeF(16.0, ImageSequenceLimits::maximumSourceLogicalHeight() + 1)),
+    verifyRejectedKnownMetadata(ImageSequenceProviderMetadata::still(QSizeF(
+                                    16.0, ImageSequenceLimits::maximumSourceLogicalHeight() + 1)),
         QStringLiteral("maximumSourceLogicalHeight"));
-    verifyRejectedKnownMetadata(
-        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0),
-            QVector<int>(ImageSequenceLimits::maximumFrameCount() + 1, 1)),
-        QStringLiteral("maximumFrameCount"));
     verifyRejectedKnownMetadata(ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0),
-                                    { ImageSequenceLimits::maximumFrameDurationMilliseconds() + 1 }),
+                                    QVector<int>(ImageSequenceLimits::maximumFrameCount() + 1, 1)),
+        QStringLiteral("maximumFrameCount"));
+    verifyRejectedKnownMetadata(
+        ImageSequenceProviderMetadata::timedFrameList(
+            QSizeF(16.0, 8.0), { ImageSequenceLimits::maximumFrameDurationMilliseconds() + 1 }),
         QStringLiteral("maximumFrameDurationMilliseconds"));
     verifyRejectedKnownMetadata(ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0),
                                     { ImageSequenceLimits::maximumTotalDurationMilliseconds(), 1 }),
@@ -640,18 +640,18 @@ void ImageViewportProviderContractTest::providerSessionEntryPointsUseSessionAffi
         image.fill(Qt::transparent);
         ImageFrame frame(image);
         emitProviderFrameReady(session, session->lastFrameToken(), &frame,
-            ImageSequenceProviderFrameMetadata::timedFrame(0, 0, 100));
+            ImageSequenceProviderFrameEnvelope::timedFrame(0, 0, 100));
         drainQueuedProviderResults();
         acknowledgePendingPrimaryRenderCommitForTest(item);
 
         QCOMPARE(item.play(ImageViewportPageRole::Primary).outcome(),
-            ImageViewport::CommandOutcome::Accepted);
+            ImageViewportCommandOutcome::Accepted);
         advancePlaybackForTest(item, 100);
         QCOMPARE(*playbackRequestThread, &workerThread);
         QVERIFY(session->lastPlaybackToken().isValid());
 
         QCOMPARE(item.stop(ImageViewportPageRole::Primary).outcome(),
-            ImageViewport::CommandOutcome::Accepted);
+            ImageViewportCommandOutcome::Accepted);
         QCOMPARE(*cancelRequestThread, &workerThread);
     }
 
@@ -704,18 +704,18 @@ void ImageViewportProviderContractTest::providerThreadSafeSessionEntryPointsUseC
         image.fill(Qt::transparent);
         ImageFrame frame(image);
         emitProviderFrameReady(session, session->lastFrameToken(), &frame,
-            ImageSequenceProviderFrameMetadata::timedFrame(0, 0, 100));
+            ImageSequenceProviderFrameEnvelope::timedFrame(0, 0, 100));
         drainQueuedProviderResults();
         acknowledgePendingPrimaryRenderCommitForTest(item);
 
         QCOMPARE(item.play(ImageViewportPageRole::Primary).outcome(),
-            ImageViewport::CommandOutcome::Accepted);
+            ImageViewportCommandOutcome::Accepted);
         advancePlaybackForTest(item, 100);
         QCOMPARE(*playbackRequestThread, controllerThread);
         QVERIFY(session->lastPlaybackToken().isValid());
 
         QCOMPARE(item.stop(ImageViewportPageRole::Primary).outcome(),
-            ImageViewport::CommandOutcome::Accepted);
+            ImageViewportCommandOutcome::Accepted);
         QCOMPARE(*cancelRequestThread, controllerThread);
     }
 
@@ -910,7 +910,7 @@ void ImageViewportProviderContractTest::providerSessionOpenFailureKeepsReplaceme
     const ImageViewportRevisionToken failedRequestRevision
         = revisionTokenProperty(item, "requestRevision");
     QCOMPARE(item.play(ImageViewportPageRole::Primary).outcome(),
-        ImageViewport::CommandOutcome::Unsupported);
+        ImageViewportCommandOutcome::Unsupported);
     QCOMPARE(
         commandReasonValue(item), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));

@@ -1,11 +1,11 @@
 #pragma once
 
-#include "imageviewport.h"
 #include "viewportcontrollertransition_p.h"
+#include <ImageViewport/ImageViewport>
 
 struct ViewportCommandResult
 {
-    ImageViewport::CommandOutcome outcome = ImageViewport::CommandOutcome::Accepted;
+    ImageViewportCommandOutcome outcome = ImageViewportCommandOutcome::Accepted;
     ViewportControllerTransition transition;
 };
 

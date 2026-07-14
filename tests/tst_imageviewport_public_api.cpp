@@ -201,9 +201,9 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
         "nearestVisiblePoint(ImageViewportCoordinateInput)",
         "containsVisibleSpreadPoint(double,double)",
         "containsVisiblePagePoint(ImageViewportPageRole,double,double)",
-        "setSpreadDirection(ImageViewport::SpreadDirection)",
+        "setSpreadDirection(ImageViewportSpreadDirection)",
         "setPageGap(double)",
-        "setFitMode(ImageViewport::FitMode,QPointF)",
+        "setFitMode(ImageViewportFitMode,QPointF)",
         "setZoomPercent(double,QPointF)",
     };
 
@@ -261,7 +261,9 @@ void ImageViewportPublicApiTest::exposesDocumentedQmlSurface()
 
     for (const QByteArray& enumerator : enumerators) {
         QVERIFY2(
-            metaObject->indexOfEnumerator(enumerator.constData()) >= 0, enumerator.constData());
+            ImageViewportEnums::staticMetaObject.indexOfEnumerator(enumerator.constData()) >= 0,
+            enumerator.constData());
+        QVERIFY2(metaObject->indexOfEnumerator(enumerator.constData()) < 0, enumerator.constData());
     }
 
     QVERIFY(ImageViewportEnums::staticMetaObject.indexOfEnumerator("CapabilitySupport") >= 0);
@@ -351,18 +353,22 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
     const QList<QByteArray> enumerators = {
         "SpreadDirection",
         "FitMode",
-        "ScanDirection",
+        "ContentAnchor",
     };
 
     for (const QByteArray& enumerator : enumerators) {
+        QVERIFY2(metaObject->indexOfEnumerator(enumerator.constData()) < 0, enumerator.constData());
         QVERIFY2(
-            metaObject->indexOfEnumerator(enumerator.constData()) >= 0, enumerator.constData());
+            ImageViewportEnums::staticMetaObject.indexOfEnumerator(enumerator.constData()) >= 0,
+            enumerator.constData());
     }
 
     verifyEnumValues(&ImageViewportEnums::staticMetaObject, "PageRole", { "Primary", "Secondary" });
-    verifyEnumValues(metaObject, "SpreadDirection", { "LeftToRight", "RightToLeft" });
-    verifyEnumValues(metaObject, "FitMode", { "Contain", "FitWidth", "FitHeight", "Manual" });
-    verifyEnumValues(metaObject, "ScanDirection", { "Start", "Previous", "Next", "End" });
+    verifyEnumValues(
+        &ImageViewportEnums::staticMetaObject, "SpreadDirection", { "LeftToRight", "RightToLeft" });
+    verifyEnumValues(&ImageViewportEnums::staticMetaObject, "FitMode",
+        { "Contain", "FitWidth", "FitHeight", "Manual" });
+    verifyEnumValues(&ImageViewportEnums::staticMetaObject, "ContentAnchor", { "Start", "End" });
 
     const QList<QByteArray> methods = {
         "setPresentationTarget(ImageViewportPresentationTarget,PresentationTargetTransitionPolicy)",
@@ -447,8 +453,8 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
     const QMetaObject& presentationCommandMetaObject
         = ImageViewportPresentationCommand::staticMetaObject;
     const QList<QByteArray> presentationCommandProperties = {
-        "scanDirectionSet",
-        "scanDirection",
+        "contentAnchorSet",
+        "contentAnchor",
         "qualityPreferenceSet",
         "qualityPreference",
         "exactnessPreferenceSet",
@@ -531,7 +537,7 @@ void ImageViewportPublicApiTest::hasDocumentedDefaultState()
     QCOMPARE(presentation.mipmap(), false);
     QCOMPARE(presentation.mirrorHorizontally(), false);
     QCOMPARE(presentation.mirrorVertically(), false);
-    QCOMPARE(presentation.backgroundMode(), ImageViewport::BackgroundMode::Transparent);
+    QCOMPARE(presentation.backgroundMode(), ImageViewportBackgroundMode::Transparent);
     QCOMPARE(presentation.backgroundColor(), QColor(Qt::transparent));
     QCOMPARE(presentation.looping(), false);
     QVERIFY(presentation.minimumManualZoomPercent() > 0.0);
@@ -575,8 +581,8 @@ void ImageViewportPublicApiTest::coordinateHelpersExposeInvalidDefaultsAndDoNotA
     const double infinity = std::numeric_limits<double>::infinity();
     verifyInvalidCoordinateResult(mapItemToSpread(item, 1.0, 1.0));
     ImageViewportCoordinateInput nonFinite
-        = coordinateInput(ImageViewport::CoordinateSpace::DisplayedSpread,
-            ImageViewport::CoordinateSpace::DisplayedSpread, QPointF(infinity, 1.0));
+        = coordinateInput(ImageViewportCoordinateSpace::DisplayedSpread,
+            ImageViewportCoordinateSpace::DisplayedSpread, QPointF(infinity, 1.0));
     verifyInvalidCoordinateResult(item.mapPoint(nonFinite));
     QCOMPARE(item.containsPoint(nonFinite), false);
 
@@ -644,7 +650,7 @@ void ImageViewportPublicApiTest::roleGeometrySnapshotFields()
                                             primaryResult->sequence(), secondaryResult->sequence()),
                      PresentationTargetTransitionPolicy {})
                  .outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+        ImageViewportCommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
 
     const ImageViewportRoleGeometrySnapshot primaryGeometry = item.state().primary().geometry();
@@ -736,7 +742,7 @@ void ImageViewportPublicApiTest::typedPresentationTargetTransitionPolicyPreserve
     const auto outcome = item.setPresentationTarget(
         ImageViewportPresentationTarget(replacementResult->sequence()), invalidPolicy);
 
-    QCOMPARE(outcome.outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(outcome.outcome(), ImageViewportCommandOutcome::Invalid);
     QCOMPARE(viewportPrimarySequence(item), firstResult->sequence());
     QCOMPARE(viewportRequestRevision(item), requestRevision);
     QCOMPARE(viewportDisplayRevision(item), displayRevision);

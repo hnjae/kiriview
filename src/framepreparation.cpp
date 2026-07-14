@@ -17,8 +17,8 @@ FramePreparation::ProviderMetadataAdmissionResult providerMetadataRejection(
 {
     return {
         cause,
-        ImageViewport::RequestStatus::Error,
-        ImageViewport::RequestReason::PayloadRejection,
+        ImageViewportRequestStatus::Error,
+        ImageViewportRequestReason::PayloadRejection,
         std::move(diagnostic),
     };
 }
@@ -34,13 +34,13 @@ FramePreparation::ProviderKnownFactsAdmissionResult providerKnownFactsRejection(
 }
 
 FramePreparation::ProviderFrameAdmissionResult providerFrameRejection(
-    FramePreparation::ProviderFrameAdmissionResult::Cause cause,
-    ImageViewport::RequestStatus status, QString diagnostic)
+    FramePreparation::ProviderFrameAdmissionResult::Cause cause, ImageViewportRequestStatus status,
+    QString diagnostic)
 {
     return {
         cause,
         status,
-        ImageViewport::RequestReason::PayloadRejection,
+        ImageViewportRequestReason::PayloadRejection,
         std::move(diagnostic),
     };
 }
@@ -48,8 +48,7 @@ FramePreparation::ProviderFrameAdmissionResult providerFrameRejection(
 FramePreparation::ProviderFrameAdmissionResult providerFrameError(
     FramePreparation::ProviderFrameAdmissionResult::Cause cause, QString diagnostic)
 {
-    return providerFrameRejection(
-        cause, ImageViewport::RequestStatus::Error, std::move(diagnostic));
+    return providerFrameRejection(cause, ImageViewportRequestStatus::Error, std::move(diagnostic));
 }
 
 FramePreparation::BuiltInFrameAdmissionResult builtInFrameError(
@@ -57,8 +56,8 @@ FramePreparation::BuiltInFrameAdmissionResult builtInFrameError(
 {
     return {
         cause,
-        ImageViewport::RequestStatus::Error,
-        ImageViewport::RequestReason::PayloadRejection,
+        ImageViewportRequestStatus::Error,
+        ImageViewportRequestReason::PayloadRejection,
         std::move(diagnostic),
     };
 }
@@ -126,8 +125,8 @@ FramePreparation::ProviderMetadataAdmissionResult FramePreparation::admitProvide
     if (metadata.isStill()) {
         return {
             Cause::Accepted,
-            ImageViewport::RequestStatus::Ready,
-            ImageViewport::RequestReason::Ready,
+            ImageViewportRequestStatus::Ready,
+            ImageViewportRequestReason::Ready,
             {},
             false,
             size,
@@ -165,8 +164,8 @@ FramePreparation::ProviderMetadataAdmissionResult FramePreparation::admitProvide
 
     return {
         Cause::Accepted,
-        ImageViewport::RequestStatus::Ready,
-        ImageViewport::RequestReason::Ready,
+        ImageViewportRequestStatus::Ready,
+        ImageViewportRequestReason::Ready,
         {},
         true,
         size,
@@ -248,8 +247,8 @@ FramePreparation::ProviderKnownFactsAdmissionResult FramePreparation::admitProvi
 }
 
 FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFrame(
-    ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata,
-    const ImageSequenceProviderFrameEnvelope& envelope, const ProviderFrameState& state)
+    ImageFrame* frame, const ImageSequenceProviderFrameEnvelope& envelope,
+    const ProviderFrameState& state)
 {
     using Cause = ProviderFrameAdmissionResult::Cause;
 
@@ -271,24 +270,24 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
     }
     if (frame->payloadByteSize() > ImageSequenceLimits::maximumPayloadBytes()) {
         return providerFrameRejection(Cause::PayloadTooLarge,
-            ImageViewport::RequestStatus::Unsupported,
+            ImageViewportRequestStatus::Unsupported,
             QStringLiteral("provider frame payload exceeds maximumPayloadBytes"));
     }
     if (frame->payloadRasterSize().width() > ImageSequenceLimits::maximumPayloadRasterWidth()
         || frame->payloadRasterSize().height()
             > ImageSequenceLimits::maximumPayloadRasterHeight()) {
         return providerFrameRejection(Cause::PayloadTooLarge,
-            ImageViewport::RequestStatus::Unsupported,
+            ImageViewportRequestStatus::Unsupported,
             QStringLiteral("provider frame payload exceeds maximumPayloadRaster size"));
     }
     if (frame->formatIdentifier().toUcs4().size()
         > ImageSequenceLimits::maximumFormatIdentifierCharacters()) {
         return providerFrameRejection(Cause::PayloadTooLarge,
-            ImageViewport::RequestStatus::Unsupported,
+            ImageViewportRequestStatus::Unsupported,
             QStringLiteral(
                 "provider frame format identifier exceeds maximumFormatIdentifierCharacters"));
     }
-    if (!metadata.isValid()) {
+    if (!envelope.isValid()) {
         return providerFrameError(
             Cause::InvalidFrameMetadata, QStringLiteral("provider frame metadata is invalid"));
     }
@@ -301,26 +300,26 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
     if (state.exactnessPreference == ImageViewportExactnessPreference::RequireExact
         && frame->exactness() != ImageViewportPayloadExactness::ExactForSource) {
         return providerFrameRejection(Cause::ExactnessMismatch,
-            ImageViewport::RequestStatus::Unsupported,
+            ImageViewportRequestStatus::Unsupported,
             QStringLiteral("provider frame does not satisfy exactness preference"));
     }
 
     if (state.timedMetadata) {
-        if (!metadata.isTimedFrame() || metadata.frame() != state.resolvedFrame.frame) {
-            if (!metadata.isTimedFrame()) {
+        if (!envelope.isTimedFrame() || envelope.frame() != state.resolvedFrame.frame) {
+            if (!envelope.isTimedFrame()) {
                 return providerFrameError(Cause::InvalidFrameMetadata,
                     QStringLiteral("provider frame metadata is invalid"));
             }
             return providerFrameError(Cause::ResolvedFrameMismatch,
                 QStringLiteral("provider frame resolved frame mismatch"));
         }
-        if (metadata.frameStartPosition() != state.resolvedFrame.position) {
+        if (envelope.frameStartPosition() != state.resolvedFrame.position) {
             return providerFrameError(Cause::FrameStartMismatch,
                 QStringLiteral("provider frame start position mismatch"));
         }
         const int expectedFrameDuration
             = state.timingIntervals.frameDuration(state.resolvedFrame.frame);
-        if (metadata.frameDuration() != -1 && metadata.frameDuration() != expectedFrameDuration) {
+        if (envelope.frameDuration() != expectedFrameDuration) {
             return providerFrameError(
                 Cause::FrameDurationMismatch, QStringLiteral("provider frame duration mismatch"));
         }
@@ -334,18 +333,18 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
         admitted.demandRevision = envelope.demandRevision();
         return {
             Cause::Accepted,
-            ImageViewport::RequestStatus::Ready,
-            ImageViewport::RequestReason::Ready,
+            ImageViewportRequestStatus::Ready,
+            ImageViewportRequestReason::Ready,
             {},
             admitted,
         };
     }
 
-    if (!metadata.isStillFrame()) {
+    if (!envelope.isStillFrame()) {
         return providerFrameError(
             Cause::InvalidFrameMetadata, QStringLiteral("provider frame metadata is invalid"));
     }
-    if (metadata.frame() != 0) {
+    if (envelope.frame() != 0) {
         return providerFrameError(
             Cause::ResolvedFrameMismatch, QStringLiteral("provider frame resolved frame mismatch"));
     }
@@ -359,8 +358,8 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
     admitted.demandRevision = envelope.demandRevision();
     return {
         Cause::Accepted,
-        ImageViewport::RequestStatus::Ready,
-        ImageViewport::RequestReason::Ready,
+        ImageViewportRequestStatus::Ready,
+        ImageViewportRequestReason::Ready,
         {},
         admitted,
     };
@@ -389,8 +388,8 @@ FramePreparation::BuiltInFrameAdmissionResult FramePreparation::admitBuiltInFram
     admittedPayload.demandRevision = facts.demandRevision;
     return {
         Cause::Accepted,
-        ImageViewport::RequestStatus::Ready,
-        ImageViewport::RequestReason::Ready,
+        ImageViewportRequestStatus::Ready,
+        ImageViewportRequestReason::Ready,
         {},
         admittedPayload,
     };

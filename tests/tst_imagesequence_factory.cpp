@@ -369,8 +369,8 @@ void ImageSequenceFactoryTest::providerMetadataAdmissionAcceptsTimedMetadata()
 
     QVERIFY(admission.accepted());
     QCOMPARE(admission.cause, FramePreparation::ProviderMetadataAdmissionResult::Cause::Accepted);
-    QCOMPARE(admission.status, ImageViewport::RequestStatus::Ready);
-    QCOMPARE(admission.reason, ImageViewport::RequestReason::Ready);
+    QCOMPARE(admission.status, ImageViewportRequestStatus::Ready);
+    QCOMPARE(admission.reason, ImageViewportRequestReason::Ready);
     QCOMPARE(admission.logicalSize, QSizeF(16.0, 8.0));
     QCOMPARE(admission.timedMetadata, true);
     QVERIFY(admission.timingIntervals.isValid());
@@ -388,8 +388,8 @@ void ImageSequenceFactoryTest::providerMetadataAdmissionRejectsInvalidTiming()
     QVERIFY(!admission.accepted());
     QCOMPARE(admission.cause,
         FramePreparation::ProviderMetadataAdmissionResult::Cause::InvalidFrameDuration);
-    QCOMPARE(admission.status, ImageViewport::RequestStatus::Error);
-    QCOMPARE(admission.reason, ImageViewport::RequestReason::PayloadRejection);
+    QCOMPARE(admission.status, ImageViewportRequestStatus::Error);
+    QCOMPARE(admission.reason, ImageViewportRequestReason::PayloadRejection);
     QCOMPARE(admission.timedMetadata, false);
     QVERIFY(!admission.timingIntervals.isValid());
     QVERIFY(admission.diagnostic.contains(QStringLiteral("duration")));
@@ -466,12 +466,11 @@ void ImageSequenceFactoryTest::providerFrameAdmissionUsesResolvedFrameIdentity()
     state.preparedPayload.requestId = 11;
     state.preparedPayload.payloadId = 13;
 
-    ImageSequenceProviderFrameEnvelope envelope;
+    ImageSequenceProviderFrameEnvelope envelope = ImageSequenceProviderFrameEnvelope::stillFrame();
     envelope.setFrame(1);
     envelope.setFrameStartPosition(100);
     envelope.setFrameDuration(250);
-    const auto admission = FramePreparation::admitProviderFrame(
-        &frame, ImageSequenceProviderFrameMetadata::timedFrame(1, 100, 250), envelope, state);
+    const auto admission = FramePreparation::admitProviderFrame(&frame, envelope, state);
 
     QVERIFY(admission.accepted());
     QCOMPARE(admission.cause, FramePreparation::ProviderFrameAdmissionResult::Cause::Accepted);
@@ -487,7 +486,7 @@ void ImageSequenceFactoryTest::providerFrameAdmissionRejectsStaleDemandAndRequir
 {
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
-    ImageSequenceProviderFrameEnvelope envelope;
+    ImageSequenceProviderFrameEnvelope envelope = ImageSequenceProviderFrameEnvelope::stillFrame();
     envelope.setDemandRevision(
         ImageViewportInternal::RevisionTokenPrivateAccess::demandFromValue(3));
     ImageFrame frame(image, QSizeF(16.0, 8.0), QSizeF(16.0, 8.0), QSizeF(1.0, 1.0),
@@ -501,18 +500,16 @@ void ImageSequenceFactoryTest::providerFrameAdmissionRejectsStaleDemandAndRequir
     state.resolvedFrame = { 0, -1 };
     state.demandRevision = ImageViewportInternal::RevisionTokenPrivateAccess::demandFromValue(5);
 
-    const auto stale = FramePreparation::admitProviderFrame(
-        &frame, ImageSequenceProviderFrameMetadata::stillFrame(), envelope, state);
+    const auto stale = FramePreparation::admitProviderFrame(&frame, envelope, state);
     QCOMPARE(
         stale.cause, FramePreparation::ProviderFrameAdmissionResult::Cause::DemandRevisionMismatch);
 
     state.demandRevision = envelope.demandRevision();
     state.exactnessPreference = ImageViewportExactnessPreference::RequireExact;
-    const auto inexact = FramePreparation::admitProviderFrame(
-        &frame, ImageSequenceProviderFrameMetadata::stillFrame(), envelope, state);
+    const auto inexact = FramePreparation::admitProviderFrame(&frame, envelope, state);
     QCOMPARE(
         inexact.cause, FramePreparation::ProviderFrameAdmissionResult::Cause::ExactnessMismatch);
-    QCOMPARE(inexact.status, ImageViewport::RequestStatus::Unsupported);
+    QCOMPARE(inexact.status, ImageViewportRequestStatus::Unsupported);
 }
 
 void ImageSequenceFactoryTest::factoryResultSequenceSurvivesFactoryDestruction()
@@ -640,7 +637,7 @@ void ImageSequenceFactoryTest::assignedFactorySequenceSurvivesResultDestruction(
     QCOMPARE(primaryFrameCount(item), 1);
     QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
     QCOMPARE(item.seek(ImageViewportPageRole::Primary, 0).outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+        ImageViewportCommandOutcome::Accepted);
     acknowledgePendingPrimaryRenderCommitForTest(item);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
 }
@@ -701,7 +698,7 @@ void ImageSequenceFactoryTest::assignedProviderSequenceSurvivesResultDestruction
     QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
 
-    QCOMPARE(item.clear().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(viewportPrimarySequence(item), nullptr);
     QVERIFY(!observedSequence);
 }
@@ -740,7 +737,7 @@ void ImageSequenceFactoryTest::sharedFactorySequenceSurvivesFirstViewportDestruc
     QCOMPARE(primaryFrameCount(second), 1);
     QCOMPARE(displayedImageSize(second), QSizeF(16.0, 8.0));
     QCOMPARE(second.seek(ImageViewportPageRole::Primary, 0).outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+        ImageViewportCommandOutcome::Accepted);
     acknowledgePendingPrimaryRenderCommitForTest(second);
     QCOMPARE(requestStatusValue(second), enumValue(metaObject, "RequestStatus", "Ready"));
 }
@@ -762,7 +759,7 @@ void ImageSequenceFactoryTest::clearReleasesAssignedFactorySequenceOwner()
     result.reset();
 
     QVERIFY(observedSequence);
-    QCOMPARE(item.clear().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(viewportPrimarySequence(item), nullptr);
     QVERIFY(!observedSequence);
 }
@@ -1085,33 +1082,33 @@ void ImageSequenceFactoryTest::commandsWithoutRequestAreIgnoredDiagnostics()
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.play(ImageViewportPageRole::Primary).outcome(),
-        ImageViewport::CommandOutcome::IgnoredNoRequest);
+        ImageViewportCommandOutcome::IgnoredNoRequest);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "NoRequest"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
 
     QCOMPARE(item.seek(ImageViewportPageRole::Primary, -1).outcome(),
-        ImageViewport::CommandOutcome::IgnoredNoRequest);
+        ImageViewportCommandOutcome::IgnoredNoRequest);
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
 
     QCOMPARE(item.pause(ImageViewportPageRole::Primary).outcome(),
-        ImageViewport::CommandOutcome::IgnoredNoRequest);
+        ImageViewportCommandOutcome::IgnoredNoRequest);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
 
     QCOMPARE(item.stop(ImageViewportPageRole::Primary).outcome(),
-        ImageViewport::CommandOutcome::IgnoredNoRequest);
+        ImageViewportCommandOutcome::IgnoredNoRequest);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
 
     QCOMPARE(item.seekToPosition(ImageViewportPageRole::Primary, 0).outcome(),
-        ImageViewport::CommandOutcome::IgnoredNoRequest);
+        ImageViewportCommandOutcome::IgnoredNoRequest);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
 
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
-    QCOMPARE(item.clear().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "NoCommand"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
     QVERIFY(!revisionTokenProperty(item, "requestRevision").isValid());

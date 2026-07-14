@@ -1,6 +1,7 @@
 #pragma once
 
 #include "imagesequencesource_p.h"
+#include "imageviewporttoken_p.h"
 #include "viewportcontrollerprovidercontract_p.h"
 #include "viewportenginecontracts_p.h"
 #include "viewportenginetransition_p.h"
@@ -11,8 +12,7 @@
 
 struct ViewportEnginePresentationTargetAssignmentRequest
 {
-    ImageViewportPresentationTarget presentationTarget
-        = ImageViewportPresentationTarget::clear();
+    ImageViewportPresentationTarget presentationTarget = ImageViewportPresentationTarget::clear();
     PresentationTargetTransitionPolicy transitionPolicy;
     ImageViewportInternal::ImageSequenceSource primarySource;
     ImageViewportInternal::ImageSequenceSource secondarySource;
@@ -21,14 +21,14 @@ struct ViewportEnginePresentationTargetAssignmentRequest
 
 struct ViewportEngineCommandDiagnostics
 {
-    ImageViewport::CommandReason reason = ImageViewport::CommandReason::NoCommand;
+    ImageViewportCommandReason reason = ImageViewportCommandReason::NoCommand;
     RevisionToken revision;
 };
 
 struct ViewportEngineCommandResult
 {
-    ImageViewport::CommandOutcome outcome = ImageViewport::CommandOutcome::Accepted;
-    ImageViewport::CommandReason reason = ImageViewport::CommandReason::NoCommand;
+    ImageViewportCommandOutcome outcome = ImageViewportCommandOutcome::Accepted;
+    ImageViewportCommandReason reason = ImageViewportCommandReason::NoCommand;
     RevisionToken commandRevision;
     bool commandRevisionChanged = false;
 };
@@ -77,7 +77,7 @@ struct ViewportEngineRenderAcknowledgementRequest
     bool pendingTargetCommit = false;
     bool pendingSecondaryProviderCommit = false;
     ImageViewportInternal::PreparedPayload preparedPayload;
-    ImageViewport::DisplayStatus oldDisplayStatus = ImageViewport::DisplayStatus::Empty;
+    ImageViewportDisplayStatus oldDisplayStatus = ImageViewportDisplayStatus::Empty;
     QRectF oldContentRect;
     QRectF oldVisibleImageRect;
     PresentationGeometry::State geometryState;

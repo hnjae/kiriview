@@ -1,4 +1,4 @@
-#include "imageviewport.h"
+#include <ImageViewport/ImageViewport>
 
 #include <QtTest/QTest>
 
@@ -194,8 +194,8 @@ void SourceIngressContractTest::providerSessionCannotBelongToTwoLiveGenerations(
     first.setPresentationTarget(target, PresentationTargetTransitionPolicy {});
     second.setPresentationTarget(target, PresentationTargetTransitionPolicy {});
 
-    QCOMPARE(second.state().request().status(), ImageViewport::RequestStatus::Error);
-    QCOMPARE(second.state().request().reason(), ImageViewport::RequestReason::ProviderFailure);
+    QCOMPARE(second.state().request().status(), ImageViewportRequestStatus::Error);
+    QCOMPARE(second.state().request().reason(), ImageViewportRequestReason::ProviderFailure);
 }
 
 void SourceIngressContractTest::providerSessionFactoryFailureIsGenerationScoped()
@@ -209,8 +209,8 @@ void SourceIngressContractTest::providerSessionFactoryFailureIsGenerationScoped(
     viewport.setPresentationTarget(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
 
-    QCOMPARE(viewport.state().request().status(), ImageViewport::RequestStatus::Error);
-    QCOMPARE(viewport.state().request().reason(), ImageViewport::RequestReason::ProviderFailure);
+    QCOMPARE(viewport.state().request().status(), ImageViewportRequestStatus::Error);
+    QCOMPARE(viewport.state().request().reason(), ImageViewportRequestReason::ProviderFailure);
     QVERIFY(viewport.state().diagnostics().errorString().contains(
         QStringLiteral("redacted open failure")));
 }

@@ -1,4 +1,4 @@
-#include <imageviewport.h>
+#include <ImageViewport/ImageViewport>
 
 #include <QCoreApplication>
 #include <QDebug>
@@ -689,15 +689,15 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    const ImageSequenceProviderFrameMetadata frameMetadata
-        = ImageSequenceProviderFrameMetadata::timedFrame(1, 100, 200);
+    const ImageSequenceProviderFrameEnvelope frameMetadata
+        = ImageSequenceProviderFrameEnvelope::timedFrame(1, 100, 200);
     if (!frameMetadata.isValid() || !frameMetadata.isTimedFrame() || frameMetadata.frame() != 1
         || frameMetadata.frameStartPosition() != 100 || frameMetadata.frameDuration() != 200) {
         return 1;
     }
 
-    const ImageSequenceProviderFrameMetadata stillFrameMetadata
-        = ImageSequenceProviderFrameMetadata::stillFrame();
+    const ImageSequenceProviderFrameEnvelope stillFrameMetadata
+        = ImageSequenceProviderFrameEnvelope::stillFrame();
     if (!stillFrameMetadata.isValid() || !stillFrameMetadata.isStillFrame()
         || stillFrameMetadata.isTimedFrame() || stillFrameMetadata.frame() != 0
         || stillFrameMetadata.frameStartPosition() != -1
@@ -838,7 +838,7 @@ int main(int argc, char** argv)
     if (typedPresentationTargetViewport
             .setPresentationTarget(installedSpread, PresentationTargetTransitionPolicy {})
             .outcome()
-        != ImageViewport::CommandOutcome::Accepted) {
+        != ImageViewportCommandOutcome::Accepted) {
         return 1;
     }
     if (typedPresentationTargetViewport.state().primary().sequence() != stillResult->sequence()
@@ -855,7 +855,7 @@ int main(int argc, char** argv)
                 ImageViewportPresentationTarget(deviceIndependentStillResult->sequence()),
                 typedPresentationTargetPolicy)
             .outcome()
-        != ImageViewport::CommandOutcome::Accepted) {
+        != ImageViewportCommandOutcome::Accepted) {
         return 1;
     }
     if (typedPresentationTargetViewport.state().primary().sequence()
@@ -871,7 +871,7 @@ int main(int argc, char** argv)
                 .setPresentationTarget(
                     installedSecondaryOnly, PresentationTargetTransitionPolicy {})
                 .outcome()
-            != ImageViewport::CommandOutcome::Invalid
+            != ImageViewportCommandOutcome::Invalid
         || typedPresentationTargetViewport.state().primary().sequence()
             != deviceIndependentStillResult->sequence()) {
         return 1;
@@ -885,8 +885,8 @@ int main(int argc, char** argv)
     const double minimumManualZoom = helperPresentation.minimumManualZoomPercent();
     const double maximumManualZoom = helperPresentation.maximumManualZoomPercent();
     ImageViewportCoordinateInput primaryPageCoordinate;
-    primaryPageCoordinate.setSourceSpace(ImageViewport::CoordinateSpace::DisplayedPage);
-    primaryPageCoordinate.setTargetSpace(ImageViewport::CoordinateSpace::DisplayedPage);
+    primaryPageCoordinate.setSourceSpace(ImageViewportCoordinateSpace::DisplayedPage);
+    primaryPageCoordinate.setTargetSpace(ImageViewportCoordinateSpace::DisplayedPage);
     primaryPageCoordinate.setRole(QVariant::fromValue(ImageViewportPageRole::Primary));
     primaryPageCoordinate.setPoint(QPointF(1.0, 1.0));
     if (minimumManualZoom <= 0.0
@@ -901,7 +901,7 @@ int main(int argc, char** argv)
     ImageViewportPresentationCommand stepCommand;
     stepCommand.setZoomStepDelta(1);
     if (steppedCommandViewport.setPresentation(stepCommand).outcome()
-            != ImageViewport::CommandOutcome::Accepted
+            != ImageViewportCommandOutcome::Accepted
         || !nearlyEqual(steppedCommandViewport.state().presentation().zoomPercent(), 125.0)) {
         return 1;
     }
@@ -910,12 +910,12 @@ int main(int argc, char** argv)
     const ImageViewportStateSnapshot snapshot = snapshotViewport.state();
     const ImageViewportStateSnapshot snapshotCopy = snapshot;
     if (snapshotCopy != snapshot
-        || snapshot.request().status() != ImageViewport::RequestStatus::NoRequest
-        || snapshot.request().reason() != ImageViewport::RequestReason::NoRequest
-        || snapshot.display().status() != ImageViewport::DisplayStatus::Empty
-        || snapshot.display().phase() != ImageViewport::DisplayPhase::NoPresentation
+        || snapshot.request().status() != ImageViewportRequestStatus::NoRequest
+        || snapshot.request().reason() != ImageViewportRequestReason::NoRequest
+        || snapshot.display().status() != ImageViewportDisplayStatus::Empty
+        || snapshot.display().phase() != ImageViewportDisplayPhase::NoPresentation
         || snapshot.primary().present() || snapshot.secondary().present()
-        || snapshot.diagnostics().commandReason() != ImageViewport::CommandReason::NoCommand
+        || snapshot.diagnostics().commandReason() != ImageViewportCommandReason::NoCommand
         || snapshot.revisions().request().isValid()
         || snapshot.revisions().display() != ImageViewportRevisionToken()
         || ImageViewportPresentationTargetGenerationToken().isValid()
@@ -927,8 +927,8 @@ int main(int argc, char** argv)
         return 1;
     }
     const ImageViewportCommandResult installedCommandResult;
-    if (installedCommandResult.outcome() != ImageViewport::CommandOutcome::Accepted
-        || installedCommandResult.reason() != ImageViewport::CommandReason::NoCommand
+    if (installedCommandResult.outcome() != ImageViewportCommandOutcome::Accepted
+        || installedCommandResult.reason() != ImageViewportCommandReason::NoCommand
         || installedCommandResult.commandRevision().isValid()
         || installedCommandResult.snapshotRevision().isValid()) {
         return 1;
@@ -944,8 +944,8 @@ int main(int argc, char** argv)
         || !installedPresentationCommand.hasQualityPreference()
         || !installedPresentationCommand.hasExactnessPreference()
         || helperViewport.setPresentation(installedPresentationCommand).outcome()
-            != ImageViewport::CommandOutcome::Accepted
-        || helperViewport.state().presentation().fitMode() != ImageViewport::FitMode::Manual
+            != ImageViewportCommandOutcome::Accepted
+        || helperViewport.state().presentation().fitMode() != ImageViewportFitMode::Manual
         || !nearlyEqual(helperViewport.state().presentation().zoomPercent(), 125.0)
         || helperViewport.state().presentation().pageGap() != 3.0
         || helperViewport.state().presentation().qualityPreference()
@@ -955,8 +955,8 @@ int main(int argc, char** argv)
         return 1;
     }
     ImageViewportCoordinateInput installedCoordinateInput;
-    installedCoordinateInput.setSourceSpace(ImageViewport::CoordinateSpace::Item);
-    installedCoordinateInput.setTargetSpace(ImageViewport::CoordinateSpace::DisplayedPage);
+    installedCoordinateInput.setSourceSpace(ImageViewportCoordinateSpace::Item);
+    installedCoordinateInput.setTargetSpace(ImageViewportCoordinateSpace::DisplayedPage);
     installedCoordinateInput.setRole(QVariant::fromValue(ImageViewportPageRole::Primary));
     installedCoordinateInput.setPoint(QPointF(1.0, 2.0));
     const ImageViewportCoordinateResult installedCoordinateResult(
@@ -964,7 +964,7 @@ int main(int argc, char** argv)
     if (installedCoordinateInput.role().value<ImageViewportPageRole>()
             != ImageViewportPageRole::Primary
         || installedCoordinateResult.isValid()
-        || installedCoordinateResult.space() != ImageViewport::CoordinateSpace::DisplayedPage
+        || installedCoordinateResult.space() != ImageViewportCoordinateSpace::DisplayedPage
         || installedCoordinateResult.role().value<ImageViewportPageRole>()
             != ImageViewportPageRole::Primary
         || helperViewport.mapPoint(installedCoordinateInput).isValid()
@@ -1042,9 +1042,9 @@ int main(int argc, char** argv)
     ImageViewport providerViewport;
     providerViewport.setPresentationTarget(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
-    if (providerViewport.state().request().status() != ImageViewport::RequestStatus::Loading
+    if (providerViewport.state().request().status() != ImageViewportRequestStatus::Loading
         || providerViewport.state().request().reason()
-            != ImageViewport::RequestReason::ProviderWaiting
+            != ImageViewportRequestReason::ProviderWaiting
         || providerViewport.state().primary().request().frame() != 0
         || providerViewport.state().primary().request().position() != 0
         || providerViewport.state().primary().metadata().frameCount() != 2
@@ -1053,10 +1053,9 @@ int main(int argc, char** argv)
     }
 
     QCoreApplication::processEvents();
-    if (providerViewport.state().request().status() != ImageViewport::RequestStatus::Loading
-        || providerViewport.state().request().reason()
-            != ImageViewport::RequestReason::RenderWaiting
-        || providerViewport.state().display().status() != ImageViewport::DisplayStatus::Empty
+    if (providerViewport.state().request().status() != ImageViewportRequestStatus::Loading
+        || providerViewport.state().request().reason() != ImageViewportRequestReason::RenderWaiting
+        || providerViewport.state().display().status() != ImageViewportDisplayStatus::Empty
         || providerViewport.state().primary().display().frame() != -1) {
         return 1;
     }

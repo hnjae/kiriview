@@ -1,6 +1,6 @@
-#include "imageviewport.h"
 #include "viewportcontroller_p.h"
 #include "viewportcontrollercommandcontract_p.h"
+#include <ImageViewport/ImageViewport>
 
 #include <QtTest/QTest>
 
@@ -224,7 +224,7 @@ void ViewportControllerProviderTest::dispatchFailureClosesActiveGeneration()
     QCOMPARE(result.changes.requestState, true);
     QVERIFY(findTransport(result.providerAfterPublication,
         ViewportProviderTransportCommand::Kind::CloseSession, identity.role));
-    QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::ProviderFailure);
+    QCOMPARE(controller.requestState().reason, ImageViewportRequestReason::ProviderFailure);
 }
 
 void ViewportControllerProviderTest::queuedProviderFlushReturnsChangesAndTransport()
@@ -310,7 +310,7 @@ void ViewportControllerProviderTest::frameReadyStagesUpload()
 
     const auto result = controller.handleProviderHostEvent(hostProviderEvent(event));
     QCOMPARE(result.changes.requestState, true);
-    QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::UploadPending);
+    QCOMPARE(controller.requestState().reason, ImageViewportRequestReason::UploadPending);
     QVERIFY(controller.displayState().roles[0].pendingRenderPayload.commitPending);
 }
 
@@ -335,7 +335,7 @@ void ViewportControllerProviderTest::terminalEventClosesActiveGeneration()
     QCOMPARE(result.changes.requestState, true);
     QVERIFY(findTransport(result.providerAfterPublication,
         ViewportProviderTransportCommand::Kind::CloseSession, identity.role));
-    QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::ProviderFailure);
+    QCOMPARE(controller.requestState().reason, ImageViewportRequestReason::ProviderFailure);
 }
 
 void ViewportControllerProviderTest::sessionOpenFailureIsReducedThroughHostEvent()
@@ -354,7 +354,7 @@ void ViewportControllerProviderTest::sessionOpenFailureIsReducedThroughHostEvent
     failure.diagnostic = QStringLiteral("session failed");
     const auto result = controller.handleProviderHostEvent(failure);
     QCOMPARE(result.changes.requestState, true);
-    QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::ProviderFailure);
+    QCOMPARE(controller.requestState().reason, ImageViewportRequestReason::ProviderFailure);
 }
 
 QTEST_MAIN(ViewportControllerProviderTest)

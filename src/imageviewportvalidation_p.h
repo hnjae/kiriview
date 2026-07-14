@@ -1,6 +1,6 @@
 #pragma once
 
-#include "imageviewport.h"
+#include <ImageViewport/ImageViewport>
 
 #include <cmath>
 
@@ -13,37 +13,35 @@ inline bool isFinitePoint(QPointF point)
     return std::isfinite(point.x()) && std::isfinite(point.y());
 }
 
-inline bool isValidFitMode(ImageViewport::FitMode mode)
+inline bool isValidFitMode(ImageViewportFitMode mode)
 {
     switch (mode) {
-    case ImageViewport::FitMode::Contain:
-    case ImageViewport::FitMode::FitWidth:
-    case ImageViewport::FitMode::FitHeight:
-    case ImageViewport::FitMode::Manual:
+    case ImageViewportFitMode::Contain:
+    case ImageViewportFitMode::FitWidth:
+    case ImageViewportFitMode::FitHeight:
+    case ImageViewportFitMode::Manual:
         return true;
     }
 
     return false;
 }
 
-inline bool isValidScanDirection(ImageViewport::ScanDirection direction)
+inline bool isValidContentAnchor(ImageViewportContentAnchor direction)
 {
     switch (direction) {
-    case ImageViewport::ScanDirection::Start:
-    case ImageViewport::ScanDirection::Previous:
-    case ImageViewport::ScanDirection::Next:
-    case ImageViewport::ScanDirection::End:
+    case ImageViewportContentAnchor::Start:
+    case ImageViewportContentAnchor::End:
         return true;
     }
 
     return false;
 }
 
-inline bool isValidSpreadDirection(ImageViewport::SpreadDirection direction)
+inline bool isValidSpreadDirection(ImageViewportSpreadDirection direction)
 {
     switch (direction) {
-    case ImageViewport::SpreadDirection::LeftToRight:
-    case ImageViewport::SpreadDirection::RightToLeft:
+    case ImageViewportSpreadDirection::LeftToRight:
+    case ImageViewportSpreadDirection::RightToLeft:
         return true;
     }
 
@@ -61,12 +59,12 @@ inline bool isValidPageRole(ImageViewportPageRole role)
     return false;
 }
 
-inline bool isValidBackgroundMode(ImageViewport::BackgroundMode mode)
+inline bool isValidBackgroundMode(ImageViewportBackgroundMode mode)
 {
     switch (mode) {
-    case ImageViewport::BackgroundMode::Transparent:
-    case ImageViewport::BackgroundMode::SolidColor:
-    case ImageViewport::BackgroundMode::Checkerboard:
+    case ImageViewportBackgroundMode::Transparent:
+    case ImageViewportBackgroundMode::SolidColor:
+    case ImageViewportBackgroundMode::Checkerboard:
         return true;
     }
 

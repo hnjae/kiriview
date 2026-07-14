@@ -23,17 +23,17 @@ ViewportProviderRequestTokenAllocationResult allocateViewportProviderRequestToke
     session.sessionActive = false;
     requests = {};
     auto& request = access.request();
-    request.status = ImageViewport::RequestStatus::Error;
-    request.reason = ImageViewport::RequestReason::ProviderFailure;
+    request.status = ImageViewportRequestStatus::Error;
+    request.reason = ImageViewportRequestReason::ProviderFailure;
     request.errorString = QStringLiteral("provider request token exhausted");
     auto& playback = access.playback();
     playback.providerStartPending = false;
     playback.stopWhenRequestReady = false;
-    playback.phase = ImageViewport::PlaybackPhase::Stopped;
+    playback.phase = ImageViewportPlaybackPhase::Stopped;
     auto& display = access.display();
     display.status = display.roles[0].displayedImageSize.isValid()
-        ? ImageViewport::DisplayStatus::Retained
-        : ImageViewport::DisplayStatus::Empty;
+        ? ImageViewportDisplayStatus::Retained
+        : ImageViewportDisplayStatus::Empty;
     display.clearPendingRenderPayload();
     display.clearRenderFailureRetainedDisplay();
     result.changes.requestState = true;

@@ -9,16 +9,13 @@
 
 namespace {
 using namespace ImageViewportInternal;
-std::size_t idx(ImageViewportPageRole r)
+std::size_t idx(ImageViewportPageRole r) { return r == ImageViewportPageRole::Secondary ? 1U : 0U; }
+ImageViewportDisplayStatus retained(const DisplayState& d)
 {
-    return r == ImageViewportPageRole::Secondary ? 1U : 0U;
-}
-ImageViewport::DisplayStatus retained(const DisplayState& d)
-{
-    bool ok = (d.status == ImageViewport::DisplayStatus::Ready
-                  || d.status == ImageViewport::DisplayStatus::Retained)
+    bool ok = (d.status == ImageViewportDisplayStatus::Ready
+                  || d.status == ImageViewportDisplayStatus::Retained)
         && d.roles[0].displayedImageSize.isValid();
-    return ok ? ImageViewport::DisplayStatus::Retained : ImageViewport::DisplayStatus::Empty;
+    return ok ? ImageViewportDisplayStatus::Retained : ImageViewportDisplayStatus::Empty;
 }
 void resetProvider(ProviderRoleState& p, ImageSequenceAuthoredAnimationFacts a = {})
 {
@@ -182,7 +179,7 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
     }
     a.m_request.errorString.clear();
     a.m_request.warningString.clear();
-    a.m_playback.phase = ImageViewport::PlaybackPhase::Stopped;
+    a.m_playback.phase = ImageViewportPlaybackPhase::Stopped;
     a.m_playback.stopWhenRequestReady = false;
     a.m_playback.providerStartPending = false;
     resetProvider(a.m_roles[0].provider,
@@ -196,9 +193,9 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
     if (out.clear) {
         a.m_display.clearDisplayedDisplay();
         a.m_display.clearRenderFailureRetainedDisplay();
-        a.m_request.status = ImageViewport::RequestStatus::NoRequest;
-        a.m_request.reason = ImageViewport::RequestReason::NoRequest;
-        a.m_display.status = ImageViewport::DisplayStatus::Empty;
+        a.m_request.status = ImageViewportRequestStatus::NoRequest;
+        a.m_request.reason = ImageViewportRequestReason::NoRequest;
+        a.m_display.status = ImageViewportDisplayStatus::Empty;
     } else {
         auto st = initial(a.m_request.roles[1].source);
         if (a.m_request.roles[0].source.facts.provider) {
@@ -221,8 +218,8 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
             a.m_request.beginDisplayRequest(DisplayRequestOrigin::Initial, t, true);
             a.m_playback.position = t.position;
             secondary(a.m_request, st);
-            a.m_request.status = ImageViewport::RequestStatus::Loading;
-            a.m_request.reason = ImageViewport::RequestReason::ProviderWaiting;
+            a.m_request.status = ImageViewportRequestStatus::Loading;
+            a.m_request.reason = ImageViewportRequestReason::ProviderWaiting;
             a.m_display.status = retained(a.m_display);
             out.providerSessionOpenEffects[0] = a.openSession(ImageViewportPageRole::Primary,
                 a.m_request.roles[0].source, a.m_target.primaryRoleGeneration);
@@ -245,13 +242,13 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
             }
             if (a.m_request.roles[1].provider)
                 w.secondary.providerWaiting = true;
-            a.m_request.status = ImageViewport::RequestStatus::Loading;
+            a.m_request.status = ImageViewportRequestStatus::Loading;
             a.m_request.reason = projectWaitReason(w);
             a.m_display.status = retained(a.m_display);
         }
         if (a.m_request.roles[1].provider) {
-            a.m_request.status = ImageViewport::RequestStatus::Loading;
-            a.m_request.reason = ImageViewport::RequestReason::ProviderWaiting;
+            a.m_request.status = ImageViewportRequestStatus::Loading;
+            a.m_request.reason = ImageViewportRequestReason::ProviderWaiting;
             a.m_display.status = retained(a.m_display);
             out.providerSessionOpenEffects[1] = a.openSession(ImageViewportPageRole::Secondary,
                 a.m_request.roles[1].source, a.m_target.secondaryRoleGeneration);
@@ -268,12 +265,11 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
             in.transitionPolicy.rotationTransition(), in.transitionPolicy.mirrorTransition(),
             in.transitionPolicy.fitModeTransition()
                     == PresentationTargetTransitionPolicy::FitModeTransition::SetExplicit
-                ? std::optional<ImageViewport::FitMode>(in.transitionPolicy.fitMode())
+                ? std::optional<ImageViewportFitMode>(in.transitionPolicy.fitMode())
                 : std::nullopt,
             in.transitionPolicy.spreadDirectionTransition()
                     == PresentationTargetTransitionPolicy::SpreadDirectionTransition::SetExplicit
-                ? std::optional<ImageViewport::SpreadDirection>(
-                      in.transitionPolicy.spreadDirection())
+                ? std::optional<ImageViewportSpreadDirection>(in.transitionPolicy.spreadDirection())
                 : std::nullopt,
             in.transitionPolicy.pageGapTransition()
                     == PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit

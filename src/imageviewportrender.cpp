@@ -59,7 +59,7 @@ QSGNode* ImageViewportRenderHost::updatePaintNode(QSGNode* oldNode)
         auto transition = viewport.controller.acknowledgeRenderFailure({ render.preparedPayload,
             rolePayloads, render.failedRole, render.failureCause, synchronization.attempt });
         viewport.applyControllerTransition(std::move(transition));
-        if (fallbackNode && viewport.displayStatus() != ImageViewport::DisplayStatus::Empty) {
+        if (fallbackNode && viewport.displayStatus() != ImageViewportDisplayStatus::Empty) {
             return fallbackNode;
         }
         delete fallbackNode;

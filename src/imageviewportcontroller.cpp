@@ -70,7 +70,7 @@ void ImageViewportPrivate::devicePixelRatioChanged()
         currentWindow ? currentWindow->effectiveDevicePixelRatio() : 1.0));
 }
 
-ImageViewport::CommandOutcome ImageViewportPrivate::clear()
+ImageViewportCommandOutcome ImageViewportPrivate::clear()
 {
     playbackScheduler.flushElapsed();
     const ViewportCommandResult result = controller.clear();
@@ -78,33 +78,33 @@ ImageViewport::CommandOutcome ImageViewportPrivate::clear()
     return result.outcome;
 }
 
-ImageViewport::CommandOutcome ImageViewportPrivate::play(PageRole role)
+ImageViewportCommandOutcome ImageViewportPrivate::play(PageRole role)
 {
     return executePlaybackCommand({ ViewportPlaybackCommand::Kind::Play, role });
 }
 
-ImageViewport::CommandOutcome ImageViewportPrivate::pause(PageRole role)
+ImageViewportCommandOutcome ImageViewportPrivate::pause(PageRole role)
 {
     return executePlaybackCommand({ ViewportPlaybackCommand::Kind::Pause, role });
 }
 
-ImageViewport::CommandOutcome ImageViewportPrivate::stop(PageRole role)
+ImageViewportCommandOutcome ImageViewportPrivate::stop(PageRole role)
 {
     return executePlaybackCommand({ ViewportPlaybackCommand::Kind::Stop, role });
 }
 
-ImageViewport::CommandOutcome ImageViewportPrivate::seek(PageRole role, int frame)
+ImageViewportCommandOutcome ImageViewportPrivate::seek(PageRole role, int frame)
 {
     return executePlaybackCommand({ ViewportPlaybackCommand::Kind::SeekFrame, role, frame });
 }
 
-ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(PageRole role, int milliseconds)
+ImageViewportCommandOutcome ImageViewportPrivate::seekToPosition(PageRole role, int milliseconds)
 {
     return executePlaybackCommand(
         { ViewportPlaybackCommand::Kind::SeekPosition, role, milliseconds });
 }
 
-ImageViewport::CommandOutcome ImageViewportPrivate::executePlaybackCommand(
+ImageViewportCommandOutcome ImageViewportPrivate::executePlaybackCommand(
     ViewportPlaybackCommand command)
 {
     if (ImageViewportInternal::isValidPageRole(command.role)) {
@@ -115,7 +115,7 @@ ImageViewport::CommandOutcome ImageViewportPrivate::executePlaybackCommand(
     return result.outcome;
 }
 
-ImageViewport::CommandOutcome ImageViewportPrivate::resetView()
+ImageViewportCommandOutcome ImageViewportPrivate::resetView()
 {
     const ViewportCommandResult result = controller.resetView();
     applyControllerTransition(result.transition);

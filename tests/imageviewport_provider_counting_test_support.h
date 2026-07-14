@@ -273,7 +273,7 @@ void emitTimedProviderFrameReady(CountingProviderSession* session,
     const int resolvedFrameDuration
         = frameDuration > 0 ? frameDuration : (frameStartPosition == 0 ? 100 : 250);
     emitProviderFrameReady(session, token, frame,
-        ImageSequenceProviderFrameMetadata::timedFrame(
+        ImageSequenceProviderFrameEnvelope::timedFrame(
             frameIndex, frameStartPosition, resolvedFrameDuration));
     drainQueuedProviderResults();
 }

@@ -1,27 +1,27 @@
 #pragma once
 
 #include "coordinateresult_p.h"
-#include "imageviewport.h"
 #include "imageviewportdiagnostics_p.h"
 #include "imageviewportplaybackscheduler_p.h"
 #include "imageviewportproviderhost_p.h"
 #include "imageviewportrenderhost_p.h"
 #include "imageviewportstate_p.h"
 #include "viewportcontroller_p.h"
+#include <ImageViewport/ImageViewport>
 
 class ImageViewportPrivate
 {
 public:
-    using BackgroundMode = ImageViewport::BackgroundMode;
-    using CommandOutcome = ImageViewport::CommandOutcome;
-    using CommandReason = ImageViewport::CommandReason;
-    using DisplayStatus = ImageViewport::DisplayStatus;
-    using FitMode = ImageViewport::FitMode;
+    using BackgroundMode = ImageViewportBackgroundMode;
+    using CommandOutcome = ImageViewportCommandOutcome;
+    using CommandReason = ImageViewportCommandReason;
+    using DisplayStatus = ImageViewportDisplayStatus;
+    using FitMode = ImageViewportFitMode;
     using PageRole = ImageViewportPageRole;
-    using PlaybackPhase = ImageViewport::PlaybackPhase;
-    using RequestReason = ImageViewport::RequestReason;
-    using RequestStatus = ImageViewport::RequestStatus;
-    using SpreadDirection = ImageViewport::SpreadDirection;
+    using PlaybackPhase = ImageViewportPlaybackPhase;
+    using RequestReason = ImageViewportRequestReason;
+    using RequestStatus = ImageViewportRequestStatus;
+    using SpreadDirection = ImageViewportSpreadDirection;
     using DisplayRequestSnapshot = ImageViewportInternal::DisplayRequestSnapshot;
     using DisplayRequestOrigin = ImageViewportInternal::DisplayRequestOrigin;
     using ProviderRequestTargetKind = ImageViewportInternal::ProviderRequestTargetKind;

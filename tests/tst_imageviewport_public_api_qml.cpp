@@ -186,8 +186,6 @@ ImageViewport {
     property imageViewportPresentationCommand panCommand
     property imageViewportPresentationCommand scanStartCommand
     property imageViewportPresentationCommand scanEndCommand
-    property imageViewportPresentationCommand scanNextCommand
-    property imageViewportPresentationCommand scanPreviousCommand
     property imageViewportPresentationCommand rotationCommand
     property imageViewportPresentationCommand horizontalMirrorCommand
     property imageViewportPresentationCommand verticalMirrorCommand
@@ -289,10 +287,8 @@ ImageViewport {
         fitModeCommand.fitMode = ImageViewport.FitMode.Contain
         manualZoomCommand.manualZoomPercent = 100
         zoomStepCommand.zoomStepDelta = 1
-        scanStartCommand.scanDirection = ImageViewport.ScanDirection.Start
-        scanEndCommand.scanDirection = ImageViewport.ScanDirection.End
-        scanNextCommand.scanDirection = ImageViewport.ScanDirection.Next
-        scanPreviousCommand.scanDirection = ImageViewport.ScanDirection.Previous
+        scanStartCommand.contentAnchor = ImageViewport.ContentAnchor.Start
+        scanEndCommand.contentAnchor = ImageViewport.ContentAnchor.End
         rotationCommand.rotationDegrees = 0
         horizontalMirrorCommand.mirrorHorizontally = false
         verticalMirrorCommand.mirrorVertically = false
@@ -305,8 +301,6 @@ ImageViewport {
             && setPresentation(panCommand).outcome === ImageViewport.CommandOutcome.Accepted
             && setPresentation(scanStartCommand).outcome === ImageViewport.CommandOutcome.Accepted
             && setPresentation(scanEndCommand).outcome === ImageViewport.CommandOutcome.Accepted
-            && setPresentation(scanNextCommand).outcome === ImageViewport.CommandOutcome.Accepted
-            && setPresentation(scanPreviousCommand).outcome === ImageViewport.CommandOutcome.Accepted
             && setPresentation(rotationCommand).outcome === ImageViewport.CommandOutcome.Accepted
             && setPresentation(horizontalMirrorCommand).outcome === ImageViewport.CommandOutcome.Accepted
             && setPresentation(verticalMirrorCommand).outcome === ImageViewport.CommandOutcome.Accepted
@@ -429,7 +423,7 @@ ImageViewport {
     ImageViewportPresentationCommand zoomCommand;
     zoomCommand.setManualZoomPercent(200.0);
     QCOMPARE(
-        viewport->setPresentation(zoomCommand).outcome(), ImageViewport::CommandOutcome::Accepted);
+        viewport->setPresentation(zoomCommand).outcome(), ImageViewportCommandOutcome::Accepted);
     QCoreApplication::processEvents();
 
     QVERIFY(recorder.count() > refreshCountBefore);

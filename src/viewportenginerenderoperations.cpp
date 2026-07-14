@@ -19,9 +19,9 @@ bool terminalSealed(const RequestState& request)
 }
 bool waitingForRender(const RequestState& request)
 {
-    return request.status == ImageViewport::RequestStatus::Loading
-        && (request.reason == ImageViewport::RequestReason::UploadPending
-            || request.reason == ImageViewport::RequestReason::RenderWaiting);
+    return request.status == ImageViewportRequestStatus::Loading
+        && (request.reason == ImageViewportRequestReason::UploadPending
+            || request.reason == ImageViewportRequestReason::RenderWaiting);
 }
 bool pendingSpreadReady(const DisplayState& display, const RequestState& request)
 {
@@ -83,9 +83,9 @@ void publishReady(RequestState& request, DisplayState& display,
     const ProviderFactsState& primaryProvider, const ProviderFactsState& secondaryProvider,
     const PreparedPayload& payload)
 {
-    request.status = ImageViewport::RequestStatus::Ready;
-    request.reason = ImageViewport::RequestReason::Ready;
-    display.status = ImageViewport::DisplayStatus::Ready;
+    request.status = ImageViewportRequestStatus::Ready;
+    request.reason = ImageViewportRequestReason::Ready;
+    display.status = ImageViewportDisplayStatus::Ready;
     if (request.roles[0].source.facts.provider)
         display.commitPreparedPayloadIdentity(request.roles[0].activeRequest, payload);
     const int frame = request.roles[0].activeRequest.resolvedFrame.frame;
@@ -104,7 +104,7 @@ void publishReady(RequestState& request, DisplayState& display,
     publishSecondary(request, display, secondaryProvider);
 }
 void markPlayback(
-    ViewportChangeSet& changes, PlaybackState& playback, ImageViewport::PlaybackPhase phase)
+    ViewportChangeSet& changes, PlaybackState& playback, ImageViewportPlaybackPhase phase)
 {
     if (playback.phase == phase)
         return;
@@ -173,8 +173,8 @@ ViewportEngineRenderCommitReduction reduceViewportEngineRenderCommit(
         access.display().roles[1].displayedImageSize
             = providerFor(access.providerFacts(), ImageViewportPageRole::Secondary).logicalSize;
     }
-    const bool resume = access.playback().phase == ImageViewport::PlaybackPhase::Waiting
-        && access.request().status == ImageViewport::RequestStatus::Ready;
+    const bool resume = access.playback().phase == ImageViewportPlaybackPhase::Waiting
+        && access.request().status == ImageViewportRequestStatus::Ready;
     access.display().commitDisplayedRequestSnapshot(access.request().sequenceGeneration,
         access.request().roles[0].activeRequest,
         access.display().roles[0].pendingRenderPayload.payloadId);
@@ -182,8 +182,8 @@ ViewportEngineRenderCommitReduction reduceViewportEngineRenderCommit(
     access.display().clearRenderFailureRetainedDisplay();
     if (resume) {
         markPlayback(changes, access.playback(),
-            access.playback().stopWhenRequestReady ? ImageViewport::PlaybackPhase::Stopped
-                                                   : ImageViewport::PlaybackPhase::Playing);
+            access.playback().stopWhenRequestReady ? ImageViewportPlaybackPhase::Stopped
+                                                   : ImageViewportPlaybackPhase::Playing);
         access.playback().stopWhenRequestReady = false;
     }
     if (input.pendingTargetCommit) {
@@ -214,7 +214,7 @@ ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
                 != access.render().nextSynchronizationAttempt)
         || !ViewportEngineRenderAcknowledgement::failureMatches(
             access.display(), access.request(), input.acknowledgement)
-        || (access.display().status != ImageViewport::DisplayStatus::Ready && !pending))
+        || (access.display().status != ImageViewportDisplayStatus::Ready && !pending))
         return result;
     const auto oldStatus = access.display().status;
     const auto failed = ViewportEngineRenderAcknowledgement::acknowledgedPayload(
@@ -225,7 +225,7 @@ ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
     changes.renderFailureDiagnostic = result.diagnostic;
     access.display().clearPendingRenderPayload();
     if (access.display().roles[0].retainedDisplayValid) {
-        access.display().status = ImageViewport::DisplayStatus::Retained;
+        access.display().status = ImageViewportDisplayStatus::Retained;
         for (auto& role : access.display().roles) {
             if (role.retainedDisplayValid) {
                 role.displayedRequest = role.retainedRequest;
@@ -235,7 +235,7 @@ ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
                 role = {};
         }
     } else {
-        access.display().status = ImageViewport::DisplayStatus::Empty;
+        access.display().status = ImageViewportDisplayStatus::Empty;
         access.display().clearDisplayedDisplay();
     }
     access.display().clearRenderFailureRetainedDisplay();
@@ -248,15 +248,15 @@ ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
         ? terminal.primary
         : terminal.secondary;
     role.terminal = true;
-    role.status = ImageViewport::RequestStatus::Error;
-    role.reason = ImageViewport::RequestReason::RenderFailure;
+    role.status = ImageViewportRequestStatus::Error;
+    role.reason = ImageViewportRequestReason::RenderFailure;
     role.failureScope = FailureScope::DisplayRequest;
     role.diagnostic = QStringLiteral("render commit failed");
     access.request().status = role.status;
     access.request().reason = role.reason;
     const bool diagnosticChanged = access.request().errorString != role.diagnostic;
     access.request().errorString = role.diagnostic;
-    markPlayback(changes, access.playback(), ImageViewport::PlaybackPhase::Stopped);
+    markPlayback(changes, access.playback(), ImageViewportPlaybackPhase::Stopped);
     changes.requestState = true;
     changes.requestRevision = true;
     changes.diagnostics = diagnosticChanged;
@@ -290,12 +290,12 @@ ViewportEngineGeometryChangeReduction reduceViewportEngineGeometryChange(
         }
         if (!access.request().roles[0].source.facts.provider) {
             stageBuiltIn(access.request(), access.display());
-            access.request().status = ImageViewport::RequestStatus::Loading;
-            access.request().reason = ImageViewport::RequestReason::UploadPending;
+            access.request().status = ImageViewportRequestStatus::Loading;
+            access.request().reason = ImageViewportRequestReason::UploadPending;
             access.display().status
                 = access.display().hasReadyDisplay(hasDisplayable(access.request()))
-                ? ImageViewport::DisplayStatus::Retained
-                : ImageViewport::DisplayStatus::Empty;
+                ? ImageViewportDisplayStatus::Retained
+                : ImageViewportDisplayStatus::Empty;
             changes.requestState = true;
             changes.requestRevision = true;
             changes.displayState = true;
@@ -304,11 +304,11 @@ ViewportEngineGeometryChangeReduction reduceViewportEngineGeometryChange(
             return result;
         }
     } else if (access.request().roles[0].source.facts.provider
-        && access.request().status == ImageViewport::RequestStatus::Loading
-        && access.request().reason == ImageViewport::RequestReason::UploadPending
+        && access.request().status == ImageViewportRequestStatus::Loading
+        && access.request().reason == ImageViewportRequestReason::UploadPending
         && input.itemBounds.isEmpty()
         && !access.display().roles[0].pendingRenderPayload.image.isNull()) {
-        access.request().reason = ImageViewport::RequestReason::RenderWaiting;
+        access.request().reason = ImageViewportRequestReason::RenderWaiting;
         changes.requestState = true;
         changes.requestRevision = true;
         changes.displayRevision = true;

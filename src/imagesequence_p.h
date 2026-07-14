@@ -1,8 +1,8 @@
 #pragma once
 
-#include "imageviewport.h"
 #include "imageviewportproviderfacts_p.h"
 #include "timingintervals_p.h"
+#include <ImageViewport/ImageViewport>
 
 #include <memory>
 
@@ -18,7 +18,9 @@ struct FramePayloadFacts
     ImageViewportDemandRevisionToken demandRevision;
 };
 
-class ImageSequenceData
+} // namespace ImageViewportInternal
+
+class ImageSequence::Data
 {
 public:
     enum class Kind {
@@ -28,42 +30,43 @@ public:
         Provider,
     };
 
-    static std::unique_ptr<ImageSequenceData> still(
-        QSizeF logicalSize, QImage stillImage, FramePayloadFacts payloadFacts = {});
-    static std::unique_ptr<ImageSequenceData> timedList(QSizeF logicalSize,
-        const QVector<int>& frameDurations, QVector<QImage> frameImages,
-        ImageSequenceAuthoredAnimationFacts authoredAnimationFacts);
-    static std::unique_ptr<ImageSequenceData> provider(
+    static std::unique_ptr<Data> still(QSizeF logicalSize, QImage stillImage,
+        ImageViewportInternal::FramePayloadFacts payloadFacts = {});
+    static std::unique_ptr<Data> timedList(QSizeF logicalSize, const QVector<int>& frameDurations,
+        QVector<QImage> frameImages, ImageSequenceAuthoredAnimationFacts authoredAnimationFacts);
+    static std::unique_ptr<Data> provider(
         std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,
-        ImageSequenceProviderKnownFacts providerKnownFacts,
-        ImageSequenceProviderCapabilitySupport timedPlaybackCapability,
-        ImageSequenceProviderCapabilitySupport frameSeekCapability,
-        ImageSequenceProviderCapabilitySupport positionSeekCapability,
+        ImageViewportInternal::ImageSequenceProviderKnownFacts providerKnownFacts,
+        ImageViewportInternal::ImageSequenceProviderCapabilitySupport timedPlaybackCapability,
+        ImageViewportInternal::ImageSequenceProviderCapabilitySupport frameSeekCapability,
+        ImageViewportInternal::ImageSequenceProviderCapabilitySupport positionSeekCapability,
         ImageSequenceAuthoredAnimationFacts authoredAnimationFacts,
         ImageSequenceProviderThreadingContract providerThreadingContract);
 
     Kind kind = Kind::None;
     QSizeF logicalSize;
     QImage stillImage;
-    FramePayloadFacts stillPayloadFacts;
+    ImageViewportInternal::FramePayloadFacts stillPayloadFacts;
     std::shared_ptr<const TimingIntervals> timingIntervals;
     QVector<QImage> frameImages;
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts;
     std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory;
     std::weak_ptr<ImageSequence> owner;
-    ImageSequenceProviderKnownFacts providerKnownFacts;
+    ImageViewportInternal::ImageSequenceProviderKnownFacts providerKnownFacts;
     bool hasCompleteProviderKnownMetadata = false;
     QSizeF providerKnownLogicalSize;
     std::shared_ptr<const TimingIntervals> providerKnownTimingIntervals;
-    ImageSequenceProviderCapabilitySupport providerTimedPlaybackCapability
-        = ImageSequenceProviderCapabilitySupport::Unavailable;
-    ImageSequenceProviderCapabilitySupport providerFrameSeekCapability
-        = ImageSequenceProviderCapabilitySupport::Unavailable;
-    ImageSequenceProviderCapabilitySupport providerPositionSeekCapability
-        = ImageSequenceProviderCapabilitySupport::Unavailable;
+    ImageViewportInternal::ImageSequenceProviderCapabilitySupport providerTimedPlaybackCapability
+        = ImageViewportInternal::ImageSequenceProviderCapabilitySupport::Unavailable;
+    ImageViewportInternal::ImageSequenceProviderCapabilitySupport providerFrameSeekCapability
+        = ImageViewportInternal::ImageSequenceProviderCapabilitySupport::Unavailable;
+    ImageViewportInternal::ImageSequenceProviderCapabilitySupport providerPositionSeekCapability
+        = ImageViewportInternal::ImageSequenceProviderCapabilitySupport::Unavailable;
     ImageSequenceProviderThreadingContract providerThreadingContract
         = ImageSequenceProviderThreadingContract::AffinityBound;
 };
+
+namespace ImageViewportInternal {
 
 class ImageSequencePrivateAccess
 {

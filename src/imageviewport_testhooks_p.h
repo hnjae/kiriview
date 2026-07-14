@@ -1,7 +1,8 @@
 #pragma once
 
-#include "imageviewport.h"
 #include "imageviewportstate_p.h"
+#include "imageviewporttoken_p.h"
+#include <ImageViewport/ImageViewport>
 
 #include <memory>
 

@@ -23,8 +23,8 @@ struct ViewportEnginePresentationTargetTransitionInput
         = PresentationTargetTransitionPolicy::RotationTransition::Preserve;
     PresentationTargetTransitionPolicy::MirrorTransition mirrorTransition
         = PresentationTargetTransitionPolicy::MirrorTransition::Preserve;
-    std::optional<ImageViewport::FitMode> explicitFitMode;
-    std::optional<ImageViewport::SpreadDirection> explicitSpreadDirection;
+    std::optional<ImageViewportFitMode> explicitFitMode;
+    std::optional<ImageViewportSpreadDirection> explicitSpreadDirection;
     std::optional<double> explicitPageGap;
     ViewportEngineGeometryInput acceptedGeometry;
     QPointF previousContentPosition;

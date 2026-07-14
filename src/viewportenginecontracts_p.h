@@ -1,6 +1,6 @@
 #pragma once
 
-#include "imageviewport.h"
+#include <ImageViewport/ImageViewport>
 
 #include <QtCore/QRectF>
 #include <QtCore/QSizeF>
@@ -28,8 +28,7 @@ struct ViewportEngineSnapshotInput
 
 struct ViewportEnginePresentationTargetState
 {
-    ImageViewportPresentationTarget presentationTarget
-        = ImageViewportPresentationTarget::clear();
+    ImageViewportPresentationTarget presentationTarget = ImageViewportPresentationTarget::clear();
     ImageViewportRoleSet acceptedRoleSet;
     ImageViewportRoleSet targetRoleSet;
     quint64 generation = 0;

@@ -72,7 +72,7 @@ void ImageViewportProviderTerminalProjectionTest::
                                             primaryResult->sequence(), secondaryResult->sequence()),
                      PresentationTargetTransitionPolicy {})
                  .outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+        ImageViewportCommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -102,21 +102,17 @@ void ImageViewportProviderTerminalProjectionTest::
     QTest::addColumn<QString>("expectedReason");
 
     QTest::newRow("primary-unsupported-request")
-        << false
-        << static_cast<int>(ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest)
+        << false << static_cast<int>(ImageSequenceProviderUnsupportedCause::UnsupportedRequest)
         << QStringLiteral("metadata operation unsupported") << QStringLiteral("UnsupportedRequest");
     QTest::newRow("primary-payload-rejection")
-        << false
-        << static_cast<int>(ImageSequenceProviderSession::UnsupportedCause::PayloadRejection)
+        << false << static_cast<int>(ImageSequenceProviderUnsupportedCause::PayloadRejection)
         << QStringLiteral("metadata payload rejected") << QStringLiteral("PayloadRejection");
     QTest::newRow("secondary-unsupported-request")
-        << true
-        << static_cast<int>(ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest)
+        << true << static_cast<int>(ImageSequenceProviderUnsupportedCause::UnsupportedRequest)
         << QStringLiteral("secondary metadata operation unsupported")
         << QStringLiteral("UnsupportedRequest");
     QTest::newRow("secondary-payload-rejection")
-        << true
-        << static_cast<int>(ImageSequenceProviderSession::UnsupportedCause::PayloadRejection)
+        << true << static_cast<int>(ImageSequenceProviderUnsupportedCause::PayloadRejection)
         << QStringLiteral("secondary metadata payload rejected")
         << QStringLiteral("PayloadRejection");
 }
@@ -156,7 +152,7 @@ void ImageViewportProviderTerminalProjectionTest::
                                                 primaryResult->sequence(), result->sequence()),
                          PresentationTargetTransitionPolicy {})
                      .outcome(),
-            ImageViewport::CommandOutcome::Accepted);
+            ImageViewportCommandOutcome::Accepted);
     } else {
         item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
             PresentationTargetTransitionPolicy {});
@@ -205,9 +201,9 @@ void ImageViewportProviderTerminalProjectionTest::
     const int primary = static_cast<int>(ImageViewportPageRole::Primary);
     const int secondary = static_cast<int>(ImageViewportPageRole::Secondary);
     const int unsupportedRequest
-        = static_cast<int>(ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest);
+        = static_cast<int>(ImageSequenceProviderUnsupportedCause::UnsupportedRequest);
     const int payloadRejection
-        = static_cast<int>(ImageSequenceProviderSession::UnsupportedCause::PayloadRejection);
+        = static_cast<int>(ImageSequenceProviderUnsupportedCause::PayloadRejection);
 
     QTest::newRow("primary-error-then-secondary-unsupported")
         << primary << 0 << payloadRejection << QStringLiteral("primary frame failed") << secondary
@@ -278,7 +274,7 @@ void ImageViewportProviderTerminalProjectionTest::
                                             primaryResult->sequence(), secondaryResult->sequence()),
                      PresentationTargetTransitionPolicy {})
                  .outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+        ImageViewportCommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
     CountingProviderSession* primarySession = primarySessionFactory->lastSession();
@@ -298,7 +294,7 @@ void ImageViewportProviderTerminalProjectionTest::
         = [&](int role, int kind, int unsupportedCause, const QString& diagnostic) {
               CountingProviderSession* session
                   = role == static_cast<int>(ImageViewportPageRole::Primary) ? primarySession
-                                                                               : secondarySession;
+                                                                             : secondarySession;
               emitTerminal(session, session->lastFrameToken(), kind, unsupportedCause, diagnostic);
           };
 
@@ -347,7 +343,7 @@ void ImageViewportProviderTerminalProjectionTest::
                                             primaryResult->sequence(), secondaryResult->sequence()),
                      PresentationTargetTransitionPolicy {})
                  .outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+        ImageViewportCommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
     CountingProviderSession* primarySession = primarySessionFactory->lastSession();
@@ -411,7 +407,7 @@ void ImageViewportProviderTerminalProjectionTest::
                                             primaryResult->sequence(), secondaryResult->sequence()),
                      PresentationTargetTransitionPolicy {})
                  .outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+        ImageViewportCommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
     CountingProviderSession* primarySession = primarySessionFactory->lastSession();
@@ -470,9 +466,10 @@ void ImageViewportProviderTerminalProjectionTest::clearAndReplacementEscapeSeale
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderFailure"));
-    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 0).outcome(), ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 0).outcome(),
+        ImageViewportCommandOutcome::Unsupported);
 
-    QCOMPARE(item.clear().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "NoRequest"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "NoRequest"));
     QCOMPARE(viewportErrorString(item), QString());
@@ -498,7 +495,7 @@ void ImageViewportProviderTerminalProjectionTest::
     QTest::newRow("failure") << 0 << 0 << QStringLiteral("secondary frame provider failed")
                              << QStringLiteral("Error") << QStringLiteral("ProviderFailure");
     QTest::newRow("unsupported-request")
-        << 1 << static_cast<int>(ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest)
+        << 1 << static_cast<int>(ImageSequenceProviderUnsupportedCause::UnsupportedRequest)
         << QStringLiteral("secondary frame operation unsupported") << QStringLiteral("Unsupported")
         << QStringLiteral("UnsupportedRequest");
     QTest::newRow("cancellation") << 2 << 0
@@ -539,7 +536,7 @@ void ImageViewportProviderTerminalProjectionTest::
                                             primaryResult->sequence(), secondaryResult->sequence()),
                      PresentationTargetTransitionPolicy {})
                  .outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+        ImageViewportCommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -584,11 +581,11 @@ void ImageViewportProviderTerminalProjectionTest::
     QTest::newRow("failure") << 0 << 0 << QStringLiteral("secondary playback provider failed")
                              << QStringLiteral("Error") << QStringLiteral("ProviderFailure");
     QTest::newRow("unsupported-request")
-        << 1 << static_cast<int>(ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest)
+        << 1 << static_cast<int>(ImageSequenceProviderUnsupportedCause::UnsupportedRequest)
         << QStringLiteral("secondary playback operation unsupported")
         << QStringLiteral("Unsupported") << QStringLiteral("UnsupportedRequest");
     QTest::newRow("payload-rejection")
-        << 1 << static_cast<int>(ImageSequenceProviderSession::UnsupportedCause::PayloadRejection)
+        << 1 << static_cast<int>(ImageSequenceProviderUnsupportedCause::PayloadRejection)
         << QStringLiteral("secondary playback payload rejected") << QStringLiteral("Unsupported")
         << QStringLiteral("PayloadRejection");
     QTest::newRow("cancellation") << 2 << 0
@@ -633,7 +630,7 @@ void ImageViewportProviderTerminalProjectionTest::
                                             primaryResult->sequence(), secondaryResult->sequence()),
                      PresentationTargetTransitionPolicy {})
                  .outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+        ImageViewportCommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -649,7 +646,7 @@ void ImageViewportProviderTerminalProjectionTest::
     acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(item.play(ImageViewportPageRole::Secondary).outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+        ImageViewportCommandOutcome::Accepted);
     advancePlaybackForTest(item, 100);
 
     QCOMPARE(*playbackRequestCount, 1);
@@ -749,7 +746,8 @@ void ImageViewportProviderTerminalProjectionTest::invalidUnsupportedCauseIsProto
         ImageFrame frame(image);
         emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
         acknowledgePendingRenderCommitForTest(item);
-        QCOMPARE(item.play(ImageViewportPageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
+        QCOMPARE(item.play(ImageViewportPageRole::Primary).outcome(),
+            ImageViewportCommandOutcome::Accepted);
         advancePlaybackForTest(item, 100);
         terminalToken = sessionFactory->lastSession()->lastFrameToken();
         QCOMPARE(*playbackRequestCount, 1);

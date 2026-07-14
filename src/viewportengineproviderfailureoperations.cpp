@@ -8,8 +8,8 @@ using namespace ImageViewportInternal;
 
 struct TerminalProjection
 {
-    ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
-    ImageViewport::RequestReason reason = ImageViewport::RequestReason::NoRequest;
+    ImageViewportRequestStatus status = ImageViewportRequestStatus::NoRequest;
+    ImageViewportRequestReason reason = ImageViewportRequestReason::NoRequest;
     QString diagnostic;
     QString fallbackDiagnostic;
 };
@@ -17,13 +17,13 @@ struct TerminalProjection
 const DisplayRequest& requestForRole(const RequestState& request, ImageViewportPageRole role)
 {
     return role == ImageViewportPageRole::Secondary ? request.roles[1].activeRequest
-                                                      : request.roles[0].activeRequest;
+                                                    : request.roles[0].activeRequest;
 }
 
 bool providerPresent(const RequestState& request, ImageViewportPageRole role)
 {
     return role == ImageViewportPageRole::Primary ? request.roles[0].source.facts.provider
-                                                    : request.roles[1].provider;
+                                                  : request.roles[1].provider;
 }
 
 void clearQueue(ProviderRequestState& requests)
@@ -39,7 +39,7 @@ void clearQueue(ProviderRequestState& requests)
 }
 
 void updatePlaybackPhase(
-    PlaybackState& playback, ImageViewport::PlaybackPhase phase, ViewportChangeSet& changes)
+    PlaybackState& playback, ImageViewportPlaybackPhase phase, ViewportChangeSet& changes)
 {
     if (playback.phase == phase) {
         return;
@@ -48,10 +48,10 @@ void updatePlaybackPhase(
     changes.playbackPhase = true;
 }
 
-bool unsupportedCauseValid(ImageSequenceProviderSession::UnsupportedCause cause)
+bool unsupportedCauseValid(ImageSequenceProviderUnsupportedCause cause)
 {
-    return cause == ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest
-        || cause == ImageSequenceProviderSession::UnsupportedCause::PayloadRejection;
+    return cause == ImageSequenceProviderUnsupportedCause::UnsupportedRequest
+        || cause == ImageSequenceProviderUnsupportedCause::PayloadRejection;
 }
 
 bool invalidUnsupportedCause(const ViewportEngineProviderTerminalEventInput& input)
@@ -64,18 +64,17 @@ TerminalProjection frameTerminal(const ViewportEngineProviderTerminalEventInput&
 {
     if (input.kind == ViewportEngineProviderTerminalEventInput::Kind::Unsupported) {
         if (invalidUnsupportedCause(input)) {
-            return { ImageViewport::RequestStatus::Error,
-                ImageViewport::RequestReason::PayloadRejection, {},
+            return { ImageViewportRequestStatus::Error,
+                ImageViewportRequestReason::PayloadRejection, {},
                 QStringLiteral("provider protocol violation") };
         }
-        return { ImageViewport::RequestStatus::Unsupported,
-            input.unsupportedCause
-                    == ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest
-                ? ImageViewport::RequestReason::UnsupportedRequest
-                : ImageViewport::RequestReason::PayloadRejection,
+        return { ImageViewportRequestStatus::Unsupported,
+            input.unsupportedCause == ImageSequenceProviderUnsupportedCause::UnsupportedRequest
+                ? ImageViewportRequestReason::UnsupportedRequest
+                : ImageViewportRequestReason::PayloadRejection,
             input.diagnostic, QStringLiteral("provider unsupported") };
     }
-    return { ImageViewport::RequestStatus::Error, ImageViewport::RequestReason::ProviderFailure,
+    return { ImageViewportRequestStatus::Error, ImageViewportRequestReason::ProviderFailure,
         input.diagnostic,
         input.kind == ViewportEngineProviderTerminalEventInput::Kind::Cancellation
             ? QStringLiteral("provider cancelled request")
@@ -86,19 +85,19 @@ TerminalProjection metadataTerminal(const ViewportEngineProviderTerminalEventInp
 {
     if (input.kind == ViewportEngineProviderTerminalEventInput::Kind::Unsupported) {
         if (invalidUnsupportedCause(input)) {
-            return { ImageViewport::RequestStatus::Error,
-                ImageViewport::RequestReason::PayloadRejection, {},
+            return { ImageViewportRequestStatus::Error,
+                ImageViewportRequestReason::PayloadRejection, {},
                 QStringLiteral("provider protocol violation") };
         }
-        return { ImageViewport::RequestStatus::Unsupported,
+        return { ImageViewportRequestStatus::Unsupported,
             input.unsupportedCauseExplicit
                     && input.unsupportedCause
-                        == ImageSequenceProviderSession::UnsupportedCause::PayloadRejection
-                ? ImageViewport::RequestReason::PayloadRejection
-                : ImageViewport::RequestReason::UnsupportedRequest,
+                        == ImageSequenceProviderUnsupportedCause::PayloadRejection
+                ? ImageViewportRequestReason::PayloadRejection
+                : ImageViewportRequestReason::UnsupportedRequest,
             input.diagnostic, QStringLiteral("provider unsupported") };
     }
-    return { ImageViewport::RequestStatus::Error, ImageViewport::RequestReason::ProviderFailure,
+    return { ImageViewportRequestStatus::Error, ImageViewportRequestReason::ProviderFailure,
         input.diagnostic,
         input.kind == ViewportEngineProviderTerminalEventInput::Kind::Cancellation
             ? QStringLiteral("provider cancelled request")
@@ -137,8 +136,7 @@ ViewportEngineProviderTerminalEventReduction reduceTerminal(TerminalContext cont
             FailureScope::DisplayRequest,
             FramePreparation::boundedDiagnostic(terminal.diagnostic, terminal.fallbackDiagnostic),
             result.changes });
-        updatePlaybackPhase(
-            context.playback, ImageViewport::PlaybackPhase::Stopped, result.changes);
+        updatePlaybackPhase(context.playback, ImageViewportPlaybackPhase::Stopped, result.changes);
         if (invalidUnsupportedCause(input)) {
             result.providerFrameTransport = closeSession();
         }
@@ -156,7 +154,7 @@ ViewportEngineProviderTerminalEventReduction reduceTerminal(TerminalContext cont
         = recordTerminal({ input.role, terminal.status, terminal.reason, FailureScope::Generation,
             FramePreparation::boundedDiagnostic(terminal.diagnostic, terminal.fallbackDiagnostic),
             result.changes });
-    updatePlaybackPhase(context.playback, ImageViewport::PlaybackPhase::Stopped, result.changes);
+    updatePlaybackPhase(context.playback, ImageViewportPlaybackPhase::Stopped, result.changes);
     result.providerFrameTransport = closeSession();
     return result;
 }
@@ -209,7 +207,7 @@ ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderDispatc
     const bool sessionWasActive = access.m_session.sessionActive;
     const ViewportEngineProviderTerminalEventInput terminal { input.role, input.token,
         ViewportEngineProviderTerminalEventInput::Kind::Failure,
-        ImageSequenceProviderSession::UnsupportedCause::PayloadRejection,
+        ImageSequenceProviderUnsupportedCause::PayloadRejection,
         input.diagnostic.isEmpty() ? QStringLiteral("provider command delivery failed")
                                    : input.diagnostic,
         false };
@@ -248,10 +246,10 @@ ViewportEngineProviderSessionOpenFailureReduction reduceViewportEngineProviderSe
     access.m_session.sessionActive = false;
     access.m_requests.activeMetadataToken = {};
     access.m_requests.activeFrameToken = {};
-    result.changes = access.recordTerminal({ input.role, ImageViewport::RequestStatus::Error,
-        ImageViewport::RequestReason::ProviderFailure, FailureScope::Generation, input.diagnostic,
+    result.changes = access.recordTerminal({ input.role, ImageViewportRequestStatus::Error,
+        ImageViewportRequestReason::ProviderFailure, FailureScope::Generation, input.diagnostic,
         result.changes });
-    updatePlaybackPhase(access.m_playback, ImageViewport::PlaybackPhase::Stopped, result.changes);
+    updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
     return result;
 }
 
@@ -272,14 +270,13 @@ ViewportEngineProviderQueueFailureReduction reduceViewportEngineProviderQueueFai
 
     const bool playbackOwned = access.m_requests.queuedFrameFromPlayback;
     clearQueue(access.m_requests);
-    result.changes = access.recordTerminal({ input.role, ImageViewport::RequestStatus::Error,
-        ImageViewport::RequestReason::ProviderFailure, FailureScope::DisplayRequest,
+    result.changes = access.recordTerminal({ input.role, ImageViewportRequestStatus::Error,
+        ImageViewportRequestReason::ProviderFailure, FailureScope::DisplayRequest,
         FramePreparation::boundedDiagnostic(
             input.diagnostic, QStringLiteral("provider command delivery failed")),
         result.changes });
     if (playbackOwned) {
-        updatePlaybackPhase(
-            access.m_playback, ImageViewport::PlaybackPhase::Stopped, result.changes);
+        updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
     }
     return result;
 }

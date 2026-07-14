@@ -39,19 +39,19 @@ void ImageViewportPublicApiProviderRolesTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    const auto outcome = item.setPresentationTarget(ImageViewportPresentationTarget(primaryResult->sequence(), secondaryResult->sequence()), PresentationTargetTransitionPolicy {});
+    const auto outcome = item.setPresentationTarget(
+        ImageViewportPresentationTarget(primaryResult->sequence(), secondaryResult->sequence()),
+        PresentationTargetTransitionPolicy {});
 
-    QCOMPARE(outcome.outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(outcome.outcome(), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(viewportPrimarySequence(item), primaryResult->sequence());
-    QCOMPARE(
-        viewportSecondarySequence(item), secondaryResult->sequence());
+    QCOMPARE(viewportSecondarySequence(item), secondaryResult->sequence());
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
-    QCOMPARE(requestStatusValue(item),
-        enumValue(item.metaObject(), "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(item.metaObject(), "RequestReason", "ProviderWaiting"));
+    QCOMPARE(requestStatusValue(item), enumValue(item.metaObject(), "RequestStatus", "Loading"));
+    QCOMPARE(
+        requestReasonValue(item), enumValue(item.metaObject(), "RequestReason", "ProviderWaiting"));
 }
 
 void ImageViewportPublicApiProviderRolesTest::secondaryProviderMetadataUpdatesRoleObservations()
@@ -76,8 +76,11 @@ void ImageViewportPublicApiProviderRolesTest::secondaryProviderMetadataUpdatesRo
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(primaryResult->sequence(), secondaryResult->sequence()), PresentationTargetTransitionPolicy {}).outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(
+                                            primaryResult->sequence(), secondaryResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
     QVERIFY(sessionFactory->lastSession());
 
     emitProviderMetadataReady(sessionFactory->lastSession(),

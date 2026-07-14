@@ -67,21 +67,21 @@ RenderAdapter::Input renderAdapterInputForPayload(
     return input;
 }
 
-ImageViewport::CommandOutcome setPageGapCommand(ImageViewport& item, double gap)
+ImageViewportCommandOutcome setPageGapCommand(ImageViewport& item, double gap)
 {
     ImageViewportPresentationCommand command;
     command.setPageGap(gap);
     return item.setPresentation(command).outcome();
 }
 
-ImageViewport::CommandOutcome setFitModeCommand(ImageViewport& item, ImageViewport::FitMode mode)
+ImageViewportCommandOutcome setFitModeCommand(ImageViewport& item, ImageViewportFitMode mode)
 {
     ImageViewportPresentationCommand command;
     command.setFitMode(mode);
     return item.setPresentation(command).outcome();
 }
 
-ImageViewport::CommandOutcome setQualityTogglesCommand(
+ImageViewportCommandOutcome setQualityTogglesCommand(
     ImageViewport& item, bool smoothing, bool mipmap)
 {
     ImageViewportPresentationCommand command;
@@ -90,7 +90,7 @@ ImageViewport::CommandOutcome setQualityTogglesCommand(
     return item.setPresentation(command).outcome();
 }
 
-ImageViewport::CommandOutcome setMirrorCommand(
+ImageViewportCommandOutcome setMirrorCommand(
     ImageViewport& item, bool mirrorHorizontally, bool mirrorVertically)
 {
     ImageViewportPresentationCommand command;
@@ -99,16 +99,16 @@ ImageViewport::CommandOutcome setMirrorCommand(
     return item.setPresentation(command).outcome();
 }
 
-ImageViewport::CommandOutcome setBackgroundModeCommand(
-    ImageViewport& item, ImageViewport::BackgroundMode mode)
+ImageViewportCommandOutcome setBackgroundModeCommand(
+    ImageViewport& item, ImageViewportBackgroundMode mode)
 {
     ImageViewportPresentationCommand command;
     command.setBackgroundMode(mode);
     return item.setPresentation(command).outcome();
 }
 
-ImageViewport::CommandOutcome setBackgroundCommand(
-    ImageViewport& item, ImageViewport::BackgroundMode mode, QColor color)
+ImageViewportCommandOutcome setBackgroundCommand(
+    ImageViewport& item, ImageViewportBackgroundMode mode, QColor color)
 {
     ImageViewportPresentationCommand command;
     command.setBackgroundMode(mode);
@@ -149,8 +149,8 @@ void ImageViewportRenderSceneGraphTest::transparentBackgroundDoesNotCreatePaintN
 {
     PaintProbeViewport item;
     item.setSize(QSizeF(24.0, 12.0));
-    QCOMPARE(setBackgroundModeCommand(item, ImageViewport::BackgroundMode::Transparent),
-        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setBackgroundModeCommand(item, ImageViewportBackgroundMode::Transparent),
+        ImageViewportCommandOutcome::Accepted);
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(!root);
@@ -161,8 +161,8 @@ void ImageViewportRenderSceneGraphTest::solidBackgroundCreatesPaintNode()
     PaintProbeViewport item;
     item.setSize(QSizeF(24.0, 12.0));
     QCOMPARE(setBackgroundCommand(
-                 item, ImageViewport::BackgroundMode::SolidColor, QColor(20, 40, 60, 255)),
-        ImageViewport::CommandOutcome::Accepted);
+                 item, ImageViewportBackgroundMode::SolidColor, QColor(20, 40, 60, 255)),
+        ImageViewportCommandOutcome::Accepted);
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
@@ -191,8 +191,8 @@ void ImageViewportRenderSceneGraphTest::backgroundOnlyPaintDoesNotAdvanceProvide
     PaintProbeViewport item;
     item.setSize(QSizeF(24.0, 12.0));
     QCOMPARE(setBackgroundCommand(
-                 item, ImageViewport::BackgroundMode::SolidColor, QColor(20, 40, 60, 255)),
-        ImageViewport::CommandOutcome::Accepted);
+                 item, ImageViewportBackgroundMode::SolidColor, QColor(20, 40, 60, 255)),
+        ImageViewportCommandOutcome::Accepted);
     item.setPresentationTarget(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
@@ -225,8 +225,8 @@ void ImageViewportRenderSceneGraphTest::checkerboardBackgroundCreatesPaintNode()
 {
     PaintProbeViewport item;
     item.setSize(QSizeF(18.0, 10.0));
-    QCOMPARE(setBackgroundModeCommand(item, ImageViewport::BackgroundMode::Checkerboard),
-        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setBackgroundModeCommand(item, ImageViewportBackgroundMode::Checkerboard),
+        ImageViewportCommandOutcome::Accepted);
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
@@ -309,8 +309,8 @@ void ImageViewportRenderSceneGraphTest::twoPageStillSpreadCreatesRoleTextureNode
                                             primaryResult->sequence(), secondaryResult->sequence()),
                      PresentationTargetTransitionPolicy {})
                  .outcome(),
-        ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(setPageGapCommand(item, 4.0), ImageViewport::CommandOutcome::Accepted);
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(item, 4.0), ImageViewportCommandOutcome::Accepted);
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
@@ -353,8 +353,8 @@ void ImageViewportRenderSceneGraphTest::
                                             primaryResult->sequence(), secondaryResult->sequence()),
                      PresentationTargetTransitionPolicy {})
                  .outcome(),
-        ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(setPageGapCommand(item, 4.0), ImageViewport::CommandOutcome::Accepted);
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(item, 4.0), ImageViewportCommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
     QScopedPointer<QSGNode> readyRoot(item.takePaintNode());
@@ -376,7 +376,7 @@ void ImageViewportRenderSceneGraphTest::
     QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(loadingResult->sequence()),
                      PresentationTargetTransitionPolicy {})
                  .outcome(),
-        ImageViewport::CommandOutcome::Accepted);
+        ImageViewportCommandOutcome::Accepted);
 
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -397,7 +397,7 @@ void ImageViewportRenderSceneGraphTest::
     QCOMPARE(secondaryNode->rect(), secondaryItemRect(item));
     QCOMPARE(secondaryNode->sourceRect(), visibleSecondaryPageRect(item));
 
-    QCOMPARE(item.clear().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "NoRequest"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QScopedPointer<QSGNode> clearedRoot(item.takePaintNode());
@@ -433,8 +433,8 @@ void ImageViewportRenderSceneGraphTest::secondaryProviderFrameCompletesSpreadTex
                                             primaryResult->sequence(), secondaryResult->sequence()),
                      PresentationTargetTransitionPolicy {})
                  .outcome(),
-        ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(setPageGapCommand(item, 4.0), ImageViewport::CommandOutcome::Accepted);
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(item, 4.0), ImageViewportCommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(*sessionCount, 1);
@@ -516,8 +516,8 @@ void ImageViewportRenderSceneGraphTest::primaryAndSecondaryProviderFramesCommitO
                                             primaryResult->sequence(), secondaryResult->sequence()),
                      PresentationTargetTransitionPolicy {})
                  .outcome(),
-        ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(setPageGapCommand(item, 4.0), ImageViewport::CommandOutcome::Accepted);
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(item, 4.0), ImageViewportCommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(*primarySessionCount, 1);
@@ -616,8 +616,8 @@ void ImageViewportRenderSceneGraphTest::solidBackgroundRendersBehindImageNode()
     item.setParentItem(window.contentItem());
     item.setSize(QSizeF(40.0, 20.0));
     QCOMPARE(setBackgroundCommand(
-                 item, ImageViewport::BackgroundMode::SolidColor, QColor(20, 40, 60, 255)),
-        ImageViewport::CommandOutcome::Accepted);
+                 item, ImageViewportBackgroundMode::SolidColor, QColor(20, 40, 60, 255)),
+        ImageViewportCommandOutcome::Accepted);
     item.setPresentationTarget(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
 
@@ -650,8 +650,8 @@ void ImageViewportRenderSceneGraphTest::qualityAndMirroringConfigureTextureNode(
     PaintProbeViewport item;
     item.setParentItem(window.contentItem());
     item.setSize(QSizeF(40.0, 20.0));
-    QCOMPARE(setQualityTogglesCommand(item, false, true), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(setMirrorCommand(item, true, true), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setQualityTogglesCommand(item, false, true), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(setMirrorCommand(item, true, true), ImageViewportCommandOutcome::Accepted);
     item.setPresentationTarget(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
 
@@ -704,13 +704,13 @@ void ImageViewportRenderSceneGraphTest::rotatedImageTextureNodeUsesTransform()
     item.setParentItem(window.contentItem());
     item.setSize(QSizeF(100.0, 100.0));
     QCOMPARE(setMirrorCommand(item, mirrorHorizontally, mirrorVertically),
-        ImageViewport::CommandOutcome::Accepted);
+        ImageViewportCommandOutcome::Accepted);
     item.setPresentationTarget(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     ImageViewportPresentationCommand rotationCommand;
     rotationCommand.setRotationDegrees(rotationDegrees);
     QCOMPARE(
-        item.setPresentation(rotationCommand).outcome(), ImageViewport::CommandOutcome::Accepted);
+        item.setPresentation(rotationCommand).outcome(), ImageViewportCommandOutcome::Accepted);
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
@@ -865,7 +865,8 @@ void ImageViewportRenderSceneGraphTest::retainedRenderFailureKeepsOldPaintNode()
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(primaryDisplayedFrame(item), 0);
 
-    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 1).outcome(),
+        ImageViewportCommandOutcome::Accepted);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
@@ -891,7 +892,7 @@ void ImageViewportRenderSceneGraphTest::renderPlanBuildsBackgroundPrimitivesWith
 {
     RenderAdapter::Input input;
     input.itemSize = QSizeF(18.0, 10.0);
-    input.backgroundMode = ImageViewport::BackgroundMode::Checkerboard;
+    input.backgroundMode = ImageViewportBackgroundMode::Checkerboard;
 
     RenderAdapter adapter;
     const RenderAdapter::RenderPlan plan = adapter.createPlan(input);
@@ -950,8 +951,8 @@ void ImageViewportRenderSceneGraphTest::renderPlanReportsPreMaterializationFailu
 
     RenderAdapter::Input invalidPayload;
     invalidPayload.itemSize = QSizeF(10.0, 10.0);
-    invalidPayload.imageLayers.append({ ImageViewportPageRole::Secondary,
-        renderAdapterPayload({}), QRectF(0.0, 0.0, 10.0, 10.0), QRectF(0.0, 0.0, 2.0, 2.0) });
+    invalidPayload.imageLayers.append({ ImageViewportPageRole::Secondary, renderAdapterPayload({}),
+        QRectF(0.0, 0.0, 10.0, 10.0), QRectF(0.0, 0.0, 2.0, 2.0) });
     const RenderAdapter::RenderPlan invalidPayloadPlan = adapter.createPlan(invalidPayload);
     QCOMPARE(invalidPayloadPlan.result, RenderAdapter::CommitResult::Failed);
     QCOMPARE(invalidPayloadPlan.failureCause, RenderFailureCause::InvalidRolePayload);
@@ -974,8 +975,8 @@ void ImageViewportRenderSceneGraphTest::coverImageTextureNodeUsesVisibleSourceRe
     item.setSize(QSizeF(100.0, 100.0));
     item.setPresentationTarget(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
-    QCOMPARE(setFitModeCommand(item, ImageViewport::FitMode::FitHeight),
-        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setFitModeCommand(item, ImageViewportFitMode::FitHeight),
+        ImageViewportCommandOutcome::Accepted);
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
@@ -1138,7 +1139,8 @@ void ImageViewportRenderSceneGraphTest::providerRetainedFrameWaitingForGeometryI
     QCOMPARE(primaryDisplayedFrame(item), 0);
 
     item.setSize(QSizeF(0.0, 20.0));
-    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 1).outcome(),
+        ImageViewportCommandOutcome::Accepted);
     QCOMPARE(*lastRequestedFrame, 1);
 
     QImage secondImage(4, 2, QImage::Format_ARGB32_Premultiplied);

@@ -78,8 +78,7 @@ QRectF ImageViewportPrivate::secondaryPageRect() const
 
 QRectF ImageViewportPrivate::primaryItemRect() const
 {
-    return PresentationGeometry::pageItemRect(
-        geometryState(*this), ImageViewportPageRole::Primary);
+    return PresentationGeometry::pageItemRect(geometryState(*this), ImageViewportPageRole::Primary);
 }
 
 QRectF ImageViewportPrivate::secondaryItemRect() const
@@ -202,12 +201,12 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentation(
 
 namespace {
 
-bool coordinateSpaceValid(ImageViewport::CoordinateSpace space)
+bool coordinateSpaceValid(ImageViewportCoordinateSpace space)
 {
     switch (space) {
-    case ImageViewport::CoordinateSpace::Item:
-    case ImageViewport::CoordinateSpace::DisplayedSpread:
-    case ImageViewport::CoordinateSpace::DisplayedPage:
+    case ImageViewportCoordinateSpace::Item:
+    case ImageViewportCoordinateSpace::DisplayedSpread:
+    case ImageViewportCoordinateSpace::DisplayedPage:
         return true;
     }
     return false;
@@ -215,8 +214,8 @@ bool coordinateSpaceValid(ImageViewport::CoordinateSpace space)
 
 bool coordinateUsesPage(const ImageViewportCoordinateInput& input)
 {
-    return input.sourceSpace() == ImageViewport::CoordinateSpace::DisplayedPage
-        || input.targetSpace() == ImageViewport::CoordinateSpace::DisplayedPage;
+    return input.sourceSpace() == ImageViewportCoordinateSpace::DisplayedPage
+        || input.targetSpace() == ImageViewportCoordinateSpace::DisplayedPage;
 }
 
 std::optional<ImageViewportPageRole> coordinatePageRole(const ImageViewportCoordinateInput& input)
@@ -231,7 +230,7 @@ std::optional<ImageViewportPageRole> coordinatePageRole(const ImageViewportCoord
 bool roleIsDisplayed(ImageViewportPageRole role, ImageViewportRoleSet displayedRoleSet)
 {
     return role == ImageViewportPageRole::Primary ? displayedRoleSet.primary()
-                                                    : displayedRoleSet.secondary();
+                                                  : displayedRoleSet.secondary();
 }
 
 QVariant coordinateResultRole(
@@ -250,9 +249,9 @@ ImageViewportCoordinateResult coordinateResultFor(const ImageViewportCoordinateI
 ImageViewportCoordinateResult invalidCoordinateResultFor(const ImageViewportCoordinateInput& input,
     std::optional<ImageViewportPageRole> role = std::nullopt)
 {
-    const ImageViewport::CoordinateSpace space = coordinateSpaceValid(input.targetSpace())
+    const ImageViewportCoordinateSpace space = coordinateSpaceValid(input.targetSpace())
         ? input.targetSpace()
-        : ImageViewport::CoordinateSpace::Item;
+        : ImageViewportCoordinateSpace::Item;
     return ImageViewportCoordinateResult(
         false, QPointF(), space, coordinateResultRole(input, role));
 }
@@ -282,34 +281,34 @@ ImageViewportCoordinateResult ImageViewportPrivate::mapPoint(
     if (input.sourceSpace() == input.targetSpace()) {
         bool valid = false;
         switch (input.sourceSpace()) {
-        case ImageViewport::CoordinateSpace::Item:
+        case ImageViewportCoordinateSpace::Item:
             valid = PresentationGeometry::containsItemPoint(state, point.x(), point.y());
             break;
-        case ImageViewport::CoordinateSpace::DisplayedSpread:
+        case ImageViewportCoordinateSpace::DisplayedSpread:
             valid = PresentationGeometry::containsSpreadPoint(state, point.x(), point.y());
             break;
-        case ImageViewport::CoordinateSpace::DisplayedPage:
+        case ImageViewportCoordinateSpace::DisplayedPage:
             valid = PresentationGeometry::containsPagePoint(state, *role, point.x(), point.y());
             break;
         }
         result = valid ? CoordinateResult(true, point.x(), point.y()) : CoordinateResult {};
-    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::Item
-        && input.targetSpace() == ImageViewport::CoordinateSpace::DisplayedSpread) {
+    } else if (input.sourceSpace() == ImageViewportCoordinateSpace::Item
+        && input.targetSpace() == ImageViewportCoordinateSpace::DisplayedSpread) {
         result = PresentationGeometry::itemToSpread(state, point.x(), point.y());
-    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::DisplayedSpread
-        && input.targetSpace() == ImageViewport::CoordinateSpace::Item) {
+    } else if (input.sourceSpace() == ImageViewportCoordinateSpace::DisplayedSpread
+        && input.targetSpace() == ImageViewportCoordinateSpace::Item) {
         result = PresentationGeometry::spreadToItem(state, point.x(), point.y());
-    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::Item
-        && input.targetSpace() == ImageViewport::CoordinateSpace::DisplayedPage) {
+    } else if (input.sourceSpace() == ImageViewportCoordinateSpace::Item
+        && input.targetSpace() == ImageViewportCoordinateSpace::DisplayedPage) {
         result = PresentationGeometry::itemToPage(state, *role, point.x(), point.y());
-    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::DisplayedPage
-        && input.targetSpace() == ImageViewport::CoordinateSpace::Item) {
+    } else if (input.sourceSpace() == ImageViewportCoordinateSpace::DisplayedPage
+        && input.targetSpace() == ImageViewportCoordinateSpace::Item) {
         result = PresentationGeometry::pageToItem(state, *role, point.x(), point.y());
-    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::DisplayedSpread
-        && input.targetSpace() == ImageViewport::CoordinateSpace::DisplayedPage) {
+    } else if (input.sourceSpace() == ImageViewportCoordinateSpace::DisplayedSpread
+        && input.targetSpace() == ImageViewportCoordinateSpace::DisplayedPage) {
         result = PresentationGeometry::spreadToPage(state, *role, point.x(), point.y());
-    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::DisplayedPage
-        && input.targetSpace() == ImageViewport::CoordinateSpace::DisplayedSpread) {
+    } else if (input.sourceSpace() == ImageViewportCoordinateSpace::DisplayedPage
+        && input.targetSpace() == ImageViewportCoordinateSpace::DisplayedSpread) {
         result = PresentationGeometry::pageToSpread(state, *role, point.x(), point.y());
     }
 

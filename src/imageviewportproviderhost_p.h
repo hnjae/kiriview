@@ -1,8 +1,8 @@
 #pragma once
 
-#include "imageviewport.h"
 #include "viewportcontrollerprovidercontract_p.h"
 #include "viewportproviderbridge_p.h"
+#include <ImageViewport/ImageViewport>
 
 class ImageViewportPrivate;
 
@@ -26,8 +26,7 @@ public:
 
 private:
     void applyFrameTransportEffect(
-        const ViewportProviderFrameTransportEffect& effect,
-        PageRole role = PageRole::Primary);
+        const ViewportProviderFrameTransportEffect& effect, PageRole role = PageRole::Primary);
     void handleProviderEvent(const ViewportProviderEvent& event);
     void applyHostEvent(const ViewportProviderHostEvent& event);
 

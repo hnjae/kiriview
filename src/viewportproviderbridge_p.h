@@ -1,8 +1,8 @@
 #pragma once
 
-#include "imageviewport.h"
 #include "imageviewportstate_p.h"
 #include "viewportproviderevent_p.h"
+#include <ImageViewport/ImageViewport>
 
 #include <QtCore/QPointer>
 #include <QtCore/Qt>

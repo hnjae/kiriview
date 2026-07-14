@@ -33,8 +33,7 @@ public:
 
     private:
         friend class ViewportEngine;
-        PendingPublication(ViewportEngine* owner,
-            ImageViewportInternal::ViewportChangeSet changes);
+        PendingPublication(ViewportEngine* owner, ImageViewportInternal::ViewportChangeSet changes);
 
         ViewportEngine* m_owner = nullptr;
         ImageViewportInternal::ViewportChangeSet m_changes;
@@ -123,7 +122,7 @@ private:
         return role == ImageViewportPageRole::Secondary ? 1U : 0U;
     }
     ViewportEngineCommandResult rejected(
-        ImageViewport::CommandOutcome outcome, ImageViewport::CommandReason reason);
+        ImageViewportCommandOutcome outcome, ImageViewportCommandReason reason);
     ViewportEngineCommandResult accepted();
     ViewportEngineCommandResult acceptedPreservingCommandDiagnostics() const;
     RevisionToken nextCommandRevision();

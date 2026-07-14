@@ -82,16 +82,16 @@ void clearQueue(ProviderRequestState& requests)
     requests.queuedFrameTargetKind = ProviderRequestTargetKind::Unknown;
 }
 
-ImageViewport::DisplayStatus retainedDisplayStatus(const DisplayState& display)
+ImageViewportDisplayStatus retainedDisplayStatus(const DisplayState& display)
 {
-    const bool retained = (display.status == ImageViewport::DisplayStatus::Ready
-                              || display.status == ImageViewport::DisplayStatus::Retained)
+    const bool retained = (display.status == ImageViewportDisplayStatus::Ready
+                              || display.status == ImageViewportDisplayStatus::Retained)
         && display.roles[0].displayedImageSize.isValid();
-    return retained ? ImageViewport::DisplayStatus::Retained : ImageViewport::DisplayStatus::Empty;
+    return retained ? ImageViewportDisplayStatus::Retained : ImageViewportDisplayStatus::Empty;
 }
 
 void updatePlaybackPhase(
-    PlaybackState& playback, ImageViewport::PlaybackPhase phase, ViewportChangeSet& changes)
+    PlaybackState& playback, ImageViewportPlaybackPhase phase, ViewportChangeSet& changes)
 {
     if (playback.phase == phase) {
         return;
@@ -155,15 +155,14 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
 
     const auto frameState = preparationState(
         access.m_request, access.m_display, access.m_provider, access.m_presentation, input.role);
-    const auto admission = FramePreparation::admitProviderFrame(
-        input.frame, input.metadata, input.envelope, frameState);
+    const auto admission
+        = FramePreparation::admitProviderFrame(input.frame, input.envelope, frameState);
     if (!admission.accepted()) {
         clearQueue(access.m_provider.requests);
         access.m_provider.requests.activeFrameToken = {};
         result.changes = access.recordTerminal({ input.role, admission.status, admission.reason,
             FailureScope::DisplayRequest, admission.diagnostic, result.changes });
-        updatePlaybackPhase(
-            access.m_playback, ImageViewport::PlaybackPhase::Stopped, result.changes);
+        updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
         return result;
     }
 
@@ -189,7 +188,7 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
             wait.primary.providerWaiting = true;
             wait.secondary.uploadPending = true;
         }
-        access.m_request.status = ImageViewport::RequestStatus::Loading;
+        access.m_request.status = ImageViewportRequestStatus::Loading;
         access.m_request.reason = projectWaitReason(wait);
         access.m_display.status = retainedDisplayStatus(access.m_display);
     } else {
@@ -218,16 +217,16 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
             && access.m_display.roles[1].pendingRenderPayload.image.isNull()) {
             wait.secondary.providerWaiting = true;
         }
-        access.m_request.status = ImageViewport::RequestStatus::Loading;
+        access.m_request.status = ImageViewportRequestStatus::Loading;
         access.m_request.reason = projectWaitReason(wait);
         access.m_display.status = retainedDisplayStatus(access.m_display);
         access.m_display.roles[0].pendingRenderPayload.commitPending = true;
-        if (access.m_playback.phase == ImageViewport::PlaybackPhase::Waiting
-            && access.m_request.status == ImageViewport::RequestStatus::Ready
+        if (access.m_playback.phase == ImageViewportPlaybackPhase::Waiting
+            && access.m_request.status == ImageViewportRequestStatus::Ready
             && !access.m_display.roles[0].pendingRenderPayload.commitPending) {
             updatePlaybackPhase(access.m_playback,
-                access.m_playback.stopWhenRequestReady ? ImageViewport::PlaybackPhase::Stopped
-                                                       : ImageViewport::PlaybackPhase::Playing,
+                access.m_playback.stopWhenRequestReady ? ImageViewportPlaybackPhase::Stopped
+                                                       : ImageViewportPlaybackPhase::Playing,
                 result.changes);
             access.m_playback.stopWhenRequestReady = false;
         }

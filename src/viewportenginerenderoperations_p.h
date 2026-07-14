@@ -39,7 +39,7 @@ struct ViewportEngineRenderAcknowledgementInput
     bool pendingTargetCommit = false;
     bool pendingSecondaryProviderCommit = false;
     ImageViewportInternal::PreparedPayload preparedPayload;
-    ImageViewport::DisplayStatus oldDisplayStatus = ImageViewport::DisplayStatus::Empty;
+    ImageViewportDisplayStatus oldDisplayStatus = ImageViewportDisplayStatus::Empty;
     QRectF oldContentRect;
     QRectF oldVisibleImageRect;
     PresentationGeometry::State geometryState;

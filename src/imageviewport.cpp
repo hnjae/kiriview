@@ -72,12 +72,12 @@ bool PresentationTargetTransitionPolicy::isValid() const
         }
         return false;
     };
-    auto fitModeValid = [](ImageViewport::FitMode mode) {
+    auto fitModeValid = [](ImageViewportFitMode mode) {
         switch (mode) {
-        case ImageViewport::FitMode::Contain:
-        case ImageViewport::FitMode::FitWidth:
-        case ImageViewport::FitMode::FitHeight:
-        case ImageViewport::FitMode::Manual:
+        case ImageViewportFitMode::Contain:
+        case ImageViewportFitMode::FitWidth:
+        case ImageViewportFitMode::FitHeight:
+        case ImageViewportFitMode::Manual:
             return true;
         }
         return false;
@@ -90,10 +90,10 @@ bool PresentationTargetTransitionPolicy::isValid() const
         }
         return false;
     };
-    auto spreadDirectionValid = [](ImageViewport::SpreadDirection direction) {
+    auto spreadDirectionValid = [](ImageViewportSpreadDirection direction) {
         switch (direction) {
-        case ImageViewport::SpreadDirection::LeftToRight:
-        case ImageViewport::SpreadDirection::RightToLeft:
+        case ImageViewportSpreadDirection::LeftToRight:
+        case ImageViewportSpreadDirection::RightToLeft:
             return true;
         }
         return false;
@@ -139,7 +139,7 @@ bool PresentationTargetTransitionPolicy::isValid() const
     }
     return m_zoomTransition != ZoomTransition::ResetToContain
         || m_fitModeTransition != FitModeTransition::SetExplicit
-        || m_fitMode == ImageViewport::FitMode::Contain;
+        || m_fitMode == ImageViewportFitMode::Contain;
 }
 
 namespace {

@@ -9,7 +9,6 @@ struct ViewportEngineProviderFrameReadyInput
     ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ImageSequenceProviderRequestToken token;
     ImageFrame* frame = nullptr;
-    ImageSequenceProviderFrameMetadata metadata;
     ImageSequenceProviderFrameEnvelope envelope;
     ViewportEngineGeometryInput geometry;
 };

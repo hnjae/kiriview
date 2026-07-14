@@ -1,12 +1,12 @@
 #pragma once
 
 #include "framepreparation_p.h"
-#include "imageviewport.h"
 #include "imageviewportstate_p.h"
 #include "presentationgeometry_p.h"
 #include "viewportcontrollerassignmentcontract_p.h"
 #include "viewportcontrollertransition_p.h"
 #include "viewportengine_p.h"
+#include <ImageViewport/ImageViewport>
 
 #include <QtCore/QRectF>
 #include <QtCore/QSizeF>
@@ -59,17 +59,15 @@ public:
     ViewportCommandResult seekToPosition(ImageViewportPageRole role, int milliseconds);
     ViewportCommandResult applyPlaybackCommand(ViewportPlaybackCommand command);
     ViewportCommandResult setPresentation(const ViewportPresentationCommandInput& input);
-    ViewportCommandResult setSpreadDirection(ImageViewport::SpreadDirection direction);
+    ViewportCommandResult setSpreadDirection(ImageViewportSpreadDirection direction);
     ViewportCommandResult setPageGap(double gap);
-    ViewportCommandResult setFitMode(ImageViewport::FitMode mode, QPointF anchor);
+    ViewportCommandResult setFitMode(ImageViewportFitMode mode, QPointF anchor);
     ViewportCommandResult setZoomPercent(
         double percent, QPointF anchor, double devicePixelRatio = 1.0);
     ViewportCommandResult zoomByStep(int stepCount, QPointF anchor, double devicePixelRatio = 1.0);
     ViewportCommandResult panBy(QPointF delta);
     ViewportCommandResult panToStart();
     ViewportCommandResult panToEnd();
-    ViewportCommandResult scanNext();
-    ViewportCommandResult scanPrevious();
     ViewportCommandResult rotateClockwise(QPointF anchor);
     ViewportCommandResult rotateCounterClockwise(QPointF anchor);
     ViewportCommandResult setMirrorHorizontally(bool enabled, QPointF anchor);

@@ -40,7 +40,7 @@ void clearQueue(ProviderRequestState& q)
     q.queuedFrameFromPlayback = false;
     q.queuedFrameTargetKind = ProviderRequestTargetKind::Unknown;
 }
-void phase(PlaybackState& p, ImageViewport::PlaybackPhase v, ViewportChangeSet& c)
+void phase(PlaybackState& p, ImageViewportPlaybackPhase v, ViewportChangeSet& c)
 {
     if (p.phase != v) {
         p.phase = v;
@@ -78,10 +78,10 @@ ViewportEngineProviderWaitingReduction reduceViewportEngineProviderWaiting(
     const auto& r = requestFor(a.m_request, in.role);
     bool ft = a.m_requests.activeFrameToken.isValid() && in.token == a.m_requests.activeFrameToken
         && in.token == r.providerFrameToken;
-    if ((!mt && !ft) || a.m_request.status != ImageViewport::RequestStatus::Loading
-        || a.m_request.reason == ImageViewport::RequestReason::ProviderWaiting)
+    if ((!mt && !ft) || a.m_request.status != ImageViewportRequestStatus::Loading
+        || a.m_request.reason == ImageViewportRequestReason::ProviderWaiting)
         return out;
-    a.m_request.reason = ImageViewport::RequestReason::ProviderWaiting;
+    a.m_request.reason = ImageViewportRequestReason::ProviderWaiting;
     out.changes.requestState = true;
     out.changes.requestRevision = true;
     return out;
@@ -133,11 +133,11 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
             p.requests.activeFrameToken = {};
         a.m_playback.providerStartPending = false;
         a.m_playback.stopWhenRequestReady = false;
-        out.changes = a.recordTerminal({ in.role, ImageViewport::RequestStatus::Error,
-            ImageViewport::RequestReason::PayloadRejection,
+        out.changes = a.recordTerminal({ in.role, ImageViewportRequestStatus::Error,
+            ImageViewportRequestReason::PayloadRejection,
             mt ? FailureScope::Generation : FailureScope::DisplayRequest,
             QStringLiteral("provider protocol violation"), out.changes });
-        phase(a.m_playback, ImageViewport::PlaybackPhase::Stopped, out.changes);
+        phase(a.m_playback, ImageViewportPlaybackPhase::Stopped, out.changes);
         out.providerFrameTransport = a.closeSession(in.role);
         return out;
     }
@@ -169,10 +169,10 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
         && a.m_display.roles[0].displayedRequest.request.resolvedFrame.frame == frame
         && a.m_display.roles[0].displayedRequest.request.resolvedFrame.position == pos;
     if (same) {
-        a.m_request.status = ImageViewport::RequestStatus::Ready;
-        a.m_request.reason = ImageViewport::RequestReason::Ready;
-        a.m_display.status = ImageViewport::DisplayStatus::Ready;
-        phase(a.m_playback, ImageViewport::PlaybackPhase::Stopped, out.changes);
+        a.m_request.status = ImageViewportRequestStatus::Ready;
+        a.m_request.reason = ImageViewportRequestReason::Ready;
+        a.m_display.status = ImageViewportDisplayStatus::Ready;
+        phase(a.m_playback, ImageViewportPlaybackPhase::Stopped, out.changes);
         a.m_playback.stopWhenRequestReady = false;
         out.changes.requestState = out.changes.requestRevision = out.changes.displayState
             = out.changes.displayRevision = true;
@@ -190,7 +190,7 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
     out.providerFrameTransport.command = start.command;
     if (loop && !a.m_playback.looping)
         ++a.m_playback.loopIterationsCompleted;
-    phase(a.m_playback, ImageViewport::PlaybackPhase::Waiting, out.changes);
+    phase(a.m_playback, ImageViewportPlaybackPhase::Waiting, out.changes);
     out.changes.requestState = out.changes.requestRevision = out.changes.displayState
         = out.changes.displayRevision = true;
     out.changes.diagnostics = dc || !start.accepted;
