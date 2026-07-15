@@ -67,7 +67,7 @@ Provider-backed handles may be used concurrently. Each accepted role generation 
 
 ## Provider Boundary
 
-The provider host owns session storage, request and event delivery, threading-contract enforcement, best-effort cancellation and close delivery, frame-handle release delivery, and affinity-correct destruction. It consumes engine effects and returns normalized typed events. It does not own token admission, request queues, public failure projection, diagnostics, playback, rendering, or notifications.
+The provider host owns session storage, request and event delivery, threading-contract enforcement, best-effort cancellation and close delivery, frame-handle release delivery, and affinity-correct destruction. Its event-ingress and cleanup ownership outlives any revocable item callback until transferred handles and closing sessions converge. It consumes engine effects and returns normalized typed events. It does not own token admission, request queues, public failure projection, diagnostics, playback, rendering, or notifications.
 
 Each provider session has one serialized command stream. Provider events may originate from worker facilities, but the host normalizes their delivery before engine reduction. Frame, position, and playback requests carry engine-authored demand; providers may select complete-frame detail but cannot own or infer viewport geometry, target identity, or render state.
 
