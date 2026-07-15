@@ -99,6 +99,7 @@ private:
     ViewportPlaybackScheduleEffect currentPlaybackSchedule() const;
     GeometryInput currentGeometry(ViewportEngineViewportInput input) const;
     GeometryInput pendingGeometry(ViewportEngineViewportInput input) const;
+    GeometryInput rawAcceptedGeometry(ViewportEngineViewportInput input) const;
     GeometryInput acceptedGeometry(ViewportEngineViewportInput input) const;
     PresentationGeometry::State geometryState(const GeometryInput& input) const;
     std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands(

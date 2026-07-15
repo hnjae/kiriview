@@ -186,8 +186,9 @@ void ImageViewportProviderTerminalRecoveryTest::
 
     QCOMPARE(item.pause(ImageViewportPageRole::Primary).outcome(),
         ImageViewportCommandOutcome::Accepted);
-    QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "NoCommand"));
-    verifyRevisionChanged(item, "commandRevision", unsupportedCommandRevision);
+    QCOMPARE(
+        commandReasonValue(item), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
+    QCOMPARE(revisionTokenProperty(item, "commandRevision"), unsupportedCommandRevision);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderFailure"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
@@ -200,7 +201,8 @@ void ImageViewportProviderTerminalRecoveryTest::
         = revisionTokenProperty(item, "commandRevision");
     QCOMPARE(
         item.stop(ImageViewportPageRole::Primary).outcome(), ImageViewportCommandOutcome::Accepted);
-    QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "NoCommand"));
+    QCOMPARE(
+        commandReasonValue(item), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(revisionTokenProperty(item, "commandRevision"), clearedCommandRevision);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderFailure"));
@@ -572,8 +574,8 @@ void ImageViewportProviderTerminalRecoveryTest::providerFrameFailureAcceptsContr
     QCOMPARE(item.pause(ImageViewportPageRole::Primary).outcome(),
         ImageViewportCommandOutcome::Accepted);
 
-    QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "NoCommand"));
-    verifyRevisionChanged(item, "commandRevision", invalidCommandRevision);
+    QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    QCOMPARE(revisionTokenProperty(item, "commandRevision"), invalidCommandRevision);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderFailure"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
@@ -588,7 +590,7 @@ void ImageViewportProviderTerminalRecoveryTest::providerFrameFailureAcceptsContr
     QCOMPARE(
         item.stop(ImageViewportPageRole::Primary).outcome(), ImageViewportCommandOutcome::Accepted);
 
-    QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "NoCommand"));
+    QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "InvalidRequest"));
     QCOMPARE(revisionTokenProperty(item, "commandRevision"), clearedCommandRevision);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderFailure"));
@@ -642,8 +644,9 @@ void ImageViewportProviderTerminalRecoveryTest::
     QCOMPARE(item.pause(ImageViewportPageRole::Primary).outcome(),
         ImageViewportCommandOutcome::Accepted);
 
-    QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "NoCommand"));
-    verifyRevisionChanged(item, "commandRevision", unsupportedCommandRevision);
+    QCOMPARE(
+        commandReasonValue(item), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
+    QCOMPARE(revisionTokenProperty(item, "commandRevision"), unsupportedCommandRevision);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Unsupported"));
     QCOMPARE(
         requestReasonValue(item), enumValue(metaObject, "RequestReason", "UnsupportedRequest"));
@@ -659,7 +662,8 @@ void ImageViewportProviderTerminalRecoveryTest::
     QCOMPARE(
         item.stop(ImageViewportPageRole::Primary).outcome(), ImageViewportCommandOutcome::Accepted);
 
-    QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "NoCommand"));
+    QCOMPARE(
+        commandReasonValue(item), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(revisionTokenProperty(item, "commandRevision"), clearedCommandRevision);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Unsupported"));
     QCOMPARE(

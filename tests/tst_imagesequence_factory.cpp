@@ -1109,13 +1109,13 @@ void ImageSequenceFactoryTest::commandsWithoutRequestAreIgnoredDiagnostics()
 
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
     QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
-    QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "NoCommand"));
+    QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
     QVERIFY(!revisionTokenProperty(item, "requestRevision").isValid());
     QVERIFY(!revisionTokenProperty(item, "displayRevision").isValid());
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "NoRequest"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(stateSpy.count(), 1);
+    QCOMPARE(stateSpy.count(), 0);
 }
 
 QTEST_MAIN(ImageSequenceFactoryTest)

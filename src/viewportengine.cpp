@@ -215,6 +215,24 @@ ViewportEngine::GeometryInput ViewportEngine::pendingGeometry(
 ViewportEngine::GeometryInput ViewportEngine::acceptedGeometry(
     ViewportEngineViewportInput input) const
 {
+    GeometryInput result = rawAcceptedGeometry(input);
+    const auto& pending = m_state->requestState.presentationTarget.pendingPresentationTransition;
+    const auto positive
+        = [](QSizeF size) { return size.isValid() && size.width() > 0.0 && size.height() > 0.0; };
+    if (pending.isValid()
+        && (!result.primaryPresent || !positive(result.primarySize)
+            || (m_state->requestState.presentationTarget.acceptedRoleSet.secondary()
+                && !positive(result.secondarySize)))) {
+        result.primaryPresent = false;
+        result.primarySize = {};
+        result.secondarySize = {};
+    }
+    return result;
+}
+
+ViewportEngine::GeometryInput ViewportEngine::rawAcceptedGeometry(
+    ViewportEngineViewportInput input) const
+{
     return projectViewportAcceptedGeometry({ input.itemBounds, input.devicePixelRatio },
         { m_state->requestState.request, providerFactsView() });
 }
@@ -239,21 +257,32 @@ ViewportRenderSnapshot ViewportEngine::renderSnapshot(
 ViewportEnginePresentationTargetAssignmentResult ViewportEngine::assignPresentationTarget(
     const ViewportEnginePresentationTargetAssignmentRequest& input)
 {
-    if (!input.presentationTarget.isValid() || !input.transitionPolicy.isValid()) {
+    ViewportEnginePresentationTargetAssignmentInput operationInput { input.presentationTarget,
+        input.transitionPolicy, input.primarySource, input.secondarySource,
+        acceptedGeometry(input.viewport) };
+    if (!operationInput.presentationTarget.isClear() && !operationInput.primarySource.sequence) {
+        operationInput.primarySource = ImageViewportInternal::factorySequenceSource(
+            operationInput.presentationTarget.primary());
+    }
+    if (!operationInput.presentationTarget.isClear() && !operationInput.secondarySource.sequence) {
+        operationInput.secondarySource = ImageViewportInternal::factorySequenceSource(
+            operationInput.presentationTarget.secondary());
+    }
+    if (!validateViewportEnginePresentationTargetAssignment(operationInput,
+            m_state->requestState.presentationTarget, m_state->requestState.request,
+            m_state->providerState.roles)) {
         return { rejectInvalidCommand(), m_state->requestState.presentationTarget };
     }
     ViewportEnginePresentationTargetAssignmentResult result;
-    result.command
-        = input.presentationTarget.isClear() ? accepted() : acceptedPreservingCommandDiagnostics();
     ViewportEnginePresentationTargetAssignmentAccess access(
         m_state->requestState.presentationTarget,
         m_state->requestState.nextPresentationTargetGeneration, m_state->requestState.request,
         m_state->playbackState.playback, m_state->displayState.display,
         m_state->providerState.roles, m_state->presentationState.presentation);
     const auto reduction = reduceViewportEnginePresentationTargetAssignment(
-        { input.presentationTarget, input.transitionPolicy, input.primarySource,
-            input.secondarySource, acceptedGeometry(input.viewport) },
-        std::move(access));
+        std::move(operationInput), std::move(access));
+    result.command
+        = reduction.presentationTargetChanged ? accepted() : acceptedPreservingCommandDiagnostics();
     result.presentationTargetState = reduction.presentationTargetState;
     result.presentationTargetChanged = reduction.presentationTargetChanged;
     result.clear = reduction.clear;
@@ -284,21 +313,15 @@ ViewportEngineCommandResult ViewportEngine::rejected(
 
 ViewportEngineCommandResult ViewportEngine::accepted()
 {
-    const bool hadDiagnostic
-        = m_state->commandState.reason != ImageViewportCommandReason::NoCommand;
     m_state->commandState.reason = ImageViewportCommandReason::NoCommand;
-    if (hadDiagnostic) {
-        m_state->commandState.revision = nextCommandRevision();
-        return { ImageViewportCommandOutcome::Accepted, m_state->commandState.reason,
-            m_state->commandState.revision, true };
-    }
+    m_state->commandState.revision = nextCommandRevision();
     return { ImageViewportCommandOutcome::Accepted, m_state->commandState.reason,
-        m_state->commandState.revision, false };
+        m_state->commandState.revision, true };
 }
 
 ViewportEngineCommandResult ViewportEngine::acceptedPreservingCommandDiagnostics() const
 {
-    return { ImageViewportCommandOutcome::Accepted, m_state->commandState.reason,
+    return { ImageViewportCommandOutcome::Accepted, ImageViewportCommandReason::NoCommand,
         m_state->commandState.revision, false };
 }
 

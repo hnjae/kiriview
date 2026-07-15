@@ -196,8 +196,9 @@ private slots:
     void providerAssignmentRegistersSessionIdentityBeforeHostOpen();
     void invalidPresentationTargetAssignmentMutatesOnlyCommandDiagnostics();
     void invalidTransitionPolicyMutatesOnlyCommandDiagnostics();
+    void deferredTargetAnchorResolvesWhenItemGeometryArrives();
     void clearPresentationTargetAllocatesTransactionAndThenNoops();
-    void presentationTargetAssignmentPreservesPreviousCommandDiagnostic();
+    void presentationTargetAssignmentAdvancesCommandDiagnostic();
     void assignmentEffectFlagsFollowTransitionPolicy();
 };
 
@@ -1123,7 +1124,8 @@ void ViewportEngineTest::validPresentationTargetAssignmentAllocatesGenerationAnd
 
     QCOMPARE(result.command.outcome, ImageViewportCommandOutcome::Accepted);
     QCOMPARE(result.command.reason, ImageViewportCommandReason::NoCommand);
-    QCOMPARE(result.command.commandRevisionChanged, false);
+    QCOMPARE(result.command.commandRevisionChanged, true);
+    QVERIFY(result.command.commandRevision.isValid());
     QCOMPARE(result.presentationTargetChanged, true);
     QCOMPARE(result.clear, false);
     QCOMPARE(result.presentationTargetState.presentationTarget.primary(), sequence->sequence());
@@ -1280,6 +1282,39 @@ void ViewportEngineTest::invalidTransitionPolicyMutatesOnlyCommandDiagnostics()
     QCOMPARE(currentState.generation, previousState.generation);
 }
 
+void ViewportEngineTest::deferredTargetAnchorResolvesWhenItemGeometryArrives()
+{
+    ImageSequenceFactory factory;
+    QImage image(400, 100, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> sequence(factory.fromFrame(&frame));
+    QVERIFY(sequence->sequence());
+
+    PresentationTargetTransitionPolicy policy;
+    policy.setFitModeTransition(PresentationTargetTransitionPolicy::FitModeTransition::SetExplicit);
+    policy.setFitMode(ImageViewportFitMode::Manual);
+    policy.setContentPositionTransition(
+        PresentationTargetTransitionPolicy::ContentPositionTransition::AnchorEnd);
+
+    ViewportEngine engine;
+    const auto assignment = engine.assignPresentationTarget(
+        { ImageViewportPresentationTarget(sequence->sequence()), policy });
+    QCOMPARE(assignment.command.outcome, ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(ViewportEngineTestAccess::presentation(engine).contentPosition, QPointF());
+    QVERIFY(ViewportEngineTestAccess::presentationTargetState(engine)
+            .pendingPresentationTransition.isValid());
+
+    const auto geometry
+        = engine.handleGeometryChanged({ { QRectF(0.0, 0.0, 100.0, 100.0), 1.0 }, {}, {} });
+
+    QCOMPARE(ViewportEngineTestAccess::presentation(engine).contentPosition, QPointF(300.0, 0.0));
+    QCOMPARE(ViewportEngineTestAccess::presentationTargetState(engine)
+                 .pendingPresentationTransition.isValid(),
+        false);
+    QCOMPARE(geometry.changes.presentationRevision, true);
+}
+
 void ViewportEngineTest::clearPresentationTargetAllocatesTransactionAndThenNoops()
 {
     ImageSequenceFactory factory;
@@ -1295,7 +1330,8 @@ void ViewportEngineTest::clearPresentationTargetAllocatesTransactionAndThenNoops
             .presentationTargetChanged);
 
     const ViewportEnginePresentationTargetAssignmentResult clearResult
-        = engine.assignPresentationTarget({ ImageViewportPresentationTarget::clear(), {} });
+        = engine.assignPresentationTarget({ ImageViewportPresentationTarget::clear(),
+            PresentationTargetTransitionPolicy::defaultClear() });
 
     QCOMPARE(clearResult.command.outcome, ImageViewportCommandOutcome::Accepted);
     QCOMPARE(clearResult.clear, true);
@@ -1316,7 +1352,8 @@ void ViewportEngineTest::clearPresentationTargetAllocatesTransactionAndThenNoops
     QCOMPARE(ViewportEngineTestAccess::display(engine).roles[0].displayedImageSize, QSizeF());
 
     const ViewportEnginePresentationTargetAssignmentResult noopClear
-        = engine.assignPresentationTarget({ ImageViewportPresentationTarget::clear(), {} });
+        = engine.assignPresentationTarget({ ImageViewportPresentationTarget::clear(),
+            PresentationTargetTransitionPolicy::defaultClear() });
 
     QCOMPARE(noopClear.command.outcome, ImageViewportCommandOutcome::Accepted);
     QCOMPARE(noopClear.presentationTargetChanged, false);
@@ -1326,7 +1363,7 @@ void ViewportEngineTest::clearPresentationTargetAllocatesTransactionAndThenNoops
     QCOMPARE(noopClear.closeProviderSessions, false);
 }
 
-void ViewportEngineTest::presentationTargetAssignmentPreservesPreviousCommandDiagnostic()
+void ViewportEngineTest::presentationTargetAssignmentAdvancesCommandDiagnostic()
 {
     ImageSequenceFactory factory;
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -1348,12 +1385,13 @@ void ViewportEngineTest::presentationTargetAssignmentPreservesPreviousCommandDia
             { ImageViewportPresentationTarget(sequence->sequence()), {} });
 
     QCOMPARE(accepted.command.outcome, ImageViewportCommandOutcome::Accepted);
-    QCOMPARE(accepted.command.reason, ImageViewportCommandReason::InvalidRequest);
-    QCOMPARE(accepted.command.commandRevisionChanged, false);
-    QCOMPARE(accepted.command.commandRevision, rejectedRevision);
+    QCOMPARE(accepted.command.reason, ImageViewportCommandReason::NoCommand);
+    QCOMPARE(accepted.command.commandRevisionChanged, true);
+    QVERIFY(accepted.command.commandRevision != rejectedRevision);
     QCOMPARE(ViewportEngineTestAccess::commandDiagnostics(engine).reason,
-        ImageViewportCommandReason::InvalidRequest);
-    QCOMPARE(ViewportEngineTestAccess::commandDiagnostics(engine).revision, rejectedRevision);
+        ImageViewportCommandReason::NoCommand);
+    QCOMPARE(ViewportEngineTestAccess::commandDiagnostics(engine).revision,
+        accepted.command.commandRevision);
 }
 
 void ViewportEngineTest::assignmentEffectFlagsFollowTransitionPolicy()

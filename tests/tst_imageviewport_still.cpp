@@ -360,8 +360,8 @@ void ImageViewportStillTest::nullSequenceAssignmentClearsCommandDiagnostic()
         = revisionTokenProperty(item, "commandRevision");
 
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
-    item.setPresentationTarget(
-        ImageViewportPresentationTarget::clear(), PresentationTargetTransitionPolicy {});
+    item.setPresentationTarget(ImageViewportPresentationTarget::clear(),
+        PresentationTargetTransitionPolicy::defaultClear());
 
     QCOMPARE(viewportPrimarySequence(item), nullptr);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "NoRequest"));
@@ -464,8 +464,8 @@ void ImageViewportStillTest::clearReadyDisplayClearsGeometryObservations()
     QCOMPARE(contentRect(item), QRectF(0.0, 25.0, 100.0, 50.0));
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 16.0, 8.0));
 
-    item.setPresentationTarget(
-        ImageViewportPresentationTarget::clear(), PresentationTargetTransitionPolicy {});
+    item.setPresentationTarget(ImageViewportPresentationTarget::clear(),
+        PresentationTargetTransitionPolicy::defaultClear());
 
     QCOMPARE(contentRect(item), QRectF());
     QCOMPARE(visibleImageRect(item), QRectF());
@@ -489,8 +489,8 @@ void ImageViewportStillTest::clearNonPresentableDisplayKeepsEmptyGeometryObserva
     QCOMPARE(contentRect(item), QRectF());
     QCOMPARE(visibleImageRect(item), QRectF());
 
-    item.setPresentationTarget(
-        ImageViewportPresentationTarget::clear(), PresentationTargetTransitionPolicy {});
+    item.setPresentationTarget(ImageViewportPresentationTarget::clear(),
+        PresentationTargetTransitionPolicy::defaultClear());
 
     QCOMPARE(contentRect(item), QRectF());
     QCOMPARE(visibleImageRect(item), QRectF());
@@ -616,6 +616,9 @@ void ImageViewportStillTest::stillImageCommandsPreserveOrReplaceDocumentedState(
     verifyRevisionChanged(item, "displayRevision", readyDisplayRevision);
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "NoCommand"));
+    const ImageViewportRevisionToken commandRevision
+        = revisionTokenProperty(item, "commandRevision");
+    QVERIFY(commandRevision.isValid());
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.pause(ImageViewportPageRole::Primary).outcome(),
@@ -623,7 +626,7 @@ void ImageViewportStillTest::stillImageCommandsPreserveOrReplaceDocumentedState(
     QCOMPARE(
         item.stop(ImageViewportPageRole::Primary).outcome(), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "NoCommand"));
-    QVERIFY(!revisionTokenProperty(item, "commandRevision").isValid());
+    QCOMPARE(revisionTokenProperty(item, "commandRevision"), commandRevision);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));

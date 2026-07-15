@@ -80,3 +80,7 @@ ViewportEnginePresentationTargetAssignmentReduction
     reduceViewportEnginePresentationTargetAssignment(
         ViewportEnginePresentationTargetAssignmentInput,
         ViewportEnginePresentationTargetAssignmentAccess);
+bool validateViewportEnginePresentationTargetAssignment(
+    const ViewportEnginePresentationTargetAssignmentInput&,
+    const ViewportEnginePresentationTargetState&, const ImageViewportInternal::RequestState&,
+    const std::array<ViewportEngineRoleState, 2>&);

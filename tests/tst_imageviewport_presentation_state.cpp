@@ -31,7 +31,7 @@ private slots:
     void spreadCoordinateHelpersRejectGapAndEdges();
     void logicalCoordinateMappingsUseFullDisplayedDomains();
     void fitModesExposeZoomAndPannability();
-    void preserveManualPercentDiffersFromPreserveWhenResultingFitIsManual();
+    void targetTransitionPreserveKeepsStoredManualZoomDemand();
     void manualZoomCommandUsesItemCenterAnchor();
     void revisionTokensUseSharedNonWrappingAllocator();
     void invalidPresentationTargetTransitionPreservesStateAndRevisions();
@@ -333,7 +333,7 @@ void ImageViewportPresentationStateTest::loopingDoesNotChangeRequestDisplayOrGeo
     QCOMPARE(primaryDisplayedPosition(item), 0);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
-    QCOMPARE(revisionTokenProperty(item, "commandRevision"), commandRevision);
+    verifyRevisionChanged(item, "commandRevision", commandRevision);
     QCOMPARE(contentRect(item), preservedContentRect);
     QCOMPARE(visibleImageRect(item), preservedVisibleImageRect);
     QCOMPARE(viewportErrorString(item), QString());
@@ -843,8 +843,7 @@ void ImageViewportPresentationStateTest::fitModesExposeZoomAndPannability()
     QCOMPARE(item.state().presentation().zoomPercent(), 200.0);
 }
 
-void ImageViewportPresentationStateTest::
-    preserveManualPercentDiffersFromPreserveWhenResultingFitIsManual()
+void ImageViewportPresentationStateTest::targetTransitionPreserveKeepsStoredManualZoomDemand()
 {
     ImageSequenceFactory factory;
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -853,11 +852,8 @@ void ImageViewportPresentationStateTest::
     ImageFrame replacementFrame(image);
     QScopedPointer<ImageSequenceFactoryResult> firstResult(factory.fromFrame(&firstFrame));
     QScopedPointer<ImageSequenceFactoryResult> preserveResult(factory.fromFrame(&replacementFrame));
-    QScopedPointer<ImageSequenceFactoryResult> manualPercentResult(
-        factory.fromFrame(&replacementFrame));
     QVERIFY(firstResult->sequence());
     QVERIFY(preserveResult->sequence());
-    QVERIFY(manualPercentResult->sequence());
 
     auto configureItem = [&](ImageViewport& item) {
         item.setSize(QSizeF(80.0, 100.0));
@@ -886,23 +882,7 @@ void ImageViewportPresentationStateTest::
         ImageViewportCommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(preserveItem);
     QCOMPARE(preserveItem.state().presentation().fitMode(), ImageViewportFitMode::Manual);
-    QCOMPARE(preserveItem.state().presentation().zoomPercent(), 1250.0);
-
-    PresentationTargetTransitionPolicy manualPercentPolicy = preservePolicy;
-    manualPercentPolicy.setZoomTransition(
-        PresentationTargetTransitionPolicy::ZoomTransition::PreserveManualPercent);
-
-    ImageViewport manualPercentItem;
-    configureItem(manualPercentItem);
-    QCOMPARE(
-        manualPercentItem
-            .setPresentationTarget(ImageViewportPresentationTarget(manualPercentResult->sequence()),
-                manualPercentPolicy)
-            .outcome(),
-        ImageViewportCommandOutcome::Accepted);
-    acknowledgePendingRenderCommitForTest(manualPercentItem);
-    QCOMPARE(manualPercentItem.state().presentation().fitMode(), ImageViewportFitMode::Manual);
-    QCOMPARE(manualPercentItem.state().presentation().zoomPercent(), 200.0);
+    QCOMPARE(preserveItem.state().presentation().zoomPercent(), 200.0);
 }
 
 void ImageViewportPresentationStateTest::manualZoomCommandUsesItemCenterAnchor()

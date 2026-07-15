@@ -1469,8 +1469,8 @@ void ImageViewportProviderLifecycleTest::providerNullSequenceCancelsActiveFrameR
         = sessionFactory->lastSession()->lastFrameToken();
     QCOMPARE(*frameRequestCount, 1);
 
-    item.setPresentationTarget(
-        ImageViewportPresentationTarget::clear(), PresentationTargetTransitionPolicy {});
+    item.setPresentationTarget(ImageViewportPresentationTarget::clear(),
+        PresentationTargetTransitionPolicy::defaultClear());
 
     drainQueuedProviderResults();
     QCOMPARE(*cancelRequestCount, 1);

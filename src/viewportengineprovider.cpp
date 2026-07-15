@@ -215,7 +215,9 @@ std::array<ViewportProviderFrameTransportEffect, 2> ViewportEngine::restageProvi
 ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
     const ViewportProviderEvent& event, ViewportEngineViewportInput input)
 {
-    const GeometryInput geometry = acceptedGeometry(input);
+    const GeometryInput geometry = event.kind == ViewportProviderEvent::Kind::MetadataReady
+        ? rawAcceptedGeometry(input)
+        : acceptedGeometry(input);
     auto& eventProvider = m_state->providerState.roles[roleIndex(event.role)].provider;
     ViewportEngineProviderSessionAdmissionAccess sessionAccess(
         m_state->requestState.request.sequenceGeneration, eventProvider.session);
@@ -274,8 +276,8 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
         ViewportEngineProviderMetadataReadyAccess access(m_state->requestState.request,
             m_state->playbackState.playback, m_state->displayState.display,
             m_state->providerState.roles, m_state->presentationState.presentation,
-            m_state->revisions.nextRevision, m_state->revisions.presentationRevision,
-            m_state->requestState.presentationTarget.generation);
+            m_state->requestState.presentationTarget, m_state->revisions.nextRevision,
+            m_state->revisions.presentationRevision);
         const auto metadata = reduceViewportEngineProviderMetadataReady(
             { event.role, event.token, event.metadata, geometry }, std::move(access));
         result.changes = metadata.changes;

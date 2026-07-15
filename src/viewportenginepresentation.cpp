@@ -375,11 +375,6 @@ reduceViewportEnginePresentationTargetTransition(
     if (input.explicitFitMode) {
         next.fitMode = *input.explicitFitMode;
     }
-    if (input.zoomTransition == PresentationTargetTransitionPolicy::ZoomTransition::Preserve
-        && next.fitMode == ImageViewportFitMode::Manual
-        && ImageViewportInternal::isFinitePositive(input.previousZoomPercent)) {
-        next.manualZoom = input.previousZoomPercent / 100.0;
-    }
     if (input.rotationTransition == PresentationTargetTransitionPolicy::RotationTransition::Reset) {
         next.rotationDegrees = 0;
     }
@@ -394,21 +389,24 @@ reduceViewportEnginePresentationTargetTransition(
         next.pageGap = *input.explicitPageGap;
     }
 
-    const PresentationGeometry::State acceptedGeometry
-        = projectViewportGeometryState(input.acceptedGeometry, next);
-    switch (input.contentPositionTransition) {
-    case PresentationTargetTransitionPolicy::ContentPositionTransition::ScanStart:
-        applyContentPosition(next, acceptedGeometry, {});
-        break;
-    case PresentationTargetTransitionPolicy::ContentPositionTransition::ScanEnd:
-        applyContentPosition(
-            next, acceptedGeometry, PresentationGeometry::maximumContentPosition(acceptedGeometry));
-        break;
-    case PresentationTargetTransitionPolicy::ContentPositionTransition::Clamp:
-        applyContentPosition(next, acceptedGeometry, input.previousContentPosition);
-        break;
-    case PresentationTargetTransitionPolicy::ContentPositionTransition::Preserve:
-        break;
+    if (input.resolveContentPosition) {
+        const PresentationGeometry::State acceptedGeometry
+            = projectViewportGeometryState(input.acceptedGeometry, next);
+        const QPointF maximum = PresentationGeometry::maximumContentPosition(acceptedGeometry);
+        const bool rightToLeft = next.spreadDirection == ImageViewportSpreadDirection::RightToLeft;
+        switch (input.contentPositionTransition) {
+        case PresentationTargetTransitionPolicy::ContentPositionTransition::AnchorStart:
+            applyContentPosition(
+                next, acceptedGeometry, QPointF(rightToLeft ? maximum.x() : 0.0, 0.0));
+            break;
+        case PresentationTargetTransitionPolicy::ContentPositionTransition::AnchorEnd:
+            applyContentPosition(
+                next, acceptedGeometry, QPointF(rightToLeft ? 0.0 : maximum.x(), maximum.y()));
+            break;
+        case PresentationTargetTransitionPolicy::ContentPositionTransition::Clamp:
+            applyContentPosition(next, acceptedGeometry, input.previousContentPosition);
+            break;
+        }
     }
 
     const bool changed = !presentationStatesEqual(previousPresentation, next);
@@ -419,4 +417,41 @@ reduceViewportEnginePresentationTargetTransition(
     result.changes
         = presentationChanges(true, true, input.readyDisplay, input.acceptedGeometry.itemBounds);
     return result;
+}
+
+ImageViewportInternal::ViewportChangeSet resolveViewportEnginePendingPresentationTargetTransition(
+    const ViewportEngineGeometryInput& input, ViewportEnginePresentationTargetState& target,
+    ImageViewportInternal::PresentationState& presentation, bool readyDisplay)
+{
+    const auto pending = target.pendingPresentationTransition;
+    const bool completeRoleGeometry = input.primaryPresent && input.primarySize.isValid()
+        && input.primarySize.width() > 0.0 && input.primarySize.height() > 0.0
+        && (!target.acceptedRoleSet.secondary()
+            || (input.secondarySize.isValid() && input.secondarySize.width() > 0.0
+                && input.secondarySize.height() > 0.0));
+    if (!pending.isValid() || pending.generation != target.generation || !completeRoleGeometry
+        || input.itemBounds.isEmpty()) {
+        return {};
+    }
+
+    const PresentationGeometry::State geometry = projectViewportGeometryState(input, presentation);
+    const QPointF maximum = PresentationGeometry::maximumContentPosition(geometry);
+    const bool rightToLeft
+        = presentation.spreadDirection == ImageViewportSpreadDirection::RightToLeft;
+    bool changed = false;
+    switch (pending.contentPositionTransition) {
+    case PresentationTargetTransitionPolicy::ContentPositionTransition::AnchorStart:
+        changed = applyContentPosition(
+            presentation, geometry, QPointF(rightToLeft ? maximum.x() : 0.0, 0.0));
+        break;
+    case PresentationTargetTransitionPolicy::ContentPositionTransition::AnchorEnd:
+        changed = applyContentPosition(
+            presentation, geometry, QPointF(rightToLeft ? 0.0 : maximum.x(), maximum.y()));
+        break;
+    case PresentationTargetTransitionPolicy::ContentPositionTransition::Clamp:
+        changed = applyContentPosition(presentation, geometry, pending.previousContentPosition);
+        break;
+    }
+    target.pendingPresentationTransition = {};
+    return presentationChanges(changed, true, readyDisplay, input.itemBounds);
 }

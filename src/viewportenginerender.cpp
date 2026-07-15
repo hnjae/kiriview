@@ -1,4 +1,5 @@
 #include "viewportengine_p.h"
+#include "viewportenginepresentationoperations_p.h"
 #include "viewportenginerenderoperations_p.h"
 #include "viewportenginestate_p.h"
 
@@ -6,6 +7,21 @@
 #include <utility>
 
 namespace {
+void mergeChanges(ImageViewportInternal::ViewportChangeSet& target,
+    const ImageViewportInternal::ViewportChangeSet& source)
+{
+    target.requestState = target.requestState || source.requestState;
+    target.displayState = target.displayState || source.displayState;
+    target.geometryState = target.geometryState || source.geometryState;
+    target.playbackPhase = target.playbackPhase || source.playbackPhase;
+    target.diagnostics = target.diagnostics || source.diagnostics;
+    target.displayRevision = target.displayRevision || source.displayRevision;
+    target.requestRevision = target.requestRevision || source.requestRevision;
+    target.commandRevision = target.commandRevision || source.commandRevision;
+    target.presentationRevision = target.presentationRevision || source.presentationRevision;
+    target.scheduleUpdate = target.scheduleUpdate || source.scheduleUpdate;
+}
+
 bool identitiesEqual(ImageViewportInternal::PreparedPayloadIdentity lhs,
     ImageViewportInternal::PreparedPayloadIdentity rhs)
 {
@@ -156,6 +172,12 @@ ViewportEngineRenderHostTransition ViewportEngine::handleRenderHostFact(
 ViewportEngineGeometryChangeTransition ViewportEngine::handleGeometryChanged(
     const ViewportEngineGeometryChangeRequest& input)
 {
+    const GeometryInput rawGeometry = rawAcceptedGeometry(input.viewport);
+    const auto transitionChanges
+        = resolveViewportEnginePendingPresentationTargetTransition(rawGeometry,
+            m_state->requestState.presentationTarget, m_state->presentationState.presentation,
+            m_state->displayState.display.hasReadyDisplay(
+                m_state->requestState.request.roles[0].source.facts.present));
     const ViewportEngineGeometryChangeInput operationInput { input.viewport.itemBounds,
         input.oldContentRect, input.oldVisibleImageRect, geometryState(input.viewport) };
     ViewportEngineGeometryChangeAccess access(
@@ -163,6 +185,7 @@ ViewportEngineGeometryChangeTransition ViewportEngine::handleGeometryChanged(
     auto reduction = reduceViewportEngineGeometryChange(operationInput, std::move(access));
     ViewportEngineGeometryChangeTransition result;
     result.changes = reduction.changes;
+    mergeChanges(result.changes, transitionChanges);
     if (reduction.providerDemandGeometry) {
         result.providerEffects = restageProviderDemands(*reduction.providerDemandGeometry);
     }

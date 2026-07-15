@@ -28,7 +28,7 @@ struct ViewportEnginePresentationTargetTransitionInput
     std::optional<double> explicitPageGap;
     ViewportEngineGeometryInput acceptedGeometry;
     QPointF previousContentPosition;
-    double previousZoomPercent = 100.0;
+    bool resolveContentPosition = true;
     bool readyDisplay = false;
 };
 
@@ -112,3 +112,6 @@ ViewportEnginePresentationTargetTransitionReduction
     reduceViewportEnginePresentationTargetTransition(
         ViewportEnginePresentationTargetTransitionInput,
         ViewportEnginePresentationTargetTransitionStateView);
+ImageViewportInternal::ViewportChangeSet resolveViewportEnginePendingPresentationTargetTransition(
+    const ViewportEngineGeometryInput&, ViewportEnginePresentationTargetState&,
+    ImageViewportInternal::PresentationState&, bool readyDisplay);

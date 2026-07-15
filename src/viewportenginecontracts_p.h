@@ -28,6 +28,16 @@ struct ViewportEngineSnapshotInput
 
 struct ViewportEnginePresentationTargetState
 {
+    struct PendingPresentationTransition
+    {
+        quint64 generation = 0;
+        PresentationTargetTransitionPolicy::ContentPositionTransition contentPositionTransition
+            = PresentationTargetTransitionPolicy::ContentPositionTransition::Clamp;
+        QPointF previousContentPosition;
+
+        bool isValid() const { return generation != 0; }
+    };
+
     ImageViewportPresentationTarget presentationTarget = ImageViewportPresentationTarget::clear();
     ImageViewportRoleSet acceptedRoleSet;
     ImageViewportRoleSet targetRoleSet;
@@ -36,4 +46,5 @@ struct ViewportEnginePresentationTargetState
     quint64 secondaryRoleGeneration = 0;
     ImageViewportPageRole activeRole = ImageViewportPageRole::Primary;
     bool activeRoleValid = false;
+    PendingPresentationTransition pendingPresentationTransition;
 };

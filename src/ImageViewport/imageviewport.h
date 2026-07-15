@@ -53,7 +53,7 @@ public:
     {
     }
 
-    static ImageViewportPresentationTarget clear() { return {}; }
+    Q_INVOKABLE static ImageViewportPresentationTarget clear() { return {}; }
 
     ImageSequence* primary() const { return m_primary; }
     void setPrimary(ImageSequence* primary) { m_primary = primary; }
@@ -384,15 +384,13 @@ public:
     enum class ZoomTransition {
         Preserve,
         ResetToContain,
-        PreserveManualPercent,
     };
     Q_ENUM(ZoomTransition)
 
     enum class ContentPositionTransition {
-        Preserve,
         Clamp,
-        ScanStart,
-        ScanEnd,
+        AnchorStart,
+        AnchorEnd,
     };
     Q_ENUM(ContentPositionTransition)
 
@@ -433,6 +431,13 @@ public:
     Q_ENUM(ReplacementIntent)
 
     PresentationTargetTransitionPolicy() = default;
+
+    Q_INVOKABLE static PresentationTargetTransitionPolicy defaultClear()
+    {
+        PresentationTargetTransitionPolicy policy;
+        policy.setDisplayTransition(DisplayTransition::ClearBeforeLoad);
+        return policy;
+    }
 
     DisplayTransition displayTransition() const { return m_displayTransition; }
     void setDisplayTransition(DisplayTransition transition) { m_displayTransition = transition; }

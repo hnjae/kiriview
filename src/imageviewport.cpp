@@ -35,17 +35,15 @@ bool PresentationTargetTransitionPolicy::isValid() const
         switch (transition) {
         case ZoomTransition::Preserve:
         case ZoomTransition::ResetToContain:
-        case ZoomTransition::PreserveManualPercent:
             return true;
         }
         return false;
     };
     auto contentPositionTransitionValid = [](ContentPositionTransition transition) {
         switch (transition) {
-        case ContentPositionTransition::Preserve:
         case ContentPositionTransition::Clamp:
-        case ContentPositionTransition::ScanStart:
-        case ContentPositionTransition::ScanEnd:
+        case ContentPositionTransition::AnchorStart:
+        case ContentPositionTransition::AnchorEnd:
             return true;
         }
         return false;
@@ -127,21 +125,21 @@ bool PresentationTargetTransitionPolicy::isValid() const
         || !replacementIntentValid(m_replacementIntent)) {
         return false;
     }
-    if (m_fitModeTransition == FitModeTransition::SetExplicit
-        && (!m_fitModeSet || !fitModeValid(m_fitMode))) {
+    if ((m_fitModeSet && !fitModeValid(m_fitMode))
+        || (m_fitModeTransition == FitModeTransition::SetExplicit && !m_fitModeSet)) {
         return false;
     }
-    if (m_spreadDirectionTransition == SpreadDirectionTransition::SetExplicit
-        && (!m_spreadDirectionSet || !spreadDirectionValid(m_spreadDirection))) {
+    if ((m_spreadDirectionSet && !spreadDirectionValid(m_spreadDirection))
+        || (m_spreadDirectionTransition == SpreadDirectionTransition::SetExplicit
+            && !m_spreadDirectionSet)) {
         return false;
     }
-    if (m_pageGapTransition == PageGapTransition::SetExplicit
-        && (!m_pageGapSet || !std::isfinite(m_pageGap) || m_pageGap < 0.0)) {
+    if ((m_pageGapSet && (!std::isfinite(m_pageGap) || m_pageGap < 0.0))
+        || (m_pageGapTransition == PageGapTransition::SetExplicit && !m_pageGapSet)) {
         return false;
     }
     return m_zoomTransition != ZoomTransition::ResetToContain
-        || m_fitModeTransition != FitModeTransition::SetExplicit
-        || m_fitMode == ImageViewportFitMode::Contain;
+        || m_fitModeTransition != FitModeTransition::SetExplicit;
 }
 
 namespace {

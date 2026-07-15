@@ -3,6 +3,7 @@
 
 #include "framepreparation_p.h"
 #include "imageviewportproviderfacts_p.h"
+#include "viewportenginepresentationoperations_p.h"
 #include "viewportengineprovidersessionoperations_p.h"
 
 #include <algorithm>
@@ -67,6 +68,20 @@ void updatePlaybackPhase(
     }
     playback.phase = phase;
     changes.playbackPhase = true;
+}
+
+void mergeChanges(ViewportChangeSet& target, const ViewportChangeSet& source)
+{
+    target.requestState = target.requestState || source.requestState;
+    target.displayState = target.displayState || source.displayState;
+    target.geometryState = target.geometryState || source.geometryState;
+    target.playbackPhase = target.playbackPhase || source.playbackPhase;
+    target.diagnostics = target.diagnostics || source.diagnostics;
+    target.displayRevision = target.displayRevision || source.displayRevision;
+    target.requestRevision = target.requestRevision || source.requestRevision;
+    target.commandRevision = target.commandRevision || source.commandRevision;
+    target.presentationRevision = target.presentationRevision || source.presentationRevision;
+    target.scheduleUpdate = target.scheduleUpdate || source.scheduleUpdate;
 }
 }
 
@@ -309,6 +324,10 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
         access.m_display.clearPendingRenderPayload();
         access.m_display.clearRenderFailureRetainedDisplay();
     }
+    mergeChanges(result.changes,
+        resolveViewportEnginePendingPresentationTargetTransition(acceptedGeometry,
+            access.m_presentationTarget, access.m_presentation,
+            access.m_display.hasReadyDisplay(access.m_request.roles[0].source.facts.present)));
     const auto start = access.startFrameRequest(input.role, target, acceptedGeometry);
     result.providerFrameTransport.closeSession = start.closeSession;
     result.providerFrameTransport.sessionClose = start.sessionClose;

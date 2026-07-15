@@ -175,8 +175,9 @@ ImageViewportCommandResult ImageViewportPrivate::clear()
 {
     ++itemTransactionDepth;
     playbackScheduler.flushElapsed();
-    const ImageViewportCommandResult reduced = setPresentationTarget(
-        ImageViewportPresentationTarget::clear(), PresentationTargetTransitionPolicy {});
+    const ImageViewportCommandResult reduced
+        = setPresentationTarget(ImageViewportPresentationTarget::clear(),
+            PresentationTargetTransitionPolicy::defaultClear());
     --itemTransactionDepth;
     return commandResult(reduced.outcome(), finalizeItemTransaction());
 }

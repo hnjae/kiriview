@@ -9,6 +9,150 @@
 
 namespace {
 using namespace ImageViewportInternal;
+
+struct AuthoritativeRoleContract
+{
+    bool authoritative = false;
+    bool timed = false;
+    QSizeF logicalSize;
+    TimingIntervals timing;
+    ImageSequenceAuthoredAnimationFacts animation;
+};
+
+bool animationsEqual(
+    const ImageSequenceAuthoredAnimationFacts& lhs, const ImageSequenceAuthoredAnimationFacts& rhs)
+{
+    return lhs.autoplay() == rhs.autoplay()
+        && lhs.progressiveAnimationReadiness() == rhs.progressiveAnimationReadiness()
+        && lhs.loopMode() == rhs.loopMode() && lhs.loopCount() == rhs.loopCount();
+}
+
+bool timingsEqual(const TimingIntervals& lhs, const TimingIntervals& rhs)
+{
+    if (lhs.isValid() != rhs.isValid()) {
+        return false;
+    }
+    if (!lhs.isValid()) {
+        return true;
+    }
+    if (lhs.frameCount() != rhs.frameCount()) {
+        return false;
+    }
+    for (int frame = 0; frame < lhs.frameCount(); ++frame) {
+        if (lhs.frameDuration(frame) != rhs.frameDuration(frame)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+AuthoritativeRoleContract incomingContract(const ImageSequenceSource& source)
+{
+    AuthoritativeRoleContract result;
+    if (!source.facts.present) {
+        return result;
+    }
+    result.animation = source.facts.authoredAnimationFacts;
+    if (!source.facts.provider) {
+        result.authoritative = true;
+        result.timed = source.facts.timed;
+        result.logicalSize = source.facts.logicalSize;
+        result.timing = source.facts.timingIntervals;
+        return result;
+    }
+    if (!source.facts.hasCompleteProviderKnownMetadata) {
+        return result;
+    }
+    result.authoritative = true;
+    result.timed = source.facts.providerKnownFacts.isTimedFrameList();
+    result.logicalSize = source.facts.providerKnownLogicalSize;
+    result.timing = source.facts.providerKnownTimingIntervals;
+    return result;
+}
+
+AuthoritativeRoleContract currentContract(
+    const RequestState::RoleState& role, const ProviderFactsState& provider)
+{
+    if (!role.source.facts.provider) {
+        return incomingContract(role.source);
+    }
+    if (!provider.metadataReady) {
+        return {};
+    }
+    return { true, provider.timedMetadata, provider.logicalSize, provider.timingIntervals,
+        provider.authoredAnimationFacts };
+}
+
+bool contractsEqual(const AuthoritativeRoleContract& lhs, const AuthoritativeRoleContract& rhs)
+{
+    return lhs.authoritative && rhs.authoritative && lhs.timed == rhs.timed
+        && lhs.logicalSize == rhs.logicalSize && timingsEqual(lhs.timing, rhs.timing)
+        && animationsEqual(lhs.animation, rhs.animation);
+}
+
+bool targetFitsContract(const DisplayRequest& request, const AuthoritativeRoleContract& contract)
+{
+    if (!contract.authoritative || request.identity.id == 0 || request.target.frame < 0
+        || request.resolvedFrame.frame != request.target.frame) {
+        return false;
+    }
+    const int frameCount = contract.timed ? contract.timing.frameCount() : 1;
+    if (request.target.frame >= frameCount) {
+        return false;
+    }
+    if (!contract.timed) {
+        return request.target.frame == 0 && request.target.position == -1
+            && request.resolvedFrame.position == -1;
+    }
+    const int resolvedPosition = contract.timing.frameStartPosition(request.target.frame);
+    if (request.resolvedFrame.position != resolvedPosition) {
+        return false;
+    }
+    if (request.target.providerTargetKind == ProviderRequestTargetKind::Position) {
+        return contract.timing.frameIndexForPosition(request.target.position)
+            == request.target.frame;
+    }
+    return request.target.position == resolvedPosition;
+}
+
+bool canonicalClearPolicy(const PresentationTargetTransitionPolicy& policy)
+{
+    return policy.displayTransition()
+        == PresentationTargetTransitionPolicy::DisplayTransition::ClearBeforeLoad
+        && policy.zoomTransition() == PresentationTargetTransitionPolicy::ZoomTransition::Preserve
+        && policy.contentPositionTransition()
+        == PresentationTargetTransitionPolicy::ContentPositionTransition::Clamp
+        && policy.rotationTransition()
+        == PresentationTargetTransitionPolicy::RotationTransition::Preserve
+        && policy.mirrorTransition()
+        == PresentationTargetTransitionPolicy::MirrorTransition::Preserve
+        && policy.fitModeTransition()
+        == PresentationTargetTransitionPolicy::FitModeTransition::Preserve
+        && policy.spreadDirectionTransition()
+        == PresentationTargetTransitionPolicy::SpreadDirectionTransition::Preserve
+        && policy.pageGapTransition()
+        == PresentationTargetTransitionPolicy::PageGapTransition::Preserve
+        && policy.replacementIntent()
+        == PresentationTargetTransitionPolicy::ReplacementIntent::NewTarget;
+}
+
+bool presentationPreservingRefinementPolicy(const PresentationTargetTransitionPolicy& policy)
+{
+    return policy.zoomTransition() == PresentationTargetTransitionPolicy::ZoomTransition::Preserve
+        && policy.contentPositionTransition()
+        == PresentationTargetTransitionPolicy::ContentPositionTransition::Clamp
+        && policy.rotationTransition()
+        == PresentationTargetTransitionPolicy::RotationTransition::Preserve
+        && policy.mirrorTransition()
+        == PresentationTargetTransitionPolicy::MirrorTransition::Preserve
+        && policy.fitModeTransition()
+        == PresentationTargetTransitionPolicy::FitModeTransition::Preserve
+        && policy.spreadDirectionTransition()
+        == PresentationTargetTransitionPolicy::SpreadDirectionTransition::Preserve
+        && policy.pageGapTransition()
+        == PresentationTargetTransitionPolicy::PageGapTransition::Preserve;
+}
+
 std::size_t idx(ImageViewportPageRole r) { return r == ImageViewportPageRole::Secondary ? 1U : 0U; }
 ImageViewportDisplayStatus retained(const DisplayState& d)
 {
@@ -37,13 +181,14 @@ DisplayRequestTarget initial(const ImageSequenceSource& s)
     return { 0, s.facts.timed ? sourceFrameStartPosition(s, 0) : -1,
         ProviderRequestTargetKind::Unknown };
 }
-void secondary(RequestState& r, DisplayRequestTarget t)
+void secondary(RequestState& r, DisplayRequestTarget t, ResolvedFrameIdentity resolved = {})
 {
     auto& s = r.roles[1].activeRequest;
     s.identity = r.roles[0].activeRequest.identity;
     s.target = t;
-    s.resolvedFrame
-        = t.frame >= 0 ? ResolvedFrameIdentity { t.frame, t.position } : ResolvedFrameIdentity {};
+    s.resolvedFrame = resolved.frame >= 0 ? resolved
+        : t.frame >= 0                    ? ResolvedFrameIdentity { t.frame, t.position }
+                                          : ResolvedFrameIdentity {};
     s.preparedPayloadId = r.roles[0].activeRequest.preparedPayloadId;
     if (t.frame >= 0)
         r.roles[1].latestNonPlaybackRequest = s;
@@ -68,17 +213,6 @@ void stage(RequestState& r, DisplayState& d)
                                               .preparedPayload;
     }
 }
-double zoom(const PresentationGeometry::State& s)
-{
-    QSizeF spread = PresentationGeometry::spreadSize(s);
-    int rot = ((s.rotationDegrees % 360) + 360) % 360;
-    if (rot == 90 || rot == 270)
-        spread.transpose();
-    QRectF c = PresentationGeometry::contentRect(s);
-    if (c.isEmpty() || spread.width() <= 0 || spread.height() <= 0)
-        return s.manualZoom * 100;
-    return c.width() / spread.width() * s.devicePixelRatio * 100;
-}
 ViewportEnginePresentationTargetState targetState(
     const ImageViewportPresentationTarget& t, quint64 g)
 {
@@ -98,6 +232,46 @@ ViewportEnginePresentationTargetState targetState(
     s.activeRoleValid = true;
     return s;
 }
+}
+
+bool validateViewportEnginePresentationTargetAssignment(
+    const ViewportEnginePresentationTargetAssignmentInput& input,
+    const ViewportEnginePresentationTargetState& currentTarget, const RequestState& currentRequest,
+    const std::array<ViewportEngineRoleState, 2>& currentRoles)
+{
+    if (!input.presentationTarget.isValid() || !input.transitionPolicy.isValid()) {
+        return false;
+    }
+    if (input.presentationTarget.isClear()) {
+        return canonicalClearPolicy(input.transitionPolicy);
+    }
+    const bool incomingSecondary = input.presentationTarget.secondary() != nullptr;
+    if (input.primarySource.sequence != input.presentationTarget.primary()
+        || input.secondarySource.sequence != input.presentationTarget.secondary()
+        || !input.primarySource.facts.present
+        || input.secondarySource.facts.present != incomingSecondary) {
+        return false;
+    }
+    if (input.transitionPolicy.replacementIntent()
+        != PresentationTargetTransitionPolicy::ReplacementIntent::SameTargetRefinement) {
+        return true;
+    }
+    if (!presentationPreservingRefinementPolicy(input.transitionPolicy)
+        || currentTarget.presentationTarget.isClear()
+        || currentTarget.acceptedRoleSet != ImageViewportRoleSet(true, incomingSecondary)) {
+        return false;
+    }
+    for (std::size_t index = 0; index < (incomingSecondary ? 2U : 1U); ++index) {
+        const auto current
+            = currentContract(currentRequest.roles[index], currentRoles[index].provider.facts);
+        const auto incoming
+            = incomingContract(index == 0 ? input.primarySource : input.secondarySource);
+        if (!contractsEqual(current, incoming)
+            || !targetFitsContract(currentRequest.roles[index].activeRequest, incoming)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 ViewportProviderFrameTransportEffect ViewportEnginePresentationTargetAssignmentAccess::closeSession(
@@ -138,13 +312,19 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
     using namespace ImageViewportInternal;
     ViewportEnginePresentationTargetAssignmentReduction out;
     out.clear = in.presentationTarget.isClear();
+    const bool refinement = !out.clear
+        && in.transitionPolicy.replacementIntent()
+            == PresentationTargetTransitionPolicy::ReplacementIntent::SameTargetRefinement;
+    const DisplayRequest previousPrimaryRequest = a.m_request.roles[0].activeRequest;
+    const DisplayRequest previousSecondaryRequest = a.m_request.roles[1].activeRequest;
+    const PlaybackState previousPlayback = a.m_playback;
     bool noop = out.clear && a.m_target.acceptedRoleSet == ImageViewportRoleSet();
     out.presentationTargetChanged = !noop;
     out.retainPreviousDisplay = in.transitionPolicy.displayTransition()
         == PresentationTargetTransitionPolicy::DisplayTransition::RetainPrevious;
     out.releaseDisplayedState = out.clear || !out.retainPreviousDisplay;
-    out.resetDisplayRequests = out.stopPlayback = out.closeProviderSessions
-        = out.presentationTargetChanged;
+    out.resetDisplayRequests = out.closeProviderSessions = out.presentationTargetChanged;
+    out.stopPlayback = out.presentationTargetChanged && !refinement;
     if (out.presentationTargetChanged) {
         if (a.m_nextTargetGeneration == std::numeric_limits<quint64>::max())
             qFatal("ImageViewport presentation target generation exhausted");
@@ -170,7 +350,9 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
     a.m_request.roles[1].provider = a.m_request.roles[1].source.facts.provider;
     a.m_request.sequenceGeneration = a.m_target.generation;
     a.m_request.clearDisplayRequests();
-    a.m_playback.resetRequestIdentity();
+    if (!refinement) {
+        a.m_playback.resetRequestIdentity();
+    }
     a.m_display.nextPreparedPayloadId = 0;
     a.m_display.clearPendingRenderPayload();
     if (out.releaseDisplayedState) {
@@ -179,9 +361,17 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
     }
     a.m_request.errorString.clear();
     a.m_request.warningString.clear();
-    a.m_playback.phase = ImageViewportPlaybackPhase::Stopped;
-    a.m_playback.stopWhenRequestReady = false;
-    a.m_playback.providerStartPending = false;
+    if (refinement) {
+        a.m_playback = previousPlayback;
+        if (a.m_playback.phase == ImageViewportPlaybackPhase::Playing) {
+            a.m_playback.phase = ImageViewportPlaybackPhase::Waiting;
+        }
+        a.m_playback.providerStartPending = false;
+    } else {
+        a.m_playback.phase = ImageViewportPlaybackPhase::Stopped;
+        a.m_playback.stopWhenRequestReady = false;
+        a.m_playback.providerStartPending = false;
+    }
     resetProvider(a.m_roles[0].provider,
         a.m_request.roles[0].source.facts.provider
             ? a.m_request.roles[0].source.facts.authoredAnimationFacts
@@ -197,11 +387,20 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
         a.m_request.reason = ImageViewportRequestReason::NoRequest;
         a.m_display.status = ImageViewportDisplayStatus::Empty;
     } else {
-        auto st = initial(a.m_request.roles[1].source);
+        const auto primaryTarget
+            = refinement ? previousPrimaryRequest.target : initial(a.m_request.roles[0].source);
+        const auto primaryResolved = refinement
+            ? previousPrimaryRequest.resolvedFrame
+            : ResolvedFrameIdentity { primaryTarget.frame, primaryTarget.position };
+        const auto secondaryTarget
+            = refinement ? previousSecondaryRequest.target : initial(a.m_request.roles[1].source);
+        const auto secondaryResolved = refinement
+            ? previousSecondaryRequest.resolvedFrame
+            : ResolvedFrameIdentity { secondaryTarget.frame, secondaryTarget.position };
         if (a.m_request.roles[0].source.facts.provider) {
             auto& p = a.m_roles[0].provider;
             auto& f = a.m_request.roles[0].source.facts;
-            DisplayRequestTarget t { -1, -1, ProviderRequestTargetKind::Unknown };
+            DisplayRequestTarget t = primaryTarget;
             if (f.hasCompleteProviderKnownMetadata) {
                 p.facts.metadataReady = true;
                 p.facts.timedMetadata = f.providerKnownFacts.isTimedFrameList();
@@ -213,21 +412,24 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
                     f.providerPositionSeekCapability, p.facts.timedMetadata);
                 p.facts.logicalSize = f.providerKnownLogicalSize;
                 p.facts.timingIntervals = f.providerKnownTimingIntervals;
-                t = { 0, p.facts.timedMetadata ? 0 : -1, ProviderRequestTargetKind::Frame };
+                if (!refinement) {
+                    t = { 0, p.facts.timedMetadata ? 0 : -1, ProviderRequestTargetKind::Frame };
+                }
             }
-            a.m_request.beginDisplayRequest(DisplayRequestOrigin::Initial, t, true);
-            a.m_playback.position = t.position;
-            secondary(a.m_request, st);
+            a.m_request.beginDisplayRequest(DisplayRequestOrigin::Initial, t,
+                refinement ? primaryResolved : ResolvedFrameIdentity { t.frame, t.position }, true);
+            a.m_playback.position = refinement ? previousPlayback.position : t.position;
+            secondary(a.m_request, secondaryTarget, secondaryResolved);
             a.m_request.status = ImageViewportRequestStatus::Loading;
             a.m_request.reason = ImageViewportRequestReason::ProviderWaiting;
             a.m_display.status = retained(a.m_display);
             out.providerSessionOpenEffects[0] = a.openSession(ImageViewportPageRole::Primary,
                 a.m_request.roles[0].source, a.m_target.primaryRoleGeneration);
         } else if (a.m_request.roles[0].source.facts.present) {
-            auto t = initial(a.m_request.roles[0].source);
-            a.m_request.beginDisplayRequest(DisplayRequestOrigin::Initial, t, true);
-            a.m_playback.position = t.position;
-            secondary(a.m_request, st);
+            a.m_request.beginDisplayRequest(
+                DisplayRequestOrigin::Initial, primaryTarget, primaryResolved, true);
+            a.m_playback.position = refinement ? previousPlayback.position : primaryTarget.position;
+            secondary(a.m_request, secondaryTarget, secondaryResolved);
             stage(a.m_request, a.m_display);
             TargetSpreadWaitState w;
             w.requiresSecondary = a.m_request.roles[1].sequence != nullptr;
@@ -258,6 +460,12 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
     accepted.primaryPresent = a.m_request.roles[0].source.facts.present;
     accepted.primarySize = sourceLogicalSize(a.m_request.roles[0].source);
     accepted.secondarySize = sourceLogicalSize(a.m_request.roles[1].source);
+    const auto positiveSize
+        = [](QSizeF size) { return size.isValid() && size.width() > 0.0 && size.height() > 0.0; };
+    const bool resolveContentPosition = !accepted.itemBounds.isEmpty()
+        && positiveSize(accepted.primarySize)
+        && (!a.m_target.acceptedRoleSet.secondary() || positiveSize(accepted.secondarySize));
+    const QPointF previousContentPosition = a.m_presentation.contentPosition;
     ViewportEnginePresentationTargetTransitionReduction pt;
     if (!out.clear) {
         pt = a.transition({ in.transitionPolicy.zoomTransition(),
@@ -275,12 +483,18 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
                     == PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit
                 ? std::optional<double>(in.transitionPolicy.pageGap())
                 : std::nullopt,
-            accepted, PresentationGeometry::contentPosition(oldGeo), zoom(oldGeo),
+            accepted, previousContentPosition, resolveContentPosition,
             a.m_display.hasReadyDisplay(a.m_request.roles[0].source.facts.present) });
         if (pt.presentation)
             a.m_presentation = *pt.presentation;
+        if (!resolveContentPosition) {
+            a.m_target.pendingPresentationTransition = { a.m_target.generation,
+                in.transitionPolicy.contentPositionTransition(), previousContentPosition };
+        }
     }
-    a.applyAutoplay();
+    if (!refinement) {
+        a.applyAutoplay();
+    }
     out.changes = pt.changes;
     out.changes.requestState = out.changes.requestRevision = out.changes.displayState
         = out.changes.displayRevision = true;
