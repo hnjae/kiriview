@@ -70,8 +70,16 @@ ImageViewportStateSnapshot ImageViewportPrivate::applyEngineTransition(
     }
 
     --transitionApplicationDepth;
-    if (transitionApplicationDepth == 0
-        && pendingPlaybackSchedule.action != ScheduleAction::NoChange) {
+    return finalizeItemTransaction();
+}
+
+ImageViewportStateSnapshot ImageViewportPrivate::finalizeItemTransaction()
+{
+    using ScheduleAction = ViewportPlaybackScheduleEffect::Action;
+    if (transitionApplicationDepth != 0 || itemTransactionDepth != 0) {
+        return state();
+    }
+    if (pendingPlaybackSchedule.action != ScheduleAction::NoChange) {
         const ViewportPlaybackScheduleEffect schedule = pendingPlaybackSchedule;
         pendingPlaybackSchedule = {};
         playbackScheduler.apply(schedule);
@@ -83,7 +91,7 @@ ImageViewportStateSnapshot ImageViewportPrivate::applyEngineTransition(
         lastStateSnapshot = publishedSnapshot;
         emit q->stateChanged();
     }
-    if (transitionApplicationDepth == 0 && !drainingExternalWork) {
+    if (!drainingExternalWork) {
         drainExternalWork();
     }
     return publishedSnapshot;
@@ -99,7 +107,7 @@ void ImageViewportPrivate::enqueueProviderHostEvent(ViewportProviderHostEvent ev
 
 void ImageViewportPrivate::drainExternalWork()
 {
-    if (drainingExternalWork || transitionApplicationDepth != 0) {
+    if (drainingExternalWork || transitionApplicationDepth != 0 || itemTransactionDepth != 0) {
         return;
     }
     drainingExternalWork = true;
@@ -164,9 +172,12 @@ void ImageViewportPrivate::discardRetainedDisplayForResourcePressure()
 
 ImageViewportCommandResult ImageViewportPrivate::clear()
 {
+    ++itemTransactionDepth;
     playbackScheduler.flushElapsed();
-    return setPresentationTarget(
+    const ImageViewportCommandResult reduced = setPresentationTarget(
         ImageViewportPresentationTarget::clear(), PresentationTargetTransitionPolicy {});
+    --itemTransactionDepth;
+    return commandResult(reduced.outcome(), finalizeItemTransaction());
 }
 
 ImageViewportCommandResult ImageViewportPrivate::play(PageRole role)
@@ -198,6 +209,7 @@ ImageViewportCommandResult ImageViewportPrivate::seekToPosition(PageRole role, i
 ImageViewportCommandResult ImageViewportPrivate::executePlaybackCommand(
     ViewportPlaybackCommand command)
 {
+    ++itemTransactionDepth;
     if (ImageViewportInternal::isValidPageRole(command.role)) {
         playbackScheduler.flushElapsed();
     }
@@ -210,7 +222,9 @@ ImageViewportCommandResult ImageViewportPrivate::executePlaybackCommand(
     appendProviderTransport(result.transition.providerBeforePublication,
         reduced.effects.providerFrameTransport[1], PageRole::Secondary);
     result.transition.playbackSchedule = reduced.schedule;
-    const ImageViewportStateSnapshot snapshot = applyEngineTransition(result.transition);
+    applyEngineTransition(result.transition);
+    --itemTransactionDepth;
+    const ImageViewportStateSnapshot snapshot = finalizeItemTransaction();
     return commandResult(result.outcome, snapshot);
 }
 

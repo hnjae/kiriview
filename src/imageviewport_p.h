@@ -139,6 +139,7 @@ public:
     QColor backgroundColor() const;
     bool looping() const;
     ImageViewportStateSnapshot applyEngineTransition(ViewportEngineTransition transition);
+    ImageViewportStateSnapshot finalizeItemTransaction();
     void enqueueProviderHostEvent(ViewportProviderHostEvent event);
     void drainProviderHostEvents();
     void drainExternalWork();
@@ -180,6 +181,7 @@ public:
     ImageViewportInternal::InternalObservability internalObservability;
     ImageViewportStateSnapshot lastStateSnapshot;
     int transitionApplicationDepth = 0;
+    int itemTransactionDepth = 0;
     ViewportPlaybackScheduleEffect pendingPlaybackSchedule;
     QVector<ViewportProviderHostEvent> pendingProviderHostEvents;
     bool drainingProviderHostEvents = false;
