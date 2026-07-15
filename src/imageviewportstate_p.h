@@ -297,6 +297,23 @@ struct DisplayState
         roles[1] = {};
     }
 
+    void discardRetainedDisplay()
+    {
+        for (auto& role : roles) {
+            role.displayedRequest = {};
+            role.displayedImageSize = {};
+            role.displayedImage = {};
+            role.displayedPayload = {};
+            role.retainedDisplayValid = false;
+            role.retainedRequest = {};
+            role.retainedImageSize = {};
+            role.retainedImage = {};
+        }
+        status = ImageViewportDisplayStatus::Empty;
+        displayedPresentation = {};
+        displayedPresentationRevision = 0;
+    }
+
     void beginPreparedPayloadIdentity(quint64 sequenceGeneration, DisplayRequest& activeRequest)
     {
         auto& pending = roles[0].pendingRenderPayload;

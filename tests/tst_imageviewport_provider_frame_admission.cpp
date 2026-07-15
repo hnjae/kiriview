@@ -34,6 +34,7 @@ private slots:
     void providerAcceptedOwnedFramePayloadReleasesOnce();
     void secondaryProviderAcceptedOwnedFramePayloadCompletesSpreadAndReleasesOnce();
     void providerRetainedOwnedFramePayloadOutlivesClosingSessionUntilReplacementCommit();
+    void providerResourcePressureDiscardsOnlyRetainedOwnedFramePayload();
     void providerFrameReadyWithPositiveGeometryPublishesUploadPending();
     void providerFrameReadyWithZeroGeometryKeepsRenderWaiting();
 };
@@ -1044,13 +1045,14 @@ void ImageViewportProviderFrameAdmissionTest::
     QImage replacementImage(8, 8, QImage::Format_ARGB32_Premultiplied);
     replacementImage.fill(Qt::black);
     ImageFrame replacementFrame(replacementImage);
-    QScopedPointer<ImageSequenceFactoryResult> replacementResult(factory.fromFrame(&replacementFrame));
+    QScopedPointer<ImageSequenceFactoryResult> replacementResult(
+        factory.fromFrame(&replacementFrame));
     QVERIFY(replacementResult->sequence());
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(providerResult->sequence()),
-                 PresentationTargetTransitionPolicy {})
+                     PresentationTargetTransitionPolicy {})
                  .outcome(),
         ImageViewportCommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
@@ -1075,10 +1077,10 @@ void ImageViewportProviderFrameAdmissionTest::
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(*releaseCount, 0);
 
-    QCOMPARE(item.setPresentationTarget(
-                     ImageViewportPresentationTarget(replacementResult->sequence()),
-                     PresentationTargetTransitionPolicy {})
-                 .outcome(),
+    QCOMPARE(
+        item.setPresentationTarget(ImageViewportPresentationTarget(replacementResult->sequence()),
+                PresentationTargetTransitionPolicy {})
+            .outcome(),
         ImageViewportCommandOutcome::Accepted);
     drainQueuedProviderResults();
 
@@ -1093,6 +1095,91 @@ void ImageViewportProviderFrameAdmissionTest::
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(*releaseCount, 1);
     QVERIFY(!sessionGuard);
+}
+
+void ImageViewportProviderFrameAdmissionTest::
+    providerResourcePressureDiscardsOnlyRetainedOwnedFramePayload()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> providerResult(factory.fromProvider(&adapter));
+    QVERIFY(providerResult->sequence());
+
+    QImage replacementImage(8, 8, QImage::Format_ARGB32_Premultiplied);
+    replacementImage.fill(Qt::black);
+    ImageFrame replacementFrame(replacementImage);
+    QScopedPointer<ImageSequenceFactoryResult> replacementResult(
+        factory.fromFrame(&replacementFrame));
+    QVERIFY(replacementResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(providerResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+
+    CountingProviderSession* session = sessionFactory->lastSession();
+    QVERIFY(session);
+    QPointer<CountingProviderSession> sessionGuard(session);
+    emitProviderMetadataReady(session, session->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    drainQueuedProviderResults();
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    const auto releaseCount = std::make_shared<int>(0);
+    auto* payload = new ImageSequenceProviderFrameHandle(
+        new ImageFrame(image), [releaseCount](ImageFrame* frame) {
+            ++*releaseCount;
+            delete frame;
+        });
+    emitProviderFrameHandleReady(session, session->lastFrameToken(), payload);
+    drainQueuedProviderResults();
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(*releaseCount, 0);
+
+    QCOMPARE(
+        item.setPresentationTarget(ImageViewportPresentationTarget(replacementResult->sequence()),
+                PresentationTargetTransitionPolicy {})
+            .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    drainQueuedProviderResults();
+    QCOMPARE(item.state().display().status(), ImageViewportDisplayStatus::Retained);
+    QVERIFY(hasPendingRenderCommitForTest(item));
+
+    const ImageViewportStateSnapshot beforePressure = item.state();
+    discardRetainedDisplayForResourcePressureForTest(item);
+    drainQueuedProviderResults();
+    const ImageViewportStateSnapshot afterPressure = item.state();
+
+    QCOMPARE(afterPressure.display().status(), ImageViewportDisplayStatus::Empty);
+    QCOMPARE(afterPressure.display().phase(), ImageViewportDisplayPhase::TransitioningPlaceholder);
+    QCOMPARE(afterPressure.request().status(), beforePressure.request().status());
+    QCOMPARE(afterPressure.request().reason(), beforePressure.request().reason());
+    QCOMPARE(afterPressure.request().acceptedPresentationTargetGeneration(),
+        beforePressure.request().acceptedPresentationTargetGeneration());
+    QCOMPARE(afterPressure.revisions().request(), beforePressure.revisions().request());
+    QCOMPARE(afterPressure.revisions().presentation(), beforePressure.revisions().presentation());
+    QVERIFY(afterPressure.revisions().display() != beforePressure.revisions().display());
+    QVERIFY(afterPressure.revisions().snapshot() != beforePressure.revisions().snapshot());
+    QVERIFY(hasPendingRenderCommitForTest(item));
+    QCOMPARE(*releaseCount, 1);
+    QVERIFY(!sessionGuard);
+
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(item.state().display().status(), ImageViewportDisplayStatus::Ready);
+    const ImageViewportStateSnapshot ready = item.state();
+    discardRetainedDisplayForResourcePressureForTest(item);
+    QCOMPARE(item.state().revisions().display(), ready.revisions().display());
+    QCOMPARE(item.state().revisions().snapshot(), ready.revisions().snapshot());
 }
 
 void ImageViewportProviderFrameAdmissionTest::

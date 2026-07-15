@@ -107,6 +107,10 @@ struct ViewportEngineRenderQualityFallbackTransition
     ImageViewportInternal::ViewportChangeSet changes;
 };
 
+struct ViewportEngineResourcePressureFact
+{
+};
+
 struct ViewportEnginePlaybackCommandRequest
 {
     ViewportPlaybackCommand command;

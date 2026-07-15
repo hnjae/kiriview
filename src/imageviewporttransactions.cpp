@@ -108,6 +108,11 @@ void ImageViewportPrivate::devicePixelRatioChanged()
         { itemBounds(), currentWindow ? currentWindow->effectiveDevicePixelRatio() : 1.0 }));
 }
 
+void ImageViewportPrivate::discardRetainedDisplayForResourcePressure()
+{
+    applyEngineTransition(engine.handleResourcePressure({}));
+}
+
 ImageViewportCommandOutcome ImageViewportPrivate::clear()
 {
     playbackScheduler.flushElapsed();
@@ -258,6 +263,11 @@ void ImageViewportPrivate::reportRenderQualityFallbackForTest(
                                  { renderAttempt, smoothingUnavailable, mipmapUnavailable })
                              .changes;
     applyEngineTransition(std::move(transition));
+}
+
+void ImageViewportPrivate::discardRetainedDisplayForResourcePressureForTest()
+{
+    discardRetainedDisplayForResourcePressure();
 }
 
 ImageViewportInternal::RenderFailureDiagnostic

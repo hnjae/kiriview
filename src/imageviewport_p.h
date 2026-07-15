@@ -93,6 +93,7 @@ public:
     quint64 currentRenderAttemptForTest() const;
     void reportRenderQualityFallbackForTest(
         quint64 renderAttempt, bool smoothingUnavailable, bool mipmapUnavailable);
+    void discardRetainedDisplayForResourcePressureForTest();
     ImageViewportInternal::RenderFailureDiagnostic
     lastAcceptedRenderFailureDiagnosticForTest() const;
     ImageViewportInternal::ProviderTransportDiagnostic
@@ -141,6 +142,7 @@ public:
     void enqueueProviderHostEvent(ViewportProviderHostEvent event);
     void drainProviderHostEvents();
     void devicePixelRatioChanged();
+    void discardRetainedDisplayForResourcePressure();
     void refreshStateSnapshot();
     QRectF currentContentRect() const;
     QRectF itemBounds() const;

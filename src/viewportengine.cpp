@@ -20,6 +20,25 @@ ViewportEngine::ViewportEngine()
 
 ViewportEngine::~ViewportEngine() = default;
 
+ViewportEngineTransition ViewportEngine::handleResourcePressure(
+    const ViewportEngineResourcePressureFact&)
+{
+    ViewportEngineTransition transition;
+    auto& display = m_state->displayState.display;
+    if (display.status != ImageViewportDisplayStatus::Retained) {
+        return transition;
+    }
+    if (m_state->revisions.presentationRevision == 0) {
+        m_state->revisions.presentationRevision = display.revision;
+    }
+    display.discardRetainedDisplay();
+    transition.changes.displayState = true;
+    transition.changes.geometryState = true;
+    transition.changes.displayRevision = true;
+    transition.changes.scheduleUpdate = true;
+    return transition;
+}
+
 QSet<quint64> ViewportEngine::providerFrameLeaseIds() const
 {
     QSet<quint64> leases;

@@ -194,11 +194,16 @@ quint64 currentRenderAttemptForTest(const ImageViewport& item)
     return ImageViewportPrivate::get(item)->currentRenderAttemptForTest();
 }
 
-void reportRenderQualityFallbackForTest(ImageViewport& item, quint64 renderAttempt,
-    bool smoothingUnavailable, bool mipmapUnavailable)
+void reportRenderQualityFallbackForTest(
+    ImageViewport& item, quint64 renderAttempt, bool smoothingUnavailable, bool mipmapUnavailable)
 {
     ImageViewportPrivate::get(item)->reportRenderQualityFallbackForTest(
         renderAttempt, smoothingUnavailable, mipmapUnavailable);
+}
+
+void discardRetainedDisplayForResourcePressureForTest(ImageViewport& item)
+{
+    ImageViewportPrivate::get(item)->discardRetainedDisplayForResourcePressureForTest();
 }
 
 void acknowledgeRenderCommitForTest(

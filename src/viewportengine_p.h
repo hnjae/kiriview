@@ -52,6 +52,7 @@ public:
         const ViewportEngineRenderAcknowledgementRequest& input);
     ViewportEngineRenderQualityFallbackTransition handleRenderQualityFallback(
         const ViewportRenderQualityFallbackFact& fact);
+    ViewportEngineTransition handleResourcePressure(const ViewportEngineResourcePressureFact& fact);
     ViewportEngineGeometryChangeTransition handleGeometryChanged(
         const ViewportEngineGeometryChangeRequest& input);
     ViewportEngineTransition handleProviderHostEvent(
