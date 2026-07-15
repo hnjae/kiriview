@@ -3,6 +3,7 @@
 #include "imageviewportstate_p.h"
 #include "viewportprovidercontract_p.h"
 #include "viewportplaybackcontract_p.h"
+#include "internalobservation_p.h"
 
 struct ViewportEngineTransition
 {
@@ -11,4 +12,5 @@ struct ViewportEngineTransition
     ViewportProviderTransportBatch providerAfterPublication;
     ViewportPlaybackScheduleEffect playbackSchedule;
     ImageViewportInternal::ProviderSchedulerDiagnostic providerSchedulerDiagnostic;
+    ImageViewportInternal::InternalObservationBatch observations;
 };

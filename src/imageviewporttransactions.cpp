@@ -1,6 +1,7 @@
 #include "framepreparation_p.h"
 #include "imageviewport_p.h"
 #include "imageviewportproviderfacts_p.h"
+#include "imageviewporttoken_p.h"
 #include "imageviewportvalidation_p.h"
 #include "viewportenginetestaccess_p.h"
 #include "viewportitemtransaction_p.h"
@@ -56,14 +57,16 @@ ImageViewportStateSnapshot ImageViewportPrivate::applyEngineTransition(
 
     providerHost.reconcileFrameLeases(engine.providerFrameLeaseIds());
     transition.changes = engine.publishChanges(std::move(transition.changes));
-    internalDiagnostics.recordRenderFailure(transition.changes.renderFailureDiagnostic);
+    internalObservability.record(transition.observations);
+    internalObservability.recordRenderFailure(transition.changes.renderFailureDiagnostic);
 
     if (transition.changes.scheduleUpdate) {
         prepareRenderSynchronization();
         update();
     }
     if (transition.providerSchedulerDiagnostic.valid) {
-        internalDiagnostics.recordProviderSchedulerFailure(transition.providerSchedulerDiagnostic);
+        internalObservability.recordProviderSchedulerFailure(
+            transition.providerSchedulerDiagnostic);
     }
 
     --transitionApplicationDepth;
@@ -109,6 +112,22 @@ void ImageViewportPrivate::drainExternalWork()
         }
         ViewportProviderTransportCommand command = pendingProviderTransport.takeFirst();
         if (!engine.acceptsProviderTransportCommand(command)) {
+            ImageViewportInternal::InternalObservation observation;
+            observation.subsystem
+                = ImageViewportInternal::InternalObservationSubsystem::ProviderHost;
+            observation.category
+                = ImageViewportInternal::InternalObservationCategory::StaleDrop;
+            observation.cause
+                = ImageViewportInternal::InternalObservationCause::RetiredProviderCommand;
+            observation.identity.roleValid = true;
+            observation.identity.role = command.role;
+            observation.identity.generation = command.generation;
+            observation.identity.sessionSerial = command.sessionSerial;
+            observation.identity.providerToken
+                = ImageViewportInternal::ProviderRequestTokenPrivateAccess::value(
+                    command.request.token());
+            observation.detail = int(command.kind);
+            internalObservability.record(std::move(observation));
             continue;
         }
         providerHost.applyTransportEffects({ command });
@@ -303,19 +322,25 @@ void ImageViewportPrivate::discardRetainedDisplayForResourcePressureForTest()
 ImageViewportInternal::RenderFailureDiagnostic
 ImageViewportPrivate::lastAcceptedRenderFailureDiagnosticForTest() const
 {
-    return internalDiagnostics.lastRenderFailure();
+    return internalObservability.lastRenderFailure();
 }
 
 ImageViewportInternal::ProviderTransportDiagnostic
 ImageViewportPrivate::lastProviderTransportDiagnosticForTest() const
 {
-    return internalDiagnostics.lastProviderCleanupFailure();
+    return internalObservability.lastProviderCleanupFailure();
 }
 
 ImageViewportInternal::ProviderSchedulerDiagnostic
 ImageViewportPrivate::lastProviderSchedulerDiagnosticForTest() const
 {
-    return internalDiagnostics.lastProviderSchedulerFailure();
+    return internalObservability.lastProviderSchedulerFailure();
+}
+
+QVector<ImageViewportInternal::InternalObservation>
+ImageViewportPrivate::internalObservationsForTest() const
+{
+    return internalObservability.observations();
 }
 
 void ImageViewportPrivate::acknowledgeRenderCommitForTest(
@@ -332,6 +357,7 @@ void ImageViewportPrivate::acknowledgeRenderCommitForTest(
     ViewportEngineTransition transition;
     transition.changes = reduced.changes;
     transition.playbackSchedule = reduced.playbackSchedule;
+    transition.observations = reduced.observations;
     applyEngineTransition(std::move(transition));
 }
 
@@ -363,6 +389,7 @@ void ImageViewportPrivate::acknowledgeRenderCommitForTest(quint64 generation, qu
     ViewportEngineTransition transition;
     transition.changes = reduced.changes;
     transition.playbackSchedule = reduced.playbackSchedule;
+    transition.observations = reduced.observations;
     applyEngineTransition(std::move(transition));
 }
 
@@ -393,6 +420,7 @@ void ImageViewportPrivate::acknowledgeRenderFailureForTest(PageRole failedRole, 
     ViewportEngineTransition transition;
     transition.changes = reduced.changes;
     transition.playbackSchedule = reduced.playbackSchedule;
+    transition.observations = reduced.observations;
     applyEngineTransition(std::move(transition));
 }
 #endif

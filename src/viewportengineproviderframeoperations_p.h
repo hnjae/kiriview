@@ -1,6 +1,7 @@
 #pragma once
 
 #include "framepreparation_p.h"
+#include "internalobservation_p.h"
 #include "viewportenginecontracts_p.h"
 #include "viewportengineproviderterminaloperations_p.h"
 
@@ -17,6 +18,7 @@ struct ViewportEngineProviderFrameReadyInput
 struct ViewportEngineProviderFrameReadyReduction
 {
     ImageViewportInternal::ViewportChangeSet changes;
+    ImageViewportInternal::InternalObservationBatch observations;
 };
 
 class ViewportEngineProviderFrameReadyAccess

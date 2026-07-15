@@ -99,6 +99,7 @@ public:
     lastProviderTransportDiagnosticForTest() const;
     ImageViewportInternal::ProviderSchedulerDiagnostic
     lastProviderSchedulerDiagnosticForTest() const;
+    QVector<ImageViewportInternal::InternalObservation> internalObservationsForTest() const;
     void acknowledgeRenderCommitForTest(
         quint64 generation, quint64 requestId, quint64 preparedPayloadId);
     void acknowledgeRenderCommitForTest(quint64 generation, quint64 requestId,
@@ -176,7 +177,7 @@ public:
     ImageViewportPlaybackScheduler playbackScheduler;
     ImageViewportProviderHost providerHost;
     ImageViewportRenderHost renderHost;
-    ImageViewportInternal::InternalDiagnostics internalDiagnostics;
+    ImageViewportInternal::InternalObservability internalObservability;
     ImageViewportStateSnapshot lastStateSnapshot;
     int transitionApplicationDepth = 0;
     ViewportPlaybackScheduleEffect pendingPlaybackSchedule;

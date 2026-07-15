@@ -2,6 +2,7 @@
 
 #include "presentationgeometry_p.h"
 #include "viewportengineprojection_p.h"
+#include "imageviewporttoken_p.h"
 
 namespace {
 using namespace ImageViewportInternal;
@@ -134,6 +135,21 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         || !providerPresent(access.m_request, input.role)
         || !access.m_provider.session.sessionActive
         || !activeTokenMatches(access.m_provider, access.m_request, input.role, input.token)) {
+        InternalObservation observation;
+        observation.subsystem = InternalObservationSubsystem::Engine;
+        observation.category = InternalObservationCategory::StaleDrop;
+        observation.cause = InternalObservationCause::ProviderTokenMismatch;
+        observation.identity.roleValid = true;
+        observation.identity.role = input.role;
+        observation.identity.generation = access.m_request.sequenceGeneration;
+        observation.identity.requestId
+            = requestForRole(access.m_request, input.role).identity.id;
+        observation.identity.providerToken
+            = ProviderRequestTokenPrivateAccess::value(input.token);
+        observation.identity.demandRevision = RevisionTokenPrivateAccess::value(
+            requestForRole(access.m_request, input.role).demandRevision);
+        observation.identity.providerLeaseId = input.providerFrameLeaseId;
+        result.observations.append(observation);
         return result;
     }
 
@@ -158,6 +174,22 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
     const auto admission
         = FramePreparation::admitProviderFrame(input.frame, input.envelope, frameState);
     if (!admission.accepted()) {
+        InternalObservation observation;
+        observation.subsystem = InternalObservationSubsystem::Preparation;
+        observation.category = InternalObservationCategory::AdmissionFailure;
+        observation.cause = InternalObservationCause::ProviderFrameRejected;
+        observation.identity.roleValid = true;
+        observation.identity.role = input.role;
+        observation.identity.generation = access.m_request.sequenceGeneration;
+        observation.identity.requestId
+            = requestForRole(access.m_request, input.role).identity.id;
+        observation.identity.providerToken
+            = ProviderRequestTokenPrivateAccess::value(input.token);
+        observation.identity.demandRevision = RevisionTokenPrivateAccess::value(
+            requestForRole(access.m_request, input.role).demandRevision);
+        observation.identity.providerLeaseId = input.providerFrameLeaseId;
+        observation.detail = int(admission.cause);
+        result.observations.append(observation);
         clearQueue(access.m_provider.requests);
         access.m_provider.requests.activeFrameToken = {};
         result.changes = access.recordTerminal({ input.role, admission.status, admission.reason,

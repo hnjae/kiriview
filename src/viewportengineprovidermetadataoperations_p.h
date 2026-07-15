@@ -15,6 +15,7 @@ struct ViewportEngineProviderMetadataReadyReduction
 {
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderFrameTransportEffect providerFrameTransport;
+    ImageViewportInternal::InternalObservationBatch observations;
 };
 
 class ViewportEngineProviderMetadataReadyAccess

@@ -11,7 +11,7 @@ ImageViewportPrivate::ImageViewportPrivate(ImageViewport* viewport)
               enqueueProviderHostEvent(std::move(event));
           },
           [this](ImageViewportInternal::ProviderTransportDiagnostic diagnostic) {
-              internalDiagnostics.recordProviderCleanupFailure(diagnostic);
+              internalObservability.recordProviderCleanupFailure(diagnostic);
           })
 {
     lastStateSnapshot = state();

@@ -22,6 +22,7 @@ struct RenderFailureDiagnostic
     quint64 requestId = 0;
     quint64 preparedPayloadId = 0;
     RenderFailureCause cause = RenderFailureCause::None;
+    quint64 renderAttempt = 0;
 };
 
 struct ViewportChangeSet

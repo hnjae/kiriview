@@ -48,12 +48,14 @@ struct ViewportEngineRenderAcknowledgementInput
 struct ViewportEngineRenderCommitReduction
 {
     ImageViewportInternal::ViewportChangeSet changes;
+    ImageViewportInternal::InternalObservationBatch observations;
 };
 
 struct ViewportEngineRenderFailureReduction
 {
     ImageViewportInternal::ViewportChangeSet changes;
     ImageViewportInternal::RenderFailureDiagnostic diagnostic;
+    ImageViewportInternal::InternalObservationBatch observations;
 };
 
 class ViewportEngineGeometryChangeAccess

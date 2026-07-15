@@ -9,6 +9,7 @@
 
 #include "viewportprovidercontract_p.h"
 #include "viewportprovidertransporteffects_p.h"
+#include "imageviewporttoken_p.h"
 
 #include <memory>
 
@@ -53,6 +54,7 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
     case ViewportProviderHostEvent::Kind::ProviderEvent: {
         const auto reduced = reduceProviderEvent(event.providerEvent, input.viewport);
         result.changes = reduced.changes;
+        result.observations = reduced.observations;
         auto& batch = reduced.providerFrameTransportPhase
                 == ViewportProviderEventTransportPhase::BeforeChanges
             ? result.providerBeforePublication
@@ -219,7 +221,54 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
         m_state->requestState.request.sequenceGeneration, eventProvider.session);
     if (!acceptsViewportEngineProviderSessionEvent(
             { event.generation, event.sessionSerial }, std::move(sessionAccess))) {
-        return {};
+        ViewportProviderEventResult stale;
+        ImageViewportInternal::InternalObservation observation;
+        observation.subsystem = ImageViewportInternal::InternalObservationSubsystem::Engine;
+        observation.category = ImageViewportInternal::InternalObservationCategory::StaleDrop;
+        observation.cause
+            = ImageViewportInternal::InternalObservationCause::RetiredProviderSession;
+        observation.identity.roleValid = true;
+        observation.identity.role = event.role;
+        observation.identity.generation = event.generation;
+        observation.identity.sessionSerial = event.sessionSerial;
+        observation.identity.requestId
+            = m_state->requestState.request.roles[roleIndex(event.role)].activeRequest.identity.id;
+        observation.identity.providerToken
+            = ImageViewportInternal::ProviderRequestTokenPrivateAccess::value(event.token);
+        stale.observations.append(observation);
+        return stale;
+    }
+    const bool metadataEvent = event.kind == ViewportProviderEvent::Kind::MetadataReady;
+    const bool frameEvent = event.kind == ViewportProviderEvent::Kind::ImageFrameReady
+        || event.kind == ViewportProviderEvent::Kind::ImageFrameWithMetadataReady
+        || event.kind == ViewportProviderEvent::Kind::FrameHandleReady
+        || event.kind == ViewportProviderEvent::Kind::FrameHandleWithMetadataReady;
+    const bool metadataTokenMatches = event.token.isValid()
+        && event.token == eventProvider.requests.activeMetadataToken;
+    const bool frameTokenMatches
+        = event.token.isValid() && event.token == eventProvider.requests.activeFrameToken;
+    if ((metadataEvent && !metadataTokenMatches) || (frameEvent && !frameTokenMatches)
+        || (!metadataEvent && !frameEvent && !metadataTokenMatches && !frameTokenMatches)) {
+        ViewportProviderEventResult stale;
+        ImageViewportInternal::InternalObservation observation;
+        observation.subsystem = ImageViewportInternal::InternalObservationSubsystem::Engine;
+        observation.category = ImageViewportInternal::InternalObservationCategory::StaleDrop;
+        observation.cause
+            = ImageViewportInternal::InternalObservationCause::ProviderTokenMismatch;
+        observation.identity.roleValid = true;
+        observation.identity.role = event.role;
+        observation.identity.generation = event.generation;
+        observation.identity.sessionSerial = event.sessionSerial;
+        const auto& active
+            = m_state->requestState.request.roles[roleIndex(event.role)].activeRequest;
+        observation.identity.requestId = active.identity.id;
+        observation.identity.providerToken
+            = ImageViewportInternal::ProviderRequestTokenPrivateAccess::value(event.token);
+        observation.identity.demandRevision
+            = ImageViewportInternal::RevisionTokenPrivateAccess::value(active.demandRevision);
+        observation.identity.providerLeaseId = event.frameLeaseId;
+        stale.observations.append(observation);
+        return stale;
     }
     ViewportProviderEventResult result;
     switch (event.kind) {
@@ -232,6 +281,7 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
         const auto metadata = reduceViewportEngineProviderMetadataReady(
             { event.role, event.token, event.metadata, geometry }, std::move(access));
         result.changes = metadata.changes;
+        result.observations = metadata.observations;
         result.providerFrameTransport = metadata.providerFrameTransport;
         result.providerFrameTransportPhase = ViewportProviderEventTransportPhase::BeforeChanges;
         break;
@@ -242,14 +292,15 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
         ViewportEngineProviderFrameReadyAccess access(m_state->requestState.request,
             m_state->playbackState.playback, m_state->displayState.display, provider,
             m_state->presentationState.presentation);
-        result.changes = reduceViewportEngineProviderFrameReady(
+        const auto frame = reduceViewportEngineProviderFrameReady(
             { event.role, event.token, event.imageFrame, 0,
                 event.kind == ViewportProviderEvent::Kind::ImageFrameReady
                     ? ImageSequenceProviderFrameEnvelope::stillFrame()
                     : event.frameEnvelope,
                 geometry },
-            std::move(access))
-                             .changes;
+            std::move(access));
+        result.changes = frame.changes;
+        result.observations = frame.observations;
         break;
     }
     case ViewportProviderEvent::Kind::FrameHandleReady:
@@ -258,15 +309,16 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
         ViewportEngineProviderFrameReadyAccess access(m_state->requestState.request,
             m_state->playbackState.playback, m_state->displayState.display, provider,
             m_state->presentationState.presentation);
-        result.changes = reduceViewportEngineProviderFrameReady(
+        const auto frame = reduceViewportEngineProviderFrameReady(
             { event.role, event.token, event.frameHandle ? event.frameHandle->frame() : nullptr,
                 event.frameLeaseId,
                 event.kind == ViewportProviderEvent::Kind::FrameHandleReady
                     ? ImageSequenceProviderFrameEnvelope::stillFrame()
                     : event.frameEnvelope,
                 geometry },
-            std::move(access))
-                             .changes;
+            std::move(access));
+        result.changes = frame.changes;
+        result.observations = frame.observations;
         break;
     }
     case ViewportProviderEvent::Kind::Waiting:

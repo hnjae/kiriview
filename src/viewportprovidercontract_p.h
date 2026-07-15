@@ -4,6 +4,7 @@
 #include "timingintervals_p.h"
 #include "viewportplaybackcontract_p.h"
 #include "viewportproviderevent_p.h"
+#include "internalobservation_p.h"
 #include <ImageViewport/ImageViewport>
 
 #include <QtCore/QSizeF>
@@ -109,6 +110,7 @@ struct ViewportProviderEventResult
     ViewportProviderEventTransportPhase providerFrameTransportPhase
         = ViewportProviderEventTransportPhase::None;
     ViewportPlaybackScheduleEffect schedule;
+    ImageViewportInternal::InternalObservationBatch observations;
 };
 
 struct ViewportProviderFrameQueueFlushResult

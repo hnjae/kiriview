@@ -1,6 +1,7 @@
 #pragma once
 
 #include "imageviewportstate_p.h"
+#include "internalobservation_p.h"
 #include "imageviewporttoken_p.h"
 #include <ImageViewport/ImageViewport>
 
@@ -13,6 +14,10 @@ using ProviderTransportOperationForTest = ImageViewportInternal::ProviderTranspo
 using ProviderTransportDiagnosticForTest = ImageViewportInternal::ProviderTransportDiagnostic;
 using ProviderSchedulerOperationForTest = ImageViewportInternal::ProviderSchedulerOperation;
 using ProviderSchedulerDiagnosticForTest = ImageViewportInternal::ProviderSchedulerDiagnostic;
+using InternalObservationForTest = ImageViewportInternal::InternalObservation;
+using InternalObservationSubsystemForTest = ImageViewportInternal::InternalObservationSubsystem;
+using InternalObservationCategoryForTest = ImageViewportInternal::InternalObservationCategory;
+using InternalObservationCauseForTest = ImageViewportInternal::InternalObservationCause;
 
 void advancePlaybackForTest(ImageViewport& item, int elapsedMilliseconds);
 void setNextProviderRequestTokenForTest(ImageViewport& item, quint64 token);
@@ -55,6 +60,7 @@ ProviderTransportDiagnosticForTest lastProviderTransportDiagnosticForTest(
     const ImageViewport& item);
 ProviderSchedulerDiagnosticForTest lastProviderSchedulerDiagnosticForTest(
     const ImageViewport& item);
+QVector<InternalObservationForTest> internalObservationsForTest(const ImageViewport& item);
 
 std::unique_ptr<ImageFrame> makeImageFrameWithPayloadByteSizeForTest(
     const QImage& image, qsizetype payloadByteSize);

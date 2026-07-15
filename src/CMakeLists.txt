@@ -21,6 +21,7 @@ qt_add_qml_module(
     framepreparation_p.h
     imageviewportdiagnostics.cpp
     imageviewportdiagnostics_p.h
+    internalobservation_p.h
     imageviewport_p.cpp
     imageviewporttransactions.cpp
     imageviewportfacade.cpp

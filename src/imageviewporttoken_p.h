@@ -58,6 +58,11 @@ public:
 
     static quint64 value(RevisionToken token) { return token.m_value; }
     static quint64 value(ImageViewportRevisionToken token) { return token.m_value; }
+    static quint64 value(ImageViewportDemandRevisionToken token) { return token.m_value; }
+    static quint64 value(ImageViewportPresentationTargetGenerationToken token)
+    {
+        return token.m_value;
+    }
 };
 
 } // namespace ImageViewportInternal

@@ -37,7 +37,8 @@ ViewportEngineRenderCommitTransition ViewportEngine::acknowledgeRenderCommit(
             m_state->playbackState.playback, providerFactsView(), m_state->renderCoordination });
     return { reduction.changes,
         reduction.changes.playbackPhase ? currentPlaybackSchedule()
-                                        : ViewportPlaybackScheduleEffect {} };
+                                        : ViewportPlaybackScheduleEffect {},
+        reduction.observations };
 }
 
 ViewportEngineRenderFailureTransition ViewportEngine::acknowledgeRenderFailure(
@@ -49,7 +50,7 @@ ViewportEngineRenderFailureTransition ViewportEngine::acknowledgeRenderFailure(
     return { reduction.changes,
         reduction.changes.playbackPhase ? currentPlaybackSchedule()
                                         : ViewportPlaybackScheduleEffect {},
-        reduction.diagnostic };
+        reduction.diagnostic, reduction.observations };
 }
 
 ViewportEngineRenderQualityFallbackTransition ViewportEngine::handleRenderQualityFallback(
@@ -58,6 +59,13 @@ ViewportEngineRenderQualityFallbackTransition ViewportEngine::handleRenderQualit
     ViewportEngineRenderQualityFallbackTransition result;
     if (fact.synchronizationAttempt == 0
         || fact.synchronizationAttempt != m_state->renderCoordination.nextSynchronizationAttempt) {
+        ImageViewportInternal::InternalObservation observation;
+        observation.subsystem = ImageViewportInternal::InternalObservationSubsystem::Engine;
+        observation.category = ImageViewportInternal::InternalObservationCategory::StaleDrop;
+        observation.cause
+            = ImageViewportInternal::InternalObservationCause::StaleRenderQualityFallback;
+        observation.identity.renderAttempt = fact.synchronizationAttempt;
+        result.observations.append(observation);
         return result;
     }
     const QString warning = fact.smoothingUnavailable || fact.mipmapUnavailable

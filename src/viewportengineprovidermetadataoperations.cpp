@@ -1,4 +1,5 @@
 #include "viewportengineprovidermetadataoperations_p.h"
+#include "imageviewporttoken_p.h"
 
 #include "framepreparation_p.h"
 #include "imageviewportproviderfacts_p.h"
@@ -125,6 +126,20 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
 
     const auto admission = FramePreparation::admitProviderMetadata(input.metadata);
     if (!admission.accepted()) {
+        InternalObservation observation;
+        observation.subsystem = InternalObservationSubsystem::Preparation;
+        observation.category = InternalObservationCategory::AdmissionFailure;
+        observation.cause = InternalObservationCause::ProviderMetadataRejected;
+        observation.identity.roleValid = true;
+        observation.identity.role = input.role;
+        observation.identity.generation = access.m_request.sequenceGeneration;
+        observation.identity.requestId
+            = access.m_request.roles[input.role == ImageViewportPageRole::Secondary ? 1 : 0]
+                  .activeRequest.identity.id;
+        observation.identity.providerToken
+            = ProviderRequestTokenPrivateAccess::value(input.token);
+        observation.detail = int(admission.cause);
+        result.observations.append(observation);
         rejectMetadata(admission.diagnostic);
         return result;
     }

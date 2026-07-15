@@ -158,8 +158,25 @@ ViewportEngineRenderCommitReduction reduceViewportEngineRenderCommit(
             && (input.acknowledgement.synchronizationAttempt != input.synchronizationAttempt
                 || input.synchronizationAttempt != access.render().nextSynchronizationAttempt))
         || !ViewportEngineRenderAcknowledgement::completeMatches(
-            access.display(), access.request(), input.acknowledgement))
+            access.display(), access.request(), input.acknowledgement)) {
+        const auto payload = input.acknowledgement.preparedPayload;
+        ImageViewportInternal::InternalObservation observation;
+        observation.subsystem = ImageViewportInternal::InternalObservationSubsystem::Engine;
+        observation.category = ImageViewportInternal::InternalObservationCategory::StaleDrop;
+        observation.cause
+            = ImageViewportInternal::InternalObservationCause::StaleRenderAcknowledgement;
+        observation.identity.roleValid = true;
+        observation.identity.role = ImageViewportPageRole::Primary;
+        observation.identity.generation = payload.generation;
+        observation.identity.requestId = payload.requestId;
+        observation.identity.payloadId = payload.payloadId;
+        observation.identity.renderAttempt
+            = input.acknowledgement.synchronizationAttempt != 0
+            ? input.acknowledgement.synchronizationAttempt
+            : input.synchronizationAttempt;
+        result.observations.append(observation);
         return result;
+    }
     const auto oldStatus = access.display().status;
     if (input.pendingTargetCommit)
         publishReady(access.request(), access.display(),
@@ -214,13 +231,34 @@ ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
                 != access.render().nextSynchronizationAttempt)
         || !ViewportEngineRenderAcknowledgement::failureMatches(
             access.display(), access.request(), input.acknowledgement)
-        || (access.display().status != ImageViewportDisplayStatus::Ready && !pending))
+        || (access.display().status != ImageViewportDisplayStatus::Ready && !pending)) {
+        const auto failed = ViewportEngineRenderAcknowledgement::acknowledgedPayload(
+            input.acknowledgement, input.acknowledgement.failedRole);
+        InternalObservation observation;
+        observation.subsystem = InternalObservationSubsystem::Engine;
+        observation.category = InternalObservationCategory::StaleDrop;
+        observation.cause = InternalObservationCause::StaleRenderAcknowledgement;
+        observation.identity.roleValid = true;
+        observation.identity.role = input.acknowledgement.failedRole;
+        observation.identity.generation = failed.generation;
+        observation.identity.requestId = failed.requestId;
+        observation.identity.payloadId = failed.payloadId;
+        observation.identity.renderAttempt
+            = input.acknowledgement.synchronizationAttempt != 0
+            ? input.acknowledgement.synchronizationAttempt
+            : access.render().nextSynchronizationAttempt;
+        observation.detail = int(input.acknowledgement.failureCause);
+        result.observations.append(observation);
         return result;
+    }
     const auto oldStatus = access.display().status;
     const auto failed = ViewportEngineRenderAcknowledgement::acknowledgedPayload(
         input.acknowledgement, input.acknowledgement.failedRole);
     result.diagnostic = { true, input.acknowledgement.failedRole, failed.generation,
-        failed.requestId, failed.payloadId, input.acknowledgement.failureCause };
+        failed.requestId, failed.payloadId, input.acknowledgement.failureCause,
+        input.acknowledgement.synchronizationAttempt != 0
+            ? input.acknowledgement.synchronizationAttempt
+            : access.render().nextSynchronizationAttempt };
     access.request().lastAcceptedRenderFailure = result.diagnostic;
     changes.renderFailureDiagnostic = result.diagnostic;
     access.display().clearPendingRenderPayload();

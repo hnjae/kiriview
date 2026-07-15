@@ -256,6 +256,11 @@ ProviderSchedulerDiagnosticForTest lastProviderSchedulerDiagnosticForTest(const 
     return ImageViewportPrivate::get(item)->lastProviderSchedulerDiagnosticForTest();
 }
 
+QVector<InternalObservationForTest> internalObservationsForTest(const ImageViewport& item)
+{
+    return ImageViewportPrivate::get(item)->internalObservationsForTest();
+}
+
 std::unique_ptr<ImageFrame> makeImageFrameWithPayloadByteSizeForTest(
     const QImage& image, qsizetype payloadByteSize)
 {

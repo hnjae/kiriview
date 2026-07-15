@@ -1570,6 +1570,19 @@ void ImageViewportRenderCommitTest::staleRenderFailureDoesNotOverwriteActiveDiag
     QCOMPARE(staleDiagnostic.requestId, activeDiagnostic.requestId);
     QCOMPARE(staleDiagnostic.preparedPayloadId, activeDiagnostic.preparedPayloadId);
     QCOMPARE(staleDiagnostic.cause, activeDiagnostic.cause);
+
+    const auto observations = internalObservationsForTest(item);
+    QVERIFY(!observations.isEmpty());
+    const InternalObservationForTest stale = observations.constLast();
+    QCOMPARE(stale.subsystem, InternalObservationSubsystemForTest::Engine);
+    QCOMPARE(stale.category, InternalObservationCategoryForTest::StaleDrop);
+    QCOMPARE(stale.cause, InternalObservationCauseForTest::StaleRenderAcknowledgement);
+    QVERIFY(stale.identity.roleValid);
+    QCOMPARE(stale.identity.role, ImageViewportPageRole::Primary);
+    QCOMPARE(stale.identity.generation, generation);
+    QCOMPARE(stale.identity.requestId, requestId);
+    QCOMPARE(stale.identity.payloadId, payloadId + 1);
+    QVERIFY(stale.identity.renderAttempt > 0);
 }
 
 void ImageViewportRenderCommitTest::

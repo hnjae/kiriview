@@ -118,6 +118,7 @@ void ImageViewportPrivate::applyRenderHostFact(RenderAdapter::CommitResult resul
             ViewportEngineTransition transition;
             transition.changes = reduced.changes;
             transition.playbackSchedule = reduced.playbackSchedule;
+            transition.observations = reduced.observations;
             applyEngineTransition(std::move(transition));
             return;
         }
@@ -132,8 +133,10 @@ void ImageViewportPrivate::applyRenderHostFact(RenderAdapter::CommitResult resul
         ViewportEngineTransition transition;
         transition.changes = reduced.changes;
         transition.playbackSchedule = reduced.playbackSchedule;
-        mergeChanges(
-            transition.changes, engine.handleRenderQualityFallback(qualityFallback).changes);
+        transition.observations = reduced.observations;
+        const auto quality = engine.handleRenderQualityFallback(qualityFallback);
+        mergeChanges(transition.changes, quality.changes);
+        transition.observations.append(quality.observations);
         applyEngineTransition(std::move(transition));
     };
     if (QThread::currentThread() == q->thread()) {

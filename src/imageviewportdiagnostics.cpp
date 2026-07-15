@@ -1,43 +1,109 @@
 #include "imageviewportdiagnostics_p.h"
 
+#include <limits>
+#include <utility>
+
 namespace ImageViewportInternal {
 
-void InternalDiagnostics::recordProviderCleanupFailure(
+namespace {
+constexpr qsizetype observationCapacity = 256;
+}
+
+void InternalObservability::recordProviderCleanupFailure(
     const ProviderTransportDiagnostic& diagnostic)
 {
     if (diagnostic.valid) {
         m_lastProviderCleanupFailure = diagnostic;
+        InternalObservation observation;
+        observation.subsystem = InternalObservationSubsystem::ProviderHost;
+        observation.category = InternalObservationCategory::CleanupFailure;
+        observation.cause = diagnostic.operation == ProviderTransportOperation::Close
+            ? InternalObservationCause::ProviderCloseFailed
+            : InternalObservationCause::ProviderCancelFailed;
+        observation.identity.roleValid = true;
+        observation.identity.role = diagnostic.role;
+        observation.identity.providerToken = diagnostic.frameTokenValid
+            ? diagnostic.frameTokenValue
+            : diagnostic.metadataTokenValue;
+        observation.detail = int(diagnostic.operation);
+        record(std::move(observation));
     }
 }
 
-void InternalDiagnostics::recordProviderSchedulerFailure(
+void InternalObservability::recordProviderSchedulerFailure(
     const ProviderSchedulerDiagnostic& diagnostic)
 {
     if (diagnostic.valid) {
         m_lastProviderSchedulerFailure = diagnostic;
+        InternalObservation observation;
+        observation.subsystem = InternalObservationSubsystem::PlaybackScheduler;
+        observation.category = InternalObservationCategory::BackendFailure;
+        observation.cause = InternalObservationCause::ProviderSchedulingFailed;
+        observation.identity.roleValid = true;
+        observation.identity.role = diagnostic.role;
+        observation.identity.generation = diagnostic.generation;
+        observation.identity.requestId = diagnostic.activeRequestId;
+        observation.detail = int(diagnostic.operation);
+        record(std::move(observation));
     }
 }
 
-void InternalDiagnostics::recordRenderFailure(const RenderFailureDiagnostic& diagnostic)
+void InternalObservability::recordRenderFailure(const RenderFailureDiagnostic& diagnostic)
 {
     if (diagnostic.valid) {
         m_lastRenderFailure = diagnostic;
+        InternalObservation observation;
+        observation.subsystem = InternalObservationSubsystem::RenderHost;
+        observation.category = InternalObservationCategory::BackendFailure;
+        observation.cause = InternalObservationCause::RenderBackendFailure;
+        observation.identity.roleValid = true;
+        observation.identity.role = diagnostic.role;
+        observation.identity.generation = diagnostic.generation;
+        observation.identity.requestId = diagnostic.requestId;
+        observation.identity.payloadId = diagnostic.preparedPayloadId;
+        observation.identity.renderAttempt = diagnostic.renderAttempt;
+        observation.detail = int(diagnostic.cause);
+        record(std::move(observation));
     }
 }
 
-ProviderTransportDiagnostic InternalDiagnostics::lastProviderCleanupFailure() const
+void InternalObservability::record(InternalObservation observation)
+{
+    if (m_nextObservationSequence == std::numeric_limits<quint64>::max()) {
+        m_nextObservationSequence = 0;
+    }
+    observation.sequence = ++m_nextObservationSequence;
+    if (m_observations.size() == observationCapacity) {
+        m_observations.removeFirst();
+    }
+    m_observations.append(std::move(observation));
+}
+
+void InternalObservability::record(const InternalObservationBatch& observations)
+{
+    for (const InternalObservation& observation : observations) {
+        record(observation);
+    }
+}
+
+ProviderTransportDiagnostic InternalObservability::lastProviderCleanupFailure() const
 {
     return m_lastProviderCleanupFailure;
 }
 
-ProviderSchedulerDiagnostic InternalDiagnostics::lastProviderSchedulerFailure() const
+ProviderSchedulerDiagnostic InternalObservability::lastProviderSchedulerFailure() const
 {
     return m_lastProviderSchedulerFailure;
 }
 
-RenderFailureDiagnostic InternalDiagnostics::lastRenderFailure() const
+RenderFailureDiagnostic InternalObservability::lastRenderFailure() const
 {
     return m_lastRenderFailure;
+}
+
+QVector<InternalObservation> InternalObservability::observations() const
+{
+    return m_observations;
 }
 
 } // namespace ImageViewportInternal

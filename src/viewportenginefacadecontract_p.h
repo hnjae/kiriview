@@ -93,6 +93,7 @@ struct ViewportEngineRenderCommitTransition
 {
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportPlaybackScheduleEffect playbackSchedule;
+    ImageViewportInternal::InternalObservationBatch observations;
 };
 
 struct ViewportEngineRenderFailureTransition
@@ -100,11 +101,13 @@ struct ViewportEngineRenderFailureTransition
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportPlaybackScheduleEffect playbackSchedule;
     ImageViewportInternal::RenderFailureDiagnostic diagnostic;
+    ImageViewportInternal::InternalObservationBatch observations;
 };
 
 struct ViewportEngineRenderQualityFallbackTransition
 {
     ImageViewportInternal::ViewportChangeSet changes;
+    ImageViewportInternal::InternalObservationBatch observations;
 };
 
 struct ViewportEngineResourcePressureFact

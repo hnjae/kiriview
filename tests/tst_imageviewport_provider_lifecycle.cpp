@@ -1183,6 +1183,7 @@ void ImageViewportProviderLifecycleTest::
         int closeCount = 0;
         quint64 metadataTokenValue = 0;
         ProviderTransportDiagnosticForTest diagnostic;
+        InternalObservationForTest observation;
     };
 
     const auto runScenario = [](bool failCloseDelivery, Snapshot& snapshot) {
@@ -1232,6 +1233,10 @@ void ImageViewportProviderLifecycleTest::
         snapshot.closeCount = *closeCount;
         snapshot.metadataTokenValue = providerRequestTokenValueForTest(metadataToken);
         snapshot.diagnostic = lastProviderTransportDiagnosticForTest(item);
+        const auto observations = internalObservationsForTest(item);
+        if (!observations.isEmpty()) {
+            snapshot.observation = observations.constLast();
+        }
     };
 
     Snapshot delivered;
@@ -1266,6 +1271,13 @@ void ImageViewportProviderLifecycleTest::
     QCOMPARE(failed.diagnostic.frameTokenValue, 0U);
     QVERIFY(!failed.diagnostic.queued);
     QVERIFY(failed.diagnostic.pendingCleanup);
+    QCOMPARE(failed.observation.subsystem,
+        InternalObservationSubsystemForTest::ProviderHost);
+    QCOMPARE(failed.observation.category,
+        InternalObservationCategoryForTest::CleanupFailure);
+    QCOMPARE(failed.observation.cause, InternalObservationCauseForTest::ProviderCloseFailed);
+    QVERIFY(failed.observation.identity.roleValid);
+    QCOMPARE(failed.observation.identity.role, ImageViewportPageRole::Primary);
 }
 
 void ImageViewportProviderLifecycleTest::
@@ -1822,6 +1834,17 @@ void ImageViewportProviderLifecycleTest::
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(primaryFrameCount(item), 1);
     QCOMPARE(displayedImageSize(item), QSizeF(0.0, 0.0));
+
+    const auto observations = internalObservationsForTest(item);
+    QVERIFY(!observations.isEmpty());
+    const InternalObservationForTest stale = observations.constFirst();
+    QCOMPARE(stale.subsystem, InternalObservationSubsystemForTest::Engine);
+    QCOMPARE(stale.category, InternalObservationCategoryForTest::StaleDrop);
+    QCOMPARE(stale.cause, InternalObservationCauseForTest::RetiredProviderSession);
+    QVERIFY(stale.identity.roleValid);
+    QCOMPARE(stale.identity.role, ImageViewportPageRole::Primary);
+    QVERIFY(stale.identity.generation > 0);
+    QVERIFY(stale.identity.sessionSerial > 0);
 }
 
 void ImageViewportProviderLifecycleTest::providerFrameResultsAreQueuedFromSessionEntryPoint()

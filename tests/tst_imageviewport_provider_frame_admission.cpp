@@ -285,6 +285,17 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameRejectsLogicalSizeMis
     QCOMPARE(primaryDisplayedFrame(item), -1);
     QVERIFY(
         viewportErrorString(item).contains(QStringLiteral("provider frame logical size mismatch")));
+    const auto observations = internalObservationsForTest(item);
+    QVERIFY(!observations.isEmpty());
+    const InternalObservationForTest admission = observations.constLast();
+    QCOMPARE(admission.subsystem, InternalObservationSubsystemForTest::Preparation);
+    QCOMPARE(admission.category, InternalObservationCategoryForTest::AdmissionFailure);
+    QCOMPARE(admission.cause, InternalObservationCauseForTest::ProviderFrameRejected);
+    QVERIFY(admission.identity.roleValid);
+    QCOMPARE(admission.identity.role, ImageViewportPageRole::Primary);
+    QVERIFY(admission.identity.generation > 0);
+    QVERIFY(admission.identity.requestId > 0);
+    QVERIFY(admission.identity.providerToken > 0);
 }
 
 void ImageViewportProviderFrameAdmissionTest::providerTimedFrameEnvelopeMismatchRejectsPayload()
