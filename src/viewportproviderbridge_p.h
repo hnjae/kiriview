@@ -5,6 +5,7 @@
 #include <ImageViewport/ImageViewport>
 
 #include <QtCore/QHash>
+#include <QtCore/QMutex>
 #include <QtCore/QPointer>
 #include <QtCore/QSet>
 #include <QtCore/QVector>
@@ -14,6 +15,43 @@
 #include <memory>
 
 class QObject;
+class ViewportProviderEventEndpoint;
+class ViewportProviderLeaseRegistry;
+
+class ViewportProviderSessionControl
+    : public std::enable_shared_from_this<ViewportProviderSessionControl>
+{
+public:
+    ViewportProviderSessionControl(ImageSequenceProviderSession* session,
+        ImageSequenceProviderThreadingContract threadingContract, quint64 generation,
+        quint64 sessionSerial);
+
+    ImageSequenceProviderSession* session() const;
+    ImageSequenceProviderThreadingContract threadingContract() const;
+    quint64 generation() const;
+    quint64 sessionSerial() const;
+    bool beginEventIngress();
+    void claimFrameLease();
+    void endEventIngress();
+    void completeCloseOnSessionAffinity();
+    void completeFrameReleaseOnSessionAffinity();
+    void markSessionDestroyed();
+
+private:
+    void destroySessionIfReadyOnSessionAffinity();
+    void scheduleDestructionCheck();
+
+    mutable QMutex mutex;
+    ImageSequenceProviderSession* providerSession = nullptr;
+    ImageSequenceProviderThreadingContract contract
+        = ImageSequenceProviderThreadingContract::AffinityBound;
+    quint64 generationIdentity = 0;
+    quint64 sessionIdentity = 0;
+    qsizetype activeIngressCount = 0;
+    qsizetype frameLeaseCount = 0;
+    bool closeCompleted = false;
+    bool destructionStarted = false;
+};
 
 enum class ViewportProviderExecutorOutcome {
     Completed,
@@ -44,20 +82,13 @@ public:
         ImageSequenceProviderSession* session,
         ImageSequenceProviderThreadingContract threadingContract, std::function<void()> command)
         = 0;
-    virtual ViewportProviderExecutorOutcome queueSessionClose(ImageSequenceProviderSession* session,
+    virtual ViewportProviderExecutorOutcome queueSessionClose(
+        const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
         ImageSequenceProviderRequestToken metadataToken,
         ImageSequenceProviderRequestToken frameToken)
         = 0;
-    virtual ViewportProviderExecutorOutcome queueSessionCleanup(
-        ImageSequenceProviderSession* session, ImageSequenceProviderRequestToken metadataToken,
-        ImageSequenceProviderRequestToken frameToken)
-        = 0;
-    virtual ViewportProviderExecutorOutcome queueSessionDestruction(
-        ImageSequenceProviderSession* session)
-        = 0;
     virtual ViewportProviderExecutorOutcome releaseFrameHandle(
-        ImageSequenceProviderSession* session,
-        ImageSequenceProviderThreadingContract threadingContract,
+        const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
         ImageSequenceProviderFrameHandle* frameHandle)
         = 0;
 };
@@ -85,6 +116,7 @@ class ViewportProviderBridge
 {
 public:
     explicit ViewportProviderBridge(ImageViewportPageRole role = ImageViewportPageRole::Primary);
+    ~ViewportProviderBridge();
 
     ViewportProviderTransportResult closeSession(ImageSequenceProviderRequestToken metadataToken,
         ImageSequenceProviderRequestToken frameToken);
@@ -105,21 +137,13 @@ public:
 private:
     bool takeForcedDeliveryFailureForTest();
     ViewportProviderExecutor& executor() const;
-    Qt::ConnectionType eventDeliveryConnectionType() const;
-    quint64 claimFrameHandle(ImageSequenceProviderSession* session,
-        ImageSequenceProviderThreadingContract threadingContract,
-        ImageSequenceProviderFrameHandle* frameHandle, quint64 generation, quint64 sessionSerial);
-    bool hasFrameLeases(ImageSequenceProviderSession* session) const;
     ViewportProviderCleanupResult releaseFrameLease(quint64 leaseId);
     void retrySessionCleanup(ViewportProviderCleanupResult& result, bool retryPendingSessions);
-    void destroyClosingSessionIfUnused(
-        ImageSequenceProviderSession* session, ViewportProviderCleanupResult& result);
 
     enum class SessionLifecycle {
         Active,
         CleanupPending,
         Closing,
-        DestructionPending,
     };
 
     struct SessionRecord
@@ -132,25 +156,16 @@ private:
         SessionLifecycle lifecycle = SessionLifecycle::Active;
         ImageSequenceProviderRequestToken metadataToken;
         ImageSequenceProviderRequestToken frameToken;
-    };
-
-    struct FrameLeaseRecord
-    {
-        QPointer<ImageSequenceProviderSession> session;
-        QPointer<ImageSequenceProviderFrameHandle> frameHandle;
-        ImageSequenceProviderThreadingContract threadingContract
-            = ImageSequenceProviderThreadingContract::AffinityBound;
-        quint64 generation = 0;
-        quint64 sessionSerial = 0;
-        bool pendingEngineDelivery = true;
+        std::shared_ptr<ViewportProviderSessionControl> control;
+        std::shared_ptr<ViewportProviderEventEndpoint> eventEndpoint;
     };
 
     ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ViewportProviderExecutor* providerExecutor = nullptr;
     QPointer<ImageSequenceProviderSession> activeSession;
     QHash<ImageSequenceProviderSession*, SessionRecord> sessions;
-    QHash<quint64, FrameLeaseRecord> frameLeases;
-    QSet<quint64> retiredFrameLeases;
+    std::shared_ptr<ViewportProviderLeaseRegistry> frameLeaseRegistry;
+    QVector<std::weak_ptr<ViewportProviderEventEndpoint>> eventEndpoints;
     bool forceNextCommandDeliveryFailure = false;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     bool synchronousEventDelivery = false;

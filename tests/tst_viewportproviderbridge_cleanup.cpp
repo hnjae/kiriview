@@ -1,10 +1,15 @@
 #include "imageviewportdiagnostics_p.h"
 #include "viewportproviderbridge_p.h"
 
+#include <QtCore/QCoreApplication>
+#include <QtCore/QEvent>
 #include <QtCore/QPointer>
+#include <QtCore/QScopeGuard>
+#include <QtCore/QThread>
 #include <QtGui/QImage>
 #include <QtTest/QTest>
 
+#include <atomic>
 #include <memory>
 
 namespace {
@@ -24,6 +29,46 @@ public:
     int closeCount = 0;
 };
 
+class IngressSession final
+    : public ImageSequenceProviderSession // clazy:exclude=missing-qobject-macro
+{
+public:
+    IngressSession(std::atomic<int>& nextOrder, std::atomic<int>& destructionOrder,
+        std::atomic<QThread*>& destructionThread)
+        : m_nextOrder(nextOrder)
+        , m_destructionOrder(destructionOrder)
+        , m_destructionThread(destructionThread)
+    {
+    }
+
+    ~IngressSession() override
+    {
+        m_destructionThread.store(QThread::currentThread());
+        m_destructionOrder.store(m_nextOrder.fetch_add(1));
+    }
+
+    void request(const ImageSequenceProviderRequest& request) override
+    {
+        if (request.kind() != ImageSequenceProviderRequestKind::Close || !m_closeFrameHandle) {
+            return;
+        }
+        emit providerEvent(ImageSequenceProviderEvent::frameReady(
+            {}, m_closeFrameHandle, ImageSequenceProviderFrameEnvelope::stillFrame()));
+        m_closeFrameHandle = nullptr;
+    }
+
+    void setCloseFrameHandle(ImageSequenceProviderFrameHandle* frameHandle)
+    {
+        m_closeFrameHandle = frameHandle;
+    }
+
+private:
+    std::atomic<int>& m_nextOrder;
+    std::atomic<int>& m_destructionOrder;
+    std::atomic<QThread*>& m_destructionThread;
+    ImageSequenceProviderFrameHandle* m_closeFrameHandle = nullptr;
+};
+
 class FaultInjectingExecutor final : public ViewportProviderExecutor
 {
 public:
@@ -37,36 +82,22 @@ public:
         return ViewportProviderExecutorOutcome::Completed;
     }
 
-    ViewportProviderExecutorOutcome queueSessionClose(ImageSequenceProviderSession* session,
+    ViewportProviderExecutorOutcome queueSessionClose(
+        const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
         ImageSequenceProviderRequestToken, ImageSequenceProviderRequestToken) override
     {
+        ImageSequenceProviderSession* session
+            = sessionControl ? sessionControl->session() : nullptr;
         if (!session) {
             return ViewportProviderExecutorOutcome::RetryableFailure;
         }
+        session->request(ImageSequenceProviderRequest::close());
+        sessionControl->completeCloseOnSessionAffinity();
         return ViewportProviderExecutorOutcome::Completed;
     }
 
-    ViewportProviderExecutorOutcome queueSessionCleanup(ImageSequenceProviderSession* session,
-        ImageSequenceProviderRequestToken, ImageSequenceProviderRequestToken) override
-    {
-        delete session;
-        return ViewportProviderExecutorOutcome::Completed;
-    }
-
-    ViewportProviderExecutorOutcome queueSessionDestruction(
-        ImageSequenceProviderSession* session) override
-    {
-        ++destructionAttempts;
-        if (destructionFailuresRemaining > 0) {
-            --destructionFailuresRemaining;
-            return ViewportProviderExecutorOutcome::RetryableFailure;
-        }
-        delete session;
-        return ViewportProviderExecutorOutcome::Completed;
-    }
-
-    ViewportProviderExecutorOutcome releaseFrameHandle(ImageSequenceProviderSession*,
-        ImageSequenceProviderThreadingContract,
+    ViewportProviderExecutorOutcome releaseFrameHandle(
+        const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
         ImageSequenceProviderFrameHandle* frameHandle) override
     {
         ++releaseAttempts;
@@ -75,13 +106,12 @@ public:
             return ViewportProviderExecutorOutcome::RetryableFailure;
         }
         delete frameHandle;
+        sessionControl->completeFrameReleaseOnSessionAffinity();
         return ViewportProviderExecutorOutcome::Completed;
     }
 
     int releaseFailuresRemaining = 0;
-    int destructionFailuresRemaining = 0;
     int releaseAttempts = 0;
-    int destructionAttempts = 0;
 };
 
 struct BridgeFixture
@@ -134,7 +164,8 @@ class ViewportProviderBridgeCleanupTest : public QObject
 
 private slots:
     void releaseFailureRetainsLeaseUntilRetrySucceeds();
-    void destructionFailureRetainsClosingSessionUntilRetrySucceeds();
+    void queuedFrameIngressOwnsHandleBeforeSessionClose_data();
+    void queuedFrameIngressOwnsHandleBeforeSessionClose();
 };
 
 void ViewportProviderBridgeCleanupTest::releaseFailureRetainsLeaseUntilRetrySucceeds()
@@ -174,45 +205,118 @@ void ViewportProviderBridgeCleanupTest::releaseFailureRetainsLeaseUntilRetrySucc
     QCOMPARE(*releaseCount, 1);
     QVERIFY(!fixture.handle);
     QVERIFY(!fixture.session);
-    QCOMPARE(fixture.executor.destructionAttempts, 1);
     QVERIFY(!fixture.bridge.hasPendingCleanup());
 }
 
-void ViewportProviderBridgeCleanupTest::destructionFailureRetainsClosingSessionUntilRetrySucceeds()
+void ViewportProviderBridgeCleanupTest::queuedFrameIngressOwnsHandleBeforeSessionClose_data()
 {
-    BridgeFixture fixture;
-    const auto releaseCount = std::make_shared<int>(0);
-    fixture.offerFrame(releaseCount);
-    fixture.executor.destructionFailuresRemaining = 1;
+    QTest::addColumn<ImageSequenceProviderThreadingContract>("threadingContract");
+    QTest::addColumn<bool>("emitDuringClose");
+    QTest::addColumn<bool>("shutdownRetired");
 
-    const ViewportProviderCleanupResult failed = fixture.bridge.drainCleanup();
+    QTest::newRow("affinity-bound-before-close")
+        << ImageSequenceProviderThreadingContract::AffinityBound << false << false;
+    QTest::newRow("thread-safe-before-close")
+        << ImageSequenceProviderThreadingContract::ThreadSafe << false << false;
+    QTest::newRow("affinity-bound-during-close")
+        << ImageSequenceProviderThreadingContract::AffinityBound << true << false;
+    QTest::newRow("thread-safe-during-close")
+        << ImageSequenceProviderThreadingContract::ThreadSafe << true << false;
+    QTest::newRow("affinity-bound-shutdown")
+        << ImageSequenceProviderThreadingContract::AffinityBound << true << true;
+    QTest::newRow("thread-safe-shutdown")
+        << ImageSequenceProviderThreadingContract::ThreadSafe << true << true;
+}
 
-    QCOMPARE(*releaseCount, 1);
-    QVERIFY(!fixture.handle);
-    QVERIFY(fixture.session);
-    QCOMPARE(fixture.executor.destructionAttempts, 1);
-    QVERIFY(fixture.bridge.hasPendingCleanup());
-    QCOMPARE(failed.diagnostics.size(), 1);
-    const auto destructionDiagnostic = failed.diagnostics.constFirst();
-    QCOMPARE(destructionDiagnostic.operation,
-        ImageViewportInternal::ProviderTransportOperation::Destruction);
-    QCOMPARE(destructionDiagnostic.generation, quint64(17));
-    QCOMPARE(destructionDiagnostic.sessionSerial, quint64(23));
-    QCOMPARE(destructionDiagnostic.providerLeaseId, quint64(0));
-    ImageViewportInternal::InternalObservability observability;
-    observability.recordProviderCleanupFailure(destructionDiagnostic);
-    const auto destructionObservation = observability.observations().constLast();
-    QCOMPARE(destructionObservation.cause,
-        ImageViewportInternal::InternalObservationCause::ProviderDestructionFailed);
-    QCOMPARE(destructionObservation.identity.generation, quint64(17));
-    QCOMPARE(destructionObservation.identity.sessionSerial, quint64(23));
+void ViewportProviderBridgeCleanupTest::queuedFrameIngressOwnsHandleBeforeSessionClose()
+{
+    QFETCH(ImageSequenceProviderThreadingContract, threadingContract);
+    QFETCH(bool, emitDuringClose);
+    QFETCH(bool, shutdownRetired);
 
-    fixture.bridge.drainCleanup();
+    QThread workerThread;
+    workerThread.start();
+    const auto workerCleanup = qScopeGuard([&workerThread]() {
+        workerThread.quit();
+        workerThread.wait(1000);
+    });
+    QObject workerMarker;
+    workerMarker.moveToThread(&workerThread);
 
-    QCOMPARE(*releaseCount, 1);
-    QVERIFY(!fixture.session);
-    QCOMPARE(fixture.executor.destructionAttempts, 2);
-    QVERIFY(!fixture.bridge.hasPendingCleanup());
+    std::atomic<int> nextOrder { 1 };
+    std::atomic<int> releaseCount { 0 };
+    std::atomic<int> releaseOrder { 0 };
+    std::atomic<int> destructionOrder { 0 };
+    std::atomic<QThread*> releaseThread { nullptr };
+    std::atomic<QThread*> destructionThread { nullptr };
+    QPointer<IngressSession> session;
+    auto factory = std::make_shared<ImageSequenceProviderSessionFactory>([&]() {
+        auto* created = new IngressSession(nextOrder, destructionOrder, destructionThread);
+        created->moveToThread(&workerThread);
+        session = created;
+        return ImageSequenceProviderSessionFactoryResult::created(created);
+    });
+
+    QObject callbackTarget;
+    ViewportProviderEvent deliveredEvent;
+    ViewportProviderBridge bridge;
+    const auto opened = bridge.openSession({ factory, threadingContract, 31, 47, &callbackTarget,
+        [&](const ViewportProviderEvent& event) { deliveredEvent = event; } });
+    QVERIFY(opened.opened);
+    QVERIFY(session);
+    if (shutdownRetired) {
+        bridge.releaseAllFrameLeases();
+    }
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    auto* handle
+        = new ImageSequenceProviderFrameHandle(new ImageFrame(image), [&](ImageFrame* frame) {
+              releaseThread.store(QThread::currentThread());
+              releaseOrder.store(nextOrder.fetch_add(1));
+              releaseCount.fetch_add(1);
+              delete frame;
+          });
+    if (emitDuringClose) {
+        QVERIFY(QMetaObject::invokeMethod(
+            session, [session, handle]() { session->setCloseFrameHandle(handle); },
+            Qt::BlockingQueuedConnection));
+    } else {
+        QVERIFY(QMetaObject::invokeMethod(
+            session,
+            [session, handle]() {
+                emit session->providerEvent(ImageSequenceProviderEvent::frameReady(
+                    {}, handle, ImageSequenceProviderFrameEnvelope::stillFrame()));
+            },
+            Qt::BlockingQueuedConnection));
+    }
+
+    const auto closed = bridge.closeSession({}, {});
+    QVERIFY(closed.delivered);
+    QVERIFY(QMetaObject::invokeMethod(&workerMarker, []() { }, Qt::BlockingQueuedConnection));
+
+    QVERIFY2(session, "session destruction overtook queued frame ownership capture");
+    QCOMPARE(releaseCount.load(), 0);
+
+    QCoreApplication::sendPostedEvents(
+        shutdownRetired ? nullptr : &callbackTarget, QEvent::MetaCall);
+    QVERIFY(deliveredEvent.frameLeaseId != 0);
+    if (!shutdownRetired) {
+        bridge.completeFrameEventDelivery(deliveredEvent.frameLeaseId);
+        bridge.reconcileFrameLeases({});
+        bridge.drainCleanup();
+    }
+    QVERIFY(QMetaObject::invokeMethod(&workerMarker, []() { }, Qt::BlockingQueuedConnection));
+
+    QCOMPARE(releaseCount.load(), 1);
+    QVERIFY(!session);
+    QCOMPARE(releaseThread.load(),
+        threadingContract == ImageSequenceProviderThreadingContract::AffinityBound
+            ? &workerThread
+            : QThread::currentThread());
+    QCOMPARE(destructionThread.load(), &workerThread);
+    QVERIFY(releaseOrder.load() > 0);
+    QVERIFY(destructionOrder.load() > releaseOrder.load());
 }
 
 QTEST_MAIN(ViewportProviderBridgeCleanupTest)

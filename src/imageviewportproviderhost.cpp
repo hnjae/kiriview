@@ -135,10 +135,14 @@ void ImageViewportProviderHost::applyTransportEffects(const ViewportProviderTran
             }
             break;
         }
-        case ViewportProviderTransportCommand::Kind::CloseSession:
+        case ViewportProviderTransportCommand::Kind::CloseSession: {
             recordTransportResult(bridge.closeSession(
                 effect.sessionClose.metadataToken, effect.sessionClose.frameToken));
+            if (bridge.hasPendingCleanup()) {
+                scheduleCleanupRetry(true);
+            }
             break;
+        }
         case ViewportProviderTransportCommand::Kind::ScheduleDeferredEvent:
             if (!scheduleDeferredEngineEvent(effect.deferredEvent, effect.role)) {
                 return;
