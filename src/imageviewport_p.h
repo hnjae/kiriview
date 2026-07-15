@@ -10,6 +10,10 @@
 #include "viewportitemtransaction_p.h"
 #include <ImageViewport/ImageViewport>
 
+#include <QtCore/QMutex>
+
+#include <optional>
+
 class ImageViewportPrivate
 {
 public:
@@ -86,6 +90,9 @@ public:
     quint64 pendingRenderGenerationForTest() const;
     quint64 pendingRenderPayloadIdForTest() const;
     quint64 secondaryPendingRenderPayloadIdForTest() const;
+    quint64 currentRenderAttemptForTest() const;
+    void reportRenderQualityFallbackForTest(
+        quint64 renderAttempt, bool smoothingUnavailable, bool mipmapUnavailable);
     ImageViewportInternal::RenderFailureDiagnostic
     lastAcceptedRenderFailureDiagnosticForTest() const;
     ImageViewportInternal::ProviderTransportDiagnostic
@@ -152,6 +159,12 @@ public:
     QQuickWindow* window() const;
     void update();
     QSGNode* updatePaintNode(QSGNode* oldNode);
+    void prepareRenderSynchronization();
+    std::optional<ViewportRenderSynchronization> renderSynchronizationForHost() const;
+    void applyRenderHostFact(RenderAdapter::CommitResult result,
+        ViewportRenderAcknowledgement acknowledgement,
+        ViewportRenderQualityFallbackFact qualityFallback, bool imagePresent,
+        ViewportRenderSynchronization synchronization);
     void geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry,
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
 
@@ -166,4 +179,7 @@ public:
     ViewportPlaybackScheduleEffect pendingPlaybackSchedule;
     QVector<ViewportProviderHostEvent> pendingProviderHostEvents;
     bool drainingProviderHostEvents = false;
+    mutable QMutex renderMailboxMutex;
+    ViewportRenderSynchronization renderMailbox;
+    bool renderMailboxValid = false;
 };

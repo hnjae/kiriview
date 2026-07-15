@@ -13,6 +13,7 @@ struct ImageViewportRenderHostResult
     QSGNode* node = nullptr;
     RenderAdapter::CommitResult result = RenderAdapter::CommitResult::Empty;
     ViewportRenderAcknowledgement acknowledgement;
+    ViewportRenderQualityFallbackFact qualityFallback;
     bool imagePresent = false;
 };
 

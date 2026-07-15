@@ -35,6 +35,9 @@ quint64 displayedRequestIdForTest(const ImageViewport& item);
 quint64 pendingRenderGenerationForTest(const ImageViewport& item);
 quint64 pendingRenderPayloadIdForTest(const ImageViewport& item);
 quint64 secondaryPendingRenderPayloadIdForTest(const ImageViewport& item);
+quint64 currentRenderAttemptForTest(const ImageViewport& item);
+void reportRenderQualityFallbackForTest(ImageViewport& item, quint64 renderAttempt,
+    bool smoothingUnavailable, bool mipmapUnavailable);
 void acknowledgeRenderCommitForTest(
     ImageViewport& item, quint64 generation, quint64 requestId, quint64 preparedPayloadId);
 void acknowledgeRenderCommitForTest(ImageViewport& item, quint64 generation, quint64 requestId,

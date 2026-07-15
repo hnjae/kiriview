@@ -189,6 +189,18 @@ quint64 secondaryPendingRenderPayloadIdForTest(const ImageViewport& item)
     return ImageViewportPrivate::get(item)->secondaryPendingRenderPayloadIdForTest();
 }
 
+quint64 currentRenderAttemptForTest(const ImageViewport& item)
+{
+    return ImageViewportPrivate::get(item)->currentRenderAttemptForTest();
+}
+
+void reportRenderQualityFallbackForTest(ImageViewport& item, quint64 renderAttempt,
+    bool smoothingUnavailable, bool mipmapUnavailable)
+{
+    ImageViewportPrivate::get(item)->reportRenderQualityFallbackForTest(
+        renderAttempt, smoothingUnavailable, mipmapUnavailable);
+}
+
 void acknowledgeRenderCommitForTest(
     ImageViewport& item, quint64 generation, quint64 requestId, quint64 preparedPayloadId)
 {

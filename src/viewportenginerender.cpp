@@ -52,6 +52,26 @@ ViewportEngineRenderFailureTransition ViewportEngine::acknowledgeRenderFailure(
         reduction.diagnostic };
 }
 
+ViewportEngineRenderQualityFallbackTransition ViewportEngine::handleRenderQualityFallback(
+    const ViewportRenderQualityFallbackFact& fact)
+{
+    ViewportEngineRenderQualityFallbackTransition result;
+    if (fact.synchronizationAttempt == 0
+        || fact.synchronizationAttempt != m_state->renderCoordination.nextSynchronizationAttempt) {
+        return result;
+    }
+    const QString warning = fact.smoothingUnavailable || fact.mipmapUnavailable
+        ? QStringLiteral("requested rendering quality is unavailable on the active backend")
+        : QString();
+    if (m_state->requestState.request.warningString == warning) {
+        return result;
+    }
+    m_state->requestState.request.warningString = warning;
+    result.changes.diagnostics = true;
+    result.changes.displayRevision = true;
+    return result;
+}
+
 ViewportEngineGeometryChangeTransition ViewportEngine::handleGeometryChanged(
     const ViewportEngineGeometryChangeRequest& input)
 {

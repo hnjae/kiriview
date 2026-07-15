@@ -102,6 +102,11 @@ struct ViewportEngineRenderFailureTransition
     ImageViewportInternal::RenderFailureDiagnostic diagnostic;
 };
 
+struct ViewportEngineRenderQualityFallbackTransition
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+};
+
 struct ViewportEnginePlaybackCommandRequest
 {
     ViewportPlaybackCommand command;

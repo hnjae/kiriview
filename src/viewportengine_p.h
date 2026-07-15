@@ -48,6 +48,8 @@ public:
         const ViewportEngineRenderAcknowledgementRequest& input);
     ViewportEngineRenderFailureTransition acknowledgeRenderFailure(
         const ViewportEngineRenderAcknowledgementRequest& input);
+    ViewportEngineRenderQualityFallbackTransition handleRenderQualityFallback(
+        const ViewportRenderQualityFallbackFact& fact);
     ViewportEngineGeometryChangeTransition handleGeometryChanged(
         const ViewportEngineGeometryChangeRequest& input);
     ViewportEngineTransition handleProviderHostEvent(
@@ -63,7 +65,7 @@ public:
         const ViewportEnginePresentationCommandRequest& input);
     ImageViewportInternal::ViewportChangeSet publishChanges(
         ImageViewportInternal::ViewportChangeSet changes);
-    ViewportProviderFrameTransportEffect closeProviderSession(ImageViewportPageRole role);
+    ViewportProviderTransportBatch shutdown();
 
 private:
     using GeometryInput = ViewportEngineGeometryInput;
@@ -114,6 +116,7 @@ private:
         ImageViewportPageRole role, const QString& diagnostic);
     ViewportProviderFrameQueueFlushResult reduceQueuedProviderFrameRequest(
         ImageViewportPageRole role, ViewportEngineViewportInput input);
+    ViewportProviderFrameTransportEffect closeProviderSession(ImageViewportPageRole role);
 
     static constexpr std::size_t roleIndex(ImageViewportPageRole role)
     {

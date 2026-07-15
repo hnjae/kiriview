@@ -664,8 +664,10 @@ void ImageViewportRenderSceneGraphTest::qualityAndMirroringConfigureTextureNode(
     QCOMPARE(imageNode->filtering(), QSGTexture::Nearest);
     if (imageNode->texture()->hasMipmaps()) {
         QCOMPARE(imageNode->mipmapFiltering(), QSGTexture::Linear);
+        QVERIFY(viewportWarningString(item).isEmpty());
     } else {
         QCOMPARE(imageNode->mipmapFiltering(), QSGTexture::None);
+        QVERIFY(!viewportWarningString(item).isEmpty());
     }
     QVERIFY(imageNode->textureCoordinatesTransform() & QSGImageNode::MirrorHorizontally);
     QVERIFY(imageNode->textureCoordinatesTransform() & QSGImageNode::MirrorVertically);

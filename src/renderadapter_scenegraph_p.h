@@ -36,6 +36,8 @@ struct Output
     QVector<RenderAdapter::RolePayload> rolePayloads;
     ImageViewportPageRole failedRole = ImageViewportPageRole::Primary;
     RenderFailureCause failureCause = RenderFailureCause::None;
+    bool smoothingUnavailable = false;
+    bool mipmapUnavailable = false;
 };
 
 Output createNode(RenderAdapter adapter, QSGNode* oldNode, const Input& input);

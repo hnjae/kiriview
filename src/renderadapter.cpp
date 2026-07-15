@@ -181,6 +181,7 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
         = input.sceneGraphFactory ? *input.sceneGraphFactory : defaultSceneGraphFactory;
     QVector<RenderAdapter::RolePayload> rolePayloads;
     rolePayloads.reserve(plan.imageLayers.size());
+    bool mipmapUnavailable = false;
     for (const RenderAdapter::RenderPlan::ImageLayer& layer : plan.imageLayers) {
         const auto& payload = layer.preparedPayload;
         const ImageViewportInternal::PreparedPayloadIdentity payloadIdentity
@@ -198,6 +199,7 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
             return { oldNode, RenderAdapter::CommitResult::Failed, payloadIdentity, rolePayloads,
                 layer.role, RenderFailureCause::TextureCreationFailure };
         }
+        mipmapUnavailable = mipmapUnavailable || (plan.mipmap && !texture->hasMipmaps());
         QSGImageNode* imageNode = sceneGraphFactory.createImageNode(input.window);
         if (!imageNode) {
             delete texture;
@@ -211,7 +213,8 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
         imageNode->setRect(layer.unrotatedTargetRect);
         imageNode->setSourceRect(layer.physicalSourceRect);
         imageNode->setFiltering(plan.smoothing ? QSGTexture::Linear : QSGTexture::Nearest);
-        imageNode->setMipmapFiltering(plan.mipmap ? QSGTexture::Linear : QSGTexture::None);
+        imageNode->setMipmapFiltering(
+            plan.mipmap && texture->hasMipmaps() ? QSGTexture::Linear : QSGTexture::None);
         QSGImageNode::TextureCoordinatesTransformMode transform = {};
         if (layer.mirrorHorizontally) {
             transform |= QSGImageNode::MirrorHorizontally;
@@ -230,5 +233,6 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
         }
     }
     delete oldNode;
-    return { root, plan.result, plan.preparedPayload, rolePayloads };
+    return { root, plan.result, plan.preparedPayload, rolePayloads,
+        ImageViewportPageRole::Primary, RenderFailureCause::None, false, mipmapUnavailable };
 }

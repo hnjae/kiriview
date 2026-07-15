@@ -20,6 +20,7 @@ public:
     ImageViewportProviderHost(
         QObject& dispatchContext, EventSink eventSink, DiagnosticSink diagnosticSink);
 
+    void shutdown();
     void applyTransportEffects(const ViewportProviderTransportBatch& effects);
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES

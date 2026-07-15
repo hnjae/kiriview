@@ -4,6 +4,9 @@
 #include "renderadapter_scenegraph_p.h"
 #include "viewportprovidertransporteffects_p.h"
 
+#include <QtCore/QMetaObject>
+#include <QtCore/QMutexLocker>
+#include <QtCore/QThread>
 #include <QtQuick/QQuickWindow>
 #include <QtQuick/QSGNode>
 
@@ -52,33 +55,77 @@ ImageViewportRenderHostResult ImageViewportRenderHost::synchronize(QSGNode* oldN
     return { render.node, render.result,
         { render.preparedPayload, std::move(rolePayloads), render.failedRole,
             render.failureCause, synchronization.attempt },
+        { synchronization.attempt, render.smoothingUnavailable, render.mipmapUnavailable },
         imagePresent };
 }
 
 QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
 {
-    const ViewportRenderSynchronization synchronization
-        = engine.beginRenderSynchronization(
-            { { itemBounds(), effectiveDevicePixelRatio(*this) } });
+    const auto synchronizationValue = renderSynchronizationForHost();
+    if (!synchronizationValue) {
+        return oldNode;
+    }
+    const ViewportRenderSynchronization synchronization = *synchronizationValue;
     ImageViewportRenderHostResult render
         = renderHost.synchronize(oldNode, window(), synchronization);
     if (render.result == RenderAdapter::CommitResult::Failed) {
         QSGNode* fallbackNode = render.node;
-        const auto reduced
-            = engine.acknowledgeRenderFailure({ render.acknowledgement });
-        ViewportEngineTransition transition;
-        transition.changes = reduced.changes;
-        transition.playbackSchedule = reduced.playbackSchedule;
-        applyEngineTransition(std::move(transition));
-        if (fallbackNode && displayStatus() != ImageViewportDisplayStatus::Empty) {
+        applyRenderHostFact(render.result, std::move(render.acknowledgement),
+            render.qualityFallback, render.imagePresent, synchronization);
+        if (fallbackNode
+            && synchronization.oldDisplayStatus != ImageViewportDisplayStatus::Empty) {
             return fallbackNode;
         }
         delete fallbackNode;
         return nullptr;
     }
     if (render.result == RenderAdapter::CommitResult::Committed) {
-        const auto reduced = engine.acknowledgeRenderCommit({ render.acknowledgement,
-            render.imagePresent, synchronization.attempt, synchronization.pendingTargetCommit,
+        applyRenderHostFact(render.result, std::move(render.acknowledgement),
+            render.qualityFallback, render.imagePresent, synchronization);
+    }
+    return render.node;
+}
+
+void ImageViewportPrivate::prepareRenderSynchronization()
+{
+    const ViewportRenderSynchronization synchronization
+        = engine.beginRenderSynchronization(
+            { { itemBounds(), effectiveDevicePixelRatio(*this) } });
+    const QMutexLocker lock(&renderMailboxMutex);
+    renderMailbox = synchronization;
+    renderMailboxValid = true;
+}
+
+std::optional<ViewportRenderSynchronization>
+ImageViewportPrivate::renderSynchronizationForHost() const
+{
+    const QMutexLocker lock(&renderMailboxMutex);
+    if (!renderMailboxValid) {
+        return std::nullopt;
+    }
+    return renderMailbox;
+}
+
+void ImageViewportPrivate::applyRenderHostFact(RenderAdapter::CommitResult result,
+    ViewportRenderAcknowledgement acknowledgement,
+    ViewportRenderQualityFallbackFact qualityFallback, bool imagePresent,
+    ViewportRenderSynchronization synchronization)
+{
+    auto apply = [this, result, acknowledgement = std::move(acknowledgement), qualityFallback,
+                     imagePresent, synchronization = std::move(synchronization)]() mutable {
+        if (result == RenderAdapter::CommitResult::Failed) {
+            const auto reduced = engine.acknowledgeRenderFailure({ acknowledgement });
+            ViewportEngineTransition transition;
+            transition.changes = reduced.changes;
+            transition.playbackSchedule = reduced.playbackSchedule;
+            applyEngineTransition(std::move(transition));
+            return;
+        }
+        if (result != RenderAdapter::CommitResult::Committed) {
+            return;
+        }
+        const auto reduced = engine.acknowledgeRenderCommit({ acknowledgement, imagePresent,
+            synchronization.attempt, synchronization.pendingTargetCommit,
             synchronization.pendingSecondaryProviderCommit, synchronization.preparedPayload,
             synchronization.oldDisplayStatus, synchronization.oldContentRect,
             synchronization.oldVisibleImageRect, synchronization.geometryState });
@@ -86,8 +133,15 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
         transition.changes = reduced.changes;
         transition.playbackSchedule = reduced.playbackSchedule;
         applyEngineTransition(std::move(transition));
+        ViewportEngineTransition qualityTransition;
+        qualityTransition.changes = engine.handleRenderQualityFallback(qualityFallback).changes;
+        applyEngineTransition(std::move(qualityTransition));
+    };
+    if (QThread::currentThread() == q->thread()) {
+        apply();
+        return;
     }
-    return render.node;
+    QMetaObject::invokeMethod(q, std::move(apply), Qt::QueuedConnection);
 }
 
 void ImageViewportPrivate::geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry,

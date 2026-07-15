@@ -20,14 +20,8 @@ ImageViewportPrivate::ImageViewportPrivate(ImageViewport* viewport)
 ImageViewportPrivate::~ImageViewportPrivate()
 {
     playbackScheduler.stop();
-    ViewportProviderTransportBatch effects;
-    auto primary = engine.closeProviderSession(PageRole::Primary);
-    primary.closeSession = true;
-    appendProviderTransport(effects, primary, PageRole::Primary);
-    auto secondary = engine.closeProviderSession(PageRole::Secondary);
-    secondary.closeSession = true;
-    appendProviderTransport(effects, secondary, PageRole::Secondary);
-    providerHost.applyTransportEffects(effects);
+    providerHost.applyTransportEffects(engine.shutdown());
+    providerHost.shutdown();
 }
 
 double ImageViewportPrivate::width() const { return q->width(); }

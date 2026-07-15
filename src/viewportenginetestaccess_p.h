@@ -82,6 +82,10 @@ public:
     {
         engine.setNextRevisionValueForTest(value);
     }
+    static quint64 currentRenderAttempt(const ViewportEngine& engine)
+    {
+        return engine.m_state->renderCoordination.nextSynchronizationAttempt;
+    }
     static ImageViewportInternal::ProviderSessionState& providerSession(
         ViewportEngine& engine, ImageViewportPageRole role)
     {

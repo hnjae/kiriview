@@ -43,7 +43,58 @@ private slots:
     void staleRenderFailureDoesNotOverwriteActiveDiagnostics();
     void playbackWaitingRenderCommitAcknowledgementResumesWithoutSceneGraph();
     void geometryChangeRecoversRenderWaitingWithoutSceneGraph();
+    void renderingQualityFallbackOwnsWarningAndDisplayRevision();
 };
+
+void ImageViewportRenderCommitTest::renderingQualityFallbackOwnsWarningAndDisplayRevision()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::red);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    acknowledgePendingPrimaryRenderCommitForTest(item);
+    QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Ready);
+
+    const quint64 attempt = currentRenderAttemptForTest(item);
+    QVERIFY(attempt > 0);
+    const ImageViewportRevisionToken requestBefore = viewportRequestRevision(item);
+    const ImageViewportRevisionToken displayBefore = viewportDisplayRevision(item);
+    const ImageViewportRevisionToken snapshotBefore = item.state().revisions().snapshot();
+
+    reportRenderQualityFallbackForTest(item, attempt, true, false);
+    QVERIFY(!viewportWarningString(item).isEmpty());
+    QCOMPARE(viewportRequestRevision(item), requestBefore);
+    QVERIFY(viewportDisplayRevision(item) != displayBefore);
+    QVERIFY(item.state().revisions().snapshot() != snapshotBefore);
+    QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Ready);
+
+    const QString activeWarning = viewportWarningString(item);
+    const ImageViewportRevisionToken activeDisplayRevision = viewportDisplayRevision(item);
+    const ImageViewportRevisionToken activeSnapshotRevision = item.state().revisions().snapshot();
+    reportRenderQualityFallbackForTest(item, attempt - 1, false, false);
+    QCOMPARE(viewportWarningString(item), activeWarning);
+    QCOMPARE(viewportDisplayRevision(item), activeDisplayRevision);
+    QCOMPARE(item.state().revisions().snapshot(), activeSnapshotRevision);
+
+    reportRenderQualityFallbackForTest(item, attempt, false, false);
+    QVERIFY(viewportWarningString(item).isEmpty());
+    QCOMPARE(viewportRequestRevision(item), requestBefore);
+    QVERIFY(viewportDisplayRevision(item) != activeDisplayRevision);
+    QVERIFY(item.state().revisions().snapshot() != activeSnapshotRevision);
+    QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Ready);
+
+    reportRenderQualityFallbackForTest(item, attempt, true, true);
+    QVERIFY(!viewportWarningString(item).isEmpty());
+    item.clear();
+    QVERIFY(viewportWarningString(item).isEmpty());
+}
 
 void ImageViewportRenderCommitTest::stillAssignmentWaitsForRenderCommitWithPositiveGeometry()
 {

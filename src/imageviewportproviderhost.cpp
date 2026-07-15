@@ -14,6 +14,12 @@ ImageViewportProviderHost::ImageViewportProviderHost(
 {
 }
 
+void ImageViewportProviderHost::shutdown()
+{
+    recordTransportResult(providerBridge.closeSession({}, {}));
+    recordTransportResult(secondaryProviderBridge.closeSession({}, {}));
+}
+
 void ImageViewportProviderHost::applyFrameTransportEffect(
     const ViewportProviderFrameTransportEffect& effect, PageRole role)
 {

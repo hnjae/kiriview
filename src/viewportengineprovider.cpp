@@ -120,6 +120,16 @@ ViewportProviderFrameTransportEffect ViewportEngine::closeProviderSession(
     return closeViewportEngineProviderSession(std::move(access));
 }
 
+ViewportProviderTransportBatch ViewportEngine::shutdown()
+{
+    ViewportProviderTransportBatch effects;
+    appendProviderTransport(effects, closeProviderSession(ImageViewportPageRole::Primary),
+        ImageViewportPageRole::Primary);
+    appendProviderTransport(effects, closeProviderSession(ImageViewportPageRole::Secondary),
+        ImageViewportPageRole::Secondary);
+    return effects;
+}
+
 ViewportProviderSessionOpenResult ViewportEngine::reduceProviderSessionOpened(
     ImageViewportPageRole role, ViewportEngineViewportInput input)
 {

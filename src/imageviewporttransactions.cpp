@@ -56,6 +56,7 @@ void ImageViewportPrivate::applyEngineTransition(ViewportEngineTransition transi
     internalDiagnostics.recordRenderFailure(transition.changes.renderFailureDiagnostic);
 
     if (transition.changes.scheduleUpdate) {
+        prepareRenderSynchronization();
         update();
     }
     refreshStateSnapshot();
@@ -239,6 +240,22 @@ quint64 ImageViewportPrivate::pendingRenderPayloadIdForTest() const
 quint64 ImageViewportPrivate::secondaryPendingRenderPayloadIdForTest() const
 {
     return ViewportEngineTestAccess::display(engine).roles[1].pendingRenderPayload.payloadId;
+}
+
+quint64 ImageViewportPrivate::currentRenderAttemptForTest() const
+{
+    return ViewportEngineTestAccess::currentRenderAttempt(engine);
+}
+
+void ImageViewportPrivate::reportRenderQualityFallbackForTest(
+    quint64 renderAttempt, bool smoothingUnavailable, bool mipmapUnavailable)
+{
+    ViewportEngineTransition transition;
+    transition.changes = engine
+                             .handleRenderQualityFallback(
+                                 { renderAttempt, smoothingUnavailable, mipmapUnavailable })
+                             .changes;
+    applyEngineTransition(std::move(transition));
 }
 
 ImageViewportInternal::RenderFailureDiagnostic

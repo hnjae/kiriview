@@ -25,6 +25,13 @@ struct ViewportRenderAcknowledgement
     quint64 synchronizationAttempt = 0;
 };
 
+struct ViewportRenderQualityFallbackFact
+{
+    quint64 synchronizationAttempt = 0;
+    bool smoothingUnavailable = false;
+    bool mipmapUnavailable = false;
+};
+
 struct ViewportRenderLayer
 {
     ImageViewportPageRole role = ImageViewportPageRole::Primary;
