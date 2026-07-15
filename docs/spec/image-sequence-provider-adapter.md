@@ -28,6 +28,8 @@ Every metadata, frame, position, or playback request carries an opaque token gen
 
 Session entry points are called according to the descriptor threading contract. `AffinityBound` calls entry points on the session QObject affinity. `ThreadSafe` permits the viewport-owned command-processing affinity to call entry points directly. QObject destruction still occurs on the session affinity for both contracts.
 
+`Close` is the session quiescence boundary. Before its entry point returns, the provider must stop starting event emissions for that session and detach or synchronize facilities that could access the session QObject afterward. An event emission that started before `Close` returned may finish as a late event; the viewport still admits its ownership transfer for cleanup and applies the normal stale-event rule. The viewport delivers `Close` asynchronously with respect to public viewport progress and does not wait for provider cleanup on the caller's command path.
+
 ## Provider Events
 
 The session reports one signal: `providerEvent(const ImageSequenceProviderEvent&)`. Event values, event kinds, unsupported causes, token echo rules, and diagnostic fields follow the canonical schema in [ImageSequence Provider Protocol](image-sequence-provider-protocol.md).

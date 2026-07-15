@@ -50,6 +50,8 @@ Demand identity and limits have fixed meanings. `requestRevision` carries `state
 
 The viewport never invokes frame-handle release from the Qt Quick render thread. For `AffinityBound` providers, release callbacks run on the session QObject affinity; for `ThreadSafe` providers, release callbacks run on the viewport command-processing affinity. Release callbacks are not reentrant with provider request entry points for the same session, may occur before or after best-effort cancel or close delivery, and must complete before provider-session destruction finishes for handles produced by that session.
 
+The return of the provider's `Close` entry point quiesces new event emission for that session. Event emissions already in progress may complete afterward and remain subject to stale admission and exact-once frame-handle release. Provider-session destruction occurs on the session QObject affinity only after `Close` has returned and every transferred frame handle from that session has completed its release callback.
+
 ## Provider Enums And Tokens
 
 `ImageSequenceAuthoredAnimationLoopMode` values are `Unavailable`, `PlayOnce`, `Finite`, and `Infinite`. Authored `loopCount` always counts total plays including the first: it is `-1` for `Unavailable`, `1` for `PlayOnce`, at least `2` for `Finite`, and `-1` for `Infinite`. Adapters for formats that encode repeat count must normalize that value into total plays.
