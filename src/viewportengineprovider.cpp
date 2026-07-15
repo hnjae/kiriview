@@ -231,8 +231,6 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
         observation.identity.role = event.role;
         observation.identity.generation = event.generation;
         observation.identity.sessionSerial = event.sessionSerial;
-        observation.identity.requestId
-            = m_state->requestState.request.roles[roleIndex(event.role)].activeRequest.identity.id;
         observation.identity.providerToken
             = ImageViewportInternal::ProviderRequestTokenPrivateAccess::value(event.token);
         stale.observations.append(observation);
