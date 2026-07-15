@@ -3,7 +3,22 @@
 #include <QtCore/QMetaObject>
 #include <QtCore/QObject>
 
+#include <array>
+
 using namespace ImageViewportInternal;
+
+namespace {
+constexpr std::array<int, 5> cleanupRetryDelays { 0, 10, 50, 250, 1000 };
+
+ViewportProviderCleanupResult mergedCleanupResult(
+    ViewportProviderCleanupResult primary, const ViewportProviderCleanupResult& secondary)
+{
+    primary.diagnostics.append(secondary.diagnostics);
+    primary.progress = primary.progress || secondary.progress;
+    primary.pending = primary.pending || secondary.pending;
+    return primary;
+}
+}
 
 ImageViewportProviderHost::ImageViewportProviderHost(
     QObject& dispatchContext, EventSink eventSink, DiagnosticSink diagnosticSink)
@@ -12,13 +27,19 @@ ImageViewportProviderHost::ImageViewportProviderHost(
     , diagnosticSink(std::move(diagnosticSink))
     , secondaryProviderBridge(PageRole::Secondary)
 {
+    cleanupRetryTimer.setSingleShot(true);
+    QObject::connect(&cleanupRetryTimer, &QTimer::timeout, [this]() { retryPendingCleanup(); });
 }
 
 void ImageViewportProviderHost::shutdown()
 {
-    releaseAllFrameLeases();
+    cleanupRetryTimer.stop();
+    recordCleanupResult(mergedCleanupResult(
+        providerBridge.releaseAllFrameLeases(), secondaryProviderBridge.releaseAllFrameLeases()));
     recordTransportResult(providerBridge.closeSession({}, {}));
     recordTransportResult(secondaryProviderBridge.closeSession({}, {}));
+    retryPendingCleanup();
+    cleanupRetryTimer.stop();
 }
 
 void ImageViewportProviderHost::completeFrameEventDelivery(quint64 leaseId)
@@ -36,22 +57,16 @@ void ImageViewportProviderHost::reconcileFrameLeases(const QSet<quint64>& liveLe
     secondaryProviderBridge.reconcileFrameLeases(liveLeaseIds);
 }
 
-void ImageViewportProviderHost::releaseRetiredFrameLeases()
+void ImageViewportProviderHost::drainCleanup()
 {
-    providerBridge.releaseRetiredFrameLeases();
-    secondaryProviderBridge.releaseRetiredFrameLeases();
-}
-
-bool ImageViewportProviderHost::hasRetiredFrameLeases() const
-{
-    return providerBridge.hasRetiredFrameLeases()
-        || secondaryProviderBridge.hasRetiredFrameLeases();
+    recordCleanupResult(mergedCleanupResult(
+        providerBridge.drainCleanup(false), secondaryProviderBridge.drainCleanup(false)));
 }
 
 void ImageViewportProviderHost::releaseAllFrameLeases()
 {
-    providerBridge.releaseAllFrameLeases();
-    secondaryProviderBridge.releaseAllFrameLeases();
+    recordCleanupResult(mergedCleanupResult(
+        providerBridge.releaseAllFrameLeases(), secondaryProviderBridge.releaseAllFrameLeases()));
 }
 
 void ImageViewportProviderHost::applyFrameTransportEffect(
@@ -96,8 +111,7 @@ void ImageViewportProviderHost::applyTransportEffects(const ViewportProviderTran
         switch (effect.kind) {
         case ViewportProviderTransportCommand::Kind::OpenSession: {
             const auto openResult = bridge.openSession({ effect.sessionFactory,
-                effect.threadingContract, effect.generation, effect.sessionSerial,
-                &dispatchContext,
+                effect.threadingContract, effect.generation, effect.sessionSerial, &dispatchContext,
                 [this](const ViewportProviderEvent& event) { handleProviderEvent(event); } });
             if (!openResult.opened) {
                 applyHostEvent(
@@ -160,6 +174,47 @@ void ImageViewportProviderHost::recordTransportResult(const ViewportProviderTran
     if (diagnosticSink && result.diagnostic.valid) {
         diagnosticSink(result.diagnostic);
     }
+    if (result.diagnostic.valid && result.diagnostic.pendingCleanup) {
+        scheduleCleanupRetry(false);
+    }
+}
+
+void ImageViewportProviderHost::recordCleanupResult(const ViewportProviderCleanupResult& result)
+{
+    if (diagnosticSink) {
+        for (const ProviderTransportDiagnostic& diagnostic : result.diagnostics) {
+            if (diagnostic.valid) {
+                diagnosticSink(diagnostic);
+            }
+        }
+    }
+    if (!result.pending) {
+        cleanupRetryTimer.stop();
+        cleanupRetryDelayIndex = 0;
+        return;
+    }
+    scheduleCleanupRetry(result.progress);
+}
+
+void ImageViewportProviderHost::scheduleCleanupRetry(bool progress)
+{
+    if (progress) {
+        cleanupRetryTimer.stop();
+        cleanupRetryDelayIndex = 0;
+    }
+    if (cleanupRetryTimer.isActive()) {
+        return;
+    }
+    cleanupRetryTimer.start(cleanupRetryDelays[size_t(cleanupRetryDelayIndex)]);
+    if (!progress && cleanupRetryDelayIndex < int(cleanupRetryDelays.size()) - 1) {
+        ++cleanupRetryDelayIndex;
+    }
+}
+
+void ImageViewportProviderHost::retryPendingCleanup()
+{
+    recordCleanupResult(mergedCleanupResult(
+        providerBridge.drainCleanup(true), secondaryProviderBridge.drainCleanup(true)));
 }
 
 bool ImageViewportProviderHost::scheduleDeferredEngineEvent(

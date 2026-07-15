@@ -111,10 +111,11 @@ void ImageViewportPrivate::drainExternalWork()
         return;
     }
     drainingExternalWork = true;
-    while (!pendingProviderHostEvents.isEmpty() || !pendingProviderTransport.isEmpty()
-        || providerHost.hasRetiredFrameLeases()) {
-        providerHost.releaseRetiredFrameLeases();
+    providerHost.drainCleanup();
+    while (!pendingProviderHostEvents.isEmpty() || !pendingProviderTransport.isEmpty()) {
+        providerHost.drainCleanup();
         drainProviderHostEvents();
+        providerHost.drainCleanup();
         if (pendingProviderTransport.isEmpty()) {
             continue;
         }

@@ -1,11 +1,12 @@
 #pragma once
 
-#include "viewportprovidercontract_p.h"
 #include "viewportproviderbridge_p.h"
+#include "viewportprovidercontract_p.h"
 #include <ImageViewport/ImageViewport>
 
-#include <functional>
 #include <QtCore/QSet>
+#include <QtCore/QTimer>
+#include <functional>
 
 class QObject;
 
@@ -15,8 +16,7 @@ public:
     using PageRole = ImageViewportPageRole;
 
     using EventSink = std::function<void(ViewportProviderHostEvent)>;
-    using DiagnosticSink
-        = std::function<void(ImageViewportInternal::ProviderTransportDiagnostic)>;
+    using DiagnosticSink = std::function<void(ImageViewportInternal::ProviderTransportDiagnostic)>;
 
     ImageViewportProviderHost(
         QObject& dispatchContext, EventSink eventSink, DiagnosticSink diagnosticSink);
@@ -25,8 +25,7 @@ public:
     void applyTransportEffects(const ViewportProviderTransportBatch& effects);
     void completeFrameEventDelivery(quint64 leaseId);
     void reconcileFrameLeases(const QSet<quint64>& liveLeaseIds);
-    void releaseRetiredFrameLeases();
-    bool hasRetiredFrameLeases() const;
+    void drainCleanup();
     void releaseAllFrameLeases();
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
@@ -45,8 +44,10 @@ private:
 
     ViewportProviderBridge& bridgeForRole(PageRole role);
     void recordTransportResult(const ViewportProviderTransportResult& result);
-    bool scheduleDeferredEngineEvent(
-        ViewportProviderDeferredEngineEvent event, PageRole role);
+    void recordCleanupResult(const ViewportProviderCleanupResult& result);
+    void scheduleCleanupRetry(bool progress);
+    void retryPendingCleanup();
+    bool scheduleDeferredEngineEvent(ViewportProviderDeferredEngineEvent event, PageRole role);
     void handleQueueFlushSchedulingFailure(PageRole role);
     void handleDispatchFailure(
         PageRole role, ImageSequenceProviderRequestToken token, const QString& diagnostic);
@@ -57,6 +58,8 @@ private:
     DiagnosticSink diagnosticSink;
     ViewportProviderBridge providerBridge;
     ViewportProviderBridge secondaryProviderBridge;
+    QTimer cleanupRetryTimer;
+    int cleanupRetryDelayIndex = 0;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     bool synchronousQueueFlushScheduler = false;
     bool failNextPrimaryQueueFlushScheduling = false;

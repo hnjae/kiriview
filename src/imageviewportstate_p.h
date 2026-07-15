@@ -45,6 +45,8 @@ enum class ProviderTransportOperation {
     None,
     Cancel,
     Close,
+    Release,
+    Destruction,
 };
 
 struct ProviderTransportDiagnostic
@@ -58,6 +60,9 @@ struct ProviderTransportDiagnostic
     quint64 frameTokenValue = 0;
     bool queued = false;
     bool pendingCleanup = false;
+    quint64 generation = 0;
+    quint64 sessionSerial = 0;
+    quint64 providerLeaseId = 0;
 };
 
 enum class ProviderRequestTargetKind {

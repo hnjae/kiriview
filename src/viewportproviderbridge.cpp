@@ -9,8 +9,8 @@
 #include <QtCore/QSet>
 #include <QtCore/QThread>
 
-#include <memory>
 #include <limits>
+#include <memory>
 #include <utility>
 
 namespace {
@@ -79,30 +79,49 @@ void requestProviderCleanup(ImageSequenceProviderSession* session,
 class QtViewportProviderExecutor final : public ViewportProviderExecutor
 {
 public:
-    bool invokeSessionCommand(ImageSequenceProviderSession* session,
+    ViewportProviderExecutorOutcome invokeSessionCommand(ImageSequenceProviderSession* session,
         ImageSequenceProviderThreadingContract threadingContract,
         std::function<void()> command) override
     {
         if (!session) {
-            return false;
+            return ViewportProviderExecutorOutcome::RetryableFailure;
         }
         if (threadingContract == ImageSequenceProviderThreadingContract::ThreadSafe) {
             command();
-            return true;
+            return ViewportProviderExecutorOutcome::Completed;
         }
         if (session->thread() == QThread::currentThread()) {
             command();
-            return true;
+            return ViewportProviderExecutorOutcome::Completed;
         }
-        return QMetaObject::invokeMethod(session, std::move(command), Qt::BlockingQueuedConnection);
+        return QMetaObject::invokeMethod(session, std::move(command), Qt::BlockingQueuedConnection)
+            ? ViewportProviderExecutorOutcome::Completed
+            : ViewportProviderExecutorOutcome::RetryableFailure;
     }
 
-    bool queueSessionCleanup(ImageSequenceProviderSession* session,
+    ViewportProviderExecutorOutcome queueSessionClose(ImageSequenceProviderSession* session,
         ImageSequenceProviderRequestToken metadataToken,
         ImageSequenceProviderRequestToken frameToken) override
     {
         if (!session) {
-            return false;
+            return ViewportProviderExecutorOutcome::RetryableFailure;
+        }
+        return QMetaObject::invokeMethod(
+                   session,
+                   [session, metadataToken, frameToken]() {
+                       requestProviderCleanup(session, metadataToken, frameToken);
+                   },
+                   Qt::QueuedConnection)
+            ? ViewportProviderExecutorOutcome::Scheduled
+            : ViewportProviderExecutorOutcome::RetryableFailure;
+    }
+
+    ViewportProviderExecutorOutcome queueSessionCleanup(ImageSequenceProviderSession* session,
+        ImageSequenceProviderRequestToken metadataToken,
+        ImageSequenceProviderRequestToken frameToken) override
+    {
+        if (!session) {
+            return ViewportProviderExecutorOutcome::RetryableFailure;
         }
         const bool queued = QMetaObject::invokeMethod(
             session,
@@ -114,43 +133,59 @@ public:
         if (!queued) {
             qWarning("ImageViewport provider cleanup could not be queued");
         }
-        return queued;
+        return queued ? ViewportProviderExecutorOutcome::Scheduled
+                      : ViewportProviderExecutorOutcome::RetryableFailure;
     }
 
-    bool queueSessionDestruction(ImageSequenceProviderSession* session) override
+    ViewportProviderExecutorOutcome queueSessionDestruction(
+        ImageSequenceProviderSession* session) override
     {
         if (!session) {
-            return false;
+            return ViewportProviderExecutorOutcome::RetryableFailure;
         }
         return QMetaObject::invokeMethod(
-            session, [session]() { delete session; }, Qt::QueuedConnection);
+                   session, [session]() { delete session; }, Qt::QueuedConnection)
+            ? ViewportProviderExecutorOutcome::Scheduled
+            : ViewportProviderExecutorOutcome::RetryableFailure;
     }
 
-    bool releaseFrameHandle(ImageSequenceProviderSession* session,
+    ViewportProviderExecutorOutcome releaseFrameHandle(ImageSequenceProviderSession* session,
         ImageSequenceProviderThreadingContract threadingContract,
         ImageSequenceProviderFrameHandle* frameHandle) override
     {
         if (!frameHandle) {
-            return true;
+            return ViewportProviderExecutorOutcome::Completed;
         }
         if (threadingContract == ImageSequenceProviderThreadingContract::ThreadSafe) {
             frameHandle->release();
             if (!session || session->thread() == QThread::currentThread()) {
                 delete frameHandle;
-                return true;
+                return ViewportProviderExecutorOutcome::Completed;
             }
             return QMetaObject::invokeMethod(
-                session, [frameHandle]() { delete frameHandle; }, Qt::BlockingQueuedConnection);
+                       session, [frameHandle]() { delete frameHandle; }, Qt::QueuedConnection)
+                ? ViewportProviderExecutorOutcome::Scheduled
+                : ViewportProviderExecutorOutcome::RetryableFailure;
         }
         if (!session) {
             frameHandle->release();
             delete frameHandle;
-            return true;
+            return ViewportProviderExecutorOutcome::Completed;
         }
-        return invokeSessionCommand(session, threadingContract, [frameHandle]() {
+        if (session->thread() == QThread::currentThread()) {
             frameHandle->release();
             delete frameHandle;
-        });
+            return ViewportProviderExecutorOutcome::Completed;
+        }
+        return QMetaObject::invokeMethod(
+                   session,
+                   [frameHandle]() {
+                       frameHandle->release();
+                       delete frameHandle;
+                   },
+                   Qt::QueuedConnection)
+            ? ViewportProviderExecutorOutcome::Scheduled
+            : ViewportProviderExecutorOutcome::RetryableFailure;
     }
 };
 
@@ -164,45 +199,63 @@ ViewportProviderExecutor& qtViewportProviderExecutor()
 class SynchronousViewportProviderExecutor final : public ViewportProviderExecutor
 {
 public:
-    bool invokeSessionCommand(ImageSequenceProviderSession* session,
+    ViewportProviderExecutorOutcome invokeSessionCommand(ImageSequenceProviderSession* session,
         ImageSequenceProviderThreadingContract, std::function<void()> command) override
     {
         if (!session) {
-            return false;
+            return ViewportProviderExecutorOutcome::RetryableFailure;
         }
         command();
-        return true;
+        return ViewportProviderExecutorOutcome::Completed;
     }
 
-    bool queueSessionCleanup(ImageSequenceProviderSession* session,
+    ViewportProviderExecutorOutcome queueSessionClose(ImageSequenceProviderSession* session,
         ImageSequenceProviderRequestToken metadataToken,
         ImageSequenceProviderRequestToken frameToken) override
     {
         if (!session) {
-            return false;
+            return ViewportProviderExecutorOutcome::RetryableFailure;
+        }
+        requestProviderCleanup(session, metadataToken, frameToken);
+        return ViewportProviderExecutorOutcome::Completed;
+    }
+
+    ViewportProviderExecutorOutcome queueSessionCleanup(ImageSequenceProviderSession* session,
+        ImageSequenceProviderRequestToken metadataToken,
+        ImageSequenceProviderRequestToken frameToken) override
+    {
+        if (!session) {
+            return ViewportProviderExecutorOutcome::RetryableFailure;
         }
         session->setParent(nullptr);
         requestProviderCleanup(session, metadataToken, frameToken);
         delete session;
-        return true;
+        return ViewportProviderExecutorOutcome::Completed;
     }
 
-    bool queueSessionDestruction(ImageSequenceProviderSession* session) override
+    ViewportProviderExecutorOutcome queueSessionDestruction(
+        ImageSequenceProviderSession* session) override
     {
         delete session;
-        return true;
+        return ViewportProviderExecutorOutcome::Completed;
     }
 
-    bool releaseFrameHandle(ImageSequenceProviderSession*,
-        ImageSequenceProviderThreadingContract, ImageSequenceProviderFrameHandle* frameHandle) override
+    ViewportProviderExecutorOutcome releaseFrameHandle(ImageSequenceProviderSession*,
+        ImageSequenceProviderThreadingContract,
+        ImageSequenceProviderFrameHandle* frameHandle) override
     {
         delete frameHandle;
-        return true;
+        return ViewportProviderExecutorOutcome::Completed;
     }
 };
 #endif
 
 ViewportProviderExecutor* defaultProviderExecutor() { return &qtViewportProviderExecutor(); }
+
+bool executorAccepted(ViewportProviderExecutorOutcome outcome)
+{
+    return outcome != ViewportProviderExecutorOutcome::RetryableFailure;
+}
 
 ViewportProviderEvent providerEvent(ImageViewportPageRole role, quint64 sessionSerial,
     quint64 generation, ViewportProviderEvent::Kind kind, ImageSequenceProviderRequestToken token)
@@ -308,7 +361,8 @@ ViewportProviderEvent viewportProviderEventFromTyped(ImageViewportPageRole role,
 ImageViewportInternal::ProviderTransportDiagnostic providerTransportDiagnostic(
     ImageViewportPageRole role, ImageViewportInternal::ProviderTransportOperation operation,
     ImageSequenceProviderRequestToken metadataToken, ImageSequenceProviderRequestToken frameToken,
-    bool queued, bool pendingCleanup)
+    bool queued, bool pendingCleanup, quint64 generation = 0, quint64 sessionSerial = 0,
+    quint64 providerLeaseId = 0)
 {
     return {
         true,
@@ -324,11 +378,15 @@ ImageViewportInternal::ProviderTransportDiagnostic providerTransportDiagnostic(
             : 0,
         queued,
         pendingCleanup,
+        generation,
+        sessionSerial,
+        providerLeaseId,
     };
 }
 
 ImageViewportInternal::ProviderTransportDiagnostic providerTransportDiagnostic(
-    ImageViewportPageRole role, const ImageSequenceProviderRequest& request)
+    ImageViewportPageRole role, const ImageSequenceProviderRequest& request, quint64 generation,
+    quint64 sessionSerial)
 {
     if (request.kind() != ImageSequenceProviderRequestKind::Cancel) {
         return {};
@@ -336,7 +394,8 @@ ImageViewportInternal::ProviderTransportDiagnostic providerTransportDiagnostic(
     const QVector<ImageSequenceProviderRequestToken> tokens = request.tokens();
     return providerTransportDiagnostic(role,
         ImageViewportInternal::ProviderTransportOperation::Cancel, {},
-        tokens.isEmpty() ? ImageSequenceProviderRequestToken {} : tokens.first(), false, false);
+        tokens.isEmpty() ? ImageSequenceProviderRequestToken {} : tokens.first(), false, false,
+        generation, sessionSerial);
 }
 }
 
@@ -350,82 +409,56 @@ ViewportProviderTransportResult ViewportProviderBridge::closeSession(
     ImageSequenceProviderRequestToken metadataToken, ImageSequenceProviderRequestToken frameToken)
 {
     ViewportProviderTransportResult result;
-    const auto queueCleanup
-        = [this](ImageSequenceProviderSession* session, ImageSequenceProviderRequestToken metadata,
-              ImageSequenceProviderRequestToken frame) {
-              ViewportProviderTransportResult cleanupResult;
-              QPointer<ImageSequenceProviderSession> sessionGuard(session);
-              cleanupResult.delivered = executor().queueSessionCleanup(session, metadata, frame);
-              if (!cleanupResult.delivered) {
-                  cleanupResult.diagnostic = providerTransportDiagnostic(role,
-                      ImageViewportInternal::ProviderTransportOperation::Close, metadata, frame,
-                      false, true);
-                  return cleanupResult;
-              }
-              if (sessionGuard && sessionGuard->thread() == QThread::currentThread()) {
-                  sessionGuard->setParent(nullptr);
-              }
-              return cleanupResult;
-          };
-    const auto rememberPendingCleanup
-        = [this](ImageSequenceProviderSession* session, ImageSequenceProviderRequestToken metadata,
-              ImageSequenceProviderRequestToken frame) {
-              pendingCleanupSession = session;
-              pendingCleanupMetadataToken = metadata;
-              pendingCleanupFrameToken = frame;
-          };
-
-    if (pendingCleanupSession) {
-        ImageSequenceProviderSession* pendingSession = pendingCleanupSession;
-        result
-            = queueCleanup(pendingSession, pendingCleanupMetadataToken, pendingCleanupFrameToken);
-        if (!result.delivered) {
-            return result;
-        }
-        if (activeSession == pendingSession) {
-            activeSession.clear();
-        }
-        pendingCleanupSession.clear();
-        pendingCleanupMetadataToken = {};
-        pendingCleanupFrameToken = {};
-    }
-
     ImageSequenceProviderSession* session = activeSession;
     if (!session) {
         return result;
     }
+    auto recordIt = sessions.find(session);
+    if (recordIt == sessions.end()) {
+        activeSession.clear();
+        return result;
+    }
+    SessionRecord& record = recordIt.value();
+    record.metadataToken = metadataToken;
+    record.frameToken = frameToken;
+    activeSession.clear();
 
     if (takeForcedDeliveryFailureForTest()) {
         result.diagnostic = providerTransportDiagnostic(role,
             ImageViewportInternal::ProviderTransportOperation::Close, metadataToken, frameToken,
-            false, true);
-        rememberPendingCleanup(session, metadataToken, frameToken);
+            false, true, record.generation, record.sessionSerial);
+        record.lifecycle = SessionLifecycle::CleanupPending;
         return result;
     }
 
     if (hasFrameLeases(session)) {
-        result.delivered = executor().invokeSessionCommand(
-            session, threadingContract(), [session, metadataToken, frameToken]() {
-                requestProviderCleanup(session, metadataToken, frameToken);
-            });
+        result.delivered
+            = executorAccepted(executor().queueSessionClose(session, metadataToken, frameToken));
         if (!result.delivered) {
             result.diagnostic = providerTransportDiagnostic(role,
-                ImageViewportInternal::ProviderTransportOperation::Close, metadataToken,
-                frameToken, false, true);
-            rememberPendingCleanup(session, metadataToken, frameToken);
+                ImageViewportInternal::ProviderTransportOperation::Close, metadataToken, frameToken,
+                false, true, record.generation, record.sessionSerial);
+            record.lifecycle = SessionLifecycle::CleanupPending;
             return result;
         }
-        closingSessions.insert(session);
-        activeSession.clear();
+        record.lifecycle = SessionLifecycle::Closing;
         return result;
     }
 
-    result = queueCleanup(session, metadataToken, frameToken);
+    QPointer<ImageSequenceProviderSession> sessionGuard(session);
+    result.delivered
+        = executorAccepted(executor().queueSessionCleanup(session, metadataToken, frameToken));
     if (!result.delivered) {
-        rememberPendingCleanup(session, metadataToken, frameToken);
+        result.diagnostic = providerTransportDiagnostic(role,
+            ImageViewportInternal::ProviderTransportOperation::Close, metadataToken, frameToken,
+            false, true, record.generation, record.sessionSerial);
+        record.lifecycle = SessionLifecycle::CleanupPending;
         return result;
     }
-    activeSession.clear();
+    if (sessionGuard && sessionGuard->thread() == QThread::currentThread()) {
+        sessionGuard->setParent(nullptr);
+    }
+    sessions.erase(recordIt);
     return result;
 }
 
@@ -459,20 +492,22 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
         session->setParent(input.callbackTarget);
     }
     activeSession = session;
-    activeThreadingContract = input.threadingContract;
+    sessions.insert(session,
+        { session, input.threadingContract, input.generation, input.sessionSerial,
+            SessionLifecycle::Active, {}, {} });
     const Qt::ConnectionType eventDeliveryConnectionType = this->eventDeliveryConnectionType();
 
     QObject::connect(
         session, &ImageSequenceProviderSession::providerEvent, input.callbackTarget,
         [this, sessionGuard = QPointer<ImageSequenceProviderSession>(session),
-            threadingContract = input.threadingContract,
-            sessionSerial = input.sessionSerial, generation = input.generation,
+            threadingContract = input.threadingContract, sessionSerial = input.sessionSerial,
+            generation = input.generation,
             eventSink = input.eventSink](const ImageSequenceProviderEvent& typedEvent) {
             ViewportProviderEvent event
                 = viewportProviderEventFromTyped(role, sessionSerial, generation, typedEvent);
             if (event.frameHandle) {
-                event.frameLeaseId
-                    = claimFrameHandle(sessionGuard.data(), threadingContract, event.frameHandle);
+                event.frameLeaseId = claimFrameHandle(sessionGuard.data(), threadingContract,
+                    event.frameHandle, generation, sessionSerial);
             }
             eventSink(event);
         },
@@ -488,15 +523,21 @@ ViewportProviderTransportResult ViewportProviderBridge::deliverRequest(
     if (!request.isValid()) {
         return result;
     }
+    ImageSequenceProviderSession* session = activeSession;
+    auto recordIt = sessions.constFind(session);
+    const quint64 generation = recordIt == sessions.cend() ? 0 : recordIt->generation;
+    const quint64 sessionSerial = recordIt == sessions.cend() ? 0 : recordIt->sessionSerial;
     if (takeForcedDeliveryFailureForTest()) {
-        result.diagnostic = providerTransportDiagnostic(role, request);
+        result.diagnostic = providerTransportDiagnostic(role, request, generation, sessionSerial);
         return result;
     }
-    ImageSequenceProviderSession* session = activeSession;
-    result.delivered = executor().invokeSessionCommand(
-        session, threadingContract(), [session, request]() { session->request(request); });
+    const auto threadingContract = recordIt == sessions.cend()
+        ? ImageSequenceProviderThreadingContract::AffinityBound
+        : recordIt->threadingContract;
+    result.delivered = executorAccepted(executor().invokeSessionCommand(
+        session, threadingContract, [session, request]() { session->request(request); }));
     if (!result.delivered) {
-        result.diagnostic = providerTransportDiagnostic(role, request);
+        result.diagnostic = providerTransportDiagnostic(role, request, generation, sessionSerial);
     }
     return result;
 }
@@ -521,20 +562,16 @@ ViewportProviderExecutor& ViewportProviderBridge::executor() const
     return providerExecutor ? *providerExecutor : qtViewportProviderExecutor();
 }
 
-ImageSequenceProviderThreadingContract ViewportProviderBridge::threadingContract() const
-{
-    return activeThreadingContract;
-}
-
 quint64 ViewportProviderBridge::claimFrameHandle(ImageSequenceProviderSession* session,
     ImageSequenceProviderThreadingContract threadingContract,
-    ImageSequenceProviderFrameHandle* frameHandle)
+    ImageSequenceProviderFrameHandle* frameHandle, quint64 generation, quint64 sessionSerial)
 {
     if (!frameHandle) {
         return 0;
     }
     const quint64 leaseId = allocateProviderFrameLeaseId();
-    frameLeases.insert(leaseId, { session, frameHandle, threadingContract, true });
+    frameLeases.insert(
+        leaseId, { session, frameHandle, threadingContract, generation, sessionSerial, true });
     return leaseId;
 }
 
@@ -565,50 +602,143 @@ void ViewportProviderBridge::reconcileFrameLeases(const QSet<quint64>& liveLease
     }
 }
 
-void ViewportProviderBridge::releaseRetiredFrameLeases()
+ViewportProviderCleanupResult ViewportProviderBridge::drainCleanup(bool retryPendingSessions)
 {
+    ViewportProviderCleanupResult result;
     const auto retired = retiredFrameLeases.values();
-    retiredFrameLeases.clear();
     for (quint64 leaseId : retired) {
-        releaseFrameLease(leaseId);
+        ViewportProviderCleanupResult released = releaseFrameLease(leaseId);
+        result.diagnostics.append(released.diagnostics);
+        result.progress = result.progress || released.progress;
     }
+    retrySessionCleanup(result, retryPendingSessions);
+    result.pending = hasPendingCleanup();
+    return result;
 }
 
-bool ViewportProviderBridge::hasRetiredFrameLeases() const
+bool ViewportProviderBridge::hasPendingCleanup() const
 {
-    return !retiredFrameLeases.isEmpty();
+    if (!retiredFrameLeases.isEmpty()) {
+        return true;
+    }
+    for (const SessionRecord& record : sessions) {
+        if (record.lifecycle != SessionLifecycle::Active) {
+            return true;
+        }
+    }
+    return false;
 }
 
-void ViewportProviderBridge::releaseAllFrameLeases()
+ViewportProviderCleanupResult ViewportProviderBridge::releaseAllFrameLeases()
 {
-    retiredFrameLeases.clear();
     const auto leaseIds = frameLeases.keys();
     for (quint64 leaseId : leaseIds) {
-        releaseFrameLease(leaseId);
+        retiredFrameLeases.insert(leaseId);
     }
+    return drainCleanup(true);
 }
 
-void ViewportProviderBridge::releaseFrameLease(quint64 leaseId)
+ViewportProviderCleanupResult ViewportProviderBridge::releaseFrameLease(quint64 leaseId)
 {
+    ViewportProviderCleanupResult result;
     auto it = frameLeases.find(leaseId);
     if (it == frameLeases.end()) {
-        return;
+        retiredFrameLeases.remove(leaseId);
+        return result;
     }
     const FrameLeaseRecord lease = it.value();
+    const auto outcome
+        = executor().releaseFrameHandle(lease.session, lease.threadingContract, lease.frameHandle);
+    if (!executorAccepted(outcome)) {
+        result.diagnostics.append(providerTransportDiagnostic(role,
+            ImageViewportInternal::ProviderTransportOperation::Release, {}, {}, false, true,
+            lease.generation, lease.sessionSerial, leaseId));
+        result.pending = true;
+        return result;
+    }
     frameLeases.erase(it);
     retiredFrameLeases.remove(leaseId);
-    executor().releaseFrameHandle(lease.session, lease.threadingContract, lease.frameHandle);
-    destroyClosingSessionIfUnused(lease.session);
+    result.progress = true;
+    result.pending = hasPendingCleanup();
+    return result;
 }
 
 void ViewportProviderBridge::destroyClosingSessionIfUnused(
-    ImageSequenceProviderSession* session)
+    ImageSequenceProviderSession* session, ViewportProviderCleanupResult& result)
 {
-    if (!session || !closingSessions.contains(session) || hasFrameLeases(session)) {
+    if (!session || hasFrameLeases(session)) {
         return;
     }
-    closingSessions.remove(session);
-    executor().queueSessionDestruction(session);
+    auto recordIt = sessions.find(session);
+    if (recordIt == sessions.end()
+        || (recordIt->lifecycle != SessionLifecycle::Closing
+            && recordIt->lifecycle != SessionLifecycle::DestructionPending)) {
+        return;
+    }
+    const SessionRecord record = recordIt.value();
+    const auto outcome = executor().queueSessionDestruction(session);
+    if (!executorAccepted(outcome)) {
+        recordIt->lifecycle = SessionLifecycle::DestructionPending;
+        result.diagnostics.append(providerTransportDiagnostic(role,
+            ImageViewportInternal::ProviderTransportOperation::Destruction, {}, {}, false, true,
+            record.generation, record.sessionSerial));
+        result.pending = true;
+        return;
+    }
+    sessions.erase(recordIt);
+    result.progress = true;
+}
+
+void ViewportProviderBridge::retrySessionCleanup(
+    ViewportProviderCleanupResult& result, bool retryPendingSessions)
+{
+    const auto sessionKeys = sessions.keys();
+    for (ImageSequenceProviderSession* session : sessionKeys) {
+        auto recordIt = sessions.find(session);
+        if (recordIt == sessions.end()) {
+            continue;
+        }
+        if (!recordIt->session) {
+            if (activeSession == session) {
+                activeSession.clear();
+            }
+            sessions.erase(recordIt);
+            result.progress = true;
+            continue;
+        }
+        if (recordIt->lifecycle == SessionLifecycle::CleanupPending && retryPendingSessions) {
+            const SessionRecord record = recordIt.value();
+            const bool leasesRemain = hasFrameLeases(session);
+            QPointer<ImageSequenceProviderSession> sessionGuard(session);
+            const auto outcome = leasesRemain
+                ? executor().queueSessionClose(session, record.metadataToken, record.frameToken)
+                : executor().queueSessionCleanup(session, record.metadataToken, record.frameToken);
+            if (!executorAccepted(outcome)) {
+                result.diagnostics.append(providerTransportDiagnostic(role,
+                    ImageViewportInternal::ProviderTransportOperation::Close, record.metadataToken,
+                    record.frameToken, false, true, record.generation, record.sessionSerial));
+                result.pending = true;
+                continue;
+            }
+            result.progress = true;
+            if (leasesRemain) {
+                recordIt->lifecycle = SessionLifecycle::Closing;
+            } else {
+                if (sessionGuard && sessionGuard->thread() == QThread::currentThread()) {
+                    sessionGuard->setParent(nullptr);
+                }
+                sessions.erase(recordIt);
+                continue;
+            }
+        }
+        recordIt = sessions.find(session);
+        if (recordIt != sessions.end()
+            && (recordIt->lifecycle == SessionLifecycle::Closing
+                || (retryPendingSessions
+                    && recordIt->lifecycle == SessionLifecycle::DestructionPending))) {
+            destroyClosingSessionIfUnused(session, result);
+        }
+    }
 }
 
 bool ViewportProviderBridge::takeForcedDeliveryFailureForTest()

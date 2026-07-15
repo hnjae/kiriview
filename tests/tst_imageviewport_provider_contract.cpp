@@ -112,6 +112,7 @@ private slots:
     void providerFactoryRejectsInvalidKnownMetadata();
     void providerFactoryRejectsPublishedKnownMetadataLimits();
     void providerSessionEntryPointsUseSessionAffinity();
+    void affinityBoundReleaseDoesNotBlockViewportCleanup();
     void providerThreadSafeSessionEntryPointsUseViewportAffinity();
     void providerSequenceOpensSessionAfterAdapterDestruction();
     void providerSharedSequenceUsesIndependentViewportSessions();
@@ -664,11 +665,75 @@ void ImageViewportProviderContractTest::providerSessionEntryPointsUseSessionAffi
         QCOMPARE(*cancelRequestThread, &workerThread);
 
         QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
-        QCOMPARE(*releaseThread, &workerThread);
-        QCOMPARE(*handleDestructionThread, &workerThread);
+        QTRY_COMPARE(*releaseThread, &workerThread);
+        QTRY_COMPARE(*handleDestructionThread, &workerThread);
     }
 
     QTRY_COMPARE(*closeThread, &workerThread);
+}
+
+void ImageViewportProviderContractTest::affinityBoundReleaseDoesNotBlockViewportCleanup()
+{
+    QThread workerThread;
+    workerThread.start();
+    const auto workerCleanup = qScopeGuard([&workerThread]() {
+        workerThread.quit();
+        workerThread.wait(1000);
+    });
+
+    const auto metadataRequestThread = std::make_shared<QThread*>(nullptr);
+    const auto frameRequestThread = std::make_shared<QThread*>(nullptr);
+    const auto playbackRequestThread = std::make_shared<QThread*>(nullptr);
+    const auto cancelRequestThread = std::make_shared<QThread*>(nullptr);
+    const auto closeThread = std::make_shared<QThread*>(nullptr);
+    const auto releaseCount = std::make_shared<int>(0);
+    const auto releaseThread = std::make_shared<QThread*>(nullptr);
+    auto sessionFactory
+        = std::make_shared<AffinityProviderSessionFactory>(&workerThread, metadataRequestThread,
+            frameRequestThread, playbackRequestThread, cancelRequestThread, closeThread);
+    CountingProviderAdapter adapter(sessionFactory);
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    {
+        ImageViewport item;
+        item.setSize(QSizeF(100.0, 100.0));
+        item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
+            PresentationTargetTransitionPolicy {});
+
+        AffinityProviderSession* session = sessionFactory->lastSession();
+        QVERIFY(session);
+        emitProviderMetadataReady(session, session->lastMetadataToken(),
+            ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+        drainQueuedProviderResults();
+
+        QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        auto* handle = new ImageSequenceProviderFrameHandle(
+            new ImageFrame(image), [releaseCount, releaseThread](ImageFrame* frame) {
+                *releaseThread = QThread::currentThread();
+                QThread::msleep(250);
+                ++*releaseCount;
+                delete frame;
+            });
+        handle->moveToThread(&workerThread);
+        emitProviderFrameHandleReady(session, session->lastFrameToken(), handle,
+            ImageSequenceProviderFrameEnvelope::stillFrame());
+        drainQueuedProviderResults();
+        acknowledgePendingPrimaryRenderCommitForTest(item);
+
+        QElapsedTimer elapsed;
+        elapsed.start();
+        QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
+        const qint64 clearElapsedMilliseconds = elapsed.elapsed();
+
+        QVERIFY2(clearElapsedMilliseconds < 100,
+            qPrintable(QStringLiteral("clear() blocked for %1 ms").arg(clearElapsedMilliseconds)));
+        QTRY_COMPARE(*releaseCount, 1);
+        QCOMPARE(*releaseThread, &workerThread);
+        QTRY_COMPARE(*closeThread, &workerThread);
+    }
 }
 
 void ImageViewportProviderContractTest::providerThreadSafeSessionEntryPointsUseViewportAffinity()
@@ -742,7 +807,7 @@ void ImageViewportProviderContractTest::providerThreadSafeSessionEntryPointsUseV
 
         QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
         QCOMPARE(*releaseThread, viewportThread);
-        QCOMPARE(*handleDestructionThread, &workerThread);
+        QTRY_COMPARE(*handleDestructionThread, &workerThread);
     }
 
     QTRY_COMPARE(*closeThread, &workerThread);

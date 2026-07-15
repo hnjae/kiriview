@@ -6,7 +6,7 @@
 namespace ImageViewportInternal {
 
 namespace {
-constexpr qsizetype observationCapacity = 256;
+    constexpr qsizetype observationCapacity = 256;
 }
 
 void InternalObservability::recordProviderCleanupFailure(
@@ -17,14 +17,31 @@ void InternalObservability::recordProviderCleanupFailure(
         InternalObservation observation;
         observation.subsystem = InternalObservationSubsystem::ProviderHost;
         observation.category = InternalObservationCategory::CleanupFailure;
-        observation.cause = diagnostic.operation == ProviderTransportOperation::Close
-            ? InternalObservationCause::ProviderCloseFailed
-            : InternalObservationCause::ProviderCancelFailed;
+        switch (diagnostic.operation) {
+        case ProviderTransportOperation::Cancel:
+            observation.cause = InternalObservationCause::ProviderCancelFailed;
+            break;
+        case ProviderTransportOperation::Close:
+            observation.cause = InternalObservationCause::ProviderCloseFailed;
+            break;
+        case ProviderTransportOperation::Release:
+            observation.cause = InternalObservationCause::ProviderReleaseFailed;
+            break;
+        case ProviderTransportOperation::Destruction:
+            observation.cause = InternalObservationCause::ProviderDestructionFailed;
+            break;
+        case ProviderTransportOperation::None:
+            observation.cause = InternalObservationCause::None;
+            break;
+        }
         observation.identity.roleValid = true;
         observation.identity.role = diagnostic.role;
+        observation.identity.generation = diagnostic.generation;
+        observation.identity.sessionSerial = diagnostic.sessionSerial;
         observation.identity.providerToken = diagnostic.frameTokenValid
             ? diagnostic.frameTokenValue
             : diagnostic.metadataTokenValue;
+        observation.identity.providerLeaseId = diagnostic.providerLeaseId;
         observation.detail = int(diagnostic.operation);
         record(std::move(observation));
     }
@@ -101,9 +118,6 @@ RenderFailureDiagnostic InternalObservability::lastRenderFailure() const
     return m_lastRenderFailure;
 }
 
-QVector<InternalObservation> InternalObservability::observations() const
-{
-    return m_observations;
-}
+QVector<InternalObservation> InternalObservability::observations() const { return m_observations; }
 
 } // namespace ImageViewportInternal
