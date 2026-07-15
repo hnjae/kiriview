@@ -190,6 +190,7 @@ private slots:
     void defaultPresentationStateMatchesPublicDefaults();
     void geometryProjectionUsesEnginePresentationState();
     void renderSnapshotUsesEnginePresentationAndPayloadState();
+    void renderAttemptAuthorityRejectsStaleAndDuplicateFacts();
     void validPresentationTargetAssignmentAllocatesGenerationAndRoleSet();
     void twoRoleAssignmentIsAcceptedAtomically();
     void providerAssignmentRegistersSessionIdentityBeforeHostOpen();
@@ -1087,23 +1088,17 @@ void ViewportEngineTest::renderSnapshotUsesEnginePresentationAndPayloadState()
     QCOMPARE(snapshot.itemSize, QSizeF(100.0, 80.0));
     QCOMPARE(snapshot.backgroundMode, ImageViewportBackgroundMode::SolidColor);
     QCOMPARE(snapshot.backgroundColor, QColor(0x10, 0x20, 0x30));
-    QCOMPARE(snapshot.rotationDegrees, 90);
     QCOMPARE(snapshot.smoothing, false);
     QCOMPARE(snapshot.mipmap, true);
-    QCOMPARE(snapshot.mirrorHorizontally, true);
-    QCOMPARE(snapshot.mirrorVertically, true);
-    QCOMPARE(snapshot.preparedPayload.payloadId, 3);
-    QCOMPARE(snapshot.targetRect,
-        PresentationGeometry::pageItemRect(input.geometryState, ImageViewportPageRole::Primary)
-            .intersected(input.geometryState.itemBounds));
-    QCOMPARE(snapshot.sourceRect,
-        PresentationGeometry::visiblePageRect(input.geometryState, ImageViewportPageRole::Primary));
 
     QCOMPARE(snapshot.imageLayers.size(), 2);
     QCOMPARE(snapshot.imageLayers.at(0).role, ImageViewportPageRole::Primary);
     QCOMPARE(snapshot.imageLayers.at(0).preparedPayload.payloadId, 3);
-    QCOMPARE(snapshot.imageLayers.at(0).targetRect, snapshot.targetRect);
-    QCOMPARE(snapshot.imageLayers.at(0).sourceRect, snapshot.sourceRect);
+    QCOMPARE(snapshot.imageLayers.at(0).targetRect,
+        PresentationGeometry::pageItemRect(input.geometryState, ImageViewportPageRole::Primary)
+            .intersected(input.geometryState.itemBounds));
+    QCOMPARE(snapshot.imageLayers.at(0).sourceRect,
+        PresentationGeometry::visiblePageRect(input.geometryState, ImageViewportPageRole::Primary));
     QCOMPARE(snapshot.imageLayers.at(0).rotationDegrees, 90);
     QCOMPARE(snapshot.imageLayers.at(0).mirrorHorizontally, true);
     QCOMPARE(snapshot.imageLayers.at(0).mirrorVertically, true);
@@ -1394,6 +1389,69 @@ void ViewportEngineTest::assignmentEffectFlagsFollowTransitionPolicy()
     QCOMPARE(cleared.releaseDisplayedState, true);
     QCOMPARE(cleared.resetDisplayRequests, true);
     QCOMPARE(cleared.stopPlayback, true);
+}
+
+void ViewportEngineTest::renderAttemptAuthorityRejectsStaleAndDuplicateFacts()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::red);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> sequence(factory.fromFrame(&frame));
+    QVERIFY(sequence->sequence());
+
+    const ViewportEngineViewportInput viewport { QRectF(0.0, 0.0, 100.0, 80.0), 1.0 };
+    ViewportEngine engine;
+    ViewportEnginePresentationTargetAssignmentRequest assignment;
+    assignment.presentationTarget = ImageViewportPresentationTarget(sequence->sequence());
+    assignment.viewport = viewport;
+    const auto assigned = engine.assignPresentationTarget(assignment);
+    QCOMPARE(assigned.command.outcome, ImageViewportCommandOutcome::Accepted);
+    engine.publishChanges(assigned.changes);
+
+    const auto hostFact = [](const ViewportRenderAttempt& attempt) {
+        ViewportRenderHostFact fact;
+        fact.outcome = ViewportRenderHostFact::Outcome::Committed;
+        fact.acknowledgement.attempt = attempt.attempt;
+        for (const auto& layer : attempt.snapshot.imageLayers) {
+            fact.acknowledgement.rolePayloads.append(
+                { layer.role, layer.preparedPayload.identity() });
+        }
+        fact.imagePresent = !fact.acknowledgement.rolePayloads.isEmpty();
+        return fact;
+    };
+
+    const ViewportRenderAttempt staleAttempt = engine.beginRenderSynchronization({ viewport });
+    const ViewportRenderAttempt activeAttempt = engine.beginRenderSynchronization({ viewport });
+    QVERIFY(activeAttempt.attempt > staleAttempt.attempt);
+
+    auto incompleteFact = hostFact(activeAttempt);
+    incompleteFact.acknowledgement.rolePayloads.clear();
+    const auto incomplete = engine.handleRenderHostFact({ incompleteFact });
+    QCOMPARE(incomplete.changes.requestState, false);
+    QCOMPARE(incomplete.observations.size(), 1);
+    QCOMPARE(incomplete.observations.constFirst().category,
+        ImageViewportInternal::InternalObservationCategory::StaleDrop);
+    QCOMPARE(engine.snapshot(viewport).request().status(), ImageViewportRequestStatus::Loading);
+
+    const auto stale = engine.handleRenderHostFact({ hostFact(staleAttempt) });
+    QCOMPARE(stale.changes.requestState, false);
+    QCOMPARE(stale.observations.size(), 1);
+    QCOMPARE(stale.observations.constFirst().category,
+        ImageViewportInternal::InternalObservationCategory::StaleDrop);
+    QCOMPARE(engine.snapshot(viewport).request().status(), ImageViewportRequestStatus::Loading);
+
+    const auto committed = engine.handleRenderHostFact({ hostFact(activeAttempt) });
+    QCOMPARE(committed.changes.requestState, true);
+    engine.publishChanges(committed.changes);
+    QCOMPARE(engine.snapshot(viewport).request().status(), ImageViewportRequestStatus::Ready);
+
+    const ImageViewportStateSnapshot beforeDuplicate = engine.snapshot(viewport);
+    const auto duplicate = engine.handleRenderHostFact({ hostFact(activeAttempt) });
+    QCOMPARE(duplicate.changes.requestState, false);
+    QCOMPARE(duplicate.changes.displayState, false);
+    QCOMPARE(duplicate.observations.size(), 1);
+    QCOMPARE(engine.snapshot(viewport), beforeDuplicate);
 }
 
 QTEST_MAIN(ViewportEngineTest)

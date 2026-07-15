@@ -455,11 +455,14 @@ void acknowledgePendingRenderCommitForTest(ImageViewport& item)
         return;
     }
     const quint64 primaryPayloadId = pendingRenderPayloadIdForTest(item);
-    const quint64 secondaryPayloadId = secondaryPendingRenderPayloadIdForTest(item) != 0
-        ? secondaryPendingRenderPayloadIdForTest(item)
-        : primaryPayloadId;
+    const quint64 secondaryPayloadId = secondaryPendingRenderPayloadIdForTest(item);
+    if (secondaryPayloadId != 0) {
+        acknowledgeRenderCommitForTest(item, pendingRenderGenerationForTest(item),
+            activeRequestIdForTest(item), primaryPayloadId, secondaryPayloadId);
+        return;
+    }
     acknowledgeRenderCommitForTest(item, pendingRenderGenerationForTest(item),
-        activeRequestIdForTest(item), primaryPayloadId, secondaryPayloadId);
+        activeRequestIdForTest(item), primaryPayloadId);
 }
 
 void acknowledgePendingPrimaryRenderCommitForTest(ImageViewport& item)

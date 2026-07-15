@@ -32,6 +32,12 @@ void ImageViewportHostBoundaryTest::hostsExposeNarrowFactBoundaries()
     QVERIFY((!std::is_constructible_v<ImageViewportPlaybackScheduler, ImageViewportPrivate&>));
     QVERIFY(std::is_default_constructible_v<ImageViewportRenderHost>);
     QVERIFY((!std::is_constructible_v<ImageViewportRenderHost, ImageViewportPrivate&>));
+
+    using RenderSynchronize = ImageViewportRenderHostResult (ImageViewportRenderHost::*)(
+        QSGNode*, QQuickWindow*, const ViewportRenderAttempt&);
+    QVERIFY((std::is_same_v<decltype(&ImageViewportRenderHost::synchronize), RenderSynchronize>));
+    QVERIFY((std::is_same_v<decltype(ImageViewportRenderHostResult::fact),
+        ViewportRenderHostFact>));
 }
 
 QTEST_MAIN(ImageViewportHostBoundaryTest)

@@ -6,6 +6,7 @@
 #include "viewportrendercontract_p.h"
 
 #include <array>
+#include <optional>
 
 struct ViewportEngineRoleState
 {
@@ -61,8 +62,20 @@ struct ViewportEnginePresentationState
 
 struct ViewportEngineRenderCoordinationState
 {
+    struct AttemptContext
+    {
+        ViewportRenderAttempt attempt;
+        bool pendingTargetCommit = false;
+        bool pendingSecondaryProviderCommit = false;
+        ImageViewportInternal::PreparedPayload preparedPayload;
+        ImageViewportDisplayStatus oldDisplayStatus = ImageViewportDisplayStatus::Empty;
+        QRectF oldContentRect;
+        QRectF oldVisibleImageRect;
+        PresentationGeometry::State geometryState;
+    };
+
     quint64 nextSynchronizationAttempt = 0;
-    ViewportRenderSynchronization lastSynchronization;
+    std::optional<AttemptContext> activeAttempt;
 };
 
 struct ViewportEngineRevisionState

@@ -32,7 +32,6 @@ struct Output
 {
     QSGNode* node = nullptr;
     RenderAdapter::CommitResult result = RenderAdapter::CommitResult::Empty;
-    ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
     QVector<RenderAdapter::RolePayload> rolePayloads;
     ImageViewportPageRole failedRole = ImageViewportPageRole::Primary;
     RenderFailureCause failureCause = RenderFailureCause::None;

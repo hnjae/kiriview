@@ -44,14 +44,10 @@ public:
     ViewportEngine& operator=(const ViewportEngine&) = delete;
     ImageViewportStateSnapshot snapshot(ViewportEngineViewportInput input = {}) const;
     PresentationGeometry::State geometryState(ViewportEngineViewportInput input) const;
-    ViewportRenderSynchronization beginRenderSynchronization(
+    ViewportRenderAttempt beginRenderSynchronization(
         const ViewportEngineRenderSynchronizationRequest& input);
-    ViewportEngineRenderCommitTransition acknowledgeRenderCommit(
-        const ViewportEngineRenderAcknowledgementRequest& input);
-    ViewportEngineRenderFailureTransition acknowledgeRenderFailure(
-        const ViewportEngineRenderAcknowledgementRequest& input);
-    ViewportEngineRenderQualityFallbackTransition handleRenderQualityFallback(
-        const ViewportRenderQualityFallbackFact& fact);
+    ViewportEngineRenderHostTransition handleRenderHostFact(
+        const ViewportEngineRenderHostFactRequest& input);
     ViewportEngineTransition handleResourcePressure(const ViewportEngineResourcePressureFact& fact);
     ViewportEngineGeometryChangeTransition handleGeometryChanged(
         const ViewportEngineGeometryChangeRequest& input);

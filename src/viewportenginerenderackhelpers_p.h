@@ -19,8 +19,7 @@ inline PreparedPayloadIdentity acknowledgedPayload(
 {
     for (const auto& payload : acknowledgement.rolePayloads)
         if (payload.role == role) return payload.preparedPayload;
-    return role == ImageViewportPageRole::Primary ? acknowledgement.preparedPayload
-                                                    : PreparedPayloadIdentity {};
+    return {};
 }
 inline PreparedPayloadIdentity expectedPayload(
     const DisplayState& display, const RequestState& request, ImageViewportPageRole role)

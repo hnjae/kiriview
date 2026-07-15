@@ -2,20 +2,81 @@
 #include "viewportenginerenderoperations_p.h"
 #include "viewportenginestate_p.h"
 
+#include <algorithm>
 #include <utility>
 
 namespace {
-ViewportEngineRenderAcknowledgementInput operationInput(
-    const ViewportEngineRenderAcknowledgementRequest& input)
+bool identitiesEqual(ImageViewportInternal::PreparedPayloadIdentity lhs,
+    ImageViewportInternal::PreparedPayloadIdentity rhs)
 {
-    return { input.acknowledgement, input.renderedImagePresent, input.synchronizationAttempt,
-        input.pendingTargetCommit, input.pendingSecondaryProviderCommit, input.preparedPayload,
-        input.oldDisplayStatus, input.oldContentRect, input.oldVisibleImageRect,
-        input.geometryState };
+    return lhs.generation == rhs.generation && lhs.requestId == rhs.requestId
+        && lhs.payloadId == rhs.payloadId;
+}
+
+QVector<ViewportRenderRolePayload> expectedPayloads(const ViewportRenderAttempt& attempt)
+{
+    QVector<ViewportRenderRolePayload> result;
+    result.reserve(attempt.snapshot.imageLayers.size());
+    for (const ViewportRenderLayer& layer : attempt.snapshot.imageLayers) {
+        result.append({ layer.role, layer.preparedPayload.identity() });
+    }
+    return result;
+}
+
+bool acknowledgementMatchesAttempt(
+    const ViewportRenderHostFact& fact, const ViewportRenderAttempt& attempt)
+{
+    const ViewportRenderAcknowledgement& acknowledgement = fact.acknowledgement;
+    if (acknowledgement.attempt == 0 || acknowledgement.attempt != attempt.attempt) {
+        return false;
+    }
+    const QVector<ViewportRenderRolePayload> expected = expectedPayloads(attempt);
+    if (fact.outcome == ViewportRenderHostFact::Outcome::Failed) {
+        const auto expectedFailed = std::find_if(expected.cbegin(), expected.cend(),
+            [&](const auto& payload) { return payload.role == acknowledgement.failedRole; });
+        const auto actualFailed = std::find_if(acknowledgement.rolePayloads.cbegin(),
+            acknowledgement.rolePayloads.cend(),
+            [&](const auto& payload) { return payload.role == acknowledgement.failedRole; });
+        return expectedFailed != expected.cend()
+            && actualFailed != acknowledgement.rolePayloads.cend()
+            && identitiesEqual(actualFailed->preparedPayload, expectedFailed->preparedPayload);
+    }
+    if (acknowledgement.rolePayloads.size() != expected.size()) {
+        return false;
+    }
+    for (qsizetype index = 0; index < expected.size(); ++index) {
+        const auto& actual = acknowledgement.rolePayloads.at(index);
+        const auto& wanted = expected.at(index);
+        if (actual.role != wanted.role
+            || !identitiesEqual(actual.preparedPayload, wanted.preparedPayload)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+ImageViewportInternal::InternalObservation staleRenderFactObservation(
+    const ViewportRenderHostFact& fact)
+{
+    ImageViewportInternal::InternalObservation observation;
+    observation.subsystem = ImageViewportInternal::InternalObservationSubsystem::Engine;
+    observation.category = ImageViewportInternal::InternalObservationCategory::StaleDrop;
+    observation.cause
+        = ImageViewportInternal::InternalObservationCause::StaleRenderAcknowledgement;
+    observation.identity.renderAttempt = fact.acknowledgement.attempt;
+    if (!fact.acknowledgement.rolePayloads.isEmpty()) {
+        const auto& payload = fact.acknowledgement.rolePayloads.constFirst();
+        observation.identity.roleValid = true;
+        observation.identity.role = payload.role;
+        observation.identity.generation = payload.preparedPayload.generation;
+        observation.identity.requestId = payload.preparedPayload.requestId;
+        observation.identity.payloadId = payload.preparedPayload.payloadId;
+    }
+    return observation;
 }
 }
 
-ViewportRenderSynchronization ViewportEngine::beginRenderSynchronization(
+ViewportRenderAttempt ViewportEngine::beginRenderSynchronization(
     const ViewportEngineRenderSynchronizationRequest& input)
 {
     const GeometryInput current = currentGeometry(input.viewport);
@@ -24,59 +85,71 @@ ViewportRenderSynchronization ViewportEngine::beginRenderSynchronization(
         input.viewport.itemBounds, PresentationGeometry::contentRect(currentState),
         PresentationGeometry::visibleImageRect(currentState), current,
         pendingGeometry(input.viewport) };
-    return synchronizeViewportEngineRender(operationInput,
+    auto context = synchronizeViewportEngineRender(operationInput,
         { m_state->requestState.request, m_state->displayState.display,
             m_state->presentationState.presentation, m_state->renderCoordination });
+    const ViewportRenderAttempt attempt = context.attempt;
+    m_state->renderCoordination.activeAttempt = std::move(context);
+    return attempt;
 }
 
-ViewportEngineRenderCommitTransition ViewportEngine::acknowledgeRenderCommit(
-    const ViewportEngineRenderAcknowledgementRequest& input)
+ViewportEngineRenderHostTransition ViewportEngine::handleRenderHostFact(
+    const ViewportEngineRenderHostFactRequest& input)
 {
-    auto reduction = reduceViewportEngineRenderCommit(operationInput(input),
-        { m_state->requestState.request, m_state->displayState.display,
-            m_state->playbackState.playback, providerFactsView(), m_state->renderCoordination });
-    return { reduction.changes,
-        reduction.changes.playbackPhase ? currentPlaybackSchedule()
-                                        : ViewportPlaybackScheduleEffect {},
-        reduction.observations };
-}
-
-ViewportEngineRenderFailureTransition ViewportEngine::acknowledgeRenderFailure(
-    const ViewportEngineRenderAcknowledgementRequest& input)
-{
-    auto reduction = reduceViewportEngineRenderFailure(operationInput(input),
-        { m_state->requestState.request, m_state->displayState.display,
-            m_state->playbackState.playback, m_state->renderCoordination });
-    return { reduction.changes,
-        reduction.changes.playbackPhase ? currentPlaybackSchedule()
-                                        : ViewportPlaybackScheduleEffect {},
-        reduction.diagnostic, reduction.observations };
-}
-
-ViewportEngineRenderQualityFallbackTransition ViewportEngine::handleRenderQualityFallback(
-    const ViewportRenderQualityFallbackFact& fact)
-{
-    ViewportEngineRenderQualityFallbackTransition result;
-    if (fact.synchronizationAttempt == 0
-        || fact.synchronizationAttempt != m_state->renderCoordination.nextSynchronizationAttempt) {
-        ImageViewportInternal::InternalObservation observation;
-        observation.subsystem = ImageViewportInternal::InternalObservationSubsystem::Engine;
-        observation.category = ImageViewportInternal::InternalObservationCategory::StaleDrop;
-        observation.cause
-            = ImageViewportInternal::InternalObservationCause::StaleRenderQualityFallback;
-        observation.identity.renderAttempt = fact.synchronizationAttempt;
-        result.observations.append(observation);
+    ViewportEngineRenderHostTransition result;
+    const auto& active = m_state->renderCoordination.activeAttempt;
+    if (!active || !acknowledgementMatchesAttempt(input.fact, active->attempt)) {
+        result.observations.append(staleRenderFactObservation(input.fact));
         return result;
     }
-    const QString warning = fact.smoothingUnavailable || fact.mipmapUnavailable
-        ? QStringLiteral("requested rendering quality is unavailable on the active backend")
-        : QString();
-    if (m_state->requestState.request.warningString == warning) {
-        return result;
+
+    const auto context = *active;
+    const ViewportEngineRenderAcknowledgementInput acknowledgementInput {
+        input.fact.acknowledgement,
+        input.fact.imagePresent,
+        context.attempt.attempt,
+        context.pendingTargetCommit,
+        context.pendingSecondaryProviderCommit,
+        context.preparedPayload,
+        context.oldDisplayStatus,
+        context.oldContentRect,
+        context.oldVisibleImageRect,
+        context.geometryState,
+    };
+
+    if (input.fact.outcome == ViewportRenderHostFact::Outcome::Failed) {
+        auto reduction = reduceViewportEngineRenderFailure(acknowledgementInput,
+            { m_state->requestState.request, m_state->displayState.display,
+                m_state->playbackState.playback });
+        result.changes = reduction.changes;
+        result.diagnostic = reduction.diagnostic;
+        result.observations = reduction.observations;
+    } else if (input.fact.outcome == ViewportRenderHostFact::Outcome::Committed
+        && input.fact.imagePresent
+        && m_state->displayState.display.roles[0].pendingRenderPayload.commitPending) {
+        auto reduction = reduceViewportEngineRenderCommit(acknowledgementInput,
+            { m_state->requestState.request, m_state->displayState.display,
+                m_state->playbackState.playback, providerFactsView() });
+        result.changes = reduction.changes;
+        result.observations = reduction.observations;
     }
-    m_state->requestState.request.warningString = warning;
-    result.changes.diagnostics = true;
-    result.changes.displayRevision = true;
+
+    if (input.fact.outcome == ViewportRenderHostFact::Outcome::Committed) {
+        const auto& quality = input.fact.qualityFallback;
+        const QString warning = quality.smoothingUnavailable || quality.mipmapUnavailable
+            ? QStringLiteral("requested rendering quality is unavailable on the active backend")
+            : QString();
+        if (m_state->requestState.request.warningString != warning) {
+            m_state->requestState.request.warningString = warning;
+            result.changes.diagnostics = true;
+            result.changes.displayRevision = true;
+        }
+    }
+
+    m_state->renderCoordination.activeAttempt.reset();
+    if (result.changes.playbackPhase) {
+        result.playbackSchedule = currentPlaybackSchedule();
+    }
     return result;
 }
 

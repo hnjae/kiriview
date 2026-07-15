@@ -181,6 +181,9 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::publish(PendingPublicat
         || changes.geometryState || changes.playbackPhase || changes.diagnostics) {
         m_state->revisions.snapshotRevision = allocateRevisionValue();
     }
+    if (changes.scheduleUpdate) {
+        m_state->renderCoordination.activeAttempt.reset();
+    }
     return changes;
 }
 

@@ -11,10 +11,7 @@ class QSGNode;
 struct ImageViewportRenderHostResult
 {
     QSGNode* node = nullptr;
-    RenderAdapter::CommitResult result = RenderAdapter::CommitResult::Empty;
-    ViewportRenderAcknowledgement acknowledgement;
-    ViewportRenderQualityFallbackFact qualityFallback;
-    bool imagePresent = false;
+    ViewportRenderHostFact fact;
 };
 
 class ImageViewportRenderHost
@@ -23,7 +20,7 @@ public:
     ImageViewportRenderHost() = default;
 
     ImageViewportRenderHostResult synchronize(QSGNode* oldNode, QQuickWindow* window,
-        const ViewportRenderSynchronization& synchronization);
+        const ViewportRenderAttempt& attempt);
 
 private:
     RenderAdapter renderAdapter;

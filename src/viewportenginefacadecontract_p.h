@@ -69,18 +69,9 @@ struct ViewportEngineGeometryChangeRequest
     QRectF oldVisibleImageRect;
 };
 
-struct ViewportEngineRenderAcknowledgementRequest
+struct ViewportEngineRenderHostFactRequest
 {
-    ViewportRenderAcknowledgement acknowledgement;
-    bool renderedImagePresent = false;
-    quint64 synchronizationAttempt = 0;
-    bool pendingTargetCommit = false;
-    bool pendingSecondaryProviderCommit = false;
-    ImageViewportInternal::PreparedPayload preparedPayload;
-    ImageViewportDisplayStatus oldDisplayStatus = ImageViewportDisplayStatus::Empty;
-    QRectF oldContentRect;
-    QRectF oldVisibleImageRect;
-    PresentationGeometry::State geometryState;
+    ViewportRenderHostFact fact;
 };
 
 struct ViewportEngineGeometryChangeTransition
@@ -89,24 +80,11 @@ struct ViewportEngineGeometryChangeTransition
     std::array<ViewportProviderFrameTransportEffect, 2> providerEffects;
 };
 
-struct ViewportEngineRenderCommitTransition
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    ViewportPlaybackScheduleEffect playbackSchedule;
-    ImageViewportInternal::InternalObservationBatch observations;
-};
-
-struct ViewportEngineRenderFailureTransition
+struct ViewportEngineRenderHostTransition
 {
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportPlaybackScheduleEffect playbackSchedule;
     ImageViewportInternal::RenderFailureDiagnostic diagnostic;
-    ImageViewportInternal::InternalObservationBatch observations;
-};
-
-struct ViewportEngineRenderQualityFallbackTransition
-{
-    ImageViewportInternal::ViewportChangeSet changes;
     ImageViewportInternal::InternalObservationBatch observations;
 };
 

@@ -35,7 +35,7 @@ struct ViewportEngineRenderAcknowledgementInput
 {
     ViewportRenderAcknowledgement acknowledgement;
     bool renderedImagePresent = false;
-    quint64 synchronizationAttempt = 0;
+    quint64 attempt = 0;
     bool pendingTargetCommit = false;
     bool pendingSecondaryProviderCommit = false;
     ImageViewportInternal::PreparedPayload preparedPayload;
@@ -121,13 +121,11 @@ class ViewportEngineRenderCommitAccess
     ViewportEngineRenderCommitAccess(ImageViewportInternal::RequestState& request,
         ImageViewportInternal::DisplayState& display,
         ImageViewportInternal::PlaybackState& playback,
-        ViewportEngineProviderFactsView providerFacts,
-        const ViewportEngineRenderCoordinationState& render)
+        ViewportEngineProviderFactsView providerFacts)
         : m_request(request)
         , m_display(display)
         , m_playback(playback)
         , m_providerFacts(providerFacts)
-        , m_render(render)
     {
     }
 
@@ -137,14 +135,12 @@ public:
     ImageViewportInternal::DisplayState& display() const { return m_display; }
     ImageViewportInternal::PlaybackState& playback() const { return m_playback; }
     const ViewportEngineProviderFactsView& providerFacts() const { return m_providerFacts; }
-    const ViewportEngineRenderCoordinationState& render() const { return m_render; }
 
 private:
     ImageViewportInternal::RequestState& m_request;
     ImageViewportInternal::DisplayState& m_display;
     ImageViewportInternal::PlaybackState& m_playback;
     ViewportEngineProviderFactsView m_providerFacts;
-    const ViewportEngineRenderCoordinationState& m_render;
 };
 
 class ViewportEngineRenderFailureAccess
@@ -152,12 +148,10 @@ class ViewportEngineRenderFailureAccess
     friend class ViewportEngine;
     ViewportEngineRenderFailureAccess(ImageViewportInternal::RequestState& request,
         ImageViewportInternal::DisplayState& display,
-        ImageViewportInternal::PlaybackState& playback,
-        const ViewportEngineRenderCoordinationState& render)
+        ImageViewportInternal::PlaybackState& playback)
         : m_request(request)
         , m_display(display)
         , m_playback(playback)
-        , m_render(render)
     {
     }
 
@@ -166,16 +160,14 @@ public:
     ImageViewportInternal::RequestState& request() const { return m_request; }
     ImageViewportInternal::DisplayState& display() const { return m_display; }
     ImageViewportInternal::PlaybackState& playback() const { return m_playback; }
-    const ViewportEngineRenderCoordinationState& render() const { return m_render; }
 
 private:
     ImageViewportInternal::RequestState& m_request;
     ImageViewportInternal::DisplayState& m_display;
     ImageViewportInternal::PlaybackState& m_playback;
-    const ViewportEngineRenderCoordinationState& m_render;
 };
 
-ViewportRenderSynchronization synchronizeViewportEngineRender(
+ViewportEngineRenderCoordinationState::AttemptContext synchronizeViewportEngineRender(
     ViewportEngineRenderSynchronizationInput, ViewportEngineRenderSynchronizationAccess);
 ViewportEngineRenderCommitReduction reduceViewportEngineRenderCommit(
     ViewportEngineRenderAcknowledgementInput, ViewportEngineRenderCommitAccess);

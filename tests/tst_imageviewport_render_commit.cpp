@@ -78,19 +78,21 @@ void ImageViewportRenderCommitTest::renderingQualityFallbackOwnsWarningAndDispla
     const QString activeWarning = viewportWarningString(item);
     const ImageViewportRevisionToken activeDisplayRevision = viewportDisplayRevision(item);
     const ImageViewportRevisionToken activeSnapshotRevision = item.state().revisions().snapshot();
-    reportRenderQualityFallbackForTest(item, attempt - 1, false, false);
+    reportRenderQualityFallbackForTest(
+        item, currentRenderAttemptForTest(item) - 1, false, false);
     QCOMPARE(viewportWarningString(item), activeWarning);
     QCOMPARE(viewportDisplayRevision(item), activeDisplayRevision);
     QCOMPARE(item.state().revisions().snapshot(), activeSnapshotRevision);
 
-    reportRenderQualityFallbackForTest(item, attempt, false, false);
+    reportRenderQualityFallbackForTest(
+        item, currentRenderAttemptForTest(item), false, false);
     QVERIFY(viewportWarningString(item).isEmpty());
     QCOMPARE(viewportRequestRevision(item), requestBefore);
     QVERIFY(viewportDisplayRevision(item) != activeDisplayRevision);
     QVERIFY(item.state().revisions().snapshot() != activeSnapshotRevision);
     QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Ready);
 
-    reportRenderQualityFallbackForTest(item, attempt, true, true);
+    reportRenderQualityFallbackForTest(item, currentRenderAttemptForTest(item), true, true);
     QVERIFY(!viewportWarningString(item).isEmpty());
     item.clear();
     QVERIFY(viewportWarningString(item).isEmpty());

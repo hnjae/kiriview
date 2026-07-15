@@ -165,11 +165,8 @@ public:
     void update();
     QSGNode* updatePaintNode(QSGNode* oldNode);
     void prepareRenderSynchronization();
-    std::optional<ViewportRenderSynchronization> renderSynchronizationForHost() const;
-    void applyRenderHostFact(RenderAdapter::CommitResult result,
-        ViewportRenderAcknowledgement acknowledgement,
-        ViewportRenderQualityFallbackFact qualityFallback, bool imagePresent,
-        ViewportRenderSynchronization synchronization);
+    std::optional<ViewportRenderAttempt> renderAttemptForHost() const;
+    void applyRenderHostFact(ViewportRenderHostFact fact);
     void geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry,
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
 
@@ -188,6 +185,6 @@ public:
     ViewportProviderTransportBatch pendingProviderTransport;
     bool drainingExternalWork = false;
     mutable QMutex renderMailboxMutex;
-    ViewportRenderSynchronization renderMailbox;
+    ViewportRenderAttempt renderMailbox;
     bool renderMailboxValid = false;
 };

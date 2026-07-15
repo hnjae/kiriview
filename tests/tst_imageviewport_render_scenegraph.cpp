@@ -61,9 +61,8 @@ RenderAdapter::Input renderAdapterInputForPayload(
 {
     RenderAdapter::Input input;
     input.itemSize = QSizeF(10.0, 10.0);
-    input.preparedPayload = payload;
-    input.targetRect = QRectF(0.0, 0.0, 10.0, 10.0);
-    input.sourceRect = QRectF(0.0, 0.0, 2.0, 2.0);
+    input.imageLayers.append({ ImageViewportPageRole::Primary, payload,
+        QRectF(0.0, 0.0, 10.0, 10.0), QRectF(0.0, 0.0, 2.0, 2.0) });
     return input;
 }
 
@@ -922,29 +921,28 @@ void ImageViewportRenderSceneGraphTest::renderPlanBuildsRoleLayerMappingWithoutS
 
     RenderAdapter::Input input;
     input.itemSize = QSizeF(30.0, 20.0);
-    input.imageLayers.append({ ImageViewportPageRole::Secondary, secondaryPayload,
-        QRectF(10.0, 0.0, 10.0, 20.0), QRectF(1.0, 2.0, 3.0, 4.0), 90, true, false });
     input.imageLayers.append({ ImageViewportPageRole::Primary, primaryPayload,
         QRectF(0.0, 0.0, 10.0, 20.0), QRectF(0.0, 0.0, 2.0, 2.0), 0, false, true });
+    input.imageLayers.append({ ImageViewportPageRole::Secondary, secondaryPayload,
+        QRectF(10.0, 0.0, 10.0, 20.0), QRectF(1.0, 2.0, 3.0, 4.0), 90, true, false });
 
     RenderAdapter adapter;
     const RenderAdapter::RenderPlan plan = adapter.createPlan(input);
 
     QCOMPARE(plan.result, RenderAdapter::CommitResult::Committed);
     QCOMPARE(plan.imageLayers.size(), 2);
-    QCOMPARE(plan.imageLayers.at(0).role, ImageViewportPageRole::Secondary);
-    QCOMPARE(plan.imageLayers.at(0).preparedPayload.payloadId, quint64(7));
-    QCOMPARE(plan.imageLayers.at(0).unrotatedTargetRect, QRectF(5.0, 5.0, 20.0, 10.0));
-    QCOMPARE(plan.imageLayers.at(0).physicalSourceRect, QRectF(2.0, 4.0, 6.0, 8.0));
-    QCOMPARE(plan.imageLayers.at(0).rotationDegrees, 90);
-    QCOMPARE(plan.imageLayers.at(0).mirrorHorizontally, true);
-    QCOMPARE(plan.imageLayers.at(0).mirrorVertically, false);
-    QCOMPARE(plan.imageLayers.at(1).role, ImageViewportPageRole::Primary);
-    QCOMPARE(plan.imageLayers.at(1).preparedPayload.payloadId, quint64(8));
+    QCOMPARE(plan.imageLayers.at(0).role, ImageViewportPageRole::Primary);
+    QCOMPARE(plan.imageLayers.at(0).preparedPayload.payloadId, quint64(8));
+    QCOMPARE(plan.imageLayers.at(1).role, ImageViewportPageRole::Secondary);
+    QCOMPARE(plan.imageLayers.at(1).preparedPayload.payloadId, quint64(7));
+    QCOMPARE(plan.imageLayers.at(1).unrotatedTargetRect, QRectF(5.0, 5.0, 20.0, 10.0));
+    QCOMPARE(plan.imageLayers.at(1).physicalSourceRect, QRectF(2.0, 4.0, 6.0, 8.0));
+    QCOMPARE(plan.imageLayers.at(1).rotationDegrees, 90);
+    QCOMPARE(plan.imageLayers.at(1).mirrorHorizontally, true);
+    QCOMPARE(plan.imageLayers.at(1).mirrorVertically, false);
     QCOMPARE(plan.rolePayloads.size(), 2);
-    QCOMPARE(plan.rolePayloads.at(0).role, ImageViewportPageRole::Secondary);
-    QCOMPARE(plan.rolePayloads.at(0).preparedPayload.payloadId, quint64(7));
-    QCOMPARE(plan.preparedPayload.payloadId, quint64(7));
+    QCOMPARE(plan.rolePayloads.at(0).role, ImageViewportPageRole::Primary);
+    QCOMPARE(plan.rolePayloads.at(0).preparedPayload.payloadId, quint64(8));
 }
 
 void ImageViewportRenderSceneGraphTest::renderPlanReportsPreMaterializationFailureIntent()

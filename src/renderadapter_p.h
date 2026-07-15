@@ -40,14 +40,8 @@ public:
         QSizeF itemSize;
         ImageViewportBackgroundMode backgroundMode = ImageViewportBackgroundMode::Transparent;
         QColor backgroundColor = Qt::transparent;
-        ImageViewportInternal::PreparedPayload preparedPayload;
-        QRectF targetRect;
-        QRectF sourceRect;
-        int rotationDegrees = 0;
         bool smoothing = true;
         bool mipmap = false;
-        bool mirrorHorizontally = false;
-        bool mirrorVertically = false;
         QVector<ImageLayer> imageLayers;
     };
 
@@ -74,7 +68,6 @@ public:
         };
 
         CommitResult result = CommitResult::Empty;
-        ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
         QVector<RolePayload> rolePayloads;
         ImageViewportPageRole failedRole = ImageViewportPageRole::Primary;
         RenderFailureCause failureCause = RenderFailureCause::None;

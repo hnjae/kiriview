@@ -57,29 +57,12 @@ RenderAdapter::RenderPlan RenderAdapter::createPlan(const Input& input) const
     RenderPlan plan;
     plan.smoothing = input.smoothing;
     plan.mipmap = input.mipmap;
-    const ImageViewportInternal::PreparedPayloadIdentity emptyPayload;
     if (input.itemSize.width() <= 0.0 || input.itemSize.height() <= 0.0) {
         plan.result = RenderAdapter::CommitResult::Empty;
         return plan;
     }
 
-    QVector<Input::ImageLayer> imageLayers = input.imageLayers;
-    if (imageLayers.isEmpty() && !input.preparedPayload.image.isNull()) {
-        imageLayers.append({ ImageViewportPageRole::Primary, input.preparedPayload,
-            input.targetRect, input.sourceRect, input.rotationDegrees, input.mirrorHorizontally,
-            input.mirrorVertically });
-    }
-    const auto firstPayloadIdentity = [&]() {
-        if (imageLayers.isEmpty()) {
-            return emptyPayload;
-        }
-        const auto& payload = imageLayers.constFirst().preparedPayload;
-        return ImageViewportInternal::PreparedPayloadIdentity {
-            payload.generation,
-            payload.requestId,
-            payload.payloadId,
-        };
-    };
+    const QVector<Input::ImageLayer>& imageLayers = input.imageLayers;
 
     if (input.backgroundMode == ImageViewportBackgroundMode::SolidColor) {
         plan.backgroundRects.append(
@@ -115,21 +98,24 @@ RenderAdapter::RenderPlan RenderAdapter::createPlan(const Input& input) const
         return plan;
     }
 
-    for (const Input::ImageLayer& layer : imageLayers) {
+    for (qsizetype index = 0; index < imageLayers.size(); ++index) {
+        const Input::ImageLayer& layer = imageLayers.at(index);
         const auto& payload = layer.preparedPayload;
         const ImageViewportInternal::PreparedPayloadIdentity payloadIdentity {
             payload.generation,
             payload.requestId,
             payload.payloadId,
         };
-        if (payload.image.isNull()) {
+        plan.rolePayloads.append({ layer.role, payloadIdentity });
+        const ImageViewportPageRole expectedRole
+            = index == 0 ? ImageViewportPageRole::Primary : ImageViewportPageRole::Secondary;
+        if (index > 1 || layer.role != expectedRole || !payloadIdentity.isValid()
+            || payload.image.isNull() || layer.targetRect.isEmpty() || layer.sourceRect.isEmpty()) {
             plan.result = CommitResult::Failed;
-            plan.preparedPayload = payloadIdentity;
             plan.failedRole = layer.role;
             plan.failureCause = RenderFailureCause::InvalidRolePayload;
             return plan;
         }
-        plan.rolePayloads.append({ layer.role, payloadIdentity });
         const qreal devicePixelRatio = payload.image.devicePixelRatio();
         const QRectF physicalSourceRect(layer.sourceRect.x() * devicePixelRatio,
             layer.sourceRect.y() * devicePixelRatio, layer.sourceRect.width() * devicePixelRatio,
@@ -141,7 +127,6 @@ RenderAdapter::RenderPlan RenderAdapter::createPlan(const Input& input) const
     }
 
     plan.result = CommitResult::Committed;
-    plan.preparedPayload = firstPayloadIdentity();
     return plan;
 }
 
@@ -150,12 +135,12 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
 {
     const RenderAdapter::RenderPlan plan = adapter.createPlan(input.planInput);
     if (plan.result == RenderAdapter::CommitResult::Failed) {
-        return { oldNode, plan.result, plan.preparedPayload, plan.rolePayloads, plan.failedRole,
+        return { oldNode, plan.result, plan.rolePayloads, plan.failedRole,
             plan.failureCause };
     }
     if (plan.backgroundRects.isEmpty() && plan.imageLayers.isEmpty()) {
         delete oldNode;
-        return { nullptr, plan.result, plan.preparedPayload, plan.rolePayloads, plan.failedRole,
+        return { nullptr, plan.result, plan.rolePayloads, plan.failedRole,
             plan.failureCause };
     }
 
@@ -166,14 +151,14 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
 
     if (plan.imageLayers.isEmpty()) {
         delete oldNode;
-        return { root, plan.result, plan.preparedPayload, plan.rolePayloads, plan.failedRole,
+        return { root, plan.result, plan.rolePayloads, plan.failedRole,
             plan.failureCause };
     }
 
     if (!input.window) {
         delete root;
-        return { oldNode, RenderAdapter::CommitResult::Failed, plan.preparedPayload,
-            plan.rolePayloads, ImageViewportPageRole::Primary, RenderFailureCause::MissingWindow };
+        return { oldNode, RenderAdapter::CommitResult::Failed, plan.rolePayloads,
+            ImageViewportPageRole::Primary, RenderFailureCause::MissingWindow };
     }
 
     const Factory defaultSceneGraphFactory;
@@ -196,16 +181,16 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
             = sceneGraphFactory.createTexture(input.window, payload.image, textureOptions);
         if (!texture) {
             delete root;
-            return { oldNode, RenderAdapter::CommitResult::Failed, payloadIdentity, rolePayloads,
-                layer.role, RenderFailureCause::TextureCreationFailure };
+            return { oldNode, RenderAdapter::CommitResult::Failed, rolePayloads, layer.role,
+                RenderFailureCause::TextureCreationFailure };
         }
         mipmapUnavailable = mipmapUnavailable || (plan.mipmap && !texture->hasMipmaps());
         QSGImageNode* imageNode = sceneGraphFactory.createImageNode(input.window);
         if (!imageNode) {
             delete texture;
             delete root;
-            return { oldNode, RenderAdapter::CommitResult::Failed, payloadIdentity, rolePayloads,
-                layer.role, RenderFailureCause::ImageNodeCreationFailure };
+            return { oldNode, RenderAdapter::CommitResult::Failed, rolePayloads, layer.role,
+                RenderFailureCause::ImageNodeCreationFailure };
         }
 
         imageNode->setTexture(texture);
@@ -233,6 +218,6 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
         }
     }
     delete oldNode;
-    return { root, plan.result, plan.preparedPayload, rolePayloads,
-        ImageViewportPageRole::Primary, RenderFailureCause::None, false, mipmapUnavailable };
+    return { root, plan.result, rolePayloads, ImageViewportPageRole::Primary,
+        RenderFailureCause::None, false, mipmapUnavailable };
 }

@@ -319,7 +319,7 @@ static_assert(!std::is_copy_constructible_v<ViewportEngineRenderSynchronizationA
 static_assert(!std::is_copy_constructible_v<ViewportEngineRenderCommitAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEngineRenderFailureAccess>);
 static_assert(std::is_same_v<decltype(&synchronizeViewportEngineRender),
-    ViewportRenderSynchronization (*)(
+    ViewportEngineRenderCoordinationState::AttemptContext (*)(
         ViewportEngineRenderSynchronizationInput, ViewportEngineRenderSynchronizationAccess)>);
 static_assert(std::is_same_v<decltype(&reduceViewportEngineRenderCommit),
     ViewportEngineRenderCommitReduction (*)(

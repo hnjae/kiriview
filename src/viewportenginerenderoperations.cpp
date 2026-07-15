@@ -4,6 +4,8 @@
 #include "viewportenginerenderoperations_p.h"
 #include "viewportgeometryhelpers_p.h"
 
+#include <limits>
+
 namespace {
 using namespace ImageViewportInternal;
 bool hasSecondary(const RequestState& request)
@@ -115,12 +117,15 @@ void markPlayback(
 }
 }
 
-ViewportRenderSynchronization synchronizeViewportEngineRender(
+ViewportEngineRenderCoordinationState::AttemptContext synchronizeViewportEngineRender(
     ViewportEngineRenderSynchronizationInput input,
     ViewportEngineRenderSynchronizationAccess access)
 {
-    ViewportRenderSynchronization result;
-    result.attempt = ++access.render().nextSynchronizationAttempt;
+    ViewportEngineRenderCoordinationState::AttemptContext result;
+    if (access.render().nextSynchronizationAttempt == std::numeric_limits<quint64>::max()) {
+        qFatal("ImageViewport render attempt identity exhausted");
+    }
+    result.attempt.attempt = ++access.render().nextSynchronizationAttempt;
     result.oldContentRect = input.oldContentRect;
     result.oldVisibleImageRect = input.oldVisibleImageRect;
     result.oldDisplayStatus = access.display().status;
@@ -140,11 +145,10 @@ ViewportRenderSynchronization synchronizeViewportEngineRender(
     result.geometryState = projectViewportGeometryState(
         result.pendingTargetCommit ? input.pendingGeometry : input.currentGeometry,
         access.presentation());
-    result.renderSnapshot
+    result.attempt.snapshot
         = projectViewportRenderSnapshot({ input.itemSize, result.pendingTargetCommit,
                                             result.preparedPayload, result.geometryState },
             access.renderSnapshot());
-    access.render().lastSynchronization = result;
     return result;
 }
 
@@ -154,12 +158,11 @@ ViewportEngineRenderCommitReduction reduceViewportEngineRenderCommit(
     ViewportEngineRenderCommitReduction result;
     auto& changes = result.changes;
     if (terminalSealed(access.request()) || !input.renderedImagePresent
-        || (input.acknowledgement.synchronizationAttempt != 0
-            && (input.acknowledgement.synchronizationAttempt != input.synchronizationAttempt
-                || input.synchronizationAttempt != access.render().nextSynchronizationAttempt))
+        || input.acknowledgement.attempt != input.attempt
         || !ViewportEngineRenderAcknowledgement::completeMatches(
             access.display(), access.request(), input.acknowledgement)) {
-        const auto payload = input.acknowledgement.preparedPayload;
+        const auto payload = ViewportEngineRenderAcknowledgement::acknowledgedPayload(
+            input.acknowledgement, ImageViewportPageRole::Primary);
         ImageViewportInternal::InternalObservation observation;
         observation.subsystem = ImageViewportInternal::InternalObservationSubsystem::Engine;
         observation.category = ImageViewportInternal::InternalObservationCategory::StaleDrop;
@@ -170,10 +173,7 @@ ViewportEngineRenderCommitReduction reduceViewportEngineRenderCommit(
         observation.identity.generation = payload.generation;
         observation.identity.requestId = payload.requestId;
         observation.identity.payloadId = payload.payloadId;
-        observation.identity.renderAttempt
-            = input.acknowledgement.synchronizationAttempt != 0
-            ? input.acknowledgement.synchronizationAttempt
-            : input.synchronizationAttempt;
+        observation.identity.renderAttempt = input.acknowledgement.attempt;
         result.observations.append(observation);
         return result;
     }
@@ -226,9 +226,7 @@ ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
     const bool pending = waitingForRender(access.request())
         && pendingSpreadReady(access.display(), access.request());
     if (terminalSealed(access.request())
-        || (input.acknowledgement.synchronizationAttempt != 0
-            && input.acknowledgement.synchronizationAttempt
-                != access.render().nextSynchronizationAttempt)
+        || input.acknowledgement.attempt != input.attempt
         || !ViewportEngineRenderAcknowledgement::failureMatches(
             access.display(), access.request(), input.acknowledgement)
         || (access.display().status != ImageViewportDisplayStatus::Ready && !pending)) {
@@ -243,10 +241,7 @@ ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
         observation.identity.generation = failed.generation;
         observation.identity.requestId = failed.requestId;
         observation.identity.payloadId = failed.payloadId;
-        observation.identity.renderAttempt
-            = input.acknowledgement.synchronizationAttempt != 0
-            ? input.acknowledgement.synchronizationAttempt
-            : access.render().nextSynchronizationAttempt;
+        observation.identity.renderAttempt = input.acknowledgement.attempt;
         observation.detail = int(input.acknowledgement.failureCause);
         result.observations.append(observation);
         return result;
@@ -256,9 +251,7 @@ ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
         input.acknowledgement, input.acknowledgement.failedRole);
     result.diagnostic = { true, input.acknowledgement.failedRole, failed.generation,
         failed.requestId, failed.payloadId, input.acknowledgement.failureCause,
-        input.acknowledgement.synchronizationAttempt != 0
-            ? input.acknowledgement.synchronizationAttempt
-            : access.render().nextSynchronizationAttempt };
+        input.acknowledgement.attempt };
     access.request().lastAcceptedRenderFailure = result.diagnostic;
     changes.renderFailureDiagnostic = result.diagnostic;
     access.display().clearPendingRenderPayload();
@@ -302,11 +295,9 @@ ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
     changes.displayState = access.display().status != oldStatus;
     changes.geometryState
         = rectsDifferExactly(
-              PresentationGeometry::contentRect(access.render().lastSynchronization.geometryState),
-              access.render().lastSynchronization.oldContentRect)
-        || rectsDifferExactly(PresentationGeometry::visibleImageRect(
-                                  access.render().lastSynchronization.geometryState),
-            access.render().lastSynchronization.oldVisibleImageRect);
+              PresentationGeometry::contentRect(input.geometryState), input.oldContentRect)
+        || rectsDifferExactly(PresentationGeometry::visibleImageRect(input.geometryState),
+            input.oldVisibleImageRect);
     return result;
 }
 

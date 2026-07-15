@@ -437,8 +437,10 @@ ViewportRenderSnapshot projectViewportRenderSnapshot(
     };
     auto primary = input.preparedPayload;
     if (primary.image.isNull()
-        && access.display().hasReadyDisplay(access.request().roles[0].source.facts.present))
+        && access.display().hasReadyDisplay(access.request().roles[0].source.facts.present)) {
+        primary = access.display().roles[0].displayedPayload;
         primary.image = access.display().roles[0].displayedImage;
+    }
     auto secondary = primary;
     if (input.pendingTargetCommit && !access.display().roles[1].pendingRenderPayload.image.isNull())
         secondary = access.display().roles[1].pendingRenderPayload;
@@ -452,12 +454,6 @@ ViewportRenderSnapshot projectViewportRenderSnapshot(
     snapshot.backgroundColor = access.presentation().backgroundColor;
     snapshot.smoothing = access.presentation().smoothing;
     snapshot.mipmap = access.presentation().mipmap;
-    snapshot.rotationDegrees = access.presentation().rotationDegrees;
-    snapshot.mirrorHorizontally = access.presentation().mirrorHorizontally;
-    snapshot.mirrorVertically = access.presentation().mirrorVertically;
-    snapshot.preparedPayload = primary;
-    snapshot.targetRect = target(ImageViewportPageRole::Primary);
-    snapshot.sourceRect = source(ImageViewportPageRole::Primary);
     const auto append = [&](ImageViewportPageRole role, const auto& payload, bool requireRects) {
         const QRectF targetRect = target(role);
         const QRectF sourceRect = source(role);
@@ -467,7 +463,7 @@ ViewportRenderSnapshot projectViewportRenderSnapshot(
                 access.presentation().rotationDegrees, access.presentation().mirrorHorizontally,
                 access.presentation().mirrorVertically });
     };
-    append(ImageViewportPageRole::Primary, primary, false);
+    append(ImageViewportPageRole::Primary, primary, true);
     append(ImageViewportPageRole::Secondary, secondary, true);
     return snapshot;
 }
