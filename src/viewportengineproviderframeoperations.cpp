@@ -166,6 +166,9 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         return result;
     }
 
+    auto admittedPayload = admission.preparedPayload;
+    admittedPayload.providerFrameLeaseId = input.providerFrameLeaseId;
+
     const auto oldRequestStatus = access.m_request.status;
     const auto oldRequestReason = access.m_request.reason;
     const auto oldGeometry = projectViewportGeometryState(input.geometry, access.m_presentation);
@@ -173,7 +176,7 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
     access.m_provider.requests.activeFrameToken = {};
 
     if (input.role == ImageViewportPageRole::Secondary) {
-        access.m_display.roles[1].pendingRenderPayload = admission.preparedPayload;
+        access.m_display.roles[1].pendingRenderPayload = admittedPayload;
         const bool primaryReady = access.m_display.roles[0].pendingRenderPayload.commitPending
             && !access.m_display.roles[0].pendingRenderPayload.image.isNull();
         TargetSpreadWaitState wait;
@@ -196,7 +199,7 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         access.m_display.captureRenderFailureRetainedDisplay(
             access.m_request.roles[0].source.facts.present);
         access.m_display.commitPreparedPayloadIdentity(
-            access.m_request.roles[0].activeRequest, admission.preparedPayload);
+            access.m_request.roles[0].activeRequest, admittedPayload);
         stageBuiltInSecondaryPayload(access.m_request, access.m_display);
         TargetSpreadWaitState wait;
         wait.requiresSecondary = access.m_request.roles[1].sequence

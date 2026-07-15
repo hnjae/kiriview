@@ -20,6 +20,20 @@ ViewportEngine::ViewportEngine()
 
 ViewportEngine::~ViewportEngine() = default;
 
+QSet<quint64> ViewportEngine::providerFrameLeaseIds() const
+{
+    QSet<quint64> leases;
+    for (const auto& role : m_state->displayState.display.roles) {
+        if (role.displayedPayload.providerFrameLeaseId != 0) {
+            leases.insert(role.displayedPayload.providerFrameLeaseId);
+        }
+        if (role.pendingRenderPayload.providerFrameLeaseId != 0) {
+            leases.insert(role.pendingRenderPayload.providerFrameLeaseId);
+        }
+    }
+    return leases;
+}
+
 ViewportEngine::PendingPublication::PendingPublication(
     ViewportEngine* owner, ImageViewportInternal::ViewportChangeSet changes)
     : m_owner(owner)

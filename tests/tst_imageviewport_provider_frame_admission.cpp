@@ -33,6 +33,7 @@ private slots:
     void providerClosedGenerationOwnedFramePayloadReleasesOnce();
     void providerAcceptedOwnedFramePayloadReleasesOnce();
     void secondaryProviderAcceptedOwnedFramePayloadCompletesSpreadAndReleasesOnce();
+    void providerRetainedOwnedFramePayloadOutlivesClosingSessionUntilReplacementCommit();
     void providerFrameReadyWithPositiveGeometryPublishesUploadPending();
     void providerFrameReadyWithZeroGeometryKeepsRenderWaiting();
 };
@@ -936,18 +937,22 @@ void ImageViewportProviderFrameAdmissionTest::providerAcceptedOwnedFramePayloadR
         sessionFactory->lastSession(), sessionFactory->lastSession()->lastFrameToken(), payload);
     drainQueuedProviderResults();
 
-    QCOMPARE(*releaseCount, 1);
+    QCOMPARE(*releaseCount, 0);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "UploadPending"));
 
     acknowledgePendingRenderCommitForTest(item);
 
-    QCOMPARE(*releaseCount, 1);
+    QCOMPARE(*releaseCount, 0);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
+
+    QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
+    drainQueuedProviderResults();
+    QCOMPARE(*releaseCount, 1);
 }
 
 void ImageViewportProviderFrameAdmissionTest::
@@ -1000,14 +1005,14 @@ void ImageViewportProviderFrameAdmissionTest::
         sessionFactory->lastSession(), sessionFactory->lastSession()->lastFrameToken(), payload);
     drainQueuedProviderResults();
 
-    QCOMPARE(*releaseCount, 1);
+    QCOMPARE(*releaseCount, 0);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "UploadPending"));
     QVERIFY(hasPendingRenderCommitForTest(item));
 
     acknowledgePendingRenderCommitForTest(item);
 
-    QCOMPARE(*releaseCount, 1);
+    QCOMPARE(*releaseCount, 0);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
@@ -1015,6 +1020,79 @@ void ImageViewportProviderFrameAdmissionTest::
     QCOMPARE(secondaryDisplayedFrame(item), 0);
     QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
     QCOMPARE(secondaryDisplayedImageSize(item), QSizeF(20.0, 10.0));
+
+    QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
+    drainQueuedProviderResults();
+    QCOMPARE(*releaseCount, 1);
+}
+
+void ImageViewportProviderFrameAdmissionTest::
+    providerRetainedOwnedFramePayloadOutlivesClosingSessionUntilReplacementCommit()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> providerResult(factory.fromProvider(&adapter));
+    QVERIFY(providerResult->sequence());
+
+    QImage replacementImage(8, 8, QImage::Format_ARGB32_Premultiplied);
+    replacementImage.fill(Qt::black);
+    ImageFrame replacementFrame(replacementImage);
+    QScopedPointer<ImageSequenceFactoryResult> replacementResult(factory.fromFrame(&replacementFrame));
+    QVERIFY(replacementResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(providerResult->sequence()),
+                 PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    const QMetaObject* metaObject = item.metaObject();
+
+    CountingProviderSession* session = sessionFactory->lastSession();
+    QVERIFY(session);
+    QPointer<CountingProviderSession> sessionGuard(session);
+    emitProviderMetadataReady(session, session->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    drainQueuedProviderResults();
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    const auto releaseCount = std::make_shared<int>(0);
+    auto* payload = new ImageSequenceProviderFrameHandle(
+        new ImageFrame(image), [releaseCount](ImageFrame* frame) {
+            ++*releaseCount;
+            delete frame;
+        });
+    emitProviderFrameHandleReady(session, session->lastFrameToken(), payload);
+    drainQueuedProviderResults();
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(*releaseCount, 0);
+
+    QCOMPARE(item.setPresentationTarget(
+                     ImageViewportPresentationTarget(replacementResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    drainQueuedProviderResults();
+
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(*closeCount, 1);
+    QCOMPARE(*releaseCount, 0);
+    QVERIFY(sessionGuard);
+
+    acknowledgePendingRenderCommitForTest(item);
+    drainQueuedProviderResults();
+
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(*releaseCount, 1);
+    QVERIFY(!sessionGuard);
 }
 
 void ImageViewportProviderFrameAdmissionTest::

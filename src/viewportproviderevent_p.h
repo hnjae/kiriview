@@ -26,6 +26,7 @@ struct ViewportProviderEvent
     ImageSequenceProviderMetadata metadata;
     ImageFrame* imageFrame = nullptr;
     ImageSequenceProviderFrameHandle* frameHandle = nullptr;
+    quint64 frameLeaseId = 0;
     ImageSequenceProviderFrameEnvelope frameEnvelope;
     double progress = 0.0;
     ImageSequenceProviderUnsupportedCause unsupportedCause

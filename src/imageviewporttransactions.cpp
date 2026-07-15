@@ -51,6 +51,7 @@ void ImageViewportPrivate::applyEngineTransition(ViewportEngineTransition transi
     }
     ++transitionApplicationDepth;
 
+    providerHost.reconcileFrameLeases(engine.providerFrameLeaseIds());
     providerHost.applyTransportEffects(transition.providerBeforePublication);
     transition.changes = engine.publishChanges(std::move(transition.changes));
     internalDiagnostics.recordRenderFailure(transition.changes.renderFailureDiagnostic);
@@ -93,6 +94,7 @@ void ImageViewportPrivate::drainProviderHostEvents()
     drainingProviderHostEvents = true;
     while (!pendingProviderHostEvents.isEmpty()) {
         ViewportProviderHostEvent event = pendingProviderHostEvents.takeFirst();
+        providerHost.completeFrameEventDelivery(event.providerEvent.frameLeaseId);
         applyEngineTransition(
             engine.handleProviderHostEvent({ event, { itemBounds(), 1.0 } }));
     }

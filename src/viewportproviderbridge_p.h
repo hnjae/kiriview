@@ -5,6 +5,8 @@
 #include <ImageViewport/ImageViewport>
 
 #include <QtCore/QPointer>
+#include <QtCore/QHash>
+#include <QtCore/QSet>
 #include <QtCore/Qt>
 
 #include <functional>
@@ -38,6 +40,11 @@ public:
         ImageSequenceProviderRequestToken metadataToken,
         ImageSequenceProviderRequestToken frameToken)
         = 0;
+    virtual bool queueSessionDestruction(ImageSequenceProviderSession* session) = 0;
+    virtual bool releaseFrameHandle(ImageSequenceProviderSession* session,
+        ImageSequenceProviderThreadingContract threadingContract,
+        ImageSequenceProviderFrameHandle* frameHandle)
+        = 0;
 };
 
 struct ViewportProviderTransportResult
@@ -62,6 +69,9 @@ public:
     ViewportProviderSessionOpenTransportResult openSession(
         const ViewportProviderSessionOpenInput& input);
     ViewportProviderTransportResult deliverRequest(const ImageSequenceProviderRequest& request);
+    void completeFrameEventDelivery(quint64 leaseId);
+    void reconcileFrameLeases(const QSet<quint64>& liveLeaseIds);
+    void releaseAllFrameLeases();
     void setExecutor(ViewportProviderExecutor& executor);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void failNextCommandDeliveryForTest();
@@ -73,6 +83,21 @@ private:
     bool takeForcedDeliveryFailureForTest();
     ViewportProviderExecutor& executor() const;
     Qt::ConnectionType eventDeliveryConnectionType() const;
+    quint64 claimFrameHandle(ImageSequenceProviderSession* session,
+        ImageSequenceProviderThreadingContract threadingContract,
+        ImageSequenceProviderFrameHandle* frameHandle);
+    bool hasFrameLeases(ImageSequenceProviderSession* session) const;
+    void releaseFrameLease(quint64 leaseId);
+    void destroyClosingSessionIfUnused(ImageSequenceProviderSession* session);
+
+    struct FrameLeaseRecord
+    {
+        QPointer<ImageSequenceProviderSession> session;
+        QPointer<ImageSequenceProviderFrameHandle> frameHandle;
+        ImageSequenceProviderThreadingContract threadingContract
+            = ImageSequenceProviderThreadingContract::AffinityBound;
+        bool pendingEngineDelivery = true;
+    };
 
     ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ImageSequenceProviderThreadingContract activeThreadingContract
@@ -82,6 +107,8 @@ private:
     QPointer<ImageSequenceProviderSession> pendingCleanupSession;
     ImageSequenceProviderRequestToken pendingCleanupMetadataToken;
     ImageSequenceProviderRequestToken pendingCleanupFrameToken;
+    QHash<quint64, FrameLeaseRecord> frameLeases;
+    QSet<ImageSequenceProviderSession*> closingSessions;
     bool forceNextCommandDeliveryFailure = false;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     bool synchronousEventDelivery = false;

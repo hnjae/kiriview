@@ -336,12 +336,16 @@ void ImageViewportProviderLifecycleTest::providerTokenOverflowDuringSeekFailsAcc
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*closeCount, 1);
-    QCOMPARE(sessionFactory->lastSession(), nullptr);
+    QVERIFY(sessionFactory->lastSession());
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderFailure"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(primaryRequestedFrame(item), 1);
     QVERIFY(viewportErrorString(item).contains(QStringLiteral("provider request token")));
+
+    QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
+    drainQueuedProviderResults();
+    QCOMPARE(sessionFactory->lastSession(), nullptr);
 }
 
 void ImageViewportProviderLifecycleTest::providerAssignmentPublishesBeforeDispatchFailure()
@@ -915,6 +919,7 @@ void ImageViewportProviderLifecycleTest::providerClearIgnoresLateSecondaryCallba
     QCOMPARE(secondaryRequestedFrame(item), 0);
 
     QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
+    QVERIFY(secondarySession);
     const ImageViewportRevisionToken clearedRequestRevision
         = revisionTokenProperty(item, "requestRevision");
     const ImageViewportRevisionToken clearedDisplayRevision

@@ -220,6 +220,7 @@ struct PreparedPayload
     ImageViewportPayloadQuality quality = ImageViewportPayloadQuality::Unknown;
     ImageViewportPayloadExactness exactness = ImageViewportPayloadExactness::Unknown;
     ImageViewportDemandRevisionToken demandRevision;
+    quint64 providerFrameLeaseId = 0;
 
     PreparedPayloadIdentity identity() const { return { generation, requestId, payloadId }; }
 };

@@ -2,6 +2,8 @@
 
 #include "viewportenginefacadecontract_p.h"
 
+#include <QtCore/QSet>
+
 #include <array>
 #include <memory>
 
@@ -66,6 +68,7 @@ public:
     ImageViewportInternal::ViewportChangeSet publishChanges(
         ImageViewportInternal::ViewportChangeSet changes);
     ViewportProviderTransportBatch shutdown();
+    QSet<quint64> providerFrameLeaseIds() const;
 
 private:
     using GeometryInput = ViewportEngineGeometryInput;

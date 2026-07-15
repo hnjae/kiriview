@@ -613,6 +613,8 @@ void ImageViewportProviderContractTest::providerSessionEntryPointsUseSessionAffi
     const auto playbackRequestThread = std::make_shared<QThread*>(nullptr);
     const auto cancelRequestThread = std::make_shared<QThread*>(nullptr);
     const auto closeThread = std::make_shared<QThread*>(nullptr);
+    const auto releaseThread = std::make_shared<QThread*>(nullptr);
+    const auto handleDestructionThread = std::make_shared<QThread*>(nullptr);
     auto sessionFactory
         = std::make_shared<AffinityProviderSessionFactory>(&workerThread, metadataRequestThread,
             frameRequestThread, playbackRequestThread, cancelRequestThread, closeThread);
@@ -638,8 +640,15 @@ void ImageViewportProviderContractTest::providerSessionEntryPointsUseSessionAffi
 
         QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
         image.fill(Qt::transparent);
-        ImageFrame frame(image);
-        emitProviderFrameReady(session, session->lastFrameToken(), &frame,
+        auto* handle = new ImageSequenceProviderFrameHandle(
+            new ImageFrame(image), [releaseThread](ImageFrame* frame) {
+                *releaseThread = QThread::currentThread();
+                delete frame;
+            });
+        handle->moveToThread(&workerThread);
+        QObject::connect(handle, &QObject::destroyed,
+            [handleDestructionThread]() { *handleDestructionThread = QThread::currentThread(); });
+        emitProviderFrameHandleReady(session, session->lastFrameToken(), handle,
             ImageSequenceProviderFrameEnvelope::timedFrame(0, 0, 100));
         drainQueuedProviderResults();
         acknowledgePendingPrimaryRenderCommitForTest(item);
@@ -653,6 +662,10 @@ void ImageViewportProviderContractTest::providerSessionEntryPointsUseSessionAffi
         QCOMPARE(item.stop(ImageViewportPageRole::Primary).outcome(),
             ImageViewportCommandOutcome::Accepted);
         QCOMPARE(*cancelRequestThread, &workerThread);
+
+        QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
+        QCOMPARE(*releaseThread, &workerThread);
+        QCOMPARE(*handleDestructionThread, &workerThread);
     }
 
     QTRY_COMPARE(*closeThread, &workerThread);
@@ -673,6 +686,8 @@ void ImageViewportProviderContractTest::providerThreadSafeSessionEntryPointsUseV
     const auto playbackRequestThread = std::make_shared<QThread*>(nullptr);
     const auto cancelRequestThread = std::make_shared<QThread*>(nullptr);
     const auto closeThread = std::make_shared<QThread*>(nullptr);
+    const auto releaseThread = std::make_shared<QThread*>(nullptr);
+    const auto handleDestructionThread = std::make_shared<QThread*>(nullptr);
     auto sessionFactory
         = std::make_shared<AffinityProviderSessionFactory>(&workerThread, metadataRequestThread,
             frameRequestThread, playbackRequestThread, cancelRequestThread, closeThread);
@@ -702,8 +717,15 @@ void ImageViewportProviderContractTest::providerThreadSafeSessionEntryPointsUseV
 
         QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
         image.fill(Qt::transparent);
-        ImageFrame frame(image);
-        emitProviderFrameReady(session, session->lastFrameToken(), &frame,
+        auto* handle = new ImageSequenceProviderFrameHandle(
+            new ImageFrame(image), [releaseThread](ImageFrame* frame) {
+                *releaseThread = QThread::currentThread();
+                delete frame;
+            });
+        handle->moveToThread(&workerThread);
+        QObject::connect(handle, &QObject::destroyed,
+            [handleDestructionThread]() { *handleDestructionThread = QThread::currentThread(); });
+        emitProviderFrameHandleReady(session, session->lastFrameToken(), handle,
             ImageSequenceProviderFrameEnvelope::timedFrame(0, 0, 100));
         drainQueuedProviderResults();
         acknowledgePendingPrimaryRenderCommitForTest(item);
@@ -717,6 +739,10 @@ void ImageViewportProviderContractTest::providerThreadSafeSessionEntryPointsUseV
         QCOMPARE(item.stop(ImageViewportPageRole::Primary).outcome(),
             ImageViewportCommandOutcome::Accepted);
         QCOMPARE(*cancelRequestThread, viewportThread);
+
+        QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
+        QCOMPARE(*releaseThread, viewportThread);
+        QCOMPARE(*handleDestructionThread, &workerThread);
     }
 
     QTRY_COMPARE(*closeThread, &workerThread);

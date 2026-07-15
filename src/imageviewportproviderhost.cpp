@@ -16,8 +16,30 @@ ImageViewportProviderHost::ImageViewportProviderHost(
 
 void ImageViewportProviderHost::shutdown()
 {
+    releaseAllFrameLeases();
     recordTransportResult(providerBridge.closeSession({}, {}));
     recordTransportResult(secondaryProviderBridge.closeSession({}, {}));
+}
+
+void ImageViewportProviderHost::completeFrameEventDelivery(quint64 leaseId)
+{
+    if (leaseId == 0) {
+        return;
+    }
+    providerBridge.completeFrameEventDelivery(leaseId);
+    secondaryProviderBridge.completeFrameEventDelivery(leaseId);
+}
+
+void ImageViewportProviderHost::reconcileFrameLeases(const QSet<quint64>& liveLeaseIds)
+{
+    providerBridge.reconcileFrameLeases(liveLeaseIds);
+    secondaryProviderBridge.reconcileFrameLeases(liveLeaseIds);
+}
+
+void ImageViewportProviderHost::releaseAllFrameLeases()
+{
+    providerBridge.releaseAllFrameLeases();
+    secondaryProviderBridge.releaseAllFrameLeases();
 }
 
 void ImageViewportProviderHost::applyFrameTransportEffect(

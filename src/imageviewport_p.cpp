@@ -20,6 +20,7 @@ ImageViewportPrivate::ImageViewportPrivate(ImageViewport* viewport)
 ImageViewportPrivate::~ImageViewportPrivate()
 {
     playbackScheduler.stop();
+    providerHost.releaseAllFrameLeases();
     providerHost.applyTransportEffects(engine.shutdown());
     providerHost.shutdown();
 }

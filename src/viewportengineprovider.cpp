@@ -184,7 +184,6 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
         m_state->requestState.request.sequenceGeneration, eventProvider.session);
     if (!acceptsViewportEngineProviderSessionEvent(
             { event.generation, event.sessionSerial }, std::move(sessionAccess))) {
-        std::unique_ptr<ImageSequenceProviderFrameHandle> stale(event.frameHandle);
         return {};
     }
     ViewportProviderEventResult result;
@@ -209,7 +208,7 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
             m_state->playbackState.playback, m_state->displayState.display, provider,
             m_state->presentationState.presentation);
         result.changes = reduceViewportEngineProviderFrameReady(
-            { event.role, event.token, event.imageFrame,
+            { event.role, event.token, event.imageFrame, 0,
                 event.kind == ViewportProviderEvent::Kind::ImageFrameReady
                     ? ImageSequenceProviderFrameEnvelope::stillFrame()
                     : event.frameEnvelope,
@@ -220,13 +219,13 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
     }
     case ViewportProviderEvent::Kind::FrameHandleReady:
     case ViewportProviderEvent::Kind::FrameHandleWithMetadataReady: {
-        std::unique_ptr<ImageSequenceProviderFrameHandle> owned(event.frameHandle);
         auto& provider = m_state->providerState.roles[roleIndex(event.role)].provider;
         ViewportEngineProviderFrameReadyAccess access(m_state->requestState.request,
             m_state->playbackState.playback, m_state->displayState.display, provider,
             m_state->presentationState.presentation);
         result.changes = reduceViewportEngineProviderFrameReady(
-            { event.role, event.token, owned ? owned->frame() : nullptr,
+            { event.role, event.token, event.frameHandle ? event.frameHandle->frame() : nullptr,
+                event.frameLeaseId,
                 event.kind == ViewportProviderEvent::Kind::FrameHandleReady
                     ? ImageSequenceProviderFrameEnvelope::stillFrame()
                     : event.frameEnvelope,

@@ -444,6 +444,8 @@ ViewportRenderSnapshot projectViewportRenderSnapshot(
         secondary = access.display().roles[1].pendingRenderPayload;
     else
         secondary.image = access.display().roles[1].displayedImage;
+    primary.providerFrameLeaseId = 0;
+    secondary.providerFrameLeaseId = 0;
     ViewportRenderSnapshot snapshot;
     snapshot.itemSize = input.itemSize;
     snapshot.backgroundMode = access.presentation().backgroundMode;
