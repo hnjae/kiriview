@@ -15,38 +15,38 @@ ImageViewport::ImageViewport(QQuickItem* parent)
 ImageViewport::~ImageViewport() = default;
 
 ImageViewportStateSnapshot ImageViewport::state() const { return d->state(); }
-ImageViewportCommandResult ImageViewport::clear() { return d->commandResult(d->clear()); }
+ImageViewportCommandResult ImageViewport::clear() { return d->clear(); }
 ImageViewportCommandResult ImageViewport::play(ImageViewportPageRole role)
 {
-    return d->commandResult(d->play(role));
+    return d->play(role);
 }
 ImageViewportCommandResult ImageViewport::pause(ImageViewportPageRole role)
 {
-    return d->commandResult(d->pause(role));
+    return d->pause(role);
 }
 ImageViewportCommandResult ImageViewport::stop(ImageViewportPageRole role)
 {
-    return d->commandResult(d->stop(role));
+    return d->stop(role);
 }
 ImageViewportCommandResult ImageViewport::seek(ImageViewportPageRole role, int frame)
 {
-    return d->commandResult(d->seek(role, frame));
+    return d->seek(role, frame);
 }
 ImageViewportCommandResult ImageViewport::seekToPosition(
     ImageViewportPageRole role, int milliseconds)
 {
-    return d->commandResult(d->seekToPosition(role, milliseconds));
+    return d->seekToPosition(role, milliseconds);
 }
 ImageViewportCommandResult ImageViewport::setPresentationTarget(
     ImageViewportPresentationTarget presentationTarget, PresentationTargetTransitionPolicy policy)
 {
-    return d->commandResult(d->setPresentationTarget(std::move(presentationTarget), policy));
+    return d->setPresentationTarget(std::move(presentationTarget), policy);
 }
-ImageViewportCommandResult ImageViewport::resetView() { return d->commandResult(d->resetView()); }
+ImageViewportCommandResult ImageViewport::resetView() { return d->resetView(); }
 
 ImageViewportCommandResult ImageViewport::setPresentation(ImageViewportPresentationCommand command)
 {
-    return d->commandResult(d->setPresentation(command));
+    return d->setPresentation(command);
 }
 
 ImageViewportCoordinateResult ImageViewport::mapPoint(

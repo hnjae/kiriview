@@ -43,16 +43,18 @@ QString ImageViewportPrivate::boundedDiagnostic(const QString& diagnostic, const
     return FramePreparation::boundedDiagnostic(diagnostic, fallback);
 }
 
-void ImageViewportPrivate::applyEngineTransition(ViewportEngineTransition transition)
+ImageViewportStateSnapshot ImageViewportPrivate::applyEngineTransition(
+    ViewportEngineTransition transition)
 {
     using ScheduleAction = ViewportPlaybackScheduleEffect::Action;
     if (transition.playbackSchedule.action != ScheduleAction::NoChange) {
         pendingPlaybackSchedule = transition.playbackSchedule;
     }
+    pendingProviderTransport.append(std::move(transition.providerBeforePublication));
+    pendingProviderTransport.append(std::move(transition.providerAfterPublication));
     ++transitionApplicationDepth;
 
     providerHost.reconcileFrameLeases(engine.providerFrameLeaseIds());
-    providerHost.applyTransportEffects(transition.providerBeforePublication);
     transition.changes = engine.publishChanges(std::move(transition.changes));
     internalDiagnostics.recordRenderFailure(transition.changes.renderFailureDiagnostic);
 
@@ -60,11 +62,9 @@ void ImageViewportPrivate::applyEngineTransition(ViewportEngineTransition transi
         prepareRenderSynchronization();
         update();
     }
-    refreshStateSnapshot();
     if (transition.providerSchedulerDiagnostic.valid) {
         internalDiagnostics.recordProviderSchedulerFailure(transition.providerSchedulerDiagnostic);
     }
-    providerHost.applyTransportEffects(transition.providerAfterPublication);
 
     --transitionApplicationDepth;
     if (transitionApplicationDepth == 0
@@ -73,17 +73,47 @@ void ImageViewportPrivate::applyEngineTransition(ViewportEngineTransition transi
         pendingPlaybackSchedule = {};
         playbackScheduler.apply(schedule);
     }
-    if (transitionApplicationDepth == 0) {
-        drainProviderHostEvents();
+
+    const ImageViewportStateSnapshot publishedSnapshot = state();
+    const bool snapshotChanged = publishedSnapshot != lastStateSnapshot;
+    if (snapshotChanged) {
+        lastStateSnapshot = publishedSnapshot;
+        emit q->stateChanged();
     }
+    if (transitionApplicationDepth == 0 && !drainingExternalWork) {
+        drainExternalWork();
+    }
+    return publishedSnapshot;
 }
 
 void ImageViewportPrivate::enqueueProviderHostEvent(ViewportProviderHostEvent event)
 {
     pendingProviderHostEvents.append(std::move(event));
-    if (transitionApplicationDepth == 0) {
-        drainProviderHostEvents();
+    if (transitionApplicationDepth == 0 && !drainingExternalWork) {
+        drainExternalWork();
     }
+}
+
+void ImageViewportPrivate::drainExternalWork()
+{
+    if (drainingExternalWork || transitionApplicationDepth != 0) {
+        return;
+    }
+    drainingExternalWork = true;
+    while (!pendingProviderHostEvents.isEmpty() || !pendingProviderTransport.isEmpty()
+        || providerHost.hasRetiredFrameLeases()) {
+        providerHost.releaseRetiredFrameLeases();
+        drainProviderHostEvents();
+        if (pendingProviderTransport.isEmpty()) {
+            continue;
+        }
+        ViewportProviderTransportCommand command = pendingProviderTransport.takeFirst();
+        if (!engine.acceptsProviderTransportCommand(command)) {
+            continue;
+        }
+        providerHost.applyTransportEffects({ command });
+    }
+    drainingExternalWork = false;
 }
 
 void ImageViewportPrivate::drainProviderHostEvents()
@@ -113,40 +143,40 @@ void ImageViewportPrivate::discardRetainedDisplayForResourcePressure()
     applyEngineTransition(engine.handleResourcePressure({}));
 }
 
-ImageViewportCommandOutcome ImageViewportPrivate::clear()
+ImageViewportCommandResult ImageViewportPrivate::clear()
 {
     playbackScheduler.flushElapsed();
     return setPresentationTarget(
         ImageViewportPresentationTarget::clear(), PresentationTargetTransitionPolicy {});
 }
 
-ImageViewportCommandOutcome ImageViewportPrivate::play(PageRole role)
+ImageViewportCommandResult ImageViewportPrivate::play(PageRole role)
 {
     return executePlaybackCommand({ ViewportPlaybackCommand::Kind::Play, role });
 }
 
-ImageViewportCommandOutcome ImageViewportPrivate::pause(PageRole role)
+ImageViewportCommandResult ImageViewportPrivate::pause(PageRole role)
 {
     return executePlaybackCommand({ ViewportPlaybackCommand::Kind::Pause, role });
 }
 
-ImageViewportCommandOutcome ImageViewportPrivate::stop(PageRole role)
+ImageViewportCommandResult ImageViewportPrivate::stop(PageRole role)
 {
     return executePlaybackCommand({ ViewportPlaybackCommand::Kind::Stop, role });
 }
 
-ImageViewportCommandOutcome ImageViewportPrivate::seek(PageRole role, int frame)
+ImageViewportCommandResult ImageViewportPrivate::seek(PageRole role, int frame)
 {
     return executePlaybackCommand({ ViewportPlaybackCommand::Kind::SeekFrame, role, frame });
 }
 
-ImageViewportCommandOutcome ImageViewportPrivate::seekToPosition(PageRole role, int milliseconds)
+ImageViewportCommandResult ImageViewportPrivate::seekToPosition(PageRole role, int milliseconds)
 {
     return executePlaybackCommand(
         { ViewportPlaybackCommand::Kind::SeekPosition, role, milliseconds });
 }
 
-ImageViewportCommandOutcome ImageViewportPrivate::executePlaybackCommand(
+ImageViewportCommandResult ImageViewportPrivate::executePlaybackCommand(
     ViewportPlaybackCommand command)
 {
     if (ImageViewportInternal::isValidPageRole(command.role)) {
@@ -161,11 +191,11 @@ ImageViewportCommandOutcome ImageViewportPrivate::executePlaybackCommand(
     appendProviderTransport(result.transition.providerBeforePublication,
         reduced.effects.providerFrameTransport[1], PageRole::Secondary);
     result.transition.playbackSchedule = reduced.schedule;
-    applyEngineTransition(result.transition);
-    return result.outcome;
+    const ImageViewportStateSnapshot snapshot = applyEngineTransition(result.transition);
+    return commandResult(result.outcome, snapshot);
 }
 
-ImageViewportCommandOutcome ImageViewportPrivate::resetView()
+ImageViewportCommandResult ImageViewportPrivate::resetView()
 {
     return setPresentation(ImageViewportPresentationCommand::resetViewCommand());
 }

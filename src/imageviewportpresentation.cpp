@@ -195,7 +195,7 @@ QColor ImageViewportPrivate::backgroundColor() const
 
 bool ImageViewportPrivate::looping() const { return lastStateSnapshot.presentation().looping(); }
 
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentation(
+ImageViewportCommandResult ImageViewportPrivate::setPresentation(
     ImageViewportPresentationCommand command)
 {
     const auto reduced = engine.applyPresentationCommand(
@@ -207,8 +207,8 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentation(
         reduced.providerEffects[0], PageRole::Primary);
     appendProviderTransport(result.transition.providerAfterPublication,
         reduced.providerEffects[1], PageRole::Secondary);
-    applyEngineTransition(result.transition);
-    return result.outcome;
+    const ImageViewportStateSnapshot snapshot = applyEngineTransition(result.transition);
+    return commandResult(result.outcome, snapshot);
 }
 
 namespace {

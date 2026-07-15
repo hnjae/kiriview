@@ -25,6 +25,8 @@ public:
     void applyTransportEffects(const ViewportProviderTransportBatch& effects);
     void completeFrameEventDelivery(quint64 leaseId);
     void reconcileFrameLeases(const QSet<quint64>& liveLeaseIds);
+    void releaseRetiredFrameLeases();
+    bool hasRetiredFrameLeases() const;
     void releaseAllFrameLeases();
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES

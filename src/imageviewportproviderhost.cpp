@@ -36,6 +36,18 @@ void ImageViewportProviderHost::reconcileFrameLeases(const QSet<quint64>& liveLe
     secondaryProviderBridge.reconcileFrameLeases(liveLeaseIds);
 }
 
+void ImageViewportProviderHost::releaseRetiredFrameLeases()
+{
+    providerBridge.releaseRetiredFrameLeases();
+    secondaryProviderBridge.releaseRetiredFrameLeases();
+}
+
+bool ImageViewportProviderHost::hasRetiredFrameLeases() const
+{
+    return providerBridge.hasRetiredFrameLeases()
+        || secondaryProviderBridge.hasRetiredFrameLeases();
+}
+
 void ImageViewportProviderHost::releaseAllFrameLeases()
 {
     providerBridge.releaseAllFrameLeases();

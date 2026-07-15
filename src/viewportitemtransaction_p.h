@@ -20,6 +20,7 @@ inline void mergeChanges(ImageViewportInternal::ViewportChangeSet& target,
     target.displayRevision = target.displayRevision || source.displayRevision;
     target.requestRevision = target.requestRevision || source.requestRevision;
     target.commandRevision = target.commandRevision || source.commandRevision;
+    target.presentationRevision = target.presentationRevision || source.presentationRevision;
     if (source.commandRevisionValue != 0) {
         target.commandRevisionValue = source.commandRevisionValue;
     }

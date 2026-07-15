@@ -70,6 +70,7 @@ public:
         ImageViewportInternal::ViewportChangeSet changes);
     ViewportProviderTransportBatch shutdown();
     QSet<quint64> providerFrameLeaseIds() const;
+    bool acceptsProviderTransportCommand(const ViewportProviderTransportCommand& command) const;
 
 private:
     using GeometryInput = ViewportEngineGeometryInput;

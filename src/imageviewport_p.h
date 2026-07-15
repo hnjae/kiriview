@@ -40,7 +40,6 @@ public:
     }
 
     ImageViewportStateSnapshot state() const;
-    ImageViewportCommandResult commandResult(CommandOutcome outcome) const;
     SpreadDirection spreadDirection() const;
     double pageGap() const;
 
@@ -62,16 +61,16 @@ public:
     QString errorString() const;
     QString warningString() const;
 
-    CommandOutcome clear();
-    CommandOutcome play(PageRole role);
-    CommandOutcome pause(PageRole role);
-    CommandOutcome stop(PageRole role);
-    CommandOutcome seek(PageRole role, int frame);
-    CommandOutcome seekToPosition(PageRole role, int milliseconds);
-    CommandOutcome setPresentationTarget(ImageViewportPresentationTarget presentationTarget,
+    ImageViewportCommandResult clear();
+    ImageViewportCommandResult play(PageRole role);
+    ImageViewportCommandResult pause(PageRole role);
+    ImageViewportCommandResult stop(PageRole role);
+    ImageViewportCommandResult seek(PageRole role, int frame);
+    ImageViewportCommandResult seekToPosition(PageRole role, int milliseconds);
+    ImageViewportCommandResult setPresentationTarget(ImageViewportPresentationTarget presentationTarget,
         PresentationTargetTransitionPolicy policy);
-    CommandOutcome resetView();
-    CommandOutcome setPresentation(ImageViewportPresentationCommand command);
+    ImageViewportCommandResult resetView();
+    ImageViewportCommandResult setPresentation(ImageViewportPresentationCommand command);
     ImageViewportCoordinateResult mapPoint(const ImageViewportCoordinateInput& input) const;
     bool containsPoint(const ImageViewportCoordinateInput& input) const;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
@@ -138,19 +137,21 @@ public:
     BackgroundMode backgroundMode() const;
     QColor backgroundColor() const;
     bool looping() const;
-    void applyEngineTransition(ViewportEngineTransition transition);
+    ImageViewportStateSnapshot applyEngineTransition(ViewportEngineTransition transition);
     void enqueueProviderHostEvent(ViewportProviderHostEvent event);
     void drainProviderHostEvents();
+    void drainExternalWork();
     void devicePixelRatioChanged();
     void discardRetainedDisplayForResourcePressure();
-    void refreshStateSnapshot();
     QRectF currentContentRect() const;
     QRectF itemBounds() const;
     QRectF contentRectForItemBounds(const QRectF& bounds) const;
     QRectF visibleImageRectForItemBounds(const QRectF& bounds) const;
 
     static QString boundedDiagnostic(const QString& diagnostic, const QString& fallback);
-    CommandOutcome executePlaybackCommand(ViewportPlaybackCommand command);
+    ImageViewportCommandResult executePlaybackCommand(ViewportPlaybackCommand command);
+    ImageViewportCommandResult commandResult(
+        CommandOutcome outcome, const ImageViewportStateSnapshot& snapshot) const;
     void advancePlayback(int elapsedMilliseconds);
     bool hasActiveRequest() const;
     bool hasReadyDisplay() const;
@@ -181,6 +182,8 @@ public:
     ViewportPlaybackScheduleEffect pendingPlaybackSchedule;
     QVector<ViewportProviderHostEvent> pendingProviderHostEvents;
     bool drainingProviderHostEvents = false;
+    ViewportProviderTransportBatch pendingProviderTransport;
+    bool drainingExternalWork = false;
     mutable QMutex renderMailboxMutex;
     ViewportRenderSynchronization renderMailbox;
     bool renderMailboxValid = false;

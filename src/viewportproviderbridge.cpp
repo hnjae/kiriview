@@ -558,20 +558,30 @@ void ViewportProviderBridge::completeFrameEventDelivery(quint64 leaseId)
 
 void ViewportProviderBridge::reconcileFrameLeases(const QSet<quint64>& liveLeaseIds)
 {
-    QVector<quint64> retired;
-    retired.reserve(frameLeases.size());
     for (auto it = frameLeases.cbegin(); it != frameLeases.cend(); ++it) {
         if (!it->pendingEngineDelivery && !liveLeaseIds.contains(it.key())) {
-            retired.append(it.key());
+            retiredFrameLeases.insert(it.key());
         }
     }
+}
+
+void ViewportProviderBridge::releaseRetiredFrameLeases()
+{
+    const auto retired = retiredFrameLeases.values();
+    retiredFrameLeases.clear();
     for (quint64 leaseId : retired) {
         releaseFrameLease(leaseId);
     }
 }
 
+bool ViewportProviderBridge::hasRetiredFrameLeases() const
+{
+    return !retiredFrameLeases.isEmpty();
+}
+
 void ViewportProviderBridge::releaseAllFrameLeases()
 {
+    retiredFrameLeases.clear();
     const auto leaseIds = frameLeases.keys();
     for (quint64 leaseId : leaseIds) {
         releaseFrameLease(leaseId);
@@ -586,6 +596,7 @@ void ViewportProviderBridge::releaseFrameLease(quint64 leaseId)
     }
     const FrameLeaseRecord lease = it.value();
     frameLeases.erase(it);
+    retiredFrameLeases.remove(leaseId);
     executor().releaseFrameHandle(lease.session, lease.threadingContract, lease.frameHandle);
     destroyClosingSessionIfUnused(lease.session);
 }

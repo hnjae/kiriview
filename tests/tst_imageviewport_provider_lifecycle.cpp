@@ -45,6 +45,7 @@ private slots:
     void providerClearIgnoresCancelledFrameAcknowledgement();
     void providerResultsAreQueuedFromSessionEntryPoint();
     void afterPublicationRequestObservesCurrentSnapshot();
+    void reentrantClearSuppressesRetiredProviderOpen();
     void synchronousProviderEventDeliveryBypassesEventLoopForProtocolTests();
     void providerQueuedMetadataFromClosedGenerationIsIgnoredAfterReplacement();
     void providerFrameResultsAreQueuedFromSessionEntryPoint();
@@ -1674,6 +1675,43 @@ void ImageViewportProviderLifecycleTest::afterPublicationRequestObservesCurrentS
 
     QCOMPARE(observedRequestedFrame, 0);
     QCOMPARE(observedStatus, ImageViewportRequestStatus::Loading);
+}
+
+void ImageViewportProviderLifecycleTest::reentrantClearSuppressesRetiredProviderOpen()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    bool cleared = false;
+    connect(&item, &ImageViewport::stateChanged, &item, [&] {
+        if (cleared || viewportPrimarySequence(item) != result->sequence()) {
+            return;
+        }
+        cleared = true;
+        QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
+    });
+
+    const ImageViewportCommandResult assignmentResult = item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+
+    QVERIFY(cleared);
+    QCOMPARE(assignmentResult.outcome(), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(*sessionCount, 0);
+    QCOMPARE(*metadataRequestCount, 0);
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(*closeCount, 0);
+    QCOMPARE(viewportPrimarySequence(item), nullptr);
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::NoRequest);
 }
 
 void ImageViewportProviderLifecycleTest::

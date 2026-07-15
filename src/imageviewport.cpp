@@ -274,7 +274,7 @@ QString ImageViewportPrivate::warningString() const
     return lastStateSnapshot.diagnostics().warningString();
 }
 
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentationTarget(
+ImageViewportCommandResult ImageViewportPrivate::setPresentationTarget(
     ImageViewportPresentationTarget presentationTarget, PresentationTargetTransitionPolicy policy)
 {
     ImageSequenceSource primarySource = factorySequenceSource(presentationTarget.primary());
@@ -295,6 +295,6 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentationTarget
         }
     }
     result.transition.playbackSchedule = reduced.schedule;
-    applyEngineTransition(result.transition);
-    return result.outcome;
+    const ImageViewportStateSnapshot snapshot = applyEngineTransition(result.transition);
+    return commandResult(result.outcome, snapshot);
 }

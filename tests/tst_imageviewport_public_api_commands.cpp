@@ -15,6 +15,7 @@ private slots:
     void removedSequencePropertyWritesAreRejected();
     void presentationTargetAssignmentPreservesCommandDiagnostic();
     void commandResultsExposeSnapshotRevisionsAndReasons();
+    void reentrantStateChangedKeepsCommandResultsScopedToTransaction();
     void setPresentationTargetAcceptsPrimaryAndSecondaryAtomically();
     void cppTypedPresentationTargetOverloadsCompileAndReplaceSpread();
     void canonicalPresentationTargetValueDefaultsAndConstruction();
@@ -167,6 +168,44 @@ void ImageViewportPublicApiCommandsTest::presentationTargetAssignmentPreservesCo
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
     QCOMPARE(revisionTokenProperty(item, "commandRevision"), commandRevision);
+}
+
+void ImageViewportPublicApiCommandsTest::
+    reentrantStateChangedKeepsCommandResultsScopedToTransaction()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    ImageViewportRevisionToken assignmentSnapshotRevision;
+    ImageViewportCommandResult reentrantResult;
+    bool reentered = false;
+    connect(&item, &ImageViewport::stateChanged, &item, [&] {
+        if (reentered || viewportPrimarySequence(item) != result->sequence()) {
+            return;
+        }
+        reentered = true;
+        assignmentSnapshotRevision = item.state().revisions().snapshot();
+        ImageViewportPresentationCommand command;
+        command.setSmoothing(false);
+        reentrantResult = item.setPresentation(command);
+    });
+
+    const ImageViewportCommandResult assignmentResult = item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+
+    QVERIFY(reentered);
+    QCOMPARE(assignmentResult.outcome(), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(assignmentResult.snapshotRevision(), assignmentSnapshotRevision);
+    QCOMPARE(reentrantResult.outcome(), ImageViewportCommandOutcome::Accepted);
+    QVERIFY(reentrantResult.snapshotRevision() != assignmentSnapshotRevision);
+    QCOMPARE(item.state().revisions().snapshot(), reentrantResult.snapshotRevision());
+    QCOMPARE(item.state().presentation().smoothing(), false);
 }
 
 void ImageViewportPublicApiCommandsTest::commandResultsExposeSnapshotRevisionsAndReasons()

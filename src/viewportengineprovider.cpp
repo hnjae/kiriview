@@ -97,6 +97,41 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
     return result;
 }
 
+bool ViewportEngine::acceptsProviderTransportCommand(
+    const ViewportProviderTransportCommand& command) const
+{
+    const auto& provider = m_state->providerState.roles[roleIndex(command.role)].provider;
+    switch (command.kind) {
+    case ViewportProviderTransportCommand::Kind::OpenSession:
+        return command.generation != 0
+            && command.generation == m_state->requestState.request.sequenceGeneration
+            && !m_state->requestState.request.targetSpreadTerminal.sealed
+            && provider.session.sessionActive
+            && command.sessionSerial == provider.session.sessionSerial;
+    case ViewportProviderTransportCommand::Kind::CloseSession:
+        return true;
+    case ViewportProviderTransportCommand::Kind::ScheduleDeferredEvent:
+        return provider.session.sessionActive;
+    case ViewportProviderTransportCommand::Kind::SendRequest:
+        break;
+    }
+
+    switch (command.request.kind()) {
+    case ImageSequenceProviderRequestKind::Cancel:
+    case ImageSequenceProviderRequestKind::Close:
+        return true;
+    case ImageSequenceProviderRequestKind::Metadata:
+        return provider.session.sessionActive && command.request.token().isValid()
+            && command.request.token() == provider.requests.activeMetadataToken;
+    case ImageSequenceProviderRequestKind::Frame:
+    case ImageSequenceProviderRequestKind::Position:
+    case ImageSequenceProviderRequestKind::Playback:
+        return provider.session.sessionActive && command.request.token().isValid()
+            && command.request.token() == provider.requests.activeFrameToken;
+    }
+    return false;
+}
+
 ViewportEngineTransition ViewportEngine::handleDevicePixelRatioChanged(
     ViewportEngineViewportInput input)
 {

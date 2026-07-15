@@ -132,10 +132,9 @@ void ImageViewportPrivate::applyRenderHostFact(RenderAdapter::CommitResult resul
         ViewportEngineTransition transition;
         transition.changes = reduced.changes;
         transition.playbackSchedule = reduced.playbackSchedule;
+        mergeChanges(
+            transition.changes, engine.handleRenderQualityFallback(qualityFallback).changes);
         applyEngineTransition(std::move(transition));
-        ViewportEngineTransition qualityTransition;
-        qualityTransition.changes = engine.handleRenderQualityFallback(qualityFallback).changes;
-        applyEngineTransition(std::move(qualityTransition));
     };
     if (QThread::currentThread() == q->thread()) {
         apply();

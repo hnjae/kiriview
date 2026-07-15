@@ -71,6 +71,8 @@ public:
     ViewportProviderTransportResult deliverRequest(const ImageSequenceProviderRequest& request);
     void completeFrameEventDelivery(quint64 leaseId);
     void reconcileFrameLeases(const QSet<quint64>& liveLeaseIds);
+    void releaseRetiredFrameLeases();
+    bool hasRetiredFrameLeases() const;
     void releaseAllFrameLeases();
     void setExecutor(ViewportProviderExecutor& executor);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
@@ -108,6 +110,7 @@ private:
     ImageSequenceProviderRequestToken pendingCleanupMetadataToken;
     ImageSequenceProviderRequestToken pendingCleanupFrameToken;
     QHash<quint64, FrameLeaseRecord> frameLeases;
+    QSet<quint64> retiredFrameLeases;
     QSet<ImageSequenceProviderSession*> closingSessions;
     bool forceNextCommandDeliveryFailure = false;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
