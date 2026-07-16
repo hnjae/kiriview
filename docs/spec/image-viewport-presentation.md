@@ -36,7 +36,7 @@ Invalid presentation target values or invalid transition policy fields reject th
 
 Default clear policy uses `displayTransition: ClearBeforeLoad`, `zoomTransition: Preserve`, `contentPositionTransition: Clamp`, `rotationTransition: Preserve`, `mirrorTransition: Preserve`, `fitModeTransition: Preserve`, `spreadDirectionTransition: Preserve`, `pageGapTransition: Preserve`, and `replacementIntent: NewTarget`; it resets playback to stopped, preserves presentation preferences, clears retained display content, and its ignored explicit `fitMode`, `spreadDirection`, and `pageGap` values default to `Contain`, `LeftToRight`, and `0`. Default non-clear replacement policy uses `displayTransition: RetainPrevious`, `zoomTransition: Preserve`, `contentPositionTransition: Clamp`, `rotationTransition: Preserve`, `mirrorTransition: Preserve`, `fitModeTransition: Preserve`, `spreadDirectionTransition: Preserve`, `pageGapTransition: Preserve`, and `replacementIntent: NewTarget`; its ignored explicit `fitMode`, `spreadDirection`, and `pageGap` values default to `Contain`, `LeftToRight`, and `0`.
 
-Initial presentation state uses `Contain`, manual zoom `100` clamped to the public range, anchor-start content position, rotation `0`, both mirror flags false, `LeftToRight`, page gap `0`, `Transparent`, smoothing true, mipmap false, looping false, `Default` quality, and `Default` exactness. Clear preserves these preferences after initialization.
+Initial presentation state uses `Contain`, manual zoom `100` clamped to the public range, anchor-start content position, rotation `0`, both mirror flags false, `LeftToRight`, page gap `0`, `Transparent`, solid background color `#FFFFFF`, checkerboard light color `#FFFFFF`, checkerboard dark color `#DCDCDC`, checkerboard cell size `8` item-logical units, smoothing true, mipmap false, looping false, `Default` quality, and `Default` exactness. Clear preserves these preferences after initialization.
 
 ## Presentation Commands
 
@@ -67,7 +67,3 @@ Presentation command numeric fields must be finite. `manualZoomPercent` is valid
 Smoothing and mipmap are optional rendering preferences. If the active rendering backend cannot honor either preference, the accepted request and displayed payload remain valid; the viewport exposes any observable fallback through `state.diagnostics.warningString` and clears that warning when the fallback ends or its owning target is replaced.
 
 Background changes affect only item backing presentation. They do not change image request status, role frame or position, image geometry, coordinate validity, or playback phase, and background pixels alone never make `state.display` ready or retained.
-
-## Open Question
-
-- The exact default `backgroundColor`, checkerboard colors, and checkerboard cell size require a product visual-design decision not present in these documents. Their public fields, validation, geometry independence, and persistence semantics are fixed.
