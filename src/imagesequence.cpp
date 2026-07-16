@@ -101,17 +101,6 @@ bool ImageSequenceAuthoredAnimationFacts::autoplay() const { return m_autoplay; 
 
 void ImageSequenceAuthoredAnimationFacts::setAutoplay(bool autoplay) { m_autoplay = autoplay; }
 
-bool ImageSequenceAuthoredAnimationFacts::progressiveAnimationReadiness() const
-{
-    return m_progressiveAnimationReadiness;
-}
-
-void ImageSequenceAuthoredAnimationFacts::setProgressiveAnimationReadiness(
-    bool progressiveAnimationReadiness)
-{
-    m_progressiveAnimationReadiness = progressiveAnimationReadiness;
-}
-
 ImageSequenceAuthoredAnimationLoopMode ImageSequenceAuthoredAnimationFacts::loopMode() const
 {
     return m_loopMode;
@@ -153,6 +142,7 @@ std::unique_ptr<ImageSequence::Data> ImageSequence::Data::still(
     data->logicalSize = logicalSize;
     data->stillImage = std::move(stillImage);
     data->stillPayloadFacts = payloadFacts;
+    data->authoredAnimationFactsAvailable = true;
     return data;
 }
 
@@ -167,6 +157,7 @@ std::unique_ptr<ImageSequence::Data> ImageSequence::Data::timedList(QSizeF logic
         = std::make_shared<TimingIntervals>(TimingIntervals::fromFrameDurations(frameDurations));
     data->frameImages = std::move(frameImages);
     data->authoredAnimationFacts = authoredAnimationFacts;
+    data->authoredAnimationFactsAvailable = true;
     return data;
 }
 
@@ -177,11 +168,13 @@ std::unique_ptr<ImageSequence::Data> ImageSequence::Data::provider(
     ImageSequenceProviderCapabilitySupport frameSeekCapability,
     ImageSequenceProviderCapabilitySupport positionSeekCapability,
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts,
+    bool authoredAnimationFactsAvailable,
     ImageSequenceProviderThreadingContract providerThreadingContract)
 {
     auto data = std::make_unique<ImageSequence::Data>();
     data->kind = Kind::Provider;
     data->authoredAnimationFacts = authoredAnimationFacts;
+    data->authoredAnimationFactsAvailable = authoredAnimationFactsAvailable;
     data->providerSessionFactory = std::move(providerSessionFactory);
     data->providerKnownFacts = std::move(providerKnownFacts);
     data->hasCompleteProviderKnownMetadata = data->providerKnownFacts.isComplete();
@@ -233,12 +226,13 @@ std::shared_ptr<ImageSequence> ImageSequencePrivateAccess::createProvider(
     ImageSequenceProviderCapabilitySupport frameSeekCapability,
     ImageSequenceProviderCapabilitySupport positionSeekCapability,
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts,
+    bool authoredAnimationFactsAvailable,
     ImageSequenceProviderThreadingContract providerThreadingContract)
 {
-    std::shared_ptr<ImageSequence> sequence(
-        new ImageSequence(ImageSequence::Data::provider(std::move(providerSessionFactory),
-            std::move(providerKnownFacts), timedPlaybackCapability, frameSeekCapability,
-            positionSeekCapability, authoredAnimationFacts, providerThreadingContract)));
+    std::shared_ptr<ImageSequence> sequence(new ImageSequence(ImageSequence::Data::provider(
+        std::move(providerSessionFactory), std::move(providerKnownFacts), timedPlaybackCapability,
+        frameSeekCapability, positionSeekCapability, authoredAnimationFacts,
+        authoredAnimationFactsAvailable, providerThreadingContract)));
     sequence->d->owner = sequence;
     return sequence;
 }
@@ -364,6 +358,11 @@ ImageSequenceAuthoredAnimationFacts ImageSequencePrivateAccess::authoredAnimatio
 {
     return sequence && sequence->d ? sequence->d->authoredAnimationFacts
                                    : ImageSequenceAuthoredAnimationFacts {};
+}
+
+bool ImageSequencePrivateAccess::authoredAnimationFactsAvailable(const ImageSequence* sequence)
+{
+    return sequence && sequence->d && sequence->d->authoredAnimationFactsAvailable;
 }
 
 bool ImageSequencePrivateAccess::hasCompleteProviderKnownMetadata(const ImageSequence* sequence)
@@ -645,9 +644,7 @@ void TimedImageFrameList::setAuthoredAnimationFacts(
 {
     if (m_authoredAnimationFacts.loopMode() == authoredAnimationFacts.loopMode()
         && m_authoredAnimationFacts.loopCount() == authoredAnimationFacts.loopCount()
-        && m_authoredAnimationFacts.autoplay() == authoredAnimationFacts.autoplay()
-        && m_authoredAnimationFacts.progressiveAnimationReadiness()
-            == authoredAnimationFacts.progressiveAnimationReadiness()) {
+        && m_authoredAnimationFacts.autoplay() == authoredAnimationFacts.autoplay()) {
         return;
     }
     m_authoredAnimationFacts = authoredAnimationFacts;

@@ -568,6 +568,7 @@ void ViewportEngineTest::authoredAutoplayReducerUsesBoundedState()
         request.roles[0].source.facts.timingIntervals
             = TimingIntervals::fromFrameDurations({ 100, 250 });
         request.roles[0].source.facts.authoredAnimationFacts = autoplay;
+        request.roles[0].source.facts.authoredAnimationFactsAvailable = true;
         request.roles[0].activeRequest.target.frame = 1;
         request.status = ImageViewportRequestStatus::Ready;
 
@@ -589,6 +590,9 @@ void ViewportEngineTest::authoredAutoplayReducerUsesBoundedState()
         ViewportEngineTestAccess::providerFacts(engine, ImageViewportPageRole::Primary)
             .authoredAnimationFacts
             = autoplay;
+        ViewportEngineTestAccess::providerFacts(engine, ImageViewportPageRole::Primary)
+            .authoredAnimationFactsAvailable
+            = true;
 
         const auto result = ViewportEngineTestAccess::reduceAuthoredAutoplay(engine);
         QCOMPARE(result.armed, false);
@@ -603,6 +607,7 @@ void ViewportEngineTest::authoredAutoplayReducerUsesBoundedState()
         auto& provider
             = ViewportEngineTestAccess::providerFacts(engine, ImageViewportPageRole::Primary);
         provider.authoredAnimationFacts = autoplay;
+        provider.authoredAnimationFactsAvailable = true;
 
         const auto result = ViewportEngineTestAccess::reduceAuthoredAutoplay(engine);
         QCOMPARE(result.armed, true);
@@ -624,6 +629,7 @@ void ViewportEngineTest::authoredAutoplayReducerUsesBoundedState()
         auto& provider
             = ViewportEngineTestAccess::providerFacts(engine, ImageViewportPageRole::Primary);
         provider.authoredAnimationFacts = autoplay;
+        provider.authoredAnimationFactsAvailable = true;
         provider.metadataReady = true;
         provider.timedMetadata = true;
         provider.timedPlaybackSupport = true;

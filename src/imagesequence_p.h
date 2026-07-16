@@ -41,6 +41,7 @@ public:
         ImageViewportInternal::ImageSequenceProviderCapabilitySupport frameSeekCapability,
         ImageViewportInternal::ImageSequenceProviderCapabilitySupport positionSeekCapability,
         ImageSequenceAuthoredAnimationFacts authoredAnimationFacts,
+        bool authoredAnimationFactsAvailable,
         ImageSequenceProviderThreadingContract providerThreadingContract);
 
     Kind kind = Kind::None;
@@ -50,6 +51,7 @@ public:
     std::shared_ptr<const TimingIntervals> timingIntervals;
     QVector<QImage> frameImages;
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts;
+    bool authoredAnimationFactsAvailable = false;
     std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory;
     std::weak_ptr<ImageSequence> owner;
     ImageViewportInternal::ImageSequenceProviderKnownFacts providerKnownFacts;
@@ -83,6 +85,7 @@ public:
         ImageSequenceProviderCapabilitySupport frameSeekCapability,
         ImageSequenceProviderCapabilitySupport positionSeekCapability,
         ImageSequenceAuthoredAnimationFacts authoredAnimationFacts,
+        bool authoredAnimationFactsAvailable,
         ImageSequenceProviderThreadingContract providerThreadingContract);
 
     static bool isValid(const ImageSequence* sequence);
@@ -99,6 +102,7 @@ public:
     static TimingIntervals timingIntervals(const ImageSequence* sequence);
     static ImageSequenceAuthoredAnimationFacts authoredAnimationFacts(
         const ImageSequence* sequence);
+    static bool authoredAnimationFactsAvailable(const ImageSequence* sequence);
     static bool hasCompleteProviderKnownMetadata(const ImageSequence* sequence);
     static ImageSequenceProviderKnownFacts providerKnownFacts(const ImageSequence* sequence);
     static QSizeF providerKnownLogicalSize(const ImageSequence* sequence);

@@ -551,6 +551,7 @@ struct ProviderFactsState
     bool frameSeekSupport = false;
     bool positionSeekSupport = false;
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts;
+    bool authoredAnimationFactsAvailable = false;
     QSizeF logicalSize;
     TimingIntervals timingIntervals;
 };

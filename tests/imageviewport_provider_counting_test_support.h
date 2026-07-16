@@ -231,9 +231,7 @@ public:
         metadata.setTimedPlaybackSupport(m_timedPlaybackSupport);
         metadata.setFrameSeekSupport(m_frameSeekSupport);
         metadata.setPositionSeekSupport(m_positionSeekSupport);
-        if (m_authoredAnimationFacts.loopMode() != ImageSequenceAuthoredAnimationLoopMode::PlayOnce
-            || m_authoredAnimationFacts.autoplay()
-            || m_authoredAnimationFacts.progressiveAnimationReadiness()) {
+        if (m_hasAuthoredAnimationFacts) {
             metadata.setAuthoredAnimationFacts(m_authoredAnimationFacts);
         }
         return ImageSequenceProviderDescriptor(metadata, m_threadingContract, m_sessionFactory);
@@ -241,6 +239,7 @@ public:
 
     void setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts authoredAnimationFacts)
     {
+        m_hasAuthoredAnimationFacts = true;
         m_authoredAnimationFacts = authoredAnimationFacts;
     }
 
@@ -252,6 +251,7 @@ private:
     ImageViewportCapabilitySupport m_frameSeekSupport = ImageViewportCapabilitySupport::Unavailable;
     ImageViewportCapabilitySupport m_positionSeekSupport
         = ImageViewportCapabilitySupport::Unavailable;
+    bool m_hasAuthoredAnimationFacts = false;
     ImageSequenceAuthoredAnimationFacts m_authoredAnimationFacts;
     ImageSequenceProviderThreadingContract m_threadingContract
         = ImageSequenceProviderThreadingContract::AffinityBound;

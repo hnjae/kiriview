@@ -17,14 +17,14 @@ struct AuthoritativeRoleContract
     QSizeF logicalSize;
     TimingIntervals timing;
     ImageSequenceAuthoredAnimationFacts animation;
+    bool animationAvailable = false;
 };
 
 bool animationsEqual(
     ImageSequenceAuthoredAnimationFacts lhs, ImageSequenceAuthoredAnimationFacts rhs)
 {
-    return lhs.autoplay() == rhs.autoplay()
-        && lhs.progressiveAnimationReadiness() == rhs.progressiveAnimationReadiness()
-        && lhs.loopMode() == rhs.loopMode() && lhs.loopCount() == rhs.loopCount();
+    return lhs.autoplay() == rhs.autoplay() && lhs.loopMode() == rhs.loopMode()
+        && lhs.loopCount() == rhs.loopCount();
 }
 
 bool timingsEqual(const TimingIntervals& lhs, const TimingIntervals& rhs)
@@ -53,6 +53,7 @@ AuthoritativeRoleContract incomingContract(const ImageSequenceSource& source)
         return result;
     }
     result.animation = source.facts.authoredAnimationFacts;
+    result.animationAvailable = source.facts.authoredAnimationFactsAvailable;
     if (!source.facts.provider) {
         result.authoritative = true;
         result.timed = source.facts.timed;
@@ -80,14 +81,15 @@ AuthoritativeRoleContract currentContract(
         return {};
     }
     return { true, provider.timedMetadata, provider.logicalSize, provider.timingIntervals,
-        provider.authoredAnimationFacts };
+        provider.authoredAnimationFacts, provider.authoredAnimationFactsAvailable };
 }
 
 bool contractsEqual(const AuthoritativeRoleContract& lhs, const AuthoritativeRoleContract& rhs)
 {
     return lhs.authoritative && rhs.authoritative && lhs.timed == rhs.timed
         && lhs.logicalSize == rhs.logicalSize && timingsEqual(lhs.timing, rhs.timing)
-        && animationsEqual(lhs.animation, rhs.animation);
+        && lhs.animationAvailable == rhs.animationAvailable
+        && (!lhs.animationAvailable || animationsEqual(lhs.animation, rhs.animation));
 }
 
 bool targetFitsContract(const DisplayRequest& request, const AuthoritativeRoleContract& contract)
@@ -161,7 +163,8 @@ ImageViewportDisplayStatus retained(const DisplayState& d)
         && d.roles[0].displayedImageSize.isValid();
     return ok ? ImageViewportDisplayStatus::Retained : ImageViewportDisplayStatus::Empty;
 }
-void resetProvider(ProviderRoleState& p, ImageSequenceAuthoredAnimationFacts a = {})
+void resetProvider(ProviderRoleState& p, ImageSequenceAuthoredAnimationFacts a = {},
+    bool authoredAnimationFactsAvailable = false)
 {
     p.facts.metadataReady = false;
     p.facts.timedMetadata = false;
@@ -169,6 +172,7 @@ void resetProvider(ProviderRoleState& p, ImageSequenceAuthoredAnimationFacts a =
     p.facts.frameSeekSupport = false;
     p.facts.positionSeekSupport = false;
     p.facts.authoredAnimationFacts = a;
+    p.facts.authoredAnimationFactsAvailable = authoredAnimationFactsAvailable;
     p.facts.logicalSize = {};
     p.facts.timingIntervals = {};
     p.requests.activeMetadataToken = {};
@@ -378,11 +382,15 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
     resetProvider(a.m_roles[0].provider,
         a.m_request.roles[0].source.facts.provider
             ? a.m_request.roles[0].source.facts.authoredAnimationFacts
-            : ImageSequenceAuthoredAnimationFacts {});
+            : ImageSequenceAuthoredAnimationFacts {},
+        a.m_request.roles[0].source.facts.provider
+            && a.m_request.roles[0].source.facts.authoredAnimationFactsAvailable);
     resetProvider(a.m_roles[1].provider,
         a.m_request.roles[1].source.facts.provider
             ? a.m_request.roles[1].source.facts.authoredAnimationFacts
-            : ImageSequenceAuthoredAnimationFacts {});
+            : ImageSequenceAuthoredAnimationFacts {},
+        a.m_request.roles[1].source.facts.provider
+            && a.m_request.roles[1].source.facts.authoredAnimationFactsAvailable);
     if (out.clear) {
         a.m_display.clearDisplayedDisplay();
         a.m_display.clearRenderFailureRetainedDisplay();

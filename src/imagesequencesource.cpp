@@ -19,6 +19,8 @@ ImageSequenceSource makeImageSequenceSource(
     source.facts.timed = ImageSequencePrivateAccess::isTimedList(sequence);
     source.facts.authoredAnimationFacts
         = ImageSequencePrivateAccess::authoredAnimationFacts(sequence);
+    source.facts.authoredAnimationFactsAvailable
+        = ImageSequencePrivateAccess::authoredAnimationFactsAvailable(sequence);
     source.facts.logicalSize = ImageSequencePrivateAccess::logicalSize(sequence);
     if (source.facts.provider) {
         source.facts.hasCompleteProviderKnownMetadata

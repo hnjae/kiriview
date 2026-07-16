@@ -1,6 +1,8 @@
 #include "imageviewport_provider_test_support.h"
 #include "imageviewport_qml_test_support.h"
 
+#include <QtCore/QMetaProperty>
+
 #include <cmath>
 #include <limits>
 #include <type_traits>
@@ -30,11 +32,22 @@ private slots:
     void manualZoomLimitPropertiesExposeDefaultsAndDoNotAdvanceRevisions();
     void coordinateHelpersExposeInvalidDefaultsAndDoNotAdvanceRevisions();
     void typedPublicValueDefaultsExposeDocumentedFields();
+    void roleMetadataSurfaceMatchesContract();
     void roleGeometrySnapshotFields();
     void revisionTokensExposeValidityAndEquality();
     void typedPresentationTargetTransitionPolicyPreservesStateWhenInvalid();
     void emptyGeometryChangeIncrementsDisplayRevision();
 };
+
+void ImageViewportPublicApiTest::roleMetadataSurfaceMatchesContract()
+{
+    const QMetaObject& metaObject = ImageViewportRoleMetadataSnapshot::staticMetaObject;
+    const int autoplayIndex = metaObject.indexOfProperty("autoplay");
+    QVERIFY(autoplayIndex >= 0);
+    QCOMPARE(metaObject.property(autoplayIndex).metaType(),
+        QMetaType::fromType<ImageViewportCapabilitySupport>());
+    QCOMPARE(metaObject.indexOfProperty("progressiveAnimationReadiness"), -1);
+}
 
 void ImageViewportPublicApiTest::defaultConstructsAsQuickItem()
 {

@@ -517,8 +517,7 @@ class ImageViewportRoleMetadataSnapshot
     Q_PROPERTY(ImageViewportCapabilitySupport positionSeekSupport READ positionSeekSupport CONSTANT)
     Q_PROPERTY(
         ImageViewportCapabilitySupport timedPlaybackSupport READ timedPlaybackSupport CONSTANT)
-    Q_PROPERTY(bool autoplay READ autoplay CONSTANT)
-    Q_PROPERTY(bool progressiveAnimationReadiness READ progressiveAnimationReadiness CONSTANT)
+    Q_PROPERTY(ImageViewportCapabilitySupport autoplay READ autoplay CONSTANT)
     Q_PROPERTY(ImageSequenceAuthoredAnimationLoopMode loopMode READ loopMode CONSTANT)
     Q_PROPERTY(int loopCount READ loopCount CONSTANT)
 
@@ -528,8 +527,8 @@ public:
         int totalDuration, ImageViewportRange frameSeekBounds,
         ImageViewportRange positionSeekBounds, ImageViewportCapabilitySupport frameSeekSupport,
         ImageViewportCapabilitySupport positionSeekSupport,
-        ImageViewportCapabilitySupport timedPlaybackSupport, bool autoplay,
-        bool progressiveAnimationReadiness, ImageSequenceAuthoredAnimationLoopMode loopMode,
+        ImageViewportCapabilitySupport timedPlaybackSupport,
+        ImageViewportCapabilitySupport autoplay, ImageSequenceAuthoredAnimationLoopMode loopMode,
         int loopCount)
         : m_available(available)
         , m_sourceLogicalSize(sourceLogicalSize)
@@ -541,7 +540,6 @@ public:
         , m_positionSeekSupport(positionSeekSupport)
         , m_timedPlaybackSupport(timedPlaybackSupport)
         , m_autoplay(autoplay)
-        , m_progressiveAnimationReadiness(progressiveAnimationReadiness)
         , m_loopMode(loopMode)
         , m_loopCount(loopCount)
     {
@@ -556,8 +554,7 @@ public:
     ImageViewportCapabilitySupport frameSeekSupport() const { return m_frameSeekSupport; }
     ImageViewportCapabilitySupport positionSeekSupport() const { return m_positionSeekSupport; }
     ImageViewportCapabilitySupport timedPlaybackSupport() const { return m_timedPlaybackSupport; }
-    bool autoplay() const { return m_autoplay; }
-    bool progressiveAnimationReadiness() const { return m_progressiveAnimationReadiness; }
+    ImageViewportCapabilitySupport autoplay() const { return m_autoplay; }
     ImageSequenceAuthoredAnimationLoopMode loopMode() const { return m_loopMode; }
     int loopCount() const { return m_loopCount; }
 
@@ -572,9 +569,8 @@ public:
             && lhs.m_frameSeekSupport == rhs.m_frameSeekSupport
             && lhs.m_positionSeekSupport == rhs.m_positionSeekSupport
             && lhs.m_timedPlaybackSupport == rhs.m_timedPlaybackSupport
-            && lhs.m_autoplay == rhs.m_autoplay
-            && lhs.m_progressiveAnimationReadiness == rhs.m_progressiveAnimationReadiness
-            && lhs.m_loopMode == rhs.m_loopMode && lhs.m_loopCount == rhs.m_loopCount;
+            && lhs.m_autoplay == rhs.m_autoplay && lhs.m_loopMode == rhs.m_loopMode
+            && lhs.m_loopCount == rhs.m_loopCount;
     }
     friend bool operator!=(
         const ImageViewportRoleMetadataSnapshot& lhs, const ImageViewportRoleMetadataSnapshot& rhs)
@@ -594,10 +590,9 @@ private:
         = ImageViewportCapabilitySupport::Unavailable;
     ImageViewportCapabilitySupport m_timedPlaybackSupport
         = ImageViewportCapabilitySupport::Unavailable;
-    bool m_autoplay = false;
-    bool m_progressiveAnimationReadiness = false;
+    ImageViewportCapabilitySupport m_autoplay = ImageViewportCapabilitySupport::Unavailable;
     ImageSequenceAuthoredAnimationLoopMode m_loopMode
-        = ImageSequenceAuthoredAnimationLoopMode::PlayOnce;
+        = ImageSequenceAuthoredAnimationLoopMode::Unavailable;
     int m_loopCount = -1;
 };
 

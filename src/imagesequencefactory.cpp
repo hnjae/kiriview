@@ -261,7 +261,8 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromProvider(
     std::shared_ptr<ImageSequence> sequence = ImageSequencePrivateAccess::createProvider(
         std::make_shared<ImageSequenceProviderSessionFactory>(std::move(sessionFactory)),
         effectiveKnownFacts, effectiveTimedPlaybackCapability, effectiveFrameSeekCapability,
-        effectivePositionSeekCapability, authoredAnimationFacts, threadingContract);
+        effectivePositionSeekCapability, authoredAnimationFacts,
+        knownMetadata.hasAuthoredAnimationFacts(), threadingContract);
     return new ImageSequenceFactoryResult(std::move(sequence), ImageSequenceFactoryOutcome::Created,
         ImageSequenceFactoryReason::NoError);
 }

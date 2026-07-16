@@ -21,7 +21,15 @@ struct AcceptedMetadataFacts
     QSizeF logicalSize;
     TimingIntervals timingIntervals;
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts;
+    bool authoredAnimationFactsAvailable = false;
 };
+
+bool authoredAnimationFactsEqual(
+    ImageSequenceAuthoredAnimationFacts lhs, ImageSequenceAuthoredAnimationFacts rhs)
+{
+    return lhs.autoplay() == rhs.autoplay() && lhs.loopMode() == rhs.loopMode()
+        && lhs.loopCount() == rhs.loopCount();
+}
 
 struct MetadataTargetRejection
 {
@@ -189,6 +197,13 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
         rejectMetadata(QStringLiteral("provider metadata contradicts construction-time facts"));
         return result;
     }
+    if (sourceFacts.authoredAnimationFactsAvailable && input.metadata.hasAuthoredAnimationFacts()
+        && !authoredAnimationFactsEqual(
+            sourceFacts.authoredAnimationFacts, input.metadata.authoredAnimationFacts())) {
+        rejectMetadata(QStringLiteral(
+            "provider metadata contradicts construction-time authored animation facts"));
+        return result;
+    }
 
     const AcceptedMetadataFacts facts { admission.timedMetadata,
         input.metadata.timedPlaybackSupport() == ImageViewportCapabilitySupport::True,
@@ -196,7 +211,8 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
         input.metadata.positionSeekSupport() == ImageViewportCapabilitySupport::True,
         admission.logicalSize, admission.timingIntervals,
         input.metadata.hasAuthoredAnimationFacts() ? input.metadata.authoredAnimationFacts()
-                                                   : sourceFacts.authoredAnimationFacts };
+                                                   : sourceFacts.authoredAnimationFacts,
+        input.metadata.hasAuthoredAnimationFacts() || sourceFacts.authoredAnimationFactsAvailable };
     provider.facts.metadataReady = true;
     provider.facts.timedMetadata = facts.timedMetadata;
     provider.facts.timedPlaybackSupport = facts.timedPlaybackSupport;
@@ -205,6 +221,7 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
     provider.facts.logicalSize = facts.logicalSize;
     provider.facts.timingIntervals = facts.timingIntervals;
     provider.facts.authoredAnimationFacts = facts.authoredAnimationFacts;
+    provider.facts.authoredAnimationFactsAvailable = facts.authoredAnimationFactsAvailable;
     if (input.role == ImageViewportPageRole::Secondary) {
         result.changes.requestState = true;
         result.changes.requestRevision = true;

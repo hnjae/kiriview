@@ -1079,9 +1079,12 @@ ViewportEngineAuthoredAutoplayReduction reduceViewportEngineAuthoredAutoplay(
 {
     ViewportEngineAuthoredAutoplayReduction result;
     const auto& source = access.source();
+    const bool factsAvailable = source.facts.provider
+        ? access.providerFacts().authoredAnimationFactsAvailable
+        : source.facts.authoredAnimationFactsAvailable;
     const auto facts = source.facts.provider ? access.providerFacts().authoredAnimationFacts
                                              : source.facts.authoredAnimationFacts;
-    if (!facts.autoplay()) {
+    if (!factsAvailable || !facts.autoplay()) {
         return result;
     }
     if (source.facts.provider

@@ -328,9 +328,29 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
             = source.facts.provider && providerFor(access.providerFacts(), role).metadataReady
             ? providerFor(access.providerFacts(), role).authoredAnimationFacts
             : source.facts.authoredAnimationFacts;
-        const int loopCount = animation.loopMode() == ImageSequenceAuthoredAnimationLoopMode::Finite
-            ? animation.loopCount()
-            : -1;
+        const bool animationAvailable = present
+            && (source.facts.provider && providerFor(access.providerFacts(), role).metadataReady
+                    ? providerFor(access.providerFacts(), role).authoredAnimationFactsAvailable
+                    : source.facts.authoredAnimationFactsAvailable);
+        const ImageViewportCapabilitySupport autoplay = animationAvailable
+            ? support(animation.autoplay())
+            : ImageViewportCapabilitySupport::Unavailable;
+        const ImageSequenceAuthoredAnimationLoopMode loopMode = animationAvailable
+            ? animation.loopMode()
+            : ImageSequenceAuthoredAnimationLoopMode::Unavailable;
+        const int loopCount = loopMode == ImageSequenceAuthoredAnimationLoopMode::PlayOnce ? 1
+            : loopMode == ImageSequenceAuthoredAnimationLoopMode::Finite ? animation.loopCount()
+                                                                         : -1;
+        const bool metadataAvailable = present
+            && (!source.facts.provider || providerFor(access.providerFacts(), role).metadataReady
+                || source.facts.providerKnownFacts.isSpecified()
+                || source.facts.providerTimedPlaybackCapability
+                    != ImageSequenceProviderCapabilitySupport::Unavailable
+                || source.facts.providerFrameSeekCapability
+                    != ImageSequenceProviderCapabilitySupport::Unavailable
+                || source.facts.providerPositionSeekCapability
+                    != ImageSequenceProviderCapabilitySupport::Unavailable
+                || source.facts.authoredAnimationFactsAvailable);
         const bool targetMatches = displayed
             && displayedRequest.generation == acceptedGenerationValue
             && displayedRequest.request.resolvedFrame.frame == active.resolvedFrame.frame
@@ -359,12 +379,10 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
                                     : payload.exactness)
                           : ImageViewportPayloadExactness::Unknown,
                 currentForDemand, payload.demandRevision),
-            ImageViewportRoleMetadataSnapshot(
-                present && metadata.frameCount >= 0 && positive(logicalSize), logicalSize,
-                metadata.frameCount, metadata.totalDuration, metadata.frameBounds,
-                metadata.positionBounds, metadata.frameSeek, metadata.positionSeek,
-                metadata.playback, animation.autoplay(), animation.progressiveAnimationReadiness(),
-                animation.loopMode(), loopCount),
+            ImageViewportRoleMetadataSnapshot(metadataAvailable, logicalSize, metadata.frameCount,
+                metadata.totalDuration, metadata.frameBounds, metadata.positionBounds,
+                metadata.frameSeek, metadata.positionSeek, metadata.playback, autoplay, loopMode,
+                loopCount),
             ImageViewportRoleGeometrySnapshot(
                 present && acceptedGeometryAvailable ? acceptedPageRect : QRectF(),
                 present && acceptedGeometryAvailable ? acceptedItemRect : QRectF(),

@@ -37,7 +37,6 @@ class ImageSequenceAuthoredAnimationFacts
     Q_GADGET
     QML_VALUE_TYPE(imageSequenceAuthoredAnimationFacts)
     Q_PROPERTY(bool autoplay READ autoplay CONSTANT)
-    Q_PROPERTY(bool progressiveAnimationReadiness READ progressiveAnimationReadiness CONSTANT)
     Q_PROPERTY(ImageSequenceAuthoredAnimationLoopMode loopMode READ loopMode CONSTANT)
     Q_PROPERTY(int loopCount READ loopCount CONSTANT)
 
@@ -48,8 +47,6 @@ public:
 
     bool autoplay() const;
     void setAutoplay(bool autoplay);
-    bool progressiveAnimationReadiness() const;
-    void setProgressiveAnimationReadiness(bool progressiveAnimationReadiness);
     ImageSequenceAuthoredAnimationLoopMode loopMode() const;
     int loopCount() const;
     bool setFiniteLoopCount(int loopCount);
@@ -57,7 +54,6 @@ public:
 
 private:
     bool m_autoplay = false;
-    bool m_progressiveAnimationReadiness = false;
     ImageSequenceAuthoredAnimationLoopMode m_loopMode
         = ImageSequenceAuthoredAnimationLoopMode::PlayOnce;
     int m_loopCount = 1;

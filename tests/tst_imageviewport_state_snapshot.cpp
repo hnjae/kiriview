@@ -1,6 +1,21 @@
 #include "imageviewport_provider_test_support.h"
 #include "imageviewport_qml_test_support.h"
 
+#include <QtCore/QMetaProperty>
+
+namespace {
+
+QVariant metadataProperty(
+    const ImageViewportRoleMetadataSnapshot& metadata, const char* propertyName)
+{
+    const QMetaObject& metaObject = ImageViewportRoleMetadataSnapshot::staticMetaObject;
+    const int propertyIndex = metaObject.indexOfProperty(propertyName);
+    return propertyIndex >= 0 ? metaObject.property(propertyIndex).readOnGadget(&metadata)
+                              : QVariant {};
+}
+
+}
+
 class ImageViewportStateSnapshotTest : public QObject
 {
     Q_OBJECT
@@ -13,6 +28,7 @@ public:
 
 private slots:
     void defaultSnapshotValuesAndCopySemantics();
+    void authoredAnimationMetadataUsesExplicitAvailability();
     void readyStillSnapshotMatchesFlatProperties();
     void loadingReplacementRetainsPreviousDisplaySeparately();
     void terminalProviderFailureProjectsDiagnostics();
@@ -23,6 +39,35 @@ private slots:
     void presentationCommandUpdatesSnapshotGeometry();
     void qmlReadsNestedSnapshotFields();
 };
+
+void ImageViewportStateSnapshotTest::authoredAnimationMetadataUsesExplicitAvailability()
+{
+    ImageViewport item;
+    const ImageViewportRoleMetadataSnapshot unavailable = item.state().primary().metadata();
+    QCOMPARE(unavailable.available(), false);
+    QCOMPARE(metadataProperty(unavailable, "autoplay"),
+        QVariant::fromValue(ImageViewportCapabilitySupport::Unavailable));
+    QCOMPARE(unavailable.loopMode(), ImageSequenceAuthoredAnimationLoopMode::Unavailable);
+    QCOMPARE(unavailable.loopCount(), -1);
+
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
+                 PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+
+    const ImageViewportRoleMetadataSnapshot still = item.state().primary().metadata();
+    QCOMPARE(still.available(), true);
+    QCOMPARE(metadataProperty(still, "autoplay"),
+        QVariant::fromValue(ImageViewportCapabilitySupport::False));
+    QCOMPARE(still.loopMode(), ImageSequenceAuthoredAnimationLoopMode::PlayOnce);
+    QCOMPARE(still.loopCount(), 1);
+}
 
 void ImageViewportStateSnapshotTest::defaultSnapshotValuesAndCopySemantics()
 {

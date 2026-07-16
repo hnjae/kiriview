@@ -1,5 +1,7 @@
 #include "imageviewport_provider_test_support.h"
 
+#include <QtCore/QMetaProperty>
+
 namespace {
 
 enum MetadataProjectionScenario {
@@ -10,6 +12,15 @@ enum MetadataProjectionScenario {
     RuntimeStillMetadata,
     RuntimeTimedMetadata,
 };
+
+QVariant metadataProperty(
+    const ImageViewportRoleMetadataSnapshot& metadata, const char* propertyName)
+{
+    const QMetaObject& metaObject = ImageViewportRoleMetadataSnapshot::staticMetaObject;
+    const int propertyIndex = metaObject.indexOfProperty(propertyName);
+    return propertyIndex >= 0 ? metaObject.property(propertyIndex).readOnGadget(&metadata)
+                              : QVariant {};
+}
 
 } // namespace
 
@@ -26,6 +37,9 @@ public:
 private slots:
     void roleScopedMetadataProjectionUsesOnePath_data();
     void roleScopedMetadataProjectionUsesOnePath();
+    void providerPartialMetadataProjectsExplicitAvailability();
+    void providerRuntimeAuthoredFactsRespectConstructionFacts();
+    void sameTargetRefinementComparesAuthoredFactAvailability();
     void providerConstructionMetadataSelectsInitialFrameRequest();
     void providerFixedDurationConstructionMetadataSelectsInitialFrameRequest();
     void providerKnownConstructionMetadataSelectsInitialFrameWithoutDeclaredCapabilities();
@@ -66,6 +80,113 @@ private slots:
     void providerPositiveResizeWhileMetadataWaitingKeepsProviderWaiting();
     void providerMetadataReadySealsMetadataToken();
 };
+
+void ImageViewportProviderMetadataTest::providerPartialMetadataProjectsExplicitAvailability()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory,
+        ImageSequenceProviderMetadata::withSourceLogicalSize(QSizeF(16.0, 8.0)));
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
+                 PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+
+    const ImageViewportRoleMetadataSnapshot metadata = item.state().primary().metadata();
+    QCOMPARE(metadata.available(), true);
+    QCOMPARE(metadata.sourceLogicalSize(), QSizeF(16.0, 8.0));
+    QCOMPARE(metadata.frameCount(), -1);
+    QCOMPARE(metadataProperty(metadata, "autoplay"),
+        QVariant::fromValue(ImageViewportCapabilitySupport::Unavailable));
+    QCOMPARE(metadata.loopMode(), ImageSequenceAuthoredAnimationLoopMode::Unavailable);
+    QCOMPARE(metadata.loopCount(), -1);
+}
+
+void ImageViewportProviderMetadataTest::providerRuntimeAuthoredFactsRespectConstructionFacts()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory,
+        ImageSequenceProviderMetadata::withSourceLogicalSize(QSizeF(16.0, 8.0)));
+    adapter.setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts::finiteLoop(3));
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    useSynchronousProviderEventDeliveryForTest(item);
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
+                 PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QVERIFY(sessionFactory->lastSession());
+
+    ImageSequenceProviderMetadata runtime
+        = ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 });
+    runtime.setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts::infiniteLoop());
+    emitProviderMetadataReady(sessionFactory->lastSession(),
+        sessionFactory->lastSession()->lastMetadataToken(), runtime);
+
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Error);
+    QCOMPARE(item.state().request().reason(), ImageViewportRequestReason::PayloadRejection);
+    QVERIFY(!item.state().diagnostics().errorString().isEmpty());
+    QCOMPARE(*frameRequestCount, 0);
+}
+
+void ImageViewportProviderMetadataTest::sameTargetRefinementComparesAuthoredFactAvailability()
+{
+    ImageSequenceFactory factory;
+    const auto makeFactory = [] {
+        return std::make_shared<CountingProviderSessionFactory>(std::make_shared<int>(0),
+            std::make_shared<int>(0), std::make_shared<int>(0), std::make_shared<int>(-1),
+            std::make_shared<int>(0));
+    };
+    auto currentFactory = makeFactory();
+    auto replacementFactory = makeFactory();
+    const ImageSequenceProviderMetadata complete
+        = ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 });
+    CountingProviderAdapter currentAdapter(currentFactory, complete);
+    CountingProviderAdapter replacementAdapter(replacementFactory, complete);
+    replacementAdapter.setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts {});
+    QScopedPointer<ImageSequenceFactoryResult> current(factory.fromProvider(&currentAdapter));
+    QScopedPointer<ImageSequenceFactoryResult> replacement(
+        factory.fromProvider(&replacementAdapter));
+    QVERIFY(current->sequence());
+    QVERIFY(replacement->sequence());
+
+    ImageViewport item;
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(current->sequence()),
+                 PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    PresentationTargetTransitionPolicy refinementPolicy;
+    refinementPolicy.setReplacementIntent(
+        PresentationTargetTransitionPolicy::ReplacementIntent::SameTargetRefinement);
+
+    const ImageViewportStateSnapshot before = item.state();
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(replacement->sequence()),
+                 refinementPolicy)
+                 .outcome(),
+        ImageViewportCommandOutcome::Invalid);
+    QCOMPARE(item.state().request(), before.request());
+    QCOMPARE(item.state().display(), before.display());
+    QCOMPARE(item.state().presentation(), before.presentation());
+}
 
 void ImageViewportProviderMetadataTest::roleScopedMetadataProjectionUsesOnePath_data()
 {

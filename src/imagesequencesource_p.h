@@ -21,6 +21,7 @@ struct ImageSequenceSourceFacts
     QSizeF logicalSize;
     TimingIntervals timingIntervals;
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts;
+    bool authoredAnimationFactsAvailable = false;
     bool hasCompleteProviderKnownMetadata = false;
     ImageSequenceProviderKnownFacts providerKnownFacts;
     QSizeF providerKnownLogicalSize;
