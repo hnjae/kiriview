@@ -69,20 +69,19 @@ RenderAdapter::RenderPlan RenderAdapter::createPlan(const Input& input) const
             { QRectF(0.0, 0.0, input.itemSize.width(), input.itemSize.height()),
                 input.backgroundColor });
     } else if (input.backgroundMode == ImageViewportBackgroundMode::Checkerboard) {
-        constexpr double checkerboardTileSize = 8.0;
-        const QColor lightSquare(238, 238, 238);
-        const QColor darkSquare(204, 204, 204);
         const int rowCount
-            = static_cast<int>(std::ceil(input.itemSize.height() / checkerboardTileSize));
+            = static_cast<int>(std::ceil(input.itemSize.height() / input.checkerboardCellSize));
         const int columnCount
-            = static_cast<int>(std::ceil(input.itemSize.width() / checkerboardTileSize));
+            = static_cast<int>(std::ceil(input.itemSize.width() / input.checkerboardCellSize));
         for (int row = 0; row < rowCount; ++row) {
-            const double y = row * checkerboardTileSize;
+            const double y = row * input.checkerboardCellSize;
             for (int column = 0; column < columnCount; ++column) {
-                const double x = column * checkerboardTileSize;
-                const QColor color = ((row + column) % 2 == 0) ? lightSquare : darkSquare;
-                const QRectF tile(x, y, std::min(checkerboardTileSize, input.itemSize.width() - x),
-                    std::min(checkerboardTileSize, input.itemSize.height() - y));
+                const double x = column * input.checkerboardCellSize;
+                const QColor color = ((row + column) % 2 == 0) ? input.checkerboardLightColor
+                                                               : input.checkerboardDarkColor;
+                const QRectF tile(x, y,
+                    std::min(input.checkerboardCellSize, input.itemSize.width() - x),
+                    std::min(input.checkerboardCellSize, input.itemSize.height() - y));
                 plan.backgroundRects.append({ tile, color });
             }
         }
@@ -135,13 +134,11 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
 {
     const RenderAdapter::RenderPlan plan = adapter.createPlan(input.planInput);
     if (plan.result == RenderAdapter::CommitResult::Failed) {
-        return { oldNode, plan.result, plan.rolePayloads, plan.failedRole,
-            plan.failureCause };
+        return { oldNode, plan.result, plan.rolePayloads, plan.failedRole, plan.failureCause };
     }
     if (plan.backgroundRects.isEmpty() && plan.imageLayers.isEmpty()) {
         delete oldNode;
-        return { nullptr, plan.result, plan.rolePayloads, plan.failedRole,
-            plan.failureCause };
+        return { nullptr, plan.result, plan.rolePayloads, plan.failedRole, plan.failureCause };
     }
 
     auto* root = new QSGNode;
@@ -151,8 +148,7 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
 
     if (plan.imageLayers.isEmpty()) {
         delete oldNode;
-        return { root, plan.result, plan.rolePayloads, plan.failedRole,
-            plan.failureCause };
+        return { root, plan.result, plan.rolePayloads, plan.failedRole, plan.failureCause };
     }
 
     if (!input.window) {

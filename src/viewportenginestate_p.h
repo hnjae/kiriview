@@ -82,6 +82,7 @@ struct ViewportEngineRevisionState
 {
     quint64 nextRevision = 0;
     quint64 presentationRevision = 0;
+    quint64 targetPresentationRevision = 0;
     quint64 snapshotRevision = 0;
 };
 

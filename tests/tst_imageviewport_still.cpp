@@ -52,6 +52,7 @@ static ImageViewportCommandOutcome setFitModeCommand(ImageViewport& item, ImageV
 static ImageViewportCommandOutcome setManualZoomPercentCommand(ImageViewport& item, double percent)
 {
     ImageViewportPresentationCommand command;
+    command.setFitMode(ImageViewportFitMode::Manual);
     command.setManualZoomPercent(percent);
     return item.setPresentation(command).outcome();
 }
@@ -115,12 +116,12 @@ void ImageViewportStillTest::resetViewWithoutRequestClearsTransformAndCommandDia
     QCOMPARE(item.resetView().outcome(), ImageViewportCommandOutcome::Accepted);
 
     QCOMPARE(item.state().presentation().fitMode(), ImageViewportFitMode::Contain);
-    QCOMPARE(item.state().presentation().zoomPercent(), 100.0);
+    QCOMPARE(item.state().presentation().zoomPercent(), 0.0);
     QCOMPARE(contentPosition(item), QPointF());
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "NoCommand"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
-    QVERIFY(!revisionTokenProperty(item, "requestRevision").isValid());
-    verifyRevisionChanged(item, "displayRevision", displayRevisionBeforeReset);
+    QVERIFY(revisionTokenProperty(item, "requestRevision").isValid());
+    QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevisionBeforeReset);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "NoRequest"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "NoRequest"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
@@ -139,19 +140,19 @@ void ImageViewportStillTest::resetViewWithoutTransformChangePreservesCommandDiag
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
     const ImageViewportRevisionToken commandRevision
         = revisionTokenProperty(item, "commandRevision");
-    QVERIFY(!revisionTokenProperty(item, "displayRevision").isValid());
+    QVERIFY(revisionTokenProperty(item, "displayRevision").isValid());
 
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
 
     QCOMPARE(item.resetView().outcome(), ImageViewportCommandOutcome::Accepted);
 
     QCOMPARE(item.state().presentation().fitMode(), ImageViewportFitMode::Contain);
-    QCOMPARE(item.state().presentation().zoomPercent(), 100.0);
+    QCOMPARE(item.state().presentation().zoomPercent(), 0.0);
     QCOMPARE(contentPosition(item), QPointF());
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
     QCOMPARE(revisionTokenProperty(item, "commandRevision"), commandRevision);
-    QVERIFY(!revisionTokenProperty(item, "requestRevision").isValid());
-    QVERIFY(!revisionTokenProperty(item, "displayRevision").isValid());
+    QVERIFY(revisionTokenProperty(item, "requestRevision").isValid());
+    QVERIFY(revisionTokenProperty(item, "displayRevision").isValid());
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "NoRequest"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(stateSpy.count(), 0);
@@ -442,7 +443,8 @@ void ImageViewportStillTest::clearPreservesPresentationState()
     QCOMPARE(item.state().presentation().backgroundMode(), ImageViewportBackgroundMode::SolidColor);
     QCOMPARE(item.state().presentation().backgroundColor(), QColor(20, 40, 60, 255));
     QCOMPARE(item.state().presentation().fitMode(), ImageViewportFitMode::Manual);
-    QCOMPARE(item.state().presentation().zoomPercent(), 250.0);
+    QCOMPARE(item.state().presentation().zoomPercent(), 0.0);
+    QCOMPARE(item.state().presentation().manualZoomPercent(), 250.0);
     QCOMPARE(contentPosition(item), QPointF());
     QCOMPARE(item.state().presentation().looping(), true);
 }

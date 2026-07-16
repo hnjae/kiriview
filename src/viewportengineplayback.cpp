@@ -19,6 +19,10 @@ void mergeChanges(ImageViewportInternal::ViewportChangeSet& target,
     target.diagnostics |= source.diagnostics;
     target.displayRevision |= source.displayRevision;
     target.requestRevision |= source.requestRevision;
+    target.commandRevision |= source.commandRevision;
+    target.presentationRevision |= source.presentationRevision;
+    target.targetPresentationRevision |= source.targetPresentationRevision;
+    target.adoptTargetPresentationRevision |= source.adoptTargetPresentationRevision;
     target.scheduleUpdate |= source.scheduleUpdate;
 }
 
@@ -95,7 +99,7 @@ ViewportEnginePlaybackCommandResult ViewportEngine::applyPlaybackCommand(
         ViewportEnginePlaybackStopAccess access(m_state->requestState.request,
             m_state->playbackState.playback, m_state->displayState.display,
             m_state->providerState.roles, m_state->presentationState.presentation,
-            m_state->revisions.nextRevision, m_state->revisions.presentationRevision,
+            m_state->revisions.nextRevision, m_state->revisions.targetPresentationRevision,
             m_state->requestState.presentationTarget.generation);
         auto reduction
             = reduceViewportEnginePlaybackStop({ input.command.role, geometry }, std::move(access));
@@ -114,7 +118,7 @@ ViewportEnginePlaybackCommandResult ViewportEngine::applyPlaybackCommand(
         ViewportEnginePlaybackSeekAccess access(m_state->requestState.request,
             m_state->playbackState.playback, m_state->displayState.display,
             m_state->providerState.roles, m_state->presentationState.presentation,
-            m_state->revisions.nextRevision, m_state->revisions.presentationRevision,
+            m_state->revisions.nextRevision, m_state->revisions.targetPresentationRevision,
             m_state->requestState.presentationTarget.generation);
         auto reduction = reduceViewportEnginePlaybackSeek(
             { input.command.kind, input.command.role, input.command.value, geometry },
@@ -137,7 +141,7 @@ ViewportEnginePlaybackCommandResult ViewportEngine::applyPlaybackCommand(
     ViewportEnginePlaybackPlayAccess access(m_state->requestState.request,
         m_state->playbackState.playback, m_state->displayState.display,
         m_state->providerState.roles, m_state->presentationState.presentation,
-        m_state->revisions.nextRevision, m_state->revisions.presentationRevision,
+        m_state->revisions.nextRevision, m_state->revisions.targetPresentationRevision,
         m_state->requestState.presentationTarget.generation);
     auto reduction
         = reduceViewportEnginePlaybackPlay({ input.command.role, geometry }, std::move(access));
@@ -164,7 +168,7 @@ ViewportEnginePlaybackTickResult ViewportEngine::advancePlayback(
     ViewportEnginePlaybackTickAccess access(m_state->requestState.request,
         m_state->playbackState.playback, m_state->displayState.display,
         m_state->providerState.roles, m_state->presentationState.presentation,
-        m_state->revisions.nextRevision, m_state->revisions.presentationRevision,
+        m_state->revisions.nextRevision, m_state->revisions.targetPresentationRevision,
         m_state->requestState.presentationTarget.generation);
     auto reduction = reduceViewportEnginePlaybackTick(
         { input.elapsedMilliseconds, geometry }, std::move(access));

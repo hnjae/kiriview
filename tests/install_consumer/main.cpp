@@ -509,8 +509,9 @@ ImageViewport {
             && state.diagnostics.commandReason === ImageViewport.CommandReason.NoCommand
             && state.revisions.command.valid
             && state.presentation.fitMode === ImageViewport.FitMode.Contain
-            && state.presentation.zoomPercent === 100
-            && minimum > 0
+            && state.presentation.zoomPercent === 0
+            && state.presentation.manualZoomPercent === 100
+            && minimum === ImageViewportDisplayLimits.minimumManualZoomPercent
             && maximum === ImageViewportDisplayLimits.maximumManualZoomPercent
             && state.presentation.manualZoomStepFactor === 1.25
             && typeof clampedManualZoomPercent === "undefined"
@@ -889,9 +890,13 @@ int main(int argc, char** argv)
     primaryPageCoordinate.setTargetSpace(ImageViewportCoordinateSpace::DisplayedPage);
     primaryPageCoordinate.setRole(QVariant::fromValue(ImageViewportPageRole::Primary));
     primaryPageCoordinate.setPoint(QPointF(1.0, 1.0));
-    if (minimumManualZoom <= 0.0
+    if (minimumManualZoom != ImageViewportDisplayLimits::minimumManualZoomPercent()
         || maximumManualZoom != ImageViewportDisplayLimits::maximumManualZoomPercent()
-        || helperPresentation.manualZoomStepFactor() != 1.25
+        || helperPresentation.manualZoomStepFactor()
+            != ImageViewportDisplayLimits::manualZoomStepFactor()
+        || ImageViewportDisplayLimits::maximumPageGap() != 8192.0
+        || ImageViewportDisplayLimits::minimumCheckerboardCellSize() != 1.0
+        || ImageViewportDisplayLimits::maximumCheckerboardCellSize() != 256.0
         || helperViewport.mapPoint(primaryPageCoordinate).isValid()
         || helperViewport.containsPoint(primaryPageCoordinate)) {
         return 1;
@@ -902,7 +907,9 @@ int main(int argc, char** argv)
     stepCommand.setZoomStepDelta(1);
     if (steppedCommandViewport.setPresentation(stepCommand).outcome()
             != ImageViewportCommandOutcome::Accepted
-        || !nearlyEqual(steppedCommandViewport.state().presentation().zoomPercent(), 125.0)) {
+        || steppedCommandViewport.state().presentation().fitMode() != ImageViewportFitMode::Contain
+        || !nearlyEqual(steppedCommandViewport.state().presentation().manualZoomPercent(), 125.0)
+        || steppedCommandViewport.state().presentation().zoomPercent() != 0.0) {
         return 1;
     }
 
@@ -916,8 +923,7 @@ int main(int argc, char** argv)
         || snapshot.display().phase() != ImageViewportDisplayPhase::NoPresentation
         || snapshot.primary().present() || snapshot.secondary().present()
         || snapshot.diagnostics().commandReason() != ImageViewportCommandReason::NoCommand
-        || snapshot.revisions().request().isValid()
-        || snapshot.revisions().display() != ImageViewportRevisionToken()
+        || !snapshot.revisions().request().isValid() || !snapshot.revisions().display().isValid()
         || ImageViewportPresentationTargetGenerationToken().isValid()
         || ImageViewportDemandRevisionToken().isValid()) {
         return 1;
@@ -934,6 +940,7 @@ int main(int argc, char** argv)
         return 1;
     }
     ImageViewportPresentationCommand installedPresentationCommand;
+    installedPresentationCommand.setFitMode(ImageViewportFitMode::Manual);
     installedPresentationCommand.setManualZoomPercent(125.0);
     installedPresentationCommand.setPageGap(3.0);
     installedPresentationCommand.setQualityPreference(ImageViewportQualityPreference::ExactDetail);
@@ -946,7 +953,8 @@ int main(int argc, char** argv)
         || helperViewport.setPresentation(installedPresentationCommand).outcome()
             != ImageViewportCommandOutcome::Accepted
         || helperViewport.state().presentation().fitMode() != ImageViewportFitMode::Manual
-        || !nearlyEqual(helperViewport.state().presentation().zoomPercent(), 125.0)
+        || !nearlyEqual(helperViewport.state().presentation().manualZoomPercent(), 125.0)
+        || helperViewport.state().presentation().zoomPercent() != 0.0
         || helperViewport.state().presentation().pageGap() != 3.0
         || helperViewport.state().presentation().qualityPreference()
             != ImageViewportQualityPreference::ExactDetail

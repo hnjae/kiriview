@@ -350,16 +350,34 @@ void ImageSequenceFactoryTest::exposesImageViewportDisplayLimits()
 {
     ImageViewportDisplayLimits limits;
     const QMetaObject* metaObject = limits.metaObject();
-    const int propertyIndex = metaObject->indexOfProperty("maximumManualZoomPercent");
-    QVERIFY(propertyIndex >= 0);
-    const QMetaProperty property = metaObject->property(propertyIndex);
+    struct LimitExpectation
+    {
+        const char* name;
+        double cppValue;
+        double expected;
+    };
+    const QList<LimitExpectation> expectations = {
+        { "minimumManualZoomPercent", ImageViewportDisplayLimits::minimumManualZoomPercent(), 1.0 },
+        { "maximumManualZoomPercent", ImageViewportDisplayLimits::maximumManualZoomPercent(),
+            10000.0 },
+        { "manualZoomStepFactor", ImageViewportDisplayLimits::manualZoomStepFactor(), 1.25 },
+        { "maximumPageGap", ImageViewportDisplayLimits::maximumPageGap(), 8192.0 },
+        { "minimumCheckerboardCellSize", ImageViewportDisplayLimits::minimumCheckerboardCellSize(),
+            1.0 },
+        { "maximumCheckerboardCellSize", ImageViewportDisplayLimits::maximumCheckerboardCellSize(),
+            256.0 },
+    };
 
-    QCOMPARE(property.isWritable(), false);
-    QCOMPARE(property.isConstant(), true);
-    QCOMPARE(limits.property("maximumManualZoomPercent").toDouble(),
-        ImageViewportDisplayLimits::maximumManualZoomPercent());
-    QVERIFY(std::isfinite(ImageViewportDisplayLimits::maximumManualZoomPercent()));
-    QVERIFY(ImageViewportDisplayLimits::maximumManualZoomPercent() >= 100.0);
+    for (const LimitExpectation& expectation : expectations) {
+        const int propertyIndex = metaObject->indexOfProperty(expectation.name);
+        QVERIFY2(propertyIndex >= 0, expectation.name);
+        const QMetaProperty property = metaObject->property(propertyIndex);
+        QCOMPARE(property.isWritable(), false);
+        QCOMPARE(property.isConstant(), true);
+        QCOMPARE(limits.property(expectation.name).toDouble(), expectation.cppValue);
+        QCOMPARE(expectation.cppValue, expectation.expected);
+        QVERIFY2(std::isfinite(expectation.cppValue), expectation.name);
+    }
 }
 
 void ImageSequenceFactoryTest::providerMetadataAdmissionAcceptsTimedMetadata()
@@ -1111,8 +1129,8 @@ void ImageSequenceFactoryTest::commandsWithoutRequestAreIgnoredDiagnostics()
     QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
-    QVERIFY(!revisionTokenProperty(item, "requestRevision").isValid());
-    QVERIFY(!revisionTokenProperty(item, "displayRevision").isValid());
+    QVERIFY(revisionTokenProperty(item, "requestRevision").isValid());
+    QVERIFY(revisionTokenProperty(item, "displayRevision").isValid());
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "NoRequest"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(stateSpy.count(), 0);

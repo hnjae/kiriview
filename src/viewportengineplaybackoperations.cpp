@@ -30,6 +30,10 @@ void mergeChanges(ImageViewportInternal::ViewportChangeSet& target,
     target.diagnostics |= source.diagnostics;
     target.displayRevision |= source.displayRevision;
     target.requestRevision |= source.requestRevision;
+    target.commandRevision |= source.commandRevision;
+    target.presentationRevision |= source.presentationRevision;
+    target.targetPresentationRevision |= source.targetPresentationRevision;
+    target.adoptTargetPresentationRevision |= source.adoptTargetPresentationRevision;
     target.scheduleUpdate |= source.scheduleUpdate;
 }
 

@@ -24,8 +24,6 @@ class ImageViewportRequestSnapshot
     Q_PROPERTY(ImageViewportPresentationTargetGenerationToken acceptedPresentationTargetGeneration
             READ acceptedPresentationTargetGeneration CONSTANT)
     Q_PROPERTY(ImageViewportRoleSet acceptedRoleSet READ acceptedRoleSet CONSTANT)
-    Q_PROPERTY(ImageViewportRoleSet targetRoleSet READ targetRoleSet CONSTANT)
-    Q_PROPERTY(QVariant activeRole READ activeRole CONSTANT)
     Q_PROPERTY(QVariant playbackRole READ playbackRole CONSTANT)
 
 public:
@@ -33,15 +31,12 @@ public:
     ImageViewportRequestSnapshot(ImageViewportRequestStatus status,
         ImageViewportRequestReason reason, ImageViewportPlaybackPhase playbackPhase,
         ImageViewportPresentationTargetGenerationToken acceptedPresentationTargetGeneration,
-        ImageViewportRoleSet acceptedRoleSet, ImageViewportRoleSet targetRoleSet,
-        QVariant activeRole, QVariant playbackRole)
+        ImageViewportRoleSet acceptedRoleSet, QVariant playbackRole)
         : m_status(status)
         , m_reason(reason)
         , m_playbackPhase(playbackPhase)
         , m_acceptedPresentationTargetGeneration(acceptedPresentationTargetGeneration)
         , m_acceptedRoleSet(acceptedRoleSet)
-        , m_targetRoleSet(targetRoleSet)
-        , m_activeRole(std::move(activeRole))
         , m_playbackRole(std::move(playbackRole))
     {
     }
@@ -54,8 +49,6 @@ public:
         return m_acceptedPresentationTargetGeneration;
     }
     ImageViewportRoleSet acceptedRoleSet() const { return m_acceptedRoleSet; }
-    ImageViewportRoleSet targetRoleSet() const { return m_targetRoleSet; }
-    QVariant activeRole() const { return m_activeRole; }
     QVariant playbackRole() const { return m_playbackRole; }
 
     friend bool operator==(
@@ -66,7 +59,6 @@ public:
             && lhs.m_acceptedPresentationTargetGeneration
             == rhs.m_acceptedPresentationTargetGeneration
             && lhs.m_acceptedRoleSet == rhs.m_acceptedRoleSet
-            && lhs.m_targetRoleSet == rhs.m_targetRoleSet && lhs.m_activeRole == rhs.m_activeRole
             && lhs.m_playbackRole == rhs.m_playbackRole;
     }
     friend bool operator!=(
@@ -81,8 +73,6 @@ private:
     ImageViewportPlaybackPhase m_playbackPhase = ImageViewportPlaybackPhase::Stopped;
     ImageViewportPresentationTargetGenerationToken m_acceptedPresentationTargetGeneration;
     ImageViewportRoleSet m_acceptedRoleSet;
-    ImageViewportRoleSet m_targetRoleSet;
-    QVariant m_activeRole;
     QVariant m_playbackRole;
 };
 
@@ -226,6 +216,7 @@ class ImageViewportPresentationSnapshot
     QML_VALUE_TYPE(imageViewportPresentationSnapshot)
     Q_PROPERTY(ImageViewportFitMode fitMode READ fitMode CONSTANT)
     Q_PROPERTY(double zoomPercent READ zoomPercent CONSTANT)
+    Q_PROPERTY(double manualZoomPercent READ manualZoomPercent CONSTANT)
     Q_PROPERTY(double minimumManualZoomPercent READ minimumManualZoomPercent CONSTANT)
     Q_PROPERTY(double maximumManualZoomPercent READ maximumManualZoomPercent CONSTANT)
     Q_PROPERTY(double manualZoomStepFactor READ manualZoomStepFactor CONSTANT)
@@ -236,6 +227,9 @@ class ImageViewportPresentationSnapshot
     Q_PROPERTY(double pageGap READ pageGap CONSTANT)
     Q_PROPERTY(ImageViewportBackgroundMode backgroundMode READ backgroundMode CONSTANT)
     Q_PROPERTY(QColor backgroundColor READ backgroundColor CONSTANT)
+    Q_PROPERTY(QColor checkerboardLightColor READ checkerboardLightColor CONSTANT)
+    Q_PROPERTY(QColor checkerboardDarkColor READ checkerboardDarkColor CONSTANT)
+    Q_PROPERTY(double checkerboardCellSize READ checkerboardCellSize CONSTANT)
     Q_PROPERTY(bool smoothing READ smoothing CONSTANT)
     Q_PROPERTY(bool mipmap READ mipmap CONSTANT)
     Q_PROPERTY(bool looping READ looping CONSTANT)
@@ -246,14 +240,16 @@ class ImageViewportPresentationSnapshot
 public:
     ImageViewportPresentationSnapshot() = default;
     ImageViewportPresentationSnapshot(ImageViewportFitMode fitMode, double zoomPercent,
-        double minimumManualZoomPercent, double maximumManualZoomPercent,
+        double manualZoomPercent, double minimumManualZoomPercent, double maximumManualZoomPercent,
         double manualZoomStepFactor, int rotationDegrees, bool mirrorHorizontally,
         bool mirrorVertically, ImageViewportSpreadDirection spreadDirection, double pageGap,
-        ImageViewportBackgroundMode backgroundMode, QColor backgroundColor, bool smoothing,
-        bool mipmap, bool looping, ImageViewportQualityPreference qualityPreference,
+        ImageViewportBackgroundMode backgroundMode, QColor backgroundColor,
+        QColor checkerboardLightColor, QColor checkerboardDarkColor, double checkerboardCellSize,
+        bool smoothing, bool mipmap, bool looping, ImageViewportQualityPreference qualityPreference,
         ImageViewportExactnessPreference exactnessPreference)
         : m_fitMode(fitMode)
         , m_zoomPercent(zoomPercent)
+        , m_manualZoomPercent(manualZoomPercent)
         , m_minimumManualZoomPercent(minimumManualZoomPercent)
         , m_maximumManualZoomPercent(maximumManualZoomPercent)
         , m_manualZoomStepFactor(manualZoomStepFactor)
@@ -264,6 +260,9 @@ public:
         , m_pageGap(pageGap)
         , m_backgroundMode(backgroundMode)
         , m_backgroundColor(backgroundColor)
+        , m_checkerboardLightColor(checkerboardLightColor)
+        , m_checkerboardDarkColor(checkerboardDarkColor)
+        , m_checkerboardCellSize(checkerboardCellSize)
         , m_smoothing(smoothing)
         , m_mipmap(mipmap)
         , m_looping(looping)
@@ -274,6 +273,7 @@ public:
 
     ImageViewportFitMode fitMode() const { return m_fitMode; }
     double zoomPercent() const { return m_zoomPercent; }
+    double manualZoomPercent() const { return m_manualZoomPercent; }
     double minimumManualZoomPercent() const { return m_minimumManualZoomPercent; }
     double maximumManualZoomPercent() const { return m_maximumManualZoomPercent; }
     double manualZoomStepFactor() const { return m_manualZoomStepFactor; }
@@ -284,6 +284,9 @@ public:
     double pageGap() const { return m_pageGap; }
     ImageViewportBackgroundMode backgroundMode() const { return m_backgroundMode; }
     QColor backgroundColor() const { return m_backgroundColor; }
+    QColor checkerboardLightColor() const { return m_checkerboardLightColor; }
+    QColor checkerboardDarkColor() const { return m_checkerboardDarkColor; }
+    double checkerboardCellSize() const { return m_checkerboardCellSize; }
     bool smoothing() const { return m_smoothing; }
     bool mipmap() const { return m_mipmap; }
     bool looping() const { return m_looping; }
@@ -294,6 +297,7 @@ public:
         const ImageViewportPresentationSnapshot& lhs, const ImageViewportPresentationSnapshot& rhs)
     {
         return lhs.m_fitMode == rhs.m_fitMode && lhs.m_zoomPercent == rhs.m_zoomPercent
+            && lhs.m_manualZoomPercent == rhs.m_manualZoomPercent
             && lhs.m_minimumManualZoomPercent == rhs.m_minimumManualZoomPercent
             && lhs.m_maximumManualZoomPercent == rhs.m_maximumManualZoomPercent
             && lhs.m_manualZoomStepFactor == rhs.m_manualZoomStepFactor
@@ -302,9 +306,12 @@ public:
             && lhs.m_mirrorVertically == rhs.m_mirrorVertically
             && lhs.m_spreadDirection == rhs.m_spreadDirection && lhs.m_pageGap == rhs.m_pageGap
             && lhs.m_backgroundMode == rhs.m_backgroundMode
-            && lhs.m_backgroundColor == rhs.m_backgroundColor && lhs.m_smoothing == rhs.m_smoothing
-            && lhs.m_mipmap == rhs.m_mipmap && lhs.m_looping == rhs.m_looping
-            && lhs.m_qualityPreference == rhs.m_qualityPreference
+            && lhs.m_backgroundColor == rhs.m_backgroundColor
+            && lhs.m_checkerboardLightColor == rhs.m_checkerboardLightColor
+            && lhs.m_checkerboardDarkColor == rhs.m_checkerboardDarkColor
+            && lhs.m_checkerboardCellSize == rhs.m_checkerboardCellSize
+            && lhs.m_smoothing == rhs.m_smoothing && lhs.m_mipmap == rhs.m_mipmap
+            && lhs.m_looping == rhs.m_looping && lhs.m_qualityPreference == rhs.m_qualityPreference
             && lhs.m_exactnessPreference == rhs.m_exactnessPreference;
     }
     friend bool operator!=(
@@ -315,7 +322,8 @@ public:
 
 private:
     ImageViewportFitMode m_fitMode = ImageViewportFitMode::Contain;
-    double m_zoomPercent = 100.0;
+    double m_zoomPercent = 0.0;
+    double m_manualZoomPercent = 100.0;
     double m_minimumManualZoomPercent = 0.0;
     double m_maximumManualZoomPercent = 0.0;
     double m_manualZoomStepFactor = 1.0;
@@ -325,7 +333,10 @@ private:
     ImageViewportSpreadDirection m_spreadDirection = ImageViewportSpreadDirection::LeftToRight;
     double m_pageGap = 0.0;
     ImageViewportBackgroundMode m_backgroundMode = ImageViewportBackgroundMode::Transparent;
-    QColor m_backgroundColor = Qt::transparent;
+    QColor m_backgroundColor = Qt::white;
+    QColor m_checkerboardLightColor = Qt::white;
+    QColor m_checkerboardDarkColor = QColor(220, 220, 220);
+    double m_checkerboardCellSize = 8.0;
     bool m_smoothing = true;
     bool m_mipmap = false;
     bool m_looping = false;

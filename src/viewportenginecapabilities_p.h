@@ -13,7 +13,8 @@ private:
         const ImageViewportInternal::PresentationState& presentation,
         const ViewportEnginePresentationTargetState& presentationTarget,
         ImageViewportCommandReason commandReason, const RevisionToken& commandRevision,
-        quint64 publishedCommandRevision, quint64 presentationRevision, quint64 snapshotRevision)
+        quint64 publishedCommandRevision, quint64 presentationRevision,
+        quint64 targetPresentationRevision, quint64 snapshotRevision)
         : m_request(request)
         , m_playback(playback)
         , m_display(display)
@@ -24,6 +25,7 @@ private:
         , m_commandReason(commandReason)
         , m_publishedCommandRevision(publishedCommandRevision)
         , m_presentationRevision(presentationRevision)
+        , m_targetPresentationRevision(targetPresentationRevision)
         , m_snapshotRevision(snapshotRevision)
     {
     }
@@ -45,6 +47,7 @@ public:
     ImageViewportCommandReason commandReason() const { return m_commandReason; }
     quint64 publishedCommandRevision() const { return m_publishedCommandRevision; }
     quint64 presentationRevision() const { return m_presentationRevision; }
+    quint64 targetPresentationRevision() const { return m_targetPresentationRevision; }
     quint64 snapshotRevision() const { return m_snapshotRevision; }
 
 private:
@@ -58,5 +61,6 @@ private:
     ImageViewportCommandReason m_commandReason = ImageViewportCommandReason::NoCommand;
     quint64 m_publishedCommandRevision = 0;
     quint64 m_presentationRevision = 0;
+    quint64 m_targetPresentationRevision = 0;
     quint64 m_snapshotRevision = 0;
 };

@@ -353,9 +353,41 @@ ImageViewportDisplayLimits::ImageViewportDisplayLimits(QObject* parent)
 {
 }
 
+double ImageViewportDisplayLimits::getMinimumManualZoomPercent() const
+{
+    return minimumManualZoomPercent();
+}
+
 double ImageViewportDisplayLimits::getMaximumManualZoomPercent() const
 {
     return maximumManualZoomPercent();
 }
 
+double ImageViewportDisplayLimits::getManualZoomStepFactor() const
+{
+    return manualZoomStepFactor();
+}
+
+double ImageViewportDisplayLimits::getMaximumPageGap() const { return maximumPageGap(); }
+
+double ImageViewportDisplayLimits::getMinimumCheckerboardCellSize() const
+{
+    return minimumCheckerboardCellSize();
+}
+
+double ImageViewportDisplayLimits::getMaximumCheckerboardCellSize() const
+{
+    return maximumCheckerboardCellSize();
+}
+
+double ImageViewportDisplayLimits::minimumManualZoomPercent() { return 1.0; }
+
 double ImageViewportDisplayLimits::maximumManualZoomPercent() { return 10000.0; }
+
+double ImageViewportDisplayLimits::manualZoomStepFactor() { return 1.25; }
+
+double ImageViewportDisplayLimits::maximumPageGap() { return 8192.0; }
+
+double ImageViewportDisplayLimits::minimumCheckerboardCellSize() { return 1.0; }
+
+double ImageViewportDisplayLimits::maximumCheckerboardCellSize() { return 256.0; }

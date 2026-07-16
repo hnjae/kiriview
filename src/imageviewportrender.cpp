@@ -20,8 +20,8 @@ double effectiveDevicePixelRatio(const ImageViewportPrivate& viewport)
 
 }
 
-ImageViewportRenderHostResult ImageViewportRenderHost::synchronize(QSGNode* oldNode,
-    QQuickWindow* window, const ViewportRenderAttempt& attempt)
+ImageViewportRenderHostResult ImageViewportRenderHost::synchronize(
+    QSGNode* oldNode, QQuickWindow* window, const ViewportRenderAttempt& attempt)
 {
     QVector<RenderAdapter::Input::ImageLayer> imageLayers;
     imageLayers.reserve(attempt.snapshot.imageLayers.size());
@@ -35,6 +35,9 @@ ImageViewportRenderHostResult ImageViewportRenderHost::synchronize(QSGNode* oldN
         attempt.snapshot.itemSize,
         attempt.snapshot.backgroundMode,
         attempt.snapshot.backgroundColor,
+        attempt.snapshot.checkerboardLightColor,
+        attempt.snapshot.checkerboardDarkColor,
+        attempt.snapshot.checkerboardCellSize,
         attempt.snapshot.smoothing,
         attempt.snapshot.mipmap,
         imageLayers,
@@ -79,8 +82,8 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
 
 void ImageViewportPrivate::prepareRenderSynchronization()
 {
-    const ViewportRenderAttempt attempt = engine.beginRenderSynchronization(
-        { { itemBounds(), effectiveDevicePixelRatio(*this) } });
+    const ViewportRenderAttempt attempt
+        = engine.beginRenderSynchronization({ { itemBounds(), effectiveDevicePixelRatio(*this) } });
     const QMutexLocker lock(&renderMailboxMutex);
     renderMailbox = attempt;
     renderMailboxValid = true;
@@ -123,9 +126,9 @@ void ImageViewportPrivate::geometryChanged(const QRectF& newGeometry, const QRec
         { { itemBounds(), 1.0 }, oldContentRect, oldVisibleImageRect });
     ViewportEngineTransition transition;
     transition.changes = reduced.changes;
-    appendProviderTransport(transition.providerAfterPublication, reduced.providerEffects[0],
-        PageRole::Primary);
-    appendProviderTransport(transition.providerAfterPublication, reduced.providerEffects[1],
-        PageRole::Secondary);
+    appendProviderTransport(
+        transition.providerAfterPublication, reduced.providerEffects[0], PageRole::Primary);
+    appendProviderTransport(
+        transition.providerAfterPublication, reduced.providerEffects[1], PageRole::Secondary);
     applyEngineTransition(std::move(transition));
 }

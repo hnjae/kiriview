@@ -108,6 +108,15 @@ static ImageViewportCommandOutcome setManualZoomPercentCommand(ImageViewport& it
     return item.setPresentation(command).outcome();
 }
 
+static ImageViewportCommandOutcome activateManualZoomPercentCommand(
+    ImageViewport& item, double percent)
+{
+    ImageViewportPresentationCommand command;
+    command.setFitMode(ImageViewportFitMode::Manual);
+    command.setManualZoomPercent(percent);
+    return item.setPresentation(command).outcome();
+}
+
 static ImageViewportCommandOutcome setQualityTogglesCommand(
     ImageViewport& item, bool smoothing, bool mipmap)
 {
@@ -162,7 +171,7 @@ void ImageViewportPresentationStateTest::presentationChangesWithoutDisplayKeepEm
         = revisionTokenProperty(item, "displayRevision");
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
 
-    QCOMPARE(setManualZoomPercentCommand(item, 200.0), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(activateManualZoomPercentCommand(item, 200.0), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(setFitModeCommand(item, ImageViewportFitMode::FitHeight),
         ImageViewportCommandOutcome::Accepted);
     QCOMPARE(setQualityTogglesCommand(item, false, true), ImageViewportCommandOutcome::Accepted);
@@ -359,24 +368,29 @@ void ImageViewportPresentationStateTest::presentationChangesUpdateDisplayRevisio
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
 
     QCOMPARE(setManualZoomPercentCommand(item, 1000.0), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
+    QCOMPARE(stateSpy.count(), 1);
+
+    QCOMPARE(setFitModeCommand(item, ImageViewportFitMode::Manual),
+        ImageViewportCommandOutcome::Accepted);
     verifyRevisionChanged(item, "displayRevision", displayRevision);
     displayRevision = revisionTokenProperty(item, "displayRevision");
-    QCOMPARE(stateSpy.count(), 1);
+    QCOMPARE(stateSpy.count(), 2);
 
     QCOMPARE(setPanDelta(item, QPointF(4.0, 0.0)), ImageViewportCommandOutcome::Accepted);
     verifyRevisionChanged(item, "displayRevision", displayRevision);
     displayRevision = revisionTokenProperty(item, "displayRevision");
-    QCOMPARE(stateSpy.count(), 2);
+    QCOMPARE(stateSpy.count(), 3);
 
     QCOMPARE(setFitModeCommand(item, ImageViewportFitMode::FitHeight),
         ImageViewportCommandOutcome::Accepted);
     verifyRevisionChanged(item, "displayRevision", displayRevision);
     displayRevision = revisionTokenProperty(item, "displayRevision");
-    QCOMPARE(stateSpy.count(), 3);
+    QCOMPARE(stateSpy.count(), 4);
 
     QCOMPARE(setMirrorHorizontallyCommand(item, true), ImageViewportCommandOutcome::Accepted);
     verifyRevisionChanged(item, "displayRevision", displayRevision);
-    QCOMPARE(stateSpy.count(), 4);
+    QCOMPARE(stateSpy.count(), 5);
 }
 
 void ImageViewportPresentationStateTest::twoPageSpreadGeometryUsesDirectionAndGap()
@@ -454,7 +468,7 @@ void ImageViewportPresentationStateTest::twoPageManualPanUsesSpreadGeometry()
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(setPageGapCommand(item, 4.0), ImageViewportCommandOutcome::Accepted);
 
-    QCOMPARE(setManualZoomPercentCommand(item, 100.0), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(activateManualZoomPercentCommand(item, 100.0), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(contentRect(item), QRectF(-12.0, 0.0, 44.0, 20.0));
     QCOMPARE(contentPosition(item), QPointF(12.0, 0.0));
     QCOMPARE(maximumContentPosition(item), QPointF(24.0, 0.0));
@@ -494,7 +508,7 @@ void ImageViewportPresentationStateTest::rotatedTwoPageManualPanUsesSpreadGeomet
     QCOMPARE(setPageGapCommand(item, 4.0), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(setSpreadDirectionCommand(item, ImageViewportSpreadDirection::RightToLeft),
         ImageViewportCommandOutcome::Accepted);
-    QCOMPARE(setManualZoomPercentCommand(item, 100.0), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(activateManualZoomPercentCommand(item, 100.0), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(setRotationDegrees(item, 90), ImageViewportCommandOutcome::Accepted);
 
     QCOMPARE(item.state().presentation().rotationDegrees(), 90);
@@ -766,7 +780,7 @@ void ImageViewportPresentationStateTest::logicalCoordinateMappingsUseFullDisplay
         ImageViewportCommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(setPageGapCommand(item, 4.0), ImageViewportCommandOutcome::Accepted);
-    QCOMPARE(setManualZoomPercentCommand(item, 100.0), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(activateManualZoomPercentCommand(item, 100.0), ImageViewportCommandOutcome::Accepted);
 
     const ImageViewportRevisionToken displayRevision = viewportDisplayRevision(item);
     const ImageViewportRevisionToken requestRevision = viewportRequestRevision(item);
@@ -838,7 +852,11 @@ void ImageViewportPresentationStateTest::fitModesExposeZoomAndPannability()
     QCOMPARE(contentPosition(item), QPointF(0.0, 0.0));
 
     QCOMPARE(setManualZoomPercentCommand(item, 200.0), ImageViewportCommandOutcome::Accepted);
-    QCOMPARE(item.state().presentation().fitMode(), ImageViewportFitMode::Manual);
+    QCOMPARE(item.state().presentation().fitMode(), ImageViewportFitMode::FitHeight);
+    QCOMPARE(item.state().presentation().manualZoomPercent(), 200.0);
+    QCOMPARE(item.state().presentation().zoomPercent(), 1250.0);
+    QCOMPARE(setFitModeCommand(item, ImageViewportFitMode::Manual),
+        ImageViewportCommandOutcome::Accepted);
     QCOMPARE(contentRect(item), QRectF(24.0, 42.0, 32.0, 16.0));
     QCOMPARE(item.state().presentation().zoomPercent(), 200.0);
 }
@@ -861,6 +879,8 @@ void ImageViewportPresentationStateTest::targetTransitionPreserveKeepsStoredManu
             PresentationTargetTransitionPolicy {});
         acknowledgePendingRenderCommitForTest(item);
         QCOMPARE(setManualZoomPercentCommand(item, 200.0), ImageViewportCommandOutcome::Accepted);
+        QCOMPARE(item.state().presentation().fitMode(), ImageViewportFitMode::Contain);
+        QCOMPARE(item.state().presentation().manualZoomPercent(), 200.0);
         QCOMPARE(setFitModeCommand(item, ImageViewportFitMode::FitHeight),
             ImageViewportCommandOutcome::Accepted);
         QCOMPARE(item.state().presentation().fitMode(), ImageViewportFitMode::FitHeight);
@@ -899,14 +919,14 @@ void ImageViewportPresentationStateTest::manualZoomCommandUsesItemCenterAnchor()
     item.setPresentationTarget(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
-    QCOMPARE(setManualZoomPercentCommand(item, 200.0), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(activateManualZoomPercentCommand(item, 200.0), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(contentPosition(item), QPointF(50.0, 50.0));
     QCOMPARE(setManualZoomPercentCommand(item, std::numeric_limits<double>::infinity()),
         ImageViewportCommandOutcome::Invalid);
     const ImageViewportRevisionToken commandRevision
         = revisionTokenProperty(item, "commandRevision");
 
-    QCOMPARE(setManualZoomPercentCommand(item, 300.0), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(activateManualZoomPercentCommand(item, 300.0), ImageViewportCommandOutcome::Accepted);
 
     QCOMPARE(item.state().presentation().fitMode(), ImageViewportFitMode::Manual);
     QCOMPARE(item.state().presentation().zoomPercent(), 300.0);
@@ -973,7 +993,7 @@ void ImageViewportPresentationStateTest::
     item.setPresentationTarget(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
-    QCOMPARE(setManualZoomPercentCommand(item, 200.0), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(activateManualZoomPercentCommand(item, 200.0), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(setContentAnchor(item, ImageViewportContentAnchor::End),
         ImageViewportCommandOutcome::Accepted);
     QCOMPARE(setRotationDegrees(item, 90), ImageViewportCommandOutcome::Accepted);
@@ -1203,24 +1223,29 @@ void ImageViewportPresentationStateTest::presentationCommandZoomStepDeltaUsesSha
     ImageViewportPresentationCommand command;
     command.setZoomStepDelta(0);
     QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
-    QCOMPARE(item.state().presentation().fitMode(), ImageViewportFitMode::Manual);
+    QCOMPARE(item.state().presentation().fitMode(), ImageViewportFitMode::Contain);
+    verifyClose(item.state().presentation().manualZoomPercent(), 100.0);
     verifyClose(item.state().presentation().zoomPercent(), 625.0);
 
     command = {};
     command.setZoomStepDelta(1);
     QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
-    verifyClose(item.state().presentation().zoomPercent(), 781.25);
+    QCOMPARE(item.state().presentation().fitMode(), ImageViewportFitMode::Contain);
+    verifyClose(item.state().presentation().manualZoomPercent(), 125.0);
+    verifyClose(item.state().presentation().zoomPercent(), 625.0);
 
     command = {};
     command.setZoomStepDelta(-1);
     QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
+    verifyClose(item.state().presentation().manualZoomPercent(), 100.0);
     verifyClose(item.state().presentation().zoomPercent(), 625.0);
 
     command = {};
     command.setZoomStepDelta(std::numeric_limits<int>::max());
     QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
-    QCOMPARE(item.state().presentation().zoomPercent(),
+    QCOMPARE(item.state().presentation().manualZoomPercent(),
         item.state().presentation().maximumManualZoomPercent());
+    QCOMPARE(item.state().presentation().zoomPercent(), 625.0);
 }
 
 void ImageViewportPresentationStateTest::mirrorPresentationCommandsPreserveItemCenterAnchor()
@@ -1242,8 +1267,8 @@ void ImageViewportPresentationStateTest::mirrorPresentationCommandsPreserveItemC
     horizontalItem.setPresentationTarget(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(horizontalItem);
-    QCOMPARE(
-        setManualZoomPercentCommand(horizontalItem, 200.0), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(activateManualZoomPercentCommand(horizontalItem, 200.0),
+        ImageViewportCommandOutcome::Accepted);
     QCOMPARE(setContentAnchor(horizontalItem, ImageViewportContentAnchor::End),
         ImageViewportCommandOutcome::Accepted);
 
@@ -1264,8 +1289,8 @@ void ImageViewportPresentationStateTest::mirrorPresentationCommandsPreserveItemC
     verticalItem.setPresentationTarget(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(verticalItem);
-    QCOMPARE(
-        setManualZoomPercentCommand(verticalItem, 200.0), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(activateManualZoomPercentCommand(verticalItem, 200.0),
+        ImageViewportCommandOutcome::Accepted);
     QCOMPARE(setContentAnchor(verticalItem, ImageViewportContentAnchor::End),
         ImageViewportCommandOutcome::Accepted);
 

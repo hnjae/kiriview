@@ -78,6 +78,7 @@ private:
 #endif
     ViewportEngineCommandResult rejectInvalidCommand();
     quint64 allocateRevisionValue();
+    quint64 advanceTargetPresentationRevision();
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void setNextRevisionValueForTest(quint64 token);
 #endif

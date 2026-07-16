@@ -134,7 +134,9 @@ bool PresentationTargetTransitionPolicy::isValid() const
             && !m_spreadDirectionSet)) {
         return false;
     }
-    if ((m_pageGapSet && (!std::isfinite(m_pageGap) || m_pageGap < 0.0))
+    if ((m_pageGapSet
+            && (!std::isfinite(m_pageGap) || m_pageGap < 0.0
+                || m_pageGap > ImageViewportDisplayLimits::maximumPageGap()))
         || (m_pageGapTransition == PageGapTransition::SetExplicit && !m_pageGapSet)) {
         return false;
     }
@@ -283,10 +285,10 @@ ImageViewportCommandResult ImageViewportPrivate::setPresentationTarget(
     ViewportCommandResult result
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(reduced.command);
     mergeChanges(result.transition.changes, reduced.changes);
-    appendProviderTransport(result.transition.providerAfterPublication,
-        reduced.providerEffects[0], PageRole::Primary);
-    appendProviderTransport(result.transition.providerAfterPublication,
-        reduced.providerEffects[1], PageRole::Secondary);
+    appendProviderTransport(
+        result.transition.providerAfterPublication, reduced.providerEffects[0], PageRole::Primary);
+    appendProviderTransport(result.transition.providerAfterPublication, reduced.providerEffects[1],
+        PageRole::Secondary);
     for (const auto& effect : reduced.providerSessionOpenEffects) {
         if (effect.openSession) {
             result.transition.providerAfterPublication.append(effect.command);

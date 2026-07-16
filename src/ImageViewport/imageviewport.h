@@ -22,14 +22,29 @@ class ImageViewportDisplayLimits : public QObject
     Q_OBJECT
     QML_ELEMENT
     QML_SINGLETON
+    Q_PROPERTY(double minimumManualZoomPercent READ getMinimumManualZoomPercent CONSTANT)
     Q_PROPERTY(double maximumManualZoomPercent READ getMaximumManualZoomPercent CONSTANT)
+    Q_PROPERTY(double manualZoomStepFactor READ getManualZoomStepFactor CONSTANT)
+    Q_PROPERTY(double maximumPageGap READ getMaximumPageGap CONSTANT)
+    Q_PROPERTY(double minimumCheckerboardCellSize READ getMinimumCheckerboardCellSize CONSTANT)
+    Q_PROPERTY(double maximumCheckerboardCellSize READ getMaximumCheckerboardCellSize CONSTANT)
 
 public:
     explicit ImageViewportDisplayLimits(QObject* parent = nullptr);
 
+    double getMinimumManualZoomPercent() const;
     double getMaximumManualZoomPercent() const;
+    double getManualZoomStepFactor() const;
+    double getMaximumPageGap() const;
+    double getMinimumCheckerboardCellSize() const;
+    double getMaximumCheckerboardCellSize() const;
 
+    static double minimumManualZoomPercent();
     static double maximumManualZoomPercent();
+    static double manualZoomStepFactor();
+    static double maximumPageGap();
+    static double minimumCheckerboardCellSize();
+    static double maximumCheckerboardCellSize();
 };
 
 class ImageViewportPresentationTarget
@@ -155,6 +170,14 @@ class ImageViewportPresentationCommand
         ImageViewportBackgroundMode backgroundMode READ backgroundMode WRITE setBackgroundMode)
     Q_PROPERTY(bool backgroundColorSet READ hasBackgroundColor CONSTANT)
     Q_PROPERTY(QColor backgroundColor READ backgroundColor WRITE setBackgroundColor)
+    Q_PROPERTY(bool checkerboardLightColorSet READ hasCheckerboardLightColor CONSTANT)
+    Q_PROPERTY(
+        QColor checkerboardLightColor READ checkerboardLightColor WRITE setCheckerboardLightColor)
+    Q_PROPERTY(bool checkerboardDarkColorSet READ hasCheckerboardDarkColor CONSTANT)
+    Q_PROPERTY(
+        QColor checkerboardDarkColor READ checkerboardDarkColor WRITE setCheckerboardDarkColor)
+    Q_PROPERTY(bool checkerboardCellSizeSet READ hasCheckerboardCellSize CONSTANT)
+    Q_PROPERTY(double checkerboardCellSize READ checkerboardCellSize WRITE setCheckerboardCellSize)
     Q_PROPERTY(bool smoothingSet READ hasSmoothing CONSTANT)
     Q_PROPERTY(bool smoothing READ smoothing WRITE setSmoothing)
     Q_PROPERTY(bool mipmapSet READ hasMipmap CONSTANT)
@@ -271,6 +294,27 @@ public:
         m_backgroundColor = color;
         m_hasBackgroundColor = true;
     }
+    bool hasCheckerboardLightColor() const { return m_hasCheckerboardLightColor; }
+    QColor checkerboardLightColor() const { return m_checkerboardLightColor; }
+    void setCheckerboardLightColor(const QColor& color)
+    {
+        m_checkerboardLightColor = color;
+        m_hasCheckerboardLightColor = true;
+    }
+    bool hasCheckerboardDarkColor() const { return m_hasCheckerboardDarkColor; }
+    QColor checkerboardDarkColor() const { return m_checkerboardDarkColor; }
+    void setCheckerboardDarkColor(const QColor& color)
+    {
+        m_checkerboardDarkColor = color;
+        m_hasCheckerboardDarkColor = true;
+    }
+    bool hasCheckerboardCellSize() const { return m_hasCheckerboardCellSize; }
+    double checkerboardCellSize() const { return m_checkerboardCellSize; }
+    void setCheckerboardCellSize(double size)
+    {
+        m_checkerboardCellSize = size;
+        m_hasCheckerboardCellSize = true;
+    }
     bool hasSmoothing() const { return m_hasSmoothing; }
     bool smoothing() const { return m_smoothing; }
     void setSmoothing(bool smoothing)
@@ -334,7 +378,13 @@ private:
     bool m_hasBackgroundMode = false;
     ImageViewportBackgroundMode m_backgroundMode = ImageViewportBackgroundMode::Transparent;
     bool m_hasBackgroundColor = false;
-    QColor m_backgroundColor = Qt::transparent;
+    QColor m_backgroundColor = Qt::white;
+    bool m_hasCheckerboardLightColor = false;
+    QColor m_checkerboardLightColor = Qt::white;
+    bool m_hasCheckerboardDarkColor = false;
+    QColor m_checkerboardDarkColor = QColor(220, 220, 220);
+    bool m_hasCheckerboardCellSize = false;
+    double m_checkerboardCellSize = 8.0;
     bool m_hasSmoothing = false;
     bool m_smoothing = true;
     bool m_hasMipmap = false;

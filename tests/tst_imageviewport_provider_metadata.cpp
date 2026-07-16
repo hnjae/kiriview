@@ -1521,6 +1521,12 @@ void ImageViewportProviderMetadataTest::providerStillMetadataSelectsInitialFrame
     QCOMPARE(*frameRequestCount, 0);
     const ImageViewportRevisionToken metadataWaitingRequestRevision
         = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken metadataWaitingDisplayRevision
+        = revisionTokenProperty(item, "displayRevision");
+    const ImageViewportRevisionToken unresolvedTargetPresentationRevision
+        = item.state().display().targetPresentationRevision();
+    QVERIFY(unresolvedTargetPresentationRevision.isValid());
+    QVERIFY(!item.state().display().displayedPresentationRevision().isValid());
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
 
     const ImageSequenceProviderMetadata metadata
@@ -1547,6 +1553,11 @@ void ImageViewportProviderMetadataTest::providerStillMetadataSelectsInitialFrame
     QCOMPARE(primaryFrameSeekSupport(item), ImageViewportCapabilitySupport::True);
     QCOMPARE(primaryPositionSeekSupport(item), ImageViewportCapabilitySupport::False);
     verifyRevisionChanged(item, "requestRevision", metadataWaitingRequestRevision);
+    verifyRevisionChanged(item, "displayRevision", metadataWaitingDisplayRevision);
+    QVERIFY(item.state().display().targetPresentationRevision().isValid());
+    QVERIFY(item.state().display().targetPresentationRevision()
+        != unresolvedTargetPresentationRevision);
+    QVERIFY(!item.state().display().displayedPresentationRevision().isValid());
     QCOMPARE(stateSpy.count(), 1);
 }
 

@@ -329,6 +329,7 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
     const QList<QByteArray> presentationProperties = {
         "fitMode",
         "zoomPercent",
+        "manualZoomPercent",
         "minimumManualZoomPercent",
         "maximumManualZoomPercent",
         "manualZoomStepFactor",
@@ -339,6 +340,9 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
         "pageGap",
         "backgroundMode",
         "backgroundColor",
+        "checkerboardLightColor",
+        "checkerboardDarkColor",
+        "checkerboardCellSize",
         "smoothing",
         "mipmap",
         "looping",
@@ -453,6 +457,12 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
     const QMetaObject& presentationCommandMetaObject
         = ImageViewportPresentationCommand::staticMetaObject;
     const QList<QByteArray> presentationCommandProperties = {
+        "checkerboardLightColorSet",
+        "checkerboardLightColor",
+        "checkerboardDarkColorSet",
+        "checkerboardDarkColor",
+        "checkerboardCellSizeSet",
+        "checkerboardCellSize",
         "contentAnchorSet",
         "contentAnchor",
         "qualityPreferenceSet",
@@ -464,6 +474,22 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
         QVERIFY2(presentationCommandMetaObject.indexOfProperty(propertyName.constData()) >= 0,
             propertyName.constData());
     }
+
+    const QMetaObject& requestSnapshotMetaObject = ImageViewportRequestSnapshot::staticMetaObject;
+    const QList<QByteArray> requestSnapshotProperties = {
+        "status",
+        "reason",
+        "playbackPhase",
+        "acceptedPresentationTargetGeneration",
+        "acceptedRoleSet",
+        "playbackRole",
+    };
+    for (const QByteArray& propertyName : requestSnapshotProperties) {
+        QVERIFY2(requestSnapshotMetaObject.indexOfProperty(propertyName.constData()) >= 0,
+            propertyName.constData());
+    }
+    QCOMPARE(requestSnapshotMetaObject.indexOfProperty("targetRoleSet"), -1);
+    QCOMPARE(requestSnapshotMetaObject.indexOfProperty("activeRole"), -1);
 
     const QMetaObject& coordinateInputMetaObject = ImageViewportCoordinateInput::staticMetaObject;
     const QList<QByteArray> coordinateInputProperties = {
@@ -527,9 +553,9 @@ void ImageViewportPublicApiTest::hasDocumentedDefaultState()
     verifyInvalidCoordinateResult(mapItemToSpread(item, 1.0, 1.0));
     verifyInvalidCoordinateResult(mapSpreadToPage(item, ImageViewportPageRole::Primary, 1.0, 1.0));
     QCOMPARE(containsPrimaryPagePoint(item, 1.0, 1.0), false);
-    QVERIFY(!revisionTokenProperty(item, "displayRevision").isValid());
-    QVERIFY(!revisionTokenProperty(item, "requestRevision").isValid());
-    QVERIFY(!revisionTokenProperty(item, "commandRevision").isValid());
+    QVERIFY(revisionTokenProperty(item, "displayRevision").isValid());
+    QVERIFY(revisionTokenProperty(item, "requestRevision").isValid());
+    QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
     QCOMPARE(viewportErrorString(item), QString());
     QCOMPARE(viewportWarningString(item), QString());
     const ImageViewportPresentationSnapshot presentation = item.state().presentation();
@@ -538,9 +564,14 @@ void ImageViewportPublicApiTest::hasDocumentedDefaultState()
     QCOMPARE(presentation.mirrorHorizontally(), false);
     QCOMPARE(presentation.mirrorVertically(), false);
     QCOMPARE(presentation.backgroundMode(), ImageViewportBackgroundMode::Transparent);
-    QCOMPARE(presentation.backgroundColor(), QColor(Qt::transparent));
+    QCOMPARE(presentation.backgroundColor(), QColor(QStringLiteral("#ffffff")));
+    QCOMPARE(presentation.checkerboardLightColor(), QColor(QStringLiteral("#ffffff")));
+    QCOMPARE(presentation.checkerboardDarkColor(), QColor(QStringLiteral("#dcdcdc")));
+    QCOMPARE(presentation.checkerboardCellSize(), 8.0);
     QCOMPARE(presentation.looping(), false);
-    QVERIFY(presentation.minimumManualZoomPercent() > 0.0);
+    QCOMPARE(presentation.manualZoomPercent(), 100.0);
+    QCOMPARE(presentation.minimumManualZoomPercent(),
+        ImageViewportDisplayLimits::minimumManualZoomPercent());
     QCOMPARE(presentation.maximumManualZoomPercent(),
         ImageViewportDisplayLimits::maximumManualZoomPercent());
     QCOMPARE(presentation.manualZoomStepFactor(), 1.25);
@@ -559,10 +590,13 @@ void ImageViewportPublicApiTest::manualZoomLimitPropertiesExposeDefaultsAndDoNot
     const double maximum = presentation.maximumManualZoomPercent();
     const double stepFactor = presentation.manualZoomStepFactor();
 
-    QVERIFY(std::isfinite(minimum));
-    QVERIFY(minimum > 0.0);
+    QCOMPARE(minimum, 1.0);
     QCOMPARE(maximum, ImageViewportDisplayLimits::maximumManualZoomPercent());
     QCOMPARE(stepFactor, 1.25);
+    QCOMPARE(ImageViewportDisplayLimits::manualZoomStepFactor(), 1.25);
+    QCOMPARE(ImageViewportDisplayLimits::maximumPageGap(), 8192.0);
+    QCOMPARE(ImageViewportDisplayLimits::minimumCheckerboardCellSize(), 1.0);
+    QCOMPARE(ImageViewportDisplayLimits::maximumCheckerboardCellSize(), 256.0);
 
     QCOMPARE(viewportDisplayRevision(item), displayRevision);
     QCOMPARE(viewportRequestRevision(item), requestRevision);
@@ -697,9 +731,9 @@ void ImageViewportPublicApiTest::revisionTokensExposeValidityAndEquality()
     const ImageViewportRevisionToken initialDisplayRevision = viewportDisplayRevision(item);
     const ImageViewportRevisionToken initialRequestRevision = viewportRequestRevision(item);
     const ImageViewportRevisionToken initialCommandRevision = viewportCommandRevision(item);
-    QVERIFY(!initialDisplayRevision.isValid());
-    QVERIFY(!initialRequestRevision.isValid());
-    QVERIFY(!initialCommandRevision.isValid());
+    QVERIFY(initialDisplayRevision.isValid());
+    QVERIFY(initialRequestRevision.isValid());
+    QVERIFY(initialCommandRevision.isValid());
 
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
     item.setSize(QSizeF(100.0, 50.0));

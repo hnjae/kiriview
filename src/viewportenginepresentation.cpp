@@ -20,10 +20,57 @@ bool presentationStatesEqual(const PresentationState& left, const PresentationSt
         && left.qualityPreference == right.qualityPreference
         && left.exactnessPreference == right.exactnessPreference
         && left.backgroundColor == right.backgroundColor && left.manualZoom == right.manualZoom
-        && left.pageGap == right.pageGap && left.rotationDegrees == right.rotationDegrees
+        && left.checkerboardLightColor == right.checkerboardLightColor
+        && left.checkerboardDarkColor == right.checkerboardDarkColor
+        && left.checkerboardCellSize == right.checkerboardCellSize && left.pageGap == right.pageGap
+        && left.rotationDegrees == right.rotationDegrees
         && left.contentPosition == right.contentPosition && left.smoothing == right.smoothing
         && left.mipmap == right.mipmap && left.mirrorHorizontally == right.mirrorHorizontally
         && left.mirrorVertically == right.mirrorVertically;
+}
+
+bool targetPresentationProjectionsEqual(
+    const PresentationState& left, const PresentationState& right)
+{
+    if (left.fitMode != right.fitMode || left.contentPosition != right.contentPosition
+        || left.rotationDegrees != right.rotationDegrees
+        || left.mirrorHorizontally != right.mirrorHorizontally
+        || left.mirrorVertically != right.mirrorVertically
+        || left.spreadDirection != right.spreadDirection || left.pageGap != right.pageGap
+        || left.backgroundMode != right.backgroundMode || left.smoothing != right.smoothing
+        || left.mipmap != right.mipmap || left.qualityPreference != right.qualityPreference
+        || left.exactnessPreference != right.exactnessPreference) {
+        return false;
+    }
+    if ((left.fitMode == ImageViewportFitMode::Manual
+            || right.fitMode == ImageViewportFitMode::Manual)
+        && left.manualZoom != right.manualZoom) {
+        return false;
+    }
+    if (left.backgroundMode == ImageViewportBackgroundMode::SolidColor
+        && left.backgroundColor != right.backgroundColor) {
+        return false;
+    }
+    return left.backgroundMode != ImageViewportBackgroundMode::Checkerboard
+        || (left.checkerboardLightColor == right.checkerboardLightColor
+            && left.checkerboardDarkColor == right.checkerboardDarkColor
+            && left.checkerboardCellSize == right.checkerboardCellSize);
+}
+
+bool backingPresentationEqual(const PresentationState& left, const PresentationState& right)
+{
+    if (left.backgroundMode != right.backgroundMode) {
+        return false;
+    }
+    if (left.backgroundMode == ImageViewportBackgroundMode::SolidColor) {
+        return left.backgroundColor == right.backgroundColor;
+    }
+    if (left.backgroundMode == ImageViewportBackgroundMode::Checkerboard) {
+        return left.checkerboardLightColor == right.checkerboardLightColor
+            && left.checkerboardDarkColor == right.checkerboardDarkColor
+            && left.checkerboardCellSize == right.checkerboardCellSize;
+    }
+    return true;
 }
 
 QPointF clampedPoint(QPointF point, QPointF minimum, QPointF maximum)
@@ -63,33 +110,14 @@ void preserveAnchoredContentPosition(PresentationState& presentation,
         nextGeometry, QPointF(anchoredSpreadPoint.x(), anchoredSpreadPoint.y()), anchor);
 }
 
-QSizeF orientedSpreadSize(const PresentationGeometry::State& state)
+double steppedZoomPercent(int stepCount, double manualZoomPercent)
 {
-    const QSizeF spreadSize = PresentationGeometry::spreadSize(state);
-    const int rotation = ((state.rotationDegrees % 360) + 360) % 360;
-    return rotation == 90 || rotation == 270 ? QSizeF(spreadSize.height(), spreadSize.width())
-                                             : spreadSize;
-}
-
-double effectiveZoomPercent(const PresentationGeometry::State& state)
-{
-    const QSizeF spreadSize = orientedSpreadSize(state);
-    const QRectF content = PresentationGeometry::contentRect(state);
-    if (content.isEmpty() || !spreadSize.isValid() || spreadSize.width() <= 0.0
-        || spreadSize.height() <= 0.0) {
-        return state.manualZoom * 100.0;
-    }
-    return content.width() / spreadSize.width() * state.devicePixelRatio * 100.0;
-}
-
-double steppedZoomPercent(int stepCount, const PresentationGeometry::State& geometry)
-{
-    const double minimum = std::numeric_limits<double>::denorm_min() > 0.0
-        ? std::numeric_limits<double>::denorm_min()
-        : std::numeric_limits<double>::min();
+    const double minimum = ImageViewportDisplayLimits::minimumManualZoomPercent();
     const double maximum = ImageViewportDisplayLimits::maximumManualZoomPercent();
-    const double base = std::clamp(effectiveZoomPercent(geometry), minimum, maximum);
-    const double targetLog = std::log(base) + static_cast<double>(stepCount) * std::log(1.25);
+    const double base = std::clamp(manualZoomPercent, minimum, maximum);
+    const double targetLog = std::log(base)
+        + static_cast<double>(stepCount)
+            * std::log(ImageViewportDisplayLimits::manualZoomStepFactor());
     if (!std::isfinite(targetLog) || targetLog >= std::log(maximum)) {
         return maximum;
     }
@@ -106,9 +134,10 @@ bool commandHasOperation(const ImageViewportPresentationCommand& command)
         || command.hasContentAnchor() || command.hasRotationDegrees()
         || command.hasMirrorHorizontally() || command.hasMirrorVertically()
         || command.hasSpreadDirection() || command.hasPageGap() || command.hasBackgroundMode()
-        || command.hasBackgroundColor() || command.hasSmoothing() || command.hasMipmap()
-        || command.hasLooping() || command.hasQualityPreference()
-        || command.hasExactnessPreference();
+        || command.hasBackgroundColor() || command.hasCheckerboardLightColor()
+        || command.hasCheckerboardDarkColor() || command.hasCheckerboardCellSize()
+        || command.hasSmoothing() || command.hasMipmap() || command.hasLooping()
+        || command.hasQualityPreference() || command.hasExactnessPreference();
 }
 
 bool commandValid(const ViewportEnginePresentationCommandInput& input)
@@ -118,13 +147,15 @@ bool commandValid(const ViewportEnginePresentationCommandInput& input)
         && (command.hasFitMode() || command.hasManualZoomPercent() || command.hasZoomStepDelta()
             || command.hasContentPosition() || command.hasPanDelta() || command.hasContentAnchor()
             || command.hasRotationDegrees() || command.hasMirrorHorizontally()
-            || command.hasMirrorVertically());
+            || command.hasMirrorVertically() || command.hasSpreadDirection()
+            || command.hasPageGap());
     const int geometryPositioningOperations = (command.hasManualZoomPercent() ? 1 : 0)
         + (command.hasZoomStepDelta() ? 1 : 0) + (command.hasContentPosition() ? 1 : 0)
         + (command.hasPanDelta() ? 1 : 0) + (command.hasContentAnchor() ? 1 : 0);
     const auto validRotation = [](int degrees) {
         return degrees == 0 || degrees == 90 || degrees == 180 || degrees == 270;
     };
+    const double minimumZoom = ImageViewportDisplayLimits::minimumManualZoomPercent();
     const double maximumZoom = ImageViewportDisplayLimits::maximumManualZoomPercent();
 
     const bool relativeRotation = input.quarterTurnDelta != 0;
@@ -138,6 +169,7 @@ bool commandValid(const ViewportEnginePresentationCommandInput& input)
         && (!command.hasFitMode() || ImageViewportInternal::isValidFitMode(command.fitMode()))
         && (!command.hasManualZoomPercent()
             || (ImageViewportInternal::isFinitePositive(command.manualZoomPercent())
+                && command.manualZoomPercent() >= minimumZoom
                 && command.manualZoomPercent() <= maximumZoom))
         && (!command.hasContentPosition()
             || ImageViewportInternal::isFinitePoint(command.contentPosition()))
@@ -147,23 +179,34 @@ bool commandValid(const ViewportEnginePresentationCommandInput& input)
         && (!command.hasRotationDegrees() || validRotation(command.rotationDegrees()))
         && (!command.hasSpreadDirection()
             || ImageViewportInternal::isValidSpreadDirection(command.spreadDirection()))
-        && (!command.hasPageGap() || (std::isfinite(command.pageGap()) && command.pageGap() >= 0.0))
+        && (!command.hasPageGap()
+            || (std::isfinite(command.pageGap()) && command.pageGap() >= 0.0
+                && command.pageGap() <= ImageViewportDisplayLimits::maximumPageGap()))
         && (!command.hasBackgroundMode()
             || ImageViewportInternal::isValidBackgroundMode(command.backgroundMode()))
+        && (!command.hasBackgroundColor() || command.backgroundColor().isValid())
+        && (!command.hasCheckerboardLightColor() || command.checkerboardLightColor().isValid())
+        && (!command.hasCheckerboardDarkColor() || command.checkerboardDarkColor().isValid())
+        && (!command.hasCheckerboardCellSize()
+            || (std::isfinite(command.checkerboardCellSize())
+                && command.checkerboardCellSize()
+                    >= ImageViewportDisplayLimits::minimumCheckerboardCellSize()
+                && command.checkerboardCellSize()
+                    <= ImageViewportDisplayLimits::maximumCheckerboardCellSize()))
         && (!command.hasQualityPreference()
             || ImageViewportInternal::isValidQualityPreference(command.qualityPreference()))
         && (!command.hasExactnessPreference()
             || ImageViewportInternal::isValidExactnessPreference(command.exactnessPreference()));
 }
 
-ViewportChangeSet presentationChanges(
-    bool presentationChanged, bool affectsGeometry, bool readyDisplay, const QRectF& itemBounds)
+ViewportChangeSet presentationChanges(bool presentationChanged, bool displayChanged,
+    bool affectsGeometry, bool readyDisplay, const QRectF& itemBounds)
 {
     ViewportChangeSet changes;
     if (!presentationChanged) {
         return changes;
     }
-    changes.displayRevision = true;
+    changes.displayRevision = displayChanged;
     changes.presentationRevision = presentationChanged;
     changes.geometryState = affectsGeometry && readyDisplay && !itemBounds.isEmpty();
     changes.scheduleUpdate = true;
@@ -203,26 +246,29 @@ ViewportEnginePresentationCommandReduction reduceViewportEnginePresentationComma
         next.mirrorVertically = false;
         affectsGeometry = true;
     }
-    if (command.hasFitMode() && next.fitMode != command.fitMode()) {
-        applyAnchored([&] { next.fitMode = command.fitMode(); });
-    }
     if (command.hasManualZoomPercent()) {
         const double manualZoom = command.manualZoomPercent() / 100.0;
-        if (next.fitMode != ImageViewportFitMode::Manual || next.manualZoom != manualZoom) {
-            applyAnchored([&] {
-                next.fitMode = ImageViewportFitMode::Manual;
+        if (next.manualZoom != manualZoom) {
+            if (next.fitMode == ImageViewportFitMode::Manual) {
+                applyAnchored([&] { next.manualZoom = manualZoom; });
+            } else {
                 next.manualZoom = manualZoom;
-            });
+            }
         }
     }
     if (command.hasZoomStepDelta()) {
-        const double manualZoom = steppedZoomPercent(command.zoomStepDelta(), geometry()) / 100.0;
-        if (next.fitMode != ImageViewportFitMode::Manual || next.manualZoom != manualZoom) {
-            applyAnchored([&] {
-                next.fitMode = ImageViewportFitMode::Manual;
+        const double manualZoom
+            = steppedZoomPercent(command.zoomStepDelta(), next.manualZoom * 100.0) / 100.0;
+        if (next.manualZoom != manualZoom) {
+            if (next.fitMode == ImageViewportFitMode::Manual) {
+                applyAnchored([&] { next.manualZoom = manualZoom; });
+            } else {
                 next.manualZoom = manualZoom;
-            });
+            }
         }
+    }
+    if (command.hasFitMode() && next.fitMode != command.fitMode()) {
+        applyAnchored([&] { next.fitMode = command.fitMode(); });
     }
     if (command.hasContentPosition()) {
         affectsGeometry
@@ -279,6 +325,15 @@ ViewportEnginePresentationCommandReduction reduceViewportEnginePresentationComma
     if (command.hasBackgroundColor()) {
         next.backgroundColor = command.backgroundColor();
     }
+    if (command.hasCheckerboardLightColor()) {
+        next.checkerboardLightColor = command.checkerboardLightColor();
+    }
+    if (command.hasCheckerboardDarkColor()) {
+        next.checkerboardDarkColor = command.checkerboardDarkColor();
+    }
+    if (command.hasCheckerboardCellSize()) {
+        next.checkerboardCellSize = command.checkerboardCellSize();
+    }
     if (command.hasSmoothing()) {
         next.smoothing = command.smoothing();
     }
@@ -306,8 +361,12 @@ ViewportEnginePresentationCommandReduction reduceViewportEnginePresentationComma
     if (previousLooping != nextLooping) {
         result.looping = nextLooping;
     }
+    result.targetPresentationChanged
+        = !targetPresentationProjectionsEqual(previousPresentation, next);
+    const bool displayChanged = !backingPresentationEqual(previousPresentation, next)
+        || (state.readyDisplay() && result.targetPresentationChanged);
     result.changes = presentationChanges(
-        presentationChanged, affectsGeometry, state.readyDisplay(), input.geometry.itemBounds);
+        changed, displayChanged, affectsGeometry, state.readyDisplay(), input.geometry.itemBounds);
     result.restageProviderDemands = affectsGeometry
         || previousPresentation.qualityPreference != next.qualityPreference
         || previousPresentation.exactnessPreference != next.exactnessPreference;
@@ -341,6 +400,12 @@ ViewportEnginePresentationCommandResult ViewportEngine::applyPresentationCommand
     }
     if (reduction.looping) {
         m_state->playbackState.playback.looping = *reduction.looping;
+    }
+    if (reduction.targetPresentationChanged
+        && m_state->requestState.presentationTarget.generation != 0) {
+        advanceTargetPresentationRevision();
+        reduction.changes.targetPresentationRevision = true;
+        reduction.changes.adoptTargetPresentationRevision = readyDisplay;
     }
     result.command = accepted();
     result.changes = reduction.changes;
@@ -414,8 +479,8 @@ reduceViewportEnginePresentationTargetTransition(
         return result;
     }
     result.presentation = next;
-    result.changes
-        = presentationChanges(true, true, input.readyDisplay, input.acceptedGeometry.itemBounds);
+    result.changes = presentationChanges(
+        true, input.readyDisplay, true, input.readyDisplay, input.acceptedGeometry.itemBounds);
     return result;
 }
 
@@ -453,5 +518,5 @@ ImageViewportInternal::ViewportChangeSet resolveViewportEnginePendingPresentatio
         break;
     }
     target.pendingPresentationTransition = {};
-    return presentationChanges(changed, true, readyDisplay, input.itemBounds);
+    return presentationChanges(changed, readyDisplay, true, readyDisplay, input.itemBounds);
 }

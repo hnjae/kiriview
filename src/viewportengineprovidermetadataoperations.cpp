@@ -1,5 +1,5 @@
-#include "viewportengineprovidermetadataoperations_p.h"
 #include "imageviewporttoken_p.h"
+#include "viewportengineprovidermetadataoperations_p.h"
 
 #include "framepreparation_p.h"
 #include "imageviewportproviderfacts_p.h"
@@ -7,6 +7,7 @@
 #include "viewportengineprovidersessionoperations_p.h"
 
 #include <algorithm>
+#include <limits>
 
 namespace {
 using namespace ImageViewportInternal;
@@ -81,6 +82,10 @@ void mergeChanges(ViewportChangeSet& target, const ViewportChangeSet& source)
     target.requestRevision = target.requestRevision || source.requestRevision;
     target.commandRevision = target.commandRevision || source.commandRevision;
     target.presentationRevision = target.presentationRevision || source.presentationRevision;
+    target.targetPresentationRevision
+        = target.targetPresentationRevision || source.targetPresentationRevision;
+    target.adoptTargetPresentationRevision
+        = target.adoptTargetPresentationRevision || source.adoptTargetPresentationRevision;
     target.scheduleUpdate = target.scheduleUpdate || source.scheduleUpdate;
 }
 }
@@ -90,8 +95,17 @@ ViewportEngineProviderMetadataReadyAccess::startFrameRequest(ImageViewportPageRo
     ImageViewportInternal::DisplayRequestTarget target, const ViewportEngineGeometryInput& geometry)
 {
     ViewportEngineProviderFrameRequestAccess access(m_request, m_playback, m_display, m_roles,
-        m_presentation, m_nextRevision, m_presentationRevision, m_presentationTargetGeneration);
+        m_presentation, m_nextRevision, m_targetPresentationRevision,
+        m_presentationTargetGeneration);
     return startViewportEngineProviderFrameRequest({ role, target, geometry }, std::move(access));
+}
+
+void ViewportEngineProviderMetadataReadyAccess::advanceTargetPresentationRevision()
+{
+    if (m_nextRevision == std::numeric_limits<quint64>::max()) {
+        qFatal("ImageViewport revision token allocator exhausted");
+    }
+    m_targetPresentationRevision = ++m_nextRevision;
 }
 
 ViewportProviderFrameTransportEffect ViewportEngineProviderMetadataReadyAccess::closeSession(
@@ -151,8 +165,7 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
         observation.identity.requestId
             = access.m_request.roles[input.role == ImageViewportPageRole::Secondary ? 1 : 0]
                   .activeRequest.identity.id;
-        observation.identity.providerToken
-            = ProviderRequestTokenPrivateAccess::value(input.token);
+        observation.identity.providerToken = ProviderRequestTokenPrivateAccess::value(input.token);
         observation.detail = int(admission.cause);
         result.observations.append(observation);
         rejectMetadata(admission.diagnostic);
@@ -323,6 +336,22 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
     if (input.role == ImageViewportPageRole::Primary) {
         access.m_display.clearPendingRenderPayload();
         access.m_display.clearRenderFailureRetainedDisplay();
+    }
+    const auto positiveSize
+        = [](QSizeF size) { return size.isValid() && size.width() > 0.0 && size.height() > 0.0; };
+    const bool completeTargetGeometry = acceptedGeometry.primaryPresent
+        && positiveSize(acceptedGeometry.primarySize)
+        && (!access.m_presentationTarget.acceptedRoleSet.secondary()
+            || positiveSize(acceptedGeometry.secondarySize));
+    const bool targetGeometryChanged
+        = acceptedGeometry.primaryPresent != input.geometry.primaryPresent
+        || acceptedGeometry.primarySize != input.geometry.primarySize
+        || acceptedGeometry.secondarySize != input.geometry.secondarySize;
+    if (completeTargetGeometry && targetGeometryChanged) {
+        access.advanceTargetPresentationRevision();
+        result.changes.targetPresentationRevision = true;
+        result.changes.displayRevision = true;
+        result.changes.geometryState = true;
     }
     mergeChanges(result.changes,
         resolveViewportEnginePendingPresentationTargetTransition(acceptedGeometry,

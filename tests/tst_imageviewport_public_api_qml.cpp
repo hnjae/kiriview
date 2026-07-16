@@ -72,8 +72,8 @@ ImageViewport {
             && state.primary.sequence === null
             && state.request.status === ImageViewport.RequestStatus.NoRequest
             && state.display.status === ImageViewport.DisplayStatus.Empty
-            && !state.revisions.request.valid
-            && !state.revisions.display.valid
+            && state.revisions.request.valid
+            && state.revisions.display.valid
             && state.diagnostics.errorString === ""
     }
 }
@@ -224,8 +224,9 @@ ImageViewport {
             && state.display.horizontalPannable === false
             && state.display.verticalPannable === false
             && state.presentation.fitMode === ImageViewport.FitMode.Contain
-            && state.presentation.zoomPercent === 100
-            && state.presentation.minimumManualZoomPercent > 0
+            && state.presentation.zoomPercent === 0
+            && state.presentation.manualZoomPercent === 100
+            && state.presentation.minimumManualZoomPercent === 1
             && state.presentation.maximumManualZoomPercent === ImageViewportDisplayLimits.maximumManualZoomPercent
             && state.presentation.manualZoomStepFactor === 1.25
             && state.presentation.rotationDegrees === 0

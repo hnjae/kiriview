@@ -223,29 +223,33 @@ void ImageViewportRenderSceneGraphTest::backgroundOnlyPaintDoesNotAdvanceProvide
 void ImageViewportRenderSceneGraphTest::checkerboardBackgroundCreatesPaintNode()
 {
     PaintProbeViewport item;
-    item.setSize(QSizeF(18.0, 10.0));
-    QCOMPARE(setBackgroundModeCommand(item, ImageViewportBackgroundMode::Checkerboard),
-        ImageViewportCommandOutcome::Accepted);
+    item.setSize(QSizeF(12.0, 7.0));
+    ImageViewportPresentationCommand command;
+    command.setBackgroundMode(ImageViewportBackgroundMode::Checkerboard);
+    command.setCheckerboardLightColor(QColor(QStringLiteral("#102030")));
+    command.setCheckerboardDarkColor(QColor(QStringLiteral("#405060")));
+    command.setCheckerboardCellSize(5.0);
+    QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
     QCOMPARE(root->childCount(), 6);
 
     const QList<QRectF> expectedRects = {
-        QRectF(0.0, 0.0, 8.0, 8.0),
-        QRectF(8.0, 0.0, 8.0, 8.0),
-        QRectF(16.0, 0.0, 2.0, 8.0),
-        QRectF(0.0, 8.0, 8.0, 2.0),
-        QRectF(8.0, 8.0, 8.0, 2.0),
-        QRectF(16.0, 8.0, 2.0, 2.0),
+        QRectF(0.0, 0.0, 5.0, 5.0),
+        QRectF(5.0, 0.0, 5.0, 5.0),
+        QRectF(10.0, 0.0, 2.0, 5.0),
+        QRectF(0.0, 5.0, 5.0, 2.0),
+        QRectF(5.0, 5.0, 5.0, 2.0),
+        QRectF(10.0, 5.0, 2.0, 2.0),
     };
     const QList<QColor> expectedColors = {
-        QColor(238, 238, 238),
-        QColor(204, 204, 204),
-        QColor(238, 238, 238),
-        QColor(204, 204, 204),
-        QColor(238, 238, 238),
-        QColor(204, 204, 204),
+        QColor(QStringLiteral("#102030")),
+        QColor(QStringLiteral("#405060")),
+        QColor(QStringLiteral("#102030")),
+        QColor(QStringLiteral("#405060")),
+        QColor(QStringLiteral("#102030")),
+        QColor(QStringLiteral("#405060")),
     };
 
     QSGNode* child = root->firstChild();
@@ -901,11 +905,11 @@ void ImageViewportRenderSceneGraphTest::renderPlanBuildsBackgroundPrimitivesWith
     QCOMPARE(plan.result, RenderAdapter::CommitResult::Empty);
     QCOMPARE(plan.backgroundRects.size(), 6);
     QCOMPARE(plan.backgroundRects.at(0).rect, QRectF(0.0, 0.0, 8.0, 8.0));
-    QCOMPARE(plan.backgroundRects.at(0).color, QColor(238, 238, 238));
+    QCOMPARE(plan.backgroundRects.at(0).color, QColor(QStringLiteral("#ffffff")));
     QCOMPARE(plan.backgroundRects.at(1).rect, QRectF(8.0, 0.0, 8.0, 8.0));
-    QCOMPARE(plan.backgroundRects.at(1).color, QColor(204, 204, 204));
+    QCOMPARE(plan.backgroundRects.at(1).color, QColor(QStringLiteral("#dcdcdc")));
     QCOMPARE(plan.backgroundRects.at(5).rect, QRectF(16.0, 8.0, 2.0, 2.0));
-    QCOMPARE(plan.backgroundRects.at(5).color, QColor(204, 204, 204));
+    QCOMPARE(plan.backgroundRects.at(5).color, QColor(QStringLiteral("#dcdcdc")));
     QVERIFY(plan.imageLayers.isEmpty());
 }
 

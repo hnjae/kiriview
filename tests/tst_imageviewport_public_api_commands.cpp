@@ -69,6 +69,10 @@ void ImageViewportPublicApiCommandsTest::transitionPolicyMatchesDocumentedSurfac
     ignoredMalformedValue.setPageGap(std::numeric_limits<double>::quiet_NaN());
     QVERIFY(!ignoredMalformedValue.isValid());
 
+    PresentationTargetTransitionPolicy excessivePageGap;
+    excessivePageGap.setPageGap(ImageViewportDisplayLimits::maximumPageGap() + 1.0);
+    QVERIFY(!excessivePageGap.isValid());
+
     PresentationTargetTransitionPolicy conflictingFit;
     conflictingFit.setZoomTransition(
         PresentationTargetTransitionPolicy::ZoomTransition::ResetToContain);
@@ -534,7 +538,6 @@ void ImageViewportPublicApiCommandsTest::
     item.setSize(QSizeF(100.0, 100.0));
     QCOMPARE(item.state().request().acceptedPresentationTargetGeneration().isValid(), false);
     QCOMPARE(item.state().request().acceptedRoleSet(), ImageViewportRoleSet(false, false));
-    QCOMPARE(item.state().request().targetRoleSet(), ImageViewportRoleSet(false, false));
 
     QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(primaryResult->sequence()),
                      PresentationTargetTransitionPolicy {})
@@ -545,7 +548,6 @@ void ImageViewportPublicApiCommandsTest::
         = primarySnapshot.request().acceptedPresentationTargetGeneration();
     QVERIFY(primaryGeneration.isValid());
     QCOMPARE(primarySnapshot.request().acceptedRoleSet(), ImageViewportRoleSet(true, false));
-    QCOMPARE(primarySnapshot.request().targetRoleSet(), ImageViewportRoleSet(true, false));
     QCOMPARE(primarySnapshot.primary().present(), true);
     QCOMPARE(primarySnapshot.primary().sequence(), primaryResult->sequence());
     QCOMPARE(primarySnapshot.primary().request().presentationTargetGeneration(), primaryGeneration);
@@ -562,7 +564,6 @@ void ImageViewportPublicApiCommandsTest::
     QVERIFY(spreadGeneration.isValid());
     QVERIFY(spreadGeneration != primaryGeneration);
     QCOMPARE(spreadSnapshot.request().acceptedRoleSet(), ImageViewportRoleSet(true, true));
-    QCOMPARE(spreadSnapshot.request().targetRoleSet(), ImageViewportRoleSet(true, true));
     QCOMPARE(spreadSnapshot.primary().request().presentationTargetGeneration(), spreadGeneration);
     QCOMPARE(spreadSnapshot.secondary().present(), true);
     QCOMPARE(spreadSnapshot.secondary().sequence(), secondaryResult->sequence());
@@ -575,7 +576,6 @@ void ImageViewportPublicApiCommandsTest::
     const ImageViewportStateSnapshot clearSnapshot = item.state();
     QCOMPARE(clearSnapshot.request().acceptedPresentationTargetGeneration().isValid(), false);
     QCOMPARE(clearSnapshot.request().acceptedRoleSet(), ImageViewportRoleSet(false, false));
-    QCOMPARE(clearSnapshot.request().targetRoleSet(), ImageViewportRoleSet(false, false));
     QCOMPARE(clearSnapshot.primary().present(), false);
     QCOMPARE(clearSnapshot.secondary().present(), false);
 }
@@ -837,7 +837,7 @@ void ImageViewportPublicApiCommandsTest::
 
     const ImageViewportPresentationSnapshot presentation = item.state().presentation();
     const auto fitMode = presentation.fitMode();
-    const double zoomPercent = presentation.zoomPercent();
+    const double manualZoomPercent = presentation.manualZoomPercent();
     const QPointF preservedContentPosition = contentPosition(item);
     const auto spreadDirection = presentation.spreadDirection();
     const double pageGap = presentation.pageGap();
@@ -861,7 +861,8 @@ void ImageViewportPublicApiCommandsTest::
     QCOMPARE(displayStatusValue(item), enumValue(item.metaObject(), "DisplayStatus", "Empty"));
     const ImageViewportPresentationSnapshot afterClearPresentation = item.state().presentation();
     QCOMPARE(afterClearPresentation.fitMode(), fitMode);
-    QCOMPARE(afterClearPresentation.zoomPercent(), zoomPercent);
+    QCOMPARE(afterClearPresentation.zoomPercent(), 0.0);
+    QCOMPARE(afterClearPresentation.manualZoomPercent(), manualZoomPercent);
     QCOMPARE(contentPosition(item), preservedContentPosition);
     QCOMPARE(afterClearPresentation.spreadDirection(), spreadDirection);
     QCOMPARE(afterClearPresentation.pageGap(), pageGap);
@@ -1137,11 +1138,15 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     QCOMPARE(emptyCommandStateSpy.count(), 1);
 
     ImageViewportPresentationCommand command;
+    command.setFitMode(ImageViewportFitMode::Manual);
     command.setManualZoomPercent(150.0);
     command.setSpreadDirection(ImageViewportSpreadDirection::RightToLeft);
     command.setPageGap(5.0);
     command.setBackgroundMode(ImageViewportBackgroundMode::SolidColor);
     command.setBackgroundColor(QColor(10, 20, 30, 255));
+    command.setCheckerboardLightColor(QColor(240, 240, 240, 255));
+    command.setCheckerboardDarkColor(QColor(80, 80, 80, 255));
+    command.setCheckerboardCellSize(16.0);
     command.setSmoothing(false);
     command.setMipmap(true);
     command.setLooping(true);
@@ -1166,6 +1171,9 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     QCOMPARE(item.state().presentation().pageGap(), 5.0);
     QCOMPARE(item.state().presentation().backgroundMode(), ImageViewportBackgroundMode::SolidColor);
     QCOMPARE(item.state().presentation().backgroundColor(), QColor(10, 20, 30, 255));
+    QCOMPARE(item.state().presentation().checkerboardLightColor(), QColor(240, 240, 240, 255));
+    QCOMPARE(item.state().presentation().checkerboardDarkColor(), QColor(80, 80, 80, 255));
+    QCOMPARE(item.state().presentation().checkerboardCellSize(), 16.0);
     QCOMPARE(item.state().presentation().smoothing(), false);
     QCOMPARE(item.state().presentation().mipmap(), true);
     QCOMPARE(item.state().presentation().looping(), true);
@@ -1252,6 +1260,41 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     QCOMPARE(viewportDisplayRevision(item), displayRevision);
     QVERIFY(viewportCommandRevision(item) != previousInvalidCommandRevision);
     QCOMPARE(viewportCommandReason(item), ImageViewportCommandReason::InvalidRequest);
+
+    QList<ImageViewportPresentationCommand> invalidBackingCommands;
+    ImageViewportPresentationCommand invalidLightColor;
+    invalidLightColor.setCheckerboardLightColor(QColor {});
+    invalidLightColor.setBackgroundMode(ImageViewportBackgroundMode::Checkerboard);
+    invalidBackingCommands.append(invalidLightColor);
+    ImageViewportPresentationCommand invalidDarkColor;
+    invalidDarkColor.setCheckerboardDarkColor(QColor {});
+    invalidDarkColor.setSmoothing(!preservedPresentation.smoothing());
+    invalidBackingCommands.append(invalidDarkColor);
+    ImageViewportPresentationCommand undersizedCheckerCell;
+    undersizedCheckerCell.setCheckerboardCellSize(
+        ImageViewportDisplayLimits::minimumCheckerboardCellSize() - 1.0);
+    undersizedCheckerCell.setMipmap(!preservedPresentation.mipmap());
+    invalidBackingCommands.append(undersizedCheckerCell);
+    ImageViewportPresentationCommand oversizedCheckerCell;
+    oversizedCheckerCell.setCheckerboardCellSize(
+        ImageViewportDisplayLimits::maximumCheckerboardCellSize() + 1.0);
+    oversizedCheckerCell.setBackgroundColor(Qt::green);
+    invalidBackingCommands.append(oversizedCheckerCell);
+    ImageViewportPresentationCommand oversizedPageGap;
+    oversizedPageGap.setPageGap(ImageViewportDisplayLimits::maximumPageGap() + 1.0);
+    oversizedPageGap.setBackgroundColor(Qt::cyan);
+    invalidBackingCommands.append(oversizedPageGap);
+
+    for (const ImageViewportPresentationCommand& invalidBackingCommand : invalidBackingCommands) {
+        previousInvalidCommandRevision = viewportCommandRevision(item);
+        QCOMPARE(item.setPresentation(invalidBackingCommand).outcome(),
+            ImageViewportCommandOutcome::Invalid);
+        QCOMPARE(item.state().presentation(), preservedPresentation);
+        QCOMPARE(viewportRequestRevision(item), requestRevision);
+        QCOMPARE(viewportDisplayRevision(item), displayRevision);
+        QVERIFY(viewportCommandRevision(item) != previousInvalidCommandRevision);
+        QCOMPARE(viewportCommandReason(item), ImageViewportCommandReason::InvalidRequest);
+    }
 
     ImageViewportPresentationCommand transformCommand;
     transformCommand.setRotationDegrees(90);
@@ -1437,6 +1480,12 @@ void ImageViewportPublicApiCommandsTest::invalidPresentationCommandsPreserveDiag
     compositeNoop.setMirrorVertically(beforeCompositeNoop.presentation().mirrorVertically());
     compositeNoop.setBackgroundMode(beforeCompositeNoop.presentation().backgroundMode());
     compositeNoop.setBackgroundColor(beforeCompositeNoop.presentation().backgroundColor());
+    compositeNoop.setCheckerboardLightColor(
+        beforeCompositeNoop.presentation().checkerboardLightColor());
+    compositeNoop.setCheckerboardDarkColor(
+        beforeCompositeNoop.presentation().checkerboardDarkColor());
+    compositeNoop.setCheckerboardCellSize(
+        beforeCompositeNoop.presentation().checkerboardCellSize());
     compositeNoop.setSmoothing(beforeCompositeNoop.presentation().smoothing());
     compositeNoop.setMipmap(beforeCompositeNoop.presentation().mipmap());
     compositeNoop.setLooping(beforeCompositeNoop.presentation().looping());

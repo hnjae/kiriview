@@ -7,9 +7,9 @@
 #include "viewportengineproviderrequestoperations_p.h"
 #include "viewportengineprovidersessionoperations_p.h"
 
+#include "imageviewporttoken_p.h"
 #include "viewportprovidercontract_p.h"
 #include "viewportprovidertransporteffects_p.h"
-#include "imageviewporttoken_p.h"
 
 #include <memory>
 
@@ -141,6 +141,12 @@ ViewportEngineTransition ViewportEngine::handleDevicePixelRatioChanged(
     result.changes.displayRevision = true;
     result.changes.geometryState = true;
     result.changes.scheduleUpdate = true;
+    if (m_state->requestState.presentationTarget.generation != 0) {
+        advanceTargetPresentationRevision();
+        result.changes.targetPresentationRevision = true;
+        result.changes.adoptTargetPresentationRevision
+            = m_state->displayState.display.status == ImageViewportDisplayStatus::Ready;
+    }
     const auto effects = restageProviderDemands(input);
     appendProviderTransport(
         result.providerAfterPublication, effects[0], ImageViewportPageRole::Primary);
@@ -174,7 +180,7 @@ ViewportProviderSessionOpenResult ViewportEngine::reduceProviderSessionOpened(
     ViewportEngineProviderSessionOpenedAccess access(m_state->requestState.request,
         m_state->playbackState.playback, m_state->displayState.display,
         m_state->providerState.roles, m_state->presentationState.presentation,
-        m_state->revisions.nextRevision, m_state->revisions.presentationRevision,
+        m_state->revisions.nextRevision, m_state->revisions.targetPresentationRevision,
         m_state->requestState.presentationTarget.generation);
     return reduceViewportEngineProviderSessionOpened({ role, geometry }, std::move(access));
 }
@@ -186,7 +192,7 @@ ViewportProviderFrameQueueFlushResult ViewportEngine::reduceQueuedProviderFrameR
     ViewportEngineProviderQueueFlushAccess access(m_state->requestState.request,
         m_state->playbackState.playback, m_state->displayState.display,
         m_state->providerState.roles, m_state->presentationState.presentation,
-        m_state->revisions.nextRevision, m_state->revisions.presentationRevision,
+        m_state->revisions.nextRevision, m_state->revisions.targetPresentationRevision,
         m_state->requestState.presentationTarget.generation);
     auto result = reduceViewportEngineProviderQueueFlush({ role, geometry }, std::move(access));
     if (result.changes.requestState) {
@@ -207,7 +213,7 @@ std::array<ViewportProviderFrameTransportEffect, 2> ViewportEngine::restageProvi
     ViewportEngineProviderDemandRestageAccess access(m_state->requestState.request,
         m_state->playbackState.playback, m_state->displayState.display,
         m_state->providerState.roles, m_state->presentationState.presentation,
-        m_state->revisions.nextRevision, m_state->revisions.presentationRevision,
+        m_state->revisions.nextRevision, m_state->revisions.targetPresentationRevision,
         m_state->requestState.presentationTarget.generation);
     return reduceViewportEngineProviderDemandRestage({ geometry }, std::move(access));
 }
@@ -227,8 +233,7 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
         ImageViewportInternal::InternalObservation observation;
         observation.subsystem = ImageViewportInternal::InternalObservationSubsystem::Engine;
         observation.category = ImageViewportInternal::InternalObservationCategory::StaleDrop;
-        observation.cause
-            = ImageViewportInternal::InternalObservationCause::RetiredProviderSession;
+        observation.cause = ImageViewportInternal::InternalObservationCause::RetiredProviderSession;
         observation.identity.roleValid = true;
         observation.identity.role = event.role;
         observation.identity.generation = event.generation;
@@ -243,8 +248,8 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
         || event.kind == ViewportProviderEvent::Kind::ImageFrameWithMetadataReady
         || event.kind == ViewportProviderEvent::Kind::FrameHandleReady
         || event.kind == ViewportProviderEvent::Kind::FrameHandleWithMetadataReady;
-    const bool metadataTokenMatches = event.token.isValid()
-        && event.token == eventProvider.requests.activeMetadataToken;
+    const bool metadataTokenMatches
+        = event.token.isValid() && event.token == eventProvider.requests.activeMetadataToken;
     const bool frameTokenMatches
         = event.token.isValid() && event.token == eventProvider.requests.activeFrameToken;
     if ((metadataEvent && !metadataTokenMatches) || (frameEvent && !frameTokenMatches)
@@ -253,8 +258,7 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
         ImageViewportInternal::InternalObservation observation;
         observation.subsystem = ImageViewportInternal::InternalObservationSubsystem::Engine;
         observation.category = ImageViewportInternal::InternalObservationCategory::StaleDrop;
-        observation.cause
-            = ImageViewportInternal::InternalObservationCause::ProviderTokenMismatch;
+        observation.cause = ImageViewportInternal::InternalObservationCause::ProviderTokenMismatch;
         observation.identity.roleValid = true;
         observation.identity.role = event.role;
         observation.identity.generation = event.generation;
@@ -277,7 +281,7 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
             m_state->playbackState.playback, m_state->displayState.display,
             m_state->providerState.roles, m_state->presentationState.presentation,
             m_state->requestState.presentationTarget, m_state->revisions.nextRevision,
-            m_state->revisions.presentationRevision);
+            m_state->revisions.targetPresentationRevision);
         const auto metadata = reduceViewportEngineProviderMetadataReady(
             { event.role, event.token, event.metadata, geometry }, std::move(access));
         result.changes = metadata.changes;
@@ -337,7 +341,7 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
         ViewportEngineProviderEndOfSequenceAccess access(m_state->requestState.request,
             m_state->playbackState.playback, m_state->displayState.display,
             m_state->providerState.roles, m_state->presentationState.presentation,
-            m_state->revisions.nextRevision, m_state->revisions.presentationRevision,
+            m_state->revisions.nextRevision, m_state->revisions.targetPresentationRevision,
             m_state->requestState.presentationTarget.generation);
         const auto eos = reduceViewportEngineProviderEndOfSequence(
             { event.role, event.token, geometry }, std::move(access));

@@ -29,7 +29,7 @@ class ViewportEngineProviderMetadataReadyAccess
         ImageViewportInternal::DisplayState& display, std::array<ViewportEngineRoleState, 2>& roles,
         ImageViewportInternal::PresentationState& presentation,
         ViewportEnginePresentationTargetState& presentationTarget, quint64& nextRevision,
-        quint64 presentationRevision)
+        quint64& targetPresentationRevision)
         : m_request(request)
         , m_playback(playback)
         , m_display(display)
@@ -37,7 +37,7 @@ class ViewportEngineProviderMetadataReadyAccess
         , m_presentation(presentation)
         , m_presentationTarget(presentationTarget)
         , m_nextRevision(nextRevision)
-        , m_presentationRevision(presentationRevision)
+        , m_targetPresentationRevision(targetPresentationRevision)
         , m_presentationTargetGeneration(presentationTarget.generation)
     {
     }
@@ -55,6 +55,7 @@ private:
     ViewportProviderFrameTransportEffect closeSession(ImageViewportPageRole role);
     ImageViewportInternal::ViewportChangeSet recordTerminal(
         ViewportEngineProviderTerminalProjectionInput input);
+    void advanceTargetPresentationRevision();
 
     ImageViewportInternal::RequestState& m_request;
     ImageViewportInternal::PlaybackState& m_playback;
@@ -63,7 +64,7 @@ private:
     ImageViewportInternal::PresentationState& m_presentation;
     ViewportEnginePresentationTargetState& m_presentationTarget;
     quint64& m_nextRevision;
-    quint64 m_presentationRevision = 0;
+    quint64& m_targetPresentationRevision;
     quint64 m_presentationTargetGeneration = 0;
 };
 

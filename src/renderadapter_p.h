@@ -39,7 +39,10 @@ public:
 
         QSizeF itemSize;
         ImageViewportBackgroundMode backgroundMode = ImageViewportBackgroundMode::Transparent;
-        QColor backgroundColor = Qt::transparent;
+        QColor backgroundColor = Qt::white;
+        QColor checkerboardLightColor = Qt::white;
+        QColor checkerboardDarkColor = QColor(220, 220, 220);
+        double checkerboardCellSize = 8.0;
         bool smoothing = true;
         bool mipmap = false;
         QVector<ImageLayer> imageLayers;

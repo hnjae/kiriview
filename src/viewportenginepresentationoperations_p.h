@@ -97,6 +97,7 @@ struct ViewportEnginePresentationCommandReduction
     std::optional<bool> looping;
     ImageViewportInternal::ViewportChangeSet changes;
     bool restageProviderDemands = false;
+    bool targetPresentationChanged = false;
 };
 
 struct ViewportEnginePresentationTargetTransitionReduction

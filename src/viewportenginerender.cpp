@@ -19,6 +19,10 @@ void mergeChanges(ImageViewportInternal::ViewportChangeSet& target,
     target.requestRevision = target.requestRevision || source.requestRevision;
     target.commandRevision = target.commandRevision || source.commandRevision;
     target.presentationRevision = target.presentationRevision || source.presentationRevision;
+    target.targetPresentationRevision
+        = target.targetPresentationRevision || source.targetPresentationRevision;
+    target.adoptTargetPresentationRevision
+        = target.adoptTargetPresentationRevision || source.adoptTargetPresentationRevision;
     target.scheduleUpdate = target.scheduleUpdate || source.scheduleUpdate;
 }
 
@@ -77,8 +81,7 @@ ImageViewportInternal::InternalObservation staleRenderFactObservation(
     ImageViewportInternal::InternalObservation observation;
     observation.subsystem = ImageViewportInternal::InternalObservationSubsystem::Engine;
     observation.category = ImageViewportInternal::InternalObservationCategory::StaleDrop;
-    observation.cause
-        = ImageViewportInternal::InternalObservationCause::StaleRenderAcknowledgement;
+    observation.cause = ImageViewportInternal::InternalObservationCause::StaleRenderAcknowledgement;
     observation.identity.renderAttempt = fact.acknowledgement.attempt;
     if (!fact.acknowledgement.rolePayloads.isEmpty()) {
         const auto& payload = fact.acknowledgement.rolePayloads.constFirst();
@@ -97,10 +100,12 @@ ViewportRenderAttempt ViewportEngine::beginRenderSynchronization(
 {
     const GeometryInput current = currentGeometry(input.viewport);
     const PresentationGeometry::State currentState = geometryState(current);
-    const ViewportEngineRenderSynchronizationInput operationInput { input.viewport.itemBounds.size(),
-        input.viewport.itemBounds, PresentationGeometry::contentRect(currentState),
+    const ViewportEngineRenderSynchronizationInput operationInput {
+        input.viewport.itemBounds.size(), input.viewport.itemBounds,
+        PresentationGeometry::contentRect(currentState),
         PresentationGeometry::visibleImageRect(currentState), current,
-        pendingGeometry(input.viewport) };
+        pendingGeometry(input.viewport)
+    };
     auto context = synchronizeViewportEngineRender(operationInput,
         { m_state->requestState.request, m_state->displayState.display,
             m_state->presentationState.presentation, m_state->renderCoordination });
@@ -147,6 +152,10 @@ ViewportEngineRenderHostTransition ViewportEngine::handleRenderHostFact(
             { m_state->requestState.request, m_state->displayState.display,
                 m_state->playbackState.playback, providerFactsView() });
         result.changes = reduction.changes;
+        if (reduction.changes.displayRevision
+            && m_state->displayState.display.status == ImageViewportDisplayStatus::Ready) {
+            result.changes.adoptTargetPresentationRevision = true;
+        }
         result.observations = reduction.observations;
     }
 
@@ -186,6 +195,13 @@ ViewportEngineGeometryChangeTransition ViewportEngine::handleGeometryChanged(
     ViewportEngineGeometryChangeTransition result;
     result.changes = reduction.changes;
     mergeChanges(result.changes, transitionChanges);
+    if (m_state->requestState.presentationTarget.generation != 0
+        && (result.changes.geometryState || transitionChanges.presentationRevision)) {
+        advanceTargetPresentationRevision();
+        result.changes.targetPresentationRevision = true;
+        result.changes.adoptTargetPresentationRevision
+            = m_state->displayState.display.status == ImageViewportDisplayStatus::Ready;
+    }
     if (reduction.providerDemandGeometry) {
         result.providerEffects = restageProviderDemands(*reduction.providerDemandGeometry);
     }
