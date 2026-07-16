@@ -4,6 +4,7 @@
 #include "presentation/imagepagesurfacecontroller.h"
 
 #include "async/imagecallback.h"
+#include "localization/imageerrortext.h"
 #include "presentation/animationlogging.h"
 #include "presentation/imageanimationplayer.h"
 #include "presentation/imagedisplayentryleasecontroller.h"
@@ -18,20 +19,6 @@
 
 namespace kiriview {
 namespace {
-    ImageDisplaySourceStatus displaySourceStatusForLoadOutcome(ImageDisplayLoadOutcome outcome)
-    {
-        switch (outcome) {
-        case ImageDisplayLoadOutcome::Loaded:
-            return ImageDisplaySourceStatus::Ready;
-        case ImageDisplayLoadOutcome::Error:
-            return ImageDisplaySourceStatus::Error;
-        case ImageDisplayLoadOutcome::Missing:
-            return ImageDisplaySourceStatus::Missing;
-        }
-
-        return ImageDisplaySourceStatus::Error;
-    }
-
     ImageDisplaySourceSlot displayErrorSourceSlot(QSize imageSize, quint64 revision)
     {
         return ImageDisplaySourceSlot {
@@ -78,14 +65,20 @@ ImagePageSurfaceController::ImagePageSurfaceController(QObject* context,
           cacheBudgets.displayImageCacheByteBudget, std::move(workerScheduler),
           [this](StaticDisplayImagePayload displayImage,
               const ImageDocumentRenderContext& renderContext) {
-              setStaticDisplayImage(std::move(displayImage), isPredecodeCacheable(), renderContext);
+              setStaticDisplayImage(std::move(displayImage), isPredecodeCacheable(), renderContext,
+                  StaticDisplayPublicationKind::Refinement);
               m_displayEntryLeases->updateVisibility(true);
               notify(ImageDocumentChange::DisplaySource);
           }))
 {
     m_animationPlayer = std::make_unique<ImageAnimationPlayer>(
         context,
-        [this](const QImage& image) { setAnimationFrame(image, m_animationFrameSourceIdentity); },
+        [this](const QImage& image) {
+            if (!setAnimationFrame(image, m_animationFrameSourceIdentity)) {
+                invokeIfSet(
+                    m_callbacks.animationError, imageErrorText(ImageErrorTextId::DisplayImage));
+            }
+        },
         [this](
             const QString& errorString) { invokeIfSet(m_callbacks.animationError, errorString); },
         [this]() { m_displayEntryLeases->releaseRetainedAnimationFrame(); });
@@ -123,6 +116,7 @@ ImagePresentationPageSlotSnapshot ImagePageSurfaceController::snapshot() const
 void ImagePageSurfaceController::setImage(const QImage& image, bool predecodeCacheable)
 {
     m_refinementCoordinator->cancel();
+    clearRefinementRollback();
     clearShadowDisplayImage();
     clearDisplaySource();
     m_displayEntryLeases->clearBufferedStaticDisplays();
@@ -134,32 +128,61 @@ void ImagePageSurfaceController::setImage(const QImage& image, bool predecodeCac
     acceptImageState(image.size(), predecodeCacheable, std::nullopt);
 }
 
-void ImagePageSurfaceController::setAnimationFrame(
+bool ImagePageSurfaceController::setAnimationFrame(
     const QImage& image, const QString& sourceIdentity)
 {
     m_refinementCoordinator->cancel();
+    clearRefinementRollback();
     clearShadowDisplayImage();
     m_animationFrameSourceIdentity = sourceIdentity;
 
     const QImage displayImage = displayReadyImage(image);
-    publishAnimationFrameDisplaySource(displayImage, sourceIdentity);
+    const bool published = publishAnimationFrameDisplaySource(displayImage, sourceIdentity);
     acceptImageState(displayImage.size(), false, std::nullopt);
     notify(ImageDocumentChange::DisplaySource);
+    return published;
 }
 
-void ImagePageSurfaceController::setStaticDisplayImage(StaticDisplayImagePayload displayImage,
+bool ImagePageSurfaceController::setStaticDisplayImage(StaticDisplayImagePayload displayImage,
     bool predecodeCacheable, const ImageDocumentRenderContext& renderContext)
+{
+    return setStaticDisplayImage(std::move(displayImage), predecodeCacheable, renderContext,
+        StaticDisplayPublicationKind::SelectedImage);
+}
+
+bool ImagePageSurfaceController::setStaticDisplayImage(StaticDisplayImagePayload displayImage,
+    bool predecodeCacheable, const ImageDocumentRenderContext& renderContext,
+    StaticDisplayPublicationKind kind)
 {
     m_refinementCoordinator->cancel();
     stopAnimation();
     clearShadowDisplayImage();
     m_animationFrameSourceIdentity.clear();
-    publishDisplaySource(displayImage);
+    if (kind == StaticDisplayPublicationKind::SelectedImage) {
+        m_refinementCoordinator->resetRejectedRefinements();
+        clearRefinementRollback();
+    } else if (m_displayImage.has_value()
+        && m_displaySource.status == ImageDisplaySourceStatus::Ready
+        && !m_displaySource.loadAcknowledgmentRequired
+        && m_displayEntryLeases->retainCurrentStaticDisplayForSameScopeNavigation()) {
+        m_refinementRollbackDisplayImage = m_displayImage;
+        m_refinementRollbackDisplaySource = m_displaySource;
+        m_refinementLoadPending = true;
+    }
+    const bool published = publishDisplaySource(displayImage);
 
     Q_UNUSED(renderContext);
     StaticDisplayImagePayload storedDisplay = std::move(displayImage);
     const QSize imageSize = storedDisplay.originalSize;
     acceptImageState(imageSize, predecodeCacheable, std::move(storedDisplay));
+    bool restored = false;
+    if (!published && m_refinementLoadPending) {
+        restored = restoreRefinementDisplay();
+        if (restored) {
+            m_refinementCoordinator->rejectPresentedRefinement();
+        }
+    }
+    return published || restored;
 }
 
 void ImagePageSurfaceController::updateDisplayProjection(
@@ -185,6 +208,7 @@ void ImagePageSurfaceController::clearImage()
     stopAnimation();
     clearShadowDisplayImage();
     clearDisplaySource();
+    clearRefinementRollback();
     m_displayEntryLeases->clearBufferedStaticDisplays();
     m_animationFrameSourceIdentity.clear();
     m_imageSize = {};
@@ -211,7 +235,7 @@ void ImagePageSurfaceController::acceptImageState(
     ++m_imageRevision;
 }
 
-void ImagePageSurfaceController::publishDisplaySource(const StaticDisplayImagePayload& displayImage)
+bool ImagePageSurfaceController::publishDisplaySource(const StaticDisplayImagePayload& displayImage)
 {
     m_animationFrameSourceIdentity.clear();
     ++m_displaySourceRevision;
@@ -242,9 +266,10 @@ void ImagePageSurfaceController::publishDisplaySource(const StaticDisplayImagePa
         << "quality" << static_cast<int>(displayImage.quality) << "previewOrigin"
         << static_cast<int>(displayImage.previewOrigin) << "loadAcknowledgmentRequired"
         << lease.loadAcknowledgmentRequired << "retainedReplacement" << lease.retainedReplacement;
+    return !lease.entryId.isEmpty();
 }
 
-void ImagePageSurfaceController::publishAnimationFrameDisplaySource(
+bool ImagePageSurfaceController::publishAnimationFrameDisplaySource(
     const QImage& image, const QString& sourceIdentity)
 {
     ++m_displaySourceRevision;
@@ -271,6 +296,7 @@ void ImagePageSurfaceController::publishAnimationFrameDisplaySource(
                                   << "sourceIdentity" << sourceIdentity
                                   << "loadAcknowledgmentRequired"
                                   << lease.loadAcknowledgmentRequired;
+    return !lease.entryId.isEmpty();
 }
 
 QString ImagePageSurfaceController::publishShadowDisplayImage(
@@ -307,8 +333,9 @@ void ImagePageSurfaceController::clearDisplaySource()
     m_displaySource = {};
 }
 
-bool ImagePageSurfaceController::acknowledgeDisplayImageLoad(const QUrl& providerUrl,
-    quint64 revision, const QString& sourceIdentity, ImageDisplayLoadOutcome outcome)
+ImageDisplayLoadResolution ImagePageSurfaceController::acknowledgeDisplayImageLoad(
+    const QUrl& providerUrl, quint64 revision, const QString& sourceIdentity,
+    ImageDisplayLoadOutcome outcome)
 {
     if (m_displayEntryLeases->currentDisplayIsAnimationFrame()) {
         return acknowledgeAnimationFrameDisplayLoad(providerUrl, revision, sourceIdentity, outcome);
@@ -316,33 +343,99 @@ bool ImagePageSurfaceController::acknowledgeDisplayImageLoad(const QUrl& provide
     return acknowledgeStillImageDisplayLoad(providerUrl, revision, sourceIdentity, outcome);
 }
 
-bool ImagePageSurfaceController::acknowledgeStillImageDisplayLoad(const QUrl& providerUrl,
-    quint64 revision, const QString& sourceIdentity, ImageDisplayLoadOutcome outcome)
+ImageDisplayLoadResolution ImagePageSurfaceController::acknowledgeStillImageDisplayLoad(
+    const QUrl& providerUrl, quint64 revision, const QString& sourceIdentity,
+    ImageDisplayLoadOutcome outcome)
 {
     if (!m_displayEntryLeases->acknowledgeStillDisplayLoad(providerUrl, revision, sourceIdentity)) {
-        return false;
+        return {};
     }
 
-    m_displaySource.status = displaySourceStatusForLoadOutcome(outcome);
-    m_displaySource.loadAcknowledgmentRequired = false;
-    m_displaySource.retentionStatus = ImageDisplaySourceRetentionStatus::None;
-    m_displaySource.retainWhileLoadingEligible = false;
-    notify(ImageDocumentChange::DisplaySource);
-    return true;
+    ImageDisplayLoadResolution resolution {
+        ImageDisplayLoadResolutionKind::Loaded,
+        ImageDisplayContentKind::StillImage,
+        outcome,
+        providerUrl,
+        revision,
+        sourceIdentity,
+    };
+    if (outcome == ImageDisplayLoadOutcome::Loaded) {
+        m_displayEntryLeases->acceptStillDisplayReplacement();
+        m_displaySource.loadAcknowledgmentRequired = false;
+        m_displaySource.retentionStatus = ImageDisplaySourceRetentionStatus::None;
+        m_displaySource.retainWhileLoadingEligible = false;
+        if (m_refinementLoadPending) {
+            m_refinementCoordinator->acceptPresentedRefinement();
+            clearRefinementRollback();
+        }
+        return resolution;
+    }
+
+    if (m_refinementLoadPending && restoreRefinementDisplay()) {
+        m_refinementCoordinator->rejectPresentedRefinement();
+        resolution.kind = ImageDisplayLoadResolutionKind::RestoredPrevious;
+        return resolution;
+    }
+
+    m_displayEntryLeases->acceptStillDisplayReplacement();
+    clearRefinementRollback();
+    clearDisplaySource();
+    m_displaySource = displayErrorSourceSlot(m_imageSize, revision);
+    resolution.kind = ImageDisplayLoadResolutionKind::Failed;
+    return resolution;
 }
 
-bool ImagePageSurfaceController::acknowledgeAnimationFrameDisplayLoad(const QUrl& providerUrl,
-    quint64 revision, const QString& sourceIdentity, ImageDisplayLoadOutcome outcome)
+ImageDisplayLoadResolution ImagePageSurfaceController::acknowledgeAnimationFrameDisplayLoad(
+    const QUrl& providerUrl, quint64 revision, const QString& sourceIdentity,
+    ImageDisplayLoadOutcome outcome)
 {
     if (!m_displayEntryLeases->acknowledgeAnimationFrameDisplayLoad(
             providerUrl, revision, sourceIdentity)) {
+        return {};
+    }
+
+    ImageDisplayLoadResolution resolution {
+        outcome == ImageDisplayLoadOutcome::Loaded ? ImageDisplayLoadResolutionKind::Loaded
+                                                   : ImageDisplayLoadResolutionKind::Failed,
+        ImageDisplayContentKind::AnimationFrame,
+        outcome,
+        providerUrl,
+        revision,
+        sourceIdentity,
+    };
+    if (outcome == ImageDisplayLoadOutcome::Loaded) {
+        m_displaySource.loadAcknowledgmentRequired = false;
+        return resolution;
+    }
+
+    stopAnimation();
+    clearDisplaySource();
+    m_displaySource = displayErrorSourceSlot(m_imageSize, revision);
+    return resolution;
+}
+
+bool ImagePageSurfaceController::restoreRefinementDisplay()
+{
+    if (!m_refinementRollbackDisplayImage.has_value()
+        || !m_refinementRollbackDisplaySource.has_value()
+        || !m_displayEntryLeases->restoreRetainedStillDisplay()) {
         return false;
     }
 
-    m_displaySource.status = displaySourceStatusForLoadOutcome(outcome);
-    m_displaySource.loadAcknowledgmentRequired = false;
-    notify(ImageDocumentChange::DisplaySource);
+    m_displayImage = std::move(m_refinementRollbackDisplayImage);
+    m_displaySource = std::move(*m_refinementRollbackDisplaySource);
+    m_imageSize = m_displayImage->originalSize;
+    m_hasImage = true;
+    ++m_imageRevision;
+    clearRefinementRollback();
     return true;
+}
+
+void ImagePageSurfaceController::clearRefinementRollback()
+{
+    m_refinementRollbackDisplayImage.reset();
+    m_refinementRollbackDisplaySource.reset();
+    m_refinementLoadPending = false;
 }
 
 void ImagePageSurfaceController::notify(ImageDocumentChange change)

@@ -59,6 +59,9 @@ public:
 
     void request(StaticDisplayImagePayload currentDisplay,
         const ImagePresentationRenderProjection& projection, quint64 displaySourceRevision);
+    void acceptPresentedRefinement();
+    void rejectPresentedRefinement();
+    void resetRejectedRefinements();
     void cancel();
 
     Q_DISABLE_COPY_MOVE(RasterDisplayRefinementCoordinator)
@@ -96,6 +99,8 @@ private:
     ImageWorkerScheduler m_workerScheduler;
     AcceptedCallback m_acceptedCallback;
     std::optional<RasterDisplayRefinementDemandKey> m_activeDemand;
+    std::optional<RasterDisplayRefinementCacheKey> m_presentedCacheKey;
+    std::vector<RasterDisplayRefinementCacheKey> m_rejectedCacheKeys;
     std::vector<CachedRefinement> m_cachedRefinements;
     std::vector<InFlightRefinement> m_inFlightRefinements;
     ImageAsyncTicket m_ticket;

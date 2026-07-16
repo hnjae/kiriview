@@ -156,6 +156,11 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
             [this](const QUrl& url) { return m_predecodedImageLookup->find(url); },
             [this]() { return m_navigationSnapshotPort->snapshot(); },
             [this]() { m_adjacentPredecodeSchedulerPort->scheduleAdjacentImagePredecode(); },
+            [this](const ImageDisplayLoadResolution& resolution) {
+                if (m_openController != nullptr) {
+                    m_openController->finishDisplayLoadWithError(resolution);
+                }
+            },
         },
         dependencies.candidateProvider, dependencies.imageDecode, dependencies.cacheBudgets);
     m_primaryPageSlotPort

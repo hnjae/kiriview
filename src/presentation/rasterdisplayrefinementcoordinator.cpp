@@ -173,6 +173,11 @@ void RasterDisplayRefinementCoordinator::request(StaticDisplayImagePayload curre
     const ImageDocumentRenderContext renderContext = renderContextForProjection(projection);
     const RasterDisplayRefinementCacheKey cacheKey
         = refinementCacheKey(currentDisplay, projection, *source, decision);
+    if (std::find(m_rejectedCacheKeys.cbegin(), m_rejectedCacheKeys.cend(), cacheKey)
+        != m_rejectedCacheKeys.cend()) {
+        cancel();
+        return;
+    }
     if (m_activeDemand.has_value()) {
         RasterDisplayRefinementDemandKey pendingDemand = *m_activeDemand;
         pendingDemand.renderRevision = 0;
@@ -224,10 +229,40 @@ void RasterDisplayRefinementCoordinator::request(StaticDisplayImagePayload curre
             if (!result.ready) {
                 return;
             }
+            m_presentedCacheKey = result.cacheKey;
             invokeIfSet(
                 m_acceptedCallback, std::move(result.displayImage), result.renderContext);
         });
 }
+
+void RasterDisplayRefinementCoordinator::acceptPresentedRefinement()
+{
+    m_presentedCacheKey.reset();
+}
+
+void RasterDisplayRefinementCoordinator::rejectPresentedRefinement()
+{
+    if (!m_presentedCacheKey.has_value()) {
+        return;
+    }
+
+    const RasterDisplayRefinementCacheKey rejected = std::move(*m_presentedCacheKey);
+    m_presentedCacheKey.reset();
+    if (std::find(m_rejectedCacheKeys.cbegin(), m_rejectedCacheKeys.cend(), rejected)
+        == m_rejectedCacheKeys.cend()) {
+        m_rejectedCacheKeys.push_back(rejected);
+    }
+    auto entry = m_cachedRefinements.begin();
+    while (entry != m_cachedRefinements.end()) {
+        if (entry->cacheKey == rejected) {
+            entry = m_cachedRefinements.erase(entry);
+            continue;
+        }
+        ++entry;
+    }
+}
+
+void RasterDisplayRefinementCoordinator::resetRejectedRefinements() { m_rejectedCacheKeys.clear(); }
 
 void RasterDisplayRefinementCoordinator::cancel()
 {
@@ -249,6 +284,7 @@ bool RasterDisplayRefinementCoordinator::promoteCachedRefinement(
     CachedRefinement cached = *entry;
     m_cachedRefinements.erase(entry);
     m_cachedRefinements.push_back(cached);
+    m_presentedCacheKey = cacheKey;
     invokeIfSet(m_acceptedCallback, std::move(cached.displayImage), renderContext);
     return true;
 }

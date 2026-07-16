@@ -19,6 +19,8 @@ QString imageErrorText(ImageErrorTextId id)
         return i18n("Could not decode the selected APNG animation.");
     case ImageErrorTextId::DecodeImageAnimation:
         return i18n("Could not decode the selected image animation.");
+    case ImageErrorTextId::DisplayImage:
+        return i18n("Could not display the selected image.");
     case ImageErrorTextId::EmptyOpenedCollection:
         return i18n("The selected collection does not contain any supported media.");
     case ImageErrorTextId::OpenOpenedCollection:

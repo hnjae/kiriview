@@ -579,17 +579,6 @@ public:
         m_primaryDisplaySource.setLoadAcknowledgmentRequired(true);
     }
 
-    Q_INVOKABLE void acknowledgeStillImageDisplayLoad(int pageRole, const QUrl& providerUrl,
-        const QString& revisionToken, const QString& sourceIdentity, int outcome)
-    {
-        m_lastStillImageAcknowledgedPageRole = pageRole;
-        m_lastStillImageAcknowledgedProviderUrl = providerUrl;
-        m_lastStillImageAcknowledgedRevisionToken = revisionToken;
-        m_lastStillImageAcknowledgedSourceIdentity = sourceIdentity;
-        m_lastStillImageAcknowledgedOutcome = outcome;
-        ++m_stillImageLoadAcknowledgmentCount;
-    }
-
     Q_INVOKABLE void acknowledgeDisplayImageLoad(int pageRole, const QUrl& providerUrl,
         const QString& revisionToken, const QString& sourceIdentity, int outcome)
     {
@@ -861,13 +850,7 @@ private:
     mutable int m_legacyViewHitTestHelperCallCount = 0;
     FakeKiriImageDisplaySource m_primaryDisplaySource;
     FakeKiriImageDisplaySource m_secondaryDisplaySource;
-    int m_stillImageLoadAcknowledgmentCount = 0;
     int m_displayLoadAcknowledgmentCount = 0;
-    int m_lastStillImageAcknowledgedPageRole = -1;
-    QUrl m_lastStillImageAcknowledgedProviderUrl;
-    QString m_lastStillImageAcknowledgedRevisionToken;
-    QString m_lastStillImageAcknowledgedSourceIdentity;
-    int m_lastStillImageAcknowledgedOutcome = -1;
     int m_lastAcknowledgedPageRole = -1;
     QUrl m_lastAcknowledgedProviderUrl;
     QString m_lastAcknowledgedRevisionToken;

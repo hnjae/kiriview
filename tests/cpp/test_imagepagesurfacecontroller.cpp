@@ -59,6 +59,8 @@ private Q_SLOTS:
     void stillImageLoadedOutcomeMarksAcceptedDisplaySource();
     void stillImageErrorOutcomeMarksDisplaySourceError();
     void stillImageMissingOutcomeMarksDisplaySourceMissing();
+    void failedRasterRefinementRestoresAcceptedDisplaySource();
+    void animationFrameFailureProducesTerminalResolution();
     void animationFrameProviderContractRetainsPreviousFrameUntilLoadOutcome();
     void staleAnimationFrameLoadOutcomesAreRejected();
     void animationFrameRetentionIsBoundedToPreviousFrame();
@@ -161,12 +163,6 @@ kiriview::StaticDisplayImagePayload scopedDisplayPayload(const QSize& size,
 QString entryId(const kiriview::ImageDisplaySourceSlot& slot)
 {
     return slot.providerUrl.path().mid(1);
-}
-
-bool hasChange(
-    const std::vector<kiriview::ImageDocumentChange>& changes, kiriview::ImageDocumentChange change)
-{
-    return std::find(changes.cbegin(), changes.cend(), change) != changes.cend();
 }
 
 QByteArray encodedPng(const QImage& image)
@@ -1042,81 +1038,122 @@ void TestImagePageSurfaceController::svgRefinementCompletionIsRejectedAfterSourc
 void TestImagePageSurfaceController::stillImageLoadedOutcomeMarksAcceptedDisplaySource()
 {
     auto store = std::make_shared<kiriview::DisplayImageStore>(testByteBudget);
-    std::vector<kiriview::ImageDocumentChange> changes;
-    kiriview::ImagePageSurfaceController controller(this,
-        kiriview::ImagePageSurfaceController::Callbacks {
-            [&changes](kiriview::ImageDocumentChange change) { changes.push_back(change); },
-            {},
-        },
-        cacheBudgets(), store);
+    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store);
 
     controller.setStaticDisplayImage(displayPayload(QSize(8, 4)), false, renderContext());
     const kiriview::ImageDisplaySourceSlot ready = controller.snapshot().displaySource();
     QVERIFY(ready.loadAcknowledgmentRequired);
-    changes.clear();
 
-    controller.acknowledgeStillImageDisplayLoad(ready.providerUrl, ready.revision,
-        ready.sourceIdentity, kiriview::ImageDisplayLoadOutcome::Loaded);
+    const kiriview::ImageDisplayLoadResolution resolution
+        = controller.acknowledgeDisplayImageLoad(ready.providerUrl, ready.revision,
+            ready.sourceIdentity, kiriview::ImageDisplayLoadOutcome::Loaded);
 
     const kiriview::ImageDisplaySourceSlot loaded = controller.snapshot().displaySource();
     QCOMPARE(loaded.providerUrl, ready.providerUrl);
     QCOMPARE(loaded.revision, ready.revision);
     QCOMPARE(loaded.status, kiriview::ImageDisplaySourceStatus::Ready);
     QVERIFY(!loaded.loadAcknowledgmentRequired);
+    QCOMPARE(resolution.kind, kiriview::ImageDisplayLoadResolutionKind::Loaded);
     QVERIFY(store->entry(entryId(loaded)).has_value());
-    QVERIFY(hasChange(changes, kiriview::ImageDocumentChange::DisplaySource));
 }
 
 void TestImagePageSurfaceController::stillImageErrorOutcomeMarksDisplaySourceError()
 {
     auto store = std::make_shared<kiriview::DisplayImageStore>(testByteBudget);
-    std::vector<kiriview::ImageDocumentChange> changes;
-    kiriview::ImagePageSurfaceController controller(this,
-        kiriview::ImagePageSurfaceController::Callbacks {
-            [&changes](kiriview::ImageDocumentChange change) { changes.push_back(change); },
-            {},
-        },
-        cacheBudgets(), store);
+    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store);
 
     controller.setStaticDisplayImage(displayPayload(QSize(8, 4)), false, renderContext());
     const kiriview::ImageDisplaySourceSlot ready = controller.snapshot().displaySource();
-    changes.clear();
 
-    controller.acknowledgeStillImageDisplayLoad(ready.providerUrl, ready.revision,
-        ready.sourceIdentity, kiriview::ImageDisplayLoadOutcome::Error);
+    const kiriview::ImageDisplayLoadResolution resolution
+        = controller.acknowledgeDisplayImageLoad(ready.providerUrl, ready.revision,
+            ready.sourceIdentity, kiriview::ImageDisplayLoadOutcome::Error);
 
     const kiriview::ImageDisplaySourceSlot failed = controller.snapshot().displaySource();
-    QCOMPARE(failed.providerUrl, ready.providerUrl);
+    QVERIFY(failed.providerUrl.isEmpty());
     QCOMPARE(failed.revision, ready.revision);
     QCOMPARE(failed.status, kiriview::ImageDisplaySourceStatus::Error);
     QVERIFY(!failed.loadAcknowledgmentRequired);
-    QVERIFY(hasChange(changes, kiriview::ImageDocumentChange::DisplaySource));
+    QCOMPARE(resolution.kind, kiriview::ImageDisplayLoadResolutionKind::Failed);
+    QCOMPARE(controller.snapshot().source.kind(),
+        kiriview::ImagePresentationPageSlotSourceKind::DisplayError);
 }
 
 void TestImagePageSurfaceController::stillImageMissingOutcomeMarksDisplaySourceMissing()
 {
     auto store = std::make_shared<kiriview::DisplayImageStore>(testByteBudget);
-    std::vector<kiriview::ImageDocumentChange> changes;
-    kiriview::ImagePageSurfaceController controller(this,
-        kiriview::ImagePageSurfaceController::Callbacks {
-            [&changes](kiriview::ImageDocumentChange change) { changes.push_back(change); },
-            {},
-        },
-        cacheBudgets(), store);
+    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store);
 
     controller.setStaticDisplayImage(displayPayload(QSize(8, 4)), false, renderContext());
     const kiriview::ImageDisplaySourceSlot ready = controller.snapshot().displaySource();
-    changes.clear();
 
-    controller.acknowledgeStillImageDisplayLoad(ready.providerUrl, ready.revision,
-        ready.sourceIdentity, kiriview::ImageDisplayLoadOutcome::Missing);
+    const kiriview::ImageDisplayLoadResolution resolution
+        = controller.acknowledgeDisplayImageLoad(ready.providerUrl, ready.revision,
+            ready.sourceIdentity, kiriview::ImageDisplayLoadOutcome::Missing);
 
     const kiriview::ImageDisplaySourceSlot missing = controller.snapshot().displaySource();
-    QCOMPARE(missing.providerUrl, ready.providerUrl);
+    QVERIFY(missing.providerUrl.isEmpty());
     QCOMPARE(missing.revision, ready.revision);
-    QCOMPARE(missing.status, kiriview::ImageDisplaySourceStatus::Missing);
+    QCOMPARE(missing.status, kiriview::ImageDisplaySourceStatus::Error);
     QVERIFY(!missing.loadAcknowledgmentRequired);
-    QVERIFY(hasChange(changes, kiriview::ImageDocumentChange::DisplaySource));
+    QCOMPARE(resolution.kind, kiriview::ImageDisplayLoadResolutionKind::Failed);
+}
+
+void TestImagePageSurfaceController::failedRasterRefinementRestoresAcceptedDisplaySource()
+{
+    auto store = std::make_shared<kiriview::DisplayImageStore>(testByteBudget);
+    ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store,
+        kiriview::DisplayedPageRole::Primary, workerScheduler.scheduler());
+
+    controller.setStaticDisplayImage(
+        qtRasterPayload(QSize(16, 12), QSize(4, 3), QStringLiteral("source-a")), false,
+        renderContext());
+    const kiriview::ImageDisplaySourceSlot accepted = controller.snapshot().displaySource();
+    QVERIFY(controller.acknowledgeDisplayImageLoad(accepted.providerUrl, accepted.revision,
+        accepted.sourceIdentity, kiriview::ImageDisplayLoadOutcome::Loaded));
+
+    controller.updateDisplayProjection(visibleProjection(QSizeF(8.0, 6.0)));
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
+    const kiriview::ImageDisplaySourceSlot refinement = controller.snapshot().displaySource();
+    QVERIFY(refinement.providerUrl != accepted.providerUrl);
+    QCOMPARE(refinement.rasterSize, QSize(8, 6));
+
+    QVERIFY(controller.acknowledgeDisplayImageLoad(refinement.providerUrl, refinement.revision,
+        refinement.sourceIdentity, kiriview::ImageDisplayLoadOutcome::Error));
+
+    const kiriview::ImageDisplaySourceSlot restored = controller.snapshot().displaySource();
+    QCOMPARE(restored.providerUrl, accepted.providerUrl);
+    QCOMPARE(restored.revision, accepted.revision);
+    QCOMPARE(restored.rasterSize, QSize(4, 3));
+    QCOMPARE(restored.status, kiriview::ImageDisplaySourceStatus::Ready);
+    QVERIFY(!restored.loadAcknowledgmentRequired);
+
+    controller.updateDisplayProjection(visibleProjection(QSizeF(8.0, 6.0)));
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+}
+
+void TestImagePageSurfaceController::animationFrameFailureProducesTerminalResolution()
+{
+    auto store = std::make_shared<kiriview::DisplayImageStore>(testByteBudget);
+    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store);
+    const QString sourceIdentity = QStringLiteral("file:///tmp/animated.apng");
+
+    QVERIFY(controller.setAnimationFrame(
+        kiriview::TestSupport::testImage(QSize(4, 4)), sourceIdentity));
+    const kiriview::ImageDisplaySourceSlot frame = controller.snapshot().displaySource();
+
+    const kiriview::ImageDisplayLoadResolution resolution
+        = controller.acknowledgeDisplayImageLoad(frame.providerUrl, frame.revision, sourceIdentity,
+            kiriview::ImageDisplayLoadOutcome::Error);
+
+    QCOMPARE(resolution.kind, kiriview::ImageDisplayLoadResolutionKind::Failed);
+    QCOMPARE(resolution.contentKind, kiriview::ImageDisplayContentKind::AnimationFrame);
+    QCOMPARE(controller.snapshot().source.kind(),
+        kiriview::ImagePresentationPageSlotSourceKind::DisplayError);
+    QVERIFY(controller.snapshot().displaySource().providerUrl.isEmpty());
 }
 
 void TestImagePageSurfaceController::
@@ -1140,8 +1177,8 @@ void TestImagePageSurfaceController::
     QVERIFY(store->entry(firstId).has_value());
     QVERIFY(store->entry(secondId).has_value());
 
-    controller.acknowledgeAnimationFrameDisplayLoad(second.providerUrl, second.revision,
-        sourceIdentity, kiriview::ImageDisplayLoadOutcome::Loaded);
+    controller.acknowledgeDisplayImageLoad(second.providerUrl, second.revision, sourceIdentity,
+        kiriview::ImageDisplayLoadOutcome::Loaded);
 
     QVERIFY(!store->entry(firstId).has_value());
     QVERIFY(store->entry(secondId).has_value());
@@ -1162,16 +1199,16 @@ void TestImagePageSurfaceController::staleAnimationFrameLoadOutcomesAreRejected(
     const kiriview::ImageDisplaySourceSlot second = controller.snapshot().displaySource();
     QVERIFY(store->entry(firstId).has_value());
 
-    controller.acknowledgeAnimationFrameDisplayLoad(first.providerUrl, first.revision,
-        sourceIdentity, kiriview::ImageDisplayLoadOutcome::Loaded);
+    controller.acknowledgeDisplayImageLoad(first.providerUrl, first.revision, sourceIdentity,
+        kiriview::ImageDisplayLoadOutcome::Loaded);
     QVERIFY(store->entry(firstId).has_value());
 
-    controller.acknowledgeAnimationFrameDisplayLoad(second.providerUrl, second.revision,
+    controller.acknowledgeDisplayImageLoad(second.providerUrl, second.revision,
         QStringLiteral("file:///tmp/replacement.apng"), kiriview::ImageDisplayLoadOutcome::Loaded);
     QVERIFY(store->entry(firstId).has_value());
 
-    controller.acknowledgeAnimationFrameDisplayLoad(second.providerUrl, second.revision,
-        sourceIdentity, kiriview::ImageDisplayLoadOutcome::Loaded);
+    controller.acknowledgeDisplayImageLoad(second.providerUrl, second.revision, sourceIdentity,
+        kiriview::ImageDisplayLoadOutcome::Loaded);
     QVERIFY(!store->entry(firstId).has_value());
 }
 

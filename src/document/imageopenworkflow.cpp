@@ -414,4 +414,14 @@ ImageOpenApplicationPlan finishAnimationLoadWithErrorPlan(const QString& errorSt
             RustImageOpenWorkflowEventKind::FinishAnimationLoadWithError)),
         nullptr, std::nullopt, errorString);
 }
+
+ImageOpenApplicationPlan finishPresentationLoadWithErrorPlan(ImageLoadFailure failure)
+{
+    const std::optional<QString> errorString = failure.userMessage;
+    const std::optional<ImageLoadFailure> loadFailure = std::move(failure);
+    return resolvedApplicationPlan(
+        rustImageOpenTransition(rustImageOpenWorkflowEvent(
+            RustImageOpenWorkflowEventKind::FinishAnimationLoadWithError)),
+        nullptr, std::nullopt, errorString, loadFailure);
+}
 }

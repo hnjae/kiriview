@@ -11,22 +11,16 @@
 #include <variant>
 
 namespace {
-kiriview::ImagePresentationLoadResult finishImagePresentation(
-    const kiriview::ImagePageSurfaceController& pageSurface)
-{
-    return kiriview::ImagePresentationLoadResult {
-        true,
-        pageSurface.imageSize(),
-    };
-}
-
 kiriview::ImagePresentationLoadResult presentStaticImage(
     kiriview::ImagePageSurfaceController& pageSurface,
     kiriview::StaticDisplayImagePayload displayImage, bool predecodeCacheable,
     const kiriview::ImageDocumentRenderContext& renderContext)
 {
-    pageSurface.setStaticDisplayImage(std::move(displayImage), predecodeCacheable, renderContext);
-    return finishImagePresentation(pageSurface);
+    return kiriview::ImagePresentationLoadResult {
+        pageSurface.setStaticDisplayImage(
+            std::move(displayImage), predecodeCacheable, renderContext),
+        pageSurface.imageSize(),
+    };
 }
 
 kiriview::ImagePresentationLoadResult presentImageFrame(
@@ -34,8 +28,10 @@ kiriview::ImagePresentationLoadResult presentImageFrame(
     const QString& sourceIdentity)
 {
     pageSurface.stopAnimation();
-    pageSurface.setAnimationFrame(image, sourceIdentity);
-    return finishImagePresentation(pageSurface);
+    return kiriview::ImagePresentationLoadResult {
+        pageSurface.setAnimationFrame(image, sourceIdentity),
+        pageSurface.imageSize(),
+    };
 }
 
 kiriview::ImagePresentationLoadPlan staticDisplayImagePlan(
@@ -194,7 +190,9 @@ ImagePresentationLoadResult executeImagePresentationLoadPlan(
     if (auto* animation = std::get_if<ImagePresentationAnimationLoad>(&plan.payload)) {
         ImagePresentationLoadResult result
             = presentImageFrame(pageSurface, animation->firstFrame, animation->sourceIdentity);
-        pageSurface.startAnimation(std::move(animation->playback));
+        if (result.presented) {
+            pageSurface.startAnimation(std::move(animation->playback));
+        }
         return result;
     }
 

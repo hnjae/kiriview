@@ -33,6 +33,31 @@ enum class ImageDisplayLoadOutcome {
     Missing,
 };
 
+enum class ImageDisplayLoadResolutionKind {
+    Ignored,
+    Loaded,
+    RestoredPrevious,
+    Failed,
+};
+
+enum class ImageDisplayContentKind {
+    StillImage,
+    AnimationFrame,
+};
+
+struct ImageDisplayLoadResolution
+{
+    ImageDisplayLoadResolutionKind kind = ImageDisplayLoadResolutionKind::Ignored;
+    ImageDisplayContentKind contentKind = ImageDisplayContentKind::StillImage;
+    ImageDisplayLoadOutcome outcome = ImageDisplayLoadOutcome::Loaded;
+    QUrl providerUrl;
+    quint64 revision = 0;
+    QString sourceIdentity;
+
+    bool accepted() const { return kind != ImageDisplayLoadResolutionKind::Ignored; }
+    explicit operator bool() const { return accepted(); }
+};
+
 struct ImageDisplaySourceSlot
 {
     QUrl providerUrl;

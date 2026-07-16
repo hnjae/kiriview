@@ -422,54 +422,41 @@ ImageDisplaySourceProjection ImageSpreadPresentationController::displaySourcePro
     return m_presentationRuntime.displaySourceProjection(role);
 }
 
-void ImageSpreadPresentationController::acknowledgeDisplayImageLoad(DisplayedPageRole role,
+bool ImageSpreadPresentationController::acknowledgeDisplayImageLoad(DisplayedPageRole role,
     const QUrl& providerUrl, quint64 revision, const QString& sourceIdentity,
     ImageDisplayLoadOutcome outcome)
 {
-    bool accepted = false;
+    ImageDisplayLoadResolution resolution;
     switch (role) {
     case DisplayedPageRole::Primary:
-        accepted = m_primaryPageSurface.acknowledgeDisplayImageLoad(
+        resolution = m_primaryPageSurface.acknowledgeDisplayImageLoad(
             providerUrl, revision, sourceIdentity, outcome);
         break;
     case DisplayedPageRole::Secondary:
         if (m_secondaryPageController != nullptr) {
-            accepted
+            resolution
                 = m_secondaryPageController->pageSurfaceController().acknowledgeDisplayImageLoad(
                     providerUrl, revision, sourceIdentity, outcome);
         }
         break;
     }
 
-    if (accepted && updatePresentationPageSlot(role)) {
-        updateDisplayProjections();
-        notify(ImageDocumentChange::DisplaySource);
+    if (!resolution.accepted()) {
+        return false;
     }
-}
-
-void ImageSpreadPresentationController::acknowledgeStillImageDisplayLoad(DisplayedPageRole role,
-    const QUrl& providerUrl, quint64 revision, const QString& sourceIdentity,
-    ImageDisplayLoadOutcome outcome)
-{
-    bool accepted = false;
-    switch (role) {
-    case DisplayedPageRole::Primary:
-        accepted = m_primaryPageSurface.acknowledgeStillImageDisplayLoad(
-            providerUrl, revision, sourceIdentity, outcome);
-        break;
-    case DisplayedPageRole::Secondary:
-        if (m_secondaryPageController != nullptr) {
-            accepted = m_secondaryPageController->pageSurfaceController()
-                           .acknowledgeStillImageDisplayLoad(
-                               providerUrl, revision, sourceIdentity, outcome);
+    if (resolution.kind == ImageDisplayLoadResolutionKind::Failed) {
+        if (role == DisplayedPageRole::Secondary) {
+            finishSecondaryPageAsPrimaryOnly();
+        } else {
+            invokeIfSet(m_callbacks.displayFailure, resolution);
         }
-        break;
+        return true;
     }
-
-    if (accepted && updatePresentationPageSlot(role)) {
+    if (updatePresentationPageSlot(role)) {
         updateDisplayProjections();
         notify(ImageDocumentChange::DisplaySource);
     }
+    return true;
 }
 
 void ImageSpreadPresentationController::commitPrimaryPageSlot(

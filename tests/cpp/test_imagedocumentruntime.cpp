@@ -239,6 +239,8 @@ class TestImageDocumentRuntime : public QObject
 
 private Q_SLOTS:
     void initialLoadSuccessUpdatesDocumentState();
+    void activeProviderFailurePublishesPresentationError_data();
+    void activeProviderFailurePublishesPresentationError();
     void externalSourceAssignmentsResolveOnceAtStandaloneOwner();
     void openedCollectionScopeProjectionsFollowDisplayedImageScope();
     void openedCollectionVideoPlaceholderKeepsNavigation();
@@ -319,6 +321,51 @@ void TestImageDocumentRuntime::initialLoadSuccessUpdatesDocumentState()
     QCOMPARE(runtime->pageCount(), 0);
     QVERIFY(!runtime->containerNavigationAvailable());
     QVERIFY(hasReadyDisplaySourceProjection(*runtime));
+}
+
+void TestImageDocumentRuntime::activeProviderFailurePublishesPresentationError_data()
+{
+    QTest::addColumn<int>("outcome");
+
+    QTest::newRow("provider-error") << static_cast<int>(kiriview::ImageDisplayLoadOutcome::Error);
+    QTest::newRow("provider-missing")
+        << static_cast<int>(kiriview::ImageDisplayLoadOutcome::Missing);
+}
+
+void TestImageDocumentRuntime::activeProviderFailurePublishesPresentationError()
+{
+    QFETCH(int, outcome);
+
+    FakeCandidateProvider candidateProvider;
+    ManualImageDataLoader dataLoader;
+    const QUrl imageUrl = localUrl(QStringLiteral("/images/provider-failure.png"));
+    candidateProvider.setDirectoryImages(localUrl(QStringLiteral("/images/")),
+        {
+            imageDocumentPageCandidate(imageUrl),
+        });
+
+    RuntimeHandle runtime = createRuntime(this, candidateProvider, dataLoader);
+    runtime->setViewportSize(QSizeF(400.0, 300.0));
+    runtime->setSourceUrl(imageUrl);
+    finishLoad(dataLoader);
+    QTRY_COMPARE(runtime->status(), kiriview::ImageDocumentStatus::Ready);
+    const kiriview::ImageDisplaySourceProjection projection
+        = runtime->displaySourceProjection(kiriview::DisplayedPageRole::Primary);
+    QVERIFY(projection.visible);
+    QVERIFY(projection.loadAcknowledgmentRequired);
+
+    runtime->acknowledgeDisplayImageLoad(kiriview::DisplayedPageRole::Primary,
+        projection.providerUrl, projection.revision, projection.sourceIdentity,
+        static_cast<kiriview::ImageDisplayLoadOutcome>(outcome));
+
+    QCOMPARE(runtime->status(), kiriview::ImageDocumentStatus::Error);
+    QVERIFY(runtime->loadFailure().has_value());
+    QCOMPARE(runtime->loadFailure()->sourceUrl, imageUrl);
+    QCOMPARE(runtime->loadFailure()->kind, kiriview::ImageLoadFailureKind::Presentation);
+    QVERIFY(!runtime->loadFailure()->userMessage.isEmpty());
+    QVERIFY(!runtime->loadFailure()->diagnosticDetail.isEmpty());
+    QVERIFY(!runtime->loadFailure()->retryable);
+    QVERIFY(!runtime->displaySourceProjection(kiriview::DisplayedPageRole::Primary).visible);
 }
 
 void TestImageDocumentRuntime::externalSourceAssignmentsResolveOnceAtStandaloneOwner()

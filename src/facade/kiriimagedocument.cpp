@@ -744,23 +744,6 @@ bool KiriImageDocument::observeViewportContentPosition(
         contentPosition, toImageViewportObservationOrigin(origin));
 }
 
-bool KiriImageDocument::acknowledgeStillImageDisplayLoad(int pageRole, const QUrl& providerUrl,
-    const QString& revisionToken, const QString& sourceIdentity, int outcome)
-{
-    const std::optional<kiriview::DisplayedPageRole> displayPageRole
-        = toDisplayedPageRole(pageRole);
-    const std::optional<quint64> revision = viewportRevisionFromToken(revisionToken);
-    const std::optional<kiriview::ImageDisplayLoadOutcome> loadOutcome
-        = toImageDisplayLoadOutcome(outcome);
-    if (!displayPageRole.has_value() || !revision.has_value() || !loadOutcome.has_value()) {
-        return false;
-    }
-
-    m_runtime->acknowledgeStillImageDisplayLoad(
-        *displayPageRole, providerUrl, *revision, sourceIdentity, *loadOutcome);
-    return true;
-}
-
 bool KiriImageDocument::acknowledgeDisplayImageLoad(int pageRole, const QUrl& providerUrl,
     const QString& revisionToken, const QString& sourceIdentity, int outcome)
 {
@@ -773,9 +756,8 @@ bool KiriImageDocument::acknowledgeDisplayImageLoad(int pageRole, const QUrl& pr
         return false;
     }
 
-    m_runtime->acknowledgeDisplayImageLoad(
+    return m_runtime->acknowledgeDisplayImageLoad(
         *displayPageRole, providerUrl, *revision, sourceIdentity, *loadOutcome);
-    return true;
 }
 
 void KiriImageDocument::handleDocumentChanges(const std::vector<ImageDocumentChange>& changes)

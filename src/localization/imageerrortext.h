@@ -13,6 +13,7 @@ enum class ImageErrorTextId {
     DecodePngImage,
     DecodeApngAnimation,
     DecodeImageAnimation,
+    DisplayImage,
     EmptyOpenedCollection,
     OpenOpenedCollection,
     OpenComicBookArchive,

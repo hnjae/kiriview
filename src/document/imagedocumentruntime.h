@@ -142,9 +142,7 @@ public:
     const EmbeddedMetadata& embeddedMetadata() const;
     ImageDisplaySourceProjection displaySourceProjection(
         DisplayedPageRole role = DisplayedPageRole::Primary) const;
-    void acknowledgeDisplayImageLoad(DisplayedPageRole role, const QUrl& providerUrl,
-        quint64 revision, const QString& sourceIdentity, ImageDisplayLoadOutcome outcome);
-    void acknowledgeStillImageDisplayLoad(DisplayedPageRole role, const QUrl& providerUrl,
+    bool acknowledgeDisplayImageLoad(DisplayedPageRole role, const QUrl& providerUrl,
         quint64 revision, const QString& sourceIdentity, ImageDisplayLoadOutcome outcome);
 
     void notify(const std::vector<ImageDocumentChange>& changes);

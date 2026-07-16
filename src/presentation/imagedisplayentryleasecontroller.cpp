@@ -64,6 +64,7 @@ DisplayEntryLease ImageDisplayEntryLeaseController::acquireStaticDisplay(
     m_displayEntryId = entryId;
     m_displayEntryVisiblePinned = false;
     m_currentDisplayEntryIsAnimationFrame = false;
+    m_currentDisplayEntryUsesRetainedPin = false;
     m_pendingStillImageEntryId = loadAcknowledgmentRequired ? entryId : QString();
     m_pendingStillImageProviderUrl = loadAcknowledgmentRequired ? providerUrl : QUrl();
     m_pendingStillImageRevision = loadAcknowledgmentRequired ? displaySourceRevision : 0;
@@ -105,6 +106,7 @@ DisplayEntryLease ImageDisplayEntryLeaseController::acquireAnimationFrame(
     m_displayEntryId = entryId;
     m_displayEntryVisiblePinned = false;
     m_currentDisplayEntryIsAnimationFrame = true;
+    m_currentDisplayEntryUsesRetainedPin = false;
     const QUrl providerUrl = displayImageSourceForId(entryId);
     const bool loadAcknowledgmentRequired = !entryId.isEmpty();
     m_animationFrameDisplayLoadPending = loadAcknowledgmentRequired;
@@ -226,7 +228,6 @@ bool ImageDisplayEntryLeaseController::acknowledgeStillDisplayLoad(
     }
 
     clearStillImageLoadContract();
-    releaseRetainedStillDisplay();
     return true;
 }
 
@@ -248,6 +249,25 @@ bool ImageDisplayEntryLeaseController::acknowledgeAnimationFrameDisplayLoad(
 bool ImageDisplayEntryLeaseController::currentDisplayIsAnimationFrame() const
 {
     return m_currentDisplayEntryIsAnimationFrame;
+}
+
+void ImageDisplayEntryLeaseController::acceptStillDisplayReplacement()
+{
+    releaseRetainedStillDisplay();
+}
+
+bool ImageDisplayEntryLeaseController::restoreRetainedStillDisplay()
+{
+    if (m_retainedStillImageEntryId.isEmpty()) {
+        return false;
+    }
+
+    releaseCurrentDisplay();
+    m_displayEntryId = std::move(m_retainedStillImageEntryId);
+    m_displayEntryVisiblePinned = false;
+    m_currentDisplayEntryIsAnimationFrame = false;
+    m_currentDisplayEntryUsesRetainedPin = true;
+    return true;
 }
 
 DisplayImageReuseKey ImageDisplayEntryLeaseController::staticDisplayReuseKey(
@@ -347,6 +367,7 @@ void ImageDisplayEntryLeaseController::releaseCurrentDisplay()
         m_displayEntryId.clear();
         m_displayEntryVisiblePinned = false;
         m_currentDisplayEntryIsAnimationFrame = false;
+        m_currentDisplayEntryUsesRetainedPin = false;
         return;
     }
 
@@ -354,10 +375,15 @@ void ImageDisplayEntryLeaseController::releaseCurrentDisplay()
     if (m_displayEntryVisiblePinned) {
         m_displayImageStore->releasePinLease(entryId, DisplayImagePinKind::Visible);
     }
-    m_displayImageStore->release(entryId);
+    if (m_currentDisplayEntryUsesRetainedPin) {
+        m_displayImageStore->releasePinLease(entryId, DisplayImagePinKind::StaleRetained);
+    } else {
+        m_displayImageStore->release(entryId);
+    }
     m_displayEntryId.clear();
     m_displayEntryVisiblePinned = false;
     m_currentDisplayEntryIsAnimationFrame = false;
+    m_currentDisplayEntryUsesRetainedPin = false;
 }
 
 void ImageDisplayEntryLeaseController::releaseRetainedStillDisplay()
@@ -390,6 +416,7 @@ void ImageDisplayEntryLeaseController::retainCurrentAnimationFrameForLoad()
     m_displayEntryId.clear();
     m_displayEntryVisiblePinned = false;
     m_currentDisplayEntryIsAnimationFrame = false;
+    m_currentDisplayEntryUsesRetainedPin = false;
     if (retained) {
         m_retainedAnimationFrameEntryId = entryId;
     }

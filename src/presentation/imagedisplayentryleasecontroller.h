@@ -45,6 +45,8 @@ public:
     bool acknowledgeAnimationFrameDisplayLoad(
         const QUrl& providerUrl, quint64 revision, const QString& sourceIdentity);
     bool currentDisplayIsAnimationFrame() const;
+    void acceptStillDisplayReplacement();
+    bool restoreRetainedStillDisplay();
     void releaseRetainedAnimationFrame();
 
     Q_DISABLE_COPY_MOVE(ImageDisplayEntryLeaseController)
@@ -81,6 +83,7 @@ private:
     QString m_pendingAnimationFrameSourceIdentity;
     bool m_displayEntryVisiblePinned = false;
     bool m_currentDisplayEntryIsAnimationFrame = false;
+    bool m_currentDisplayEntryUsesRetainedPin = false;
     bool m_stillImageDisplayLoadPending = false;
     bool m_animationFrameDisplayLoadPending = false;
     std::vector<BufferedStaticDisplayEntry> m_bufferedStaticDisplayEntries;

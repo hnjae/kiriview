@@ -55,8 +55,8 @@ public:
     ImagePresentationPageSlotSnapshot snapshot() const;
 
     void setImage(const QImage& image, bool predecodeCacheable);
-    void setAnimationFrame(const QImage& image, const QString& sourceIdentity);
-    void setStaticDisplayImage(StaticDisplayImagePayload displayImage, bool predecodeCacheable,
+    bool setAnimationFrame(const QImage& image, const QString& sourceIdentity);
+    bool setStaticDisplayImage(StaticDisplayImagePayload displayImage, bool predecodeCacheable,
         const ImageDocumentRenderContext& renderContext);
     QString publishShadowDisplayImage(StaticDisplayImagePayload displayImage);
     void clearShadowDisplayImage();
@@ -67,18 +67,27 @@ public:
 
     void startAnimation(ImageAnimationPlaybackRequest request);
     void stopAnimation();
-    bool acknowledgeDisplayImageLoad(const QUrl& providerUrl, quint64 revision,
-        const QString& sourceIdentity, ImageDisplayLoadOutcome outcome);
-    bool acknowledgeStillImageDisplayLoad(const QUrl& providerUrl, quint64 revision,
-        const QString& sourceIdentity, ImageDisplayLoadOutcome outcome);
-    bool acknowledgeAnimationFrameDisplayLoad(const QUrl& providerUrl, quint64 revision,
-        const QString& sourceIdentity, ImageDisplayLoadOutcome outcome);
+    ImageDisplayLoadResolution acknowledgeDisplayImageLoad(const QUrl& providerUrl,
+        quint64 revision, const QString& sourceIdentity, ImageDisplayLoadOutcome outcome);
 
 private:
+    enum class StaticDisplayPublicationKind {
+        SelectedImage,
+        Refinement,
+    };
+
+    ImageDisplayLoadResolution acknowledgeStillImageDisplayLoad(const QUrl& providerUrl,
+        quint64 revision, const QString& sourceIdentity, ImageDisplayLoadOutcome outcome);
+    ImageDisplayLoadResolution acknowledgeAnimationFrameDisplayLoad(const QUrl& providerUrl,
+        quint64 revision, const QString& sourceIdentity, ImageDisplayLoadOutcome outcome);
+    bool setStaticDisplayImage(StaticDisplayImagePayload displayImage, bool predecodeCacheable,
+        const ImageDocumentRenderContext& renderContext, StaticDisplayPublicationKind kind);
+    bool restoreRefinementDisplay();
+    void clearRefinementRollback();
     void acceptImageState(QSize imageSize, bool predecodeCacheable,
         std::optional<StaticDisplayImagePayload> displayImage);
-    void publishDisplaySource(const StaticDisplayImagePayload& displayImage);
-    void publishAnimationFrameDisplaySource(const QImage& image, const QString& sourceIdentity);
+    bool publishDisplaySource(const StaticDisplayImagePayload& displayImage);
+    bool publishAnimationFrameDisplaySource(const QImage& image, const QString& sourceIdentity);
     void clearDisplaySource();
     void notify(ImageDocumentChange change);
 
@@ -90,6 +99,9 @@ private:
     bool m_hasImage = false;
     bool m_predecodeCacheable = false;
     std::optional<StaticDisplayImagePayload> m_displayImage;
+    std::optional<StaticDisplayImagePayload> m_refinementRollbackDisplayImage;
+    std::optional<ImageDisplaySourceSlot> m_refinementRollbackDisplaySource;
+    bool m_refinementLoadPending = false;
     QString m_animationFrameSourceIdentity;
     ImageDisplaySourceSlot m_displaySource;
     quint64 m_displaySourceRevision = 0;

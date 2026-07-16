@@ -670,19 +670,12 @@ ImageDisplaySourceProjection ImageDocumentRuntime::displaySourceProjection(
     return runtimeGraph->spreadController().displaySourceProjection(role);
 }
 
-void ImageDocumentRuntime::acknowledgeStillImageDisplayLoad(DisplayedPageRole role,
+bool ImageDocumentRuntime::acknowledgeDisplayImageLoad(DisplayedPageRole role,
     const QUrl& providerUrl, quint64 revision, const QString& sourceIdentity,
     ImageDisplayLoadOutcome outcome)
 {
-    runtimeGraph->spreadController().acknowledgeStillImageDisplayLoad(
-        role, providerUrl, revision, sourceIdentity, outcome);
-}
-
-void ImageDocumentRuntime::acknowledgeDisplayImageLoad(DisplayedPageRole role,
-    const QUrl& providerUrl, quint64 revision, const QString& sourceIdentity,
-    ImageDisplayLoadOutcome outcome)
-{
-    runtimeGraph->spreadController().acknowledgeDisplayImageLoad(
+    [[maybe_unused]] auto batch = state.beginChangeBatch();
+    return runtimeGraph->spreadController().acknowledgeDisplayImageLoad(
         role, providerUrl, revision, sourceIdentity, outcome);
 }
 

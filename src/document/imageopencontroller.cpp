@@ -13,8 +13,10 @@
 #include "presentation/imagepagesurfacecontroller.h"
 #include "presentation/imagepresentationload.h"
 #include "presentation/imagepresentationruntime.h"
+#include "rendering/displayproviderlogging.h"
 
 #include <KLocalizedString>
+#include <QDebug>
 #include <memory>
 #include <utility>
 
@@ -64,6 +66,27 @@ kiriview::ImageLoadFailure imagePresentationFailure(
         kiriview::ImageLoadFailureSeverity::Error,
         false,
     };
+}
+
+QString displayLoadOutcomeDiagnostic(kiriview::ImageDisplayLoadOutcome outcome)
+{
+    switch (outcome) {
+    case kiriview::ImageDisplayLoadOutcome::Loaded:
+        return QStringLiteral("loaded");
+    case kiriview::ImageDisplayLoadOutcome::Error:
+        return QStringLiteral("error");
+    case kiriview::ImageDisplayLoadOutcome::Missing:
+        return QStringLiteral("missing");
+    }
+
+    return QStringLiteral("unknown");
+}
+
+QString displayContentDiagnostic(kiriview::ImageDisplayContentKind contentKind)
+{
+    return contentKind == kiriview::ImageDisplayContentKind::AnimationFrame
+        ? QStringLiteral("animation-frame")
+        : QStringLiteral("still-image");
 }
 
 kiriview::ImageLoadFailure withUserMessage(kiriview::ImageLoadFailure failure, QString userMessage)
@@ -153,8 +176,40 @@ void ImageOpenController::cancel() { m_imageLoader->cancel(); }
 void ImageOpenController::finishAnimationLoadWithError(const QString& errorString)
 {
     const QString message = animationLoadErrorMessage(errorString);
-    reportRuntimePlan(applyImageOpenApplicationPlan(
-        m_state, ImageOpenWorkflow::finishAnimationLoadWithErrorPlan(message)));
+    reportRuntimePlan(applyImageOpenApplicationPlan(m_state,
+        ImageOpenWorkflow::finishPresentationLoadWithErrorPlan(ImageLoadFailure {
+            m_state.displayedUrl().isEmpty() ? m_state.sourceUrl() : m_state.displayedUrl(),
+            0,
+            ImageLoadFailureKind::Presentation,
+            message,
+            errorString.isEmpty() ? message : errorString,
+            ImageLoadFailureSeverity::Error,
+            false,
+        })));
+}
+
+void ImageOpenController::finishDisplayLoadWithError(const ImageDisplayLoadResolution& resolution)
+{
+    const QString message = imageErrorText(ImageErrorTextId::DisplayImage);
+    const QString diagnostic
+        = QStringLiteral(
+            "display provider load failed: outcome=%1 content=%2 provider=%3 revision=%4 "
+            "sourceIdentity=%5")
+              .arg(displayLoadOutcomeDiagnostic(resolution.outcome),
+                  displayContentDiagnostic(resolution.contentKind),
+                  resolution.providerUrl.toString(), QString::number(resolution.revision),
+                  resolution.sourceIdentity);
+    qCWarning(kiriviewDisplayProviderLog).noquote() << diagnostic;
+    reportRuntimePlan(applyImageOpenApplicationPlan(m_state,
+        ImageOpenWorkflow::finishPresentationLoadWithErrorPlan(ImageLoadFailure {
+            m_state.displayedUrl().isEmpty() ? m_state.sourceUrl() : m_state.displayedUrl(),
+            0,
+            ImageLoadFailureKind::Presentation,
+            message,
+            diagnostic,
+            ImageLoadFailureSeverity::Error,
+            false,
+        })));
 }
 
 void ImageOpenController::finishEmptySourceLoad()

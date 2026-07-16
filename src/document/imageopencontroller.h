@@ -12,6 +12,7 @@
 #include "navigation/imagedocumentpagecandidatelistsource.h"
 #include "navigation/imagedocumentpagecandidateprovider.h"
 #include "predecode/predecodedimage.h"
+#include "presentation/imagedisplaysourceprojection.h"
 #include "presentation/imagepresentationload.h"
 
 #include <QString>
@@ -63,6 +64,7 @@ public:
     void cancel();
     void finishEmptySourceLoad();
     void finishAnimationLoadWithError(const QString& errorString);
+    void finishDisplayLoadWithError(const ImageDisplayLoadResolution& resolution);
     void finishContainerNavigationWithEmptyContainer(const QUrl& containerUrl);
     void finishContainerNavigationLoadWithError(
         const QUrl& containerUrl, const QString& errorString);

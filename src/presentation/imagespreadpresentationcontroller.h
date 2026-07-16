@@ -46,6 +46,7 @@ public:
     using FindPredecodedImageCallback = std::function<std::optional<PredecodedImage>(const QUrl&)>;
     using PageNavigationSnapshotProvider = std::function<ImageDocumentPageNavigationSnapshot()>;
     using ScheduleAdjacentPredecodeCallback = std::function<void()>;
+    using DisplayFailureCallback = std::function<void(const ImageDisplayLoadResolution&)>;
 
     struct Callbacks
     {
@@ -53,6 +54,7 @@ public:
         FindPredecodedImageCallback findPredecodedImage;
         PageNavigationSnapshotProvider pageNavigationSnapshot;
         ScheduleAdjacentPredecodeCallback scheduleAdjacentPredecode;
+        DisplayFailureCallback displayFailure;
     };
 
     ImageSpreadPresentationController(QObject* parent, RenderContextProvider renderContextProvider,
@@ -120,9 +122,7 @@ public:
     bool secondaryPageVisible() const;
     std::optional<DisplayedPredecodeImage> secondaryDisplayedPredecodeImage() const;
     ImageDisplaySourceProjection displaySourceProjection(DisplayedPageRole role) const;
-    void acknowledgeDisplayImageLoad(DisplayedPageRole role, const QUrl& providerUrl,
-        quint64 revision, const QString& sourceIdentity, ImageDisplayLoadOutcome outcome);
-    void acknowledgeStillImageDisplayLoad(DisplayedPageRole role, const QUrl& providerUrl,
+    bool acknowledgeDisplayImageLoad(DisplayedPageRole role, const QUrl& providerUrl,
         quint64 revision, const QString& sourceIdentity, ImageDisplayLoadOutcome outcome);
 
     void commitPrimaryPageSlot(const DisplayedImageLocation& location);

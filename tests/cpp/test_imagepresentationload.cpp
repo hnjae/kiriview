@@ -287,6 +287,7 @@ private Q_SLOTS:
     void animationHandlingControlsPlannedEffects();
     void staticDecodedImagesAreAppliedToPresentation();
     void staticDecodedImagesPublishProviderSource();
+    void providerPublicationFailureRejectsPresentation();
     void unpresentableDecodedImagesLeaveExistingPresentationUntouched();
     void streamedAnimationImagesPresentFirstFrames();
     void animationFirstFramesPublishProviderSource();
@@ -613,6 +614,23 @@ void TestImagePresentationLoad::staticDecodedImagesPublishProviderSource()
     QCOMPARE(stored->rasterSize, QSize(6, 4));
     QCOMPARE(stored->quality, kiriview::DisplayImageQuality::FirstDisplay);
     QCOMPARE(stored->sourceIdentity, QStringLiteral("test-image"));
+}
+
+void TestImagePresentationLoad::providerPublicationFailureRejectsPresentation()
+{
+    auto displayImageStore = std::make_shared<kiriview::DisplayImageStore>(1);
+    kiriview::ImagePageSurfaceController controller
+        = pageSurfaceController(this, displayImageStore);
+    kiriview::DecodedImage decoded = staticDecodedTestImage(testImage(QSize(12, 8)));
+
+    const kiriview::ImagePresentationLoadResult result
+        = kiriview::presentDecodedImageLoad(controller, std::move(decoded),
+            kiriview::ImagePresentationAnimationHandling::StartAnimation, renderContext());
+
+    QVERIFY(!result.presented);
+    QCOMPARE(controller.snapshot().source.kind(),
+        kiriview::ImagePresentationPageSlotSourceKind::DisplayError);
+    QVERIFY(controller.snapshot().displaySource().providerUrl.isEmpty());
 }
 
 void TestImagePresentationLoad::unpresentableDecodedImagesLeaveExistingPresentationUntouched()

@@ -50,6 +50,7 @@ namespace ImageOpenWorkflow {
     ImageOpenApplicationPlan finishContainerNavigationLoadWithErrorPlan(
         const QUrl& containerUrl, const QString& errorString);
     ImageOpenApplicationPlan finishAnimationLoadWithErrorPlan(const QString& errorString);
+    ImageOpenApplicationPlan finishPresentationLoadWithErrorPlan(ImageLoadFailure failure);
 }
 }
 
