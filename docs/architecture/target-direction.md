@@ -15,7 +15,7 @@ Document-session language-boundary changes must cross coherent contracts rather 
 
 Session-to-leaf document boundaries expose cohesive snapshot families and explicit command/effect ports, not property-shaped signal bags or direct leaf facade queries. Projection refresh, thumbnail-source adaptation, routing, page navigation, deletion, playback stop, and video-output attachment must cross the session boundary through typed ports whose ownership is visible at the boundary.
 
-Document-session subowners must be introduced only when a concern needs its own lifecycle, stale-completion checks, projection commit order, or grouped command/effect ports. Route planning, active-navigation dispatch, public projection publication, leaf synchronization, direct-media navigation, deletion completion, and video-output attachment may be split into named collaborators, but their public output must still go through the document-session state owner.
+Document-session subowners are justified only when a concern needs its own lifecycle, stale-completion checks, projection commit order, or grouped command/effect ports. Regardless of internal decomposition, public output still passes through the document-session state owner.
 
 Session runtime code may supply committed snapshots and bind ports, but it must not become a second owner for projection commits, leaf-to-public mapping, route-local sequencing, or stale-completion acceptance. These boundaries stay stable at the contract level across internal refactoring that preserves the same ownership, port, and stale-completion contracts.
 

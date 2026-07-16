@@ -1,158 +1,53 @@
 # Provider Rendering Architecture
 
-This document records KiriView's image-display architecture for provider-backed rendering. It is not a product behavior specification; externally visible behavior remains in `../spec/`.
+This document defines the intended image-display boundary. User-visible image behavior remains in `../spec/image-display.md`.
 
-## Contract
+## Rendering Contract
 
-The production image viewport displays still images and accepted animation frames through Qt Quick image/provider items backed by display-ready image entries. Custom image-view render items, visual tile surfaces, render-frame projection, scene graph nodes, custom shaders, and low-level rendering resource ownership are excluded from production display architecture.
+Still images and accepted animation frames are displayed through high-level Qt Quick image items backed by immutable, provider-published whole-image entries. Production display must not use custom render nodes, visual tile surfaces, shaders, or application-owned low-level rendering resources.
 
-Provider-rendering work publishes complete display entries. Source-internal tiling is allowed only inside a decoder or refinement job that assembles one accepted display `QImage` before returning to its owner.
+Decoders and refinement jobs may use source-internal tiling only to assemble one bounded display image before publication. If one safe display image cannot represent the requested detail, the owner publishes bounded-detail, unsupported, or failed state rather than introducing a visual tile fallback.
 
 ## Ownership
 
-- The image presentation runtime owns logical display policy and display-source projection for each page role: source identity and selected-source scope, provider URL, revision token, original image size, displayed raster size, stable source-size hint when present, quality/status, load-acknowledgment requirement, same-source retention eligibility, visible geometry, rotation, and page visibility.
-- Image page surface owners own page-local display resources: current and stale-retained display entries, pending-load leases, previous-frame retention, source-generation acceptance, animation-frame entries, predecode promotion, and release or reprioritization of entries after presentation no longer references them.
-- The display image store owns provider-entry lifetime and memory pressure for displayed images. Entries are immutable after publication, carry a never-reused runtime-generated id, and account byte cost, priority, pin leases, reusable-handle identity, source identity, page or animation role, quality state, raster size, original size, generation, and debug labels.
-- The display image store maintains authoritative indexes for runtime id lookup, reusable-handle lookup, and byte-budget eviction. Insert, reusable reacquire, pin lease changes, deferred release, release, clear, and budget trimming keep those indexes consistent without provider id requests or reusable-handle acquisition scanning every stored entry.
-- Decode workers and refinement jobs own expensive image preparation. They may perform file I/O, source decode, first-display decode, thumbnail preview acceptance, RAW embedded preview extraction, whole-image raster bucket production, safe SVG rasterization, animation-frame composition, and stale-demand checks before publishing a display entry.
-- Qt Quick owns texture upload, filtering, mipmap use, visual item lifecycle, and scene graph rendering through high-level `Image` or provider-backed image composition. QML binds accepted projection facts but does not choose decode buckets, provider ids, cache retention, animation timing, stale acceptance, or fallback quality policy.
+- The image-presentation runtime owns presentation mode, page roles, visible geometry, source projection, quality, freshness revision, retention eligibility, and display-load acknowledgment state.
+- Page-resource owners own the immutable entries, animation-frame handoff, pending-load retention, reusable-entry leases, and release associated with each page role. They do not own zoom, rotation, viewport, spread, or navigation state.
+- The display image store owns immutable entry identity, byte accounting, priority, pinning, reuse lookup, eviction, and release. Entry ids are never reused during the runtime lifetime.
+- Decode and refinement owners perform source access, decode, safe SVG rasterization, preview validation, metadata extraction, animation composition, and whole-image refinement behind async lifecycle boundaries.
+- Qt Quick owns texture upload, filtering, item lifetime, and scene rendering. QML binds accepted projections and reports load outcomes; it does not choose display buckets, provider ids, cache retention, animation timing, or stale acceptance.
 
-## Provider Boundary
+## Provider And Display-Source Lifecycle
 
-Main-display and active-navigation thumbnail providers follow the cache-only provider contract in [Extension Contracts](extension-contracts.md#display-provider-contracts).
+Display providers are cache-only, cheap, and reentrant. A request may return an already published immutable entry and its stored size, but it must not decode, rasterize, perform I/O, resample, schedule work, install cache entries, decide freshness, or mutate public state.
 
-Provider ids are generated by runtime owners, not QML. Every accepted display entry with different image bytes publishes a fresh provider URL. Reacquiring the same immutable entry through a reusable handle may publish the same provider URL with a new display-source revision; status-only stale-retained revisions keep the previous URL and do not create a pending-load lease.
+Every accepted entry with different image bytes receives fresh provider identity. Reusing the same immutable bytes is allowed only through a store-owned reuse identity that proves compatible source, scope, transform, size, quality, role, and rendering constraints. QML engine caching is never the freshness authority.
 
-QML engine image caching is not a freshness mechanism. Dynamic image presentation uses revision-unique provider URLs or another explicit freshness mechanism owned by the presentation runtime; any enabled QML cache path preserves the same revision freshness contract.
+A display-source projection may expose provider identity only after its page-resource owner has accepted and published the corresponding entry. Visible, pending-load, retained, and reusable leases are distinct so acknowledging one projection cannot release another entry.
 
-Qt Quick image loading, source-size, visual scaling, retention, and load-acknowledgment policy belong to the accepted presenter or thumbnail-strip contract, not to provider request handling.
+Load outcomes carry page role, provider identity, projection revision, and source identity back to the presentation owner. Matching success commits visual acceptance and releases the matching pending lease. Matching failure either publishes display error or triggers explicit reconciliation for the still-current payload. Stale, wrong-role, or superseded outcomes are ignored.
 
-## Display-Source Lifecycle
+Top-level source replacement, mode change, clear, and selected-target failure may clear the previous projection. Same-scope image navigation and same-source refinement may retain the last committed presentation until the matching replacement is ready. Retention must not make the retained media appear to be the new selected target.
 
-A display-source projection is read-only facade state derived from the accepted page slot and presentation geometry. It may expose a provider URL only when a page-surface owner has published a provider-ready display entry.
+## Preview, Refinement, And Reuse
 
-The projection must not claim a thumbnail, predecode payload, animation frame, or stale-retained image is visible unless that same accepted entry is the currently accepted provider display entry for that page role.
+An initial display may use a validated lower-detail preview or bounded first display. Preview acceptance must establish the correct source, orientation-aware intrinsic dimensions, aspect, freshness, and safe resource bounds. Preview output is never marked exact and is superseded by accepted sharper output for the same demand.
 
-The page-surface owner owns provider-entry ids and store leases for its page role. Static display payloads and animation frames publish immutable entries; superseded or cleared entries are released through the display image store; visible entries are pinned and prioritized from presentation visibility; pending-load and frame-retention pins are released only by matching QML load acknowledgments or source supersession.
+Refinement demand is derived from the accepted source, visible geometry, zoom, rotation, device pixel ratio, and resolved resource limits. Its freshness identity includes every fact that could make a completion unsuitable for the active presentation. A separate reuse identity contains only facts that prove two results have equivalent display bytes.
 
-Top-level source replacement, mode switches, clear transitions, and selected-target failures may clear the previous projection. Same-scope image-to-image navigation may retain the previous committed provider projection across source-identity changes until the pending target publishes and acknowledges its replacement entry.
+Refinement work is best-effort cancelable. Results may populate a bounded cache by reuse identity, but they may replace the visible entry only when the full active demand identity still matches. Duplicate in-flight work for the same reuse identity may be shared without sharing presentation authority.
 
-Display-source projection is reconciled idempotently whenever the accepted decoded payload changes, viewport size changes, visible rect changes, render-context attachment changes, scene attachment changes, device-pixel-ratio changes, or a provider load outcome arrives. Late viewport or render-context facts reproject the current accepted provider payload instead of depending on unrelated layout changes or one-shot startup ordering.
+Predecoded still images enter the same immutable-entry, identity, quality, resource-limit, and publication path as foreground decodes. Video rows may guide adjacent-image preparation but never create still-image display payloads.
 
-Provider load outcomes are presentation state, not only lease cleanup. A loaded outcome marks the current provider entry visually accepted for its page role and releases matching pending-load ownership. Error and missing outcomes resolve through a named presentation path: either a display error is surfaced for the active target or explicit runtime reconciliation retries the still-current accepted payload after the missing attachment, viewport, render-context, or provider condition changes. The document must not remain silently ready with an empty display-source projection.
+## Animation And SVG
 
-## Reusable Handles
+The animation owner controls reader lifetime, authored timing, loop progress, composition, and frame acceptance. Each accepted frame is published as an immutable display entry through the normal display-source path. Source replacement or animation stop invalidates later frame completions, and bounded previous-frame retention prevents a blank transition while the next accepted frame attaches.
 
-Reusable display handles are display-store lookup and lease records for already published immutable entries. A handle is not a provider id, QML cache key, or mutable display entry; it can only reacquire an existing immutable entry whose display reuse key proves the same display bytes and compatible metadata.
+Supported animated containers must be classified through animation-aware decoding before static fallback so a multi-frame file is not silently reduced to its first frame.
 
-The display reuse key includes the displayed-location or opened-collection scope identity available to the owner, source identity, image-reader transform, post-transform original size, stored raster size or bucket key, display quality, preview origin, page role when role-specific presentation state or lease ownership matters, and render constraints that can change produced display bytes. A key match may reuse the same immutable entry id; a key mismatch inserts a new immutable entry with a new never-reused id.
+SVG parsing and rasterization must disable scripts, animation, and external network or file resources before publication. SVG output uses bounded whole-image buckets keyed by source and active display demand. Failed refinement retains the last accepted image; failed initial display follows the normal image-error path.
 
-Reusable handles are owned by C++ display-resource owners, not QML. The page-surface or adjacent presentation runtime may keep a small opened-collection page buffer by holding bounded handle leases for the current and nearby pages in the active navigation or predecode window.
+## Viewport Boundary
 
-Buffer leases are separate from visible, pending-load, stale-retained, and animation-frame retention leases, so load acknowledgment releases only the matching pending provider URL, display-source revision, source identity, and page role. Reuse must not resurrect evicted entries, bypass display-image byte-budget trimming, or let a stale buffer entry replace a newer accepted source identity or page role.
+A non-rendering context boundary supplies attachment, scene, device-pixel-ratio, and safe display-limit facts to the presentation owner. It must not draw, own textures, use private rendering interfaces, or schedule decode work.
 
-Two-page spread behavior stays explicit. Primary and secondary page surfaces may reuse immutable image bytes only through keys and leases that keep page role, provider projection, load acknowledgment, visibility pinning, and stale-retention state correct for each role.
-
-## Static Display Payloads
-
-Static decode results are display-payload-first. The decoded result carries source identity, applied image-reader transform metadata, post-transform original image size, the current display-ready `QImage`, display quality, display pixels per source pixel, embedded metadata, and an optional refinement-capable source payload.
-
-Static display publication preserves the displayed-location or opened-collection scope identity alongside the display payload from decoded foreground load, predecode promotion, and secondary-page load through page-surface publication. The page-surface owner must have that identity before constructing display reuse keys or refinement cache keys, and it must not reconstruct identity from provider URLs, display-store ids, QML state, or image bytes. A candidate payload without trusted scope identity is not reusable across displayed-location or opened-collection scope boundaries.
-
-Decoder helpers may retain source payloads for first-display decode, complete-display decode, metadata, and later whole-image refinement. They must not publish visual page tiles or construct display surfaces for a custom renderer.
-
-Image-reader decode and refinement boundaries preserve ordered primary, scaled, and fallback attempt diagnostics internally. A single user-facing error string may be projected from those diagnostics, but it must not be the only place where failed attempt causes exist.
-
-Dedicated first-display decode is a display payload quality, not exact detail. JPEG, SVG, and any decoder-owned first-display payloads keep their display pixel ratio and refinement capability so sharper whole-image buckets can replace the initial preview without treating it as final quality.
-
-Predecode cache entries are provider-ready display payloads. They store accepted display `QImage`, location, opened-collection scope, source identity, applied image-reader transform, post-transform original size, raster size, quality state, embedded metadata, byte cost, and optional refinement-capable source. A predecode hit promotes that display payload into the page-surface owner and display image store without reconstructing a tile-source-backed cache entry.
-
-## Display Quality And Replacement
-
-Initial display may come from predecode promotion, a valid XDG thumbnail preview, RAW embedded preview, dedicated decoder first-display image, or bounded decode/refinement result. Thumbnail preview, RAW embedded preview, and decoder first-display are mutually exclusive initial preview tiers for one load.
-
-Main-display XDG thumbnail-preview lookup consumes the same Freedesktop original identity and personal-cache lookup boundary as active-navigation thumbnails. It accepts only local still-image sources with a valid concrete size bucket and validates that the cache result is ready, non-null, fresh for `Thumb::URI` and `Thumb::MTime`, and paired with trusted post-transform original image dimensions before publication. Trusted dimensions come from image-reader orientation-aware metadata or an equivalent cheap header probe that reports logical displayed size; thumbnails whose dimensions are missing, unrotated only, zero, stale, aspect-incompatible, or larger than the trusted original image are rejected.
-
-Accepted XDG thumbnail previews publish display-image-store entries after predecode misses and before the matching full decode result when the source is still current. These entries use preview quality with an explicit XDG-thumbnail preview origin, carry trusted post-transform original size, never mark the image exact, and are released when a decoded display payload, clear, error, cancellation, or source replacement supersedes them.
-
-RAW embedded preview extraction runs only after an XDG thumbnail miss and only for inputs classified as RAW. The RAW preview boundary derives trusted original size from RAW metadata, extracts an embedded preview when available, decodes or converts it into display-ready image data, and validates size, aspect, byte budget, color format, and non-null image data before publication.
-
-Accepted RAW embedded preview candidates publish display-image-store entries through the same thumbnail-preview callback path used by XDG previews, but only after the preceding XDG lookup reports a miss and only if the matching decode request is still current when RAW extraction finishes. These entries use preview quality with a RAW-embedded-thumbnail preview origin, carry trusted RAW original size, and never mark the image exact. A ready XDG thumbnail suppresses RAW extraction publication, invalid or missing RAW thumbnails publish nothing, stale source replacement or completed full decode suppresses late RAW previews, and decoded display payload, clear, error, cancellation, or source replacement releases any published RAW entry.
-
-Thumbnail preview, RAW embedded preview, and first-display images are visible quality states, not exact results. They are replaced by accepted exact or sharper whole-image buckets as soon as the matching source, page role, display-source owner, and demand generation allow it.
-
-Same-source stale retention may keep a current provider image visible during refinement or bucket replacement. Same-scope image-to-image navigation may keep the previous committed provider image visible while the selected target is pending, including when the selected target has a different source identity. Top-level source replacement, mode switches, and image-to-video transitions are clearing transitions; no additional retained-presentation path is part of the architecture.
-
-Oversized or unsafe demands that cannot produce one bounded display image become bounded-detail, unsupported, or failed display states. The provider path must not rebuild a visual tile fallback for images that exceed provider-display limits.
-
-## Animation Frames
-
-Animated-image timing is owned by the animation player. Accepted frames publish display entries through the display-source path and are presented through high-level Qt Quick image/provider composition.
-
-Animation-capable raster containers are routed through format-aware animation decode before static-display fallback. APNG, WebP, JPEG XL, and HEIF-family image sequence decoders own container-specific frame enumeration, timing, composition, loop semantics, and first-frame publication; generic Qt/KImageFormats image reading remains a fallback and must not silently downgrade a supported multi-frame file to a static display payload when it exposes only the first frame.
-
-Accepted animation frames publish immutable display entries. The initial decoded frame is published from the presentation load path before playback starts; later playback and loop-restart frames are published only after the animation player accepts them for the current page-surface owner. Each frame entry uses the animation-frame role, a fresh display-source revision and provider URL, exact quality, no preview origin, and the same display-ready image bytes that the provider-backed presenter consumes.
-
-Superseded frame entries are released through the display image store. Source replacement, clear, static-image presentation, or animation stop rejects stale later frame completions by stopping the player before the page-surface owner changes identity.
-
-Provider-backed Qt Quick image revisions are the default animation presenter path. Animation timer scheduling is independent from provider load status, ordinary provider requests remain cache-only for already-published frames, stale load outcomes are rejected by provider URL and display-source revision, memory retention keeps at most the current frame plus one previous frame pinned per page role, and URL churn stays to one fresh provider URL per accepted frame with new image bytes.
-
-Each accepted animation frame may require a provider load outcome for its provider URL and display-source revision. While that outcome is pending, the immediately superseded animation-frame entry is retained with a previous-frame retention lease and released only after a matching loaded, failed, or missing outcome, source supersession, clear, static-image replacement, or animation stop. Load outcomes with a stale provider URL, stale revision, wrong source identity, or non-animation current entry are ignored and must not release the current or retained frame.
-
-## Refinement Identity And Lifecycle
-
-The pure raster bucket policy consumes post-transform original image size, the current accepted raster size and quality when one exists, target display size, visible viewport, device pixel ratio, rotation, resolved display texture cap, and resolved display-image byte budget supplied to the page-surface owner. The display image store enforces provider-entry insertion and retention against its own resolved budget, but page-surface refinement policy must not switch to a different budget just because a shared or custom store is present.
-
-A candidate whole-image bucket is safe only when it is non-empty, each raster axis fits the resolved display texture cap, and estimated display byte cost fits the active display-image budget. Unsafe demands never fall back to visual tiles in the provider path.
-
-The policy classifies the current accepted image as exact, first-display sufficient, refinement-needed, bounded-detail reuse, unsupported-too-large initial display, or failed. `refinement-needed` is a demand marker consumed by decoder-specific refinement jobs.
-
-Bucket keys describe desired whole-raster target size, exactness, and limiting cap. They are stable demand metadata, not provider ids and not QML source-size churn.
-
-A refinement demand key includes source identity, page role, display-source owner revision, zoom generation, device-pixel-ratio generation, render-context or texture-capability generation, memory-budget or allocation-policy generation or resolved caps, rotation generation when rotation affects bucket selection, and bucket key. Later completions must match the full key before replacing an accepted display entry.
-
-A refinement cache key is separate from the active demand key. It omits owner-local display-source revision and worker-run revision, and includes only facts that prove the same refined display bytes: displayed-location or opened-collection scope identity available to the owner, source identity, image-reader transform when applicable, post-transform original size, page role when role-specific ownership matters, refinement source kind, requested quality, bucket key, and render constraints that affect produced pixels.
-
-Page-surface refinement owners may keep bounded caches of accepted refined buckets and bounded in-flight refinement records keyed by refinement cache key. A cache hit promotes the cached static display payload through normal display-source publication without scheduling worker decode, but it still creates or reacquires display-store ownership according to the current display-source revision and load-acknowledgment contract. A new active demand for a key already in flight attaches to that record; the eventual completion may populate the cache and may replace the current display only if the active demand still matches the full display-source demand key.
-
-Refinement cancellation is best-effort. Owners retain late-completion rejection by full demand key, and worker jobs should receive a start gate that lets them skip expensive decode or rasterization when the owner has already marked cache-key work obsolete before the worker begins.
-
-Qt raster, HEIF, and RAW still-image source helpers all use this whole-image refinement lifecycle. They schedule only from an accepted display payload, keep the current provider entry visible while the bucket is produced, accept completion only when the full demand key still matches the active display-source owner, and publish fresh display entries and provider URLs through the existing page-surface display-source path.
-
-Qt raster refinement decodes one complete display-oriented `QImage` bucket using image-reader scaling and the transform metadata attached to the accepted display payload. HEIF refinement returns one complete display-oriented `QImage` bucket and may use source-internal HEIF grid or tile APIs only inside the worker. RAW refinement returns one complete display-oriented `QImage` bucket derived from the decoded RAW image retained by the source. None of these jobs may publish multiple visual tiles, expose viewport tile scheduling to the provider path, mutate provider state from provider requests, or handle another decoder family's refinement path.
-
-RAW refinement starts only after an accepted RAW display payload exists, including a full RAW decode that replaces an XDG or RAW embedded thumbnail preview. It must not extract generic embedded thumbnails as a refinement path.
-
-## SVG Provider Buckets
-
-SVG parsing and rasterization remain in the Qt-independent rendering policy boundary, and the provider path uses whole-surface display buckets instead of SVG visual tile composition. The SVG source helper remains only a durable refinement source for complete display buckets.
-
-SVG decode and rasterization boundaries reject or disable script execution, animation playback, and external network or file resource loading before SVG content can publish a display entry.
-
-Initial SVG display uses the first-display viewport context to publish one provider-ready raster capped by viewport, device pixel ratio, display-image memory budget, and resolved texture cap when no thumbnail preview already satisfied the load.
-
-SVG refinement buckets use a coarse geometric scale sequence keyed by source identity, intrinsic size, page role, display-source revision, zoom generation, rotation generation when relevant, device-pixel-ratio generation, render-context or texture-capability generation, allocation cap, target bucket, and render revision. Small zoom changes reuse the current provider image; larger zoom or DPR changes publish a fresh provider URL only after the matching render completion is accepted.
-
-Failed SVG initial display reports the normal image error. Failed SVG refinement does not replace the current accepted provider image; the page-surface owner may keep the current image visible and cancel only the rejected demand.
-
-Provider requests never rasterize SVG data, schedule SVG work, inspect SVG bytes, or mutate document state. Whole-surface SVG render jobs run from decode/refinement ownership and publish immutable display entries through the same page-surface display-source path as raster refinements.
-
-## Viewport And QML Boundary
-
-The non-rendering Qt Quick context bridge owns document render-context provider attachment, primary-only provider installation, component-completion deferral, scene or DPR invalidation, and the resolved public-Qt display texture cap used by presentation and refinement. It does not draw, implement custom scene-graph rendering, call private or low-level rendering interfaces, own textures, or schedule decode work.
-
-Helper invokables that only compute viewport interaction policy live on a non-rendering facade so QML does not depend on a render item for hit testing, nearest image points, scan starts, or provider-image commands. The primary bridge may install and clear the document render-context provider; secondary page visuals must not.
-
-The visible still-image presenter for primary and secondary page roles consumes a display-source facade, wraps a high-level Qt Quick image item, binds only projection-owned provider URL, source-size hint, cache, asynchronous loading, retention, geometry, visibility, and rotation policy, and emits revision-specific load outcomes for entries that require acknowledgment. It must not choose decode buckets, mutate provider state, synthesize source-size hints from live viewport demand, or retain images across source-identity changes unless the projection allows it.
-
-Source-size hints are freshness and attachment hints for the already published raster bucket, not a viewport-downscale contract. Qt Quick geometry, filtering, and texture handling own visual fit after the stored raster is returned.
-
-The viewport uses Qt Quick scrolling, spread geometry, scrollbars, input handlers, and non-rendering bridges. A C++ viewport bridge owns command projection application and acknowledgment against the physical scrolling item; QML only reports actual user or inertia positions and renders the projected frame. Primary and secondary presenters bind only to their corresponding display-source facades; the primary context bridge remains the only render-context provider installer.
-
-Still-image presenter load outcomes connect to a narrow display-load acknowledgment API. The facade parses the opaque revision token, maps the QML outcome enum to a typed load outcome, and delegates to the matching page-surface owner, which releases only matching pending-load pins for the current provider URL, revision, source identity, and page role. Status-only retained revisions with no new provider URL do not create acknowledgments, stale outcomes are rejected by the document/presentation bridge, and QML never releases display-store leases directly.
-
-Accepted animation-frame display entries use the same high-level Qt Quick image revision path in the visible viewport. QML still does not own animation timing, frame acceptance, provider ids, cache policy, decode work, or store leases; it only reports provider load outcomes for accepted display-source revisions. The document facade exposes a generic display-load acknowledgment that parses page role, revision token, and outcome, then lets the page-surface owner release either the matching still-image pending-load pin or the matching animation previous-frame retention contract according to the current entry kind. Stale, cross-source, wrong-role, and wrong-kind acknowledgments are ignored.
-
-## Excluded Rendering Paths
-
-Production image display does not include tile scheduling, decoded-tile caches, render nodes, custom shaders, direct low-level rendering resource management, private rendering-interface probing, shader baking, render-frame public APIs, or tile-display cache budget vocabulary. Display-store byte budgets use display-image cache vocabulary, render-context discovery uses stable public Qt/Qt Quick capability inputs or conservative fallbacks, and production image display must not include, link, probe, or retain low-level custom rendering paths. Decoder and source helpers provide complete display images, first-display previews, metadata, or whole-image refinement sources only.
+QML owns physical scrolling items, gesture samples, and high-level image item instances. C++ owns the logical viewport frame and revisioned commands. QML applies only the latest applicable command and reports physical observations or load outcomes using owner-issued opaque revisions; it must not calculate canonical zoom, pan, scan, display quality, or freshness state.

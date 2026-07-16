@@ -46,17 +46,17 @@ Directory collection keys identify the directory scope root and selected entry. 
 
 ### Thumbnail And Predecode Keys
 
-Thumbnail identity has three non-interchangeable key families. The durable thumbnail row key identifies source kind, row number, normalized URL identity, label, and page kind without navigation generation. The demand key identifies the QML-addressable row number and normalized URL identity inside one navigation generation. The source revision key combines the durable row key, original source URL payload, and navigation generation for adapter work, completion acceptance, row mutation, and stale rejection. Source revisions cross scheduling boundaries only inside a sealed snapshot whose generation matches every contained revision; the snapshot rejects duplicate source-revision or demand identities. Each family has typed construction, validity, equality, and hashing; implementations must not synthesize delimiter-separated strings for indexes. Thumbnail cache original identity is separate from all three and is defined by [Thumbnail Source Adapters](thumbnail-source-adapters.md#original-identity).
+Thumbnail identity uses separate typed families for durable row reuse, generation-scoped UI demand, adapter work, and persistent cache identity. A sealed demand snapshot carries one navigation generation and rejects duplicate or mixed-generation identities. Implementations must not use delimiter-assembled strings as substitutes for typed equality and hashing. Cache and scheduling rules are defined by [Thumbnail Source Adapters](thumbnail-source-adapters.md).
 
 Predecode candidate keys identify still-image payloads eligible for adjacent decode. Direct media predecode is still-image-only; videos may be cursor positions for window planning, but they do not produce cached video frame payloads. Opened-collection predecode candidates carry the opened collection scope so byte access stays behind the media entry source owner.
 
 ### Display Source Keys
 
-Display source keys identify the target provider-rendered page or animation role, source identity, selected-source scope, source generation, display-source owner, display revision, render-context or texture-capability generation, allocation cap generation or resolved cap, and bucket or frame demand needed to reject stale completions.
+Display-source demand keys contain the source, scope, page or animation role, presentation revision, render-context freshness, resource limits, and requested display demand needed to reject stale completions.
 
-Window changes, scene-graph invalidation, DPR changes, and texture-capability changes advance display-source or render-context freshness so stale decode and refinement completions are rejected instead of replacing the accepted provider entry. The display-source lifecycle is defined by [Provider Rendering Architecture](provider-rendering.md#display-source-lifecycle).
+Window changes, scene-graph invalidation, DPR changes, and texture-capability changes advance display-source or render-context freshness so stale decode and refinement completions are rejected instead of replacing the accepted provider entry. The lifecycle is defined by [Provider Rendering Architecture](provider-rendering.md#provider-and-display-source-lifecycle).
 
-Provider-rendering work must carry a display-source demand key and publish only complete display entries, not visual page tiles. Source-internal tiling is allowed only inside a decoder or refinement job that assembles one accepted display `QImage` before returning to the owner.
+Provider-rendering work carries a display-source demand key and publishes only complete display entries, not visual page tiles. Source-internal tiling is allowed only inside a decoder or refinement job that assembles one accepted display image before returning to the owner.
 
 ## Adapter Contracts
 

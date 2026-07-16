@@ -11,7 +11,7 @@ Use small bridge structs and enums for:
 - Change sets.
 - Effect plans.
 
-Predecode policy inputs must describe source access profiles rather than concrete storage or collection kinds. C++ runtime code may translate a displayed source or opened collection scope into profile values such as neutral window size, biased-direction window size, and parallel limit, but Rust predecode scheduling must not branch on archive, directory, or backend implementation names.
+Policy inputs describe capabilities and source-access profiles rather than concrete storage backends. C++ may translate runtime source facts into plain policy values, but Rust policy must not branch on backend implementation names when the decision depends only on those capabilities.
 
 Avoid bridges that expose:
 

@@ -66,12 +66,10 @@ The right-click gesture is a fixed mouse gesture. It is not listed in Keyboard S
 
 Ctrl+M toggles the application menu presentation between Hamburger Menu and Menubar.
 
-This shortcut is fixed, is not user-configurable, and is not listed in keyboard shortcut configuration or shortcut help.
-
 KiriView may show Ctrl+M as display-only shortcut text on the Show Menubar menu item or tooltip.
 
 When Hamburger Menu presentation is active outside fullscreen, F10 opens the toolbar application menu.
 
-This shortcut is fixed, is not user-configurable, and is not listed in keyboard shortcut configuration or shortcut help.
-
 KiriView may show F10 as display-only shortcut text on the toolbar application menu button tooltip.
+
+Ctrl+M and F10 are fixed, are not user-configurable, and are not listed in Keyboard Shortcuts configuration or shortcut help.

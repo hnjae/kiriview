@@ -44,7 +44,7 @@ If a static image exceeds the supported decode or display size, KiriView reports
 
 ### Preview And Refinement
 
-Large static images may first appear quickly from a trusted thumbnail preview, RAW embedded preview, or lower-detail first display. The image then becomes sharper when a matching full-detail or current-detail display is ready.
+Large static images may first appear as a lower-detail preview and then become sharper when matching current-detail output is ready.
 
 While sharper detail is being prepared for the same image, KiriView may keep the current accepted image visible. Zooming, panning, resizing, rotation, and display scale changes must not expose blank regions while a replacement for the same image is pending.
 
@@ -68,7 +68,7 @@ If a recognized HEIF-family still image uses an unsupported compression format o
 
 Camera RAW files open as static images. KiriView displays supported RAW files as display-ready 8-bit sRGB images and does not expose RAW editing controls such as demosaic, white-balance, tone-curve, or embedded-preview selection.
 
-When KiriView recognizes selected image data as RAW, including TIFF-family RAW files such as DNG files, it reports the RAW decode result without retrying the same bytes through another image path. Ordinary TIFF files that are not recognized as RAW are decoded as general raster images.
+TIFF-family RAW files such as DNG files follow RAW behavior, while ordinary TIFF files follow general raster-image behavior.
 
 RAW files participate in the same open, adjacent navigation, archive, and directory workflows as other supported static image files.
 

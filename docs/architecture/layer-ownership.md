@@ -26,7 +26,7 @@ C++ Qt/KDE runtime code owns platform integration and side effects:
 - Supported-media capability modules own extension, MIME-type, and collection-kind capability facts consumed by routing, open-dialog filters, desktop-file advertising, adjacent navigation eligibility, thumbnail eligibility, and decoder-route selection. These consumers must not maintain divergent supported-media lists. Capability modules may expose extension or MIME-type lists, but they must not own localized file-dialog labels.
 - Image presentation, provider-backed display publication, and async job orchestration.
 - The image presentation runtime as the single owner of active image presentation state: mode, reading direction, transition phase, zoom, rotation, logical viewport frame, visible source rect, display-source projections, page visibility, restoration snapshots, and display refinement demand.
-- Image page surface owners as resource owners for display entries, animation playback, image revision, display-image pin leases, previous-frame retention, predecode facts, and load lifetimes only.
+- Image page-resource owners as owners of display entries, animation playback, image revision, retention leases, preparation facts, and load lifetimes only.
 - Render context discovery, such as device pixel ratio and maximum safe display texture size, through one document-owned provider. The provider-rendering architecture uses a non-rendering bridge and stable public Qt/Qt Quick capability inputs or conservative fallbacks rather than direct low-level rendering resource ownership.
 
 Rust owns Qt-independent policy and algorithms:

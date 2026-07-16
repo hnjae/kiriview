@@ -53,7 +53,7 @@ Candidate-list owners publish confirmed snapshots before dependent workflows der
 
 Direct-media sibling discovery accepts a snapshot only when the current direct-media scope still matches the discovery request. Image-document page candidate refresh accepts a snapshot only when its candidate-list source still matches the page navigation owner.
 
-A pending refresh may keep previous public navigation visible while work is in flight. Consumers that require confirmed row storage must use the last matching confirmed snapshot or fall back to the candidate provider; they must not synthesize a partial or stale list.
+A pending same-source refresh retains the last matching confirmed snapshot while work is in flight. A source-identity change clears the prior snapshot before consumers can use it. Consumers must not synthesize a partial list or use rows from a different source.
 
 Projection and thumbnail workflows consume candidate snapshots by source identity plus candidate-list revision. If row storage is unchanged, projection may update current-row state without rebuilding every row, and thumbnail runtimes may preserve row-derived work while thumbnail navigation generation still matches. If row identity, source identity, or row order changes, the owner publishes a new candidate-list revision and downstream thumbnail navigation generation changes.
 

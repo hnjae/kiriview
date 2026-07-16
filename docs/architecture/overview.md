@@ -91,10 +91,8 @@ flowchart TD
 
 ## Build and Tooling Ownership
 
-Production native source membership must have build-validated ownership inventories for each language boundary. Build, lint, and editor tooling must consume those inventories instead of maintaining divergent source lists or compiler flags.
+Each language boundary has one build-owned source and configuration inventory. Application builds, tests, lint, and editor tooling consume that inventory rather than maintaining divergent source lists or compiler settings.
 
-The production application build is the single authority for compiling production Rust, C++, generated language-boundary code, generated configuration code, QML resources, and the resulting application artifact. Test build systems may compile test-local binaries and fixtures, but they must consume production application artifacts instead of rebuilding production sources through a separate ownership path.
+The application build is the authority for production Rust, C++, generated boundary code, generated configuration, QML resources, and the application artifact. Test builds own test-local artifacts but consume application artifacts through the production build boundary rather than rebuilding production sources independently.
 
-Compile-command metadata follows build ownership. Production compile commands must be derived from the production application build, and test compile commands must be derived from the test build that owns those test artifacts. Development-environment tooling may orchestrate refresh, merge, and editor installation, but it must not synthesize hand-authored production or test compile commands.
-
-Development-environment modules that need Qt, CXX-Qt, build, runtime, lint, or editor metadata must consume a shared tooling context instead of duplicating wrapper commands, QML import paths, compile-command inputs, generated-include refresh logic, or Qt runtime environment snippets.
+Derived build metadata follows the owner of the artifact it describes. Development tooling may orchestrate that metadata but must not become an independent authority for production or test compilation. Shared Qt, language-boundary, runtime, lint, and editor inputs come from one tooling context.

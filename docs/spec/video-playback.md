@@ -10,9 +10,7 @@ Direct KDE archive-entry URLs are not KiriView archive collection scope. KiriVie
 
 The product boundary is based on KiriView's opened collection state, not on URL scheme alone. If KiriView has opened an archive as an opened collection, supported video entries inside that collection are opened collection navigation items; eligible stored ZIP and plain TAR entries are played, while ineligible archive video entries show the unsupported-video placeholder. If KiriView has opened a directory as an opened collection, supported video entries inside that directory are opened collection navigation items and are played from the directory entry. If KiriView is handling a direct media URL without an active archive or directory collection context, that URL remains eligible for direct video support even when its scheme is a KDE archive scheme.
 
-Video files do not participate in video-frame preparation for image-style quick navigation, editable image zoom, image pan, image rotate, or two-page spread pairing.
-
-In ordinary direct media URL scopes, showing a video must not clear or stop background preparation for nearby supported image files. KiriView may keep and continue preparing adjacent still images around the current video cursor, but it must not prepare the video itself as still-image quick-navigation data.
+Video files do not support editable image zoom, image pan, image rotation, or two-page spread pairing. Moving through a video does not prevent nearby still images from remaining available for quick image navigation.
 
 Opened collection video playback is limited to eligible stored ZIP archive entries, plain TAR archive entries, and supported video files inside directly opened local directory collections. Collection-internal video metadata, playlists, subtitles, track selection, frame stepping, and timeline preview thumbnails are not provided.
 
@@ -48,18 +46,6 @@ Video mode does not create a separate video-only navigation scope. Supported ima
 
 Adjacent Previous and Next use direct media navigation in ordinary direct media video mode and in image mode only when the active image belongs to an ordinary direct media URL scope. Archive collection and directly opened directory collection scopes keep opened-collection navigation active instead.
 
-## Video Navigation And Seeking
-
-Alt+Left and Alt+Right are fixed viewer-local video seek shortcuts.
-
-They are active only while viewer-local shortcuts are active, the accepted media item is a ready video, and the video is seekable.
-
-Alt+Left seeks backward within the current video, and Alt+Right seeks forward within the current video. Seeking clamps to the start or end of the video and never changes the active navigation item.
-
-When the current video is not ready, not seekable, or does not have an active video track, the seek shortcuts do not change playback state and do not fall back to adjacent-media navigation.
-
-The fixed seek interval is a stable application behavior and is applied consistently to direct videos and playable opened-collection videos.
-
 ## Playback
 
 Opening a video starts playback automatically.
@@ -68,11 +54,7 @@ When a video load or playback error is superseded by a later accepted non-error 
 
 Video mode shows a video viewport and a Breeze-style playback control panel at the bottom edge of the video viewport.
 
-The regular toolbar remains available in video mode for application menu access and active-scope navigation. It shows Previous and Next controls, the current media item number, the total supported media item count for the active navigation scope when that list is known, and the same trailing control order as image mode.
-
-In ordinary direct media video mode, Right-to-Left Reading and Two-Page Spread are hidden because they belong to opened archive and directory collection scopes. Fit remains in its image-mode position but is disabled, and the zoom control is read-only.
-
-In opened collection video mode, active navigation remains the opened archive or directory collection. Right-to-Left Reading and Two-Page Spread visibility follows the opened collection toolbar rules, but Two-Page Spread never pairs a video item. Fit remains disabled, and the zoom control is read-only.
+The regular toolbar remains available in video mode and follows the active-scope layout and collection-control visibility defined in [Toolbar](toolbar.md). Active navigation remains the direct media or opened collection scope that contains the video. Fit is disabled, zoom is read-only, and Two-Page Spread never pairs a video item.
 
 Video mode shows a read-only zoom percentage when the video frame size, displayed video content rectangle, and target window effective device pixel ratio are known. The value is the current fitted display size in physical pixels relative to the video's intrinsic frame size. When the percentage is unknown, the read-only zoom control displays `? %`. Users cannot edit this value or use image zoom actions for video.
 
@@ -98,7 +80,7 @@ During timeline dragging, the user's drag position remains visually stable inste
 
 Unknown duration, invalid duration, and non-seekable media produce a stable disabled timeline state rather than invalid or flickering values.
 
-## Video Navigation and Seeking
+## Video Navigation And Seeking
 
 In direct video mode, viewer Left and Right and existing adjacent navigation actions move to the previous or next supported media item in the ordinary parent location. They do not seek within the video.
 
@@ -124,13 +106,13 @@ Timeline dragging and scrubbing is the primary way to seek within the current vi
 
 If keyboard focus is inside the timeline control, that control may handle its own keyboard interaction.
 
-Video mode also supports fixed local seek shortcuts: `Alt+Left` seeks backward 5 seconds, `Alt+Right` seeks forward 5 seconds, `Alt+Up` seeks forward 45 seconds, and `Alt+Down` seeks backward 45 seconds.
+Video mode also supports fixed viewer-local seek shortcuts: `Alt+Left` seeks backward 5 seconds, `Alt+Right` seeks forward 5 seconds, `Alt+Up` seeks forward 45 seconds, and `Alt+Down` seeks backward 45 seconds. These intervals apply consistently to direct videos and playable opened-collection videos.
 
 The configurable current-content start and end shortcuts follow the same media seekability gates as timeline seeking. Current Content End is unavailable when the duration is unknown, zero, or invalid.
 
-Video seek shortcuts are video-mode-only and must not affect image mode or unsupported-video placeholders.
+Video seek shortcuts are active only while viewer-local shortcuts are active, the accepted media item is a ready video with an active video track, and the video is seekable. They are video-mode-only and must not affect image mode or unsupported-video placeholders.
 
-Video seek shortcuts are best-effort time seeks. They run only when the media is seekable, clamp to the valid `[0, duration]` range when duration is known, and must not promise frame-accurate seeking.
+Video seek shortcuts are best-effort time seeks. They clamp to the valid `[0, duration]` range when duration is known, never change the active navigation item, and must not promise frame-accurate seeking. If their readiness or seekability gates are not satisfied, they have no effect and do not fall back to adjacent-media navigation.
 
 The actual landed position may be adjusted by the playback engine, commonly to a nearby decodable or keyframe position.
 

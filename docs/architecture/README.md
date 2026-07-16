@@ -2,7 +2,7 @@
 
 This directory defines KiriView's durable implementation contracts. It is not a product behavior specification; user-visible behavior belongs in the files under `../spec/`.
 
-Architecture documents define ownership boundaries, dependency direction, data ownership, state-transition enforcement, async lifecycle rules, failure-handling contracts, and boundary-test ownership. Milestone acceptance criteria, deferred-work lists, implementation progress notes, and temporary migration rationale do not belong here. Architecture decision records with dated rationale live in `../adr/`.
+Architecture documents define ownership boundaries, dependency direction, data ownership, state-transition enforcement, async lifecycle rules, failure-handling contracts, and boundary-test ownership. They describe the intended end state; milestone acceptance criteria, deferred-work lists, implementation progress notes, and temporary migration rationale do not belong here. Architecture decision records with dated rationale live in `../adr/`.
 
 - [Overview](overview.md)
 - [Terminology](terminology.md)

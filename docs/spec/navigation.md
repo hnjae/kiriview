@@ -12,9 +12,9 @@ Page navigation for opened collections is active only for directly opened archiv
 
 For ordinary direct media URL scopes, archive collection scopes, and directly opened directory collection scopes, the page navigation controls count and select supported images and supported videos together.
 
-The active navigation state has these user-visible invariants: `available` means the current mode exposes a navigable scope; `known` means KiriView has a confirmed current position and total count for the active scope; `editable` means entering a page number can open an item in that same scope. When navigation is unavailable or unknown, the page-number entry is disabled, Previous, Next, First, and Last are disabled, and KiriView does not display a stale current/count pair. When navigation is known, the current number is within `1..total`, the total count is at least 1, previous and next availability match whether a previous or next target exists in reading order, and first/last boundary state matches whether the active visible item or spread is at the known start or end of the scope.
+The active navigation state has these user-visible invariants: `available` means the current mode exposes a navigable scope; `known` means KiriView has a confirmed selected position and total count for the active scope; `editable` means entering a page number can open an item in that same scope. When navigation is unavailable or unknown, the page-number entry is disabled, Previous, Next, First, and Last placements are disabled, and KiriView does not display a stale current/count pair. When navigation is known, the current number is within `1..total`, the total count is at least 1, and navigation availability and boundary state are derived from the newest accepted selection and any confirmed spread it represents rather than from a previously committed presentation.
 
-For image-mode scopes, page controls account for spread-aware display: the visible item may cover a first and last visible page, and Previous, Next, First, and Last availability follow those visible spread boundaries rather than a single raw page number.
+For image-mode scopes, page controls account for spread-aware display: a committed spread may cover a first and last page, and Previous, Next, First, and Last availability follow the selected target's confirmed spread boundaries rather than a single raw page number. While pairing for a pending target is not yet known, controls must not reuse stale boundaries from the previous spread.
 
 ### Toolbar Page Controls
 
@@ -188,13 +188,7 @@ In an ordinary direct media URL scope, direct videos act as navigation positions
 
 This background work must not change what is displayed until the user opens an adjacent image.
 
-When users select another image in the current active navigation scope, KiriView may reprioritize background loading around the newly selected target before that image is displayed.
-
-When Two-Page Spread shows two pages, both the current primary page and the visible secondary page are treated as displayed images for this background work.
-
-When users move quickly through pages, KiriView may briefly postpone this background work and then prioritize pages around the page where navigation settles, rather than every skipped page.
-
-Directly opened archive and directory collections may make more pages available in the current reading direction than ordinary image navigation. Opened collection video items are positions for navigation and background-loading planning, but KiriView prepares only nearby supported images and does not prepare video frames for image-style quick navigation.
+Background preparation follows the newest accepted navigation selection and may account for both pages of a visible spread. Videos remain navigation positions but are not prepared as still-image replacements.
 
 When the desktop Power Saver mode is enabled, KiriView does not newly schedule or run background work for adjacent pages.
 

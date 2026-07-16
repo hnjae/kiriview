@@ -40,4 +40,4 @@ When active navigation is unavailable or unknown, the toolbar page navigation re
 
 The toolbar page navigation arrow buttons keep their physical affordance. The left arrow button triggers Previous in Left-to-Right Reading mode and Next in Right-to-Left Reading mode. The right arrow button triggers Next in Left-to-Right Reading mode and Previous in Right-to-Left Reading mode. Each button's tooltip and accessible text follow the action that button triggers.
 
-The toolbar page navigation arrow buttons, page-number entry, shared Previous, Next, First, and Last actions, menus, and shortcuts all target the same active navigation scope and share the same enabled state.
+The toolbar page navigation arrow buttons, page-number entry, shared Previous, Next, First, and Last actions, menus, and shortcuts all target the same active navigation scope. Visible placements share the scope's enabled state; configured and fixed viewer-navigation shortcuts may still request a command at a known boundary so KiriView can provide the documented boundary feedback.

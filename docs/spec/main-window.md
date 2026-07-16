@@ -59,7 +59,3 @@ Leaving fullscreen restores the window's previous windowed, maximized, or minimi
 ## Video Playback Panel
 
 Video mode shows a video viewport with playback controls governed by [Video Playback](video-playback.md#playback).
-
-The main-window layout treats floating playback controls as a viewport overlay that does not reserve page layout height. Fixed-bottom playback controls follow the compact presentation rules in the video playback contract.
-
-Playback controls remain usable in fullscreen.

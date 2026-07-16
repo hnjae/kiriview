@@ -36,15 +36,13 @@ Rust may compute navigation, thumbnail, predecode, or deletion policy from candi
 
 ## Thumbnail Demand Window Boundary
 
-The active-navigation thumbnail demand window is submitted as one immutable value and owned by the C++ active-navigation thumbnail scheduler after acceptance. The document-session thumbnail runtime composes the scheduler's coordinator interpreter with the active-navigation thumbnail row store and job executor. No layer exposes a begin/report/finish transaction or retains a partially submitted window.
+The active-navigation thumbnail demand window is submitted as one immutable, generation-scoped value and owned by the C++ thumbnail runtime after acceptance. No layer exposes a partial begin/report/finish transaction or retains a partially submitted window.
 
-QML may report which projected rows are visible in the strip viewport, which instantiated rows are nearby the viewport or reveal target, each reported row's physical thumbnail size, and the active thumbnail navigation generation. QML must not accumulate demand history, expire demand, choose background-fill rows, schedule thumbnail work, or retain row readiness independently of the runtime.
+QML may report visible and nearby projected rows, their physical thumbnail size, the selected row, and the active thumbnail navigation generation. QML must not accumulate demand history, expire demand, choose background work, schedule thumbnail jobs, or retain row readiness independently.
 
-Visible demand, nearby demand, and the current user-selected row are distinct priority inputs over the same confirmed thumbnail row set. Visible rows and the current selected row are foreground demand and may run in parallel. Nearby rows are prefetch demand around the viewport or reveal target, may run in parallel with each other, and are admitted only after foreground work is no longer pending or active. Rows outside the latest visible, nearby, and selected demand window are not foreground demand.
+The runtime validates the complete window before mutation and rejects malformed, mixed-generation, duplicate, or unknown-row facts atomically. Demand expiration, priority, admission, cancellation, background filling, result retention, and completion acceptance follow [Thumbnail Source Adapters](thumbnail-source-adapters.md#demand-and-scheduling).
 
-Demand facts are scoped to active thumbnail row identity, thumbnail navigation generation, source key, demand bucket, and accepted snapshot epoch. The complete snapshot is validated before source planning or state mutation; any malformed, mixed-generation, or unknown-row fact rejects the snapshot without partially replacing committed demand. A visible or nearby demand expires when a newer accepted snapshot no longer contains that row at that priority, when the row source key or thumbnail navigation generation changes, when the requested bucket is superseded, or when the thumbnail row set resets. Completion acceptance still uses the source key, navigation generation, bucket, and active job identity.
-
-Background thumbnail fill is optional idle work owned by the runtime after foreground demand is no longer pending or active. It may progressively fill additional eligible placeholders, but it is not a full-list product guarantee and must not require scanning the complete thumbnail row list on every foreground demand, completion, or model update.
+Background thumbnail fill is optional idle work and is not a full-list product guarantee.
 
 ## Owner Groups
 

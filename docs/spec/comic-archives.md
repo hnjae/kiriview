@@ -4,7 +4,7 @@
 
 When the active navigation scope is a directly opened local CBZ, CBT, CB7, or CBR comic book archive, `S` toggles Two-Page Spread.
 
-Two-Page Spread displays the current page on the left and the next page on the right when both pages are eligible images.
+Two-Page Spread displays the current page and the next page when both pages are eligible images. Their left/right placement follows the active reading direction.
 
 The first archive page is treated as a cover and is always displayed alone.
 
