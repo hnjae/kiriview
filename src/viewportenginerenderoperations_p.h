@@ -1,8 +1,8 @@
 #pragma once
 
-#include "viewportprovidercontract_p.h"
 #include "viewportengineprojection_p.h"
 #include "viewportplaybackcontract_p.h"
+#include "viewportprovidercontract_p.h"
 
 #include <array>
 #include <optional>
@@ -37,6 +37,9 @@ struct ViewportEngineRenderAcknowledgementInput
     bool renderedImagePresent = false;
     quint64 attempt = 0;
     bool pendingTargetCommit = false;
+    bool pendingRefinementCommit = false;
+    bool pendingPrimaryRefinementCommit = false;
+    bool pendingSecondaryRefinementCommit = false;
     bool pendingSecondaryProviderCommit = false;
     ImageViewportInternal::PreparedPayload preparedPayload;
     ImageViewportDisplayStatus oldDisplayStatus = ImageViewportDisplayStatus::Empty;

@@ -18,40 +18,48 @@ inline PreparedPayloadIdentity acknowledgedPayload(
     const ViewportRenderAcknowledgement& acknowledgement, ImageViewportPageRole role)
 {
     for (const auto& payload : acknowledgement.rolePayloads)
-        if (payload.role == role) return payload.preparedPayload;
+        if (payload.role == role)
+            return payload.preparedPayload;
     return {};
 }
 inline PreparedPayloadIdentity expectedPayload(
     const DisplayState& display, const RequestState& request, ImageViewportPageRole role)
 {
-    if (role == ImageViewportPageRole::Primary) return display.roles[0].pendingRenderPayload.identity();
-    if (!hasSecondary(request)) return {};
-    const auto secondary = display.roles[1].pendingRenderPayload.identity();
-    return secondary.isValid() ? secondary : display.roles[0].pendingRenderPayload.identity();
+    const auto index = role == ImageViewportPageRole::Secondary ? 1U : 0U;
+    if (display.roles[index].pendingRenderPayload.commitPending)
+        return display.roles[index].pendingRenderPayload.identity();
+    if (role == ImageViewportPageRole::Primary)
+        return display.roles[0].displayedPayload.identity();
+    if (!hasSecondary(request))
+        return {};
+    return display.roles[1].displayedPayload.identity();
 }
 inline bool primaryMatches(const DisplayState& display, const RequestState& request,
     const ViewportRenderAcknowledgement& acknowledgement)
 {
     const auto actual = acknowledgedPayload(acknowledgement, ImageViewportPageRole::Primary);
-    return display.roles[0].pendingRenderPayload.commitPending
-        && payloadMatches(actual, display.roles[0].pendingRenderPayload.identity())
+    return payloadMatches(actual, expectedPayload(display, request, ImageViewportPageRole::Primary))
         && request.activeRequestOwnsPreparedPayload(actual);
 }
 inline bool completeMatches(const DisplayState& display, const RequestState& request,
     const ViewportRenderAcknowledgement& acknowledgement)
 {
     return primaryMatches(display, request, acknowledgement)
-        && (!hasSecondary(request) || payloadMatches(
-            acknowledgedPayload(acknowledgement, ImageViewportPageRole::Secondary),
-            expectedPayload(display, request, ImageViewportPageRole::Secondary)));
+        && (!hasSecondary(request)
+            || payloadMatches(
+                acknowledgedPayload(acknowledgement, ImageViewportPageRole::Secondary),
+                expectedPayload(display, request, ImageViewportPageRole::Secondary)));
 }
 inline bool failureMatches(const DisplayState& display, const RequestState& request,
     const ViewportRenderAcknowledgement& acknowledgement)
 {
-    if (acknowledgement.failedRole == ImageViewportPageRole::Primary)
-        return primaryMatches(display, request, acknowledgement);
-    return hasSecondary(request)
-        && payloadMatches(acknowledgedPayload(acknowledgement, acknowledgement.failedRole),
-            expectedPayload(display, request, acknowledgement.failedRole));
+    const auto index = acknowledgement.failedRole == ImageViewportPageRole::Secondary ? 1U : 0U;
+    const auto& pending = display.roles[index].pendingRenderPayload;
+    if (!pending.commitPending
+        || !payloadMatches(
+            acknowledgedPayload(acknowledgement, acknowledgement.failedRole), pending.identity()))
+        return false;
+    return acknowledgement.failedRole != ImageViewportPageRole::Primary
+        || request.activeRequestOwnsPreparedPayload(pending.identity());
 }
 }

@@ -38,6 +38,9 @@ ViewportProviderFrameTransportEffect closeViewportEngineProviderSession(
     access.m_session.sessionActive = false;
     access.m_requests.activeMetadataToken = {};
     access.m_requests.activeFrameToken = {};
+    access.m_requests.activeFrameRefinement = false;
+    access.m_requests.hasLastFrameDemand = false;
+    access.m_requests.lastFrameDemand = {};
     access.m_requests.nextRequestToken = 0;
     return effect;
 }
@@ -46,6 +49,5 @@ bool acceptsViewportEngineProviderSessionEvent(ViewportEngineProviderSessionAdmi
     ViewportEngineProviderSessionAdmissionAccess access)
 {
     return input.generation != 0 && input.generation == access.m_currentGeneration
-        && access.m_session.sessionActive
-        && access.m_session.sessionSerial == input.sessionSerial;
+        && access.m_session.sessionActive && access.m_session.sessionSerial == input.sessionSerial;
 }

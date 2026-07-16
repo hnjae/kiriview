@@ -132,14 +132,27 @@ ViewportEngineRenderCoordinationState::AttemptContext synchronizeViewportEngineR
     result.pendingTargetCommit = !terminalSealed(access.request())
         && waitingForRender(access.request())
         && pendingSpreadReady(access.display(), access.request()) && !input.itemBounds.isEmpty();
+    result.pendingPrimaryRefinementCommit = !result.pendingTargetCommit
+        && access.request().status == ImageViewportRequestStatus::Ready
+        && access.display().status == ImageViewportDisplayStatus::Ready
+        && access.display().roles[0].pendingRenderPayload.commitPending
+        && !access.display().roles[0].pendingRenderPayload.image.isNull();
+    result.pendingSecondaryRefinementCommit = !result.pendingTargetCommit
+        && hasSecondary(access.request())
+        && access.request().status == ImageViewportRequestStatus::Ready
+        && access.display().status == ImageViewportDisplayStatus::Ready
+        && access.display().roles[1].pendingRenderPayload.commitPending
+        && !access.display().roles[1].pendingRenderPayload.image.isNull();
+    result.pendingRefinementCommit
+        = (result.pendingPrimaryRefinementCommit || result.pendingSecondaryRefinementCommit)
+        && !input.itemBounds.isEmpty();
     result.pendingSecondaryProviderCommit = result.pendingTargetCommit
         && hasSecondary(access.request()) && access.request().roles[1].provider
         && !access.display().roles[1].pendingRenderPayload.image.isNull();
-    if (result.pendingTargetCommit)
+    if (result.pendingTargetCommit || result.pendingPrimaryRefinementCommit)
         result.preparedPayload = access.display().roles[0].pendingRenderPayload;
-    else if (access.display().roles[0].pendingRenderPayload.commitPending
-        && access.display().hasReadyDisplay(access.request().roles[0].source.facts.present)) {
-        result.preparedPayload = access.display().roles[0].pendingRenderPayload;
+    else if (access.display().hasReadyDisplay(access.request().roles[0].source.facts.present)) {
+        result.preparedPayload = access.display().roles[0].displayedPayload;
         result.preparedPayload.image = access.display().roles[0].displayedImage;
     }
     result.geometryState = projectViewportGeometryState(
@@ -190,11 +203,30 @@ ViewportEngineRenderCommitReduction reduceViewportEngineRenderCommit(
         access.display().roles[1].displayedImageSize
             = providerFor(access.providerFacts(), ImageViewportPageRole::Secondary).logicalSize;
     }
+    if (input.pendingRefinementCommit) {
+        for (const auto role :
+            { ImageViewportPageRole::Primary, ImageViewportPageRole::Secondary }) {
+            const auto index = role == ImageViewportPageRole::Secondary ? 1U : 0U;
+            const bool candidate = role == ImageViewportPageRole::Primary
+                ? input.pendingPrimaryRefinementCommit
+                : input.pendingSecondaryRefinementCommit;
+            if (!candidate)
+                continue;
+            auto& shown = access.display().roles[index];
+            shown.displayedImage = shown.pendingRenderPayload.image;
+            shown.displayedPayload = shown.pendingRenderPayload;
+            shown.displayedImageSize = providerFor(access.providerFacts(), role).logicalSize;
+            shown.displayedRequest.generation = access.request().sequenceGeneration;
+            shown.displayedRequest.request = access.request().roles[index].activeRequest;
+        }
+    }
     const bool resume = access.playback().phase == ImageViewportPlaybackPhase::Waiting
         && access.request().status == ImageViewportRequestStatus::Ready;
-    access.display().commitDisplayedRequestSnapshot(access.request().sequenceGeneration,
-        access.request().roles[0].activeRequest,
-        access.display().roles[0].pendingRenderPayload.payloadId);
+    if (input.pendingTargetCommit) {
+        access.display().commitDisplayedRequestSnapshot(access.request().sequenceGeneration,
+            access.request().roles[0].activeRequest,
+            access.display().roles[0].pendingRenderPayload.payloadId);
+    }
     access.display().clearPendingRenderPayload();
     access.display().clearRenderFailureRetainedDisplay();
     if (resume) {
@@ -214,6 +246,10 @@ ViewportEngineRenderCommitReduction reduceViewportEngineRenderCommit(
             || rectsDifferExactly(PresentationGeometry::visibleImageRect(input.geometryState),
                 input.oldVisibleImageRect);
     }
+    if (input.pendingRefinementCommit) {
+        changes.displayRevision = true;
+        changes.scheduleUpdate = true;
+    }
     return result;
 }
 
@@ -223,10 +259,27 @@ ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
     using namespace ImageViewportInternal;
     ViewportEngineRenderFailureReduction result;
     auto& changes = result.changes;
+    if (input.pendingRefinementCommit && input.acknowledgement.attempt == input.attempt) {
+        const auto index
+            = input.acknowledgement.failedRole == ImageViewportPageRole::Secondary ? 1U : 0U;
+        const bool failedRoleIsCandidate = index == 0U ? input.pendingPrimaryRefinementCommit
+                                                       : input.pendingSecondaryRefinementCommit;
+        if (failedRoleIsCandidate) {
+            access.display().roles[index].pendingRenderPayload = {};
+        } else {
+            if (input.pendingPrimaryRefinementCommit)
+                access.display().roles[0].pendingRenderPayload = {};
+            if (input.pendingSecondaryRefinementCommit)
+                access.display().roles[1].pendingRenderPayload = {};
+        }
+        const bool siblingPending
+            = access.display().roles[1U - index].pendingRenderPayload.commitPending;
+        changes.scheduleUpdate = siblingPending;
+        return result;
+    }
     const bool pending = waitingForRender(access.request())
         && pendingSpreadReady(access.display(), access.request());
-    if (terminalSealed(access.request())
-        || input.acknowledgement.attempt != input.attempt
+    if (terminalSealed(access.request()) || input.acknowledgement.attempt != input.attempt
         || !ViewportEngineRenderAcknowledgement::failureMatches(
             access.display(), access.request(), input.acknowledgement)
         || (access.display().status != ImageViewportDisplayStatus::Ready && !pending)) {
@@ -249,9 +302,9 @@ ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
     const auto oldStatus = access.display().status;
     const auto failed = ViewportEngineRenderAcknowledgement::acknowledgedPayload(
         input.acknowledgement, input.acknowledgement.failedRole);
-    result.diagnostic = { true, input.acknowledgement.failedRole, failed.generation,
-        failed.requestId, failed.payloadId, input.acknowledgement.failureCause,
-        input.acknowledgement.attempt };
+    result.diagnostic
+        = { true, input.acknowledgement.failedRole, failed.generation, failed.requestId,
+              failed.payloadId, input.acknowledgement.failureCause, input.acknowledgement.attempt };
     access.request().lastAcceptedRenderFailure = result.diagnostic;
     changes.renderFailureDiagnostic = result.diagnostic;
     access.display().clearPendingRenderPayload();
@@ -296,8 +349,8 @@ ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
     changes.geometryState
         = rectsDifferExactly(
               PresentationGeometry::contentRect(input.geometryState), input.oldContentRect)
-        || rectsDifferExactly(PresentationGeometry::visibleImageRect(input.geometryState),
-            input.oldVisibleImageRect);
+        || rectsDifferExactly(
+            PresentationGeometry::visibleImageRect(input.geometryState), input.oldVisibleImageRect);
     return result;
 }
 

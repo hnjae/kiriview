@@ -11,7 +11,14 @@ ImageSequenceProviderDisplayDemand projectViewportProviderDemand(
     const auto& request = access.request().roles[index].activeRequest;
     const auto& source = access.request().roles[index].source;
     const auto& provider = access.providerFacts()[index];
-    const auto& payload = access.display().roles[index].displayedPayload;
+    const auto& displayedRole = access.display().roles[index];
+    const bool payloadMatchesTarget
+        = displayedRole.displayedRequest.generation == access.request().sequenceGeneration
+        && displayedRole.displayedRequest.request.resolvedFrame.frame == request.resolvedFrame.frame
+        && displayedRole.displayedRequest.request.resolvedFrame.position
+            == request.resolvedFrame.position;
+    const PreparedPayload payload
+        = payloadMatchesTarget ? displayedRole.displayedPayload : PreparedPayload {};
     QSizeF logicalSize = provider.logicalSize;
     if (logicalSize.isEmpty())
         logicalSize = sourceLogicalSize(source);

@@ -25,6 +25,26 @@ void clearQueue(ProviderRequestState& requests)
     requests.queuedFrameTargetKind = ProviderRequestTargetKind::Unknown;
 }
 
+bool sameSelectionDemand(
+    const ImageSequenceProviderDisplayDemand& lhs, const ImageSequenceProviderDisplayDemand& rhs)
+{
+    return lhs.role() == rhs.role() && lhs.resolvedFrame() == rhs.resolvedFrame()
+        && lhs.requestedPosition() == rhs.requestedPosition()
+        && lhs.sourceLogicalSize() == rhs.sourceLogicalSize()
+        && lhs.visibleSourceRect() == rhs.visibleSourceRect()
+        && lhs.targetDisplaySizePixels() == rhs.targetDisplaySizePixels()
+        && lhs.effectiveDevicePixelRatio() == rhs.effectiveDevicePixelRatio()
+        && lhs.rotationDegrees() == rhs.rotationDegrees()
+        && lhs.mirrorHorizontally() == rhs.mirrorHorizontally()
+        && lhs.mirrorVertically() == rhs.mirrorVertically()
+        && lhs.qualityPreference() == rhs.qualityPreference()
+        && lhs.exactnessPreference() == rhs.exactnessPreference()
+        && lhs.maximumTextureSize() == rhs.maximumTextureSize()
+        && lhs.maximumPayloadBytes() == rhs.maximumPayloadBytes()
+        && lhs.displayByteBudget() == rhs.displayByteBudget()
+        && lhs.allocationGeneration() == rhs.allocationGeneration();
+}
+
 struct RequestContext
 {
     RequestState& request;
@@ -57,6 +77,7 @@ ViewportProviderFrameRequestStartResult startFrameRequest(RequestContext context
     result.closeSession = allocation.closeSession;
     result.sessionClose = allocation.sessionClose;
     provider.requests.activeFrameToken = allocation.token;
+    provider.requests.activeFrameRefinement = false;
     if (!provider.requests.activeFrameToken.isValid()) {
         return result;
     }
@@ -83,6 +104,37 @@ ViewportProviderFrameRequestStartResult startFrameRequest(RequestContext context
     result.command.position = active.target.position;
     result.command.targetKind = active.target.providerTargetKind;
     result.command.demand = demand(role, geometry);
+    provider.requests.lastFrameDemand = result.command.demand;
+    provider.requests.hasLastFrameDemand = true;
+    return result;
+}
+
+template <typename Allocate, typename Demand>
+ViewportProviderFrameRequestStartResult startRefinementRequest(RequestContext context,
+    ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry, Allocate allocate,
+    Demand demand)
+{
+    ViewportProviderFrameRequestStartResult result;
+    const auto index = role == ImageViewportPageRole::Secondary ? 1U : 0U;
+    auto& provider = context.roles[index].provider;
+    auto& active = requestForRole(context.request, role);
+    const auto allocation = allocate(role);
+    result.closeSession = allocation.closeSession;
+    result.sessionClose = allocation.sessionClose;
+    provider.requests.activeFrameToken = allocation.token;
+    provider.requests.activeFrameRefinement = allocation.token.isValid();
+    if (!allocation.token.isValid())
+        return result;
+    active.providerFrameToken = allocation.token;
+    result.accepted = true;
+    result.sendCommand = provider.session.sessionActive;
+    result.command.token = allocation.token;
+    result.command.frame = active.resolvedFrame.frame;
+    result.command.position = active.target.position;
+    result.command.targetKind = ProviderRequestTargetKind::Frame;
+    result.command.demand = demand(role, geometry);
+    provider.requests.lastFrameDemand = result.command.demand;
+    provider.requests.hasLastFrameDemand = true;
     return result;
 }
 
@@ -221,20 +273,52 @@ std::array<ViewportProviderFrameTransportEffect, 2> reduceViewportEngineProvider
             ? access.m_request.roles[0].source.facts.provider
             : access.m_request.roles[1].sequence && access.m_request.roles[1].provider;
         if (!present || !provider.session.sessionActive || !provider.facts.metadataReady
-            || !provider.requests.activeFrameToken.isValid() || request.identity.id == 0
-            || request.resolvedFrame.frame < 0) {
+            || request.identity.id == 0 || request.resolvedFrame.frame < 0) {
             continue;
         }
+        const auto previousRevision = request.demandRevision;
+        const auto projected = access.demand(role, input.geometry);
+        if (provider.requests.hasLastFrameDemand
+            && sameSelectionDemand(projected, provider.requests.lastFrameDemand)) {
+            request.demandRevision = previousRevision;
+            continue;
+        }
+        if (!provider.requests.activeFrameToken.isValid()
+            && access.m_request.status != ImageViewportRequestStatus::Ready) {
+            request.demandRevision = previousRevision;
+            continue;
+        }
+        const bool ordinaryRequestActive = provider.requests.activeFrameToken.isValid()
+            && !provider.requests.activeFrameRefinement;
         effects[index].cancelToken = provider.requests.activeFrameToken;
         provider.requests.activeFrameToken = {};
+        provider.requests.activeFrameRefinement = false;
         request.providerFrameToken = {};
-        const auto start = startFrameRequest(
-            { access.m_request, access.m_display, access.m_roles }, role, request.target,
-            input.geometry,
-            [&access](ImageViewportPageRole selected) { return access.allocate(selected); },
-            [&access](ImageViewportPageRole selected, const ViewportEngineGeometryInput& geometry) {
-                return access.demand(selected, geometry);
-            });
+        access.m_display.roles[index].pendingRenderPayload = {};
+        const bool committedTarget = access.m_request.status == ImageViewportRequestStatus::Ready
+            && access.m_display.status == ImageViewportDisplayStatus::Ready
+            && access.m_display.roles[index].displayedRequest.generation
+                == access.m_request.sequenceGeneration
+            && access.m_display.roles[index].displayedRequest.request.resolvedFrame.frame
+                == request.resolvedFrame.frame
+            && access.m_display.roles[index].displayedRequest.request.resolvedFrame.position
+                == request.resolvedFrame.position;
+        const auto start = ordinaryRequestActive || !committedTarget
+            ? startFrameRequest(
+                  { access.m_request, access.m_display, access.m_roles }, role, request.target,
+                  input.geometry,
+                  [&access](ImageViewportPageRole selected) { return access.allocate(selected); },
+                  [&access](
+                      ImageViewportPageRole selected, const ViewportEngineGeometryInput& geometry) {
+                      return access.demand(selected, geometry);
+                  })
+            : startRefinementRequest(
+                  { access.m_request, access.m_display, access.m_roles }, role, input.geometry,
+                  [&access](ImageViewportPageRole selected) { return access.allocate(selected); },
+                  [&access](
+                      ImageViewportPageRole selected, const ViewportEngineGeometryInput& geometry) {
+                      return access.demand(selected, geometry);
+                  });
         effects[index].closeSession = start.closeSession;
         effects[index].sessionClose = start.sessionClose;
         effects[index].sendCommand = start.sendCommand;

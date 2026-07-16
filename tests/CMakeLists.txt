@@ -84,6 +84,8 @@ add_imageviewport_qt_test(imageviewport_provider_contract tst_imageviewport_prov
 add_imageviewport_qt_test(imageviewport_provider_lifecycle tst_imageviewport_provider_lifecycle.cpp)
 add_imageviewport_qt_test(imageviewport_provider_metadata tst_imageviewport_provider_metadata.cpp)
 add_imageviewport_qt_test(imageviewport_provider_requests tst_imageviewport_provider_requests.cpp)
+add_imageviewport_qt_test(imageviewport_provider_refinement
+                          tst_imageviewport_provider_refinement.cpp)
 add_imageviewport_qt_test(imageviewport_provider_frame_admission
                           tst_imageviewport_provider_frame_admission.cpp)
 add_imageviewport_qt_test(imageviewport_provider_terminal tst_imageviewport_provider_terminal.cpp)

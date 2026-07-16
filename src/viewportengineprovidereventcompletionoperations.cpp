@@ -78,6 +78,8 @@ ViewportEngineProviderWaitingReduction reduceViewportEngineProviderWaiting(
     const auto& r = requestFor(a.m_request, in.role);
     bool ft = a.m_requests.activeFrameToken.isValid() && in.token == a.m_requests.activeFrameToken
         && in.token == r.providerFrameToken;
+    if (ft && a.m_requests.activeFrameRefinement)
+        return out;
     if ((!mt && !ft) || a.m_request.status != ImageViewportRequestStatus::Loading
         || a.m_request.reason == ImageViewportRequestReason::ProviderWaiting)
         return out;
@@ -131,6 +133,7 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
             p.requests.activeMetadataToken = {};
         if (ft)
             p.requests.activeFrameToken = {};
+        p.requests.activeFrameRefinement = false;
         a.m_playback.providerStartPending = false;
         a.m_playback.stopWhenRequestReady = false;
         out.changes = a.recordTerminal({ in.role, ImageViewportRequestStatus::Error,
@@ -142,6 +145,7 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
         return out;
     }
     p.requests.activeFrameToken = {};
+    p.requests.activeFrameRefinement = false;
     bool dc = a.m_request.clearDiagnostics();
     bool loop = loops(a.m_playback, p.facts.authoredAnimationFacts);
     int frame = loop ? 0 : p.facts.timingIntervals.frameCount() - 1;

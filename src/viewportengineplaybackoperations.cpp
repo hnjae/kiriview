@@ -233,6 +233,7 @@ ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
         && playback.phase != ImageViewportPlaybackPhase::Stopped && playback.role == input.role) {
         result.providerFrameTransport[index].cancelToken = provider.requests.activeFrameToken;
         provider.requests.activeFrameToken = {};
+        provider.requests.activeFrameRefinement = false;
         roleState.activeRequest.providerFrameToken = {};
     }
 
@@ -327,6 +328,7 @@ ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
             return;
         }
         provider.requests.activeFrameToken = allocation.token;
+        provider.requests.activeFrameRefinement = false;
         roleState.activeRequest.providerFrameToken = allocation.token;
         effect.sendCommand = provider.session.sessionActive;
         effect.command.token = allocation.token;
@@ -334,6 +336,8 @@ ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
         effect.command.position = roleState.activeRequest.target.position;
         effect.command.targetKind = roleState.activeRequest.target.providerTargetKind;
         effect.command.demand = access.providerDemand(input.role, input.geometry);
+        provider.requests.lastFrameDemand = effect.command.demand;
+        provider.requests.hasLastFrameDemand = true;
         request.status = ImageViewportRequestStatus::Loading;
         request.reason = ImageViewportRequestReason::ProviderWaiting;
         display.status = display.roles[0].displayedImageSize.isValid()
@@ -543,6 +547,13 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
     auto dispatchProvider = [&]() {
         auto& effect = result.providerFrameTransport[index];
         auto& active = roleState.activeRequest;
+        if (provider.requests.activeFrameToken.isValid()
+            && provider.requests.activeFrameRefinement) {
+            effect.cancelToken = provider.requests.activeFrameToken;
+            provider.requests.activeFrameToken = {};
+            provider.requests.activeFrameRefinement = false;
+            active.providerFrameToken = {};
+        }
         if (provider.requests.activeFrameToken.isValid()) {
             TargetSpreadWaitState wait;
             if (input.role == ImageViewportPageRole::Secondary) {
@@ -564,6 +575,7 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
                 effect.cancelToken = provider.requests.activeFrameToken;
             }
             provider.requests.activeFrameToken = {};
+            provider.requests.activeFrameRefinement = false;
             active.providerFrameToken = {};
             provider.requests.queuedFrameRequest = true;
             provider.requests.queuedFrameGeneration = request.sequenceGeneration;
@@ -585,6 +597,7 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
             return;
         }
         provider.requests.activeFrameToken = allocation.token;
+        provider.requests.activeFrameRefinement = false;
         active.providerFrameToken = allocation.token;
         effect.sendCommand = provider.session.sessionActive;
         effect.command.token = allocation.token;
@@ -592,6 +605,8 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
         effect.command.position = active.target.position;
         effect.command.targetKind = active.target.providerTargetKind;
         effect.command.demand = access.providerDemand(input.role, input.geometry);
+        provider.requests.lastFrameDemand = effect.command.demand;
+        provider.requests.hasLastFrameDemand = true;
         request.status = ImageViewportRequestStatus::Loading;
         request.reason = ImageViewportRequestReason::ProviderWaiting;
         display.status = display.roles[0].displayedImageSize.isValid()
@@ -715,6 +730,13 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
     auto dispatchProvider = [&]() {
         auto& effect = result.providerFrameTransport[index];
         auto& active = roleState.activeRequest;
+        if (provider.requests.activeFrameToken.isValid()
+            && provider.requests.activeFrameRefinement) {
+            effect.cancelToken = provider.requests.activeFrameToken;
+            provider.requests.activeFrameToken = {};
+            provider.requests.activeFrameRefinement = false;
+            active.providerFrameToken = {};
+        }
         if (provider.requests.activeFrameToken.isValid()) {
             TargetSpreadWaitState wait;
             if (input.role == ImageViewportPageRole::Secondary) {
@@ -736,6 +758,7 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
                 effect.cancelToken = provider.requests.activeFrameToken;
             }
             provider.requests.activeFrameToken = {};
+            provider.requests.activeFrameRefinement = false;
             active.providerFrameToken = {};
             provider.requests.queuedFrameRequest = true;
             provider.requests.queuedFrameGeneration = request.sequenceGeneration;
@@ -757,6 +780,7 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
             return;
         }
         provider.requests.activeFrameToken = allocation.token;
+        provider.requests.activeFrameRefinement = false;
         active.providerFrameToken = allocation.token;
         effect.sendCommand = provider.session.sessionActive;
         effect.command.token = allocation.token;
@@ -764,6 +788,8 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
         effect.command.position = active.target.position;
         effect.command.targetKind = active.target.providerTargetKind;
         effect.command.demand = access.providerDemand(input.role, input.geometry);
+        provider.requests.lastFrameDemand = effect.command.demand;
+        provider.requests.hasLastFrameDemand = true;
         request.status = ImageViewportRequestStatus::Loading;
         request.reason = ImageViewportRequestReason::ProviderWaiting;
         display.status = display.roles[0].displayedImageSize.isValid()
@@ -784,6 +810,7 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
         if (provider.requests.activeFrameToken.isValid()) {
             result.providerFrameTransport[index].cancelToken = provider.requests.activeFrameToken;
             provider.requests.activeFrameToken = {};
+            provider.requests.activeFrameRefinement = false;
         }
         if (input.role == ImageViewportPageRole::Primary) {
             beginRoleRequest(input.role, DisplayRequestOrigin::Playback,
@@ -962,6 +989,7 @@ ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
                 effect.cancelToken = provider.requests.activeFrameToken;
             }
             provider.requests.activeFrameToken = {};
+            provider.requests.activeFrameRefinement = false;
             active.providerFrameToken = {};
             provider.requests.queuedFrameRequest = true;
             provider.requests.queuedFrameGeneration = request.sequenceGeneration;
@@ -982,6 +1010,7 @@ ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
                 acceptedDispatch = false;
             } else {
                 provider.requests.activeFrameToken = allocation.token;
+                provider.requests.activeFrameRefinement = false;
                 active.providerFrameToken = allocation.token;
                 effect.sendCommand = provider.session.sessionActive;
                 effect.command.token = allocation.token;
@@ -989,6 +1018,8 @@ ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
                 effect.command.position = active.target.position;
                 effect.command.targetKind = active.target.providerTargetKind;
                 effect.command.demand = access.providerDemand(role, input.geometry);
+                provider.requests.lastFrameDemand = effect.command.demand;
+                provider.requests.hasLastFrameDemand = true;
                 request.status = ImageViewportRequestStatus::Loading;
                 request.reason = ImageViewportRequestReason::ProviderWaiting;
                 display.status = display.roles[0].displayedImageSize.isValid()

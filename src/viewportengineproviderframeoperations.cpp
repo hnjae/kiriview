@@ -1,8 +1,8 @@
 #include "viewportengineproviderframeoperations_p.h"
 
+#include "imageviewporttoken_p.h"
 #include "presentationgeometry_p.h"
 #include "viewportengineprojection_p.h"
-#include "imageviewporttoken_p.h"
 
 namespace {
 using namespace ImageViewportInternal;
@@ -56,11 +56,14 @@ bool displayedPrimaryPayloadMatchesActiveTarget(
 
 FramePreparation::ProviderFrameState preparationState(const RequestState& request,
     const DisplayState& display, const ProviderRoleState& provider,
-    const PresentationState& presentation, ImageViewportPageRole role)
+    const PresentationState& presentation, ImageViewportPageRole role, bool refinement)
 {
     const auto& active = requestForRole(request, role);
-    PreparedPayload preparedPayload = display.roles[0].pendingRenderPayload;
-    if (role == ImageViewportPageRole::Primary && !preparedPayload.identity().isValid()) {
+    const auto index = role == ImageViewportPageRole::Secondary ? 1U : 0U;
+    PreparedPayload preparedPayload = refinement ? display.roles[index].pendingRenderPayload
+                                                 : display.roles[0].pendingRenderPayload;
+    if ((refinement || role == ImageViewportPageRole::Primary)
+        && !preparedPayload.identity().isValid()) {
         preparedPayload.generation = request.sequenceGeneration;
         preparedPayload.requestId = active.identity.id;
         preparedPayload.payloadId
@@ -142,10 +145,8 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         observation.identity.roleValid = true;
         observation.identity.role = input.role;
         observation.identity.generation = access.m_request.sequenceGeneration;
-        observation.identity.requestId
-            = requestForRole(access.m_request, input.role).identity.id;
-        observation.identity.providerToken
-            = ProviderRequestTokenPrivateAccess::value(input.token);
+        observation.identity.requestId = requestForRole(access.m_request, input.role).identity.id;
+        observation.identity.providerToken = ProviderRequestTokenPrivateAccess::value(input.token);
         observation.identity.demandRevision = RevisionTokenPrivateAccess::value(
             requestForRole(access.m_request, input.role).demandRevision);
         observation.identity.providerLeaseId = input.providerFrameLeaseId;
@@ -153,7 +154,9 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         return result;
     }
 
-    if (input.role == ImageViewportPageRole::Secondary) {
+    const bool refinement = access.m_provider.requests.activeFrameRefinement;
+
+    if (input.role == ImageViewportPageRole::Secondary && !refinement) {
         auto& preparedPayload = access.m_display.roles[0].pendingRenderPayload;
         auto& primaryRequest = access.m_request.roles[0].activeRequest;
         if (!preparedPayload.identity().isValid()) {
@@ -169,8 +172,8 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         access.m_provider.requests.activeFrameToken = {};
     }
 
-    const auto frameState = preparationState(
-        access.m_request, access.m_display, access.m_provider, access.m_presentation, input.role);
+    const auto frameState = preparationState(access.m_request, access.m_display, access.m_provider,
+        access.m_presentation, input.role, refinement);
     const auto admission
         = FramePreparation::admitProviderFrame(input.frame, input.envelope, frameState);
     if (!admission.accepted()) {
@@ -181,10 +184,8 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         observation.identity.roleValid = true;
         observation.identity.role = input.role;
         observation.identity.generation = access.m_request.sequenceGeneration;
-        observation.identity.requestId
-            = requestForRole(access.m_request, input.role).identity.id;
-        observation.identity.providerToken
-            = ProviderRequestTokenPrivateAccess::value(input.token);
+        observation.identity.requestId = requestForRole(access.m_request, input.role).identity.id;
+        observation.identity.providerToken = ProviderRequestTokenPrivateAccess::value(input.token);
         observation.identity.demandRevision = RevisionTokenPrivateAccess::value(
             requestForRole(access.m_request, input.role).demandRevision);
         observation.identity.providerLeaseId = input.providerFrameLeaseId;
@@ -192,6 +193,10 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         result.observations.append(observation);
         clearQueue(access.m_provider.requests);
         access.m_provider.requests.activeFrameToken = {};
+        access.m_provider.requests.activeFrameRefinement = false;
+        requestForRole(access.m_request, input.role).providerFrameToken = {};
+        if (refinement)
+            return result;
         result.changes = access.recordTerminal({ input.role, admission.status, admission.reason,
             FailureScope::DisplayRequest, admission.diagnostic, result.changes });
         updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
@@ -204,8 +209,20 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
     const auto oldRequestStatus = access.m_request.status;
     const auto oldRequestReason = access.m_request.reason;
     const auto oldGeometry = projectViewportGeometryState(input.geometry, access.m_presentation);
-    const bool diagnosticsChanged = access.m_request.clearDiagnostics();
     access.m_provider.requests.activeFrameToken = {};
+    access.m_provider.requests.activeFrameRefinement = false;
+    requestForRole(access.m_request, input.role).providerFrameToken = {};
+
+    if (refinement) {
+        const auto index = input.role == ImageViewportPageRole::Secondary ? 1U : 0U;
+        admittedPayload.commitPending = true;
+        access.m_display.roles[index].pendingRenderPayload = admittedPayload;
+        requestForRole(access.m_request, input.role).preparedPayloadId = admittedPayload.payloadId;
+        result.changes.scheduleUpdate = true;
+        return result;
+    }
+
+    const bool diagnosticsChanged = access.m_request.clearDiagnostics();
 
     if (input.role == ImageViewportPageRole::Secondary) {
         access.m_display.roles[1].pendingRenderPayload = admittedPayload;

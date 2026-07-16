@@ -66,6 +66,9 @@ struct ViewportEngineRenderCoordinationState
     {
         ViewportRenderAttempt attempt;
         bool pendingTargetCommit = false;
+        bool pendingRefinementCommit = false;
+        bool pendingPrimaryRefinementCommit = false;
+        bool pendingSecondaryRefinementCommit = false;
         bool pendingSecondaryProviderCommit = false;
         ImageViewportInternal::PreparedPayload preparedPayload;
         ImageViewportDisplayStatus oldDisplayStatus = ImageViewportDisplayStatus::Empty;

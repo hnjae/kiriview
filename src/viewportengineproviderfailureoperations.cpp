@@ -20,6 +20,12 @@ const DisplayRequest& requestForRole(const RequestState& request, ImageViewportP
                                                     : request.roles[0].activeRequest;
 }
 
+DisplayRequest& requestForRole(RequestState& request, ImageViewportPageRole role)
+{
+    return role == ImageViewportPageRole::Secondary ? request.roles[1].activeRequest
+                                                    : request.roles[0].activeRequest;
+}
+
 bool providerPresent(const RequestState& request, ImageViewportPageRole role)
 {
     return role == ImageViewportPageRole::Primary ? request.roles[0].source.facts.provider
@@ -129,9 +135,14 @@ ViewportEngineProviderTerminalEventReduction reduceTerminal(TerminalContext cont
         && input.token == context.requests.activeFrameToken
         && input.token == request.providerFrameToken;
     if (frameToken) {
+        const bool refinement = context.requests.activeFrameRefinement;
         const auto terminal = frameTerminal(input);
         clearQueue(context.requests);
         context.requests.activeFrameToken = {};
+        context.requests.activeFrameRefinement = false;
+        requestForRole(context.request, input.role).providerFrameToken = {};
+        if (refinement && !invalidUnsupportedCause(input))
+            return result;
         result.changes = recordTerminal({ input.role, terminal.status, terminal.reason,
             FailureScope::DisplayRequest,
             FramePreparation::boundedDiagnostic(terminal.diagnostic, terminal.fallbackDiagnostic),
@@ -225,6 +236,9 @@ ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderDispatc
             clearQueue(access.m_requests);
             access.m_requests.activeMetadataToken = {};
             access.m_requests.activeFrameToken = {};
+            access.m_requests.activeFrameRefinement = false;
+            access.m_requests.hasLastFrameDemand = false;
+            access.m_requests.lastFrameDemand = {};
             access.m_requests.nextRequestToken = 0;
             return ViewportProviderFrameTransportEffect {};
         });
@@ -246,6 +260,9 @@ ViewportEngineProviderSessionOpenFailureReduction reduceViewportEngineProviderSe
     access.m_session.sessionActive = false;
     access.m_requests.activeMetadataToken = {};
     access.m_requests.activeFrameToken = {};
+    access.m_requests.activeFrameRefinement = false;
+    access.m_requests.hasLastFrameDemand = false;
+    access.m_requests.lastFrameDemand = {};
     result.changes = access.recordTerminal({ input.role, ImageViewportRequestStatus::Error,
         ImageViewportRequestReason::ProviderFailure, FailureScope::Generation, input.diagnostic,
         result.changes });

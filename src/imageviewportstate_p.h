@@ -530,6 +530,9 @@ struct ProviderRequestState
     quint64 nextRequestToken = 0;
     ImageSequenceProviderRequestToken activeMetadataToken;
     ImageSequenceProviderRequestToken activeFrameToken;
+    bool activeFrameRefinement = false;
+    bool hasLastFrameDemand = false;
+    ImageSequenceProviderDisplayDemand lastFrameDemand;
     bool queuedFrameRequest = false;
     quint64 queuedFrameGeneration = 0;
     quint64 queuedFrameRequestId = 0;

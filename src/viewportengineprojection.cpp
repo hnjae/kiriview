@@ -459,7 +459,8 @@ ViewportRenderSnapshot projectViewportRenderSnapshot(
         primary.image = access.display().roles[0].displayedImage;
     }
     auto secondary = primary;
-    if (input.pendingTargetCommit && !access.display().roles[1].pendingRenderPayload.image.isNull())
+    if (access.display().roles[1].pendingRenderPayload.commitPending
+        && !access.display().roles[1].pendingRenderPayload.image.isNull())
         secondary = access.display().roles[1].pendingRenderPayload;
     else
         secondary.image = access.display().roles[1].displayedImage;

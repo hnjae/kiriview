@@ -130,6 +130,9 @@ ViewportEngineRenderHostTransition ViewportEngine::handleRenderHostFact(
         input.fact.imagePresent,
         context.attempt.attempt,
         context.pendingTargetCommit,
+        context.pendingRefinementCommit,
+        context.pendingPrimaryRefinementCommit,
+        context.pendingSecondaryRefinementCommit,
         context.pendingSecondaryProviderCommit,
         context.preparedPayload,
         context.oldDisplayStatus,
@@ -147,7 +150,7 @@ ViewportEngineRenderHostTransition ViewportEngine::handleRenderHostFact(
         result.observations = reduction.observations;
     } else if (input.fact.outcome == ViewportRenderHostFact::Outcome::Committed
         && input.fact.imagePresent
-        && m_state->displayState.display.roles[0].pendingRenderPayload.commitPending) {
+        && (context.pendingTargetCommit || context.pendingRefinementCommit)) {
         auto reduction = reduceViewportEngineRenderCommit(acknowledgementInput,
             { m_state->requestState.request, m_state->displayState.display,
                 m_state->playbackState.playback, providerFactsView() });
