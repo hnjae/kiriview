@@ -4,6 +4,8 @@
 #ifndef KIRIVIEW_VIDEOMEDIABACKEND_H
 #define KIRIVIEW_VIDEOMEDIABACKEND_H
 
+#include "video/videomediaerror.h"
+
 #include <QIODevice>
 #include <QObject>
 #include <QSize>
@@ -28,7 +30,7 @@ enum class VideoMediaStatus {
 struct VideoMediaBackendCallbacks
 {
     std::function<void()> mediaStatusChanged;
-    std::function<void()> errorChanged;
+    std::function<void(VideoMediaError)> errorOccurred;
     std::function<void()> durationChanged;
     std::function<void()> positionChanged;
     std::function<void()> playingChanged;
@@ -59,7 +61,6 @@ public:
     virtual void setVideoOutput(QObject* videoOutput) = 0;
     virtual QObject* videoOutput() const = 0;
     virtual VideoMediaStatus mediaStatus() const = 0;
-    virtual QString errorString() const = 0;
     virtual qint64 duration() const = 0;
     virtual qint64 position() const = 0;
     virtual bool playing() const = 0;

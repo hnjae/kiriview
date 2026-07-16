@@ -64,7 +64,6 @@ public:
     void setVideoOutput(QObject* nextVideoOutput) override { output = nextVideoOutput; }
     QObject* videoOutput() const override { return output.data(); }
     kiriview::VideoMediaStatus mediaStatus() const override { return currentStatus; }
-    QString errorString() const override { return {}; }
     qint64 duration() const override { return 0; }
     qint64 position() const override { return currentPosition; }
     bool playing() const override { return isPlaying; }

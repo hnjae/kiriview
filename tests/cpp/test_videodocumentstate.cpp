@@ -182,6 +182,7 @@ void TestVideoDocumentState::backendFailureStoresTypedFailureAndPublishesUserMes
     kiriview::VideoDocumentState state(
         [&batches](const std::vector<Change>& changes) { batches.push_back(changes); });
     const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/videos/clip.mp4"));
+    const QString userMessage = QStringLiteral("Could not open the selected video.");
     const QString backendError = QStringLiteral("Qt Multimedia backend rejected stream");
 
     state.resetForSourceLoad(sourceUrl);
@@ -189,7 +190,9 @@ void TestVideoDocumentState::backendFailureStoresTypedFailureAndPublishesUserMes
     state.setBackendFailure(kiriview::VideoBackendFailure {
         sourceUrl,
         kiriview::VideoBackendFailureKind::Playback,
-        backendError,
+        kiriview::VideoMediaErrorCategory::Format,
+        2,
+        userMessage,
         backendError,
         kiriview::VideoBackendFailureSeverity::Error,
         false,
@@ -198,12 +201,14 @@ void TestVideoDocumentState::backendFailureStoresTypedFailureAndPublishesUserMes
     QVERIFY(state.backendFailure().has_value());
     QCOMPARE(state.backendFailure()->sourceUrl, sourceUrl);
     QVERIFY(state.backendFailure()->kind == kiriview::VideoBackendFailureKind::Playback);
-    QCOMPARE(state.backendFailure()->userMessage, backendError);
+    QVERIFY(state.backendFailure()->errorCategory == kiriview::VideoMediaErrorCategory::Format);
+    QCOMPARE(state.backendFailure()->rawErrorCode, 2);
+    QCOMPARE(state.backendFailure()->userMessage, userMessage);
     QCOMPARE(state.backendFailure()->diagnosticDetail, backendError);
     QVERIFY(state.backendFailure()->severity == kiriview::VideoBackendFailureSeverity::Error);
     QVERIFY(!state.backendFailure()->retryable);
     QVERIFY(!state.sourceLoadFailure().has_value());
-    QCOMPARE(state.errorString(), backendError);
+    QCOMPARE(state.errorString(), userMessage);
     QCOMPARE(state.status(), kiriview::VideoDocumentStatus::Error);
     compareChanges(batches.front(), { Change::ErrorString, Change::Status });
 
@@ -218,7 +223,9 @@ void TestVideoDocumentState::backendFailureStoresTypedFailureAndPublishesUserMes
     state.setBackendFailure(kiriview::VideoBackendFailure {
         sourceUrl,
         kiriview::VideoBackendFailureKind::Playback,
-        backendError,
+        kiriview::VideoMediaErrorCategory::Format,
+        2,
+        userMessage,
         backendError,
         kiriview::VideoBackendFailureSeverity::Error,
         false,

@@ -3,12 +3,37 @@
 
 #include "video/videodocumentruntime.h"
 
+#include "localization/imageerrortext.h"
 #include "metadata/embeddedmetadata.h"
 #include "video/videodocumentstatusplan.h"
 
+#include <QDebug>
+#include <QLoggingCategory>
 #include <QObject>
 #include <utility>
 #include <variant>
+
+Q_LOGGING_CATEGORY(kiriviewVideoLog, "org.hnjae.kiriview.video", QtWarningMsg)
+
+namespace {
+const char* videoMediaErrorCategoryName(kiriview::VideoMediaErrorCategory category)
+{
+    switch (category) {
+    case kiriview::VideoMediaErrorCategory::Resource:
+        return "Resource";
+    case kiriview::VideoMediaErrorCategory::Format:
+        return "Format";
+    case kiriview::VideoMediaErrorCategory::Network:
+        return "Network";
+    case kiriview::VideoMediaErrorCategory::AccessDenied:
+        return "AccessDenied";
+    case kiriview::VideoMediaErrorCategory::Unknown:
+        return "Unknown";
+    }
+
+    return "Unknown";
+}
+}
 
 namespace kiriview {
 VideoDocumentRuntime::VideoDocumentRuntime(QObject* documentObject, ChangeCallback changeCallback,
@@ -61,7 +86,7 @@ void VideoDocumentRuntime::installMediaBackendCallbacks()
 {
     m_mediaBackend->setCallbacks(VideoMediaBackendCallbacks {
         [this]() { updateStatusFromBackend(); },
-        [this]() { updateErrorFromBackend(); },
+        [this](VideoMediaError error) { updateErrorFromBackend(std::move(error)); },
         [this]() {
             if (playbackCallbacksAccepted()) {
                 m_state.setDuration(m_mediaBackend->duration());
@@ -442,24 +467,28 @@ void VideoDocumentRuntime::updateStatusFromBackend()
     updateZoomPercent();
 }
 
-void VideoDocumentRuntime::updateErrorFromBackend()
+void VideoDocumentRuntime::updateErrorFromBackend(VideoMediaError error)
 {
     if (m_mediaBackend == nullptr || !playbackCallbacksAccepted()) {
         return;
     }
 
-    const QString backendError = m_mediaBackend->errorString();
-    if (!backendError.isEmpty()) {
-        m_state.setBackendFailure(VideoBackendFailure {
-            m_state.sourceUrl(),
-            VideoBackendFailureKind::Playback,
-            backendError,
-            backendError,
-            VideoBackendFailureSeverity::Error,
-            false,
-        });
-        updateZoomPercent();
-    }
+    qCDebug(kiriviewVideoLog).noquote()
+        << "playback backend failure"
+        << "source=" << m_state.sourceUrl()
+        << "category=" << videoMediaErrorCategoryName(error.category)
+        << "code=" << error.rawErrorCode << "detail=" << error.diagnosticDetail;
+    m_state.setBackendFailure(VideoBackendFailure {
+        m_state.sourceUrl(),
+        VideoBackendFailureKind::Playback,
+        error.category,
+        error.rawErrorCode,
+        imageErrorText(ImageErrorTextId::OpenVideo),
+        std::move(error.diagnosticDetail),
+        VideoBackendFailureSeverity::Error,
+        false,
+    });
+    updateZoomPercent();
 }
 
 void VideoDocumentRuntime::updateZoomPercent()

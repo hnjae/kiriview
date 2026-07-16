@@ -4,6 +4,8 @@
 #ifndef KIRIVIEW_VIDEOBACKENDFAILURE_H
 #define KIRIVIEW_VIDEOBACKENDFAILURE_H
 
+#include "video/videomediaerror.h"
+
 #include <QString>
 #include <QUrl>
 
@@ -20,6 +22,8 @@ struct VideoBackendFailure
 {
     QUrl sourceUrl;
     VideoBackendFailureKind kind = VideoBackendFailureKind::Playback;
+    VideoMediaErrorCategory errorCategory = VideoMediaErrorCategory::Unknown;
+    int rawErrorCode = 0;
     QString userMessage;
     QString diagnosticDetail;
     VideoBackendFailureSeverity severity = VideoBackendFailureSeverity::Error;

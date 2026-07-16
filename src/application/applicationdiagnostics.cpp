@@ -17,6 +17,7 @@ QStringList verboseDiagnosticCategoryNames()
         QStringLiteral("org.hnjae.kiriview.thumbnail"),
         QStringLiteral("org.hnjae.kiriview.display.provider"),
         QStringLiteral("org.hnjae.kiriview.animation"),
+        QStringLiteral("org.hnjae.kiriview.video"),
     };
 }
 

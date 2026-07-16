@@ -98,7 +98,7 @@ private:
     void acceptPlaybackCallbacks();
     bool playbackCallbacksAccepted() const;
     void updateStatusFromBackend();
-    void updateErrorFromBackend();
+    void updateErrorFromBackend(VideoMediaError error);
     void updateZoomPercent();
     void publish(VideoDocumentChange change);
 

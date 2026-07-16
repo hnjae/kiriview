@@ -13,6 +13,24 @@
 #include <utility>
 
 namespace {
+kiriview::VideoMediaErrorCategory videoMediaErrorCategory(QMediaPlayer::Error error)
+{
+    switch (error) {
+    case QMediaPlayer::ResourceError:
+        return kiriview::VideoMediaErrorCategory::Resource;
+    case QMediaPlayer::FormatError:
+        return kiriview::VideoMediaErrorCategory::Format;
+    case QMediaPlayer::NetworkError:
+        return kiriview::VideoMediaErrorCategory::Network;
+    case QMediaPlayer::AccessDeniedError:
+        return kiriview::VideoMediaErrorCategory::AccessDenied;
+    case QMediaPlayer::NoError:
+        return kiriview::VideoMediaErrorCategory::Unknown;
+    }
+
+    return kiriview::VideoMediaErrorCategory::Unknown;
+}
+
 class QtVideoMediaBackend final : public QObject, public kiriview::VideoMediaBackend
 {
 public:
@@ -24,8 +42,18 @@ public:
         m_player.setAudioOutput(&m_audioOutput);
         QObject::connect(&m_player, &QMediaPlayer::mediaStatusChanged, this,
             [this]() { kiriview::invokeIfSet(m_callbacks.mediaStatusChanged); });
-        QObject::connect(&m_player, &QMediaPlayer::errorChanged, this,
-            [this]() { kiriview::invokeIfSet(m_callbacks.errorChanged); });
+        QObject::connect(&m_player, &QMediaPlayer::errorOccurred, this,
+            [this](QMediaPlayer::Error error, const QString& diagnosticDetail) {
+                if (error == QMediaPlayer::NoError) {
+                    return;
+                }
+                kiriview::invokeIfSet(m_callbacks.errorOccurred,
+                    kiriview::VideoMediaError {
+                        videoMediaErrorCategory(error),
+                        static_cast<int>(error),
+                        diagnosticDetail,
+                    });
+            });
         QObject::connect(&m_player, &QMediaPlayer::durationChanged, this,
             [this]() { kiriview::invokeIfSet(m_callbacks.durationChanged); });
         QObject::connect(&m_player, &QMediaPlayer::positionChanged, this,
@@ -88,7 +116,6 @@ public:
         return kiriview::VideoMediaStatus::Null;
     }
 
-    QString errorString() const override { return m_player.errorString(); }
     qint64 duration() const override { return std::max<qint64>(0, m_player.duration()); }
     qint64 position() const override { return std::max<qint64>(0, m_player.position()); }
     bool playing() const override { return m_player.isPlaying(); }
