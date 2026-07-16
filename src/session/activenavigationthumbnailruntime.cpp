@@ -10,14 +10,16 @@ ActiveNavigationThumbnailRuntime::ActiveNavigationThumbnailRuntime(
     QObject* owner, ActiveNavigationThumbnailRuntimeDependencies dependencies)
     : ActiveNavigationThumbnailRuntime(owner, std::move(dependencies.lookupProvider),
           std::move(dependencies.imageStore), std::move(dependencies.generationProvider),
-          std::move(dependencies.sourceAdapter), std::move(dependencies.workerScheduler))
+          std::move(dependencies.sourceAdapter), std::move(dependencies.workerScheduler),
+          std::move(dependencies.failureDiagnosticCallback))
 {
 }
 
 ActiveNavigationThumbnailRuntime::ActiveNavigationThumbnailRuntime(QObject* owner,
     ThumbnailCacheLookupProvider lookupProvider, std::shared_ptr<ThumbnailImageStore> imageStore,
     ThumbnailGenerationProvider generationProvider, ThumbnailSourceAdapter sourceAdapter,
-    ImageWorkerScheduler workerScheduler)
+    ImageWorkerScheduler workerScheduler,
+    ActiveNavigationThumbnailFailureDiagnosticCallback failureDiagnosticCallback)
     : m_rowStore(std::make_unique<ActiveNavigationThumbnailRowStore>(owner, std::move(imageStore)))
     , m_workCoordinator(
           std::make_unique<ActiveNavigationThumbnailWorkCoordinator>(owner, *m_rowStore,
@@ -25,7 +27,8 @@ ActiveNavigationThumbnailRuntime::ActiveNavigationThumbnailRuntime(QObject* owne
                              : defaultThumbnailCacheLookupProvider(workerScheduler),
               generationProvider ? std::move(generationProvider)
                                  : defaultThumbnailGenerationProvider(workerScheduler),
-              sourceAdapter ? std::move(sourceAdapter) : defaultThumbnailSourceAdapter()))
+              sourceAdapter ? std::move(sourceAdapter) : defaultThumbnailSourceAdapter(),
+              std::move(failureDiagnosticCallback)))
 {
 }
 

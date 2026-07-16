@@ -24,6 +24,7 @@ struct ActiveNavigationThumbnailRuntimeDependencies
     ThumbnailGenerationProvider generationProvider;
     ThumbnailSourceAdapter sourceAdapter;
     ImageWorkerScheduler workerScheduler;
+    ActiveNavigationThumbnailFailureDiagnosticCallback failureDiagnosticCallback;
 };
 
 class ActiveNavigationThumbnailRuntime final
@@ -35,7 +36,8 @@ public:
         ThumbnailCacheLookupProvider lookupProvider = {},
         std::shared_ptr<ThumbnailImageStore> imageStore = {},
         ThumbnailGenerationProvider generationProvider = {},
-        ThumbnailSourceAdapter sourceAdapter = {}, ImageWorkerScheduler workerScheduler = {});
+        ThumbnailSourceAdapter sourceAdapter = {}, ImageWorkerScheduler workerScheduler = {},
+        ActiveNavigationThumbnailFailureDiagnosticCallback failureDiagnosticCallback = {});
     ~ActiveNavigationThumbnailRuntime();
 
     ActiveNavigationThumbnailRuntime(const ActiveNavigationThumbnailRuntime&) = delete;

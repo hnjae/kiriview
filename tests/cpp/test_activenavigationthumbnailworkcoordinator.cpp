@@ -13,6 +13,7 @@
 #include <QUrl>
 #include <initializer_list>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -193,8 +194,12 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     kiriview::ActiveNavigationThumbnailRowStore rows(this, images);
     const auto schedulingRows = setRows(rows, { row(1, QStringLiteral("/media/one.png")) });
     ManualProviders providers;
-    kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(
-        this, rows, providers.lookupProvider(), providers.generationProvider(), localAdapter());
+    int failureDiagnosticCount = 0;
+    kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(this, rows,
+        providers.lookupProvider(), providers.generationProvider(), localAdapter(),
+        [&failureDiagnosticCount](const kiriview::ActiveNavigationThumbnailFailureDiagnostic&) {
+            ++failureDiagnosticCount;
+        });
     QVERIFY(coordinator.resetRows(schedulingRows));
     const QUrl url = schedulingRows.rows.at(0).sourceUrl;
 
@@ -204,13 +209,16 @@ void TestActiveNavigationThumbnailWorkCoordinator::
         rows.navigationGeneration(), { { 1, url, Bucket::Large, Priority::Visible } })));
     QCOMPARE(providers.lookups.size(), std::size_t(2));
 
-    providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Ready, image(Qt::red));
+    providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Failed, {},
+        QStringLiteral("superseded lookup failed"));
     QCOMPARE(resultStatus(rows, 0), Status::Pending);
     QCOMPARE(images->size(), qsizetype(0));
+    QCOMPARE(failureDiagnosticCount, 0);
 
     providers.finishLookup(1, kiriview::ThumbnailCacheLookupStatus::Ready, image(Qt::blue));
     QCOMPARE(resultStatus(rows, 0), Status::Ready);
     QCOMPARE(images->image(imageId(resultSource(rows, 0))).pixelColor(0, 0), QColor(Qt::blue));
+    QCOMPARE(failureDiagnosticCount, 0);
 }
 
 void TestActiveNavigationThumbnailWorkCoordinator::
@@ -220,8 +228,15 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     kiriview::ActiveNavigationThumbnailRowStore rows(this, images);
     const auto schedulingRows = setRows(rows, { row(1, QStringLiteral("/media/one.png")) });
     ManualProviders providers;
-    kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(
-        this, rows, providers.lookupProvider(), providers.generationProvider(), localAdapter());
+    int failureDiagnosticCount = 0;
+    std::optional<kiriview::ActiveNavigationThumbnailFailureDiagnostic> lastFailureDiagnostic;
+    kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(this, rows,
+        providers.lookupProvider(), providers.generationProvider(), localAdapter(),
+        [&failureDiagnosticCount, &lastFailureDiagnostic](
+            const kiriview::ActiveNavigationThumbnailFailureDiagnostic& diagnostic) {
+            ++failureDiagnosticCount;
+            lastFailureDiagnostic = diagnostic;
+        });
     QVERIFY(coordinator.resetRows(schedulingRows));
     const QUrl url = schedulingRows.rows.at(0).sourceUrl;
 
@@ -243,9 +258,16 @@ void TestActiveNavigationThumbnailWorkCoordinator::
 
     QCOMPARE(resultStatus(rows, 0), Status::Ready);
     QCOMPARE(resultSource(rows, 0), foregroundSource);
-    QVERIFY(!coordinator.failureDiagnostics().empty());
-    QCOMPARE(coordinator.failureDiagnostics().back().errorString,
-        QStringLiteral("refinement lookup failed"));
+    QCOMPARE(failureDiagnosticCount, 1);
+    QVERIFY(lastFailureDiagnostic.has_value());
+    QVERIFY(lastFailureDiagnostic->workId.isValid());
+    QCOMPARE(lastFailureDiagnostic->sourceKey, schedulingRows.rows.at(0));
+    QCOMPARE(
+        lastFailureDiagnostic->workKind, kiriview::ActiveNavigationThumbnailWorkKind::Foreground);
+    QCOMPARE(lastFailureDiagnostic->bucket, Bucket::XLarge);
+    QCOMPARE(lastFailureDiagnostic->failureKind,
+        kiriview::ActiveNavigationThumbnailFailureKind::CacheLookupFailed);
+    QCOMPARE(lastFailureDiagnostic->errorString, QStringLiteral("refinement lookup failed"));
 }
 
 void TestActiveNavigationThumbnailWorkCoordinator::

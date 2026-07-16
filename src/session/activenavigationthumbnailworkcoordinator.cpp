@@ -33,13 +33,15 @@ QString fallbackThumbnailFailureError(kiriview::ActiveNavigationThumbnailFailure
 namespace kiriview {
 ActiveNavigationThumbnailWorkCoordinator::ActiveNavigationThumbnailWorkCoordinator(QObject* owner,
     ActiveNavigationThumbnailRowPort& rowPort, ThumbnailCacheLookupProvider lookupProvider,
-    ThumbnailGenerationProvider generationProvider, ThumbnailSourceAdapter sourceAdapter)
+    ThumbnailGenerationProvider generationProvider, ThumbnailSourceAdapter sourceAdapter,
+    ActiveNavigationThumbnailFailureDiagnosticCallback failureDiagnosticCallback)
     : m_rowPort(rowPort)
     , m_scheduler(std::move(sourceAdapter))
     , m_executor(owner, std::move(lookupProvider), std::move(generationProvider),
           [this](ActiveNavigationThumbnailWorkCompletion completion) {
               applyEffects(m_scheduler.acceptCompletion(std::move(completion)));
           })
+    , m_failureDiagnosticCallback(std::move(failureDiagnosticCallback))
 {
 }
 
@@ -87,12 +89,6 @@ bool ActiveNavigationThumbnailWorkCoordinator::replaceDemandSnapshot(
     }
     applyEffects(std::move(*effects));
     return true;
-}
-
-const std::vector<ActiveNavigationThumbnailFailureDiagnostic>&
-ActiveNavigationThumbnailWorkCoordinator::failureDiagnostics() const
-{
-    return m_failureDiagnostics;
 }
 
 ThumbnailImageRetentionPriority ActiveNavigationThumbnailWorkCoordinator::imageRetentionPriority(
@@ -177,7 +173,7 @@ void ActiveNavigationThumbnailWorkCoordinator::publishCompletion(
         if (!m_rowPort.installReadyImage(completion.sourceKey, completion.result.image,
                 imageRetentionPriority(effect.retentionClass),
                 completion.workKind == ActiveNavigationThumbnailWorkKind::Background)) {
-            recordFailureDiagnostic(completion.workId, completion.sourceKey, completion.workKind,
+            reportFailureDiagnostic(completion.workId, completion.sourceKey, completion.workKind,
                 completion.bucket, ActiveNavigationThumbnailFailureKind::ImageStoreInsertFailed,
                 {});
             if (completion.workKind != ActiveNavigationThumbnailWorkKind::Background
@@ -187,7 +183,7 @@ void ActiveNavigationThumbnailWorkCoordinator::publishCompletion(
         }
         return;
     }
-    recordFailureDiagnostic(completion.workId, completion.sourceKey, completion.workKind,
+    reportFailureDiagnostic(completion.workId, completion.sourceKey, completion.workKind,
         completion.bucket, completion.result.failureKind, completion.result.errorString);
     if (completion.workKind != ActiveNavigationThumbnailWorkKind::Background
         && !m_rowPort.hasUsableReadyImage(completion.sourceKey)) {
@@ -195,20 +191,29 @@ void ActiveNavigationThumbnailWorkCoordinator::publishCompletion(
     }
 }
 
-void ActiveNavigationThumbnailWorkCoordinator::recordFailureDiagnostic(
+void ActiveNavigationThumbnailWorkCoordinator::reportFailureDiagnostic(
     ActiveNavigationThumbnailWorkId workId, const ThumbnailSourceRevisionKey& sourceKey,
     ActiveNavigationThumbnailWorkKind workKind, ActiveNavigationThumbnailDemandBucket bucket,
     ActiveNavigationThumbnailFailureKind failureKind, const QString& errorString)
 {
     const QString resolvedErrorString
         = errorString.isEmpty() ? fallbackThumbnailFailureError(failureKind) : errorString;
-    m_failureDiagnostics.push_back(
-        { workId, sourceKey, workKind, bucket, failureKind, resolvedErrorString });
+    const ActiveNavigationThumbnailFailureDiagnostic diagnostic {
+        workId,
+        sourceKey,
+        workKind,
+        bucket,
+        failureKind,
+        resolvedErrorString,
+    };
     qCDebug(kiriviewThumbnailLog) << "Thumbnail failure diagnostic" << workId.value << "kind"
                                   << static_cast<int>(workKind) << "number"
                                   << sourceKey.row.rowNumber << "url" << sourceKey.sourceUrl
                                   << "bucket" << static_cast<int>(bucket) << "failure"
                                   << static_cast<int>(failureKind) << "error"
                                   << resolvedErrorString;
+    if (m_failureDiagnosticCallback) {
+        m_failureDiagnosticCallback(diagnostic);
+    }
 }
 }

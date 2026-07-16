@@ -11,6 +11,7 @@
 #include <QObject>
 #include <QString>
 #include <QUrl>
+#include <functional>
 #include <vector>
 
 namespace kiriview {
@@ -25,12 +26,16 @@ struct ActiveNavigationThumbnailFailureDiagnostic
     QString errorString;
 };
 
+using ActiveNavigationThumbnailFailureDiagnosticCallback
+    = std::function<void(const ActiveNavigationThumbnailFailureDiagnostic&)>;
+
 class ActiveNavigationThumbnailWorkCoordinator final : public QObject
 {
 public:
     ActiveNavigationThumbnailWorkCoordinator(QObject* owner,
         ActiveNavigationThumbnailRowPort& rowPort, ThumbnailCacheLookupProvider lookupProvider,
-        ThumbnailGenerationProvider generationProvider, ThumbnailSourceAdapter sourceAdapter);
+        ThumbnailGenerationProvider generationProvider, ThumbnailSourceAdapter sourceAdapter,
+        ActiveNavigationThumbnailFailureDiagnosticCallback failureDiagnosticCallback = {});
     ~ActiveNavigationThumbnailWorkCoordinator() override;
 
     ActiveNavigationThumbnailWorkCoordinator(const ActiveNavigationThumbnailWorkCoordinator&)
@@ -44,7 +49,6 @@ public:
     void invalidateRows();
     void setCurrentNumber(int currentNumber);
     bool replaceDemandSnapshot(ActiveNavigationThumbnailDemandSnapshot snapshot);
-    const std::vector<ActiveNavigationThumbnailFailureDiagnostic>& failureDiagnostics() const;
 
 private:
     static ThumbnailImageRetentionPriority imageRetentionPriority(
@@ -58,7 +62,7 @@ private:
     void applyEffect(ActiveNavigationThumbnailAcceptCompletionEffect effect);
     void applyEffect(ActiveNavigationThumbnailScheduleContinuationEffect effect);
     void publishCompletion(const ActiveNavigationThumbnailAcceptCompletionEffect& effect);
-    void recordFailureDiagnostic(ActiveNavigationThumbnailWorkId workId,
+    void reportFailureDiagnostic(ActiveNavigationThumbnailWorkId workId,
         const ThumbnailSourceRevisionKey& sourceKey, ActiveNavigationThumbnailWorkKind workKind,
         ActiveNavigationThumbnailDemandBucket bucket,
         ActiveNavigationThumbnailFailureKind failureKind, const QString& errorString);
@@ -66,7 +70,7 @@ private:
     ActiveNavigationThumbnailRowPort& m_rowPort;
     ActiveNavigationThumbnailScheduler m_scheduler;
     ActiveNavigationThumbnailJobExecutor m_executor;
-    std::vector<ActiveNavigationThumbnailFailureDiagnostic> m_failureDiagnostics;
+    ActiveNavigationThumbnailFailureDiagnosticCallback m_failureDiagnosticCallback;
 };
 }
 
