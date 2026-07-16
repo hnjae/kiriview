@@ -20,7 +20,7 @@ struct AuthoritativeRoleContract
 };
 
 bool animationsEqual(
-    const ImageSequenceAuthoredAnimationFacts& lhs, const ImageSequenceAuthoredAnimationFacts& rhs)
+    ImageSequenceAuthoredAnimationFacts lhs, ImageSequenceAuthoredAnimationFacts rhs)
 {
     return lhs.autoplay() == rhs.autoplay()
         && lhs.progressiveAnimationReadiness() == rhs.progressiveAnimationReadiness()
@@ -298,7 +298,7 @@ ViewportEnginePresentationTargetAssignmentAccess::transition(
     ViewportEnginePresentationTargetTransitionInput input)
 {
     ViewportEnginePresentationTargetTransitionStateView view(m_presentation);
-    return reduceViewportEnginePresentationTargetTransition(std::move(input), std::move(view));
+    return reduceViewportEnginePresentationTargetTransition(input, std::move(view));
 }
 
 void ViewportEnginePresentationTargetAssignmentAccess::applyAutoplay()

@@ -21,6 +21,7 @@ target_compile_definitions(
     imageviewport_test_support INTERFACE IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1
                                          IMAGEVIEWPORT_QML_IMPORT_PATH="${CMAKE_BINARY_DIR}/src")
 
+# Add a public-header isolation compile target.
 function(add_imageviewport_public_header_compile_test target source)
     add_library(${target} OBJECT ${source})
     target_include_directories(${target} PRIVATE ${PROJECT_SOURCE_DIR}/src)

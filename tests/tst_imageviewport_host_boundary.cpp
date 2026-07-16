@@ -13,6 +13,12 @@ class ImageViewportHostBoundaryTest : public QObject
 {
     Q_OBJECT
 
+public:
+    explicit ImageViewportHostBoundaryTest(QObject* parent = nullptr)
+        : QObject(parent)
+    {
+    }
+
 private slots:
     void hostsExposeNarrowFactBoundaries();
 };
@@ -27,8 +33,8 @@ void ImageViewportHostBoundaryTest::hostsExposeNarrowFactBoundaries()
     QVERIFY((std::is_constructible_v<ImageViewportProviderHost, QObject&, ProviderEventSink,
         ProviderDiagnosticSink>));
     QVERIFY((!std::is_constructible_v<ImageViewportProviderHost, ImageViewportPrivate&>));
-    QVERIFY((std::is_constructible_v<ImageViewportPlaybackScheduler, QObject&,
-        PlaybackElapsedSink>));
+    QVERIFY(
+        (std::is_constructible_v<ImageViewportPlaybackScheduler, QObject&, PlaybackElapsedSink>));
     QVERIFY((!std::is_constructible_v<ImageViewportPlaybackScheduler, ImageViewportPrivate&>));
     QVERIFY(std::is_default_constructible_v<ImageViewportRenderHost>);
     QVERIFY((!std::is_constructible_v<ImageViewportRenderHost, ImageViewportPrivate&>));
@@ -36,8 +42,8 @@ void ImageViewportHostBoundaryTest::hostsExposeNarrowFactBoundaries()
     using RenderSynchronize = ImageViewportRenderHostResult (ImageViewportRenderHost::*)(
         QSGNode*, QQuickWindow*, const ViewportRenderAttempt&);
     QVERIFY((std::is_same_v<decltype(&ImageViewportRenderHost::synchronize), RenderSynchronize>));
-    QVERIFY((std::is_same_v<decltype(ImageViewportRenderHostResult::fact),
-        ViewportRenderHostFact>));
+    QVERIFY(
+        (std::is_same_v<decltype(ImageViewportRenderHostResult::fact), ViewportRenderHostFact>));
 }
 
 QTEST_MAIN(ImageViewportHostBoundaryTest)

@@ -48,7 +48,7 @@ public:
         const ViewportEngineRenderSynchronizationRequest& input);
     ViewportEngineRenderHostTransition handleRenderHostFact(
         const ViewportEngineRenderHostFactRequest& input);
-    ViewportEngineTransition handleResourcePressure(const ViewportEngineResourcePressureFact& fact);
+    ViewportEngineTransition handleResourcePressure(ViewportEngineResourcePressureFact fact);
     ViewportEngineGeometryChangeTransition handleGeometryChanged(
         const ViewportEngineGeometryChangeRequest& input);
     ViewportEngineTransition handleProviderHostEvent(

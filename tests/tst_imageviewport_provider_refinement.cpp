@@ -1,8 +1,8 @@
 #include "imageviewport_provider_test_support.h"
 
 namespace {
-class RefinementProviderSession final
-    : public ImageSequenceProviderSession // clazy:exclude=missing-qobject-macro
+class RefinementProviderSession final // clazy:exclude=missing-qobject-macro
+    : public ImageSequenceProviderSession
 {
 public:
     using ImageSequenceProviderSession::ImageSequenceProviderSession;
@@ -40,8 +40,8 @@ public:
     QVector<ImageSequenceProviderRequest> requests;
 };
 
-class RefinementProviderAdapter final
-    : public ImageSequenceProviderAdapter // clazy:exclude=missing-qobject-macro
+class RefinementProviderAdapter final // clazy:exclude=missing-qobject-macro
+    : public ImageSequenceProviderAdapter
 {
 public:
     explicit RefinementProviderAdapter(QObject* parent = nullptr)
@@ -104,6 +104,12 @@ class ImageViewportProviderRefinementTest : public QObject
 {
     Q_OBJECT
 
+public:
+    explicit ImageViewportProviderRefinementTest(QObject* parent = nullptr)
+        : QObject(parent)
+    {
+    }
+
 private slots:
     void committedProviderPayloadRefinesWithoutLeavingReady();
     void newerDemandCancelsOlderRefinementAndStaleResultCannotCommit();
@@ -160,7 +166,7 @@ void ImageViewportProviderRefinementTest::
 
     const auto frames = fixture.adapter.session->frameRequests();
     QCOMPARE(frames.size(), 3);
-    const auto newer = frames.constLast();
+    const auto& newer = frames.constLast();
     bool cancelledOlder = false;
     for (const auto& request : std::as_const(fixture.adapter.session->requests)) {
         cancelledOlder = cancelledOlder

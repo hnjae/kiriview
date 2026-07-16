@@ -56,7 +56,7 @@ void stageBuiltIn(RequestState& request, DisplayState& display)
     }
 }
 const ProviderFactsState& providerFor(
-    const ViewportEngineProviderFactsView& facts, ImageViewportPageRole role)
+    ViewportEngineProviderFactsView facts, ImageViewportPageRole role)
 {
     return facts[role == ImageViewportPageRole::Secondary ? 1U : 0U];
 }
@@ -166,7 +166,8 @@ ViewportEngineRenderCoordinationState::AttemptContext synchronizeViewportEngineR
 }
 
 ViewportEngineRenderCommitReduction reduceViewportEngineRenderCommit(
-    ViewportEngineRenderAcknowledgementInput input, ViewportEngineRenderCommitAccess access)
+    ViewportEngineRenderAcknowledgementInput input, // NOLINT(performance-unnecessary-value-param)
+    ViewportEngineRenderCommitAccess access)
 {
     ViewportEngineRenderCommitReduction result;
     auto& changes = result.changes;
@@ -254,7 +255,8 @@ ViewportEngineRenderCommitReduction reduceViewportEngineRenderCommit(
 }
 
 ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
-    ViewportEngineRenderAcknowledgementInput input, ViewportEngineRenderFailureAccess access)
+    ViewportEngineRenderAcknowledgementInput input, // NOLINT(performance-unnecessary-value-param)
+    ViewportEngineRenderFailureAccess access)
 {
     using namespace ImageViewportInternal;
     ViewportEngineRenderFailureReduction result;

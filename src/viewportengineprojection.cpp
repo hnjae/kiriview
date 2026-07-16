@@ -10,7 +10,7 @@ namespace {
 using namespace ImageViewportInternal;
 
 const ProviderFactsState& providerFor(
-    const ViewportEngineProviderFactsView& facts, ImageViewportPageRole role)
+    ViewportEngineProviderFactsView facts, ImageViewportPageRole role)
 {
     return facts[role == ImageViewportPageRole::Secondary ? 1U : 0U];
 }

@@ -109,7 +109,7 @@ ViewportEnginePlaybackCommandResult ViewportEngine::applyPlaybackCommand(
             : acceptedPreservingCommandDiagnostics();
         appendCommandChanges(result.command, result.changes);
         mergeChanges(result.changes, reduction.changes);
-        result.effects.providerFrameTransport = std::move(reduction.providerFrameTransport);
+        result.effects.providerFrameTransport = reduction.providerFrameTransport;
         result.schedule = currentPlaybackSchedule();
         return result;
     }
@@ -131,7 +131,7 @@ ViewportEnginePlaybackCommandResult ViewportEngine::applyPlaybackCommand(
                       : acceptedPreservingCommandDiagnostics();
         appendCommandChanges(result.command, result.changes);
         mergeChanges(result.changes, reduction.changes);
-        result.effects.providerFrameTransport = std::move(reduction.providerFrameTransport);
+        result.effects.providerFrameTransport = reduction.providerFrameTransport;
         result.schedule = reduction.outcome == ImageViewportCommandOutcome::Accepted
             ? currentPlaybackSchedule()
             : ViewportPlaybackScheduleEffect { ViewportPlaybackScheduleEffect::Action::NoChange,
@@ -153,7 +153,7 @@ ViewportEnginePlaybackCommandResult ViewportEngine::applyPlaybackCommand(
                   : acceptedPreservingCommandDiagnostics();
     appendCommandChanges(result.command, result.changes);
     mergeChanges(result.changes, reduction.changes);
-    result.effects.providerFrameTransport = std::move(reduction.providerFrameTransport);
+    result.effects.providerFrameTransport = reduction.providerFrameTransport;
     result.schedule = reduction.outcome == ImageViewportCommandOutcome::Accepted
         ? currentPlaybackSchedule()
         : ViewportPlaybackScheduleEffect { ViewportPlaybackScheduleEffect::Action::NoChange, -1 };
@@ -173,7 +173,7 @@ ViewportEnginePlaybackTickResult ViewportEngine::advancePlayback(
     auto reduction = reduceViewportEnginePlaybackTick(
         { input.elapsedMilliseconds, geometry }, std::move(access));
     result.changes = reduction.changes;
-    result.effects.providerFrameTransport = std::move(reduction.providerFrameTransport);
+    result.effects.providerFrameTransport = reduction.providerFrameTransport;
     result.schedule = reduction.projectSchedule
         ? currentPlaybackSchedule()
         : ViewportPlaybackScheduleEffect { ViewportPlaybackScheduleEffect::Action::NoChange, -1 };

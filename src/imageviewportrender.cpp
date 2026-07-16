@@ -66,7 +66,7 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
     if (!attemptValue) {
         return oldNode;
     }
-    const ViewportRenderAttempt attempt = *attemptValue;
+    const ViewportRenderAttempt& attempt = *attemptValue;
     ImageViewportRenderHostResult render = renderHost.synchronize(oldNode, window(), attempt);
     if (render.fact.outcome == ViewportRenderHostFact::Outcome::Failed) {
         QSGNode* fallbackNode = render.node;

@@ -67,7 +67,8 @@ public:
     ImageViewportCommandResult stop(PageRole role);
     ImageViewportCommandResult seek(PageRole role, int frame);
     ImageViewportCommandResult seekToPosition(PageRole role, int milliseconds);
-    ImageViewportCommandResult setPresentationTarget(ImageViewportPresentationTarget presentationTarget,
+    ImageViewportCommandResult setPresentationTarget(
+        const ImageViewportPresentationTarget& presentationTarget,
         PresentationTargetTransitionPolicy policy);
     ImageViewportCommandResult resetView();
     ImageViewportCommandResult setPresentation(ImageViewportPresentationCommand command);
@@ -174,7 +175,7 @@ public:
     ViewportEngine engine;
     ImageViewportPlaybackScheduler playbackScheduler;
     ImageViewportProviderHost providerHost;
-    ImageViewportRenderHost renderHost;
+    ImageViewportRenderHost renderHost {};
     ImageViewportInternal::InternalObservability internalObservability;
     ImageViewportStateSnapshot lastStateSnapshot;
     int transitionApplicationDepth = 0;

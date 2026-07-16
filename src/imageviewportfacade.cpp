@@ -16,18 +16,12 @@ ImageViewport::~ImageViewport() = default;
 
 ImageViewportStateSnapshot ImageViewport::state() const { return d->state(); }
 ImageViewportCommandResult ImageViewport::clear() { return d->clear(); }
-ImageViewportCommandResult ImageViewport::play(ImageViewportPageRole role)
-{
-    return d->play(role);
-}
+ImageViewportCommandResult ImageViewport::play(ImageViewportPageRole role) { return d->play(role); }
 ImageViewportCommandResult ImageViewport::pause(ImageViewportPageRole role)
 {
     return d->pause(role);
 }
-ImageViewportCommandResult ImageViewport::stop(ImageViewportPageRole role)
-{
-    return d->stop(role);
-}
+ImageViewportCommandResult ImageViewport::stop(ImageViewportPageRole role) { return d->stop(role); }
 ImageViewportCommandResult ImageViewport::seek(ImageViewportPageRole role, int frame)
 {
     return d->seek(role, frame);
@@ -38,9 +32,11 @@ ImageViewportCommandResult ImageViewport::seekToPosition(
     return d->seekToPosition(role, milliseconds);
 }
 ImageViewportCommandResult ImageViewport::setPresentationTarget(
-    ImageViewportPresentationTarget presentationTarget, PresentationTargetTransitionPolicy policy)
+    ImageViewportPresentationTarget
+        presentationTarget, // NOLINT(performance-unnecessary-value-param)
+    PresentationTargetTransitionPolicy policy)
 {
-    return d->setPresentationTarget(std::move(presentationTarget), policy);
+    return d->setPresentationTarget(presentationTarget, policy);
 }
 ImageViewportCommandResult ImageViewport::resetView() { return d->resetView(); }
 

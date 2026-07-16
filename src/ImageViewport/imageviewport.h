@@ -108,12 +108,17 @@ public:
     ImageViewportStateSnapshot state() const;
 
     Q_INVOKABLE ImageViewportCommandResult clear();
-    Q_INVOKABLE ImageViewportCommandResult play(ImageViewportPageRole role);
-    Q_INVOKABLE ImageViewportCommandResult pause(ImageViewportPageRole role);
-    Q_INVOKABLE ImageViewportCommandResult stop(ImageViewportPageRole role);
-    Q_INVOKABLE ImageViewportCommandResult seek(ImageViewportPageRole role, int frame);
+    Q_INVOKABLE ImageViewportCommandResult play(
+        ImageViewportPageRole role); // clazy:exclude=fully-qualified-moc-types
+    Q_INVOKABLE ImageViewportCommandResult pause(
+        ImageViewportPageRole role); // clazy:exclude=fully-qualified-moc-types
+    Q_INVOKABLE ImageViewportCommandResult stop(
+        ImageViewportPageRole role); // clazy:exclude=fully-qualified-moc-types
+    Q_INVOKABLE ImageViewportCommandResult seek(
+        ImageViewportPageRole role, int frame); // clazy:exclude=fully-qualified-moc-types
     Q_INVOKABLE ImageViewportCommandResult seekToPosition(
-        ImageViewportPageRole role, int milliseconds);
+        ImageViewportPageRole role, // clazy:exclude=fully-qualified-moc-types
+        int milliseconds);
     Q_INVOKABLE ImageViewportCommandResult setPresentationTarget(
         ImageViewportPresentationTarget presentationTarget,
         PresentationTargetTransitionPolicy policy);

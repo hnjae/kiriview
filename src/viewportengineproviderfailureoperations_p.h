@@ -1,7 +1,7 @@
 #pragma once
 
-#include "viewportprovidercontract_p.h"
 #include "viewportengineproviderterminaloperations_p.h"
+#include "viewportprovidercontract_p.h"
 
 struct ViewportEngineProviderTerminalEventInput
 {

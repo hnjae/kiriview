@@ -28,7 +28,8 @@ ImageViewportProviderHost::ImageViewportProviderHost(
     , secondaryProviderBridge(PageRole::Secondary)
 {
     cleanupRetryTimer.setSingleShot(true);
-    QObject::connect(&cleanupRetryTimer, &QTimer::timeout, [this]() { retryPendingCleanup(); });
+    QObject::connect(&cleanupRetryTimer, &QTimer::timeout, &cleanupRetryTimer,
+        [this]() { retryPendingCleanup(); });
 }
 
 void ImageViewportProviderHost::shutdown()

@@ -124,7 +124,7 @@ ImageViewportInternal::ViewportChangeSet ViewportEngineProviderMetadataReadyAcce
 }
 
 ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadataReady(
-    ViewportEngineProviderMetadataReadyInput input,
+    ViewportEngineProviderMetadataReadyInput input, // NOLINT(performance-unnecessary-value-param)
     ViewportEngineProviderMetadataReadyAccess access)
 {
     using namespace ImageViewportInternal;

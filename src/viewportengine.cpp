@@ -27,8 +27,7 @@ ViewportEngine::ViewportEngine()
 
 ViewportEngine::~ViewportEngine() = default;
 
-ViewportEngineTransition ViewportEngine::handleResourcePressure(
-    const ViewportEngineResourcePressureFact&)
+ViewportEngineTransition ViewportEngine::handleResourcePressure(ViewportEngineResourcePressureFact)
 {
     ViewportEngineTransition transition;
     auto& display = m_state->displayState.display;
@@ -60,13 +59,13 @@ QSet<quint64> ViewportEngine::providerFrameLeaseIds() const
 ViewportEngine::PendingPublication::PendingPublication(
     ViewportEngine* owner, ImageViewportInternal::ViewportChangeSet changes)
     : m_owner(owner)
-    , m_changes(std::move(changes))
+    , m_changes(changes)
 {
 }
 
 ViewportEngine::PendingPublication::PendingPublication(PendingPublication&& other) noexcept
     : m_owner(std::exchange(other.m_owner, nullptr))
-    , m_changes(std::move(other.m_changes))
+    , m_changes(other.m_changes)
 {
 }
 
@@ -75,7 +74,7 @@ ViewportEngine::PendingPublication& ViewportEngine::PendingPublication::operator
 {
     if (this != &other) {
         m_owner = std::exchange(other.m_owner, nullptr);
-        m_changes = std::move(other.m_changes);
+        m_changes = other.m_changes;
     }
     return *this;
 }
@@ -148,7 +147,7 @@ const ImageViewportInternal::PresentationState& ViewportEngine::presentationStat
 ViewportEngine::PendingPublication ViewportEngine::preparePublication(
     ImageViewportInternal::ViewportChangeSet changes)
 {
-    return PendingPublication(this, std::move(changes));
+    return PendingPublication(this, changes);
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportEngine::publish(PendingPublication publication)
@@ -157,7 +156,7 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::publish(PendingPublicat
         qFatal("ViewportEngine pending publication owner mismatch");
     }
     publication.m_owner = nullptr;
-    auto changes = std::move(publication.m_changes);
+    auto changes = publication.m_changes;
     if (changes.requestRevision) {
         m_state->requestState.request.requestRevision = allocateRevisionValue();
     }
@@ -197,7 +196,7 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::publish(PendingPublicat
 ImageViewportInternal::ViewportChangeSet ViewportEngine::publishChanges(
     ImageViewportInternal::ViewportChangeSet changes)
 {
-    return publish(preparePublication(std::move(changes)));
+    return publish(preparePublication(changes));
 }
 
 PresentationGeometry::State ViewportEngine::geometryState(const GeometryInput& input) const

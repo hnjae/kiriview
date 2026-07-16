@@ -611,7 +611,7 @@ ImageSequenceProviderEvent ImageSequenceProviderEvent::frameReady(
     event.m_kind = ImageSequenceProviderEventKind::FrameReady;
     event.m_token = token;
     event.m_frameHandle = frameHandle;
-    event.m_frameEnvelope = std::move(frameEnvelope);
+    event.m_frameEnvelope = frameEnvelope;
     return event;
 }
 

@@ -386,7 +386,7 @@ void ImageViewportProviderLifecycleTest::providerAssignmentPublishesBeforeDispat
         snapshots.append({ std::move(signal), requestStatusValue(item), requestReasonValue(item),
             viewportPrimarySequence(item) == result->sequence() });
     };
-    QObject::connect(&item, &ImageViewport::stateChanged, [&]() { record("state"); });
+    QObject::connect(&item, &ImageViewport::stateChanged, &item, [&]() { record("state"); });
 
     item.setPresentationTarget(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});

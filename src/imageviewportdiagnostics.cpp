@@ -43,7 +43,7 @@ void InternalObservability::recordProviderCleanupFailure(
             : diagnostic.metadataTokenValue;
         observation.identity.providerLeaseId = diagnostic.providerLeaseId;
         observation.detail = int(diagnostic.operation);
-        record(std::move(observation));
+        record(observation);
     }
 }
 
@@ -61,7 +61,7 @@ void InternalObservability::recordProviderSchedulerFailure(
         observation.identity.generation = diagnostic.generation;
         observation.identity.requestId = diagnostic.activeRequestId;
         observation.detail = int(diagnostic.operation);
-        record(std::move(observation));
+        record(observation);
     }
 }
 
@@ -80,7 +80,7 @@ void InternalObservability::recordRenderFailure(const RenderFailureDiagnostic& d
         observation.identity.payloadId = diagnostic.preparedPayloadId;
         observation.identity.renderAttempt = diagnostic.renderAttempt;
         observation.detail = int(diagnostic.cause);
-        record(std::move(observation));
+        record(observation);
     }
 }
 

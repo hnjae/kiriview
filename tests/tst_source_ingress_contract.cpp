@@ -4,7 +4,8 @@
 
 #include <memory>
 
-class SourceIngressContractSession final : public ImageSequenceProviderSession
+class SourceIngressContractSession final // clazy:exclude=missing-qobject-macro
+    : public ImageSequenceProviderSession
 {
 public:
     using ImageSequenceProviderSession::ImageSequenceProviderSession;
@@ -12,11 +13,14 @@ public:
     void request(const ImageSequenceProviderRequest&) override { }
 };
 
-class SourceIngressContractAdapter final : public ImageSequenceProviderAdapter
+class SourceIngressContractAdapter final // clazy:exclude=missing-qobject-macro
+    : public ImageSequenceProviderAdapter
 {
 public:
-    explicit SourceIngressContractAdapter(std::shared_ptr<int> invocationCount)
-        : m_invocationCount(std::move(invocationCount))
+    explicit SourceIngressContractAdapter(
+        std::shared_ptr<int> invocationCount, QObject* parent = nullptr)
+        : ImageSequenceProviderAdapter(parent)
+        , m_invocationCount(std::move(invocationCount))
     {
     }
 
@@ -35,9 +39,15 @@ private:
     std::shared_ptr<int> m_invocationCount;
 };
 
-class ReusingSessionAdapter final : public ImageSequenceProviderAdapter
+class ReusingSessionAdapter final // clazy:exclude=missing-qobject-macro
+    : public ImageSequenceProviderAdapter
 {
 public:
+    explicit ReusingSessionAdapter(QObject* parent = nullptr)
+        : ImageSequenceProviderAdapter(parent)
+    {
+    }
+
     ImageSequenceProviderDescriptor descriptor() const override
     {
         const auto session = m_session;
@@ -50,9 +60,15 @@ private:
     SourceIngressContractSession* m_session = new SourceIngressContractSession;
 };
 
-class FailingSessionAdapter final : public ImageSequenceProviderAdapter
+class FailingSessionAdapter final // clazy:exclude=missing-qobject-macro
+    : public ImageSequenceProviderAdapter
 {
 public:
+    explicit FailingSessionAdapter(QObject* parent = nullptr)
+        : ImageSequenceProviderAdapter(parent)
+    {
+    }
+
     ImageSequenceProviderDescriptor descriptor() const override
     {
         return ImageSequenceProviderDescriptor(ImageSequenceProviderMetadata::still(QSizeF(4, 2)),
@@ -66,6 +82,12 @@ public:
 class SourceIngressContractTest : public QObject
 {
     Q_OBJECT
+
+public:
+    explicit SourceIngressContractTest(QObject* parent = nullptr)
+        : QObject(parent)
+    {
+    }
 
 private slots:
     void factoryUsesCanonicalOutcomeAndReason();

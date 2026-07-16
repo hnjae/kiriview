@@ -198,7 +198,7 @@ DEFINE_CLOSE_SESSION(ViewportEngineProviderDispatchFailureAccess)
 #undef DEFINE_CLOSE_SESSION
 
 ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderTerminalEvent(
-    ViewportEngineProviderTerminalEventInput input,
+    ViewportEngineProviderTerminalEventInput input, // NOLINT(performance-unnecessary-value-param)
     ViewportEngineProviderTerminalEventAccess access)
 {
     return reduceTerminal(
@@ -212,7 +212,7 @@ ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderTermina
 }
 
 ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderDispatchFailure(
-    ViewportEngineProviderDispatchFailureInput input,
+    ViewportEngineProviderDispatchFailureInput input, // NOLINT(performance-unnecessary-value-param)
     ViewportEngineProviderDispatchFailureAccess access)
 {
     const bool sessionWasActive = access.m_session.sessionActive;
@@ -252,7 +252,8 @@ ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderDispatc
 }
 
 ViewportEngineProviderSessionOpenFailureReduction reduceViewportEngineProviderSessionOpenFailure(
-    ViewportEngineProviderSessionOpenFailureInput input,
+    ViewportEngineProviderSessionOpenFailureInput
+        input, // NOLINT(performance-unnecessary-value-param)
     ViewportEngineProviderSessionOpenFailureAccess access)
 {
     ViewportEngineProviderSessionOpenFailureReduction result;
@@ -271,7 +272,8 @@ ViewportEngineProviderSessionOpenFailureReduction reduceViewportEngineProviderSe
 }
 
 ViewportEngineProviderQueueFailureReduction reduceViewportEngineProviderQueueFailure(
-    ViewportEngineProviderQueueFailureInput input, ViewportEngineProviderQueueFailureAccess access)
+    ViewportEngineProviderQueueFailureInput input, // NOLINT(performance-unnecessary-value-param)
+    ViewportEngineProviderQueueFailureAccess access)
 {
     ViewportEngineProviderQueueFailureReduction result;
     const auto& request = requestForRole(access.m_request, input.role);

@@ -13,8 +13,8 @@
 #include <memory>
 
 namespace {
-class CleanupSession final
-    : public ImageSequenceProviderSession // clazy:exclude=missing-qobject-macro
+class CleanupSession final // clazy:exclude=missing-qobject-macro
+    : public ImageSequenceProviderSession
 {
 public:
     using ImageSequenceProviderSession::ImageSequenceProviderSession;
@@ -29,17 +29,23 @@ public:
     int closeCount = 0;
 };
 
-class IngressSession final
-    : public ImageSequenceProviderSession // clazy:exclude=missing-qobject-macro
+class IngressSession final // clazy:exclude=missing-qobject-macro
+    : public ImageSequenceProviderSession
 {
 public:
     IngressSession(std::atomic<int>& nextOrder, std::atomic<int>& destructionOrder,
-        std::atomic<QThread*>& destructionThread)
-        : m_nextOrder(nextOrder)
+        std::atomic<QThread*>& destructionThread, QObject* parent = nullptr)
+        : ImageSequenceProviderSession(parent)
+        , m_nextOrder(nextOrder)
         , m_destructionOrder(destructionOrder)
         , m_destructionThread(destructionThread)
     {
     }
+
+    IngressSession(const IngressSession&) = delete;
+    IngressSession& operator=(const IngressSession&) = delete;
+    IngressSession(IngressSession&&) = delete;
+    IngressSession& operator=(IngressSession&&) = delete;
 
     ~IngressSession() override
     {
@@ -144,8 +150,9 @@ struct BridgeFixture
         Q_ASSERT(event.frameLeaseId != 0);
         bridge.completeFrameEventDelivery(event.frameLeaseId);
         bridge.reconcileFrameLeases({});
-        const auto closed = bridge.closeSession({}, {});
-        Q_ASSERT(closed.delivered);
+        if (!bridge.closeSession({}, {}).delivered) {
+            qFatal("test provider session close failed");
+        }
     }
 
     QObject callbackTarget;
@@ -161,6 +168,12 @@ struct BridgeFixture
 class ViewportProviderBridgeCleanupTest : public QObject
 {
     Q_OBJECT
+
+public:
+    explicit ViewportProviderBridgeCleanupTest(QObject* parent = nullptr)
+        : QObject(parent)
+    {
+    }
 
 private slots:
     void releaseFailureRetainsLeaseUntilRetrySucceeds();

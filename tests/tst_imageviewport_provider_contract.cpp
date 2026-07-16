@@ -17,8 +17,8 @@ ImageSequenceProviderFrameEnvelope exactTestEnvelope(QSizeF logicalSize, QSize p
     return envelope;
 }
 
-class TypedProviderSession final
-    : public ImageSequenceProviderSession // clazy:exclude=missing-qobject-macro
+class TypedProviderSession final // clazy:exclude=missing-qobject-macro
+    : public ImageSequenceProviderSession
 {
 public:
     explicit TypedProviderSession(QObject* parent = nullptr)
@@ -67,8 +67,8 @@ public:
     QPointer<TypedProviderSession> lastSession;
 };
 
-class TypedDescriptorProviderAdapter final
-    : public ImageSequenceProviderAdapter // clazy:exclude=missing-qobject-macro
+class TypedDescriptorProviderAdapter final // clazy:exclude=missing-qobject-macro
+    : public ImageSequenceProviderAdapter
 {
 public:
     explicit TypedDescriptorProviderAdapter(
@@ -647,7 +647,7 @@ void ImageViewportProviderContractTest::providerSessionEntryPointsUseSessionAffi
                 delete frame;
             });
         handle->moveToThread(&workerThread);
-        QObject::connect(handle, &QObject::destroyed,
+        QObject::connect(handle, &QObject::destroyed, handle,
             [handleDestructionThread]() { *handleDestructionThread = QThread::currentThread(); });
         emitProviderFrameHandleReady(session, session->lastFrameToken(), handle,
             ImageSequenceProviderFrameEnvelope::timedFrame(0, 0, 100));
@@ -788,7 +788,7 @@ void ImageViewportProviderContractTest::providerThreadSafeSessionEntryPointsUseV
                 delete frame;
             });
         handle->moveToThread(&workerThread);
-        QObject::connect(handle, &QObject::destroyed,
+        QObject::connect(handle, &QObject::destroyed, handle,
             [handleDestructionThread]() { *handleDestructionThread = QThread::currentThread(); });
         emitProviderFrameHandleReady(session, session->lastFrameToken(), handle,
             ImageSequenceProviderFrameEnvelope::timedFrame(0, 0, 100));

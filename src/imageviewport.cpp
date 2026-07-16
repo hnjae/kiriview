@@ -275,7 +275,8 @@ QString ImageViewportPrivate::warningString() const
 }
 
 ImageViewportCommandResult ImageViewportPrivate::setPresentationTarget(
-    ImageViewportPresentationTarget presentationTarget, PresentationTargetTransitionPolicy policy)
+    const ImageViewportPresentationTarget& presentationTarget,
+    PresentationTargetTransitionPolicy policy)
 {
     ImageSequenceSource primarySource = factorySequenceSource(presentationTarget.primary());
     ImageSequenceSource secondarySourceHandle

@@ -471,7 +471,8 @@ public:
     void completeEventDelivery(quint64 leaseId)
     {
         QMutexLocker locker(&mutex);
-        auto it = frameLeases.find(leaseId);
+        frameLeases.detach();
+        auto it = frameLeases.find(leaseId); // clazy:exclude=detaching-member
         if (it != frameLeases.end()) {
             it->pendingEngineDelivery = false;
         }
@@ -539,7 +540,8 @@ public:
     std::optional<LeaseSnapshot> takeLeaseForRelease(quint64 leaseId)
     {
         QMutexLocker locker(&mutex);
-        auto it = frameLeases.find(leaseId);
+        frameLeases.detach();
+        auto it = frameLeases.find(leaseId); // clazy:exclude=detaching-member
         if (it == frameLeases.end() || it->releaseScheduling) {
             return std::nullopt;
         }
@@ -551,7 +553,8 @@ public:
     void releaseSchedulingFailed(quint64 leaseId)
     {
         QMutexLocker locker(&mutex);
-        auto it = frameLeases.find(leaseId);
+        frameLeases.detach();
+        auto it = frameLeases.find(leaseId); // clazy:exclude=detaching-member
         if (it != frameLeases.end()) {
             it->releaseScheduling = false;
         }
@@ -583,7 +586,10 @@ private:
 
     void scheduleAutomaticRelease(quint64 leaseId)
     {
-        const auto self = shared_from_this();
+        const auto self = weak_from_this().lock();
+        if (!self) {
+            return;
+        }
         if (cleanupDispatchTarget) {
             QMetaObject::invokeMethod(
                 cleanupDispatchTarget, [self, leaseId]() { self->releaseAutomatically(leaseId); },
@@ -610,7 +616,10 @@ private:
             return;
         }
         releaseSchedulingFailed(leaseId);
-        const auto self = shared_from_this();
+        const auto self = weak_from_this().lock();
+        if (!self) {
+            return;
+        }
         if (cleanupDispatchTarget) {
             QTimer::singleShot(10, cleanupDispatchTarget,
                 [self, leaseId]() { self->releaseAutomatically(leaseId); });
@@ -750,7 +759,7 @@ ViewportProviderBridge::ViewportProviderBridge(ImageViewportPageRole role)
 ViewportProviderBridge::~ViewportProviderBridge()
 {
     frameLeaseRegistry->setExecutor(qtViewportProviderExecutor());
-    for (const auto& endpoint : eventEndpoints) {
+    for (const auto& endpoint : std::as_const(eventEndpoints)) {
         if (const auto value = endpoint.lock()) {
             value->revoke();
         }
@@ -766,7 +775,8 @@ ViewportProviderTransportResult ViewportProviderBridge::closeSession(
     if (!session) {
         return result;
     }
-    auto recordIt = sessions.find(session);
+    sessions.detach();
+    auto recordIt = sessions.find(session); // clazy:exclude=detaching-member
     if (recordIt == sessions.end()) {
         activeSession.clear();
         return result;
@@ -827,7 +837,7 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
     const auto sessionControl = std::make_shared<ViewportProviderSessionControl>(
         session, input.threadingContract, input.generation, input.sessionSerial);
     const auto eventEndpoint = std::make_shared<ViewportProviderEventEndpoint>(input.eventSink);
-    QObject::connect(session, &QObject::destroyed, [session, sessionControl]() {
+    QObject::connect(session, &QObject::destroyed, session, [session, sessionControl]() {
         sessionControl->markSessionDestroyed();
         releaseProviderSession(session);
     });
@@ -982,7 +992,8 @@ void ViewportProviderBridge::retrySessionCleanup(
 {
     const auto sessionKeys = sessions.keys();
     for (ImageSequenceProviderSession* session : sessionKeys) {
-        auto recordIt = sessions.find(session);
+        sessions.detach();
+        auto recordIt = sessions.find(session); // clazy:exclude=detaching-member
         if (recordIt == sessions.end()) {
             continue;
         }
@@ -995,7 +1006,7 @@ void ViewportProviderBridge::retrySessionCleanup(
             continue;
         }
         if (recordIt->lifecycle == SessionLifecycle::CleanupPending && retryPendingSessions) {
-            const SessionRecord record = recordIt.value();
+            const SessionRecord& record = recordIt.value();
             const auto outcome = executor().queueSessionClose(
                 record.control, record.metadataToken, record.frameToken);
             if (!executorAccepted(outcome)) {

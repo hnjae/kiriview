@@ -56,7 +56,7 @@ ImageViewportStateSnapshot ImageViewportPrivate::applyEngineTransition(
     ++transitionApplicationDepth;
 
     providerHost.reconcileFrameLeases(engine.providerFrameLeaseIds());
-    transition.changes = engine.publishChanges(std::move(transition.changes));
+    transition.changes = engine.publishChanges(transition.changes);
     internalObservability.record(transition.observations);
     internalObservability.recordRenderFailure(transition.changes.renderFailureDiagnostic);
 
@@ -124,8 +124,7 @@ void ImageViewportPrivate::drainExternalWork()
             ImageViewportInternal::InternalObservation observation;
             observation.subsystem
                 = ImageViewportInternal::InternalObservationSubsystem::ProviderHost;
-            observation.category
-                = ImageViewportInternal::InternalObservationCategory::StaleDrop;
+            observation.category = ImageViewportInternal::InternalObservationCategory::StaleDrop;
             observation.cause
                 = ImageViewportInternal::InternalObservationCause::RetiredProviderCommand;
             observation.identity.roleValid = true;
@@ -136,7 +135,7 @@ void ImageViewportPrivate::drainExternalWork()
                 = ImageViewportInternal::ProviderRequestTokenPrivateAccess::value(
                     command.request.token());
             observation.detail = int(command.kind);
-            internalObservability.record(std::move(observation));
+            internalObservability.record(observation);
             continue;
         }
         providerHost.applyTransportEffects({ command });
@@ -153,8 +152,7 @@ void ImageViewportPrivate::drainProviderHostEvents()
     while (!pendingProviderHostEvents.isEmpty()) {
         ViewportProviderHostEvent event = pendingProviderHostEvents.takeFirst();
         providerHost.completeFrameEventDelivery(event.providerEvent.frameLeaseId);
-        applyEngineTransition(
-            engine.handleProviderHostEvent({ event, { itemBounds(), 1.0 } }));
+        applyEngineTransition(engine.handleProviderHostEvent({ event, { itemBounds(), 1.0 } }));
     }
     drainingProviderHostEvents = false;
 }
@@ -326,6 +324,7 @@ void ImageViewportPrivate::reportRenderQualityFallbackForTest(
     const ViewportRenderAttempt attempt
         = engine.beginRenderSynchronization({ { itemBounds(), 1.0 } });
     QVector<ViewportRenderRolePayload> rolePayloads;
+    rolePayloads.reserve(attempt.snapshot.imageLayers.size());
     for (const auto& layer : attempt.snapshot.imageLayers) {
         rolePayloads.append({ layer.role, layer.preparedPayload.identity() });
     }
@@ -435,6 +434,7 @@ void ImageViewportPrivate::acknowledgeRenderFailureForTest(PageRole failedRole, 
     const ViewportRenderAttempt attempt
         = engine.beginRenderSynchronization({ { itemBounds(), 1.0 } });
     QVector<ViewportRenderRolePayload> rolePayloads;
+    rolePayloads.reserve(attempt.snapshot.imageLayers.size());
     for (const auto& layer : attempt.snapshot.imageLayers) {
         auto identity = layer.preparedPayload.identity();
         if (layer.role == failedRole) {
