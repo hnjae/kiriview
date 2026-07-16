@@ -503,12 +503,15 @@ static_assert(std::is_same_v<decltype(&reduceViewportEnginePlaybackTick),
         ViewportEnginePlaybackTickInput, ViewportEnginePlaybackTickAccess)>);
 static_assert(!std::is_default_constructible_v<ViewportEngineAuthoredAutoplayAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEngineAuthoredAutoplayAccess>);
-static_assert(std::is_const_v<std::remove_reference_t<
-        decltype(std::declval<ViewportEngineAuthoredAutoplayAccess&>().source())>>);
-static_assert(std::is_const_v<std::remove_reference_t<
-        decltype(std::declval<ViewportEngineAuthoredAutoplayAccess&>().providerFacts())>>);
-static_assert(!std::is_const_v<std::remove_reference_t<
-        decltype(std::declval<ViewportEngineAuthoredAutoplayAccess&>().activeRequest())>>);
+static_assert(std::is_const_v<
+    std::remove_reference_t<decltype(std::declval<ViewportEngineAuthoredAutoplayAccess&>().source(
+        ImageViewportPageRole::Primary))>>);
+static_assert(std::is_const_v<
+    std::remove_reference_t<decltype(std::declval<ViewportEngineAuthoredAutoplayAccess&>()
+            .providerFacts(ImageViewportPageRole::Primary))>>);
+static_assert(std::is_const_v<
+    std::remove_reference_t<decltype(std::declval<ViewportEngineAuthoredAutoplayAccess&>()
+            .activeRequest(ImageViewportPageRole::Primary))>>);
 static_assert(!std::is_const_v<std::remove_reference_t<
         decltype(std::declval<ViewportEngineAuthoredAutoplayAccess&>().playback())>>);
 static_assert(!HasRequestAccess<ViewportEngineAuthoredAutoplayAccess>::value);

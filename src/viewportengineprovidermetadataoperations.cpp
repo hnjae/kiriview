@@ -3,6 +3,7 @@
 
 #include "framepreparation_p.h"
 #include "imageviewportproviderfacts_p.h"
+#include "viewportengineplaybackoperations_p.h"
 #include "viewportenginepresentationoperations_p.h"
 #include "viewportengineprovidersessionoperations_p.h"
 
@@ -114,6 +115,13 @@ void ViewportEngineProviderMetadataReadyAccess::advanceTargetPresentationRevisio
         qFatal("ImageViewport revision token allocator exhausted");
     }
     m_targetPresentationRevision = ++m_nextRevision;
+}
+
+bool ViewportEngineProviderMetadataReadyAccess::applyAutoplay()
+{
+    ViewportEngineAuthoredAutoplayAccess autoplay(
+        m_request, { m_roles[0].provider.facts, m_roles[1].provider.facts }, m_playback);
+    return reduceViewportEngineAuthoredAutoplay({}, std::move(autoplay)).playbackPhaseChanged;
 }
 
 ViewportProviderFrameTransportEffect ViewportEngineProviderMetadataReadyAccess::closeSession(
@@ -383,6 +391,8 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
     result.changes.requestRevision = true;
     if (!start.accepted) {
         result.changes.diagnostics = true;
+        return result;
     }
+    result.changes.playbackPhase = result.changes.playbackPhase || access.applyAutoplay();
     return result;
 }

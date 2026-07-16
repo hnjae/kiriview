@@ -404,6 +404,12 @@ struct DisplayState
     quint64 revision = 0;
 };
 
+enum class AuthoredAutoplayArbitrationState {
+    Pending,
+    Resolved,
+    Suppressed,
+};
+
 struct PlaybackState
 {
     void resetRequestIdentity()
@@ -411,6 +417,7 @@ struct PlaybackState
         position = -1;
         role = ImageViewportPageRole::Primary;
         loopIterationsCompleted = 0;
+        authoredAutoplayArbitration = AuthoredAutoplayArbitrationState::Pending;
     }
 
     ImageViewportPlaybackPhase phase = ImageViewportPlaybackPhase::Stopped;
@@ -420,6 +427,8 @@ struct PlaybackState
     int position = -1;
     ImageViewportPageRole role = ImageViewportPageRole::Primary;
     int loopIterationsCompleted = 0;
+    AuthoredAutoplayArbitrationState authoredAutoplayArbitration
+        = AuthoredAutoplayArbitrationState::Pending;
 };
 
 struct RequestState

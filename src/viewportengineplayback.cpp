@@ -145,6 +145,10 @@ ViewportEnginePlaybackCommandResult ViewportEngine::applyPlaybackCommand(
         m_state->requestState.presentationTarget.generation);
     auto reduction
         = reduceViewportEnginePlaybackPlay({ input.command.role, geometry }, std::move(access));
+    if (reduction.outcome == ImageViewportCommandOutcome::Accepted) {
+        m_state->playbackState.playback.authoredAutoplayArbitration
+            = ImageViewportInternal::AuthoredAutoplayArbitrationState::Suppressed;
+    }
     const bool changed = hasStateChanges(reduction.changes)
         || hasProviderEffects(reduction.providerFrameTransport);
     result.command = reduction.outcome != ImageViewportCommandOutcome::Accepted

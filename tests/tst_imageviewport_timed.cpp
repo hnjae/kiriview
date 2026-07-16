@@ -28,6 +28,8 @@ private slots:
     void timedFrameListSecondaryStopRestoresRoleTarget();
     void timedFrameListSecondaryInvalidSeekUsesPresentRolePrecedence();
     void timedFrameListAuthoredAutoplayStartsInitialPlayback();
+    void timedFrameListAuthoredAutoplaySelectsEligibleRole_data();
+    void timedFrameListAuthoredAutoplaySelectsEligibleRole();
     void timedFrameListAuthoredInfiniteLoopControlsDefaultPlayback();
     void timedFrameListAuthoredFiniteLoopStopsAfterFinalIteration();
     void timedFrameListPauseWhileStoppedAndRenderWaitingPreservesRequest();
@@ -793,6 +795,66 @@ void ImageViewportTimedTest::timedFrameListAuthoredAutoplayStartsInitialPlayback
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryDisplayedFrame(item), 1);
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Playing"));
+}
+
+void ImageViewportTimedTest::timedFrameListAuthoredAutoplaySelectsEligibleRole_data()
+{
+    QTest::addColumn<bool>("primaryAutoplay");
+    QTest::addColumn<int>("expectedRole");
+
+    QTest::newRow("primary-precedes-secondary")
+        << true << static_cast<int>(ImageViewportPageRole::Primary);
+    QTest::newRow("secondary-selected-when-primary-ineligible")
+        << false << static_cast<int>(ImageViewportPageRole::Secondary);
+}
+
+void ImageViewportTimedTest::timedFrameListAuthoredAutoplaySelectsEligibleRole()
+{
+    QFETCH(bool, primaryAutoplay);
+    QFETCH(int, expectedRole);
+
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::black);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+
+    TimedImageFrameList primaryList;
+    QVERIFY(primaryList.appendFrame(&firstFrame, 100));
+    QVERIFY(primaryList.appendFrame(&secondFrame, 100));
+    primaryList.setAutoplay(primaryAutoplay);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(
+        factory.fromTimedFrameList(&primaryList));
+    QVERIFY(primaryResult->sequence());
+
+    TimedImageFrameList secondaryList;
+    QVERIFY(secondaryList.appendFrame(&firstFrame, 100));
+    QVERIFY(secondaryList.appendFrame(&secondFrame, 100));
+    secondaryList.setAutoplay(true);
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
+        factory.fromTimedFrameList(&secondaryList));
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(
+                                            primaryResult->sequence(), secondaryResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+
+    ImageViewportStateSnapshot snapshot = item.state();
+    QCOMPARE(snapshot.request().playbackPhase(), ImageViewportPlaybackPhase::Waiting);
+    QCOMPARE(snapshot.request().playbackRole().value<ImageViewportPageRole>(),
+        static_cast<ImageViewportPageRole>(expectedRole));
+
+    acknowledgePendingRenderCommitForTest(item);
+    snapshot = item.state();
+    QCOMPARE(snapshot.request().playbackPhase(), ImageViewportPlaybackPhase::Playing);
+    QCOMPARE(snapshot.request().playbackRole().value<ImageViewportPageRole>(),
+        static_cast<ImageViewportPageRole>(expectedRole));
 }
 
 void ImageViewportTimedTest::timedFrameListAuthoredInfiniteLoopControlsDefaultPlayback()

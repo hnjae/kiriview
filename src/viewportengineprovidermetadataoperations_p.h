@@ -56,6 +56,7 @@ private:
     ImageViewportInternal::ViewportChangeSet recordTerminal(
         ViewportEngineProviderTerminalProjectionInput input);
     void advanceTargetPresentationRevision();
+    bool applyAutoplay();
 
     ImageViewportInternal::RequestState& m_request;
     ImageViewportInternal::PlaybackState& m_playback;

@@ -307,8 +307,8 @@ ViewportEnginePresentationTargetAssignmentAccess::transition(
 
 void ViewportEnginePresentationTargetAssignmentAccess::applyAutoplay()
 {
-    ViewportEngineAuthoredAutoplayAccess autoplay(m_request.roles[0].source,
-        m_roles[0].provider.facts, m_request.roles[0].activeRequest, m_playback, m_request.status);
+    ViewportEngineAuthoredAutoplayAccess autoplay(
+        m_request, { m_roles[0].provider.facts, m_roles[1].provider.facts }, m_playback);
     reduceViewportEngineAuthoredAutoplay({}, std::move(autoplay));
 }
 
@@ -392,6 +392,7 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
         a.m_request.roles[1].source.facts.provider
             && a.m_request.roles[1].source.facts.authoredAnimationFactsAvailable);
     if (out.clear) {
+        a.m_playback.authoredAutoplayArbitration = AuthoredAutoplayArbitrationState::Resolved;
         a.m_display.clearDisplayedDisplay();
         a.m_display.clearRenderFailureRetainedDisplay();
         a.m_request.status = ImageViewportRequestStatus::NoRequest;

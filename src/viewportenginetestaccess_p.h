@@ -59,11 +59,10 @@ public:
     }
     static ViewportEngineAuthoredAutoplayReduction reduceAuthoredAutoplay(ViewportEngine& engine)
     {
-        ViewportEngineAuthoredAutoplayAccess access(
-            engine.m_state->requestState.request.roles[0].source,
-            engine.m_state->providerState.roles[0].provider.facts,
-            engine.m_state->requestState.request.roles[0].activeRequest,
-            engine.m_state->playbackState.playback, engine.m_state->requestState.request.status);
+        ViewportEngineAuthoredAutoplayAccess access(engine.m_state->requestState.request,
+            { engine.m_state->providerState.roles[0].provider.facts,
+                engine.m_state->providerState.roles[1].provider.facts },
+            engine.m_state->playbackState.playback);
         return reduceViewportEngineAuthoredAutoplay({}, std::move(access));
     }
     static ImageViewportCommandReason& commandReason(ViewportEngine& engine)

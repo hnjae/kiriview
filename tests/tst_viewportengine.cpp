@@ -557,6 +557,7 @@ void ViewportEngineTest::authoredAutoplayReducerUsesBoundedState()
         ViewportEngine engine;
         const auto result = ViewportEngineTestAccess::reduceAuthoredAutoplay(engine);
         QCOMPARE(result.armed, false);
+        QCOMPARE(result.resolved, true);
         QCOMPARE(
             ViewportEngineTestAccess::playback(engine).phase, ImageViewportPlaybackPhase::Stopped);
     }
@@ -564,6 +565,7 @@ void ViewportEngineTest::authoredAutoplayReducerUsesBoundedState()
     {
         ViewportEngine engine;
         auto& request = ViewportEngineTestAccess::request(engine);
+        request.roles[0].source.facts.present = true;
         request.roles[0].source.facts.timed = true;
         request.roles[0].source.facts.timingIntervals
             = TimingIntervals::fromFrameDurations({ 100, 250 });
@@ -574,7 +576,7 @@ void ViewportEngineTest::authoredAutoplayReducerUsesBoundedState()
 
         const auto result = ViewportEngineTestAccess::reduceAuthoredAutoplay(engine);
         QCOMPARE(result.armed, true);
-        QCOMPARE(result.activeRequestChanged, false);
+        QCOMPARE(result.resolved, true);
         QCOMPARE(result.playbackPhaseChanged, true);
         QCOMPARE(ViewportEngineTestAccess::playback(engine).position, 100);
         QCOMPARE(
@@ -583,7 +585,9 @@ void ViewportEngineTest::authoredAutoplayReducerUsesBoundedState()
 
     {
         ViewportEngine engine;
-        auto& source = ViewportEngineTestAccess::request(engine).roles[0].source;
+        auto& request = ViewportEngineTestAccess::request(engine);
+        auto& source = request.roles[0].source;
+        source.facts.present = true;
         source.facts.provider = true;
         source.facts.providerTimedPlaybackCapability
             = ImageViewportInternal::ImageSequenceProviderCapabilitySupport::KnownFalse;
@@ -593,9 +597,11 @@ void ViewportEngineTest::authoredAutoplayReducerUsesBoundedState()
         ViewportEngineTestAccess::providerFacts(engine, ImageViewportPageRole::Primary)
             .authoredAnimationFactsAvailable
             = true;
+        request.status = ImageViewportRequestStatus::Loading;
 
         const auto result = ViewportEngineTestAccess::reduceAuthoredAutoplay(engine);
         QCOMPARE(result.armed, false);
+        QCOMPARE(result.resolved, true);
         QCOMPARE(
             ViewportEngineTestAccess::playback(engine).phase, ImageViewportPlaybackPhase::Stopped);
     }
@@ -603,26 +609,29 @@ void ViewportEngineTest::authoredAutoplayReducerUsesBoundedState()
     {
         ViewportEngine engine;
         auto& request = ViewportEngineTestAccess::request(engine);
+        request.roles[0].source.facts.present = true;
         request.roles[0].source.facts.provider = true;
         auto& provider
             = ViewportEngineTestAccess::providerFacts(engine, ImageViewportPageRole::Primary);
         provider.authoredAnimationFacts = autoplay;
         provider.authoredAnimationFactsAvailable = true;
+        request.status = ImageViewportRequestStatus::Loading;
 
         const auto result = ViewportEngineTestAccess::reduceAuthoredAutoplay(engine);
-        QCOMPARE(result.armed, true);
-        QCOMPARE(result.activeRequestChanged, true);
+        QCOMPARE(result.armed, false);
+        QCOMPARE(result.resolved, false);
         QCOMPARE(request.roles[0].activeRequest.target.providerTargetKind,
-            ImageViewportInternal::ProviderRequestTargetKind::Playback);
-        QCOMPARE(ViewportEngineTestAccess::playback(engine).providerStartPending, true);
+            ImageViewportInternal::ProviderRequestTargetKind::Unknown);
+        QCOMPARE(ViewportEngineTestAccess::playback(engine).providerStartPending, false);
         QCOMPARE(ViewportEngineTestAccess::playback(engine).position, -1);
         QCOMPARE(
-            ViewportEngineTestAccess::playback(engine).phase, ImageViewportPlaybackPhase::Waiting);
+            ViewportEngineTestAccess::playback(engine).phase, ImageViewportPlaybackPhase::Stopped);
     }
 
     {
         ViewportEngine engine;
         auto& request = ViewportEngineTestAccess::request(engine);
+        request.roles[0].source.facts.present = true;
         request.roles[0].source.facts.provider = true;
         request.roles[0].activeRequest.target.frame = 1;
         request.status = ImageViewportRequestStatus::Ready;
@@ -637,7 +646,7 @@ void ViewportEngineTest::authoredAutoplayReducerUsesBoundedState()
 
         const auto result = ViewportEngineTestAccess::reduceAuthoredAutoplay(engine);
         QCOMPARE(result.armed, true);
-        QCOMPARE(result.activeRequestChanged, false);
+        QCOMPARE(result.resolved, true);
         QCOMPARE(ViewportEngineTestAccess::playback(engine).position, 100);
         QCOMPARE(
             ViewportEngineTestAccess::playback(engine).phase, ImageViewportPlaybackPhase::Playing);

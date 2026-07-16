@@ -14,8 +14,7 @@ struct ViewportEngineAuthoredAutoplayInput
 struct ViewportEngineAuthoredAutoplayReduction
 {
     bool armed = false;
-    bool activeRequestChanged = false;
-    bool playbackChanged = false;
+    bool resolved = false;
     bool playbackPhaseChanged = false;
 };
 
@@ -23,16 +22,14 @@ class ViewportEngineAuthoredAutoplayAccess
 {
     friend class ViewportEngine;
     friend class ViewportEnginePresentationTargetAssignmentAccess;
+    friend class ViewportEngineProviderMetadataReadyAccess;
     friend class ViewportEngineTestAccess;
-    ViewportEngineAuthoredAutoplayAccess(const ImageViewportInternal::ImageSequenceSource& source,
-        const ImageViewportInternal::ProviderFactsState& providerFacts,
-        ImageViewportInternal::DisplayRequest& activeRequest,
-        ImageViewportInternal::PlaybackState& playback, ImageViewportRequestStatus requestStatus)
-        : m_source(source)
-        , m_providerFacts(providerFacts)
-        , m_activeRequest(activeRequest)
+    ViewportEngineAuthoredAutoplayAccess(const ImageViewportInternal::RequestState& request,
+        ViewportEngineProviderFactsView providerFacts,
+        ImageViewportInternal::PlaybackState& playback)
+        : m_request(request)
+        , m_providerFacts(std::move(providerFacts))
         , m_playback(playback)
-        , m_requestStatus(requestStatus)
     {
     }
 
@@ -42,21 +39,25 @@ public:
     ViewportEngineAuthoredAutoplayAccess& operator=(const ViewportEngineAuthoredAutoplayAccess&)
         = delete;
 
-    const ImageViewportInternal::ImageSequenceSource& source() const { return m_source; }
-    const ImageViewportInternal::ProviderFactsState& providerFacts() const
+    const ImageViewportInternal::ImageSequenceSource& source(ImageViewportPageRole role) const
     {
-        return m_providerFacts;
+        return m_request.roles[role == ImageViewportPageRole::Secondary ? 1U : 0U].source;
     }
-    ImageViewportInternal::DisplayRequest& activeRequest() const { return m_activeRequest; }
+    const ImageViewportInternal::ProviderFactsState& providerFacts(ImageViewportPageRole role) const
+    {
+        return m_providerFacts[role == ImageViewportPageRole::Secondary ? 1U : 0U];
+    }
+    const ImageViewportInternal::DisplayRequest& activeRequest(ImageViewportPageRole role) const
+    {
+        return m_request.roles[role == ImageViewportPageRole::Secondary ? 1U : 0U].activeRequest;
+    }
     ImageViewportInternal::PlaybackState& playback() const { return m_playback; }
-    ImageViewportRequestStatus requestStatus() const { return m_requestStatus; }
+    ImageViewportRequestStatus requestStatus() const { return m_request.status; }
 
 private:
-    const ImageViewportInternal::ImageSequenceSource& m_source;
-    const ImageViewportInternal::ProviderFactsState& m_providerFacts;
-    ImageViewportInternal::DisplayRequest& m_activeRequest;
+    const ImageViewportInternal::RequestState& m_request;
+    ViewportEngineProviderFactsView m_providerFacts;
     ImageViewportInternal::PlaybackState& m_playback;
-    ImageViewportRequestStatus m_requestStatus = ImageViewportRequestStatus::NoRequest;
 };
 
 struct ViewportEnginePlaybackPauseInput
