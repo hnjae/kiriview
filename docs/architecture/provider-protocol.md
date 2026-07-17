@@ -32,6 +32,12 @@ Unsupported events carry an explicit cause: `UnsupportedRequest` or `PayloadReje
 
 Waiting and progress events are advisory. They may update request wait projection for the active token, may be coalesced, and must never dominate terminal results for the active token.
 
+## Terminal Ownership
+
+The engine stores generation-terminal facts by generation and role, independently of display-request-terminal facts stored by generation, display-request identity, and role. A new accepted display request retires only the matching display-request terminal; it cannot erase or bypass a generation terminal. Clear and non-empty presentation-target replacement retire the generation and therefore both terminal domains. Aggregate request projection selects from the applicable terminal domains with one deterministic role and severity precedence.
+
+Provider session availability is transport execution state, not a second authority for command recovery. Session-open failure, active protocol violation, failure to deliver any response-bearing command, and provider request-token exhaustion record a generation terminal before converging on generation close. No same-generation request may reopen, replace, or retry that session. A queued-frame scheduling failure occurs before provider delivery, records only a display-request terminal, and leaves the accepted session available for a later request.
+
 ## Metadata
 
 Metadata readiness is generation-scoped. Runtime metadata supplies frame count, sequence-wide source logical size, timing model, seek support, timed playback support, authored animation facts, and timing intervals. It becomes authoritative only after validation against public limits and construction-time constraints.
@@ -56,7 +62,7 @@ Each session has one host-owned lifetime barrier shared by event ingress, frame 
 
 Provider refinement is auxiliary generation-scoped work owned separately from the accepted display request. Every non-bookkeeping presentation, geometry, device-pixel-ratio, cap, budget, or allocation change that advances demand for a committed provider-backed role marks that role non-current, retires any older auxiliary token for the role, and issues exactly one refinement request for the new revision. The request carries a new active token and the then-current demand for the unchanged target, role, frame, and source logical coordinates. Updating current-payload facts from a commit may advance the revision available to later requests but does not itself schedule work or make that payload non-current. Fixed in-memory roles bypass provider demand scheduling and retain current status until another frame or target is admitted.
 
-The engine admits a matching refinement through the normal preparation and render-commit identities, then swaps payload ownership without changing logical target, ready request status, or playback phase. Unsupported, failed, cancelled, or payload-rejected refinement results retire only the auxiliary token and preserve the committed payload; if the demand remains unsatisfied, `currentForDemand` remains false until a later qualifying demand change or successful refinement. Refinement token failure does not populate request-terminal diagnostics. A kind, session, token, or role protocol violation remains generation-terminal because it invalidates trust in the session rather than only the optional detail upgrade.
+The engine admits a matching refinement through the normal preparation and render-commit identities, then swaps payload ownership without changing logical target, ready request status, or playback phase. Unsupported, failed, cancelled, or payload-rejected refinement results retire only the auxiliary token and preserve the committed payload; if the demand remains unsatisfied, `currentForDemand` remains false until a later qualifying demand change or successful refinement. Refinement token failure does not populate request-terminal diagnostics. A kind, session, token, or role protocol violation and failure to deliver the refinement command remain generation-terminal because they invalidate the session rather than only the optional detail upgrade.
 
 ## Playback
 
@@ -68,6 +74,6 @@ Stop, seek, loop, clear, replacement, unsupported, and terminal failures retire 
 
 ## Shutdown
 
-Generation close is idempotent. Clear, replacement, generation-terminal failure, item destruction, and engine shutdown converge on the same close path. Closing retires engine token and queued-request state before transport sends best-effort cancellation and close requests.
+Generation close is idempotent. Clear, replacement, generation-terminal failure, item destruction, and engine shutdown converge on the same close path. Closing retires engine token and queued-request state before transport sends best-effort cancellation and close requests. A failure while sending cancellation or close cannot create another public terminal because those commands expect no response and cleanup remains best-effort.
 
 Cancellation acknowledgement is not required for the viewport to proceed. A cancellation event for engine-cancelled or closed work is cleanup acknowledgement only. A provider-originated cancellation for a still-active token that the engine did not cancel reports provider failure.
