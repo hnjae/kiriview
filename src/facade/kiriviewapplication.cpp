@@ -434,8 +434,7 @@ Actions::KiriViewApplicationActionStateSource::connectActionStateChanged(
         connectRefresh(image, &KiriImageDocument::viewportFrameChanged);
     }
     if (KiriVideoDocument* video = session->videoDocument()) {
-        connectRefresh(video, &KiriVideoDocument::seekableChanged);
-        connectRefresh(video, &KiriVideoDocument::durationChanged);
+        connectRefresh(video->playbackControls(), &KiriVideoPlaybackControls::projectionChanged);
     }
 
     return connections;
@@ -509,8 +508,8 @@ Actions::KiriViewApplicationActionStateSource::actionStateSnapshot() const
     snapshot.showMenubarActionEnabled = m_uiGateSnapshot.showMenubarActionEnabled;
     if (KiriVideoDocument* video
         = m_documentSession == nullptr ? nullptr : m_documentSession->videoDocument()) {
-        snapshot.videoSeekable = video->seekable();
-        snapshot.videoDuration = video->duration();
+        snapshot.videoSeekable = video->playbackControls()->timelineInteractive();
+        snapshot.videoDuration = video->playbackControls()->sliderMaximumMsec();
     }
     return snapshot;
 }
@@ -691,11 +690,11 @@ Actions::KiriViewApplicationCommandPortSource::commandRouterVideoPorts()
     ports.videoAvailable = [this]() { return videoDocument() != nullptr; };
     ports.videoSeekable = [this]() {
         KiriVideoDocument* video = videoDocument();
-        return video != nullptr && video->seekable();
+        return video != nullptr && video->playbackControls()->timelineInteractive();
     };
     ports.videoDuration = [this]() {
         KiriVideoDocument* video = videoDocument();
-        return video == nullptr ? qint64(0) : video->duration();
+        return video == nullptr ? qint64(0) : video->playbackControls()->sliderMaximumMsec();
     };
     ports.seekVideoBy = [this](qint64 deltaMilliseconds) {
         if (KiriVideoDocument* video = videoDocument()) {

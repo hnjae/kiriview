@@ -12,8 +12,6 @@ QString fileNameForWindowTitle(const QUrl& sourceUrl)
     return sourceUrl.fileName(QUrl::PrettyDecoded);
 }
 
-qint64 nonNegative(qint64 value) { return std::max<qint64>(0, value); }
-
 QSize normalizedVideoSize(QSize size)
 {
     if (size.width() <= 0 || size.height() <= 0) {
@@ -22,6 +20,8 @@ QSize normalizedVideoSize(QSize size)
 
     return size;
 }
+
+int nonNegative(int value) { return std::max(0, value); }
 }
 
 namespace kiriview {
@@ -48,14 +48,6 @@ const std::optional<VideoBackendFailure>& VideoDocumentState::backendFailure() c
 
 const QString& VideoDocumentState::windowTitleFileName() const { return m_windowTitleFileName; }
 
-qint64 VideoDocumentState::duration() const { return m_duration; }
-
-qint64 VideoDocumentState::position() const { return m_position; }
-
-bool VideoDocumentState::playing() const { return m_playing; }
-
-bool VideoDocumentState::seekable() const { return m_seekable; }
-
 bool VideoDocumentState::hasVideo() const { return m_hasVideo; }
 
 bool VideoDocumentState::hasAudio() const { return m_hasAudio; }
@@ -66,15 +58,10 @@ bool VideoDocumentState::zoomPercentKnown() const { return m_zoomPercentKnown; }
 
 int VideoDocumentState::zoomPercent() const { return m_zoomPercent; }
 
-bool VideoDocumentState::muted() const { return m_muted; }
-
-bool VideoDocumentState::mediaEnded() const { return m_mediaEnded; }
-
 const EmbeddedMetadata& VideoDocumentState::embeddedMetadata() const { return m_embeddedMetadata; }
 
 void VideoDocumentState::resetForClearedSource()
 {
-    m_mediaEnded = false;
     m_sourceLoadFailure.reset();
     m_backendFailure.reset();
 
@@ -83,10 +70,6 @@ void VideoDocumentState::resetForClearedSource()
     appendIfStatusChanged(changes, VideoDocumentStatus::Null);
     appendIfErrorStringChanged(changes, QString());
     appendIfWindowTitleFileNameChanged(changes, QString());
-    appendIfDurationChanged(changes, 0);
-    appendIfPositionChanged(changes, 0);
-    appendIfPlayingChanged(changes, false);
-    appendIfSeekableChanged(changes, false);
     appendIfHasVideoChanged(changes, false);
     appendIfHasAudioChanged(changes, false);
     appendIfVideoSizeChanged(changes, {});
@@ -99,7 +82,6 @@ void VideoDocumentState::resetForClearedSource()
 
 void VideoDocumentState::resetForSourceLoad(const QUrl& sourceUrl)
 {
-    m_mediaEnded = false;
     m_sourceLoadFailure.reset();
     m_backendFailure.reset();
 
@@ -108,10 +90,6 @@ void VideoDocumentState::resetForSourceLoad(const QUrl& sourceUrl)
     appendIfWindowTitleFileNameChanged(changes, fileNameForWindowTitle(sourceUrl));
     appendIfErrorStringChanged(changes, QString());
     appendIfStatusChanged(changes, VideoDocumentStatus::Loading);
-    appendIfDurationChanged(changes, 0);
-    appendIfPositionChanged(changes, 0);
-    appendIfPlayingChanged(changes, false);
-    appendIfSeekableChanged(changes, false);
     appendIfHasVideoChanged(changes, false);
     appendIfHasAudioChanged(changes, false);
     appendIfVideoSizeChanged(changes, {});
@@ -185,38 +163,6 @@ void VideoDocumentState::setErrorString(const QString& errorString)
     publish(std::move(changes));
 }
 
-void VideoDocumentState::setDuration(qint64 duration)
-{
-    std::vector<VideoDocumentChange> changes;
-    appendIfDurationChanged(changes, duration);
-    publish(std::move(changes));
-}
-
-void VideoDocumentState::setPosition(qint64 position)
-{
-    std::vector<VideoDocumentChange> changes;
-    appendIfPositionChanged(changes, position);
-    publish(std::move(changes));
-}
-
-void VideoDocumentState::setPlaying(bool playing)
-{
-    if (playing) {
-        m_mediaEnded = false;
-    }
-
-    std::vector<VideoDocumentChange> changes;
-    appendIfPlayingChanged(changes, playing);
-    publish(std::move(changes));
-}
-
-void VideoDocumentState::setSeekable(bool seekable)
-{
-    std::vector<VideoDocumentChange> changes;
-    appendIfSeekableChanged(changes, seekable);
-    publish(std::move(changes));
-}
-
 void VideoDocumentState::setHasVideo(bool hasVideo)
 {
     std::vector<VideoDocumentChange> changes;
@@ -250,15 +196,6 @@ void VideoDocumentState::setZoomPercent(std::optional<int> zoomPercent)
     }
     publish(std::move(changes));
 }
-
-void VideoDocumentState::setMuted(bool muted)
-{
-    std::vector<VideoDocumentChange> changes;
-    appendIfMutedChanged(changes, muted);
-    publish(std::move(changes));
-}
-
-void VideoDocumentState::setMediaEnded(bool mediaEnded) { m_mediaEnded = mediaEnded; }
 
 void VideoDocumentState::setEmbeddedMetadata(EmbeddedMetadata metadata)
 {
@@ -333,52 +270,6 @@ void VideoDocumentState::appendIfWindowTitleFileNameChanged(
     changes.push_back(VideoDocumentChange::WindowTitleFileName);
 }
 
-void VideoDocumentState::appendIfDurationChanged(
-    std::vector<VideoDocumentChange>& changes, qint64 duration)
-{
-    const qint64 normalizedDuration = nonNegative(duration);
-    if (m_duration == normalizedDuration) {
-        return;
-    }
-
-    m_duration = normalizedDuration;
-    changes.push_back(VideoDocumentChange::Duration);
-}
-
-void VideoDocumentState::appendIfPositionChanged(
-    std::vector<VideoDocumentChange>& changes, qint64 position)
-{
-    const qint64 normalizedPosition = nonNegative(position);
-    if (m_position == normalizedPosition) {
-        return;
-    }
-
-    m_position = normalizedPosition;
-    changes.push_back(VideoDocumentChange::Position);
-}
-
-void VideoDocumentState::appendIfPlayingChanged(
-    std::vector<VideoDocumentChange>& changes, bool playing)
-{
-    if (m_playing == playing) {
-        return;
-    }
-
-    m_playing = playing;
-    changes.push_back(VideoDocumentChange::Playing);
-}
-
-void VideoDocumentState::appendIfSeekableChanged(
-    std::vector<VideoDocumentChange>& changes, bool seekable)
-{
-    if (m_seekable == seekable) {
-        return;
-    }
-
-    m_seekable = seekable;
-    changes.push_back(VideoDocumentChange::Seekable);
-}
-
 void VideoDocumentState::appendIfHasVideoChanged(
     std::vector<VideoDocumentChange>& changes, bool hasVideo)
 {
@@ -436,13 +327,4 @@ void VideoDocumentState::appendIfZoomPercentChanged(
     changes.push_back(VideoDocumentChange::ZoomPercent);
 }
 
-void VideoDocumentState::appendIfMutedChanged(std::vector<VideoDocumentChange>& changes, bool muted)
-{
-    if (m_muted == muted) {
-        return;
-    }
-
-    m_muted = muted;
-    changes.push_back(VideoDocumentChange::Muted);
-}
 }

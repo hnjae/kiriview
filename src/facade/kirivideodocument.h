@@ -4,7 +4,10 @@
 #ifndef KIRIVIEW_KIRIVIDEODOCUMENT_H
 #define KIRIVIEW_KIRIVIDEODOCUMENT_H
 
+#include "async/timerscheduler.h"
+#include "facade/kirivideoplaybackcontrols.h"
 #include "metadata/embeddedmetadata.h"
+#include "video/videoplaybackcontrolruntime.h"
 #include "video/videoplaybacksource.h"
 
 #include <QObject>
@@ -35,17 +38,13 @@ class KiriVideoDocument : public QObject
     Q_PROPERTY(QString errorString READ errorString NOTIFY errorStringChanged)
     Q_PROPERTY(
         QString windowTitleFileName READ windowTitleFileName NOTIFY windowTitleFileNameChanged)
-    Q_PROPERTY(qint64 duration READ duration NOTIFY durationChanged)
-    Q_PROPERTY(qint64 position READ position WRITE setPosition NOTIFY positionChanged)
-    Q_PROPERTY(bool playing READ playing NOTIFY playingChanged)
-    Q_PROPERTY(bool seekable READ seekable NOTIFY seekableChanged)
     Q_PROPERTY(bool hasVideo READ hasVideo NOTIFY hasVideoChanged)
     Q_PROPERTY(bool hasAudio READ hasAudio NOTIFY hasAudioChanged)
     Q_PROPERTY(QSize videoSize READ videoSize NOTIFY videoSizeChanged)
     Q_PROPERTY(bool zoomPercentKnown READ zoomPercentKnown NOTIFY zoomPercentKnownChanged)
     Q_PROPERTY(int zoomPercent READ zoomPercent NOTIFY zoomPercentChanged)
-    Q_PROPERTY(bool muted READ muted WRITE setMuted NOTIFY mutedChanged)
     Q_PROPERTY(QObject* videoOutput READ videoOutput NOTIFY videoOutputChanged)
+    Q_PROPERTY(KiriVideoPlaybackControls* playbackControls READ playbackControls CONSTANT)
 
 public:
     enum class Status {
@@ -57,6 +56,8 @@ public:
     Q_ENUM(Status)
 
     explicit KiriVideoDocument(QObject* parent = nullptr);
+    explicit KiriVideoDocument(
+        kiriview::TimerScheduler playbackControlTimerScheduler, QObject* parent = nullptr);
     ~KiriVideoDocument() override;
 
     QUrl sourceUrl() const;
@@ -74,36 +75,33 @@ public:
     int zoomPercent() const;
     bool muted() const;
     QObject* videoOutput() const;
+    KiriVideoPlaybackControls* playbackControls() const;
     const kiriview::EmbeddedMetadata& embeddedMetadata() const;
-    Q_INVOKABLE void play();
-    Q_INVOKABLE void pause();
-    Q_INVOKABLE void stop();
-    Q_INVOKABLE void togglePlayback();
-    Q_INVOKABLE void setMuted(bool muted);
-    Q_INVOKABLE void toggleMuted();
-    Q_INVOKABLE void setPosition(qint64 position);
-    Q_INVOKABLE void seekBy(qint64 deltaMilliseconds);
+    void play();
+    void pause();
+    void stop();
+    void togglePlayback();
+    void setMuted(bool muted);
+    void toggleMuted();
+    void setPosition(qint64 position);
+    void seekBy(qint64 deltaMilliseconds);
 
 Q_SIGNALS:
     void sourceUrlChanged();
     void statusChanged();
     void errorStringChanged();
     void windowTitleFileNameChanged();
-    void durationChanged();
-    void positionChanged();
-    void playingChanged();
-    void seekableChanged();
     void hasVideoChanged();
     void hasAudioChanged();
     void videoSizeChanged();
     void zoomPercentKnownChanged();
     void zoomPercentChanged();
-    void mutedChanged();
     void videoOutputChanged();
     void embeddedMetadataChanged();
 
 private:
     friend class KiriDocumentSession;
+    friend class KiriVideoPlaybackControls;
 
     Q_SIGNAL void documentSessionSnapshotChanged();
 
@@ -112,7 +110,17 @@ private:
     void setVideoOutput(QObject* videoOutput);
     void setVideoOutputGeometry(const QRectF& contentRect, const QRectF& sourceRect);
     void handleDocumentChanges(const std::vector<kiriview::VideoDocumentChange>& changes);
+    const kiriview::VideoPlaybackControlProjection& playbackControlProjection() const;
+    void reportPlaybackControlEnvironment(kiriview::VideoPlaybackControlEnvironment environment);
+    void reportPlaybackControlInteraction(bool active);
+    void revealPlaybackControls();
+    void beginPlaybackScrub();
+    void updatePlaybackScrub(qint64 positionMsec);
+    void commitPlaybackScrub();
+    void cancelPlaybackScrub();
+    void requestPlaybackControlSeek(qint64 positionMsec);
 
+    std::unique_ptr<KiriVideoPlaybackControls> m_playbackControls;
     std::unique_ptr<kiriview::VideoDocumentRuntime> m_runtime;
 };
 

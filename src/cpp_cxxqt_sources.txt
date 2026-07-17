@@ -8,5 +8,6 @@ src/facade/kiriimagedocument.cpp
 src/facade/kiriimageviewportcontextbridge.cpp
 src/facade/kirimediainformation.cpp
 src/facade/kirivideodocument.cpp
+src/facade/kirivideoplaybackcontrols.cpp
 src/decoding/kiriimagedecoder.cpp
 src/facade/kiriviewapplication.cpp

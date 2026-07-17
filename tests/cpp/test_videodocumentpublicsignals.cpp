@@ -39,17 +39,12 @@ kiriview::VideoDocumentPublicSignalOperations recordingOperations(QStringList& e
     operations.errorStringChanged = [&events]() { events.append(QStringLiteral("errorString")); };
     operations.windowTitleFileNameChanged
         = [&events]() { events.append(QStringLiteral("windowTitleFileName")); };
-    operations.durationChanged = [&events]() { events.append(QStringLiteral("duration")); };
-    operations.positionChanged = [&events]() { events.append(QStringLiteral("position")); };
-    operations.playingChanged = [&events]() { events.append(QStringLiteral("playing")); };
-    operations.seekableChanged = [&events]() { events.append(QStringLiteral("seekable")); };
     operations.hasVideoChanged = [&events]() { events.append(QStringLiteral("hasVideo")); };
     operations.hasAudioChanged = [&events]() { events.append(QStringLiteral("hasAudio")); };
     operations.videoSizeChanged = [&events]() { events.append(QStringLiteral("videoSize")); };
     operations.zoomPercentKnownChanged
         = [&events]() { events.append(QStringLiteral("zoomPercentKnown")); };
     operations.zoomPercentChanged = [&events]() { events.append(QStringLiteral("zoomPercent")); };
-    operations.mutedChanged = [&events]() { events.append(QStringLiteral("muted")); };
     operations.videoOutputChanged = [&events]() { events.append(QStringLiteral("videoOutput")); };
     return operations;
 }
@@ -68,14 +63,6 @@ void TestVideoDocumentPublicSignals::publicSignalPlansReturnSignalsInEmissionOrd
     comparePublicSignals(kiriview::videoDocumentPublicSignals(Change::WindowTitleFileName),
         { Signal::WindowTitleFileName });
     comparePublicSignals(
-        kiriview::videoDocumentPublicSignals(Change::Duration), { Signal::Duration });
-    comparePublicSignals(
-        kiriview::videoDocumentPublicSignals(Change::Position), { Signal::Position });
-    comparePublicSignals(
-        kiriview::videoDocumentPublicSignals(Change::Playing), { Signal::Playing });
-    comparePublicSignals(
-        kiriview::videoDocumentPublicSignals(Change::Seekable), { Signal::Seekable });
-    comparePublicSignals(
         kiriview::videoDocumentPublicSignals(Change::HasVideo), { Signal::HasVideo });
     comparePublicSignals(
         kiriview::videoDocumentPublicSignals(Change::HasAudio), { Signal::HasAudio });
@@ -85,7 +72,6 @@ void TestVideoDocumentPublicSignals::publicSignalPlansReturnSignalsInEmissionOrd
         { Signal::ZoomPercentKnown });
     comparePublicSignals(
         kiriview::videoDocumentPublicSignals(Change::ZoomPercent), { Signal::ZoomPercent });
-    comparePublicSignals(kiriview::videoDocumentPublicSignals(Change::Muted), { Signal::Muted });
     comparePublicSignals(
         kiriview::videoDocumentPublicSignals(Change::VideoOutput), { Signal::VideoOutput });
 }
@@ -95,9 +81,9 @@ void TestVideoDocumentPublicSignals::publicSignalBatchPlansDeduplicateSignalsInE
     using Change = kiriview::VideoDocumentChange;
     using Signal = kiriview::VideoDocumentPublicSignal;
 
-    comparePublicSignals(kiriview::videoDocumentPublicSignalsForChanges(
-                             { Change::Status, Change::Duration, Change::Status, Change::Playing }),
-        { Signal::Status, Signal::Duration, Signal::Playing });
+    comparePublicSignals(kiriview::videoDocumentPublicSignalsForChanges({ Change::Status,
+                             Change::HasAudio, Change::Status, Change::VideoSize }),
+        { Signal::Status, Signal::HasAudio, Signal::VideoSize });
 }
 
 void TestVideoDocumentPublicSignals::emitterDispatchesChangeSignalsInProjectionOrder()
@@ -105,18 +91,16 @@ void TestVideoDocumentPublicSignals::emitterDispatchesChangeSignalsInProjectionO
     QStringList events;
     const kiriview::VideoDocumentPublicSignalEmitter emitter(recordingOperations(events));
 
-    emitter.emitChanges(
-        { kiriview::VideoDocumentChange::Position, kiriview::VideoDocumentChange::HasVideo,
-            kiriview::VideoDocumentChange::ZoomPercent, kiriview::VideoDocumentChange::Muted });
+    emitter.emitChanges({ kiriview::VideoDocumentChange::HasAudio,
+        kiriview::VideoDocumentChange::HasVideo, kiriview::VideoDocumentChange::ZoomPercent });
     emitter.emitSignal(kiriview::VideoDocumentPublicSignal::VideoOutput);
 
     QCOMPARE(events,
         QStringList({
             QStringLiteral("sessionSnapshot"),
-            QStringLiteral("position"),
+            QStringLiteral("hasAudio"),
             QStringLiteral("hasVideo"),
             QStringLiteral("zoomPercent"),
-            QStringLiteral("muted"),
             QStringLiteral("videoOutput"),
         }));
 }
@@ -126,19 +110,12 @@ void TestVideoDocumentPublicSignals::emitterSkipsSessionSnapshotForUnrelatedChan
     QStringList events;
     const kiriview::VideoDocumentPublicSignalEmitter emitter(recordingOperations(events));
 
-    emitter.emitChanges({ kiriview::VideoDocumentChange::Duration,
-        kiriview::VideoDocumentChange::Position, kiriview::VideoDocumentChange::Playing,
-        kiriview::VideoDocumentChange::Seekable, kiriview::VideoDocumentChange::HasAudio,
-        kiriview::VideoDocumentChange::Muted, kiriview::VideoDocumentChange::VideoOutput });
+    emitter.emitChanges(
+        { kiriview::VideoDocumentChange::HasAudio, kiriview::VideoDocumentChange::VideoOutput });
 
     QCOMPARE(events,
         QStringList({
-            QStringLiteral("duration"),
-            QStringLiteral("position"),
-            QStringLiteral("playing"),
-            QStringLiteral("seekable"),
             QStringLiteral("hasAudio"),
-            QStringLiteral("muted"),
             QStringLiteral("videoOutput"),
         }));
 }

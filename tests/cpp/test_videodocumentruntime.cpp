@@ -3,6 +3,7 @@
 
 #include "video/videodocumentruntime.h"
 
+#include "image_async_test_support.h"
 #include "metadata/embeddedmetadata.h"
 
 #include <QBuffer>
@@ -44,6 +45,8 @@ private Q_SLOTS:
     void staleBackendCallbacksAfterSourceChangeAreIgnored();
     void mutedStateDispatchesBackendAndPersistsAcrossSourceChanges();
     void playbackControlsDispatchBackendOperations();
+    void playbackControlScrubCommitsWithoutBackendOverwrite();
+    void playbackControlAutoHideUsesInjectedTimer();
     void naturalPlaybackEndKeepsPresentationReadyWithoutBackendStop();
     void playAfterEndOfMediaRestartsFromBeginningWhenSeekable();
     void seekByClampsToKnownDuration();
@@ -168,6 +171,12 @@ public:
         callbacks.videoSizeChanged();
     }
 
+    void emitHasVideo(bool hasVideo)
+    {
+        videoAvailable = hasVideo;
+        callbacks.hasVideoChanged();
+    }
+
     QUrl sourceUrl;
     QPointer<QIODevice> sourceDevice;
     QUrl sourceDeviceUrl;
@@ -238,7 +247,7 @@ struct RuntimeFixture
     std::vector<kiriview::VideoDocumentChange> changes;
     std::unique_ptr<kiriview::VideoDocumentRuntime> runtime;
 
-    RuntimeFixture()
+    explicit RuntimeFixture(kiriview::TimerScheduler playbackControlTimerScheduler = {})
     {
         auto mediaBackend = std::make_unique<FakeVideoMediaBackend>();
         backend = mediaBackend.get();
@@ -247,7 +256,9 @@ struct RuntimeFixture
             [this](const std::vector<kiriview::VideoDocumentChange>& nextChanges) {
                 changes.insert(changes.end(), nextChanges.begin(), nextChanges.end());
             },
-            std::move(mediaBackend), std::make_unique<FakeVideoPlaybackUrlResolver>(resolverState));
+            std::move(mediaBackend), std::make_unique<FakeVideoPlaybackUrlResolver>(resolverState),
+            kiriview::VideoDocumentRuntime::MediaBackendFactory {},
+            std::move(playbackControlTimerScheduler));
     }
 
     void resolveLatest(const QUrl& playbackUrl)
@@ -856,6 +867,55 @@ void TestVideoDocumentRuntime::playbackControlsDispatchBackendOperations()
     QCOMPARE(fixture.backend->currentPosition, 0);
     QCOMPARE(fixture.runtime->position(), 0);
     QVERIFY(!fixture.runtime->playing());
+}
+
+void TestVideoDocumentRuntime::playbackControlScrubCommitsWithoutBackendOverwrite()
+{
+    RuntimeFixture fixture;
+    const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/home/me/clip.mp4"));
+    fixture.runtime->setSourceUrl(sourceUrl);
+    fixture.resolveLatest(sourceUrl);
+    fixture.backend->emitHasVideo(true);
+    fixture.backend->emitStatus(kiriview::VideoMediaStatus::Buffered);
+    fixture.backend->emitDuration(90000);
+    fixture.backend->emitSeekable(true);
+    fixture.backend->emitPosition(12000);
+
+    fixture.runtime->beginPlaybackScrub();
+    fixture.runtime->updatePlaybackScrub(45000);
+    fixture.backend->emitPosition(13000);
+
+    QVERIFY(fixture.runtime->playbackControlProjection().scrubbing);
+    QCOMPARE(fixture.runtime->playbackControlProjection().sliderValueMsec, qint64(45000));
+    const int setPositionCount = fixture.backend->setPositionCount;
+
+    fixture.runtime->commitPlaybackScrub();
+
+    QCOMPARE(fixture.backend->setPositionCount, setPositionCount + 1);
+    QCOMPARE(fixture.backend->currentPosition, qint64(45000));
+    QVERIFY(!fixture.runtime->playbackControlProjection().scrubbing);
+}
+
+void TestVideoDocumentRuntime::playbackControlAutoHideUsesInjectedTimer()
+{
+    kiriview::TestSupport::ManualTimerScheduler timers;
+    RuntimeFixture fixture(timers.scheduler());
+    const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/home/me/clip.mp4"));
+    fixture.runtime->reportPlaybackControlEnvironment(
+        { 1280.0, 720.0, 18.0, false, false, 200, 1500 });
+    fixture.runtime->setSourceUrl(sourceUrl);
+    fixture.resolveLatest(sourceUrl);
+    fixture.backend->emitHasVideo(true);
+    fixture.backend->emitStatus(kiriview::VideoMediaStatus::Buffered);
+
+    QVERIFY(fixture.runtime->playbackControlProjection().ready);
+    QVERIFY(fixture.runtime->playbackControlProjection().shown);
+    QCOMPARE(timers.timerCount(), std::size_t(1));
+    QVERIFY(timers.timerAt(0).active());
+
+    timers.timerAt(0).fire();
+
+    QVERIFY(!fixture.runtime->playbackControlProjection().shown);
 }
 
 void TestVideoDocumentRuntime::naturalPlaybackEndKeepsPresentationReadyWithoutBackendStop()

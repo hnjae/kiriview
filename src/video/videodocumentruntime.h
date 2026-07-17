@@ -9,6 +9,7 @@
 #include "video/videomediabackend.h"
 #include "video/videooutputruntime.h"
 #include "video/videoplaybackcontrolplan.h"
+#include "video/videoplaybackcontrolruntime.h"
 #include "video/videoplaybacksource.h"
 #include "video/videosourceloadplan.h"
 #include "video/videosourceloadruntime.h"
@@ -33,7 +34,9 @@ public:
     explicit VideoDocumentRuntime(QObject* documentObject, ChangeCallback changeCallback = {},
         std::unique_ptr<VideoMediaBackend> mediaBackend = {},
         std::unique_ptr<VideoPlaybackUrlResolver> playbackUrlResolver = {},
-        MediaBackendFactory mediaBackendFactory = {});
+        MediaBackendFactory mediaBackendFactory = {},
+        TimerScheduler playbackControlTimerScheduler = {},
+        VideoPlaybackControlProjectionCallback playbackControlProjectionCallback = {});
     ~VideoDocumentRuntime();
 
     QUrl sourceUrl() const;
@@ -67,6 +70,15 @@ public:
     void togglePlayback();
     void toggleMuted();
     void seekBy(qint64 deltaMilliseconds);
+    const VideoPlaybackControlProjection& playbackControlProjection() const;
+    void reportPlaybackControlEnvironment(VideoPlaybackControlEnvironment environment);
+    void reportPlaybackControlInteraction(bool active);
+    void revealPlaybackControls();
+    void beginPlaybackScrub();
+    void updatePlaybackScrub(qint64 positionMsec);
+    void commitPlaybackScrub();
+    void cancelPlaybackScrub();
+    void requestPlaybackControlSeek(qint64 positionMsec);
 
     static qint64 clampedSeekPosition(
         qint64 currentPosition, qint64 deltaMilliseconds, qint64 duration, bool seekable);
@@ -99,11 +111,14 @@ private:
     bool playbackCallbacksAccepted() const;
     void updateStatusFromBackend();
     void updateErrorFromBackend(VideoMediaError error);
+    void refreshPlaybackControlsFromBackend();
+    void replacePlaybackControlSource();
     void updateZoomPercent();
     void publish(VideoDocumentChange change);
 
     QObject* m_documentObject = nullptr;
     VideoDocumentState m_state;
+    VideoPlaybackControlRuntime m_playbackControls;
     std::unique_ptr<VideoMediaBackend> m_mediaBackend;
     MediaBackendFactory m_mediaBackendFactory;
     VideoSourceLoadRuntime m_sourceLoadRuntime;
@@ -111,6 +126,7 @@ private:
     VideoOutputRuntime m_outputRuntime;
     quint64 m_playbackGeneration = 0;
     quint64 m_acceptedPlaybackGeneration = 0;
+    quint64 m_playbackControlSourceRevision = 0;
 };
 }
 

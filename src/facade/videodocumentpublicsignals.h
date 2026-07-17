@@ -15,16 +15,11 @@ enum class VideoDocumentPublicSignal {
     Status,
     ErrorString,
     WindowTitleFileName,
-    Duration,
-    Position,
-    Playing,
-    Seekable,
     HasVideo,
     HasAudio,
     VideoSize,
     ZoomPercentKnown,
     ZoomPercent,
-    Muted,
     VideoOutput,
     EmbeddedMetadata,
 };
@@ -36,16 +31,11 @@ struct VideoDocumentPublicSignalOperations
     std::function<void()> statusChanged;
     std::function<void()> errorStringChanged;
     std::function<void()> windowTitleFileNameChanged;
-    std::function<void()> durationChanged;
-    std::function<void()> positionChanged;
-    std::function<void()> playingChanged;
-    std::function<void()> seekableChanged;
     std::function<void()> hasVideoChanged;
     std::function<void()> hasAudioChanged;
     std::function<void()> videoSizeChanged;
     std::function<void()> zoomPercentKnownChanged;
     std::function<void()> zoomPercentChanged;
-    std::function<void()> mutedChanged;
     std::function<void()> videoOutputChanged;
     std::function<void()> embeddedMetadataChanged;
 };

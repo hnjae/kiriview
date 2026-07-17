@@ -276,6 +276,7 @@ src/video/videodocumentstate.cpp
 src/facade/videodocumentpublicsignals.cpp
 src/video/videomediabackend.cpp
 src/video/videoplaybackcontrolplan.cpp
+src/video/videoplaybackcontrolruntime.cpp
 src/video/videoplaybackurlresolver.cpp
 src/video/videosourceloadplan.cpp
 src/video/videosourceloadruntime.cpp

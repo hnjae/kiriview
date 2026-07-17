@@ -15,11 +15,19 @@ MediaViewportDelegate {
     property alias controls: floatingControls
     property alias videoOutput: videoOutput
     readonly property var videoDocument: root.documentSession.videoDocument
+    readonly property var playbackControls: root.videoDocument.playbackControls
     readonly property bool videoReady: root.documentSession.activeVideoReady
-    readonly property bool videoControlsReady: root.documentSession.activeVideoControlsReady
-    readonly property bool fixedControlsMode: Kirigami.Settings.isMobile || Kirigami.Settings.hasTransientTouchInput || Kirigami.Units.longDuration <= 0 || width < Kirigami.Units.gridUnit * 32 || height < Kirigami.Units.gridUnit * 16
-    readonly property bool controlsReserveSpace: floatingControls.visible && root.fixedControlsMode
+    readonly property bool controlsReserveSpace: root.playbackControls.reserveSpace
     readonly property bool controlsEffectivelyShown: floatingControls.visible && floatingControls.opacity > 0
+    readonly property real controlGridUnit: Kirigami.Units.gridUnit
+    readonly property bool controlMobile: Kirigami.Settings.isMobile
+    readonly property bool controlTransientTouchInput: Kirigami.Settings.hasTransientTouchInput
+    readonly property int controlLongAnimationDuration: Kirigami.Units.longDuration
+    readonly property int controlAutoHideDelay: Kirigami.Units.humanMoment
+
+    function reportPlaybackControlEnvironment() {
+        root.playbackControls.reportEnvironment(root.width, root.height, root.controlGridUnit, root.controlMobile, root.controlTransientTouchInput, root.controlLongAnimationDuration, root.controlAutoHideDelay);
+    }
 
     function shouldAttachVideoOutput() {
         return root.presentationActive && root.visible && root.videoDocument !== null;
@@ -37,6 +45,13 @@ MediaViewportDelegate {
     onPresentationActiveChanged: updateVideoOutputAttachment()
     onVideoDocumentChanged: updateVideoOutputAttachment()
     onVisibleChanged: updateVideoOutputAttachment()
+    onWidthChanged: reportPlaybackControlEnvironment()
+    onHeightChanged: reportPlaybackControlEnvironment()
+    onControlGridUnitChanged: reportPlaybackControlEnvironment()
+    onControlMobileChanged: reportPlaybackControlEnvironment()
+    onControlTransientTouchInputChanged: reportPlaybackControlEnvironment()
+    onControlLongAnimationDurationChanged: reportPlaybackControlEnvironment()
+    onControlAutoHideDelayChanged: reportPlaybackControlEnvironment()
 
     Connections {
         target: root.documentSession
@@ -49,6 +64,7 @@ MediaViewportDelegate {
     Component.onCompleted: {
         updateVideoOutputAttachment();
         reportVideoOutputGeometry();
+        reportPlaybackControlEnvironment();
     }
     Component.onDestruction: {
         root.documentSession.reportVideoOutputSurfaceClaim(root.documentSession.nextVideoOutputSurfaceClaimToken(), root.documentSession.publicProjectionRevision, root, null, false, Qt.rect(0, 0, 0, 0), Qt.rect(0, 0, 0, 0));
@@ -82,14 +98,14 @@ MediaViewportDelegate {
         hoverEnabled: true
         z: 1
 
-        onPositionChanged: floatingControls.revealControls()
+        onPositionChanged: root.playbackControls.reveal()
     }
 
     TapHandler {
         acceptedButtons: Qt.LeftButton
 
         onTapped: {
-            floatingControls.revealControls();
+            root.playbackControls.reveal();
             root.requestViewportFocus();
             root.viewerClicked();
         }
@@ -130,11 +146,10 @@ MediaViewportDelegate {
         id: floatingControls
 
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: root.fixedControlsMode ? 0 : Kirigami.Units.largeSpacing
+        anchors.bottomMargin: root.playbackControls.fixedMode ? 0 : Kirigami.Units.largeSpacing
         anchors.horizontalCenter: parent.horizontalCenter
-        fixedMode: root.fixedControlsMode
-        videoDocument: root.videoDocument
-        visible: root.videoControlsReady
+        playbackControls: root.playbackControls
+        visible: root.playbackControls.ready
         z: 10
     }
 

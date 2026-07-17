@@ -34,17 +34,12 @@ kiriview::VideoDocumentPublicSignalOperations publicSignalOperations(KiriVideoDo
     operations.errorStringChanged = [&document]() { Q_EMIT document.errorStringChanged(); };
     operations.windowTitleFileNameChanged
         = [&document]() { Q_EMIT document.windowTitleFileNameChanged(); };
-    operations.durationChanged = [&document]() { Q_EMIT document.durationChanged(); };
-    operations.positionChanged = [&document]() { Q_EMIT document.positionChanged(); };
-    operations.playingChanged = [&document]() { Q_EMIT document.playingChanged(); };
-    operations.seekableChanged = [&document]() { Q_EMIT document.seekableChanged(); };
     operations.hasVideoChanged = [&document]() { Q_EMIT document.hasVideoChanged(); };
     operations.hasAudioChanged = [&document]() { Q_EMIT document.hasAudioChanged(); };
     operations.videoSizeChanged = [&document]() { Q_EMIT document.videoSizeChanged(); };
     operations.zoomPercentKnownChanged
         = [&document]() { Q_EMIT document.zoomPercentKnownChanged(); };
     operations.zoomPercentChanged = [&document]() { Q_EMIT document.zoomPercentChanged(); };
-    operations.mutedChanged = [&document]() { Q_EMIT document.mutedChanged(); };
     operations.videoOutputChanged = [&document]() { Q_EMIT document.videoOutputChanged(); };
     operations.embeddedMetadataChanged
         = [&document]() { Q_EMIT document.embeddedMetadataChanged(); };
@@ -53,11 +48,26 @@ kiriview::VideoDocumentPublicSignalOperations publicSignalOperations(KiriVideoDo
 }
 
 KiriVideoDocument::KiriVideoDocument(QObject* parent)
+    : KiriVideoDocument(kiriview::TimerScheduler {}, parent)
+{
+}
+
+KiriVideoDocument::KiriVideoDocument(
+    kiriview::TimerScheduler playbackControlTimerScheduler, QObject* parent)
     : QObject(parent)
 {
+    m_playbackControls = std::make_unique<KiriVideoPlaybackControls>(*this);
     m_runtime = std::make_unique<kiriview::VideoDocumentRuntime>(
-        this, [this](const std::vector<kiriview::VideoDocumentChange>& changes) {
+        this,
+        [this](const std::vector<kiriview::VideoDocumentChange>& changes) {
             handleDocumentChanges(changes);
+        },
+        std::unique_ptr<kiriview::VideoMediaBackend>(),
+        std::unique_ptr<kiriview::VideoPlaybackUrlResolver>(),
+        kiriview::VideoDocumentRuntime::MediaBackendFactory {},
+        std::move(playbackControlTimerScheduler),
+        [this](const kiriview::VideoPlaybackControlProjection&) {
+            Q_EMIT m_playbackControls->projectionChanged();
         });
 }
 
@@ -104,6 +114,11 @@ bool KiriVideoDocument::muted() const { return m_runtime->muted(); }
 
 QObject* KiriVideoDocument::videoOutput() const { return m_runtime->videoOutput(); }
 
+KiriVideoPlaybackControls* KiriVideoDocument::playbackControls() const
+{
+    return m_playbackControls.get();
+}
+
 const kiriview::EmbeddedMetadata& KiriVideoDocument::embeddedMetadata() const
 {
     return m_runtime->embeddedMetadata();
@@ -129,6 +144,40 @@ void KiriVideoDocument::toggleMuted() { m_runtime->toggleMuted(); }
 void KiriVideoDocument::setPosition(qint64 position) { m_runtime->setPosition(position); }
 
 void KiriVideoDocument::seekBy(qint64 deltaMilliseconds) { m_runtime->seekBy(deltaMilliseconds); }
+
+const kiriview::VideoPlaybackControlProjection& KiriVideoDocument::playbackControlProjection() const
+{
+    return m_runtime->playbackControlProjection();
+}
+
+void KiriVideoDocument::reportPlaybackControlEnvironment(
+    kiriview::VideoPlaybackControlEnvironment environment)
+{
+    m_runtime->reportPlaybackControlEnvironment(environment);
+}
+
+void KiriVideoDocument::reportPlaybackControlInteraction(bool active)
+{
+    m_runtime->reportPlaybackControlInteraction(active);
+}
+
+void KiriVideoDocument::revealPlaybackControls() { m_runtime->revealPlaybackControls(); }
+
+void KiriVideoDocument::beginPlaybackScrub() { m_runtime->beginPlaybackScrub(); }
+
+void KiriVideoDocument::updatePlaybackScrub(qint64 positionMsec)
+{
+    m_runtime->updatePlaybackScrub(positionMsec);
+}
+
+void KiriVideoDocument::commitPlaybackScrub() { m_runtime->commitPlaybackScrub(); }
+
+void KiriVideoDocument::cancelPlaybackScrub() { m_runtime->cancelPlaybackScrub(); }
+
+void KiriVideoDocument::requestPlaybackControlSeek(qint64 positionMsec)
+{
+    m_runtime->requestPlaybackControlSeek(positionMsec);
+}
 
 void KiriVideoDocument::setVideoOutputGeometry(const QRectF& contentRect, const QRectF& sourceRect)
 {

@@ -40,6 +40,7 @@ private Q_SLOTS:
     void fixedViewerShortcutsDoNotBypassRuntimeRouting();
     void qmlDoesNotExposeFixedViewerScanCommandRoutes();
     void videoSeekShortcutsRouteThroughApplicationRuntime();
+    void qmlDoesNotOwnVideoPlaybackControlState();
     void applicationFacadeDoesNotOwnFixedViewerCommandRouting();
     void applicationFacadeDoesNotOwnActionStateSourceAttachment();
     void applicationCommandRouterPortsAreGroupedByOwner();
@@ -670,6 +671,35 @@ void TestArchitectureBoundaries::videoSeekShortcutsRouteThroughApplicationRuntim
         QRegularExpressionMatchIterator iterator = pattern.globalMatch(videoViewport);
         while (iterator.hasNext()) {
             violations.push_back(iterator.next().captured(0));
+        }
+    }
+
+    QVERIFY2(violations.isEmpty(), qPrintable(violations.join(QLatin1Char('\n'))));
+}
+
+void TestArchitectureBoundaries::qmlDoesNotOwnVideoPlaybackControlState()
+{
+    const QString videoViewport = readProjectFile(QStringLiteral("src/qml/VideoViewport.qml"));
+    const QString videoControls
+        = readProjectFile(QStringLiteral("src/qml/VideoFloatingControls.qml"));
+    const QList<QRegularExpression> forbiddenPatterns {
+        QRegularExpression(QStringLiteral(R"(\bproperty\s+real\s+(?:durationMs|positionMs)\b)")),
+        QRegularExpression(QStringLiteral(R"(\bproperty\s+bool\s+explicitlyRevealed\b)")),
+        QRegularExpression(QStringLiteral(R"(\bid\s*:\s*hideTimer\b)")),
+        QRegularExpression(QStringLiteral(
+            R"(\bfunction\s+(?:syncDocumentTiming|syncDocumentPosition|syncTimelineToDocument|commitTimelineSeek|scheduleAutoHide|revealControls)\b)")),
+        QRegularExpression(QStringLiteral(
+            R"(\breadonly\s+property\s+bool\s+(?:fixedControlsMode|autoHideEligible|timelineInteractive)\b)")),
+        QRegularExpression(QStringLiteral(R"(\bvideoDocument\s*\.\s*setPosition\s*\()")),
+    };
+
+    QStringList violations;
+    for (const QString& source : { videoViewport, videoControls }) {
+        for (const QRegularExpression& pattern : forbiddenPatterns) {
+            QRegularExpressionMatchIterator iterator = pattern.globalMatch(source);
+            while (iterator.hasNext()) {
+                violations.push_back(iterator.next().captured(0));
+            }
         }
     }
 

@@ -28,12 +28,7 @@ bool affectsSessionSnapshot(kiriview::VideoDocumentPublicSignal signal)
     case Signal::ZoomPercent:
     case Signal::EmbeddedMetadata:
         return true;
-    case Signal::Duration:
-    case Signal::Position:
-    case Signal::Playing:
-    case Signal::Seekable:
     case Signal::HasAudio:
-    case Signal::Muted:
     case Signal::VideoOutput:
         return false;
     }
@@ -77,18 +72,6 @@ void VideoDocumentPublicSignalEmitter::emitSignal(VideoDocumentPublicSignal sign
     case VideoDocumentPublicSignal::WindowTitleFileName:
         run(m_operations.windowTitleFileNameChanged);
         return;
-    case VideoDocumentPublicSignal::Duration:
-        run(m_operations.durationChanged);
-        return;
-    case VideoDocumentPublicSignal::Position:
-        run(m_operations.positionChanged);
-        return;
-    case VideoDocumentPublicSignal::Playing:
-        run(m_operations.playingChanged);
-        return;
-    case VideoDocumentPublicSignal::Seekable:
-        run(m_operations.seekableChanged);
-        return;
     case VideoDocumentPublicSignal::HasVideo:
         run(m_operations.hasVideoChanged);
         return;
@@ -103,9 +86,6 @@ void VideoDocumentPublicSignalEmitter::emitSignal(VideoDocumentPublicSignal sign
         return;
     case VideoDocumentPublicSignal::ZoomPercent:
         run(m_operations.zoomPercentChanged);
-        return;
-    case VideoDocumentPublicSignal::Muted:
-        run(m_operations.mutedChanged);
         return;
     case VideoDocumentPublicSignal::VideoOutput:
         run(m_operations.videoOutputChanged);
@@ -127,14 +107,6 @@ std::vector<VideoDocumentPublicSignal> videoDocumentPublicSignals(VideoDocumentC
         return { VideoDocumentPublicSignal::ErrorString };
     case VideoDocumentChange::WindowTitleFileName:
         return { VideoDocumentPublicSignal::WindowTitleFileName };
-    case VideoDocumentChange::Duration:
-        return { VideoDocumentPublicSignal::Duration };
-    case VideoDocumentChange::Position:
-        return { VideoDocumentPublicSignal::Position };
-    case VideoDocumentChange::Playing:
-        return { VideoDocumentPublicSignal::Playing };
-    case VideoDocumentChange::Seekable:
-        return { VideoDocumentPublicSignal::Seekable };
     case VideoDocumentChange::HasVideo:
         return { VideoDocumentPublicSignal::HasVideo };
     case VideoDocumentChange::HasAudio:
@@ -145,8 +117,6 @@ std::vector<VideoDocumentPublicSignal> videoDocumentPublicSignals(VideoDocumentC
         return { VideoDocumentPublicSignal::ZoomPercentKnown };
     case VideoDocumentChange::ZoomPercent:
         return { VideoDocumentPublicSignal::ZoomPercent };
-    case VideoDocumentChange::Muted:
-        return { VideoDocumentPublicSignal::Muted };
     case VideoDocumentChange::VideoOutput:
         return { VideoDocumentPublicSignal::VideoOutput };
     case VideoDocumentChange::EmbeddedMetadata:

@@ -26,6 +26,7 @@ struct KiriDocumentSessionDependencies
 {
     DocumentSessionRuntimeDependencies sessionRuntime;
     ImageDocumentRuntimeDependencyOverrides imageDocument;
+    TimerScheduler videoPlaybackControlTimerScheduler;
 };
 }
 

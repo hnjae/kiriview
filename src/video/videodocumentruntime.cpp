@@ -39,9 +39,12 @@ namespace kiriview {
 VideoDocumentRuntime::VideoDocumentRuntime(QObject* documentObject, ChangeCallback changeCallback,
     std::unique_ptr<VideoMediaBackend> mediaBackend,
     std::unique_ptr<VideoPlaybackUrlResolver> playbackUrlResolver,
-    MediaBackendFactory mediaBackendFactory)
+    MediaBackendFactory mediaBackendFactory, TimerScheduler playbackControlTimerScheduler,
+    VideoPlaybackControlProjectionCallback playbackControlProjectionCallback)
     : m_documentObject(documentObject)
     , m_state(std::move(changeCallback))
+    , m_playbackControls(documentObject, std::move(playbackControlTimerScheduler),
+          std::move(playbackControlProjectionCallback))
     , m_mediaBackend(std::move(mediaBackend))
     , m_mediaBackendFactory(std::move(mediaBackendFactory))
     , m_sourceLoadRuntime(std::move(playbackUrlResolver))
@@ -73,7 +76,7 @@ VideoMediaBackend* VideoDocumentRuntime::ensureMediaBackend()
     if (m_mediaBackend == nullptr) {
         m_mediaBackend = m_mediaBackendFactory(m_documentObject);
         installMediaBackendCallbacks();
-        m_mediaBackend->setMuted(m_state.muted());
+        m_mediaBackend->setMuted(m_playbackControls.mediaSnapshot().muted);
         if (m_outputRuntime.videoOutput() != nullptr) {
             m_mediaBackend->setVideoOutput(m_outputRuntime.videoOutput());
         }
@@ -89,22 +92,22 @@ void VideoDocumentRuntime::installMediaBackendCallbacks()
         [this](VideoMediaError error) { updateErrorFromBackend(std::move(error)); },
         [this]() {
             if (playbackCallbacksAccepted()) {
-                m_state.setDuration(m_mediaBackend->duration());
+                refreshPlaybackControlsFromBackend();
             }
         },
         [this]() {
             if (playbackCallbacksAccepted()) {
-                m_state.setPosition(m_mediaBackend->position());
+                refreshPlaybackControlsFromBackend();
             }
         },
         [this]() {
             if (playbackCallbacksAccepted()) {
-                m_state.setPlaying(m_mediaBackend->playing());
+                refreshPlaybackControlsFromBackend();
             }
         },
         [this]() {
             if (playbackCallbacksAccepted()) {
-                m_state.setSeekable(m_mediaBackend->seekable());
+                refreshPlaybackControlsFromBackend();
             }
         },
         [this]() {
@@ -112,6 +115,7 @@ void VideoDocumentRuntime::installMediaBackendCallbacks()
                 return;
             }
             m_state.setHasVideo(m_mediaBackend->hasVideo());
+            refreshPlaybackControlsFromBackend();
             updateZoomPercent();
         },
         [this]() {
@@ -124,7 +128,11 @@ void VideoDocumentRuntime::installMediaBackendCallbacks()
                 m_state.setVideoSize(m_mediaBackend->videoSize());
             }
         },
-        [this]() { m_state.setMuted(m_mediaBackend->muted()); },
+        [this]() {
+            if (playbackCallbacksAccepted()) {
+                refreshPlaybackControlsFromBackend();
+            }
+        },
         {},
     });
 }
@@ -180,18 +188,24 @@ const std::optional<VideoBackendFailure>& VideoDocumentRuntime::backendFailure()
 
 QString VideoDocumentRuntime::windowTitleFileName() const { return m_state.windowTitleFileName(); }
 
-qint64 VideoDocumentRuntime::duration() const { return m_state.duration(); }
+qint64 VideoDocumentRuntime::duration() const
+{
+    return m_playbackControls.mediaSnapshot().durationMsec;
+}
 
-qint64 VideoDocumentRuntime::position() const { return m_state.position(); }
+qint64 VideoDocumentRuntime::position() const
+{
+    return m_playbackControls.mediaSnapshot().positionMsec;
+}
 
 void VideoDocumentRuntime::setPosition(qint64 position)
 {
     executePlaybackControlPlan(videoPlaybackSetPositionPlan(playbackControlSnapshot(), position));
 }
 
-bool VideoDocumentRuntime::playing() const { return m_state.playing(); }
+bool VideoDocumentRuntime::playing() const { return m_playbackControls.mediaSnapshot().playing; }
 
-bool VideoDocumentRuntime::seekable() const { return m_state.seekable(); }
+bool VideoDocumentRuntime::seekable() const { return m_playbackControls.mediaSnapshot().seekable; }
 
 bool VideoDocumentRuntime::hasVideo() const { return m_state.hasVideo(); }
 
@@ -203,13 +217,15 @@ bool VideoDocumentRuntime::zoomPercentKnown() const { return m_state.zoomPercent
 
 int VideoDocumentRuntime::zoomPercent() const { return m_state.zoomPercent(); }
 
-bool VideoDocumentRuntime::muted() const { return m_state.muted(); }
+bool VideoDocumentRuntime::muted() const { return m_playbackControls.mediaSnapshot().muted; }
 
 void VideoDocumentRuntime::setMuted(bool muted)
 {
-    m_state.setMuted(muted);
+    VideoPlaybackControlMediaSnapshot snapshot = m_playbackControls.mediaSnapshot();
+    snapshot.muted = muted;
+    m_playbackControls.acceptMediaSnapshot(snapshot);
     if (m_mediaBackend != nullptr) {
-        m_mediaBackend->setMuted(m_state.muted());
+        m_mediaBackend->setMuted(muted);
     }
 }
 
@@ -251,12 +267,55 @@ void VideoDocumentRuntime::togglePlayback()
     executePlaybackControlPlan(videoPlaybackTogglePlan(playbackControlSnapshot()));
 }
 
-void VideoDocumentRuntime::toggleMuted() { setMuted(!m_state.muted()); }
+void VideoDocumentRuntime::toggleMuted() { setMuted(!muted()); }
 
 void VideoDocumentRuntime::seekBy(qint64 deltaMilliseconds)
 {
     executePlaybackControlPlan(
         videoPlaybackSeekByPlan(playbackControlSnapshot(), deltaMilliseconds));
+}
+
+const VideoPlaybackControlProjection& VideoDocumentRuntime::playbackControlProjection() const
+{
+    return m_playbackControls.projection();
+}
+
+void VideoDocumentRuntime::reportPlaybackControlEnvironment(
+    VideoPlaybackControlEnvironment environment)
+{
+    m_playbackControls.acceptEnvironment(environment);
+}
+
+void VideoDocumentRuntime::reportPlaybackControlInteraction(bool active)
+{
+    m_playbackControls.setInteractionActive(active);
+}
+
+void VideoDocumentRuntime::revealPlaybackControls() { m_playbackControls.reveal(); }
+
+void VideoDocumentRuntime::beginPlaybackScrub() { m_playbackControls.beginScrub(); }
+
+void VideoDocumentRuntime::updatePlaybackScrub(qint64 positionMsec)
+{
+    m_playbackControls.updateScrub(positionMsec);
+}
+
+void VideoDocumentRuntime::commitPlaybackScrub()
+{
+    const std::optional<qint64> positionMsec = m_playbackControls.commitScrub();
+    if (positionMsec.has_value()) {
+        setPosition(positionMsec.value());
+    }
+}
+
+void VideoDocumentRuntime::cancelPlaybackScrub() { m_playbackControls.cancelScrub(); }
+
+void VideoDocumentRuntime::requestPlaybackControlSeek(qint64 positionMsec)
+{
+    const std::optional<qint64> acceptedPosition = m_playbackControls.requestSeek(positionMsec);
+    if (acceptedPosition.has_value()) {
+        setPosition(acceptedPosition.value());
+    }
 }
 
 qint64 VideoDocumentRuntime::clampedSeekPosition(
@@ -267,14 +326,15 @@ qint64 VideoDocumentRuntime::clampedSeekPosition(
 
 VideoPlaybackControlSnapshot VideoDocumentRuntime::playbackControlSnapshot() const
 {
+    const VideoPlaybackControlMediaSnapshot& media = m_playbackControls.mediaSnapshot();
     return VideoPlaybackControlSnapshot {
         m_state.sourceUrl().isEmpty(),
         m_mediaBackend != nullptr,
-        m_state.playing(),
-        m_state.mediaEnded(),
-        m_state.seekable(),
-        m_state.position(),
-        m_state.duration(),
+        media.playing,
+        media.mediaEnded,
+        media.seekable,
+        media.positionMsec,
+        media.durationMsec,
     };
 }
 
@@ -329,15 +389,17 @@ void VideoDocumentRuntime::executePlaybackBackendOperation(
 
 void VideoDocumentRuntime::applyPlaybackStateDelta(const VideoPlaybackStateDelta& delta)
 {
+    VideoPlaybackControlMediaSnapshot snapshot = m_playbackControls.mediaSnapshot();
     if (delta.mediaEnded.has_value()) {
-        m_state.setMediaEnded(delta.mediaEnded.value());
+        snapshot.mediaEnded = delta.mediaEnded.value();
     }
     if (delta.playing.has_value()) {
-        m_state.setPlaying(delta.playing.value());
+        snapshot.playing = delta.playing.value();
     }
     if (delta.position.has_value()) {
-        m_state.setPosition(delta.position.value());
+        snapshot.positionMsec = delta.position.value();
     }
+    m_playbackControls.acceptMediaSnapshot(snapshot);
 }
 
 void VideoDocumentRuntime::clearPlaybackSource()
@@ -369,6 +431,7 @@ void VideoDocumentRuntime::executeSourceLoadOperation(ClearVideoPlaybackSourceOp
 
 void VideoDocumentRuntime::executeSourceLoadOperation(ResetClearedVideoSourceOperation)
 {
+    replacePlaybackControlSource();
     m_state.resetForClearedSource();
 }
 
@@ -376,6 +439,7 @@ void VideoDocumentRuntime::executeSourceLoadOperation(
     const ResetVideoSourceLoadOperation& operation)
 {
     invalidatePlaybackCallbacks();
+    replacePlaybackControlSource();
     m_state.resetForSourceLoad(operation.sourceUrl);
 }
 
@@ -458,13 +522,44 @@ void VideoDocumentRuntime::updateStatusFromBackend()
         m_mediaBackend != nullptr,
         m_mediaBackend != nullptr ? m_mediaBackend->mediaStatus() : VideoMediaStatus::Null,
     });
-    m_state.setMediaEnded(plan.mediaEnded);
-    if (plan.clearPlaying) {
-        m_state.setPlaying(false);
-    }
     m_state.setStatusAndError(
         plan.status, plan.status == VideoDocumentStatus::Error ? m_state.errorString() : QString());
+    VideoPlaybackControlMediaSnapshot snapshot = m_playbackControls.mediaSnapshot();
+    if (m_mediaBackend != nullptr) {
+        snapshot.ready = m_state.status() == VideoDocumentStatus::Ready && m_state.hasVideo();
+        snapshot.durationMsec = m_mediaBackend->duration();
+        snapshot.positionMsec = m_mediaBackend->position();
+        snapshot.playing = m_mediaBackend->playing();
+        snapshot.seekable = m_mediaBackend->seekable();
+        snapshot.muted = m_mediaBackend->muted();
+    }
+    snapshot.mediaEnded = plan.mediaEnded;
+    if (plan.clearPlaying) {
+        snapshot.playing = false;
+    }
+    m_playbackControls.acceptMediaSnapshot(snapshot);
     updateZoomPercent();
+}
+
+void VideoDocumentRuntime::refreshPlaybackControlsFromBackend()
+{
+    if (m_mediaBackend == nullptr || !playbackCallbacksAccepted()) {
+        return;
+    }
+
+    VideoPlaybackControlMediaSnapshot snapshot = m_playbackControls.mediaSnapshot();
+    snapshot.ready = m_state.status() == VideoDocumentStatus::Ready && m_state.hasVideo();
+    snapshot.durationMsec = m_mediaBackend->duration();
+    snapshot.positionMsec = m_mediaBackend->position();
+    snapshot.playing = m_mediaBackend->playing();
+    snapshot.seekable = m_mediaBackend->seekable();
+    snapshot.muted = m_mediaBackend->muted();
+    m_playbackControls.acceptMediaSnapshot(snapshot);
+}
+
+void VideoDocumentRuntime::replacePlaybackControlSource()
+{
+    m_playbackControls.replaceSource(++m_playbackControlSourceRevision);
 }
 
 void VideoDocumentRuntime::updateErrorFromBackend(VideoMediaError error)
@@ -488,6 +583,7 @@ void VideoDocumentRuntime::updateErrorFromBackend(VideoMediaError error)
         VideoBackendFailureSeverity::Error,
         false,
     });
+    refreshPlaybackControlsFromBackend();
     updateZoomPercent();
 }
 

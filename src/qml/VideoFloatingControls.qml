@@ -15,130 +15,26 @@ Controls.Control {
 
     objectName: "videoPlaybackControls"
 
-    required property KiriVideoDocument videoDocument
-    property bool fixedMode: false
-    property real durationMs: 0
-    property real positionMs: 0
-    property bool explicitlyRevealed: true
-    readonly property bool validDuration: durationMs > 0
-    readonly property bool timelineInteractive: videoDocument.seekable && validDuration
-    readonly property string positionText: formatTimestamp(timelineSlider.pressed ? timelineSlider.sliderPosition : positionMs)
-    readonly property string durationText: validDuration ? formatTimestamp(durationMs) : "--:--"
+    required property KiriVideoPlaybackControls playbackControls
+    readonly property bool fixedMode: playbackControls.fixedMode
     readonly property bool interactionActive: controlsHoverHandler.hovered || playPauseButton.pressed || playPauseButton.activeFocus || timelineSlider.pressed || timelineSlider.activeFocus || muteButton.pressed || muteButton.activeFocus
-    readonly property bool autoHideEligible: !fixedMode && videoDocument.playing
-    readonly property bool controlsShown: fixedMode || !videoDocument.playing || interactionActive || explicitlyRevealed
     readonly property real horizontalViewportMargin: Kirigami.Units.largeSpacing * 2
     readonly property real availableResponsiveWidth: parent ? Math.max(0, parent.width - horizontalViewportMargin) : implicitWidth
     readonly property real preferredResponsiveWidth: parent ? parent.width * 0.75 : implicitWidth
     readonly property real floatingWidth: parent ? Math.min(availableResponsiveWidth, Math.max(implicitWidth, preferredResponsiveWidth)) : implicitWidth
 
-    function documentMilliseconds(propertyName) {
-        const value = Number(root.videoDocument[propertyName]);
-        return Number.isFinite(value) && value > 0 ? value : 0;
-    }
-
-    function syncDocumentTiming() {
-        root.durationMs = documentMilliseconds("duration");
-        root.positionMs = clampedPosition(documentMilliseconds("position"));
-        syncTimelineToDocument();
-    }
-
-    function syncDocumentPosition() {
-        root.positionMs = clampedPosition(documentMilliseconds("position"));
-        syncTimelineToDocument();
-    }
-
-    function clampedPosition(position) {
-        if (!Number.isFinite(position) || position <= 0) {
-            return 0;
-        }
-        if (!root.validDuration) {
-            return position;
-        }
-        return Math.min(position, root.durationMs);
-    }
-
-    function formatTimestamp(milliseconds) {
-        if (!Number.isFinite(milliseconds) || milliseconds < 0) {
-            return "--:--";
-        }
-
-        const totalSeconds = Math.floor(milliseconds / 1000);
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
-        const paddedSeconds = seconds.toString().padStart(2, "0");
-        if (hours > 0) {
-            return hours.toString() + ":" + minutes.toString().padStart(2, "0") + ":" + paddedSeconds;
-        }
-        return minutes.toString() + ":" + paddedSeconds;
-    }
-
-    function syncTimelineToDocument() {
-        if (timelineSlider.pressed) {
-            return;
-        }
-        timelineSlider.sliderPosition = root.timelineInteractive ? root.positionMs : 0;
-    }
-
-    function commitTimelineSeek() {
-        if (!root.timelineInteractive) {
-            syncTimelineToDocument();
-            return;
-        }
-
-        const nextPosition = Math.round(root.clampedPosition(timelineSlider.sliderPosition));
-        timelineSlider.sliderPosition = nextPosition;
-        root.videoDocument.setPosition(nextPosition);
-    }
-
-    function scheduleAutoHide() {
-        if (root.autoHideEligible && !root.interactionActive) {
-            hideTimer.restart();
-            return;
-        }
-        hideTimer.stop();
-    }
-
-    function revealControls() {
-        if (!root.visible) {
-            return;
-        }
-
-        root.explicitlyRevealed = true;
-        scheduleAutoHide();
-    }
-
     leftPadding: Kirigami.Units.smallSpacing
     rightPadding: Kirigami.Units.smallSpacing
     topPadding: Math.max(1, Math.round(Kirigami.Units.smallSpacing / 2))
     bottomPadding: Math.max(1, Math.round(Kirigami.Units.smallSpacing / 2))
-    enabled: controlsShown
-    opacity: controlsShown ? 1 : 0
+    enabled: playbackControls.shown
+    opacity: playbackControls.shown ? 1 : 0
     width: fixedMode && parent ? parent.width : floatingWidth
 
-    onPositionMsChanged: syncTimelineToDocument()
-    onTimelineInteractiveChanged: syncTimelineToDocument()
-    onDurationMsChanged: syncTimelineToDocument()
-    onVideoDocumentChanged: syncDocumentTiming()
-    onAutoHideEligibleChanged: {
-        explicitlyRevealed = true;
-        scheduleAutoHide();
-    }
-    onFixedModeChanged: {
-        explicitlyRevealed = true;
-        scheduleAutoHide();
-    }
-    onInteractionActiveChanged: {
-        if (interactionActive) {
-            revealControls();
-            return;
-        }
-        scheduleAutoHide();
-    }
+    onInteractionActiveChanged: playbackControls.reportInteractionActive(interactionActive)
     onVisibleChanged: {
         if (visible) {
-            revealControls();
+            playbackControls.reveal();
         }
     }
 
@@ -151,42 +47,14 @@ Controls.Control {
         }
     }
 
-    Component.onCompleted: {
-        syncDocumentTiming();
-        scheduleAutoHide();
-    }
-
-    Connections {
-        target: root.videoDocument
-
-        function onDurationChanged() {
-            root.syncDocumentTiming();
-        }
-
-        function onPositionChanged() {
-            root.syncDocumentPosition();
-        }
-
-        function onPlayingChanged() {
-            root.revealControls();
-        }
+    Component.onCompleted: playbackControls.reportInteractionActive(interactionActive)
+    Component.onDestruction: {
+        playbackControls.cancelScrub();
+        playbackControls.reportInteractionActive(false);
     }
 
     HoverHandler {
         id: controlsHoverHandler
-    }
-
-    Timer {
-        id: hideTimer
-
-        interval: Kirigami.Units.humanMoment
-        repeat: false
-
-        onTriggered: {
-            if (root.autoHideEligible && !root.interactionActive) {
-                root.explicitlyRevealed = false;
-            }
-        }
     }
 
     background: Kirigami.ShadowedRectangle {
@@ -214,18 +82,18 @@ Controls.Control {
             Accessible.name: text
             Accessible.role: Accessible.Button
             display: Controls.AbstractButton.IconOnly
-            icon.name: root.videoDocument.playing ? "media-playback-pause-symbolic" : "media-playback-start-symbolic"
-            text: root.videoDocument.playing ? KI18n.i18nc("@action:button", "Pause") : KI18n.i18nc("@action:button", "Play")
+            icon.name: root.playbackControls.playing ? "media-playback-pause-symbolic" : "media-playback-start-symbolic"
+            text: root.playbackControls.playing ? KI18n.i18nc("@action:button", "Pause") : KI18n.i18nc("@action:button", "Play")
 
             Controls.ToolTip.text: text
             Controls.ToolTip.visible: hovered && Controls.ToolTip.text.length > 0 && !Kirigami.Settings.hasTransientTouchInput
 
             onPressedChanged: {
                 if (pressed) {
-                    root.revealControls();
+                    root.playbackControls.reveal();
                 }
             }
-            onClicked: root.videoDocument.togglePlayback()
+            onClicked: root.playbackControls.togglePlayback()
         }
 
         Controls.Label {
@@ -242,7 +110,7 @@ Controls.Control {
             horizontalAlignment: Text.AlignRight
             maximumLineCount: 1
             minimumPixelSize: Math.max(8, Kirigami.Theme.smallFont.pixelSize - 3)
-            text: root.positionText
+            text: root.playbackControls.currentTimeText
         }
 
         Controls.Slider {
@@ -250,27 +118,29 @@ Controls.Control {
 
             objectName: "videoPlaybackSlider"
 
-            property real sliderPosition: 0
-
             Accessible.name: KI18n.i18nc("@label:slider", "Position")
             Layout.fillWidth: true
             Layout.minimumWidth: Kirigami.Units.gridUnit * 4
-            enabled: root.timelineInteractive
+            enabled: root.playbackControls.timelineInteractive
             from: 0
             live: false
             stepSize: 1000
-            to: root.timelineInteractive ? root.durationMs : 1
-            value: root.timelineInteractive ? sliderPosition : 0
+            to: root.playbackControls.sliderMaximumMsec
+            value: root.playbackControls.sliderValueMsec
 
-            onMoved: sliderPosition = root.clampedPosition(value)
+            onMoved: {
+                if (pressed) {
+                    root.playbackControls.updateScrub(Math.round(value));
+                } else {
+                    root.playbackControls.requestSeek(Math.round(value));
+                }
+            }
             onPressedChanged: {
                 if (pressed) {
-                    root.revealControls();
-                    sliderPosition = root.positionMs;
+                    root.playbackControls.beginScrub();
                     return;
                 }
-                root.commitTimelineSeek();
-                root.scheduleAutoHide();
+                root.playbackControls.commitScrub();
             }
 
             Keys.priority: Keys.AfterItem
@@ -306,7 +176,7 @@ Controls.Control {
             horizontalAlignment: Text.AlignLeft
             maximumLineCount: 1
             minimumPixelSize: Math.max(8, Kirigami.Theme.smallFont.pixelSize - 3)
-            text: root.durationText
+            text: root.playbackControls.durationText
         }
 
         Controls.ToolButton {
@@ -317,18 +187,18 @@ Controls.Control {
             Accessible.name: text
             Accessible.role: Accessible.Button
             display: Controls.AbstractButton.IconOnly
-            icon.name: root.videoDocument.muted ? "audio-volume-muted-symbolic" : "audio-volume-high-symbolic"
-            text: root.videoDocument.muted ? KI18n.i18nc("@action:button", "Unmute") : KI18n.i18nc("@action:button", "Mute")
+            icon.name: root.playbackControls.muted ? "audio-volume-muted-symbolic" : "audio-volume-high-symbolic"
+            text: root.playbackControls.muted ? KI18n.i18nc("@action:button", "Unmute") : KI18n.i18nc("@action:button", "Mute")
 
             Controls.ToolTip.text: text
             Controls.ToolTip.visible: hovered && Controls.ToolTip.text.length > 0 && !Kirigami.Settings.hasTransientTouchInput
 
             onPressedChanged: {
                 if (pressed) {
-                    root.revealControls();
+                    root.playbackControls.reveal();
                 }
             }
-            onClicked: root.videoDocument.toggleMuted()
+            onClicked: root.playbackControls.toggleMuted()
         }
     }
 }

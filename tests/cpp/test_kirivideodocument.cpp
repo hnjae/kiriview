@@ -59,23 +59,37 @@ void TestKiriVideoDocument::sourceUrlAndVideoOutputPropertiesAreReadOnlyObservat
     const QMetaProperty videoOutputProperty = metaObject.property(videoOutputIndex);
     QVERIFY(videoOutputProperty.hasNotifySignal());
     QVERIFY(!videoOutputProperty.isWritable());
+
+    const int playbackControlsIndex = metaObject.indexOfProperty("playbackControls");
+    QVERIFY(playbackControlsIndex >= 0);
+    const QMetaProperty playbackControlsProperty = metaObject.property(playbackControlsIndex);
+    QVERIFY(playbackControlsProperty.isConstant());
+    QVERIFY(!playbackControlsProperty.isWritable());
+    QVERIFY(metaObject.indexOfProperty("duration") < 0);
+    QVERIFY(metaObject.indexOfProperty("position") < 0);
+    QVERIFY(metaObject.indexOfProperty("playing") < 0);
+    QVERIFY(metaObject.indexOfProperty("seekable") < 0);
+    QVERIFY(metaObject.indexOfProperty("muted") < 0);
 }
 
 void TestKiriVideoDocument::mutedPropertyNotifiesAndToggles()
 {
     KiriVideoDocument document;
-    QSignalSpy mutedSpy(&document, &KiriVideoDocument::mutedChanged);
+    QSignalSpy projectionSpy(
+        document.playbackControls(), &KiriVideoPlaybackControls::projectionChanged);
 
     document.setMuted(true);
     QVERIFY(document.muted());
-    QCOMPARE(mutedSpy.count(), 1);
+    QVERIFY(document.playbackControls()->muted());
+    QCOMPARE(projectionSpy.count(), 1);
 
     document.setMuted(true);
-    QCOMPARE(mutedSpy.count(), 1);
+    QCOMPARE(projectionSpy.count(), 1);
 
     document.toggleMuted();
     QVERIFY(!document.muted());
-    QCOMPARE(mutedSpy.count(), 2);
+    QVERIFY(!document.playbackControls()->muted());
+    QCOMPARE(projectionSpy.count(), 2);
 }
 
 void TestKiriVideoDocument::sourceUrlAndTitleNotifyOnSetAndClear()

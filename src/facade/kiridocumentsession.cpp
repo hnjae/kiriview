@@ -431,7 +431,8 @@ KiriDocumentSession::KiriDocumentSession(kiriview::KiriDocumentSessionDependenci
                                               : std::optional<kiriview::PredecodedImage>();
               }),
           this))
-    , m_videoDocument(std::make_unique<KiriVideoDocument>(this))
+    , m_videoDocument(std::make_unique<KiriVideoDocument>(
+          std::move(dependencies.videoPlaybackControlTimerScheduler), this))
 {
     m_runtime = std::make_unique<kiriview::DocumentSessionRuntime>(
         this, imageDocumentSnapshotPort(*m_imageDocument),
