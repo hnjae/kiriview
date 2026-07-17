@@ -91,14 +91,14 @@ void ImageViewportProviderMetadataTest::providerPartialMetadataProjectsExplicitA
     const auto closeCount = std::make_shared<int>(0);
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
         sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
-    CountingProviderAdapter adapter(sessionFactory,
-        ImageSequenceProviderMetadata::withSourceLogicalSize(QSizeF(16.0, 8.0)));
+    CountingProviderAdapter adapter(
+        sessionFactory, ImageSequenceProviderMetadata::withSourceLogicalSize(QSizeF(16.0, 8.0)));
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
     ImageViewport item;
     QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
-                 PresentationTargetTransitionPolicy {})
+                     PresentationTargetTransitionPolicy {})
                  .outcome(),
         ImageViewportCommandOutcome::Accepted);
 
@@ -122,8 +122,8 @@ void ImageViewportProviderMetadataTest::providerRuntimeAuthoredFactsRespectConst
     const auto closeCount = std::make_shared<int>(0);
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
         sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
-    CountingProviderAdapter adapter(sessionFactory,
-        ImageSequenceProviderMetadata::withSourceLogicalSize(QSizeF(16.0, 8.0)));
+    CountingProviderAdapter adapter(
+        sessionFactory, ImageSequenceProviderMetadata::withSourceLogicalSize(QSizeF(16.0, 8.0)));
     adapter.setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts::finiteLoop(3));
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
@@ -131,7 +131,7 @@ void ImageViewportProviderMetadataTest::providerRuntimeAuthoredFactsRespectConst
     ImageViewport item;
     useSynchronousProviderEventDeliveryForTest(item);
     QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
-                 PresentationTargetTransitionPolicy {})
+                     PresentationTargetTransitionPolicy {})
                  .outcome(),
         ImageViewportCommandOutcome::Accepted);
     QVERIFY(sessionFactory->lastSession());
@@ -139,8 +139,8 @@ void ImageViewportProviderMetadataTest::providerRuntimeAuthoredFactsRespectConst
     ImageSequenceProviderMetadata runtime
         = ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 });
     runtime.setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts::infiniteLoop());
-    emitProviderMetadataReady(sessionFactory->lastSession(),
-        sessionFactory->lastSession()->lastMetadataToken(), runtime);
+    emitProviderMetadataReady(
+        sessionFactory->lastSession(), sessionFactory->lastSession()->lastMetadataToken(), runtime);
 
     QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Error);
     QCOMPARE(item.state().request().reason(), ImageViewportRequestReason::PayloadRejection);
@@ -171,7 +171,7 @@ void ImageViewportProviderMetadataTest::sameTargetRefinementComparesAuthoredFact
 
     ImageViewport item;
     QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(current->sequence()),
-                 PresentationTargetTransitionPolicy {})
+                     PresentationTargetTransitionPolicy {})
                  .outcome(),
         ImageViewportCommandOutcome::Accepted);
     PresentationTargetTransitionPolicy refinementPolicy;
@@ -179,8 +179,8 @@ void ImageViewportProviderMetadataTest::sameTargetRefinementComparesAuthoredFact
         PresentationTargetTransitionPolicy::ReplacementIntent::SameTargetRefinement);
 
     const ImageViewportStateSnapshot before = item.state();
-    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(replacement->sequence()),
-                 refinementPolicy)
+    QCOMPARE(item.setPresentationTarget(
+                     ImageViewportPresentationTarget(replacement->sequence()), refinementPolicy)
                  .outcome(),
         ImageViewportCommandOutcome::Invalid);
     QCOMPARE(item.state().request(), before.request());
@@ -1961,7 +1961,7 @@ void ImageViewportProviderMetadataTest::providerFrameReadyDominatesLateProgress(
     drainQueuedProviderResults();
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "UploadPending"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(*closeCount, 0);
@@ -1976,7 +1976,7 @@ void ImageViewportProviderMetadataTest::providerFrameReadyDominatesLateProgress(
     drainQueuedProviderResults();
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "UploadPending"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), renderWaitingRequestRevision);

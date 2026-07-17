@@ -145,6 +145,7 @@ public:
     void drainProviderHostEvents();
     void drainExternalWork();
     void devicePixelRatioChanged();
+    void renderAvailabilityChanged();
     void discardRetainedDisplayForResourcePressure();
     QRectF currentContentRect() const;
     QRectF itemBounds() const;
@@ -163,6 +164,7 @@ public:
     double width() const;
     double height() const;
     QQuickWindow* window() const;
+    ViewportEngineViewportInput viewportInput() const;
     void update();
     QSGNode* updatePaintNode(QSGNode* oldNode);
     void prepareRenderSynchronization();

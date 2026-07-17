@@ -8,8 +8,8 @@
 
 #include <QtQuick/QQuickWindow>
 
-#include <optional>
 #include <limits>
+#include <optional>
 
 using namespace ImageViewportInternal;
 
@@ -156,10 +156,7 @@ double ImageViewportPrivate::maximumManualZoomPercent() const
     return ImageViewportDisplayLimits::maximumManualZoomPercent();
 }
 
-double ImageViewportPrivate::manualZoomStepFactor() const
-{
-    return 1.25;
-}
+double ImageViewportPrivate::manualZoomStepFactor() const { return 1.25; }
 
 int ImageViewportPrivate::rotationDegrees() const
 {
@@ -198,15 +195,15 @@ bool ImageViewportPrivate::looping() const { return lastStateSnapshot.presentati
 ImageViewportCommandResult ImageViewportPrivate::setPresentation(
     ImageViewportPresentationCommand command)
 {
-    const auto reduced = engine.applyPresentationCommand(
-        { command, { itemBounds(), effectiveDevicePixelRatio(*this) }, itemCenter(*this) });
+    const auto reduced
+        = engine.applyPresentationCommand({ command, viewportInput(), itemCenter(*this) });
     ViewportCommandResult result
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(reduced.command);
     mergeChanges(result.transition.changes, reduced.changes);
-    appendProviderTransport(result.transition.providerAfterPublication,
-        reduced.providerEffects[0], PageRole::Primary);
-    appendProviderTransport(result.transition.providerAfterPublication,
-        reduced.providerEffects[1], PageRole::Secondary);
+    appendProviderTransport(
+        result.transition.providerAfterPublication, reduced.providerEffects[0], PageRole::Primary);
+    appendProviderTransport(result.transition.providerAfterPublication, reduced.providerEffects[1],
+        PageRole::Secondary);
     const ImageViewportStateSnapshot snapshot = applyEngineTransition(result.transition);
     return commandResult(result.outcome, snapshot);
 }

@@ -135,6 +135,7 @@ ViewportEngineRenderHostTransition ViewportEngine::handleRenderHostFact(
         context.pendingPrimaryRefinementCommit,
         context.pendingSecondaryRefinementCommit,
         context.pendingSecondaryProviderCommit,
+        !context.pendingTargetCommit && !context.pendingRefinementCommit && input.fact.imagePresent,
         context.preparedPayload,
         context.oldDisplayStatus,
         context.oldContentRect,
@@ -189,6 +190,28 @@ ViewportEngineRenderHostTransition ViewportEngine::handleRenderHostFact(
     if (result.changes.playbackPhase) {
         result.playbackSchedule = currentPlaybackSchedule();
     }
+    return result;
+}
+
+ViewportEngineTransition ViewportEngine::handleRenderAvailabilityChanged(
+    ViewportEngineViewportInput input)
+{
+    ViewportEngineTransition result;
+    auto& request = m_state->requestState.request;
+    const auto& display = m_state->displayState.display;
+    const bool secondaryRequired
+        = request.roles[1].sequence && request.roles[1].activeRequest.target.frame >= 0;
+    const bool completePayload = display.roles[0].pendingRenderPayload.commitPending
+        && !display.roles[0].pendingRenderPayload.image.isNull()
+        && (!secondaryRequired || !display.roles[1].pendingRenderPayload.image.isNull());
+    if (!input.renderAvailable && completePayload
+        && request.status == ImageViewportRequestStatus::Loading
+        && request.reason == ImageViewportRequestReason::UploadPending) {
+        request.reason = ImageViewportRequestReason::RenderWaiting;
+        result.changes.requestState = true;
+        result.changes.requestRevision = true;
+    }
+    result.changes.scheduleUpdate = true;
     return result;
 }
 

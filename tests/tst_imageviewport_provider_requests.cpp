@@ -894,7 +894,7 @@ void ImageViewportProviderRequestsTest::waitProjectionRevisionChangesOnlyWhenPub
     drainQueuedProviderResults();
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "UploadPending"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RenderWaiting"));
     verifyRevisionChanged(item, "requestRevision", secondaryProviderWaitingRevision);
 }
 
@@ -998,7 +998,7 @@ void ImageViewportProviderRequestsTest::providerTimedSameFrameSeekRetiresActiveR
     emitTimedProviderFrameReady(session, activeFrameToken, &activeFrame, 0, 0);
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "UploadPending"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QVERIFY(hasPendingRenderCommitForTest(item));
 
@@ -1753,7 +1753,7 @@ void ImageViewportProviderRequestsTest::
     emitTimedProviderFrameReady(secondarySessionFactory->lastSession(), &secondaryFrame, 1, 100);
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "UploadPending"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(secondaryDisplayedFrame(item), 0);
 
@@ -1835,7 +1835,7 @@ void ImageViewportProviderRequestsTest::
         secondarySessionFactory->lastSession()->lastPositionToken(), &secondaryFrame, 1, 100);
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "UploadPending"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(secondaryDisplayedFrame(item), 0);
 

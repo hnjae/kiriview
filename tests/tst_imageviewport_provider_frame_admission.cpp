@@ -35,7 +35,7 @@ private slots:
     void secondaryProviderAcceptedOwnedFramePayloadCompletesSpreadAndReleasesOnce();
     void providerRetainedOwnedFramePayloadOutlivesClosingSessionUntilReplacementCommit();
     void providerResourcePressureDiscardsOnlyRetainedOwnedFramePayload();
-    void providerFrameReadyWithPositiveGeometryPublishesUploadPending();
+    void providerFrameReadyWithoutWindowPublishesRenderWaiting();
     void providerFrameReadyWithZeroGeometryKeepsRenderWaiting();
 };
 
@@ -225,7 +225,7 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameReadyCommitsTime
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "UploadPending"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryDisplayedFrame(item), -1);
     QCOMPARE(primaryDisplayedPosition(item), -1);
@@ -951,7 +951,7 @@ void ImageViewportProviderFrameAdmissionTest::providerAcceptedOwnedFramePayloadR
 
     QCOMPARE(*releaseCount, 0);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "UploadPending"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RenderWaiting"));
 
     acknowledgePendingRenderCommitForTest(item);
 
@@ -1019,7 +1019,7 @@ void ImageViewportProviderFrameAdmissionTest::
 
     QCOMPARE(*releaseCount, 0);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "UploadPending"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QVERIFY(hasPendingRenderCommitForTest(item));
 
     acknowledgePendingRenderCommitForTest(item);
@@ -1194,7 +1194,7 @@ void ImageViewportProviderFrameAdmissionTest::
 }
 
 void ImageViewportProviderFrameAdmissionTest::
-    providerFrameReadyWithPositiveGeometryPublishesUploadPending()
+    providerFrameReadyWithoutWindowPublishesRenderWaiting()
 {
     ImageSequenceFactory factory;
     const auto sessionCount = std::make_shared<int>(0);
@@ -1228,7 +1228,7 @@ void ImageViewportProviderFrameAdmissionTest::
     drainQueuedProviderResults();
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "UploadPending"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), 0);
     QVERIFY(hasPendingRenderCommitForTest(item));

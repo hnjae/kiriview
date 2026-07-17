@@ -445,7 +445,7 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
             stage(a.m_request, a.m_display);
             TargetSpreadWaitState w;
             w.requiresSecondary = a.m_request.roles[1].sequence != nullptr;
-            if (in.geometry.itemBounds.isEmpty()) {
+            if (!in.geometry.renderAvailable || in.geometry.itemBounds.isEmpty()) {
                 w.primary.renderWaiting = true;
                 if (w.requiresSecondary && !a.m_request.roles[1].provider)
                     w.secondary.renderWaiting = true;

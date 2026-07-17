@@ -9,6 +9,7 @@ struct ViewportEngineGeometryQueryInput
 {
     QRectF itemBounds;
     double devicePixelRatio = 1.0;
+    bool renderAvailable = true;
 };
 
 class ViewportEngineCurrentGeometryProjectionAccess

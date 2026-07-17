@@ -10,6 +10,8 @@
 #include <QtCore/QVector>
 #include <QtGui/QColor>
 
+#include <array>
+
 struct ViewportRenderRolePayload
 {
     ImageViewportPageRole role = ImageViewportPageRole::Primary;
@@ -51,15 +53,17 @@ struct ViewportRenderSnapshot
     double checkerboardCellSize = 8.0;
     bool smoothing = true;
     bool mipmap = false;
+    ImageViewportRoleSet requiredRoleSet;
     QVector<ViewportRenderLayer> imageLayers;
 };
 
 struct ViewportRenderSnapshotInput
 {
     QSizeF itemSize;
-    bool pendingTargetCommit = false;
-    ImageViewportInternal::PreparedPayload preparedPayload;
+    ImageViewportRoleSet requiredRoleSet;
+    std::array<ImageViewportInternal::PreparedPayload, 2> preparedPayloads;
     PresentationGeometry::State geometryState;
+    bool useDisplayedPresentation = false;
 };
 
 struct ViewportRenderAttempt

@@ -9,6 +9,7 @@ struct ViewportEngineViewportInput
 {
     QRectF itemBounds;
     double devicePixelRatio = 1.0;
+    bool renderAvailable = true;
 };
 
 struct ViewportEngineGeometryInput
@@ -18,6 +19,7 @@ struct ViewportEngineGeometryInput
     QSizeF primarySize;
     QSizeF secondarySize;
     double devicePixelRatio = 1.0;
+    bool renderAvailable = true;
 };
 
 struct ViewportEngineSnapshotInput

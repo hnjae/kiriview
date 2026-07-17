@@ -238,7 +238,8 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
             && !access.m_display.roles[0].pendingRenderPayload.image.isNull();
         TargetSpreadWaitState wait;
         wait.requiresSecondary = true;
-        if (primaryReady && input.geometry.itemBounds.isEmpty()) {
+        if (primaryReady
+            && (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty())) {
             wait.primary.renderWaiting = true;
             wait.secondary.renderWaiting = true;
         } else if (primaryReady) {
@@ -262,7 +263,7 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         wait.requiresSecondary = access.m_request.roles[1].sequence
             && (access.m_request.roles[1].provider
                 || access.m_request.roles[1].activeRequest.target.frame >= 0);
-        if (input.geometry.itemBounds.isEmpty()) {
+        if (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty()) {
             wait.primary.renderWaiting = true;
             if (wait.requiresSecondary && !access.m_request.roles[1].provider) {
                 wait.secondary.renderWaiting = true;

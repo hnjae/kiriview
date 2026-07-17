@@ -78,6 +78,8 @@ void ImageViewport::itemChange(ItemChange change, const ItemChangeData& data)
     QQuickItem::itemChange(change, data);
     if (change == ItemDevicePixelRatioHasChanged) {
         d->devicePixelRatioChanged();
+    } else if (change == ItemSceneChange) {
+        d->renderAvailabilityChanged();
     }
 }
 

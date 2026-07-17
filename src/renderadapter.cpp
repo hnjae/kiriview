@@ -39,6 +39,32 @@ QMatrix4x4 rotationTransform(const QRectF& targetRect, int rotationDegrees)
     return matrix;
 }
 
+bool positiveFinite(QSizeF size)
+{
+    return std::isfinite(size.width()) && std::isfinite(size.height()) && size.width() > 0.0
+        && size.height() > 0.0;
+}
+
+bool finiteRect(const QRectF& rect)
+{
+    return std::isfinite(rect.x()) && std::isfinite(rect.y()) && std::isfinite(rect.width())
+        && std::isfinite(rect.height());
+}
+
+bool payloadFactsValid(const ImageViewportInternal::PreparedPayload& payload)
+{
+    if (payload.image.isNull() || !positiveFinite(payload.sourceLogicalSize)
+        || !positiveFinite(payload.payloadRasterSize)
+        || !positiveFinite(payload.sourceToPayloadScale)
+        || payload.payloadRasterSize != QSizeF(payload.image.size())) {
+        return false;
+    }
+    const QSizeF mapped(payload.sourceLogicalSize.width() * payload.sourceToPayloadScale.width(),
+        payload.sourceLogicalSize.height() * payload.sourceToPayloadScale.height());
+    return qAbs(mapped.width() - payload.payloadRasterSize.width()) < 0.0001
+        && qAbs(mapped.height() - payload.payloadRasterSize.height()) < 0.0001;
+}
+
 }
 
 QSGTexture* RenderAdapterSceneGraph::Factory::createTexture(
@@ -63,6 +89,11 @@ RenderAdapter::RenderPlan RenderAdapter::createPlan(const Input& input) const
     }
 
     const QVector<Input::ImageLayer>& imageLayers = input.imageLayers;
+    const bool requiredRolesValid
+        = input.requiredRoleSet.primary() || !input.requiredRoleSet.secondary();
+    const qsizetype requiredRoleCount = input.requiredRoleSet.secondary() ? 2
+        : input.requiredRoleSet.primary()                                 ? 1
+                                                                          : 0;
 
     if (input.backgroundMode == ImageViewportBackgroundMode::SolidColor) {
         plan.backgroundRects.append(
@@ -87,6 +118,15 @@ RenderAdapter::RenderPlan RenderAdapter::createPlan(const Input& input) const
         }
     }
 
+    if (!requiredRolesValid || imageLayers.size() != requiredRoleCount) {
+        plan.result = CommitResult::Failed;
+        plan.failedRole = input.requiredRoleSet.secondary() && imageLayers.size() < 2
+            ? ImageViewportPageRole::Secondary
+            : ImageViewportPageRole::Primary;
+        plan.failureCause = RenderFailureCause::InvalidRolePayload;
+        return plan;
+    }
+
     if (plan.backgroundRects.isEmpty() && imageLayers.isEmpty()) {
         plan.result = RenderAdapter::CommitResult::Empty;
         return plan;
@@ -108,17 +148,29 @@ RenderAdapter::RenderPlan RenderAdapter::createPlan(const Input& input) const
         plan.rolePayloads.append({ layer.role, payloadIdentity });
         const ImageViewportPageRole expectedRole
             = index == 0 ? ImageViewportPageRole::Primary : ImageViewportPageRole::Secondary;
+        const bool targetEmpty = layer.targetRect.isEmpty();
+        const bool sourceEmpty = layer.sourceRect.isEmpty();
         if (index > 1 || layer.role != expectedRole || !payloadIdentity.isValid()
-            || payload.image.isNull() || layer.targetRect.isEmpty() || layer.sourceRect.isEmpty()) {
+            || !payloadFactsValid(payload) || !finiteRect(layer.targetRect)
+            || !finiteRect(layer.sourceRect) || targetEmpty != sourceEmpty) {
             plan.result = CommitResult::Failed;
             plan.failedRole = layer.role;
             plan.failureCause = RenderFailureCause::InvalidRolePayload;
             return plan;
         }
-        const qreal devicePixelRatio = payload.image.devicePixelRatio();
-        const QRectF physicalSourceRect(layer.sourceRect.x() * devicePixelRatio,
-            layer.sourceRect.y() * devicePixelRatio, layer.sourceRect.width() * devicePixelRatio,
-            layer.sourceRect.height() * devicePixelRatio);
+        if (targetEmpty)
+            continue;
+        const QSizeF scale = payload.sourceToPayloadScale;
+        const QRectF physicalSourceRect(layer.sourceRect.x() * scale.width(),
+            layer.sourceRect.y() * scale.height(), layer.sourceRect.width() * scale.width(),
+            layer.sourceRect.height() * scale.height());
+        const QRectF rasterBounds(QPointF(), payload.payloadRasterSize);
+        if (!rasterBounds.contains(physicalSourceRect)) {
+            plan.result = CommitResult::Failed;
+            plan.failedRole = layer.role;
+            plan.failureCause = RenderFailureCause::InvalidRolePayload;
+            return plan;
+        }
         plan.imageLayers.append({ layer.role, payload, payloadIdentity, layer.targetRect,
             unrotatedTargetRect(layer.targetRect, layer.rotationDegrees), layer.sourceRect,
             physicalSourceRect, normalizedRotation(layer.rotationDegrees), layer.mirrorHorizontally,
@@ -153,22 +205,18 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
 
     if (!input.window) {
         delete root;
-        return { oldNode, RenderAdapter::CommitResult::Failed, plan.rolePayloads,
-            ImageViewportPageRole::Primary, RenderFailureCause::MissingWindow };
+        return { oldNode, RenderAdapter::CommitResult::Empty, plan.rolePayloads,
+            ImageViewportPageRole::Primary, RenderFailureCause::None };
     }
 
     const Factory defaultSceneGraphFactory;
     const Factory& sceneGraphFactory
         = input.sceneGraphFactory ? *input.sceneGraphFactory : defaultSceneGraphFactory;
-    QVector<RenderAdapter::RolePayload> rolePayloads;
-    rolePayloads.reserve(plan.imageLayers.size());
     bool mipmapUnavailable = false;
     for (const RenderAdapter::RenderPlan::ImageLayer& layer : plan.imageLayers) {
         const auto& payload = layer.preparedPayload;
         const ImageViewportInternal::PreparedPayloadIdentity payloadIdentity
             = layer.preparedPayloadIdentity;
-        rolePayloads.append({ layer.role, payloadIdentity });
-
         QQuickWindow::CreateTextureOptions textureOptions;
         if (plan.mipmap) {
             textureOptions |= QQuickWindow::TextureHasMipmaps;
@@ -177,7 +225,7 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
             = sceneGraphFactory.createTexture(input.window, payload.image, textureOptions);
         if (!texture) {
             delete root;
-            return { oldNode, RenderAdapter::CommitResult::Failed, rolePayloads, layer.role,
+            return { oldNode, RenderAdapter::CommitResult::Failed, plan.rolePayloads, layer.role,
                 RenderFailureCause::TextureCreationFailure };
         }
         mipmapUnavailable = mipmapUnavailable || (plan.mipmap && !texture->hasMipmaps());
@@ -185,7 +233,7 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
         if (!imageNode) {
             delete texture;
             delete root;
-            return { oldNode, RenderAdapter::CommitResult::Failed, rolePayloads, layer.role,
+            return { oldNode, RenderAdapter::CommitResult::Failed, plan.rolePayloads, layer.role,
                 RenderFailureCause::ImageNodeCreationFailure };
         }
 
@@ -214,6 +262,6 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
         }
     }
     delete oldNode;
-    return { root, plan.result, rolePayloads, ImageViewportPageRole::Primary,
+    return { root, plan.result, plan.rolePayloads, ImageViewportPageRole::Primary,
         RenderFailureCause::None, false, mipmapUnavailable };
 }

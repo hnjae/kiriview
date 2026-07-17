@@ -410,7 +410,7 @@ ViewportEngineGeometryInput projectViewportCurrentGeometry(
     const QSizeF primary = ready ? access.display().roles[0].displayedImageSize : QSizeF {};
     const QSizeF secondary = ready ? access.display().roles[1].displayedImageSize : QSizeF {};
     return { positive(primary), input.itemBounds, primary, secondary,
-        input.devicePixelRatio > 0.0 ? input.devicePixelRatio : 1.0 };
+        input.devicePixelRatio > 0.0 ? input.devicePixelRatio : 1.0, input.renderAvailable };
 }
 
 ViewportEngineGeometryInput projectViewportPendingGeometry(
@@ -435,7 +435,7 @@ ViewportEngineGeometryInput projectViewportPendingGeometry(
     else if (positive(imageSize(display.roles[1].pendingRenderPayload.image)))
         secondary = imageSize(display.roles[1].pendingRenderPayload.image);
     return { positive(primary), input.itemBounds, primary, secondary,
-        input.devicePixelRatio > 0.0 ? input.devicePixelRatio : 1.0 };
+        input.devicePixelRatio > 0.0 ? input.devicePixelRatio : 1.0, input.renderAvailable };
 }
 
 ViewportEngineGeometryInput projectViewportAcceptedGeometry(
@@ -457,12 +457,15 @@ ViewportEngineGeometryInput projectViewportAcceptedGeometry(
     if (!positive(secondary))
         secondary = {};
     return { positive(primary), input.itemBounds, primary, secondary,
-        input.devicePixelRatio > 0.0 ? input.devicePixelRatio : 1.0 };
+        input.devicePixelRatio > 0.0 ? input.devicePixelRatio : 1.0, input.renderAvailable };
 }
 
 ViewportRenderSnapshot projectViewportRenderSnapshot(
     ViewportRenderSnapshotInput input, ViewportEngineRenderSnapshotProjectionAccess access)
 {
+    const auto& presentation = input.useDisplayedPresentation
+        ? access.display().displayedPresentation
+        : access.presentation();
     const auto target = [&](ImageViewportPageRole role) {
         return PresentationGeometry::pageItemRect(input.geometryState, role)
             .intersected(input.geometryState.itemBounds);
@@ -470,39 +473,26 @@ ViewportRenderSnapshot projectViewportRenderSnapshot(
     const auto source = [&](ImageViewportPageRole role) {
         return PresentationGeometry::visiblePageRect(input.geometryState, role);
     };
-    auto primary = input.preparedPayload;
-    if (primary.image.isNull()
-        && access.display().hasReadyDisplay(access.request().roles[0].source.facts.present)) {
-        primary = access.display().roles[0].displayedPayload;
-        primary.image = access.display().roles[0].displayedImage;
-    }
-    auto secondary = primary;
-    if (access.display().roles[1].pendingRenderPayload.commitPending
-        && !access.display().roles[1].pendingRenderPayload.image.isNull())
-        secondary = access.display().roles[1].pendingRenderPayload;
-    else
-        secondary.image = access.display().roles[1].displayedImage;
-    primary.providerFrameLeaseId = 0;
-    secondary.providerFrameLeaseId = 0;
     ViewportRenderSnapshot snapshot;
     snapshot.itemSize = input.itemSize;
-    snapshot.backgroundMode = access.presentation().backgroundMode;
-    snapshot.backgroundColor = access.presentation().backgroundColor;
-    snapshot.checkerboardLightColor = access.presentation().checkerboardLightColor;
-    snapshot.checkerboardDarkColor = access.presentation().checkerboardDarkColor;
-    snapshot.checkerboardCellSize = access.presentation().checkerboardCellSize;
-    snapshot.smoothing = access.presentation().smoothing;
-    snapshot.mipmap = access.presentation().mipmap;
-    const auto append = [&](ImageViewportPageRole role, const auto& payload, bool requireRects) {
+    snapshot.backgroundMode = presentation.backgroundMode;
+    snapshot.backgroundColor = presentation.backgroundColor;
+    snapshot.checkerboardLightColor = presentation.checkerboardLightColor;
+    snapshot.checkerboardDarkColor = presentation.checkerboardDarkColor;
+    snapshot.checkerboardCellSize = presentation.checkerboardCellSize;
+    snapshot.smoothing = presentation.smoothing;
+    snapshot.mipmap = presentation.mipmap;
+    snapshot.requiredRoleSet = input.requiredRoleSet;
+    const auto append = [&](ImageViewportPageRole role, const auto& payload) {
         const QRectF targetRect = target(role);
         const QRectF sourceRect = source(role);
-        if (!payload.image.isNull()
-            && (!requireRects || (!targetRect.isEmpty() && !sourceRect.isEmpty())))
-            snapshot.imageLayers.append({ role, payload, targetRect, sourceRect,
-                access.presentation().rotationDegrees, access.presentation().mirrorHorizontally,
-                access.presentation().mirrorVertically });
+        snapshot.imageLayers.append(
+            { role, payload, targetRect, sourceRect, presentation.rotationDegrees,
+                presentation.mirrorHorizontally, presentation.mirrorVertically });
     };
-    append(ImageViewportPageRole::Primary, primary, true);
-    append(ImageViewportPageRole::Secondary, secondary, true);
+    if (input.requiredRoleSet.primary())
+        append(ImageViewportPageRole::Primary, input.preparedPayloads[0]);
+    if (input.requiredRoleSet.secondary())
+        append(ImageViewportPageRole::Secondary, input.preparedPayloads[1]);
     return snapshot;
 }

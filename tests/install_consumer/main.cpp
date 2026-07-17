@@ -392,7 +392,7 @@ Item {
             && timedResult.sequence !== null
             && timedResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Created
             && viewport.state.request.status === ImageViewport.RequestStatus.Loading
-            && viewport.state.request.reason === ImageViewport.RequestReason.UploadPending
+            && viewport.state.request.reason === ImageViewport.RequestReason.RenderWaiting
             && viewport.state.display.status === ImageViewport.DisplayStatus.Empty
             && viewport.state.primary.metadata.frameCount === 1
             && viewport.state.primary.metadata.totalDuration === 100

@@ -34,7 +34,7 @@ private slots:
     void qualityAndMirroringConfigureTextureNode();
     void rotatedImageTextureNodeUsesTransform_data();
     void rotatedImageTextureNodeUsesTransform();
-    void renderAdapterReportsMissingWindowFailureCause();
+    void renderAdapterDefersMissingWindow();
     void renderAdapterReportsTextureCreationFailureCause();
     void renderAdapterReportsImageNodeCreationFailureCause();
     void renderAdapterReportsInvalidRolePayloadFailureCause();
@@ -42,6 +42,7 @@ private slots:
     void retainedRenderFailureKeepsOldPaintNode();
     void renderPlanBuildsBackgroundPrimitivesWithoutSceneGraph();
     void renderPlanBuildsRoleLayerMappingWithoutSceneGraph();
+    void renderPlanUsesExplicitPayloadScaleInsteadOfImageDevicePixelRatio();
     void renderPlanReportsPreMaterializationFailureIntent();
     void coverImageTextureNodeUsesVisibleSourceRect();
     void providerStillFrameCreatesTexturePaintNode();
@@ -53,7 +54,12 @@ namespace {
 
 ImageViewportInternal::PreparedPayload renderAdapterPayload(QImage image)
 {
-    return { true, 1, 1, 1, std::move(image) };
+    const QSizeF logicalSize = image.deviceIndependentSize();
+    const QSizeF rasterSize = image.size();
+    const QSizeF scale = logicalSize.isEmpty() ? QSizeF()
+                                               : QSizeF(rasterSize.width() / logicalSize.width(),
+                                                     rasterSize.height() / logicalSize.height());
+    return { true, 1, 1, 1, std::move(image), logicalSize, rasterSize, scale };
 }
 
 RenderAdapter::Input renderAdapterInputForPayload(
@@ -61,6 +67,7 @@ RenderAdapter::Input renderAdapterInputForPayload(
 {
     RenderAdapter::Input input;
     input.itemSize = QSizeF(10.0, 10.0);
+    input.requiredRoleSet = ImageViewportRoleSet(true, false);
     input.imageLayers.append({ ImageViewportPageRole::Primary, payload,
         QRectF(0.0, 0.0, 10.0, 10.0), QRectF(0.0, 0.0, 2.0, 2.0) });
     return input;
@@ -756,7 +763,7 @@ void ImageViewportRenderSceneGraphTest::rotatedImageTextureNodeUsesTransform()
     }
 }
 
-void ImageViewportRenderSceneGraphTest::renderAdapterReportsMissingWindowFailureCause()
+void ImageViewportRenderSceneGraphTest::renderAdapterDefersMissingWindow()
 {
     QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
     image.fill(QColor(255, 0, 0, 255));
@@ -765,8 +772,8 @@ void ImageViewportRenderSceneGraphTest::renderAdapterReportsMissingWindowFailure
     const RenderAdapterSceneGraph::Output output = RenderAdapterSceneGraph::createNode(
         adapter, nullptr, { renderAdapterInputForPayload(renderAdapterPayload(image)), nullptr });
 
-    QCOMPARE(output.result, RenderAdapter::CommitResult::Failed);
-    QCOMPARE(output.failureCause, RenderFailureCause::MissingWindow);
+    QCOMPARE(output.result, RenderAdapter::CommitResult::Empty);
+    QCOMPARE(output.failureCause, RenderFailureCause::None);
 }
 
 void ImageViewportRenderSceneGraphTest::renderAdapterReportsTextureCreationFailureCause()
@@ -806,6 +813,7 @@ void ImageViewportRenderSceneGraphTest::renderAdapterReportsInvalidRolePayloadFa
     QQuickWindow window;
     RenderAdapter::Input input;
     input.itemSize = QSizeF(10.0, 10.0);
+    input.requiredRoleSet = ImageViewportRoleSet(true, false);
     input.imageLayers.append({ ImageViewportPageRole::Primary, renderAdapterPayload({}),
         QRectF(0.0, 0.0, 10.0, 10.0), QRectF(0.0, 0.0, 2.0, 2.0) });
 
@@ -835,9 +843,10 @@ void ImageViewportRenderSceneGraphTest::initialRenderFailureWithoutRetainedConte
     QScopedPointer<QSGNode> root(item.takePaintNode());
 
     QVERIFY(root.isNull());
-    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RenderFailure"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QVERIFY(hasPendingRenderCommitForTest(item));
 }
 
 void ImageViewportRenderSceneGraphTest::retainedRenderFailureKeepsOldPaintNode()
@@ -886,11 +895,11 @@ void ImageViewportRenderSceneGraphTest::retainedRenderFailureKeepsOldPaintNode()
     auto* imageNode = dynamic_cast<QSGImageNode*>(retainedRoot->lastChild());
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
-    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RenderFailure"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(primaryDisplayedFrame(item), 0);
-    QVERIFY(!hasPendingRenderCommitForTest(item));
+    QVERIFY(hasPendingRenderCommitForTest(item));
 }
 
 void ImageViewportRenderSceneGraphTest::renderPlanBuildsBackgroundPrimitivesWithoutSceneGraph()
@@ -920,15 +929,18 @@ void ImageViewportRenderSceneGraphTest::renderPlanBuildsRoleLayerMappingWithoutS
     secondaryImage.setDevicePixelRatio(2.0);
     QImage primaryImage(2, 2, QImage::Format_ARGB32_Premultiplied);
     primaryImage.fill(QColor(255, 0, 0, 255));
-    ImageViewportInternal::PreparedPayload secondaryPayload = { true, 3, 5, 7, secondaryImage };
-    ImageViewportInternal::PreparedPayload primaryPayload = { true, 3, 5, 8, primaryImage };
+    ImageViewportInternal::PreparedPayload secondaryPayload
+        = { true, 3, 5, 7, secondaryImage, QSizeF(2.0, 2.0), QSizeF(4.0, 4.0), QSizeF(2.0, 2.0) };
+    ImageViewportInternal::PreparedPayload primaryPayload
+        = { true, 3, 5, 8, primaryImage, QSizeF(2.0, 2.0), QSizeF(2.0, 2.0), QSizeF(1.0, 1.0) };
 
     RenderAdapter::Input input;
     input.itemSize = QSizeF(30.0, 20.0);
+    input.requiredRoleSet = ImageViewportRoleSet(true, true);
     input.imageLayers.append({ ImageViewportPageRole::Primary, primaryPayload,
         QRectF(0.0, 0.0, 10.0, 20.0), QRectF(0.0, 0.0, 2.0, 2.0), 0, false, true });
     input.imageLayers.append({ ImageViewportPageRole::Secondary, secondaryPayload,
-        QRectF(10.0, 0.0, 10.0, 20.0), QRectF(1.0, 2.0, 3.0, 4.0), 90, true, false });
+        QRectF(10.0, 0.0, 10.0, 20.0), QRectF(0.5, 0.0, 1.5, 2.0), 90, true, false });
 
     RenderAdapter adapter;
     const RenderAdapter::RenderPlan plan = adapter.createPlan(input);
@@ -940,7 +952,7 @@ void ImageViewportRenderSceneGraphTest::renderPlanBuildsRoleLayerMappingWithoutS
     QCOMPARE(plan.imageLayers.at(1).role, ImageViewportPageRole::Secondary);
     QCOMPARE(plan.imageLayers.at(1).preparedPayload.payloadId, quint64(7));
     QCOMPARE(plan.imageLayers.at(1).unrotatedTargetRect, QRectF(5.0, 5.0, 20.0, 10.0));
-    QCOMPARE(plan.imageLayers.at(1).physicalSourceRect, QRectF(2.0, 4.0, 6.0, 8.0));
+    QCOMPARE(plan.imageLayers.at(1).physicalSourceRect, QRectF(1.0, 0.0, 3.0, 4.0));
     QCOMPARE(plan.imageLayers.at(1).rotationDegrees, 90);
     QCOMPARE(plan.imageLayers.at(1).mirrorHorizontally, true);
     QCOMPARE(plan.imageLayers.at(1).mirrorVertically, false);
@@ -949,12 +961,35 @@ void ImageViewportRenderSceneGraphTest::renderPlanBuildsRoleLayerMappingWithoutS
     QCOMPARE(plan.rolePayloads.at(0).preparedPayload.payloadId, quint64(8));
 }
 
+void ImageViewportRenderSceneGraphTest::
+    renderPlanUsesExplicitPayloadScaleInsteadOfImageDevicePixelRatio()
+{
+    QImage image(8, 4, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::red);
+    image.setDevicePixelRatio(3.0);
+    ImageViewportInternal::PreparedPayload payload { true, 1, 2, 3, image, QSizeF(16.0, 8.0),
+        QSizeF(8.0, 4.0), QSizeF(0.5, 0.5) };
+
+    RenderAdapter::Input input;
+    input.itemSize = QSizeF(100.0, 100.0);
+    input.requiredRoleSet = ImageViewportRoleSet(true, false);
+    input.imageLayers.append({ ImageViewportPageRole::Primary, payload,
+        QRectF(0.0, 0.0, 100.0, 100.0), QRectF(4.0, 2.0, 8.0, 4.0) });
+
+    const RenderAdapter::RenderPlan plan = RenderAdapter().createPlan(input);
+
+    QCOMPARE(plan.result, RenderAdapter::CommitResult::Committed);
+    QCOMPARE(plan.imageLayers.size(), 1);
+    QCOMPARE(plan.imageLayers.constFirst().physicalSourceRect, QRectF(2.0, 1.0, 4.0, 2.0));
+}
+
 void ImageViewportRenderSceneGraphTest::renderPlanReportsPreMaterializationFailureIntent()
 {
     RenderAdapter adapter;
 
     RenderAdapter::Input invalidPayload;
     invalidPayload.itemSize = QSizeF(10.0, 10.0);
+    invalidPayload.requiredRoleSet = ImageViewportRoleSet(true, true);
     invalidPayload.imageLayers.append({ ImageViewportPageRole::Secondary, renderAdapterPayload({}),
         QRectF(0.0, 0.0, 10.0, 10.0), QRectF(0.0, 0.0, 2.0, 2.0) });
     const RenderAdapter::RenderPlan invalidPayloadPlan = adapter.createPlan(invalidPayload);

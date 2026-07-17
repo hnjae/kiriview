@@ -447,7 +447,7 @@ void ImageViewportProviderContractTest::typedDescriptorFactoryAndSessionBridgeMa
     sessionFactory->lastSession->emitFrameReady(frameRequest.token());
 
     QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Loading);
-    QCOMPARE(requestReason(item), ImageViewportRequestReason::UploadPending);
+    QCOMPARE(requestReason(item), ImageViewportRequestReason::RenderWaiting);
     QVERIFY(hasPendingRenderCommitForTest(item));
     acknowledgePendingPrimaryRenderCommitForTest(item);
     QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Ready);

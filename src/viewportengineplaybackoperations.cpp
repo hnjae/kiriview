@@ -311,7 +311,7 @@ ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
                                                         .preparedPayload;
         }
         request.status = ImageViewportRequestStatus::Loading;
-        request.reason = input.geometry.itemBounds.isEmpty()
+        request.reason = (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty())
             ? ImageViewportRequestReason::RenderWaiting
             : ImageViewportRequestReason::UploadPending;
         display.status = display.roles[0].displayedImageSize.isValid()
@@ -537,7 +537,7 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
                                                         .preparedPayload;
         }
         request.status = ImageViewportRequestStatus::Loading;
-        request.reason = input.geometry.itemBounds.isEmpty()
+        request.reason = (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty())
             ? ImageViewportRequestReason::RenderWaiting
             : ImageViewportRequestReason::UploadPending;
         display.status = display.roles[0].displayedImageSize.isValid()
@@ -720,7 +720,7 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
                                                         .preparedPayload;
         }
         request.status = ImageViewportRequestStatus::Loading;
-        request.reason = input.geometry.itemBounds.isEmpty()
+        request.reason = (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty())
             ? ImageViewportRequestReason::RenderWaiting
             : ImageViewportRequestReason::UploadPending;
         display.status = display.roles[0].displayedImageSize.isValid()
@@ -1055,7 +1055,7 @@ ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
                                                         .preparedPayload;
         }
         request.status = ImageViewportRequestStatus::Loading;
-        request.reason = input.geometry.itemBounds.isEmpty()
+        request.reason = (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty())
             ? ImageViewportRequestReason::RenderWaiting
             : ImageViewportRequestReason::UploadPending;
         display.status = display.roles[0].displayedImageSize.isValid()

@@ -1096,8 +1096,9 @@ void ViewportEngineTest::renderSnapshotUsesEnginePresentationAndPayloadState()
 
     ViewportRenderSnapshotInput input;
     input.itemSize = QSizeF(100.0, 80.0);
-    input.pendingTargetCommit = true;
-    input.preparedPayload = display.roles[0].pendingRenderPayload;
+    input.requiredRoleSet = ImageViewportRoleSet(true, true);
+    input.preparedPayloads
+        = { display.roles[0].pendingRenderPayload, display.roles[1].pendingRenderPayload };
     input.geometryState = engine.geometryState({ QRectF(0.0, 0.0, 100.0, 80.0), 2.0 });
 
     const ViewportRenderSnapshot snapshot = ViewportEngineTestAccess::renderSnapshot(engine, input);
@@ -1123,6 +1124,22 @@ void ViewportEngineTest::renderSnapshotUsesEnginePresentationAndPayloadState()
     QCOMPARE(snapshot.imageLayers.at(1).preparedPayload.payloadId, 4);
     QCOMPARE(snapshot.imageLayers.at(1).preparedPayload.image, secondaryImage);
     QCOMPARE(snapshot.imageLayers.at(1).rotationDegrees, 90);
+
+    input.geometryState = { true, QRectF(0.0, 0.0, 10.0, 10.0), QSizeF(20.0, 10.0),
+        QSizeF(8.0, 10.0), 0.0, ImageViewportSpreadDirection::LeftToRight,
+        ImageViewportFitMode::Manual, 0, false, false, 1.0, 1.0, {} };
+    const ViewportRenderSnapshot clipped = ViewportEngineTestAccess::renderSnapshot(engine, input);
+    QCOMPARE(clipped.requiredRoleSet, ImageViewportRoleSet(true, true));
+    QCOMPARE(clipped.imageLayers.size(), 2);
+    QVERIFY(clipped.imageLayers.at(1).targetRect.isEmpty());
+    QVERIFY(clipped.imageLayers.at(1).sourceRect.isEmpty());
+
+    display.status = ImageViewportDisplayStatus::Retained;
+    display.displayedPresentation.rotationDegrees = 0;
+    input.useDisplayedPresentation = true;
+    const ViewportRenderSnapshot retained = ViewportEngineTestAccess::renderSnapshot(engine, input);
+    QCOMPARE(retained.imageLayers.at(0).rotationDegrees, 0);
+    QCOMPARE(retained.imageLayers.at(1).rotationDegrees, 0);
 }
 
 void ViewportEngineTest::validPresentationTargetAssignmentAllocatesGenerationAndRoleSet()

@@ -13,7 +13,7 @@ using namespace ImageViewportInternal;
 
 void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
 {
-    const auto reduced = engine.advancePlayback({ elapsedMilliseconds, { itemBounds(), 1.0 } });
+    const auto reduced = engine.advancePlayback({ elapsedMilliseconds, viewportInput() });
     ViewportEngineTransition transition;
     transition.changes = reduced.changes;
     appendProviderTransport(transition.providerBeforePublication,
@@ -152,23 +152,24 @@ void ImageViewportPrivate::drainProviderHostEvents()
     while (!pendingProviderHostEvents.isEmpty()) {
         ViewportProviderHostEvent event = pendingProviderHostEvents.takeFirst();
         providerHost.completeFrameEventDelivery(event.providerEvent.frameLeaseId);
-        applyEngineTransition(engine.handleProviderHostEvent({ event, { itemBounds(), 1.0 } }));
+        applyEngineTransition(engine.handleProviderHostEvent({ event, viewportInput() }));
     }
     drainingProviderHostEvents = false;
 }
 
 void ImageViewportPrivate::devicePixelRatioChanged()
 {
-    const QQuickWindow* currentWindow = window();
-    applyEngineTransition(engine.handleDevicePixelRatioChanged(
-        { itemBounds(), currentWindow ? currentWindow->effectiveDevicePixelRatio() : 1.0 }));
+    applyEngineTransition(engine.handleDevicePixelRatioChanged(viewportInput()));
+}
+
+void ImageViewportPrivate::renderAvailabilityChanged()
+{
+    applyEngineTransition(engine.handleRenderAvailabilityChanged(viewportInput()));
 }
 
 void ImageViewportPrivate::discardRetainedDisplayForResourcePressure()
 {
-    const QQuickWindow* currentWindow = window();
-    applyEngineTransition(engine.handleResourcePressure(
-        { { itemBounds(), currentWindow ? currentWindow->effectiveDevicePixelRatio() : 1.0 } }));
+    applyEngineTransition(engine.handleResourcePressure({ viewportInput() }));
 }
 
 ImageViewportCommandResult ImageViewportPrivate::clear()
@@ -215,7 +216,7 @@ ImageViewportCommandResult ImageViewportPrivate::executePlaybackCommand(
     if (ImageViewportInternal::isValidPageRole(command.role)) {
         playbackScheduler.flushElapsed();
     }
-    const auto reduced = engine.applyPlaybackCommand({ command, { itemBounds(), 1.0 } });
+    const auto reduced = engine.applyPlaybackCommand({ command, viewportInput() });
     ViewportCommandResult result;
     result.outcome = reduced.command.outcome;
     result.transition.changes = reduced.changes;

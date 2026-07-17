@@ -54,6 +54,7 @@ public:
     ViewportEngineTransition handleProviderHostEvent(
         const ViewportEngineProviderHostEventRequest& input);
     ViewportEngineTransition handleDevicePixelRatioChanged(ViewportEngineViewportInput input);
+    ViewportEngineTransition handleRenderAvailabilityChanged(ViewportEngineViewportInput input);
     ViewportEnginePlaybackCommandResult applyPlaybackCommand(
         const ViewportEnginePlaybackCommandRequest& input);
     ViewportEnginePlaybackTickResult advancePlayback(

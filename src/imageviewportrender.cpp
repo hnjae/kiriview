@@ -10,16 +10,6 @@
 #include <QtQuick/QQuickWindow>
 #include <QtQuick/QSGNode>
 
-namespace {
-
-double effectiveDevicePixelRatio(const ImageViewportPrivate& viewport)
-{
-    QQuickWindow* window = viewport.window();
-    return window ? window->effectiveDevicePixelRatio() : 1.0;
-}
-
-}
-
 ImageViewportRenderHostResult ImageViewportRenderHost::synchronize(
     QSGNode* oldNode, QQuickWindow* window, const ViewportRenderAttempt& attempt)
 {
@@ -40,6 +30,7 @@ ImageViewportRenderHostResult ImageViewportRenderHost::synchronize(
         attempt.snapshot.checkerboardCellSize,
         attempt.snapshot.smoothing,
         attempt.snapshot.mipmap,
+        attempt.snapshot.requiredRoleSet,
         imageLayers,
     };
     const RenderAdapterSceneGraph::Output render
@@ -67,6 +58,9 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
         return oldNode;
     }
     const ViewportRenderAttempt& attempt = *attemptValue;
+    if (!window() && attempt.snapshot.requiredRoleSet.primary()) {
+        return oldNode;
+    }
     ImageViewportRenderHostResult render = renderHost.synchronize(oldNode, window(), attempt);
     if (render.fact.outcome == ViewportRenderHostFact::Outcome::Failed) {
         QSGNode* fallbackNode = render.node;
@@ -82,8 +76,7 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
 
 void ImageViewportPrivate::prepareRenderSynchronization()
 {
-    const ViewportRenderAttempt attempt
-        = engine.beginRenderSynchronization({ { itemBounds(), effectiveDevicePixelRatio(*this) } });
+    const ViewportRenderAttempt attempt = engine.beginRenderSynchronization({ viewportInput() });
     const QMutexLocker lock(&renderMailboxMutex);
     renderMailbox = attempt;
     renderMailboxValid = true;
@@ -126,8 +119,8 @@ void ImageViewportPrivate::geometryChanged(const QRectF& newGeometry, const QRec
         && newGeometry.height() == oldGeometry.height()) {
         return;
     }
-    const auto reduced = engine.handleGeometryChanged(
-        { { itemBounds(), 1.0 }, oldContentRect, oldVisibleImageRect });
+    const auto reduced
+        = engine.handleGeometryChanged({ viewportInput(), oldContentRect, oldVisibleImageRect });
     ViewportEngineTransition transition;
     transition.changes = reduced.changes;
     appendProviderTransport(

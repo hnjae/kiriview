@@ -216,14 +216,16 @@ PresentationGeometry::State ViewportEngine::geometryState(const GeometryInput& i
 ViewportEngine::GeometryInput ViewportEngine::currentGeometry(
     ViewportEngineViewportInput input) const
 {
-    return projectViewportCurrentGeometry({ input.itemBounds, input.devicePixelRatio },
+    return projectViewportCurrentGeometry(
+        { input.itemBounds, input.devicePixelRatio, input.renderAvailable },
         { m_state->requestState.request, m_state->displayState.display });
 }
 
 ViewportEngine::GeometryInput ViewportEngine::pendingGeometry(
     ViewportEngineViewportInput input) const
 {
-    return projectViewportPendingGeometry({ input.itemBounds, input.devicePixelRatio },
+    return projectViewportPendingGeometry(
+        { input.itemBounds, input.devicePixelRatio, input.renderAvailable },
         { m_state->requestState.request, m_state->displayState.display, providerFactsView() });
 }
 
@@ -248,7 +250,8 @@ ViewportEngine::GeometryInput ViewportEngine::acceptedGeometry(
 ViewportEngine::GeometryInput ViewportEngine::rawAcceptedGeometry(
     ViewportEngineViewportInput input) const
 {
-    return projectViewportAcceptedGeometry({ input.itemBounds, input.devicePixelRatio },
+    return projectViewportAcceptedGeometry(
+        { input.itemBounds, input.devicePixelRatio, input.renderAvailable },
         { m_state->requestState.request, providerFactsView() });
 }
 

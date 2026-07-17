@@ -45,6 +45,7 @@ public:
         double checkerboardCellSize = 8.0;
         bool smoothing = true;
         bool mipmap = false;
+        ImageViewportRoleSet requiredRoleSet;
         QVector<ImageLayer> imageLayers;
     };
 
