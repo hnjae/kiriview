@@ -29,6 +29,10 @@ public:
     {
         return engine.renderSnapshot(input);
     }
+    static PresentationGeometry::State geometryState(const ViewportEngine& engine)
+    {
+        return engine.geometryState();
+    }
     static ImageViewportInternal::DisplayState& display(ViewportEngine& engine)
     {
         return engine.displayState();

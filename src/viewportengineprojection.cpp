@@ -223,6 +223,16 @@ PresentationGeometry::State projectViewportGeometryState(const ViewportEngineGeo
         presentation.contentPosition };
 }
 
+ImageViewportRoleSet projectViewportDisplayedRoleSet(
+    const ImageViewportInternal::DisplayState& display)
+{
+    if (display.status == ImageViewportDisplayStatus::Empty) {
+        return {};
+    }
+    return { display.roles[0].displayedPayload.hasPresentableContent(),
+        display.roles[1].displayedPayload.hasPresentableContent() };
+}
+
 ImageViewportStateSnapshot projectViewportStateSnapshot(
     ViewportEngineSnapshotInput input, ViewportEngineSnapshotStateAccess access)
 {
@@ -234,11 +244,8 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
         ? access.presentationTarget().generation
         : access.request().sequenceGeneration;
     const auto acceptedGeneration = generation(primaryPresent ? acceptedGenerationValue : 0);
-    const bool primaryDisplayed = access.display().status != ImageViewportDisplayStatus::Empty
-        && access.display().roles[0].displayedPayload.hasPresentableContent();
-    const bool secondaryDisplayed = access.display().status != ImageViewportDisplayStatus::Empty
-        && access.display().roles[1].displayedPayload.hasPresentableContent();
-    const ImageViewportRoleSet displayedRoles(primaryDisplayed, secondaryDisplayed);
+    const ImageViewportRoleSet displayedRoles = projectViewportDisplayedRoleSet(access.display());
+    const bool primaryDisplayed = displayedRoles.primary();
     const quint64 displayedGenerationValue
         = primaryDisplayed ? access.display().roles[0].displayedRequest.generation : 0;
     const auto roleTargetMatches = [&](ImageViewportPageRole role) {

@@ -118,6 +118,8 @@ ViewportEngineGeometryInput projectViewportAcceptedGeometry(
     ViewportEngineGeometryQueryInput, ViewportEngineAcceptedGeometryProjectionAccess);
 ViewportRenderSnapshot projectViewportRenderSnapshot(
     ViewportRenderSnapshotInput, ViewportEngineRenderSnapshotProjectionAccess);
+ImageViewportRoleSet projectViewportDisplayedRoleSet(
+    const ImageViewportInternal::DisplayState& display);
 
 ImageViewportStateSnapshot projectViewportStateSnapshot(
     ViewportEngineSnapshotInput input, ViewportEngineSnapshotStateAccess access);

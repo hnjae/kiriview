@@ -1,6 +1,5 @@
 #include "imagesequencesource_p.h"
 #include "imageviewport_p.h"
-#include "presentationgeometry_p.h"
 #include "viewportcommandoutcome_p.h"
 #include "viewportitemtransaction_p.h"
 #include "viewportprovidertransporteffects_p.h"
@@ -10,15 +9,6 @@
 #include <utility>
 
 using namespace ImageViewportInternal;
-
-namespace {
-
-bool hasDisplayedSecondaryRole(const ImageViewportInternal::DisplayState& display)
-{
-    return display.roles[1].displayedPayload.hasPresentableContent();
-}
-
-} // namespace
 
 bool PresentationTargetTransitionPolicy::isValid() const
 {
@@ -141,135 +131,6 @@ bool PresentationTargetTransitionPolicy::isValid() const
     }
     return m_zoomTransition != ZoomTransition::ResetToContain
         || m_fitModeTransition != FitModeTransition::SetExplicit;
-}
-
-namespace {
-bool isPositiveSize(QSizeF size)
-{
-    return size.isValid() && size.width() > 0.0 && size.height() > 0.0;
-}
-
-}
-
-ImageViewportPrivate::SpreadDirection ImageViewportPrivate::spreadDirection() const
-{
-    return lastStateSnapshot.presentation().spreadDirection();
-}
-
-double ImageViewportPrivate::pageGap() const { return lastStateSnapshot.presentation().pageGap(); }
-
-ImageViewportPrivate::CommandReason ImageViewportPrivate::commandReason() const
-{
-    return lastStateSnapshot.diagnostics().commandReason();
-}
-
-ImageViewportPrivate::DisplayStatus ImageViewportPrivate::displayStatus() const
-{
-    return lastStateSnapshot.display().status();
-}
-
-int ImageViewportPrivate::displayedFrame() const
-{
-    if (hasReadyDisplay()) {
-        return lastStateSnapshot.primary().display().frame();
-    }
-
-    return -1;
-}
-
-int ImageViewportPrivate::requestedFrame() const
-{
-    if (hasDisplayableSequence()) {
-        return lastStateSnapshot.primary().request().frame();
-    }
-
-    return -1;
-}
-
-int ImageViewportPrivate::primaryDisplayedFrame() const { return displayedFrame(); }
-
-int ImageViewportPrivate::primaryRequestedFrame() const { return requestedFrame(); }
-
-int ImageViewportPrivate::secondaryDisplayedFrame() const
-{
-    if (hasReadyDisplay()
-        && lastStateSnapshot.secondary().display().sourceLogicalSize().isValid()) {
-        return lastStateSnapshot.secondary().display().frame();
-    }
-
-    return -1;
-}
-
-int ImageViewportPrivate::secondaryRequestedFrame() const
-{
-    if (lastStateSnapshot.secondary().metadata().available()) {
-        return lastStateSnapshot.secondary().request().frame();
-    }
-
-    return -1;
-}
-
-int ImageViewportPrivate::displayedPosition() const
-{
-    if (hasReadyDisplay()) {
-        return lastStateSnapshot.primary().display().position();
-    }
-
-    return -1;
-}
-
-int ImageViewportPrivate::requestedPosition() const
-{
-    if (lastStateSnapshot.primary().metadata().available()
-        && (lastStateSnapshot.primary().metadata().totalDuration() >= 0
-            || lastStateSnapshot.primary().request().position() >= 0)) {
-        return lastStateSnapshot.primary().request().position();
-    }
-
-    return -1;
-}
-
-int ImageViewportPrivate::primaryDisplayedPosition() const { return displayedPosition(); }
-
-int ImageViewportPrivate::primaryRequestedPosition() const { return requestedPosition(); }
-
-int ImageViewportPrivate::secondaryDisplayedPosition() const
-{
-    if (hasReadyDisplay()
-        && lastStateSnapshot.secondary().display().sourceLogicalSize().isValid()) {
-        return lastStateSnapshot.secondary().display().position();
-    }
-
-    return -1;
-}
-
-int ImageViewportPrivate::secondaryRequestedPosition() const
-{
-    if (!lastStateSnapshot.secondary().metadata().available()) {
-        return -1;
-    }
-    if (lastStateSnapshot.secondary().metadata().totalDuration() >= 0
-        || lastStateSnapshot.secondary().request().position() >= 0) {
-        return lastStateSnapshot.secondary().request().position();
-    }
-
-    return -1;
-}
-
-QSizeF ImageViewportPrivate::displayedSpreadSize() const
-{
-    const QSizeF spreadSize = PresentationGeometry::spreadSize(engine.geometryState());
-    return isPositiveSize(spreadSize) ? spreadSize : QSizeF(0.0, 0.0);
-}
-
-QString ImageViewportPrivate::errorString() const
-{
-    return lastStateSnapshot.diagnostics().errorString();
-}
-
-QString ImageViewportPrivate::warningString() const
-{
-    return lastStateSnapshot.diagnostics().warningString();
 }
 
 ImageViewportCommandResult ImageViewportPrivate::setPresentationTarget(

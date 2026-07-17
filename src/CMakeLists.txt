@@ -53,6 +53,7 @@ qt_add_qml_module(
     timingintervals.cpp
     timingintervals_p.h
     viewportengine.cpp
+    viewportenginecoordinate.cpp
     viewportengineallocationoperations.cpp
     viewportengineallocationoperations_p.h
     viewportenginebuiltinframeoperations.cpp

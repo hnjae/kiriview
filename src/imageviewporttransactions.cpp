@@ -24,21 +24,6 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
     applyEngineTransition(std::move(transition));
 }
 
-bool ImageViewportPrivate::hasActiveRequest() const
-{
-    return lastStateSnapshot.request().status() != RequestStatus::NoRequest;
-}
-
-bool ImageViewportPrivate::hasReadyDisplay() const
-{
-    return lastStateSnapshot.display().status() == DisplayStatus::Ready;
-}
-
-bool ImageViewportPrivate::hasDisplayableSequence() const
-{
-    return lastStateSnapshot.primary().metadata().available();
-}
-
 QString ImageViewportPrivate::boundedDiagnostic(const QString& diagnostic, const QString& fallback)
 {
     return FramePreparation::boundedDiagnostic(diagnostic, fallback);

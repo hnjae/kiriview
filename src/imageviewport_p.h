@@ -1,6 +1,5 @@
 #pragma once
 
-#include "coordinateresult_p.h"
 #include "imageviewportdiagnostics_p.h"
 #include "imageviewportplaybackscheduler_p.h"
 #include "imageviewportproviderhost_p.h"
@@ -17,18 +16,8 @@
 class ImageViewportPrivate
 {
 public:
-    using BackgroundMode = ImageViewportBackgroundMode;
     using CommandOutcome = ImageViewportCommandOutcome;
-    using CommandReason = ImageViewportCommandReason;
-    using DisplayStatus = ImageViewportDisplayStatus;
-    using FitMode = ImageViewportFitMode;
     using PageRole = ImageViewportPageRole;
-    using PlaybackPhase = ImageViewportPlaybackPhase;
-    using RequestReason = ImageViewportRequestReason;
-    using RequestStatus = ImageViewportRequestStatus;
-    using SpreadDirection = ImageViewportSpreadDirection;
-    using DisplayRequestSnapshot = ImageViewportInternal::DisplayRequestSnapshot;
-    using DisplayRequestOrigin = ImageViewportInternal::DisplayRequestOrigin;
     using ProviderRequestTargetKind = ImageViewportInternal::ProviderRequestTargetKind;
 
     explicit ImageViewportPrivate(ImageViewport* viewport);
@@ -40,26 +29,6 @@ public:
     }
 
     ImageViewportStateSnapshot state() const;
-    SpreadDirection spreadDirection() const;
-    double pageGap() const;
-
-    CommandReason commandReason() const;
-    DisplayStatus displayStatus() const;
-    int displayedFrame() const;
-    int requestedFrame() const;
-    int primaryDisplayedFrame() const;
-    int primaryRequestedFrame() const;
-    int secondaryDisplayedFrame() const;
-    int secondaryRequestedFrame() const;
-    int displayedPosition() const;
-    int requestedPosition() const;
-    int primaryDisplayedPosition() const;
-    int primaryRequestedPosition() const;
-    int secondaryDisplayedPosition() const;
-    int secondaryRequestedPosition() const;
-    QSizeF displayedSpreadSize() const;
-    QString errorString() const;
-    QString warningString() const;
 
     ImageViewportCommandResult clear();
     ImageViewportCommandResult play(PageRole role);
@@ -113,33 +82,6 @@ public:
     void acknowledgeRenderFailureForTest(PageRole failedRole, quint64 generation, quint64 requestId,
         quint64 preparedPayloadId, RenderFailureCause cause);
 #endif
-    QRectF contentRect() const;
-    QRectF visibleImageRect() const;
-    QRectF visibleSpreadRect() const;
-    QRectF primaryPageRect() const;
-    QRectF secondaryPageRect() const;
-    QRectF primaryItemRect() const;
-    QRectF secondaryItemRect() const;
-    QRectF visiblePrimaryPageRect() const;
-    QRectF visibleSecondaryPageRect() const;
-    QSizeF contentSize() const;
-    QPointF contentPosition() const;
-    QPointF maximumContentPosition() const;
-    bool horizontalPannable() const;
-    bool verticalPannable() const;
-    FitMode fitMode() const;
-    double zoomPercent() const;
-    double minimumManualZoomPercent() const;
-    double maximumManualZoomPercent() const;
-    double manualZoomStepFactor() const;
-    int rotationDegrees() const;
-    bool smoothing() const;
-    bool mipmap() const;
-    bool mirrorHorizontally() const;
-    bool mirrorVertically() const;
-    BackgroundMode backgroundMode() const;
-    QColor backgroundColor() const;
-    bool looping() const;
     ImageViewportStateSnapshot applyEngineTransition(ViewportEngineTransition transition);
     ImageViewportStateSnapshot finalizeItemTransaction();
     void enqueueProviderHostEvent(ViewportProviderHostEvent event);
@@ -147,7 +89,6 @@ public:
     void drainExternalWork();
     void viewportChanged();
     void discardRetainedDisplayForResourcePressure();
-    QRectF currentContentRect() const;
     QRectF itemBounds() const;
 
     static QString boundedDiagnostic(const QString& diagnostic, const QString& fallback);
@@ -155,9 +96,6 @@ public:
     ImageViewportCommandResult commandResult(
         CommandOutcome outcome, const ImageViewportStateSnapshot& snapshot) const;
     void advancePlayback(int elapsedMilliseconds);
-    bool hasActiveRequest() const;
-    bool hasReadyDisplay() const;
-    bool hasDisplayableSequence() const;
 
     double width() const;
     double height() const;

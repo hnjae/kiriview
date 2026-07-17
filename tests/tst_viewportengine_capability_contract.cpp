@@ -106,6 +106,14 @@ struct HasPublicProjectedGeometryInput<Engine,
     : std::true_type
 {
 };
+template <typename Engine, typename = void> struct HasPublicGeometryState : std::false_type
+{
+};
+template <typename Engine>
+struct HasPublicGeometryState<Engine,
+    std::void_t<decltype(std::declval<const Engine&>().geometryState())>> : std::true_type
+{
+};
 template <typename Engine, typename = void> struct HasPublicProviderReducer : std::false_type
 {
 };
@@ -451,6 +459,7 @@ static_assert(!HasPublicRejectInvalidCommand<ViewportEngine>::value);
 static_assert(!HasPublicRevisionAllocator<ViewportEngine>::value);
 static_assert(!HasPublicAcceptedGeometryInput<ViewportEngine>::value);
 static_assert(!HasPublicProjectedGeometryInput<ViewportEngine>::value);
+static_assert(!HasPublicGeometryState<ViewportEngine>::value);
 static_assert(!HasPublicProviderReducer<ViewportEngine>::value);
 static_assert(!HasPublicProviderRestaging<ViewportEngine>::value);
 static_assert(!HasPublicProviderSessionClose<ViewportEngine>::value);
@@ -460,8 +469,9 @@ static_assert(std::is_same_v<decltype(&ViewportEngine::handleViewportChanged),
     ViewportEngineTransition (ViewportEngine::*)(ViewportEngineViewportState)>);
 static_assert(std::is_same_v<decltype(std::declval<const ViewportEngine&>().snapshot()),
     ImageViewportStateSnapshot>);
-static_assert(std::is_same_v<decltype(std::declval<const ViewportEngine&>().geometryState()),
-    PresentationGeometry::State>);
+static_assert(std::is_same_v<decltype(&ViewportEngine::queryCoordinate),
+    ViewportEngineCoordinateQueryResult (ViewportEngine::*)(
+        const ViewportEngineCoordinateQueryRequest&) const>);
 static_assert(std::is_same_v<decltype(std::declval<ViewportEngine&>().beginRenderSynchronization()),
     ViewportRenderAttempt>);
 static_assert(!HasViewportMember<ViewportEnginePresentationTargetAssignmentRequest>::value);

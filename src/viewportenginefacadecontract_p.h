@@ -9,6 +9,7 @@
 #include "viewportrendercontract_p.h"
 
 #include <array>
+#include <optional>
 
 struct ViewportEnginePresentationTargetAssignmentRequest
 {
@@ -22,6 +23,29 @@ struct ViewportEngineCommandDiagnostics
 {
     ImageViewportCommandReason reason = ImageViewportCommandReason::NoCommand;
     RevisionToken revision;
+};
+
+enum class ViewportEngineCoordinateRoleKind {
+    Null,
+    Value,
+    Invalid,
+};
+
+struct ViewportEngineCoordinateQueryRequest
+{
+    ImageViewportCoordinateSpace sourceSpace = ImageViewportCoordinateSpace::Item;
+    ImageViewportCoordinateSpace targetSpace = ImageViewportCoordinateSpace::Item;
+    ViewportEngineCoordinateRoleKind roleKind = ViewportEngineCoordinateRoleKind::Null;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
+    QPointF point;
+};
+
+struct ViewportEngineCoordinateQueryResult
+{
+    bool valid = false;
+    ImageViewportCoordinateSpace space = ImageViewportCoordinateSpace::Item;
+    std::optional<ImageViewportPageRole> role;
+    QPointF point;
 };
 
 struct ViewportEngineCommandResult

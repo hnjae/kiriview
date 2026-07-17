@@ -43,7 +43,8 @@ public:
     ViewportEngine(const ViewportEngine&) = delete;
     ViewportEngine& operator=(const ViewportEngine&) = delete;
     ImageViewportStateSnapshot snapshot() const;
-    PresentationGeometry::State geometryState() const;
+    ViewportEngineCoordinateQueryResult queryCoordinate(
+        const ViewportEngineCoordinateQueryRequest& input) const;
     ViewportRenderAttempt beginRenderSynchronization();
     ViewportEngineRenderHostTransition handleRenderHostFact(
         const ViewportEngineRenderHostFactRequest& input);
@@ -94,6 +95,7 @@ private:
     ViewportEngineSnapshotStateAccess snapshotAccess() const;
     ViewportEngineProviderFactsView providerFactsView() const;
     ViewportPlaybackScheduleEffect currentPlaybackSchedule() const;
+    PresentationGeometry::State geometryState() const;
     GeometryInput currentGeometry() const;
     GeometryInput pendingGeometry() const;
     GeometryInput rawAcceptedGeometry() const;

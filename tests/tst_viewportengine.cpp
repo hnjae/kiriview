@@ -206,6 +206,8 @@ private slots:
     void providerFrameQueueFlushRejectsStaleRequest();
     void defaultPresentationStateMatchesPublicDefaults();
     void geometryProjectionUsesEnginePresentationState();
+    void coordinateQueryOwnsValidationAndMapping();
+    void coordinateQueryUsesRetainedDisplayedPresentationWithoutMutation();
     void geometryProjectionRejectsFiniteOverflow();
     void devicePixelRatioChangeRevisesEffectiveFitZoom();
     void renderSnapshotUsesEnginePresentationAndPayloadState();
@@ -1152,7 +1154,7 @@ void ViewportEngineTest::geometryProjectionUsesEnginePresentationState()
     QCOMPARE(engine.applyPresentationCommand({ command }).command.outcome,
         ImageViewportCommandOutcome::Accepted);
 
-    const PresentationGeometry::State geometry = engine.geometryState();
+    const PresentationGeometry::State geometry = ViewportEngineTestAccess::geometryState(engine);
 
     QCOMPARE(geometry.hasReadyDisplay, true);
     QCOMPARE(geometry.itemBounds, QRectF(0.0, 0.0, 100.0, 80.0));
@@ -1168,6 +1170,141 @@ void ViewportEngineTest::geometryProjectionUsesEnginePresentationState()
     QCOMPARE(geometry.devicePixelRatio, 2.0);
     QCOMPARE(geometry.contentPosition, QPointF());
     QCOMPARE(PresentationGeometry::spreadSize(geometry), QSizeF(32.0, 10.0));
+}
+
+void ViewportEngineTest::coordinateQueryOwnsValidationAndMapping()
+{
+    ViewportEngine engine;
+    auto& request = ViewportEngineTestAccess::request(engine);
+    request.roles[0].source.facts.present = true;
+    request.roles[1].source.facts.present = true;
+    auto& display = ViewportEngineTestAccess::display(engine);
+    display.status = ImageViewportDisplayStatus::Ready;
+    display.roles[0].displayedPayload
+        = preparedPayloadForTest(QImage(10, 20, QImage::Format_ARGB32_Premultiplied));
+    display.roles[1].displayedPayload
+        = preparedPayloadForTest(QImage(30, 20, QImage::Format_ARGB32_Premultiplied));
+    setViewport(engine, { QRectF(0.0, 0.0, 88.0, 44.0), 1.0, true });
+
+    ImageViewportPresentationCommand command;
+    command.setPageGap(4.0);
+    QCOMPARE(engine.applyPresentationCommand({ command }).command.outcome,
+        ImageViewportCommandOutcome::Accepted);
+
+    const ViewportEngineCoordinateQueryResult spread
+        = engine.queryCoordinate({ ImageViewportCoordinateSpace::Item,
+            ImageViewportCoordinateSpace::DisplayedSpread, ViewportEngineCoordinateRoleKind::Null,
+            ImageViewportPageRole::Primary, QPointF(22.0, 22.0) });
+    QCOMPARE(spread.valid, true);
+    QCOMPARE(spread.space, ImageViewportCoordinateSpace::DisplayedSpread);
+    QCOMPARE(spread.role, std::nullopt);
+    QCOMPARE(spread.point, QPointF(11.0, 10.0));
+
+    const ViewportEngineCoordinateQueryResult primary
+        = engine.queryCoordinate({ ImageViewportCoordinateSpace::Item,
+            ImageViewportCoordinateSpace::DisplayedPage, ViewportEngineCoordinateRoleKind::Value,
+            ImageViewportPageRole::Primary, QPointF(19.0, 22.0) });
+    QCOMPARE(primary.valid, true);
+    QCOMPARE(primary.role, std::optional(ImageViewportPageRole::Primary));
+    QCOMPARE(primary.point, QPointF(9.5, 10.0));
+
+    const ViewportEngineCoordinateQueryResult gap
+        = engine.queryCoordinate({ ImageViewportCoordinateSpace::Item,
+            ImageViewportCoordinateSpace::DisplayedPage, ViewportEngineCoordinateRoleKind::Value,
+            ImageViewportPageRole::Primary, QPointF(22.0, 22.0) });
+    QCOMPARE(gap.valid, false);
+    QCOMPARE(gap.space, ImageViewportCoordinateSpace::DisplayedPage);
+    QCOMPARE(gap.role, std::optional(ImageViewportPageRole::Primary));
+    QCOMPARE(gap.point, QPointF());
+
+    const ViewportEngineCoordinateQueryResult unnecessaryRole
+        = engine.queryCoordinate({ ImageViewportCoordinateSpace::Item,
+            ImageViewportCoordinateSpace::DisplayedSpread, ViewportEngineCoordinateRoleKind::Value,
+            ImageViewportPageRole::Primary, QPointF(22.0, 22.0) });
+    QCOMPARE(unnecessaryRole.valid, false);
+    QCOMPARE(unnecessaryRole.role, std::nullopt);
+
+    const ViewportEngineCoordinateQueryResult invalidRole
+        = engine.queryCoordinate({ ImageViewportCoordinateSpace::DisplayedPage,
+            ImageViewportCoordinateSpace::DisplayedSpread,
+            ViewportEngineCoordinateRoleKind::Invalid, ImageViewportPageRole::Primary,
+            QPointF(1.0, 1.0) });
+    QCOMPARE(invalidRole.valid, false);
+    QCOMPARE(invalidRole.role, std::nullopt);
+
+    const ViewportEngineCoordinateQueryResult nonFinite
+        = engine.queryCoordinate({ ImageViewportCoordinateSpace::DisplayedSpread,
+            ImageViewportCoordinateSpace::DisplayedSpread, ViewportEngineCoordinateRoleKind::Null,
+            ImageViewportPageRole::Primary,
+            QPointF(std::numeric_limits<double>::infinity(), 1.0) });
+    QCOMPARE(nonFinite.valid, false);
+    QCOMPARE(nonFinite.role, std::nullopt);
+
+    const ViewportEngineCoordinateQueryResult missingRole
+        = engine.queryCoordinate({ ImageViewportCoordinateSpace::DisplayedPage,
+            ImageViewportCoordinateSpace::DisplayedSpread, ViewportEngineCoordinateRoleKind::Null,
+            ImageViewportPageRole::Primary, QPointF(1.0, 1.0) });
+    QCOMPARE(missingRole.valid, false);
+    QCOMPARE(missingRole.role, std::nullopt);
+
+    const ViewportEngineCoordinateQueryResult excludedPageEdge
+        = engine.queryCoordinate({ ImageViewportCoordinateSpace::DisplayedPage,
+            ImageViewportCoordinateSpace::DisplayedPage, ViewportEngineCoordinateRoleKind::Value,
+            ImageViewportPageRole::Primary, QPointF(10.0, 10.0) });
+    QCOMPARE(excludedPageEdge.valid, false);
+    QCOMPARE(excludedPageEdge.role, std::optional(ImageViewportPageRole::Primary));
+
+    const ViewportEngineCoordinateQueryResult invalidSpace
+        = engine.queryCoordinate({ ImageViewportCoordinateSpace::Item,
+            static_cast<ImageViewportCoordinateSpace>(99), ViewportEngineCoordinateRoleKind::Null,
+            ImageViewportPageRole::Primary, QPointF(1.0, 1.0) });
+    QCOMPARE(invalidSpace.valid, false);
+    QCOMPARE(invalidSpace.space, ImageViewportCoordinateSpace::Item);
+    QCOMPARE(invalidSpace.role, std::nullopt);
+
+    display.roles[1].displayedPayload = {};
+    const ViewportEngineCoordinateQueryResult nonDisplayedRole
+        = engine.queryCoordinate({ ImageViewportCoordinateSpace::DisplayedPage,
+            ImageViewportCoordinateSpace::DisplayedSpread, ViewportEngineCoordinateRoleKind::Value,
+            ImageViewportPageRole::Secondary, QPointF(1.0, 1.0) });
+    QCOMPARE(nonDisplayedRole.valid, false);
+    QCOMPARE(nonDisplayedRole.role, std::optional(ImageViewportPageRole::Secondary));
+
+    setViewport(engine, { QRectF(), 1.0, true });
+    const ViewportEngineCoordinateQueryResult nonPositiveGeometry = engine.queryCoordinate(
+        { ImageViewportCoordinateSpace::Item, ImageViewportCoordinateSpace::DisplayedSpread,
+            ViewportEngineCoordinateRoleKind::Null, ImageViewportPageRole::Primary, QPointF() });
+    QCOMPARE(nonPositiveGeometry.valid, false);
+}
+
+void ViewportEngineTest::coordinateQueryUsesRetainedDisplayedPresentationWithoutMutation()
+{
+    ViewportEngine engine;
+    auto& request = ViewportEngineTestAccess::request(engine);
+    request.roles[0].source.facts.present = true;
+    auto& display = ViewportEngineTestAccess::display(engine);
+    display.status = ImageViewportDisplayStatus::Retained;
+    display.roles[0].displayedPayload
+        = preparedPayloadForTest(QImage(10, 20, QImage::Format_ARGB32_Premultiplied));
+    display.displayedPresentation.rotationDegrees = 0;
+    setViewport(engine, { QRectF(0.0, 0.0, 100.0, 100.0), 1.0, true });
+
+    ImageViewportPresentationCommand command;
+    command.setRotationDegrees(90);
+    QCOMPARE(engine.applyPresentationCommand({ command }).command.outcome,
+        ImageViewportCommandOutcome::Accepted);
+
+    const ImageViewportStateSnapshot before = engine.snapshot();
+    const ViewportEngineCoordinateQueryResult result
+        = engine.queryCoordinate({ ImageViewportCoordinateSpace::Item,
+            ImageViewportCoordinateSpace::DisplayedSpread, ViewportEngineCoordinateRoleKind::Null,
+            ImageViewportPageRole::Primary, QPointF(25.0, 0.0) });
+    const ImageViewportStateSnapshot after = engine.snapshot();
+
+    QCOMPARE(result.valid, true);
+    QCOMPARE(result.point, QPointF());
+    QCOMPARE(after.diagnostics(), before.diagnostics());
+    QCOMPARE(after.revisions(), before.revisions());
 }
 
 void ViewportEngineTest::geometryProjectionRejectsFiniteOverflow()
@@ -1294,7 +1431,7 @@ void ViewportEngineTest::renderSnapshotUsesEnginePresentationAndPayloadState()
     input.requiredRoleSet = ImageViewportRoleSet(true, true);
     input.preparedPayloads
         = { display.roles[0].pendingRenderPayload, display.roles[1].pendingRenderPayload };
-    input.geometryState = engine.geometryState();
+    input.geometryState = ViewportEngineTestAccess::geometryState(engine);
 
     const ViewportRenderSnapshot snapshot = ViewportEngineTestAccess::renderSnapshot(engine, input);
 
