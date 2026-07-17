@@ -63,6 +63,9 @@ public:
         ImageViewportInternal::ResolvedFrameIdentity resolvedFrame;
         ImageViewportInternal::PreparedPayload preparedPayload;
         ImageViewportDemandRevisionToken demandRevision;
+        qint64 maximumTextureSize = -1;
+        qint64 maximumPayloadBytes = -1;
+        qint64 displayByteBudget = -1;
         ImageViewportExactnessPreference exactnessPreference
             = ImageViewportExactnessPreference::Default;
     };

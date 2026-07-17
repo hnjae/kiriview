@@ -108,7 +108,7 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromFrame(ImageFrame* frame)
     std::shared_ptr<ImageSequence> sequence
         = ImageSequencePrivateAccess::createStill(frame->sourceLogicalSize(), frame->imagePayload(),
             { frame->sourceLogicalSize(), frame->payloadRasterSize(), frame->sourceToPayloadScale(),
-                frame->quality(), frame->exactness(), {} });
+                frame->payloadByteSize(), frame->quality(), frame->exactness(), {} });
     return new ImageSequenceFactoryResult(std::move(sequence), ImageSequenceFactoryOutcome::Created,
         ImageSequenceFactoryReason::NoError);
 }
@@ -131,7 +131,7 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromTimedFrameList(TimedImageF
 
     std::shared_ptr<ImageSequence> sequence
         = ImageSequencePrivateAccess::createTimedList(list->logicalSize(), list->frameDurations(),
-            list->frameImages(), list->authoredAnimationFacts());
+            list->frameImages(), list->framePayloadByteSizes(), list->authoredAnimationFacts());
     return new ImageSequenceFactoryResult(std::move(sequence), ImageSequenceFactoryOutcome::Created,
         ImageSequenceFactoryReason::NoError);
 }

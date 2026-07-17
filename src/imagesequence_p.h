@@ -13,6 +13,7 @@ struct FramePayloadFacts
     QSizeF sourceLogicalSize;
     QSizeF payloadRasterSize;
     QSizeF sourceToPayloadScale;
+    qint64 payloadByteSize = 0;
     ImageViewportPayloadQuality quality = ImageViewportPayloadQuality::Unknown;
     ImageViewportPayloadExactness exactness = ImageViewportPayloadExactness::Unknown;
     ImageViewportDemandRevisionToken demandRevision;
@@ -33,7 +34,8 @@ public:
     static std::unique_ptr<Data> still(QSizeF logicalSize, QImage stillImage,
         ImageViewportInternal::FramePayloadFacts payloadFacts = {});
     static std::unique_ptr<Data> timedList(QSizeF logicalSize, const QVector<int>& frameDurations,
-        QVector<QImage> frameImages, ImageSequenceAuthoredAnimationFacts authoredAnimationFacts);
+        QVector<QImage> frameImages, QVector<qint64> framePayloadByteSizes,
+        ImageSequenceAuthoredAnimationFacts authoredAnimationFacts);
     static std::unique_ptr<Data> provider(
         std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,
         ImageViewportInternal::ImageSequenceProviderKnownFacts providerKnownFacts,
@@ -50,6 +52,7 @@ public:
     ImageViewportInternal::FramePayloadFacts stillPayloadFacts;
     std::shared_ptr<const TimingIntervals> timingIntervals;
     QVector<QImage> frameImages;
+    QVector<qint64> framePayloadByteSizes;
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts;
     bool authoredAnimationFactsAvailable = false;
     std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory;
@@ -77,6 +80,7 @@ public:
         QSizeF logicalSize, QImage stillImage, FramePayloadFacts payloadFacts = {});
     static std::shared_ptr<ImageSequence> createTimedList(QSizeF logicalSize,
         const QVector<int>& frameDurations, QVector<QImage> frameImages,
+        QVector<qint64> framePayloadByteSizes,
         ImageSequenceAuthoredAnimationFacts authoredAnimationFacts);
     static std::shared_ptr<ImageSequence> createProvider(
         std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,

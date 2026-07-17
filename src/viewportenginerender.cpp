@@ -1,4 +1,5 @@
 #include "viewportengine_p.h"
+#include "viewportengineallocationoperations_p.h"
 #include "viewportenginepresentationoperations_p.h"
 #include "viewportenginerenderoperations_p.h"
 #include "viewportenginestate_p.h"
@@ -148,6 +149,8 @@ ViewportEngineRenderHostTransition ViewportEngine::handleRenderHostFact(
         result.changes = reduction.changes;
         result.diagnostic = reduction.diagnostic;
         result.observations = reduction.observations;
+        rebuildViewportEnginePayloadAllocation(
+            m_state->requestState.request, m_state->displayState.display);
     } else if (input.fact.outcome == ViewportRenderHostFact::Outcome::Committed
         && input.fact.imagePresent
         && (context.pendingTargetCommit || context.pendingRefinementCommit)) {
@@ -160,6 +163,14 @@ ViewportEngineRenderHostTransition ViewportEngine::handleRenderHostFact(
             result.changes.adoptTargetPresentationRevision = true;
         }
         result.observations = reduction.observations;
+        const auto allocation = rebuildViewportEnginePayloadAllocation(
+            m_state->requestState.request, m_state->displayState.display);
+        if (context.pendingTargetCommit && allocation.roleBudgetsIncreased) {
+            const GeometryInput geometry { context.geometryState.hasReadyDisplay,
+                context.geometryState.itemBounds, context.geometryState.primaryImageSize,
+                context.geometryState.secondaryImageSize, context.geometryState.devicePixelRatio };
+            result.providerEffects = restageProviderDemands(geometry);
+        }
     }
 
     if (input.fact.outcome == ViewportRenderHostFact::Outcome::Committed) {

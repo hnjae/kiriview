@@ -60,18 +60,21 @@ FramePreparation::ProviderFrameState preparationState(const RequestState& reques
 {
     const auto& active = requestForRole(request, role);
     const auto index = role == ImageViewportPageRole::Secondary ? 1U : 0U;
-    PreparedPayload preparedPayload = refinement ? display.roles[index].pendingRenderPayload
-                                                 : display.roles[0].pendingRenderPayload;
-    if ((refinement || role == ImageViewportPageRole::Primary)
-        && !preparedPayload.identity().isValid()) {
+    PreparedPayload preparedPayload = display.roles[index].pendingRenderPayload;
+    if (!preparedPayload.identity().isValid()) {
         preparedPayload.generation = request.sequenceGeneration;
         preparedPayload.requestId = active.identity.id;
         preparedPayload.payloadId
             = preparedPayload.requestId == 0 ? 0 : display.nextPreparedPayloadId + 1;
     }
+    const auto& demand = provider.requests.lastFrameDemand;
     return { provider.facts.metadataReady, provider.facts.timedMetadata, provider.facts.logicalSize,
         provider.facts.timingIntervals, active.resolvedFrame, preparedPayload,
-        active.demandRevision, presentation.exactnessPreference };
+        active.demandRevision,
+        provider.requests.hasLastFrameDemand ? demand.maximumTextureSize() : -1,
+        provider.requests.hasLastFrameDemand ? demand.maximumPayloadBytes() : -1,
+        provider.requests.hasLastFrameDemand ? demand.displayByteBudget() : -1,
+        presentation.exactnessPreference };
 }
 
 void clearQueue(ProviderRequestState& requests)
@@ -225,7 +228,12 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
     const bool diagnosticsChanged = access.m_request.clearDiagnostics();
 
     if (input.role == ImageViewportPageRole::Secondary) {
+        admittedPayload.commitPending = true;
         access.m_display.roles[1].pendingRenderPayload = admittedPayload;
+        access.m_request.roles[1].activeRequest.preparedPayloadId = admittedPayload.payloadId;
+        if (admittedPayload.payloadId > access.m_display.nextPreparedPayloadId) {
+            access.m_display.nextPreparedPayloadId = admittedPayload.payloadId;
+        }
         const bool primaryReady = access.m_display.roles[0].pendingRenderPayload.commitPending
             && !access.m_display.roles[0].pendingRenderPayload.image.isNull();
         TargetSpreadWaitState wait;

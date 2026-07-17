@@ -106,6 +106,10 @@ void ImageViewportPrivate::applyRenderHostFact(ViewportRenderHostFact fact)
         transition.changes = reduced.changes;
         transition.playbackSchedule = reduced.playbackSchedule;
         transition.observations = reduced.observations;
+        appendProviderTransport(
+            transition.providerAfterPublication, reduced.providerEffects[0], PageRole::Primary);
+        appendProviderTransport(
+            transition.providerAfterPublication, reduced.providerEffects[1], PageRole::Secondary);
         applyEngineTransition(std::move(transition));
     };
     if (QThread::currentThread() == q->thread()) {

@@ -2,6 +2,7 @@
 
 #include "imagesequencesource_p.h"
 #include "imageviewportlimits_p.h"
+#include "imageviewporttoken_p.h"
 
 ImageSequenceProviderDisplayDemand projectViewportProviderDemand(
     ViewportEngineProviderDemandInput input, ViewportEngineProviderDemandProjectionAccess access)
@@ -50,7 +51,11 @@ ImageSequenceProviderDisplayDemand projectViewportProviderDemand(
     demand.setQualityPreference(access.presentation().qualityPreference);
     demand.setExactnessPreference(access.presentation().exactnessPreference);
     demand.setMaximumPayloadBytes(ImageSequenceLimits::maximumPayloadBytes());
-    demand.setAllocationGeneration(input.allocationGeneration);
+    demand.setDisplayByteBudget(access.display().payloadAllocation.roleBudgets[index]);
+    demand.setAllocationGeneration(access.display().payloadAllocation.generation != 0
+            ? RevisionTokenPrivateAccess::generationFromValue(
+                  access.display().payloadAllocation.generation)
+            : input.allocationGeneration);
     demand.setCurrentPayloadQuality(payload.quality);
     demand.setCurrentPayloadExactness(payload.exactness);
     demand.setCurrentPayloadRasterSize(payload.payloadRasterSize);

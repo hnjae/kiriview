@@ -166,7 +166,9 @@ void ImageViewportPrivate::devicePixelRatioChanged()
 
 void ImageViewportPrivate::discardRetainedDisplayForResourcePressure()
 {
-    applyEngineTransition(engine.handleResourcePressure({}));
+    const QQuickWindow* currentWindow = window();
+    applyEngineTransition(engine.handleResourcePressure(
+        { { itemBounds(), currentWindow ? currentWindow->effectiveDevicePixelRatio() : 1.0 } }));
 }
 
 ImageViewportCommandResult ImageViewportPrivate::clear()
@@ -337,6 +339,10 @@ void ImageViewportPrivate::reportRenderQualityFallbackForTest(
     transition.changes = reduced.changes;
     transition.playbackSchedule = reduced.playbackSchedule;
     transition.observations = reduced.observations;
+    appendProviderTransport(
+        transition.providerAfterPublication, reduced.providerEffects[0], PageRole::Primary);
+    appendProviderTransport(
+        transition.providerAfterPublication, reduced.providerEffects[1], PageRole::Secondary);
     applyEngineTransition(std::move(transition));
 }
 
@@ -382,6 +388,10 @@ void ImageViewportPrivate::acknowledgeRenderCommitForTest(
     transition.changes = reduced.changes;
     transition.playbackSchedule = reduced.playbackSchedule;
     transition.observations = reduced.observations;
+    appendProviderTransport(
+        transition.providerAfterPublication, reduced.providerEffects[0], PageRole::Primary);
+    appendProviderTransport(
+        transition.providerAfterPublication, reduced.providerEffects[1], PageRole::Secondary);
     applyEngineTransition(std::move(transition));
 }
 
@@ -411,6 +421,10 @@ void ImageViewportPrivate::acknowledgeRenderCommitForTest(quint64 generation, qu
     transition.changes = reduced.changes;
     transition.playbackSchedule = reduced.playbackSchedule;
     transition.observations = reduced.observations;
+    appendProviderTransport(
+        transition.providerAfterPublication, reduced.providerEffects[0], PageRole::Primary);
+    appendProviderTransport(
+        transition.providerAfterPublication, reduced.providerEffects[1], PageRole::Secondary);
     applyEngineTransition(std::move(transition));
 }
 
@@ -456,6 +470,10 @@ void ImageViewportPrivate::acknowledgeRenderFailureForTest(PageRole failedRole, 
     transition.changes = reduced.changes;
     transition.playbackSchedule = reduced.playbackSchedule;
     transition.observations = reduced.observations;
+    appendProviderTransport(
+        transition.providerAfterPublication, reduced.providerEffects[0], PageRole::Primary);
+    appendProviderTransport(
+        transition.providerAfterPublication, reduced.providerEffects[1], PageRole::Secondary);
     applyEngineTransition(std::move(transition));
 }
 #endif

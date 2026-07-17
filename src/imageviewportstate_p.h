@@ -225,6 +225,7 @@ struct PreparedPayload
     QSizeF sourceLogicalSize;
     QSizeF payloadRasterSize;
     QSizeF sourceToPayloadScale;
+    qint64 payloadByteSize = 0;
     ImageViewportPayloadQuality quality = ImageViewportPayloadQuality::Unknown;
     ImageViewportPayloadExactness exactness = ImageViewportPayloadExactness::Unknown;
     ImageViewportDemandRevisionToken demandRevision;
@@ -253,6 +254,13 @@ struct PresentationState
     bool mipmap = false;
     bool mirrorHorizontally = false;
     bool mirrorVertically = false;
+};
+
+struct PayloadAllocationState
+{
+    quint64 nextGeneration = 0;
+    quint64 generation = 0;
+    std::array<qint64, 2> roleBudgets { -1, -1 };
 };
 
 struct DisplayState
@@ -399,6 +407,7 @@ struct DisplayState
     ImageViewportDisplayStatus status = ImageViewportDisplayStatus::Empty;
     std::array<RoleState, 2> roles;
     quint64 nextPreparedPayloadId = 0;
+    PayloadAllocationState payloadAllocation;
     PresentationState displayedPresentation;
     quint64 displayedPresentationRevision = 0;
     quint64 revision = 0;

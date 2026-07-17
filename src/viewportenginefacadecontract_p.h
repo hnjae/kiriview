@@ -2,10 +2,10 @@
 
 #include "imagesequencesource_p.h"
 #include "imageviewporttoken_p.h"
-#include "viewportprovidercontract_p.h"
 #include "viewportenginecontracts_p.h"
 #include "viewportenginetransition_p.h"
 #include "viewportplaybackcontract_p.h"
+#include "viewportprovidercontract_p.h"
 #include "viewportrendercontract_p.h"
 
 #include <array>
@@ -83,6 +83,7 @@ struct ViewportEngineGeometryChangeTransition
 struct ViewportEngineRenderHostTransition
 {
     ImageViewportInternal::ViewportChangeSet changes;
+    std::array<ViewportProviderFrameTransportEffect, 2> providerEffects;
     ViewportPlaybackScheduleEffect playbackSchedule;
     ImageViewportInternal::RenderFailureDiagnostic diagnostic;
     ImageViewportInternal::InternalObservationBatch observations;
@@ -90,6 +91,7 @@ struct ViewportEngineRenderHostTransition
 
 struct ViewportEngineResourcePressureFact
 {
+    ViewportEngineViewportInput viewport;
 };
 
 struct ViewportEnginePlaybackCommandRequest

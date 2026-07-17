@@ -273,12 +273,25 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
             ImageViewportRequestStatus::Unsupported,
             QStringLiteral("provider frame payload exceeds maximumPayloadBytes"));
     }
+    if ((state.maximumPayloadBytes >= 0 && frame->payloadByteSize() > state.maximumPayloadBytes)
+        || (state.displayByteBudget >= 0 && frame->payloadByteSize() > state.displayByteBudget)) {
+        return providerFrameRejection(Cause::PayloadTooLarge,
+            ImageViewportRequestStatus::Unsupported,
+            QStringLiteral("provider frame payload exceeds active display budget"));
+    }
     if (frame->payloadRasterSize().width() > ImageSequenceLimits::maximumPayloadRasterWidth()
         || frame->payloadRasterSize().height()
             > ImageSequenceLimits::maximumPayloadRasterHeight()) {
         return providerFrameRejection(Cause::PayloadTooLarge,
             ImageViewportRequestStatus::Unsupported,
             QStringLiteral("provider frame payload exceeds maximumPayloadRaster size"));
+    }
+    if (state.maximumTextureSize >= 0
+        && (frame->payloadRasterSize().width() > state.maximumTextureSize
+            || frame->payloadRasterSize().height() > state.maximumTextureSize)) {
+        return providerFrameRejection(Cause::PayloadTooLarge,
+            ImageViewportRequestStatus::Unsupported,
+            QStringLiteral("provider frame payload exceeds active texture cap"));
     }
     if (frame->formatIdentifier().toUcs4().size()
         > ImageSequenceLimits::maximumFormatIdentifierCharacters()) {
@@ -328,6 +341,7 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
         admitted.sourceLogicalSize = frame->sourceLogicalSize();
         admitted.payloadRasterSize = frame->payloadRasterSize();
         admitted.sourceToPayloadScale = frame->sourceToPayloadScale();
+        admitted.payloadByteSize = frame->payloadByteSize();
         admitted.quality = frame->quality();
         admitted.exactness = frame->exactness();
         admitted.demandRevision = envelope.demandRevision();
@@ -353,6 +367,7 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
     admitted.sourceLogicalSize = frame->sourceLogicalSize();
     admitted.payloadRasterSize = frame->payloadRasterSize();
     admitted.sourceToPayloadScale = frame->sourceToPayloadScale();
+    admitted.payloadByteSize = frame->payloadByteSize();
     admitted.quality = frame->quality();
     admitted.exactness = frame->exactness();
     admitted.demandRevision = envelope.demandRevision();
@@ -383,6 +398,7 @@ FramePreparation::BuiltInFrameAdmissionResult FramePreparation::admitBuiltInFram
     admittedPayload.sourceLogicalSize = facts.sourceLogicalSize;
     admittedPayload.payloadRasterSize = facts.payloadRasterSize;
     admittedPayload.sourceToPayloadScale = facts.sourceToPayloadScale;
+    admittedPayload.payloadByteSize = facts.payloadByteSize;
     admittedPayload.quality = facts.quality;
     admittedPayload.exactness = facts.exactness;
     admittedPayload.demandRevision = facts.demandRevision;

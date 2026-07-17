@@ -1,9 +1,11 @@
 #include "viewportengine_p.h"
+#include "viewportengineallocationoperations_p.h"
 #include "viewportengineassignmentoperations_p.h"
 #include "viewportenginecapabilities_p.h"
 #include "viewportengineprojection_p.h"
 #include "viewportengineproviderprojection_p.h"
 #include "viewportenginestate_p.h"
+#include "viewportprovidertransporteffects_p.h"
 
 #include "imageviewportproviderfacts_p.h"
 #include "imageviewporttoken_p.h"
@@ -27,7 +29,8 @@ ViewportEngine::ViewportEngine()
 
 ViewportEngine::~ViewportEngine() = default;
 
-ViewportEngineTransition ViewportEngine::handleResourcePressure(ViewportEngineResourcePressureFact)
+ViewportEngineTransition ViewportEngine::handleResourcePressure(
+    ViewportEngineResourcePressureFact fact)
 {
     ViewportEngineTransition transition;
     auto& display = m_state->displayState.display;
@@ -35,10 +38,16 @@ ViewportEngineTransition ViewportEngine::handleResourcePressure(ViewportEngineRe
         return transition;
     }
     display.discardRetainedDisplay();
+    rebuildViewportEnginePayloadAllocation(m_state->requestState.request, display);
     transition.changes.displayState = true;
     transition.changes.geometryState = true;
     transition.changes.displayRevision = true;
     transition.changes.scheduleUpdate = true;
+    const auto effects = restageProviderDemands(fact.viewport);
+    appendProviderTransport(
+        transition.providerAfterPublication, effects[0], ImageViewportPageRole::Primary);
+    appendProviderTransport(
+        transition.providerAfterPublication, effects[1], ImageViewportPageRole::Secondary);
     return transition;
 }
 
@@ -287,6 +296,11 @@ ViewportEnginePresentationTargetAssignmentResult ViewportEngine::assignPresentat
         m_state->providerState.roles, m_state->presentationState.presentation);
     const auto reduction = reduceViewportEnginePresentationTargetAssignment(
         std::move(operationInput), std::move(access));
+    ViewportEnginePayloadAllocationRebuildResult allocation;
+    if (reduction.presentationTargetChanged) {
+        allocation = rebuildViewportEnginePayloadAllocation(
+            m_state->requestState.request, m_state->displayState.display);
+    }
     if (reduction.presentationTargetChanged) {
         m_state->revisions.targetPresentationRevision
             = reduction.clear ? 0 : advanceTargetPresentationRevision();
@@ -302,6 +316,11 @@ ViewportEnginePresentationTargetAssignmentResult ViewportEngine::assignPresentat
     result.stopPlayback = reduction.stopPlayback;
     result.closeProviderSessions = reduction.closeProviderSessions;
     result.changes = reduction.changes;
+    if (allocation.retainedDisplayDiscarded) {
+        result.changes.displayState = true;
+        result.changes.geometryState = true;
+        result.changes.displayRevision = true;
+    }
     result.changes.targetPresentationRevision = reduction.presentationTargetChanged;
     result.providerEffects = reduction.providerEffects;
     result.providerSessionOpenEffects = reduction.providerSessionOpenEffects;

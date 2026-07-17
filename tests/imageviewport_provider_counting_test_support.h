@@ -43,6 +43,11 @@ public:
 
     void request(const ImageSequenceProviderRequest& request) override
     {
+        if (request.kind() == ImageSequenceProviderRequestKind::Frame
+            || request.kind() == ImageSequenceProviderRequestKind::Position
+            || request.kind() == ImageSequenceProviderRequestKind::Playback) {
+            m_lastFrameDemand = request.demand();
+        }
         switch (request.kind()) {
         case ImageSequenceProviderRequestKind::Metadata:
             m_lastMetadataToken = request.token();
@@ -104,6 +109,8 @@ public:
 
     ImageSequenceProviderRequestToken lastCancelledToken() const { return m_lastCancelledToken; }
 
+    ImageSequenceProviderDisplayDemand lastFrameDemand() const { return m_lastFrameDemand; }
+
 private:
     void recordFrameRequest(ImageSequenceProviderRequestToken token, int frame)
     {
@@ -128,6 +135,7 @@ private:
     ImageSequenceProviderRequestToken m_lastFrameToken;
     ImageSequenceProviderRequestToken m_lastPositionToken;
     ImageSequenceProviderRequestToken m_lastCancelledToken;
+    ImageSequenceProviderDisplayDemand m_lastFrameDemand;
 };
 
 class CountingProviderSessionFactory final
