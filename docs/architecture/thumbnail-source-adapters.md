@@ -10,6 +10,8 @@ Source adapters classify an owner-supplied thumbnail source revision and return 
 
 Cache lookup, generation, and source access execute behind injectable provider ports. Thumbnail work must not borrow video playback state, mutable collection state, or another runtime's cache authority. Collection entry bytes and metadata remain owned by the collection-access boundary.
 
+Video thumbnail extraction has one deterministic workflow owner separate from its Qt Multimedia adapter. The adapter owns media-player, video-sink, metadata, and frame conversion objects; it reports plain media facts, images, and failures through a narrow backend port and executes source, seek, playback, and stop commands returned by the workflow. The runtime owner supplies timeout firing through `TimerScheduler`, serializes reentrant backend events, and invalidates the workflow before cancellation or terminal cleanup so late callbacks cannot publish a result.
+
 ## Demand And Scheduling
 
 Each demand update is one immutable, generation-scoped snapshot. The runtime validates the complete snapshot before replacing accepted demand; malformed, mixed-generation, duplicate, or unknown-row input is rejected without partial mutation.
