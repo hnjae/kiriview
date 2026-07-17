@@ -18,6 +18,8 @@ Each demand update is one immutable, generation-scoped snapshot. The runtime val
 
 The selected row and visible rows are foreground demand. Nearby rows are admitted only after foreground demand is satisfied or inactive. Optional background filling runs only while foreground and nearby demand are idle. New higher-priority demand preempts lower-priority work, and a failed higher-detail request preserves an already usable lower-detail result.
 
+The document-session thumbnail scheduler owns an explicit foreground admission capacity. It admits the selected row first, then visible rows in navigation order, then nearby rows in navigation order; demand beyond capacity remains pending and must not construct lookup, generation, or multimedia backend resources until a slot is available. Production admits at most two simultaneous foreground jobs, while background filling remains limited to one job and yields to any foreground demand.
+
 Row identity, source revision, requested physical-size bucket, priority, and work identity travel together through scheduling and completion. A completion may publish only after both the backend job owner and the scheduling owner accept those identities. Cancellation is best-effort; invalidated or late callbacks are no-ops.
 
 Changing only the current row preserves compatible results and work. Replacing row identity or order advances the navigation generation, invalidates incompatible demand and work before publication, and releases entries no longer referenced by the new row set. Equivalent source-payload refreshes may preserve generation only when durable row identity and ordering are unchanged.
