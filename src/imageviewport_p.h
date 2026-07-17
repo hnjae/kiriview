@@ -84,6 +84,7 @@ public:
     void useSynchronousProviderExecutorForTest();
     void useSynchronousProviderEventDeliveryForTest();
     void useSynchronousProviderQueueFlushSchedulerForTest();
+    ViewportRenderAttempt beginRenderSynchronizationForTest();
     bool hasPendingRenderCommitForTest() const;
     quint64 activeRequestIdForTest() const;
     quint64 displayedRequestIdForTest() const;
@@ -144,13 +145,10 @@ public:
     void enqueueProviderHostEvent(ViewportProviderHostEvent event);
     void drainProviderHostEvents();
     void drainExternalWork();
-    void devicePixelRatioChanged();
-    void renderAvailabilityChanged();
+    void viewportChanged();
     void discardRetainedDisplayForResourcePressure();
     QRectF currentContentRect() const;
     QRectF itemBounds() const;
-    QRectF contentRectForItemBounds(const QRectF& bounds) const;
-    QRectF visibleImageRectForItemBounds(const QRectF& bounds) const;
 
     static QString boundedDiagnostic(const QString& diagnostic, const QString& fallback);
     ImageViewportCommandResult executePlaybackCommand(ViewportPlaybackCommand command);
@@ -164,14 +162,12 @@ public:
     double width() const;
     double height() const;
     QQuickWindow* window() const;
-    ViewportEngineViewportInput viewportInput() const;
+    ViewportEngineViewportState viewportState() const;
     void update();
     QSGNode* updatePaintNode(QSGNode* oldNode);
     void prepareRenderSynchronization();
     std::optional<ViewportRenderAttempt> renderAttemptForHost() const;
     void applyRenderHostFact(ViewportRenderHostFact fact);
-    void geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry,
-        const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
 
     ImageViewport* q = nullptr;
     ViewportEngine engine;

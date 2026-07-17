@@ -6,8 +6,6 @@
 #include "viewportitemtransaction_p.h"
 #include "viewportprovidertransporteffects_p.h"
 
-#include <QtQuick/QQuickWindow>
-
 #include <limits>
 #include <optional>
 
@@ -15,42 +13,9 @@ using namespace ImageViewportInternal;
 
 namespace {
 
-bool isPositiveSize(QSizeF size)
-{
-    return size.isValid() && size.width() > 0.0 && size.height() > 0.0;
-}
-
-double effectiveDevicePixelRatio(const ImageViewportPrivate& viewport)
-{
-    QQuickWindow* window = viewport.window();
-    return window ? window->effectiveDevicePixelRatio() : 1.0;
-}
-
 PresentationGeometry::State geometryState(const ImageViewportPrivate& viewport)
 {
-    return viewport.engine.geometryState(
-        { viewport.itemBounds(), effectiveDevicePixelRatio(viewport) });
-}
-
-PresentationGeometry::State geometryStateForItemBounds(
-    const ImageViewportPrivate& viewport, const QRectF& bounds)
-{
-    return viewport.engine.geometryState({ bounds, effectiveDevicePixelRatio(viewport) });
-}
-
-QPointF itemCenter(const ImageViewportPrivate& viewport)
-{
-    return QPointF(viewport.width() / 2.0, viewport.height() / 2.0);
-}
-
-QSizeF orientedSpreadSize(const PresentationGeometry::State& state)
-{
-    const QSizeF spreadSize = PresentationGeometry::spreadSize(state);
-    const int rotation = ((state.rotationDegrees % 360) + 360) % 360;
-    if (rotation == 90 || rotation == 270) {
-        return QSizeF(spreadSize.height(), spreadSize.width());
-    }
-    return spreadSize;
+    return viewport.engine.geometryState();
 }
 
 }
@@ -135,14 +100,7 @@ ImageViewportPrivate::FitMode ImageViewportPrivate::fitMode() const
 
 double ImageViewportPrivate::zoomPercent() const
 {
-    const PresentationGeometry::State state = geometryState(*this);
-    const QSizeF spreadSize = orientedSpreadSize(state);
-    const QRectF content = PresentationGeometry::contentRect(state);
-    if (content.isEmpty() || !isPositiveSize(spreadSize)) {
-        return lastStateSnapshot.presentation().zoomPercent();
-    }
-
-    return content.width() / spreadSize.width() * effectiveDevicePixelRatio(*this) * 100.0;
+    return lastStateSnapshot.presentation().zoomPercent();
 }
 
 double ImageViewportPrivate::minimumManualZoomPercent() const
@@ -195,8 +153,7 @@ bool ImageViewportPrivate::looping() const { return lastStateSnapshot.presentati
 ImageViewportCommandResult ImageViewportPrivate::setPresentation(
     ImageViewportPresentationCommand command)
 {
-    const auto reduced
-        = engine.applyPresentationCommand({ command, viewportInput(), itemCenter(*this) });
+    const auto reduced = engine.applyPresentationCommand({ command });
     ViewportCommandResult result
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(reduced.command);
     mergeChanges(result.transition.changes, reduced.changes);
@@ -341,14 +298,4 @@ QRectF ImageViewportPrivate::itemBounds() const
     }
 
     return QRectF(0.0, 0.0, width(), height());
-}
-
-QRectF ImageViewportPrivate::contentRectForItemBounds(const QRectF& bounds) const
-{
-    return PresentationGeometry::contentRect(geometryStateForItemBounds(*this, bounds));
-}
-
-QRectF ImageViewportPrivate::visibleImageRectForItemBounds(const QRectF& bounds) const
-{
-    return PresentationGeometry::visibleImageRect(geometryStateForItemBounds(*this, bounds));
 }

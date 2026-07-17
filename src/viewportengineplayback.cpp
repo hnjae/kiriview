@@ -67,10 +67,10 @@ bool hasProviderEffects(const std::array<ViewportProviderFrameTransportEffect, 2
 }
 
 ViewportEnginePlaybackCommandResult ViewportEngine::applyPlaybackCommand(
-    const ViewportEnginePlaybackCommandRequest& input)
+    ViewportEnginePlaybackCommandRequest input)
 {
     ViewportEnginePlaybackCommandResult result;
-    const GeometryInput geometry = acceptedGeometry(input.viewport);
+    const GeometryInput geometry = acceptedGeometry();
     if (!validateViewportPlaybackCommand(input.command)) {
         result.command = rejectInvalidCommand();
         appendCommandChanges(result.command, result.changes);
@@ -165,10 +165,10 @@ ViewportEnginePlaybackCommandResult ViewportEngine::applyPlaybackCommand(
 }
 
 ViewportEnginePlaybackTickResult ViewportEngine::advancePlayback(
-    const ViewportEnginePlaybackTickRequest& input)
+    ViewportEnginePlaybackTickRequest input)
 {
     ViewportEnginePlaybackTickResult result;
-    const GeometryInput geometry = acceptedGeometry(input.viewport);
+    const GeometryInput geometry = acceptedGeometry();
     ViewportEnginePlaybackTickAccess access(m_state->requestState.request,
         m_state->playbackState.playback, m_state->displayState.display,
         m_state->providerState.roles, m_state->presentationState.presentation,

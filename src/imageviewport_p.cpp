@@ -31,7 +31,7 @@ double ImageViewportPrivate::height() const { return q->height(); }
 
 QQuickWindow* ImageViewportPrivate::window() const { return q->window(); }
 
-ViewportEngineViewportInput ImageViewportPrivate::viewportInput() const
+ViewportEngineViewportState ImageViewportPrivate::viewportState() const
 {
     const QQuickWindow* currentWindow = window();
     return { itemBounds(), currentWindow ? currentWindow->effectiveDevicePixelRatio() : 1.0,

@@ -16,7 +16,6 @@ struct ViewportEnginePresentationTargetAssignmentRequest
     PresentationTargetTransitionPolicy transitionPolicy;
     ImageViewportInternal::ImageSequenceSource primarySource;
     ImageViewportInternal::ImageSequenceSource secondarySource;
-    ViewportEngineViewportInput viewport;
 };
 
 struct ViewportEngineCommandDiagnostics
@@ -57,27 +56,9 @@ struct ViewportEnginePresentationTargetAssignmentResult
     ViewportPlaybackScheduleEffect schedule;
 };
 
-struct ViewportEngineRenderSynchronizationRequest
-{
-    ViewportEngineViewportInput viewport;
-};
-
-struct ViewportEngineGeometryChangeRequest
-{
-    ViewportEngineViewportInput viewport;
-    QRectF oldContentRect;
-    QRectF oldVisibleImageRect;
-};
-
 struct ViewportEngineRenderHostFactRequest
 {
     ViewportRenderHostFact fact;
-};
-
-struct ViewportEngineGeometryChangeTransition
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    std::array<ViewportProviderFrameTransportEffect, 2> providerEffects;
 };
 
 struct ViewportEngineRenderHostTransition
@@ -89,21 +70,14 @@ struct ViewportEngineRenderHostTransition
     ImageViewportInternal::InternalObservationBatch observations;
 };
 
-struct ViewportEngineResourcePressureFact
-{
-    ViewportEngineViewportInput viewport;
-};
-
 struct ViewportEnginePlaybackCommandRequest
 {
     ViewportPlaybackCommand command;
-    ViewportEngineViewportInput viewport;
 };
 
 struct ViewportEnginePlaybackTickRequest
 {
     int elapsedMilliseconds = 0;
-    ViewportEngineViewportInput viewport;
 };
 
 struct ViewportEnginePlaybackProviderEffects
@@ -129,13 +103,9 @@ struct ViewportEnginePlaybackTickResult
 struct ViewportEnginePresentationCommandRequest
 {
     ImageViewportPresentationCommand command;
-    ViewportEngineViewportInput viewport;
-    QPointF anchor;
-    int quarterTurnDelta = 0;
 };
 
 struct ViewportEngineProviderHostEventRequest
 {
     ViewportProviderHostEvent event;
-    ViewportEngineViewportInput viewport;
 };

@@ -29,8 +29,7 @@ ViewportEngine::ViewportEngine()
 
 ViewportEngine::~ViewportEngine() = default;
 
-ViewportEngineTransition ViewportEngine::handleResourcePressure(
-    ViewportEngineResourcePressureFact fact)
+ViewportEngineTransition ViewportEngine::handleResourcePressure()
 {
     ViewportEngineTransition transition;
     auto& display = m_state->displayState.display;
@@ -43,7 +42,7 @@ ViewportEngineTransition ViewportEngine::handleResourcePressure(
     transition.changes.geometryState = true;
     transition.changes.displayRevision = true;
     transition.changes.scheduleUpdate = true;
-    const auto effects = restageProviderDemands(fact.viewport);
+    const auto effects = restageProviderDemands();
     appendProviderTransport(
         transition.providerAfterPublication, effects[0], ImageViewportPageRole::Primary);
     appendProviderTransport(
@@ -213,26 +212,25 @@ PresentationGeometry::State ViewportEngine::geometryState(const GeometryInput& i
     return projectViewportGeometryState(input, m_state->presentationState.presentation);
 }
 
-ViewportEngine::GeometryInput ViewportEngine::currentGeometry(
-    ViewportEngineViewportInput input) const
+ViewportEngine::GeometryInput ViewportEngine::currentGeometry() const
 {
+    const auto& input = m_state->viewport;
     return projectViewportCurrentGeometry(
         { input.itemBounds, input.devicePixelRatio, input.renderAvailable },
         { m_state->requestState.request, m_state->displayState.display });
 }
 
-ViewportEngine::GeometryInput ViewportEngine::pendingGeometry(
-    ViewportEngineViewportInput input) const
+ViewportEngine::GeometryInput ViewportEngine::pendingGeometry() const
 {
+    const auto& input = m_state->viewport;
     return projectViewportPendingGeometry(
         { input.itemBounds, input.devicePixelRatio, input.renderAvailable },
         { m_state->requestState.request, m_state->displayState.display, providerFactsView() });
 }
 
-ViewportEngine::GeometryInput ViewportEngine::acceptedGeometry(
-    ViewportEngineViewportInput input) const
+ViewportEngine::GeometryInput ViewportEngine::acceptedGeometry() const
 {
-    GeometryInput result = rawAcceptedGeometry(input);
+    GeometryInput result = rawAcceptedGeometry();
     const auto& pending = m_state->requestState.presentationTarget.pendingPresentationTransition;
     const auto positive
         = [](QSizeF size) { return size.isValid() && size.width() > 0.0 && size.height() > 0.0; };
@@ -247,21 +245,21 @@ ViewportEngine::GeometryInput ViewportEngine::acceptedGeometry(
     return result;
 }
 
-ViewportEngine::GeometryInput ViewportEngine::rawAcceptedGeometry(
-    ViewportEngineViewportInput input) const
+ViewportEngine::GeometryInput ViewportEngine::rawAcceptedGeometry() const
 {
+    const auto& input = m_state->viewport;
     return projectViewportAcceptedGeometry(
         { input.itemBounds, input.devicePixelRatio, input.renderAvailable },
         { m_state->requestState.request, providerFactsView() });
 }
 
-PresentationGeometry::State ViewportEngine::geometryState(ViewportEngineViewportInput input) const
+PresentationGeometry::State ViewportEngine::geometryState() const
 {
     const ImageViewportInternal::PresentationState& displayedPresentation
         = m_state->displayState.display.status == ImageViewportDisplayStatus::Retained
         ? m_state->displayState.display.displayedPresentation
         : m_state->presentationState.presentation;
-    return projectViewportGeometryState(currentGeometry(input), displayedPresentation);
+    return projectViewportGeometryState(currentGeometry(), displayedPresentation);
 }
 
 ViewportRenderSnapshot ViewportEngine::renderSnapshot(
@@ -276,8 +274,7 @@ ViewportEnginePresentationTargetAssignmentResult ViewportEngine::assignPresentat
     const ViewportEnginePresentationTargetAssignmentRequest& input)
 {
     ViewportEnginePresentationTargetAssignmentInput operationInput { input.presentationTarget,
-        input.transitionPolicy, input.primarySource, input.secondarySource,
-        acceptedGeometry(input.viewport) };
+        input.transitionPolicy, input.primarySource, input.secondarySource, acceptedGeometry() };
     if (!operationInput.presentationTarget.isClear() && !operationInput.primarySource.sequence) {
         operationInput.primarySource = ImageViewportInternal::factorySequenceSource(
             operationInput.presentationTarget.primary());

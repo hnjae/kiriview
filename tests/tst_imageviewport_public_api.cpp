@@ -36,7 +36,7 @@ private slots:
     void roleGeometrySnapshotFields();
     void revisionTokensExposeValidityAndEquality();
     void typedPresentationTargetTransitionPolicyPreservesStateWhenInvalid();
-    void emptyGeometryChangeIncrementsDisplayRevision();
+    void targetlessGeometryChangeIsRevisionNeutral();
 };
 
 void ImageViewportPublicApiTest::roleMetadataSurfaceMatchesContract()
@@ -748,15 +748,18 @@ void ImageViewportPublicApiTest::revisionTokensExposeValidityAndEquality()
     QVERIFY(initialRequestRevision.isValid());
     QVERIFY(initialCommandRevision.isValid());
 
+    ImageViewportPresentationCommand command;
+    command.setBackgroundMode(ImageViewportBackgroundMode::SolidColor);
+    command.setBackgroundColor(Qt::black);
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
-    item.setSize(QSizeF(100.0, 50.0));
+    QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);
 
     const ImageViewportRevisionToken changedDisplayRevision = viewportDisplayRevision(item);
     QVERIFY(changedDisplayRevision.isValid());
     QVERIFY(changedDisplayRevision != initialDisplayRevision);
     QCOMPARE(viewportDisplayRevision(item), changedDisplayRevision);
     QCOMPARE(viewportRequestRevision(item), initialRequestRevision);
-    QCOMPARE(viewportCommandRevision(item), initialCommandRevision);
+    QVERIFY(viewportCommandRevision(item) != initialCommandRevision);
     QCOMPARE(stateSpy.count(), 1);
 }
 
@@ -800,15 +803,17 @@ void ImageViewportPublicApiTest::typedPresentationTargetTransitionPolicyPreserve
         commandReasonValue(item), enumValue(item.metaObject(), "CommandReason", "InvalidRequest"));
 }
 
-void ImageViewportPublicApiTest::emptyGeometryChangeIncrementsDisplayRevision()
+void ImageViewportPublicApiTest::targetlessGeometryChangeIsRevisionNeutral()
 {
     ImageViewport item;
+    const ImageViewportStateSnapshot initialState = item.state();
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
 
     item.setSize(QSizeF(100.0, 50.0));
 
     QVERIFY(revisionTokenProperty(item, "displayRevision").isValid());
-    QCOMPARE(stateSpy.count(), 1);
+    QCOMPARE(item.state(), initialState);
+    QCOMPARE(stateSpy.count(), 0);
     QCOMPARE(displayStatusValue(item), enumValue(item.metaObject(), "DisplayStatus", "Empty"));
     QCOMPARE(contentRect(item), QRectF());
     QCOMPARE(visibleImageRect(item), QRectF());
@@ -816,14 +821,16 @@ void ImageViewportPublicApiTest::emptyGeometryChangeIncrementsDisplayRevision()
     item.setSize(QSizeF(100.0, 50.0));
 
     QVERIFY(revisionTokenProperty(item, "displayRevision").isValid());
-    QCOMPARE(stateSpy.count(), 1);
+    QCOMPARE(item.state(), initialState);
+    QCOMPARE(stateSpy.count(), 0);
 
     const double changedWidth = 100.0 + 5.0e-13;
     QVERIFY(changedWidth != 100.0);
     item.setSize(QSizeF(changedWidth, 50.0));
 
     QVERIFY(revisionTokenProperty(item, "displayRevision").isValid());
-    QCOMPARE(stateSpy.count(), 2);
+    QCOMPARE(item.state(), initialState);
+    QCOMPARE(stateSpy.count(), 0);
 }
 QTEST_MAIN(ImageViewportPublicApiTest)
 

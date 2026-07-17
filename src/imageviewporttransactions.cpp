@@ -13,7 +13,7 @@ using namespace ImageViewportInternal;
 
 void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
 {
-    const auto reduced = engine.advancePlayback({ elapsedMilliseconds, viewportInput() });
+    const auto reduced = engine.advancePlayback({ elapsedMilliseconds });
     ViewportEngineTransition transition;
     transition.changes = reduced.changes;
     appendProviderTransport(transition.providerBeforePublication,
@@ -152,24 +152,19 @@ void ImageViewportPrivate::drainProviderHostEvents()
     while (!pendingProviderHostEvents.isEmpty()) {
         ViewportProviderHostEvent event = pendingProviderHostEvents.takeFirst();
         providerHost.completeFrameEventDelivery(event.providerEvent.frameLeaseId);
-        applyEngineTransition(engine.handleProviderHostEvent({ event, viewportInput() }));
+        applyEngineTransition(engine.handleProviderHostEvent({ event }));
     }
     drainingProviderHostEvents = false;
 }
 
-void ImageViewportPrivate::devicePixelRatioChanged()
+void ImageViewportPrivate::viewportChanged()
 {
-    applyEngineTransition(engine.handleDevicePixelRatioChanged(viewportInput()));
-}
-
-void ImageViewportPrivate::renderAvailabilityChanged()
-{
-    applyEngineTransition(engine.handleRenderAvailabilityChanged(viewportInput()));
+    applyEngineTransition(engine.handleViewportChanged(viewportState()));
 }
 
 void ImageViewportPrivate::discardRetainedDisplayForResourcePressure()
 {
-    applyEngineTransition(engine.handleResourcePressure({ viewportInput() }));
+    applyEngineTransition(engine.handleResourcePressure());
 }
 
 ImageViewportCommandResult ImageViewportPrivate::clear()
@@ -216,7 +211,7 @@ ImageViewportCommandResult ImageViewportPrivate::executePlaybackCommand(
     if (ImageViewportInternal::isValidPageRole(command.role)) {
         playbackScheduler.flushElapsed();
     }
-    const auto reduced = engine.applyPlaybackCommand({ command, viewportInput() });
+    const auto reduced = engine.applyPlaybackCommand({ command });
     ViewportCommandResult result;
     result.outcome = reduced.command.outcome;
     result.transition.changes = reduced.changes;
@@ -285,6 +280,17 @@ void ImageViewportPrivate::useSynchronousProviderQueueFlushSchedulerForTest()
     providerHost.useSynchronousQueueFlushSchedulerForTest();
 }
 
+ViewportRenderAttempt ImageViewportPrivate::beginRenderSynchronizationForTest()
+{
+    const ViewportEngineViewportState original = viewportState();
+    ViewportEngineViewportState available = original;
+    available.renderAvailable = true;
+    engine.handleViewportChanged(available);
+    const ViewportRenderAttempt attempt = engine.beginRenderSynchronization();
+    engine.handleViewportChanged(original);
+    return attempt;
+}
+
 bool ImageViewportPrivate::hasPendingRenderCommitForTest() const
 {
     return ViewportEngineTestAccess::display(engine).roles[0].pendingRenderPayload.commitPending;
@@ -324,8 +330,7 @@ void ImageViewportPrivate::reportRenderQualityFallbackForTest(
     quint64 renderAttempt, bool smoothingUnavailable, bool mipmapUnavailable)
 {
     const quint64 previousAttempt = currentRenderAttemptForTest();
-    const ViewportRenderAttempt attempt
-        = engine.beginRenderSynchronization({ { itemBounds(), 1.0 } });
+    const ViewportRenderAttempt attempt = beginRenderSynchronizationForTest();
     QVector<ViewportRenderRolePayload> rolePayloads;
     rolePayloads.reserve(attempt.snapshot.imageLayers.size());
     for (const auto& layer : attempt.snapshot.imageLayers) {
@@ -379,8 +384,7 @@ ImageViewportPrivate::internalObservationsForTest() const
 void ImageViewportPrivate::acknowledgeRenderCommitForTest(
     quint64 generation, quint64 requestId, quint64 preparedPayloadId)
 {
-    const ViewportRenderAttempt attempt
-        = engine.beginRenderSynchronization({ { itemBounds(), 1.0 } });
+    const ViewportRenderAttempt attempt = beginRenderSynchronizationForTest();
     const auto reduced = engine.handleRenderHostFact({ { ViewportRenderHostFact::Outcome::Committed,
         { { { PageRole::Primary, { generation, requestId, preparedPayloadId } } },
             PageRole::Primary, RenderFailureCause::None, attempt.attempt },
@@ -399,8 +403,7 @@ void ImageViewportPrivate::acknowledgeRenderCommitForTest(
 void ImageViewportPrivate::acknowledgeRenderCommitForTest(quint64 generation, quint64 requestId,
     quint64 primaryPreparedPayloadId, quint64 secondaryPreparedPayloadId)
 {
-    const ViewportRenderAttempt attempt
-        = engine.beginRenderSynchronization({ { itemBounds(), 1.0 } });
+    const ViewportRenderAttempt attempt = beginRenderSynchronizationForTest();
     const ImageViewportInternal::PreparedPayloadIdentity primaryPayload {
         generation,
         requestId,
@@ -446,8 +449,7 @@ void ImageViewportPrivate::acknowledgeRenderFailureForTest(
 void ImageViewportPrivate::acknowledgeRenderFailureForTest(PageRole failedRole, quint64 generation,
     quint64 requestId, quint64 preparedPayloadId, RenderFailureCause cause)
 {
-    const ViewportRenderAttempt attempt
-        = engine.beginRenderSynchronization({ { itemBounds(), 1.0 } });
+    const ViewportRenderAttempt attempt = beginRenderSynchronizationForTest();
     QVector<ViewportRenderRolePayload> rolePayloads;
     rolePayloads.reserve(attempt.snapshot.imageLayers.size());
     for (const auto& layer : attempt.snapshot.imageLayers) {

@@ -42,23 +42,18 @@ public:
     ~ViewportEngine();
     ViewportEngine(const ViewportEngine&) = delete;
     ViewportEngine& operator=(const ViewportEngine&) = delete;
-    ImageViewportStateSnapshot snapshot(ViewportEngineViewportInput input = {}) const;
-    PresentationGeometry::State geometryState(ViewportEngineViewportInput input) const;
-    ViewportRenderAttempt beginRenderSynchronization(
-        const ViewportEngineRenderSynchronizationRequest& input);
+    ImageViewportStateSnapshot snapshot() const;
+    PresentationGeometry::State geometryState() const;
+    ViewportRenderAttempt beginRenderSynchronization();
     ViewportEngineRenderHostTransition handleRenderHostFact(
         const ViewportEngineRenderHostFactRequest& input);
-    ViewportEngineTransition handleResourcePressure(ViewportEngineResourcePressureFact fact);
-    ViewportEngineGeometryChangeTransition handleGeometryChanged(
-        const ViewportEngineGeometryChangeRequest& input);
+    ViewportEngineTransition handleResourcePressure();
+    ViewportEngineTransition handleViewportChanged(ViewportEngineViewportState viewport);
     ViewportEngineTransition handleProviderHostEvent(
         const ViewportEngineProviderHostEventRequest& input);
-    ViewportEngineTransition handleDevicePixelRatioChanged(ViewportEngineViewportInput input);
-    ViewportEngineTransition handleRenderAvailabilityChanged(ViewportEngineViewportInput input);
     ViewportEnginePlaybackCommandResult applyPlaybackCommand(
-        const ViewportEnginePlaybackCommandRequest& input);
-    ViewportEnginePlaybackTickResult advancePlayback(
-        const ViewportEnginePlaybackTickRequest& input);
+        ViewportEnginePlaybackCommandRequest input);
+    ViewportEnginePlaybackTickResult advancePlayback(ViewportEnginePlaybackTickRequest input);
     ViewportEnginePresentationTargetAssignmentResult assignPresentationTarget(
         const ViewportEnginePresentationTargetAssignmentRequest& input);
     ViewportEnginePresentationCommandResult applyPresentationCommand(
@@ -99,27 +94,24 @@ private:
     ViewportEngineSnapshotStateAccess snapshotAccess() const;
     ViewportEngineProviderFactsView providerFactsView() const;
     ViewportPlaybackScheduleEffect currentPlaybackSchedule() const;
-    GeometryInput currentGeometry(ViewportEngineViewportInput input) const;
-    GeometryInput pendingGeometry(ViewportEngineViewportInput input) const;
-    GeometryInput rawAcceptedGeometry(ViewportEngineViewportInput input) const;
-    GeometryInput acceptedGeometry(ViewportEngineViewportInput input) const;
+    GeometryInput currentGeometry() const;
+    GeometryInput pendingGeometry() const;
+    GeometryInput rawAcceptedGeometry() const;
+    GeometryInput acceptedGeometry() const;
     PresentationGeometry::State geometryState(const GeometryInput& input) const;
     std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands(
         const GeometryInput& geometry);
-    std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands(
-        ViewportEngineViewportInput input);
-    ViewportProviderEventResult reduceProviderEvent(
-        const ViewportProviderEvent& event, ViewportEngineViewportInput input);
+    std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands();
+    ViewportProviderEventResult reduceProviderEvent(const ViewportProviderEvent& event);
     ViewportProviderTerminalEventResult reduceProviderDispatchFailure(
         ImageViewportPageRole role, const ViewportProviderDispatchFailureEvent& event);
     ViewportProviderSessionOpenFailureResult reduceProviderSessionOpenFailure(
         ImageViewportPageRole role, const QString& diagnostic);
-    ViewportProviderSessionOpenResult reduceProviderSessionOpened(
-        ImageViewportPageRole role, ViewportEngineViewportInput input);
+    ViewportProviderSessionOpenResult reduceProviderSessionOpened(ImageViewportPageRole role);
     ViewportProviderSchedulerFailureResult reduceProviderQueueSchedulingFailure(
         ImageViewportPageRole role, const QString& diagnostic);
     ViewportProviderFrameQueueFlushResult reduceQueuedProviderFrameRequest(
-        ImageViewportPageRole role, ViewportEngineViewportInput input);
+        ImageViewportPageRole role);
     ViewportProviderFrameTransportEffect closeProviderSession(ImageViewportPageRole role);
 
     static constexpr std::size_t roleIndex(ImageViewportPageRole role)

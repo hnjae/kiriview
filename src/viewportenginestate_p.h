@@ -98,6 +98,7 @@ struct ViewportEngineCommandState
 
 struct ViewportEngineCanonicalState
 {
+    ViewportEngineViewportState viewport;
     ViewportEngineRequestState requestState;
     ViewportEngineDisplayState displayState;
     ViewportEngineProviderRoleState providerState;

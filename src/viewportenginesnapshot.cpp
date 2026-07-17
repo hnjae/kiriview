@@ -2,8 +2,8 @@
 #include "viewportenginecapabilities_p.h"
 #include "viewportengineprojection_p.h"
 
-ImageViewportStateSnapshot ViewportEngine::snapshot(ViewportEngineViewportInput input) const
+ImageViewportStateSnapshot ViewportEngine::snapshot() const
 {
     return projectViewportStateSnapshot(
-        { acceptedGeometry(input), currentGeometry(input) }, snapshotAccess());
+        { acceptedGeometry(), currentGeometry() }, snapshotAccess());
 }

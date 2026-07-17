@@ -5,11 +5,26 @@
 #include <QtCore/QRectF>
 #include <QtCore/QSizeF>
 
-struct ViewportEngineViewportInput
+struct ViewportEngineViewportState
 {
     QRectF itemBounds;
     double devicePixelRatio = 1.0;
-    bool renderAvailable = true;
+    bool renderAvailable = false;
+
+    friend bool operator==(
+        const ViewportEngineViewportState& lhs, const ViewportEngineViewportState& rhs)
+    {
+        return lhs.itemBounds.x() == rhs.itemBounds.x() && lhs.itemBounds.y() == rhs.itemBounds.y()
+            && lhs.itemBounds.width() == rhs.itemBounds.width()
+            && lhs.itemBounds.height() == rhs.itemBounds.height()
+            && lhs.devicePixelRatio == rhs.devicePixelRatio
+            && lhs.renderAvailable == rhs.renderAvailable;
+    }
+    friend bool operator!=(
+        const ViewportEngineViewportState& lhs, const ViewportEngineViewportState& rhs)
+    {
+        return !(lhs == rhs);
+    }
 };
 
 struct ViewportEngineGeometryInput

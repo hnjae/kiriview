@@ -259,8 +259,7 @@ int ImageViewportPrivate::secondaryRequestedPosition() const
 
 QSizeF ImageViewportPrivate::displayedSpreadSize() const
 {
-    const QSizeF spreadSize
-        = PresentationGeometry::spreadSize(engine.geometryState(viewportInput()));
+    const QSizeF spreadSize = PresentationGeometry::spreadSize(engine.geometryState());
     return isPositiveSize(spreadSize) ? spreadSize : QSizeF(0.0, 0.0);
 }
 
@@ -281,8 +280,8 @@ ImageViewportCommandResult ImageViewportPrivate::setPresentationTarget(
     ImageSequenceSource primarySource = factorySequenceSource(presentationTarget.primary());
     ImageSequenceSource secondarySourceHandle
         = factorySequenceSource(presentationTarget.secondary());
-    const auto reduced = engine.assignPresentationTarget({ presentationTarget, policy,
-        std::move(primarySource), std::move(secondarySourceHandle), viewportInput() });
+    const auto reduced = engine.assignPresentationTarget(
+        { presentationTarget, policy, std::move(primarySource), std::move(secondarySourceHandle) });
     ViewportCommandResult result
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(reduced.command);
     mergeChanges(result.transition.changes, reduced.changes);

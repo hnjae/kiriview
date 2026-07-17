@@ -18,6 +18,7 @@ public:
 private slots:
     void invalidPresentationEnumCommandsRejectWithoutDisplayMutation();
     void presentationChangesWithoutDisplayKeepEmptyGeometry();
+    void viewportGeometryWithoutTargetIsRevisionNeutral();
     void backgroundPresentationDoesNotChangeRequestOrPlayback();
     void qualityPresentationDoesNotChangeRequestGeometryOrPlayback();
     void loopingDoesNotChangeRequestDisplayOrGeometry();
@@ -33,6 +34,7 @@ private slots:
     void fitModesExposeZoomAndPannability();
     void targetTransitionPreserveKeepsStoredManualZoomDemand();
     void manualZoomCommandUsesItemCenterAnchor();
+    void resizeClampsCanonicalContentPosition();
     void revisionTokensUseSharedNonWrappingAllocator();
     void invalidPresentationTargetTransitionPreservesStateAndRevisions();
     void presentationCommandsUpdateCommandDiagnostics();
@@ -189,6 +191,18 @@ void ImageViewportPresentationStateTest::presentationChangesWithoutDisplayKeepEm
 
     QCOMPARE(contentRect(item), QRectF());
     QCOMPARE(visibleImageRect(item), QRectF());
+}
+
+void ImageViewportPresentationStateTest::viewportGeometryWithoutTargetIsRevisionNeutral()
+{
+    ImageViewport item;
+    const ImageViewportStateSnapshot before = item.state();
+    QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
+
+    item.setSize(QSizeF(100.0, 100.0));
+
+    QCOMPARE(item.state(), before);
+    QCOMPARE(stateSpy.count(), 0);
 }
 
 void ImageViewportPresentationStateTest::backgroundPresentationDoesNotChangeRequestOrPlayback()
@@ -936,6 +950,31 @@ void ImageViewportPresentationStateTest::manualZoomCommandUsesItemCenterAnchor()
     verifyRevisionChanged(item, "commandRevision", commandRevision);
 }
 
+void ImageViewportPresentationStateTest::resizeClampsCanonicalContentPosition()
+{
+    ImageSequenceFactory factory;
+    QImage image(100, 100, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(activateManualZoomPercentCommand(item, 300.0), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(setPanDelta(item, QPointF(80.0, 80.0)), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(contentPosition(item), QPointF(180.0, 180.0));
+
+    item.setSize(QSizeF(250.0, 250.0));
+    QCOMPARE(contentPosition(item), QPointF(50.0, 50.0));
+
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(contentPosition(item), QPointF(50.0, 50.0));
+}
+
 void ImageViewportPresentationStateTest::revisionTokensUseSharedNonWrappingAllocator()
 {
     ImageSequenceFactory factory;
@@ -949,23 +988,27 @@ void ImageViewportPresentationStateTest::revisionTokensUseSharedNonWrappingAlloc
     const quint64 firstLargeToken = quint64(std::numeric_limits<uint>::max()) + 1;
     setNextRevisionTokenForTest(item, firstLargeToken);
 
-    item.setSize(QSizeF(100.0, 50.0));
-    const ImageViewportRevisionToken displayAfterGeometry = viewportDisplayRevision(item);
-    QVERIFY(displayAfterGeometry.isValid());
-    QCOMPARE(revisionTokenValueForTest(displayAfterGeometry), firstLargeToken);
+    QCOMPARE(setBackgroundCommand(item, ImageViewportBackgroundMode::SolidColor, Qt::black),
+        ImageViewportCommandOutcome::Accepted);
+    const ImageViewportRevisionToken commandAfterPresentation = viewportCommandRevision(item);
+    const ImageViewportRevisionToken displayAfterPresentation = viewportDisplayRevision(item);
+    QVERIFY(commandAfterPresentation.isValid());
+    QVERIFY(displayAfterPresentation.isValid());
+    QCOMPARE(revisionTokenValueForTest(commandAfterPresentation), firstLargeToken);
+    QVERIFY(revisionTokenValueForTest(displayAfterPresentation) > firstLargeToken);
 
     QCOMPARE(setManualZoomPercentCommand(item, std::numeric_limits<double>::infinity()),
         ImageViewportCommandOutcome::Invalid);
     const ImageViewportRevisionToken commandAfterInvalid = viewportCommandRevision(item);
     QVERIFY(commandAfterInvalid.isValid());
-    QVERIFY(commandAfterInvalid != displayAfterGeometry);
+    QVERIFY(commandAfterInvalid != displayAfterPresentation);
     QVERIFY(revisionTokenValueForTest(commandAfterInvalid) > firstLargeToken);
 
     item.setPresentationTarget(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const ImageViewportRevisionToken requestAfterAssignment = viewportRequestRevision(item);
     QVERIFY(requestAfterAssignment.isValid());
-    QVERIFY(requestAfterAssignment != displayAfterGeometry);
+    QVERIFY(requestAfterAssignment != displayAfterPresentation);
     QVERIFY(requestAfterAssignment != commandAfterInvalid);
     QVERIFY(viewportDisplayRevision(item) != requestAfterAssignment);
     QVERIFY(revisionTokenValueForTest(requestAfterAssignment)

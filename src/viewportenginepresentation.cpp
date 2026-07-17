@@ -377,8 +377,8 @@ ViewportEnginePresentationCommandResult ViewportEngine::applyPresentationCommand
     const ViewportEnginePresentationCommandRequest& input)
 {
     ViewportEnginePresentationCommandResult result;
-    const ViewportEnginePresentationCommandInput operationInput { input.command,
-        currentGeometry(input.viewport), input.anchor, input.quarterTurnDelta };
+    const ViewportEnginePresentationCommandInput operationInput { input.command, currentGeometry(),
+        m_state->viewport.itemBounds.center(), 0 };
     if (!validateViewportEnginePresentationCommand(operationInput)) {
         result.command = rejectInvalidCommand();
         return result;

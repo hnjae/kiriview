@@ -76,7 +76,7 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
 
 void ImageViewportPrivate::prepareRenderSynchronization()
 {
-    const ViewportRenderAttempt attempt = engine.beginRenderSynchronization({ viewportInput() });
+    const ViewportRenderAttempt attempt = engine.beginRenderSynchronization();
     const QMutexLocker lock(&renderMailboxMutex);
     renderMailbox = attempt;
     renderMailboxValid = true;
@@ -110,22 +110,4 @@ void ImageViewportPrivate::applyRenderHostFact(ViewportRenderHostFact fact)
         return;
     }
     QMetaObject::invokeMethod(q, std::move(apply), Qt::QueuedConnection);
-}
-
-void ImageViewportPrivate::geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry,
-    const QRectF& oldContentRect, const QRectF& oldVisibleImageRect)
-{
-    if (newGeometry.width() == oldGeometry.width()
-        && newGeometry.height() == oldGeometry.height()) {
-        return;
-    }
-    const auto reduced
-        = engine.handleGeometryChanged({ viewportInput(), oldContentRect, oldVisibleImageRect });
-    ViewportEngineTransition transition;
-    transition.changes = reduced.changes;
-    appendProviderTransport(
-        transition.providerAfterPublication, reduced.providerEffects[0], PageRole::Primary);
-    appendProviderTransport(
-        transition.providerAfterPublication, reduced.providerEffects[1], PageRole::Secondary);
-    applyEngineTransition(std::move(transition));
 }

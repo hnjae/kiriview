@@ -38,7 +38,7 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
     ViewportEngineTransition result;
     switch (event.kind) {
     case ViewportProviderHostEvent::Kind::SessionOpened: {
-        const auto opened = reduceProviderSessionOpened(event.role, input.viewport);
+        const auto opened = reduceProviderSessionOpened(event.role);
         appendProviderTransport(
             result.providerAfterPublication, opened.providerMetadataTransport, event.role);
         appendProviderTransport(
@@ -52,7 +52,7 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
         return result;
     }
     case ViewportProviderHostEvent::Kind::ProviderEvent: {
-        const auto reduced = reduceProviderEvent(event.providerEvent, input.viewport);
+        const auto reduced = reduceProviderEvent(event.providerEvent);
         result.changes = reduced.changes;
         result.observations = reduced.observations;
         auto& batch = reduced.providerFrameTransportPhase
@@ -77,7 +77,7 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
         return result;
     }
     case ViewportProviderHostEvent::Kind::FlushQueuedFrameRequest: {
-        const auto reduced = reduceQueuedProviderFrameRequest(event.role, input.viewport);
+        const auto reduced = reduceQueuedProviderFrameRequest(event.role);
         result.changes = reduced.changes;
         appendProviderTransport(
             result.providerAfterPublication, reduced.providerFrameTransport, event.role);
@@ -134,27 +134,6 @@ bool ViewportEngine::acceptsProviderTransportCommand(
     return false;
 }
 
-ViewportEngineTransition ViewportEngine::handleDevicePixelRatioChanged(
-    ViewportEngineViewportInput input)
-{
-    ViewportEngineTransition result;
-    result.changes.displayRevision = true;
-    result.changes.geometryState = true;
-    result.changes.scheduleUpdate = true;
-    if (m_state->requestState.presentationTarget.generation != 0) {
-        advanceTargetPresentationRevision();
-        result.changes.targetPresentationRevision = true;
-        result.changes.adoptTargetPresentationRevision
-            = m_state->displayState.display.status == ImageViewportDisplayStatus::Ready;
-    }
-    const auto effects = restageProviderDemands(input);
-    appendProviderTransport(
-        result.providerAfterPublication, effects[0], ImageViewportPageRole::Primary);
-    appendProviderTransport(
-        result.providerAfterPublication, effects[1], ImageViewportPageRole::Secondary);
-    return result;
-}
-
 ViewportProviderFrameTransportEffect ViewportEngine::closeProviderSession(
     ImageViewportPageRole role)
 {
@@ -174,9 +153,9 @@ ViewportProviderTransportBatch ViewportEngine::shutdown()
 }
 
 ViewportProviderSessionOpenResult ViewportEngine::reduceProviderSessionOpened(
-    ImageViewportPageRole role, ViewportEngineViewportInput input)
+    ImageViewportPageRole role)
 {
-    const GeometryInput geometry = acceptedGeometry(input);
+    const GeometryInput geometry = acceptedGeometry();
     ViewportEngineProviderSessionOpenedAccess access(m_state->requestState.request,
         m_state->playbackState.playback, m_state->displayState.display,
         m_state->providerState.roles, m_state->presentationState.presentation,
@@ -186,9 +165,9 @@ ViewportProviderSessionOpenResult ViewportEngine::reduceProviderSessionOpened(
 }
 
 ViewportProviderFrameQueueFlushResult ViewportEngine::reduceQueuedProviderFrameRequest(
-    ImageViewportPageRole role, ViewportEngineViewportInput input)
+    ImageViewportPageRole role)
 {
-    const GeometryInput geometry = acceptedGeometry(input);
+    const GeometryInput geometry = acceptedGeometry();
     ViewportEngineProviderQueueFlushAccess access(m_state->requestState.request,
         m_state->playbackState.playback, m_state->displayState.display,
         m_state->providerState.roles, m_state->presentationState.presentation,
@@ -201,10 +180,9 @@ ViewportProviderFrameQueueFlushResult ViewportEngine::reduceQueuedProviderFrameR
     return result;
 }
 
-std::array<ViewportProviderFrameTransportEffect, 2> ViewportEngine::restageProviderDemands(
-    ViewportEngineViewportInput input)
+std::array<ViewportProviderFrameTransportEffect, 2> ViewportEngine::restageProviderDemands()
 {
-    return restageProviderDemands(acceptedGeometry(input));
+    return restageProviderDemands(acceptedGeometry());
 }
 
 std::array<ViewportProviderFrameTransportEffect, 2> ViewportEngine::restageProviderDemands(
@@ -218,12 +196,11 @@ std::array<ViewportProviderFrameTransportEffect, 2> ViewportEngine::restageProvi
     return reduceViewportEngineProviderDemandRestage({ geometry }, std::move(access));
 }
 
-ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
-    const ViewportProviderEvent& event, ViewportEngineViewportInput input)
+ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportProviderEvent& event)
 {
     const GeometryInput geometry = event.kind == ViewportProviderEvent::Kind::MetadataReady
-        ? rawAcceptedGeometry(input)
-        : acceptedGeometry(input);
+        ? rawAcceptedGeometry()
+        : acceptedGeometry();
     auto& eventProvider = m_state->providerState.roles[roleIndex(event.role)].provider;
     ViewportEngineProviderSessionAdmissionAccess sessionAccess(
         m_state->requestState.request.sequenceGeneration, eventProvider.session);
