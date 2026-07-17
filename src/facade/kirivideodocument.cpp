@@ -62,7 +62,6 @@ KiriVideoDocument::KiriVideoDocument(
         [this](const std::vector<kiriview::VideoDocumentChange>& changes) {
             handleDocumentChanges(changes);
         },
-        std::unique_ptr<kiriview::VideoMediaBackend>(),
         std::unique_ptr<kiriview::VideoPlaybackUrlResolver>(),
         kiriview::VideoDocumentRuntime::MediaBackendFactory {},
         std::move(playbackControlTimerScheduler),

@@ -43,6 +43,7 @@ private Q_SLOTS:
     void resolverCleanupRunsOnSourceChangeAndDestruction();
     void videoSizeFollowsBackendMetadata();
     void staleBackendCallbacksAfterSourceChangeAreIgnored();
+    void supersededBackendLifecycleEventsAfterReplacementAreIgnored();
     void mutedStateDispatchesBackendAndPersistsAcrossSourceChanges();
     void playbackControlsDispatchBackendOperations();
     void playbackControlScrubCommitsWithoutBackendOverwrite();
@@ -58,6 +59,13 @@ namespace {
 class FakeVideoMediaBackend final : public kiriview::VideoMediaBackend
 {
 public:
+    ~FakeVideoMediaBackend() override
+    {
+        if (destroyed) {
+            destroyed(this);
+        }
+    }
+
     void setCallbacks(kiriview::VideoMediaBackendCallbacks nextCallbacks) override
     {
         callbacks = std::move(nextCallbacks);
@@ -199,6 +207,7 @@ public:
     int playCount = 0;
     int pauseCount = 0;
     int stopCount = 0;
+    std::function<void(FakeVideoMediaBackend*)> destroyed;
 };
 
 struct FakeResolverState
@@ -249,15 +258,22 @@ struct RuntimeFixture
 
     explicit RuntimeFixture(kiriview::TimerScheduler playbackControlTimerScheduler = {})
     {
-        auto mediaBackend = std::make_unique<FakeVideoMediaBackend>();
-        backend = mediaBackend.get();
         runtime = std::make_unique<kiriview::VideoDocumentRuntime>(
             &documentObject,
             [this](const std::vector<kiriview::VideoDocumentChange>& nextChanges) {
                 changes.insert(changes.end(), nextChanges.begin(), nextChanges.end());
             },
-            std::move(mediaBackend), std::make_unique<FakeVideoPlaybackUrlResolver>(resolverState),
-            kiriview::VideoDocumentRuntime::MediaBackendFactory {},
+            std::make_unique<FakeVideoPlaybackUrlResolver>(resolverState),
+            [this](QObject*) {
+                auto mediaBackend = std::make_unique<FakeVideoMediaBackend>();
+                backend = mediaBackend.get();
+                mediaBackend->destroyed = [this](FakeVideoMediaBackend* destroyedBackend) {
+                    if (backend == destroyedBackend) {
+                        backend = nullptr;
+                    }
+                };
+                return mediaBackend;
+            },
             std::move(playbackControlTimerScheduler));
     }
 
@@ -396,7 +412,6 @@ void TestVideoDocumentRuntime::mediaBackendFactoryIsLazyUntilPlaybackUrlResoluti
     QObject* factoryParent = nullptr;
     int factoryCallCount = 0;
     kiriview::VideoDocumentRuntime runtime(&documentObject, {},
-        std::unique_ptr<kiriview::VideoMediaBackend>(),
         std::make_unique<FakeVideoPlaybackUrlResolver>(resolverState), [&](QObject* parent) {
             factoryParent = parent;
             ++factoryCallCount;
@@ -482,7 +497,7 @@ void TestVideoDocumentRuntime::settingAndClearingSourcePreservesUserFacingUrlAnd
     QCOMPARE(fixture.runtime->sourceUrl(), QUrl());
     QCOMPARE(fixture.runtime->windowTitleFileName(), QString());
     QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Null);
-    QCOMPARE(fixture.backend->sourceUrl, QUrl());
+    QCOMPARE(fixture.backend, nullptr);
 }
 
 void TestVideoDocumentRuntime::resolverCanReturnSeparatePlaybackUrl()
@@ -529,7 +544,7 @@ void TestVideoDocumentRuntime::resolverFailureSurfacesErrorWithoutChangingSource
     QCOMPARE(fixture.runtime->sourceUrl(), sourceUrl);
     QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Error);
     QCOMPARE(fixture.runtime->errorString(), QStringLiteral("Could not open the selected video."));
-    QCOMPARE(fixture.backend->sourceUrl, QUrl());
+    QCOMPARE(fixture.backend, nullptr);
 }
 
 void TestVideoDocumentRuntime::resolverFailurePreservesTypedFailureMetadata()
@@ -671,7 +686,7 @@ void TestVideoDocumentRuntime::sourceDeviceOwnerLivesUntilReplacementAndDestruct
 
     QVERIFY(replacedOwner.expired());
     QCOMPARE(replacedDestructionCount, 1);
-    QCOMPARE(fixture.backend->sourceDevice, nullptr);
+    QCOMPARE(fixture.backend, nullptr);
 
     int destructionDestructionCount = 0;
     std::weak_ptr<SourceDeviceOwner> destructionOwner;
@@ -734,7 +749,7 @@ void TestVideoDocumentRuntime::staleResolverCompletionsAreIgnored()
         stalePlaybackUrl,
     });
     QCOMPARE(fixture.runtime->sourceUrl(), secondSourceUrl);
-    QCOMPARE(fixture.backend->sourceUrl, QUrl());
+    QCOMPARE(fixture.backend, nullptr);
 
     fixture.resolveLatest(currentPlaybackUrl);
     QCOMPARE(fixture.runtime->sourceUrl(), secondSourceUrl);
@@ -746,9 +761,8 @@ void TestVideoDocumentRuntime::resolverCleanupRunsOnSourceChangeAndDestruction()
     auto resolverState = std::make_shared<FakeResolverState>();
     {
         QObject documentObject;
-        auto mediaBackend = std::make_unique<FakeVideoMediaBackend>();
-        kiriview::VideoDocumentRuntime runtime(&documentObject, {}, std::move(mediaBackend),
-            std::make_unique<FakeVideoPlaybackUrlResolver>(resolverState));
+        kiriview::VideoDocumentRuntime runtime(
+            &documentObject, {}, std::make_unique<FakeVideoPlaybackUrlResolver>(resolverState));
 
         runtime.setSourceUrl(QUrl(QStringLiteral("zip:///home/me/videos.zip!/first.mp4")));
         runtime.setSourceUrl(QUrl(QStringLiteral("zip:///home/me/videos.zip!/second.mp4")));
@@ -786,6 +800,7 @@ void TestVideoDocumentRuntime::staleBackendCallbacksAfterSourceChangeAreIgnored(
     fixture.backend->emitStatus(kiriview::VideoMediaStatus::Buffered);
     fixture.backend->emitDuration(10000);
     fixture.backend->emitVideoSize(QSize(1920, 1080));
+    const kiriview::VideoMediaBackendCallbacks firstSourceCallbacks = fixture.backend->callbacks;
 
     QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Ready);
     QCOMPARE(fixture.runtime->duration(), 10000);
@@ -795,10 +810,11 @@ void TestVideoDocumentRuntime::staleBackendCallbacksAfterSourceChangeAreIgnored(
     QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Loading);
     QCOMPARE(fixture.runtime->duration(), 0);
     QCOMPARE(fixture.runtime->videoSize(), QSize());
+    QCOMPARE(fixture.backend, nullptr);
 
-    fixture.backend->emitStatus(kiriview::VideoMediaStatus::Buffered);
-    fixture.backend->emitDuration(50000);
-    fixture.backend->emitVideoSize(QSize(3840, 2160));
+    firstSourceCallbacks.mediaStatusChanged();
+    firstSourceCallbacks.durationChanged();
+    firstSourceCallbacks.videoSizeChanged();
 
     QCOMPARE(fixture.runtime->sourceUrl(), secondSourceUrl);
     QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Loading);
@@ -810,6 +826,34 @@ void TestVideoDocumentRuntime::staleBackendCallbacksAfterSourceChangeAreIgnored(
     QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Ready);
 }
 
+void TestVideoDocumentRuntime::supersededBackendLifecycleEventsAfterReplacementAreIgnored()
+{
+    RuntimeFixture fixture;
+    const QUrl firstSourceUrl = QUrl::fromLocalFile(QStringLiteral("/home/me/first.mp4"));
+    const QUrl secondSourceUrl = QUrl::fromLocalFile(QStringLiteral("/home/me/second.mp4"));
+
+    fixture.runtime->setSourceUrl(firstSourceUrl);
+    fixture.resolveLatest(firstSourceUrl);
+    const kiriview::VideoMediaBackendCallbacks firstSourceCallbacks = fixture.backend->callbacks;
+
+    fixture.runtime->setSourceUrl(secondSourceUrl);
+    fixture.resolveLatest(secondSourceUrl);
+    fixture.backend->emitStatus(kiriview::VideoMediaStatus::Buffered);
+    fixture.backend->emitDuration(20000);
+    QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Ready);
+    QCOMPARE(fixture.runtime->duration(), 20000);
+    QVERIFY(!fixture.runtime->backendFailure().has_value());
+
+    fixture.backend->currentDuration = 10000;
+    firstSourceCallbacks.durationChanged();
+    firstSourceCallbacks.errorOccurred({ kiriview::VideoMediaErrorCategory::Resource, 17,
+        QStringLiteral("late first-source failure") });
+
+    QCOMPARE(fixture.runtime->sourceUrl(), secondSourceUrl);
+    QCOMPARE(fixture.runtime->duration(), 20000);
+    QVERIFY(!fixture.runtime->backendFailure().has_value());
+}
+
 void TestVideoDocumentRuntime::mutedStateDispatchesBackendAndPersistsAcrossSourceChanges()
 {
     RuntimeFixture fixture;
@@ -817,10 +861,14 @@ void TestVideoDocumentRuntime::mutedStateDispatchesBackendAndPersistsAcrossSourc
     const QUrl secondSourceUrl = QUrl::fromLocalFile(QStringLiteral("/home/me/second.mp4"));
 
     QVERIFY(!fixture.runtime->muted());
-    QVERIFY(!fixture.backend->isMuted);
+    QCOMPARE(fixture.backend, nullptr);
 
     fixture.runtime->setMuted(true);
     QVERIFY(fixture.runtime->muted());
+    QCOMPARE(fixture.backend, nullptr);
+
+    fixture.runtime->setSourceUrl(firstSourceUrl);
+    fixture.resolveLatest(firstSourceUrl);
     QVERIFY(fixture.backend->isMuted);
     QCOMPARE(fixture.backend->setMutedCount, 1);
 
@@ -830,8 +878,6 @@ void TestVideoDocumentRuntime::mutedStateDispatchesBackendAndPersistsAcrossSourc
     QCOMPARE(fixture.backend->setMutedCount, 2);
 
     fixture.runtime->setMuted(true);
-    fixture.runtime->setSourceUrl(firstSourceUrl);
-    fixture.resolveLatest(firstSourceUrl);
     fixture.runtime->setSourceUrl(QUrl());
     fixture.runtime->setSourceUrl(secondSourceUrl);
     fixture.resolveLatest(secondSourceUrl);
@@ -963,7 +1009,10 @@ void TestVideoDocumentRuntime::playAfterEndOfMediaRestartsFromBeginningWhenSeeka
 void TestVideoDocumentRuntime::seekByClampsToKnownDuration()
 {
     RuntimeFixture fixture;
+    const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/home/me/clip.mp4"));
 
+    fixture.runtime->setSourceUrl(sourceUrl);
+    fixture.resolveLatest(sourceUrl);
     fixture.backend->emitDuration(10000);
     fixture.backend->emitPosition(5000);
     fixture.backend->emitSeekable(true);
@@ -982,7 +1031,10 @@ void TestVideoDocumentRuntime::seekByClampsToKnownDuration()
 void TestVideoDocumentRuntime::seekByNoopsWhenNotSeekable()
 {
     RuntimeFixture fixture;
+    const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/home/me/clip.mp4"));
 
+    fixture.runtime->setSourceUrl(sourceUrl);
+    fixture.resolveLatest(sourceUrl);
     fixture.backend->emitDuration(10000);
     fixture.backend->emitPosition(5000);
     fixture.backend->emitSeekable(false);
@@ -996,10 +1048,15 @@ void TestVideoDocumentRuntime::seekByNoopsWhenNotSeekable()
 void TestVideoDocumentRuntime::videoOutputDetachAndDestructionClearBackendOutput()
 {
     RuntimeFixture fixture;
+    const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/home/me/clip.mp4"));
     auto* output = new QObject();
 
     fixture.runtime->setVideoOutput(output);
     QCOMPARE(fixture.runtime->videoOutput(), output);
+    QCOMPARE(fixture.backend, nullptr);
+
+    fixture.runtime->setSourceUrl(sourceUrl);
+    fixture.resolveLatest(sourceUrl);
     QCOMPARE(fixture.backend->videoOutput(), output);
 
     fixture.runtime->setVideoOutput(nullptr);

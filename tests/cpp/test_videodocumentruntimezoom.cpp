@@ -121,11 +121,13 @@ struct RuntimeFixture
 
     RuntimeFixture()
     {
-        auto mediaBackend = std::make_unique<FakeVideoMediaBackend>();
-        backend = mediaBackend.get();
         runtime = std::make_unique<kiriview::VideoDocumentRuntime>(&documentObject,
-            kiriview::VideoDocumentRuntime::ChangeCallback(), std::move(mediaBackend),
-            std::make_unique<ImmediateVideoPlaybackUrlResolver>());
+            kiriview::VideoDocumentRuntime::ChangeCallback(),
+            std::make_unique<ImmediateVideoPlaybackUrlResolver>(), [this](QObject*) {
+                auto mediaBackend = std::make_unique<FakeVideoMediaBackend>();
+                backend = mediaBackend.get();
+                return mediaBackend;
+            });
         runtime->setSourceUrl(QUrl::fromLocalFile(QStringLiteral("/videos/clip.mp4")));
         backend->emitHasVideo(true);
         backend->emitStatus(kiriview::VideoMediaStatus::Buffered);

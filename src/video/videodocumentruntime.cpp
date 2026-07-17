@@ -37,7 +37,6 @@ const char* videoMediaErrorCategoryName(kiriview::VideoMediaErrorCategory catego
 
 namespace kiriview {
 VideoDocumentRuntime::VideoDocumentRuntime(QObject* documentObject, ChangeCallback changeCallback,
-    std::unique_ptr<VideoMediaBackend> mediaBackend,
     std::unique_ptr<VideoPlaybackUrlResolver> playbackUrlResolver,
     MediaBackendFactory mediaBackendFactory, TimerScheduler playbackControlTimerScheduler,
     VideoPlaybackControlProjectionCallback playbackControlProjectionCallback)
@@ -45,7 +44,6 @@ VideoDocumentRuntime::VideoDocumentRuntime(QObject* documentObject, ChangeCallba
     , m_state(std::move(changeCallback))
     , m_playbackControls(documentObject, std::move(playbackControlTimerScheduler),
           std::move(playbackControlProjectionCallback))
-    , m_mediaBackend(std::move(mediaBackend))
     , m_mediaBackendFactory(std::move(mediaBackendFactory))
     , m_sourceLoadRuntime(std::move(playbackUrlResolver))
     , m_outputRuntime(documentObject,
@@ -63,74 +61,73 @@ VideoDocumentRuntime::VideoDocumentRuntime(QObject* documentObject, ChangeCallba
         m_mediaBackendFactory
             = [](QObject* parent) { return createDefaultVideoMediaBackend(parent); };
     }
-
-    if (m_mediaBackend == nullptr) {
-        return;
-    }
-
-    installMediaBackendCallbacks();
 }
 
-VideoMediaBackend* VideoDocumentRuntime::ensureMediaBackend()
+VideoMediaBackend* VideoDocumentRuntime::replaceMediaBackendForSource(const QUrl& publicSourceUrl)
 {
+    clearPlaybackSource();
+    m_mediaBackend = m_mediaBackendFactory(m_documentObject);
     if (m_mediaBackend == nullptr) {
-        m_mediaBackend = m_mediaBackendFactory(m_documentObject);
-        installMediaBackendCallbacks();
-        m_mediaBackend->setMuted(m_playbackControls.mediaSnapshot().muted);
-        if (m_outputRuntime.videoOutput() != nullptr) {
-            m_mediaBackend->setVideoOutput(m_outputRuntime.videoOutput());
-        }
+        return nullptr;
+    }
+
+    const PlaybackLifecycle lifecycle = acceptPlaybackCallbacks(publicSourceUrl);
+    installMediaBackendCallbacks(lifecycle);
+    m_mediaBackend->setMuted(m_playbackControls.mediaSnapshot().muted);
+    if (m_outputRuntime.videoOutput() != nullptr) {
+        m_mediaBackend->setVideoOutput(m_outputRuntime.videoOutput());
     }
 
     return m_mediaBackend.get();
 }
 
-void VideoDocumentRuntime::installMediaBackendCallbacks()
+void VideoDocumentRuntime::installMediaBackendCallbacks(const PlaybackLifecycle& lifecycle)
 {
     m_mediaBackend->setCallbacks(VideoMediaBackendCallbacks {
-        [this]() { updateStatusFromBackend(); },
-        [this](VideoMediaError error) { updateErrorFromBackend(std::move(error)); },
-        [this]() {
-            if (playbackCallbacksAccepted()) {
-                refreshPlaybackControlsFromBackend();
+        [this, lifecycle]() { updateStatusFromBackend(lifecycle); },
+        [this, lifecycle](
+            VideoMediaError error) { updateErrorFromBackend(lifecycle, std::move(error)); },
+        [this, lifecycle]() {
+            if (playbackCallbacksAccepted(lifecycle)) {
+                refreshPlaybackControlsFromBackend(lifecycle);
             }
         },
-        [this]() {
-            if (playbackCallbacksAccepted()) {
-                refreshPlaybackControlsFromBackend();
+        [this, lifecycle]() {
+            if (playbackCallbacksAccepted(lifecycle)) {
+                refreshPlaybackControlsFromBackend(lifecycle);
             }
         },
-        [this]() {
-            if (playbackCallbacksAccepted()) {
-                refreshPlaybackControlsFromBackend();
+        [this, lifecycle]() {
+            if (playbackCallbacksAccepted(lifecycle)) {
+                refreshPlaybackControlsFromBackend(lifecycle);
             }
         },
-        [this]() {
-            if (playbackCallbacksAccepted()) {
-                refreshPlaybackControlsFromBackend();
+        [this, lifecycle]() {
+            if (playbackCallbacksAccepted(lifecycle)) {
+                refreshPlaybackControlsFromBackend(lifecycle);
             }
         },
-        [this]() {
-            if (!playbackCallbacksAccepted()) {
+        [this, lifecycle]() {
+            if (!playbackCallbacksAccepted(lifecycle)) {
                 return;
             }
             m_state.setHasVideo(m_mediaBackend->hasVideo());
-            refreshPlaybackControlsFromBackend();
+            refreshPlaybackControlsFromBackend(lifecycle);
             updateZoomPercent();
         },
-        [this]() {
-            if (playbackCallbacksAccepted()) {
+        [this, lifecycle]() {
+            if (playbackCallbacksAccepted(lifecycle)) {
                 m_state.setHasAudio(m_mediaBackend->hasAudio());
             }
         },
-        [this]() {
-            if (playbackCallbacksAccepted()) {
+        [this, lifecycle]() {
+            if (playbackCallbacksAccepted(lifecycle)) {
                 m_state.setVideoSize(m_mediaBackend->videoSize());
             }
         },
-        [this]() {
-            if (playbackCallbacksAccepted()) {
-                refreshPlaybackControlsFromBackend();
+        [this, lifecycle]() {
+            if (playbackCallbacksAccepted(lifecycle)) {
+                refreshPlaybackControlsFromBackend(lifecycle);
             }
         },
         {},
@@ -140,11 +137,7 @@ void VideoDocumentRuntime::installMediaBackendCallbacks()
 VideoDocumentRuntime::~VideoDocumentRuntime()
 {
     m_sourceLoadRuntime.shutdown();
-    if (m_mediaBackend != nullptr) {
-        m_mediaBackend->setVideoOutput(nullptr);
-        m_mediaBackend->setSource(QUrl());
-    }
-    m_playbackSourceDevice = {};
+    clearPlaybackSource();
 }
 
 QUrl VideoDocumentRuntime::sourceUrl() const { return m_state.sourceUrl(); }
@@ -355,7 +348,7 @@ void VideoDocumentRuntime::executePlaybackBackendOperation(VideoPlaybackBackendO
 
 void VideoDocumentRuntime::executePlaybackBackendOperation(EnsureVideoPlaybackBackendOperation)
 {
-    ensureMediaBackend();
+    // Backends are created only when a resolved source lifecycle is accepted.
 }
 
 void VideoDocumentRuntime::executePlaybackBackendOperation(PlayVideoPlaybackOperation)
@@ -404,10 +397,14 @@ void VideoDocumentRuntime::applyPlaybackStateDelta(const VideoPlaybackStateDelta
 
 void VideoDocumentRuntime::clearPlaybackSource()
 {
+    invalidatePlaybackCallbacks();
     if (m_mediaBackend != nullptr) {
         m_mediaBackend->stop();
         m_mediaBackend->setSource(QUrl());
+        m_mediaBackend->setVideoOutput(nullptr);
+        m_mediaBackend->setCallbacks({});
     }
+    m_mediaBackend.reset();
     m_playbackSourceDevice = {};
 }
 
@@ -425,7 +422,6 @@ void VideoDocumentRuntime::executeSourceLoadOperation(const VideoSourceLoadOpera
 
 void VideoDocumentRuntime::executeSourceLoadOperation(ClearVideoPlaybackSourceOperation)
 {
-    invalidatePlaybackCallbacks();
     clearPlaybackSource();
 }
 
@@ -457,27 +453,31 @@ void VideoDocumentRuntime::executeSourceLoadOperation(
 
 void VideoDocumentRuntime::applyResolvedPlaybackUrl(const QUrl& playbackUrl)
 {
-    VideoMediaBackend* mediaBackend = ensureMediaBackend();
-    acceptPlaybackCallbacks();
+    VideoMediaBackend* mediaBackend = replaceMediaBackendForSource(m_state.sourceUrl());
+    if (mediaBackend == nullptr) {
+        return;
+    }
     mediaBackend->setSource(playbackUrl);
     m_playbackSourceDevice = {};
     m_state.setEmbeddedMetadata(playbackUrl.isLocalFile()
             ? parsePathEmbeddedMetadata(playbackUrl.toLocalFile())
             : EmbeddedMetadata {});
     m_state.setVideoSize(mediaBackend->videoSize());
-    updateStatusFromBackend();
+    updateStatusFromBackend(*m_activePlaybackLifecycle);
     play();
 }
 
 void VideoDocumentRuntime::applyPlaybackSourceDevice(
     VideoPlaybackSourceDevice sourceDevice, const QUrl& sourceUrl)
 {
-    VideoMediaBackend* mediaBackend = ensureMediaBackend();
+    VideoMediaBackend* mediaBackend = replaceMediaBackendForSource(sourceUrl);
+    if (mediaBackend == nullptr) {
+        return;
+    }
     m_playbackSourceDevice = std::move(sourceDevice);
-    acceptPlaybackCallbacks();
     mediaBackend->setSourceDevice(m_playbackSourceDevice.device.get(), sourceUrl);
     m_state.setVideoSize(mediaBackend->videoSize());
-    updateStatusFromBackend();
+    updateStatusFromBackend(*m_activePlaybackLifecycle);
     play();
 }
 
@@ -489,30 +489,30 @@ void VideoDocumentRuntime::publishSourceLoadFailure(const VideoSourceLoadFailure
     updateZoomPercent();
 }
 
-void VideoDocumentRuntime::invalidatePlaybackCallbacks()
-{
-    ++m_playbackGeneration;
-    m_acceptedPlaybackGeneration = 0;
-}
+void VideoDocumentRuntime::invalidatePlaybackCallbacks() { m_activePlaybackLifecycle.reset(); }
 
-void VideoDocumentRuntime::acceptPlaybackCallbacks()
+VideoDocumentRuntime::PlaybackLifecycle VideoDocumentRuntime::acceptPlaybackCallbacks(
+    const QUrl& publicSourceUrl)
 {
-    if (m_playbackGeneration == 0) {
-        m_playbackGeneration = 1;
+    ++m_nextPlaybackRevision;
+    if (m_nextPlaybackRevision == 0) {
+        ++m_nextPlaybackRevision;
     }
-    m_acceptedPlaybackGeneration = m_playbackGeneration;
+    PlaybackLifecycle lifecycle { m_nextPlaybackRevision, publicSourceUrl };
+    m_activePlaybackLifecycle = lifecycle;
+    return lifecycle;
 }
 
-bool VideoDocumentRuntime::playbackCallbacksAccepted() const
+bool VideoDocumentRuntime::playbackCallbacksAccepted(const PlaybackLifecycle& lifecycle) const
 {
-    return m_playbackGeneration == 0
-        || (m_acceptedPlaybackGeneration != 0
-            && m_acceptedPlaybackGeneration == m_playbackGeneration);
+    return m_activePlaybackLifecycle.has_value()
+        && m_activePlaybackLifecycle->revision == lifecycle.revision
+        && m_activePlaybackLifecycle->publicSourceUrl == lifecycle.publicSourceUrl;
 }
 
-void VideoDocumentRuntime::updateStatusFromBackend()
+void VideoDocumentRuntime::updateStatusFromBackend(const PlaybackLifecycle& lifecycle)
 {
-    if (!playbackCallbacksAccepted()) {
+    if (!playbackCallbacksAccepted(lifecycle)) {
         return;
     }
 
@@ -541,9 +541,9 @@ void VideoDocumentRuntime::updateStatusFromBackend()
     updateZoomPercent();
 }
 
-void VideoDocumentRuntime::refreshPlaybackControlsFromBackend()
+void VideoDocumentRuntime::refreshPlaybackControlsFromBackend(const PlaybackLifecycle& lifecycle)
 {
-    if (m_mediaBackend == nullptr || !playbackCallbacksAccepted()) {
+    if (m_mediaBackend == nullptr || !playbackCallbacksAccepted(lifecycle)) {
         return;
     }
 
@@ -562,19 +562,20 @@ void VideoDocumentRuntime::replacePlaybackControlSource()
     m_playbackControls.replaceSource(++m_playbackControlSourceRevision);
 }
 
-void VideoDocumentRuntime::updateErrorFromBackend(VideoMediaError error)
+void VideoDocumentRuntime::updateErrorFromBackend(
+    const PlaybackLifecycle& lifecycle, VideoMediaError error)
 {
-    if (m_mediaBackend == nullptr || !playbackCallbacksAccepted()) {
+    if (m_mediaBackend == nullptr || !playbackCallbacksAccepted(lifecycle)) {
         return;
     }
 
     qCDebug(kiriviewVideoLog).noquote()
         << "playback backend failure"
-        << "source=" << m_state.sourceUrl()
+        << "source=" << lifecycle.publicSourceUrl
         << "category=" << videoMediaErrorCategoryName(error.category)
         << "code=" << error.rawErrorCode << "detail=" << error.diagnosticDetail;
     m_state.setBackendFailure(VideoBackendFailure {
-        m_state.sourceUrl(),
+        lifecycle.publicSourceUrl,
         VideoBackendFailureKind::Playback,
         error.category,
         error.rawErrorCode,
@@ -583,7 +584,7 @@ void VideoDocumentRuntime::updateErrorFromBackend(VideoMediaError error)
         VideoBackendFailureSeverity::Error,
         false,
     });
-    refreshPlaybackControlsFromBackend();
+    refreshPlaybackControlsFromBackend(lifecycle);
     updateZoomPercent();
 }
 

@@ -32,7 +32,6 @@ public:
     using MediaBackendFactory = std::function<std::unique_ptr<VideoMediaBackend>(QObject*)>;
 
     explicit VideoDocumentRuntime(QObject* documentObject, ChangeCallback changeCallback = {},
-        std::unique_ptr<VideoMediaBackend> mediaBackend = {},
         std::unique_ptr<VideoPlaybackUrlResolver> playbackUrlResolver = {},
         MediaBackendFactory mediaBackendFactory = {},
         TimerScheduler playbackControlTimerScheduler = {},
@@ -84,6 +83,12 @@ public:
         qint64 currentPosition, qint64 deltaMilliseconds, qint64 duration, bool seekable);
 
 private:
+    struct PlaybackLifecycle
+    {
+        quint64 revision = 0;
+        QUrl publicSourceUrl;
+    };
+
     VideoPlaybackControlSnapshot playbackControlSnapshot() const;
     void executePlaybackControlPlan(const VideoPlaybackControlPlan& plan);
     void executePlaybackBackendOperation(VideoPlaybackBackendOperation operation);
@@ -93,8 +98,8 @@ private:
     void executePlaybackBackendOperation(StopVideoPlaybackOperation operation);
     void executePlaybackBackendOperation(SetVideoPlaybackPositionOperation operation);
     void applyPlaybackStateDelta(const VideoPlaybackStateDelta& delta);
-    VideoMediaBackend* ensureMediaBackend();
-    void installMediaBackendCallbacks();
+    VideoMediaBackend* replaceMediaBackendForSource(const QUrl& publicSourceUrl);
+    void installMediaBackendCallbacks(const PlaybackLifecycle& lifecycle);
     void executeSourceLoadPlan(const VideoSourceLoadPlan& plan);
     void executeSourceLoadOperation(const VideoSourceLoadOperation& operation);
     void executeSourceLoadOperation(ClearVideoPlaybackSourceOperation operation);
@@ -107,11 +112,11 @@ private:
     void applyPlaybackSourceDevice(VideoPlaybackSourceDevice sourceDevice, const QUrl& sourceUrl);
     void publishSourceLoadFailure(const VideoSourceLoadFailure& failure);
     void invalidatePlaybackCallbacks();
-    void acceptPlaybackCallbacks();
-    bool playbackCallbacksAccepted() const;
-    void updateStatusFromBackend();
-    void updateErrorFromBackend(VideoMediaError error);
-    void refreshPlaybackControlsFromBackend();
+    PlaybackLifecycle acceptPlaybackCallbacks(const QUrl& publicSourceUrl);
+    bool playbackCallbacksAccepted(const PlaybackLifecycle& lifecycle) const;
+    void updateStatusFromBackend(const PlaybackLifecycle& lifecycle);
+    void updateErrorFromBackend(const PlaybackLifecycle& lifecycle, VideoMediaError error);
+    void refreshPlaybackControlsFromBackend(const PlaybackLifecycle& lifecycle);
     void replacePlaybackControlSource();
     void updateZoomPercent();
     void publish(VideoDocumentChange change);
@@ -124,8 +129,8 @@ private:
     VideoSourceLoadRuntime m_sourceLoadRuntime;
     VideoPlaybackSourceDevice m_playbackSourceDevice;
     VideoOutputRuntime m_outputRuntime;
-    quint64 m_playbackGeneration = 0;
-    quint64 m_acceptedPlaybackGeneration = 0;
+    quint64 m_nextPlaybackRevision = 0;
+    std::optional<PlaybackLifecycle> m_activePlaybackLifecycle;
     quint64 m_playbackControlSourceRevision = 0;
 };
 }
