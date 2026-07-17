@@ -4,6 +4,7 @@
 #include "imageviewportproviderfacts_p.h"
 #include "imageviewporttoken_p.h"
 #include "playbacktimeline_p.h"
+#include "viewportenginebuiltinframeoperations_p.h"
 
 #include <algorithm>
 #include <limits>
@@ -292,34 +293,22 @@ ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
         result.changes.displayRevision = true;
         result.changes.scheduleUpdate = true;
     };
-    auto stageBuiltIn = [&request, &display, &input]() {
-        request.targetSpreadTerminal.clear();
-        request.lastAcceptedRenderFailure = {};
-        display.roles[0].pendingRenderPayload.commitPending = true;
-        display.beginPreparedPayloadIdentity(
-            request.sequenceGeneration, request.roles[0].activeRequest);
-        display.roles[0].pendingRenderPayload
-            = FramePreparation::admitBuiltInFrame(request.roles[0].source,
-                request.roles[0].activeRequest.target.frame, display.roles[0].pendingRenderPayload)
-                  .preparedPayload;
-        if (request.roles[1].source.facts.present && !request.roles[1].source.facts.provider
-            && request.roles[1].activeRequest.target.frame >= 0) {
-            ImageViewportInternal::PreparedPayload payload;
-            payload.commitPending = true;
-            payload.generation = request.sequenceGeneration;
-            payload.requestId = request.roles[0].activeRequest.identity.id;
-            payload.payloadId = ++display.nextPreparedPayloadId;
-            request.roles[1].activeRequest.preparedPayloadId = payload.payloadId;
-            display.roles[1].pendingRenderPayload = FramePreparation::admitBuiltInFrame(
-                request.roles[1].source, request.roles[1].activeRequest.target.frame, payload)
-                                                        .preparedPayload;
+    auto stageBuiltIn = [&request, &display, &input, &access, &result]() {
+        const auto admission = stageViewportEngineBuiltInTargetSpread(
+            request, display, access.m_presentation.exactnessPreference, &access.m_playback);
+        if (admission.accepted) {
+            request.status = ImageViewportRequestStatus::Loading;
+            request.reason
+                = (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty())
+                ? ImageViewportRequestReason::RenderWaiting
+                : ImageViewportRequestReason::UploadPending;
+            display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
+                                                          : ImageViewportDisplayStatus::Empty;
+        } else {
+            result.changes.diagnostics = true;
+            result.changes.playbackPhase |= admission.playbackStopped;
         }
-        request.status = ImageViewportRequestStatus::Loading;
-        request.reason = (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty())
-            ? ImageViewportRequestReason::RenderWaiting
-            : ImageViewportRequestReason::UploadPending;
-        display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
-                                                      : ImageViewportDisplayStatus::Empty;
+        return admission;
     };
     auto dispatchProvider = [&]() {
         auto allocation = access.allocateProviderRequestToken(input.role);
@@ -514,33 +503,21 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
         result.changes.scheduleUpdate = true;
     };
     auto stageBuiltIn = [&]() {
-        request.targetSpreadTerminal.clear();
-        request.lastAcceptedRenderFailure = {};
-        display.roles[0].pendingRenderPayload.commitPending = true;
-        display.beginPreparedPayloadIdentity(
-            request.sequenceGeneration, request.roles[0].activeRequest);
-        display.roles[0].pendingRenderPayload
-            = FramePreparation::admitBuiltInFrame(request.roles[0].source,
-                request.roles[0].activeRequest.target.frame, display.roles[0].pendingRenderPayload)
-                  .preparedPayload;
-        if (request.roles[1].source.facts.present && !request.roles[1].source.facts.provider
-            && request.roles[1].activeRequest.target.frame >= 0) {
-            PreparedPayload payload;
-            payload.commitPending = true;
-            payload.generation = request.sequenceGeneration;
-            payload.requestId = request.roles[0].activeRequest.identity.id;
-            payload.payloadId = ++display.nextPreparedPayloadId;
-            request.roles[1].activeRequest.preparedPayloadId = payload.payloadId;
-            display.roles[1].pendingRenderPayload = FramePreparation::admitBuiltInFrame(
-                request.roles[1].source, request.roles[1].activeRequest.target.frame, payload)
-                                                        .preparedPayload;
+        const auto admission = stageViewportEngineBuiltInTargetSpread(
+            request, display, access.m_presentation.exactnessPreference, &playback);
+        if (admission.accepted) {
+            request.status = ImageViewportRequestStatus::Loading;
+            request.reason
+                = (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty())
+                ? ImageViewportRequestReason::RenderWaiting
+                : ImageViewportRequestReason::UploadPending;
+            display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
+                                                          : ImageViewportDisplayStatus::Empty;
+        } else {
+            result.changes.diagnostics = true;
+            result.changes.playbackPhase |= admission.playbackStopped;
         }
-        request.status = ImageViewportRequestStatus::Loading;
-        request.reason = (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty())
-            ? ImageViewportRequestReason::RenderWaiting
-            : ImageViewportRequestReason::UploadPending;
-        display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
-                                                      : ImageViewportDisplayStatus::Empty;
+        return admission;
     };
     auto dispatchProvider = [&]() {
         auto& effect = result.providerFrameTransport[index];
@@ -692,33 +669,21 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
         result.changes.scheduleUpdate = true;
     };
     auto stageBuiltIn = [&]() {
-        request.targetSpreadTerminal.clear();
-        request.lastAcceptedRenderFailure = {};
-        display.roles[0].pendingRenderPayload.commitPending = true;
-        display.beginPreparedPayloadIdentity(
-            request.sequenceGeneration, request.roles[0].activeRequest);
-        display.roles[0].pendingRenderPayload
-            = FramePreparation::admitBuiltInFrame(request.roles[0].source,
-                request.roles[0].activeRequest.target.frame, display.roles[0].pendingRenderPayload)
-                  .preparedPayload;
-        if (request.roles[1].source.facts.present && !request.roles[1].source.facts.provider
-            && request.roles[1].activeRequest.target.frame >= 0) {
-            PreparedPayload payload;
-            payload.commitPending = true;
-            payload.generation = request.sequenceGeneration;
-            payload.requestId = request.roles[0].activeRequest.identity.id;
-            payload.payloadId = ++display.nextPreparedPayloadId;
-            request.roles[1].activeRequest.preparedPayloadId = payload.payloadId;
-            display.roles[1].pendingRenderPayload = FramePreparation::admitBuiltInFrame(
-                request.roles[1].source, request.roles[1].activeRequest.target.frame, payload)
-                                                        .preparedPayload;
+        const auto admission = stageViewportEngineBuiltInTargetSpread(
+            request, display, access.m_presentation.exactnessPreference, &playback);
+        if (admission.accepted) {
+            request.status = ImageViewportRequestStatus::Loading;
+            request.reason
+                = (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty())
+                ? ImageViewportRequestReason::RenderWaiting
+                : ImageViewportRequestReason::UploadPending;
+            display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
+                                                          : ImageViewportDisplayStatus::Empty;
+        } else {
+            result.changes.diagnostics = true;
+            result.changes.playbackPhase |= admission.playbackStopped;
         }
-        request.status = ImageViewportRequestStatus::Loading;
-        request.reason = (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty())
-            ? ImageViewportRequestReason::RenderWaiting
-            : ImageViewportRequestReason::UploadPending;
-        display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
-                                                      : ImageViewportDisplayStatus::Empty;
+        return admission;
     };
     auto dispatchProvider = [&]() {
         auto& effect = result.providerFrameTransport[index];
@@ -863,7 +828,10 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
         dispatchProvider();
         markRequest();
     }
-    const auto phase = request.status == ImageViewportRequestStatus::Loading
+    const bool terminalRequest = request.status == ImageViewportRequestStatus::Unsupported
+        || request.status == ImageViewportRequestStatus::Error;
+    const auto phase = terminalRequest ? ImageViewportPlaybackPhase::Stopped
+        : request.status == ImageViewportRequestStatus::Loading
         ? ImageViewportPlaybackPhase::Waiting
         : ImageViewportPlaybackPhase::Playing;
     if (playback.phase != phase) {
@@ -1021,33 +989,22 @@ ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
             playback.phase = ImageViewportPlaybackPhase::Waiting;
         }
     } else {
-        display.roles[0].pendingRenderPayload.commitPending = true;
-        display.beginPreparedPayloadIdentity(
-            request.sequenceGeneration, request.roles[0].activeRequest);
-        display.roles[0].pendingRenderPayload
-            = FramePreparation::admitBuiltInFrame(request.roles[0].source,
-                request.roles[0].activeRequest.target.frame, display.roles[0].pendingRenderPayload)
-                  .preparedPayload;
-        if (request.roles[1].source.facts.present && !request.roles[1].source.facts.provider
-            && request.roles[1].activeRequest.target.frame >= 0) {
-            PreparedPayload secondary;
-            secondary.commitPending = true;
-            secondary.generation = request.sequenceGeneration;
-            secondary.requestId = request.roles[0].activeRequest.identity.id;
-            secondary.payloadId = ++display.nextPreparedPayloadId;
-            request.roles[1].activeRequest.preparedPayloadId = secondary.payloadId;
-            display.roles[1].pendingRenderPayload = FramePreparation::admitBuiltInFrame(
-                request.roles[1].source, request.roles[1].activeRequest.target.frame, secondary)
-                                                        .preparedPayload;
+        const auto admission = stageViewportEngineBuiltInTargetSpread(
+            request, display, access.m_presentation.exactnessPreference, &playback);
+        if (admission.accepted) {
+            request.status = ImageViewportRequestStatus::Loading;
+            request.reason
+                = (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty())
+                ? ImageViewportRequestReason::RenderWaiting
+                : ImageViewportRequestReason::UploadPending;
+            display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
+                                                          : ImageViewportDisplayStatus::Empty;
+            playback.stopWhenRequestReady = target.reachedEnd;
+            playback.phase = ImageViewportPlaybackPhase::Waiting;
+        } else {
+            result.changes.diagnostics = true;
+            result.changes.playbackPhase |= admission.playbackStopped;
         }
-        request.status = ImageViewportRequestStatus::Loading;
-        request.reason = (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty())
-            ? ImageViewportRequestReason::RenderWaiting
-            : ImageViewportRequestReason::UploadPending;
-        display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
-                                                      : ImageViewportDisplayStatus::Empty;
-        playback.stopWhenRequestReady = target.reachedEnd;
-        playback.phase = ImageViewportPlaybackPhase::Waiting;
     }
 
     result.changes.requestState = true;

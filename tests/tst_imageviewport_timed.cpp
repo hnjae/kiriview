@@ -19,6 +19,7 @@ private slots:
     void timedFrameListClearDiagnosticOnlyPreservesCountNotification();
     void timedFrameListAssignmentPublishesInitialTimedState();
     void timedFrameListSeekCommandsSelectDocumentedTargets();
+    void timedFrameListRequireExactRejectsNewInexactFrame();
     void timedFrameListSecondarySeekCommandsSelectRoleTargets();
     void timedFrameListSecondaryPlaybackAdvancesRoleTarget();
     void timedFrameListSeekWhilePlayingWaitsForRenderCommit();
@@ -314,6 +315,66 @@ void ImageViewportTimedTest::timedFrameListSeekCommandsSelectDocumentedTargets()
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), acceptedPositionSeekRevision);
     QCOMPARE(primaryRequestedPosition(item), 350);
     QCOMPARE(primaryDisplayedPosition(item), 100);
+}
+
+void ImageViewportTimedTest::timedFrameListRequireExactRejectsNewInexactFrame()
+{
+    QImage exactImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    exactImage.fill(Qt::transparent);
+    ImageFrame exactFrame(exactImage);
+    QImage previewImage(8, 4, QImage::Format_ARGB32_Premultiplied);
+    previewImage.fill(Qt::black);
+    ImageFrame previewFrame(previewImage, QSizeF(16.0, 8.0), QSizeF(8.0, 4.0), QSizeF(0.5, 0.5),
+        previewImage.sizeInBytes(), ImageViewportPayloadQuality::Preview,
+        ImageViewportPayloadExactness::NotExact, true, ImageFrame::OrientationPolicy::Identity,
+        QStringLiteral("preview/argb32"));
+    TimedImageFrameList list;
+    QVERIFY(list.appendFrame(&exactFrame, 100));
+    QVERIFY(list.appendFrame(&previewFrame, 250));
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    acknowledgePendingRenderCommitForTest(item);
+
+    ImageViewportPresentationCommand requireExact;
+    requireExact.setExactnessPreference(ImageViewportExactnessPreference::RequireExact);
+    QCOMPARE(item.setPresentation(requireExact).outcome(), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 1).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Unsupported);
+    QCOMPARE(item.state().request().reason(), ImageViewportRequestReason::PayloadRejection);
+    QCOMPARE(item.state().display().status(), ImageViewportDisplayStatus::Retained);
+    QCOMPARE(item.state().primary().request().frame(), 1);
+    QCOMPARE(item.state().primary().display().frame(), 0);
+    QCOMPARE(item.state().primary().display().exactness(),
+        ImageViewportPayloadExactness::ExactForSource);
+
+    ImageViewport playbackItem;
+    playbackItem.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(playbackItem
+                 .setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    acknowledgePendingRenderCommitForTest(playbackItem);
+    QCOMPARE(playbackItem.setPresentation(requireExact).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(playbackItem.play(ImageViewportPageRole::Primary).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    advancePlaybackForTest(playbackItem, 100);
+    QCOMPARE(playbackItem.state().request().status(), ImageViewportRequestStatus::Unsupported);
+    QCOMPARE(playbackItem.state().request().reason(), ImageViewportRequestReason::PayloadRejection);
+    QCOMPARE(playbackItem.state().request().playbackPhase(), ImageViewportPlaybackPhase::Stopped);
+    QCOMPARE(playbackItem.state().display().status(), ImageViewportDisplayStatus::Retained);
+    QCOMPARE(playbackItem.state().primary().display().frame(), 0);
 }
 
 void ImageViewportTimedTest::timedFrameListSecondarySeekCommandsSelectRoleTargets()

@@ -55,6 +55,8 @@ qt_add_qml_module(
     viewportengine.cpp
     viewportengineallocationoperations.cpp
     viewportengineallocationoperations_p.h
+    viewportenginebuiltinframeoperations.cpp
+    viewportenginebuiltinframeoperations_p.h
     viewportengineassignmentoperations.cpp
     viewportengineassignmentoperations_p.h
     viewportenginecapabilities_p.h
@@ -87,6 +89,8 @@ qt_add_qml_module(
     viewportengine_p.h
     viewportenginefacadecontract_p.h
     viewportenginestate_p.h
+    viewportenginetargetspreadterminaloperations.cpp
+    viewportenginetargetspreadterminaloperations_p.h
     viewportenginetestaccess_p.h
     viewportenginetransition_p.h
     viewportplaybackcontract_p.h

@@ -135,20 +135,18 @@ bool ImageSequenceAuthoredAnimationFacts::isValid() const
 }
 
 std::unique_ptr<ImageSequence::Data> ImageSequence::Data::still(
-    QSizeF logicalSize, QImage stillImage, FramePayloadFacts payloadFacts)
+    QSizeF logicalSize, FramePayload payload)
 {
     auto data = std::make_unique<ImageSequence::Data>();
     data->kind = Kind::Still;
     data->logicalSize = logicalSize;
-    data->stillImage = std::move(stillImage);
-    data->stillPayloadFacts = payloadFacts;
+    data->stillPayload = std::move(payload);
     data->authoredAnimationFactsAvailable = true;
     return data;
 }
 
 std::unique_ptr<ImageSequence::Data> ImageSequence::Data::timedList(QSizeF logicalSize,
-    const QVector<int>& frameDurations, QVector<QImage> frameImages,
-    QVector<qint64> framePayloadByteSizes,
+    const QVector<int>& frameDurations, QVector<FramePayload> framePayloads,
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts)
 {
     auto data = std::make_unique<ImageSequence::Data>();
@@ -156,8 +154,7 @@ std::unique_ptr<ImageSequence::Data> ImageSequence::Data::timedList(QSizeF logic
     data->logicalSize = logicalSize;
     data->timingIntervals
         = std::make_shared<TimingIntervals>(TimingIntervals::fromFrameDurations(frameDurations));
-    data->frameImages = std::move(frameImages);
-    data->framePayloadByteSizes = std::move(framePayloadByteSizes);
+    data->framePayloads = std::move(framePayloads);
     data->authoredAnimationFacts = authoredAnimationFacts;
     data->authoredAnimationFactsAvailable = true;
     return data;
@@ -203,22 +200,20 @@ ImageSequence::ImageSequence(std::unique_ptr<ImageSequence::Data> data, QObject*
 ImageSequence::~ImageSequence() = default;
 
 std::shared_ptr<ImageSequence> ImageSequencePrivateAccess::createStill(
-    QSizeF logicalSize, QImage stillImage, FramePayloadFacts payloadFacts)
+    QSizeF logicalSize, FramePayload payload)
 {
-    std::shared_ptr<ImageSequence> sequence(new ImageSequence(
-        ImageSequence::Data::still(logicalSize, std::move(stillImage), payloadFacts)));
+    std::shared_ptr<ImageSequence> sequence(
+        new ImageSequence(ImageSequence::Data::still(logicalSize, std::move(payload))));
     sequence->d->owner = sequence;
     return sequence;
 }
 
 std::shared_ptr<ImageSequence> ImageSequencePrivateAccess::createTimedList(QSizeF logicalSize,
-    const QVector<int>& frameDurations, QVector<QImage> frameImages,
-    QVector<qint64> framePayloadByteSizes,
+    const QVector<int>& frameDurations, QVector<FramePayload> framePayloads,
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts)
 {
-    std::shared_ptr<ImageSequence> sequence(
-        new ImageSequence(ImageSequence::Data::timedList(logicalSize, frameDurations,
-            std::move(frameImages), std::move(framePayloadByteSizes), authoredAnimationFacts)));
+    std::shared_ptr<ImageSequence> sequence(new ImageSequence(ImageSequence::Data::timedList(
+        logicalSize, frameDurations, std::move(framePayloads), authoredAnimationFacts)));
     sequence->d->owner = sequence;
     return sequence;
 }
@@ -321,11 +316,16 @@ int ImageSequencePrivateAccess::frameIndexForPosition(const ImageSequence* seque
 
 QImage ImageSequencePrivateAccess::frameImage(const ImageSequence* sequence, int frame)
 {
+    return framePayload(sequence, frame).image;
+}
+
+FramePayload ImageSequencePrivateAccess::framePayload(const ImageSequence* sequence, int frame)
+{
     if (isStill(sequence) && frame == 0) {
-        return sequence->d->stillImage;
+        return sequence->d->stillPayload;
     }
-    if (isTimedList(sequence) && frame >= 0 && frame < sequence->d->frameImages.size()) {
-        return sequence->d->frameImages.at(frame);
+    if (isTimedList(sequence) && frame >= 0 && frame < sequence->d->framePayloads.size()) {
+        return sequence->d->framePayloads.at(frame);
     }
     return {};
 }
@@ -333,26 +333,7 @@ QImage ImageSequencePrivateAccess::frameImage(const ImageSequence* sequence, int
 FramePayloadFacts ImageSequencePrivateAccess::framePayloadFacts(
     const ImageSequence* sequence, int frame)
 {
-    if (!sequence || !sequence->d || frame < 0) {
-        return {};
-    }
-    if (isStill(sequence) && frame == 0) {
-        return sequence->d->stillPayloadFacts;
-    }
-    const QImage image = frameImage(sequence, frame);
-    if (image.isNull()) {
-        return {};
-    }
-    const QSizeF logicalSize = sequence->d->logicalSize;
-    const QSizeF rasterSize(image.size());
-    const qint64 payloadByteSize = frame < sequence->d->framePayloadByteSizes.size()
-        ? sequence->d->framePayloadByteSizes.at(frame)
-        : image.sizeInBytes();
-    return { logicalSize, rasterSize,
-        QSizeF(
-            rasterSize.width() / logicalSize.width(), rasterSize.height() / logicalSize.height()),
-        payloadByteSize, ImageViewportPayloadQuality::Exact,
-        ImageViewportPayloadExactness::ExactForSource, {} };
+    return framePayload(sequence, frame).facts;
 }
 
 TimingIntervals ImageSequencePrivateAccess::timingIntervals(const ImageSequence* sequence)
@@ -716,8 +697,6 @@ bool TimedImageFrameList::appendFrame(const TimedImageFrame& timedFrame)
     }
 
     m_frameDurations.append(durationMilliseconds);
-    m_images.append(frame->imagePayload());
-    m_payloadByteSizes.append(frame->payloadByteSize());
     m_frames.append(timedFrame);
     if (!m_errorString.isEmpty()) {
         m_errorString.clear();
@@ -737,8 +716,6 @@ void TimedImageFrameList::clear()
     const bool shouldEmitDiagnosticsChanged = !m_errorString.isEmpty();
     m_logicalSize = {};
     m_frameDurations.clear();
-    m_images.clear();
-    m_payloadByteSizes.clear();
     m_frames.clear();
     m_errorString.clear();
     if (shouldEmitCountChanged) {
@@ -758,10 +735,6 @@ bool TimedImageFrameList::isValid() const
 QSizeF TimedImageFrameList::logicalSize() const { return m_logicalSize; }
 
 QVector<int> TimedImageFrameList::frameDurations() const { return m_frameDurations; }
-
-QVector<QImage> TimedImageFrameList::frameImages() const { return m_images; }
-
-QVector<qint64> TimedImageFrameList::framePayloadByteSizes() const { return m_payloadByteSizes; }
 
 int TimedImageFrameList::totalDuration() const
 {

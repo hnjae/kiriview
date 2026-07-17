@@ -2,6 +2,7 @@
 
 #include "imageviewporttoken_p.h"
 #include "presentationgeometry_p.h"
+#include "viewportenginebuiltinframeoperations_p.h"
 #include "viewportengineprojection_p.h"
 
 namespace {
@@ -69,7 +70,7 @@ FramePreparation::ProviderFrameState preparationState(const RequestState& reques
     }
     const auto& demand = provider.requests.lastFrameDemand;
     return { provider.facts.metadataReady, provider.facts.timedMetadata, provider.facts.logicalSize,
-        provider.facts.timingIntervals, active.resolvedFrame, preparedPayload,
+        provider.facts.timingIntervals, active.resolvedFrame, role, preparedPayload,
         active.demandRevision,
         provider.requests.hasLastFrameDemand ? demand.maximumTextureSize() : -1,
         provider.requests.hasLastFrameDemand ? demand.maximumPayloadBytes() : -1,
@@ -107,21 +108,11 @@ void updatePlaybackPhase(
     changes.playbackPhase = true;
 }
 
-void stageBuiltInSecondaryPayload(RequestState& request, DisplayState& display)
+ViewportEngineBuiltInFrameStageResult stageBuiltInSecondaryPayload(RequestState& request,
+    DisplayState& display, PlaybackState& playback,
+    ImageViewportExactnessPreference exactnessPreference)
 {
-    if (!request.roles[1].sequence || request.roles[1].provider
-        || request.roles[1].activeRequest.target.frame < 0) {
-        return;
-    }
-    PreparedPayload payload;
-    payload.commitPending = true;
-    payload.generation = request.sequenceGeneration;
-    payload.requestId = request.roles[0].activeRequest.identity.id;
-    payload.payloadId = ++display.nextPreparedPayloadId;
-    request.roles[1].activeRequest.preparedPayloadId = payload.payloadId;
-    display.roles[1].pendingRenderPayload = FramePreparation::admitBuiltInFrame(
-        request.roles[1].source, request.roles[1].activeRequest.target.frame, payload)
-                                                .preparedPayload;
+    return stageViewportEngineBuiltInTargetSpread(request, display, exactnessPreference, &playback);
 }
 }
 
@@ -255,7 +246,17 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         access.m_request.targetSpreadTerminal.clear();
         access.m_display.commitPreparedPayloadIdentity(
             access.m_request.roles[0].activeRequest, admittedPayload);
-        stageBuiltInSecondaryPayload(access.m_request, access.m_display);
+        const auto builtInAdmission = stageBuiltInSecondaryPayload(access.m_request,
+            access.m_display, access.m_playback, access.m_presentation.exactnessPreference);
+        if (!builtInAdmission.accepted) {
+            result.changes.requestState = true;
+            result.changes.requestRevision = true;
+            result.changes.displayState = true;
+            result.changes.displayRevision = true;
+            result.changes.diagnostics = true;
+            result.changes.playbackPhase = builtInAdmission.playbackStopped;
+            return result;
+        }
         TargetSpreadWaitState wait;
         wait.requiresSecondary = access.m_request.roles[1].sequence
             && (access.m_request.roles[1].provider

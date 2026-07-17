@@ -98,6 +98,11 @@ QImage sourceFrameImage(const ImageSequenceSource& source, int frame)
     return ImageSequencePrivateAccess::frameImage(source.sequence, frame);
 }
 
+FramePayload sourceFramePayload(const ImageSequenceSource& source, int frame)
+{
+    return ImageSequencePrivateAccess::framePayload(source.sequence, frame);
+}
+
 FramePayloadFacts sourceFramePayloadFacts(const ImageSequenceSource& source, int frame)
 {
     return ImageSequencePrivateAccess::framePayloadFacts(source.sequence, frame);

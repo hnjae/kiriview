@@ -314,7 +314,8 @@ ViewportEngineTransition ViewportEngine::handleViewportChanged(ViewportEngineVie
                 m_state->displayState.display.displayedPresentation, currentGeometry());
         }
         const ViewportEngineGeometryChangeInput operationInput { viewport.itemBounds,
-            oldContentRect, oldVisibleImageRect, geometryState() };
+            oldContentRect, oldVisibleImageRect, geometryState(),
+            m_state->presentationState.presentation.exactnessPreference };
         ViewportEngineGeometryChangeAccess access(
             m_state->requestState.request, m_state->displayState.display);
         auto reduction = reduceViewportEngineGeometryChange(operationInput, std::move(access));

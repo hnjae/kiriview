@@ -1,16 +1,8 @@
 #pragma once
 
-#include "viewportenginestate_p.h"
+#include "viewportenginetargetspreadterminaloperations_p.h"
 
-struct ViewportEngineProviderTerminalProjectionInput
-{
-    ImageViewportPageRole role = ImageViewportPageRole::Primary;
-    ImageViewportRequestStatus status = ImageViewportRequestStatus::Error;
-    ImageViewportRequestReason reason = ImageViewportRequestReason::ProviderFailure;
-    ImageViewportInternal::FailureScope scope = ImageViewportInternal::FailureScope::None;
-    QString diagnostic;
-    ImageViewportInternal::ViewportChangeSet changes;
-};
+using ViewportEngineProviderTerminalProjectionInput = ViewportEngineTargetSpreadTerminalInput;
 
 class ViewportEngineProviderMetadataReadyAccess;
 class ViewportEngineProviderFrameReadyAccess;

@@ -61,6 +61,7 @@ public:
         QSizeF logicalSize;
         TimingIntervals timingIntervals;
         ImageViewportInternal::ResolvedFrameIdentity resolvedFrame;
+        ImageViewportPageRole role = ImageViewportPageRole::Primary;
         ImageViewportInternal::PreparedPayload preparedPayload;
         ImageViewportDemandRevisionToken demandRevision;
         qint64 maximumTextureSize = -1;
@@ -101,6 +102,8 @@ public:
         enum class Cause {
             Accepted,
             InvalidFramePayload,
+            PayloadTooLarge,
+            ExactnessMismatch,
         };
 
         Cause cause = Cause::Accepted;
@@ -120,6 +123,8 @@ public:
         const ImageSequenceProviderFrameEnvelope& envelope, const ProviderFrameState& state);
     static BuiltInFrameAdmissionResult admitBuiltInFrame(
         const ImageViewportInternal::ImageSequenceSource& source, int frame,
-        const ImageViewportInternal::PreparedPayload& preparedPayload);
+        const ImageViewportInternal::PreparedPayload& preparedPayload,
+        ImageViewportExactnessPreference exactnessPreference,
+        ImageViewportPageRole role = ImageViewportPageRole::Primary);
     static QString boundedDiagnostic(QString diagnostic, QString fallback);
 };

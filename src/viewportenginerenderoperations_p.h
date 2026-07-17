@@ -13,6 +13,8 @@ struct ViewportEngineGeometryChangeInput
     QRectF oldContentRect;
     QRectF oldVisibleImageRect;
     PresentationGeometry::State geometryState;
+    ImageViewportExactnessPreference exactnessPreference
+        = ImageViewportExactnessPreference::Default;
 };
 
 struct ViewportEngineGeometryChangeReduction

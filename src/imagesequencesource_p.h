@@ -52,6 +52,7 @@ int sourceFrameStartPosition(const ImageSequenceSource& source, int frame);
 int sourceFrameIndexForPosition(const ImageSequenceSource& source, int position);
 QSizeF sourceLogicalSize(const ImageSequenceSource& source);
 QImage sourceFrameImage(const ImageSequenceSource& source, int frame);
+FramePayload sourceFramePayload(const ImageSequenceSource& source, int frame);
 FramePayloadFacts sourceFramePayloadFacts(const ImageSequenceSource& source, int frame);
 
 }

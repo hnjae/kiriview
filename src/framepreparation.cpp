@@ -62,6 +62,113 @@ FramePreparation::BuiltInFrameAdmissionResult builtInFrameError(
     };
 }
 
+FramePreparation::BuiltInFrameAdmissionResult builtInFrameRejection(
+    FramePreparation::BuiltInFrameAdmissionResult::Cause cause, QString diagnostic)
+{
+    return {
+        cause,
+        ImageViewportRequestStatus::Unsupported,
+        ImageViewportRequestReason::PayloadRejection,
+        std::move(diagnostic),
+    };
+}
+
+bool positiveFinite(QSizeF size)
+{
+    return std::isfinite(size.width()) && std::isfinite(size.height()) && size.width() > 0.0
+        && size.height() > 0.0;
+}
+
+bool validOrientationPolicy(ImageFrame::OrientationPolicy policy)
+{
+    switch (policy) {
+    case ImageFrame::OrientationPolicy::Identity:
+    case ImageFrame::OrientationPolicy::MirrorHorizontally:
+    case ImageFrame::OrientationPolicy::MirrorVertically:
+    case ImageFrame::OrientationPolicy::Rotate180:
+    case ImageFrame::OrientationPolicy::Rotate90:
+    case ImageFrame::OrientationPolicy::MirrorHorizontallyAndRotate90:
+    case ImageFrame::OrientationPolicy::MirrorVerticallyAndRotate90:
+    case ImageFrame::OrientationPolicy::Rotate270:
+        return true;
+    }
+    return false;
+}
+
+enum class CommonPayloadCause {
+    Accepted,
+    Invalid,
+    TooLarge,
+    ExactnessMismatch,
+};
+
+struct CommonPayloadAdmission
+{
+    CommonPayloadCause cause = CommonPayloadCause::Accepted;
+    QString diagnostic;
+    PreparedPayload preparedPayload;
+};
+
+CommonPayloadAdmission admitPayload(const FramePayload& payload,
+    const PreparedPayload& preparedPayload, ImageViewportExactnessPreference exactnessPreference,
+    ImageViewportPageRole role, ResolvedFrameIdentity resolvedFrame, int frameDuration,
+    ImageViewportDemandRevisionToken demandRevision)
+{
+    const auto& facts = payload.facts;
+    const bool exactPair = (facts.quality == ImageViewportPayloadQuality::Exact)
+        == (facts.exactness == ImageViewportPayloadExactness::ExactForSource);
+    const QSizeF mapped(facts.sourceLogicalSize.width() * facts.sourceToPayloadScale.width(),
+        facts.sourceLogicalSize.height() * facts.sourceToPayloadScale.height());
+    if (payload.image.isNull() || !positiveFinite(facts.sourceLogicalSize)
+        || !positiveFinite(facts.payloadRasterSize) || !positiveFinite(facts.sourceToPayloadScale)
+        || facts.payloadRasterSize != QSizeF(payload.image.size())
+        || facts.payloadByteSize < payload.image.sizeInBytes() || !exactPair
+        || facts.hasAlpha != payload.image.hasAlphaChannel()
+        || !validOrientationPolicy(facts.orientationPolicy)
+        || qAbs(mapped.width() - facts.payloadRasterSize.width()) >= 0.0001
+        || qAbs(mapped.height() - facts.payloadRasterSize.height()) >= 0.0001) {
+        return { CommonPayloadCause::Invalid,
+            QStringLiteral("frame payload facts are inconsistent") };
+    }
+
+    const qint64 logicalWidth = static_cast<qint64>(facts.sourceLogicalSize.width());
+    const qint64 logicalHeight = static_cast<qint64>(facts.sourceLogicalSize.height());
+    if (facts.sourceLogicalSize.width() > ImageSequenceLimits::maximumSourceLogicalWidth()
+        || facts.sourceLogicalSize.height() > ImageSequenceLimits::maximumSourceLogicalHeight()
+        || logicalWidth * logicalHeight > ImageSequenceLimits::maximumSourceLogicalPixels()
+        || facts.payloadRasterSize.width() > ImageSequenceLimits::maximumPayloadRasterWidth()
+        || facts.payloadRasterSize.height() > ImageSequenceLimits::maximumPayloadRasterHeight()
+        || facts.payloadByteSize > ImageSequenceLimits::maximumPayloadBytes()
+        || facts.formatIdentifier.toUcs4().size()
+            > ImageSequenceLimits::maximumFormatIdentifierCharacters()) {
+        return { CommonPayloadCause::TooLarge,
+            QStringLiteral("frame payload exceeds an admission limit") };
+    }
+    if (exactnessPreference == ImageViewportExactnessPreference::RequireExact
+        && facts.exactness != ImageViewportPayloadExactness::ExactForSource) {
+        return { CommonPayloadCause::ExactnessMismatch,
+            QStringLiteral("frame payload does not satisfy exactness preference") };
+    }
+
+    PreparedPayload admitted = preparedPayload;
+    admitted.image = payload.image;
+    admitted.sourceLogicalSize = facts.sourceLogicalSize;
+    admitted.payloadRasterSize = facts.payloadRasterSize;
+    admitted.sourceToPayloadScale = facts.sourceToPayloadScale;
+    admitted.payloadByteSize = facts.payloadByteSize;
+    admitted.quality = facts.quality;
+    admitted.exactness = facts.exactness;
+    admitted.hasAlpha = facts.hasAlpha;
+    admitted.orientationPolicy = facts.orientationPolicy;
+    admitted.formatIdentifier = facts.formatIdentifier;
+    admitted.roleValid = true;
+    admitted.role = role;
+    admitted.resolvedFrame = resolvedFrame;
+    admitted.frameDuration = frameDuration;
+    admitted.demandRevision = demandRevision;
+    return { CommonPayloadCause::Accepted, {}, std::move(admitted) };
+}
+
 } // namespace
 
 bool FramePreparation::ProviderMetadataAdmissionResult::accepted() const
@@ -336,21 +443,21 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
             return providerFrameError(
                 Cause::FrameDurationMismatch, QStringLiteral("provider frame duration mismatch"));
         }
-        ImageViewportInternal::PreparedPayload admitted = state.preparedPayload;
-        admitted.image = ImageFramePrivateAccess::image(*frame);
-        admitted.sourceLogicalSize = frame->sourceLogicalSize();
-        admitted.payloadRasterSize = frame->payloadRasterSize();
-        admitted.sourceToPayloadScale = frame->sourceToPayloadScale();
-        admitted.payloadByteSize = frame->payloadByteSize();
-        admitted.quality = frame->quality();
-        admitted.exactness = frame->exactness();
-        admitted.demandRevision = envelope.demandRevision();
+        const FramePayload payload { ImageFramePrivateAccess::image(*frame),
+            { frame->sourceLogicalSize(), frame->payloadRasterSize(), frame->sourceToPayloadScale(),
+                frame->payloadByteSize(), frame->quality(), frame->exactness(), frame->hasAlpha(),
+                frame->orientationPolicy(), frame->formatIdentifier() } };
+        const auto common = admitPayload(payload, state.preparedPayload, state.exactnessPreference,
+            state.role, state.resolvedFrame, expectedFrameDuration, envelope.demandRevision());
+        if (common.cause != CommonPayloadCause::Accepted) {
+            return providerFrameError(Cause::InvalidFramePayload, common.diagnostic);
+        }
         return {
             Cause::Accepted,
             ImageViewportRequestStatus::Ready,
             ImageViewportRequestReason::Ready,
             {},
-            admitted,
+            common.preparedPayload,
         };
     }
 
@@ -362,52 +469,57 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
         return providerFrameError(
             Cause::ResolvedFrameMismatch, QStringLiteral("provider frame resolved frame mismatch"));
     }
-    ImageViewportInternal::PreparedPayload admitted = state.preparedPayload;
-    admitted.image = ImageFramePrivateAccess::image(*frame);
-    admitted.sourceLogicalSize = frame->sourceLogicalSize();
-    admitted.payloadRasterSize = frame->payloadRasterSize();
-    admitted.sourceToPayloadScale = frame->sourceToPayloadScale();
-    admitted.payloadByteSize = frame->payloadByteSize();
-    admitted.quality = frame->quality();
-    admitted.exactness = frame->exactness();
-    admitted.demandRevision = envelope.demandRevision();
+    const FramePayload payload { ImageFramePrivateAccess::image(*frame),
+        { frame->sourceLogicalSize(), frame->payloadRasterSize(), frame->sourceToPayloadScale(),
+            frame->payloadByteSize(), frame->quality(), frame->exactness(), frame->hasAlpha(),
+            frame->orientationPolicy(), frame->formatIdentifier() } };
+    const auto common = admitPayload(payload, state.preparedPayload, state.exactnessPreference,
+        state.role, state.resolvedFrame, -1, envelope.demandRevision());
+    if (common.cause != CommonPayloadCause::Accepted) {
+        return providerFrameError(Cause::InvalidFramePayload, common.diagnostic);
+    }
     return {
         Cause::Accepted,
         ImageViewportRequestStatus::Ready,
         ImageViewportRequestReason::Ready,
         {},
-        admitted,
+        common.preparedPayload,
     };
 }
 
 FramePreparation::BuiltInFrameAdmissionResult FramePreparation::admitBuiltInFrame(
     const ImageViewportInternal::ImageSequenceSource& source, int frame,
-    const ImageViewportInternal::PreparedPayload& preparedPayload)
+    const ImageViewportInternal::PreparedPayload& preparedPayload,
+    ImageViewportExactnessPreference exactnessPreference, ImageViewportPageRole role)
 {
     using Cause = BuiltInFrameAdmissionResult::Cause;
 
-    QImage image = sourceFrameImage(source, frame);
-    if (image.isNull()) {
+    const FramePayload payload = sourceFramePayload(source, frame);
+    if (payload.image.isNull()) {
         return builtInFrameError(
             Cause::InvalidFramePayload, QStringLiteral("built-in frame payload is invalid"));
     }
 
-    ImageViewportInternal::PreparedPayload admittedPayload = preparedPayload;
-    admittedPayload.image = std::move(image);
-    const FramePayloadFacts facts = sourceFramePayloadFacts(source, frame);
-    admittedPayload.sourceLogicalSize = facts.sourceLogicalSize;
-    admittedPayload.payloadRasterSize = facts.payloadRasterSize;
-    admittedPayload.sourceToPayloadScale = facts.sourceToPayloadScale;
-    admittedPayload.payloadByteSize = facts.payloadByteSize;
-    admittedPayload.quality = facts.quality;
-    admittedPayload.exactness = facts.exactness;
-    admittedPayload.demandRevision = facts.demandRevision;
+    const int frameStart = source.facts.timed ? sourceFrameStartPosition(source, frame) : -1;
+    const TimingIntervals timing = ImageSequencePrivateAccess::timingIntervals(source.sequence);
+    const int frameDuration = source.facts.timed ? timing.frameDuration(frame) : -1;
+    const auto admission = admitPayload(payload, preparedPayload, exactnessPreference, role,
+        { frame, frameStart }, frameDuration, {});
+    if (admission.cause == CommonPayloadCause::ExactnessMismatch) {
+        return builtInFrameRejection(Cause::ExactnessMismatch, admission.diagnostic);
+    }
+    if (admission.cause == CommonPayloadCause::TooLarge) {
+        return builtInFrameRejection(Cause::PayloadTooLarge, admission.diagnostic);
+    }
+    if (admission.cause != CommonPayloadCause::Accepted) {
+        return builtInFrameError(Cause::InvalidFramePayload, admission.diagnostic);
+    }
     return {
         Cause::Accepted,
         ImageViewportRequestStatus::Ready,
         ImageViewportRequestReason::Ready,
         {},
-        admittedPayload,
+        admission.preparedPayload,
     };
 }
 

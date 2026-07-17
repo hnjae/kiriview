@@ -7,6 +7,16 @@
 
 using namespace ImageViewportInternal;
 
+namespace {
+FramePayload framePayload(const ImageFrame& frame)
+{
+    return { ImageFramePrivateAccess::image(frame),
+        { frame.sourceLogicalSize(), frame.payloadRasterSize(), frame.sourceToPayloadScale(),
+            frame.payloadByteSize(), frame.quality(), frame.exactness(), frame.hasAlpha(),
+            frame.orientationPolicy(), frame.formatIdentifier() } };
+}
+}
+
 ImageSequenceFactoryResult::ImageSequenceFactoryResult(ImageSequence* sequence,
     ImageSequenceFactoryOutcome outcome, ImageSequenceFactoryReason reason, QString errorString,
     QObject* parent)
@@ -106,9 +116,7 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromFrame(ImageFrame* frame)
     }
 
     std::shared_ptr<ImageSequence> sequence
-        = ImageSequencePrivateAccess::createStill(frame->sourceLogicalSize(), frame->imagePayload(),
-            { frame->sourceLogicalSize(), frame->payloadRasterSize(), frame->sourceToPayloadScale(),
-                frame->payloadByteSize(), frame->quality(), frame->exactness(), {} });
+        = ImageSequencePrivateAccess::createStill(frame->sourceLogicalSize(), framePayload(*frame));
     return new ImageSequenceFactoryResult(std::move(sequence), ImageSequenceFactoryOutcome::Created,
         ImageSequenceFactoryReason::NoError);
 }
@@ -129,9 +137,15 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromTimedFrameList(TimedImageF
             QStringLiteral("TimedImageFrameList authored animation metadata is invalid"));
     }
 
+    QVector<FramePayload> payloads;
+    const QList<TimedImageFrame> frames = list->frames();
+    payloads.reserve(frames.size());
+    for (const TimedImageFrame& timedFrame : frames) {
+        payloads.append(framePayload(*timedFrame.frame()));
+    }
     std::shared_ptr<ImageSequence> sequence
         = ImageSequencePrivateAccess::createTimedList(list->logicalSize(), list->frameDurations(),
-            list->frameImages(), list->framePayloadByteSizes(), list->authoredAnimationFacts());
+            std::move(payloads), list->authoredAnimationFacts());
     return new ImageSequenceFactoryResult(std::move(sequence), ImageSequenceFactoryOutcome::Created,
         ImageSequenceFactoryReason::NoError);
 }

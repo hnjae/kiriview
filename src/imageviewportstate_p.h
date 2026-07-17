@@ -228,6 +228,13 @@ struct PreparedPayload
     qint64 payloadByteSize = 0;
     ImageViewportPayloadQuality quality = ImageViewportPayloadQuality::Unknown;
     ImageViewportPayloadExactness exactness = ImageViewportPayloadExactness::Unknown;
+    bool hasAlpha = false;
+    ImageFrame::OrientationPolicy orientationPolicy = ImageFrame::OrientationPolicy::Identity;
+    QString formatIdentifier;
+    bool roleValid = false;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
+    ResolvedFrameIdentity resolvedFrame;
+    int frameDuration = -1;
     ImageViewportDemandRevisionToken demandRevision;
     quint64 providerFrameLeaseId = 0;
 

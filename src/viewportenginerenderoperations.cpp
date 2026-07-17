@@ -1,5 +1,6 @@
 #include "framepreparation_p.h"
 #include "imagesequencesource_p.h"
+#include "viewportenginebuiltinframeoperations_p.h"
 #include "viewportenginerenderackhelpers_p.h"
 #include "viewportenginerenderoperations_p.h"
 #include "viewportgeometryhelpers_p.h"
@@ -31,28 +32,10 @@ bool pendingSpreadReady(const DisplayState& display, const RequestState& request
         && !display.roles[0].pendingRenderPayload.image.isNull()
         && (!hasSecondary(request) || !display.roles[1].pendingRenderPayload.image.isNull());
 }
-void stageBuiltIn(RequestState& request, DisplayState& display)
+ViewportEngineBuiltInFrameStageResult stageBuiltIn(RequestState& request, DisplayState& display,
+    ImageViewportExactnessPreference exactnessPreference)
 {
-    display.roles[0].pendingRenderPayload.commitPending = true;
-    display.beginPreparedPayloadIdentity(
-        request.sequenceGeneration, request.roles[0].activeRequest);
-    if (request.roles[0].activeRequest.target.frame >= 0) {
-        display.roles[0].pendingRenderPayload
-            = FramePreparation::admitBuiltInFrame(request.roles[0].source,
-                request.roles[0].activeRequest.target.frame, display.roles[0].pendingRenderPayload)
-                  .preparedPayload;
-    }
-    if (hasSecondary(request) && !request.roles[1].provider) {
-        auto& secondary = display.roles[1].pendingRenderPayload;
-        secondary.commitPending = true;
-        secondary.generation = request.sequenceGeneration;
-        secondary.requestId = request.roles[0].activeRequest.identity.id;
-        secondary.payloadId = ++display.nextPreparedPayloadId;
-        request.roles[1].activeRequest.preparedPayloadId = secondary.payloadId;
-        secondary = FramePreparation::admitBuiltInFrame(
-            request.roles[1].source, request.roles[1].activeRequest.target.frame, secondary)
-                        .preparedPayload;
-    }
+    return stageViewportEngineBuiltInTargetSpread(request, display, exactnessPreference);
 }
 const ProviderFactsState& providerFor(
     ViewportEngineProviderFactsView facts, ImageViewportPageRole role)
@@ -367,7 +350,16 @@ ViewportEngineGeometryChangeReduction reduceViewportEngineGeometryChange(
             return result;
         }
         if (!access.request().roles[0].source.facts.provider) {
-            stageBuiltIn(access.request(), access.display());
+            const auto admission
+                = stageBuiltIn(access.request(), access.display(), input.exactnessPreference);
+            if (!admission.accepted) {
+                changes.requestState = true;
+                changes.requestRevision = true;
+                changes.displayState = true;
+                changes.displayRevision = true;
+                changes.diagnostics = true;
+                return result;
+            }
             access.request().status = ImageViewportRequestStatus::Loading;
             access.request().reason = ImageViewportRequestReason::UploadPending;
             access.display().status

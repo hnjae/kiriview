@@ -2,6 +2,7 @@
 
 #include "framepreparation_p.h"
 #include "imageviewportproviderfacts_p.h"
+#include "viewportenginebuiltinframeoperations_p.h"
 #include "viewportengineplaybackoperations_p.h"
 #include "viewportengineprojection_p.h"
 
@@ -200,24 +201,10 @@ void secondary(RequestState& r, DisplayRequestTarget t, ResolvedFrameIdentity re
     if (t.frame >= 0)
         r.roles[1].latestNonPlaybackRequest = s;
 }
-void stage(RequestState& r, DisplayState& d)
+ViewportEngineBuiltInFrameStageResult stage(RequestState& r, DisplayState& d,
+    PlaybackState& playback, ImageViewportExactnessPreference exactnessPreference)
 {
-    d.roles[0].pendingRenderPayload.commitPending = true;
-    d.beginPreparedPayloadIdentity(r.sequenceGeneration, r.roles[0].activeRequest);
-    d.roles[0].pendingRenderPayload = FramePreparation::admitBuiltInFrame(
-        r.roles[0].source, r.roles[0].activeRequest.target.frame, d.roles[0].pendingRenderPayload)
-                                          .preparedPayload;
-    if (r.roles[1].sequence && !r.roles[1].provider && r.roles[1].activeRequest.target.frame >= 0) {
-        PreparedPayload p;
-        p.commitPending = true;
-        p.generation = r.sequenceGeneration;
-        p.requestId = r.roles[0].activeRequest.identity.id;
-        p.payloadId = ++d.nextPreparedPayloadId;
-        r.roles[1].activeRequest.preparedPayloadId = p.payloadId;
-        d.roles[1].pendingRenderPayload = FramePreparation::admitBuiltInFrame(
-            r.roles[1].source, r.roles[1].activeRequest.target.frame, p)
-                                              .preparedPayload;
-    }
+    return stageViewportEngineBuiltInTargetSpread(r, d, exactnessPreference, &playback);
 }
 ViewportEnginePresentationTargetState targetState(
     const ImageViewportPresentationTarget& t, quint64 g)
@@ -439,25 +426,30 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
                 DisplayRequestOrigin::Initial, primaryTarget, primaryResolved, true);
             a.m_playback.position = refinement ? previousPlayback.position : primaryTarget.position;
             secondary(a.m_request, secondaryTarget, secondaryResolved);
-            stage(a.m_request, a.m_display);
-            TargetSpreadWaitState w;
-            w.requiresSecondary = a.m_request.roles[1].sequence != nullptr;
-            if (!in.geometry.renderAvailable || in.geometry.itemBounds.isEmpty()) {
-                w.primary.renderWaiting = true;
-                if (w.requiresSecondary && !a.m_request.roles[1].provider)
-                    w.secondary.renderWaiting = true;
-            } else {
-                w.primary.uploadPending = true;
-                if (w.requiresSecondary && !a.m_request.roles[1].provider)
-                    w.secondary.uploadPending = true;
+            const auto admission = stage(
+                a.m_request, a.m_display, a.m_playback, a.m_presentation.exactnessPreference);
+            if (admission.accepted) {
+                TargetSpreadWaitState w;
+                w.requiresSecondary = a.m_request.roles[1].sequence != nullptr;
+                if (!in.geometry.renderAvailable || in.geometry.itemBounds.isEmpty()) {
+                    w.primary.renderWaiting = true;
+                    if (w.requiresSecondary && !a.m_request.roles[1].provider)
+                        w.secondary.renderWaiting = true;
+                } else {
+                    w.primary.uploadPending = true;
+                    if (w.requiresSecondary && !a.m_request.roles[1].provider)
+                        w.secondary.uploadPending = true;
+                }
+                if (a.m_request.roles[1].provider)
+                    w.secondary.providerWaiting = true;
+                a.m_request.status = ImageViewportRequestStatus::Loading;
+                a.m_request.reason = projectWaitReason(w);
+                a.m_display.status = retained(a.m_display);
             }
-            if (a.m_request.roles[1].provider)
-                w.secondary.providerWaiting = true;
-            a.m_request.status = ImageViewportRequestStatus::Loading;
-            a.m_request.reason = projectWaitReason(w);
-            a.m_display.status = retained(a.m_display);
         }
-        if (a.m_request.roles[1].provider) {
+        const bool terminalRequest = a.m_request.status == ImageViewportRequestStatus::Unsupported
+            || a.m_request.status == ImageViewportRequestStatus::Error;
+        if (a.m_request.roles[1].provider && !terminalRequest) {
             a.m_request.status = ImageViewportRequestStatus::Loading;
             a.m_request.reason = ImageViewportRequestReason::ProviderWaiting;
             a.m_display.status = retained(a.m_display);

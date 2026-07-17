@@ -36,6 +36,7 @@ private slots:
     void presentationOnlyChangesUpdateSnapshot();
     void retainedDisplayKeepsCommittedPresentationIdentity();
     void displayedPayloadFactsComeFromCommittedFrame();
+    void requireExactRejectsNewInMemoryPayloadButPreservesCommittedPixels();
     void presentationCommandUpdatesSnapshotGeometry();
     void qmlReadsNestedSnapshotFields();
 };
@@ -57,7 +58,7 @@ void ImageViewportStateSnapshotTest::authoredAnimationMetadataUsesExplicitAvaila
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
     QVERIFY(result->sequence());
     QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
-                 PresentationTargetTransitionPolicy {})
+                     PresentationTargetTransitionPolicy {})
                  .outcome(),
         ImageViewportCommandOutcome::Accepted);
 
@@ -339,6 +340,101 @@ void ImageViewportStateSnapshotTest::displayedPayloadFactsComeFromCommittedFrame
     QCOMPARE(display.sourceToPayloadScale(), QSizeF(0.5, 0.5));
     QCOMPARE(display.quality(), ImageViewportPayloadQuality::Preview);
     QCOMPARE(display.exactness(), ImageViewportPayloadExactness::NotExact);
+}
+
+void ImageViewportStateSnapshotTest::
+    requireExactRejectsNewInMemoryPayloadButPreservesCommittedPixels()
+{
+    QImage payload(8, 4, QImage::Format_ARGB32_Premultiplied);
+    payload.fill(Qt::transparent);
+    ImageFrame frame(payload, QSizeF(16.0, 8.0), QSizeF(8.0, 4.0), QSizeF(0.5, 0.5),
+        payload.sizeInBytes(), ImageViewportPayloadQuality::Preview,
+        ImageViewportPayloadExactness::NotExact, true, ImageFrame::OrientationPolicy::Identity,
+        QStringLiteral("preview/argb32"));
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport rejectingItem;
+    rejectingItem.setSize(QSizeF(100.0, 100.0));
+    ImageViewportPresentationCommand requireExact;
+    requireExact.setExactnessPreference(ImageViewportExactnessPreference::RequireExact);
+    QCOMPARE(rejectingItem.setPresentation(requireExact).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(rejectingItem
+                 .setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(rejectingItem.state().request().status(), ImageViewportRequestStatus::Unsupported);
+    QCOMPARE(
+        rejectingItem.state().request().reason(), ImageViewportRequestReason::PayloadRejection);
+    QCOMPARE(rejectingItem.state().display().status(), ImageViewportDisplayStatus::Empty);
+
+    QImage exactPayload(16, 8, QImage::Format_ARGB32_Premultiplied);
+    exactPayload.fill(Qt::black);
+    ImageFrame exactFrame(exactPayload);
+    QScopedPointer<ImageSequenceFactoryResult> exactResult(factory.fromFrame(&exactFrame));
+    QVERIFY(exactResult->sequence());
+    ImageViewport spreadItem;
+    spreadItem.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(
+        spreadItem.setPresentation(requireExact).outcome(), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(spreadItem
+                 .setPresentationTarget(
+                     ImageViewportPresentationTarget(exactResult->sequence(), result->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(spreadItem.state().request().status(), ImageViewportRequestStatus::Unsupported);
+    QCOMPARE(spreadItem.state().request().reason(), ImageViewportRequestReason::PayloadRejection);
+    QCOMPARE(spreadItem.state().request().acceptedRoleSet(), ImageViewportRoleSet(true, true));
+    QCOMPARE(spreadItem.state().display().status(), ImageViewportDisplayStatus::Empty);
+    QCOMPARE(spreadItem.state().display().displayedRoleSet(), ImageViewportRoleSet(false, false));
+
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> providerResult(factory.fromProvider(&adapter));
+    QVERIFY(providerResult->sequence());
+    ImageViewport mixedSpreadItem;
+    mixedSpreadItem.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(mixedSpreadItem.setPresentation(requireExact).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(mixedSpreadItem
+                 .setPresentationTarget(ImageViewportPresentationTarget(
+                                            result->sequence(), providerResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(mixedSpreadItem.state().request().status(), ImageViewportRequestStatus::Unsupported);
+    QCOMPARE(
+        mixedSpreadItem.state().request().reason(), ImageViewportRequestReason::PayloadRejection);
+    QCOMPARE(*sessionCount, 0);
+
+    ImageViewport committedItem;
+    committedItem.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(committedItem
+                 .setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    acknowledgePendingRenderCommitForTest(committedItem);
+    const auto committedDisplay = committedItem.state().primary().display();
+    QCOMPARE(committedDisplay.exactness(), ImageViewportPayloadExactness::NotExact);
+
+    QCOMPARE(committedItem.setPresentation(requireExact).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(committedItem.state().request().status(), ImageViewportRequestStatus::Ready);
+    QCOMPARE(committedItem.state().request().reason(), ImageViewportRequestReason::Ready);
+    QCOMPARE(committedItem.state().display().status(), ImageViewportDisplayStatus::Ready);
+    QCOMPARE(committedItem.state().primary().display(), committedDisplay);
+    QCOMPARE(committedItem.state().primary().display().currentForDemand(), true);
 }
 
 void ImageViewportStateSnapshotTest::terminalProviderFailureProjectsDiagnostics()

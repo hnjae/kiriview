@@ -670,18 +670,24 @@ void ViewportEngineTest::authoredAutoplayReducerUsesBoundedState()
 
 void ViewportEngineTest::playbackTickAdvancesBuiltInTargetInEngine()
 {
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::black);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList list;
+    QVERIFY(list.appendFrame(&firstFrame, 100));
+    QVERIFY(list.appendFrame(&secondFrame, 250));
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> sequence(factory.fromTimedFrameList(&list));
+    QVERIFY(sequence->sequence());
+
     ViewportEngine engine;
+    const auto assignment = engine.assignPresentationTarget(
+        { ImageViewportPresentationTarget(sequence->sequence()), {} });
+    QCOMPARE(assignment.command.outcome, ImageViewportCommandOutcome::Accepted);
     auto& request = ViewportEngineTestAccess::request(engine);
-    request.sequenceGeneration = 7;
-    request.roles[0].source.facts.present = true;
-    request.roles[0].source.facts.timed = true;
-    request.roles[0].source.facts.frameCount = 2;
-    request.roles[0].source.facts.totalDuration = 350;
-    request.roles[0].source.facts.logicalSize = QSizeF(16.0, 8.0);
-    request.roles[0].source.facts.timingIntervals
-        = TimingIntervals::fromFrameDurations({ 100, 250 });
-    request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Initial,
-        { 0, 0, ImageViewportInternal::ProviderRequestTargetKind::Unknown }, { 0, 0 }, true);
     request.status = ImageViewportRequestStatus::Ready;
     request.reason = ImageViewportRequestReason::Ready;
     ViewportEngineTestAccess::playback(engine).role = ImageViewportPageRole::Primary;

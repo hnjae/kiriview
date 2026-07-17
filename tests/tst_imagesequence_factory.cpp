@@ -50,6 +50,7 @@ private slots:
     void timingIntervalsRejectInvalidDurations();
     void stillImageSequenceRetainsFactoryPayload();
     void timedFrameListSequenceRetainsFactoryPayloads();
+    void timedFrameListSequencePreservesExplicitPayloadFacts();
     void commandsWithoutRequestAreIgnoredDiagnostics();
 };
 
@@ -498,6 +499,14 @@ void ImageSequenceFactoryTest::providerFrameAdmissionUsesResolvedFrameIdentity()
     QCOMPARE(admission.preparedPayload.image.size(), image.size());
     QCOMPARE(admission.preparedPayload.image.format(), image.format());
     QCOMPARE(admission.preparedPayload.image.pixelColor(0, 0), image.pixelColor(0, 0));
+    QCOMPARE(admission.preparedPayload.roleValid, true);
+    QCOMPARE(admission.preparedPayload.role, ImageViewportPageRole::Primary);
+    QCOMPARE(admission.preparedPayload.resolvedFrame.frame, 1);
+    QCOMPARE(admission.preparedPayload.resolvedFrame.position, 100);
+    QCOMPARE(admission.preparedPayload.frameDuration, 250);
+    QCOMPARE(admission.preparedPayload.hasAlpha, true);
+    QCOMPARE(admission.preparedPayload.orientationPolicy, ImageFrame::OrientationPolicy::Identity);
+    QCOMPARE(admission.preparedPayload.formatIdentifier, QString());
 }
 
 void ImageSequenceFactoryTest::providerFrameAdmissionRejectsStaleDemandAndRequiredInexactPayload()
@@ -528,6 +537,60 @@ void ImageSequenceFactoryTest::providerFrameAdmissionRejectsStaleDemandAndRequir
     QCOMPARE(
         inexact.cause, FramePreparation::ProviderFrameAdmissionResult::Cause::ExactnessMismatch);
     QCOMPARE(inexact.status, ImageViewportRequestStatus::Unsupported);
+}
+
+void ImageSequenceFactoryTest::timedFrameListSequencePreservesExplicitPayloadFacts()
+{
+    QImage preview(8, 4, QImage::Format_ARGB32_Premultiplied);
+    preview.fill(Qt::transparent);
+    ImageFrame previewFrame(preview, QSizeF(16.0, 8.0), QSizeF(8.0, 4.0), QSizeF(0.5, 0.5),
+        preview.sizeInBytes(), ImageViewportPayloadQuality::Preview,
+        ImageViewportPayloadExactness::NotExact, true, ImageFrame::OrientationPolicy::Identity,
+        QStringLiteral("preview/argb32"));
+    QImage exact(16, 8, QImage::Format_ARGB32_Premultiplied);
+    exact.fill(Qt::transparent);
+    ImageFrame exactFrame(exact);
+
+    TimedImageFrameList list;
+    QVERIFY(list.appendFrame(&previewFrame, 100));
+    QVERIFY(list.appendFrame(&exactFrame, 250));
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
+    QVERIFY(result->sequence());
+
+    const ImageViewportInternal::ImageSequenceSource source
+        = ImageViewportInternal::makeImageSequenceSource(result->sequence());
+    const ImageViewportInternal::FramePayloadFacts previewFacts
+        = ImageViewportInternal::sourceFramePayloadFacts(source, 0);
+    QCOMPARE(previewFacts.sourceLogicalSize, QSizeF(16.0, 8.0));
+    QCOMPARE(previewFacts.payloadRasterSize, QSizeF(8.0, 4.0));
+    QCOMPARE(previewFacts.sourceToPayloadScale, QSizeF(0.5, 0.5));
+    QCOMPARE(previewFacts.payloadByteSize, qint64(preview.sizeInBytes()));
+    QCOMPARE(previewFacts.quality, ImageViewportPayloadQuality::Preview);
+    QCOMPARE(previewFacts.exactness, ImageViewportPayloadExactness::NotExact);
+    QCOMPARE(previewFacts.hasAlpha, true);
+    QCOMPARE(previewFacts.orientationPolicy, ImageFrame::OrientationPolicy::Identity);
+    QCOMPARE(previewFacts.formatIdentifier, QStringLiteral("preview/argb32"));
+
+    const ImageViewportInternal::FramePayloadFacts exactFacts
+        = ImageViewportInternal::sourceFramePayloadFacts(source, 1);
+    QCOMPARE(exactFacts.quality, ImageViewportPayloadQuality::Exact);
+    QCOMPARE(exactFacts.exactness, ImageViewportPayloadExactness::ExactForSource);
+
+    ImageViewportInternal::PreparedPayload seed;
+    seed.generation = 3;
+    seed.requestId = 5;
+    seed.payloadId = 7;
+    const auto admission = FramePreparation::admitBuiltInFrame(source, 0, seed,
+        ImageViewportExactnessPreference::Default, ImageViewportPageRole::Secondary);
+    QVERIFY(admission.accepted());
+    QCOMPARE(admission.preparedPayload.roleValid, true);
+    QCOMPARE(admission.preparedPayload.role, ImageViewportPageRole::Secondary);
+    QCOMPARE(admission.preparedPayload.resolvedFrame.frame, 0);
+    QCOMPARE(admission.preparedPayload.resolvedFrame.position, 0);
+    QCOMPARE(admission.preparedPayload.frameDuration, 100);
+    QCOMPARE(admission.preparedPayload.hasAlpha, true);
+    QCOMPARE(admission.preparedPayload.formatIdentifier, QStringLiteral("preview/argb32"));
 }
 
 void ImageSequenceFactoryTest::factoryResultSequenceSurvivesFactoryDestruction()

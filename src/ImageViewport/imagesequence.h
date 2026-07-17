@@ -208,15 +208,11 @@ private:
     bool isValid() const;
     QSizeF logicalSize() const;
     QVector<int> frameDurations() const;
-    QVector<QImage> frameImages() const;
-    QVector<qint64> framePayloadByteSizes() const;
     int totalDuration() const;
     void setErrorString(const QString& errorString);
 
     QSizeF m_logicalSize;
     QVector<int> m_frameDurations;
-    QVector<QImage> m_images;
-    QVector<qint64> m_payloadByteSizes;
     QList<TimedImageFrame> m_frames;
     ImageSequenceAuthoredAnimationFacts m_authoredAnimationFacts;
     QString m_errorString;
