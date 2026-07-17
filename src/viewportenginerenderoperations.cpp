@@ -100,10 +100,15 @@ ViewportEngineRenderCoordinationState::AttemptContext synchronizeViewportEngineR
     result.oldContentRect = input.oldContentRect;
     result.oldVisibleImageRect = input.oldVisibleImageRect;
     result.oldDisplayStatus = access.display().status;
+    const PresentationGeometry::State currentGeometryState
+        = projectViewportGeometryState(input.currentGeometry, access.presentation());
+    const PresentationGeometry::State pendingGeometryState
+        = projectViewportGeometryState(input.pendingGeometry, access.presentation());
     result.pendingTargetCommit = !terminalSealed(access.request())
         && waitingForRender(access.request())
         && pendingSpreadReady(access.display(), access.request()) && !input.itemBounds.isEmpty()
-        && input.currentGeometry.renderAvailable;
+        && input.pendingGeometry.renderAvailable
+        && PresentationGeometry::isPresentable(pendingGeometryState);
     result.pendingPrimaryRefinementCommit = !result.pendingTargetCommit
         && access.request().status == ImageViewportRequestStatus::Ready
         && access.display().status == ImageViewportDisplayStatus::Ready
@@ -117,7 +122,8 @@ ViewportEngineRenderCoordinationState::AttemptContext synchronizeViewportEngineR
         && !access.display().roles[1].pendingRenderPayload.image.isNull();
     result.pendingRefinementCommit
         = (result.pendingPrimaryRefinementCommit || result.pendingSecondaryRefinementCommit)
-        && !input.itemBounds.isEmpty() && input.currentGeometry.renderAvailable;
+        && !input.itemBounds.isEmpty() && input.currentGeometry.renderAvailable
+        && PresentationGeometry::isPresentable(currentGeometryState);
     if (result.pendingTargetCommit || result.pendingPrimaryRefinementCommit)
         result.preparedPayload = access.display().roles[0].pendingRenderPayload;
     else if (access.display().hasReadyDisplay(access.request().roles[0].source.facts.present))
@@ -126,9 +132,9 @@ ViewportEngineRenderCoordinationState::AttemptContext synchronizeViewportEngineR
             && !result.pendingTargetCommit
         ? access.display().displayedPresentation
         : access.presentation();
-    result.geometryState = projectViewportGeometryState(
-        result.pendingTargetCommit ? input.pendingGeometry : input.currentGeometry,
-        renderPresentation);
+    result.geometryState = result.pendingTargetCommit
+        ? projectViewportGeometryState(input.pendingGeometry, renderPresentation)
+        : projectViewportGeometryState(input.currentGeometry, renderPresentation);
     std::array<PreparedPayload, 2> payloads;
     ImageViewportRoleSet requiredRoles;
     if (result.pendingTargetCommit) {

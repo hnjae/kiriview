@@ -2,29 +2,53 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace {
 
 bool isPositiveSize(QSizeF size)
 {
-    return size.isValid() && size.width() > 0.0 && size.height() > 0.0;
+    return std::isfinite(size.width()) && std::isfinite(size.height()) && size.width() > 0.0
+        && size.height() > 0.0;
 }
+
+bool isFinitePoint(QPointF point) { return std::isfinite(point.x()) && std::isfinite(point.y()); }
+
+bool isFiniteRect(const QRectF& rect)
+{
+    return std::isfinite(rect.x()) && std::isfinite(rect.y()) && std::isfinite(rect.width())
+        && std::isfinite(rect.height()) && std::isfinite(rect.left()) && std::isfinite(rect.right())
+        && std::isfinite(rect.top()) && std::isfinite(rect.bottom());
+}
+
+bool isPositiveRect(const QRectF& rect)
+{
+    return isFiniteRect(rect) && rect.width() > 0.0 && rect.height() > 0.0;
+}
+
+QSizeF positiveSizeOrEmpty(QSizeF size) { return isPositiveSize(size) ? size : QSizeF {}; }
+
+QRectF positiveRectOrEmpty(QRectF rect) { return isPositiveRect(rect) ? rect : QRectF {}; }
 
 bool containsHalfOpen(const QRectF& rect, QPointF point)
 {
-    return !rect.isEmpty() && point.x() >= rect.left() && point.y() >= rect.top()
-        && point.x() < rect.right() && point.y() < rect.bottom();
+    return isPositiveRect(rect) && isFinitePoint(point) && point.x() >= rect.left()
+        && point.y() >= rect.top() && point.x() < rect.right() && point.y() < rect.bottom();
 }
 
 QPointF clampedPoint(QPointF point, QPointF minimum, QPointF maximum)
 {
+    if (!isFinitePoint(point) || !isFinitePoint(minimum) || !isFinitePoint(maximum)) {
+        return {};
+    }
     return QPointF(std::clamp(point.x(), minimum.x(), maximum.x()),
         std::clamp(point.y(), minimum.y(), maximum.y()));
 }
 
 CoordinateResult coordinateResult(QPointF point)
 {
-    return CoordinateResult(true, point.x(), point.y());
+    return isFinitePoint(point) ? CoordinateResult(true, point.x(), point.y())
+                                : CoordinateResult {};
 }
 
 int normalizedRotation(int degrees)
@@ -54,8 +78,12 @@ QSizeF spreadSizeForState(const PresentationGeometry::State& state)
         return state.primaryImageSize;
     }
 
-    return QSizeF(state.primaryImageSize.width() + state.pageGap + state.secondaryImageSize.width(),
-        std::max(state.primaryImageSize.height(), state.secondaryImageSize.height()));
+    if (!std::isfinite(state.pageGap) || state.pageGap < 0.0) {
+        return {};
+    }
+    return positiveSizeOrEmpty(
+        QSizeF(state.primaryImageSize.width() + state.pageGap + state.secondaryImageSize.width(),
+            std::max(state.primaryImageSize.height(), state.secondaryImageSize.height())));
 }
 
 QRectF primaryPageRectForState(const PresentationGeometry::State& state)
@@ -68,8 +96,8 @@ QRectF primaryPageRectForState(const PresentationGeometry::State& state)
         return QRectF(QPointF(0.0, 0.0), state.primaryImageSize);
     }
 
-    return QRectF(
-        QPointF(state.secondaryImageSize.width() + state.pageGap, 0.0), state.primaryImageSize);
+    return positiveRectOrEmpty(QRectF(
+        QPointF(state.secondaryImageSize.width() + state.pageGap, 0.0), state.primaryImageSize));
 }
 
 QRectF secondaryPageRectForState(const PresentationGeometry::State& state)
@@ -81,8 +109,8 @@ QRectF secondaryPageRectForState(const PresentationGeometry::State& state)
         return QRectF(QPointF(0.0, 0.0), state.secondaryImageSize);
     }
 
-    return QRectF(
-        QPointF(state.primaryImageSize.width() + state.pageGap, 0.0), state.secondaryImageSize);
+    return positiveRectOrEmpty(QRectF(
+        QPointF(state.primaryImageSize.width() + state.pageGap, 0.0), state.secondaryImageSize));
 }
 
 QRectF pageRectForRole(const PresentationGeometry::State& state, ImageViewportPageRole role)
@@ -98,7 +126,7 @@ QRectF pageRectForRole(const PresentationGeometry::State& state, ImageViewportPa
 
 bool hasPresentableGeometry(const PresentationGeometry::State& state)
 {
-    return state.hasReadyDisplay && !state.itemBounds.isEmpty()
+    return state.hasReadyDisplay && isPositiveRect(state.itemBounds)
         && isPositiveSize(spreadSizeForState(state));
 }
 
@@ -163,7 +191,7 @@ QPointF orientedToSpreadPoint(const PresentationGeometry::State& state, QPointF 
 
 QRectF spreadRectToOrientedRect(const PresentationGeometry::State& state, const QRectF& rect)
 {
-    if (rect.isEmpty()) {
+    if (!isPositiveRect(rect)) {
         return {};
     }
 
@@ -184,12 +212,12 @@ QRectF spreadRectToOrientedRect(const PresentationGeometry::State& state, const 
         top = std::min(top, point.y());
         bottom = std::max(bottom, point.y());
     }
-    return QRectF(QPointF(left, top), QPointF(right, bottom));
+    return positiveRectOrEmpty(QRectF(QPointF(left, top), QPointF(right, bottom)));
 }
 
 QRectF orientedRectToSpreadRect(const PresentationGeometry::State& state, const QRectF& rect)
 {
-    if (rect.isEmpty()) {
+    if (!isPositiveRect(rect)) {
         return {};
     }
 
@@ -210,44 +238,49 @@ QRectF orientedRectToSpreadRect(const PresentationGeometry::State& state, const 
         top = std::min(top, point.y());
         bottom = std::max(bottom, point.y());
     }
-    return QRectF(QPointF(left, top), QPointF(right, bottom));
+    return positiveRectOrEmpty(QRectF(QPointF(left, top), QPointF(right, bottom)));
 }
 
 QSizeF placedContentSizeForReadyState(const PresentationGeometry::State& state)
 {
     const QSizeF spreadSize = spreadSizeForState(state);
-    if (!state.hasReadyDisplay || state.itemBounds.isEmpty() || !isPositiveSize(spreadSize)) {
+    if (!state.hasReadyDisplay || !isPositiveRect(state.itemBounds)
+        || !isPositiveSize(spreadSize)) {
         return {};
     }
 
     const QSizeF fittingSize = rotatedSize(spreadSize, state.rotationDegrees);
     if (state.fitMode == ImageViewportFitMode::FitWidth) {
         const double scale = state.itemBounds.width() / fittingSize.width();
-        return fittingSize * scale;
+        return positiveSizeOrEmpty(fittingSize * scale);
     }
     if (state.fitMode == ImageViewportFitMode::FitHeight) {
         const double scale = state.itemBounds.height() / fittingSize.height();
-        return fittingSize * scale;
+        return positiveSizeOrEmpty(fittingSize * scale);
     }
     if (state.fitMode == ImageViewportFitMode::Manual) {
-        const double devicePixelRatio = state.devicePixelRatio > 0.0 ? state.devicePixelRatio : 1.0;
-        return fittingSize * (state.manualZoom / devicePixelRatio);
+        if (!std::isfinite(state.manualZoom) || state.manualZoom <= 0.0
+            || !std::isfinite(state.devicePixelRatio) || state.devicePixelRatio <= 0.0) {
+            return {};
+        }
+        return positiveSizeOrEmpty(fittingSize * (state.manualZoom / state.devicePixelRatio));
     }
 
     const double scale = std::min(state.itemBounds.width() / fittingSize.width(),
         state.itemBounds.height() / fittingSize.height());
-    return fittingSize * scale;
+    return positiveSizeOrEmpty(fittingSize * scale);
 }
 
 QPointF maximumContentPositionForPlacedSize(
     const PresentationGeometry::State& state, QSizeF placedSize)
 {
-    if (placedSize.isEmpty() || state.itemBounds.isEmpty()) {
+    if (!isPositiveSize(placedSize) || !isPositiveRect(state.itemBounds)) {
         return {};
     }
 
-    return QPointF(std::max(0.0, placedSize.width() - state.itemBounds.width()),
+    const QPointF maximum(std::max(0.0, placedSize.width() - state.itemBounds.width()),
         std::max(0.0, placedSize.height() - state.itemBounds.height()));
+    return isFinitePoint(maximum) ? maximum : QPointF {};
 }
 
 QRectF contentRectForReadyState(const PresentationGeometry::State& state)
@@ -257,22 +290,25 @@ QRectF contentRectForReadyState(const PresentationGeometry::State& state)
         return {};
     }
 
+    if (!isFinitePoint(state.contentPosition)) {
+        return {};
+    }
     const QPointF maximum = maximumContentPositionForPlacedSize(state, placedSize);
     const QPointF position = clampedPoint(state.contentPosition, {}, maximum);
     const double centeredX = (state.itemBounds.width() - placedSize.width()) / 2.0;
     const double centeredY = (state.itemBounds.height() - placedSize.height()) / 2.0;
     const double x = maximum.x() == 0.0 ? centeredX : -position.x();
     const double y = maximum.y() == 0.0 ? centeredY : -position.y();
-    return QRectF(x, y, placedSize.width(), placedSize.height());
+    return positiveRectOrEmpty(QRectF(x, y, placedSize.width(), placedSize.height()));
 }
 
 QRectF visibleItemRectForState(const PresentationGeometry::State& state)
 {
     const QRectF content = contentRectForReadyState(state);
-    if (content.isEmpty()) {
+    if (!isPositiveRect(content)) {
         return {};
     }
-    return content.intersected(state.itemBounds);
+    return positiveRectOrEmpty(content.intersected(state.itemBounds));
 }
 
 QPointF maximumContentPositionForState(const PresentationGeometry::State& state)
@@ -283,7 +319,8 @@ QPointF maximumContentPositionForState(const PresentationGeometry::State& state)
 QPointF contentPositionForState(const PresentationGeometry::State& state)
 {
     const QSizeF placedSize = placedContentSizeForReadyState(state);
-    if (!isPositiveSize(placedSize) || state.itemBounds.isEmpty()) {
+    if (!isPositiveSize(placedSize) || !isPositiveRect(state.itemBounds)
+        || !isFinitePoint(state.contentPosition)) {
         return {};
     }
 
@@ -306,6 +343,9 @@ QPointF contentPositionForAnchoredSpreadPointForState(
     const QPointF topLeft(
         itemPoint.x() - orientedPoint.x() / fittingSize.width() * placedSize.width(),
         itemPoint.y() - orientedPoint.y() / fittingSize.height() * placedSize.height());
+    if (!isFinitePoint(orientedPoint) || !isFinitePoint(topLeft)) {
+        return contentPositionForState(state);
+    }
     const QPointF maximum = maximumContentPositionForPlacedSize(state, placedSize);
     return clampedPoint(
         QPointF(maximum.x() == 0.0 ? 0.0 : -topLeft.x(), maximum.y() == 0.0 ? 0.0 : -topLeft.y()),
@@ -317,8 +357,10 @@ QPointF itemToOrientedPoint(
 {
     const QSizeF spreadSize = spreadSizeForState(state);
     const QSizeF fittingSize = rotatedSize(spreadSize, state.rotationDegrees);
-    return QPointF((point.x() - content.x()) / content.width() * fittingSize.width(),
+    const QPointF result((point.x() - content.x()) / content.width() * fittingSize.width(),
         (point.y() - content.y()) / content.height() * fittingSize.height());
+    const double invalid = std::numeric_limits<double>::quiet_NaN();
+    return isFinitePoint(result) ? result : QPointF(invalid, invalid);
 }
 
 QPointF orientedToItemPoint(
@@ -326,23 +368,26 @@ QPointF orientedToItemPoint(
 {
     const QSizeF spreadSize = spreadSizeForState(state);
     const QSizeF fittingSize = rotatedSize(spreadSize, state.rotationDegrees);
-    return QPointF(content.x() + point.x() / fittingSize.width() * content.width(),
+    const QPointF result(content.x() + point.x() / fittingSize.width() * content.width(),
         content.y() + point.y() / fittingSize.height() * content.height());
+    const double invalid = std::numeric_limits<double>::quiet_NaN();
+    return isFinitePoint(result) ? result : QPointF(invalid, invalid);
 }
 
 QRectF itemRectForSpreadRect(const PresentationGeometry::State& state, const QRectF& spreadRect)
 {
     const QRectF content = contentRectForReadyState(state);
     const QSizeF fittingSize = rotatedSize(spreadSizeForState(state), state.rotationDegrees);
-    if (content.isEmpty() || spreadRect.isEmpty() || !isPositiveSize(fittingSize)) {
+    if (!isPositiveRect(content) || !isPositiveRect(spreadRect) || !isPositiveSize(fittingSize)) {
         return {};
     }
 
     const QRectF orientedRect = spreadRectToOrientedRect(state, spreadRect);
-    return QRectF(content.x() + orientedRect.x() / fittingSize.width() * content.width(),
-        content.y() + orientedRect.y() / fittingSize.height() * content.height(),
-        orientedRect.width() / fittingSize.width() * content.width(),
-        orientedRect.height() / fittingSize.height() * content.height());
+    return positiveRectOrEmpty(
+        QRectF(content.x() + orientedRect.x() / fittingSize.width() * content.width(),
+            content.y() + orientedRect.y() / fittingSize.height() * content.height(),
+            orientedRect.width() / fittingSize.width() * content.width(),
+            orientedRect.height() / fittingSize.height() * content.height()));
 }
 
 QRectF visibleSpreadRectForState(const PresentationGeometry::State& state)
@@ -353,35 +398,41 @@ QRectF visibleSpreadRectForState(const PresentationGeometry::State& state)
 
     const QRectF content = contentRectForReadyState(state);
     const QRectF visibleItemRect = visibleItemRectForState(state);
-    if (content.isEmpty() || visibleItemRect.isEmpty()) {
+    if (!isPositiveRect(content) || !isPositiveRect(visibleItemRect)) {
         return {};
     }
 
     const QPointF orientedTopLeft = itemToOrientedPoint(state, content, visibleItemRect.topLeft());
     const QPointF orientedBottomRight
         = itemToOrientedPoint(state, content, visibleItemRect.bottomRight());
-    return orientedRectToSpreadRect(state, QRectF(orientedTopLeft, orientedBottomRight));
+    return positiveRectOrEmpty(
+        orientedRectToSpreadRect(state, QRectF(orientedTopLeft, orientedBottomRight)));
 }
 
 QRectF visiblePageRectForState(const PresentationGeometry::State& state, ImageViewportPageRole role)
 {
     const QRectF pageRect = pageRectForRole(state, role);
     const QRectF visibleSpreadRect = visibleSpreadRectForState(state);
-    if (pageRect.isEmpty() || visibleSpreadRect.isEmpty()) {
+    if (!isPositiveRect(pageRect) || !isPositiveRect(visibleSpreadRect)) {
         return {};
     }
 
     QRectF visiblePageRect = pageRect.intersected(visibleSpreadRect);
-    if (visiblePageRect.isEmpty()) {
+    if (!isPositiveRect(visiblePageRect)) {
         return {};
     }
     visiblePageRect.translate(-pageRect.topLeft());
-    return visiblePageRect;
+    return positiveRectOrEmpty(visiblePageRect);
 }
 
 }
 
 QSizeF PresentationGeometry::spreadSize(const State& state) { return spreadSizeForState(state); }
+
+bool PresentationGeometry::isPresentable(const State& state)
+{
+    return hasPresentableGeometry(state) && isPositiveRect(contentRectForReadyState(state));
+}
 
 QRectF PresentationGeometry::primaryPageRect(const State& state)
 {

@@ -569,7 +569,7 @@ void ImageViewportPresentationStateTest::twoPageNonPositiveItemGeometrySuppresse
     item.setSize(QSizeF(0.0, 44.0));
 
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
-    QCOMPARE(displayedSpreadSize(item), QSizeF(44.0, 20.0));
+    QCOMPARE(displayedSpreadSize(item), QSizeF(0.0, 0.0));
     QCOMPARE(primaryDisplayedImageSize(item), QSizeF(10.0, 20.0));
     QCOMPARE(secondaryDisplayedImageSize(item), QSizeF(30.0, 20.0));
     QCOMPARE(contentRect(item), QRectF());

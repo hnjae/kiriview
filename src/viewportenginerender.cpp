@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <utility>
 
 namespace {
@@ -116,8 +117,9 @@ ViewportEngineViewportState normalizedViewportState(ViewportEngineViewportState 
 {
     const double width = viewport.itemBounds.width();
     const double height = viewport.itemBounds.height();
-    viewport.itemBounds
-        = std::isfinite(width) && std::isfinite(height) && width > 0.0 && height > 0.0
+    constexpr double maximumSceneCoordinate = std::numeric_limits<float>::max();
+    viewport.itemBounds = std::isfinite(width) && std::isfinite(height) && width > 0.0
+            && height > 0.0 && width <= maximumSceneCoordinate && height <= maximumSceneCoordinate
         ? QRectF(0.0, 0.0, width, height)
         : QRectF();
     if (!std::isfinite(viewport.devicePixelRatio) || viewport.devicePixelRatio <= 0.0) {

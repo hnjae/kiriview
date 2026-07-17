@@ -5,6 +5,7 @@
 #include "imageviewporttoken_p.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace {
 using namespace ImageViewportInternal;
@@ -15,7 +16,20 @@ const ProviderFactsState& providerFor(
     return facts[role == ImageViewportPageRole::Secondary ? 1U : 0U];
 }
 
-bool positive(QSizeF size) { return size.isValid() && size.width() > 0.0 && size.height() > 0.0; }
+bool positive(QSizeF size)
+{
+    return std::isfinite(size.width()) && std::isfinite(size.height()) && size.width() > 0.0
+        && size.height() > 0.0;
+}
+
+bool finiteRect(const QRectF& rect)
+{
+    return std::isfinite(rect.x()) && std::isfinite(rect.y()) && std::isfinite(rect.width())
+        && std::isfinite(rect.height()) && std::isfinite(rect.right())
+        && std::isfinite(rect.bottom());
+}
+
+QRectF finiteRectOrEmpty(QRectF rect) { return finiteRect(rect) ? rect : QRectF {}; }
 
 ImageViewportRevisionToken revision(quint64 value)
 {
@@ -177,13 +191,14 @@ double effectiveZoomPercent(const PresentationGeometry::State& geometry)
 {
     const QSizeF spread = PresentationGeometry::spreadSize(geometry);
     const QRectF content = PresentationGeometry::contentRect(geometry);
-    if (!positive(spread) || content.isEmpty()) {
+    if (!positive(spread) || content.isEmpty() || !finiteRect(content)) {
         return 0.0;
     }
     const int rotation = ((geometry.rotationDegrees % 360) + 360) % 360;
     const QSizeF oriented
         = rotation == 90 || rotation == 270 ? QSizeF(spread.height(), spread.width()) : spread;
-    return content.width() / oriented.width() * geometry.devicePixelRatio * 100.0;
+    const double result = content.width() / oriented.width() * geometry.devicePixelRatio * 100.0;
+    return std::isfinite(result) && result > 0.0 ? result : 0.0;
 }
 }
 
@@ -194,7 +209,10 @@ PresentationGeometry::State projectViewportGeometryState(const ViewportEngineGeo
         presentation.pageGap, presentation.spreadDirection, presentation.fitMode,
         presentation.rotationDegrees, presentation.mirrorHorizontally,
         presentation.mirrorVertically, presentation.manualZoom,
-        input.devicePixelRatio > 0.0 ? input.devicePixelRatio : 1.0, presentation.contentPosition };
+        std::isfinite(input.devicePixelRatio) && input.devicePixelRatio > 0.0
+            ? input.devicePixelRatio
+            : 1.0,
+        presentation.contentPosition };
 }
 
 ImageViewportStateSnapshot projectViewportStateSnapshot(
@@ -259,12 +277,14 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
         access.request().reason, access.playback().phase, acceptedGeneration, acceptedRoles,
         playbackRole);
     const QSizeF displayedSpreadSize = PresentationGeometry::spreadSize(displayedGeometry);
+    const bool displayedPresentable = PresentationGeometry::isPresentable(displayedGeometry);
     const ImageViewportDisplaySnapshot displaySnapshot(access.display().status,
         displayPhase(access.display().status, access.request().status),
         generation(displayedGenerationValue), displayedRoles, targetRoles, displayAccepted,
         access.display().status == ImageViewportDisplayStatus::Retained,
         revision(displayedPresentationRevisionValue), revision(targetPresentationRevisionValue),
-        positive(displayedSpreadSize) ? displayedSpreadSize : QSizeF(0.0, 0.0),
+        displayedPresentable && positive(displayedSpreadSize) ? displayedSpreadSize
+                                                              : QSizeF(0.0, 0.0),
         PresentationGeometry::contentRect(displayedGeometry),
         PresentationGeometry::contentSize(displayedGeometry),
         PresentationGeometry::contentPosition(displayedGeometry),
@@ -319,9 +339,10 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
         const QRectF displayedVisibleRect
             = PresentationGeometry::visiblePageRect(displayedGeometry, role);
         const bool acceptedGeometryAvailable
-            = !input.acceptedGeometry.itemBounds.isEmpty() && !acceptedPageRect.isEmpty();
+            = PresentationGeometry::isPresentable(acceptedGeometry) && !acceptedPageRect.isEmpty();
         const bool displayedGeometryAvailable
-            = !input.displayedGeometry.itemBounds.isEmpty() && !displayedPageRect.isEmpty();
+            = PresentationGeometry::isPresentable(displayedGeometry)
+            && !displayedPageRect.isEmpty();
         const auto animation
             = source.facts.provider && providerFor(access.providerFacts(), role).metadataReady
             ? providerFor(access.providerFacts(), role).authoredAnimationFacts
@@ -410,7 +431,10 @@ ViewportEngineGeometryInput projectViewportCurrentGeometry(
     const QSizeF secondary
         = ready ? access.display().roles[1].displayedPayload.sourceLogicalSize : QSizeF {};
     return { positive(primary), input.itemBounds, primary, secondary,
-        input.devicePixelRatio > 0.0 ? input.devicePixelRatio : 1.0, input.renderAvailable };
+        std::isfinite(input.devicePixelRatio) && input.devicePixelRatio > 0.0
+            ? input.devicePixelRatio
+            : 1.0,
+        input.renderAvailable };
 }
 
 ViewportEngineGeometryInput projectViewportPendingGeometry(
@@ -432,7 +456,10 @@ ViewportEngineGeometryInput projectViewportPendingGeometry(
     if (!positive(secondary))
         secondary = {};
     return { positive(primary), input.itemBounds, primary, secondary,
-        input.devicePixelRatio > 0.0 ? input.devicePixelRatio : 1.0, input.renderAvailable };
+        std::isfinite(input.devicePixelRatio) && input.devicePixelRatio > 0.0
+            ? input.devicePixelRatio
+            : 1.0,
+        input.renderAvailable };
 }
 
 ViewportEngineGeometryInput projectViewportAcceptedGeometry(
@@ -454,7 +481,10 @@ ViewportEngineGeometryInput projectViewportAcceptedGeometry(
     if (!positive(secondary))
         secondary = {};
     return { positive(primary), input.itemBounds, primary, secondary,
-        input.devicePixelRatio > 0.0 ? input.devicePixelRatio : 1.0, input.renderAvailable };
+        std::isfinite(input.devicePixelRatio) && input.devicePixelRatio > 0.0
+            ? input.devicePixelRatio
+            : 1.0,
+        input.renderAvailable };
 }
 
 ViewportRenderSnapshot projectViewportRenderSnapshot(
@@ -464,16 +494,19 @@ ViewportRenderSnapshot projectViewportRenderSnapshot(
         ? access.display().displayedPresentation
         : access.presentation();
     const auto target = [&](ImageViewportPageRole role) {
-        return PresentationGeometry::pageItemRect(input.geometryState, role)
-            .intersected(input.geometryState.itemBounds);
+        if (!PresentationGeometry::isPresentable(input.geometryState)) {
+            return QRectF {};
+        }
+        return finiteRectOrEmpty(PresentationGeometry::pageItemRect(input.geometryState, role)
+                .intersected(input.geometryState.itemBounds));
     };
     const auto source = [&](ImageViewportPageRole role) {
-        return PresentationGeometry::visiblePageRect(input.geometryState, role);
+        return finiteRectOrEmpty(PresentationGeometry::visiblePageRect(input.geometryState, role));
     };
     ViewportRenderSnapshot snapshot;
     snapshot.targetSpread = input.targetSpread;
     snapshot.presentation = input.presentation;
-    snapshot.itemSize = input.itemSize;
+    snapshot.itemSize = positive(input.itemSize) ? input.itemSize : QSizeF {};
     snapshot.backgroundMode = presentation.backgroundMode;
     snapshot.backgroundColor = presentation.backgroundColor;
     snapshot.checkerboardLightColor = presentation.checkerboardLightColor;

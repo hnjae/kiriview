@@ -9,6 +9,8 @@
 #include <QtCore/QVector>
 #include <QtGui/QColor>
 
+#include <optional>
+
 class RenderAdapter
 {
 public:
@@ -51,10 +53,14 @@ public:
 
     struct RenderPlan
     {
-        struct BackgroundRect
+        struct BackgroundLayer
         {
-            QRectF rect;
-            QColor color;
+            ImageViewportBackgroundMode mode = ImageViewportBackgroundMode::Transparent;
+            QRectF bounds;
+            QColor solidColor;
+            QColor checkerboardLightColor;
+            QColor checkerboardDarkColor;
+            double checkerboardCellSize = 0.0;
         };
 
         struct ImageLayer
@@ -75,7 +81,7 @@ public:
         QVector<RolePayload> rolePayloads;
         ImageViewportPageRole failedRole = ImageViewportPageRole::Primary;
         RenderFailureCause failureCause = RenderFailureCause::None;
-        QVector<BackgroundRect> backgroundRects;
+        std::optional<BackgroundLayer> backgroundLayer;
         QVector<ImageLayer> imageLayers;
         bool smoothing = true;
         bool mipmap = false;

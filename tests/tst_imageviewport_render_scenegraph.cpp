@@ -5,7 +5,9 @@
 
 #include <QtCore/QElapsedTimer>
 #include <QtGui/QMatrix4x4>
+#include <QtQuick/QSGSimpleTextureNode>
 
+#include <limits>
 #include <memory>
 #include <utility>
 
@@ -42,6 +44,7 @@ private slots:
     void initialRenderFailureWithoutRetainedContentReturnsNullNode();
     void retainedRenderFailureKeepsOldPaintNode();
     void renderPlanBuildsBackgroundPrimitivesWithoutSceneGraph();
+    void renderPlanRejectsNonFiniteGeometryBeforeMaterialization();
     void renderPlanBuildsRoleLayerMappingWithoutSceneGraph();
     void renderPlanUsesExplicitPayloadScaleInsteadOfImageDevicePixelRatio();
     void renderPlanReportsPreMaterializationFailureIntent();
@@ -230,7 +233,10 @@ void ImageViewportRenderSceneGraphTest::backgroundOnlyPaintDoesNotAdvanceProvide
 
 void ImageViewportRenderSceneGraphTest::checkerboardBackgroundCreatesPaintNode()
 {
+    QQuickWindow window;
+    window.resize(12, 7);
     PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
     item.setSize(QSizeF(12.0, 7.0));
     ImageViewportPresentationCommand command;
     command.setBackgroundMode(ImageViewportBackgroundMode::Checkerboard);
@@ -241,34 +247,16 @@ void ImageViewportRenderSceneGraphTest::checkerboardBackgroundCreatesPaintNode()
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
-    QCOMPARE(root->childCount(), 6);
+    QCOMPARE(root->childCount(), 1);
 
-    const QList<QRectF> expectedRects = {
-        QRectF(0.0, 0.0, 5.0, 5.0),
-        QRectF(5.0, 0.0, 5.0, 5.0),
-        QRectF(10.0, 0.0, 2.0, 5.0),
-        QRectF(0.0, 5.0, 5.0, 2.0),
-        QRectF(5.0, 5.0, 5.0, 2.0),
-        QRectF(10.0, 5.0, 2.0, 2.0),
-    };
-    const QList<QColor> expectedColors = {
-        QColor(QStringLiteral("#102030")),
-        QColor(QStringLiteral("#405060")),
-        QColor(QStringLiteral("#102030")),
-        QColor(QStringLiteral("#405060")),
-        QColor(QStringLiteral("#102030")),
-        QColor(QStringLiteral("#405060")),
-    };
-
-    QSGNode* child = root->firstChild();
-    for (int index = 0; index < expectedRects.size(); ++index) {
-        auto* tile = dynamic_cast<QSGSimpleRectNode*>(child);
-        QVERIFY(tile);
-        QCOMPARE(tile->rect(), expectedRects.at(index));
-        QCOMPARE(tile->color(), expectedColors.at(index));
-        child = child->nextSibling();
-    }
-    QVERIFY(!child);
+    auto* checkerboard = dynamic_cast<QSGSimpleTextureNode*>(root->firstChild());
+    QVERIFY(checkerboard);
+    QCOMPARE(checkerboard->rect(), QRectF(0.0, 0.0, 12.0, 7.0));
+    QCOMPARE(checkerboard->sourceRect(), QRectF(0.0, 0.0, 12.0 / 5.0, 7.0 / 5.0));
+    QVERIFY(checkerboard->texture());
+    QCOMPARE(checkerboard->texture()->textureSize(), QSize(2, 2));
+    QCOMPARE(checkerboard->texture()->horizontalWrapMode(), QSGTexture::Repeat);
+    QCOMPARE(checkerboard->texture()->verticalWrapMode(), QSGTexture::Repeat);
 }
 
 void ImageViewportRenderSceneGraphTest::stillImageCreatesTexturePaintNode()
@@ -945,14 +933,28 @@ void ImageViewportRenderSceneGraphTest::renderPlanBuildsBackgroundPrimitivesWith
     const RenderAdapter::RenderPlan plan = adapter.createPlan(input);
 
     QCOMPARE(plan.result, RenderAdapter::CommitResult::Empty);
-    QCOMPARE(plan.backgroundRects.size(), 6);
-    QCOMPARE(plan.backgroundRects.at(0).rect, QRectF(0.0, 0.0, 8.0, 8.0));
-    QCOMPARE(plan.backgroundRects.at(0).color, QColor(QStringLiteral("#ffffff")));
-    QCOMPARE(plan.backgroundRects.at(1).rect, QRectF(8.0, 0.0, 8.0, 8.0));
-    QCOMPARE(plan.backgroundRects.at(1).color, QColor(QStringLiteral("#dcdcdc")));
-    QCOMPARE(plan.backgroundRects.at(5).rect, QRectF(16.0, 8.0, 2.0, 2.0));
-    QCOMPARE(plan.backgroundRects.at(5).color, QColor(QStringLiteral("#dcdcdc")));
+    QVERIFY(plan.backgroundLayer.has_value());
+    QCOMPARE(plan.backgroundLayer->mode, ImageViewportBackgroundMode::Checkerboard);
+    QCOMPARE(plan.backgroundLayer->bounds, QRectF(0.0, 0.0, 18.0, 10.0));
+    QCOMPARE(plan.backgroundLayer->checkerboardLightColor, QColor(QStringLiteral("#ffffff")));
+    QCOMPARE(plan.backgroundLayer->checkerboardDarkColor, QColor(QStringLiteral("#dcdcdc")));
+    QCOMPARE(plan.backgroundLayer->checkerboardCellSize, 8.0);
     QVERIFY(plan.imageLayers.isEmpty());
+}
+
+void ImageViewportRenderSceneGraphTest::renderPlanRejectsNonFiniteGeometryBeforeMaterialization()
+{
+    QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::red);
+    RenderAdapter::Input input = renderAdapterInputForPayload(renderAdapterPayload(image));
+    input.itemSize = QSizeF(std::numeric_limits<double>::infinity(), 10.0);
+    input.backgroundMode = ImageViewportBackgroundMode::SolidColor;
+
+    const RenderAdapter::RenderPlan plan = RenderAdapter().createPlan(input);
+
+    QCOMPARE(plan.result, RenderAdapter::CommitResult::Failed);
+    QVERIFY(!plan.backgroundLayer.has_value());
+    QVERIFY(plan.failureCause != RenderFailureCause::None);
 }
 
 void ImageViewportRenderSceneGraphTest::renderPlanBuildsRoleLayerMappingWithoutSceneGraph()

@@ -4,6 +4,23 @@
 #include "imageviewportlimits_p.h"
 #include "imageviewporttoken_p.h"
 
+#include <cmath>
+
+namespace {
+bool positiveFinite(QSizeF size)
+{
+    return std::isfinite(size.width()) && std::isfinite(size.height()) && size.width() > 0.0
+        && size.height() > 0.0;
+}
+
+bool finiteRect(const QRectF& rect)
+{
+    return std::isfinite(rect.x()) && std::isfinite(rect.y()) && std::isfinite(rect.width())
+        && std::isfinite(rect.height()) && std::isfinite(rect.right())
+        && std::isfinite(rect.bottom());
+}
+}
+
 ImageSequenceProviderDisplayDemand projectViewportProviderDemand(
     ViewportEngineProviderDemandInput input, ViewportEngineProviderDemandProjectionAccess access)
 {
@@ -21,16 +38,24 @@ ImageSequenceProviderDisplayDemand projectViewportProviderDemand(
     const PreparedPayload payload
         = payloadMatchesTarget ? displayedRole.displayedPayload : PreparedPayload {};
     QSizeF logicalSize = provider.logicalSize;
-    if (logicalSize.isEmpty())
+    if (!positiveFinite(logicalSize))
         logicalSize = sourceLogicalSize(source);
+    if (!positiveFinite(logicalSize))
+        logicalSize = {};
     const auto projected = projectViewportGeometryState(input.geometry, access.presentation());
     QRectF visibleRect = PresentationGeometry::visiblePageRect(projected, input.role);
     const QRectF logicalBounds(QPointF(), logicalSize);
     if (!logicalBounds.isEmpty())
         visibleRect = visibleRect.intersected(logicalBounds);
+    if (!finiteRect(visibleRect))
+        visibleRect = {};
     QSizeF targetPixels = PresentationGeometry::pageItemRect(projected, input.role).size();
-    if (targetPixels.isValid() && projected.devicePixelRatio > 0.0)
+    if (positiveFinite(targetPixels) && std::isfinite(projected.devicePixelRatio)
+        && projected.devicePixelRatio > 0.0) {
         targetPixels *= projected.devicePixelRatio;
+    }
+    if (!positiveFinite(targetPixels))
+        targetPixels = {};
     ImageSequenceProviderDisplayDemand demand;
     demand.setDemandRevision(input.demandRevision);
     demand.setRequestRevision(input.requestRevision);

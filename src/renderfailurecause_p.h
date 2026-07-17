@@ -7,6 +7,7 @@ enum class RenderFailureCause {
     TextureCreationFailure,
     ImageNodeCreationFailure,
     InvalidRolePayload,
+    InvalidRenderGeometry,
     UnknownBackendFailure,
 };
 

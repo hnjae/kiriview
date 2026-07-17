@@ -24,6 +24,7 @@ public:
     };
 
     static QSizeF spreadSize(const State& state);
+    static bool isPresentable(const State& state);
     static QRectF primaryPageRect(const State& state);
     static QRectF secondaryPageRect(const State& state);
     static QRectF contentRect(const State& state);

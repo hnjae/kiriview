@@ -1558,6 +1558,7 @@ void ImageViewportRenderCommitTest::activeRenderFailureDiagnosticsPreserveCause_
     QTest::newRow("texture-creation") << RenderFailureCause::TextureCreationFailure;
     QTest::newRow("image-node-creation") << RenderFailureCause::ImageNodeCreationFailure;
     QTest::newRow("invalid-role-payload") << RenderFailureCause::InvalidRolePayload;
+    QTest::newRow("invalid-render-geometry") << RenderFailureCause::InvalidRenderGeometry;
     QTest::newRow("unknown-backend") << RenderFailureCause::UnknownBackendFailure;
 }
 

@@ -7,6 +7,9 @@
 #include <QtGui/QImage>
 #include <QtTest/QTest>
 
+#include <cmath>
+#include <limits>
+
 namespace {
 
 using namespace ImageViewportTestHooks;
@@ -194,6 +197,7 @@ private slots:
     void defaultProviderStateMatchesEmptyGeneration();
     void providerStateOwnsTokensQueuesAndMetadataByRole();
     void providerDemandRestagingCancelsAndReissuesCurrentTarget();
+    void providerDemandInvalidatesOverflowedPhysicalSize();
     void providerTerminalReducerRejectsStaleFrameToken();
     void providerTerminalReducerCommitsFrameFailureAtomically();
     void providerTerminalReducerClosesMetadataGeneration();
@@ -201,6 +205,7 @@ private slots:
     void providerFrameQueueFlushRejectsStaleRequest();
     void defaultPresentationStateMatchesPublicDefaults();
     void geometryProjectionUsesEnginePresentationState();
+    void geometryProjectionRejectsFiniteOverflow();
     void devicePixelRatioChangeRevisesEffectiveFitZoom();
     void renderSnapshotUsesEnginePresentationAndPayloadState();
     void renderAttemptAuthorityRejectsStaleAndDuplicateFacts();
@@ -848,6 +853,40 @@ void ViewportEngineTest::providerDemandRestagingCancelsAndReissuesCurrentTarget(
     QCOMPARE(requests.frameToken(), send.request.token());
 }
 
+void ViewportEngineTest::providerDemandInvalidatesOverflowedPhysicalSize()
+{
+    ViewportEngine engine;
+    auto& request = ViewportEngineTestAccess::request(engine);
+    request.roles[0].source.facts.present = true;
+    request.roles[0].source.facts.provider = true;
+    request.sequenceGeneration = 7;
+    request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Initial,
+        { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Frame }, { 0, -1 }, false);
+    ViewportEngineTestAccess::providerSession(engine, ImageViewportPageRole::Primary).sessionActive
+        = true;
+    auto& facts = ViewportEngineTestAccess::providerFacts(engine, ImageViewportPageRole::Primary);
+    facts.metadataReady = true;
+    facts.logicalSize = QSizeF(16.0, 8.0);
+    auto& requests
+        = ViewportEngineTestAccess::providerRequests(engine, ImageViewportPageRole::Primary);
+    requests.nextRequestToken = 4;
+    activateProviderRequestForTest(
+        requests, request, providerRequestTokenForTest(4), ImageSequenceProviderRequestKind::Frame);
+
+    const auto transition = engine.handleViewportChanged(
+        { QRectF(0.0, 0.0, 200.0, 100.0), std::numeric_limits<double>::max(), true });
+
+    QVERIFY(!transition.providerAfterPublication.isEmpty());
+    const ImageSequenceProviderDisplayDemand demand
+        = transition.providerAfterPublication.constLast().request.demand();
+    QCOMPARE(demand.sourceLogicalSize(), QSizeF(16.0, 8.0));
+    QCOMPARE(demand.visibleSourceRect(), QRectF(0.0, 0.0, 16.0, 8.0));
+    QVERIFY(!demand.targetDisplaySizePixels().isValid());
+    QVERIFY(std::isfinite(demand.targetDisplaySizePixels().width()));
+    QVERIFY(std::isfinite(demand.targetDisplaySizePixels().height()));
+    QCOMPARE(demand.effectiveDevicePixelRatio(), std::numeric_limits<double>::max());
+}
+
 void ViewportEngineTest::providerTerminalReducerRejectsStaleFrameToken()
 {
     ViewportEngine engine;
@@ -1054,6 +1093,53 @@ void ViewportEngineTest::geometryProjectionUsesEnginePresentationState()
     QCOMPARE(geometry.devicePixelRatio, 2.0);
     QCOMPARE(geometry.contentPosition, QPointF());
     QCOMPARE(PresentationGeometry::spreadSize(geometry), QSizeF(32.0, 10.0));
+}
+
+void ViewportEngineTest::geometryProjectionRejectsFiniteOverflow()
+{
+    PresentationGeometry::State direct { true, QRectF(0.0, 0.0, 100.0, 100.0), QSizeF(16.0, 8.0),
+        {}, 0.0, ImageViewportSpreadDirection::LeftToRight, ImageViewportFitMode::Manual, 0, false,
+        false, 1.0, std::numeric_limits<double>::denorm_min(), {} };
+    const QRectF directContent = PresentationGeometry::contentRect(direct);
+    QVERIFY(directContent.isEmpty());
+    QVERIFY(std::isfinite(directContent.x()));
+    QVERIFY(std::isfinite(directContent.y()));
+    QVERIFY(std::isfinite(directContent.width()));
+    QVERIFY(std::isfinite(directContent.height()));
+    QVERIFY(!PresentationGeometry::itemToSpread(direct, 50.0, 50.0).isValid());
+
+    ViewportEngine engine;
+    auto& request = ViewportEngineTestAccess::request(engine);
+    auto& display = ViewportEngineTestAccess::display(engine);
+    request.roles[0].source.facts.present = true;
+    request.roles[0].source.facts.logicalSize = QSizeF(16.0, 8.0);
+    request.sequenceGeneration = 1;
+    request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Initial,
+        { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Frame }, { 0, -1 }, true);
+    request.status = ImageViewportRequestStatus::Ready;
+    request.reason = ImageViewportRequestReason::Ready;
+    display.status = ImageViewportDisplayStatus::Ready;
+    display.roles[0].displayedRequest = display.activeRequestSnapshot(
+        request.sequenceGeneration, request.roles[0].activeRequest, -1);
+    display.roles[0].displayedPayload = preparedPayloadForTest(
+        QImage(16, 8, QImage::Format_ARGB32_Premultiplied), QSizeF(16.0, 8.0),
+        request.sequenceGeneration, request.roles[0].activeRequest.identity.id);
+
+    setViewport(engine, { QRectF(0.0, 0.0, 100.0, 100.0), 1.0, true });
+    ImageViewportPresentationCommand command;
+    command.setFitMode(ImageViewportFitMode::Manual);
+    QCOMPARE(engine.applyPresentationCommand({ command }).command.outcome,
+        ImageViewportCommandOutcome::Accepted);
+    setViewport(engine,
+        { QRectF(0.0, 0.0, 100.0, 100.0), std::numeric_limits<double>::denorm_min(), true });
+
+    const ImageViewportStateSnapshot snapshot = engine.snapshot();
+    QCOMPARE(snapshot.request().status(), ImageViewportRequestStatus::Ready);
+    QCOMPARE(snapshot.display().status(), ImageViewportDisplayStatus::Ready);
+    QCOMPARE(snapshot.presentation().zoomPercent(), 0.0);
+    QVERIFY(snapshot.display().contentRect().isEmpty());
+    QVERIFY(snapshot.primary().geometry().acceptedItemRect().isEmpty());
+    QVERIFY(snapshot.primary().geometry().displayedItemRect().isEmpty());
 }
 
 void ViewportEngineTest::devicePixelRatioChangeRevisesEffectiveFitZoom()
