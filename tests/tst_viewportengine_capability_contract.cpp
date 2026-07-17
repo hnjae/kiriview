@@ -355,10 +355,10 @@ static_assert(std::is_const_v<
     std::remove_reference_t<PresentationAccess<ViewportEngineProviderDemandProjectionAccess>>>);
 static_assert(!HasPlaybackAccess<ViewportEngineProviderDemandProjectionAccess>::value);
 static_assert(!std::is_same_v<ImageViewportInternal::ProviderSessionState,
-    ImageViewportInternal::ProviderRequestState>);
+    ImageViewportInternal::ProviderRequestLedger>);
 static_assert(!std::is_same_v<ImageViewportInternal::ProviderSessionState,
     ImageViewportInternal::ProviderFactsState>);
-static_assert(!std::is_same_v<ImageViewportInternal::ProviderRequestState,
+static_assert(!std::is_same_v<ImageViewportInternal::ProviderRequestLedger,
     ImageViewportInternal::ProviderFactsState>);
 static_assert(std::is_const_v<std::remove_reference_t<
         decltype(std::declval<ViewportEngineProviderDemandProjectionAccess&>().providerFacts())>>);

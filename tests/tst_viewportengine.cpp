@@ -54,6 +54,17 @@ struct ProviderFrameQueueSetup
     quint64 activeRequestId = 0;
 };
 
+void activateProviderRequestForTest(ImageViewportInternal::ProviderRequestLedger& requests,
+    const ImageViewportInternal::RequestState& request, ImageSequenceProviderRequestToken token,
+    ImageSequenceProviderRequestKind kind,
+    ImageViewportInternal::ProviderRequestOwnership ownership
+    = ImageViewportInternal::ProviderRequestOwnership::DisplayRequest)
+{
+    const auto& active = request.roles[0].activeRequest;
+    requests.activate({ token, kind, ImageViewportPageRole::Primary, request.sequenceGeneration,
+        active.identity.id, ownership, active.target, active.resolvedFrame });
+}
+
 ImageViewportInternal::PreparedPayload preparedPayloadForTest(const QImage& image,
     QSizeF sourceLogicalSize = {}, quint64 generation = 1, quint64 requestId = 1,
     quint64 payloadId = 1);
@@ -74,8 +85,8 @@ ProviderFrameQueueSetup setUpCurrentProviderFrameQueueRequest(
     auto& providerRequests
         = ViewportEngineTestAccess::providerRequests(engine, ImageViewportPageRole::Primary);
     sessionState.sessionActive = true;
-    providerRequests.activeFrameToken = providerRequestTokenForTest(4);
-    request.roles[0].activeRequest.providerFrameToken = providerRequests.activeFrameToken;
+    activateProviderRequestForTest(providerRequests, request, providerRequestTokenForTest(4),
+        ImageSequenceProviderRequestKind::Playback);
 
     QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
     primaryImage.fill(Qt::red);
@@ -91,7 +102,7 @@ ProviderFrameQueueSetup setUpCurrentProviderFrameQueueRequest(
     display.roles[0].displayedPayload = preparedPayloadForTest(primaryImage, QSizeF(16.0, 8.0),
         request.sequenceGeneration, request.roles[0].activeRequest.identity.id, 2);
 
-    return { providerRequests.activeFrameToken, request.roles[0].activeRequest.identity.id };
+    return { providerRequests.frameToken(), request.roles[0].activeRequest.identity.id };
 }
 
 void seedCurrentProviderFrameQueue(ViewportEngine& engine)
@@ -105,29 +116,15 @@ void seedCurrentProviderFrameQueue(ViewportEngine& engine)
     request.status = ImageViewportRequestStatus::Loading;
     request.reason = ImageViewportRequestReason::RequestQueued;
     display.roles[0].pendingRenderPayload = {};
-    requests.activeFrameToken = {};
-    activeRequest.providerFrameToken = {};
-    requests.queuedFrameRequest = true;
-    requests.queuedFrameGeneration = request.sequenceGeneration;
-    requests.queuedFrameRequestId = activeRequest.identity.id;
-    requests.queuedFrame = activeRequest.target.frame;
-    requests.queuedPosition = activeRequest.target.position;
-    requests.queuedResolvedFrame = activeRequest.resolvedFrame;
-    requests.queuedFrameFromPlayback = true;
-    requests.queuedFrameTargetKind = ImageViewportInternal::ProviderRequestTargetKind::Playback;
+    requests.retireFrame();
+    requests.queuedFrame
+        = ImageViewportInternal::QueuedProviderFrameRequest { request.sequenceGeneration,
+              activeRequest.identity.id, activeRequest.target, activeRequest.resolvedFrame, true };
 }
 
-void verifyProviderFrameQueueCleared(const ImageViewportInternal::ProviderRequestState& requests)
+void verifyProviderFrameQueueCleared(const ImageViewportInternal::ProviderRequestLedger& requests)
 {
-    QCOMPARE(requests.queuedFrameRequest, false);
-    QCOMPARE(requests.queuedFrameGeneration, 0);
-    QCOMPARE(requests.queuedFrameRequestId, 0);
-    QCOMPARE(requests.queuedFrame, -1);
-    QCOMPARE(requests.queuedPosition, -1);
-    QCOMPARE(requests.queuedResolvedFrame.isValid(), false);
-    QCOMPARE(requests.queuedFrameFromPlayback, false);
-    QCOMPARE(
-        requests.queuedFrameTargetKind, ImageViewportInternal::ProviderRequestTargetKind::Unknown);
+    QVERIFY(!requests.queuedFrame.has_value());
 }
 
 ViewportProviderEvent providerTerminalEvent(ViewportEngine& engine,
@@ -715,17 +712,9 @@ void ViewportEngineTest::defaultProviderStateMatchesEmptyGeneration()
     QCOMPARE(session.sessionActive, false);
     QCOMPARE(session.sessionSerial, 0);
     QCOMPARE(requests.nextRequestToken, 0);
-    QVERIFY(!requests.activeMetadataToken.isValid());
-    QVERIFY(!requests.activeFrameToken.isValid());
-    QCOMPARE(requests.queuedFrameRequest, false);
-    QCOMPARE(requests.queuedFrameGeneration, 0);
-    QCOMPARE(requests.queuedFrameRequestId, 0);
-    QCOMPARE(requests.queuedFrame, -1);
-    QCOMPARE(requests.queuedPosition, -1);
-    QCOMPARE(requests.queuedResolvedFrame.isValid(), false);
-    QCOMPARE(requests.queuedFrameFromPlayback, false);
-    QCOMPARE(
-        requests.queuedFrameTargetKind, ImageViewportInternal::ProviderRequestTargetKind::Unknown);
+    QVERIFY(!requests.metadataToken().isValid());
+    QVERIFY(!requests.frameToken().isValid());
+    QVERIFY(!requests.queuedFrame.has_value());
     QCOMPARE(facts.metadataReady, false);
     QCOMPARE(facts.timedMetadata, false);
     QCOMPARE(facts.timedPlaybackSupport, false);
@@ -756,16 +745,15 @@ void ViewportEngineTest::providerStateOwnsTokensQueuesAndMetadataByRole()
 
     session.sessionSerial = 11;
     requests.nextRequestToken = 3;
-    requests.activeMetadataToken = ImageViewportTestHooks::providerRequestTokenForTest(4);
-    requests.activeFrameToken = ImageViewportTestHooks::providerRequestTokenForTest(5);
-    requests.queuedFrameRequest = true;
-    requests.queuedFrameGeneration = 7;
-    requests.queuedFrameRequestId = 13;
-    requests.queuedFrame = 2;
-    requests.queuedPosition = 120;
-    requests.queuedResolvedFrame = { 2, 120 };
-    requests.queuedFrameFromPlayback = true;
-    requests.queuedFrameTargetKind = ImageViewportInternal::ProviderRequestTargetKind::Playback;
+    requests.activate({ ImageViewportTestHooks::providerRequestTokenForTest(4),
+        ImageSequenceProviderRequestKind::Metadata, ImageViewportPageRole::Primary, 7, 13,
+        ImageViewportInternal::ProviderRequestOwnership::Metadata });
+    requests.activate({ ImageViewportTestHooks::providerRequestTokenForTest(5),
+        ImageSequenceProviderRequestKind::Playback, ImageViewportPageRole::Primary, 7, 13,
+        ImageViewportInternal::ProviderRequestOwnership::DisplayRequest,
+        { 2, 120, ImageViewportInternal::ProviderRequestTargetKind::Playback }, { 2, 120 } });
+    requests.queuedFrame = ImageViewportInternal::QueuedProviderFrameRequest { 7, 13,
+        { 2, 120, ImageViewportInternal::ProviderRequestTargetKind::Playback }, { 2, 120 }, true };
     facts.metadataReady = true;
     facts.timedMetadata = true;
     facts.timedPlaybackSupport = true;
@@ -788,18 +776,18 @@ void ViewportEngineTest::providerStateOwnsTokensQueuesAndMetadataByRole()
 
     QCOMPARE(session.sessionSerial, 11);
     QCOMPARE(requests.nextRequestToken, 3);
-    QCOMPARE(requests.activeMetadataToken, ImageViewportTestHooks::providerRequestTokenForTest(4));
-    QCOMPARE(requests.activeFrameToken, ImageViewportTestHooks::providerRequestTokenForTest(5));
-    QCOMPARE(requests.queuedFrameRequest, true);
-    QCOMPARE(requests.queuedFrameGeneration, 7);
-    QCOMPARE(requests.queuedFrameRequestId, 13);
-    QCOMPARE(requests.queuedFrame, 2);
-    QCOMPARE(requests.queuedPosition, 120);
-    QCOMPARE(requests.queuedResolvedFrame.frame, 2);
-    QCOMPARE(requests.queuedResolvedFrame.position, 120);
-    QCOMPARE(requests.queuedFrameFromPlayback, true);
-    QCOMPARE(
-        requests.queuedFrameTargetKind, ImageViewportInternal::ProviderRequestTargetKind::Playback);
+    QCOMPARE(requests.metadataToken(), ImageViewportTestHooks::providerRequestTokenForTest(4));
+    QCOMPARE(requests.frameToken(), ImageViewportTestHooks::providerRequestTokenForTest(5));
+    QVERIFY(requests.queuedFrame.has_value());
+    QCOMPARE(requests.queuedFrame->generation, 7);
+    QCOMPARE(requests.queuedFrame->requestId, 13);
+    QCOMPARE(requests.queuedFrame->target.frame, 2);
+    QCOMPARE(requests.queuedFrame->target.position, 120);
+    QCOMPARE(requests.queuedFrame->resolvedFrame.frame, 2);
+    QCOMPARE(requests.queuedFrame->resolvedFrame.position, 120);
+    QCOMPARE(requests.queuedFrame->fromPlayback, true);
+    QCOMPARE(requests.queuedFrame->target.providerTargetKind,
+        ImageViewportInternal::ProviderRequestTargetKind::Playback);
     QCOMPARE(facts.metadataReady, true);
     QCOMPARE(facts.timedMetadata, true);
     QCOMPARE(facts.timedPlaybackSupport, true);
@@ -839,9 +827,9 @@ void ViewportEngineTest::providerDemandRestagingCancelsAndReissuesCurrentTarget(
     facts.logicalSize = QSizeF(16.0, 8.0);
     auto& requests
         = ViewportEngineTestAccess::providerRequests(engine, ImageViewportPageRole::Primary);
-    requests.activeFrameToken = providerRequestTokenForTest(4);
     requests.nextRequestToken = 4;
-    request.roles[0].activeRequest.providerFrameToken = requests.activeFrameToken;
+    activateProviderRequestForTest(requests, request, providerRequestTokenForTest(4),
+        ImageSequenceProviderRequestKind::Position);
 
     const auto transition
         = engine.handleViewportChanged({ QRectF(0.0, 0.0, 200.0, 100.0), 2.0, true });
@@ -857,7 +845,7 @@ void ViewportEngineTest::providerDemandRestagingCancelsAndReissuesCurrentTarget(
     QCOMPARE(send.request.demand().effectiveDevicePixelRatio(), 2.0);
     QVERIFY(send.request.demand().demandRevision().isValid());
     QCOMPARE(request.roles[0].activeRequest.demandRevision, send.request.demand().demandRevision());
-    QCOMPARE(request.roles[0].activeRequest.providerFrameToken, send.request.token());
+    QCOMPARE(requests.frameToken(), send.request.token());
 }
 
 void ViewportEngineTest::providerTerminalReducerRejectsStaleFrameToken()
@@ -870,12 +858,9 @@ void ViewportEngineTest::providerTerminalReducerRejectsStaleFrameToken()
     request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Initial,
         { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Frame }, false);
     ViewportEngineTestAccess::activateProviderSession(engine, ImageViewportPageRole::Primary);
-    ViewportEngineTestAccess::providerRequests(engine, ImageViewportPageRole::Primary)
-        .activeFrameToken
-        = providerRequestTokenForTest(3);
-    request.roles[0].activeRequest.providerFrameToken
-        = ViewportEngineTestAccess::providerRequests(engine, ImageViewportPageRole::Primary)
-              .activeFrameToken;
+    activateProviderRequestForTest(
+        ViewportEngineTestAccess::providerRequests(engine, ImageViewportPageRole::Primary), request,
+        providerRequestTokenForTest(3), ImageSequenceProviderRequestKind::Frame);
 
     ViewportProviderHostEvent hostEvent;
     hostEvent.kind = ViewportProviderHostEvent::Kind::ProviderEvent;
@@ -903,12 +888,9 @@ void ViewportEngineTest::providerTerminalReducerCommitsFrameFailureAtomically()
         { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Frame }, false);
     ViewportEngineTestAccess::playback(engine).phase = ImageViewportPlaybackPhase::Waiting;
     ViewportEngineTestAccess::activateProviderSession(engine, ImageViewportPageRole::Primary);
-    ViewportEngineTestAccess::providerRequests(engine, ImageViewportPageRole::Primary)
-        .activeFrameToken
-        = providerRequestTokenForTest(3);
-    request.roles[0].activeRequest.providerFrameToken
-        = ViewportEngineTestAccess::providerRequests(engine, ImageViewportPageRole::Primary)
-              .activeFrameToken;
+    activateProviderRequestForTest(
+        ViewportEngineTestAccess::providerRequests(engine, ImageViewportPageRole::Primary), request,
+        providerRequestTokenForTest(3), ImageSequenceProviderRequestKind::Frame);
 
     ViewportProviderHostEvent hostEvent;
     hostEvent.kind = ViewportProviderHostEvent::Kind::ProviderEvent;
@@ -929,7 +911,8 @@ void ViewportEngineTest::providerTerminalReducerCommitsFrameFailureAtomically()
                  .sessionActive,
         true);
     QVERIFY(!ViewportEngineTestAccess::providerRequests(engine, ImageViewportPageRole::Primary)
-            .activeFrameToken.isValid());
+            .frameToken()
+            .isValid());
     QVERIFY(result.providerAfterPublication.isEmpty());
 }
 
@@ -943,9 +926,10 @@ void ViewportEngineTest::providerTerminalReducerClosesMetadataGeneration()
     request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Initial,
         { -1, -1, ImageViewportInternal::ProviderRequestTargetKind::Unknown }, false);
     ViewportEngineTestAccess::activateProviderSession(engine, ImageViewportPageRole::Primary);
-    ViewportEngineTestAccess::providerRequests(engine, ImageViewportPageRole::Primary)
-        .activeMetadataToken
-        = providerRequestTokenForTest(5);
+    activateProviderRequestForTest(
+        ViewportEngineTestAccess::providerRequests(engine, ImageViewportPageRole::Primary), request,
+        providerRequestTokenForTest(5), ImageSequenceProviderRequestKind::Metadata,
+        ImageViewportInternal::ProviderRequestOwnership::Metadata);
 
     ViewportProviderHostEvent hostEvent;
     hostEvent.kind = ViewportProviderHostEvent::Kind::ProviderEvent;

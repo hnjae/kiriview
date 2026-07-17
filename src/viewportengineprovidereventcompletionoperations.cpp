@@ -30,17 +30,6 @@ bool sealed(const RequestState& r)
         && r.targetSpreadTerminal.generation == r.sequenceGeneration
         && r.targetSpreadTerminal.requestId == r.roles[0].activeRequest.identity.id;
 }
-void clearQueue(ProviderRequestState& q)
-{
-    q.queuedFrameRequest = false;
-    q.queuedFrameGeneration = 0;
-    q.queuedFrameRequestId = 0;
-    q.queuedFrame = -1;
-    q.queuedPosition = -1;
-    q.queuedResolvedFrame = {};
-    q.queuedFrameFromPlayback = false;
-    q.queuedFrameTargetKind = ProviderRequestTargetKind::Unknown;
-}
 void phase(PlaybackState& p, ImageViewportPlaybackPhase v, ViewportChangeSet& c)
 {
     if (p.phase != v) {
@@ -74,12 +63,13 @@ ViewportEngineProviderWaitingReduction reduceViewportEngineProviderWaiting(
         || (in.progress
             && (!std::isfinite(in.progressValue) || in.progressValue < 0 || in.progressValue > 1)))
         return out;
-    bool mt = !a.m_facts.metadataReady && a.m_requests.activeMetadataToken.isValid()
-        && in.token == a.m_requests.activeMetadataToken;
+    const auto* providerRequest = a.m_requests.find(in.token);
+    bool mt = providerRequest && providerRequest->isMetadata() && !a.m_facts.metadataReady;
     const auto& r = requestFor(a.m_request, in.role);
-    bool ft = a.m_requests.activeFrameToken.isValid() && in.token == a.m_requests.activeFrameToken
-        && in.token == r.providerFrameToken;
-    if (ft && a.m_requests.activeFrameRefinement)
+    bool ft = providerRequest && providerRequest->isFrameWork()
+        && providerRequest->generation == a.m_request.sequenceGeneration
+        && providerRequest->requestId == r.identity.id;
+    if (ft && providerRequest->isRefinement())
         return out;
     if ((!mt && !ft) || a.m_request.status != ImageViewportRequestStatus::Loading
         || a.m_request.reason == ImageViewportRequestReason::ProviderWaiting)
@@ -120,21 +110,18 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
     auto& p = a.m_roles[index(in.role)].provider;
     if (!present(a.m_request, in.role) || !p.session.sessionActive)
         return out;
-    bool mt = !p.facts.metadataReady && p.requests.activeMetadataToken.isValid()
-        && in.token == p.requests.activeMetadataToken;
+    const auto* providerRequest = p.requests.find(in.token);
+    bool mt = providerRequest && providerRequest->isMetadata() && !p.facts.metadataReady;
     auto& r = requestFor(a.m_request, in.role);
-    bool ft = p.requests.activeFrameToken.isValid() && in.token == p.requests.activeFrameToken
-        && in.token == r.providerFrameToken;
+    bool ft = providerRequest && providerRequest->isFrameWork()
+        && providerRequest->generation == a.m_request.sequenceGeneration
+        && providerRequest->requestId == r.identity.id;
     if ((!mt && !ft) || sealed(a.m_request))
         return out;
     if (mt || !p.facts.metadataReady || !p.facts.timedMetadata
         || r.target.providerTargetKind != ProviderRequestTargetKind::Playback) {
-        clearQueue(p.requests);
-        if (mt)
-            p.requests.activeMetadataToken = {};
-        if (ft)
-            p.requests.activeFrameToken = {};
-        p.requests.activeFrameRefinement = false;
+        p.requests.clearQueue();
+        p.requests.retire(in.token);
         a.m_playback.providerStartPending = false;
         a.m_playback.stopWhenRequestReady = false;
         out.changes = a.recordTerminal({ in.role, ImageViewportRequestStatus::Error,
@@ -145,8 +132,7 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
         out.providerFrameTransport = a.closeSession(in.role);
         return out;
     }
-    p.requests.activeFrameToken = {};
-    p.requests.activeFrameRefinement = false;
+    p.requests.retire(in.token);
     bool dc = a.m_request.clearDiagnostics();
     bool loop = loops(a.m_playback, p.facts.authoredAnimationFacts);
     int frame = loop ? 0 : p.facts.timingIntervals.frameCount() - 1;
@@ -162,7 +148,6 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
         s.identity = a.m_request.roles[0].activeRequest.identity;
         s.target = target;
         s.resolvedFrame = { frame, pos };
-        s.providerFrameToken = {};
         s.preparedPayloadId = a.m_request.roles[0].activeRequest.preparedPayloadId;
     } else {
         a.m_request.roles[0].activeRequest.target = target;

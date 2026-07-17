@@ -155,11 +155,11 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
         ? access.m_request.roles[0].source.facts.provider
         : access.m_request.roles[1].sequence && access.m_request.roles[1].provider;
     if (!providerPresent || !provider.session.sessionActive
-        || !provider.requests.activeMetadataToken.isValid()
-        || input.token != provider.requests.activeMetadataToken) {
+        || !provider.requests.metadataToken().isValid()
+        || input.token != provider.requests.metadataToken()) {
         return result;
     }
-    provider.requests.activeMetadataToken = {};
+    provider.requests.retire(input.token);
 
     const auto rejectMetadata = [&access, &result, role = input.role](const QString& diagnostic) {
         access.m_playback.providerStartPending = false;

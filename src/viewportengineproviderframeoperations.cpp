@@ -39,9 +39,10 @@ bool activeTokenMatches(const ProviderRoleState& provider, const RequestState& r
     ImageViewportPageRole role, ImageSequenceProviderRequestToken token)
 {
     const auto& active = requestForRole(request, role);
-    return provider.requests.activeFrameToken.isValid()
-        && token == provider.requests.activeFrameToken && token.isValid()
-        && token == active.providerFrameToken;
+    const auto* record = provider.requests.find(token);
+    return record && record->isFrameWork() && record->role == role
+        && record->generation == request.sequenceGeneration
+        && record->requestId == active.identity.id;
 }
 
 bool displayedPrimaryPayloadMatchesActiveTarget(
@@ -58,7 +59,8 @@ bool displayedPrimaryPayloadMatchesActiveTarget(
 
 FramePreparation::ProviderFrameState preparationState(const RequestState& request,
     const DisplayState& display, const ProviderRoleState& provider,
-    const PresentationState& presentation, ImageViewportPageRole role, bool refinement)
+    const ProviderRequestRecord& providerRequest, const PresentationState& presentation,
+    ImageViewportPageRole role, bool refinement)
 {
     const auto& active = requestForRole(request, role);
     const auto index = role == ImageViewportPageRole::Secondary ? 1U : 0U;
@@ -67,26 +69,12 @@ FramePreparation::ProviderFrameState preparationState(const RequestState& reques
         preparedPayload.generation = request.sequenceGeneration;
         preparedPayload.payloadId = active.identity.id == 0 ? 0 : display.nextPreparedPayloadId + 1;
     }
-    const auto& demand = provider.requests.lastFrameDemand;
+    const auto* demand = providerRequest.demand ? &*providerRequest.demand : nullptr;
     return { provider.facts.metadataReady, provider.facts.timedMetadata, provider.facts.logicalSize,
-        provider.facts.timingIntervals, active.resolvedFrame, role, preparedPayload,
-        active.demandRevision,
-        provider.requests.hasLastFrameDemand ? demand.maximumTextureSize() : -1,
-        provider.requests.hasLastFrameDemand ? demand.maximumPayloadBytes() : -1,
-        provider.requests.hasLastFrameDemand ? demand.displayByteBudget() : -1,
-        presentation.exactnessPreference };
-}
-
-void clearQueue(ProviderRequestState& requests)
-{
-    requests.queuedFrameRequest = false;
-    requests.queuedFrameGeneration = 0;
-    requests.queuedFrameRequestId = 0;
-    requests.queuedFrame = -1;
-    requests.queuedPosition = -1;
-    requests.queuedResolvedFrame = {};
-    requests.queuedFrameFromPlayback = false;
-    requests.queuedFrameTargetKind = ProviderRequestTargetKind::Unknown;
+        provider.facts.timingIntervals, providerRequest.resolvedFrame, role, preparedPayload,
+        demand ? demand->demandRevision() : ImageViewportDemandRevisionToken {},
+        demand ? demand->maximumTextureSize() : -1, demand ? demand->maximumPayloadBytes() : -1,
+        demand ? demand->displayByteBudget() : -1, presentation.exactnessPreference };
 }
 
 ImageViewportDisplayStatus retainedDisplayStatus(const DisplayState& display)
@@ -147,7 +135,12 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         return result;
     }
 
-    const bool refinement = access.m_provider.requests.activeFrameRefinement;
+    const auto* activeProviderRequest = access.m_provider.requests.find(input.token);
+    if (!activeProviderRequest) {
+        return result;
+    }
+    const ProviderRequestRecord providerRequest = *activeProviderRequest;
+    const bool refinement = providerRequest.isRefinement();
 
     if (input.role == ImageViewportPageRole::Secondary && !refinement) {
         auto& preparedPayload = access.m_display.roles[0].pendingRenderPayload;
@@ -162,11 +155,11 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
             preparedPayload.commitPending = true;
             primaryRequest.preparedPayloadId = preparedPayload.payloadId;
         }
-        access.m_provider.requests.activeFrameToken = {};
+        access.m_provider.requests.retire(input.token);
     }
 
     const auto frameState = preparationState(access.m_request, access.m_display, access.m_provider,
-        access.m_presentation, input.role, refinement);
+        providerRequest, access.m_presentation, input.role, refinement);
     const auto admission
         = FramePreparation::admitProviderFrame(input.frame, input.envelope, frameState);
     if (!admission.accepted()) {
@@ -184,10 +177,8 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         observation.identity.providerLeaseId = input.providerFrameLeaseId;
         observation.detail = int(admission.cause);
         result.observations.append(observation);
-        clearQueue(access.m_provider.requests);
-        access.m_provider.requests.activeFrameToken = {};
-        access.m_provider.requests.activeFrameRefinement = false;
-        requestForRole(access.m_request, input.role).providerFrameToken = {};
+        access.m_provider.requests.clearQueue();
+        access.m_provider.requests.retire(input.token);
         if (refinement)
             return result;
         result.changes = access.recordTerminal({ input.role, admission.status, admission.reason,
@@ -202,9 +193,7 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
     const auto oldRequestStatus = access.m_request.status;
     const auto oldRequestReason = access.m_request.reason;
     const auto oldGeometry = projectViewportGeometryState(input.geometry, access.m_presentation);
-    access.m_provider.requests.activeFrameToken = {};
-    access.m_provider.requests.activeFrameRefinement = false;
-    requestForRole(access.m_request, input.role).providerFrameToken = {};
+    access.m_provider.requests.retire(input.token);
 
     if (refinement) {
         const auto index = input.role == ImageViewportPageRole::Secondary ? 1U : 0U;

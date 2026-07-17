@@ -19,7 +19,7 @@ ViewportProviderRequestTokenAllocationResult allocateViewportProviderRequestToke
 
     result.exhausted = true;
     result.closeSession = session.sessionActive;
-    result.sessionClose = { requests.activeMetadataToken, requests.activeFrameToken };
+    result.sessionClose = { requests.metadataToken(), requests.frameToken() };
     session.sessionActive = false;
     requests = {};
     auto& request = access.request();

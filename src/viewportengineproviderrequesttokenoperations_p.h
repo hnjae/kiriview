@@ -50,7 +50,7 @@ public:
     {
         return m_roles[role == ImageViewportPageRole::Secondary ? 1U : 0U].provider.session;
     }
-    ImageViewportInternal::ProviderRequestState& requests(ImageViewportPageRole role) const
+    ImageViewportInternal::ProviderRequestLedger& requests(ImageViewportPageRole role) const
     {
         return m_roles[role == ImageViewportPageRole::Secondary ? 1U : 0U].provider.requests;
     }

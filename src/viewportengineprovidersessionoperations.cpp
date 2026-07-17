@@ -21,27 +21,14 @@ ViewportProviderFrameTransportEffect closeViewportEngineProviderSession(
 {
     ViewportProviderFrameTransportEffect effect;
     effect.closeSession = access.m_session.sessionActive;
-    access.m_requests.queuedFrameRequest = false;
-    access.m_requests.queuedFrameGeneration = 0;
-    access.m_requests.queuedFrameRequestId = 0;
-    access.m_requests.queuedFrame = -1;
-    access.m_requests.queuedPosition = -1;
-    access.m_requests.queuedResolvedFrame = {};
-    access.m_requests.queuedFrameFromPlayback = false;
-    access.m_requests.queuedFrameTargetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+    access.m_requests.clearQueue();
     if (!access.m_session.sessionActive) {
         return effect;
     }
-    effect.sessionClose.metadataToken = access.m_requests.activeMetadataToken;
-    effect.sessionClose.frameToken = access.m_requests.activeFrameToken;
+    effect.sessionClose.metadataToken = access.m_requests.metadataToken();
+    effect.sessionClose.frameToken = access.m_requests.frameToken();
     access.m_session.sessionActive = false;
-    access.m_requests.activeMetadataToken = {};
-    access.m_requests.activeFrameToken = {};
-    access.m_requests.activeFrameRefinement = false;
-    access.m_requests.hasLastFrameDemand = false;
-    access.m_requests.lastFrameDemand = {};
-    access.m_requests.nextRequestToken = 0;
+    access.m_requests.resetSession();
     return effect;
 }
 

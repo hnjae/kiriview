@@ -66,7 +66,7 @@ class ViewportEngineProviderTerminalEventAccess
         ImageViewportInternal::PlaybackState& playback,
         const ImageViewportInternal::ProviderFactsState& facts,
         ImageViewportInternal::ProviderSessionState& session,
-        ImageViewportInternal::ProviderRequestState& requests)
+        ImageViewportInternal::ProviderRequestLedger& requests)
         : m_request(request)
         , m_playback(playback)
         , m_facts(facts)
@@ -89,7 +89,7 @@ private:
     ImageViewportInternal::PlaybackState& m_playback;
     const ImageViewportInternal::ProviderFactsState& m_facts;
     ImageViewportInternal::ProviderSessionState& m_session;
-    ImageViewportInternal::ProviderRequestState& m_requests;
+    ImageViewportInternal::ProviderRequestLedger& m_requests;
 };
 
 class ViewportEngineProviderDispatchFailureAccess
@@ -102,7 +102,7 @@ class ViewportEngineProviderDispatchFailureAccess
         ImageViewportInternal::PlaybackState& playback,
         const ImageViewportInternal::ProviderFactsState& facts,
         ImageViewportInternal::ProviderSessionState& session,
-        ImageViewportInternal::ProviderRequestState& requests)
+        ImageViewportInternal::ProviderRequestLedger& requests)
         : m_request(request)
         , m_playback(playback)
         , m_facts(facts)
@@ -126,7 +126,7 @@ private:
     ImageViewportInternal::PlaybackState& m_playback;
     const ImageViewportInternal::ProviderFactsState& m_facts;
     ImageViewportInternal::ProviderSessionState& m_session;
-    ImageViewportInternal::ProviderRequestState& m_requests;
+    ImageViewportInternal::ProviderRequestLedger& m_requests;
 };
 
 class ViewportEngineProviderSessionOpenFailureAccess
@@ -140,7 +140,7 @@ class ViewportEngineProviderSessionOpenFailureAccess
     ViewportEngineProviderSessionOpenFailureAccess(ImageViewportInternal::RequestState& request,
         ImageViewportInternal::PlaybackState& playback,
         ImageViewportInternal::ProviderSessionState& session,
-        ImageViewportInternal::ProviderRequestState& requests)
+        ImageViewportInternal::ProviderRequestLedger& requests)
         : m_request(request)
         , m_playback(playback)
         , m_session(session)
@@ -162,7 +162,7 @@ private:
     ImageViewportInternal::RequestState& m_request;
     ImageViewportInternal::PlaybackState& m_playback;
     ImageViewportInternal::ProviderSessionState& m_session;
-    ImageViewportInternal::ProviderRequestState& m_requests;
+    ImageViewportInternal::ProviderRequestLedger& m_requests;
 };
 
 class ViewportEngineProviderQueueFailureAccess
@@ -173,7 +173,7 @@ class ViewportEngineProviderQueueFailureAccess
 
     ViewportEngineProviderQueueFailureAccess(ImageViewportInternal::RequestState& request,
         ImageViewportInternal::PlaybackState& playback,
-        ImageViewportInternal::ProviderRequestState& requests)
+        ImageViewportInternal::ProviderRequestLedger& requests)
         : m_request(request)
         , m_playback(playback)
         , m_requests(requests)
@@ -191,7 +191,7 @@ private:
         ViewportEngineProviderTerminalProjectionInput input);
     ImageViewportInternal::RequestState& m_request;
     ImageViewportInternal::PlaybackState& m_playback;
-    ImageViewportInternal::ProviderRequestState& m_requests;
+    ImageViewportInternal::ProviderRequestLedger& m_requests;
 };
 
 ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderTerminalEvent(

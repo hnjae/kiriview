@@ -14,18 +14,6 @@ DisplayRequest& requestForRole(RequestState& request, ImageViewportPageRole role
                                                     : request.roles[0].activeRequest;
 }
 
-void clearQueue(ProviderRequestState& requests)
-{
-    requests.queuedFrameRequest = false;
-    requests.queuedFrameGeneration = 0;
-    requests.queuedFrameRequestId = 0;
-    requests.queuedFrame = -1;
-    requests.queuedPosition = -1;
-    requests.queuedResolvedFrame = {};
-    requests.queuedFrameFromPlayback = false;
-    requests.queuedFrameTargetKind = ProviderRequestTargetKind::Unknown;
-}
-
 bool sameSelectionDemand(
     const ImageSequenceProviderDisplayDemand& lhs, const ImageSequenceProviderDisplayDemand& rhs)
 {
@@ -60,7 +48,7 @@ ViewportProviderFrameRequestStartResult startFrameRequest(RequestContext context
 {
     ViewportProviderFrameRequestStartResult result;
     auto& provider = context.roles[role == ImageViewportPageRole::Secondary ? 1U : 0U].provider;
-    clearQueue(provider.requests);
+    provider.requests.clearQueue();
     TargetSpreadWaitState wait;
     if (role == ImageViewportPageRole::Secondary) {
         wait.requiresSecondary = true;
@@ -77,9 +65,7 @@ ViewportProviderFrameRequestStartResult startFrameRequest(RequestContext context
     const auto allocation = allocate(role);
     result.closeSession = allocation.closeSession;
     result.sessionClose = allocation.sessionClose;
-    provider.requests.activeFrameToken = allocation.token;
-    provider.requests.activeFrameRefinement = false;
-    if (!provider.requests.activeFrameToken.isValid()) {
+    if (!allocation.token.isValid()) {
         return result;
     }
     if (role == ImageViewportPageRole::Secondary) {
@@ -90,23 +76,25 @@ ViewportProviderFrameRequestStartResult startFrameRequest(RequestContext context
         secondary.identity = context.request.roles[0].activeRequest.identity;
         secondary.target = target;
         secondary.resolvedFrame = { target.frame, position };
-        secondary.providerFrameToken = {};
         secondary.preparedPayloadId = context.request.roles[0].activeRequest.preparedPayloadId;
         if (target.providerTargetKind != ProviderRequestTargetKind::Playback && target.frame >= 0) {
             context.request.roles[1].latestNonPlaybackRequest = secondary;
         }
     }
     auto& active = requestForRole(context.request, role);
-    active.providerFrameToken = provider.requests.activeFrameToken;
     result.accepted = true;
     result.sendCommand = provider.session.sessionActive;
-    result.command.token = provider.requests.activeFrameToken;
+    result.command.token = allocation.token;
     result.command.frame = active.resolvedFrame.frame;
     result.command.position = active.target.position;
     result.command.targetKind = active.target.providerTargetKind;
     result.command.demand = demand(role, geometry);
-    provider.requests.lastFrameDemand = result.command.demand;
-    provider.requests.hasLastFrameDemand = true;
+    provider.requests.activate(
+        { allocation.token, providerRequestKind(active.target.providerTargetKind), role,
+            context.request.sequenceGeneration, active.identity.id,
+            ProviderRequestOwnership::DisplayRequest, active.target, active.resolvedFrame,
+            result.command.demand });
+    provider.requests.lastIssuedFrameDemand = result.command.demand;
     return result;
 }
 
@@ -122,11 +110,8 @@ ViewportProviderFrameRequestStartResult startRefinementRequest(RequestContext co
     const auto allocation = allocate(role);
     result.closeSession = allocation.closeSession;
     result.sessionClose = allocation.sessionClose;
-    provider.requests.activeFrameToken = allocation.token;
-    provider.requests.activeFrameRefinement = allocation.token.isValid();
     if (!allocation.token.isValid())
         return result;
-    active.providerFrameToken = allocation.token;
     result.accepted = true;
     result.sendCommand = provider.session.sessionActive;
     result.command.token = allocation.token;
@@ -134,8 +119,11 @@ ViewportProviderFrameRequestStartResult startRefinementRequest(RequestContext co
     result.command.position = active.target.position;
     result.command.targetKind = ProviderRequestTargetKind::Frame;
     result.command.demand = demand(role, geometry);
-    provider.requests.lastFrameDemand = result.command.demand;
-    provider.requests.hasLastFrameDemand = true;
+    provider.requests.activate({ allocation.token, ImageSequenceProviderRequestKind::Frame, role,
+        context.request.sequenceGeneration, active.identity.id,
+        ProviderRequestOwnership::Refinement, active.target, active.resolvedFrame,
+        result.command.demand });
+    provider.requests.lastIssuedFrameDemand = result.command.demand;
     return result;
 }
 
@@ -191,12 +179,18 @@ ViewportProviderSessionOpenResult reduceViewportEngineProviderSessionOpened(
         = access.m_roles[input.role == ImageViewportPageRole::Secondary ? 1U : 0U].provider;
     if (!provider.facts.metadataReady) {
         const auto allocation = access.allocate(input.role);
-        provider.requests.activeMetadataToken = allocation.token;
         result.providerMetadataTransport.closeSession = allocation.closeSession;
         result.providerMetadataTransport.sessionClose = allocation.sessionClose;
         result.providerMetadataTransport.sendCommand
             = provider.session.sessionActive && allocation.token.isValid();
         result.providerMetadataTransport.token = allocation.token;
+        if (allocation.token.isValid()) {
+            const auto& active = requestForRole(access.m_request, input.role);
+            provider.requests.activate(
+                { allocation.token, ImageSequenceProviderRequestKind::Metadata, input.role,
+                    access.m_request.sequenceGeneration, active.identity.id,
+                    ProviderRequestOwnership::Metadata });
+        }
         return result;
     }
     invalidateViewportEngineTargetSpreadRole(access.m_request, access.m_display, input.role);
@@ -220,29 +214,27 @@ ViewportProviderFrameQueueFlushResult reduceViewportEngineProviderQueueFlush(
     ViewportProviderFrameQueueFlushResult result;
     auto& provider
         = access.m_roles[input.role == ImageViewportPageRole::Secondary ? 1U : 0U].provider;
-    auto& queued = provider.requests;
+    auto& requests = provider.requests;
     const auto& active = requestForRole(access.m_request, input.role);
+    const auto queued = requests.queuedFrame;
     const bool providerPresent = input.role == ImageViewportPageRole::Primary
         ? access.m_request.roles[0].source.facts.provider
         : access.m_request.roles[1].sequence && access.m_request.roles[1].provider;
-    const bool current = queued.queuedFrameRequest && providerPresent
-        && provider.session.sessionActive
-        && queued.queuedFrameGeneration == access.m_request.sequenceGeneration
-        && queued.queuedFrameRequestId == active.identity.id
+    const bool current = queued.has_value() && providerPresent && provider.session.sessionActive
+        && queued->generation == access.m_request.sequenceGeneration
+        && queued->requestId == active.identity.id
         && access.m_request.status == ImageViewportRequestStatus::Loading
         && access.m_request.reason == ImageViewportRequestReason::RequestQueued
-        && active.target.frame == queued.queuedFrame
-        && active.target.position == queued.queuedPosition
-        && active.resolvedFrame.frame == queued.queuedResolvedFrame.frame
-        && active.resolvedFrame.position == queued.queuedResolvedFrame.position
-        && active.target.providerTargetKind == queued.queuedFrameTargetKind;
-    const int frame = queued.queuedFrame;
-    const auto kind = queued.queuedFrameTargetKind;
-    clearQueue(queued);
+        && active.target.frame == queued->target.frame
+        && active.target.position == queued->target.position
+        && active.resolvedFrame.frame == queued->resolvedFrame.frame
+        && active.resolvedFrame.position == queued->resolvedFrame.position
+        && active.target.providerTargetKind == queued->target.providerTargetKind;
+    const DisplayRequestTarget target = queued ? queued->target : DisplayRequestTarget {};
+    requests.clearQueue();
     if (!current) {
         return result;
     }
-    const DisplayRequestTarget target { frame, active.target.position, kind };
     const auto start = startFrameRequest(
         { access.m_request, access.m_display, access.m_roles }, input.role, target, input.geometry,
         [&access](ImageViewportPageRole role) { return access.allocate(role); },
@@ -278,22 +270,23 @@ std::array<ViewportProviderFrameTransportEffect, 2> reduceViewportEngineProvider
         }
         const auto previousRevision = request.demandRevision;
         const auto projected = access.demand(role, input.geometry);
-        if (provider.requests.hasLastFrameDemand
-            && sameSelectionDemand(projected, provider.requests.lastFrameDemand)) {
+        if (provider.requests.lastIssuedFrameDemand
+            && sameSelectionDemand(projected, *provider.requests.lastIssuedFrameDemand)) {
             request.demandRevision = previousRevision;
             continue;
         }
-        if (!provider.requests.activeFrameToken.isValid()
-            && access.m_request.status != ImageViewportRequestStatus::Ready) {
+        const auto* activeFrame = provider.requests.frameRequest();
+        if (!activeFrame && access.m_request.status != ImageViewportRequestStatus::Ready) {
             request.demandRevision = previousRevision;
             continue;
         }
-        const bool ordinaryRequestActive = provider.requests.activeFrameToken.isValid()
-            && !provider.requests.activeFrameRefinement;
-        effects[index].cancelToken = provider.requests.activeFrameToken;
-        provider.requests.activeFrameToken = {};
-        provider.requests.activeFrameRefinement = false;
-        request.providerFrameToken = {};
+        const bool ordinaryRequestActive
+            = activeFrame && activeFrame->ownership == ProviderRequestOwnership::DisplayRequest;
+        effects[index].cancelToken
+            = activeFrame ? activeFrame->token : ImageSequenceProviderRequestToken {};
+        if (activeFrame) {
+            provider.requests.retire(activeFrame->token);
+        }
         access.m_display.roles[index].pendingRenderPayload = {};
         const bool committedTarget = access.m_request.status == ImageViewportRequestStatus::Ready
             && access.m_display.status == ImageViewportDisplayStatus::Ready

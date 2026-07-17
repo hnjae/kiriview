@@ -11,6 +11,7 @@
 
 #include <array>
 #include <memory>
+#include <optional>
 
 namespace ImageViewportInternal {
 
@@ -73,6 +74,20 @@ enum class ProviderRequestTargetKind {
     Position,
     Playback,
 };
+
+inline ImageSequenceProviderRequestKind providerRequestKind(ProviderRequestTargetKind kind)
+{
+    switch (kind) {
+    case ProviderRequestTargetKind::Position:
+        return ImageSequenceProviderRequestKind::Position;
+    case ProviderRequestTargetKind::Playback:
+        return ImageSequenceProviderRequestKind::Playback;
+    case ProviderRequestTargetKind::Unknown:
+    case ProviderRequestTargetKind::Frame:
+        return ImageSequenceProviderRequestKind::Frame;
+    }
+    return ImageSequenceProviderRequestKind::Frame;
+}
 
 enum class ProviderSchedulerOperation {
     None,
@@ -195,7 +210,6 @@ struct DisplayRequest
     DisplayRequestIdentity identity;
     DisplayRequestTarget target;
     ResolvedFrameIdentity resolvedFrame;
-    ImageSequenceProviderRequestToken providerFrameToken;
     ImageViewportDemandRevisionToken demandRevision;
     quint64 preparedPayloadId = 0;
 };
@@ -457,7 +471,6 @@ struct RequestState
         lastAcceptedRenderFailure = {};
         auto& activeRequest = roles[0].activeRequest;
         activeRequest.identity = { ++nextRequestId, origin };
-        activeRequest.providerFrameToken = {};
         activeRequest.demandRevision = {};
         activeRequest.preparedPayloadId = 0;
         if (rememberAsLatestNonPlayback) {
@@ -503,7 +516,6 @@ struct RequestState
         secondary.identity = spreadIdentity;
         secondary.target = target;
         secondary.resolvedFrame = resolvedFrame;
-        secondary.providerFrameToken = {};
         secondary.demandRevision = {};
         secondary.preparedPayloadId = 0;
         if (rememberAsLatestNonPlayback) {
@@ -520,11 +532,6 @@ struct RequestState
         errorString.clear();
         warningString.clear();
         return true;
-    }
-
-    bool activeRequestMatchesProviderFrameToken(ImageSequenceProviderRequestToken token) const
-    {
-        return token.isValid() && token == roles[0].activeRequest.providerFrameToken;
     }
 
     bool activeRequestOwnsPreparedPayload(
@@ -558,22 +565,141 @@ struct ProviderSessionState
     quint64 sessionSerial = 0;
 };
 
-struct ProviderRequestState
+enum class ProviderRequestOwnership {
+    Metadata,
+    DisplayRequest,
+    Refinement,
+};
+
+struct ProviderRequestRecord
 {
+    ImageSequenceProviderRequestToken token;
+    ImageSequenceProviderRequestKind kind = ImageSequenceProviderRequestKind::Metadata;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
+    quint64 generation = 0;
+    quint64 requestId = 0;
+    ProviderRequestOwnership ownership = ProviderRequestOwnership::Metadata;
+    DisplayRequestTarget target;
+    ResolvedFrameIdentity resolvedFrame;
+    std::optional<ImageSequenceProviderDisplayDemand> demand;
+
+    bool isMetadata() const { return kind == ImageSequenceProviderRequestKind::Metadata; }
+    bool isFrameWork() const
+    {
+        return kind == ImageSequenceProviderRequestKind::Frame
+            || kind == ImageSequenceProviderRequestKind::Position
+            || kind == ImageSequenceProviderRequestKind::Playback;
+    }
+    bool isRefinement() const { return ownership == ProviderRequestOwnership::Refinement; }
+};
+
+struct QueuedProviderFrameRequest
+{
+    quint64 generation = 0;
+    quint64 requestId = 0;
+    DisplayRequestTarget target;
+    ResolvedFrameIdentity resolvedFrame;
+    bool fromPlayback = false;
+};
+
+struct ProviderRequestLedger
+{
+    const ProviderRequestRecord* find(ImageSequenceProviderRequestToken token) const
+    {
+        for (const auto& record : active) {
+            if (token.isValid() && record.token == token) {
+                return &record;
+            }
+        }
+        return nullptr;
+    }
+
+    ProviderRequestRecord* find(ImageSequenceProviderRequestToken token)
+    {
+        for (auto& record : active) {
+            if (token.isValid() && record.token == token) {
+                return &record;
+            }
+        }
+        return nullptr;
+    }
+
+    const ProviderRequestRecord* metadataRequest() const
+    {
+        for (const auto& record : active) {
+            if (record.isMetadata()) {
+                return &record;
+            }
+        }
+        return nullptr;
+    }
+
+    const ProviderRequestRecord* frameRequest() const
+    {
+        for (const auto& record : active) {
+            if (record.isFrameWork()) {
+                return &record;
+            }
+        }
+        return nullptr;
+    }
+
+    ImageSequenceProviderRequestToken metadataToken() const
+    {
+        const auto* record = metadataRequest();
+        return record ? record->token : ImageSequenceProviderRequestToken {};
+    }
+
+    ImageSequenceProviderRequestToken frameToken() const
+    {
+        const auto* record = frameRequest();
+        return record ? record->token : ImageSequenceProviderRequestToken {};
+    }
+
+    void activate(ProviderRequestRecord record)
+    {
+        if (!record.token.isValid() || find(record.token)
+            || (record.isMetadata() ? metadataRequest() != nullptr : frameRequest() != nullptr)) {
+            qFatal("ImageViewport provider request ledger invariant violated");
+        }
+        active.append(std::move(record));
+    }
+
+    std::optional<ProviderRequestRecord> retire(ImageSequenceProviderRequestToken token)
+    {
+        for (qsizetype index = 0; index < active.size(); ++index) {
+            if (token.isValid() && active.at(index).token == token) {
+                return active.takeAt(index);
+            }
+        }
+        return std::nullopt;
+    }
+
+    std::optional<ProviderRequestRecord> retireMetadata() { return retire(metadataToken()); }
+
+    std::optional<ProviderRequestRecord> retireFrame() { return retire(frameToken()); }
+
+    void queue(QueuedProviderFrameRequest request) { queuedFrame = std::move(request); }
+
+    void clearQueue() { queuedFrame.reset(); }
+
+    void clearWork()
+    {
+        active.clear();
+        clearQueue();
+        lastIssuedFrameDemand.reset();
+    }
+
+    void resetSession()
+    {
+        clearWork();
+        nextRequestToken = 0;
+    }
+
     quint64 nextRequestToken = 0;
-    ImageSequenceProviderRequestToken activeMetadataToken;
-    ImageSequenceProviderRequestToken activeFrameToken;
-    bool activeFrameRefinement = false;
-    bool hasLastFrameDemand = false;
-    ImageSequenceProviderDisplayDemand lastFrameDemand;
-    bool queuedFrameRequest = false;
-    quint64 queuedFrameGeneration = 0;
-    quint64 queuedFrameRequestId = 0;
-    int queuedFrame = -1;
-    int queuedPosition = -1;
-    ResolvedFrameIdentity queuedResolvedFrame;
-    bool queuedFrameFromPlayback = false;
-    ProviderRequestTargetKind queuedFrameTargetKind = ProviderRequestTargetKind::Unknown;
+    QVector<ProviderRequestRecord> active;
+    std::optional<ImageSequenceProviderDisplayDemand> lastIssuedFrameDemand;
+    std::optional<QueuedProviderFrameRequest> queuedFrame;
 };
 
 struct ProviderFactsState
@@ -592,7 +718,7 @@ struct ProviderFactsState
 struct ProviderRoleState
 {
     ProviderSessionState session;
-    ProviderRequestState requests;
+    ProviderRequestLedger requests;
     ProviderFactsState facts;
 };
 

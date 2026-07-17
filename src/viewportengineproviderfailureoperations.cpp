@@ -32,18 +32,6 @@ bool providerPresent(const RequestState& request, ImageViewportPageRole role)
                                                   : request.roles[1].provider;
 }
 
-void clearQueue(ProviderRequestState& requests)
-{
-    requests.queuedFrameRequest = false;
-    requests.queuedFrameGeneration = 0;
-    requests.queuedFrameRequestId = 0;
-    requests.queuedFrame = -1;
-    requests.queuedPosition = -1;
-    requests.queuedResolvedFrame = {};
-    requests.queuedFrameFromPlayback = false;
-    requests.queuedFrameTargetKind = ProviderRequestTargetKind::Unknown;
-}
-
 void updatePlaybackPhase(
     PlaybackState& playback, ImageViewportPlaybackPhase phase, ViewportChangeSet& changes)
 {
@@ -116,7 +104,7 @@ struct TerminalContext
     PlaybackState& playback;
     const ProviderFactsState& facts;
     ProviderSessionState& session;
-    ProviderRequestState& requests;
+    ProviderRequestLedger& requests;
 };
 
 template <typename RecordTerminal, typename CloseSession>
@@ -131,16 +119,15 @@ ViewportEngineProviderTerminalEventReduction reduceTerminal(TerminalContext cont
     }
 
     const auto& request = requestForRole(context.request, input.role);
-    const bool frameToken = input.token.isValid()
-        && input.token == context.requests.activeFrameToken
-        && input.token == request.providerFrameToken;
+    const auto* providerRequest = context.requests.find(input.token);
+    const bool frameToken = providerRequest && providerRequest->isFrameWork()
+        && providerRequest->generation == context.request.sequenceGeneration
+        && providerRequest->requestId == request.identity.id;
     if (frameToken) {
-        const bool refinement = context.requests.activeFrameRefinement;
+        const bool refinement = providerRequest->isRefinement();
         const auto terminal = frameTerminal(input);
-        clearQueue(context.requests);
-        context.requests.activeFrameToken = {};
-        context.requests.activeFrameRefinement = false;
-        requestForRole(context.request, input.role).providerFrameToken = {};
+        context.requests.clearQueue();
+        context.requests.retire(input.token);
         if (refinement && !invalidUnsupportedCause(input))
             return result;
         result.changes = recordTerminal({ input.role, terminal.status, terminal.reason,
@@ -154,12 +141,11 @@ ViewportEngineProviderTerminalEventReduction reduceTerminal(TerminalContext cont
         return result;
     }
 
-    if (context.facts.metadataReady || !context.requests.activeMetadataToken.isValid()
-        || input.token != context.requests.activeMetadataToken) {
+    if (context.facts.metadataReady || !providerRequest || !providerRequest->isMetadata()) {
         return result;
     }
     const auto terminal = metadataTerminal(input);
-    context.requests.activeMetadataToken = {};
+    context.requests.retire(input.token);
     context.playback.providerStartPending = false;
     result.changes
         = recordTerminal({ input.role, terminal.status, terminal.reason, FailureScope::Generation,
@@ -233,20 +219,14 @@ ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderDispatc
             if (sessionWasActive) {
                 return access.closeSession();
             }
-            clearQueue(access.m_requests);
-            access.m_requests.activeMetadataToken = {};
-            access.m_requests.activeFrameToken = {};
-            access.m_requests.activeFrameRefinement = false;
-            access.m_requests.hasLastFrameDemand = false;
-            access.m_requests.lastFrameDemand = {};
-            access.m_requests.nextRequestToken = 0;
+            access.m_requests.resetSession();
             return ViewportProviderFrameTransportEffect {};
         });
     if (sessionWasActive && result.changes.requestState
         && !result.providerFrameTransport.closeSession) {
         result.providerFrameTransport = access.closeSession();
     } else if (!sessionWasActive && result.changes.requestState) {
-        clearQueue(access.m_requests);
+        access.m_requests.clearQueue();
     }
     return result;
 }
@@ -257,13 +237,8 @@ ViewportEngineProviderSessionOpenFailureReduction reduceViewportEngineProviderSe
     ViewportEngineProviderSessionOpenFailureAccess access)
 {
     ViewportEngineProviderSessionOpenFailureReduction result;
-    clearQueue(access.m_requests);
     access.m_session.sessionActive = false;
-    access.m_requests.activeMetadataToken = {};
-    access.m_requests.activeFrameToken = {};
-    access.m_requests.activeFrameRefinement = false;
-    access.m_requests.hasLastFrameDemand = false;
-    access.m_requests.lastFrameDemand = {};
+    access.m_requests.resetSession();
     result.changes = access.recordTerminal({ input.role, ImageViewportRequestStatus::Error,
         ImageViewportRequestReason::ProviderFailure, FailureScope::Generation, input.diagnostic,
         result.changes });
@@ -277,18 +252,19 @@ ViewportEngineProviderQueueFailureReduction reduceViewportEngineProviderQueueFai
 {
     ViewportEngineProviderQueueFailureReduction result;
     const auto& request = requestForRole(access.m_request, input.role);
-    const bool queued = access.m_requests.queuedFrameRequest;
-    result.diagnostic
-        = { queued, input.role, access.m_requests.queuedFrameGeneration, request.identity.id,
-              access.m_requests.queuedFrameRequestId, access.m_requests.queuedFrameTargetKind,
-              ProviderSchedulerOperation::FlushQueuedFrameRequest };
+    const auto queuedRequest = access.m_requests.queuedFrame;
+    const bool queued = queuedRequest.has_value();
+    result.diagnostic = { queued, input.role, queued ? queuedRequest->generation : 0,
+        request.identity.id, queued ? queuedRequest->requestId : 0,
+        queued ? queuedRequest->target.providerTargetKind : ProviderRequestTargetKind::Unknown,
+        ProviderSchedulerOperation::FlushQueuedFrameRequest };
     if (!queued || !providerPresent(access.m_request, input.role)) {
-        clearQueue(access.m_requests);
+        access.m_requests.clearQueue();
         return result;
     }
 
-    const bool playbackOwned = access.m_requests.queuedFrameFromPlayback;
-    clearQueue(access.m_requests);
+    const bool playbackOwned = queuedRequest->fromPlayback;
+    access.m_requests.clearQueue();
     result.changes = access.recordTerminal({ input.role, ImageViewportRequestStatus::Error,
         ImageViewportRequestReason::ProviderFailure, FailureScope::DisplayRequest,
         FramePreparation::boundedDiagnostic(

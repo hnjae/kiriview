@@ -114,12 +114,11 @@ ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
     auto& roleState = requestRole(request, input.role);
     const bool providerSource = roleState.source.facts.provider;
     auto& provider = access.m_roles[index].provider;
-    if (providerSource && provider.requests.activeFrameToken.isValid()
-        && playback.phase != ImageViewportPlaybackPhase::Stopped && playback.role == input.role) {
-        result.providerFrameTransport[index].cancelToken = provider.requests.activeFrameToken;
-        provider.requests.activeFrameToken = {};
-        provider.requests.activeFrameRefinement = false;
-        roleState.activeRequest.providerFrameToken = {};
+    const auto* activeFrame = provider.requests.frameRequest();
+    if (providerSource && activeFrame && playback.phase != ImageViewportPlaybackPhase::Stopped
+        && playback.role == input.role) {
+        result.providerFrameTransport[index].cancelToken = activeFrame->token;
+        provider.requests.retire(activeFrame->token);
     }
 
     auto restore = roleState.latestNonPlaybackRequest;
@@ -434,10 +433,9 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
         playback.role = input.role;
         playback.stopWhenRequestReady = false;
         playback.loopIterationsCompleted = 0;
-        if (provider.requests.activeFrameToken.isValid()) {
-            result.providerFrameTransport[index].cancelToken = provider.requests.activeFrameToken;
-            provider.requests.activeFrameToken = {};
-            provider.requests.activeFrameRefinement = false;
+        if (const auto* activeFrame = provider.requests.frameRequest()) {
+            result.providerFrameTransport[index].cancelToken = activeFrame->token;
+            provider.requests.retire(activeFrame->token);
         }
         if (input.role == ImageViewportPageRole::Primary) {
             request.beginRoleDisplayRequest(input.role, DisplayRequestOrigin::Playback,
@@ -446,7 +444,6 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
             auto& secondary = request.roles[1].activeRequest;
             secondary.target = { -1, -1, ProviderRequestTargetKind::Playback };
             secondary.resolvedFrame = { -1, -1 };
-            secondary.providerFrameToken = {};
         }
         playback.providerStartPending = input.role == ImageViewportPageRole::Primary;
         playback.position = -1;

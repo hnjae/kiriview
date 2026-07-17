@@ -176,11 +176,7 @@ void resetProvider(ProviderRoleState& p, ImageSequenceAuthoredAnimationFacts a =
     p.facts.authoredAnimationFactsAvailable = authoredAnimationFactsAvailable;
     p.facts.logicalSize = {};
     p.facts.timingIntervals = {};
-    p.requests.activeMetadataToken = {};
-    p.requests.activeFrameToken = {};
-    p.requests.activeFrameRefinement = false;
-    p.requests.hasLastFrameDemand = false;
-    p.requests.lastFrameDemand = {};
+    p.requests.clearWork();
 }
 DisplayRequestTarget initial(const ImageSequenceSource& s)
 {

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "viewportprovidercontract_p.h"
 #include "viewportenginestate_p.h"
+#include "viewportprovidercontract_p.h"
 
 struct ViewportEngineProviderSessionOpenInput
 {
@@ -25,11 +25,13 @@ class ViewportEngineProviderSessionOpenAccess
     }
 
 public:
-    ViewportEngineProviderSessionOpenAccess(const ViewportEngineProviderSessionOpenAccess&) = delete;
+    ViewportEngineProviderSessionOpenAccess(const ViewportEngineProviderSessionOpenAccess&)
+        = delete;
     ViewportEngineProviderSessionOpenAccess(ViewportEngineProviderSessionOpenAccess&&) noexcept
         = default;
     ViewportEngineProviderSessionOpenAccess& operator=(
-        const ViewportEngineProviderSessionOpenAccess&) = delete;
+        const ViewportEngineProviderSessionOpenAccess&)
+        = delete;
 
 private:
     const ImageViewportInternal::ImageSequenceSource& m_source;
@@ -48,7 +50,7 @@ class ViewportEngineProviderSessionCloseAccess
         ViewportEngineProviderSessionCloseAccess);
 
     ViewportEngineProviderSessionCloseAccess(ImageViewportInternal::ProviderSessionState& session,
-        ImageViewportInternal::ProviderRequestState& requests)
+        ImageViewportInternal::ProviderRequestLedger& requests)
         : m_session(session)
         , m_requests(requests)
     {
@@ -60,11 +62,12 @@ public:
     ViewportEngineProviderSessionCloseAccess(ViewportEngineProviderSessionCloseAccess&&) noexcept
         = default;
     ViewportEngineProviderSessionCloseAccess& operator=(
-        const ViewportEngineProviderSessionCloseAccess&) = delete;
+        const ViewportEngineProviderSessionCloseAccess&)
+        = delete;
 
 private:
     ImageViewportInternal::ProviderSessionState& m_session;
-    ImageViewportInternal::ProviderRequestState& m_requests;
+    ImageViewportInternal::ProviderRequestLedger& m_requests;
 };
 
 struct ViewportEngineProviderSessionAdmissionInput
@@ -77,11 +80,10 @@ class ViewportEngineProviderSessionAdmissionAccess
 {
     friend class ViewportEngine;
     friend bool acceptsViewportEngineProviderSessionEvent(
-        ViewportEngineProviderSessionAdmissionInput,
-        ViewportEngineProviderSessionAdmissionAccess);
+        ViewportEngineProviderSessionAdmissionInput, ViewportEngineProviderSessionAdmissionAccess);
 
-    ViewportEngineProviderSessionAdmissionAccess(quint64 currentGeneration,
-        const ImageViewportInternal::ProviderSessionState& session)
+    ViewportEngineProviderSessionAdmissionAccess(
+        quint64 currentGeneration, const ImageViewportInternal::ProviderSessionState& session)
         : m_currentGeneration(currentGeneration)
         , m_session(session)
     {
@@ -92,9 +94,11 @@ public:
         const ViewportEngineProviderSessionAdmissionAccess&)
         = delete;
     ViewportEngineProviderSessionAdmissionAccess(
-        ViewportEngineProviderSessionAdmissionAccess&&) noexcept = default;
+        ViewportEngineProviderSessionAdmissionAccess&&) noexcept
+        = default;
     ViewportEngineProviderSessionAdmissionAccess& operator=(
-        const ViewportEngineProviderSessionAdmissionAccess&) = delete;
+        const ViewportEngineProviderSessionAdmissionAccess&)
+        = delete;
 
 private:
     quint64 m_currentGeneration = 0;
@@ -105,5 +109,5 @@ ViewportEngineProviderSessionOpenEffect beginViewportEngineProviderSession(
     ViewportEngineProviderSessionOpenInput, ViewportEngineProviderSessionOpenAccess);
 ViewportProviderFrameTransportEffect closeViewportEngineProviderSession(
     ViewportEngineProviderSessionCloseAccess);
-bool acceptsViewportEngineProviderSessionEvent(ViewportEngineProviderSessionAdmissionInput,
-    ViewportEngineProviderSessionAdmissionAccess);
+bool acceptsViewportEngineProviderSessionEvent(
+    ViewportEngineProviderSessionAdmissionInput, ViewportEngineProviderSessionAdmissionAccess);

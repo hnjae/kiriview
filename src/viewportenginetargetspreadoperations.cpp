@@ -80,13 +80,13 @@ ViewportEngineProviderRoleMaterializationResult materializeViewportEngineProvide
     auto& effect = result.effect;
 
     invalidateViewportEngineTargetSpreadRole(access.request, access.display, input.role);
-    if (provider.requests.activeFrameToken.isValid() && provider.requests.activeFrameRefinement) {
-        effect.cancelToken = provider.requests.activeFrameToken;
-        provider.requests.activeFrameToken = {};
-        provider.requests.activeFrameRefinement = false;
-        active.providerFrameToken = {};
+    const auto* frameRequest = provider.requests.frameRequest();
+    if (frameRequest && frameRequest->isRefinement()) {
+        effect.cancelToken = frameRequest->token;
+        provider.requests.retire(frameRequest->token);
+        frameRequest = nullptr;
     }
-    if (provider.requests.activeFrameToken.isValid()) {
+    if (frameRequest) {
         TargetSpreadWaitState wait;
         if (input.role == ImageViewportPageRole::Secondary) {
             wait.requiresSecondary = true;
@@ -102,19 +102,11 @@ ViewportEngineProviderRoleMaterializationResult materializeViewportEngineProvide
         access.display.status
             = retained ? ImageViewportDisplayStatus::Retained : ImageViewportDisplayStatus::Empty;
         if (provider.session.sessionActive) {
-            effect.cancelToken = provider.requests.activeFrameToken;
+            effect.cancelToken = frameRequest->token;
         }
-        provider.requests.activeFrameToken = {};
-        provider.requests.activeFrameRefinement = false;
-        active.providerFrameToken = {};
-        provider.requests.queuedFrameRequest = true;
-        provider.requests.queuedFrameGeneration = access.request.sequenceGeneration;
-        provider.requests.queuedFrameRequestId = active.identity.id;
-        provider.requests.queuedFrame = active.target.frame;
-        provider.requests.queuedPosition = active.target.position;
-        provider.requests.queuedResolvedFrame = active.resolvedFrame;
-        provider.requests.queuedFrameFromPlayback = input.fromPlayback;
-        provider.requests.queuedFrameTargetKind = active.target.providerTargetKind;
+        provider.requests.retire(frameRequest->token);
+        provider.requests.queue({ access.request.sequenceGeneration, active.identity.id,
+            active.target, active.resolvedFrame, input.fromPlayback });
         effect.deferredEngineEvent = ViewportProviderDeferredEngineEvent::FlushQueuedFrameRequest;
         result.accepted = true;
         return result;
@@ -131,9 +123,6 @@ ViewportEngineProviderRoleMaterializationResult materializeViewportEngineProvide
         return result;
     }
 
-    provider.requests.activeFrameToken = allocation.token;
-    provider.requests.activeFrameRefinement = false;
-    active.providerFrameToken = allocation.token;
     effect.sendCommand = provider.session.sessionActive;
     effect.command.token = allocation.token;
     effect.command.frame = active.resolvedFrame.frame;
@@ -155,8 +144,12 @@ ViewportEngineProviderRoleMaterializationResult materializeViewportEngineProvide
         { access.request, access.display,
             { access.roles[0].provider.facts, access.roles[1].provider.facts },
             access.presentation });
-    provider.requests.lastFrameDemand = effect.command.demand;
-    provider.requests.hasLastFrameDemand = true;
+    provider.requests.activate(
+        { allocation.token, providerRequestKind(active.target.providerTargetKind), input.role,
+            access.request.sequenceGeneration, active.identity.id,
+            ProviderRequestOwnership::DisplayRequest, active.target, active.resolvedFrame,
+            effect.command.demand });
+    provider.requests.lastIssuedFrameDemand = effect.command.demand;
     TargetSpreadWaitState wait;
     if (input.role == ImageViewportPageRole::Secondary) {
         wait.requiresSecondary = true;

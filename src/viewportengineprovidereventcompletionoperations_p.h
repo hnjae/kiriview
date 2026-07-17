@@ -34,7 +34,7 @@ class ViewportEngineProviderWaitingAccess
     ViewportEngineProviderWaitingAccess(ImageViewportInternal::RequestState& request,
         const ImageViewportInternal::ProviderFactsState& facts,
         const ImageViewportInternal::ProviderSessionState& session,
-        const ImageViewportInternal::ProviderRequestState& requests)
+        const ImageViewportInternal::ProviderRequestLedger& requests)
         : m_request(request)
         , m_facts(facts)
         , m_session(session)
@@ -50,7 +50,7 @@ private:
     ImageViewportInternal::RequestState& m_request;
     const ImageViewportInternal::ProviderFactsState& m_facts;
     const ImageViewportInternal::ProviderSessionState& m_session;
-    const ImageViewportInternal::ProviderRequestState& m_requests;
+    const ImageViewportInternal::ProviderRequestLedger& m_requests;
 };
 
 class ViewportEngineProviderEndOfSequenceAccess

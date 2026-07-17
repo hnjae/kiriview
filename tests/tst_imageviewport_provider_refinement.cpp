@@ -114,6 +114,7 @@ private slots:
     void committedProviderPayloadRefinesWithoutLeavingReady();
     void newerDemandCancelsOlderRefinementAndStaleResultCannotCommit();
     void refinementFailureIsIsolatedFromTheDisplayRequest();
+    void refinementKindMismatchIsGenerationTerminal();
     void refinementRenderFailureIsIsolatedFromTheDisplayRequest();
     void spreadRefinementsCommitAsOneCompleteCandidateSet();
 };
@@ -201,6 +202,21 @@ void ImageViewportProviderRefinementTest::refinementFailureIsIsolatedFromTheDisp
     QCOMPARE(displayStatus(fixture.viewport), ImageViewportDisplayStatus::Ready);
     QCOMPARE(fixture.viewport.state().diagnostics().errorString(), QString());
     QCOMPARE(fixture.viewport.state().primary().display().currentForDemand(), false);
+}
+
+void ImageViewportProviderRefinementTest::refinementKindMismatchIsGenerationTerminal()
+{
+    ReadyProviderViewport fixture;
+    setQualityPreference(fixture.viewport, ImageViewportQualityPreference::ExactDetail);
+    const auto refinement = fixture.adapter.session->frameRequests().constLast();
+
+    emitProviderMetadataReady(fixture.adapter.session, refinement.token(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+
+    QCOMPARE(requestStatus(fixture.viewport), ImageViewportRequestStatus::Error);
+    QCOMPARE(requestReason(fixture.viewport), ImageViewportRequestReason::PayloadRejection);
+    QVERIFY(fixture.viewport.state().diagnostics().errorString().contains(
+        QStringLiteral("provider protocol violation")));
 }
 
 void ImageViewportProviderRefinementTest::refinementRenderFailureIsIsolatedFromTheDisplayRequest()

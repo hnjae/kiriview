@@ -6,6 +6,7 @@
 #include "viewportengineprovidermetadataoperations_p.h"
 #include "viewportengineproviderrequestoperations_p.h"
 #include "viewportengineprovidersessionoperations_p.h"
+#include "viewportengineproviderterminaloperations_p.h"
 
 #include "imageviewporttoken_p.h"
 #include "viewportprovidercontract_p.h"
@@ -28,6 +29,34 @@ ViewportEngineProviderTerminalEventInput terminalEvent(const ViewportProviderEve
         ? ViewportEngineProviderTerminalEventInput::Kind::Cancellation
         : ViewportEngineProviderTerminalEventInput::Kind::Failure;
     return result;
+}
+
+bool eventKindCompatible(
+    ImageSequenceProviderRequestKind requestKind, ViewportProviderEvent::Kind eventKind)
+{
+    switch (eventKind) {
+    case ViewportProviderEvent::Kind::MetadataReady:
+        return requestKind == ImageSequenceProviderRequestKind::Metadata;
+    case ViewportProviderEvent::Kind::ImageFrameReady:
+    case ViewportProviderEvent::Kind::ImageFrameWithMetadataReady:
+    case ViewportProviderEvent::Kind::FrameHandleReady:
+    case ViewportProviderEvent::Kind::FrameHandleWithMetadataReady:
+        return requestKind == ImageSequenceProviderRequestKind::Frame
+            || requestKind == ImageSequenceProviderRequestKind::Position
+            || requestKind == ImageSequenceProviderRequestKind::Playback;
+    case ViewportProviderEvent::Kind::EndOfSequence:
+        return requestKind == ImageSequenceProviderRequestKind::Playback;
+    case ViewportProviderEvent::Kind::Waiting:
+    case ViewportProviderEvent::Kind::Progress:
+    case ViewportProviderEvent::Kind::Failure:
+    case ViewportProviderEvent::Kind::Unsupported:
+    case ViewportProviderEvent::Kind::Cancellation:
+        return requestKind == ImageSequenceProviderRequestKind::Metadata
+            || requestKind == ImageSequenceProviderRequestKind::Frame
+            || requestKind == ImageSequenceProviderRequestKind::Position
+            || requestKind == ImageSequenceProviderRequestKind::Playback;
+    }
+    return false;
 }
 }
 
@@ -123,13 +152,12 @@ bool ViewportEngine::acceptsProviderTransportCommand(
     case ImageSequenceProviderRequestKind::Close:
         return true;
     case ImageSequenceProviderRequestKind::Metadata:
-        return provider.session.sessionActive && command.request.token().isValid()
-            && command.request.token() == provider.requests.activeMetadataToken;
     case ImageSequenceProviderRequestKind::Frame:
     case ImageSequenceProviderRequestKind::Position:
-    case ImageSequenceProviderRequestKind::Playback:
-        return provider.session.sessionActive && command.request.token().isValid()
-            && command.request.token() == provider.requests.activeFrameToken;
+    case ImageSequenceProviderRequestKind::Playback: {
+        const auto* record = provider.requests.find(command.request.token());
+        return provider.session.sessionActive && record && record->kind == command.request.kind();
+    }
     }
     return false;
 }
@@ -220,17 +248,8 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
         stale.observations.append(observation);
         return stale;
     }
-    const bool metadataEvent = event.kind == ViewportProviderEvent::Kind::MetadataReady;
-    const bool frameEvent = event.kind == ViewportProviderEvent::Kind::ImageFrameReady
-        || event.kind == ViewportProviderEvent::Kind::ImageFrameWithMetadataReady
-        || event.kind == ViewportProviderEvent::Kind::FrameHandleReady
-        || event.kind == ViewportProviderEvent::Kind::FrameHandleWithMetadataReady;
-    const bool metadataTokenMatches
-        = event.token.isValid() && event.token == eventProvider.requests.activeMetadataToken;
-    const bool frameTokenMatches
-        = event.token.isValid() && event.token == eventProvider.requests.activeFrameToken;
-    if ((metadataEvent && !metadataTokenMatches) || (frameEvent && !frameTokenMatches)
-        || (!metadataEvent && !frameEvent && !metadataTokenMatches && !frameTokenMatches)) {
+    const auto* providerRequest = eventProvider.requests.find(event.token);
+    if (!providerRequest) {
         ViewportProviderEventResult stale;
         ImageViewportInternal::InternalObservation observation;
         observation.subsystem = ImageViewportInternal::InternalObservationSubsystem::Engine;
@@ -250,6 +269,30 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
         observation.identity.providerLeaseId = event.frameLeaseId;
         stale.observations.append(observation);
         return stale;
+    }
+    if (providerRequest->role != event.role || providerRequest->generation != event.generation
+        || !eventKindCompatible(providerRequest->kind, event.kind)) {
+        ViewportProviderEventResult violation;
+        ViewportEngineProviderTerminalProjectionAccess terminalAccess(
+            m_state->requestState.request);
+        violation.changes = reduceViewportEngineProviderTerminalProjection(
+            { event.role, ImageViewportRequestStatus::Error,
+                ImageViewportRequestReason::PayloadRejection,
+                ImageViewportInternal::FailureScope::Generation,
+                QStringLiteral("provider protocol violation"), {} },
+            std::move(terminalAccess));
+        auto& playback = m_state->playbackState.playback;
+        playback.providerStartPending = false;
+        playback.stopWhenRequestReady = false;
+        if (playback.phase != ImageViewportPlaybackPhase::Stopped) {
+            playback.phase = ImageViewportPlaybackPhase::Stopped;
+            violation.changes.playbackPhase = true;
+        }
+        eventProvider.requests.retire(event.token);
+        violation.providerFrameTransport = closeProviderSession(event.role);
+        violation.providerFrameTransportPhase = ViewportProviderEventTransportPhase::AfterChanges;
+        violation.schedule = currentPlaybackSchedule();
+        return violation;
     }
     ViewportProviderEventResult result;
     switch (event.kind) {

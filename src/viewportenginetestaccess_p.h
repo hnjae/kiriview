@@ -98,7 +98,7 @@ public:
         session.sessionActive = true;
         ++session.sessionSerial;
     }
-    static ImageViewportInternal::ProviderRequestState& providerRequests(
+    static ImageViewportInternal::ProviderRequestLedger& providerRequests(
         ViewportEngine& engine, ImageViewportPageRole role)
     {
         return engine.m_state->providerState
