@@ -428,7 +428,7 @@ kiriview::ThumbnailGenerationDependencies resolvedThumbnailGenerationDependencie
         dependencies.cacheRepository.install = installThumbnail;
     }
     if (!dependencies.videoExtractor) {
-        dependencies.videoExtractor = kiriview::startVideoThumbnailExtraction;
+        dependencies.videoExtractor = kiriview::videoThumbnailExtractionProvider();
     }
     return dependencies;
 }
@@ -513,9 +513,7 @@ kiriview::ImageIoJob startVideoThumbnailGenerationJob(QObject* receiver,
     }
 
     kiriview::VideoThumbnailExtractionRequest extractionRequest;
-    extractionRequest.localPathBytes = request.localPathBytes;
     extractionRequest.sourceUrl = request.sourceUrl;
-    extractionRequest.requestedBucket = request.requestedBucket;
     extractionRequest.maximumLongEdge = maximumLongEdge;
 
     kiriview::VideoThumbnailExtractionProvider videoExtractor = dependencies.videoExtractor;
@@ -526,7 +524,7 @@ kiriview::ImageIoJob startVideoThumbnailGenerationJob(QObject* receiver,
             if (!callback) {
                 return;
             }
-            if (extractionResult.status == kiriview::ThumbnailGenerationStatus::Failed) {
+            if (extractionResult.status == kiriview::VideoThumbnailExtractionStatus::Failed) {
                 callback(failedResult(request.requestedBucket,
                     extractionResult.errorString.isEmpty()
                         ? QStringLiteral("video thumbnail extraction failed")
@@ -555,7 +553,7 @@ ThumbnailGenerationDependencies defaultThumbnailGenerationDependencies()
         defaultOpenedCollectionOriginalIdentityLoader,
         ThumbnailGenerationCacheRepository {
             defaultThumbnailGenerationCacheLookup, installThumbnail },
-        startVideoThumbnailExtraction,
+        videoThumbnailExtractionProvider(),
     };
 }
 

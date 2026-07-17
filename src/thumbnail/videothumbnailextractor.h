@@ -5,50 +5,30 @@
 #define KIRIVIEW_VIDEOTHUMBNAILEXTRACTOR_H
 
 #include "async/imageiojob.h"
-#include "session/activenavigationthumbnaildemand.h"
+#include "async/timerscheduler.h"
+#include "thumbnail/videothumbnailbackend.h"
+#include "thumbnail/videothumbnailextractionworkflow.h"
 
-#include <QByteArray>
-#include <QImage>
-#include <QMediaMetaData>
-#include <QString>
-#include <QUrl>
-#include <QVector>
 #include <functional>
 
 class QObject;
 
 namespace kiriview {
-enum class ThumbnailGenerationStatus;
-
-struct VideoThumbnailExtractionRequest
-{
-    QByteArray localPathBytes;
-    QUrl sourceUrl;
-    ActiveNavigationThumbnailDemandBucket requestedBucket
-        = ActiveNavigationThumbnailDemandBucket::None;
-    int maximumLongEdge = 0;
-};
-
-struct VideoThumbnailExtractionResult
-{
-    ThumbnailGenerationStatus status;
-    QImage image;
-    QString errorString;
-};
-
 using VideoThumbnailExtractionCallback = std::function<void(VideoThumbnailExtractionResult)>;
 using VideoThumbnailExtractionProvider = std::function<ImageIoJob(
     QObject*, VideoThumbnailExtractionRequest, VideoThumbnailExtractionCallback)>;
 
-QImage videoThumbnailImageFromFrameImage(
-    QImage image, int maximumLongEdge, QString* errorString = nullptr);
-QImage videoThumbnailImageFromMetadata(
-    const QMediaMetaData& metadata, int maximumLongEdge, QString* errorString = nullptr);
-QVector<qint64> videoThumbnailCandidatePositions(qint64 durationMsec);
-bool videoThumbnailFrameIsInteresting(const QImage& image);
+struct VideoThumbnailExtractionDependencies
+{
+    VideoThumbnailBackendFactory backendFactory;
+    TimerScheduler timerScheduler;
+};
 
 ImageIoJob startVideoThumbnailExtraction(QObject* receiver, VideoThumbnailExtractionRequest request,
-    VideoThumbnailExtractionCallback callback);
+    VideoThumbnailExtractionCallback callback,
+    VideoThumbnailExtractionDependencies dependencies = {});
+VideoThumbnailExtractionProvider videoThumbnailExtractionProvider(
+    VideoThumbnailExtractionDependencies dependencies = {});
 }
 
 #endif

@@ -369,11 +369,8 @@ void TestThumbnailGeneration::directVideoProviderUsesExtractorAndInstallsCache()
 
     QCOMPARE(bytesLoadCount, 0);
     QCOMPARE(extractionProvider.extractionCount(), std::size_t(1));
-    QCOMPARE(extractionProvider.extractionAt(0).request.localPathBytes,
-        QByteArrayLiteral("/media/clip.mp4"));
     QCOMPARE(extractionProvider.extractionAt(0).request.sourceUrl,
         QUrl::fromLocalFile(QStringLiteral("/media/clip.mp4")));
-    QCOMPARE(extractionProvider.extractionAt(0).request.requestedBucket, Bucket::Large);
     QCOMPARE(extractionProvider.extractionAt(0).request.maximumLongEdge, 256);
     QVERIFY(job.isActive());
 
@@ -381,7 +378,7 @@ void TestThumbnailGeneration::directVideoProviderUsesExtractorAndInstallsCache()
     frame.fill(QColor(Qt::red));
     extractionProvider.finish(0,
         kiriview::VideoThumbnailExtractionResult {
-            kiriview::ThumbnailGenerationStatus::Ready,
+            kiriview::VideoThumbnailExtractionStatus::Ready,
             frame,
             {},
         });
@@ -428,7 +425,7 @@ void TestThumbnailGeneration::directVideoExtractorFailurePublishesFailure()
     QCOMPARE(extractionProvider.extractionCount(), std::size_t(1));
     extractionProvider.finish(0,
         kiriview::VideoThumbnailExtractionResult {
-            kiriview::ThumbnailGenerationStatus::Failed,
+            kiriview::VideoThumbnailExtractionStatus::Failed,
             {},
             QStringLiteral("synthetic extractor failure"),
         });

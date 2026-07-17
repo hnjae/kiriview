@@ -221,6 +221,8 @@ src/session/activenavigationthumbnailruntime.cpp
 src/session/activenavigationthumbnailworkcoordinator.cpp
 src/session/thumbnaillogging.cpp
 src/thumbnail/thumbnailcachelookup.cpp
+src/thumbnail/videothumbnailbackend.cpp
+src/thumbnail/videothumbnailextractionworkflow.cpp
 src/thumbnail/videothumbnailextractor.cpp
 src/thumbnail/thumbnailgeneration.cpp
 src/session/thumbnailimagestore.cpp
