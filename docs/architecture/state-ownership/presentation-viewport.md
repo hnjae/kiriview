@@ -8,7 +8,7 @@ Display-source state for each page role is an explicit variant: empty, provider-
 
 Presentation transitions distinguish the previously committed presentation, a transition in which no partial target may be exposed, and the fully committed target. Preparing page resources must not publish a partial spread or copy presentation state into page-resource owners. Failure restores the retained committed presentation when the product contract allows retention.
 
-Page-resource owners retain decoded payloads, display entries, animation resources, load acknowledgments, reuse leases, and predecode facts. They must not own or expose mutable zoom, rotation, viewport, page visibility, reading direction, transition, or display-policy state.
+Page-resource owners retain decoded payloads, display entries, animation resources, pending-load retention, reuse leases, and predecode facts. They may validate a reported load outcome against the retained provider identity and release its matching lease, but the image-presentation runtime alone owns display-load acknowledgment state and the resulting presentation transition. Page-resource owners must not own or expose mutable zoom, rotation, viewport, page visibility, reading direction, transition, or display-policy state.
 
 ## Viewport Command Boundary
 
