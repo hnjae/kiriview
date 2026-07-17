@@ -324,7 +324,7 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
         return out;
     auto oldGeo = projectViewportGeometryState(in.geometry, a.m_presentation);
     auto oldPhase = a.m_playback.phase;
-    const QString oldError = a.m_request.errorString;
+    const PublicDiagnosticText oldError = a.m_request.errorString;
     const bool oldWarning = a.m_display.hasActiveRenderQualityFallback(
         a.m_request.sequenceGeneration, a.m_presentation);
     out.providerEffects[0] = a.closeSession(ImageViewportPageRole::Primary);

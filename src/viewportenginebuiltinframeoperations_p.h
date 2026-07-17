@@ -8,7 +8,7 @@ struct ViewportEngineBuiltInFrameStageResult
     ImageViewportPageRole failedRole = ImageViewportPageRole::Primary;
     ImageViewportRequestStatus status = ImageViewportRequestStatus::Ready;
     ImageViewportRequestReason reason = ImageViewportRequestReason::Ready;
-    QString diagnostic;
+    ImageViewportInternal::PublicDiagnosticText diagnostic;
     bool playbackStopped = false;
 };
 

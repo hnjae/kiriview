@@ -21,6 +21,7 @@ public:
 
 private slots:
     void hostsExposeNarrowFactBoundaries();
+    void providerDiagnosticsRequireItemBoundaryAdmission();
 };
 
 void ImageViewportHostBoundaryTest::hostsExposeNarrowFactBoundaries()
@@ -44,6 +45,28 @@ void ImageViewportHostBoundaryTest::hostsExposeNarrowFactBoundaries()
     QVERIFY((std::is_same_v<decltype(&ImageViewportRenderHost::synchronize), RenderSynchronize>));
     QVERIFY(
         (std::is_same_v<decltype(ImageViewportRenderHostResult::fact), ViewportRenderHostFact>));
+}
+
+void ImageViewportHostBoundaryTest::providerDiagnosticsRequireItemBoundaryAdmission()
+{
+    using ImageViewportInternal::PublicDiagnosticText;
+
+    QVERIFY((!std::is_constructible_v<PublicDiagnosticText, QString>));
+    QVERIFY(!std::is_default_constructible_v<ViewportEngineProviderHostEventRequest>);
+    QVERIFY((!std::is_constructible_v<ViewportEngineProviderHostEventRequest,
+        ViewportProviderHostEvent>));
+
+    ViewportProviderHostEvent event;
+    event.kind = ViewportProviderHostEvent::Kind::ProviderEvent;
+    event.providerEvent.kind = ImageSequenceProviderEventKind::Failed;
+    event.providerEvent.diagnostic
+        = QStringLiteral("failed for https://user:secret@example.test/image.png token=abc123");
+
+    const auto admitted = ViewportEngineProviderHostEventRequest::admit(std::move(event));
+    QCOMPARE(admitted.event().providerEvent.diagnostic, QString());
+    QVERIFY(!admitted.diagnostic().text().isEmpty());
+    QVERIFY(!admitted.diagnostic().text().contains(QStringLiteral("https://")));
+    QVERIFY(!admitted.diagnostic().text().contains(QStringLiteral("token=abc123")));
 }
 
 QTEST_MAIN(ImageViewportHostBoundaryTest)

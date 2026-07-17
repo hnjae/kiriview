@@ -325,8 +325,8 @@ ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
     }
     changes = recordViewportEngineDisplayRequestTerminal(
         { input.acknowledgement.failedRole, ImageViewportRequestStatus::Error,
-            ImageViewportRequestReason::RenderFailure, QStringLiteral("render commit failed"),
-            changes },
+            ImageViewportRequestReason::RenderFailure,
+            PublicDiagnosticText::fromUntrusted(QStringLiteral("render commit failed")), changes },
         access.request());
     markPlayback(changes, access.playback(), ImageViewportPlaybackPhase::Stopped);
     changes.displayRevision = true;

@@ -2,6 +2,7 @@
 
 #include "imagesequencesource_p.h"
 #include "imageviewporttoken_p.h"
+#include "publicdiagnostic_p.h"
 #include "renderfailurecause_p.h"
 #include "timingintervals_p.h"
 #include <ImageViewport/ImageViewport>
@@ -120,7 +121,7 @@ struct TargetSpreadRoleTerminalState
     bool terminal = false;
     ImageViewportRequestStatus status = ImageViewportRequestStatus::NoRequest;
     ImageViewportRequestReason reason = ImageViewportRequestReason::NoRequest;
-    QString diagnostic;
+    PublicDiagnosticText diagnostic;
 };
 
 struct GenerationTerminalState
@@ -619,7 +620,7 @@ struct RequestState
     TargetSpreadTerminalState targetSpreadTerminal;
     RenderFailureDiagnostic lastAcceptedRenderFailure;
     quint64 requestRevision = 0;
-    QString errorString;
+    PublicDiagnosticText errorString;
 };
 
 struct ProviderSessionState

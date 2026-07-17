@@ -7,7 +7,7 @@ struct ViewportEngineTargetSpreadTerminalInput
     ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ImageViewportRequestStatus status = ImageViewportRequestStatus::Error;
     ImageViewportRequestReason reason = ImageViewportRequestReason::ProviderFailure;
-    QString diagnostic;
+    ImageViewportInternal::PublicDiagnosticText diagnostic;
     ImageViewportInternal::ViewportChangeSet changes;
 };
 

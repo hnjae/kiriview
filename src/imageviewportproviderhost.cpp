@@ -115,11 +115,8 @@ void ImageViewportProviderHost::applyTransportEffects(const ViewportProviderTran
                 effect.threadingContract, effect.generation, effect.sessionSerial, &dispatchContext,
                 [this](const ViewportProviderEvent& event) { handleProviderEvent(event); } });
             if (!openResult.opened) {
-                applyHostEvent(
-                    { ViewportProviderHostEvent::Kind::SessionOpenFailed, effect.role, {}, {},
-                        openResult.diagnostic.isEmpty()
-                            ? QStringLiteral("provider session creation failed")
-                            : openResult.diagnostic });
+                applyHostEvent({ ViewportProviderHostEvent::Kind::SessionOpenFailed, effect.role,
+                    {}, {}, openResult.diagnostic });
                 return;
             } else {
                 applyHostEvent({ ViewportProviderHostEvent::Kind::SessionOpened, effect.role });
@@ -129,8 +126,7 @@ void ImageViewportProviderHost::applyTransportEffects(const ViewportProviderTran
         case ViewportProviderTransportCommand::Kind::SendRequest: {
             const auto result = bridge.deliverRequest(effect.request);
             if (!result.delivered && effect.reportDispatchFailure) {
-                handleDispatchFailure(effect.role, effect.request.token(),
-                    QStringLiteral("provider command delivery failed"));
+                handleDispatchFailure(effect.role, effect.request.token());
             } else if (!result.delivered) {
                 recordTransportResult(result);
             }
@@ -256,15 +252,13 @@ bool ImageViewportProviderHost::scheduleDeferredEngineEvent(
 
 void ImageViewportProviderHost::handleQueueFlushSchedulingFailure(PageRole role)
 {
-    applyHostEvent({ ViewportProviderHostEvent::Kind::QueueFlushSchedulingFailed, role, {}, {},
-        QStringLiteral("provider queued request scheduling failed") });
+    applyHostEvent({ ViewportProviderHostEvent::Kind::QueueFlushSchedulingFailed, role });
 }
 
 void ImageViewportProviderHost::handleDispatchFailure(
-    PageRole role, ImageSequenceProviderRequestToken token, const QString& diagnostic)
+    PageRole role, ImageSequenceProviderRequestToken token)
 {
-    applyHostEvent(
-        { ViewportProviderHostEvent::Kind::DispatchFailed, role, {}, token, diagnostic });
+    applyHostEvent({ ViewportProviderHostEvent::Kind::DispatchFailed, role, {}, token });
 }
 
 void ImageViewportProviderHost::flushQueuedFrameRequest(PageRole role)

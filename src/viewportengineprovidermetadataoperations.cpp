@@ -173,8 +173,9 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
 
     const auto rejectMetadata = [&access, &result, role = input.role](const QString& diagnostic) {
         access.m_playback.providerStartPending = false;
-        result.changes = access.recordGenerationTerminal({ role, ImageViewportRequestStatus::Error,
-            ImageViewportRequestReason::PayloadRejection, diagnostic, result.changes });
+        result.changes = access.recordGenerationTerminal(
+            { role, ImageViewportRequestStatus::Error, ImageViewportRequestReason::PayloadRejection,
+                PublicDiagnosticText::fromUntrusted(diagnostic), result.changes });
         updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
         result.providerFrameTransport = access.closeSession(role);
     };

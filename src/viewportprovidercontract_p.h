@@ -5,6 +5,7 @@
 #include "viewportplaybackcontract_p.h"
 #include "viewportproviderevent_p.h"
 #include "internalobservation_p.h"
+#include "publicdiagnostic_p.h"
 #include <ImageViewport/ImageViewport>
 
 #include <QtCore/QSizeF>
@@ -14,7 +15,7 @@
 struct ViewportProviderDispatchFailureEvent
 {
     ImageSequenceProviderRequestToken token;
-    QString diagnostic;
+    ImageViewportInternal::PublicDiagnosticText diagnostic;
 };
 
 struct ViewportProviderSessionClose

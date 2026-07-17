@@ -1,4 +1,3 @@
-#include "framepreparation_p.h"
 #include "imageviewport_p.h"
 #include "imageviewportproviderfacts_p.h"
 #include "imageviewporttoken_p.h"
@@ -22,11 +21,6 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
         reduced.effects.providerFrameTransport[1], PageRole::Secondary);
     transition.playbackSchedule = reduced.schedule;
     applyEngineTransition(std::move(transition));
-}
-
-QString ImageViewportPrivate::boundedDiagnostic(const QString& diagnostic, const QString& fallback)
-{
-    return FramePreparation::boundedDiagnostic(diagnostic, fallback);
 }
 
 ImageViewportStateSnapshot ImageViewportPrivate::applyEngineTransition(
@@ -84,7 +78,8 @@ ImageViewportStateSnapshot ImageViewportPrivate::finalizeItemTransaction()
 
 void ImageViewportPrivate::enqueueProviderHostEvent(ViewportProviderHostEvent event)
 {
-    pendingProviderHostEvents.append(std::move(event));
+    pendingProviderHostEvents.append(
+        ViewportEngineProviderHostEventRequest::admit(std::move(event)));
     if (transitionApplicationDepth == 0 && !drainingExternalWork) {
         drainExternalWork();
     }
@@ -135,9 +130,9 @@ void ImageViewportPrivate::drainProviderHostEvents()
     }
     drainingProviderHostEvents = true;
     while (!pendingProviderHostEvents.isEmpty()) {
-        ViewportProviderHostEvent event = pendingProviderHostEvents.takeFirst();
-        providerHost.completeFrameEventDelivery(event.providerEvent.frameLeaseId);
-        applyEngineTransition(engine.handleProviderHostEvent({ event }));
+        ViewportEngineProviderHostEventRequest request = pendingProviderHostEvents.takeFirst();
+        providerHost.completeFrameEventDelivery(request.event().providerEvent.frameLeaseId);
+        applyEngineTransition(engine.handleProviderHostEvent(request));
     }
     drainingProviderHostEvents = false;
 }

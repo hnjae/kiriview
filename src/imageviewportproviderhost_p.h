@@ -49,8 +49,7 @@ private:
     void retryPendingCleanup();
     bool scheduleDeferredEngineEvent(ViewportProviderDeferredEngineEvent event, PageRole role);
     void handleQueueFlushSchedulingFailure(PageRole role);
-    void handleDispatchFailure(
-        PageRole role, ImageSequenceProviderRequestToken token, const QString& diagnostic);
+    void handleDispatchFailure(PageRole role, ImageSequenceProviderRequestToken token);
     void flushQueuedFrameRequest(PageRole role = PageRole::Primary);
 
     QObject& dispatchContext;

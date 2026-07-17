@@ -1,6 +1,5 @@
 #include "viewportengineproviderfailureoperations_p.h"
 
-#include "framepreparation_p.h"
 #include "viewportengineprovidersessionoperations_p.h"
 
 namespace {
@@ -10,7 +9,7 @@ struct TerminalProjection
 {
     ImageViewportRequestStatus status = ImageViewportRequestStatus::NoRequest;
     ImageViewportRequestReason reason = ImageViewportRequestReason::NoRequest;
-    QString diagnostic;
+    PublicDiagnosticText diagnostic;
     QString fallbackDiagnostic;
 };
 
@@ -108,10 +107,9 @@ ViewportEngineProviderTerminalEventReduction reduceTerminal(TerminalContext cont
         context.requests.retire(input.token);
         if (refinement)
             return result;
-        result.changes = recordDisplayRequestTerminal({ input.role, terminal.status,
-            terminal.reason,
-            FramePreparation::boundedDiagnostic(terminal.diagnostic, terminal.fallbackDiagnostic),
-            result.changes });
+        result.changes
+            = recordDisplayRequestTerminal({ input.role, terminal.status, terminal.reason,
+                terminal.diagnostic.withFallback(terminal.fallbackDiagnostic), result.changes });
         updatePlaybackPhase(context.playback, ImageViewportPlaybackPhase::Stopped, result.changes);
         return result;
     }
@@ -123,8 +121,7 @@ ViewportEngineProviderTerminalEventReduction reduceTerminal(TerminalContext cont
     context.requests.retire(input.token);
     context.playback.providerStartPending = false;
     result.changes = recordGenerationTerminal({ input.role, terminal.status, terminal.reason,
-        FramePreparation::boundedDiagnostic(terminal.diagnostic, terminal.fallbackDiagnostic),
-        result.changes });
+        terminal.diagnostic.withFallback(terminal.fallbackDiagnostic), result.changes });
     updatePlaybackPhase(context.playback, ImageViewportPlaybackPhase::Stopped, result.changes);
     result.providerFrameTransport = closeSession();
     return result;
@@ -205,7 +202,8 @@ ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderProtoco
     }
     result.changes = access.recordGenerationTerminal({ input.role,
         ImageViewportRequestStatus::Error, ImageViewportRequestReason::PayloadRejection,
-        QStringLiteral("provider protocol violation"), result.changes });
+        PublicDiagnosticText::fromUntrusted(QStringLiteral("provider protocol violation")),
+        result.changes });
     updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
     result.providerFrameTransport = access.closeSession();
     return result;
@@ -229,8 +227,7 @@ ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderDispatc
     access.m_requests.clearQueue();
     result.changes = access.recordGenerationTerminal({ input.role,
         ImageViewportRequestStatus::Error, ImageViewportRequestReason::ProviderFailure,
-        FramePreparation::boundedDiagnostic(
-            input.diagnostic, QStringLiteral("provider command delivery failed")),
+        input.diagnostic.withFallback(QStringLiteral("provider command delivery failed")),
         result.changes });
     updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
     if (sessionWasActive) {
@@ -249,9 +246,10 @@ ViewportEngineProviderSessionOpenFailureReduction reduceViewportEngineProviderSe
     ViewportEngineProviderSessionOpenFailureReduction result;
     access.m_session.sessionActive = false;
     access.m_requests.resetSession();
-    result.changes
-        = access.recordGenerationTerminal({ input.role, ImageViewportRequestStatus::Error,
-            ImageViewportRequestReason::ProviderFailure, input.diagnostic, result.changes });
+    result.changes = access.recordGenerationTerminal({ input.role,
+        ImageViewportRequestStatus::Error, ImageViewportRequestReason::ProviderFailure,
+        input.diagnostic.withFallback(QStringLiteral("provider session creation failed")),
+        result.changes });
     updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
     return result;
 }
@@ -277,8 +275,7 @@ ViewportEngineProviderQueueFailureReduction reduceViewportEngineProviderQueueFai
     access.m_requests.clearQueue();
     result.changes = access.recordDisplayRequestTerminal({ input.role,
         ImageViewportRequestStatus::Error, ImageViewportRequestReason::ProviderFailure,
-        FramePreparation::boundedDiagnostic(
-            input.diagnostic, QStringLiteral("provider command delivery failed")),
+        input.diagnostic.withFallback(QStringLiteral("provider queued request scheduling failed")),
         result.changes });
     if (playbackOwned) {
         updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);

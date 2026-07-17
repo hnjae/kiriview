@@ -126,5 +126,4 @@ public:
         const ImageViewportInternal::PreparedPayload& preparedPayload,
         ImageViewportExactnessPreference exactnessPreference,
         ImageViewportPageRole role = ImageViewportPageRole::Primary);
-    static QString boundedDiagnostic(QString diagnostic, QString fallback);
 };

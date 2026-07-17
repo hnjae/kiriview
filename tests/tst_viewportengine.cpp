@@ -912,7 +912,8 @@ void ViewportEngineTest::providerTerminalReducerRejectsStaleFrameToken()
     hostEvent.providerEvent = providerTerminalEvent(engine, providerRequestTokenForTest(3),
         ImageSequenceProviderEventKind::Failed,
         ImageSequenceProviderUnsupportedCause::PayloadRejection, QStringLiteral("stale"));
-    const auto result = engine.handleProviderHostEvent({ hostEvent });
+    const auto result = engine.handleProviderHostEvent(
+        ViewportEngineProviderHostEventRequest::admit(std::move(hostEvent)));
 
     QCOMPARE(result.changes.requestState, false);
     QCOMPARE(ViewportEngineTestAccess::providerSession(engine, ImageViewportPageRole::Primary)
@@ -942,13 +943,14 @@ void ViewportEngineTest::providerTerminalReducerCommitsFrameFailureAtomically()
     hostEvent.providerEvent = providerTerminalEvent(engine, providerRequestTokenForTest(3),
         ImageSequenceProviderEventKind::Failed,
         ImageSequenceProviderUnsupportedCause::PayloadRejection, QStringLiteral("frame failed"));
-    const auto result = engine.handleProviderHostEvent({ hostEvent });
+    const auto result = engine.handleProviderHostEvent(
+        ViewportEngineProviderHostEventRequest::admit(std::move(hostEvent)));
 
     QCOMPARE(result.changes.requestState, true);
     QCOMPARE(result.changes.playbackPhase, true);
     QCOMPARE(request.status, ImageViewportRequestStatus::Error);
     QCOMPARE(request.reason, ImageViewportRequestReason::ProviderFailure);
-    QCOMPARE(request.errorString, QStringLiteral("frame failed"));
+    QCOMPARE(request.errorString.text(), QStringLiteral("frame failed"));
     QCOMPARE(ViewportEngineTestAccess::playback(engine).phase, ImageViewportPlaybackPhase::Stopped);
     QCOMPARE(ViewportEngineTestAccess::providerSession(engine, ImageViewportPageRole::Primary)
                  .sessionActive,
@@ -977,8 +979,8 @@ void ViewportEngineTest::providerDispatchFailureIsGenerationTerminalAcrossDispla
     hostEvent.kind = ViewportProviderHostEvent::Kind::DispatchFailed;
     hostEvent.role = ImageViewportPageRole::Primary;
     hostEvent.token = providerRequestTokenForTest(3);
-    hostEvent.diagnostic = QStringLiteral("provider command delivery failed");
-    const auto result = engine.handleProviderHostEvent({ hostEvent });
+    const auto result = engine.handleProviderHostEvent(
+        ViewportEngineProviderHostEventRequest::admit(std::move(hostEvent)));
 
     QCOMPARE(request.status, ImageViewportRequestStatus::Error);
     QCOMPARE(request.reason, ImageViewportRequestReason::ProviderFailure);
@@ -1019,11 +1021,12 @@ void ViewportEngineTest::providerProtocolViolationClosesFrameGeneration()
         ImageSequenceProviderEventKind::Unsupported,
         static_cast<ImageSequenceProviderUnsupportedCause>(-1),
         QStringLiteral("provider-supplied private detail"));
-    const auto result = engine.handleProviderHostEvent({ hostEvent });
+    const auto result = engine.handleProviderHostEvent(
+        ViewportEngineProviderHostEventRequest::admit(std::move(hostEvent)));
 
     QCOMPARE(request.status, ImageViewportRequestStatus::Error);
     QCOMPARE(request.reason, ImageViewportRequestReason::PayloadRejection);
-    QCOMPARE(request.errorString, QStringLiteral("provider protocol violation"));
+    QCOMPARE(request.errorString.text(), QStringLiteral("provider protocol violation"));
     QVERIFY(request.generationTerminal.primary.terminal);
     QCOMPARE(ViewportEngineTestAccess::playback(engine).phase, ImageViewportPlaybackPhase::Stopped);
     QCOMPARE(ViewportEngineTestAccess::providerSession(engine, ImageViewportPageRole::Primary)
@@ -1055,7 +1058,8 @@ void ViewportEngineTest::providerTerminalReducerClosesMetadataGeneration()
     hostEvent.providerEvent = providerTerminalEvent(engine, providerRequestTokenForTest(5),
         ImageSequenceProviderEventKind::Unsupported,
         ImageSequenceProviderUnsupportedCause::UnsupportedRequest, QStringLiteral("unsupported"));
-    const auto result = engine.handleProviderHostEvent({ hostEvent });
+    const auto result = engine.handleProviderHostEvent(
+        ViewportEngineProviderHostEventRequest::admit(std::move(hostEvent)));
 
     QCOMPARE(request.status, ImageViewportRequestStatus::Unsupported);
     QCOMPARE(request.reason, ImageViewportRequestReason::UnsupportedRequest);
@@ -1079,7 +1083,8 @@ void ViewportEngineTest::providerFrameQueueFlushesOnlyCurrentLoadingRequest()
     ViewportProviderHostEvent event;
     event.kind = ViewportProviderHostEvent::Kind::FlushQueuedFrameRequest;
     event.role = ImageViewportPageRole::Primary;
-    const auto result = engine.handleProviderHostEvent({ event });
+    const auto result = engine.handleProviderHostEvent(
+        ViewportEngineProviderHostEventRequest::admit(std::move(event)));
 
     QCOMPARE(result.changes.requestState, true);
     QCOMPARE(result.providerAfterPublication.size(), 1);
@@ -1101,7 +1106,8 @@ void ViewportEngineTest::providerFrameQueueFlushRejectsStaleRequest()
     ViewportProviderHostEvent event;
     event.kind = ViewportProviderHostEvent::Kind::FlushQueuedFrameRequest;
     event.role = ImageViewportPageRole::Primary;
-    const auto result = engine.handleProviderHostEvent({ event });
+    const auto result = engine.handleProviderHostEvent(
+        ViewportEngineProviderHostEventRequest::admit(std::move(event)));
 
     QCOMPARE(result.changes.requestState, false);
     QVERIFY(result.providerAfterPublication.isEmpty());

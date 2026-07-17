@@ -2,6 +2,7 @@
 #include "imagesequence_p.h"
 #include "imageviewportlimits_p.h"
 #include "imageviewportproviderfacts_p.h"
+#include "publicdiagnostic_p.h"
 
 #include <utility>
 
@@ -24,7 +25,8 @@ ImageSequenceFactoryResult::ImageSequenceFactoryResult(ImageSequence* sequence,
     , m_sequence(sequence)
     , m_outcome(outcome)
     , m_reason(reason)
-    , m_errorString(FramePreparation::boundedDiagnostic(std::move(errorString), {}))
+    , m_errorString(
+          ImageViewportInternal::PublicDiagnosticText::fromUntrusted(std::move(errorString)).text())
 {
 }
 

@@ -2,7 +2,6 @@
 
 #include "imagesequence_p.h"
 #include "imagesequencesource_p.h"
-#include "imageviewportdiagnostics_p.h"
 #include "imageviewportlimits_p.h"
 #include "timingintervals_p.h"
 
@@ -521,22 +520,4 @@ FramePreparation::BuiltInFrameAdmissionResult FramePreparation::admitBuiltInFram
         {},
         admission.preparedPayload,
     };
-}
-
-QString FramePreparation::boundedDiagnostic(QString diagnostic, QString fallback)
-{
-    QString selected = plainTextDiagnostic(redactDiagnosticDetails(
-        diagnostic.isEmpty() ? std::move(fallback) : std::move(diagnostic)));
-    const auto scalars = selected.toUcs4();
-    const int maximumLength = ImageSequenceLimits::maximumDiagnosticCharacters();
-    if (scalars.size() <= maximumLength) {
-        return selected;
-    }
-    QString bounded;
-    bounded.reserve(selected.size());
-    for (int i = 0; i < maximumLength; ++i) {
-        const char32_t scalar = static_cast<char32_t>(scalars.at(i));
-        bounded += QString::fromUcs4(&scalar, 1);
-    }
-    return bounded;
 }

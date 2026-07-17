@@ -91,7 +91,6 @@ public:
     void discardRetainedDisplayForResourcePressure();
     QRectF itemBounds() const;
 
-    static QString boundedDiagnostic(const QString& diagnostic, const QString& fallback);
     ImageViewportCommandResult executePlaybackCommand(ViewportPlaybackCommand command);
     ImageViewportCommandResult commandResult(
         CommandOutcome outcome, const ImageViewportStateSnapshot& snapshot) const;
@@ -117,7 +116,7 @@ public:
     int transitionApplicationDepth = 0;
     int itemTransactionDepth = 0;
     ViewportPlaybackScheduleEffect pendingPlaybackSchedule;
-    QVector<ViewportProviderHostEvent> pendingProviderHostEvents;
+    QVector<ViewportEngineProviderHostEventRequest> pendingProviderHostEvents;
     bool drainingProviderHostEvents = false;
     ViewportProviderTransportBatch pendingProviderTransport;
     bool drainingExternalWork = false;

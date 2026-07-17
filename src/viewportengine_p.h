@@ -104,16 +104,17 @@ private:
     std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands(
         const GeometryInput& geometry);
     std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands();
-    ViewportProviderEventResult reduceProviderEvent(const ViewportProviderEvent& event);
+    ViewportProviderEventResult reduceProviderEvent(const ViewportProviderEvent& event,
+        const ImageViewportInternal::PublicDiagnosticText& diagnostic);
     ViewportProviderTerminalEventResult reduceProviderProtocolViolation(
         ImageViewportPageRole role, ImageSequenceProviderRequestToken token);
     ViewportProviderTerminalEventResult reduceProviderDispatchFailure(
         ImageViewportPageRole role, const ViewportProviderDispatchFailureEvent& event);
     ViewportProviderSessionOpenFailureResult reduceProviderSessionOpenFailure(
-        ImageViewportPageRole role, const QString& diagnostic);
+        ImageViewportPageRole role, const ImageViewportInternal::PublicDiagnosticText& diagnostic);
     ViewportProviderSessionOpenResult reduceProviderSessionOpened(ImageViewportPageRole role);
     ViewportProviderSchedulerFailureResult reduceProviderQueueSchedulingFailure(
-        ImageViewportPageRole role, const QString& diagnostic);
+        ImageViewportPageRole role, const ImageViewportInternal::PublicDiagnosticText& diagnostic);
     ViewportProviderFrameQueueFlushResult reduceQueuedProviderFrameRequest(
         ImageViewportPageRole role);
     ViewportProviderFrameTransportEffect closeProviderSession(ImageViewportPageRole role);

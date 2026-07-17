@@ -17,8 +17,9 @@ void projectFailure(RequestState& request, DisplayState& display, PlaybackState*
     ImageViewportPageRole role, const FramePreparation::BuiltInFrameAdmissionResult& admission,
     ViewportEngineBuiltInFrameStageResult& result)
 {
-    const QString diagnostic = FramePreparation::boundedDiagnostic(
-        admission.diagnostic, QStringLiteral("in-memory frame payload rejected"));
+    const PublicDiagnosticText diagnostic
+        = PublicDiagnosticText::fromUntrusted(admission.diagnostic)
+              .withFallback(QStringLiteral("in-memory frame payload rejected"));
     recordViewportEngineDisplayRequestTerminal(
         { role, admission.status, admission.reason, diagnostic, {} }, request);
 

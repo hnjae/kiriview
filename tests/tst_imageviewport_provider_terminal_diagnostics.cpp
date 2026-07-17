@@ -1,5 +1,32 @@
 #include "imageviewport_provider_test_support.h"
 
+namespace {
+
+class DiagnosticFailingSessionAdapter final // clazy:exclude=missing-qobject-macro
+    : public ImageSequenceProviderAdapter
+{
+public:
+    explicit DiagnosticFailingSessionAdapter(QString diagnostic, QObject* parent = nullptr)
+        : ImageSequenceProviderAdapter(parent)
+        , m_diagnostic(std::move(diagnostic))
+    {
+    }
+
+    ImageSequenceProviderDescriptor descriptor() const override
+    {
+        const QString diagnostic = m_diagnostic;
+        return ImageSequenceProviderDescriptor(ImageSequenceProviderMetadata::still(QSizeF(4, 2)),
+            ImageSequenceProviderThreadingContract::AffinityBound, [diagnostic]() {
+                return ImageSequenceProviderSessionFactoryResult::failed(diagnostic);
+            });
+    }
+
+private:
+    QString m_diagnostic;
+};
+
+}
+
 class ImageViewportProviderTerminalDiagnosticsTest : public QObject
 {
     Q_OBJECT
@@ -16,6 +43,8 @@ private slots:
     void providerUnsupportedAndCancellationDiagnosticsArePublicSafe();
     void invalidUnsupportedCauseUsesProtocolDiagnostic();
     void providerDiagnosticsArePlainText();
+    void sessionFactoryDiagnosticsArePublicSafe();
+    void emptySessionFactoryDiagnosticUsesSafeFallback();
 };
 
 void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsUseUnicodeScalarLimit()
@@ -216,6 +245,58 @@ void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsArePlainTe
     QVERIFY(!errorString.contains(QLatin1Char('\t')));
     QVERIFY(!errorString.isEmpty());
 }
+
+void ImageViewportProviderTerminalDiagnosticsTest::sessionFactoryDiagnosticsArePublicSafe()
+{
+    const int limit = ImageSequenceLimits::maximumDiagnosticCharacters();
+    const char32_t codePoint[] = { 0x1F642 };
+    const QString scalar = QString::fromUcs4(codePoint, 1);
+    QString diagnostic
+        = QStringLiteral("open failed for https://user:secret@example.test/image.png token=abc123 "
+                         "path /home/ops/private/image.png and C:\\Users\\ops\\secret.png "
+                         "<b>retry</b>\n");
+    diagnostic += scalar.repeated(limit + 1);
+
+    DiagnosticFailingSessionAdapter adapter(diagnostic);
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+
+    const QString errorString = viewportErrorString(item);
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Error);
+    QCOMPARE(item.state().request().reason(), ImageViewportRequestReason::ProviderFailure);
+    QVERIFY(!errorString.isEmpty());
+    QVERIFY(errorString.toUcs4().size() <= limit);
+    QVERIFY(!errorString.contains(QStringLiteral("https://")));
+    QVERIFY(!errorString.contains(QStringLiteral("user:secret")));
+    QVERIFY(!errorString.contains(QStringLiteral("token=abc123")));
+    QVERIFY(!errorString.contains(QStringLiteral("/home/ops/private")));
+    QVERIFY(!errorString.contains(QStringLiteral("C:\\Users\\ops")));
+    QVERIFY(!errorString.contains(QLatin1Char('<')));
+    QVERIFY(!errorString.contains(QLatin1Char('>')));
+    QVERIFY(!errorString.contains(QLatin1Char('\n')));
+}
+
+void ImageViewportProviderTerminalDiagnosticsTest::emptySessionFactoryDiagnosticUsesSafeFallback()
+{
+    DiagnosticFailingSessionAdapter adapter({});
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Error);
+    QCOMPARE(item.state().request().reason(), ImageViewportRequestReason::ProviderFailure);
+    QVERIFY(!viewportErrorString(item).isEmpty());
+}
+
 QTEST_MAIN(ImageViewportProviderTerminalDiagnosticsTest)
 
 #include "tst_imageviewport_provider_terminal_diagnostics.moc"

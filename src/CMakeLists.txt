@@ -46,6 +46,8 @@ qt_add_qml_module(
     playbacktimeline_p.h
     presentationgeometry.cpp
     presentationgeometry_p.h
+    publicdiagnostic.cpp
+    publicdiagnostic_p.h
     renderadapter.cpp
     renderadapter_p.h
     renderadapter_scenegraph_p.h

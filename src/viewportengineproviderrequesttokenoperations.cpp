@@ -31,7 +31,9 @@ ViewportProviderRequestTokenAllocationResult allocateViewportProviderRequestToke
     result.changes = recordViewportEngineGenerationTerminal(
         { input.role, ImageViewportRequestStatus::Error,
             ImageViewportRequestReason::ProviderFailure,
-            QStringLiteral("provider request token exhausted"), result.changes },
+            ImageViewportInternal::PublicDiagnosticText::fromUntrusted(
+                QStringLiteral("provider request token exhausted")),
+            result.changes },
         request);
     auto& playback = access.playback();
     playback.providerStartPending = false;

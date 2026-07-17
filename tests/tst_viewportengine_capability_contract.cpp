@@ -261,6 +261,18 @@ static_assert(!std::is_copy_constructible_v<ViewportEngineProviderTerminalEventA
 static_assert(!HasRequestAccess<ViewportEngineProviderTerminalEventAccess>::value);
 static_assert(!HasPlaybackAccess<ViewportEngineProviderTerminalEventAccess>::value);
 static_assert(!HasRolesAccess<ViewportEngineProviderTerminalEventAccess>::value);
+static_assert(std::is_same_v<decltype(ViewportEngineProviderTerminalEventInput::diagnostic),
+    ImageViewportInternal::PublicDiagnosticText>);
+static_assert(std::is_same_v<decltype(ViewportEngineProviderDispatchFailureInput::diagnostic),
+    ImageViewportInternal::PublicDiagnosticText>);
+static_assert(std::is_same_v<decltype(ViewportEngineProviderSessionOpenFailureInput::diagnostic),
+    ImageViewportInternal::PublicDiagnosticText>);
+static_assert(std::is_same_v<decltype(ViewportEngineProviderQueueFailureInput::diagnostic),
+    ImageViewportInternal::PublicDiagnosticText>);
+static_assert(std::is_same_v<decltype(ViewportEngineTargetSpreadTerminalInput::diagnostic),
+    ImageViewportInternal::PublicDiagnosticText>);
+static_assert(std::is_same_v<decltype(ImageViewportInternal::RequestState::errorString),
+    ImageViewportInternal::PublicDiagnosticText>);
 static_assert(std::is_same_v<decltype(&reduceViewportEngineProviderTerminalEvent),
     ViewportEngineProviderTerminalEventReduction (*)(
         ViewportEngineProviderTerminalEventInput, ViewportEngineProviderTerminalEventAccess)>);

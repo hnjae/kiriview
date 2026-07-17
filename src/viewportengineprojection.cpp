@@ -429,7 +429,7 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
     return ImageViewportStateSnapshot(requestSnapshot, displaySnapshot, presentationSnapshot,
         roleSnapshot(ImageViewportPageRole::Primary),
         roleSnapshot(ImageViewportPageRole::Secondary),
-        ImageViewportDiagnosticsSnapshot(access.request().errorString,
+        ImageViewportDiagnosticsSnapshot(access.request().errorString.text(),
             renderQualityFallbackWarning(access.request(), access.display(), access.presentation()),
             access.commandReason()),
         ImageViewportRevisionsSnapshot(revision(access.request().requestRevision),
