@@ -438,6 +438,17 @@ in
       exec = # sh
         ''
           ${baseTaskPrelude}
+          ${qtBuildPrelude}
+          ${rustHostEnvironment}
+          ${lintJobsPrelude}
+
+          cargo \
+              build \
+              --locked \
+              --lib \
+              --all-features \
+              --jobs "$lint_jobs"
+
           unset LD_LIBRARY_PATH
           unset QT_PLUGIN_PATH
           unset QT_ADDITIONAL_PACKAGES_PREFIX_PATH
