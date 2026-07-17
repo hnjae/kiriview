@@ -3,6 +3,9 @@
 
 #include "session/activenavigationthumbnailrowstore.h"
 #include "session/activenavigationthumbnailworkcoordinator.h"
+#include "thumbnail/thumbnailgeneration.h"
+
+#include "image_async_test_support.h"
 
 #include <QAbstractItemModel>
 #include <QColor>
@@ -11,6 +14,7 @@
 #include <QObject>
 #include <QTest>
 #include <QUrl>
+#include <algorithm>
 #include <initializer_list>
 #include <memory>
 #include <optional>
@@ -30,6 +34,18 @@ kiriview::ActiveNavigationThumbnailRow row(int number, const QString& path)
         path.section(QLatin1Char('/'), -1),
         kiriview::ActiveNavigationThumbnailKind::Image,
         kiriview::ActiveNavigationThumbnailSourceKind::DirectImage,
+        number == 1,
+    };
+}
+
+kiriview::ActiveNavigationThumbnailRow videoRow(int number, const QString& path)
+{
+    return kiriview::ActiveNavigationThumbnailRow {
+        number,
+        QUrl::fromLocalFile(path),
+        path.section(QLatin1Char('/'), -1),
+        kiriview::ActiveNavigationThumbnailKind::Video,
+        kiriview::ActiveNavigationThumbnailSourceKind::DirectVideo,
         number == 1,
     };
 }
@@ -107,6 +123,53 @@ public:
     std::vector<Generation> generations;
 };
 
+struct ManualVideoExtraction
+{
+    QObject* object = nullptr;
+    kiriview::VideoThumbnailExtractionRequest request;
+    kiriview::VideoThumbnailExtractionCallback callback;
+    kiriview::ImageIoJobCompletion completion;
+    bool canceled = false;
+};
+
+class ManualVideoExtractions
+{
+public:
+    kiriview::VideoThumbnailExtractionProvider provider()
+    {
+        return [this](QObject* receiver, kiriview::VideoThumbnailExtractionRequest request,
+                   kiriview::VideoThumbnailExtractionCallback callback) {
+            auto extraction = std::make_shared<ManualVideoExtraction>();
+            extraction->request = std::move(request);
+            extraction->callback = std::move(callback);
+            kiriview::ImageIoJob job
+                = kiriview::TestSupport::Detail::startManualIoJob(receiver, extraction);
+            extractions.push_back(std::move(extraction));
+            maximumActiveCount = std::max(maximumActiveCount, activeCount());
+            return job;
+        };
+    }
+
+    std::size_t activeCount() const
+    {
+        return static_cast<std::size_t>(std::count_if(extractions.cbegin(), extractions.cend(),
+            [](const auto& extraction) { return extraction->completion.isActive(); }));
+    }
+
+    void fail(std::size_t index)
+    {
+        const std::shared_ptr<ManualVideoExtraction> extraction = extractions.at(index);
+        kiriview::TestSupport::Detail::finishManualIoJob(
+            extraction, [](ManualVideoExtraction& finished) {
+                finished.callback({ kiriview::VideoThumbnailExtractionStatus::Failed, {},
+                    QStringLiteral("synthetic extraction failure") });
+            });
+    }
+
+    std::vector<std::shared_ptr<ManualVideoExtraction>> extractions;
+    std::size_t maximumActiveCount = 0;
+};
+
 kiriview::ThumbnailSourceAdapter localAdapter()
 {
     return [](kiriview::ThumbnailSourceAdapterRequest request) {
@@ -162,6 +225,7 @@ private Q_SLOTS:
     void supersededLookupCompletionIsRejectedByJobIdentity();
     void backgroundResultAndFailedRefinementPreserveForegroundReadyImage();
     void demandWindowAdmitsVisibleBeforeNearbyRegardlessOfReportOrder();
+    void videoDemandIsCapacityBoundedAndCancellationReleasesExtractor();
     void queuedContinuationFindsEligibleBackgroundRow();
     void invalidationRejectsQueuedContinuation();
 };
@@ -292,6 +356,83 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Ready, image(Qt::green));
     QCOMPARE(providers.lookups.size(), std::size_t(2));
     QCOMPARE(providers.lookups.back().request.localPathBytes, QByteArray("/media/two.png"));
+}
+
+void TestActiveNavigationThumbnailWorkCoordinator::
+    videoDemandIsCapacityBoundedAndCancellationReleasesExtractor()
+{
+    auto images = std::make_shared<kiriview::ThumbnailImageStore>();
+    kiriview::ActiveNavigationThumbnailRowStore rows(this, images);
+    const auto schedulingRows = setRows(rows,
+        { videoRow(1, QStringLiteral("/media/one.mp4")),
+            videoRow(2, QStringLiteral("/media/two.mp4")),
+            videoRow(3, QStringLiteral("/media/three.mp4")),
+            videoRow(4, QStringLiteral("/media/four.mp4")),
+            videoRow(5, QStringLiteral("/media/five.mp4")) });
+    ManualProviders providers;
+    ManualVideoExtractions extractions;
+    kiriview::ThumbnailGenerationDependencies generationDependencies
+        = kiriview::defaultThumbnailGenerationDependencies();
+    generationDependencies.videoExtractor = extractions.provider();
+    kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(this, rows,
+        providers.lookupProvider(),
+        kiriview::defaultThumbnailGenerationProvider({}, std::move(generationDependencies)),
+        localAdapter());
+    QVERIFY(coordinator.resetRows(schedulingRows));
+    coordinator.setCurrentNumber(4);
+    const quint64 generation = rows.navigationGeneration();
+
+    QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(generation,
+        { { 5, schedulingRows.rows.at(4).sourceUrl, Bucket::Normal, Priority::Nearby },
+            { 3, schedulingRows.rows.at(2).sourceUrl, Bucket::Normal, Priority::Visible },
+            { 4, schedulingRows.rows.at(3).sourceUrl, Bucket::Normal, Priority::Nearby },
+            { 2, schedulingRows.rows.at(1).sourceUrl, Bucket::Normal, Priority::Visible },
+            { 1, schedulingRows.rows.at(0).sourceUrl, Bucket::Normal, Priority::Visible } })));
+    QCOMPARE(providers.lookups.size(), std::size_t(2));
+    QCOMPARE(providers.lookups.at(0).request.localPathBytes, QByteArray("/media/four.mp4"));
+    QCOMPARE(providers.lookups.at(1).request.localPathBytes, QByteArray("/media/one.mp4"));
+    QCOMPARE(resultStatus(rows, 1), Status::Pending);
+    QCOMPARE(resultStatus(rows, 4), Status::Pending);
+
+    providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Missing);
+    providers.finishLookup(1, kiriview::ThumbnailCacheLookupStatus::Missing);
+    QCOMPARE(extractions.extractions.size(), std::size_t(2));
+    QCOMPARE(extractions.extractions.at(0)->request.sourceUrl,
+        QUrl::fromLocalFile(QStringLiteral("/media/four.mp4")));
+    QCOMPARE(extractions.extractions.at(1)->request.sourceUrl,
+        QUrl::fromLocalFile(QStringLiteral("/media/one.mp4")));
+    QCOMPARE(extractions.activeCount(), std::size_t(2));
+    QCOMPARE(extractions.maximumActiveCount, std::size_t(2));
+
+    QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(generation,
+        { { 5, schedulingRows.rows.at(4).sourceUrl, Bucket::Normal, Priority::Nearby },
+            { 4, schedulingRows.rows.at(3).sourceUrl, Bucket::Normal, Priority::Nearby },
+            { 2, schedulingRows.rows.at(1).sourceUrl, Bucket::Normal, Priority::Visible } })));
+    QVERIFY(extractions.extractions.at(1)->canceled);
+    QCOMPARE(extractions.activeCount(), std::size_t(1));
+    QCOMPARE(providers.lookups.size(), std::size_t(3));
+    QCOMPARE(providers.lookups.back().request.localPathBytes, QByteArray("/media/two.mp4"));
+
+    providers.finishLookup(2, kiriview::ThumbnailCacheLookupStatus::Missing);
+    QCOMPARE(extractions.extractions.size(), std::size_t(3));
+    QCOMPARE(extractions.extractions.back()->request.sourceUrl,
+        QUrl::fromLocalFile(QStringLiteral("/media/two.mp4")));
+    QCOMPARE(extractions.activeCount(), std::size_t(2));
+    QCOMPARE(extractions.maximumActiveCount, std::size_t(2));
+
+    extractions.fail(0);
+    QCOMPARE(providers.lookups.size(), std::size_t(3));
+    QCOMPARE(extractions.activeCount(), std::size_t(1));
+
+    extractions.fail(2);
+    QCOMPARE(providers.lookups.size(), std::size_t(4));
+    QCOMPARE(providers.lookups.back().request.localPathBytes, QByteArray("/media/five.mp4"));
+    providers.finishLookup(3, kiriview::ThumbnailCacheLookupStatus::Missing);
+    QCOMPARE(extractions.extractions.size(), std::size_t(4));
+    QCOMPARE(extractions.extractions.back()->request.sourceUrl,
+        QUrl::fromLocalFile(QStringLiteral("/media/five.mp4")));
+    QCOMPARE(extractions.activeCount(), std::size_t(1));
+    QCOMPARE(extractions.maximumActiveCount, std::size_t(2));
 }
 
 void TestActiveNavigationThumbnailWorkCoordinator::queuedContinuationFindsEligibleBackgroundRow()

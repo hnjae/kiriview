@@ -30,8 +30,9 @@ ThumbnailSourceAdapter defaultThumbnailSourceAdapter()
 }
 
 ActiveNavigationThumbnailScheduler::ActiveNavigationThumbnailScheduler(
-    ThumbnailSourceAdapter sourceAdapter)
+    ThumbnailSourceAdapter sourceAdapter, std::size_t foregroundCapacity)
     : m_sourceAdapter(std::move(sourceAdapter))
+    , m_foregroundCapacity(foregroundCapacity)
 {
 }
 
@@ -510,6 +511,15 @@ void ActiveNavigationThumbnailScheduler::start(std::size_t row,
         { claim.id, demand.sourceKey, demand.bucket, kind, demand.sourcePlan } });
 }
 
+std::size_t ActiveNavigationThumbnailScheduler::activeForegroundCount() const
+{
+    return static_cast<std::size_t>(
+        std::count_if(m_rows.cbegin(), m_rows.cend(), [](const RowState& state) {
+            return state.activeWork.has_value()
+                && state.activeWork->kind == ActiveNavigationThumbnailWorkKind::Foreground;
+        }));
+}
+
 void ActiveNavigationThumbnailScheduler::admit(
     std::vector<ActiveNavigationThumbnailScheduleEffect>& effects)
 {
@@ -521,12 +531,48 @@ void ActiveNavigationThumbnailScheduler::admit(
         if (m_activeBackgroundRow.has_value()) {
             cancel(*m_activeBackgroundRow, effects);
         }
+
+        std::size_t activeForeground = activeForegroundCount();
+        if (m_currentRow.has_value()
+            && m_highDemandRows.find(*m_currentRow) != m_highDemandRows.cend()) {
+            RowState& currentState = m_rows.at(*m_currentRow);
+            if (!currentState.activeWork.has_value() && currentState.acceptedDemand.has_value()
+                && supportsGeneratedThumbnail(currentState.acceptedDemand->sourcePlan)
+                && m_foregroundCapacity != 0) {
+                while (activeForeground >= m_foregroundCapacity) {
+                    const auto activeVisible = std::find_if(m_highDemandRows.crbegin(),
+                        m_highDemandRows.crend(), [this](std::size_t row) {
+                            const RowState& state = m_rows.at(row);
+                            return (!m_currentRow.has_value() || row != *m_currentRow)
+                                && state.activeWork.has_value()
+                                && state.activeWork->tier == Tier::Visible;
+                        });
+                    if (activeVisible == m_highDemandRows.crend()) {
+                        break;
+                    }
+                    cancel(*activeVisible, effects);
+                    --activeForeground;
+                }
+                if (activeForeground < m_foregroundCapacity) {
+                    start(*m_currentRow, ActiveNavigationThumbnailWorkKind::Foreground,
+                        Tier::Current, *currentState.acceptedDemand, effects);
+                    ++activeForeground;
+                }
+            }
+        }
         for (const std::size_t row : m_highDemandRows) {
+            if (m_currentRow.has_value() && row == *m_currentRow) {
+                continue;
+            }
+            if (activeForeground >= m_foregroundCapacity) {
+                break;
+            }
             RowState& state = m_rows.at(row);
             if (!state.activeWork.has_value() && state.acceptedDemand.has_value()
                 && supportsGeneratedThumbnail(state.acceptedDemand->sourcePlan)) {
                 start(row, ActiveNavigationThumbnailWorkKind::Foreground,
                     tierFor(row, *state.acceptedDemand), *state.acceptedDemand, effects);
+                ++activeForeground;
             }
         }
         return;
@@ -535,17 +581,22 @@ void ActiveNavigationThumbnailScheduler::admit(
         if (m_activeBackgroundRow.has_value()) {
             cancel(*m_activeBackgroundRow, effects);
         }
+        std::size_t activeForeground = activeForegroundCount();
         for (const std::size_t row : m_nearbyDemandRows) {
+            if (activeForeground >= m_foregroundCapacity) {
+                break;
+            }
             RowState& state = m_rows.at(row);
             if (!state.activeWork.has_value() && state.acceptedDemand.has_value()
                 && supportsGeneratedThumbnail(state.acceptedDemand->sourcePlan)) {
                 start(row, ActiveNavigationThumbnailWorkKind::Foreground, Tier::Nearby,
                     *state.acceptedDemand, effects);
+                ++activeForeground;
             }
         }
         return;
     }
-    if (!m_backgroundArmed || m_activeBackgroundRow.has_value() || !m_activeNearbyRows.empty()) {
+    if (!m_backgroundArmed || m_activeBackgroundRow.has_value() || activeForegroundCount() != 0) {
         return;
     }
     constexpr std::size_t BackgroundScanBudget = 16;

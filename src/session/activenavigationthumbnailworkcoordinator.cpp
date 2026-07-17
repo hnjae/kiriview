@@ -10,6 +10,8 @@
 #include <utility>
 
 namespace {
+constexpr std::size_t foregroundThumbnailCapacity = 2;
+
 QString fallbackThumbnailFailureError(kiriview::ActiveNavigationThumbnailFailureKind failureKind)
 {
     switch (failureKind) {
@@ -36,7 +38,7 @@ ActiveNavigationThumbnailWorkCoordinator::ActiveNavigationThumbnailWorkCoordinat
     ThumbnailGenerationProvider generationProvider, ThumbnailSourceAdapter sourceAdapter,
     ActiveNavigationThumbnailFailureDiagnosticCallback failureDiagnosticCallback)
     : m_rowPort(rowPort)
-    , m_scheduler(std::move(sourceAdapter))
+    , m_scheduler(std::move(sourceAdapter), foregroundThumbnailCapacity)
     , m_executor(owner, std::move(lookupProvider), std::move(generationProvider),
           [this](ActiveNavigationThumbnailWorkCompletion completion) {
               applyEffects(m_scheduler.acceptCompletion(std::move(completion)));

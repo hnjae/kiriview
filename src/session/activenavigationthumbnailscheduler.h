@@ -68,7 +68,8 @@ using ActiveNavigationThumbnailScheduleEffect = std::variant<
 class ActiveNavigationThumbnailScheduler final
 {
 public:
-    explicit ActiveNavigationThumbnailScheduler(ThumbnailSourceAdapter sourceAdapter);
+    ActiveNavigationThumbnailScheduler(
+        ThumbnailSourceAdapter sourceAdapter, std::size_t foregroundCapacity);
 
     std::optional<std::vector<ActiveNavigationThumbnailScheduleEffect>> reset(
         ActiveNavigationThumbnailSchedulingSnapshot snapshot);
@@ -140,9 +141,11 @@ private:
     void cancel(std::size_t row, std::vector<ActiveNavigationThumbnailScheduleEffect>& effects);
     void start(std::size_t row, ActiveNavigationThumbnailWorkKind kind, Tier tier,
         const Demand& demand, std::vector<ActiveNavigationThumbnailScheduleEffect>& effects);
+    std::size_t activeForegroundCount() const;
     void admit(std::vector<ActiveNavigationThumbnailScheduleEffect>& effects);
 
     ThumbnailSourceAdapter m_sourceAdapter;
+    std::size_t m_foregroundCapacity = 0;
     std::vector<RowState> m_rows;
     quint64 m_navigationGeneration = 0;
     quint64 m_demandSnapshotEpoch = 0;
