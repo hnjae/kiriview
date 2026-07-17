@@ -283,7 +283,7 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
         observation.identity.providerToken
             = ImageViewportInternal::ProviderRequestTokenPrivateAccess::value(event.token);
         observation.identity.demandRevision
-            = ImageViewportInternal::RevisionTokenPrivateAccess::value(active.demandRevision);
+            = ImageViewportInternal::DemandRevisionTokenPrivateAccess::value(active.demandRevision);
         observation.identity.providerLeaseId = event.frameLeaseId;
         stale.observations.append(observation);
         return stale;

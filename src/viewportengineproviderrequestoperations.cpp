@@ -144,7 +144,7 @@ ViewportProviderFrameRequestStartResult startRefinementRequest(RequestContext co
         }                                                                                          \
         auto& active = requestForRole(m_request, role);                                            \
         active.demandRevision                                                                      \
-            = ImageViewportInternal::RevisionTokenPrivateAccess::demandFromValue(                  \
+            = ImageViewportInternal::DemandRevisionTokenPrivateAccess::fromValue(                  \
                 ++m_nextRevision);                                                                 \
         const quint64 revision = m_presentationRevision != 0 ? m_presentationRevision              \
                                                              : m_presentationTargetGeneration;     \
@@ -154,7 +154,7 @@ ViewportProviderFrameRequestStartResult startRefinementRequest(RequestContext co
                     m_request.requestRevision),                                                    \
                 ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(        \
                     revision),                                                                     \
-                ImageViewportInternal::RevisionTokenPrivateAccess::generationFromValue(            \
+                ImageViewportInternal::AllocationGenerationTokenPrivateAccess::fromValue(          \
                     m_presentationTargetGeneration) },                                             \
             { m_request, m_display, { m_roles[0].provider.facts, m_roles[1].provider.facts },      \
                 m_presentation });                                                                 \

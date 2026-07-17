@@ -521,7 +521,7 @@ void ImageViewportProviderContractTest::
     QVERIFY(primaryDemand.allocationGeneration().isValid());
     QCOMPARE(primaryDemand.allocationGeneration(), secondaryDemand.allocationGeneration());
 
-    const ImageViewportPresentationTargetGenerationToken retainedAllocation
+    const ImageViewportAllocationGenerationToken retainedAllocation
         = primaryDemand.allocationGeneration();
     discardRetainedDisplayForResourcePressureForTest(item);
 

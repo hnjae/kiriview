@@ -455,9 +455,19 @@ ImageViewport {
     property int factoryRejected: ImageSequenceFactoryResult.FactoryOutcome.Rejected
     property bool factoryReturnsNull: ImageSequenceFactory.fromFrame(null).sequence === null
     property imageViewportCoordinateInput mappingInput
+    property imageViewportRevisionToken invalidRevision
+    property imageViewportPresentationTargetGenerationToken invalidPresentationGeneration
+    property imageViewportDemandRevisionToken invalidDemandRevision
+    property imageViewportAllocationGenerationToken invalidAllocationGeneration
     property bool mappingInvalid: mapPoint(mappingInput).valid === false
     property bool mappingHasPointField: mapPoint(mappingInput).point.x === 0
         && mapPoint(mappingInput).point.y === 0
+    property bool opaqueTokenEqualityAvailable:
+        invalidRevision.equals(invalidRevision)
+        && !state.revisions.request.equals(invalidRevision)
+        && invalidPresentationGeneration.equals(invalidPresentationGeneration)
+        && invalidDemandRevision.equals(invalidDemandRevision)
+        && invalidAllocationGeneration.equals(invalidAllocationGeneration)
     property bool unavailableValuesHaveDocumentedFields: state.primary.metadata.frameSeekBounds.minimum === -1
         && state.primary.metadata.frameSeekBounds.maximum === -1
         && state.primary.metadata.positionSeekBounds.minimum === -1
@@ -508,6 +518,7 @@ ImageViewport {
     QCOMPARE(object->property("factoryReturnsNull").toBool(), true);
     QCOMPARE(object->property("mappingInvalid").toBool(), true);
     QCOMPARE(object->property("mappingHasPointField").toBool(), true);
+    QCOMPARE(object->property("opaqueTokenEqualityAvailable").toBool(), true);
     QCOMPARE(object->property("unavailableValuesHaveDocumentedFields").toBool(), true);
     QCOMPARE(object->property("limitsAvailable").toBool(), true);
 }

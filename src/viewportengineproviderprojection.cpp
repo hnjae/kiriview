@@ -78,7 +78,7 @@ ImageSequenceProviderDisplayDemand projectViewportProviderDemand(
     demand.setMaximumPayloadBytes(ImageSequenceLimits::maximumPayloadBytes());
     demand.setDisplayByteBudget(access.display().payloadAllocation.roleBudgets[index]);
     demand.setAllocationGeneration(access.display().payloadAllocation.generation != 0
-            ? RevisionTokenPrivateAccess::generationFromValue(
+            ? AllocationGenerationTokenPrivateAccess::fromValue(
                   access.display().payloadAllocation.generation)
             : input.allocationGeneration);
     demand.setCurrentPayloadQuality(payload.quality);

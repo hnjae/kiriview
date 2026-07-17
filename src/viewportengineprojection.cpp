@@ -38,7 +38,7 @@ ImageViewportRevisionToken revision(quint64 value)
 
 ImageViewportPresentationTargetGenerationToken generation(quint64 value)
 {
-    return RevisionTokenPrivateAccess::generationFromValue(value);
+    return PresentationTargetGenerationTokenPrivateAccess::fromValue(value);
 }
 
 ImageViewportDisplayPhase displayPhase(

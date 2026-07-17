@@ -284,8 +284,8 @@ class ImageSequenceProviderDisplayDemand
     Q_PROPERTY(qint64 maximumTextureSize READ maximumTextureSize WRITE setMaximumTextureSize)
     Q_PROPERTY(qint64 maximumPayloadBytes READ maximumPayloadBytes WRITE setMaximumPayloadBytes)
     Q_PROPERTY(qint64 displayByteBudget READ displayByteBudget WRITE setDisplayByteBudget)
-    Q_PROPERTY(ImageViewportPresentationTargetGenerationToken allocationGeneration READ
-            allocationGeneration WRITE setAllocationGeneration)
+    Q_PROPERTY(ImageViewportAllocationGenerationToken allocationGeneration READ allocationGeneration
+            WRITE setAllocationGeneration)
     Q_PROPERTY(ImageViewportPayloadQuality currentPayloadQuality READ currentPayloadQuality WRITE
             setCurrentPayloadQuality)
     Q_PROPERTY(ImageViewportPayloadExactness currentPayloadExactness READ currentPayloadExactness
@@ -346,11 +346,11 @@ public:
     void setMaximumPayloadBytes(qint64 bytes) { m_maximumPayloadBytes = bytes; }
     qint64 displayByteBudget() const { return m_displayByteBudget; }
     void setDisplayByteBudget(qint64 bytes) { m_displayByteBudget = bytes; }
-    ImageViewportPresentationTargetGenerationToken allocationGeneration() const
+    ImageViewportAllocationGenerationToken allocationGeneration() const
     {
         return m_allocationGeneration;
     }
-    void setAllocationGeneration(ImageViewportPresentationTargetGenerationToken generation)
+    void setAllocationGeneration(ImageViewportAllocationGenerationToken generation)
     {
         m_allocationGeneration = generation;
     }
@@ -392,7 +392,7 @@ private:
     qint64 m_maximumTextureSize = -1;
     qint64 m_maximumPayloadBytes = -1;
     qint64 m_displayByteBudget = -1;
-    ImageViewportPresentationTargetGenerationToken m_allocationGeneration;
+    ImageViewportAllocationGenerationToken m_allocationGeneration;
     ImageViewportPayloadQuality m_currentPayloadQuality = ImageViewportPayloadQuality::Unknown;
     ImageViewportPayloadExactness m_currentPayloadExactness
         = ImageViewportPayloadExactness::Unknown;

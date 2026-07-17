@@ -11,6 +11,11 @@ static_assert(!std::is_constructible_v<ImageSequenceProviderRequestToken, quint6
     "provider request tokens must not expose numeric construction as public API");
 static_assert(!std::is_constructible_v<ImageViewportRevisionToken, quint64>,
     "revision tokens must not expose numeric construction as public API");
+static_assert(!std::is_constructible_v<ImageViewportAllocationGenerationToken, quint64>,
+    "allocation generation tokens must not expose numeric construction as public API");
+static_assert(!std::is_same_v<ImageViewportAllocationGenerationToken,
+                  ImageViewportPresentationTargetGenerationToken>,
+    "allocation and presentation-target generations must remain distinct identity domains");
 
 class ImageViewportPublicApiTest : public QObject
 {
@@ -738,6 +743,39 @@ void ImageViewportPublicApiTest::revisionTokensExposeValidityAndEquality()
     const QMetaObject& revisionTokenMetaObject = ImageViewportRevisionToken::staticMetaObject;
     QVERIFY(revisionTokenMetaObject.indexOfProperty("valid") >= 0);
     QVERIFY(revisionTokenMetaObject.indexOfProperty("value") < 0);
+    QVERIFY(revisionTokenMetaObject.indexOfMethod("equals(ImageViewportRevisionToken)") >= 0);
+
+    const QMetaObject& presentationGenerationMetaObject
+        = ImageViewportPresentationTargetGenerationToken::staticMetaObject;
+    QVERIFY(presentationGenerationMetaObject.indexOfProperty("valid") >= 0);
+    QVERIFY(presentationGenerationMetaObject.indexOfProperty("value") < 0);
+    QVERIFY(presentationGenerationMetaObject.indexOfMethod(
+                "equals(ImageViewportPresentationTargetGenerationToken)")
+        >= 0);
+
+    const QMetaObject& demandRevisionMetaObject
+        = ImageViewportDemandRevisionToken::staticMetaObject;
+    QVERIFY(demandRevisionMetaObject.indexOfProperty("valid") >= 0);
+    QVERIFY(demandRevisionMetaObject.indexOfProperty("value") < 0);
+    QVERIFY(
+        demandRevisionMetaObject.indexOfMethod("equals(ImageViewportDemandRevisionToken)") >= 0);
+
+    const QMetaObject& allocationGenerationMetaObject
+        = ImageViewportAllocationGenerationToken::staticMetaObject;
+    QVERIFY(allocationGenerationMetaObject.indexOfProperty("valid") >= 0);
+    QVERIFY(allocationGenerationMetaObject.indexOfProperty("value") < 0);
+    QVERIFY(allocationGenerationMetaObject.indexOfMethod(
+                "equals(ImageViewportAllocationGenerationToken)")
+        >= 0);
+
+    const ImageViewportRevisionToken invalidRevision;
+    const ImageViewportPresentationTargetGenerationToken invalidPresentationGeneration;
+    const ImageViewportDemandRevisionToken invalidDemandRevision;
+    const ImageViewportAllocationGenerationToken invalidAllocationGeneration;
+    QVERIFY(invalidRevision.equals(ImageViewportRevisionToken()));
+    QVERIFY(invalidPresentationGeneration.equals(ImageViewportPresentationTargetGenerationToken()));
+    QVERIFY(invalidDemandRevision.equals(ImageViewportDemandRevisionToken()));
+    QVERIFY(invalidAllocationGeneration.equals(ImageViewportAllocationGenerationToken()));
 
     ImageViewport item;
 
@@ -757,6 +795,8 @@ void ImageViewportPublicApiTest::revisionTokensExposeValidityAndEquality()
     const ImageViewportRevisionToken changedDisplayRevision = viewportDisplayRevision(item);
     QVERIFY(changedDisplayRevision.isValid());
     QVERIFY(changedDisplayRevision != initialDisplayRevision);
+    QVERIFY(changedDisplayRevision.equals(changedDisplayRevision));
+    QVERIFY(!changedDisplayRevision.equals(initialDisplayRevision));
     QCOMPARE(viewportDisplayRevision(item), changedDisplayRevision);
     QCOMPARE(viewportRequestRevision(item), initialRequestRevision);
     QVERIFY(viewportCommandRevision(item) != initialCommandRevision);

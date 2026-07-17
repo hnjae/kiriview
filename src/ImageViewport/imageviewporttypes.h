@@ -15,6 +15,9 @@ class ImageViewportRoleDisplaySnapshot;
 
 namespace ImageViewportInternal {
 class RevisionTokenPrivateAccess;
+class PresentationTargetGenerationTokenPrivateAccess;
+class DemandRevisionTokenPrivateAccess;
+class AllocationGenerationTokenPrivateAccess;
 }
 
 namespace ImageViewportEnums {
@@ -220,6 +223,10 @@ public:
     ImageViewportRevisionToken() = default;
 
     bool isValid() const { return m_value != 0; }
+    Q_INVOKABLE bool equals(ImageViewportRevisionToken other) const
+    {
+        return m_value == other.m_value;
+    }
 
     friend bool operator==(ImageViewportRevisionToken lhs, ImageViewportRevisionToken rhs)
     {
@@ -254,6 +261,10 @@ public:
     ImageViewportPresentationTargetGenerationToken() = default;
 
     bool isValid() const { return m_value != 0; }
+    Q_INVOKABLE bool equals(ImageViewportPresentationTargetGenerationToken other) const
+    {
+        return m_value == other.m_value;
+    }
 
     friend bool operator==(ImageViewportPresentationTargetGenerationToken lhs,
         ImageViewportPresentationTargetGenerationToken rhs)
@@ -278,7 +289,7 @@ private:
     friend class ImageViewportRequestSnapshot;
     friend class ImageViewportDisplaySnapshot;
     friend class ImageViewportRoleRequestSnapshot;
-    friend class ImageViewportInternal::RevisionTokenPrivateAccess;
+    friend class ImageViewportInternal::PresentationTargetGenerationTokenPrivateAccess;
 };
 
 class ImageViewportDemandRevisionToken
@@ -291,6 +302,10 @@ public:
     ImageViewportDemandRevisionToken() = default;
 
     bool isValid() const { return m_value != 0; }
+    Q_INVOKABLE bool equals(ImageViewportDemandRevisionToken other) const
+    {
+        return m_value == other.m_value;
+    }
 
     friend bool operator==(
         ImageViewportDemandRevisionToken lhs, ImageViewportDemandRevisionToken rhs)
@@ -314,7 +329,44 @@ private:
     friend ImageViewportPrivate;
     friend class ImageViewportRoleRequestSnapshot;
     friend class ImageViewportRoleDisplaySnapshot;
-    friend class ImageViewportInternal::RevisionTokenPrivateAccess;
+    friend class ImageViewportInternal::DemandRevisionTokenPrivateAccess;
+};
+
+class ImageViewportAllocationGenerationToken
+{
+    Q_GADGET
+    QML_VALUE_TYPE(imageViewportAllocationGenerationToken)
+    Q_PROPERTY(bool valid READ isValid CONSTANT)
+
+public:
+    ImageViewportAllocationGenerationToken() = default;
+
+    bool isValid() const { return m_value != 0; }
+    Q_INVOKABLE bool equals(ImageViewportAllocationGenerationToken other) const
+    {
+        return m_value == other.m_value;
+    }
+
+    friend bool operator==(
+        ImageViewportAllocationGenerationToken lhs, ImageViewportAllocationGenerationToken rhs)
+    {
+        return lhs.m_value == rhs.m_value;
+    }
+    friend bool operator!=(
+        ImageViewportAllocationGenerationToken lhs, ImageViewportAllocationGenerationToken rhs)
+    {
+        return !(lhs == rhs);
+    }
+
+private:
+    explicit ImageViewportAllocationGenerationToken(quint64 value)
+        : m_value(value)
+    {
+    }
+
+    quint64 m_value = 0;
+
+    friend class ImageViewportInternal::AllocationGenerationTokenPrivateAccess;
 };
 
 class ImageViewportRoleSet
@@ -361,4 +413,5 @@ Q_DECLARE_METATYPE(ImageViewportRange)
 Q_DECLARE_METATYPE(ImageViewportRevisionToken)
 Q_DECLARE_METATYPE(ImageViewportPresentationTargetGenerationToken)
 Q_DECLARE_METATYPE(ImageViewportDemandRevisionToken)
+Q_DECLARE_METATYPE(ImageViewportAllocationGenerationToken)
 Q_DECLARE_METATYPE(ImageViewportRoleSet)

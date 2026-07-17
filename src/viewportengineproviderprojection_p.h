@@ -9,7 +9,7 @@ struct ViewportEngineProviderDemandInput
     ImageViewportDemandRevisionToken demandRevision;
     ImageViewportRevisionToken requestRevision;
     ImageViewportRevisionToken presentationRevision;
-    ImageViewportPresentationTargetGenerationToken allocationGeneration;
+    ImageViewportAllocationGenerationToken allocationGeneration;
 };
 
 class ViewportEngineProviderDemandProjectionAccess

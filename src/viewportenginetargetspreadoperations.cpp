@@ -132,7 +132,7 @@ ViewportEngineProviderRoleMaterializationResult materializeViewportEngineProvide
     if (access.nextRevision == std::numeric_limits<quint64>::max()) {
         qFatal("ImageViewport revision token allocator exhausted");
     }
-    active.demandRevision = RevisionTokenPrivateAccess::demandFromValue(++access.nextRevision);
+    active.demandRevision = DemandRevisionTokenPrivateAccess::fromValue(++access.nextRevision);
     const quint64 presentationRevision = access.presentationRevision != 0
         ? access.presentationRevision
         : access.presentationTargetGeneration;
@@ -140,7 +140,8 @@ ViewportEngineProviderRoleMaterializationResult materializeViewportEngineProvide
         { input.role, input.geometry, active.demandRevision,
             RevisionTokenPrivateAccess::publicRevisionFromValue(access.request.requestRevision),
             RevisionTokenPrivateAccess::publicRevisionFromValue(presentationRevision),
-            RevisionTokenPrivateAccess::generationFromValue(access.presentationTargetGeneration) },
+            AllocationGenerationTokenPrivateAccess::fromValue(
+                access.presentationTargetGeneration) },
         { access.request, access.display,
             { access.roles[0].provider.facts, access.roles[1].provider.facts },
             access.presentation });

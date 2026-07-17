@@ -12,8 +12,14 @@
 
 #include <cmath>
 #include <memory>
+#include <type_traits>
 
 Q_IMPORT_PLUGIN(ImageViewportPlugin)
+
+static_assert(!std::is_same_v<ImageViewportAllocationGenerationToken,
+    ImageViewportPresentationTargetGenerationToken>);
+static_assert(std::is_same_v<decltype(ImageSequenceProviderDisplayDemand().allocationGeneration()),
+    ImageViewportAllocationGenerationToken>);
 
 class ConsumerSession final : public ImageSequenceProviderSession
 {
@@ -213,8 +219,25 @@ bool canCreateInstalledQmlViewport()
     engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_INSTALLED_QML_IMPORT_ROOT));
 
     QQmlComponent component(&engine);
-    component.setData(
-        "import QtQuick\nimport ImageViewport 1.0\nImageViewport { width: 10; height: 10 }\n",
+    component.setData(R"(
+import QtQuick
+import ImageViewport 1.0
+
+ImageViewport {
+    width: 10
+    height: 10
+    property imageViewportRevisionToken invalidRevision
+    property imageViewportPresentationTargetGenerationToken invalidPresentationGeneration
+    property imageViewportDemandRevisionToken invalidDemandRevision
+    property imageViewportAllocationGenerationToken invalidAllocationGeneration
+    property bool opaqueTokenEqualityAvailable:
+        invalidRevision.equals(invalidRevision)
+        && !state.revisions.request.equals(invalidRevision)
+        && invalidPresentationGeneration.equals(invalidPresentationGeneration)
+        && invalidDemandRevision.equals(invalidDemandRevision)
+        && invalidAllocationGeneration.equals(invalidAllocationGeneration)
+}
+)",
         QUrl());
     if (!component.isReady()) {
         qWarning() << component.errors();
@@ -226,7 +249,8 @@ bool canCreateInstalledQmlViewport()
         qWarning() << component.errors();
         return false;
     }
-    return qobject_cast<ImageViewport*>(object.get()) != nullptr;
+    return qobject_cast<ImageViewport*>(object.get()) != nullptr
+        && object->property("opaqueTokenEqualityAvailable").toBool();
 }
 
 bool canReadInstalledQmlLimits()
@@ -925,7 +949,15 @@ int main(int argc, char** argv)
         || snapshot.diagnostics().commandReason() != ImageViewportCommandReason::NoCommand
         || !snapshot.revisions().request().isValid() || !snapshot.revisions().display().isValid()
         || ImageViewportPresentationTargetGenerationToken().isValid()
-        || ImageViewportDemandRevisionToken().isValid()) {
+        || ImageViewportDemandRevisionToken().isValid()
+        || ImageViewportAllocationGenerationToken().isValid()
+        || !snapshot.revisions().request().equals(snapshot.revisions().request())
+        || snapshot.revisions().request().equals(ImageViewportRevisionToken())
+        || !ImageViewportPresentationTargetGenerationToken().equals(
+            ImageViewportPresentationTargetGenerationToken())
+        || !ImageViewportDemandRevisionToken().equals(ImageViewportDemandRevisionToken())
+        || !ImageViewportAllocationGenerationToken().equals(
+            ImageViewportAllocationGenerationToken())) {
         return 1;
     }
     const ImageViewportRoleSet installedRoleSet(true, false);

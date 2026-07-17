@@ -513,7 +513,7 @@ void ImageSequenceFactoryTest::providerFrameAdmissionRejectsStaleDemandAndRequir
     image.fill(Qt::transparent);
     ImageSequenceProviderFrameEnvelope envelope = ImageSequenceProviderFrameEnvelope::stillFrame();
     envelope.setDemandRevision(
-        ImageViewportInternal::RevisionTokenPrivateAccess::demandFromValue(3));
+        ImageViewportInternal::DemandRevisionTokenPrivateAccess::fromValue(3));
     ImageFrame frame(image, QSizeF(16.0, 8.0), QSizeF(16.0, 8.0), QSizeF(1.0, 1.0),
         image.sizeInBytes(), ImageViewportPayloadQuality::Preview,
         ImageViewportPayloadExactness::NotExact, true, ImageFrame::OrientationPolicy::Identity,
@@ -523,7 +523,7 @@ void ImageSequenceFactoryTest::providerFrameAdmissionRejectsStaleDemandAndRequir
     state.metadataReady = true;
     state.logicalSize = QSizeF(16.0, 8.0);
     state.resolvedFrame = { 0, -1 };
-    state.demandRevision = ImageViewportInternal::RevisionTokenPrivateAccess::demandFromValue(5);
+    state.demandRevision = ImageViewportInternal::DemandRevisionTokenPrivateAccess::fromValue(5);
 
     const auto stale = FramePreparation::admitProviderFrame(&frame, envelope, state);
     QCOMPARE(

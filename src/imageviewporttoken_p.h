@@ -47,21 +47,36 @@ public:
     {
         return ImageViewportRevisionToken(value);
     }
-    static ImageViewportPresentationTargetGenerationToken generationFromValue(quint64 value)
+    static quint64 value(RevisionToken token) { return token.m_value; }
+    static quint64 value(ImageViewportRevisionToken token) { return token.m_value; }
+};
+
+class PresentationTargetGenerationTokenPrivateAccess
+{
+public:
+    static ImageViewportPresentationTargetGenerationToken fromValue(quint64 value)
     {
         return ImageViewportPresentationTargetGenerationToken(value);
     }
-    static ImageViewportDemandRevisionToken demandFromValue(quint64 value)
+};
+
+class DemandRevisionTokenPrivateAccess
+{
+public:
+    static ImageViewportDemandRevisionToken fromValue(quint64 value)
     {
         return ImageViewportDemandRevisionToken(value);
     }
 
-    static quint64 value(RevisionToken token) { return token.m_value; }
-    static quint64 value(ImageViewportRevisionToken token) { return token.m_value; }
     static quint64 value(ImageViewportDemandRevisionToken token) { return token.m_value; }
-    static quint64 value(ImageViewportPresentationTargetGenerationToken token)
+};
+
+class AllocationGenerationTokenPrivateAccess
+{
+public:
+    static ImageViewportAllocationGenerationToken fromValue(quint64 value)
     {
-        return token.m_value;
+        return ImageViewportAllocationGenerationToken(value);
     }
 };
 

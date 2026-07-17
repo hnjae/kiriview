@@ -128,7 +128,7 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         observation.identity.generation = access.m_request.sequenceGeneration;
         observation.identity.requestId = requestForRole(access.m_request, input.role).identity.id;
         observation.identity.providerToken = ProviderRequestTokenPrivateAccess::value(input.token);
-        observation.identity.demandRevision = RevisionTokenPrivateAccess::value(
+        observation.identity.demandRevision = DemandRevisionTokenPrivateAccess::value(
             requestForRole(access.m_request, input.role).demandRevision);
         observation.identity.providerLeaseId = input.providerFrameLeaseId;
         result.observations.append(observation);
@@ -172,7 +172,7 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         observation.identity.generation = access.m_request.sequenceGeneration;
         observation.identity.requestId = requestForRole(access.m_request, input.role).identity.id;
         observation.identity.providerToken = ProviderRequestTokenPrivateAccess::value(input.token);
-        observation.identity.demandRevision = RevisionTokenPrivateAccess::value(
+        observation.identity.demandRevision = DemandRevisionTokenPrivateAccess::value(
             requestForRole(access.m_request, input.role).demandRevision);
         observation.identity.providerLeaseId = input.providerFrameLeaseId;
         observation.detail = int(admission.cause);
