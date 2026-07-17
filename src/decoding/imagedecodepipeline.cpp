@@ -6,6 +6,7 @@
 #include "apnganimationreader.h"
 #include "bridge/rustqtconversion.h"
 #include "heifdecoder.h"
+#include "imagedecodelogging.h"
 #include "jxlanimationreader.h"
 #include "kiriview/src/policy/avifcompat.cxx.h"
 #include "localization/imageerrortext.h"
@@ -18,7 +19,6 @@
 #include "webpanimationreader.h"
 
 #include <QDebug>
-#include <QLoggingCategory>
 #include <QString>
 #include <memory>
 #include <optional>

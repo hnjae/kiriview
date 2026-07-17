@@ -144,6 +144,8 @@ void TestImageDocumentState::loadFailureStoresDiagnosticsAndPublishesUserMessage
         sourceUrl,
         42,
         kiriview::ImageLoadFailureKind::DataLoad,
+        kiriview::DecodedImageFailureRoute::Unknown,
+        kiriview::DecodedImageFailureOperation::Unknown,
         QStringLiteral("Could not read the selected image."),
         QStringLiteral("KIO reported file not found"),
         kiriview::ImageLoadFailureSeverity::Error,
@@ -154,6 +156,8 @@ void TestImageDocumentState::loadFailureStoresDiagnosticsAndPublishesUserMessage
     QCOMPARE(state.loadFailure()->sourceUrl, sourceUrl);
     QCOMPARE(state.loadFailure()->sessionId, quint64(42));
     QVERIFY(state.loadFailure()->kind == kiriview::ImageLoadFailureKind::DataLoad);
+    QCOMPARE(state.loadFailure()->decodeRoute, kiriview::DecodedImageFailureRoute::Unknown);
+    QCOMPARE(state.loadFailure()->decodeOperation, kiriview::DecodedImageFailureOperation::Unknown);
     QCOMPARE(
         state.loadFailure()->userMessage, QStringLiteral("Could not read the selected image."));
     QCOMPARE(state.loadFailure()->diagnosticDetail, QStringLiteral("KIO reported file not found"));

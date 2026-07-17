@@ -4,6 +4,8 @@
 #ifndef KIRIVIEW_IMAGELOADFAILURE_H
 #define KIRIVIEW_IMAGELOADFAILURE_H
 
+#include "decoding/decodedimagefailure.h"
+
 #include <QString>
 #include <QUrl>
 #include <QtGlobal>
@@ -26,6 +28,8 @@ struct ImageLoadFailure
     QUrl sourceUrl;
     quint64 sessionId = 0;
     ImageLoadFailureKind kind = ImageLoadFailureKind::DataLoad;
+    DecodedImageFailureRoute decodeRoute = DecodedImageFailureRoute::Unknown;
+    DecodedImageFailureOperation decodeOperation = DecodedImageFailureOperation::Unknown;
     QString userMessage;
     QString diagnosticDetail;
     ImageLoadFailureSeverity severity = ImageLoadFailureSeverity::Error;

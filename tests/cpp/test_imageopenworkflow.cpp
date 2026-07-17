@@ -121,6 +121,8 @@ kiriview::ImageDocumentRuntimePlan finishLoadWithError(kiriview::ImageDocumentSt
         session.imageUrl(),
         session.id(),
         kiriview::ImageLoadFailureKind::DataLoad,
+        kiriview::DecodedImageFailureRoute::Unknown,
+        kiriview::DecodedImageFailureOperation::Unknown,
         errorString,
         errorString,
         kiriview::ImageLoadFailureSeverity::Error,
@@ -199,7 +201,8 @@ void TestImageOpenWorkflow::applicationPlansUseExplicitInputs()
     const QUrl imageUrl = localUrl(QStringLiteral("/images/missing.png"));
     const kiriview::ImageLoadSession session = loadSession(imageUrl, imageUrl);
     kiriview::ImageLoadFailure failure { imageUrl, session.id(),
-        kiriview::ImageLoadFailureKind::DataLoad, QStringLiteral("missing"),
+        kiriview::ImageLoadFailureKind::DataLoad, kiriview::DecodedImageFailureRoute::Unknown,
+        kiriview::DecodedImageFailureOperation::Unknown, QStringLiteral("missing"),
         QStringLiteral("missing"), kiriview::ImageLoadFailureSeverity::Error, false };
     const kiriview::ImageOpenApplicationPlan replacementFailure
         = kiriview::ImageOpenWorkflow::finishLoadWithErrorPlan(session, std::move(failure));

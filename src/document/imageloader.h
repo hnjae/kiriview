@@ -72,6 +72,8 @@ private:
         const ImageLoadSession& session, const std::vector<ImageDocumentPageCandidate>& candidates);
     bool tryReportUnsupportedOpenedCollectionVideo(ImageLoadSession session);
     bool tryDisplayPredecodedImage(ImageLoadSession session);
+    void finishDecodeRequestWithFailure(
+        const ImageDecodeRequest& request, const DecodedImageFailure& failure);
     void finishDecodeRequestWithError(
         const ImageDecodeRequest& request, ImageLoadFailureKind kind, const QString& errorString);
     void finishDecodedImage(ImageLoadSession session, DecodedImage image);

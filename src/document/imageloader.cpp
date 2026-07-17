@@ -5,6 +5,7 @@
 
 #include "async/imagecallback.h"
 #include "decoding/decodedimageresult.h"
+#include "decoding/imagedecodelogging.h"
 #include "predecode/predecodelogging.h"
 #include <QDebug>
 #include <optional>
@@ -12,6 +13,17 @@
 #include <vector>
 
 namespace {
+kiriview::ImageLoadFailureSeverity imageLoadFailureSeverity(
+    kiriview::DecodedImageFailureSeverity severity)
+{
+    switch (severity) {
+    case kiriview::DecodedImageFailureSeverity::Error:
+        return kiriview::ImageLoadFailureSeverity::Error;
+    }
+
+    return kiriview::ImageLoadFailureSeverity::Error;
+}
+
 kiriview::ImageLoadFailure imageLoadFailure(const kiriview::ImageLoadSession& session,
     kiriview::ImageLoadFailureKind kind, QString userMessage, QString diagnosticDetail)
 {
@@ -19,6 +31,8 @@ kiriview::ImageLoadFailure imageLoadFailure(const kiriview::ImageLoadSession& se
         session.imageUrl(),
         session.id(),
         kind,
+        kiriview::DecodedImageFailureRoute::Unknown,
+        kiriview::DecodedImageFailureOperation::Unknown,
         std::move(userMessage),
         std::move(diagnosticDetail),
         kiriview::ImageLoadFailureSeverity::Error,
@@ -30,6 +44,22 @@ kiriview::ImageLoadFailure imageLoadFailure(const kiriview::ImageLoadSession& se
     kiriview::ImageLoadFailureKind kind, const QString& errorString)
 {
     return imageLoadFailure(session, kind, errorString, errorString);
+}
+
+kiriview::ImageLoadFailure imageLoadFailure(
+    const kiriview::ImageLoadSession& session, const kiriview::DecodedImageFailure& failure)
+{
+    return kiriview::ImageLoadFailure {
+        session.imageUrl(),
+        session.id(),
+        kiriview::ImageLoadFailureKind::Decode,
+        failure.route,
+        failure.operation,
+        failure.errorString,
+        failure.diagnosticDetail,
+        imageLoadFailureSeverity(failure.severity),
+        failure.retryable,
+    };
 }
 }
 
@@ -74,7 +104,7 @@ ImageLoader::ImageLoader(QObject* parent, ImageDocumentPageCandidateProvider can
 void ImageLoader::finishDecodeResult(ImageDecodeRequest request, DecodedImageResult result)
 {
     if (const DecodedImageFailure* failure = result.failure()) {
-        finishDecodeRequestWithError(request, ImageLoadFailureKind::Decode, failure->errorString);
+        finishDecodeRequestWithFailure(request, *failure);
         return;
     }
 
@@ -280,6 +310,23 @@ bool ImageLoader::tryDisplayPredecodedImage(ImageLoadSession session)
                                   << static_cast<int>(predecoded->displayImage.previewOrigin);
     finishPredecodedImage(std::move(*predecodedSession), std::move(*predecoded));
     return true;
+}
+
+void ImageLoader::finishDecodeRequestWithFailure(
+    const ImageDecodeRequest& request, const DecodedImageFailure& failure)
+{
+    std::optional<ImageLoadSession> session
+        = m_sessionTracker.claimCurrentForDecodeRequest(request);
+    if (!session.has_value()) {
+        return;
+    }
+
+    qCWarning(kiriviewDecodeLog).noquote()
+        << "image decode failed"
+        << "sourceUrl" << session->imageUrl() << "sessionId" << session->id() << "route"
+        << static_cast<int>(failure.route) << "operation" << static_cast<int>(failure.operation)
+        << "detail" << failure.diagnosticDetail << "retryable" << failure.retryable;
+    invokeIfSet(m_callbacks.error, *session, imageLoadFailure(*session, failure));
 }
 
 void ImageLoader::finishDecodeRequestWithError(

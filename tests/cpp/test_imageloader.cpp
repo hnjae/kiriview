@@ -18,6 +18,7 @@
 
 namespace {
 using kiriview::TestSupport::archivePageUrl;
+using kiriview::TestSupport::imageDataDecoderReturningFailure;
 using kiriview::TestSupport::imageDecodeDependenciesFor;
 using kiriview::TestSupport::imageDocumentPageCandidate;
 using kiriview::TestSupport::localUrl;
@@ -25,6 +26,7 @@ using kiriview::TestSupport::ManualImageDataLoader;
 using kiriview::TestSupport::staticDisplayTestImagePayload;
 using kiriview::TestSupport::staticImageDataDecoderRejectingBadData;
 using kiriview::TestSupport::testImage;
+using kiriview::TestSupport::testImageDecodeFailure;
 using kiriview::TestSupport::testImageDecodeFailureString;
 using kiriview::TestSupport::videoCandidate;
 
@@ -777,6 +779,8 @@ void TestImageLoader::loadErrorPreservesTypedFailureMetadata()
     QCOMPARE(failure->sourceUrl, imageUrl);
     QCOMPARE(failure->sessionId, errorSession->id());
     QVERIFY(failure->kind == kiriview::ImageLoadFailureKind::DataLoad);
+    QCOMPARE(failure->decodeRoute, kiriview::DecodedImageFailureRoute::Unknown);
+    QCOMPARE(failure->decodeOperation, kiriview::DecodedImageFailureOperation::Unknown);
     QCOMPARE(failure->userMessage, QStringLiteral("KIO data load failed"));
     QCOMPARE(failure->diagnosticDetail, QStringLiteral("KIO data load failed"));
     QVERIFY(failure->severity == kiriview::ImageLoadFailureSeverity::Error);
@@ -795,23 +799,29 @@ void TestImageLoader::decodeFailurePreservesTypedFailureMetadata()
         errorSession = std::move(session);
         failure = std::move(loadFailure);
     };
-    kiriview::ImageLoader loader
-        = createLoader(this, candidateProvider, dataLoader, std::move(callbacks));
+    const kiriview::DecodedImageFailure decoderFailure
+        = testImageDecodeFailure(kiriview::DecodedImageFailureRoute::Raw,
+            kiriview::DecodedImageFailureOperation::DecodeRawImage,
+            QStringLiteral("libraw unpack failed"), true);
+    kiriview::ImageLoader loader = createLoader(this, candidateProvider, dataLoader,
+        std::move(callbacks), imageDataDecoderReturningFailure(decoderFailure));
 
     const QUrl imageUrl = localUrl(QStringLiteral("/images/bad.png"));
     loader.start(kiriview::ImageLoadRequest::fromExternalSource(
         kiriview::resolvedNavigationSource(imageUrl, {})));
-    dataLoader.finishBackLoad(QByteArrayLiteral("bad"));
+    dataLoader.finishBackLoad(QByteArrayLiteral("raw data"));
 
     QTRY_VERIFY(failure.has_value());
     QVERIFY(errorSession.has_value());
     QCOMPARE(failure->sourceUrl, imageUrl);
     QCOMPARE(failure->sessionId, errorSession->id());
     QVERIFY(failure->kind == kiriview::ImageLoadFailureKind::Decode);
+    QCOMPARE(failure->decodeRoute, decoderFailure.route);
+    QCOMPARE(failure->decodeOperation, decoderFailure.operation);
     QCOMPARE(failure->userMessage, testImageDecodeFailureString());
-    QCOMPARE(failure->diagnosticDetail, testImageDecodeFailureString());
+    QCOMPARE(failure->diagnosticDetail, decoderFailure.diagnosticDetail);
     QVERIFY(failure->severity == kiriview::ImageLoadFailureSeverity::Error);
-    QVERIFY(!failure->retryable);
+    QCOMPARE(failure->retryable, decoderFailure.retryable);
 }
 
 void TestImageLoader::openedCollectionCandidateFailurePreservesTypedFailureMetadata()
@@ -842,6 +852,8 @@ void TestImageLoader::openedCollectionCandidateFailurePreservesTypedFailureMetad
     QCOMPARE(failure->sourceUrl, archiveUrl);
     QCOMPARE(failure->sessionId, errorSession->id());
     QVERIFY(failure->kind == kiriview::ImageLoadFailureKind::OpenedCollectionLoad);
+    QCOMPARE(failure->decodeRoute, kiriview::DecodedImageFailureRoute::Unknown);
+    QCOMPARE(failure->decodeOperation, kiriview::DecodedImageFailureOperation::Unknown);
     QCOMPARE(failure->userMessage, diagnosticDetail);
     QCOMPARE(failure->diagnosticDetail, diagnosticDetail);
     QVERIFY(failure->severity == kiriview::ImageLoadFailureSeverity::Error);

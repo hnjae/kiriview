@@ -117,6 +117,26 @@ inline DecodedImageResult failedTestImageDecodeResult()
     return failedDecodedImageResult(testImageDecodeFailureString());
 }
 
+inline DecodedImageFailure testImageDecodeFailure(DecodedImageFailureRoute route,
+    DecodedImageFailureOperation operation, QString diagnosticDetail, bool retryable)
+{
+    return DecodedImageFailure {
+        testImageDecodeFailureString(),
+        route,
+        operation,
+        std::move(diagnosticDetail),
+        DecodedImageFailureSeverity::Error,
+        retryable,
+    };
+}
+
+inline ImageDataDecoder imageDataDecoderReturningFailure(DecodedImageFailure failure)
+{
+    return [failure = std::move(failure)](const QByteArray&, const ImageDecodeRequest&) {
+        return failedDecodedImageResult(failure);
+    };
+}
+
 inline ImageDataDecoder staticImageDataDecoder(QImage image = testImage())
 {
     return [image = std::move(image)](const QByteArray&, const ImageDecodeRequest&) {

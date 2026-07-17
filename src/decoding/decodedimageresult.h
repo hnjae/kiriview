@@ -4,6 +4,7 @@
 #ifndef KIRIVIEW_DECODEDIMAGERESULT_H
 #define KIRIVIEW_DECODEDIMAGERESULT_H
 
+#include "decodedimagefailure.h"
 #include "metadata/embeddedmetadata.h"
 #include "rendering/staticimage.h"
 
@@ -16,40 +17,6 @@
 #include <variant>
 
 namespace kiriview {
-enum class DecodedImageFailureRoute {
-    Unknown,
-    Svg,
-    Apng,
-    HeifFamily,
-    Raw,
-    QtRaster,
-};
-
-enum class DecodedImageFailureOperation {
-    Unknown,
-    OpenStaticImageSource,
-    DecodeFirstDisplayImage,
-    DecodeBlockingDisplayImage,
-    DecodeAnimationOpen,
-    DecodeRawImage,
-    DecodeHeifSequenceOpen,
-    DecodeHeifSequenceFrame,
-};
-
-enum class DecodedImageFailureSeverity {
-    Error,
-};
-
-struct DecodedImageFailure
-{
-    QString errorString;
-    DecodedImageFailureRoute route = DecodedImageFailureRoute::Unknown;
-    DecodedImageFailureOperation operation = DecodedImageFailureOperation::Unknown;
-    QString diagnosticDetail;
-    DecodedImageFailureSeverity severity = DecodedImageFailureSeverity::Error;
-    bool retryable = false;
-};
-
 struct StaticDecodedImage
 {
     StaticDisplayImagePayload displayImage;

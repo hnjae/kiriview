@@ -22,6 +22,7 @@ namespace {
 using kiriview::TestSupport::archivePageUrl;
 using kiriview::TestSupport::comicBookContainerCandidate;
 using kiriview::TestSupport::fileDeletionProviderFor;
+using kiriview::TestSupport::imageDataDecoderReturningFailure;
 using kiriview::TestSupport::imageDocumentPageCandidate;
 using kiriview::TestSupport::imageDocumentRuntimeDependencyOverridesFor;
 using kiriview::TestSupport::localUrl;
@@ -32,6 +33,7 @@ using kiriview::TestSupport::staticDisplayTestImagePayload;
 using kiriview::TestSupport::staticImageDataDecoder;
 using kiriview::TestSupport::staticImageDataDecoderRejectingBadData;
 using kiriview::TestSupport::testImage;
+using kiriview::TestSupport::testImageDecodeFailure;
 using kiriview::TestSupport::testImageDecodeFailureString;
 using kiriview::TestSupport::videoCandidate;
 
@@ -1824,6 +1826,9 @@ void TestImageDocumentRuntime::loadFailurePreservesTypedFailureMetadataAndClears
     QCOMPARE(runtime->loadFailure()->sourceUrl, imageUrl);
     QVERIFY(runtime->loadFailure()->sessionId > 0);
     QVERIFY(runtime->loadFailure()->kind == kiriview::ImageLoadFailureKind::DataLoad);
+    QCOMPARE(runtime->loadFailure()->decodeRoute, kiriview::DecodedImageFailureRoute::Unknown);
+    QCOMPARE(
+        runtime->loadFailure()->decodeOperation, kiriview::DecodedImageFailureOperation::Unknown);
     QCOMPARE(runtime->loadFailure()->userMessage, QStringLiteral("KIO data load failed"));
     QCOMPARE(runtime->loadFailure()->diagnosticDetail, QStringLiteral("KIO data load failed"));
     QVERIFY(runtime->loadFailure()->severity == kiriview::ImageLoadFailureSeverity::Error);
@@ -1847,20 +1852,26 @@ void TestImageDocumentRuntime::decodedLoadFailurePreservesTypedFailureMetadata()
             imageDocumentPageCandidate(imageUrl),
         });
 
+    const kiriview::DecodedImageFailure decoderFailure
+        = testImageDecodeFailure(kiriview::DecodedImageFailureRoute::QtRaster,
+            kiriview::DecodedImageFailureOperation::OpenStaticImageSource,
+            QStringLiteral("QImageReader could not open the source"), false);
     RuntimeHandle runtime = createRuntime(
-        this, candidateProvider, dataLoader, staticImageDataDecoderRejectingBadData(testImage(2)));
+        this, candidateProvider, dataLoader, imageDataDecoderReturningFailure(decoderFailure));
     runtime->setViewportSize(QSizeF(400.0, 300.0));
     runtime->setSourceUrl(imageUrl);
-    dataLoader.finishBackLoad(QByteArrayLiteral("bad"));
+    dataLoader.finishBackLoad(QByteArrayLiteral("raster data"));
 
     QTRY_VERIFY(runtime->loadFailure().has_value());
     QCOMPARE(runtime->loadFailure()->sourceUrl, imageUrl);
     QVERIFY(runtime->loadFailure()->sessionId > 0);
     QVERIFY(runtime->loadFailure()->kind == kiriview::ImageLoadFailureKind::Decode);
+    QCOMPARE(runtime->loadFailure()->decodeRoute, decoderFailure.route);
+    QCOMPARE(runtime->loadFailure()->decodeOperation, decoderFailure.operation);
     QCOMPARE(runtime->loadFailure()->userMessage, testImageDecodeFailureString());
-    QCOMPARE(runtime->loadFailure()->diagnosticDetail, testImageDecodeFailureString());
+    QCOMPARE(runtime->loadFailure()->diagnosticDetail, decoderFailure.diagnosticDetail);
     QVERIFY(runtime->loadFailure()->severity == kiriview::ImageLoadFailureSeverity::Error);
-    QVERIFY(!runtime->loadFailure()->retryable);
+    QCOMPARE(runtime->loadFailure()->retryable, decoderFailure.retryable);
     QCOMPARE(runtime->errorString(), runtime->loadFailure()->userMessage);
 }
 
