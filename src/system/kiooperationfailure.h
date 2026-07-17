@@ -11,6 +11,7 @@
 namespace kiriview {
 enum class KioOperationKind {
     Unknown,
+    DirectoryListing,
     FileDeletion,
     MediaOpenWith,
 };

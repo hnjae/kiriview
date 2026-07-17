@@ -55,8 +55,25 @@ bool DocumentSessionMediaDeletionRuntime::startForDirectMedia(QObject* receiver,
     auto sharedCallback = std::make_shared<CompletionCallback>(std::move(callback));
     m_candidateRuntime.loadCandidates(receiver, scope, std::move(scopeAccepted),
         [this, receiver, mode, actualTargetUrl = scope.currentUrl(),
-            navigationIdentityUrl = scope.navigationUrl(), documentKind,
+            navigationIdentityUrl = scope.navigationUrl(), candidateTargetUrl = scope.parentUrl(),
+            documentKind,
             sharedCallback](DocumentSessionDirectMediaNavigationCandidatesResult result) mutable {
+            if (!result.succeeded) {
+                invokeIfSet(*sharedCallback,
+                    DocumentSessionMediaDeletionCompletion {
+                        DocumentSessionMediaDeletionCompletionPlan { {}, true },
+                        KioOperationFailure {
+                            KioOperationKind::DirectoryListing,
+                            candidateTargetUrl,
+                            std::nullopt,
+                            false,
+                            result.errorString,
+                            result.errorString,
+                            false,
+                        },
+                    });
+                return;
+            }
             start(receiver, mode, std::move(result.candidates), actualTargetUrl,
                 navigationIdentityUrl, documentKind, std::move(*sharedCallback));
         });

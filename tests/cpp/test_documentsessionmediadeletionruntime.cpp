@@ -22,6 +22,7 @@ private Q_SLOTS:
     void startRunsFileOperationAndPublishesCompletionPlan();
     void directMediaStartLoadsCandidatesBeforeFileOperation();
     void directMediaStartKeepsActualTargetSeparateFromNavigationIdentity();
+    void directMediaCandidateFailureAbortsBeforeFileOperation();
     void directMediaCandidateLoadCancelRejectsLateCompletion();
     void cancelRejectsLateCompletion();
     void replacementStartRejectsStaleCompletion();
@@ -81,6 +82,14 @@ public:
         ManualDirectMediaNavigationCandidateLoad& load = loadAt(index);
         if (load.callback) {
             load.callback(std::move(candidates));
+        }
+    }
+
+    void failIgnoringCancellation(std::size_t index, const QString& errorString)
+    {
+        ManualDirectMediaNavigationCandidateLoad& load = loadAt(index);
+        if (load.errorCallback) {
+            load.errorCallback(errorString);
         }
     }
 
@@ -240,6 +249,32 @@ void TestDocumentSessionMediaDeletionRuntime::
     QCOMPARE(fixture.fileDeletionProvider.backOperation().request.targetUrl, actualTargetUrl);
     fixture.fileDeletionProvider.finishBackOperation(kiriview::FileDeletionResult::Succeeded);
     QCOMPARE(fixture.completion.plan.routePlan.sourceUrl, nextUrl);
+}
+
+void TestDocumentSessionMediaDeletionRuntime::directMediaCandidateFailureAbortsBeforeFileOperation()
+{
+    RuntimeFixture fixture;
+    const QUrl currentUrl = localUrl(QStringLiteral("/media/02.mp4"));
+    const QUrl parentUrl = localUrl(QStringLiteral("/media/"));
+
+    QVERIFY(fixture.startDirectMedia(
+        kiriview::FileDeletionMode::MoveToTrash, directMediaScope(currentUrl)));
+    fixture.candidateProvider.failIgnoringCancellation(
+        0, QStringLiteral("candidate listing failed"));
+
+    QCOMPARE(fixture.fileDeletionProvider.operationCount(), std::size_t(0));
+    QCOMPARE(fixture.completionCount, 1);
+    QVERIFY(!fixture.completion.plan.hasRoutePlan());
+    QVERIFY(fixture.completion.plan.reportFailure);
+    QCOMPARE(
+        fixture.completion.failure.operationKind, kiriview::KioOperationKind::DirectoryListing);
+    QCOMPARE(fixture.completion.failure.targetUrl, parentUrl);
+    QCOMPARE(fixture.completion.failure.rawErrorCode, std::nullopt);
+    QVERIFY(!fixture.completion.failure.canceled);
+    QCOMPARE(fixture.completion.failure.userMessage, QStringLiteral("candidate listing failed"));
+    QCOMPARE(
+        fixture.completion.failure.diagnosticDetail, QStringLiteral("candidate listing failed"));
+    QVERIFY(!fixture.completion.failure.retryable);
 }
 
 void TestDocumentSessionMediaDeletionRuntime::directMediaCandidateLoadCancelRejectsLateCompletion()
