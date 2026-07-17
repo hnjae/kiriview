@@ -21,6 +21,8 @@ private Q_SLOTS:
     void emptyTargetDoesNotStartFileOperation();
     void startRunsFileOperationAndPublishesCompletionPlan();
     void directMediaStartLoadsCandidatesBeforeFileOperation();
+    void directMediaSingleCandidateSuccessClearsSession();
+    void directMediaMultiCandidateWithoutNextUsesPrevious();
     void directMediaStartKeepsActualTargetSeparateFromNavigationIdentity();
     void directMediaCandidateFailureAbortsBeforeFileOperation();
     void directMediaCandidateLoadCancelRejectsLateCompletion();
@@ -226,6 +228,51 @@ void TestDocumentSessionMediaDeletionRuntime::directMediaStartLoadsCandidatesBef
     QCOMPARE(fixture.completionCount, 1);
     QVERIFY(fixture.completion.plan.hasRoutePlan());
     QCOMPARE(fixture.completion.plan.routePlan.sourceUrl, nextUrl);
+}
+
+void TestDocumentSessionMediaDeletionRuntime::directMediaSingleCandidateSuccessClearsSession()
+{
+    RuntimeFixture fixture;
+    const QUrl currentUrl = localUrl(QStringLiteral("/media/02.mp4"));
+
+    QVERIFY(fixture.startDirectMedia(
+        kiriview::FileDeletionMode::MoveToTrash, directMediaScope(currentUrl)));
+    fixture.candidateProvider.deliverIgnoringCancellation(
+        0, { directMediaNavigationCandidate(currentUrl) });
+
+    QCOMPARE(fixture.fileDeletionProvider.operationCount(), std::size_t(1));
+    fixture.fileDeletionProvider.finishBackOperation(kiriview::FileDeletionResult::Succeeded);
+
+    QCOMPARE(fixture.completionCount, 1);
+    QVERIFY(fixture.completion.plan.hasRoutePlan());
+    QVERIFY(!fixture.completion.plan.reportFailure);
+    QCOMPARE(fixture.completion.plan.routePlan.kind, kiriview::DocumentSessionRouteKind::Empty);
+    QVERIFY(fixture.completion.plan.routePlan.sourceUrl.isEmpty());
+    QCOMPARE(fixture.completion.failure.userMessage, QString());
+}
+
+void TestDocumentSessionMediaDeletionRuntime::directMediaMultiCandidateWithoutNextUsesPrevious()
+{
+    RuntimeFixture fixture;
+    const QUrl previousUrl = localUrl(QStringLiteral("/media/01.jpg"));
+    const QUrl currentUrl = localUrl(QStringLiteral("/media/02.mp4"));
+
+    QVERIFY(fixture.startDirectMedia(
+        kiriview::FileDeletionMode::MoveToTrash, directMediaScope(currentUrl)));
+    fixture.candidateProvider.deliverIgnoringCancellation(0,
+        { directMediaNavigationCandidate(previousUrl),
+            directMediaNavigationCandidate(currentUrl) });
+
+    QCOMPARE(fixture.fileDeletionProvider.operationCount(), std::size_t(1));
+    fixture.fileDeletionProvider.finishBackOperation(kiriview::FileDeletionResult::Succeeded);
+
+    QCOMPARE(fixture.completionCount, 1);
+    QVERIFY(fixture.completion.plan.hasRoutePlan());
+    QVERIFY(!fixture.completion.plan.reportFailure);
+    QCOMPARE(
+        fixture.completion.plan.routePlan.kind, kiriview::DocumentSessionRouteKind::DirectImage);
+    QCOMPARE(fixture.completion.plan.routePlan.sourceUrl, previousUrl);
+    QCOMPARE(fixture.completion.failure.userMessage, QString());
 }
 
 void TestDocumentSessionMediaDeletionRuntime::
