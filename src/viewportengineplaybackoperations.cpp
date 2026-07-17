@@ -55,6 +55,11 @@ bool effectiveLooping(
     }
     return false;
 }
+
+bool hasDisplayedPayload(const ImageViewportInternal::DisplayState& display)
+{
+    return display.roles[0].displayedPayload.hasPresentableContent();
+}
 }
 
 ImageSequenceProviderDisplayDemand ViewportEnginePlaybackStopAccess::providerDemand(
@@ -290,7 +295,6 @@ ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
     auto stageBuiltIn = [&request, &display, &input]() {
         request.targetSpreadTerminal.clear();
         request.lastAcceptedRenderFailure = {};
-        display.captureRenderFailureRetainedDisplay(true);
         display.roles[0].pendingRenderPayload.commitPending = true;
         display.beginPreparedPayloadIdentity(
             request.sequenceGeneration, request.roles[0].activeRequest);
@@ -314,9 +318,8 @@ ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
         request.reason = (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty())
             ? ImageViewportRequestReason::RenderWaiting
             : ImageViewportRequestReason::UploadPending;
-        display.status = display.roles[0].displayedImageSize.isValid()
-            ? ImageViewportDisplayStatus::Retained
-            : ImageViewportDisplayStatus::Empty;
+        display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
+                                                      : ImageViewportDisplayStatus::Empty;
     };
     auto dispatchProvider = [&]() {
         auto allocation = access.allocateProviderRequestToken(input.role);
@@ -340,11 +343,9 @@ ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
         provider.requests.hasLastFrameDemand = true;
         request.status = ImageViewportRequestStatus::Loading;
         request.reason = ImageViewportRequestReason::ProviderWaiting;
-        display.status = display.roles[0].displayedImageSize.isValid()
-            ? ImageViewportDisplayStatus::Retained
-            : ImageViewportDisplayStatus::Empty;
+        display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
+                                                      : ImageViewportDisplayStatus::Empty;
         display.clearPendingRenderPayload();
-        display.clearRenderFailureRetainedDisplay();
     };
 
     if (playback.phase != ImageViewportPlaybackPhase::Stopped && restore.identity.id != 0
@@ -355,7 +356,7 @@ ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
         beginRoleRequest(input.role, restore.target, restore.resolvedFrame);
         playback.position = restore.target.position;
         const auto& displayed = display.roles[index].displayedRequest;
-        const QSizeF displayedSize = display.roles[index].displayedImageSize;
+        const QSizeF displayedSize = display.roles[index].displayedPayload.sourceLogicalSize;
         if (displayed.generation == request.sequenceGeneration
             && displayed.request.resolvedFrame.frame == restore.resolvedFrame.frame
             && displayed.request.resolvedFrame.position == restore.resolvedFrame.position
@@ -373,9 +374,8 @@ ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
             } else if (providerSource) {
                 request.status = ImageViewportRequestStatus::Loading;
                 request.reason = ImageViewportRequestReason::ProviderWaiting;
-                display.status = display.roles[0].displayedImageSize.isValid()
-                    ? ImageViewportDisplayStatus::Retained
-                    : ImageViewportDisplayStatus::Empty;
+                display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
+                                                              : ImageViewportDisplayStatus::Empty;
             } else {
                 stageBuiltIn();
             }
@@ -516,7 +516,6 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
     auto stageBuiltIn = [&]() {
         request.targetSpreadTerminal.clear();
         request.lastAcceptedRenderFailure = {};
-        display.captureRenderFailureRetainedDisplay(true);
         display.roles[0].pendingRenderPayload.commitPending = true;
         display.beginPreparedPayloadIdentity(
             request.sequenceGeneration, request.roles[0].activeRequest);
@@ -540,9 +539,8 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
         request.reason = (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty())
             ? ImageViewportRequestReason::RenderWaiting
             : ImageViewportRequestReason::UploadPending;
-        display.status = display.roles[0].displayedImageSize.isValid()
-            ? ImageViewportDisplayStatus::Retained
-            : ImageViewportDisplayStatus::Empty;
+        display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
+                                                      : ImageViewportDisplayStatus::Empty;
     };
     auto dispatchProvider = [&]() {
         auto& effect = result.providerFrameTransport[index];
@@ -566,11 +564,10 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
             request.reason = projectWaitReason(wait);
             const bool retained = (display.status == ImageViewportDisplayStatus::Ready
                                       || display.status == ImageViewportDisplayStatus::Retained)
-                && display.roles[0].displayedImageSize.isValid();
+                && hasDisplayedPayload(display);
             display.status = retained ? ImageViewportDisplayStatus::Retained
                                       : ImageViewportDisplayStatus::Empty;
             display.clearPendingRenderPayload();
-            display.clearRenderFailureRetainedDisplay();
             if (provider.session.sessionActive) {
                 effect.cancelToken = provider.requests.activeFrameToken;
             }
@@ -609,11 +606,9 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
         provider.requests.hasLastFrameDemand = true;
         request.status = ImageViewportRequestStatus::Loading;
         request.reason = ImageViewportRequestReason::ProviderWaiting;
-        display.status = display.roles[0].displayedImageSize.isValid()
-            ? ImageViewportDisplayStatus::Retained
-            : ImageViewportDisplayStatus::Empty;
+        display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
+                                                      : ImageViewportDisplayStatus::Empty;
         display.clearPendingRenderPayload();
-        display.clearRenderFailureRetainedDisplay();
     };
 
     beginRoleRequest(input.role, { frame, position, targetKind }, resolved);
@@ -699,7 +694,6 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
     auto stageBuiltIn = [&]() {
         request.targetSpreadTerminal.clear();
         request.lastAcceptedRenderFailure = {};
-        display.captureRenderFailureRetainedDisplay(true);
         display.roles[0].pendingRenderPayload.commitPending = true;
         display.beginPreparedPayloadIdentity(
             request.sequenceGeneration, request.roles[0].activeRequest);
@@ -723,9 +717,8 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
         request.reason = (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty())
             ? ImageViewportRequestReason::RenderWaiting
             : ImageViewportRequestReason::UploadPending;
-        display.status = display.roles[0].displayedImageSize.isValid()
-            ? ImageViewportDisplayStatus::Retained
-            : ImageViewportDisplayStatus::Empty;
+        display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
+                                                      : ImageViewportDisplayStatus::Empty;
     };
     auto dispatchProvider = [&]() {
         auto& effect = result.providerFrameTransport[index];
@@ -749,11 +742,10 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
             request.reason = projectWaitReason(wait);
             const bool retained = (display.status == ImageViewportDisplayStatus::Ready
                                       || display.status == ImageViewportDisplayStatus::Retained)
-                && display.roles[0].displayedImageSize.isValid();
+                && hasDisplayedPayload(display);
             display.status = retained ? ImageViewportDisplayStatus::Retained
                                       : ImageViewportDisplayStatus::Empty;
             display.clearPendingRenderPayload();
-            display.clearRenderFailureRetainedDisplay();
             if (provider.session.sessionActive) {
                 effect.cancelToken = provider.requests.activeFrameToken;
             }
@@ -792,11 +784,9 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
         provider.requests.hasLastFrameDemand = true;
         request.status = ImageViewportRequestStatus::Loading;
         request.reason = ImageViewportRequestReason::ProviderWaiting;
-        display.status = display.roles[0].displayedImageSize.isValid()
-            ? ImageViewportDisplayStatus::Retained
-            : ImageViewportDisplayStatus::Empty;
+        display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
+                                                      : ImageViewportDisplayStatus::Empty;
         display.clearPendingRenderPayload();
-        display.clearRenderFailureRetainedDisplay();
     };
 
     if (source.facts.provider && !provider.facts.metadataReady) {
@@ -980,11 +970,10 @@ ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
             request.reason = projectWaitReason(wait);
             const bool retained = (display.status == ImageViewportDisplayStatus::Ready
                                       || display.status == ImageViewportDisplayStatus::Retained)
-                && display.roles[0].displayedImageSize.isValid();
+                && hasDisplayedPayload(display);
             display.status = retained ? ImageViewportDisplayStatus::Retained
                                       : ImageViewportDisplayStatus::Empty;
             display.clearPendingRenderPayload();
-            display.clearRenderFailureRetainedDisplay();
             if (provider.session.sessionActive) {
                 effect.cancelToken = provider.requests.activeFrameToken;
             }
@@ -1022,11 +1011,9 @@ ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
                 provider.requests.hasLastFrameDemand = true;
                 request.status = ImageViewportRequestStatus::Loading;
                 request.reason = ImageViewportRequestReason::ProviderWaiting;
-                display.status = display.roles[0].displayedImageSize.isValid()
-                    ? ImageViewportDisplayStatus::Retained
-                    : ImageViewportDisplayStatus::Empty;
+                display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
+                                                              : ImageViewportDisplayStatus::Empty;
                 display.clearPendingRenderPayload();
-                display.clearRenderFailureRetainedDisplay();
             }
         }
         if (acceptedDispatch) {
@@ -1034,7 +1021,6 @@ ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
             playback.phase = ImageViewportPlaybackPhase::Waiting;
         }
     } else {
-        display.captureRenderFailureRetainedDisplay(true);
         display.roles[0].pendingRenderPayload.commitPending = true;
         display.beginPreparedPayloadIdentity(
             request.sequenceGeneration, request.roles[0].activeRequest);
@@ -1058,9 +1044,8 @@ ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
         request.reason = (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty())
             ? ImageViewportRequestReason::RenderWaiting
             : ImageViewportRequestReason::UploadPending;
-        display.status = display.roles[0].displayedImageSize.isValid()
-            ? ImageViewportDisplayStatus::Retained
-            : ImageViewportDisplayStatus::Empty;
+        display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
+                                                      : ImageViewportDisplayStatus::Empty;
         playback.stopWhenRequestReady = target.reachedEnd;
         playback.phase = ImageViewportPlaybackPhase::Waiting;
     }

@@ -31,11 +31,10 @@ ViewportProviderRequestTokenAllocationResult allocateViewportProviderRequestToke
     playback.stopWhenRequestReady = false;
     playback.phase = ImageViewportPlaybackPhase::Stopped;
     auto& display = access.display();
-    display.status = display.roles[0].displayedImageSize.isValid()
+    display.status = display.roles[0].displayedPayload.hasPresentableContent()
         ? ImageViewportDisplayStatus::Retained
         : ImageViewportDisplayStatus::Empty;
     display.clearPendingRenderPayload();
-    display.clearRenderFailureRetainedDisplay();
     result.changes.requestState = true;
     result.changes.requestRevision = true;
     result.changes.displayState = true;

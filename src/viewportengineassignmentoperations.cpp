@@ -160,7 +160,7 @@ ImageViewportDisplayStatus retained(const DisplayState& d)
 {
     bool ok = (d.status == ImageViewportDisplayStatus::Ready
                   || d.status == ImageViewportDisplayStatus::Retained)
-        && d.roles[0].displayedImageSize.isValid();
+        && d.roles[0].displayedPayload.hasPresentableContent();
     return ok ? ImageViewportDisplayStatus::Retained : ImageViewportDisplayStatus::Empty;
 }
 void resetProvider(ProviderRoleState& p, ImageSequenceAuthoredAnimationFacts a = {},
@@ -202,7 +202,6 @@ void secondary(RequestState& r, DisplayRequestTarget t, ResolvedFrameIdentity re
 }
 void stage(RequestState& r, DisplayState& d)
 {
-    d.captureRenderFailureRetainedDisplay(r.roles[0].source.facts.present);
     d.roles[0].pendingRenderPayload.commitPending = true;
     d.beginPreparedPayloadIdentity(r.sequenceGeneration, r.roles[0].activeRequest);
     d.roles[0].pendingRenderPayload = FramePreparation::admitBuiltInFrame(
@@ -364,7 +363,6 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
     a.m_display.clearPendingRenderPayload();
     if (out.releaseDisplayedState) {
         a.m_display.clearDisplayedDisplay();
-        a.m_display.clearRenderFailureRetainedDisplay();
     }
     a.m_request.errorString.clear();
     a.m_request.warningString.clear();
@@ -394,7 +392,6 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
     if (out.clear) {
         a.m_playback.authoredAutoplayArbitration = AuthoredAutoplayArbitrationState::Resolved;
         a.m_display.clearDisplayedDisplay();
-        a.m_display.clearRenderFailureRetainedDisplay();
         a.m_request.status = ImageViewportRequestStatus::NoRequest;
         a.m_request.reason = ImageViewportRequestReason::NoRequest;
         a.m_display.status = ImageViewportDisplayStatus::Empty;

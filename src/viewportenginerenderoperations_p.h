@@ -40,7 +40,6 @@ struct ViewportEngineRenderAcknowledgementInput
     bool pendingRefinementCommit = false;
     bool pendingPrimaryRefinementCommit = false;
     bool pendingSecondaryRefinementCommit = false;
-    bool pendingSecondaryProviderCommit = false;
     bool committedDisplayAttempt = false;
     ImageViewportInternal::PreparedPayload preparedPayload;
     ImageViewportDisplayStatus oldDisplayStatus = ImageViewportDisplayStatus::Empty;

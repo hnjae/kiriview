@@ -225,7 +225,7 @@ ViewportEngine::GeometryInput ViewportEngine::pendingGeometry() const
     const auto& input = m_state->viewport;
     return projectViewportPendingGeometry(
         { input.itemBounds, input.devicePixelRatio, input.renderAvailable },
-        { m_state->requestState.request, m_state->displayState.display, providerFactsView() });
+        { m_state->requestState.request, providerFactsView() });
 }
 
 ViewportEngine::GeometryInput ViewportEngine::acceptedGeometry() const

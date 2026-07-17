@@ -40,10 +40,8 @@ class ViewportEnginePendingGeometryProjectionAccess
     friend class ViewportEngine;
     ViewportEnginePendingGeometryProjectionAccess(
         const ImageViewportInternal::RequestState& request,
-        const ImageViewportInternal::DisplayState& display,
         ViewportEngineProviderFactsView providerFacts)
         : m_request(request)
-        , m_display(display)
         , m_providerFacts(providerFacts)
     {
     }
@@ -53,12 +51,10 @@ public:
         const ViewportEnginePendingGeometryProjectionAccess&)
         = delete;
     const ImageViewportInternal::RequestState& request() const { return m_request; }
-    const ImageViewportInternal::DisplayState& display() const { return m_display; }
     const ViewportEngineProviderFactsView& providerFacts() const { return m_providerFacts; }
 
 private:
     const ImageViewportInternal::RequestState& m_request;
-    const ImageViewportInternal::DisplayState& m_display;
     ViewportEngineProviderFactsView m_providerFacts;
 };
 

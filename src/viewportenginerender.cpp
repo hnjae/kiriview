@@ -223,7 +223,6 @@ ViewportEngineRenderHostTransition ViewportEngine::handleRenderHostFact(
         context.pendingRefinementCommit,
         context.pendingPrimaryRefinementCommit,
         context.pendingSecondaryRefinementCommit,
-        context.pendingSecondaryProviderCommit,
         !context.pendingTargetCommit && !context.pendingRefinementCommit && input.fact.imagePresent,
         context.preparedPayload,
         context.oldDisplayStatus,

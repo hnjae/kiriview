@@ -69,7 +69,7 @@ ViewportProviderFrameRequestStartResult startFrameRequest(RequestContext context
     }
     context.request.status = ImageViewportRequestStatus::Loading;
     context.request.reason = projectWaitReason(wait);
-    context.display.status = context.display.roles[0].displayedImageSize.isValid()
+    context.display.status = context.display.roles[0].displayedPayload.hasPresentableContent()
         ? ImageViewportDisplayStatus::Retained
         : ImageViewportDisplayStatus::Empty;
 
@@ -199,7 +199,6 @@ ViewportProviderSessionOpenResult reduceViewportEngineProviderSessionOpened(
         return result;
     }
     access.m_display.clearPendingRenderPayload();
-    access.m_display.clearRenderFailureRetainedDisplay();
     const auto target = requestForRole(access.m_request, input.role).target;
     const auto start = startFrameRequest(
         { access.m_request, access.m_display, access.m_roles }, input.role, target, input.geometry,

@@ -30,6 +30,7 @@ private slots:
     void secondaryProviderFrameCompletesSpreadTextureNodes();
     void primaryAndSecondaryProviderFramesCommitOneSpread();
     void deviceIndependentStillImageUsesPhysicalTextureSourceRect();
+    void lowerDetailStillImageUsesSourceLogicalGeometryOnFirstRender();
     void solidBackgroundRendersBehindImageNode();
     void qualityAndMirroringConfigureTextureNode();
     void rotatedImageTextureNodeUsesTransform_data();
@@ -609,6 +610,38 @@ void ImageViewportRenderSceneGraphTest::deviceIndependentStillImageUsesPhysicalT
     QVERIFY(imageNode->texture());
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 2.0, 1.0));
     QCOMPARE(imageNode->sourceRect(), QRectF(0.0, 0.0, 4.0, 2.0));
+}
+
+void ImageViewportRenderSceneGraphTest::
+    lowerDetailStillImageUsesSourceLogicalGeometryOnFirstRender()
+{
+    ImageSequenceFactory factory;
+    QImage image(8, 4, QImage::Format_ARGB32_Premultiplied);
+    image.setDevicePixelRatio(3.0);
+    image.fill(QColor(255, 0, 0, 255));
+    ImageFrame frame(image, QSizeF(16.0, 8.0), QSizeF(8.0, 4.0), QSizeF(0.5, 0.5),
+        image.sizeInBytes(), ImageViewportPayloadQuality::Preview,
+        ImageViewportPayloadExactness::NotExact, true, ImageFrame::OrientationPolicy::Identity,
+        QStringLiteral("argb32"));
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    QQuickWindow window;
+    window.resize(32, 16);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(32.0, 16.0));
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+
+    QScopedPointer<QSGNode> root(item.takePaintNode());
+    QVERIFY(root);
+
+    auto* imageNode = dynamic_cast<QSGImageNode*>(root->lastChild());
+    QVERIFY(imageNode);
+    QVERIFY(imageNode->texture());
+    QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 16.0, 8.0));
+    QCOMPARE(imageNode->sourceRect(), QRectF(0.0, 0.0, 8.0, 4.0));
 }
 
 void ImageViewportRenderSceneGraphTest::solidBackgroundRendersBehindImageNode()

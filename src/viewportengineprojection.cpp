@@ -83,8 +83,9 @@ const DisplayRequestSnapshot& displayedRequestForRole(
 
 QSizeF displayedSizeForRole(const DisplayState& display, ImageViewportPageRole role)
 {
-    return role == ImageViewportPageRole::Primary ? display.roles[0].displayedImageSize
-                                                  : display.roles[1].displayedImageSize;
+    return role == ImageViewportPageRole::Primary
+        ? display.roles[0].displayedPayload.sourceLogicalSize
+        : display.roles[1].displayedPayload.sourceLogicalSize;
 }
 
 const PreparedPayload& displayedPayloadForRole(
@@ -208,9 +209,9 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
         : access.request().sequenceGeneration;
     const auto acceptedGeneration = generation(primaryPresent ? acceptedGenerationValue : 0);
     const bool primaryDisplayed = access.display().status != ImageViewportDisplayStatus::Empty
-        && positive(access.display().roles[0].displayedImageSize);
+        && access.display().roles[0].displayedPayload.hasPresentableContent();
     const bool secondaryDisplayed = access.display().status != ImageViewportDisplayStatus::Empty
-        && positive(access.display().roles[1].displayedImageSize);
+        && access.display().roles[1].displayedPayload.hasPresentableContent();
     const ImageViewportRoleSet displayedRoles(primaryDisplayed, secondaryDisplayed);
     const quint64 displayedGenerationValue
         = primaryDisplayed ? access.display().roles[0].displayedRequest.generation : 0;
@@ -302,11 +303,8 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
                       : source.facts.providerKnownLogicalSize)
             : sourceLogicalSize(source);
         const auto& payload = displayedPayloadForRole(access.display(), role);
-        const QSizeF payloadRaster
-            = positive(payload.payloadRasterSize) ? payload.payloadRasterSize : displayedSize;
-        const QSizeF sourceScale = positive(payload.sourceToPayloadScale)
-            ? payload.sourceToPayloadScale
-            : (displayed ? QSizeF(1.0, 1.0) : QSizeF());
+        const QSizeF payloadRaster = displayed ? payload.payloadRasterSize : QSizeF {};
+        const QSizeF sourceScale = displayed ? payload.sourceToPayloadScale : QSizeF {};
         const QRectF acceptedPageRect = role == ImageViewportPageRole::Primary
             ? PresentationGeometry::primaryPageRect(acceptedGeometry)
             : PresentationGeometry::secondaryPageRect(acceptedGeometry);
@@ -407,8 +405,10 @@ ViewportEngineGeometryInput projectViewportCurrentGeometry(
 {
     const bool present = access.request().roles[0].source.facts.present;
     const bool ready = access.display().hasReadyDisplay(present);
-    const QSizeF primary = ready ? access.display().roles[0].displayedImageSize : QSizeF {};
-    const QSizeF secondary = ready ? access.display().roles[1].displayedImageSize : QSizeF {};
+    const QSizeF primary
+        = ready ? access.display().roles[0].displayedPayload.sourceLogicalSize : QSizeF {};
+    const QSizeF secondary
+        = ready ? access.display().roles[1].displayedPayload.sourceLogicalSize : QSizeF {};
     return { positive(primary), input.itemBounds, primary, secondary,
         input.devicePixelRatio > 0.0 ? input.devicePixelRatio : 1.0, input.renderAvailable };
 }
@@ -417,23 +417,20 @@ ViewportEngineGeometryInput projectViewportPendingGeometry(
     ViewportEngineGeometryQueryInput input, ViewportEnginePendingGeometryProjectionAccess access)
 {
     const auto& request = access.request();
-    const auto& display = access.display();
-    const bool ready = display.hasReadyDisplay(request.roles[0].source.facts.present);
-    QSizeF primary = ready ? display.roles[0].displayedImageSize : QSizeF {};
-    QSizeF secondary = ready ? display.roles[1].displayedImageSize : QSizeF {};
-    const auto imageSize = [](const QImage& image) {
-        return image.isNull() ? QSizeF() : image.deviceIndependentSize();
-    };
-    if (request.roles[0].source.facts.provider && positive(access.providerFacts()[0].logicalSize))
-        primary = access.providerFacts()[0].logicalSize;
-    else if (positive(imageSize(display.roles[0].pendingRenderPayload.image)))
-        primary = imageSize(display.roles[0].pendingRenderPayload.image);
+    QSizeF primary = request.roles[0].source.facts.provider
+        ? access.providerFacts()[0].logicalSize
+        : sourceLogicalSize(request.roles[0].source);
+    QSizeF secondary;
     if (!request.roles[1].sequence || request.roles[1].activeRequest.target.frame < 0)
         secondary = {};
-    else if (request.roles[1].provider && positive(access.providerFacts()[1].logicalSize))
+    else if (request.roles[1].provider)
         secondary = access.providerFacts()[1].logicalSize;
-    else if (positive(imageSize(display.roles[1].pendingRenderPayload.image)))
-        secondary = imageSize(display.roles[1].pendingRenderPayload.image);
+    else
+        secondary = sourceLogicalSize(request.roles[1].source);
+    if (!positive(primary))
+        primary = {};
+    if (!positive(secondary))
+        secondary = {};
     return { positive(primary), input.itemBounds, primary, secondary,
         input.devicePixelRatio > 0.0 ? input.devicePixelRatio : 1.0, input.renderAvailable };
 }

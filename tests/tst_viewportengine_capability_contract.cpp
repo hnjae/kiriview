@@ -377,6 +377,7 @@ static_assert(!HasProviderSessionAccess<ViewportEngineSnapshotStateAccess>::valu
 static_assert(!HasProviderRequestAccess<ViewportEngineSnapshotStateAccess>::value);
 static_assert(!HasProviderSessionAccess<ViewportEnginePendingGeometryProjectionAccess>::value);
 static_assert(!HasProviderRequestAccess<ViewportEnginePendingGeometryProjectionAccess>::value);
+static_assert(!HasDisplayStateAccess<ViewportEnginePendingGeometryProjectionAccess>::value);
 static_assert(!HasProviderSessionAccess<ViewportEngineAcceptedGeometryProjectionAccess>::value);
 static_assert(!HasProviderRequestAccess<ViewportEngineAcceptedGeometryProjectionAccess>::value);
 static_assert(!HasProviderSessionAccess<ViewportEngineRenderCommitAccess>::value);

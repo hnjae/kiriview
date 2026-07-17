@@ -93,7 +93,7 @@ ImageViewportDisplayStatus retainedDisplayStatus(const DisplayState& display)
 {
     const bool retained = (display.status == ImageViewportDisplayStatus::Ready
                               || display.status == ImageViewportDisplayStatus::Retained)
-        && display.roles[0].displayedImageSize.isValid();
+        && display.roles[0].displayedPayload.hasPresentableContent();
     return retained ? ImageViewportDisplayStatus::Retained : ImageViewportDisplayStatus::Empty;
 }
 
@@ -163,13 +163,12 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         auto& preparedPayload = access.m_display.roles[0].pendingRenderPayload;
         auto& primaryRequest = access.m_request.roles[0].activeRequest;
         if (!preparedPayload.identity().isValid()) {
+            if (displayedPrimaryPayloadMatchesActiveTarget(access.m_display, access.m_request))
+                preparedPayload = access.m_display.roles[0].displayedPayload;
             preparedPayload.commitPending = true;
             preparedPayload.generation = access.m_request.sequenceGeneration;
             preparedPayload.requestId = primaryRequest.identity.id;
             preparedPayload.payloadId = ++access.m_display.nextPreparedPayloadId;
-            if (displayedPrimaryPayloadMatchesActiveTarget(access.m_display, access.m_request)) {
-                preparedPayload.image = access.m_display.roles[0].displayedImage;
-            }
             primaryRequest.preparedPayloadId = preparedPayload.payloadId;
         }
         access.m_provider.requests.activeFrameToken = {};
@@ -254,8 +253,6 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         access.m_display.status = retainedDisplayStatus(access.m_display);
     } else {
         access.m_request.targetSpreadTerminal.clear();
-        access.m_display.captureRenderFailureRetainedDisplay(
-            access.m_request.roles[0].source.facts.present);
         access.m_display.commitPreparedPayloadIdentity(
             access.m_request.roles[0].activeRequest, admittedPayload);
         stageBuiltInSecondaryPayload(access.m_request, access.m_display);

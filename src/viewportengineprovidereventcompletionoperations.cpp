@@ -186,7 +186,6 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
     }
     a.m_request.targetSpreadTerminal.clear();
     a.m_display.clearPendingRenderPayload();
-    a.m_display.clearRenderFailureRetainedDisplay();
     auto start = a.startFrame(in.role, target, in.geometry);
     out.providerFrameTransport.closeSession = start.closeSession;
     out.providerFrameTransport.sessionClose = start.sessionClose;

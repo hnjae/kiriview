@@ -232,6 +232,11 @@ struct PreparedPayload
     quint64 providerFrameLeaseId = 0;
 
     PreparedPayloadIdentity identity() const { return { generation, requestId, payloadId }; }
+    bool hasPresentableContent() const
+    {
+        return identity().isValid() && !image.isNull() && sourceLogicalSize.isValid()
+            && sourceLogicalSize.width() > 0.0 && sourceLogicalSize.height() > 0.0;
+    }
 };
 
 struct PresentationState
@@ -268,14 +273,8 @@ struct DisplayState
     struct RoleState
     {
         DisplayRequestSnapshot displayedRequest;
-        QSizeF displayedImageSize;
-        QImage displayedImage;
         PreparedPayload displayedPayload;
         PreparedPayload pendingRenderPayload;
-        bool retainedDisplayValid = false;
-        DisplayRequestSnapshot retainedRequest;
-        QSizeF retainedImageSize;
-        QImage retainedImage;
     };
 
     DisplayState() = default;
@@ -320,13 +319,7 @@ struct DisplayState
     {
         for (auto& role : roles) {
             role.displayedRequest = {};
-            role.displayedImageSize = {};
-            role.displayedImage = {};
             role.displayedPayload = {};
-            role.retainedDisplayValid = false;
-            role.retainedRequest = {};
-            role.retainedImageSize = {};
-            role.retainedImage = {};
         }
         status = ImageViewportDisplayStatus::Empty;
         displayedPresentation = {};
@@ -373,35 +366,7 @@ struct DisplayState
         return hasDisplayableSequence
             && (status == ImageViewportDisplayStatus::Ready
                 || status == ImageViewportDisplayStatus::Retained)
-            && roles[0].displayedImageSize.isValid() && roles[0].displayedImageSize.width() > 0.0
-            && roles[0].displayedImageSize.height() > 0.0;
-    }
-
-    void captureRenderFailureRetainedDisplay(bool hasDisplayableSequence)
-    {
-        if (!hasReadyDisplay(hasDisplayableSequence)) {
-            clearRenderFailureRetainedDisplay();
-            return;
-        }
-
-        for (auto& role : roles) {
-            const bool displayed = role.displayedImageSize.isValid()
-                && role.displayedImageSize.width() > 0.0 && role.displayedImageSize.height() > 0.0;
-            role.retainedDisplayValid = displayed;
-            role.retainedRequest = displayed ? role.displayedRequest : DisplayRequestSnapshot {};
-            role.retainedImageSize = displayed ? role.displayedImageSize : QSizeF {};
-            role.retainedImage = displayed ? role.displayedImage : QImage {};
-        }
-    }
-
-    void clearRenderFailureRetainedDisplay()
-    {
-        for (auto& role : roles) {
-            role.retainedDisplayValid = false;
-            role.retainedRequest = {};
-            role.retainedImageSize = {};
-            role.retainedImage = {};
-        }
+            && roles[0].displayedPayload.hasPresentableContent();
     }
 
     ImageViewportDisplayStatus status = ImageViewportDisplayStatus::Empty;

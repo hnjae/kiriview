@@ -360,7 +360,6 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
 
     if (input.role == ImageViewportPageRole::Primary) {
         access.m_display.clearPendingRenderPayload();
-        access.m_display.clearRenderFailureRetainedDisplay();
     }
     const auto positiveSize
         = [](QSizeF size) { return size.isValid() && size.width() > 0.0 && size.height() > 0.0; };
