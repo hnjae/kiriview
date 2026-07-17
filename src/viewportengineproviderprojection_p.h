@@ -15,14 +15,12 @@ struct ViewportEngineProviderDemandInput
 class ViewportEngineProviderDemandProjectionAccess
 {
     friend class ViewportEngine;
-    friend class ViewportEnginePlaybackStopAccess;
-    friend class ViewportEnginePlaybackSeekAccess;
-    friend class ViewportEnginePlaybackPlayAccess;
-    friend class ViewportEnginePlaybackTickAccess;
     friend class ViewportEngineProviderSessionOpenedAccess;
     friend class ViewportEngineProviderQueueFlushAccess;
     friend class ViewportEngineProviderDemandRestageAccess;
     friend class ViewportEngineProviderFrameRequestAccess;
+
+public:
     ViewportEngineProviderDemandProjectionAccess(const ImageViewportInternal::RequestState& request,
         const ImageViewportInternal::DisplayState& display,
         ViewportEngineProviderFactsView providerFacts,
@@ -34,10 +32,12 @@ class ViewportEngineProviderDemandProjectionAccess
     {
     }
 
-public:
     ViewportEngineProviderDemandProjectionAccess(
         const ViewportEngineProviderDemandProjectionAccess&)
         = delete;
+    ViewportEngineProviderDemandProjectionAccess(
+        ViewportEngineProviderDemandProjectionAccess&&) noexcept
+        = default;
     const ImageViewportInternal::RequestState& request() const { return m_request; }
     const ImageViewportInternal::DisplayState& display() const { return m_display; }
     const ViewportEngineProviderFactsView& providerFacts() const { return m_providerFacts; }

@@ -1,5 +1,6 @@
 #include "viewportengineprovidereventcompletionoperations_p.h"
 #include "viewportengineprovidersessionoperations_p.h"
+#include "viewportenginetargetspreadoperations_p.h"
 #include <cmath>
 
 namespace {
@@ -185,7 +186,7 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
         return out;
     }
     a.m_request.targetSpreadTerminal.clear();
-    a.m_display.clearPendingRenderPayload();
+    invalidateViewportEngineTargetSpreadRole(a.m_request, a.m_display, in.role);
     auto start = a.startFrame(in.role, target, in.geometry);
     out.providerFrameTransport.closeSession = start.closeSession;
     out.providerFrameTransport.sessionClose = start.sessionClose;

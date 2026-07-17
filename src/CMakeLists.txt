@@ -91,6 +91,8 @@ qt_add_qml_module(
     viewportenginestate_p.h
     viewportenginetargetspreadterminaloperations.cpp
     viewportenginetargetspreadterminaloperations_p.h
+    viewportenginetargetspreadoperations.cpp
+    viewportenginetargetspreadoperations_p.h
     viewportenginetestaccess_p.h
     viewportenginetransition_p.h
     viewportplaybackcontract_p.h

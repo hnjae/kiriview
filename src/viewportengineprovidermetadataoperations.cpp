@@ -6,6 +6,7 @@
 #include "viewportengineplaybackoperations_p.h"
 #include "viewportenginepresentationoperations_p.h"
 #include "viewportengineprovidersessionoperations_p.h"
+#include "viewportenginetargetspreadoperations_p.h"
 
 #include <algorithm>
 #include <limits>
@@ -359,7 +360,7 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
     }
 
     if (input.role == ImageViewportPageRole::Primary) {
-        access.m_display.clearPendingRenderPayload();
+        invalidateViewportEngineTargetSpreadRole(access.m_request, access.m_display, input.role);
     }
     const auto positiveSize
         = [](QSizeF size) { return size.isValid() && size.width() > 0.0 && size.height() > 0.0; };

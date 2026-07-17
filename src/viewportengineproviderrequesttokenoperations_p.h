@@ -1,7 +1,7 @@
 #pragma once
 
-#include "viewportprovidercontract_p.h"
 #include "viewportenginestate_p.h"
+#include "viewportprovidercontract_p.h"
 
 struct ViewportProviderRequestTokenAllocationInput
 {
@@ -20,14 +20,12 @@ struct ViewportProviderRequestTokenAllocationResult
 class ViewportProviderRequestTokenAllocationAccess
 {
     friend class ViewportEngine;
-    friend class ViewportEnginePlaybackStopAccess;
-    friend class ViewportEnginePlaybackSeekAccess;
-    friend class ViewportEnginePlaybackPlayAccess;
-    friend class ViewportEnginePlaybackTickAccess;
     friend class ViewportEngineProviderSessionOpenedAccess;
     friend class ViewportEngineProviderQueueFlushAccess;
     friend class ViewportEngineProviderDemandRestageAccess;
     friend class ViewportEngineProviderFrameRequestAccess;
+
+public:
     ViewportProviderRequestTokenAllocationAccess(std::array<ViewportEngineRoleState, 2>& roles,
         ImageViewportInternal::RequestState& request,
         ImageViewportInternal::PlaybackState& playback,
@@ -39,10 +37,12 @@ class ViewportProviderRequestTokenAllocationAccess
     {
     }
 
-public:
     ViewportProviderRequestTokenAllocationAccess(
         const ViewportProviderRequestTokenAllocationAccess&)
         = delete;
+    ViewportProviderRequestTokenAllocationAccess(
+        ViewportProviderRequestTokenAllocationAccess&&) noexcept
+        = default;
     ViewportProviderRequestTokenAllocationAccess& operator=(
         const ViewportProviderRequestTokenAllocationAccess&)
         = delete;

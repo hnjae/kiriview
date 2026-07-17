@@ -1,6 +1,7 @@
 #include "viewportengineproviderrequestoperations_p.h"
 
 #include "imageviewporttoken_p.h"
+#include "viewportenginetargetspreadoperations_p.h"
 
 #include <limits>
 
@@ -198,7 +199,7 @@ ViewportProviderSessionOpenResult reduceViewportEngineProviderSessionOpened(
         result.providerMetadataTransport.token = allocation.token;
         return result;
     }
-    access.m_display.clearPendingRenderPayload();
+    invalidateViewportEngineTargetSpreadRole(access.m_request, access.m_display, input.role);
     const auto target = requestForRole(access.m_request, input.role).target;
     const auto start = startFrameRequest(
         { access.m_request, access.m_display, access.m_roles }, input.role, target, input.geometry,

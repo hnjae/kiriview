@@ -20,6 +20,7 @@ private slots:
     void providerTimedPlaybackCommandsUpdatePhase();
     void providerTimedPlayCommandPreservesElapsedPosition();
     void providerTimedPlaybackAdvancesDeterministically();
+    void twoProviderSpreadPlaybackReusesUnchangedSibling();
     void providerTimedPlaybackAdvancesFromRuntimeTimer();
     void providerTimedPlaybackFrameReadyWaitsForRenderCommit();
     void providerTimedPausedPlaybackFrameCommitStaysPaused();
@@ -409,6 +410,69 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackAdvancesDeterminist
     QCOMPARE(primaryRequestedPosition(item), 100);
     QCOMPARE(primaryDisplayedFrame(item), 1);
     QCOMPARE(primaryDisplayedPosition(item), 100);
+}
+
+void ImageViewportProviderPlaybackTest::twoProviderSpreadPlaybackReusesUnchangedSibling()
+{
+    ImageSequenceFactory factory;
+    const auto primaryFrameRequestCount = std::make_shared<int>(0);
+    const auto secondaryFrameRequestCount = std::make_shared<int>(0);
+    const auto makeProviderFactory = [](const std::shared_ptr<int>& frameRequestCount) {
+        return std::make_shared<CountingProviderSessionFactory>(std::make_shared<int>(0),
+            std::make_shared<int>(0), frameRequestCount, std::make_shared<int>(-1),
+            std::make_shared<int>(0));
+    };
+    auto primaryFactory = makeProviderFactory(primaryFrameRequestCount);
+    auto secondaryFactory = makeProviderFactory(secondaryFrameRequestCount);
+    CountingProviderAdapter primaryAdapter(primaryFactory);
+    CountingProviderAdapter secondaryAdapter(secondaryFactory);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromProvider(&primaryAdapter));
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
+        factory.fromProvider(&secondaryAdapter));
+    QVERIFY(primaryResult->sequence());
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    useSynchronousProviderEventDeliveryForTest(item);
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(
+                                            primaryResult->sequence(), secondaryResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+
+    const ImageSequenceProviderMetadata metadata
+        = ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 });
+    emitProviderMetadataReady(primaryFactory->lastSession(),
+        primaryFactory->lastSession()->lastMetadataToken(), metadata);
+    emitProviderMetadataReady(secondaryFactory->lastSession(),
+        secondaryFactory->lastSession()->lastMetadataToken(), metadata);
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    emitTimedProviderFrameReady(primaryFactory->lastSession(), &frame, 0, 0);
+    emitTimedProviderFrameReady(secondaryFactory->lastSession(), &frame, 0, 0);
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Ready);
+
+    QCOMPARE(
+        item.play(ImageViewportPageRole::Primary).outcome(), ImageViewportCommandOutcome::Accepted);
+    advancePlaybackForTest(item, 100);
+    QCOMPARE(playbackPhase(item), ImageViewportPlaybackPhase::Waiting);
+    QCOMPARE(*primaryFrameRequestCount, 2);
+    QCOMPARE(*secondaryFrameRequestCount, 1);
+
+    emitTimedProviderFrameReady(primaryFactory->lastSession(), &frame, 1, 100);
+
+    QCOMPARE(requestReason(item), ImageViewportRequestReason::RenderWaiting);
+    QVERIFY(hasPendingRenderCommitForTest(item));
+    QVERIFY(secondaryPendingRenderPayloadIdForTest(item) != 0);
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Ready);
+    QCOMPARE(playbackPhase(item), ImageViewportPlaybackPhase::Playing);
+    QCOMPARE(primaryDisplayedFrame(item), 1);
+    QCOMPARE(secondaryDisplayedFrame(item), 0);
 }
 
 void ImageViewportProviderPlaybackTest::providerTimedPlaybackAdvancesFromRuntimeTimer()

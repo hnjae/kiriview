@@ -40,6 +40,7 @@ private slots:
     void secondaryProviderPositionSeekBeforeMetadataResolvesAfterMetadata();
     void secondaryProviderFrameSeekUsesFrameRequest();
     void secondaryProviderPositionSeekRequestsResolvedFrame();
+    void twoProviderSpreadSeekReusesUnchangedSibling();
     void secondaryProviderFrameSeekRetainsDisplayedSpreadUntilCommit();
     void secondaryProviderPositionSeekRetainsDisplayedSpreadUntilCommit();
     void secondaryProviderInvalidAndUnsupportedSeekCommandsPreserveRequest();
@@ -1689,6 +1690,72 @@ void ImageViewportProviderRequestsTest::secondaryProviderPositionSeekRequestsRes
     QCOMPARE(*secondaryLastRequestedPosition, 350);
     QCOMPARE(secondaryRequestedFrame(item), 1);
     QCOMPARE(secondaryRequestedPosition(item), 350);
+}
+
+void ImageViewportProviderRequestsTest::twoProviderSpreadSeekReusesUnchangedSibling()
+{
+    ImageSequenceFactory factory;
+    const auto primaryFrameRequestCount = std::make_shared<int>(0);
+    const auto secondaryFrameRequestCount = std::make_shared<int>(0);
+    const auto makeProviderFactory = [](const std::shared_ptr<int>& frameRequestCount) {
+        return std::make_shared<CountingProviderSessionFactory>(std::make_shared<int>(0),
+            std::make_shared<int>(0), frameRequestCount, std::make_shared<int>(-1),
+            std::make_shared<int>(0));
+    };
+    auto primaryFactory = makeProviderFactory(primaryFrameRequestCount);
+    auto secondaryFactory = makeProviderFactory(secondaryFrameRequestCount);
+    CountingProviderAdapter primaryAdapter(primaryFactory);
+    CountingProviderAdapter secondaryAdapter(secondaryFactory);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromProvider(&primaryAdapter));
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
+        factory.fromProvider(&secondaryAdapter));
+    QVERIFY(primaryResult->sequence());
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    useSynchronousProviderEventDeliveryForTest(item);
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(
+                                            primaryResult->sequence(), secondaryResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+
+    const ImageSequenceProviderMetadata metadata
+        = ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 });
+    emitProviderMetadataReady(primaryFactory->lastSession(),
+        primaryFactory->lastSession()->lastMetadataToken(), metadata);
+    emitProviderMetadataReady(secondaryFactory->lastSession(),
+        secondaryFactory->lastSession()->lastMetadataToken(), metadata);
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    emitTimedProviderFrameReady(primaryFactory->lastSession(), &frame, 0, 0);
+    emitTimedProviderFrameReady(secondaryFactory->lastSession(), &frame, 0, 0);
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Ready);
+    QCOMPARE(*primaryFrameRequestCount, 1);
+    QCOMPARE(*secondaryFrameRequestCount, 1);
+
+    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 1).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(*primaryFrameRequestCount, 2);
+    QCOMPARE(*secondaryFrameRequestCount, 1);
+    QCOMPARE(displayStatus(item), ImageViewportDisplayStatus::Retained);
+
+    emitTimedProviderFrameReady(primaryFactory->lastSession(), &frame, 1, 100);
+
+    QVERIFY2(requestStatus(item) == ImageViewportRequestStatus::Loading,
+        qPrintable(viewportErrorString(item)));
+    QCOMPARE(requestReason(item), ImageViewportRequestReason::RenderWaiting);
+    QVERIFY(hasPendingRenderCommitForTest(item));
+    QVERIFY(secondaryPendingRenderPayloadIdForTest(item) != 0);
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Ready);
+    QCOMPARE(displayStatus(item), ImageViewportDisplayStatus::Ready);
+    QCOMPARE(primaryDisplayedFrame(item), 1);
+    QCOMPARE(secondaryDisplayedFrame(item), 0);
 }
 
 void ImageViewportProviderRequestsTest::

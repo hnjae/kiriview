@@ -1,5 +1,6 @@
 #include "viewportenginebuiltinframeoperations_p.h"
 
+#include "viewportenginetargetspreadoperations_p.h"
 #include "viewportenginetargetspreadterminaloperations_p.h"
 
 namespace {
@@ -10,28 +11,6 @@ bool displayedPayloadAvailable(const DisplayState& display)
     return (display.status == ImageViewportDisplayStatus::Ready
                || display.status == ImageViewportDisplayStatus::Retained)
         && display.roles[0].displayedPayload.hasPresentableContent();
-}
-
-void reuseDisplayedProviderRoles(RequestState& request, DisplayState& display)
-{
-    for (const ImageViewportPageRole role :
-        { ImageViewportPageRole::Primary, ImageViewportPageRole::Secondary }) {
-        const std::size_t index = role == ImageViewportPageRole::Secondary ? 1U : 0U;
-        auto& requestRole = request.roles[index];
-        auto& displayRole = display.roles[index];
-        if (!requestRole.source.facts.present || !requestRole.source.facts.provider
-            || !displayRole.displayedPayload.hasPresentableContent()
-            || displayRole.displayedRequest.generation != request.sequenceGeneration
-            || displayRole.displayedRequest.request.resolvedFrame.frame
-                != requestRole.activeRequest.resolvedFrame.frame
-            || displayRole.displayedRequest.request.resolvedFrame.position
-                != requestRole.activeRequest.resolvedFrame.position) {
-            continue;
-        }
-        displayRole.pendingRenderPayload = displayRole.displayedPayload;
-        displayRole.pendingRenderPayload.commitPending = true;
-        requestRole.activeRequest.preparedPayloadId = displayRole.pendingRenderPayload.payloadId;
-    }
 }
 
 void projectFailure(RequestState& request, DisplayState& display, PlaybackState* playback,
@@ -93,7 +72,7 @@ ViewportEngineBuiltInFrameStageResult stageViewportEngineBuiltInTargetSpread(
     ViewportEngineBuiltInFrameStageResult result;
     request.targetSpreadTerminal.clear();
     request.lastAcceptedRenderFailure = {};
-    reuseDisplayedProviderRoles(request, display);
+    coalesceViewportEngineTargetSpreadCandidates(request, display);
 
     for (ImageViewportPageRole role :
         { ImageViewportPageRole::Primary, ImageViewportPageRole::Secondary }) {

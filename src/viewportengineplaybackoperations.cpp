@@ -2,12 +2,11 @@
 
 #include "framepreparation_p.h"
 #include "imageviewportproviderfacts_p.h"
-#include "imageviewporttoken_p.h"
 #include "playbacktimeline_p.h"
 #include "viewportenginebuiltinframeoperations_p.h"
+#include "viewportenginetargetspreadoperations_p.h"
 
 #include <algorithm>
-#include <limits>
 
 namespace {
 const ImageViewportInternal::RequestState::RoleState& requestRole(
@@ -61,126 +60,6 @@ bool hasDisplayedPayload(const ImageViewportInternal::DisplayState& display)
 {
     return display.roles[0].displayedPayload.hasPresentableContent();
 }
-}
-
-ImageSequenceProviderDisplayDemand ViewportEnginePlaybackStopAccess::providerDemand(
-    ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry) const
-{
-    if (m_nextRevision == std::numeric_limits<quint64>::max()) {
-        qFatal("ImageViewport revision token allocator exhausted");
-    }
-    auto& active = requestRole(m_request, role).activeRequest;
-    active.demandRevision
-        = ImageViewportInternal::RevisionTokenPrivateAccess::demandFromValue(++m_nextRevision);
-    const quint64 presentationRevision
-        = m_presentationRevision != 0 ? m_presentationRevision : m_presentationTargetGeneration;
-    return projectViewportProviderDemand(
-        { role, geometry, active.demandRevision,
-            ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(
-                m_request.requestRevision),
-            ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(
-                presentationRevision),
-            ImageViewportInternal::RevisionTokenPrivateAccess::generationFromValue(
-                m_presentationTargetGeneration) },
-        { m_request, m_display, { m_roles[0].provider.facts, m_roles[1].provider.facts },
-            m_presentation });
-}
-
-ViewportProviderRequestTokenAllocationResult
-ViewportEnginePlaybackStopAccess::allocateProviderRequestToken(ImageViewportPageRole role)
-{
-    return allocateViewportProviderRequestToken(
-        { role }, { m_roles, m_request, m_playback, m_display });
-}
-
-ImageSequenceProviderDisplayDemand ViewportEnginePlaybackSeekAccess::providerDemand(
-    ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry) const
-{
-    if (m_nextRevision == std::numeric_limits<quint64>::max()) {
-        qFatal("ImageViewport revision token allocator exhausted");
-    }
-    auto& active = requestRole(m_request, role).activeRequest;
-    active.demandRevision
-        = ImageViewportInternal::RevisionTokenPrivateAccess::demandFromValue(++m_nextRevision);
-    const quint64 presentationRevision
-        = m_presentationRevision != 0 ? m_presentationRevision : m_presentationTargetGeneration;
-    return projectViewportProviderDemand(
-        { role, geometry, active.demandRevision,
-            ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(
-                m_request.requestRevision),
-            ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(
-                presentationRevision),
-            ImageViewportInternal::RevisionTokenPrivateAccess::generationFromValue(
-                m_presentationTargetGeneration) },
-        { m_request, m_display, { m_roles[0].provider.facts, m_roles[1].provider.facts },
-            m_presentation });
-}
-
-ViewportProviderRequestTokenAllocationResult
-ViewportEnginePlaybackSeekAccess::allocateProviderRequestToken(ImageViewportPageRole role)
-{
-    return allocateViewportProviderRequestToken(
-        { role }, { m_roles, m_request, m_playback, m_display });
-}
-
-ImageSequenceProviderDisplayDemand ViewportEnginePlaybackPlayAccess::providerDemand(
-    ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry) const
-{
-    if (m_nextRevision == std::numeric_limits<quint64>::max()) {
-        qFatal("ImageViewport revision token allocator exhausted");
-    }
-    auto& active = requestRole(m_request, role).activeRequest;
-    active.demandRevision
-        = ImageViewportInternal::RevisionTokenPrivateAccess::demandFromValue(++m_nextRevision);
-    const quint64 presentationRevision
-        = m_presentationRevision != 0 ? m_presentationRevision : m_presentationTargetGeneration;
-    return projectViewportProviderDemand(
-        { role, geometry, active.demandRevision,
-            ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(
-                m_request.requestRevision),
-            ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(
-                presentationRevision),
-            ImageViewportInternal::RevisionTokenPrivateAccess::generationFromValue(
-                m_presentationTargetGeneration) },
-        { m_request, m_display, { m_roles[0].provider.facts, m_roles[1].provider.facts },
-            m_presentation });
-}
-
-ViewportProviderRequestTokenAllocationResult
-ViewportEnginePlaybackPlayAccess::allocateProviderRequestToken(ImageViewportPageRole role)
-{
-    return allocateViewportProviderRequestToken(
-        { role }, { m_roles, m_request, m_playback, m_display });
-}
-
-ImageSequenceProviderDisplayDemand ViewportEnginePlaybackTickAccess::providerDemand(
-    ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry) const
-{
-    if (m_nextRevision == std::numeric_limits<quint64>::max()) {
-        qFatal("ImageViewport revision token allocator exhausted");
-    }
-    auto& active = requestRole(m_request, role).activeRequest;
-    active.demandRevision
-        = ImageViewportInternal::RevisionTokenPrivateAccess::demandFromValue(++m_nextRevision);
-    const quint64 presentationRevision
-        = m_presentationRevision != 0 ? m_presentationRevision : m_presentationTargetGeneration;
-    return projectViewportProviderDemand(
-        { role, geometry, active.demandRevision,
-            ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(
-                m_request.requestRevision),
-            ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(
-                presentationRevision),
-            ImageViewportInternal::RevisionTokenPrivateAccess::generationFromValue(
-                m_presentationTargetGeneration) },
-        { m_request, m_display, { m_roles[0].provider.facts, m_roles[1].provider.facts },
-            m_presentation });
-}
-
-ViewportProviderRequestTokenAllocationResult
-ViewportEnginePlaybackTickAccess::allocateProviderRequestToken(ImageViewportPageRole role)
-{
-    return allocateViewportProviderRequestToken(
-        { role }, { m_roles, m_request, m_playback, m_display });
 }
 
 bool validateViewportPlaybackCommand(ViewportPlaybackCommand command)
@@ -275,47 +154,26 @@ ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
         result.changes.scheduleUpdate = true;
     };
     auto stageBuiltIn = [&request, &display, &input, &access, &result]() {
-        const auto admission = stageViewportEngineBuiltInTargetSpread(
-            request, display, access.m_presentation.exactnessPreference, &access.m_playback);
-        if (admission.accepted) {
-            request.status = ImageViewportRequestStatus::Loading;
-            request.reason
-                = (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty())
-                ? ImageViewportRequestReason::RenderWaiting
-                : ImageViewportRequestReason::UploadPending;
-            display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
-                                                          : ImageViewportDisplayStatus::Empty;
-        } else {
+        const auto admission = materializeViewportEngineBuiltInTargetSpread(
+            request, access.m_playback, display, access.m_presentation, input.geometry);
+        if (!admission.accepted) {
             result.changes.diagnostics = true;
             result.changes.playbackPhase |= admission.playbackStopped;
         }
         return admission;
     };
     auto dispatchProvider = [&]() {
-        auto allocation = access.allocateProviderRequestToken(input.role);
-        auto& effect = result.providerFrameTransport[index];
-        effect.closeSession = allocation.closeSession;
-        effect.sessionClose = allocation.sessionClose;
-        mergeChanges(result.changes, allocation.changes);
-        if (allocation.exhausted) {
-            return;
+        auto materialized
+            = materializeViewportEngineProviderRole({ input.role, input.geometry, false },
+                { request, playback, display, access.m_roles, access.m_presentation,
+                    access.m_nextRevision, access.m_presentationRevision,
+                    access.m_presentationTargetGeneration });
+        const auto cancelled = result.providerFrameTransport[index].cancelToken;
+        result.providerFrameTransport[index] = materialized.effect;
+        if (!result.providerFrameTransport[index].cancelToken.isValid()) {
+            result.providerFrameTransport[index].cancelToken = cancelled;
         }
-        provider.requests.activeFrameToken = allocation.token;
-        provider.requests.activeFrameRefinement = false;
-        roleState.activeRequest.providerFrameToken = allocation.token;
-        effect.sendCommand = provider.session.sessionActive;
-        effect.command.token = allocation.token;
-        effect.command.frame = roleState.activeRequest.resolvedFrame.frame;
-        effect.command.position = roleState.activeRequest.target.position;
-        effect.command.targetKind = roleState.activeRequest.target.providerTargetKind;
-        effect.command.demand = access.providerDemand(input.role, input.geometry);
-        provider.requests.lastFrameDemand = effect.command.demand;
-        provider.requests.hasLastFrameDemand = true;
-        request.status = ImageViewportRequestStatus::Loading;
-        request.reason = ImageViewportRequestReason::ProviderWaiting;
-        display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
-                                                      : ImageViewportDisplayStatus::Empty;
-        display.clearPendingRenderPayload();
+        mergeChanges(result.changes, materialized.changes);
     };
 
     if (playback.phase != ImageViewportPlaybackPhase::Stopped && restore.identity.id != 0
@@ -469,97 +327,30 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
         result.changes.scheduleUpdate = true;
     };
     auto stageBuiltIn = [&]() {
-        const auto admission = stageViewportEngineBuiltInTargetSpread(
-            request, display, access.m_presentation.exactnessPreference, &playback);
-        if (admission.accepted) {
-            request.status = ImageViewportRequestStatus::Loading;
-            request.reason
-                = (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty())
-                ? ImageViewportRequestReason::RenderWaiting
-                : ImageViewportRequestReason::UploadPending;
-            display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
-                                                          : ImageViewportDisplayStatus::Empty;
-        } else {
+        const auto admission = materializeViewportEngineBuiltInTargetSpread(
+            request, playback, display, access.m_presentation, input.geometry);
+        if (!admission.accepted) {
             result.changes.diagnostics = true;
             result.changes.playbackPhase |= admission.playbackStopped;
         }
         return admission;
     };
     auto dispatchProvider = [&]() {
-        auto& effect = result.providerFrameTransport[index];
-        auto& active = roleState.activeRequest;
-        if (provider.requests.activeFrameToken.isValid()
-            && provider.requests.activeFrameRefinement) {
-            effect.cancelToken = provider.requests.activeFrameToken;
-            provider.requests.activeFrameToken = {};
-            provider.requests.activeFrameRefinement = false;
-            active.providerFrameToken = {};
-        }
-        if (provider.requests.activeFrameToken.isValid()) {
-            TargetSpreadWaitState wait;
-            if (input.role == ImageViewportPageRole::Secondary) {
-                wait.requiresSecondary = true;
-                wait.secondary.requestQueued = true;
-            } else {
-                wait.primary.requestQueued = true;
-            }
-            request.status = ImageViewportRequestStatus::Loading;
-            request.reason = projectWaitReason(wait);
-            const bool retained = (display.status == ImageViewportDisplayStatus::Ready
-                                      || display.status == ImageViewportDisplayStatus::Retained)
-                && hasDisplayedPayload(display);
-            display.status = retained ? ImageViewportDisplayStatus::Retained
-                                      : ImageViewportDisplayStatus::Empty;
-            display.clearPendingRenderPayload();
-            if (provider.session.sessionActive) {
-                effect.cancelToken = provider.requests.activeFrameToken;
-            }
-            provider.requests.activeFrameToken = {};
-            provider.requests.activeFrameRefinement = false;
-            active.providerFrameToken = {};
-            provider.requests.queuedFrameRequest = true;
-            provider.requests.queuedFrameGeneration = request.sequenceGeneration;
-            provider.requests.queuedFrameRequestId = active.identity.id;
-            provider.requests.queuedFrame = active.target.frame;
-            provider.requests.queuedPosition = active.target.position;
-            provider.requests.queuedResolvedFrame = active.resolvedFrame;
-            provider.requests.queuedFrameFromPlayback = false;
-            provider.requests.queuedFrameTargetKind = active.target.providerTargetKind;
-            effect.deferredEngineEvent
-                = ViewportProviderDeferredEngineEvent::FlushQueuedFrameRequest;
-            return;
-        }
-        auto allocation = access.allocateProviderRequestToken(input.role);
-        effect.closeSession = allocation.closeSession;
-        effect.sessionClose = allocation.sessionClose;
-        mergeChanges(result.changes, allocation.changes);
-        if (allocation.exhausted) {
-            return;
-        }
-        provider.requests.activeFrameToken = allocation.token;
-        provider.requests.activeFrameRefinement = false;
-        active.providerFrameToken = allocation.token;
-        effect.sendCommand = provider.session.sessionActive;
-        effect.command.token = allocation.token;
-        effect.command.frame = active.resolvedFrame.frame;
-        effect.command.position = active.target.position;
-        effect.command.targetKind = active.target.providerTargetKind;
-        effect.command.demand = access.providerDemand(input.role, input.geometry);
-        provider.requests.lastFrameDemand = effect.command.demand;
-        provider.requests.hasLastFrameDemand = true;
-        request.status = ImageViewportRequestStatus::Loading;
-        request.reason = ImageViewportRequestReason::ProviderWaiting;
-        display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
-                                                      : ImageViewportDisplayStatus::Empty;
-        display.clearPendingRenderPayload();
+        auto materialized
+            = materializeViewportEngineProviderRole({ input.role, input.geometry, false },
+                { request, playback, display, access.m_roles, access.m_presentation,
+                    access.m_nextRevision, access.m_presentationRevision,
+                    access.m_presentationTargetGeneration });
+        result.providerFrameTransport[index] = materialized.effect;
+        mergeChanges(result.changes, materialized.changes);
     };
 
     request.beginRoleDisplayRequest(input.role, DisplayRequestOrigin::ExplicitSeek,
         { frame, position, targetKind }, resolved, true);
+    result.changes.diagnostics = request.clearDiagnostics();
     if (source.facts.provider && !provider.facts.metadataReady) {
         markRequest();
     } else {
-        result.changes.diagnostics = request.clearDiagnostics();
         if (source.facts.provider) {
             dispatchProvider();
         } else {
@@ -617,89 +408,22 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
         result.changes.scheduleUpdate = true;
     };
     auto stageBuiltIn = [&]() {
-        const auto admission = stageViewportEngineBuiltInTargetSpread(
-            request, display, access.m_presentation.exactnessPreference, &playback);
-        if (admission.accepted) {
-            request.status = ImageViewportRequestStatus::Loading;
-            request.reason
-                = (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty())
-                ? ImageViewportRequestReason::RenderWaiting
-                : ImageViewportRequestReason::UploadPending;
-            display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
-                                                          : ImageViewportDisplayStatus::Empty;
-        } else {
+        const auto admission = materializeViewportEngineBuiltInTargetSpread(
+            request, playback, display, access.m_presentation, input.geometry);
+        if (!admission.accepted) {
             result.changes.diagnostics = true;
             result.changes.playbackPhase |= admission.playbackStopped;
         }
         return admission;
     };
     auto dispatchProvider = [&]() {
-        auto& effect = result.providerFrameTransport[index];
-        auto& active = roleState.activeRequest;
-        if (provider.requests.activeFrameToken.isValid()
-            && provider.requests.activeFrameRefinement) {
-            effect.cancelToken = provider.requests.activeFrameToken;
-            provider.requests.activeFrameToken = {};
-            provider.requests.activeFrameRefinement = false;
-            active.providerFrameToken = {};
-        }
-        if (provider.requests.activeFrameToken.isValid()) {
-            TargetSpreadWaitState wait;
-            if (input.role == ImageViewportPageRole::Secondary) {
-                wait.requiresSecondary = true;
-                wait.secondary.requestQueued = true;
-            } else {
-                wait.primary.requestQueued = true;
-            }
-            request.status = ImageViewportRequestStatus::Loading;
-            request.reason = projectWaitReason(wait);
-            const bool retained = (display.status == ImageViewportDisplayStatus::Ready
-                                      || display.status == ImageViewportDisplayStatus::Retained)
-                && hasDisplayedPayload(display);
-            display.status = retained ? ImageViewportDisplayStatus::Retained
-                                      : ImageViewportDisplayStatus::Empty;
-            display.clearPendingRenderPayload();
-            if (provider.session.sessionActive) {
-                effect.cancelToken = provider.requests.activeFrameToken;
-            }
-            provider.requests.activeFrameToken = {};
-            provider.requests.activeFrameRefinement = false;
-            active.providerFrameToken = {};
-            provider.requests.queuedFrameRequest = true;
-            provider.requests.queuedFrameGeneration = request.sequenceGeneration;
-            provider.requests.queuedFrameRequestId = active.identity.id;
-            provider.requests.queuedFrame = active.target.frame;
-            provider.requests.queuedPosition = active.target.position;
-            provider.requests.queuedResolvedFrame = active.resolvedFrame;
-            provider.requests.queuedFrameFromPlayback = true;
-            provider.requests.queuedFrameTargetKind = active.target.providerTargetKind;
-            effect.deferredEngineEvent
-                = ViewportProviderDeferredEngineEvent::FlushQueuedFrameRequest;
-            return;
-        }
-        auto allocation = access.allocateProviderRequestToken(input.role);
-        effect.closeSession = allocation.closeSession;
-        effect.sessionClose = allocation.sessionClose;
-        mergeChanges(result.changes, allocation.changes);
-        if (allocation.exhausted) {
-            return;
-        }
-        provider.requests.activeFrameToken = allocation.token;
-        provider.requests.activeFrameRefinement = false;
-        active.providerFrameToken = allocation.token;
-        effect.sendCommand = provider.session.sessionActive;
-        effect.command.token = allocation.token;
-        effect.command.frame = active.resolvedFrame.frame;
-        effect.command.position = active.target.position;
-        effect.command.targetKind = active.target.providerTargetKind;
-        effect.command.demand = access.providerDemand(input.role, input.geometry);
-        provider.requests.lastFrameDemand = effect.command.demand;
-        provider.requests.hasLastFrameDemand = true;
-        request.status = ImageViewportRequestStatus::Loading;
-        request.reason = ImageViewportRequestReason::ProviderWaiting;
-        display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
-                                                      : ImageViewportDisplayStatus::Empty;
-        display.clearPendingRenderPayload();
+        auto materialized
+            = materializeViewportEngineProviderRole({ input.role, input.geometry, true },
+                { request, playback, display, access.m_roles, access.m_presentation,
+                    access.m_nextRevision, access.m_presentationRevision,
+                    access.m_presentationTargetGeneration });
+        result.providerFrameTransport[index] = materialized.effect;
+        mergeChanges(result.changes, materialized.changes);
     };
 
     if (source.facts.provider && !provider.facts.metadataReady) {
@@ -858,82 +582,20 @@ ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
     }
 
     if (providerTiming) {
-        auto& effect = result.providerFrameTransport[index];
-        auto& active = roleState.activeRequest;
-        bool acceptedDispatch = true;
-        if (provider.requests.activeFrameToken.isValid()) {
-            TargetSpreadWaitState wait;
-            if (role == ImageViewportPageRole::Secondary) {
-                wait.requiresSecondary = true;
-                wait.secondary.requestQueued = true;
-            } else {
-                wait.primary.requestQueued = true;
-            }
-            request.status = ImageViewportRequestStatus::Loading;
-            request.reason = projectWaitReason(wait);
-            const bool retained = (display.status == ImageViewportDisplayStatus::Ready
-                                      || display.status == ImageViewportDisplayStatus::Retained)
-                && hasDisplayedPayload(display);
-            display.status = retained ? ImageViewportDisplayStatus::Retained
-                                      : ImageViewportDisplayStatus::Empty;
-            display.clearPendingRenderPayload();
-            if (provider.session.sessionActive) {
-                effect.cancelToken = provider.requests.activeFrameToken;
-            }
-            provider.requests.activeFrameToken = {};
-            provider.requests.activeFrameRefinement = false;
-            active.providerFrameToken = {};
-            provider.requests.queuedFrameRequest = true;
-            provider.requests.queuedFrameGeneration = request.sequenceGeneration;
-            provider.requests.queuedFrameRequestId = active.identity.id;
-            provider.requests.queuedFrame = active.target.frame;
-            provider.requests.queuedPosition = active.target.position;
-            provider.requests.queuedResolvedFrame = active.resolvedFrame;
-            provider.requests.queuedFrameFromPlayback = true;
-            provider.requests.queuedFrameTargetKind = active.target.providerTargetKind;
-            effect.deferredEngineEvent
-                = ViewportProviderDeferredEngineEvent::FlushQueuedFrameRequest;
-        } else {
-            auto allocation = access.allocateProviderRequestToken(role);
-            effect.closeSession = allocation.closeSession;
-            effect.sessionClose = allocation.sessionClose;
-            mergeChanges(result.changes, allocation.changes);
-            if (allocation.exhausted) {
-                acceptedDispatch = false;
-            } else {
-                provider.requests.activeFrameToken = allocation.token;
-                provider.requests.activeFrameRefinement = false;
-                active.providerFrameToken = allocation.token;
-                effect.sendCommand = provider.session.sessionActive;
-                effect.command.token = allocation.token;
-                effect.command.frame = active.resolvedFrame.frame;
-                effect.command.position = active.target.position;
-                effect.command.targetKind = active.target.providerTargetKind;
-                effect.command.demand = access.providerDemand(role, input.geometry);
-                provider.requests.lastFrameDemand = effect.command.demand;
-                provider.requests.hasLastFrameDemand = true;
-                request.status = ImageViewportRequestStatus::Loading;
-                request.reason = ImageViewportRequestReason::ProviderWaiting;
-                display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
-                                                              : ImageViewportDisplayStatus::Empty;
-                display.clearPendingRenderPayload();
-            }
-        }
-        if (acceptedDispatch) {
+        auto materialized = materializeViewportEngineProviderRole({ role, input.geometry, true },
+            { request, playback, display, access.m_roles, access.m_presentation,
+                access.m_nextRevision, access.m_presentationRevision,
+                access.m_presentationTargetGeneration });
+        result.providerFrameTransport[index] = materialized.effect;
+        mergeChanges(result.changes, materialized.changes);
+        if (materialized.accepted) {
             playback.stopWhenRequestReady = target.reachedEnd;
             playback.phase = ImageViewportPlaybackPhase::Waiting;
         }
     } else {
-        const auto admission = stageViewportEngineBuiltInTargetSpread(
-            request, display, access.m_presentation.exactnessPreference, &playback);
+        const auto admission = materializeViewportEngineBuiltInTargetSpread(
+            request, playback, display, access.m_presentation, input.geometry);
         if (admission.accepted) {
-            request.status = ImageViewportRequestStatus::Loading;
-            request.reason
-                = (!input.geometry.renderAvailable || input.geometry.itemBounds.isEmpty())
-                ? ImageViewportRequestReason::RenderWaiting
-                : ImageViewportRequestReason::UploadPending;
-            display.status = hasDisplayedPayload(display) ? ImageViewportDisplayStatus::Retained
-                                                          : ImageViewportDisplayStatus::Empty;
             playback.stopWhenRequestReady = target.reachedEnd;
             playback.phase = ImageViewportPlaybackPhase::Waiting;
         } else {

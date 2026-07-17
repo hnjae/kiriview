@@ -110,11 +110,6 @@ public:
     ViewportEnginePlaybackStopAccess& operator=(const ViewportEnginePlaybackStopAccess&) = delete;
 
 private:
-    ImageSequenceProviderDisplayDemand providerDemand(
-        ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry) const;
-    ViewportProviderRequestTokenAllocationResult allocateProviderRequestToken(
-        ImageViewportPageRole role);
-
     ImageViewportInternal::RequestState& m_request;
     ImageViewportInternal::PlaybackState& m_playback;
     ImageViewportInternal::DisplayState& m_display;
@@ -169,11 +164,6 @@ public:
     ViewportEnginePlaybackSeekAccess& operator=(const ViewportEnginePlaybackSeekAccess&) = delete;
 
 private:
-    ImageSequenceProviderDisplayDemand providerDemand(
-        ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry) const;
-    ViewportProviderRequestTokenAllocationResult allocateProviderRequestToken(
-        ImageViewportPageRole role);
-
     ImageViewportInternal::RequestState& m_request;
     ImageViewportInternal::PlaybackState& m_playback;
     ImageViewportInternal::DisplayState& m_display;
@@ -226,11 +216,6 @@ public:
     ViewportEnginePlaybackPlayAccess& operator=(const ViewportEnginePlaybackPlayAccess&) = delete;
 
 private:
-    ImageSequenceProviderDisplayDemand providerDemand(
-        ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry) const;
-    ViewportProviderRequestTokenAllocationResult allocateProviderRequestToken(
-        ImageViewportPageRole role);
-
     ImageViewportInternal::RequestState& m_request;
     ImageViewportInternal::PlaybackState& m_playback;
     ImageViewportInternal::DisplayState& m_display;
@@ -282,11 +267,6 @@ public:
     ViewportEnginePlaybackTickAccess& operator=(const ViewportEnginePlaybackTickAccess&) = delete;
 
 private:
-    ImageSequenceProviderDisplayDemand providerDemand(
-        ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry) const;
-    ViewportProviderRequestTokenAllocationResult allocateProviderRequestToken(
-        ImageViewportPageRole role);
-
     ImageViewportInternal::RequestState& m_request;
     ImageViewportInternal::PlaybackState& m_playback;
     ImageViewportInternal::DisplayState& m_display;

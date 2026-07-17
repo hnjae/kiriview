@@ -1,0 +1,46 @@
+#pragma once
+
+#include "viewportenginebuiltinframeoperations_p.h"
+#include "viewportengineproviderprojection_p.h"
+#include "viewportengineproviderrequesttokenoperations_p.h"
+
+struct ViewportEngineProviderRoleMaterializationInput
+{
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
+    ViewportEngineGeometryInput geometry;
+    bool fromPlayback = false;
+};
+
+struct ViewportEngineProviderRoleMaterializationAccess
+{
+    ImageViewportInternal::RequestState& request;
+    ImageViewportInternal::PlaybackState& playback;
+    ImageViewportInternal::DisplayState& display;
+    std::array<ViewportEngineRoleState, 2>& roles;
+    const ImageViewportInternal::PresentationState& presentation;
+    quint64& nextRevision;
+    quint64 presentationRevision = 0;
+    quint64 presentationTargetGeneration = 0;
+};
+
+struct ViewportEngineProviderRoleMaterializationResult
+{
+    bool accepted = false;
+    ImageViewportInternal::ViewportChangeSet changes;
+    ViewportProviderFrameTransportEffect effect;
+};
+
+void invalidateViewportEngineTargetSpreadRole(ImageViewportInternal::RequestState& request,
+    ImageViewportInternal::DisplayState& display, ImageViewportPageRole role);
+
+void coalesceViewportEngineTargetSpreadCandidates(
+    ImageViewportInternal::RequestState& request, ImageViewportInternal::DisplayState& display);
+
+ViewportEngineProviderRoleMaterializationResult materializeViewportEngineProviderRole(
+    ViewportEngineProviderRoleMaterializationInput,
+    ViewportEngineProviderRoleMaterializationAccess);
+
+ViewportEngineBuiltInFrameStageResult materializeViewportEngineBuiltInTargetSpread(
+    ImageViewportInternal::RequestState&, ImageViewportInternal::PlaybackState&,
+    ImageViewportInternal::DisplayState&, const ImageViewportInternal::PresentationState&,
+    const ViewportEngineGeometryInput&);

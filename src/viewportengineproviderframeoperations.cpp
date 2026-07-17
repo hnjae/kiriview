@@ -4,6 +4,7 @@
 #include "presentationgeometry_p.h"
 #include "viewportenginebuiltinframeoperations_p.h"
 #include "viewportengineprojection_p.h"
+#include "viewportenginetargetspreadoperations_p.h"
 
 namespace {
 using namespace ImageViewportInternal;
@@ -214,6 +215,7 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         return result;
     }
 
+    coalesceViewportEngineTargetSpreadCandidates(access.m_request, access.m_display);
     const bool diagnosticsChanged = access.m_request.clearDiagnostics();
 
     if (input.role == ImageViewportPageRole::Secondary) {
