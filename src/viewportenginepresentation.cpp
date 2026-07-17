@@ -386,6 +386,8 @@ ViewportEnginePresentationCommandResult ViewportEngine::applyPresentationCommand
 
     const bool readyDisplay = m_state->displayState.display.hasReadyDisplay(
         m_state->requestState.request.roles[0].source.facts.present);
+    const bool warningBefore = m_state->displayState.display.hasActiveRenderQualityFallback(
+        m_state->requestState.request.sequenceGeneration, m_state->presentationState.presentation);
     ViewportEnginePresentationCommandStateView presentationState(
         m_state->presentationState.presentation, m_state->playbackState.playback.looping,
         readyDisplay);
@@ -400,6 +402,14 @@ ViewportEnginePresentationCommandResult ViewportEngine::applyPresentationCommand
     }
     if (reduction.looping) {
         m_state->playbackState.playback.looping = *reduction.looping;
+    }
+    m_state->displayState.display.renderQualityFallback.reconcile(
+        m_state->presentationState.presentation);
+    const bool warningAfter = m_state->displayState.display.hasActiveRenderQualityFallback(
+        m_state->requestState.request.sequenceGeneration, m_state->presentationState.presentation);
+    if (warningBefore != warningAfter) {
+        reduction.changes.diagnostics = true;
+        reduction.changes.displayRevision = true;
     }
     if (reduction.targetPresentationChanged
         && m_state->requestState.presentationTarget.generation != 0) {

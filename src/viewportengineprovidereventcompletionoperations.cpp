@@ -116,7 +116,7 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
         return out;
     }
     p.requests.retire(in.token);
-    bool dc = a.m_request.clearDiagnostics();
+    bool dc = a.m_request.clearError();
     bool loop = loops(a.m_playback, p.facts.authoredAnimationFacts);
     int frame = loop ? 0 : p.facts.timingIntervals.frameCount() - 1;
     int pos = loop ? 0 : p.facts.timingIntervals.frameStartPosition(frame);

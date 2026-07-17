@@ -205,7 +205,7 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
     }
 
     coalesceViewportEngineTargetSpreadCandidates(access.m_request, access.m_display);
-    const bool diagnosticsChanged = access.m_request.clearDiagnostics();
+    const bool diagnosticsChanged = access.m_request.clearError();
 
     if (input.role == ImageViewportPageRole::Secondary) {
         admittedPayload.commitPending = true;

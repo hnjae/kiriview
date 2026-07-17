@@ -36,10 +36,13 @@ ViewportEngineTransition ViewportEngine::handleResourcePressure()
     if (display.status != ImageViewportDisplayStatus::Retained) {
         return transition;
     }
+    const bool warningBefore = display.hasActiveRenderQualityFallback(
+        m_state->requestState.request.sequenceGeneration, m_state->presentationState.presentation);
     display.discardRetainedDisplay();
     rebuildViewportEnginePayloadAllocation(m_state->requestState.request, display);
     transition.changes.displayState = true;
     transition.changes.geometryState = true;
+    transition.changes.diagnostics = warningBefore;
     transition.changes.displayRevision = true;
     transition.changes.scheduleUpdate = true;
     const auto effects = restageProviderDemands();

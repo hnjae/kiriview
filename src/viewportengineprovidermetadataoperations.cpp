@@ -255,7 +255,7 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
             }
             access.m_playback.position = -1;
         }
-        const bool diagnosticsChanged = access.m_request.clearDiagnostics();
+        const bool diagnosticsChanged = access.m_request.clearError();
         if (rejection.clearPlaybackStartPending) {
             access.m_playback.providerStartPending = false;
         }

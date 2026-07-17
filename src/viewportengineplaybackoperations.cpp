@@ -336,7 +336,7 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
 
     request.beginRoleDisplayRequest(input.role, DisplayRequestOrigin::ExplicitSeek,
         { frame, position, targetKind }, resolved, true);
-    result.changes.diagnostics = request.clearDiagnostics();
+    result.changes.diagnostics = request.clearError();
     if (source.facts.provider && !provider.facts.metadataReady) {
         markRequest();
     } else {
@@ -445,7 +445,7 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
     if (!source.facts.provider
         && (request.status == ImageViewportRequestStatus::Unsupported
             || request.status == ImageViewportRequestStatus::Error)) {
-        result.changes.diagnostics = request.clearDiagnostics();
+        result.changes.diagnostics = request.clearError();
         stageBuiltIn();
         markRequest();
     }
@@ -471,7 +471,7 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
         active.target = { frame, provider.facts.timingIntervals.frameStartPosition(frame),
             ProviderRequestTargetKind::Playback };
         active.resolvedFrame = { frame, provider.facts.timingIntervals.frameStartPosition(frame) };
-        request.clearDiagnostics();
+        request.clearError();
         request.targetSpreadTerminal.clear();
         dispatchProvider();
         markRequest();

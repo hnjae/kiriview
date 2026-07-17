@@ -324,7 +324,9 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
         return out;
     auto oldGeo = projectViewportGeometryState(in.geometry, a.m_presentation);
     auto oldPhase = a.m_playback.phase;
-    QString oldE = a.m_request.errorString, oldW = a.m_request.warningString;
+    const QString oldError = a.m_request.errorString;
+    const bool oldWarning = a.m_display.hasActiveRenderQualityFallback(
+        a.m_request.sequenceGeneration, a.m_presentation);
     out.providerEffects[0] = a.closeSession(ImageViewportPageRole::Primary);
     out.providerEffects[1] = a.closeSession(ImageViewportPageRole::Secondary);
     auto primary = std::move(in.primarySource), secondarySource = std::move(in.secondarySource);
@@ -348,7 +350,7 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
         a.m_display.clearDisplayedDisplay();
     }
     a.m_request.errorString.clear();
-    a.m_request.warningString.clear();
+    a.m_display.renderQualityFallback.clear();
     if (refinement) {
         a.m_playback = previousPlayback;
         if (a.m_playback.phase == ImageViewportPlaybackPhase::Playing) {
@@ -501,7 +503,9 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
         || PresentationGeometry::visibleImageRect(oldGeo)
             != PresentationGeometry::visibleImageRect(ng);
     out.changes.playbackPhase = oldPhase != a.m_playback.phase;
-    out.changes.diagnostics = oldE != a.m_request.errorString || oldW != a.m_request.warningString;
+    const bool newWarning = a.m_display.hasActiveRenderQualityFallback(
+        a.m_request.sequenceGeneration, a.m_presentation);
+    out.changes.diagnostics = oldError != a.m_request.errorString || oldWarning != newWarning;
     out.changes.scheduleUpdate = true;
     return out;
 }

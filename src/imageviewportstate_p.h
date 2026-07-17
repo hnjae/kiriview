@@ -312,6 +312,47 @@ struct PayloadAllocationState
     std::array<qint64, 2> roleBudgets { -1, -1 };
 };
 
+struct RenderQualityFallbackState
+{
+    bool activeFor(quint64 acceptedGeneration, const PresentationState& presentation) const
+    {
+        return generation != 0 && generation == acceptedGeneration
+            && ((smoothingUnavailable && presentation.smoothing)
+                || (mipmapUnavailable && presentation.mipmap));
+    }
+
+    void assign(quint64 ownerGeneration, bool smoothingFallback, bool mipmapFallback)
+    {
+        if (ownerGeneration == 0 || (!smoothingFallback && !mipmapFallback)) {
+            clear();
+            return;
+        }
+        generation = ownerGeneration;
+        smoothingUnavailable = smoothingFallback;
+        mipmapUnavailable = mipmapFallback;
+    }
+
+    void reconcile(const PresentationState& presentation)
+    {
+        smoothingUnavailable = smoothingUnavailable && presentation.smoothing;
+        mipmapUnavailable = mipmapUnavailable && presentation.mipmap;
+        if (!smoothingUnavailable && !mipmapUnavailable) {
+            clear();
+        }
+    }
+
+    void clear()
+    {
+        generation = 0;
+        smoothingUnavailable = false;
+        mipmapUnavailable = false;
+    }
+
+    quint64 generation = 0;
+    bool smoothingUnavailable = false;
+    bool mipmapUnavailable = false;
+};
+
 struct DisplayState
 {
     struct RoleState
@@ -357,6 +398,7 @@ struct DisplayState
     {
         roles[0] = {};
         roles[1] = {};
+        renderQualityFallback.clear();
     }
 
     void discardRetainedDisplay()
@@ -368,6 +410,7 @@ struct DisplayState
         status = ImageViewportDisplayStatus::Empty;
         displayedPresentation = {};
         displayedPresentationRevision = 0;
+        renderQualityFallback.clear();
     }
 
     void beginPreparedPayloadIdentity(quint64 sequenceGeneration, DisplayRequest& activeRequest)
@@ -411,10 +454,20 @@ struct DisplayState
             && roles[0].displayedPayload.hasPresentableContent();
     }
 
+    bool hasActiveRenderQualityFallback(
+        quint64 acceptedGeneration, const PresentationState& presentation) const
+    {
+        return status != ImageViewportDisplayStatus::Empty
+            && roles[0].displayedRequest.generation == acceptedGeneration
+            && roles[0].displayedPayload.hasPresentableContent()
+            && renderQualityFallback.activeFor(acceptedGeneration, presentation);
+    }
+
     ImageViewportDisplayStatus status = ImageViewportDisplayStatus::Empty;
     std::array<RoleState, 2> roles;
     quint64 nextPreparedPayloadId = 0;
     PayloadAllocationState payloadAllocation;
+    RenderQualityFallbackState renderQualityFallback;
     PresentationState displayedPresentation;
     quint64 displayedPresentationRevision = 0;
     quint64 revision = 0;
@@ -534,14 +587,13 @@ struct RequestState
         }
     }
 
-    bool clearDiagnostics()
+    bool clearError()
     {
-        if (errorString.isEmpty() && warningString.isEmpty()) {
+        if (errorString.isEmpty()) {
             return false;
         }
 
         errorString.clear();
-        warningString.clear();
         return true;
     }
 
@@ -568,7 +620,6 @@ struct RequestState
     RenderFailureDiagnostic lastAcceptedRenderFailure;
     quint64 requestRevision = 0;
     QString errorString;
-    QString warningString;
 };
 
 struct ProviderSessionState

@@ -113,6 +113,19 @@ ImageViewportInternal::InternalObservation staleRenderFactObservation(
     return observation;
 }
 
+ImageViewportInternal::InternalObservation staleRenderQualityFallbackObservation(
+    const ViewportRenderAttempt& attempt)
+{
+    ImageViewportInternal::InternalObservation observation;
+    observation.subsystem = ImageViewportInternal::InternalObservationSubsystem::Engine;
+    observation.category = ImageViewportInternal::InternalObservationCategory::StaleDrop;
+    observation.cause = ImageViewportInternal::InternalObservationCause::StaleRenderQualityFallback;
+    observation.identity.generation = attempt.snapshot.targetSpread.generation;
+    observation.identity.requestId = attempt.snapshot.targetSpread.requestId;
+    observation.identity.renderAttempt = attempt.attempt;
+    return observation;
+}
+
 ViewportEngineViewportState normalizedViewportState(ViewportEngineViewportState viewport)
 {
     const double width = viewport.itemBounds.width();
@@ -234,6 +247,8 @@ ViewportEngineRenderHostTransition ViewportEngine::handleRenderHostFact(
     }
 
     const auto context = *active;
+    const bool warningBefore = m_state->displayState.display.hasActiveRenderQualityFallback(
+        m_state->requestState.request.sequenceGeneration, m_state->presentationState.presentation);
     const ViewportEngineRenderAcknowledgementInput acknowledgementInput {
         input.fact.acknowledgement,
         input.fact.imagePresent,
@@ -281,18 +296,33 @@ ViewportEngineRenderHostTransition ViewportEngine::handleRenderHostFact(
         }
     }
 
-    if (input.fact.outcome == ViewportRenderHostFact::Outcome::Committed) {
+    if (input.fact.outcome == ViewportRenderHostFact::Outcome::Committed
+        && input.fact.imagePresent) {
+        auto& display = m_state->displayState.display;
+        const auto& renderedTarget = context.attempt.snapshot.targetSpread;
+        const auto& displayedTarget = display.roles[0].displayedRequest;
         const auto& quality = input.fact.qualityFallback;
-        const QString warning = quality.smoothingUnavailable || quality.mipmapUnavailable
-            ? QStringLiteral("requested rendering quality is unavailable on the active backend")
-            : QString();
-        if (m_state->requestState.request.warningString != warning) {
-            m_state->requestState.request.warningString = warning;
-            result.changes.diagnostics = true;
-            result.changes.displayRevision = true;
+        const bool smoothingUnavailable
+            = context.attempt.snapshot.smoothing && quality.smoothingUnavailable;
+        const bool mipmapUnavailable = context.attempt.snapshot.mipmap && quality.mipmapUnavailable;
+        const bool renderedTargetIsCurrent = renderedTarget.generation != 0
+            && renderedTarget.generation == m_state->requestState.request.sequenceGeneration
+            && displayedTarget.generation == renderedTarget.generation
+            && displayedTarget.request.identity.id == renderedTarget.requestId;
+        if (renderedTargetIsCurrent) {
+            display.renderQualityFallback.assign(
+                renderedTarget.generation, smoothingUnavailable, mipmapUnavailable);
+        } else if (smoothingUnavailable || mipmapUnavailable) {
+            result.observations.append(staleRenderQualityFallbackObservation(context.attempt));
         }
     }
 
+    const bool warningAfter = m_state->displayState.display.hasActiveRenderQualityFallback(
+        m_state->requestState.request.sequenceGeneration, m_state->presentationState.presentation);
+    if (warningBefore != warningAfter) {
+        result.changes.diagnostics = true;
+        result.changes.displayRevision = true;
+    }
     m_state->renderCoordination.activeAttempt.reset();
     if (result.changes.playbackPhase) {
         result.playbackSchedule = currentPlaybackSchedule();

@@ -41,6 +41,14 @@ ImageViewportPresentationTargetGenerationToken generation(quint64 value)
     return PresentationTargetGenerationTokenPrivateAccess::fromValue(value);
 }
 
+QString renderQualityFallbackWarning(
+    const RequestState& request, const DisplayState& display, const PresentationState& presentation)
+{
+    return display.hasActiveRenderQualityFallback(request.sequenceGeneration, presentation)
+        ? QStringLiteral("requested rendering quality is unavailable on the active backend")
+        : QString();
+}
+
 ImageViewportDisplayPhase displayPhase(
     ImageViewportDisplayStatus display, ImageViewportRequestStatus request)
 {
@@ -414,8 +422,9 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
     return ImageViewportStateSnapshot(requestSnapshot, displaySnapshot, presentationSnapshot,
         roleSnapshot(ImageViewportPageRole::Primary),
         roleSnapshot(ImageViewportPageRole::Secondary),
-        ImageViewportDiagnosticsSnapshot(
-            access.request().errorString, access.request().warningString, access.commandReason()),
+        ImageViewportDiagnosticsSnapshot(access.request().errorString,
+            renderQualityFallbackWarning(access.request(), access.display(), access.presentation()),
+            access.commandReason()),
         ImageViewportRevisionsSnapshot(revision(access.request().requestRevision),
             revision(access.display().revision), revision(access.presentationRevision()),
             revision(commandRevisionValue), revision(snapshotRevisionValue)));

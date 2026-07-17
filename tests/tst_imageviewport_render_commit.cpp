@@ -45,6 +45,9 @@ private slots:
     void playbackWaitingRenderCommitAcknowledgementResumesWithoutSceneGraph();
     void geometryChangeRecoversRenderWaitingWithoutSceneGraph();
     void renderingQualityFallbackOwnsWarningAndDisplayRevision();
+    void renderingQualityFallbackFollowsRequestedPreferences();
+    void renderingQualityFallbackSurvivesSameGenerationSeekUntilDisplayIsDiscarded();
+    void replacedGenerationCannotRestoreRenderingQualityFallback();
 };
 
 void ImageViewportRenderCommitTest::renderingQualityFallbackOwnsWarningAndDisplayRevision()
@@ -95,6 +98,146 @@ void ImageViewportRenderCommitTest::renderingQualityFallbackOwnsWarningAndDispla
     QVERIFY(!viewportWarningString(item).isEmpty());
     item.clear();
     QVERIFY(viewportWarningString(item).isEmpty());
+}
+
+void ImageViewportRenderCommitTest::renderingQualityFallbackFollowsRequestedPreferences()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::red);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    acknowledgePendingPrimaryRenderCommitForTest(item);
+
+    ImageViewportPresentationCommand enableMipmap;
+    enableMipmap.setMipmap(true);
+    QCOMPARE(item.setPresentation(enableMipmap).outcome(), ImageViewportCommandOutcome::Accepted);
+    const ImageViewportRevisionToken requestRevision = viewportRequestRevision(item);
+
+    reportRenderQualityFallbackForTest(item, currentRenderAttemptForTest(item), true, true);
+    QVERIFY(!viewportWarningString(item).isEmpty());
+    QCOMPARE(viewportRequestRevision(item), requestRevision);
+
+    ImageViewportPresentationCommand disableMipmap;
+    disableMipmap.setMipmap(false);
+    QCOMPARE(item.setPresentation(disableMipmap).outcome(), ImageViewportCommandOutcome::Accepted);
+    QVERIFY(!viewportWarningString(item).isEmpty());
+
+    ImageViewportPresentationCommand disableSmoothing;
+    disableSmoothing.setSmoothing(false);
+    QCOMPARE(
+        item.setPresentation(disableSmoothing).outcome(), ImageViewportCommandOutcome::Accepted);
+    QVERIFY(viewportWarningString(item).isEmpty());
+    QCOMPARE(viewportRequestRevision(item), requestRevision);
+
+    reportRenderQualityFallbackForTest(item, currentRenderAttemptForTest(item), true, true);
+    QVERIFY(viewportWarningString(item).isEmpty());
+
+    ImageViewportPresentationCommand reenablePreferences;
+    reenablePreferences.setSmoothing(true);
+    reenablePreferences.setMipmap(true);
+    QCOMPARE(
+        item.setPresentation(reenablePreferences).outcome(), ImageViewportCommandOutcome::Accepted);
+    QVERIFY(viewportWarningString(item).isEmpty());
+
+    reportRenderQualityFallbackForTest(item, currentRenderAttemptForTest(item), true, true);
+    QVERIFY(!viewportWarningString(item).isEmpty());
+    QCOMPARE(viewportRequestRevision(item), requestRevision);
+}
+
+void ImageViewportRenderCommitTest::
+    renderingQualityFallbackSurvivesSameGenerationSeekUntilDisplayIsDiscarded()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::red);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::green);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList frames;
+    QVERIFY(frames.appendFrame(&firstFrame, 100));
+    QVERIFY(frames.appendFrame(&secondFrame, 250));
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&frames));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    acknowledgePendingPrimaryRenderCommitForTest(item);
+    reportRenderQualityFallbackForTest(item, currentRenderAttemptForTest(item), true, false);
+    QVERIFY(!viewportWarningString(item).isEmpty());
+
+    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 1).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(item.state().display().status(), ImageViewportDisplayStatus::Retained);
+    QVERIFY(!viewportWarningString(item).isEmpty());
+
+    const ImageViewportRevisionToken requestRevision = viewportRequestRevision(item);
+    const ImageViewportRevisionToken displayRevision = viewportDisplayRevision(item);
+    const ImageViewportRevisionToken snapshotRevision = item.state().revisions().snapshot();
+    discardRetainedDisplayForResourcePressureForTest(item);
+
+    QVERIFY(viewportWarningString(item).isEmpty());
+    QCOMPARE(viewportRequestRevision(item), requestRevision);
+    QVERIFY(viewportDisplayRevision(item) != displayRevision);
+    QVERIFY(item.state().revisions().snapshot() != snapshotRevision);
+}
+
+void ImageViewportRenderCommitTest::replacedGenerationCannotRestoreRenderingQualityFallback()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::red);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> replacement(factory.fromProvider(&adapter));
+    QVERIFY(replacement->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    const quint64 replacedGeneration = pendingRenderGenerationForTest(item);
+    acknowledgePendingPrimaryRenderCommitForTest(item);
+    reportRenderQualityFallbackForTest(item, currentRenderAttemptForTest(item), true, false);
+    QVERIFY(!viewportWarningString(item).isEmpty());
+
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(replacement->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(item.state().display().status(), ImageViewportDisplayStatus::Retained);
+    QVERIFY(viewportWarningString(item).isEmpty());
+
+    reportRenderQualityFallbackForTest(item, currentRenderAttemptForTest(item), true, false);
+    QVERIFY(viewportWarningString(item).isEmpty());
+
+    const auto observations = internalObservationsForTest(item);
+    QVERIFY(!observations.isEmpty());
+    const InternalObservationForTest stale = observations.constLast();
+    QCOMPARE(stale.subsystem, InternalObservationSubsystemForTest::Engine);
+    QCOMPARE(stale.category, InternalObservationCategoryForTest::StaleDrop);
+    QCOMPARE(stale.cause, InternalObservationCauseForTest::StaleRenderQualityFallback);
+    QCOMPARE(stale.identity.generation, replacedGeneration);
+    QVERIFY(stale.identity.renderAttempt > 0);
 }
 
 void ImageViewportRenderCommitTest::stillAssignmentWaitsForRenderCommitWithPositiveGeometry()
