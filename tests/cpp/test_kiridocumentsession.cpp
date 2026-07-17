@@ -437,7 +437,7 @@ std::unique_ptr<KiriDocumentSession> createSessionWithProvider(
     kiriview::ThumbnailGenerationProvider thumbnailGenerationProvider = {},
     std::shared_ptr<kiriview::ThumbnailImageStore> thumbnailImageStore = {},
     kiriview::MediaEntrySourceFactory mediaEntrySourceFactory = {},
-    kiriview::NavigationSourceFactProvider navigationSourceFacts = {})
+    kiriview::NavigationSourceEntryFactProvider navigationSourceFacts = {})
 {
     kiriview::KiriDocumentSessionDependencies dependencies;
     dependencies.sessionRuntime.directMediaNavigationCandidateProvider
@@ -901,8 +901,8 @@ void TestKiriDocumentSession::playableDirectoryCollectionVideoUsesOpenedCollecti
     FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
     const QUrl directoryUrl = localUrl(directory.path());
     const std::optional<kiriview::OpenedCollectionScopeLocation> directoryCollection
-        = kiriview::openedCollectionScopeLocationForDirectlyOpenedLocalSource(
-            kiriview::resolvedNavigationSource(directoryUrl, {}));
+        = kiriview::openedCollectionScopeLocationForResolvedExternalSource(
+            kiriview::NavigationSourceResolver().resolveExternalSource(directoryUrl));
     QVERIFY(directoryCollection.has_value());
     const QUrl firstPage = kiriview::TestSupport::archivePageUrl(
         directoryCollection->rootUrl(), QStringLiteral("chapter/01.png"));
@@ -1097,7 +1097,7 @@ void TestKiriDocumentSession::directImageRouteCollectsNavigationSourceFactsOnce(
                 if (url == imageUrl) {
                     ++probeCount;
                 }
-                return kiriview::NavigationSourceFacts {};
+                return kiriview::NavigationSourceEntryFacts {};
             });
 
     session->setSourceUrl(imageUrl);
@@ -1120,7 +1120,7 @@ void TestKiriDocumentSession::externalSourceAssignmentsProbeExactlyOncePerEntry(
             kiriview::TestSupport::staticImageDataDecoder(), {}, {}, {}, {}, {},
             [&probeCount](const QUrl&) {
                 ++probeCount;
-                return kiriview::NavigationSourceFacts {};
+                return kiriview::NavigationSourceEntryFacts {};
             });
 
     session->setSourceUrl(imageUrl);
@@ -1162,7 +1162,7 @@ void TestKiriDocumentSession::archiveScopeNavigationRetainsSingleResolvedSourceS
             pageCandidateProvider.provider(), kiriview::TestSupport::staticImageDataDecoder(), {},
             {}, {}, {}, {}, [&probeCount](const QUrl&) {
                 ++probeCount;
-                return kiriview::NavigationSourceFacts {};
+                return kiriview::NavigationSourceEntryFacts {};
             });
 
     session->setSourceUrl(archiveUrl);

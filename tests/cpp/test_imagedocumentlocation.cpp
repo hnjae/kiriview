@@ -213,8 +213,8 @@ void TestImageDocumentLocation::directoryCollectionPagesResolveToDirectoryCollec
 
     const QUrl directoryUrl = QUrl::fromLocalFile(directory.path());
     const std::optional<kiriview::OpenedCollectionScopeLocation> directoryCollection
-        = kiriview::openedCollectionScopeLocationForDirectlyOpenedLocalSource(
-            kiriview::resolvedNavigationSource(directoryUrl, {}));
+        = kiriview::openedCollectionScopeLocationForResolvedExternalSource(
+            kiriview::NavigationSourceResolver().resolveExternalSource(directoryUrl));
     QVERIFY(directoryCollection.has_value());
     QCOMPARE(directoryCollection->kind(), kiriview::OpenedCollectionScopeKind::Directory);
     QCOMPARE(directoryCollection->fileUrl(), directoryUrl);

@@ -77,7 +77,7 @@ kiriview::ImageDocumentPageNavigationService::Callbacks navigationCallbacks(
         },
         std::move(deletionInProgress),
         [](const QUrl& url) {
-            return kiriview::resolvedNavigationSource(url, kiriview::NavigationSourceFacts {});
+            return kiriview::resolvedNavigationSource(url, kiriview::NavigationSourceEntryFacts {});
         },
     };
 }

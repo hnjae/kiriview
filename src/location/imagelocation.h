@@ -45,7 +45,8 @@ private:
     static ResolvedNavigationSource normalizedSource(QUrl url)
     {
         const QUrl normalizedUrl = normalizedUrlForIdentity(url);
-        return ResolvedNavigationSource(normalizedUrl, NavigationSourceFacts {}, normalizedUrl);
+        return ResolvedNavigationSource(
+            normalizedUrl, NavigationSourceEntryFacts {}, normalizedUrl);
     }
 
     ResolvedNavigationSource m_source;
@@ -101,7 +102,7 @@ public:
     static OpenedCollectionScopeLocation fromUrls(
         QUrl fileUrl, QUrl rootUrl, OpenedCollectionScopeKind kind)
     {
-        NavigationSourceFacts facts;
+        NavigationSourceEntryFacts facts;
         const QUrl normalizedFileUrl = normalizedUrlForIdentity(fileUrl);
         return OpenedCollectionScopeLocation(
             ResolvedNavigationSource(normalizedFileUrl, std::move(facts), normalizedFileUrl),

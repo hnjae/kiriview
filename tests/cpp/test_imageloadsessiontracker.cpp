@@ -128,7 +128,7 @@ void TestImageLoadSessionTracker::directlyOpenedDirectoryStartsOpenedCollectionC
     kiriview::ImageLoadSessionTracker tracker;
     const kiriview::ImageLoadPlan plan
         = tracker.start(kiriview::ImageLoadRequest::fromExternalSource(
-            kiriview::resolvedNavigationSource(directoryUrl, {})));
+            kiriview::NavigationSourceResolver().resolveExternalSource(directoryUrl)));
     const kiriview::OpenedCollectionScopeLocation& scope = plan.session.openedCollectionScope();
 
     QCOMPARE(plan.startEffect, kiriview::ImageLoadStartEffect::LoadOpenedCollectionScopeCandidates);
@@ -146,7 +146,7 @@ void TestImageLoadSessionTracker::openedCollectionScopeRetainsResolvedNavigation
     int probeCount = 0;
     const kiriview::NavigationSourceResolver resolver([&probeCount](const QUrl&) {
         ++probeCount;
-        return kiriview::NavigationSourceFacts {};
+        return kiriview::NavigationSourceEntryFacts {};
     });
     kiriview::ImageLoadSessionTracker tracker;
     const QUrl archiveUrl = QUrl::fromLocalFile(QStringLiteral("/books/book.cbz"));
@@ -167,9 +167,9 @@ void TestImageLoadSessionTracker::openedCollectionScopeRetainsResolvedNavigation
 void TestImageLoadSessionTracker::sameScopePageLoadDoesNotProbeAgain()
 {
     int probeCount = 0;
-    const kiriview::NavigationSourceFactProvider provider = [&probeCount](const QUrl&) {
+    const kiriview::NavigationSourceEntryFactProvider provider = [&probeCount](const QUrl&) {
         ++probeCount;
-        return kiriview::NavigationSourceFacts {};
+        return kiriview::NavigationSourceEntryFacts {};
     };
     kiriview::ImageLoadSessionTracker tracker;
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));

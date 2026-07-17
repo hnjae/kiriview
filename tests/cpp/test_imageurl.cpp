@@ -160,7 +160,7 @@ void TestImageUrl::navigationSourceFactsResolveDocumentPortalHostWithoutXattr()
     const QUrl portalUrl = QUrl::fromLocalFile(QStringLiteral("/run/user/1000/doc/02.mp4"));
     const QUrl hostUrl = QUrl::fromLocalFile(QStringLiteral("/media/videos/02.mp4"));
 
-    kiriview::NavigationSourceFacts facts;
+    kiriview::NavigationSourceEntryFacts facts;
     facts.documentPortalHostPath = hostUrl.toLocalFile();
     QCOMPARE(kiriview::resolvedNavigationSource(portalUrl, facts).navigationUrl(), hostUrl);
 
@@ -170,7 +170,7 @@ void TestImageUrl::navigationSourceFactsResolveDocumentPortalHostWithoutXattr()
 
 void TestImageUrl::navigationSourceFactsRestoreKioFuseArchivesWithoutEnvironment()
 {
-    kiriview::NavigationSourceFacts facts;
+    kiriview::NavigationSourceEntryFacts facts;
     facts.runtimeDir = QStringLiteral("/run/user/1000");
 
     const QString cbzFusePath
@@ -193,34 +193,47 @@ void TestImageUrl::navigationSourceFactsRestoreKioFuseArchivesWithoutEnvironment
 
 void TestImageUrl::resolvedNavigationSourceCollectsFactsOncePerSnapshot()
 {
-    const QUrl portalUrl = QUrl::fromLocalFile(QStringLiteral("/run/user/1000/doc/book.cbz"));
-    const QUrl hostUrl = QUrl::fromLocalFile(QStringLiteral("/books/book.cbz"));
+    const QUrl portalUrl = QUrl::fromLocalFile(QStringLiteral("/run/user/1000/doc/album"));
+    const QUrl hostUrl = QUrl::fromLocalFile(QStringLiteral("/books/album"));
     int probeCount = 0;
-    const kiriview::NavigationSourceFactProvider provider = [&probeCount, &hostUrl](const QUrl&) {
-        ++probeCount;
-        return kiriview::NavigationSourceFacts {
-            hostUrl.toLocalFile(),
-            QStringLiteral("/run/user/1000"),
-        };
-    };
+    bool isDirectory = true;
+    const kiriview::NavigationSourceEntryFactProvider provider
+        = [&probeCount, &hostUrl, &isDirectory](const QUrl&) {
+              ++probeCount;
+              return kiriview::NavigationSourceEntryFacts {
+                  hostUrl.toLocalFile(),
+                  QStringLiteral("/run/user/1000"),
+                  isDirectory,
+              };
+          };
 
     const kiriview::ResolvedNavigationSource source
         = kiriview::NavigationSourceResolver(provider).resolveExternalSource(portalUrl);
     QCOMPARE(probeCount, 1);
     QCOMPARE(source.requestedUrl(), portalUrl);
     QCOMPARE(source.navigationUrl(), hostUrl);
+    QCOMPARE(source.entryKind(), kiriview::NavigationSourceEntryKind::Directory);
     QCOMPARE(kiriview::directoryNavigationLocationForSource(source).fileUrl, hostUrl);
     QCOMPARE(kiriview::directoryNavigationLocationForSource(source).fileUrl, hostUrl);
     QCOMPARE(probeCount, 1);
+
+    isDirectory = false;
+    QCOMPARE(source.entryKind(), kiriview::NavigationSourceEntryKind::Directory);
+    QCOMPARE(probeCount, 1);
+
+    const kiriview::ResolvedNavigationSource replacement
+        = kiriview::NavigationSourceResolver(provider).resolveExternalSource(portalUrl);
+    QCOMPARE(replacement.entryKind(), kiriview::NavigationSourceEntryKind::Direct);
+    QCOMPARE(probeCount, 2);
 }
 
 void TestImageUrl::resolvedNavigationSourceRetainsNegativeFactsUntilReplacement()
 {
     const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/books/book.cbz"));
     int probeCount = 0;
-    const kiriview::NavigationSourceFactProvider provider = [&probeCount](const QUrl&) {
+    const kiriview::NavigationSourceEntryFactProvider provider = [&probeCount](const QUrl&) {
         ++probeCount;
-        return kiriview::NavigationSourceFacts {};
+        return kiriview::NavigationSourceEntryFacts {};
     };
 
     const kiriview::ResolvedNavigationSource first
@@ -254,7 +267,8 @@ void TestImageUrl::injectedEmptyProviderDoesNotUseDefaultAdapter()
     }
 
     const QUrl portalUrl = QUrl::fromLocalFile(portalPath);
-    const kiriview::NavigationSourceResolver resolver(kiriview::NavigationSourceFactProvider {});
+    const kiriview::NavigationSourceResolver resolver(
+        kiriview::NavigationSourceEntryFactProvider {});
 
     QCOMPARE(resolver.resolveExternalSource(portalUrl).navigationUrl(), portalUrl);
 }

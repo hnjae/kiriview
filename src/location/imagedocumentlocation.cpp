@@ -9,7 +9,6 @@
 #include "location/imageurl.h"
 
 #include <QByteArray>
-#include <QFileInfo>
 #include <optional>
 
 namespace {
@@ -90,13 +89,13 @@ directoryOpenedCollectionScopeLocationForLocalSource(
     const kiriview::ResolvedNavigationSource& source)
 {
     const QUrl& url = source.requestedUrl();
-    if (!url.isLocalFile()) {
+    if (source.entryKind() != kiriview::NavigationSourceEntryKind::Directory
+        || !url.isLocalFile()) {
         return std::nullopt;
     }
 
     const QUrl fileUrl = kiriview::normalizedFileContainerUrl(url);
-    const QString localPath = fileUrl.toLocalFile();
-    if (localPath.isEmpty() || !QFileInfo(localPath).isDir()) {
+    if (fileUrl.toLocalFile().isEmpty()) {
         return std::nullopt;
     }
 
@@ -181,21 +180,17 @@ std::optional<OpenedCollectionScopeLocation> openedCollectionScopeLocationForLoc
     return OpenedCollectionScopeLocation::fromResolvedSource(source, root->rootUrl, root->kind);
 }
 
-std::optional<OpenedCollectionScopeLocation>
-openedCollectionScopeLocationForDirectlyOpenedLocalSource(const ResolvedNavigationSource& source)
+std::optional<OpenedCollectionScopeLocation> openedCollectionScopeLocationForResolvedExternalSource(
+    const ResolvedNavigationSource& source)
 {
-    const std::optional<OpenedCollectionScopeLocation> directoryCollection
-        = directoryOpenedCollectionScopeLocationForLocalSource(source);
-    if (directoryCollection.has_value()) {
-        return directoryCollection;
+    switch (source.entryKind()) {
+    case NavigationSourceEntryKind::Direct:
+        return std::nullopt;
+    case NavigationSourceEntryKind::Directory:
+        return directoryOpenedCollectionScopeLocationForLocalSource(source);
+    case NavigationSourceEntryKind::Archive:
+        return openedCollectionScopeLocationForLocalArchiveSource(source);
     }
-
-    const std::optional<OpenedCollectionScopeLocation> archiveCollection
-        = openedCollectionScopeLocationForLocalArchiveSource(source);
-    if (archiveCollection.has_value()) {
-        return archiveCollection;
-    }
-
     return std::nullopt;
 }
 

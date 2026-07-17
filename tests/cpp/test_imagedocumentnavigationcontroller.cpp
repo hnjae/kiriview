@@ -83,7 +83,7 @@ public:
                   {},
                   [](const QUrl& url) {
                       return kiriview::resolvedNavigationSource(
-                          url, kiriview::NavigationSourceFacts {});
+                          url, kiriview::NavigationSourceEntryFacts {});
                   },
               })
         , spread(&context, renderContext, state, pageSurface, presentationRuntime,

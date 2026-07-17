@@ -379,7 +379,7 @@ void TestImageDocumentRuntime::externalSourceAssignmentsResolveOnceAtStandaloneO
     dependencies.navigationSourceResolver
         = kiriview::NavigationSourceResolver([&probeCount](const QUrl&) {
               ++probeCount;
-              return kiriview::NavigationSourceFacts {};
+              return kiriview::NavigationSourceEntryFacts {};
           });
     RuntimeHandle runtime(
         this, []() { return kiriview::ImageDocumentRenderContext {}; }, {},
@@ -501,8 +501,8 @@ void TestImageDocumentRuntime::openedCollectionScopeProjectionsFollowDisplayedIm
     QVERIFY(directory.isValid());
     const QUrl directoryUrl = localUrl(directory.path());
     const std::optional<kiriview::OpenedCollectionScopeLocation> directoryCollection
-        = kiriview::openedCollectionScopeLocationForDirectlyOpenedLocalSource(
-            kiriview::resolvedNavigationSource(directoryUrl, {}));
+        = kiriview::openedCollectionScopeLocationForResolvedExternalSource(
+            kiriview::NavigationSourceResolver().resolveExternalSource(directoryUrl));
     QVERIFY(directoryCollection.has_value());
     const QUrl directoryPage
         = archivePageUrl(directoryCollection->rootUrl(), QStringLiteral("01.png"));

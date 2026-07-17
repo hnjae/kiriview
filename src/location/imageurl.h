@@ -18,13 +18,20 @@ struct DirectoryNavigationLocation
     bool isValid() const;
 };
 
-struct NavigationSourceFacts
+enum class NavigationSourceEntryKind {
+    Direct,
+    Directory,
+    Archive,
+};
+
+struct NavigationSourceEntryFacts
 {
     std::optional<QString> documentPortalHostPath;
     QString runtimeDir;
+    bool requestedLocalSourceIsDirectory = false;
 };
 
-using NavigationSourceFactProvider = std::function<NavigationSourceFacts(const QUrl&)>;
+using NavigationSourceEntryFactProvider = std::function<NavigationSourceEntryFacts(const QUrl&)>;
 
 class ResolvedNavigationSource;
 
@@ -32,28 +39,32 @@ class NavigationSourceResolver
 {
 public:
     NavigationSourceResolver();
-    explicit NavigationSourceResolver(NavigationSourceFactProvider provider);
+    explicit NavigationSourceResolver(NavigationSourceEntryFactProvider provider);
     ResolvedNavigationSource resolveExternalSource(const QUrl& url) const;
 
 private:
-    NavigationSourceFactProvider m_provider;
+    NavigationSourceEntryFactProvider m_provider;
 };
 
 class ResolvedNavigationSource
 {
 public:
     ResolvedNavigationSource() = default;
-    ResolvedNavigationSource(QUrl requestedUrl, NavigationSourceFacts facts, QUrl navigationUrl);
+    ResolvedNavigationSource(QUrl requestedUrl, NavigationSourceEntryFacts facts,
+        QUrl navigationUrl,
+        NavigationSourceEntryKind entryKind = NavigationSourceEntryKind::Direct);
 
     const QUrl& requestedUrl() const { return m_requestedUrl; }
-    const NavigationSourceFacts& facts() const { return m_facts; }
+    const NavigationSourceEntryFacts& facts() const { return m_facts; }
     const QUrl& navigationUrl() const { return m_navigationUrl; }
+    NavigationSourceEntryKind entryKind() const { return m_entryKind; }
     bool isEmpty() const { return m_requestedUrl.isEmpty(); }
 
 private:
     QUrl m_requestedUrl;
-    NavigationSourceFacts m_facts;
+    NavigationSourceEntryFacts m_facts;
     QUrl m_navigationUrl;
+    NavigationSourceEntryKind m_entryKind = NavigationSourceEntryKind::Direct;
 };
 
 QUrl normalizedUrlForIdentity(const QUrl& url);
@@ -70,7 +81,7 @@ QUrl normalizedDirectoryContainerUrl(const QUrl& url);
 QUrl parentDirectoryUrlForFileNavigation(const QUrl& url);
 QUrl parentUrlForContainerNavigation(const QUrl& containerUrl);
 ResolvedNavigationSource resolvedNavigationSource(
-    const QUrl& requestedUrl, const NavigationSourceFacts& facts);
+    const QUrl& requestedUrl, const NavigationSourceEntryFacts& facts);
 DirectoryNavigationLocation directoryNavigationLocationForSource(
     const ResolvedNavigationSource& source);
 bool sameNormalizedUrl(const QUrl& left, const QUrl& right);

@@ -113,7 +113,8 @@ void TestDirectMediaCursor::mismatchedConfirmationPreservesPendingSnapshot()
     const QUrl requestedImage(QStringLiteral("file:///media/01.png"));
     const QUrl staleConfirmation(QStringLiteral("file:///media/02.png"));
     const kiriview::ResolvedNavigationSource source(requestedImage,
-        kiriview::NavigationSourceFacts { QStringLiteral("/host/01.png"), QStringLiteral("/run") },
+        kiriview::NavigationSourceEntryFacts {
+            QStringLiteral("/host/01.png"), QStringLiteral("/run") },
         QUrl::fromLocalFile(QStringLiteral("/host/01.png")));
 
     kiriview::requestDirectImageCursor(cursor, source);

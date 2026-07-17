@@ -23,7 +23,7 @@ QUrl localUrl(const QString& path) { return QUrl::fromLocalFile(path); }
 kiriview::OpenedCollectionScopeLocation directoryScope(const QUrl& url)
 {
     const kiriview::ResolvedNavigationSource source
-        = kiriview::resolvedNavigationSource(url, kiriview::NavigationSourceFacts {});
+        = kiriview::resolvedNavigationSource(url, kiriview::NavigationSourceEntryFacts {});
     const kiriview::DirectoryNavigationLocation location
         = kiriview::directoryNavigationLocationForSource(source);
     return kiriview::OpenedCollectionScopeLocation::fromResolvedSource(
@@ -33,7 +33,7 @@ kiriview::OpenedCollectionScopeLocation directoryScope(const QUrl& url)
 kiriview::OpenedCollectionScopeLocation archiveScope(const QUrl& url)
 {
     return kiriview::openedCollectionScopeLocationForLocalArchiveSource(
-        kiriview::resolvedNavigationSource(url, kiriview::NavigationSourceFacts {}))
+        kiriview::resolvedNavigationSource(url, kiriview::NavigationSourceEntryFacts {}))
         .value();
 }
 

@@ -436,8 +436,8 @@ void TestImageLoader::directoryCollectionResolvesFirstImage()
 
     const QUrl directoryUrl = localUrl(directory.path());
     const std::optional<kiriview::OpenedCollectionScopeLocation> directoryCollection
-        = kiriview::openedCollectionScopeLocationForDirectlyOpenedLocalSource(
-            kiriview::resolvedNavigationSource(directoryUrl, {}));
+        = kiriview::openedCollectionScopeLocationForResolvedExternalSource(
+            kiriview::NavigationSourceResolver().resolveExternalSource(directoryUrl));
     QVERIFY(directoryCollection.has_value());
     const QUrl firstImageUrl
         = archivePageUrl(directoryCollection->rootUrl(), QStringLiteral("01.png"));
@@ -459,7 +459,7 @@ void TestImageLoader::directoryCollectionResolvesFirstImage()
         = createLoader(this, candidateProvider, dataLoader, std::move(callbacks));
 
     loader.start(kiriview::ImageLoadRequest::fromExternalSource(
-        kiriview::resolvedNavigationSource(directoryUrl, {})));
+        kiriview::NavigationSourceResolver().resolveExternalSource(directoryUrl)));
 
     QVERIFY(resolvedSession.has_value());
     QCOMPARE(resolvedSession->imageUrl(), firstImageUrl);
@@ -484,8 +484,8 @@ void TestImageLoader::directoryCollectionVideoReportsUnsupportedOpenedCollection
 
     const QUrl directoryUrl = localUrl(directory.path());
     const std::optional<kiriview::OpenedCollectionScopeLocation> directoryCollection
-        = kiriview::openedCollectionScopeLocationForDirectlyOpenedLocalSource(
-            kiriview::resolvedNavigationSource(directoryUrl, {}));
+        = kiriview::openedCollectionScopeLocationForResolvedExternalSource(
+            kiriview::NavigationSourceResolver().resolveExternalSource(directoryUrl));
     QVERIFY(directoryCollection.has_value());
     const QUrl videoUrl = archivePageUrl(directoryCollection->rootUrl(), QStringLiteral("01.mp4"));
     candidateProvider.setOpenedCollectionCandidates(directoryCollection->rootUrl(),
@@ -506,7 +506,7 @@ void TestImageLoader::directoryCollectionVideoReportsUnsupportedOpenedCollection
         = createLoader(this, candidateProvider, dataLoader, std::move(callbacks));
 
     loader.start(kiriview::ImageLoadRequest::fromExternalSource(
-        kiriview::resolvedNavigationSource(directoryUrl, {})));
+        kiriview::NavigationSourceResolver().resolveExternalSource(directoryUrl)));
 
     QVERIFY(resolvedSession.has_value());
     QCOMPARE(resolvedSession->imageUrl(), videoUrl);

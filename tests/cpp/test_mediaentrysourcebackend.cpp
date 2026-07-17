@@ -234,8 +234,8 @@ void TestMediaEntrySourceBackend::directoryListingIncludesNestedSupportedMedia()
     writeFile(dir.filePath(QStringLiteral("chapter/01.png")), QByteArrayLiteral("one"));
 
     const std::optional<kiriview::OpenedCollectionScopeLocation> directoryCollection
-        = kiriview::openedCollectionScopeLocationForDirectlyOpenedLocalSource(
-            kiriview::resolvedNavigationSource(localUrl(dir.path()), {}));
+        = kiriview::openedCollectionScopeLocationForResolvedExternalSource(
+            kiriview::NavigationSourceResolver().resolveExternalSource(localUrl(dir.path())));
     QVERIFY(directoryCollection.has_value());
     QCOMPARE(directoryCollection->kind(), kiriview::OpenedCollectionScopeKind::Directory);
     const kiriview::MediaEntrySourceCandidatesResult result
@@ -335,8 +335,8 @@ void TestMediaEntrySourceBackend::readingDirectoryEntryReturnsOriginalBytes()
     writeFile(dir.filePath(QStringLiteral("pages/page.png")), expected);
 
     const std::optional<kiriview::OpenedCollectionScopeLocation> directoryCollection
-        = kiriview::openedCollectionScopeLocationForDirectlyOpenedLocalSource(
-            kiriview::resolvedNavigationSource(localUrl(dir.path()), {}));
+        = kiriview::openedCollectionScopeLocationForResolvedExternalSource(
+            kiriview::NavigationSourceResolver().resolveExternalSource(localUrl(dir.path())));
     QVERIFY(directoryCollection.has_value());
     const kiriview::MediaEntrySourceImageDataResult result
         = kiriview::loadMediaEntrySourceImageData(*directoryCollection,
@@ -502,8 +502,8 @@ void TestMediaEntrySourceBackend::directoryCollectionMediaEntrySourceListsAndRea
     writeFile(dir.filePath(QStringLiteral("pages/01.png")), QByteArrayLiteral("one"));
 
     const std::optional<kiriview::OpenedCollectionScopeLocation> directoryCollection
-        = kiriview::openedCollectionScopeLocationForDirectlyOpenedLocalSource(
-            kiriview::resolvedNavigationSource(localUrl(dir.path()), {}));
+        = kiriview::openedCollectionScopeLocationForResolvedExternalSource(
+            kiriview::NavigationSourceResolver().resolveExternalSource(localUrl(dir.path())));
     QVERIFY(directoryCollection.has_value());
     kiriview::MediaEntrySourceOpenResult opened
         = kiriview::openMediaEntrySource(*directoryCollection);
@@ -790,8 +790,8 @@ void TestMediaEntrySourceBackend::unsupportedCollectionEntriesDoNotReturnThumbna
     QVERIFY(std::get_if<kiriview::MediaEntrySourceError>(&cbrResult) != nullptr);
 
     const std::optional<kiriview::OpenedCollectionScopeLocation> directoryCollection
-        = kiriview::openedCollectionScopeLocationForDirectlyOpenedLocalSource(
-            kiriview::resolvedNavigationSource(localUrl(dir.path()), {}));
+        = kiriview::openedCollectionScopeLocationForResolvedExternalSource(
+            kiriview::NavigationSourceResolver().resolveExternalSource(localUrl(dir.path())));
     QVERIFY(directoryCollection.has_value());
     const kiriview::MediaEntrySourceThumbnailMetadataResult directoryResult
         = kiriview::loadMediaEntrySourceThumbnailMetadata(*directoryCollection,
@@ -901,8 +901,8 @@ void TestMediaEntrySourceBackend::directoryCollectionVideoEntryReturnsPlaybackDe
     writeFile(dir.filePath(QStringLiteral("pages/clip.mp4")), expected);
 
     const std::optional<kiriview::OpenedCollectionScopeLocation> directoryCollection
-        = kiriview::openedCollectionScopeLocationForDirectlyOpenedLocalSource(
-            kiriview::resolvedNavigationSource(localUrl(dir.path()), {}));
+        = kiriview::openedCollectionScopeLocationForResolvedExternalSource(
+            kiriview::NavigationSourceResolver().resolveExternalSource(localUrl(dir.path())));
     QVERIFY(directoryCollection.has_value());
     kiriview::MediaEntrySourceVideoPlaybackDeviceResult directoryResult
         = kiriview::loadMediaEntrySourceVideoPlaybackDevice(*directoryCollection,
@@ -989,9 +989,9 @@ void TestMediaEntrySourceBackend::sourceErrorsPreserveBackendOperationAndIdentit
     QDir root(dir.path());
     QVERIFY(root.mkpath(QStringLiteral("directory")));
     const std::optional<kiriview::OpenedCollectionScopeLocation> directoryCollection
-        = kiriview::openedCollectionScopeLocationForDirectlyOpenedLocalSource(
-            kiriview::resolvedNavigationSource(
-                localUrl(dir.filePath(QStringLiteral("directory"))), {}));
+        = kiriview::openedCollectionScopeLocationForResolvedExternalSource(
+            kiriview::NavigationSourceResolver().resolveExternalSource(
+                localUrl(dir.filePath(QStringLiteral("directory")))));
     QVERIFY(directoryCollection.has_value());
     const QUrl missingEntryUrl
         = archivePageUrl(directoryCollection->rootUrl(), QStringLiteral("missing.png"));

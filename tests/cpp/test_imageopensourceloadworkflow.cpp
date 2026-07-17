@@ -21,7 +21,7 @@ QUrl localUrl(const QString& path) { return QUrl::fromLocalFile(path); }
 kiriview::OpenedCollectionScopeLocation testScope(const QUrl& url)
 {
     return kiriview::OpenedCollectionScopeLocation::fromResolvedSource(
-        kiriview::resolvedNavigationSource(url, kiriview::NavigationSourceFacts {}), url,
+        kiriview::resolvedNavigationSource(url, kiriview::NavigationSourceEntryFacts {}), url,
         kiriview::OpenedCollectionScopeKind::GeneralArchive);
 }
 }

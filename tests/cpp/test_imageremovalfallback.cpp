@@ -99,8 +99,8 @@ void TestImageRemovalFallback::directoryCollectionPlanTargetsDirectory()
 
     const QUrl directoryUrl = QUrl::fromLocalFile(directory.path());
     const std::optional<kiriview::OpenedCollectionScopeLocation> directoryCollection
-        = kiriview::openedCollectionScopeLocationForDirectlyOpenedLocalSource(
-            kiriview::resolvedNavigationSource(directoryUrl, {}));
+        = kiriview::openedCollectionScopeLocationForResolvedExternalSource(
+            kiriview::NavigationSourceResolver().resolveExternalSource(directoryUrl));
     QVERIFY(directoryCollection.has_value());
     QUrl pageUrl = directoryCollection->rootUrl();
     pageUrl.setPath(directoryCollection->rootUrl().path() + QStringLiteral("page.png"));

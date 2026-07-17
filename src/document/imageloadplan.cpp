@@ -12,7 +12,7 @@ OpenedCollectionScopeLoadPlan openedCollectionScopeLoadPlan(const ImageLoadReque
 {
     if (const ResolvedNavigationSource* source = request.externalSource()) {
         const std::optional<OpenedCollectionScopeLocation> openedCollectionScope
-            = openedCollectionScopeLocationForDirectlyOpenedLocalSource(*source);
+            = openedCollectionScopeLocationForResolvedExternalSource(*source);
         if (openedCollectionScope.has_value()) {
             return { *openedCollectionScope,
                 OpenedCollectionScopeLoadEffect::LoadImageDocumentPageCandidates };

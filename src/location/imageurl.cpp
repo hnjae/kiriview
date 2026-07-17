@@ -3,6 +3,7 @@
 
 #include "location/imageurl.h"
 
+#include "archive/archiveformat.h"
 #include "archive/archivepath.h"
 #include "navigation/navigationlogging.h"
 
@@ -10,6 +11,7 @@
 #include <QDebug>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QString>
 #include <QtGlobal>
 #include <cerrno>
@@ -122,21 +124,35 @@ std::optional<QString> documentPortalHostPath(const QUrl& url)
     return std::nullopt;
 }
 
-kiriview::NavigationSourceFacts collectNavigationSourceFacts(const QUrl& url)
+kiriview::NavigationSourceEntryFacts collectNavigationSourceEntryFacts(const QUrl& url)
 {
-    return kiriview::NavigationSourceFacts {
+    return kiriview::NavigationSourceEntryFacts {
         documentPortalHostPath(url),
         runtimeDirForNavigationSource(),
+        url.isLocalFile() && QFileInfo(QDir::cleanPath(url.toLocalFile())).isDir(),
     };
+}
+
+kiriview::NavigationSourceEntryKind navigationSourceEntryKind(
+    const QUrl& requestedUrl, const kiriview::NavigationSourceEntryFacts& facts)
+{
+    if (requestedUrl.isLocalFile() && facts.requestedLocalSourceIsDirectory) {
+        return kiriview::NavigationSourceEntryKind::Directory;
+    }
+    if (kiriview::directArchiveOpenMatchForUrl(requestedUrl).has_value()) {
+        return kiriview::NavigationSourceEntryKind::Archive;
+    }
+    return kiriview::NavigationSourceEntryKind::Direct;
 }
 }
 
 namespace kiriview {
-ResolvedNavigationSource::ResolvedNavigationSource(
-    QUrl requestedUrl, NavigationSourceFacts facts, QUrl navigationUrl)
+ResolvedNavigationSource::ResolvedNavigationSource(QUrl requestedUrl,
+    NavigationSourceEntryFacts facts, QUrl navigationUrl, NavigationSourceEntryKind entryKind)
     : m_requestedUrl(std::move(requestedUrl))
     , m_facts(std::move(facts))
     , m_navigationUrl(std::move(navigationUrl))
+    , m_entryKind(entryKind)
 {
 }
 
@@ -217,7 +233,7 @@ QUrl parentUrlForContainerNavigation(const QUrl& containerUrl)
 }
 
 ResolvedNavigationSource resolvedNavigationSource(
-    const QUrl& requestedUrl, const NavigationSourceFacts& facts)
+    const QUrl& requestedUrl, const NavigationSourceEntryFacts& facts)
 {
     QUrl navigationUrl = requestedUrl;
     if (requestedUrl.isLocalFile() && facts.documentPortalHostPath.has_value()) {
@@ -234,15 +250,16 @@ ResolvedNavigationSource resolvedNavigationSource(
         }
     }
 
-    return ResolvedNavigationSource(requestedUrl, facts, navigationUrl);
+    return ResolvedNavigationSource(
+        requestedUrl, facts, navigationUrl, navigationSourceEntryKind(requestedUrl, facts));
 }
 
 NavigationSourceResolver::NavigationSourceResolver()
-    : m_provider(collectNavigationSourceFacts)
+    : m_provider(collectNavigationSourceEntryFacts)
 {
 }
 
-NavigationSourceResolver::NavigationSourceResolver(NavigationSourceFactProvider provider)
+NavigationSourceResolver::NavigationSourceResolver(NavigationSourceEntryFactProvider provider)
     : m_provider(std::move(provider))
 {
 }
@@ -253,7 +270,8 @@ ResolvedNavigationSource NavigationSourceResolver::resolveExternalSource(const Q
         return {};
     }
 
-    const NavigationSourceFacts facts = m_provider ? m_provider(url) : NavigationSourceFacts {};
+    const NavigationSourceEntryFacts facts
+        = m_provider ? m_provider(url) : NavigationSourceEntryFacts {};
     ResolvedNavigationSource source = resolvedNavigationSource(url, facts);
     if (!sameNormalizedUrl(url, source.navigationUrl())) {
         qCDebug(kiriviewNavigationLog) << "navigation source url resolved"

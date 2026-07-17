@@ -7,7 +7,6 @@
 
 #include <QObject>
 #include <QSize>
-#include <QTemporaryDir>
 #include <QTest>
 #include <QUrl>
 #include <QtGlobal>
@@ -25,7 +24,8 @@ class TestImageLoadPlan : public QObject
 private Q_SLOTS:
     void localFilePlansDirectImageLoad();
     void localComicBookArchivePlansArchiveListing();
-    void unresolvedLocalDirectoryUrlPlansDirectImageLoad();
+    void sealedDirectSourcePlansDirectImageLoad();
+    void sealedDirectorySourcePlansDocumentListing();
     void resolvedLocalDirectoryScopePlansDocumentListing();
     void containerNavigationRestoresArchiveCollectionForInteriorImage();
     void displayedArchiveContextIsKeptForInteriorImage();
@@ -69,7 +69,7 @@ void TestImageLoadPlan::localComicBookArchivePlansArchiveListing()
         kiriview::OpenedCollectionScopeKind::ComicBookArchive);
 }
 
-void TestImageLoadPlan::unresolvedLocalDirectoryUrlPlansDirectImageLoad()
+void TestImageLoadPlan::sealedDirectSourcePlansDirectImageLoad()
 {
     const QUrl directoryUrl = localUrl(QStringLiteral("/synthetic/album"));
     const kiriview::ImageLoadPlan plan = kiriview::imageLoadPlan(12,
@@ -80,6 +80,25 @@ void TestImageLoadPlan::unresolvedLocalDirectoryUrlPlansDirectImageLoad()
     QCOMPARE(plan.startEffect, kiriview::ImageLoadStartEffect::DecodeImage);
     QCOMPARE(plan.session.imageUrl(), directoryUrl);
     QVERIFY(plan.session.openedCollectionScope().isEmpty());
+}
+
+void TestImageLoadPlan::sealedDirectorySourcePlansDocumentListing()
+{
+    const QUrl directoryUrl = localUrl(QStringLiteral("/synthetic/album"));
+    kiriview::NavigationSourceEntryFacts facts;
+    facts.requestedLocalSourceIsDirectory = true;
+    const kiriview::ImageLoadPlan plan = kiriview::imageLoadPlan(14,
+        kiriview::ImageLoadRequest::fromExternalSource(
+            kiriview::resolvedNavigationSource(directoryUrl, facts)));
+
+    QCOMPARE(plan.session.id(), quint64(14));
+    QCOMPARE(plan.startEffect, kiriview::ImageLoadStartEffect::LoadOpenedCollectionScopeCandidates);
+    QCOMPARE(plan.session.imageUrl(), directoryUrl);
+    QCOMPARE(plan.session.location().openedCollectionScopeSourceUrl(), directoryUrl);
+    QCOMPARE(plan.session.location().openedCollectionScopeRootUrl(),
+        kiriview::normalizedDirectoryContainerUrl(directoryUrl));
+    QCOMPARE(plan.session.openedCollectionScope().kind(),
+        kiriview::OpenedCollectionScopeKind::Directory);
 }
 
 void TestImageLoadPlan::resolvedLocalDirectoryScopePlansDocumentListing()
