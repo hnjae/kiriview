@@ -101,9 +101,6 @@ qt_add_qml_module(
     viewportplaybackcontract_p.h
     viewportprovidercontract_p.h
     viewportrendercontract_p.h
-    viewportitemtransaction_p.h
-    viewportcommandoutcome.cpp
-    viewportcommandoutcome_p.h
     viewportproviderbridge.cpp
     viewportproviderbridge_p.h)
 

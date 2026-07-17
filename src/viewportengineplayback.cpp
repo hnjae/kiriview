@@ -1,8 +1,8 @@
 #include "viewportengine_p.h"
 #include "viewportenginecapabilities_p.h"
 #include "viewportengineplaybackoperations_p.h"
+#include "viewportprovidertransporteffects_p.h"
 
-#include "imageviewporttoken_p.h"
 #include "viewportplaybackcontract_p.h"
 
 #include <algorithm>
@@ -37,18 +37,6 @@ bool rolePresent(const ImageViewportInternal::RequestState& request, ImageViewpo
     return requestRole(request, role).source.facts.present;
 }
 
-void appendCommandChanges(
-    const ViewportEngineCommandResult& command, ImageViewportInternal::ViewportChangeSet& changes)
-{
-    if (!command.commandRevisionChanged) {
-        return;
-    }
-    changes.commandRevision = true;
-    changes.commandRevisionValue
-        = ImageViewportInternal::RevisionTokenPrivateAccess::value(command.commandRevision);
-    changes.diagnostics = true;
-}
-
 bool hasStateChanges(const ImageViewportInternal::ViewportChangeSet& changes)
 {
     return changes.requestState || changes.displayState || changes.geometryState
@@ -66,34 +54,37 @@ bool hasProviderEffects(const std::array<ViewportProviderFrameTransportEffect, 2
 }
 }
 
-ViewportEnginePlaybackCommandResult ViewportEngine::applyPlaybackCommand(
+ViewportEngineCommandTransition ViewportEngine::applyPlaybackCommand(
     ViewportEnginePlaybackCommandRequest input)
 {
-    ViewportEnginePlaybackCommandResult result;
+    ViewportEngineTransitionDraft transition;
+    const auto appendEffects
+        = [&transition](const std::array<ViewportProviderFrameTransportEffect, 2>& effects) {
+              appendProviderTransport(
+                  transition.providerTransport, effects[0], ImageViewportPageRole::Primary);
+              appendProviderTransport(
+                  transition.providerTransport, effects[1], ImageViewportPageRole::Secondary);
+          };
     const GeometryInput geometry = acceptedGeometry();
     if (!validateViewportPlaybackCommand(input.command)) {
-        result.command = rejectInvalidCommand();
-        appendCommandChanges(result.command, result.changes);
-        result.schedule = { ViewportPlaybackScheduleEffect::Action::NoChange, -1 };
-        return result;
+        transition.playbackSchedule = { ViewportPlaybackScheduleEffect::Action::NoChange, -1 };
+        return finalizeCommandTransition(rejectInvalidCommand(), std::move(transition));
     }
     if (!rolePresent(m_state->requestState.request, input.command.role)) {
-        result.command = rejected(ImageViewportCommandOutcome::IgnoredNoRequest,
-            ImageViewportCommandReason::IgnoredNoRequest);
-        appendCommandChanges(result.command, result.changes);
-        result.schedule = { ViewportPlaybackScheduleEffect::Action::NoChange, -1 };
-        return result;
+        transition.playbackSchedule = { ViewportPlaybackScheduleEffect::Action::NoChange, -1 };
+        return finalizeCommandTransition(rejected(ImageViewportCommandOutcome::IgnoredNoRequest,
+                                             ImageViewportCommandReason::IgnoredNoRequest),
+            std::move(transition));
     }
     if (input.command.kind == ViewportPlaybackCommand::Kind::Pause) {
         ViewportEnginePlaybackPauseAccess access(m_state->playbackState.playback);
         const auto reduction
             = reduceViewportEnginePlaybackPause({ input.command.role }, std::move(access));
-        result.command
+        const auto command
             = reduction.playbackPhaseChanged ? accepted() : acceptedPreservingCommandDiagnostics();
-        appendCommandChanges(result.command, result.changes);
-        result.changes.playbackPhase = reduction.playbackPhaseChanged;
-        result.schedule = currentPlaybackSchedule();
-        return result;
+        transition.changes.playbackPhase = reduction.playbackPhaseChanged;
+        transition.playbackSchedule = currentPlaybackSchedule();
+        return finalizeCommandTransition(command, std::move(transition));
     }
     if (input.command.kind == ViewportPlaybackCommand::Kind::Stop) {
         ViewportEnginePlaybackStopAccess access(m_state->requestState.request,
@@ -103,15 +94,14 @@ ViewportEnginePlaybackCommandResult ViewportEngine::applyPlaybackCommand(
             m_state->requestState.presentationTarget.generation);
         auto reduction
             = reduceViewportEnginePlaybackStop({ input.command.role, geometry }, std::move(access));
-        result.command = hasStateChanges(reduction.changes)
+        const auto command = hasStateChanges(reduction.changes)
                 || hasProviderEffects(reduction.providerFrameTransport)
             ? accepted()
             : acceptedPreservingCommandDiagnostics();
-        appendCommandChanges(result.command, result.changes);
-        mergeChanges(result.changes, reduction.changes);
-        result.effects.providerFrameTransport = reduction.providerFrameTransport;
-        result.schedule = currentPlaybackSchedule();
-        return result;
+        mergeChanges(transition.changes, reduction.changes);
+        appendEffects(reduction.providerFrameTransport);
+        transition.playbackSchedule = currentPlaybackSchedule();
+        return finalizeCommandTransition(command, std::move(transition));
     }
     if (input.command.kind == ViewportPlaybackCommand::Kind::SeekFrame
         || input.command.kind == ViewportPlaybackCommand::Kind::SeekPosition) {
@@ -125,18 +115,17 @@ ViewportEnginePlaybackCommandResult ViewportEngine::applyPlaybackCommand(
             std::move(access));
         const bool changed = hasStateChanges(reduction.changes)
             || hasProviderEffects(reduction.providerFrameTransport);
-        result.command = reduction.outcome != ImageViewportCommandOutcome::Accepted
+        const auto command = reduction.outcome != ImageViewportCommandOutcome::Accepted
             ? rejected(reduction.outcome, reduction.reason)
             : changed ? accepted()
                       : acceptedPreservingCommandDiagnostics();
-        appendCommandChanges(result.command, result.changes);
-        mergeChanges(result.changes, reduction.changes);
-        result.effects.providerFrameTransport = reduction.providerFrameTransport;
-        result.schedule = reduction.outcome == ImageViewportCommandOutcome::Accepted
+        mergeChanges(transition.changes, reduction.changes);
+        appendEffects(reduction.providerFrameTransport);
+        transition.playbackSchedule = reduction.outcome == ImageViewportCommandOutcome::Accepted
             ? currentPlaybackSchedule()
             : ViewportPlaybackScheduleEffect { ViewportPlaybackScheduleEffect::Action::NoChange,
                   -1 };
-        return result;
+        return finalizeCommandTransition(command, std::move(transition));
     }
     ViewportEnginePlaybackPlayAccess access(m_state->requestState.request,
         m_state->playbackState.playback, m_state->displayState.display,
@@ -151,23 +140,20 @@ ViewportEnginePlaybackCommandResult ViewportEngine::applyPlaybackCommand(
     }
     const bool changed = hasStateChanges(reduction.changes)
         || hasProviderEffects(reduction.providerFrameTransport);
-    result.command = reduction.outcome != ImageViewportCommandOutcome::Accepted
+    const auto command = reduction.outcome != ImageViewportCommandOutcome::Accepted
         ? rejected(reduction.outcome, reduction.reason)
         : changed ? accepted()
                   : acceptedPreservingCommandDiagnostics();
-    appendCommandChanges(result.command, result.changes);
-    mergeChanges(result.changes, reduction.changes);
-    result.effects.providerFrameTransport = reduction.providerFrameTransport;
-    result.schedule = reduction.outcome == ImageViewportCommandOutcome::Accepted
+    mergeChanges(transition.changes, reduction.changes);
+    appendEffects(reduction.providerFrameTransport);
+    transition.playbackSchedule = reduction.outcome == ImageViewportCommandOutcome::Accepted
         ? currentPlaybackSchedule()
         : ViewportPlaybackScheduleEffect { ViewportPlaybackScheduleEffect::Action::NoChange, -1 };
-    return result;
+    return finalizeCommandTransition(command, std::move(transition));
 }
 
-ViewportEnginePlaybackTickResult ViewportEngine::advancePlayback(
-    ViewportEnginePlaybackTickRequest input)
+ViewportEngineTransition ViewportEngine::advancePlayback(ViewportEnginePlaybackTickRequest input)
 {
-    ViewportEnginePlaybackTickResult result;
     const GeometryInput geometry = acceptedGeometry();
     ViewportEnginePlaybackTickAccess access(m_state->requestState.request,
         m_state->playbackState.playback, m_state->displayState.display,
@@ -176,12 +162,16 @@ ViewportEnginePlaybackTickResult ViewportEngine::advancePlayback(
         m_state->requestState.presentationTarget.generation);
     auto reduction = reduceViewportEnginePlaybackTick(
         { input.elapsedMilliseconds, geometry }, std::move(access));
-    result.changes = reduction.changes;
-    result.effects.providerFrameTransport = reduction.providerFrameTransport;
-    result.schedule = reduction.projectSchedule
+    ViewportEngineTransitionDraft transition;
+    transition.changes = reduction.changes;
+    appendProviderTransport(transition.providerTransport, reduction.providerFrameTransport[0],
+        ImageViewportPageRole::Primary);
+    appendProviderTransport(transition.providerTransport, reduction.providerFrameTransport[1],
+        ImageViewportPageRole::Secondary);
+    transition.playbackSchedule = reduction.projectSchedule
         ? currentPlaybackSchedule()
         : ViewportPlaybackScheduleEffect { ViewportPlaybackScheduleEffect::Action::NoChange, -1 };
-    return result;
+    return finalizeTransition(std::move(transition));
 }
 
 ViewportPlaybackScheduleEffect ViewportEngine::currentPlaybackSchedule() const

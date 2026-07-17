@@ -1,11 +1,11 @@
 #pragma once
 
 #include "imageviewportstate_p.h"
+#include "internalobservation_p.h"
+#include "publicdiagnostic_p.h"
 #include "timingintervals_p.h"
 #include "viewportplaybackcontract_p.h"
 #include "viewportproviderevent_p.h"
-#include "internalobservation_p.h"
-#include "publicdiagnostic_p.h"
 #include <ImageViewport/ImageViewport>
 
 #include <QtCore/QSizeF>
@@ -80,8 +80,7 @@ struct ViewportProviderTransportCommand
     ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ImageSequenceProviderRequest request;
     ViewportProviderSessionClose sessionClose;
-    ViewportProviderDeferredEngineEvent deferredEvent
-        = ViewportProviderDeferredEngineEvent::None;
+    ViewportProviderDeferredEngineEvent deferredEvent = ViewportProviderDeferredEngineEvent::None;
     bool reportDispatchFailure = true;
     std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory;
     ImageSequenceProviderThreadingContract threadingContract
@@ -98,18 +97,10 @@ struct ViewportEngineProviderSessionOpenEffect
 
 using ViewportProviderTransportBatch = QVector<ViewportProviderTransportCommand>;
 
-enum class ViewportProviderEventTransportPhase {
-    None,
-    BeforeChanges,
-    AfterChanges,
-};
-
 struct ViewportProviderEventResult
 {
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderFrameTransportEffect providerFrameTransport;
-    ViewportProviderEventTransportPhase providerFrameTransportPhase
-        = ViewportProviderEventTransportPhase::None;
     ViewportPlaybackScheduleEffect schedule;
     ImageViewportInternal::InternalObservationBatch observations;
 };

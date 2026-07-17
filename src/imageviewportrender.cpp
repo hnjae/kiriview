@@ -2,7 +2,6 @@
 
 #include "imageviewport_p.h"
 #include "renderadapter_scenegraph_p.h"
-#include "viewportprovidertransporteffects_p.h"
 
 #include <QtCore/QMetaObject>
 #include <QtCore/QMutexLocker>
@@ -95,16 +94,7 @@ std::optional<ViewportRenderAttempt> ImageViewportPrivate::renderAttemptForHost(
 void ImageViewportPrivate::applyRenderHostFact(ViewportRenderHostFact fact)
 {
     auto apply = [this, fact = std::move(fact)]() mutable {
-        const auto reduced = engine.handleRenderHostFact({ std::move(fact) });
-        ViewportEngineTransition transition;
-        transition.changes = reduced.changes;
-        transition.playbackSchedule = reduced.playbackSchedule;
-        transition.observations = reduced.observations;
-        appendProviderTransport(
-            transition.providerAfterPublication, reduced.providerEffects[0], PageRole::Primary);
-        appendProviderTransport(
-            transition.providerAfterPublication, reduced.providerEffects[1], PageRole::Secondary);
-        applyEngineTransition(std::move(transition));
+        applyEngineTransition(engine.handleRenderHostFact({ std::move(fact) }));
     };
     if (QThread::currentThread() == q->thread()) {
         apply();

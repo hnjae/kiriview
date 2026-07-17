@@ -75,55 +75,52 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
 {
     const auto& event = input.event();
     const auto& diagnostic = input.diagnostic();
-    ViewportEngineTransition result;
+    ViewportEngineTransitionDraft result;
     switch (event.kind) {
     case ViewportProviderHostEvent::Kind::SessionOpened: {
         const auto opened = reduceProviderSessionOpened(event.role);
         appendProviderTransport(
-            result.providerAfterPublication, opened.providerMetadataTransport, event.role);
+            result.providerTransport, opened.providerMetadataTransport, event.role);
         appendProviderTransport(
-            result.providerAfterPublication, opened.providerFrameTransport, event.role);
-        return result;
+            result.providerTransport, opened.providerFrameTransport, event.role);
+        return finalizeTransition(std::move(result));
     }
     case ViewportProviderHostEvent::Kind::SessionOpenFailed: {
         const auto reduced = reduceProviderSessionOpenFailure(event.role, diagnostic);
         result.changes = reduced.changes;
         result.playbackSchedule = reduced.schedule;
-        return result;
+        return finalizeTransition(std::move(result));
     }
     case ViewportProviderHostEvent::Kind::ProviderEvent: {
         const auto reduced = reduceProviderEvent(event.providerEvent, diagnostic);
         result.changes = reduced.changes;
         result.observations = reduced.observations;
-        auto& batch = reduced.providerFrameTransportPhase
-                == ViewportProviderEventTransportPhase::BeforeChanges
-            ? result.providerBeforePublication
-            : result.providerAfterPublication;
-        appendProviderTransport(batch, reduced.providerFrameTransport, event.role);
+        appendProviderTransport(
+            result.providerTransport, reduced.providerFrameTransport, event.role);
         if (result.changes.playbackPhase) {
             result.playbackSchedule = reduced.schedule;
         }
-        return result;
+        return finalizeTransition(std::move(result));
     }
     case ViewportProviderHostEvent::Kind::DispatchFailed: {
         const auto reduced = reduceProviderDispatchFailure(event.role, { event.token, diagnostic });
         result.changes = reduced.changes;
         appendProviderTransport(
-            result.providerAfterPublication, reduced.providerFrameTransport, event.role);
+            result.providerTransport, reduced.providerFrameTransport, event.role);
         if (result.changes.playbackPhase) {
             result.playbackSchedule = reduced.schedule;
         }
-        return result;
+        return finalizeTransition(std::move(result));
     }
     case ViewportProviderHostEvent::Kind::FlushQueuedFrameRequest: {
         const auto reduced = reduceQueuedProviderFrameRequest(event.role);
         result.changes = reduced.changes;
         appendProviderTransport(
-            result.providerAfterPublication, reduced.providerFrameTransport, event.role);
+            result.providerTransport, reduced.providerFrameTransport, event.role);
         if (result.changes.playbackPhase) {
             result.playbackSchedule = reduced.schedule;
         }
-        return result;
+        return finalizeTransition(std::move(result));
     }
     case ViewportProviderHostEvent::Kind::QueueFlushSchedulingFailed: {
         const auto reduced = reduceProviderQueueSchedulingFailure(event.role, diagnostic);
@@ -132,10 +129,10 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
         if (result.changes.playbackPhase) {
             result.playbackSchedule = reduced.schedule;
         }
-        return result;
+        return finalizeTransition(std::move(result));
     }
     }
-    return result;
+    return finalizeTransition(std::move(result));
 }
 
 bool ViewportEngine::acceptsProviderTransportCommand(
@@ -265,7 +262,6 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
         ViewportProviderEventResult violation;
         violation.changes = reduced.changes;
         violation.providerFrameTransport = reduced.providerFrameTransport;
-        violation.providerFrameTransportPhase = ViewportProviderEventTransportPhase::AfterChanges;
         violation.schedule = reduced.schedule;
         return violation;
     }
@@ -299,7 +295,6 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
         ViewportProviderEventResult violation;
         violation.changes = reduced.changes;
         violation.providerFrameTransport = reduced.providerFrameTransport;
-        violation.providerFrameTransportPhase = ViewportProviderEventTransportPhase::AfterChanges;
         violation.schedule = reduced.schedule;
         return violation;
     }
@@ -316,7 +311,6 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
         result.changes = metadata.changes;
         result.observations = metadata.observations;
         result.providerFrameTransport = metadata.providerFrameTransport;
-        result.providerFrameTransportPhase = ViewportProviderEventTransportPhase::BeforeChanges;
         break;
     }
     case ImageSequenceProviderEventKind::FrameReady: {
@@ -354,9 +348,6 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
             { event.role, event.token, geometry }, std::move(access));
         result.changes = eos.changes;
         result.providerFrameTransport = eos.providerFrameTransport;
-        result.providerFrameTransportPhase = eos.providerFrameTransport.closeSession
-            ? ViewportProviderEventTransportPhase::AfterChanges
-            : ViewportProviderEventTransportPhase::BeforeChanges;
         break;
     }
     case ImageSequenceProviderEventKind::Failed:
@@ -369,7 +360,6 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
             terminalEvent(event, diagnostic), std::move(access));
         result.changes = terminal.changes;
         result.providerFrameTransport = terminal.providerFrameTransport;
-        result.providerFrameTransportPhase = ViewportProviderEventTransportPhase::AfterChanges;
         break;
     }
     }

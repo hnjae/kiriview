@@ -1,23 +1,13 @@
 #include "imageviewport_p.h"
-#include "viewportcommandoutcome_p.h"
-#include "viewportitemtransaction_p.h"
-#include "viewportprovidertransporteffects_p.h"
-
 using namespace ImageViewportInternal;
 
 ImageViewportCommandResult ImageViewportPrivate::setPresentation(
     ImageViewportPresentationCommand command)
 {
-    const auto reduced = engine.applyPresentationCommand({ command });
-    ViewportCommandResult result
-        = ImageViewportInternal::CommandOutcome::fromEngineCommand(reduced.command);
-    mergeChanges(result.transition.changes, reduced.changes);
-    appendProviderTransport(
-        result.transition.providerAfterPublication, reduced.providerEffects[0], PageRole::Primary);
-    appendProviderTransport(result.transition.providerAfterPublication, reduced.providerEffects[1],
-        PageRole::Secondary);
-    const ImageViewportStateSnapshot snapshot = applyEngineTransition(result.transition);
-    return commandResult(result.outcome, snapshot);
+    auto reduced = engine.applyPresentationCommand({ command });
+    const CommandOutcome outcome = reduced.outcome();
+    const ImageViewportStateSnapshot snapshot = applyEngineTransition(reduced.takeTransition());
+    return commandResult(outcome, snapshot);
 }
 
 namespace {

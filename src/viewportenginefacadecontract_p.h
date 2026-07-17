@@ -9,7 +9,6 @@
 #include "viewportprovidercontract_p.h"
 #include "viewportrendercontract_p.h"
 
-#include <array>
 #include <optional>
 #include <utility>
 
@@ -58,42 +57,9 @@ struct ViewportEngineCommandResult
     bool commandRevisionChanged = false;
 };
 
-struct ViewportEnginePresentationCommandResult
-{
-    ViewportEngineCommandResult command;
-    ImageViewportInternal::ViewportChangeSet changes;
-    std::array<ViewportProviderFrameTransportEffect, 2> providerEffects;
-};
-
-struct ViewportEnginePresentationTargetAssignmentResult
-{
-    ViewportEngineCommandResult command;
-    ViewportEnginePresentationTargetState presentationTargetState;
-    bool presentationTargetChanged = false;
-    bool clear = true;
-    bool retainPreviousDisplay = true;
-    bool releaseDisplayedState = false;
-    bool resetDisplayRequests = false;
-    bool stopPlayback = false;
-    bool closeProviderSessions = false;
-    ImageViewportInternal::ViewportChangeSet changes;
-    std::array<ViewportProviderFrameTransportEffect, 2> providerEffects;
-    std::array<ViewportEngineProviderSessionOpenEffect, 2> providerSessionOpenEffects;
-    ViewportPlaybackScheduleEffect schedule;
-};
-
 struct ViewportEngineRenderHostFactRequest
 {
     ViewportRenderHostFact fact;
-};
-
-struct ViewportEngineRenderHostTransition
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    std::array<ViewportProviderFrameTransportEffect, 2> providerEffects;
-    ViewportPlaybackScheduleEffect playbackSchedule;
-    ImageViewportInternal::RenderFailureDiagnostic diagnostic;
-    ImageViewportInternal::InternalObservationBatch observations;
 };
 
 struct ViewportEnginePlaybackCommandRequest
@@ -104,26 +70,6 @@ struct ViewportEnginePlaybackCommandRequest
 struct ViewportEnginePlaybackTickRequest
 {
     int elapsedMilliseconds = 0;
-};
-
-struct ViewportEnginePlaybackProviderEffects
-{
-    std::array<ViewportProviderFrameTransportEffect, 2> providerFrameTransport;
-};
-
-struct ViewportEnginePlaybackCommandResult
-{
-    ViewportEngineCommandResult command;
-    ImageViewportInternal::ViewportChangeSet changes;
-    ViewportEnginePlaybackProviderEffects effects;
-    ViewportPlaybackScheduleEffect schedule;
-};
-
-struct ViewportEnginePlaybackTickResult
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    ViewportEnginePlaybackProviderEffects effects;
-    ViewportPlaybackScheduleEffect schedule;
 };
 
 struct ViewportEnginePresentationCommandRequest

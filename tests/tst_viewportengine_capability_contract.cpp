@@ -88,6 +88,15 @@ struct HasPublicRevisionAllocator<Engine,
     std::void_t<decltype(std::declval<Engine&>().allocateRevisionValue())>> : std::true_type
 {
 };
+template <typename Engine, typename = void> struct HasPublicChangePublication : std::false_type
+{
+};
+template <typename Engine>
+struct HasPublicChangePublication<Engine,
+    std::void_t<decltype(std::declval<Engine&>().publishChanges(
+        ImageViewportInternal::ViewportChangeSet {}))>> : std::true_type
+{
+};
 template <typename Engine, typename = void> struct HasPublicAcceptedGeometryInput : std::false_type
 {
 };
@@ -328,9 +337,10 @@ static_assert(
 static_assert(std::is_same_v<decltype(&reduceViewportEngineProviderGenerationTerminalProjection),
     ImageViewportInternal::ViewportChangeSet (*)(ViewportEngineProviderTerminalProjectionInput,
         ViewportEngineProviderTerminalProjectionAccess)>);
-static_assert(!std::is_default_constructible_v<ViewportEngine::PendingPublication>);
-static_assert(!std::is_copy_constructible_v<ViewportEngine::PendingPublication>);
-static_assert(std::is_move_constructible_v<ViewportEngine::PendingPublication>);
+static_assert(!std::is_default_constructible_v<ViewportEngineTransition>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineTransition>);
+static_assert(std::is_move_constructible_v<ViewportEngineTransition>);
+static_assert(!HasPublicChangePublication<ViewportEngine>::value);
 
 static_assert(
     std::is_const_v<std::remove_reference_t<DisplayAccess<ViewportEngineSnapshotStateAccess>>>);

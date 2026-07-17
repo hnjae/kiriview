@@ -31,10 +31,10 @@ ViewportEngine::~ViewportEngine() = default;
 
 ViewportEngineTransition ViewportEngine::handleResourcePressure()
 {
-    ViewportEngineTransition transition;
+    ViewportEngineTransitionDraft transition;
     auto& display = m_state->displayState.display;
     if (display.status != ImageViewportDisplayStatus::Retained) {
-        return transition;
+        return finalizeTransition(std::move(transition));
     }
     const bool warningBefore = display.hasActiveRenderQualityFallback(
         m_state->requestState.request.sequenceGeneration, m_state->presentationState.presentation);
@@ -47,10 +47,10 @@ ViewportEngineTransition ViewportEngine::handleResourcePressure()
     transition.changes.scheduleUpdate = true;
     const auto effects = restageProviderDemands();
     appendProviderTransport(
-        transition.providerAfterPublication, effects[0], ImageViewportPageRole::Primary);
+        transition.providerTransport, effects[0], ImageViewportPageRole::Primary);
     appendProviderTransport(
-        transition.providerAfterPublication, effects[1], ImageViewportPageRole::Secondary);
-    return transition;
+        transition.providerTransport, effects[1], ImageViewportPageRole::Secondary);
+    return finalizeTransition(std::move(transition));
 }
 
 QSet<quint64> ViewportEngine::providerFrameLeaseIds() const
@@ -65,29 +65,6 @@ QSet<quint64> ViewportEngine::providerFrameLeaseIds() const
         }
     }
     return leases;
-}
-
-ViewportEngine::PendingPublication::PendingPublication(
-    ViewportEngine* owner, ImageViewportInternal::ViewportChangeSet changes)
-    : m_owner(owner)
-    , m_changes(changes)
-{
-}
-
-ViewportEngine::PendingPublication::PendingPublication(PendingPublication&& other) noexcept
-    : m_owner(std::exchange(other.m_owner, nullptr))
-    , m_changes(other.m_changes)
-{
-}
-
-ViewportEngine::PendingPublication& ViewportEngine::PendingPublication::operator=(
-    PendingPublication&& other) noexcept
-{
-    if (this != &other) {
-        m_owner = std::exchange(other.m_owner, nullptr);
-        m_changes = other.m_changes;
-    }
-    return *this;
 }
 
 ViewportEngineCommandDiagnostics ViewportEngine::commandDiagnostics() const
@@ -155,19 +132,9 @@ const ImageViewportInternal::PresentationState& ViewportEngine::presentationStat
 }
 #endif
 
-ViewportEngine::PendingPublication ViewportEngine::preparePublication(
+ImageViewportInternal::ViewportChangeSet ViewportEngine::publishChanges(
     ImageViewportInternal::ViewportChangeSet changes)
 {
-    return PendingPublication(this, changes);
-}
-
-ImageViewportInternal::ViewportChangeSet ViewportEngine::publish(PendingPublication publication)
-{
-    if (publication.m_owner != this) {
-        qFatal("ViewportEngine pending publication owner mismatch");
-    }
-    publication.m_owner = nullptr;
-    auto changes = publication.m_changes;
     if (changes.requestRevision) {
         m_state->requestState.request.requestRevision = allocateRevisionValue();
     }
@@ -204,10 +171,22 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::publish(PendingPublicat
     return changes;
 }
 
-ImageViewportInternal::ViewportChangeSet ViewportEngine::publishChanges(
-    ImageViewportInternal::ViewportChangeSet changes)
+ViewportEngineTransition ViewportEngine::finalizeTransition(ViewportEngineTransitionDraft draft)
 {
-    return publish(preparePublication(changes));
+    draft.changes = publishChanges(draft.changes);
+    return ViewportEngineTransition(std::move(draft));
+}
+
+ViewportEngineCommandTransition ViewportEngine::finalizeCommandTransition(
+    const ViewportEngineCommandResult& command, ViewportEngineTransitionDraft draft)
+{
+    if (command.commandRevisionChanged) {
+        draft.changes.commandRevision = true;
+        draft.changes.commandRevisionValue
+            = ImageViewportInternal::RevisionTokenPrivateAccess::value(command.commandRevision);
+        draft.changes.diagnostics = true;
+    }
+    return ViewportEngineCommandTransition(command.outcome, finalizeTransition(std::move(draft)));
 }
 
 PresentationGeometry::State ViewportEngine::geometryState(const GeometryInput& input) const
@@ -273,7 +252,7 @@ ViewportRenderSnapshot ViewportEngine::renderSnapshot(
             m_state->presentationState.presentation });
 }
 
-ViewportEnginePresentationTargetAssignmentResult ViewportEngine::assignPresentationTarget(
+ViewportEngineCommandTransition ViewportEngine::assignPresentationTarget(
     const ViewportEnginePresentationTargetAssignmentRequest& input)
 {
     ViewportEnginePresentationTargetAssignmentInput operationInput { input.presentationTarget,
@@ -289,9 +268,8 @@ ViewportEnginePresentationTargetAssignmentResult ViewportEngine::assignPresentat
     if (!validateViewportEnginePresentationTargetAssignment(operationInput,
             m_state->requestState.presentationTarget, m_state->requestState.request,
             m_state->providerState.roles)) {
-        return { rejectInvalidCommand(), m_state->requestState.presentationTarget };
+        return finalizeCommandTransition(rejectInvalidCommand(), {});
     }
-    ViewportEnginePresentationTargetAssignmentResult result;
     ViewportEnginePresentationTargetAssignmentAccess access(
         m_state->requestState.presentationTarget,
         m_state->requestState.nextPresentationTargetGeneration, m_state->requestState.request,
@@ -308,16 +286,9 @@ ViewportEnginePresentationTargetAssignmentResult ViewportEngine::assignPresentat
         m_state->revisions.targetPresentationRevision
             = reduction.clear ? 0 : advanceTargetPresentationRevision();
     }
-    result.command
+    const ViewportEngineCommandResult command
         = reduction.presentationTargetChanged ? accepted() : acceptedPreservingCommandDiagnostics();
-    result.presentationTargetState = reduction.presentationTargetState;
-    result.presentationTargetChanged = reduction.presentationTargetChanged;
-    result.clear = reduction.clear;
-    result.retainPreviousDisplay = reduction.retainPreviousDisplay;
-    result.releaseDisplayedState = reduction.releaseDisplayedState;
-    result.resetDisplayRequests = reduction.resetDisplayRequests;
-    result.stopPlayback = reduction.stopPlayback;
-    result.closeProviderSessions = reduction.closeProviderSessions;
+    ViewportEngineTransitionDraft result;
     result.changes = reduction.changes;
     if (allocation.retainedDisplayDiscarded) {
         result.changes.displayState = true;
@@ -325,10 +296,17 @@ ViewportEnginePresentationTargetAssignmentResult ViewportEngine::assignPresentat
         result.changes.displayRevision = true;
     }
     result.changes.targetPresentationRevision = reduction.presentationTargetChanged;
-    result.providerEffects = reduction.providerEffects;
-    result.providerSessionOpenEffects = reduction.providerSessionOpenEffects;
-    result.schedule = currentPlaybackSchedule();
-    return result;
+    appendProviderTransport(
+        result.providerTransport, reduction.providerEffects[0], ImageViewportPageRole::Primary);
+    appendProviderTransport(
+        result.providerTransport, reduction.providerEffects[1], ImageViewportPageRole::Secondary);
+    for (const auto& effect : reduction.providerSessionOpenEffects) {
+        if (effect.openSession) {
+            result.providerTransport.append(effect.command);
+        }
+    }
+    result.playbackSchedule = currentPlaybackSchedule();
+    return finalizeCommandTransition(command, std::move(result));
 }
 ViewportEngineCommandResult ViewportEngine::rejectInvalidCommand()
 {

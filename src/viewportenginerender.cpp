@@ -236,14 +236,14 @@ ViewportRenderAttempt ViewportEngine::beginRenderSynchronization()
     return attempt;
 }
 
-ViewportEngineRenderHostTransition ViewportEngine::handleRenderHostFact(
+ViewportEngineTransition ViewportEngine::handleRenderHostFact(
     const ViewportEngineRenderHostFactRequest& input)
 {
-    ViewportEngineRenderHostTransition result;
+    ViewportEngineTransitionDraft transition;
     const auto& active = m_state->renderCoordination.activeAttempt;
     if (!active || !acknowledgementMatchesAttempt(input.fact, active->attempt)) {
-        result.observations.append(staleRenderFactObservation(input.fact));
-        return result;
+        transition.observations.append(staleRenderFactObservation(input.fact));
+        return finalizeTransition(std::move(transition));
     }
 
     const auto context = *active;
@@ -269,9 +269,8 @@ ViewportEngineRenderHostTransition ViewportEngine::handleRenderHostFact(
         auto reduction = reduceViewportEngineRenderFailure(acknowledgementInput,
             { m_state->requestState.request, m_state->displayState.display,
                 m_state->playbackState.playback });
-        result.changes = reduction.changes;
-        result.diagnostic = reduction.diagnostic;
-        result.observations = reduction.observations;
+        transition.changes = reduction.changes;
+        transition.observations = reduction.observations;
         rebuildViewportEnginePayloadAllocation(
             m_state->requestState.request, m_state->displayState.display);
     } else if (input.fact.outcome == ViewportRenderHostFact::Outcome::Committed
@@ -280,19 +279,23 @@ ViewportEngineRenderHostTransition ViewportEngine::handleRenderHostFact(
         auto reduction = reduceViewportEngineRenderCommit(acknowledgementInput,
             { m_state->requestState.request, m_state->displayState.display,
                 m_state->playbackState.playback, providerFactsView() });
-        result.changes = reduction.changes;
+        transition.changes = reduction.changes;
         if (reduction.changes.displayRevision
             && m_state->displayState.display.status == ImageViewportDisplayStatus::Ready) {
-            result.changes.adoptTargetPresentationRevision = true;
+            transition.changes.adoptTargetPresentationRevision = true;
         }
-        result.observations = reduction.observations;
+        transition.observations = reduction.observations;
         const auto allocation = rebuildViewportEnginePayloadAllocation(
             m_state->requestState.request, m_state->displayState.display);
         if (context.pendingTargetCommit && allocation.roleBudgetsIncreased) {
             const GeometryInput geometry { context.geometryState.hasReadyDisplay,
                 context.geometryState.itemBounds, context.geometryState.primaryImageSize,
                 context.geometryState.secondaryImageSize, context.geometryState.devicePixelRatio };
-            result.providerEffects = restageProviderDemands(geometry);
+            const auto providerEffects = restageProviderDemands(geometry);
+            appendProviderTransport(
+                transition.providerTransport, providerEffects[0], ImageViewportPageRole::Primary);
+            appendProviderTransport(
+                transition.providerTransport, providerEffects[1], ImageViewportPageRole::Secondary);
         }
     }
 
@@ -313,31 +316,31 @@ ViewportEngineRenderHostTransition ViewportEngine::handleRenderHostFact(
             display.renderQualityFallback.assign(
                 renderedTarget.generation, smoothingUnavailable, mipmapUnavailable);
         } else if (smoothingUnavailable || mipmapUnavailable) {
-            result.observations.append(staleRenderQualityFallbackObservation(context.attempt));
+            transition.observations.append(staleRenderQualityFallbackObservation(context.attempt));
         }
     }
 
     const bool warningAfter = m_state->displayState.display.hasActiveRenderQualityFallback(
         m_state->requestState.request.sequenceGeneration, m_state->presentationState.presentation);
     if (warningBefore != warningAfter) {
-        result.changes.diagnostics = true;
-        result.changes.displayRevision = true;
+        transition.changes.diagnostics = true;
+        transition.changes.displayRevision = true;
     }
     m_state->renderCoordination.activeAttempt.reset();
-    if (result.changes.playbackPhase) {
-        result.playbackSchedule = currentPlaybackSchedule();
+    if (transition.changes.playbackPhase) {
+        transition.playbackSchedule = currentPlaybackSchedule();
     }
-    return result;
+    return finalizeTransition(std::move(transition));
 }
 
 ViewportEngineTransition ViewportEngine::handleViewportChanged(ViewportEngineViewportState viewport)
 {
     viewport = normalizedViewportState(viewport);
     if (viewport == m_state->viewport) {
-        return {};
+        return finalizeTransition({});
     }
 
-    ViewportEngineTransition result;
+    ViewportEngineTransitionDraft result;
     const ImageViewportStateSnapshot before = snapshot();
     const PresentationGeometry::State oldDisplayedGeometry = geometryState();
     const QRectF oldContentRect = PresentationGeometry::contentRect(oldDisplayedGeometry);
@@ -410,9 +413,9 @@ ViewportEngineTransition ViewportEngine::handleViewportChanged(ViewportEngineVie
     if (providerDemandGeometry) {
         const auto effects = restageProviderDemands(*providerDemandGeometry);
         appendProviderTransport(
-            result.providerAfterPublication, effects[0], ImageViewportPageRole::Primary);
+            result.providerTransport, effects[0], ImageViewportPageRole::Primary);
         appendProviderTransport(
-            result.providerAfterPublication, effects[1], ImageViewportPageRole::Secondary);
+            result.providerTransport, effects[1], ImageViewportPageRole::Secondary);
     }
 
     const ImageViewportStateSnapshot after = snapshot();
@@ -430,5 +433,5 @@ ViewportEngineTransition ViewportEngine::handleViewportChanged(ViewportEngineVie
     result.changes.targetPresentationRevision = targetProjectionChanged;
     result.changes.adoptTargetPresentationRevision = false;
     result.changes.scheduleUpdate = true;
-    return result;
+    return finalizeTransition(std::move(result));
 }

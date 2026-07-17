@@ -3,8 +3,6 @@
 #include "imageviewporttoken_p.h"
 #include "imageviewportvalidation_p.h"
 #include "viewportenginetestaccess_p.h"
-#include "viewportitemtransaction_p.h"
-#include "viewportprovidertransporteffects_p.h"
 
 #include <QtQuick/QQuickWindow>
 
@@ -12,40 +10,30 @@ using namespace ImageViewportInternal;
 
 void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
 {
-    const auto reduced = engine.advancePlayback({ elapsedMilliseconds });
-    ViewportEngineTransition transition;
-    transition.changes = reduced.changes;
-    appendProviderTransport(transition.providerBeforePublication,
-        reduced.effects.providerFrameTransport[0], PageRole::Primary);
-    appendProviderTransport(transition.providerBeforePublication,
-        reduced.effects.providerFrameTransport[1], PageRole::Secondary);
-    transition.playbackSchedule = reduced.schedule;
-    applyEngineTransition(std::move(transition));
+    applyEngineTransition(engine.advancePlayback({ elapsedMilliseconds }));
 }
 
 ImageViewportStateSnapshot ImageViewportPrivate::applyEngineTransition(
     ViewportEngineTransition transition)
 {
     using ScheduleAction = ViewportPlaybackScheduleEffect::Action;
-    if (transition.playbackSchedule.action != ScheduleAction::NoChange) {
-        pendingPlaybackSchedule = transition.playbackSchedule;
+    if (transition.playbackSchedule().action != ScheduleAction::NoChange) {
+        pendingPlaybackSchedule = transition.playbackSchedule();
     }
-    pendingProviderTransport.append(std::move(transition.providerBeforePublication));
-    pendingProviderTransport.append(std::move(transition.providerAfterPublication));
+    pendingProviderTransport.append(transition.takeProviderTransport());
     ++transitionApplicationDepth;
 
     providerHost.reconcileFrameLeases(engine.providerFrameLeaseIds());
-    transition.changes = engine.publishChanges(transition.changes);
-    internalObservability.record(transition.observations);
-    internalObservability.recordRenderFailure(transition.changes.renderFailureDiagnostic);
+    internalObservability.record(transition.observations());
+    internalObservability.recordRenderFailure(transition.renderFailureDiagnostic());
 
-    if (transition.changes.scheduleUpdate) {
+    if (transition.schedulesRenderUpdate()) {
         prepareRenderSynchronization();
         update();
     }
-    if (transition.providerSchedulerDiagnostic.valid) {
+    if (transition.providerSchedulerDiagnostic().valid) {
         internalObservability.recordProviderSchedulerFailure(
-            transition.providerSchedulerDiagnostic);
+            transition.providerSchedulerDiagnostic());
     }
 
     --transitionApplicationDepth;
@@ -191,19 +179,12 @@ ImageViewportCommandResult ImageViewportPrivate::executePlaybackCommand(
     if (ImageViewportInternal::isValidPageRole(command.role)) {
         playbackScheduler.flushElapsed();
     }
-    const auto reduced = engine.applyPlaybackCommand({ command });
-    ViewportCommandResult result;
-    result.outcome = reduced.command.outcome;
-    result.transition.changes = reduced.changes;
-    appendProviderTransport(result.transition.providerBeforePublication,
-        reduced.effects.providerFrameTransport[0], PageRole::Primary);
-    appendProviderTransport(result.transition.providerBeforePublication,
-        reduced.effects.providerFrameTransport[1], PageRole::Secondary);
-    result.transition.playbackSchedule = reduced.schedule;
-    applyEngineTransition(result.transition);
+    auto reduced = engine.applyPlaybackCommand({ command });
+    const CommandOutcome outcome = reduced.outcome();
+    applyEngineTransition(reduced.takeTransition());
     --itemTransactionDepth;
     const ImageViewportStateSnapshot snapshot = finalizeItemTransaction();
-    return commandResult(result.outcome, snapshot);
+    return commandResult(outcome, snapshot);
 }
 
 ImageViewportCommandResult ImageViewportPrivate::resetView()
@@ -267,7 +248,7 @@ ViewportRenderAttempt ImageViewportPrivate::beginRenderSynchronizationForTest()
     available.renderAvailable = true;
     engine.handleViewportChanged(available);
     const ViewportRenderAttempt attempt = engine.beginRenderSynchronization();
-    engine.handleViewportChanged(original);
+    ViewportEngineTestAccess::restoreViewportStatePreservingActiveRenderAttempt(engine, original);
     return attempt;
 }
 
@@ -318,19 +299,12 @@ void ImageViewportPrivate::reportRenderQualityFallbackForTest(
     }
     const quint64 reportedAttempt
         = renderAttempt == previousAttempt ? attempt.attempt : renderAttempt;
-    const auto reduced = engine.handleRenderHostFact({ { ViewportRenderHostFact::Outcome::Committed,
-        { attempt.snapshot.targetSpread, attempt.snapshot.presentation, std::move(rolePayloads),
-            PageRole::Primary, RenderFailureCause::None, reportedAttempt },
-        { smoothingUnavailable, mipmapUnavailable }, !attempt.snapshot.imageLayers.isEmpty() } });
-    ViewportEngineTransition transition;
-    transition.changes = reduced.changes;
-    transition.playbackSchedule = reduced.playbackSchedule;
-    transition.observations = reduced.observations;
-    appendProviderTransport(
-        transition.providerAfterPublication, reduced.providerEffects[0], PageRole::Primary);
-    appendProviderTransport(
-        transition.providerAfterPublication, reduced.providerEffects[1], PageRole::Secondary);
-    applyEngineTransition(std::move(transition));
+    applyEngineTransition(
+        engine.handleRenderHostFact({ { ViewportRenderHostFact::Outcome::Committed,
+            { attempt.snapshot.targetSpread, attempt.snapshot.presentation, std::move(rolePayloads),
+                PageRole::Primary, RenderFailureCause::None, reportedAttempt },
+            { smoothingUnavailable, mipmapUnavailable },
+            !attempt.snapshot.imageLayers.isEmpty() } }));
 }
 
 void ImageViewportPrivate::discardRetainedDisplayForResourcePressureForTest()
@@ -366,20 +340,12 @@ void ImageViewportPrivate::acknowledgeRenderCommitForTest(
     quint64 generation, quint64 requestId, quint64 preparedPayloadId)
 {
     const ViewportRenderAttempt attempt = beginRenderSynchronizationForTest();
-    const auto reduced = engine.handleRenderHostFact({ { ViewportRenderHostFact::Outcome::Committed,
-        { { generation, requestId }, attempt.snapshot.presentation,
-            { { PageRole::Primary, { generation, preparedPayloadId } } }, PageRole::Primary,
-            RenderFailureCause::None, attempt.attempt },
-        {}, true } });
-    ViewportEngineTransition transition;
-    transition.changes = reduced.changes;
-    transition.playbackSchedule = reduced.playbackSchedule;
-    transition.observations = reduced.observations;
-    appendProviderTransport(
-        transition.providerAfterPublication, reduced.providerEffects[0], PageRole::Primary);
-    appendProviderTransport(
-        transition.providerAfterPublication, reduced.providerEffects[1], PageRole::Secondary);
-    applyEngineTransition(std::move(transition));
+    applyEngineTransition(
+        engine.handleRenderHostFact({ { ViewportRenderHostFact::Outcome::Committed,
+            { { generation, requestId }, attempt.snapshot.presentation,
+                { { PageRole::Primary, { generation, preparedPayloadId } } }, PageRole::Primary,
+                RenderFailureCause::None, attempt.attempt },
+            {}, true } }));
 }
 
 void ImageViewportPrivate::acknowledgeRenderCommitForTest(quint64 generation, quint64 requestId,
@@ -394,23 +360,15 @@ void ImageViewportPrivate::acknowledgeRenderCommitForTest(quint64 generation, qu
         generation,
         secondaryPreparedPayloadId,
     };
-    const auto reduced = engine.handleRenderHostFact({ { ViewportRenderHostFact::Outcome::Committed,
-        { { generation, requestId }, attempt.snapshot.presentation,
-            {
-                { ImageViewportPageRole::Primary, primaryPayload },
-                { ImageViewportPageRole::Secondary, secondaryPayload },
-            },
-            PageRole::Primary, RenderFailureCause::None, attempt.attempt },
-        {}, true } });
-    ViewportEngineTransition transition;
-    transition.changes = reduced.changes;
-    transition.playbackSchedule = reduced.playbackSchedule;
-    transition.observations = reduced.observations;
-    appendProviderTransport(
-        transition.providerAfterPublication, reduced.providerEffects[0], PageRole::Primary);
-    appendProviderTransport(
-        transition.providerAfterPublication, reduced.providerEffects[1], PageRole::Secondary);
-    applyEngineTransition(std::move(transition));
+    applyEngineTransition(
+        engine.handleRenderHostFact({ { ViewportRenderHostFact::Outcome::Committed,
+            { { generation, requestId }, attempt.snapshot.presentation,
+                {
+                    { ImageViewportPageRole::Primary, primaryPayload },
+                    { ImageViewportPageRole::Secondary, secondaryPayload },
+                },
+                PageRole::Primary, RenderFailureCause::None, attempt.attempt },
+            {}, true } }));
 }
 
 void ImageViewportPrivate::acknowledgeRenderFailureForTest(
@@ -447,18 +405,9 @@ void ImageViewportPrivate::acknowledgeRenderFailureForTest(PageRole failedRole, 
     if (rolePayloads.isEmpty()) {
         rolePayloads.append({ failedRole, failedPayload });
     }
-    const auto reduced = engine.handleRenderHostFact({ { ViewportRenderHostFact::Outcome::Failed,
+    applyEngineTransition(engine.handleRenderHostFact({ { ViewportRenderHostFact::Outcome::Failed,
         { { generation, requestId }, attempt.snapshot.presentation, std::move(rolePayloads),
             failedRole, cause, attempt.attempt },
-        {}, true } });
-    ViewportEngineTransition transition;
-    transition.changes = reduced.changes;
-    transition.playbackSchedule = reduced.playbackSchedule;
-    transition.observations = reduced.observations;
-    appendProviderTransport(
-        transition.providerAfterPublication, reduced.providerEffects[0], PageRole::Primary);
-    appendProviderTransport(
-        transition.providerAfterPublication, reduced.providerEffects[1], PageRole::Secondary);
-    applyEngineTransition(std::move(transition));
+        {}, true } }));
 }
 #endif

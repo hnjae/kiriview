@@ -1,8 +1,5 @@
 #include "imagesequencesource_p.h"
 #include "imageviewport_p.h"
-#include "viewportcommandoutcome_p.h"
-#include "viewportitemtransaction_p.h"
-#include "viewportprovidertransporteffects_p.h"
 
 #include <algorithm>
 #include <cmath>
@@ -140,21 +137,9 @@ ImageViewportCommandResult ImageViewportPrivate::setPresentationTarget(
     ImageSequenceSource primarySource = factorySequenceSource(presentationTarget.primary());
     ImageSequenceSource secondarySourceHandle
         = factorySequenceSource(presentationTarget.secondary());
-    const auto reduced = engine.assignPresentationTarget(
+    auto reduced = engine.assignPresentationTarget(
         { presentationTarget, policy, std::move(primarySource), std::move(secondarySourceHandle) });
-    ViewportCommandResult result
-        = ImageViewportInternal::CommandOutcome::fromEngineCommand(reduced.command);
-    mergeChanges(result.transition.changes, reduced.changes);
-    appendProviderTransport(
-        result.transition.providerAfterPublication, reduced.providerEffects[0], PageRole::Primary);
-    appendProviderTransport(result.transition.providerAfterPublication, reduced.providerEffects[1],
-        PageRole::Secondary);
-    for (const auto& effect : reduced.providerSessionOpenEffects) {
-        if (effect.openSession) {
-            result.transition.providerAfterPublication.append(effect.command);
-        }
-    }
-    result.transition.playbackSchedule = reduced.schedule;
-    const ImageViewportStateSnapshot snapshot = applyEngineTransition(result.transition);
-    return commandResult(result.outcome, snapshot);
+    const CommandOutcome outcome = reduced.outcome();
+    const ImageViewportStateSnapshot snapshot = applyEngineTransition(reduced.takeTransition());
+    return commandResult(outcome, snapshot);
 }

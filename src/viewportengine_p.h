@@ -21,23 +21,6 @@ struct ViewportProviderTerminalEventResult;
 class ViewportEngine
 {
 public:
-    class PendingPublication
-    {
-    public:
-        PendingPublication() = delete;
-        PendingPublication(const PendingPublication&) = delete;
-        PendingPublication& operator=(const PendingPublication&) = delete;
-        PendingPublication(PendingPublication&& other) noexcept;
-        PendingPublication& operator=(PendingPublication&& other) noexcept;
-
-    private:
-        friend class ViewportEngine;
-        PendingPublication(ViewportEngine* owner, ImageViewportInternal::ViewportChangeSet changes);
-
-        ViewportEngine* m_owner = nullptr;
-        ImageViewportInternal::ViewportChangeSet m_changes;
-    };
-
     ViewportEngine();
     ~ViewportEngine();
     ViewportEngine(const ViewportEngine&) = delete;
@@ -46,21 +29,18 @@ public:
     ViewportEngineCoordinateQueryResult queryCoordinate(
         const ViewportEngineCoordinateQueryRequest& input) const;
     ViewportRenderAttempt beginRenderSynchronization();
-    ViewportEngineRenderHostTransition handleRenderHostFact(
-        const ViewportEngineRenderHostFactRequest& input);
+    ViewportEngineTransition handleRenderHostFact(const ViewportEngineRenderHostFactRequest& input);
     ViewportEngineTransition handleResourcePressure();
     ViewportEngineTransition handleViewportChanged(ViewportEngineViewportState viewport);
     ViewportEngineTransition handleProviderHostEvent(
         const ViewportEngineProviderHostEventRequest& input);
-    ViewportEnginePlaybackCommandResult applyPlaybackCommand(
+    ViewportEngineCommandTransition applyPlaybackCommand(
         ViewportEnginePlaybackCommandRequest input);
-    ViewportEnginePlaybackTickResult advancePlayback(ViewportEnginePlaybackTickRequest input);
-    ViewportEnginePresentationTargetAssignmentResult assignPresentationTarget(
+    ViewportEngineTransition advancePlayback(ViewportEnginePlaybackTickRequest input);
+    ViewportEngineCommandTransition assignPresentationTarget(
         const ViewportEnginePresentationTargetAssignmentRequest& input);
-    ViewportEnginePresentationCommandResult applyPresentationCommand(
+    ViewportEngineCommandTransition applyPresentationCommand(
         const ViewportEnginePresentationCommandRequest& input);
-    ImageViewportInternal::ViewportChangeSet publishChanges(
-        ImageViewportInternal::ViewportChangeSet changes);
     ViewportProviderTransportBatch shutdown();
     QSet<quint64> providerFrameLeaseIds() const;
     bool acceptsProviderTransportCommand(const ViewportProviderTransportCommand& command) const;
@@ -82,8 +62,11 @@ private:
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     friend class ViewportEngineTestAccess;
 #endif
-    PendingPublication preparePublication(ImageViewportInternal::ViewportChangeSet changes);
-    ImageViewportInternal::ViewportChangeSet publish(PendingPublication publication);
+    ImageViewportInternal::ViewportChangeSet publishChanges(
+        ImageViewportInternal::ViewportChangeSet changes);
+    ViewportEngineTransition finalizeTransition(ViewportEngineTransitionDraft draft);
+    ViewportEngineCommandTransition finalizeCommandTransition(
+        const ViewportEngineCommandResult& command, ViewportEngineTransitionDraft draft);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     ImageViewportInternal::DisplayState& displayState();
     const ImageViewportInternal::DisplayState& displayState() const;

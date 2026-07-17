@@ -89,6 +89,13 @@ public:
     {
         return engine.m_state->renderCoordination.nextSynchronizationAttempt;
     }
+    static void restoreViewportStatePreservingActiveRenderAttempt(
+        ViewportEngine& engine, ViewportEngineViewportState viewport)
+    {
+        const auto activeAttempt = engine.m_state->renderCoordination.activeAttempt;
+        engine.handleViewportChanged(viewport);
+        engine.m_state->renderCoordination.activeAttempt = activeAttempt;
+    }
     static ImageViewportInternal::ProviderSessionState& providerSession(
         ViewportEngine& engine, ImageViewportPageRole role)
     {

@@ -6,7 +6,6 @@
 #include "imageviewportrenderhost_p.h"
 #include "imageviewportstate_p.h"
 #include "viewportengine_p.h"
-#include "viewportitemtransaction_p.h"
 #include <ImageViewport/ImageViewport>
 
 #include <QtCore/QMutex>

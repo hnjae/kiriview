@@ -3,6 +3,7 @@
 #include "viewportengineprojection_p.h"
 
 #include "imageviewportvalidation_p.h"
+#include "viewportprovidertransporteffects_p.h"
 
 #include <algorithm>
 #include <cmath>
@@ -373,15 +374,14 @@ ViewportEnginePresentationCommandReduction reduceViewportEnginePresentationComma
     return result;
 }
 
-ViewportEnginePresentationCommandResult ViewportEngine::applyPresentationCommand(
+ViewportEngineCommandTransition ViewportEngine::applyPresentationCommand(
     const ViewportEnginePresentationCommandRequest& input)
 {
-    ViewportEnginePresentationCommandResult result;
+    ViewportEngineTransitionDraft transition;
     const ViewportEnginePresentationCommandInput operationInput { input.command, currentGeometry(),
         m_state->viewport.itemBounds.center(), 0 };
     if (!validateViewportEnginePresentationCommand(operationInput)) {
-        result.command = rejectInvalidCommand();
-        return result;
+        return finalizeCommandTransition(rejectInvalidCommand(), std::move(transition));
     }
 
     const bool readyDisplay = m_state->displayState.display.hasReadyDisplay(
@@ -394,8 +394,8 @@ ViewportEnginePresentationCommandResult ViewportEngine::applyPresentationCommand
     auto reduction
         = reduceViewportEnginePresentationCommand(operationInput, std::move(presentationState));
     if (!reduction.presentation && !reduction.looping) {
-        result.command = acceptedPreservingCommandDiagnostics();
-        return result;
+        return finalizeCommandTransition(
+            acceptedPreservingCommandDiagnostics(), std::move(transition));
     }
     if (reduction.presentation) {
         m_state->presentationState.presentation = *reduction.presentation;
@@ -417,21 +417,23 @@ ViewportEnginePresentationCommandResult ViewportEngine::applyPresentationCommand
         reduction.changes.targetPresentationRevision = true;
         reduction.changes.adoptTargetPresentationRevision = readyDisplay;
     }
-    result.command = accepted();
-    result.changes = reduction.changes;
+    transition.changes = reduction.changes;
     if (reduction.restageProviderDemands) {
-        result.providerEffects = restageProviderDemands(operationInput.geometry);
-        const bool restaged
-            = result.providerEffects[0].sendCommand || result.providerEffects[1].sendCommand;
+        const auto providerEffects = restageProviderDemands(operationInput.geometry);
+        const bool restaged = providerEffects[0].sendCommand || providerEffects[1].sendCommand;
         if (restaged) {
-            result.changes.requestState = true;
-            result.changes.requestRevision = true;
-            result.changes.displayState = true;
-            result.changes.displayRevision = true;
-            result.changes.scheduleUpdate = true;
+            transition.changes.requestState = true;
+            transition.changes.requestRevision = true;
+            transition.changes.displayState = true;
+            transition.changes.displayRevision = true;
+            transition.changes.scheduleUpdate = true;
         }
+        appendProviderTransport(
+            transition.providerTransport, providerEffects[0], ImageViewportPageRole::Primary);
+        appendProviderTransport(
+            transition.providerTransport, providerEffects[1], ImageViewportPageRole::Secondary);
     }
-    return result;
+    return finalizeCommandTransition(accepted(), std::move(transition));
 }
 
 ViewportEnginePresentationTargetTransitionReduction
