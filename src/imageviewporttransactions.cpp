@@ -339,7 +339,8 @@ void ImageViewportPrivate::reportRenderQualityFallbackForTest(
     const quint64 reportedAttempt
         = renderAttempt == previousAttempt ? attempt.attempt : renderAttempt;
     const auto reduced = engine.handleRenderHostFact({ { ViewportRenderHostFact::Outcome::Committed,
-        { std::move(rolePayloads), PageRole::Primary, RenderFailureCause::None, reportedAttempt },
+        { attempt.snapshot.targetSpread, attempt.snapshot.presentation, std::move(rolePayloads),
+            PageRole::Primary, RenderFailureCause::None, reportedAttempt },
         { smoothingUnavailable, mipmapUnavailable }, !attempt.snapshot.imageLayers.isEmpty() } });
     ViewportEngineTransition transition;
     transition.changes = reduced.changes;
@@ -386,8 +387,9 @@ void ImageViewportPrivate::acknowledgeRenderCommitForTest(
 {
     const ViewportRenderAttempt attempt = beginRenderSynchronizationForTest();
     const auto reduced = engine.handleRenderHostFact({ { ViewportRenderHostFact::Outcome::Committed,
-        { { { PageRole::Primary, { generation, requestId, preparedPayloadId } } },
-            PageRole::Primary, RenderFailureCause::None, attempt.attempt },
+        { { generation, requestId }, attempt.snapshot.presentation,
+            { { PageRole::Primary, { generation, preparedPayloadId } } }, PageRole::Primary,
+            RenderFailureCause::None, attempt.attempt },
         {}, true } });
     ViewportEngineTransition transition;
     transition.changes = reduced.changes;
@@ -406,19 +408,18 @@ void ImageViewportPrivate::acknowledgeRenderCommitForTest(quint64 generation, qu
     const ViewportRenderAttempt attempt = beginRenderSynchronizationForTest();
     const ImageViewportInternal::PreparedPayloadIdentity primaryPayload {
         generation,
-        requestId,
         primaryPreparedPayloadId,
     };
     const ImageViewportInternal::PreparedPayloadIdentity secondaryPayload {
         generation,
-        requestId,
         secondaryPreparedPayloadId,
     };
     const auto reduced = engine.handleRenderHostFact({ { ViewportRenderHostFact::Outcome::Committed,
-        { {
-              { ImageViewportPageRole::Primary, primaryPayload },
-              { ImageViewportPageRole::Secondary, secondaryPayload },
-          },
+        { { generation, requestId }, attempt.snapshot.presentation,
+            {
+                { ImageViewportPageRole::Primary, primaryPayload },
+                { ImageViewportPageRole::Secondary, secondaryPayload },
+            },
             PageRole::Primary, RenderFailureCause::None, attempt.attempt },
         {}, true } });
     ViewportEngineTransition transition;
@@ -455,20 +456,21 @@ void ImageViewportPrivate::acknowledgeRenderFailureForTest(PageRole failedRole, 
     for (const auto& layer : attempt.snapshot.imageLayers) {
         auto identity = layer.preparedPayload.identity();
         if (layer.role == failedRole) {
-            identity = { generation, requestId, preparedPayloadId };
+            identity = { generation, preparedPayloadId };
         }
         rolePayloads.append({ layer.role, identity });
     }
     const ImageViewportInternal::PreparedPayloadIdentity failedPayload {
         generation,
-        requestId,
         preparedPayloadId,
     };
     if (rolePayloads.isEmpty()) {
         rolePayloads.append({ failedRole, failedPayload });
     }
     const auto reduced = engine.handleRenderHostFact({ { ViewportRenderHostFact::Outcome::Failed,
-        { std::move(rolePayloads), failedRole, cause, attempt.attempt }, {}, true } });
+        { { generation, requestId }, attempt.snapshot.presentation, std::move(rolePayloads),
+            failedRole, cause, attempt.attempt },
+        {}, true } });
     ViewportEngineTransition transition;
     transition.changes = reduced.changes;
     transition.playbackSchedule = reduced.playbackSchedule;

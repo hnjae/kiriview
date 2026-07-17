@@ -18,6 +18,7 @@ private slots:
     void builtInTwoPageSpreadWaitsForCompleteRenderCommit();
     void mixedBuiltInProviderSpreadWaitsForCompleteRenderCommit_data();
     void mixedBuiltInProviderSpreadWaitsForCompleteRenderCommit();
+    void mixedSpreadSeekReusesUnchangedProviderRole();
     void staleBuiltInRenderAcknowledgementIsIgnored();
     void stillImagePaintFailureReportsRenderFailure();
     void timedFrameListPaintFailureRetainsPreviousDisplay();
@@ -310,6 +311,74 @@ void ImageViewportRenderCommitTest::mixedBuiltInProviderSpreadWaitsForCompleteRe
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(primaryDisplayedFrame(item), 0);
     QVERIFY(!hasPendingRenderCommitForTest(item));
+}
+
+void ImageViewportRenderCommitTest::mixedSpreadSeekReusesUnchangedProviderRole()
+{
+    ImageSequenceFactory factory;
+    QImage firstBuiltInImage(10, 20, QImage::Format_ARGB32_Premultiplied);
+    firstBuiltInImage.fill(QColor(0, 255, 0, 255));
+    QImage secondBuiltInImage(10, 20, QImage::Format_ARGB32_Premultiplied);
+    secondBuiltInImage.fill(QColor(255, 255, 0, 255));
+    ImageFrame firstBuiltInFrame(firstBuiltInImage);
+    ImageFrame secondBuiltInFrame(secondBuiltInImage);
+    TimedImageFrameList builtInFrames;
+    QVERIFY(builtInFrames.appendFrame(&firstBuiltInFrame, 100));
+    QVERIFY(builtInFrames.appendFrame(&secondBuiltInFrame, 100));
+    QScopedPointer<ImageSequenceFactoryResult> builtInResult(
+        factory.fromTimedFrameList(&builtInFrames));
+    QVERIFY(builtInResult->sequence());
+
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> providerResult(factory.fromProvider(&adapter));
+    QVERIFY(providerResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(120.0, 40.0));
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(
+                                            builtInResult->sequence(), providerResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+
+    QVERIFY(sessionFactory->lastSession());
+    emitProviderMetadataReady(sessionFactory->lastSession(),
+        sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(30.0, 20.0)));
+    drainQueuedProviderResults();
+
+    QImage providerImage(30, 20, QImage::Format_ARGB32_Premultiplied);
+    providerImage.fill(QColor(0, 0, 255, 255));
+    ImageFrame providerFrame(providerImage);
+    emitProviderFrameReady(sessionFactory->lastSession(),
+        sessionFactory->lastSession()->lastFrameToken(), &providerFrame);
+    drainQueuedProviderResults();
+
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Ready);
+    QCOMPARE(item.state().display().displayedRoleSet(), ImageViewportRoleSet(true, true));
+    QCOMPARE(*frameRequestCount, 1);
+
+    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 1).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Loading);
+    QVERIFY(hasPendingRenderCommitForTest(item));
+    QVERIFY(pendingRenderPayloadIdForTest(item) > 0);
+    QVERIFY(secondaryPendingRenderPayloadIdForTest(item) > 0);
+    QCOMPARE(*frameRequestCount, 1);
+
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Ready);
+    QCOMPARE(primaryDisplayedFrame(item), 1);
+    QCOMPARE(secondaryDisplayedFrame(item), 0);
+    QCOMPARE(item.state().display().displayedRoleSet(), ImageViewportRoleSet(true, true));
 }
 
 void ImageViewportRenderCommitTest::staleBuiltInRenderAcknowledgementIsIgnored()

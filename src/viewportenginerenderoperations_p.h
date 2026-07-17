@@ -25,6 +25,8 @@ struct ViewportEngineGeometryChangeReduction
 
 struct ViewportEngineRenderSynchronizationInput
 {
+    quint64 targetPresentationRevision = 0;
+    quint64 displayedPresentationRevision = 0;
     QSizeF itemSize;
     QRectF itemBounds;
     QRectF oldContentRect;

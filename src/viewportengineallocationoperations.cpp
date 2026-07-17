@@ -11,7 +11,7 @@ using namespace ImageViewportInternal;
 bool sameIdentity(PreparedPayloadIdentity lhs, PreparedPayloadIdentity rhs)
 {
     return lhs.isValid() && rhs.isValid() && lhs.generation == rhs.generation
-        && lhs.requestId == rhs.requestId && lhs.payloadId == rhs.payloadId;
+        && lhs.payloadId == rhs.payloadId;
 }
 
 qint64 accountedPayloadBytes(const DisplayState& display)

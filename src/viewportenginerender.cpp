@@ -32,8 +32,19 @@ void mergeChanges(ImageViewportInternal::ViewportChangeSet& target,
 bool identitiesEqual(ImageViewportInternal::PreparedPayloadIdentity lhs,
     ImageViewportInternal::PreparedPayloadIdentity rhs)
 {
-    return lhs.generation == rhs.generation && lhs.requestId == rhs.requestId
-        && lhs.payloadId == rhs.payloadId;
+    return lhs.generation == rhs.generation && lhs.payloadId == rhs.payloadId;
+}
+
+bool targetSpreadsEqual(ImageViewportInternal::TargetSpreadIdentity lhs,
+    ImageViewportInternal::TargetSpreadIdentity rhs)
+{
+    return lhs.generation == rhs.generation && lhs.requestId == rhs.requestId;
+}
+
+bool presentationsEqual(ImageViewportInternal::RenderPresentationIdentity lhs,
+    ImageViewportInternal::RenderPresentationIdentity rhs)
+{
+    return lhs.revision == rhs.revision;
 }
 
 QVector<ViewportRenderRolePayload> expectedPayloads(const ViewportRenderAttempt& attempt)
@@ -51,6 +62,10 @@ bool acknowledgementMatchesAttempt(
 {
     const ViewportRenderAcknowledgement& acknowledgement = fact.acknowledgement;
     if (acknowledgement.attempt == 0 || acknowledgement.attempt != attempt.attempt) {
+        return false;
+    }
+    if (!targetSpreadsEqual(acknowledgement.targetSpread, attempt.snapshot.targetSpread)
+        || !presentationsEqual(acknowledgement.presentation, attempt.snapshot.presentation)) {
         return false;
     }
     const QVector<ViewportRenderRolePayload> expected = expectedPayloads(attempt);
@@ -91,7 +106,7 @@ ImageViewportInternal::InternalObservation staleRenderFactObservation(
         observation.identity.roleValid = true;
         observation.identity.role = payload.role;
         observation.identity.generation = payload.preparedPayload.generation;
-        observation.identity.requestId = payload.preparedPayload.requestId;
+        observation.identity.requestId = fact.acknowledgement.targetSpread.requestId;
         observation.identity.payloadId = payload.preparedPayload.payloadId;
     }
     return observation;
@@ -192,6 +207,8 @@ ViewportRenderAttempt ViewportEngine::beginRenderSynchronization()
     const GeometryInput current = currentGeometry();
     const PresentationGeometry::State currentState = geometryState(current);
     const ViewportEngineRenderSynchronizationInput operationInput {
+        m_state->revisions.targetPresentationRevision,
+        m_state->displayState.display.displayedPresentationRevision,
         m_state->viewport.itemBounds.size(), m_state->viewport.itemBounds,
         PresentationGeometry::contentRect(currentState),
         PresentationGeometry::visibleImageRect(currentState), current, pendingGeometry()

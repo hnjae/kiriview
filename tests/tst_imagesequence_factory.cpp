@@ -482,7 +482,6 @@ void ImageSequenceFactoryTest::providerFrameAdmissionUsesResolvedFrameIdentity()
     state.resolvedFrame.frame = 1;
     state.resolvedFrame.position = 100;
     state.preparedPayload.generation = 7;
-    state.preparedPayload.requestId = 11;
     state.preparedPayload.payloadId = 13;
 
     ImageSequenceProviderFrameEnvelope envelope = ImageSequenceProviderFrameEnvelope::stillFrame();
@@ -494,7 +493,6 @@ void ImageSequenceFactoryTest::providerFrameAdmissionUsesResolvedFrameIdentity()
     QVERIFY(admission.accepted());
     QCOMPARE(admission.cause, FramePreparation::ProviderFrameAdmissionResult::Cause::Accepted);
     QCOMPARE(admission.preparedPayload.generation, 7);
-    QCOMPARE(admission.preparedPayload.requestId, 11);
     QCOMPARE(admission.preparedPayload.payloadId, 13);
     QCOMPARE(admission.preparedPayload.image.size(), image.size());
     QCOMPARE(admission.preparedPayload.image.format(), image.format());
@@ -579,7 +577,6 @@ void ImageSequenceFactoryTest::timedFrameListSequencePreservesExplicitPayloadFac
 
     ImageViewportInternal::PreparedPayload seed;
     seed.generation = 3;
-    seed.requestId = 5;
     seed.payloadId = 7;
     const auto admission = FramePreparation::admitBuiltInFrame(source, 0, seed,
         ImageViewportExactnessPreference::Default, ImageViewportPageRole::Secondary);

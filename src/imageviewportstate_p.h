@@ -206,20 +206,33 @@ struct DisplayRequestSnapshot
     DisplayRequest request;
 };
 
-struct PreparedPayloadIdentity
+struct TargetSpreadIdentity
 {
     quint64 generation = 0;
     quint64 requestId = 0;
+
+    bool isValid() const { return generation != 0 && requestId != 0; }
+};
+
+struct RenderPresentationIdentity
+{
+    quint64 revision = 0;
+
+    bool isValid() const { return revision != 0; }
+};
+
+struct PreparedPayloadIdentity
+{
+    quint64 generation = 0;
     quint64 payloadId = 0;
 
-    bool isValid() const { return generation != 0 && requestId != 0 && payloadId != 0; }
+    bool isValid() const { return generation != 0 && payloadId != 0; }
 };
 
 struct PreparedPayload
 {
     bool commitPending = false;
     quint64 generation = 0;
-    quint64 requestId = 0;
     quint64 payloadId = 0;
     QImage image;
     QSizeF sourceLogicalSize;
@@ -238,7 +251,7 @@ struct PreparedPayload
     ImageViewportDemandRevisionToken demandRevision;
     quint64 providerFrameLeaseId = 0;
 
-    PreparedPayloadIdentity identity() const { return { generation, requestId, payloadId }; }
+    PreparedPayloadIdentity identity() const { return { generation, payloadId }; }
     bool hasPresentableContent() const
     {
         return identity().isValid() && !image.isNull() && sourceLogicalSize.isValid()
@@ -337,7 +350,6 @@ struct DisplayState
     {
         auto& pending = roles[0].pendingRenderPayload;
         pending.generation = sequenceGeneration;
-        pending.requestId = activeRequest.identity.id;
         pending.payloadId = activeRequest.identity.id == 0 ? 0 : ++nextPreparedPayloadId;
         activeRequest.preparedPayloadId = pending.payloadId;
     }
@@ -358,13 +370,12 @@ struct DisplayState
         roles[1].pendingRenderPayload = {};
     }
 
-    bool pendingRenderPayloadMatches(const PreparedPayloadIdentity& identity) const
+    bool pendingRenderPayloadMatches(PreparedPayloadIdentity identity) const
     {
         const auto& pending = roles[0].pendingRenderPayload;
         const PreparedPayloadIdentity pendingIdentity = pending.identity();
         return pending.commitPending && identity.isValid()
             && identity.generation == pendingIdentity.generation
-            && identity.requestId == pendingIdentity.requestId
             && identity.payloadId == pendingIdentity.payloadId;
     }
 
@@ -445,8 +456,7 @@ struct RequestState
         targetSpreadTerminal.clear();
         lastAcceptedRenderFailure = {};
         auto& activeRequest = roles[0].activeRequest;
-        activeRequest.identity.id = ++nextRequestId;
-        activeRequest.identity.origin = origin;
+        activeRequest.identity = { ++nextRequestId, origin };
         activeRequest.providerFrameToken = {};
         activeRequest.demandRevision = {};
         activeRequest.preparedPayloadId = 0;
@@ -474,6 +484,33 @@ struct RequestState
         }
     }
 
+    void beginRoleDisplayRequest(ImageViewportPageRole role, DisplayRequestOrigin origin,
+        DisplayRequestTarget target, ResolvedFrameIdentity resolvedFrame,
+        bool rememberAsLatestNonPlayback)
+    {
+        const DisplayRequest previousPrimary = roles[0].activeRequest;
+        if (role == ImageViewportPageRole::Primary) {
+            beginDisplayRequest(origin, target, resolvedFrame, rememberAsLatestNonPlayback);
+            roles[1].activeRequest.identity = roles[0].activeRequest.identity;
+            return;
+        }
+
+        beginDisplayRequest(origin, previousPrimary.target, previousPrimary.resolvedFrame, false);
+        const DisplayRequestIdentity spreadIdentity = roles[0].activeRequest.identity;
+        roles[0].activeRequest = previousPrimary;
+        roles[0].activeRequest.identity = spreadIdentity;
+        auto& secondary = roles[1].activeRequest;
+        secondary.identity = spreadIdentity;
+        secondary.target = target;
+        secondary.resolvedFrame = resolvedFrame;
+        secondary.providerFrameToken = {};
+        secondary.demandRevision = {};
+        secondary.preparedPayloadId = 0;
+        if (rememberAsLatestNonPlayback) {
+            roles[1].latestNonPlaybackRequest = secondary;
+        }
+    }
+
     bool clearDiagnostics()
     {
         if (errorString.isEmpty() && warningString.isEmpty()) {
@@ -490,11 +527,17 @@ struct RequestState
         return token.isValid() && token == roles[0].activeRequest.providerFrameToken;
     }
 
-    bool activeRequestOwnsPreparedPayload(const PreparedPayloadIdentity& identity) const
+    bool activeRequestOwnsPreparedPayload(
+        ImageViewportPageRole role, PreparedPayloadIdentity identity) const
     {
+        const std::size_t index = role == ImageViewportPageRole::Secondary ? 1U : 0U;
         return identity.isValid() && identity.generation == sequenceGeneration
-            && identity.requestId == roles[0].activeRequest.identity.id
-            && identity.payloadId == roles[0].activeRequest.preparedPayloadId;
+            && identity.payloadId == roles[index].activeRequest.preparedPayloadId;
+    }
+
+    TargetSpreadIdentity activeTargetSpreadIdentity() const
+    {
+        return { sequenceGeneration, roles[0].activeRequest.identity.id };
     }
 
     std::array<RoleState, 2> roles;

@@ -149,8 +149,24 @@ ViewportEngineRenderCoordinationState::AttemptContext synchronizeViewportEngineR
     }
     for (auto& payload : payloads)
         payload.providerFrameLeaseId = 0;
+    TargetSpreadIdentity targetSpread;
+    if (requiredRoles.primary()) {
+        if (result.pendingTargetCommit) {
+            targetSpread = access.request().activeTargetSpreadIdentity();
+        } else {
+            const auto& displayed = access.display().roles[0].displayedRequest;
+            targetSpread = { displayed.generation, displayed.request.identity.id };
+        }
+    }
+    const RenderPresentationIdentity presentationIdentity {
+        access.display().status == ImageViewportDisplayStatus::Retained
+                && !result.pendingTargetCommit
+            ? input.displayedPresentationRevision
+            : input.targetPresentationRevision,
+    };
     result.attempt.snapshot = projectViewportRenderSnapshot(
-        { input.itemSize, requiredRoles, payloads, result.geometryState,
+        { targetSpread, presentationIdentity, input.itemSize, requiredRoles, payloads,
+            result.geometryState,
             access.display().status == ImageViewportDisplayStatus::Retained
                 && !result.pendingTargetCommit },
         access.renderSnapshot());
@@ -177,7 +193,7 @@ ViewportEngineRenderCommitReduction reduceViewportEngineRenderCommit(
         observation.identity.roleValid = true;
         observation.identity.role = ImageViewportPageRole::Primary;
         observation.identity.generation = payload.generation;
-        observation.identity.requestId = payload.requestId;
+        observation.identity.requestId = input.acknowledgement.targetSpread.requestId;
         observation.identity.payloadId = payload.payloadId;
         observation.identity.renderAttempt = input.acknowledgement.attempt;
         result.observations.append(observation);
@@ -279,7 +295,7 @@ ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
         observation.identity.roleValid = true;
         observation.identity.role = input.acknowledgement.failedRole;
         observation.identity.generation = failed.generation;
-        observation.identity.requestId = failed.requestId;
+        observation.identity.requestId = input.acknowledgement.targetSpread.requestId;
         observation.identity.payloadId = failed.payloadId;
         observation.identity.renderAttempt = input.acknowledgement.attempt;
         observation.detail = int(input.acknowledgement.failureCause);
@@ -290,9 +306,9 @@ ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
     const bool retainCommittedDisplay = access.display().hasReadyDisplay(true);
     const auto failed = ViewportEngineRenderAcknowledgement::acknowledgedPayload(
         input.acknowledgement, input.acknowledgement.failedRole);
-    result.diagnostic
-        = { true, input.acknowledgement.failedRole, failed.generation, failed.requestId,
-              failed.payloadId, input.acknowledgement.failureCause, input.acknowledgement.attempt };
+    result.diagnostic = { true, input.acknowledgement.failedRole, failed.generation,
+        input.acknowledgement.targetSpread.requestId, failed.payloadId,
+        input.acknowledgement.failureCause, input.acknowledgement.attempt };
     access.request().lastAcceptedRenderFailure = result.diagnostic;
     changes.renderFailureDiagnostic = result.diagnostic;
     access.display().clearPendingRenderPayload();

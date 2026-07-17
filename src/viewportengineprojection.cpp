@@ -471,6 +471,8 @@ ViewportRenderSnapshot projectViewportRenderSnapshot(
         return PresentationGeometry::visiblePageRect(input.geometryState, role);
     };
     ViewportRenderSnapshot snapshot;
+    snapshot.targetSpread = input.targetSpread;
+    snapshot.presentation = input.presentation;
     snapshot.itemSize = input.itemSize;
     snapshot.backgroundMode = presentation.backgroundMode;
     snapshot.backgroundColor = presentation.backgroundColor;

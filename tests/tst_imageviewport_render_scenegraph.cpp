@@ -60,7 +60,7 @@ ImageViewportInternal::PreparedPayload renderAdapterPayload(QImage image)
     const QSizeF scale = logicalSize.isEmpty() ? QSizeF()
                                                : QSizeF(rasterSize.width() / logicalSize.width(),
                                                      rasterSize.height() / logicalSize.height());
-    return { true, 1, 1, 1, std::move(image), logicalSize, rasterSize, scale };
+    return { true, 1, 1, std::move(image), logicalSize, rasterSize, scale };
 }
 
 RenderAdapter::Input renderAdapterInputForPayload(
@@ -963,9 +963,9 @@ void ImageViewportRenderSceneGraphTest::renderPlanBuildsRoleLayerMappingWithoutS
     QImage primaryImage(2, 2, QImage::Format_ARGB32_Premultiplied);
     primaryImage.fill(QColor(255, 0, 0, 255));
     ImageViewportInternal::PreparedPayload secondaryPayload
-        = { true, 3, 5, 7, secondaryImage, QSizeF(2.0, 2.0), QSizeF(4.0, 4.0), QSizeF(2.0, 2.0) };
+        = { true, 3, 7, secondaryImage, QSizeF(2.0, 2.0), QSizeF(4.0, 4.0), QSizeF(2.0, 2.0) };
     ImageViewportInternal::PreparedPayload primaryPayload
-        = { true, 3, 5, 8, primaryImage, QSizeF(2.0, 2.0), QSizeF(2.0, 2.0), QSizeF(1.0, 1.0) };
+        = { true, 3, 8, primaryImage, QSizeF(2.0, 2.0), QSizeF(2.0, 2.0), QSizeF(1.0, 1.0) };
 
     RenderAdapter::Input input;
     input.itemSize = QSizeF(30.0, 20.0);
@@ -1000,7 +1000,7 @@ void ImageViewportRenderSceneGraphTest::
     QImage image(8, 4, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::red);
     image.setDevicePixelRatio(3.0);
-    ImageViewportInternal::PreparedPayload payload { true, 1, 2, 3, image, QSizeF(16.0, 8.0),
+    ImageViewportInternal::PreparedPayload payload { true, 1, 3, image, QSizeF(16.0, 8.0),
         QSizeF(8.0, 4.0), QSizeF(0.5, 0.5) };
 
     RenderAdapter::Input input;

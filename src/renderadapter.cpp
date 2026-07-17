@@ -142,7 +142,6 @@ RenderAdapter::RenderPlan RenderAdapter::createPlan(const Input& input) const
         const auto& payload = layer.preparedPayload;
         const ImageViewportInternal::PreparedPayloadIdentity payloadIdentity {
             payload.generation,
-            payload.requestId,
             payload.payloadId,
         };
         plan.rolePayloads.append({ layer.role, payloadIdentity });

@@ -47,7 +47,8 @@ ImageViewportRenderHostResult ImageViewportRenderHost::synchronize(
         : ViewportRenderHostFact::Outcome::Empty;
     return { render.node,
         { outcome,
-            { std::move(rolePayloads), render.failedRole, render.failureCause, attempt.attempt },
+            { attempt.snapshot.targetSpread, attempt.snapshot.presentation, std::move(rolePayloads),
+                render.failedRole, render.failureCause, attempt.attempt },
             { render.smoothingUnavailable, render.mipmapUnavailable }, imagePresent } };
 }
 

@@ -64,9 +64,7 @@ FramePreparation::ProviderFrameState preparationState(const RequestState& reques
     PreparedPayload preparedPayload = display.roles[index].pendingRenderPayload;
     if (!preparedPayload.identity().isValid()) {
         preparedPayload.generation = request.sequenceGeneration;
-        preparedPayload.requestId = active.identity.id;
-        preparedPayload.payloadId
-            = preparedPayload.requestId == 0 ? 0 : display.nextPreparedPayloadId + 1;
+        preparedPayload.payloadId = active.identity.id == 0 ? 0 : display.nextPreparedPayloadId + 1;
     }
     const auto& demand = provider.requests.lastFrameDemand;
     return { provider.facts.metadataReady, provider.facts.timedMetadata, provider.facts.logicalSize,
@@ -154,12 +152,13 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         auto& preparedPayload = access.m_display.roles[0].pendingRenderPayload;
         auto& primaryRequest = access.m_request.roles[0].activeRequest;
         if (!preparedPayload.identity().isValid()) {
-            if (displayedPrimaryPayloadMatchesActiveTarget(access.m_display, access.m_request))
+            if (displayedPrimaryPayloadMatchesActiveTarget(access.m_display, access.m_request)) {
                 preparedPayload = access.m_display.roles[0].displayedPayload;
+            } else {
+                preparedPayload.generation = access.m_request.sequenceGeneration;
+                preparedPayload.payloadId = ++access.m_display.nextPreparedPayloadId;
+            }
             preparedPayload.commitPending = true;
-            preparedPayload.generation = access.m_request.sequenceGeneration;
-            preparedPayload.requestId = primaryRequest.identity.id;
-            preparedPayload.payloadId = ++access.m_display.nextPreparedPayloadId;
             primaryRequest.preparedPayloadId = preparedPayload.payloadId;
         }
         access.m_provider.requests.activeFrameToken = {};

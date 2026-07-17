@@ -83,10 +83,8 @@ ProviderFrameQueueSetup setUpCurrentProviderFrameQueueRequest(
     secondaryImage.fill(Qt::blue);
 
     auto& display = ViewportEngineTestAccess::display(engine);
-    display.roles[0].pendingRenderPayload = { true, request.sequenceGeneration,
-        request.roles[0].activeRequest.identity.id, 3, primaryImage };
-    display.roles[1].pendingRenderPayload = { true, request.sequenceGeneration,
-        request.roles[0].activeRequest.identity.id, 4, secondaryImage };
+    display.roles[0].pendingRenderPayload = { true, request.sequenceGeneration, 3, primaryImage };
+    display.roles[1].pendingRenderPayload = { true, request.sequenceGeneration, 4, secondaryImage };
     display.status = ImageViewportDisplayStatus::Ready;
     display.roles[0].displayedRequest = display.activeRequestSnapshot(request.sequenceGeneration,
         request.roles[0].activeRequest, request.roles[0].activeRequest.target.position);
@@ -155,8 +153,8 @@ void setViewport(ViewportEngine& engine, ViewportEngineViewportState viewport)
     engine.publishChanges(transition.changes);
 }
 
-ImageViewportInternal::PreparedPayload preparedPayloadForTest(const QImage& image,
-    QSizeF sourceLogicalSize, quint64 generation, quint64 requestId, quint64 payloadId)
+ImageViewportInternal::PreparedPayload preparedPayloadForTest(
+    const QImage& image, QSizeF sourceLogicalSize, quint64 generation, quint64, quint64 payloadId)
 {
     if (sourceLogicalSize.isEmpty())
         sourceLogicalSize = image.deviceIndependentSize();
@@ -165,7 +163,7 @@ ImageViewportInternal::PreparedPayload preparedPayloadForTest(const QImage& imag
         ? QSizeF {}
         : QSizeF(payloadRasterSize.width() / sourceLogicalSize.width(),
               payloadRasterSize.height() / sourceLogicalSize.height());
-    return { false, generation, requestId, payloadId, image, sourceLogicalSize, payloadRasterSize,
+    return { false, generation, payloadId, image, sourceLogicalSize, payloadRasterSize,
         sourceToPayloadScale, image.sizeInBytes(), ImageViewportPayloadQuality::Exact,
         ImageViewportPayloadExactness::ExactForSource };
 }
@@ -326,8 +324,7 @@ void ViewportEngineTest::displayStateOwnsRenderPayloadAndRetainedIdentity()
         request.sequenceGeneration, request.roles[0].activeRequest);
     display.roles[0].pendingRenderPayload.commitPending = true;
     display.roles[0].pendingRenderPayload.image = display.roles[0].displayedPayload.image;
-    display.roles[1].pendingRenderPayload
-        = { true, 12, request.roles[0].activeRequest.identity.id, 9, {} };
+    display.roles[1].pendingRenderPayload = { true, 12, 9, {} };
     display.revision = 42;
 
     const auto& observed = ViewportEngineTestAccess::display(engine);
@@ -338,8 +335,6 @@ void ViewportEngineTest::displayStateOwnsRenderPayloadAndRetainedIdentity()
     QCOMPARE(observed.roles[0].displayedPayload.sourceLogicalSize, QSizeF(16.0, 8.0));
     QCOMPARE(observed.roles[0].pendingRenderPayload.commitPending, true);
     QCOMPARE(observed.roles[0].pendingRenderPayload.generation, 12);
-    QCOMPARE(observed.roles[0].pendingRenderPayload.requestId,
-        request.roles[0].activeRequest.identity.id);
     QCOMPARE(observed.roles[0].pendingRenderPayload.payloadId, 1);
     QCOMPARE(request.roles[0].activeRequest.preparedPayloadId, 1);
     QCOMPARE(observed.roles[1].pendingRenderPayload.payloadId, 9);
@@ -1146,10 +1141,8 @@ void ViewportEngineTest::renderSnapshotUsesEnginePresentationAndPayloadState()
     QImage secondaryImage(8, 10, QImage::Format_ARGB32_Premultiplied);
     secondaryImage.fill(Qt::blue);
 
-    display.roles[0].pendingRenderPayload = { true, request.sequenceGeneration,
-        request.roles[0].activeRequest.identity.id, 3, primaryImage };
-    display.roles[1].pendingRenderPayload = { true, request.sequenceGeneration,
-        request.roles[0].activeRequest.identity.id, 4, secondaryImage };
+    display.roles[0].pendingRenderPayload = { true, request.sequenceGeneration, 3, primaryImage };
+    display.roles[1].pendingRenderPayload = { true, request.sequenceGeneration, 4, secondaryImage };
 
     ViewportRenderSnapshotInput input;
     input.itemSize = QSizeF(100.0, 80.0);
@@ -1542,6 +1535,8 @@ void ViewportEngineTest::renderAttemptAuthorityRejectsStaleAndDuplicateFacts()
         ViewportRenderHostFact fact;
         fact.outcome = ViewportRenderHostFact::Outcome::Committed;
         fact.acknowledgement.attempt = attempt.attempt;
+        fact.acknowledgement.targetSpread = attempt.snapshot.targetSpread;
+        fact.acknowledgement.presentation = attempt.snapshot.presentation;
         for (const auto& layer : attempt.snapshot.imageLayers) {
             fact.acknowledgement.rolePayloads.append(
                 { layer.role, layer.preparedPayload.identity() });
@@ -1561,6 +1556,20 @@ void ViewportEngineTest::renderAttemptAuthorityRejectsStaleAndDuplicateFacts()
     QCOMPARE(incomplete.observations.size(), 1);
     QCOMPARE(incomplete.observations.constFirst().category,
         ImageViewportInternal::InternalObservationCategory::StaleDrop);
+    QCOMPARE(engine.snapshot().request().status(), ImageViewportRequestStatus::Loading);
+
+    auto wrongTargetSpread = hostFact(activeAttempt);
+    ++wrongTargetSpread.acknowledgement.targetSpread.requestId;
+    const auto targetMismatch = engine.handleRenderHostFact({ wrongTargetSpread });
+    QCOMPARE(targetMismatch.changes.requestState, false);
+    QCOMPARE(targetMismatch.observations.size(), 1);
+    QCOMPARE(engine.snapshot().request().status(), ImageViewportRequestStatus::Loading);
+
+    auto wrongPresentation = hostFact(activeAttempt);
+    ++wrongPresentation.acknowledgement.presentation.revision;
+    const auto presentationMismatch = engine.handleRenderHostFact({ wrongPresentation });
+    QCOMPARE(presentationMismatch.changes.requestState, false);
+    QCOMPARE(presentationMismatch.observations.size(), 1);
     QCOMPARE(engine.snapshot().request().status(), ImageViewportRequestStatus::Loading);
 
     const auto stale = engine.handleRenderHostFact({ hostFact(staleAttempt) });

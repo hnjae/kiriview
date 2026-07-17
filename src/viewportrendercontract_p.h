@@ -20,6 +20,8 @@ struct ViewportRenderRolePayload
 
 struct ViewportRenderAcknowledgement
 {
+    ImageViewportInternal::TargetSpreadIdentity targetSpread;
+    ImageViewportInternal::RenderPresentationIdentity presentation;
     QVector<ViewportRenderRolePayload> rolePayloads;
     ImageViewportPageRole failedRole = ImageViewportPageRole::Primary;
     RenderFailureCause failureCause = RenderFailureCause::None;
@@ -45,6 +47,8 @@ struct ViewportRenderLayer
 
 struct ViewportRenderSnapshot
 {
+    ImageViewportInternal::TargetSpreadIdentity targetSpread;
+    ImageViewportInternal::RenderPresentationIdentity presentation;
     QSizeF itemSize;
     ImageViewportBackgroundMode backgroundMode = ImageViewportBackgroundMode::Transparent;
     QColor backgroundColor = Qt::white;
@@ -59,6 +63,8 @@ struct ViewportRenderSnapshot
 
 struct ViewportRenderSnapshotInput
 {
+    ImageViewportInternal::TargetSpreadIdentity targetSpread;
+    ImageViewportInternal::RenderPresentationIdentity presentation;
     QSizeF itemSize;
     ImageViewportRoleSet requiredRoleSet;
     std::array<ImageViewportInternal::PreparedPayload, 2> preparedPayloads;

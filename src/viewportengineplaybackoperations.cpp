@@ -267,25 +267,6 @@ ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
         }
     }
 
-    auto beginRoleRequest = [&request](ImageViewportPageRole role,
-                                ImageViewportInternal::DisplayRequestTarget target,
-                                ImageViewportInternal::ResolvedFrameIdentity resolved) {
-        if (role == ImageViewportPageRole::Primary) {
-            request.beginDisplayRequest(
-                ImageViewportInternal::DisplayRequestOrigin::StopRestore, target, resolved, true);
-            return;
-        }
-        const auto primaryRequest = request.roles[0].activeRequest;
-        request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::StopRestore,
-            primaryRequest.target, primaryRequest.resolvedFrame, false);
-        auto& secondary = request.roles[1].activeRequest;
-        secondary.identity = request.roles[0].activeRequest.identity;
-        secondary.target = target;
-        secondary.resolvedFrame = resolved;
-        secondary.providerFrameToken = {};
-        secondary.preparedPayloadId = 0;
-        request.roles[1].latestNonPlaybackRequest = secondary;
-    };
     auto markRequest = [&result]() {
         result.changes.requestState = true;
         result.changes.requestRevision = true;
@@ -342,7 +323,9 @@ ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
                 == ImageViewportInternal::DisplayRequestOrigin::Playback
             || roleState.activeRequest.target.providerTargetKind
                 == ImageViewportInternal::ProviderRequestTargetKind::Playback)) {
-        beginRoleRequest(input.role, restore.target, restore.resolvedFrame);
+        request.beginRoleDisplayRequest(input.role,
+            ImageViewportInternal::DisplayRequestOrigin::StopRestore, restore.target,
+            restore.resolvedFrame, true);
         playback.position = restore.target.position;
         const auto& displayed = display.roles[index].displayedRequest;
         const QSizeF displayedSize = display.roles[index].displayedPayload.sourceLogicalSize;
@@ -478,23 +461,6 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
             ImageViewportCommandReason::UnsupportedRequest);
     }
 
-    auto beginRoleRequest = [&request](ImageViewportPageRole role, DisplayRequestTarget target,
-                                ResolvedFrameIdentity identity) {
-        if (role == ImageViewportPageRole::Primary) {
-            request.beginDisplayRequest(DisplayRequestOrigin::ExplicitSeek, target, identity, true);
-            return;
-        }
-        const auto primary = request.roles[0].activeRequest;
-        request.beginDisplayRequest(
-            DisplayRequestOrigin::ExplicitSeek, primary.target, primary.resolvedFrame, false);
-        auto& secondary = request.roles[1].activeRequest;
-        secondary.identity = request.roles[0].activeRequest.identity;
-        secondary.target = target;
-        secondary.resolvedFrame = identity;
-        secondary.providerFrameToken = {};
-        secondary.preparedPayloadId = 0;
-        request.roles[1].latestNonPlaybackRequest = secondary;
-    };
     auto markRequest = [&result]() {
         result.changes.requestState = true;
         result.changes.requestRevision = true;
@@ -588,7 +554,8 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
         display.clearPendingRenderPayload();
     };
 
-    beginRoleRequest(input.role, { frame, position, targetKind }, resolved);
+    request.beginRoleDisplayRequest(input.role, DisplayRequestOrigin::ExplicitSeek,
+        { frame, position, targetKind }, resolved, true);
     if (source.facts.provider && !provider.facts.metadataReady) {
         markRequest();
     } else {
@@ -642,25 +609,6 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
             ImageViewportCommandReason::UnsupportedRequest);
     }
 
-    auto beginRoleRequest
-        = [&request](ImageViewportPageRole role, DisplayRequestOrigin origin,
-              DisplayRequestTarget target, ResolvedFrameIdentity resolved, bool remember) {
-              if (role == ImageViewportPageRole::Primary) {
-                  request.beginDisplayRequest(origin, target, resolved, remember);
-                  return;
-              }
-              const auto primary = request.roles[0].activeRequest;
-              request.beginDisplayRequest(origin, primary.target, primary.resolvedFrame, false);
-              auto& secondary = request.roles[1].activeRequest;
-              secondary.identity = request.roles[0].activeRequest.identity;
-              secondary.target = target;
-              secondary.resolvedFrame = resolved;
-              secondary.providerFrameToken = {};
-              secondary.preparedPayloadId = 0;
-              if (remember) {
-                  request.roles[1].latestNonPlaybackRequest = secondary;
-              }
-          };
     auto markRequest = [&result]() {
         result.changes.requestState = true;
         result.changes.requestRevision = true;
@@ -768,7 +716,7 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
             provider.requests.activeFrameRefinement = false;
         }
         if (input.role == ImageViewportPageRole::Primary) {
-            beginRoleRequest(input.role, DisplayRequestOrigin::Playback,
+            request.beginRoleDisplayRequest(input.role, DisplayRequestOrigin::Playback,
                 { -1, -1, ProviderRequestTargetKind::Playback }, { -1, -1 }, false);
         } else {
             auto& secondary = request.roles[1].activeRequest;
@@ -903,21 +851,8 @@ ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
     if (providerTiming) {
         displayTarget.providerTargetKind = ProviderRequestTargetKind::Playback;
     }
-    if (role == ImageViewportPageRole::Primary) {
-        request.beginDisplayRequest(DisplayRequestOrigin::Playback, displayTarget,
-            { displayTarget.frame, intervals.frameStartPosition(displayTarget.frame) }, false);
-    } else {
-        const auto primary = request.roles[0].activeRequest;
-        request.beginDisplayRequest(
-            DisplayRequestOrigin::Playback, primary.target, primary.resolvedFrame, false);
-        auto& secondary = request.roles[1].activeRequest;
-        secondary.identity = request.roles[0].activeRequest.identity;
-        secondary.target = displayTarget;
-        secondary.resolvedFrame
-            = { displayTarget.frame, intervals.frameStartPosition(displayTarget.frame) };
-        secondary.providerFrameToken = {};
-        secondary.preparedPayloadId = 0;
-    }
+    request.beginRoleDisplayRequest(role, DisplayRequestOrigin::Playback, displayTarget,
+        { displayTarget.frame, intervals.frameStartPosition(displayTarget.frame) }, false);
     if (target.looped && !playback.looping) {
         ++playback.loopIterationsCompleted;
     }
