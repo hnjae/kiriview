@@ -7,7 +7,6 @@
 #include "cache/imagecachepolicy.h"
 #include "decoding/imagedecodedependencies.h"
 #include "document/imagedocumentstate.h"
-#include "navigation/imagedocumentpagecandidateprovider.h"
 #include "navigation/imagedocumentpagenavigationtypes.h"
 #include "predecode/predecodedimage.h"
 #include "presentation/imagepresentationruntime.h"
@@ -60,7 +59,6 @@ public:
     ImageSpreadPresentationController(QObject* parent, RenderContextProvider renderContextProvider,
         ImageDocumentState& state, ImagePageSurfaceController& primaryPageSurface,
         ImagePresentationRuntime& presentationRuntime, Callbacks callbacks,
-        ImageDocumentPageCandidateProvider candidateProvider,
         ImageDecodeDependencies decodeDependencies, ImageCacheBudgets cacheBudgets);
     ~ImageSpreadPresentationController();
 

@@ -3,7 +3,10 @@
 
 #include "imagedocumentpagecandidatesnapshotport.h"
 
+#include "async/imagecallback.h"
 #include "navigation/imagedocumentpagenavigationservice.h"
+
+#include <utility>
 
 namespace {
 const kiriview::ImageDocumentPageCandidateListSnapshot& emptyCandidateSnapshot()
@@ -15,7 +18,7 @@ const kiriview::ImageDocumentPageCandidateListSnapshot& emptyCandidateSnapshot()
 
 namespace kiriview {
 ImageDocumentPageCandidateSnapshotPort::ImageDocumentPageCandidateSnapshotPort(
-    const ImageDocumentPageNavigationService* navigationService)
+    ImageDocumentPageNavigationService* navigationService)
     : m_navigationService(navigationService)
 {
 }
@@ -36,5 +39,16 @@ ImageDocumentPageCandidateSnapshotPort::confirmedSnapshot() const
         return emptyCandidateSnapshot();
     }
     return m_navigationService->confirmedPageCandidateSnapshot();
+}
+
+void ImageDocumentPageCandidateSnapshotPort::ensure(ImageDocumentPageCandidateListContext context,
+    ImageDocumentPageCandidateListSnapshotCallback callback) const
+{
+    if (m_navigationService == nullptr) {
+        invokeIfSet(callback, ImageDocumentPageCandidateListSnapshotResult {});
+        return;
+    }
+
+    m_navigationService->ensurePageCandidateSnapshot(std::move(context), std::move(callback));
 }
 }

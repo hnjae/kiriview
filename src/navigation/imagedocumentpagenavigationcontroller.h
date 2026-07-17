@@ -45,15 +45,20 @@ public:
     void openAdjacentPage(std::optional<ImageDocumentPageCandidateListContext> context,
         NavigationDirection direction);
     void update(std::optional<ImageDocumentPageCandidateListContext> context);
+    void ensureConfirmedSnapshot(ImageDocumentPageCandidateListContext context,
+        ImageDocumentPageCandidateListSnapshotCallback callback);
     void cancelNavigation();
     void cancelUpdate();
     void clear();
 
 private:
+    void startUpdate(ImageDocumentPageCandidateListContext context,
+        ImageDocumentPageCandidateListSnapshotCallback callback, bool reuseAnyConfirmedSnapshot);
     void finishNavigation(std::vector<ImageDocumentPageCandidate> candidates,
         NavigationDirection direction, const QUrl& currentUrl,
         ImageDocumentPageCandidateListSource candidateSource);
-    void watchChanges(const ImageDocumentPageCandidateListContext& context);
+    void watchChanges(
+        const ImageDocumentPageCandidateListContext& context, bool updatesNavigationState);
     void updateFromChangedCandidates(std::vector<ImageDocumentPageCandidate> candidates,
         ImageDocumentPageCandidateListSource source);
     void notifyChanged();
@@ -69,6 +74,7 @@ private:
     ImageIoJob m_navigationListerJob;
     ImageIoJob m_refreshListerJob;
     ImageIoJob m_changesJob;
+    bool m_watcherUpdatesNavigationState = false;
     quint64 m_nextNavigationOperationId = 1;
     quint64 m_activeNavigationOperationId = 0;
 };

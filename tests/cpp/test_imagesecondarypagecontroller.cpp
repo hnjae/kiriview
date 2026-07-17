@@ -63,7 +63,7 @@ public:
                   [this]() { ++visibilityChangedCount; },
                   [this](const QUrl& url) { return findPredecodedImage(url); },
               },
-              {}, {}, testCacheBudgets())
+              {}, testCacheBudgets())
     {
     }
 

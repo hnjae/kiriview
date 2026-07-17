@@ -15,13 +15,15 @@ class ImageDocumentPageCandidateSnapshotPort final
 {
 public:
     explicit ImageDocumentPageCandidateSnapshotPort(
-        const ImageDocumentPageNavigationService* navigationService = nullptr);
+        ImageDocumentPageNavigationService* navigationService = nullptr);
 
     std::optional<ImageDocumentPageCandidateSnapshot> snapshot() const;
     const ImageDocumentPageCandidateListSnapshot& confirmedSnapshot() const;
+    void ensure(ImageDocumentPageCandidateListContext context,
+        ImageDocumentPageCandidateListSnapshotCallback callback) const;
 
 private:
-    const ImageDocumentPageNavigationService* m_navigationService = nullptr;
+    ImageDocumentPageNavigationService* m_navigationService = nullptr;
 };
 }
 

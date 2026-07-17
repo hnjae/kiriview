@@ -32,22 +32,19 @@ namespace {
 }
 
 ImagePredecodeCoordinator::ImagePredecodeCoordinator(QObject* parent,
-    ImageDocumentPageCandidateProvider candidateProvider,
     ImageDecodeDependencies decodeDependencies, PowerSaverProvider powerSaverProvider,
     qsizetype cacheByteBudget, TimerScheduler timerScheduler,
     PredecodeThreadCountProvider threadCountProvider)
     : QObject(parent)
     , m_threadCountProvider(
           threadCountProvider ? std::move(threadCountProvider) : defaultPredecodeThreadCount)
-    , m_candidateRepository(std::move(candidateProvider))
     , m_loadController(this, std::move(decodeDependencies), cacheByteBudget)
     , m_scheduleRuntime(
           this, m_loadController,
           [this](const PredecodePendingSchedule& schedule) {
               scheduleAdjacentImagePredecode(schedule);
           },
-          [this]() { m_listerJob.cancel(); }, std::move(powerSaverProvider),
-          std::move(timerScheduler))
+          []() {}, std::move(powerSaverProvider), std::move(timerScheduler))
 {
 }
 
@@ -103,20 +100,11 @@ void ImagePredecodeCoordinator::scheduleAdjacentImagePredecode(
         return;
     }
 
-    m_listerJob = m_candidateRepository.loadImages(
-        this, plan.candidateList->context,
-        [this, schedule, plan](const std::vector<ImageDocumentPageCandidate>& candidates) {
-            qCDebug(kiriviewPredecodeLog)
-                << "image predecode candidates loaded"
-                << "generation" << schedule.generation << "count" << candidates.size();
-            startPredecodeImageLoads(predecodeWindowPlanForCandidates(plan, candidates), schedule);
-        },
-        [this, schedule, plan](const QString& errorString) {
-            qCDebug(kiriviewPredecodeLog)
-                << "image predecode candidates failed"
-                << "generation" << schedule.generation << "error" << errorString;
-            startPredecodeImageLoads(plan.fallbackWindow, schedule);
-        });
+    qCDebug(kiriviewPredecodeLog) << "image predecode candidate-dependent work skipped"
+                                  << "reason"
+                                  << "owner-snapshot-unavailable"
+                                  << "generation" << schedule.generation;
+    startPredecodeImageLoads(plan.fallbackWindow, schedule);
 }
 
 void ImagePredecodeCoordinator::startPredecodeImageLoads(

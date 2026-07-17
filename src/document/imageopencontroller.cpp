@@ -102,15 +102,15 @@ namespace kiriview {
 ImageOpenController::ImageOpenController(QObject* parent, ImageDocumentState& state,
     ImagePageSurfaceController& pageSurfaceController,
     ImagePresentationRuntime& presentationRuntime, ImageOpenController::Callbacks callbacks,
-    ImageDocumentPageCandidateProvider candidateProvider,
     ImageDecodeDependencies decodeDependencies)
     : m_state(state)
     , m_pageSurfaceController(pageSurfaceController)
     , m_presentationRuntime(presentationRuntime)
     , m_callbacks(std::move(callbacks))
 {
-    m_imageLoader = std::make_unique<ImageLoader>(parent, std::move(candidateProvider),
-        std::move(decodeDependencies),
+    ImageLoader::EnsurePageCandidateSnapshotCallback ensurePageCandidateSnapshot
+        = m_callbacks.ensurePageCandidateSnapshot;
+    m_imageLoader = std::make_unique<ImageLoader>(parent, std::move(decodeDependencies),
         ImageLoader::Callbacks {
             [this](ImageLoadSession session, ImageLoadFailure failure) {
                 [[maybe_unused]] auto batch = m_state.beginChangeBatch();
@@ -143,6 +143,7 @@ ImageOpenController::ImageOpenController(QObject* parent, ImageDocumentState& st
                 [[maybe_unused]] auto batch = m_state.beginChangeBatch();
                 finishSourcePrepared(std::move(session));
             },
+            std::move(ensurePageCandidateSnapshot),
         });
 }
 
@@ -163,9 +164,7 @@ void ImageOpenController::open()
     ImageLoadRequest request = std::move(*m_sourceLoadRequest);
     m_sourceLoadRequest.reset();
     beginSourceLoad();
-    m_imageLoader->start(std::move(request), m_presentationRuntime.firstDisplayDecodeContext(),
-        m_callbacks.pageCandidateSnapshot ? m_callbacks.pageCandidateSnapshot()
-                                          : ImageDocumentPageCandidateListSnapshot {});
+    m_imageLoader->start(std::move(request), m_presentationRuntime.firstDisplayDecodeContext());
 }
 
 void ImageOpenController::prepareSourceLoad(const ImageDocumentSourceLoadRequest& request)

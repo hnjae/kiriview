@@ -14,7 +14,6 @@
 namespace kiriview {
 ImageSecondaryPageController::ImageSecondaryPageController(QObject* parent,
     RenderContextProvider renderContextProvider, ImageSecondaryPageController::Callbacks callbacks,
-    ImageDocumentPageCandidateProvider candidateProvider,
     ImageDecodeDependencies decodeDependencies, ImageCacheBudgets cacheBudgets)
     : m_callbacks(std::move(callbacks))
     , m_renderContextProvider(std::move(renderContextProvider))
@@ -35,8 +34,7 @@ ImageSecondaryPageController::ImageSecondaryPageController(QObject* parent,
             },
         },
         cacheBudgets, std::shared_ptr<DisplayImageStore> {}, DisplayedPageRole::Secondary);
-    m_imageLoader = std::make_unique<ImageLoader>(parent, std::move(candidateProvider),
-        std::move(decodeDependencies),
+    m_imageLoader = std::make_unique<ImageLoader>(parent, std::move(decodeDependencies),
         ImageLoader::Callbacks {
             [this](ImageLoadSession session, ImageLoadFailure) { finishLoadWithError(session); },
             [this](ImageLoadSession session, DecodedImage image) {
@@ -54,6 +52,7 @@ ImageSecondaryPageController::ImageSecondaryPageController(QObject* parent,
 
                 return m_callbacks.findPredecodedImage(url);
             },
+            {},
             {},
         });
 }

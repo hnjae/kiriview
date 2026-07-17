@@ -7,8 +7,10 @@
 #include "imagedocumentpagenavigationtypes.h"
 #include "location/imagelocation.h"
 
+#include <QString>
 #include <QUrl>
 #include <QtGlobal>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -100,6 +102,16 @@ struct ImageDocumentPageCandidateListSnapshot
         = std::make_shared<const ImageDocumentPageCandidateRows>();
     bool known = false;
 };
+
+struct ImageDocumentPageCandidateListSnapshotResult
+{
+    ImageDocumentPageCandidateListSnapshot snapshot;
+    bool succeeded = false;
+    QString errorString;
+};
+
+using ImageDocumentPageCandidateListSnapshotCallback
+    = std::function<void(ImageDocumentPageCandidateListSnapshotResult)>;
 
 bool imageDocumentPageCandidateSnapshotMatchesSource(
     const ImageDocumentPageCandidateSnapshot& snapshot,

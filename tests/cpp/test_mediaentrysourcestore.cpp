@@ -257,8 +257,22 @@ void TestMediaEntrySourceStore::predecodeLoadsAdjacentOpenedCollectionImagesThro
             imageDocumentPageCandidate(thirdUrl) });
 
     kiriview::MediaEntrySourceStore store(instrumentedMediaEntrySourceFactory(state));
+    kiriview::ImageDocumentPageNavigationService navigationService(
+        this, store.wrapCandidateProvider(openedCollectionOnlyProvider()), navigationCallbacks());
+    kiriview::ImageDocumentPageCandidateListSnapshot candidateSnapshot;
+    bool candidateSnapshotReady = false;
+    const std::optional<kiriview::ImageDocumentPageCandidateListContext> candidateContext
+        = navigationContext(kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
+            displayedUrl, *archiveCollection));
+    QVERIFY(candidateContext.has_value());
+    navigationService.ensurePageCandidateSnapshot(
+        *candidateContext, [&candidateSnapshot, &candidateSnapshotReady](auto result) {
+            candidateSnapshot = std::move(result.snapshot);
+            candidateSnapshotReady = result.succeeded;
+        });
+    QTRY_VERIFY(candidateSnapshotReady);
+
     kiriview::ImagePredecodeCoordinator coordinator(this,
-        store.wrapCandidateProvider(openedCollectionOnlyProvider()),
         store.wrapDecodeDependencies(kiriview::ImageDecodeDependencies {
             {},
             staticImageDataDecoder(),
@@ -277,6 +291,8 @@ void TestMediaEntrySourceStore::predecodeLoadsAdjacentOpenedCollectionImagesThro
         {},
         -1,
         {},
+        false,
+        std::move(candidateSnapshot),
     });
 
     QTRY_VERIFY(coordinator.findPredecodedImage(thirdUrl).has_value());

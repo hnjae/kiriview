@@ -93,7 +93,6 @@ public:
                   [this]() { return navigation.pageNavigationSnapshot(); },
                   {},
               },
-              candidateProvider.provider(),
               imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder(testImage())),
               testCacheBudgets())
         , controller(state, pageSurface, navigation, spread,

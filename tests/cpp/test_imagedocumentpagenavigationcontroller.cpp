@@ -154,10 +154,47 @@ private Q_SLOTS:
     void fallbackAdjacentNavigationPublishesTargetBeforeOpening();
     void knownSelectionAdjacentNavigationDoesNotRelistCandidates();
     void canceledFallbackAdjacentNavigationCompletionIsIgnored();
+    void ensuredSnapshotRejectsSupersededRefreshCompletion();
     void staleUpdateCompletionCannotReplaceCurrentRefreshContext();
     void staleSameSourceUpdateCompletionIsRejected();
     void cancelUpdateStopsCandidateChangeWatcher();
 };
+
+void TestImageDocumentPageNavigationController::ensuredSnapshotRejectsSupersededRefreshCompletion()
+{
+    DelayedDirectoryImageProvider delayedProvider;
+    ImageDocumentPageCandidateRepository repository(delayedProvider.provider());
+    ImageDocumentPageNavigationController controller(nullptr, repository, controllerCallbacks());
+    const QUrl firstDirectoryUrl = localUrl(QStringLiteral("/images/"));
+    const QUrl secondDirectoryUrl = localUrl(QStringLiteral("/other/"));
+    const QUrl firstUrl = localUrl(QStringLiteral("/images/01.png"));
+    const QUrl secondUrl = localUrl(QStringLiteral("/other/02.png"));
+    int firstCompletionCount = 0;
+    int secondCompletionCount = 0;
+    bool secondSucceeded = false;
+    quint64 acceptedRevision = 0;
+
+    controller.ensureConfirmedSnapshot(directoryContext(firstUrl, firstDirectoryUrl),
+        [&firstCompletionCount](auto) { ++firstCompletionCount; });
+    controller.ensureConfirmedSnapshot(directoryContext(secondUrl, secondDirectoryUrl),
+        [&secondCompletionCount, &secondSucceeded, &acceptedRevision](auto result) {
+            ++secondCompletionCount;
+            secondSucceeded = result.succeeded;
+            acceptedRevision = result.snapshot.revision;
+        });
+
+    delayedProvider.finishLoad(0, { imageDocumentPageCandidate(firstUrl) });
+    QCOMPARE(firstCompletionCount, 0);
+    QCOMPARE(secondCompletionCount, 0);
+
+    delayedProvider.finishLoad(1, { imageDocumentPageCandidate(secondUrl) });
+    QCOMPARE(firstCompletionCount, 0);
+    QCOMPARE(secondCompletionCount, 1);
+    QVERIFY(secondSucceeded);
+    QVERIFY(acceptedRevision > 0);
+    QCOMPARE(controller.currentPageNumber(), 0);
+    QCOMPARE(controller.pageCount(), 0);
+}
 
 void TestImageDocumentPageNavigationController::updateOwnsRefreshStateAndReusesWatcher()
 {

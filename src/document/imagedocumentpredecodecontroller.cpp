@@ -68,27 +68,27 @@ namespace {
 
 ImageDocumentPredecodeController::ImageDocumentPredecodeController(QObject* parent,
     ImageDocumentState& state, ImagePageSurfaceController& pageSurfaceController,
-    ImagePresentationRuntime& presentationRuntime,
-    ImageDocumentPageCandidateProvider candidateProvider,
-    ImageDecodeDependencies decodeDependencies, qsizetype cacheByteBudget,
-    CurrentPageNumberCallback currentPageNumber,
-    PageCandidateSnapshotCallback pageCandidateSnapshot, PowerSaverProvider powerSaverProvider,
-    bool ordinaryDirectMediaPredecodeEnabled, TimerScheduler timerScheduler,
-    PredecodeThreadCountProvider threadCountProvider)
+    ImagePresentationRuntime& presentationRuntime, ImageDecodeDependencies decodeDependencies,
+    qsizetype cacheByteBudget, CurrentPageNumberCallback currentPageNumber,
+    EnsurePageCandidateSnapshotCallback ensurePageCandidateSnapshot,
+    PowerSaverProvider powerSaverProvider, bool ordinaryDirectMediaPredecodeEnabled,
+    TimerScheduler timerScheduler, PredecodeThreadCountProvider threadCountProvider)
     : m_state(state)
     , m_pageSurfaceController(pageSurfaceController)
     , m_presentationRuntime(presentationRuntime)
-    , m_coordinator(
-          std::make_unique<ImagePredecodeCoordinator>(parent, std::move(candidateProvider),
-              std::move(decodeDependencies), std::move(powerSaverProvider), cacheByteBudget,
-              std::move(timerScheduler), std::move(threadCountProvider)))
+    , m_coordinator(std::make_unique<ImagePredecodeCoordinator>(parent,
+          std::move(decodeDependencies), std::move(powerSaverProvider), cacheByteBudget,
+          std::move(timerScheduler), std::move(threadCountProvider)))
     , m_currentPageNumber(std::move(currentPageNumber))
-    , m_pageCandidateSnapshot(std::move(pageCandidateSnapshot))
+    , m_ensurePageCandidateSnapshot(std::move(ensurePageCandidateSnapshot))
     , m_ordinaryDirectMediaPredecodeEnabled(ordinaryDirectMediaPredecodeEnabled)
 {
 }
 
-ImageDocumentPredecodeController::~ImageDocumentPredecodeController() = default;
+ImageDocumentPredecodeController::~ImageDocumentPredecodeController()
+{
+    m_callbackLifetime.reset();
+}
 
 void ImageDocumentPredecodeController::scheduleAdjacentImagePredecode(
     std::optional<DisplayedPredecodeImage> secondaryImage)
@@ -115,11 +115,7 @@ void ImageDocumentPredecodeController::scheduleAdjacentImagePredecode(
         false,
         ImageDocumentPageCandidateListSnapshot {},
     };
-    if (m_pageCandidateSnapshot) {
-        context.candidateSnapshot = m_pageCandidateSnapshot();
-    }
-
-    m_coordinator->schedule(std::move(context));
+    scheduleWithConfirmedCandidateSnapshot(std::move(context));
 }
 
 void ImageDocumentPredecodeController::scheduleImageNavigationTargetPredecode(
@@ -151,14 +147,39 @@ void ImageDocumentPredecodeController::scheduleImageNavigationTargetPredecode(
         true,
         ImageDocumentPageCandidateListSnapshot {},
     };
-    if (m_pageCandidateSnapshot) {
-        context.candidateSnapshot = m_pageCandidateSnapshot();
-    }
-
-    m_coordinator->schedule(std::move(context));
+    scheduleWithConfirmedCandidateSnapshot(std::move(context));
 }
 
-void ImageDocumentPredecodeController::cancel() { m_coordinator->cancel(); }
+void ImageDocumentPredecodeController::scheduleWithConfirmedCandidateSnapshot(
+    PredecodeScheduleContext context)
+{
+    const std::optional<ImageDocumentPageCandidateListContext> candidateContext
+        = imageDocumentPageCandidateListContextForDisplayedImage(context.currentLocation);
+    if (!candidateContext.has_value() || !m_ensurePageCandidateSnapshot) {
+        m_coordinator->schedule(std::move(context));
+        return;
+    }
+
+    const quint64 requestId = ++m_candidateSnapshotRequestId;
+    const std::weak_ptr<int> lifetime = m_callbackLifetime;
+    m_ensurePageCandidateSnapshot(*candidateContext,
+        [this, lifetime, requestId, context = std::move(context)](
+            ImageDocumentPageCandidateListSnapshotResult result) mutable {
+            if (lifetime.expired() || requestId != m_candidateSnapshotRequestId) {
+                return;
+            }
+            if (result.succeeded) {
+                context.candidateSnapshot = std::move(result.snapshot);
+            }
+            m_coordinator->schedule(std::move(context));
+        });
+}
+
+void ImageDocumentPredecodeController::cancel()
+{
+    ++m_candidateSnapshotRequestId;
+    m_coordinator->cancel();
+}
 
 void ImageDocumentPredecodeController::clear() { m_coordinator->clear(); }
 

@@ -4,15 +4,13 @@
 #ifndef KIRIVIEW_IMAGELOADER_H
 #define KIRIVIEW_IMAGELOADER_H
 
-#include "async/imageiojob.h"
 #include "decoding/decodedimageresult.h"
 #include "decoding/imagedecodedependencies.h"
 #include "decoding/imagedecodejob.h"
 #include "imageloadfailure.h"
 #include "imageloadsessiontracker.h"
 #include "imageloadtypes.h"
-#include "navigation/imagedocumentpagecandidateprovider.h"
-#include "navigation/imagedocumentpagecandidaterepository.h"
+#include "navigation/imagedocumentpagecandidatelistsource.h"
 #include "predecode/predecodedimage.h"
 
 #include <QByteArray>
@@ -37,6 +35,8 @@ public:
         = std::function<void(ImageLoadSession, StaticDisplayImagePayload)>;
     using UnsupportedOpenedCollectionVideoCallback = std::function<void(ImageLoadSession)>;
     using FindPredecodedImageCallback = std::function<std::optional<PredecodedImage>(const QUrl&)>;
+    using EnsurePageCandidateSnapshotCallback = std::function<void(
+        ImageDocumentPageCandidateListContext, ImageDocumentPageCandidateListSnapshotCallback)>;
 
     struct Callbacks
     {
@@ -47,17 +47,15 @@ public:
         UnsupportedOpenedCollectionVideoCallback unsupportedOpenedCollectionVideo;
         FindPredecodedImageCallback findPredecodedImage;
         SourcePreparedCallback sourcePrepared;
+        EnsurePageCandidateSnapshotCallback ensurePageCandidateSnapshot;
     };
 
     explicit ImageLoader(QObject* parent = nullptr);
     ImageLoader(QObject* parent, Callbacks callbacks);
-    ImageLoader(QObject* parent, ImageDocumentPageCandidateProvider candidateProvider,
-        ImageDecodeDependencies decodeDependencies);
-    ImageLoader(QObject* parent, ImageDocumentPageCandidateProvider candidateProvider,
-        ImageDecodeDependencies decodeDependencies, Callbacks callbacks);
+    ImageLoader(QObject* parent, ImageDecodeDependencies decodeDependencies);
+    ImageLoader(QObject* parent, ImageDecodeDependencies decodeDependencies, Callbacks callbacks);
 
-    void start(ImageLoadRequest request, ImageFirstDisplayDecodeContext firstDisplayContext = {},
-        ImageDocumentPageCandidateListSnapshot candidateSnapshot = {});
+    void start(ImageLoadRequest request, ImageFirstDisplayDecodeContext firstDisplayContext = {});
     void cancel();
 
 private:
@@ -66,8 +64,10 @@ private:
         const ImageDecodeRequest& request, StaticDisplayImagePayload preview);
     void finishImageLoadError(const ImageDecodeRequest& request, const QString& errorString);
     void startImageLoad(ImageLoadSession session);
-    void startOpenedCollectionLoad(
-        ImageLoadSession session, const ImageDocumentPageCandidateListSnapshot& candidateSnapshot);
+    void startOpenedCollectionLoad(ImageLoadSession session);
+    void finishOpenedCollectionSnapshot(ImageLoadSession session,
+        ImageDocumentPageCandidateListSource candidateSource,
+        ImageDocumentPageCandidateListSnapshotResult result);
     void finishOpenedCollectionCandidates(
         const ImageLoadSession& session, const std::vector<ImageDocumentPageCandidate>& candidates);
     bool tryReportUnsupportedOpenedCollectionVideo(ImageLoadSession session);
@@ -82,8 +82,6 @@ private:
 
     Callbacks m_callbacks;
     ImageDecodeJob m_decodeJob;
-    ImageDocumentPageCandidateRepository m_candidateRepository;
-    ImageIoJob m_openedCollectionCandidateLoadJob;
     ImageLoadSessionTracker m_sessionTracker;
 };
 }

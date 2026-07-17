@@ -50,6 +50,8 @@ public:
         NavigationDirection direction);
     void openAdjacentContainer(const QUrl& currentContainerUrl, NavigationDirection direction);
     void updatePageNavigation(std::optional<ImageDocumentPageCandidateListContext> context);
+    void ensurePageCandidateSnapshot(ImageDocumentPageCandidateListContext context,
+        ImageDocumentPageCandidateListSnapshotCallback callback);
 
     void cancelNavigation();
     void cancelContainerNavigation();

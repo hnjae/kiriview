@@ -10,7 +10,6 @@
 #include "imageloadtypes.h"
 #include "metadata/embeddedmetadata.h"
 #include "navigation/imagedocumentpagecandidatelistsource.h"
-#include "navigation/imagedocumentpagecandidateprovider.h"
 #include "predecode/predecodedimage.h"
 #include "presentation/imagedisplaysourceprojection.h"
 #include "presentation/imagepresentationload.h"
@@ -39,7 +38,8 @@ public:
         = std::function<bool(const OpenedCollectionScopeLocation&, const QUrl&)>;
     using CommitPrimaryPageSlotCallback = std::function<void(const DisplayedImageLocation&)>;
     using ClearPrimaryPageSlotCallback = std::function<void()>;
-    using PageCandidateSnapshotCallback = std::function<ImageDocumentPageCandidateListSnapshot()>;
+    using EnsurePageCandidateSnapshotCallback = std::function<void(
+        ImageDocumentPageCandidateListContext, ImageDocumentPageCandidateListSnapshotCallback)>;
 
     struct Callbacks
     {
@@ -49,13 +49,12 @@ public:
         OpenedCollectionVideoPlaybackAvailableCallback openedCollectionVideoPlaybackAvailable;
         CommitPrimaryPageSlotCallback commitPrimaryPageSlot;
         ClearPrimaryPageSlotCallback clearPrimaryPageSlot;
-        PageCandidateSnapshotCallback pageCandidateSnapshot;
+        EnsurePageCandidateSnapshotCallback ensurePageCandidateSnapshot;
     };
 
     ImageOpenController(QObject* parent, ImageDocumentState& state,
         ImagePageSurfaceController& pageSurfaceController,
         ImagePresentationRuntime& presentationRuntime, Callbacks callbacks,
-        ImageDocumentPageCandidateProvider candidateProvider,
         ImageDecodeDependencies decodeDependencies);
     ~ImageOpenController();
 

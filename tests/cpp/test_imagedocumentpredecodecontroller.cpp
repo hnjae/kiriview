@@ -4,6 +4,7 @@
 #include "document/imagedocumentpredecodecontroller.h"
 #include "document/imagedocumentstate.h"
 #include "image_test_support.h"
+#include "navigation/imagedocumentpagecandidaterepository.h"
 #include "presentation/imagepagesurfacecontroller.h"
 #include "presentation/imagepresentationruntime.h"
 #include "rendering/imagerendering.h"
@@ -91,6 +92,32 @@ kiriview::ImageDocumentPageCandidateListSnapshot pageCandidateListSnapshot(
     snapshot.known = true;
     return snapshot;
 }
+
+kiriview::ImageDocumentPredecodeController::EnsurePageCandidateSnapshotCallback
+candidateSnapshotOwner(QObject* receiver, kiriview::ImageDocumentPageCandidateProvider provider)
+{
+    auto repository
+        = std::make_shared<kiriview::ImageDocumentPageCandidateRepository>(std::move(provider));
+    auto jobs = std::make_shared<std::vector<kiriview::ImageIoJob>>();
+    return [receiver, repository = std::move(repository), jobs = std::move(jobs)](
+               kiriview::ImageDocumentPageCandidateListContext context,
+               kiriview::ImageDocumentPageCandidateListSnapshotCallback callback) {
+        const kiriview::ImageDocumentPageCandidateListSource source = context.source();
+        auto sharedCallback
+            = std::make_shared<kiriview::ImageDocumentPageCandidateListSnapshotCallback>(
+                std::move(callback));
+        jobs->push_back(repository->loadImages(
+            receiver, context,
+            [source, sharedCallback](kiriview::ImageDocumentPageCandidateRows candidates) mutable {
+                (*sharedCallback)(kiriview::ImageDocumentPageCandidateListSnapshotResult {
+                    pageCandidateListSnapshot(source, std::move(candidates)), true, {} });
+            },
+            [sharedCallback](const QString& errorString) mutable {
+                (*sharedCallback)(kiriview::ImageDocumentPageCandidateListSnapshotResult {
+                    {}, false, errorString });
+            }));
+    };
+}
 }
 
 class TestImageDocumentPredecodeController : public QObject
@@ -114,8 +141,8 @@ void TestImageDocumentPredecodeController::scheduleAdjacentImagePredecodeUsesPre
     kiriview::ImagePageSurfaceController pageSurface = createPageSurfaceController(this);
     kiriview::ImagePresentationRuntime presentationRuntime = createPresentationRuntime();
     kiriview::ImageDocumentPredecodeController controller(this, state, pageSurface,
-        presentationRuntime, candidateProvider.provider(),
-        imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget);
+        presentationRuntime, imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()),
+        testCacheByteBudget, {}, candidateSnapshotOwner(this, candidateProvider.provider()));
 
     const QUrl displayedUrl = indexedImageUrl(1);
     const QUrl nextUrl = indexedImageUrl(2);
@@ -160,18 +187,23 @@ void TestImageDocumentPredecodeController::
     candidateProvider.setOpenedCollectionCandidateError(
         directoryCollection.rootUrl(), QStringLiteral("unexpected listing"));
     kiriview::ImageDocumentPredecodeController controller(
-        this, state, pageSurface, presentationRuntime, candidateProvider.provider(),
+        this, state, pageSurface, presentationRuntime,
         imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget,
         []() { return 2; },
-        [directoryCollection, previousUrl, displayedUrl, nextUrl]() {
-            return pageCandidateListSnapshot(
-                kiriview::ImageDocumentPageCandidateListSource::forOpenedCollectionScope(
-                    directoryCollection),
-                kiriview::ImageDocumentPageCandidateRows {
-                    imageDocumentPageCandidate(previousUrl),
-                    imageDocumentPageCandidate(displayedUrl),
-                    imageDocumentPageCandidate(nextUrl),
-                });
+        [directoryCollection, previousUrl, displayedUrl, nextUrl](
+            auto, kiriview::ImageDocumentPageCandidateListSnapshotCallback callback) {
+            callback(kiriview::ImageDocumentPageCandidateListSnapshotResult {
+                pageCandidateListSnapshot(
+                    kiriview::ImageDocumentPageCandidateListSource::forOpenedCollectionScope(
+                        directoryCollection),
+                    kiriview::ImageDocumentPageCandidateRows {
+                        imageDocumentPageCandidate(previousUrl),
+                        imageDocumentPageCandidate(displayedUrl),
+                        imageDocumentPageCandidate(nextUrl),
+                    }),
+                true,
+                {},
+            });
         });
 
     state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
@@ -194,8 +226,8 @@ void TestImageDocumentPredecodeController::
     kiriview::ImagePageSurfaceController pageSurface = createPageSurfaceController(this);
     kiriview::ImagePresentationRuntime presentationRuntime = createPresentationRuntime();
     kiriview::ImageDocumentPredecodeController controller(this, state, pageSurface,
-        presentationRuntime, candidateProvider.provider(),
-        imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget);
+        presentationRuntime, imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()),
+        testCacheByteBudget, {}, candidateSnapshotOwner(this, candidateProvider.provider()));
 
     const QUrl displayedUrl = indexedImageUrl(1);
     const QUrl oldNextUrl = indexedImageUrl(2);
@@ -228,8 +260,8 @@ void TestImageDocumentPredecodeController::selectedVideoNavigationTargetDoesNotS
     kiriview::ImagePageSurfaceController pageSurface = createPageSurfaceController(this);
     kiriview::ImagePresentationRuntime presentationRuntime = createPresentationRuntime();
     kiriview::ImageDocumentPredecodeController controller(this, state, pageSurface,
-        presentationRuntime, candidateProvider.provider(),
-        imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget);
+        presentationRuntime, imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()),
+        testCacheByteBudget);
 
     const QUrl displayedUrl = indexedImageUrl(1);
     const QUrl videoUrl = QUrl::fromLocalFile(QStringLiteral("/images/02.mp4"));
@@ -255,8 +287,8 @@ void TestImageDocumentPredecodeController::
     kiriview::ImagePageSurfaceController pageSurface = createPageSurfaceController(this);
     kiriview::ImagePresentationRuntime presentationRuntime = createPresentationRuntime();
     kiriview::ImageDocumentPredecodeController controller(this, state, pageSurface,
-        presentationRuntime, candidateProvider.provider(),
-        imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget);
+        presentationRuntime, imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()),
+        testCacheByteBudget, {}, candidateSnapshotOwner(this, candidateProvider.provider()));
 
     const QUrl displayedUrl = indexedImageUrl(1);
     const QUrl nextUrl = indexedImageUrl(2);
@@ -293,9 +325,10 @@ void TestImageDocumentPredecodeController::
         = imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder());
     decodeDependencies.workerScheduler = immediateWorkerScheduler();
     kiriview::ImageDocumentPredecodeController controller(this, state, pageSurface,
-        presentationRuntime, candidateProvider.provider(), std::move(decodeDependencies),
-        testCacheByteBudget, {}, {}, powerSaverProviderFor(powerSaverMonitor, true), true,
-        timerScheduler.scheduler(), []() { return 4; });
+        presentationRuntime, std::move(decodeDependencies), testCacheByteBudget, {},
+        candidateSnapshotOwner(this, candidateProvider.provider()),
+        powerSaverProviderFor(powerSaverMonitor, true), true, timerScheduler.scheduler(),
+        []() { return 4; });
     QVERIFY(powerSaverMonitor != nullptr);
 
     const QUrl displayedUrl = indexedImageUrl(1);

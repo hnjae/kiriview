@@ -39,7 +39,6 @@ ImageSpreadPresentationController::ImageSpreadPresentationController(QObject* pa
     RenderContextProvider renderContextProvider, ImageDocumentState& state,
     ImagePageSurfaceController& primaryPageSurface, ImagePresentationRuntime& presentationRuntime,
     ImageSpreadPresentationController::Callbacks callbacks,
-    ImageDocumentPageCandidateProvider candidateProvider,
     ImageDecodeDependencies decodeDependencies, ImageCacheBudgets cacheBudgets)
     : m_state(state)
     , m_primaryPageSurface(primaryPageSurface)
@@ -61,7 +60,7 @@ ImageSpreadPresentationController::ImageSpreadPresentationController(QObject* pa
                 return m_callbacks.findPredecodedImage(url);
             },
         },
-        std::move(candidateProvider), std::move(decodeDependencies), cacheBudgets);
+        std::move(decodeDependencies), cacheBudgets);
 }
 
 ImageSpreadPresentationController::~ImageSpreadPresentationController() { shutdown(); }

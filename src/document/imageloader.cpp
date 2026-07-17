@@ -65,24 +65,22 @@ kiriview::ImageLoadFailure imageLoadFailure(
 
 namespace kiriview {
 ImageLoader::ImageLoader(QObject* parent)
-    : ImageLoader(parent, ImageDocumentPageCandidateProvider {}, ImageDecodeDependencies {})
+    : ImageLoader(parent, ImageDecodeDependencies {})
 {
 }
 
 ImageLoader::ImageLoader(QObject* parent, Callbacks callbacks)
-    : ImageLoader(parent, ImageDocumentPageCandidateProvider {}, ImageDecodeDependencies {},
-          std::move(callbacks))
+    : ImageLoader(parent, ImageDecodeDependencies {}, std::move(callbacks))
 {
 }
 
-ImageLoader::ImageLoader(QObject* parent, ImageDocumentPageCandidateProvider candidateProvider,
-    ImageDecodeDependencies decodeDependencies)
-    : ImageLoader(parent, std::move(candidateProvider), std::move(decodeDependencies), {})
+ImageLoader::ImageLoader(QObject* parent, ImageDecodeDependencies decodeDependencies)
+    : ImageLoader(parent, std::move(decodeDependencies), {})
 {
 }
 
-ImageLoader::ImageLoader(QObject* parent, ImageDocumentPageCandidateProvider candidateProvider,
-    ImageDecodeDependencies decodeDependencies, Callbacks callbacks)
+ImageLoader::ImageLoader(
+    QObject* parent, ImageDecodeDependencies decodeDependencies, Callbacks callbacks)
     : QObject(parent)
     , m_callbacks(std::move(callbacks))
     , m_decodeJob(this, std::move(decodeDependencies),
@@ -97,7 +95,6 @@ ImageLoader::ImageLoader(QObject* parent, ImageDocumentPageCandidateProvider can
                   finishThumbnailPreview(request, std::move(preview));
               },
           })
-    , m_candidateRepository(std::move(candidateProvider))
 {
 }
 
@@ -139,9 +136,8 @@ void ImageLoader::finishThumbnailPreview(
     finishThumbnailPreview(std::move(*session), std::move(preview));
 }
 
-void ImageLoader::start(ImageLoadRequest request,
-    ImageFirstDisplayDecodeContext firstDisplayContext,
-    ImageDocumentPageCandidateListSnapshot candidateSnapshot)
+void ImageLoader::start(
+    ImageLoadRequest request, ImageFirstDisplayDecodeContext firstDisplayContext)
 {
     cancel();
 
@@ -151,7 +147,7 @@ void ImageLoader::start(ImageLoadRequest request,
     case ImageLoadStartEffect::DecodeImage:
         break;
     case ImageLoadStartEffect::LoadOpenedCollectionScopeCandidates:
-        startOpenedCollectionLoad(session, candidateSnapshot);
+        startOpenedCollectionLoad(session);
         return;
     }
 
@@ -175,44 +171,74 @@ void ImageLoader::startImageLoad(ImageLoadSession session)
     m_decodeJob.start(session.decodeRequest());
 }
 
-void ImageLoader::startOpenedCollectionLoad(
-    ImageLoadSession session, const ImageDocumentPageCandidateListSnapshot& candidateSnapshot)
+void ImageLoader::startOpenedCollectionLoad(ImageLoadSession session)
 {
-    const ImageDocumentPageCandidateListSource candidateSource
+    ImageDocumentPageCandidateListSource candidateSource
         = ImageDocumentPageCandidateListSource::forOpenedCollectionScope(
             session.openedCollectionScope());
-    if (imageDocumentPageCandidateListSnapshotMatchesSource(candidateSnapshot, candidateSource)) {
-        const ImageDocumentPageCandidateRows& candidates
-            = imageDocumentPageCandidateRows(candidateSnapshot);
-        qCDebug(kiriviewPredecodeLog)
-            << "opened collection candidate snapshot reused for foreground load"
-            << "sessionId" << session.id() << "imageUrl" << session.imageUrl()
-            << "openedCollectionRoot" << session.openedCollectionScope().rootUrl()
-            << "candidateCount" << static_cast<qsizetype>(candidates.size());
-        finishOpenedCollectionCandidates(session, candidates);
+    if (!m_callbacks.ensurePageCandidateSnapshot) {
+        qCWarning(kiriviewPredecodeLog)
+            << "opened collection foreground load rejected without candidate snapshot owner"
+            << "sessionId" << session.id() << "imageUrl" << session.imageUrl();
+        std::optional<ImageLoadSession> currentSession = m_sessionTracker.claimCurrent(session);
+        if (!currentSession.has_value()) {
+            return;
+        }
+        invokeIfSet(m_callbacks.error, *currentSession,
+            imageLoadFailure(*currentSession, ImageLoadFailureKind::OpenedCollectionLoad, {},
+                QStringLiteral("page candidate snapshot owner is unavailable")));
         return;
     }
 
-    qCDebug(kiriviewPredecodeLog) << "opened collection candidates listed for foreground load"
-                                  << "sessionId" << session.id() << "imageUrl" << session.imageUrl()
-                                  << "openedCollectionRoot"
-                                  << session.openedCollectionScope().rootUrl() << "snapshotKnown"
-                                  << candidateSnapshot.known;
-    m_openedCollectionCandidateLoadJob = m_candidateRepository.loadImages(
-        this, candidateSource,
-        [this, session](std::vector<ImageDocumentPageCandidate> candidates) mutable {
-            finishOpenedCollectionCandidates(session, candidates);
-        },
-        [this, session](const QString& errorString) {
-            std::optional<ImageLoadSession> currentSession = m_sessionTracker.claimCurrent(session);
-            if (!currentSession.has_value()) {
-                return;
-            }
-
-            invokeIfSet(m_callbacks.error, *currentSession,
-                imageLoadFailure(
-                    *currentSession, ImageLoadFailureKind::OpenedCollectionLoad, errorString));
+    const auto candidateContext
+        = ImageDocumentPageCandidateListContext::forSource(session.imageUrl(), candidateSource);
+    m_callbacks.ensurePageCandidateSnapshot(candidateContext,
+        [this, session, candidateSource = std::move(candidateSource)](
+            ImageDocumentPageCandidateListSnapshotResult result) mutable {
+            finishOpenedCollectionSnapshot(session, std::move(candidateSource), std::move(result));
         });
+}
+
+void ImageLoader::finishOpenedCollectionSnapshot(ImageLoadSession session,
+    ImageDocumentPageCandidateListSource candidateSource,
+    ImageDocumentPageCandidateListSnapshotResult result)
+{
+    if (!m_sessionTracker.isCurrent(session)) {
+        return;
+    }
+
+    if (!result.succeeded) {
+        std::optional<ImageLoadSession> currentSession = m_sessionTracker.claimCurrent(session);
+        if (!currentSession.has_value()) {
+            return;
+        }
+        invokeIfSet(m_callbacks.error, *currentSession,
+            imageLoadFailure(
+                *currentSession, ImageLoadFailureKind::OpenedCollectionLoad, result.errorString));
+        return;
+    }
+
+    if (!imageDocumentPageCandidateListSnapshotMatchesSource(result.snapshot, candidateSource)) {
+        std::optional<ImageLoadSession> currentSession = m_sessionTracker.claimCurrent(session);
+        if (!currentSession.has_value()) {
+            return;
+        }
+        invokeIfSet(m_callbacks.error, *currentSession,
+            imageLoadFailure(*currentSession, ImageLoadFailureKind::OpenedCollectionLoad, {},
+                QStringLiteral(
+                    "page candidate snapshot owner returned an unconfirmed or mismatched "
+                    "snapshot")));
+        return;
+    }
+
+    const ImageDocumentPageCandidateRows& candidates
+        = imageDocumentPageCandidateRows(result.snapshot);
+    qCDebug(kiriviewPredecodeLog)
+        << "owner-confirmed candidate snapshot accepted for foreground load"
+        << "sessionId" << session.id() << "imageUrl" << session.imageUrl() << "revision"
+        << result.snapshot.revision << "candidateCount"
+        << static_cast<qsizetype>(candidates.size());
+    finishOpenedCollectionCandidates(session, candidates);
 }
 
 void ImageLoader::finishOpenedCollectionCandidates(
@@ -244,7 +270,6 @@ void ImageLoader::cancel()
 {
     m_sessionTracker.cancel();
     m_decodeJob.cancel();
-    m_openedCollectionCandidateLoadJob.cancel();
 }
 
 bool ImageLoader::tryReportUnsupportedOpenedCollectionVideo(ImageLoadSession session)

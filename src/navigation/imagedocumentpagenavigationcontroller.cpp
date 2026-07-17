@@ -174,36 +174,102 @@ void ImageDocumentPageNavigationController::update(
         return;
     }
 
-    if (pageCandidateSourceIsOpenedCollection(context->source())) {
-        const ImageDocumentPageNavigationCandidateReuseResult reuse
-            = m_model.reuseConfirmedCandidates(*context);
-        if (reuse.reused) {
-            if (reuse.changed) {
+    startUpdate(std::move(*context), {}, false);
+}
+
+void ImageDocumentPageNavigationController::ensureConfirmedSnapshot(
+    ImageDocumentPageCandidateListContext context,
+    ImageDocumentPageCandidateListSnapshotCallback callback)
+{
+    m_refreshListerJob.cancel();
+    startUpdate(std::move(context), std::move(callback), true);
+}
+
+void ImageDocumentPageNavigationController::startUpdate(
+    ImageDocumentPageCandidateListContext context,
+    ImageDocumentPageCandidateListSnapshotCallback callback, bool reuseAnyConfirmedSnapshot)
+{
+    const bool ensureUpdatesNavigationState
+        = reuseAnyConfirmedSnapshot && pageCandidateSourceIsOpenedCollection(context.source());
+    if (reuseAnyConfirmedSnapshot) {
+        const ImageDocumentPageNavigationCandidateReuseResult navigationReuse
+            = ensureUpdatesNavigationState ? m_model.reuseConfirmedCandidates(context, false)
+                                           : ImageDocumentPageNavigationCandidateReuseResult {};
+        const bool snapshotReused = ensureUpdatesNavigationState
+            ? navigationReuse.reused
+            : m_model.reuseConfirmedCandidateSnapshot(context);
+        if (snapshotReused) {
+            if (navigationReuse.changed) {
                 notifyChanged();
             }
-            watchChanges(*context);
+            watchChanges(context, ensureUpdatesNavigationState);
+            invokeIfSet(callback,
+                ImageDocumentPageCandidateListSnapshotResult {
+                    m_model.confirmedCandidateSnapshot(), true, {} });
             return;
         }
     }
 
-    const ImageDocumentPageNavigationRefreshPlan refreshPlan = m_model.beginRefresh(*context);
+    if (!reuseAnyConfirmedSnapshot && pageCandidateSourceIsOpenedCollection(context.source())) {
+        const ImageDocumentPageNavigationCandidateReuseResult reuse
+            = m_model.reuseConfirmedCandidates(context);
+        if (reuse.reused) {
+            if (reuse.changed) {
+                notifyChanged();
+            }
+            watchChanges(context, true);
+            invokeIfSet(callback,
+                ImageDocumentPageCandidateListSnapshotResult {
+                    m_model.confirmedCandidateSnapshot(), true, {} });
+            return;
+        }
+    }
+
+    const bool refreshUpdatesNavigationState
+        = !reuseAnyConfirmedSnapshot || ensureUpdatesNavigationState;
+    const ImageDocumentPageNavigationRefreshPlan refreshPlan = refreshUpdatesNavigationState
+        ? m_model.beginRefresh(context)
+        : ImageDocumentPageNavigationRefreshPlan { false,
+              m_model.beginCandidateSnapshotRefresh(context) };
     if (refreshPlan.changed) {
         notifyChanged();
     }
 
-    watchChanges(*context);
+    watchChanges(context, refreshUpdatesNavigationState);
 
     m_refreshListerJob = m_candidateRepository.loadImages(
-        this, *context,
-        [this, refreshId = refreshPlan.refreshId, candidateSource = context->source()](
-            std::vector<ImageDocumentPageCandidate> candidates) {
-            const ImageDocumentPageNavigationRefreshResult refresh
-                = m_model.completePendingRefresh(candidates, refreshId, candidateSource);
-            if (refresh.accepted && refresh.changed) {
-                notifyChanged();
+        this, context,
+        [this, refreshId = refreshPlan.refreshId, candidateSource = context.source(), callback,
+            refreshUpdatesNavigationState](
+            std::vector<ImageDocumentPageCandidate> candidates) mutable {
+            if (!refreshUpdatesNavigationState) {
+                if (!m_model.completePendingCandidateSnapshotRefresh(
+                        candidates, refreshId, candidateSource)) {
+                    return;
+                }
+            } else {
+                const ImageDocumentPageNavigationRefreshResult refresh
+                    = m_model.completePendingRefresh(candidates, refreshId, candidateSource);
+                if (!refresh.accepted) {
+                    return;
+                }
+                if (refresh.changed) {
+                    notifyChanged();
+                }
             }
+            invokeIfSet(callback,
+                ImageDocumentPageCandidateListSnapshotResult {
+                    m_model.confirmedCandidateSnapshot(), true, {} });
         },
-        [](const QString&) {});
+        [this, refreshId = refreshPlan.refreshId, candidateSource = context.source(), callback](
+            const QString& errorString) mutable {
+            if (!m_model.failPendingRefresh(refreshId, candidateSource)) {
+                return;
+            }
+            invokeIfSet(callback,
+                ImageDocumentPageCandidateListSnapshotResult {
+                    m_model.confirmedCandidateSnapshot(), false, errorString });
+        });
 }
 
 void ImageDocumentPageNavigationController::cancelNavigation()
@@ -216,6 +282,7 @@ void ImageDocumentPageNavigationController::cancelUpdate()
 {
     m_refreshListerJob.cancel();
     m_changesJob.cancel();
+    m_model.cancelPendingRefresh();
 }
 
 void ImageDocumentPageNavigationController::clear()
@@ -257,8 +324,9 @@ void ImageDocumentPageNavigationController::finishNavigation(
 }
 
 void ImageDocumentPageNavigationController::watchChanges(
-    const ImageDocumentPageCandidateListContext& context)
+    const ImageDocumentPageCandidateListContext& context, bool updatesNavigationState)
 {
+    m_watcherUpdatesNavigationState = updatesNavigationState;
     if (m_model.shouldKeepExistingWatcherFor(context) && m_changesJob.isActive()) {
         return;
     }
@@ -276,6 +344,11 @@ void ImageDocumentPageNavigationController::watchChanges(
 void ImageDocumentPageNavigationController::updateFromChangedCandidates(
     std::vector<ImageDocumentPageCandidate> candidates, ImageDocumentPageCandidateListSource source)
 {
+    if (!m_watcherUpdatesNavigationState) {
+        m_model.completeWatchedCandidateSnapshotRefresh(candidates, std::move(source));
+        return;
+    }
+
     const ImageDocumentPageNavigationRefreshResult refresh
         = m_model.completeWatchedRefreshFromCurrentContext(candidates, std::move(source));
     if (!refresh.accepted) {

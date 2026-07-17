@@ -109,7 +109,7 @@ bool ImageDocumentPageNavigationModel::shouldKeepExistingWatcherFor(
 
 ImageDocumentPageNavigationCandidateReuseResult
 ImageDocumentPageNavigationModel::reuseConfirmedCandidates(
-    const ImageDocumentPageCandidateListContext& context)
+    const ImageDocumentPageCandidateListContext& context, bool forceChanged)
 {
     if (!imageDocumentPageCandidateListSnapshotMatchesSource(
             m_candidateSnapshot, context.source())) {
@@ -119,9 +119,23 @@ ImageDocumentPageNavigationModel::reuseConfirmedCandidates(
     m_pendingRefresh.cancel();
     m_pendingRefreshContext = context;
     m_knownRefreshContext = context;
-    const bool changed
-        = replaceState(pageNavigationStateForCurrentUrl(m_state, context.currentUrl()), true);
+    const bool changed = replaceState(
+        pageNavigationStateForCurrentUrl(m_state, context.currentUrl()), forceChanged);
     return ImageDocumentPageNavigationCandidateReuseResult { true, changed };
+}
+
+bool ImageDocumentPageNavigationModel::reuseConfirmedCandidateSnapshot(
+    const ImageDocumentPageCandidateListContext& context)
+{
+    if (!imageDocumentPageCandidateListSnapshotMatchesSource(
+            m_candidateSnapshot, context.source())) {
+        return false;
+    }
+
+    m_pendingRefresh.cancel();
+    m_pendingRefreshContext = context;
+    m_knownRefreshContext = context;
+    return true;
 }
 
 ImageDocumentPageNavigationRefreshPlan ImageDocumentPageNavigationModel::beginRefresh(
@@ -149,6 +163,17 @@ ImageDocumentPageNavigationRefreshPlan ImageDocumentPageNavigationModel::beginRe
     return ImageDocumentPageNavigationRefreshPlan { changed, refreshId };
 }
 
+quint64 ImageDocumentPageNavigationModel::beginCandidateSnapshotRefresh(
+    const ImageDocumentPageCandidateListContext& context)
+{
+    const quint64 refreshId = m_pendingRefresh.start();
+    const bool keepKnownRows = m_candidateSnapshot.source.has_value()
+        && sameImageDocumentPageCandidateListSource(*m_candidateSnapshot.source, context.source());
+    invalidateCandidateSnapshot(keepKnownRows);
+    m_pendingRefreshContext = context;
+    return refreshId;
+}
+
 bool ImageDocumentPageNavigationModel::completeRefresh(
     const std::vector<ImageDocumentPageCandidate>& candidates, const QUrl& currentUrl,
     ImageDocumentPageCandidateListSource source)
@@ -171,6 +196,37 @@ ImageDocumentPageNavigationRefreshResult ImageDocumentPageNavigationModel::compl
     return completeRefreshFromCurrentContext(candidates, *context);
 }
 
+bool ImageDocumentPageNavigationModel::completePendingCandidateSnapshotRefresh(
+    const std::vector<ImageDocumentPageCandidate>& candidates, quint64 refreshId,
+    ImageDocumentPageCandidateListSource source)
+{
+    std::optional<ImageDocumentPageCandidateListContext> context
+        = acceptedPendingRefreshContext(refreshId, std::move(source));
+    if (!context.has_value()) {
+        return false;
+    }
+
+    m_pendingRefresh.finish(refreshId);
+    finishRefresh(candidates, std::move(*context));
+    return true;
+}
+
+bool ImageDocumentPageNavigationModel::failPendingRefresh(
+    quint64 refreshId, ImageDocumentPageCandidateListSource source)
+{
+    if (!acceptedPendingRefreshContext(refreshId, std::move(source)).has_value()) {
+        return false;
+    }
+
+    return m_pendingRefresh.finish(refreshId);
+}
+
+void ImageDocumentPageNavigationModel::cancelPendingRefresh()
+{
+    m_pendingRefresh.cancel();
+    m_pendingRefreshContext.reset();
+}
+
 ImageDocumentPageNavigationRefreshResult
 ImageDocumentPageNavigationModel::completeWatchedRefreshFromCurrentContext(
     const std::vector<ImageDocumentPageCandidate>& candidates,
@@ -183,6 +239,20 @@ ImageDocumentPageNavigationModel::completeWatchedRefreshFromCurrentContext(
     }
 
     return completeRefreshFromCurrentContext(candidates, *context);
+}
+
+bool ImageDocumentPageNavigationModel::completeWatchedCandidateSnapshotRefresh(
+    const std::vector<ImageDocumentPageCandidate>& candidates,
+    ImageDocumentPageCandidateListSource source)
+{
+    std::optional<ImageDocumentPageCandidateListContext> context
+        = acceptedWatchedRefreshContext(std::move(source));
+    if (!context.has_value()) {
+        return false;
+    }
+
+    finishRefresh(candidates, std::move(*context));
+    return true;
 }
 
 ImageDocumentPageNavigationRefreshResult

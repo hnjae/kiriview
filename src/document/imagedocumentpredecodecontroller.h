@@ -7,10 +7,10 @@
 #include "async/timerscheduler.h"
 #include "decoding/imagedecodedependencies.h"
 #include "navigation/imagedocumentpagecandidatelistsource.h"
-#include "navigation/imagedocumentpagecandidateprovider.h"
 #include "navigation/imagedocumentpagenavigationtypes.h"
 #include "predecode/predecodedimage.h"
 #include "predecode/predecoderuntimefacts.h"
+#include "predecode/predecodeschedulestate.h"
 #include "system/powersaverprovider.h"
 
 #include <QUrl>
@@ -31,15 +31,14 @@ class ImageDocumentPredecodeController final
 {
 public:
     using CurrentPageNumberCallback = std::function<int()>;
-    using PageCandidateSnapshotCallback = std::function<ImageDocumentPageCandidateListSnapshot()>;
+    using EnsurePageCandidateSnapshotCallback = std::function<void(
+        ImageDocumentPageCandidateListContext, ImageDocumentPageCandidateListSnapshotCallback)>;
 
     ImageDocumentPredecodeController(QObject* parent, ImageDocumentState& state,
         ImagePageSurfaceController& pageSurfaceController,
-        ImagePresentationRuntime& presentationRuntime,
-        ImageDocumentPageCandidateProvider candidateProvider,
-        ImageDecodeDependencies decodeDependencies, qsizetype cacheByteBudget,
-        CurrentPageNumberCallback currentPageNumber = {},
-        PageCandidateSnapshotCallback pageCandidateSnapshot = {},
+        ImagePresentationRuntime& presentationRuntime, ImageDecodeDependencies decodeDependencies,
+        qsizetype cacheByteBudget, CurrentPageNumberCallback currentPageNumber = {},
+        EnsurePageCandidateSnapshotCallback ensurePageCandidateSnapshot = {},
         PowerSaverProvider powerSaverProvider = {}, bool ordinaryDirectMediaPredecodeEnabled = true,
         TimerScheduler timerScheduler = {}, PredecodeThreadCountProvider threadCountProvider = {});
     ~ImageDocumentPredecodeController();
@@ -53,12 +52,16 @@ public:
     std::optional<PredecodedImage> findPredecodedImage(const QUrl& url) const;
 
 private:
+    void scheduleWithConfirmedCandidateSnapshot(PredecodeScheduleContext context);
+
     ImageDocumentState& m_state;
     ImagePageSurfaceController& m_pageSurfaceController;
     ImagePresentationRuntime& m_presentationRuntime;
     std::unique_ptr<ImagePredecodeCoordinator> m_coordinator;
     CurrentPageNumberCallback m_currentPageNumber;
-    PageCandidateSnapshotCallback m_pageCandidateSnapshot;
+    EnsurePageCandidateSnapshotCallback m_ensurePageCandidateSnapshot;
+    std::shared_ptr<int> m_callbackLifetime = std::make_shared<int>(0);
+    quint64 m_candidateSnapshotRequestId = 0;
     bool m_ordinaryDirectMediaPredecodeEnabled = true;
 };
 }

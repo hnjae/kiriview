@@ -85,7 +85,7 @@ public:
                       ++primaryDisplayFailureCount;
                   },
               },
-              {}, {}, testCacheBudgets())
+              {}, testCacheBudgets())
     {
         controller.setViewportSize(QSizeF(800.0, 600.0));
     }

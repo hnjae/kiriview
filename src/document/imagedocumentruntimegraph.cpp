@@ -137,10 +137,12 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
         = std::make_unique<ImageDocumentDeletionProgressPort>(m_deletionController.get());
     m_predecodeController = std::make_unique<ImageDocumentPredecodeController>(
         documentObject, state, *m_pageSurfaceController, *m_presentationRuntime,
-        dependencies.candidateProvider, dependencies.imageDecode,
-        dependencies.cacheBudgets.predecodeCacheByteBudget,
+        dependencies.imageDecode, dependencies.cacheBudgets.predecodeCacheByteBudget,
         [this]() { return m_currentPageNumberPort->currentPageNumber(); },
-        [this]() { return m_pageCandidateSnapshotPort->confirmedSnapshot(); },
+        [this](ImageDocumentPageCandidateListContext context,
+            ImageDocumentPageCandidateListSnapshotCallback callback) {
+            m_pageCandidateSnapshotPort->ensure(std::move(context), std::move(callback));
+        },
         std::move(dependencies.powerSaver), dependencies.ordinaryDirectMediaPredecodeEnabled,
         std::move(dependencies.predecodeTimerScheduler),
         std::move(dependencies.predecodeThreadCountProvider));
@@ -162,7 +164,7 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
                 }
             },
         },
-        dependencies.candidateProvider, dependencies.imageDecode, dependencies.cacheBudgets);
+        dependencies.imageDecode, dependencies.cacheBudgets);
     m_primaryPageSlotPort
         = std::make_unique<ImageDocumentPrimaryPageSlotPort>(m_spreadController.get());
     m_openController = std::make_unique<ImageOpenController>(documentObject, state,
@@ -187,9 +189,12 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
                 m_primaryPageSlotPort->commit(location);
             },
             [this]() { m_primaryPageSlotPort->clear(); },
-            [this]() { return m_pageCandidateSnapshotPort->confirmedSnapshot(); },
+            [this](ImageDocumentPageCandidateListContext context,
+                ImageDocumentPageCandidateListSnapshotCallback callback) {
+                m_pageCandidateSnapshotPort->ensure(std::move(context), std::move(callback));
+            },
         },
-        dependencies.candidateProvider, dependencies.imageDecode);
+        dependencies.imageDecode);
     m_animationLoadErrorPort->setOpenController(m_openController.get());
     m_navigationController = std::make_unique<ImageDocumentNavigationController>(state,
         *m_pageSurfaceController, *m_navigationService, *m_spreadController,

@@ -49,15 +49,25 @@ public:
 
     bool shouldKeepExistingWatcherFor(const ImageDocumentPageCandidateListContext& context) const;
     ImageDocumentPageNavigationCandidateReuseResult reuseConfirmedCandidates(
-        const ImageDocumentPageCandidateListContext& context);
+        const ImageDocumentPageCandidateListContext& context, bool forceChanged = true);
+    bool reuseConfirmedCandidateSnapshot(const ImageDocumentPageCandidateListContext& context);
     ImageDocumentPageNavigationRefreshPlan beginRefresh(
         const ImageDocumentPageCandidateListContext& context);
+    quint64 beginCandidateSnapshotRefresh(const ImageDocumentPageCandidateListContext& context);
     bool completeRefresh(const std::vector<ImageDocumentPageCandidate>& candidates,
         const QUrl& currentUrl, ImageDocumentPageCandidateListSource source);
     ImageDocumentPageNavigationRefreshResult completePendingRefresh(
         const std::vector<ImageDocumentPageCandidate>& candidates, quint64 refreshId,
         ImageDocumentPageCandidateListSource source);
+    bool completePendingCandidateSnapshotRefresh(
+        const std::vector<ImageDocumentPageCandidate>& candidates, quint64 refreshId,
+        ImageDocumentPageCandidateListSource source);
+    bool failPendingRefresh(quint64 refreshId, ImageDocumentPageCandidateListSource source);
+    void cancelPendingRefresh();
     ImageDocumentPageNavigationRefreshResult completeWatchedRefreshFromCurrentContext(
+        const std::vector<ImageDocumentPageCandidate>& candidates,
+        ImageDocumentPageCandidateListSource source);
+    bool completeWatchedCandidateSnapshotRefresh(
         const std::vector<ImageDocumentPageCandidate>& candidates,
         ImageDocumentPageCandidateListSource source);
     bool clear();
