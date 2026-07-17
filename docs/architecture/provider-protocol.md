@@ -20,6 +20,8 @@ Display demand is a value snapshot, not provider-owned viewport state. Its publi
 
 The engine allocates per-role payload budgets as one target-spread decision before issuing concurrent role work. Reservations account for every required role and retained payload ownership, and preparation consumes or releases them atomically so concurrent provider completions cannot oversubscribe the display budget. A cap, reservation, or allocation-accounting change advances allocation generation and demand revision for affected work; it cannot silently reinterpret an already issued demand.
 
+Public opaque identity types preserve their engine ownership domains. Presentation-target generation identifies accepted or displayed target ownership, allocation generation identifies payload-budget and accounting state, demand revision identifies payload admission, and state revision identifies a public observation domain. These identities are not substitutable or cross-comparable even when their internal allocators happen to produce equal representations.
+
 Each session has one serialized command stream from the engine and an engine-owned token ledger. Providers may complete work on arbitrary worker facilities, but event delivery into the viewport is normalized by the provider host before engine state changes are evaluated. Event ingress synchronously captures transferred frame ownership and immutable session identity at signal emission, while a separate queued handoff serializes engine reduction on the viewport command-processing affinity. The ledger records request kind, role, generation, demand, cancellation, and terminality so admission never depends on callback order or provider object identity.
 
 ## Events
