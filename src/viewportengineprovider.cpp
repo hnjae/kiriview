@@ -23,9 +23,9 @@ ViewportEngineProviderTerminalEventInput terminalEvent(const ViewportProviderEve
     result.token = event.token;
     result.unsupportedCause = event.unsupportedCause;
     result.diagnostic = event.diagnostic;
-    result.kind = event.kind == ViewportProviderEvent::Kind::Unsupported
+    result.kind = event.kind == ImageSequenceProviderEventKind::Unsupported
         ? ViewportEngineProviderTerminalEventInput::Kind::Unsupported
-        : event.kind == ViewportProviderEvent::Kind::Cancellation
+        : event.kind == ImageSequenceProviderEventKind::Cancelled
         ? ViewportEngineProviderTerminalEventInput::Kind::Cancellation
         : ViewportEngineProviderTerminalEventInput::Kind::Failure;
     return result;
@@ -39,30 +39,27 @@ bool unsupportedCauseValid(ImageSequenceProviderUnsupportedCause cause)
 
 bool eventShapeCompatible(const ViewportProviderEvent& event)
 {
-    return event.kind != ViewportProviderEvent::Kind::Unsupported
-        || (event.unsupportedCauseExplicit && unsupportedCauseValid(event.unsupportedCause));
+    return event.kind != ImageSequenceProviderEventKind::Unsupported
+        || unsupportedCauseValid(event.unsupportedCause);
 }
 
 bool eventKindCompatible(
-    ImageSequenceProviderRequestKind requestKind, ViewportProviderEvent::Kind eventKind)
+    ImageSequenceProviderRequestKind requestKind, ImageSequenceProviderEventKind eventKind)
 {
     switch (eventKind) {
-    case ViewportProviderEvent::Kind::MetadataReady:
+    case ImageSequenceProviderEventKind::MetadataReady:
         return requestKind == ImageSequenceProviderRequestKind::Metadata;
-    case ViewportProviderEvent::Kind::ImageFrameReady:
-    case ViewportProviderEvent::Kind::ImageFrameWithMetadataReady:
-    case ViewportProviderEvent::Kind::FrameHandleReady:
-    case ViewportProviderEvent::Kind::FrameHandleWithMetadataReady:
+    case ImageSequenceProviderEventKind::FrameReady:
         return requestKind == ImageSequenceProviderRequestKind::Frame
             || requestKind == ImageSequenceProviderRequestKind::Position
             || requestKind == ImageSequenceProviderRequestKind::Playback;
-    case ViewportProviderEvent::Kind::EndOfSequence:
+    case ImageSequenceProviderEventKind::EndOfSequence:
         return requestKind == ImageSequenceProviderRequestKind::Playback;
-    case ViewportProviderEvent::Kind::Waiting:
-    case ViewportProviderEvent::Kind::Progress:
-    case ViewportProviderEvent::Kind::Failure:
-    case ViewportProviderEvent::Kind::Unsupported:
-    case ViewportProviderEvent::Kind::Cancellation:
+    case ImageSequenceProviderEventKind::Waiting:
+    case ImageSequenceProviderEventKind::Progress:
+    case ImageSequenceProviderEventKind::Failed:
+    case ImageSequenceProviderEventKind::Unsupported:
+    case ImageSequenceProviderEventKind::Cancelled:
         return requestKind == ImageSequenceProviderRequestKind::Metadata
             || requestKind == ImageSequenceProviderRequestKind::Frame
             || requestKind == ImageSequenceProviderRequestKind::Position
@@ -238,7 +235,7 @@ std::array<ViewportProviderFrameTransportEffect, 2> ViewportEngine::restageProvi
 
 ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportProviderEvent& event)
 {
-    const GeometryInput geometry = event.kind == ViewportProviderEvent::Kind::MetadataReady
+    const GeometryInput geometry = event.kind == ImageSequenceProviderEventKind::MetadataReady
         ? rawAcceptedGeometry()
         : acceptedGeometry();
     auto& eventProvider = m_state->providerState.roles[roleIndex(event.role)].provider;
@@ -260,8 +257,17 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
         stale.observations.append(observation);
         return stale;
     }
-    const auto* providerRequest = eventProvider.requests.find(event.token);
-    if (!providerRequest) {
+    const auto admission = eventProvider.requests.admit(event.token);
+    if (admission.kind == ImageViewportInternal::ProviderRequestTokenAdmissionKind::Mismatch) {
+        const auto reduced = reduceProviderProtocolViolation(event.role, event.token);
+        ViewportProviderEventResult violation;
+        violation.changes = reduced.changes;
+        violation.providerFrameTransport = reduced.providerFrameTransport;
+        violation.providerFrameTransportPhase = ViewportProviderEventTransportPhase::AfterChanges;
+        violation.schedule = reduced.schedule;
+        return violation;
+    }
+    if (admission.kind == ImageViewportInternal::ProviderRequestTokenAdmissionKind::Retired) {
         ViewportProviderEventResult stale;
         ImageViewportInternal::InternalObservation observation;
         observation.subsystem = ImageViewportInternal::InternalObservationSubsystem::Engine;
@@ -282,6 +288,8 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
         stale.observations.append(observation);
         return stale;
     }
+    const auto* providerRequest = admission.record;
+    Q_ASSERT(providerRequest);
     if (providerRequest->role != event.role || providerRequest->generation != event.generation
         || !eventKindCompatible(providerRequest->kind, event.kind)
         || !eventShapeCompatible(event)) {
@@ -295,7 +303,7 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
     }
     ViewportProviderEventResult result;
     switch (event.kind) {
-    case ViewportProviderEvent::Kind::MetadataReady: {
+    case ImageSequenceProviderEventKind::MetadataReady: {
         ViewportEngineProviderMetadataReadyAccess access(m_state->requestState.request,
             m_state->playbackState.playback, m_state->displayState.display,
             m_state->providerState.roles, m_state->presentationState.presentation,
@@ -309,54 +317,32 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
         result.providerFrameTransportPhase = ViewportProviderEventTransportPhase::BeforeChanges;
         break;
     }
-    case ViewportProviderEvent::Kind::ImageFrameReady:
-    case ViewportProviderEvent::Kind::ImageFrameWithMetadataReady: {
-        auto& provider = m_state->providerState.roles[roleIndex(event.role)].provider;
-        ViewportEngineProviderFrameReadyAccess access(m_state->requestState.request,
-            m_state->playbackState.playback, m_state->displayState.display, provider,
-            m_state->presentationState.presentation);
-        const auto frame = reduceViewportEngineProviderFrameReady(
-            { event.role, event.token, event.imageFrame, 0,
-                event.kind == ViewportProviderEvent::Kind::ImageFrameReady
-                    ? ImageSequenceProviderFrameEnvelope::stillFrame()
-                    : event.frameEnvelope,
-                geometry },
-            std::move(access));
-        result.changes = frame.changes;
-        result.observations = frame.observations;
-        break;
-    }
-    case ViewportProviderEvent::Kind::FrameHandleReady:
-    case ViewportProviderEvent::Kind::FrameHandleWithMetadataReady: {
+    case ImageSequenceProviderEventKind::FrameReady: {
         auto& provider = m_state->providerState.roles[roleIndex(event.role)].provider;
         ViewportEngineProviderFrameReadyAccess access(m_state->requestState.request,
             m_state->playbackState.playback, m_state->displayState.display, provider,
             m_state->presentationState.presentation);
         const auto frame = reduceViewportEngineProviderFrameReady(
             { event.role, event.token, event.frameHandle ? event.frameHandle->frame() : nullptr,
-                event.frameLeaseId,
-                event.kind == ViewportProviderEvent::Kind::FrameHandleReady
-                    ? ImageSequenceProviderFrameEnvelope::stillFrame()
-                    : event.frameEnvelope,
-                geometry },
+                event.frameLeaseId, event.frameEnvelope, geometry },
             std::move(access));
         result.changes = frame.changes;
         result.observations = frame.observations;
         break;
     }
-    case ViewportProviderEvent::Kind::Waiting:
-    case ViewportProviderEvent::Kind::Progress: {
+    case ImageSequenceProviderEventKind::Waiting:
+    case ImageSequenceProviderEventKind::Progress: {
         auto& p = m_state->providerState.roles[roleIndex(event.role)].provider;
         ViewportEngineProviderWaitingAccess access(
             m_state->requestState.request, p.facts, p.session, p.requests);
         result.changes = reduceViewportEngineProviderWaiting(
-            { event.role, event.token, event.kind == ViewportProviderEvent::Kind::Progress,
+            { event.role, event.token, event.kind == ImageSequenceProviderEventKind::Progress,
                 event.progress },
             std::move(access))
                              .changes;
         break;
     }
-    case ViewportProviderEvent::Kind::EndOfSequence: {
+    case ImageSequenceProviderEventKind::EndOfSequence: {
         ViewportEngineProviderEndOfSequenceAccess access(m_state->requestState.request,
             m_state->playbackState.playback, m_state->displayState.display,
             m_state->providerState.roles, m_state->presentationState.presentation,
@@ -371,9 +357,9 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
             : ViewportProviderEventTransportPhase::BeforeChanges;
         break;
     }
-    case ViewportProviderEvent::Kind::Failure:
-    case ViewportProviderEvent::Kind::Unsupported:
-    case ViewportProviderEvent::Kind::Cancellation: {
+    case ImageSequenceProviderEventKind::Failed:
+    case ImageSequenceProviderEventKind::Unsupported:
+    case ImageSequenceProviderEventKind::Cancelled: {
         auto& provider = m_state->providerState.roles[roleIndex(event.role)].provider;
         ViewportEngineProviderTerminalEventAccess access(m_state->requestState.request,
             m_state->playbackState.playback, provider.facts, provider.session, provider.requests);

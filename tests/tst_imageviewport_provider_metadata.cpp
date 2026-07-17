@@ -1870,8 +1870,6 @@ void ImageViewportProviderMetadataTest::providerInvalidProgressResultsAreIgnored
     emitProviderProgress(
         sessionFactory->lastSession(), metadataToken, std::numeric_limits<double>::quiet_NaN());
     drainQueuedProviderResults();
-    emitProviderProgress(sessionFactory->lastSession(), ImageSequenceProviderRequestToken(), 0.5);
-    drainQueuedProviderResults();
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
@@ -1881,6 +1879,13 @@ void ImageViewportProviderMetadataTest::providerInvalidProgressResultsAreIgnored
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(stateSpy.count(), 0);
+
+    emitProviderMetadataReady(sessionFactory->lastSession(), metadataToken,
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    drainQueuedProviderResults();
+
+    QCOMPARE(*frameRequestCount, 1);
+    QCOMPARE(*closeCount, 0);
 }
 
 void ImageViewportProviderMetadataTest::providerTerminalResultDominatesProgress()

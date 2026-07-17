@@ -41,8 +41,8 @@ private slots:
     void secondaryProviderPlaybackTerminalResultsProjectThroughSpread();
     void invalidUnsupportedCauseIsProtocolViolation_data();
     void invalidUnsupportedCauseIsProtocolViolation();
-    void providerInvalidTerminalTokenBeforeMetadataIsIgnored();
-    void providerInvalidTerminalTokenAfterMetadataIsIgnored();
+    void providerInvalidTokenBeforeMetadataIsProtocolViolation();
+    void providerInvalidTokenAfterMetadataIsProtocolViolation();
 };
 
 void ImageViewportProviderTerminalProjectionTest::
@@ -772,7 +772,7 @@ void ImageViewportProviderTerminalProjectionTest::invalidUnsupportedCauseIsProto
 }
 
 void ImageViewportProviderTerminalProjectionTest::
-    providerInvalidTerminalTokenBeforeMetadataIsIgnored()
+    providerInvalidTokenBeforeMetadataIsProtocolViolation()
 {
     ImageSequenceFactory factory;
     const auto sessionCount = std::make_shared<int>(0);
@@ -792,36 +792,23 @@ void ImageViewportProviderTerminalProjectionTest::
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    const ImageViewportRevisionToken requestRevision
-        = revisionTokenProperty(item, "requestRevision");
-
     emitProviderFailed(sessionFactory->lastSession(), ImageSequenceProviderRequestToken(),
         QStringLiteral("invalid token failure"));
-    drainQueuedProviderResults();
-    emitProviderUnsupported(sessionFactory->lastSession(), ImageSequenceProviderRequestToken(),
-        ImageSequenceProviderUnsupportedCause::UnsupportedRequest,
-        QStringLiteral("invalid token unsupported"));
-    drainQueuedProviderResults();
-    emitProviderCancelled(sessionFactory->lastSession(), ImageSequenceProviderRequestToken(),
-        QStringLiteral("invalid token cancellation"));
-    drainQueuedProviderResults();
-    emitProviderEndOfSequence(sessionFactory->lastSession(), ImageSequenceProviderRequestToken());
     drainQueuedProviderResults();
 
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
-    QCOMPARE(*closeCount, 0);
-    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(*closeCount, 1);
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(primaryRequestedPosition(item), -1);
-    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
-    QCOMPARE(viewportErrorString(item), QString());
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("provider protocol violation")));
 }
 
 void ImageViewportProviderTerminalProjectionTest::
-    providerInvalidTerminalTokenAfterMetadataIsIgnored()
+    providerInvalidTokenAfterMetadataIsProtocolViolation()
 {
     ImageSequenceFactory factory;
     const auto sessionCount = std::make_shared<int>(0);
@@ -847,30 +834,17 @@ void ImageViewportProviderTerminalProjectionTest::
     drainQueuedProviderResults();
     QCOMPARE(*frameRequestCount, 1);
 
-    const ImageViewportRevisionToken requestRevision
-        = revisionTokenProperty(item, "requestRevision");
-
     emitProviderFailed(sessionFactory->lastSession(), ImageSequenceProviderRequestToken(),
         QStringLiteral("invalid token failure"));
     drainQueuedProviderResults();
-    emitProviderUnsupported(sessionFactory->lastSession(), ImageSequenceProviderRequestToken(),
-        ImageSequenceProviderUnsupportedCause::UnsupportedRequest,
-        QStringLiteral("invalid token unsupported"));
-    drainQueuedProviderResults();
-    emitProviderCancelled(sessionFactory->lastSession(), ImageSequenceProviderRequestToken(),
-        QStringLiteral("invalid token cancellation"));
-    drainQueuedProviderResults();
-    emitProviderEndOfSequence(sessionFactory->lastSession(), ImageSequenceProviderRequestToken());
-    drainQueuedProviderResults();
 
-    QCOMPARE(*closeCount, 0);
+    QCOMPARE(*closeCount, 1);
     QCOMPARE(*frameRequestCount, 1);
-    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), 0);
-    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
-    QCOMPARE(viewportErrorString(item), QString());
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("provider protocol violation")));
 }
 QTEST_MAIN(ImageViewportProviderTerminalProjectionTest)
 

@@ -245,7 +245,8 @@ bool executorAccepted(ViewportProviderExecutorOutcome outcome)
 }
 
 ViewportProviderEvent providerEvent(ImageViewportPageRole role, quint64 sessionSerial,
-    quint64 generation, ViewportProviderEvent::Kind kind, ImageSequenceProviderRequestToken token)
+    quint64 generation, ImageSequenceProviderEventKind kind,
+    ImageSequenceProviderRequestToken token)
 {
     ViewportProviderEvent event;
     event.kind = kind;
@@ -259,90 +260,15 @@ ViewportProviderEvent providerEvent(ImageViewportPageRole role, quint64 sessionS
 ViewportProviderEvent viewportProviderEventFromTyped(ImageViewportPageRole role,
     quint64 sessionSerial, quint64 generation, const ImageSequenceProviderEvent& typedEvent)
 {
-    if (!typedEvent.isValid()) {
-        if (typedEvent.kind() == ImageSequenceProviderEventKind::MetadataReady) {
-            ViewportProviderEvent event = providerEvent(role, sessionSerial, generation,
-                ViewportProviderEvent::Kind::MetadataReady, typedEvent.token());
-            event.metadata = typedEvent.metadata();
-            return event;
-        }
-        if (typedEvent.kind() == ImageSequenceProviderEventKind::Progress) {
-            ViewportProviderEvent event = providerEvent(role, sessionSerial, generation,
-                ViewportProviderEvent::Kind::Progress, typedEvent.token());
-            event.progress = typedEvent.progress();
-            return event;
-        }
-        if (typedEvent.kind() == ImageSequenceProviderEventKind::FrameReady) {
-            ViewportProviderEvent event = providerEvent(role, sessionSerial, generation,
-                ViewportProviderEvent::Kind::FrameHandleWithMetadataReady, typedEvent.token());
-            event.frameHandle = typedEvent.frameHandle();
-            event.frameEnvelope = typedEvent.frameEnvelope();
-            return event;
-        }
-        if (typedEvent.kind() == ImageSequenceProviderEventKind::Unsupported
-            && typedEvent.token().isValid()) {
-            ViewportProviderEvent event = providerEvent(role, sessionSerial, generation,
-                ViewportProviderEvent::Kind::Unsupported, typedEvent.token());
-            event.unsupportedCause = typedEvent.unsupportedCause();
-            event.unsupportedCauseExplicit = true;
-            event.diagnostic = typedEvent.diagnostic();
-            return event;
-        }
-        ViewportProviderEvent event = providerEvent(role, sessionSerial, generation,
-            ViewportProviderEvent::Kind::Failure, typedEvent.token());
-        event.diagnostic = QStringLiteral("provider event is invalid");
-        return event;
-    }
-
-    switch (typedEvent.kind()) {
-    case ImageSequenceProviderEventKind::MetadataReady: {
-        ViewportProviderEvent event = providerEvent(role, sessionSerial, generation,
-            ViewportProviderEvent::Kind::MetadataReady, typedEvent.token());
-        event.metadata = typedEvent.metadata();
-        return event;
-    }
-    case ImageSequenceProviderEventKind::FrameReady: {
-        ViewportProviderEvent event = providerEvent(role, sessionSerial, generation,
-            ViewportProviderEvent::Kind::FrameHandleWithMetadataReady, typedEvent.token());
-        event.frameHandle = typedEvent.frameHandle();
-        event.frameEnvelope = typedEvent.frameEnvelope();
-        return event;
-    }
-    case ImageSequenceProviderEventKind::Waiting:
-        return providerEvent(role, sessionSerial, generation, ViewportProviderEvent::Kind::Waiting,
-            typedEvent.token());
-    case ImageSequenceProviderEventKind::Progress: {
-        ViewportProviderEvent event = providerEvent(role, sessionSerial, generation,
-            ViewportProviderEvent::Kind::Progress, typedEvent.token());
-        event.progress = typedEvent.progress();
-        return event;
-    }
-    case ImageSequenceProviderEventKind::EndOfSequence:
-        return providerEvent(role, sessionSerial, generation,
-            ViewportProviderEvent::Kind::EndOfSequence, typedEvent.token());
-    case ImageSequenceProviderEventKind::Unsupported: {
-        ViewportProviderEvent event = providerEvent(role, sessionSerial, generation,
-            ViewportProviderEvent::Kind::Unsupported, typedEvent.token());
-        event.unsupportedCause = typedEvent.unsupportedCause();
-        event.unsupportedCauseExplicit = true;
-        event.diagnostic = typedEvent.diagnostic();
-        return event;
-    }
-    case ImageSequenceProviderEventKind::Cancelled: {
-        ViewportProviderEvent event = providerEvent(role, sessionSerial, generation,
-            ViewportProviderEvent::Kind::Cancellation, typedEvent.token());
-        event.diagnostic = typedEvent.diagnostic();
-        return event;
-    }
-    case ImageSequenceProviderEventKind::Failed: {
-        ViewportProviderEvent event = providerEvent(role, sessionSerial, generation,
-            ViewportProviderEvent::Kind::Failure, typedEvent.token());
-        event.diagnostic = typedEvent.diagnostic();
-        return event;
-    }
-    }
-    return providerEvent(
-        role, sessionSerial, generation, ViewportProviderEvent::Kind::Failure, typedEvent.token());
+    ViewportProviderEvent event
+        = providerEvent(role, sessionSerial, generation, typedEvent.kind(), typedEvent.token());
+    event.metadata = typedEvent.metadata();
+    event.frameHandle = typedEvent.frameHandle();
+    event.frameEnvelope = typedEvent.frameEnvelope();
+    event.progress = typedEvent.progress();
+    event.unsupportedCause = typedEvent.unsupportedCause();
+    event.diagnostic = typedEvent.diagnostic();
+    return event;
 }
 
 ImageViewportInternal::ProviderTransportDiagnostic providerTransportDiagnostic(

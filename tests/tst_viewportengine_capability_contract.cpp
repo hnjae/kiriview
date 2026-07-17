@@ -158,6 +158,15 @@ struct HasProviderRequestAccess<Access,
 template <typename Request, typename = void> struct HasViewportMember : std::false_type
 {
 };
+
+template <typename Event, typename = void> struct HasBorrowedImageFrameMember : std::false_type
+{
+};
+template <typename Event>
+struct HasBorrowedImageFrameMember<Event, std::void_t<decltype(std::declval<Event&>().imageFrame)>>
+    : std::true_type
+{
+};
 template <typename Request>
 struct HasViewportMember<Request, std::void_t<decltype(std::declval<Request&>().viewport)>>
     : std::true_type
@@ -364,6 +373,9 @@ static_assert(!std::is_same_v<ImageViewportInternal::ProviderSessionState,
     ImageViewportInternal::ProviderFactsState>);
 static_assert(!std::is_same_v<ImageViewportInternal::ProviderRequestLedger,
     ImageViewportInternal::ProviderFactsState>);
+static_assert(
+    std::is_same_v<decltype(ViewportProviderEvent::kind), ImageSequenceProviderEventKind>);
+static_assert(!HasBorrowedImageFrameMember<ViewportProviderEvent>::value);
 static_assert(std::is_const_v<std::remove_reference_t<
         decltype(std::declval<ViewportEngineProviderDemandProjectionAccess&>().providerFacts())>>);
 static_assert(!HasProviderSessionAccess<ViewportEngineProviderDemandProjectionAccess>::value);

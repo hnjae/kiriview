@@ -17,7 +17,10 @@ private slots:
     void providerMetadataUnsupportedReportsUnsupportedRequest();
     void providerMetadataCancellationReportsProviderFailure();
     void providerMetadataEndOfSequenceReportsProtocolViolation();
+    void providerNeverIssuedMetadataTokenReportsProtocolViolation_data();
+    void providerNeverIssuedMetadataTokenReportsProtocolViolation();
     void providerFrameReadyForMetadataRequestReportsProtocolViolation();
+    void providerNeverIssuedFrameTokenReportsProtocolViolationAndReleasesHandle();
     void providerMetadataReadyForFrameRequestReportsProtocolViolation();
     void providerFrameEndOfSequenceReportsProtocolViolation();
     void providerTotalDurationSeekEndOfSequenceReportsProtocolViolation();
@@ -365,6 +368,114 @@ void ImageViewportProviderTerminalTest::
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(*closeCount, 1);
     QCOMPARE(*releaseCount, 1);
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("provider protocol violation")));
+}
+
+void ImageViewportProviderTerminalTest::
+    providerNeverIssuedMetadataTokenReportsProtocolViolation_data()
+{
+    QTest::addColumn<bool>("progressEvent");
+
+    QTest::newRow("failed") << false;
+    QTest::newRow("progress") << true;
+}
+
+void ImageViewportProviderTerminalTest::providerNeverIssuedMetadataTokenReportsProtocolViolation()
+{
+    QFETCH(bool, progressEvent);
+
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    const auto cancelRequestCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
+        std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(), cancelRequestCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    const QMetaObject* metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    const auto activeToken = sessionFactory->lastSession()->lastMetadataToken();
+    const auto neverIssuedToken
+        = providerRequestTokenForTest(providerRequestTokenValueForTest(activeToken) + 1);
+    if (progressEvent) {
+        emitProviderProgress(sessionFactory->lastSession(), neverIssuedToken, 0.5);
+    } else {
+        emitProviderFailed(
+            sessionFactory->lastSession(), neverIssuedToken, QStringLiteral("wrong token"));
+    }
+    drainQueuedProviderResults();
+
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(*cancelRequestCount, 1);
+    QCOMPARE(*closeCount, 1);
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("provider protocol violation")));
+}
+
+void ImageViewportProviderTerminalTest::
+    providerNeverIssuedFrameTokenReportsProtocolViolationAndReleasesHandle()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    const auto cancelRequestCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
+        std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(), cancelRequestCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    const QMetaObject* metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emitProviderMetadataReady(sessionFactory->lastSession(),
+        sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    drainQueuedProviderResults();
+    QCOMPARE(*frameRequestCount, 1);
+
+    const auto activeToken = sessionFactory->lastSession()->lastFrameToken();
+    const auto neverIssuedToken
+        = providerRequestTokenForTest(providerRequestTokenValueForTest(activeToken) + 1);
+    ImageSequenceProviderFrameEnvelope envelope = ImageSequenceProviderFrameEnvelope::stillFrame();
+    envelope.setDemandRevision(sessionFactory->lastSession()->lastFrameDemand().demandRevision());
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    const auto releaseCount = std::make_shared<int>(0);
+    auto* handle = new ImageSequenceProviderFrameHandle(
+        new ImageFrame(image), [releaseCount](ImageFrame* frame) {
+            ++*releaseCount;
+            delete frame;
+        });
+    emitProviderFrameHandleReady(sessionFactory->lastSession(), neverIssuedToken, handle, envelope);
+    drainQueuedProviderResults();
+
+    QCOMPARE(*releaseCount, 1);
+    QCOMPARE(*cancelRequestCount, 1);
+    QCOMPARE(*closeCount, 1);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));

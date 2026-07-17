@@ -115,6 +115,7 @@ private slots:
     void newerDemandCancelsOlderRefinementAndStaleResultCannotCommit();
     void refinementFailureIsIsolatedFromTheDisplayRequest();
     void refinementKindMismatchIsGenerationTerminal();
+    void refinementNeverIssuedTokenIsGenerationTerminal();
     void refinementCommandDeliveryFailureIsGenerationTerminal();
     void refinementRenderFailureIsIsolatedFromTheDisplayRequest();
     void spreadRefinementsCommitAsOneCompleteCandidateSet();
@@ -220,11 +221,30 @@ void ImageViewportProviderRefinementTest::refinementKindMismatchIsGenerationTerm
         QStringLiteral("provider protocol violation")));
 }
 
+void ImageViewportProviderRefinementTest::refinementNeverIssuedTokenIsGenerationTerminal()
+{
+    ReadyProviderViewport fixture;
+    setQualityPreference(fixture.viewport, ImageViewportQualityPreference::ExactDetail);
+    const auto refinement = fixture.adapter.session->frameRequests().constLast();
+    const auto neverIssuedToken
+        = providerRequestTokenForTest(providerRequestTokenValueForTest(refinement.token()) + 1);
+
+    emitProviderFailed(
+        fixture.adapter.session, neverIssuedToken, QStringLiteral("wrong refinement token"));
+
+    QCOMPARE(requestStatus(fixture.viewport), ImageViewportRequestStatus::Error);
+    QCOMPARE(requestReason(fixture.viewport), ImageViewportRequestReason::PayloadRejection);
+    QCOMPARE(displayStatus(fixture.viewport), ImageViewportDisplayStatus::Ready);
+    QVERIFY(fixture.viewport.state().diagnostics().errorString().contains(
+        QStringLiteral("provider protocol violation")));
+    QCOMPARE(fixture.viewport.seek(ImageViewportPageRole::Primary, 0).outcome(),
+        ImageViewportCommandOutcome::Unsupported);
+}
+
 void ImageViewportProviderRefinementTest::refinementCommandDeliveryFailureIsGenerationTerminal()
 {
     ReadyProviderViewport fixture;
-    failNextProviderCommandDeliveryForTest(
-        fixture.viewport, ImageViewportPageRole::Primary);
+    failNextProviderCommandDeliveryForTest(fixture.viewport, ImageViewportPageRole::Primary);
 
     setQualityPreference(fixture.viewport, ImageViewportQualityPreference::ExactDetail);
 

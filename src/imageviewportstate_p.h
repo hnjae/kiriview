@@ -1,6 +1,7 @@
 #pragma once
 
 #include "imagesequencesource_p.h"
+#include "imageviewporttoken_p.h"
 #include "renderfailurecause_p.h"
 #include "timingintervals_p.h"
 #include <ImageViewport/ImageViewport>
@@ -613,6 +614,18 @@ struct QueuedProviderFrameRequest
     bool fromPlayback = false;
 };
 
+enum class ProviderRequestTokenAdmissionKind {
+    Active,
+    Retired,
+    Mismatch,
+};
+
+struct ProviderRequestTokenAdmission
+{
+    ProviderRequestTokenAdmissionKind kind = ProviderRequestTokenAdmissionKind::Retired;
+    const ProviderRequestRecord* record = nullptr;
+};
+
 struct ProviderRequestLedger
 {
     const ProviderRequestRecord* find(ImageSequenceProviderRequestToken token) const
@@ -633,6 +646,18 @@ struct ProviderRequestLedger
             }
         }
         return nullptr;
+    }
+
+    ProviderRequestTokenAdmission admit(ImageSequenceProviderRequestToken token) const
+    {
+        if (const auto* record = find(token)) {
+            return { ProviderRequestTokenAdmissionKind::Active, record };
+        }
+        const quint64 value = ProviderRequestTokenPrivateAccess::value(token);
+        if (active.isEmpty() || (token.isValid() && value <= nextRequestToken)) {
+            return { ProviderRequestTokenAdmissionKind::Retired, nullptr };
+        }
+        return { ProviderRequestTokenAdmissionKind::Mismatch, nullptr };
     }
 
     const ProviderRequestRecord* metadataRequest() const

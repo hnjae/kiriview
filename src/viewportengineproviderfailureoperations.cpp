@@ -194,13 +194,15 @@ ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderProtoco
 {
     ViewportEngineProviderTerminalEventReduction result;
     if (!providerPresent(access.m_request, input.role) || !access.m_session.sessionActive
-        || !access.m_requests.find(input.token)) {
+        || access.m_requests.active.isEmpty()) {
         return result;
     }
 
     access.m_playback.providerStartPending = false;
     access.m_playback.stopWhenRequestReady = false;
-    access.m_requests.retire(input.token);
+    if (access.m_requests.find(input.token)) {
+        access.m_requests.retire(input.token);
+    }
     result.changes = access.recordGenerationTerminal({ input.role,
         ImageViewportRequestStatus::Error, ImageViewportRequestReason::PayloadRejection,
         QStringLiteral("provider protocol violation"), result.changes });
