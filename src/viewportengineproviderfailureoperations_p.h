@@ -17,7 +17,12 @@ struct ViewportEngineProviderTerminalEventInput
     ImageSequenceProviderUnsupportedCause unsupportedCause
         = ImageSequenceProviderUnsupportedCause::PayloadRejection;
     QString diagnostic;
-    bool unsupportedCauseExplicit = false;
+};
+
+struct ViewportEngineProviderProtocolViolationInput
+{
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
+    ImageSequenceProviderRequestToken token;
 };
 
 struct ViewportEngineProviderTerminalEventReduction
@@ -88,6 +93,43 @@ private:
     ImageViewportInternal::RequestState& m_request;
     ImageViewportInternal::PlaybackState& m_playback;
     const ImageViewportInternal::ProviderFactsState& m_facts;
+    ImageViewportInternal::ProviderSessionState& m_session;
+    ImageViewportInternal::ProviderRequestLedger& m_requests;
+};
+
+class ViewportEngineProviderProtocolViolationAccess
+{
+    friend class ViewportEngine;
+    friend class ViewportEngineProviderEndOfSequenceAccess;
+    friend ViewportEngineProviderTerminalEventReduction
+        reduceViewportEngineProviderProtocolViolation(ViewportEngineProviderProtocolViolationInput,
+            ViewportEngineProviderProtocolViolationAccess);
+
+    ViewportEngineProviderProtocolViolationAccess(ImageViewportInternal::RequestState& request,
+        ImageViewportInternal::PlaybackState& playback,
+        ImageViewportInternal::ProviderSessionState& session,
+        ImageViewportInternal::ProviderRequestLedger& requests)
+        : m_request(request)
+        , m_playback(playback)
+        , m_session(session)
+        , m_requests(requests)
+    {
+    }
+
+public:
+    ViewportEngineProviderProtocolViolationAccess(
+        const ViewportEngineProviderProtocolViolationAccess&)
+        = delete;
+    ViewportEngineProviderProtocolViolationAccess(
+        ViewportEngineProviderProtocolViolationAccess&&) noexcept
+        = default;
+
+private:
+    ImageViewportInternal::ViewportChangeSet recordTerminal(
+        ViewportEngineProviderTerminalProjectionInput input);
+    ViewportProviderFrameTransportEffect closeSession();
+    ImageViewportInternal::RequestState& m_request;
+    ImageViewportInternal::PlaybackState& m_playback;
     ImageViewportInternal::ProviderSessionState& m_session;
     ImageViewportInternal::ProviderRequestLedger& m_requests;
 };
@@ -196,6 +238,8 @@ private:
 
 ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderTerminalEvent(
     ViewportEngineProviderTerminalEventInput, ViewportEngineProviderTerminalEventAccess);
+ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderProtocolViolation(
+    ViewportEngineProviderProtocolViolationInput, ViewportEngineProviderProtocolViolationAccess);
 ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderDispatchFailure(
     ViewportEngineProviderDispatchFailureInput, ViewportEngineProviderDispatchFailureAccess);
 ViewportEngineProviderSessionOpenFailureReduction reduceViewportEngineProviderSessionOpenFailure(

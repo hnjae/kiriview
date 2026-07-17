@@ -1,5 +1,4 @@
 #include "viewportengineprovidereventcompletionoperations_p.h"
-#include "viewportengineprovidersessionoperations_p.h"
 #include "viewportenginetargetspreadoperations_p.h"
 #include <cmath>
 
@@ -88,18 +87,13 @@ ViewportProviderFrameRequestStartResult ViewportEngineProviderEndOfSequenceAcces
         m_presentation, m_nextRevision, m_presentationRevision, m_targetGeneration);
     return startViewportEngineProviderFrameRequest({ role, target, g }, std::move(a));
 }
-ViewportProviderFrameTransportEffect ViewportEngineProviderEndOfSequenceAccess::closeSession(
-    ImageViewportPageRole role)
+ViewportEngineProviderTerminalEventReduction
+ViewportEngineProviderEndOfSequenceAccess::protocolViolation(
+    ImageViewportPageRole role, ImageSequenceProviderRequestToken token)
 {
     auto& p = m_roles[index(role)].provider;
-    ViewportEngineProviderSessionCloseAccess a(p.session, p.requests);
-    return closeViewportEngineProviderSession(std::move(a));
-}
-ImageViewportInternal::ViewportChangeSet ViewportEngineProviderEndOfSequenceAccess::recordTerminal(
-    ViewportEngineProviderTerminalProjectionInput in)
-{
-    ViewportEngineProviderTerminalProjectionAccess a(m_request);
-    return reduceViewportEngineProviderTerminalProjection(std::move(in), std::move(a));
+    ViewportEngineProviderProtocolViolationAccess a(m_request, m_playback, p.session, p.requests);
+    return reduceViewportEngineProviderProtocolViolation({ role, token }, std::move(a));
 }
 
 ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSequence(
@@ -120,16 +114,9 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
         return out;
     if (mt || !p.facts.metadataReady || !p.facts.timedMetadata
         || r.target.providerTargetKind != ProviderRequestTargetKind::Playback) {
-        p.requests.clearQueue();
-        p.requests.retire(in.token);
-        a.m_playback.providerStartPending = false;
-        a.m_playback.stopWhenRequestReady = false;
-        out.changes = a.recordTerminal({ in.role, ImageViewportRequestStatus::Error,
-            ImageViewportRequestReason::PayloadRejection,
-            mt ? FailureScope::Generation : FailureScope::DisplayRequest,
-            QStringLiteral("provider protocol violation"), out.changes });
-        phase(a.m_playback, ImageViewportPlaybackPhase::Stopped, out.changes);
-        out.providerFrameTransport = a.closeSession(in.role);
+        auto violation = a.protocolViolation(in.role, in.token);
+        out.changes = violation.changes;
+        out.providerFrameTransport = violation.providerFrameTransport;
         return out;
     }
     p.requests.retire(in.token);

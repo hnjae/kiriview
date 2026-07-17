@@ -42,26 +42,9 @@ void updatePlaybackPhase(
     changes.playbackPhase = true;
 }
 
-bool unsupportedCauseValid(ImageSequenceProviderUnsupportedCause cause)
-{
-    return cause == ImageSequenceProviderUnsupportedCause::UnsupportedRequest
-        || cause == ImageSequenceProviderUnsupportedCause::PayloadRejection;
-}
-
-bool invalidUnsupportedCause(const ViewportEngineProviderTerminalEventInput& input)
-{
-    return input.kind == ViewportEngineProviderTerminalEventInput::Kind::Unsupported
-        && input.unsupportedCauseExplicit && !unsupportedCauseValid(input.unsupportedCause);
-}
-
 TerminalProjection frameTerminal(const ViewportEngineProviderTerminalEventInput& input)
 {
     if (input.kind == ViewportEngineProviderTerminalEventInput::Kind::Unsupported) {
-        if (invalidUnsupportedCause(input)) {
-            return { ImageViewportRequestStatus::Error,
-                ImageViewportRequestReason::PayloadRejection, {},
-                QStringLiteral("provider protocol violation") };
-        }
         return { ImageViewportRequestStatus::Unsupported,
             input.unsupportedCause == ImageSequenceProviderUnsupportedCause::UnsupportedRequest
                 ? ImageViewportRequestReason::UnsupportedRequest
@@ -78,15 +61,8 @@ TerminalProjection frameTerminal(const ViewportEngineProviderTerminalEventInput&
 TerminalProjection metadataTerminal(const ViewportEngineProviderTerminalEventInput& input)
 {
     if (input.kind == ViewportEngineProviderTerminalEventInput::Kind::Unsupported) {
-        if (invalidUnsupportedCause(input)) {
-            return { ImageViewportRequestStatus::Error,
-                ImageViewportRequestReason::PayloadRejection, {},
-                QStringLiteral("provider protocol violation") };
-        }
         return { ImageViewportRequestStatus::Unsupported,
-            input.unsupportedCauseExplicit
-                    && input.unsupportedCause
-                        == ImageSequenceProviderUnsupportedCause::PayloadRejection
+            input.unsupportedCause == ImageSequenceProviderUnsupportedCause::PayloadRejection
                 ? ImageViewportRequestReason::PayloadRejection
                 : ImageViewportRequestReason::UnsupportedRequest,
             input.diagnostic, QStringLiteral("provider unsupported") };
@@ -128,16 +104,13 @@ ViewportEngineProviderTerminalEventReduction reduceTerminal(TerminalContext cont
         const auto terminal = frameTerminal(input);
         context.requests.clearQueue();
         context.requests.retire(input.token);
-        if (refinement && !invalidUnsupportedCause(input))
+        if (refinement)
             return result;
         result.changes = recordTerminal({ input.role, terminal.status, terminal.reason,
             FailureScope::DisplayRequest,
             FramePreparation::boundedDiagnostic(terminal.diagnostic, terminal.fallbackDiagnostic),
             result.changes });
         updatePlaybackPhase(context.playback, ImageViewportPlaybackPhase::Stopped, result.changes);
-        if (invalidUnsupportedCause(input)) {
-            result.providerFrameTransport = closeSession();
-        }
         return result;
     }
 
@@ -167,6 +140,7 @@ ViewportEngineProviderTerminalEventReduction reduceTerminal(TerminalContext cont
     }
 
 DEFINE_RECORD_TERMINAL(ViewportEngineProviderTerminalEventAccess)
+DEFINE_RECORD_TERMINAL(ViewportEngineProviderProtocolViolationAccess)
 DEFINE_RECORD_TERMINAL(ViewportEngineProviderDispatchFailureAccess)
 DEFINE_RECORD_TERMINAL(ViewportEngineProviderSessionOpenFailureAccess)
 DEFINE_RECORD_TERMINAL(ViewportEngineProviderQueueFailureAccess)
@@ -180,6 +154,7 @@ DEFINE_RECORD_TERMINAL(ViewportEngineProviderQueueFailureAccess)
     }
 
 DEFINE_CLOSE_SESSION(ViewportEngineProviderTerminalEventAccess)
+DEFINE_CLOSE_SESSION(ViewportEngineProviderProtocolViolationAccess)
 DEFINE_CLOSE_SESSION(ViewportEngineProviderDispatchFailureAccess)
 #undef DEFINE_CLOSE_SESSION
 
@@ -197,6 +172,28 @@ ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderTermina
         [&access] { return access.closeSession(); });
 }
 
+ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderProtocolViolation(
+    ViewportEngineProviderProtocolViolationInput
+        input, // NOLINT(performance-unnecessary-value-param)
+    ViewportEngineProviderProtocolViolationAccess access)
+{
+    ViewportEngineProviderTerminalEventReduction result;
+    if (!providerPresent(access.m_request, input.role) || !access.m_session.sessionActive
+        || !access.m_requests.find(input.token)) {
+        return result;
+    }
+
+    access.m_playback.providerStartPending = false;
+    access.m_playback.stopWhenRequestReady = false;
+    access.m_requests.retire(input.token);
+    result.changes = access.recordTerminal({ input.role, ImageViewportRequestStatus::Error,
+        ImageViewportRequestReason::PayloadRejection, FailureScope::Generation,
+        QStringLiteral("provider protocol violation"), result.changes });
+    updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
+    result.providerFrameTransport = access.closeSession();
+    return result;
+}
+
 ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderDispatchFailure(
     ViewportEngineProviderDispatchFailureInput input, // NOLINT(performance-unnecessary-value-param)
     ViewportEngineProviderDispatchFailureAccess access)
@@ -206,8 +203,7 @@ ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderDispatc
         ViewportEngineProviderTerminalEventInput::Kind::Failure,
         ImageSequenceProviderUnsupportedCause::PayloadRejection,
         input.diagnostic.isEmpty() ? QStringLiteral("provider command delivery failed")
-                                   : input.diagnostic,
-        false };
+                                   : input.diagnostic };
     auto result = reduceTerminal(
         { access.m_request, access.m_playback, access.m_facts, access.m_session,
             access.m_requests },

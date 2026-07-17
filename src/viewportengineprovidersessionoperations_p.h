@@ -44,8 +44,8 @@ class ViewportEngineProviderSessionCloseAccess
     friend class ViewportEnginePresentationTargetAssignmentAccess;
     friend class ViewportEngineProviderMetadataReadyAccess;
     friend class ViewportEngineProviderTerminalEventAccess;
+    friend class ViewportEngineProviderProtocolViolationAccess;
     friend class ViewportEngineProviderDispatchFailureAccess;
-    friend class ViewportEngineProviderEndOfSequenceAccess;
     friend ViewportProviderFrameTransportEffect closeViewportEngineProviderSession(
         ViewportEngineProviderSessionCloseAccess);
 

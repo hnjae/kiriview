@@ -22,13 +22,24 @@ ViewportEngineProviderTerminalEventInput terminalEvent(const ViewportProviderEve
     result.token = event.token;
     result.unsupportedCause = event.unsupportedCause;
     result.diagnostic = event.diagnostic;
-    result.unsupportedCauseExplicit = event.unsupportedCauseExplicit;
     result.kind = event.kind == ViewportProviderEvent::Kind::Unsupported
         ? ViewportEngineProviderTerminalEventInput::Kind::Unsupported
         : event.kind == ViewportProviderEvent::Kind::Cancellation
         ? ViewportEngineProviderTerminalEventInput::Kind::Cancellation
         : ViewportEngineProviderTerminalEventInput::Kind::Failure;
     return result;
+}
+
+bool unsupportedCauseValid(ImageSequenceProviderUnsupportedCause cause)
+{
+    return cause == ImageSequenceProviderUnsupportedCause::UnsupportedRequest
+        || cause == ImageSequenceProviderUnsupportedCause::PayloadRejection;
+}
+
+bool eventShapeCompatible(const ViewportProviderEvent& event)
+{
+    return event.kind != ViewportProviderEvent::Kind::Unsupported
+        || (event.unsupportedCauseExplicit && unsupportedCauseValid(event.unsupportedCause));
 }
 
 bool eventKindCompatible(
@@ -271,27 +282,14 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
         return stale;
     }
     if (providerRequest->role != event.role || providerRequest->generation != event.generation
-        || !eventKindCompatible(providerRequest->kind, event.kind)) {
+        || !eventKindCompatible(providerRequest->kind, event.kind)
+        || !eventShapeCompatible(event)) {
+        const auto reduced = reduceProviderProtocolViolation(event.role, event.token);
         ViewportProviderEventResult violation;
-        ViewportEngineProviderTerminalProjectionAccess terminalAccess(
-            m_state->requestState.request);
-        violation.changes = reduceViewportEngineProviderTerminalProjection(
-            { event.role, ImageViewportRequestStatus::Error,
-                ImageViewportRequestReason::PayloadRejection,
-                ImageViewportInternal::FailureScope::Generation,
-                QStringLiteral("provider protocol violation"), {} },
-            std::move(terminalAccess));
-        auto& playback = m_state->playbackState.playback;
-        playback.providerStartPending = false;
-        playback.stopWhenRequestReady = false;
-        if (playback.phase != ImageViewportPlaybackPhase::Stopped) {
-            playback.phase = ImageViewportPlaybackPhase::Stopped;
-            violation.changes.playbackPhase = true;
-        }
-        eventProvider.requests.retire(event.token);
-        violation.providerFrameTransport = closeProviderSession(event.role);
+        violation.changes = reduced.changes;
+        violation.providerFrameTransport = reduced.providerFrameTransport;
         violation.providerFrameTransportPhase = ViewportProviderEventTransportPhase::AfterChanges;
-        violation.schedule = currentPlaybackSchedule();
+        violation.schedule = reduced.schedule;
         return violation;
     }
     ViewportProviderEventResult result;
@@ -403,6 +401,21 @@ ViewportProviderSessionOpenFailureResult ViewportEngine::reduceProviderSessionOp
     if (result.changes.playbackPhase) {
         result.schedule = currentPlaybackSchedule();
     }
+    return result;
+}
+
+ViewportProviderTerminalEventResult ViewportEngine::reduceProviderProtocolViolation(
+    ImageViewportPageRole role, ImageSequenceProviderRequestToken token)
+{
+    auto& provider = m_state->providerState.roles[roleIndex(role)].provider;
+    ViewportEngineProviderProtocolViolationAccess access(m_state->requestState.request,
+        m_state->playbackState.playback, provider.session, provider.requests);
+    const auto reduction
+        = reduceViewportEngineProviderProtocolViolation({ role, token }, std::move(access));
+    ViewportProviderTerminalEventResult result;
+    result.changes = reduction.changes;
+    result.providerFrameTransport = reduction.providerFrameTransport;
+    result.schedule = currentPlaybackSchedule();
     return result;
 }
 

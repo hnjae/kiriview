@@ -103,6 +103,8 @@ private:
         const GeometryInput& geometry);
     std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands();
     ViewportProviderEventResult reduceProviderEvent(const ViewportProviderEvent& event);
+    ViewportProviderTerminalEventResult reduceProviderProtocolViolation(
+        ImageViewportPageRole role, ImageSequenceProviderRequestToken token);
     ViewportProviderTerminalEventResult reduceProviderDispatchFailure(
         ImageViewportPageRole role, const ViewportProviderDispatchFailureEvent& event);
     ViewportProviderSessionOpenFailureResult reduceProviderSessionOpenFailure(

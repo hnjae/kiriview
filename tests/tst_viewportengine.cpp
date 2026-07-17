@@ -200,6 +200,7 @@ private slots:
     void providerDemandInvalidatesOverflowedPhysicalSize();
     void providerTerminalReducerRejectsStaleFrameToken();
     void providerTerminalReducerCommitsFrameFailureAtomically();
+    void providerProtocolViolationClosesFrameGeneration();
     void providerTerminalReducerClosesMetadataGeneration();
     void providerFrameQueueFlushesOnlyCurrentLoadingRequest();
     void providerFrameQueueFlushRejectsStaleRequest();
@@ -953,6 +954,44 @@ void ViewportEngineTest::providerTerminalReducerCommitsFrameFailureAtomically()
             .frameToken()
             .isValid());
     QVERIFY(result.providerAfterPublication.isEmpty());
+}
+
+void ViewportEngineTest::providerProtocolViolationClosesFrameGeneration()
+{
+    ViewportEngine engine;
+    auto& request = ViewportEngineTestAccess::request(engine);
+    request.roles[0].source.facts.present = true;
+    request.roles[0].source.facts.provider = true;
+    request.sequenceGeneration = 7;
+    request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Initial,
+        { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Frame }, false);
+    ViewportEngineTestAccess::playback(engine).phase = ImageViewportPlaybackPhase::Waiting;
+    ViewportEngineTestAccess::activateProviderSession(engine, ImageViewportPageRole::Primary);
+    activateProviderRequestForTest(
+        ViewportEngineTestAccess::providerRequests(engine, ImageViewportPageRole::Primary), request,
+        providerRequestTokenForTest(3), ImageSequenceProviderRequestKind::Frame);
+
+    ViewportProviderHostEvent hostEvent;
+    hostEvent.kind = ViewportProviderHostEvent::Kind::ProviderEvent;
+    hostEvent.role = ImageViewportPageRole::Primary;
+    hostEvent.providerEvent = providerTerminalEvent(engine, providerRequestTokenForTest(3),
+        ViewportProviderEvent::Kind::Unsupported,
+        static_cast<ImageSequenceProviderUnsupportedCause>(-1),
+        QStringLiteral("provider-supplied private detail"), true);
+    const auto result = engine.handleProviderHostEvent({ hostEvent });
+
+    QCOMPARE(request.status, ImageViewportRequestStatus::Error);
+    QCOMPARE(request.reason, ImageViewportRequestReason::PayloadRejection);
+    QCOMPARE(request.errorString, QStringLiteral("provider protocol violation"));
+    QCOMPARE(request.targetSpreadTerminal.primary.failureScope,
+        ImageViewportInternal::FailureScope::Generation);
+    QCOMPARE(ViewportEngineTestAccess::playback(engine).phase, ImageViewportPlaybackPhase::Stopped);
+    QCOMPARE(ViewportEngineTestAccess::providerSession(engine, ImageViewportPageRole::Primary)
+                 .sessionActive,
+        false);
+    QCOMPARE(result.providerAfterPublication.size(), 1);
+    QCOMPARE(result.providerAfterPublication[0].kind,
+        ViewportProviderTransportCommand::Kind::CloseSession);
 }
 
 void ViewportEngineTest::providerTerminalReducerClosesMetadataGeneration()

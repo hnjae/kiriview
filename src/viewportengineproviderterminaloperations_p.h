@@ -7,10 +7,10 @@ using ViewportEngineProviderTerminalProjectionInput = ViewportEngineTargetSpread
 class ViewportEngineProviderMetadataReadyAccess;
 class ViewportEngineProviderFrameReadyAccess;
 class ViewportEngineProviderTerminalEventAccess;
+class ViewportEngineProviderProtocolViolationAccess;
 class ViewportEngineProviderDispatchFailureAccess;
 class ViewportEngineProviderSessionOpenFailureAccess;
 class ViewportEngineProviderQueueFailureAccess;
-class ViewportEngineProviderEndOfSequenceAccess;
 
 class ViewportEngineProviderTerminalProjectionAccess
 {
@@ -18,10 +18,10 @@ class ViewportEngineProviderTerminalProjectionAccess
     friend class ViewportEngineProviderMetadataReadyAccess;
     friend class ViewportEngineProviderFrameReadyAccess;
     friend class ViewportEngineProviderTerminalEventAccess;
+    friend class ViewportEngineProviderProtocolViolationAccess;
     friend class ViewportEngineProviderDispatchFailureAccess;
     friend class ViewportEngineProviderSessionOpenFailureAccess;
     friend class ViewportEngineProviderQueueFailureAccess;
-    friend class ViewportEngineProviderEndOfSequenceAccess;
     friend ImageViewportInternal::ViewportChangeSet reduceViewportEngineProviderTerminalProjection(
         ViewportEngineProviderTerminalProjectionInput,
         ViewportEngineProviderTerminalProjectionAccess);

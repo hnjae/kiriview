@@ -1,7 +1,7 @@
 #pragma once
 
+#include "viewportengineproviderfailureoperations_p.h"
 #include "viewportengineproviderrequestoperations_p.h"
-#include "viewportengineproviderterminaloperations_p.h"
 
 struct ViewportEngineProviderWaitingInput
 {
@@ -83,9 +83,8 @@ public:
 private:
     ViewportProviderFrameRequestStartResult startFrame(ImageViewportPageRole,
         ImageViewportInternal::DisplayRequestTarget, const ViewportEngineGeometryInput&);
-    ViewportProviderFrameTransportEffect closeSession(ImageViewportPageRole);
-    ImageViewportInternal::ViewportChangeSet recordTerminal(
-        ViewportEngineProviderTerminalProjectionInput);
+    ViewportEngineProviderTerminalEventReduction protocolViolation(
+        ImageViewportPageRole, ImageSequenceProviderRequestToken);
     ImageViewportInternal::RequestState& m_request;
     ImageViewportInternal::PlaybackState& m_playback;
     ImageViewportInternal::DisplayState& m_display;
