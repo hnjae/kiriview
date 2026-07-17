@@ -23,7 +23,3 @@ The supported install target is Linux with a static Qt QML module plugin. The QM
 - `<ImageViewport/imageviewportstate.h>` provides state snapshots, command results, and coordinate input and result values.
 
 The umbrella and subject-specific include forms are both supported package interfaces. All public headers belong to one C++ library, one QML module, and one package compatibility and release boundary; header separation does not create independently versioned APIs. Within major version `1`, minor releases may add backward-compatible API and patch releases may correct behavior within existing guarantees. Removing or renaming public API, rejecting previously valid input, changing value semantics incompatibly, or lowering a published hard limit requires a new major version. A downstream application or provider must be implementable without private headers, source-tree include paths, or build-tree-only QML imports.
-
-## Open Question
-
-- The concrete numeric values for the named source limits require representative image workloads and Qt/backend measurements before they can be fixed responsibly.
