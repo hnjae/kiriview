@@ -52,6 +52,8 @@ private:
     Callbacks m_callbacks;
     ImageIoJob m_dataLoadJob;
     ImageIoJob m_thumbnailPreviewLookupJob;
+    ImageWorkerTask m_decodeWorkerTask;
+    ImageWorkerTask m_rawThumbnailPreviewWorkerTask;
     ImageDecodeJobState m_state;
 };
 }

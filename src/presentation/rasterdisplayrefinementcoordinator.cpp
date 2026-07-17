@@ -198,8 +198,9 @@ void RasterDisplayRefinementCoordinator::request(StaticDisplayImagePayload curre
     demandKey.renderRevision = ticket;
     m_activeDemand = demandKey;
     std::shared_ptr<std::atomic_bool> startCanceled = std::make_shared<std::atomic_bool>(false);
-    retainInFlightRefinement(cacheKey, demandKey, ticket, startCanceled);
-    m_workerScheduler.run(
+    auto workerTask = std::make_shared<ImageWorkerTask>();
+    retainInFlightRefinement(cacheKey, demandKey, ticket, startCanceled, workerTask);
+    *workerTask = m_workerScheduler.run(
         m_context,
         [work = RefinementWork {
              ticket,
@@ -326,7 +327,7 @@ RasterDisplayRefinementCoordinator::attachInFlightRefinement(
 void RasterDisplayRefinementCoordinator::retainInFlightRefinement(
     const RasterDisplayRefinementCacheKey& cacheKey,
     const RasterDisplayRefinementDemandKey& demandKey, quint64 ticket,
-    std::shared_ptr<std::atomic_bool> startCanceled)
+    std::shared_ptr<std::atomic_bool> startCanceled, std::shared_ptr<ImageWorkerTask> workerTask)
 {
     auto entry = m_inFlightRefinements.begin();
     while (entry != m_inFlightRefinements.end()) {
@@ -336,12 +337,15 @@ void RasterDisplayRefinementCoordinator::retainInFlightRefinement(
         }
         ++entry;
     }
-    m_inFlightRefinements.push_back(
-        InFlightRefinement { cacheKey, demandKey, ticket, std::move(startCanceled) });
+    m_inFlightRefinements.push_back(InFlightRefinement {
+        cacheKey, demandKey, ticket, std::move(startCanceled), std::move(workerTask) });
     while (static_cast<qsizetype>(m_inFlightRefinements.size()) > refinementInFlightCapacity) {
         InFlightRefinement evicted = m_inFlightRefinements.front();
         if (evicted.startCanceled != nullptr) {
             evicted.startCanceled->store(true, std::memory_order_relaxed);
+        }
+        if (evicted.workerTask != nullptr) {
+            evicted.workerTask->cancel();
         }
         if (m_activeDemand.has_value() && *m_activeDemand == evicted.demandKey) {
             m_activeDemand = std::nullopt;

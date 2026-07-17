@@ -87,6 +87,8 @@ void ImageDecodeJob::cancel()
     m_state.cancel();
     m_dataLoadJob.cancel();
     m_thumbnailPreviewLookupJob.cancel();
+    m_decodeWorkerTask.cancel();
+    m_rawThumbnailPreviewWorkerTask.cancel();
 }
 
 bool ImageDecodeJob::hasActiveRequest() const { return m_state.hasActiveRequest(); }
@@ -97,7 +99,7 @@ void ImageDecodeJob::startDecode(
     startThumbnailPreviewLookup(data, ticket, request);
 
     const ImageDataDecoder decoder = m_dependencies.dataDecoder;
-    m_dependencies.workerScheduler.run(
+    m_decodeWorkerTask = m_dependencies.workerScheduler.run(
         this,
         [decoder, data = std::move(data), request = std::move(request)]() mutable {
             return decoder(data, request);
@@ -180,7 +182,7 @@ void ImageDecodeJob::startRawEmbeddedThumbnailPreviewValidation(
 
     const RawEmbeddedThumbnailPreviewExtractor extractor
         = m_dependencies.rawEmbeddedThumbnailPreviewExtractor;
-    m_dependencies.workerScheduler.run(
+    m_rawThumbnailPreviewWorkerTask = m_dependencies.workerScheduler.run(
         this,
         [extractor, data = std::move(data), request]() mutable {
             RawEmbeddedThumbnailPreviewResult result = extractor(data, request);

@@ -54,6 +54,7 @@ private:
     ImageWorkerScheduler m_workerScheduler;
     std::shared_ptr<MediaEntrySourceRunner> m_runner;
     MediaEntrySourceCandidateLoadState m_candidateLoadState;
+    ImageWorkerTask m_candidateLoadTask;
     ImageAsyncTicket m_sourceGeneration;
 };
 }

@@ -49,6 +49,7 @@ public:
                                                   kiriview::ImageWorkerCompletion completion) {
             schedules.push_back(
                 ManualImageWorkerSchedule { std::move(work), std::move(completion) });
+            return kiriview::ImageWorkerTask {};
         });
     }
 

@@ -122,6 +122,7 @@ struct ManualImageWorkerSchedule
 {
     ImageWorkerOperation work;
     ImageWorkerCompletion completion;
+    ImageWorkerTaskCompletion taskCompletion;
 };
 
 class ManualImageWorkerScheduler
@@ -131,8 +132,19 @@ public:
     {
         return ImageWorkerScheduler(
             [this](QObject*, ImageWorkerOperation work, ImageWorkerCompletion completion) {
-                m_schedules.push_back(
-                    ManualImageWorkerSchedule { std::move(work), std::move(completion) });
+                auto schedule = std::make_shared<ManualImageWorkerSchedule>();
+                schedule->work = std::move(work);
+                schedule->completion = std::move(completion);
+                ImageWorkerTask task(
+                    [weakSchedule = std::weak_ptr<ManualImageWorkerSchedule>(schedule)]() {
+                        if (const auto activeSchedule = weakSchedule.lock()) {
+                            activeSchedule->work = {};
+                            activeSchedule->completion = {};
+                        }
+                    });
+                schedule->taskCompletion = task.completion();
+                m_schedules.push_back(std::move(schedule));
+                return task;
             });
     }
 
@@ -140,20 +152,23 @@ public:
 
     void runWork(std::size_t index)
     {
-        if (m_schedules.at(index).work) {
-            m_schedules.at(index).work();
+        if (m_schedules.at(index)->work) {
+            m_schedules.at(index)->work();
         }
     }
 
     void finish(std::size_t index)
     {
-        if (m_schedules.at(index).completion) {
-            m_schedules.at(index).completion();
-        }
+        const auto& schedule = m_schedules.at(index);
+        schedule->taskCompletion.claimAndRun([&]() {
+            if (schedule->completion) {
+                schedule->completion();
+            }
+        });
     }
 
 private:
-    std::vector<ManualImageWorkerSchedule> m_schedules;
+    std::vector<std::shared_ptr<ManualImageWorkerSchedule>> m_schedules;
 };
 
 struct ManualImageDataLoad

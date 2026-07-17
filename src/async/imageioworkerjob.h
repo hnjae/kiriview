@@ -29,11 +29,15 @@ ImageIoJob startImageIoWorkerJob(QObject* context, QObject* receiver,
         return ImageIoJob();
     }
 
+    auto workerTask = std::make_shared<ImageWorkerTask>();
     auto* token = new QObject(receiver);
-    ImageIoJob ioJob(token, Detail::cancelImageIoWorkerToken);
+    ImageIoJob ioJob(token, [workerTask](QObject* object) {
+        workerTask->cancel();
+        Detail::cancelImageIoWorkerToken(object);
+    });
     const ImageIoJobCompletion completion = ioJob.completion();
 
-    workerScheduler.run(context, std::forward<Work>(work),
+    *workerTask = workerScheduler.run(context, std::forward<Work>(work),
         [completion, finish = std::forward<Finish>(finish)](auto result) mutable {
             completion.claimAndDelete([&]() mutable { finish(std::move(result)); });
         });

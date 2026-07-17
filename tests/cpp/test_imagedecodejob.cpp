@@ -129,6 +129,7 @@ struct ManualImageWorkerSchedule
 {
     kiriview::ImageWorkerOperation work;
     kiriview::ImageWorkerCompletion completion;
+    kiriview::ImageWorkerTaskCompletion taskCompletion;
 };
 
 class ManualImageWorkerScheduler
@@ -138,8 +139,19 @@ public:
     {
         return kiriview::ImageWorkerScheduler([this](QObject*, kiriview::ImageWorkerOperation work,
                                                   kiriview::ImageWorkerCompletion completion) {
-            m_schedules.push_back(
-                ManualImageWorkerSchedule { std::move(work), std::move(completion) });
+            auto schedule = std::make_shared<ManualImageWorkerSchedule>();
+            schedule->work = std::move(work);
+            schedule->completion = std::move(completion);
+            kiriview::ImageWorkerTask task(
+                [weakSchedule = std::weak_ptr<ManualImageWorkerSchedule>(schedule)]() {
+                    if (const auto activeSchedule = weakSchedule.lock()) {
+                        activeSchedule->work = {};
+                        activeSchedule->completion = {};
+                    }
+                });
+            schedule->taskCompletion = task.completion();
+            m_schedules.push_back(std::move(schedule));
+            return task;
         });
     }
 
@@ -147,20 +159,23 @@ public:
 
     void runWork(std::size_t index)
     {
-        if (m_schedules.at(index).work) {
-            m_schedules.at(index).work();
+        if (m_schedules.at(index)->work) {
+            m_schedules.at(index)->work();
         }
     }
 
     void finish(std::size_t index)
     {
-        if (m_schedules.at(index).completion) {
-            m_schedules.at(index).completion();
-        }
+        const auto& schedule = m_schedules.at(index);
+        schedule->taskCompletion.claimAndRun([&]() {
+            if (schedule->completion) {
+                schedule->completion();
+            }
+        });
     }
 
 private:
-    std::vector<ManualImageWorkerSchedule> m_schedules;
+    std::vector<std::shared_ptr<ManualImageWorkerSchedule>> m_schedules;
 };
 
 class SemaphoreReleaseOnExit
@@ -283,6 +298,7 @@ private Q_SLOTS:
     void decodeErrorsAreDeliveredAsResults();
     void decodeRequestIsPassedToDecoder();
     void decodeWorkerSchedulerCanBeDrivenManually();
+    void sourceReplacementCancelsQueuedDecodeWork();
     void xdgThumbnailPreviewIsDeliveredBeforeDecodeCompletes();
     void staleXdgThumbnailPreviewIsIgnored();
     void nonRawXdgMissDoesNotRunRawEmbeddedPreview();
@@ -490,6 +506,46 @@ void TestImageDecodeJob::decodeWorkerSchedulerCanBeDrivenManually()
     QCOMPARE(decodedRequests.size(), std::size_t(1));
     QCOMPARE(decodedRequests.front().id(), quint64(16));
     QVERIFY(!decodeJob.hasActiveRequest());
+}
+
+void TestImageDecodeJob::sourceReplacementCancelsQueuedDecodeWork()
+{
+    ManualImageDataLoader dataLoader;
+    ManualImageWorkerScheduler workerScheduler;
+    std::vector<kiriview::ImageDecodeRequest> decoderRequests;
+    std::vector<kiriview::ImageDecodeRequest> decodedRequests;
+    kiriview::ImageDecodeDependencies dependencies = imageDecodeDependenciesFor(dataLoader,
+        [&decoderRequests](const QByteArray&, const kiriview::ImageDecodeRequest& request) {
+            decoderRequests.push_back(request);
+            return kiriview::successfulDecodedImageResult(
+                kiriview::TestSupport::staticDecodedTestImage());
+        });
+    dependencies.workerScheduler = workerScheduler.scheduler();
+    kiriview::ImageDecodeJob decodeJob(this, std::move(dependencies),
+        decodeJobCallbacks(
+            [&decodedRequests](kiriview::ImageDecodeRequest request, kiriview::DecodedImageResult) {
+                decodedRequests.push_back(std::move(request));
+            }));
+
+    decodeJob.start(kiriview::ImageDecodeRequest::fromUrl(21, indexedImageUrl(21)));
+    dataLoader.finishFrontLoad(QByteArrayLiteral("first"));
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+
+    decodeJob.start(kiriview::ImageDecodeRequest::fromUrl(22, indexedImageUrl(22)));
+    dataLoader.finishBackLoad(QByteArrayLiteral("second"));
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(2));
+
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
+    QVERIFY(decoderRequests.empty());
+    QVERIFY(decodedRequests.empty());
+
+    workerScheduler.runWork(1);
+    workerScheduler.finish(1);
+    QCOMPARE(decoderRequests.size(), std::size_t(1));
+    QCOMPARE(decoderRequests.front().id(), quint64(22));
+    QCOMPARE(decodedRequests.size(), std::size_t(1));
+    QCOMPARE(decodedRequests.front().id(), quint64(22));
 }
 
 void TestImageDecodeJob::xdgThumbnailPreviewIsDeliveredBeforeDecodeCompletes()

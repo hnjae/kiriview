@@ -52,6 +52,7 @@ kiriview::ImageWorkerScheduler immediateWorkerScheduler()
                                               kiriview::ImageWorkerCompletion completion) {
         work();
         completion();
+        return kiriview::ImageWorkerTask {};
     });
 }
 

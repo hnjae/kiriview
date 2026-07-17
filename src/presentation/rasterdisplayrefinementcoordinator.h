@@ -79,6 +79,7 @@ private:
         RasterDisplayRefinementDemandKey demandKey;
         quint64 ticket = 0;
         std::shared_ptr<std::atomic_bool> startCanceled;
+        std::shared_ptr<ImageWorkerTask> workerTask;
     };
 
     bool promoteCachedRefinement(const RasterDisplayRefinementCacheKey& cacheKey,
@@ -90,7 +91,8 @@ private:
         RasterDisplayRefinementDemandKey demandKey);
     void retainInFlightRefinement(const RasterDisplayRefinementCacheKey& cacheKey,
         const RasterDisplayRefinementDemandKey& demandKey, quint64 ticket,
-        std::shared_ptr<std::atomic_bool> startCanceled);
+        std::shared_ptr<std::atomic_bool> startCanceled,
+        std::shared_ptr<ImageWorkerTask> workerTask);
     std::optional<RasterDisplayRefinementDemandKey> takeInFlightRefinement(
         const RasterDisplayRefinementCacheKey& cacheKey, quint64 ticket);
 
