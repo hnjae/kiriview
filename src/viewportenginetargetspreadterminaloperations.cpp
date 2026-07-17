@@ -3,10 +3,10 @@
 namespace {
 using namespace ImageViewportInternal;
 
-TargetSpreadRoleTerminalState& terminalForRole(RequestState& request, ImageViewportPageRole role)
+template <typename TerminalState>
+TargetSpreadRoleTerminalState& terminalForRole(TerminalState& terminal, ImageViewportPageRole role)
 {
-    return role == ImageViewportPageRole::Secondary ? request.targetSpreadTerminal.secondary
-                                                    : request.targetSpreadTerminal.primary;
+    return role == ImageViewportPageRole::Secondary ? terminal.secondary : terminal.primary;
 }
 
 bool roleRequired(const RequestState& request, ImageViewportPageRole role)
@@ -15,7 +15,20 @@ bool roleRequired(const RequestState& request, ImageViewportPageRole role)
                                                   : request.roles[1].sequence;
 }
 
-const TargetSpreadRoleTerminalState* currentTerminal(
+const TargetSpreadRoleTerminalState* currentGenerationTerminal(
+    const RequestState& request, ImageViewportPageRole role)
+{
+    const auto& terminal = request.generationTerminal;
+    if (!terminal.sealed || terminal.generation != request.sequenceGeneration
+        || !roleRequired(request, role)) {
+        return nullptr;
+    }
+    const auto& roleTerminal
+        = role == ImageViewportPageRole::Secondary ? terminal.secondary : terminal.primary;
+    return roleTerminal.terminal ? &roleTerminal : nullptr;
+}
+
+const TargetSpreadRoleTerminalState* currentDisplayRequestTerminal(
     const RequestState& request, ImageViewportPageRole role)
 {
     const auto& terminal = request.targetSpreadTerminal;
@@ -31,8 +44,14 @@ const TargetSpreadRoleTerminalState* currentTerminal(
 
 const TargetSpreadRoleTerminalState* projectedTerminal(const RequestState& request)
 {
-    const auto* primary = currentTerminal(request, ImageViewportPageRole::Primary);
-    const auto* secondary = currentTerminal(request, ImageViewportPageRole::Secondary);
+    const auto* primary = currentGenerationTerminal(request, ImageViewportPageRole::Primary);
+    if (!primary) {
+        primary = currentDisplayRequestTerminal(request, ImageViewportPageRole::Primary);
+    }
+    const auto* secondary = currentGenerationTerminal(request, ImageViewportPageRole::Secondary);
+    if (!secondary) {
+        secondary = currentDisplayRequestTerminal(request, ImageViewportPageRole::Secondary);
+    }
     if (!primary) {
         return secondary;
     }
@@ -42,26 +61,10 @@ const TargetSpreadRoleTerminalState* projectedTerminal(const RequestState& reque
     }
     return secondary->status == ImageViewportRequestStatus::Error ? secondary : primary;
 }
-}
 
-ImageViewportInternal::ViewportChangeSet recordViewportEngineTargetSpreadTerminal(
-    ViewportEngineTargetSpreadTerminalInput input, ImageViewportInternal::RequestState& request)
+ViewportChangeSet projectTerminal(
+    ViewportEngineTargetSpreadTerminalInput input, RequestState& request)
 {
-    auto& terminal = request.targetSpreadTerminal;
-    if (terminal.generation != request.sequenceGeneration
-        || terminal.requestId != request.roles[0].activeRequest.identity.id) {
-        terminal.clear();
-        terminal.generation = request.sequenceGeneration;
-        terminal.requestId = request.roles[0].activeRequest.identity.id;
-    }
-    terminal.sealed = true;
-    auto& roleTerminal = terminalForRole(request, input.role);
-    roleTerminal.terminal = true;
-    roleTerminal.status = input.status;
-    roleTerminal.reason = input.reason;
-    roleTerminal.failureScope = input.scope;
-    roleTerminal.diagnostic = input.diagnostic;
-
     const auto* projected = projectedTerminal(request);
     if (!projected) {
         return input.changes;
@@ -74,4 +77,59 @@ ImageViewportInternal::ViewportChangeSet recordViewportEngineTargetSpreadTermina
     input.changes.requestRevision = true;
     input.changes.diagnostics = diagnosticChanged;
     return input.changes;
+}
+}
+
+ImageViewportInternal::ViewportChangeSet recordViewportEngineDisplayRequestTerminal(
+    ViewportEngineTargetSpreadTerminalInput input, ImageViewportInternal::RequestState& request)
+{
+    auto& terminal = request.targetSpreadTerminal;
+    if (terminal.generation != request.sequenceGeneration
+        || terminal.requestId != request.roles[0].activeRequest.identity.id) {
+        terminal.clear();
+        terminal.generation = request.sequenceGeneration;
+        terminal.requestId = request.roles[0].activeRequest.identity.id;
+    }
+    terminal.sealed = true;
+    auto& roleTerminal = terminalForRole(terminal, input.role);
+    roleTerminal.terminal = true;
+    roleTerminal.status = input.status;
+    roleTerminal.reason = input.reason;
+    roleTerminal.diagnostic = input.diagnostic;
+    return projectTerminal(std::move(input), request);
+}
+
+ImageViewportInternal::ViewportChangeSet recordViewportEngineGenerationTerminal(
+    ViewportEngineTargetSpreadTerminalInput input, ImageViewportInternal::RequestState& request)
+{
+    auto& terminal = request.generationTerminal;
+    if (terminal.generation != request.sequenceGeneration) {
+        terminal.clear();
+        terminal.generation = request.sequenceGeneration;
+    }
+    terminal.sealed = true;
+    auto& roleTerminal = terminalForRole(terminal, input.role);
+    roleTerminal.terminal = true;
+    roleTerminal.status = input.status;
+    roleTerminal.reason = input.reason;
+    roleTerminal.diagnostic = input.diagnostic;
+    return projectTerminal(std::move(input), request);
+}
+
+bool viewportEngineHasCurrentDisplayRequestTerminal(
+    const ImageViewportInternal::RequestState& request)
+{
+    return currentDisplayRequestTerminal(request, ImageViewportPageRole::Primary)
+        || currentDisplayRequestTerminal(request, ImageViewportPageRole::Secondary);
+}
+
+bool viewportEngineHasCurrentGenerationTerminal(const ImageViewportInternal::RequestState& request)
+{
+    return currentGenerationTerminal(request, ImageViewportPageRole::Primary)
+        || currentGenerationTerminal(request, ImageViewportPageRole::Secondary);
+}
+
+bool viewportEngineHasCurrentTerminal(const ImageViewportInternal::RequestState& request)
+{
+    return projectedTerminal(request);
 }

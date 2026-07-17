@@ -87,7 +87,9 @@ public:
         = default;
 
 private:
-    ImageViewportInternal::ViewportChangeSet recordTerminal(
+    ImageViewportInternal::ViewportChangeSet recordDisplayRequestTerminal(
+        ViewportEngineProviderTerminalProjectionInput input);
+    ImageViewportInternal::ViewportChangeSet recordGenerationTerminal(
         ViewportEngineProviderTerminalProjectionInput input);
     ViewportProviderFrameTransportEffect closeSession();
     ImageViewportInternal::RequestState& m_request;
@@ -125,7 +127,7 @@ public:
         = default;
 
 private:
-    ImageViewportInternal::ViewportChangeSet recordTerminal(
+    ImageViewportInternal::ViewportChangeSet recordGenerationTerminal(
         ViewportEngineProviderTerminalProjectionInput input);
     ViewportProviderFrameTransportEffect closeSession();
     ImageViewportInternal::RequestState& m_request;
@@ -142,12 +144,10 @@ class ViewportEngineProviderDispatchFailureAccess
 
     ViewportEngineProviderDispatchFailureAccess(ImageViewportInternal::RequestState& request,
         ImageViewportInternal::PlaybackState& playback,
-        const ImageViewportInternal::ProviderFactsState& facts,
         ImageViewportInternal::ProviderSessionState& session,
         ImageViewportInternal::ProviderRequestLedger& requests)
         : m_request(request)
         , m_playback(playback)
-        , m_facts(facts)
         , m_session(session)
         , m_requests(requests)
     {
@@ -161,12 +161,11 @@ public:
         = default;
 
 private:
-    ImageViewportInternal::ViewportChangeSet recordTerminal(
+    ImageViewportInternal::ViewportChangeSet recordGenerationTerminal(
         ViewportEngineProviderTerminalProjectionInput input);
     ViewportProviderFrameTransportEffect closeSession();
     ImageViewportInternal::RequestState& m_request;
     ImageViewportInternal::PlaybackState& m_playback;
-    const ImageViewportInternal::ProviderFactsState& m_facts;
     ImageViewportInternal::ProviderSessionState& m_session;
     ImageViewportInternal::ProviderRequestLedger& m_requests;
 };
@@ -199,7 +198,7 @@ public:
         = default;
 
 private:
-    ImageViewportInternal::ViewportChangeSet recordTerminal(
+    ImageViewportInternal::ViewportChangeSet recordGenerationTerminal(
         ViewportEngineProviderTerminalProjectionInput input);
     ImageViewportInternal::RequestState& m_request;
     ImageViewportInternal::PlaybackState& m_playback;
@@ -229,7 +228,7 @@ public:
         = default;
 
 private:
-    ImageViewportInternal::ViewportChangeSet recordTerminal(
+    ImageViewportInternal::ViewportChangeSet recordDisplayRequestTerminal(
         ViewportEngineProviderTerminalProjectionInput input);
     ImageViewportInternal::RequestState& m_request;
     ImageViewportInternal::PlaybackState& m_playback;

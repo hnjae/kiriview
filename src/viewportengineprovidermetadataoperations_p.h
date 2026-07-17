@@ -53,7 +53,9 @@ private:
         ImageViewportInternal::DisplayRequestTarget target,
         const ViewportEngineGeometryInput& geometry);
     ViewportProviderFrameTransportEffect closeSession(ImageViewportPageRole role);
-    ImageViewportInternal::ViewportChangeSet recordTerminal(
+    ImageViewportInternal::ViewportChangeSet recordDisplayRequestTerminal(
+        ViewportEngineProviderTerminalProjectionInput input);
+    ImageViewportInternal::ViewportChangeSet recordGenerationTerminal(
         ViewportEngineProviderTerminalProjectionInput input);
     void advanceTargetPresentationRevision();
     bool applyAutoplay();

@@ -5,6 +5,7 @@
 #include "viewportenginebuiltinframeoperations_p.h"
 #include "viewportengineprojection_p.h"
 #include "viewportenginetargetspreadoperations_p.h"
+#include "viewportenginetargetspreadterminaloperations_p.h"
 
 namespace {
 using namespace ImageViewportInternal;
@@ -30,9 +31,7 @@ bool providerPresent(const RequestState& request, ImageViewportPageRole role)
 
 bool terminalMatchesActiveRequest(const RequestState& request)
 {
-    const auto& terminal = request.targetSpreadTerminal;
-    return terminal.sealed && terminal.generation == request.sequenceGeneration
-        && terminal.requestId == request.roles[0].activeRequest.identity.id;
+    return viewportEngineHasCurrentTerminal(request);
 }
 
 bool activeTokenMatches(const ProviderRoleState& provider, const RequestState& request,
@@ -107,7 +106,8 @@ ImageViewportInternal::ViewportChangeSet ViewportEngineProviderFrameReadyAccess:
     ViewportEngineProviderTerminalProjectionInput input)
 {
     ViewportEngineProviderTerminalProjectionAccess access(m_request);
-    return reduceViewportEngineProviderTerminalProjection(std::move(input), std::move(access));
+    return reduceViewportEngineProviderDisplayRequestTerminalProjection(
+        std::move(input), std::move(access));
 }
 
 ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady(
@@ -182,7 +182,7 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         if (refinement)
             return result;
         result.changes = access.recordTerminal({ input.role, admission.status, admission.reason,
-            FailureScope::DisplayRequest, admission.diagnostic, result.changes });
+            admission.diagnostic, result.changes });
         updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
         return result;
     }

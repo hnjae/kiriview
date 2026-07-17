@@ -7,6 +7,7 @@
 #include "viewportenginepresentationoperations_p.h"
 #include "viewportengineprovidersessionoperations_p.h"
 #include "viewportenginetargetspreadoperations_p.h"
+#include "viewportenginetargetspreadterminaloperations_p.h"
 
 #include <algorithm>
 #include <limits>
@@ -57,9 +58,7 @@ DisplayRequest& requestForRole(RequestState& request, ImageViewportPageRole role
 
 bool terminalMatchesActiveRequest(const RequestState& request)
 {
-    const auto& terminal = request.targetSpreadTerminal;
-    return terminal.sealed && terminal.generation == request.sequenceGeneration
-        && terminal.requestId == request.roles[0].activeRequest.identity.id;
+    return viewportEngineHasCurrentTerminal(request);
 }
 
 bool unknownMetadataInitialRequest(const DisplayRequest& request)
@@ -133,11 +132,22 @@ ViewportProviderFrameTransportEffect ViewportEngineProviderMetadataReadyAccess::
     return closeViewportEngineProviderSession(std::move(access));
 }
 
-ImageViewportInternal::ViewportChangeSet ViewportEngineProviderMetadataReadyAccess::recordTerminal(
+ImageViewportInternal::ViewportChangeSet
+ViewportEngineProviderMetadataReadyAccess::recordDisplayRequestTerminal(
     ViewportEngineProviderTerminalProjectionInput input)
 {
     ViewportEngineProviderTerminalProjectionAccess access(m_request);
-    return reduceViewportEngineProviderTerminalProjection(std::move(input), std::move(access));
+    return reduceViewportEngineProviderDisplayRequestTerminalProjection(
+        std::move(input), std::move(access));
+}
+
+ImageViewportInternal::ViewportChangeSet
+ViewportEngineProviderMetadataReadyAccess::recordGenerationTerminal(
+    ViewportEngineProviderTerminalProjectionInput input)
+{
+    ViewportEngineProviderTerminalProjectionAccess access(m_request);
+    return reduceViewportEngineProviderGenerationTerminalProjection(
+        std::move(input), std::move(access));
 }
 
 ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadataReady(
@@ -163,9 +173,8 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
 
     const auto rejectMetadata = [&access, &result, role = input.role](const QString& diagnostic) {
         access.m_playback.providerStartPending = false;
-        result.changes = access.recordTerminal(
-            { role, ImageViewportRequestStatus::Error, ImageViewportRequestReason::PayloadRejection,
-                FailureScope::Generation, diagnostic, result.changes });
+        result.changes = access.recordGenerationTerminal({ role, ImageViewportRequestStatus::Error,
+            ImageViewportRequestReason::PayloadRejection, diagnostic, result.changes });
         updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
         result.providerFrameTransport = access.closeSession(role);
     };
@@ -250,8 +259,8 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
         if (rejection.clearPlaybackStartPending) {
             access.m_playback.providerStartPending = false;
         }
-        result.changes = access.recordTerminal({ role, rejection.status, rejection.reason,
-            FailureScope::DisplayRequest, {}, result.changes });
+        result.changes = access.recordDisplayRequestTerminal(
+            { role, rejection.status, rejection.reason, {}, result.changes });
         updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
         result.changes.diagnostics = result.changes.diagnostics || diagnosticsChanged;
     };

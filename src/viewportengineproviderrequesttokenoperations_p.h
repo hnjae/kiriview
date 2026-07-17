@@ -54,6 +54,7 @@ public:
     {
         return m_roles[role == ImageViewportPageRole::Secondary ? 1U : 0U].provider.requests;
     }
+    ViewportProviderFrameTransportEffect closeSession(ImageViewportPageRole role) const;
     ImageViewportInternal::RequestState& request() const { return m_request; }
     ImageViewportInternal::PlaybackState& playback() const { return m_playback; }
     ImageViewportInternal::DisplayState& display() const { return m_display; }

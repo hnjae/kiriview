@@ -115,6 +115,7 @@ private slots:
     void newerDemandCancelsOlderRefinementAndStaleResultCannotCommit();
     void refinementFailureIsIsolatedFromTheDisplayRequest();
     void refinementKindMismatchIsGenerationTerminal();
+    void refinementCommandDeliveryFailureIsGenerationTerminal();
     void refinementRenderFailureIsIsolatedFromTheDisplayRequest();
     void spreadRefinementsCommitAsOneCompleteCandidateSet();
 };
@@ -217,6 +218,23 @@ void ImageViewportProviderRefinementTest::refinementKindMismatchIsGenerationTerm
     QCOMPARE(requestReason(fixture.viewport), ImageViewportRequestReason::PayloadRejection);
     QVERIFY(fixture.viewport.state().diagnostics().errorString().contains(
         QStringLiteral("provider protocol violation")));
+}
+
+void ImageViewportProviderRefinementTest::refinementCommandDeliveryFailureIsGenerationTerminal()
+{
+    ReadyProviderViewport fixture;
+    failNextProviderCommandDeliveryForTest(
+        fixture.viewport, ImageViewportPageRole::Primary);
+
+    setQualityPreference(fixture.viewport, ImageViewportQualityPreference::ExactDetail);
+
+    QCOMPARE(requestStatus(fixture.viewport), ImageViewportRequestStatus::Error);
+    QCOMPARE(requestReason(fixture.viewport), ImageViewportRequestReason::ProviderFailure);
+    QCOMPARE(displayStatus(fixture.viewport), ImageViewportDisplayStatus::Ready);
+    QVERIFY(fixture.viewport.state().diagnostics().errorString().contains(
+        QStringLiteral("provider command delivery failed")));
+    QCOMPARE(fixture.viewport.seek(ImageViewportPageRole::Primary, 0).outcome(),
+        ImageViewportCommandOutcome::Unsupported);
 }
 
 void ImageViewportProviderRefinementTest::refinementRenderFailureIsIsolatedFromTheDisplayRequest()

@@ -22,9 +22,14 @@ class ViewportEngineProviderTerminalProjectionAccess
     friend class ViewportEngineProviderDispatchFailureAccess;
     friend class ViewportEngineProviderSessionOpenFailureAccess;
     friend class ViewportEngineProviderQueueFailureAccess;
-    friend ImageViewportInternal::ViewportChangeSet reduceViewportEngineProviderTerminalProjection(
-        ViewportEngineProviderTerminalProjectionInput,
-        ViewportEngineProviderTerminalProjectionAccess);
+    friend ImageViewportInternal::ViewportChangeSet
+        reduceViewportEngineProviderDisplayRequestTerminalProjection(
+            ViewportEngineProviderTerminalProjectionInput,
+            ViewportEngineProviderTerminalProjectionAccess);
+    friend ImageViewportInternal::ViewportChangeSet
+        reduceViewportEngineProviderGenerationTerminalProjection(
+            ViewportEngineProviderTerminalProjectionInput,
+            ViewportEngineProviderTerminalProjectionAccess);
 
     explicit ViewportEngineProviderTerminalProjectionAccess(
         ImageViewportInternal::RequestState& request)
@@ -44,5 +49,9 @@ private:
     ImageViewportInternal::RequestState& m_request;
 };
 
-ImageViewportInternal::ViewportChangeSet reduceViewportEngineProviderTerminalProjection(
+ImageViewportInternal::ViewportChangeSet
+    reduceViewportEngineProviderDisplayRequestTerminalProjection(
+        ViewportEngineProviderTerminalProjectionInput,
+        ViewportEngineProviderTerminalProjectionAccess);
+ImageViewportInternal::ViewportChangeSet reduceViewportEngineProviderGenerationTerminalProjection(
     ViewportEngineProviderTerminalProjectionInput, ViewportEngineProviderTerminalProjectionAccess);

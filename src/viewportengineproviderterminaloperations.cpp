@@ -2,9 +2,17 @@
 
 #include <utility>
 
-ImageViewportInternal::ViewportChangeSet reduceViewportEngineProviderTerminalProjection(
+ImageViewportInternal::ViewportChangeSet
+reduceViewportEngineProviderDisplayRequestTerminalProjection(
     ViewportEngineProviderTerminalProjectionInput input,
     ViewportEngineProviderTerminalProjectionAccess access)
 {
-    return recordViewportEngineTargetSpreadTerminal(std::move(input), access.m_request);
+    return recordViewportEngineDisplayRequestTerminal(std::move(input), access.m_request);
+}
+
+ImageViewportInternal::ViewportChangeSet reduceViewportEngineProviderGenerationTerminalProjection(
+    ViewportEngineProviderTerminalProjectionInput input,
+    ViewportEngineProviderTerminalProjectionAccess access)
+{
+    return recordViewportEngineGenerationTerminal(std::move(input), access.m_request);
 }

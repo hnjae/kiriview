@@ -1,5 +1,6 @@
 #include "viewportengineprovidereventcompletionoperations_p.h"
 #include "viewportenginetargetspreadoperations_p.h"
+#include "viewportenginetargetspreadterminaloperations_p.h"
 #include <cmath>
 
 namespace {
@@ -23,12 +24,7 @@ bool present(const RequestState& r, ImageViewportPageRole role)
     return role == ImageViewportPageRole::Primary ? r.roles[0].source.facts.provider
                                                   : r.roles[1].sequence && r.roles[1].provider;
 }
-bool sealed(const RequestState& r)
-{
-    return r.targetSpreadTerminal.sealed
-        && r.targetSpreadTerminal.generation == r.sequenceGeneration
-        && r.targetSpreadTerminal.requestId == r.roles[0].activeRequest.identity.id;
-}
+bool sealed(const RequestState& r) { return viewportEngineHasCurrentTerminal(r); }
 void phase(PlaybackState& p, ImageViewportPlaybackPhase v, ViewportChangeSet& c)
 {
     if (p.phase != v) {

@@ -345,6 +345,10 @@ void ImageViewportProviderLifecycleTest::providerTokenOverflowDuringSeekFailsAcc
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(primaryRequestedFrame(item), 1);
     QVERIFY(viewportErrorString(item).contains(QStringLiteral("provider request token")));
+    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 0).outcome(),
+        ImageViewportCommandOutcome::Unsupported);
+    QCOMPARE(*frameRequestCount, 1);
+    QCOMPARE(*sessionCount, 1);
 
     QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
     drainQueuedProviderResults();

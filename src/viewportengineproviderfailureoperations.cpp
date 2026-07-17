@@ -83,10 +83,12 @@ struct TerminalContext
     ProviderRequestLedger& requests;
 };
 
-template <typename RecordTerminal, typename CloseSession>
+template <typename RecordDisplayRequestTerminal, typename RecordGenerationTerminal,
+    typename CloseSession>
 ViewportEngineProviderTerminalEventReduction reduceTerminal(TerminalContext context,
     const ViewportEngineProviderTerminalEventInput& input, bool requireActiveSession,
-    RecordTerminal recordTerminal, CloseSession closeSession)
+    RecordDisplayRequestTerminal recordDisplayRequestTerminal,
+    RecordGenerationTerminal recordGenerationTerminal, CloseSession closeSession)
 {
     ViewportEngineProviderTerminalEventReduction result;
     if (!providerPresent(context.request, input.role)
@@ -106,8 +108,8 @@ ViewportEngineProviderTerminalEventReduction reduceTerminal(TerminalContext cont
         context.requests.retire(input.token);
         if (refinement)
             return result;
-        result.changes = recordTerminal({ input.role, terminal.status, terminal.reason,
-            FailureScope::DisplayRequest,
+        result.changes = recordDisplayRequestTerminal({ input.role, terminal.status,
+            terminal.reason,
             FramePreparation::boundedDiagnostic(terminal.diagnostic, terminal.fallbackDiagnostic),
             result.changes });
         updatePlaybackPhase(context.playback, ImageViewportPlaybackPhase::Stopped, result.changes);
@@ -120,31 +122,41 @@ ViewportEngineProviderTerminalEventReduction reduceTerminal(TerminalContext cont
     const auto terminal = metadataTerminal(input);
     context.requests.retire(input.token);
     context.playback.providerStartPending = false;
-    result.changes
-        = recordTerminal({ input.role, terminal.status, terminal.reason, FailureScope::Generation,
-            FramePreparation::boundedDiagnostic(terminal.diagnostic, terminal.fallbackDiagnostic),
-            result.changes });
+    result.changes = recordGenerationTerminal({ input.role, terminal.status, terminal.reason,
+        FramePreparation::boundedDiagnostic(terminal.diagnostic, terminal.fallbackDiagnostic),
+        result.changes });
     updatePlaybackPhase(context.playback, ImageViewportPlaybackPhase::Stopped, result.changes);
     result.providerFrameTransport = closeSession();
     return result;
 }
 }
 
-#define DEFINE_RECORD_TERMINAL(Type)                                                               \
-    ImageViewportInternal::ViewportChangeSet Type::recordTerminal(                                 \
+#define DEFINE_RECORD_DISPLAY_REQUEST_TERMINAL(Type)                                               \
+    ImageViewportInternal::ViewportChangeSet Type::recordDisplayRequestTerminal(                   \
         ViewportEngineProviderTerminalProjectionInput input)                                       \
     {                                                                                              \
         ViewportEngineProviderTerminalProjectionAccess access(m_request);                          \
-        return reduceViewportEngineProviderTerminalProjection(                                     \
+        return reduceViewportEngineProviderDisplayRequestTerminalProjection(                       \
             std::move(input), std::move(access));                                                  \
     }
 
-DEFINE_RECORD_TERMINAL(ViewportEngineProviderTerminalEventAccess)
-DEFINE_RECORD_TERMINAL(ViewportEngineProviderProtocolViolationAccess)
-DEFINE_RECORD_TERMINAL(ViewportEngineProviderDispatchFailureAccess)
-DEFINE_RECORD_TERMINAL(ViewportEngineProviderSessionOpenFailureAccess)
-DEFINE_RECORD_TERMINAL(ViewportEngineProviderQueueFailureAccess)
-#undef DEFINE_RECORD_TERMINAL
+#define DEFINE_RECORD_GENERATION_TERMINAL(Type)                                                    \
+    ImageViewportInternal::ViewportChangeSet Type::recordGenerationTerminal(                       \
+        ViewportEngineProviderTerminalProjectionInput input)                                       \
+    {                                                                                              \
+        ViewportEngineProviderTerminalProjectionAccess access(m_request);                          \
+        return reduceViewportEngineProviderGenerationTerminalProjection(                           \
+            std::move(input), std::move(access));                                                  \
+    }
+
+DEFINE_RECORD_DISPLAY_REQUEST_TERMINAL(ViewportEngineProviderTerminalEventAccess)
+DEFINE_RECORD_DISPLAY_REQUEST_TERMINAL(ViewportEngineProviderQueueFailureAccess)
+DEFINE_RECORD_GENERATION_TERMINAL(ViewportEngineProviderTerminalEventAccess)
+DEFINE_RECORD_GENERATION_TERMINAL(ViewportEngineProviderProtocolViolationAccess)
+DEFINE_RECORD_GENERATION_TERMINAL(ViewportEngineProviderDispatchFailureAccess)
+DEFINE_RECORD_GENERATION_TERMINAL(ViewportEngineProviderSessionOpenFailureAccess)
+#undef DEFINE_RECORD_DISPLAY_REQUEST_TERMINAL
+#undef DEFINE_RECORD_GENERATION_TERMINAL
 
 #define DEFINE_CLOSE_SESSION(Type)                                                                 \
     ViewportProviderFrameTransportEffect Type::closeSession()                                      \
@@ -167,7 +179,10 @@ ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderTermina
             access.m_requests },
         input, true,
         [&access](ViewportEngineProviderTerminalProjectionInput terminal) {
-            return access.recordTerminal(std::move(terminal));
+            return access.recordDisplayRequestTerminal(std::move(terminal));
+        },
+        [&access](ViewportEngineProviderTerminalProjectionInput terminal) {
+            return access.recordGenerationTerminal(std::move(terminal));
         },
         [&access] { return access.closeSession(); });
 }
@@ -186,8 +201,8 @@ ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderProtoco
     access.m_playback.providerStartPending = false;
     access.m_playback.stopWhenRequestReady = false;
     access.m_requests.retire(input.token);
-    result.changes = access.recordTerminal({ input.role, ImageViewportRequestStatus::Error,
-        ImageViewportRequestReason::PayloadRejection, FailureScope::Generation,
+    result.changes = access.recordGenerationTerminal({ input.role,
+        ImageViewportRequestStatus::Error, ImageViewportRequestReason::PayloadRejection,
         QStringLiteral("provider protocol violation"), result.changes });
     updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
     result.providerFrameTransport = access.closeSession();
@@ -198,31 +213,28 @@ ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderDispatc
     ViewportEngineProviderDispatchFailureInput input, // NOLINT(performance-unnecessary-value-param)
     ViewportEngineProviderDispatchFailureAccess access)
 {
+    ViewportEngineProviderTerminalEventReduction result;
+    const auto* providerRequest = access.m_requests.find(input.token);
+    if (!providerPresent(access.m_request, input.role) || !providerRequest
+        || providerRequest->generation != access.m_request.sequenceGeneration) {
+        return result;
+    }
+
     const bool sessionWasActive = access.m_session.sessionActive;
-    const ViewportEngineProviderTerminalEventInput terminal { input.role, input.token,
-        ViewportEngineProviderTerminalEventInput::Kind::Failure,
-        ImageSequenceProviderUnsupportedCause::PayloadRejection,
-        input.diagnostic.isEmpty() ? QStringLiteral("provider command delivery failed")
-                                   : input.diagnostic };
-    auto result = reduceTerminal(
-        { access.m_request, access.m_playback, access.m_facts, access.m_session,
-            access.m_requests },
-        terminal, false,
-        [&access](ViewportEngineProviderTerminalProjectionInput projection) {
-            return access.recordTerminal(std::move(projection));
-        },
-        [&access, sessionWasActive] {
-            if (sessionWasActive) {
-                return access.closeSession();
-            }
-            access.m_requests.resetSession();
-            return ViewportProviderFrameTransportEffect {};
-        });
-    if (sessionWasActive && result.changes.requestState
-        && !result.providerFrameTransport.closeSession) {
+    access.m_playback.providerStartPending = false;
+    access.m_playback.stopWhenRequestReady = false;
+    access.m_requests.retire(input.token);
+    access.m_requests.clearQueue();
+    result.changes = access.recordGenerationTerminal({ input.role,
+        ImageViewportRequestStatus::Error, ImageViewportRequestReason::ProviderFailure,
+        FramePreparation::boundedDiagnostic(
+            input.diagnostic, QStringLiteral("provider command delivery failed")),
+        result.changes });
+    updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
+    if (sessionWasActive) {
         result.providerFrameTransport = access.closeSession();
-    } else if (!sessionWasActive && result.changes.requestState) {
-        access.m_requests.clearQueue();
+    } else {
+        access.m_requests.resetSession();
     }
     return result;
 }
@@ -235,9 +247,9 @@ ViewportEngineProviderSessionOpenFailureReduction reduceViewportEngineProviderSe
     ViewportEngineProviderSessionOpenFailureReduction result;
     access.m_session.sessionActive = false;
     access.m_requests.resetSession();
-    result.changes = access.recordTerminal({ input.role, ImageViewportRequestStatus::Error,
-        ImageViewportRequestReason::ProviderFailure, FailureScope::Generation, input.diagnostic,
-        result.changes });
+    result.changes
+        = access.recordGenerationTerminal({ input.role, ImageViewportRequestStatus::Error,
+            ImageViewportRequestReason::ProviderFailure, input.diagnostic, result.changes });
     updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
     return result;
 }
@@ -261,8 +273,8 @@ ViewportEngineProviderQueueFailureReduction reduceViewportEngineProviderQueueFai
 
     const bool playbackOwned = queuedRequest->fromPlayback;
     access.m_requests.clearQueue();
-    result.changes = access.recordTerminal({ input.role, ImageViewportRequestStatus::Error,
-        ImageViewportRequestReason::ProviderFailure, FailureScope::DisplayRequest,
+    result.changes = access.recordDisplayRequestTerminal({ input.role,
+        ImageViewportRequestStatus::Error, ImageViewportRequestReason::ProviderFailure,
         FramePreparation::boundedDiagnostic(
             input.diagnostic, QStringLiteral("provider command delivery failed")),
         result.changes });

@@ -1,8 +1,17 @@
 #include "viewportengineproviderrequesttokenoperations_p.h"
 
 #include "imageviewporttoken_p.h"
+#include "viewportengineprovidersessionoperations_p.h"
+#include "viewportenginetargetspreadterminaloperations_p.h"
 
 #include <limits>
+
+ViewportProviderFrameTransportEffect ViewportProviderRequestTokenAllocationAccess::closeSession(
+    ImageViewportPageRole role) const
+{
+    ViewportEngineProviderSessionCloseAccess access(session(role), requests(role));
+    return closeViewportEngineProviderSession(std::move(access));
+}
 
 ViewportProviderRequestTokenAllocationResult allocateViewportProviderRequestToken(
     ViewportProviderRequestTokenAllocationInput input,
@@ -18,29 +27,29 @@ ViewportProviderRequestTokenAllocationResult allocateViewportProviderRequestToke
     }
 
     result.exhausted = true;
-    result.closeSession = session.sessionActive;
-    result.sessionClose = { requests.metadataToken(), requests.frameToken() };
-    session.sessionActive = false;
-    requests = {};
     auto& request = access.request();
-    request.status = ImageViewportRequestStatus::Error;
-    request.reason = ImageViewportRequestReason::ProviderFailure;
-    request.errorString = QStringLiteral("provider request token exhausted");
+    result.changes = recordViewportEngineGenerationTerminal(
+        { input.role, ImageViewportRequestStatus::Error,
+            ImageViewportRequestReason::ProviderFailure,
+            QStringLiteral("provider request token exhausted"), result.changes },
+        request);
     auto& playback = access.playback();
     playback.providerStartPending = false;
     playback.stopWhenRequestReady = false;
-    playback.phase = ImageViewportPlaybackPhase::Stopped;
+    if (playback.phase != ImageViewportPlaybackPhase::Stopped) {
+        playback.phase = ImageViewportPlaybackPhase::Stopped;
+        result.changes.playbackPhase = true;
+    }
+    const auto close = access.closeSession(input.role);
+    result.closeSession = close.closeSession;
+    result.sessionClose = close.sessionClose;
     auto& display = access.display();
     display.status = display.roles[0].displayedPayload.hasPresentableContent()
         ? ImageViewportDisplayStatus::Retained
         : ImageViewportDisplayStatus::Empty;
     display.clearPendingRenderPayload();
-    result.changes.requestState = true;
-    result.changes.requestRevision = true;
     result.changes.displayState = true;
     result.changes.displayRevision = true;
-    result.changes.playbackPhase = true;
-    result.changes.diagnostics = true;
     result.changes.scheduleUpdate = true;
     return result;
 }

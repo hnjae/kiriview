@@ -7,10 +7,15 @@ struct ViewportEngineTargetSpreadTerminalInput
     ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ImageViewportRequestStatus status = ImageViewportRequestStatus::Error;
     ImageViewportRequestReason reason = ImageViewportRequestReason::ProviderFailure;
-    ImageViewportInternal::FailureScope scope = ImageViewportInternal::FailureScope::None;
     QString diagnostic;
     ImageViewportInternal::ViewportChangeSet changes;
 };
 
-ImageViewportInternal::ViewportChangeSet recordViewportEngineTargetSpreadTerminal(
+ImageViewportInternal::ViewportChangeSet recordViewportEngineDisplayRequestTerminal(
     ViewportEngineTargetSpreadTerminalInput, ImageViewportInternal::RequestState&);
+ImageViewportInternal::ViewportChangeSet recordViewportEngineGenerationTerminal(
+    ViewportEngineTargetSpreadTerminalInput, ImageViewportInternal::RequestState&);
+
+bool viewportEngineHasCurrentDisplayRequestTerminal(const ImageViewportInternal::RequestState&);
+bool viewportEngineHasCurrentGenerationTerminal(const ImageViewportInternal::RequestState&);
+bool viewportEngineHasCurrentTerminal(const ImageViewportInternal::RequestState&);

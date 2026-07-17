@@ -7,6 +7,7 @@
 #include "viewportengineproviderrequestoperations_p.h"
 #include "viewportengineprovidersessionoperations_p.h"
 #include "viewportengineproviderterminaloperations_p.h"
+#include "viewportenginetargetspreadterminaloperations_p.h"
 
 #include "imageviewporttoken_p.h"
 #include "viewportprovidercontract_p.h"
@@ -147,7 +148,7 @@ bool ViewportEngine::acceptsProviderTransportCommand(
     case ViewportProviderTransportCommand::Kind::OpenSession:
         return command.generation != 0
             && command.generation == m_state->requestState.request.sequenceGeneration
-            && !m_state->requestState.request.targetSpreadTerminal.sealed
+            && !viewportEngineHasCurrentTerminal(m_state->requestState.request)
             && provider.session.sessionActive
             && command.sessionSerial == provider.session.sessionSerial;
     case ViewportProviderTransportCommand::Kind::CloseSession:
@@ -424,7 +425,7 @@ ViewportProviderTerminalEventResult ViewportEngine::reduceProviderDispatchFailur
 {
     auto& provider = m_state->providerState.roles[roleIndex(role)].provider;
     ViewportEngineProviderDispatchFailureAccess access(m_state->requestState.request,
-        m_state->playbackState.playback, provider.facts, provider.session, provider.requests);
+        m_state->playbackState.playback, provider.session, provider.requests);
     const auto reduction = reduceViewportEngineProviderDispatchFailure(
         { role, event.token, event.diagnostic }, std::move(access));
     ViewportProviderTerminalEventResult result;

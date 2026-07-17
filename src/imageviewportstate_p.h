@@ -114,19 +114,28 @@ enum class DisplayRequestOrigin {
     StopRestore,
 };
 
-enum class FailureScope {
-    None,
-    Generation,
-    DisplayRequest,
-};
-
 struct TargetSpreadRoleTerminalState
 {
     bool terminal = false;
     ImageViewportRequestStatus status = ImageViewportRequestStatus::NoRequest;
     ImageViewportRequestReason reason = ImageViewportRequestReason::NoRequest;
-    FailureScope failureScope = FailureScope::None;
     QString diagnostic;
+};
+
+struct GenerationTerminalState
+{
+    void clear()
+    {
+        sealed = false;
+        generation = 0;
+        primary = {};
+        secondary = {};
+    }
+
+    bool sealed = false;
+    quint64 generation = 0;
+    TargetSpreadRoleTerminalState primary;
+    TargetSpreadRoleTerminalState secondary;
 };
 
 struct TargetSpreadTerminalState
@@ -461,6 +470,7 @@ struct RequestState
         roles[1].activeRequest = {};
         roles[0].latestNonPlaybackRequest = {};
         roles[1].latestNonPlaybackRequest = {};
+        generationTerminal.clear();
         targetSpreadTerminal.clear();
         lastAcceptedRenderFailure = {};
     }
@@ -552,6 +562,7 @@ struct RequestState
     ImageViewportRequestReason reason = ImageViewportRequestReason::NoRequest;
     quint64 sequenceGeneration = 0;
     quint64 nextRequestId = 0;
+    GenerationTerminalState generationTerminal;
     TargetSpreadTerminalState targetSpreadTerminal;
     RenderFailureDiagnostic lastAcceptedRenderFailure;
     quint64 requestRevision = 0;

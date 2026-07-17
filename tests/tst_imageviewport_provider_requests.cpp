@@ -1078,6 +1078,15 @@ void ImageViewportProviderRequestsTest::
     QCOMPARE(diagnostic.queuedRequestId, activeRequestIdForTest(item));
     QCOMPARE(diagnostic.targetKind, ImageViewportInternal::ProviderRequestTargetKind::Frame);
     QCOMPARE(diagnostic.operation, ProviderSchedulerOperationForTest::FlushQueuedFrameRequest);
+
+    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 1).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(sessionFactory->lastSession(), session);
+    QCOMPARE(*sessionCount, 1);
+    QCOMPARE(*closeCount, 0);
+    QCOMPARE(*frameRequestCount, 2);
+    QCOMPARE(*lastRequestedFrame, 1);
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
 }
 
 void ImageViewportProviderRequestsTest::

@@ -200,6 +200,7 @@ private slots:
     void providerDemandInvalidatesOverflowedPhysicalSize();
     void providerTerminalReducerRejectsStaleFrameToken();
     void providerTerminalReducerCommitsFrameFailureAtomically();
+    void providerDispatchFailureIsGenerationTerminalAcrossDisplayRequests();
     void providerProtocolViolationClosesFrameGeneration();
     void providerTerminalReducerClosesMetadataGeneration();
     void providerFrameQueueFlushesOnlyCurrentLoadingRequest();
@@ -956,6 +957,44 @@ void ViewportEngineTest::providerTerminalReducerCommitsFrameFailureAtomically()
     QVERIFY(result.providerAfterPublication.isEmpty());
 }
 
+void ViewportEngineTest::providerDispatchFailureIsGenerationTerminalAcrossDisplayRequests()
+{
+    ViewportEngine engine;
+    auto& request = ViewportEngineTestAccess::request(engine);
+    request.roles[0].source.facts.present = true;
+    request.roles[0].source.facts.provider = true;
+    request.sequenceGeneration = 7;
+    request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Initial,
+        { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Frame }, false);
+    ViewportEngineTestAccess::activateProviderSession(engine, ImageViewportPageRole::Primary);
+    activateProviderRequestForTest(
+        ViewportEngineTestAccess::providerRequests(engine, ImageViewportPageRole::Primary), request,
+        providerRequestTokenForTest(3), ImageSequenceProviderRequestKind::Frame);
+
+    ViewportProviderHostEvent hostEvent;
+    hostEvent.kind = ViewportProviderHostEvent::Kind::DispatchFailed;
+    hostEvent.role = ImageViewportPageRole::Primary;
+    hostEvent.token = providerRequestTokenForTest(3);
+    hostEvent.diagnostic = QStringLiteral("provider command delivery failed");
+    const auto result = engine.handleProviderHostEvent({ hostEvent });
+
+    QCOMPARE(request.status, ImageViewportRequestStatus::Error);
+    QCOMPARE(request.reason, ImageViewportRequestReason::ProviderFailure);
+    QVERIFY(request.generationTerminal.primary.terminal);
+    QCOMPARE(ViewportEngineTestAccess::providerSession(engine, ImageViewportPageRole::Primary)
+                 .sessionActive,
+        false);
+    QCOMPARE(result.providerAfterPublication.size(), 1);
+    QCOMPARE(result.providerAfterPublication[0].kind,
+        ViewportProviderTransportCommand::Kind::CloseSession);
+
+    request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek,
+        { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Frame }, false);
+    QVERIFY(request.generationTerminal.sealed);
+    QCOMPARE(request.generationTerminal.generation, request.sequenceGeneration);
+    QVERIFY(request.generationTerminal.primary.terminal);
+}
+
 void ViewportEngineTest::providerProtocolViolationClosesFrameGeneration()
 {
     ViewportEngine engine;
@@ -983,8 +1022,7 @@ void ViewportEngineTest::providerProtocolViolationClosesFrameGeneration()
     QCOMPARE(request.status, ImageViewportRequestStatus::Error);
     QCOMPARE(request.reason, ImageViewportRequestReason::PayloadRejection);
     QCOMPARE(request.errorString, QStringLiteral("provider protocol violation"));
-    QCOMPARE(request.targetSpreadTerminal.primary.failureScope,
-        ImageViewportInternal::FailureScope::Generation);
+    QVERIFY(request.generationTerminal.primary.terminal);
     QCOMPARE(ViewportEngineTestAccess::playback(engine).phase, ImageViewportPlaybackPhase::Stopped);
     QCOMPARE(ViewportEngineTestAccess::providerSession(engine, ImageViewportPageRole::Primary)
                  .sessionActive,
@@ -1020,8 +1058,7 @@ void ViewportEngineTest::providerTerminalReducerClosesMetadataGeneration()
 
     QCOMPARE(request.status, ImageViewportRequestStatus::Unsupported);
     QCOMPARE(request.reason, ImageViewportRequestReason::UnsupportedRequest);
-    QCOMPARE(request.targetSpreadTerminal.primary.failureScope,
-        ImageViewportInternal::FailureScope::Generation);
+    QVERIFY(request.generationTerminal.primary.terminal);
     QCOMPARE(ViewportEngineTestAccess::providerSession(engine, ImageViewportPageRole::Primary)
                  .sessionActive,
         false);

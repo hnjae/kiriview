@@ -2,6 +2,7 @@
 
 #include "imageviewporttoken_p.h"
 #include "viewportenginetargetspreadoperations_p.h"
+#include "viewportenginetargetspreadterminaloperations_p.h"
 
 #include <limits>
 
@@ -170,9 +171,7 @@ ViewportProviderSessionOpenResult reduceViewportEngineProviderSessionOpened(
     ViewportEngineProviderSessionOpenedAccess access)
 {
     ViewportProviderSessionOpenResult result;
-    const auto& terminal = access.m_request.targetSpreadTerminal;
-    if (terminal.sealed && terminal.generation == access.m_request.sequenceGeneration
-        && terminal.requestId == access.m_request.roles[0].activeRequest.identity.id) {
+    if (viewportEngineHasCurrentTerminal(access.m_request)) {
         return result;
     }
     auto& provider

@@ -292,7 +292,11 @@ static_assert(!HasRequestAccess<ViewportEngineProviderTerminalProjectionAccess>:
 static_assert(!HasDisplayStateAccess<ViewportEngineProviderTerminalProjectionAccess>::value);
 static_assert(!HasPlaybackAccess<ViewportEngineProviderTerminalProjectionAccess>::value);
 static_assert(!HasRolesAccess<ViewportEngineProviderTerminalProjectionAccess>::value);
-static_assert(std::is_same_v<decltype(&reduceViewportEngineProviderTerminalProjection),
+static_assert(
+    std::is_same_v<decltype(&reduceViewportEngineProviderDisplayRequestTerminalProjection),
+        ImageViewportInternal::ViewportChangeSet (*)(ViewportEngineProviderTerminalProjectionInput,
+            ViewportEngineProviderTerminalProjectionAccess)>);
+static_assert(std::is_same_v<decltype(&reduceViewportEngineProviderGenerationTerminalProjection),
     ImageViewportInternal::ViewportChangeSet (*)(ViewportEngineProviderTerminalProjectionInput,
         ViewportEngineProviderTerminalProjectionAccess)>);
 static_assert(!std::is_default_constructible_v<ViewportEngine::PendingPublication>);

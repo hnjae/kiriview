@@ -3,6 +3,7 @@
 #include "viewportenginebuiltinframeoperations_p.h"
 #include "viewportenginerenderackhelpers_p.h"
 #include "viewportenginerenderoperations_p.h"
+#include "viewportenginetargetspreadterminaloperations_p.h"
 #include "viewportgeometryhelpers_p.h"
 
 #include <limits>
@@ -16,9 +17,7 @@ bool hasSecondary(const RequestState& request)
 bool hasDisplayable(const RequestState& request) { return request.roles[0].source.facts.present; }
 bool terminalSealed(const RequestState& request)
 {
-    return request.targetSpreadTerminal.sealed
-        && request.targetSpreadTerminal.generation == request.sequenceGeneration
-        && request.targetSpreadTerminal.requestId == request.roles[0].activeRequest.identity.id;
+    return viewportEngineHasCurrentTerminal(request);
 }
 bool waitingForRender(const RequestState& request)
 {
@@ -324,27 +323,12 @@ ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
         access.display().status = ImageViewportDisplayStatus::Empty;
         access.display().clearDisplayedDisplay();
     }
-    auto& terminal = access.request().targetSpreadTerminal;
-    terminal.clear();
-    terminal.sealed = true;
-    terminal.generation = access.request().sequenceGeneration;
-    terminal.requestId = access.request().roles[0].activeRequest.identity.id;
-    auto& role = input.acknowledgement.failedRole == ImageViewportPageRole::Primary
-        ? terminal.primary
-        : terminal.secondary;
-    role.terminal = true;
-    role.status = ImageViewportRequestStatus::Error;
-    role.reason = ImageViewportRequestReason::RenderFailure;
-    role.failureScope = FailureScope::DisplayRequest;
-    role.diagnostic = QStringLiteral("render commit failed");
-    access.request().status = role.status;
-    access.request().reason = role.reason;
-    const bool diagnosticChanged = access.request().errorString != role.diagnostic;
-    access.request().errorString = role.diagnostic;
+    changes = recordViewportEngineDisplayRequestTerminal(
+        { input.acknowledgement.failedRole, ImageViewportRequestStatus::Error,
+            ImageViewportRequestReason::RenderFailure, QStringLiteral("render commit failed"),
+            changes },
+        access.request());
     markPlayback(changes, access.playback(), ImageViewportPlaybackPhase::Stopped);
-    changes.requestState = true;
-    changes.requestRevision = true;
-    changes.diagnostics = diagnosticChanged;
     changes.displayRevision = true;
     changes.displayState = access.display().status != oldStatus;
     changes.geometryState

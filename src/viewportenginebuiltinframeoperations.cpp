@@ -19,9 +19,8 @@ void projectFailure(RequestState& request, DisplayState& display, PlaybackState*
 {
     const QString diagnostic = FramePreparation::boundedDiagnostic(
         admission.diagnostic, QStringLiteral("in-memory frame payload rejected"));
-    recordViewportEngineTargetSpreadTerminal(
-        { role, admission.status, admission.reason, FailureScope::DisplayRequest, diagnostic, {} },
-        request);
+    recordViewportEngineDisplayRequestTerminal(
+        { role, admission.status, admission.reason, diagnostic, {} }, request);
 
     const bool retainDisplay = displayedPayloadAvailable(display);
     display.clearPendingRenderPayload();

@@ -5,6 +5,7 @@
 #include "playbacktimeline_p.h"
 #include "viewportenginebuiltinframeoperations_p.h"
 #include "viewportenginetargetspreadoperations_p.h"
+#include "viewportenginetargetspreadterminaloperations_p.h"
 
 #include <algorithm>
 
@@ -302,18 +303,7 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
             source.facts.timed ? source.facts.timingIntervals.frameStartPosition(frame) : -1 };
     }
 
-    const auto& terminal = request.targetSpreadTerminal;
-    const bool generationTerminal = terminal.sealed
-        && terminal.generation == request.sequenceGeneration
-        && terminal.requestId == request.roles[0].activeRequest.identity.id
-        && ((terminal.primary.terminal && terminal.primary.failureScope == FailureScope::Generation)
-            || (terminal.secondary.terminal
-                && terminal.secondary.failureScope == FailureScope::Generation));
-    const bool providerTransportUnavailable = source.facts.provider
-        && !provider.session.sessionActive
-        && (request.status == ImageViewportRequestStatus::Unsupported
-            || request.status == ImageViewportRequestStatus::Error);
-    if (generationTerminal || providerTransportUnavailable) {
+    if (viewportEngineHasCurrentGenerationTerminal(request)) {
         return reject(ImageViewportCommandOutcome::Unsupported,
             ImageViewportCommandReason::UnsupportedRequest);
     }
@@ -383,18 +373,7 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
     const auto& source = roleState.source;
     auto& provider = access.m_roles[index].provider;
 
-    const auto& terminal = request.targetSpreadTerminal;
-    const bool generationTerminal = terminal.sealed
-        && terminal.generation == request.sequenceGeneration
-        && terminal.requestId == request.roles[0].activeRequest.identity.id
-        && ((terminal.primary.terminal && terminal.primary.failureScope == FailureScope::Generation)
-            || (terminal.secondary.terminal
-                && terminal.secondary.failureScope == FailureScope::Generation));
-    const bool providerTransportUnavailable = source.facts.provider
-        && !provider.session.sessionActive
-        && (request.status == ImageViewportRequestStatus::Unsupported
-            || request.status == ImageViewportRequestStatus::Error);
-    if (generationTerminal || providerTransportUnavailable) {
+    if (viewportEngineHasCurrentGenerationTerminal(request)) {
         return reject(ImageViewportCommandOutcome::Unsupported,
             ImageViewportCommandReason::UnsupportedRequest);
     }
