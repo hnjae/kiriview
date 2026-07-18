@@ -2,19 +2,16 @@
 
 #include "imageviewportstate_p.h"
 #include "internalobservation_p.h"
-#include "publicdiagnostic_p.h"
 #include "timingintervals_p.h"
 #include "viewportplaybackcontract_p.h"
 #include "viewportproviderevent_p.h"
 
 #include <QtCore/QSizeF>
-#include <QtCore/QString>
 #include <QtCore/QVector>
 
 struct ViewportProviderDispatchFailureEvent
 {
     ImageSequenceProviderRequestToken token;
-    ImageViewportInternal::PublicDiagnosticText diagnostic;
 };
 
 struct ViewportProviderSessionClose
@@ -153,5 +150,4 @@ struct ViewportProviderHostEvent
     ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ViewportProviderEvent providerEvent;
     ImageSequenceProviderRequestToken token;
-    QString diagnostic;
 };

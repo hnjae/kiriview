@@ -1931,7 +1931,7 @@ void ImageViewportProviderMetadataTest::providerTerminalResultDominatesProgress(
     QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(*closeCount, 1);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("metadata failed after progress")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("metadata failed after progress"));
 }
 
 void ImageViewportProviderMetadataTest::providerFrameReadyDominatesLateProgress()

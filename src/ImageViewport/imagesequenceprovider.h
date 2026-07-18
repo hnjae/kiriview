@@ -167,17 +167,15 @@ class ImageSequenceProviderSessionFactoryResult
 public:
     ImageSequenceProviderSessionFactoryResult() = default;
     static ImageSequenceProviderSessionFactoryResult created(ImageSequenceProviderSession* session);
-    static ImageSequenceProviderSessionFactoryResult failed(QString diagnostic = {});
+    static ImageSequenceProviderSessionFactoryResult failed();
 
     ImageSequenceProviderSessionFactoryOutcome outcome() const;
     ImageSequenceProviderSession* session() const;
-    QString diagnostic() const;
 
 private:
     ImageSequenceProviderSessionFactoryOutcome m_outcome
         = ImageSequenceProviderSessionFactoryOutcome::Failed;
     QPointer<ImageSequenceProviderSession> m_session;
-    QString m_diagnostic;
 };
 
 enum class ImageSequenceProviderRequestKind {
@@ -456,7 +454,6 @@ class ImageSequenceProviderEvent
     Q_PROPERTY(bool valid READ isValid CONSTANT)
     Q_PROPERTY(ImageSequenceProviderEventKind kind READ kind CONSTANT)
     Q_PROPERTY(ImageSequenceProviderRequestToken token READ token CONSTANT)
-    Q_PROPERTY(QString diagnostic READ diagnostic CONSTANT)
     Q_PROPERTY(ImageSequenceProviderMetadata metadata READ metadata CONSTANT)
     Q_PROPERTY(ImageSequenceProviderFrameHandle* frameHandle READ frameHandle CONSTANT)
     Q_PROPERTY(ImageSequenceProviderFrameEnvelope frameEnvelope READ frameEnvelope CONSTANT)
@@ -476,16 +473,13 @@ public:
         ImageSequenceProviderRequestToken token, double progress);
     static ImageSequenceProviderEvent endOfSequence(ImageSequenceProviderRequestToken token);
     static ImageSequenceProviderEvent unsupported(ImageSequenceProviderRequestToken token,
-        ImageSequenceProviderUnsupportedCause cause, QString diagnostic = {});
-    static ImageSequenceProviderEvent cancelled(
-        ImageSequenceProviderRequestToken token, QString diagnostic = {});
-    static ImageSequenceProviderEvent failed(
-        ImageSequenceProviderRequestToken token, QString diagnostic = {});
+        ImageSequenceProviderUnsupportedCause cause);
+    static ImageSequenceProviderEvent cancelled(ImageSequenceProviderRequestToken token);
+    static ImageSequenceProviderEvent failed(ImageSequenceProviderRequestToken token);
 
     bool isValid() const;
     ImageSequenceProviderEventKind kind() const { return m_kind; }
     ImageSequenceProviderRequestToken token() const { return m_token; }
-    QString diagnostic() const { return m_diagnostic; }
     ImageSequenceProviderMetadata metadata() const { return m_metadata; }
     ImageSequenceProviderFrameHandle* frameHandle() const { return m_frameHandle; }
     ImageSequenceProviderFrameEnvelope frameEnvelope() const { return m_frameEnvelope; }
@@ -495,7 +489,6 @@ public:
 private:
     ImageSequenceProviderEventKind m_kind = ImageSequenceProviderEventKind::Failed;
     ImageSequenceProviderRequestToken m_token;
-    QString m_diagnostic;
     ImageSequenceProviderMetadata m_metadata;
     QPointer<ImageSequenceProviderFrameHandle> m_frameHandle;
     ImageSequenceProviderFrameEnvelope m_frameEnvelope;

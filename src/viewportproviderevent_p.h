@@ -16,5 +16,4 @@ struct ViewportProviderEvent
     double progress = 0.0;
     ImageSequenceProviderUnsupportedCause unsupportedCause
         = ImageSequenceProviderUnsupportedCause::PayloadRejection;
-    QString diagnostic;
 };

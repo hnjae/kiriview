@@ -188,7 +188,7 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
         access.m_playback.providerStartPending = false;
         result.changes = access.recordGenerationTerminal(
             { role, ImageViewportRequestStatus::Error, ImageViewportRequestReason::PayloadRejection,
-                PublicDiagnosticText::fromUntrusted(diagnostic), result.changes });
+                PublicDiagnosticText::fromTrusted(diagnostic), result.changes });
         updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
         result.providerFrameTransport = access.closeSession(role);
     };

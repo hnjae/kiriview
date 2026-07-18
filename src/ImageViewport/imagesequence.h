@@ -257,7 +257,7 @@ class ImageSequenceFactoryResult : public QObject
 public:
     explicit ImageSequenceFactoryResult(ImageSequence* sequence,
         ImageSequenceFactoryOutcome outcome, ImageSequenceFactoryReason reason,
-        QString errorString = {}, QObject* parent = nullptr);
+        QObject* parent = nullptr);
 
     ImageSequence* sequence() const;
     ImageSequenceFactoryOutcome outcome() const;
@@ -293,6 +293,9 @@ public:
     Q_INVOKABLE ImageSequenceFactoryResult* fromFrame(ImageFrame* frame);
     Q_INVOKABLE ImageSequenceFactoryResult* fromTimedFrameList(TimedImageFrameList* list);
     Q_INVOKABLE ImageSequenceFactoryResult* fromProvider(ImageSequenceProviderAdapter* adapter);
+
+private:
+    ImageSequenceFactoryResult* rejected(ImageSequenceFactoryReason reason, QString errorString);
 };
 
 class ImageSequenceLimits : public QObject

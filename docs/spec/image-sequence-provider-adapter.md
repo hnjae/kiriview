@@ -2,7 +2,7 @@
 
 The provider adapter is the public extension point for application-owned image sources. It lets applications expose custom decoding, storage, cache, predecode, refinement, or streaming services as an `ImageSequence` without giving `ImageViewport` direct access to files, URLs, provider URLs, image-provider ids, archives, arbitrary JavaScript objects, display-store entries, or application navigation policy.
 
-Provider-backed sequences are individual page sources from the viewport's perspective. The provider receives viewport requests and supplies provider events, diagnostics, declared facts, and complete-frame payloads for viewport demand; it does not own caller navigation policy, spread pairing, page-role selection, application source-identity policy, presentation-target transition intent, viewport presentation state, scene graph resources, or QML image load acknowledgement.
+Provider-backed sequences are individual page sources from the viewport's perspective. The provider receives viewport requests and supplies typed provider events, declared facts, and complete-frame payloads for viewport demand; it does not own caller navigation policy, spread pairing, page-role selection, application source-identity policy, presentation-target transition intent, viewport presentation state, public diagnostics, scene graph resources, or QML image load acknowledgement.
 
 ## Construction Contract
 
@@ -32,9 +32,9 @@ Session entry points are called according to the descriptor threading contract. 
 
 ## Provider Events
 
-The session reports one signal: `providerEvent(const ImageSequenceProviderEvent&)`. Event values, event kinds, unsupported causes, token echo rules, and diagnostic fields follow the canonical schema in [ImageSequence Provider Protocol](image-sequence-provider-protocol.md).
+The session reports one signal: `providerEvent(const ImageSequenceProviderEvent&)`. Event values, event kinds, unsupported causes, and token echo rules follow the canonical schema in [ImageSequence Provider Protocol](image-sequence-provider-protocol.md).
 
-Terminal events include optional public diagnostics. Waiting and progress are advisory; the viewport may coalesce or drop stale progress events. A provider may emit `providerEvent` from a provider-controlled worker thread; the viewport serializes event admission before changing public state. Event/request compatibility, terminality, and duplicate-event behavior follow the canonical protocol and must not depend on emission thread or signal delivery timing.
+Terminal events carry typed failure information only; the viewport derives public diagnostic text from the admitted event kind, unsupported cause, and failure scope. Waiting and progress are advisory; the viewport may coalesce or drop stale progress events. A provider may emit `providerEvent` from a provider-controlled worker thread; the viewport serializes event admission before changing public state. Event/request compatibility, terminality, and duplicate-event behavior follow the canonical protocol and must not depend on emission thread or signal delivery timing.
 
 Frame-ready events transfer ownership with `ImageSequenceProviderFrameHandle` plus `ImageSequenceProviderFrameEnvelope`; borrowed raw `ImageFrame*` results are not supported. The handle is the sole provider-visible payload lifetime boundary, and its exact-once release, affinity, non-reentrancy, and session-destruction ordering follow the canonical contract in [ImageSequence Provider Protocol](image-sequence-provider-protocol.md#provider-demand-and-payload-values).
 

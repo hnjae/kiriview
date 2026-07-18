@@ -42,12 +42,10 @@ ImageSequenceProviderSessionFactoryResult ImageSequenceProviderSessionFactoryRes
     return result;
 }
 
-ImageSequenceProviderSessionFactoryResult ImageSequenceProviderSessionFactoryResult::failed(
-    QString diagnostic)
+ImageSequenceProviderSessionFactoryResult ImageSequenceProviderSessionFactoryResult::failed()
 {
     ImageSequenceProviderSessionFactoryResult result;
     result.m_outcome = ImageSequenceProviderSessionFactoryOutcome::Failed;
-    result.m_diagnostic = std::move(diagnostic);
     return result;
 }
 
@@ -61,8 +59,6 @@ ImageSequenceProviderSession* ImageSequenceProviderSessionFactoryResult::session
 {
     return m_session;
 }
-
-QString ImageSequenceProviderSessionFactoryResult::diagnostic() const { return m_diagnostic; }
 
 ImageSequenceProviderDescriptor::ImageSequenceProviderDescriptor(
     ImageSequenceProviderMetadata constructionMetadata,
@@ -644,34 +640,29 @@ ImageSequenceProviderEvent ImageSequenceProviderEvent::endOfSequence(
 }
 
 ImageSequenceProviderEvent ImageSequenceProviderEvent::unsupported(
-    ImageSequenceProviderRequestToken token, ImageSequenceProviderUnsupportedCause cause,
-    QString diagnostic)
+    ImageSequenceProviderRequestToken token, ImageSequenceProviderUnsupportedCause cause)
 {
     ImageSequenceProviderEvent event;
     event.m_kind = ImageSequenceProviderEventKind::Unsupported;
     event.m_token = token;
     event.m_unsupportedCause = cause;
-    event.m_diagnostic = std::move(diagnostic);
     return event;
 }
 
 ImageSequenceProviderEvent ImageSequenceProviderEvent::cancelled(
-    ImageSequenceProviderRequestToken token, QString diagnostic)
+    ImageSequenceProviderRequestToken token)
 {
     ImageSequenceProviderEvent event;
     event.m_kind = ImageSequenceProviderEventKind::Cancelled;
     event.m_token = token;
-    event.m_diagnostic = std::move(diagnostic);
     return event;
 }
 
-ImageSequenceProviderEvent ImageSequenceProviderEvent::failed(
-    ImageSequenceProviderRequestToken token, QString diagnostic)
+ImageSequenceProviderEvent ImageSequenceProviderEvent::failed(ImageSequenceProviderRequestToken token)
 {
     ImageSequenceProviderEvent event;
     event.m_kind = ImageSequenceProviderEventKind::Failed;
     event.m_token = token;
-    event.m_diagnostic = std::move(diagnostic);
     return event;
 }
 

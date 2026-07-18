@@ -65,7 +65,7 @@ void ImageViewportProviderTerminalPlaybackTest::providerTimedPlaybackStopsOnFram
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(primaryDisplayedFrame(item), 0);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("playback frame failed")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("playback frame failed"));
 
     QCOMPARE(item.seekToPosition(ImageViewportPageRole::Primary, 0).outcome(),
         ImageViewportCommandOutcome::Accepted);
@@ -146,7 +146,7 @@ void ImageViewportProviderTerminalPlaybackTest::
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryRequestedPosition(item), 100);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("playback frame failed")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("playback frame failed"));
 
     QCOMPARE(
         item.play(ImageViewportPageRole::Primary).outcome(), ImageViewportCommandOutcome::Accepted);
@@ -252,7 +252,7 @@ void ImageViewportProviderTerminalPlaybackTest::
     QCOMPARE(primaryRequestedPosition(item), 100);
     QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(primaryDisplayedPosition(item), 0);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("playback cancelled by provider")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("playback cancelled by provider"));
 }
 
 void ImageViewportProviderTerminalPlaybackTest::
@@ -318,7 +318,7 @@ void ImageViewportProviderTerminalPlaybackTest::
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryRequestedPosition(item), 100);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("playback cancelled by provider")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("playback cancelled by provider"));
 
     QCOMPARE(
         item.play(ImageViewportPageRole::Primary).outcome(), ImageViewportCommandOutcome::Accepted);
@@ -411,7 +411,7 @@ void ImageViewportProviderTerminalPlaybackTest::
     QCOMPARE(primaryRequestedPosition(item), 100);
     QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(primaryDisplayedPosition(item), 0);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("playback request unsupported")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("playback request unsupported"));
 
     QCOMPARE(item.seek(ImageViewportPageRole::Primary, 0).outcome(),
         ImageViewportCommandOutcome::Accepted);
@@ -487,7 +487,7 @@ void ImageViewportProviderTerminalPlaybackTest::
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryRequestedPosition(item), 100);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("playback request unsupported")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("playback request unsupported"));
 
     QCOMPARE(
         item.play(ImageViewportPageRole::Primary).outcome(), ImageViewportCommandOutcome::Accepted);

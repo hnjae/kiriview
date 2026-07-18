@@ -180,7 +180,7 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         if (refinement)
             return result;
         result.changes = access.recordTerminal({ input.role, admission.status, admission.reason,
-            PublicDiagnosticText::fromUntrusted(admission.diagnostic), result.changes });
+            PublicDiagnosticText::fromTrusted(admission.diagnostic), result.changes });
         updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
         return result;
     }

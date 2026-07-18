@@ -384,14 +384,15 @@ void ImageViewportProviderContractTest::providerTypedProtocolValuesValidateShape
     QVERIFY(ImageSequenceProviderEvent::progress(token, 0.5).isValid());
     QVERIFY(!ImageSequenceProviderEvent::progress(token, 1.5).isValid());
     QVERIFY(ImageSequenceProviderEvent::endOfSequence(token).isValid());
-    QVERIFY(ImageSequenceProviderEvent::unsupported(token,
-        ImageSequenceProviderUnsupportedCause::UnsupportedRequest, QStringLiteral("unsupported"))
-            .isValid());
+    QVERIFY(ImageSequenceProviderEvent::unsupported(
+        token, ImageSequenceProviderUnsupportedCause::UnsupportedRequest)
+                .isValid());
     QVERIFY(!ImageSequenceProviderEvent::unsupported(
-        token, static_cast<ImageSequenceProviderUnsupportedCause>(-1), QStringLiteral("bad"))
+        token, static_cast<ImageSequenceProviderUnsupportedCause>(-1))
             .isValid());
     QVERIFY(ImageSequenceProviderEvent::cancelled(token).isValid());
-    QVERIFY(ImageSequenceProviderEvent::failed(token, QStringLiteral("failed")).isValid());
+    QVERIFY(ImageSequenceProviderEvent::failed(token).isValid());
+    QCOMPARE(ImageSequenceProviderEvent::staticMetaObject.indexOfProperty("diagnostic"), -1);
     QVERIFY(!ImageSequenceProviderEvent::waiting({}).isValid());
 
     const ImageSequenceProviderDescriptor descriptor;

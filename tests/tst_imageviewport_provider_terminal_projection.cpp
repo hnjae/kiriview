@@ -98,8 +98,8 @@ void ImageViewportProviderTerminalProjectionTest::
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(secondaryRequestedFrame(item), -1);
-    QVERIFY(viewportErrorString(item).contains(
-        QStringLiteral("secondary metadata service unavailable")));
+    verifyUntrustedProviderDiagnostic(
+        item, QStringLiteral("secondary metadata service unavailable"));
 }
 
 void ImageViewportProviderTerminalProjectionTest::
@@ -189,7 +189,7 @@ void ImageViewportProviderTerminalProjectionTest::
         QCOMPARE(primaryRequestedFrame(item), -1);
         QCOMPARE(primaryRequestedPosition(item), -1);
     }
-    QVERIFY(viewportErrorString(item).contains(diagnostic));
+    verifyUntrustedProviderDiagnostic(item, diagnostic);
 }
 
 void ImageViewportProviderTerminalProjectionTest::
@@ -314,7 +314,7 @@ void ImageViewportProviderTerminalProjectionTest::
         enumValue(metaObject, "RequestStatus", expectedStatus.toUtf8().constData()));
     QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", expectedReason.toUtf8().constData()));
-    QVERIFY(viewportErrorString(item).contains(expectedDiagnostic));
+    verifyUntrustedProviderDiagnostic(item, expectedDiagnostic);
 }
 
 void ImageViewportProviderTerminalProjectionTest::
@@ -710,7 +710,7 @@ void ImageViewportProviderTerminalProjectionTest::
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderFailure"));
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("secondary frame failed")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("secondary frame failed"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
 }
 
@@ -774,7 +774,7 @@ void ImageViewportProviderTerminalProjectionTest::
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderFailure"));
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("primary frame failed")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("primary frame failed"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
 }
 
@@ -908,7 +908,7 @@ void ImageViewportProviderTerminalProjectionTest::
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(secondaryRequestedFrame(item), 0);
-    QVERIFY(viewportErrorString(item).contains(diagnostic));
+    verifyUntrustedProviderDiagnostic(item, diagnostic);
 }
 
 void ImageViewportProviderTerminalProjectionTest::
@@ -1023,7 +1023,7 @@ void ImageViewportProviderTerminalProjectionTest::
     QCOMPARE(secondaryRequestedFrame(item), 1);
     QCOMPARE(secondaryRequestedPosition(item), 100);
     QCOMPARE(secondaryDisplayedFrame(item), 0);
-    QVERIFY(viewportErrorString(item).contains(diagnostic));
+    verifyUntrustedProviderDiagnostic(item, diagnostic);
 }
 
 void ImageViewportProviderTerminalProjectionTest::invalidUnsupportedCauseIsProtocolViolation_data()

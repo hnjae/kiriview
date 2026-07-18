@@ -103,7 +103,6 @@ struct ViewportProviderTransportResult
 struct ViewportProviderSessionOpenTransportResult
 {
     bool opened = false;
-    QString diagnostic;
 };
 
 struct ViewportProviderCleanupResult

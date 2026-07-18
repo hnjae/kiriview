@@ -2007,7 +2007,7 @@ void ImageViewportProviderLifecycleTest::providerTerminalResultsAreQueuedFromSes
     verifyRequestStatusReasonPair(item);
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), -1);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("metadata failed synchronously")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("metadata failed synchronously"));
 }
 
 void ImageViewportProviderLifecycleTest::providerUnsupportedResultsAreQueuedFromSessionEntryPoint()
@@ -2040,8 +2040,7 @@ void ImageViewportProviderLifecycleTest::providerUnsupportedResultsAreQueuedFrom
     verifyRequestStatusReasonPair(item);
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), -1);
-    QVERIFY(
-        viewportErrorString(item).contains(QStringLiteral("metadata unsupported synchronously")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("metadata unsupported synchronously"));
 }
 
 QTEST_MAIN(ImageViewportProviderLifecycleTest)

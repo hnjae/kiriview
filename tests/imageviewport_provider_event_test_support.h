@@ -51,22 +51,23 @@ void emitProviderEndOfSequence(
 void emitProviderFailed(ImageSequenceProviderSession* session,
     ImageSequenceProviderRequestToken token, QString diagnostic)
 {
-    emit session->providerEvent(ImageSequenceProviderEvent::failed(token, std::move(diagnostic)));
+    Q_UNUSED(diagnostic);
+    emit session->providerEvent(ImageSequenceProviderEvent::failed(token));
 }
 
 void emitProviderUnsupported(ImageSequenceProviderSession* session,
     ImageSequenceProviderRequestToken token, ImageSequenceProviderUnsupportedCause cause,
     QString diagnostic)
 {
-    emit session->providerEvent(
-        ImageSequenceProviderEvent::unsupported(token, cause, std::move(diagnostic)));
+    Q_UNUSED(diagnostic);
+    emit session->providerEvent(ImageSequenceProviderEvent::unsupported(token, cause));
 }
 
 void emitProviderCancelled(ImageSequenceProviderSession* session,
     ImageSequenceProviderRequestToken token, QString diagnostic)
 {
-    emit session->providerEvent(
-        ImageSequenceProviderEvent::cancelled(token, std::move(diagnostic)));
+    Q_UNUSED(diagnostic);
+    emit session->providerEvent(ImageSequenceProviderEvent::cancelled(token));
 }
 
 }

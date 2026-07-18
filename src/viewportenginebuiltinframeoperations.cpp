@@ -18,8 +18,8 @@ void projectFailure(RequestState& request, DisplayState& display, PlaybackState*
     ViewportEngineBuiltInFrameStageResult& result)
 {
     const PublicDiagnosticText diagnostic
-        = PublicDiagnosticText::fromUntrusted(admission.diagnostic)
-              .withFallback(QStringLiteral("in-memory frame payload rejected"));
+        = PublicDiagnosticText::fromTrusted(admission.diagnostic)
+              .withTrustedFallback(QStringLiteral("in-memory frame payload rejected"));
     recordViewportEngineDisplayRequestTerminal(
         { role, admission.status, admission.reason, diagnostic, {} }, request);
 

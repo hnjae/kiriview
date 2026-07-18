@@ -289,21 +289,14 @@ Item {
 
 void ImageSequenceFactoryTest::factoryResultDiagnosticsArePublicSafe()
 {
-    const int limit = ImageSequenceLimits::maximumDiagnosticCharacters();
-    QString diagnostic = QStringLiteral("failed for https://user:secret@example.test/image.png "
-                                        "token=abc123 path /home/ops/private/image.png ");
-    diagnostic += QString(limit + 100, QLatin1Char('x'));
-
     ImageSequenceFactoryResult result(nullptr, ImageSequenceFactoryOutcome::Rejected,
-        ImageSequenceFactoryReason::InvalidFrame, diagnostic);
+        ImageSequenceFactoryReason::InvalidFrame);
 
     const QString errorString = result.errorString();
-    QCOMPARE(errorString.toUcs4().size(), limit);
     QVERIFY(!errorString.isEmpty());
-    QVERIFY(!errorString.contains(QStringLiteral("https://")));
-    QVERIFY(!errorString.contains(QStringLiteral("user:secret")));
-    QVERIFY(!errorString.contains(QStringLiteral("token=abc123")));
-    QVERIFY(!errorString.contains(QStringLiteral("/home/ops/private")));
+    QVERIFY(errorString.toUcs4().size() <= ImageSequenceLimits::maximumDiagnosticCharacters());
+    QVERIFY(!errorString.contains(QLatin1Char('<')));
+    QVERIFY(!errorString.contains(QLatin1Char('>')));
 }
 
 void ImageSequenceFactoryTest::exposesImageSequenceLimits()

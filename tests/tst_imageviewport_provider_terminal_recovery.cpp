@@ -254,7 +254,7 @@ void ImageViewportProviderTerminalRecoveryTest::providerFrameFailureKeepsGenerat
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(primaryFrameCount(item), 1);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("frame decode failed")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("frame decode failed"));
 
     const ImageViewportRevisionToken terminalRequestRevision
         = revisionTokenProperty(item, "requestRevision");
@@ -269,7 +269,7 @@ void ImageViewportProviderTerminalRecoveryTest::providerFrameFailureKeepsGenerat
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), terminalRequestRevision);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("frame decode failed")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("frame decode failed"));
 
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
@@ -347,7 +347,7 @@ void ImageViewportProviderTerminalRecoveryTest::providerFrameFailureRetainsDispl
     QCOMPARE(primaryRequestedPosition(item), 100);
     QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(primaryDisplayedPosition(item), 0);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("frame decode failed")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("frame decode failed"));
 
     const ImageViewportRevisionToken failedRequestRevision
         = revisionTokenProperty(item, "requestRevision");
@@ -431,7 +431,7 @@ void ImageViewportProviderTerminalRecoveryTest::
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryRequestedPosition(item), 100);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("frame decode failed")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("frame decode failed"));
 
     QCOMPARE(item.seekToPosition(ImageViewportPageRole::Primary, 0).outcome(),
         ImageViewportCommandOutcome::Accepted);
@@ -498,7 +498,7 @@ void ImageViewportProviderTerminalRecoveryTest::
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderFailure"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(primaryRequestedFrame(item), 1);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("frame decode failed")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("frame decode failed"));
 
     QCOMPARE(
         item.play(ImageViewportPageRole::Primary).outcome(), ImageViewportCommandOutcome::Accepted);
@@ -583,7 +583,7 @@ void ImageViewportProviderTerminalRecoveryTest::providerFrameFailureAcceptsContr
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(primaryRequestedPosition(item), -1);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), failedRequestRevision);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("frame decode failed")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("frame decode failed"));
 
     const ImageViewportRevisionToken clearedCommandRevision
         = revisionTokenProperty(item, "commandRevision");
@@ -599,7 +599,7 @@ void ImageViewportProviderTerminalRecoveryTest::providerFrameFailureAcceptsContr
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(primaryRequestedPosition(item), -1);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), failedRequestRevision);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("frame decode failed")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("frame decode failed"));
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*closeCount, 0);
@@ -655,7 +655,7 @@ void ImageViewportProviderTerminalRecoveryTest::
     QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(primaryRequestedPosition(item), -1);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), unsupportedRequestRevision);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("unsupported codec")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("unsupported codec"));
 
     const ImageViewportRevisionToken clearedCommandRevision
         = revisionTokenProperty(item, "commandRevision");
@@ -673,7 +673,7 @@ void ImageViewportProviderTerminalRecoveryTest::
     QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(primaryRequestedPosition(item), -1);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), unsupportedRequestRevision);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("unsupported codec")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("unsupported codec"));
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(*closeCount, 1);
@@ -765,7 +765,7 @@ void ImageViewportProviderTerminalRecoveryTest::
     QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewportCapabilitySupport::Unavailable);
     QCOMPARE(primaryFrameSeekSupport(item), ImageViewportCapabilitySupport::Unavailable);
     QCOMPARE(primaryPositionSeekSupport(item), ImageViewportCapabilitySupport::Unavailable);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("unsupported replacement metadata")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("unsupported replacement metadata"));
 
     const ImageViewportRevisionToken failedRequestRevision
         = revisionTokenProperty(item, "requestRevision");
@@ -817,7 +817,7 @@ void ImageViewportProviderTerminalRecoveryTest::providerFrameUnsupportedKeepsGen
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(primaryFrameCount(item), 1);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("unsupported frame shape")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("unsupported frame shape"));
 
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
@@ -896,7 +896,7 @@ void ImageViewportProviderTerminalRecoveryTest::
     QCOMPARE(primaryRequestedPosition(item), 100);
     QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(primaryDisplayedPosition(item), 0);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("unsupported frame shape")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("unsupported frame shape"));
 
     QCOMPARE(item.seek(ImageViewportPageRole::Primary, 0).outcome(),
         ImageViewportCommandOutcome::Accepted);
@@ -960,7 +960,7 @@ void ImageViewportProviderTerminalRecoveryTest::
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryRequestedPosition(item), 100);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("unsupported frame shape")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("unsupported frame shape"));
 
     QCOMPARE(item.seekToPosition(ImageViewportPageRole::Primary, 0).outcome(),
         ImageViewportCommandOutcome::Accepted);
@@ -1015,7 +1015,7 @@ void ImageViewportProviderTerminalRecoveryTest::providerFrameCancellationReports
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderFailure"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), 0);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("cancelled by provider")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("cancelled by provider"));
 
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
@@ -1086,7 +1086,7 @@ void ImageViewportProviderTerminalRecoveryTest::
     QCOMPARE(primaryRequestedPosition(item), 100);
     QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(primaryDisplayedPosition(item), 0);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("cancelled by provider")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("cancelled by provider"));
 
     QCOMPARE(item.seek(ImageViewportPageRole::Primary, 0).outcome(),
         ImageViewportCommandOutcome::Accepted);

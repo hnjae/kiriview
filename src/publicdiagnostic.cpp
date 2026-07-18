@@ -10,25 +10,6 @@ namespace ImageViewportInternal {
 
 namespace {
 
-QString redactDetails(QString diagnostic)
-{
-    static const QRegularExpression credentialPattern(
-        QStringLiteral("\\b(?:password|passwd|pwd|token|api[_-]?key|secret)\\s*[:=]\\s*\\S+"),
-        QRegularExpression::CaseInsensitiveOption);
-    static const QRegularExpression urlPattern(
-        QStringLiteral("\\b[A-Za-z][A-Za-z0-9+.-]*://\\S+"));
-    static const QRegularExpression windowsPathPattern(
-        QStringLiteral("\\b[A-Za-z]:[\\\\/][^\\s]+"));
-    static const QRegularExpression unixPathPattern(
-        QStringLiteral("(?<!\\w)/(?:[^\\s/]+/)+[^\\s]+"));
-
-    diagnostic.replace(credentialPattern, QStringLiteral("[redacted-credential]"));
-    diagnostic.replace(urlPattern, QStringLiteral("[redacted-url]"));
-    diagnostic.replace(windowsPathPattern, QStringLiteral("[redacted-path]"));
-    diagnostic.replace(unixPathPattern, QStringLiteral("[redacted-path]"));
-    return diagnostic;
-}
-
 QString plainText(QString diagnostic)
 {
     static const QRegularExpression markupPattern(QStringLiteral("<[^>]*>"));
@@ -59,9 +40,9 @@ PublicDiagnosticText::PublicDiagnosticText(QString text)
 {
 }
 
-PublicDiagnosticText PublicDiagnosticText::fromUntrusted(QString diagnostic)
+PublicDiagnosticText PublicDiagnosticText::fromTrusted(QString diagnostic)
 {
-    diagnostic = plainText(redactDetails(std::move(diagnostic)));
+    diagnostic = plainText(std::move(diagnostic));
 
     const auto scalars = diagnostic.toUcs4();
     const int maximumLength = ImageSequenceLimits::maximumDiagnosticCharacters();
@@ -78,9 +59,9 @@ PublicDiagnosticText PublicDiagnosticText::fromUntrusted(QString diagnostic)
     return PublicDiagnosticText(std::move(bounded));
 }
 
-PublicDiagnosticText PublicDiagnosticText::withFallback(QString fallback) const
+PublicDiagnosticText PublicDiagnosticText::withTrustedFallback(QString fallback) const
 {
-    return m_text.isEmpty() ? fromUntrusted(std::move(fallback)) : *this;
+    return m_text.isEmpty() ? fromTrusted(std::move(fallback)) : *this;
 }
 
 } // namespace ImageViewportInternal

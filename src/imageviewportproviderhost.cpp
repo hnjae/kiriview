@@ -115,8 +115,8 @@ void ImageViewportProviderHost::applyTransportEffects(const ViewportProviderTran
                 effect.threadingContract, effect.generation, effect.sessionSerial, &dispatchContext,
                 [this](const ViewportProviderEvent& event) { handleProviderEvent(event); } });
             if (!openResult.opened) {
-                applyHostEvent({ ViewportProviderHostEvent::Kind::SessionOpenFailed, effect.role,
-                    {}, {}, openResult.diagnostic });
+                applyHostEvent(
+                    { ViewportProviderHostEvent::Kind::SessionOpenFailed, effect.role });
                 return;
             } else {
                 applyHostEvent({ ViewportProviderHostEvent::Kind::SessionOpened, effect.role });

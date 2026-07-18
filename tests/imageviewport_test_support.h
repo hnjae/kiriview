@@ -75,6 +75,13 @@ QString viewportWarningString(const ImageViewport& item)
     return item.state().diagnostics().warningString();
 }
 
+void verifyUntrustedProviderDiagnostic(const ImageViewport& item, const QString& rawDiagnostic)
+{
+    const QString publicDiagnostic = viewportErrorString(item);
+    QVERIFY(!publicDiagnostic.isEmpty());
+    QVERIFY(!publicDiagnostic.contains(rawDiagnostic));
+}
+
 int requestStatusValue(const ImageViewport& item) { return static_cast<int>(requestStatus(item)); }
 
 int requestReasonValue(const ImageViewport& item) { return static_cast<int>(requestReason(item)); }

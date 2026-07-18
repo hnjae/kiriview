@@ -254,8 +254,7 @@ public:
         , m_sessionFactory([factory = std::move(factory)]() {
             ImageSequenceProviderSession* session = factory->createSession(nullptr);
             return session ? ImageSequenceProviderSessionFactoryResult::created(session)
-                           : ImageSequenceProviderSessionFactoryResult::failed(
-                                 QStringLiteral("session creation failed"));
+                           : ImageSequenceProviderSessionFactoryResult::failed();
         })
         , m_knownMetadata(std::move(knownMetadata))
         , m_timedPlaybackSupport(timedPlaybackSupport)

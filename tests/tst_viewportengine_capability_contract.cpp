@@ -66,6 +66,15 @@ struct HasRolesAccess<Access, std::void_t<decltype(std::declval<Access&>().roles
 {
 };
 
+template <typename Input, typename = void> struct HasDiagnosticMember : std::false_type
+{
+};
+template <typename Input>
+struct HasDiagnosticMember<Input, std::void_t<decltype(std::declval<Input&>().diagnostic)>>
+    : std::true_type
+{
+};
+
 template <typename Access, typename = void> struct HasPresentationStateAccess : std::false_type
 {
 };
@@ -311,14 +320,10 @@ static_assert(!std::is_reference_v<decltype(ViewportEngineProviderFailureMutatio
 static_assert(!HasRequestAccess<ViewportEngineProviderTerminalEventAccess>::value);
 static_assert(!HasPlaybackAccess<ViewportEngineProviderTerminalEventAccess>::value);
 static_assert(!HasRolesAccess<ViewportEngineProviderTerminalEventAccess>::value);
-static_assert(std::is_same_v<decltype(ViewportEngineProviderTerminalEventInput::diagnostic),
-    ImageViewportInternal::PublicDiagnosticText>);
-static_assert(std::is_same_v<decltype(ViewportEngineProviderDispatchFailureInput::diagnostic),
-    ImageViewportInternal::PublicDiagnosticText>);
-static_assert(std::is_same_v<decltype(ViewportEngineProviderSessionOpenFailureInput::diagnostic),
-    ImageViewportInternal::PublicDiagnosticText>);
-static_assert(std::is_same_v<decltype(ViewportEngineProviderQueueFailureInput::diagnostic),
-    ImageViewportInternal::PublicDiagnosticText>);
+static_assert(!HasDiagnosticMember<ViewportEngineProviderTerminalEventInput>::value);
+static_assert(!HasDiagnosticMember<ViewportEngineProviderDispatchFailureInput>::value);
+static_assert(!HasDiagnosticMember<ViewportEngineProviderSessionOpenFailureInput>::value);
+static_assert(!HasDiagnosticMember<ViewportEngineProviderQueueFailureInput>::value);
 static_assert(std::is_same_v<decltype(ViewportEngineTargetSpreadTerminalInput::diagnostic),
     ImageViewportInternal::PublicDiagnosticText>);
 static_assert(std::is_same_v<decltype(ImageViewportInternal::RequestState::errorString),

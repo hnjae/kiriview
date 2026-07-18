@@ -525,8 +525,8 @@ void ImageViewportStateSnapshotTest::terminalProviderFailureProjectsDiagnostics(
     QCOMPARE(snapshot.request().reason(), ImageViewportRequestReason::ProviderFailure);
     QCOMPARE(snapshot.display().status(), ImageViewportDisplayStatus::Empty);
     QCOMPARE(snapshot.primary().request().frame(), -1);
-    QCOMPARE(snapshot.diagnostics().errorString().contains(QStringLiteral("metadata unavailable")),
-        true);
+    QVERIFY(!snapshot.diagnostics().errorString().isEmpty());
+    QVERIFY(!snapshot.diagnostics().errorString().contains(QStringLiteral("metadata unavailable")));
     QCOMPARE(snapshot.diagnostics().commandReason(), viewportCommandReason(item));
     QVERIFY(snapshot.revisions().request().isValid());
     QVERIFY(snapshot.revisions().snapshot().isValid());

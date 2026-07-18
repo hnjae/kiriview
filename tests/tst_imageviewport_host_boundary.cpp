@@ -8,6 +8,33 @@
 
 #include <functional>
 #include <type_traits>
+#include <utility>
+
+template <typename Event, typename = void>
+struct HasFreeFormDiagnostic : std::false_type
+{
+};
+
+template <typename Event>
+struct HasFreeFormDiagnostic<Event,
+    std::void_t<decltype(std::declval<Event>().diagnostic)>> : std::true_type
+{
+};
+
+template <typename Request, typename = void>
+struct ExposesAdmittedDiagnostic : std::false_type
+{
+};
+
+template <typename Request>
+struct ExposesAdmittedDiagnostic<Request,
+    std::void_t<decltype(std::declval<const Request>().diagnostic())>> : std::true_type
+{
+};
+
+static_assert(!HasFreeFormDiagnostic<ViewportProviderEvent>::value);
+static_assert(!HasFreeFormDiagnostic<ViewportProviderHostEvent>::value);
+static_assert(!ExposesAdmittedDiagnostic<ViewportEngineProviderHostEventRequest>::value);
 
 class ImageViewportHostBoundaryTest : public QObject
 {
@@ -21,7 +48,8 @@ public:
 
 private slots:
     void hostsExposeNarrowFactBoundaries();
-    void providerDiagnosticsRequireItemBoundaryAdmission();
+    void providerHostEventsCarryTypedFactsOnly();
+    void trustedDiagnosticsUseUnicodeScalarLimit();
 };
 
 void ImageViewportHostBoundaryTest::hostsExposeNarrowFactBoundaries()
@@ -47,7 +75,7 @@ void ImageViewportHostBoundaryTest::hostsExposeNarrowFactBoundaries()
         (std::is_same_v<decltype(ImageViewportRenderHostResult::fact), ViewportRenderHostFact>));
 }
 
-void ImageViewportHostBoundaryTest::providerDiagnosticsRequireItemBoundaryAdmission()
+void ImageViewportHostBoundaryTest::providerHostEventsCarryTypedFactsOnly()
 {
     using ImageViewportInternal::PublicDiagnosticText;
 
@@ -59,14 +87,23 @@ void ImageViewportHostBoundaryTest::providerDiagnosticsRequireItemBoundaryAdmiss
     ViewportProviderHostEvent event;
     event.kind = ViewportProviderHostEvent::Kind::ProviderEvent;
     event.providerEvent.kind = ImageSequenceProviderEventKind::Failed;
-    event.providerEvent.diagnostic
-        = QStringLiteral("failed for https://user:secret@example.test/image.png token=abc123");
 
     const auto admitted = ViewportEngineProviderHostEventRequest::admit(std::move(event));
-    QCOMPARE(admitted.event().providerEvent.diagnostic, QString());
-    QVERIFY(!admitted.diagnostic().text().isEmpty());
-    QVERIFY(!admitted.diagnostic().text().contains(QStringLiteral("https://")));
-    QVERIFY(!admitted.diagnostic().text().contains(QStringLiteral("token=abc123")));
+    QCOMPARE(admitted.event().providerEvent.kind, ImageSequenceProviderEventKind::Failed);
+}
+
+void ImageViewportHostBoundaryTest::trustedDiagnosticsUseUnicodeScalarLimit()
+{
+    using ImageViewportInternal::PublicDiagnosticText;
+
+    const int limit = ImageSequenceLimits::maximumDiagnosticCharacters();
+    const char32_t codePoint[] = { 0x1F642 };
+    const QString scalar = QString::fromUcs4(codePoint, 1);
+    const QString diagnostic = scalar.repeated(limit + 1);
+
+    const QString text = PublicDiagnosticText::fromTrusted(diagnostic).text();
+    QCOMPARE(text.toUcs4().size(), limit);
+    QCOMPARE(text, scalar.repeated(limit));
 }
 
 QTEST_MAIN(ImageViewportHostBoundaryTest)

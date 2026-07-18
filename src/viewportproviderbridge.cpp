@@ -270,7 +270,6 @@ ViewportProviderEvent viewportProviderEventFromTyped(ImageViewportPageRole role,
     event.frameEnvelope = typedEvent.frameEnvelope();
     event.progress = typedEvent.progress();
     event.unsupportedCause = typedEvent.unsupportedCause();
-    event.diagnostic = typedEvent.diagnostic();
     return event;
 }
 
@@ -1075,24 +1074,18 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
 {
     if (!input.factory || !input.callbackTarget || !input.eventSink || input.generation == 0
         || input.sessionSerial == 0) {
-        return { false, QStringLiteral("provider session open input is invalid") };
+        return { false };
     }
 
     const ImageSequenceProviderSessionFactoryResult factoryResult = (*input.factory)();
     ImageSequenceProviderSession* session = factoryResult.session();
     const bool validCreated
-        = factoryResult.outcome() == ImageSequenceProviderSessionFactoryOutcome::Created && session
-        && factoryResult.diagnostic().isEmpty();
-    const bool validFailed
-        = factoryResult.outcome() == ImageSequenceProviderSessionFactoryOutcome::Failed && !session;
-    if (!validCreated || validFailed) {
-        return { false,
-            factoryResult.outcome() == ImageSequenceProviderSessionFactoryOutcome::Failed
-                ? factoryResult.diagnostic()
-                : QStringLiteral("provider session factory returned a malformed result") };
+        = factoryResult.outcome() == ImageSequenceProviderSessionFactoryOutcome::Created && session;
+    if (!validCreated) {
+        return { false };
     }
     if (!claimProviderSession(session)) {
-        return { false, QStringLiteral("provider session is already owned by another generation") };
+        return { false };
     }
     if (session->parent() && session->thread() == QThread::currentThread()) {
         session->setParent(nullptr);
@@ -1168,7 +1161,7 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
         },
         Qt::DirectConnection);
 
-    return { true, {} };
+    return { true };
 }
 
 ViewportProviderTransportResult ViewportProviderBridge::deliverRequest(

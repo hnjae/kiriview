@@ -17,7 +17,8 @@ public:
         const QString diagnostic = m_diagnostic;
         return ImageSequenceProviderDescriptor(ImageSequenceProviderMetadata::still(QSizeF(4, 2)),
             ImageSequenceProviderThreadingContract::AffinityBound, [diagnostic]() {
-                return ImageSequenceProviderSessionFactoryResult::failed(diagnostic);
+                Q_UNUSED(diagnostic);
+                return ImageSequenceProviderSessionFactoryResult::failed();
             });
     }
 
@@ -38,16 +39,17 @@ public:
     }
 
 private slots:
-    void providerDiagnosticsUseUnicodeScalarLimit();
+    void providerDiagnosticsAreDiscardedBeforePublicProjection();
     void providerDiagnosticsRedactPrivateDetails();
     void providerUnsupportedAndCancellationDiagnosticsArePublicSafe();
     void invalidUnsupportedCauseUsesProtocolDiagnostic();
-    void providerDiagnosticsArePlainText();
+    void providerDiagnosticsUseSafeFallback();
     void sessionFactoryDiagnosticsArePublicSafe();
     void emptySessionFactoryDiagnosticUsesSafeFallback();
 };
 
-void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsUseUnicodeScalarLimit()
+void ImageViewportProviderTerminalDiagnosticsTest::
+    providerDiagnosticsAreDiscardedBeforePublicProjection()
 {
     ImageSequenceFactory factory;
     const auto sessionCount = std::make_shared<int>(0);
@@ -65,12 +67,9 @@ void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsUseUnicode
     const char32_t codePoint[] = { 0x1F642 };
     const QString scalar = QString::fromUcs4(codePoint, 1);
     QString diagnostic;
-    QString expected;
     diagnostic.reserve((limit + 1) * scalar.size());
-    expected.reserve(limit * scalar.size());
     for (int i = 0; i < limit; ++i) {
         diagnostic += scalar;
-        expected += scalar;
     }
     diagnostic += scalar;
     diagnostic += QStringLiteral("tail");
@@ -85,8 +84,10 @@ void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsUseUnicode
     drainQueuedProviderResults();
 
     const QString errorString = viewportErrorString(item);
-    QCOMPARE(errorString.toUcs4().size(), limit);
-    QCOMPARE(errorString, expected);
+    QVERIFY(!errorString.isEmpty());
+    QVERIFY(errorString.toUcs4().size() <= limit);
+    QVERIFY(!errorString.contains(scalar));
+    QVERIFY(!errorString.contains(QStringLiteral("tail")));
 }
 
 void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsRedactPrivateDetails()
@@ -111,8 +112,11 @@ void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsRedactPriv
     QVERIFY(sessionFactory->lastSession());
     emitProviderFailed(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
-        QStringLiteral("decoder failed for https://user:secret@example.test/image.png token=abc123 "
-                       "path /home/ops/private/image.png and C:\\Users\\ops\\secret.png"));
+        QStringLiteral(
+            "decoder failed for https://user:secret@example.test/image.png token=abc123 "
+            "path /home/ops/private/image.png and C:\\Users\\ops\\secret.png "
+            "Authorization: Bearer bearer-secret Proxy-Authorization: Basic proxy-secret "
+            "Cookie: session=cookie-secret"));
     drainQueuedProviderResults();
 
     const QString errorString = viewportErrorString(item);
@@ -124,6 +128,9 @@ void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsRedactPriv
     QVERIFY(!errorString.contains(QStringLiteral("token=abc123")));
     QVERIFY(!errorString.contains(QStringLiteral("/home/ops/private")));
     QVERIFY(!errorString.contains(QStringLiteral("C:\\Users\\ops")));
+    QVERIFY(!errorString.contains(QStringLiteral("bearer-secret")));
+    QVERIFY(!errorString.contains(QStringLiteral("proxy-secret")));
+    QVERIFY(!errorString.contains(QStringLiteral("cookie-secret")));
 }
 
 void ImageViewportProviderTerminalDiagnosticsTest::
@@ -158,11 +165,15 @@ void ImageViewportProviderTerminalDiagnosticsTest::
         QVERIFY(!errorString.contains(QStringLiteral("token=abc123")));
         QVERIFY(!errorString.contains(QStringLiteral("/home/ops/private")));
         QVERIFY(!errorString.contains(QStringLiteral("C:\\Users\\ops")));
+        QVERIFY(!errorString.contains(QStringLiteral("bearer-secret")));
+        QVERIFY(!errorString.contains(QStringLiteral("proxy-secret")));
+        QVERIFY(!errorString.contains(QStringLiteral("cookie-secret")));
     };
 
     const QString diagnostic = QStringLiteral(
         "terminal result for https://user:secret@example.test/image.png token=abc123 path "
-        "/home/ops/private/image.png and C:\\Users\\ops\\secret.png");
+        "/home/ops/private/image.png and C:\\Users\\ops\\secret.png Authorization: Bearer "
+        "bearer-secret Proxy-Authorization: Basic proxy-secret Cookie: session=cookie-secret");
     verifyDiagnostic(
         [&diagnostic](CountingProviderSession* session, ImageSequenceProviderRequestToken token) {
             emitProviderUnsupported(session, token,
@@ -211,7 +222,7 @@ void ImageViewportProviderTerminalDiagnosticsTest::invalidUnsupportedCauseUsesPr
     QVERIFY(errorString.size() <= ImageSequenceLimits::maximumDiagnosticCharacters());
 }
 
-void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsArePlainText()
+void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsUseSafeFallback()
 {
     ImageSequenceFactory factory;
     const auto sessionCount = std::make_shared<int>(0);
@@ -251,10 +262,11 @@ void ImageViewportProviderTerminalDiagnosticsTest::sessionFactoryDiagnosticsAreP
     const int limit = ImageSequenceLimits::maximumDiagnosticCharacters();
     const char32_t codePoint[] = { 0x1F642 };
     const QString scalar = QString::fromUcs4(codePoint, 1);
-    QString diagnostic
-        = QStringLiteral("open failed for https://user:secret@example.test/image.png token=abc123 "
-                         "path /home/ops/private/image.png and C:\\Users\\ops\\secret.png "
-                         "<b>retry</b>\n");
+    QString diagnostic = QStringLiteral(
+        "open failed for https://user:secret@example.test/image.png token=abc123 "
+        "path /home/ops/private/image.png and C:\\Users\\ops\\secret.png "
+        "Authorization: Bearer bearer-secret Proxy-Authorization: Basic proxy-secret "
+        "Cookie: session=cookie-secret <b>retry</b>\n");
     diagnostic += scalar.repeated(limit + 1);
 
     DiagnosticFailingSessionAdapter adapter(diagnostic);
@@ -276,6 +288,9 @@ void ImageViewportProviderTerminalDiagnosticsTest::sessionFactoryDiagnosticsAreP
     QVERIFY(!errorString.contains(QStringLiteral("token=abc123")));
     QVERIFY(!errorString.contains(QStringLiteral("/home/ops/private")));
     QVERIFY(!errorString.contains(QStringLiteral("C:\\Users\\ops")));
+    QVERIFY(!errorString.contains(QStringLiteral("bearer-secret")));
+    QVERIFY(!errorString.contains(QStringLiteral("proxy-secret")));
+    QVERIFY(!errorString.contains(QStringLiteral("cookie-secret")));
     QVERIFY(!errorString.contains(QLatin1Char('<')));
     QVERIFY(!errorString.contains(QLatin1Char('>')));
     QVERIFY(!errorString.contains(QLatin1Char('\n')));

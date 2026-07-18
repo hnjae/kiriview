@@ -35,7 +35,7 @@ ViewportProviderRequestTokenAllocationResult allocateViewportProviderRequestToke
     result.changes = recordViewportEngineGenerationTerminal(
         { input.role, ImageViewportRequestStatus::Error,
             ImageViewportRequestReason::ProviderFailure,
-            ImageViewportInternal::PublicDiagnosticText::fromUntrusted(
+            ImageViewportInternal::PublicDiagnosticText::fromTrusted(
                 QStringLiteral("provider request token exhausted")),
             result.changes },
         request);

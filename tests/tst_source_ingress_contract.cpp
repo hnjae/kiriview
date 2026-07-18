@@ -73,8 +73,7 @@ public:
     {
         return ImageSequenceProviderDescriptor(ImageSequenceProviderMetadata::still(QSizeF(4, 2)),
             ImageSequenceProviderThreadingContract::AffinityBound, []() {
-                return ImageSequenceProviderSessionFactoryResult::failed(
-                    QStringLiteral("redacted open failure"));
+                return ImageSequenceProviderSessionFactoryResult::failed();
             });
     }
 };
@@ -233,7 +232,8 @@ void SourceIngressContractTest::providerSessionFactoryFailureIsGenerationScoped(
 
     QCOMPARE(viewport.state().request().status(), ImageViewportRequestStatus::Error);
     QCOMPARE(viewport.state().request().reason(), ImageViewportRequestReason::ProviderFailure);
-    QVERIFY(viewport.state().diagnostics().errorString().contains(
+    QVERIFY(!viewport.state().diagnostics().errorString().isEmpty());
+    QVERIFY(!viewport.state().diagnostics().errorString().contains(
         QStringLiteral("redacted open failure")));
 }
 

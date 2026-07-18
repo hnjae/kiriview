@@ -55,8 +55,7 @@ public:
         case ImageSequenceProviderRequestKind::Cancel:
             for (ImageSequenceProviderRequestToken token : request.tokens()) {
                 m_lastCancelledToken = token;
-                emit providerEvent(
-                    ImageSequenceProviderEvent::cancelled(token, QStringLiteral("cancelled")));
+                emit providerEvent(ImageSequenceProviderEvent::cancelled(token));
             }
             break;
         case ImageSequenceProviderRequestKind::Close:
@@ -606,8 +605,7 @@ bool canUseInstalledProviderSessionSurface()
             } else if (event.kind() == ImageSequenceProviderEventKind::EndOfSequence) {
                 endReceived = event.token() == token;
             } else if (event.kind() == ImageSequenceProviderEventKind::Cancelled) {
-                cancellationReceived
-                    = event.token() == token && event.diagnostic() == QStringLiteral("cancelled");
+                cancellationReceived = event.token() == token;
             }
         });
 
@@ -792,8 +790,7 @@ int main(int argc, char** argv)
         return 1;
     }
     const ImageSequenceProviderEvent unsupportedEvent = ImageSequenceProviderEvent::unsupported(
-        token, ImageSequenceProviderUnsupportedCause::UnsupportedRequest,
-        QStringLiteral("unsupported"));
+        token, ImageSequenceProviderUnsupportedCause::UnsupportedRequest);
     if (!unsupportedEvent.isValid()
         || unsupportedEvent.unsupportedCause()
             != ImageSequenceProviderUnsupportedCause::UnsupportedRequest) {

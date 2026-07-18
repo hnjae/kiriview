@@ -9,9 +9,9 @@ class PublicDiagnosticText
 public:
     PublicDiagnosticText() = default;
 
-    static PublicDiagnosticText fromUntrusted(QString diagnostic);
+    static PublicDiagnosticText fromTrusted(QString diagnostic);
 
-    PublicDiagnosticText withFallback(QString fallback) const;
+    PublicDiagnosticText withTrustedFallback(QString fallback) const;
 
     const QString& text() const { return m_text; }
     bool isEmpty() const { return m_text.isEmpty(); }

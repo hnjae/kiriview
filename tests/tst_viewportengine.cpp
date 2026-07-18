@@ -135,6 +135,7 @@ ViewportProviderEvent providerTerminalEvent(ViewportEngine& engine,
     ImageSequenceProviderRequestToken token, ImageSequenceProviderEventKind kind,
     ImageSequenceProviderUnsupportedCause cause, const QString& diagnostic)
 {
+    Q_UNUSED(diagnostic);
     ViewportProviderEvent event;
     event.kind = kind;
     event.role = ImageViewportPageRole::Primary;
@@ -143,7 +144,6 @@ ViewportProviderEvent providerTerminalEvent(ViewportEngine& engine,
     event.generation = ViewportEngineTestAccess::request(engine).sequenceGeneration;
     event.token = token;
     event.unsupportedCause = cause;
-    event.diagnostic = diagnostic;
     return event;
 }
 
@@ -944,7 +944,8 @@ void ViewportEngineTest::providerTerminalReducerCommitsFrameFailureAtomically()
 
     QCOMPARE(request.status, ImageViewportRequestStatus::Error);
     QCOMPARE(request.reason, ImageViewportRequestReason::ProviderFailure);
-    QCOMPARE(request.errorString.text(), QStringLiteral("frame failed"));
+    QVERIFY(!request.errorString.isEmpty());
+    QVERIFY(!request.errorString.text().contains(QStringLiteral("frame failed")));
     QCOMPARE(ViewportEngineTestAccess::playback(engine).phase, ImageViewportPlaybackPhase::Stopped);
     QCOMPARE(ViewportEngineTestAccess::providerSession(engine, ImageViewportPageRole::Primary)
                  .sessionActive,

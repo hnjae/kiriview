@@ -2,7 +2,6 @@
 
 #include "imagesequencesource_p.h"
 #include "imageviewporttoken_p.h"
-#include "publicdiagnostic_p.h"
 #include "viewportenginecontracts_p.h"
 #include "viewportenginetransition_p.h"
 #include "viewportplaybackcontract_p.h"
@@ -82,16 +81,7 @@ class ViewportEngineProviderHostEventRequest
 public:
     static ViewportEngineProviderHostEventRequest admit(ViewportProviderHostEvent event)
     {
-        QString diagnostic;
-        if (event.kind == ViewportProviderHostEvent::Kind::ProviderEvent) {
-            diagnostic = std::exchange(event.providerEvent.diagnostic, {});
-        } else {
-            diagnostic = std::exchange(event.diagnostic, {});
-        }
-        event.providerEvent.diagnostic.clear();
-        event.diagnostic.clear();
-        return ViewportEngineProviderHostEventRequest(std::move(event),
-            ImageViewportInternal::PublicDiagnosticText::fromUntrusted(std::move(diagnostic)));
+        return ViewportEngineProviderHostEventRequest(std::move(event));
     }
 
     ViewportEngineProviderHostEventRequest(const ViewportEngineProviderHostEventRequest&) = default;
@@ -104,16 +94,12 @@ public:
         = default;
 
     const ViewportProviderHostEvent& event() const { return m_event; }
-    const ImageViewportInternal::PublicDiagnosticText& diagnostic() const { return m_diagnostic; }
 
 private:
-    ViewportEngineProviderHostEventRequest(
-        ViewportProviderHostEvent event, ImageViewportInternal::PublicDiagnosticText diagnostic)
+    explicit ViewportEngineProviderHostEventRequest(ViewportProviderHostEvent event)
         : m_event(std::move(event))
-        , m_diagnostic(std::move(diagnostic))
     {
     }
 
     ViewportProviderHostEvent m_event;
-    ImageViewportInternal::PublicDiagnosticText m_diagnostic;
 };

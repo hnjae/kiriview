@@ -66,7 +66,7 @@ void ImageViewportProviderTerminalTest::providerFrameUnsupportedOperationReports
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(primaryRequestedPosition(item), 0);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("frame operation unsupported")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("frame operation unsupported"));
 }
 
 void ImageViewportProviderTerminalTest::providerPlaybackUnsupportedPayloadReportsPayloadRejection()
@@ -123,7 +123,7 @@ void ImageViewportProviderTerminalTest::providerPlaybackUnsupportedPayloadReport
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryRequestedPosition(item), 100);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("playback payload unsupported")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("playback payload unsupported"));
 }
 
 void ImageViewportProviderTerminalTest::providerMetadataFailureReportsProviderFailure()
@@ -161,7 +161,7 @@ void ImageViewportProviderTerminalTest::providerMetadataFailureReportsProviderFa
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(primaryRequestedPosition(item), -1);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("metadata service unavailable")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("metadata service unavailable"));
 }
 
 void ImageViewportProviderTerminalTest::providerMetadataUnsupportedReportsUnsupportedRequest()
@@ -201,7 +201,7 @@ void ImageViewportProviderTerminalTest::providerMetadataUnsupportedReportsUnsupp
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(primaryRequestedPosition(item), -1);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("unsupported codec")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("unsupported codec"));
 
     const ImageViewportRevisionToken requestRevision
         = revisionTokenProperty(item, "requestRevision");
@@ -276,7 +276,7 @@ void ImageViewportProviderTerminalTest::providerMetadataCancellationReportsProvi
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(primaryRequestedPosition(item), -1);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("metadata cancelled by provider")));
+    verifyUntrustedProviderDiagnostic(item, QStringLiteral("metadata cancelled by provider"));
 }
 
 void ImageViewportProviderTerminalTest::providerMetadataEndOfSequenceReportsProtocolViolation()
