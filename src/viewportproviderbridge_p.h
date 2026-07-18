@@ -17,6 +17,7 @@
 class QObject;
 class ViewportProviderEventEndpoint;
 class ViewportProviderLeaseRegistry;
+class ViewportProviderSessionCleanupRegistry;
 
 class ViewportProviderSessionControl
     : public std::enable_shared_from_this<ViewportProviderSessionControl>
@@ -131,6 +132,7 @@ public:
     void setExecutor(ViewportProviderExecutor& executor);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void failNextCommandDeliveryForTest();
+    void failNextSessionCloseDeliveriesForTest(qsizetype count);
     void useSynchronousEventDeliveryForTest();
     qsizetype retainedEventEndpointCountForTest() const;
 #endif
@@ -138,6 +140,10 @@ public:
 private:
     bool takeForcedDeliveryFailureForTest();
     ViewportProviderExecutor& executor() const;
+    ViewportProviderExecutorOutcome queueSessionClose(
+        const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
+        ImageSequenceProviderRequestToken metadataToken,
+        ImageSequenceProviderRequestToken frameToken);
     void pruneExpiredEventEndpoints();
     ViewportProviderCleanupResult releaseFrameLease(quint64 leaseId);
     void retrySessionCleanup(ViewportProviderCleanupResult& result, bool retryPendingSessions);
@@ -167,6 +173,7 @@ private:
     QPointer<ImageSequenceProviderSession> activeSession;
     QHash<ImageSequenceProviderSession*, SessionRecord> sessions;
     std::shared_ptr<ViewportProviderLeaseRegistry> frameLeaseRegistry;
+    std::shared_ptr<ViewportProviderSessionCleanupRegistry> sessionCleanupRegistry;
     QVector<std::weak_ptr<ViewportProviderEventEndpoint>> eventEndpoints;
     bool forceNextCommandDeliveryFailure = false;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES

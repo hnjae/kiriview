@@ -12,6 +12,7 @@
 #include <QtCore/QTimer>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <memory>
@@ -735,6 +736,161 @@ private:
     bool automaticCleanup = false;
 };
 
+class ViewportProviderSessionCleanupRegistry
+    : public std::enable_shared_from_this<ViewportProviderSessionCleanupRegistry>
+{
+public:
+    struct SessionSnapshot
+    {
+        QPointer<ImageSequenceProviderSession> session;
+        std::shared_ptr<ViewportProviderSessionControl> control;
+        ImageSequenceProviderRequestToken metadataToken;
+        ImageSequenceProviderRequestToken frameToken;
+        bool closeScheduled = false;
+    };
+
+    ViewportProviderSessionCleanupRegistry()
+        : cleanupDispatchTarget(QCoreApplication::instance())
+    {
+    }
+
+    void adopt(SessionSnapshot session)
+    {
+        if (!session.session || !session.control) {
+            return;
+        }
+        const bool needsClose = !session.closeScheduled;
+        {
+            QMutexLocker locker(&mutex);
+            sessions.insert(session.session.data(), std::move(session));
+        }
+        if (needsClose) {
+            scheduleRetry();
+        }
+    }
+
+    void sessionDestroyed(ImageSequenceProviderSession* session)
+    {
+        QMutexLocker locker(&mutex);
+        sessions.remove(session);
+        if (sessions.isEmpty()) {
+            retryDelayIndex = 0;
+        }
+    }
+
+    bool takeForcedCloseFailure()
+    {
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+        QMutexLocker locker(&mutex);
+        if (forcedCloseFailuresRemaining > 0) {
+            --forcedCloseFailuresRemaining;
+            return true;
+        }
+#endif
+        return false;
+    }
+
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+    void failNextCloseDeliveries(qsizetype count)
+    {
+        QMutexLocker locker(&mutex);
+        forcedCloseFailuresRemaining = std::max<qsizetype>(count, 0);
+    }
+#endif
+
+private:
+    static constexpr std::array<int, 5> retryDelays { 0, 10, 50, 250, 1000 };
+
+    bool hasUnscheduledCloseLocked() const
+    {
+        return std::any_of(sessions.cbegin(), sessions.cend(),
+            [](const SessionSnapshot& session) { return !session.closeScheduled; });
+    }
+
+    void scheduleRetry()
+    {
+        std::shared_ptr<ViewportProviderSessionCleanupRegistry> self;
+        QPointer<QObject> target;
+        int delay = 0;
+        {
+            QMutexLocker locker(&mutex);
+            if (retryScheduled || !hasUnscheduledCloseLocked() || !cleanupDispatchTarget) {
+                return;
+            }
+            retryScheduled = true;
+            delay = retryDelays[size_t(retryDelayIndex)];
+            target = cleanupDispatchTarget;
+            self = shared_from_this();
+        }
+        QTimer::singleShot(delay, target, [self]() { self->retryPending(); });
+    }
+
+    void retryPending()
+    {
+        QVector<ImageSequenceProviderSession*> sessionKeys;
+        {
+            QMutexLocker locker(&mutex);
+            retryScheduled = false;
+            sessionKeys.reserve(sessions.size());
+            for (auto it = sessions.cbegin(); it != sessions.cend(); ++it) {
+                if (!it->closeScheduled) {
+                    sessionKeys.append(it.key());
+                }
+            }
+        }
+
+        bool progress = false;
+        bool failed = false;
+        for (ImageSequenceProviderSession* session : std::as_const(sessionKeys)) {
+            SessionSnapshot snapshot;
+            {
+                QMutexLocker locker(&mutex);
+                const auto it = sessions.constFind(session);
+                if (it == sessions.cend() || it->closeScheduled) {
+                    continue;
+                }
+                snapshot = it.value();
+            }
+            const auto outcome = takeForcedCloseFailure()
+                ? ViewportProviderExecutorOutcome::RetryableFailure
+                : qtViewportProviderExecutor().queueSessionClose(
+                      snapshot.control, snapshot.metadataToken, snapshot.frameToken);
+            QMutexLocker locker(&mutex);
+            auto it = sessions.find(session); // clazy:exclude=detaching-member
+            if (it == sessions.end() || it->closeScheduled) {
+                continue;
+            }
+            if (executorAccepted(outcome)) {
+                it->closeScheduled = true;
+                progress = true;
+            } else {
+                failed = true;
+            }
+        }
+
+        {
+            QMutexLocker locker(&mutex);
+            if (progress) {
+                retryDelayIndex = 0;
+            } else if (failed && retryDelayIndex < int(retryDelays.size()) - 1) {
+                ++retryDelayIndex;
+            }
+        }
+        if (failed) {
+            scheduleRetry();
+        }
+    }
+
+    mutable QMutex mutex;
+    QHash<ImageSequenceProviderSession*, SessionSnapshot> sessions;
+    QPointer<QObject> cleanupDispatchTarget;
+    int retryDelayIndex = 0;
+    bool retryScheduled = false;
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+    qsizetype forcedCloseFailuresRemaining = 0;
+#endif
+};
+
 ViewportProviderSessionControl::ViewportProviderSessionControl(
     ImageSequenceProviderSession* session, ImageSequenceProviderThreadingContract threadingContract,
     quint64 generation, quint64 sessionSerial)
@@ -854,6 +1010,7 @@ ViewportProviderBridge::ViewportProviderBridge(ImageViewportPageRole role)
     : role(role)
     , providerExecutor(defaultProviderExecutor())
     , frameLeaseRegistry(std::make_shared<ViewportProviderLeaseRegistry>(providerExecutor))
+    , sessionCleanupRegistry(std::make_shared<ViewportProviderSessionCleanupRegistry>())
 {
 }
 
@@ -866,6 +1023,10 @@ ViewportProviderBridge::~ViewportProviderBridge()
         }
     }
     frameLeaseRegistry->retireAll();
+    for (const SessionRecord& record : std::as_const(sessions)) {
+        sessionCleanupRegistry->adopt({ record.session, record.control, record.metadataToken,
+            record.frameToken, record.lifecycle == SessionLifecycle::Closing });
+    }
 }
 
 ViewportProviderTransportResult ViewportProviderBridge::closeSession(
@@ -897,7 +1058,7 @@ ViewportProviderTransportResult ViewportProviderBridge::closeSession(
     }
 
     result.delivered
-        = executorAccepted(executor().queueSessionClose(record.control, metadataToken, frameToken));
+        = executorAccepted(queueSessionClose(record.control, metadataToken, frameToken));
     if (!result.delivered) {
         result.diagnostic = providerTransportDiagnostic(role,
             ImageViewportInternal::ProviderTransportOperation::Close, metadataToken, frameToken,
@@ -939,10 +1100,12 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
     const auto sessionControl = std::make_shared<ViewportProviderSessionControl>(
         session, input.threadingContract, input.generation, input.sessionSerial);
     const auto eventEndpoint = std::make_shared<ViewportProviderEventEndpoint>(input.eventSink);
-    QObject::connect(session, &QObject::destroyed, session, [session, sessionControl]() {
-        sessionControl->markSessionDestroyed();
-        releaseProviderSession(session);
-    });
+    QObject::connect(session, &QObject::destroyed, session,
+        [session, sessionControl, cleanupRegistry = sessionCleanupRegistry]() {
+            sessionControl->markSessionDestroyed();
+            cleanupRegistry->sessionDestroyed(session);
+            releaseProviderSession(session);
+        });
     activeSession = session;
     sessions.insert(session,
         { session, input.threadingContract, input.generation, input.sessionSerial,
@@ -1057,6 +1220,16 @@ ViewportProviderExecutor& ViewportProviderBridge::executor() const
     return providerExecutor ? *providerExecutor : qtViewportProviderExecutor();
 }
 
+ViewportProviderExecutorOutcome ViewportProviderBridge::queueSessionClose(
+    const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
+    ImageSequenceProviderRequestToken metadataToken, ImageSequenceProviderRequestToken frameToken)
+{
+    if (sessionCleanupRegistry->takeForcedCloseFailure()) {
+        return ViewportProviderExecutorOutcome::RetryableFailure;
+    }
+    return executor().queueSessionClose(sessionControl, metadataToken, frameToken);
+}
+
 void ViewportProviderBridge::pruneExpiredEventEndpoints()
 {
     eventEndpoints.removeIf([](const std::weak_ptr<ViewportProviderEventEndpoint>& endpoint) {
@@ -1149,8 +1322,8 @@ void ViewportProviderBridge::retrySessionCleanup(
         }
         if (recordIt->lifecycle == SessionLifecycle::CleanupPending && retryPendingSessions) {
             const SessionRecord& record = recordIt.value();
-            const auto outcome = executor().queueSessionClose(
-                record.control, record.metadataToken, record.frameToken);
+            const auto outcome
+                = queueSessionClose(record.control, record.metadataToken, record.frameToken);
             if (!executorAccepted(outcome)) {
                 result.diagnostics.append(providerTransportDiagnostic(role,
                     ImageViewportInternal::ProviderTransportOperation::Close, record.metadataToken,
@@ -1180,6 +1353,11 @@ bool ViewportProviderBridge::takeForcedDeliveryFailureForTest()
 void ViewportProviderBridge::failNextCommandDeliveryForTest()
 {
     forceNextCommandDeliveryFailure = true;
+}
+
+void ViewportProviderBridge::failNextSessionCloseDeliveriesForTest(qsizetype count)
+{
+    sessionCleanupRegistry->failNextCloseDeliveries(count);
 }
 
 void ViewportProviderBridge::useSynchronousEventDeliveryForTest()

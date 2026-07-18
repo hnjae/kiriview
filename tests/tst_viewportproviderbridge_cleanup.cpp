@@ -6,6 +6,7 @@
 #include <QtCore/QEvent>
 #include <QtCore/QPointer>
 #include <QtCore/QScopeGuard>
+#include <QtCore/QSemaphore>
 #include <QtCore/QThread>
 #include <QtGui/QImage>
 #include <QtTest/QTest>
@@ -28,6 +29,30 @@ public:
     }
 
     int closeCount = 0;
+};
+
+class TrackedCleanupSession final // clazy:exclude=missing-qobject-macro
+    : public ImageSequenceProviderSession
+{
+public:
+    TrackedCleanupSession(std::atomic<int>& closeCount, std::atomic<QThread*>& destructionThread)
+        : m_closeCount(closeCount)
+        , m_destructionThread(destructionThread)
+    {
+    }
+
+    ~TrackedCleanupSession() override { m_destructionThread.store(QThread::currentThread()); }
+
+    void request(const ImageSequenceProviderRequest& request) override
+    {
+        if (request.kind() == ImageSequenceProviderRequestKind::Close) {
+            m_closeCount.fetch_add(1);
+        }
+    }
+
+private:
+    std::atomic<int>& m_closeCount;
+    std::atomic<QThread*>& m_destructionThread;
 };
 
 class IngressSession final // clazy:exclude=missing-qobject-macro
@@ -178,6 +203,8 @@ public:
 
 private slots:
     void releaseFailureRetainsLeaseUntilRetrySucceeds();
+    void pendingSessionCleanupSurvivesBridgeDestruction();
+    void scheduledCloseIsNotDuplicatedAfterBridgeDestruction();
     void completedSessionsDoNotAccumulateEventEndpoints();
     void queuedEndpointRemainsRevocableAfterSessionCleanup();
     void activeAdvisoryBurstIsCoalescedAheadOfTerminal();
@@ -225,6 +252,93 @@ void ViewportProviderBridgeCleanupTest::releaseFailureRetainsLeaseUntilRetrySucc
     QVERIFY(!fixture.handle);
     QVERIFY(!fixture.session);
     QVERIFY(!fixture.bridge.hasPendingCleanup());
+}
+
+void ViewportProviderBridgeCleanupTest::pendingSessionCleanupSurvivesBridgeDestruction()
+{
+    QThread workerThread;
+    workerThread.start();
+    const auto workerCleanup = qScopeGuard([&workerThread]() {
+        workerThread.quit();
+        workerThread.wait(1000);
+    });
+
+    std::atomic<int> closeCount { 0 };
+    std::atomic<QThread*> destructionThread { nullptr };
+    QPointer<TrackedCleanupSession> session;
+    auto factory = std::make_shared<ImageSequenceProviderSessionFactory>([&]() {
+        auto* created = new TrackedCleanupSession(closeCount, destructionThread);
+        created->moveToThread(&workerThread);
+        session = created;
+        return ImageSequenceProviderSessionFactoryResult::created(created);
+    });
+    QObject callbackTarget;
+    auto bridge = std::make_unique<ViewportProviderBridge>();
+    const auto opened
+        = bridge->openSession({ factory, ImageSequenceProviderThreadingContract::AffinityBound, 17,
+            23, &callbackTarget, [](const ViewportProviderEvent&) { } });
+    QVERIFY(opened.opened);
+    QVERIFY(session);
+
+    bridge->failNextSessionCloseDeliveriesForTest(3);
+    QVERIFY(!bridge->closeSession({}, {}).delivered);
+    QVERIFY(bridge->drainCleanup().pending);
+
+    bridge.reset();
+
+    QVERIFY(session);
+    QTRY_VERIFY_WITH_TIMEOUT(!session, 3000);
+    QCOMPARE(closeCount.load(), 1);
+    QCOMPARE(destructionThread.load(), &workerThread);
+}
+
+void ViewportProviderBridgeCleanupTest::scheduledCloseIsNotDuplicatedAfterBridgeDestruction()
+{
+    QThread workerThread;
+    workerThread.start();
+    const auto workerCleanup = qScopeGuard([&workerThread]() {
+        workerThread.quit();
+        workerThread.wait(1000);
+    });
+    QSemaphore workerBlocked;
+    QSemaphore releaseWorker;
+    QObject workerMarker;
+    workerMarker.moveToThread(&workerThread);
+    QVERIFY(QMetaObject::invokeMethod(
+        &workerMarker,
+        [&]() {
+            workerBlocked.release();
+            releaseWorker.acquire();
+        },
+        Qt::QueuedConnection));
+    workerBlocked.acquire();
+    const auto unblockWorker = qScopeGuard([&releaseWorker]() { releaseWorker.release(); });
+
+    std::atomic<int> closeCount { 0 };
+    std::atomic<QThread*> destructionThread { nullptr };
+    QPointer<TrackedCleanupSession> session;
+    auto factory = std::make_shared<ImageSequenceProviderSessionFactory>([&]() {
+        auto* created = new TrackedCleanupSession(closeCount, destructionThread);
+        created->moveToThread(&workerThread);
+        session = created;
+        return ImageSequenceProviderSessionFactoryResult::created(created);
+    });
+    QObject callbackTarget;
+    auto bridge = std::make_unique<ViewportProviderBridge>();
+    const auto opened
+        = bridge->openSession({ factory, ImageSequenceProviderThreadingContract::AffinityBound, 31,
+            47, &callbackTarget, [](const ViewportProviderEvent&) { } });
+    QVERIFY(opened.opened);
+    QVERIFY(session);
+    QVERIFY(bridge->closeSession({}, {}).delivered);
+
+    bridge.reset();
+
+    QVERIFY(session);
+    releaseWorker.release();
+    QTRY_VERIFY_WITH_TIMEOUT(!session, 3000);
+    QCOMPARE(closeCount.load(), 1);
+    QCOMPARE(destructionThread.load(), &workerThread);
 }
 
 void ViewportProviderBridgeCleanupTest::completedSessionsDoNotAccumulateEventEndpoints()
