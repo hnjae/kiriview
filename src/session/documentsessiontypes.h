@@ -86,6 +86,21 @@ struct DocumentSessionPublicProjection
     bool displayedFileDeletionAvailable = false;
 };
 
+struct DocumentSessionActionStateSnapshot
+{
+    DocumentSessionActionAvailabilityFacts availability;
+    bool displayedMediaOpenWithAvailable = false;
+    bool displayedFileDeletionAvailable = false;
+    bool fileDeletionInProgress = false;
+    ActiveNavigationSnapshot activeNavigation;
+    ActiveNavigationBoundaryScope activeNavigationBoundaryScope
+        = ActiveNavigationBoundaryScope::None;
+    bool imagePannable = false;
+    bool videoMode = false;
+    bool videoSeekable = false;
+    qint64 videoDuration = 0;
+};
+
 struct DocumentSessionPublicSnapshot
 {
     quint64 revision = 0;
@@ -103,6 +118,7 @@ struct DocumentSessionPublicSnapshot
     bool activeVideoControlsReady = false;
     DocumentSessionActionAvailabilityFacts actionAvailability;
     DocumentSessionPublicProjection projection;
+    DocumentSessionActionStateSnapshot actionState;
     MediaInformationProjectionSnapshot mediaInformation;
     ActiveNavigationRevealIntent activeNavigationRevealIntent = ActiveNavigationRevealIntent::None;
     ActiveNavigationRevealDirection activeNavigationRevealDirection

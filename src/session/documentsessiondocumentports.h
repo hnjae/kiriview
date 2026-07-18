@@ -12,6 +12,7 @@
 #include "predecode/predecodedimage.h"
 #include "rendering/staticimage.h"
 #include "session/activenavigationprojection.h"
+#include "session/documentsessiontypes.h"
 #include "system/filedeletion.h"
 #include "video/videoplaybacksource.h"
 
@@ -54,6 +55,7 @@ struct DocumentSessionImageDocumentSnapshot
     bool fitModeSelected = false;
     bool fitHeightModeSelected = false;
     bool fitWidthModeSelected = false;
+    bool viewportPannable = false;
     bool zoomPercentKnown = false;
     qreal zoomPercent = 0.0;
     EmbeddedMetadata embeddedMetadata;
@@ -109,6 +111,8 @@ struct DocumentSessionVideoDocumentSnapshot
     bool ready = false;
     bool error = false;
     bool hasVideo = false;
+    bool videoSeekable = false;
+    qint64 videoDuration = 0;
     bool zoomPercentKnown = false;
     int zoomPercent = 0;
     EmbeddedMetadata embeddedMetadata;
@@ -117,6 +121,12 @@ struct DocumentSessionVideoDocumentSnapshot
 struct DocumentSessionVideoDocumentSnapshotPort
 {
     std::function<DocumentSessionVideoDocumentSnapshot()> snapshot;
+    DocumentSessionSnapshotConnector snapshotChanged;
+};
+
+struct DocumentSessionActionStateSnapshotPort
+{
+    std::function<DocumentSessionActionStateSnapshot()> snapshot;
     DocumentSessionSnapshotConnector snapshotChanged;
 };
 

@@ -20,7 +20,6 @@
 namespace kiriview::ApplicationActions {
 class ApplicationActionSourceAttachment;
 class KiriViewApplicationActionHost;
-class KiriViewApplicationActionStateSource;
 class KiriViewApplicationCommandPortSource;
 class ApplicationActionRuntime;
 class ApplicationShortcutRuntime;
@@ -180,8 +179,6 @@ private:
     void readApplicationActionSettings();
 
     std::unique_ptr<kiriview::ApplicationActions::KiriViewApplicationActionHost> m_actionHost;
-    std::unique_ptr<kiriview::ApplicationActions::KiriViewApplicationActionStateSource>
-        m_actionStateSource;
     std::unique_ptr<kiriview::ApplicationActions::KiriViewApplicationCommandPortSource>
         m_commandPortSource;
     std::unique_ptr<kiriview::ApplicationActions::ApplicationActionRuntime> m_actionRuntime;

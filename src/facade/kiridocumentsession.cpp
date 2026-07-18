@@ -13,6 +13,7 @@
 #include "session/activenavigationthumbnaildemand.h"
 #include "session/thumbnailimagestore.h"
 
+#include <QPointer>
 #include <QVariantMap>
 #include <memory>
 #include <optional>
@@ -81,6 +82,7 @@ kiriview::DocumentSessionImageDocumentSnapshot imageDocumentSessionSnapshot(
         document.zoomMode() == KiriImageDocument::ZoomMode::Fit,
         document.zoomMode() == KiriImageDocument::ZoomMode::FitHeight,
         document.zoomMode() == KiriImageDocument::ZoomMode::FitWidth,
+        document.viewportPannable(),
         document.zoomPercentKnown(),
         document.zoomPercent(),
         document.embeddedMetadata(),
@@ -104,6 +106,8 @@ kiriview::DocumentSessionVideoDocumentSnapshot videoDocumentSessionSnapshot(
         document.status() == KiriVideoDocument::Status::Ready,
         document.status() == KiriVideoDocument::Status::Error,
         document.hasVideo(),
+        document.playbackControls()->timelineInteractive(),
+        static_cast<qint64>(document.playbackControls()->sliderMaximumMsec()),
         document.zoomPercentKnown(),
         document.zoomPercent(),
         document.embeddedMetadata(),
@@ -620,6 +624,31 @@ const kiriview::MediaInformationProjectionSnapshot&
 KiriDocumentSession::mediaInformationSnapshot() const
 {
     return m_runtime->mediaInformationSnapshot();
+}
+
+const kiriview::DocumentSessionActionStateSnapshot& KiriDocumentSession::actionStateSnapshot() const
+{
+    return m_runtime->actionStateSnapshot();
+}
+
+kiriview::DocumentSessionActionStateSnapshotPort KiriDocumentSession::actionStateSnapshotPort()
+{
+    QPointer<KiriDocumentSession> session(this);
+    return kiriview::DocumentSessionActionStateSnapshotPort {
+        [session]() {
+            return session == nullptr ? kiriview::DocumentSessionActionStateSnapshot {}
+                                      : session->actionStateSnapshot();
+        },
+        [session](QObject* context, kiriview::DocumentSessionSnapshotChangeHandler refresh) {
+            if (session == nullptr) {
+                return std::vector<QMetaObject::Connection> {};
+            }
+
+            return std::vector<QMetaObject::Connection> { QObject::connect(session,
+                &KiriDocumentSession::publicProjectionRevisionChanged, context,
+                [refresh = std::move(refresh)]() { refresh(); }) };
+        },
+    };
 }
 
 const kiriview::DocumentSessionActionAvailabilityFacts&

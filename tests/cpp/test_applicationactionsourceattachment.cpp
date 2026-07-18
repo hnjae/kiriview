@@ -4,6 +4,7 @@
 #include "application/applicationactionhost.h"
 #include "application/applicationactionruntime.h"
 #include "application/applicationactionsourceattachment.h"
+#include "session/documentsessiondocumentports.h"
 
 #include <KirigamiActionCollection>
 #include <QApplication>
@@ -39,27 +40,25 @@ public:
     KirigamiActionCollection collection;
 };
 
-class FakeActionStateSource final : public QObject, public Actions::ApplicationActionStateSource
+class FakeDocumentSessionActionStateSource final : public QObject
 {
     Q_OBJECT
 
 public:
-    Actions::ApplicationActionStateSnapshot actionStateSnapshot() const override
+    kiriview::DocumentSessionActionStateSnapshotPort snapshotPort()
     {
-        return snapshot;
+        return kiriview::DocumentSessionActionStateSnapshotPort {
+            [this]() { return snapshot; },
+            [this](QObject* context, std::function<void()> refresh) {
+                ++connectCount;
+                return std::vector<QMetaObject::Connection> { QObject::connect(this,
+                    &FakeDocumentSessionActionStateSource::changed, context,
+                    [refresh = std::move(refresh)]() { refresh(); }) };
+            },
+        };
     }
 
-    std::vector<QMetaObject::Connection> connectActionStateChanged(
-        QObject* context, std::function<void()> refresh) override
-    {
-        ++connectCount;
-        std::vector<QMetaObject::Connection> connections;
-        connections.push_back(QObject::connect(this, &FakeActionStateSource::changed, context,
-            [refresh = std::move(refresh)]() { refresh(); }));
-        return connections;
-    }
-
-    Actions::ApplicationActionStateSnapshot snapshot;
+    kiriview::DocumentSessionActionStateSnapshot snapshot;
     int connectCount = 0;
 
 Q_SIGNALS:
@@ -72,18 +71,18 @@ class TestApplicationActionSourceAttachment : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
-    void sourceSignalCommitsSnapshotToRuntime();
-    void sourceReplacementDisconnectsPreviousSource();
+    void sessionSnapshotSignalCommitsSnapshotToRuntime();
+    void sessionSourceReplacementDisconnectsPreviousSource();
 };
 
-void TestApplicationActionSourceAttachment::sourceSignalCommitsSnapshotToRuntime()
+void TestApplicationActionSourceAttachment::sessionSnapshotSignalCommitsSnapshotToRuntime()
 {
     FakeApplicationActionHost host;
     Actions::ApplicationActionRuntime runtime(host);
     Actions::ApplicationActionSourceAttachment attachment(runtime, host.object);
-    FakeActionStateSource source;
+    FakeDocumentSessionActionStateSource source;
 
-    attachment.setSource(&source);
+    attachment.setDocumentSessionSnapshotPort(source.snapshotPort());
 
     QCOMPARE(source.connectCount, 1);
     QCOMPARE(runtime.actionStateRevision(), 1);
@@ -98,16 +97,16 @@ void TestApplicationActionSourceAttachment::sourceSignalCommitsSnapshotToRuntime
     QVERIFY(input.imagePannable);
 }
 
-void TestApplicationActionSourceAttachment::sourceReplacementDisconnectsPreviousSource()
+void TestApplicationActionSourceAttachment::sessionSourceReplacementDisconnectsPreviousSource()
 {
     FakeApplicationActionHost host;
     Actions::ApplicationActionRuntime runtime(host);
     Actions::ApplicationActionSourceAttachment attachment(runtime, host.object);
-    FakeActionStateSource firstSource;
-    FakeActionStateSource secondSource;
+    FakeDocumentSessionActionStateSource firstSource;
+    FakeDocumentSessionActionStateSource secondSource;
 
-    attachment.setSource(&firstSource);
-    attachment.setSource(&secondSource);
+    attachment.setDocumentSessionSnapshotPort(firstSource.snapshotPort());
+    attachment.setDocumentSessionSnapshotPort(secondSource.snapshotPort());
     const int revisionAfterReplacement = runtime.actionStateRevision();
 
     firstSource.snapshot.videoMode = true;

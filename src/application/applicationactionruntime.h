@@ -29,33 +29,22 @@ struct ActionDefinition;
 class ApplicationCommandPortSource;
 class ApplicationShortcutRuntime;
 
-struct ApplicationActionStateSnapshot
+struct ApplicationActionUiGateSnapshot
 {
-    quint64 uiGateRevision = 0;
-    kiriview::DocumentSessionActionAvailabilityFacts sessionActionAvailability;
-    bool displayedMediaOpenWithAvailable = false;
-    bool displayedFileDeletionAvailable = false;
-    bool fileDeletionInProgress = false;
-    bool activeNavigationAvailable = false;
-    bool activeNavigationKnown = false;
-    bool activeNavigationHasTargets = false;
-    bool canOpenPreviousActiveNavigation = false;
-    bool canOpenNextActiveNavigation = false;
-    bool directMediaNavigationBoundaryActive = false;
-    bool activeNavigationDispatchAvailable = false;
-    bool imageDocumentPageNavigationActive = false;
-    bool atKnownFirstActiveNavigation = false;
-    bool videoMode = false;
-    bool videoSeekable = false;
-    qint64 videoDuration = 0;
     bool helpDialogOpen = false;
     bool textInputFocused = false;
-    bool imagePannable = false;
     bool infoPanelVisible = false;
     bool thumbnailPanelVisible = false;
     bool fullscreen = false;
     bool applicationMenuShortcutEnabled = false;
     bool showMenubarActionEnabled = true;
+};
+
+struct ApplicationActionStateSnapshot
+{
+    quint64 uiGateRevision = 0;
+    kiriview::DocumentSessionActionStateSnapshot documentSession;
+    ApplicationActionUiGateSnapshot uiGates;
 };
 
 class ApplicationActionRuntime final

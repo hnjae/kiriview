@@ -5,58 +5,34 @@
 #define KIRIVIEW_APPLICATIONACTIONSOURCEATTACHMENT_H
 
 #include "applicationactionruntime.h"
+#include "session/documentsessiondocumentports.h"
 
 #include <QMetaObject>
 #include <QObject>
 #include <QPointer>
 #include <QtGlobal>
-#include <functional>
 #include <vector>
 
 namespace kiriview::ApplicationActions {
-struct ApplicationActionUiGateSnapshot
-{
-    bool helpDialogOpen = false;
-    bool textInputFocused = false;
-    bool infoPanelVisible = false;
-    bool thumbnailPanelVisible = false;
-    bool fullscreen = false;
-    bool applicationMenuShortcutEnabled = false;
-    bool showMenubarActionEnabled = true;
-};
-
-class ApplicationActionStateSource
-{
-public:
-    ApplicationActionStateSource() = default;
-
-public:
-    virtual ~ApplicationActionStateSource();
-
-    virtual ApplicationActionStateSnapshot actionStateSnapshot() const = 0;
-    virtual std::vector<QMetaObject::Connection> connectActionStateChanged(
-        QObject* context, std::function<void()> refresh)
-        = 0;
-    Q_DISABLE_COPY(ApplicationActionStateSource)
-};
-
 class ApplicationActionSourceAttachment final
 {
 public:
     ApplicationActionSourceAttachment(ApplicationActionRuntime& runtime, QObject& context);
     ~ApplicationActionSourceAttachment();
 
-    void setSource(ApplicationActionStateSource* source);
-    void reattach();
-    void refresh();
+    void setDocumentSessionSnapshotPort(DocumentSessionActionStateSnapshotPort source);
+    void setUiGateSnapshot(ApplicationActionUiGateSnapshot snapshot);
 
 private:
     void connectSource();
     void disconnectSource();
+    void refresh();
 
     ApplicationActionRuntime& m_runtime;
     QPointer<QObject> m_context;
-    ApplicationActionStateSource* m_source = nullptr;
+    DocumentSessionActionStateSnapshotPort m_source;
+    ApplicationActionUiGateSnapshot m_uiGateSnapshot;
+    quint64 m_uiGateRevision = 0;
     std::vector<QMetaObject::Connection> m_connections;
 };
 }

@@ -16,7 +16,7 @@ private Q_SLOTS:
     void publicSignalPlansReturnSignalsInEmissionOrder();
     void publicSignalBatchPlansDeduplicateDerivedSignalsInEmissionOrder();
     void emitterDispatchesChangeSignalsInProjectionOrder();
-    void emitterSkipsSessionSnapshotForUnrelatedChanges();
+    void emitterCommitsSessionSnapshotForViewportActionFact();
 };
 
 namespace {
@@ -166,7 +166,7 @@ void TestImageDocumentPublicSignals::emitterDispatchesChangeSignalsInProjectionO
     QCOMPARE(events, QStringList({ QStringLiteral("displaySource") }));
 }
 
-void TestImageDocumentPublicSignals::emitterSkipsSessionSnapshotForUnrelatedChanges()
+void TestImageDocumentPublicSignals::emitterCommitsSessionSnapshotForViewportActionFact()
 {
     QStringList events;
     const kiriview::ImageDocumentPublicSignalEmitter emitter(recordingOperations(events));
@@ -176,6 +176,7 @@ void TestImageDocumentPublicSignals::emitterSkipsSessionSnapshotForUnrelatedChan
 
     QCOMPARE(events,
         QStringList({
+            QStringLiteral("sessionSnapshot"),
             QStringLiteral("viewportFrame"),
             QStringLiteral("displaySource"),
             QStringLiteral("rotationDegrees"),

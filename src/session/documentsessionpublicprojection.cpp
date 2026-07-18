@@ -228,6 +228,27 @@ kiriview::MediaInformationProjectionInput mediaInformationInputForSnapshotInput(
     mediaInformationInput.videoEmbeddedMetadata = input.video.embeddedMetadata;
     return mediaInformationInput;
 }
+
+kiriview::DocumentSessionActionStateSnapshot actionStateSnapshotForInput(
+    const kiriview::DocumentSessionPublicSnapshotInput& input,
+    const kiriview::DocumentSessionPublicSnapshot& publicSnapshot)
+{
+    kiriview::DocumentSessionActionStateSnapshot snapshot;
+    snapshot.availability = publicSnapshot.actionAvailability;
+    snapshot.displayedMediaOpenWithAvailable
+        = publicSnapshot.projection.displayedMediaOpenWithAvailable;
+    snapshot.displayedFileDeletionAvailable
+        = publicSnapshot.projection.displayedFileDeletionAvailable;
+    snapshot.fileDeletionInProgress = input.session.fileDeletionInProgress;
+    snapshot.activeNavigation = publicSnapshot.projection.activeNavigation;
+    snapshot.activeNavigationBoundaryScope = publicSnapshot.projection.boundaryScope;
+    snapshot.imagePannable = input.session.documentKind == kiriview::DocumentSessionKind::Image
+        && input.image.viewportPannable;
+    snapshot.videoMode = input.session.documentKind == kiriview::DocumentSessionKind::Video;
+    snapshot.videoSeekable = snapshot.videoMode && input.video.videoSeekable;
+    snapshot.videoDuration = snapshot.videoMode ? input.video.videoDuration : 0;
+    return snapshot;
+}
 }
 
 namespace kiriview {
@@ -275,6 +296,7 @@ DocumentSessionPublicSnapshot projectDocumentSessionPublicSnapshot(
     snapshot.activeVideoControlsReady = activeVideoControlsReadyForInput(input);
     snapshot.actionAvailability = actionAvailabilityFactsForInput(input);
     snapshot.projection = projectDocumentSessionPublicState(projectionInputForSnapshotInput(input));
+    snapshot.actionState = actionStateSnapshotForInput(input, snapshot);
     snapshot.mediaInformation
         = projectMediaInformation(mediaInformationInputForSnapshotInput(input), revision);
     snapshot.activeNavigationRevealIntent = input.session.activeNavigationRevealIntent;

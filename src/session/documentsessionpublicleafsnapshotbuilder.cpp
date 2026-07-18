@@ -38,6 +38,7 @@ DocumentSessionPublicImageLeafSnapshot buildDocumentSessionPublicImageLeafSnapsh
     snapshot.fitModeSelected = leafSnapshot.fitModeSelected;
     snapshot.fitHeightModeSelected = leafSnapshot.fitHeightModeSelected;
     snapshot.fitWidthModeSelected = leafSnapshot.fitWidthModeSelected;
+    snapshot.viewportPannable = leafSnapshot.viewportPannable;
     snapshot.zoomPercentKnown = leafSnapshot.zoomPercentKnown;
     snapshot.zoomPercent = leafSnapshot.zoomPercent;
     snapshot.errorString = leafSnapshot.errorString;
@@ -58,6 +59,8 @@ DocumentSessionPublicVideoLeafSnapshot buildDocumentSessionPublicVideoLeafSnapsh
     snapshot.hasVideo = leafSnapshot.hasVideo;
     snapshot.sourcePresent = !snapshot.sourceUrl.isEmpty();
     snapshot.error = leafSnapshot.error;
+    snapshot.videoSeekable = leafSnapshot.videoSeekable;
+    snapshot.videoDuration = leafSnapshot.videoDuration;
     snapshot.zoomPercentKnown = leafSnapshot.zoomPercentKnown;
     snapshot.zoomPercent = leafSnapshot.zoomPercent;
     snapshot.errorString = leafSnapshot.errorString;

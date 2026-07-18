@@ -24,6 +24,7 @@ private Q_SLOTS:
     void deletionProgressSuppressesDeletionAvailability();
     void pendingImageNavigationKeepsVisibleImageInformationWithoutReadyAffordances();
     void publicSnapshotProjectsRevisionedMixedMediaState();
+    void actionStateSnapshotCommitsSessionImageAndVideoFacts();
 };
 
 void TestDocumentSessionPublicProjection::emptySessionProjectsUnavailableNavigationAndEmptyTitle()
@@ -362,6 +363,46 @@ void TestDocumentSessionPublicProjection::publicSnapshotProjectsRevisionedMixedM
     QCOMPARE(snapshot.projection.windowTitleSubject, QStringLiteral("clip.mp4 – 1920×1080"));
     QVERIFY(snapshot.projection.displayedFileDeletionAvailable);
     QVERIFY(snapshot.projection.displayedMediaOpenWithAvailable);
+}
+
+void TestDocumentSessionPublicProjection::actionStateSnapshotCommitsSessionImageAndVideoFacts()
+{
+    kiriview::DocumentSessionPublicSnapshotInput input;
+    input.session.documentKind = kiriview::DocumentSessionKind::Image;
+    input.session.fileDeletionInProgress = true;
+    input.image.readyForInformation = true;
+    input.image.viewportPannable = true;
+    input.image.pageNavigation = kiriview::ImageDocumentPageActiveNavigationSnapshot {
+        true,
+        true,
+        false,
+        true,
+        false,
+        1,
+        3,
+    };
+
+    kiriview::DocumentSessionPublicSnapshot snapshot
+        = kiriview::projectDocumentSessionPublicSnapshot(input, 12);
+
+    QVERIFY(snapshot.actionState.availability.imageReady);
+    QVERIFY(snapshot.actionState.fileDeletionInProgress);
+    QVERIFY(snapshot.actionState.imagePannable);
+    QVERIFY(!snapshot.actionState.videoMode);
+    QCOMPARE(snapshot.actionState.activeNavigation.currentNumber, 1);
+    QCOMPARE(snapshot.actionState.activeNavigationBoundaryScope,
+        kiriview::ActiveNavigationBoundaryScope::ImageDocumentPage);
+
+    input.session.documentKind = kiriview::DocumentSessionKind::Video;
+    input.session.fileDeletionInProgress = false;
+    input.video.videoSeekable = true;
+    input.video.videoDuration = 42'000;
+
+    snapshot = kiriview::projectDocumentSessionPublicSnapshot(input, 13);
+
+    QVERIFY(snapshot.actionState.videoMode);
+    QVERIFY(snapshot.actionState.videoSeekable);
+    QCOMPARE(snapshot.actionState.videoDuration, qint64(42'000));
 }
 
 QTEST_GUILESS_MAIN(TestDocumentSessionPublicProjection)

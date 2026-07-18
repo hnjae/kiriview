@@ -77,6 +77,20 @@ bool sameActionAvailabilityFacts(kiriview::DocumentSessionActionAvailabilityFact
         && left.fitWidthModeSelected == right.fitWidthModeSelected;
 }
 
+bool sameDocumentSessionActionStateSnapshot(
+    const kiriview::DocumentSessionActionStateSnapshot& left,
+    const kiriview::DocumentSessionActionStateSnapshot& right)
+{
+    return sameActionAvailabilityFacts(left.availability, right.availability)
+        && left.displayedMediaOpenWithAvailable == right.displayedMediaOpenWithAvailable
+        && left.displayedFileDeletionAvailable == right.displayedFileDeletionAvailable
+        && left.fileDeletionInProgress == right.fileDeletionInProgress
+        && sameActiveNavigationSnapshot(left.activeNavigation, right.activeNavigation)
+        && left.activeNavigationBoundaryScope == right.activeNavigationBoundaryScope
+        && left.imagePannable == right.imagePannable && left.videoMode == right.videoMode
+        && left.videoSeekable == right.videoSeekable && left.videoDuration == right.videoDuration;
+}
+
 bool samePublicProjection(const kiriview::DocumentSessionPublicProjection& left,
     const kiriview::DocumentSessionPublicProjection& right)
 {
@@ -104,6 +118,7 @@ bool samePublicSnapshot(const kiriview::DocumentSessionPublicSnapshot& left,
         && left.activeVideoControlsReady == right.activeVideoControlsReady
         && sameActionAvailabilityFacts(left.actionAvailability, right.actionAvailability)
         && samePublicProjection(left.projection, right.projection)
+        && sameDocumentSessionActionStateSnapshot(left.actionState, right.actionState)
         && kiriview::sameMediaInformationProjectionSnapshot(
             left.mediaInformation, right.mediaInformation)
         && left.activeNavigationRevealIntent == right.activeNavigationRevealIntent

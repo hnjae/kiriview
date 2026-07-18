@@ -65,7 +65,17 @@ KiriVideoDocument::KiriVideoDocument(
         std::unique_ptr<kiriview::VideoPlaybackUrlResolver>(),
         kiriview::VideoDocumentRuntime::MediaBackendFactory {},
         std::move(playbackControlTimerScheduler),
-        [this](const kiriview::VideoPlaybackControlProjection&) {
+        [this](const kiriview::VideoPlaybackControlProjection& projection) {
+            const qint64 videoDuration = static_cast<qint64>(projection.sliderMaximumMsec);
+            const bool actionStateChanged = !m_playbackControlActionStateKnown
+                || m_videoSeekable != projection.timelineInteractive
+                || m_videoDuration != videoDuration;
+            m_playbackControlActionStateKnown = true;
+            m_videoSeekable = projection.timelineInteractive;
+            m_videoDuration = videoDuration;
+            if (actionStateChanged) {
+                Q_EMIT documentSessionSnapshotChanged();
+            }
             Q_EMIT m_playbackControls->projectionChanged();
         });
 }

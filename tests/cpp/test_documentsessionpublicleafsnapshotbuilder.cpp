@@ -38,6 +38,7 @@ void TestDocumentSessionPublicLeafSnapshotBuilder::buildsImageLeafSnapshotFromCo
     leaf.fitModeSelected = true;
     leaf.fitHeightModeSelected = true;
     leaf.fitWidthModeSelected = true;
+    leaf.viewportPannable = true;
     leaf.zoomPercentKnown = true;
     leaf.zoomPercent = 125.0;
     leaf.errorString = QStringLiteral("image error");
@@ -70,6 +71,7 @@ void TestDocumentSessionPublicLeafSnapshotBuilder::buildsImageLeafSnapshotFromCo
     QVERIFY(snapshot.fitModeSelected);
     QVERIFY(snapshot.fitHeightModeSelected);
     QVERIFY(snapshot.fitWidthModeSelected);
+    QVERIFY(snapshot.viewportPannable);
     QVERIFY(snapshot.zoomPercentKnown);
     QCOMPARE(snapshot.zoomPercent, 125.0);
     QCOMPARE(snapshot.errorString, QStringLiteral("image error"));
@@ -84,6 +86,8 @@ void TestDocumentSessionPublicLeafSnapshotBuilder::buildsVideoLeafSnapshotFromCo
     leaf.ready = true;
     leaf.error = true;
     leaf.hasVideo = true;
+    leaf.videoSeekable = true;
+    leaf.videoDuration = 42'000;
     leaf.zoomPercentKnown = true;
     leaf.zoomPercent = 75;
     leaf.errorString = QStringLiteral("video error");
@@ -98,6 +102,8 @@ void TestDocumentSessionPublicLeafSnapshotBuilder::buildsVideoLeafSnapshotFromCo
     QVERIFY(snapshot.error);
     QVERIFY(snapshot.hasVideo);
     QVERIFY(snapshot.sourcePresent);
+    QVERIFY(snapshot.videoSeekable);
+    QCOMPARE(snapshot.videoDuration, 42'000);
     QVERIFY(snapshot.zoomPercentKnown);
     QCOMPARE(snapshot.zoomPercent, 75);
     QCOMPARE(snapshot.errorString, QStringLiteral("video error"));

@@ -3,9 +3,9 @@
 
 #include "applicationactionsourceattachment.h"
 
-namespace kiriview::ApplicationActions {
-ApplicationActionStateSource::~ApplicationActionStateSource() = default;
+#include <utility>
 
+namespace kiriview::ApplicationActions {
 ApplicationActionSourceAttachment::ApplicationActionSourceAttachment(
     ApplicationActionRuntime& runtime, QObject& context)
     : m_runtime(runtime)
@@ -15,42 +15,40 @@ ApplicationActionSourceAttachment::ApplicationActionSourceAttachment(
 
 ApplicationActionSourceAttachment::~ApplicationActionSourceAttachment() { disconnectSource(); }
 
-void ApplicationActionSourceAttachment::setSource(ApplicationActionStateSource* source)
+void ApplicationActionSourceAttachment::setDocumentSessionSnapshotPort(
+    DocumentSessionActionStateSnapshotPort source)
 {
-    if (m_source == source) {
-        return;
-    }
-
     disconnectSource();
-    m_source = source;
+    m_source = std::move(source);
     connectSource();
     refresh();
 }
 
-void ApplicationActionSourceAttachment::reattach()
+void ApplicationActionSourceAttachment::setUiGateSnapshot(ApplicationActionUiGateSnapshot snapshot)
 {
-    disconnectSource();
-    connectSource();
+    ++m_uiGateRevision;
+    m_uiGateSnapshot = snapshot;
     refresh();
 }
 
 void ApplicationActionSourceAttachment::refresh()
 {
-    if (m_source == nullptr) {
-        m_runtime.setActionStateSnapshot(ApplicationActionStateSnapshot {});
-        return;
+    ApplicationActionStateSnapshot snapshot;
+    snapshot.uiGateRevision = m_uiGateRevision;
+    snapshot.uiGates = m_uiGateSnapshot;
+    if (m_source.snapshot) {
+        snapshot.documentSession = m_source.snapshot();
     }
-
-    m_runtime.setActionStateSnapshot(m_source->actionStateSnapshot());
+    m_runtime.setActionStateSnapshot(snapshot);
 }
 
 void ApplicationActionSourceAttachment::connectSource()
 {
-    if (m_source == nullptr || m_context == nullptr) {
+    if (!m_source.snapshotChanged || m_context == nullptr) {
         return;
     }
 
-    m_connections = m_source->connectActionStateChanged(m_context, [this]() { refresh(); });
+    m_connections = m_source.snapshotChanged(m_context, [this]() { refresh(); });
 }
 
 void ApplicationActionSourceAttachment::disconnectSource()

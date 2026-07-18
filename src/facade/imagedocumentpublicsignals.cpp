@@ -23,6 +23,7 @@ bool affectsSessionSnapshot(kiriview::ImageDocumentPublicSignal signal)
     case Signal::ErrorString:
     case Signal::WindowTitleFileName:
     case Signal::ImageSize:
+    case Signal::ViewportFrame:
     case Signal::ZoomPercentKnown:
     case Signal::ZoomPercent:
     case Signal::ZoomMode:
@@ -38,7 +39,6 @@ bool affectsSessionSnapshot(kiriview::ImageDocumentPublicSignal signal)
     case Signal::Loading:
     case Signal::DisplayedUrl:
     case Signal::ViewportSize:
-    case Signal::ViewportFrame:
     case Signal::VisibleItemRect:
     case Signal::DisplaySize:
     case Signal::MaximumManualZoomPercent:

@@ -7,6 +7,7 @@
 #include "facade/kiriimagedocument.h"
 #include "facade/kirimediainformation.h"
 #include "facade/kirivideodocument.h"
+#include "session/documentsessiondocumentports.h"
 #include "session/documentsessionruntime.h"
 
 #include <QAbstractListModel>
@@ -202,6 +203,8 @@ public:
     QAbstractListModel* activeNavigationThumbnailModel() const;
     KiriMediaInformation* mediaInformation() const;
     const kiriview::MediaInformationProjectionSnapshot& mediaInformationSnapshot() const;
+    const kiriview::DocumentSessionActionStateSnapshot& actionStateSnapshot() const;
+    kiriview::DocumentSessionActionStateSnapshotPort actionStateSnapshotPort();
     const kiriview::DocumentSessionActionAvailabilityFacts& actionAvailabilityFacts() const;
     KiriImageDocument* imageDocument() const;
     KiriVideoDocument* videoDocument() const;

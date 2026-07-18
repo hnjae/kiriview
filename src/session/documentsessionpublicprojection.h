@@ -79,6 +79,7 @@ struct DocumentSessionPublicImageLeafSnapshot
     bool fitModeSelected = false;
     bool fitHeightModeSelected = false;
     bool fitWidthModeSelected = false;
+    bool viewportPannable = false;
     bool zoomPercentKnown = false;
     qreal zoomPercent = 0.0;
     QString errorString;
@@ -96,6 +97,8 @@ struct DocumentSessionPublicVideoLeafSnapshot
     bool hasVideo = false;
     bool sourcePresent = false;
     bool error = false;
+    bool videoSeekable = false;
+    qint64 videoDuration = 0;
     bool zoomPercentKnown = false;
     int zoomPercent = 0;
     QString errorString;

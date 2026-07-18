@@ -25,13 +25,14 @@ ImageActionAvailabilityInput imageActionAvailabilityInput(
     const Actions::ApplicationActionStateSnapshot& snapshot)
 {
     const kiriview::DocumentSessionActionAvailabilityFacts& facts
-        = snapshot.sessionActionAvailability;
+        = snapshot.documentSession.availability;
+    const Actions::ApplicationActionUiGateSnapshot& gates = snapshot.uiGates;
     return ImageActionAvailabilityInput {
         facts.imageReady,
-        snapshot.fileDeletionInProgress,
-        snapshot.helpDialogOpen,
-        snapshot.textInputFocused,
-        sharedImagePannabilityActionGate(facts, snapshot.imagePannable),
+        snapshot.documentSession.fileDeletionInProgress,
+        gates.helpDialogOpen,
+        gates.textInputFocused,
+        sharedImagePannabilityActionGate(facts, snapshot.documentSession.imagePannable),
         facts.containerNavigationAvailable,
         facts.twoPageModeActive,
         facts.twoPageModeAvailable,
@@ -45,9 +46,13 @@ Actions::ApplicationActionStateInput actionStateInput(
     const ImageActionAvailabilityProjection& projection)
 {
     const kiriview::DocumentSessionActionAvailabilityFacts& facts
-        = snapshot.sessionActionAvailability;
-    const bool activeNavigationActionsAvailable
-        = snapshot.activeNavigationDispatchAvailable && projection.helpShortcutsEnabled;
+        = snapshot.documentSession.availability;
+    const kiriview::DocumentSessionActionStateSnapshot& document = snapshot.documentSession;
+    const Actions::ApplicationActionUiGateSnapshot& gates = snapshot.uiGates;
+    const kiriview::ActiveNavigationSnapshot& activeNavigation = document.activeNavigation;
+    const bool activeNavigationActionsAvailable = activeNavigation.available
+        && activeNavigation.known && activeNavigation.count > 0 && !document.fileDeletionInProgress
+        && projection.helpShortcutsEnabled;
 
     Actions::ApplicationActionStateInput input;
     input.uiGateRevision = snapshot.uiGateRevision;
@@ -57,25 +62,26 @@ Actions::ApplicationActionStateInput actionStateInput(
     input.twoPageModeActionsEnabled = projection.canUseTwoPageModeActions;
     input.rightToLeftReadingActionsEnabled = projection.canUseRightToLeftReadingActions;
     input.containerNavigationActionsEnabled = projection.containerShortcutsEnabled;
-    input.displayedMediaOpenWithAvailable = snapshot.displayedMediaOpenWithAvailable;
-    input.displayedFileDeletionAvailable = snapshot.displayedFileDeletionAvailable;
-    input.fileDeletionInProgress = snapshot.fileDeletionInProgress;
-    input.activeNavigationAvailable = snapshot.activeNavigationAvailable;
-    input.activeNavigationKnown = snapshot.activeNavigationKnown;
-    input.activeNavigationHasTargets = snapshot.activeNavigationHasTargets;
-    input.canOpenPreviousActiveNavigation = snapshot.canOpenPreviousActiveNavigation;
-    input.canOpenNextActiveNavigation = snapshot.canOpenNextActiveNavigation;
+    input.displayedMediaOpenWithAvailable = document.displayedMediaOpenWithAvailable;
+    input.displayedFileDeletionAvailable = document.displayedFileDeletionAvailable;
+    input.fileDeletionInProgress = document.fileDeletionInProgress;
+    input.activeNavigationAvailable = activeNavigation.available;
+    input.activeNavigationKnown = activeNavigation.known;
+    input.activeNavigationHasTargets = activeNavigation.count > 0;
+    input.canOpenPreviousActiveNavigation = activeNavigation.canOpenPrevious;
+    input.canOpenNextActiveNavigation = activeNavigation.canOpenNext;
     input.fitModeSelected = facts.fitModeSelected;
     input.fitHeightModeSelected = facts.fitHeightModeSelected;
     input.fitWidthModeSelected = facts.fitWidthModeSelected;
     input.twoPageModeActive = projection.twoPageModeActive;
     input.rightToLeftReadingActive = projection.rightToLeftReadingActive;
-    input.infoPanelVisible = snapshot.infoPanelVisible;
-    input.thumbnailPanelVisible = snapshot.thumbnailPanelVisible;
-    input.fullscreen = snapshot.fullscreen;
-    input.applicationMenuShortcutEnabled = snapshot.applicationMenuShortcutEnabled;
-    input.showMenubarActionEnabled = snapshot.showMenubarActionEnabled;
-    input.directMediaNavigationBoundaryActive = snapshot.directMediaNavigationBoundaryActive;
+    input.infoPanelVisible = gates.infoPanelVisible;
+    input.thumbnailPanelVisible = gates.thumbnailPanelVisible;
+    input.fullscreen = gates.fullscreen;
+    input.applicationMenuShortcutEnabled = gates.applicationMenuShortcutEnabled;
+    input.showMenubarActionEnabled = gates.showMenubarActionEnabled;
+    input.directMediaNavigationBoundaryActive = document.activeNavigationBoundaryScope
+        == kiriview::ActiveNavigationBoundaryScope::DirectMedia;
     input.viewerShortcutsEnabled = projection.viewerShortcutsEnabled;
     input.readyShortcutsEnabled = projection.readyShortcutsEnabled;
     input.readyViewerShortcutsEnabled = projection.readyViewerShortcutsEnabled;
@@ -89,10 +95,10 @@ Actions::ApplicationActionStateInput actionStateInput(
     input.pannableViewerShortcutsEnabled = projection.pannableViewerShortcutsEnabled;
     input.containerViewerShortcutsEnabled = projection.containerViewerShortcutsEnabled;
     input.activeNavigationActionsAvailable = activeNavigationActionsAvailable;
-    input.videoMode = snapshot.videoMode;
-    input.videoFileDeletionInProgress = snapshot.fileDeletionInProgress;
-    input.videoSeekable = snapshot.videoSeekable;
-    input.videoDuration = snapshot.videoDuration;
+    input.videoMode = document.videoMode;
+    input.videoFileDeletionInProgress = document.fileDeletionInProgress;
+    input.videoSeekable = document.videoSeekable;
+    input.videoDuration = document.videoDuration;
     return input;
 }
 
@@ -100,13 +106,15 @@ Actions::ApplicationCommandRouterInput routerInputForSnapshot(
     const Actions::ApplicationActionStateSnapshot& snapshot,
     const ImageActionAvailabilityProjection& projection)
 {
+    const kiriview::DocumentSessionActionStateSnapshot& document = snapshot.documentSession;
     Actions::ApplicationCommandRouterInput input;
-    input.imagePannable = snapshot.imagePannable;
+    input.imagePannable = document.imagePannable;
     input.rightToLeftReadingActive = projection.rightToLeftReadingActive;
-    input.videoMode = snapshot.videoMode;
-    input.imageDocumentPageNavigationActive = snapshot.imageDocumentPageNavigationActive;
-    input.atKnownFirstActiveNavigation = snapshot.atKnownFirstActiveNavigation;
-    input.canOpenPreviousActiveNavigation = snapshot.canOpenPreviousActiveNavigation;
+    input.videoMode = document.videoMode;
+    input.imageDocumentPageNavigationActive = document.activeNavigationBoundaryScope
+        == kiriview::ActiveNavigationBoundaryScope::ImageDocumentPage;
+    input.atKnownFirstActiveNavigation = document.activeNavigation.atKnownFirst;
+    input.canOpenPreviousActiveNavigation = document.activeNavigation.canOpenPrevious;
     return input;
 }
 }

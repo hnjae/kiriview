@@ -104,7 +104,7 @@ void TestApplicationActionRuntime::fixedShortcutDispatchesThroughRuntimeOwnedRou
     Actions::ApplicationActionRuntime runtime(host);
     FakeCommandPortSource portSource;
     Actions::ApplicationActionStateSnapshot snapshot;
-    snapshot.videoMode = true;
+    snapshot.documentSession.videoMode = true;
 
     runtime.setCommandPortSource(&portSource);
     runtime.setActionStateSnapshot(snapshot);
@@ -120,7 +120,7 @@ void TestApplicationActionRuntime::actionStateSnapshotBuildsRuntimePolicyInput()
     Actions::ApplicationActionRuntime runtime(host);
     Actions::ApplicationActionStateSnapshot snapshot;
     snapshot.uiGateRevision = 7;
-    snapshot.sessionActionAvailability = kiriview::DocumentSessionActionAvailabilityFacts {
+    snapshot.documentSession.availability = kiriview::DocumentSessionActionAvailabilityFacts {
         true,
         true,
         true,
@@ -131,17 +131,13 @@ void TestApplicationActionRuntime::actionStateSnapshotBuildsRuntimePolicyInput()
         false,
         false,
     };
-    snapshot.activeNavigationDispatchAvailable = true;
-    snapshot.activeNavigationAvailable = true;
-    snapshot.activeNavigationKnown = true;
-    snapshot.activeNavigationHasTargets = true;
-    snapshot.canOpenPreviousActiveNavigation = true;
-    snapshot.canOpenNextActiveNavigation = true;
-    snapshot.displayedMediaOpenWithAvailable = true;
-    snapshot.displayedFileDeletionAvailable = true;
-    snapshot.imagePannable = true;
-    snapshot.applicationMenuShortcutEnabled = true;
-    snapshot.showMenubarActionEnabled = false;
+    snapshot.documentSession.activeNavigation
+        = kiriview::ActiveNavigationSnapshot { true, true, true, true, true, false, false, 2, 3 };
+    snapshot.documentSession.displayedMediaOpenWithAvailable = true;
+    snapshot.documentSession.displayedFileDeletionAvailable = true;
+    snapshot.documentSession.imagePannable = true;
+    snapshot.uiGates.applicationMenuShortcutEnabled = true;
+    snapshot.uiGates.showMenubarActionEnabled = false;
 
     runtime.setActionStateSnapshot(snapshot);
 
@@ -157,13 +153,14 @@ void TestApplicationActionRuntime::actionStateSnapshotBuildsCommandRouterInput()
     FakeApplicationActionHost host;
     Actions::ApplicationActionRuntime runtime(host);
     Actions::ApplicationActionStateSnapshot snapshot;
-    snapshot.sessionActionAvailability.rightToLeftReadingActive = true;
-    snapshot.sessionActionAvailability.rightToLeftReadingAvailable = true;
-    snapshot.imagePannable = true;
-    snapshot.videoMode = true;
-    snapshot.imageDocumentPageNavigationActive = true;
-    snapshot.atKnownFirstActiveNavigation = true;
-    snapshot.canOpenPreviousActiveNavigation = true;
+    snapshot.documentSession.availability.rightToLeftReadingActive = true;
+    snapshot.documentSession.availability.rightToLeftReadingAvailable = true;
+    snapshot.documentSession.imagePannable = true;
+    snapshot.documentSession.videoMode = true;
+    snapshot.documentSession.activeNavigationBoundaryScope
+        = kiriview::ActiveNavigationBoundaryScope::ImageDocumentPage;
+    snapshot.documentSession.activeNavigation.atKnownFirst = true;
+    snapshot.documentSession.activeNavigation.canOpenPrevious = true;
 
     runtime.setActionStateSnapshot(snapshot);
 
@@ -189,9 +186,9 @@ void TestApplicationActionRuntime::navigationPresentationProjectionFollowsAction
         ActionId::GoNextArchiveAction);
 
     Actions::ApplicationActionStateSnapshot snapshot;
-    snapshot.sessionActionAvailability.imageReady = true;
-    snapshot.sessionActionAvailability.rightToLeftReadingActive = true;
-    snapshot.sessionActionAvailability.rightToLeftReadingAvailable = true;
+    snapshot.documentSession.availability.imageReady = true;
+    snapshot.documentSession.availability.rightToLeftReadingActive = true;
+    snapshot.documentSession.availability.rightToLeftReadingAvailable = true;
 
     runtime.setActionStateSnapshot(snapshot);
 

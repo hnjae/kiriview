@@ -90,6 +90,7 @@ public:
     bool activeImageRightToLeftReadingActive() const;
     bool activeVideoReady() const;
     bool activeVideoControlsReady() const;
+    const DocumentSessionActionStateSnapshot& actionStateSnapshot() const;
     const DocumentSessionActionAvailabilityFacts& actionAvailabilityFacts() const;
     bool activeNavigationAvailable() const;
     bool activeNavigationKnown() const;

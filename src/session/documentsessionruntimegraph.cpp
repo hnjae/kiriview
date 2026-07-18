@@ -398,6 +398,11 @@ bool DocumentSessionRuntimeGraph::activeVideoControlsReady() const
     return m_state.publicSnapshot().activeVideoControlsReady;
 }
 
+const DocumentSessionActionStateSnapshot& DocumentSessionRuntimeGraph::actionStateSnapshot() const
+{
+    return m_state.publicSnapshot().actionState;
+}
+
 const DocumentSessionActionAvailabilityFacts&
 DocumentSessionRuntimeGraph::actionAvailabilityFacts() const
 {

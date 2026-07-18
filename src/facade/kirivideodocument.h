@@ -122,6 +122,9 @@ private:
 
     std::unique_ptr<KiriVideoPlaybackControls> m_playbackControls;
     std::unique_ptr<kiriview::VideoDocumentRuntime> m_runtime;
+    bool m_playbackControlActionStateKnown = false;
+    bool m_videoSeekable = false;
+    qint64 m_videoDuration = 0;
 };
 
 #endif
