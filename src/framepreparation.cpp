@@ -411,8 +411,8 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
             Cause::InvalidFrameMetadata, QStringLiteral("provider frame metadata is invalid"));
     }
     const ImageViewportDemandRevisionToken payloadDemand = envelope.demandRevision();
-    if (state.demandRevision.isValid() && payloadDemand.isValid()
-        && payloadDemand != state.demandRevision) {
+    if (!state.demandRevision.isValid() || !payloadDemand.isValid()
+        || payloadDemand != state.demandRevision) {
         return providerFrameError(Cause::DemandRevisionMismatch,
             QStringLiteral("provider frame demand revision mismatch"));
     }

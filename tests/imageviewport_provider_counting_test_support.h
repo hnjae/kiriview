@@ -138,6 +138,38 @@ private:
     ImageSequenceProviderDisplayDemand m_lastFrameDemand;
 };
 
+ImageSequenceProviderFrameEnvelope providerStillFrameEnvelope(
+    const ImageSequenceProviderDisplayDemand& demand)
+{
+    ImageSequenceProviderFrameEnvelope envelope = ImageSequenceProviderFrameEnvelope::stillFrame();
+    envelope.setDemandRevision(demand.demandRevision());
+    return envelope;
+}
+
+ImageSequenceProviderFrameEnvelope providerTimedFrameEnvelope(
+    const ImageSequenceProviderDisplayDemand& demand, int frame, int frameStartPosition,
+    int frameDuration)
+{
+    ImageSequenceProviderFrameEnvelope envelope
+        = ImageSequenceProviderFrameEnvelope::timedFrame(frame, frameStartPosition, frameDuration);
+    envelope.setDemandRevision(demand.demandRevision());
+    return envelope;
+}
+
+void emitProviderFrameHandleReady(CountingProviderSession* session,
+    ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* handle)
+{
+    emitProviderFrameHandleReady(static_cast<ImageSequenceProviderSession*>(session), token, handle,
+        providerStillFrameEnvelope(session->lastFrameDemand()));
+}
+
+void emitProviderFrameReady(
+    CountingProviderSession* session, ImageSequenceProviderRequestToken token, ImageFrame* frame)
+{
+    emitProviderFrameReady(static_cast<ImageSequenceProviderSession*>(session), token, frame,
+        providerStillFrameEnvelope(session->lastFrameDemand()));
+}
+
 class CountingProviderSessionFactory final
 {
 public:
@@ -281,8 +313,8 @@ void emitTimedProviderFrameReady(CountingProviderSession* session,
     const int resolvedFrameDuration
         = frameDuration > 0 ? frameDuration : (frameStartPosition == 0 ? 100 : 250);
     emitProviderFrameReady(session, token, frame,
-        ImageSequenceProviderFrameEnvelope::timedFrame(
-            frameIndex, frameStartPosition, resolvedFrameDuration));
+        providerTimedFrameEnvelope(
+            session->lastFrameDemand(), frameIndex, frameStartPosition, resolvedFrameDuration));
     drainQueuedProviderResults();
 }
 

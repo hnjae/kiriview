@@ -481,6 +481,7 @@ void ImageSequenceFactoryTest::providerFrameAdmissionUsesResolvedFrameIdentity()
     state.timingIntervals = TimingIntervals::fromFrameDurations({ 100, 250 });
     state.resolvedFrame.frame = 1;
     state.resolvedFrame.position = 100;
+    state.demandRevision = ImageViewportInternal::DemandRevisionTokenPrivateAccess::fromValue(1);
     state.preparedPayload.generation = 7;
     state.preparedPayload.payloadId = 13;
 
@@ -488,6 +489,7 @@ void ImageSequenceFactoryTest::providerFrameAdmissionUsesResolvedFrameIdentity()
     envelope.setFrame(1);
     envelope.setFrameStartPosition(100);
     envelope.setFrameDuration(250);
+    envelope.setDemandRevision(state.demandRevision);
     const auto admission = FramePreparation::admitProviderFrame(&frame, envelope, state);
 
     QVERIFY(admission.accepted());

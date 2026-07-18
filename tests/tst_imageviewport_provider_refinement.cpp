@@ -16,13 +16,15 @@ public:
         }
     }
 
-    void emitReady(const ImageSequenceProviderRequest& request, QColor color)
+    void emitReady(
+        const ImageSequenceProviderRequest& request, QColor color, bool echoDemandRevision = true)
     {
         QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
         image.fill(color);
         auto frame = std::make_unique<ImageFrame>(image);
         auto envelope = ImageSequenceProviderFrameEnvelope::stillFrame();
-        envelope.setDemandRevision(request.demand().demandRevision());
+        if (echoDemandRevision)
+            envelope.setDemandRevision(request.demand().demandRevision());
         emit providerEvent(ImageSequenceProviderEvent::frameReady(request.token(),
             new ImageSequenceProviderFrameHandle(std::move(frame), this), envelope));
     }
@@ -114,6 +116,7 @@ private slots:
     void committedProviderPayloadRefinesWithoutLeavingReady();
     void newerDemandCancelsOlderRefinementAndStaleResultCannotCommit();
     void refinementFailureIsIsolatedFromTheDisplayRequest();
+    void refinementMissingDemandRevisionIsIsolatedFromTheDisplayRequest();
     void refinementKindMismatchIsGenerationTerminal();
     void refinementNeverIssuedTokenIsGenerationTerminal();
     void refinementCommandDeliveryFailureIsGenerationTerminal();
@@ -204,6 +207,26 @@ void ImageViewportProviderRefinementTest::refinementFailureIsIsolatedFromTheDisp
     QCOMPARE(displayStatus(fixture.viewport), ImageViewportDisplayStatus::Ready);
     QCOMPARE(fixture.viewport.state().diagnostics().errorString(), QString());
     QCOMPARE(fixture.viewport.state().primary().display().currentForDemand(), false);
+}
+
+void ImageViewportProviderRefinementTest::
+    refinementMissingDemandRevisionIsIsolatedFromTheDisplayRequest()
+{
+    ReadyProviderViewport fixture;
+    const auto committedDemandRevision
+        = fixture.viewport.state().primary().display().demandRevision();
+    setQualityPreference(fixture.viewport, ImageViewportQualityPreference::ExactDetail);
+    const auto refinement = fixture.adapter.session->frameRequests().constLast();
+
+    fixture.adapter.session->emitReady(refinement, Qt::blue, false);
+
+    QCOMPARE(requestStatus(fixture.viewport), ImageViewportRequestStatus::Ready);
+    QCOMPARE(requestReason(fixture.viewport), ImageViewportRequestReason::Ready);
+    QCOMPARE(displayStatus(fixture.viewport), ImageViewportDisplayStatus::Ready);
+    QCOMPARE(
+        fixture.viewport.state().primary().display().demandRevision(), committedDemandRevision);
+    QCOMPARE(fixture.viewport.state().primary().display().currentForDemand(), false);
+    QVERIFY(!hasPendingRenderCommitForTest(fixture.viewport));
 }
 
 void ImageViewportProviderRefinementTest::refinementKindMismatchIsGenerationTerminal()

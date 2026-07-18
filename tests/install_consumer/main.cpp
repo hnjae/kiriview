@@ -41,6 +41,7 @@ public:
             envelope.setFrame(request.frame());
             envelope.setFrameStartPosition(0);
             envelope.setFrameDuration(100);
+            envelope.setDemandRevision(request.demand().demandRevision());
             emit providerEvent(ImageSequenceProviderEvent::frameReady(request.token(),
                 new ImageSequenceProviderFrameHandle(std::move(payload)), envelope));
             break;

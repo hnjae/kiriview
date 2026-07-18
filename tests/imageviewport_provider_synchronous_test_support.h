@@ -101,7 +101,8 @@ public:
         }
         if (request.kind() == ImageSequenceProviderRequestKind::Frame) {
             ++*m_frameRequestCount;
-            emitProviderFrameReady(this, request.token(), m_frame.get());
+            emitProviderFrameReady(
+                this, request.token(), m_frame.get(), providerStillFrameEnvelope(request.demand()));
         }
     }
 

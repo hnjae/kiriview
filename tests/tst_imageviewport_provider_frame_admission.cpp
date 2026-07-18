@@ -19,6 +19,7 @@ private slots:
     void providerOrientedFramePayloadCommitsNormalizedLogicalSize();
     void providerTimedFrameReadyCommitsTimedDisplay();
     void providerFrameRejectsLogicalSizeMismatch();
+    void providerFrameWithoutDemandRevisionRejectsPayload();
     void providerTimedFrameEnvelopeMismatchRejectsPayload();
     void providerTotalDurationSeekRejectsPublicPositionEnvelope();
     void providerFrameEnvelopeMismatchKeepsGenerationPositionSeekable();
@@ -298,6 +299,53 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameRejectsLogicalSizeMis
     QVERIFY(admission.identity.providerToken > 0);
 }
 
+void ImageViewportProviderFrameAdmissionTest::providerFrameWithoutDemandRevisionRejectsPayload()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    useSynchronousProviderEventDeliveryForTest(item);
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    const QMetaObject* metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emitProviderMetadataReady(sessionFactory->lastSession(),
+        sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    QCOMPARE(*frameRequestCount, 1);
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    emitProviderFrameReady(
+        static_cast<ImageSequenceProviderSession*>(sessionFactory->lastSession()),
+        sessionFactory->lastSession()->lastFrameToken(), &frame,
+        ImageSequenceProviderFrameEnvelope::stillFrame());
+
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QVERIFY(!hasPendingRenderCommitForTest(item));
+    const auto observations = internalObservationsForTest(item);
+    QVERIFY(!observations.isEmpty());
+    const InternalObservationForTest admission = observations.constLast();
+    QCOMPARE(admission.subsystem, InternalObservationSubsystemForTest::Preparation);
+    QCOMPARE(admission.category, InternalObservationCategoryForTest::AdmissionFailure);
+    QCOMPARE(admission.cause, InternalObservationCauseForTest::ProviderFrameRejected);
+}
+
 void ImageViewportProviderFrameAdmissionTest::providerTimedFrameEnvelopeMismatchRejectsPayload()
 {
     ImageSequenceFactory factory;
@@ -401,7 +449,7 @@ void ImageViewportProviderFrameAdmissionTest::
     const ImageSequenceProviderRequestToken frameToken
         = sessionFactory->lastSession()->lastPositionToken();
     emitProviderFrameReady(sessionFactory->lastSession(), frameToken, &frame,
-        ImageSequenceProviderFrameEnvelope::timedFrame(1, 350, 250));
+        providerTimedFrameEnvelope(sessionFactory->lastSession()->lastFrameDemand(), 1, 350, 250));
     drainQueuedProviderResults();
 
     QCOMPARE(*closeCount, 0);
@@ -515,7 +563,7 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameEnvelopeMismatch
     ImageFrame frame(image);
     emitProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), &frame,
-        ImageSequenceProviderFrameEnvelope::timedFrame(0, 0, -1));
+        providerTimedFrameEnvelope(sessionFactory->lastSession()->lastFrameDemand(), 0, 0, -1));
     drainQueuedProviderResults();
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
@@ -558,7 +606,7 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameRejectsStillEnve
     ImageFrame frame(image);
     emitProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), &frame,
-        ImageSequenceProviderFrameEnvelope::stillFrame());
+        providerStillFrameEnvelope(sessionFactory->lastSession()->lastFrameDemand()));
     drainQueuedProviderResults();
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
@@ -601,7 +649,7 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameDurationMismatch
     ImageFrame frame(image);
     emitProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), &frame,
-        ImageSequenceProviderFrameEnvelope::timedFrame(0, 0, 250));
+        providerTimedFrameEnvelope(sessionFactory->lastSession()->lastFrameDemand(), 0, 0, 250));
     drainQueuedProviderResults();
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));

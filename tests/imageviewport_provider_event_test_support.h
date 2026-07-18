@@ -15,7 +15,7 @@ void emitProviderMetadataReady(ImageSequenceProviderSession* session,
 
 void emitProviderFrameHandleReady(ImageSequenceProviderSession* session,
     ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* handle,
-    ImageSequenceProviderFrameEnvelope envelope = ImageSequenceProviderFrameEnvelope::stillFrame())
+    ImageSequenceProviderFrameEnvelope envelope)
 {
     ImageSequenceProviderEvent event
         = ImageSequenceProviderEvent::frameReady(token, handle, std::move(envelope));
@@ -24,7 +24,7 @@ void emitProviderFrameHandleReady(ImageSequenceProviderSession* session,
 
 void emitProviderFrameReady(ImageSequenceProviderSession* session,
     ImageSequenceProviderRequestToken token, ImageFrame* frame,
-    ImageSequenceProviderFrameEnvelope envelope = ImageSequenceProviderFrameEnvelope::stillFrame())
+    ImageSequenceProviderFrameEnvelope envelope)
 {
     auto* handle = new ImageSequenceProviderFrameHandle(frame, [](ImageFrame*) { });
     emitProviderFrameHandleReady(session, token, handle, std::move(envelope));
