@@ -1,5 +1,6 @@
 #include "viewportengineproviderfailureoperations_p.h"
 
+#include "imageviewporttoken_p.h"
 #include "viewportengineprovidersessionoperations_p.h"
 
 namespace {
@@ -202,6 +203,22 @@ ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderProtoco
         || access.m_requests.active.isEmpty()) {
         return result;
     }
+
+    const auto& active = requestForRole(access.m_request, input.role);
+    InternalObservation observation;
+    observation.subsystem = InternalObservationSubsystem::Engine;
+    observation.category = InternalObservationCategory::AdmissionFailure;
+    observation.cause = input.cause;
+    observation.identity.roleValid = true;
+    observation.identity.role = input.role;
+    observation.identity.generation = access.m_request.sequenceGeneration;
+    observation.identity.sessionSerial = access.m_session.sessionSerial;
+    observation.identity.requestId = active.identity.id;
+    observation.identity.providerToken = ProviderRequestTokenPrivateAccess::value(input.token);
+    observation.identity.demandRevision
+        = DemandRevisionTokenPrivateAccess::value(active.demandRevision);
+    observation.detail = int(input.eventKind);
+    result.observations.append(observation);
 
     access.m_playback.providerStartPending = false;
     access.m_playback.stopWhenRequestReady = false;

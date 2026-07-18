@@ -91,8 +91,10 @@ private:
     std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands();
     ViewportProviderEventResult reduceProviderEvent(const ViewportProviderEvent& event,
         const ImageViewportInternal::PublicDiagnosticText& diagnostic);
-    ViewportProviderTerminalEventResult reduceProviderProtocolViolation(
-        ImageViewportPageRole role, ImageSequenceProviderRequestToken token);
+    ViewportProviderTerminalEventResult reduceProviderProtocolViolation(ImageViewportPageRole role,
+        ImageSequenceProviderRequestToken token,
+        ImageViewportInternal::InternalObservationCause cause,
+        ImageSequenceProviderEventKind eventKind);
     ViewportProviderTerminalEventResult reduceProviderDispatchFailure(
         ImageViewportPageRole role, const ViewportProviderDispatchFailureEvent& event);
     ViewportProviderSessionOpenFailureResult reduceProviderSessionOpenFailure(

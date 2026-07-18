@@ -23,12 +23,16 @@ struct ViewportEngineProviderProtocolViolationInput
 {
     ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ImageSequenceProviderRequestToken token;
+    ImageViewportInternal::InternalObservationCause cause
+        = ImageViewportInternal::InternalObservationCause::None;
+    ImageSequenceProviderEventKind eventKind = ImageSequenceProviderEventKind::Waiting;
 };
 
 struct ViewportEngineProviderTerminalEventReduction
 {
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderFrameTransportEffect providerFrameTransport;
+    ImageViewportInternal::InternalObservationBatch observations;
 };
 
 struct ViewportEngineProviderDispatchFailureInput

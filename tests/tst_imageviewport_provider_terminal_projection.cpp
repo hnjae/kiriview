@@ -634,6 +634,20 @@ void ImageViewportProviderTerminalProjectionTest::terminalSiblingEndOfSequenceBe
     QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Error);
     QCOMPARE(item.state().request().reason(), ImageViewportRequestReason::PayloadRejection);
     QVERIFY(viewportErrorString(item).contains(QStringLiteral("provider protocol violation")));
+    const auto observations = internalObservationsForTest(item);
+    QVERIFY(!observations.isEmpty());
+    const InternalObservationForTest observation = observations.constLast();
+    QCOMPARE(observation.subsystem, InternalObservationSubsystemForTest::Engine);
+    QCOMPARE(observation.category, InternalObservationCategoryForTest::AdmissionFailure);
+    QCOMPARE(observation.cause, InternalObservationCauseForTest::ProviderProtocolEventKindMismatch);
+    QVERIFY(observation.identity.roleValid);
+    QCOMPARE(observation.identity.role,
+        unsupportedPrimary ? ImageViewportPageRole::Secondary : ImageViewportPageRole::Primary);
+    QVERIFY(observation.identity.generation > 0);
+    QVERIFY(observation.identity.sessionSerial > 0);
+    QVERIFY(observation.identity.requestId > 0);
+    QCOMPARE(
+        observation.identity.providerToken, providerRequestTokenValueForTest(tokenFor(eosSession)));
 }
 
 void ImageViewportProviderTerminalProjectionTest::
@@ -1097,6 +1111,19 @@ void ImageViewportProviderTerminalProjectionTest::invalidUnsupportedCauseIsProto
     const QString errorString = viewportErrorString(item);
     QVERIFY(errorString.contains(QStringLiteral("provider protocol violation")));
     QVERIFY(!errorString.contains(suppliedDiagnostic));
+    const auto observations = internalObservationsForTest(item);
+    QVERIFY(!observations.isEmpty());
+    const InternalObservationForTest observation = observations.constLast();
+    QCOMPARE(observation.subsystem, InternalObservationSubsystemForTest::Engine);
+    QCOMPARE(observation.category, InternalObservationCategoryForTest::AdmissionFailure);
+    QCOMPARE(
+        observation.cause, InternalObservationCauseForTest::ProviderProtocolEventShapeMismatch);
+    QVERIFY(observation.identity.roleValid);
+    QCOMPARE(observation.identity.role, ImageViewportPageRole::Primary);
+    QVERIFY(observation.identity.generation > 0);
+    QVERIFY(observation.identity.sessionSerial > 0);
+    QVERIFY(observation.identity.requestId > 0);
+    QCOMPARE(observation.identity.providerToken, providerRequestTokenValueForTest(terminalToken));
 }
 
 void ImageViewportProviderTerminalProjectionTest::
@@ -1133,6 +1160,13 @@ void ImageViewportProviderTerminalProjectionTest::
     QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(primaryRequestedPosition(item), -1);
     QVERIFY(viewportErrorString(item).contains(QStringLiteral("provider protocol violation")));
+    const auto observations = internalObservationsForTest(item);
+    QVERIFY(!observations.isEmpty());
+    const InternalObservationForTest observation = observations.constLast();
+    QCOMPARE(observation.subsystem, InternalObservationSubsystemForTest::Engine);
+    QCOMPARE(observation.category, InternalObservationCategoryForTest::AdmissionFailure);
+    QCOMPARE(observation.cause, InternalObservationCauseForTest::ProviderProtocolTokenMismatch);
+    QCOMPARE(observation.identity.providerToken, quint64(0));
 }
 
 void ImageViewportProviderTerminalProjectionTest::

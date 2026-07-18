@@ -278,11 +278,14 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
     }
     const auto admission = eventProvider.requests.admit(event.token);
     if (admission.kind == ImageViewportInternal::ProviderRequestTokenAdmissionKind::Mismatch) {
-        const auto reduced = reduceProviderProtocolViolation(event.role, event.token);
+        const auto reduced = reduceProviderProtocolViolation(event.role, event.token,
+            ImageViewportInternal::InternalObservationCause::ProviderProtocolTokenMismatch,
+            event.kind);
         ViewportProviderEventResult violation;
         violation.changes = reduced.changes;
         violation.providerFrameTransport = reduced.providerFrameTransport;
         violation.schedule = reduced.schedule;
+        violation.observations = reduced.observations;
         return violation;
     }
     if (admission.kind == ImageViewportInternal::ProviderRequestTokenAdmissionKind::Retired) {
@@ -308,14 +311,29 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
     }
     const auto* providerRequest = admission.record;
     Q_ASSERT(providerRequest);
-    if (providerRequest->role != event.role || providerRequest->generation != event.generation
-        || !eventKindCompatible(providerRequest->kind, event.kind)
-        || !eventShapeCompatible(event)) {
-        const auto reduced = reduceProviderProtocolViolation(event.role, event.token);
+    ImageViewportInternal::InternalObservationCause violationCause
+        = ImageViewportInternal::InternalObservationCause::None;
+    if (providerRequest->role != event.role) {
+        violationCause
+            = ImageViewportInternal::InternalObservationCause::ProviderProtocolRoleMismatch;
+    } else if (providerRequest->generation != event.generation) {
+        violationCause
+            = ImageViewportInternal::InternalObservationCause::ProviderProtocolGenerationMismatch;
+    } else if (!eventKindCompatible(providerRequest->kind, event.kind)) {
+        violationCause
+            = ImageViewportInternal::InternalObservationCause::ProviderProtocolEventKindMismatch;
+    } else if (!eventShapeCompatible(event)) {
+        violationCause
+            = ImageViewportInternal::InternalObservationCause::ProviderProtocolEventShapeMismatch;
+    }
+    if (violationCause != ImageViewportInternal::InternalObservationCause::None) {
+        const auto reduced
+            = reduceProviderProtocolViolation(event.role, event.token, violationCause, event.kind);
         ViewportProviderEventResult violation;
         violation.changes = reduced.changes;
         violation.providerFrameTransport = reduced.providerFrameTransport;
         violation.schedule = reduced.schedule;
+        violation.observations = reduced.observations;
         return violation;
     }
     ViewportProviderEventResult result;
@@ -389,6 +407,7 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
         m_state->revisions.nextRevision = mutation.nextRevision;
         result.changes = eos.changes;
         result.providerFrameTransport = eos.providerFrameTransport;
+        result.observations = eos.observations;
         break;
     }
     case ImageSequenceProviderEventKind::Failed:
@@ -435,12 +454,14 @@ ViewportProviderSessionOpenFailureResult ViewportEngine::reduceProviderSessionOp
 }
 
 ViewportProviderTerminalEventResult ViewportEngine::reduceProviderProtocolViolation(
-    ImageViewportPageRole role, ImageSequenceProviderRequestToken token)
+    ImageViewportPageRole role, ImageSequenceProviderRequestToken token,
+    ImageViewportInternal::InternalObservationCause cause, ImageSequenceProviderEventKind eventKind)
 {
     auto& provider = m_state->providerState.roles[roleIndex(role)].provider;
     ViewportEngineProviderProtocolViolationAccess access(m_state->requestState.request,
         m_state->playbackState.playback, provider.session, provider.requests);
-    const auto reduction = reduceViewportEngineProviderProtocolViolation({ role, token }, access);
+    const auto reduction
+        = reduceViewportEngineProviderProtocolViolation({ role, token, cause, eventKind }, access);
     auto mutation = access.takeMutation();
     m_state->requestState.request = std::move(mutation.request);
     m_state->playbackState.playback = std::move(mutation.playback);
@@ -450,6 +471,7 @@ ViewportProviderTerminalEventResult ViewportEngine::reduceProviderProtocolViolat
     result.changes = reduction.changes;
     result.providerFrameTransport = reduction.providerFrameTransport;
     result.schedule = currentPlaybackSchedule();
+    result.observations = reduction.observations;
     return result;
 }
 

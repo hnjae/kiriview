@@ -201,6 +201,9 @@ private slots:
     void providerTerminalReducerCommitsFrameFailureAtomically();
     void providerDispatchFailureIsGenerationTerminalAcrossDisplayRequests();
     void providerProtocolViolationClosesFrameGeneration();
+    void providerProtocolViolationsClassifyActiveIngress_data();
+    void providerProtocolViolationsClassifyActiveIngress();
+    void providerEndOfSequenceStateViolationRecordsObservation();
     void providerTerminalReducerClosesMetadataGeneration();
     void providerFrameQueueFlushesOnlyCurrentLoadingRequest();
     void providerFrameQueueFlushRejectsStaleRequest();
@@ -1004,6 +1007,10 @@ void ViewportEngineTest::providerProtocolViolationClosesFrameGeneration()
     activateProviderRequestForTest(
         ViewportEngineTestAccess::providerRequests(engine, ImageViewportPageRole::Primary), request,
         providerRequestTokenForTest(3), ImageSequenceProviderRequestKind::Frame);
+    const quint64 requestId = request.roles[0].activeRequest.identity.id;
+    const quint64 sessionSerial
+        = ViewportEngineTestAccess::providerSession(engine, ImageViewportPageRole::Primary)
+              .sessionSerial;
 
     ViewportProviderHostEvent hostEvent;
     hostEvent.kind = ViewportProviderHostEvent::Kind::ProviderEvent;
@@ -1026,6 +1033,163 @@ void ViewportEngineTest::providerProtocolViolationClosesFrameGeneration()
     QCOMPARE(result.providerTransport().size(), 1);
     QCOMPARE(
         result.providerTransport()[0].kind, ViewportProviderTransportCommand::Kind::CloseSession);
+    QCOMPARE(result.observations().size(), 1);
+    const auto& observation = result.observations().constFirst();
+    QCOMPARE(observation.subsystem, ImageViewportInternal::InternalObservationSubsystem::Engine);
+    QCOMPARE(
+        observation.category, ImageViewportInternal::InternalObservationCategory::AdmissionFailure);
+    QCOMPARE(observation.cause,
+        ImageViewportInternal::InternalObservationCause::ProviderProtocolEventShapeMismatch);
+    QVERIFY(observation.identity.roleValid);
+    QCOMPARE(observation.identity.role, ImageViewportPageRole::Primary);
+    QCOMPARE(observation.identity.generation, quint64(7));
+    QCOMPARE(observation.identity.sessionSerial, sessionSerial);
+    QCOMPARE(observation.identity.requestId, requestId);
+    QCOMPARE(observation.identity.providerToken, quint64(3));
+}
+
+void ViewportEngineTest::providerProtocolViolationsClassifyActiveIngress_data()
+{
+    QTest::addColumn<int>("violation");
+    QTest::addColumn<int>("expectedCause");
+
+    QTest::newRow("token")
+        << 0 << int(ImageViewportInternal::InternalObservationCause::ProviderProtocolTokenMismatch);
+    QTest::newRow("role")
+        << 1 << int(ImageViewportInternal::InternalObservationCause::ProviderProtocolRoleMismatch);
+    QTest::newRow("generation")
+        << 2
+        << int(ImageViewportInternal::InternalObservationCause::ProviderProtocolGenerationMismatch);
+    QTest::newRow("event-kind")
+        << 3
+        << int(ImageViewportInternal::InternalObservationCause::ProviderProtocolEventKindMismatch);
+    QTest::newRow("event-shape")
+        << 4
+        << int(ImageViewportInternal::InternalObservationCause::ProviderProtocolEventShapeMismatch);
+}
+
+void ViewportEngineTest::providerProtocolViolationsClassifyActiveIngress()
+{
+    QFETCH(int, violation);
+    QFETCH(int, expectedCause);
+
+    ViewportEngine engine;
+    auto& request = ViewportEngineTestAccess::request(engine);
+    request.roles[0].source.facts.present = true;
+    request.roles[0].source.facts.provider = true;
+    request.sequenceGeneration = 7;
+    request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Initial,
+        { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Frame }, false);
+    ViewportEngineTestAccess::activateProviderSession(engine, ImageViewportPageRole::Primary);
+    auto& requests
+        = ViewportEngineTestAccess::providerRequests(engine, ImageViewportPageRole::Primary);
+    activateProviderRequestForTest(
+        requests, request, providerRequestTokenForTest(3), ImageSequenceProviderRequestKind::Frame);
+    const quint64 requestId = request.roles[0].activeRequest.identity.id;
+    const quint64 sessionSerial
+        = ViewportEngineTestAccess::providerSession(engine, ImageViewportPageRole::Primary)
+              .sessionSerial;
+
+    ViewportProviderEvent event = providerTerminalEvent(engine, providerRequestTokenForTest(3),
+        ImageSequenceProviderEventKind::Failed,
+        ImageSequenceProviderUnsupportedCause::PayloadRejection, QStringLiteral("private detail"));
+    switch (violation) {
+    case 0:
+        event.token = {};
+        break;
+    case 1:
+        requests.active.first().role = ImageViewportPageRole::Secondary;
+        break;
+    case 2:
+        --requests.active.first().generation;
+        break;
+    case 3:
+        event.kind = ImageSequenceProviderEventKind::MetadataReady;
+        break;
+    case 4:
+        event.kind = ImageSequenceProviderEventKind::Unsupported;
+        event.unsupportedCause = static_cast<ImageSequenceProviderUnsupportedCause>(-1);
+        break;
+    default:
+        Q_UNREACHABLE();
+    }
+
+    ViewportProviderHostEvent hostEvent;
+    hostEvent.kind = ViewportProviderHostEvent::Kind::ProviderEvent;
+    hostEvent.role = ImageViewportPageRole::Primary;
+    hostEvent.providerEvent = event;
+    const auto result = engine.handleProviderHostEvent(
+        ViewportEngineProviderHostEventRequest::admit(std::move(hostEvent)));
+
+    QCOMPARE(request.status, ImageViewportRequestStatus::Error);
+    QCOMPARE(request.reason, ImageViewportRequestReason::PayloadRejection);
+    QCOMPARE(ViewportEngineTestAccess::providerSession(engine, ImageViewportPageRole::Primary)
+                 .sessionActive,
+        false);
+    QCOMPARE(result.providerTransport().size(), 1);
+    QCOMPARE(result.observations().size(), 1);
+    const auto& observation = result.observations().constFirst();
+    QCOMPARE(observation.subsystem, ImageViewportInternal::InternalObservationSubsystem::Engine);
+    QCOMPARE(
+        observation.category, ImageViewportInternal::InternalObservationCategory::AdmissionFailure);
+    QCOMPARE(int(observation.cause), expectedCause);
+    QVERIFY(observation.identity.roleValid);
+    QCOMPARE(observation.identity.role, ImageViewportPageRole::Primary);
+    QCOMPARE(observation.identity.generation, quint64(7));
+    QCOMPARE(observation.identity.sessionSerial, sessionSerial);
+    QCOMPARE(observation.identity.requestId, requestId);
+    QCOMPARE(observation.identity.providerToken, violation == 0 ? quint64(0) : quint64(3));
+    QCOMPARE(observation.detail, int(event.kind));
+}
+
+void ViewportEngineTest::providerEndOfSequenceStateViolationRecordsObservation()
+{
+    ViewportEngine engine;
+    auto& request = ViewportEngineTestAccess::request(engine);
+    request.roles[0].source.facts.present = true;
+    request.roles[0].source.facts.provider = true;
+    request.sequenceGeneration = 7;
+    request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Playback,
+        { 1, 100, ImageViewportInternal::ProviderRequestTargetKind::Playback }, { 1, 100 }, false);
+    ViewportEngineTestAccess::activateProviderSession(engine, ImageViewportPageRole::Primary);
+    auto& requests
+        = ViewportEngineTestAccess::providerRequests(engine, ImageViewportPageRole::Primary);
+    activateProviderRequestForTest(requests, request, providerRequestTokenForTest(3),
+        ImageSequenceProviderRequestKind::Playback);
+    const quint64 requestId = request.roles[0].activeRequest.identity.id;
+    const quint64 sessionSerial
+        = ViewportEngineTestAccess::providerSession(engine, ImageViewportPageRole::Primary)
+              .sessionSerial;
+
+    ViewportProviderHostEvent hostEvent;
+    hostEvent.kind = ViewportProviderHostEvent::Kind::ProviderEvent;
+    hostEvent.role = ImageViewportPageRole::Primary;
+    hostEvent.providerEvent = providerTerminalEvent(engine, providerRequestTokenForTest(3),
+        ImageSequenceProviderEventKind::EndOfSequence,
+        ImageSequenceProviderUnsupportedCause::PayloadRejection, {});
+    const auto result = engine.handleProviderHostEvent(
+        ViewportEngineProviderHostEventRequest::admit(std::move(hostEvent)));
+
+    QCOMPARE(request.status, ImageViewportRequestStatus::Error);
+    QCOMPARE(request.reason, ImageViewportRequestReason::PayloadRejection);
+    QCOMPARE(ViewportEngineTestAccess::providerSession(engine, ImageViewportPageRole::Primary)
+                 .sessionActive,
+        false);
+    QCOMPARE(result.providerTransport().size(), 1);
+    QCOMPARE(result.observations().size(), 1);
+    const auto& observation = result.observations().constFirst();
+    QCOMPARE(observation.subsystem, ImageViewportInternal::InternalObservationSubsystem::Engine);
+    QCOMPARE(
+        observation.category, ImageViewportInternal::InternalObservationCategory::AdmissionFailure);
+    QCOMPARE(observation.cause,
+        ImageViewportInternal::InternalObservationCause::ProviderProtocolEventStateMismatch);
+    QVERIFY(observation.identity.roleValid);
+    QCOMPARE(observation.identity.role, ImageViewportPageRole::Primary);
+    QCOMPARE(observation.identity.generation, quint64(7));
+    QCOMPARE(observation.identity.sessionSerial, sessionSerial);
+    QCOMPARE(observation.identity.requestId, requestId);
+    QCOMPARE(observation.identity.providerToken, quint64(3));
+    QCOMPARE(observation.detail, int(ImageSequenceProviderEventKind::EndOfSequence));
 }
 
 void ViewportEngineTest::providerTerminalReducerClosesMetadataGeneration()

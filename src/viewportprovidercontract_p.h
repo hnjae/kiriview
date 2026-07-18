@@ -135,6 +135,7 @@ struct ViewportProviderTerminalEventResult
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderFrameTransportEffect providerFrameTransport;
     ViewportPlaybackScheduleEffect schedule;
+    ImageViewportInternal::InternalObservationBatch observations;
 };
 
 struct ViewportProviderHostEvent

@@ -96,7 +96,10 @@ ViewportEngineProviderEndOfSequenceAccess::protocolViolation(
 {
     auto& p = m_roles[index(role)].provider;
     ViewportEngineProviderProtocolViolationAccess a(m_request, m_playback, p.session, p.requests);
-    auto result = reduceViewportEngineProviderProtocolViolation({ role, token }, a);
+    auto result = reduceViewportEngineProviderProtocolViolation(
+        { role, token, InternalObservationCause::ProviderProtocolEventStateMismatch,
+            ImageSequenceProviderEventKind::EndOfSequence },
+        a);
     auto mutation = a.takeMutation();
     m_request = std::move(mutation.request);
     m_playback = std::move(mutation.playback);
@@ -126,6 +129,7 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
         auto violation = a.protocolViolation(in.role, in.token);
         out.changes = violation.changes;
         out.providerFrameTransport = violation.providerFrameTransport;
+        out.observations = violation.observations;
         return out;
     }
     p.requests.retire(in.token);

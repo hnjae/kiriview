@@ -24,6 +24,7 @@ struct ViewportEngineProviderEndOfSequenceReduction
 {
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderFrameTransportEffect providerFrameTransport;
+    ImageViewportInternal::InternalObservationBatch observations;
 };
 struct ViewportEngineProviderWaitingMutation
 {
