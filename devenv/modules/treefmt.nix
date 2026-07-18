@@ -13,6 +13,15 @@
     config = {
       settings.excludes = [ "*.lock" ];
       programs = {
+        cmake-format = {
+          enable = true;
+          includes = [
+            "*.cmake"
+            "*.cmake.in"
+            "CMakeLists.txt"
+            "*/CMakeLists.txt"
+          ];
+        };
         just.enable = true;
         nixfmt.enable = true;
         rustfmt = {
@@ -20,7 +29,25 @@
           package = config.languages.rust.toolchain.rustfmt;
         };
         taplo.enable = true;
-        yamlfmt.enable = true;
+        yamlfmt = {
+          enable = true;
+          includes = [
+            "*.yaml"
+            "*.yml"
+            ".clang-format"
+            "*/.clang-format"
+            ".clang-tidy"
+            "*/.clang-tidy"
+          ];
+        };
+        xmllint = {
+          enable = true;
+          includes = [
+            "*.xml"
+            "*.svg"
+            "*.kcfg"
+          ];
+        };
       };
 
       settings.formatter = {
@@ -76,6 +103,12 @@
           includes = [ "*.qml" ];
         };
 
+        rumdl = {
+          command = lib.getExe pkgs.rumdl;
+          options = [ "fmt" ];
+          includes = [ "*.md" ];
+        };
+
         shell-format = {
           command = lib.getExe (
             pkgs.writeShellApplication {
@@ -104,4 +137,9 @@
       };
     };
   };
+
+  files."treefmt.toml".source = config.treefmt.config.build.configFile;
+
+  # Keep treefmt available without formatting the repository on every devenv shell entry.
+  tasks."devenv:treefmt:run".before = lib.mkForce [ ];
 }

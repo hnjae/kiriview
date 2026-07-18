@@ -1,47 +1,21 @@
-# Devenv
-.devenv*
-devenv.local.nix
-devenv.local.yaml
-rust-analyzer.toml
-
-# direnv
-.direnv
-
-# pre-commit
-.pre-commit-config.yaml
-
-# Flatpak build artifacts
-.flatpak-builder/
-.cargo-vendor/
-.flatpak-cargo/
-build-dir/
-repo/
-target/
-.qmlls.ini
-*.flatpak
-*.flatpakref
-*.flatpakrepo
-
-# CMake / Ninja
-build/
-cmake-build-*/
-CMakeCache.txt
-CMakeFiles/
-compile_commands.json
-install_manifest.txt
-*.ninja
-.ninja_deps
-.ninja_log
-
 # Editor / local tooling
+.devenv*
+.direnv
 .cache/
-.direnv/
 .idea/
-.codex
-.rumdl_cache/
 .sisyphus/
+.rumdl_cache/
+.codex
 
 # Logs and temporary files
 *.log
 *.tmp
 *~
+
+# local devenv:
+devenv.local.nix
+devenv.local.yaml
+
+# Managed by devenv:
+/.pre-commit-config.yaml
+/treefmt.toml

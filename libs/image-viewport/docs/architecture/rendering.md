@@ -1,0 +1,41 @@
+# Rendering
+
+Rendering translates prepared complete-frame CPU payloads and engine-owned presentation projections into encapsulated Qt Quick updates. Backend choice and resource lifetime remain behind the render host. Native texture injection, tiled or partial payloads, caller-owned scene graph resources, and caller-owned Qt Quick image items must not enter payload admission or request state.
+
+Presentation geometry is owned by the engine and specified in [Presentation Geometry](presentation-geometry.md). Rendering consumes the engine-authorized geometry projection and must not reconstruct canonical fit, zoom, pan, spread, rotation, mirror, visible-rectangle, or coordinate-conversion state from render-local resources.
+
+## Render Data Flow
+
+Prepared payloads carry immutable logical-page, raster, sampling, alpha, timing, orientation, role, quality, exactness, and payload identities. Preparation normalizes orientation into one source logical page-space contract before render admission; render code must not infer geometry from raster size or `QImage::devicePixelRatio()`. Lower-detail and refinement rasters may differ while preserving that contract. Color metadata may affect internal rendering but must not change public geometry, status, coordinate conversion, identity, or ordering.
+
+The engine-authored render snapshot contains the complete ordered role set, prepared payload identities, upload-ready data, geometry projection, solid and checkerboard background fields, and quality preferences for one attempt. It is immutable for that attempt. The render host may adapt it to backend values but must not query live sequences, providers, requested/displayed state, or mutable payload storage to assemble or repair the layer set.
+
+The render host must create or update scene graph resources only on the appropriate Qt Quick synchronization/render path. GUI-side cleanup invalidates render-host references without dereferencing raw scene graph pointers after ownership has moved to the render side.
+
+The render host must validate snapshot completeness without scene graph allocation before materializing backend resources. Backend allocation runs only on the valid Qt Quick synchronization/render path and reports structured commit or failure for the immutable render-attempt identity.
+
+Frame handles remain provider-visible lifetime boundaries even after rendering ownership moves into the viewport. The viewport may retain a handle while its payload is visible, retained as fallback, or pending render commit; it releases the handle exactly once when no public or retained display state can reference that payload or when memory pressure discards retained payloads. Render failure releases the failed payload unless the engine chooses to retain an older committed payload as visible fallback.
+
+Retained fallback display keeps the request target and presentation snapshot that produced its pixels and geometry. New accepted request or presentation state may advance while retained pixels remain visible, but displayed geometry, coordinate helpers, and render synchronization for those retained pixels continue to use the retained identities until the active target and presentation commit or retained display is cleared. Retained and accepted target generations may match when fallback precedes the active frame, position, or presentation identity.
+
+Payload, target-spread, presentation, and render-attempt identities are independent. Payload changes require a new prepared identity and commit acknowledgement. A two-page target requires one acknowledgement covering the complete required role set before ready display ownership is first published; role failure must not expose a partial spread. Presentation-only and demand-only changes reuse committed payload ownership and do not reset ready request status. An auxiliary refinement of one role uses a render snapshot containing the complete committed role set with only that role's candidate payload identity changed, so commit replaces display detail atomically and failure leaves the previously committed spread intact. A prepared payload becomes public display content only after the engine accepts the matching commit acknowledgement.
+
+Render acknowledgements identify the target spread plus every required role payload identity for that snapshot. A commit acknowledgement is complete only when all required role identities match the engine's active target spread, and a failure acknowledgement carries the failed role identity so stale or non-required role failures can be discarded without changing newer request or display state.
+
+The engine serializes commit authority per target-presentation identity while allowing provider and preparation work for different roles to complete concurrently. Prepared role candidates are retained and coalesced into the next complete-spread snapshot; if a newer candidate or presentation supersedes an in-flight attempt, its acknowledgement is stale and the engine builds a fresh attempt from the latest committed and pending role identities. A sibling refinement commit must not discard another role's still-current prepared candidate or reintroduce an older payload identity.
+
+Render failure acknowledgements carry a structured internal cause for operational attribution. The cause is not a public branching value. Failure for an active initial, seek, position, playback, caller-refinement, or presentation-only display attempt projects bounded `Error` with `RenderFailure`; a still-usable previously committed complete display becomes retained under its producing presentation identity, otherwise display becomes empty placeholder. Failure for an auxiliary provider-refinement attempt releases its candidate payload, preserves the previously committed complete spread and ready request state, and remains internal observability only.
+
+Scene graph invalidation discards backend resources, not engine payload or display identity. The render host must rebuild from the latest engine snapshot when synchronization becomes available. Absence of a usable window or positive item geometry keeps new work render-waiting; it is not itself a render failure. A genuine rebuild failure for the active attempt follows the normal render-failure acknowledgement path.
+
+## Quality Requests
+
+The render host consumes canonical smoothing and mipmap preferences and reports a structured fallback fact when the active backend cannot honor them. The engine owns the resulting warning lifetime and display revision effect and must not convert an optional rendering fallback into payload rejection or request failure.
+
+## Background
+
+Transparent, solid color, and checkerboard backgrounds are item backing presentation. Solid color consumes `backgroundColor`; checkerboard consumes its stored light color, dark color, and positive item-logical cell size and remains axis-aligned to item space. Background fills local item bounds behind image content and does not contribute to content geometry, image coordinate validity, or request readiness.
+
+Background rendering is independent of payload admission. A background-only update must not advance request status, display frame, displayed position, or playback phase.
+
+An accepted presentation change advances the display revision when it changes a visible display observation, even when committed payload identities are unchanged. A complete no-op advances no revision.

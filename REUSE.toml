@@ -3,32 +3,32 @@ SPDX-PackageName = "KiriView"
 
 [[annotations]]
 path = [
-  # Source:
-  "**/org.hnjae.kiriview.svg",
-  "Cargo.lock",
-  "Cargo.toml",
-  "cargo-sources.json",
-  "org.hnjae.kiriview.desktop",
-  "org.hnjae.kiriview.json",
-  "po/**/*.po",
-  "tests/fixtures/**/*",
+  # Application:
+  "app/**/org.hnjae.kiriview.svg",
+  "app/Cargo.lock",
+  "app/Cargo.toml",
+  "app/cargo-sources.json",
+  "app/org.hnjae.kiriview.desktop",
+  "app/org.hnjae.kiriview.json",
+  "app/po/**/*.po",
+  "app/tests/fixtures/**/*",
 
-  # Dev environments:
-  "justfile",
-  "devenv.lock",
-  "devenv.yaml",
+  # Development environments:
+  "**/justfile",
+  "**/devenv.lock",
+  "**/devenv.yaml",
 
   # Documentations:
   "**/*.md",
 
   # Tool configurations:
-  ".gitignore",
+  "**/.gitignore",
+  "**/.clang-tidy",
   ".clang-format",
-  ".clang-tidy",
+  ".cmake-format.yaml",
   ".editorconfig",
   "biome.json",
   "cog.toml",
-  "opencode.jsonc",
   "rumdl.toml",
   "statix.toml",
   "typos.toml",

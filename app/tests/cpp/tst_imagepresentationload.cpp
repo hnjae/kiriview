@@ -1,0 +1,812 @@
+// SPDX-FileCopyrightText: 2026 KIM Hyunjae
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+#include "presentation/imagepresentationload.h"
+
+#include "image_test_support.h"
+#include "presentation/imagepagesurfacecontroller.h"
+#include "rendering/displayimagestore.h"
+#include "rendering/imagerendering.h"
+
+#include <QBuffer>
+#include <QByteArray>
+#include <QColor>
+#include <QIODevice>
+#include <QObject>
+#include <QSize>
+#include <QSizeF>
+#include <QString>
+#include <QTest>
+#include <QUrl>
+#include <array>
+#include <cstdint>
+#include <cstring>
+#include <memory>
+#include <optional>
+#include <type_traits>
+#include <utility>
+#include <variant>
+#include <vector>
+
+namespace {
+using kiriview::TestSupport::localUrl;
+using kiriview::TestSupport::staticDecodedTestImage;
+using kiriview::TestSupport::staticDisplayTestImagePayload;
+using kiriview::TestSupport::testImage;
+
+constexpr qsizetype testPredecodeCacheByteBudget = 1024 * 1024;
+constexpr qsizetype testDisplayImageCacheByteBudget = 512 * 1024;
+constexpr std::array<unsigned char, 8> pngSignature { 0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a };
+
+struct FrameSpec
+{
+    quint32 width = 0;
+    quint32 height = 0;
+    quint16 delayNum = 1;
+    quint16 delayDen = 1000;
+    QByteArray pixels;
+};
+
+QByteArray pixelBytes(const QColor& color)
+{
+    const std::array<unsigned char, 4> pixel {
+        static_cast<unsigned char>(color.red()),
+        static_cast<unsigned char>(color.green()),
+        static_cast<unsigned char>(color.blue()),
+        static_cast<unsigned char>(color.alpha()),
+    };
+    return QByteArray(
+        reinterpret_cast<const char*>(pixel.data()), static_cast<qsizetype>(pixel.size()));
+}
+
+QImage solidRgbaImage(const QColor& color)
+{
+    QImage image(1, 1, QImage::Format_RGBA8888);
+    std::memcpy(image.scanLine(0), pixelBytes(color).constData(), 4);
+    return image;
+}
+
+FrameSpec fullCanvasFrame(const QColor& color)
+{
+    return FrameSpec { 1, 1, 1, 1000, pixelBytes(color) };
+}
+
+quint32 readBe32(const QByteArray& data, qsizetype offset)
+{
+    return (static_cast<quint32>(static_cast<unsigned char>(data[offset])) << 24)
+        | (static_cast<quint32>(static_cast<unsigned char>(data[offset + 1])) << 16)
+        | (static_cast<quint32>(static_cast<unsigned char>(data[offset + 2])) << 8)
+        | static_cast<quint32>(static_cast<unsigned char>(data[offset + 3]));
+}
+
+void appendBe32(QByteArray* data, quint32 value)
+{
+    data->append(static_cast<char>((value >> 24) & 0xff));
+    data->append(static_cast<char>((value >> 16) & 0xff));
+    data->append(static_cast<char>((value >> 8) & 0xff));
+    data->append(static_cast<char>(value & 0xff));
+}
+
+void appendBe16(QByteArray* data, quint16 value)
+{
+    data->append(static_cast<char>((value >> 8) & 0xff));
+    data->append(static_cast<char>(value & 0xff));
+}
+
+quint32 crc32(const QByteArray& data)
+{
+    quint32 crc = 0xffffffffU;
+    for (unsigned char byte : data) {
+        crc ^= byte;
+        for (int bit = 0; bit < 8; ++bit) {
+            crc = (crc >> 1) ^ (0xedb88320U & (0U - (crc & 1U)));
+        }
+    }
+    return crc ^ 0xffffffffU;
+}
+
+void appendPngChunk(QByteArray* png, const char* kind, const QByteArray& payload)
+{
+    appendBe32(png, static_cast<quint32>(payload.size()));
+    const qsizetype typeOffset = png->size();
+    png->append(kind, 4);
+    png->append(payload);
+    appendBe32(png, crc32(png->mid(typeOffset, 4 + payload.size())));
+}
+
+std::vector<QByteArray> extractChunks(const QByteArray& png, const char* expectedKind)
+{
+    std::vector<QByteArray> chunks;
+    qsizetype offset = static_cast<qsizetype>(pngSignature.size());
+    while (offset + 12 <= png.size()) {
+        const quint32 length = readBe32(png, offset);
+        const qsizetype payloadOffset = offset + 8;
+        const qsizetype nextOffset = payloadOffset + static_cast<qsizetype>(length) + 4;
+        if (nextOffset > png.size()) {
+            break;
+        }
+        if (std::memcmp(png.constData() + offset + 4, expectedKind, 4) == 0) {
+            chunks.push_back(png.mid(payloadOffset, static_cast<qsizetype>(length)));
+        }
+        offset = nextOffset;
+    }
+    return chunks;
+}
+
+QByteArray firstChunk(const QByteArray& png, const char* kind)
+{
+    const std::vector<QByteArray> chunks = extractChunks(png, kind);
+    Q_ASSERT(!chunks.empty());
+    return chunks.front();
+}
+
+QByteArray encodeRgbaPng(quint32 width, quint32 height, const QByteArray& pixels)
+{
+    QImage image(static_cast<int>(width), static_cast<int>(height), QImage::Format_RGBA8888);
+    Q_ASSERT(!image.isNull());
+    std::memcpy(image.scanLine(0), pixels.constData(), static_cast<size_t>(width * 4));
+
+    QByteArray png;
+    QBuffer buffer(&png);
+    buffer.open(QIODevice::WriteOnly);
+    Q_ASSERT(image.save(&buffer, "PNG"));
+    return png;
+}
+
+QByteArray frameControlPayload(quint32 sequenceNumber, const FrameSpec& frame)
+{
+    QByteArray payload;
+    appendBe32(&payload, sequenceNumber);
+    appendBe32(&payload, frame.width);
+    appendBe32(&payload, frame.height);
+    appendBe32(&payload, 0);
+    appendBe32(&payload, 0);
+    appendBe16(&payload, frame.delayNum);
+    appendBe16(&payload, frame.delayDen);
+    payload.append(static_cast<char>(0));
+    payload.append(static_cast<char>(0));
+    return payload;
+}
+
+QByteArray makeApng(const std::vector<FrameSpec>& frames)
+{
+    Q_ASSERT(!frames.empty());
+    const QByteArray defaultPng = encodeRgbaPng(1, 1, frames.front().pixels);
+
+    QByteArray apng;
+    apng.append(reinterpret_cast<const char*>(pngSignature.data()), pngSignature.size());
+    appendPngChunk(&apng, "IHDR", firstChunk(defaultPng, "IHDR"));
+
+    QByteArray animationControl;
+    appendBe32(&animationControl, static_cast<quint32>(frames.size()));
+    appendBe32(&animationControl, 1);
+    appendPngChunk(&apng, "acTL", animationControl);
+
+    quint32 sequenceNumber = 0;
+    appendPngChunk(&apng, "fcTL", frameControlPayload(sequenceNumber++, frames.front()));
+    for (const QByteArray& idat : extractChunks(defaultPng, "IDAT")) {
+        appendPngChunk(&apng, "IDAT", idat);
+    }
+
+    for (std::size_t index = 1; index < frames.size(); ++index) {
+        const FrameSpec& frame = frames.at(index);
+        appendPngChunk(&apng, "fcTL", frameControlPayload(sequenceNumber++, frame));
+        const QByteArray framePng = encodeRgbaPng(frame.width, frame.height, frame.pixels);
+        QByteArray frameData;
+        appendBe32(&frameData, sequenceNumber++);
+        for (const QByteArray& idat : extractChunks(framePng, "IDAT")) {
+            frameData.append(idat);
+        }
+        appendPngChunk(&apng, "fdAT", frameData);
+    }
+
+    appendPngChunk(&apng, "IEND", {});
+    return apng;
+}
+
+template <typename Image, typename = void> struct HasSourceIdentity : std::false_type
+{
+};
+
+template <typename Image>
+struct HasSourceIdentity<Image, std::void_t<decltype(std::declval<Image&>().sourceIdentity)>>
+    : std::true_type
+{
+};
+
+template <typename Image> void assignSourceIdentity(Image& image, const QString& sourceIdentity)
+{
+    if constexpr (HasSourceIdentity<Image>::value) {
+        image.sourceIdentity = sourceIdentity;
+    }
+}
+
+void assignDecodedSourceIdentity(kiriview::DecodedImage& decoded, const QString& sourceIdentity)
+{
+    std::visit(
+        [&sourceIdentity](auto& image) { assignSourceIdentity(image, sourceIdentity); }, decoded);
+}
+
+kiriview::ImageLoadSession loadSession(const QUrl& url)
+{
+    return kiriview::ImageLoadSession(1,
+        kiriview::ImageLoadRequest::fromExternalSource(kiriview::resolvedNavigationSource(url, {})),
+        kiriview::DisplayedImageLocation::fromUrl(url));
+}
+
+kiriview::ImageDocumentRenderContext renderContext()
+{
+    return kiriview::ImageDocumentRenderContext {
+        1.0,
+        kiriview::fallbackTextureSizeMax,
+    };
+}
+
+kiriview::ImagePageSurfaceController pageSurfaceController(QObject* parent)
+{
+    return kiriview::ImagePageSurfaceController(parent, {},
+        kiriview::ImageCacheBudgets {
+            testPredecodeCacheByteBudget,
+            testDisplayImageCacheByteBudget,
+        });
+}
+
+kiriview::ImagePageSurfaceController pageSurfaceController(
+    QObject* parent, std::shared_ptr<kiriview::DisplayImageStore> displayImageStore)
+{
+    return kiriview::ImagePageSurfaceController(parent, {},
+        kiriview::ImageCacheBudgets {
+            testPredecodeCacheByteBudget,
+            testDisplayImageCacheByteBudget,
+        },
+        std::move(displayImageStore));
+}
+
+QString entryId(const kiriview::ImageDisplaySourceSlot& slot)
+{
+    return slot.providerUrl.path().mid(1);
+}
+
+template <typename Load> const Load* planPayload(const kiriview::ImagePresentationLoadPlan& plan)
+{
+    return std::get_if<Load>(&plan.payload);
+}
+}
+
+class TestImagePresentationLoad : public QObject
+{
+    Q_OBJECT
+
+private Q_SLOTS:
+    void predecodedImagesPlanStaticCacheablePresentation();
+    void predecodedOpenedCollectionEntriesPlanScopeIdentity();
+    void predecodedImagesPublishProviderSource();
+    void decodedImagesPlanPresentationActions();
+    void staticDecodedImagesPlanDisplayScopeIdentityFromLocation();
+    void staticDecodedPredecodeCacheabilityUsesInjectedBudget();
+    void animationHandlingControlsPlannedEffects();
+    void staticDecodedImagesAreAppliedToPresentation();
+    void staticDecodedImagesPublishProviderSource();
+    void providerPublicationFailureRejectsPresentation();
+    void unpresentableDecodedImagesLeaveExistingPresentationUntouched();
+    void streamedAnimationImagesPresentFirstFrames();
+    void animationFirstFramesPublishProviderSource();
+    void animationPlaybackFramesPublishProviderSource();
+    void secondaryAnimationModePresentsFirstFrame();
+};
+
+void TestImagePresentationLoad::predecodedImagesPlanStaticCacheablePresentation()
+{
+    const kiriview::DisplayedImageLocation location
+        = kiriview::DisplayedImageLocation::fromUrl(localUrl(QStringLiteral("/images/page.png")));
+    const QString displayScopeIdentity = kiriview::displayScopeIdentityForLocation(location);
+    kiriview::PredecodedImage image {
+        staticDisplayTestImagePayload(testImage(QSize(9, 5)), testImage(QSize(3, 2)), 0.5,
+            kiriview::DisplayImageQuality::FirstDisplay),
+        location,
+    };
+
+    const kiriview::ImagePresentationLoadPlan plan
+        = kiriview::planPredecodedImagePresentationLoad(std::move(image));
+
+    QVERIFY(plan.hasPresentation());
+    const auto* load = planPayload<kiriview::ImagePresentationStaticImageLoad>(plan);
+    QVERIFY(load != nullptr);
+    QVERIFY(load->predecodeCacheable);
+    QCOMPARE(load->displayImage.sourceIdentity, QStringLiteral("test-image"));
+    QCOMPARE(load->displayImage.originalSize, QSize(9, 5));
+    QCOMPARE(load->displayImage.image.size(), QSize(3, 2));
+    QCOMPARE(load->displayImage.quality, kiriview::DisplayImageQuality::FirstDisplay);
+    QCOMPARE(load->displayImage.displayScopeIdentity, displayScopeIdentity);
+    QCOMPARE(load->displayImage.displayPixelsPerSourcePixel, 0.5);
+    QVERIFY(load->displayImage.refinementSource != nullptr);
+    QCOMPARE(load->displayImage.refinementSource->imageSize(), QSize(9, 5));
+}
+
+void TestImagePresentationLoad::predecodedOpenedCollectionEntriesPlanScopeIdentity()
+{
+    const kiriview::OpenedCollectionScopeLocation openedCollectionScope
+        = kiriview::OpenedCollectionScopeLocation::fromUrls(
+            localUrl(QStringLiteral("/books/book.cbz")),
+            QUrl(QStringLiteral("zip:///books/book.cbz/")),
+            kiriview::OpenedCollectionScopeKind::ComicBookArchive);
+    const kiriview::DisplayedImageLocation location
+        = kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
+            QUrl(QStringLiteral("zip:///books/book.cbz/page001.png")), openedCollectionScope);
+    const QString displayScopeIdentity = kiriview::displayScopeIdentityForLocation(location);
+    QVERIFY(!displayScopeIdentity.isEmpty());
+    QVERIFY(displayScopeIdentity
+        != kiriview::displayScopeIdentityForLocation(
+            kiriview::DisplayedImageLocation::fromUrl(location.imageUrl())));
+    kiriview::PredecodedImage image {
+        staticDisplayTestImagePayload(testImage(QSize(9, 5)), testImage(QSize(3, 2)), 0.5,
+            kiriview::DisplayImageQuality::FirstDisplay),
+        location,
+    };
+
+    const kiriview::ImagePresentationLoadPlan plan
+        = kiriview::planPredecodedImagePresentationLoad(std::move(image));
+
+    const auto* load = planPayload<kiriview::ImagePresentationStaticImageLoad>(plan);
+    QVERIFY(load != nullptr);
+    QCOMPARE(load->displayImage.displayScopeIdentity, displayScopeIdentity);
+}
+
+void TestImagePresentationLoad::predecodedImagesPublishProviderSource()
+{
+    auto displayImageStore = std::make_shared<kiriview::DisplayImageStore>(1024 * 1024);
+    kiriview::ImagePageSurfaceController controller
+        = pageSurfaceController(this, displayImageStore);
+    const kiriview::DisplayedImageLocation location
+        = kiriview::DisplayedImageLocation::fromUrl(localUrl(QStringLiteral("/images/page.png")));
+    const QString displayScopeIdentity = kiriview::displayScopeIdentityForLocation(location);
+    kiriview::PredecodedImage image {
+        staticDisplayTestImagePayload(testImage(QSize(12, 8)), testImage(QSize(6, 4)), 0.5,
+            kiriview::DisplayImageQuality::FirstDisplay),
+        location,
+    };
+
+    const kiriview::ImagePresentationLoadResult result
+        = kiriview::presentPredecodedImageLoad(controller, std::move(image), renderContext());
+
+    QVERIFY(result.presented);
+    QVERIFY(controller.hasImage());
+    QCOMPARE(controller.imageSize(), QSize(12, 8));
+
+    const kiriview::ImageDisplaySourceSlot displaySource = controller.snapshot().displaySource();
+    QCOMPARE(displaySource.status, kiriview::ImageDisplaySourceStatus::Ready);
+    QVERIFY(!displaySource.providerUrl.isEmpty());
+    QCOMPARE(displaySource.sourceIdentity, QStringLiteral("test-image"));
+    QCOMPARE(displaySource.originalSize, QSize(12, 8));
+    QCOMPARE(displaySource.rasterSize, QSize(6, 4));
+    QCOMPARE(displaySource.sourceSizeHint, QSize(6, 0));
+    QCOMPARE(displaySource.quality, kiriview::DisplayImageQuality::FirstDisplay);
+
+    const QString entryId = displaySource.providerUrl.path().mid(1);
+    const std::optional<kiriview::DisplayImageStoreEntry> stored
+        = displayImageStore->entry(entryId);
+    QVERIFY(stored.has_value());
+    QCOMPARE(stored->originalSize, QSize(12, 8));
+    QCOMPARE(stored->rasterSize, QSize(6, 4));
+    QCOMPARE(stored->quality, kiriview::DisplayImageQuality::FirstDisplay);
+    QCOMPARE(stored->sourceIdentity, QStringLiteral("test-image"));
+    QVERIFY(stored->reuseKey.has_value());
+    QCOMPARE(stored->reuseKey->locationIdentity, displayScopeIdentity);
+}
+
+void TestImagePresentationLoad::decodedImagesPlanPresentationActions()
+{
+    {
+        kiriview::DecodedImage decoded = staticDecodedTestImage(testImage(QSize(12, 8)));
+        const kiriview::ImagePresentationLoadPlan plan = kiriview::planDecodedImagePresentationLoad(
+            std::move(decoded), kiriview::ImagePresentationAnimationHandling::StartAnimation,
+            testPredecodeCacheByteBudget);
+
+        QVERIFY(plan.hasPresentation());
+        const auto* load = planPayload<kiriview::ImagePresentationStaticImageLoad>(plan);
+        QVERIFY(load != nullptr);
+        QVERIFY(load->predecodeCacheable);
+        QVERIFY(load->displayImage.refinementSource != nullptr);
+        QCOMPARE(load->displayImage.refinementSource->imageSize(), QSize(12, 8));
+    }
+
+    {
+        kiriview::DecodedImage decoded = kiriview::ApngAnimationImage {};
+        const kiriview::ImagePresentationLoadPlan plan = kiriview::planDecodedImagePresentationLoad(
+            std::move(decoded), kiriview::ImagePresentationAnimationHandling::StartAnimation,
+            testPredecodeCacheByteBudget);
+
+        QVERIFY(!plan.hasPresentation());
+        QVERIFY(std::holds_alternative<std::monostate>(plan.payload));
+    }
+}
+
+void TestImagePresentationLoad::staticDecodedImagesPlanDisplayScopeIdentityFromLocation()
+{
+    kiriview::DecodedImage decoded = staticDecodedTestImage(testImage(QSize(12, 8)));
+    const kiriview::DisplayedImageLocation location = kiriview::DisplayedImageLocation::fromUrl(
+        localUrl(QStringLiteral("/images/foreground.png")));
+    const QString displayScopeIdentity = kiriview::displayScopeIdentityForLocation(location);
+
+    const kiriview::ImagePresentationLoadPlan plan = kiriview::planDecodedImagePresentationLoad(
+        std::move(decoded), location, kiriview::ImagePresentationAnimationHandling::StartAnimation,
+        testPredecodeCacheByteBudget);
+
+    const auto* load = planPayload<kiriview::ImagePresentationStaticImageLoad>(plan);
+    QVERIFY(load != nullptr);
+    QCOMPARE(load->displayImage.displayScopeIdentity, displayScopeIdentity);
+}
+
+void TestImagePresentationLoad::staticDecodedPredecodeCacheabilityUsesInjectedBudget()
+{
+    kiriview::DecodedImage decoded = staticDecodedTestImage(testImage(QSize(12, 8)));
+    const kiriview::ImagePresentationLoadPlan plan = kiriview::planDecodedImagePresentationLoad(
+        std::move(decoded), kiriview::ImagePresentationAnimationHandling::StartAnimation, 1);
+
+    const auto* load = planPayload<kiriview::ImagePresentationStaticImageLoad>(plan);
+    QVERIFY(load != nullptr);
+    QVERIFY(!load->predecodeCacheable);
+}
+
+void TestImagePresentationLoad::animationHandlingControlsPlannedEffects()
+{
+    {
+        kiriview::DecodedImage decoded = kiriview::ApngAnimationImage {
+            testImage(QSize(13, 7)),
+            QByteArrayLiteral("apng-data"),
+        };
+        const kiriview::ImagePresentationLoadPlan plan = kiriview::planDecodedImagePresentationLoad(
+            std::move(decoded), kiriview::ImagePresentationAnimationHandling::FirstFrameOnly,
+            testPredecodeCacheByteBudget);
+
+        const auto* load = planPayload<kiriview::ImagePresentationFrameLoad>(plan);
+        QVERIFY(load != nullptr);
+        QCOMPARE(load->frame.size(), QSize(13, 7));
+    }
+
+    {
+        kiriview::DecodedImage decoded = kiriview::ReaderAnimationImage {
+            testImage(QSize(10, 6)),
+            QByteArrayLiteral("reader-data"),
+            QByteArrayLiteral("gif"),
+        };
+        const kiriview::ImagePresentationLoadPlan plan = kiriview::planDecodedImagePresentationLoad(
+            std::move(decoded), kiriview::ImagePresentationAnimationHandling::StartAnimation,
+            testPredecodeCacheByteBudget);
+
+        const auto* load = planPayload<kiriview::ImagePresentationAnimationLoad>(plan);
+        QVERIFY(load != nullptr);
+        QCOMPARE(load->firstFrame.size(), QSize(10, 6));
+        const auto* request
+            = std::get_if<kiriview::ReaderAnimationPlaybackRequest>(&load->playback.payload);
+        QVERIFY(request != nullptr);
+        QCOMPARE(request->data, QByteArrayLiteral("reader-data"));
+        QCOMPARE(request->format, QByteArrayLiteral("gif"));
+    }
+
+    {
+        kiriview::DecodedImage decoded = kiriview::ApngAnimationImage {
+            testImage(QSize(14, 8)),
+            QByteArrayLiteral("apng-data"),
+        };
+        const kiriview::ImagePresentationLoadPlan plan = kiriview::planDecodedImagePresentationLoad(
+            std::move(decoded), kiriview::ImagePresentationAnimationHandling::StartAnimation,
+            testPredecodeCacheByteBudget);
+
+        const auto* load = planPayload<kiriview::ImagePresentationAnimationLoad>(plan);
+        QVERIFY(load != nullptr);
+        QCOMPARE(load->firstFrame.size(), QSize(14, 8));
+        const auto* request
+            = std::get_if<kiriview::ApngAnimationPlaybackRequest>(&load->playback.payload);
+        QVERIFY(request != nullptr);
+        QCOMPARE(request->data, QByteArrayLiteral("apng-data"));
+    }
+
+    {
+        kiriview::DecodedImage decoded = kiriview::WebPAnimationImage {
+            testImage(QSize(9, 6)),
+            QByteArrayLiteral("webp-data"),
+        };
+        const kiriview::ImagePresentationLoadPlan plan = kiriview::planDecodedImagePresentationLoad(
+            std::move(decoded), kiriview::ImagePresentationAnimationHandling::StartAnimation,
+            testPredecodeCacheByteBudget);
+
+        const auto* load = planPayload<kiriview::ImagePresentationAnimationLoad>(plan);
+        QVERIFY(load != nullptr);
+        QCOMPARE(load->firstFrame.size(), QSize(9, 6));
+        const auto* request
+            = std::get_if<kiriview::WebPAnimationPlaybackRequest>(&load->playback.payload);
+        QVERIFY(request != nullptr);
+        QCOMPARE(request->data, QByteArrayLiteral("webp-data"));
+    }
+
+    {
+        kiriview::DecodedImage decoded = kiriview::JxlAnimationImage {
+            testImage(QSize(15, 9)),
+            QByteArrayLiteral("jxl-data"),
+        };
+        const kiriview::ImagePresentationLoadPlan plan = kiriview::planDecodedImagePresentationLoad(
+            std::move(decoded), kiriview::ImagePresentationAnimationHandling::StartAnimation,
+            testPredecodeCacheByteBudget);
+
+        const auto* load = planPayload<kiriview::ImagePresentationAnimationLoad>(plan);
+        QVERIFY(load != nullptr);
+        QCOMPARE(load->firstFrame.size(), QSize(15, 9));
+        const auto* request
+            = std::get_if<kiriview::JxlAnimationPlaybackRequest>(&load->playback.payload);
+        QVERIFY(request != nullptr);
+        QCOMPARE(request->data, QByteArrayLiteral("jxl-data"));
+    }
+
+    {
+        kiriview::DecodedImage decoded = kiriview::HeifSequenceAnimationImage {
+            testImage(QSize(11, 5)),
+            QByteArrayLiteral("heif-data"),
+        };
+        const kiriview::ImagePresentationLoadPlan plan = kiriview::planDecodedImagePresentationLoad(
+            std::move(decoded), kiriview::ImagePresentationAnimationHandling::StartAnimation,
+            testPredecodeCacheByteBudget);
+
+        const auto* load = planPayload<kiriview::ImagePresentationAnimationLoad>(plan);
+        QVERIFY(load != nullptr);
+        QCOMPARE(load->firstFrame.size(), QSize(11, 5));
+        const auto* request
+            = std::get_if<kiriview::HeifSequenceAnimationPlaybackRequest>(&load->playback.payload);
+        QVERIFY(request != nullptr);
+        QCOMPARE(request->data, QByteArrayLiteral("heif-data"));
+    }
+}
+
+void TestImagePresentationLoad::staticDecodedImagesAreAppliedToPresentation()
+{
+    kiriview::ImagePageSurfaceController controller = pageSurfaceController(this);
+    const QUrl imageUrl = localUrl(QStringLiteral("/images/page.png"));
+    const kiriview::ImageLoadSession session = loadSession(imageUrl);
+
+    kiriview::DecodedImage decoded = staticDecodedTestImage(testImage(QSize(12, 8)));
+    const kiriview::ImagePresentationLoadResult result
+        = kiriview::presentDecodedImageLoad(controller, std::move(decoded),
+            kiriview::ImagePresentationAnimationHandling::StartAnimation, renderContext());
+
+    QVERIFY(result.presented);
+    QCOMPARE(result.imageSize, QSize(12, 8));
+    QCOMPARE(controller.imageSize(), QSize(12, 8));
+    QVERIFY(controller.hasImage());
+    QVERIFY(controller.isPredecodeCacheable());
+}
+
+void TestImagePresentationLoad::staticDecodedImagesPublishProviderSource()
+{
+    auto displayImageStore = std::make_shared<kiriview::DisplayImageStore>(1024 * 1024);
+    kiriview::ImagePageSurfaceController controller
+        = pageSurfaceController(this, displayImageStore);
+    kiriview::DecodedImage decoded = kiriview::StaticDecodedImage {
+        staticDisplayTestImagePayload(kiriview::TestSupport::testImage(QSize(12, 8)),
+            kiriview::TestSupport::testImage(QSize(6, 4)), {},
+            kiriview::DisplayImageQuality::FirstDisplay),
+    };
+
+    const kiriview::ImagePresentationLoadResult result
+        = kiriview::presentDecodedImageLoad(controller, std::move(decoded),
+            kiriview::ImagePresentationAnimationHandling::StartAnimation, renderContext());
+
+    QVERIFY(result.presented);
+    QVERIFY(controller.hasImage());
+    QCOMPARE(controller.imageSize(), QSize(12, 8));
+
+    const kiriview::ImageDisplaySourceSlot displaySource = controller.snapshot().displaySource();
+    QCOMPARE(displaySource.status, kiriview::ImageDisplaySourceStatus::Ready);
+    QVERIFY(!displaySource.providerUrl.isEmpty());
+    QCOMPARE(displaySource.revision, quint64(1));
+    QCOMPARE(displaySource.sourceIdentity, QStringLiteral("test-image"));
+    QCOMPARE(displaySource.originalSize, QSize(12, 8));
+    QCOMPARE(displaySource.rasterSize, QSize(6, 4));
+    QCOMPARE(displaySource.sourceSizeHint, QSize(6, 0));
+    QCOMPARE(displaySource.quality, kiriview::DisplayImageQuality::FirstDisplay);
+    QVERIFY(!displaySource.cacheEnabled);
+    QVERIFY(displaySource.loadAcknowledgmentRequired);
+
+    const QString entryId = displaySource.providerUrl.path().mid(1);
+    const std::optional<kiriview::DisplayImageStoreEntry> stored
+        = displayImageStore->entry(entryId);
+    QVERIFY(stored.has_value());
+    QCOMPARE(stored->originalSize, QSize(12, 8));
+    QCOMPARE(stored->rasterSize, QSize(6, 4));
+    QCOMPARE(stored->quality, kiriview::DisplayImageQuality::FirstDisplay);
+    QCOMPARE(stored->sourceIdentity, QStringLiteral("test-image"));
+}
+
+void TestImagePresentationLoad::providerPublicationFailureRejectsPresentation()
+{
+    auto displayImageStore = std::make_shared<kiriview::DisplayImageStore>(1);
+    kiriview::ImagePageSurfaceController controller
+        = pageSurfaceController(this, displayImageStore);
+    kiriview::DecodedImage decoded = staticDecodedTestImage(testImage(QSize(12, 8)));
+
+    const kiriview::ImagePresentationLoadResult result
+        = kiriview::presentDecodedImageLoad(controller, std::move(decoded),
+            kiriview::ImagePresentationAnimationHandling::StartAnimation, renderContext());
+
+    QVERIFY(!result.presented);
+    QCOMPARE(controller.snapshot().source.kind(),
+        kiriview::ImagePresentationPageSlotSourceKind::DisplayError);
+    QVERIFY(controller.snapshot().displaySource().providerUrl.isEmpty());
+}
+
+void TestImagePresentationLoad::unpresentableDecodedImagesLeaveExistingPresentationUntouched()
+{
+    kiriview::ImagePageSurfaceController controller = pageSurfaceController(this);
+    const QUrl imageUrl = localUrl(QStringLiteral("/images/page.png"));
+    const kiriview::ImageLoadSession session = loadSession(imageUrl);
+    kiriview::DecodedImage decoded = staticDecodedTestImage(testImage(QSize(12, 8)));
+    QVERIFY(kiriview::presentDecodedImageLoad(controller, std::move(decoded),
+        kiriview::ImagePresentationAnimationHandling::StartAnimation, renderContext())
+            .presented);
+
+    kiriview::DecodedImage unpresentable = kiriview::ApngAnimationImage {};
+    const kiriview::ImagePresentationLoadResult result
+        = kiriview::presentDecodedImageLoad(controller, std::move(unpresentable),
+            kiriview::ImagePresentationAnimationHandling::StartAnimation, renderContext());
+
+    QVERIFY(!result.presented);
+    QCOMPARE(controller.imageSize(), QSize(12, 8));
+    QVERIFY(controller.hasImage());
+}
+
+void TestImagePresentationLoad::streamedAnimationImagesPresentFirstFrames()
+{
+    const QUrl imageUrl = localUrl(QStringLiteral("/images/animated.png"));
+    const kiriview::ImageLoadSession session = loadSession(imageUrl);
+
+    {
+        kiriview::ImagePageSurfaceController controller = pageSurfaceController(this);
+        kiriview::DecodedImage decoded = kiriview::ApngAnimationImage {
+            testImage(QSize(13, 7)),
+            QByteArrayLiteral("apng-data"),
+        };
+
+        const kiriview::ImagePresentationLoadResult result
+            = kiriview::presentDecodedImageLoad(controller, std::move(decoded),
+                kiriview::ImagePresentationAnimationHandling::FirstFrameOnly, renderContext());
+
+        QVERIFY(result.presented);
+        QCOMPARE(result.imageSize, QSize(13, 7));
+        QCOMPARE(controller.imageSize(), QSize(13, 7));
+        QVERIFY(!controller.isPredecodeCacheable());
+    }
+
+    {
+        kiriview::ImagePageSurfaceController controller = pageSurfaceController(this);
+        kiriview::DecodedImage decoded = kiriview::HeifSequenceAnimationImage {
+            testImage(QSize(11, 5)),
+            QByteArrayLiteral("heif-data"),
+        };
+
+        const kiriview::ImagePresentationLoadResult result
+            = kiriview::presentDecodedImageLoad(controller, std::move(decoded),
+                kiriview::ImagePresentationAnimationHandling::FirstFrameOnly, renderContext());
+
+        QVERIFY(result.presented);
+        QCOMPARE(result.imageSize, QSize(11, 5));
+        QCOMPARE(controller.imageSize(), QSize(11, 5));
+        QVERIFY(!controller.isPredecodeCacheable());
+    }
+}
+
+void TestImagePresentationLoad::animationFirstFramesPublishProviderSource()
+{
+    auto displayImageStore = std::make_shared<kiriview::DisplayImageStore>(1024 * 1024);
+    kiriview::ImagePageSurfaceController controller
+        = pageSurfaceController(this, displayImageStore);
+    const QString sourceIdentity = QStringLiteral("file:///tmp/animated.gif");
+    kiriview::DecodedImage decoded = kiriview::ReaderAnimationImage {
+        testImage(QSize(10, 6)),
+        QByteArrayLiteral("reader-data"),
+        QByteArrayLiteral("gif"),
+        {},
+    };
+    assignDecodedSourceIdentity(decoded, sourceIdentity);
+
+    const kiriview::ImagePresentationLoadResult result
+        = kiriview::presentDecodedImageLoad(controller, std::move(decoded),
+            kiriview::ImagePresentationAnimationHandling::FirstFrameOnly, renderContext());
+
+    QVERIFY(result.presented);
+    QCOMPARE(result.imageSize, QSize(10, 6));
+    QVERIFY(controller.hasImage());
+    QCOMPARE(controller.imageSize(), QSize(10, 6));
+
+    const kiriview::ImageDisplaySourceSlot displaySource = controller.snapshot().displaySource();
+    QCOMPARE(displaySource.status, kiriview::ImageDisplaySourceStatus::Ready);
+    QVERIFY(!displaySource.providerUrl.isEmpty());
+    QCOMPARE(displaySource.revision, quint64(1));
+    QCOMPARE(displaySource.sourceIdentity, sourceIdentity);
+    QCOMPARE(displaySource.originalSize, QSize(10, 6));
+    QCOMPARE(displaySource.rasterSize, QSize(10, 6));
+    QCOMPARE(displaySource.sourceSizeHint, QSize());
+    QCOMPARE(displaySource.quality, kiriview::DisplayImageQuality::Exact);
+    QVERIFY(!displaySource.cacheEnabled);
+    QVERIFY(displaySource.loadAcknowledgmentRequired);
+
+    const std::optional<kiriview::DisplayImageStoreEntry> stored
+        = displayImageStore->entry(entryId(displaySource));
+    QVERIFY(stored.has_value());
+    QCOMPARE(stored->sourceIdentity, sourceIdentity);
+    QCOMPARE(stored->originalSize, QSize(10, 6));
+    QCOMPARE(stored->rasterSize, QSize(10, 6));
+    QCOMPARE(stored->quality, kiriview::DisplayImageQuality::Exact);
+    QCOMPARE(stored->debugLabel, QStringLiteral("animation-frame"));
+    QCOMPARE(stored->previewOrigin, kiriview::DisplayImagePreviewOrigin::None);
+}
+
+void TestImagePresentationLoad::animationPlaybackFramesPublishProviderSource()
+{
+    auto displayImageStore = std::make_shared<kiriview::DisplayImageStore>(1024 * 1024);
+    kiriview::ImagePageSurfaceController controller
+        = pageSurfaceController(this, displayImageStore);
+    const QString sourceIdentity = QStringLiteral("file:///tmp/animated.apng");
+    const QColor firstColor(Qt::red);
+    const QColor secondColor(Qt::blue);
+    const QByteArray apng = makeApng({ fullCanvasFrame(firstColor), fullCanvasFrame(secondColor) });
+    kiriview::DecodedImage decoded = kiriview::ApngAnimationImage {
+        solidRgbaImage(firstColor),
+        apng,
+        {},
+    };
+    assignDecodedSourceIdentity(decoded, sourceIdentity);
+
+    const kiriview::ImagePresentationLoadResult result
+        = kiriview::presentDecodedImageLoad(controller, std::move(decoded),
+            kiriview::ImagePresentationAnimationHandling::StartAnimation, renderContext());
+
+    QVERIFY(result.presented);
+    const kiriview::ImageDisplaySourceSlot firstDisplay = controller.snapshot().displaySource();
+    QCOMPARE(firstDisplay.status, kiriview::ImageDisplaySourceStatus::Ready);
+    QVERIFY(!firstDisplay.providerUrl.isEmpty());
+    QCOMPARE(firstDisplay.sourceIdentity, sourceIdentity);
+    QCOMPARE(firstDisplay.revision, quint64(1));
+    QVERIFY(displayImageStore->entry(entryId(firstDisplay)).has_value());
+
+    QTRY_VERIFY_WITH_TIMEOUT(
+        controller.snapshot().displaySource().providerUrl != firstDisplay.providerUrl, 300);
+    const kiriview::ImageDisplaySourceSlot nextDisplay = controller.snapshot().displaySource();
+    QCOMPARE(nextDisplay.status, kiriview::ImageDisplaySourceStatus::Ready);
+    QCOMPARE(nextDisplay.revision, firstDisplay.revision + 1);
+    QCOMPARE(nextDisplay.sourceIdentity, sourceIdentity);
+    QCOMPARE(nextDisplay.originalSize, QSize(1, 1));
+    QCOMPARE(nextDisplay.rasterSize, QSize(1, 1));
+    QCOMPARE(nextDisplay.quality, kiriview::DisplayImageQuality::Exact);
+    QVERIFY(nextDisplay.loadAcknowledgmentRequired);
+    QVERIFY(!displayImageStore->entry(entryId(firstDisplay)).has_value());
+
+    const std::optional<kiriview::DisplayImageStoreEntry> stored
+        = displayImageStore->entry(entryId(nextDisplay));
+    QVERIFY(stored.has_value());
+    QCOMPARE(stored->debugLabel, QStringLiteral("animation-frame"));
+    QCOMPARE(stored->image.pixelColor(0, 0), secondColor);
+}
+
+void TestImagePresentationLoad::secondaryAnimationModePresentsFirstFrame()
+{
+    kiriview::ImagePageSurfaceController controller = pageSurfaceController(this);
+    const QUrl imageUrl = localUrl(QStringLiteral("/images/animated.gif"));
+    const kiriview::ImageLoadSession session = loadSession(imageUrl);
+
+    kiriview::DecodedImage decoded = kiriview::ReaderAnimationImage {
+        testImage(QSize(10, 6)),
+        QByteArrayLiteral("reader-data"),
+        QByteArrayLiteral("gif"),
+    };
+    const kiriview::ImagePresentationLoadResult result
+        = kiriview::presentDecodedImageLoad(controller, std::move(decoded),
+            kiriview::ImagePresentationAnimationHandling::FirstFrameOnly, renderContext());
+
+    QVERIFY(result.presented);
+    QCOMPARE(result.imageSize, QSize(10, 6));
+    QCOMPARE(controller.imageSize(), QSize(10, 6));
+    QVERIFY(controller.hasImage());
+}
+
+QTEST_GUILESS_MAIN(TestImagePresentationLoad)
+
+#include "tst_imagepresentationload.moc"

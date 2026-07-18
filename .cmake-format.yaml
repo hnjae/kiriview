@@ -1,0 +1,13 @@
+---
+format:
+  line_width: 100
+  use_tabchars: False
+  tab_size: 4 # DOCS: How many spaces to tab for indent
+markup:
+  first_comment_is_literal: True
+lint:
+  disabled_codes:
+    - C0103 # invalid-name
+    - C0301 # line-too-long
+    - W0105 # variable-name-matches-built-in-except-case
+    - W0106 # possible-missing-variable-reference-tag

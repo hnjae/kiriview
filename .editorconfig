@@ -7,7 +7,11 @@ insert_final_newline = true
 trim_trailing_whitespace = true
 tab_width = 8
 
-[*.{rs,qml,cpp,h,frag,vert}]
+[*.{cmake,cmake.in,cpp,frag,h,qml,rs,vert}]
+indent_size = 4
+indent_style = space
+
+[CMakeLists.txt]
 indent_size = 4
 indent_style = space
 

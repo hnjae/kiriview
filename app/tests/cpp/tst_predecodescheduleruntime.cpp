@@ -1,0 +1,268 @@
+// SPDX-FileCopyrightText: 2026 KIM Hyunjae
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+#include "image_test_support.h"
+#include "predecode/predecodescheduleruntime.h"
+
+#include <QObject>
+#include <QTest>
+#include <QUrl>
+#include <memory>
+#include <optional>
+#include <utility>
+#include <vector>
+
+namespace {
+using kiriview::TestSupport::imageDecodeDependenciesFor;
+using kiriview::TestSupport::indexedImageUrl;
+using kiriview::TestSupport::ManualImageDataLoader;
+using kiriview::TestSupport::ManualPowerSaverMonitor;
+using kiriview::TestSupport::ManualTimerScheduler;
+using kiriview::TestSupport::powerSaverProviderFor;
+using kiriview::TestSupport::staticDisplayTestImagePayload;
+using kiriview::TestSupport::staticImageDataDecoder;
+using kiriview::TestSupport::testImage;
+
+constexpr qsizetype testCacheByteBudget = 1024 * 1024;
+
+kiriview::DisplayedPredecodeImage displayedImage(const QUrl& url)
+{
+    return kiriview::DisplayedPredecodeImage {
+        kiriview::DisplayedImageLocation::fromUrl(url),
+        true,
+        staticDisplayTestImagePayload(testImage()),
+    };
+}
+
+kiriview::PredecodeScheduleContext scheduleContext(const QUrl& url, bool immediate = false)
+{
+    return kiriview::PredecodeScheduleContext {
+        kiriview::DisplayedImageLocation::fromUrl(url),
+        { displayedImage(url) },
+        {},
+        1,
+        {},
+        immediate,
+    };
+}
+
+kiriview::PowerSaverProvider noOpPowerSaverProvider()
+{
+    return kiriview::PowerSaverProvider {
+        [](QObject*, kiriview::PowerSaverChangedCallback) {
+            return std::unique_ptr<kiriview::PowerSaverStateMonitor>();
+        },
+    };
+}
+
+}
+
+class TestPredecodeScheduleRuntime : public QObject
+{
+    Q_OBJECT
+
+private Q_SLOTS:
+    void scheduleCachesDisplayedImagesAndStartsAdjacentAfterDebounce();
+    void immediateScheduleStartsAdjacentWithoutDebounce();
+    void manualTimerSchedulerFiresDebouncedPredecode();
+    void invalidScheduleCancelsDomainBackgroundWork();
+    void validScheduleSupersedesPlanningWithoutCancelingActiveDecode();
+    void powerSaverSuppressesAndReschedulesPendingPredecode();
+    void enablingPowerSaverKeepsDisplayedImageCache();
+};
+
+void TestPredecodeScheduleRuntime::scheduleCachesDisplayedImagesAndStartsAdjacentAfterDebounce()
+{
+    kiriview::PredecodeLoadController loadController(
+        this, kiriview::ImageDecodeDependencies {}, testCacheByteBudget);
+    int startCount = 0;
+    std::optional<kiriview::PredecodePendingSchedule> capturedSchedule;
+    ManualTimerScheduler timerScheduler;
+    kiriview::PredecodeScheduleRuntime runtime(
+        this, loadController,
+        [&startCount, &capturedSchedule](const kiriview::PredecodePendingSchedule& schedule) {
+            ++startCount;
+            capturedSchedule = schedule;
+        },
+        {}, noOpPowerSaverProvider(), timerScheduler.scheduler());
+
+    const QUrl displayedUrl = indexedImageUrl(3);
+    timerScheduler.advanceTo(1000);
+    runtime.schedule(scheduleContext(displayedUrl));
+
+    QVERIFY(loadController.findPredecodedImage(displayedUrl).has_value());
+    QCOMPARE(startCount, 0);
+    QVERIFY(timerScheduler.timerAt(0).active());
+
+    timerScheduler.timerAt(0).fire();
+
+    QCOMPARE(startCount, 1);
+    QVERIFY(capturedSchedule.has_value());
+    QCOMPARE(capturedSchedule->context.currentLocation.imageUrl(), displayedUrl);
+    QVERIFY(runtime.accepts(capturedSchedule->generation));
+}
+
+void TestPredecodeScheduleRuntime::immediateScheduleStartsAdjacentWithoutDebounce()
+{
+    kiriview::PredecodeLoadController loadController(
+        this, kiriview::ImageDecodeDependencies {}, testCacheByteBudget);
+    int startCount = 0;
+    std::optional<kiriview::PredecodePendingSchedule> capturedSchedule;
+    ManualTimerScheduler timerScheduler;
+    kiriview::PredecodeScheduleRuntime runtime(
+        this, loadController,
+        [&startCount, &capturedSchedule](const kiriview::PredecodePendingSchedule& schedule) {
+            ++startCount;
+            capturedSchedule = schedule;
+        },
+        {}, noOpPowerSaverProvider(), timerScheduler.scheduler());
+
+    const QUrl selectedUrl = indexedImageUrl(14);
+    timerScheduler.advanceTo(1000);
+    runtime.schedule(scheduleContext(selectedUrl, true));
+
+    QCOMPARE(startCount, 1);
+    QVERIFY(capturedSchedule.has_value());
+    QCOMPARE(capturedSchedule->context.currentLocation.imageUrl(), selectedUrl);
+    QVERIFY(capturedSchedule->context.immediate);
+    QVERIFY(runtime.accepts(capturedSchedule->generation));
+    QCOMPARE(timerScheduler.timerCount(), std::size_t(2));
+    QVERIFY(!timerScheduler.timerAt(0).active());
+    QVERIFY(!timerScheduler.timerAt(1).active());
+}
+
+void TestPredecodeScheduleRuntime::manualTimerSchedulerFiresDebouncedPredecode()
+{
+    kiriview::PredecodeLoadController loadController(
+        this, kiriview::ImageDecodeDependencies {}, testCacheByteBudget);
+    ManualTimerScheduler timerScheduler;
+    int startCount = 0;
+    std::optional<kiriview::PredecodePendingSchedule> capturedSchedule;
+    kiriview::PredecodeScheduleRuntime runtime(
+        this, loadController,
+        [&startCount, &capturedSchedule](const kiriview::PredecodePendingSchedule& schedule) {
+            ++startCount;
+            capturedSchedule = schedule;
+        },
+        {}, noOpPowerSaverProvider(), timerScheduler.scheduler());
+
+    const QUrl displayedUrl = indexedImageUrl(4);
+    timerScheduler.advanceTo(1000);
+    runtime.schedule(scheduleContext(displayedUrl));
+
+    QCOMPARE(timerScheduler.timerCount(), std::size_t(2));
+    QCOMPARE(timerScheduler.timerAt(0).intervalMsec(), kiriview::predecodeDebounceMsec());
+    QVERIFY(timerScheduler.timerAt(0).active());
+    QCOMPARE(startCount, 0);
+
+    timerScheduler.timerAt(0).fire();
+
+    QCOMPARE(startCount, 1);
+    QVERIFY(capturedSchedule.has_value());
+    QCOMPARE(capturedSchedule->context.currentLocation.imageUrl(), displayedUrl);
+}
+
+void TestPredecodeScheduleRuntime::invalidScheduleCancelsDomainBackgroundWork()
+{
+    kiriview::PredecodeLoadController loadController(
+        this, kiriview::ImageDecodeDependencies {}, testCacheByteBudget);
+    int cancelCount = 0;
+    kiriview::PredecodeScheduleRuntime runtime(
+        this, loadController, [](const kiriview::PredecodePendingSchedule&) {},
+        [&cancelCount]() { ++cancelCount; }, noOpPowerSaverProvider());
+
+    runtime.schedule({});
+
+    QCOMPARE(cancelCount, 1);
+}
+
+void TestPredecodeScheduleRuntime::validScheduleSupersedesPlanningWithoutCancelingActiveDecode()
+{
+    ManualImageDataLoader dataLoader;
+    kiriview::PredecodeLoadController loadController(this,
+        imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget);
+    const QUrl displayedUrl = indexedImageUrl(20);
+    const QUrl activeUrl = indexedImageUrl(21);
+    loadController.startWindowLoads(kiriview::PredecodeLoadWindow {
+        displayedUrl,
+        kiriview::OpenedCollectionScopeLocation::none(),
+        { displayedUrl, activeUrl },
+        { displayedImage(displayedUrl) },
+        {},
+        1,
+        1,
+    });
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+
+    kiriview::PredecodeScheduleRuntime runtime(
+        this, loadController, [](const kiriview::PredecodePendingSchedule&) { }, {},
+        noOpPowerSaverProvider());
+    runtime.schedule(scheduleContext(displayedUrl));
+
+    QVERIFY(!dataLoader.frontLoad().canceled);
+}
+
+void TestPredecodeScheduleRuntime::powerSaverSuppressesAndReschedulesPendingPredecode()
+{
+    kiriview::PredecodeLoadController loadController(
+        this, kiriview::ImageDecodeDependencies {}, testCacheByteBudget);
+    ManualPowerSaverMonitor* powerSaverMonitor = nullptr;
+    ManualTimerScheduler timerScheduler;
+    int startCount = 0;
+    std::optional<kiriview::PredecodePendingSchedule> capturedSchedule;
+    kiriview::PredecodeScheduleRuntime runtime(
+        this, loadController,
+        [&startCount, &capturedSchedule](const kiriview::PredecodePendingSchedule& schedule) {
+            ++startCount;
+            capturedSchedule = schedule;
+        },
+        {}, powerSaverProviderFor(powerSaverMonitor, true), timerScheduler.scheduler());
+    QVERIFY(powerSaverMonitor != nullptr);
+
+    const QUrl displayedUrl = indexedImageUrl(5);
+    timerScheduler.advanceTo(1000);
+    runtime.schedule(scheduleContext(displayedUrl));
+
+    QVERIFY(loadController.findPredecodedImage(displayedUrl).has_value());
+    QCOMPARE(startCount, 0);
+    QVERIFY(!timerScheduler.timerAt(0).active());
+
+    timerScheduler.advanceTo(1200);
+    powerSaverMonitor->setPowerSaverEnabled(false);
+
+    QVERIFY(timerScheduler.timerAt(0).active());
+    QCOMPARE(startCount, 0);
+
+    timerScheduler.timerAt(0).fire();
+
+    QCOMPARE(startCount, 1);
+    QVERIFY(capturedSchedule.has_value());
+    QCOMPARE(capturedSchedule->context.currentLocation.imageUrl(), displayedUrl);
+}
+
+void TestPredecodeScheduleRuntime::enablingPowerSaverKeepsDisplayedImageCache()
+{
+    kiriview::PredecodeLoadController loadController(
+        this, kiriview::ImageDecodeDependencies {}, testCacheByteBudget);
+    ManualPowerSaverMonitor* powerSaverMonitor = nullptr;
+    ManualTimerScheduler timerScheduler;
+    kiriview::PredecodeScheduleRuntime runtime(
+        this, loadController, [](const kiriview::PredecodePendingSchedule&) { }, {},
+        powerSaverProviderFor(powerSaverMonitor, false), timerScheduler.scheduler());
+    QVERIFY(powerSaverMonitor != nullptr);
+
+    const QUrl displayedUrl = indexedImageUrl(6);
+    timerScheduler.advanceTo(1000);
+    runtime.schedule(scheduleContext(displayedUrl));
+
+    QVERIFY(loadController.findPredecodedImage(displayedUrl).has_value());
+
+    powerSaverMonitor->setPowerSaverEnabled(true);
+
+    QVERIFY(loadController.findPredecodedImage(displayedUrl).has_value());
+    QVERIFY(!timerScheduler.timerAt(0).active());
+}
+
+QTEST_GUILESS_MAIN(TestPredecodeScheduleRuntime)
+
+#include "tst_predecodescheduleruntime.moc"

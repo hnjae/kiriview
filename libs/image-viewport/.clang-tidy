@@ -1,0 +1,9 @@
+---
+InheritParentConfig: true
+Checks: >
+  cppcoreguidelines-pro-type-const-cast,
+  cppcoreguidelines-pro-type-reinterpret-cast,
+  cppcoreguidelines-special-member-functions,
+  modernize-use-emplace,
+  performance-no-automatic-move,
+  performance-unnecessary-value-param

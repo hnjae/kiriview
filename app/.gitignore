@@ -1,0 +1,25 @@
+# Managed by devenv:
+rust-analyzer.toml
+
+# Flatpak build artifacts
+.flatpak-builder/
+.cargo-vendor/
+.flatpak-cargo/
+build-dir/
+repo/
+target/
+.qmlls.ini
+*.flatpak
+*.flatpakref
+*.flatpakrepo
+
+# CMake / Ninja
+build/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+compile_commands.json
+install_manifest.txt
+*.ninja
+.ninja_deps
+.ninja_log
