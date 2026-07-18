@@ -5,6 +5,7 @@
 #include "viewportenginebuiltinframeoperations_p.h"
 #include "viewportengineplaybackoperations_p.h"
 #include "viewportengineprojection_p.h"
+#include "viewportenginetargetspreadterminaloperations_p.h"
 
 #include <limits>
 
@@ -445,12 +446,14 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
                 a.m_display.status = retained(a.m_display);
             }
         }
-        const bool terminalRequest = a.m_request.status == ImageViewportRequestStatus::Unsupported
-            || a.m_request.status == ImageViewportRequestStatus::Error;
-        if (a.m_request.roles[1].provider && !terminalRequest) {
-            a.m_request.status = ImageViewportRequestStatus::Loading;
-            a.m_request.reason = ImageViewportRequestReason::ProviderWaiting;
-            a.m_display.status = retained(a.m_display);
+        if (a.m_request.roles[1].provider
+            && viewportEngineRoleCanRefineCurrentTerminal(
+                a.m_request, ImageViewportPageRole::Secondary)) {
+            if (!viewportEngineHasCurrentTerminal(a.m_request)) {
+                a.m_request.status = ImageViewportRequestStatus::Loading;
+                a.m_request.reason = ImageViewportRequestReason::ProviderWaiting;
+                a.m_display.status = retained(a.m_display);
+            }
             out.providerSessionOpenEffects[1] = a.openSession(ImageViewportPageRole::Secondary,
                 a.m_request.roles[1].source, a.m_target.secondaryRoleGeneration);
         }

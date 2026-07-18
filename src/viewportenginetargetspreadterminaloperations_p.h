@@ -19,3 +19,7 @@ ImageViewportInternal::ViewportChangeSet recordViewportEngineGenerationTerminal(
 bool viewportEngineHasCurrentDisplayRequestTerminal(const ImageViewportInternal::RequestState&);
 bool viewportEngineHasCurrentGenerationTerminal(const ImageViewportInternal::RequestState&);
 bool viewportEngineHasCurrentTerminal(const ImageViewportInternal::RequestState&);
+bool viewportEngineRoleCanRefineCurrentTerminal(
+    const ImageViewportInternal::RequestState&, ImageViewportPageRole);
+ImageViewportInternal::ViewportChangeSet projectViewportEngineCurrentTerminal(
+    ImageViewportInternal::ViewportChangeSet, ImageViewportInternal::RequestState&);

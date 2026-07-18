@@ -143,7 +143,8 @@ bool ViewportEngine::acceptsProviderTransportCommand(
     case ViewportProviderTransportCommand::Kind::OpenSession:
         return command.generation != 0
             && command.generation == m_state->requestState.request.sequenceGeneration
-            && !viewportEngineHasCurrentTerminal(m_state->requestState.request)
+            && viewportEngineRoleCanRefineCurrentTerminal(
+                m_state->requestState.request, command.role)
             && provider.session.sessionActive
             && command.sessionSerial == provider.session.sessionSerial;
     case ViewportProviderTransportCommand::Kind::CloseSession:

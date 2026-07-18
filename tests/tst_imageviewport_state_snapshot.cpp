@@ -37,6 +37,7 @@ private slots:
     void retainedDisplayKeepsCommittedPresentationIdentity();
     void displayedPayloadFactsComeFromCommittedFrame();
     void requireExactRejectsNewInMemoryPayloadButPreservesCommittedPixels();
+    void mixedBuiltInUnsupportedProviderMalformedMetadataBecomesError();
     void presentationCommandUpdatesSnapshotGeometry();
     void qmlReadsNestedSnapshotFields();
 };
@@ -415,7 +416,9 @@ void ImageViewportStateSnapshotTest::
     QCOMPARE(mixedSpreadItem.state().request().status(), ImageViewportRequestStatus::Unsupported);
     QCOMPARE(
         mixedSpreadItem.state().request().reason(), ImageViewportRequestReason::PayloadRejection);
-    QCOMPARE(*sessionCount, 0);
+    QCOMPARE(mixedSpreadItem.state().request().acceptedRoleSet(), ImageViewportRoleSet(true, true));
+    QCOMPARE(*sessionCount, 1);
+    QCOMPARE(*metadataRequestCount, 1);
 
     ImageViewport committedItem;
     committedItem.setSize(QSizeF(100.0, 100.0));
@@ -435,6 +438,63 @@ void ImageViewportStateSnapshotTest::
     QCOMPARE(committedItem.state().display().status(), ImageViewportDisplayStatus::Ready);
     QCOMPARE(committedItem.state().primary().display(), committedDisplay);
     QCOMPARE(committedItem.state().primary().display().currentForDemand(), true);
+}
+
+void ImageViewportStateSnapshotTest::mixedBuiltInUnsupportedProviderMalformedMetadataBecomesError()
+{
+    QImage payload(8, 4, QImage::Format_ARGB32_Premultiplied);
+    payload.fill(Qt::transparent);
+    ImageFrame frame(payload, QSizeF(16.0, 8.0), QSizeF(8.0, 4.0), QSizeF(0.5, 0.5),
+        payload.sizeInBytes(), ImageViewportPayloadQuality::Preview,
+        ImageViewportPayloadExactness::NotExact, true, ImageFrame::OrientationPolicy::Identity,
+        QStringLiteral("preview/argb32"));
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> builtInResult(factory.fromFrame(&frame));
+    QVERIFY(builtInResult->sequence());
+
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> providerResult(factory.fromProvider(&adapter));
+    QVERIFY(providerResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    ImageViewportPresentationCommand requireExact;
+    requireExact.setExactnessPreference(ImageViewportExactnessPreference::RequireExact);
+    QCOMPARE(item.setPresentation(requireExact).outcome(), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(
+                                            builtInResult->sequence(), providerResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Unsupported);
+    QCOMPARE(item.state().request().reason(), ImageViewportRequestReason::PayloadRejection);
+    QCOMPARE(item.state().request().acceptedRoleSet(), ImageViewportRoleSet(true, true));
+    QCOMPARE(item.state().display().status(), ImageViewportDisplayStatus::Empty);
+    QCOMPARE(item.state().display().displayedRoleSet(), ImageViewportRoleSet(false, false));
+    QCOMPARE(*sessionCount, 1);
+    QCOMPARE(*metadataRequestCount, 1);
+    QVERIFY(sessionFactory->lastSession());
+    const QString unsupportedDiagnostic = item.state().diagnostics().errorString();
+
+    emitProviderMetadataReady(sessionFactory->lastSession(),
+        sessionFactory->lastSession()->lastMetadataToken(), ImageSequenceProviderMetadata {});
+    drainQueuedProviderResults();
+
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Error);
+    QCOMPARE(item.state().request().reason(), ImageViewportRequestReason::PayloadRejection);
+    QCOMPARE(item.state().request().acceptedRoleSet(), ImageViewportRoleSet(true, true));
+    QCOMPARE(item.state().display().status(), ImageViewportDisplayStatus::Empty);
+    QCOMPARE(item.state().display().displayedRoleSet(), ImageViewportRoleSet(false, false));
+    QVERIFY(!item.state().diagnostics().errorString().isEmpty());
+    QVERIFY(item.state().diagnostics().errorString() != unsupportedDiagnostic);
 }
 
 void ImageViewportStateSnapshotTest::terminalProviderFailureProjectsDiagnostics()

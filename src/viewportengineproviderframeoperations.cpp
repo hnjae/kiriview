@@ -29,11 +29,6 @@ bool providerPresent(const RequestState& request, ImageViewportPageRole role)
         : request.roles[1].sequence && request.roles[1].provider;
 }
 
-bool terminalMatchesActiveRequest(const RequestState& request)
-{
-    return viewportEngineHasCurrentTerminal(request);
-}
-
 bool activeTokenMatches(const ProviderRoleState& provider, const RequestState& request,
     ImageViewportPageRole role, ImageSequenceProviderRequestToken token)
 {
@@ -115,7 +110,8 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
 {
     using namespace ImageViewportInternal;
     ViewportEngineProviderFrameReadyReduction result;
-    if (terminalMatchesActiveRequest(access.m_request)
+    const bool terminalContinuation = viewportEngineHasCurrentTerminal(access.m_request);
+    if (!viewportEngineRoleCanRefineCurrentTerminal(access.m_request, input.role)
         || !providerPresent(access.m_request, input.role)
         || !access.m_provider.session.sessionActive
         || !activeTokenMatches(access.m_provider, access.m_request, input.role, input.token)) {
@@ -142,7 +138,7 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
     const ProviderRequestRecord providerRequest = *activeProviderRequest;
     const bool refinement = providerRequest.isRefinement();
 
-    if (input.role == ImageViewportPageRole::Secondary && !refinement) {
+    if (input.role == ImageViewportPageRole::Secondary && !refinement && !terminalContinuation) {
         auto& preparedPayload = access.m_display.roles[0].pendingRenderPayload;
         auto& primaryRequest = access.m_request.roles[0].activeRequest;
         if (!preparedPayload.identity().isValid()) {
@@ -194,6 +190,11 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
     const auto oldRequestReason = access.m_request.reason;
     const auto oldGeometry = projectViewportGeometryState(input.geometry, access.m_presentation);
     access.m_provider.requests.retire(input.token);
+
+    if (terminalContinuation && !refinement) {
+        result.changes = projectViewportEngineCurrentTerminal(result.changes, access.m_request);
+        return result;
+    }
 
     if (refinement) {
         const auto index = input.role == ImageViewportPageRole::Secondary ? 1U : 0U;

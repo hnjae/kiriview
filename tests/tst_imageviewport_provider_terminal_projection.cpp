@@ -32,6 +32,15 @@ private slots:
     void providerMetadataUnsupportedCauseProjectsRequestReason();
     void targetSpreadTerminalProjectionPrefersErrorOverUnsupported_data();
     void targetSpreadTerminalProjectionPrefersErrorOverUnsupported();
+    void terminalSiblingMalformedMetadataBecomesError_data();
+    void terminalSiblingMalformedMetadataBecomesError();
+    void terminalSiblingMalformedFrameBecomesError_data();
+    void terminalSiblingMalformedFrameBecomesError();
+    void primaryMalformedFrameReplacesSecondaryErrorDiagnostic();
+    void terminalSiblingFrameSuccessPreservesTerminalSpread_data();
+    void terminalSiblingFrameSuccessPreservesTerminalSpread();
+    void terminalSiblingEndOfSequenceBecomesError_data();
+    void terminalSiblingEndOfSequenceBecomesError();
     void secondaryTerminalFailureSealsSpreadAgainstLatePrimaryReady();
     void primaryTerminalFailureSealsSpreadAgainstLateSecondaryReady();
     void clearAndReplacementEscapeSealedTargetSpread();
@@ -306,6 +315,325 @@ void ImageViewportProviderTerminalProjectionTest::
     QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", expectedReason.toUtf8().constData()));
     QVERIFY(viewportErrorString(item).contains(expectedDiagnostic));
+}
+
+void ImageViewportProviderTerminalProjectionTest::
+    terminalSiblingMalformedMetadataBecomesError_data()
+{
+    QTest::addColumn<bool>("unsupportedPrimary");
+    QTest::newRow("primary-unsupported-secondary-malformed") << true;
+    QTest::newRow("secondary-unsupported-primary-malformed") << false;
+}
+
+void ImageViewportProviderTerminalProjectionTest::terminalSiblingMalformedMetadataBecomesError()
+{
+    QFETCH(bool, unsupportedPrimary);
+
+    ImageSequenceFactory factory;
+    const auto primarySessionCount = std::make_shared<int>(0);
+    const auto primaryMetadataRequestCount = std::make_shared<int>(0);
+    const auto primaryFrameRequestCount = std::make_shared<int>(0);
+    const auto primaryLastRequestedFrame = std::make_shared<int>(-1);
+    const auto primaryCloseCount = std::make_shared<int>(0);
+    auto primaryFactory = std::make_shared<CountingProviderSessionFactory>(primarySessionCount,
+        primaryMetadataRequestCount, primaryFrameRequestCount, primaryLastRequestedFrame,
+        primaryCloseCount);
+    CountingProviderAdapter primaryAdapter(primaryFactory);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromProvider(&primaryAdapter));
+
+    const auto secondarySessionCount = std::make_shared<int>(0);
+    const auto secondaryMetadataRequestCount = std::make_shared<int>(0);
+    const auto secondaryFrameRequestCount = std::make_shared<int>(0);
+    const auto secondaryLastRequestedFrame = std::make_shared<int>(-1);
+    const auto secondaryCloseCount = std::make_shared<int>(0);
+    auto secondaryFactory = std::make_shared<CountingProviderSessionFactory>(secondarySessionCount,
+        secondaryMetadataRequestCount, secondaryFrameRequestCount, secondaryLastRequestedFrame,
+        secondaryCloseCount);
+    CountingProviderAdapter secondaryAdapter(secondaryFactory);
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
+        factory.fromProvider(&secondaryAdapter));
+    QVERIFY(primaryResult->sequence());
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(
+                                            primaryResult->sequence(), secondaryResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    auto* unsupportedSession
+        = unsupportedPrimary ? primaryFactory->lastSession() : secondaryFactory->lastSession();
+    auto* malformedSession
+        = unsupportedPrimary ? secondaryFactory->lastSession() : primaryFactory->lastSession();
+    emitProviderUnsupported(unsupportedSession, unsupportedSession->lastMetadataToken(),
+        ImageSequenceProviderUnsupportedCause::UnsupportedRequest,
+        QStringLiteral("metadata unsupported"));
+    drainQueuedProviderResults();
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Unsupported);
+
+    emitProviderMetadataReady(
+        malformedSession, malformedSession->lastMetadataToken(), ImageSequenceProviderMetadata {});
+    drainQueuedProviderResults();
+
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Error);
+    QCOMPARE(item.state().request().reason(), ImageViewportRequestReason::PayloadRejection);
+    QVERIFY(!viewportErrorString(item).contains(QStringLiteral("metadata unsupported")));
+}
+
+void ImageViewportProviderTerminalProjectionTest::terminalSiblingMalformedFrameBecomesError_data()
+{
+    QTest::addColumn<bool>("unsupportedPrimary");
+    QTest::newRow("primary-unsupported-secondary-malformed") << true;
+    QTest::newRow("secondary-unsupported-primary-malformed") << false;
+}
+
+void ImageViewportProviderTerminalProjectionTest::terminalSiblingMalformedFrameBecomesError()
+{
+    QFETCH(bool, unsupportedPrimary);
+
+    ImageSequenceFactory factory;
+    const auto primarySessionCount = std::make_shared<int>(0);
+    const auto primaryMetadataRequestCount = std::make_shared<int>(0);
+    const auto primaryFrameRequestCount = std::make_shared<int>(0);
+    const auto primaryLastRequestedFrame = std::make_shared<int>(-1);
+    const auto primaryCloseCount = std::make_shared<int>(0);
+    auto primaryFactory = std::make_shared<CountingProviderSessionFactory>(primarySessionCount,
+        primaryMetadataRequestCount, primaryFrameRequestCount, primaryLastRequestedFrame,
+        primaryCloseCount);
+    CountingProviderAdapter primaryAdapter(primaryFactory);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromProvider(&primaryAdapter));
+
+    const auto secondarySessionCount = std::make_shared<int>(0);
+    const auto secondaryMetadataRequestCount = std::make_shared<int>(0);
+    const auto secondaryFrameRequestCount = std::make_shared<int>(0);
+    const auto secondaryLastRequestedFrame = std::make_shared<int>(-1);
+    const auto secondaryCloseCount = std::make_shared<int>(0);
+    auto secondaryFactory = std::make_shared<CountingProviderSessionFactory>(secondarySessionCount,
+        secondaryMetadataRequestCount, secondaryFrameRequestCount, secondaryLastRequestedFrame,
+        secondaryCloseCount);
+    CountingProviderAdapter secondaryAdapter(secondaryFactory);
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
+        factory.fromProvider(&secondaryAdapter));
+    QVERIFY(primaryResult->sequence());
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(
+                                            primaryResult->sequence(), secondaryResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    auto* primarySession = primaryFactory->lastSession();
+    auto* secondarySession = secondaryFactory->lastSession();
+    emitProviderMetadataReady(primarySession, primarySession->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    drainQueuedProviderResults();
+    emitProviderMetadataReady(secondarySession, secondarySession->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    drainQueuedProviderResults();
+
+    auto* unsupportedSession = unsupportedPrimary ? primarySession : secondarySession;
+    auto* malformedSession = unsupportedPrimary ? secondarySession : primarySession;
+    emitProviderUnsupported(unsupportedSession, unsupportedSession->lastFrameToken(),
+        ImageSequenceProviderUnsupportedCause::UnsupportedRequest,
+        QStringLiteral("frame unsupported"));
+    drainQueuedProviderResults();
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Unsupported);
+
+    QImage malformedImage(8, 8, QImage::Format_ARGB32_Premultiplied);
+    ImageFrame malformedFrame(malformedImage);
+    emitProviderFrameReady(malformedSession, malformedSession->lastFrameToken(), &malformedFrame);
+    drainQueuedProviderResults();
+
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Error);
+    QCOMPARE(item.state().request().reason(), ImageViewportRequestReason::PayloadRejection);
+    QVERIFY(!viewportErrorString(item).contains(QStringLiteral("frame unsupported")));
+}
+
+void ImageViewportProviderTerminalProjectionTest::
+    primaryMalformedFrameReplacesSecondaryErrorDiagnostic()
+{
+    ImageSequenceFactory factory;
+    const auto makeProvider = [&factory](
+                                  std::shared_ptr<CountingProviderSessionFactory>& outFactory,
+                                  std::unique_ptr<CountingProviderAdapter>& outAdapter) {
+        outFactory = std::make_shared<CountingProviderSessionFactory>(std::make_shared<int>(0),
+            std::make_shared<int>(0), std::make_shared<int>(0), std::make_shared<int>(-1),
+            std::make_shared<int>(0));
+        outAdapter = std::make_unique<CountingProviderAdapter>(outFactory);
+        return QScopedPointer<ImageSequenceFactoryResult>(factory.fromProvider(outAdapter.get()));
+    };
+    std::shared_ptr<CountingProviderSessionFactory> primaryFactory;
+    std::shared_ptr<CountingProviderSessionFactory> secondaryFactory;
+    std::unique_ptr<CountingProviderAdapter> primaryAdapter;
+    std::unique_ptr<CountingProviderAdapter> secondaryAdapter;
+    auto primaryResult = makeProvider(primaryFactory, primaryAdapter);
+    auto secondaryResult = makeProvider(secondaryFactory, secondaryAdapter);
+    QVERIFY(primaryResult->sequence());
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(
+                                            primaryResult->sequence(), secondaryResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    auto* primarySession = primaryFactory->lastSession();
+    auto* secondarySession = secondaryFactory->lastSession();
+    emitProviderMetadataReady(primarySession, primarySession->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    emitProviderMetadataReady(secondarySession, secondarySession->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    drainQueuedProviderResults();
+
+    QImage malformedImage(8, 8, QImage::Format_ARGB32_Premultiplied);
+    ImageFrame malformedFrame(malformedImage);
+    emitProviderFrameReady(secondarySession, secondarySession->lastFrameToken(), &malformedFrame);
+    drainQueuedProviderResults();
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Error);
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("logical size mismatch")));
+
+    emitProviderFrameReady(primarySession, primarySession->lastFrameToken(), nullptr);
+    drainQueuedProviderResults();
+
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Error);
+    QCOMPARE(item.state().request().reason(), ImageViewportRequestReason::PayloadRejection);
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("payload is invalid")));
+}
+
+void ImageViewportProviderTerminalProjectionTest::
+    terminalSiblingFrameSuccessPreservesTerminalSpread_data()
+{
+    QTest::addColumn<bool>("unsupportedPrimary");
+    QTest::newRow("primary-unsupported-secondary-success") << true;
+    QTest::newRow("secondary-unsupported-primary-success") << false;
+}
+
+void ImageViewportProviderTerminalProjectionTest::
+    terminalSiblingFrameSuccessPreservesTerminalSpread()
+{
+    QFETCH(bool, unsupportedPrimary);
+
+    ImageSequenceFactory factory;
+    const auto makeProvider = [&factory](
+                                  std::shared_ptr<CountingProviderSessionFactory>& outFactory,
+                                  std::unique_ptr<CountingProviderAdapter>& outAdapter) {
+        outFactory = std::make_shared<CountingProviderSessionFactory>(std::make_shared<int>(0),
+            std::make_shared<int>(0), std::make_shared<int>(0), std::make_shared<int>(-1),
+            std::make_shared<int>(0));
+        outAdapter = std::make_unique<CountingProviderAdapter>(outFactory);
+        return QScopedPointer<ImageSequenceFactoryResult>(factory.fromProvider(outAdapter.get()));
+    };
+    std::shared_ptr<CountingProviderSessionFactory> primaryFactory;
+    std::shared_ptr<CountingProviderSessionFactory> secondaryFactory;
+    std::unique_ptr<CountingProviderAdapter> primaryAdapter;
+    std::unique_ptr<CountingProviderAdapter> secondaryAdapter;
+    auto primaryResult = makeProvider(primaryFactory, primaryAdapter);
+    auto secondaryResult = makeProvider(secondaryFactory, secondaryAdapter);
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(
+                                            primaryResult->sequence(), secondaryResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    auto* primarySession = primaryFactory->lastSession();
+    auto* secondarySession = secondaryFactory->lastSession();
+    emitProviderMetadataReady(primarySession, primarySession->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    emitProviderMetadataReady(secondarySession, secondarySession->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    drainQueuedProviderResults();
+
+    auto* unsupportedSession = unsupportedPrimary ? primarySession : secondarySession;
+    auto* successfulSession = unsupportedPrimary ? secondarySession : primarySession;
+    emitProviderUnsupported(unsupportedSession, unsupportedSession->lastFrameToken(),
+        ImageSequenceProviderUnsupportedCause::UnsupportedRequest,
+        QStringLiteral("frame unsupported"));
+    drainQueuedProviderResults();
+    const QString terminalDiagnostic = viewportErrorString(item);
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    ImageFrame frame(image);
+    emitProviderFrameReady(successfulSession, successfulSession->lastFrameToken(), &frame);
+    drainQueuedProviderResults();
+
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Unsupported);
+    QCOMPARE(item.state().display().status(), ImageViewportDisplayStatus::Empty);
+    QCOMPARE(viewportErrorString(item), terminalDiagnostic);
+    QVERIFY(!hasPendingRenderCommitForTest(item));
+}
+
+void ImageViewportProviderTerminalProjectionTest::terminalSiblingEndOfSequenceBecomesError_data()
+{
+    QTest::addColumn<bool>("metadataToken");
+    QTest::addColumn<bool>("unsupportedPrimary");
+    QTest::newRow("metadata-primary-unsupported-secondary-eos") << true << true;
+    QTest::newRow("metadata-secondary-unsupported-primary-eos") << true << false;
+    QTest::newRow("frame-primary-unsupported-secondary-eos") << false << true;
+    QTest::newRow("frame-secondary-unsupported-primary-eos") << false << false;
+}
+
+void ImageViewportProviderTerminalProjectionTest::terminalSiblingEndOfSequenceBecomesError()
+{
+    QFETCH(bool, metadataToken);
+    QFETCH(bool, unsupportedPrimary);
+
+    ImageSequenceFactory factory;
+    const auto makeProvider = [&factory](
+                                  std::shared_ptr<CountingProviderSessionFactory>& outFactory,
+                                  std::unique_ptr<CountingProviderAdapter>& outAdapter) {
+        outFactory = std::make_shared<CountingProviderSessionFactory>(std::make_shared<int>(0),
+            std::make_shared<int>(0), std::make_shared<int>(0), std::make_shared<int>(-1),
+            std::make_shared<int>(0));
+        outAdapter = std::make_unique<CountingProviderAdapter>(outFactory);
+        return QScopedPointer<ImageSequenceFactoryResult>(factory.fromProvider(outAdapter.get()));
+    };
+    std::shared_ptr<CountingProviderSessionFactory> primaryFactory;
+    std::shared_ptr<CountingProviderSessionFactory> secondaryFactory;
+    std::unique_ptr<CountingProviderAdapter> primaryAdapter;
+    std::unique_ptr<CountingProviderAdapter> secondaryAdapter;
+    auto primaryResult = makeProvider(primaryFactory, primaryAdapter);
+    auto secondaryResult = makeProvider(secondaryFactory, secondaryAdapter);
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(
+                                            primaryResult->sequence(), secondaryResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    auto* primarySession = primaryFactory->lastSession();
+    auto* secondarySession = secondaryFactory->lastSession();
+    if (!metadataToken) {
+        emitProviderMetadataReady(primarySession, primarySession->lastMetadataToken(),
+            ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+        emitProviderMetadataReady(secondarySession, secondarySession->lastMetadataToken(),
+            ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+        drainQueuedProviderResults();
+    }
+
+    auto* unsupportedSession = unsupportedPrimary ? primarySession : secondarySession;
+    auto* eosSession = unsupportedPrimary ? secondarySession : primarySession;
+    const auto tokenFor = [metadataToken](CountingProviderSession* session) {
+        return metadataToken ? session->lastMetadataToken() : session->lastFrameToken();
+    };
+    emitProviderUnsupported(unsupportedSession, tokenFor(unsupportedSession),
+        ImageSequenceProviderUnsupportedCause::UnsupportedRequest,
+        QStringLiteral("operation unsupported"));
+    drainQueuedProviderResults();
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Unsupported);
+
+    emitProviderEndOfSequence(eosSession, tokenFor(eosSession));
+    drainQueuedProviderResults();
+
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Error);
+    QCOMPARE(item.state().request().reason(), ImageViewportRequestReason::PayloadRejection);
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("provider protocol violation")));
 }
 
 void ImageViewportProviderTerminalProjectionTest::

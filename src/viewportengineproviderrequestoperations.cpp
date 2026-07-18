@@ -171,7 +171,7 @@ ViewportProviderSessionOpenResult reduceViewportEngineProviderSessionOpened(
     ViewportEngineProviderSessionOpenedAccess access)
 {
     ViewportProviderSessionOpenResult result;
-    if (viewportEngineHasCurrentTerminal(access.m_request)) {
+    if (!viewportEngineRoleCanRefineCurrentTerminal(access.m_request, input.role)) {
         return result;
     }
     auto& provider

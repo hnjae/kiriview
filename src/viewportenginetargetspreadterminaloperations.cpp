@@ -133,3 +133,34 @@ bool viewportEngineHasCurrentTerminal(const ImageViewportInternal::RequestState&
 {
     return projectedTerminal(request);
 }
+
+bool viewportEngineRoleCanRefineCurrentTerminal(
+    const ImageViewportInternal::RequestState& request, ImageViewportPageRole role)
+{
+    if (!roleRequired(request, role)) {
+        return false;
+    }
+    const auto* roleTerminal = currentGenerationTerminal(request, role);
+    if (!roleTerminal) {
+        roleTerminal = currentDisplayRequestTerminal(request, role);
+    }
+    if (roleTerminal) {
+        return false;
+    }
+    const auto* projected = projectedTerminal(request);
+    if (!projected || projected->status == ImageViewportRequestStatus::Unsupported) {
+        return true;
+    }
+    const auto* secondary = currentGenerationTerminal(request, ImageViewportPageRole::Secondary);
+    if (!secondary) {
+        secondary = currentDisplayRequestTerminal(request, ImageViewportPageRole::Secondary);
+    }
+    return role == ImageViewportPageRole::Primary && secondary
+        && secondary->status == ImageViewportRequestStatus::Error;
+}
+
+ImageViewportInternal::ViewportChangeSet projectViewportEngineCurrentTerminal(
+    ImageViewportInternal::ViewportChangeSet changes, ImageViewportInternal::RequestState& request)
+{
+    return projectTerminal({ {}, {}, {}, {}, changes }, request);
+}
