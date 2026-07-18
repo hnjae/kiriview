@@ -848,6 +848,13 @@ ViewportProviderExecutor& ViewportProviderBridge::executor() const
     return providerExecutor ? *providerExecutor : qtViewportProviderExecutor();
 }
 
+void ViewportProviderBridge::pruneExpiredEventEndpoints()
+{
+    eventEndpoints.removeIf([](const std::weak_ptr<ViewportProviderEventEndpoint>& endpoint) {
+        return endpoint.expired();
+    });
+}
+
 void ViewportProviderBridge::completeFrameEventDelivery(quint64 leaseId)
 {
     frameLeaseRegistry->completeEventDelivery(leaseId);
@@ -946,6 +953,7 @@ void ViewportProviderBridge::retrySessionCleanup(
             recordIt->lifecycle = SessionLifecycle::Closing;
         }
     }
+    pruneExpiredEventEndpoints();
 }
 
 bool ViewportProviderBridge::takeForcedDeliveryFailureForTest()
@@ -968,6 +976,11 @@ void ViewportProviderBridge::failNextCommandDeliveryForTest()
 void ViewportProviderBridge::useSynchronousEventDeliveryForTest()
 {
     synchronousEventDelivery = true;
+}
+
+qsizetype ViewportProviderBridge::retainedEventEndpointCountForTest() const
+{
+    return eventEndpoints.size();
 }
 
 ViewportProviderExecutor& synchronousViewportProviderExecutorForTest()

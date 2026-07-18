@@ -132,11 +132,13 @@ public:
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void failNextCommandDeliveryForTest();
     void useSynchronousEventDeliveryForTest();
+    qsizetype retainedEventEndpointCountForTest() const;
 #endif
 
 private:
     bool takeForcedDeliveryFailureForTest();
     ViewportProviderExecutor& executor() const;
+    void pruneExpiredEventEndpoints();
     ViewportProviderCleanupResult releaseFrameLease(quint64 leaseId);
     void retrySessionCleanup(ViewportProviderCleanupResult& result, bool retryPendingSessions);
 
