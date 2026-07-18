@@ -121,7 +121,8 @@ CommonPayloadAdmission admitPayload(const FramePayload& payload,
         == (facts.exactness == ImageViewportPayloadExactness::ExactForSource);
     const QSizeF mapped(facts.sourceLogicalSize.width() * facts.sourceToPayloadScale.width(),
         facts.sourceLogicalSize.height() * facts.sourceToPayloadScale.height());
-    if (payload.image.isNull() || !positiveFinite(facts.sourceLogicalSize)
+    if (payload.image.isNull() || !isPositiveFiniteInteger(facts.sourceLogicalSize.width())
+        || !isPositiveFiniteInteger(facts.sourceLogicalSize.height())
         || !positiveFinite(facts.payloadRasterSize) || !positiveFinite(facts.sourceToPayloadScale)
         || facts.payloadRasterSize != QSizeF(payload.image.size())
         || facts.payloadByteSize < payload.image.sizeInBytes() || !exactPair
@@ -133,11 +134,14 @@ CommonPayloadAdmission admitPayload(const FramePayload& payload,
             QStringLiteral("frame payload facts are inconsistent") };
     }
 
+    if (facts.sourceLogicalSize.width() > ImageSequenceLimits::maximumSourceLogicalWidth()
+        || facts.sourceLogicalSize.height() > ImageSequenceLimits::maximumSourceLogicalHeight()) {
+        return { CommonPayloadCause::TooLarge,
+            QStringLiteral("frame payload exceeds an admission limit") };
+    }
     const qint64 logicalWidth = static_cast<qint64>(facts.sourceLogicalSize.width());
     const qint64 logicalHeight = static_cast<qint64>(facts.sourceLogicalSize.height());
-    if (facts.sourceLogicalSize.width() > ImageSequenceLimits::maximumSourceLogicalWidth()
-        || facts.sourceLogicalSize.height() > ImageSequenceLimits::maximumSourceLogicalHeight()
-        || logicalWidth * logicalHeight > ImageSequenceLimits::maximumSourceLogicalPixels()
+    if (logicalPixelCountExceedsLimit(logicalWidth, logicalHeight)
         || facts.payloadRasterSize.width() > ImageSequenceLimits::maximumPayloadRasterWidth()
         || facts.payloadRasterSize.height() > ImageSequenceLimits::maximumPayloadRasterHeight()
         || facts.payloadByteSize > ImageSequenceLimits::maximumPayloadBytes()
@@ -226,7 +230,7 @@ FramePreparation::ProviderMetadataAdmissionResult FramePreparation::admitProvide
 
     const qint64 width = static_cast<qint64>(size.width());
     const qint64 height = static_cast<qint64>(size.height());
-    if (width * height > ImageSequenceLimits::maximumSourceLogicalPixels()) {
+    if (logicalPixelCountExceedsLimit(width, height)) {
         return providerMetadataRejection(Cause::PixelCountTooLarge,
             QStringLiteral("provider metadata logical size exceeds maximumSourceLogicalPixels"));
     }
@@ -308,7 +312,7 @@ FramePreparation::ProviderKnownFactsAdmissionResult FramePreparation::admitProvi
 
     const qint64 width = static_cast<qint64>(size.width());
     const qint64 height = static_cast<qint64>(size.height());
-    if (width * height > ImageSequenceLimits::maximumSourceLogicalPixels()) {
+    if (logicalPixelCountExceedsLimit(width, height)) {
         return providerKnownFactsRejection(Cause::PixelCountTooLarge,
             QStringLiteral("provider known facts logical size exceeds maximumSourceLogicalPixels"));
     }

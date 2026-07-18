@@ -9,6 +9,8 @@
 
 namespace {
 
+constexpr double contentBoundsTolerance = 0.001;
+
 bool isPositiveSize(QSizeF size)
 {
     return std::isfinite(size.width()) && std::isfinite(size.height()) && size.width() > 0.0
@@ -281,8 +283,10 @@ QPointF maximumContentPositionForPlacedSize(
         return {};
     }
 
-    const QPointF maximum(std::max(0.0, placedSize.width() - state.itemBounds.width()),
-        std::max(0.0, placedSize.height() - state.itemBounds.height()));
+    const double horizontalOverflow = placedSize.width() - state.itemBounds.width();
+    const double verticalOverflow = placedSize.height() - state.itemBounds.height();
+    const QPointF maximum(horizontalOverflow > contentBoundsTolerance ? horizontalOverflow : 0.0,
+        verticalOverflow > contentBoundsTolerance ? verticalOverflow : 0.0);
     return isFinitePoint(maximum) ? maximum : QPointF {};
 }
 
@@ -522,6 +526,20 @@ CoordinateResult PresentationGeometry::itemToSpread(const State& state, double x
         return invalidCoordinateResult();
     }
     return coordinateResult(spreadPoint);
+}
+
+CoordinateResult PresentationGeometry::itemToSpreadPlane(const State& state, double x, double y)
+{
+    if (!hasPresentableGeometry(state) || !std::isfinite(x) || !std::isfinite(y)) {
+        return invalidCoordinateResult();
+    }
+
+    const QRectF content = contentRectForReadyState(state);
+    if (content.isEmpty()) {
+        return invalidCoordinateResult();
+    }
+    const QPointF orientedPoint = itemToOrientedPoint(state, content, QPointF(x, y));
+    return coordinateResult(orientedToSpreadPoint(state, orientedPoint));
 }
 
 CoordinateResult PresentationGeometry::spreadToItem(const State& state, double x, double y)

@@ -106,7 +106,8 @@ void ImageViewportStillTest::resetViewWithoutRequestClearsTransformAndCommandDia
     ImageViewport item;
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(setManualZoomPercentCommand(item, 200.0), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(setFitModeCommand(item, ImageViewportFitMode::Manual),
+        ImageViewportCommandOutcome::Accepted);
     QCOMPARE(item.play(ImageViewportPageRole::Primary).outcome(),
         ImageViewportCommandOutcome::IgnoredNoRequest);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
@@ -905,10 +906,14 @@ void ImageViewportStillTest::stillImageAssignmentWaitsForPositiveGeometry()
 void ImageViewportStillTest::stillImageFactoryRejectsPublishedLimitViolations()
 {
     ImageSequenceFactory factory;
-    QImage oversized(ImageSequenceLimits::maximumSourceLogicalWidth() + 1, 1,
-        QImage::Format_ARGB32_Premultiplied);
+    QImage oversized(1, 1, QImage::Format_ARGB32_Premultiplied);
     oversized.fill(Qt::transparent);
-    ImageFrame frame(oversized);
+    const double excessiveWidth
+        = static_cast<double>(ImageSequenceLimits::maximumSourceLogicalWidth()) + 1.0;
+    ImageFrame frame(oversized, QSizeF(excessiveWidth, 1), QSizeF(1, 1),
+        QSizeF(1.0 / excessiveWidth, 1), oversized.sizeInBytes(),
+        ImageViewportPayloadQuality::Preview, ImageViewportPayloadExactness::NotExact, true,
+        ImageFrame::OrientationPolicy::Identity, {});
 
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
     QVERIFY(result);

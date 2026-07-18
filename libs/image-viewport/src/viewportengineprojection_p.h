@@ -9,6 +9,8 @@
 
 PresentationGeometry::State projectViewportGeometryState(
     const ViewportEngineGeometryInput&, const ImageViewportInternal::PresentationState&);
+double projectViewportMaximumManualZoomPercent(
+    const ViewportEngineGeometryInput&, const ImageViewportInternal::PresentationState&);
 
 struct ViewportEngineGeometryQueryInput
 {

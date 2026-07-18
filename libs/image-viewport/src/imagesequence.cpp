@@ -53,18 +53,63 @@ QSizeF scaleFor(QSizeF sourceLogicalSize, QSize payloadRasterSize)
         payloadRasterSize.height() / sourceLogicalSize.height());
 }
 
-bool payloadFactsMatchImage(const QImage& image, QSizeF sourceLogicalSize, QSizeF payloadRasterSize,
-    QSizeF sourceToPayloadScale, qint64 payloadByteSize)
+bool orientationSwapsAxes(ImageFrame::OrientationPolicy orientationPolicy)
 {
-    if (image.isNull() || !isPositiveFiniteSize(sourceLogicalSize)
-        || payloadRasterSize != QSizeF(image.size()) || !isPositiveFiniteSize(sourceToPayloadScale)
-        || payloadByteSize < image.sizeInBytes()) {
+    switch (orientationPolicy) {
+    case ImageFrame::OrientationPolicy::Rotate90:
+    case ImageFrame::OrientationPolicy::MirrorHorizontallyAndRotate90:
+    case ImageFrame::OrientationPolicy::MirrorVerticallyAndRotate90:
+    case ImageFrame::OrientationPolicy::Rotate270:
+        return true;
+    case ImageFrame::OrientationPolicy::Identity:
+    case ImageFrame::OrientationPolicy::MirrorHorizontally:
+    case ImageFrame::OrientationPolicy::MirrorVertically:
+    case ImageFrame::OrientationPolicy::Rotate180:
+        return false;
+    }
+    return false;
+}
+
+QSize normalizedRasterSize(QSize size, ImageFrame::OrientationPolicy orientationPolicy)
+{
+    if (orientationSwapsAxes(orientationPolicy)) {
+        size.transpose();
+    }
+    return size;
+}
+
+QSizeF normalizedLogicalSize(const QImage& image, ImageFrame::OrientationPolicy orientationPolicy)
+{
+    QSizeF size = image.deviceIndependentSize();
+    if (orientationSwapsAxes(orientationPolicy)) {
+        size.transpose();
+    }
+    return size;
+}
+
+bool payloadFactsMatchRaster(QSize imageSize, qsizetype retainedImageBytes,
+    QSizeF sourceLogicalSize, QSizeF payloadRasterSize, QSizeF sourceToPayloadScale,
+    qint64 payloadByteSize)
+{
+    if (imageSize.isEmpty() || retainedImageBytes <= 0
+        || !isPositiveFiniteInteger(sourceLogicalSize.width())
+        || !isPositiveFiniteInteger(sourceLogicalSize.height())
+        || payloadRasterSize != QSizeF(imageSize) || !isPositiveFiniteSize(sourceToPayloadScale)
+        || payloadByteSize < retainedImageBytes) {
         return false;
     }
     const QSizeF mapped(sourceLogicalSize.width() * sourceToPayloadScale.width(),
         sourceLogicalSize.height() * sourceToPayloadScale.height());
     return qAbs(mapped.width() - payloadRasterSize.width()) < 0.0001
         && qAbs(mapped.height() - payloadRasterSize.height()) < 0.0001;
+}
+
+bool payloadFactsMatchImage(const QImage& image, QSizeF sourceLogicalSize, QSizeF payloadRasterSize,
+    QSizeF sourceToPayloadScale, qint64 payloadByteSize)
+{
+    return !image.isNull()
+        && payloadFactsMatchRaster(image.size(), image.sizeInBytes(), sourceLogicalSize,
+            payloadRasterSize, sourceToPayloadScale, payloadByteSize);
 }
 
 bool isValidOrientationPolicy(ImageFrame::OrientationPolicy policy)
@@ -81,6 +126,15 @@ bool isValidOrientationPolicy(ImageFrame::OrientationPolicy policy)
         return true;
     }
     return false;
+}
+
+bool payloadWithinPublicEnvelope(const QImage& image)
+{
+    return !image.isNull() && image.width() > 0 && image.height() > 0
+        && image.width() <= ImageSequenceLimits::maximumPayloadRasterWidth()
+        && image.height() <= ImageSequenceLimits::maximumPayloadRasterHeight()
+        && image.sizeInBytes() > 0
+        && image.sizeInBytes() <= ImageSequenceLimits::maximumPayloadBytes();
 }
 
 }
@@ -436,6 +490,23 @@ ImageFrame::ImageFrame(const QImage& image, QObject* parent)
 ImageFrame::ImageFrame(const QImage& image, OrientationPolicy orientationPolicy, QObject* parent)
     : QObject(parent)
 {
+    if (!payloadWithinPublicEnvelope(image)) {
+        const QSizeF logicalSize = normalizedLogicalSize(image, orientationPolicy);
+        const QSize rasterSize = normalizedRasterSize(image.size(), orientationPolicy);
+        if (!image.isNull() && isValidOrientationPolicy(orientationPolicy)
+            && isPositiveFiniteInteger(logicalSize.width())
+            && isPositiveFiniteInteger(logicalSize.height())) {
+            m_logicalSize = logicalSize;
+            m_payloadByteSize = image.sizeInBytes();
+            m_payloadRasterSize = QSizeF(rasterSize);
+            m_sourceToPayloadScale = scaleFor(logicalSize, rasterSize);
+            m_quality = ImageViewportPayloadQuality::Exact;
+            m_exactness = ImageViewportPayloadExactness::ExactForSource;
+            m_hasAlpha = image.hasAlphaChannel();
+            m_orientationPolicy = orientationPolicy;
+        }
+        return;
+    }
     const QImage normalizedImage = normalizedImageForOrientation(image, orientationPolicy);
     const QSizeF logicalSize = normalizedImage.deviceIndependentSize();
     if (!normalizedImage.isNull() && isPositiveFiniteInteger(logicalSize.width())
@@ -448,7 +519,9 @@ ImageFrame::ImageFrame(const QImage& image, OrientationPolicy orientationPolicy,
         m_exactness = ImageViewportPayloadExactness::ExactForSource;
         m_hasAlpha = normalizedImage.hasAlphaChannel();
         m_orientationPolicy = orientationPolicy;
-        if (m_payloadByteSize <= ImageSequenceLimits::maximumPayloadBytes()) {
+        if (m_payloadRasterSize.width() <= ImageSequenceLimits::maximumPayloadRasterWidth()
+            && m_payloadRasterSize.height() <= ImageSequenceLimits::maximumPayloadRasterHeight()
+            && m_payloadByteSize <= ImageSequenceLimits::maximumPayloadBytes()) {
             m_image = normalizedImage.copy();
         }
     }
@@ -460,6 +533,29 @@ ImageFrame::ImageFrame(const QImage& image, QSizeF sourceLogicalSize, QSizeF pay
     QString formatIdentifier, QObject* parent)
     : QObject(parent)
 {
+    if (!payloadWithinPublicEnvelope(image)
+        || payloadRasterSize.width() > ImageSequenceLimits::maximumPayloadRasterWidth()
+        || payloadRasterSize.height() > ImageSequenceLimits::maximumPayloadRasterHeight()
+        || payloadByteSize > ImageSequenceLimits::maximumPayloadBytes()) {
+        const QSize rasterSize = normalizedRasterSize(image.size(), orientationPolicy);
+        const bool exactPair = (quality == ImageViewportPayloadQuality::Exact)
+            == (exactness == ImageViewportPayloadExactness::ExactForSource);
+        if (!image.isNull() && isValidOrientationPolicy(orientationPolicy)
+            && payloadFactsMatchRaster(rasterSize, image.sizeInBytes(), sourceLogicalSize,
+                payloadRasterSize, sourceToPayloadScale, payloadByteSize)
+            && exactPair && hasAlpha == image.hasAlphaChannel()) {
+            m_logicalSize = sourceLogicalSize;
+            m_payloadByteSize = payloadByteSize;
+            m_payloadRasterSize = payloadRasterSize;
+            m_sourceToPayloadScale = sourceToPayloadScale;
+            m_quality = quality;
+            m_exactness = exactness;
+            m_hasAlpha = hasAlpha;
+            m_orientationPolicy = orientationPolicy;
+            m_formatIdentifier = std::move(formatIdentifier);
+        }
+        return;
+    }
     const QImage normalizedImage = normalizedImageForOrientation(image, orientationPolicy);
     const bool exactPair = (quality == ImageViewportPayloadQuality::Exact)
         == (exactness == ImageViewportPayloadExactness::ExactForSource);
@@ -476,7 +572,9 @@ ImageFrame::ImageFrame(const QImage& image, QSizeF sourceLogicalSize, QSizeF pay
         m_hasAlpha = hasAlpha;
         m_orientationPolicy = orientationPolicy;
         m_formatIdentifier = std::move(formatIdentifier);
-        if (m_payloadByteSize <= ImageSequenceLimits::maximumPayloadBytes()) {
+        if (m_payloadRasterSize.width() <= ImageSequenceLimits::maximumPayloadRasterWidth()
+            && m_payloadRasterSize.height() <= ImageSequenceLimits::maximumPayloadRasterHeight()
+            && m_payloadByteSize <= ImageSequenceLimits::maximumPayloadBytes()) {
             m_image = normalizedImage.copy();
         }
     }

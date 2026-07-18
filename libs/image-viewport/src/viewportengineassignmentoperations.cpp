@@ -278,7 +278,7 @@ ViewportProviderFrameTransportEffect ViewportEnginePresentationTargetAssignmentA
     ViewportEngineProviderSessionCloseAccess a(p.session, p.requests);
     auto effect = closeViewportEngineProviderSession(a);
     auto mutation = a.takeMutation();
-    p.session = std::move(mutation.session);
+    p.session = mutation.session;
     p.requests = std::move(mutation.requests);
     return effect;
 }
@@ -307,7 +307,7 @@ void ViewportEnginePresentationTargetAssignmentAccess::applyAutoplay()
         { m_mutation.roles[0].provider.facts, m_mutation.roles[1].provider.facts },
         m_mutation.playback);
     reduceViewportEngineAuthoredAutoplay({}, autoplay);
-    m_mutation.playback = std::move(autoplay.takeMutation().playback);
+    m_mutation.playback = autoplay.takeMutation().playback;
 }
 
 ViewportEnginePresentationTargetAssignmentReduction
@@ -343,6 +343,8 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
         return out;
     }
     auto oldGeo = projectViewportGeometryState(in.geometry, a.m_mutation.presentation);
+    const double oldMaximumManualZoom
+        = projectViewportMaximumManualZoomPercent(in.geometry, a.m_mutation.presentation);
     auto oldPhase = a.m_mutation.playback.phase;
     const PublicDiagnosticText oldError = a.m_mutation.request.errorString;
     const bool oldWarning = a.m_mutation.display.hasActiveRenderQualityFallback(
@@ -527,6 +529,10 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
     out.changes.requestState = out.changes.requestRevision = out.changes.displayState
         = out.changes.displayRevision = true;
     auto ng = projectViewportGeometryState(accepted, a.m_mutation.presentation);
+    const double newMaximumManualZoom
+        = projectViewportMaximumManualZoomPercent(accepted, a.m_mutation.presentation);
+    out.changes.presentationRevision
+        = out.changes.presentationRevision || oldMaximumManualZoom != newMaximumManualZoom;
     out.changes.geometryState
         = PresentationGeometry::contentRect(oldGeo) != PresentationGeometry::contentRect(ng)
         || PresentationGeometry::visibleImageRect(oldGeo)

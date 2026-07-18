@@ -87,7 +87,7 @@ ViewportProviderFrameRequestStartResult ViewportEngineProviderEndOfSequenceAcces
     auto result = startViewportEngineProviderFrameRequest({ role, target, g }, a);
     auto mutation = a.takeMutation();
     m_request = std::move(mutation.request);
-    m_playback = std::move(mutation.playback);
+    m_playback = mutation.playback;
     m_display = std::move(mutation.display);
     m_roles = std::move(mutation.roles);
     m_nextRevision = mutation.nextRevision;
@@ -105,8 +105,8 @@ ViewportEngineProviderEndOfSequenceAccess::protocolViolation(
         a);
     auto mutation = a.takeMutation();
     m_request = std::move(mutation.request);
-    m_playback = std::move(mutation.playback);
-    p.session = std::move(mutation.session);
+    m_playback = mutation.playback;
+    p.session = mutation.session;
     p.requests = std::move(mutation.requests);
     return result;
 }

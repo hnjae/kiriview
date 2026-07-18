@@ -226,6 +226,41 @@ PresentationGeometry::State projectViewportGeometryState(const ViewportEngineGeo
         presentation.contentPosition };
 }
 
+double projectViewportMaximumManualZoomPercent(const ViewportEngineGeometryInput& input,
+    const ImageViewportInternal::PresentationState& presentation)
+{
+    if (!input.primaryPresent || !finiteRect(input.itemBounds) || input.itemBounds.width() <= 0.0
+        || input.itemBounds.height() <= 0.0 || !std::isfinite(input.devicePixelRatio)
+        || input.devicePixelRatio <= 0.0) {
+        return 0.0;
+    }
+    const PresentationGeometry::State geometry = projectViewportGeometryState(input, presentation);
+    QSizeF spread = PresentationGeometry::spreadSize(geometry);
+    if (!positive(spread)) {
+        return 0.0;
+    }
+    const int rotation = ((presentation.rotationDegrees % 360) + 360) % 360;
+    if (rotation == 90 || rotation == 270) {
+        spread.transpose();
+    }
+
+    const double viewportWidth = input.itemBounds.width();
+    const double viewportHeight = input.itemBounds.height();
+    const double devicePixelRatio = input.devicePixelRatio;
+    const double fit = std::min(viewportWidth / spread.width(), viewportHeight / spread.height())
+        * devicePixelRatio * 100.0;
+    const double maximumViewportSide = std::max(viewportWidth, viewportHeight);
+    const double logicalDisplayLimit = std::max(65536.0, 8.0 * maximumViewportSide);
+    const double sizeLimit = logicalDisplayLimit * devicePixelRatio * 100.0
+        / std::max(spread.width(), spread.height());
+    if (!std::isfinite(fit) || !std::isfinite(logicalDisplayLimit) || !std::isfinite(sizeLimit)) {
+        return 0.0;
+    }
+    const double maximum
+        = std::max({ ViewportDisplayLimits::minimumManualZoomPercent(), fit, sizeLimit });
+    return std::isfinite(maximum) ? maximum : 0.0;
+}
+
 ImageViewportRoleSet projectViewportDisplayedRoleSet(
     const ImageViewportInternal::DisplayState& display)
 {
@@ -313,7 +348,7 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
     const ImageViewportPresentationSnapshot presentationSnapshot(access.presentation().fitMode,
         effectiveZoomPercent(acceptedGeometry), access.presentation().manualZoom * 100.0,
         ViewportDisplayLimits::minimumManualZoomPercent(),
-        ViewportDisplayLimits::maximumManualZoomPercent(),
+        projectViewportMaximumManualZoomPercent(input.acceptedGeometry, access.presentation()),
         ViewportDisplayLimits::manualZoomStepFactor(), access.presentation().rotationDegrees,
         access.presentation().mirrorHorizontally, access.presentation().mirrorVertically,
         access.presentation().spreadDirection, access.presentation().pageGap,

@@ -29,7 +29,7 @@ class ViewportEngineProviderSessionOpenAccess
 
     ViewportEngineProviderSessionOpenAccess(
         const ImageViewportInternal::ImageSequenceSource& source,
-        const ImageViewportInternal::ProviderSessionState& session)
+        ImageViewportInternal::ProviderSessionState session)
         : m_source(source)
         , m_session(session)
     {
@@ -62,8 +62,7 @@ class ViewportEngineProviderSessionCloseAccess
     friend ViewportProviderFrameTransportEffect closeViewportEngineProviderSession(
         ViewportEngineProviderSessionCloseAccess&);
 
-    ViewportEngineProviderSessionCloseAccess(
-        const ImageViewportInternal::ProviderSessionState& session,
+    ViewportEngineProviderSessionCloseAccess(ImageViewportInternal::ProviderSessionState session,
         const ImageViewportInternal::ProviderRequestLedger& requests)
         : m_session(session)
         , m_requests(requests)

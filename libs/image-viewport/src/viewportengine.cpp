@@ -291,10 +291,10 @@ ViewportEngineCommandTransition ViewportEngine::assignPresentationTarget(
     m_state->requestState.nextPresentationTargetGeneration
         = reduction.mutation.nextTargetGeneration;
     m_state->requestState.request = std::move(reduction.mutation.request);
-    m_state->playbackState.playback = std::move(reduction.mutation.playback);
+    m_state->playbackState.playback = reduction.mutation.playback;
     m_state->displayState.display = std::move(reduction.mutation.display);
     m_state->providerState.roles = std::move(reduction.mutation.roles);
-    m_state->presentationState.presentation = std::move(reduction.mutation.presentation);
+    m_state->presentationState.presentation = reduction.mutation.presentation;
     ViewportEnginePayloadAllocationRebuildResult allocation;
     if (reduction.presentationTargetChanged) {
         allocation = rebuildViewportEnginePayloadAllocation(

@@ -169,7 +169,9 @@ struct BridgeFixture
         const auto opened = bridge.openSession(
             { factory, ImageSequenceProviderThreadingContract::AffinityBound, 17, 23,
                 &callbackTarget, [this](const ViewportProviderEvent& value) { event = value; } });
-        Q_ASSERT(opened.opened);
+        if (!opened.opened) {
+            qFatal("provider cleanup fixture could not open its session");
+        }
     }
 
     void offerFrame(const std::shared_ptr<int>& releaseCount)

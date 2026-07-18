@@ -5,6 +5,7 @@
 
 #include <QtTest/QTest>
 
+#include <limits>
 #include <memory>
 
 class SourceIngressContractSession final // clazy:exclude=missing-qobject-macro
@@ -93,6 +94,7 @@ public:
 private slots:
     void factoryUsesCanonicalOutcomeAndReason();
     void frameOwnsReusablePayloadFacts();
+    void logicalSourceAndPayloadLimitsAreIndependent();
     void timedFramesCarryContiguousIntervals();
     void providerFactoryIsDeferredUntilGenerationAcceptance();
     void providerSessionCannotBelongToTwoLiveGenerations();
@@ -152,6 +154,13 @@ void SourceIngressContractTest::frameOwnsReusablePayloadFacts()
     QScopedPointer<ImageSequenceFactoryResult> rasterResult(factory.fromFrame(&rasterFrame));
     QCOMPARE(rasterResult->reason(), ImageSequenceFactoryReason::LimitExceeded);
 
+    ImageFrame inconsistentOversizedRaster(oversizedRaster, QSizeF(1, 1),
+        QSizeF(oversizedRaster.size()), QSizeF(oversizedRaster.width(), 1),
+        oversizedRaster.sizeInBytes(), ImageViewportPayloadQuality::Preview,
+        ImageViewportPayloadExactness::NotExact, false, ImageFrame::OrientationPolicy::Identity,
+        {});
+    QVERIFY(!inconsistentOversizedRaster.isValid());
+
     ImageSequenceProviderFrameEnvelope envelope;
     envelope.setFrame(0);
     envelope.setFrameStartPosition(-1);
@@ -162,6 +171,82 @@ void SourceIngressContractTest::frameOwnsReusablePayloadFacts()
     QVERIFY(
         ImageSequenceProviderFrameEnvelope::staticMetaObject.indexOfProperty("payloadRasterSize")
         < 0);
+}
+
+void SourceIngressContractTest::logicalSourceAndPayloadLimitsAreIndependent()
+{
+    const int maximumLogicalSide = std::numeric_limits<int>::max();
+    const qint64 maximumLogicalPixels = qint64(maximumLogicalSide) * qint64(maximumLogicalSide);
+    QCOMPARE(ImageSequenceLimits::maximumSourceLogicalWidth(), maximumLogicalSide);
+    QCOMPARE(ImageSequenceLimits::maximumSourceLogicalHeight(), maximumLogicalSide);
+    QCOMPARE(ImageSequenceLimits::maximumSourceLogicalPixels(), maximumLogicalPixels);
+    QCOMPARE(ImageSequenceLimits::maximumPayloadRasterWidth(), 16384);
+    QCOMPARE(ImageSequenceLimits::maximumPayloadRasterHeight(), 16384);
+    QCOMPARE(ImageSequenceLimits::maximumPayloadBytes(), 536870912LL);
+
+    ImageSequenceFactory factory;
+    QImage boundedPreview(200, 100, QImage::Format_ARGB32_Premultiplied);
+    boundedPreview.fill(Qt::transparent);
+    ImageFrame largeLogicalPreview(boundedPreview, QSizeF(200000, 100000),
+        QSizeF(boundedPreview.size()), QSizeF(0.001, 0.001), boundedPreview.sizeInBytes(),
+        ImageViewportPayloadQuality::Preview, ImageViewportPayloadExactness::NotExact, true,
+        ImageFrame::OrientationPolicy::Identity, QStringLiteral("bounded-preview"));
+    QScopedPointer<ImageSequenceFactoryResult> largeLogicalResult(
+        factory.fromFrame(&largeLogicalPreview));
+    QCOMPARE(largeLogicalResult->outcome(), ImageSequenceFactoryOutcome::Created);
+    QVERIFY(largeLogicalResult->sequence());
+
+    QImage onePixel(1, 1, QImage::Format_ARGB32_Premultiplied);
+    onePixel.fill(Qt::transparent);
+    const double scale = 1.0 / static_cast<double>(maximumLogicalSide);
+    ImageFrame maximumLogicalFrame(onePixel, QSizeF(maximumLogicalSide, maximumLogicalSide),
+        QSizeF(1, 1), QSizeF(scale, scale), onePixel.sizeInBytes(),
+        ImageViewportPayloadQuality::Preview, ImageViewportPayloadExactness::NotExact, true,
+        ImageFrame::OrientationPolicy::Identity, {});
+    QScopedPointer<ImageSequenceFactoryResult> maximumLogicalResult(
+        factory.fromFrame(&maximumLogicalFrame));
+    QCOMPARE(maximumLogicalResult->outcome(), ImageSequenceFactoryOutcome::Created);
+
+    ImageFrame excessiveLogicalFrame(onePixel,
+        QSizeF(static_cast<double>(maximumLogicalSide) + 1.0, maximumLogicalSide), QSizeF(1, 1),
+        QSizeF(1.0 / (static_cast<double>(maximumLogicalSide) + 1.0), scale),
+        onePixel.sizeInBytes(), ImageViewportPayloadQuality::Preview,
+        ImageViewportPayloadExactness::NotExact, true, ImageFrame::OrientationPolicy::Identity, {});
+    QScopedPointer<ImageSequenceFactoryResult> excessiveLogicalResult(
+        factory.fromFrame(&excessiveLogicalFrame));
+    QCOMPARE(excessiveLogicalResult->reason(), ImageSequenceFactoryReason::LimitExceeded);
+
+    QImage maximumRaster(
+        ImageSequenceLimits::maximumPayloadRasterWidth(), 1, QImage::Format_ARGB32_Premultiplied);
+    maximumRaster.fill(Qt::transparent);
+    ImageFrame maximumRasterFrame(maximumRaster);
+    QScopedPointer<ImageSequenceFactoryResult> maximumRasterResult(
+        factory.fromFrame(&maximumRasterFrame));
+    QCOMPARE(maximumRasterResult->outcome(), ImageSequenceFactoryOutcome::Created);
+
+    QImage excessiveRaster(ImageSequenceLimits::maximumPayloadRasterWidth() + 1, 1,
+        QImage::Format_ARGB32_Premultiplied);
+    excessiveRaster.fill(Qt::transparent);
+    ImageFrame excessiveRasterFrame(excessiveRaster);
+    QScopedPointer<ImageSequenceFactoryResult> excessiveRasterResult(
+        factory.fromFrame(&excessiveRasterFrame));
+    QCOMPARE(excessiveRasterResult->reason(), ImageSequenceFactoryReason::LimitExceeded);
+
+    ImageFrame maximumByteFrame(onePixel, QSizeF(1, 1), QSizeF(1, 1), QSizeF(1, 1),
+        ImageSequenceLimits::maximumPayloadBytes(), ImageViewportPayloadQuality::Exact,
+        ImageViewportPayloadExactness::ExactForSource, true,
+        ImageFrame::OrientationPolicy::Identity, {});
+    QScopedPointer<ImageSequenceFactoryResult> maximumByteResult(
+        factory.fromFrame(&maximumByteFrame));
+    QCOMPARE(maximumByteResult->outcome(), ImageSequenceFactoryOutcome::Created);
+
+    ImageFrame excessiveByteFrame(onePixel, QSizeF(1, 1), QSizeF(1, 1), QSizeF(1, 1),
+        ImageSequenceLimits::maximumPayloadBytes() + 1, ImageViewportPayloadQuality::Exact,
+        ImageViewportPayloadExactness::ExactForSource, true,
+        ImageFrame::OrientationPolicy::Identity, {});
+    QScopedPointer<ImageSequenceFactoryResult> excessiveByteResult(
+        factory.fromFrame(&excessiveByteFrame));
+    QCOMPARE(excessiveByteResult->reason(), ImageSequenceFactoryReason::LimitExceeded);
 }
 
 void SourceIngressContractTest::timedFramesCarryContiguousIntervals()

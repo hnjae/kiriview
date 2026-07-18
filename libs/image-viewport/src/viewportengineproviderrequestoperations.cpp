@@ -142,7 +142,7 @@ ViewportProviderFrameRequestStartResult startRefinementRequest(RequestContext co
         auto mutation = access.takeMutation();                                                     \
         m_roles = std::move(mutation.roles);                                                       \
         m_request = std::move(mutation.request);                                                   \
-        m_playback = std::move(mutation.playback);                                                 \
+        m_playback = mutation.playback;                                                            \
         m_display = std::move(mutation.display);                                                   \
         return result;                                                                             \
     }                                                                                              \

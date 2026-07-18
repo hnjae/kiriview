@@ -14,6 +14,7 @@
 #include <QtPlugin>
 
 #include <cmath>
+#include <limits>
 #include <memory>
 #include <type_traits>
 
@@ -278,7 +279,7 @@ QtObject {
     property var maximumTotalDurationMilliseconds: ImageSequenceLimits.maximumTotalDurationMilliseconds
     property var maximumDiagnosticCharacters: ImageSequenceLimits.maximumDiagnosticCharacters
     property var maximumFormatIdentifierCharacters: ImageSequenceLimits.maximumFormatIdentifierCharacters
-    property var maximumManualZoomPercent: ImageViewportDisplayLimits.maximumManualZoomPercent
+    property bool maximumManualZoomPercentRemoved: typeof ImageViewportDisplayLimits.maximumManualZoomPercent === "undefined"
 }
 )",
         QUrl());
@@ -297,8 +298,8 @@ QtObject {
             != ImageSequenceLimits::maximumSourceLogicalWidth()
         || object->property("maximumSourceLogicalHeight").toInt()
             != ImageSequenceLimits::maximumSourceLogicalHeight()
-        || object->property("maximumSourceLogicalPixels").toLongLong()
-            != ImageSequenceLimits::maximumSourceLogicalPixels()
+        || object->property("maximumSourceLogicalPixels").toDouble()
+            != static_cast<double>(ImageSequenceLimits::maximumSourceLogicalPixels())
         || object->property("maximumPayloadRasterWidth").toInt()
             != ImageSequenceLimits::maximumPayloadRasterWidth()
         || object->property("maximumPayloadRasterHeight").toInt()
@@ -314,23 +315,24 @@ QtObject {
             != ImageSequenceLimits::maximumDiagnosticCharacters()
         || object->property("maximumFormatIdentifierCharacters").toInt()
             != ImageSequenceLimits::maximumFormatIdentifierCharacters()
-        || object->property("maximumManualZoomPercent").toDouble()
-            != ImageViewportDisplayLimits::maximumManualZoomPercent()) {
+        || !object->property("maximumManualZoomPercentRemoved").toBool()) {
         return false;
     }
 
-    return ImageSequenceLimits::maximumSourceLogicalWidth() >= 8192
-        && ImageSequenceLimits::maximumSourceLogicalHeight() >= 8192
-        && ImageSequenceLimits::maximumSourceLogicalPixels() >= 67108864LL
-        && ImageSequenceLimits::maximumPayloadRasterWidth() >= 8192
-        && ImageSequenceLimits::maximumPayloadRasterHeight() >= 8192
-        && ImageSequenceLimits::maximumPayloadBytes() >= 268435456LL
+    return ImageSequenceLimits::maximumSourceLogicalWidth() == std::numeric_limits<int>::max()
+        && ImageSequenceLimits::maximumSourceLogicalHeight() == std::numeric_limits<int>::max()
+        && ImageSequenceLimits::maximumSourceLogicalPixels()
+        == qint64(std::numeric_limits<int>::max()) * qint64(std::numeric_limits<int>::max())
+        && ImageSequenceLimits::maximumPayloadRasterWidth() == 16384
+        && ImageSequenceLimits::maximumPayloadRasterHeight() == 16384
+        && ImageSequenceLimits::maximumPayloadBytes() == 536870912LL
         && ImageSequenceLimits::maximumFrameCount() >= 10000
         && ImageSequenceLimits::maximumFrameDurationMilliseconds() >= 86400000
         && ImageSequenceLimits::maximumTotalDurationMilliseconds() >= 86400000
         && ImageSequenceLimits::maximumDiagnosticCharacters() >= 4096
         && ImageSequenceLimits::maximumFormatIdentifierCharacters() > 0
-        && ImageViewportDisplayLimits::maximumManualZoomPercent() >= 100.0;
+        && ImageViewportDisplayLimits::minimumManualZoomPercent() == 10.0
+        && ImageViewportDisplayLimits::manualZoomStepFactor() == 1.0905077326652577;
 }
 
 bool canUseInstalledQmlFactorySurface()
@@ -516,7 +518,7 @@ ImageViewport {
         const positionSeekOutcome = seekToPosition(ImageViewport.PageRole.Primary, 0).outcome
         zoomCommand.manualZoomPercent = 200
         const zoomOutcome = setPresentation(zoomCommand).outcome
-        zoomStepCommand.zoomStepDelta = 1
+        zoomStepCommand.zoomStepDelta = 0.5
         const stepOutcome = setPresentation(zoomStepCommand).outcome
         const resetViewOutcome = resetView().outcome
         const minimum = state.presentation.minimumManualZoomPercent
@@ -530,17 +532,18 @@ ImageViewport {
             && stopOutcome === ImageViewport.CommandOutcome.IgnoredNoRequest
             && seekOutcome === ImageViewport.CommandOutcome.IgnoredNoRequest
             && positionSeekOutcome === ImageViewport.CommandOutcome.IgnoredNoRequest
-            && zoomOutcome === ImageViewport.CommandOutcome.Accepted
-            && stepOutcome === ImageViewport.CommandOutcome.Accepted
+            && zoomOutcome === ImageViewport.CommandOutcome.Unsupported
+            && stepOutcome === ImageViewport.CommandOutcome.Unsupported
             && resetViewOutcome === ImageViewport.CommandOutcome.Accepted
-            && state.diagnostics.commandReason === ImageViewport.CommandReason.NoCommand
+            && state.diagnostics.commandReason === ImageViewport.CommandReason.UnsupportedRequest
             && state.revisions.command.valid
             && state.presentation.fitMode === ImageViewport.FitMode.Contain
             && state.presentation.zoomPercent === 0
             && state.presentation.manualZoomPercent === 100
             && minimum === ImageViewportDisplayLimits.minimumManualZoomPercent
-            && maximum === ImageViewportDisplayLimits.maximumManualZoomPercent
-            && state.presentation.manualZoomStepFactor === 1.25
+            && maximum === 0
+            && state.presentation.manualZoomStepFactor === 1.0905077326652577
+            && typeof ImageViewportDisplayLimits.maximumManualZoomPercent === "undefined"
             && typeof clampedManualZoomPercent === "undefined"
             && typeof steppedManualZoomPercent === "undefined"
             && typeof zoomByStep === "undefined"
@@ -916,7 +919,7 @@ int main(int argc, char** argv)
     primaryPageCoordinate.setRole(QVariant::fromValue(ImageViewportPageRole::Primary));
     primaryPageCoordinate.setPoint(QPointF(1.0, 1.0));
     if (minimumManualZoom != ImageViewportDisplayLimits::minimumManualZoomPercent()
-        || maximumManualZoom != ImageViewportDisplayLimits::maximumManualZoomPercent()
+        || maximumManualZoom != 0.0
         || helperPresentation.manualZoomStepFactor()
             != ImageViewportDisplayLimits::manualZoomStepFactor()
         || ImageViewportDisplayLimits::maximumPageGap() != 8192.0
@@ -931,10 +934,16 @@ int main(int argc, char** argv)
     ImageViewportPresentationCommand stepCommand;
     stepCommand.setZoomStepDelta(1);
     if (steppedCommandViewport.setPresentation(stepCommand).outcome()
-            != ImageViewportCommandOutcome::Accepted
+            != ImageViewportCommandOutcome::Unsupported
         || steppedCommandViewport.state().presentation().fitMode() != ImageViewportFitMode::Contain
-        || !nearlyEqual(steppedCommandViewport.state().presentation().manualZoomPercent(), 125.0)
+        || !nearlyEqual(steppedCommandViewport.state().presentation().manualZoomPercent(), 100.0)
         || steppedCommandViewport.state().presentation().zoomPercent() != 0.0) {
+        return 1;
+    }
+    ImageViewportPresentationCommand zeroStepCommand;
+    zeroStepCommand.setZoomStepDelta(0.0);
+    if (steppedCommandViewport.setPresentation(zeroStepCommand).outcome()
+        != ImageViewportCommandOutcome::Accepted) {
         return 1;
     }
 
@@ -973,26 +982,24 @@ int main(int argc, char** argv)
         return 1;
     }
     ImageViewportPresentationCommand installedPresentationCommand;
-    installedPresentationCommand.setFitMode(ImageViewportFitMode::Manual);
     installedPresentationCommand.setManualZoomPercent(125.0);
+    installedPresentationCommand.setZoomAnchor(QPointF(5.0, 5.0));
     installedPresentationCommand.setPageGap(3.0);
     installedPresentationCommand.setQualityPreference(ImageViewportQualityPreference::ExactDetail);
     installedPresentationCommand.setExactnessPreference(
         ImageViewportExactnessPreference::RequireExact);
     if (!installedPresentationCommand.hasManualZoomPercent()
         || !installedPresentationCommand.hasPageGap()
+        || !installedPresentationCommand.hasZoomAnchor()
+        || installedPresentationCommand.zoomAnchor() != QPointF(5.0, 5.0)
         || !installedPresentationCommand.hasQualityPreference()
         || !installedPresentationCommand.hasExactnessPreference()
         || helperViewport.setPresentation(installedPresentationCommand).outcome()
-            != ImageViewportCommandOutcome::Accepted
-        || helperViewport.state().presentation().fitMode() != ImageViewportFitMode::Manual
-        || !nearlyEqual(helperViewport.state().presentation().manualZoomPercent(), 125.0)
+            != ImageViewportCommandOutcome::Invalid
+        || helperViewport.state().presentation().fitMode() != ImageViewportFitMode::Contain
+        || !nearlyEqual(helperViewport.state().presentation().manualZoomPercent(), 100.0)
         || helperViewport.state().presentation().zoomPercent() != 0.0
-        || helperViewport.state().presentation().pageGap() != 3.0
-        || helperViewport.state().presentation().qualityPreference()
-            != ImageViewportQualityPreference::ExactDetail
-        || helperViewport.state().presentation().exactnessPreference()
-            != ImageViewportExactnessPreference::RequireExact) {
+        || helperViewport.state().presentation().pageGap() != 0.0) {
         return 1;
     }
     ImageViewportCoordinateInput installedCoordinateInput;
@@ -1100,7 +1107,6 @@ int main(int argc, char** argv)
         || providerViewport.state().primary().display().frame() != -1) {
         return 1;
     }
-
     return canCreateInstalledQmlViewport() && canReadInstalledQmlLimits()
             && canUseInstalledQmlFactorySurface() && canUseInstalledQmlTypedFactorySurface()
             && installedQmlSingletonTypesAreNotCreatable()

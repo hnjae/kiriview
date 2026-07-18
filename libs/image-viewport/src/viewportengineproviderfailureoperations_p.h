@@ -90,7 +90,7 @@ class ViewportEngineProviderTerminalEventAccess
     ViewportEngineProviderTerminalEventAccess(const ImageViewportInternal::RequestState& request,
         const ImageViewportInternal::PlaybackState& playback,
         const ImageViewportInternal::ProviderFactsState& facts,
-        const ImageViewportInternal::ProviderSessionState& session,
+        ImageViewportInternal::ProviderSessionState session,
         const ImageViewportInternal::ProviderRequestLedger& requests)
         : m_request(request)
         , m_playback(playback)
@@ -131,7 +131,7 @@ class ViewportEngineProviderProtocolViolationAccess
     ViewportEngineProviderProtocolViolationAccess(
         const ImageViewportInternal::RequestState& request,
         const ImageViewportInternal::PlaybackState& playback,
-        const ImageViewportInternal::ProviderSessionState& session,
+        ImageViewportInternal::ProviderSessionState session,
         const ImageViewportInternal::ProviderRequestLedger& requests)
         : m_request(request)
         , m_playback(playback)
@@ -167,7 +167,7 @@ class ViewportEngineProviderDispatchFailureAccess
 
     ViewportEngineProviderDispatchFailureAccess(const ImageViewportInternal::RequestState& request,
         const ImageViewportInternal::PlaybackState& playback,
-        const ImageViewportInternal::ProviderSessionState& session,
+        ImageViewportInternal::ProviderSessionState session,
         const ImageViewportInternal::ProviderRequestLedger& requests)
         : m_request(request)
         , m_playback(playback)
@@ -204,7 +204,7 @@ class ViewportEngineProviderSessionOpenFailureAccess
     ViewportEngineProviderSessionOpenFailureAccess(
         const ImageViewportInternal::RequestState& request,
         const ImageViewportInternal::PlaybackState& playback,
-        const ImageViewportInternal::ProviderSessionState& session,
+        ImageViewportInternal::ProviderSessionState session,
         const ImageViewportInternal::ProviderRequestLedger& requests)
         : m_request(request)
         , m_playback(playback)

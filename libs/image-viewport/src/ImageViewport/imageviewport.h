@@ -28,7 +28,6 @@ class ImageViewportDisplayLimits : public QObject
     QML_ELEMENT
     QML_SINGLETON
     Q_PROPERTY(double minimumManualZoomPercent READ getMinimumManualZoomPercent CONSTANT)
-    Q_PROPERTY(double maximumManualZoomPercent READ getMaximumManualZoomPercent CONSTANT)
     Q_PROPERTY(double manualZoomStepFactor READ getManualZoomStepFactor CONSTANT)
     Q_PROPERTY(double maximumPageGap READ getMaximumPageGap CONSTANT)
     Q_PROPERTY(double minimumCheckerboardCellSize READ getMinimumCheckerboardCellSize CONSTANT)
@@ -38,14 +37,12 @@ public:
     explicit ImageViewportDisplayLimits(QObject* parent = nullptr);
 
     double getMinimumManualZoomPercent() const;
-    double getMaximumManualZoomPercent() const;
     double getManualZoomStepFactor() const;
     double getMaximumPageGap() const;
     double getMinimumCheckerboardCellSize() const;
     double getMaximumCheckerboardCellSize() const;
 
     static double minimumManualZoomPercent();
-    static double maximumManualZoomPercent();
     static double manualZoomStepFactor();
     static double maximumPageGap();
     static double minimumCheckerboardCellSize();
@@ -157,7 +154,9 @@ class ImageViewportPresentationCommand
     Q_PROPERTY(bool manualZoomPercentSet READ hasManualZoomPercent CONSTANT)
     Q_PROPERTY(double manualZoomPercent READ manualZoomPercent WRITE setManualZoomPercent)
     Q_PROPERTY(bool zoomStepDeltaSet READ hasZoomStepDelta CONSTANT)
-    Q_PROPERTY(int zoomStepDelta READ zoomStepDelta WRITE setZoomStepDelta)
+    Q_PROPERTY(double zoomStepDelta READ zoomStepDelta WRITE setZoomStepDelta)
+    Q_PROPERTY(bool zoomAnchorSet READ hasZoomAnchor CONSTANT)
+    Q_PROPERTY(QPointF zoomAnchor READ zoomAnchor WRITE setZoomAnchor)
     Q_PROPERTY(bool contentPositionSet READ hasContentPosition CONSTANT)
     Q_PROPERTY(QPointF contentPosition READ contentPosition WRITE setContentPosition)
     Q_PROPERTY(bool panDeltaSet READ hasPanDelta CONSTANT)
@@ -228,11 +227,18 @@ public:
         m_hasManualZoomPercent = true;
     }
     bool hasZoomStepDelta() const { return m_hasZoomStepDelta; }
-    int zoomStepDelta() const { return m_zoomStepDelta; }
-    void setZoomStepDelta(int delta)
+    double zoomStepDelta() const { return m_zoomStepDelta; }
+    void setZoomStepDelta(double delta)
     {
         m_zoomStepDelta = delta;
         m_hasZoomStepDelta = true;
+    }
+    bool hasZoomAnchor() const { return m_hasZoomAnchor; }
+    QPointF zoomAnchor() const { return m_zoomAnchor; }
+    void setZoomAnchor(QPointF anchor)
+    {
+        m_zoomAnchor = anchor;
+        m_hasZoomAnchor = true;
     }
     bool hasContentPosition() const { return m_hasContentPosition; }
     QPointF contentPosition() const { return m_contentPosition; }
@@ -368,7 +374,9 @@ private:
     bool m_hasManualZoomPercent = false;
     double m_manualZoomPercent = 100.0;
     bool m_hasZoomStepDelta = false;
-    int m_zoomStepDelta = 0;
+    double m_zoomStepDelta = 0.0;
+    bool m_hasZoomAnchor = false;
+    QPointF m_zoomAnchor;
     bool m_hasContentPosition = false;
     QPointF m_contentPosition;
     bool m_hasPanDelta = false;

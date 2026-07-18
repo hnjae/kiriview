@@ -74,7 +74,7 @@ void commitProviderRequestMutation(
     ViewportEngineCanonicalState& state, ViewportEngineProviderRequestMutation mutation)
 {
     state.requestState.request = std::move(mutation.request);
-    state.playbackState.playback = std::move(mutation.playback);
+    state.playbackState.playback = mutation.playback;
     state.displayState.display = std::move(mutation.display);
     state.providerState.roles = std::move(mutation.roles);
     state.revisions.nextRevision = mutation.nextRevision;
@@ -187,7 +187,7 @@ ViewportProviderFrameTransportEffect ViewportEngine::closeProviderSession(
     ViewportEngineProviderSessionCloseAccess access(provider.session, provider.requests);
     auto effect = closeViewportEngineProviderSession(access);
     auto mutation = access.takeMutation();
-    provider.session = std::move(mutation.session);
+    provider.session = mutation.session;
     provider.requests = std::move(mutation.requests);
     return effect;
 }
@@ -347,10 +347,10 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
             { event.role, event.token, event.metadata, geometry }, access);
         auto mutation = access.takeMutation();
         m_state->requestState.request = std::move(mutation.request);
-        m_state->playbackState.playback = std::move(mutation.playback);
+        m_state->playbackState.playback = mutation.playback;
         m_state->displayState.display = std::move(mutation.display);
         m_state->providerState.roles = std::move(mutation.roles);
-        m_state->presentationState.presentation = std::move(mutation.presentation);
+        m_state->presentationState.presentation = mutation.presentation;
         m_state->requestState.presentationTarget = std::move(mutation.presentationTarget);
         m_state->revisions.nextRevision = mutation.nextRevision;
         m_state->revisions.targetPresentationRevision = mutation.targetPresentationRevision;
@@ -370,7 +370,7 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
             access);
         auto mutation = access.takeMutation();
         m_state->requestState.request = std::move(mutation.request);
-        m_state->playbackState.playback = std::move(mutation.playback);
+        m_state->playbackState.playback = mutation.playback;
         m_state->displayState.display = std::move(mutation.display);
         provider = std::move(mutation.provider);
         result.changes = frame.changes;
@@ -400,7 +400,7 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
             { event.role, event.token, geometry }, access);
         auto mutation = access.takeMutation();
         m_state->requestState.request = std::move(mutation.request);
-        m_state->playbackState.playback = std::move(mutation.playback);
+        m_state->playbackState.playback = mutation.playback;
         m_state->displayState.display = std::move(mutation.display);
         m_state->providerState.roles = std::move(mutation.roles);
         m_state->revisions.nextRevision = mutation.nextRevision;
@@ -419,8 +419,8 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
             = reduceViewportEngineProviderTerminalEvent(terminalEvent(event), access);
         auto mutation = access.takeMutation();
         m_state->requestState.request = std::move(mutation.request);
-        m_state->playbackState.playback = std::move(mutation.playback);
-        provider.session = std::move(mutation.session);
+        m_state->playbackState.playback = mutation.playback;
+        provider.session = mutation.session;
         provider.requests = std::move(mutation.requests);
         result.changes = terminal.changes;
         result.providerFrameTransport = terminal.providerFrameTransport;
@@ -440,8 +440,8 @@ ViewportProviderSessionOpenFailureResult ViewportEngine::reduceProviderSessionOp
     const auto reduction = reduceViewportEngineProviderSessionOpenFailure({ role }, access);
     auto mutation = access.takeMutation();
     m_state->requestState.request = std::move(mutation.request);
-    m_state->playbackState.playback = std::move(mutation.playback);
-    provider.session = std::move(mutation.session);
+    m_state->playbackState.playback = mutation.playback;
+    provider.session = mutation.session;
     provider.requests = std::move(mutation.requests);
     ViewportProviderSessionOpenFailureResult result;
     result.changes = reduction.changes;
@@ -462,8 +462,8 @@ ViewportProviderTerminalEventResult ViewportEngine::reduceProviderProtocolViolat
         = reduceViewportEngineProviderProtocolViolation({ role, token, cause, eventKind }, access);
     auto mutation = access.takeMutation();
     m_state->requestState.request = std::move(mutation.request);
-    m_state->playbackState.playback = std::move(mutation.playback);
-    provider.session = std::move(mutation.session);
+    m_state->playbackState.playback = mutation.playback;
+    provider.session = mutation.session;
     provider.requests = std::move(mutation.requests);
     ViewportProviderTerminalEventResult result;
     result.changes = reduction.changes;
@@ -474,7 +474,7 @@ ViewportProviderTerminalEventResult ViewportEngine::reduceProviderProtocolViolat
 }
 
 ViewportProviderTerminalEventResult ViewportEngine::reduceProviderDispatchFailure(
-    ImageViewportPageRole role, const ViewportProviderDispatchFailureEvent& event)
+    ImageViewportPageRole role, ViewportProviderDispatchFailureEvent event)
 {
     auto& provider = m_state->providerState.roles[roleIndex(role)].provider;
     ViewportEngineProviderDispatchFailureAccess access(m_state->requestState.request,
@@ -483,8 +483,8 @@ ViewportProviderTerminalEventResult ViewportEngine::reduceProviderDispatchFailur
         = reduceViewportEngineProviderDispatchFailure({ role, event.token }, access);
     auto mutation = access.takeMutation();
     m_state->requestState.request = std::move(mutation.request);
-    m_state->playbackState.playback = std::move(mutation.playback);
-    provider.session = std::move(mutation.session);
+    m_state->playbackState.playback = mutation.playback;
+    provider.session = mutation.session;
     provider.requests = std::move(mutation.requests);
     ViewportProviderTerminalEventResult result;
     result.changes = reduction.changes;
@@ -502,7 +502,7 @@ ViewportProviderSchedulerFailureResult ViewportEngine::reduceProviderQueueSchedu
     const auto reduction = reduceViewportEngineProviderQueueFailure({ role }, access);
     auto mutation = access.takeMutation();
     m_state->requestState.request = std::move(mutation.request);
-    m_state->playbackState.playback = std::move(mutation.playback);
+    m_state->playbackState.playback = mutation.playback;
     provider.requests = std::move(mutation.requests);
     ViewportProviderSchedulerFailureResult result;
     result.changes = reduction.changes;

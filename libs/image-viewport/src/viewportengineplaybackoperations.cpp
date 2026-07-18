@@ -172,7 +172,7 @@ ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
         auto materialized = materializeViewportEngineProviderRole(
             { input.role, input.geometry, false }, mutation);
         request = std::move(mutation.request);
-        playback = std::move(mutation.playback);
+        playback = mutation.playback;
         display = std::move(mutation.display);
         access.m_roles = std::move(mutation.roles);
         access.m_nextRevision = mutation.nextRevision;
@@ -339,7 +339,7 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
         auto materialized = materializeViewportEngineProviderRole(
             { input.role, input.geometry, false }, mutation);
         request = std::move(mutation.request);
-        playback = std::move(mutation.playback);
+        playback = mutation.playback;
         display = std::move(mutation.display);
         access.m_roles = std::move(mutation.roles);
         access.m_nextRevision = mutation.nextRevision;
@@ -414,7 +414,7 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
         auto materialized
             = materializeViewportEngineProviderRole({ input.role, input.geometry, true }, mutation);
         request = std::move(mutation.request);
-        playback = std::move(mutation.playback);
+        playback = mutation.playback;
         display = std::move(mutation.display);
         access.m_roles = std::move(mutation.roles);
         access.m_nextRevision = mutation.nextRevision;
@@ -582,7 +582,7 @@ ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
         auto materialized
             = materializeViewportEngineProviderRole({ role, input.geometry, true }, mutation);
         request = std::move(mutation.request);
-        playback = std::move(mutation.playback);
+        playback = mutation.playback;
         display = std::move(mutation.display);
         access.m_roles = std::move(mutation.roles);
         access.m_nextRevision = mutation.nextRevision;

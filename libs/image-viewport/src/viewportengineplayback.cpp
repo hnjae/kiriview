@@ -60,7 +60,7 @@ void commitPlaybackMutation(
     ViewportEngineCanonicalState& state, ViewportEnginePlaybackMutation mutation)
 {
     state.requestState.request = std::move(mutation.request);
-    state.playbackState.playback = std::move(mutation.playback);
+    state.playbackState.playback = mutation.playback;
     state.displayState.display = std::move(mutation.display);
     state.providerState.roles = std::move(mutation.roles);
     state.revisions.nextRevision = mutation.nextRevision;
@@ -92,7 +92,7 @@ ViewportEngineCommandTransition ViewportEngine::applyPlaybackCommand(
     if (input.command.kind == ViewportPlaybackCommand::Kind::Pause) {
         ViewportEnginePlaybackPauseAccess access(m_state->playbackState.playback);
         const auto reduction = reduceViewportEnginePlaybackPause({ input.command.role }, access);
-        m_state->playbackState.playback = std::move(access.takeMutation().playback);
+        m_state->playbackState.playback = access.takeMutation().playback;
         const auto command
             = reduction.playbackPhaseChanged ? accepted() : acceptedPreservingCommandDiagnostics();
         transition.changes.playbackPhase = reduction.playbackPhaseChanged;

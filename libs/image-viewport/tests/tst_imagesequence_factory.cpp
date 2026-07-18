@@ -9,6 +9,7 @@
 #include "timingintervals_p.h"
 
 #include <cmath>
+#include <limits>
 
 class ImageSequenceFactoryTest : public QObject
 {
@@ -148,7 +149,7 @@ void ImageSequenceFactoryTest::timedFrameListNativeFactoryClassifiesSemanticFail
         factory.fromTimedFrameList({ validImage }, { 0 }));
     QCOMPARE(invalidTimingResult->reason(), ImageSequenceFactoryReason::InvalidTiming);
 
-    QImage oversizedImage(ImageSequenceLimits::maximumSourceLogicalWidth() + 1, 1,
+    QImage oversizedImage(ImageSequenceLimits::maximumPayloadRasterWidth() + 1, 1,
         QImage::Format_ARGB32_Premultiplied);
     oversizedImage.fill(Qt::transparent);
     QScopedPointer<ImageSequenceFactoryResult> limitResult(
@@ -315,13 +316,15 @@ void ImageSequenceFactoryTest::exposesImageSequenceLimits()
     };
 
     const LimitExpectation expectations[] = {
-        { "maximumSourceLogicalWidth", ImageSequenceLimits::maximumSourceLogicalWidth(), 8192 },
-        { "maximumSourceLogicalHeight", ImageSequenceLimits::maximumSourceLogicalHeight(), 8192 },
+        { "maximumSourceLogicalWidth", ImageSequenceLimits::maximumSourceLogicalWidth(),
+            std::numeric_limits<int>::max() },
+        { "maximumSourceLogicalHeight", ImageSequenceLimits::maximumSourceLogicalHeight(),
+            std::numeric_limits<int>::max() },
         { "maximumSourceLogicalPixels", ImageSequenceLimits::maximumSourceLogicalPixels(),
-            67108864LL },
-        { "maximumPayloadRasterWidth", ImageSequenceLimits::maximumPayloadRasterWidth(), 8192 },
-        { "maximumPayloadRasterHeight", ImageSequenceLimits::maximumPayloadRasterHeight(), 8192 },
-        { "maximumPayloadBytes", ImageSequenceLimits::maximumPayloadBytes(), 268435456LL },
+            qint64(std::numeric_limits<int>::max()) * qint64(std::numeric_limits<int>::max()) },
+        { "maximumPayloadRasterWidth", ImageSequenceLimits::maximumPayloadRasterWidth(), 16384 },
+        { "maximumPayloadRasterHeight", ImageSequenceLimits::maximumPayloadRasterHeight(), 16384 },
+        { "maximumPayloadBytes", ImageSequenceLimits::maximumPayloadBytes(), 536870912LL },
         { "maximumFrameCount", ImageSequenceLimits::maximumFrameCount(), 10000 },
         { "maximumFrameDurationMilliseconds",
             ImageSequenceLimits::maximumFrameDurationMilliseconds(), 86400000 },
@@ -353,11 +356,12 @@ void ImageSequenceFactoryTest::exposesImageViewportDisplayLimits()
         double cppValue;
         double expected;
     };
+    QCOMPARE(metaObject->indexOfProperty("maximumManualZoomPercent"), -1);
     const QList<LimitExpectation> expectations = {
-        { "minimumManualZoomPercent", ImageViewportDisplayLimits::minimumManualZoomPercent(), 1.0 },
-        { "maximumManualZoomPercent", ImageViewportDisplayLimits::maximumManualZoomPercent(),
-            10000.0 },
-        { "manualZoomStepFactor", ImageViewportDisplayLimits::manualZoomStepFactor(), 1.25 },
+        { "minimumManualZoomPercent", ImageViewportDisplayLimits::minimumManualZoomPercent(),
+            10.0 },
+        { "manualZoomStepFactor", ImageViewportDisplayLimits::manualZoomStepFactor(),
+            1.0905077326652577 },
         { "maximumPageGap", ImageViewportDisplayLimits::maximumPageGap(), 8192.0 },
         { "minimumCheckerboardCellSize", ImageViewportDisplayLimits::minimumCheckerboardCellSize(),
             1.0 },

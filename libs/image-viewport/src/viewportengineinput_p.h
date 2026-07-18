@@ -202,6 +202,8 @@ struct ViewportEnginePresentationCommand
         manualZoomPercentValue = command.manualZoomPercent();
         zoomStepDeltaSet = command.hasZoomStepDelta();
         zoomStepDeltaValue = command.zoomStepDelta();
+        zoomAnchorSet = command.hasZoomAnchor();
+        zoomAnchorValue = command.zoomAnchor();
         contentPositionSet = command.hasContentPosition();
         contentPositionValue = command.contentPosition();
         panDeltaSet = command.hasPanDelta();
@@ -246,7 +248,9 @@ struct ViewportEnginePresentationCommand
     bool manualZoomPercentSet = false;
     double manualZoomPercentValue = 100.0;
     bool zoomStepDeltaSet = false;
-    int zoomStepDeltaValue = 0;
+    double zoomStepDeltaValue = 0.0;
+    bool zoomAnchorSet = false;
+    QPointF zoomAnchorValue;
     bool contentPositionSet = false;
     QPointF contentPositionValue;
     bool panDeltaSet = false;
@@ -291,7 +295,9 @@ struct ViewportEnginePresentationCommand
     bool hasManualZoomPercent() const { return manualZoomPercentSet; }
     double manualZoomPercent() const { return manualZoomPercentValue; }
     bool hasZoomStepDelta() const { return zoomStepDeltaSet; }
-    int zoomStepDelta() const { return zoomStepDeltaValue; }
+    double zoomStepDelta() const { return zoomStepDeltaValue; }
+    bool hasZoomAnchor() const { return zoomAnchorSet; }
+    QPointF zoomAnchor() const { return zoomAnchorValue; }
     bool hasContentPosition() const { return contentPositionSet; }
     QPointF contentPosition() const { return contentPositionValue; }
     bool hasPanDelta() const { return panDeltaSet; }

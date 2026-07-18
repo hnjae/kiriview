@@ -15,7 +15,7 @@ ViewportProviderFrameTransportEffect ViewportProviderRequestTokenAllocationAcces
     ViewportEngineProviderSessionCloseAccess access(session(role), requests(role));
     auto effect = closeViewportEngineProviderSession(access);
     auto mutation = access.takeMutation();
-    session(role) = std::move(mutation.session);
+    session(role) = mutation.session;
     requests(role) = std::move(mutation.requests);
     return effect;
 }

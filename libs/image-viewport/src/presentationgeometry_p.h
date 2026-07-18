@@ -49,6 +49,7 @@ public:
     static QRectF visiblePageRect(const State& state, ImageViewportPageRole role);
     static QRectF pageItemRect(const State& state, ImageViewportPageRole role);
     static CoordinateResult itemToSpread(const State& state, double x, double y);
+    static CoordinateResult itemToSpreadPlane(const State& state, double x, double y);
     static CoordinateResult spreadToItem(const State& state, double x, double y);
     static CoordinateResult itemToPage(
         const State& state, ImageViewportPageRole role, double x, double y);

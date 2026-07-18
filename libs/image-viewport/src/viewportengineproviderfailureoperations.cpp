@@ -167,7 +167,7 @@ DEFINE_RECORD_GENERATION_TERMINAL(ViewportEngineProviderSessionOpenFailureAccess
         ViewportEngineProviderSessionCloseAccess access(m_session, m_requests);                    \
         auto effect = closeViewportEngineProviderSession(access);                                  \
         auto mutation = access.takeMutation();                                                     \
-        m_session = std::move(mutation.session);                                                   \
+        m_session = mutation.session;                                                              \
         m_requests = std::move(mutation.requests);                                                 \
         return effect;                                                                             \
     }

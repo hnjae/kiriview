@@ -121,7 +121,7 @@ ViewportEngineProviderRoleMaterializationResult materializeViewportEngineProvide
     auto allocationMutation = allocationAccess.takeMutation();
     access.roles = std::move(allocationMutation.roles);
     access.request = std::move(allocationMutation.request);
-    access.playback = std::move(allocationMutation.playback);
+    access.playback = allocationMutation.playback;
     access.display = std::move(allocationMutation.display);
     effect.closeSession = allocation.closeSession;
     effect.sessionClose = allocation.sessionClose;

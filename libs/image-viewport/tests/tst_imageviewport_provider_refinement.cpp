@@ -8,23 +8,35 @@ class RefinementProviderSession final // clazy:exclude=missing-qobject-macro
     : public ImageSequenceProviderSession
 {
 public:
-    using ImageSequenceProviderSession::ImageSequenceProviderSession;
+    explicit RefinementProviderSession(QSizeF logicalSize, QObject* parent = nullptr)
+        : ImageSequenceProviderSession(parent)
+        , m_logicalSize(logicalSize)
+    {
+    }
 
     void request(const ImageSequenceProviderRequest& request) override
     {
         requests.append(request);
         if (request.kind() == ImageSequenceProviderRequestKind::Metadata) {
             emitProviderMetadataReady(
-                this, request.token(), ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+                this, request.token(), ImageSequenceProviderMetadata::still(m_logicalSize));
         }
     }
 
-    void emitReady(
-        const ImageSequenceProviderRequest& request, QColor color, bool echoDemandRevision = true)
+    void emitReady(const ImageSequenceProviderRequest& request, QColor color,
+        bool echoDemandRevision = true, QSize payloadRasterSize = QSize(16, 8))
     {
-        QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+        QImage image(payloadRasterSize, QImage::Format_ARGB32_Premultiplied);
         image.fill(color);
-        auto frame = std::make_unique<ImageFrame>(image);
+        const bool exact = QSizeF(payloadRasterSize) == m_logicalSize;
+        auto frame = std::make_unique<ImageFrame>(image, m_logicalSize, QSizeF(payloadRasterSize),
+            QSizeF(payloadRasterSize.width() / m_logicalSize.width(),
+                payloadRasterSize.height() / m_logicalSize.height()),
+            image.sizeInBytes(),
+            exact ? ImageViewportPayloadQuality::Exact : ImageViewportPayloadQuality::Preview,
+            exact ? ImageViewportPayloadExactness::ExactForSource
+                  : ImageViewportPayloadExactness::NotExact,
+            true, ImageFrame::OrientationPolicy::Identity, QString {});
         auto envelope = ImageSequenceProviderFrameEnvelope::stillFrame();
         if (echoDemandRevision)
             envelope.setDemandRevision(request.demand().demandRevision());
@@ -43,14 +55,19 @@ public:
     }
 
     QVector<ImageSequenceProviderRequest> requests;
+
+private:
+    QSizeF m_logicalSize;
 };
 
 class RefinementProviderAdapter final // clazy:exclude=missing-qobject-macro
     : public ImageSequenceProviderAdapter
 {
 public:
-    explicit RefinementProviderAdapter(QObject* parent = nullptr)
+    explicit RefinementProviderAdapter(
+        QSizeF logicalSize = QSizeF(16, 8), QObject* parent = nullptr)
         : ImageSequenceProviderAdapter(parent)
+        , m_logicalSize(logicalSize)
     {
     }
 
@@ -58,12 +75,15 @@ public:
     {
         return ImageSequenceProviderDescriptor(
             {}, ImageSequenceProviderThreadingContract::ThreadSafe, [this]() {
-                session = new RefinementProviderSession;
+                session = new RefinementProviderSession(m_logicalSize);
                 return ImageSequenceProviderSessionFactoryResult::created(session);
             });
     }
 
     mutable QPointer<RefinementProviderSession> session;
+
+private:
+    QSizeF m_logicalSize;
 };
 
 struct ReadyProviderViewport
@@ -72,7 +92,9 @@ struct ReadyProviderViewport
     QScopedPointer<ImageSequenceFactoryResult> sequence;
     ImageViewport viewport;
 
-    ReadyProviderViewport()
+    explicit ReadyProviderViewport(
+        QSizeF logicalSize = QSizeF(16, 8), QSize payloadRasterSize = QSize(16, 8))
+        : adapter(logicalSize)
     {
         ImageSequenceFactory factory;
         sequence.reset(factory.fromProvider(&adapter));
@@ -84,7 +106,7 @@ struct ReadyProviderViewport
         Q_ASSERT(adapter.session);
         const auto frames = adapter.session->frameRequests();
         Q_ASSERT(frames.size() == 1);
-        adapter.session->emitReady(frames.constFirst(), Qt::red);
+        adapter.session->emitReady(frames.constFirst(), Qt::red, true, payloadRasterSize);
         acknowledgePendingRenderCommitForTest(viewport);
         Q_ASSERT(requestStatus(viewport) == ImageViewportRequestStatus::Ready);
     }
@@ -116,6 +138,7 @@ public:
     }
 
 private slots:
+    void largeLogicalSourceAcceptsBoundedPreviewAndRefinement();
     void committedProviderPayloadRefinesWithoutLeavingReady();
     void newerDemandCancelsOlderRefinementAndStaleResultCannotCommit();
     void refinementFailureIsIsolatedFromTheDisplayRequest();
@@ -126,6 +149,31 @@ private slots:
     void refinementRenderFailureIsIsolatedFromTheDisplayRequest();
     void spreadRefinementsCommitAsOneCompleteCandidateSet();
 };
+
+void ImageViewportProviderRefinementTest::largeLogicalSourceAcceptsBoundedPreviewAndRefinement()
+{
+    const QSizeF logicalSize(200000, 100000);
+    ReadyProviderViewport fixture(logicalSize, QSize(200, 100));
+
+    QCOMPARE(fixture.viewport.state().primary().display().sourceLogicalSize(), logicalSize);
+    QCOMPARE(fixture.viewport.state().primary().display().payloadRasterSize(), QSizeF(200, 100));
+    QCOMPARE(fixture.adapter.session->frameRequests().constFirst().demand().sourceLogicalSize(),
+        logicalSize);
+
+    setQualityPreference(fixture.viewport, ImageViewportQualityPreference::BalancedDetail);
+    const auto refinement = fixture.adapter.session->frameRequests().constLast();
+    QCOMPARE(refinement.demand().sourceLogicalSize(), logicalSize);
+    QVERIFY(
+        refinement.demand().maximumPayloadBytes() <= ImageSequenceLimits::maximumPayloadBytes());
+
+    fixture.adapter.session->emitReady(refinement, Qt::blue, true, QSize(400, 200));
+    acknowledgePendingRenderCommitForTest(fixture.viewport);
+
+    QCOMPARE(requestStatus(fixture.viewport), ImageViewportRequestStatus::Ready);
+    QCOMPARE(fixture.viewport.state().primary().display().sourceLogicalSize(), logicalSize);
+    QCOMPARE(fixture.viewport.state().primary().display().payloadRasterSize(), QSizeF(400, 200));
+    QCOMPARE(fixture.viewport.state().primary().display().currentForDemand(), true);
+}
 
 void ImageViewportProviderRefinementTest::committedProviderPayloadRefinesWithoutLeavingReady()
 {

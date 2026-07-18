@@ -399,11 +399,6 @@ double ImageViewportDisplayLimits::getMinimumManualZoomPercent() const
     return minimumManualZoomPercent();
 }
 
-double ImageViewportDisplayLimits::getMaximumManualZoomPercent() const
-{
-    return maximumManualZoomPercent();
-}
-
 double ImageViewportDisplayLimits::getManualZoomStepFactor() const
 {
     return manualZoomStepFactor();
@@ -424,11 +419,6 @@ double ImageViewportDisplayLimits::getMaximumCheckerboardCellSize() const
 double ImageViewportDisplayLimits::minimumManualZoomPercent()
 {
     return ViewportDisplayLimits::minimumManualZoomPercent();
-}
-
-double ImageViewportDisplayLimits::maximumManualZoomPercent()
-{
-    return ViewportDisplayLimits::maximumManualZoomPercent();
 }
 
 double ImageViewportDisplayLimits::manualZoomStepFactor()

@@ -99,10 +99,9 @@ void ImageViewportStateSnapshotTest::defaultSnapshotValuesAndCopySemantics()
     QCOMPARE(snapshot.presentation().fitMode(), ImageViewportFitMode::Contain);
     QCOMPARE(snapshot.presentation().zoomPercent(), 0.0);
     QCOMPARE(snapshot.presentation().manualZoomPercent(), 100.0);
-    QCOMPARE(snapshot.presentation().minimumManualZoomPercent(), 1.0);
-    QCOMPARE(snapshot.presentation().maximumManualZoomPercent(),
-        ImageViewportDisplayLimits::maximumManualZoomPercent());
-    QCOMPARE(snapshot.presentation().manualZoomStepFactor(), 1.25);
+    QCOMPARE(snapshot.presentation().minimumManualZoomPercent(), 10.0);
+    QCOMPARE(snapshot.presentation().maximumManualZoomPercent(), 0.0);
+    QCOMPARE(snapshot.presentation().manualZoomStepFactor(), 1.0905077326652577);
     QCOMPARE(snapshot.presentation().rotationDegrees(), 0);
     QCOMPARE(snapshot.presentation().spreadDirection(), ImageViewportSpreadDirection::LeftToRight);
     QCOMPARE(snapshot.presentation().pageGap(), 0.0);

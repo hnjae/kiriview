@@ -107,7 +107,7 @@ ViewportEngineProviderMetadataReadyAccess::startFrameRequest(ImageViewportPageRo
     auto result = startViewportEngineProviderFrameRequest({ role, target, geometry }, access);
     auto mutation = access.takeMutation();
     m_request = std::move(mutation.request);
-    m_playback = std::move(mutation.playback);
+    m_playback = mutation.playback;
     m_display = std::move(mutation.display);
     m_roles = std::move(mutation.roles);
     m_nextRevision = mutation.nextRevision;
@@ -127,7 +127,7 @@ bool ViewportEngineProviderMetadataReadyAccess::applyAutoplay()
     ViewportEngineAuthoredAutoplayAccess autoplay(
         m_request, { m_roles[0].provider.facts, m_roles[1].provider.facts }, m_playback);
     const auto reduction = reduceViewportEngineAuthoredAutoplay({}, autoplay);
-    m_playback = std::move(autoplay.takeMutation().playback);
+    m_playback = autoplay.takeMutation().playback;
     return reduction.playbackPhaseChanged;
 }
 
@@ -138,7 +138,7 @@ ViewportProviderFrameTransportEffect ViewportEngineProviderMetadataReadyAccess::
     ViewportEngineProviderSessionCloseAccess access(provider.session, provider.requests);
     auto effect = closeViewportEngineProviderSession(access);
     auto mutation = access.takeMutation();
-    provider.session = std::move(mutation.session);
+    provider.session = mutation.session;
     provider.requests = std::move(mutation.requests);
     return effect;
 }
@@ -408,10 +408,23 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
         || acceptedGeometry.primarySize != input.geometry.primarySize
         || acceptedGeometry.secondarySize != input.geometry.secondarySize;
     if (completeTargetGeometry && targetGeometryChanged) {
+        const bool manualZoomClamped
+            = clampViewportEngineManualZoomToRange(acceptedGeometry, access.m_presentation);
+        const PresentationGeometry::State geometry
+            = projectViewportGeometryState(acceptedGeometry, access.m_presentation);
+        const QPointF clampedContentPosition = PresentationGeometry::contentPosition(geometry);
+        const bool contentPositionClamped
+            = access.m_presentation.contentPosition != clampedContentPosition;
+        if (contentPositionClamped) {
+            access.m_presentation.contentPosition = clampedContentPosition;
+        }
         access.advanceTargetPresentationRevision();
         result.changes.targetPresentationRevision = true;
+        result.changes.presentationRevision = true;
         result.changes.displayRevision = true;
         result.changes.geometryState = true;
+        result.changes.scheduleUpdate
+            = result.changes.scheduleUpdate || manualZoomClamped || contentPositionClamped;
     }
     if (!terminalContinuation) {
         mergeChanges(result.changes,

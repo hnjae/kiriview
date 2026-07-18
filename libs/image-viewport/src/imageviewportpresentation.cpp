@@ -17,6 +17,8 @@ ViewportEnginePresentationCommand enginePresentationCommand(
     result.manualZoomPercentValue = command.manualZoomPercent();
     result.zoomStepDeltaSet = command.hasZoomStepDelta();
     result.zoomStepDeltaValue = command.zoomStepDelta();
+    result.zoomAnchorSet = command.hasZoomAnchor();
+    result.zoomAnchorValue = command.zoomAnchor();
     result.contentPositionSet = command.hasContentPosition();
     result.contentPositionValue = command.contentPosition();
     result.panDeltaSet = command.hasPanDelta();

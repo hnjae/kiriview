@@ -478,6 +478,10 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
     const QMetaObject& presentationCommandMetaObject
         = ImageViewportPresentationCommand::staticMetaObject;
     const QList<QByteArray> presentationCommandProperties = {
+        "zoomStepDeltaSet",
+        "zoomStepDelta",
+        "zoomAnchorSet",
+        "zoomAnchor",
         "checkerboardLightColorSet",
         "checkerboardLightColor",
         "checkerboardDarkColorSet",
@@ -495,6 +499,12 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
         QVERIFY2(presentationCommandMetaObject.indexOfProperty(propertyName.constData()) >= 0,
             propertyName.constData());
     }
+    const int zoomStepDeltaIndex = presentationCommandMetaObject.indexOfProperty("zoomStepDelta");
+    QCOMPARE(presentationCommandMetaObject.property(zoomStepDeltaIndex).metaType(),
+        QMetaType::fromType<double>());
+
+    const QMetaObject& displayLimitsMetaObject = ImageViewportDisplayLimits::staticMetaObject;
+    QCOMPARE(displayLimitsMetaObject.indexOfProperty("maximumManualZoomPercent"), -1);
 
     const QMetaObject& requestSnapshotMetaObject = ImageViewportRequestSnapshot::staticMetaObject;
     const QList<QByteArray> requestSnapshotProperties = {
@@ -593,9 +603,8 @@ void ImageViewportPublicApiTest::hasDocumentedDefaultState()
     QCOMPARE(presentation.manualZoomPercent(), 100.0);
     QCOMPARE(presentation.minimumManualZoomPercent(),
         ImageViewportDisplayLimits::minimumManualZoomPercent());
-    QCOMPARE(presentation.maximumManualZoomPercent(),
-        ImageViewportDisplayLimits::maximumManualZoomPercent());
-    QCOMPARE(presentation.manualZoomStepFactor(), 1.25);
+    QCOMPARE(presentation.maximumManualZoomPercent(), 0.0);
+    QCOMPARE(presentation.manualZoomStepFactor(), 1.0905077326652577);
 }
 
 void ImageViewportPublicApiTest::manualZoomLimitPropertiesExposeDefaultsAndDoNotAdvanceRevisions()
@@ -611,10 +620,10 @@ void ImageViewportPublicApiTest::manualZoomLimitPropertiesExposeDefaultsAndDoNot
     const double maximum = presentation.maximumManualZoomPercent();
     const double stepFactor = presentation.manualZoomStepFactor();
 
-    QCOMPARE(minimum, 1.0);
-    QCOMPARE(maximum, ImageViewportDisplayLimits::maximumManualZoomPercent());
-    QCOMPARE(stepFactor, 1.25);
-    QCOMPARE(ImageViewportDisplayLimits::manualZoomStepFactor(), 1.25);
+    QCOMPARE(minimum, 10.0);
+    QCOMPARE(maximum, 0.0);
+    QCOMPARE(stepFactor, 1.0905077326652577);
+    QCOMPARE(ImageViewportDisplayLimits::manualZoomStepFactor(), 1.0905077326652577);
     QCOMPARE(ImageViewportDisplayLimits::maximumPageGap(), 8192.0);
     QCOMPARE(ImageViewportDisplayLimits::minimumCheckerboardCellSize(), 1.0);
     QCOMPARE(ImageViewportDisplayLimits::maximumCheckerboardCellSize(), 256.0);

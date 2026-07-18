@@ -277,7 +277,7 @@ ViewportEngineTransition ViewportEngine::handleRenderHostFact(
         auto mutation = access.takeMutation();
         m_state->requestState.request = std::move(mutation.request);
         m_state->displayState.display = std::move(mutation.display);
-        m_state->playbackState.playback = std::move(mutation.playback);
+        m_state->playbackState.playback = mutation.playback;
         transition.changes = reduction.changes;
         transition.observations = reduction.observations;
         rebuildViewportEnginePayloadAllocation(
@@ -291,7 +291,7 @@ ViewportEngineTransition ViewportEngine::handleRenderHostFact(
         auto mutation = access.takeMutation();
         m_state->requestState.request = std::move(mutation.request);
         m_state->displayState.display = std::move(mutation.display);
-        m_state->playbackState.playback = std::move(mutation.playback);
+        m_state->playbackState.playback = mutation.playback;
         transition.changes = reduction.changes;
         if (reduction.changes.displayRevision
             && m_state->displayState.display.status == ImageViewportDisplayStatus::Ready) {
@@ -368,11 +368,19 @@ ViewportEngineTransition ViewportEngine::handleViewportChanged(ViewportEngineVie
 
     std::optional<ViewportEngineGeometryInput> providerDemandGeometry;
     if (geometryInputChanged) {
-        const auto transitionChanges
+        auto transitionChanges
             = resolveViewportEnginePendingPresentationTargetTransition(rawAcceptedGeometry(),
                 m_state->requestState.presentationTarget, m_state->presentationState.presentation,
                 m_state->displayState.display.hasReadyDisplay(
                     m_state->requestState.request.roles[0].source.facts.present));
+        if (clampViewportEngineManualZoomToRange(
+                acceptedGeometry(), m_state->presentationState.presentation)) {
+            transitionChanges.presentationRevision = true;
+            transitionChanges.displayRevision = m_state->displayState.display.hasReadyDisplay(
+                m_state->requestState.request.roles[0].source.facts.present);
+            transitionChanges.geometryState = true;
+            transitionChanges.scheduleUpdate = true;
+        }
         clampContentPosition(m_state->presentationState.presentation, acceptedGeometry());
         if (m_state->displayState.display.status == ImageViewportDisplayStatus::Retained) {
             clampContentPosition(

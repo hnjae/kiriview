@@ -110,6 +110,7 @@ private slots:
     void providerPublicValueTypesValidateTiming();
     void providerTypedProtocolValuesValidateShape();
     void typedDescriptorFactoryAndSessionBridgeMatchesLegacyPath();
+    void dynamicMaximumClampRestagesCoherentProviderDemand();
     void providerSpreadBudgetAccountsForRetainedPayloadAndResourcePressure();
     void providerSpreadCommitReissuesDemandWhenBudgetIncreases();
     void providerRoleBudgetRejectsPayloadBeforeSpreadOversubscription();
@@ -458,6 +459,53 @@ void ImageViewportProviderContractTest::typedDescriptorFactoryAndSessionBridgeMa
     QCOMPARE(requestReason(item), ImageViewportRequestReason::Ready);
     QCOMPARE(displayStatus(item), ImageViewportDisplayStatus::Ready);
     QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
+}
+
+void ImageViewportProviderContractTest::dynamicMaximumClampRestagesCoherentProviderDemand()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(
+        sessionFactory, ImageSequenceProviderMetadata::still(QSizeF(100, 100)));
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(9000, 9000));
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    QCOMPARE(item.state().presentation().maximumManualZoomPercent(), 72000.0);
+
+    ImageViewportPresentationCommand manual;
+    manual.setFitMode(ImageViewportFitMode::Manual);
+    manual.setManualZoomPercent(70000.0);
+    QCOMPARE(item.setPresentation(manual).outcome(), ImageViewportCommandOutcome::Accepted);
+    const auto before = item.state();
+    const int frameRequestsBeforeResize = *frameRequestCount;
+
+    item.setSize(QSizeF(100, 100));
+
+    const auto after = item.state();
+    QCOMPARE(after.presentation().maximumManualZoomPercent(), 65536.0);
+    QCOMPARE(after.presentation().manualZoomPercent(), 65536.0);
+    QCOMPARE(after.presentation().zoomPercent(), 65536.0);
+    QVERIFY(after.revisions().request() != before.revisions().request());
+    QVERIFY(after.revisions().presentation() != before.revisions().presentation());
+    QVERIFY(*frameRequestCount > frameRequestsBeforeResize);
+    QVERIFY(sessionFactory->lastSession());
+    const ImageSequenceProviderDisplayDemand demand
+        = sessionFactory->lastSession()->lastFrameDemand();
+    QCOMPARE(demand.sourceLogicalSize(), QSizeF(100, 100));
+    QCOMPARE(demand.targetDisplaySizePixels(), QSizeF(65536, 65536));
+    QCOMPARE(demand.demandRevision(), after.primary().request().demandRevision());
+    QCOMPARE(
+        demand.targetDisplaySizePixels(), after.primary().geometry().acceptedItemRect().size());
 }
 
 void ImageViewportProviderContractTest::
@@ -827,11 +875,13 @@ void ImageViewportProviderContractTest::providerFactoryRejectsPublishedKnownMeta
               QCOMPARE(*frameRequestCount, 0);
           };
 
-    verifyRejectedKnownMetadata(ImageSequenceProviderMetadata::still(QSizeF(
-                                    ImageSequenceLimits::maximumSourceLogicalWidth() + 1, 8.0)),
+    verifyRejectedKnownMetadata(
+        ImageSequenceProviderMetadata::still(QSizeF(
+            static_cast<double>(ImageSequenceLimits::maximumSourceLogicalWidth()) + 1.0, 8.0)),
         QStringLiteral("maximumSourceLogicalWidth"));
-    verifyRejectedKnownMetadata(ImageSequenceProviderMetadata::still(QSizeF(
-                                    16.0, ImageSequenceLimits::maximumSourceLogicalHeight() + 1)),
+    verifyRejectedKnownMetadata(
+        ImageSequenceProviderMetadata::still(QSizeF(
+            16.0, static_cast<double>(ImageSequenceLimits::maximumSourceLogicalHeight()) + 1.0)),
         QStringLiteral("maximumSourceLogicalHeight"));
     verifyRejectedKnownMetadata(ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0),
                                     QVector<int>(ImageSequenceLimits::maximumFrameCount() + 1, 1)),

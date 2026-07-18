@@ -100,7 +100,7 @@ private:
         ImageViewportInternal::InternalObservationCause cause,
         ImageSequenceProviderEventKind eventKind);
     ViewportProviderTerminalEventResult reduceProviderDispatchFailure(
-        ImageViewportPageRole role, const ViewportProviderDispatchFailureEvent& event);
+        ImageViewportPageRole role, ViewportProviderDispatchFailureEvent event);
     ViewportProviderSessionOpenFailureResult reduceProviderSessionOpenFailure(
         ImageViewportPageRole role);
     ViewportProviderSessionOpenResult reduceProviderSessionOpened(ImageViewportPageRole role);

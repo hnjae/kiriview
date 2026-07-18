@@ -186,6 +186,7 @@ ImageViewport {
     property imageViewportPresentationCommand fitModeCommand
     property imageViewportPresentationCommand manualZoomCommand
     property imageViewportPresentationCommand zoomStepCommand
+    property imageViewportPresentationCommand anchoredZoomCommand
     property imageViewportPresentationCommand panCommand
     property imageViewportPresentationCommand scanStartCommand
     property imageViewportPresentationCommand scanEndCommand
@@ -229,9 +230,10 @@ ImageViewport {
             && state.presentation.fitMode === ImageViewport.FitMode.Contain
             && state.presentation.zoomPercent === 0
             && state.presentation.manualZoomPercent === 100
-            && state.presentation.minimumManualZoomPercent === 1
-            && state.presentation.maximumManualZoomPercent === ImageViewportDisplayLimits.maximumManualZoomPercent
-            && state.presentation.manualZoomStepFactor === 1.25
+            && state.presentation.minimumManualZoomPercent === 10
+            && state.presentation.maximumManualZoomPercent === 0
+            && state.presentation.manualZoomStepFactor === 1.0905077326652577
+            && typeof ImageViewportDisplayLimits.maximumManualZoomPercent === "undefined"
             && state.presentation.rotationDegrees === 0
 
         const requestRevisionBefore = state.revisions.request
@@ -263,8 +265,8 @@ ImageViewport {
             && typeof viewport.maximumManualZoomPercent === "undefined"
             && typeof viewport.manualZoomStepFactor === "undefined"
             && typeof viewport.rotationDegrees === "undefined"
-            && minimum > 0
-            && maximum === ImageViewportDisplayLimits.maximumManualZoomPercent
+            && minimum === ImageViewportDisplayLimits.minimumManualZoomPercent
+            && maximum === 0
             && state.revisions.request === requestRevisionBefore
             && state.revisions.display === displayRevisionBefore
             && state.revisions.command === commandRevisionBefore
@@ -290,7 +292,9 @@ ImageViewport {
         pageGapCommand.pageGap = 0
         fitModeCommand.fitMode = ImageViewport.FitMode.Contain
         manualZoomCommand.manualZoomPercent = 100
-        zoomStepCommand.zoomStepDelta = 1
+        zoomStepCommand.zoomStepDelta = 0.5
+        anchoredZoomCommand.zoomStepDelta = 0.5
+        anchoredZoomCommand.zoomAnchor = Qt.point(0, 0)
         scanStartCommand.contentAnchor = ImageViewport.ContentAnchor.Start
         scanEndCommand.contentAnchor = ImageViewport.ContentAnchor.End
         rotationCommand.rotationDegrees = 0
@@ -300,8 +304,12 @@ ImageViewport {
         presentationCommandsReachViewport = setPresentation(spreadDirectionCommand).outcome === ImageViewport.CommandOutcome.Accepted
             && setPresentation(pageGapCommand).outcome === ImageViewport.CommandOutcome.Accepted
             && setPresentation(fitModeCommand).outcome === ImageViewport.CommandOutcome.Accepted
-            && setPresentation(manualZoomCommand).outcome === ImageViewport.CommandOutcome.Accepted
-            && setPresentation(zoomStepCommand).outcome === ImageViewport.CommandOutcome.Accepted
+            && setPresentation(manualZoomCommand).outcome === ImageViewport.CommandOutcome.Unsupported
+            && setPresentation(zoomStepCommand).outcome === ImageViewport.CommandOutcome.Unsupported
+            && anchoredZoomCommand.zoomStepDelta === 0.5
+            && anchoredZoomCommand.zoomAnchorSet
+            && anchoredZoomCommand.zoomAnchor.x === 0
+            && setPresentation(anchoredZoomCommand).outcome === ImageViewport.CommandOutcome.Unsupported
             && setPresentation(panCommand).outcome === ImageViewport.CommandOutcome.Accepted
             && setPresentation(scanStartCommand).outcome === ImageViewport.CommandOutcome.Accepted
             && setPresentation(scanEndCommand).outcome === ImageViewport.CommandOutcome.Accepted
@@ -477,18 +485,20 @@ ImageViewport {
         && state.primary.metadata.positionSeekBounds.maximum === -1
         && state.display.contentRect.width === 0
         && state.primary.geometry.displayedVisiblePageRect.height === 0
-    property bool limitsAvailable: ImageSequenceLimits.maximumSourceLogicalWidth >= 8192
-        && ImageSequenceLimits.maximumSourceLogicalHeight >= 8192
-        && ImageSequenceLimits.maximumSourceLogicalPixels >= 67108864
-        && ImageSequenceLimits.maximumPayloadRasterWidth >= 8192
-        && ImageSequenceLimits.maximumPayloadRasterHeight >= 8192
-        && ImageSequenceLimits.maximumPayloadBytes >= 268435456
+    property bool limitsAvailable: ImageSequenceLimits.maximumSourceLogicalWidth === 2147483647
+        && ImageSequenceLimits.maximumSourceLogicalHeight === 2147483647
+        && ImageSequenceLimits.maximumSourceLogicalPixels === 4611686014132420609
+        && ImageSequenceLimits.maximumPayloadRasterWidth === 16384
+        && ImageSequenceLimits.maximumPayloadRasterHeight === 16384
+        && ImageSequenceLimits.maximumPayloadBytes === 536870912
         && ImageSequenceLimits.maximumFrameCount >= 10000
         && ImageSequenceLimits.maximumFrameDurationMilliseconds >= 86400000
         && ImageSequenceLimits.maximumTotalDurationMilliseconds >= 86400000
         && ImageSequenceLimits.maximumDiagnosticCharacters >= 4096
         && ImageSequenceLimits.maximumFormatIdentifierCharacters > 0
-        && ImageViewportDisplayLimits.maximumManualZoomPercent >= 100
+        && ImageViewportDisplayLimits.minimumManualZoomPercent === 10
+        && ImageViewportDisplayLimits.manualZoomStepFactor === 1.0905077326652577
+        && typeof ImageViewportDisplayLimits.maximumManualZoomPercent === "undefined"
 }
 )",
         QUrl());

@@ -215,6 +215,7 @@ private slots:
     void coordinateQueryOwnsValidationAndMapping();
     void coordinateQueryUsesRetainedDisplayedPresentationWithoutMutation();
     void geometryProjectionRejectsFiniteOverflow();
+    void geometryToleranceNormalizesAllEffectiveBounds();
     void devicePixelRatioChangeRevisesEffectiveFitZoom();
     void renderSnapshotUsesEnginePresentationAndPayloadState();
     void renderAttemptAuthorityRejectsStaleAndDuplicateFacts();
@@ -1299,7 +1300,9 @@ void ViewportEngineTest::geometryProjectionUsesEnginePresentationState()
     ViewportEngine engine;
     auto& request = ViewportEngineTestAccess::request(engine);
     request.roles[0].source.facts.present = true;
+    request.roles[0].source.facts.logicalSize = QSizeF(20, 10);
     request.roles[1].source.facts.present = true;
+    request.roles[1].source.facts.logicalSize = QSizeF(8, 10);
     auto& display = ViewportEngineTestAccess::display(engine);
     display.status = ImageViewportDisplayStatus::Ready;
     display.roles[0].displayedPayload
@@ -1517,6 +1520,35 @@ void ViewportEngineTest::geometryProjectionRejectsFiniteOverflow()
     QVERIFY(snapshot.primary().geometry().displayedItemRect().isEmpty());
 }
 
+void ViewportEngineTest::geometryToleranceNormalizesAllEffectiveBounds()
+{
+    PresentationGeometry::State withinTolerance { true, QRectF(0.0, 0.0, 200.0, 160.0),
+        QSizeF(200.0005, 160.0005), {}, 0.0, ImageViewportSpreadDirection::LeftToRight,
+        ImageViewportFitMode::Manual, 0, false, false, 1.0, 1.0, QPointF(0.0005, 0.0005) };
+
+    QCOMPARE(PresentationGeometry::contentSize(withinTolerance), QSizeF(200.0005, 160.0005));
+    QCOMPARE(PresentationGeometry::maximumContentPosition(withinTolerance), QPointF());
+    QCOMPARE(PresentationGeometry::contentPosition(withinTolerance), QPointF());
+    QCOMPARE(PresentationGeometry::horizontalPannable(withinTolerance), false);
+    QCOMPARE(PresentationGeometry::verticalPannable(withinTolerance), false);
+    QCOMPARE(PresentationGeometry::contentPositionForAnchoredSpreadPoint(
+                 withinTolerance, QPointF(200.0005, 160.0005), QPointF()),
+        QPointF());
+
+    PresentationGeometry::State beyondTolerance = withinTolerance;
+    beyondTolerance.primaryImageSize = QSizeF(200.0011, 160.0011);
+    beyondTolerance.contentPosition = QPointF(1, 1);
+    const QPointF maximum = PresentationGeometry::maximumContentPosition(beyondTolerance);
+    QVERIFY(maximum.x() > 0.001);
+    QVERIFY(maximum.y() > 0.001);
+    QCOMPARE(PresentationGeometry::contentPosition(beyondTolerance), maximum);
+    QCOMPARE(PresentationGeometry::horizontalPannable(beyondTolerance), true);
+    QCOMPARE(PresentationGeometry::verticalPannable(beyondTolerance), true);
+    QCOMPARE(PresentationGeometry::contentPositionForAnchoredSpreadPoint(
+                 beyondTolerance, QPointF(200.0011, 160.0011), QPointF()),
+        maximum);
+}
+
 void ViewportEngineTest::devicePixelRatioChangeRevisesEffectiveFitZoom()
 {
     ViewportEngine engine;
@@ -1541,11 +1573,13 @@ void ViewportEngineTest::devicePixelRatioChangeRevisesEffectiveFitZoom()
     setViewport(engine, initial);
     const ImageViewportStateSnapshot before = engine.snapshot();
     QCOMPARE(before.presentation().zoomPercent(), 625.0);
+    QCOMPARE(before.presentation().maximumManualZoomPercent(), 409600.0);
 
     engine.handleViewportChanged({ QRectF(0.0, 0.0, 100.0, 100.0), 2.0, true });
     const ImageViewportStateSnapshot after = engine.snapshot();
 
     QCOMPARE(after.presentation().zoomPercent(), 1250.0);
+    QCOMPARE(after.presentation().maximumManualZoomPercent(), 819200.0);
     QVERIFY(after.revisions().presentation() != before.revisions().presentation());
 }
 
