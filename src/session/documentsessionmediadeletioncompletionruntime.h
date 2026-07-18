@@ -17,6 +17,7 @@ struct DocumentSessionMediaDeletionCompletionRuntimePorts
     std::function<void(const QString&)> setSessionErrorString;
     std::function<void()> recomputePublicProjection;
     std::function<void(const DocumentSessionRoutePlan&)> executeRoutePlan;
+    std::function<void(const QString&)> reportFailure;
 };
 
 class DocumentSessionMediaDeletionCompletionRuntime final

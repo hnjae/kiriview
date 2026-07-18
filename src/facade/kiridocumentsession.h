@@ -241,6 +241,7 @@ Q_SIGNALS:
     void activeNavigationRevealIntentChanged();
     void activeNavigationRevealDirectionChanged();
     void openWithFailed(const QString& errorString);
+    void fileDeletionFailed(const QString& errorString);
 
 private:
     struct ResolvedDependenciesTag

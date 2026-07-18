@@ -434,6 +434,8 @@ KiriDocumentSession::KiriDocumentSession(kiriview::KiriDocumentSessionDependenci
     , m_videoDocument(std::make_unique<KiriVideoDocument>(
           std::move(dependencies.videoPlaybackControlTimerScheduler), this))
 {
+    dependencies.sessionRuntime.fileDeletionFailed
+        = [this](const QString& message) { Q_EMIT fileDeletionFailed(message); };
     m_runtime = std::make_unique<kiriview::DocumentSessionRuntime>(
         this, imageDocumentSnapshotPort(*m_imageDocument),
         imageDocumentCommandPort(*m_imageDocument), videoDocumentSnapshotPort(*m_videoDocument),

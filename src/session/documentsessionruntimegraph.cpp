@@ -277,6 +277,7 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
           [this](const QString& errorString) { m_state.setSessionErrorString(errorString); },
           [this]() { recomputePublicProjection(); },
           [this](const DocumentSessionRoutePlan& plan) { executeRoutePlan(plan); },
+          std::move(dependencies.fileDeletionFailed),
       })
     , m_mediaOpenWithRuntime(std::move(dependencies.mediaOpenWithProvider))
     , m_mediaPredecodeRuntime(owner, std::move(dependencies.directMediaPredecodeDependencies))

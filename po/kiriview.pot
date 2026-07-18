@@ -502,6 +502,24 @@ msgctxt "@info:status"
 msgid "First image"
 msgstr ""
 
+#: src/facade/kiriwindowshell.cpp
+#, kde-format
+msgctxt "@info:status"
+msgid "This action is not available for videos"
+msgstr ""
+
+#: src/facade/kiriwindowshell.cpp
+#, kde-format
+msgctxt "@info:status"
+msgid "This action is not available for images"
+msgstr ""
+
+#: src/facade/kiriwindowshell.cpp
+#, kde-format
+msgctxt "@info:status"
+msgid "Could not open media with another application"
+msgstr ""
+
 #: src/facade/mediaopendialogfilters.cpp
 #, kde-format
 msgctxt "@item:inlistbox"
@@ -1075,21 +1093,6 @@ msgstr ""
 #: src/qml/Main.qml
 msgctxt "@title:window"
 msgid "%1 — KiriView"
-msgstr ""
-
-#: src/qml/Main.qml
-msgctxt "@info:status"
-msgid "This action is not available for videos"
-msgstr ""
-
-#: src/qml/Main.qml
-msgctxt "@info:status"
-msgid "This action is not available for images"
-msgstr ""
-
-#: src/qml/Main.qml
-msgctxt "@info:status"
-msgid "Could not open media with another application"
 msgstr ""
 
 #: src/qml/Main.qml

@@ -76,6 +76,8 @@ StatefulApp.StatefulWindow {
         kiriApplication.setWindowShell(windowShell);
         kiriApplication.setShortcutHost(root);
         windowShell.attachWindow(root);
+        windowShell.attachApplication(kiriApplication);
+        windowShell.attachDocumentSession(documentSession);
         windowShell.reportHelpDialogOpen(root.helpDialogOpen);
         root.publishActionUiState();
     }
@@ -107,10 +109,6 @@ StatefulApp.StatefulWindow {
     Connections {
         target: kiriApplication
 
-        function onImageBoundaryReached(message) {
-            toastNotification.show(message, "image-boundary");
-        }
-
         function onOpenApplicationMenuRequested() {
             root.openApplicationMenu();
         }
@@ -129,14 +127,6 @@ StatefulApp.StatefulWindow {
 
         function onToggleThumbnailPanelRequested() {
             mediaWorkspaceHost.toggleThumbnailPanel();
-        }
-
-        function onUnsupportedVideoActionTriggered(actionId) {
-            toastNotification.show(KI18n.i18nc("@info:status", "This action is not available for videos"), "unsupported-video-action");
-        }
-
-        function onUnsupportedImageActionTriggered(actionId) {
-            toastNotification.show(KI18n.i18nc("@info:status", "This action is not available for images"), "unsupported-image-action");
         }
     }
 
@@ -183,7 +173,6 @@ StatefulApp.StatefulWindow {
         readonly property bool videoMode: documentSession.documentKind === KiriDocumentSession.Video
         readonly property bool imageReady: documentSession.activeImageReady
         readonly property string actionUiGateFingerprint: [root.helpDialogOpen, root.fullscreen, root.applicationMenuShortcutEnabled, root.toolbarTextInputFocused(), mediaWorkspaceHost.infoPanelVisible, mediaWorkspaceHost.thumbnailPanelVisible].join("|")
-        property bool documentDeletionWasInProgress: false
 
         background: Rectangle {
             color: imageViewTheme.darkBackgroundColor
@@ -261,64 +250,17 @@ StatefulApp.StatefulWindow {
 
         onActionUiGateFingerprintChanged: root.publishActionUiState()
 
-        Connections {
-            target: page.imageDocument
-
-            function onDisplayedUrlChanged() {
-                toastNotification.dismissIfScope("image-boundary");
-                toastNotification.dismissIfScope("collection-boundary");
-            }
-
-            function onFileDeletionFailed(errorString) {
-                toastNotification.show(errorString, "general");
-            }
-
-            function onContainerNavigationBoundaryReached(message) {
-                toastNotification.show(message, "collection-boundary");
-            }
-
-            function onUnsupportedOpenedCollectionVideoEntered(message) {
-                toastNotification.show(message, "unsupported-document-video");
-            }
-        }
-
-        Connections {
-            target: documentSession
-
-            function onErrorStringChanged() {
-                if (page.documentDeletionWasInProgress && documentSession.errorString.length > 0) {
-                    toastNotification.show(documentSession.errorString, "general");
-                    page.documentDeletionWasInProgress = false;
-                }
-            }
-
-            function onFileDeletionInProgressChanged() {
-                if (documentSession.fileDeletionInProgress) {
-                    page.documentDeletionWasInProgress = true;
-                    return;
-                }
-
-                if (documentSession.errorString.length <= 0) {
-                    page.documentDeletionWasInProgress = false;
-                }
-            }
-
-            function onOpenWithFailed(errorString) {
-                toastNotification.show(errorString.length > 0 ? errorString : KI18n.i18nc("@info:status", "Could not open media with another application"), "general");
-            }
-
-            function onSourceUrlChanged() {
-                toastNotification.dismissIfScope("image-boundary");
-                toastNotification.dismissIfScope("collection-boundary");
-            }
-        }
-
         ToastNotification {
             id: toastNotification
 
             anchors.bottom: parent.bottom
             anchors.horizontalCenter: parent.horizontalCenter
+            notificationText: root.windowShell.notificationMessage
+            notificationVisible: root.windowShell.notificationActive
+            replayRevision: root.windowShell.notificationReplayRevision
             z: 999
+
+            onDismissed: root.windowShell.dismissNotification()
         }
 
         ContextActionMenu {

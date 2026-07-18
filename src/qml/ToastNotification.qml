@@ -8,55 +8,11 @@ import org.kde.kirigami as Kirigami
 Item {
     id: root
 
-    property bool active: false
-    property string message: ""
-    property string scope: ""
-    readonly property int _entranceAnimationReplayCount: privateState.entranceAnimationReplayCount
+    required property string notificationText
+    required property bool notificationVisible
+    required property int replayRevision
 
-    function show(message, scope) {
-        if (message === undefined || message === null) {
-            return;
-        }
-
-        const nextMessage = String(message);
-        if (nextMessage.length === 0) {
-            return;
-        }
-
-        let nextScope = "";
-        if (scope !== undefined && scope !== null) {
-            nextScope = String(scope);
-        }
-
-        root.message = nextMessage;
-        root.scope = nextScope;
-        notification.opacity = 0;
-        notification.scale = 0.96;
-        entranceTranslate.y = Kirigami.Units.smallSpacing;
-        root.active = true;
-        privateState.entranceAnimationReplayCount += 1;
-        dismissTimer.restart();
-        entranceAnimation.restart();
-    }
-
-    function dismiss() {
-        dismissTimer.stop();
-        entranceAnimation.stop();
-        root.active = false;
-        root.message = "";
-        root.scope = "";
-    }
-
-    function dismissIfScope(scope) {
-        let targetScope = "";
-        if (scope !== undefined && scope !== null) {
-            targetScope = String(scope);
-        }
-
-        if (root.active && root.scope === targetScope) {
-            root.dismiss();
-        }
-    }
+    signal dismissed
 
     Kirigami.Theme.colorSet: Kirigami.Theme.Complementary
     Kirigami.Theme.inherit: false
@@ -65,21 +21,17 @@ Item {
     implicitHeight: notification.implicitHeight + Kirigami.Units.largeSpacing
     width: implicitWidth
     height: implicitHeight
-    visible: root.active
+    visible: notificationVisible
 
-    QtObject {
-        id: privateState
+    onReplayRevisionChanged: {
+        if (!notificationVisible) {
+            return;
+        }
 
-        property int entranceAnimationReplayCount: 0
-    }
-
-    Timer {
-        id: dismissTimer
-
-        interval: 7000
-        repeat: false
-
-        onTriggered: root.dismiss()
+        notification.opacity = 0;
+        notification.scale = 0.96;
+        entranceTranslate.y = Kirigami.Units.smallSpacing;
+        entranceAnimation.restart();
     }
 
     ParallelAnimation {
@@ -135,7 +87,7 @@ Item {
             color: Kirigami.Theme.textColor
             elide: Text.ElideRight
             maximumLineCount: 3
-            text: root.message
+            text: root.notificationText
             wrapMode: Text.Wrap
         }
 
@@ -148,7 +100,7 @@ Item {
         TapHandler {
             acceptedButtons: Qt.LeftButton
 
-            onTapped: root.dismiss()
+            onTapped: root.dismissed()
         }
     }
 }

@@ -11,6 +11,8 @@
 #include "session/mediaopenwith.h"
 #include "system/filedeletion.h"
 
+#include <QString>
+#include <functional>
 #include <optional>
 
 namespace kiriview {
@@ -22,6 +24,7 @@ struct DocumentSessionRuntimeDependencies
     MediaOpenWithProvider mediaOpenWithProvider;
     ActiveNavigationThumbnailRuntimeDependencies activeNavigationThumbnails;
     MediaPredecodeDependencyOverrides directMediaPredecodeDependencies;
+    std::function<void(const QString&)> fileDeletionFailed;
 };
 }
 

@@ -5,11 +5,13 @@
 #define KIRIVIEW_KIRINDOWSHELL_H
 
 #include "application/windowchromeruntime.h"
+#include "application/windownotificationruntime.h"
 
 #include <QObject>
 #include <QPointer>
 #include <QWindow>
 #include <QtQml/qqmlregistration.h>
+#include <vector>
 
 class KiriWindowShell : public QObject
 {
@@ -20,7 +22,12 @@ class KiriWindowShell : public QObject
     Q_PROPERTY(bool fullscreen READ fullscreen NOTIFY chromeSnapshotChanged)
     Q_PROPERTY(bool pointerHidden READ pointerHidden NOTIFY chromeSnapshotChanged)
     Q_PROPERTY(bool toolbarRevealed READ toolbarRevealed NOTIFY chromeSnapshotChanged)
-    Q_PROPERTY(quint64 chromeRevision READ chromeRevision NOTIFY chromeSnapshotChanged)
+    Q_PROPERTY(int chromeRevision READ chromeRevision NOTIFY chromeSnapshotChanged)
+    Q_PROPERTY(bool notificationActive READ notificationActive NOTIFY notificationSnapshotChanged)
+    Q_PROPERTY(
+        QString notificationMessage READ notificationMessage NOTIFY notificationSnapshotChanged)
+    Q_PROPERTY(int notificationReplayRevision READ notificationReplayRevision NOTIFY
+            notificationSnapshotChanged)
 
 public:
     explicit KiriWindowShell(QObject* parent = nullptr);
@@ -29,25 +36,36 @@ public:
     bool fullscreen() const;
     bool pointerHidden() const;
     bool toolbarRevealed() const;
-    quint64 chromeRevision() const;
+    int chromeRevision() const;
+    bool notificationActive() const;
+    QString notificationMessage() const;
+    int notificationReplayRevision() const;
 
     Q_INVOKABLE void attachWindow(QObject* window);
+    Q_INVOKABLE void attachApplication(QObject* application);
+    Q_INVOKABLE void attachDocumentSession(QObject* session);
     Q_INVOKABLE void requestToggleFullscreen();
     Q_INVOKABLE void reportPointerMoved(bool inTopRevealArea);
     Q_INVOKABLE void reportTopRevealEntered();
     Q_INVOKABLE void reportToolbarInteractionActive(bool active);
     Q_INVOKABLE void reportHelpDialogOpen(bool open);
+    Q_INVOKABLE void dismissNotification();
 
 Q_SIGNALS:
     void chromeSnapshotChanged();
+    void notificationSnapshotChanged();
 
 private:
     static kiriview::WindowVisibility runtimeVisibility(QWindow::Visibility visibility);
     static QWindow::Visibility facadeVisibility(kiriview::WindowVisibility visibility);
+    void submitNotification(kiriview::WindowNotificationScope scope, const QString& message);
+    void clearNavigationBoundaryNotification();
 
     QPointer<QWindow> m_window;
     QMetaObject::Connection m_visibilityConnection;
+    std::vector<QMetaObject::Connection> m_notificationConnections;
     kiriview::WindowChromeRuntime m_chromeRuntime;
+    kiriview::WindowNotificationRuntime m_notificationRuntime;
 };
 
 #endif

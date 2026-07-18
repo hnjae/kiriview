@@ -3,6 +3,11 @@
 
 #include "kiriwindowshell.h"
 
+#include "facade/kiridocumentsession.h"
+#include "facade/kiriimagedocument.h"
+#include "facade/kiriviewapplication.h"
+
+#include <KLocalizedString>
 #include <QWindow>
 #include <utility>
 
@@ -13,7 +18,7 @@ KiriWindowShell::KiriWindowShell(QObject* parent)
 
 KiriWindowShell::KiriWindowShell(kiriview::TimerScheduler timerScheduler, QObject* parent)
     : QObject(parent)
-    , m_chromeRuntime(this, std::move(timerScheduler),
+    , m_chromeRuntime(this, timerScheduler,
           {
               [this](kiriview::WindowVisibility visibility) {
                   if (m_window != nullptr) {
@@ -22,6 +27,8 @@ KiriWindowShell::KiriWindowShell(kiriview::TimerScheduler timerScheduler, QObjec
               },
               [this]() { Q_EMIT chromeSnapshotChanged(); },
           })
+    , m_notificationRuntime(
+          this, std::move(timerScheduler), [this]() { Q_EMIT notificationSnapshotChanged(); })
 {
 }
 
@@ -31,7 +38,22 @@ bool KiriWindowShell::pointerHidden() const { return m_chromeRuntime.snapshot().
 
 bool KiriWindowShell::toolbarRevealed() const { return m_chromeRuntime.snapshot().toolbarRevealed; }
 
-quint64 KiriWindowShell::chromeRevision() const { return m_chromeRuntime.snapshot().revision; }
+int KiriWindowShell::chromeRevision() const
+{
+    return static_cast<int>(m_chromeRuntime.snapshot().revision);
+}
+
+bool KiriWindowShell::notificationActive() const { return m_notificationRuntime.snapshot().active; }
+
+QString KiriWindowShell::notificationMessage() const
+{
+    return m_notificationRuntime.snapshot().message;
+}
+
+int KiriWindowShell::notificationReplayRevision() const
+{
+    return static_cast<int>(m_notificationRuntime.snapshot().replayRevision);
+}
 
 void KiriWindowShell::attachWindow(QObject* window)
 {
@@ -53,6 +75,76 @@ void KiriWindowShell::attachWindow(QObject* window)
     m_chromeRuntime.observeVisibility(runtimeVisibility(m_window->visibility()));
 }
 
+void KiriWindowShell::attachApplication(QObject* application)
+{
+    auto* kiriApplication = qobject_cast<KiriViewApplication*>(application);
+    if (kiriApplication == nullptr) {
+        return;
+    }
+
+    m_notificationConnections.push_back(QObject::connect(kiriApplication,
+        &KiriViewApplication::imageBoundaryReached, this, [this](const QString& message) {
+            submitNotification(kiriview::WindowNotificationScope::NavigationBoundary, message);
+        }));
+    m_notificationConnections.push_back(
+        QObject::connect(kiriApplication, &KiriViewApplication::unsupportedVideoActionTriggered,
+            this, [this](KiriViewApplication::ActionId) {
+                submitNotification(kiriview::WindowNotificationScope::UnsupportedAction,
+                    i18nc("@info:status", "This action is not available for videos"));
+            }));
+    m_notificationConnections.push_back(
+        QObject::connect(kiriApplication, &KiriViewApplication::unsupportedImageActionTriggered,
+            this, [this](KiriViewApplication::ActionId) {
+                submitNotification(kiriview::WindowNotificationScope::UnsupportedAction,
+                    i18nc("@info:status", "This action is not available for images"));
+            }));
+}
+
+void KiriWindowShell::attachDocumentSession(QObject* session)
+{
+    auto* documentSession = qobject_cast<KiriDocumentSession*>(session);
+    if (documentSession == nullptr) {
+        return;
+    }
+
+    KiriImageDocument* imageDocument = documentSession->imageDocument();
+    m_notificationConnections.push_back(
+        QObject::connect(documentSession, &KiriDocumentSession::sourceUrlChanged, this,
+            [this]() { clearNavigationBoundaryNotification(); }));
+    m_notificationConnections.push_back(QObject::connect(documentSession,
+        &KiriDocumentSession::fileDeletionFailed, this, [this](const QString& message) {
+            submitNotification(kiriview::WindowNotificationScope::OperationFailure, message);
+        }));
+    m_notificationConnections.push_back(QObject::connect(documentSession,
+        &KiriDocumentSession::openWithFailed, this, [this](const QString& message) {
+            submitNotification(kiriview::WindowNotificationScope::OperationFailure,
+                message.isEmpty()
+                    ? i18nc("@info:status", "Could not open media with another application")
+                    : message);
+        }));
+    if (imageDocument == nullptr) {
+        return;
+    }
+
+    m_notificationConnections.push_back(
+        QObject::connect(imageDocument, &KiriImageDocument::displayedUrlChanged, this,
+            [this]() { clearNavigationBoundaryNotification(); }));
+    m_notificationConnections.push_back(QObject::connect(imageDocument,
+        &KiriImageDocument::fileDeletionFailed, this, [this](const QString& message) {
+            submitNotification(kiriview::WindowNotificationScope::OperationFailure, message);
+        }));
+    m_notificationConnections.push_back(
+        QObject::connect(imageDocument, &KiriImageDocument::containerNavigationBoundaryReached,
+            this, [this](const QString& message) {
+                submitNotification(kiriview::WindowNotificationScope::NavigationBoundary, message);
+            }));
+    m_notificationConnections.push_back(
+        QObject::connect(imageDocument, &KiriImageDocument::unsupportedOpenedCollectionVideoEntered,
+            this, [this](const QString& message) {
+                submitNotification(kiriview::WindowNotificationScope::UnsupportedMedia, message);
+            }));
+}
+
 void KiriWindowShell::requestToggleFullscreen() { m_chromeRuntime.requestToggleFullscreen(); }
 
 void KiriWindowShell::reportPointerMoved(bool inTopRevealArea)
@@ -71,6 +163,8 @@ void KiriWindowShell::reportHelpDialogOpen(bool open)
 {
     m_chromeRuntime.reportHelpDialogOpen(open);
 }
+
+void KiriWindowShell::dismissNotification() { m_notificationRuntime.dismiss(); }
 
 kiriview::WindowVisibility KiriWindowShell::runtimeVisibility(QWindow::Visibility visibility)
 {
@@ -102,4 +196,15 @@ QWindow::Visibility KiriWindowShell::facadeVisibility(kiriview::WindowVisibility
         return QWindow::Windowed;
     }
     return QWindow::Windowed;
+}
+
+void KiriWindowShell::submitNotification(
+    kiriview::WindowNotificationScope scope, const QString& message)
+{
+    m_notificationRuntime.submit({ scope, message });
+}
+
+void KiriWindowShell::clearNavigationBoundaryNotification()
+{
+    m_notificationRuntime.clear(kiriview::WindowNotificationScope::NavigationBoundary);
 }

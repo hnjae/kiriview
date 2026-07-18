@@ -29,10 +29,14 @@ void DocumentSessionMediaDeletionCompletionRuntime::apply(
     }
 
     if (completion.plan.reportFailure) {
+        const QString message = completion.failure.userMessage.isEmpty()
+            ? genericFileDeletionErrorMessage()
+            : completion.failure.userMessage;
         if (m_ports.setSessionErrorString) {
-            m_ports.setSessionErrorString(completion.failure.userMessage.isEmpty()
-                    ? genericFileDeletionErrorMessage()
-                    : completion.failure.userMessage);
+            m_ports.setSessionErrorString(message);
+        }
+        if (m_ports.reportFailure) {
+            m_ports.reportFailure(message);
         }
         if (m_ports.recomputePublicProjection) {
             m_ports.recomputePublicProjection();

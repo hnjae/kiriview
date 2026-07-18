@@ -27,6 +27,7 @@ struct RuntimeProbe
     std::vector<QString> operations;
     std::vector<bool> progressValues;
     std::vector<QString> errors;
+    std::vector<QString> failureNotifications;
     std::vector<kiriview::DocumentSessionRoutePlan> routePlans;
 
     kiriview::DocumentSessionMediaDeletionCompletionRuntime runtime {
@@ -43,6 +44,10 @@ struct RuntimeProbe
             [this](const kiriview::DocumentSessionRoutePlan& plan) {
                 operations.push_back(QStringLiteral("route"));
                 routePlans.push_back(plan);
+            },
+            [this](const QString& message) {
+                operations.push_back(QStringLiteral("notify"));
+                failureNotifications.push_back(message);
             },
         },
     };
@@ -74,11 +79,12 @@ void TestDocumentSessionMediaDeletionCompletionRuntime::
     probe.runtime.apply(failedCompletion());
 
     const std::vector<QString> expectedOperations { QStringLiteral("progress"),
-        QStringLiteral("error"), QStringLiteral("publish") };
+        QStringLiteral("error"), QStringLiteral("notify"), QStringLiteral("publish") };
     QCOMPARE(probe.operations, expectedOperations);
     QCOMPARE(probe.progressValues, std::vector<bool> { false });
     QCOMPARE(probe.errors,
         std::vector<QString> { kiriview::imageErrorText(kiriview::ImageErrorTextId::DeleteFile) });
+    QCOMPARE(probe.failureNotifications, probe.errors);
     QVERIFY(probe.routePlans.empty());
 }
 
@@ -95,6 +101,7 @@ void TestDocumentSessionMediaDeletionCompletionRuntime::
     QCOMPARE(probe.operations, expectedOperations);
     QCOMPARE(probe.progressValues, std::vector<bool> { false });
     QVERIFY(probe.errors.empty());
+    QVERIFY(probe.failureNotifications.empty());
     QCOMPARE(probe.routePlans.size(), std::size_t(1));
     QCOMPARE(probe.routePlans.front().sourceUrl, targetUrl);
 }

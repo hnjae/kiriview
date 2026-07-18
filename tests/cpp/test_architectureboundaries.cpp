@@ -42,6 +42,7 @@ private Q_SLOTS:
     void videoSeekShortcutsRouteThroughApplicationRuntime();
     void qmlDoesNotOwnVideoPlaybackControlState();
     void qmlDoesNotOwnFullscreenChromeLifecycle();
+    void qmlDoesNotOwnWindowNotificationPolicy();
     void applicationFacadeDoesNotOwnFixedViewerCommandRouting();
     void applicationFacadeDoesNotOwnActionStateSourceAttachment();
     void applicationCommandRouterPortsAreGroupedByOwner();
@@ -723,6 +724,42 @@ void TestArchitectureBoundaries::qmlDoesNotOwnFullscreenChromeLifecycle()
     QStringList violations;
     for (const QRegularExpression& pattern : forbiddenPatterns) {
         QRegularExpressionMatchIterator iterator = pattern.globalMatch(mainQml);
+        while (iterator.hasNext()) {
+            violations.push_back(iterator.next().captured(0));
+        }
+    }
+
+    QVERIFY2(violations.isEmpty(), qPrintable(violations.join(QLatin1Char('\n'))));
+}
+
+void TestArchitectureBoundaries::qmlDoesNotOwnWindowNotificationPolicy()
+{
+    const QString mainQml = readProjectFile(QStringLiteral("src/qml/Main.qml"));
+    const QString toastQml = readProjectFile(QStringLiteral("src/qml/ToastNotification.qml"));
+    const QList<QRegularExpression> forbiddenMainPatterns {
+        QRegularExpression(QStringLiteral(R"(\bdocumentDeletionWasInProgress\b)")),
+        QRegularExpression(
+            QStringLiteral(R"(\btoastNotification\s*\.\s*(?:show|dismissIfScope)\s*\()")),
+        QRegularExpression(
+            QStringLiteral("\"(?:image-boundary|collection-boundary|general|unsupported-video-"
+                           "action|unsupported-image-action|unsupported-document-video)\"")),
+    };
+    const QList<QRegularExpression> forbiddenToastPatterns {
+        QRegularExpression(
+            QStringLiteral(R"(\bproperty\s+(?:bool|string)\s+(?:active|message|scope)\b)")),
+        QRegularExpression(QStringLiteral(R"(\bfunction\s+(?:show|dismiss|dismissIfScope)\b)")),
+        QRegularExpression(QStringLiteral(R"(\bid\s*:\s*dismissTimer\b)")),
+    };
+
+    QStringList violations;
+    for (const QRegularExpression& pattern : forbiddenMainPatterns) {
+        QRegularExpressionMatchIterator iterator = pattern.globalMatch(mainQml);
+        while (iterator.hasNext()) {
+            violations.push_back(iterator.next().captured(0));
+        }
+    }
+    for (const QRegularExpression& pattern : forbiddenToastPatterns) {
+        QRegularExpressionMatchIterator iterator = pattern.globalMatch(toastQml);
         while (iterator.hasNext()) {
             violations.push_back(iterator.next().captured(0));
         }
