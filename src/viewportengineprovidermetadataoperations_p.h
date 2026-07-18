@@ -11,6 +11,18 @@ struct ViewportEngineProviderMetadataReadyInput
     ViewportEngineGeometryInput geometry;
 };
 
+struct ViewportEngineProviderMetadataMutation
+{
+    ImageViewportInternal::RequestState request;
+    ImageViewportInternal::PlaybackState playback;
+    ImageViewportInternal::DisplayState display;
+    std::array<ViewportEngineRoleState, 2> roles;
+    ImageViewportInternal::PresentationState presentation;
+    ViewportEnginePresentationTargetState presentationTarget;
+    quint64 nextRevision = 0;
+    quint64 targetPresentationRevision = 0;
+};
+
 struct ViewportEngineProviderMetadataReadyReduction
 {
     ImageViewportInternal::ViewportChangeSet changes;
@@ -22,14 +34,15 @@ class ViewportEngineProviderMetadataReadyAccess
 {
     friend class ViewportEngine;
     friend ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadataReady(
-        ViewportEngineProviderMetadataReadyInput, ViewportEngineProviderMetadataReadyAccess);
+        ViewportEngineProviderMetadataReadyInput, ViewportEngineProviderMetadataReadyAccess&);
 
-    ViewportEngineProviderMetadataReadyAccess(ImageViewportInternal::RequestState& request,
-        ImageViewportInternal::PlaybackState& playback,
-        ImageViewportInternal::DisplayState& display, std::array<ViewportEngineRoleState, 2>& roles,
-        ImageViewportInternal::PresentationState& presentation,
-        ViewportEnginePresentationTargetState& presentationTarget, quint64& nextRevision,
-        quint64& targetPresentationRevision)
+    ViewportEngineProviderMetadataReadyAccess(const ImageViewportInternal::RequestState& request,
+        const ImageViewportInternal::PlaybackState& playback,
+        const ImageViewportInternal::DisplayState& display,
+        const std::array<ViewportEngineRoleState, 2>& roles,
+        const ImageViewportInternal::PresentationState& presentation,
+        const ViewportEnginePresentationTargetState& presentationTarget, quint64 nextRevision,
+        quint64 targetPresentationRevision)
         : m_request(request)
         , m_playback(playback)
         , m_display(display)
@@ -47,6 +60,12 @@ public:
         = delete;
     ViewportEngineProviderMetadataReadyAccess(ViewportEngineProviderMetadataReadyAccess&&) noexcept
         = default;
+    ViewportEngineProviderMetadataMutation takeMutation()
+    {
+        return { std::move(m_request), std::move(m_playback), std::move(m_display),
+            std::move(m_roles), std::move(m_presentation), std::move(m_presentationTarget),
+            m_nextRevision, m_targetPresentationRevision };
+    }
 
 private:
     ViewportProviderFrameRequestStartResult startFrameRequest(ImageViewportPageRole role,
@@ -60,16 +79,16 @@ private:
     void advanceTargetPresentationRevision();
     bool applyAutoplay();
 
-    ImageViewportInternal::RequestState& m_request;
-    ImageViewportInternal::PlaybackState& m_playback;
-    ImageViewportInternal::DisplayState& m_display;
-    std::array<ViewportEngineRoleState, 2>& m_roles;
-    ImageViewportInternal::PresentationState& m_presentation;
-    ViewportEnginePresentationTargetState& m_presentationTarget;
-    quint64& m_nextRevision;
-    quint64& m_targetPresentationRevision;
+    ImageViewportInternal::RequestState m_request;
+    ImageViewportInternal::PlaybackState m_playback;
+    ImageViewportInternal::DisplayState m_display;
+    std::array<ViewportEngineRoleState, 2> m_roles;
+    ImageViewportInternal::PresentationState m_presentation;
+    ViewportEnginePresentationTargetState m_presentationTarget;
+    quint64 m_nextRevision;
+    quint64 m_targetPresentationRevision;
     quint64 m_presentationTargetGeneration = 0;
 };
 
 ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadataReady(
-    ViewportEngineProviderMetadataReadyInput, ViewportEngineProviderMetadataReadyAccess);
+    ViewportEngineProviderMetadataReadyInput, ViewportEngineProviderMetadataReadyAccess&);

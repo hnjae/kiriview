@@ -61,17 +61,32 @@ struct ViewportEngineProviderQueueFailureReduction
     ImageViewportInternal::ProviderSchedulerDiagnostic diagnostic;
 };
 
+struct ViewportEngineProviderFailureMutation
+{
+    ImageViewportInternal::RequestState request;
+    ImageViewportInternal::PlaybackState playback;
+    ImageViewportInternal::ProviderSessionState session;
+    ImageViewportInternal::ProviderRequestLedger requests;
+};
+
+#define VIEWPORT_PROVIDER_FAILURE_TAKE_MUTATION                                                    \
+    ViewportEngineProviderFailureMutation takeMutation()                                           \
+    {                                                                                              \
+        return { std::move(m_request), std::move(m_playback), std::move(m_session),                \
+            std::move(m_requests) };                                                               \
+    }
+
 class ViewportEngineProviderTerminalEventAccess
 {
     friend class ViewportEngine;
     friend ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderTerminalEvent(
-        ViewportEngineProviderTerminalEventInput, ViewportEngineProviderTerminalEventAccess);
+        ViewportEngineProviderTerminalEventInput, ViewportEngineProviderTerminalEventAccess&);
 
-    ViewportEngineProviderTerminalEventAccess(ImageViewportInternal::RequestState& request,
-        ImageViewportInternal::PlaybackState& playback,
+    ViewportEngineProviderTerminalEventAccess(const ImageViewportInternal::RequestState& request,
+        const ImageViewportInternal::PlaybackState& playback,
         const ImageViewportInternal::ProviderFactsState& facts,
-        ImageViewportInternal::ProviderSessionState& session,
-        ImageViewportInternal::ProviderRequestLedger& requests)
+        const ImageViewportInternal::ProviderSessionState& session,
+        const ImageViewportInternal::ProviderRequestLedger& requests)
         : m_request(request)
         , m_playback(playback)
         , m_facts(facts)
@@ -85,6 +100,7 @@ public:
         = delete;
     ViewportEngineProviderTerminalEventAccess(ViewportEngineProviderTerminalEventAccess&&) noexcept
         = default;
+    VIEWPORT_PROVIDER_FAILURE_TAKE_MUTATION;
 
 private:
     ImageViewportInternal::ViewportChangeSet recordDisplayRequestTerminal(
@@ -92,11 +108,11 @@ private:
     ImageViewportInternal::ViewportChangeSet recordGenerationTerminal(
         ViewportEngineProviderTerminalProjectionInput input);
     ViewportProviderFrameTransportEffect closeSession();
-    ImageViewportInternal::RequestState& m_request;
-    ImageViewportInternal::PlaybackState& m_playback;
+    ImageViewportInternal::RequestState m_request;
+    ImageViewportInternal::PlaybackState m_playback;
     const ImageViewportInternal::ProviderFactsState& m_facts;
-    ImageViewportInternal::ProviderSessionState& m_session;
-    ImageViewportInternal::ProviderRequestLedger& m_requests;
+    ImageViewportInternal::ProviderSessionState m_session;
+    ImageViewportInternal::ProviderRequestLedger m_requests;
 };
 
 class ViewportEngineProviderProtocolViolationAccess
@@ -104,13 +120,14 @@ class ViewportEngineProviderProtocolViolationAccess
     friend class ViewportEngine;
     friend class ViewportEngineProviderEndOfSequenceAccess;
     friend ViewportEngineProviderTerminalEventReduction
-        reduceViewportEngineProviderProtocolViolation(ViewportEngineProviderProtocolViolationInput,
-            ViewportEngineProviderProtocolViolationAccess);
+    reduceViewportEngineProviderProtocolViolation(ViewportEngineProviderProtocolViolationInput,
+        ViewportEngineProviderProtocolViolationAccess&);
 
-    ViewportEngineProviderProtocolViolationAccess(ImageViewportInternal::RequestState& request,
-        ImageViewportInternal::PlaybackState& playback,
-        ImageViewportInternal::ProviderSessionState& session,
-        ImageViewportInternal::ProviderRequestLedger& requests)
+    ViewportEngineProviderProtocolViolationAccess(
+        const ImageViewportInternal::RequestState& request,
+        const ImageViewportInternal::PlaybackState& playback,
+        const ImageViewportInternal::ProviderSessionState& session,
+        const ImageViewportInternal::ProviderRequestLedger& requests)
         : m_request(request)
         , m_playback(playback)
         , m_session(session)
@@ -125,27 +142,28 @@ public:
     ViewportEngineProviderProtocolViolationAccess(
         ViewportEngineProviderProtocolViolationAccess&&) noexcept
         = default;
+    VIEWPORT_PROVIDER_FAILURE_TAKE_MUTATION;
 
 private:
     ImageViewportInternal::ViewportChangeSet recordGenerationTerminal(
         ViewportEngineProviderTerminalProjectionInput input);
     ViewportProviderFrameTransportEffect closeSession();
-    ImageViewportInternal::RequestState& m_request;
-    ImageViewportInternal::PlaybackState& m_playback;
-    ImageViewportInternal::ProviderSessionState& m_session;
-    ImageViewportInternal::ProviderRequestLedger& m_requests;
+    ImageViewportInternal::RequestState m_request;
+    ImageViewportInternal::PlaybackState m_playback;
+    ImageViewportInternal::ProviderSessionState m_session;
+    ImageViewportInternal::ProviderRequestLedger m_requests;
 };
 
 class ViewportEngineProviderDispatchFailureAccess
 {
     friend class ViewportEngine;
     friend ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderDispatchFailure(
-        ViewportEngineProviderDispatchFailureInput, ViewportEngineProviderDispatchFailureAccess);
+        ViewportEngineProviderDispatchFailureInput, ViewportEngineProviderDispatchFailureAccess&);
 
-    ViewportEngineProviderDispatchFailureAccess(ImageViewportInternal::RequestState& request,
-        ImageViewportInternal::PlaybackState& playback,
-        ImageViewportInternal::ProviderSessionState& session,
-        ImageViewportInternal::ProviderRequestLedger& requests)
+    ViewportEngineProviderDispatchFailureAccess(const ImageViewportInternal::RequestState& request,
+        const ImageViewportInternal::PlaybackState& playback,
+        const ImageViewportInternal::ProviderSessionState& session,
+        const ImageViewportInternal::ProviderRequestLedger& requests)
         : m_request(request)
         , m_playback(playback)
         , m_session(session)
@@ -159,29 +177,30 @@ public:
     ViewportEngineProviderDispatchFailureAccess(
         ViewportEngineProviderDispatchFailureAccess&&) noexcept
         = default;
+    VIEWPORT_PROVIDER_FAILURE_TAKE_MUTATION;
 
 private:
     ImageViewportInternal::ViewportChangeSet recordGenerationTerminal(
         ViewportEngineProviderTerminalProjectionInput input);
     ViewportProviderFrameTransportEffect closeSession();
-    ImageViewportInternal::RequestState& m_request;
-    ImageViewportInternal::PlaybackState& m_playback;
-    ImageViewportInternal::ProviderSessionState& m_session;
-    ImageViewportInternal::ProviderRequestLedger& m_requests;
+    ImageViewportInternal::RequestState m_request;
+    ImageViewportInternal::PlaybackState m_playback;
+    ImageViewportInternal::ProviderSessionState m_session;
+    ImageViewportInternal::ProviderRequestLedger m_requests;
 };
 
 class ViewportEngineProviderSessionOpenFailureAccess
 {
     friend class ViewportEngine;
     friend ViewportEngineProviderSessionOpenFailureReduction
-        reduceViewportEngineProviderSessionOpenFailure(
-            ViewportEngineProviderSessionOpenFailureInput,
-            ViewportEngineProviderSessionOpenFailureAccess);
+    reduceViewportEngineProviderSessionOpenFailure(ViewportEngineProviderSessionOpenFailureInput,
+        ViewportEngineProviderSessionOpenFailureAccess&);
 
-    ViewportEngineProviderSessionOpenFailureAccess(ImageViewportInternal::RequestState& request,
-        ImageViewportInternal::PlaybackState& playback,
-        ImageViewportInternal::ProviderSessionState& session,
-        ImageViewportInternal::ProviderRequestLedger& requests)
+    ViewportEngineProviderSessionOpenFailureAccess(
+        const ImageViewportInternal::RequestState& request,
+        const ImageViewportInternal::PlaybackState& playback,
+        const ImageViewportInternal::ProviderSessionState& session,
+        const ImageViewportInternal::ProviderRequestLedger& requests)
         : m_request(request)
         , m_playback(playback)
         , m_session(session)
@@ -196,25 +215,26 @@ public:
     ViewportEngineProviderSessionOpenFailureAccess(
         ViewportEngineProviderSessionOpenFailureAccess&&) noexcept
         = default;
+    VIEWPORT_PROVIDER_FAILURE_TAKE_MUTATION;
 
 private:
     ImageViewportInternal::ViewportChangeSet recordGenerationTerminal(
         ViewportEngineProviderTerminalProjectionInput input);
-    ImageViewportInternal::RequestState& m_request;
-    ImageViewportInternal::PlaybackState& m_playback;
-    ImageViewportInternal::ProviderSessionState& m_session;
-    ImageViewportInternal::ProviderRequestLedger& m_requests;
+    ImageViewportInternal::RequestState m_request;
+    ImageViewportInternal::PlaybackState m_playback;
+    ImageViewportInternal::ProviderSessionState m_session;
+    ImageViewportInternal::ProviderRequestLedger m_requests;
 };
 
 class ViewportEngineProviderQueueFailureAccess
 {
     friend class ViewportEngine;
     friend ViewportEngineProviderQueueFailureReduction reduceViewportEngineProviderQueueFailure(
-        ViewportEngineProviderQueueFailureInput, ViewportEngineProviderQueueFailureAccess);
+        ViewportEngineProviderQueueFailureInput, ViewportEngineProviderQueueFailureAccess&);
 
-    ViewportEngineProviderQueueFailureAccess(ImageViewportInternal::RequestState& request,
-        ImageViewportInternal::PlaybackState& playback,
-        ImageViewportInternal::ProviderRequestLedger& requests)
+    ViewportEngineProviderQueueFailureAccess(const ImageViewportInternal::RequestState& request,
+        const ImageViewportInternal::PlaybackState& playback,
+        const ImageViewportInternal::ProviderRequestLedger& requests)
         : m_request(request)
         , m_playback(playback)
         , m_requests(requests)
@@ -226,22 +246,28 @@ public:
         = delete;
     ViewportEngineProviderQueueFailureAccess(ViewportEngineProviderQueueFailureAccess&&) noexcept
         = default;
+    ViewportEngineProviderFailureMutation takeMutation()
+    {
+        return { std::move(m_request), std::move(m_playback), {}, std::move(m_requests) };
+    }
 
 private:
     ImageViewportInternal::ViewportChangeSet recordDisplayRequestTerminal(
         ViewportEngineProviderTerminalProjectionInput input);
-    ImageViewportInternal::RequestState& m_request;
-    ImageViewportInternal::PlaybackState& m_playback;
-    ImageViewportInternal::ProviderRequestLedger& m_requests;
+    ImageViewportInternal::RequestState m_request;
+    ImageViewportInternal::PlaybackState m_playback;
+    ImageViewportInternal::ProviderRequestLedger m_requests;
 };
 
 ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderTerminalEvent(
-    ViewportEngineProviderTerminalEventInput, ViewportEngineProviderTerminalEventAccess);
+    ViewportEngineProviderTerminalEventInput, ViewportEngineProviderTerminalEventAccess&);
 ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderProtocolViolation(
-    ViewportEngineProviderProtocolViolationInput, ViewportEngineProviderProtocolViolationAccess);
+    ViewportEngineProviderProtocolViolationInput, ViewportEngineProviderProtocolViolationAccess&);
 ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderDispatchFailure(
-    ViewportEngineProviderDispatchFailureInput, ViewportEngineProviderDispatchFailureAccess);
+    ViewportEngineProviderDispatchFailureInput, ViewportEngineProviderDispatchFailureAccess&);
 ViewportEngineProviderSessionOpenFailureReduction reduceViewportEngineProviderSessionOpenFailure(
-    ViewportEngineProviderSessionOpenFailureInput, ViewportEngineProviderSessionOpenFailureAccess);
+    ViewportEngineProviderSessionOpenFailureInput, ViewportEngineProviderSessionOpenFailureAccess&);
 ViewportEngineProviderQueueFailureReduction reduceViewportEngineProviderQueueFailure(
-    ViewportEngineProviderQueueFailureInput, ViewportEngineProviderQueueFailureAccess);
+    ViewportEngineProviderQueueFailureInput, ViewportEngineProviderQueueFailureAccess&);
+
+#undef VIEWPORT_PROVIDER_FAILURE_TAKE_MUTATION

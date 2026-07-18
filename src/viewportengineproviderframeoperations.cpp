@@ -101,12 +101,14 @@ ImageViewportInternal::ViewportChangeSet ViewportEngineProviderFrameReadyAccess:
     ViewportEngineProviderTerminalProjectionInput input)
 {
     ViewportEngineProviderTerminalProjectionAccess access(m_request);
-    return reduceViewportEngineProviderDisplayRequestTerminalProjection(
-        std::move(input), std::move(access));
+    auto changes
+        = reduceViewportEngineProviderDisplayRequestTerminalProjection(std::move(input), access);
+    m_request = std::move(access.takeMutation().request);
+    return changes;
 }
 
 ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady(
-    ViewportEngineProviderFrameReadyInput input, ViewportEngineProviderFrameReadyAccess access)
+    ViewportEngineProviderFrameReadyInput input, ViewportEngineProviderFrameReadyAccess& access)
 {
     using namespace ImageViewportInternal;
     ViewportEngineProviderFrameReadyReduction result;

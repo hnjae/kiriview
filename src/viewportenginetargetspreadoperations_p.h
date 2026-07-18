@@ -11,17 +11,20 @@ struct ViewportEngineProviderRoleMaterializationInput
     bool fromPlayback = false;
 };
 
-struct ViewportEngineProviderRoleMaterializationAccess
+struct ViewportEngineProviderRoleMaterializationMutation
 {
-    ImageViewportInternal::RequestState& request;
-    ImageViewportInternal::PlaybackState& playback;
-    ImageViewportInternal::DisplayState& display;
-    std::array<ViewportEngineRoleState, 2>& roles;
+    ImageViewportInternal::RequestState request;
+    ImageViewportInternal::PlaybackState playback;
+    ImageViewportInternal::DisplayState display;
+    std::array<ViewportEngineRoleState, 2> roles;
     const ImageViewportInternal::PresentationState& presentation;
-    quint64& nextRevision;
+    quint64 nextRevision = 0;
     quint64 presentationRevision = 0;
     quint64 presentationTargetGeneration = 0;
 };
+
+using ViewportEngineProviderRoleMaterializationAccess
+    = ViewportEngineProviderRoleMaterializationMutation;
 
 struct ViewportEngineProviderRoleMaterializationResult
 {
@@ -38,7 +41,7 @@ void coalesceViewportEngineTargetSpreadCandidates(
 
 ViewportEngineProviderRoleMaterializationResult materializeViewportEngineProviderRole(
     ViewportEngineProviderRoleMaterializationInput,
-    ViewportEngineProviderRoleMaterializationAccess);
+    ViewportEngineProviderRoleMaterializationAccess&);
 
 ViewportEngineBuiltInFrameStageResult materializeViewportEngineBuiltInTargetSpread(
     ImageViewportInternal::RequestState&, ImageViewportInternal::PlaybackState&,

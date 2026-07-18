@@ -17,6 +17,14 @@ struct ViewportProviderRequestTokenAllocationResult
     ImageViewportInternal::ViewportChangeSet changes;
 };
 
+struct ViewportProviderRequestTokenAllocationMutation
+{
+    std::array<ViewportEngineRoleState, 2> roles;
+    ImageViewportInternal::RequestState request;
+    ImageViewportInternal::PlaybackState playback;
+    ImageViewportInternal::DisplayState display;
+};
+
 class ViewportProviderRequestTokenAllocationAccess
 {
     friend class ViewportEngine;
@@ -26,10 +34,11 @@ class ViewportProviderRequestTokenAllocationAccess
     friend class ViewportEngineProviderFrameRequestAccess;
 
 public:
-    ViewportProviderRequestTokenAllocationAccess(std::array<ViewportEngineRoleState, 2>& roles,
-        ImageViewportInternal::RequestState& request,
-        ImageViewportInternal::PlaybackState& playback,
-        ImageViewportInternal::DisplayState& display)
+    ViewportProviderRequestTokenAllocationAccess(
+        const std::array<ViewportEngineRoleState, 2>& roles,
+        const ImageViewportInternal::RequestState& request,
+        const ImageViewportInternal::PlaybackState& playback,
+        const ImageViewportInternal::DisplayState& display)
         : m_roles(roles)
         , m_request(request)
         , m_playback(playback)
@@ -46,25 +55,30 @@ public:
     ViewportProviderRequestTokenAllocationAccess& operator=(
         const ViewportProviderRequestTokenAllocationAccess&)
         = delete;
-    ImageViewportInternal::ProviderSessionState& session(ImageViewportPageRole role) const
+    ImageViewportInternal::ProviderSessionState& session(ImageViewportPageRole role)
     {
         return m_roles[role == ImageViewportPageRole::Secondary ? 1U : 0U].provider.session;
     }
-    ImageViewportInternal::ProviderRequestLedger& requests(ImageViewportPageRole role) const
+    ImageViewportInternal::ProviderRequestLedger& requests(ImageViewportPageRole role)
     {
         return m_roles[role == ImageViewportPageRole::Secondary ? 1U : 0U].provider.requests;
     }
-    ViewportProviderFrameTransportEffect closeSession(ImageViewportPageRole role) const;
-    ImageViewportInternal::RequestState& request() const { return m_request; }
-    ImageViewportInternal::PlaybackState& playback() const { return m_playback; }
-    ImageViewportInternal::DisplayState& display() const { return m_display; }
+    ViewportProviderFrameTransportEffect closeSession(ImageViewportPageRole role);
+    ViewportProviderRequestTokenAllocationMutation takeMutation()
+    {
+        return { std::move(m_roles), std::move(m_request), std::move(m_playback),
+            std::move(m_display) };
+    }
+    ImageViewportInternal::RequestState& request() { return m_request; }
+    ImageViewportInternal::PlaybackState& playback() { return m_playback; }
+    ImageViewportInternal::DisplayState& display() { return m_display; }
 
 private:
-    std::array<ViewportEngineRoleState, 2>& m_roles;
-    ImageViewportInternal::RequestState& m_request;
-    ImageViewportInternal::PlaybackState& m_playback;
-    ImageViewportInternal::DisplayState& m_display;
+    std::array<ViewportEngineRoleState, 2> m_roles;
+    ImageViewportInternal::RequestState m_request;
+    ImageViewportInternal::PlaybackState m_playback;
+    ImageViewportInternal::DisplayState m_display;
 };
 
 ViewportProviderRequestTokenAllocationResult allocateViewportProviderRequestToken(
-    ViewportProviderRequestTokenAllocationInput, ViewportProviderRequestTokenAllocationAccess);
+    ViewportProviderRequestTokenAllocationInput, ViewportProviderRequestTokenAllocationAccess&);

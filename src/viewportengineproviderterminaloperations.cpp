@@ -5,14 +5,14 @@
 ImageViewportInternal::ViewportChangeSet
 reduceViewportEngineProviderDisplayRequestTerminalProjection(
     ViewportEngineProviderTerminalProjectionInput input,
-    ViewportEngineProviderTerminalProjectionAccess access)
+    ViewportEngineProviderTerminalProjectionAccess& access)
 {
     return recordViewportEngineDisplayRequestTerminal(std::move(input), access.m_request);
 }
 
 ImageViewportInternal::ViewportChangeSet reduceViewportEngineProviderGenerationTerminalProjection(
     ViewportEngineProviderTerminalProjectionInput input,
-    ViewportEngineProviderTerminalProjectionAccess access)
+    ViewportEngineProviderTerminalProjectionAccess& access)
 {
     return recordViewportEngineGenerationTerminal(std::move(input), access.m_request);
 }

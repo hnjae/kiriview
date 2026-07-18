@@ -9,16 +9,22 @@ struct ViewportEngineProviderSessionOpenInput
     quint64 generation = 0;
 };
 
+struct ViewportEngineProviderSessionMutation
+{
+    ImageViewportInternal::ProviderSessionState session;
+    ImageViewportInternal::ProviderRequestLedger requests;
+};
+
 class ViewportEngineProviderSessionOpenAccess
 {
     friend class ViewportEngine;
     friend class ViewportEnginePresentationTargetAssignmentAccess;
     friend ViewportEngineProviderSessionOpenEffect beginViewportEngineProviderSession(
-        ViewportEngineProviderSessionOpenInput, ViewportEngineProviderSessionOpenAccess);
+        ViewportEngineProviderSessionOpenInput, ViewportEngineProviderSessionOpenAccess&);
 
     ViewportEngineProviderSessionOpenAccess(
         const ImageViewportInternal::ImageSequenceSource& source,
-        ImageViewportInternal::ProviderSessionState& session)
+        const ImageViewportInternal::ProviderSessionState& session)
         : m_source(source)
         , m_session(session)
     {
@@ -27,6 +33,7 @@ class ViewportEngineProviderSessionOpenAccess
 public:
     ViewportEngineProviderSessionOpenAccess(const ViewportEngineProviderSessionOpenAccess&)
         = delete;
+    ImageViewportInternal::ProviderSessionState takeSession() { return std::move(m_session); }
     ViewportEngineProviderSessionOpenAccess(ViewportEngineProviderSessionOpenAccess&&) noexcept
         = default;
     ViewportEngineProviderSessionOpenAccess& operator=(
@@ -35,7 +42,7 @@ public:
 
 private:
     const ImageViewportInternal::ImageSequenceSource& m_source;
-    ImageViewportInternal::ProviderSessionState& m_session;
+    ImageViewportInternal::ProviderSessionState m_session;
 };
 
 class ViewportEngineProviderSessionCloseAccess
@@ -48,10 +55,11 @@ class ViewportEngineProviderSessionCloseAccess
     friend class ViewportEngineProviderDispatchFailureAccess;
     friend class ViewportProviderRequestTokenAllocationAccess;
     friend ViewportProviderFrameTransportEffect closeViewportEngineProviderSession(
-        ViewportEngineProviderSessionCloseAccess);
+        ViewportEngineProviderSessionCloseAccess&);
 
-    ViewportEngineProviderSessionCloseAccess(ImageViewportInternal::ProviderSessionState& session,
-        ImageViewportInternal::ProviderRequestLedger& requests)
+    ViewportEngineProviderSessionCloseAccess(
+        const ImageViewportInternal::ProviderSessionState& session,
+        const ImageViewportInternal::ProviderRequestLedger& requests)
         : m_session(session)
         , m_requests(requests)
     {
@@ -60,6 +68,10 @@ class ViewportEngineProviderSessionCloseAccess
 public:
     ViewportEngineProviderSessionCloseAccess(const ViewportEngineProviderSessionCloseAccess&)
         = delete;
+    ViewportEngineProviderSessionMutation takeMutation()
+    {
+        return { std::move(m_session), std::move(m_requests) };
+    }
     ViewportEngineProviderSessionCloseAccess(ViewportEngineProviderSessionCloseAccess&&) noexcept
         = default;
     ViewportEngineProviderSessionCloseAccess& operator=(
@@ -67,8 +79,8 @@ public:
         = delete;
 
 private:
-    ImageViewportInternal::ProviderSessionState& m_session;
-    ImageViewportInternal::ProviderRequestLedger& m_requests;
+    ImageViewportInternal::ProviderSessionState m_session;
+    ImageViewportInternal::ProviderRequestLedger m_requests;
 };
 
 struct ViewportEngineProviderSessionAdmissionInput
@@ -107,8 +119,8 @@ private:
 };
 
 ViewportEngineProviderSessionOpenEffect beginViewportEngineProviderSession(
-    ViewportEngineProviderSessionOpenInput, ViewportEngineProviderSessionOpenAccess);
+    ViewportEngineProviderSessionOpenInput, ViewportEngineProviderSessionOpenAccess&);
 ViewportProviderFrameTransportEffect closeViewportEngineProviderSession(
-    ViewportEngineProviderSessionCloseAccess);
+    ViewportEngineProviderSessionCloseAccess&);
 bool acceptsViewportEngineProviderSessionEvent(
     ViewportEngineProviderSessionAdmissionInput, ViewportEngineProviderSessionAdmissionAccess);

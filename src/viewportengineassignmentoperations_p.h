@@ -14,8 +14,20 @@ struct ViewportEnginePresentationTargetAssignmentInput
     ViewportEngineGeometryInput geometry;
 };
 
+struct ViewportEnginePresentationTargetAssignmentMutation
+{
+    ViewportEnginePresentationTargetState target;
+    quint64 nextTargetGeneration = 0;
+    ImageViewportInternal::RequestState request;
+    ImageViewportInternal::PlaybackState playback;
+    ImageViewportInternal::DisplayState display;
+    std::array<ViewportEngineRoleState, 2> roles;
+    ImageViewportInternal::PresentationState presentation;
+};
+
 struct ViewportEnginePresentationTargetAssignmentReduction
 {
+    ViewportEnginePresentationTargetAssignmentMutation mutation;
     ViewportEnginePresentationTargetState presentationTargetState;
     bool presentationTargetChanged = false;
     bool clear = true;
@@ -37,18 +49,9 @@ class ViewportEnginePresentationTargetAssignmentAccess
             ViewportEnginePresentationTargetAssignmentInput,
             ViewportEnginePresentationTargetAssignmentAccess);
 
-    ViewportEnginePresentationTargetAssignmentAccess(ViewportEnginePresentationTargetState& target,
-        quint64& nextTargetGeneration, ImageViewportInternal::RequestState& request,
-        ImageViewportInternal::PlaybackState& playback,
-        ImageViewportInternal::DisplayState& display, std::array<ViewportEngineRoleState, 2>& roles,
-        ImageViewportInternal::PresentationState& presentation)
-        : m_target(target)
-        , m_nextTargetGeneration(nextTargetGeneration)
-        , m_request(request)
-        , m_playback(playback)
-        , m_display(display)
-        , m_roles(roles)
-        , m_presentation(presentation)
+    explicit ViewportEnginePresentationTargetAssignmentAccess(
+        ViewportEnginePresentationTargetAssignmentMutation mutation)
+        : m_mutation(std::move(mutation))
     {
     }
 
@@ -67,13 +70,7 @@ private:
     ViewportEnginePresentationTargetTransitionReduction transition(
         ViewportEnginePresentationTargetTransitionInput);
     void applyAutoplay();
-    ViewportEnginePresentationTargetState& m_target;
-    quint64& m_nextTargetGeneration;
-    ImageViewportInternal::RequestState& m_request;
-    ImageViewportInternal::PlaybackState& m_playback;
-    ImageViewportInternal::DisplayState& m_display;
-    std::array<ViewportEngineRoleState, 2>& m_roles;
-    ImageViewportInternal::PresentationState& m_presentation;
+    ViewportEnginePresentationTargetAssignmentMutation m_mutation;
 };
 
 ViewportEnginePresentationTargetAssignmentReduction

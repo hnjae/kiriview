@@ -70,7 +70,7 @@ void coalesceViewportEngineTargetSpreadCandidates(
 
 ViewportEngineProviderRoleMaterializationResult materializeViewportEngineProviderRole(
     ViewportEngineProviderRoleMaterializationInput input,
-    ViewportEngineProviderRoleMaterializationAccess access)
+    ViewportEngineProviderRoleMaterializationAccess& access)
 {
     using namespace ImageViewportInternal;
     ViewportEngineProviderRoleMaterializationResult result;
@@ -114,8 +114,12 @@ ViewportEngineProviderRoleMaterializationResult materializeViewportEngineProvide
 
     ViewportProviderRequestTokenAllocationAccess allocationAccess(
         access.roles, access.request, access.playback, access.display);
-    auto allocation
-        = allocateViewportProviderRequestToken({ input.role }, std::move(allocationAccess));
+    auto allocation = allocateViewportProviderRequestToken({ input.role }, allocationAccess);
+    auto allocationMutation = allocationAccess.takeMutation();
+    access.roles = std::move(allocationMutation.roles);
+    access.request = std::move(allocationMutation.request);
+    access.playback = std::move(allocationMutation.playback);
+    access.display = std::move(allocationMutation.display);
     effect.closeSession = allocation.closeSession;
     effect.sessionClose = allocation.sessionClose;
     mergeChanges(result.changes, allocation.changes);

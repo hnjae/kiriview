@@ -11,6 +11,10 @@ class ViewportEngineProviderProtocolViolationAccess;
 class ViewportEngineProviderDispatchFailureAccess;
 class ViewportEngineProviderSessionOpenFailureAccess;
 class ViewportEngineProviderQueueFailureAccess;
+struct ViewportEngineProviderTerminalProjectionMutation
+{
+    ImageViewportInternal::RequestState request;
+};
 
 class ViewportEngineProviderTerminalProjectionAccess
 {
@@ -23,16 +27,16 @@ class ViewportEngineProviderTerminalProjectionAccess
     friend class ViewportEngineProviderSessionOpenFailureAccess;
     friend class ViewportEngineProviderQueueFailureAccess;
     friend ImageViewportInternal::ViewportChangeSet
-        reduceViewportEngineProviderDisplayRequestTerminalProjection(
-            ViewportEngineProviderTerminalProjectionInput,
-            ViewportEngineProviderTerminalProjectionAccess);
+    reduceViewportEngineProviderDisplayRequestTerminalProjection(
+        ViewportEngineProviderTerminalProjectionInput,
+        ViewportEngineProviderTerminalProjectionAccess&);
     friend ImageViewportInternal::ViewportChangeSet
-        reduceViewportEngineProviderGenerationTerminalProjection(
-            ViewportEngineProviderTerminalProjectionInput,
-            ViewportEngineProviderTerminalProjectionAccess);
+    reduceViewportEngineProviderGenerationTerminalProjection(
+        ViewportEngineProviderTerminalProjectionInput,
+        ViewportEngineProviderTerminalProjectionAccess&);
 
     explicit ViewportEngineProviderTerminalProjectionAccess(
-        ImageViewportInternal::RequestState& request)
+        const ImageViewportInternal::RequestState& request)
         : m_request(request)
     {
     }
@@ -44,14 +48,17 @@ public:
     ViewportEngineProviderTerminalProjectionAccess(
         ViewportEngineProviderTerminalProjectionAccess&&) noexcept
         = default;
+    ViewportEngineProviderTerminalProjectionMutation takeMutation()
+    {
+        return { std::move(m_request) };
+    }
 
 private:
-    ImageViewportInternal::RequestState& m_request;
+    ImageViewportInternal::RequestState m_request;
 };
 
 ImageViewportInternal::ViewportChangeSet
-    reduceViewportEngineProviderDisplayRequestTerminalProjection(
-        ViewportEngineProviderTerminalProjectionInput,
-        ViewportEngineProviderTerminalProjectionAccess);
+reduceViewportEngineProviderDisplayRequestTerminalProjection(
+    ViewportEngineProviderTerminalProjectionInput, ViewportEngineProviderTerminalProjectionAccess&);
 ImageViewportInternal::ViewportChangeSet reduceViewportEngineProviderGenerationTerminalProjection(
-    ViewportEngineProviderTerminalProjectionInput, ViewportEngineProviderTerminalProjectionAccess);
+    ViewportEngineProviderTerminalProjectionInput, ViewportEngineProviderTerminalProjectionAccess&);

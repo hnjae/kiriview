@@ -133,8 +133,10 @@ ViewportEngineProviderTerminalEventReduction reduceTerminal(TerminalContext cont
         ViewportEngineProviderTerminalProjectionInput input)                                       \
     {                                                                                              \
         ViewportEngineProviderTerminalProjectionAccess access(m_request);                          \
-        return reduceViewportEngineProviderDisplayRequestTerminalProjection(                       \
-            std::move(input), std::move(access));                                                  \
+        auto changes = reduceViewportEngineProviderDisplayRequestTerminalProjection(               \
+            std::move(input), access);                                                             \
+        m_request = std::move(access.takeMutation().request);                                      \
+        return changes;                                                                            \
     }
 
 #define DEFINE_RECORD_GENERATION_TERMINAL(Type)                                                    \
@@ -142,8 +144,10 @@ ViewportEngineProviderTerminalEventReduction reduceTerminal(TerminalContext cont
         ViewportEngineProviderTerminalProjectionInput input)                                       \
     {                                                                                              \
         ViewportEngineProviderTerminalProjectionAccess access(m_request);                          \
-        return reduceViewportEngineProviderGenerationTerminalProjection(                           \
-            std::move(input), std::move(access));                                                  \
+        auto changes                                                                               \
+            = reduceViewportEngineProviderGenerationTerminalProjection(std::move(input), access);  \
+        m_request = std::move(access.takeMutation().request);                                      \
+        return changes;                                                                            \
     }
 
 DEFINE_RECORD_DISPLAY_REQUEST_TERMINAL(ViewportEngineProviderTerminalEventAccess)
@@ -159,7 +163,11 @@ DEFINE_RECORD_GENERATION_TERMINAL(ViewportEngineProviderSessionOpenFailureAccess
     ViewportProviderFrameTransportEffect Type::closeSession()                                      \
     {                                                                                              \
         ViewportEngineProviderSessionCloseAccess access(m_session, m_requests);                    \
-        return closeViewportEngineProviderSession(std::move(access));                              \
+        auto effect = closeViewportEngineProviderSession(access);                                  \
+        auto mutation = access.takeMutation();                                                     \
+        m_session = std::move(mutation.session);                                                   \
+        m_requests = std::move(mutation.requests);                                                 \
+        return effect;                                                                             \
     }
 
 DEFINE_CLOSE_SESSION(ViewportEngineProviderTerminalEventAccess)
@@ -169,7 +177,7 @@ DEFINE_CLOSE_SESSION(ViewportEngineProviderDispatchFailureAccess)
 
 ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderTerminalEvent(
     ViewportEngineProviderTerminalEventInput input, // NOLINT(performance-unnecessary-value-param)
-    ViewportEngineProviderTerminalEventAccess access)
+    ViewportEngineProviderTerminalEventAccess& access)
 {
     return reduceTerminal(
         { access.m_request, access.m_playback, access.m_facts, access.m_session,
@@ -187,7 +195,7 @@ ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderTermina
 ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderProtocolViolation(
     ViewportEngineProviderProtocolViolationInput
         input, // NOLINT(performance-unnecessary-value-param)
-    ViewportEngineProviderProtocolViolationAccess access)
+    ViewportEngineProviderProtocolViolationAccess& access)
 {
     ViewportEngineProviderTerminalEventReduction result;
     if (!providerPresent(access.m_request, input.role) || !access.m_session.sessionActive
@@ -211,7 +219,7 @@ ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderProtoco
 
 ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderDispatchFailure(
     ViewportEngineProviderDispatchFailureInput input, // NOLINT(performance-unnecessary-value-param)
-    ViewportEngineProviderDispatchFailureAccess access)
+    ViewportEngineProviderDispatchFailureAccess& access)
 {
     ViewportEngineProviderTerminalEventReduction result;
     const auto* providerRequest = access.m_requests.find(input.token);
@@ -241,7 +249,7 @@ ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderDispatc
 ViewportEngineProviderSessionOpenFailureReduction reduceViewportEngineProviderSessionOpenFailure(
     ViewportEngineProviderSessionOpenFailureInput
         input, // NOLINT(performance-unnecessary-value-param)
-    ViewportEngineProviderSessionOpenFailureAccess access)
+    ViewportEngineProviderSessionOpenFailureAccess& access)
 {
     ViewportEngineProviderSessionOpenFailureReduction result;
     access.m_session.sessionActive = false;
@@ -256,7 +264,7 @@ ViewportEngineProviderSessionOpenFailureReduction reduceViewportEngineProviderSe
 
 ViewportEngineProviderQueueFailureReduction reduceViewportEngineProviderQueueFailure(
     ViewportEngineProviderQueueFailureInput input, // NOLINT(performance-unnecessary-value-param)
-    ViewportEngineProviderQueueFailureAccess access)
+    ViewportEngineProviderQueueFailureAccess& access)
 {
     ViewportEngineProviderQueueFailureReduction result;
     const auto& request = requestForRole(access.m_request, input.role);

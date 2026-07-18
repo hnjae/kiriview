@@ -101,7 +101,14 @@ ViewportEngineProviderMetadataReadyAccess::startFrameRequest(ImageViewportPageRo
     ViewportEngineProviderFrameRequestAccess access(m_request, m_playback, m_display, m_roles,
         m_presentation, m_nextRevision, m_targetPresentationRevision,
         m_presentationTargetGeneration);
-    return startViewportEngineProviderFrameRequest({ role, target, geometry }, std::move(access));
+    auto result = startViewportEngineProviderFrameRequest({ role, target, geometry }, access);
+    auto mutation = access.takeMutation();
+    m_request = std::move(mutation.request);
+    m_playback = std::move(mutation.playback);
+    m_display = std::move(mutation.display);
+    m_roles = std::move(mutation.roles);
+    m_nextRevision = mutation.nextRevision;
+    return result;
 }
 
 void ViewportEngineProviderMetadataReadyAccess::advanceTargetPresentationRevision()
@@ -116,7 +123,9 @@ bool ViewportEngineProviderMetadataReadyAccess::applyAutoplay()
 {
     ViewportEngineAuthoredAutoplayAccess autoplay(
         m_request, { m_roles[0].provider.facts, m_roles[1].provider.facts }, m_playback);
-    return reduceViewportEngineAuthoredAutoplay({}, std::move(autoplay)).playbackPhaseChanged;
+    const auto reduction = reduceViewportEngineAuthoredAutoplay({}, autoplay);
+    m_playback = std::move(autoplay.takeMutation().playback);
+    return reduction.playbackPhaseChanged;
 }
 
 ViewportProviderFrameTransportEffect ViewportEngineProviderMetadataReadyAccess::closeSession(
@@ -124,7 +133,11 @@ ViewportProviderFrameTransportEffect ViewportEngineProviderMetadataReadyAccess::
 {
     auto& provider = providerFor(m_roles, role);
     ViewportEngineProviderSessionCloseAccess access(provider.session, provider.requests);
-    return closeViewportEngineProviderSession(std::move(access));
+    auto effect = closeViewportEngineProviderSession(access);
+    auto mutation = access.takeMutation();
+    provider.session = std::move(mutation.session);
+    provider.requests = std::move(mutation.requests);
+    return effect;
 }
 
 ImageViewportInternal::ViewportChangeSet
@@ -132,8 +145,10 @@ ViewportEngineProviderMetadataReadyAccess::recordDisplayRequestTerminal(
     ViewportEngineProviderTerminalProjectionInput input)
 {
     ViewportEngineProviderTerminalProjectionAccess access(m_request);
-    return reduceViewportEngineProviderDisplayRequestTerminalProjection(
-        std::move(input), std::move(access));
+    auto changes
+        = reduceViewportEngineProviderDisplayRequestTerminalProjection(std::move(input), access);
+    m_request = std::move(access.takeMutation().request);
+    return changes;
 }
 
 ImageViewportInternal::ViewportChangeSet
@@ -141,13 +156,15 @@ ViewportEngineProviderMetadataReadyAccess::recordGenerationTerminal(
     ViewportEngineProviderTerminalProjectionInput input)
 {
     ViewportEngineProviderTerminalProjectionAccess access(m_request);
-    return reduceViewportEngineProviderGenerationTerminalProjection(
-        std::move(input), std::move(access));
+    auto changes
+        = reduceViewportEngineProviderGenerationTerminalProjection(std::move(input), access);
+    m_request = std::move(access.takeMutation().request);
+    return changes;
 }
 
 ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadataReady(
     ViewportEngineProviderMetadataReadyInput input, // NOLINT(performance-unnecessary-value-param)
-    ViewportEngineProviderMetadataReadyAccess access)
+    ViewportEngineProviderMetadataReadyAccess& access)
 {
     using namespace ImageViewportInternal;
     ViewportEngineProviderMetadataReadyReduction result;

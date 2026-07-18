@@ -51,7 +51,7 @@ bool loops(const PlaybackState& p, ImageSequenceAuthoredAnimationFacts a)
 }
 
 ViewportEngineProviderWaitingReduction reduceViewportEngineProviderWaiting(
-    ViewportEngineProviderWaitingInput in, ViewportEngineProviderWaitingAccess a)
+    ViewportEngineProviderWaitingInput in, ViewportEngineProviderWaitingAccess& a)
 {
     ViewportEngineProviderWaitingReduction out;
     if (sealed(a.m_request) || !present(a.m_request, in.role) || !a.m_session.sessionActive
@@ -81,7 +81,14 @@ ViewportProviderFrameRequestStartResult ViewportEngineProviderEndOfSequenceAcces
 {
     ViewportEngineProviderFrameRequestAccess a(m_request, m_playback, m_display, m_roles,
         m_presentation, m_nextRevision, m_presentationRevision, m_targetGeneration);
-    return startViewportEngineProviderFrameRequest({ role, target, g }, std::move(a));
+    auto result = startViewportEngineProviderFrameRequest({ role, target, g }, a);
+    auto mutation = a.takeMutation();
+    m_request = std::move(mutation.request);
+    m_playback = std::move(mutation.playback);
+    m_display = std::move(mutation.display);
+    m_roles = std::move(mutation.roles);
+    m_nextRevision = mutation.nextRevision;
+    return result;
 }
 ViewportEngineProviderTerminalEventReduction
 ViewportEngineProviderEndOfSequenceAccess::protocolViolation(
@@ -89,11 +96,17 @@ ViewportEngineProviderEndOfSequenceAccess::protocolViolation(
 {
     auto& p = m_roles[index(role)].provider;
     ViewportEngineProviderProtocolViolationAccess a(m_request, m_playback, p.session, p.requests);
-    return reduceViewportEngineProviderProtocolViolation({ role, token }, std::move(a));
+    auto result = reduceViewportEngineProviderProtocolViolation({ role, token }, a);
+    auto mutation = a.takeMutation();
+    m_request = std::move(mutation.request);
+    m_playback = std::move(mutation.playback);
+    p.session = std::move(mutation.session);
+    p.requests = std::move(mutation.requests);
+    return result;
 }
 
 ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSequence(
-    ViewportEngineProviderEndOfSequenceInput in, ViewportEngineProviderEndOfSequenceAccess a)
+    ViewportEngineProviderEndOfSequenceInput in, ViewportEngineProviderEndOfSequenceAccess& a)
 {
     using namespace ImageViewportInternal;
     ViewportEngineProviderEndOfSequenceReduction out;

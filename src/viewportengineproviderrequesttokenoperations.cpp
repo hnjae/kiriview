@@ -7,15 +7,19 @@
 #include <limits>
 
 ViewportProviderFrameTransportEffect ViewportProviderRequestTokenAllocationAccess::closeSession(
-    ImageViewportPageRole role) const
+    ImageViewportPageRole role)
 {
     ViewportEngineProviderSessionCloseAccess access(session(role), requests(role));
-    return closeViewportEngineProviderSession(std::move(access));
+    auto effect = closeViewportEngineProviderSession(access);
+    auto mutation = access.takeMutation();
+    session(role) = std::move(mutation.session);
+    requests(role) = std::move(mutation.requests);
+    return effect;
 }
 
 ViewportProviderRequestTokenAllocationResult allocateViewportProviderRequestToken(
     ViewportProviderRequestTokenAllocationInput input,
-    ViewportProviderRequestTokenAllocationAccess access)
+    ViewportProviderRequestTokenAllocationAccess& access)
 {
     ViewportProviderRequestTokenAllocationResult result;
     auto& session = access.session(input.role);

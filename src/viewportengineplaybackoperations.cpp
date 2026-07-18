@@ -85,7 +85,7 @@ bool validateViewportPlaybackCommand(ViewportPlaybackCommand command)
 }
 
 ViewportEnginePlaybackPauseReduction reduceViewportEnginePlaybackPause(
-    ViewportEnginePlaybackPauseInput input, ViewportEnginePlaybackPauseAccess access)
+    ViewportEnginePlaybackPauseInput input, ViewportEnginePlaybackPauseAccess& access)
 {
     ViewportEnginePlaybackPauseReduction result;
     if (access.playback().role != input.role
@@ -99,7 +99,7 @@ ViewportEnginePlaybackPauseReduction reduceViewportEnginePlaybackPause(
 }
 
 ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
-    ViewportEnginePlaybackStopInput input, ViewportEnginePlaybackStopAccess access)
+    ViewportEnginePlaybackStopInput input, ViewportEnginePlaybackStopAccess& access)
 {
     ViewportEnginePlaybackStopReduction result;
     auto& request = access.m_request;
@@ -163,11 +163,16 @@ ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
         return admission;
     };
     auto dispatchProvider = [&]() {
-        auto materialized
-            = materializeViewportEngineProviderRole({ input.role, input.geometry, false },
-                { request, playback, display, access.m_roles, access.m_presentation,
-                    access.m_nextRevision, access.m_presentationRevision,
-                    access.m_presentationTargetGeneration });
+        ViewportEngineProviderRoleMaterializationMutation mutation { request, playback, display,
+            access.m_roles, access.m_presentation, access.m_nextRevision,
+            access.m_presentationRevision, access.m_presentationTargetGeneration };
+        auto materialized = materializeViewportEngineProviderRole(
+            { input.role, input.geometry, false }, mutation);
+        request = std::move(mutation.request);
+        playback = std::move(mutation.playback);
+        display = std::move(mutation.display);
+        access.m_roles = std::move(mutation.roles);
+        access.m_nextRevision = mutation.nextRevision;
         const auto cancelled = result.providerFrameTransport[index].cancelToken;
         result.providerFrameTransport[index] = materialized.effect;
         if (!result.providerFrameTransport[index].cancelToken.isValid()) {
@@ -220,7 +225,7 @@ ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
 }
 
 ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
-    ViewportEnginePlaybackSeekInput input, ViewportEnginePlaybackSeekAccess access)
+    ViewportEnginePlaybackSeekInput input, ViewportEnginePlaybackSeekAccess& access)
 {
     using namespace ImageViewportInternal;
     ViewportEnginePlaybackSeekReduction result;
@@ -325,11 +330,16 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
         return admission;
     };
     auto dispatchProvider = [&]() {
-        auto materialized
-            = materializeViewportEngineProviderRole({ input.role, input.geometry, false },
-                { request, playback, display, access.m_roles, access.m_presentation,
-                    access.m_nextRevision, access.m_presentationRevision,
-                    access.m_presentationTargetGeneration });
+        ViewportEngineProviderRoleMaterializationMutation mutation { request, playback, display,
+            access.m_roles, access.m_presentation, access.m_nextRevision,
+            access.m_presentationRevision, access.m_presentationTargetGeneration };
+        auto materialized = materializeViewportEngineProviderRole(
+            { input.role, input.geometry, false }, mutation);
+        request = std::move(mutation.request);
+        playback = std::move(mutation.playback);
+        display = std::move(mutation.display);
+        access.m_roles = std::move(mutation.roles);
+        access.m_nextRevision = mutation.nextRevision;
         result.providerFrameTransport[index] = materialized.effect;
         mergeChanges(result.changes, materialized.changes);
     };
@@ -355,7 +365,7 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
 }
 
 ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
-    ViewportEnginePlaybackPlayInput input, ViewportEnginePlaybackPlayAccess access)
+    ViewportEnginePlaybackPlayInput input, ViewportEnginePlaybackPlayAccess& access)
 {
     using namespace ImageViewportInternal;
     ViewportEnginePlaybackPlayReduction result;
@@ -395,11 +405,16 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
         return admission;
     };
     auto dispatchProvider = [&]() {
+        ViewportEngineProviderRoleMaterializationMutation mutation { request, playback, display,
+            access.m_roles, access.m_presentation, access.m_nextRevision,
+            access.m_presentationRevision, access.m_presentationTargetGeneration };
         auto materialized
-            = materializeViewportEngineProviderRole({ input.role, input.geometry, true },
-                { request, playback, display, access.m_roles, access.m_presentation,
-                    access.m_nextRevision, access.m_presentationRevision,
-                    access.m_presentationTargetGeneration });
+            = materializeViewportEngineProviderRole({ input.role, input.geometry, true }, mutation);
+        request = std::move(mutation.request);
+        playback = std::move(mutation.playback);
+        display = std::move(mutation.display);
+        access.m_roles = std::move(mutation.roles);
+        access.m_nextRevision = mutation.nextRevision;
         result.providerFrameTransport[index] = materialized.effect;
         mergeChanges(result.changes, materialized.changes);
     };
@@ -490,7 +505,7 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
 }
 
 ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
-    ViewportEnginePlaybackTickInput input, ViewportEnginePlaybackTickAccess access)
+    ViewportEnginePlaybackTickInput input, ViewportEnginePlaybackTickAccess& access)
 {
     using namespace ImageViewportInternal;
     ViewportEnginePlaybackTickReduction result;
@@ -558,10 +573,16 @@ ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
     }
 
     if (providerTiming) {
-        auto materialized = materializeViewportEngineProviderRole({ role, input.geometry, true },
-            { request, playback, display, access.m_roles, access.m_presentation,
-                access.m_nextRevision, access.m_presentationRevision,
-                access.m_presentationTargetGeneration });
+        ViewportEngineProviderRoleMaterializationMutation mutation { request, playback, display,
+            access.m_roles, access.m_presentation, access.m_nextRevision,
+            access.m_presentationRevision, access.m_presentationTargetGeneration };
+        auto materialized
+            = materializeViewportEngineProviderRole({ role, input.geometry, true }, mutation);
+        request = std::move(mutation.request);
+        playback = std::move(mutation.playback);
+        display = std::move(mutation.display);
+        access.m_roles = std::move(mutation.roles);
+        access.m_nextRevision = mutation.nextRevision;
         result.providerFrameTransport[index] = materialized.effect;
         mergeChanges(result.changes, materialized.changes);
         if (materialized.accepted) {
@@ -590,7 +611,7 @@ ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
 }
 
 ViewportEngineAuthoredAutoplayReduction reduceViewportEngineAuthoredAutoplay(
-    ViewportEngineAuthoredAutoplayInput, ViewportEngineAuthoredAutoplayAccess access)
+    ViewportEngineAuthoredAutoplayInput, ViewportEngineAuthoredAutoplayAccess& access)
 {
     using namespace ImageViewportInternal;
     enum class Eligibility {

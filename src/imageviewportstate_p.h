@@ -365,10 +365,10 @@ struct DisplayState
     };
 
     DisplayState() = default;
-    DisplayState(const DisplayState&) = delete;
-    DisplayState& operator=(const DisplayState&) = delete;
-    DisplayState(DisplayState&&) = delete;
-    DisplayState& operator=(DisplayState&&) = delete;
+    DisplayState(const DisplayState&) = default;
+    DisplayState& operator=(const DisplayState&) = default;
+    DisplayState(DisplayState&&) noexcept = default;
+    DisplayState& operator=(DisplayState&&) noexcept = default;
 
     DisplayRequestSnapshot activeRequestSnapshot(quint64 sequenceGeneration,
         const DisplayRequest& activeRequest, int displayedPosition) const
@@ -514,10 +514,10 @@ struct RequestState
     };
 
     RequestState() = default;
-    RequestState(const RequestState&) = delete;
-    RequestState& operator=(const RequestState&) = delete;
-    RequestState(RequestState&&) = delete;
-    RequestState& operator=(RequestState&&) = delete;
+    RequestState(const RequestState&) = default;
+    RequestState& operator=(const RequestState&) = default;
+    RequestState(RequestState&&) noexcept = default;
+    RequestState& operator=(RequestState&&) noexcept = default;
 
     void clearDisplayRequests()
     {

@@ -64,12 +64,29 @@ struct ViewportEngineRenderFailureReduction
     ImageViewportInternal::RenderFailureDiagnostic diagnostic;
     ImageViewportInternal::InternalObservationBatch observations;
 };
+struct ViewportEngineGeometryChangeMutation
+{
+    ImageViewportInternal::RequestState request;
+    ImageViewportInternal::DisplayState display;
+};
+struct ViewportEngineRenderSynchronizationMutation
+{
+    ViewportEngineRenderCoordinationState render;
+};
+struct ViewportEngineRenderMutation
+{
+    ImageViewportInternal::RequestState request;
+    ImageViewportInternal::DisplayState display;
+    ImageViewportInternal::PlaybackState playback;
+};
 
 class ViewportEngineGeometryChangeAccess
 {
     friend class ViewportEngine;
-    ViewportEngineGeometryChangeAccess(
-        ImageViewportInternal::RequestState& request, ImageViewportInternal::DisplayState& display)
+    friend ViewportEngineGeometryChangeReduction reduceViewportEngineGeometryChange(
+        ViewportEngineGeometryChangeInput, ViewportEngineGeometryChangeAccess&);
+    ViewportEngineGeometryChangeAccess(const ImageViewportInternal::RequestState& request,
+        const ImageViewportInternal::DisplayState& display)
         : m_request(request)
         , m_display(display)
     {
@@ -80,22 +97,27 @@ public:
     ViewportEngineGeometryChangeAccess(ViewportEngineGeometryChangeAccess&&) noexcept = default;
     ViewportEngineGeometryChangeAccess& operator=(const ViewportEngineGeometryChangeAccess&)
         = delete;
-
-    ImageViewportInternal::RequestState& request() const { return m_request; }
-    ImageViewportInternal::DisplayState& display() const { return m_display; }
+    ViewportEngineGeometryChangeMutation takeMutation()
+    {
+        return { std::move(m_request), std::move(m_display) };
+    }
 
 private:
-    ImageViewportInternal::RequestState& m_request;
-    ImageViewportInternal::DisplayState& m_display;
+    ImageViewportInternal::RequestState& request() { return m_request; }
+    ImageViewportInternal::DisplayState& display() { return m_display; }
+    ImageViewportInternal::RequestState m_request;
+    ImageViewportInternal::DisplayState m_display;
 };
 
 class ViewportEngineRenderSynchronizationAccess
 {
     friend class ViewportEngine;
+    friend ViewportEngineRenderCoordinationState::AttemptContext synchronizeViewportEngineRender(
+        ViewportEngineRenderSynchronizationInput, ViewportEngineRenderSynchronizationAccess&);
     ViewportEngineRenderSynchronizationAccess(const ImageViewportInternal::RequestState& request,
         const ImageViewportInternal::DisplayState& display,
         const ImageViewportInternal::PresentationState& presentation,
-        ViewportEngineRenderCoordinationState& render)
+        const ViewportEngineRenderCoordinationState& render)
         : m_request(request)
         , m_display(display)
         , m_presentation(presentation)
@@ -106,28 +128,32 @@ class ViewportEngineRenderSynchronizationAccess
 public:
     ViewportEngineRenderSynchronizationAccess(const ViewportEngineRenderSynchronizationAccess&)
         = delete;
+    ViewportEngineRenderSynchronizationMutation takeMutation() { return { std::move(m_render) }; }
+
+private:
     const ImageViewportInternal::RequestState& request() const { return m_request; }
     const ImageViewportInternal::DisplayState& display() const { return m_display; }
     const ImageViewportInternal::PresentationState& presentation() const { return m_presentation; }
-    ViewportEngineRenderCoordinationState& render() const { return m_render; }
+    ViewportEngineRenderCoordinationState& render() { return m_render; }
     ViewportEngineRenderSnapshotProjectionAccess renderSnapshot() const
     {
         return { m_request, m_display, m_presentation };
     }
 
-private:
     const ImageViewportInternal::RequestState& m_request;
     const ImageViewportInternal::DisplayState& m_display;
     const ImageViewportInternal::PresentationState& m_presentation;
-    ViewportEngineRenderCoordinationState& m_render;
+    ViewportEngineRenderCoordinationState m_render;
 };
 
 class ViewportEngineRenderCommitAccess
 {
     friend class ViewportEngine;
-    ViewportEngineRenderCommitAccess(ImageViewportInternal::RequestState& request,
-        ImageViewportInternal::DisplayState& display,
-        ImageViewportInternal::PlaybackState& playback,
+    friend ViewportEngineRenderCommitReduction reduceViewportEngineRenderCommit(
+        ViewportEngineRenderAcknowledgementInput, ViewportEngineRenderCommitAccess&);
+    ViewportEngineRenderCommitAccess(const ImageViewportInternal::RequestState& request,
+        const ImageViewportInternal::DisplayState& display,
+        const ImageViewportInternal::PlaybackState& playback,
         ViewportEngineProviderFactsView providerFacts)
         : m_request(request)
         , m_display(display)
@@ -138,24 +164,30 @@ class ViewportEngineRenderCommitAccess
 
 public:
     ViewportEngineRenderCommitAccess(const ViewportEngineRenderCommitAccess&) = delete;
-    ImageViewportInternal::RequestState& request() const { return m_request; }
-    ImageViewportInternal::DisplayState& display() const { return m_display; }
-    ImageViewportInternal::PlaybackState& playback() const { return m_playback; }
+    ViewportEngineRenderMutation takeMutation()
+    {
+        return { std::move(m_request), std::move(m_display), std::move(m_playback) };
+    }
     const ViewportEngineProviderFactsView& providerFacts() const { return m_providerFacts; }
 
 private:
-    ImageViewportInternal::RequestState& m_request;
-    ImageViewportInternal::DisplayState& m_display;
-    ImageViewportInternal::PlaybackState& m_playback;
+    ImageViewportInternal::RequestState& request() { return m_request; }
+    ImageViewportInternal::DisplayState& display() { return m_display; }
+    ImageViewportInternal::PlaybackState& playback() { return m_playback; }
+    ImageViewportInternal::RequestState m_request;
+    ImageViewportInternal::DisplayState m_display;
+    ImageViewportInternal::PlaybackState m_playback;
     ViewportEngineProviderFactsView m_providerFacts;
 };
 
 class ViewportEngineRenderFailureAccess
 {
     friend class ViewportEngine;
-    ViewportEngineRenderFailureAccess(ImageViewportInternal::RequestState& request,
-        ImageViewportInternal::DisplayState& display,
-        ImageViewportInternal::PlaybackState& playback)
+    friend ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
+        ViewportEngineRenderAcknowledgementInput, ViewportEngineRenderFailureAccess&);
+    ViewportEngineRenderFailureAccess(const ImageViewportInternal::RequestState& request,
+        const ImageViewportInternal::DisplayState& display,
+        const ImageViewportInternal::PlaybackState& playback)
         : m_request(request)
         , m_display(display)
         , m_playback(playback)
@@ -164,21 +196,25 @@ class ViewportEngineRenderFailureAccess
 
 public:
     ViewportEngineRenderFailureAccess(const ViewportEngineRenderFailureAccess&) = delete;
-    ImageViewportInternal::RequestState& request() const { return m_request; }
-    ImageViewportInternal::DisplayState& display() const { return m_display; }
-    ImageViewportInternal::PlaybackState& playback() const { return m_playback; }
+    ViewportEngineRenderMutation takeMutation()
+    {
+        return { std::move(m_request), std::move(m_display), std::move(m_playback) };
+    }
 
 private:
-    ImageViewportInternal::RequestState& m_request;
-    ImageViewportInternal::DisplayState& m_display;
-    ImageViewportInternal::PlaybackState& m_playback;
+    ImageViewportInternal::RequestState& request() { return m_request; }
+    ImageViewportInternal::DisplayState& display() { return m_display; }
+    ImageViewportInternal::PlaybackState& playback() { return m_playback; }
+    ImageViewportInternal::RequestState m_request;
+    ImageViewportInternal::DisplayState m_display;
+    ImageViewportInternal::PlaybackState m_playback;
 };
 
 ViewportEngineRenderCoordinationState::AttemptContext synchronizeViewportEngineRender(
-    ViewportEngineRenderSynchronizationInput, ViewportEngineRenderSynchronizationAccess);
+    ViewportEngineRenderSynchronizationInput, ViewportEngineRenderSynchronizationAccess&);
 ViewportEngineRenderCommitReduction reduceViewportEngineRenderCommit(
-    ViewportEngineRenderAcknowledgementInput, ViewportEngineRenderCommitAccess);
+    ViewportEngineRenderAcknowledgementInput, ViewportEngineRenderCommitAccess&);
 ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
-    ViewportEngineRenderAcknowledgementInput, ViewportEngineRenderFailureAccess);
+    ViewportEngineRenderAcknowledgementInput, ViewportEngineRenderFailureAccess&);
 ViewportEngineGeometryChangeReduction reduceViewportEngineGeometryChange(
-    ViewportEngineGeometryChangeInput, ViewportEngineGeometryChangeAccess);
+    ViewportEngineGeometryChangeInput, ViewportEngineGeometryChangeAccess&);

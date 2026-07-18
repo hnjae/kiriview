@@ -228,9 +228,11 @@ ViewportRenderAttempt ViewportEngine::beginRenderSynchronization()
         PresentationGeometry::contentRect(currentState),
         PresentationGeometry::visibleImageRect(currentState), current, pendingGeometry()
     };
-    auto context = synchronizeViewportEngineRender(operationInput,
-        { m_state->requestState.request, m_state->displayState.display,
-            m_state->presentationState.presentation, m_state->renderCoordination });
+    ViewportEngineRenderSynchronizationAccess access(m_state->requestState.request,
+        m_state->displayState.display, m_state->presentationState.presentation,
+        m_state->renderCoordination);
+    auto context = synchronizeViewportEngineRender(operationInput, access);
+    m_state->renderCoordination = std::move(access.takeMutation().render);
     const ViewportRenderAttempt attempt = context.attempt;
     m_state->renderCoordination.activeAttempt = std::move(context);
     return attempt;
@@ -266,9 +268,13 @@ ViewportEngineTransition ViewportEngine::handleRenderHostFact(
     };
 
     if (input.fact.outcome == ViewportRenderHostFact::Outcome::Failed) {
-        auto reduction = reduceViewportEngineRenderFailure(acknowledgementInput,
-            { m_state->requestState.request, m_state->displayState.display,
-                m_state->playbackState.playback });
+        ViewportEngineRenderFailureAccess access(m_state->requestState.request,
+            m_state->displayState.display, m_state->playbackState.playback);
+        auto reduction = reduceViewportEngineRenderFailure(acknowledgementInput, access);
+        auto mutation = access.takeMutation();
+        m_state->requestState.request = std::move(mutation.request);
+        m_state->displayState.display = std::move(mutation.display);
+        m_state->playbackState.playback = std::move(mutation.playback);
         transition.changes = reduction.changes;
         transition.observations = reduction.observations;
         rebuildViewportEnginePayloadAllocation(
@@ -276,9 +282,13 @@ ViewportEngineTransition ViewportEngine::handleRenderHostFact(
     } else if (input.fact.outcome == ViewportRenderHostFact::Outcome::Committed
         && input.fact.imagePresent
         && (context.pendingTargetCommit || context.pendingRefinementCommit)) {
-        auto reduction = reduceViewportEngineRenderCommit(acknowledgementInput,
-            { m_state->requestState.request, m_state->displayState.display,
-                m_state->playbackState.playback, providerFactsView() });
+        ViewportEngineRenderCommitAccess access(m_state->requestState.request,
+            m_state->displayState.display, m_state->playbackState.playback, providerFactsView());
+        auto reduction = reduceViewportEngineRenderCommit(acknowledgementInput, access);
+        auto mutation = access.takeMutation();
+        m_state->requestState.request = std::move(mutation.request);
+        m_state->displayState.display = std::move(mutation.display);
+        m_state->playbackState.playback = std::move(mutation.playback);
         transition.changes = reduction.changes;
         if (reduction.changes.displayRevision
             && m_state->displayState.display.status == ImageViewportDisplayStatus::Ready) {
@@ -370,7 +380,10 @@ ViewportEngineTransition ViewportEngine::handleViewportChanged(ViewportEngineVie
             m_state->presentationState.presentation.exactnessPreference };
         ViewportEngineGeometryChangeAccess access(
             m_state->requestState.request, m_state->displayState.display);
-        auto reduction = reduceViewportEngineGeometryChange(operationInput, std::move(access));
+        auto reduction = reduceViewportEngineGeometryChange(operationInput, access);
+        auto mutation = access.takeMutation();
+        m_state->requestState.request = std::move(mutation.request);
+        m_state->displayState.display = std::move(mutation.display);
         result.changes = reduction.changes;
         mergeChanges(result.changes, transitionChanges);
         if (reduction.providerDemandGeometry) {

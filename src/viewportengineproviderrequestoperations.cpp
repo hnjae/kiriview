@@ -133,8 +133,15 @@ ViewportProviderFrameRequestStartResult startRefinementRequest(RequestContext co
 #define DEFINE_REQUEST_ACCESS(Type)                                                                \
     ViewportProviderRequestTokenAllocationResult Type::allocate(ImageViewportPageRole role)        \
     {                                                                                              \
-        return allocateViewportProviderRequestToken(                                               \
-            { role }, { m_roles, m_request, m_playback, m_display });                              \
+        ViewportProviderRequestTokenAllocationAccess access(                                       \
+            m_roles, m_request, m_playback, m_display);                                            \
+        auto result = allocateViewportProviderRequestToken({ role }, access);                      \
+        auto mutation = access.takeMutation();                                                     \
+        m_roles = std::move(mutation.roles);                                                       \
+        m_request = std::move(mutation.request);                                                   \
+        m_playback = std::move(mutation.playback);                                                 \
+        m_display = std::move(mutation.display);                                                   \
+        return result;                                                                             \
     }                                                                                              \
     ImageSequenceProviderDisplayDemand Type::demand(                                               \
         ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry)                   \
@@ -168,7 +175,7 @@ DEFINE_REQUEST_ACCESS(ViewportEngineProviderFrameRequestAccess)
 
 ViewportProviderSessionOpenResult reduceViewportEngineProviderSessionOpened(
     ViewportEngineProviderSessionOpenedInput input,
-    ViewportEngineProviderSessionOpenedAccess access)
+    ViewportEngineProviderSessionOpenedAccess& access)
 {
     ViewportProviderSessionOpenResult result;
     if (!viewportEngineRoleCanRefineCurrentTerminal(access.m_request, input.role)) {
@@ -208,7 +215,7 @@ ViewportProviderSessionOpenResult reduceViewportEngineProviderSessionOpened(
 }
 
 ViewportProviderFrameQueueFlushResult reduceViewportEngineProviderQueueFlush(
-    ViewportEngineProviderQueueFlushInput input, ViewportEngineProviderQueueFlushAccess access)
+    ViewportEngineProviderQueueFlushInput input, ViewportEngineProviderQueueFlushAccess& access)
 {
     ViewportProviderFrameQueueFlushResult result;
     auto& provider
@@ -253,7 +260,7 @@ ViewportProviderFrameQueueFlushResult reduceViewportEngineProviderQueueFlush(
 
 std::array<ViewportProviderFrameTransportEffect, 2> reduceViewportEngineProviderDemandRestage(
     ViewportEngineProviderDemandRestageInput input,
-    ViewportEngineProviderDemandRestageAccess access)
+    ViewportEngineProviderDemandRestageAccess& access)
 {
     std::array<ViewportProviderFrameTransportEffect, 2> effects;
     for (const auto role : { ImageViewportPageRole::Primary, ImageViewportPageRole::Secondary }) {
@@ -320,7 +327,7 @@ std::array<ViewportProviderFrameTransportEffect, 2> reduceViewportEngineProvider
 }
 
 ViewportProviderFrameRequestStartResult startViewportEngineProviderFrameRequest(
-    ViewportEngineProviderFrameRequestInput input, ViewportEngineProviderFrameRequestAccess access)
+    ViewportEngineProviderFrameRequestInput input, ViewportEngineProviderFrameRequestAccess& access)
 {
     return startFrameRequest(
         { access.m_request, access.m_display, access.m_roles }, input.role, input.target,

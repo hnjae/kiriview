@@ -52,6 +52,16 @@ bool hasProviderEffects(const std::array<ViewportProviderFrameTransportEffect, 2
             || effect.closeSession || effect.sendCommand;
     });
 }
+
+void commitPlaybackMutation(
+    ViewportEngineCanonicalState& state, ViewportEnginePlaybackMutation mutation)
+{
+    state.requestState.request = std::move(mutation.request);
+    state.playbackState.playback = std::move(mutation.playback);
+    state.displayState.display = std::move(mutation.display);
+    state.providerState.roles = std::move(mutation.roles);
+    state.revisions.nextRevision = mutation.nextRevision;
+}
 }
 
 ViewportEngineCommandTransition ViewportEngine::applyPlaybackCommand(
@@ -78,8 +88,8 @@ ViewportEngineCommandTransition ViewportEngine::applyPlaybackCommand(
     }
     if (input.command.kind == ViewportPlaybackCommand::Kind::Pause) {
         ViewportEnginePlaybackPauseAccess access(m_state->playbackState.playback);
-        const auto reduction
-            = reduceViewportEnginePlaybackPause({ input.command.role }, std::move(access));
+        const auto reduction = reduceViewportEnginePlaybackPause({ input.command.role }, access);
+        m_state->playbackState.playback = std::move(access.takeMutation().playback);
         const auto command
             = reduction.playbackPhaseChanged ? accepted() : acceptedPreservingCommandDiagnostics();
         transition.changes.playbackPhase = reduction.playbackPhaseChanged;
@@ -92,8 +102,8 @@ ViewportEngineCommandTransition ViewportEngine::applyPlaybackCommand(
             m_state->providerState.roles, m_state->presentationState.presentation,
             m_state->revisions.nextRevision, m_state->revisions.targetPresentationRevision,
             m_state->requestState.presentationTarget.generation);
-        auto reduction
-            = reduceViewportEnginePlaybackStop({ input.command.role, geometry }, std::move(access));
+        auto reduction = reduceViewportEnginePlaybackStop({ input.command.role, geometry }, access);
+        commitPlaybackMutation(*m_state, access.takeMutation());
         const auto command = hasStateChanges(reduction.changes)
                 || hasProviderEffects(reduction.providerFrameTransport)
             ? accepted()
@@ -111,8 +121,10 @@ ViewportEngineCommandTransition ViewportEngine::applyPlaybackCommand(
             m_state->revisions.nextRevision, m_state->revisions.targetPresentationRevision,
             m_state->requestState.presentationTarget.generation);
         auto reduction = reduceViewportEnginePlaybackSeek(
-            { input.command.kind, input.command.role, input.command.value, geometry },
-            std::move(access));
+            { input.command.kind, input.command.role, input.command.value, geometry }, access);
+        if (reduction.outcome == ImageViewportCommandOutcome::Accepted) {
+            commitPlaybackMutation(*m_state, access.takeMutation());
+        }
         const bool changed = hasStateChanges(reduction.changes)
             || hasProviderEffects(reduction.providerFrameTransport);
         const auto command = reduction.outcome != ImageViewportCommandOutcome::Accepted
@@ -132,9 +144,9 @@ ViewportEngineCommandTransition ViewportEngine::applyPlaybackCommand(
         m_state->providerState.roles, m_state->presentationState.presentation,
         m_state->revisions.nextRevision, m_state->revisions.targetPresentationRevision,
         m_state->requestState.presentationTarget.generation);
-    auto reduction
-        = reduceViewportEnginePlaybackPlay({ input.command.role, geometry }, std::move(access));
+    auto reduction = reduceViewportEnginePlaybackPlay({ input.command.role, geometry }, access);
     if (reduction.outcome == ImageViewportCommandOutcome::Accepted) {
+        commitPlaybackMutation(*m_state, access.takeMutation());
         m_state->playbackState.playback.authoredAutoplayArbitration
             = ImageViewportInternal::AuthoredAutoplayArbitrationState::Suppressed;
     }
@@ -160,8 +172,9 @@ ViewportEngineTransition ViewportEngine::advancePlayback(ViewportEnginePlaybackT
         m_state->providerState.roles, m_state->presentationState.presentation,
         m_state->revisions.nextRevision, m_state->revisions.targetPresentationRevision,
         m_state->requestState.presentationTarget.generation);
-    auto reduction = reduceViewportEnginePlaybackTick(
-        { input.elapsedMilliseconds, geometry }, std::move(access));
+    auto reduction
+        = reduceViewportEnginePlaybackTick({ input.elapsedMilliseconds, geometry }, access);
+    commitPlaybackMutation(*m_state, access.takeMutation());
     ViewportEngineTransitionDraft transition;
     transition.changes = reduction.changes;
     appendProviderTransport(transition.providerTransport, reduction.providerFrameTransport[0],

@@ -1,7 +1,7 @@
 #include "viewportengineprovidersessionoperations_p.h"
 
 ViewportEngineProviderSessionOpenEffect beginViewportEngineProviderSession(
-    ViewportEngineProviderSessionOpenInput input, ViewportEngineProviderSessionOpenAccess access)
+    ViewportEngineProviderSessionOpenInput input, ViewportEngineProviderSessionOpenAccess& access)
 {
     ViewportEngineProviderSessionOpenEffect result;
     access.m_session.sessionActive = true;
@@ -17,7 +17,7 @@ ViewportEngineProviderSessionOpenEffect beginViewportEngineProviderSession(
 }
 
 ViewportProviderFrameTransportEffect closeViewportEngineProviderSession(
-    ViewportEngineProviderSessionCloseAccess access)
+    ViewportEngineProviderSessionCloseAccess& access)
 {
     ViewportProviderFrameTransportEffect effect;
     effect.closeSession = access.m_session.sessionActive;

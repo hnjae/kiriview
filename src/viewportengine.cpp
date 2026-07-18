@@ -278,12 +278,20 @@ ViewportEngineCommandTransition ViewportEngine::assignPresentationTarget(
         return finalizeCommandTransition(rejectInvalidCommand(), {});
     }
     ViewportEnginePresentationTargetAssignmentAccess access(
-        m_state->requestState.presentationTarget,
-        m_state->requestState.nextPresentationTargetGeneration, m_state->requestState.request,
-        m_state->playbackState.playback, m_state->displayState.display,
-        m_state->providerState.roles, m_state->presentationState.presentation);
-    const auto reduction = reduceViewportEnginePresentationTargetAssignment(
+        { m_state->requestState.presentationTarget,
+            m_state->requestState.nextPresentationTargetGeneration, m_state->requestState.request,
+            m_state->playbackState.playback, m_state->displayState.display,
+            m_state->providerState.roles, m_state->presentationState.presentation });
+    auto reduction = reduceViewportEnginePresentationTargetAssignment(
         std::move(operationInput), std::move(access));
+    m_state->requestState.presentationTarget = std::move(reduction.mutation.target);
+    m_state->requestState.nextPresentationTargetGeneration
+        = reduction.mutation.nextTargetGeneration;
+    m_state->requestState.request = std::move(reduction.mutation.request);
+    m_state->playbackState.playback = std::move(reduction.mutation.playback);
+    m_state->displayState.display = std::move(reduction.mutation.display);
+    m_state->providerState.roles = std::move(reduction.mutation.roles);
+    m_state->presentationState.presentation = std::move(reduction.mutation.presentation);
     ViewportEnginePayloadAllocationRebuildResult allocation;
     if (reduction.presentationTargetChanged) {
         allocation = rebuildViewportEnginePayloadAllocation(

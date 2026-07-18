@@ -21,16 +21,24 @@ struct ViewportEngineProviderFrameReadyReduction
     ImageViewportInternal::InternalObservationBatch observations;
 };
 
+struct ViewportEngineProviderFrameReadyMutation
+{
+    ImageViewportInternal::RequestState request;
+    ImageViewportInternal::PlaybackState playback;
+    ImageViewportInternal::DisplayState display;
+    ImageViewportInternal::ProviderRoleState provider;
+};
+
 class ViewportEngineProviderFrameReadyAccess
 {
     friend class ViewportEngine;
     friend ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady(
-        ViewportEngineProviderFrameReadyInput, ViewportEngineProviderFrameReadyAccess);
+        ViewportEngineProviderFrameReadyInput, ViewportEngineProviderFrameReadyAccess&);
 
-    ViewportEngineProviderFrameReadyAccess(ImageViewportInternal::RequestState& request,
-        ImageViewportInternal::PlaybackState& playback,
-        ImageViewportInternal::DisplayState& display,
-        ImageViewportInternal::ProviderRoleState& provider,
+    ViewportEngineProviderFrameReadyAccess(const ImageViewportInternal::RequestState& request,
+        const ImageViewportInternal::PlaybackState& playback,
+        const ImageViewportInternal::DisplayState& display,
+        const ImageViewportInternal::ProviderRoleState& provider,
         const ImageViewportInternal::PresentationState& presentation)
         : m_request(request)
         , m_playback(playback)
@@ -44,17 +52,22 @@ public:
     ViewportEngineProviderFrameReadyAccess(const ViewportEngineProviderFrameReadyAccess&) = delete;
     ViewportEngineProviderFrameReadyAccess(ViewportEngineProviderFrameReadyAccess&&) noexcept
         = default;
+    ViewportEngineProviderFrameReadyMutation takeMutation()
+    {
+        return { std::move(m_request), std::move(m_playback), std::move(m_display),
+            std::move(m_provider) };
+    }
 
 private:
     ImageViewportInternal::ViewportChangeSet recordTerminal(
         ViewportEngineProviderTerminalProjectionInput input);
 
-    ImageViewportInternal::RequestState& m_request;
-    ImageViewportInternal::PlaybackState& m_playback;
-    ImageViewportInternal::DisplayState& m_display;
-    ImageViewportInternal::ProviderRoleState& m_provider;
+    ImageViewportInternal::RequestState m_request;
+    ImageViewportInternal::PlaybackState m_playback;
+    ImageViewportInternal::DisplayState m_display;
+    ImageViewportInternal::ProviderRoleState m_provider;
     const ImageViewportInternal::PresentationState& m_presentation;
 };
 
 ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady(
-    ViewportEngineProviderFrameReadyInput, ViewportEngineProviderFrameReadyAccess);
+    ViewportEngineProviderFrameReadyInput, ViewportEngineProviderFrameReadyAccess&);

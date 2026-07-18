@@ -25,13 +25,18 @@ struct ViewportEngineProviderEndOfSequenceReduction
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderFrameTransportEffect providerFrameTransport;
 };
+struct ViewportEngineProviderWaitingMutation
+{
+    ImageViewportInternal::RequestState request;
+};
+using ViewportEngineProviderEndOfSequenceMutation = ViewportEngineProviderRequestMutation;
 
 class ViewportEngineProviderWaitingAccess
 {
     friend class ViewportEngine;
     friend ViewportEngineProviderWaitingReduction reduceViewportEngineProviderWaiting(
-        ViewportEngineProviderWaitingInput, ViewportEngineProviderWaitingAccess);
-    ViewportEngineProviderWaitingAccess(ImageViewportInternal::RequestState& request,
+        ViewportEngineProviderWaitingInput, ViewportEngineProviderWaitingAccess&);
+    ViewportEngineProviderWaitingAccess(const ImageViewportInternal::RequestState& request,
         const ImageViewportInternal::ProviderFactsState& facts,
         const ImageViewportInternal::ProviderSessionState& session,
         const ImageViewportInternal::ProviderRequestLedger& requests)
@@ -45,9 +50,10 @@ class ViewportEngineProviderWaitingAccess
 public:
     ViewportEngineProviderWaitingAccess(const ViewportEngineProviderWaitingAccess&) = delete;
     ViewportEngineProviderWaitingAccess(ViewportEngineProviderWaitingAccess&&) noexcept = default;
+    ViewportEngineProviderWaitingMutation takeMutation() { return { std::move(m_request) }; }
 
 private:
-    ImageViewportInternal::RequestState& m_request;
+    ImageViewportInternal::RequestState m_request;
     const ImageViewportInternal::ProviderFactsState& m_facts;
     const ImageViewportInternal::ProviderSessionState& m_session;
     const ImageViewportInternal::ProviderRequestLedger& m_requests;
@@ -57,11 +63,12 @@ class ViewportEngineProviderEndOfSequenceAccess
 {
     friend class ViewportEngine;
     friend ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSequence(
-        ViewportEngineProviderEndOfSequenceInput, ViewportEngineProviderEndOfSequenceAccess);
-    ViewportEngineProviderEndOfSequenceAccess(ImageViewportInternal::RequestState& request,
-        ImageViewportInternal::PlaybackState& playback,
-        ImageViewportInternal::DisplayState& display, std::array<ViewportEngineRoleState, 2>& roles,
-        const ImageViewportInternal::PresentationState& presentation, quint64& nextRevision,
+        ViewportEngineProviderEndOfSequenceInput, ViewportEngineProviderEndOfSequenceAccess&);
+    ViewportEngineProviderEndOfSequenceAccess(const ImageViewportInternal::RequestState& request,
+        const ImageViewportInternal::PlaybackState& playback,
+        const ImageViewportInternal::DisplayState& display,
+        const std::array<ViewportEngineRoleState, 2>& roles,
+        const ImageViewportInternal::PresentationState& presentation, quint64 nextRevision,
         quint64 presentationRevision, quint64 targetGeneration)
         : m_request(request)
         , m_playback(playback)
@@ -79,23 +86,28 @@ public:
         = delete;
     ViewportEngineProviderEndOfSequenceAccess(ViewportEngineProviderEndOfSequenceAccess&&) noexcept
         = default;
+    ViewportEngineProviderEndOfSequenceMutation takeMutation()
+    {
+        return { std::move(m_request), std::move(m_playback), std::move(m_display),
+            std::move(m_roles), m_nextRevision };
+    }
 
 private:
     ViewportProviderFrameRequestStartResult startFrame(ImageViewportPageRole,
         ImageViewportInternal::DisplayRequestTarget, const ViewportEngineGeometryInput&);
     ViewportEngineProviderTerminalEventReduction protocolViolation(
         ImageViewportPageRole, ImageSequenceProviderRequestToken);
-    ImageViewportInternal::RequestState& m_request;
-    ImageViewportInternal::PlaybackState& m_playback;
-    ImageViewportInternal::DisplayState& m_display;
-    std::array<ViewportEngineRoleState, 2>& m_roles;
+    ImageViewportInternal::RequestState m_request;
+    ImageViewportInternal::PlaybackState m_playback;
+    ImageViewportInternal::DisplayState m_display;
+    std::array<ViewportEngineRoleState, 2> m_roles;
     const ImageViewportInternal::PresentationState& m_presentation;
-    quint64& m_nextRevision;
+    quint64 m_nextRevision;
     quint64 m_presentationRevision;
     quint64 m_targetGeneration;
 };
 
 ViewportEngineProviderWaitingReduction reduceViewportEngineProviderWaiting(
-    ViewportEngineProviderWaitingInput, ViewportEngineProviderWaitingAccess);
+    ViewportEngineProviderWaitingInput, ViewportEngineProviderWaitingAccess&);
 ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSequence(
-    ViewportEngineProviderEndOfSequenceInput, ViewportEngineProviderEndOfSequenceAccess);
+    ViewportEngineProviderEndOfSequenceInput, ViewportEngineProviderEndOfSequenceAccess&);

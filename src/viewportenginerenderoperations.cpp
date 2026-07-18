@@ -89,7 +89,7 @@ void markPlayback(
 
 ViewportEngineRenderCoordinationState::AttemptContext synchronizeViewportEngineRender(
     ViewportEngineRenderSynchronizationInput input,
-    ViewportEngineRenderSynchronizationAccess access)
+    ViewportEngineRenderSynchronizationAccess& access)
 {
     ViewportEngineRenderCoordinationState::AttemptContext result;
     if (access.render().nextSynchronizationAttempt == std::numeric_limits<quint64>::max()) {
@@ -180,7 +180,7 @@ ViewportEngineRenderCoordinationState::AttemptContext synchronizeViewportEngineR
 
 ViewportEngineRenderCommitReduction reduceViewportEngineRenderCommit(
     ViewportEngineRenderAcknowledgementInput input, // NOLINT(performance-unnecessary-value-param)
-    ViewportEngineRenderCommitAccess access)
+    ViewportEngineRenderCommitAccess& access)
 {
     ViewportEngineRenderCommitReduction result;
     auto& changes = result.changes;
@@ -258,7 +258,7 @@ ViewportEngineRenderCommitReduction reduceViewportEngineRenderCommit(
 
 ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
     ViewportEngineRenderAcknowledgementInput input, // NOLINT(performance-unnecessary-value-param)
-    ViewportEngineRenderFailureAccess access)
+    ViewportEngineRenderFailureAccess& access)
 {
     using namespace ImageViewportInternal;
     ViewportEngineRenderFailureReduction result;
@@ -340,7 +340,7 @@ ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
 }
 
 ViewportEngineGeometryChangeReduction reduceViewportEngineGeometryChange(
-    ViewportEngineGeometryChangeInput input, ViewportEngineGeometryChangeAccess access)
+    ViewportEngineGeometryChangeInput input, ViewportEngineGeometryChangeAccess& access)
 {
     ViewportEngineGeometryChangeReduction result;
     auto& changes = result.changes;
