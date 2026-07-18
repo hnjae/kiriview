@@ -198,6 +198,11 @@ void ImageViewportPrivate::advancePlaybackForTest(int elapsedMilliseconds)
     advancePlayback(elapsedMilliseconds);
 }
 
+void ImageViewportPrivate::setPendingPlaybackSchedulerElapsedForTest(int elapsedMilliseconds)
+{
+    playbackScheduler.setPendingElapsedForTest(elapsedMilliseconds);
+}
+
 void ImageViewportPrivate::setNextProviderRequestTokenForTest(quint64 token)
 {
     ViewportEngineTestAccess::providerRequests(engine, PageRole::Primary).nextRequestToken = token;

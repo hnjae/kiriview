@@ -47,10 +47,26 @@ void ImageViewportPlaybackScheduler::flushElapsed()
 
 int ImageViewportPlaybackScheduler::takeElapsed()
 {
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+    if (pendingElapsedForTest) {
+        const int elapsedMilliseconds = *pendingElapsedForTest;
+        pendingElapsedForTest.reset();
+        timer.stop();
+        clock.invalidate();
+        return elapsedMilliseconds;
+    }
+#endif
     const int elapsedMilliseconds = clock.takeElapsed(timebase.elapsed());
     timer.stop();
     return elapsedMilliseconds;
 }
+
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+void ImageViewportPlaybackScheduler::setPendingElapsedForTest(int elapsedMilliseconds)
+{
+    pendingElapsedForTest = std::max(0, elapsedMilliseconds);
+}
+#endif
 
 void ImageViewportPlaybackScheduler::handleTimeout()
 {

@@ -44,6 +44,7 @@ public:
     bool containsPoint(const ImageViewportCoordinateInput& input) const;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void advancePlaybackForTest(int elapsedMilliseconds);
+    void setPendingPlaybackSchedulerElapsedForTest(int elapsedMilliseconds);
     void setNextProviderRequestTokenForTest(quint64 token);
     void setNextProviderRequestTokenForTest(PageRole role, quint64 token);
     void setNextRevisionTokenForTest(quint64 token);

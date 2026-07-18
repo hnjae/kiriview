@@ -137,9 +137,21 @@ ImageViewportCommandResult ImageViewportPrivate::setPresentationTarget(
     ImageSequenceSource primarySource = factorySequenceSource(presentationTarget.primary());
     ImageSequenceSource secondarySourceHandle
         = factorySequenceSource(presentationTarget.secondary());
-    auto reduced = engine.assignPresentationTarget(
-        { presentationTarget, policy, std::move(primarySource), std::move(secondarySourceHandle) });
+    const ViewportEnginePresentationTargetAssignmentRequest request { presentationTarget, policy,
+        std::move(primarySource), std::move(secondarySourceHandle) };
+    const bool flushRefinementElapsed = policy.replacementIntent()
+            == PresentationTargetTransitionPolicy::ReplacementIntent::SameTargetRefinement
+        && engine.canAssignPresentationTarget(request);
+    if (flushRefinementElapsed) {
+        ++itemTransactionDepth;
+        playbackScheduler.flushElapsed();
+    }
+    auto reduced = engine.assignPresentationTarget(request);
     const CommandOutcome outcome = reduced.outcome();
-    const ImageViewportStateSnapshot snapshot = applyEngineTransition(reduced.takeTransition());
+    ImageViewportStateSnapshot snapshot = applyEngineTransition(reduced.takeTransition());
+    if (flushRefinementElapsed) {
+        --itemTransactionDepth;
+        snapshot = finalizeItemTransaction();
+    }
     return commandResult(outcome, snapshot);
 }

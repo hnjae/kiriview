@@ -13,6 +13,22 @@
 #include <utility>
 
 namespace {
+ViewportEnginePresentationTargetAssignmentInput assignmentInput(
+    const ViewportEnginePresentationTargetAssignmentRequest& input,
+    ViewportEngineGeometryInput geometry)
+{
+    ViewportEnginePresentationTargetAssignmentInput operationInput { input.presentationTarget,
+        input.transitionPolicy, input.primarySource, input.secondarySource, geometry };
+    if (!operationInput.presentationTarget.isClear() && !operationInput.primarySource.sequence) {
+        operationInput.primarySource = ImageViewportInternal::factorySequenceSource(
+            operationInput.presentationTarget.primary());
+    }
+    if (!operationInput.presentationTarget.isClear() && !operationInput.secondarySource.sequence) {
+        operationInput.secondarySource = ImageViewportInternal::factorySequenceSource(
+            operationInput.presentationTarget.secondary());
+    }
+    return operationInput;
+}
 }
 
 ViewportEngine::ViewportEngine()
@@ -255,16 +271,7 @@ ViewportRenderSnapshot ViewportEngine::renderSnapshot(
 ViewportEngineCommandTransition ViewportEngine::assignPresentationTarget(
     const ViewportEnginePresentationTargetAssignmentRequest& input)
 {
-    ViewportEnginePresentationTargetAssignmentInput operationInput { input.presentationTarget,
-        input.transitionPolicy, input.primarySource, input.secondarySource, acceptedGeometry() };
-    if (!operationInput.presentationTarget.isClear() && !operationInput.primarySource.sequence) {
-        operationInput.primarySource = ImageViewportInternal::factorySequenceSource(
-            operationInput.presentationTarget.primary());
-    }
-    if (!operationInput.presentationTarget.isClear() && !operationInput.secondarySource.sequence) {
-        operationInput.secondarySource = ImageViewportInternal::factorySequenceSource(
-            operationInput.presentationTarget.secondary());
-    }
+    auto operationInput = assignmentInput(input, acceptedGeometry());
     if (!validateViewportEnginePresentationTargetAssignment(operationInput,
             m_state->requestState.presentationTarget, m_state->requestState.request,
             m_state->providerState.roles)) {
@@ -307,6 +314,15 @@ ViewportEngineCommandTransition ViewportEngine::assignPresentationTarget(
     }
     result.playbackSchedule = currentPlaybackSchedule();
     return finalizeCommandTransition(command, std::move(result));
+}
+
+bool ViewportEngine::canAssignPresentationTarget(
+    const ViewportEnginePresentationTargetAssignmentRequest& input) const
+{
+    const auto operationInput = assignmentInput(input, acceptedGeometry());
+    return validateViewportEnginePresentationTargetAssignment(operationInput,
+        m_state->requestState.presentationTarget, m_state->requestState.request,
+        m_state->providerState.roles);
 }
 ViewportEngineCommandResult ViewportEngine::rejectInvalidCommand()
 {

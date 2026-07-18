@@ -84,6 +84,11 @@ void advancePlaybackForTest(ImageViewport& item, int elapsedMilliseconds)
     ImageViewportPrivate::get(item)->advancePlaybackForTest(elapsedMilliseconds);
 }
 
+void setPendingPlaybackSchedulerElapsedForTest(ImageViewport& item, int elapsedMilliseconds)
+{
+    ImageViewportPrivate::get(item)->setPendingPlaybackSchedulerElapsedForTest(elapsedMilliseconds);
+}
+
 void setNextProviderRequestTokenForTest(ImageViewport& item, quint64 token)
 {
     ImageViewportPrivate::get(item)->setNextProviderRequestTokenForTest(token);

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "imageviewportstate_p.h"
-#include "internalobservation_p.h"
 #include "imageviewporttoken_p.h"
+#include "internalobservation_p.h"
 #include <ImageViewport/ImageViewport>
 
 #include <memory>
@@ -20,6 +20,7 @@ using InternalObservationCategoryForTest = ImageViewportInternal::InternalObserv
 using InternalObservationCauseForTest = ImageViewportInternal::InternalObservationCause;
 
 void advancePlaybackForTest(ImageViewport& item, int elapsedMilliseconds);
+void setPendingPlaybackSchedulerElapsedForTest(ImageViewport& item, int elapsedMilliseconds);
 void setNextProviderRequestTokenForTest(ImageViewport& item, quint64 token);
 void setNextProviderRequestTokenForTest(
     ImageViewport& item, ImageViewportPageRole role, quint64 token);

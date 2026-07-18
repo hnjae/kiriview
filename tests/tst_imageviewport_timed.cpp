@@ -35,6 +35,7 @@ private slots:
     void timedFrameListAuthoredFiniteLoopStopsAfterFinalIteration();
     void timedFrameListPauseWhileStoppedAndRenderWaitingPreservesRequest();
     void timedFrameListPlayCommandPreservesElapsedPosition();
+    void timedFrameListSameTargetRefinementPreservesSchedulerElapsed();
     void timedFrameListBackgroundOnlyChangesPreserveRequestAndPlayback();
     void timedFrameListPlaybackAdvancesDeterministically();
     void timedFrameListPlaybackAdvancesFromRuntimeTimer();
@@ -1093,6 +1094,67 @@ void ImageViewportTimedTest::timedFrameListPlayCommandPreservesElapsedPosition()
     QCOMPARE(primaryDisplayedFrame(pausedItem), 1);
     QCOMPARE(primaryRequestedPosition(pausedItem), 100);
     QCOMPARE(primaryDisplayedPosition(pausedItem), 100);
+}
+
+void ImageViewportTimedTest::timedFrameListSameTargetRefinementPreservesSchedulerElapsed()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::red);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::blue);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList originalList;
+    QVERIFY(originalList.appendFrame(&firstFrame, 100));
+    QVERIFY(originalList.appendFrame(&secondFrame, 250));
+    TimedImageFrameList refinementList;
+    QVERIFY(refinementList.appendFrame(&secondFrame, 100));
+    QVERIFY(refinementList.appendFrame(&firstFrame, 250));
+    TimedImageFrameList incompatibleList;
+    QVERIFY(incompatibleList.appendFrame(&secondFrame, 100));
+    QVERIFY(incompatibleList.appendFrame(&firstFrame, 251));
+    QScopedPointer<ImageSequenceFactoryResult> original(factory.fromTimedFrameList(&originalList));
+    QScopedPointer<ImageSequenceFactoryResult> refinement(
+        factory.fromTimedFrameList(&refinementList));
+    QScopedPointer<ImageSequenceFactoryResult> incompatible(
+        factory.fromTimedFrameList(&incompatibleList));
+    QVERIFY(original->sequence());
+    QVERIFY(refinement->sequence());
+    QVERIFY(incompatible->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(original->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(
+        item.play(ImageViewportPageRole::Primary).outcome(), ImageViewportCommandOutcome::Accepted);
+    setPendingPlaybackSchedulerElapsedForTest(item, 80);
+
+    PresentationTargetTransitionPolicy refinementPolicy;
+    refinementPolicy.setReplacementIntent(
+        PresentationTargetTransitionPolicy::ReplacementIntent::SameTargetRefinement);
+    QCOMPARE(item.setPresentationTarget(
+                     ImageViewportPresentationTarget(incompatible->sequence()), refinementPolicy)
+                 .outcome(),
+        ImageViewportCommandOutcome::Invalid);
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
+    QCOMPARE(item.setPresentationTarget(
+                     ImageViewportPresentationTarget(refinement->sequence()), refinementPolicy)
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(stateSpy.count(), 1);
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    acknowledgePendingRenderCommitForTest(item);
+
+    advancePlaybackForTest(item, 19);
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    advancePlaybackForTest(item, 1);
+    QCOMPARE(primaryRequestedFrame(item), 1);
 }
 
 void ImageViewportTimedTest::timedFrameListBackgroundOnlyChangesPreserveRequestAndPlayback()

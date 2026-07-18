@@ -37,6 +37,8 @@ public:
     ViewportEngineCommandTransition applyPlaybackCommand(
         ViewportEnginePlaybackCommandRequest input);
     ViewportEngineTransition advancePlayback(ViewportEnginePlaybackTickRequest input);
+    bool canAssignPresentationTarget(
+        const ViewportEnginePresentationTargetAssignmentRequest& input) const;
     ViewportEngineCommandTransition assignPresentationTarget(
         const ViewportEnginePresentationTargetAssignmentRequest& input);
     ViewportEngineCommandTransition applyPresentationCommand(
