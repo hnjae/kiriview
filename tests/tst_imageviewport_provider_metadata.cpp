@@ -1808,7 +1808,9 @@ void ImageViewportProviderMetadataTest::providerProgressResultsAreAdvisory()
         = revisionTokenProperty(item, "requestRevision");
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
 
-    emitProviderProgress(sessionFactory->lastSession(), metadataToken, 0.5);
+    for (int index = 0; index < 1024; ++index) {
+        emitProviderProgress(sessionFactory->lastSession(), metadataToken, 0.5);
+    }
     drainQueuedProviderResults();
     emitProviderWaiting(sessionFactory->lastSession(), metadataToken);
     drainQueuedProviderResults();
@@ -1910,7 +1912,9 @@ void ImageViewportProviderMetadataTest::providerTerminalResultDominatesProgress(
     QVERIFY(sessionFactory->lastSession());
     const ImageSequenceProviderRequestToken metadataToken
         = sessionFactory->lastSession()->lastMetadataToken();
-    emitProviderProgress(sessionFactory->lastSession(), metadataToken, 0.5);
+    for (int index = 0; index < 1024; ++index) {
+        emitProviderProgress(sessionFactory->lastSession(), metadataToken, 0.5);
+    }
     drainQueuedProviderResults();
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
