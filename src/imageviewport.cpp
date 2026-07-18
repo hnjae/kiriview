@@ -130,6 +130,48 @@ bool PresentationTargetTransitionPolicy::isValid() const
         || m_fitModeTransition != FitModeTransition::SetExplicit;
 }
 
+namespace {
+
+ViewportEnginePresentationTarget enginePresentationTarget(
+    const ImageViewportPresentationTarget& target)
+{
+    return { target.primary(), target.secondary(), target.isValid() };
+}
+
+ViewportEnginePresentationTargetTransitionPolicy engineTransitionPolicy(
+    const PresentationTargetTransitionPolicy& policy)
+{
+    using EnginePolicy = ViewportEnginePresentationTargetTransitionPolicy;
+    EnginePolicy result;
+    result.displayTransitionValue
+        = static_cast<EnginePolicy::DisplayTransition>(policy.displayTransition());
+    result.zoomTransitionValue = static_cast<EnginePolicy::ZoomTransition>(policy.zoomTransition());
+    result.contentPositionTransitionValue
+        = static_cast<EnginePolicy::ContentPositionTransition>(policy.contentPositionTransition());
+    result.rotationTransitionValue
+        = static_cast<EnginePolicy::RotationTransition>(policy.rotationTransition());
+    result.mirrorTransitionValue
+        = static_cast<EnginePolicy::MirrorTransition>(policy.mirrorTransition());
+    result.fitModeTransitionValue
+        = static_cast<EnginePolicy::FitModeTransition>(policy.fitModeTransition());
+    result.fitModeValue = policy.fitMode();
+    result.fitModeSet = policy.hasExplicitFitMode();
+    result.spreadDirectionTransitionValue
+        = static_cast<EnginePolicy::SpreadDirectionTransition>(policy.spreadDirectionTransition());
+    result.spreadDirectionValue = policy.spreadDirection();
+    result.spreadDirectionSet = policy.hasExplicitSpreadDirection();
+    result.pageGapTransitionValue
+        = static_cast<EnginePolicy::PageGapTransition>(policy.pageGapTransition());
+    result.pageGapValue = policy.pageGap();
+    result.pageGapSet = policy.hasExplicitPageGap();
+    result.replacementIntentValue
+        = static_cast<EnginePolicy::ReplacementIntent>(policy.replacementIntent());
+    result.shapeValid = policy.isValid();
+    return result;
+}
+
+} // namespace
+
 ImageViewportCommandResult ImageViewportPrivate::setPresentationTarget(
     const ImageViewportPresentationTarget& presentationTarget,
     PresentationTargetTransitionPolicy policy)
@@ -137,8 +179,10 @@ ImageViewportCommandResult ImageViewportPrivate::setPresentationTarget(
     ImageSequenceSource primarySource = factorySequenceSource(presentationTarget.primary());
     ImageSequenceSource secondarySourceHandle
         = factorySequenceSource(presentationTarget.secondary());
-    const ViewportEnginePresentationTargetAssignmentRequest request { presentationTarget, policy,
-        std::move(primarySource), std::move(secondarySourceHandle) };
+    const ViewportEnginePresentationTargetAssignmentRequest request {
+        enginePresentationTarget(presentationTarget), engineTransitionPolicy(policy),
+        std::move(primarySource), std::move(secondarySourceHandle)
+    };
     const bool flushRefinementElapsed = policy.replacementIntent()
             == PresentationTargetTransitionPolicy::ReplacementIntent::SameTargetRefinement
         && engine.canAssignPresentationTarget(request);

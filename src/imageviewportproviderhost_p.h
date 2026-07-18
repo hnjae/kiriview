@@ -2,7 +2,6 @@
 
 #include "viewportproviderbridge_p.h"
 #include "viewportprovidercontract_p.h"
-#include <ImageViewport/ImageViewport>
 
 #include <QtCore/QSet>
 #include <QtCore/QTimer>

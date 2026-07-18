@@ -42,6 +42,11 @@ add_library(imageviewport_viewport_header_compile OBJECT public_headers/viewport
 target_include_directories(imageviewport_viewport_header_compile PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(imageviewport_viewport_header_compile PRIVATE Qt6::Qml Qt6::Quick)
 
+add_library(imageviewport_core_contract_header_compile OBJECT private_headers/core_contracts.cpp)
+target_include_directories(imageviewport_core_contract_header_compile
+                           PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(imageviewport_core_contract_header_compile PRIVATE ImageViewport)
+
 # Add a Qt test executable without private probe declarations.
 function(add_imageviewport_core_qt_test target source)
     add_executable(${target} ${source})

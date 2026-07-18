@@ -7,8 +7,8 @@
 
 struct ViewportEnginePresentationTargetAssignmentInput
 {
-    ImageViewportPresentationTarget presentationTarget = ImageViewportPresentationTarget::clear();
-    PresentationTargetTransitionPolicy transitionPolicy;
+    ViewportEnginePresentationTarget presentationTarget = ViewportEnginePresentationTarget::clear();
+    ViewportEnginePresentationTargetTransitionPolicy transitionPolicy;
     ImageViewportInternal::ImageSequenceSource primarySource;
     ImageViewportInternal::ImageSequenceSource secondarySource;
     ViewportEngineGeometryInput geometry;

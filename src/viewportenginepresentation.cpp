@@ -2,6 +2,7 @@
 #include "viewportenginepresentationoperations_p.h"
 #include "viewportengineprojection_p.h"
 
+#include "imageviewportlimits_p.h"
 #include "imageviewportvalidation_p.h"
 #include "viewportprovidertransporteffects_p.h"
 
@@ -13,6 +14,7 @@
 namespace {
 using ImageViewportInternal::PresentationState;
 using ImageViewportInternal::ViewportChangeSet;
+using ImageViewportInternal::ViewportDisplayLimits;
 
 bool presentationStatesEqual(const PresentationState& left, const PresentationState& right)
 {
@@ -113,12 +115,11 @@ void preserveAnchoredContentPosition(PresentationState& presentation,
 
 double steppedZoomPercent(int stepCount, double manualZoomPercent)
 {
-    const double minimum = ImageViewportDisplayLimits::minimumManualZoomPercent();
-    const double maximum = ImageViewportDisplayLimits::maximumManualZoomPercent();
+    const double minimum = ViewportDisplayLimits::minimumManualZoomPercent();
+    const double maximum = ViewportDisplayLimits::maximumManualZoomPercent();
     const double base = std::clamp(manualZoomPercent, minimum, maximum);
     const double targetLog = std::log(base)
-        + static_cast<double>(stepCount)
-            * std::log(ImageViewportDisplayLimits::manualZoomStepFactor());
+        + static_cast<double>(stepCount) * std::log(ViewportDisplayLimits::manualZoomStepFactor());
     if (!std::isfinite(targetLog) || targetLog >= std::log(maximum)) {
         return maximum;
     }
@@ -128,7 +129,7 @@ double steppedZoomPercent(int stepCount, double manualZoomPercent)
     return std::clamp(std::exp(targetLog), minimum, maximum);
 }
 
-bool commandHasOperation(const ImageViewportPresentationCommand& command)
+bool commandHasOperation(const ViewportEnginePresentationCommand& command)
 {
     return command.resetView() || command.hasFitMode() || command.hasManualZoomPercent()
         || command.hasZoomStepDelta() || command.hasContentPosition() || command.hasPanDelta()
@@ -143,7 +144,7 @@ bool commandHasOperation(const ImageViewportPresentationCommand& command)
 
 bool commandValid(const ViewportEnginePresentationCommandInput& input)
 {
-    const ImageViewportPresentationCommand& command = input.command;
+    const ViewportEnginePresentationCommand& command = input.command;
     const bool resetConflicts = command.resetView()
         && (command.hasFitMode() || command.hasManualZoomPercent() || command.hasZoomStepDelta()
             || command.hasContentPosition() || command.hasPanDelta() || command.hasContentAnchor()
@@ -156,8 +157,8 @@ bool commandValid(const ViewportEnginePresentationCommandInput& input)
     const auto validRotation = [](int degrees) {
         return degrees == 0 || degrees == 90 || degrees == 180 || degrees == 270;
     };
-    const double minimumZoom = ImageViewportDisplayLimits::minimumManualZoomPercent();
-    const double maximumZoom = ImageViewportDisplayLimits::maximumManualZoomPercent();
+    const double minimumZoom = ViewportDisplayLimits::minimumManualZoomPercent();
+    const double maximumZoom = ViewportDisplayLimits::maximumManualZoomPercent();
 
     const bool relativeRotation = input.quarterTurnDelta != 0;
     return (commandHasOperation(command) || relativeRotation) && !resetConflicts
@@ -182,7 +183,7 @@ bool commandValid(const ViewportEnginePresentationCommandInput& input)
             || ImageViewportInternal::isValidSpreadDirection(command.spreadDirection()))
         && (!command.hasPageGap()
             || (std::isfinite(command.pageGap()) && command.pageGap() >= 0.0
-                && command.pageGap() <= ImageViewportDisplayLimits::maximumPageGap()))
+                && command.pageGap() <= ViewportDisplayLimits::maximumPageGap()))
         && (!command.hasBackgroundMode()
             || ImageViewportInternal::isValidBackgroundMode(command.backgroundMode()))
         && (!command.hasBackgroundColor() || command.backgroundColor().isValid())
@@ -191,9 +192,9 @@ bool commandValid(const ViewportEnginePresentationCommandInput& input)
         && (!command.hasCheckerboardCellSize()
             || (std::isfinite(command.checkerboardCellSize())
                 && command.checkerboardCellSize()
-                    >= ImageViewportDisplayLimits::minimumCheckerboardCellSize()
+                    >= ViewportDisplayLimits::minimumCheckerboardCellSize()
                 && command.checkerboardCellSize()
-                    <= ImageViewportDisplayLimits::maximumCheckerboardCellSize()))
+                    <= ViewportDisplayLimits::maximumCheckerboardCellSize()))
         && (!command.hasQualityPreference()
             || ImageViewportInternal::isValidQualityPreference(command.qualityPreference()))
         && (!command.hasExactnessPreference()
@@ -236,7 +237,7 @@ ViewportEnginePresentationCommandReduction reduceViewportEnginePresentationComma
         preserveAnchoredContentPosition(next, input.geometry, previousGeometry, input.anchor);
         affectsGeometry = true;
     };
-    const ImageViewportPresentationCommand& command = input.command;
+    const ViewportEnginePresentationCommand& command = input.command;
 
     if (command.resetView()) {
         next.fitMode = ImageViewportFitMode::Contain;
@@ -445,17 +446,19 @@ reduceViewportEnginePresentationTargetTransition(
     const PresentationState previousPresentation = state.presentation();
     PresentationState next = previousPresentation;
     if (input.zoomTransition
-        == PresentationTargetTransitionPolicy::ZoomTransition::ResetToContain) {
+        == ViewportEnginePresentationTargetTransitionPolicy::ZoomTransition::ResetToContain) {
         next.fitMode = ImageViewportFitMode::Contain;
         next.manualZoom = 1.0;
     }
     if (input.explicitFitMode) {
         next.fitMode = *input.explicitFitMode;
     }
-    if (input.rotationTransition == PresentationTargetTransitionPolicy::RotationTransition::Reset) {
+    if (input.rotationTransition
+        == ViewportEnginePresentationTargetTransitionPolicy::RotationTransition::Reset) {
         next.rotationDegrees = 0;
     }
-    if (input.mirrorTransition == PresentationTargetTransitionPolicy::MirrorTransition::Reset) {
+    if (input.mirrorTransition
+        == ViewportEnginePresentationTargetTransitionPolicy::MirrorTransition::Reset) {
         next.mirrorHorizontally = false;
         next.mirrorVertically = false;
     }
@@ -472,16 +475,19 @@ reduceViewportEnginePresentationTargetTransition(
         const QPointF maximum = PresentationGeometry::maximumContentPosition(acceptedGeometry);
         const bool rightToLeft = next.spreadDirection == ImageViewportSpreadDirection::RightToLeft;
         switch (input.contentPositionTransition) {
-        case PresentationTargetTransitionPolicy::ContentPositionTransition::AnchorStart:
+        case ViewportEnginePresentationTargetTransitionPolicy::ContentPositionTransition::
+            AnchorStart:
             applyContentPosition(
                 next, acceptedGeometry, QPointF(rightToLeft ? maximum.x() : 0.0, 0.0));
             break;
-        case PresentationTargetTransitionPolicy::ContentPositionTransition::AnchorEnd:
+        case ViewportEnginePresentationTargetTransitionPolicy::ContentPositionTransition::AnchorEnd:
             applyContentPosition(
                 next, acceptedGeometry, QPointF(rightToLeft ? 0.0 : maximum.x(), maximum.y()));
             break;
-        case PresentationTargetTransitionPolicy::ContentPositionTransition::Clamp:
+        case ViewportEnginePresentationTargetTransitionPolicy::ContentPositionTransition::Clamp:
             applyContentPosition(next, acceptedGeometry, input.previousContentPosition);
+            break;
+        case ViewportEnginePresentationTargetTransitionPolicy::ContentPositionTransition::Invalid:
             break;
         }
     }
@@ -517,16 +523,18 @@ ImageViewportInternal::ViewportChangeSet resolveViewportEnginePendingPresentatio
         = presentation.spreadDirection == ImageViewportSpreadDirection::RightToLeft;
     bool changed = false;
     switch (pending.contentPositionTransition) {
-    case PresentationTargetTransitionPolicy::ContentPositionTransition::AnchorStart:
+    case ViewportEnginePresentationTargetTransitionPolicy::ContentPositionTransition::AnchorStart:
         changed = applyContentPosition(
             presentation, geometry, QPointF(rightToLeft ? maximum.x() : 0.0, 0.0));
         break;
-    case PresentationTargetTransitionPolicy::ContentPositionTransition::AnchorEnd:
+    case ViewportEnginePresentationTargetTransitionPolicy::ContentPositionTransition::AnchorEnd:
         changed = applyContentPosition(
             presentation, geometry, QPointF(rightToLeft ? 0.0 : maximum.x(), maximum.y()));
         break;
-    case PresentationTargetTransitionPolicy::ContentPositionTransition::Clamp:
+    case ViewportEnginePresentationTargetTransitionPolicy::ContentPositionTransition::Clamp:
         changed = applyContentPosition(presentation, geometry, pending.previousContentPosition);
+        break;
+    case ViewportEnginePresentationTargetTransitionPolicy::ContentPositionTransition::Invalid:
         break;
     }
     target.pendingPresentationTransition = {};

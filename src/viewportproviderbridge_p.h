@@ -2,7 +2,7 @@
 
 #include "imageviewportstate_p.h"
 #include "viewportproviderevent_p.h"
-#include <ImageViewport/ImageViewport>
+#include <ImageViewport/imagesequenceprovider.h>
 
 #include <QtCore/QHash>
 #include <QtCore/QMutex>

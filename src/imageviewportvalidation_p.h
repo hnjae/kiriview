@@ -1,6 +1,8 @@
 #pragma once
 
-#include <ImageViewport/ImageViewport>
+#include <ImageViewport/imageviewporttypes.h>
+
+#include <QtCore/QPointF>
 
 #include <cmath>
 

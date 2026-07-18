@@ -1,7 +1,11 @@
 #pragma once
 
 #include "coordinateresult_p.h"
-#include <ImageViewport/ImageViewport>
+#include <ImageViewport/imageviewporttypes.h>
+
+#include <QtCore/QPointF>
+#include <QtCore/QRectF>
+#include <QtCore/QSizeF>
 
 class PresentationGeometry
 {

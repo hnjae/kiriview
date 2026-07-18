@@ -1,10 +1,64 @@
 #include "imageviewport_p.h"
 using namespace ImageViewportInternal;
 
+namespace {
+
+ViewportEnginePresentationCommand enginePresentationCommand(
+    const ImageViewportPresentationCommand& command)
+{
+    ViewportEnginePresentationCommand result;
+    result.resetViewValue = command.resetView();
+    result.fitModeSet = command.hasFitMode();
+    result.fitModeValue = command.fitMode();
+    result.manualZoomPercentSet = command.hasManualZoomPercent();
+    result.manualZoomPercentValue = command.manualZoomPercent();
+    result.zoomStepDeltaSet = command.hasZoomStepDelta();
+    result.zoomStepDeltaValue = command.zoomStepDelta();
+    result.contentPositionSet = command.hasContentPosition();
+    result.contentPositionValue = command.contentPosition();
+    result.panDeltaSet = command.hasPanDelta();
+    result.panDeltaValue = command.panDelta();
+    result.contentAnchorSet = command.hasContentAnchor();
+    result.contentAnchorValue = command.contentAnchor();
+    result.rotationDegreesSet = command.hasRotationDegrees();
+    result.rotationDegreesValue = command.rotationDegrees();
+    result.mirrorHorizontallySet = command.hasMirrorHorizontally();
+    result.mirrorHorizontallyValue = command.mirrorHorizontally();
+    result.mirrorVerticallySet = command.hasMirrorVertically();
+    result.mirrorVerticallyValue = command.mirrorVertically();
+    result.spreadDirectionSet = command.hasSpreadDirection();
+    result.spreadDirectionValue = command.spreadDirection();
+    result.pageGapSet = command.hasPageGap();
+    result.pageGapValue = command.pageGap();
+    result.backgroundModeSet = command.hasBackgroundMode();
+    result.backgroundModeValue = command.backgroundMode();
+    result.backgroundColorSet = command.hasBackgroundColor();
+    result.backgroundColorValue = command.backgroundColor();
+    result.checkerboardLightColorSet = command.hasCheckerboardLightColor();
+    result.checkerboardLightColorValue = command.checkerboardLightColor();
+    result.checkerboardDarkColorSet = command.hasCheckerboardDarkColor();
+    result.checkerboardDarkColorValue = command.checkerboardDarkColor();
+    result.checkerboardCellSizeSet = command.hasCheckerboardCellSize();
+    result.checkerboardCellSizeValue = command.checkerboardCellSize();
+    result.smoothingSet = command.hasSmoothing();
+    result.smoothingValue = command.smoothing();
+    result.mipmapSet = command.hasMipmap();
+    result.mipmapValue = command.mipmap();
+    result.loopingSet = command.hasLooping();
+    result.loopingValue = command.looping();
+    result.qualityPreferenceSet = command.hasQualityPreference();
+    result.qualityPreferenceValue = command.qualityPreference();
+    result.exactnessPreferenceSet = command.hasExactnessPreference();
+    result.exactnessPreferenceValue = command.exactnessPreference();
+    return result;
+}
+
+} // namespace
+
 ImageViewportCommandResult ImageViewportPrivate::setPresentation(
     ImageViewportPresentationCommand command)
 {
-    auto reduced = engine.applyPresentationCommand({ command });
+    auto reduced = engine.applyPresentationCommand({ enginePresentationCommand(command) });
     const CommandOutcome outcome = reduced.outcome();
     const ImageViewportStateSnapshot snapshot = applyEngineTransition(reduced.takeTransition());
     return commandResult(outcome, snapshot);

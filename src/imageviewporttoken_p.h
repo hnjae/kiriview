@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ImageViewport/ImageViewport>
+#include <ImageViewport/imagesequenceprovider.h>
 
 class RevisionToken
 {

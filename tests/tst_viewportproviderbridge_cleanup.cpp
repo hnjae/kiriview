@@ -35,11 +35,18 @@ class TrackedCleanupSession final // clazy:exclude=missing-qobject-macro
     : public ImageSequenceProviderSession
 {
 public:
-    TrackedCleanupSession(std::atomic<int>& closeCount, std::atomic<QThread*>& destructionThread)
-        : m_closeCount(closeCount)
+    TrackedCleanupSession(std::atomic<int>& closeCount, std::atomic<QThread*>& destructionThread,
+        QObject* parent = nullptr)
+        : ImageSequenceProviderSession(parent)
+        , m_closeCount(closeCount)
         , m_destructionThread(destructionThread)
     {
     }
+
+    TrackedCleanupSession(const TrackedCleanupSession&) = delete;
+    TrackedCleanupSession& operator=(const TrackedCleanupSession&) = delete;
+    TrackedCleanupSession(TrackedCleanupSession&&) = delete;
+    TrackedCleanupSession& operator=(TrackedCleanupSession&&) = delete;
 
     ~TrackedCleanupSession() override { m_destructionThread.store(QThread::currentThread()); }
 

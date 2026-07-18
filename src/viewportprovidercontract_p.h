@@ -6,7 +6,6 @@
 #include "timingintervals_p.h"
 #include "viewportplaybackcontract_p.h"
 #include "viewportproviderevent_p.h"
-#include <ImageViewport/ImageViewport>
 
 #include <QtCore/QSizeF>
 #include <QtCore/QString>

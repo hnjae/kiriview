@@ -3,7 +3,7 @@
 #include "imageviewportstate_p.h"
 #include "presentationgeometry_p.h"
 #include "renderfailurecause_p.h"
-#include <ImageViewport/ImageViewport>
+#include <ImageViewport/imageviewporttypes.h>
 
 #include <QtCore/QRectF>
 #include <QtCore/QSizeF>

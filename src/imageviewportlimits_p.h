@@ -1,10 +1,20 @@
 #pragma once
 
-#include <ImageViewport/ImageViewport>
+#include <ImageViewport/imagesequence.h>
 
 #include <cmath>
 
 namespace ImageViewportInternal {
+
+struct ViewportDisplayLimits
+{
+    static constexpr double minimumManualZoomPercent() { return 1.0; }
+    static constexpr double maximumManualZoomPercent() { return 10000.0; }
+    static constexpr double manualZoomStepFactor() { return 1.25; }
+    static constexpr double maximumPageGap() { return 8192.0; }
+    static constexpr double minimumCheckerboardCellSize() { return 1.0; }
+    static constexpr double maximumCheckerboardCellSize() { return 256.0; }
+};
 
 constexpr int minimumMaximumLogicalSide = 8192;
 constexpr qint64 minimumMaximumPixelsPerFrame = 67108864LL;

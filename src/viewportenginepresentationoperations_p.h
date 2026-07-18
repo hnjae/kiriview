@@ -7,7 +7,7 @@
 
 struct ViewportEnginePresentationCommandInput
 {
-    ImageViewportPresentationCommand command;
+    ViewportEnginePresentationCommand command;
     ViewportEngineGeometryInput geometry;
     QPointF anchor;
     int quarterTurnDelta = 0;
@@ -15,14 +15,15 @@ struct ViewportEnginePresentationCommandInput
 
 struct ViewportEnginePresentationTargetTransitionInput
 {
-    PresentationTargetTransitionPolicy::ZoomTransition zoomTransition
-        = PresentationTargetTransitionPolicy::ZoomTransition::Preserve;
-    PresentationTargetTransitionPolicy::ContentPositionTransition contentPositionTransition
-        = PresentationTargetTransitionPolicy::ContentPositionTransition::Clamp;
-    PresentationTargetTransitionPolicy::RotationTransition rotationTransition
-        = PresentationTargetTransitionPolicy::RotationTransition::Preserve;
-    PresentationTargetTransitionPolicy::MirrorTransition mirrorTransition
-        = PresentationTargetTransitionPolicy::MirrorTransition::Preserve;
+    ViewportEnginePresentationTargetTransitionPolicy::ZoomTransition zoomTransition
+        = ViewportEnginePresentationTargetTransitionPolicy::ZoomTransition::Preserve;
+    ViewportEnginePresentationTargetTransitionPolicy::ContentPositionTransition
+        contentPositionTransition
+        = ViewportEnginePresentationTargetTransitionPolicy::ContentPositionTransition::Clamp;
+    ViewportEnginePresentationTargetTransitionPolicy::RotationTransition rotationTransition
+        = ViewportEnginePresentationTargetTransitionPolicy::RotationTransition::Preserve;
+    ViewportEnginePresentationTargetTransitionPolicy::MirrorTransition mirrorTransition
+        = ViewportEnginePresentationTargetTransitionPolicy::MirrorTransition::Preserve;
     std::optional<ImageViewportFitMode> explicitFitMode;
     std::optional<ImageViewportSpreadDirection> explicitSpreadDirection;
     std::optional<double> explicitPageGap;

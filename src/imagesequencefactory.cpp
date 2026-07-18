@@ -4,6 +4,8 @@
 #include "imageviewportproviderfacts_p.h"
 #include "publicdiagnostic_p.h"
 
+#include <ImageViewport/imageviewport.h>
+
 #include <utility>
 
 using namespace ImageViewportInternal;
@@ -397,14 +399,32 @@ double ImageViewportDisplayLimits::getMaximumCheckerboardCellSize() const
     return maximumCheckerboardCellSize();
 }
 
-double ImageViewportDisplayLimits::minimumManualZoomPercent() { return 1.0; }
+double ImageViewportDisplayLimits::minimumManualZoomPercent()
+{
+    return ViewportDisplayLimits::minimumManualZoomPercent();
+}
 
-double ImageViewportDisplayLimits::maximumManualZoomPercent() { return 10000.0; }
+double ImageViewportDisplayLimits::maximumManualZoomPercent()
+{
+    return ViewportDisplayLimits::maximumManualZoomPercent();
+}
 
-double ImageViewportDisplayLimits::manualZoomStepFactor() { return 1.25; }
+double ImageViewportDisplayLimits::manualZoomStepFactor()
+{
+    return ViewportDisplayLimits::manualZoomStepFactor();
+}
 
-double ImageViewportDisplayLimits::maximumPageGap() { return 8192.0; }
+double ImageViewportDisplayLimits::maximumPageGap()
+{
+    return ViewportDisplayLimits::maximumPageGap();
+}
 
-double ImageViewportDisplayLimits::minimumCheckerboardCellSize() { return 1.0; }
+double ImageViewportDisplayLimits::minimumCheckerboardCellSize()
+{
+    return ViewportDisplayLimits::minimumCheckerboardCellSize();
+}
 
-double ImageViewportDisplayLimits::maximumCheckerboardCellSize() { return 256.0; }
+double ImageViewportDisplayLimits::maximumCheckerboardCellSize()
+{
+    return ViewportDisplayLimits::maximumCheckerboardCellSize();
+}

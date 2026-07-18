@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ImageViewport/ImageViewport>
+#include "viewportengineinput_p.h"
 
 #include <QtCore/QRectF>
 #include <QtCore/QSizeF>
@@ -48,14 +48,15 @@ struct ViewportEnginePresentationTargetState
     struct PendingPresentationTransition
     {
         quint64 generation = 0;
-        PresentationTargetTransitionPolicy::ContentPositionTransition contentPositionTransition
-            = PresentationTargetTransitionPolicy::ContentPositionTransition::Clamp;
+        ViewportEnginePresentationTargetTransitionPolicy::ContentPositionTransition
+            contentPositionTransition
+            = ViewportEnginePresentationTargetTransitionPolicy::ContentPositionTransition::Clamp;
         QPointF previousContentPosition;
 
         bool isValid() const { return generation != 0; }
     };
 
-    ImageViewportPresentationTarget presentationTarget = ImageViewportPresentationTarget::clear();
+    ViewportEnginePresentationTarget presentationTarget = ViewportEnginePresentationTarget::clear();
     ImageViewportRoleSet acceptedRoleSet;
     ImageViewportRoleSet targetRoleSet;
     quint64 generation = 0;

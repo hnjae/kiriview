@@ -119,42 +119,45 @@ bool targetFitsContract(const DisplayRequest& request, const AuthoritativeRoleCo
     return request.target.position == resolvedPosition;
 }
 
-bool canonicalClearPolicy(const PresentationTargetTransitionPolicy& policy)
+bool canonicalClearPolicy(const ViewportEnginePresentationTargetTransitionPolicy& policy)
 {
     return policy.displayTransition()
-        == PresentationTargetTransitionPolicy::DisplayTransition::ClearBeforeLoad
-        && policy.zoomTransition() == PresentationTargetTransitionPolicy::ZoomTransition::Preserve
+        == ViewportEnginePresentationTargetTransitionPolicy::DisplayTransition::ClearBeforeLoad
+        && policy.zoomTransition()
+        == ViewportEnginePresentationTargetTransitionPolicy::ZoomTransition::Preserve
         && policy.contentPositionTransition()
-        == PresentationTargetTransitionPolicy::ContentPositionTransition::Clamp
+        == ViewportEnginePresentationTargetTransitionPolicy::ContentPositionTransition::Clamp
         && policy.rotationTransition()
-        == PresentationTargetTransitionPolicy::RotationTransition::Preserve
+        == ViewportEnginePresentationTargetTransitionPolicy::RotationTransition::Preserve
         && policy.mirrorTransition()
-        == PresentationTargetTransitionPolicy::MirrorTransition::Preserve
+        == ViewportEnginePresentationTargetTransitionPolicy::MirrorTransition::Preserve
         && policy.fitModeTransition()
-        == PresentationTargetTransitionPolicy::FitModeTransition::Preserve
+        == ViewportEnginePresentationTargetTransitionPolicy::FitModeTransition::Preserve
         && policy.spreadDirectionTransition()
-        == PresentationTargetTransitionPolicy::SpreadDirectionTransition::Preserve
+        == ViewportEnginePresentationTargetTransitionPolicy::SpreadDirectionTransition::Preserve
         && policy.pageGapTransition()
-        == PresentationTargetTransitionPolicy::PageGapTransition::Preserve
+        == ViewportEnginePresentationTargetTransitionPolicy::PageGapTransition::Preserve
         && policy.replacementIntent()
-        == PresentationTargetTransitionPolicy::ReplacementIntent::NewTarget;
+        == ViewportEnginePresentationTargetTransitionPolicy::ReplacementIntent::NewTarget;
 }
 
-bool presentationPreservingRefinementPolicy(const PresentationTargetTransitionPolicy& policy)
+bool presentationPreservingRefinementPolicy(
+    const ViewportEnginePresentationTargetTransitionPolicy& policy)
 {
-    return policy.zoomTransition() == PresentationTargetTransitionPolicy::ZoomTransition::Preserve
+    return policy.zoomTransition()
+        == ViewportEnginePresentationTargetTransitionPolicy::ZoomTransition::Preserve
         && policy.contentPositionTransition()
-        == PresentationTargetTransitionPolicy::ContentPositionTransition::Clamp
+        == ViewportEnginePresentationTargetTransitionPolicy::ContentPositionTransition::Clamp
         && policy.rotationTransition()
-        == PresentationTargetTransitionPolicy::RotationTransition::Preserve
+        == ViewportEnginePresentationTargetTransitionPolicy::RotationTransition::Preserve
         && policy.mirrorTransition()
-        == PresentationTargetTransitionPolicy::MirrorTransition::Preserve
+        == ViewportEnginePresentationTargetTransitionPolicy::MirrorTransition::Preserve
         && policy.fitModeTransition()
-        == PresentationTargetTransitionPolicy::FitModeTransition::Preserve
+        == ViewportEnginePresentationTargetTransitionPolicy::FitModeTransition::Preserve
         && policy.spreadDirectionTransition()
-        == PresentationTargetTransitionPolicy::SpreadDirectionTransition::Preserve
+        == ViewportEnginePresentationTargetTransitionPolicy::SpreadDirectionTransition::Preserve
         && policy.pageGapTransition()
-        == PresentationTargetTransitionPolicy::PageGapTransition::Preserve;
+        == ViewportEnginePresentationTargetTransitionPolicy::PageGapTransition::Preserve;
 }
 
 std::size_t idx(ImageViewportPageRole r) { return r == ImageViewportPageRole::Secondary ? 1U : 0U; }
@@ -204,11 +207,11 @@ ViewportEngineBuiltInFrameStageResult stage(RequestState& r, DisplayState& d,
     return stageViewportEngineBuiltInTargetSpread(r, d, exactnessPreference, &playback);
 }
 ViewportEnginePresentationTargetState targetState(
-    const ImageViewportPresentationTarget& t, quint64 g)
+    const ViewportEnginePresentationTarget& t, quint64 g)
 {
     ViewportEnginePresentationTargetState s;
     if (t.isClear()) {
-        s.presentationTarget = ImageViewportPresentationTarget::clear();
+        s.presentationTarget = ViewportEnginePresentationTarget::clear();
         s.generation = g;
         return s;
     }
@@ -243,7 +246,8 @@ bool validateViewportEnginePresentationTargetAssignment(
         return false;
     }
     if (input.transitionPolicy.replacementIntent()
-        != PresentationTargetTransitionPolicy::ReplacementIntent::SameTargetRefinement) {
+        != ViewportEnginePresentationTargetTransitionPolicy::ReplacementIntent::
+            SameTargetRefinement) {
         return true;
     }
     if (!presentationPreservingRefinementPolicy(input.transitionPolicy)
@@ -304,14 +308,15 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
     out.clear = in.presentationTarget.isClear();
     const bool refinement = !out.clear
         && in.transitionPolicy.replacementIntent()
-            == PresentationTargetTransitionPolicy::ReplacementIntent::SameTargetRefinement;
+            == ViewportEnginePresentationTargetTransitionPolicy::ReplacementIntent::
+                SameTargetRefinement;
     const DisplayRequest previousPrimaryRequest = a.m_request.roles[0].activeRequest;
     const DisplayRequest previousSecondaryRequest = a.m_request.roles[1].activeRequest;
     const PlaybackState previousPlayback = a.m_playback;
     bool noop = out.clear && a.m_target.acceptedRoleSet == ImageViewportRoleSet();
     out.presentationTargetChanged = !noop;
     out.retainPreviousDisplay = in.transitionPolicy.displayTransition()
-        == PresentationTargetTransitionPolicy::DisplayTransition::RetainPrevious;
+        == ViewportEnginePresentationTargetTransitionPolicy::DisplayTransition::RetainPrevious;
     out.releaseDisplayedState = out.clear || !out.retainPreviousDisplay;
     out.resetDisplayRequests = out.closeProviderSessions = out.presentationTargetChanged;
     out.stopPlayback = out.presentationTargetChanged && !refinement;
@@ -474,15 +479,18 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
             in.transitionPolicy.contentPositionTransition(),
             in.transitionPolicy.rotationTransition(), in.transitionPolicy.mirrorTransition(),
             in.transitionPolicy.fitModeTransition()
-                    == PresentationTargetTransitionPolicy::FitModeTransition::SetExplicit
+                    == ViewportEnginePresentationTargetTransitionPolicy::FitModeTransition::
+                        SetExplicit
                 ? std::optional<ImageViewportFitMode>(in.transitionPolicy.fitMode())
                 : std::nullopt,
             in.transitionPolicy.spreadDirectionTransition()
-                    == PresentationTargetTransitionPolicy::SpreadDirectionTransition::SetExplicit
+                    == ViewportEnginePresentationTargetTransitionPolicy::SpreadDirectionTransition::
+                        SetExplicit
                 ? std::optional<ImageViewportSpreadDirection>(in.transitionPolicy.spreadDirection())
                 : std::nullopt,
             in.transitionPolicy.pageGapTransition()
-                    == PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit
+                    == ViewportEnginePresentationTargetTransitionPolicy::PageGapTransition::
+                        SetExplicit
                 ? std::optional<double>(in.transitionPolicy.pageGap())
                 : std::nullopt,
             accepted, previousContentPosition, resolveContentPosition,

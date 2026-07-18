@@ -5,7 +5,8 @@
 #include "publicdiagnostic_p.h"
 #include "renderfailurecause_p.h"
 #include "timingintervals_p.h"
-#include <ImageViewport/ImageViewport>
+#include <ImageViewport/imagesequenceprovider.h>
+#include <ImageViewport/imageviewportstate.h>
 
 #include <QtCore/QPointer>
 #include <QtCore/QVector>

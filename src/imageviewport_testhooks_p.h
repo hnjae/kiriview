@@ -3,7 +3,7 @@
 #include "imageviewportstate_p.h"
 #include "imageviewporttoken_p.h"
 #include "internalobservation_p.h"
-#include <ImageViewport/ImageViewport>
+#include <ImageViewport/imageviewport.h>
 
 #include <memory>
 

@@ -309,9 +309,9 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
         PresentationGeometry::verticalPannable(displayedGeometry));
     const ImageViewportPresentationSnapshot presentationSnapshot(access.presentation().fitMode,
         effectiveZoomPercent(acceptedGeometry), access.presentation().manualZoom * 100.0,
-        ImageViewportDisplayLimits::minimumManualZoomPercent(),
-        ImageViewportDisplayLimits::maximumManualZoomPercent(),
-        ImageViewportDisplayLimits::manualZoomStepFactor(), access.presentation().rotationDegrees,
+        ViewportDisplayLimits::minimumManualZoomPercent(),
+        ViewportDisplayLimits::maximumManualZoomPercent(),
+        ViewportDisplayLimits::manualZoomStepFactor(), access.presentation().rotationDegrees,
         access.presentation().mirrorHorizontally, access.presentation().mirrorVertically,
         access.presentation().spreadDirection, access.presentation().pageGap,
         access.presentation().backgroundMode, access.presentation().backgroundColor,
