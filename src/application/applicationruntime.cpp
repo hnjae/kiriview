@@ -5,6 +5,7 @@
 
 #include "applicationdiagnostics.h"
 #include "applicationstartupsource.h"
+#include "facade/kiriwindowshell.h"
 #include "kiriview/src/policy/applicationruntime.cxx.h"
 #include "localization/localization.h"
 #include "rendering/displayimagestore.h"
@@ -62,12 +63,15 @@ void loadApplicationMainQml(
     setupLocalizedContext(engine);
     registerApplicationImageProviders(engine);
 
+    auto* windowShell = new KiriWindowShell(&engine);
+    QVariantMap initialProperties;
+    initialProperties.insert(QStringLiteral("windowShell"), QVariant::fromValue(windowShell));
+
     const QUrl initialSourceUrl = initialSourceUrlFromStartupSource(startupSource);
     if (!initialSourceUrl.isEmpty()) {
-        QVariantMap initialProperties;
         initialProperties.insert(QStringLiteral("initialSourceUrl"), initialSourceUrl);
-        engine.setInitialProperties(initialProperties);
     }
+    engine.setInitialProperties(initialProperties);
 
     engine.load(QUrl(QStringLiteral("qrc:/qt/qml/org/hnjae/kiriview/src/qml/Main.qml")));
 }

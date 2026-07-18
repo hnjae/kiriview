@@ -9,6 +9,7 @@
 #include "facade/kirimediainformation.h"
 #include "facade/kirivideodocument.h"
 #include "facade/kiriviewapplication.h"
+#include "facade/kiriwindowshell.h"
 #include "facade/menuaccesskeyrouter.h"
 #include "kiriviewstate.h"
 #include "localization/localization.h"
@@ -66,9 +67,7 @@ private Q_SLOTS:
     void viewerRightClickOpensContextMenuOnlyFromMediaViewport();
     void toolbarZoomWheelAppliesFineManualStep();
     void rightButtonWheelSuppressesContextMenuTap();
-    void fullscreenPointerHidesAfterIdleMovement();
-    void fullscreenToolbarRevealsOnlyNearTopEdge();
-    void fullscreenToolbarHidesAfterTopRevealIdle();
+    void fullscreenChromeProjectionRendersImmediately();
     void fullscreenReusesSingleToolbarAndHidesApplicationMenuButton();
 };
 
@@ -112,6 +111,7 @@ public:
 struct MainWindowFixture
 {
     std::unique_ptr<QQmlApplicationEngine> engine;
+    KiriWindowShell* windowShell = nullptr;
     QQuickWindow* window = nullptr;
     QString errorString;
 
@@ -135,6 +135,8 @@ void registerKiriViewQmlTypes()
 
     kiriview::initializeLocalization();
     qmlRegisterType<KiriViewApplication>("org.hnjae.kiriview", 1, 0, "KiriViewApplication");
+    qmlRegisterUncreatableType<KiriWindowShell>("org.hnjae.kiriview", 1, 0, "KiriWindowShell",
+        "KiriWindowShell is created by the application runtime");
     qmlRegisterType<ImageActionAvailability>("org.hnjae.kiriview", 1, 0, "ImageActionAvailability");
     qmlRegisterType<ToolbarTestDocumentSession>("org.hnjae.kiriview", 1, 0, "KiriDocumentSession");
     qmlRegisterType<KiriImageDocument>("org.hnjae.kiriview", 1, 0, "KiriImageDocument");
@@ -462,11 +464,14 @@ MainWindowFixture createMainWindowFixture(const QUrl& initialSourceUrl)
             .absoluteFilePath(QStringLiteral("../../src/qml")));
     KLocalization::setupLocalizedContext(fixture.engine.get());
     kiriview::registerApplicationImageProviders(*fixture.engine);
+    fixture.windowShell = new KiriWindowShell(fixture.engine.get());
+    QVariantMap initialProperties;
+    initialProperties.insert(
+        QStringLiteral("windowShell"), QVariant::fromValue(fixture.windowShell));
     if (!initialSourceUrl.isEmpty()) {
-        QVariantMap initialProperties;
         initialProperties.insert(QStringLiteral("initialSourceUrl"), initialSourceUrl);
-        fixture.engine->setInitialProperties(initialProperties);
     }
+    fixture.engine->setInitialProperties(initialProperties);
 
     fixture.engine->load(mainQmlUrl());
     if (fixture.engine->rootObjects().isEmpty()) {
@@ -1326,22 +1331,7 @@ void TestMainWindowToolBar::rightButtonWheelSuppressesContextMenuTap()
     QTRY_VERIFY(popupOpen(contextMenu));
 }
 
-void TestMainWindowToolBar::fullscreenPointerHidesAfterIdleMovement()
-{
-    MainWindowFixture fixture = createMainWindowFixture();
-    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
-    resizeWindow(fixture, QSize(1200, 800));
-
-    fixture.window->setVisibility(QWindow::FullScreen);
-    QTRY_COMPARE(fixture.window->visibility(), QWindow::FullScreen);
-    QTRY_VERIFY(fixture.window->property("fullscreenPointerHidden").toBool());
-
-    moveMouse(fixture.window, QPoint(fixture.window->width() / 2, fixture.window->height() / 2));
-    QTRY_VERIFY(!fixture.window->property("fullscreenPointerHidden").toBool());
-    QTRY_VERIFY_WITH_TIMEOUT(fixture.window->property("fullscreenPointerHidden").toBool(), 15000);
-}
-
-void TestMainWindowToolBar::fullscreenToolbarRevealsOnlyNearTopEdge()
+void TestMainWindowToolBar::fullscreenChromeProjectionRendersImmediately()
 {
     MainWindowFixture fixture = createMainWindowFixture();
     QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
@@ -1352,41 +1342,13 @@ void TestMainWindowToolBar::fullscreenToolbarRevealsOnlyNearTopEdge()
 
     fixture.window->setVisibility(QWindow::FullScreen);
     QTRY_COMPARE(fixture.window->visibility(), QWindow::FullScreen);
+    QTRY_VERIFY(fixture.windowShell->fullscreen());
+    QTRY_VERIFY(fixture.windowShell->pointerHidden());
+    QTRY_VERIFY(fixture.windowShell->toolbarRevealed());
     QTRY_VERIFY(toolbar->isVisible());
 
     moveMouse(fixture.window, QPoint(fixture.window->width() / 2, fixture.window->height() / 2));
-    QVERIFY(fixture.window->setProperty("fullscreenToolBarRevealed", false));
-    QTRY_VERIFY(!toolbar->isVisible());
-
-    moveMouse(
-        fixture.window, QPoint(fixture.window->width() / 2, fixture.window->height() / 2 + 24));
-    QCoreApplication::processEvents();
-    QVERIFY(!toolbar->isVisible());
-
-    moveMouse(fixture.window, QPoint(fixture.window->width() / 2, 1));
-    QTRY_VERIFY(toolbar->isVisible());
-}
-
-void TestMainWindowToolBar::fullscreenToolbarHidesAfterTopRevealIdle()
-{
-    MainWindowFixture fixture = createMainWindowFixture();
-    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
-    resizeWindow(fixture, QSize(1200, 800));
-
-    QQuickItem* toolbar = findQuickItem(fixture.window, QStringLiteral("mainImageToolBar"));
-    QVERIFY(toolbar != nullptr);
-
-    fixture.window->setVisibility(QWindow::FullScreen);
-    QTRY_COMPARE(fixture.window->visibility(), QWindow::FullScreen);
-    QTRY_VERIFY(toolbar->isVisible());
-
-    moveMouse(fixture.window, QPoint(fixture.window->width() / 2, fixture.window->height() / 2));
-    QVERIFY(fixture.window->setProperty("fullscreenToolBarRevealed", false));
-    QTRY_VERIFY(!toolbar->isVisible());
-
-    moveMouse(fixture.window, QPoint(fixture.window->width() / 2, 1));
-    QTRY_VERIFY(toolbar->isVisible());
-    QTRY_VERIFY_WITH_TIMEOUT(!toolbar->isVisible(), 15000);
+    QTRY_VERIFY(!fixture.windowShell->pointerHidden());
 }
 
 void TestMainWindowToolBar::fullscreenReusesSingleToolbarAndHidesApplicationMenuButton()

@@ -41,6 +41,7 @@ private Q_SLOTS:
     void qmlDoesNotExposeFixedViewerScanCommandRoutes();
     void videoSeekShortcutsRouteThroughApplicationRuntime();
     void qmlDoesNotOwnVideoPlaybackControlState();
+    void qmlDoesNotOwnFullscreenChromeLifecycle();
     void applicationFacadeDoesNotOwnFixedViewerCommandRouting();
     void applicationFacadeDoesNotOwnActionStateSourceAttachment();
     void applicationCommandRouterPortsAreGroupedByOwner();
@@ -700,6 +701,30 @@ void TestArchitectureBoundaries::qmlDoesNotOwnVideoPlaybackControlState()
             while (iterator.hasNext()) {
                 violations.push_back(iterator.next().captured(0));
             }
+        }
+    }
+
+    QVERIFY2(violations.isEmpty(), qPrintable(violations.join(QLatin1Char('\n'))));
+}
+
+void TestArchitectureBoundaries::qmlDoesNotOwnFullscreenChromeLifecycle()
+{
+    const QString mainQml = readProjectFile(QStringLiteral("src/qml/Main.qml"));
+    const QList<QRegularExpression> forbiddenPatterns {
+        QRegularExpression(QStringLiteral(R"(\bproperty\s+int\s+visibilityBeforeFullscreen\b)")),
+        QRegularExpression(
+            QStringLiteral(R"(\bproperty\s+bool\s+fullscreen(?:PointerHidden|ToolBarRevealed)\b)")),
+        QRegularExpression(QStringLiteral(
+            R"(\bfunction\s+(?:toggleFullScreen|restoredVisibility|revealFullscreenToolBar|scheduleFullscreenToolBarHide)\b)")),
+        QRegularExpression(
+            QStringLiteral(R"(\bid\s*:\s*fullscreen(?:ToolBarHide|PointerIdle)Timer\b)")),
+    };
+
+    QStringList violations;
+    for (const QRegularExpression& pattern : forbiddenPatterns) {
+        QRegularExpressionMatchIterator iterator = pattern.globalMatch(mainQml);
+        while (iterator.hasNext()) {
+            violations.push_back(iterator.next().captured(0));
         }
     }
 

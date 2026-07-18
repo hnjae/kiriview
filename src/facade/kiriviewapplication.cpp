@@ -11,6 +11,7 @@
 #include "facade/kiridocumentsession.h"
 #include "facade/kiriimagedocument.h"
 #include "facade/kirivideodocument.h"
+#include "facade/kiriwindowshell.h"
 
 #include <KLocalizedString>
 
@@ -370,6 +371,11 @@ void KiriViewApplication::setDocumentSession(QObject* session)
     m_actionSourceAttachment->reattach();
 }
 
+void KiriViewApplication::setWindowShell(QObject* shell)
+{
+    m_windowShell = qobject_cast<KiriWindowShell*>(shell);
+}
+
 void KiriViewApplication::updateActionUiGateSnapshot(bool helpDialogOpen, bool textInputFocused,
     bool infoPanelVisible, bool thumbnailPanelVisible, bool fullscreen,
     bool applicationMenuShortcutEnabled, bool showMenubarActionEnabled)
@@ -671,7 +677,11 @@ Actions::ApplicationCommandRouterWindowPorts
 Actions::KiriViewApplicationCommandPortSource::commandRouterWindowPorts()
 {
     Actions::ApplicationCommandRouterWindowPorts ports;
-    ports.toggleFullScreen = [this]() { Q_EMIT m_application.toggleFullScreenRequested(); };
+    ports.toggleFullScreen = [this]() {
+        if (m_application.m_windowShell != nullptr) {
+            m_application.m_windowShell->requestToggleFullscreen();
+        }
+    };
     return ports;
 }
 

@@ -12,6 +12,7 @@ src/facade/kirimediainformation.h
 src/facade/kirivideodocument.h
 src/facade/kirivideoplaybackcontrols.h
 src/facade/kiriviewapplication.h
+src/facade/kiriwindowshell.h
 src/application/shortcuthelpmodel.h
 src/archive/mediaentrysourcestore.h
 src/decoding/imagedecodejob.h

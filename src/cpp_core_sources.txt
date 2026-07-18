@@ -19,6 +19,7 @@ src/application/applicationshortcutruntime.cpp
 src/application/navigationpresentationprojection.cpp
 src/application/applicationruntime.cpp
 src/application/applicationstartupsource.cpp
+src/application/windowchromeruntime.cpp
 src/archive/mediaentrysourcebackend.cpp
 src/archive/mediaentrysourcebackend_directory.cpp
 src/archive/mediaentrysourcebackend_karchive.cpp

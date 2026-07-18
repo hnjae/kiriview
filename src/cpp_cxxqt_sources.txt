@@ -11,3 +11,4 @@ src/facade/kirivideodocument.cpp
 src/facade/kirivideoplaybackcontrols.cpp
 src/decoding/kiriimagedecoder.cpp
 src/facade/kiriviewapplication.cpp
+src/facade/kiriwindowshell.cpp

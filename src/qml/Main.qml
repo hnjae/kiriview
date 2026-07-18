@@ -13,6 +13,8 @@ import org.kde.kirigamiaddons.statefulapp as StatefulApp
 StatefulApp.StatefulWindow {
     id: root
 
+    required property KiriWindowShell windowShell
+
     application: KiriViewApplication {
         id: kiriApplication
     }
@@ -22,33 +24,9 @@ StatefulApp.StatefulWindow {
 
     property bool helpDialogOpen: false
     property url initialSourceUrl
-    property int visibilityBeforeFullscreen: Window.Windowed
-    readonly property bool fullscreen: visibility === Window.FullScreen
+    readonly property bool fullscreen: windowShell.fullscreen
     readonly property bool menuBarMode: kiriApplication.menuPresentation === KiriViewApplication.MenuBar
     readonly property bool applicationMenuShortcutEnabled: !root.menuBarMode && !root.fullscreen && !root.helpDialogOpen
-    property bool fullscreenPointerHidden: false
-    property bool fullscreenToolBarRevealed: false
-
-    function restoredVisibility(visibility) {
-        switch (visibility) {
-        case Window.Windowed:
-        case Window.Maximized:
-        case Window.Minimized:
-            return visibility;
-        default:
-            return Window.Windowed;
-        }
-    }
-
-    function toggleFullScreen() {
-        if (visibility === Window.FullScreen) {
-            visibility = restoredVisibility(visibilityBeforeFullscreen);
-            return;
-        }
-
-        visibilityBeforeFullscreen = restoredVisibility(visibility);
-        visibility = Window.FullScreen;
-    }
 
     function canOpenDroppedUrls(dropEvent) {
         return dropEvent.hasUrls && dropEvent.urls.length > 0;
@@ -60,49 +38,6 @@ StatefulApp.StatefulWindow {
         }
 
         documentSession.sourceUrl = urls[0];
-    }
-
-    function revealFullscreenToolBar() {
-        if (!fullscreen || helpDialogOpen) {
-            return;
-        }
-
-        fullscreenToolBarRevealed = true;
-        scheduleFullscreenToolBarHide();
-    }
-
-    function handleFullscreenPointerMovement(position) {
-        if (!fullscreen) {
-            return;
-        }
-
-        fullscreenPointerHidden = false;
-        fullscreenPointerIdleTimer.restart();
-
-        if (position.y >= 0 && position.y <= fullscreenToolBarRevealArea.height) {
-            revealFullscreenToolBar();
-            return;
-        }
-
-        scheduleFullscreenToolBarHide();
-    }
-
-    function scheduleFullscreenToolBarHide() {
-        if (!fullscreen || !fullscreenToolBarRevealed) {
-            fullscreenToolBarHideTimer.stop();
-            return;
-        }
-
-        if (fullscreenToolBarInteractionActive()) {
-            fullscreenToolBarHideTimer.stop();
-            return;
-        }
-
-        fullscreenToolBarHideTimer.restart();
-    }
-
-    function fullscreenToolBarInteractionActive() {
-        return mainImageToolBar.interactionActive;
     }
 
     function activeImageToolBar() {
@@ -134,23 +69,14 @@ StatefulApp.StatefulWindow {
     width: Kirigami.Units.gridUnit * 24
     height: Kirigami.Units.gridUnit * 20
 
-    onFullscreenChanged: {
-        if (fullscreen) {
-            fullscreenPointerHidden = true;
-            fullscreenPointerIdleTimer.stop();
-            revealFullscreenToolBar();
-            return;
-        }
-
-        fullscreenPointerIdleTimer.stop();
-        fullscreenPointerHidden = false;
-        fullscreenToolBarHideTimer.stop();
-        fullscreenToolBarRevealed = false;
-    }
+    onHelpDialogOpenChanged: windowShell.reportHelpDialogOpen(helpDialogOpen)
 
     Component.onCompleted: {
         kiriApplication.setDocumentSession(documentSession);
+        kiriApplication.setWindowShell(windowShell);
         kiriApplication.setShortcutHost(root);
+        windowShell.attachWindow(root);
+        windowShell.reportHelpDialogOpen(root.helpDialogOpen);
         root.publishActionUiState();
     }
 
@@ -175,7 +101,7 @@ StatefulApp.StatefulWindow {
         enabled: root.fullscreen && !root.helpDialogOpen && !root.toolbarTextInputFocused() && !mediaWorkspaceHost.infoPanelVisible
         sequence: "Esc"
 
-        onActivated: root.toggleFullScreen()
+        onActivated: root.windowShell.requestToggleFullscreen()
     }
 
     Connections {
@@ -197,10 +123,6 @@ StatefulApp.StatefulWindow {
             shortcutHelpDialog.open();
         }
 
-        function onToggleFullScreenRequested() {
-            root.toggleFullScreen();
-        }
-
         function onToggleInfoPanelRequested() {
             mediaWorkspaceHost.toggleInfoPanel();
         }
@@ -215,37 +137,6 @@ StatefulApp.StatefulWindow {
 
         function onUnsupportedImageActionTriggered(actionId) {
             toastNotification.show(KI18n.i18nc("@info:status", "This action is not available for images"), "unsupported-image-action");
-        }
-    }
-
-    Timer {
-        id: fullscreenToolBarHideTimer
-
-        interval: 1000
-        repeat: false
-
-        onTriggered: {
-            if (root.fullscreen && !root.fullscreenToolBarInteractionActive()) {
-                root.fullscreenToolBarRevealed = false;
-            }
-        }
-    }
-
-    Timer {
-        id: fullscreenPointerIdleTimer
-
-        interval: 1000
-        repeat: false
-
-        onTriggered: {
-            if (!root.fullscreen) {
-                return;
-            }
-
-            root.fullscreenPointerHidden = true;
-            if (root.fullscreenToolBarRevealed && !root.fullscreenToolBarInteractionActive()) {
-                root.fullscreenToolBarRevealed = false;
-            }
         }
     }
 
@@ -352,10 +243,10 @@ StatefulApp.StatefulWindow {
             HoverHandler {
                 id: fullscreenPointerTrackingHoverHandler
 
-                cursorShape: root.fullscreenPointerHidden ? Qt.BlankCursor : Qt.ArrowCursor
+                cursorShape: root.windowShell.pointerHidden ? Qt.BlankCursor : Qt.ArrowCursor
                 enabled: fullscreenPointerTrackingArea.enabled
 
-                onPointChanged: root.handleFullscreenPointerMovement(point.position)
+                onPointChanged: root.windowShell.reportPointerMoved(point.position.y >= 0 && point.position.y <= fullscreenToolBarRevealArea.height)
             }
         }
 
@@ -457,11 +348,8 @@ StatefulApp.StatefulWindow {
 
                 onHoveredChanged: {
                     if (hovered) {
-                        root.revealFullscreenToolBar();
-                        return;
+                        root.windowShell.reportTopRevealEntered();
                     }
-
-                    root.scheduleFullscreenToolBarHide();
                 }
             }
         }
@@ -494,7 +382,7 @@ StatefulApp.StatefulWindow {
             transientOverlay: root.fullscreen
             twoPageModeControlVisible: documentSession.activeImageOpenedCollectionScopeActive
             videoMode: page.videoMode
-            visible: !root.fullscreen || root.fullscreenToolBarRevealed
+            visible: !root.fullscreen || root.windowShell.toolbarRevealed
             zoomEditable: documentSession.activeZoomEditable
             zoomPercent: documentSession.activeZoomPercent
             zoomPercentAvailable: documentSession.activeZoomPercentAvailable
@@ -504,16 +392,7 @@ StatefulApp.StatefulWindow {
             onTextInputFocusReturnRequested: root.focusActiveViewport()
 
             onInteractionActiveChanged: {
-                if (!root.fullscreen) {
-                    return;
-                }
-
-                if (interactionActive) {
-                    root.revealFullscreenToolBar();
-                    return;
-                }
-
-                root.scheduleFullscreenToolBarHide();
+                root.windowShell.reportToolbarInteractionActive(interactionActive);
             }
         }
     }

@@ -27,6 +27,7 @@ class ApplicationShortcutRuntime;
 }
 
 class KiriDocumentSession;
+class KiriWindowShell;
 
 class KiriViewApplication : public AbstractKirigamiApplication
 {
@@ -148,6 +149,7 @@ public:
         KiriViewApplication::NavigationPresentationSlot slot) const;
     Q_INVOKABLE QVariantList navigationApplicationMenuActionIds() const;
     Q_INVOKABLE void setDocumentSession(QObject* session);
+    Q_INVOKABLE void setWindowShell(QObject* shell);
     Q_INVOKABLE void updateActionUiGateSnapshot(bool helpDialogOpen, bool textInputFocused,
         bool infoPanelVisible, bool thumbnailPanelVisible, bool fullscreen,
         bool applicationMenuShortcutEnabled, bool showMenubarActionEnabled);
@@ -160,7 +162,6 @@ Q_SIGNALS:
     void openDialogRequested();
     void openApplicationMenuRequested();
     void shortcutHelpRequested();
-    void toggleFullScreenRequested();
     void toggleInfoPanelRequested();
     void toggleThumbnailPanelRequested();
     void imageBoundaryReached(const QString& message);
@@ -187,6 +188,7 @@ private:
     std::unique_ptr<kiriview::ApplicationActions::ApplicationActionSourceAttachment>
         m_actionSourceAttachment;
     QPointer<KiriDocumentSession> m_documentSession;
+    QPointer<KiriWindowShell> m_windowShell;
 };
 
 #endif
