@@ -25,6 +25,12 @@ ViewportEngineProviderTerminalEventInput terminalEvent(const ViewportProviderEve
     result.role = event.role;
     result.token = event.token;
     result.unsupportedCause = event.unsupportedCause;
+    if (event.kind == ImageSequenceProviderEventKind::Failed) {
+        result.providerFailureAvailable = event.providerFailureAvailable;
+        result.providerCause = event.providerCause;
+        result.providerReference = event.providerReference;
+        result.providerFailureLeaseId = event.failureLeaseId;
+    }
     result.kind = event.kind == ImageSequenceProviderEventKind::Unsupported
         ? ViewportEngineProviderTerminalEventInput::Kind::Unsupported
         : event.kind == ImageSequenceProviderEventKind::Cancelled
@@ -41,8 +47,13 @@ bool unsupportedCauseValid(ImageSequenceProviderUnsupportedCause cause)
 
 bool eventShapeCompatible(const ViewportProviderEvent& event)
 {
-    return event.kind != ImageSequenceProviderEventKind::Unsupported
-        || unsupportedCauseValid(event.unsupportedCause);
+    if (event.kind == ImageSequenceProviderEventKind::Unsupported) {
+        return unsupportedCauseValid(event.unsupportedCause);
+    }
+    if (event.kind == ImageSequenceProviderEventKind::Failed) {
+        return event.providerFailureAvailable;
+    }
+    return true;
 }
 
 bool eventKindCompatible(
@@ -96,7 +107,9 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
         return finalizeTransition(std::move(result));
     }
     case ViewportProviderHostEvent::Kind::SessionOpenFailed: {
-        const auto reduced = reduceProviderSessionOpenFailure(event.role);
+        const auto reduced
+            = reduceProviderSessionOpenFailure({ event.role, event.providerFailureAvailable,
+                event.providerCause, event.providerReference, event.providerFailureLeaseId });
         result.changes = reduced.changes;
         result.playbackSchedule = reduced.schedule;
         return finalizeTransition(std::move(result));
@@ -432,12 +445,13 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
 }
 
 ViewportProviderSessionOpenFailureResult ViewportEngine::reduceProviderSessionOpenFailure(
-    ImageViewportPageRole role)
+    ViewportEngineProviderSessionOpenFailureInput input)
 {
+    const ImageViewportPageRole role = input.role;
     auto& provider = m_state->providerState.roles[roleIndex(role)].provider;
     ViewportEngineProviderSessionOpenFailureAccess access(m_state->requestState.request,
         m_state->playbackState.playback, provider.session, provider.requests);
-    const auto reduction = reduceViewportEngineProviderSessionOpenFailure({ role }, access);
+    const auto reduction = reduceViewportEngineProviderSessionOpenFailure(input, access);
     auto mutation = access.takeMutation();
     m_state->requestState.request = std::move(mutation.request);
     m_state->playbackState.playback = mutation.playback;

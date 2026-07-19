@@ -55,8 +55,20 @@ void ImageViewportProviderHost::completeFrameEventDelivery(quint64 leaseId)
     secondaryProviderBridge.completeFrameEventDelivery(leaseId);
 }
 
-void ImageViewportProviderHost::reconcileFrameLeases(const QSet<quint64>& liveLeaseIds)
+void ImageViewportProviderHost::completeFailureEventDelivery(quint64 leaseId)
 {
+    if (leaseId == 0) {
+        return;
+    }
+    providerBridge.completeFailureEventDelivery(leaseId);
+    secondaryProviderBridge.completeFailureEventDelivery(leaseId);
+}
+
+void ImageViewportProviderHost::reconcileProviderLeases(
+    const QSet<quint64>& liveFrameLeaseIds, const QSet<quint64>& liveFailureLeaseIds)
+{
+    QSet<quint64> liveLeaseIds = liveFrameLeaseIds;
+    liveLeaseIds.unite(liveFailureLeaseIds);
     providerBridge.reconcileFrameLeases(liveLeaseIds);
     secondaryProviderBridge.reconcileFrameLeases(liveLeaseIds);
 }
@@ -118,7 +130,14 @@ void ImageViewportProviderHost::applyTransportEffects(const ViewportProviderTran
                 effect.threadingContract, effect.generation, effect.sessionSerial, &dispatchContext,
                 [this](const ViewportProviderEvent& event) { handleProviderEvent(event); } });
             if (!openResult.opened) {
-                applyHostEvent({ ViewportProviderHostEvent::Kind::SessionOpenFailed, effect.role });
+                ViewportProviderHostEvent event;
+                event.kind = ViewportProviderHostEvent::Kind::SessionOpenFailed;
+                event.role = effect.role;
+                event.providerFailureAvailable = openResult.providerFailureAvailable;
+                event.providerCause = openResult.providerCause;
+                event.providerReference = openResult.providerReference;
+                event.providerFailureLeaseId = openResult.providerFailureLeaseId;
+                applyHostEvent(event);
                 return;
             } else {
                 applyHostEvent({ ViewportProviderHostEvent::Kind::SessionOpened, effect.role });

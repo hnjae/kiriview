@@ -17,6 +17,7 @@ class ImageViewportDisplaySnapshot;
 class ImageViewportRequestSnapshot;
 class ImageViewportRoleRequestSnapshot;
 class ImageViewportRoleDisplaySnapshot;
+class ImageSequenceProviderFailureHandle;
 
 namespace ImageViewportInternal {
 class RevisionTokenPrivateAccess;
@@ -169,6 +170,29 @@ enum class CoordinateSpace {
     DisplayedPage,
 };
 Q_ENUM_NS(CoordinateSpace)
+
+enum class SequenceProviderFailureCause {
+    Unavailable,
+    SourceAccess,
+    Decode,
+    ResourceExhausted,
+    ProviderInternal,
+};
+Q_ENUM_NS(SequenceProviderFailureCause)
+
+enum class FailureContext {
+    Unavailable,
+    CurrentRequest,
+    RestoredTransition,
+};
+Q_ENUM_NS(FailureContext)
+
+enum class FailureScope {
+    Unavailable,
+    Generation,
+    DisplayRequest,
+};
+Q_ENUM_NS(FailureScope)
 }
 
 using ImageViewportPageRole = ImageViewportEnums::PageRole;
@@ -189,6 +213,47 @@ using ImageViewportPlaybackPhase = ImageViewportEnums::PlaybackPhase;
 using ImageViewportCommandOutcome = ImageViewportEnums::CommandOutcome;
 using ImageViewportBackgroundMode = ImageViewportEnums::BackgroundMode;
 using ImageViewportCoordinateSpace = ImageViewportEnums::CoordinateSpace;
+using ImageSequenceProviderFailureCause = ImageViewportEnums::SequenceProviderFailureCause;
+using ImageViewportFailureContext = ImageViewportEnums::FailureContext;
+using ImageViewportFailureScope = ImageViewportEnums::FailureScope;
+
+class ImageSequenceProviderFailureReference
+{
+    Q_GADGET
+    QML_VALUE_TYPE(imageSequenceProviderFailureReference)
+    Q_PROPERTY(bool valid READ isValid CONSTANT)
+
+public:
+    ImageSequenceProviderFailureReference() = default;
+
+    bool isValid() const { return m_value != 0; }
+    Q_INVOKABLE bool equals(ImageSequenceProviderFailureReference other) const
+    {
+        return m_value == other.m_value;
+    }
+
+    friend bool operator==(
+        ImageSequenceProviderFailureReference lhs, ImageSequenceProviderFailureReference rhs)
+    {
+        return lhs.m_value == rhs.m_value;
+    }
+    friend bool operator!=(
+        ImageSequenceProviderFailureReference lhs, ImageSequenceProviderFailureReference rhs)
+    {
+        return !(lhs == rhs);
+    }
+
+private:
+    explicit ImageSequenceProviderFailureReference(quint64 value)
+        : m_value(value)
+    {
+    }
+
+    quint64 m_value = 0;
+
+    friend class ImageSequenceProviderFailureHandle;
+};
+
 class ImageViewportRange
 {
     Q_GADGET
@@ -420,3 +485,4 @@ Q_DECLARE_METATYPE(ImageViewportPresentationTargetGenerationToken)
 Q_DECLARE_METATYPE(ImageViewportDemandRevisionToken)
 Q_DECLARE_METATYPE(ImageViewportAllocationGenerationToken)
 Q_DECLARE_METATYPE(ImageViewportRoleSet)
+Q_DECLARE_METATYPE(ImageSequenceProviderFailureReference)

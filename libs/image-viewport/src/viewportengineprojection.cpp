@@ -6,6 +6,7 @@
 #include "imageviewportlimits_p.h"
 #include "imageviewportproviderfacts_p.h"
 #include "imageviewporttoken_p.h"
+#include "viewportenginetargetspreadterminaloperations_p.h"
 
 #include <algorithm>
 #include <cmath>
@@ -64,6 +65,18 @@ ImageViewportDisplayPhase displayPhase(
     return request == ImageViewportRequestStatus::NoRequest
         ? ImageViewportDisplayPhase::NoPresentation
         : ImageViewportDisplayPhase::TransitioningPlaceholder;
+}
+
+ImageViewportFailureSnapshot failureSnapshot(const RequestState& request)
+{
+    const ViewportEngineProjectedTerminal projected = projectViewportEngineTerminal(request);
+    if (!projected.terminal) {
+        return {};
+    }
+    return { true, ImageViewportFailureContext::CurrentRequest, projected.terminal->reason,
+        QVariant::fromValue(projected.role), projected.scope,
+        projected.terminal->providerFailureAvailable, projected.terminal->providerCause,
+        projected.terminal->providerReference };
 }
 
 quint64 mix(quint64 seed, quint64 value)
@@ -469,7 +482,7 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
         roleSnapshot(ImageViewportPageRole::Secondary),
         ImageViewportDiagnosticsSnapshot(access.request().errorString.text(),
             renderQualityFallbackWarning(access.request(), access.display(), access.presentation()),
-            access.commandReason()),
+            failureSnapshot(access.request()), access.commandReason()),
         ImageViewportRevisionsSnapshot(revision(access.request().requestRevision),
             revision(access.display().revision), revision(access.presentationRevision()),
             revision(commandRevisionValue), revision(snapshotRevisionValue)));

@@ -128,6 +128,11 @@ struct TargetSpreadRoleTerminalState
     ImageViewportRequestStatus status = ImageViewportRequestStatus::NoRequest;
     ImageViewportRequestReason reason = ImageViewportRequestReason::NoRequest;
     PublicDiagnosticText diagnostic;
+    bool providerFailureAvailable = false;
+    ImageSequenceProviderFailureCause providerCause
+        = ImageSequenceProviderFailureCause::Unavailable;
+    ImageSequenceProviderFailureReference providerReference;
+    quint64 providerFailureLeaseId = 0;
 };
 
 struct GenerationTerminalState

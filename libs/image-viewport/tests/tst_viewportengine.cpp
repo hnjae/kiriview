@@ -147,6 +147,10 @@ ViewportProviderEvent providerTerminalEvent(ViewportEngine& engine,
     event.generation = ViewportEngineTestAccess::request(engine).sequenceGeneration;
     event.token = token;
     event.unsupportedCause = cause;
+    if (kind == ImageSequenceProviderEventKind::Failed) {
+        event.providerFailureAvailable = true;
+        event.providerCause = ImageSequenceProviderFailureCause::ProviderInternal;
+    }
     return event;
 }
 

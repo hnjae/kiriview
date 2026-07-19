@@ -22,6 +22,7 @@ struct ViewportProviderSchedulerFailureResult;
 struct ViewportProviderSessionOpenFailureResult;
 struct ViewportProviderSessionOpenResult;
 struct ViewportProviderTerminalEventResult;
+struct ViewportEngineProviderSessionOpenFailureInput;
 
 class ViewportEngine
 {
@@ -50,6 +51,7 @@ public:
         const ViewportEnginePresentationCommandRequest& input);
     ViewportProviderTransportBatch shutdown();
     QSet<quint64> providerFrameLeaseIds() const;
+    QSet<quint64> providerFailureLeaseIds() const;
     bool acceptsProviderTransportCommand(const ViewportProviderTransportCommand& command) const;
 
 private:
@@ -102,7 +104,7 @@ private:
     ViewportProviderTerminalEventResult reduceProviderDispatchFailure(
         ImageViewportPageRole role, ViewportProviderDispatchFailureEvent event);
     ViewportProviderSessionOpenFailureResult reduceProviderSessionOpenFailure(
-        ImageViewportPageRole role);
+        ViewportEngineProviderSessionOpenFailureInput input);
     ViewportProviderSessionOpenResult reduceProviderSessionOpened(ImageViewportPageRole role);
     ViewportProviderSchedulerFailureResult reduceProviderQueueSchedulingFailure(
         ImageViewportPageRole role);

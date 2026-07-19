@@ -28,7 +28,9 @@ public:
     void shutdown();
     void applyTransportEffects(const ViewportProviderTransportBatch& effects);
     void completeFrameEventDelivery(quint64 leaseId);
-    void reconcileFrameLeases(const QSet<quint64>& liveLeaseIds);
+    void completeFailureEventDelivery(quint64 leaseId);
+    void reconcileProviderLeases(
+        const QSet<quint64>& liveFrameLeaseIds, const QSet<quint64>& liveFailureLeaseIds);
     void drainCleanup();
     void releaseAllFrameLeases();
 

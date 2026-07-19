@@ -76,8 +76,11 @@ public:
     ImageSequenceProviderDescriptor descriptor() const override
     {
         return ImageSequenceProviderDescriptor(ImageSequenceProviderMetadata::still(QSizeF(4, 2)),
-            ImageSequenceProviderThreadingContract::AffinityBound,
-            []() { return ImageSequenceProviderSessionFactoryResult::failed(); });
+            ImageSequenceProviderThreadingContract::AffinityBound, []() {
+                return ImageSequenceProviderSessionFactoryResult::failed(
+                    ImageSequenceProviderFailure(
+                        ImageSequenceProviderFailureCause::ProviderInternal));
+            });
     }
 };
 

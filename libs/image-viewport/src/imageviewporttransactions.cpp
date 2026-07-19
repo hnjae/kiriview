@@ -26,7 +26,8 @@ ImageViewportStateSnapshot ImageViewportPrivate::applyEngineTransition(
     pendingProviderTransport.append(transition.takeProviderTransport());
     ++transitionApplicationDepth;
 
-    providerHost.reconcileFrameLeases(engine.providerFrameLeaseIds());
+    providerHost.reconcileProviderLeases(
+        engine.providerFrameLeaseIds(), engine.providerFailureLeaseIds());
     internalObservability.record(transition.observations());
     internalObservability.recordRenderFailure(transition.renderFailureDiagnostic());
 
@@ -123,6 +124,10 @@ void ImageViewportPrivate::drainProviderHostEvents()
     while (!pendingProviderHostEvents.isEmpty()) {
         ViewportEngineProviderHostEventRequest request = pendingProviderHostEvents.takeFirst();
         providerHost.completeFrameEventDelivery(request.event().providerEvent.frameLeaseId);
+        providerHost.completeFailureEventDelivery(
+            request.event().kind == ViewportProviderHostEvent::Kind::ProviderEvent
+                ? request.event().providerEvent.failureLeaseId
+                : request.event().providerFailureLeaseId);
         applyEngineTransition(engine.handleProviderHostEvent(request));
     }
     drainingProviderHostEvents = false;

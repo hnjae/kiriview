@@ -14,6 +14,18 @@ struct ViewportEngineTargetSpreadTerminalInput
     ImageViewportRequestReason reason = ImageViewportRequestReason::ProviderFailure;
     ImageViewportInternal::PublicDiagnosticText diagnostic;
     ImageViewportInternal::ViewportChangeSet changes;
+    bool providerFailureAvailable = false;
+    ImageSequenceProviderFailureCause providerCause
+        = ImageSequenceProviderFailureCause::Unavailable;
+    ImageSequenceProviderFailureReference providerReference;
+    quint64 providerFailureLeaseId = 0;
+};
+
+struct ViewportEngineProjectedTerminal
+{
+    const ImageViewportInternal::TargetSpreadRoleTerminalState* terminal = nullptr;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
+    ImageViewportFailureScope scope = ImageViewportFailureScope::Unavailable;
 };
 
 ImageViewportInternal::ViewportChangeSet recordViewportEngineDisplayRequestTerminal(
@@ -28,3 +40,5 @@ bool viewportEngineRoleCanRefineCurrentTerminal(
     const ImageViewportInternal::RequestState&, ImageViewportPageRole);
 ImageViewportInternal::ViewportChangeSet projectViewportEngineCurrentTerminal(
     ImageViewportInternal::ViewportChangeSet, ImageViewportInternal::RequestState&);
+ViewportEngineProjectedTerminal projectViewportEngineTerminal(
+    const ImageViewportInternal::RequestState&);

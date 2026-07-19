@@ -22,6 +22,17 @@
 #include <optional>
 #include <utility>
 
+ViewportProviderExecutorOutcome ViewportProviderExecutor::releaseFailureHandle(
+    const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
+    ImageSequenceProviderFailureHandle* failureHandle)
+{
+    delete failureHandle;
+    if (sessionControl) {
+        sessionControl->completeFrameReleaseOnSessionAffinity();
+    }
+    return ViewportProviderExecutorOutcome::Completed;
+}
+
 namespace {
 QMutex& providerSessionOwnershipMutex()
 {
@@ -193,6 +204,55 @@ public:
             ? ViewportProviderExecutorOutcome::Scheduled
             : ViewportProviderExecutorOutcome::RetryableFailure;
     }
+
+    ViewportProviderExecutorOutcome releaseFailureHandle(
+        const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
+        ImageSequenceProviderFailureHandle* failureHandle) override
+    {
+        ImageSequenceProviderSession* session
+            = sessionControl ? sessionControl->session() : nullptr;
+        if (!sessionControl) {
+            delete failureHandle;
+            return ViewportProviderExecutorOutcome::Completed;
+        }
+        const auto threadingContract = sessionControl->threadingContract();
+        if (threadingContract == ImageSequenceProviderThreadingContract::ThreadSafe) {
+            if (failureHandle) {
+                failureHandle->release();
+            }
+            if (!session || session->thread() == QThread::currentThread()) {
+                delete failureHandle;
+                sessionControl->completeFrameReleaseOnSessionAffinity();
+                return ViewportProviderExecutorOutcome::Completed;
+            }
+            return QMetaObject::invokeMethod(
+                       session,
+                       [sessionControl, failureHandle]() {
+                           delete failureHandle;
+                           sessionControl->completeFrameReleaseOnSessionAffinity();
+                       },
+                       Qt::QueuedConnection)
+                ? ViewportProviderExecutorOutcome::Scheduled
+                : ViewportProviderExecutorOutcome::RetryableFailure;
+        }
+        if (!session) {
+            return ViewportProviderExecutorOutcome::RetryableFailure;
+        }
+        if (session->thread() == QThread::currentThread()) {
+            delete failureHandle;
+            sessionControl->completeFrameReleaseOnSessionAffinity();
+            return ViewportProviderExecutorOutcome::Completed;
+        }
+        return QMetaObject::invokeMethod(
+                   session,
+                   [sessionControl, failureHandle]() {
+                       delete failureHandle;
+                       sessionControl->completeFrameReleaseOnSessionAffinity();
+                   },
+                   Qt::QueuedConnection)
+            ? ViewportProviderExecutorOutcome::Scheduled
+            : ViewportProviderExecutorOutcome::RetryableFailure;
+    }
 };
 
 ViewportProviderExecutor& qtViewportProviderExecutor()
@@ -273,6 +333,15 @@ ViewportProviderEvent viewportProviderEventFromTyped(ImageViewportPageRole role,
     event.frameEnvelope = typedEvent.frameEnvelope();
     event.progress = typedEvent.progress();
     event.unsupportedCause = typedEvent.unsupportedCause();
+    const ImageSequenceProviderFailure failure = typedEvent.failure();
+    event.providerFailureAvailable = failure.isValid();
+    event.providerCause = event.providerFailureAvailable
+        ? failure.cause()
+        : ImageSequenceProviderFailureCause::Unavailable;
+    event.failureHandle = failure.applicationFailureHandle();
+    if (event.providerFailureAvailable && event.failureHandle) {
+        event.providerReference = event.failureHandle->reference();
+    }
     return event;
 }
 
@@ -531,6 +600,8 @@ public:
     {
         std::shared_ptr<ViewportProviderSessionControl> sessionControl;
         QPointer<ImageSequenceProviderFrameHandle> frameHandle;
+        QPointer<ImageSequenceProviderFailureHandle> failureHandle;
+        bool failureLease = false;
         quint64 generation = 0;
         quint64 sessionSerial = 0;
     };
@@ -559,8 +630,38 @@ public:
         {
             QMutexLocker locker(&mutex);
             frameLeases.insert(leaseId,
-                { sessionControl, frameHandle, sessionControl->generation(),
+                { sessionControl, frameHandle, nullptr, false, sessionControl->generation(),
                     sessionControl->sessionSerial(), true, false });
+            if (automaticCleanup) {
+                retiredFrameLeases.insert(leaseId);
+                releaseAutomatically = true;
+            }
+        }
+        if (releaseAutomatically) {
+            scheduleAutomaticRelease(leaseId);
+        }
+        return leaseId;
+    }
+
+    quint64 claim(const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
+        ImageSequenceProviderFailureHandle* failureHandle, quint64 generation = 0,
+        quint64 sessionSerial = 0)
+    {
+        if (!failureHandle) {
+            return 0;
+        }
+        if (sessionControl) {
+            sessionControl->claimFrameLease();
+            generation = sessionControl->generation();
+            sessionSerial = sessionControl->sessionSerial();
+        }
+        const quint64 leaseId = allocateProviderFrameLeaseId();
+        bool releaseAutomatically = false;
+        {
+            QMutexLocker locker(&mutex);
+            frameLeases.insert(leaseId,
+                { sessionControl, nullptr, failureHandle, true, generation, sessionSerial, true,
+                    false });
             if (automaticCleanup) {
                 retiredFrameLeases.insert(leaseId);
                 releaseAutomatically = true;
@@ -650,8 +751,8 @@ public:
             return std::nullopt;
         }
         it->releaseScheduling = true;
-        return LeaseSnapshot { it->sessionControl, it->frameHandle, it->generation,
-            it->sessionSerial };
+        return LeaseSnapshot { it->sessionControl, it->frameHandle, it->failureHandle,
+            it->failureLease, it->generation, it->sessionSerial };
     }
 
     void releaseSchedulingFailed(quint64 leaseId)
@@ -682,6 +783,8 @@ private:
     {
         std::shared_ptr<ViewportProviderSessionControl> sessionControl;
         QPointer<ImageSequenceProviderFrameHandle> frameHandle;
+        QPointer<ImageSequenceProviderFailureHandle> failureHandle;
+        bool failureLease = false;
         quint64 generation = 0;
         quint64 sessionSerial = 0;
         bool pendingEngineDelivery = true;
@@ -712,9 +815,10 @@ private:
             QMutexLocker locker(&mutex);
             executor = providerExecutor;
         }
-        const auto outcome = executor
-            ? executor->releaseFrameHandle(lease->sessionControl, lease->frameHandle)
-            : ViewportProviderExecutorOutcome::RetryableFailure;
+        const auto outcome = !executor ? ViewportProviderExecutorOutcome::RetryableFailure
+            : lease->failureLease
+            ? executor->releaseFailureHandle(lease->sessionControl, lease->failureHandle)
+            : executor->releaseFrameHandle(lease->sessionControl, lease->frameHandle);
         if (executorAccepted(outcome)) {
             erase(leaseId);
             return;
@@ -1077,18 +1181,29 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
 {
     if (!input.factory || !input.callbackTarget || !input.eventSink || input.generation == 0
         || input.sessionSerial == 0) {
-        return { false };
+        return {};
     }
 
     const ImageSequenceProviderSessionFactoryResult factoryResult = (*input.factory)();
     ImageSequenceProviderSession* session = factoryResult.session();
     const bool validCreated
-        = factoryResult.outcome() == ImageSequenceProviderSessionFactoryOutcome::Created && session;
+        = factoryResult.outcome() == ImageSequenceProviderSessionFactoryOutcome::Created && session
+        && !factoryResult.failure().isValid();
     if (!validCreated) {
-        return { false };
+        const ImageSequenceProviderFailure failure = factoryResult.failure();
+        ImageSequenceProviderFailureHandle* handle = failure.applicationFailureHandle();
+        const quint64 leaseId
+            = frameLeaseRegistry->claim({}, handle, input.generation, input.sessionSerial);
+        const bool admitted
+            = factoryResult.outcome() == ImageSequenceProviderSessionFactoryOutcome::Failed
+            && !session && failure.isValid();
+        return { false, admitted,
+            admitted ? failure.cause() : ImageSequenceProviderFailureCause::Unavailable,
+            admitted && handle ? handle->reference() : ImageSequenceProviderFailureReference {},
+            leaseId };
     }
     if (!claimProviderSession(session)) {
-        return { false };
+        return {};
     }
     if (session->parent() && session->thread() == QThread::currentThread()) {
         session->setParent(nullptr);
@@ -1127,6 +1242,9 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
             if (event.frameHandle) {
                 event.frameLeaseId = leaseRegistry->claim(sessionControl, event.frameHandle);
             }
+            if (event.failureHandle) {
+                event.failureLeaseId = leaseRegistry->claim(sessionControl, event.failureHandle);
+            }
             const bool advisory = event.kind == ImageSequenceProviderEventKind::Waiting
                 || event.kind == ImageSequenceProviderEventKind::Progress;
             if (!deliverSynchronously && advisory) {
@@ -1149,16 +1267,18 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
                 eventEndpoint->observeTerminal(event.token);
             }
             auto deliver = [eventEndpoint, leaseRegistry, event]() {
-                if (!eventEndpoint->deliver(event) && event.frameLeaseId != 0) {
+                if (!eventEndpoint->deliver(event)) {
                     leaseRegistry->retire(event.frameLeaseId);
+                    leaseRegistry->retire(event.failureLeaseId);
                 }
             };
             if (deliverSynchronously) {
                 deliver();
             } else if (!QMetaObject::invokeMethod(
                            callbackTarget, std::move(deliver), Qt::QueuedConnection)
-                && event.frameLeaseId != 0) {
+                && (event.frameLeaseId != 0 || event.failureLeaseId != 0)) {
                 leaseRegistry->retire(event.frameLeaseId);
+                leaseRegistry->retire(event.failureLeaseId);
             }
             sessionControl->endEventIngress();
         },
@@ -1238,7 +1358,17 @@ void ViewportProviderBridge::completeFrameEventDelivery(quint64 leaseId)
     frameLeaseRegistry->completeEventDelivery(leaseId);
 }
 
+void ViewportProviderBridge::completeFailureEventDelivery(quint64 leaseId)
+{
+    frameLeaseRegistry->completeEventDelivery(leaseId);
+}
+
 void ViewportProviderBridge::reconcileFrameLeases(const QSet<quint64>& liveLeaseIds)
+{
+    frameLeaseRegistry->reconcile(liveLeaseIds);
+}
+
+void ViewportProviderBridge::reconcileFailureLeases(const QSet<quint64>& liveLeaseIds)
 {
     frameLeaseRegistry->reconcile(liveLeaseIds);
 }
@@ -1283,7 +1413,9 @@ ViewportProviderCleanupResult ViewportProviderBridge::releaseFrameLease(quint64 
     if (!lease) {
         return result;
     }
-    const auto outcome = executor().releaseFrameHandle(lease->sessionControl, lease->frameHandle);
+    const auto outcome = lease->failureLease
+        ? executor().releaseFailureHandle(lease->sessionControl, lease->failureHandle)
+        : executor().releaseFrameHandle(lease->sessionControl, lease->frameHandle);
     if (!executorAccepted(outcome)) {
         frameLeaseRegistry->releaseSchedulingFailed(leaseId);
         result.diagnostics.append(providerTransportDiagnostic(role,

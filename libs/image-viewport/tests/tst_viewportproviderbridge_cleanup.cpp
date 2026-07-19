@@ -438,7 +438,8 @@ void ViewportProviderBridgeCleanupTest::activeAdvisoryBurstIsCoalescedAheadOfTer
                 ? ImageSequenceProviderEvent::waiting(token)
                 : ImageSequenceProviderEvent::progress(token, 0.5));
     }
-    emit session->providerEvent(ImageSequenceProviderEvent::failed(token));
+    emit session->providerEvent(ImageSequenceProviderEvent::failed(
+        token, ImageSequenceProviderFailure(ImageSequenceProviderFailureCause::ProviderInternal)));
     QCOMPARE(deliveredEvents.size(), 0);
 
     QCoreApplication::sendPostedEvents(&callbackTarget, QEvent::MetaCall);

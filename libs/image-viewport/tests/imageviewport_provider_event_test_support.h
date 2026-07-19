@@ -57,7 +57,8 @@ void emitProviderFailed(ImageSequenceProviderSession* session,
     ImageSequenceProviderRequestToken token, QString diagnostic)
 {
     Q_UNUSED(diagnostic);
-    emit session->providerEvent(ImageSequenceProviderEvent::failed(token));
+    emit session->providerEvent(ImageSequenceProviderEvent::failed(
+        token, ImageSequenceProviderFailure(ImageSequenceProviderFailureCause::ProviderInternal)));
 }
 
 void emitProviderUnsupported(ImageSequenceProviderSession* session,

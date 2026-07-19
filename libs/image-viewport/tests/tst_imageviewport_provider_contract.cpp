@@ -108,6 +108,7 @@ public:
 
 private slots:
     void providerPublicValueTypesValidateTiming();
+    void typedProviderFailureHandleReleasesExactlyOnce();
     void providerTypedProtocolValuesValidateShape();
     void typedDescriptorFactoryAndSessionBridgeMatchesLegacyPath();
     void dynamicMaximumClampRestagesCoherentProviderDemand();
@@ -126,6 +127,36 @@ private slots:
     void providerSessionOpenFailureKeepsReplacementObservable();
     void reassigningSameProviderSequenceStartsNewGeneration();
 };
+
+void ImageViewportProviderContractTest::typedProviderFailureHandleReleasesExactlyOnce()
+{
+    const ImageSequenceProviderRequestToken token = providerRequestTokenForTest(42);
+    int releaseCount = 0;
+    ImageSequenceProviderFailureHandle handle([&releaseCount]() { ++releaseCount; });
+    const ImageSequenceProviderFailureReference reference = handle.reference();
+    QVERIFY(reference.isValid());
+
+    const ImageSequenceProviderFailure failure(ImageSequenceProviderFailureCause::Decode, &handle);
+    QVERIFY(failure.isValid());
+    QCOMPARE(failure.cause(), ImageSequenceProviderFailureCause::Decode);
+    QCOMPARE(failure.applicationFailureHandle(), &handle);
+
+    const ImageSequenceProviderSessionFactoryResult factoryResult
+        = ImageSequenceProviderSessionFactoryResult::failed(failure);
+    QCOMPARE(factoryResult.outcome(), ImageSequenceProviderSessionFactoryOutcome::Failed);
+    QCOMPARE(factoryResult.session(), nullptr);
+    QCOMPARE(factoryResult.failure().cause(), ImageSequenceProviderFailureCause::Decode);
+    QCOMPARE(factoryResult.failure().applicationFailureHandle(), &handle);
+
+    const ImageSequenceProviderEvent event = ImageSequenceProviderEvent::failed(token, failure);
+    QVERIFY(event.isValid());
+    QCOMPARE(event.failure().cause(), ImageSequenceProviderFailureCause::Decode);
+    QCOMPARE(event.failure().applicationFailureHandle()->reference(), reference);
+
+    handle.release();
+    handle.release();
+    QCOMPARE(releaseCount, 1);
+}
 
 void ImageViewportProviderContractTest::providerPublicValueTypesValidateTiming()
 {
@@ -395,7 +426,9 @@ void ImageViewportProviderContractTest::providerTypedProtocolValuesValidateShape
         token, static_cast<ImageSequenceProviderUnsupportedCause>(-1))
             .isValid());
     QVERIFY(ImageSequenceProviderEvent::cancelled(token).isValid());
-    QVERIFY(ImageSequenceProviderEvent::failed(token).isValid());
+    QVERIFY(ImageSequenceProviderEvent::failed(
+        token, ImageSequenceProviderFailure(ImageSequenceProviderFailureCause::ProviderInternal))
+            .isValid());
     QCOMPARE(ImageSequenceProviderEvent::staticMetaObject.indexOfProperty("diagnostic"), -1);
     QVERIFY(!ImageSequenceProviderEvent::waiting({}).isValid());
 

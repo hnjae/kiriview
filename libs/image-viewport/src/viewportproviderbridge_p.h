@@ -97,6 +97,9 @@ public:
         const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
         ImageSequenceProviderFrameHandle* frameHandle)
         = 0;
+    virtual ViewportProviderExecutorOutcome releaseFailureHandle(
+        const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
+        ImageSequenceProviderFailureHandle* failureHandle);
 };
 
 struct ViewportProviderTransportResult
@@ -108,6 +111,11 @@ struct ViewportProviderTransportResult
 struct ViewportProviderSessionOpenTransportResult
 {
     bool opened = false;
+    bool providerFailureAvailable = false;
+    ImageSequenceProviderFailureCause providerCause
+        = ImageSequenceProviderFailureCause::Unavailable;
+    ImageSequenceProviderFailureReference providerReference;
+    quint64 providerFailureLeaseId = 0;
 };
 
 struct ViewportProviderCleanupResult
@@ -129,7 +137,9 @@ public:
         const ViewportProviderSessionOpenInput& input);
     ViewportProviderTransportResult deliverRequest(const ImageSequenceProviderRequest& request);
     void completeFrameEventDelivery(quint64 leaseId);
+    void completeFailureEventDelivery(quint64 leaseId);
     void reconcileFrameLeases(const QSet<quint64>& liveLeaseIds);
+    void reconcileFailureLeases(const QSet<quint64>& liveLeaseIds);
     ViewportProviderCleanupResult drainCleanup(bool retryPendingSessions = true);
     bool hasPendingCleanup() const;
     ViewportProviderCleanupResult releaseAllFrameLeases();

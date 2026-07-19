@@ -8,6 +8,7 @@
 #include "viewportengineprojection_p.h"
 #include "viewportengineproviderprojection_p.h"
 #include "viewportenginestate_p.h"
+#include "viewportenginetargetspreadterminaloperations_p.h"
 #include "viewportprovidertransporteffects_p.h"
 
 #include "imageviewportproviderfacts_p.h"
@@ -84,6 +85,16 @@ QSet<quint64> ViewportEngine::providerFrameLeaseIds() const
         }
     }
     return leases;
+}
+
+QSet<quint64> ViewportEngine::providerFailureLeaseIds() const
+{
+    const ViewportEngineProjectedTerminal projected
+        = projectViewportEngineTerminal(m_state->requestState.request);
+    if (!projected.terminal || projected.terminal->providerFailureLeaseId == 0) {
+        return {};
+    }
+    return { projected.terminal->providerFailureLeaseId };
 }
 
 ViewportEngineCommandDiagnostics ViewportEngine::commandDiagnostics() const

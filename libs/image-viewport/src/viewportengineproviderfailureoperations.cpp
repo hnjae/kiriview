@@ -44,6 +44,29 @@ void updatePlaybackPhase(
     changes.playbackPhase = true;
 }
 
+PublicDiagnosticText providerFailureDiagnostic(
+    ImageSequenceProviderFailureCause cause, bool metadata)
+{
+    const QString operation = metadata ? QStringLiteral("metadata") : QStringLiteral("frame");
+    switch (cause) {
+    case ImageSequenceProviderFailureCause::SourceAccess:
+        return PublicDiagnosticText::fromTrusted(
+            QStringLiteral("provider source access failed for %1").arg(operation));
+    case ImageSequenceProviderFailureCause::Decode:
+        return PublicDiagnosticText::fromTrusted(
+            QStringLiteral("provider decode failed for %1").arg(operation));
+    case ImageSequenceProviderFailureCause::ResourceExhausted:
+        return PublicDiagnosticText::fromTrusted(
+            QStringLiteral("provider resources exhausted for %1").arg(operation));
+    case ImageSequenceProviderFailureCause::ProviderInternal:
+        return PublicDiagnosticText::fromTrusted(
+            QStringLiteral("provider internal failure for %1").arg(operation));
+    case ImageSequenceProviderFailureCause::Unavailable:
+        return PublicDiagnosticText::fromTrusted(QStringLiteral("provider failure"));
+    }
+    return PublicDiagnosticText::fromTrusted(QStringLiteral("provider failure"));
+}
+
 TerminalProjection frameTerminal(const ViewportEngineProviderTerminalEventInput& input)
 {
     if (input.kind == ViewportEngineProviderTerminalEventInput::Kind::Unsupported) {
@@ -54,10 +77,9 @@ TerminalProjection frameTerminal(const ViewportEngineProviderTerminalEventInput&
             PublicDiagnosticText::fromTrusted(QStringLiteral("provider unsupported")) };
     }
     return { ImageViewportRequestStatus::Error, ImageViewportRequestReason::ProviderFailure,
-        PublicDiagnosticText::fromTrusted(
-            input.kind == ViewportEngineProviderTerminalEventInput::Kind::Cancellation
-                ? QStringLiteral("provider cancelled request")
-                : QStringLiteral("provider failure")) };
+        input.kind == ViewportEngineProviderTerminalEventInput::Kind::Cancellation
+            ? PublicDiagnosticText::fromTrusted(QStringLiteral("provider cancelled request"))
+            : providerFailureDiagnostic(input.providerCause, false) };
 }
 
 TerminalProjection metadataTerminal(const ViewportEngineProviderTerminalEventInput& input)
@@ -70,10 +92,9 @@ TerminalProjection metadataTerminal(const ViewportEngineProviderTerminalEventInp
             PublicDiagnosticText::fromTrusted(QStringLiteral("provider unsupported")) };
     }
     return { ImageViewportRequestStatus::Error, ImageViewportRequestReason::ProviderFailure,
-        PublicDiagnosticText::fromTrusted(
-            input.kind == ViewportEngineProviderTerminalEventInput::Kind::Cancellation
-                ? QStringLiteral("provider cancelled request")
-                : QStringLiteral("provider failure")) };
+        input.kind == ViewportEngineProviderTerminalEventInput::Kind::Cancellation
+            ? PublicDiagnosticText::fromTrusted(QStringLiteral("provider cancelled request"))
+            : providerFailureDiagnostic(input.providerCause, true) };
 }
 
 struct TerminalContext
@@ -110,8 +131,9 @@ ViewportEngineProviderTerminalEventReduction reduceTerminal(TerminalContext cont
         context.requests.retire(input.token);
         if (refinement)
             return result;
-        result.changes = recordDisplayRequestTerminal(
-            { input.role, terminal.status, terminal.reason, terminal.diagnostic, result.changes });
+        result.changes = recordDisplayRequestTerminal({ input.role, terminal.status,
+            terminal.reason, terminal.diagnostic, result.changes, input.providerFailureAvailable,
+            input.providerCause, input.providerReference, input.providerFailureLeaseId });
         updatePlaybackPhase(context.playback, ImageViewportPlaybackPhase::Stopped, result.changes);
         return result;
     }
@@ -122,8 +144,9 @@ ViewportEngineProviderTerminalEventReduction reduceTerminal(TerminalContext cont
     const auto terminal = metadataTerminal(input);
     context.requests.retire(input.token);
     context.playback.providerStartPending = false;
-    result.changes = recordGenerationTerminal(
-        { input.role, terminal.status, terminal.reason, terminal.diagnostic, result.changes });
+    result.changes = recordGenerationTerminal({ input.role, terminal.status, terminal.reason,
+        terminal.diagnostic, result.changes, input.providerFailureAvailable, input.providerCause,
+        input.providerReference, input.providerFailureLeaseId });
     updatePlaybackPhase(context.playback, ImageViewportPlaybackPhase::Stopped, result.changes);
     result.providerFrameTransport = closeSession();
     return result;
@@ -275,7 +298,8 @@ ViewportEngineProviderSessionOpenFailureReduction reduceViewportEngineProviderSe
     result.changes = access.recordGenerationTerminal({ input.role,
         ImageViewportRequestStatus::Error, ImageViewportRequestReason::ProviderFailure,
         PublicDiagnosticText::fromTrusted(QStringLiteral("provider session creation failed")),
-        result.changes });
+        result.changes, input.providerFailureAvailable, input.providerCause,
+        input.providerReference, input.providerFailureLeaseId });
     updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
     return result;
 }

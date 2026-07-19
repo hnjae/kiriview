@@ -21,6 +21,11 @@ struct ViewportEngineProviderTerminalEventInput
     Kind kind = Kind::Failure;
     ImageSequenceProviderUnsupportedCause unsupportedCause
         = ImageSequenceProviderUnsupportedCause::PayloadRejection;
+    bool providerFailureAvailable = false;
+    ImageSequenceProviderFailureCause providerCause
+        = ImageSequenceProviderFailureCause::Unavailable;
+    ImageSequenceProviderFailureReference providerReference;
+    quint64 providerFailureLeaseId = 0;
 };
 
 struct ViewportEngineProviderProtocolViolationInput
@@ -48,6 +53,11 @@ struct ViewportEngineProviderDispatchFailureInput
 struct ViewportEngineProviderSessionOpenFailureInput
 {
     ImageViewportPageRole role = ImageViewportPageRole::Primary;
+    bool providerFailureAvailable = false;
+    ImageSequenceProviderFailureCause providerCause
+        = ImageSequenceProviderFailureCause::Unavailable;
+    ImageSequenceProviderFailureReference providerReference;
+    quint64 providerFailureLeaseId = 0;
 };
 
 struct ViewportEngineProviderSessionOpenFailureReduction

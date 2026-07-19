@@ -5,6 +5,7 @@
 #include "imageviewportproviderfacts_p.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <limits>
 #include <utility>
@@ -29,11 +30,67 @@ bool isValidUnsupportedCause(ImageSequenceProviderUnsupportedCause cause)
     return cause == ImageSequenceProviderUnsupportedCause::UnsupportedRequest
         || cause == ImageSequenceProviderUnsupportedCause::PayloadRejection;
 }
+
+bool isValidFailureCause(ImageSequenceProviderFailureCause cause)
+{
+    switch (cause) {
+    case ImageSequenceProviderFailureCause::SourceAccess:
+    case ImageSequenceProviderFailureCause::Decode:
+    case ImageSequenceProviderFailureCause::ResourceExhausted:
+    case ImageSequenceProviderFailureCause::ProviderInternal:
+        return true;
+    case ImageSequenceProviderFailureCause::Unavailable:
+        return false;
+    }
+    return false;
+}
+
+quint64 allocateFailureReferenceValue()
+{
+    static std::atomic<quint64> nextReference { 1 };
+    quint64 value = nextReference.fetch_add(1, std::memory_order_relaxed);
+    if (value == 0) {
+        value = nextReference.fetch_add(1, std::memory_order_relaxed);
+    }
+    return value;
+}
 }
 
 ImageSequenceProviderAdapter::ImageSequenceProviderAdapter(QObject* parent)
     : QObject(parent)
 {
+}
+
+ImageSequenceProviderFailureHandle::ImageSequenceProviderFailureHandle(
+    ReleaseCallback releaseFailure, QObject* parent)
+    : QObject(parent)
+    , m_reference(allocateFailureReferenceValue())
+    , m_releaseFailure(std::move(releaseFailure))
+{
+}
+
+ImageSequenceProviderFailureHandle::~ImageSequenceProviderFailureHandle() { release(); }
+
+bool ImageSequenceProviderFailureHandle::isValid() const
+{
+    return m_reference.isValid() && bool(m_releaseFailure);
+}
+
+void ImageSequenceProviderFailureHandle::release()
+{
+    if (m_released) {
+        return;
+    }
+    m_released = true;
+    if (m_releaseFailure) {
+        m_releaseFailure();
+    }
+}
+
+bool ImageSequenceProviderFailure::isValid() const
+{
+    return isValidFailureCause(m_cause)
+        && (!m_applicationFailureHandle || m_applicationFailureHandle->isValid());
 }
 
 ImageSequenceProviderSessionFactoryResult ImageSequenceProviderSessionFactoryResult::created(
@@ -45,10 +102,12 @@ ImageSequenceProviderSessionFactoryResult ImageSequenceProviderSessionFactoryRes
     return result;
 }
 
-ImageSequenceProviderSessionFactoryResult ImageSequenceProviderSessionFactoryResult::failed()
+ImageSequenceProviderSessionFactoryResult ImageSequenceProviderSessionFactoryResult::failed(
+    ImageSequenceProviderFailure failure)
 {
     ImageSequenceProviderSessionFactoryResult result;
     result.m_outcome = ImageSequenceProviderSessionFactoryOutcome::Failed;
+    result.m_failure = std::move(failure);
     return result;
 }
 
@@ -662,11 +721,12 @@ ImageSequenceProviderEvent ImageSequenceProviderEvent::cancelled(
 }
 
 ImageSequenceProviderEvent ImageSequenceProviderEvent::failed(
-    ImageSequenceProviderRequestToken token)
+    ImageSequenceProviderRequestToken token, ImageSequenceProviderFailure failure)
 {
     ImageSequenceProviderEvent event;
     event.m_kind = ImageSequenceProviderEventKind::Failed;
     event.m_token = token;
+    event.m_failure = std::move(failure);
     return event;
 }
 
@@ -680,8 +740,9 @@ bool ImageSequenceProviderEvent::isValid() const
     case ImageSequenceProviderEventKind::Waiting:
     case ImageSequenceProviderEventKind::EndOfSequence:
     case ImageSequenceProviderEventKind::Cancelled:
-    case ImageSequenceProviderEventKind::Failed:
         return m_token.isValid();
+    case ImageSequenceProviderEventKind::Failed:
+        return m_token.isValid() && m_failure.isValid();
     case ImageSequenceProviderEventKind::Progress:
         return m_token.isValid() && std::isfinite(m_progress) && m_progress >= 0.0
             && m_progress <= 1.0;

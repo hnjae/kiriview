@@ -21,7 +21,9 @@ public:
         return ImageSequenceProviderDescriptor(ImageSequenceProviderMetadata::still(QSizeF(4, 2)),
             ImageSequenceProviderThreadingContract::AffinityBound, [diagnostic]() {
                 Q_UNUSED(diagnostic);
-                return ImageSequenceProviderSessionFactoryResult::failed();
+                return ImageSequenceProviderSessionFactoryResult::failed(
+                    ImageSequenceProviderFailure(
+                        ImageSequenceProviderFailureCause::ProviderInternal));
             });
     }
 

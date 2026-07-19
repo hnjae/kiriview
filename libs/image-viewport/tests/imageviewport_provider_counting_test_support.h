@@ -258,8 +258,10 @@ public:
         : ImageSequenceProviderAdapter(parent)
         , m_sessionFactory([factory = std::move(factory)]() {
             ImageSequenceProviderSession* session = factory->createSession(nullptr);
-            return session ? ImageSequenceProviderSessionFactoryResult::created(session)
-                           : ImageSequenceProviderSessionFactoryResult::failed();
+            return session
+                ? ImageSequenceProviderSessionFactoryResult::created(session)
+                : ImageSequenceProviderSessionFactoryResult::failed(ImageSequenceProviderFailure(
+                      ImageSequenceProviderFailureCause::ProviderInternal));
         })
         , m_knownMetadata(std::move(knownMetadata))
         , m_timedPlaybackSupport(timedPlaybackSupport)

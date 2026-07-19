@@ -26,6 +26,59 @@ class ImageSequenceProviderDescriptor;
 class ImageSequenceProviderEvent;
 class ImageSequenceProviderRequest;
 
+class ImageSequenceProviderFailureHandle : public QObject
+{
+    Q_OBJECT
+    QML_ELEMENT
+    QML_UNCREATABLE("ImageSequenceProviderFailureHandle objects are created by provider adapters")
+
+public:
+    using ReleaseCallback = std::function<void()>;
+
+    explicit ImageSequenceProviderFailureHandle(
+        ReleaseCallback releaseFailure, QObject* parent = nullptr);
+    ~ImageSequenceProviderFailureHandle() override;
+
+    ImageSequenceProviderFailureReference reference() const { return m_reference; }
+    bool isValid() const;
+    void release();
+
+private:
+    ImageSequenceProviderFailureReference m_reference;
+    ReleaseCallback m_releaseFailure;
+    bool m_released = false;
+};
+
+class ImageSequenceProviderFailure
+{
+    Q_GADGET
+    QML_VALUE_TYPE(imageSequenceProviderFailure)
+    Q_PROPERTY(bool valid READ isValid CONSTANT)
+    Q_PROPERTY(ImageSequenceProviderFailureCause cause READ cause CONSTANT)
+    Q_PROPERTY(ImageSequenceProviderFailureHandle* applicationFailureHandle READ
+            applicationFailureHandle CONSTANT)
+
+public:
+    ImageSequenceProviderFailure() = default;
+    explicit ImageSequenceProviderFailure(ImageSequenceProviderFailureCause cause,
+        ImageSequenceProviderFailureHandle* applicationFailureHandle = nullptr)
+        : m_cause(cause)
+        , m_applicationFailureHandle(applicationFailureHandle)
+    {
+    }
+
+    bool isValid() const;
+    ImageSequenceProviderFailureCause cause() const { return m_cause; }
+    ImageSequenceProviderFailureHandle* applicationFailureHandle() const
+    {
+        return m_applicationFailureHandle;
+    }
+
+private:
+    ImageSequenceProviderFailureCause m_cause = ImageSequenceProviderFailureCause::Unavailable;
+    QPointer<ImageSequenceProviderFailureHandle> m_applicationFailureHandle;
+};
+
 enum class ImageSequenceProviderThreadingContract {
     AffinityBound,
     ThreadSafe,
@@ -172,15 +225,17 @@ class ImageSequenceProviderSessionFactoryResult
 public:
     ImageSequenceProviderSessionFactoryResult() = default;
     static ImageSequenceProviderSessionFactoryResult created(ImageSequenceProviderSession* session);
-    static ImageSequenceProviderSessionFactoryResult failed();
+    static ImageSequenceProviderSessionFactoryResult failed(ImageSequenceProviderFailure failure);
 
     ImageSequenceProviderSessionFactoryOutcome outcome() const;
     ImageSequenceProviderSession* session() const;
+    ImageSequenceProviderFailure failure() const { return m_failure; }
 
 private:
     ImageSequenceProviderSessionFactoryOutcome m_outcome
         = ImageSequenceProviderSessionFactoryOutcome::Failed;
     QPointer<ImageSequenceProviderSession> m_session;
+    ImageSequenceProviderFailure m_failure;
 };
 
 enum class ImageSequenceProviderRequestKind {
@@ -465,6 +520,7 @@ class ImageSequenceProviderEvent
     Q_PROPERTY(double progress READ progress CONSTANT)
     Q_PROPERTY(
         ImageSequenceProviderUnsupportedCause unsupportedCause READ unsupportedCause CONSTANT)
+    Q_PROPERTY(ImageSequenceProviderFailure failure READ failure CONSTANT)
 
 public:
     ImageSequenceProviderEvent() = default;
@@ -480,7 +536,8 @@ public:
     static ImageSequenceProviderEvent unsupported(
         ImageSequenceProviderRequestToken token, ImageSequenceProviderUnsupportedCause cause);
     static ImageSequenceProviderEvent cancelled(ImageSequenceProviderRequestToken token);
-    static ImageSequenceProviderEvent failed(ImageSequenceProviderRequestToken token);
+    static ImageSequenceProviderEvent failed(
+        ImageSequenceProviderRequestToken token, ImageSequenceProviderFailure failure);
 
     bool isValid() const;
     ImageSequenceProviderEventKind kind() const { return m_kind; }
@@ -490,6 +547,7 @@ public:
     ImageSequenceProviderFrameEnvelope frameEnvelope() const { return m_frameEnvelope; }
     double progress() const { return m_progress; }
     ImageSequenceProviderUnsupportedCause unsupportedCause() const { return m_unsupportedCause; }
+    ImageSequenceProviderFailure failure() const { return m_failure; }
 
 private:
     ImageSequenceProviderEventKind m_kind = ImageSequenceProviderEventKind::Failed;
@@ -500,6 +558,7 @@ private:
     double m_progress = 0.0;
     ImageSequenceProviderUnsupportedCause m_unsupportedCause
         = ImageSequenceProviderUnsupportedCause::PayloadRejection;
+    ImageSequenceProviderFailure m_failure;
 };
 
 class ImageSequenceProviderDescriptor
@@ -532,6 +591,7 @@ Q_DECLARE_METATYPE(ImageSequenceProviderMetadata)
 Q_DECLARE_METATYPE(ImageSequenceProviderRequestKind)
 Q_DECLARE_METATYPE(ImageSequenceProviderEventKind)
 Q_DECLARE_METATYPE(ImageSequenceProviderUnsupportedCause)
+Q_DECLARE_METATYPE(ImageSequenceProviderFailure)
 Q_DECLARE_METATYPE(ImageSequenceProviderFrameEnvelope)
 Q_DECLARE_METATYPE(ImageSequenceProviderDisplayDemand)
 Q_DECLARE_METATYPE(ImageSequenceProviderRequest)

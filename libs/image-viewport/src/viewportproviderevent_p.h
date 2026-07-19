@@ -21,4 +21,10 @@ struct ViewportProviderEvent
     double progress = 0.0;
     ImageSequenceProviderUnsupportedCause unsupportedCause
         = ImageSequenceProviderUnsupportedCause::PayloadRejection;
+    bool providerFailureAvailable = false;
+    ImageSequenceProviderFailureCause providerCause
+        = ImageSequenceProviderFailureCause::Unavailable;
+    ImageSequenceProviderFailureReference providerReference;
+    ImageSequenceProviderFailureHandle* failureHandle = nullptr;
+    quint64 failureLeaseId = 0;
 };

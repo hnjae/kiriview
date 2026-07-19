@@ -45,37 +45,45 @@ const TargetSpreadRoleTerminalState* currentDisplayRequestTerminal(
     return roleTerminal.terminal ? &roleTerminal : nullptr;
 }
 
-const TargetSpreadRoleTerminalState* projectedTerminal(const RequestState& request)
+ViewportEngineProjectedTerminal projectedTerminal(const RequestState& request)
 {
     const auto* primary = currentGenerationTerminal(request, ImageViewportPageRole::Primary);
+    ImageViewportFailureScope primaryScope = ImageViewportFailureScope::Generation;
     if (!primary) {
         primary = currentDisplayRequestTerminal(request, ImageViewportPageRole::Primary);
+        primaryScope = ImageViewportFailureScope::DisplayRequest;
     }
     const auto* secondary = currentGenerationTerminal(request, ImageViewportPageRole::Secondary);
+    ImageViewportFailureScope secondaryScope = ImageViewportFailureScope::Generation;
     if (!secondary) {
         secondary = currentDisplayRequestTerminal(request, ImageViewportPageRole::Secondary);
+        secondaryScope = ImageViewportFailureScope::DisplayRequest;
     }
     if (!primary) {
-        return secondary;
+        return { secondary, ImageViewportPageRole::Secondary,
+            secondary ? secondaryScope : ImageViewportFailureScope::Unavailable };
     }
     if (!secondary || primary->status == secondary->status
         || primary->status == ImageViewportRequestStatus::Error) {
-        return primary;
+        return { primary, ImageViewportPageRole::Primary, primaryScope };
     }
-    return secondary->status == ImageViewportRequestStatus::Error ? secondary : primary;
+    return secondary->status == ImageViewportRequestStatus::Error
+        ? ViewportEngineProjectedTerminal { secondary, ImageViewportPageRole::Secondary,
+              secondaryScope }
+        : ViewportEngineProjectedTerminal { primary, ImageViewportPageRole::Primary, primaryScope };
 }
 
 ViewportChangeSet projectTerminal(
     ViewportEngineTargetSpreadTerminalInput input, RequestState& request)
 {
-    const auto* projected = projectedTerminal(request);
-    if (!projected) {
+    const auto projected = projectedTerminal(request);
+    if (!projected.terminal) {
         return input.changes;
     }
-    const bool diagnosticChanged = request.errorString != projected->diagnostic;
-    request.status = projected->status;
-    request.reason = projected->reason;
-    request.errorString = projected->diagnostic;
+    const bool diagnosticChanged = request.errorString != projected.terminal->diagnostic;
+    request.status = projected.terminal->status;
+    request.reason = projected.terminal->reason;
+    request.errorString = projected.terminal->diagnostic;
     input.changes.requestState = true;
     input.changes.requestRevision = true;
     input.changes.diagnostics = diagnosticChanged;
@@ -99,6 +107,10 @@ ImageViewportInternal::ViewportChangeSet recordViewportEngineDisplayRequestTermi
     roleTerminal.status = input.status;
     roleTerminal.reason = input.reason;
     roleTerminal.diagnostic = input.diagnostic;
+    roleTerminal.providerFailureAvailable = input.providerFailureAvailable;
+    roleTerminal.providerCause = input.providerCause;
+    roleTerminal.providerReference = input.providerReference;
+    roleTerminal.providerFailureLeaseId = input.providerFailureLeaseId;
     return projectTerminal(std::move(input), request);
 }
 
@@ -116,6 +128,10 @@ ImageViewportInternal::ViewportChangeSet recordViewportEngineGenerationTerminal(
     roleTerminal.status = input.status;
     roleTerminal.reason = input.reason;
     roleTerminal.diagnostic = input.diagnostic;
+    roleTerminal.providerFailureAvailable = input.providerFailureAvailable;
+    roleTerminal.providerCause = input.providerCause;
+    roleTerminal.providerReference = input.providerReference;
+    roleTerminal.providerFailureLeaseId = input.providerFailureLeaseId;
     return projectTerminal(std::move(input), request);
 }
 
@@ -134,7 +150,7 @@ bool viewportEngineHasCurrentGenerationTerminal(const ImageViewportInternal::Req
 
 bool viewportEngineHasCurrentTerminal(const ImageViewportInternal::RequestState& request)
 {
-    return projectedTerminal(request);
+    return projectedTerminal(request).terminal;
 }
 
 bool viewportEngineRoleCanRefineCurrentTerminal(
@@ -150,8 +166,9 @@ bool viewportEngineRoleCanRefineCurrentTerminal(
     if (roleTerminal) {
         return false;
     }
-    const auto* projected = projectedTerminal(request);
-    if (!projected || projected->status == ImageViewportRequestStatus::Unsupported) {
+    const auto projected = projectedTerminal(request);
+    if (!projected.terminal
+        || projected.terminal->status == ImageViewportRequestStatus::Unsupported) {
         return true;
     }
     const auto* secondary = currentGenerationTerminal(request, ImageViewportPageRole::Secondary);
@@ -160,6 +177,12 @@ bool viewportEngineRoleCanRefineCurrentTerminal(
     }
     return role == ImageViewportPageRole::Primary && secondary
         && secondary->status == ImageViewportRequestStatus::Error;
+}
+
+ViewportEngineProjectedTerminal projectViewportEngineTerminal(
+    const ImageViewportInternal::RequestState& request)
+{
+    return projectedTerminal(request);
 }
 
 ImageViewportInternal::ViewportChangeSet projectViewportEngineCurrentTerminal(

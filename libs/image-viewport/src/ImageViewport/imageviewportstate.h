@@ -712,33 +712,104 @@ private:
     ImageViewportRoleGeometrySnapshot m_geometry;
 };
 
+class ImageViewportFailureSnapshot
+{
+    Q_GADGET
+    QML_VALUE_TYPE(imageViewportFailureSnapshot)
+    Q_PROPERTY(bool available READ available CONSTANT)
+    Q_PROPERTY(ImageViewportFailureContext context READ context CONSTANT)
+    Q_PROPERTY(ImageViewportRequestReason reason READ reason CONSTANT)
+    Q_PROPERTY(QVariant role READ role CONSTANT)
+    Q_PROPERTY(ImageViewportFailureScope scope READ scope CONSTANT)
+    Q_PROPERTY(bool providerFailureAvailable READ providerFailureAvailable CONSTANT)
+    Q_PROPERTY(ImageSequenceProviderFailureCause providerCause READ providerCause CONSTANT)
+    Q_PROPERTY(
+        ImageSequenceProviderFailureReference providerReference READ providerReference CONSTANT)
+
+public:
+    ImageViewportFailureSnapshot() = default;
+    ImageViewportFailureSnapshot(bool available, ImageViewportFailureContext context,
+        ImageViewportRequestReason reason, QVariant role, ImageViewportFailureScope scope,
+        bool providerFailureAvailable, ImageSequenceProviderFailureCause providerCause,
+        ImageSequenceProviderFailureReference providerReference)
+        : m_available(available)
+        , m_context(context)
+        , m_reason(reason)
+        , m_role(std::move(role))
+        , m_scope(scope)
+        , m_providerFailureAvailable(providerFailureAvailable)
+        , m_providerCause(providerCause)
+        , m_providerReference(providerReference)
+    {
+    }
+
+    bool available() const { return m_available; }
+    ImageViewportFailureContext context() const { return m_context; }
+    ImageViewportRequestReason reason() const { return m_reason; }
+    QVariant role() const { return m_role; }
+    ImageViewportFailureScope scope() const { return m_scope; }
+    bool providerFailureAvailable() const { return m_providerFailureAvailable; }
+    ImageSequenceProviderFailureCause providerCause() const { return m_providerCause; }
+    ImageSequenceProviderFailureReference providerReference() const { return m_providerReference; }
+
+    friend bool operator==(
+        const ImageViewportFailureSnapshot& lhs, const ImageViewportFailureSnapshot& rhs)
+    {
+        return lhs.m_available == rhs.m_available && lhs.m_context == rhs.m_context
+            && lhs.m_reason == rhs.m_reason && lhs.m_role == rhs.m_role
+            && lhs.m_scope == rhs.m_scope
+            && lhs.m_providerFailureAvailable == rhs.m_providerFailureAvailable
+            && lhs.m_providerCause == rhs.m_providerCause
+            && lhs.m_providerReference == rhs.m_providerReference;
+    }
+    friend bool operator!=(
+        const ImageViewportFailureSnapshot& lhs, const ImageViewportFailureSnapshot& rhs)
+    {
+        return !(lhs == rhs);
+    }
+
+private:
+    bool m_available = false;
+    ImageViewportFailureContext m_context = ImageViewportFailureContext::Unavailable;
+    ImageViewportRequestReason m_reason = ImageViewportRequestReason::NoRequest;
+    QVariant m_role;
+    ImageViewportFailureScope m_scope = ImageViewportFailureScope::Unavailable;
+    bool m_providerFailureAvailable = false;
+    ImageSequenceProviderFailureCause m_providerCause
+        = ImageSequenceProviderFailureCause::Unavailable;
+    ImageSequenceProviderFailureReference m_providerReference;
+};
+
 class ImageViewportDiagnosticsSnapshot
 {
     Q_GADGET
     QML_VALUE_TYPE(imageViewportDiagnosticsSnapshot)
     Q_PROPERTY(QString errorString READ errorString CONSTANT)
     Q_PROPERTY(QString warningString READ warningString CONSTANT)
+    Q_PROPERTY(ImageViewportFailureSnapshot failure READ failure CONSTANT)
     Q_PROPERTY(ImageViewportCommandReason commandReason READ commandReason CONSTANT)
 
 public:
     ImageViewportDiagnosticsSnapshot() = default;
-    ImageViewportDiagnosticsSnapshot(
-        QString errorString, QString warningString, ImageViewportCommandReason commandReason)
+    ImageViewportDiagnosticsSnapshot(QString errorString, QString warningString,
+        ImageViewportFailureSnapshot failure, ImageViewportCommandReason commandReason)
         : m_errorString(std::move(errorString))
         , m_warningString(std::move(warningString))
+        , m_failure(std::move(failure))
         , m_commandReason(commandReason)
     {
     }
 
     QString errorString() const { return m_errorString; }
     QString warningString() const { return m_warningString; }
+    ImageViewportFailureSnapshot failure() const { return m_failure; }
     ImageViewportCommandReason commandReason() const { return m_commandReason; }
 
     friend bool operator==(
         const ImageViewportDiagnosticsSnapshot& lhs, const ImageViewportDiagnosticsSnapshot& rhs)
     {
         return lhs.m_errorString == rhs.m_errorString && lhs.m_warningString == rhs.m_warningString
-            && lhs.m_commandReason == rhs.m_commandReason;
+            && lhs.m_failure == rhs.m_failure && lhs.m_commandReason == rhs.m_commandReason;
     }
     friend bool operator!=(
         const ImageViewportDiagnosticsSnapshot& lhs, const ImageViewportDiagnosticsSnapshot& rhs)
@@ -749,6 +820,7 @@ public:
 private:
     QString m_errorString;
     QString m_warningString;
+    ImageViewportFailureSnapshot m_failure;
     ImageViewportCommandReason m_commandReason = ImageViewportCommandReason::NoCommand;
 };
 
@@ -1002,6 +1074,7 @@ Q_DECLARE_METATYPE(ImageViewportRoleMetadataSnapshot)
 Q_DECLARE_METATYPE(ImageViewportRoleGeometrySnapshot)
 Q_DECLARE_METATYPE(ImageViewportRoleSnapshot)
 Q_DECLARE_METATYPE(ImageViewportDiagnosticsSnapshot)
+Q_DECLARE_METATYPE(ImageViewportFailureSnapshot)
 Q_DECLARE_METATYPE(ImageViewportRevisionsSnapshot)
 Q_DECLARE_METATYPE(ImageViewportStateSnapshot)
 Q_DECLARE_METATYPE(ImageViewportCommandResult)

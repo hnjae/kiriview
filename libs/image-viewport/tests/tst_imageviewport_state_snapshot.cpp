@@ -513,26 +513,43 @@ void ImageViewportStateSnapshotTest::terminalProviderFailureProjectsDiagnostics(
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    ImageViewport item;
-    QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
-    item.setPresentationTarget(
-        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
-    QVERIFY(sessionFactory->lastSession());
-    emitProviderFailed(sessionFactory->lastSession(),
-        sessionFactory->lastSession()->lastMetadataToken(), QStringLiteral("metadata unavailable"));
-    drainQueuedProviderResults();
+    const auto releaseCount = std::make_shared<int>(0);
+    {
+        ImageViewport item;
+        QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
+        item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
+            PresentationTargetTransitionPolicy {});
+        QVERIFY(sessionFactory->lastSession());
+        auto* handle
+            = new ImageSequenceProviderFailureHandle([releaseCount]() { ++*releaseCount; });
+        const ImageSequenceProviderFailureReference reference = handle->reference();
+        emit sessionFactory->lastSession()->providerEvent(ImageSequenceProviderEvent::failed(
+            sessionFactory->lastSession()->lastMetadataToken(),
+            ImageSequenceProviderFailure(ImageSequenceProviderFailureCause::SourceAccess, handle)));
+        drainQueuedProviderResults();
 
-    const ImageViewportStateSnapshot snapshot = item.state();
-    QCOMPARE(snapshot.request().status(), ImageViewportRequestStatus::Error);
-    QCOMPARE(snapshot.request().reason(), ImageViewportRequestReason::ProviderFailure);
-    QCOMPARE(snapshot.display().status(), ImageViewportDisplayStatus::Empty);
-    QCOMPARE(snapshot.primary().request().frame(), -1);
-    QVERIFY(!snapshot.diagnostics().errorString().isEmpty());
-    QVERIFY(!snapshot.diagnostics().errorString().contains(QStringLiteral("metadata unavailable")));
-    QCOMPARE(snapshot.diagnostics().commandReason(), viewportCommandReason(item));
-    QVERIFY(snapshot.revisions().request().isValid());
-    QVERIFY(snapshot.revisions().snapshot().isValid());
-    QVERIFY(stateSpy.count() >= 2);
+        const ImageViewportStateSnapshot snapshot = item.state();
+        QCOMPARE(snapshot.request().status(), ImageViewportRequestStatus::Error);
+        QCOMPARE(snapshot.request().reason(), ImageViewportRequestReason::ProviderFailure);
+        QCOMPARE(snapshot.display().status(), ImageViewportDisplayStatus::Empty);
+        QCOMPARE(snapshot.primary().request().frame(), -1);
+        QVERIFY(!snapshot.diagnostics().errorString().isEmpty());
+        QCOMPARE(snapshot.diagnostics().commandReason(), viewportCommandReason(item));
+        const ImageViewportFailureSnapshot failure = snapshot.diagnostics().failure();
+        QVERIFY(failure.available());
+        QCOMPARE(failure.context(), ImageViewportFailureContext::CurrentRequest);
+        QCOMPARE(failure.reason(), ImageViewportRequestReason::ProviderFailure);
+        QCOMPARE(failure.role(), QVariant::fromValue(ImageViewportPageRole::Primary));
+        QCOMPARE(failure.scope(), ImageViewportFailureScope::Generation);
+        QVERIFY(failure.providerFailureAvailable());
+        QCOMPARE(failure.providerCause(), ImageSequenceProviderFailureCause::SourceAccess);
+        QCOMPARE(failure.providerReference(), reference);
+        QCOMPARE(*releaseCount, 0);
+        QVERIFY(snapshot.revisions().request().isValid());
+        QVERIFY(snapshot.revisions().snapshot().isValid());
+        QVERIFY(stateSpy.count() >= 2);
+    }
+    QCOMPARE(*releaseCount, 1);
 }
 
 void ImageViewportStateSnapshotTest::timedPlaybackSnapshotTracksRequestState()

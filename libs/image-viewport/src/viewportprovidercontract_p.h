@@ -155,4 +155,9 @@ struct ViewportProviderHostEvent
     ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ViewportProviderEvent providerEvent;
     ImageSequenceProviderRequestToken token;
+    bool providerFailureAvailable = false;
+    ImageSequenceProviderFailureCause providerCause
+        = ImageSequenceProviderFailureCause::Unavailable;
+    ImageSequenceProviderFailureReference providerReference;
+    quint64 providerFailureLeaseId = 0;
 };
