@@ -164,8 +164,7 @@ if(TARGET tst_imageactions)
 endif()
 
 if(TARGET tst_menuaccesskeyrouter)
-    set_tests_properties(tst_menuaccesskeyrouter PROPERTIES ENVIRONMENT
-                                                             "QT_QPA_PLATFORM=offscreen")
+    set_tests_properties(tst_menuaccesskeyrouter PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
 
 if(TARGET tst_menuactionitem)
@@ -179,7 +178,7 @@ endif()
 
 if(TARGET tst_mainwindowvideointegration)
     set_tests_properties(tst_mainwindowvideointegration PROPERTIES ENVIRONMENT
-                                                                    "QT_QPA_PLATFORM=offscreen")
+                                                                   "QT_QPA_PLATFORM=offscreen")
 endif()
 
 if(TARGET tst_imagezoomcontrols)
@@ -192,7 +191,7 @@ endif()
 
 if(TARGET tst_toolbarapplicationmenu)
     set_tests_properties(tst_toolbarapplicationmenu PROPERTIES ENVIRONMENT
-                                                                "QT_QPA_PLATFORM=offscreen")
+                                                               "QT_QPA_PLATFORM=offscreen")
 endif()
 
 if(TARGET tst_imageshortcuts)
@@ -209,7 +208,7 @@ endif()
 
 if(TARGET tst_videodocumentruntimezoom)
     set_tests_properties(tst_videodocumentruntimezoom PROPERTIES ENVIRONMENT
-                                                                  "QT_QPA_PLATFORM=offscreen")
+                                                                 "QT_QPA_PLATFORM=offscreen")
 endif()
 
 if(TARGET tst_videooutputruntime)
