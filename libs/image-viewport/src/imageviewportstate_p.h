@@ -491,25 +491,48 @@ enum class AuthoredAutoplayArbitrationState {
     Suppressed,
 };
 
-struct PlaybackState
+struct RolePlaybackState
 {
     void resetRequestIdentity()
     {
         position = -1;
-        role = ImageViewportPageRole::Primary;
         loopIterationsCompleted = 0;
+        activeScheduleIdentity = 0;
         authoredAutoplayArbitration = AuthoredAutoplayArbitrationState::Pending;
     }
 
     ImageViewportPlaybackPhase phase = ImageViewportPlaybackPhase::Stopped;
-    bool looping = false;
     bool stopWhenRequestReady = false;
     bool providerStartPending = false;
     int position = -1;
-    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     int loopIterationsCompleted = 0;
+    quint64 nextScheduleIdentity = 0;
+    quint64 activeScheduleIdentity = 0;
     AuthoredAutoplayArbitrationState authoredAutoplayArbitration
         = AuthoredAutoplayArbitrationState::Pending;
+};
+
+struct PlaybackState
+{
+    RolePlaybackState& forRole(ImageViewportPageRole role)
+    {
+        return roles[role == ImageViewportPageRole::Secondary ? 1U : 0U];
+    }
+
+    const RolePlaybackState& forRole(ImageViewportPageRole role) const
+    {
+        return roles[role == ImageViewportPageRole::Secondary ? 1U : 0U];
+    }
+
+    void resetRequestIdentity()
+    {
+        for (auto& role : roles) {
+            role.resetRequestIdentity();
+        }
+    }
+
+    std::array<RolePlaybackState, 2> roles;
+    bool looping = false;
 };
 
 struct RequestState

@@ -28,7 +28,7 @@ private:
 
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderTransportBatch providerTransport;
-    ViewportPlaybackScheduleEffect playbackSchedule;
+    ViewportPlaybackScheduleBatch playbackSchedules;
     ImageViewportInternal::ProviderSchedulerDiagnostic providerSchedulerDiagnostic;
     ImageViewportInternal::InternalObservationBatch observations;
 };
@@ -51,9 +51,14 @@ public:
     {
         return std::move(m_draft.providerTransport);
     }
-    const ViewportPlaybackScheduleEffect& playbackSchedule() const
+    const ViewportPlaybackScheduleEffect& playbackSchedule(
+        ImageViewportPageRole role = ImageViewportPageRole::Primary) const
     {
-        return m_draft.playbackSchedule;
+        return m_draft.playbackSchedules.forRole(role);
+    }
+    const ViewportPlaybackScheduleBatch& playbackSchedules() const
+    {
+        return m_draft.playbackSchedules;
     }
     const ImageViewportInternal::ProviderSchedulerDiagnostic& providerSchedulerDiagnostic() const
     {

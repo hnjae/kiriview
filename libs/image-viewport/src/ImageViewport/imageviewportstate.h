@@ -25,46 +25,38 @@ class ImageViewportRequestSnapshot
     QML_VALUE_TYPE(imageViewportRequestSnapshot)
     Q_PROPERTY(ImageViewportRequestStatus status READ status CONSTANT)
     Q_PROPERTY(ImageViewportRequestReason reason READ reason CONSTANT)
-    Q_PROPERTY(ImageViewportPlaybackPhase playbackPhase READ playbackPhase CONSTANT)
     Q_PROPERTY(ImageViewportPresentationTargetGenerationToken acceptedPresentationTargetGeneration
             READ acceptedPresentationTargetGeneration CONSTANT)
     Q_PROPERTY(ImageViewportRoleSet acceptedRoleSet READ acceptedRoleSet CONSTANT)
-    Q_PROPERTY(QVariant playbackRole READ playbackRole CONSTANT)
 
 public:
     ImageViewportRequestSnapshot() = default;
     ImageViewportRequestSnapshot(ImageViewportRequestStatus status,
-        ImageViewportRequestReason reason, ImageViewportPlaybackPhase playbackPhase,
+        ImageViewportRequestReason reason,
         ImageViewportPresentationTargetGenerationToken acceptedPresentationTargetGeneration,
-        ImageViewportRoleSet acceptedRoleSet, QVariant playbackRole)
+        ImageViewportRoleSet acceptedRoleSet)
         : m_status(status)
         , m_reason(reason)
-        , m_playbackPhase(playbackPhase)
         , m_acceptedPresentationTargetGeneration(acceptedPresentationTargetGeneration)
         , m_acceptedRoleSet(acceptedRoleSet)
-        , m_playbackRole(std::move(playbackRole))
     {
     }
 
     ImageViewportRequestStatus status() const { return m_status; }
     ImageViewportRequestReason reason() const { return m_reason; }
-    ImageViewportPlaybackPhase playbackPhase() const { return m_playbackPhase; }
     ImageViewportPresentationTargetGenerationToken acceptedPresentationTargetGeneration() const
     {
         return m_acceptedPresentationTargetGeneration;
     }
     ImageViewportRoleSet acceptedRoleSet() const { return m_acceptedRoleSet; }
-    QVariant playbackRole() const { return m_playbackRole; }
 
     friend bool operator==(
         const ImageViewportRequestSnapshot& lhs, const ImageViewportRequestSnapshot& rhs)
     {
         return lhs.m_status == rhs.m_status && lhs.m_reason == rhs.m_reason
-            && lhs.m_playbackPhase == rhs.m_playbackPhase
             && lhs.m_acceptedPresentationTargetGeneration
             == rhs.m_acceptedPresentationTargetGeneration
-            && lhs.m_acceptedRoleSet == rhs.m_acceptedRoleSet
-            && lhs.m_playbackRole == rhs.m_playbackRole;
+            && lhs.m_acceptedRoleSet == rhs.m_acceptedRoleSet;
     }
     friend bool operator!=(
         const ImageViewportRequestSnapshot& lhs, const ImageViewportRequestSnapshot& rhs)
@@ -75,10 +67,8 @@ public:
 private:
     ImageViewportRequestStatus m_status = ImageViewportRequestStatus::NoRequest;
     ImageViewportRequestReason m_reason = ImageViewportRequestReason::NoRequest;
-    ImageViewportPlaybackPhase m_playbackPhase = ImageViewportPlaybackPhase::Stopped;
     ImageViewportPresentationTargetGenerationToken m_acceptedPresentationTargetGeneration;
     ImageViewportRoleSet m_acceptedRoleSet;
-    QVariant m_playbackRole;
 };
 
 class ImageViewportDisplaySnapshot
@@ -360,6 +350,7 @@ class ImageViewportRoleRequestSnapshot
     Q_PROPERTY(ImageViewportPresentationTargetGenerationToken presentationTargetGeneration READ
             presentationTargetGeneration CONSTANT)
     Q_PROPERTY(ImageViewportPageRole role READ role CONSTANT)
+    Q_PROPERTY(ImageViewportPlaybackPhase playbackPhase READ playbackPhase CONSTANT)
     Q_PROPERTY(int frame READ frame CONSTANT)
     Q_PROPERTY(int position READ position CONSTANT)
     Q_PROPERTY(QSizeF sourceLogicalSize READ sourceLogicalSize CONSTANT)
@@ -369,11 +360,12 @@ public:
     ImageViewportRoleRequestSnapshot() = default;
     ImageViewportRoleRequestSnapshot(bool belongsToAcceptedPresentationTarget,
         ImageViewportPresentationTargetGenerationToken presentationTargetGeneration,
-        ImageViewportPageRole role, int frame, int position, QSizeF sourceLogicalSize,
-        ImageViewportDemandRevisionToken demandRevision)
+        ImageViewportPageRole role, ImageViewportPlaybackPhase playbackPhase, int frame,
+        int position, QSizeF sourceLogicalSize, ImageViewportDemandRevisionToken demandRevision)
         : m_belongsToAcceptedPresentationTarget(belongsToAcceptedPresentationTarget)
         , m_presentationTargetGeneration(presentationTargetGeneration)
         , m_role(role)
+        , m_playbackPhase(playbackPhase)
         , m_frame(frame)
         , m_position(position)
         , m_sourceLogicalSize(sourceLogicalSize)
@@ -390,6 +382,7 @@ public:
         return m_presentationTargetGeneration;
     }
     ImageViewportPageRole role() const { return m_role; }
+    ImageViewportPlaybackPhase playbackPhase() const { return m_playbackPhase; }
     int frame() const { return m_frame; }
     int position() const { return m_position; }
     QSizeF sourceLogicalSize() const { return m_sourceLogicalSize; }
@@ -401,8 +394,8 @@ public:
         return lhs.m_belongsToAcceptedPresentationTarget
             == rhs.m_belongsToAcceptedPresentationTarget
             && lhs.m_presentationTargetGeneration == rhs.m_presentationTargetGeneration
-            && lhs.m_role == rhs.m_role && lhs.m_frame == rhs.m_frame
-            && lhs.m_position == rhs.m_position
+            && lhs.m_role == rhs.m_role && lhs.m_playbackPhase == rhs.m_playbackPhase
+            && lhs.m_frame == rhs.m_frame && lhs.m_position == rhs.m_position
             && lhs.m_sourceLogicalSize == rhs.m_sourceLogicalSize
             && lhs.m_demandRevision == rhs.m_demandRevision;
     }
@@ -416,6 +409,7 @@ private:
     bool m_belongsToAcceptedPresentationTarget = false;
     ImageViewportPresentationTargetGenerationToken m_presentationTargetGeneration;
     ImageViewportPageRole m_role = ImageViewportPageRole::Primary;
+    ImageViewportPlaybackPhase m_playbackPhase = ImageViewportPlaybackPhase::Stopped;
     int m_frame = -1;
     int m_position = -1;
     QSizeF m_sourceLogicalSize;

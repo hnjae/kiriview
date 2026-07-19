@@ -8,8 +8,6 @@
 
 ImageViewportPrivate::ImageViewportPrivate(ImageViewport* viewport)
     : q(viewport)
-    , playbackScheduler(
-          *viewport, [this](int elapsedMilliseconds) { advancePlayback(elapsedMilliseconds); })
     , providerHost(
           *viewport,
           [this](ViewportProviderHostEvent event) { enqueueProviderHostEvent(std::move(event)); },
@@ -17,12 +15,18 @@ ImageViewportPrivate::ImageViewportPrivate(ImageViewport* viewport)
               internalObservability.recordProviderCleanupFailure(diagnostic);
           })
 {
+    for (const auto role : { PageRole::Primary, PageRole::Secondary }) {
+        playbackSchedulers[role == PageRole::Secondary ? 1U : 0U]
+            = std::make_unique<ImageViewportPlaybackScheduler>(*viewport, role,
+                [this](ViewportPlaybackTimeoutFact fact) { advancePlayback(fact); });
+    }
     lastStateSnapshot = state();
 }
 
 ImageViewportPrivate::~ImageViewportPrivate()
 {
-    playbackScheduler.stop();
+    for (auto& scheduler : playbackSchedulers)
+        scheduler->stop();
     providerHost.releaseAllFrameLeases();
     providerHost.applyTransportEffects(engine.shutdown());
     providerHost.shutdown();

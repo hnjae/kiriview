@@ -345,7 +345,10 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
     auto oldGeo = projectViewportGeometryState(in.geometry, a.m_mutation.presentation);
     const double oldMaximumManualZoom
         = projectViewportMaximumManualZoomPercent(in.geometry, a.m_mutation.presentation);
-    auto oldPhase = a.m_mutation.playback.phase;
+    const std::array<ImageViewportPlaybackPhase, 2> oldPhases {
+        a.m_mutation.playback.roles[0].phase,
+        a.m_mutation.playback.roles[1].phase,
+    };
     const PublicDiagnosticText oldError = a.m_mutation.request.errorString;
     const bool oldWarning = a.m_mutation.display.hasActiveRenderQualityFallback(
         a.m_mutation.request.sequenceGeneration, a.m_mutation.presentation);
@@ -375,14 +378,18 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
     a.m_mutation.display.renderQualityFallback.clear();
     if (refinement) {
         a.m_mutation.playback = previousPlayback;
-        if (a.m_mutation.playback.phase == ImageViewportPlaybackPhase::Playing) {
-            a.m_mutation.playback.phase = ImageViewportPlaybackPhase::Waiting;
+        for (auto& rolePlayback : a.m_mutation.playback.roles) {
+            if (rolePlayback.phase == ImageViewportPlaybackPhase::Playing) {
+                rolePlayback.phase = ImageViewportPlaybackPhase::Waiting;
+            }
+            rolePlayback.providerStartPending = false;
         }
-        a.m_mutation.playback.providerStartPending = false;
     } else {
-        a.m_mutation.playback.phase = ImageViewportPlaybackPhase::Stopped;
-        a.m_mutation.playback.stopWhenRequestReady = false;
-        a.m_mutation.playback.providerStartPending = false;
+        for (auto& rolePlayback : a.m_mutation.playback.roles) {
+            rolePlayback.phase = ImageViewportPlaybackPhase::Stopped;
+            rolePlayback.stopWhenRequestReady = false;
+            rolePlayback.providerStartPending = false;
+        }
     }
     resetProvider(a.m_mutation.roles[0].provider,
         a.m_mutation.request.roles[0].source.facts.provider
@@ -397,8 +404,9 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
         a.m_mutation.request.roles[1].source.facts.provider
             && a.m_mutation.request.roles[1].source.facts.authoredAnimationFactsAvailable);
     if (out.clear) {
-        a.m_mutation.playback.authoredAutoplayArbitration
-            = AuthoredAutoplayArbitrationState::Resolved;
+        for (auto& rolePlayback : a.m_mutation.playback.roles) {
+            rolePlayback.authoredAutoplayArbitration = AuthoredAutoplayArbitrationState::Resolved;
+        }
         a.m_mutation.display.clearDisplayedDisplay();
         a.m_mutation.request.status = ImageViewportRequestStatus::NoRequest;
         a.m_mutation.request.reason = ImageViewportRequestReason::NoRequest;
@@ -435,7 +443,8 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
             }
             a.m_mutation.request.beginDisplayRequest(DisplayRequestOrigin::Initial, t,
                 refinement ? primaryResolved : ResolvedFrameIdentity { t.frame, t.position }, true);
-            a.m_mutation.playback.position = refinement ? previousPlayback.position : t.position;
+            a.m_mutation.playback.roles[0].position
+                = refinement ? previousPlayback.roles[0].position : t.position;
             secondary(a.m_mutation.request, secondaryTarget, secondaryResolved);
             a.m_mutation.request.status = ImageViewportRequestStatus::Loading;
             a.m_mutation.request.reason = ImageViewportRequestReason::ProviderWaiting;
@@ -445,8 +454,8 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
         } else if (a.m_mutation.request.roles[0].source.facts.present) {
             a.m_mutation.request.beginDisplayRequest(
                 DisplayRequestOrigin::Initial, primaryTarget, primaryResolved, true);
-            a.m_mutation.playback.position
-                = refinement ? previousPlayback.position : primaryTarget.position;
+            a.m_mutation.playback.roles[0].position
+                = refinement ? previousPlayback.roles[0].position : primaryTarget.position;
             secondary(a.m_mutation.request, secondaryTarget, secondaryResolved);
             const auto admission = stage(a.m_mutation.request, a.m_mutation.display,
                 a.m_mutation.playback, a.m_mutation.presentation.exactnessPreference);
@@ -479,6 +488,10 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
             }
             out.providerSessionOpenEffects[1] = a.openSession(ImageViewportPageRole::Secondary,
                 a.m_mutation.request.roles[1].source, a.m_mutation.target.secondaryRoleGeneration);
+        }
+        if (a.m_mutation.request.roles[1].source.facts.present) {
+            a.m_mutation.playback.roles[1].position
+                = refinement ? previousPlayback.roles[1].position : secondaryTarget.position;
         }
     }
     auto accepted = in.geometry;
@@ -537,7 +550,8 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
         = PresentationGeometry::contentRect(oldGeo) != PresentationGeometry::contentRect(ng)
         || PresentationGeometry::visibleImageRect(oldGeo)
             != PresentationGeometry::visibleImageRect(ng);
-    out.changes.playbackPhase = oldPhase != a.m_mutation.playback.phase;
+    out.changes.playbackPhase = oldPhases[0] != a.m_mutation.playback.roles[0].phase
+        || oldPhases[1] != a.m_mutation.playback.roles[1].phase;
     const bool newWarning = a.m_mutation.display.hasActiveRenderQualityFallback(
         a.m_mutation.request.sequenceGeneration, a.m_mutation.presentation);
     out.changes.diagnostics

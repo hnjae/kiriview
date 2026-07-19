@@ -62,9 +62,10 @@ public:
     {
         return engine.playbackState();
     }
-    static ViewportPlaybackScheduleEffect playbackSchedule(const ViewportEngine& engine)
+    static ViewportPlaybackScheduleEffect playbackSchedule(
+        ViewportEngine& engine, ImageViewportPageRole role = ImageViewportPageRole::Primary)
     {
-        return engine.currentPlaybackSchedule();
+        return engine.currentPlaybackSchedules().forRole(role);
     }
     static ViewportEngineAuthoredAutoplayReduction reduceAuthoredAutoplay(ViewportEngine& engine)
     {

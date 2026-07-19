@@ -15,6 +15,8 @@
 
 #include <QtCore/QMutex>
 
+#include <array>
+#include <memory>
 #include <optional>
 
 class ImageViewportPrivate
@@ -48,8 +50,9 @@ public:
     ImageViewportCoordinateResult mapPoint(const ImageViewportCoordinateInput& input) const;
     bool containsPoint(const ImageViewportCoordinateInput& input) const;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-    void advancePlaybackForTest(int elapsedMilliseconds);
-    void setPendingPlaybackSchedulerElapsedForTest(int elapsedMilliseconds);
+    void advancePlaybackForTest(int elapsedMilliseconds, PageRole role = PageRole::Primary);
+    void setPendingPlaybackSchedulerElapsedForTest(
+        int elapsedMilliseconds, PageRole role = PageRole::Primary);
     void setNextProviderRequestTokenForTest(quint64 token);
     void setNextProviderRequestTokenForTest(PageRole role, quint64 token);
     void setNextRevisionTokenForTest(quint64 token);
@@ -99,7 +102,8 @@ public:
     ImageViewportCommandResult executePlaybackCommand(ViewportPlaybackCommand command);
     ImageViewportCommandResult commandResult(
         CommandOutcome outcome, const ImageViewportStateSnapshot& snapshot) const;
-    void advancePlayback(int elapsedMilliseconds);
+    void advancePlayback(ViewportPlaybackTimeoutFact fact);
+    void flushPlaybackSchedulers();
 
     double width() const;
     double height() const;
@@ -113,14 +117,14 @@ public:
 
     ImageViewport* q = nullptr;
     ViewportEngine engine;
-    ImageViewportPlaybackScheduler playbackScheduler;
+    std::array<std::unique_ptr<ImageViewportPlaybackScheduler>, 2> playbackSchedulers;
     ImageViewportProviderHost providerHost;
     ImageViewportRenderHost renderHost {};
     ImageViewportInternal::InternalObservability internalObservability;
     ImageViewportStateSnapshot lastStateSnapshot;
     int transitionApplicationDepth = 0;
     int itemTransactionDepth = 0;
-    ViewportPlaybackScheduleEffect pendingPlaybackSchedule;
+    ViewportPlaybackScheduleBatch pendingPlaybackSchedules;
     QVector<ViewportEngineProviderHostEventRequest> pendingProviderHostEvents;
     bool drainingProviderHostEvents = false;
     ViewportProviderTransportBatch pendingProviderTransport;

@@ -341,7 +341,7 @@ ViewportEngineTransition ViewportEngine::handleRenderHostFact(
     }
     m_state->renderCoordination.activeAttempt.reset();
     if (transition.changes.playbackPhase) {
-        transition.playbackSchedule = currentPlaybackSchedule();
+        transition.playbackSchedules = currentPlaybackSchedules();
     }
     return finalizeTransition(std::move(transition));
 }

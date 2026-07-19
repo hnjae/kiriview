@@ -19,6 +19,7 @@ public:
 
 private slots:
     void invalidClockTakesZeroElapsed();
+    void elapsedObservationPreservesClock();
     void restartedClockTakesMonotonicElapsedAndInvalidates();
     void negativeElapsedClampsToZero();
     void largeElapsedClampsToIntegerMaximum();
@@ -31,6 +32,16 @@ void PlaybackClockTest::invalidClockTakesZeroElapsed()
     QCOMPARE(clock.isValid(), false);
     QCOMPARE(clock.takeElapsed(100), 0);
     QCOMPARE(clock.isValid(), false);
+}
+
+void PlaybackClockTest::elapsedObservationPreservesClock()
+{
+    ImageViewportInternal::PlaybackClock clock;
+
+    clock.restart(25);
+    QCOMPARE(clock.elapsed(75), 50);
+    QCOMPARE(clock.isValid(), true);
+    QCOMPARE(clock.takeElapsed(125), 100);
 }
 
 void PlaybackClockTest::restartedClockTakesMonotonicElapsedAndInvalidates()

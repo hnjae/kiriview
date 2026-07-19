@@ -82,14 +82,17 @@ void ImageViewport::itemChange(ItemChange change, const ItemChangeData& data)
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 namespace ImageViewportTestHooks {
 
-void advancePlaybackForTest(ImageViewport& item, int elapsedMilliseconds)
+void advancePlaybackForTest(
+    ImageViewport& item, int elapsedMilliseconds, ImageViewportPageRole role)
 {
-    ImageViewportPrivate::get(item)->advancePlaybackForTest(elapsedMilliseconds);
+    ImageViewportPrivate::get(item)->advancePlaybackForTest(elapsedMilliseconds, role);
 }
 
-void setPendingPlaybackSchedulerElapsedForTest(ImageViewport& item, int elapsedMilliseconds)
+void setPendingPlaybackSchedulerElapsedForTest(
+    ImageViewport& item, int elapsedMilliseconds, ImageViewportPageRole role)
 {
-    ImageViewportPrivate::get(item)->setPendingPlaybackSchedulerElapsedForTest(elapsedMilliseconds);
+    ImageViewportPrivate::get(item)->setPendingPlaybackSchedulerElapsedForTest(
+        elapsedMilliseconds, role);
 }
 
 void setNextProviderRequestTokenForTest(ImageViewport& item, quint64 token)

@@ -538,7 +538,8 @@ static_assert(!HasPresentationStateAccess<ViewportEnginePlaybackScheduleAccess>:
 static_assert(!HasProviderSessionAccess<ViewportEnginePlaybackScheduleAccess>::value);
 static_assert(!HasProviderRequestAccess<ViewportEnginePlaybackScheduleAccess>::value);
 static_assert(std::is_same_v<decltype(&projectViewportPlaybackSchedule),
-    ViewportPlaybackScheduleEffect (*)(ViewportEnginePlaybackScheduleAccess)>);
+    ViewportPlaybackScheduleEffect (*)(
+        ViewportEnginePlaybackScheduleAccess, ImageViewportPageRole)>);
 static_assert(!HasPlaybackScheduleEffect<ViewportEngine>::value);
 static_assert(!HasPublicRejectInvalidCommand<ViewportEngine>::value);
 static_assert(!HasPublicRevisionAllocator<ViewportEngine>::value);

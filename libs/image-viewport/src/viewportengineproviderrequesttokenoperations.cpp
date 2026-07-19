@@ -43,11 +43,13 @@ ViewportProviderRequestTokenAllocationResult allocateViewportProviderRequestToke
             result.changes },
         request);
     auto& playback = access.playback();
-    playback.providerStartPending = false;
-    playback.stopWhenRequestReady = false;
-    if (playback.phase != ImageViewportPlaybackPhase::Stopped) {
-        playback.phase = ImageViewportPlaybackPhase::Stopped;
-        result.changes.playbackPhase = true;
+    for (auto& rolePlayback : playback.roles) {
+        rolePlayback.providerStartPending = false;
+        rolePlayback.stopWhenRequestReady = false;
+        if (rolePlayback.phase != ImageViewportPlaybackPhase::Stopped) {
+            rolePlayback.phase = ImageViewportPlaybackPhase::Stopped;
+            result.changes.playbackPhase = true;
+        }
     }
     const auto close = access.closeSession(input.role);
     result.closeSession = close.closeSession;

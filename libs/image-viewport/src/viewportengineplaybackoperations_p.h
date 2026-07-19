@@ -272,6 +272,7 @@ private:
 struct ViewportEnginePlaybackTickInput
 {
     int elapsedMilliseconds = 0;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ViewportEngineGeometryInput geometry;
 };
 
@@ -376,7 +377,7 @@ private:
 };
 
 ViewportPlaybackScheduleEffect projectViewportPlaybackSchedule(
-    ViewportEnginePlaybackScheduleAccess);
+    ViewportEnginePlaybackScheduleAccess, ImageViewportPageRole);
 bool validateViewportPlaybackCommand(ViewportPlaybackCommand);
 ViewportEnginePlaybackPauseReduction reduceViewportEnginePlaybackPause(
     ViewportEnginePlaybackPauseInput, ViewportEnginePlaybackPauseAccess&);

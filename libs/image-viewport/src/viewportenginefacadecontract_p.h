@@ -74,6 +74,9 @@ struct ViewportEnginePlaybackCommandRequest
 struct ViewportEnginePlaybackTickRequest
 {
     int elapsedMilliseconds = 0;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
+    quint64 generation = 0;
+    quint64 scheduleIdentity = 0;
 };
 
 struct ViewportEnginePresentationCommandRequest

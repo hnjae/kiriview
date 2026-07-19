@@ -11,17 +11,27 @@
 
 using namespace ImageViewportInternal;
 
-void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
+void ImageViewportPrivate::advancePlayback(ViewportPlaybackTimeoutFact fact)
 {
-    applyEngineTransition(engine.advancePlayback({ elapsedMilliseconds }));
+    applyEngineTransition(engine.advancePlayback(
+        { fact.elapsedMilliseconds, fact.role, fact.generation, fact.scheduleIdentity }));
+}
+
+void ImageViewportPrivate::flushPlaybackSchedulers()
+{
+    for (auto& scheduler : playbackSchedulers)
+        scheduler->flushElapsed();
 }
 
 ImageViewportStateSnapshot ImageViewportPrivate::applyEngineTransition(
     ViewportEngineTransition transition)
 {
     using ScheduleAction = ViewportPlaybackScheduleEffect::Action;
-    if (transition.playbackSchedule().action != ScheduleAction::NoChange) {
-        pendingPlaybackSchedule = transition.playbackSchedule();
+    for (const auto role : { PageRole::Primary, PageRole::Secondary }) {
+        const auto& schedule = transition.playbackSchedule(role);
+        if (schedule.action != ScheduleAction::NoChange) {
+            pendingPlaybackSchedules.forRole(role) = schedule;
+        }
     }
     pendingProviderTransport.append(transition.takeProviderTransport());
     ++transitionApplicationDepth;
@@ -50,10 +60,13 @@ ImageViewportStateSnapshot ImageViewportPrivate::finalizeItemTransaction()
     if (transitionApplicationDepth != 0 || itemTransactionDepth != 0) {
         return state();
     }
-    if (pendingPlaybackSchedule.action != ScheduleAction::NoChange) {
-        const ViewportPlaybackScheduleEffect schedule = pendingPlaybackSchedule;
-        pendingPlaybackSchedule = {};
-        playbackScheduler.apply(schedule);
+    for (const auto role : { PageRole::Primary, PageRole::Secondary }) {
+        auto& pending = pendingPlaybackSchedules.forRole(role);
+        if (pending.action == ScheduleAction::NoChange)
+            continue;
+        const ViewportPlaybackScheduleEffect schedule = pending;
+        pending = { ScheduleAction::NoChange, -1, role };
+        playbackSchedulers[role == PageRole::Secondary ? 1U : 0U]->apply(schedule);
     }
 
     const ImageViewportStateSnapshot publishedSnapshot = state();
@@ -146,7 +159,7 @@ void ImageViewportPrivate::discardRetainedDisplayForResourcePressure()
 ImageViewportCommandResult ImageViewportPrivate::clear()
 {
     ++itemTransactionDepth;
-    playbackScheduler.flushElapsed();
+    flushPlaybackSchedulers();
     const ImageViewportCommandResult reduced
         = setPresentationTarget(ImageViewportPresentationTarget::clear(),
             PresentationTargetTransitionPolicy::defaultClear());
@@ -185,7 +198,7 @@ ImageViewportCommandResult ImageViewportPrivate::executePlaybackCommand(
 {
     ++itemTransactionDepth;
     if (ImageViewportInternal::isValidPageRole(command.role)) {
-        playbackScheduler.flushElapsed();
+        flushPlaybackSchedulers();
     }
     auto reduced = engine.applyPlaybackCommand({ command });
     const CommandOutcome outcome = reduced.outcome();
@@ -201,14 +214,16 @@ ImageViewportCommandResult ImageViewportPrivate::resetView()
 }
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-void ImageViewportPrivate::advancePlaybackForTest(int elapsedMilliseconds)
+void ImageViewportPrivate::advancePlaybackForTest(int elapsedMilliseconds, PageRole role)
 {
-    advancePlayback(elapsedMilliseconds);
+    advancePlayback({ role, 0, 0, elapsedMilliseconds });
 }
 
-void ImageViewportPrivate::setPendingPlaybackSchedulerElapsedForTest(int elapsedMilliseconds)
+void ImageViewportPrivate::setPendingPlaybackSchedulerElapsedForTest(
+    int elapsedMilliseconds, PageRole role)
 {
-    playbackScheduler.setPendingElapsedForTest(elapsedMilliseconds);
+    playbackSchedulers[role == PageRole::Secondary ? 1U : 0U]->setPendingElapsedForTest(
+        elapsedMilliseconds);
 }
 
 void ImageViewportPrivate::setNextProviderRequestTokenForTest(quint64 token)

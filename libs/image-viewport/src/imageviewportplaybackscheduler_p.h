@@ -19,9 +19,10 @@ class QObject;
 class ImageViewportPlaybackScheduler
 {
 public:
-    using ElapsedSink = std::function<void(int)>;
+    using ElapsedSink = std::function<void(ViewportPlaybackTimeoutFact)>;
 
-    ImageViewportPlaybackScheduler(QObject& dispatchContext, ElapsedSink elapsedSink);
+    ImageViewportPlaybackScheduler(
+        QObject& dispatchContext, ImageViewportPageRole role, ElapsedSink elapsedSink);
 
     void apply(ViewportPlaybackScheduleEffect effect);
     void stop();
@@ -35,6 +36,9 @@ private:
     void handleTimeout();
 
     ElapsedSink elapsedSink;
+    ImageViewportPageRole role;
+    quint64 generation = 0;
+    quint64 scheduleIdentity = 0;
     QTimer timer;
     QElapsedTimer timebase;
     ImageViewportInternal::PlaybackClock clock;

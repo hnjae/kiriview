@@ -510,17 +510,25 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
     const QList<QByteArray> requestSnapshotProperties = {
         "status",
         "reason",
-        "playbackPhase",
         "acceptedPresentationTargetGeneration",
         "acceptedRoleSet",
-        "playbackRole",
     };
     for (const QByteArray& propertyName : requestSnapshotProperties) {
         QVERIFY2(requestSnapshotMetaObject.indexOfProperty(propertyName.constData()) >= 0,
             propertyName.constData());
     }
+    QCOMPARE(requestSnapshotMetaObject.indexOfProperty("playbackPhase"), -1);
+    QCOMPARE(requestSnapshotMetaObject.indexOfProperty("playbackRole"), -1);
     QCOMPARE(requestSnapshotMetaObject.indexOfProperty("targetRoleSet"), -1);
     QCOMPARE(requestSnapshotMetaObject.indexOfProperty("activeRole"), -1);
+
+    const QMetaObject& roleRequestSnapshotMetaObject
+        = ImageViewportRoleRequestSnapshot::staticMetaObject;
+    const int rolePlaybackPhaseIndex
+        = roleRequestSnapshotMetaObject.indexOfProperty("playbackPhase");
+    QVERIFY(rolePlaybackPhaseIndex >= 0);
+    QCOMPARE(roleRequestSnapshotMetaObject.property(rolePlaybackPhaseIndex).metaType(),
+        QMetaType::fromType<ImageViewportPlaybackPhase>());
 
     const QMetaObject& coordinateInputMetaObject = ImageViewportCoordinateInput::staticMetaObject;
     const QList<QByteArray> coordinateInputProperties = {

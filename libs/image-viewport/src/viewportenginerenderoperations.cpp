@@ -78,12 +78,13 @@ void publishReady(RequestState& request, DisplayState& display,
     display.roles[0].displayedPayload = payload;
     publishSecondary(request, display);
 }
-void markPlayback(
-    ViewportChangeSet& changes, PlaybackState& playback, ImageViewportPlaybackPhase phase)
+void markPlayback(ViewportChangeSet& changes, PlaybackState& playback, ImageViewportPageRole role,
+    ImageViewportPlaybackPhase phase)
 {
-    if (playback.phase == phase)
+    auto& rolePlayback = playback.forRole(role);
+    if (rolePlayback.phase == phase)
         return;
-    playback.phase = phase;
+    rolePlayback.phase = phase;
     changes.playbackPhase = true;
     changes.requestState = true;
     changes.requestRevision = true;
@@ -227,19 +228,24 @@ ViewportEngineRenderCommitReduction reduceViewportEngineRenderCommit(
             shown.displayedRequest.request = access.request().roles[index].activeRequest;
         }
     }
-    const bool resume = access.playback().phase == ImageViewportPlaybackPhase::Waiting
-        && access.request().status == ImageViewportRequestStatus::Ready;
     if (input.pendingTargetCommit) {
         access.display().commitDisplayedRequestSnapshot(access.request().sequenceGeneration,
             access.request().roles[0].activeRequest,
             access.display().roles[0].pendingRenderPayload.payloadId);
     }
     access.display().clearPendingRenderPayload();
-    if (resume) {
-        markPlayback(changes, access.playback(),
-            access.playback().stopWhenRequestReady ? ImageViewportPlaybackPhase::Stopped
-                                                   : ImageViewportPlaybackPhase::Playing);
-        access.playback().stopWhenRequestReady = false;
+    if (access.request().status == ImageViewportRequestStatus::Ready) {
+        for (const auto role :
+            { ImageViewportPageRole::Primary, ImageViewportPageRole::Secondary }) {
+            auto& rolePlayback = access.playback().forRole(role);
+            if (rolePlayback.phase != ImageViewportPlaybackPhase::Waiting) {
+                continue;
+            }
+            markPlayback(changes, access.playback(), role,
+                rolePlayback.stopWhenRequestReady ? ImageViewportPlaybackPhase::Stopped
+                                                  : ImageViewportPlaybackPhase::Playing);
+            rolePlayback.stopWhenRequestReady = false;
+        }
     }
     if (input.pendingTargetCommit) {
         changes.requestState = true;
@@ -331,7 +337,10 @@ ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
             ImageViewportRequestReason::RenderFailure,
             PublicDiagnosticText::fromTrusted(QStringLiteral("render commit failed")), changes },
         access.request());
-    markPlayback(changes, access.playback(), ImageViewportPlaybackPhase::Stopped);
+    markPlayback(changes, access.playback(), ImageViewportPageRole::Primary,
+        ImageViewportPlaybackPhase::Stopped);
+    markPlayback(changes, access.playback(), ImageViewportPageRole::Secondary,
+        ImageViewportPlaybackPhase::Stopped);
     changes.displayRevision = true;
     changes.displayState = access.display().status != oldStatus;
     changes.geometryState

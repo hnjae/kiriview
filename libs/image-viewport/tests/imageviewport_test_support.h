@@ -60,9 +60,27 @@ ImageViewportDisplayStatus displayStatus(const ImageViewport& item)
     return item.state().display().status();
 }
 
-ImageViewportPlaybackPhase playbackPhase(const ImageViewport& item)
+ImageViewportPlaybackPhase playbackPhase(
+    const ImageViewport& item, ImageViewportPageRole role = ImageViewportPageRole::Primary)
 {
-    return item.state().request().playbackPhase();
+    return role == ImageViewportPageRole::Secondary
+        ? item.state().secondary().request().playbackPhase()
+        : item.state().primary().request().playbackPhase();
+}
+
+ImageViewportPlaybackPhase rolePlaybackPhase(const ImageViewport& item, ImageViewportPageRole role)
+{
+    const ImageViewportRoleRequestSnapshot request = role == ImageViewportPageRole::Secondary
+        ? item.state().secondary().request()
+        : item.state().primary().request();
+    const QMetaObject& metaObject = ImageViewportRoleRequestSnapshot::staticMetaObject;
+    const int propertyIndex = metaObject.indexOfProperty("playbackPhase");
+    if (propertyIndex < 0) {
+        return ImageViewportPlaybackPhase::Stopped;
+    }
+    return metaObject.property(propertyIndex)
+        .readOnGadget(&request)
+        .value<ImageViewportPlaybackPhase>();
 }
 
 ImageViewportCommandReason viewportCommandReason(const ImageViewport& item)
@@ -93,7 +111,16 @@ int requestReasonValue(const ImageViewport& item) { return static_cast<int>(requ
 
 int displayStatusValue(const ImageViewport& item) { return static_cast<int>(displayStatus(item)); }
 
-int playbackPhaseValue(const ImageViewport& item) { return static_cast<int>(playbackPhase(item)); }
+int playbackPhaseValue(
+    const ImageViewport& item, ImageViewportPageRole role = ImageViewportPageRole::Primary)
+{
+    return static_cast<int>(playbackPhase(item, role));
+}
+
+int rolePlaybackPhaseValue(const ImageViewport& item, ImageViewportPageRole role)
+{
+    return static_cast<int>(rolePlaybackPhase(item, role));
+}
 
 int commandReasonValue(const ImageViewport& item)
 {

@@ -71,11 +71,13 @@ bool unknownMetadataInitialRequest(const DisplayRequest& request)
 void updatePlaybackPhase(
     PlaybackState& playback, ImageViewportPlaybackPhase phase, ViewportChangeSet& changes)
 {
-    if (playback.phase == phase) {
-        return;
+    for (auto& rolePlayback : playback.roles) {
+        if (rolePlayback.phase == phase) {
+            continue;
+        }
+        rolePlayback.phase = phase;
+        changes.playbackPhase = true;
     }
-    playback.phase = phase;
-    changes.playbackPhase = true;
 }
 
 void mergeChanges(ViewportChangeSet& target, const ViewportChangeSet& source)
@@ -188,7 +190,7 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
     provider.requests.retire(input.token);
 
     const auto rejectMetadata = [&access, &result, role = input.role](const QString& diagnostic) {
-        access.m_playback.providerStartPending = false;
+        access.m_playback.forRole(role).providerStartPending = false;
         result.changes = access.recordGenerationTerminal(
             { role, ImageViewportRequestStatus::Error, ImageViewportRequestReason::PayloadRejection,
                 PublicDiagnosticText::fromTrusted(diagnostic), result.changes });
@@ -270,11 +272,11 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
             if (!rejection.selectedFromPosition) {
                 request.target.position = -1;
             }
-            access.m_playback.position = -1;
+            access.m_playback.forRole(role).position = -1;
         }
         const bool diagnosticsChanged = access.m_request.clearError();
         if (rejection.clearPlaybackStartPending) {
-            access.m_playback.providerStartPending = false;
+            access.m_playback.forRole(role).providerStartPending = false;
         }
         result.changes = access.recordDisplayRequestTerminal(
             { role, rejection.status, rejection.reason, {}, result.changes });
@@ -294,7 +296,8 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
     DisplayRequestTarget target;
     if (input.role == ImageViewportPageRole::Primary) {
         const auto request = access.m_request.roles[0].activeRequest;
-        const bool playback = access.m_playback.providerStartPending
+        auto& rolePlayback = access.m_playback.forRole(input.role);
+        const bool playback = rolePlayback.providerStartPending
             && request.target.providerTargetKind == ProviderRequestTargetKind::Playback;
         const bool position
             = request.target.providerTargetKind == ProviderRequestTargetKind::Position;
@@ -349,8 +352,8 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
             access.m_request.roles[1].activeRequest.preparedPayloadId
                 = access.m_request.roles[0].activeRequest.preparedPayloadId;
         }
-        access.m_playback.position = target.position;
-        access.m_playback.providerStartPending = false;
+        rolePlayback.position = target.position;
+        rolePlayback.providerStartPending = false;
     } else {
         const auto request = access.m_request.roles[1].activeRequest;
         if (request.identity.id == 0
@@ -392,6 +395,11 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
                 return result;
             }
         }
+    }
+    if (input.role == ImageViewportPageRole::Secondary) {
+        auto& rolePlayback = access.m_playback.forRole(input.role);
+        rolePlayback.position = target.position;
+        rolePlayback.providerStartPending = false;
     }
 
     if (input.role == ImageViewportPageRole::Primary) {

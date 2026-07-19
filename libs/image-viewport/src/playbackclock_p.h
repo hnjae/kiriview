@@ -29,13 +29,19 @@ public:
 
     bool isValid() const { return m_valid; }
 
-    int takeElapsed(qint64 nowMilliseconds)
+    int elapsed(qint64 nowMilliseconds) const
     {
         const qint64 elapsedMilliseconds
             = m_valid ? std::max<qint64>(0, nowMilliseconds - m_startedAtMilliseconds) : 0;
-        invalidate();
         return static_cast<int>(
             std::min<qint64>(elapsedMilliseconds, std::numeric_limits<int>::max()));
+    }
+
+    int takeElapsed(qint64 nowMilliseconds)
+    {
+        const int elapsedMilliseconds = elapsed(nowMilliseconds);
+        invalidate();
+        return elapsedMilliseconds;
     }
 
 private:

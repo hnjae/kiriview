@@ -86,7 +86,7 @@ private:
 #endif
     ViewportEngineSnapshotStateAccess snapshotAccess() const;
     ViewportEngineProviderFactsView providerFactsView() const;
-    ViewportPlaybackScheduleEffect currentPlaybackSchedule() const;
+    ViewportPlaybackScheduleBatch currentPlaybackSchedules();
     PresentationGeometry::State geometryState() const;
     GeometryInput currentGeometry() const;
     GeometryInput pendingGeometry() const;

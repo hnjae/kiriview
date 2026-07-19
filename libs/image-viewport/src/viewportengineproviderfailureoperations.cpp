@@ -37,11 +37,13 @@ bool providerPresent(const RequestState& request, ImageViewportPageRole role)
 void updatePlaybackPhase(
     PlaybackState& playback, ImageViewportPlaybackPhase phase, ViewportChangeSet& changes)
 {
-    if (playback.phase == phase) {
-        return;
+    for (auto& rolePlayback : playback.roles) {
+        if (rolePlayback.phase == phase) {
+            continue;
+        }
+        rolePlayback.phase = phase;
+        changes.playbackPhase = true;
     }
-    playback.phase = phase;
-    changes.playbackPhase = true;
 }
 
 PublicDiagnosticText providerFailureDiagnostic(
@@ -143,7 +145,7 @@ ViewportEngineProviderTerminalEventReduction reduceTerminal(TerminalContext cont
     }
     const auto terminal = metadataTerminal(input);
     context.requests.retire(input.token);
-    context.playback.providerStartPending = false;
+    context.playback.forRole(input.role).providerStartPending = false;
     result.changes = recordGenerationTerminal({ input.role, terminal.status, terminal.reason,
         terminal.diagnostic, result.changes, input.providerFailureAvailable, input.providerCause,
         input.providerReference, input.providerFailureLeaseId });
@@ -244,8 +246,9 @@ ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderProtoco
     observation.detail = int(input.eventKind);
     result.observations.append(observation);
 
-    access.m_playback.providerStartPending = false;
-    access.m_playback.stopWhenRequestReady = false;
+    auto& rolePlayback = access.m_playback.forRole(input.role);
+    rolePlayback.providerStartPending = false;
+    rolePlayback.stopWhenRequestReady = false;
     if (access.m_requests.find(input.token)) {
         access.m_requests.retire(input.token);
     }
@@ -270,8 +273,9 @@ ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderDispatc
     }
 
     const bool sessionWasActive = access.m_session.sessionActive;
-    access.m_playback.providerStartPending = false;
-    access.m_playback.stopWhenRequestReady = false;
+    auto& rolePlayback = access.m_playback.forRole(input.role);
+    rolePlayback.providerStartPending = false;
+    rolePlayback.stopWhenRequestReady = false;
     access.m_requests.retire(input.token);
     access.m_requests.clearQueue();
     result.changes = access.recordGenerationTerminal({ input.role,

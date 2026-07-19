@@ -191,7 +191,7 @@ ImageViewportCommandResult ImageViewportPrivate::setPresentationTarget(
         && engine.canAssignPresentationTarget(request);
     if (flushRefinementElapsed) {
         ++itemTransactionDepth;
-        playbackScheduler.flushElapsed();
+        flushPlaybackSchedulers();
     }
     auto reduced = engine.assignPresentationTarget(request);
     const CommandOutcome outcome = reduced.outcome();

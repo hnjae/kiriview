@@ -8,8 +8,9 @@
 #include <QtCore/QObject>
 
 ImageViewportPlaybackScheduler::ImageViewportPlaybackScheduler(
-    QObject& dispatchContext, ElapsedSink elapsedSink)
+    QObject& dispatchContext, ImageViewportPageRole role, ElapsedSink elapsedSink)
     : elapsedSink(std::move(elapsedSink))
+    , role(role)
 {
     timebase.start();
     timer.setSingleShot(true);
@@ -27,14 +28,24 @@ void ImageViewportPlaybackScheduler::apply(ViewportPlaybackScheduleEffect effect
         return;
     }
 
-    clock.restart(timebase.elapsed());
-    timer.start(effect.delayMilliseconds);
+    const qint64 now = timebase.elapsed();
+    const bool preserveElapsed = clock.isValid() && generation == effect.generation;
+    generation = effect.generation;
+    scheduleIdentity = effect.scheduleIdentity;
+    if (preserveElapsed) {
+        timer.start(std::max(1, effect.delayMilliseconds - clock.elapsed(now)));
+    } else {
+        clock.restart(now);
+        timer.start(effect.delayMilliseconds);
+    }
 }
 
 void ImageViewportPlaybackScheduler::stop()
 {
     timer.stop();
     clock.invalidate();
+    generation = 0;
+    scheduleIdentity = 0;
 }
 
 void ImageViewportPlaybackScheduler::flushElapsed()
@@ -44,7 +55,9 @@ void ImageViewportPlaybackScheduler::flushElapsed()
     }
 
     if (elapsedSink) {
-        elapsedSink(takeElapsed());
+        const auto fact
+            = ViewportPlaybackTimeoutFact { role, generation, scheduleIdentity, takeElapsed() };
+        elapsedSink(fact);
     }
 }
 
@@ -74,6 +87,8 @@ void ImageViewportPlaybackScheduler::setPendingElapsedForTest(int elapsedMillise
 void ImageViewportPlaybackScheduler::handleTimeout()
 {
     if (elapsedSink) {
-        elapsedSink(takeElapsed());
+        const auto fact
+            = ViewportPlaybackTimeoutFact { role, generation, scheduleIdentity, takeElapsed() };
+        elapsedSink(fact);
     }
 }

@@ -32,10 +32,14 @@ void projectFailure(RequestState& request, DisplayState& display, PlaybackState*
     request.roles[1].activeRequest.preparedPayloadId = 0;
     display.status
         = retainDisplay ? ImageViewportDisplayStatus::Retained : ImageViewportDisplayStatus::Empty;
-    if (playback && playback->phase != ImageViewportPlaybackPhase::Stopped) {
-        playback->phase = ImageViewportPlaybackPhase::Stopped;
-        playback->stopWhenRequestReady = false;
-        result.playbackStopped = true;
+    if (playback) {
+        for (auto& rolePlayback : playback->roles) {
+            if (rolePlayback.phase != ImageViewportPlaybackPhase::Stopped) {
+                rolePlayback.phase = ImageViewportPlaybackPhase::Stopped;
+                rolePlayback.stopWhenRequestReady = false;
+                result.playbackStopped = true;
+            }
+        }
     }
 
     result.accepted = false;

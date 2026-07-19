@@ -334,7 +334,7 @@ ViewportEngineCommandTransition ViewportEngine::assignPresentationTarget(
             result.providerTransport.append(effect.command);
         }
     }
-    result.playbackSchedule = currentPlaybackSchedule();
+    result.playbackSchedules = currentPlaybackSchedules();
     return finalizeCommandTransition(command, std::move(result));
 }
 

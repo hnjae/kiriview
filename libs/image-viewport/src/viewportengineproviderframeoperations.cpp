@@ -82,13 +82,14 @@ ImageViewportDisplayStatus retainedDisplayStatus(const DisplayState& display)
     return retained ? ImageViewportDisplayStatus::Retained : ImageViewportDisplayStatus::Empty;
 }
 
-void updatePlaybackPhase(
-    PlaybackState& playback, ImageViewportPlaybackPhase phase, ViewportChangeSet& changes)
+void updatePlaybackPhase(PlaybackState& playback, ImageViewportPageRole role,
+    ImageViewportPlaybackPhase phase, ViewportChangeSet& changes)
 {
-    if (playback.phase == phase) {
+    auto& rolePlayback = playback.forRole(role);
+    if (rolePlayback.phase == phase) {
         return;
     }
-    playback.phase = phase;
+    rolePlayback.phase = phase;
     changes.playbackPhase = true;
 }
 
@@ -184,7 +185,10 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
             return result;
         result.changes = access.recordTerminal({ input.role, admission.status, admission.reason,
             PublicDiagnosticText::fromTrusted(admission.diagnostic), result.changes });
-        updatePlaybackPhase(access.m_playback, ImageViewportPlaybackPhase::Stopped, result.changes);
+        updatePlaybackPhase(access.m_playback, ImageViewportPageRole::Primary,
+            ImageViewportPlaybackPhase::Stopped, result.changes);
+        updatePlaybackPhase(access.m_playback, ImageViewportPageRole::Secondary,
+            ImageViewportPlaybackPhase::Stopped, result.changes);
         return result;
     }
 
@@ -276,14 +280,15 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         access.m_request.reason = projectWaitReason(wait);
         access.m_display.status = retainedDisplayStatus(access.m_display);
         access.m_display.roles[0].pendingRenderPayload.commitPending = true;
-        if (access.m_playback.phase == ImageViewportPlaybackPhase::Waiting
+        auto& rolePlayback = access.m_playback.forRole(input.role);
+        if (rolePlayback.phase == ImageViewportPlaybackPhase::Waiting
             && access.m_request.status == ImageViewportRequestStatus::Ready
             && !access.m_display.roles[0].pendingRenderPayload.commitPending) {
-            updatePlaybackPhase(access.m_playback,
-                access.m_playback.stopWhenRequestReady ? ImageViewportPlaybackPhase::Stopped
-                                                       : ImageViewportPlaybackPhase::Playing,
+            updatePlaybackPhase(access.m_playback, input.role,
+                rolePlayback.stopWhenRequestReady ? ImageViewportPlaybackPhase::Stopped
+                                                  : ImageViewportPlaybackPhase::Playing,
                 result.changes);
-            access.m_playback.stopWhenRequestReady = false;
+            rolePlayback.stopWhenRequestReady = false;
         }
     }
 

@@ -111,7 +111,7 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
             = reduceProviderSessionOpenFailure({ event.role, event.providerFailureAvailable,
                 event.providerCause, event.providerReference, event.providerFailureLeaseId });
         result.changes = reduced.changes;
-        result.playbackSchedule = reduced.schedule;
+        result.playbackSchedules = reduced.schedules;
         return finalizeTransition(std::move(result));
     }
     case ViewportProviderHostEvent::Kind::ProviderEvent: {
@@ -121,7 +121,7 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
         appendProviderTransport(
             result.providerTransport, reduced.providerFrameTransport, event.role);
         if (result.changes.playbackPhase) {
-            result.playbackSchedule = reduced.schedule;
+            result.playbackSchedules = reduced.schedules;
         }
         return finalizeTransition(std::move(result));
     }
@@ -131,7 +131,7 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
         appendProviderTransport(
             result.providerTransport, reduced.providerFrameTransport, event.role);
         if (result.changes.playbackPhase) {
-            result.playbackSchedule = reduced.schedule;
+            result.playbackSchedules = reduced.schedules;
         }
         return finalizeTransition(std::move(result));
     }
@@ -141,7 +141,7 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
         appendProviderTransport(
             result.providerTransport, reduced.providerFrameTransport, event.role);
         if (result.changes.playbackPhase) {
-            result.playbackSchedule = reduced.schedule;
+            result.playbackSchedules = reduced.schedules;
         }
         return finalizeTransition(std::move(result));
     }
@@ -150,7 +150,7 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
         result.changes = reduced.changes;
         result.providerSchedulerDiagnostic = reduced.diagnostic;
         if (result.changes.playbackPhase) {
-            result.playbackSchedule = reduced.schedule;
+            result.playbackSchedules = reduced.schedules;
         }
         return finalizeTransition(std::move(result));
     }
@@ -241,7 +241,7 @@ ViewportProviderFrameQueueFlushResult ViewportEngine::reduceQueuedProviderFrameR
     auto result = reduceViewportEngineProviderQueueFlush({ role, geometry }, access);
     commitProviderRequestMutation(*m_state, access.takeMutation());
     if (result.changes.requestState) {
-        result.schedule = currentPlaybackSchedule();
+        result.schedules = currentPlaybackSchedules();
     }
     return result;
 }
@@ -296,7 +296,7 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
         ViewportProviderEventResult violation;
         violation.changes = reduced.changes;
         violation.providerFrameTransport = reduced.providerFrameTransport;
-        violation.schedule = reduced.schedule;
+        violation.schedules = reduced.schedules;
         violation.observations = reduced.observations;
         return violation;
     }
@@ -344,7 +344,7 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
         ViewportProviderEventResult violation;
         violation.changes = reduced.changes;
         violation.providerFrameTransport = reduced.providerFrameTransport;
-        violation.schedule = reduced.schedule;
+        violation.schedules = reduced.schedules;
         violation.observations = reduced.observations;
         return violation;
     }
@@ -440,7 +440,7 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
         break;
     }
     }
-    result.schedule = currentPlaybackSchedule();
+    result.schedules = currentPlaybackSchedules();
     return result;
 }
 
@@ -460,7 +460,7 @@ ViewportProviderSessionOpenFailureResult ViewportEngine::reduceProviderSessionOp
     ViewportProviderSessionOpenFailureResult result;
     result.changes = reduction.changes;
     if (result.changes.playbackPhase) {
-        result.schedule = currentPlaybackSchedule();
+        result.schedules = currentPlaybackSchedules();
     }
     return result;
 }
@@ -482,7 +482,7 @@ ViewportProviderTerminalEventResult ViewportEngine::reduceProviderProtocolViolat
     ViewportProviderTerminalEventResult result;
     result.changes = reduction.changes;
     result.providerFrameTransport = reduction.providerFrameTransport;
-    result.schedule = currentPlaybackSchedule();
+    result.schedules = currentPlaybackSchedules();
     result.observations = reduction.observations;
     return result;
 }
@@ -503,7 +503,7 @@ ViewportProviderTerminalEventResult ViewportEngine::reduceProviderDispatchFailur
     ViewportProviderTerminalEventResult result;
     result.changes = reduction.changes;
     result.providerFrameTransport = reduction.providerFrameTransport;
-    result.schedule = currentPlaybackSchedule();
+    result.schedules = currentPlaybackSchedules();
     return result;
 }
 
@@ -521,6 +521,6 @@ ViewportProviderSchedulerFailureResult ViewportEngine::reduceProviderQueueSchedu
     ViewportProviderSchedulerFailureResult result;
     result.changes = reduction.changes;
     result.diagnostic = reduction.diagnostic;
-    result.schedule = currentPlaybackSchedule();
+    result.schedules = currentPlaybackSchedules();
     return result;
 }

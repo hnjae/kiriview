@@ -28,14 +28,17 @@ bool present(const RequestState& r, ImageViewportPageRole role)
                                                   : r.roles[1].sequence && r.roles[1].provider;
 }
 bool sealed(const RequestState& r) { return viewportEngineHasCurrentTerminal(r); }
-void phase(PlaybackState& p, ImageViewportPlaybackPhase v, ViewportChangeSet& c)
+void phase(PlaybackState& p, ImageViewportPageRole role, ImageViewportPlaybackPhase v,
+    ViewportChangeSet& c)
 {
-    if (p.phase != v) {
-        p.phase = v;
+    auto& rolePlayback = p.forRole(role);
+    if (rolePlayback.phase != v) {
+        rolePlayback.phase = v;
         c.playbackPhase = true;
     }
 }
-bool loops(const PlaybackState& p, ImageSequenceAuthoredAnimationFacts a)
+bool loops(
+    const PlaybackState& p, ImageViewportPageRole role, ImageSequenceAuthoredAnimationFacts a)
 {
     if (p.looping)
         return true;
@@ -45,7 +48,7 @@ bool loops(const PlaybackState& p, ImageSequenceAuthoredAnimationFacts a)
     case ImageSequenceAuthoredAnimationLoopMode::Infinite:
         return true;
     case ImageSequenceAuthoredAnimationLoopMode::Finite:
-        return p.loopIterationsCompleted + 1 < a.loopCount();
+        return p.forRole(role).loopIterationsCompleted + 1 < a.loopCount();
     case ImageSequenceAuthoredAnimationLoopMode::PlayOnce:
         return false;
     }
@@ -137,11 +140,12 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
     }
     p.requests.retire(in.token);
     bool dc = a.m_request.clearError();
-    bool loop = loops(a.m_playback, p.facts.authoredAnimationFacts);
+    auto& rolePlayback = a.m_playback.forRole(in.role);
+    bool loop = loops(a.m_playback, in.role, p.facts.authoredAnimationFacts);
     int frame = loop ? 0 : p.facts.timingIntervals.frameCount() - 1;
     int pos = loop ? 0 : p.facts.timingIntervals.frameStartPosition(frame);
-    a.m_playback.position = loop ? 0 : p.facts.timingIntervals.totalDuration();
-    a.m_playback.stopWhenRequestReady = !loop;
+    rolePlayback.position = loop ? 0 : p.facts.timingIntervals.totalDuration();
+    rolePlayback.stopWhenRequestReady = !loop;
     DisplayRequestTarget target { frame, pos, ProviderRequestTargetKind::Playback };
     if (in.role == ImageViewportPageRole::Secondary) {
         auto primary = a.m_request.roles[0].activeRequest;
@@ -165,8 +169,8 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
         a.m_request.status = ImageViewportRequestStatus::Ready;
         a.m_request.reason = ImageViewportRequestReason::Ready;
         a.m_display.status = ImageViewportDisplayStatus::Ready;
-        phase(a.m_playback, ImageViewportPlaybackPhase::Stopped, out.changes);
-        a.m_playback.stopWhenRequestReady = false;
+        phase(a.m_playback, in.role, ImageViewportPlaybackPhase::Stopped, out.changes);
+        rolePlayback.stopWhenRequestReady = false;
         out.changes.requestState = out.changes.requestRevision = out.changes.displayState
             = out.changes.displayRevision = true;
         out.changes.diagnostics = dc;
@@ -181,8 +185,8 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
     out.providerFrameTransport.sendCommand = start.sendCommand;
     out.providerFrameTransport.command = start.command;
     if (loop && !a.m_playback.looping)
-        ++a.m_playback.loopIterationsCompleted;
-    phase(a.m_playback, ImageViewportPlaybackPhase::Waiting, out.changes);
+        ++rolePlayback.loopIterationsCompleted;
+    phase(a.m_playback, in.role, ImageViewportPlaybackPhase::Waiting, out.changes);
     out.changes.requestState = out.changes.requestRevision = out.changes.displayState
         = out.changes.displayRevision = true;
     out.changes.diagnostics = dc || !start.accepted;

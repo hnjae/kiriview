@@ -526,7 +526,8 @@ ImageViewport {
         commandSurfaceAvailable = state.request.status === ImageViewport.RequestStatus.NoRequest
             && state.request.reason === ImageViewport.RequestReason.NoRequest
             && state.display.status === ImageViewport.DisplayStatus.Empty
-            && state.request.playbackPhase === ImageViewport.PlaybackPhase.Stopped
+            && state.primary.request.playbackPhase === ImageViewport.PlaybackPhase.Stopped
+            && state.secondary.request.playbackPhase === ImageViewport.PlaybackPhase.Stopped
             && playOutcome === ImageViewport.CommandOutcome.IgnoredNoRequest
             && pauseOutcome === ImageViewport.CommandOutcome.IgnoredNoRequest
             && stopOutcome === ImageViewport.CommandOutcome.IgnoredNoRequest

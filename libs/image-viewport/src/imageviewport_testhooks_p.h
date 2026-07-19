@@ -24,8 +24,10 @@ using InternalObservationSubsystemForTest = ImageViewportInternal::InternalObser
 using InternalObservationCategoryForTest = ImageViewportInternal::InternalObservationCategory;
 using InternalObservationCauseForTest = ImageViewportInternal::InternalObservationCause;
 
-void advancePlaybackForTest(ImageViewport& item, int elapsedMilliseconds);
-void setPendingPlaybackSchedulerElapsedForTest(ImageViewport& item, int elapsedMilliseconds);
+void advancePlaybackForTest(ImageViewport& item, int elapsedMilliseconds,
+    ImageViewportPageRole role = ImageViewportPageRole::Primary);
+void setPendingPlaybackSchedulerElapsedForTest(ImageViewport& item, int elapsedMilliseconds,
+    ImageViewportPageRole role = ImageViewportPageRole::Primary);
 void setNextProviderRequestTokenForTest(ImageViewport& item, quint64 token);
 void setNextProviderRequestTokenForTest(
     ImageViewport& item, ImageViewportPageRole role, quint64 token);

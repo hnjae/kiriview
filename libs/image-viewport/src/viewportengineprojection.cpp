@@ -345,14 +345,8 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
         : snapshotRevision(access.request(), access.display(), access.presentationRevision(),
               commandRevisionValue, acceptedGenerationValue);
 
-    QVariant playbackRole;
-    if (access.playback().phase != ImageViewportPlaybackPhase::Stopped && primaryPresent) {
-        playbackRole = QVariant::fromValue(access.playback().role);
-    }
-
-    const ImageViewportRequestSnapshot requestSnapshot(access.request().status,
-        access.request().reason, access.playback().phase, acceptedGeneration, acceptedRoles,
-        playbackRole);
+    const ImageViewportRequestSnapshot requestSnapshot(
+        access.request().status, access.request().reason, acceptedGeneration, acceptedRoles);
     const QSizeF displayedSpreadSize = PresentationGeometry::spreadSize(displayedGeometry);
     const bool displayedPresentable = PresentationGeometry::isPresentable(displayedGeometry);
     const ImageViewportDisplaySnapshot displaySnapshot(access.display().status,
@@ -458,8 +452,10 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
         return ImageViewportRoleSnapshot(present, source.sequence,
             ImageViewportRoleRequestSnapshot(present,
                 present ? acceptedGeneration : ImageViewportPresentationTargetGenerationToken {},
-                role, active.target.frame, active.target.position, logicalSize,
-                active.demandRevision),
+                role,
+                present ? access.playback().forRole(role).phase
+                        : ImageViewportPlaybackPhase::Stopped,
+                active.target.frame, active.target.position, logicalSize, active.demandRevision),
             ImageViewportRoleDisplaySnapshot(belongs,
                 displayed && access.display().status == ImageViewportDisplayStatus::Retained,
                 displayed ? displayedRequest.request.resolvedFrame.frame : -1,

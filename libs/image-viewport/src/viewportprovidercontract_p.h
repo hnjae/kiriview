@@ -102,7 +102,7 @@ struct ViewportProviderEventResult
 {
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderFrameTransportEffect providerFrameTransport;
-    ViewportPlaybackScheduleEffect schedule;
+    ViewportPlaybackScheduleBatch schedules;
     ImageViewportInternal::InternalObservationBatch observations;
 };
 
@@ -110,14 +110,14 @@ struct ViewportProviderFrameQueueFlushResult
 {
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderFrameTransportEffect providerFrameTransport;
-    ViewportPlaybackScheduleEffect schedule;
+    ViewportPlaybackScheduleBatch schedules;
 };
 
 struct ViewportProviderSchedulerFailureResult
 {
     ImageViewportInternal::ViewportChangeSet changes;
     ImageViewportInternal::ProviderSchedulerDiagnostic diagnostic;
-    ViewportPlaybackScheduleEffect schedule;
+    ViewportPlaybackScheduleBatch schedules;
 };
 
 struct ViewportProviderSessionOpenResult
@@ -129,14 +129,14 @@ struct ViewportProviderSessionOpenResult
 struct ViewportProviderSessionOpenFailureResult
 {
     ImageViewportInternal::ViewportChangeSet changes;
-    ViewportPlaybackScheduleEffect schedule;
+    ViewportPlaybackScheduleBatch schedules;
 };
 
 struct ViewportProviderTerminalEventResult
 {
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderFrameTransportEffect providerFrameTransport;
-    ViewportPlaybackScheduleEffect schedule;
+    ViewportPlaybackScheduleBatch schedules;
     ImageViewportInternal::InternalObservationBatch observations;
 };
 
