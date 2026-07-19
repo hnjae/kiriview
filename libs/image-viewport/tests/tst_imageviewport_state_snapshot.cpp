@@ -98,7 +98,7 @@ void ImageViewportStateSnapshotTest::defaultSnapshotValuesAndCopySemantics()
 
     QCOMPARE(snapshot.presentation().fitMode(), ImageViewportFitMode::Contain);
     QCOMPARE(snapshot.presentation().zoomPercent(), 0.0);
-    QCOMPARE(snapshot.presentation().manualZoomPercent(), 100.0);
+    QCOMPARE(snapshot.presentation().preferredManualZoomPercent(), 100.0);
     QCOMPARE(snapshot.presentation().minimumManualZoomPercent(), 10.0);
     QCOMPARE(snapshot.presentation().maximumManualZoomPercent(), 0.0);
     QCOMPARE(snapshot.presentation().manualZoomStepFactor(), 1.0905077326652577);
@@ -645,14 +645,14 @@ void ImageViewportStateSnapshotTest::presentationCommandUpdatesSnapshotGeometry(
     acknowledgePendingRenderCommitForTest(item);
 
     ImageViewportPresentationCommand command;
-    command.setManualZoomPercent(200.0);
+    command.setPreferredManualZoomPercent(200.0);
     command.setPanDelta(QPointF(4.0, 2.0));
 
     QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Invalid);
 
     command = {};
     command.setFitMode(ImageViewportFitMode::Manual);
-    command.setManualZoomPercent(200.0);
+    command.setPreferredManualZoomPercent(200.0);
     command.setQualityPreference(ImageViewportQualityPreference::BalancedDetail);
     command.setExactnessPreference(ImageViewportExactnessPreference::PreferExact);
     QCOMPARE(item.setPresentation(command).outcome(), ImageViewportCommandOutcome::Accepted);

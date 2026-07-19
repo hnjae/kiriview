@@ -113,8 +113,6 @@ struct ViewportEnginePresentationTargetTransitionReduction
 };
 
 bool validateViewportEnginePresentationCommand(const ViewportEnginePresentationCommandInput&);
-bool clampViewportEngineManualZoomToRange(
-    const ViewportEngineGeometryInput&, ImageViewportInternal::PresentationState&);
 ViewportEnginePresentationCommandReduction reduceViewportEnginePresentationCommand(
     ViewportEnginePresentationCommandInput, ViewportEnginePresentationCommandStateView);
 ViewportEnginePresentationTargetTransitionReduction

@@ -516,7 +516,7 @@ ImageViewport {
         const stopOutcome = stop(ImageViewport.PageRole.Primary).outcome
         const seekOutcome = seek(ImageViewport.PageRole.Primary, 0).outcome
         const positionSeekOutcome = seekToPosition(ImageViewport.PageRole.Primary, 0).outcome
-        zoomCommand.manualZoomPercent = 200
+        zoomCommand.preferredManualZoomPercent = 200
         const zoomOutcome = setPresentation(zoomCommand).outcome
         zoomStepCommand.zoomStepDelta = 0.5
         const stepOutcome = setPresentation(zoomStepCommand).outcome
@@ -539,7 +539,7 @@ ImageViewport {
             && state.revisions.command.valid
             && state.presentation.fitMode === ImageViewport.FitMode.Contain
             && state.presentation.zoomPercent === 0
-            && state.presentation.manualZoomPercent === 100
+            && state.presentation.preferredManualZoomPercent === 100
             && minimum === ImageViewportDisplayLimits.minimumManualZoomPercent
             && maximum === 0
             && state.presentation.manualZoomStepFactor === 1.0905077326652577
@@ -936,7 +936,8 @@ int main(int argc, char** argv)
     if (steppedCommandViewport.setPresentation(stepCommand).outcome()
             != ImageViewportCommandOutcome::Unsupported
         || steppedCommandViewport.state().presentation().fitMode() != ImageViewportFitMode::Contain
-        || !nearlyEqual(steppedCommandViewport.state().presentation().manualZoomPercent(), 100.0)
+        || !nearlyEqual(
+            steppedCommandViewport.state().presentation().preferredManualZoomPercent(), 100.0)
         || steppedCommandViewport.state().presentation().zoomPercent() != 0.0) {
         return 1;
     }
@@ -982,13 +983,13 @@ int main(int argc, char** argv)
         return 1;
     }
     ImageViewportPresentationCommand installedPresentationCommand;
-    installedPresentationCommand.setManualZoomPercent(125.0);
+    installedPresentationCommand.setPreferredManualZoomPercent(125.0);
     installedPresentationCommand.setZoomAnchor(QPointF(5.0, 5.0));
     installedPresentationCommand.setPageGap(3.0);
     installedPresentationCommand.setQualityPreference(ImageViewportQualityPreference::ExactDetail);
     installedPresentationCommand.setExactnessPreference(
         ImageViewportExactnessPreference::RequireExact);
-    if (!installedPresentationCommand.hasManualZoomPercent()
+    if (!installedPresentationCommand.hasPreferredManualZoomPercent()
         || !installedPresentationCommand.hasPageGap()
         || !installedPresentationCommand.hasZoomAnchor()
         || installedPresentationCommand.zoomAnchor() != QPointF(5.0, 5.0)
@@ -997,7 +998,7 @@ int main(int argc, char** argv)
         || helperViewport.setPresentation(installedPresentationCommand).outcome()
             != ImageViewportCommandOutcome::Invalid
         || helperViewport.state().presentation().fitMode() != ImageViewportFitMode::Contain
-        || !nearlyEqual(helperViewport.state().presentation().manualZoomPercent(), 100.0)
+        || !nearlyEqual(helperViewport.state().presentation().preferredManualZoomPercent(), 100.0)
         || helperViewport.state().presentation().zoomPercent() != 0.0
         || helperViewport.state().presentation().pageGap() != 0.0) {
         return 1;

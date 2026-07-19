@@ -229,7 +229,7 @@ ImageViewport {
             && state.display.verticalPannable === false
             && state.presentation.fitMode === ImageViewport.FitMode.Contain
             && state.presentation.zoomPercent === 0
-            && state.presentation.manualZoomPercent === 100
+            && state.presentation.preferredManualZoomPercent === 100
             && state.presentation.minimumManualZoomPercent === 10
             && state.presentation.maximumManualZoomPercent === 0
             && state.presentation.manualZoomStepFactor === 1.0905077326652577
@@ -291,7 +291,7 @@ ImageViewport {
         spreadDirectionCommand.spreadDirection = ImageViewport.SpreadDirection.LeftToRight
         pageGapCommand.pageGap = 0
         fitModeCommand.fitMode = ImageViewport.FitMode.Contain
-        manualZoomCommand.manualZoomPercent = 100
+        manualZoomCommand.preferredManualZoomPercent = 100
         zoomStepCommand.zoomStepDelta = 0.5
         anchoredZoomCommand.zoomStepDelta = 0.5
         anchoredZoomCommand.zoomAnchor = Qt.point(0, 0)
@@ -433,7 +433,7 @@ ImageViewport {
     const int refreshCountBefore = recorder.count();
 
     ImageViewportPresentationCommand zoomCommand;
-    zoomCommand.setManualZoomPercent(200.0);
+    zoomCommand.setPreferredManualZoomPercent(200.0);
     QCOMPARE(
         viewport->setPresentation(zoomCommand).outcome(), ImageViewportCommandOutcome::Accepted);
     QCoreApplication::processEvents();

@@ -264,11 +264,12 @@ QSizeF placedContentSizeForReadyState(const PresentationGeometry::State& state)
         return positiveSizeOrEmpty(fittingSize * scale);
     }
     if (state.fitMode == ImageViewportFitMode::Manual) {
-        if (!std::isfinite(state.manualZoom) || state.manualZoom <= 0.0
+        if (!std::isfinite(state.effectiveManualZoom) || state.effectiveManualZoom <= 0.0
             || !std::isfinite(state.devicePixelRatio) || state.devicePixelRatio <= 0.0) {
             return {};
         }
-        return positiveSizeOrEmpty(fittingSize * (state.manualZoom / state.devicePixelRatio));
+        return positiveSizeOrEmpty(
+            fittingSize * (state.effectiveManualZoom / state.devicePixelRatio));
     }
 
     const double scale = std::min(state.itemBounds.width() / fittingSize.width(),

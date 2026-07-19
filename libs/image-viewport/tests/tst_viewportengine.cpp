@@ -1285,7 +1285,8 @@ void ViewportEngineTest::defaultPresentationStateMatchesPublicDefaults()
     const ImageViewportPresentationSnapshot presentation = item.state().presentation();
     const auto& enginePresentation = ViewportEngineTestAccess::presentation(engine);
     QCOMPARE(enginePresentation.fitMode, presentation.fitMode());
-    QCOMPARE(enginePresentation.manualZoom * 100.0, presentation.manualZoomPercent());
+    QCOMPARE(
+        enginePresentation.preferredManualZoom * 100.0, presentation.preferredManualZoomPercent());
     QCOMPARE(enginePresentation.rotationDegrees, presentation.rotationDegrees());
     QCOMPARE(enginePresentation.mirrorHorizontally, presentation.mirrorHorizontally());
     QCOMPARE(enginePresentation.mirrorVertically, presentation.mirrorVertically());
@@ -1317,7 +1318,7 @@ void ViewportEngineTest::geometryProjectionUsesEnginePresentationState()
     command.setFitMode(ImageViewportFitMode::Manual);
     command.setPageGap(4.0);
     command.setSpreadDirection(ImageViewportSpreadDirection::RightToLeft);
-    command.setManualZoomPercent(200.0);
+    command.setPreferredManualZoomPercent(200.0);
     command.setRotationDegrees(90);
     command.setMirrorHorizontally(true);
     setViewport(engine, { QRectF(0.0, 0.0, 100.0, 80.0), 2.0, true });
@@ -1336,7 +1337,7 @@ void ViewportEngineTest::geometryProjectionUsesEnginePresentationState()
     QCOMPARE(geometry.rotationDegrees, 90);
     QCOMPARE(geometry.mirrorHorizontally, true);
     QCOMPARE(geometry.mirrorVertically, false);
-    QCOMPARE(geometry.manualZoom, 2.0);
+    QCOMPARE(geometry.effectiveManualZoom, 2.0);
     QCOMPARE(geometry.devicePixelRatio, 2.0);
     QCOMPARE(geometry.contentPosition, QPointF());
     QCOMPARE(PresentationGeometry::spreadSize(geometry), QSizeF(32.0, 10.0));

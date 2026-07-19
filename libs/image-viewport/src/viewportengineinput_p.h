@@ -198,8 +198,8 @@ struct ViewportEnginePresentationCommand
         resetViewValue = command.resetView();
         fitModeSet = command.hasFitMode();
         fitModeValue = command.fitMode();
-        manualZoomPercentSet = command.hasManualZoomPercent();
-        manualZoomPercentValue = command.manualZoomPercent();
+        preferredManualZoomPercentSet = command.hasPreferredManualZoomPercent();
+        preferredManualZoomPercentValue = command.preferredManualZoomPercent();
         zoomStepDeltaSet = command.hasZoomStepDelta();
         zoomStepDeltaValue = command.zoomStepDelta();
         zoomAnchorSet = command.hasZoomAnchor();
@@ -245,8 +245,8 @@ struct ViewportEnginePresentationCommand
     bool resetViewValue = false;
     bool fitModeSet = false;
     ImageViewportFitMode fitModeValue = ImageViewportFitMode::Contain;
-    bool manualZoomPercentSet = false;
-    double manualZoomPercentValue = 100.0;
+    bool preferredManualZoomPercentSet = false;
+    double preferredManualZoomPercentValue = 100.0;
     bool zoomStepDeltaSet = false;
     double zoomStepDeltaValue = 0.0;
     bool zoomAnchorSet = false;
@@ -292,8 +292,8 @@ struct ViewportEnginePresentationCommand
     bool resetView() const { return resetViewValue; }
     bool hasFitMode() const { return fitModeSet; }
     ImageViewportFitMode fitMode() const { return fitModeValue; }
-    bool hasManualZoomPercent() const { return manualZoomPercentSet; }
-    double manualZoomPercent() const { return manualZoomPercentValue; }
+    bool hasPreferredManualZoomPercent() const { return preferredManualZoomPercentSet; }
+    double preferredManualZoomPercent() const { return preferredManualZoomPercentValue; }
     bool hasZoomStepDelta() const { return zoomStepDeltaSet; }
     double zoomStepDelta() const { return zoomStepDeltaValue; }
     bool hasZoomAnchor() const { return zoomAnchorSet; }

@@ -27,7 +27,7 @@ public:
         int rotationDegrees = 0;
         bool mirrorHorizontally = false;
         bool mirrorVertically = false;
-        double manualZoom = 1.0;
+        double effectiveManualZoom = 1.0;
         double devicePixelRatio = 1.0;
         QPointF contentPosition;
     };

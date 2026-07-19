@@ -350,7 +350,7 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
     const QList<QByteArray> presentationProperties = {
         "fitMode",
         "zoomPercent",
-        "manualZoomPercent",
+        "preferredManualZoomPercent",
         "minimumManualZoomPercent",
         "maximumManualZoomPercent",
         "manualZoomStepFactor",
@@ -600,7 +600,7 @@ void ImageViewportPublicApiTest::hasDocumentedDefaultState()
     QCOMPARE(presentation.checkerboardDarkColor(), QColor(QStringLiteral("#dcdcdc")));
     QCOMPARE(presentation.checkerboardCellSize(), 8.0);
     QCOMPARE(presentation.looping(), false);
-    QCOMPARE(presentation.manualZoomPercent(), 100.0);
+    QCOMPARE(presentation.preferredManualZoomPercent(), 100.0);
     QCOMPARE(presentation.minimumManualZoomPercent(),
         ImageViewportDisplayLimits::minimumManualZoomPercent());
     QCOMPARE(presentation.maximumManualZoomPercent(), 0.0);

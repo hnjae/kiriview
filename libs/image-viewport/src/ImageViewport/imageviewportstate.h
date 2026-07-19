@@ -221,7 +221,7 @@ class ImageViewportPresentationSnapshot
     QML_VALUE_TYPE(imageViewportPresentationSnapshot)
     Q_PROPERTY(ImageViewportFitMode fitMode READ fitMode CONSTANT)
     Q_PROPERTY(double zoomPercent READ zoomPercent CONSTANT)
-    Q_PROPERTY(double manualZoomPercent READ manualZoomPercent CONSTANT)
+    Q_PROPERTY(double preferredManualZoomPercent READ preferredManualZoomPercent CONSTANT)
     Q_PROPERTY(double minimumManualZoomPercent READ minimumManualZoomPercent CONSTANT)
     Q_PROPERTY(double maximumManualZoomPercent READ maximumManualZoomPercent CONSTANT)
     Q_PROPERTY(double manualZoomStepFactor READ manualZoomStepFactor CONSTANT)
@@ -245,16 +245,17 @@ class ImageViewportPresentationSnapshot
 public:
     ImageViewportPresentationSnapshot() = default;
     ImageViewportPresentationSnapshot(ImageViewportFitMode fitMode, double zoomPercent,
-        double manualZoomPercent, double minimumManualZoomPercent, double maximumManualZoomPercent,
-        double manualZoomStepFactor, int rotationDegrees, bool mirrorHorizontally,
-        bool mirrorVertically, ImageViewportSpreadDirection spreadDirection, double pageGap,
+        double preferredManualZoomPercent, double minimumManualZoomPercent,
+        double maximumManualZoomPercent, double manualZoomStepFactor, int rotationDegrees,
+        bool mirrorHorizontally, bool mirrorVertically,
+        ImageViewportSpreadDirection spreadDirection, double pageGap,
         ImageViewportBackgroundMode backgroundMode, QColor backgroundColor,
         QColor checkerboardLightColor, QColor checkerboardDarkColor, double checkerboardCellSize,
         bool smoothing, bool mipmap, bool looping, ImageViewportQualityPreference qualityPreference,
         ImageViewportExactnessPreference exactnessPreference)
         : m_fitMode(fitMode)
         , m_zoomPercent(zoomPercent)
-        , m_manualZoomPercent(manualZoomPercent)
+        , m_preferredManualZoomPercent(preferredManualZoomPercent)
         , m_minimumManualZoomPercent(minimumManualZoomPercent)
         , m_maximumManualZoomPercent(maximumManualZoomPercent)
         , m_manualZoomStepFactor(manualZoomStepFactor)
@@ -278,7 +279,7 @@ public:
 
     ImageViewportFitMode fitMode() const { return m_fitMode; }
     double zoomPercent() const { return m_zoomPercent; }
-    double manualZoomPercent() const { return m_manualZoomPercent; }
+    double preferredManualZoomPercent() const { return m_preferredManualZoomPercent; }
     double minimumManualZoomPercent() const { return m_minimumManualZoomPercent; }
     double maximumManualZoomPercent() const { return m_maximumManualZoomPercent; }
     double manualZoomStepFactor() const { return m_manualZoomStepFactor; }
@@ -302,7 +303,7 @@ public:
         const ImageViewportPresentationSnapshot& lhs, const ImageViewportPresentationSnapshot& rhs)
     {
         return lhs.m_fitMode == rhs.m_fitMode && lhs.m_zoomPercent == rhs.m_zoomPercent
-            && lhs.m_manualZoomPercent == rhs.m_manualZoomPercent
+            && lhs.m_preferredManualZoomPercent == rhs.m_preferredManualZoomPercent
             && lhs.m_minimumManualZoomPercent == rhs.m_minimumManualZoomPercent
             && lhs.m_maximumManualZoomPercent == rhs.m_maximumManualZoomPercent
             && lhs.m_manualZoomStepFactor == rhs.m_manualZoomStepFactor
@@ -328,7 +329,7 @@ public:
 private:
     ImageViewportFitMode m_fitMode = ImageViewportFitMode::Contain;
     double m_zoomPercent = 0.0;
-    double m_manualZoomPercent = 100.0;
+    double m_preferredManualZoomPercent = 100.0;
     double m_minimumManualZoomPercent = 0.0;
     double m_maximumManualZoomPercent = 0.0;
     double m_manualZoomStepFactor = 1.0;

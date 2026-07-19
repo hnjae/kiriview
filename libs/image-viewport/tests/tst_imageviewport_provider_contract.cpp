@@ -517,7 +517,7 @@ void ImageViewportProviderContractTest::dynamicMaximumClampRestagesCoherentProvi
 
     ImageViewportPresentationCommand manual;
     manual.setFitMode(ImageViewportFitMode::Manual);
-    manual.setManualZoomPercent(70000.0);
+    manual.setPreferredManualZoomPercent(70000.0);
     QCOMPARE(item.setPresentation(manual).outcome(), ImageViewportCommandOutcome::Accepted);
     const auto before = item.state();
     const int frameRequestsBeforeResize = *frameRequestCount;
@@ -526,7 +526,7 @@ void ImageViewportProviderContractTest::dynamicMaximumClampRestagesCoherentProvi
 
     const auto after = item.state();
     QCOMPARE(after.presentation().maximumManualZoomPercent(), 65536.0);
-    QCOMPARE(after.presentation().manualZoomPercent(), 65536.0);
+    QCOMPARE(after.presentation().preferredManualZoomPercent(), 70000.0);
     QCOMPARE(after.presentation().zoomPercent(), 65536.0);
     QVERIFY(after.revisions().request() != before.revisions().request());
     QVERIFY(after.revisions().presentation() != before.revisions().presentation());

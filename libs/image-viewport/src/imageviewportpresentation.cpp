@@ -13,8 +13,8 @@ ViewportEnginePresentationCommand enginePresentationCommand(
     result.resetViewValue = command.resetView();
     result.fitModeSet = command.hasFitMode();
     result.fitModeValue = command.fitMode();
-    result.manualZoomPercentSet = command.hasManualZoomPercent();
-    result.manualZoomPercentValue = command.manualZoomPercent();
+    result.preferredManualZoomPercentSet = command.hasPreferredManualZoomPercent();
+    result.preferredManualZoomPercentValue = command.preferredManualZoomPercent();
     result.zoomStepDeltaSet = command.hasZoomStepDelta();
     result.zoomStepDeltaValue = command.zoomStepDelta();
     result.zoomAnchorSet = command.hasZoomAnchor();

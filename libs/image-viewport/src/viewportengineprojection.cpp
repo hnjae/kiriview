@@ -224,19 +224,30 @@ double effectiveZoomPercent(const PresentationGeometry::State& geometry)
     const double result = content.width() / oriented.width() * geometry.devicePixelRatio * 100.0;
     return std::isfinite(result) && result > 0.0 ? result : 0.0;
 }
+
+PresentationGeometry::State viewportGeometryState(const ViewportEngineGeometryInput& input,
+    const PresentationState& presentation, double effectiveManualZoom)
+{
+    return { input.primaryPresent, input.itemBounds, input.primarySize, input.secondarySize,
+        presentation.pageGap, presentation.spreadDirection, presentation.fitMode,
+        presentation.rotationDegrees, presentation.mirrorHorizontally,
+        presentation.mirrorVertically, effectiveManualZoom,
+        std::isfinite(input.devicePixelRatio) && input.devicePixelRatio > 0.0
+            ? input.devicePixelRatio
+            : 1.0,
+        presentation.contentPosition };
+}
 }
 
 PresentationGeometry::State projectViewportGeometryState(const ViewportEngineGeometryInput& input,
     const ImageViewportInternal::PresentationState& presentation)
 {
-    return { input.primaryPresent, input.itemBounds, input.primarySize, input.secondarySize,
-        presentation.pageGap, presentation.spreadDirection, presentation.fitMode,
-        presentation.rotationDegrees, presentation.mirrorHorizontally,
-        presentation.mirrorVertically, presentation.manualZoom,
-        std::isfinite(input.devicePixelRatio) && input.devicePixelRatio > 0.0
-            ? input.devicePixelRatio
-            : 1.0,
-        presentation.contentPosition };
+    const double maximum = projectViewportMaximumManualZoomPercent(input, presentation);
+    const double preferredPercent = presentation.preferredManualZoom * 100.0;
+    const double effectivePercent = maximum == 0.0
+        ? preferredPercent
+        : std::clamp(preferredPercent, ViewportDisplayLimits::minimumManualZoomPercent(), maximum);
+    return viewportGeometryState(input, presentation, effectivePercent / 100.0);
 }
 
 double projectViewportMaximumManualZoomPercent(const ViewportEngineGeometryInput& input,
@@ -247,7 +258,7 @@ double projectViewportMaximumManualZoomPercent(const ViewportEngineGeometryInput
         || input.devicePixelRatio <= 0.0) {
         return 0.0;
     }
-    const PresentationGeometry::State geometry = projectViewportGeometryState(input, presentation);
+    const PresentationGeometry::State geometry = viewportGeometryState(input, presentation, 1.0);
     QSizeF spread = PresentationGeometry::spreadSize(geometry);
     if (!positive(spread)) {
         return 0.0;
@@ -359,7 +370,7 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
         PresentationGeometry::horizontalPannable(displayedGeometry),
         PresentationGeometry::verticalPannable(displayedGeometry));
     const ImageViewportPresentationSnapshot presentationSnapshot(access.presentation().fitMode,
-        effectiveZoomPercent(acceptedGeometry), access.presentation().manualZoom * 100.0,
+        effectiveZoomPercent(acceptedGeometry), access.presentation().preferredManualZoom * 100.0,
         ViewportDisplayLimits::minimumManualZoomPercent(),
         projectViewportMaximumManualZoomPercent(input.acceptedGeometry, access.presentation()),
         ViewportDisplayLimits::manualZoomStepFactor(), access.presentation().rotationDegrees,

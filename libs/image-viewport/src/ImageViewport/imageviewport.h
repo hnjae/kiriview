@@ -151,8 +151,9 @@ class ImageViewportPresentationCommand
     Q_PROPERTY(bool resetView READ resetView WRITE setResetView)
     Q_PROPERTY(bool fitModeSet READ hasFitMode CONSTANT)
     Q_PROPERTY(ImageViewportFitMode fitMode READ fitMode WRITE setFitMode)
-    Q_PROPERTY(bool manualZoomPercentSet READ hasManualZoomPercent CONSTANT)
-    Q_PROPERTY(double manualZoomPercent READ manualZoomPercent WRITE setManualZoomPercent)
+    Q_PROPERTY(bool preferredManualZoomPercentSet READ hasPreferredManualZoomPercent CONSTANT)
+    Q_PROPERTY(double preferredManualZoomPercent READ preferredManualZoomPercent WRITE
+            setPreferredManualZoomPercent)
     Q_PROPERTY(bool zoomStepDeltaSet READ hasZoomStepDelta CONSTANT)
     Q_PROPERTY(double zoomStepDelta READ zoomStepDelta WRITE setZoomStepDelta)
     Q_PROPERTY(bool zoomAnchorSet READ hasZoomAnchor CONSTANT)
@@ -219,12 +220,12 @@ public:
         m_fitMode = mode;
         m_hasFitMode = true;
     }
-    bool hasManualZoomPercent() const { return m_hasManualZoomPercent; }
-    double manualZoomPercent() const { return m_manualZoomPercent; }
-    void setManualZoomPercent(double percent)
+    bool hasPreferredManualZoomPercent() const { return m_hasPreferredManualZoomPercent; }
+    double preferredManualZoomPercent() const { return m_preferredManualZoomPercent; }
+    void setPreferredManualZoomPercent(double percent)
     {
-        m_manualZoomPercent = percent;
-        m_hasManualZoomPercent = true;
+        m_preferredManualZoomPercent = percent;
+        m_hasPreferredManualZoomPercent = true;
     }
     bool hasZoomStepDelta() const { return m_hasZoomStepDelta; }
     double zoomStepDelta() const { return m_zoomStepDelta; }
@@ -371,8 +372,8 @@ private:
     bool m_resetView = false;
     bool m_hasFitMode = false;
     ImageViewportFitMode m_fitMode = ImageViewportFitMode::Contain;
-    bool m_hasManualZoomPercent = false;
-    double m_manualZoomPercent = 100.0;
+    bool m_hasPreferredManualZoomPercent = false;
+    double m_preferredManualZoomPercent = 100.0;
     bool m_hasZoomStepDelta = false;
     double m_zoomStepDelta = 0.0;
     bool m_hasZoomAnchor = false;

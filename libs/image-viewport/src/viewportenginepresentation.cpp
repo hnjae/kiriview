@@ -25,7 +25,8 @@ bool presentationStatesEqual(const PresentationState& left, const PresentationSt
         && left.backgroundMode == right.backgroundMode
         && left.qualityPreference == right.qualityPreference
         && left.exactnessPreference == right.exactnessPreference
-        && left.backgroundColor == right.backgroundColor && left.manualZoom == right.manualZoom
+        && left.backgroundColor == right.backgroundColor
+        && left.preferredManualZoom == right.preferredManualZoom
         && left.checkerboardLightColor == right.checkerboardLightColor
         && left.checkerboardDarkColor == right.checkerboardDarkColor
         && left.checkerboardCellSize == right.checkerboardCellSize && left.pageGap == right.pageGap
@@ -50,7 +51,7 @@ bool targetPresentationProjectionsEqual(
     }
     if ((left.fitMode == ImageViewportFitMode::Manual
             || right.fitMode == ImageViewportFitMode::Manual)
-        && left.manualZoom != right.manualZoom) {
+        && left.preferredManualZoom != right.preferredManualZoom) {
         return false;
     }
     if (left.backgroundMode == ImageViewportBackgroundMode::SolidColor
@@ -116,10 +117,10 @@ void preserveAnchoredContentPosition(PresentationState& presentation,
         nextGeometry, QPointF(anchoredSpreadPoint.x(), anchoredSpreadPoint.y()), anchor);
 }
 
-double steppedZoomPercent(double stepCount, double manualZoomPercent, double maximum)
+double steppedZoomPercent(double stepCount, double preferredManualZoomPercent, double maximum)
 {
     const double minimum = ViewportDisplayLimits::minimumManualZoomPercent();
-    const double base = std::clamp(manualZoomPercent, minimum, maximum);
+    const double base = std::clamp(preferredManualZoomPercent, minimum, maximum);
     const double targetLog
         = std::log(base) + stepCount * std::log(ViewportDisplayLimits::manualZoomStepFactor());
     if (!std::isfinite(targetLog) || targetLog >= std::log(maximum)) {
@@ -133,7 +134,7 @@ double steppedZoomPercent(double stepCount, double manualZoomPercent, double max
 
 bool commandHasOperation(const ViewportEnginePresentationCommand& command)
 {
-    return command.resetView() || command.hasFitMode() || command.hasManualZoomPercent()
+    return command.resetView() || command.hasFitMode() || command.hasPreferredManualZoomPercent()
         || command.hasZoomStepDelta() || command.hasZoomAnchor() || command.hasContentPosition()
         || command.hasPanDelta() || command.hasContentAnchor() || command.hasRotationDegrees()
         || command.hasMirrorHorizontally() || command.hasMirrorVertically()
@@ -148,15 +149,16 @@ bool commandValid(const ViewportEnginePresentationCommandInput& input)
 {
     const ViewportEnginePresentationCommand& command = input.command;
     const bool resetConflicts = command.resetView()
-        && (command.hasFitMode() || command.hasManualZoomPercent() || command.hasZoomStepDelta()
-            || command.hasZoomAnchor() || command.hasContentPosition() || command.hasPanDelta()
-            || command.hasContentAnchor() || command.hasRotationDegrees()
+        && (command.hasFitMode() || command.hasPreferredManualZoomPercent()
+            || command.hasZoomStepDelta() || command.hasZoomAnchor() || command.hasContentPosition()
+            || command.hasPanDelta() || command.hasContentAnchor() || command.hasRotationDegrees()
             || command.hasMirrorHorizontally() || command.hasMirrorVertically()
             || command.hasSpreadDirection() || command.hasPageGap());
-    const int geometryPositioningOperations = (command.hasManualZoomPercent() ? 1 : 0)
+    const int geometryPositioningOperations = (command.hasPreferredManualZoomPercent() ? 1 : 0)
         + (command.hasZoomStepDelta() ? 1 : 0) + (command.hasContentPosition() ? 1 : 0)
         + (command.hasPanDelta() ? 1 : 0) + (command.hasContentAnchor() ? 1 : 0);
-    const bool zoomOperation = command.hasManualZoomPercent() || command.hasZoomStepDelta();
+    const bool zoomOperation
+        = command.hasPreferredManualZoomPercent() || command.hasZoomStepDelta();
     const bool zoomAnchorConflict = command.hasZoomAnchor()
         && (!zoomOperation || command.resetView() || command.hasContentPosition()
             || command.hasPanDelta() || command.hasContentAnchor() || command.hasRotationDegrees()
@@ -177,9 +179,9 @@ bool commandValid(const ViewportEnginePresentationCommandInput& input)
         && ImageViewportInternal::isFinitePoint(input.anchor)
         && std::isfinite(input.geometry.devicePixelRatio) && input.geometry.devicePixelRatio > 0.0
         && (!command.hasFitMode() || ImageViewportInternal::isValidFitMode(command.fitMode()))
-        && (!command.hasManualZoomPercent()
-            || (ImageViewportInternal::isFinitePositive(command.manualZoomPercent())
-                && command.manualZoomPercent() >= minimumZoom))
+        && (!command.hasPreferredManualZoomPercent()
+            || (ImageViewportInternal::isFinitePositive(command.preferredManualZoomPercent())
+                && command.preferredManualZoomPercent() >= minimumZoom))
         && (!command.hasZoomStepDelta() || std::isfinite(command.zoomStepDelta()))
         && (!command.hasZoomAnchor() || ImageViewportInternal::isFinitePoint(command.zoomAnchor()))
         && (!command.hasContentPosition()
@@ -250,7 +252,7 @@ ZoomRangeCommandValidity zoomRangeCommandValidity(
 {
     const auto& command = input.command;
     const bool nonzeroStep = command.hasZoomStepDelta() && command.zoomStepDelta() != 0.0;
-    if (!command.hasManualZoomPercent() && !nonzeroStep && !command.hasZoomAnchor()) {
+    if (!command.hasPreferredManualZoomPercent() && !nonzeroStep && !command.hasZoomAnchor()) {
         return ZoomRangeCommandValidity::Valid;
     }
 
@@ -267,7 +269,7 @@ ZoomRangeCommandValidity zoomRangeCommandValidity(
             return ZoomRangeCommandValidity::Invalid;
         }
     }
-    if (command.hasManualZoomPercent() && command.manualZoomPercent() > maximum) {
+    if (command.hasPreferredManualZoomPercent() && command.preferredManualZoomPercent() > maximum) {
         return ZoomRangeCommandValidity::Invalid;
     }
     return ZoomRangeCommandValidity::Valid;
@@ -293,24 +295,6 @@ bool validateViewportEnginePresentationCommand(const ViewportEnginePresentationC
     return commandValid(input);
 }
 
-bool clampViewportEngineManualZoomToRange(
-    const ViewportEngineGeometryInput& geometry, PresentationState& presentation)
-{
-    const double maximum = projectViewportMaximumManualZoomPercent(geometry, presentation);
-    if (maximum == 0.0) {
-        return false;
-    }
-    const double current = presentation.manualZoom * 100.0;
-    const double clamped
-        = std::clamp(current, ViewportDisplayLimits::minimumManualZoomPercent(), maximum);
-    const double next = clamped / 100.0;
-    if (next == presentation.manualZoom) {
-        return false;
-    }
-    presentation.manualZoom = next;
-    return true;
-}
-
 ViewportEnginePresentationCommandReduction reduceViewportEnginePresentationCommand(
     ViewportEnginePresentationCommandInput input, ViewportEnginePresentationCommandStateView state)
 {
@@ -333,34 +317,34 @@ ViewportEnginePresentationCommandReduction reduceViewportEnginePresentationComma
 
     if (command.resetView()) {
         next.fitMode = ImageViewportFitMode::Contain;
-        next.manualZoom = 1.0;
+        next.preferredManualZoom = 1.0;
         next.contentPosition = {};
         next.rotationDegrees = 0;
         next.mirrorHorizontally = false;
         next.mirrorVertically = false;
         affectsGeometry = true;
     }
-    if (command.hasManualZoomPercent()) {
-        const double manualZoom = command.manualZoomPercent() / 100.0;
-        if (next.manualZoom != manualZoom) {
+    if (command.hasPreferredManualZoomPercent()) {
+        const double preferredManualZoom = command.preferredManualZoomPercent() / 100.0;
+        if (next.preferredManualZoom != preferredManualZoom) {
             if (next.fitMode == ImageViewportFitMode::Manual) {
-                applyAnchored([&] { next.manualZoom = manualZoom; });
+                applyAnchored([&] { next.preferredManualZoom = preferredManualZoom; });
             } else {
-                next.manualZoom = manualZoom;
+                next.preferredManualZoom = preferredManualZoom;
             }
         }
     }
     if (command.hasZoomStepDelta()) {
-        const double manualZoom = command.zoomStepDelta() == 0.0
-            ? next.manualZoom
-            : steppedZoomPercent(
-                  command.zoomStepDelta(), next.manualZoom * 100.0, maximumManualZoomPercent)
+        const double preferredManualZoom = command.zoomStepDelta() == 0.0
+            ? next.preferredManualZoom
+            : steppedZoomPercent(command.zoomStepDelta(), next.preferredManualZoom * 100.0,
+                  maximumManualZoomPercent)
                 / 100.0;
-        if (next.manualZoom != manualZoom) {
+        if (next.preferredManualZoom != preferredManualZoom) {
             if (next.fitMode == ImageViewportFitMode::Manual) {
-                applyAnchored([&] { next.manualZoom = manualZoom; });
+                applyAnchored([&] { next.preferredManualZoom = preferredManualZoom; });
             } else {
-                next.manualZoom = manualZoom;
+                next.preferredManualZoom = preferredManualZoom;
             }
         }
     }
@@ -446,8 +430,9 @@ ViewportEnginePresentationCommandReduction reduceViewportEnginePresentationComma
     if (command.hasExactnessPreference()) {
         next.exactnessPreference = command.exactnessPreference();
     }
-    if (clampViewportEngineManualZoomToRange(input.geometry, next)) {
-        next.contentPosition = PresentationGeometry::contentPosition(geometry());
+    const QPointF clampedContentPosition = PresentationGeometry::contentPosition(geometry());
+    if (next.contentPosition != clampedContentPosition) {
+        next.contentPosition = clampedContentPosition;
         affectsGeometry = true;
     }
 
@@ -560,7 +545,7 @@ reduceViewportEnginePresentationTargetTransition(
     if (input.zoomTransition
         == ViewportEnginePresentationTargetTransitionPolicy::ZoomTransition::ResetToContain) {
         next.fitMode = ImageViewportFitMode::Contain;
-        next.manualZoom = 1.0;
+        next.preferredManualZoom = 1.0;
     }
     if (input.explicitFitMode) {
         next.fitMode = *input.explicitFitMode;
@@ -580,8 +565,6 @@ reduceViewportEnginePresentationTargetTransition(
     if (input.explicitPageGap) {
         next.pageGap = *input.explicitPageGap;
     }
-    clampViewportEngineManualZoomToRange(input.acceptedGeometry, next);
-
     if (input.resolveContentPosition) {
         const PresentationGeometry::State acceptedGeometry
             = projectViewportGeometryState(input.acceptedGeometry, next);
@@ -630,7 +613,7 @@ ImageViewportInternal::ViewportChangeSet resolveViewportEnginePendingPresentatio
         return {};
     }
 
-    bool changed = clampViewportEngineManualZoomToRange(input, presentation);
+    bool changed = false;
     const PresentationGeometry::State geometry = projectViewportGeometryState(input, presentation);
     const QPointF maximum = PresentationGeometry::maximumContentPosition(geometry);
     const bool rightToLeft

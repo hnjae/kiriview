@@ -408,8 +408,6 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
         || acceptedGeometry.primarySize != input.geometry.primarySize
         || acceptedGeometry.secondarySize != input.geometry.secondarySize;
     if (completeTargetGeometry && targetGeometryChanged) {
-        const bool manualZoomClamped
-            = clampViewportEngineManualZoomToRange(acceptedGeometry, access.m_presentation);
         const PresentationGeometry::State geometry
             = projectViewportGeometryState(acceptedGeometry, access.m_presentation);
         const QPointF clampedContentPosition = PresentationGeometry::contentPosition(geometry);
@@ -423,8 +421,7 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
         result.changes.presentationRevision = true;
         result.changes.displayRevision = true;
         result.changes.geometryState = true;
-        result.changes.scheduleUpdate
-            = result.changes.scheduleUpdate || manualZoomClamped || contentPositionClamped;
+        result.changes.scheduleUpdate = true;
     }
     if (!terminalContinuation) {
         mergeChanges(result.changes,

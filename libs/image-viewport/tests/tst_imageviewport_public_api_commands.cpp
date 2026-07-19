@@ -108,10 +108,11 @@ static ImageViewportCommandOutcome setPageGapCommand(ImageViewport& item, double
     return item.setPresentation(command).outcome();
 }
 
-static ImageViewportCommandOutcome setManualZoomPercentCommand(ImageViewport& item, double percent)
+static ImageViewportCommandOutcome setPreferredManualZoomPercentCommand(
+    ImageViewport& item, double percent)
 {
     ImageViewportPresentationCommand command;
-    command.setManualZoomPercent(percent);
+    command.setPreferredManualZoomPercent(percent);
     return item.setPresentation(command).outcome();
 }
 
@@ -820,7 +821,8 @@ void ImageViewportPublicApiCommandsTest::
     item.setSize(QSizeF(100.0, 100.0));
     item.setPresentationTarget(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
-    QCOMPARE(setManualZoomPercentCommand(item, 250.0), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(
+        setPreferredManualZoomPercentCommand(item, 250.0), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(setSpreadDirectionCommand(item, ImageViewportSpreadDirection::RightToLeft),
         ImageViewportCommandOutcome::Accepted);
     QCOMPARE(setPageGapCommand(item, 9.0), ImageViewportCommandOutcome::Accepted);
@@ -840,7 +842,7 @@ void ImageViewportPublicApiCommandsTest::
 
     const ImageViewportPresentationSnapshot presentation = item.state().presentation();
     const auto fitMode = presentation.fitMode();
-    const double manualZoomPercent = presentation.manualZoomPercent();
+    const double preferredManualZoomPercent = presentation.preferredManualZoomPercent();
     const QPointF preservedContentPosition = contentPosition(item);
     const auto spreadDirection = presentation.spreadDirection();
     const double pageGap = presentation.pageGap();
@@ -865,7 +867,7 @@ void ImageViewportPublicApiCommandsTest::
     const ImageViewportPresentationSnapshot afterClearPresentation = item.state().presentation();
     QCOMPARE(afterClearPresentation.fitMode(), fitMode);
     QCOMPARE(afterClearPresentation.zoomPercent(), 0.0);
-    QCOMPARE(afterClearPresentation.manualZoomPercent(), manualZoomPercent);
+    QCOMPARE(afterClearPresentation.preferredManualZoomPercent(), preferredManualZoomPercent);
     QCOMPARE(contentPosition(item), preservedContentPosition);
     QCOMPARE(afterClearPresentation.spreadDirection(), spreadDirection);
     QCOMPARE(afterClearPresentation.pageGap(), pageGap);
@@ -1142,7 +1144,7 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
 
     ImageViewportPresentationCommand command;
     command.setFitMode(ImageViewportFitMode::Manual);
-    command.setManualZoomPercent(150.0);
+    command.setPreferredManualZoomPercent(150.0);
     command.setSpreadDirection(ImageViewportSpreadDirection::RightToLeft);
     command.setPageGap(5.0);
     command.setBackgroundMode(ImageViewportBackgroundMode::SolidColor);
@@ -1185,7 +1187,8 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     QCOMPARE(item.state().presentation().exactnessPreference(),
         ImageViewportExactnessPreference::RequireExact);
 
-    QCOMPARE(setManualZoomPercentCommand(item, 1000.0), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(
+        setPreferredManualZoomPercentCommand(item, 1000.0), ImageViewportCommandOutcome::Accepted);
     QVERIFY(maximumContentPosition(item).x() > 0.0 || maximumContentPosition(item).y() > 0.0);
 
     ImageViewportPresentationCommand anchorCommand;
@@ -1204,7 +1207,7 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     const ImageViewportPresentationSnapshot preservedPresentation = item.state().presentation();
 
     ImageViewportPresentationCommand invalidCommand;
-    invalidCommand.setManualZoomPercent(125.0);
+    invalidCommand.setPreferredManualZoomPercent(125.0);
     invalidCommand.setContentAnchor(static_cast<ImageViewportContentAnchor>(-1));
     invalidCommand.setPageGap(12.0);
 

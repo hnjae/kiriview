@@ -373,14 +373,6 @@ ViewportEngineTransition ViewportEngine::handleViewportChanged(ViewportEngineVie
                 m_state->requestState.presentationTarget, m_state->presentationState.presentation,
                 m_state->displayState.display.hasReadyDisplay(
                     m_state->requestState.request.roles[0].source.facts.present));
-        if (clampViewportEngineManualZoomToRange(
-                acceptedGeometry(), m_state->presentationState.presentation)) {
-            transitionChanges.presentationRevision = true;
-            transitionChanges.displayRevision = m_state->displayState.display.hasReadyDisplay(
-                m_state->requestState.request.roles[0].source.facts.present);
-            transitionChanges.geometryState = true;
-            transitionChanges.scheduleUpdate = true;
-        }
         clampContentPosition(m_state->presentationState.presentation, acceptedGeometry());
         if (m_state->displayState.display.status == ImageViewportDisplayStatus::Retained) {
             clampContentPosition(
