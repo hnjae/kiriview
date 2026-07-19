@@ -104,6 +104,7 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
             result.providerTransport, opened.providerMetadataTransport, event.role);
         appendProviderTransport(
             result.providerTransport, opened.providerFrameTransport, event.role);
+        restorePreviousIfTerminal(result);
         return finalizeTransition(std::move(result));
     }
     case ViewportProviderHostEvent::Kind::SessionOpenFailed: {
@@ -112,6 +113,7 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
                 event.providerCause, event.providerReference, event.providerFailureLeaseId });
         result.changes = reduced.changes;
         result.playbackSchedules = reduced.schedules;
+        restorePreviousIfTerminal(result);
         return finalizeTransition(std::move(result));
     }
     case ViewportProviderHostEvent::Kind::ProviderEvent: {
@@ -123,6 +125,7 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
         if (result.changes.playbackPhase) {
             result.playbackSchedules = reduced.schedules;
         }
+        restorePreviousIfTerminal(result);
         return finalizeTransition(std::move(result));
     }
     case ViewportProviderHostEvent::Kind::DispatchFailed: {
@@ -133,6 +136,7 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
         if (result.changes.playbackPhase) {
             result.playbackSchedules = reduced.schedules;
         }
+        restorePreviousIfTerminal(result);
         return finalizeTransition(std::move(result));
     }
     case ViewportProviderHostEvent::Kind::FlushQueuedFrameRequest: {
@@ -143,6 +147,7 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
         if (result.changes.playbackPhase) {
             result.playbackSchedules = reduced.schedules;
         }
+        restorePreviousIfTerminal(result);
         return finalizeTransition(std::move(result));
     }
     case ViewportProviderHostEvent::Kind::QueueFlushSchedulingFailed: {
@@ -152,6 +157,7 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
         if (result.changes.playbackPhase) {
             result.playbackSchedules = reduced.schedules;
         }
+        restorePreviousIfTerminal(result);
         return finalizeTransition(std::move(result));
     }
     }
@@ -168,6 +174,11 @@ bool ViewportEngine::acceptsProviderTransportCommand(
             && command.generation == m_state->requestState.request.sequenceGeneration
             && viewportEngineRoleCanRefineCurrentTerminal(
                 m_state->requestState.request, command.role)
+            && provider.session.sessionActive
+            && command.sessionSerial == provider.session.sessionSerial;
+    case ViewportProviderTransportCommand::Kind::ActivateSession:
+        return command.generation != 0
+            && command.generation == m_state->requestState.request.sequenceGeneration
             && provider.session.sessionActive
             && command.sessionSerial == provider.session.sessionSerial;
     case ViewportProviderTransportCommand::Kind::CloseSession:
@@ -212,6 +223,9 @@ ViewportProviderTransportBatch ViewportEngine::shutdown()
         ImageViewportPageRole::Primary);
     appendProviderTransport(effects, closeProviderSession(ImageViewportPageRole::Secondary),
         ImageViewportPageRole::Secondary);
+    ViewportEngineTransitionDraft pinned;
+    retireRestoration(pinned);
+    effects.append(std::move(pinned.providerTransport));
     return effects;
 }
 

@@ -424,6 +424,8 @@ class PresentationTargetTransitionPolicy
     QML_STRUCTURED_VALUE
     Q_PROPERTY(
         DisplayTransition displayTransition READ displayTransition WRITE setDisplayTransition)
+    Q_PROPERTY(
+        FailureTransition failureTransition READ failureTransition WRITE setFailureTransition)
     Q_PROPERTY(ZoomTransition zoomTransition READ zoomTransition WRITE setZoomTransition)
     Q_PROPERTY(ContentPositionTransition contentPositionTransition READ contentPositionTransition
             WRITE setContentPositionTransition)
@@ -455,6 +457,12 @@ public:
         ResetToContain,
     };
     Q_ENUM(ZoomTransition)
+
+    enum class FailureTransition {
+        KeepFailedTarget,
+        RestorePrevious,
+    };
+    Q_ENUM(FailureTransition)
 
     enum class ContentPositionTransition {
         Clamp,
@@ -510,6 +518,8 @@ public:
 
     DisplayTransition displayTransition() const { return m_displayTransition; }
     void setDisplayTransition(DisplayTransition transition) { m_displayTransition = transition; }
+    FailureTransition failureTransition() const { return m_failureTransition; }
+    void setFailureTransition(FailureTransition transition) { m_failureTransition = transition; }
     ZoomTransition zoomTransition() const { return m_zoomTransition; }
     void setZoomTransition(ZoomTransition transition) { m_zoomTransition = transition; }
     ContentPositionTransition contentPositionTransition() const
@@ -566,6 +576,7 @@ public:
         PresentationTargetTransitionPolicy lhs, PresentationTargetTransitionPolicy rhs)
     {
         return lhs.m_displayTransition == rhs.m_displayTransition
+            && lhs.m_failureTransition == rhs.m_failureTransition
             && lhs.m_zoomTransition == rhs.m_zoomTransition
             && lhs.m_contentPositionTransition == rhs.m_contentPositionTransition
             && lhs.m_rotationTransition == rhs.m_rotationTransition
@@ -587,6 +598,7 @@ public:
 
 private:
     DisplayTransition m_displayTransition = DisplayTransition::RetainPrevious;
+    FailureTransition m_failureTransition = FailureTransition::KeepFailedTarget;
     ZoomTransition m_zoomTransition = ZoomTransition::Preserve;
     ContentPositionTransition m_contentPositionTransition = ContentPositionTransition::Clamp;
     RotationTransition m_rotationTransition = RotationTransition::Preserve;

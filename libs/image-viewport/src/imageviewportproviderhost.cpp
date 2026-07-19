@@ -144,6 +144,9 @@ void ImageViewportProviderHost::applyTransportEffects(const ViewportProviderTran
             }
             break;
         }
+        case ViewportProviderTransportCommand::Kind::ActivateSession:
+            recordTransportResult(bridge.activateSession(effect.generation, effect.sessionSerial));
+            break;
         case ViewportProviderTransportCommand::Kind::SendRequest: {
             const auto result = bridge.deliverRequest(effect.request);
             if (!result.delivered && effect.reportDispatchFailure) {
@@ -154,7 +157,7 @@ void ImageViewportProviderHost::applyTransportEffects(const ViewportProviderTran
             break;
         }
         case ViewportProviderTransportCommand::Kind::CloseSession: {
-            recordTransportResult(bridge.closeSession(
+            recordTransportResult(bridge.closeSession(effect.generation, effect.sessionSerial,
                 effect.sessionClose.metadataToken, effect.sessionClose.frameToken));
             if (bridge.hasPendingCleanup()) {
                 scheduleCleanupRetry(true);

@@ -333,6 +333,8 @@ ViewportEngineTransition ViewportEngine::handleRenderHostFact(
         }
     }
 
+    restorePreviousIfTerminal(transition);
+    commitReplacementIfReady(transition);
     const bool warningAfter = m_state->displayState.display.hasActiveRenderQualityFallback(
         m_state->requestState.request.sequenceGeneration, m_state->presentationState.presentation);
     if (warningBefore != warningAfter) {
@@ -409,6 +411,7 @@ ViewportEngineTransition ViewportEngine::handleViewportChanged(ViewportEngineVie
         }
     }
 
+    restorePreviousIfTerminal(result);
     const ImageViewportStateSnapshot beforeProjectionIdentity = snapshot();
     const bool targetProjectionChanged = m_state->requestState.presentationTarget.generation != 0
         && !acceptedProjectionEqual(before, beforeProjectionIdentity);

@@ -100,6 +100,24 @@ struct ViewportEngineCommandState
     quint64 publishedRevision = 0;
 };
 
+struct ViewportEngineRestorationState
+{
+    ViewportEnginePresentationTargetState presentationTarget;
+    ImageViewportInternal::RequestState request;
+    ImageViewportInternal::DisplayState display;
+    ViewportEngineProviderRoleState provider;
+    ImageViewportInternal::PlaybackState playback;
+    ImageViewportInternal::PresentationState presentation;
+    quint64 targetPresentationRevision = 0;
+};
+
+struct ViewportEngineRecoveredTransitionFailure
+{
+    ImageViewportFailureSnapshot snapshot;
+    ImageViewportInternal::PublicDiagnosticText diagnostic;
+    quint64 providerFailureLeaseId = 0;
+};
+
 struct ViewportEngineCanonicalState
 {
     ViewportEngineViewportState viewport;
@@ -111,4 +129,6 @@ struct ViewportEngineCanonicalState
     ViewportEngineRenderCoordinationState renderCoordination;
     ViewportEngineCommandState commandState;
     ViewportEngineRevisionState revisions;
+    std::optional<ViewportEngineRestorationState> restoration;
+    std::optional<ViewportEngineRecoveredTransitionFailure> recoveredTransitionFailure;
 };

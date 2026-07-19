@@ -16,4 +16,4 @@ struct ViewportEnginePayloadAllocationRebuildResult
 qint64 viewportEngineDisplayPayloadByteBudget();
 ViewportEnginePayloadAllocationRebuildResult rebuildViewportEnginePayloadAllocation(
     const ImageViewportInternal::RequestState& request,
-    ImageViewportInternal::DisplayState& display);
+    ImageViewportInternal::DisplayState& display, bool retainedDisplayPinned = false);

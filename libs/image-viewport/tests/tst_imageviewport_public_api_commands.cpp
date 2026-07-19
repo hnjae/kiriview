@@ -50,6 +50,8 @@ void ImageViewportPublicApiCommandsTest::transitionPolicyMatchesDocumentedSurfac
         = PresentationTargetTransitionPolicy::defaultClear();
     QCOMPARE(clearPolicy.displayTransition(),
         PresentationTargetTransitionPolicy::DisplayTransition::ClearBeforeLoad);
+    QCOMPARE(clearPolicy.failureTransition(),
+        PresentationTargetTransitionPolicy::FailureTransition::KeepFailedTarget);
     QCOMPARE(
         clearPolicy.zoomTransition(), PresentationTargetTransitionPolicy::ZoomTransition::Preserve);
     QCOMPARE(clearPolicy.contentPositionTransition(),

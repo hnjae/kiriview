@@ -56,6 +56,7 @@ private slots:
     void providerFrameResultsAreQueuedFromSessionEntryPoint();
     void providerTerminalResultsAreQueuedFromSessionEntryPoint();
     void providerUnsupportedResultsAreQueuedFromSessionEntryPoint();
+    void restorePreviousPinsProviderSessionAndFrameHandle();
 };
 
 void ImageViewportProviderLifecycleTest::replacementClearsRetainedDisplayDiagnostics()
@@ -123,6 +124,89 @@ void ImageViewportProviderLifecycleTest::replacementClearsRetainedDisplayDiagnos
     QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
     QCOMPARE(viewportErrorString(item), QString());
     QCOMPARE(viewportWarningString(item), QString());
+}
+
+void ImageViewportProviderLifecycleTest::restorePreviousPinsProviderSessionAndFrameHandle()
+{
+    ImageSequenceFactory factory;
+    const auto firstSessionCount = std::make_shared<int>(0);
+    const auto firstMetadataRequestCount = std::make_shared<int>(0);
+    const auto firstFrameRequestCount = std::make_shared<int>(0);
+    const auto firstLastRequestedFrame = std::make_shared<int>(-1);
+    const auto firstCloseCount = std::make_shared<int>(0);
+    auto firstSessionFactory = std::make_shared<CountingProviderSessionFactory>(firstSessionCount,
+        firstMetadataRequestCount, firstFrameRequestCount, firstLastRequestedFrame,
+        firstCloseCount);
+    CountingProviderAdapter firstAdapter(
+        firstSessionFactory, ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    QScopedPointer<ImageSequenceFactoryResult> first(factory.fromProvider(&firstAdapter));
+    QVERIFY(first->sequence());
+
+    const auto replacementSessionCount = std::make_shared<int>(0);
+    const auto replacementMetadataRequestCount = std::make_shared<int>(0);
+    const auto replacementFrameRequestCount = std::make_shared<int>(0);
+    const auto replacementLastRequestedFrame = std::make_shared<int>(-1);
+    const auto replacementCloseCount = std::make_shared<int>(0);
+    auto replacementSessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        replacementSessionCount, replacementMetadataRequestCount, replacementFrameRequestCount,
+        replacementLastRequestedFrame, replacementCloseCount);
+    CountingProviderAdapter replacementAdapter(
+        replacementSessionFactory, ImageSequenceProviderMetadata::still(QSizeF(8.0, 16.0)));
+    QScopedPointer<ImageSequenceFactoryResult> replacement(
+        factory.fromProvider(&replacementAdapter));
+    QVERIFY(replacement->sequence());
+
+    ImageViewport item;
+    useSynchronousProviderExecutorForTest(item);
+    useSynchronousProviderEventDeliveryForTest(item);
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(first->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QVERIFY(firstSessionFactory->lastSession());
+
+    const auto frameReleaseCount = std::make_shared<int>(0);
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    auto* payload = new ImageFrame(image);
+    auto* handle
+        = new ImageSequenceProviderFrameHandle(payload, [frameReleaseCount](ImageFrame* released) {
+              ++*frameReleaseCount;
+              delete released;
+          });
+    emitProviderFrameHandleReady(firstSessionFactory->lastSession(),
+        firstSessionFactory->lastSession()->lastFrameToken(), handle);
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Ready);
+    QCOMPARE(*frameReleaseCount, 0);
+
+    PresentationTargetTransitionPolicy restore;
+    restore.setFailureTransition(
+        PresentationTargetTransitionPolicy::FailureTransition::RestorePrevious);
+    QCOMPARE(item.setPresentationTarget(
+                     ImageViewportPresentationTarget(replacement->sequence()), restore)
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(*firstCloseCount, 0);
+    QCOMPARE(*frameReleaseCount, 0);
+
+    discardRetainedDisplayForResourcePressureForTest(item);
+    QCOMPARE(*frameReleaseCount, 0);
+    QVERIFY(replacementSessionFactory->lastSession());
+    emitProviderFailed(replacementSessionFactory->lastSession(),
+        replacementSessionFactory->lastSession()->lastFrameToken(),
+        QStringLiteral("replacement failed"));
+
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Ready);
+    QCOMPARE(viewportPrimarySequence(item), first->sequence());
+    QCOMPARE(*replacementCloseCount, 1);
+    QCOMPARE(*firstCloseCount, 0);
+    QCOMPARE(*frameReleaseCount, 0);
+
+    QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(*firstCloseCount, 1);
+    QCOMPARE(*frameReleaseCount, 1);
 }
 
 void ImageViewportProviderLifecycleTest::providerTokenOverflowClosesSessionWithoutInvalidRequest()

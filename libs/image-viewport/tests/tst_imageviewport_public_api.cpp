@@ -454,6 +454,7 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
     const QMetaObject& policyMetaObject = PresentationTargetTransitionPolicy::staticMetaObject;
     const QList<QByteArray> policyProperties = {
         "displayTransition",
+        "failureTransition",
         "zoomTransition",
         "contentPositionTransition",
         "rotationTransition",
@@ -472,6 +473,8 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
     }
 
     verifyEnumValues(&policyMetaObject, "FitModeTransition", { "Preserve", "SetExplicit" });
+    verifyEnumValues(
+        &policyMetaObject, "FailureTransition", { "KeepFailedTarget", "RestorePrevious" });
     verifyEnumValues(&policyMetaObject, "SpreadDirectionTransition", { "Preserve", "SetExplicit" });
     verifyEnumValues(&policyMetaObject, "PageGapTransition", { "Preserve", "SetExplicit" });
 

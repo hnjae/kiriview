@@ -19,7 +19,8 @@ private:
         const ViewportEnginePresentationTargetState& presentationTarget,
         ImageViewportCommandReason commandReason, const RevisionToken& commandRevision,
         quint64 publishedCommandRevision, quint64 presentationRevision,
-        quint64 targetPresentationRevision, quint64 snapshotRevision)
+        quint64 targetPresentationRevision, quint64 snapshotRevision,
+        const std::optional<ViewportEngineRecoveredTransitionFailure>& recoveredTransitionFailure)
         : m_request(request)
         , m_playback(playback)
         , m_display(display)
@@ -32,6 +33,7 @@ private:
         , m_presentationRevision(presentationRevision)
         , m_targetPresentationRevision(targetPresentationRevision)
         , m_snapshotRevision(snapshotRevision)
+        , m_recoveredTransitionFailure(recoveredTransitionFailure)
     {
     }
 
@@ -54,6 +56,11 @@ public:
     quint64 presentationRevision() const { return m_presentationRevision; }
     quint64 targetPresentationRevision() const { return m_targetPresentationRevision; }
     quint64 snapshotRevision() const { return m_snapshotRevision; }
+    const std::optional<ViewportEngineRecoveredTransitionFailure>&
+    recoveredTransitionFailure() const
+    {
+        return m_recoveredTransitionFailure;
+    }
 
 private:
     const ImageViewportInternal::RequestState& m_request;
@@ -68,4 +75,5 @@ private:
     quint64 m_presentationRevision = 0;
     quint64 m_targetPresentationRevision = 0;
     quint64 m_snapshotRevision = 0;
+    const std::optional<ViewportEngineRecoveredTransitionFailure>& m_recoveredTransitionFailure;
 };

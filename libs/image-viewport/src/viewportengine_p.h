@@ -111,6 +111,11 @@ private:
     ViewportProviderFrameQueueFlushResult reduceQueuedProviderFrameRequest(
         ImageViewportPageRole role);
     ViewportProviderFrameTransportEffect closeProviderSession(ImageViewportPageRole role);
+    bool hasCompleteCommittedPresentation() const;
+    ViewportProviderTransportBatch pinCurrentPresentationForRestoration();
+    void retireRestoration(ViewportEngineTransitionDraft& transition);
+    bool restorePreviousIfTerminal(ViewportEngineTransitionDraft& transition);
+    void commitReplacementIfReady(ViewportEngineTransitionDraft& transition);
 
     static constexpr std::size_t roleIndex(ImageViewportPageRole role)
     {

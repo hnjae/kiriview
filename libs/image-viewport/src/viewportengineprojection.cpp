@@ -67,8 +67,12 @@ ImageViewportDisplayPhase displayPhase(
         : ImageViewportDisplayPhase::TransitioningPlaceholder;
 }
 
-ImageViewportFailureSnapshot failureSnapshot(const RequestState& request)
+ImageViewportFailureSnapshot failureSnapshot(const RequestState& request,
+    const std::optional<ViewportEngineRecoveredTransitionFailure>& recovered)
 {
+    if (recovered) {
+        return recovered->snapshot;
+    }
     const ViewportEngineProjectedTerminal projected = projectViewportEngineTerminal(request);
     if (!projected.terminal) {
         return {};
@@ -487,9 +491,12 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
     return ImageViewportStateSnapshot(requestSnapshot, displaySnapshot, presentationSnapshot,
         roleSnapshot(ImageViewportPageRole::Primary),
         roleSnapshot(ImageViewportPageRole::Secondary),
-        ImageViewportDiagnosticsSnapshot(access.request().errorString.text(),
+        ImageViewportDiagnosticsSnapshot(access.recoveredTransitionFailure()
+                ? access.recoveredTransitionFailure()->diagnostic.text()
+                : access.request().errorString.text(),
             renderQualityFallbackWarning(access.request(), access.display(), access.presentation()),
-            failureSnapshot(access.request()), access.commandReason()),
+            failureSnapshot(access.request(), access.recoveredTransitionFailure()),
+            access.commandReason()),
         ImageViewportRevisionsSnapshot(revision(access.request().requestRevision),
             revision(access.display().revision), revision(access.presentationRevision()),
             revision(commandRevisionValue), revision(snapshotRevisionValue)));

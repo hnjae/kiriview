@@ -74,6 +74,11 @@ struct ViewportEnginePresentationTargetTransitionPolicy
         ResetToContain,
         Invalid,
     };
+    enum class FailureTransition {
+        KeepFailedTarget,
+        RestorePrevious,
+        Invalid,
+    };
     enum class ContentPositionTransition {
         Clamp,
         AnchorStart,
@@ -117,6 +122,7 @@ struct ViewportEnginePresentationTargetTransitionPolicy
     ViewportEnginePresentationTargetTransitionPolicy(const Policy& policy)
     {
         displayTransitionValue = static_cast<DisplayTransition>(policy.displayTransition());
+        failureTransitionValue = static_cast<FailureTransition>(policy.failureTransition());
         zoomTransitionValue = static_cast<ZoomTransition>(policy.zoomTransition());
         contentPositionTransitionValue
             = static_cast<ContentPositionTransition>(policy.contentPositionTransition());
@@ -137,6 +143,7 @@ struct ViewportEnginePresentationTargetTransitionPolicy
     }
 
     DisplayTransition displayTransitionValue = DisplayTransition::RetainPrevious;
+    FailureTransition failureTransitionValue = FailureTransition::KeepFailedTarget;
     ZoomTransition zoomTransitionValue = ZoomTransition::Preserve;
     ContentPositionTransition contentPositionTransitionValue = ContentPositionTransition::Clamp;
     RotationTransition rotationTransitionValue = RotationTransition::Preserve;
@@ -154,6 +161,7 @@ struct ViewportEnginePresentationTargetTransitionPolicy
     bool shapeValid = true;
 
     DisplayTransition displayTransition() const { return displayTransitionValue; }
+    FailureTransition failureTransition() const { return failureTransitionValue; }
     ZoomTransition zoomTransition() const { return zoomTransitionValue; }
     ContentPositionTransition contentPositionTransition() const
     {
@@ -178,6 +186,7 @@ struct ViewportEnginePresentationTargetTransitionPolicy
     bool isValid() const
     {
         return shapeValid && displayTransitionValue != DisplayTransition::Invalid
+            && failureTransitionValue != FailureTransition::Invalid
             && zoomTransitionValue != ZoomTransition::Invalid
             && contentPositionTransitionValue != ContentPositionTransition::Invalid
             && rotationTransitionValue != RotationTransition::Invalid

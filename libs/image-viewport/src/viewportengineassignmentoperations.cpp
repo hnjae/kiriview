@@ -126,6 +126,8 @@ bool canonicalClearPolicy(const ViewportEnginePresentationTargetTransitionPolicy
 {
     return policy.displayTransition()
         == ViewportEnginePresentationTargetTransitionPolicy::DisplayTransition::ClearBeforeLoad
+        && policy.failureTransition()
+        == ViewportEnginePresentationTargetTransitionPolicy::FailureTransition::KeepFailedTarget
         && policy.zoomTransition()
         == ViewportEnginePresentationTargetTransitionPolicy::ZoomTransition::Preserve
         && policy.contentPositionTransition()
@@ -149,6 +151,8 @@ bool presentationPreservingRefinementPolicy(
 {
     return policy.zoomTransition()
         == ViewportEnginePresentationTargetTransitionPolicy::ZoomTransition::Preserve
+        && policy.failureTransition()
+        == ViewportEnginePresentationTargetTransitionPolicy::FailureTransition::KeepFailedTarget
         && policy.contentPositionTransition()
         == ViewportEnginePresentationTargetTransitionPolicy::ContentPositionTransition::Clamp
         && policy.rotationTransition()
@@ -321,6 +325,9 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
         && in.transitionPolicy.replacementIntent()
             == ViewportEnginePresentationTargetTransitionPolicy::ReplacementIntent::
                 SameTargetRefinement;
+    const bool pinPrevious = !out.clear
+        && in.transitionPolicy.failureTransition()
+            == ViewportEnginePresentationTargetTransitionPolicy::FailureTransition::RestorePrevious;
     const DisplayRequest previousPrimaryRequest = a.m_mutation.request.roles[0].activeRequest;
     const DisplayRequest previousSecondaryRequest = a.m_mutation.request.roles[1].activeRequest;
     const PlaybackState previousPlayback = a.m_mutation.playback;
@@ -352,8 +359,15 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
     const PublicDiagnosticText oldError = a.m_mutation.request.errorString;
     const bool oldWarning = a.m_mutation.display.hasActiveRenderQualityFallback(
         a.m_mutation.request.sequenceGeneration, a.m_mutation.presentation);
-    out.providerEffects[0] = a.closeSession(ImageViewportPageRole::Primary);
-    out.providerEffects[1] = a.closeSession(ImageViewportPageRole::Secondary);
+    if (pinPrevious) {
+        for (auto& role : a.m_mutation.roles) {
+            role.provider.session.sessionActive = false;
+            role.provider.requests.resetSession();
+        }
+    } else {
+        out.providerEffects[0] = a.closeSession(ImageViewportPageRole::Primary);
+        out.providerEffects[1] = a.closeSession(ImageViewportPageRole::Secondary);
+    }
     auto primary = std::move(in.primarySource), secondarySource = std::move(in.secondarySource);
     if (!out.clear && !primary.sequence)
         primary = factorySequenceSource(in.presentationTarget.primary());

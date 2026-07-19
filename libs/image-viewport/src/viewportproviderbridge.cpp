@@ -1138,8 +1138,25 @@ ViewportProviderBridge::~ViewportProviderBridge()
 ViewportProviderTransportResult ViewportProviderBridge::closeSession(
     ImageSequenceProviderRequestToken metadataToken, ImageSequenceProviderRequestToken frameToken)
 {
+    return closeSession(0, 0, metadataToken, frameToken);
+}
+
+ViewportProviderTransportResult ViewportProviderBridge::closeSession(quint64 generation,
+    quint64 sessionSerial, ImageSequenceProviderRequestToken metadataToken,
+    ImageSequenceProviderRequestToken frameToken)
+{
     ViewportProviderTransportResult result;
-    ImageSequenceProviderSession* session = activeSession;
+    ImageSequenceProviderSession* session = nullptr;
+    if (generation == 0 && sessionSerial == 0) {
+        session = activeSession;
+    } else {
+        for (auto it = sessions.cbegin(); it != sessions.cend(); ++it) {
+            if (it->generation == generation && it->sessionSerial == sessionSerial) {
+                session = it.key();
+                break;
+            }
+        }
+    }
     if (!session) {
         return result;
     }
@@ -1153,7 +1170,9 @@ ViewportProviderTransportResult ViewportProviderBridge::closeSession(
     record.metadataToken = metadataToken;
     record.frameToken = frameToken;
     record.eventEndpoint->observeClose();
-    activeSession.clear();
+    if (activeSession == session) {
+        activeSession.clear();
+    }
 
     if (takeForcedDeliveryFailureForTest()) {
         result.diagnostic = providerTransportDiagnostic(role,
@@ -1174,6 +1193,19 @@ ViewportProviderTransportResult ViewportProviderBridge::closeSession(
     }
     record.lifecycle = SessionLifecycle::Closing;
     return result;
+}
+
+ViewportProviderTransportResult ViewportProviderBridge::activateSession(
+    quint64 generation, quint64 sessionSerial)
+{
+    for (auto it = sessions.cbegin(); it != sessions.cend(); ++it) {
+        if (it->generation == generation && it->sessionSerial == sessionSerial
+            && it->lifecycle == SessionLifecycle::Active && it->session) {
+            activeSession = it->session;
+            return { true };
+        }
+    }
+    return {};
 }
 
 ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(

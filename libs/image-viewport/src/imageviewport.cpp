@@ -28,6 +28,14 @@ bool PresentationTargetTransitionPolicy::isValid() const
         }
         return false;
     };
+    auto failureTransitionValid = [](FailureTransition transition) {
+        switch (transition) {
+        case FailureTransition::KeepFailedTarget:
+        case FailureTransition::RestorePrevious:
+            return true;
+        }
+        return false;
+    };
     auto contentPositionTransitionValid = [](ContentPositionTransition transition) {
         switch (transition) {
         case ContentPositionTransition::Clamp:
@@ -104,7 +112,8 @@ bool PresentationTargetTransitionPolicy::isValid() const
         return false;
     };
 
-    if (!displayTransitionValid(m_displayTransition) || !zoomTransitionValid(m_zoomTransition)
+    if (!displayTransitionValid(m_displayTransition) || !failureTransitionValid(m_failureTransition)
+        || !zoomTransitionValid(m_zoomTransition)
         || !contentPositionTransitionValid(m_contentPositionTransition)
         || !rotationTransitionValid(m_rotationTransition)
         || !mirrorTransitionValid(m_mirrorTransition)
@@ -129,6 +138,11 @@ bool PresentationTargetTransitionPolicy::isValid() const
         || (m_pageGapTransition == PageGapTransition::SetExplicit && !m_pageGapSet)) {
         return false;
     }
+    if (m_failureTransition == FailureTransition::RestorePrevious
+        && (m_displayTransition != DisplayTransition::RetainPrevious
+            || m_replacementIntent == ReplacementIntent::SameTargetRefinement)) {
+        return false;
+    }
     return m_zoomTransition != ZoomTransition::ResetToContain
         || m_fitModeTransition != FitModeTransition::SetExplicit;
 }
@@ -148,6 +162,8 @@ ViewportEnginePresentationTargetTransitionPolicy engineTransitionPolicy(
     EnginePolicy result;
     result.displayTransitionValue
         = static_cast<EnginePolicy::DisplayTransition>(policy.displayTransition());
+    result.failureTransitionValue
+        = static_cast<EnginePolicy::FailureTransition>(policy.failureTransition());
     result.zoomTransitionValue = static_cast<EnginePolicy::ZoomTransition>(policy.zoomTransition());
     result.contentPositionTransitionValue
         = static_cast<EnginePolicy::ContentPositionTransition>(policy.contentPositionTransition());

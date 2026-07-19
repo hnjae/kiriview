@@ -49,11 +49,171 @@ ViewportEngine::ViewportEngine()
 
 ViewportEngine::~ViewportEngine() = default;
 
+bool ViewportEngine::hasCompleteCommittedPresentation() const
+{
+    const auto& request = m_state->requestState.request;
+    const auto& display = m_state->displayState.display;
+    const auto& target = m_state->requestState.presentationTarget;
+    if (request.status != ImageViewportRequestStatus::Ready
+        || display.status != ImageViewportDisplayStatus::Ready || request.sequenceGeneration == 0
+        || target.generation != request.sequenceGeneration || !target.acceptedRoleSet.primary()
+        || display.roles[0].displayedRequest.generation != request.sequenceGeneration
+        || !display.roles[0].displayedPayload.hasPresentableContent()) {
+        return false;
+    }
+    if (!target.acceptedRoleSet.secondary()) {
+        return true;
+    }
+    return display.roles[1].displayedRequest.generation == request.sequenceGeneration
+        && display.roles[1].displayedPayload.hasPresentableContent();
+}
+
+ViewportProviderTransportBatch ViewportEngine::pinCurrentPresentationForRestoration()
+{
+    ViewportProviderTransportBatch transport;
+    ViewportEngineRestorationState restoration {
+        m_state->requestState.presentationTarget,
+        m_state->requestState.request,
+        m_state->displayState.display,
+        m_state->providerState,
+        m_state->playbackState.playback,
+        m_state->presentationState.presentation,
+        m_state->revisions.targetPresentationRevision,
+    };
+    for (const auto role : { ImageViewportPageRole::Primary, ImageViewportPageRole::Secondary }) {
+        auto& provider = restoration.provider.roles[roleIndex(role)].provider;
+        const ImageSequenceProviderRequestToken frameToken = provider.requests.frameToken();
+        if (frameToken.isValid()) {
+            ViewportProviderTransportCommand command;
+            command.kind = ViewportProviderTransportCommand::Kind::SendRequest;
+            command.role = role;
+            command.request = ImageSequenceProviderRequest::cancel({ frameToken });
+            command.reportDispatchFailure = false;
+            transport.append(std::move(command));
+            provider.requests.retireFrame();
+        }
+        provider.requests.clearQueue();
+        provider.requests.lastIssuedFrameDemand.reset();
+    }
+    m_state->restoration = std::move(restoration);
+    return transport;
+}
+
+void ViewportEngine::retireRestoration(ViewportEngineTransitionDraft& transition)
+{
+    if (!m_state->restoration) {
+        return;
+    }
+    const auto& restoration = *m_state->restoration;
+    for (const auto role : { ImageViewportPageRole::Primary, ImageViewportPageRole::Secondary }) {
+        const auto& provider = restoration.provider.roles[roleIndex(role)].provider;
+        if (!provider.session.sessionActive) {
+            continue;
+        }
+        ViewportProviderTransportCommand command;
+        command.kind = ViewportProviderTransportCommand::Kind::CloseSession;
+        command.role = role;
+        command.sessionClose.metadataToken = provider.requests.metadataToken();
+        command.sessionClose.frameToken = provider.requests.frameToken();
+        command.generation = restoration.request.sequenceGeneration;
+        command.sessionSerial = provider.session.sessionSerial;
+        transition.providerTransport.append(std::move(command));
+    }
+    m_state->restoration.reset();
+}
+
+bool ViewportEngine::restorePreviousIfTerminal(ViewportEngineTransitionDraft& transition)
+{
+    if (!m_state->restoration) {
+        return false;
+    }
+    const ViewportEngineProjectedTerminal projected
+        = projectViewportEngineTerminal(m_state->requestState.request);
+    if (!projected.terminal) {
+        return false;
+    }
+
+    const auto& terminal = *projected.terminal;
+    ViewportEngineRecoveredTransitionFailure recovered {
+        ImageViewportFailureSnapshot(true, ImageViewportFailureContext::RestoredTransition,
+            terminal.reason, QVariant::fromValue(projected.role), projected.scope,
+            terminal.providerFailureAvailable, terminal.providerCause, terminal.providerReference),
+        terminal.diagnostic,
+        terminal.providerFailureLeaseId,
+    };
+
+    const auto closeFailedSession = [this, &transition](ImageViewportPageRole role) {
+        const auto& provider = m_state->providerState.roles[roleIndex(role)].provider;
+        const quint64 generation = m_state->requestState.request.sequenceGeneration;
+        const quint64 sessionSerial = provider.session.sessionSerial;
+        const qsizetype firstCommand = transition.providerTransport.size();
+        appendProviderTransport(transition.providerTransport, closeProviderSession(role), role);
+        for (auto command = transition.providerTransport.begin() + firstCommand;
+            command != transition.providerTransport.end(); ++command) {
+            if (command->kind == ViewportProviderTransportCommand::Kind::CloseSession) {
+                command->generation = generation;
+                command->sessionSerial = sessionSerial;
+            }
+        }
+    };
+    closeFailedSession(ImageViewportPageRole::Primary);
+    closeFailedSession(ImageViewportPageRole::Secondary);
+
+    ViewportEngineRestorationState restoration = std::move(*m_state->restoration);
+    m_state->restoration.reset();
+    m_state->requestState.presentationTarget = std::move(restoration.presentationTarget);
+    m_state->requestState.request = std::move(restoration.request);
+    m_state->displayState.display = std::move(restoration.display);
+    m_state->providerState = std::move(restoration.provider);
+    m_state->playbackState.playback = restoration.playback;
+    m_state->presentationState.presentation = restoration.presentation;
+    m_state->revisions.targetPresentationRevision = restoration.targetPresentationRevision;
+    m_state->renderCoordination.activeAttempt.reset();
+    m_state->recoveredTransitionFailure = std::move(recovered);
+
+    for (const auto role : { ImageViewportPageRole::Primary, ImageViewportPageRole::Secondary }) {
+        const auto& provider = m_state->providerState.roles[roleIndex(role)].provider;
+        if (!provider.session.sessionActive) {
+            continue;
+        }
+        ViewportProviderTransportCommand command;
+        command.kind = ViewportProviderTransportCommand::Kind::ActivateSession;
+        command.role = role;
+        command.generation = m_state->requestState.request.sequenceGeneration;
+        command.sessionSerial = provider.session.sessionSerial;
+        transition.providerTransport.append(std::move(command));
+    }
+
+    transition.changes.requestState = true;
+    transition.changes.displayState = true;
+    transition.changes.geometryState = true;
+    transition.changes.playbackPhase = true;
+    transition.changes.diagnostics = true;
+    transition.changes.requestRevision = true;
+    transition.changes.displayRevision = true;
+    transition.changes.presentationRevision = true;
+    transition.changes.targetPresentationRevision = true;
+    transition.changes.adoptTargetPresentationRevision = false;
+    transition.changes.scheduleUpdate = true;
+    transition.playbackSchedules = currentPlaybackSchedules();
+    return true;
+}
+
+void ViewportEngine::commitReplacementIfReady(ViewportEngineTransitionDraft& transition)
+{
+    if (!m_state->restoration
+        || m_state->requestState.request.status != ImageViewportRequestStatus::Ready
+        || m_state->displayState.display.status != ImageViewportDisplayStatus::Ready) {
+        return;
+    }
+    retireRestoration(transition);
+}
+
 ViewportEngineTransition ViewportEngine::handleResourcePressure()
 {
     ViewportEngineTransitionDraft transition;
     auto& display = m_state->displayState.display;
-    if (display.status != ImageViewportDisplayStatus::Retained) {
+    if (display.status != ImageViewportDisplayStatus::Retained || m_state->restoration) {
         return finalizeTransition(std::move(transition));
     }
     const bool warningBefore = display.hasActiveRenderQualityFallback(
@@ -76,13 +236,19 @@ ViewportEngineTransition ViewportEngine::handleResourcePressure()
 QSet<quint64> ViewportEngine::providerFrameLeaseIds() const
 {
     QSet<quint64> leases;
-    for (const auto& role : m_state->displayState.display.roles) {
-        if (role.displayedPayload.providerFrameLeaseId != 0) {
-            leases.insert(role.displayedPayload.providerFrameLeaseId);
+    const auto collect = [&leases](const ImageViewportInternal::DisplayState& display) {
+        for (const auto& role : display.roles) {
+            if (role.displayedPayload.providerFrameLeaseId != 0) {
+                leases.insert(role.displayedPayload.providerFrameLeaseId);
+            }
+            if (role.pendingRenderPayload.providerFrameLeaseId != 0) {
+                leases.insert(role.pendingRenderPayload.providerFrameLeaseId);
+            }
         }
-        if (role.pendingRenderPayload.providerFrameLeaseId != 0) {
-            leases.insert(role.pendingRenderPayload.providerFrameLeaseId);
-        }
+    };
+    collect(m_state->displayState.display);
+    if (m_state->restoration) {
+        collect(m_state->restoration->display);
     }
     return leases;
 }
@@ -92,9 +258,19 @@ QSet<quint64> ViewportEngine::providerFailureLeaseIds() const
     const ViewportEngineProjectedTerminal projected
         = projectViewportEngineTerminal(m_state->requestState.request);
     if (!projected.terminal || projected.terminal->providerFailureLeaseId == 0) {
-        return {};
+        return m_state->recoveredTransitionFailure
+                && m_state->recoveredTransitionFailure->providerFailureLeaseId != 0
+            ? QSet<quint64> {
+                  m_state->recoveredTransitionFailure->providerFailureLeaseId,
+              }
+            : QSet<quint64> {};
     }
-    return { projected.terminal->providerFailureLeaseId };
+    QSet<quint64> leases { projected.terminal->providerFailureLeaseId };
+    if (m_state->recoveredTransitionFailure
+        && m_state->recoveredTransitionFailure->providerFailureLeaseId != 0) {
+        leases.insert(m_state->recoveredTransitionFailure->providerFailureLeaseId);
+    }
+    return leases;
 }
 
 ViewportEngineCommandDiagnostics ViewportEngine::commandDiagnostics() const
@@ -120,7 +296,7 @@ ViewportEngineSnapshotStateAccess ViewportEngine::snapshotAccess() const
         m_state->requestState.presentationTarget, m_state->commandState.reason,
         m_state->commandState.revision, m_state->commandState.publishedRevision,
         m_state->revisions.presentationRevision, m_state->revisions.targetPresentationRevision,
-        m_state->revisions.snapshotRevision };
+        m_state->revisions.snapshotRevision, m_state->recoveredTransitionFailure };
 }
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
@@ -286,10 +462,19 @@ ViewportEngineCommandTransition ViewportEngine::assignPresentationTarget(
     const ViewportEnginePresentationTargetAssignmentRequest& input)
 {
     auto operationInput = assignmentInput(input, acceptedGeometry());
+    const bool restorePrevious = operationInput.transitionPolicy.failureTransition()
+        == ViewportEnginePresentationTargetTransitionPolicy::FailureTransition::RestorePrevious;
     if (!validateViewportEnginePresentationTargetAssignment(operationInput,
             m_state->requestState.presentationTarget, m_state->requestState.request,
-            m_state->providerState.roles)) {
+            m_state->providerState.roles)
+        || (restorePrevious && (m_state->restoration || !hasCompleteCommittedPresentation()))) {
         return finalizeCommandTransition(rejectInvalidCommand(), {});
+    }
+    ViewportEngineTransitionDraft result;
+    if (restorePrevious) {
+        result.providerTransport.append(pinCurrentPresentationForRestoration());
+    } else {
+        retireRestoration(result);
     }
     ViewportEnginePresentationTargetAssignmentAccess access(
         { m_state->requestState.presentationTarget,
@@ -308,8 +493,8 @@ ViewportEngineCommandTransition ViewportEngine::assignPresentationTarget(
     m_state->presentationState.presentation = reduction.mutation.presentation;
     ViewportEnginePayloadAllocationRebuildResult allocation;
     if (reduction.presentationTargetChanged) {
-        allocation = rebuildViewportEnginePayloadAllocation(
-            m_state->requestState.request, m_state->displayState.display);
+        allocation = rebuildViewportEnginePayloadAllocation(m_state->requestState.request,
+            m_state->displayState.display, m_state->restoration.has_value());
     }
     if (reduction.presentationTargetChanged) {
         m_state->revisions.targetPresentationRevision
@@ -317,8 +502,10 @@ ViewportEngineCommandTransition ViewportEngine::assignPresentationTarget(
     }
     const ViewportEngineCommandResult command
         = reduction.presentationTargetChanged ? accepted() : acceptedPreservingCommandDiagnostics();
-    ViewportEngineTransitionDraft result;
     result.changes = reduction.changes;
+    if (reduction.presentationTargetChanged) {
+        m_state->recoveredTransitionFailure.reset();
+    }
     if (allocation.retainedDisplayDiscarded) {
         result.changes.displayState = true;
         result.changes.geometryState = true;
@@ -334,6 +521,7 @@ ViewportEngineCommandTransition ViewportEngine::assignPresentationTarget(
             result.providerTransport.append(effect.command);
         }
     }
+    restorePreviousIfTerminal(result);
     result.playbackSchedules = currentPlaybackSchedules();
     return finalizeCommandTransition(command, std::move(result));
 }
@@ -342,9 +530,12 @@ bool ViewportEngine::canAssignPresentationTarget(
     const ViewportEnginePresentationTargetAssignmentRequest& input) const
 {
     const auto operationInput = assignmentInput(input, acceptedGeometry());
-    return validateViewportEnginePresentationTargetAssignment(operationInput,
-        m_state->requestState.presentationTarget, m_state->requestState.request,
-        m_state->providerState.roles);
+    const bool restorePrevious = operationInput.transitionPolicy.failureTransition()
+        == ViewportEnginePresentationTargetTransitionPolicy::FailureTransition::RestorePrevious;
+    return (!restorePrevious || (!m_state->restoration && hasCompleteCommittedPresentation()))
+        && validateViewportEnginePresentationTargetAssignment(operationInput,
+            m_state->requestState.presentationTarget, m_state->requestState.request,
+            m_state->providerState.roles);
 }
 ViewportEngineCommandResult ViewportEngine::rejectInvalidCommand()
 {

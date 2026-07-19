@@ -20,6 +20,9 @@ public:
 
 private slots:
     void invalidPresentationEnumCommandsRejectWithoutDisplayMutation();
+    void failureTransitionPolicyValidity();
+    void restorePreviousRejectsWithoutCommittedPresentation();
+    void restorePreviousRestoresCompleteCommittedPresentation();
     void presentationChangesWithoutDisplayKeepEmptyGeometry();
     void viewportGeometryWithoutTargetIsRevisionNeutral();
     void backgroundPresentationDoesNotChangeRequestOrPlayback();
@@ -58,6 +61,139 @@ static ImageViewportCommandOutcome setRotationDegrees(ImageViewport& item, int d
     ImageViewportPresentationCommand command;
     command.setRotationDegrees(degrees);
     return item.setPresentation(command).outcome();
+}
+
+void ImageViewportPresentationStateTest::failureTransitionPolicyValidity()
+{
+    PresentationTargetTransitionPolicy keepFailed;
+    QCOMPARE(keepFailed.failureTransition(),
+        PresentationTargetTransitionPolicy::FailureTransition::KeepFailedTarget);
+    QVERIFY(keepFailed.isValid());
+
+    PresentationTargetTransitionPolicy restore;
+    restore.setFailureTransition(
+        PresentationTargetTransitionPolicy::FailureTransition::RestorePrevious);
+    QCOMPARE(restore.failureTransition(),
+        PresentationTargetTransitionPolicy::FailureTransition::RestorePrevious);
+    QVERIFY(restore.isValid());
+
+    restore.setDisplayTransition(
+        PresentationTargetTransitionPolicy::DisplayTransition::ClearBeforeLoad);
+    QVERIFY(!restore.isValid());
+
+    restore.setDisplayTransition(
+        PresentationTargetTransitionPolicy::DisplayTransition::RetainPrevious);
+    restore.setReplacementIntent(
+        PresentationTargetTransitionPolicy::ReplacementIntent::SameTargetRefinement);
+    QVERIFY(!restore.isValid());
+}
+
+void ImageViewportPresentationStateTest::restorePreviousRejectsWithoutCommittedPresentation()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    const ImageViewportStateSnapshot before = item.state();
+
+    PresentationTargetTransitionPolicy restore;
+    restore.setFailureTransition(
+        PresentationTargetTransitionPolicy::FailureTransition::RestorePrevious);
+    QCOMPARE(
+        item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()), restore)
+            .outcome(),
+        ImageViewportCommandOutcome::Invalid);
+    QCOMPARE(item.state().request(), before.request());
+    QCOMPARE(item.state().display(), before.display());
+    QCOMPARE(item.state().presentation(), before.presentation());
+}
+
+void ImageViewportPresentationStateTest::restorePreviousRestoresCompleteCommittedPresentation()
+{
+    ImageSequenceFactory factory;
+    QImage image(40, 20, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> first(factory.fromFrame(&frame));
+    QVERIFY(first->sequence());
+
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter replacementAdapter(
+        sessionFactory, ImageSequenceProviderMetadata::still(QSizeF(20.0, 40.0)));
+    QScopedPointer<ImageSequenceFactoryResult> replacement(
+        factory.fromProvider(&replacementAdapter));
+    QVERIFY(replacement->sequence());
+
+    ImageViewport item;
+    useSynchronousProviderExecutorForTest(item);
+    useSynchronousProviderEventDeliveryForTest(item);
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(first->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    acknowledgePendingRenderCommitForTest(item);
+    ImageViewportPresentationCommand manualZoom;
+    manualZoom.setPreferredManualZoomPercent(200.0);
+    QCOMPARE(item.setPresentation(manualZoom).outcome(), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(setRotationDegrees(item, 90), ImageViewportCommandOutcome::Accepted);
+    ImageViewportPresentationCommand endAnchor;
+    endAnchor.setContentAnchor(ImageViewportContentAnchor::End);
+    QCOMPARE(item.setPresentation(endAnchor).outcome(), ImageViewportCommandOutcome::Accepted);
+    const ImageViewportStateSnapshot committed = item.state();
+
+    PresentationTargetTransitionPolicy restore;
+    restore.setFailureTransition(
+        PresentationTargetTransitionPolicy::FailureTransition::RestorePrevious);
+    restore.setRotationTransition(PresentationTargetTransitionPolicy::RotationTransition::Reset);
+    QCOMPARE(item.setPresentationTarget(
+                     ImageViewportPresentationTarget(replacement->sequence()), restore)
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Loading);
+    QCOMPARE(item.state().display().status(), ImageViewportDisplayStatus::Retained);
+    QCOMPARE(item.state().presentation().rotationDegrees(), 0);
+
+    discardRetainedDisplayForResourcePressureForTest(item);
+    QCOMPARE(item.state().display().status(), ImageViewportDisplayStatus::Retained);
+
+    QVERIFY(sessionFactory->lastSession());
+    const auto failureReleaseCount = std::make_shared<int>(0);
+    auto* failureHandle = new ImageSequenceProviderFailureHandle(
+        [failureReleaseCount]() { ++*failureReleaseCount; });
+    const ImageSequenceProviderFailureReference failureReference = failureHandle->reference();
+    emit sessionFactory->lastSession()->providerEvent(
+        ImageSequenceProviderEvent::failed(sessionFactory->lastSession()->lastFrameToken(),
+            ImageSequenceProviderFailure(
+                ImageSequenceProviderFailureCause::ProviderInternal, failureHandle)));
+
+    QCOMPARE(item.state().request(), committed.request());
+    QCOMPARE(item.state().display().status(), ImageViewportDisplayStatus::Ready);
+    QCOMPARE(item.state().display().displayedRoleSet(), committed.display().displayedRoleSet());
+    QCOMPARE(item.state().presentation(), committed.presentation());
+    QCOMPARE(viewportPrimarySequence(item), first->sequence());
+    QCOMPARE(*closeCount, 1);
+    const ImageViewportFailureSnapshot failure = item.state().diagnostics().failure();
+    QVERIFY(failure.available());
+    QCOMPARE(failure.context(), ImageViewportFailureContext::RestoredTransition);
+    QCOMPARE(failure.reason(), ImageViewportRequestReason::ProviderFailure);
+    QCOMPARE(failure.providerCause(), ImageSequenceProviderFailureCause::ProviderInternal);
+    QCOMPARE(failure.providerReference(), failureReference);
+    QCOMPARE(*failureReleaseCount, 0);
+
+    QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(*failureReleaseCount, 1);
 }
 
 static ImageViewportCommandOutcome setMirrorHorizontallyCommand(ImageViewport& item, bool mirror)

@@ -72,6 +72,7 @@ struct ViewportProviderTransportCommand
 {
     enum class Kind {
         OpenSession,
+        ActivateSession,
         SendRequest,
         CloseSession,
         ScheduleDeferredEvent,

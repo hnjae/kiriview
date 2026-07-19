@@ -130,9 +130,15 @@ class ViewportProviderBridge
 public:
     explicit ViewportProviderBridge(ImageViewportPageRole role = ImageViewportPageRole::Primary);
     ~ViewportProviderBridge();
+    ViewportProviderBridge(const ViewportProviderBridge&) = delete;
+    ViewportProviderBridge& operator=(const ViewportProviderBridge&) = delete;
 
     ViewportProviderTransportResult closeSession(ImageSequenceProviderRequestToken metadataToken,
         ImageSequenceProviderRequestToken frameToken);
+    ViewportProviderTransportResult closeSession(quint64 generation, quint64 sessionSerial,
+        ImageSequenceProviderRequestToken metadataToken,
+        ImageSequenceProviderRequestToken frameToken);
+    ViewportProviderTransportResult activateSession(quint64 generation, quint64 sessionSerial);
     ViewportProviderSessionOpenTransportResult openSession(
         const ViewportProviderSessionOpenInput& input);
     ViewportProviderTransportResult deliverRequest(const ImageSequenceProviderRequest& request);

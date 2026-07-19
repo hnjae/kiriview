@@ -69,14 +69,14 @@ qint64 viewportEngineDisplayPayloadByteBudget()
 
 ViewportEnginePayloadAllocationRebuildResult rebuildViewportEnginePayloadAllocation(
     const ImageViewportInternal::RequestState& request,
-    ImageViewportInternal::DisplayState& display)
+    ImageViewportInternal::DisplayState& display, bool retainedDisplayPinned)
 {
     using namespace ImageViewportInternal;
     ViewportEnginePayloadAllocationRebuildResult result;
     const qint64 totalBudget = viewportEngineDisplayPayloadByteBudget();
     const int providers = providerRoleCount(request);
     qint64 accounted = accountedPayloadBytes(display);
-    if (display.status == ImageViewportDisplayStatus::Retained
+    if (!retainedDisplayPinned && display.status == ImageViewportDisplayStatus::Retained
         && (accounted > totalBudget || (providers > 0 && accounted >= totalBudget))) {
         display.discardRetainedDisplay();
         result.retainedDisplayDiscarded = true;
