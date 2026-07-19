@@ -224,6 +224,11 @@ if(TARGET tst_imageviewportcomponentboundary)
                                                                        "QT_QPA_PLATFORM=offscreen")
 endif()
 
+if(TARGET tst_imageviewportsequenceprovider)
+    set_tests_properties(tst_imageviewportsequenceprovider PROPERTIES ENVIRONMENT
+                                                                      "QT_QPA_PLATFORM=offscreen")
+endif()
+
 if(TARGET tst_displayimagepage)
     set_tests_properties(tst_displayimagepage PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()

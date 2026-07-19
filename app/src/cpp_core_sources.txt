@@ -45,6 +45,10 @@ src/bridge/predecodepolicyconversion.cpp
 src/bridge/videodocumentpolicyconversion.cpp
 src/rendering/displayimagestore.cpp
 src/rendering/displayproviderlogging.cpp
+src/rendering/imageviewportdecodesource.cpp
+src/rendering/imageviewportfailureregistry.cpp
+src/rendering/imageviewportproviderresource.cpp
+src/rendering/imageviewportsequenceprovider.cpp
 src/presentation/imagedisplaysourceprojection.cpp
 src/session/mediaopenwith.cpp
 src/session/documentsessionactivenavigationruntime.cpp
