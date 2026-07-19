@@ -24,6 +24,8 @@ const RUST_BRIDGE_SOURCES_FILE: &str = "src/rust_bridge_sources.txt";
 const KCONFIG_SCHEMA_FILE: &str = "src/kiriviewstate.kcfg";
 const KCONFIG_COMPILER_FILE: &str = "src/kiriviewstate.kcfgc";
 const QML_SOURCE_DIR: &str = "src/qml";
+const IMAGE_VIEWPORT_SOURCE_DIR_ENV: &str = "KIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR";
+const DEFAULT_IMAGE_VIEWPORT_SOURCE_DIR: &str = "../libs/image-viewport";
 const DEFAULT_INCLUDE_ROOTS: &[&str] = &["/app/include", "/usr/include"];
 const DEFAULT_LIBRARY_DIRS: &[&str] = &["/app/lib", "/usr/lib/x86_64-linux-gnu", "/usr/lib"];
 const QT_MODULES: &[&str] = &[
@@ -185,7 +187,12 @@ struct GeneratedState {
     source: PathBuf,
 }
 
+struct ImageViewportBuild {
+    include_dir: PathBuf,
+}
+
 fn main() {
+    let image_viewport = build_image_viewport();
     let native_include_dirs = native_include_dirs();
     let cxx_qt_header_sources = source_manifest(CXX_QT_HEADER_SOURCES_FILE);
     let rust_policy_sources = source_manifest(RUST_POLICY_SOURCES_FILE);
@@ -221,6 +228,7 @@ fn main() {
             cc.flag_if_supported("-Wno-attributes");
             cc.define("TRANSLATION_DOMAIN", "\"kiriview\"");
             cc.include("src");
+            cc.include(&image_viewport.include_dir);
             cc.include(&generated_state.include_dir);
             for dir in &native_include_dirs {
                 if is_system_native_include_dir(dir) {
@@ -234,6 +242,104 @@ fn main() {
     }
 
     builder.build();
+}
+
+fn build_image_viewport() -> ImageViewportBuild {
+    println!("cargo::rerun-if-env-changed={IMAGE_VIEWPORT_SOURCE_DIR_ENV}");
+    println!("cargo::rerun-if-env-changed=CMAKE_GENERATOR");
+    println!("cargo::rerun-if-env-changed=CMAKE_PREFIX_PATH");
+    println!("cargo::rerun-if-env-changed=CXX");
+    println!("cargo::rerun-if-env-changed=CC_KNOWN_WRAPPER_CUSTOM");
+    println!("cargo::rerun-if-env-changed=NUM_JOBS");
+
+    let source_dir = env::var_os(IMAGE_VIEWPORT_SOURCE_DIR_ENV)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(DEFAULT_IMAGE_VIEWPORT_SOURCE_DIR));
+    let source_dir = source_dir.canonicalize().unwrap_or_else(|error| {
+        panic!("failed to resolve ImageViewport source directory: {error}")
+    });
+    let include_dir = source_dir.join("src");
+    let cmake_file = source_dir.join("CMakeLists.txt");
+    if !cmake_file.exists() || !include_dir.join("ImageViewport/imageviewport.h").exists() {
+        panic!(
+            "ImageViewport source directory {} does not contain the component",
+            source_dir.display()
+        );
+    }
+    println!("cargo::rerun-if-changed={}", source_dir.display());
+
+    let out_dir = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR must be set"));
+    let build_dir = out_dir.join("image-viewport");
+    let build_type = if env::var("DEBUG").as_deref() == Ok("true") {
+        "Debug"
+    } else {
+        "Release"
+    };
+
+    let mut configure = Command::new("cmake");
+    configure
+        .arg("-S")
+        .arg(&source_dir)
+        .arg("-B")
+        .arg(&build_dir)
+        .arg(format!("-DCMAKE_BUILD_TYPE={build_type}"))
+        .args([
+            "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
+            "-DIMAGEVIEWPORT_BUILD_EXAMPLES=OFF",
+            "-DIMAGEVIEWPORT_BUILD_TESTS=OFF",
+            "-DIMAGE_VIEWPORT_ENABLE_PRIVATE_TEST_PROBES=OFF",
+        ]);
+    if let Some(compiler) = unwrapped_cmake_cxx_compiler() {
+        configure.arg(format!("-DCMAKE_CXX_COMPILER={compiler}"));
+    }
+    let configure_status = configure
+        .status()
+        .expect("failed to configure the repository-internal ImageViewport component");
+    if !configure_status.success() {
+        panic!("CMake configuration failed for ImageViewport");
+    }
+
+    let mut build = Command::new("cmake");
+    build.arg("--build").arg(&build_dir).args([
+        "--config",
+        build_type,
+        "--target",
+        "ImageViewport",
+    ]);
+    if let Some(jobs) = env::var_os("NUM_JOBS") {
+        build.arg("--parallel").arg(jobs);
+    }
+    let build_status = build
+        .status()
+        .expect("failed to build the repository-internal ImageViewport component");
+    if !build_status.success() {
+        panic!("CMake build failed for ImageViewport");
+    }
+
+    let library_dir = build_dir.join("src");
+    let library = library_dir.join("libImageViewport.a");
+    if !library.exists() {
+        panic!(
+            "ImageViewport build did not produce the expected archive {}",
+            library.display()
+        );
+    }
+
+    println!("cargo::rustc-link-search=native={}", library_dir.display());
+    println!("cargo::rustc-link-lib=static:+bundle=ImageViewport");
+    println!("cargo::rustc-link-lib=GL");
+
+    ImageViewportBuild { include_dir }
+}
+
+fn unwrapped_cmake_cxx_compiler() -> Option<String> {
+    let wrapper = env::var("CC_KNOWN_WRAPPER_CUSTOM").ok()?;
+    let cxx = env::var("CXX").ok()?;
+    let compiler = cxx.strip_prefix(&wrapper)?.trim_start();
+    if compiler.is_empty() {
+        return None;
+    }
+    Some(compiler.to_owned())
 }
 
 fn add_cpp_file_strings(mut builder: CxxQtBuilder, files: Vec<String>) -> CxxQtBuilder {

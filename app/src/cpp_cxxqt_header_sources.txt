@@ -8,6 +8,7 @@ src/facade/kiriimagedisplaysource.h
 src/facade/kiriimageviewportcommandbridge.h
 src/facade/kiriimagedocument.h
 src/facade/kiriimageviewportcontextbridge.h
+src/facade/kiriimageviewportsurface.h
 src/facade/kirimediainformation.h
 src/facade/kirivideodocument.h
 src/facade/kirivideoplaybackcontrols.h

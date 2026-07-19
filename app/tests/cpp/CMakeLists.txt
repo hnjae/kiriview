@@ -23,6 +23,7 @@ find_package(
                QuickControls2
                Test
                Widgets)
+find_package(OpenGL REQUIRED)
 find_package(KF6Archive CONFIG REQUIRED)
 find_package(KF6Config CONFIG REQUIRED)
 find_package(KF6CoreAddons CONFIG REQUIRED)
@@ -65,6 +66,17 @@ set(KIRIVIEW_CARGO_TARGET_DIR
     "${CMAKE_SOURCE_DIR}/../../target/flatpak/debug"
     CACHE PATH "Cargo target debug artifacts directory")
 set(KIRIVIEW_CARGO_STATICLIB "${KIRIVIEW_CARGO_TARGET_DIR}/libkiriview.a")
+set(KIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR "$ENV{KIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR}")
+if(NOT KIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR)
+    set(KIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR "../libs/image-viewport")
+endif()
+cmake_path(ABSOLUTE_PATH KIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR BASE_DIRECTORY
+           "${CMAKE_SOURCE_DIR}/../.." NORMALIZE)
+if(NOT EXISTS "${KIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR}/src/ImageViewport/imageviewport.h")
+    message(
+        FATAL_ERROR
+            "ImageViewport source directory is missing: ${KIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR}")
+endif()
 file(GLOB KIRIVIEW_CXXQT_INCLUDE_DIR_CANDIDATES
      "${KIRIVIEW_CARGO_TARGET_DIR}/build/kiriview-*/out/cxxqtbuild/include")
 kiriview_latest_path(KIRIVIEW_CXXQT_INCLUDE_DIR ${KIRIVIEW_CXXQT_INCLUDE_DIR_CANDIDATES})
@@ -87,9 +99,13 @@ set_target_properties(KiriViewCargoStatic PROPERTIES IMPORTED_LOCATION
                                                      "${KIRIVIEW_CARGO_STATICLIB}")
 
 add_library(kiriview_test_core INTERFACE)
-target_include_directories(kiriview_test_core INTERFACE ../../src "${KIRIVIEW_CXXQT_INCLUDE_DIR}"
-                                                        "${KIRIVIEW_KCONFIG_INCLUDE_DIR}")
-target_compile_definitions(kiriview_test_core INTERFACE TRANSLATION_DOMAIN="kiriview")
+target_include_directories(
+    kiriview_test_core INTERFACE ../../src "${KIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR}/src"
+                                 "${KIRIVIEW_CXXQT_INCLUDE_DIR}" "${KIRIVIEW_KCONFIG_INCLUDE_DIR}")
+target_compile_definitions(
+    kiriview_test_core
+    INTERFACE TRANSLATION_DOMAIN="kiriview"
+              KIRIVIEW_QML_IMPORT_PATH="${KIRIVIEW_CARGO_TARGET_DIR}/cxxqt/qml_modules")
 target_link_libraries(
     kiriview_test_core
     INTERFACE "$<LINK_LIBRARY:WHOLE_ARCHIVE,KiriViewCargoStatic>"
@@ -101,6 +117,7 @@ target_link_libraries(
               Qt6::Quick
               Qt6::QuickControls2
               Qt6::Widgets
+              OpenGL::GL
               KF6::Archive
               KF6::ConfigCore
               KF6::ConfigGui
@@ -200,6 +217,11 @@ endif()
 
 if(TARGET tst_imageviewport)
     set_tests_properties(tst_imageviewport PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
+
+if(TARGET tst_imageviewportcomponentboundary)
+    set_tests_properties(tst_imageviewportcomponentboundary PROPERTIES ENVIRONMENT
+                                                                       "QT_QPA_PLATFORM=offscreen")
 endif()
 
 if(TARGET tst_displayimagepage)

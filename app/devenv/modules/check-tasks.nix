@@ -655,7 +655,7 @@ in
           ${lib.getExe pkgs.jq} --exit-status '
               type == "array"
               and any(.[]; (.file | strings | (startswith("src/") and endswith(".cpp"))))
-              and any(.[]; (.file | strings | (startswith("tests/cpp/test_") and endswith(".cpp"))))
+              and any(.[]; (.file | strings | (startswith("tests/cpp/tst_") and endswith(".cpp"))))
           ' "$compile_db" >/dev/null
         '';
     };

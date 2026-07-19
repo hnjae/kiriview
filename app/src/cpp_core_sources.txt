@@ -71,6 +71,7 @@ src/async/imageasyncoperationstate.cpp
 src/application/imageactionavailabilitypolicy.cpp
 src/application/imageactionavailabilityruntime.cpp
 src/facade/imageactionavailability.cpp
+src/facade/kiriimageviewportsurface.cpp
 src/cache/imagebytecost.cpp
 src/navigation/imagedocumentpagecandidateprovider.cpp
 src/cache/imagecachepolicy.cpp
