@@ -11,31 +11,27 @@
 #include "navigation/imagedocumentpagecandidatelistsource.h"
 #include "navigation/imagedocumentpagenavigationtypes.h"
 #include "predecode/predecodedimage.h"
-#include "presentation/imagedisplaysourceprojection.h"
 #include "presentation/imagepresentationstate.h"
-#include "presentation/imageviewportcommandstate.h"
-#include "presentation/imageviewportinteraction.h"
-#include "presentation/imagezoomstate.h"
+#include "presentation/imageviewportscanstate.h"
 #include "rendering/imagerendercontext.h"
 #include "system/filedeletion.h"
 
 #include <QPointF>
-#include <QRectF>
 #include <QSize>
-#include <QSizeF>
 #include <QString>
 #include <QUrl>
-#include <QtGlobal>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
 
 class QObject;
+class ImageViewport;
 
 namespace kiriview {
 class ImageDocumentRuntimeGraph;
 class ImageDocumentSourceLoadRequest;
+struct ImageViewportIntegrationProjection;
 
 class ImageDocumentRuntime final
 {
@@ -72,39 +68,17 @@ public:
     QSize imageSize() const;
     QSize primaryImageSize() const;
     QSize secondaryImageSize() const;
-    QSizeF viewportSize() const;
-    void setViewportSize(QSizeF viewportSize);
-    QPointF viewportContentPosition() const;
-    quint64 requestViewportContentPosition(QPointF viewportContentPosition);
-    quint64 requestViewportPanBy(QPointF delta);
-    quint64 requestViewportPanToInitialScanPosition();
-    quint64 requestViewportPanToFinalScanPosition();
-    quint64 requestViewportScanForward();
-    quint64 requestViewportScanBackward();
-    void requestNextDisplayedImageStartToFinalScanPosition();
-    quint64 requestDisplayedImageInitialContentPosition();
-    bool beginViewportCommandApplication(quint64 commandRevision);
-    bool completeViewportCommandApplication(quint64 commandRevision, QPointF actualContentPosition);
-    bool acknowledgeViewportCommand(quint64 commandRevision, QPointF actualContentPosition);
-    bool observeViewportContentPosition(
-        QPointF contentPosition, ImageViewportObservationOrigin origin);
-    quint64 viewportCommandRevision() const;
-    quint64 viewportAppliedCommandRevision() const;
-    quint64 viewportObservationRevision() const;
-    ImageViewportCommandStatus viewportCommandStatus() const;
-    ImageViewportObservationOrigin viewportObservationOrigin() const;
-    QSizeF viewportContentSize() const;
-    QRectF viewportImageRect() const;
     bool viewportHorizontallyPannable() const;
     bool viewportVerticallyPannable() const;
     bool viewportPannable() const;
-    QRectF visibleItemRect() const;
-    QSizeF displaySize() const;
-    QSizeF primaryDisplaySize() const;
-    QSizeF secondaryDisplaySize() const;
+    qreal horizontalScrollPosition() const;
+    qreal horizontalScrollPageSize() const;
+    qreal verticalScrollPosition() const;
+    qreal verticalScrollPageSize() const;
+    bool submitHorizontalScrollPosition(qreal position);
+    bool submitVerticalScrollPosition(qreal position);
     bool zoomPercentKnown() const;
     qreal zoomPercent() const;
-    void requestManualZoomPercent(qreal zoomPercent);
     bool requestManualZoomPercentAtCenter(qreal zoomPercent);
     bool requestZoomByStep(qreal stepCount, QPointF viewportAnchorPoint);
     bool requestZoomByStepAtCenter(qreal stepCount);
@@ -116,6 +90,13 @@ public:
     qreal clampedManualZoomPercent(qreal zoomPercent) const;
     qreal steppedManualZoomPercent(qreal stepCount) const;
     int rotationDegrees() const;
+    quint64 requestViewportPanBy(QPointF delta);
+    quint64 requestViewportPanToInitialScanPosition();
+    quint64 requestViewportPanToFinalScanPosition();
+    quint64 requestViewportScanForward();
+    quint64 requestViewportScanBackward();
+    void requestNextDisplayedImageStartToFinalScanPosition();
+    quint64 requestDisplayedImageInitialContentPosition();
     int currentPageNumber() const;
     int currentLastPageNumber() const;
     int pageCount() const;
@@ -140,10 +121,9 @@ public:
     std::optional<DisplayedPredecodeImage> primaryDisplayedPredecodeImage() const;
     ImageFirstDisplayDecodeContext firstDisplayDecodeContext() const;
     const EmbeddedMetadata& embeddedMetadata() const;
-    ImageDisplaySourceProjection displaySourceProjection(
-        DisplayedPageRole role = DisplayedPageRole::Primary) const;
-    bool acknowledgeDisplayImageLoad(DisplayedPageRole role, const QUrl& providerUrl,
-        quint64 revision, const QString& sourceIdentity, ImageDisplayLoadOutcome outcome);
+    void attachImageViewport(ImageViewport* viewport);
+    void detachImageViewport(ImageViewport* viewport);
+    const ImageViewportIntegrationProjection& viewportProjection() const;
 
     void notify(const std::vector<ImageDocumentChange>& changes);
     void setRenderContextProvider(RenderContextProvider provider);
@@ -160,15 +140,13 @@ public:
     void setFitMode(ImageZoomMode zoomMode);
     void rotateClockwise();
     void rotateCounterclockwise();
-    void updateRenderContext();
 
 private:
     ImageDocumentRenderContext renderContext() const;
-    quint64 requestViewportInteractionContentPosition(QPointF contentPosition);
+    QPointF scanPosition(bool forward) const;
+    QPointF scanBoundaryPosition(bool final) const;
+    bool submitContentPosition(QPointF position);
     bool requestAnchoredManualZoom(qreal zoomPercent, QPointF viewportAnchorPoint);
-    ImageViewportInteractionSnapshot viewportInteractionSnapshot() const;
-    void updateViewportInteractionForPublishedChanges(
-        const std::vector<ImageDocumentChange>& changes);
     void loadSource(const ImageDocumentSourceLoadRequest& request);
     void publishChanges(const std::vector<ImageDocumentChange>& changes);
 
@@ -178,7 +156,9 @@ private:
     RenderContextProvider renderContextProvider;
     NavigationSourceResolver navigationSourceResolver;
     std::unique_ptr<ImageDocumentRuntimeGraph> runtimeGraph;
-    ImageViewportInteraction viewportInteraction;
+    ImageViewportScanState viewportScanState;
+    QUrl lastProjectedDisplayedUrl;
+    ImageZoomMode fitModeSelectionPreference = ImageZoomMode::Fit;
 };
 }
 

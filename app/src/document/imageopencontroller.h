@@ -4,16 +4,14 @@
 #ifndef KIRIVIEW_IMAGEOPENCONTROLLER_H
 #define KIRIVIEW_IMAGEOPENCONTROLLER_H
 
-#include "decoding/imagedecodedependencies.h"
 #include "imagedocumentruntimeplan.h"
 #include "imageloadfailure.h"
 #include "imageloadtypes.h"
 #include "metadata/embeddedmetadata.h"
 #include "navigation/imagedocumentpagecandidatelistsource.h"
 #include "predecode/predecodedimage.h"
-#include "presentation/imagedisplaysourceprojection.h"
-#include "presentation/imagepresentationload.h"
 
+#include <QSize>
 #include <QString>
 #include <QUrl>
 #include <functional>
@@ -25,8 +23,6 @@ class QObject;
 namespace kiriview {
 class ImageDocumentState;
 class ImageLoader;
-class ImagePageSurfaceController;
-class ImagePresentationRuntime;
 
 class ImageOpenController final
 {
@@ -36,10 +32,15 @@ public:
     using UnsupportedOpenedCollectionVideoEnteredCallback = std::function<void(const QString&)>;
     using OpenedCollectionVideoPlaybackAvailableCallback
         = std::function<bool(const OpenedCollectionScopeLocation&, const QUrl&)>;
-    using CommitPrimaryPageSlotCallback = std::function<void(const DisplayedImageLocation&)>;
+    using CommitPrimaryPageSlotCallback = std::function<void(const DisplayedImageLocation&, QSize)>;
     using ClearPrimaryPageSlotCallback = std::function<void()>;
     using EnsurePageCandidateSnapshotCallback = std::function<void(
         ImageDocumentPageCandidateListContext, ImageDocumentPageCandidateListSnapshotCallback)>;
+    using PrepareViewportImageTargetCallback
+        = std::function<bool(ImageLoadSession, std::optional<PredecodedImage>)>;
+    using FirstDisplayDecodeContextCallback = std::function<ImageFirstDisplayDecodeContext()>;
+    using HasCommittedImageCallback = std::function<bool()>;
+    using ClearViewportTargetCallback = std::function<void()>;
 
     struct Callbacks
     {
@@ -50,20 +51,23 @@ public:
         CommitPrimaryPageSlotCallback commitPrimaryPageSlot;
         ClearPrimaryPageSlotCallback clearPrimaryPageSlot;
         EnsurePageCandidateSnapshotCallback ensurePageCandidateSnapshot;
+        PrepareViewportImageTargetCallback prepareViewportImageTarget;
+        FirstDisplayDecodeContextCallback firstDisplayDecodeContext;
+        HasCommittedImageCallback hasCommittedImage;
+        ClearViewportTargetCallback clearViewportTarget;
     };
 
-    ImageOpenController(QObject* parent, ImageDocumentState& state,
-        ImagePageSurfaceController& pageSurfaceController,
-        ImagePresentationRuntime& presentationRuntime, Callbacks callbacks,
-        ImageDecodeDependencies decodeDependencies);
+    ImageOpenController(QObject* parent, ImageDocumentState& state, Callbacks callbacks);
     ~ImageOpenController();
 
     void open();
     void prepareSourceLoad(const ImageDocumentSourceLoadRequest& request);
     void cancel();
     void finishEmptySourceLoad();
-    void finishAnimationLoadWithError(const QString& errorString);
-    void finishDisplayLoadWithError(const ImageDisplayLoadResolution& resolution);
+    void finishViewportImageLoadReady(
+        const ImageLoadSession& session, QSize imageSize, EmbeddedMetadata metadata);
+    void finishViewportImageLoadWithError(
+        const ImageLoadSession& session, ImageLoadFailure failure);
     void finishContainerNavigationWithEmptyContainer(const QUrl& containerUrl);
     void finishContainerNavigationLoadWithError(
         const QUrl& containerUrl, const QString& errorString);
@@ -73,18 +77,13 @@ private:
     void finishSourcePrepared(ImageLoadSession session);
     void finishUnsupportedOpenedCollectionVideoLoad(ImageLoadSession session);
     void finishPlayableOpenedCollectionVideoLoad(ImageLoadSession session);
-    void finishThumbnailPreviewLoad(ImageLoadSession session, StaticDisplayImagePayload preview);
-    void finishPredecodedImageLoad(ImageLoadSession session, PredecodedImage image);
-    void finishDecodedImageLoad(ImageLoadSession session, DecodedImage image);
-    void finishPresentedImageLoad(const ImageLoadSession& session,
-        ImagePresentationLoadResult result, EmbeddedMetadata metadata);
+    void finishPreparedViewportImageLoad(
+        ImageLoadSession session, std::optional<PredecodedImage> predecoded);
     void finishLoadWithError(const ImageLoadSession& session, ImageLoadFailure failure);
     void finishSuccessfulImageLoad(const ImageLoadSession& session, EmbeddedMetadata metadata);
     void reportRuntimePlan(ImageDocumentRuntimePlan plan);
 
     ImageDocumentState& m_state;
-    ImagePageSurfaceController& m_pageSurfaceController;
-    ImagePresentationRuntime& m_presentationRuntime;
     Callbacks m_callbacks;
     std::unique_ptr<ImageLoader> m_imageLoader;
     std::optional<ImageDocumentSourceLoadRequest> m_sourceLoadRequest;

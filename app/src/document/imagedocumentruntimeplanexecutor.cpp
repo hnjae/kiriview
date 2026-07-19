@@ -13,7 +13,6 @@ namespace {
     template <typename Operation>
     inline constexpr bool isLifecycleRuntimeOperation
         = std::is_same_v<Operation, CancelFileDeletionOperation>
-        || std::is_same_v<Operation, StopPresentationAnimationOperation>
         || std::is_same_v<Operation, ShutdownSpreadOperation>;
 
     template <typename Operation>
@@ -60,13 +59,9 @@ namespace {
 
     template <typename Operation>
     inline constexpr bool isSpreadRuntimeOperation
-        = std::is_same_v<Operation, FinishSpreadTransitionOperation>
-        || std::is_same_v<Operation, ResetRightToLeftReadingOperation>
+        = std::is_same_v<Operation, ResetRightToLeftReadingOperation>
         || std::is_same_v<Operation, ClearSecondaryPageOperation>
-        || std::is_same_v<Operation, BeginSameScopeImageNavigationPresentationOperation>
-        || std::is_same_v<Operation, NotifyRightToLeftReadingChangedOperation>
-        || std::is_same_v<Operation, ResetZoomOperation>
-        || std::is_same_v<Operation, PrepareFailedContainerOperation>;
+        || std::is_same_v<Operation, NotifyRightToLeftReadingChangedOperation>;
 
 }
 

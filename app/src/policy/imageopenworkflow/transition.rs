@@ -26,9 +26,6 @@ pub(super) fn transition(event: RustImageOpenWorkflowEvent) -> RustImageOpenTran
         RustImageOpenWorkflowEventKind::FinishContainerNavigationLoadWithError => {
             container_navigation_load_error_transition()
         }
-        RustImageOpenWorkflowEventKind::FinishAnimationLoadWithError => {
-            animation_load_error_transition()
-        }
         RustImageOpenWorkflowEventKind::ResolveSourceImage => resolve_source_image_transition(),
         RustImageOpenWorkflowEventKind::FinishUnsupportedOpenedCollectionVideoLoad => {
             opened_collection_video_transition(RustImageOpenBoolTarget::True)
@@ -53,14 +50,9 @@ fn begin_source_load_transition(event: RustImageOpenWorkflowEvent) -> RustImageO
 
     set_loading(&mut transition, RustImageOpenBoolTarget::True);
     if input.has_image {
-        push_effect(
-            &mut transition,
-            RustImageOpenEffect::ClearLoadingPresentation,
-        );
         set_status(&mut transition, RustImageOpenStatusTarget::Loading);
     } else {
         push_effect(&mut transition, RustImageOpenEffect::ClearImage);
-        push_effect(&mut transition, RustImageOpenEffect::ResetZoom);
         set_status(&mut transition, RustImageOpenStatusTarget::Loading);
     }
     transition
@@ -69,7 +61,6 @@ fn begin_source_load_transition(event: RustImageOpenWorkflowEvent) -> RustImageO
 fn finish_empty_source_load_transition() -> RustImageOpenTransition {
     let mut transition = empty_transition();
     push_effect(&mut transition, RustImageOpenEffect::ClearImage);
-    push_effect(&mut transition, RustImageOpenEffect::ResetZoom);
     set_unsupported_opened_collection_video(&mut transition, RustImageOpenBoolTarget::False);
     set_embedded_metadata_cleared(&mut transition);
     set_error_string(&mut transition, RustImageOpenErrorStringTarget::Clear);
@@ -105,7 +96,6 @@ fn opened_collection_video_transition(
     set_tracked_load_completed(&mut transition);
     set_status(&mut transition, RustImageOpenStatusTarget::Ready);
     set_unsupported_opened_collection_video(&mut transition, unsupported_opened_collection_video);
-    push_effect(&mut transition, RustImageOpenEffect::FinishSpreadTransition);
     push_effect(&mut transition, RustImageOpenEffect::ClearSecondaryPage);
     push_effect(&mut transition, RustImageOpenEffect::UpdatePageNavigation);
     transition
@@ -144,7 +134,6 @@ fn finish_successful_image_load_transition(
 fn container_navigation_load_error_transition() -> RustImageOpenTransition {
     let mut transition = empty_transition();
     push_effect(&mut transition, RustImageOpenEffect::ClearImage);
-    push_effect(&mut transition, RustImageOpenEffect::PrepareFailedContainer);
     set_tracked_load_completed(&mut transition);
     set_container_navigation_url(&mut transition, RustImageOpenUrlTarget::Container);
     set_source_url(&mut transition, RustImageOpenUrlTarget::Container);
@@ -169,10 +158,6 @@ fn initial_load_error_transition() -> RustImageOpenTransition {
     source_target_load_error_transition()
 }
 
-fn animation_load_error_transition() -> RustImageOpenTransition {
-    cleared_load_error_transition(true)
-}
-
 fn source_load_error_transition(event: RustImageOpenWorkflowEvent) -> RustImageOpenTransition {
     match event.load_failure_route {
         RustImageOpenLoadFailureRoute::ContainerNavigation => {
@@ -181,19 +166,6 @@ fn source_load_error_transition(event: RustImageOpenWorkflowEvent) -> RustImageO
         RustImageOpenLoadFailureRoute::Source => initial_load_error_transition(),
         _ => initial_load_error_transition(),
     }
-}
-
-fn cleared_load_error_transition(reset_zoom: bool) -> RustImageOpenTransition {
-    let mut transition = empty_transition();
-    push_effect(&mut transition, RustImageOpenEffect::ClearImage);
-    if reset_zoom {
-        push_effect(&mut transition, RustImageOpenEffect::ResetZoom);
-    }
-    set_tracked_load_completed(&mut transition);
-    set_container_navigation_url(&mut transition, RustImageOpenUrlTarget::Empty);
-    set_error_string(&mut transition, RustImageOpenErrorStringTarget::Provided);
-    set_status(&mut transition, RustImageOpenStatusTarget::Error);
-    transition
 }
 
 fn set_tracked_load_completed(transition: &mut RustImageOpenTransition) {

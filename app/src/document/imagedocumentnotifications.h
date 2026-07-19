@@ -9,17 +9,11 @@
 #include <vector>
 
 namespace kiriview {
-struct ImageZoomChangeSet;
-
-std::vector<ImageDocumentChange> imageDocumentSpreadTransitionNotifications();
 std::vector<ImageDocumentChange> imageDocumentDisplayedLocationNotifications(
     bool displayedUrlChanged, bool windowTitleFileNameChanged);
 std::vector<ImageDocumentChange> imageDocumentTwoPageModeNotifications();
-std::vector<ImageDocumentChange> imageDocumentSpreadZoomNotifications(ImageZoomChangeSet changes);
 std::vector<ImageDocumentChange> imageDocumentRightToLeftReadingNotifications(
     bool secondaryPageVisible);
-std::vector<ImageDocumentChange> imageDocumentPresentationZoomNotifications(
-    ImageZoomChangeSet changes);
 }
 
 #endif

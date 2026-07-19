@@ -9,10 +9,8 @@
 
 #include <QImage>
 #include <QImageIOHandler>
-#include <QQuickImageProvider>
 #include <QSize>
 #include <QString>
-#include <QUrl>
 #include <QtGlobal>
 #include <memory>
 #include <optional>
@@ -115,21 +113,8 @@ private:
     std::unique_ptr<Private> d;
 };
 
-class DisplayImageProvider final : public QQuickImageProvider
-{
-    Q_OBJECT
-public:
-    explicit DisplayImageProvider(std::shared_ptr<DisplayImageStore> store);
-
-    QImage requestImage(const QString& id, QSize* size, const QSize& requestedSize) override;
-
-private:
-    std::shared_ptr<DisplayImageStore> m_store;
-};
-
 std::shared_ptr<DisplayImageStore> sharedDisplayImageStore();
 void configureSharedDisplayImageStoreByteBudget(qsizetype byteBudget);
-QUrl displayImageSourceForId(const QString& id);
 }
 
 #endif

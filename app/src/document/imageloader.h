@@ -4,21 +4,14 @@
 #ifndef KIRIVIEW_IMAGELOADER_H
 #define KIRIVIEW_IMAGELOADER_H
 
-#include "decoding/decodedimageresult.h"
-#include "decoding/imagedecodedependencies.h"
-#include "decoding/imagedecodejob.h"
 #include "imageloadfailure.h"
 #include "imageloadsessiontracker.h"
 #include "imageloadtypes.h"
 #include "navigation/imagedocumentpagecandidatelistsource.h"
 #include "predecode/predecodedimage.h"
 
-#include <QByteArray>
-#include <QImage>
 #include <QObject>
-#include <QString>
 #include <QUrl>
-#include <QtGlobal>
 #include <functional>
 #include <optional>
 
@@ -29,41 +22,30 @@ class ImageLoader final : public QObject
 public:
     using SourcePreparedCallback = std::function<void(ImageLoadSession)>;
     using ErrorCallback = std::function<void(ImageLoadSession, ImageLoadFailure)>;
-    using DecodedImageCallback = std::function<void(ImageLoadSession, DecodedImage)>;
-    using PredecodedImageCallback = std::function<void(ImageLoadSession, PredecodedImage)>;
-    using ThumbnailPreviewCallback
-        = std::function<void(ImageLoadSession, StaticDisplayImagePayload)>;
     using UnsupportedOpenedCollectionVideoCallback = std::function<void(ImageLoadSession)>;
     using FindPredecodedImageCallback = std::function<std::optional<PredecodedImage>(const QUrl&)>;
     using EnsurePageCandidateSnapshotCallback = std::function<void(
         ImageDocumentPageCandidateListContext, ImageDocumentPageCandidateListSnapshotCallback)>;
+    using PreparedImageCallback
+        = std::function<void(ImageLoadSession, std::optional<PredecodedImage>)>;
 
     struct Callbacks
     {
         ErrorCallback error;
-        DecodedImageCallback decodedImage;
-        PredecodedImageCallback predecodedImage;
-        ThumbnailPreviewCallback thumbnailPreview;
         UnsupportedOpenedCollectionVideoCallback unsupportedOpenedCollectionVideo;
         FindPredecodedImageCallback findPredecodedImage;
         SourcePreparedCallback sourcePrepared;
         EnsurePageCandidateSnapshotCallback ensurePageCandidateSnapshot;
+        PreparedImageCallback preparedImage;
     };
 
     explicit ImageLoader(QObject* parent = nullptr);
     ImageLoader(QObject* parent, Callbacks callbacks);
-    ImageLoader(QObject* parent, ImageDecodeDependencies decodeDependencies);
-    ImageLoader(QObject* parent, ImageDecodeDependencies decodeDependencies, Callbacks callbacks);
 
     void start(ImageLoadRequest request, ImageFirstDisplayDecodeContext firstDisplayContext = {});
     void cancel();
 
 private:
-    void finishDecodeResult(ImageDecodeRequest request, DecodedImageResult result);
-    void finishThumbnailPreview(
-        const ImageDecodeRequest& request, StaticDisplayImagePayload preview);
-    void finishImageLoadError(const ImageDecodeRequest& request, const QString& errorString);
-    void startImageLoad(ImageLoadSession session);
     void startOpenedCollectionLoad(ImageLoadSession session);
     void finishOpenedCollectionSnapshot(ImageLoadSession session,
         ImageDocumentPageCandidateListSource candidateSource,
@@ -71,17 +53,10 @@ private:
     void finishOpenedCollectionCandidates(
         const ImageLoadSession& session, const std::vector<ImageDocumentPageCandidate>& candidates);
     bool tryReportUnsupportedOpenedCollectionVideo(ImageLoadSession session);
-    bool tryDisplayPredecodedImage(ImageLoadSession session);
-    void finishDecodeRequestWithFailure(
-        const ImageDecodeRequest& request, const DecodedImageFailure& failure);
-    void finishDecodeRequestWithError(
-        const ImageDecodeRequest& request, ImageLoadFailureKind kind, const QString& errorString);
-    void finishDecodedImage(ImageLoadSession session, DecodedImage image);
-    void finishPredecodedImage(ImageLoadSession session, PredecodedImage image);
-    void finishThumbnailPreview(ImageLoadSession session, StaticDisplayImagePayload preview);
+    void prepareProviderImage(ImageLoadSession session);
+    std::optional<PredecodedImage> matchingPredecodedImage(const ImageLoadSession& session) const;
 
     Callbacks m_callbacks;
-    ImageDecodeJob m_decodeJob;
     ImageLoadSessionTracker m_sessionTracker;
 };
 }

@@ -20,8 +20,6 @@ struct RecordedWorkflowOperations
             = [this]() { events.append(QStringLiteral("clearMediaEntrySource")); };
         operations.predecode.clearPredecode
             = [this]() { events.append(QStringLiteral("clearPredecode")); };
-        operations.spread.finishSpreadTransition
-            = [this]() { events.append(QStringLiteral("finishSpreadTransition")); };
         operations.spread.clearSecondaryPage
             = [this]() { events.append(QStringLiteral("clearSecondaryPage")); };
         operations.navigation.cancelPageNavigationUpdate
@@ -57,7 +55,6 @@ void TestImageDocumentRuntimeWorkflow::dispatchesRuntimePlansThroughInjectedOper
         QStringList({
             QStringLiteral("clearMediaEntrySource"),
             QStringLiteral("clearPredecode"),
-            QStringLiteral("finishSpreadTransition"),
             QStringLiteral("clearSecondaryPage"),
             QStringLiteral("cancelPageNavigationUpdate"),
             QStringLiteral("clearDisplayedImageLocation"),

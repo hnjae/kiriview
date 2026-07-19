@@ -6,6 +6,8 @@
 
 #include "location/imagelocation.h"
 
+#include <QSize>
+
 namespace kiriview {
 class ImageSpreadPresentationController;
 
@@ -15,7 +17,7 @@ public:
     explicit ImageDocumentPrimaryPageSlotPort(
         ImageSpreadPresentationController* spreadController = nullptr);
 
-    void commit(const DisplayedImageLocation& location) const;
+    void commit(const DisplayedImageLocation& location, QSize imageSize) const;
     void clear() const;
 
 private:

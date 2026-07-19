@@ -23,11 +23,6 @@ fn current_source_load_plan(
     input: RustImageDocumentSourceLoadPolicyInput,
 ) -> RustImageDocumentSourceLoadPlan {
     let mut plan = source_load_plan();
-    push_source_load_if(
-        &mut plan,
-        !input.preserve_two_page_spread_transition,
-        RustImageDocumentSourceLoadOperation::FinishSpreadTransition,
-    );
     apply_right_to_left_reading_transition(&mut plan, input, false);
     push_source_load_operation(
         &mut plan,
@@ -53,11 +48,6 @@ fn replacement_source_load_plan(
     push_source_load_operation(
         &mut plan,
         RustImageDocumentSourceLoadOperation::CancelPredecode,
-    );
-    push_source_load_if(
-        &mut plan,
-        !input.preserve_two_page_spread_transition,
-        RustImageDocumentSourceLoadOperation::FinishSpreadTransition,
     );
     apply_right_to_left_reading_transition(&mut plan, input, true);
     push_source_load_if(
@@ -91,19 +81,10 @@ fn same_scope_image_navigation_load_plan(
     input: RustImageDocumentSourceLoadPolicyInput,
 ) -> RustImageDocumentSourceLoadPlan {
     let mut plan = source_load_plan();
-    push_source_load_if(
-        &mut plan,
-        !input.preserve_two_page_spread_transition,
-        RustImageDocumentSourceLoadOperation::FinishSpreadTransition,
-    );
     apply_right_to_left_reading_transition(&mut plan, input, false);
     push_source_load_operation(
         &mut plan,
         RustImageDocumentSourceLoadOperation::ClearLoadingContainerNavigationUrl,
-    );
-    push_source_load_operation(
-        &mut plan,
-        RustImageDocumentSourceLoadOperation::BeginSameScopeImageNavigationPresentation,
     );
     push_source_load_operation(
         &mut plan,

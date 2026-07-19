@@ -70,18 +70,10 @@ mod imagedocumentpagenavigation;
 mod predecodepolicy;
 
 // Presentation policy.
-#[path = "policy/imagemath.rs"]
-mod imagemath;
-#[path = "policy/imagespreadgeometry.rs"]
-mod imagespreadgeometry;
 #[path = "policy/imagespreadnavigation.rs"]
 mod imagespreadnavigation;
 #[path = "policy/imagespreadpolicy.rs"]
 mod imagespreadpolicy;
-#[path = "policy/imageviewportgeometry.rs"]
-mod imageviewportgeometry;
-#[path = "policy/imagezoomstate.rs"]
-mod imagezoomstate;
 
 // Rendering policy.
 #[path = "policy/imagerendergeometry.rs"]

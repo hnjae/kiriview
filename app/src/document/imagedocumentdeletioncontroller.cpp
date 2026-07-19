@@ -7,7 +7,6 @@
 #include "imagedocumentstate.h"
 #include "localization/imageerrortext.h"
 #include "location/imagedocumentlocation.h"
-#include "presentation/imagepagesurfacecontroller.h"
 
 #include <utility>
 
@@ -31,12 +30,12 @@ bool displayedOpenedCollectionVideoHasDeletionTarget(const kiriview::ImageDocume
 
 namespace kiriview {
 ImageDocumentDeletionController::ImageDocumentDeletionController(QObject* parent,
-    ImageDocumentState& state, ImagePageSurfaceController& pageSurfaceController,
+    ImageDocumentState& state, HasDisplayedImageCallback hasDisplayedImage,
     ImageDocumentPageCandidateProvider candidateProvider, FileDeletionProvider fileDeletionProvider,
     Callbacks callbacks, std::function<ResolvedNavigationSource(const QUrl&)> resolveExternalSource)
     : m_parent(parent)
     , m_state(state)
-    , m_pageSurfaceController(pageSurfaceController)
+    , m_hasDisplayedImage(std::move(hasDisplayedImage))
     , m_callbacks(std::move(callbacks))
     , m_fileDeletionProvider(fileDeletionProviderWithDefault(std::move(fileDeletionProvider)))
     , m_fallbackController(
@@ -56,7 +55,7 @@ void ImageDocumentDeletionController::deleteDisplayedFile(FileDeletionMode mode)
         return;
     }
 
-    if (!m_pageSurfaceController.hasImage()
+    if ((!m_hasDisplayedImage || !m_hasDisplayedImage())
         && !displayedOpenedCollectionVideoHasDeletionTarget(m_state)) {
         return;
     }

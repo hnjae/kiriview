@@ -7,13 +7,11 @@
 #include "archive/mediaentrysourcebackend.h"
 #include "document/imagedocumentruntimedependencies.h"
 #include "document/imagedocumenttypes.h"
-#include "facade/kiriimagedisplaysource.h"
 #include "metadata/embeddedmetadata.h"
 #include "navigation/imagedocumentpagecandidatelistsource.h"
 #include "navigation/imagedocumentpagenavigationtypes.h"
 #include "predecode/predecodedimage.h"
 #include "presentation/imagepresentationstate.h"
-#include "presentation/imageviewportcommandstate.h"
 #include "rendering/imagerendercontext.h"
 
 #include <QObject>
@@ -36,6 +34,7 @@ class ImageDocumentRuntime;
 }
 
 class KiriDocumentSession;
+class ImageViewport;
 
 class KiriImageDocument : public QObject
 {
@@ -53,34 +52,19 @@ class KiriImageDocument : public QObject
     Q_PROPERTY(QSize imageSize READ imageSize NOTIFY imageSizeChanged)
     Q_PROPERTY(QSize primaryImageSize READ primaryImageSize NOTIFY imageSizeChanged)
     Q_PROPERTY(QSize secondaryImageSize READ secondaryImageSize NOTIFY twoPageModeChanged)
-    Q_PROPERTY(
-        QSizeF viewportSize READ viewportSize WRITE setViewportSize NOTIFY viewportSizeChanged)
-    Q_PROPERTY(
-        QPointF viewportContentPosition READ viewportContentPosition NOTIFY viewportFrameChanged)
-    Q_PROPERTY(QString viewportCommandRevisionToken READ viewportCommandRevisionToken NOTIFY
-            viewportFrameChanged)
-    Q_PROPERTY(QString viewportObservationRevisionToken READ viewportObservationRevisionToken NOTIFY
-            viewportFrameChanged)
-    Q_PROPERTY(int viewportCommandStatus READ viewportCommandStatus NOTIFY viewportFrameChanged)
-    Q_PROPERTY(ViewportObservationOrigin viewportObservationOrigin READ viewportObservationOrigin
-            NOTIFY viewportFrameChanged)
-    Q_PROPERTY(QSizeF viewportContentSize READ viewportContentSize NOTIFY viewportFrameChanged)
-    Q_PROPERTY(QRectF viewportImageRect READ viewportImageRect NOTIFY viewportFrameChanged)
     Q_PROPERTY(bool viewportHorizontallyPannable READ viewportHorizontallyPannable NOTIFY
             viewportFrameChanged)
     Q_PROPERTY(
         bool viewportVerticallyPannable READ viewportVerticallyPannable NOTIFY viewportFrameChanged)
     Q_PROPERTY(bool viewportPannable READ viewportPannable NOTIFY viewportFrameChanged)
-    Q_PROPERTY(QRectF visibleItemRect READ visibleItemRect NOTIFY visibleItemRectChanged)
-    Q_PROPERTY(QSizeF displaySize READ displaySize NOTIFY displaySizeChanged)
-    Q_PROPERTY(double displayWidth READ displayWidth NOTIFY displaySizeChanged)
-    Q_PROPERTY(double displayHeight READ displayHeight NOTIFY displaySizeChanged)
-    Q_PROPERTY(QSizeF primaryDisplaySize READ primaryDisplaySize NOTIFY displaySizeChanged)
-    Q_PROPERTY(double primaryDisplayWidth READ primaryDisplayWidth NOTIFY displaySizeChanged)
-    Q_PROPERTY(double primaryDisplayHeight READ primaryDisplayHeight NOTIFY displaySizeChanged)
-    Q_PROPERTY(QSizeF secondaryDisplaySize READ secondaryDisplaySize NOTIFY twoPageModeChanged)
-    Q_PROPERTY(double secondaryDisplayWidth READ secondaryDisplayWidth NOTIFY twoPageModeChanged)
-    Q_PROPERTY(double secondaryDisplayHeight READ secondaryDisplayHeight NOTIFY twoPageModeChanged)
+    Q_PROPERTY(
+        double horizontalScrollPosition READ horizontalScrollPosition NOTIFY viewportFrameChanged)
+    Q_PROPERTY(
+        double horizontalScrollPageSize READ horizontalScrollPageSize NOTIFY viewportFrameChanged)
+    Q_PROPERTY(
+        double verticalScrollPosition READ verticalScrollPosition NOTIFY viewportFrameChanged)
+    Q_PROPERTY(
+        double verticalScrollPageSize READ verticalScrollPageSize NOTIFY viewportFrameChanged)
     Q_PROPERTY(bool zoomPercentKnown READ zoomPercentKnown NOTIFY zoomPercentKnownChanged)
     Q_PROPERTY(double zoomPercent READ zoomPercent NOTIFY zoomPercentChanged)
     Q_PROPERTY(ZoomMode zoomMode READ zoomMode NOTIFY zoomModeChanged)
@@ -113,8 +97,6 @@ class KiriImageDocument : public QObject
             presentationTransitionState NOTIFY presentationTransitionStateChanged)
     Q_PROPERTY(bool unsupportedOpenedCollectionVideo READ unsupportedOpenedCollectionVideo NOTIFY
             unsupportedOpenedCollectionVideoChanged)
-    Q_PROPERTY(KiriImageDisplaySource* primaryDisplaySource READ primaryDisplaySource CONSTANT)
-    Q_PROPERTY(KiriImageDisplaySource* secondaryDisplaySource READ secondaryDisplaySource CONSTANT)
 
 public:
     using RenderContextProvider = std::function<kiriview::ImageDocumentRenderContext()>;
@@ -141,29 +123,6 @@ public:
     };
     Q_ENUM(DeletionMode)
 
-    enum class ViewportObservationOrigin {
-        Command,
-        User,
-        Inertia,
-        Overshoot,
-        Resize,
-        Rotation,
-        DevicePixelRatio,
-        System,
-    };
-    Q_ENUM(ViewportObservationOrigin)
-
-    enum class ViewportCommandStatus {
-        Pending,
-        Applying,
-        Applied,
-        Acknowledged,
-        Settled,
-        Superseded,
-        Rejected,
-    };
-    Q_ENUM(ViewportCommandStatus)
-
     enum class PresentationTransitionState {
         PreviousActive,
         TransitioningPlaceholder,
@@ -188,31 +147,13 @@ public:
     QSize imageSize() const;
     QSize primaryImageSize() const;
     QSize secondaryImageSize() const;
-    QSizeF viewportSize() const;
-    void setViewportSize(QSizeF viewportSize);
-    QPointF viewportContentPosition() const;
-    quint64 viewportCommandRevision() const;
-    QString viewportCommandRevisionToken() const;
-    quint64 viewportAppliedCommandRevision() const;
-    quint64 viewportObservationRevision() const;
-    QString viewportObservationRevisionToken() const;
-    int viewportCommandStatus() const;
-    ViewportObservationOrigin viewportObservationOrigin() const;
-    QSizeF viewportContentSize() const;
-    QRectF viewportImageRect() const;
     bool viewportHorizontallyPannable() const;
     bool viewportVerticallyPannable() const;
     bool viewportPannable() const;
-    QRectF visibleItemRect() const;
-    QSizeF displaySize() const;
-    double displayWidth() const;
-    double displayHeight() const;
-    QSizeF primaryDisplaySize() const;
-    double primaryDisplayWidth() const;
-    double primaryDisplayHeight() const;
-    QSizeF secondaryDisplaySize() const;
-    double secondaryDisplayWidth() const;
-    double secondaryDisplayHeight() const;
+    double horizontalScrollPosition() const;
+    double horizontalScrollPageSize() const;
+    double verticalScrollPosition() const;
+    double verticalScrollPageSize() const;
     bool zoomPercentKnown() const;
     double zoomPercent() const;
     ZoomMode zoomMode() const;
@@ -239,13 +180,13 @@ public:
     bool secondaryPageVisible() const;
     PresentationTransitionState presentationTransitionState() const;
     bool unsupportedOpenedCollectionVideo() const;
-    KiriImageDisplaySource* primaryDisplaySource() const;
-    KiriImageDisplaySource* secondaryDisplaySource() const;
     std::optional<kiriview::DisplayedPredecodeImage> primaryDisplayedPredecodeImage() const;
     kiriview::ImageFirstDisplayDecodeContext firstDisplayDecodeContext() const;
     const kiriview::EmbeddedMetadata& embeddedMetadata() const;
 
     void setRenderContextProvider(RenderContextProvider provider);
+    void attachImageViewport(ImageViewport* viewport);
+    void detachImageViewport(ImageViewport* viewport);
 
     void openPreviousPage();
     void openNextPage();
@@ -278,23 +219,8 @@ public:
     Q_INVOKABLE QPointF nearestImageViewportPoint(QPointF viewportPoint) const;
     Q_INVOKABLE void requestToggleTwoPageMode();
     Q_INVOKABLE void requestToggleRightToLeftReading();
-    Q_INVOKABLE void updateRenderContext();
-    Q_INVOKABLE bool requestViewportContentPosition(QPointF viewportContentPosition);
-    Q_INVOKABLE bool viewportCommandRevisionNewerThan(const QString& revisionToken) const;
-    Q_INVOKABLE bool viewportProjectionNewerThan(
-        const QString& commandRevisionToken, const QString& observationRevisionToken) const;
-    bool beginViewportCommandApplication(quint64 commandRevision);
-    Q_INVOKABLE bool beginViewportCommandApplication(const QString& commandRevisionToken);
-    bool completeViewportCommandApplication(quint64 commandRevision, QPointF actualContentPosition);
-    Q_INVOKABLE bool completeViewportCommandApplication(
-        const QString& commandRevisionToken, QPointF actualContentPosition);
-    bool acknowledgeViewportCommand(quint64 commandRevision, QPointF actualContentPosition);
-    Q_INVOKABLE bool acknowledgeViewportCommand(
-        const QString& commandRevisionToken, QPointF actualContentPosition);
-    Q_INVOKABLE bool observeViewportContentPosition(
-        QPointF contentPosition, KiriImageDocument::ViewportObservationOrigin origin);
-    Q_INVOKABLE bool acknowledgeDisplayImageLoad(int pageRole, const QUrl& providerUrl,
-        const QString& revisionToken, const QString& sourceIdentity, int outcome);
+    Q_INVOKABLE bool submitHorizontalScrollPosition(double position);
+    Q_INVOKABLE bool submitVerticalScrollPosition(double position);
 
 Q_SIGNALS:
     void sourceUrlChanged();
@@ -304,10 +230,7 @@ Q_SIGNALS:
     void windowTitleFileNameChanged();
     void displayedUrlChanged();
     void imageSizeChanged();
-    void viewportSizeChanged();
     void viewportFrameChanged();
-    void visibleItemRectChanged();
-    void displaySizeChanged();
     void zoomPercentKnownChanged();
     void zoomPercentChanged();
     void zoomModeChanged();
@@ -323,7 +246,6 @@ Q_SIGNALS:
     void fileDeletionFailed(const QString& errorString);
     void unsupportedOpenedCollectionVideoChanged();
     void embeddedMetadataChanged();
-    void displaySourceChanged();
     void unsupportedOpenedCollectionVideoEntered(const QString& message);
     void containerNavigationBoundaryReached(const QString& message);
 
@@ -341,11 +263,8 @@ private:
     void setTwoPageModeEnabled(bool enabled);
     void setRightToLeftReadingEnabled(bool enabled);
     void handleDocumentChanges(const std::vector<kiriview::ImageDocumentChange>& changes);
-    void refreshDisplaySources();
 
     std::unique_ptr<kiriview::ImageDocumentRuntime> m_runtime;
-    std::unique_ptr<KiriImageDisplaySource> m_primaryDisplaySource;
-    std::unique_ptr<KiriImageDisplaySource> m_secondaryDisplaySource;
 };
 
 #endif

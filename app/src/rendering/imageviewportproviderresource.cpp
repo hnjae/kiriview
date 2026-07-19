@@ -255,6 +255,13 @@ void ImageViewportProviderResource::close()
     }
 }
 
+std::optional<StaticDisplayImagePayload>
+ImageViewportProviderResource::currentStillDisplayImage() const
+{
+    const QMutexLocker lock(&m_currentPayloadMutex);
+    return m_currentStillDisplayImage;
+}
+
 ImageSequenceProviderFrameHandle* ImageViewportProviderResource::acquireFrameHandle(
     const ImageViewportProviderPreparedFrame& preparedFrame)
 {
@@ -348,6 +355,11 @@ ImageViewportProviderPreparedFrame ImageViewportProviderResource::prepareFrame(
         reuseKey);
     if (prepared.storeEntryId.isEmpty()) {
         prepared.failureCause = ImageSequenceProviderFailureCause::ResourceExhausted;
+        return prepared;
+    }
+    if (result.envelope.isStillFrame()) {
+        const QMutexLocker lock(&m_currentPayloadMutex);
+        m_currentStillDisplayImage = displayImage;
     }
     return prepared;
 }

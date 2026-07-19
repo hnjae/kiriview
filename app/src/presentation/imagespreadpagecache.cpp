@@ -4,9 +4,13 @@
 #include "presentation/imagespreadpagecache.h"
 
 #include "location/imageurl.h"
-#include "presentation/imagespreadgeometry.h"
 
 namespace kiriview {
+bool imageSpreadPageIsWide(QSize imageSize)
+{
+    return !imageSize.isEmpty() && imageSize.width() > imageSize.height();
+}
+
 void ImageSpreadPageCache::cachePageSize(const QUrl& url, QSize imageSize)
 {
     const QString key = cacheKey(url);

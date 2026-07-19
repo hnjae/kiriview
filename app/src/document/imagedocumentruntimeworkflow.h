@@ -20,7 +20,6 @@ class ImageDocumentPredecodeController;
 class ImageDocumentState;
 class ImageDocumentSourceLoadRequest;
 class ImageOpenController;
-class ImagePageSurfaceController;
 class ImageSpreadPresentationController;
 
 struct ImageDocumentRuntimeWorkflowPorts
@@ -28,7 +27,7 @@ struct ImageDocumentRuntimeWorkflowPorts
     ImageDocumentState* state = nullptr;
     MediaEntrySourceStore* mediaEntrySourceStore = nullptr;
     ImageDocumentDeletionController* deletionController = nullptr;
-    ImagePageSurfaceController* pageSurfaceController = nullptr;
+    std::function<void()> clearViewportTarget;
     ImageOpenController* openController = nullptr;
     ImageDocumentPredecodeController* predecodeController = nullptr;
     ImageSpreadPresentationController* spreadController = nullptr;

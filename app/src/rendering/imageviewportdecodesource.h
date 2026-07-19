@@ -10,6 +10,7 @@
 #include "decoding/imagedecodejob.h"
 #include "document/imageloadtypes.h"
 #include "imageviewportproviderresource.h"
+#include "metadata/embeddedmetadata.h"
 #include "presentation/imageanimationplaybacksource.h"
 
 #include <QObject>
@@ -26,6 +27,7 @@ public:
         ImageLoadSession session, ImageDecodeDependencies dependencies);
     ~ImageViewportDecodeProviderSource() override;
 
+    const EmbeddedMetadata& embeddedMetadata() const;
     ImageSequenceProviderMetadata constructionMetadata() const override;
     void requestMetadata(
         const ImageViewportProviderWorkIdentity& identity, MetadataCompletion completion) override;
@@ -73,6 +75,7 @@ private:
     ImageLoadSession m_session;
     ImageDecodeDependencies m_dependencies;
     ImageDecodeJob m_decodeJob;
+    EmbeddedMetadata m_embeddedMetadata;
     std::optional<ImageSequenceProviderMetadata> m_metadata;
     std::optional<StaticDisplayImagePayload> m_staticDisplayImage;
     std::optional<AnimationState> m_animation;

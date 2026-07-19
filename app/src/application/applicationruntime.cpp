@@ -8,7 +8,6 @@
 #include "facade/kiriwindowshell.h"
 #include "kiriview/src/policy/applicationruntime.cxx.h"
 #include "localization/localization.h"
-#include "rendering/displayimagestore.h"
 #include "session/thumbnailimagestore.h"
 
 #include <QApplication>
@@ -53,8 +52,6 @@ void registerApplicationImageProviders(QQmlEngine& engine)
 {
     engine.addImageProvider(QStringLiteral("kiriview-thumbnails"),
         new ThumbnailImageProvider(sharedThumbnailImageStore()));
-    engine.addImageProvider(
-        QStringLiteral("kiriview-images"), new DisplayImageProvider(sharedDisplayImageStore()));
 }
 
 void loadApplicationMainQml(

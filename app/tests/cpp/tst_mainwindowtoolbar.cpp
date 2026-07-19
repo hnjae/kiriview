@@ -5,7 +5,7 @@
 #include "facade/imageactionavailability.h"
 #include "facade/kiridocumentsession.h"
 #include "facade/kiriimagedocument.h"
-#include "facade/kiriimageviewportcontextbridge.h"
+#include "facade/kiriimageviewportsurface.h"
 #include "facade/kirimediainformation.h"
 #include "facade/kirivideodocument.h"
 #include "facade/kiriviewapplication.h"
@@ -14,6 +14,7 @@
 #include "kiriviewstate.h"
 #include "localization/localization.h"
 
+#include <ImageViewport/imageviewport.h>
 #include <KLocalizedQmlContext>
 #include <KZip>
 #include <QBuffer>
@@ -140,8 +141,8 @@ void registerKiriViewQmlTypes()
     qmlRegisterType<ImageActionAvailability>("org.hnjae.kiriview", 1, 0, "ImageActionAvailability");
     qmlRegisterType<ToolbarTestDocumentSession>("org.hnjae.kiriview", 1, 0, "KiriDocumentSession");
     qmlRegisterType<KiriImageDocument>("org.hnjae.kiriview", 1, 0, "KiriImageDocument");
-    qmlRegisterType<KiriImageViewportContextBridge>(
-        "org.hnjae.kiriview", 1, 0, "KiriImageViewportContextBridge");
+    qmlRegisterType<KiriImageViewportSurface>(
+        "org.hnjae.kiriview", 1, 0, "KiriImageViewportSurface");
     qmlRegisterUncreatableType<KiriMediaInformation>("org.hnjae.kiriview", 1, 0,
         "KiriMediaInformation", "KiriMediaInformation is owned by KiriDocumentSession");
     qmlRegisterType<KiriVideoDocument>("org.hnjae.kiriview", 1, 0, "KiriVideoDocument");
@@ -493,53 +494,51 @@ MainWindowFixture createMainWindowFixture(const QUrl& initialSourceUrl)
     return fixture;
 }
 
-QQuickItem* readyProviderImage(QObject* root)
+KiriImageViewportSurface* readyImageViewportSurface(QObject* root)
 {
-    const QList<QQuickItem*> items = root->findChildren<QQuickItem*>(
-        QStringLiteral("providerImage"), Qt::FindChildrenRecursively);
-    for (QQuickItem* item : items) {
-        if (effectivelyVisible(item) && item->property("status").toInt() == 1
-            && !item->property("source").toUrl().isEmpty() && item->width() > 0
-            && item->height() > 0) {
-            return item;
+    const QList<KiriImageViewportSurface*> surfaces = root->findChildren<KiriImageViewportSurface*>(
+        QStringLiteral("imageViewportSurface"), Qt::FindChildrenRecursively);
+    for (KiriImageViewportSurface* surface : surfaces) {
+        if (effectivelyVisible(surface) && surface->viewport() != nullptr
+            && surface->viewport()->state().request().status() == ImageViewportRequestStatus::Ready
+            && surface->width() > 0 && surface->height() > 0) {
+            return surface;
         }
     }
     return nullptr;
 }
 
-QString providerImageStateReport(QObject* root)
+QString imageViewportStateReport(QObject* root)
 {
     QStringList states;
     KiriDocumentSession* documentSession = findDocumentSession(root);
     if (documentSession != nullptr && documentSession->imageDocument() != nullptr) {
         KiriImageDocument* imageDocument = documentSession->imageDocument();
-        states.append(QStringLiteral("document viewport=%1x%2 display=%3x%4 primary=%5x%6")
-                .arg(imageDocument->viewportSize().width())
-                .arg(imageDocument->viewportSize().height())
-                .arg(imageDocument->displaySize().width())
-                .arg(imageDocument->displaySize().height())
-                .arg(imageDocument->primaryDisplaySize().width())
-                .arg(imageDocument->primaryDisplaySize().height()));
+        states.append(QStringLiteral("document status=%1 displayed=%2")
+                .arg(static_cast<int>(imageDocument->status()))
+                .arg(imageDocument->displayedUrl().toString()));
     }
-    const QList<QQuickItem*> items = root->findChildren<QQuickItem*>(
-        QStringLiteral("providerImage"), Qt::FindChildrenRecursively);
-    for (QQuickItem* item : items) {
+    const QList<KiriImageViewportSurface*> surfaces = root->findChildren<KiriImageViewportSurface*>(
+        QStringLiteral("imageViewportSurface"), Qt::FindChildrenRecursively);
+    for (KiriImageViewportSurface* surface : surfaces) {
         QStringList ancestors;
-        for (QQuickItem* ancestor = item->parentItem(); ancestor != nullptr;
+        for (QQuickItem* ancestor = surface->parentItem(); ancestor != nullptr;
             ancestor = ancestor->parentItem()) {
             ancestors.append(QStringLiteral("%1:%2x%3")
                     .arg(ancestor->objectName())
                     .arg(ancestor->width())
                     .arg(ancestor->height()));
         }
-        states.append(QStringLiteral(
-            "visible=%1 effectiveVisible=%2 status=%3 source=%4 size=%5x%6 ancestors=%7")
-                .arg(item->isVisible())
-                .arg(effectivelyVisible(item))
-                .arg(item->property("status").toInt())
-                .arg(item->property("source").toUrl().toString())
-                .arg(item->width())
-                .arg(item->height())
+        const int status = surface->viewport() == nullptr
+            ? -1
+            : static_cast<int>(surface->viewport()->state().request().status());
+        states.append(QStringLiteral("visible=%1 effectiveVisible=%2 status=%3 size=%4x%5 "
+                                     "ancestors=%6")
+                .arg(surface->isVisible())
+                .arg(effectivelyVisible(surface))
+                .arg(status)
+                .arg(surface->width())
+                .arg(surface->height())
                 .arg(ancestors.join(QStringLiteral(" > "))));
     }
     return states.join(QStringLiteral("; "));
@@ -742,12 +741,12 @@ void TestMainWindowToolBar::startupInitialDirectImageRendersMainViewport()
     QVERIFY(thumbnailPanel != nullptr);
     QVERIFY(!thumbnailPanel->isVisible());
 
-    QQuickItem* providerImage = nullptr;
-    QTRY_VERIFY2((providerImage = readyProviderImage(fixture.window)) != nullptr,
-        qPrintable(providerImageStateReport(fixture.window)));
-    QVERIFY(!providerImage->property("source").toUrl().isEmpty());
-    QVERIFY(providerImage->width() > 0);
-    QVERIFY(providerImage->height() > 0);
+    KiriImageViewportSurface* viewportSurface = nullptr;
+    QTRY_VERIFY2((viewportSurface = readyImageViewportSurface(fixture.window)) != nullptr,
+        qPrintable(imageViewportStateReport(fixture.window)));
+    QVERIFY(viewportSurface->document() == documentSession->imageDocument());
+    QVERIFY(viewportSurface->width() > 0);
+    QVERIFY(viewportSurface->height() > 0);
 }
 
 void TestMainWindowToolBar::startupInitialComicArchiveRendersAndNavigatesMainViewport()
@@ -771,24 +770,24 @@ void TestMainWindowToolBar::startupInitialComicArchiveRendersAndNavigatesMainVie
     QVERIFY(thumbnailPanel != nullptr);
     QVERIFY(!thumbnailPanel->isVisible());
 
-    QQuickItem* providerImage = nullptr;
-    QTRY_VERIFY2((providerImage = readyProviderImage(fixture.window)) != nullptr,
-        qPrintable(providerImageStateReport(fixture.window)));
-    const QUrl firstPageSource = providerImage->property("source").toUrl();
+    KiriImageViewportSurface* viewportSurface = nullptr;
+    QTRY_VERIFY2((viewportSurface = readyImageViewportSurface(fixture.window)) != nullptr,
+        qPrintable(imageViewportStateReport(fixture.window)));
+    const QUrl firstPageSource = documentSession->imageDocument()->displayedUrl();
     QVERIFY(!firstPageSource.isEmpty());
 
     documentSession->imageDocument()->openNextPage();
     compareToolbarPageReadout(fixture, QStringLiteral("2"), QStringLiteral("2"), true);
-    QTRY_VERIFY((providerImage = readyProviderImage(fixture.window)) != nullptr
-        && providerImage->property("source").toUrl() != firstPageSource);
-    const QUrl secondPageSource = providerImage->property("source").toUrl();
+    QTRY_VERIFY(readyImageViewportSurface(fixture.window) == viewportSurface
+        && documentSession->imageDocument()->displayedUrl() != firstPageSource);
+    const QUrl secondPageSource = documentSession->imageDocument()->displayedUrl();
     QVERIFY(!secondPageSource.isEmpty());
 
     documentSession->imageDocument()->openPreviousPage();
     compareToolbarPageReadout(fixture, QStringLiteral("1"), QStringLiteral("2"), true);
-    QTRY_VERIFY((providerImage = readyProviderImage(fixture.window)) != nullptr
-        && providerImage->property("source").toUrl() != secondPageSource);
-    QVERIFY(!providerImage->property("source").toUrl().isEmpty());
+    QTRY_VERIFY(readyImageViewportSurface(fixture.window) == viewportSurface
+        && documentSession->imageDocument()->displayedUrl() != secondPageSource);
+    QVERIFY(!documentSession->imageDocument()->displayedUrl().isEmpty());
     QVERIFY(!thumbnailPanel->isVisible());
 }
 

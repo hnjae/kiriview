@@ -4,6 +4,7 @@
 #include "imagedocumentruntimeworkflow.h"
 
 #include "archive/mediaentrysourcestore.h"
+#include "async/imagecallback.h"
 #include "imagedocumentdeletioncontroller.h"
 #include "imagedocumentnavigationcontroller.h"
 #include "imagedocumentpredecodecontroller.h"
@@ -14,7 +15,6 @@
 #include "localization/activenavigationboundarytext.h"
 #include "navigation/navigationlogging.h"
 #include "predecode/predecodelogging.h"
-#include "presentation/imagepagesurfacecontroller.h"
 #include "presentation/imagespreadpresentationcontroller.h"
 
 #include <QDebug>
@@ -29,11 +29,6 @@ kiriview::ImageDocumentRuntimeOperations runtimeOperations(
     operations.lifecycle.cancelFileDeletion = [ports]() {
         if (ports.deletionController != nullptr) {
             ports.deletionController->cancel();
-        }
-    };
-    operations.lifecycle.stopPresentationAnimation = [ports]() {
-        if (ports.pageSurfaceController != nullptr) {
-            ports.pageSurfaceController->stopAnimation();
         }
     };
     operations.lifecycle.shutdownSpread = [ports]() {
@@ -80,11 +75,6 @@ kiriview::ImageDocumentRuntimeOperations runtimeOperations(
                       std::move(secondaryImage));
               }
           };
-    operations.spread.finishSpreadTransition = [ports]() {
-        if (ports.spreadController != nullptr) {
-            ports.spreadController->finishTransition();
-        }
-    };
     operations.spread.resetRightToLeftReading = [ports]() {
         if (ports.spreadController != nullptr) {
             ports.spreadController->resetRightToLeftReading();
@@ -95,24 +85,9 @@ kiriview::ImageDocumentRuntimeOperations runtimeOperations(
             ports.spreadController->clearSecondaryPage();
         }
     };
-    operations.spread.beginSameScopeImageNavigationPresentation = [ports]() {
-        if (ports.spreadController != nullptr) {
-            ports.spreadController->beginSameScopeImageNavigationPresentation();
-        }
-    };
     operations.spread.notifyRightToLeftReadingChanged = [ports]() {
         if (ports.spreadController != nullptr) {
             ports.spreadController->notifyRightToLeftReadingChanged();
-        }
-    };
-    operations.spread.resetZoom = [ports]() {
-        if (ports.spreadController != nullptr) {
-            ports.spreadController->resetZoom();
-        }
-    };
-    operations.spread.prepareFailedContainer = [ports](const QUrl&) {
-        if (ports.spreadController != nullptr) {
-            ports.spreadController->resetZoom();
         }
     };
     operations.navigation.cancelPageNavigationUpdate = [ports]() {
@@ -211,9 +186,7 @@ kiriview::ImageDocumentRuntimeOperations runtimeOperations(
         }
     };
     operations.open.clearPresentationImage = [ports]() {
-        if (ports.pageSurfaceController != nullptr) {
-            ports.pageSurfaceController->clearImage();
-        }
+        kiriview::invokeIfSet(ports.clearViewportTarget);
         if (ports.spreadController != nullptr) {
             ports.spreadController->clearPrimaryPageSlot();
         }

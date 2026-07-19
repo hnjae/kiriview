@@ -9,40 +9,84 @@
 #include "imagedocumentruntimegraph.h"
 #include "imagedocumentsourceloadrequest.h"
 #include "imageopenworkflow.h"
-#include "presentation/imagepagesurfacecontroller.h"
-#include "presentation/imagepresentationruntime.h"
+#include "imageviewportintegrationruntime.h"
 #include "presentation/imagespreadpresentationcontroller.h"
 
 #include <QObject>
-#include <QUrl>
+#include <algorithm>
 #include <cmath>
+#include <limits>
 #include <utility>
 
-namespace kiriview {
 namespace {
-    bool pointIsFinite(QPointF point)
-    {
-        return std::isfinite(point.x()) && std::isfinite(point.y());
-    }
+constexpr qreal scanStepViewportRatio = 0.875;
+constexpr qreal positionEpsilon = 0.001;
 
-    ImageDocumentSourceLoadSnapshot sourceLoadSnapshot(
-        const ImageDocumentState& state, const ImageSpreadPresentationController& spreadController)
-    {
-        return ImageDocumentSourceLoadSnapshot {
-            state.sourceUrl(),
-            state.displayedOpenedCollectionScope(),
-            spreadController.rightToLeftReadingEnabled(),
-        };
-    }
+bool pointIsFinite(QPointF point) { return std::isfinite(point.x()) && std::isfinite(point.y()); }
 
-    bool sameScopeCommittedPresentationPending(
-        ImageDocumentStatus status, const ImageSpreadPresentationController& spreadController)
-    {
-        return status == ImageDocumentStatus::Loading
-            && spreadController.sameScopeImageNavigationPresentationPending();
-    }
+bool projectionActive(const kiriview::ImageViewportIntegrationProjection& projection)
+{
+    return projection.sourceGeneration != 0;
 }
 
+kiriview::ImageZoomMode imageZoomMode(ImageViewportFitMode fitMode)
+{
+    switch (fitMode) {
+    case ImageViewportFitMode::Contain:
+        return kiriview::ImageZoomMode::Fit;
+    case ImageViewportFitMode::FitWidth:
+        return kiriview::ImageZoomMode::FitWidth;
+    case ImageViewportFitMode::FitHeight:
+        return kiriview::ImageZoomMode::FitHeight;
+    case ImageViewportFitMode::Manual:
+        return kiriview::ImageZoomMode::Manual;
+    }
+    return kiriview::ImageZoomMode::Fit;
+}
+
+ImageViewportFitMode viewportFitMode(kiriview::ImageZoomMode fitMode)
+{
+    switch (fitMode) {
+    case kiriview::ImageZoomMode::Fit:
+        return ImageViewportFitMode::Contain;
+    case kiriview::ImageZoomMode::FitWidth:
+        return ImageViewportFitMode::FitWidth;
+    case kiriview::ImageZoomMode::FitHeight:
+        return ImageViewportFitMode::FitHeight;
+    case kiriview::ImageZoomMode::Manual:
+        return ImageViewportFitMode::Manual;
+    }
+    return ImageViewportFitMode::Contain;
+}
+
+qreal axisScanPosition(qreal position, qreal step, qreal maximum, bool forward)
+{
+    const qreal current = std::clamp(position, 0.0, maximum);
+    if (maximum <= positionEpsilon || step <= positionEpsilon) {
+        return current;
+    }
+    if (forward) {
+        if (current >= maximum - positionEpsilon) {
+            return current;
+        }
+        return std::min(maximum, std::floor(current / step) * step + step);
+    }
+    if (current <= positionEpsilon) {
+        return current;
+    }
+    return std::max<qreal>(0.0, (std::ceil(current / step) - 1.0) * step);
+}
+
+QPointF invalidPoint()
+{
+    return {
+        std::numeric_limits<qreal>::quiet_NaN(),
+        std::numeric_limits<qreal>::quiet_NaN(),
+    };
+}
+}
+
+namespace kiriview {
 ImageDocumentRuntime::ImageDocumentRuntime(QObject* documentObject,
     RenderContextProvider renderContextProvider, ChangeCallback changeCallback,
     ImageDocumentRuntimeDependencyOverrides dependencies,
@@ -103,34 +147,32 @@ ImageDocumentRuntime::loadOpenedCollectionVideoPlaybackDevice(
 
 ImageDocumentStatus ImageDocumentRuntime::status() const
 {
-    return runtimeGraph->spreadController().status(state.status());
+    return projectionActive(viewportProjection()) ? viewportProjection().status : state.status();
 }
 
 bool ImageDocumentRuntime::loading() const
 {
-    return runtimeGraph->spreadController().loading(state.loading());
+    return projectionActive(viewportProjection()) ? viewportProjection().loading : state.loading();
 }
 
-QString ImageDocumentRuntime::errorString() const { return state.errorString(); }
+QString ImageDocumentRuntime::errorString() const
+{
+    return projectionActive(viewportProjection()) ? viewportProjection().errorString
+                                                  : state.errorString();
+}
 
 const std::optional<ImageLoadFailure>& ImageDocumentRuntime::loadFailure() const
 {
-    return state.loadFailure();
+    return projectionActive(viewportProjection()) ? viewportProjection().failure
+                                                  : state.loadFailure();
 }
 
 QString ImageDocumentRuntime::windowTitleFileName() const { return state.windowTitleFileName(); }
 
 QUrl ImageDocumentRuntime::displayedUrl() const
 {
-    const ImageDocumentStatus documentStatus = status();
-    if (documentStatus == ImageDocumentStatus::Ready) {
-        return state.displayedUrl();
-    }
-    if (sameScopeCommittedPresentationPending(documentStatus, runtimeGraph->spreadController())) {
-        return runtimeGraph->spreadController().committedPrimaryDisplayedImageLocation().imageUrl();
-    }
-
-    return {};
+    return projectionActive(viewportProjection()) ? viewportProjection().displayedUrl
+                                                  : state.displayedUrl();
 }
 
 OpenedCollectionScopeLocation ImageDocumentRuntime::displayedOpenedCollectionScope() const
@@ -140,295 +182,82 @@ OpenedCollectionScopeLocation ImageDocumentRuntime::displayedOpenedCollectionSco
 
 QSize ImageDocumentRuntime::imageSize() const
 {
-    const ImageDocumentStatus documentStatus = status();
-    if (documentStatus == ImageDocumentStatus::Ready) {
-        return runtimeGraph->spreadController().imageSize();
-    }
-    if (sameScopeCommittedPresentationPending(documentStatus, runtimeGraph->spreadController())) {
-        return runtimeGraph->spreadController().committedImageSize();
-    }
-
-    return {};
+    const QSize primary = primaryImageSize();
+    const QSize secondary = secondaryImageSize();
+    return QSize(
+        primary.width() + secondary.width(), std::max(primary.height(), secondary.height()));
 }
 
 QSize ImageDocumentRuntime::primaryImageSize() const
 {
-    const ImageDocumentStatus documentStatus = status();
-    if (documentStatus == ImageDocumentStatus::Ready) {
-        return runtimeGraph->spreadController().primaryImageSize();
-    }
-    if (sameScopeCommittedPresentationPending(documentStatus, runtimeGraph->spreadController())) {
-        return runtimeGraph->spreadController().committedPrimaryImageSize();
-    }
-
-    return {};
+    return projectionActive(viewportProjection()) ? viewportProjection().primaryImageSize : QSize();
 }
 
 QSize ImageDocumentRuntime::secondaryImageSize() const
 {
-    if (status() != ImageDocumentStatus::Ready) {
-        return {};
-    }
-
-    return runtimeGraph->spreadController().secondaryImageSize();
-}
-
-QSizeF ImageDocumentRuntime::viewportSize() const
-{
-    return runtimeGraph->presentationRuntime().viewportSize();
-}
-
-void ImageDocumentRuntime::setViewportSize(QSizeF viewportSize)
-{
-    runtimeGraph->spreadController().setViewportSize(viewportSize);
-}
-
-QPointF ImageDocumentRuntime::viewportContentPosition() const
-{
-    if (status() != ImageDocumentStatus::Ready) {
-        return {};
-    }
-
-    return runtimeGraph->spreadController().viewportContentPosition();
-}
-
-quint64 ImageDocumentRuntime::requestViewportContentPosition(QPointF viewportContentPosition)
-{
-    if (!pointIsFinite(viewportContentPosition)) {
-        return 0;
-    }
-
-    return runtimeGraph->spreadController()
-        .requestViewportContentPosition(viewportContentPosition)
-        .revision;
-}
-
-quint64 ImageDocumentRuntime::requestViewportPanBy(QPointF delta)
-{
-    if (!viewportPannable() || !pointIsFinite(delta)) {
-        return 0;
-    }
-
-    return requestViewportInteractionContentPosition(viewportInteraction.panContentPosition(
-        viewportInteractionSnapshot(), viewportContentPosition(), delta));
-}
-
-quint64 ImageDocumentRuntime::requestViewportPanToInitialScanPosition()
-{
-    if (!viewportPannable()) {
-        return 0;
-    }
-
-    return requestViewportInteractionContentPosition(
-        viewportInteraction.initialScanContentPosition(viewportInteractionSnapshot()));
-}
-
-quint64 ImageDocumentRuntime::requestViewportPanToFinalScanPosition()
-{
-    if (!viewportPannable()) {
-        return 0;
-    }
-
-    return requestViewportInteractionContentPosition(
-        viewportInteraction.finalScanContentPosition(viewportInteractionSnapshot()));
-}
-
-quint64 ImageDocumentRuntime::requestViewportScanForward()
-{
-    if (!viewportPannable()) {
-        return 0;
-    }
-
-    const QPointF nextContentPosition = viewportInteraction.nextScanContentPosition(
-        viewportInteractionSnapshot(), viewportContentPosition());
-    if (nextContentPosition == viewportContentPosition()) {
-        return 0;
-    }
-
-    return requestViewportInteractionContentPosition(nextContentPosition);
-}
-
-quint64 ImageDocumentRuntime::requestViewportScanBackward()
-{
-    if (!viewportPannable()) {
-        return 0;
-    }
-
-    const QPointF previousContentPosition = viewportInteraction.previousScanContentPosition(
-        viewportInteractionSnapshot(), viewportContentPosition());
-    if (previousContentPosition == viewportContentPosition()) {
-        return 0;
-    }
-
-    return requestViewportInteractionContentPosition(previousContentPosition);
-}
-
-void ImageDocumentRuntime::requestNextDisplayedImageStartToFinalScanPosition()
-{
-    viewportInteraction.requestNextDisplayedImageFinalScanStart();
-}
-
-quint64 ImageDocumentRuntime::requestDisplayedImageInitialContentPosition()
-{
-    return requestViewportContentPosition(
-        viewportInteraction.displayedImageInitialContentPosition(viewportInteractionSnapshot()));
-}
-
-bool ImageDocumentRuntime::beginViewportCommandApplication(quint64 commandRevision)
-{
-    return runtimeGraph->spreadController().beginViewportCommandApplication(commandRevision);
-}
-
-bool ImageDocumentRuntime::completeViewportCommandApplication(
-    quint64 commandRevision, QPointF actualContentPosition)
-{
-    return runtimeGraph->spreadController().completeViewportCommandApplication(
-        commandRevision, actualContentPosition);
-}
-
-bool ImageDocumentRuntime::acknowledgeViewportCommand(
-    quint64 commandRevision, QPointF actualContentPosition)
-{
-    return runtimeGraph->spreadController().acknowledgeViewportCommand(
-        commandRevision, actualContentPosition);
-}
-
-bool ImageDocumentRuntime::observeViewportContentPosition(
-    QPointF contentPosition, ImageViewportObservationOrigin origin)
-{
-    return runtimeGraph->spreadController().observeViewportContentPosition(contentPosition, origin);
-}
-
-quint64 ImageDocumentRuntime::viewportCommandRevision() const
-{
-    return runtimeGraph->spreadController().viewportCommandRevision();
-}
-
-quint64 ImageDocumentRuntime::viewportAppliedCommandRevision() const
-{
-    return runtimeGraph->spreadController().viewportAppliedCommandRevision();
-}
-
-quint64 ImageDocumentRuntime::viewportObservationRevision() const
-{
-    return runtimeGraph->spreadController().viewportObservationRevision();
-}
-
-ImageViewportCommandStatus ImageDocumentRuntime::viewportCommandStatus() const
-{
-    return runtimeGraph->spreadController().viewportCommandStatus();
-}
-
-ImageViewportObservationOrigin ImageDocumentRuntime::viewportObservationOrigin() const
-{
-    return runtimeGraph->spreadController().viewportObservationOrigin();
-}
-
-QSizeF ImageDocumentRuntime::viewportContentSize() const
-{
-    if (status() != ImageDocumentStatus::Ready) {
-        return {};
-    }
-
-    return runtimeGraph->spreadController().viewportContentSize();
-}
-
-QRectF ImageDocumentRuntime::viewportImageRect() const
-{
-    if (status() != ImageDocumentStatus::Ready) {
-        return {};
-    }
-
-    return runtimeGraph->spreadController().viewportImageRect();
+    return projectionActive(viewportProjection()) ? viewportProjection().secondaryImageSize
+                                                  : QSize();
 }
 
 bool ImageDocumentRuntime::viewportHorizontallyPannable() const
 {
-    if (status() != ImageDocumentStatus::Ready) {
-        return false;
-    }
-
-    return runtimeGraph->spreadController().viewportHorizontallyPannable();
+    return viewportProjection().correlated && viewportProjection().horizontallyPannable;
 }
 
 bool ImageDocumentRuntime::viewportVerticallyPannable() const
 {
-    if (status() != ImageDocumentStatus::Ready) {
-        return false;
-    }
-
-    return runtimeGraph->spreadController().viewportVerticallyPannable();
+    return viewportProjection().correlated && viewportProjection().verticallyPannable;
 }
 
 bool ImageDocumentRuntime::viewportPannable() const
 {
-    if (status() != ImageDocumentStatus::Ready) {
-        return false;
-    }
-
-    return runtimeGraph->spreadController().viewportPannable();
+    return viewportHorizontallyPannable() || viewportVerticallyPannable();
 }
 
-QRectF ImageDocumentRuntime::visibleItemRect() const
+qreal ImageDocumentRuntime::horizontalScrollPosition() const
 {
-    if (status() != ImageDocumentStatus::Ready) {
-        return {};
-    }
-
-    return runtimeGraph->spreadController().visibleItemRect();
+    return viewportProjection().horizontalScrollPosition;
 }
 
-QSizeF ImageDocumentRuntime::displaySize() const
+qreal ImageDocumentRuntime::horizontalScrollPageSize() const
 {
-    if (status() != ImageDocumentStatus::Ready) {
-        return {};
-    }
-
-    return runtimeGraph->spreadController().displaySize();
+    return viewportProjection().horizontalScrollPageSize;
 }
 
-QSizeF ImageDocumentRuntime::primaryDisplaySize() const
+qreal ImageDocumentRuntime::verticalScrollPosition() const
 {
-    if (status() != ImageDocumentStatus::Ready) {
-        return {};
-    }
-
-    return runtimeGraph->spreadController().primaryDisplaySize();
+    return viewportProjection().verticalScrollPosition;
 }
 
-QSizeF ImageDocumentRuntime::secondaryDisplaySize() const
+qreal ImageDocumentRuntime::verticalScrollPageSize() const
 {
-    if (status() != ImageDocumentStatus::Ready) {
-        return {};
-    }
+    return viewportProjection().verticalScrollPageSize;
+}
 
-    return runtimeGraph->spreadController().secondaryDisplaySize();
+bool ImageDocumentRuntime::submitHorizontalScrollPosition(qreal position)
+{
+    return runtimeGraph->viewportIntegration().submitHorizontalScrollPosition(position);
+}
+
+bool ImageDocumentRuntime::submitVerticalScrollPosition(qreal position)
+{
+    return runtimeGraph->viewportIntegration().submitVerticalScrollPosition(position);
 }
 
 bool ImageDocumentRuntime::zoomPercentKnown() const
 {
-    return status() == ImageDocumentStatus::Ready && !imageSize().isEmpty()
-        && !displaySize().isEmpty();
+    const ImageViewportIntegrationProjection& projection = viewportProjection();
+    return projection.correlated && projection.status == ImageDocumentStatus::Ready
+        && std::isfinite(projection.zoomPercent) && projection.zoomPercent > 0.0;
 }
 
-qreal ImageDocumentRuntime::zoomPercent() const
-{
-    return runtimeGraph->spreadController().zoomPercent();
-}
-
-void ImageDocumentRuntime::requestManualZoomPercent(qreal zoomPercent)
-{
-    runtimeGraph->spreadController().requestManualZoomPercent(zoomPercent);
-}
+qreal ImageDocumentRuntime::zoomPercent() const { return viewportProjection().zoomPercent; }
 
 bool ImageDocumentRuntime::requestManualZoomPercentAtCenter(qreal zoomPercent)
 {
-    if (status() != ImageDocumentStatus::Ready) {
-        return false;
-    }
-
+    const QSizeF viewportSize = viewportProjection().viewportSize;
     return requestAnchoredManualZoom(clampedManualZoomPercent(zoomPercent),
-        QPointF(viewportSize().width() / 2.0, viewportSize().height() / 2.0));
+        QPointF(viewportSize.width() / 2.0, viewportSize.height() / 2.0));
 }
 
 bool ImageDocumentRuntime::requestZoomByStep(qreal stepCount, QPointF viewportAnchorPoint)
@@ -436,30 +265,21 @@ bool ImageDocumentRuntime::requestZoomByStep(qreal stepCount, QPointF viewportAn
     if (status() != ImageDocumentStatus::Ready || !pointIsFinite(viewportAnchorPoint)) {
         return false;
     }
-
-    const QPointF anchorPoint = viewportInteraction.nearestImageViewportPoint(
-        viewportInteractionSnapshot(), viewportContentPosition(), viewportAnchorPoint);
-    if (!pointIsFinite(anchorPoint)) {
-        return false;
-    }
-
-    return requestAnchoredManualZoom(steppedManualZoomPercent(stepCount), anchorPoint);
+    const QPointF anchorPoint = nearestImageViewportPoint(viewportAnchorPoint);
+    return pointIsFinite(anchorPoint)
+        && runtimeGraph->viewportIntegration().zoomBySteps(stepCount, anchorPoint);
 }
 
 bool ImageDocumentRuntime::requestZoomByStepAtCenter(qreal stepCount)
 {
+    const QSizeF viewportSize = viewportProjection().viewportSize;
     return requestZoomByStep(
-        stepCount, QPointF(viewportSize().width() / 2.0, viewportSize().height() / 2.0));
+        stepCount, QPointF(viewportSize.width() / 2.0, viewportSize.height() / 2.0));
 }
 
 bool ImageDocumentRuntime::requestActualSizeAtCenter()
 {
-    if (status() != ImageDocumentStatus::Ready) {
-        return false;
-    }
-
-    return requestAnchoredManualZoom(clampedManualZoomPercent(100.0),
-        QPointF(viewportSize().width() / 2.0, viewportSize().height() / 2.0));
+    return requestManualZoomPercentAtCenter(100.0);
 }
 
 bool ImageDocumentRuntime::requestToggleFitOrActualSize(QPointF viewportPoint)
@@ -467,49 +287,87 @@ bool ImageDocumentRuntime::requestToggleFitOrActualSize(QPointF viewportPoint)
     if (status() != ImageDocumentStatus::Ready || !pointIsFinite(viewportPoint)) {
         return false;
     }
-
     if (zoomMode() != ImageZoomMode::Fit) {
         setFitMode(ImageZoomMode::Fit);
         return true;
     }
-
-    const QPointF anchorPoint = viewportInteraction.nearestImageViewportPoint(
-        viewportInteractionSnapshot(), viewportContentPosition(), viewportPoint);
-    if (!pointIsFinite(anchorPoint)) {
-        return false;
-    }
-
-    return requestAnchoredManualZoom(clampedManualZoomPercent(100.0), anchorPoint);
+    return requestAnchoredManualZoom(100.0, nearestImageViewportPoint(viewportPoint));
 }
 
 ImageZoomMode ImageDocumentRuntime::zoomMode() const
 {
-    return runtimeGraph->spreadController().zoomMode();
+    return imageZoomMode(viewportProjection().fitMode);
 }
 
-ImageZoomMode ImageDocumentRuntime::fitModeSelection() const
-{
-    return runtimeGraph->spreadController().fitModeSelection();
-}
+ImageZoomMode ImageDocumentRuntime::fitModeSelection() const { return fitModeSelectionPreference; }
 
 qreal ImageDocumentRuntime::maximumManualZoomPercent() const
 {
-    return runtimeGraph->spreadController().maximumManualZoomPercent();
+    return viewportProjection().maximumManualZoomPercent;
 }
 
 qreal ImageDocumentRuntime::clampedManualZoomPercent(qreal zoomPercent) const
 {
-    return runtimeGraph->spreadController().clampedManualZoomPercent(zoomPercent);
+    const ImageViewportIntegrationProjection& projection = viewportProjection();
+    if (!std::isfinite(zoomPercent)) {
+        return projection.preferredManualZoomPercent;
+    }
+    if (projection.maximumManualZoomPercent < projection.minimumManualZoomPercent) {
+        return zoomPercent;
+    }
+    return std::clamp(
+        zoomPercent, projection.minimumManualZoomPercent, projection.maximumManualZoomPercent);
 }
 
 qreal ImageDocumentRuntime::steppedManualZoomPercent(qreal stepCount) const
 {
-    return runtimeGraph->spreadController().steppedManualZoomPercent(stepCount);
+    const ImageViewportIntegrationProjection& projection = viewportProjection();
+    if (!std::isfinite(stepCount) || projection.manualZoomStepFactor <= 0.0) {
+        return projection.preferredManualZoomPercent;
+    }
+    return clampedManualZoomPercent(
+        projection.zoomPercent * std::pow(projection.manualZoomStepFactor, stepCount));
 }
 
-int ImageDocumentRuntime::rotationDegrees() const
+int ImageDocumentRuntime::rotationDegrees() const { return viewportProjection().rotationDegrees; }
+
+quint64 ImageDocumentRuntime::requestViewportPanBy(QPointF delta)
 {
-    return runtimeGraph->spreadController().rotationDegrees();
+    return viewportPannable() && pointIsFinite(delta)
+            && runtimeGraph->viewportIntegration().panBy(delta)
+        ? 1
+        : 0;
+}
+
+quint64 ImageDocumentRuntime::requestViewportPanToInitialScanPosition()
+{
+    return viewportPannable() && submitContentPosition(scanBoundaryPosition(false)) ? 1 : 0;
+}
+
+quint64 ImageDocumentRuntime::requestViewportPanToFinalScanPosition()
+{
+    return viewportPannable() && submitContentPosition(scanBoundaryPosition(true)) ? 1 : 0;
+}
+
+quint64 ImageDocumentRuntime::requestViewportScanForward()
+{
+    return viewportPannable() && submitContentPosition(scanPosition(true)) ? 1 : 0;
+}
+
+quint64 ImageDocumentRuntime::requestViewportScanBackward()
+{
+    return viewportPannable() && submitContentPosition(scanPosition(false)) ? 1 : 0;
+}
+
+void ImageDocumentRuntime::requestNextDisplayedImageStartToFinalScanPosition()
+{
+    viewportScanState.requestNextDisplayedImageFinalScanStart();
+}
+
+quint64 ImageDocumentRuntime::requestDisplayedImageInitialContentPosition()
+{
+    const bool final = viewportScanState.displayedImageScanStart() == ImageViewportScanStart::Final;
+    return submitContentPosition(scanBoundaryPosition(final)) ? 1 : 0;
 }
 
 int ImageDocumentRuntime::currentPageNumber() const
@@ -550,7 +408,7 @@ bool ImageDocumentRuntime::containerNavigationAvailable() const
 
 bool ImageDocumentRuntime::ordinaryDirectMediaScopeActive() const
 {
-    return !state.displayedUrl().isEmpty() && state.displayedOpenedCollectionScope().isEmpty();
+    return !displayedUrl().isEmpty() && state.displayedOpenedCollectionScope().isEmpty();
 }
 
 bool ImageDocumentRuntime::openedCollectionScopeActive() const
@@ -586,6 +444,9 @@ bool ImageDocumentRuntime::rightToLeftReadingEnabled() const
 void ImageDocumentRuntime::setRightToLeftReadingEnabled(bool enabled)
 {
     runtimeGraph->spreadController().setRightToLeftReadingEnabled(enabled);
+    runtimeGraph->viewportIntegration().setSpreadDirection(enabled
+            ? ImageViewportSpreadDirection::RightToLeft
+            : ImageViewportSpreadDirection::LeftToRight);
 }
 
 bool ImageDocumentRuntime::rightToLeftReadingAvailable() const
@@ -595,24 +456,47 @@ bool ImageDocumentRuntime::rightToLeftReadingAvailable() const
 
 bool ImageDocumentRuntime::secondaryPageVisible() const
 {
-    return runtimeGraph->spreadController().secondaryPageVisible();
+    return viewportProjection().correlated && viewportProjection().secondaryVisible;
 }
 
 ImagePresentationTransitionState ImageDocumentRuntime::presentationTransitionState() const
 {
-    return runtimeGraph->spreadController().presentationTransitionState();
+    switch (viewportProjection().displayPhase) {
+    case ImageViewportDisplayPhase::PreviousActive:
+        return ImagePresentationTransitionState::PreviousActive;
+    case ImageViewportDisplayPhase::TransitioningPlaceholder:
+        return ImagePresentationTransitionState::TransitioningPlaceholder;
+    case ImageViewportDisplayPhase::NoPresentation:
+    case ImageViewportDisplayPhase::CommittedActive:
+        return ImagePresentationTransitionState::CommittedActive;
+    }
+    return ImagePresentationTransitionState::CommittedActive;
 }
 
 bool ImageDocumentRuntime::viewportPointInsideImage(QPointF viewportPoint) const
 {
-    return viewportInteraction.viewportPointInsideImage(
-        viewportInteractionSnapshot(), viewportContentPosition(), viewportPoint);
+    ImageViewportCoordinateInput input;
+    input.setSourceSpace(ImageViewportCoordinateSpace::Item);
+    input.setTargetSpace(ImageViewportCoordinateSpace::DisplayedSpread);
+    input.setPoint(viewportPoint);
+    return runtimeGraph->viewportIntegration().containsPoint(input);
 }
 
 QPointF ImageDocumentRuntime::nearestImageViewportPoint(QPointF viewportPoint) const
 {
-    return viewportInteraction.nearestImageViewportPoint(
-        viewportInteractionSnapshot(), viewportContentPosition(), viewportPoint);
+    const QRectF contentRect = viewportProjection().contentRect;
+    if (contentRect.isEmpty() || !pointIsFinite(viewportPoint)) {
+        return invalidPoint();
+    }
+    const QPointF clampedPoint(
+        std::clamp(viewportPoint.x(), contentRect.left(), contentRect.right()),
+        std::clamp(viewportPoint.y(), contentRect.top(), contentRect.bottom()));
+    ImageViewportCoordinateInput input;
+    input.setSourceSpace(ImageViewportCoordinateSpace::Item);
+    input.setTargetSpace(ImageViewportCoordinateSpace::DisplayedSpread);
+    input.setPoint(clampedPoint);
+    return runtimeGraph->viewportIntegration().mapPoint(input).isValid() ? clampedPoint
+                                                                         : invalidPoint();
 }
 
 bool ImageDocumentRuntime::unsupportedOpenedCollectionVideo() const
@@ -622,24 +506,12 @@ bool ImageDocumentRuntime::unsupportedOpenedCollectionVideo() const
 
 std::optional<DisplayedPredecodeImage> ImageDocumentRuntime::primaryDisplayedPredecodeImage() const
 {
-    std::optional<StaticDisplayImagePayload> displayImage
-        = runtimeGraph->pageSurfaceController().displayImage();
-    if (!runtimeGraph->pageSurfaceController().hasImage() || state.displayedUrl().isEmpty()
-        || !displayImage.has_value()) {
-        return std::nullopt;
-    }
-
-    return DisplayedPredecodeImage {
-        state.displayedImageLocation(),
-        runtimeGraph->pageSurfaceController().isPredecodeCacheable(),
-        std::move(displayImage),
-        state.embeddedMetadata(),
-    };
+    return runtimeGraph->primaryDisplayedPredecodeImage();
 }
 
 ImageFirstDisplayDecodeContext ImageDocumentRuntime::firstDisplayDecodeContext() const
 {
-    return runtimeGraph->presentationRuntime().firstDisplayDecodeContext();
+    return runtimeGraph->firstDisplayDecodeContext();
 }
 
 const EmbeddedMetadata& ImageDocumentRuntime::embeddedMetadata() const
@@ -647,36 +519,19 @@ const EmbeddedMetadata& ImageDocumentRuntime::embeddedMetadata() const
     return state.embeddedMetadata();
 }
 
-ImageDisplaySourceProjection ImageDocumentRuntime::displaySourceProjection(
-    DisplayedPageRole role) const
+void ImageDocumentRuntime::attachImageViewport(ImageViewport* viewport)
 {
-    if (displayedUrl().isEmpty()) {
-        ImageDisplaySourceProjection retainedProjection
-            = runtimeGraph->spreadController().displaySourceProjection(role);
-        if (status() == ImageDocumentStatus::Loading
-            && (retainedProjection.retentionStatus
-                    == ImageDisplaySourceRetentionStatus::StaleRetained
-                || presentationTransitionState()
-                    == ImagePresentationTransitionState::PreviousActive)) {
-            return retainedProjection;
-        }
-
-        ImageDisplaySourceProjection projection;
-        projection.pageRole = role;
-        projection.revisionToken = imageDisplaySourceRevisionToken(projection.revision);
-        return projection;
-    }
-
-    return runtimeGraph->spreadController().displaySourceProjection(role);
+    runtimeGraph->viewportIntegration().attach(viewport);
 }
 
-bool ImageDocumentRuntime::acknowledgeDisplayImageLoad(DisplayedPageRole role,
-    const QUrl& providerUrl, quint64 revision, const QString& sourceIdentity,
-    ImageDisplayLoadOutcome outcome)
+void ImageDocumentRuntime::detachImageViewport(ImageViewport* viewport)
 {
-    [[maybe_unused]] auto batch = state.beginChangeBatch();
-    return runtimeGraph->spreadController().acknowledgeDisplayImageLoad(
-        role, providerUrl, revision, sourceIdentity, outcome);
+    runtimeGraph->viewportIntegration().detach(viewport);
+}
+
+const ImageViewportIntegrationProjection& ImageDocumentRuntime::viewportProjection() const
+{
+    return runtimeGraph->viewportIntegration().projection();
 }
 
 void ImageDocumentRuntime::notify(const std::vector<ImageDocumentChange>& changes)
@@ -691,97 +546,6 @@ void ImageDocumentRuntime::notify(const std::vector<ImageDocumentChange>& change
 void ImageDocumentRuntime::setRenderContextProvider(RenderContextProvider provider)
 {
     renderContextProvider = std::move(provider);
-    updateRenderContext();
-}
-
-ImageDocumentRenderContext ImageDocumentRuntime::renderContext() const
-{
-    if (renderContextProvider) {
-        return renderContextProvider();
-    }
-
-    return ImageDocumentRenderContext {};
-}
-
-quint64 ImageDocumentRuntime::requestViewportInteractionContentPosition(QPointF contentPosition)
-{
-    if (!pointIsFinite(contentPosition)) {
-        return 0;
-    }
-
-    const QPointF previousContentPosition = viewportContentPosition();
-    const quint64 previousCommandRevision = viewportCommandRevision();
-    const quint64 commandRevision = requestViewportContentPosition(contentPosition);
-    if (previousContentPosition != viewportContentPosition()
-        || commandRevision > previousCommandRevision) {
-        return commandRevision;
-    }
-
-    return 0;
-}
-
-bool ImageDocumentRuntime::requestAnchoredManualZoom(qreal zoomPercent, QPointF viewportAnchorPoint)
-{
-    if (!pointIsFinite(viewportAnchorPoint)) {
-        return false;
-    }
-
-    const qreal nextZoomPercent = clampedManualZoomPercent(zoomPercent);
-    if (std::abs(nextZoomPercent - this->zoomPercent()) < 0.001) {
-        return false;
-    }
-
-    const QPointF nextContentPosition
-        = viewportInteraction.zoomContentPosition(viewportInteractionSnapshot(),
-            viewportContentPosition(), viewportAnchorPoint, nextZoomPercent);
-    requestManualZoomPercent(nextZoomPercent);
-    return requestViewportInteractionContentPosition(nextContentPosition) > 0;
-}
-
-ImageViewportInteractionSnapshot ImageDocumentRuntime::viewportInteractionSnapshot() const
-{
-    const ImageFirstDisplayDecodeContext firstDisplayContext = firstDisplayDecodeContext();
-    const double devicePixelRatio = firstDisplayContext.isValid() && viewportSize().width() > 0.0
-        ? firstDisplayContext.physicalViewportSize.width() / viewportSize().width()
-        : 1.0;
-    return ImageViewportInteractionSnapshot {
-        imageSize(),
-        viewportSize(),
-        displaySize(),
-        devicePixelRatio,
-        rightToLeftReadingEnabled() && rightToLeftReadingAvailable(),
-    };
-}
-
-void ImageDocumentRuntime::updateViewportInteractionForPublishedChanges(
-    const std::vector<ImageDocumentChange>& changes)
-{
-    for (ImageDocumentChange change : changes) {
-        switch (change) {
-        case ImageDocumentChange::Loading:
-            if (!loading()) {
-                viewportInteraction.cancelPendingDisplayedImageStart();
-            }
-            break;
-        case ImageDocumentChange::DisplayedUrl:
-            viewportInteraction.beginDisplayedImage();
-            break;
-        default:
-            break;
-        }
-    }
-}
-
-void ImageDocumentRuntime::loadSource(const ImageDocumentSourceLoadRequest& request)
-{
-    runtimeGraph->dispatchPlan(ImageOpenWorkflow::sourceLoadPlan(
-        sourceLoadSnapshot(state, runtimeGraph->spreadController()), request));
-}
-
-void ImageDocumentRuntime::publishChanges(const std::vector<ImageDocumentChange>& changes)
-{
-    updateViewportInteractionForPublishedChanges(changes);
-    invokeIfSet(changeCallback, changes);
 }
 
 void ImageDocumentRuntime::shutdown() { runtimeGraph->shutdownRuntime(); }
@@ -806,6 +570,11 @@ void ImageDocumentRuntime::openNextSinglePage()
     runtimeGraph->navigationController().openImageAtRelativePageOffset(1);
 }
 
+void ImageDocumentRuntime::openImageAtPage(int pageNumber)
+{
+    runtimeGraph->navigationController().openImageAtPage(pageNumber);
+}
+
 void ImageDocumentRuntime::openPreviousContainer()
 {
     runtimeGraph->navigationController().openAdjacentContainer(NavigationDirection::Previous);
@@ -821,27 +590,118 @@ void ImageDocumentRuntime::deleteDisplayedFile(FileDeletionMode mode)
     runtimeGraph->deletionController().deleteDisplayedFile(mode);
 }
 
-void ImageDocumentRuntime::resetZoom() { runtimeGraph->spreadController().resetZoom(); }
+void ImageDocumentRuntime::resetZoom()
+{
+    const ImageZoomMode previousSelection = fitModeSelectionPreference;
+    fitModeSelectionPreference = ImageZoomMode::Fit;
+    if (!runtimeGraph->viewportIntegration().resetView()) {
+        fitModeSelectionPreference = previousSelection;
+    }
+}
 
 void ImageDocumentRuntime::setFitMode(ImageZoomMode zoomMode)
 {
-    runtimeGraph->spreadController().setFitMode(zoomMode);
+    const ImageZoomMode previousSelection = fitModeSelectionPreference;
+    if (zoomMode != ImageZoomMode::Manual) {
+        fitModeSelectionPreference = zoomMode;
+    }
+    if (!runtimeGraph->viewportIntegration().setFitMode(viewportFitMode(zoomMode))) {
+        fitModeSelectionPreference = previousSelection;
+    }
 }
 
-void ImageDocumentRuntime::rotateClockwise() { runtimeGraph->spreadController().rotateClockwise(); }
+void ImageDocumentRuntime::rotateClockwise()
+{
+    if (!secondaryPageVisible()) {
+        runtimeGraph->viewportIntegration().setRotationDegrees(rotationDegrees() + 90);
+    }
+}
 
 void ImageDocumentRuntime::rotateCounterclockwise()
 {
-    runtimeGraph->spreadController().rotateCounterclockwise();
+    if (!secondaryPageVisible()) {
+        runtimeGraph->viewportIntegration().setRotationDegrees(rotationDegrees() - 90);
+    }
 }
 
-void ImageDocumentRuntime::updateRenderContext()
+ImageDocumentRenderContext ImageDocumentRuntime::renderContext() const
 {
-    runtimeGraph->spreadController().updateRenderContext();
+    return renderContextProvider ? renderContextProvider() : ImageDocumentRenderContext {};
 }
 
-void ImageDocumentRuntime::openImageAtPage(int pageNumber)
+QPointF ImageDocumentRuntime::scanPosition(bool forward) const
 {
-    runtimeGraph->navigationController().openImageAtPage(pageNumber);
+    const ImageViewportIntegrationProjection& projection = viewportProjection();
+    const QPointF current = projection.contentPosition;
+    const QPointF maximum = projection.maximumContentPosition;
+    const bool rightToLeft = rightToLeftReadingEnabled() && rightToLeftReadingAvailable();
+    if (maximum.x() > positionEpsilon) {
+        const bool horizontalForward = rightToLeft ? !forward : forward;
+        const qreal x
+            = axisScanPosition(current.x(), projection.viewportSize.width() * scanStepViewportRatio,
+                maximum.x(), horizontalForward);
+        if (std::abs(x - current.x()) > positionEpsilon) {
+            return { x, current.y() };
+        }
+    }
+    if (maximum.y() > positionEpsilon) {
+        const qreal y = axisScanPosition(current.y(),
+            projection.viewportSize.height() * scanStepViewportRatio, maximum.y(), forward);
+        if (std::abs(y - current.y()) > positionEpsilon) {
+            const qreal rowStart
+                = forward ? (rightToLeft ? maximum.x() : 0.0) : (rightToLeft ? 0.0 : maximum.x());
+            return { rowStart, y };
+        }
+    }
+    return current;
+}
+
+QPointF ImageDocumentRuntime::scanBoundaryPosition(bool final) const
+{
+    const QPointF maximum = viewportProjection().maximumContentPosition;
+    const bool rightToLeft = rightToLeftReadingEnabled() && rightToLeftReadingAvailable();
+    return final ? QPointF(rightToLeft ? 0.0 : maximum.x(), maximum.y())
+                 : QPointF(rightToLeft ? maximum.x() : 0.0, 0.0);
+}
+
+bool ImageDocumentRuntime::submitContentPosition(QPointF position)
+{
+    return pointIsFinite(position) && position != viewportProjection().contentPosition
+        && runtimeGraph->viewportIntegration().setContentPosition(position);
+}
+
+bool ImageDocumentRuntime::requestAnchoredManualZoom(qreal zoomPercent, QPointF viewportAnchorPoint)
+{
+    return status() == ImageDocumentStatus::Ready && pointIsFinite(viewportAnchorPoint)
+        && runtimeGraph->viewportIntegration().setPreferredManualZoomPercent(
+            clampedManualZoomPercent(zoomPercent), viewportAnchorPoint);
+}
+
+void ImageDocumentRuntime::loadSource(const ImageDocumentSourceLoadRequest& request)
+{
+    runtimeGraph->dispatchPlan(ImageOpenWorkflow::sourceLoadPlan(
+        ImageDocumentSourceLoadSnapshot {
+            state.sourceUrl(),
+            state.displayedOpenedCollectionScope(),
+            rightToLeftReadingEnabled(),
+        },
+        request));
+}
+
+void ImageDocumentRuntime::publishChanges(const std::vector<ImageDocumentChange>& changes)
+{
+    for (ImageDocumentChange change : changes) {
+        if (change == ImageDocumentChange::ViewportProjection) {
+            const QUrl projected = viewportProjection().displayedUrl;
+            if (!projected.isEmpty() && projected != lastProjectedDisplayedUrl) {
+                viewportScanState.beginDisplayedImage();
+                lastProjectedDisplayedUrl = projected;
+            }
+        }
+        if (change == ImageDocumentChange::Loading && !loading()) {
+            viewportScanState.cancelPendingDisplayedImageStart();
+        }
+    }
+    invokeIfSet(changeCallback, changes);
 }
 }

@@ -18,10 +18,7 @@ enum class ImageDocumentPublicSignal {
     WindowTitleFileName,
     DisplayedUrl,
     ImageSize,
-    ViewportSize,
     ViewportFrame,
-    VisibleItemRect,
-    DisplaySize,
     ZoomPercentKnown,
     ZoomPercent,
     ZoomMode,
@@ -36,7 +33,6 @@ enum class ImageDocumentPublicSignal {
     ImageDocumentSourceScope,
     UnsupportedOpenedCollectionVideo,
     EmbeddedMetadata,
-    DisplaySource,
 };
 
 struct ImageDocumentPublicSignalOperations
@@ -49,10 +45,7 @@ struct ImageDocumentPublicSignalOperations
     std::function<void()> windowTitleFileNameChanged;
     std::function<void()> displayedUrlChanged;
     std::function<void()> imageSizeChanged;
-    std::function<void()> viewportSizeChanged;
     std::function<void()> viewportFrameChanged;
-    std::function<void()> visibleItemRectChanged;
-    std::function<void()> displaySizeChanged;
     std::function<void()> zoomPercentKnownChanged;
     std::function<void()> zoomPercentChanged;
     std::function<void()> zoomModeChanged;
@@ -67,7 +60,6 @@ struct ImageDocumentPublicSignalOperations
     std::function<void()> imageDocumentSourceScopeChanged;
     std::function<void()> unsupportedOpenedCollectionVideoChanged;
     std::function<void()> embeddedMetadataChanged;
-    std::function<void()> displaySourceChanged;
 };
 
 class ImageDocumentPublicSignalEmitter final

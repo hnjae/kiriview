@@ -29,13 +29,13 @@ void TestImageDocumentChangeBatcher::immediateNotificationsForwardInOrder()
         [&changes](kiriview::ImageDocumentChange change) { changes.push_back(change); });
 
     batcher.notify(kiriview::ImageDocumentChange::Loading);
-    batcher.notifyAll(
-        { kiriview::ImageDocumentChange::Status, kiriview::ImageDocumentChange::DisplaySource });
+    batcher.notifyAll({ kiriview::ImageDocumentChange::Status,
+        kiriview::ImageDocumentChange::ViewportProjection });
 
     QCOMPARE(changes.size(), std::size_t(3));
     QCOMPARE(changes.at(0), kiriview::ImageDocumentChange::Loading);
     QCOMPARE(changes.at(1), kiriview::ImageDocumentChange::Status);
-    QCOMPARE(changes.at(2), kiriview::ImageDocumentChange::DisplaySource);
+    QCOMPARE(changes.at(2), kiriview::ImageDocumentChange::ViewportProjection);
 }
 
 void TestImageDocumentChangeBatcher::notifyAllPublishesOneUniqueOrderedBatch()
@@ -48,12 +48,12 @@ void TestImageDocumentChangeBatcher::notifyAllPublishesOneUniqueOrderedBatch()
             }));
 
     batcher.notifyAll({ kiriview::ImageDocumentChange::Status,
-        kiriview::ImageDocumentChange::DisplaySource, kiriview::ImageDocumentChange::Status });
+        kiriview::ImageDocumentChange::ViewportProjection, kiriview::ImageDocumentChange::Status });
 
     QCOMPARE(publishedBatches.size(), std::size_t(1));
     QCOMPARE(publishedBatches.at(0).size(), std::size_t(2));
     QCOMPARE(publishedBatches.at(0).at(0), kiriview::ImageDocumentChange::Status);
-    QCOMPARE(publishedBatches.at(0).at(1), kiriview::ImageDocumentChange::DisplaySource);
+    QCOMPARE(publishedBatches.at(0).at(1), kiriview::ImageDocumentChange::ViewportProjection);
 }
 
 void TestImageDocumentChangeBatcher::batchCallbacksReceiveWholeOrderedBatches()
@@ -70,7 +70,7 @@ void TestImageDocumentChangeBatcher::batchCallbacksReceiveWholeOrderedBatches()
         [[maybe_unused]] auto batch = batcher.beginBatch();
         batcher.notify(kiriview::ImageDocumentChange::Status);
         batcher.notify(kiriview::ImageDocumentChange::Status);
-        batcher.notify(kiriview::ImageDocumentChange::DisplaySource);
+        batcher.notify(kiriview::ImageDocumentChange::ViewportProjection);
         QVERIFY(publishedBatches.size() == std::size_t(1));
     }
 
@@ -79,7 +79,7 @@ void TestImageDocumentChangeBatcher::batchCallbacksReceiveWholeOrderedBatches()
     QCOMPARE(publishedBatches.at(0).at(0), kiriview::ImageDocumentChange::Loading);
     QCOMPARE(publishedBatches.at(1).size(), std::size_t(2));
     QCOMPARE(publishedBatches.at(1).at(0), kiriview::ImageDocumentChange::Status);
-    QCOMPARE(publishedBatches.at(1).at(1), kiriview::ImageDocumentChange::DisplaySource);
+    QCOMPARE(publishedBatches.at(1).at(1), kiriview::ImageDocumentChange::ViewportProjection);
 }
 
 void TestImageDocumentChangeBatcher::emptyBatchesDoNotPublish()
@@ -112,13 +112,13 @@ void TestImageDocumentChangeBatcher::batchesPublishUniqueChangesWhenOutermostBat
             batcher.notify(kiriview::ImageDocumentChange::Status);
         }
         QVERIFY(changes.empty());
-        batcher.notify(kiriview::ImageDocumentChange::DisplaySource);
+        batcher.notify(kiriview::ImageDocumentChange::ViewportProjection);
     }
 
     QCOMPARE(changes.size(), std::size_t(3));
     QCOMPARE(changes.at(0), kiriview::ImageDocumentChange::Loading);
     QCOMPARE(changes.at(1), kiriview::ImageDocumentChange::Status);
-    QCOMPARE(changes.at(2), kiriview::ImageDocumentChange::DisplaySource);
+    QCOMPARE(changes.at(2), kiriview::ImageDocumentChange::ViewportProjection);
 }
 
 void TestImageDocumentChangeBatcher::movedBatchKeepsSingleFlushOwner()

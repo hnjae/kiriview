@@ -38,13 +38,9 @@ bool affectsSessionSnapshot(kiriview::ImageDocumentPublicSignal signal)
         return true;
     case Signal::Loading:
     case Signal::DisplayedUrl:
-    case Signal::ViewportSize:
-    case Signal::VisibleItemRect:
-    case Signal::DisplaySize:
     case Signal::MaximumManualZoomPercent:
     case Signal::PresentationTransitionState:
     case Signal::RotationDegrees:
-    case Signal::DisplaySource:
         return false;
     }
 
@@ -101,17 +97,8 @@ void ImageDocumentPublicSignalEmitter::emitSignal(ImageDocumentPublicSignal sign
     case ImageDocumentPublicSignal::ImageSize:
         run(m_operations.imageSizeChanged);
         return;
-    case ImageDocumentPublicSignal::ViewportSize:
-        run(m_operations.viewportSizeChanged);
-        return;
     case ImageDocumentPublicSignal::ViewportFrame:
         run(m_operations.viewportFrameChanged);
-        return;
-    case ImageDocumentPublicSignal::VisibleItemRect:
-        run(m_operations.visibleItemRectChanged);
-        return;
-    case ImageDocumentPublicSignal::DisplaySize:
-        run(m_operations.displaySizeChanged);
         return;
     case ImageDocumentPublicSignal::ZoomPercentKnown:
         run(m_operations.zoomPercentKnownChanged);
@@ -155,9 +142,6 @@ void ImageDocumentPublicSignalEmitter::emitSignal(ImageDocumentPublicSignal sign
     case ImageDocumentPublicSignal::EmbeddedMetadata:
         run(m_operations.embeddedMetadataChanged);
         return;
-    case ImageDocumentPublicSignal::DisplaySource:
-        run(m_operations.displaySourceChanged);
-        return;
     }
 }
 
@@ -176,24 +160,6 @@ std::vector<ImageDocumentPublicSignal> imageDocumentPublicSignals(ImageDocumentC
         return { ImageDocumentPublicSignal::WindowTitleFileName };
     case ImageDocumentChange::DisplayedUrl:
         return { ImageDocumentPublicSignal::DisplayedUrl };
-    case ImageDocumentChange::ImageSize:
-        return { ImageDocumentPublicSignal::ImageSize,
-            ImageDocumentPublicSignal::ZoomPercentKnown };
-    case ImageDocumentChange::ViewportSize:
-        return { ImageDocumentPublicSignal::ViewportSize };
-    case ImageDocumentChange::ViewportFrame:
-        return { ImageDocumentPublicSignal::ViewportFrame };
-    case ImageDocumentChange::VisibleItemRect:
-        return { ImageDocumentPublicSignal::VisibleItemRect };
-    case ImageDocumentChange::DisplaySize:
-        return { ImageDocumentPublicSignal::DisplaySize,
-            ImageDocumentPublicSignal::ZoomPercentKnown };
-    case ImageDocumentChange::ZoomPercent:
-        return { ImageDocumentPublicSignal::ZoomPercent };
-    case ImageDocumentChange::ZoomMode:
-        return { ImageDocumentPublicSignal::ZoomMode };
-    case ImageDocumentChange::MaximumManualZoomPercent:
-        return { ImageDocumentPublicSignal::MaximumManualZoomPercent };
     case ImageDocumentChange::PageNavigation:
         return { ImageDocumentPublicSignal::PageNavigation };
     case ImageDocumentChange::ContainerNavigation:
@@ -205,17 +171,29 @@ std::vector<ImageDocumentPublicSignal> imageDocumentPublicSignals(ImageDocumentC
             ImageDocumentPublicSignal::PageNavigation };
     case ImageDocumentChange::RightToLeftReading:
         return { ImageDocumentPublicSignal::RightToLeftReading };
-    case ImageDocumentChange::PresentationTransitionState:
-        return { ImageDocumentPublicSignal::PresentationTransitionState };
-    case ImageDocumentChange::Rotation:
-        return { ImageDocumentPublicSignal::RotationDegrees };
     case ImageDocumentChange::UnsupportedOpenedCollectionVideo:
         return { ImageDocumentPublicSignal::UnsupportedOpenedCollectionVideo,
             ImageDocumentPublicSignal::ZoomPercentKnown };
     case ImageDocumentChange::EmbeddedMetadata:
         return { ImageDocumentPublicSignal::EmbeddedMetadata };
-    case ImageDocumentChange::DisplaySource:
-        return { ImageDocumentPublicSignal::DisplaySource };
+    case ImageDocumentChange::ViewportProjection:
+        return {
+            ImageDocumentPublicSignal::Status,
+            ImageDocumentPublicSignal::Loading,
+            ImageDocumentPublicSignal::ErrorString,
+            ImageDocumentPublicSignal::DisplayedUrl,
+            ImageDocumentPublicSignal::ImageSize,
+            ImageDocumentPublicSignal::ViewportFrame,
+            ImageDocumentPublicSignal::ZoomPercentKnown,
+            ImageDocumentPublicSignal::ZoomPercent,
+            ImageDocumentPublicSignal::ZoomMode,
+            ImageDocumentPublicSignal::MaximumManualZoomPercent,
+            ImageDocumentPublicSignal::TwoPageMode,
+            ImageDocumentPublicSignal::RightToLeftReading,
+            ImageDocumentPublicSignal::PresentationTransitionState,
+            ImageDocumentPublicSignal::RotationDegrees,
+            ImageDocumentPublicSignal::ImageDocumentSourceScope,
+        };
     }
 
     return {};
@@ -238,7 +216,10 @@ std::vector<ImageDocumentPublicSignal> imageDocumentPublicSignalsForChanges(
             }
         }
     }
-    if (imageDocumentSourceScopeChanged) {
+    if (imageDocumentSourceScopeChanged
+        && std::find(plannedSignals.cbegin(), plannedSignals.cend(),
+               ImageDocumentPublicSignal::ImageDocumentSourceScope)
+            == plannedSignals.cend()) {
         plannedSignals.push_back(ImageDocumentPublicSignal::ImageDocumentSourceScope);
     }
     return plannedSignals;

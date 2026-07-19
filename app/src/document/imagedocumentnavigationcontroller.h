@@ -13,7 +13,6 @@
 namespace kiriview {
 class ImageDocumentState;
 class ImageDocumentPageNavigationService;
-class ImagePageSurfaceController;
 class ImageSpreadPresentationController;
 
 class ImageDocumentNavigationController final
@@ -22,7 +21,6 @@ public:
     using RuntimeTransactionCallback = std::function<void(ImageDocumentRuntimeTransaction)>;
 
     ImageDocumentNavigationController(ImageDocumentState& state,
-        ImagePageSurfaceController& pageSurfaceController,
         ImageDocumentPageNavigationService& navigationService,
         ImageSpreadPresentationController& spreadController,
         RuntimeTransactionCallback runtimeTransactionCallback);
@@ -46,7 +44,6 @@ public:
 
 private:
     ImageDocumentState& m_state;
-    ImagePageSurfaceController& m_pageSurfaceController;
     ImageDocumentPageNavigationService& m_navigationService;
     ImageSpreadPresentationController& m_spreadController;
     RuntimeTransactionCallback m_runtimeTransactionCallback;

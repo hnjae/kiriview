@@ -3,6 +3,7 @@
 
 #include "facade/kiridocumentsession.h"
 #include "facade/kiriimagedocument.h"
+#include "facade/kiriimageviewportsurface.h"
 #include "facade/kirimediainformation.h"
 #include "facade/kirivideodocument.h"
 #include "facade/kiriviewapplication.h"
@@ -20,6 +21,7 @@
 #include <QObject>
 #include <QQmlComponent>
 #include <QQmlEngine>
+#include <QQuickView>
 #include <QSignalSpy>
 #include <QStandardPaths>
 #include <QString>
@@ -45,8 +47,8 @@ private Q_SLOTS:
 namespace {
 struct ImageActionsFixture
 {
-    std::unique_ptr<QQmlEngine> engine;
-    std::unique_ptr<QObject> root;
+    std::unique_ptr<QQuickView> view;
+    QObject* root = nullptr;
     std::unique_ptr<QTemporaryDir> temporaryDirectory;
     KiriDocumentSession* documentSession = nullptr;
     KiriViewApplication* application = nullptr;
@@ -54,7 +56,7 @@ struct ImageActionsFixture
 
     bool isValid() const
     {
-        return engine != nullptr && root != nullptr && documentSession != nullptr
+        return view != nullptr && root != nullptr && documentSession != nullptr
             && application != nullptr;
     }
 };
@@ -78,6 +80,8 @@ void registerKiriViewQmlTypes()
     qmlRegisterType<KiriViewApplication>("org.hnjae.kiriview", 1, 0, "KiriViewApplication");
     qmlRegisterType<KiriDocumentSession>("org.hnjae.kiriview", 1, 0, "KiriDocumentSession");
     qmlRegisterType<KiriImageDocument>("org.hnjae.kiriview", 1, 0, "KiriImageDocument");
+    qmlRegisterType<KiriImageViewportSurface>(
+        "org.hnjae.kiriview", 1, 0, "KiriImageViewportSurface");
     qmlRegisterUncreatableType<KiriMediaInformation>("org.hnjae.kiriview", 1, 0,
         "KiriMediaInformation", "KiriMediaInformation is owned by KiriDocumentSession");
     qmlRegisterType<KiriVideoDocument>("org.hnjae.kiriview", 1, 0, "KiriVideoDocument");
@@ -203,6 +207,11 @@ Item {
         sourceUrl: "%2"
     }
 
+    KiriImageViewportSurface {
+        anchors.fill: parent
+        document: documentSession.imageDocument
+    }
+
     KiriViewQml.ImageActions {
         id: imageActions
 
@@ -227,13 +236,15 @@ ImageActionsFixture createFixture(const QString& sourceUrl = QString())
 {
     ImageActionsFixture fixture;
     registerKiriViewQmlTypes();
-    fixture.engine = std::make_unique<QQmlEngine>();
-    addEnvironmentImportPaths(*fixture.engine);
-    fixture.engine->addImportPath(QDir(QStringLiteral(KIRIVIEW_TEST_SOURCE_DIR))
+    fixture.view = std::make_unique<QQuickView>();
+    fixture.view->resize(320, 240);
+    fixture.view->setResizeMode(QQuickView::SizeRootObjectToView);
+    addEnvironmentImportPaths(*fixture.view->engine());
+    fixture.view->engine()->addImportPath(QDir(QStringLiteral(KIRIVIEW_TEST_SOURCE_DIR))
             .absoluteFilePath(QStringLiteral("../../src/qml")));
-    KLocalization::setupLocalizedContext(fixture.engine.get());
+    KLocalization::setupLocalizedContext(fixture.view->engine());
 
-    QQmlComponent component(fixture.engine.get());
+    QQmlComponent component(fixture.view->engine());
     component.setData(
         fixtureQml(sourceUrl).toUtf8(), QUrl(QStringLiteral("memory:test_imageactions.qml")));
     if (!waitForQmlComponentReady(component)) {
@@ -251,7 +262,14 @@ ImageActionsFixture createFixture(const QString& sourceUrl = QString())
         return fixture;
     }
 
-    fixture.root.reset(root);
+    fixture.view->setContent(
+        QUrl(QStringLiteral("memory:test_imageactions.qml")), &component, root);
+    fixture.view->show();
+    if (!QTest::qWaitForWindowExposed(fixture.view.get())) {
+        fixture.errorString = QStringLiteral("test window was not exposed");
+        return fixture;
+    }
+    fixture.root = root;
     fixture.documentSession
         = root->findChild<KiriDocumentSession*>(QStringLiteral("documentSession"));
     fixture.application = root->findChild<KiriViewApplication*>(QStringLiteral("application"));

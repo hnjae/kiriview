@@ -9,10 +9,8 @@
 #include <QSize>
 #include <QString>
 #include <QTest>
-#include <QUrl>
 #include <QtGlobal>
 #include <array>
-#include <future>
 #include <optional>
 #include <vector>
 
@@ -22,9 +20,7 @@ class TestDisplayImageStore : public QObject
 
 private Q_SLOTS:
     void storesImagesAndMetadata();
-    void urlShapeUsesNeverReusedIds();
-    void providerReportsOriginalSizeAndMissesReturnEmpty();
-    void providerReturnsStoredRasterForRequestedSize();
+    void insertUsesNeverReusedIds();
     void evictsLeastRecentlyUsedImagesByPriority();
     void pinLeasesPreventEvictionAndReleaseDefersRemoval();
     void allPinKindsPreventEvictionAndReleaseDefersRemoval();
@@ -33,7 +29,6 @@ private Q_SLOTS:
     void reusableAcquisitionRequiresExactKeyMatch();
     void indexedLookupStatsStayConstantForIdAndReusableLookups();
     void indexesStayConsistentAcrossReuseEvictionReleaseAndClear();
-    void providerRequestsAreThreadSafeReads();
 };
 
 namespace {
@@ -121,7 +116,7 @@ void TestDisplayImageStore::storesImagesAndMetadata()
     QCOMPARE(store.size(), qsizetype(1));
 }
 
-void TestDisplayImageStore::urlShapeUsesNeverReusedIds()
+void TestDisplayImageStore::insertUsesNeverReusedIds()
 {
     kiriview::DisplayImageStore store(1024);
 
@@ -132,42 +127,6 @@ void TestDisplayImageStore::urlShapeUsesNeverReusedIds()
     QVERIFY(!first.isEmpty());
     QVERIFY(!second.isEmpty());
     QVERIFY(first != second);
-    QCOMPARE(kiriview::displayImageSourceForId(second),
-        QUrl(QStringLiteral("image://kiriview-images/%1").arg(second)));
-    QVERIFY(kiriview::displayImageSourceForId({}).isEmpty());
-}
-
-void TestDisplayImageStore::providerReportsOriginalSizeAndMissesReturnEmpty()
-{
-    auto store = std::make_shared<kiriview::DisplayImageStore>(1024);
-    const QString id = store->insert(testEntry(QSize(8, 4)));
-    kiriview::DisplayImageProvider provider(store);
-
-    QSize originalSize;
-    const QImage image = provider.requestImage(id, &originalSize, {});
-    QCOMPARE(image.size(), QSize(8, 4));
-    QCOMPARE(originalSize, QSize(16, 8));
-
-    QSize missSize(1, 1);
-    QVERIFY(provider.requestImage(QStringLiteral("missing"), &missSize, {}).isNull());
-    QCOMPARE(missSize, QSize());
-}
-
-void TestDisplayImageStore::providerReturnsStoredRasterForRequestedSize()
-{
-    auto store = std::make_shared<kiriview::DisplayImageStore>(32768);
-    const QString id = store->insert(testEntry(QSize(80, 40)));
-    kiriview::DisplayImageProvider provider(store);
-
-    QSize originalSize;
-    QCOMPARE(provider.requestImage(id, &originalSize, QSize(40, 40)).size(), QSize(80, 40));
-    QCOMPARE(originalSize, QSize(160, 80));
-    QCOMPARE(provider.requestImage(id, nullptr, QSize(20, 0)).size(), QSize(80, 40));
-    QCOMPARE(provider.requestImage(id, nullptr, QSize(0, 10)).size(), QSize(80, 40));
-    QCOMPARE(provider.requestImage(id, nullptr, QSize(0, 0)).size(), QSize(80, 40));
-    QCOMPARE(provider.requestImage(id, nullptr, QSize(-20, 10)).size(), QSize(80, 40));
-    QCOMPARE(provider.requestImage(id, nullptr, QSize(160, 80)).size(), QSize(80, 40));
-    QCOMPARE(provider.requestImage(id, nullptr, QSize(80, 40)).size(), QSize(80, 40));
 }
 
 void TestDisplayImageStore::evictsLeastRecentlyUsedImagesByPriority()
@@ -397,23 +356,6 @@ void TestDisplayImageStore::indexesStayConsistentAcrossReuseEvictionReleaseAndCl
     QCOMPARE(store.debugStats().entryCount, qsizetype(0));
     QCOMPARE(store.debugStats().reuseIndexEntryCount, qsizetype(0));
     QCOMPARE(store.debugStats().evictionIndexEntryCount, qsizetype(0));
-}
-
-void TestDisplayImageStore::providerRequestsAreThreadSafeReads()
-{
-    auto store = std::make_shared<kiriview::DisplayImageStore>(4096);
-    const QString id = store->insert(testEntry(QSize(16, 8)));
-    kiriview::DisplayImageProvider provider(store);
-
-    std::vector<std::future<QSize>> futures;
-    for (int index = 0; index < 32; ++index) {
-        futures.push_back(std::async(std::launch::async,
-            [&provider, id]() { return provider.requestImage(id, nullptr, QSize(8, 8)).size(); }));
-    }
-
-    for (std::future<QSize>& future : futures) {
-        QCOMPARE(future.get(), QSize(16, 8));
-    }
 }
 
 QTEST_GUILESS_MAIN(TestDisplayImageStore)

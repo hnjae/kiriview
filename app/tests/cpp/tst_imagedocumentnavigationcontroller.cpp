@@ -8,10 +8,7 @@
 #include "image_test_support.h"
 #include "location/imagedocumentlocation.h"
 #include "navigation/imagedocumentpagenavigationservice.h"
-#include "presentation/imagepagesurfacecontroller.h"
-#include "presentation/imagepresentationruntime.h"
 #include "presentation/imagespreadpresentationcontroller.h"
-#include "rendering/imagerendering.h"
 
 #include <QObject>
 #include <QSize>
@@ -23,31 +20,11 @@
 
 namespace {
 using kiriview::TestSupport::archivePageUrl;
-using kiriview::TestSupport::imageDecodeDependenciesFor;
 using kiriview::TestSupport::imageDocumentPageCandidate;
 using kiriview::TestSupport::localUrl;
-using kiriview::TestSupport::ManualImageDataLoader;
-using kiriview::TestSupport::staticDisplayTestImagePayload;
-using kiriview::TestSupport::staticImageDataDecoder;
 using kiriview::TestSupport::testImage;
 
 using FakeCandidateProvider = kiriview::TestSupport::FakeImageDocumentPageCandidateProvider;
-
-kiriview::ImageDocumentRenderContext renderContext()
-{
-    return kiriview::ImageDocumentRenderContext {
-        1.0,
-        kiriview::fallbackTextureSizeMax,
-    };
-}
-
-kiriview::ImageCacheBudgets testCacheBudgets()
-{
-    return kiriview::ImageCacheBudgets {
-        1024 * 1024,
-        512 * 1024,
-    };
-}
 
 template <typename Operation>
 const Operation* findOperation(const kiriview::ImageDocumentRuntimePlan& plan)
@@ -65,9 +42,7 @@ class DocumentNavigationFixture
 {
 public:
     DocumentNavigationFixture()
-        : pageSurface(&context, {}, testCacheBudgets())
-        , presentationRuntime(renderContext)
-        , navigation(&context, candidateProvider.provider(),
+        : navigation(&context, candidateProvider.provider(),
               kiriview::ImageDocumentPageNavigationService::Callbacks {
                   [this](kiriview::ImageDocumentPageNavigationPlan plan) {
                       runtimePlans.push_back(kiriview::imageDocumentRuntimePlanForNavigationPlan(
@@ -86,16 +61,17 @@ public:
                           url, kiriview::NavigationSourceEntryFacts {});
                   },
               })
-        , spread(&context, renderContext, state, pageSurface, presentationRuntime,
+        , spread(&context, state,
               kiriview::ImageSpreadPresentationController::Callbacks {
                   {},
                   {},
                   [this]() { return navigation.pageNavigationSnapshot(); },
                   {},
-              },
-              imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder(testImage())),
-              testCacheBudgets())
-        , controller(state, pageSurface, navigation, spread,
+                  {},
+                  {},
+                  {},
+              })
+        , controller(state, navigation, spread,
               [this](kiriview::ImageDocumentRuntimeTransaction transaction) {
                   runtimePlans.push_back(std::move(transaction.plan));
               })
@@ -106,9 +82,8 @@ public:
     {
         state.setSourceUrl(url);
         state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromUrl(url));
-        pageSurface.setStaticDisplayImage(
-            staticDisplayTestImagePayload(testImage()), false, renderContext());
-        spread.commitPrimaryPageSlot(state.displayedImageLocation());
+        state.setStatus(kiriview::ImageDocumentStatus::Ready);
+        spread.commitPrimaryPageSlot(state.displayedImageLocation(), testImage().size());
     }
 
     void displayComicPage(
@@ -117,17 +92,13 @@ public:
         state.setSourceUrl(url);
         state.setDisplayedImageLocation(
             kiriview::DisplayedImageLocation::fromOpenedCollectionScope(url, archiveCollection));
-        pageSurface.setStaticDisplayImage(
-            staticDisplayTestImagePayload(testImage(QSize(800, 1200))), false, renderContext());
-        spread.commitPrimaryPageSlot(state.displayedImageLocation());
+        state.setStatus(kiriview::ImageDocumentStatus::Ready);
+        spread.commitPrimaryPageSlot(state.displayedImageLocation(), QSize(800, 1200));
     }
 
     QObject context;
     kiriview::ImageDocumentState state;
     FakeCandidateProvider candidateProvider;
-    ManualImageDataLoader dataLoader;
-    kiriview::ImagePageSurfaceController pageSurface;
-    kiriview::ImagePresentationRuntime presentationRuntime;
     kiriview::ImageDocumentPageNavigationService navigation;
     kiriview::ImageSpreadPresentationController spread;
     kiriview::ImageDocumentNavigationController controller;
@@ -347,7 +318,6 @@ void TestImageDocumentNavigationController::spreadPageSelectionStartsTrackedTran
     QVERIFY(operation != nullptr);
     QCOMPARE(operation->target.url, secondUrl);
     QVERIFY(operation->preserveTwoPageSpreadTransition);
-    QVERIFY(fixture.spread.transitionInProgress());
 }
 
 QTEST_GUILESS_MAIN(TestImageDocumentNavigationController)

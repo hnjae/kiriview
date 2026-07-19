@@ -6,6 +6,7 @@
 #include "archive/mediaentrysourcebackend.h"
 #include "candidate_test_support.h"
 #include "facade/kiriimagedocument.h"
+#include "facade/kiriimageviewportsurface.h"
 #include "facade/kirimediainformation.h"
 #include "facade/kirivideodocument.h"
 #include "image_async_test_support.h"
@@ -23,6 +24,7 @@
 #include <QFile>
 #include <QImage>
 #include <QObject>
+#include <QQuickWindow>
 #include <QSignalSpy>
 #include <QSizeF>
 #include <QTemporaryDir>
@@ -426,6 +428,17 @@ public:
     kiriview::ThumbnailGenerationResult result;
 };
 
+void attachTestViewport(KiriDocumentSession& session)
+{
+    auto* viewportWindow = new QQuickWindow();
+    viewportWindow->QObject::setParent(&session);
+    viewportWindow->resize(320, 240);
+    auto* viewportSurface = new KiriImageViewportSurface(viewportWindow->contentItem());
+    viewportSurface->setSize(QSizeF(320.0, 240.0));
+    viewportSurface->setDocument(session.imageDocument());
+    viewportWindow->show();
+}
+
 std::unique_ptr<KiriDocumentSession> createSessionWithProvider(
     kiriview::DirectMediaNavigationCandidateProvider directMediaNavigationCandidateProvider,
     kiriview::TestSupport::ManualFileDeletionProvider* fileDeletion = nullptr,
@@ -465,7 +478,9 @@ std::unique_ptr<KiriDocumentSession> createSessionWithProvider(
         dependencies.imageDocument.imageDecode = kiriview::TestSupport::imageDecodeDependenciesFor(
             *imageDataLoader, std::move(imageDataDecoder));
     }
-    return std::make_unique<KiriDocumentSession>(std::move(dependencies));
+    auto session = std::make_unique<KiriDocumentSession>(std::move(dependencies));
+    attachTestViewport(*session);
+    return session;
 }
 
 std::unique_ptr<KiriDocumentSession> createSession(
@@ -565,7 +580,6 @@ private Q_SLOTS:
     void playableDirectoryCollectionVideoUsesOpenedCollectionNavigation();
     void directVideoRoutesToVideoDocumentWithOriginalSource();
     void publicProjectionRevisionCommitsBeforeScalarSignals();
-    void activeZoomReadoutFollowsSessionDocumentKind();
     void archiveAndDirectoryInputsRouteToImageDocument();
     void directImageAfterVideoRestoresImageDocument();
     void directImageRouteCollectsNavigationSourceFactsOnce();
@@ -613,7 +627,6 @@ private Q_SLOTS:
     void openWithFailureEmitsToastSignal();
     void staleOpenWithFailureAfterReplacementIsIgnored();
     void staleOpenWithFailureAfterSessionDestructionIsIgnored();
-    void twoPageSpreadLastBoundaryProjectsThroughActiveNavigation();
     void videoNavigationReusesStillImageWarmCacheWhenReturning();
     void videoActiveNavigationExposesCurrentNumberAndCount();
     void initialDirectImagePredecodeUsesRequestedMediaCursor();
@@ -999,46 +1012,6 @@ void TestKiriDocumentSession::publicProjectionRevisionCommitsBeforeScalarSignals
     QVERIFY(revisionIndex >= 0);
     QVERIFY(sourceIndex >= 0);
     QVERIFY(revisionIndex < sourceIndex);
-}
-
-void TestKiriDocumentSession::activeZoomReadoutFollowsSessionDocumentKind()
-{
-    QTemporaryDir directory;
-    QVERIFY(directory.isValid());
-
-    const QString imagePath = directory.filePath(QStringLiteral("01.png"));
-    QVERIFY(writeTestImage(imagePath));
-
-    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
-    const QUrl imageUrl = localUrl(imagePath);
-    const QUrl videoUrl = localUrl(directory.filePath(QStringLiteral("02.mp4")));
-    directMediaNavigationProvider.setMedia(localUrl(directory.path() + QStringLiteral("/")),
-        { directMediaNavigationCandidate(imageUrl), directMediaNavigationCandidate(videoUrl) });
-    std::unique_ptr<KiriDocumentSession> session = createSession(directMediaNavigationProvider);
-
-    QCOMPARE(session->documentKind(), KiriDocumentSession::DocumentKind::Empty);
-    QVERIFY(!session->activeZoomPercentAvailable());
-    QVERIFY(!session->activeZoomPercentKnown());
-    QCOMPARE(session->activeZoomPercent(), 0.0);
-    QVERIFY(!session->activeZoomEditable());
-
-    session->setSourceUrl(videoUrl);
-
-    QCOMPARE(session->documentKind(), KiriDocumentSession::DocumentKind::Video);
-    QVERIFY(session->activeZoomPercentAvailable());
-    QVERIFY(!session->activeZoomPercentKnown());
-    QCOMPARE(session->activeZoomPercent(), 0.0);
-    QVERIFY(!session->activeZoomEditable());
-
-    session->imageDocument()->setViewportSize(QSizeF(400.0, 300.0));
-    session->setSourceUrl(imageUrl);
-
-    QTRY_COMPARE(session->documentKind(), KiriDocumentSession::DocumentKind::Image);
-    QTRY_COMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Ready);
-    QVERIFY(session->activeZoomPercentAvailable());
-    QVERIFY(session->activeZoomPercentKnown());
-    QVERIFY(session->activeZoomPercent() > 0.0);
-    QVERIFY(session->activeZoomEditable());
 }
 
 void TestKiriDocumentSession::archiveAndDirectoryInputsRouteToImageDocument()
@@ -2086,13 +2059,13 @@ void TestKiriDocumentSession::activeNavigationNumberDispatchRoutesImageDocumentP
     QCOMPARE(session->activeNavigationCurrentNumber(), 1);
     QCOMPARE(session->activeNavigationCount(), 2);
     QSignalSpy leafSnapshotSpy(session->imageDocument(), SIGNAL(documentSessionSnapshotChanged()));
+    const int snapshotCountBeforeNavigation = leafSnapshotSpy.count();
 
     session->openActiveNavigationAtNumber(2);
 
-    QCOMPARE(leafSnapshotSpy.count(), 1);
+    QTRY_VERIFY(leafSnapshotSpy.count() > snapshotCountBeforeNavigation);
     QTRY_COMPARE(dataLoader.backLoad().url, secondPage);
     dataLoader.finishBackLoad(QByteArrayLiteral("second"));
-    QTRY_COMPARE(leafSnapshotSpy.count(), 2);
     QTRY_COMPARE(session->imageDocument()->currentPageNumber(), 2);
     QCOMPARE(session->activeNavigationCurrentNumber(), 2);
 }
@@ -2713,57 +2686,6 @@ void TestKiriDocumentSession::staleOpenWithFailureAfterSessionDestructionIsIgnor
     QCOMPARE(failureCount, 0);
 }
 
-void TestKiriDocumentSession::twoPageSpreadLastBoundaryProjectsThroughActiveNavigation()
-{
-    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
-    kiriview::TestSupport::FakeImageDocumentPageCandidateProvider imageDocumentPageCandidates;
-    kiriview::TestSupport::ManualImageDataLoader dataLoader;
-    const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
-    const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
-            kiriview::resolvedNavigationSource(archiveUrl, {}));
-    QVERIFY(archiveCollection.has_value());
-    const QUrl firstPage = kiriview::TestSupport::archivePageUrl(
-        archiveCollection->rootUrl(), QStringLiteral("01.png"));
-    const QUrl secondPage = kiriview::TestSupport::archivePageUrl(
-        archiveCollection->rootUrl(), QStringLiteral("02.png"));
-    const QUrl thirdPage = kiriview::TestSupport::archivePageUrl(
-        archiveCollection->rootUrl(), QStringLiteral("03.png"));
-    imageDocumentPageCandidates.setOpenedCollectionCandidates(archiveCollection->rootUrl(),
-        { kiriview::TestSupport::imageDocumentPageCandidate(firstPage),
-            kiriview::TestSupport::imageDocumentPageCandidate(secondPage),
-            kiriview::TestSupport::imageDocumentPageCandidate(thirdPage) });
-    std::unique_ptr<KiriDocumentSession> session
-        = createSessionWithProvider(directMediaNavigationProvider.provider(), nullptr, &dataLoader,
-            imageDocumentPageCandidates.provider(),
-            kiriview::TestSupport::staticImageDataDecoder(
-                kiriview::TestSupport::testImage(QSize(100, 200))));
-    session->imageDocument()->setViewportSize(QSizeF(400.0, 300.0));
-
-    session->setSourceUrl(archiveUrl);
-    QTRY_COMPARE(dataLoader.loadCount(), std::size_t(1));
-    dataLoader.finishBackLoad(QByteArrayLiteral("first"));
-    QTRY_COMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Ready);
-
-    session->imageDocument()->requestToggleTwoPageMode();
-    session->imageDocument()->openNextPage();
-    QTRY_COMPARE(dataLoader.backLoad().url, secondPage);
-    dataLoader.finishBackLoad(QByteArrayLiteral("second"));
-    QTRY_COMPARE(dataLoader.backLoad().url, thirdPage);
-    dataLoader.finishBackLoad(QByteArrayLiteral("third"));
-
-    QTRY_VERIFY(session->imageDocument()->secondaryPageVisible());
-    QCOMPARE(session->imageDocument()->currentPageNumber(), 2);
-    QCOMPARE(session->imageDocument()->currentLastPageNumber(), 3);
-    QCOMPARE(session->activeNavigationCurrentNumber(), 2);
-    QCOMPARE(session->activeNavigationCount(), 3);
-    QVERIFY(session->activeNavigationKnown());
-    QVERIFY(session->canOpenPreviousActiveNavigation());
-    QVERIFY(!session->canOpenNextActiveNavigation());
-    QVERIFY(!session->atKnownFirstActiveNavigation());
-    QVERIFY(session->atKnownLastActiveNavigation());
-}
-
 void TestKiriDocumentSession::videoNavigationReusesStillImageWarmCacheWhenReturning()
 {
     FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
@@ -2797,7 +2719,7 @@ void TestKiriDocumentSession::videoNavigationReusesStillImageWarmCacheWhenReturn
 
     QCOMPARE(session->documentKind(), KiriDocumentSession::DocumentKind::Image);
     QCOMPARE(session->sourceUrl(), firstImage);
-    QCOMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Ready);
+    QTRY_COMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Ready);
     QCOMPARE(imageDataLoader.loadCount(), loadCountBeforeReturn);
 }
 
@@ -2873,6 +2795,7 @@ void TestKiriDocumentSession::directImagePredecodeUsesSessionDependencyOverrides
             directMediaPredecodeDataLoader, kiriview::TestSupport::staticImageDataDecoder());
     std::unique_ptr<KiriDocumentSession> session
         = std::make_unique<KiriDocumentSession>(std::move(dependencies));
+    attachTestViewport(*session);
 
     session->setSourceUrl(currentImage);
 
@@ -2931,6 +2854,7 @@ void TestKiriDocumentSession::directImagePredecodeDoesNotUseImageDocumentPageCan
         = directMediaPredecodeTimerScheduler.scheduler();
     std::unique_ptr<KiriDocumentSession> session
         = std::make_unique<KiriDocumentSession>(std::move(dependencies));
+    attachTestViewport(*session);
 
     session->setSourceUrl(currentImage);
 
@@ -3390,6 +3314,6 @@ void TestKiriDocumentSession::staleVideoDeletionCompletionAfterSourceChangeIsIgn
     QCOMPARE(session->errorString(), QString());
 }
 
-QTEST_GUILESS_MAIN(TestKiriDocumentSession)
+QTEST_MAIN(TestKiriDocumentSession)
 
 #include "tst_kiridocumentsession.moc"

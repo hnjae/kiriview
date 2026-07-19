@@ -20,7 +20,6 @@ class QObject;
 
 namespace kiriview {
 class ImageDocumentState;
-class ImagePageSurfaceController;
 
 class ImageDocumentDeletionController final
 {
@@ -28,6 +27,7 @@ public:
     using InProgressChangedCallback = std::function<void()>;
     using RuntimePlanCallback = std::function<void(ImageDocumentRuntimePlan)>;
     using FailedCallback = std::function<void(const QString&)>;
+    using HasDisplayedImageCallback = std::function<bool()>;
 
     struct Callbacks
     {
@@ -37,7 +37,7 @@ public:
     };
 
     ImageDocumentDeletionController(QObject* parent, ImageDocumentState& state,
-        ImagePageSurfaceController& pageSurfaceController,
+        HasDisplayedImageCallback hasDisplayedImage,
         ImageDocumentPageCandidateProvider candidateProvider,
         FileDeletionProvider fileDeletionProvider, Callbacks callbacks,
         std::function<ResolvedNavigationSource(const QUrl&)> resolveExternalSource);
@@ -57,7 +57,7 @@ private:
 
     QObject* m_parent = nullptr;
     ImageDocumentState& m_state;
-    ImagePageSurfaceController& m_pageSurfaceController;
+    HasDisplayedImageCallback m_hasDisplayedImage;
     Callbacks m_callbacks;
     FileDeletionProvider m_fileDeletionProvider;
     ImageIoJob m_fileDeletionJob;

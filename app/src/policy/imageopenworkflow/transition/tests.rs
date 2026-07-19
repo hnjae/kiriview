@@ -128,13 +128,7 @@ fn first_source_load_clears_image_and_enters_loading() {
             ),
         ))
     );
-    assert_eq!(
-        transition.effects,
-        vec![
-            RustImageOpenEffect::ClearImage,
-            RustImageOpenEffect::ResetZoom
-        ]
-    );
+    assert_eq!(transition.effects, vec![RustImageOpenEffect::ClearImage]);
 }
 
 #[test]
@@ -155,12 +149,7 @@ fn replacement_source_load_clears_presentation_and_enters_loading() {
             ),
         ))
     );
-    assert!(has_effect(
-        &transition,
-        RustImageOpenEffect::ClearLoadingPresentation
-    ));
-    assert!(!has_effect(&transition, RustImageOpenEffect::ClearImage));
-    assert!(!has_effect(&transition, RustImageOpenEffect::ResetZoom));
+    assert!(transition.effects.is_empty());
 }
 
 #[test]
@@ -250,39 +239,17 @@ fn source_load_failure_keeps_target_error_without_recovery_effects() {
 }
 
 #[test]
-fn source_and_animation_errors_are_distinct() {
+fn source_errors_keep_the_failed_target() {
     let initial = transition(source_load_error_event(
         RustImageOpenLoadFailureRoute::Source,
     ));
-    let animation = transition(image_open_event(
-        RustImageOpenWorkflowEventKind::FinishAnimationLoadWithError,
-    ));
 
     assert!(!has_effect(&initial, RustImageOpenEffect::ClearImage));
-    assert!(!has_effect(&initial, RustImageOpenEffect::ResetZoom));
     assert_eq!(
         initial.state_delta.container_navigation_url,
         RustImageOpenUrlTarget::Empty
     );
     assert_eq!(initial.state_delta.status, RustImageOpenStatusTarget::Error);
-
-    assert_eq!(
-        animation.state_delta,
-        completed_load_delta(
-            RustImageOpenUrlTarget::Unchanged,
-            RustImageOpenDisplayedLocationTarget::Unchanged,
-            RustImageOpenUrlTarget::Empty,
-            RustImageOpenStatusTarget::Error,
-            RustImageOpenErrorStringTarget::Provided,
-        )
-    );
-    assert_eq!(
-        animation.effects,
-        vec![
-            RustImageOpenEffect::ClearImage,
-            RustImageOpenEffect::ResetZoom
-        ]
-    );
 }
 
 #[test]
@@ -295,10 +262,6 @@ fn routed_load_failure_returns_the_selected_error_transition() {
         RustImageOpenUrlTarget::Container
     );
     assert!(has_effect(&container, RustImageOpenEffect::ClearImage));
-    assert!(has_effect(
-        &container,
-        RustImageOpenEffect::PrepareFailedContainer
-    ));
     assert_eq!(
         container.state_delta.status,
         RustImageOpenStatusTarget::Error
@@ -340,6 +303,6 @@ fn routed_load_failure_returns_the_selected_error_transition() {
     );
     assert!(has_effect(
         &explicit_container,
-        RustImageOpenEffect::PrepareFailedContainer
+        RustImageOpenEffect::ClearImage
     ));
 }

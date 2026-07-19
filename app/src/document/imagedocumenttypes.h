@@ -12,6 +12,13 @@ enum class ImageDocumentStatus {
     Error,
 };
 
+enum class ImageZoomMode {
+    Fit,
+    FitHeight,
+    FitWidth,
+    Manual,
+};
+
 enum class ImageDocumentChange {
     SourceUrl,
     Status,
@@ -19,24 +26,14 @@ enum class ImageDocumentChange {
     ErrorString,
     WindowTitleFileName,
     DisplayedUrl,
-    ImageSize,
-    ViewportSize,
-    ViewportFrame,
-    VisibleItemRect,
-    DisplaySize,
-    ZoomPercent,
-    ZoomMode,
-    MaximumManualZoomPercent,
     PageNavigation,
     ContainerNavigation,
     FileDeletionInProgress,
     TwoPageMode,
     RightToLeftReading,
-    PresentationTransitionState,
-    Rotation,
     UnsupportedOpenedCollectionVideo,
     EmbeddedMetadata,
-    DisplaySource,
+    ViewportProjection,
 };
 }
 

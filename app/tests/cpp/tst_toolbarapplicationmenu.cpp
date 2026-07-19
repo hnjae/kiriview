@@ -3,6 +3,7 @@
 
 #include "facade/kiridocumentsession.h"
 #include "facade/kiriimagedocument.h"
+#include "facade/kiriimageviewportsurface.h"
 #include "facade/kirimediainformation.h"
 #include "facade/kirivideodocument.h"
 #include "facade/kiriviewapplication.h"
@@ -96,6 +97,8 @@ void registerKiriViewQmlTypes()
     qmlRegisterType<KiriViewApplication>("org.hnjae.kiriview", 1, 0, "KiriViewApplication");
     qmlRegisterType<KiriDocumentSession>("org.hnjae.kiriview", 1, 0, "KiriDocumentSession");
     qmlRegisterType<KiriImageDocument>("org.hnjae.kiriview", 1, 0, "KiriImageDocument");
+    qmlRegisterType<KiriImageViewportSurface>(
+        "org.hnjae.kiriview", 1, 0, "KiriImageViewportSurface");
     qmlRegisterUncreatableType<KiriMediaInformation>("org.hnjae.kiriview", 1, 0,
         "KiriMediaInformation", "KiriMediaInformation is owned by KiriDocumentSession");
     qmlRegisterType<KiriVideoDocument>("org.hnjae.kiriview", 1, 0, "KiriVideoDocument");
@@ -477,6 +480,11 @@ Item {
     KiriDocumentSession {
         id: documentSession
         sourceUrl: "%2"
+    }
+
+    KiriImageViewportSurface {
+        anchors.fill: parent
+        document: root.sessionImageDocument
     }
 
     Kirigami.Action {
@@ -879,6 +887,11 @@ Item {
         id: documentSession
 
         sourceUrl: "%2"
+    }
+
+    KiriImageViewportSurface {
+        anchors.fill: parent
+        document: root.sessionImageDocument
     }
 
     KiriViewQml.ImageActions {

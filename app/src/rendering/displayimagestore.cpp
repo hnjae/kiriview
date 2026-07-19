@@ -6,10 +6,6 @@
 #include "cache/imagebyteaccounting.h"
 #include "cache/imagebytecost.h"
 #include "cache/imagecachepolicy.h"
-#include "displayproviderlogging.h"
-
-#include <QDebug>
-#include <QElapsedTimer>
 #include <QMutex>
 #include <QMutexLocker>
 #include <QtGlobal>
@@ -557,62 +553,6 @@ DisplayImageStoreDebugStats DisplayImageStore::debugStats() const
     };
 }
 
-DisplayImageProvider::DisplayImageProvider(std::shared_ptr<DisplayImageStore> store)
-    : QQuickImageProvider(QQuickImageProvider::Image)
-    , m_store(std::move(store))
-{
-}
-
-QImage DisplayImageProvider::requestImage(
-    const QString& id, QSize* size, const QSize& requestedSize)
-{
-    const bool logRequest = kiriviewDisplayProviderLog().isDebugEnabled();
-    QElapsedTimer elapsedTimer;
-    if (logRequest) {
-        elapsedTimer.start();
-    }
-
-    const std::optional<DisplayImageStoreEntry> entry
-        = m_store == nullptr ? std::nullopt : m_store->entry(id);
-    if (!entry.has_value()) {
-        if (size != nullptr) {
-            *size = {};
-        }
-        if (logRequest) {
-            const qint64 elapsedUs = elapsedTimer.nsecsElapsed() / 1000;
-            qCDebug(kiriviewDisplayProviderLog)
-                << "display provider request" << "id" << id << "originalSize" << QSize()
-                << "rasterSize" << QSize() << "requestedSize" << requestedSize << "returnedSize"
-                << QSize() << "sourceIdentity" << QString() << "pageRole"
-                << static_cast<int>(DisplayedPageRole::Primary) << "quality"
-                << static_cast<int>(DisplayImageQuality::Failed) << "generation" << quint64(0)
-                << "debugLabel" << QString() << "scaled" << false << "null" << true << "elapsedUs"
-                << elapsedUs << "elapsedMs" << elapsedUs / 1000.0;
-        }
-        return {};
-    }
-
-    if (size != nullptr) {
-        *size = entry->originalSize;
-    }
-
-    const QImage result = entry->image;
-
-    if (logRequest) {
-        const qint64 elapsedUs = elapsedTimer.nsecsElapsed() / 1000;
-        qCDebug(kiriviewDisplayProviderLog)
-            << "display provider request" << "id" << id << "originalSize" << entry->originalSize
-            << "rasterSize" << entry->rasterSize << "requestedSize" << requestedSize
-            << "returnedSize" << result.size() << "sourceIdentity" << entry->sourceIdentity
-            << "pageRole" << static_cast<int>(entry->pageRole) << "quality"
-            << static_cast<int>(entry->quality) << "generation" << entry->generation << "debugLabel"
-            << entry->debugLabel << "scaled" << false << "null" << result.isNull() << "elapsedUs"
-            << elapsedUs << "elapsedMs" << elapsedUs / 1000.0;
-    }
-
-    return result;
-}
-
 std::shared_ptr<DisplayImageStore> sharedDisplayImageStore()
 {
     static const std::shared_ptr<DisplayImageStore> store
@@ -623,14 +563,5 @@ std::shared_ptr<DisplayImageStore> sharedDisplayImageStore()
 void configureSharedDisplayImageStoreByteBudget(qsizetype byteBudget)
 {
     sharedDisplayImageStore()->setByteBudget(byteBudget);
-}
-
-QUrl displayImageSourceForId(const QString& id)
-{
-    if (id.isEmpty()) {
-        return {};
-    }
-
-    return QUrl(QStringLiteral("image://kiriview-images/%1").arg(id));
 }
 }

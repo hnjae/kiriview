@@ -9,15 +9,8 @@
 #include "imageopenapplicationplanapplier.h"
 #include "imageopenworkflow.h"
 #include "localization/imageerrortext.h"
-#include "location/imagedocumentlocation.h"
-#include "presentation/imagepagesurfacecontroller.h"
-#include "presentation/imagepresentationload.h"
-#include "presentation/imagepresentationruntime.h"
-#include "rendering/displayproviderlogging.h"
 
 #include <KLocalizedString>
-#include <QDebug>
-#include <memory>
 #include <utility>
 
 namespace {
@@ -35,18 +28,9 @@ QString openedCollectionOpenErrorMessage(const QString& errorString)
 
 QString loadFailureUserMessage(const kiriview::ImageLoadFailure& failure)
 {
-    if (failure.kind == kiriview::ImageLoadFailureKind::EmptyOpenedCollection) {
-        return emptyOpenedCollectionErrorMessage();
-    }
-
-    return failure.userMessage;
-}
-
-QString animationLoadErrorMessage(const QString& errorString)
-{
-    return errorString.isEmpty()
-        ? kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeImageAnimation)
-        : errorString;
+    return failure.kind == kiriview::ImageLoadFailureKind::EmptyOpenedCollection
+        ? emptyOpenedCollectionErrorMessage()
+        : failure.userMessage;
 }
 
 QString unsupportedOpenedCollectionVideoMessage()
@@ -57,7 +41,7 @@ QString unsupportedOpenedCollectionVideoMessage()
 kiriview::ImageLoadFailure imagePresentationFailure(
     const kiriview::ImageLoadSession& session, QString message)
 {
-    return kiriview::ImageLoadFailure {
+    return {
         session.imageUrl(),
         session.id(),
         kiriview::ImageLoadFailureKind::Presentation,
@@ -69,81 +53,39 @@ kiriview::ImageLoadFailure imagePresentationFailure(
         false,
     };
 }
-
-QString displayLoadOutcomeDiagnostic(kiriview::ImageDisplayLoadOutcome outcome)
-{
-    switch (outcome) {
-    case kiriview::ImageDisplayLoadOutcome::Loaded:
-        return QStringLiteral("loaded");
-    case kiriview::ImageDisplayLoadOutcome::Error:
-        return QStringLiteral("error");
-    case kiriview::ImageDisplayLoadOutcome::Missing:
-        return QStringLiteral("missing");
-    }
-
-    return QStringLiteral("unknown");
-}
-
-QString displayContentDiagnostic(kiriview::ImageDisplayContentKind contentKind)
-{
-    return contentKind == kiriview::ImageDisplayContentKind::AnimationFrame
-        ? QStringLiteral("animation-frame")
-        : QStringLiteral("still-image");
-}
-
-kiriview::ImageLoadFailure withUserMessage(kiriview::ImageLoadFailure failure, QString userMessage)
-{
-    failure.userMessage = std::move(userMessage);
-    return failure;
-}
 }
 
 namespace kiriview {
-ImageOpenController::ImageOpenController(QObject* parent, ImageDocumentState& state,
-    ImagePageSurfaceController& pageSurfaceController,
-    ImagePresentationRuntime& presentationRuntime, ImageOpenController::Callbacks callbacks,
-    ImageDecodeDependencies decodeDependencies)
+ImageOpenController::ImageOpenController(
+    QObject* parent, ImageDocumentState& state, ImageOpenController::Callbacks callbacks)
     : m_state(state)
-    , m_pageSurfaceController(pageSurfaceController)
-    , m_presentationRuntime(presentationRuntime)
     , m_callbacks(std::move(callbacks))
 {
     ImageLoader::EnsurePageCandidateSnapshotCallback ensurePageCandidateSnapshot
         = m_callbacks.ensurePageCandidateSnapshot;
-    m_imageLoader = std::make_unique<ImageLoader>(parent, std::move(decodeDependencies),
+    m_imageLoader = std::make_unique<ImageLoader>(parent,
         ImageLoader::Callbacks {
             [this](ImageLoadSession session, ImageLoadFailure failure) {
                 [[maybe_unused]] auto batch = m_state.beginChangeBatch();
                 finishLoadWithError(session, std::move(failure));
-            },
-            [this](ImageLoadSession session, DecodedImage image) {
-                [[maybe_unused]] auto batch = m_state.beginChangeBatch();
-                finishDecodedImageLoad(std::move(session), std::move(image));
-            },
-            [this](ImageLoadSession session, PredecodedImage image) {
-                [[maybe_unused]] auto batch = m_state.beginChangeBatch();
-                finishPredecodedImageLoad(std::move(session), std::move(image));
-            },
-            [this](ImageLoadSession session, StaticDisplayImagePayload preview) {
-                [[maybe_unused]] auto batch = m_state.beginChangeBatch();
-                finishThumbnailPreviewLoad(std::move(session), std::move(preview));
             },
             [this](ImageLoadSession session) {
                 [[maybe_unused]] auto batch = m_state.beginChangeBatch();
                 finishUnsupportedOpenedCollectionVideoLoad(std::move(session));
             },
             [this](const QUrl& url) {
-                if (!m_callbacks.findPredecodedImage) {
-                    return std::optional<PredecodedImage>();
-                }
-
-                return m_callbacks.findPredecodedImage(url);
+                return m_callbacks.findPredecodedImage ? m_callbacks.findPredecodedImage(url)
+                                                       : std::optional<PredecodedImage>();
             },
             [this](ImageLoadSession session) {
                 [[maybe_unused]] auto batch = m_state.beginChangeBatch();
                 finishSourcePrepared(std::move(session));
             },
             std::move(ensurePageCandidateSnapshot),
+            [this](ImageLoadSession session, std::optional<PredecodedImage> predecoded) {
+                [[maybe_unused]] auto batch = m_state.beginChangeBatch();
+                finishPreparedViewportImageLoad(std::move(session), std::move(predecoded));
+            },
         });
 }
 
@@ -152,19 +94,21 @@ ImageOpenController::~ImageOpenController() { cancel(); }
 void ImageOpenController::open()
 {
     cancel();
-
     if (m_state.sourceUrl().isEmpty()) {
         finishEmptySourceLoad();
         return;
     }
-
     if (!m_sourceLoadRequest.has_value()) {
         return;
     }
+
     ImageLoadRequest request = std::move(*m_sourceLoadRequest);
     m_sourceLoadRequest.reset();
     beginSourceLoad();
-    m_imageLoader->start(std::move(request), m_presentationRuntime.firstDisplayDecodeContext());
+    const ImageFirstDisplayDecodeContext firstDisplayContext = m_callbacks.firstDisplayDecodeContext
+        ? m_callbacks.firstDisplayDecodeContext()
+        : ImageFirstDisplayDecodeContext {};
+    m_imageLoader->start(std::move(request), firstDisplayContext);
 }
 
 void ImageOpenController::prepareSourceLoad(const ImageDocumentSourceLoadRequest& request)
@@ -174,61 +118,33 @@ void ImageOpenController::prepareSourceLoad(const ImageDocumentSourceLoadRequest
 
 void ImageOpenController::cancel() { m_imageLoader->cancel(); }
 
-void ImageOpenController::finishAnimationLoadWithError(const QString& errorString)
+void ImageOpenController::finishViewportImageLoadReady(
+    const ImageLoadSession& session, QSize imageSize, EmbeddedMetadata metadata)
 {
-    const QString message = animationLoadErrorMessage(errorString);
-    reportRuntimePlan(applyImageOpenApplicationPlan(m_state,
-        ImageOpenWorkflow::finishPresentationLoadWithErrorPlan(ImageLoadFailure {
-            m_state.displayedUrl().isEmpty() ? m_state.sourceUrl() : m_state.displayedUrl(),
-            0,
-            ImageLoadFailureKind::Presentation,
-            DecodedImageFailureRoute::Unknown,
-            DecodedImageFailureOperation::Unknown,
-            message,
-            errorString.isEmpty() ? message : errorString,
-            ImageLoadFailureSeverity::Error,
-            false,
-        })));
+    [[maybe_unused]] auto batch = m_state.beginChangeBatch();
+    invokeIfSet(m_callbacks.commitPrimaryPageSlot, session.location(), imageSize);
+    finishSuccessfulImageLoad(session, std::move(metadata));
 }
 
-void ImageOpenController::finishDisplayLoadWithError(const ImageDisplayLoadResolution& resolution)
+void ImageOpenController::finishViewportImageLoadWithError(
+    const ImageLoadSession& session, ImageLoadFailure failure)
 {
-    const QString message = imageErrorText(ImageErrorTextId::DisplayImage);
-    const QString diagnostic
-        = QStringLiteral(
-            "display provider load failed: outcome=%1 content=%2 provider=%3 revision=%4 "
-            "sourceIdentity=%5")
-              .arg(displayLoadOutcomeDiagnostic(resolution.outcome),
-                  displayContentDiagnostic(resolution.contentKind),
-                  resolution.providerUrl.toString(), QString::number(resolution.revision),
-                  resolution.sourceIdentity);
-    qCWarning(kiriviewDisplayProviderLog).noquote() << diagnostic;
-    reportRuntimePlan(applyImageOpenApplicationPlan(m_state,
-        ImageOpenWorkflow::finishPresentationLoadWithErrorPlan(ImageLoadFailure {
-            m_state.displayedUrl().isEmpty() ? m_state.sourceUrl() : m_state.displayedUrl(),
-            0,
-            ImageLoadFailureKind::Presentation,
-            DecodedImageFailureRoute::Unknown,
-            DecodedImageFailureOperation::Unknown,
-            message,
-            diagnostic,
-            ImageLoadFailureSeverity::Error,
-            false,
-        })));
+    [[maybe_unused]] auto batch = m_state.beginChangeBatch();
+    finishLoadWithError(session, std::move(failure));
 }
 
 void ImageOpenController::finishEmptySourceLoad()
 {
+    invokeIfSet(m_callbacks.clearViewportTarget);
     reportRuntimePlan(
         applyImageOpenApplicationPlan(m_state, ImageOpenWorkflow::finishEmptySourceLoadPlan()));
 }
 
 void ImageOpenController::beginSourceLoad()
 {
-    m_pageSurfaceController.clearShadowDisplayImage();
     reportRuntimePlan(applyImageOpenApplicationPlan(m_state,
         ImageOpenWorkflow::beginSourceLoadPlan(ImageOpenBeginSourceLoadSnapshot {
-            m_pageSurfaceController.hasImage(),
+            m_callbacks.hasCommittedImage && m_callbacks.hasCommittedImage(),
             !m_state.loadingContainerNavigationUrl().isEmpty(),
         })));
 }
@@ -242,10 +158,9 @@ void ImageOpenController::finishContainerNavigationLoadWithError(
     const QUrl& containerUrl, const QString& errorString)
 {
     cancel();
-
-    const QString message = openedCollectionOpenErrorMessage(errorString);
     reportRuntimePlan(applyImageOpenApplicationPlan(m_state,
-        ImageOpenWorkflow::finishContainerNavigationLoadWithErrorPlan(containerUrl, message)));
+        ImageOpenWorkflow::finishContainerNavigationLoadWithErrorPlan(
+            containerUrl, openedCollectionOpenErrorMessage(errorString))));
 }
 
 void ImageOpenController::finishSourcePrepared(ImageLoadSession session)
@@ -264,7 +179,7 @@ void ImageOpenController::finishUnsupportedOpenedCollectionVideoLoad(ImageLoadSe
     }
 
     const QString message = unsupportedOpenedCollectionVideoMessage();
-    m_pageSurfaceController.clearImage();
+    invokeIfSet(m_callbacks.clearViewportTarget);
     invokeIfSet(m_callbacks.clearPrimaryPageSlot);
     const ImageDocumentRuntimePlan plan = applyImageOpenApplicationPlan(
         m_state, ImageOpenWorkflow::finishUnsupportedOpenedCollectionVideoLoadPlan(session));
@@ -274,61 +189,29 @@ void ImageOpenController::finishUnsupportedOpenedCollectionVideoLoad(ImageLoadSe
 
 void ImageOpenController::finishPlayableOpenedCollectionVideoLoad(ImageLoadSession session)
 {
-    m_pageSurfaceController.clearImage();
+    invokeIfSet(m_callbacks.clearViewportTarget);
     invokeIfSet(m_callbacks.clearPrimaryPageSlot);
     reportRuntimePlan(applyImageOpenApplicationPlan(
         m_state, ImageOpenWorkflow::finishPlayableOpenedCollectionVideoLoadPlan(session)));
 }
 
-void ImageOpenController::finishThumbnailPreviewLoad(
-    ImageLoadSession session, StaticDisplayImagePayload preview)
+void ImageOpenController::finishPreparedViewportImageLoad(
+    ImageLoadSession session, std::optional<PredecodedImage> predecoded)
 {
-    Q_UNUSED(session);
-    m_pageSurfaceController.publishShadowDisplayImage(std::move(preview));
-}
-
-void ImageOpenController::finishPredecodedImageLoad(ImageLoadSession session, PredecodedImage image)
-{
-    EmbeddedMetadata metadata = image.embeddedMetadata;
-    finishPresentedImageLoad(session,
-        presentPredecodedImageLoad(
-            m_pageSurfaceController, std::move(image), m_presentationRuntime.renderContext()),
-        std::move(metadata));
-}
-
-void ImageOpenController::finishDecodedImageLoad(ImageLoadSession session, DecodedImage image)
-{
-    EmbeddedMetadata metadata = decodedImageEmbeddedMetadata(image);
-    finishPresentedImageLoad(session,
-        presentDecodedImageLoad(m_pageSurfaceController, std::move(image), session.location(),
-            ImagePresentationAnimationHandling::StartAnimation,
-            m_presentationRuntime.renderContext()),
-        std::move(metadata));
-}
-
-void ImageOpenController::finishPresentedImageLoad(
-    const ImageLoadSession& session, ImagePresentationLoadResult result, EmbeddedMetadata metadata)
-{
-    if (!result.presented) {
-        finishLoadWithError(session,
-            imagePresentationFailure(
-                session, imageErrorText(ImageErrorTextId::DecodeImageAnimation)));
+    if (m_callbacks.prepareViewportImageTarget
+        && m_callbacks.prepareViewportImageTarget(session, std::move(predecoded))) {
         return;
     }
-
-    invokeIfSet(m_callbacks.commitPrimaryPageSlot, session.location());
-    finishSuccessfulImageLoad(session, std::move(metadata));
+    finishLoadWithError(session,
+        imagePresentationFailure(session, imageErrorText(ImageErrorTextId::DecodeImageAnimation)));
 }
 
 void ImageOpenController::finishLoadWithError(
     const ImageLoadSession& session, ImageLoadFailure failure)
 {
-    m_pageSurfaceController.clearShadowDisplayImage();
-    m_pageSurfaceController.clearSameScopeImageNavigationRetention();
-    const QString userMessage = loadFailureUserMessage(failure);
-    const ImageLoadFailure normalizedFailure = withUserMessage(std::move(failure), userMessage);
+    failure.userMessage = loadFailureUserMessage(failure);
     reportRuntimePlan(applyImageOpenApplicationPlan(
-        m_state, ImageOpenWorkflow::finishLoadWithErrorPlan(session, normalizedFailure)));
+        m_state, ImageOpenWorkflow::finishLoadWithErrorPlan(session, failure)));
 }
 
 void ImageOpenController::finishSuccessfulImageLoad(

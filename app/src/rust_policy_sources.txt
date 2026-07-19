@@ -22,7 +22,6 @@ src/policy/imageactionavailability.rs
 src/policy/imageformatregistry.rs
 src/policy/imageinputclassification.rs
 src/policy/mediaformatregistry.rs
-src/policy/imagemath.rs
 src/policy/imagedocumentpagenavigation.rs
 src/policy/imageopenworkflow.rs
 src/policy/imageopenworkflow/source_load.rs
@@ -30,11 +29,8 @@ src/policy/imageopenworkflow/source_load/tests.rs
 src/policy/imageopenworkflow/transition.rs
 src/policy/imageopenworkflow/transition/tests.rs
 src/policy/imagerendergeometry.rs
-src/policy/imagespreadgeometry.rs
 src/policy/imagespreadnavigation.rs
 src/policy/imagespreadpolicy.rs
-src/policy/imageviewportgeometry.rs
-src/policy/imagezoomstate.rs
 src/policy/predecodepolicy.rs
 src/policy/predecodepolicy/cache_retention.rs
 src/policy/predecodepolicy/config.rs

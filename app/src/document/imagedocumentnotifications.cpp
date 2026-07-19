@@ -3,15 +3,7 @@
 
 #include "imagedocumentnotifications.h"
 
-#include "presentation/imagezoomstate.h"
-
 namespace kiriview {
-std::vector<ImageDocumentChange> imageDocumentSpreadTransitionNotifications()
-{
-    return { ImageDocumentChange::PresentationTransitionState, ImageDocumentChange::Status,
-        ImageDocumentChange::Loading };
-}
-
 std::vector<ImageDocumentChange> imageDocumentDisplayedLocationNotifications(
     bool displayedUrlChanged, bool windowTitleFileNameChanged)
 {
@@ -27,73 +19,17 @@ std::vector<ImageDocumentChange> imageDocumentDisplayedLocationNotifications(
 
 std::vector<ImageDocumentChange> imageDocumentTwoPageModeNotifications()
 {
-    return { ImageDocumentChange::TwoPageMode, ImageDocumentChange::ImageSize,
-        ImageDocumentChange::DisplaySize, ImageDocumentChange::ZoomPercent,
-        ImageDocumentChange::ZoomMode, ImageDocumentChange::MaximumManualZoomPercent,
-        ImageDocumentChange::DisplaySource };
-}
-
-std::vector<ImageDocumentChange> imageDocumentSpreadZoomNotifications(ImageZoomChangeSet changes)
-{
-    std::vector<ImageDocumentChange> notifications;
-    bool twoPageMode = false;
-
-    if (changes.viewportSizeChanged) {
-        notifications.push_back(ImageDocumentChange::ViewportSize);
-    }
-    if (changes.zoomModeChanged) {
-        notifications.push_back(ImageDocumentChange::ZoomMode);
-    }
-    if (changes.zoomPercentChanged) {
-        notifications.push_back(ImageDocumentChange::ZoomPercent);
-    }
-    if (changes.displaySizeChanged || changes.viewportSizeChanged) {
-        notifications.push_back(ImageDocumentChange::DisplaySize);
-        twoPageMode = changes.displaySizeChanged;
-    }
-    if (changes.maximumManualZoomPercentChanged) {
-        notifications.push_back(ImageDocumentChange::MaximumManualZoomPercent);
-    }
-    if (twoPageMode) {
-        notifications.push_back(ImageDocumentChange::TwoPageMode);
-    }
-
-    return notifications;
+    return { ImageDocumentChange::TwoPageMode };
 }
 
 std::vector<ImageDocumentChange> imageDocumentRightToLeftReadingNotifications(
     bool secondaryPageVisible)
 {
-    std::vector<ImageDocumentChange> changes { ImageDocumentChange::RightToLeftReading,
-        ImageDocumentChange::DisplaySource };
+    std::vector<ImageDocumentChange> changes { ImageDocumentChange::RightToLeftReading };
     if (secondaryPageVisible) {
         changes.push_back(ImageDocumentChange::TwoPageMode);
     }
     return changes;
 }
 
-std::vector<ImageDocumentChange> imageDocumentPresentationZoomNotifications(
-    ImageZoomChangeSet changes)
-{
-    std::vector<ImageDocumentChange> notifications;
-    if (changes.imageSizeChanged) {
-        notifications.push_back(ImageDocumentChange::ImageSize);
-    }
-    if (changes.viewportSizeChanged) {
-        notifications.push_back(ImageDocumentChange::ViewportSize);
-    }
-    if (changes.zoomModeChanged) {
-        notifications.push_back(ImageDocumentChange::ZoomMode);
-    }
-    if (changes.zoomPercentChanged) {
-        notifications.push_back(ImageDocumentChange::ZoomPercent);
-    }
-    if (changes.displaySizeChanged) {
-        notifications.push_back(ImageDocumentChange::DisplaySize);
-    }
-    if (changes.maximumManualZoomPercentChanged) {
-        notifications.push_back(ImageDocumentChange::MaximumManualZoomPercent);
-    }
-    return notifications;
-}
 }

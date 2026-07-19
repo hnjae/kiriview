@@ -9,16 +9,17 @@ import org.hnjae.kiriview
 MediaViewportDelegate {
     id: root
 
-    property alias imageView: primaryDisplayImagePage
-    property alias flickable: imageFlickable
     readonly property var imageDocument: root.documentSession.imageDocument
     property bool imageReady: root.presentationActive && root.documentSession.activeImageReady
     readonly property int minimumManualZoomPercent: root.imageDocument.minimumManualZoomPercent
     readonly property int maximumManualZoomPercent: root.imageDocument.maximumManualZoomPercent
     readonly property bool imageHorizontallyPannable: root.presentationActive && root.imageDocument.viewportHorizontallyPannable
     readonly property bool imagePannable: root.presentationActive && root.imageDocument.viewportPannable
-    readonly property real viewportWidth: imageFlickable.width
-    readonly property real viewportHeight: imageFlickable.height
+    readonly property real viewportWidth: width
+    readonly property real viewportHeight: height
+    property string observedDisplayedUrl: ""
+    property bool observedLoading: false
+    property bool observedTwoPageModeEnabled: false
 
     imageInteractionSurface: ImageViewportInteractionSurface {
         imageHorizontallyPannable: root.imageHorizontallyPannable
@@ -47,23 +48,28 @@ MediaViewportDelegate {
         }
     }
 
-    LoggingCategory {
-        id: inputLog
-
-        name: "org.hnjae.kiriview.input"
-        defaultLogLevel: LoggingCategory.Warning
-    }
-
-    function moveContentPosition(contentPosition) {
-        return viewportCommandBridge.requestContentPosition(contentPosition);
-    }
-
-    function observeViewportContentPosition(origin) {
-        return viewportCommandBridge.observeViewportContentPosition(origin);
-    }
-
     function setNextDisplayedImageStartToFinalScanPosition() {
         root.imageDocument.requestNextDisplayedImageStartToFinalScanPosition();
+    }
+
+    function resetPanGesture() {
+        dragPanHandler.previousTranslation = Qt.point(0, 0);
+    }
+
+    function synchronizeTargetObservation() {
+        const displayedUrl = root.imageDocument.displayedUrl.toString();
+        const loading = root.imageDocument.loading;
+        const twoPageModeEnabled = root.imageDocument.twoPageModeEnabled;
+        const displayedUrlChanged = displayedUrl !== root.observedDisplayedUrl;
+        if (displayedUrlChanged || (loading && !root.observedLoading) || twoPageModeEnabled !== root.observedTwoPageModeEnabled) {
+            root.resetPanGesture();
+        }
+        root.observedDisplayedUrl = displayedUrl;
+        root.observedLoading = loading;
+        root.observedTwoPageModeEnabled = twoPageModeEnabled;
+        if (displayedUrlChanged) {
+            root.applyDisplayedImageInitialContentPosition();
+        }
     }
 
     function applyDisplayedImageInitialContentPosition() {
@@ -71,30 +77,23 @@ MediaViewportDelegate {
     }
 
     function panBy(deltaX, deltaY) {
-        const moved = root.imageDocument.requestViewportPanBy(deltaX, deltaY);
-        return moved;
+        return root.imageDocument.requestViewportPanBy(deltaX, deltaY);
     }
 
     function panToBottomRight() {
-        const moved = root.imageDocument.requestViewportPanToFinalScanPosition();
-        return moved;
+        return root.imageDocument.requestViewportPanToFinalScanPosition();
     }
 
     function panToTopLeft() {
-        const moved = root.imageDocument.requestViewportPanToInitialScanPosition();
-        return moved;
+        return root.imageDocument.requestViewportPanToInitialScanPosition();
     }
 
     function viewportPointInsideImage(viewportX, viewportY) {
-        if (!imageReady || imageView.width <= 0 || imageView.height <= 0) {
-            return false;
-        }
-
-        return root.imageDocument.viewportPointInsideImage(Qt.point(viewportX, viewportY));
+        return root.imageReady && root.imageDocument.viewportPointInsideImage(Qt.point(viewportX, viewportY));
     }
 
     function nearestImageViewportPoint(viewportX, viewportY) {
-        if (!imageReady || imageView.width <= 0 || imageView.height <= 0) {
+        if (!root.imageReady) {
             return null;
         }
 
@@ -103,191 +102,152 @@ MediaViewportDelegate {
     }
 
     function zoomByStep(stepCount, viewportX, viewportY) {
-        if (!imageReady) {
-            return false;
-        }
-
-        const zoomed = root.imageDocument.requestZoomByStep(stepCount, Qt.point(viewportX, viewportY));
-        return zoomed;
+        return root.imageReady && root.imageDocument.requestZoomByStep(stepCount, Qt.point(viewportX, viewportY));
     }
 
     function toggleFitOrActualSize(viewportX, viewportY) {
-        if (!imageReady) {
-            return false;
-        }
-
-        const toggled = root.imageDocument.requestToggleFitOrActualSize(Qt.point(viewportX, viewportY));
-        return toggled;
+        return root.imageReady && root.imageDocument.requestToggleFitOrActualSize(Qt.point(viewportX, viewportY));
     }
 
-    function wheelViewportPoint(wheel) {
-        return Qt.point(wheel.x - imageFlickable.contentX, wheel.y - imageFlickable.contentY);
-    }
-
-    function handleWheelZoom(wheel, inputGesture) {
+    function handleWheelZoom(wheel) {
         const stepCount = wheelZoomPolicy.stepCount(wheel);
-        const viewportPoint = root.wheelViewportPoint(wheel);
-        const insideImage = root.viewportPointInsideImage(viewportPoint.x, viewportPoint.y);
-        const anchorPoint = root.nearestImageViewportPoint(viewportPoint.x, viewportPoint.y);
-        console.debug(inputLog, "wheel zoom received", "gesture", inputGesture, "rawX", wheel.x, "rawY", wheel.y, "viewportX", viewportPoint.x, "viewportY", viewportPoint.y, "anchorX", anchorPoint === null ? NaN : anchorPoint.x, "anchorY", anchorPoint === null ? NaN : anchorPoint.y, "pixelDelta", wheel.pixelDelta, "angleDelta", wheel.angleDelta, "stepCount", stepCount, "insideImage", insideImage, "zoomPercent", root.imageDocument.zoomPercent, "contentX", imageFlickable.contentX, "contentY", imageFlickable.contentY, "contentWidth", imageFlickable.contentWidth, "contentHeight", imageFlickable.contentHeight, "viewportWidth", imageFlickable.width, "viewportHeight", imageFlickable.height);
-
+        const anchorPoint = root.nearestImageViewportPoint(wheel.x, wheel.y);
         if (stepCount === 0 || anchorPoint === null) {
-            console.debug(inputLog, "wheel zoom ignored", "gesture", inputGesture, "reason", stepCount === 0 ? "zero-step" : "missing-anchor", "rawX", wheel.x, "rawY", wheel.y, "viewportX", viewportPoint.x, "viewportY", viewportPoint.y);
             wheel.accepted = false;
-            return false;
+            return;
         }
 
-        const previousZoomPercent = root.imageDocument.zoomPercent;
-        const previousContentX = imageFlickable.contentX;
-        const previousContentY = imageFlickable.contentY;
-        const zoomed = root.zoomByStep(stepCount, anchorPoint.x, anchorPoint.y);
-        console.debug(inputLog, "wheel zoom applied", "gesture", inputGesture, "applied", zoomed, "previousZoomPercent", previousZoomPercent, "nextZoomPercent", root.imageDocument.zoomPercent, "previousContentX", previousContentX, "previousContentY", previousContentY, "nextContentX", imageFlickable.contentX, "nextContentY", imageFlickable.contentY);
-        wheel.accepted = true;
-        return true;
+        wheel.accepted = root.zoomByStep(stepCount, anchorPoint.x, anchorPoint.y);
     }
 
     ZoomWheelStepPolicy {
         id: wheelZoomPolicy
     }
 
-    Binding {
-        target: root.imageDocument
-        property: "viewportSize"
-        value: Qt.size(imageFlickable.width, imageFlickable.height)
-        when: root.presentationActive && root.imageDocument !== null
-    }
-
     Connections {
         target: root.presentationActive ? root.imageDocument : null
 
         function onDisplayedUrlChanged() {
-            root.applyDisplayedImageInitialContentPosition();
+            root.synchronizeTargetObservation();
+        }
+
+        function onStatusChanged() {
+            root.synchronizeTargetObservation();
+        }
+
+        function onTwoPageModeChanged() {
+            root.synchronizeTargetObservation();
         }
     }
 
-    KiriImageViewportCommandBridge {
-        id: viewportCommandBridge
+    Connections {
+        target: root
 
-        active: root.presentationActive
-        document: root.presentationActive ? root.imageDocument : null
-        target: imageFlickable
+        function onPresentationActiveChanged() {
+            root.resetPanGesture();
+            if (root.presentationActive) {
+                root.synchronizeTargetObservation();
+            } else {
+                root.observedDisplayedUrl = "";
+                root.observedLoading = false;
+                root.observedTwoPageModeEnabled = false;
+            }
+        }
     }
 
-    Flickable {
-        id: imageFlickable
+    KiriImageViewportSurface {
+        id: viewportSurface
 
         anchors.fill: parent
-        boundsBehavior: Flickable.StopAtBounds
-        clip: true
-        contentHeight: root.presentationActive ? root.imageDocument.viewportContentSize.height : height
-        contentWidth: root.presentationActive ? root.imageDocument.viewportContentSize.width : width
-        interactive: root.imageReady && root.imagePannable
+        document: root.presentationActive ? root.imageDocument : null
+        objectName: "imageViewportSurface"
+    }
 
-        onMovementEnded: root.observeViewportContentPosition(KiriImageDocument.Inertia)
+    WheelHandler {
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        acceptedModifiers: Qt.ControlModifier
+        blocking: true
+        enabled: root.imageReady
+        target: null
 
-        Controls.ScrollBar.horizontal: Controls.ScrollBar {
-            policy: root.imageHorizontallyPannable ? Controls.ScrollBar.AsNeeded : Controls.ScrollBar.AlwaysOff
+        onWheel: wheel => root.handleWheelZoom(wheel)
+    }
+
+    WheelHandler {
+        acceptedButtons: Qt.RightButton
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        acceptedModifiers: Qt.NoModifier
+        blocking: true
+        enabled: root.imageReady && root.contextMenuButtonPressed
+        target: null
+
+        onWheel: wheel => {
+            if ((wheel.buttons & Qt.RightButton) === 0) {
+                wheel.accepted = false;
+                return;
+            }
+
+            root.markContextMenuTapSuppressed();
+            root.handleWheelZoom(wheel);
         }
+    }
 
-        Controls.ScrollBar.vertical: Controls.ScrollBar {
-            policy: root.presentationActive && root.imageDocument.viewportVerticallyPannable ? Controls.ScrollBar.AsNeeded : Controls.ScrollBar.AlwaysOff
+    DragHandler {
+        id: dragPanHandler
+
+        property point previousTranslation: Qt.point(0, 0)
+
+        acceptedButtons: Qt.LeftButton
+        enabled: root.imageReady && root.imagePannable
+        target: null
+
+        onActiveChanged: {
+            previousTranslation = Qt.point(0, 0);
         }
+        onTranslationChanged: {
+            if (!active) {
+                previousTranslation = Qt.point(0, 0);
+                return;
+            }
 
-        WheelHandler {
-            id: ctrlZoomWheelHandler
+            const panDelta = Qt.point(translation.x - previousTranslation.x, translation.y - previousTranslation.y);
+            previousTranslation = translation;
+            root.panBy(-panDelta.x, -panDelta.y);
+        }
+    }
 
-            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-            acceptedModifiers: Qt.ControlModifier
-            blocking: true
-            enabled: root.imageReady
-            target: null
+    Controls.ScrollBar {
+        id: horizontalScrollBar
 
-            onWheel: wheel => {
-                root.handleWheelZoom(wheel, "ctrl");
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: verticalScrollBar.visible ? verticalScrollBar.left : parent.right
+        orientation: Qt.Horizontal
+        policy: root.imageHorizontallyPannable ? Controls.ScrollBar.AsNeeded : Controls.ScrollBar.AlwaysOff
+        position: root.presentationActive ? root.imageDocument.horizontalScrollPosition : 0
+        size: root.presentationActive ? root.imageDocument.horizontalScrollPageSize : 1
+
+        onPositionChanged: {
+            if (pressed) {
+                root.imageDocument.submitHorizontalScrollPosition(position);
             }
         }
+    }
 
-        WheelHandler {
-            id: rightButtonZoomWheelHandler
+    Controls.ScrollBar {
+        id: verticalScrollBar
 
-            acceptedButtons: Qt.RightButton
-            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-            acceptedModifiers: Qt.NoModifier
-            blocking: true
-            enabled: root.imageReady && root.contextMenuButtonPressed
-            target: null
+        anchors.bottom: horizontalScrollBar.visible ? horizontalScrollBar.top : parent.bottom
+        anchors.right: parent.right
+        anchors.top: parent.top
+        orientation: Qt.Vertical
+        policy: root.presentationActive && root.imageDocument.viewportVerticallyPannable ? Controls.ScrollBar.AsNeeded : Controls.ScrollBar.AlwaysOff
+        position: root.presentationActive ? root.imageDocument.verticalScrollPosition : 0
+        size: root.presentationActive ? root.imageDocument.verticalScrollPageSize : 1
 
-            onWheel: wheel => {
-                if ((wheel.buttons & Qt.RightButton) === 0) {
-                    wheel.accepted = false;
-                    return;
-                }
-
-                root.markContextMenuTapSuppressed();
-                root.handleWheelZoom(wheel, "right-button");
-            }
-        }
-
-        Item {
-            id: spreadItem
-
-            height: root.imageReady ? root.imageDocument.displayHeight : 0
-            width: root.imageReady ? root.imageDocument.displayWidth : 0
-            x: root.imageReady ? root.imageDocument.viewportImageRect.x : 0
-            y: root.imageReady ? root.imageDocument.viewportImageRect.y : 0
-
-            DisplayImagePage {
-                id: primaryDisplayImagePage
-
-                displaySource: root.presentationActive ? root.imageDocument.primaryDisplaySource : null
-                height: root.imageReady ? root.imageDocument.primaryDisplayHeight : 0
-                objectName: "primaryDisplayImagePage"
-                width: root.imageReady ? root.imageDocument.primaryDisplayWidth : 0
-                x: root.presentationActive && root.imageDocument.secondaryPageVisible && root.documentSession.activeImageRightToLeftReadingActive ? secondaryDisplayImagePage.width : 0
-                y: Math.max(0, (spreadItem.height - height) / 2)
-
-                onLoadOutcomeAcknowledged: (providerUrl, revisionToken, sourceIdentity, outcome) => {
-                    root.imageDocument.acknowledgeDisplayImageLoad(displaySource.pageRole, providerUrl, revisionToken, sourceIdentity, outcome);
-                }
-            }
-
-            DisplayImagePage {
-                id: secondaryDisplayImagePage
-
-                displaySource: root.presentationActive ? root.imageDocument.secondaryDisplaySource : null
-                height: root.imageReady ? root.imageDocument.secondaryDisplayHeight : 0
-                objectName: "secondaryDisplayImagePage"
-                width: root.imageReady ? root.imageDocument.secondaryDisplayWidth : 0
-                x: root.presentationActive && root.documentSession.activeImageRightToLeftReadingActive ? 0 : primaryDisplayImagePage.width
-                y: Math.max(0, (spreadItem.height - height) / 2)
-
-                onLoadOutcomeAcknowledged: (providerUrl, revisionToken, sourceIdentity, outcome) => {
-                    root.imageDocument.acknowledgeDisplayImageLoad(displaySource.pageRole, providerUrl, revisionToken, sourceIdentity, outcome);
-                }
-            }
-
-            KiriImageViewportContextBridge {
-                id: primaryContextBridge
-
-                document: root.presentationActive ? root.imageDocument : null
-                height: primaryDisplayImagePage.height
-                objectName: "primaryContextBridge"
-                width: primaryDisplayImagePage.width
-                x: primaryDisplayImagePage.x
-                y: primaryDisplayImagePage.y
-            }
-
-            KiriImageViewportContextBridge {
-                id: secondaryContextBridge
-
-                document: root.presentationActive ? root.imageDocument : null
-                height: secondaryDisplayImagePage.height
-                objectName: "secondaryContextBridge"
-                secondaryPage: true
-                visible: secondaryDisplayImagePage.visible
-                width: secondaryDisplayImagePage.width
-                x: secondaryDisplayImagePage.x
-                y: secondaryDisplayImagePage.y
+        onPositionChanged: {
+            if (pressed) {
+                root.imageDocument.submitVerticalScrollPosition(position);
             }
         }
     }
@@ -303,45 +263,20 @@ MediaViewportDelegate {
         onTriggered: root.viewerClicked()
     }
 
-    MouseArea {
-        id: leftClickMouseArea
-
-        property bool suppressNextSingleClick: false
+    TapHandler {
+        id: clickHandler
 
         acceptedButtons: Qt.LeftButton
-        anchors.fill: parent
-        preventStealing: false
 
-        onClicked: mouse => {
-            if (leftClickMouseArea.suppressNextSingleClick) {
-                leftClickMouseArea.suppressNextSingleClick = false;
-                mouse.accepted = true;
-                return;
-            }
-
-            singleClickTimer.restart();
-        }
-        onDoubleClicked: mouse => {
-            leftClickMouseArea.suppressNextSingleClick = true;
+        onDoubleTapped: eventPoint => {
             singleClickTimer.stop();
-            root.toggleFitOrActualSize(mouse.x, mouse.y);
+            root.toggleFitOrActualSize(eventPoint.position.x, eventPoint.position.y);
         }
+        onTapped: singleClickTimer.restart()
     }
 
     HoverHandler {
-        id: imageHoverHandler
-
-        cursorShape: {
-            if (!root.imagePannable) {
-                return Qt.ArrowCursor;
-            }
-
-            if (imageFlickable.draggingHorizontally || imageFlickable.draggingVertically) {
-                return Qt.ClosedHandCursor;
-            }
-
-            return Qt.OpenHandCursor;
-        }
+        cursorShape: !root.imagePannable ? Qt.ArrowCursor : dragPanHandler.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor
         enabled: root.imageReady
     }
 }

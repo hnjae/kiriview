@@ -9,19 +9,11 @@ ImageDocumentRuntimePlan imageDocumentClearImagePlan()
     return {
         ClearMediaEntrySourceOperation {},
         ClearPredecodeOperation {},
-        FinishSpreadTransitionOperation {},
         ClearSecondaryPageOperation {},
         CancelPageNavigationUpdateOperation {},
         ClearDisplayedImageLocationOperation {},
         ClearPresentationImageOperation {},
         ClearPageNavigationOperation {},
-        NotifyRightToLeftReadingChangedOperation {},
-    };
-}
-
-ImageDocumentRuntimePlan imageDocumentClearLoadingPresentationPlan()
-{
-    return {
         NotifyRightToLeftReadingChangedOperation {},
     };
 }
@@ -33,7 +25,6 @@ ImageDocumentRuntimePlan imageDocumentClearDeletedImagePlan()
         CancelAllNavigationOperation {},
         CancelPredecodeOperation {},
         CancelOpenOperation {},
-        FinishSpreadTransitionOperation {},
         ClearSecondaryPageOperation {},
         SetSourceUrlOperation { ImageDocumentPageTarget {} },
         SetErrorStringOperation { QString() },
@@ -45,7 +36,6 @@ ImageDocumentRuntimePlan imageDocumentShutdownPlan()
 {
     return {
         CancelFileDeletionOperation {},
-        StopPresentationAnimationOperation {},
         ShutdownSpreadOperation {},
         CancelPredecodeOperation {},
         CancelAllNavigationOperation {},

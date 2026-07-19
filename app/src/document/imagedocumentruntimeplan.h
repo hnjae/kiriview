@@ -18,9 +18,6 @@ namespace kiriview {
 struct CancelFileDeletionOperation
 {
 };
-struct StopPresentationAnimationOperation
-{
-};
 struct ShutdownSpreadOperation
 {
 };
@@ -38,27 +35,14 @@ struct ScheduleAdjacentImagePredecodeOperation
     std::optional<ImageDocumentPageTarget> target;
     int targetPageIndex = -1;
 };
-struct FinishSpreadTransitionOperation
-{
-};
 struct ResetRightToLeftReadingOperation
 {
 };
 struct ClearSecondaryPageOperation
 {
 };
-struct BeginSameScopeImageNavigationPresentationOperation
-{
-};
 struct NotifyRightToLeftReadingChangedOperation
 {
-};
-struct ResetZoomOperation
-{
-};
-struct PrepareFailedContainerOperation
-{
-    QUrl containerUrl;
 };
 struct CancelPageNavigationUpdateOperation
 {
@@ -151,11 +135,10 @@ struct FinishEmptySourceLoadOperation
 };
 
 using ImageDocumentRuntimeOperation = std::variant<CancelFileDeletionOperation,
-    StopPresentationAnimationOperation, ShutdownSpreadOperation, ClearMediaEntrySourceOperation,
-    ClearPredecodeOperation, CancelPredecodeOperation, ScheduleAdjacentImagePredecodeOperation,
-    FinishSpreadTransitionOperation, ResetRightToLeftReadingOperation, ClearSecondaryPageOperation,
-    BeginSameScopeImageNavigationPresentationOperation, NotifyRightToLeftReadingChangedOperation,
-    ResetZoomOperation, PrepareFailedContainerOperation, CancelPageNavigationUpdateOperation,
+    ShutdownSpreadOperation, ClearMediaEntrySourceOperation, ClearPredecodeOperation,
+    CancelPredecodeOperation, ScheduleAdjacentImagePredecodeOperation,
+    ResetRightToLeftReadingOperation, ClearSecondaryPageOperation,
+    NotifyRightToLeftReadingChangedOperation, CancelPageNavigationUpdateOperation,
     CancelNavigationOperation, CancelContainerNavigationOperation, CancelAllNavigationOperation,
     ClearPageNavigationOperation, UpdatePageNavigationOperation, LoadUrlOperation,
     LoadContainerImageOperation, FinishEmptyContainerNavigationOperation,
@@ -175,7 +158,6 @@ struct ImageDocumentRuntimeTransaction
 };
 
 ImageDocumentRuntimePlan imageDocumentClearImagePlan();
-ImageDocumentRuntimePlan imageDocumentClearLoadingPresentationPlan();
 ImageDocumentRuntimePlan imageDocumentClearDeletedImagePlan();
 ImageDocumentRuntimePlan imageDocumentShutdownPlan();
 }

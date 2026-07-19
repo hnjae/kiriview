@@ -12,10 +12,11 @@ ImageDocumentPrimaryPageSlotPort::ImageDocumentPrimaryPageSlotPort(
 {
 }
 
-void ImageDocumentPrimaryPageSlotPort::commit(const DisplayedImageLocation& location) const
+void ImageDocumentPrimaryPageSlotPort::commit(
+    const DisplayedImageLocation& location, QSize imageSize) const
 {
     if (m_spreadController != nullptr) {
-        m_spreadController->commitPrimaryPageSlot(location);
+        m_spreadController->commitPrimaryPageSlot(location, imageSize);
     }
 }
 

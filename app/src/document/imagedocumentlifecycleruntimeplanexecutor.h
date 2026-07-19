@@ -12,7 +12,6 @@ namespace kiriview {
 struct ImageDocumentLifecycleRuntimeOperations
 {
     std::function<void()> cancelFileDeletion;
-    std::function<void()> stopPresentationAnimation;
     std::function<void()> shutdownSpread;
 };
 

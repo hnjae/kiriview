@@ -234,9 +234,7 @@ void TestImageViewportSequenceProvider::readerOrientationProducesNormalizedFrame
         },
         {},
         [&prepared](kiriview::ImageViewportProviderWorkIdentity,
-            kiriview::ImageViewportProviderPreparedFrame result) {
-            prepared = std::move(result);
-        });
+            kiriview::ImageViewportProviderPreparedFrame result) { prepared = std::move(result); });
     QScopedPointer<ImageSequenceProviderFrameHandle> handle(
         fixture.resource->acquireFrameHandle(prepared));
     QVERIFY(handle);

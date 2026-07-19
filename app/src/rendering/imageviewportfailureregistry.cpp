@@ -74,12 +74,9 @@ ImageSequenceProviderFailureHandle* ImageViewportFailureRegistry::registerFailur
     };
 
     const auto reference = std::make_shared<ReferenceBox>();
-    const std::weak_ptr<State> weakState = m_state;
-    auto* handle = new ImageSequenceProviderFailureHandle([weakState, reference]() {
-        if (const std::shared_ptr<State> state = weakState.lock()) {
-            state->retire(reference->reference);
-        }
-    });
+    const std::shared_ptr<State> state = m_state;
+    auto* handle = new ImageSequenceProviderFailureHandle(
+        [state, reference]() { state->retire(reference->reference); });
     reference->reference = handle->reference();
     m_state->insert(reference->reference, std::move(failure));
     return handle;

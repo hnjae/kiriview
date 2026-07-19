@@ -5,9 +5,6 @@
 #include "document/imagedocumentstate.h"
 #include "image_test_support.h"
 #include "navigation/imagedocumentpagecandidaterepository.h"
-#include "presentation/imagepagesurfacecontroller.h"
-#include "presentation/imagepresentationruntime.h"
-#include "rendering/imagerendering.h"
 
 #include <QObject>
 #include <QSize>
@@ -36,32 +33,6 @@ using FakeCandidateProvider = kiriview::TestSupport::FakeImageDocumentPageCandid
 
 constexpr qsizetype testCacheByteBudget = 1024 * 1024;
 
-kiriview::ImageCacheBudgets testCacheBudgets()
-{
-    return kiriview::ImageCacheBudgets {
-        testCacheByteBudget,
-        testCacheByteBudget,
-    };
-}
-
-kiriview::ImageDocumentRenderContext renderContext()
-{
-    return kiriview::ImageDocumentRenderContext {
-        2.0,
-        kiriview::fallbackTextureSizeMax,
-    };
-}
-
-kiriview::ImagePageSurfaceController createPageSurfaceController(QObject* parent)
-{
-    return kiriview::ImagePageSurfaceController(parent, {}, testCacheBudgets());
-}
-
-kiriview::ImagePresentationRuntime createPresentationRuntime()
-{
-    return kiriview::ImagePresentationRuntime(renderContext);
-}
-
 kiriview::ImageWorkerScheduler immediateWorkerScheduler()
 {
     return kiriview::ImageWorkerScheduler([](QObject*, kiriview::ImageWorkerOperation work,
@@ -80,6 +51,15 @@ kiriview::StaticDisplayImagePayload displayTestImagePayload(
         : kiriview::DisplayImageQuality::Exact;
     return staticDisplayTestImagePayload(image, image, firstDisplayPixelsPerSourcePixel, quality);
 }
+
+kiriview::DisplayedPredecodeImage displayedPredecodeImage(
+    const kiriview::DisplayedImageLocation& location, kiriview::StaticDisplayImagePayload payload,
+    bool cacheable = true)
+{
+    return { location, cacheable, std::move(payload), {} };
+}
+
+kiriview::ImageFirstDisplayDecodeContext firstDisplayContext() { return { QSize(640, 480) }; }
 
 kiriview::ImageDocumentPageCandidateListSnapshot pageCandidateListSnapshot(
     kiriview::ImageDocumentPageCandidateListSource source,
@@ -139,11 +119,11 @@ void TestImageDocumentPredecodeController::scheduleAdjacentImagePredecodeUsesPre
     FakeCandidateProvider candidateProvider;
     ManualImageDataLoader dataLoader;
     kiriview::ImageDocumentState state;
-    kiriview::ImagePageSurfaceController pageSurface = createPageSurfaceController(this);
-    kiriview::ImagePresentationRuntime presentationRuntime = createPresentationRuntime();
-    kiriview::ImageDocumentPredecodeController controller(this, state, pageSurface,
-        presentationRuntime, imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()),
-        testCacheByteBudget, {}, candidateSnapshotOwner(this, candidateProvider.provider()));
+    std::optional<kiriview::DisplayedPredecodeImage> primary;
+    kiriview::ImageDocumentPredecodeController controller(
+        this, state, [&primary]() { return primary; }, firstDisplayContext,
+        imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget, {},
+        candidateSnapshotOwner(this, candidateProvider.provider()));
 
     const QUrl displayedUrl = indexedImageUrl(1);
     const QUrl nextUrl = indexedImageUrl(2);
@@ -154,9 +134,8 @@ void TestImageDocumentPredecodeController::scheduleAdjacentImagePredecodeUsesPre
         });
 
     state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromUrl(displayedUrl));
-    presentationRuntime.setViewportSize(QSizeF(320.0, 240.0));
-    pageSurface.setStaticDisplayImage(
-        displayTestImagePayload(testImage(QSize(10, 8)), 0.5), true, renderContext());
+    primary = displayedPredecodeImage(
+        state.displayedImageLocation(), displayTestImagePayload(testImage(QSize(10, 8)), 0.5));
 
     controller.scheduleAdjacentImagePredecode();
 
@@ -177,8 +156,7 @@ void TestImageDocumentPredecodeController::
     FakeCandidateProvider candidateProvider;
     ManualImageDataLoader dataLoader;
     kiriview::ImageDocumentState state;
-    kiriview::ImagePageSurfaceController pageSurface = createPageSurfaceController(this);
-    kiriview::ImagePresentationRuntime presentationRuntime = createPresentationRuntime();
+    std::optional<kiriview::DisplayedPredecodeImage> primary;
     const kiriview::OpenedCollectionScopeLocation directoryCollection
         = kiriview::OpenedCollectionScopeLocation::fromUrls(imagesDirectoryUrl(),
             imagesDirectoryUrl(), kiriview::OpenedCollectionScopeKind::Directory);
@@ -188,7 +166,7 @@ void TestImageDocumentPredecodeController::
     candidateProvider.setOpenedCollectionCandidateError(
         directoryCollection.rootUrl(), QStringLiteral("unexpected listing"));
     kiriview::ImageDocumentPredecodeController controller(
-        this, state, pageSurface, presentationRuntime,
+        this, state, [&primary]() { return primary; }, firstDisplayContext,
         imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget,
         []() { return 2; },
         [directoryCollection, previousUrl, displayedUrl, nextUrl](
@@ -209,7 +187,8 @@ void TestImageDocumentPredecodeController::
 
     state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
         displayedUrl, directoryCollection));
-    pageSurface.setStaticDisplayImage(displayTestImagePayload(testImage()), false, renderContext());
+    primary = displayedPredecodeImage(
+        state.displayedImageLocation(), displayTestImagePayload(testImage()), false);
 
     controller.scheduleAdjacentImagePredecode();
 
@@ -224,11 +203,11 @@ void TestImageDocumentPredecodeController::
     FakeCandidateProvider candidateProvider;
     ManualImageDataLoader dataLoader;
     kiriview::ImageDocumentState state;
-    kiriview::ImagePageSurfaceController pageSurface = createPageSurfaceController(this);
-    kiriview::ImagePresentationRuntime presentationRuntime = createPresentationRuntime();
-    kiriview::ImageDocumentPredecodeController controller(this, state, pageSurface,
-        presentationRuntime, imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()),
-        testCacheByteBudget, {}, candidateSnapshotOwner(this, candidateProvider.provider()));
+    std::optional<kiriview::DisplayedPredecodeImage> primary;
+    kiriview::ImageDocumentPredecodeController controller(
+        this, state, [&primary]() { return primary; }, firstDisplayContext,
+        imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget, {},
+        candidateSnapshotOwner(this, candidateProvider.provider()));
 
     const QUrl displayedUrl = indexedImageUrl(1);
     const QUrl oldNextUrl = indexedImageUrl(2);
@@ -243,7 +222,8 @@ void TestImageDocumentPredecodeController::
         });
 
     state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromUrl(displayedUrl));
-    pageSurface.setStaticDisplayImage(displayTestImagePayload(testImage()), true, renderContext());
+    primary = displayedPredecodeImage(
+        state.displayedImageLocation(), displayTestImagePayload(testImage()));
 
     controller.scheduleImageNavigationTargetPredecode(
         kiriview::ImageDocumentPageTarget { targetUrl }, 2);
@@ -258,16 +238,16 @@ void TestImageDocumentPredecodeController::selectedVideoNavigationTargetDoesNotS
     FakeCandidateProvider candidateProvider;
     ManualImageDataLoader dataLoader;
     kiriview::ImageDocumentState state;
-    kiriview::ImagePageSurfaceController pageSurface = createPageSurfaceController(this);
-    kiriview::ImagePresentationRuntime presentationRuntime = createPresentationRuntime();
-    kiriview::ImageDocumentPredecodeController controller(this, state, pageSurface,
-        presentationRuntime, imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()),
-        testCacheByteBudget);
+    std::optional<kiriview::DisplayedPredecodeImage> primary;
+    kiriview::ImageDocumentPredecodeController controller(
+        this, state, [&primary]() { return primary; }, firstDisplayContext,
+        imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget);
 
     const QUrl displayedUrl = indexedImageUrl(1);
     const QUrl videoUrl = QUrl::fromLocalFile(QStringLiteral("/images/02.mp4"));
     state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromUrl(displayedUrl));
-    pageSurface.setStaticDisplayImage(displayTestImagePayload(testImage()), true, renderContext());
+    primary = displayedPredecodeImage(
+        state.displayedImageLocation(), displayTestImagePayload(testImage()));
 
     controller.scheduleImageNavigationTargetPredecode(
         kiriview::ImageDocumentPageTarget {
@@ -285,11 +265,11 @@ void TestImageDocumentPredecodeController::
     FakeCandidateProvider candidateProvider;
     ManualImageDataLoader dataLoader;
     kiriview::ImageDocumentState state;
-    kiriview::ImagePageSurfaceController pageSurface = createPageSurfaceController(this);
-    kiriview::ImagePresentationRuntime presentationRuntime = createPresentationRuntime();
-    kiriview::ImageDocumentPredecodeController controller(this, state, pageSurface,
-        presentationRuntime, imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()),
-        testCacheByteBudget, {}, candidateSnapshotOwner(this, candidateProvider.provider()));
+    std::optional<kiriview::DisplayedPredecodeImage> primary;
+    kiriview::ImageDocumentPredecodeController controller(
+        this, state, [&primary]() { return primary; }, firstDisplayContext,
+        imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget, {},
+        candidateSnapshotOwner(this, candidateProvider.provider()));
 
     const QUrl displayedUrl = indexedImageUrl(1);
     const QUrl nextUrl = indexedImageUrl(2);
@@ -300,11 +280,12 @@ void TestImageDocumentPredecodeController::
         });
 
     state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromUrl(displayedUrl));
-    pageSurface.setStaticDisplayImage(displayTestImagePayload(testImage()), false, renderContext());
+    primary = displayedPredecodeImage(
+        state.displayedImageLocation(), displayTestImagePayload(testImage()), false);
     controller.scheduleAdjacentImagePredecode();
     QTRY_COMPARE(dataLoader.loadCount(), std::size_t(1));
 
-    pageSurface.clearImage();
+    primary.reset();
     controller.scheduleAdjacentImagePredecode();
 
     QVERIFY(dataLoader.frontLoad().canceled);
@@ -320,13 +301,13 @@ void TestImageDocumentPredecodeController::
     ManualPowerSaverMonitor* powerSaverMonitor = nullptr;
     ManualTimerScheduler timerScheduler;
     kiriview::ImageDocumentState state;
-    kiriview::ImagePageSurfaceController pageSurface = createPageSurfaceController(this);
-    kiriview::ImagePresentationRuntime presentationRuntime = createPresentationRuntime();
+    std::optional<kiriview::DisplayedPredecodeImage> primary;
     kiriview::ImageDecodeDependencies decodeDependencies
         = imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder());
     decodeDependencies.workerScheduler = immediateWorkerScheduler();
-    kiriview::ImageDocumentPredecodeController controller(this, state, pageSurface,
-        presentationRuntime, std::move(decodeDependencies), testCacheByteBudget, {},
+    kiriview::ImageDocumentPredecodeController controller(
+        this, state, [&primary]() { return primary; }, firstDisplayContext,
+        std::move(decodeDependencies), testCacheByteBudget, {},
         candidateSnapshotOwner(this, candidateProvider.provider()),
         powerSaverProviderFor(powerSaverMonitor, true), true, timerScheduler.scheduler(),
         []() { return 4; });
@@ -341,7 +322,8 @@ void TestImageDocumentPredecodeController::
         });
 
     state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromUrl(displayedUrl));
-    pageSurface.setStaticDisplayImage(displayTestImagePayload(testImage()), true, renderContext());
+    primary = displayedPredecodeImage(
+        state.displayedImageLocation(), displayTestImagePayload(testImage()));
 
     timerScheduler.advanceTo(1000);
     controller.scheduleAdjacentImagePredecode();

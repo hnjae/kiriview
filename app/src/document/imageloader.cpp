@@ -4,26 +4,12 @@
 #include "imageloader.h"
 
 #include "async/imagecallback.h"
-#include "decoding/decodedimageresult.h"
-#include "decoding/imagedecodelogging.h"
 #include "predecode/predecodelogging.h"
+
 #include <QDebug>
-#include <optional>
 #include <utility>
-#include <vector>
 
 namespace {
-kiriview::ImageLoadFailureSeverity imageLoadFailureSeverity(
-    kiriview::DecodedImageFailureSeverity severity)
-{
-    switch (severity) {
-    case kiriview::DecodedImageFailureSeverity::Error:
-        return kiriview::ImageLoadFailureSeverity::Error;
-    }
-
-    return kiriview::ImageLoadFailureSeverity::Error;
-}
-
 kiriview::ImageLoadFailure imageLoadFailure(const kiriview::ImageLoadSession& session,
     kiriview::ImageLoadFailureKind kind, QString userMessage, QString diagnosticDetail)
 {
@@ -45,95 +31,18 @@ kiriview::ImageLoadFailure imageLoadFailure(const kiriview::ImageLoadSession& se
 {
     return imageLoadFailure(session, kind, errorString, errorString);
 }
-
-kiriview::ImageLoadFailure imageLoadFailure(
-    const kiriview::ImageLoadSession& session, const kiriview::DecodedImageFailure& failure)
-{
-    return kiriview::ImageLoadFailure {
-        session.imageUrl(),
-        session.id(),
-        kiriview::ImageLoadFailureKind::Decode,
-        failure.route,
-        failure.operation,
-        failure.errorString,
-        failure.diagnosticDetail,
-        imageLoadFailureSeverity(failure.severity),
-        failure.retryable,
-    };
-}
 }
 
 namespace kiriview {
 ImageLoader::ImageLoader(QObject* parent)
-    : ImageLoader(parent, ImageDecodeDependencies {})
+    : ImageLoader(parent, {})
 {
 }
 
 ImageLoader::ImageLoader(QObject* parent, Callbacks callbacks)
-    : ImageLoader(parent, ImageDecodeDependencies {}, std::move(callbacks))
-{
-}
-
-ImageLoader::ImageLoader(QObject* parent, ImageDecodeDependencies decodeDependencies)
-    : ImageLoader(parent, std::move(decodeDependencies), {})
-{
-}
-
-ImageLoader::ImageLoader(
-    QObject* parent, ImageDecodeDependencies decodeDependencies, Callbacks callbacks)
     : QObject(parent)
     , m_callbacks(std::move(callbacks))
-    , m_decodeJob(this, std::move(decodeDependencies),
-          ImageDecodeJob::Callbacks {
-              [this](ImageDecodeRequest request, DecodedImageResult result) {
-                  finishDecodeResult(std::move(request), std::move(result));
-              },
-              [this](const ImageDecodeRequest& request, const QString& errorString) {
-                  finishImageLoadError(request, errorString);
-              },
-              [this](const ImageDecodeRequest& request, StaticDisplayImagePayload preview) {
-                  finishThumbnailPreview(request, std::move(preview));
-              },
-          })
 {
-}
-
-void ImageLoader::finishDecodeResult(ImageDecodeRequest request, DecodedImageResult result)
-{
-    if (const DecodedImageFailure* failure = result.failure()) {
-        finishDecodeRequestWithFailure(request, *failure);
-        return;
-    }
-
-    std::optional<DecodedImage> image = std::move(result).takeImage();
-    if (!image.has_value()) {
-        return;
-    }
-
-    std::optional<ImageLoadSession> session
-        = m_sessionTracker.claimCurrentForDecodeRequest(request);
-    if (!session.has_value()) {
-        return;
-    }
-
-    finishDecodedImage(std::move(*session), std::move(*image));
-}
-
-void ImageLoader::finishImageLoadError(
-    const ImageDecodeRequest& request, const QString& errorString)
-{
-    finishDecodeRequestWithError(request, ImageLoadFailureKind::DataLoad, errorString);
-}
-
-void ImageLoader::finishThumbnailPreview(
-    const ImageDecodeRequest& request, StaticDisplayImagePayload preview)
-{
-    std::optional<ImageLoadSession> session = m_sessionTracker.currentForDecodeRequest(request);
-    if (!session.has_value()) {
-        return;
-    }
-
-    finishThumbnailPreview(std::move(*session), std::move(preview));
 }
 
 void ImageLoader::start(
@@ -142,34 +51,18 @@ void ImageLoader::start(
     cancel();
 
     ImageLoadPlan plan = m_sessionTracker.start(std::move(request), firstDisplayContext);
-    const ImageLoadSession session = std::move(plan.session);
-    switch (plan.startEffect) {
-    case ImageLoadStartEffect::DecodeImage:
-        break;
-    case ImageLoadStartEffect::LoadOpenedCollectionScopeCandidates:
-        startOpenedCollectionLoad(session);
+    ImageLoadSession session = std::move(plan.session);
+    if (plan.startEffect == ImageLoadStartEffect::LoadOpenedCollectionScopeCandidates) {
+        startOpenedCollectionLoad(std::move(session));
         return;
     }
 
-    if (tryReportUnsupportedOpenedCollectionVideo(session)) {
-        return;
+    if (!tryReportUnsupportedOpenedCollectionVideo(session)) {
+        prepareProviderImage(std::move(session));
     }
-
-    if (tryDisplayPredecodedImage(session)) {
-        return;
-    }
-
-    startImageLoad(session);
 }
 
-void ImageLoader::startImageLoad(ImageLoadSession session)
-{
-    if (!m_sessionTracker.isCurrent(session)) {
-        return;
-    }
-
-    m_decodeJob.start(session.decodeRequest());
-}
+void ImageLoader::cancel() { m_sessionTracker.cancel(); }
 
 void ImageLoader::startOpenedCollectionLoad(ImageLoadSession session)
 {
@@ -209,36 +102,27 @@ void ImageLoader::finishOpenedCollectionSnapshot(ImageLoadSession session,
 
     if (!result.succeeded) {
         std::optional<ImageLoadSession> currentSession = m_sessionTracker.claimCurrent(session);
-        if (!currentSession.has_value()) {
-            return;
+        if (currentSession.has_value()) {
+            invokeIfSet(m_callbacks.error, *currentSession,
+                imageLoadFailure(*currentSession, ImageLoadFailureKind::OpenedCollectionLoad,
+                    result.errorString));
         }
-        invokeIfSet(m_callbacks.error, *currentSession,
-            imageLoadFailure(
-                *currentSession, ImageLoadFailureKind::OpenedCollectionLoad, result.errorString));
         return;
     }
 
     if (!imageDocumentPageCandidateListSnapshotMatchesSource(result.snapshot, candidateSource)) {
         std::optional<ImageLoadSession> currentSession = m_sessionTracker.claimCurrent(session);
-        if (!currentSession.has_value()) {
-            return;
+        if (currentSession.has_value()) {
+            invokeIfSet(m_callbacks.error, *currentSession,
+                imageLoadFailure(*currentSession, ImageLoadFailureKind::OpenedCollectionLoad, {},
+                    QStringLiteral(
+                        "page candidate snapshot owner returned an unconfirmed or mismatched "
+                        "snapshot")));
         }
-        invokeIfSet(m_callbacks.error, *currentSession,
-            imageLoadFailure(*currentSession, ImageLoadFailureKind::OpenedCollectionLoad, {},
-                QStringLiteral(
-                    "page candidate snapshot owner returned an unconfirmed or mismatched "
-                    "snapshot")));
         return;
     }
 
-    const ImageDocumentPageCandidateRows& candidates
-        = imageDocumentPageCandidateRows(result.snapshot);
-    qCDebug(kiriviewPredecodeLog)
-        << "owner-confirmed candidate snapshot accepted for foreground load"
-        << "sessionId" << session.id() << "imageUrl" << session.imageUrl() << "revision"
-        << result.snapshot.revision << "candidateCount"
-        << static_cast<qsizetype>(candidates.size());
-    finishOpenedCollectionCandidates(session, candidates);
+    finishOpenedCollectionCandidates(session, imageDocumentPageCandidateRows(result.snapshot));
 }
 
 void ImageLoader::finishOpenedCollectionCandidates(
@@ -263,22 +147,13 @@ void ImageLoader::finishOpenedCollectionCandidates(
     }
 
     invokeIfSet(m_callbacks.sourcePrepared, completion.session);
-    startImageLoad(std::move(completion.session));
-}
-
-void ImageLoader::cancel()
-{
-    m_sessionTracker.cancel();
-    m_decodeJob.cancel();
+    prepareProviderImage(std::move(completion.session));
 }
 
 bool ImageLoader::tryReportUnsupportedOpenedCollectionVideo(ImageLoadSession session)
 {
-    if (session.openedCollectionScope().isEmpty()) {
-        return false;
-    }
-
-    if (session.kind() != ImageDocumentPageKind::Video) {
+    if (session.openedCollectionScope().isEmpty()
+        || session.kind() != ImageDocumentPageKind::Video) {
         return false;
     }
 
@@ -291,94 +166,36 @@ bool ImageLoader::tryReportUnsupportedOpenedCollectionVideo(ImageLoadSession ses
     return true;
 }
 
-bool ImageLoader::tryDisplayPredecodedImage(ImageLoadSession session)
+void ImageLoader::prepareProviderImage(ImageLoadSession session)
+{
+    if (!m_sessionTracker.isCurrent(session)) {
+        return;
+    }
+    if (!m_callbacks.preparedImage) {
+        std::optional<ImageLoadSession> currentSession = m_sessionTracker.claimCurrent(session);
+        if (currentSession.has_value()) {
+            invokeIfSet(m_callbacks.error, *currentSession,
+                imageLoadFailure(*currentSession, ImageLoadFailureKind::Presentation, {},
+                    QStringLiteral("viewport provider target owner is unavailable")));
+        }
+        return;
+    }
+
+    std::optional<PredecodedImage> predecoded = matchingPredecodedImage(session);
+    invokeIfSet(m_callbacks.preparedImage, std::move(session), std::move(predecoded));
+}
+
+std::optional<PredecodedImage> ImageLoader::matchingPredecodedImage(
+    const ImageLoadSession& session) const
 {
     if (!m_callbacks.findPredecodedImage) {
-        qCDebug(kiriviewPredecodeLog)
-            << "foreground predecode lookup skipped without lookup port"
-            << "sessionId" << session.id() << "imageUrl" << session.imageUrl();
-        return false;
+        return std::nullopt;
     }
 
     std::optional<PredecodedImage> predecoded = m_callbacks.findPredecodedImage(session.imageUrl());
-    if (!predecoded.has_value()) {
-        qCDebug(kiriviewPredecodeLog)
-            << "foreground predecode lookup miss"
-            << "sessionId" << session.id() << "imageUrl" << session.imageUrl();
-        return false;
+    if (!predecoded.has_value() || predecoded->location != session.location()) {
+        return std::nullopt;
     }
-    if (predecoded->location != session.location()) {
-        qCDebug(kiriviewPredecodeLog)
-            << "foreground predecode lookup rejected for location mismatch"
-            << "sessionId" << session.id() << "imageUrl" << session.imageUrl() << "predecodedUrl"
-            << predecoded->location.imageUrl();
-        return false;
-    }
-
-    std::optional<ImageLoadSession> predecodedSession
-        = m_sessionTracker.claimPredecodedImage(session, predecoded->location);
-    if (!predecodedSession.has_value()) {
-        qCDebug(kiriviewPredecodeLog)
-            << "foreground predecode lookup rejected for stale session"
-            << "sessionId" << session.id() << "imageUrl" << session.imageUrl();
-        return false;
-    }
-
-    qCDebug(kiriviewPredecodeLog) << "foreground predecode lookup hit"
-                                  << "sessionId" << predecodedSession->id() << "imageUrl"
-                                  << predecodedSession->imageUrl() << "sourceIdentity"
-                                  << predecoded->displayImage.sourceIdentity << "originalSize"
-                                  << predecoded->displayImage.originalSize << "rasterSize"
-                                  << predecoded->displayImage.image.size() << "quality"
-                                  << static_cast<int>(predecoded->displayImage.quality)
-                                  << "previewOrigin"
-                                  << static_cast<int>(predecoded->displayImage.previewOrigin);
-    finishPredecodedImage(std::move(*predecodedSession), std::move(*predecoded));
-    return true;
-}
-
-void ImageLoader::finishDecodeRequestWithFailure(
-    const ImageDecodeRequest& request, const DecodedImageFailure& failure)
-{
-    std::optional<ImageLoadSession> session
-        = m_sessionTracker.claimCurrentForDecodeRequest(request);
-    if (!session.has_value()) {
-        return;
-    }
-
-    qCWarning(kiriviewDecodeLog).noquote()
-        << "image decode failed"
-        << "sourceUrl" << session->imageUrl() << "sessionId" << session->id() << "route"
-        << static_cast<int>(failure.route) << "operation" << static_cast<int>(failure.operation)
-        << "detail" << failure.diagnosticDetail << "retryable" << failure.retryable;
-    invokeIfSet(m_callbacks.error, *session, imageLoadFailure(*session, failure));
-}
-
-void ImageLoader::finishDecodeRequestWithError(
-    const ImageDecodeRequest& request, ImageLoadFailureKind kind, const QString& errorString)
-{
-    std::optional<ImageLoadSession> session
-        = m_sessionTracker.claimCurrentForDecodeRequest(request);
-    if (!session.has_value()) {
-        return;
-    }
-
-    invokeIfSet(m_callbacks.error, *session, imageLoadFailure(*session, kind, errorString));
-}
-
-void ImageLoader::finishDecodedImage(ImageLoadSession session, DecodedImage image)
-{
-    invokeIfSet(m_callbacks.decodedImage, std::move(session), std::move(image));
-}
-
-void ImageLoader::finishPredecodedImage(ImageLoadSession session, PredecodedImage image)
-{
-    invokeIfSet(m_callbacks.predecodedImage, std::move(session), std::move(image));
-}
-
-void ImageLoader::finishThumbnailPreview(
-    ImageLoadSession session, StaticDisplayImagePayload preview)
-{
-    invokeIfSet(m_callbacks.thumbnailPreview, std::move(session), std::move(preview));
+    return predecoded;
 }
 }

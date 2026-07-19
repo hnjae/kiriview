@@ -42,8 +42,6 @@ struct RecordedRuntimeOperations
     {
         operations.lifecycle.cancelFileDeletion
             = [this]() { record(QStringLiteral("cancelFileDeletion")); };
-        operations.lifecycle.stopPresentationAnimation
-            = [this]() { record(QStringLiteral("stopPresentationAnimation")); };
         operations.lifecycle.shutdownSpread
             = [this]() { record(QStringLiteral("shutdownSpread")); };
         operations.mediaEntrySource.clear
@@ -57,19 +55,12 @@ struct RecordedRuntimeOperations
                   predecodeTarget = operation.target;
                   record(QStringLiteral("scheduleAdjacentImagePredecode"));
               };
-        operations.spread.finishSpreadTransition
-            = [this]() { record(QStringLiteral("finishSpreadTransition")); };
         operations.spread.resetRightToLeftReading
             = [this]() { record(QStringLiteral("resetRightToLeftReading")); };
         operations.spread.clearSecondaryPage
             = [this]() { record(QStringLiteral("clearSecondaryPage")); };
         operations.spread.notifyRightToLeftReadingChanged
             = [this]() { record(QStringLiteral("notifyRightToLeftReadingChanged")); };
-        operations.spread.resetZoom = [this]() { record(QStringLiteral("resetZoom")); };
-        operations.spread.prepareFailedContainer = [this](const QUrl& containerUrl) {
-            url = containerUrl;
-            record(QStringLiteral("prepareFailedContainer"));
-        };
         operations.navigation.cancelPageNavigationUpdate
             = [this]() { record(QStringLiteral("cancelPageNavigationUpdate")); };
         operations.navigation.cancelNavigation
@@ -209,7 +200,6 @@ void TestImageDocumentRuntimePlanExecutor::clearImageDispatchesOrderedRuntimeOpe
         QStringList({
             QStringLiteral("clearMediaEntrySource"),
             QStringLiteral("clearPredecode"),
-            QStringLiteral("finishSpreadTransition"),
             QStringLiteral("clearSecondaryPage"),
             QStringLiteral("cancelPageNavigationUpdate"),
             QStringLiteral("clearDisplayedImageLocation"),
@@ -233,7 +223,6 @@ void TestImageDocumentRuntimePlanExecutor::
             QStringLiteral("cancelAllNavigation"),
             QStringLiteral("cancelPredecode"),
             QStringLiteral("cancelOpen"),
-            QStringLiteral("finishSpreadTransition"),
             QStringLiteral("clearSecondaryPage"),
             QStringLiteral("setSourceUrl"),
             QStringLiteral("setErrorString"),
@@ -253,7 +242,6 @@ void TestImageDocumentRuntimePlanExecutor::shutdownRuntimeDispatchesOrderedLifec
     QCOMPARE(recorded.events,
         QStringList({
             QStringLiteral("cancelFileDeletion"),
-            QStringLiteral("stopPresentationAnimation"),
             QStringLiteral("shutdownSpread"),
             QStringLiteral("cancelPredecode"),
             QStringLiteral("cancelAllNavigation"),
@@ -356,13 +344,6 @@ void TestImageDocumentRuntimePlanExecutor::payloadRuntimePlansDispatchToOperatio
     QVERIFY(recorded.flag);
 
     recorded.clear();
-    executor.dispatchPlan(ImageDocumentRuntimePlan { kiriview::PrepareFailedContainerOperation {
-        localUrl(QStringLiteral("/bad.zip")),
-    } });
-    QCOMPARE(recorded.events, QStringList({ QStringLiteral("prepareFailedContainer") }));
-    QCOMPARE(recorded.url, localUrl(QStringLiteral("/bad.zip")));
-
-    recorded.clear();
     executor.dispatchPlan(ImageDocumentRuntimePlan {
         kiriview::UpdatePageNavigationOperation {},
         kiriview::ScheduleAdjacentImagePredecodeOperation {},
@@ -385,7 +366,6 @@ void TestImageDocumentRuntimePlanExecutor::runtimePlansDispatchSourceLoadOperati
         kiriview::CancelFileDeletionOperation {},
         kiriview::CancelAllNavigationOperation {},
         kiriview::CancelPredecodeOperation {},
-        kiriview::FinishSpreadTransitionOperation {},
         kiriview::ResetRightToLeftReadingOperation {},
         kiriview::ClearSecondaryPageOperation {},
         kiriview::ClearLoadingContainerNavigationUrlOperation {},
@@ -412,7 +392,6 @@ void TestImageDocumentRuntimePlanExecutor::runtimePlansDispatchSourceLoadOperati
             QStringLiteral("cancelFileDeletion"),
             QStringLiteral("cancelAllNavigation"),
             QStringLiteral("cancelPredecode"),
-            QStringLiteral("finishSpreadTransition"),
             QStringLiteral("resetRightToLeftReading"),
             QStringLiteral("clearSecondaryPage"),
             QStringLiteral("clearLoadingContainerNavigationUrl"),
@@ -438,18 +417,14 @@ void TestImageDocumentRuntimePlanExecutor::runtimePlansDispatchEveryOperationExp
 
     executor.dispatchPlan({
         kiriview::CancelFileDeletionOperation {},
-        kiriview::StopPresentationAnimationOperation {},
         kiriview::ShutdownSpreadOperation {},
         kiriview::ClearMediaEntrySourceOperation {},
         kiriview::ClearPredecodeOperation {},
         kiriview::CancelPredecodeOperation {},
         kiriview::ScheduleAdjacentImagePredecodeOperation {},
-        kiriview::FinishSpreadTransitionOperation {},
         kiriview::ResetRightToLeftReadingOperation {},
         kiriview::ClearSecondaryPageOperation {},
         kiriview::NotifyRightToLeftReadingChangedOperation {},
-        kiriview::ResetZoomOperation {},
-        kiriview::PrepareFailedContainerOperation { containerUrl },
         kiriview::CancelPageNavigationUpdateOperation {},
         kiriview::CancelNavigationOperation {},
         kiriview::CancelContainerNavigationOperation {},
@@ -520,18 +495,14 @@ void TestImageDocumentRuntimePlanExecutor::runtimePlansDispatchEveryOperationExp
     QCOMPARE(recorded.events,
         QStringList({
             QStringLiteral("cancelFileDeletion"),
-            QStringLiteral("stopPresentationAnimation"),
             QStringLiteral("shutdownSpread"),
             QStringLiteral("clearMediaEntrySource"),
             QStringLiteral("clearPredecode"),
             QStringLiteral("cancelPredecode"),
             QStringLiteral("scheduleAdjacentImagePredecode"),
-            QStringLiteral("finishSpreadTransition"),
             QStringLiteral("resetRightToLeftReading"),
             QStringLiteral("clearSecondaryPage"),
             QStringLiteral("notifyRightToLeftReadingChanged"),
-            QStringLiteral("resetZoom"),
-            QStringLiteral("prepareFailedContainer"),
             QStringLiteral("cancelPageNavigationUpdate"),
             QStringLiteral("cancelNavigation"),
             QStringLiteral("cancelContainerNavigation"),

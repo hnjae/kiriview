@@ -140,13 +140,6 @@ kiriview::ImageDocumentRuntimePlan finishContainerNavigationLoadWithError(
             containerUrl, errorString));
 }
 
-kiriview::ImageDocumentRuntimePlan finishAnimationLoadWithError(
-    kiriview::ImageDocumentState& state, const QString& errorString)
-{
-    return kiriview::applyImageOpenApplicationPlan(
-        state, kiriview::ImageOpenWorkflow::finishAnimationLoadWithErrorPlan(errorString));
-}
-
 }
 
 class TestImageOpenWorkflow : public QObject
@@ -164,7 +157,6 @@ private Q_SLOTS:
     void directArchiveImageLoadSuccessDisablesContainerNavigation();
     void replacementLoadFailureSelectsTargetError();
     void emptyContainerFailureSelectsFailedContainer();
-    void animationFailureClearsImageAndResetsZoom();
     void routedLoadFailureAppliesErrorTransitions();
     void trackedLoadCompletionsClearLoadingContainerNavigationUrl();
     void workflowTransitionsClearUnsupportedOpenedCollectionVideo();
@@ -184,7 +176,6 @@ void TestImageOpenWorkflow::applicationPlansUseExplicitInputs()
     QCOMPARE(initialLoad.stateDelta.status,
         std::optional<kiriview::ImageDocumentStatus>(kiriview::ImageDocumentStatus::Loading));
     QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(initialLoad.runtimePlan));
-    QVERIFY(hasOperation<kiriview::ResetZoomOperation>(initialLoad.runtimePlan));
 
     const kiriview::ImageOpenApplicationPlan routedLoad
         = kiriview::ImageOpenWorkflow::beginSourceLoadPlan(
@@ -295,10 +286,9 @@ void TestImageOpenWorkflow::unsupportedOpenedCollectionVideoTransitionPublishesR
     QVERIFY(!state.loading());
     QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Ready);
     QVERIFY(state.unsupportedOpenedCollectionVideo());
-    QCOMPARE(plan.size(), std::size_t(3));
-    QVERIFY(operationAtType<kiriview::FinishSpreadTransitionOperation>(plan, 0));
-    QVERIFY(operationAtType<kiriview::ClearSecondaryPageOperation>(plan, 1));
-    QVERIFY(operationAtType<kiriview::UpdatePageNavigationOperation>(plan, 2));
+    QCOMPARE(plan.size(), std::size_t(2));
+    QVERIFY(operationAtType<kiriview::ClearSecondaryPageOperation>(plan, 0));
+    QVERIFY(operationAtType<kiriview::UpdatePageNavigationOperation>(plan, 1));
 }
 
 void TestImageOpenWorkflow::playableOpenedCollectionVideoTransitionPublishesHandoffState()
@@ -332,10 +322,9 @@ void TestImageOpenWorkflow::playableOpenedCollectionVideoTransitionPublishesHand
     QVERIFY(!state.loading());
     QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Ready);
     QVERIFY(!state.unsupportedOpenedCollectionVideo());
-    QCOMPARE(plan.size(), std::size_t(3));
-    QVERIFY(operationAtType<kiriview::FinishSpreadTransitionOperation>(plan, 0));
-    QVERIFY(operationAtType<kiriview::ClearSecondaryPageOperation>(plan, 1));
-    QVERIFY(operationAtType<kiriview::UpdatePageNavigationOperation>(plan, 2));
+    QCOMPARE(plan.size(), std::size_t(2));
+    QVERIFY(operationAtType<kiriview::ClearSecondaryPageOperation>(plan, 0));
+    QVERIFY(operationAtType<kiriview::UpdatePageNavigationOperation>(plan, 1));
 }
 
 void TestImageOpenWorkflow::firstImageLoadSuccessTransitionsToReady()
@@ -346,11 +335,9 @@ void TestImageOpenWorkflow::firstImageLoadSuccessTransitionsToReady()
 
     const kiriview::ImageDocumentRuntimePlan beginPlan = beginSourceLoad(state, false);
     QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(beginPlan));
-    QVERIFY(hasOperation<kiriview::ResetZoomOperation>(beginPlan));
-    QCOMPARE(beginPlan.size(), std::size_t(10));
+    QCOMPARE(beginPlan.size(), std::size_t(8));
     QVERIFY(operationAtType<kiriview::ClearMediaEntrySourceOperation>(beginPlan, 0));
-    QVERIFY(operationAtType<kiriview::ClearPresentationImageOperation>(beginPlan, 6));
-    QVERIFY(operationAtType<kiriview::ResetZoomOperation>(beginPlan, 9));
+    QVERIFY(operationAtType<kiriview::ClearPresentationImageOperation>(beginPlan, 5));
     QVERIFY(state.loading());
     QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Loading);
 
@@ -439,33 +426,9 @@ void TestImageOpenWorkflow::emptyContainerFailureSelectsFailedContainer()
     const kiriview::ImageDocumentRuntimePlan plan
         = finishContainerNavigationLoadWithError(state, containerUrl, QStringLiteral("empty"));
     QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(plan));
-    const auto* prepareFailedContainer
-        = findOperation<kiriview::PrepareFailedContainerOperation>(plan);
-    QVERIFY(prepareFailedContainer != nullptr);
-    QCOMPARE(prepareFailedContainer->containerUrl, containerUrl);
     QCOMPARE(state.sourceUrl(), containerUrl);
     QCOMPARE(state.containerNavigationUrl(), containerUrl);
     QCOMPARE(state.errorString(), QStringLiteral("empty"));
-    QVERIFY(!state.loading());
-    QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Error);
-}
-
-void TestImageOpenWorkflow::animationFailureClearsImageAndResetsZoom()
-{
-    kiriview::ImageDocumentState state;
-    const QUrl displayedUrl = localUrl(QStringLiteral("/images/animated.png"));
-    state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromUrl(displayedUrl));
-    state.setContainerNavigationUrl(localUrl(QStringLiteral("/images/")));
-    state.setLoading(true);
-    state.setStatus(kiriview::ImageDocumentStatus::Ready);
-
-    const kiriview::ImageDocumentRuntimePlan plan
-        = finishAnimationLoadWithError(state, QStringLiteral("animation failed"));
-
-    QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(plan));
-    QVERIFY(hasOperation<kiriview::ResetZoomOperation>(plan));
-    QVERIFY(state.containerNavigationUrl().isEmpty());
-    QCOMPARE(state.errorString(), QStringLiteral("animation failed"));
     QVERIFY(!state.loading());
     QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Error);
 }
@@ -488,7 +451,6 @@ void TestImageOpenWorkflow::routedLoadFailureAppliesErrorTransitions()
         const kiriview::ImageDocumentRuntimePlan plan
             = finishLoadWithError(state, containerNavigationSession, QStringLiteral("empty"));
         QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(plan));
-        QVERIFY(hasOperation<kiriview::PrepareFailedContainerOperation>(plan));
         QCOMPARE(state.sourceUrl(), containerUrl);
         QCOMPARE(state.containerNavigationUrl(), containerUrl);
         QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Error);
@@ -562,16 +524,6 @@ void TestImageOpenWorkflow::trackedLoadCompletionsClearLoadingContainerNavigatio
 
         finishContainerNavigationLoadWithError(
             state, loadingContainerUrl, QStringLiteral("missing"));
-
-        QVERIFY(state.loadingContainerNavigationUrl().isEmpty());
-    }
-
-    {
-        kiriview::ImageDocumentState state;
-        state.setLoading(true);
-        state.setLoadingContainerNavigationUrl(loadingContainerUrl);
-
-        finishAnimationLoadWithError(state, QStringLiteral("animation failed"));
 
         QVERIFY(state.loadingContainerNavigationUrl().isEmpty());
     }

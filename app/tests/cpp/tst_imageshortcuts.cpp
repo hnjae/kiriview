@@ -4,6 +4,7 @@
 #include "facade/imageactionavailability.h"
 #include "facade/kiridocumentsession.h"
 #include "facade/kiriimagedocument.h"
+#include "facade/kiriimageviewportsurface.h"
 #include "facade/kirimediainformation.h"
 #include "facade/kirivideodocument.h"
 #include "facade/kiriviewapplication.h"
@@ -93,6 +94,8 @@ void registerKiriViewQmlTypes()
 
     kiriview::initializeLocalization();
     qmlRegisterType<KiriImageDocument>("org.hnjae.kiriview", 1, 0, "KiriImageDocument");
+    qmlRegisterType<KiriImageViewportSurface>(
+        "org.hnjae.kiriview", 1, 0, "KiriImageViewportSurface");
     qmlRegisterType<KiriDocumentSession>("org.hnjae.kiriview", 1, 0, "KiriDocumentSession");
     qmlRegisterUncreatableType<KiriMediaInformation>("org.hnjae.kiriview", 1, 0,
         "KiriMediaInformation", "KiriMediaInformation is owned by KiriDocumentSession");
@@ -243,7 +246,7 @@ Item {
     property KiriImageDocument testImageDocument: sessionImageDocument
     readonly property bool twoPageModeAvailable: sessionImageDocument.twoPageModeAvailable
     property bool twoPageModeEnabled: sessionImageDocument.twoPageModeEnabled
-    readonly property point viewportContentPosition: sessionImageDocument.viewportContentPosition
+    readonly property point viewportScrollPosition: Qt.point(sessionImageDocument.horizontalScrollPosition, sessionImageDocument.verticalScrollPosition)
     readonly property bool viewportPannable: sessionImageDocument.viewportPannable
     readonly property int zoomMode: sessionImageDocument.zoomMode
     readonly property real zoomPercent: sessionImageDocument.zoomPercent
@@ -288,7 +291,6 @@ Item {
     }
 
     Component.onCompleted: {
-        sessionImageDocument.viewportSize = Qt.size(width, height);
         application.setDocumentSession(documentSession);
         application.setShortcutHost(root);
         publishActionUiState();
@@ -305,6 +307,11 @@ Item {
         id: documentSession
 
         sourceUrl: "%2"
+    }
+
+    KiriImageViewportSurface {
+        anchors.fill: parent
+        document: root.sessionImageDocument
     }
 
     KiriViewQml.ImageShortcuts {
@@ -466,9 +473,9 @@ bool zoomToActualSize(QObject* root)
         && result.toBool();
 }
 
-QPointF viewportContentPosition(QObject* root)
+QPointF viewportScrollPosition(QObject* root)
 {
-    return root->property("viewportContentPosition").toPointF();
+    return root->property("viewportScrollPosition").toPointF();
 }
 
 int imageZoomMode(QObject* root) { return root->property("zoomMode").toInt(); }
@@ -517,21 +524,21 @@ void TestImageShortcuts::arrowKeysPanAsFixedViewerShortcuts()
     QTRY_VERIFY(documentReady(fixture.root));
     QVERIFY(zoomToActualSize(fixture.root));
     QTRY_VERIFY(fixture.root->property("viewportPannable").toBool());
-    const QPointF initialPosition = viewportContentPosition(fixture.root);
+    const QPointF initialPosition = viewportScrollPosition(fixture.root);
     pressKey(fixture.view.get(), Qt::Key_Right);
-    QTRY_VERIFY(viewportContentPosition(fixture.root).x() > initialPosition.x());
+    QTRY_VERIFY(viewportScrollPosition(fixture.root).x() > initialPosition.x());
 
-    const QPointF rightPosition = viewportContentPosition(fixture.root);
+    const QPointF rightPosition = viewportScrollPosition(fixture.root);
     pressKey(fixture.view.get(), Qt::Key_Left);
-    QTRY_VERIFY(viewportContentPosition(fixture.root).x() < rightPosition.x());
+    QTRY_VERIFY(viewportScrollPosition(fixture.root).x() < rightPosition.x());
 
-    const QPointF horizontalReturnPosition = viewportContentPosition(fixture.root);
+    const QPointF horizontalReturnPosition = viewportScrollPosition(fixture.root);
     pressKey(fixture.view.get(), Qt::Key_Down);
-    QTRY_VERIFY(viewportContentPosition(fixture.root).y() > horizontalReturnPosition.y());
+    QTRY_VERIFY(viewportScrollPosition(fixture.root).y() > horizontalReturnPosition.y());
 
-    const QPointF downPosition = viewportContentPosition(fixture.root);
+    const QPointF downPosition = viewportScrollPosition(fixture.root);
     pressKey(fixture.view.get(), Qt::Key_Up);
-    QTRY_VERIFY(viewportContentPosition(fixture.root).y() < downPosition.y());
+    QTRY_VERIFY(viewportScrollPosition(fixture.root).y() < downPosition.y());
 }
 
 void TestImageShortcuts::shiftedCommaAndPeriodPanToScanEdges()
@@ -543,12 +550,12 @@ void TestImageShortcuts::shiftedCommaAndPeriodPanToScanEdges()
     QTRY_VERIFY(fixture.root->property("viewportPannable").toBool());
 
     pressKey(fixture.view.get(), Qt::Key_Period, Qt::ShiftModifier);
-    const QPointF bottomRightPosition = viewportContentPosition(fixture.root);
+    const QPointF bottomRightPosition = viewportScrollPosition(fixture.root);
     QTRY_VERIFY(bottomRightPosition.x() > 0.0);
     QTRY_VERIFY(bottomRightPosition.y() > 0.0);
 
     pressKey(fixture.view.get(), Qt::Key_Comma, Qt::ShiftModifier);
-    QTRY_COMPARE(viewportContentPosition(fixture.root), QPointF(0.0, 0.0));
+    QTRY_COMPARE(viewportScrollPosition(fixture.root), QPointF(0.0, 0.0));
 }
 
 void TestImageShortcuts::leftAndRightArrowKeysUseNavigationFallback()
@@ -575,18 +582,18 @@ void TestImageShortcuts::arrowKeysAreIgnoredWhileViewerShortcutsAreSuppressed()
     QTRY_VERIFY(documentReady(fixture.root));
     QVERIFY(zoomToActualSize(fixture.root));
     QTRY_VERIFY(fixture.root->property("viewportPannable").toBool());
-    const QPointF initialPosition = viewportContentPosition(fixture.root);
+    const QPointF initialPosition = viewportScrollPosition(fixture.root);
 
     fixture.root->setProperty("toolbarTextInputFocused", true);
     pressKey(fixture.view.get(), Qt::Key_Left);
     pressKey(fixture.view.get(), Qt::Key_Up);
-    QCOMPARE(viewportContentPosition(fixture.root), initialPosition);
+    QCOMPARE(viewportScrollPosition(fixture.root), initialPosition);
 
     fixture.root->setProperty("toolbarTextInputFocused", false);
     fixture.root->setProperty("helpDialogOpen", true);
     pressKey(fixture.view.get(), Qt::Key_Right);
     pressKey(fixture.view.get(), Qt::Key_Down);
-    QCOMPARE(viewportContentPosition(fixture.root), initialPosition);
+    QCOMPARE(viewportScrollPosition(fixture.root), initialPosition);
 }
 
 void TestImageShortcuts::shiftArrowsMoveOnePageInTwoPageModeLeftToRight()
@@ -598,6 +605,7 @@ void TestImageShortcuts::shiftArrowsMoveOnePageInTwoPageModeLeftToRight()
     pressKey(fixture.view.get(), Qt::Key_Right, Qt::ShiftModifier);
     QTRY_COMPARE(fixture.root->property("currentPageNumber").toInt(), 3);
     QTRY_COMPARE(fixture.root->property("currentLastPageNumber").toInt(), 4);
+    QTRY_VERIFY(documentReady(fixture.root));
 
     pressKey(fixture.view.get(), Qt::Key_Left, Qt::ShiftModifier);
     QTRY_COMPARE(fixture.root->property("currentPageNumber").toInt(), 2);
@@ -615,6 +623,7 @@ void TestImageShortcuts::shiftArrowsMoveOnePageInTwoPageModeRightToLeft()
     pressKey(fixture.view.get(), Qt::Key_Left, Qt::ShiftModifier);
     QTRY_COMPARE(fixture.root->property("currentPageNumber").toInt(), 3);
     QTRY_COMPARE(fixture.root->property("currentLastPageNumber").toInt(), 4);
+    QTRY_VERIFY(documentReady(fixture.root));
 
     pressKey(fixture.view.get(), Qt::Key_Right, Qt::ShiftModifier);
     QTRY_COMPARE(fixture.root->property("currentPageNumber").toInt(), 2);

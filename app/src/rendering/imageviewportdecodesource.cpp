@@ -186,6 +186,11 @@ ImageViewportDecodeProviderSource::ImageViewportDecodeProviderSource(
 
 ImageViewportDecodeProviderSource::~ImageViewportDecodeProviderSource() { close(); }
 
+const EmbeddedMetadata& ImageViewportDecodeProviderSource::embeddedMetadata() const
+{
+    return m_embeddedMetadata;
+}
+
 ImageSequenceProviderMetadata ImageViewportDecodeProviderSource::constructionMetadata() const
 {
     return m_metadata.value_or(ImageSequenceProviderMetadata {});
@@ -310,6 +315,7 @@ void ImageViewportDecodeProviderSource::finishThumbnail(
 
 void ImageViewportDecodeProviderSource::finishDecodedImage(DecodedImage image)
 {
+    m_embeddedMetadata = decodedImageEmbeddedMetadata(image);
     std::visit(
         [this](auto decoded) {
             using Image = std::decay_t<decltype(decoded)>;

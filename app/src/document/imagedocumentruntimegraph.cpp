@@ -6,7 +6,6 @@
 #include "archive/mediaentrysourcestore.h"
 #include "async/imagecallback.h"
 #include "imagedocumentadjacentpredecodeschedulerport.h"
-#include "imagedocumentanimationloaderrorport.h"
 #include "imagedocumentcurrentpagenumberport.h"
 #include "imagedocumentdeletioncontroller.h"
 #include "imagedocumentdeletionprogressport.h"
@@ -22,24 +21,45 @@
 #include "imagedocumentsourceloadrequest.h"
 #include "imagedocumentstate.h"
 #include "imageopencontroller.h"
+#include "imageviewportintegrationruntime.h"
+#include "location/sourcekey.h"
 #include "navigation/imagedocumentpagenavigationservice.h"
-#include "presentation/imagepagesurfacecontroller.h"
-#include "presentation/imagepresentationruntime.h"
 #include "presentation/imagespreadpresentationcontroller.h"
+#include "rendering/displayimagestore.h"
+#include "rendering/imageviewportdecodesource.h"
 
 #include <QObject>
 #include <QUrl>
+#include <QtMath>
 #include <optional>
 #include <utility>
 #include <variant>
 
 namespace kiriview {
 namespace {
-    ImageDocumentRenderContext renderContextOrDefault(
-        const std::function<ImageDocumentRenderContext()>& renderContext)
+    ImageLoadFailure viewportPresentationFailure(
+        const ImageLoadSession& session, QString userMessage, QString diagnosticDetail)
     {
-        return renderContext ? renderContext() : ImageDocumentRenderContext {};
+        return {
+            session.imageUrl(),
+            session.id(),
+            ImageLoadFailureKind::Presentation,
+            DecodedImageFailureRoute::Unknown,
+            DecodedImageFailureOperation::Unknown,
+            std::move(userMessage),
+            std::move(diagnosticDetail),
+            ImageLoadFailureSeverity::Error,
+            false,
+        };
     }
+
+    struct PreparedViewportTargetState
+    {
+        ImageLoadSession session;
+        ImageDecodeDependencies dependencies;
+        std::optional<PredecodedImage> predecoded;
+        std::shared_ptr<ImageViewportDecodeProviderSource> source;
+    };
 }
 
 ImageDocumentRuntimeGraph::ImageDocumentRuntimeGraph(QObject* documentObject,
@@ -65,19 +85,20 @@ ImageDocumentRuntimeGraph::~ImageDocumentRuntimeGraph() = default;
 void ImageDocumentRuntimeGraph::composeSurfaceAndPresentation(
     QObject* documentObject, ImageDocumentRuntimeDependencies& dependencies)
 {
-    m_animationLoadErrorPort = std::make_unique<ImageDocumentAnimationLoadErrorPort>();
-    m_pageSurfaceController = std::make_unique<ImagePageSurfaceController>(documentObject,
-        ImagePageSurfaceController::Callbacks {
-            [this](ImageDocumentChange change) {
-                invokeIfSet(m_callbacks.notify, std::vector<ImageDocumentChange> { change });
+    m_viewportDisplayStore = std::make_shared<DisplayImageStore>(
+        dependencies.cacheBudgets.displayImageCacheByteBudget);
+    m_viewportIntegration = std::make_unique<ImageViewportIntegrationRuntime>(
+        ImageViewportIntegrationRuntime::Callbacks {
+            [this](const ImageViewportIntegrationProjection& projection) {
+                handleViewportProjection(projection);
             },
-            [this](const QString& errorString) {
-                m_animationLoadErrorPort->finishAnimationLoadWithError(errorString);
+            [this](bool enabled) {
+                if (m_spreadController != nullptr) {
+                    m_spreadController->restoreTwoPageModeEnabled(enabled);
+                }
             },
         },
-        dependencies.cacheBudgets);
-    m_presentationRuntime = std::make_unique<ImagePresentationRuntime>(
-        [this]() { return renderContextOrDefault(m_callbacks.renderContext); });
+        documentObject);
 }
 
 void ImageDocumentRuntimeGraph::composeNavigationAndCandidatePorts(
@@ -119,10 +140,16 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
     ImageDocumentState& state, ImageDocumentRuntimeDependencies& dependencies,
     ExternalPredecodedImageFinder externalPredecodedImageFinder)
 {
+    m_imageDecodeDependencies = dependencies.imageDecode;
     m_mediaEntrySourceStore = std::move(dependencies.mediaEntrySourceStore);
-    m_deletionController = std::make_unique<ImageDocumentDeletionController>(documentObject, state,
-        *m_pageSurfaceController, dependencies.candidateProvider,
-        std::move(dependencies.fileDeletionProvider),
+    m_deletionController = std::make_unique<ImageDocumentDeletionController>(
+        documentObject, state,
+        [this]() {
+            return m_viewportIntegration != nullptr
+                && m_viewportIntegration->projection().correlated
+                && !m_viewportIntegration->projection().displayedUrl.isEmpty();
+        },
+        dependencies.candidateProvider, std::move(dependencies.fileDeletionProvider),
         ImageDocumentDeletionController::Callbacks {
             [this]() {
                 invokeIfSet(m_callbacks.notify,
@@ -136,8 +163,9 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
     m_deletionProgressPort
         = std::make_unique<ImageDocumentDeletionProgressPort>(m_deletionController.get());
     m_predecodeController = std::make_unique<ImageDocumentPredecodeController>(
-        documentObject, state, *m_pageSurfaceController, *m_presentationRuntime,
-        dependencies.imageDecode, dependencies.cacheBudgets.predecodeCacheByteBudget,
+        documentObject, state, [this]() { return primaryDisplayedPredecodeImage(); },
+        [this]() { return firstDisplayDecodeContext(); }, dependencies.imageDecode,
+        dependencies.cacheBudgets.predecodeCacheByteBudget,
         [this]() { return m_currentPageNumberPort->currentPageNumber(); },
         [this](ImageDocumentPageCandidateListContext context,
             ImageDocumentPageCandidateListSnapshotCallback callback) {
@@ -148,9 +176,7 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
         std::move(dependencies.predecodeThreadCountProvider));
     m_predecodedImageLookup = std::make_unique<ImageDocumentPredecodedImageLookup>(
         std::move(externalPredecodedImageFinder), m_predecodeController.get());
-    m_spreadController = std::make_unique<ImageSpreadPresentationController>(
-        documentObject, [this]() { return renderContextOrDefault(m_callbacks.renderContext); },
-        state, *m_pageSurfaceController, *m_presentationRuntime,
+    m_spreadController = std::make_unique<ImageSpreadPresentationController>(documentObject, state,
         ImageSpreadPresentationController::Callbacks {
             [this](const std::vector<ImageDocumentChange>& changes) {
                 invokeIfSet(m_callbacks.notify, changes);
@@ -158,17 +184,21 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
             [this](const QUrl& url) { return m_predecodedImageLookup->find(url); },
             [this]() { return m_navigationSnapshotPort->snapshot(); },
             [this]() { m_adjacentPredecodeSchedulerPort->scheduleAdjacentImagePredecode(); },
-            [this](const ImageDisplayLoadResolution& resolution) {
-                if (m_openController != nullptr) {
-                    m_openController->finishDisplayLoadWithError(resolution);
-                }
+            [this](ImageLoadSession session, std::optional<PredecodedImage> predecoded,
+                bool priorTwoPageModeEnabled) {
+                prepareViewportSecondaryImageTarget(
+                    std::move(session), std::move(predecoded), priorTwoPageModeEnabled);
             },
-        },
-        dependencies.imageDecode, dependencies.cacheBudgets);
+            [this](bool priorTwoPageModeEnabled) {
+                clearViewportSecondaryImageTarget(priorTwoPageModeEnabled);
+            },
+            [this]() {
+                return m_viewportIntegration->displayedImage(ImageViewportPageRole::Secondary);
+            },
+        });
     m_primaryPageSlotPort
         = std::make_unique<ImageDocumentPrimaryPageSlotPort>(m_spreadController.get());
     m_openController = std::make_unique<ImageOpenController>(documentObject, state,
-        *m_pageSurfaceController, *m_presentationRuntime,
         ImageOpenController::Callbacks {
             [this](const QUrl& url) { return m_predecodedImageLookup->find(url); },
             [this](const ImageDocumentRuntimePlan& plan) { dispatchPlan(plan); },
@@ -185,19 +215,26 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
                 const auto* device = std::get_if<MediaEntrySourceVideoPlaybackDevice>(&result);
                 return device != nullptr && device->device != nullptr;
             },
-            [this](const DisplayedImageLocation& location) {
-                m_primaryPageSlotPort->commit(location);
+            [this](const DisplayedImageLocation& location, QSize imageSize) {
+                m_primaryPageSlotPort->commit(location, imageSize);
             },
             [this]() { m_primaryPageSlotPort->clear(); },
             [this](ImageDocumentPageCandidateListContext context,
                 ImageDocumentPageCandidateListSnapshotCallback callback) {
                 m_pageCandidateSnapshotPort->ensure(std::move(context), std::move(callback));
             },
-        },
-        dependencies.imageDecode);
-    m_animationLoadErrorPort->setOpenController(m_openController.get());
+            [this](ImageLoadSession session, std::optional<PredecodedImage> predecoded) {
+                return prepareViewportImageTarget(std::move(session), std::move(predecoded));
+            },
+            [this]() { return firstDisplayDecodeContext(); },
+            [this]() {
+                return m_viewportIntegration != nullptr
+                    && !m_viewportIntegration->projection().displayedUrl.isEmpty();
+            },
+            [this]() { clearViewportTarget(); },
+        });
     m_navigationController = std::make_unique<ImageDocumentNavigationController>(state,
-        *m_pageSurfaceController, *m_navigationService, *m_spreadController,
+        *m_navigationService, *m_spreadController,
         [this](ImageDocumentRuntimeTransaction transaction) { dispatchTransaction(transaction); });
 }
 
@@ -208,7 +245,7 @@ void ImageDocumentRuntimeGraph::composeWorkflowDispatch(ImageDocumentState& stat
             &state,
             m_mediaEntrySourceStore.get(),
             m_deletionController.get(),
-            m_pageSurfaceController.get(),
+            [this]() { clearViewportTarget(); },
             m_openController.get(),
             m_predecodeController.get(),
             m_spreadController.get(),
@@ -223,16 +260,6 @@ ImageDocumentDeletionController& ImageDocumentRuntimeGraph::deletionController()
     return *m_deletionController;
 }
 
-ImagePageSurfaceController& ImageDocumentRuntimeGraph::pageSurfaceController() const
-{
-    return *m_pageSurfaceController;
-}
-
-ImagePresentationRuntime& ImageDocumentRuntimeGraph::presentationRuntime() const
-{
-    return *m_presentationRuntime;
-}
-
 ImageDocumentNavigationController& ImageDocumentRuntimeGraph::navigationController() const
 {
     return *m_navigationController;
@@ -241,6 +268,215 @@ ImageDocumentNavigationController& ImageDocumentRuntimeGraph::navigationControll
 ImageSpreadPresentationController& ImageDocumentRuntimeGraph::spreadController() const
 {
     return *m_spreadController;
+}
+
+ImageViewportIntegrationRuntime& ImageDocumentRuntimeGraph::viewportIntegration() const
+{
+    return *m_viewportIntegration;
+}
+
+std::optional<DisplayedPredecodeImage>
+ImageDocumentRuntimeGraph::primaryDisplayedPredecodeImage() const
+{
+    if (m_viewportIntegration == nullptr || m_state.displayedImageLocation().isEmpty()) {
+        return std::nullopt;
+    }
+    std::optional<StaticDisplayImagePayload> displayImage
+        = m_viewportIntegration->displayedImage(ImageViewportPageRole::Primary);
+    if (!displayImage.has_value()) {
+        return std::nullopt;
+    }
+    return DisplayedPredecodeImage {
+        m_state.displayedImageLocation(),
+        true,
+        std::move(displayImage),
+        m_state.embeddedMetadata(),
+    };
+}
+
+ImageFirstDisplayDecodeContext ImageDocumentRuntimeGraph::firstDisplayDecodeContext() const
+{
+    if (m_viewportIntegration == nullptr) {
+        return {};
+    }
+    const QSizeF viewportSize = m_viewportIntegration->projection().viewportSize;
+    if (viewportSize.isEmpty()) {
+        return {};
+    }
+    const ImageDocumentRenderContext context
+        = m_callbacks.renderContext ? m_callbacks.renderContext() : ImageDocumentRenderContext {};
+    const qreal devicePixelRatio = context.devicePixelRatio > 0.0 ? context.devicePixelRatio : 1.0;
+    return { QSize(qCeil(viewportSize.width() * devicePixelRatio),
+        qCeil(viewportSize.height() * devicePixelRatio)) };
+}
+
+bool ImageDocumentRuntimeGraph::prepareViewportImageTarget(
+    ImageLoadSession session, std::optional<PredecodedImage> predecoded)
+{
+    if (m_viewportIntegration == nullptr) {
+        return false;
+    }
+
+    auto prepared = std::make_shared<PreparedViewportTargetState>();
+    prepared->session = session;
+    prepared->dependencies = m_imageDecodeDependencies;
+    prepared->predecoded = std::move(predecoded);
+
+    ImageViewportIntegrationTarget target;
+    target.sourceGeneration = session.id();
+    target.primaryUrl = session.imageUrl();
+    target.navigationScopeIdentity = displayScopeIdentityForLocation(session.location());
+    target.transitionIntent = session.request().sameScopePageNavigation()
+        ? ImageViewportTargetTransitionIntent::SameNavigationScope
+        : session.request().preserveTwoPageSpreadTransition()
+        ? ImageViewportTargetTransitionIntent::RetainedDirectImage
+        : ImageViewportTargetTransitionIntent::OutsideNavigationScope;
+    target.rightToLeft
+        = m_spreadController != nullptr && m_spreadController->rightToLeftReadingEnabled();
+    const std::shared_ptr<DisplayImageStore> displayStore = m_viewportDisplayStore;
+    target.primaryResource = [prepared, displayStore]() {
+        auto source = std::make_shared<ImageViewportDecodeProviderSource>(
+            prepared->session, prepared->dependencies);
+        prepared->source = source;
+        std::optional<StaticDisplayImagePayload> predecodedImage;
+        if (prepared->predecoded.has_value()) {
+            predecodedImage = prepared->predecoded->displayImage;
+        }
+        return std::make_shared<ImageViewportProviderResource>(prepared->session.id(),
+            sourceKeyForUrl(prepared->session.imageUrl()).identity, std::move(source), displayStore,
+            std::make_shared<ImageViewportFailureRegistry>(), std::move(predecodedImage));
+    };
+
+    m_viewportLoadSession = session;
+    m_viewportLoadTerminal = false;
+    m_viewportMetadata = [prepared]() {
+        if (prepared->source != nullptr) {
+            return prepared->source->embeddedMetadata();
+        }
+        return prepared->predecoded.has_value() ? prepared->predecoded->embeddedMetadata
+                                                : EmbeddedMetadata {};
+    };
+    m_viewportTarget = std::make_unique<ImageViewportIntegrationTarget>(target);
+    m_viewportSecondaryLoadSession.reset();
+    return m_viewportIntegration->submitTarget(std::move(target));
+}
+
+void ImageDocumentRuntimeGraph::prepareViewportSecondaryImageTarget(ImageLoadSession session,
+    std::optional<PredecodedImage> predecoded, bool priorTwoPageModeEnabled)
+{
+    if (m_viewportIntegration == nullptr || m_viewportTarget == nullptr
+        || !m_viewportTarget->isValid()) {
+        if (m_spreadController != nullptr) {
+            m_spreadController->finishViewportSecondaryPageLoadWithError(session);
+        }
+        return;
+    }
+
+    auto prepared = std::make_shared<PreparedViewportTargetState>();
+    prepared->session = session;
+    prepared->dependencies = m_imageDecodeDependencies;
+    prepared->predecoded = std::move(predecoded);
+    const std::shared_ptr<DisplayImageStore> displayStore = m_viewportDisplayStore;
+
+    ImageViewportIntegrationTarget target = *m_viewportTarget;
+    target.secondaryUrl = session.imageUrl();
+    target.transitionIntent = ImageViewportTargetTransitionIntent::PresentationShapeChange;
+    target.priorTwoPageModeEnabled = priorTwoPageModeEnabled;
+    target.secondaryResource = [prepared, displayStore]() {
+        auto source = std::make_shared<ImageViewportDecodeProviderSource>(
+            prepared->session, prepared->dependencies);
+        prepared->source = source;
+        std::optional<StaticDisplayImagePayload> predecodedImage;
+        if (prepared->predecoded.has_value()) {
+            predecodedImage = prepared->predecoded->displayImage;
+        }
+        return std::make_shared<ImageViewportProviderResource>(prepared->session.id(),
+            sourceKeyForUrl(prepared->session.imageUrl()).identity, std::move(source), displayStore,
+            std::make_shared<ImageViewportFailureRegistry>(), std::move(predecodedImage));
+    };
+    m_viewportSecondaryLoadSession = session;
+    m_viewportTarget = std::make_unique<ImageViewportIntegrationTarget>(target);
+    if (!m_viewportIntegration->submitTarget(std::move(target))) {
+        m_spreadController->finishViewportSecondaryPageLoadWithError(session);
+        m_viewportSecondaryLoadSession.reset();
+    }
+}
+
+void ImageDocumentRuntimeGraph::clearViewportSecondaryImageTarget(bool priorTwoPageModeEnabled)
+{
+    if (m_viewportIntegration == nullptr || m_viewportTarget == nullptr
+        || m_viewportTarget->secondaryUrl.isEmpty()) {
+        m_viewportSecondaryLoadSession.reset();
+        return;
+    }
+
+    ImageViewportIntegrationTarget target = *m_viewportTarget;
+    target.secondaryUrl = QUrl();
+    target.secondaryResource = {};
+    target.transitionIntent = ImageViewportTargetTransitionIntent::PresentationShapeChange;
+    target.priorTwoPageModeEnabled = priorTwoPageModeEnabled;
+    m_viewportSecondaryLoadSession.reset();
+    m_viewportTarget = std::make_unique<ImageViewportIntegrationTarget>(target);
+    m_viewportIntegration->submitTarget(std::move(target));
+}
+
+void ImageDocumentRuntimeGraph::clearViewportTarget()
+{
+    m_viewportLoadSession.reset();
+    m_viewportSecondaryLoadSession.reset();
+    m_viewportTarget.reset();
+    m_viewportMetadata = {};
+    m_viewportLoadTerminal = false;
+    if (m_viewportIntegration != nullptr) {
+        m_viewportIntegration->clearTarget();
+    }
+}
+
+void ImageDocumentRuntimeGraph::handleViewportProjection(
+    const ImageViewportIntegrationProjection& projection)
+{
+    invokeIfSet(m_callbacks.notify,
+        std::vector<ImageDocumentChange> { ImageDocumentChange::ViewportProjection });
+    if (m_spreadController != nullptr && m_viewportSecondaryLoadSession.has_value()
+        && m_viewportTarget != nullptr
+        && projection.sourceGeneration == m_viewportTarget->sourceGeneration
+        && projection.secondaryUrl == m_viewportSecondaryLoadSession->imageUrl()) {
+        if (projection.restoredTransition) {
+            const ImageLoadSession session = *m_viewportSecondaryLoadSession;
+            m_viewportSecondaryLoadSession.reset();
+            m_spreadController->finishViewportSecondaryPageLoadWithError(session);
+        } else if (projection.status == ImageDocumentStatus::Ready
+            && !projection.secondaryImageSize.isEmpty()) {
+            const ImageLoadSession session = *m_viewportSecondaryLoadSession;
+            m_viewportSecondaryLoadSession.reset();
+            m_spreadController->finishViewportSecondaryPageLoad(
+                session, projection.secondaryImageSize, false);
+        } else if (projection.status == ImageDocumentStatus::Error) {
+            const ImageLoadSession session = *m_viewportSecondaryLoadSession;
+            m_viewportSecondaryLoadSession.reset();
+            m_spreadController->finishViewportSecondaryPageLoadWithError(session);
+        }
+    }
+    if (m_openController == nullptr || !m_viewportLoadSession.has_value()
+        || projection.sourceGeneration != m_viewportLoadSession->id() || m_viewportLoadTerminal) {
+        return;
+    }
+
+    if (projection.status == ImageDocumentStatus::Ready) {
+        m_viewportLoadTerminal = true;
+        m_openController->finishViewportImageLoadReady(*m_viewportLoadSession,
+            projection.primaryImageSize,
+            m_viewportMetadata ? m_viewportMetadata() : EmbeddedMetadata {});
+        return;
+    }
+    if (projection.status != ImageDocumentStatus::Error) {
+        return;
+    }
+
+    m_viewportLoadTerminal = true;
+    ImageLoadFailure failure = projection.failure.value_or(viewportPresentationFailure(
+        *m_viewportLoadSession, projection.errorString, projection.errorString));
+    m_openController->finishViewportImageLoadWithError(*m_viewportLoadSession, std::move(failure));
 }
 
 MediaEntrySourceVideoPlaybackDeviceResult

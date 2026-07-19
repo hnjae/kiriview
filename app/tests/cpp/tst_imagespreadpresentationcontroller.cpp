@@ -4,16 +4,9 @@
 #include "presentation/imagespreadpresentationcontroller.h"
 
 #include "image_test_support.h"
-#include "presentation/imagepagesurfacecontroller.h"
-#include "presentation/imagepresentationruntime.h"
-#include "presentation/imagepresentationstate.h"
-#include "rendering/imagerendering.h"
 
 #include <QObject>
-#include <QSize>
-#include <QSizeF>
 #include <QTest>
-#include <QUrl>
 #include <map>
 #include <optional>
 #include <vector>
@@ -22,22 +15,6 @@ namespace {
 using kiriview::TestSupport::localUrl;
 using kiriview::TestSupport::staticDisplayTestImagePayload;
 using kiriview::TestSupport::testImage;
-
-kiriview::ImageDocumentRenderContext renderContext()
-{
-    return kiriview::ImageDocumentRenderContext {
-        1.0,
-        kiriview::fallbackTextureSizeMax,
-    };
-}
-
-kiriview::ImageCacheBudgets testCacheBudgets()
-{
-    return kiriview::ImageCacheBudgets {
-        1024 * 1024,
-        512 * 1024,
-    };
-}
 
 kiriview::OpenedCollectionScopeLocation openedCollectionScope()
 {
@@ -55,67 +32,57 @@ kiriview::DisplayedImageLocation displayedLocation(const QUrl& url)
 kiriview::ImageDocumentPageNavigationSnapshot navigationSnapshot(
     const std::vector<QUrl>& urls, int currentPageNumber)
 {
-    return kiriview::ImageDocumentPageNavigationSnapshot {
-        kiriview::PageNavigationState {
-            urls,
-            currentPageNumber - 1,
-        },
-    };
+    return { kiriview::PageNavigationState { urls, currentPageNumber - 1 } };
 }
 
-bool projectionReady(const kiriview::ImageDisplaySourceProjection& projection)
-{
-    return projection.visible && projection.status == kiriview::ImageDisplaySourceStatus::Ready
-        && !projection.providerUrl.isEmpty();
-}
-
-class SpreadPresentationFixture
+class SpreadFixture
 {
 public:
-    SpreadPresentationFixture()
-        : primaryPageSurface(&context, {}, testCacheBudgets())
-        , presentationRuntime(renderContext)
-        , controller(&context, renderContext, state, primaryPageSurface, presentationRuntime,
+    SpreadFixture()
+        : controller(&context, state,
               kiriview::ImageSpreadPresentationController::Callbacks {
                   {},
                   [this](const QUrl& url) { return findPredecodedImage(url); },
                   [this]() { return snapshot; },
-                  {},
-                  [this](const kiriview::ImageDisplayLoadResolution&) {
-                      ++primaryDisplayFailureCount;
+                  [this]() { ++predecodeScheduleCount; },
+                  [this](kiriview::ImageLoadSession session,
+                      std::optional<kiriview::PredecodedImage> predecoded, bool priorEnabled) {
+                      preparedPriorEnabled = priorEnabled;
+                      QVERIFY(predecoded.has_value());
+                      controller.finishViewportSecondaryPageLoad(
+                          session, predecoded->displayImage.originalSize, false);
                   },
-              },
-              {}, testCacheBudgets())
+                  [this](bool priorEnabled) {
+                      clearedPriorEnabled = priorEnabled;
+                      ++clearCount;
+                  },
+                  {},
+              })
     {
-        controller.setViewportSize(QSizeF(800.0, 600.0));
+        state.setDisplayedImageLocation(displayedLocation(pageUrls.front()));
     }
 
-    void displayPrimaryPage(const QUrl& url, const QSize& imageSize, int pageNumber)
+    void displayPrimary(int pageNumber, QSize size)
     {
         snapshot = navigationSnapshot(pageUrls, pageNumber);
-        state.setDisplayedImageLocation(displayedLocation(url));
-        primaryPageSurface.setStaticDisplayImage(
-            staticDisplayTestImagePayload(testImage(imageSize)), false, renderContext());
-        controller.commitPrimaryPageSlot(state.displayedImageLocation());
+        state.setDisplayedImageLocation(displayedLocation(pageUrls.at(pageNumber - 1)));
+        controller.commitPrimaryPageSlot(state.displayedImageLocation(), size);
     }
 
     std::optional<kiriview::PredecodedImage> findPredecodedImage(const QUrl& url) const
     {
-        const auto imageSize = predecodedImageSizes.find(url);
-        if (imageSize == predecodedImageSizes.cend()) {
+        const auto found = predecodedSizes.find(url);
+        if (found == predecodedSizes.end()) {
             return std::nullopt;
         }
-
         return kiriview::PredecodedImage {
-            staticDisplayTestImagePayload(testImage(imageSize->second)),
+            staticDisplayTestImagePayload(testImage(found->second)),
             displayedLocation(url),
         };
     }
 
     QObject context;
     kiriview::ImageDocumentState state;
-    kiriview::ImagePageSurfaceController primaryPageSurface;
-    kiriview::ImagePresentationRuntime presentationRuntime;
     std::vector<QUrl> pageUrls {
         localUrl(QStringLiteral("/books/001.png")),
         localUrl(QStringLiteral("/books/002.png")),
@@ -124,9 +91,12 @@ public:
         localUrl(QStringLiteral("/books/005.png")),
         localUrl(QStringLiteral("/books/006.png")),
     };
-    std::map<QUrl, QSize> predecodedImageSizes;
+    std::map<QUrl, QSize> predecodedSizes;
     kiriview::ImageDocumentPageNavigationSnapshot snapshot;
-    int primaryDisplayFailureCount = 0;
+    std::optional<bool> preparedPriorEnabled;
+    std::optional<bool> clearedPriorEnabled;
+    int clearCount = 0;
+    int predecodeScheduleCount = 0;
     kiriview::ImageSpreadPresentationController controller;
 };
 }
@@ -136,214 +106,59 @@ class TestImageSpreadPresentationController : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
-    void pageWidthCacheBelongsToSpreadNavigationOwner();
-    void spreadVisibleRectOwnsPageVisibleRectProjection();
-    void stillImageLoadOutcomeUpdatesDisplayProjection();
-    void secondaryDisplayFailureReconcilesToPrimaryOnly();
-    void primaryDisplaySourceChangeRefreshesCommittedProjection();
-    void spreadZoomDoesNotMutatePageZoomOwners();
-    void spreadZoomRestoresToSinglePageWithoutMutatingPageZoomOwner();
-    void transitionPhaseKeepsPreviousActiveUntilPlaceholder();
+    void pagePairingAndWidthCacheRemainApplicationOwned();
+    void shapeChangeCarriesPriorApplicationPolicy();
+    void restoredShapePolicyDoesNotSubmitCompensatingTarget();
 };
 
-void TestImageSpreadPresentationController::pageWidthCacheBelongsToSpreadNavigationOwner()
+void TestImageSpreadPresentationController::pagePairingAndWidthCacheRemainApplicationOwned()
 {
-    SpreadPresentationFixture fixture;
-
-    fixture.displayPrimaryPage(fixture.pageUrls.at(3), QSize(1200, 800), 4);
+    SpreadFixture fixture;
+    fixture.displayPrimary(4, QSize(1200, 800));
     fixture.controller.setTwoPageModeEnabled(true);
     QVERIFY(fixture.controller.twoPageModeActive());
     QVERIFY(!fixture.controller.secondaryPageVisible());
 
-    fixture.predecodedImageSizes[fixture.pageUrls.at(5)] = QSize(800, 1200);
-    fixture.displayPrimaryPage(fixture.pageUrls.at(4), QSize(800, 1200), 5);
+    fixture.predecodedSizes[fixture.pageUrls.at(5)] = QSize(800, 1200);
+    fixture.displayPrimary(5, QSize(800, 1200));
     fixture.controller.refreshSecondaryPage();
     QVERIFY(fixture.controller.secondaryPageVisible());
 
     const kiriview::ImageSpreadPageNavigationTarget target
         = fixture.controller.imageDocumentPageNavigationTarget(
             kiriview::NavigationDirection::Previous);
-
     QVERIFY(target.handledBySpread);
     QCOMPARE(target.pageNumber, 4);
 }
 
-void TestImageSpreadPresentationController::spreadVisibleRectOwnsPageVisibleRectProjection()
+void TestImageSpreadPresentationController::shapeChangeCarriesPriorApplicationPolicy()
 {
-    SpreadPresentationFixture fixture;
+    SpreadFixture fixture;
+    fixture.displayPrimary(5, QSize(800, 1200));
+    fixture.predecodedSizes[fixture.pageUrls.at(5)] = QSize(800, 1200);
 
-    fixture.displayPrimaryPage(fixture.pageUrls.at(4), QSize(800, 1200), 5);
-    fixture.predecodedImageSizes[fixture.pageUrls.at(5)] = QSize(800, 1200);
     fixture.controller.setTwoPageModeEnabled(true);
-    fixture.controller.refreshSecondaryPage();
+
+    QCOMPARE(fixture.preparedPriorEnabled, std::optional<bool>(false));
     QVERIFY(fixture.controller.secondaryPageVisible());
 
-    fixture.controller.requestManualZoomPercent(100.0);
-    fixture.controller.requestViewportContentPosition(QPointF(800.0, 0.0));
-
-    QCOMPARE(fixture.controller.visibleItemRect(), QRectF(800.0, 0.0, 800.0, 600.0));
-    QVERIFY(fixture.controller.displaySourceProjection(kiriview::DisplayedPageRole::Primary)
-            .visibleItemRect.isEmpty());
-    QCOMPARE(fixture.controller.displaySourceProjection(kiriview::DisplayedPageRole::Secondary)
-                 .visibleItemRect,
-        QRectF(0.0, 0.0, 800.0, 600.0));
-
-    fixture.controller.setRightToLeftReadingEnabled(true);
-
-    QCOMPARE(fixture.controller.visibleItemRect(), QRectF(800.0, 0.0, 800.0, 600.0));
-    QCOMPARE(fixture.controller.displaySourceProjection(kiriview::DisplayedPageRole::Primary)
-                 .visibleItemRect,
-        QRectF(0.0, 0.0, 800.0, 600.0));
-    QVERIFY(fixture.controller.displaySourceProjection(kiriview::DisplayedPageRole::Secondary)
-            .visibleItemRect.isEmpty());
-}
-
-void TestImageSpreadPresentationController::stillImageLoadOutcomeUpdatesDisplayProjection()
-{
-    SpreadPresentationFixture fixture;
-
-    fixture.displayPrimaryPage(fixture.pageUrls.at(0), QSize(800, 1200), 1);
-
-    kiriview::ImageDisplaySourceProjection projection
-        = fixture.controller.displaySourceProjection(kiriview::DisplayedPageRole::Primary);
-    QVERIFY(projectionReady(projection));
-    QVERIFY(projection.loadAcknowledgmentRequired);
-
-    fixture.controller.acknowledgeDisplayImageLoad(kiriview::DisplayedPageRole::Primary,
-        projection.providerUrl, projection.revision, projection.sourceIdentity,
-        kiriview::ImageDisplayLoadOutcome::Loaded);
-
-    projection = fixture.controller.displaySourceProjection(kiriview::DisplayedPageRole::Primary);
-    QVERIFY(projectionReady(projection));
-    QVERIFY(!projection.loadAcknowledgmentRequired);
-}
-
-void TestImageSpreadPresentationController::secondaryDisplayFailureReconcilesToPrimaryOnly()
-{
-    SpreadPresentationFixture fixture;
-
-    fixture.displayPrimaryPage(fixture.pageUrls.at(4), QSize(800, 1200), 5);
-    fixture.predecodedImageSizes[fixture.pageUrls.at(5)] = QSize(800, 1200);
-    fixture.controller.setTwoPageModeEnabled(true);
-    fixture.controller.refreshSecondaryPage();
-    QVERIFY(fixture.controller.secondaryPageVisible());
-    const kiriview::ImageDisplaySourceProjection secondary
-        = fixture.controller.displaySourceProjection(kiriview::DisplayedPageRole::Secondary);
-    QVERIFY(projectionReady(secondary));
-    QVERIFY(secondary.loadAcknowledgmentRequired);
-
-    QVERIFY(fixture.controller.acknowledgeDisplayImageLoad(kiriview::DisplayedPageRole::Secondary,
-        secondary.providerUrl, secondary.revision, secondary.sourceIdentity,
-        kiriview::ImageDisplayLoadOutcome::Missing));
-
-    QVERIFY(!fixture.controller.secondaryPageVisible());
-    QVERIFY(projectionReady(
-        fixture.controller.displaySourceProjection(kiriview::DisplayedPageRole::Primary)));
-    QCOMPARE(fixture.primaryDisplayFailureCount, 0);
-}
-
-void TestImageSpreadPresentationController::primaryDisplaySourceChangeRefreshesCommittedProjection()
-{
-    SpreadPresentationFixture fixture;
-
-    fixture.displayPrimaryPage(fixture.pageUrls.at(0), QSize(800, 1200), 1);
-
-    const kiriview::ImageDisplaySourceProjection firstProjection
-        = fixture.controller.displaySourceProjection(kiriview::DisplayedPageRole::Primary);
-    QVERIFY(projectionReady(firstProjection));
-
-    fixture.primaryPageSurface.setAnimationFrame(
-        testImage(QSize(800, 1200)), QStringLiteral("animated-frame"));
-    const kiriview::ImagePresentationPageSlotSnapshot frameSurfaceSnapshot
-        = fixture.primaryPageSurface.snapshot();
-    QVERIFY(frameSurfaceSnapshot.displaySource().revision != firstProjection.revision);
-    QCOMPARE(frameSurfaceSnapshot.displaySource().sourceIdentity, QStringLiteral("animated-frame"));
-
-    fixture.controller.handleDocumentChange(kiriview::ImageDocumentChange::DisplaySource);
-
-    const kiriview::ImageDisplaySourceProjection frameProjection
-        = fixture.controller.displaySourceProjection(kiriview::DisplayedPageRole::Primary);
-    QVERIFY(projectionReady(frameProjection));
-    QCOMPARE(frameProjection.revision, frameSurfaceSnapshot.displaySource().revision);
-    QCOMPARE(frameProjection.sourceIdentity, frameSurfaceSnapshot.displaySource().sourceIdentity);
-}
-
-void TestImageSpreadPresentationController::spreadZoomDoesNotMutatePageZoomOwners()
-{
-    SpreadPresentationFixture fixture;
-
-    fixture.displayPrimaryPage(fixture.pageUrls.at(4), QSize(800, 1200), 5);
-    fixture.predecodedImageSizes[fixture.pageUrls.at(5)] = QSize(800, 1200);
-    fixture.controller.setTwoPageModeEnabled(true);
-    fixture.controller.refreshSecondaryPage();
-    QVERIFY(fixture.controller.secondaryPageVisible());
-
-    fixture.controller.requestManualZoomPercent(125.0);
-
-    QCOMPARE(fixture.controller.zoomMode(), kiriview::ImageZoomMode::Manual);
-    QVERIFY(kiriview::imageZoomApproximatelyEqual(fixture.controller.zoomPercent(), 125.0));
-}
-
-void TestImageSpreadPresentationController::
-    spreadZoomRestoresToSinglePageWithoutMutatingPageZoomOwner()
-{
-    SpreadPresentationFixture fixture;
-
-    fixture.displayPrimaryPage(fixture.pageUrls.at(4), QSize(800, 1200), 5);
-    fixture.predecodedImageSizes[fixture.pageUrls.at(5)] = QSize(800, 1200);
-    fixture.controller.setTwoPageModeEnabled(true);
-    fixture.controller.refreshSecondaryPage();
-    QVERIFY(fixture.controller.secondaryPageVisible());
-
-    fixture.controller.requestManualZoomPercent(150.0);
     fixture.controller.setTwoPageModeEnabled(false);
 
-    QVERIFY(!fixture.controller.twoPageModeActive());
-    QCOMPARE(fixture.controller.zoomMode(), kiriview::ImageZoomMode::Manual);
-    QVERIFY(kiriview::imageZoomApproximatelyEqual(fixture.controller.zoomPercent(), 150.0));
+    QCOMPARE(fixture.clearedPriorEnabled, std::optional<bool>(true));
+    QVERIFY(!fixture.controller.secondaryPageVisible());
 }
 
-void TestImageSpreadPresentationController::transitionPhaseKeepsPreviousActiveUntilPlaceholder()
+void TestImageSpreadPresentationController::restoredShapePolicyDoesNotSubmitCompensatingTarget()
 {
-    SpreadPresentationFixture fixture;
+    SpreadFixture fixture;
+    fixture.displayPrimary(5, QSize(800, 1200));
+    fixture.controller.restoreTwoPageModeEnabled(true);
+    const int clearCount = fixture.clearCount;
 
-    fixture.displayPrimaryPage(fixture.pageUrls.at(1), QSize(800, 1200), 2);
-    fixture.predecodedImageSizes[fixture.pageUrls.at(2)] = QSize(800, 1200);
-    fixture.controller.setTwoPageModeEnabled(true);
-    fixture.controller.refreshSecondaryPage();
-    QVERIFY(fixture.controller.secondaryPageVisible());
-    QCOMPARE(fixture.controller.presentationTransitionState(),
-        kiriview::ImagePresentationTransitionState::CommittedActive);
+    fixture.controller.restoreTwoPageModeEnabled(false);
 
-    fixture.controller.beginTransition();
-
-    QCOMPARE(fixture.controller.presentationTransitionState(),
-        kiriview::ImagePresentationTransitionState::PreviousActive);
-    QVERIFY(projectionReady(
-        fixture.controller.displaySourceProjection(kiriview::DisplayedPageRole::Primary)));
-    QVERIFY(projectionReady(
-        fixture.controller.displaySourceProjection(kiriview::DisplayedPageRole::Secondary)));
-
-    fixture.controller.clearSecondaryPage();
-
-    QVERIFY(projectionReady(
-        fixture.controller.displaySourceProjection(kiriview::DisplayedPageRole::Secondary)));
-
-    fixture.controller.showTransitionPlaceholder();
-
-    QCOMPARE(fixture.controller.presentationTransitionState(),
-        kiriview::ImagePresentationTransitionState::TransitioningPlaceholder);
-    QVERIFY(!projectionReady(
-        fixture.controller.displaySourceProjection(kiriview::DisplayedPageRole::Primary)));
-    QVERIFY(!projectionReady(
-        fixture.controller.displaySourceProjection(kiriview::DisplayedPageRole::Secondary)));
-
-    fixture.controller.abortTransition();
-
-    QCOMPARE(fixture.controller.presentationTransitionState(),
-        kiriview::ImagePresentationTransitionState::CommittedActive);
-    QVERIFY(projectionReady(
-        fixture.controller.displaySourceProjection(kiriview::DisplayedPageRole::Primary)));
+    QVERIFY(!fixture.controller.twoPageModeEnabled());
+    QCOMPARE(fixture.clearCount, clearCount);
 }
 
 QTEST_GUILESS_MAIN(TestImageSpreadPresentationController)

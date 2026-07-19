@@ -11,6 +11,7 @@
 
 #include <ImageViewport/imagesequenceprovider.h>
 
+#include <QMutex>
 #include <QString>
 #include <QVector>
 #include <functional>
@@ -133,6 +134,7 @@ public:
     void cancel(const QVector<ImageSequenceProviderRequestToken>& tokens);
     void close();
 
+    std::optional<StaticDisplayImagePayload> currentStillDisplayImage() const;
     ImageSequenceProviderFrameHandle* acquireFrameHandle(
         const ImageViewportProviderPreparedFrame& preparedFrame);
     ImageSequenceProviderFailure failure(
@@ -149,6 +151,8 @@ private:
     std::shared_ptr<DisplayImageStore> m_displayStore;
     std::shared_ptr<ImageViewportFailureRegistry> m_failureRegistry;
     std::optional<StaticDisplayImagePayload> m_predecodedImage;
+    mutable QMutex m_currentPayloadMutex;
+    std::optional<StaticDisplayImagePayload> m_currentStillDisplayImage;
 };
 }
 

@@ -30,10 +30,6 @@ bool ImageDocumentLifecycleRuntimePlanExecutor::dispatchOperation(
         run(m_operations.cancelFileDeletion);
         return true;
     }
-    if (std::holds_alternative<StopPresentationAnimationOperation>(operation)) {
-        run(m_operations.stopPresentationAnimation);
-        return true;
-    }
     if (std::holds_alternative<ShutdownSpreadOperation>(operation)) {
         run(m_operations.shutdownSpread);
         return true;

@@ -67,7 +67,7 @@ private:
     {
         kiriview::ImageViewportProviderWorkIdentity work {
             m_resource->sourceGeneration(),
-            ImageViewportPageRole::Primary,
+            request.role(),
             request.token(),
             {},
             m_resource->reuseIdentity(),

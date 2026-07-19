@@ -24,8 +24,6 @@ class QObject;
 namespace kiriview {
 class ImageDocumentState;
 class ImagePredecodeCoordinator;
-class ImagePageSurfaceController;
-class ImagePresentationRuntime;
 
 class ImageDocumentPredecodeController final
 {
@@ -33,11 +31,14 @@ public:
     using CurrentPageNumberCallback = std::function<int()>;
     using EnsurePageCandidateSnapshotCallback = std::function<void(
         ImageDocumentPageCandidateListContext, ImageDocumentPageCandidateListSnapshotCallback)>;
+    using PrimaryDisplayedImageCallback = std::function<std::optional<DisplayedPredecodeImage>()>;
+    using FirstDisplayDecodeContextCallback = std::function<ImageFirstDisplayDecodeContext()>;
 
     ImageDocumentPredecodeController(QObject* parent, ImageDocumentState& state,
-        ImagePageSurfaceController& pageSurfaceController,
-        ImagePresentationRuntime& presentationRuntime, ImageDecodeDependencies decodeDependencies,
-        qsizetype cacheByteBudget, CurrentPageNumberCallback currentPageNumber = {},
+        PrimaryDisplayedImageCallback primaryDisplayedImage,
+        FirstDisplayDecodeContextCallback firstDisplayDecodeContext,
+        ImageDecodeDependencies decodeDependencies, qsizetype cacheByteBudget,
+        CurrentPageNumberCallback currentPageNumber = {},
         EnsurePageCandidateSnapshotCallback ensurePageCandidateSnapshot = {},
         PowerSaverProvider powerSaverProvider = {}, bool ordinaryDirectMediaPredecodeEnabled = true,
         TimerScheduler timerScheduler = {}, PredecodeThreadCountProvider threadCountProvider = {});
@@ -55,8 +56,8 @@ private:
     void scheduleWithConfirmedCandidateSnapshot(PredecodeScheduleContext context);
 
     ImageDocumentState& m_state;
-    ImagePageSurfaceController& m_pageSurfaceController;
-    ImagePresentationRuntime& m_presentationRuntime;
+    PrimaryDisplayedImageCallback m_primaryDisplayedImage;
+    FirstDisplayDecodeContextCallback m_firstDisplayDecodeContext;
     std::unique_ptr<ImagePredecodeCoordinator> m_coordinator;
     CurrentPageNumberCallback m_currentPageNumber;
     EnsurePageCandidateSnapshotCallback m_ensurePageCandidateSnapshot;

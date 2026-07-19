@@ -32,7 +32,6 @@ fn current_source_load_plan_uses_reading_and_container_snapshots() {
         RustImageDocumentSourceLoadPlan {
             operations: vec![
                 RustImageDocumentSourceLoadOperation::CancelFileDeletion,
-                RustImageDocumentSourceLoadOperation::FinishSpreadTransition,
                 RustImageDocumentSourceLoadOperation::ClearLoadingContainerNavigationUrl,
                 RustImageDocumentSourceLoadOperation::SetContainerNavigationUrlToRequested,
             ],
@@ -54,7 +53,6 @@ fn same_scope_image_navigation_load_plan_begins_open_without_replacement_resets(
             operations: vec![
                 RustImageDocumentSourceLoadOperation::CancelFileDeletion,
                 RustImageDocumentSourceLoadOperation::ClearLoadingContainerNavigationUrl,
-                RustImageDocumentSourceLoadOperation::BeginSameScopeImageNavigationPresentation,
                 RustImageDocumentSourceLoadOperation::PrepareSourceLoad,
                 RustImageDocumentSourceLoadOperation::SetSourceUrlToRequested,
                 RustImageDocumentSourceLoadOperation::BeginOpen,
@@ -73,11 +71,9 @@ fn same_scope_image_navigation_load_plan_begins_open_without_replacement_resets(
         .operations,
         vec![
             RustImageDocumentSourceLoadOperation::CancelFileDeletion,
-            RustImageDocumentSourceLoadOperation::FinishSpreadTransition,
             RustImageDocumentSourceLoadOperation::ResetRightToLeftReading,
             RustImageDocumentSourceLoadOperation::NotifyRightToLeftReadingChanged,
             RustImageDocumentSourceLoadOperation::ClearLoadingContainerNavigationUrl,
-            RustImageDocumentSourceLoadOperation::BeginSameScopeImageNavigationPresentation,
             RustImageDocumentSourceLoadOperation::PrepareSourceLoad,
             RustImageDocumentSourceLoadOperation::SetSourceUrlToRequested,
             RustImageDocumentSourceLoadOperation::BeginOpen,
@@ -121,7 +117,6 @@ fn replacement_source_load_plan_begins_open_and_clears_competing_state_in_order(
                 RustImageDocumentSourceLoadOperation::CancelFileDeletion,
                 RustImageDocumentSourceLoadOperation::CancelAllNavigation,
                 RustImageDocumentSourceLoadOperation::CancelPredecode,
-                RustImageDocumentSourceLoadOperation::FinishSpreadTransition,
                 RustImageDocumentSourceLoadOperation::ClearSecondaryPage,
                 RustImageDocumentSourceLoadOperation::SetLoadingContainerNavigationUrlToRequested,
                 RustImageDocumentSourceLoadOperation::PrepareSourceLoad,

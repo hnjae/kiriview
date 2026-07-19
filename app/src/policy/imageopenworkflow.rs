@@ -56,13 +56,9 @@ mod ffi {
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     enum RustImageOpenEffect {
         ClearImage = 0,
-        ResetZoom = 1,
-        UpdatePageNavigation = 2,
-        ScheduleAdjacentImagePredecode = 3,
-        PrepareFailedContainer = 4,
-        ClearLoadingPresentation = 5,
-        FinishSpreadTransition = 6,
-        ClearSecondaryPage = 7,
+        UpdatePageNavigation = 1,
+        ScheduleAdjacentImagePredecode = 2,
+        ClearSecondaryPage = 3,
     }
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -72,10 +68,9 @@ mod ffi {
         FinishSuccessfulImageLoad = 2,
         FinishSourceLoadWithError = 3,
         FinishContainerNavigationLoadWithError = 4,
-        FinishAnimationLoadWithError = 5,
-        ResolveSourceImage = 6,
-        FinishUnsupportedOpenedCollectionVideoLoad = 7,
-        FinishPlayableOpenedCollectionVideoLoad = 8,
+        ResolveSourceImage = 5,
+        FinishUnsupportedOpenedCollectionVideoLoad = 6,
+        FinishPlayableOpenedCollectionVideoLoad = 7,
     }
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -96,17 +91,15 @@ mod ffi {
         CancelFileDeletion = 0,
         CancelAllNavigation = 1,
         CancelPredecode = 2,
-        FinishSpreadTransition = 3,
-        ResetRightToLeftReading = 4,
-        NotifyRightToLeftReadingChanged = 5,
-        ClearSecondaryPage = 6,
-        BeginSameScopeImageNavigationPresentation = 7,
-        ClearLoadingContainerNavigationUrl = 8,
-        SetLoadingContainerNavigationUrlToRequested = 9,
-        SetContainerNavigationUrlToRequested = 10,
-        PrepareSourceLoad = 11,
-        SetSourceUrlToRequested = 12,
-        BeginOpen = 13,
+        ResetRightToLeftReading = 3,
+        NotifyRightToLeftReadingChanged = 4,
+        ClearSecondaryPage = 5,
+        ClearLoadingContainerNavigationUrl = 6,
+        SetLoadingContainerNavigationUrlToRequested = 7,
+        SetContainerNavigationUrlToRequested = 8,
+        PrepareSourceLoad = 9,
+        SetSourceUrlToRequested = 10,
+        BeginOpen = 11,
     }
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]

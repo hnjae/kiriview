@@ -64,9 +64,6 @@ void appendSourceLoadRuntimeOperation(kiriview::ImageDocumentRuntimePlan& runtim
     case Operation::CancelPredecode:
         runtimePlan.push_back(kiriview::CancelPredecodeOperation {});
         return;
-    case Operation::FinishSpreadTransition:
-        runtimePlan.push_back(kiriview::FinishSpreadTransitionOperation {});
-        return;
     case Operation::ResetRightToLeftReading:
         runtimePlan.push_back(kiriview::ResetRightToLeftReadingOperation {});
         return;
@@ -75,9 +72,6 @@ void appendSourceLoadRuntimeOperation(kiriview::ImageDocumentRuntimePlan& runtim
         return;
     case Operation::ClearSecondaryPage:
         runtimePlan.push_back(kiriview::ClearSecondaryPageOperation {});
-        return;
-    case Operation::BeginSameScopeImageNavigationPresentation:
-        runtimePlan.push_back(kiriview::BeginSameScopeImageNavigationPresentationOperation {});
         return;
     case Operation::ClearLoadingContainerNavigationUrl:
         runtimePlan.push_back(kiriview::ClearLoadingContainerNavigationUrlOperation {});
@@ -249,8 +243,8 @@ kiriview::ImageOpenResolvedStateDelta resolvedStateDelta(
     };
 }
 
-void appendRuntimeOperationsForOpenEffect(kiriview::ImageDocumentRuntimePlan& plan,
-    kiriview::RustImageOpenEffect effect, const std::optional<QUrl>& containerUrl)
+void appendRuntimeOperationsForOpenEffect(
+    kiriview::ImageDocumentRuntimePlan& plan, kiriview::RustImageOpenEffect effect)
 {
     switch (effect) {
     case kiriview::RustImageOpenEffect::ClearImage: {
@@ -259,29 +253,11 @@ void appendRuntimeOperationsForOpenEffect(kiriview::ImageDocumentRuntimePlan& pl
             std::make_move_iterator(clearPlan.end()));
         return;
     }
-    case kiriview::RustImageOpenEffect::ClearLoadingPresentation: {
-        kiriview::ImageDocumentRuntimePlan clearPlan
-            = kiriview::imageDocumentClearLoadingPresentationPlan();
-        plan.insert(plan.end(), std::make_move_iterator(clearPlan.begin()),
-            std::make_move_iterator(clearPlan.end()));
-        return;
-    }
-    case kiriview::RustImageOpenEffect::ResetZoom:
-        plan.push_back(kiriview::ResetZoomOperation {});
-        return;
     case kiriview::RustImageOpenEffect::UpdatePageNavigation:
         plan.push_back(kiriview::UpdatePageNavigationOperation {});
         return;
     case kiriview::RustImageOpenEffect::ScheduleAdjacentImagePredecode:
         plan.push_back(kiriview::ScheduleAdjacentImagePredecodeOperation {});
-        return;
-    case kiriview::RustImageOpenEffect::PrepareFailedContainer:
-        if (containerUrl.has_value()) {
-            plan.push_back(kiriview::PrepareFailedContainerOperation { *containerUrl });
-        }
-        return;
-    case kiriview::RustImageOpenEffect::FinishSpreadTransition:
-        plan.push_back(kiriview::FinishSpreadTransitionOperation {});
         return;
     case kiriview::RustImageOpenEffect::ClearSecondaryPage:
         plan.push_back(kiriview::ClearSecondaryPageOperation {});
@@ -290,12 +266,12 @@ void appendRuntimeOperationsForOpenEffect(kiriview::ImageDocumentRuntimePlan& pl
 }
 
 kiriview::ImageDocumentRuntimePlan resolvedRuntimePlan(
-    const kiriview::RustImageOpenTransition& transition, const std::optional<QUrl>& containerUrl)
+    const kiriview::RustImageOpenTransition& transition)
 {
     kiriview::ImageDocumentRuntimePlan plan;
     plan.reserve(transition.effects.size());
     for (kiriview::RustImageOpenEffect effect : transition.effects) {
-        appendRuntimeOperationsForOpenEffect(plan, effect, containerUrl);
+        appendRuntimeOperationsForOpenEffect(plan, effect);
     }
     return plan;
 }
@@ -311,7 +287,7 @@ kiriview::ImageOpenApplicationPlan resolvedApplicationPlan(
     return kiriview::ImageOpenApplicationPlan {
         resolvedStateDelta(transition.state_delta, session, containerUrl, errorString, loadFailure,
             embeddedMetadata),
-        resolvedRuntimePlan(transition, containerUrl),
+        resolvedRuntimePlan(transition),
     };
 }
 
@@ -407,21 +383,4 @@ ImageOpenApplicationPlan finishContainerNavigationLoadWithErrorPlan(
         nullptr, containerUrl, errorString);
 }
 
-ImageOpenApplicationPlan finishAnimationLoadWithErrorPlan(const QString& errorString)
-{
-    return resolvedApplicationPlan(
-        rustImageOpenTransition(rustImageOpenWorkflowEvent(
-            RustImageOpenWorkflowEventKind::FinishAnimationLoadWithError)),
-        nullptr, std::nullopt, errorString);
-}
-
-ImageOpenApplicationPlan finishPresentationLoadWithErrorPlan(ImageLoadFailure failure)
-{
-    const std::optional<QString> errorString = failure.userMessage;
-    const std::optional<ImageLoadFailure> loadFailure = std::move(failure);
-    return resolvedApplicationPlan(
-        rustImageOpenTransition(rustImageOpenWorkflowEvent(
-            RustImageOpenWorkflowEventKind::FinishAnimationLoadWithError)),
-        nullptr, std::nullopt, errorString, loadFailure);
-}
 }

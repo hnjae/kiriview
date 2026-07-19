@@ -5,73 +5,31 @@
 
 #include "async/imagecallback.h"
 #include "document/imageloader.h"
-#include "presentation/imagepagesurfacecontroller.h"
-#include "presentation/imagepresentationload.h"
-#include "presentation/imagespreadgeometry.h"
+#include "presentation/imagespreadpagecache.h"
 
 #include <utility>
 
 namespace kiriview {
-ImageSecondaryPageController::ImageSecondaryPageController(QObject* parent,
-    RenderContextProvider renderContextProvider, ImageSecondaryPageController::Callbacks callbacks,
-    ImageDecodeDependencies decodeDependencies, ImageCacheBudgets cacheBudgets)
+ImageSecondaryPageController::ImageSecondaryPageController(QObject* parent, Callbacks callbacks)
     : m_callbacks(std::move(callbacks))
-    , m_renderContextProvider(std::move(renderContextProvider))
 {
-    m_pageSurfaceController = std::make_unique<ImagePageSurfaceController>(parent,
-        ImagePageSurfaceController::Callbacks {
-            [this](ImageDocumentChange change) {
-                if (change == ImageDocumentChange::DisplaySource) {
-                    notify(change);
-                }
-            },
-            [this](const QString&) {
-                const bool hadDisplayedPage = visible();
-                clear();
-                if (hadDisplayedPage) {
-                    invokeIfSet(m_callbacks.visibilityChanged);
-                }
-            },
-        },
-        cacheBudgets, std::shared_ptr<DisplayImageStore> {}, DisplayedPageRole::Secondary);
-    m_imageLoader = std::make_unique<ImageLoader>(parent, std::move(decodeDependencies),
+    m_imageLoader = std::make_unique<ImageLoader>(parent,
         ImageLoader::Callbacks {
             [this](ImageLoadSession session, ImageLoadFailure) { finishLoadWithError(session); },
-            [this](ImageLoadSession session, DecodedImage image) {
-                finishDecodedImageLoad(std::move(session), std::move(image));
-            },
-            [this](ImageLoadSession session, PredecodedImage image) {
-                finishPredecodedImageLoad(std::move(session), std::move(image));
-            },
-            {},
             {},
             [this](const QUrl& url) {
-                if (!m_callbacks.findPredecodedImage) {
-                    return std::optional<PredecodedImage>();
-                }
-
-                return m_callbacks.findPredecodedImage(url);
+                return m_callbacks.findPredecodedImage ? m_callbacks.findPredecodedImage(url)
+                                                       : std::optional<PredecodedImage>();
             },
             {},
             {},
+            [this](ImageLoadSession session, std::optional<PredecodedImage> predecoded) {
+                invokeIfSet(m_callbacks.preparedImage, std::move(session), std::move(predecoded));
+            },
         });
 }
 
-ImageSecondaryPageController::~ImageSecondaryPageController()
-{
-    cancel();
-    stopAnimation();
-}
-
-ImagePageSurfaceController& ImageSecondaryPageController::pageSurfaceController()
-{
-    return *m_pageSurfaceController;
-}
-
-const ImagePageSurfaceController& ImageSecondaryPageController::pageSurfaceController() const
-{
-    return *m_pageSurfaceController;
-}
+ImageSecondaryPageController::~ImageSecondaryPageController() { cancel(); }
 
 bool ImageSecondaryPageController::visible() const { return m_displayState.visible(); }
 
@@ -82,28 +40,18 @@ DisplayedImageLocation ImageSecondaryPageController::displayedImageLocation() co
 
 QSize ImageSecondaryPageController::imageSize() const { return m_displayState.imageSize(); }
 
-ImagePresentationPageSlotSnapshot ImageSecondaryPageController::pageSlotSnapshot() const
-{
-    return visible() ? m_pageSurfaceController->snapshot() : ImagePresentationPageSlotSnapshot {};
-}
-
-void ImageSecondaryPageController::startLoad(const QUrl& url,
-    const OpenedCollectionScopeLocation& displayedOpenedCollectionScope,
-    ImageFirstDisplayDecodeContext firstDisplayContext)
+void ImageSecondaryPageController::startLoad(
+    const QUrl& url, const OpenedCollectionScopeLocation& displayedOpenedCollectionScope)
 {
     cancel();
-    stopAnimation();
     m_imageLoader->start(ImageLoadRequest::fromSameScopePageTarget(
-                             ImageDocumentPageTarget { url, ImageDocumentPageKind::Image },
-                             displayedOpenedCollectionScope, false),
-        firstDisplayContext);
+        ImageDocumentPageTarget { url, ImageDocumentPageKind::Image },
+        displayedOpenedCollectionScope, false));
 }
 
 void ImageSecondaryPageController::clear()
 {
     cancel();
-    stopAnimation();
-    m_pageSurfaceController->clearImage();
     m_displayState.clear();
 }
 
@@ -114,38 +62,16 @@ void ImageSecondaryPageController::cancel()
     }
 }
 
-void ImageSecondaryPageController::stopAnimation()
+void ImageSecondaryPageController::finishProviderLoad(
+    const ImageLoadSession& session, QSize imageSize, bool presentationRestored)
 {
-    if (m_pageSurfaceController != nullptr) {
-        m_pageSurfaceController->stopAnimation();
-    }
-}
-
-void ImageSecondaryPageController::finishPredecodedImageLoad(
-    ImageLoadSession session, PredecodedImage image)
-{
-    finishImagePresentation(session,
-        presentPredecodedImageLoad(*m_pageSurfaceController, std::move(image), renderContext()));
-}
-
-void ImageSecondaryPageController::finishDecodedImageLoad(
-    ImageLoadSession session, DecodedImage image)
-{
-    finishImagePresentation(session,
-        presentDecodedImageLoad(*m_pageSurfaceController, std::move(image),
-            ImagePresentationAnimationHandling::FirstFrameOnly, renderContext()));
-}
-
-void ImageSecondaryPageController::finishImagePresentation(
-    const ImageLoadSession& session, ImagePresentationLoadResult result)
-{
-    if (!result.presented) {
-        finishLoadWithError(session);
-        return;
-    }
-
     applyLoadCompletion(m_displayState.finishPresentedLoad(
-        session.location(), result.imageSize, imageSpreadPageIsWide(result.imageSize)));
+        session.location(), imageSize, presentationRestored || imageSpreadPageIsWide(imageSize)));
+}
+
+void ImageSecondaryPageController::finishProviderLoadWithError(const ImageLoadSession& session)
+{
+    finishLoadWithError(session);
 }
 
 void ImageSecondaryPageController::finishLoadWithError(const ImageLoadSession& session)
@@ -156,21 +82,7 @@ void ImageSecondaryPageController::finishLoadWithError(const ImageLoadSession& s
 void ImageSecondaryPageController::applyLoadCompletion(
     const ImageSecondaryPageLoadCompletion& completion)
 {
-    if (completion.clearPresentation) {
-        m_pageSurfaceController->clearImage();
-    }
-
     invokeIfSet(
         m_callbacks.loadFinished, completion.result, completion.location, completion.imageSize);
-}
-
-ImageDocumentRenderContext ImageSecondaryPageController::renderContext() const
-{
-    return m_renderContextProvider ? m_renderContextProvider() : ImageDocumentRenderContext {};
-}
-
-void ImageSecondaryPageController::notify(ImageDocumentChange change)
-{
-    invokeIfSet(m_callbacks.change, change);
 }
 }

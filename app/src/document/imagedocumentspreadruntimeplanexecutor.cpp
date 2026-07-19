@@ -26,10 +26,6 @@ ImageDocumentSpreadRuntimePlanExecutor::ImageDocumentSpreadRuntimePlanExecutor(
 bool ImageDocumentSpreadRuntimePlanExecutor::dispatchOperation(
     const ImageDocumentRuntimeOperation& operation)
 {
-    if (std::holds_alternative<FinishSpreadTransitionOperation>(operation)) {
-        run(m_operations.finishSpreadTransition);
-        return true;
-    }
     if (std::holds_alternative<ResetRightToLeftReadingOperation>(operation)) {
         run(m_operations.resetRightToLeftReading);
         return true;
@@ -38,23 +34,10 @@ bool ImageDocumentSpreadRuntimePlanExecutor::dispatchOperation(
         run(m_operations.clearSecondaryPage);
         return true;
     }
-    if (std::holds_alternative<BeginSameScopeImageNavigationPresentationOperation>(operation)) {
-        run(m_operations.beginSameScopeImageNavigationPresentation);
-        return true;
-    }
     if (std::holds_alternative<NotifyRightToLeftReadingChangedOperation>(operation)) {
         run(m_operations.notifyRightToLeftReadingChanged);
         return true;
     }
-    if (std::holds_alternative<ResetZoomOperation>(operation)) {
-        run(m_operations.resetZoom);
-        return true;
-    }
-    if (const auto* payload = std::get_if<PrepareFailedContainerOperation>(&operation)) {
-        run(m_operations.prepareFailedContainer, payload->containerUrl);
-        return true;
-    }
-
     return false;
 }
 }

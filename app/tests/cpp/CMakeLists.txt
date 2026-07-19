@@ -215,8 +215,8 @@ if(TARGET tst_imageshortcuts)
     set_tests_properties(tst_imageshortcuts PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
 
-if(TARGET tst_imageviewport)
-    set_tests_properties(tst_imageviewport PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+if(TARGET tst_kiridocumentsession)
+    set_tests_properties(tst_kiridocumentsession PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
 
 if(TARGET tst_imageviewportcomponentboundary)
@@ -229,8 +229,9 @@ if(TARGET tst_imageviewportsequenceprovider)
                                                                       "QT_QPA_PLATFORM=offscreen")
 endif()
 
-if(TARGET tst_displayimagepage)
-    set_tests_properties(tst_displayimagepage PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+if(TARGET tst_imageviewportintegrationruntime)
+    set_tests_properties(tst_imageviewportintegrationruntime PROPERTIES ENVIRONMENT
+                                                                        "QT_QPA_PLATFORM=offscreen")
 endif()
 
 if(TARGET tst_videodocumentruntimezoom)

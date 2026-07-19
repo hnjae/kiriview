@@ -222,14 +222,14 @@ void TestImageDocumentState::injectedChangeBatchSharesStateAndRuntimeNotificatio
         state.setLoading(true);
         batcher.notify(kiriview::ImageDocumentChange::Status);
         state.setStatus(kiriview::ImageDocumentStatus::Loading);
-        batcher.notify(kiriview::ImageDocumentChange::DisplaySource);
+        batcher.notify(kiriview::ImageDocumentChange::ViewportProjection);
         QVERIFY(changes.empty());
     }
 
     QCOMPARE(changes.size(), std::size_t(3));
     QCOMPARE(changes.at(0), kiriview::ImageDocumentChange::Loading);
     QCOMPARE(changes.at(1), kiriview::ImageDocumentChange::Status);
-    QCOMPARE(changes.at(2), kiriview::ImageDocumentChange::DisplaySource);
+    QCOMPARE(changes.at(2), kiriview::ImageDocumentChange::ViewportProjection);
 }
 
 QTEST_GUILESS_MAIN(TestImageDocumentState)

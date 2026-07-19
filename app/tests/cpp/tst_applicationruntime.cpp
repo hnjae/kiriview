@@ -61,7 +61,7 @@ private Q_SLOTS:
     void startupSourceCarriesVerboseMode();
     void runtimeDiagnosticsStayDisabledWithoutVerboseStartup();
     void runtimeDiagnosticsEnableVerboseStartupCategories();
-    void registersDisplayImageProvider();
+    void registersThumbnailImageProviderOnly();
 };
 
 void TestApplicationRuntime::cleanup() { QLoggingCategory::setFilterRules(QString()); }
@@ -136,14 +136,14 @@ void TestApplicationRuntime::runtimeDiagnosticsEnableVerboseStartupCategories()
     }
 }
 
-void TestApplicationRuntime::registersDisplayImageProvider()
+void TestApplicationRuntime::registersThumbnailImageProviderOnly()
 {
     QQmlEngine engine;
 
     kiriview::registerApplicationImageProviders(engine);
 
     QVERIFY(engine.imageProvider(QStringLiteral("kiriview-thumbnails")) != nullptr);
-    QVERIFY(engine.imageProvider(QStringLiteral("kiriview-images")) != nullptr);
+    QVERIFY(engine.imageProvider(QStringLiteral("kiriview-images")) == nullptr);
 }
 
 QTEST_GUILESS_MAIN(TestApplicationRuntime)

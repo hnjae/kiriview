@@ -8,7 +8,10 @@
 #include "imagedocumentruntimedependencies.h"
 #include "imagedocumentruntimeplan.h"
 #include "imagedocumenttypes.h"
+#include "imageloadtypes.h"
 #include "location/imageurl.h"
+#include "metadata/embeddedmetadata.h"
+#include "predecode/predecodedimage.h"
 #include "rendering/imagerendercontext.h"
 
 #include <QString>
@@ -20,8 +23,8 @@ class QObject;
 
 namespace kiriview {
 class MediaEntrySourceStore;
+class DisplayImageStore;
 class ImageDocumentAdjacentPredecodeSchedulerPort;
-class ImageDocumentAnimationLoadErrorPort;
 class ImageDocumentCurrentPageNumberPort;
 class ImageDocumentDeletionController;
 class ImageDocumentDeletionProgressPort;
@@ -36,9 +39,10 @@ class ImageDocumentState;
 class ImageDocumentSourceLoadRequest;
 class ImageDocumentPageNavigationService;
 class ImageOpenController;
-class ImagePageSurfaceController;
-class ImagePresentationRuntime;
 class ImageSpreadPresentationController;
+class ImageViewportIntegrationRuntime;
+struct ImageViewportIntegrationTarget;
+struct ImageViewportIntegrationProjection;
 
 struct ImageDocumentRuntimeGraphCallbacks
 {
@@ -60,10 +64,11 @@ public:
     ~ImageDocumentRuntimeGraph();
 
     ImageDocumentDeletionController& deletionController() const;
-    ImagePageSurfaceController& pageSurfaceController() const;
-    ImagePresentationRuntime& presentationRuntime() const;
     ImageDocumentNavigationController& navigationController() const;
     ImageSpreadPresentationController& spreadController() const;
+    ImageViewportIntegrationRuntime& viewportIntegration() const;
+    std::optional<DisplayedPredecodeImage> primaryDisplayedPredecodeImage() const;
+    ImageFirstDisplayDecodeContext firstDisplayDecodeContext() const;
     MediaEntrySourceVideoPlaybackDeviceResult loadOpenedCollectionVideoPlaybackDevice(
         const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl) const;
 
@@ -80,15 +85,21 @@ private:
         ImageDocumentRuntimeDependencies& dependencies,
         ExternalPredecodedImageFinder externalPredecodedImageFinder);
     void composeWorkflowDispatch(ImageDocumentState& state);
+    bool prepareViewportImageTarget(
+        ImageLoadSession session, std::optional<PredecodedImage> predecoded);
+    void prepareViewportSecondaryImageTarget(ImageLoadSession session,
+        std::optional<PredecodedImage> predecoded, bool priorTwoPageModeEnabled);
+    void clearViewportSecondaryImageTarget(bool priorTwoPageModeEnabled);
+    void clearViewportTarget();
+    void handleViewportProjection(const ImageViewportIntegrationProjection& projection);
 
     ImageDocumentRuntimeGraphCallbacks m_callbacks;
     ImageDocumentState& m_state;
     std::unique_ptr<MediaEntrySourceStore> m_mediaEntrySourceStore;
-    std::unique_ptr<ImageDocumentAnimationLoadErrorPort> m_animationLoadErrorPort;
     std::unique_ptr<ImageDocumentDeletionController> m_deletionController;
     std::unique_ptr<ImageDocumentDeletionProgressPort> m_deletionProgressPort;
-    std::unique_ptr<ImagePageSurfaceController> m_pageSurfaceController;
-    std::unique_ptr<ImagePresentationRuntime> m_presentationRuntime;
+    std::shared_ptr<DisplayImageStore> m_viewportDisplayStore;
+    std::unique_ptr<ImageViewportIntegrationRuntime> m_viewportIntegration;
     std::unique_ptr<ImageDocumentPageNavigationService> m_navigationService;
     std::unique_ptr<ImageDocumentNavigationSnapshotPort> m_navigationSnapshotPort;
     std::unique_ptr<ImageDocumentCurrentPageNumberPort> m_currentPageNumberPort;
@@ -101,6 +112,12 @@ private:
     std::unique_ptr<ImageOpenController> m_openController;
     std::unique_ptr<ImageDocumentNavigationController> m_navigationController;
     std::unique_ptr<ImageDocumentRuntimeWorkflow> m_runtimeWorkflow;
+    ImageDecodeDependencies m_imageDecodeDependencies;
+    std::optional<ImageLoadSession> m_viewportLoadSession;
+    std::function<EmbeddedMetadata()> m_viewportMetadata;
+    bool m_viewportLoadTerminal = false;
+    std::unique_ptr<ImageViewportIntegrationTarget> m_viewportTarget;
+    std::optional<ImageLoadSession> m_viewportSecondaryLoadSession;
 };
 }
 

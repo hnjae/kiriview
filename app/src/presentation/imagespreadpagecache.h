@@ -11,6 +11,8 @@
 #include <optional>
 
 namespace kiriview {
+bool imageSpreadPageIsWide(QSize imageSize);
+
 class ImageSpreadPageCache
 {
 public:
