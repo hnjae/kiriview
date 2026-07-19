@@ -1,6 +1,6 @@
 # Scope
 
-KiriView opens one user-selected image file, direct video file, supported archive, or directly provided local directory. It displays the selected content in the main window and can navigate to adjacent media items or pages in the same location.
+KiriView opens one user-selected image URL, direct video URL, supported local archive, or directly provided local directory. It displays the selected content in the main window and can navigate to adjacent media items or pages in the same location.
 
 KiriView's installed application, desktop file, and icon identity is `org.hnjae.kiriview`.
 

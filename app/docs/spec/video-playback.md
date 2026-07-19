@@ -6,45 +6,25 @@ KiriView supports the direct video files and eligible video entries inside direc
 
 Supported direct video inputs may come from the startup argument, drop, open dialog selection, or ordinary adjacent direct media navigation from a direct media URL scope.
 
-Direct KDE archive-entry URLs are not KiriView archive collection scope. KiriView may open `zip:///path/archive.zip!/clip.mp4` as a direct media URL while still opening `/path/archive.zip` as an archive collection when the archive file itself is selected.
-
-The product boundary is based on KiriView's opened collection state, not on URL scheme alone. If KiriView has opened an archive as an opened collection, supported video entries inside that collection are opened collection navigation items; eligible stored ZIP and plain TAR entries are played, while ineligible archive video entries show the unsupported-video placeholder. If KiriView has opened a directory as an opened collection, supported video entries inside that directory are opened collection navigation items and are played from the directory entry. If KiriView is handling a direct media URL without an active archive or directory collection context, that URL remains eligible for direct video support even when its scheme is a KDE archive scheme.
+Direct KDE archive-entry URLs remain direct media URLs, while videos reached through a directly opened archive or directory remain collection navigation items. Eligibility and unsupported-placeholder behavior are defined in [File Access](file-access.md#supported-sources).
 
 Video files do not support editable image zoom, image pan, image rotation, or two-page spread pairing. Moving through a video does not prevent nearby still images from remaining available for quick image navigation.
 
-Opened collection video playback is limited to eligible stored ZIP archive entries, plain TAR archive entries, and supported video files inside directly opened local directory collections. Collection-internal video metadata, playlists, subtitles, track selection, frame stepping, and timeline preview thumbnails are not provided.
+For opened collection videos, collection-internal video metadata, playlists, subtitles, track selection, frame stepping, and timeline preview thumbnails are not provided.
 
 ## Source URL Identity
 
-The public source URL for direct image and direct video URLs in direct media scopes is the direct media URL requested by the user, startup input, drop input, open dialog, or navigation action.
-
-Assigning a direct media source starts an open request for that URL. Successful direct image and direct video opens expose the requested direct media URL as the public source. Direct image replacement failures keep the failed target as the public source and error context. Direct video load or playback-preparation failures keep the original direct media URL as the public source and error context.
+Direct video source identity follows [Direct Media Source Identity](file-access.md#direct-media-source-identity).
 
 When playback preparation fails, the user-facing error text is a stable KiriView message that the selected video could not be opened. Platform and playback diagnostic messages are not displayed as the primary error text.
-
-Playback preparation details are never exposed as the public source URL. For direct videos, window title, adjacent direct media navigation, deletion target, error context, and direct-media routing decisions remain based on that public source URL.
-
-Opened collection video playback keeps the collection entry URL as the user-facing source identity. Collection routing and collection-level operations remain based on the opened collection context, and playback preparation details do not create an ordinary direct media scope.
 
 Direct video embedded metadata may populate the Info Panel when available while keeping the original direct media URL as the user-facing source identity.
 
 Collection-internal video metadata is not parsed for the Info Panel.
 
-Opening a video after an image switches to video behavior rather than image behavior.
-
-Opening a direct image after a direct video uses the image's own URL and restores image behavior.
-
-For direct image and direct video URLs in direct media scopes, toolbar readouts, shared action availability, and navigation dispatch use the same active direct media scope defined in [Navigation](navigation.md#adjacent-media). Asynchronous sibling discovery uses the requested direct media URL as the cursor for the eventual readout, not a stale or empty displayed image URL.
-
 ## Direct Media Scope
 
-Direct video uses the ordinary direct media URL scope defined in [Navigation](navigation.md#adjacent-media).
-
-Direct KDE archive-entry URLs use the direct media branch unless KiriView has explicitly opened an archive or directory collection scope.
-
-Video mode does not create a separate video-only navigation scope. Supported image files and supported direct video files share one locale-aware sibling order, active navigation readout, non-wrapping navigation model, and boundary-feedback model in ordinary direct media URL scopes.
-
-Adjacent Previous and Next use direct media navigation in ordinary direct media video mode and in image mode only when the active image belongs to an ordinary direct media URL scope. Archive collection and directly opened directory collection scopes keep opened-collection navigation active instead.
+Video mode does not create a video-only navigation scope. It uses the active scope, ordering, non-wrapping behavior, and boundary feedback defined in [Navigation](navigation.md#active-navigation-scope), whether that scope is ordinary direct media or an opened collection.
 
 ## Playback
 
@@ -100,7 +80,7 @@ When an image-only configurable shortcut is pressed in video mode, KiriView does
 
 When the video play/pause configurable shortcut is pressed while a ready image is displayed, KiriView does not trigger video playback and shows the in-app toast `This action is not available for images`. Empty, loading, error, and unsupported-placeholder states do not show this image unavailable-action toast.
 
-Disabled image-only action placements in video mode do not route through image-document commands. Only the unsupported-video shortcut interception produces the unavailable-action toast.
+Activating disabled image-only action placements in video mode has no effect. Only activating an image-only shortcut produces the unavailable-action toast.
 
 Timeline dragging and scrubbing is the primary way to seek within the current video.
 

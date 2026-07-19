@@ -1,53 +1,68 @@
-# Provider Rendering Architecture
+# ImageViewport Integration Architecture
 
-This document defines the intended image-display boundary. User-visible image behavior remains in `../spec/image-display.md`.
-
-## Rendering Contract
-
-Still images and accepted animation frames are displayed through high-level Qt Quick image items backed by immutable, provider-published whole-image entries. Production display must not use custom render nodes, visual tile surfaces, shaders, or application-owned low-level rendering resources.
-
-Decoders and refinement jobs may use source-internal tiling only to assemble one bounded display image before publication. If one safe display image cannot represent the requested detail, the owner publishes bounded-detail, unsupported, or failed state rather than introducing a visual tile fallback.
+This document defines KiriView's durable boundary with the repository-internal `ImageViewport` component. User-visible image behavior remains in `../spec/image-display.md`. This document is the normative source for KiriView-side ownership, identity, lifecycle, resource, failure, and publication rules at that boundary; component-local API and implementation details may evolve only without violating these rules.
 
 ## Ownership
 
-- The image-presentation runtime owns presentation mode, page roles, visible geometry, source projection, quality, freshness revision, retention eligibility, and display-load acknowledgment state.
-- Page-resource owners own the immutable entries, animation-frame handoff, pending-load retention, reusable-entry leases, and release associated with each page role. They do not own zoom, rotation, viewport, spread, or navigation state.
-- The display image store owns immutable entry identity, byte accounting, priority, pinning, reuse lookup, eviction, and release. Entry ids are never reused during the runtime lifetime.
-- Decode and refinement owners perform source access, decode, safe SVG rasterization, preview validation, metadata extraction, animation composition, and whole-image refinement behind async lifecycle boundaries.
-- Qt Quick owns texture upload, filtering, item lifetime, and scene rendering. QML binds accepted projections and reports load outcomes; it does not choose display buckets, provider ids, cache retention, animation timing, or stale acceptance.
+`ImageViewport` is the sole owner of accepted image presentation targets, committed and retained image presentation, fit and zoom state, pan bounds and position, rotation and mirroring, spread geometry, visible image geometry, per-role animation playback, render admission, Qt Quick scene graph resources, and coherent viewport snapshots.
 
-## Provider And Display-Source Lifecycle
+KiriView owns navigation scope, selected source identity, page pairing, reading-direction policy, scan and nearest-point policy, source access, decoding, cache and predecode policy, application cache, display-store, and source-work budgets, source-specific metadata, typed load failures, action routing, video presentation, and user-facing projections that combine application state with a viewport snapshot.
 
-Display providers are cache-only, cheap, and reentrant. A request may return an already published immutable entry and its stored size, but it must not decode, rasterize, perform I/O, resample, schedule work, install cache entries, decide freshness, or mutate public state.
+The KiriView integration owner is an adapter, not a second presentation owner. It creates `ImageSequence` handles, is the sole KiriView production submitter of component mutations, correlates component generations with application source identities, converts application actions and QML-reported raw interaction facts into component commands, resolves typed provider failure references, and consumes one coherent component snapshot. It must not maintain parallel zoom, pan, visible-role, playback, retained-display, or render-readiness state.
 
-Every accepted entry with different image bytes receives fresh provider identity. Reusing the same immutable bytes is allowed only through a store-owned reuse identity that proves compatible source, scope, transform, size, quality, role, and rendering constraints. QML engine caching is never the freshness authority.
+## Target And Snapshot Flow
 
-A display-source projection may expose provider identity only after its page-resource owner has accepted and published the corresponding entry. Visible, pending-load, retained, and reusable leases are distinct so acknowledging one projection cannot release another entry.
+```mermaid
+flowchart LR
+    Navigation["KiriView navigation and pairing"] --> Integration["ImageViewport integration owner"]
+    Sources["Decode, cache, and predecode owners"] --> Provider["KiriView ImageSequence provider"]
+    Provider --> Sequence["ImageSequence handles"]
+    Sequence --> Integration
+    Integration --> Viewport["ImageViewport component"]
+    Viewport -- "typed demand" --> Provider
+    Provider -- "typed events and payload handles" --> Viewport
+    Viewport --> Snapshot["Coherent viewport snapshot"]
+    Snapshot --> Integration
+    Integration --> Projection["KiriView session and UI projections"]
+    Viewport --> SceneGraph["Qt Quick scene graph"]
+```
 
-Load outcomes carry page role, provider identity, projection revision, and source identity back to the presentation owner. Matching success commits visual acceptance and releases the matching pending lease. Matching failure either publishes display error or triggers explicit reconciliation for the still-current payload. Stale, wrong-role, or superseded outcomes are ignored.
+Before invoking a target command, the integration owner installs one application operation record containing the intended source and role identities. The accepted snapshot published during or after that serialized command binds its new component generation to that record; reentrant `stateChanged` delivery cannot observe an uncorrelated generation. A displayed URL, active image readiness, toolbar zoom, page-role projection, or error projection is published only by joining the current component snapshot with the matching application correlation. An older generation, provider event, failure reference, or delayed UI action cannot update a newer selection.
 
-Top-level source replacement, mode change, clear, and selected-target failure may clear the previous projection. Same-scope image navigation and same-source refinement may retain the last committed presentation until the matching replacement is ready. Retention must not make the retained media appear to be the new selected target.
+KiriView chooses transition policy from product meaning. Ordinary selected-target failures keep the failed target active. A single-page versus Two-Page Spread shape change uses retained display plus restore-on-failure so the component can atomically reactivate the complete prior commit. The application correlation for that command retains only the prior application-owned presentation-shape policy, such as the Two-Page Spread toggle, and restores that policy in the same application publication that accepts the matching restored-transition snapshot. KiriView never simulates component rollback by issuing compensating zoom, pan, role, or source commands.
+
+## Sequence Provider Boundary
+
+The KiriView provider adapter exposes one logical page per sequence and receives component-authored metadata, frame, position, playback, and refinement demand. Source access, decode routing, cache lookup, predecode reuse, SVG rasterization, animation frame production, and whole-image refinement remain behind this adapter. The component never receives source URLs, archive handles, credentials, cache keys, decoder objects, or navigation policy.
+
+Provider results carry the component request token, demand revision, role, complete-frame payload facts, and source-logical identity needed for admission. Payloads may be preview, bounded-detail, or exact whole images; application code must not introduce visual page tiles, application-owned scene graph nodes, native textures, or caller-managed render resources through the provider contract.
+
+The display image store remains an application resource owner for reusable decoded payloads, byte accounting, priority, and eviction. A provider frame handle wraps the matching store lease. `ImageViewport` owns that handle while the payload is pending, visible, or retained and releases it exactly once through the provider boundary; QML image-load acknowledgements and provider URLs are not part of this lifetime.
+
+Provider failure results contain a generic typed cause and an optional opaque application failure handle, never free-form diagnostic text. The application provider registers the handle's reference with the immutable typed load-failure record it already owns, including source identity, load session, failure kind, decode route and operation, user-facing text, diagnostic detail, severity, and retryability. The component owns an admitted handle while its failure snapshot may expose the reference and releases it exactly once when the failure is rejected, stale, superseded, cleared, replaced, or destroyed; the provider's release callback retires the registry entry. The integration owner resolves only a reference exposed by the matching component failure snapshot and never infers registry lifetime from snapshot polling. An absent or unresolved reference falls back to the component-authored generic error and cannot recover detail from another generation or source. The component never interprets application failure detail or branches on text.
 
 ## Preview, Refinement, And Reuse
 
-An initial display may use a validated lower-detail preview or bounded first display. Preview acceptance must establish the correct source, orientation-aware intrinsic dimensions, aspect, freshness, and safe resource bounds. Preview output is never marked exact and is superseded by accepted sharper output for the same demand.
+An initial display may use a validated lower-detail preview or bounded first display. Preview acceptance establishes the correct source logical size, orientation, aspect, freshness, and resource bounds before the provider transfers a handle.
 
-Refinement demand is derived from the accepted source, visible geometry, zoom, rotation, device pixel ratio, and resolved resource limits. Its freshness identity includes every fact that could make a completion unsuitable for the active presentation. A separate reuse identity contains only facts that prove two results have equivalent display bytes.
+Refinement demand is derived by `ImageViewport` from the accepted logical target, visible source rectangle, effective zoom, rotation, device pixel ratio, quality preference, exactness preference, and render limits. KiriView may combine those facts with application source identity and cache policy to choose work, but only the component demand revision authorizes a returned payload for the active presentation.
 
-Refinement work is best-effort cancelable. Results may populate a bounded cache by reuse identity, but they may replace the visible entry only when the full active demand identity still matches. Duplicate in-flight work for the same reuse identity may be shared without sharing presentation authority.
+Refinement work is best-effort cancelable. Results may populate an application-owned bounded cache by reuse identity, but they may replace visible detail only after the component admits the matching demand and commits the complete current role set. Failed optional refinement leaves the accepted display intact.
 
-Predecoded still images enter the same immutable-entry, identity, quality, resource-limit, and publication path as foreground decodes. Video rows may guide adjacent-image preparation but never create still-image display payloads.
+Predecoded still images enter the same provider sequence, payload, identity, resource-limit, and handle-lifetime path as foreground decodes. Video rows may guide adjacent-image preparation but never create still-image viewport payloads.
 
 ## Animation And SVG
 
-The animation owner controls reader lifetime, authored timing, loop progress, composition, and frame acceptance. Each accepted frame is published as an immutable display entry through the normal display-source path. Source replacement or animation stop invalidates later frame completions, and bounded previous-frame retention prevents a blank transition while the next accepted frame attaches.
+KiriView's decoding boundary owns source-specific animation readers, metadata normalization, frame decode or composition, and source failures. `ImageViewport` owns each role's playback intent, timer scheduling, elapsed-time accounting, frame request ordering, authored loop progress, wait state, and stop or pause behavior. A provider session answers role-scoped playback demand; it does not run an independent animation clock.
 
-Supported animated containers must be classified through animation-aware decoding before static fallback so a multi-frame file is not silently reduced to its first frame.
+Primary and secondary animated pages have independent component playback state and scheduler effects. A wait or terminal authored loop on one role does not block scheduling for the other, while every visible frame replacement still commits through a complete-spread render snapshot.
 
-SVG parsing and rasterization must disable scripts, animation, and external network or file resources before publication. SVG output uses bounded whole-image buckets keyed by source and active display demand. Failed refinement retains the last accepted image; failed initial display follows the normal image-error path.
+Supported animated containers are classified through animation-aware decoding before static fallback so a multi-frame file is not silently reduced to its first frame.
 
-## Viewport Boundary
+SVG parsing and rasterization disable scripts, animation, and external network or file resources before payload transfer. SVG output uses bounded whole-image buckets keyed by application source identity and component demand. Failed refinement retains the last accepted payload; failed initial display follows the selected-target error or transition-restore policy.
 
-A non-rendering context boundary supplies attachment, scene, device-pixel-ratio, and safe display-limit facts to the presentation owner. It must not draw, own textures, use private rendering interfaces, or schedule decode work.
+## QML And Render Boundary
 
-QML owns physical scrolling items, gesture samples, and high-level image item instances. C++ owns the logical viewport frame and revisioned commands. QML applies only the latest applicable command and reports physical observations or load outcomes using owner-issued opaque revisions; it must not calculate canonical zoom, pan, scan, display quality, or freshness state.
+The component item owns image rendering and its private scene graph resources. QML owns workspace layout, panels, focus, context-menu placement, and raw gesture sampling. KiriView QML hosts the item, forwards raw pointer, wheel, drag, and gesture facts through the image-viewport integration boundary, and renders application projections; it does not invoke component mutating APIs directly or derive shared readiness, action, toolbar, or source projections from uncorrelated component state. It also does not create image `Flickable` or `Image` objects, attach provider URLs, acknowledge image loads, reconstruct component geometry, schedule animation, or own image textures.
+
+Window attachment, item size, scene-graph availability, device-pixel ratio, backend resource limits, viewport payload admission, and per-role display budgets are captured and owned inside the component and reach KiriView providers only as component-authored demand. KiriView providers apply application cache, display-store, and source-work budgets when choosing reuse or producing a payload and may choose a more conservative valid payload than the demand prefers, but provider state and events do not mutate component caps, allocation state, or display budgets. KiriView does not select the render backend or manage scene graph lifetime.

@@ -68,7 +68,7 @@ The panels are resizable with splitters. The Thumbnail Panel minimum height is t
 
 I toggles the Info Panel in viewer context, and T toggles the Thumbnail Panel in viewer context.
 
-The panel toggle shortcuts are user-configurable application action shortcuts, not fixed shortcuts.
+The panel toggle shortcuts are user-configurable viewer-local shortcuts, not fixed shortcuts.
 
 The panel toggle actions are available from the application menu, menubar, Keyboard Shortcuts configuration, and Keyboard Shortcuts help.
 

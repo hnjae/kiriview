@@ -46,9 +46,9 @@ Activating a thumbnail strip item opens the item at that active navigation numbe
 
 ### Page Number Editing
 
-Entering a page number and pressing Enter or clicking the image viewing area opens the nearest valid page, returns focus to the image viewing area, and restores viewer keyboard shortcuts.
+Entering a whole-number page and pressing Enter or clicking the image viewing area opens that page after clamping values outside `1..total` to the nearest valid page, returns focus to the image viewing area, and restores viewer keyboard shortcuts.
 
-If the entered text cannot be parsed as a number, KiriView leaves the current item open and restores the displayed page number.
+If the entered text is not a whole number, KiriView leaves the current item open and restores the displayed page number.
 
 Pressing Escape while editing the page number cancels the edit, restores the displayed page number, returns focus to the image viewing area, and does not leave fullscreen.
 
@@ -70,7 +70,7 @@ If users make multiple page selections before loading finishes, only the most re
 
 If that replacement load fails, KiriView reports the selected target's error state and page navigation remains on the selected target when the target belongs to the confirmed active navigation list.
 
-During empty startup, loading intervals without a confirmed same-scope selection, and mode switches, KiriView clears or marks unknown the active navigation state before exposing any new readout. Values from the previous document are not reused for the current number, total count, editability, action availability, or boundary state.
+During empty startup, loading intervals without a confirmed same-scope selection, and mode switches, KiriView clears or marks unknown the active navigation state before exposing any new readout. Values from the previous media state are not reused for the current number, total count, editability, action availability, or boundary state.
 
 When moving between items in the current scope, the page navigation controls keep their layout stable.
 
@@ -92,17 +92,11 @@ Adjacent media candidates use the supported image and direct video source format
 
 An ordinary direct media URL scope is the non-recursive parent URL of the active direct media URL. This includes ordinary local parent directories and KDE archive URL parent locations such as `zip:///path/archive.zip!/chapter/`.
 
-The ordinary direct media URL parent is derived from the original direct media URL after KiriView applies its normal navigation-source handling. Local and KDE archive-entry URLs keep their user-visible containing location as the direct media scope.
+The ordinary direct media URL parent is derived from the original direct media URL. Local and KDE archive-entry URLs keep their user-visible containing location as the direct media scope.
 
 When an image or video is opened from a KDE-supported archive URL such as `zip://`, `tar://`, or `sevenz://`, KiriView treats the opened item as a single direct media URL, and navigation moves between supported media files in the same directory inside that archive URL.
 
-When an image, playable collection video, or unsupported-video placeholder is displayed from a local CBZ, CBT, CB7, CBR, ZIP, TAR, 7Z, or RAR archive collection opened directly by KiriView, navigation moves between all supported image and video files inside that archive collection, including supported media in subdirectories.
-
-When an image or playable collection video is displayed from a local directory collection opened directly by KiriView, navigation moves between all supported image and video files inside that directory tree, including supported media in subdirectories.
-
-After the archive or directory collection has been listed, page navigation uses all supported image and video files inside that opened collection as its navigation target set.
-
-Supported video entries inside directly opened archive collections and directly opened directory collections are valid opened collection navigation items. Eligible stored ZIP and plain TAR archive entries open in video mode and play inside the opened archive collection scope. Supported directory collection video entries open in video mode and play inside the opened directory collection scope. Ineligible archive video entries keep image mode active and show an unsupported-video placeholder with the message `KiriView can’t play this video from the selected collection.` Entering that placeholder also shows the same text as an in-app toast.
+For a directly opened archive or directory collection, page navigation uses the complete recursively listed supported-media set defined by [File Access](file-access.md#opened-collections) and [File Access](file-access.md#directory-collections). Images, playable collection videos, and unsupported-video placeholders are navigation positions in the same collection order.
 
 If the parent URL cannot be listed, the current media item is not found, or no adjacent supported media item exists, the current media item remains open and the app remains ready for another open action.
 
@@ -121,6 +115,8 @@ Boundary feedback may be requested by configured shortcuts and fixed viewer navi
 KiriView shows those first-item and last-item notifications only when the current supported list is known and the current item is at a known boundary.
 
 Previous Archive and Next Archive are comic-book archive navigation actions for the current directly opened comic book archive. When archive navigation is available and users trigger Previous Archive or Next Archive from a menu or configured shortcut, KiriView confirms sibling comic book archives in that direction; if none exists, the current archive remains open and KiriView shows an in-app toast: `No previous collection` or `No next collection`.
+
+If confirming sibling comic book archives fails because their parent location cannot be listed, KiriView keeps the current archive open and does not show an in-app notification for that failure.
 
 KiriView has one visible in-app toast notification slot.
 

@@ -1,12 +1,12 @@
 # ImageSequence Provider Adapter
 
-The provider adapter is the public extension point for application-owned image sources. It lets applications expose custom decoding, storage, cache, predecode, refinement, or streaming services as an `ImageSequence` without giving `ImageViewport` direct access to files, URLs, provider URLs, image-provider ids, archives, arbitrary JavaScript objects, display-store entries, or application navigation policy.
+The provider adapter is the repository-internal extension point through which KiriView exposes application-owned image sources. It lets the application expose decoding, storage, cache, predecode, refinement, or streaming services as an `ImageSequence` without giving `ImageViewport` direct access to files, URLs, provider URLs, image-provider ids, archives, arbitrary JavaScript objects, display-store entries, or application navigation policy.
 
 Provider-backed sequences are individual page sources from the viewport's perspective. The provider receives viewport requests and supplies typed provider events, declared facts, and complete-frame payloads for viewport demand; it does not own caller navigation policy, spread pairing, page-role selection, application source-identity policy, presentation-target transition intent, viewport presentation state, public diagnostics, scene graph resources, or QML image load acknowledgement.
 
 ## Construction Contract
 
-A downstream provider is implementable from installed public headers and linkable through the installed package target. It must not require private headers, internal controller types, source-tree include paths, or build-tree-only QML imports.
+A repository-owned provider must be implementable using only the supported component interface in [ImageViewport Component Boundary](image-viewport-component-boundary.md). Viewport private headers, engine controllers, provider transport internals, render adapters, scene graph resources, and native texture handles are not part of the provider contract.
 
 `ImageSequenceProviderAdapter` is an abstract QObject-compatible type. It exposes one construction method, `descriptor()`, returning `ImageSequenceProviderDescriptor`. The descriptor's canonical `constructionMetadata`, `threadingContract`, and `sessionFactory` fields are defined in [ImageSequence Provider Protocol](image-sequence-provider-protocol.md#sequence-construction-values). Construction-time data is side-effect-free and authoritative for generations created from the sequence.
 
@@ -34,7 +34,7 @@ Session entry points are called according to the descriptor threading contract. 
 
 The session reports one signal: `providerEvent(const ImageSequenceProviderEvent&)`. Event values, event kinds, unsupported causes, and token echo rules follow the canonical schema in [ImageSequence Provider Protocol](image-sequence-provider-protocol.md).
 
-Terminal events carry typed failure information only; the viewport derives public diagnostic text from the admitted event kind, unsupported cause, and failure scope. Waiting and progress are advisory; the viewport may coalesce or drop stale progress events. A provider may emit `providerEvent` from a provider-controlled worker thread; the viewport serializes event admission before changing public state. Event/request compatibility, terminality, and duplicate-event behavior follow the canonical protocol and must not depend on emission thread or signal delivery timing.
+Terminal events carry typed failure information only. A failed event may include an opaque application failure handle whose reference KiriView resolves through the provider boundary; the viewport retains and releases the handle without interpreting its application detail and derives its own diagnostic text from the admitted event kind, typed failure cause, and failure scope. Waiting and progress are advisory; the viewport may coalesce or drop stale progress events. A provider may emit `providerEvent` from a provider-controlled worker thread; the viewport serializes event admission before changing component state. Event/request compatibility, terminality, duplicate-event behavior, and exact-once failure-handle release follow the canonical protocol and must not depend on emission thread or signal delivery timing.
 
 Frame-ready events transfer ownership with `ImageSequenceProviderFrameHandle` plus `ImageSequenceProviderFrameEnvelope`; borrowed raw `ImageFrame*` results are not supported. The handle is the sole provider-visible payload lifetime boundary, and its exact-once release, affinity, non-reentrancy, and session-destruction ordering follow the canonical contract in [ImageSequence Provider Protocol](image-sequence-provider-protocol.md#provider-demand-and-payload-values).
 

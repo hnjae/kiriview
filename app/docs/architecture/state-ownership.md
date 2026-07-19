@@ -6,17 +6,17 @@ This document is the canonical contract for durable runtime state ownership. Own
 
 Every workflow value has one canonical owner. If another layer needs the value, it receives a derived snapshot, projection, delta, command, or completion event rather than storing a second mutable copy.
 
-C++ owns QObject-facing runtime state unless this document or an ADR explicitly names another owner. This includes QML-facing properties, Qt notification ordering, `QUrl`, `QImage`, `QString`, async job lifetime, presentation objects, and rendering objects.
+C++ owns QObject-facing runtime state unless this document or an owner-group architecture contract explicitly names another owner. This includes QML-facing properties, Qt notification ordering, `QUrl`, `QImage`, `QString`, async job lifetime, presentation objects, and rendering objects.
 
 Rust reducers operate on value snapshots and plain events. They return explicit state deltas, transition plans, and effect descriptions for C++ owners to apply; those results are not an independent authoritative copy of the same workflow state.
 
-Rust-owned state is limited to self-contained Qt-independent domains where the state is plain data and does not mirror authoritative C++ state. Format parsing, geometry, and zoom algorithms may live there; navigation indices, cache policy state, or other workflow state may move to Rust only when this document or an ADR names the new owner and exposes it through value-based FFI.
+Rust-owned state is limited to self-contained Qt-independent domains where the state is plain data and does not mirror authoritative C++ or component state. Format parsing, navigation projection, page-pairing, scan planning, and cache algorithms may live there; navigation indices, cache policy state, or other workflow state may move to Rust only when an architecture contract names the new owner and exposes it through value-based FFI. Canonical image presentation geometry and zoom remain inside `ImageViewport`.
 
 Moving policy into Rust does not move authoritative runtime state. The ownership decision must name both the policy boundary and the state owner.
 
 QML and facade objects may observe owner projections, emit UI facts through owner APIs, and render accepted state. They must not store durable mirrors, mutate public workflow state, apply command acknowledgment state, choose cache or render policy, or bypass an owner to update another owner's state.
 
-Derived public values may combine multiple C++ runtime states, such as document state and active presentation transition state. The derived value must not become a second mutable source of truth, and notification dependencies must follow the canonical owners that feed it.
+Derived public values may combine multiple C++ runtime states, such as document state and a matched `ImageViewport` snapshot. The derived value must not become a second mutable source of truth, and notification dependencies must follow the canonical owners that feed it.
 
 When a public value has mode-specific ownership, only the active mode owns that value. Inactive mode state is a cache, projection, or restoration point. Transition code must synchronize the next active owner before exposing the mode change.
 
@@ -48,9 +48,9 @@ Background thumbnail fill is optional idle work and is not a full-list product g
 
 - [Application Shell and Session](state-ownership/shell-session.md): startup routing, document-session projections, title, media information, and toasts.
 - [Actions and UI Gates](state-ownership/actions-ui-gates.md): actions, shortcuts, menu presentation, command dispatch, and UI-local gates.
-- [Media Runtime Owners](state-ownership/media-runtime.md): image loading, video loading, playback controls, metadata parsing, and animation playback.
+- [Media Runtime Owners](state-ownership/media-runtime.md): image loading, provider-backed animated sources, video loading and playback controls, and metadata parsing.
 - [Navigation and Location](state-ownership/navigation-location.md): active navigation projection, supported-media lists, sibling archives, and source identity.
-- [Presentation and Viewport](state-ownership/presentation-viewport.md): image presentation, viewport command flow, media workspace composition, display-source projection, and render context.
+- [Presentation and Viewport](state-ownership/presentation-viewport.md): `ImageViewport` ownership, application integration, viewport command flow, media workspace composition, source resources, and failure correlation.
 - [Operations and Platform Effects](state-ownership/operations-platform.md): deletion, Open With, platform capability snapshots, and owner bypass rules.
 - [Preparation and Cache](state-ownership/preparation-cache.md): thumbnail strip preparation, still-image predecode, caches, and HEIF source-internal tiling.
 - [Source Key Contract](state-ownership/source-keys.md): top-level source identity, direct-media freshness, and family-specific key boundaries.

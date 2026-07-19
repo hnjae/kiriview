@@ -1,27 +1,11 @@
-# Testing Strategy
+# Testability Boundary
 
-This document owns boundary-test placement for architecture contracts. It does not replace focused behavior tests in the implementation layer that owns a feature.
+Deterministic verification is an architectural constraint. Owners must expose their decisions, effects, and lifecycle transitions through the same typed boundaries used at runtime; verification-only mutation paths must not bypass canonical ownership.
 
-## Policy And Runtime Tests
+Qt-independent policy must operate on plain snapshots and events and return plain plans or values. It must not require a Qt event loop, filesystem, desktop service, renderer, or wall clock to exercise its contract.
 
-Test Rust policy in Rust unit tests when the logic is independent of Qt. These tests cover state transitions, edge cases, and policy tables.
+Runtime owners whose behavior depends on scheduling, time, directory changes, platform operations, media backends, or rendering completion must consume those dependencies through explicit ports. Those ports must preserve the production identity, ordering, cancellation, and stale-completion rules when driven deterministically.
 
-Test C++ runtime code with Qt tests when behavior depends on Qt object lifetime or signals, `QImage`, `QUrl`, display-source data, render-context capability data, KIO or file-operation adapters, or controller integration across async boundaries.
+Boundary observations must be sufficient to detect a second durable state owner, a bypass of a named command or effect port, partial public projection publication, stale completion acceptance, or a resource handle released other than exactly once.
 
-C++ tests do not duplicate every Rust policy test. They verify that the runtime layer applies plans correctly and preserves integration behavior at the Qt boundary.
-
-## Boundary Enforcement Tests
-
-Boundary tests must fail when production code reintroduces a second owner for durable public state or bypasses the owner named by architecture.
-
-QML and facade boundary tests cover shared action state, media readiness, viewport command acknowledgment, shortcut routing, display-load acknowledgment, and cache or render-policy ownership. They verify that QML reports UI facts and renders accepted projections without becoming an alternate domain owner.
-
-Runtime owner-bypass tests cover route mutation, presentation mutation, stale UI-gate acceptance, partial public projection updates, and cross-owner calls that bypass named ports.
-
-Provider and render boundary tests cover cache-only requests, immutable entry lifetime, typed identity families, display-source stale rejection, render-context freshness, bounded whole-image publication, and exclusion of custom visual-tile or low-level rendering paths.
-
-Candidate snapshot tests cover reuse by source identity and list revision, same-source refresh retention, source-change invalidation, current-row-only updates, and stale scope generations.
-
-Extension contract tests cover unsupported capabilities, typed failures, stale keys or generations, cache identity, opened-collection freshness, video-versus-image eligibility, and provider publication boundaries.
-
-Prefer focused C++ tests where the contract depends on Qt URL, image, object-lifetime, or display data, and Rust tests where the logic is plain value policy.
+Verification adapters may observe or drive an owner through dedicated typed ports, but production facades and UI layers must use the same ownership and dispatch boundaries.

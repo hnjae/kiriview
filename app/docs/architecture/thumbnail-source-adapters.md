@@ -10,7 +10,7 @@ Source adapters classify an owner-supplied thumbnail source revision and return 
 
 Cache lookup, generation, and source access execute behind injectable provider ports. Thumbnail work must not borrow video playback state, mutable collection state, or another runtime's cache authority. Collection entry bytes and metadata remain owned by the collection-access boundary.
 
-Video thumbnail extraction has one deterministic workflow owner separate from its Qt Multimedia adapter. The adapter owns media-player, video-sink, metadata, and frame conversion objects; it reports plain media facts, images, and failures through a narrow backend port and executes source, seek, playback, and stop commands returned by the workflow. The runtime owner supplies timeout firing through `TimerScheduler`, serializes reentrant backend events, and invalidates the workflow before cancellation or terminal cleanup so late callbacks cannot publish a result.
+Video thumbnail extraction has one deterministic workflow owner separate from its Qt Multimedia adapter. The adapter owns media-player, video-sink, metadata, and frame conversion objects; it reports plain media facts, images, and failures through a narrow backend port and executes source, seek, playback, and stop commands returned by the workflow. The runtime owner supplies timeout firing through an injectable timer-scheduler boundary, serializes reentrant backend events, and invalidates the workflow before cancellation or terminal cleanup so late callbacks cannot publish a result.
 
 ## Demand And Scheduling
 
@@ -18,7 +18,7 @@ Each demand update is one immutable, generation-scoped snapshot. The runtime val
 
 The selected row and visible rows are foreground demand. Nearby rows are admitted only after foreground demand is satisfied or inactive. Optional background filling runs only while foreground and nearby demand are idle. New higher-priority demand preempts lower-priority work, and a failed higher-detail request preserves an already usable lower-detail result.
 
-The document-session thumbnail scheduler owns an explicit foreground admission capacity. It admits the selected row first, then visible rows in navigation order, then nearby rows in navigation order; demand beyond capacity remains pending and must not construct lookup, generation, or multimedia backend resources until a slot is available. Production admits at most two simultaneous foreground jobs, while background filling remains limited to one job and yields to any foreground demand.
+The document-session thumbnail scheduler owns bounded foreground and background admission capacities. It admits the selected row first, then visible rows in navigation order, then nearby rows in navigation order; demand beyond foreground capacity remains pending and must not construct lookup, generation, or multimedia backend resources until a slot is available. Background filling yields to any foreground demand. Exact capacities are runtime resource policy rather than architecture contract constants.
 
 Row identity, source revision, requested physical-size bucket, priority, and work identity travel together through scheduling and completion. A completion may publish only after both the backend job owner and the scheduling owner accept those identities. Cancellation is best-effort; invalidated or late callbacks are no-ops.
 

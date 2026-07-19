@@ -4,10 +4,6 @@
 
 Controls that require selected, navigable, or ready media are disabled until the corresponding program state is available.
 
-The toolbar zoom control displays the active zoom readout for the current media state. Its editable value text and percent suffix are separate visual parts, so an empty document displays `- %` while the value input owns only `-`, and the suffix preserves normal toolbar spacing before the stepper buttons.
-
-The toolbar updates related readiness, action availability, page navigation, zoom editability, and title-subject controls together for the current media state. It must not show stale control state from a previous image, video, or viewport after a newer state has been accepted.
-
 Configurable application actions and their placements use one shared availability decision. If an action is unavailable for the current media, mode, or interaction context, activating its menu item, toolbar placement, context-menu placement, or shortcut has no effect.
 
 Known navigation boundaries are a dispatch outcome rather than media unavailability. Previous, Next, First, and Last placements are disabled when they have no target, but configured and fixed viewer-navigation shortcuts may still request the command so KiriView can provide the documented boundary feedback.
@@ -26,7 +22,7 @@ Unmodified ASCII printable key sequences are allowed for viewer-local configurab
 
 Viewer commands use viewer-local shortcuts by default unless the action explicitly declares a program-wide shortcut slot. KiriView does not derive hidden viewer aliases by dropping Ctrl from program-wide shortcuts and does not keep program-wide Ctrl fallbacks for viewer-local commands.
 
-Toolbar controls, menus, context menus, shortcut help, and shortcut handling use the same current media, mode, and interaction-context decision, subject only to the documented navigation-boundary feedback exception. During media replacement, mode switches, deletion, modal dialogs, or focus changes, KiriView must not display or trigger action state from an older media item, older viewport, or older interaction context after a newer state is active.
+Toolbar controls, menus, context menus, shortcut help, and shortcut handling expose one coherent current-media, navigation, viewport, and interaction-context state, subject only to the documented navigation-boundary feedback exception. During media replacement, mode switches, deletion, modal dialogs, or focus changes, KiriView must not display or trigger state from an older media item, viewport, or interaction context after a newer state is active.
 
 ## Shortcut Help
 

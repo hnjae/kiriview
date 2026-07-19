@@ -36,8 +36,9 @@ flowchart TD
     Image["Image runtime"]
     Video["Video runtime"]
     Navigation["Navigation and candidate lists"]
-    Presentation["Image presentation"]
-    Rendering["Provider display and refinement"]
+    Integration["ImageViewport integration"]
+    Viewport["Repository-internal ImageViewport"]
+    Provider["Image sequence provider resources"]
     Decoding["Image decode and metadata"]
     Collections["Opened collection access"]
     Predecode["Adjacent still-image preparation"]
@@ -58,11 +59,12 @@ flowchart TD
     Session --> Actions
     Session --> System
     Image --> Navigation
-    Image --> Presentation
+    Image --> Integration
     Image --> Decoding
     Image --> Collections
-    Presentation --> Rendering
-    Rendering --> Decoding
+    Integration --> Viewport
+    Viewport --> Provider
+    Provider --> Decoding
     Video --> Navigation
     Video --> Collections
     Navigation --> Collections
@@ -71,8 +73,8 @@ flowchart TD
     Image --> Bridge
     Video --> Bridge
     Navigation --> Bridge
-    Presentation --> Bridge
-    Rendering --> Bridge
+    Integration --> Bridge
+    Provider --> Bridge
     Decoding --> Bridge
     Collections --> Bridge
     Predecode --> Bridge
@@ -80,11 +82,12 @@ flowchart TD
 ```
 
 - The document session owns top-level mixed-media routing, public source identity, active navigation projection, active zoom projection, title subject, displayed-media operation availability, displayed-media operation planning inputs, direct-media deletion follow-up, thumbnail-strip projection, and action-availability inputs.
-- Image runtime owns image-mode loading, opened collection page state, presentation commands, still-image display resources, animation playback, embedded image metadata, image-mode removal fallback facts, and image-specific navigation facts.
+- Image runtime owns image-mode loading, opened collection page state, viewport target and command adaptation, still-image provider resources, embedded image metadata, image-mode removal fallback facts, and image-specific navigation facts.
 - Video runtime owns direct-video resolution, opened-collection video source-device acceptance, playback state, video status, video zoom readout, video metadata where supported, and playback-control readiness.
 - Navigation owns candidate ordering, page/media cursor state, boundary facts, live direct-media refresh, and sibling archive discovery. It exposes snapshots and plans rather than public UI state.
 - Collection access owns directly opened archive and directory listing, entry-byte access, entry metadata, and eligible collection-video playback devices. It must not update document, video, thumbnail, or QML state directly.
-- Provider rendering owns immutable provider display entries, page-resource retention, display refinement execution, render-context capability inputs, and display-store memory pressure. Image presentation owns display-source projections, freshness, and display-load acknowledgment state. Production image display uses provider-backed whole-image entries, not custom render nodes or visual tile scheduling.
+- The repository-internal `ImageViewport` component owns accepted and retained image presentation, geometry, per-role animation playback, render admission, and scene graph resources. The KiriView integration owner maps navigation targets and application commands to the component and correlates component generations back to application source identity without keeping a second presentation state.
+- Image provider resources own source access, decode and refinement work, reusable whole-image payloads, predecode adoption, application cache and display-store pressure, typed failure detail, and provider handle leases. They answer component demand but do not own viewport presentation or rendering.
 - Decoding owns route-specific image decoding, animation frame enumeration, metadata extraction, and whole-image refinement payloads. Decoder failures preserve typed diagnostics before any user-facing projection is derived.
 - Predecode owns still-image-only adjacent preparation. Video rows may be cursor positions for scheduling, but they do not produce video-frame quick-navigation payloads.
 - Actions own `QAction` identity, shortcut routing, accepted UI-gate revisions, command dispatch, and unsupported-media shortcut interception. QML reports UI-local gate facts and renders action placements.
@@ -94,5 +97,7 @@ flowchart TD
 Each language boundary has one build-owned source and configuration inventory. Application builds, tests, lint, and editor tooling consume that inventory rather than maintaining divergent source lists or compiler settings.
 
 The application build is the authority for production Rust, C++, generated boundary code, generated configuration, QML resources, and the application artifact. Test builds own test-local artifacts but consume application artifacts through the production build boundary rather than rebuilding production sources independently.
+
+The application build owns one canonical installed application identity. Desktop metadata, icon identity, runtime metadata, generated configuration, and application artifacts must consume `org.hnjae.kiriview` from that authority and must not introduce alternate application IDs.
 
 Derived build metadata follows the owner of the artifact it describes. Development tooling may orchestrate that metadata but must not become an independent authority for production or test compilation. Shared Qt, language-boundary, runtime, lint, and editor inputs come from one tooling context.

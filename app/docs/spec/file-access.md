@@ -14,7 +14,7 @@ KiriView opens direct video URLs as direct media items for MP4, M4V, and MOV fil
 
 Direct video URLs include local paths, `file://` URLs, and KDE-supported remote file URLs such as `smb://`.
 
-Direct-video public source identity follows [Video Playback](video-playback.md#source-url-identity).
+Direct image and video source identity follows [Direct Media Source Identity](#direct-media-source-identity).
 
 ### Archive Entry URLs
 
@@ -24,11 +24,9 @@ Opening a KDE-supported archive-entry URL does not open the whole archive as an 
 
 ### Opened Collections
 
-When a video is opened from a directly opened archive collection, KiriView plays MP4, M4V, and MOV entries only when they are uncompressed stored ZIP entries inside local CBZ or ZIP archives, or plain TAR entries inside local CBT or TAR archives.
+KiriView opens local `.cbz`, `.cbt`, `.cb7`, and `.cbr` comic book archives. It also opens local `.zip`, `.tar`, `.7z`, and `.rar` general archives when they are directly provided, such as through a startup argument or the open dialog's `All files (*)` filter.
 
-KiriView opens local `.cbz`, `.cbt`, `.cb7`, and `.cbr` comic book archives. When a local comic book archive is opened directly, KiriView uses that archive as the current archive collection and displays the first supported media item inside that archive. If the first supported item is a playable collection video, KiriView plays it. If the first supported item is an ineligible video, KiriView displays the unsupported-video placeholder.
-
-KiriView opens local `.zip`, `.tar`, `.7z`, and `.rar` archives only when they are directly provided, such as through a startup argument or the open dialog's `All files (*)` filter. When a local general archive is opened directly, KiriView uses that archive as the current archive collection and displays the first supported media item inside that archive. If the first supported item is a playable collection video, KiriView plays it. If the first supported item is an ineligible video, KiriView displays the unsupported-video placeholder.
+Any directly opened archive becomes the current archive collection and displays its first supported media item. MP4, M4V, and MOV entries play only when they are uncompressed stored ZIP entries inside local CBZ or ZIP archives, or plain TAR entries inside local CBT or TAR archives; other supported video entries display the unsupported-video placeholder.
 
 ### Directory Collections
 
@@ -39,6 +37,8 @@ KiriView opens local directories only when they are directly provided, such as t
 Opening a directory URL creates a directory collection and does not create a video-capable direct media scope.
 
 Directory collections use the same recursive supported-media page ordering as archive collections, with page names based on directory-relative paths such as `chapter/page001.png`.
+
+Recursive traversal is confined to the selected directory's resolved root. Entries whose resolved targets are outside that root are excluded from the collection.
 
 If a directly opened archive or directory collection contains no supported media, KiriView clears any displayed media and shows an error state explaining that the selected collection does not contain any supported media.
 
@@ -53,6 +53,18 @@ Directly opened directories are not advertised through the desktop file's file a
 KiriView's open dialog default filter includes supported image files, supported direct video files, and supported comic book archive files.
 
 KiriView's desktop file advertises file-manager Open With handling for supported image, supported direct video, and comic book archive MIME types. For direct videos, the advertised MIME types are `video/mp4` and `video/quicktime`.
+
+## Direct Media Source Identity
+
+The public source URL for a direct image or direct video is the URL requested through startup input, drop, the open dialog, or navigation, including when that URL addresses an individual KDE-supported archive entry.
+
+An accepted direct-media selection becomes the selected source and error context immediately. A successful open keeps that requested URL as the public source. A failed open also keeps the failed requested URL as the public source and error context rather than exposing a previous item or an internal access location.
+
+During same-scope image navigation, the selected source may differ temporarily from the displayed image URL while the previous committed image remains visible as defined in [Navigation](navigation.md#pending-selection-and-loading).
+
+Any temporary, local, mounted, cached, or otherwise prepared representation used to read or play a direct media item is private and never becomes its public source. Routing and error context use the requested direct media URL. Titles, navigation, and operation targets use the selected or displayed public identity required by their subject specifications; in particular, direct-video preparation never changes the URL used for its title, adjacent navigation, or deletion.
+
+Media inside a directly opened archive or directory collection keeps the collection entry as its user-facing media identity while collection routing and collection-level operations remain bound to the opened collection scope. Preparing an eligible collection video for playback must not create a direct media scope.
 
 ## Flatpak Access
 
@@ -75,6 +87,8 @@ The actions are available from the application menu or menubar File menu and thr
 KiriView delegates user confirmation and the actual file operation to KDE's file operation handling, so users see and can cancel the target KDE is about to delete.
 
 If the operation is canceled, the current media item remains open and no notification is shown. If it fails, the current media item remains open and the file operation error is shown as an in-app toast notification.
+
+While an accepted deletion request is awaiting confirmation or completion, Move to Trash and Delete Permanently are disabled and additional deletion activation does not start another operation.
 
 The deletion target is the displayed image URL for ordinary images, remote URLs, and images opened directly from KDE-supported archive URLs such as `zip://`.
 
@@ -124,9 +138,9 @@ An opened-collection unsupported-video placeholder counts as an available curren
 
 The Open With action opens the current media target with another application and delegates application selection and launching to the desktop open-with flow.
 
-Open With is disabled when no media item is ready, when the current document is empty, loading, or failed, or when KiriView cannot derive a desktop-openable current media URL. Canceling the desktop open-with flow leaves KiriView unchanged and does not show an in-app notification.
+Open With is disabled when the current media state is empty, loading, or failed, or when KiriView cannot derive a desktop-openable current media URL. Canceling the desktop open-with flow leaves KiriView unchanged and does not show an in-app notification.
 
-## Information Panel File Actions
+## Info Panel File Actions
 
 The Info Panel's Copy File Path action copies the current media target's display path to the clipboard. Display paths decode percent-encoded URL path text for user readability.
 

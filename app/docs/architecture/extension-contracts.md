@@ -4,13 +4,13 @@ KiriView extension points are adapter contracts, not state backdoors.
 
 ## Contract
 
-A media source, thumbnail source, predecode planner, decoder, display provider, or render source returns typed keys, capabilities, plans, demands, payloads, or completion results to its owning runtime. It must not mutate QML state, physical item state, public session state, platform action state, cache state, or render policy directly.
+A media source, thumbnail source, predecode planner, decoder, or image-sequence provider returns typed keys, capabilities, plans, demands, payloads, or completion results to its owning runtime or component boundary. It must not mutate QML state, physical item state, public session state, platform action state, cache state, viewport presentation, or render policy directly.
 
-Adapters are synchronous policy providers or asynchronous payload providers behind an owner. Synchronous adapters return plans and capability facts. Asynchronous adapters return payloads through the owner's lifecycle contract, carrying the owner-held operation id, source key plus generation, demand key, or display-source revision needed for stale-completion rejection.
+Adapters are synchronous policy providers or asynchronous payload providers behind an owner. Synchronous adapters return plans and capability facts. Asynchronous adapters return payloads through the owner's lifecycle contract, carrying the owner-held operation id, source key plus generation, demand key, or component request and demand identities needed for stale-completion rejection.
 
 Adapter APIs must not accept QML objects, facade objects, mutable public projection objects, or platform action objects. If a capability needs Qt runtime data, the owner captures that data into a plain demand before calling the adapter.
 
-Capabilities are descriptive. They may say whether bytes can be read, thumbnails can be generated or cached, a still image can be predecoded, a collection video source device can be opened, a decode route is supported, a provider-ready display image can be produced, or a whole-image refinement source is available. Capabilities must not imply ownership of public state or platform side effects.
+Capabilities are descriptive. They may say whether bytes can be read, thumbnails can be generated or cached, a still image can be predecoded, a collection video source device can be opened, a decode route is supported, an `ImageSequence` can be produced, or a whole-image refinement source is available. Capabilities must not imply ownership of public state, viewport presentation, or platform side effects.
 
 ## Identity
 
@@ -50,19 +50,25 @@ Thumbnail identity uses separate typed families for durable row reuse, generatio
 
 Predecode candidate keys identify still-image payloads eligible for adjacent decode. Direct media predecode is still-image-only; videos may be cursor positions for window planning, but they do not produce cached video frame payloads. Opened-collection predecode candidates carry the opened collection scope so byte access stays behind the media entry source owner.
 
-### Display Source Keys
+### ImageViewport Demand Keys
 
-Display-source demand keys contain the source, scope, page or animation role, presentation revision, render-context freshness, resource limits, and requested display demand needed to reject stale completions.
+Application provider-work keys combine source and scope identity with page role, application source generation, component request token, component demand revision, and the application reuse identity needed for decode or cache work. The component tokens remain opaque and are never replaced by application URLs or cache keys.
 
-Window changes, scene-graph invalidation, DPR changes, and texture-capability changes advance display-source or render-context freshness so stale decode and refinement completions are rejected instead of replacing the accepted provider entry. The lifecycle is defined by [Provider Rendering Architecture](provider-rendering.md#provider-and-display-source-lifecycle).
+Window changes, scene-graph invalidation, DPR changes, presentation changes, and resource-capability changes advance component demand when they can change payload choice. A completion may populate an application cache under its reuse identity, but it may enter the viewport only when its source generation, provider request token, and component demand revision remain current. The lifecycle is defined by [ImageViewport Integration Architecture](provider-rendering.md#sequence-provider-boundary).
 
-Provider-rendering work carries a display-source demand key and publishes only complete display entries, not visual page tiles. Source-internal tiling is allowed only inside a decoder or refinement job that assembles one accepted display image before returning to the owner.
+Provider work returns only complete-frame payload handles, not visual page tiles. Source-internal tiling is allowed only inside a decoder or refinement job that assembles one accepted bounded display image before returning to the provider owner.
 
 ## Adapter Contracts
 
 ### Media Entry Source Adapters
 
 Media entry source adapters list and read opened-collection entries. They return candidates, image bytes, optional thumbnail metadata, typed failure payloads, and eligible video playback source devices through the media entry source owner.
+
+An opened-collection listing is published as one immutable, revisioned candidate snapshot after traversal and filtering complete. Partial traversal results must not become active navigation state. An accepted empty snapshot retains the opened collection identity while exposing no selected row.
+
+Archive entry paths are normalized as collection-relative logical paths. Collection access must reject absolute paths and traversal that escapes the archive root, and byte, metadata, thumbnail, and playback-device access must be authorized by an entry key from the current accepted collection snapshot.
+
+Directory collection traversal must resolve candidates within the selected root, exclude entries that resolve outside it, and prevent directory-link cycles. Consumers receive collection-relative identities and must not reopen candidates through an unvalidated path.
 
 Video playback source devices may be exposed only for collection entries whose storage backend can provide the final product's playable collection-video contract. Unsupported video entries remain navigation candidates without playback devices. A returned video playback source device keeps backing archive, entry, and device lifetime behind the media entry source contract until the video source owner clears or supersedes it.
 
@@ -88,18 +94,18 @@ Decoder contracts are route based. Rust-owned image format policy owns advertise
 
 A decoder returns decoded static image, animation reader payload, metadata, unsupported, or failure; it must not route to another decoder or mutate document state. Failure payloads preserve selected route, decoder operation, user-facing text, diagnostic detail, severity, and retryability before the image document maps them into its load-failure projection.
 
-Source-neutral display diagnostics expose typed operation outcomes for first-display, blocking-preview, and raster-refinement paths. String error outputs are derived views over those diagnostics. Concrete decoder helpers may expose source-specific aliases or richer diagnostics, but they must not be the only typed path available to production owners.
+Source-neutral display diagnostics expose typed operation outcomes for first-display, blocking-preview, and raster-refinement paths. String error outputs are derived views over those diagnostics. Source-specific decoder boundaries may expose richer diagnostics, but production owners must always have a typed source-neutral outcome.
 
-### Display Provider Contracts
+### ImageSequence Provider Contracts
 
-Display provider contracts publish immutable display entries from owner-accepted `QImage` payloads.
+The KiriView `ImageSequence` provider adapts application source access, decode, cache, predecode, and refinement owners to component metadata and complete-frame requests. It receives opaque component request and demand identities and returns typed events, payload handles, or typed failures without owning component state.
 
-Ordinary provider requests are cache-only, cheap, and reentrant. A request may look up an existing owner-published entry and report the stored or original size owned by that entry, but it must return the stored raster exactly as published. Request size is an attachment hint from Qt Quick, not a bucket-selection, resampling, generation, cache lookup, scheduling, stale-acceptance, or freshness mechanism.
+Provider request handling may reuse an already accepted application cache entry or schedule source work through the owning runtime's lifecycle boundary. The provider may apply tighter application cache, display-store, or source-work budgets and choose preview, bounded-detail, or exact whole-image payloads from component demand, but it must echo the active token and demand revision, must obey every applicable component cap, and must not mutate component allocation or display-budget state or use QML engine caching as freshness authority.
 
-Provider requests must not decode, rasterize SVG, perform file I/O, install cache entries, schedule thumbnail or refinement work, decide stale acceptance, mutate public state, or depend on QML engine caching for freshness.
+Frame handles carry application display-store leases into the component and receive exact-once release through the declared provider boundary. Provider sessions and application resource owners may observe release for lifetime and backpressure but must not block component progress or infer viewport state from release timing.
 
-All ordinary cache-only image providers, including active-navigation thumbnail providers and main-display providers, follow this request boundary. Slow miss handling requires an explicit async image-provider contract with provider-owned cancellation rather than ordinary provider side effects.
+Provider failures preserve application detail in the existing typed KiriView failure value. Only a generic component failure cause and optional opaque correlation handle cross the component protocol; provider-authored free-form diagnostic strings do not. The component snapshot exposes the handle's reference for lookup scoped to the matching application target, and exact-once handle release retires the application registry record after the observation becomes unreachable.
 
 ### Excluded Extension Paths
 
-Custom image render-source contracts are not production extension points in the provider-backed presenter architecture. Image display extensions publish provider-ready display entries or return whole-image refinement results to their owner; they must not introduce visual tile scheduling, custom Qt Quick rendering items, scene graph nodes, texture providers, framebuffer paths, direct texture ownership, direct low-level rendering resources, or custom shaders.
+Application image extensions stop at the sequence-provider boundary. They must not introduce visual tile scheduling, application-owned image rendering items, scene graph nodes, texture providers, framebuffer paths, direct texture ownership, low-level rendering resources, or custom shaders. Those are private implementation concerns of the repository-internal `ImageViewport` component, not application extension points.

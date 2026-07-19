@@ -12,7 +12,7 @@ Any page whose pixel width is greater than its pixel height is treated as a wide
 
 If the next page after the current page is wide, the current page is displayed alone and the next navigation action opens that wide page.
 
-If the next opened collection item after the current image is a video, the current image is displayed alone and the next navigation action opens that video item. Eligible stored ZIP and plain TAR video entries play in video mode; ineligible video entries show the unsupported-video placeholder.
+If the next opened collection item after the current image is a video, the current image is displayed alone and the next navigation action opens that item according to the collection-video behavior in [File Access](file-access.md#opened-collections).
 
 Two-Page Spread is unavailable for ordinary image files, direct video files, KDE-supported archive URLs, directly opened ZIP, TAR, 7Z, or RAR archives, and directly opened directories.
 
@@ -38,13 +38,15 @@ In Left-to-Right Reading mode, the primary/current page is rendered on the left 
 
 In Right-to-Left Reading mode, the primary/current page is rendered on the right and the next page is rendered on the left.
 
-When navigation in Two-Page Spread targets another eligible two-page spread, KiriView shows the loading state instead of leaving the previous spread visible or showing only the left target page.
+When navigation in Two-Page Spread targets another eligible two-page spread, KiriView shows the target as loading while keeping the previous complete page or spread as the committed presentation. It never presents only one page of the target spread.
 
 The target spread appears only after both pages are ready.
 
 If the target page is the cover, wide, last page, or cannot be paired with an eligible next page, KiriView displays the target page alone once that page is ready.
 
 While a Two-Page Spread transition is loading, the previously displayed page or spread remains the last committed image presentation. KiriView must not expose a partially prepared target spread as the active image presentation.
+
+If switching between single-page and Two-Page Spread display cannot complete, KiriView atomically restores that last committed presentation and does not leave the failed target or a placeholder active.
 
 ## Two-Page Spread Navigation
 
@@ -80,10 +82,6 @@ When the current item is a normal image file, direct video file, inside a KDE-su
 
 Previous Archive and Next Archive are also disabled inside directly opened directory collections.
 
-Supported video entries inside a comic book archive opened directly by KiriView participate in archive collection navigation. Eligible stored ZIP and plain TAR video entries play in video mode; ineligible video entries show unsupported-video placeholders.
-
-KDE archive URLs that point at individual video file entries remain direct media URLs and do not create comic book archive collection context.
-
 Sibling archive candidates are local `.cbz`, `.cbt`, `.cb7`, or `.cbr` files in the current archive's parent directory.
 
 Candidates are sorted with the same user locale-aware file name order used for image navigation.
@@ -94,9 +92,9 @@ Navigation does not wrap. Pressing Previous Archive on the first candidate keeps
 
 `Home` opens the first supported media item in the current archive, and `End` opens the last supported media item in the current archive.
 
-Opening a comic book archive displays the first supported media item in that archive using the same archive media ordering as page navigation. If the first supported item is a playable collection video, KiriView plays it. If the first supported item is an ineligible video, KiriView displays the unsupported-video placeholder.
+Opening a sibling comic book archive follows the first-item and collection-video behavior in [File Access](file-access.md#opened-collections), using the same supported-media ordering as page navigation.
 
-When KiriView is started with a direct comic book archive source, the first supported media item appears in the main viewport once it is display-ready or represented by an unsupported-video placeholder. Thumbnail pane visibility, information pane visibility, and other layout side effects do not control whether the accepted archive item is rendered.
+When KiriView is started with a direct comic book archive source, the first supported media item appears in the main viewport once it is display-ready or represented by an unsupported-video placeholder. Thumbnail Panel visibility, Info Panel visibility, and other layout side effects do not control whether the accepted archive item is rendered.
 
 If a target sibling archive has no supported media, KiriView clears any displayed image and shows an error state explaining that the selected collection does not contain any supported media.
 

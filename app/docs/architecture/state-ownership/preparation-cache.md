@@ -8,13 +8,13 @@ The thumbnail runtime owns source adaptation, demand, scheduling, async lifecycl
 
 ## Still-Image Preparation
 
-C++ owns prepared image objects, decode jobs, provider-ready cache entries, byte pressure, recency, and lifetime. Rust may compute preparation windows, priority, and eviction decisions from plain snapshots but must not own live Qt image objects or async jobs.
+C++ application runtimes own prepared image objects, decode jobs, reusable provider payload entries, byte pressure, recency, and lifetime. Rust may compute preparation windows, priority, and eviction decisions from plain snapshots but must not own live Qt image objects or async jobs.
 
 Preparation windows govern new work and priority, not immediate cache destruction. Current and recently displayed images, the active preparation window, and warm same-scope entries are retained in that order while the byte budget permits. Scope replacement and explicit clear invalidate scope-owned warm entries; selection changes inside the same scope reprioritize rather than clear compatible work.
 
 The document-session preparation runtime owns still-image preparation for mixed direct-media scopes. The image-document preparation runtime owns it for image-page and opened-collection scopes. Each consumes the confirmed candidate snapshot of its owning navigation scope, accepted selection and presentation facts, power-saver state, resource limits, and scheduler dependencies through explicit ports.
 
-Video rows may influence the position of adjacent still-image work but never produce cached video frames. Preparation results return provider-ready still-image payloads to the owning load and presentation boundary and must not publish navigation, readiness, errors, zoom, or page selection.
+Video rows may influence the position of adjacent still-image work but never produce cached video frames. Preparation results return provider-eligible still-image payloads to the owning load and `ImageSequence` provider boundary and must not publish navigation, viewport readiness, errors, zoom, or page selection.
 
 Pending debounce, suspended Power Saver work, and in-flight completion retain their candidate-snapshot identity. Resume or completion is accepted only if the owning scope and generation remain current. Power Saver suppresses new background work without blocking foreground loads or visible-detail refinement.
 

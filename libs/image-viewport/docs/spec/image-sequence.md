@@ -1,6 +1,6 @@
 # ImageSequence Construction
 
-This document defines the public construction contract for opaque `ImageSequence` source handles. Provider protocol values and payload ownership are defined in [ImageSequence Provider Protocol](image-sequence-provider-protocol.md), provider extension behavior is defined in [ImageSequence Provider Adapter](image-sequence-provider-adapter.md), and public source limits are defined in [ImageViewport Packaging](image-viewport-packaging.md).
+This document defines the component construction contract for opaque `ImageSequence` source handles. Provider protocol values and payload ownership are defined in [ImageSequence Provider Protocol](image-sequence-provider-protocol.md), provider extension behavior is defined in [ImageSequence Provider Adapter](image-sequence-provider-adapter.md), and source limits are defined in [ImageViewport Component Boundary](image-viewport-component-boundary.md).
 
 ## Factory Contract
 

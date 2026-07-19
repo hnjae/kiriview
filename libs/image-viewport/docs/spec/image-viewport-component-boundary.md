@@ -1,8 +1,8 @@
-# ImageViewport Packaging
+# ImageViewport Component Boundary
 
-This document defines public limits and the supported installed package boundary for downstream consumers of `ImageViewport`.
+This document defines component limits and the supported repository-internal integration boundary for `ImageViewport`.
 
-## Public Limits
+## Component Limits
 
 `ImageSequenceLimits` is a QML singleton and C++ type with `maximumSourceLogicalWidth: INT_MAX`, `maximumSourceLogicalHeight: INT_MAX`, `maximumSourceLogicalPixels: qint64(INT_MAX) * qint64(INT_MAX)`, `maximumPayloadRasterWidth: 16384`, `maximumPayloadRasterHeight: 16384`, `maximumPayloadBytes: 536870912`, `maximumFrameCount`, `maximumTotalDurationMilliseconds`, `maximumFrameDurationMilliseconds`, `maximumDiagnosticCharacters`, and `maximumFormatIdentifierCharacters`. Character limits count Unicode scalar values. Source logical components are finite positive integers. Source logical limits bound geometry identity and do not authorize or imply allocation proportional to logical pixel count. Payload raster and byte limits independently bound retained CPU payload resources. Metadata, payload, timing, and format-identifier limits are unconditional admission bounds; `maximumDiagnosticCharacters` is the post-redaction maximum for any published diagnostic.
 
@@ -10,11 +10,11 @@ This document defines public limits and the supported installed package boundary
 
 Every available published maximum, minimum, and step is finite and positive, and values are identical in QML and C++. The dynamic maximum-manual-zoom sentinel `0` is the sole unavailable maximum and is never a valid zoom demand. Validation uses overflow-safe calculations and rejects a value before any dependent allocation or display attempt when the applicable limit would be exceeded. Invalid or unavailable runtime backend caps are exposed as invalid demand fields rather than guessed values; they do not relax `ImageSequenceLimits`.
 
-## Installed Package Boundary
+## Repository-Internal Integration Boundary
 
-The supported install target is Linux with a static Qt QML module plugin. The QML module URI is `ImageViewport`, the supported import version is `1.0`, and the package compatibility version is `1.0.0`. Installed consumers import `ImageViewport 1.0`, use public headers, and link the `ImageViewport::ImageViewport` package target only. Public API signatures and supported extension points must not expose private controller types, internal provider transport, render adapters, scene graph resources, native texture handles, or instrumentation types.
+`ImageViewport` exposes a repository-internal interface solely to KiriView. It is not an independently consumable SDK or QML module and makes no standalone QML URI, import-version, package-target, ABI, semantic-versioning, or source-compatibility promise.
 
-`<ImageViewport/ImageViewport>` is the umbrella header for the complete public C++ API. Consumers may instead include only the canonical subject headers they use:
+The component exposes one intentional C++ include surface to KiriView. `<ImageViewport/ImageViewport>` is the umbrella header for that surface; repository code may instead include only the canonical subject headers it uses:
 
 - `<ImageViewport/imageviewporttypes.h>` provides shared public values, roles, ranges, and opaque tokens.
 - `<ImageViewport/imagesequence.h>` provides image sequences, frames, typed factory results, factories, and sequence source limits.
@@ -22,4 +22,4 @@ The supported install target is Linux with a static Qt QML module plugin. The QM
 - `<ImageViewport/imageviewport.h>` provides the viewport item, presentation command surface, and display-demand limits.
 - `<ImageViewport/imageviewportstate.h>` provides state snapshots, command results, and coordinate input and result values.
 
-The umbrella and subject-specific include forms are both supported package interfaces. All public headers belong to one C++ library, one QML module, and one package compatibility and release boundary; header separation does not create independently versioned APIs. Within major version `1`, minor releases may add backward-compatible API and patch releases may correct behavior within existing guarantees. Removing or renaming public API, rejecting previously valid input, changing value semantics incompatibly, or lowering a published hard limit requires a new major version. A downstream application or provider must be implementable without private headers, source-tree include paths, or build-tree-only QML imports.
+The umbrella and subject-specific include forms are the supported repository-internal component interface. KiriView and `ImageViewport` evolve atomically in the same repository, so an intentional contract change updates both sides without compatibility shims or parallel legacy APIs. The interface excludes private engine controllers, provider transport internals, render adapters, scene graph resources, native texture handles, and instrumentation types.

@@ -9,4 +9,4 @@ This directory indexes the final user-facing behavior and public API contracts. 
 - [ImageSequence Construction](image-sequence.md)
 - [ImageSequence Provider Protocol](image-sequence-provider-protocol.md)
 - [ImageSequence Provider Adapter](image-sequence-provider-adapter.md)
-- [ImageViewport Packaging](image-viewport-packaging.md)
+- [ImageViewport Component Boundary](image-viewport-component-boundary.md)

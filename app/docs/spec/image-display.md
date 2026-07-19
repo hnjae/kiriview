@@ -10,9 +10,9 @@ If no media item is selected, the empty state says that no file is selected and 
 
 If the selected image or video cannot be opened while no media item is displayed, the error state explains that the selected file or URL could not be opened, shows the underlying error when available, and offers Open.
 
-If a media item is already displayed and users move to a different image through the current active navigation scope, the requested image becomes the selected navigation target immediately. If the requested image is already available from prior preparation, it replaces the view immediately; otherwise the previous committed image remains visible until the requested image is ready to display.
+If a media item is already displayed and users move to a different image through the current active navigation scope, the requested image becomes the selected navigation target immediately. If the requested image is already available, it replaces the view immediately; otherwise the previous committed image remains visible until the requested image is ready to display.
 
-If a media item is already displayed and users select a different image outside the current active navigation scope, the new selection owns the image viewport immediately. If the new image is already available from prior preparation, it replaces the view immediately; otherwise KiriView clears the previous image presentation and shows the normal loading state until the new image is ready.
+If a media item is already displayed and users select a different image outside the current active navigation scope, the new selection owns the image viewport immediately. If the new image is already available, it replaces the view immediately; otherwise KiriView clears the previous image presentation and shows the normal loading state until the new image is ready.
 
 If a media item is already displayed and users select a video, KiriView leaves image mode immediately and shows the video loading state.
 
@@ -30,15 +30,13 @@ If animation playback fails for the displayed image, the UI shows an error state
 
 Opened images are displayed centered in the available page area while preserving their aspect ratio.
 
-When KiriView is started with a direct image source, the initial image appears in the main viewport once it is display-ready. The main viewport does not require thumbnail pane visibility, information pane visibility, or another layout side effect before showing that accepted image.
+When KiriView is started with a direct image source, the initial image appears in the main viewport once it is display-ready. The main viewport does not require Thumbnail Panel visibility, Info Panel visibility, or another layout side effect before showing that accepted image.
 
 Image zoom is expressed in physical display pixels. At 100%, one image pixel maps to one physical monitor pixel.
 
 Static image files, including bitmap images and SVG files, appear at full resolution when they are small enough to display directly.
 
 When adjacent images are already available, Previous and Next navigation can replace the view immediately.
-
-When ordinary direct media navigation moves from an image to a video and then back to a nearby image, previously prepared still-image data may remain available so returning to that image can avoid a full-page loading state. Direct videos themselves are not prepared as still-image replacements.
 
 If a static image exceeds the supported decode or display size, KiriView reports an error or unsupported state for the selected target instead of restoring a previously displayed image.
 
@@ -98,17 +96,17 @@ Fit Width mode scales the image width to the viewport width while preserving asp
 
 Within the same directly opened archive or directory collection, KiriView preserves the current zoom state while users move between pages with Previous, Next, or page number navigation.
 
-Switching between single-page display and Two-Page Spread preserves the user's active zoom choice. When returning from a visible two-page spread to single-page display, the current spread zoom becomes the single-page zoom.
+Switching between single-page display and Two-Page Spread preserves the user's active fit mode or preferred manual zoom. A target-specific maximum may temporarily lower the effective manual zoom, but changing presentation shape does not replace the preferred percentage with that temporary value.
 
 If the user has selected Fit, Fit Height, or Fit Width, that fit mode remains selected and recalculates for each page, viewport size, and rotation change.
 
-If the user has entered a manual zoom value, that exact percentage remains active.
+If the user has entered a manual zoom value, that exact percentage remains the preferred manual zoom while users navigate within the collection or switch between single-page and Two-Page Spread display. If the current image or spread has a lower dynamic maximum, KiriView temporarily uses that maximum as the effective zoom and returns to the preferred percentage when a later image or spread permits it.
 
 When the displayed page changes inside the archive or directory collection through ordinary page navigation, any panning position from the previous page is cleared. The newly displayed page starts at its scan start at the preserved zoom level: top-left normally and top-right in Right-to-Left Reading mode.
 
 The scan-backward shortcut may open the previous image at its final scan position instead: bottom-right normally and bottom-left in Right-to-Left Reading mode.
 
-Starting KiriView, opening a regular image, moving between regular directory images, opening a KDE archive URL image directly, opening a different archive or directory collection, or moving to a sibling archive resets zoom to Fit mode when the new image is displayed.
+Starting KiriView, opening an ordinary direct image, moving between ordinary direct images in a direct media URL scope, opening a KDE archive URL image directly, opening a different archive or directory collection, or moving to a sibling archive resets zoom to Fit mode when the new image is displayed.
 
 ## Rotation
 
@@ -128,7 +126,7 @@ Rotation is unavailable while Two-Page Spread is enabled. Enabling Two-Page Spre
 
 The toolbar provides a fixed-width zoom percentage input with a separate percent suffix. It shows values below 10,000% as a rounded integer percentage without digit grouping, capped at `9999 %`. It shows values from 10,000% through 999,999% in thousands using `k`, adds `+` when the actual value is above the displayed thousand bucket, and shows values at or above 1,000,000% as `999k+ %`. The editable value text is right-aligned, uses a fixed-width font, and excludes `%`; the adjacent percent suffix provides `%` after a one-space visual gap and keeps toolbar spacing before the stepper buttons.
 
-When no image or direct video has an active zoom readout, the toolbar zoom control displays `- %`. An image zoom readout exists only while a ready image with a displayed image size is active. Empty, loading, error, and non-image document states must not expose fallback image-geometry zoom values through the toolbar.
+When no image or direct video has an active zoom readout, the toolbar zoom control displays `- %`. An image zoom readout exists only while a ready image with a displayed image size is active. Empty, loading, error, and non-image media states must not expose fallback image-geometry zoom values through the toolbar.
 
 When a direct video is displayed, the toolbar zoom control remains in the same position as image mode and becomes read-only. It displays the fitted video zoom percentage when KiriView can determine the intrinsic video frame size and current displayed content size, and `? %` when the percentage is unavailable.
 
@@ -140,7 +138,9 @@ Pressing Enter or clicking the image viewing area while editing the zoom input a
 
 Pressing Escape while editing the zoom input cancels the edit, restores the currently applied zoom percentage in the toolbar, returns focus to the image viewing area, and does not leave fullscreen.
 
-Editing the zoom input switches to manual zoom.
+If the submitted zoom text cannot be parsed as a percentage, KiriView restores the currently applied zoom percentage, leaves the current zoom mode unchanged, and ends the edit.
+
+Submitting a valid zoom value switches to manual zoom.
 
 When an image is ready and the zoom input is not being edited, unmodified wheel or trackpad scrolling over the toolbar zoom percentage control switches to manual zoom and adjusts by half the normal multiplicative zoom step. One wheel detent zooms in by multiplying the current zoom by `2^(1/16)`, and one wheel detent zooms out by multiplying by `2^(-1/16)`. Toolbar wheel zoom uses the same dynamic manual zoom range as the toolbar zoom input and has no effect for read-only zoom readouts such as direct video.
 
@@ -169,6 +169,8 @@ Animated image files, including GIF, APNG, animated WebP, animated JPEG XL, and 
 When KiriView can identify more than one authored frame in a supported animated image file, it presents the file as an animation instead of freezing it as a static still image.
 
 The first frame is shown once loading succeeds. Later frames use the file's frame delays and loop count.
+
+When both pages in a Two-Page Spread are animated, each page advances independently according to its own frame delays and loop count. One page finishing, waiting, pausing, or stopping does not freeze the other page.
 
 Infinite loops continue until another image is selected or the view is cleared.
 
