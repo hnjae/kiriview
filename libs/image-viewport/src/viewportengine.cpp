@@ -71,6 +71,7 @@ bool ViewportEngine::hasCompleteCommittedPresentation() const
 ViewportProviderTransportBatch ViewportEngine::pinCurrentPresentationForRestoration()
 {
     ViewportProviderTransportBatch transport;
+    transport.reserve(2);
     ViewportEngineRestorationState restoration {
         m_state->requestState.presentationTarget,
         m_state->requestState.request,

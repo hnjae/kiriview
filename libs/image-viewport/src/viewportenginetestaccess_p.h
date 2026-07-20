@@ -74,7 +74,7 @@ public:
                 engine.m_state->providerState.roles[1].provider.facts },
             engine.m_state->playbackState.playback);
         auto reduction = reduceViewportEngineAuthoredAutoplay({}, access);
-        engine.m_state->playbackState.playback = std::move(access.takeMutation().playback);
+        engine.m_state->playbackState.playback = access.takeMutation().playback;
         return reduction;
     }
     static ImageViewportCommandReason& commandReason(ViewportEngine& engine)

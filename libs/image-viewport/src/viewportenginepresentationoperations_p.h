@@ -38,7 +38,8 @@ struct ViewportEnginePresentationTargetTransitionInput
     bool readyDisplay = false;
 };
 
-class ViewportEnginePresentationCommandStateView
+class
+    ViewportEnginePresentationCommandStateView // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     ViewportEnginePresentationCommandStateView(
@@ -70,7 +71,8 @@ private:
     bool m_readyDisplay = false;
 };
 
-class ViewportEnginePresentationTargetTransitionStateView
+class
+    ViewportEnginePresentationTargetTransitionStateView // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend class ViewportEnginePresentationTargetAssignmentAccess;

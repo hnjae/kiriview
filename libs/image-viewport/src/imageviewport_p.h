@@ -28,6 +28,10 @@ public:
 
     explicit ImageViewportPrivate(ImageViewport* viewport);
     ~ImageViewportPrivate();
+    ImageViewportPrivate(const ImageViewportPrivate&) = delete;
+    ImageViewportPrivate& operator=(const ImageViewportPrivate&) = delete;
+    ImageViewportPrivate(ImageViewportPrivate&&) = delete;
+    ImageViewportPrivate& operator=(ImageViewportPrivate&&) = delete;
     static ImageViewportPrivate* get(ImageViewport& viewport) { return viewport.d.get(); }
     static const ImageViewportPrivate* get(const ImageViewport& viewport)
     {

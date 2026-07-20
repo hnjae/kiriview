@@ -37,7 +37,7 @@ struct ViewportEngineProviderWaitingMutation
 };
 using ViewportEngineProviderEndOfSequenceMutation = ViewportEngineProviderRequestMutation;
 
-class ViewportEngineProviderWaitingAccess
+class ViewportEngineProviderWaitingAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend ViewportEngineProviderWaitingReduction reduceViewportEngineProviderWaiting(
@@ -65,7 +65,8 @@ private:
     const ImageViewportInternal::ProviderRequestLedger& m_requests;
 };
 
-class ViewportEngineProviderEndOfSequenceAccess
+class
+    ViewportEngineProviderEndOfSequenceAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSequence(
@@ -94,8 +95,8 @@ public:
         = default;
     ViewportEngineProviderEndOfSequenceMutation takeMutation()
     {
-        return { std::move(m_request), std::move(m_playback), std::move(m_display),
-            std::move(m_roles), m_nextRevision };
+        return { std::move(m_request), m_playback, std::move(m_display), std::move(m_roles),
+            m_nextRevision };
     }
 
 private:

@@ -18,6 +18,7 @@
 #include <QtGui/QColor>
 
 #include <optional>
+#include <utility>
 
 class ImageViewportRequestSnapshot
 {
@@ -890,9 +891,9 @@ public:
         : m_request(request)
         , m_display(display)
         , m_presentation(presentation)
-        , m_primary(primary)
-        , m_secondary(secondary)
-        , m_diagnostics(diagnostics)
+        , m_primary(std::move(primary))
+        , m_secondary(std::move(secondary))
+        , m_diagnostics(std::move(diagnostics))
         , m_revisions(revisions)
     {
     }

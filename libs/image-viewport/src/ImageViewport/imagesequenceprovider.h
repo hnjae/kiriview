@@ -38,6 +38,7 @@ public:
     explicit ImageSequenceProviderFailureHandle(
         ReleaseCallback releaseFailure, QObject* parent = nullptr);
     ~ImageSequenceProviderFailureHandle() override;
+    Q_DISABLE_COPY_MOVE(ImageSequenceProviderFailureHandle)
 
     ImageSequenceProviderFailureReference reference() const { return m_reference; }
     bool isValid() const;
@@ -98,6 +99,7 @@ public:
     ImageSequenceProviderFrameHandle(
         ImageFrame* frame, ReleaseCallback releaseFrame, QObject* parent = nullptr);
     ~ImageSequenceProviderFrameHandle() override;
+    Q_DISABLE_COPY_MOVE(ImageSequenceProviderFrameHandle)
 
     ImageFrame* frame() const;
     void release();
@@ -208,6 +210,7 @@ class ImageSequenceProviderSession : public QObject
 public:
     explicit ImageSequenceProviderSession(QObject* parent = nullptr);
     ~ImageSequenceProviderSession() override = default;
+    Q_DISABLE_COPY_MOVE(ImageSequenceProviderSession)
 
     virtual void request(const ImageSequenceProviderRequest& request) = 0;
 

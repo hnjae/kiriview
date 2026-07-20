@@ -72,6 +72,7 @@ class ImageSequence : public QObject
 
 public:
     ~ImageSequence() override;
+    Q_DISABLE_COPY_MOVE(ImageSequence)
 
 private:
     class Data;

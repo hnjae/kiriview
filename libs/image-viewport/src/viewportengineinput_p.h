@@ -251,41 +251,44 @@ struct ViewportEnginePresentationCommand
         exactnessPreferenceValue = command.exactnessPreference();
     }
 
+    double preferredManualZoomPercentValue = 100.0;
+    double zoomStepDeltaValue = 0.0;
+    double pageGapValue = 0.0;
+    double checkerboardCellSizeValue = 8.0;
+    QPointF zoomAnchorValue;
+    QPointF contentPositionValue;
+    QPointF panDeltaValue;
+    ImageViewportFitMode fitModeValue = ImageViewportFitMode::Contain;
+    ImageViewportContentAnchor contentAnchorValue = ImageViewportContentAnchor::Start;
+    int rotationDegreesValue = 0;
+    ImageViewportSpreadDirection spreadDirectionValue = ImageViewportSpreadDirection::LeftToRight;
+    ImageViewportBackgroundMode backgroundModeValue = ImageViewportBackgroundMode::Transparent;
+    ImageViewportQualityPreference qualityPreferenceValue = ImageViewportQualityPreference::Default;
+    ImageViewportExactnessPreference exactnessPreferenceValue
+        = ImageViewportExactnessPreference::Default;
+    QColor backgroundColorValue = Qt::white;
+    QColor checkerboardLightColorValue = Qt::white;
+    QColor checkerboardDarkColorValue = QColor(220, 220, 220);
     bool resetViewValue = false;
     bool fitModeSet = false;
-    ImageViewportFitMode fitModeValue = ImageViewportFitMode::Contain;
     bool preferredManualZoomPercentSet = false;
-    double preferredManualZoomPercentValue = 100.0;
     bool zoomStepDeltaSet = false;
-    double zoomStepDeltaValue = 0.0;
     bool zoomAnchorSet = false;
-    QPointF zoomAnchorValue;
     bool contentPositionSet = false;
-    QPointF contentPositionValue;
     bool panDeltaSet = false;
-    QPointF panDeltaValue;
     bool contentAnchorSet = false;
-    ImageViewportContentAnchor contentAnchorValue = ImageViewportContentAnchor::Start;
     bool rotationDegreesSet = false;
-    int rotationDegreesValue = 0;
     bool mirrorHorizontallySet = false;
     bool mirrorHorizontallyValue = false;
     bool mirrorVerticallySet = false;
     bool mirrorVerticallyValue = false;
     bool spreadDirectionSet = false;
-    ImageViewportSpreadDirection spreadDirectionValue = ImageViewportSpreadDirection::LeftToRight;
     bool pageGapSet = false;
-    double pageGapValue = 0.0;
     bool backgroundModeSet = false;
-    ImageViewportBackgroundMode backgroundModeValue = ImageViewportBackgroundMode::Transparent;
     bool backgroundColorSet = false;
-    QColor backgroundColorValue = Qt::white;
     bool checkerboardLightColorSet = false;
-    QColor checkerboardLightColorValue = Qt::white;
     bool checkerboardDarkColorSet = false;
-    QColor checkerboardDarkColorValue = QColor(220, 220, 220);
     bool checkerboardCellSizeSet = false;
-    double checkerboardCellSizeValue = 8.0;
     bool smoothingSet = false;
     bool smoothingValue = true;
     bool mipmapSet = false;
@@ -293,10 +296,7 @@ struct ViewportEnginePresentationCommand
     bool loopingSet = false;
     bool loopingValue = false;
     bool qualityPreferenceSet = false;
-    ImageViewportQualityPreference qualityPreferenceValue = ImageViewportQualityPreference::Default;
     bool exactnessPreferenceSet = false;
-    ImageViewportExactnessPreference exactnessPreferenceValue
-        = ImageViewportExactnessPreference::Default;
 
     bool resetView() const { return resetViewValue; }
     bool hasFitMode() const { return fitModeSet; }

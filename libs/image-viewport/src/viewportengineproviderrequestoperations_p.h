@@ -55,11 +55,12 @@ struct ViewportEngineProviderRequestMutation
 #define VIEWPORT_PROVIDER_REQUEST_TAKE_MUTATION                                                    \
     ViewportEngineProviderRequestMutation takeMutation()                                           \
     {                                                                                              \
-        return { std::move(m_request), std::move(m_playback), std::move(m_display),                \
-            std::move(m_roles), m_nextRevision };                                                  \
+        return { std::move(m_request), m_playback, std::move(m_display), std::move(m_roles),       \
+            m_nextRevision };                                                                      \
     }
 
-class ViewportEngineProviderSessionOpenedAccess
+class
+    ViewportEngineProviderSessionOpenedAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend ViewportProviderSessionOpenResult reduceViewportEngineProviderSessionOpened(
@@ -96,7 +97,7 @@ private:
     VIEWPORT_PROVIDER_REQUEST_ACCESS_MEMBERS;
 };
 
-class ViewportEngineProviderQueueFlushAccess
+class ViewportEngineProviderQueueFlushAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend ViewportProviderFrameQueueFlushResult reduceViewportEngineProviderQueueFlush(
@@ -131,7 +132,8 @@ private:
     VIEWPORT_PROVIDER_REQUEST_ACCESS_MEMBERS;
 };
 
-class ViewportEngineProviderDemandRestageAccess
+class
+    ViewportEngineProviderDemandRestageAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend std::array<ViewportProviderFrameTransportEffect, 2>
@@ -168,7 +170,7 @@ private:
     VIEWPORT_PROVIDER_REQUEST_ACCESS_MEMBERS;
 };
 
-class ViewportEngineProviderFrameRequestAccess
+class ViewportEngineProviderFrameRequestAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend class ViewportEngineProviderMetadataReadyAccess;

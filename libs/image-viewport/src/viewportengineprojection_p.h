@@ -19,7 +19,8 @@ struct ViewportEngineGeometryQueryInput
     bool renderAvailable = true;
 };
 
-class ViewportEngineCurrentGeometryProjectionAccess
+class
+    ViewportEngineCurrentGeometryProjectionAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     ViewportEngineCurrentGeometryProjectionAccess(
@@ -42,7 +43,8 @@ private:
     const ImageViewportInternal::DisplayState& m_display;
 };
 
-class ViewportEnginePendingGeometryProjectionAccess
+class
+    ViewportEnginePendingGeometryProjectionAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     ViewportEnginePendingGeometryProjectionAccess(
@@ -65,7 +67,8 @@ private:
     ViewportEngineProviderFactsView m_providerFacts;
 };
 
-class ViewportEngineAcceptedGeometryProjectionAccess
+class
+    ViewportEngineAcceptedGeometryProjectionAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     ViewportEngineAcceptedGeometryProjectionAccess(
@@ -88,7 +91,8 @@ private:
     ViewportEngineProviderFactsView m_providerFacts;
 };
 
-class ViewportEngineRenderSnapshotProjectionAccess
+class
+    ViewportEngineRenderSnapshotProjectionAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend class ViewportEngineRenderSynchronizationAccess;

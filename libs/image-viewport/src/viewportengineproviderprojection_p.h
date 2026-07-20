@@ -17,7 +17,8 @@ struct ViewportEngineProviderDemandInput
     ImageViewportAllocationGenerationToken allocationGeneration;
 };
 
-class ViewportEngineProviderDemandProjectionAccess
+class
+    ViewportEngineProviderDemandProjectionAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend class ViewportEngineProviderSessionOpenedAccess;

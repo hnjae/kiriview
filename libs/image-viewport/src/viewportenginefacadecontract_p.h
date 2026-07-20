@@ -100,6 +100,7 @@ public:
     ViewportEngineProviderHostEventRequest& operator=(
         ViewportEngineProviderHostEventRequest&&) noexcept
         = default;
+    ~ViewportEngineProviderHostEventRequest() = default;
 
     const ViewportProviderHostEvent& event() const { return m_event; }
 

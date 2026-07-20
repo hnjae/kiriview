@@ -35,7 +35,8 @@ struct ViewportEngineProviderMetadataReadyReduction
     ImageViewportInternal::InternalObservationBatch observations;
 };
 
-class ViewportEngineProviderMetadataReadyAccess
+class
+    ViewportEngineProviderMetadataReadyAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadataReady(
@@ -67,9 +68,9 @@ public:
         = default;
     ViewportEngineProviderMetadataMutation takeMutation()
     {
-        return { std::move(m_request), std::move(m_playback), std::move(m_display),
-            std::move(m_roles), std::move(m_presentation), std::move(m_presentationTarget),
-            m_nextRevision, m_targetPresentationRevision };
+        return { std::move(m_request), m_playback, std::move(m_display), std::move(m_roles),
+            m_presentation, std::move(m_presentationTarget), m_nextRevision,
+            m_targetPresentationRevision };
     }
 
 private:

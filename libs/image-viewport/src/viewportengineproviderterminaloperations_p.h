@@ -21,7 +21,8 @@ struct ViewportEngineProviderTerminalProjectionMutation
     ImageViewportInternal::RequestState request;
 };
 
-class ViewportEngineProviderTerminalProjectionAccess
+class
+    ViewportEngineProviderTerminalProjectionAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend class ViewportEngineProviderMetadataReadyAccess;

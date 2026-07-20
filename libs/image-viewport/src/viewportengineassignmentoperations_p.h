@@ -46,7 +46,8 @@ struct ViewportEnginePresentationTargetAssignmentReduction
     std::array<ViewportEngineProviderSessionOpenEffect, 2> providerSessionOpenEffects;
 };
 
-class ViewportEnginePresentationTargetAssignmentAccess
+class
+    ViewportEnginePresentationTargetAssignmentAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend ViewportEnginePresentationTargetAssignmentReduction

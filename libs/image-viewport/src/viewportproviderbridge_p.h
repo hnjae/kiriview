@@ -82,6 +82,8 @@ public:
     ViewportProviderExecutor() = default;
     ViewportProviderExecutor(const ViewportProviderExecutor&) = delete;
     ViewportProviderExecutor& operator=(const ViewportProviderExecutor&) = delete;
+    ViewportProviderExecutor(ViewportProviderExecutor&&) = delete;
+    ViewportProviderExecutor& operator=(ViewportProviderExecutor&&) = delete;
     virtual ~ViewportProviderExecutor() = default;
 
     virtual ViewportProviderExecutorOutcome invokeSessionCommand(
@@ -132,6 +134,8 @@ public:
     ~ViewportProviderBridge();
     ViewportProviderBridge(const ViewportProviderBridge&) = delete;
     ViewportProviderBridge& operator=(const ViewportProviderBridge&) = delete;
+    ViewportProviderBridge(ViewportProviderBridge&&) = delete;
+    ViewportProviderBridge& operator=(ViewportProviderBridge&&) = delete;
 
     ViewportProviderTransportResult closeSession(ImageSequenceProviderRequestToken metadataToken,
         ImageSequenceProviderRequestToken frameToken);

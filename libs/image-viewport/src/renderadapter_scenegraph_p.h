@@ -20,6 +20,8 @@ public:
     Factory() = default;
     Factory(const Factory&) = delete;
     Factory& operator=(const Factory&) = delete;
+    Factory(Factory&&) = delete;
+    Factory& operator=(Factory&&) = delete;
     virtual ~Factory() = default;
     virtual QSGTexture* createTexture(QQuickWindow* window, const QImage& image,
         QQuickWindow::CreateTextureOptions options) const;

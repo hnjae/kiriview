@@ -379,6 +379,7 @@ struct DisplayState
     DisplayState& operator=(const DisplayState&) = default;
     DisplayState(DisplayState&&) noexcept = default;
     DisplayState& operator=(DisplayState&&) noexcept = default;
+    ~DisplayState() = default;
 
     DisplayRequestSnapshot activeRequestSnapshot(quint64 sequenceGeneration,
         const DisplayRequest& activeRequest, int displayedPosition) const
@@ -551,6 +552,7 @@ struct RequestState
     RequestState& operator=(const RequestState&) = default;
     RequestState(RequestState&&) noexcept = default;
     RequestState& operator=(RequestState&&) noexcept = default;
+    ~RequestState() = default;
 
     void clearDisplayRequests()
     {
@@ -801,7 +803,7 @@ struct ProviderRequestLedger
 
     std::optional<ProviderRequestRecord> retireFrame() { return retire(frameToken()); }
 
-    void queue(QueuedProviderFrameRequest request) { queuedFrame = std::move(request); }
+    void queue(QueuedProviderFrameRequest request) { queuedFrame = request; }
 
     void clearQueue() { queuedFrame.reset(); }
 

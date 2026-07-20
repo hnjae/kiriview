@@ -7,7 +7,7 @@
 
 #include "viewportenginestate_p.h"
 
-class ViewportEngineSnapshotStateAccess
+class ViewportEngineSnapshotStateAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
 private:
     friend class ViewportEngine;

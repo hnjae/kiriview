@@ -20,7 +20,7 @@ struct ViewportEngineProviderSessionMutation
     ImageViewportInternal::ProviderRequestLedger requests;
 };
 
-class ViewportEngineProviderSessionOpenAccess
+class ViewportEngineProviderSessionOpenAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend class ViewportEnginePresentationTargetAssignmentAccess;
@@ -38,7 +38,7 @@ class ViewportEngineProviderSessionOpenAccess
 public:
     ViewportEngineProviderSessionOpenAccess(const ViewportEngineProviderSessionOpenAccess&)
         = delete;
-    ImageViewportInternal::ProviderSessionState takeSession() { return std::move(m_session); }
+    ImageViewportInternal::ProviderSessionState takeSession() { return m_session; }
     ViewportEngineProviderSessionOpenAccess(ViewportEngineProviderSessionOpenAccess&&) noexcept
         = default;
     ViewportEngineProviderSessionOpenAccess& operator=(
@@ -50,7 +50,7 @@ private:
     ImageViewportInternal::ProviderSessionState m_session;
 };
 
-class ViewportEngineProviderSessionCloseAccess
+class ViewportEngineProviderSessionCloseAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend class ViewportEnginePresentationTargetAssignmentAccess;
@@ -74,7 +74,7 @@ public:
         = delete;
     ViewportEngineProviderSessionMutation takeMutation()
     {
-        return { std::move(m_session), std::move(m_requests) };
+        return { m_session, std::move(m_requests) };
     }
     ViewportEngineProviderSessionCloseAccess(ViewportEngineProviderSessionCloseAccess&&) noexcept
         = default;
@@ -93,7 +93,8 @@ struct ViewportEngineProviderSessionAdmissionInput
     quint64 sessionSerial = 0;
 };
 
-class ViewportEngineProviderSessionAdmissionAccess
+class
+    ViewportEngineProviderSessionAdmissionAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend bool acceptsViewportEngineProviderSessionEvent(

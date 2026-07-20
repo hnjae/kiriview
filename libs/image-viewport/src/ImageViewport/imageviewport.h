@@ -106,6 +106,7 @@ class ImageViewport : public QQuickItem
 public:
     explicit ImageViewport(QQuickItem* parent = nullptr);
     ~ImageViewport() override;
+    Q_DISABLE_COPY_MOVE(ImageViewport)
 
     ImageViewportStateSnapshot state() const;
 
@@ -369,41 +370,44 @@ public:
     }
 
 private:
+    double m_preferredManualZoomPercent = 100.0;
+    double m_zoomStepDelta = 0.0;
+    double m_pageGap = 0.0;
+    double m_checkerboardCellSize = 8.0;
+    QPointF m_zoomAnchor;
+    QPointF m_contentPosition;
+    QPointF m_panDelta;
+    ImageViewportFitMode m_fitMode = ImageViewportFitMode::Contain;
+    ImageViewportContentAnchor m_contentAnchor = ImageViewportContentAnchor::Start;
+    int m_rotationDegrees = 0;
+    ImageViewportSpreadDirection m_spreadDirection = ImageViewportSpreadDirection::LeftToRight;
+    ImageViewportBackgroundMode m_backgroundMode = ImageViewportBackgroundMode::Transparent;
+    ImageViewportQualityPreference m_qualityPreference = ImageViewportQualityPreference::Default;
+    ImageViewportExactnessPreference m_exactnessPreference
+        = ImageViewportExactnessPreference::Default;
+    QColor m_backgroundColor = Qt::white;
+    QColor m_checkerboardLightColor = Qt::white;
+    QColor m_checkerboardDarkColor = QColor(220, 220, 220);
     bool m_resetView = false;
     bool m_hasFitMode = false;
-    ImageViewportFitMode m_fitMode = ImageViewportFitMode::Contain;
     bool m_hasPreferredManualZoomPercent = false;
-    double m_preferredManualZoomPercent = 100.0;
     bool m_hasZoomStepDelta = false;
-    double m_zoomStepDelta = 0.0;
     bool m_hasZoomAnchor = false;
-    QPointF m_zoomAnchor;
     bool m_hasContentPosition = false;
-    QPointF m_contentPosition;
     bool m_hasPanDelta = false;
-    QPointF m_panDelta;
     bool m_hasContentAnchor = false;
-    ImageViewportContentAnchor m_contentAnchor = ImageViewportContentAnchor::Start;
     bool m_hasRotationDegrees = false;
-    int m_rotationDegrees = 0;
     bool m_hasMirrorHorizontally = false;
     bool m_mirrorHorizontally = false;
     bool m_hasMirrorVertically = false;
     bool m_mirrorVertically = false;
     bool m_hasSpreadDirection = false;
-    ImageViewportSpreadDirection m_spreadDirection = ImageViewportSpreadDirection::LeftToRight;
     bool m_hasPageGap = false;
-    double m_pageGap = 0.0;
     bool m_hasBackgroundMode = false;
-    ImageViewportBackgroundMode m_backgroundMode = ImageViewportBackgroundMode::Transparent;
     bool m_hasBackgroundColor = false;
-    QColor m_backgroundColor = Qt::white;
     bool m_hasCheckerboardLightColor = false;
-    QColor m_checkerboardLightColor = Qt::white;
     bool m_hasCheckerboardDarkColor = false;
-    QColor m_checkerboardDarkColor = QColor(220, 220, 220);
     bool m_hasCheckerboardCellSize = false;
-    double m_checkerboardCellSize = 8.0;
     bool m_hasSmoothing = false;
     bool m_smoothing = true;
     bool m_hasMipmap = false;
@@ -411,10 +415,7 @@ private:
     bool m_hasLooping = false;
     bool m_looping = false;
     bool m_hasQualityPreference = false;
-    ImageViewportQualityPreference m_qualityPreference = ImageViewportQualityPreference::Default;
     bool m_hasExactnessPreference = false;
-    ImageViewportExactnessPreference m_exactnessPreference
-        = ImageViewportExactnessPreference::Default;
 };
 
 class PresentationTargetTransitionPolicy

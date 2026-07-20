@@ -85,7 +85,7 @@ struct ViewportEngineRenderMutation
     ImageViewportInternal::PlaybackState playback;
 };
 
-class ViewportEngineGeometryChangeAccess
+class ViewportEngineGeometryChangeAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend ViewportEngineGeometryChangeReduction reduceViewportEngineGeometryChange(
@@ -114,7 +114,8 @@ private:
     ImageViewportInternal::DisplayState m_display;
 };
 
-class ViewportEngineRenderSynchronizationAccess
+class
+    ViewportEngineRenderSynchronizationAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend ViewportEngineRenderCoordinationState::AttemptContext synchronizeViewportEngineRender(
@@ -151,7 +152,7 @@ private:
     ViewportEngineRenderCoordinationState m_render;
 };
 
-class ViewportEngineRenderCommitAccess
+class ViewportEngineRenderCommitAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend ViewportEngineRenderCommitReduction reduceViewportEngineRenderCommit(
@@ -171,7 +172,7 @@ public:
     ViewportEngineRenderCommitAccess(const ViewportEngineRenderCommitAccess&) = delete;
     ViewportEngineRenderMutation takeMutation()
     {
-        return { std::move(m_request), std::move(m_display), std::move(m_playback) };
+        return { std::move(m_request), std::move(m_display), m_playback };
     }
     const ViewportEngineProviderFactsView& providerFacts() const { return m_providerFacts; }
 
@@ -185,7 +186,7 @@ private:
     ViewportEngineProviderFactsView m_providerFacts;
 };
 
-class ViewportEngineRenderFailureAccess
+class ViewportEngineRenderFailureAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
@@ -203,7 +204,7 @@ public:
     ViewportEngineRenderFailureAccess(const ViewportEngineRenderFailureAccess&) = delete;
     ViewportEngineRenderMutation takeMutation()
     {
-        return { std::move(m_request), std::move(m_display), std::move(m_playback) };
+        return { std::move(m_request), std::move(m_display), m_playback };
     }
 
 private:

@@ -23,7 +23,7 @@ void emitProviderFrameHandleReady(ImageSequenceProviderSession* session,
     ImageSequenceProviderFrameEnvelope envelope)
 {
     ImageSequenceProviderEvent event
-        = ImageSequenceProviderEvent::frameReady(token, handle, std::move(envelope));
+        = ImageSequenceProviderEvent::frameReady(token, handle, envelope);
     emit session->providerEvent(event);
 }
 
@@ -32,7 +32,7 @@ void emitProviderFrameReady(ImageSequenceProviderSession* session,
     ImageSequenceProviderFrameEnvelope envelope)
 {
     auto* handle = new ImageSequenceProviderFrameHandle(frame, [](ImageFrame*) { });
-    emitProviderFrameHandleReady(session, token, handle, std::move(envelope));
+    emitProviderFrameHandleReady(session, token, handle, envelope);
 }
 
 void emitProviderWaiting(
@@ -54,7 +54,7 @@ void emitProviderEndOfSequence(
 }
 
 void emitProviderFailed(ImageSequenceProviderSession* session,
-    ImageSequenceProviderRequestToken token, QString diagnostic)
+    ImageSequenceProviderRequestToken token, const QString& diagnostic)
 {
     Q_UNUSED(diagnostic);
     emit session->providerEvent(ImageSequenceProviderEvent::failed(
@@ -63,14 +63,14 @@ void emitProviderFailed(ImageSequenceProviderSession* session,
 
 void emitProviderUnsupported(ImageSequenceProviderSession* session,
     ImageSequenceProviderRequestToken token, ImageSequenceProviderUnsupportedCause cause,
-    QString diagnostic)
+    const QString& diagnostic)
 {
     Q_UNUSED(diagnostic);
     emit session->providerEvent(ImageSequenceProviderEvent::unsupported(token, cause));
 }
 
 void emitProviderCancelled(ImageSequenceProviderSession* session,
-    ImageSequenceProviderRequestToken token, QString diagnostic)
+    ImageSequenceProviderRequestToken token, const QString& diagnostic)
 {
     Q_UNUSED(diagnostic);
     emit session->providerEvent(ImageSequenceProviderEvent::cancelled(token));

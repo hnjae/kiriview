@@ -16,15 +16,18 @@ class ViewportEngine;
 
 class ViewportEngineTransitionDraft
 {
+public:
+    ViewportEngineTransitionDraft(const ViewportEngineTransitionDraft&) = delete;
+    ViewportEngineTransitionDraft& operator=(const ViewportEngineTransitionDraft&) = delete;
+    ViewportEngineTransitionDraft(ViewportEngineTransitionDraft&&) noexcept = default;
+    ViewportEngineTransitionDraft& operator=(ViewportEngineTransitionDraft&&) noexcept = default;
+    ~ViewportEngineTransitionDraft() = default;
+
 private:
     friend class ViewportEngine;
     friend class ViewportEngineTransition;
 
     ViewportEngineTransitionDraft() = default;
-    ViewportEngineTransitionDraft(const ViewportEngineTransitionDraft&) = delete;
-    ViewportEngineTransitionDraft& operator=(const ViewportEngineTransitionDraft&) = delete;
-    ViewportEngineTransitionDraft(ViewportEngineTransitionDraft&&) noexcept = default;
-    ViewportEngineTransitionDraft& operator=(ViewportEngineTransitionDraft&&) noexcept = default;
 
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderTransportBatch providerTransport;
@@ -41,6 +44,7 @@ public:
     ViewportEngineTransition& operator=(const ViewportEngineTransition&) = delete;
     ViewportEngineTransition(ViewportEngineTransition&&) noexcept = default;
     ViewportEngineTransition& operator=(ViewportEngineTransition&&) noexcept = default;
+    ~ViewportEngineTransition() = default;
 
     bool schedulesRenderUpdate() const { return m_draft.changes.scheduleUpdate; }
     const ViewportProviderTransportBatch& providerTransport() const
@@ -92,6 +96,7 @@ public:
     ViewportEngineCommandTransition(ViewportEngineCommandTransition&&) noexcept = default;
     ViewportEngineCommandTransition& operator=(ViewportEngineCommandTransition&&) noexcept
         = default;
+    ~ViewportEngineCommandTransition() = default;
 
     ImageViewportCommandOutcome outcome() const { return m_outcome; }
     const ViewportEngineTransition& transition() const { return m_transition; }

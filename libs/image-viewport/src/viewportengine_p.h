@@ -31,6 +31,8 @@ public:
     ~ViewportEngine();
     ViewportEngine(const ViewportEngine&) = delete;
     ViewportEngine& operator=(const ViewportEngine&) = delete;
+    ViewportEngine(ViewportEngine&&) = delete;
+    ViewportEngine& operator=(ViewportEngine&&) = delete;
     ImageViewportStateSnapshot snapshot() const;
     ViewportEngineCoordinateQueryResult queryCoordinate(
         const ViewportEngineCoordinateQueryRequest& input) const;

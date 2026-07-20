@@ -34,7 +34,7 @@ struct ViewportEngineProviderFrameReadyMutation
     ImageViewportInternal::ProviderRoleState provider;
 };
 
-class ViewportEngineProviderFrameReadyAccess
+class ViewportEngineProviderFrameReadyAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady(
@@ -59,8 +59,7 @@ public:
         = default;
     ViewportEngineProviderFrameReadyMutation takeMutation()
     {
-        return { std::move(m_request), std::move(m_playback), std::move(m_display),
-            std::move(m_provider) };
+        return { std::move(m_request), m_playback, std::move(m_display), std::move(m_provider) };
     }
 
 private:

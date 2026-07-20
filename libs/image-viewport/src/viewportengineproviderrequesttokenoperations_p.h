@@ -30,7 +30,8 @@ struct ViewportProviderRequestTokenAllocationMutation
     ImageViewportInternal::DisplayState display;
 };
 
-class ViewportProviderRequestTokenAllocationAccess
+class
+    ViewportProviderRequestTokenAllocationAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend class ViewportEngineProviderSessionOpenedAccess;
@@ -71,8 +72,7 @@ public:
     ViewportProviderFrameTransportEffect closeSession(ImageViewportPageRole role);
     ViewportProviderRequestTokenAllocationMutation takeMutation()
     {
-        return { std::move(m_roles), std::move(m_request), std::move(m_playback),
-            std::move(m_display) };
+        return { std::move(m_roles), std::move(m_request), m_playback, std::move(m_display) };
     }
     ImageViewportInternal::RequestState& request() { return m_request; }
     ImageViewportInternal::PlaybackState& playback() { return m_playback; }

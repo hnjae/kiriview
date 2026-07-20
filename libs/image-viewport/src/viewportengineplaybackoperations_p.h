@@ -36,7 +36,7 @@ struct ViewportEngineAuthoredAutoplayMutation
     ImageViewportInternal::PlaybackState playback;
 };
 
-class ViewportEngineAuthoredAutoplayAccess
+class ViewportEngineAuthoredAutoplayAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend class ViewportEnginePresentationTargetAssignmentAccess;
@@ -48,7 +48,7 @@ class ViewportEngineAuthoredAutoplayAccess
         ViewportEngineProviderFactsView providerFacts,
         const ImageViewportInternal::PlaybackState& playback)
         : m_request(request)
-        , m_providerFacts(std::move(providerFacts))
+        , m_providerFacts(providerFacts)
         , m_playback(playback)
     {
     }
@@ -58,7 +58,7 @@ public:
     ViewportEngineAuthoredAutoplayAccess(ViewportEngineAuthoredAutoplayAccess&&) noexcept = default;
     ViewportEngineAuthoredAutoplayAccess& operator=(const ViewportEngineAuthoredAutoplayAccess&)
         = delete;
-    ViewportEngineAuthoredAutoplayMutation takeMutation() { return { std::move(m_playback) }; }
+    ViewportEngineAuthoredAutoplayMutation takeMutation() { return { m_playback }; }
 
     const ImageViewportInternal::ImageSequenceSource& source(ImageViewportPageRole role) const
     {
@@ -107,7 +107,7 @@ struct ViewportEnginePlaybackStopReduction
     std::array<ViewportProviderFrameTransportEffect, 2> providerFrameTransport;
 };
 
-class ViewportEnginePlaybackStopAccess
+class ViewportEnginePlaybackStopAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
@@ -136,8 +136,8 @@ public:
     ViewportEnginePlaybackStopAccess& operator=(const ViewportEnginePlaybackStopAccess&) = delete;
     ViewportEnginePlaybackMutation takeMutation()
     {
-        return { std::move(m_request), std::move(m_playback), std::move(m_display),
-            std::move(m_roles), m_nextRevision };
+        return { std::move(m_request), m_playback, std::move(m_display), std::move(m_roles),
+            m_nextRevision };
     }
 
 private:
@@ -167,7 +167,7 @@ struct ViewportEnginePlaybackSeekReduction
     std::array<ViewportProviderFrameTransportEffect, 2> providerFrameTransport;
 };
 
-class ViewportEnginePlaybackSeekAccess
+class ViewportEnginePlaybackSeekAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
@@ -196,8 +196,8 @@ public:
     ViewportEnginePlaybackSeekAccess& operator=(const ViewportEnginePlaybackSeekAccess&) = delete;
     ViewportEnginePlaybackMutation takeMutation()
     {
-        return { std::move(m_request), std::move(m_playback), std::move(m_display),
-            std::move(m_roles), m_nextRevision };
+        return { std::move(m_request), m_playback, std::move(m_display), std::move(m_roles),
+            m_nextRevision };
     }
 
 private:
@@ -225,7 +225,7 @@ struct ViewportEnginePlaybackPlayReduction
     std::array<ViewportProviderFrameTransportEffect, 2> providerFrameTransport;
 };
 
-class ViewportEnginePlaybackPlayAccess
+class ViewportEnginePlaybackPlayAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
@@ -254,8 +254,8 @@ public:
     ViewportEnginePlaybackPlayAccess& operator=(const ViewportEnginePlaybackPlayAccess&) = delete;
     ViewportEnginePlaybackMutation takeMutation()
     {
-        return { std::move(m_request), std::move(m_playback), std::move(m_display),
-            std::move(m_roles), m_nextRevision };
+        return { std::move(m_request), m_playback, std::move(m_display), std::move(m_roles),
+            m_nextRevision };
     }
 
 private:
@@ -283,7 +283,7 @@ struct ViewportEnginePlaybackTickReduction
     bool projectSchedule = false;
 };
 
-class ViewportEnginePlaybackTickAccess
+class ViewportEnginePlaybackTickAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
@@ -312,8 +312,8 @@ public:
     ViewportEnginePlaybackTickAccess& operator=(const ViewportEnginePlaybackTickAccess&) = delete;
     ViewportEnginePlaybackMutation takeMutation()
     {
-        return { std::move(m_request), std::move(m_playback), std::move(m_display),
-            std::move(m_roles), m_nextRevision };
+        return { std::move(m_request), m_playback, std::move(m_display), std::move(m_roles),
+            m_nextRevision };
     }
 
 private:
@@ -327,7 +327,7 @@ private:
     quint64 m_presentationTargetGeneration = 0;
 };
 
-class ViewportEnginePlaybackPauseAccess
+class ViewportEnginePlaybackPauseAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend ViewportEnginePlaybackPauseReduction reduceViewportEnginePlaybackPause(
@@ -341,14 +341,14 @@ public:
     ViewportEnginePlaybackPauseAccess(const ViewportEnginePlaybackPauseAccess&) = delete;
     ViewportEnginePlaybackPauseAccess(ViewportEnginePlaybackPauseAccess&&) noexcept = default;
     ViewportEnginePlaybackPauseAccess& operator=(const ViewportEnginePlaybackPauseAccess&) = delete;
-    ViewportEnginePlaybackPauseMutation takeMutation() { return { std::move(m_playback) }; }
+    ViewportEnginePlaybackPauseMutation takeMutation() { return { m_playback }; }
 
 private:
     ImageViewportInternal::PlaybackState& playback() { return m_playback; }
     ImageViewportInternal::PlaybackState m_playback;
 };
 
-class ViewportEnginePlaybackScheduleAccess
+class ViewportEnginePlaybackScheduleAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     ViewportEnginePlaybackScheduleAccess(const ImageViewportInternal::RequestState& request,

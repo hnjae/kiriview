@@ -87,11 +87,11 @@ struct ViewportEngineProviderFailureMutation
 #define VIEWPORT_PROVIDER_FAILURE_TAKE_MUTATION                                                    \
     ViewportEngineProviderFailureMutation takeMutation()                                           \
     {                                                                                              \
-        return { std::move(m_request), std::move(m_playback), std::move(m_session),                \
-            std::move(m_requests) };                                                               \
+        return { std::move(m_request), m_playback, m_session, std::move(m_requests) };             \
     }
 
-class ViewportEngineProviderTerminalEventAccess
+class
+    ViewportEngineProviderTerminalEventAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderTerminalEvent(
@@ -130,7 +130,8 @@ private:
     ImageViewportInternal::ProviderRequestLedger m_requests;
 };
 
-class ViewportEngineProviderProtocolViolationAccess
+class
+    ViewportEngineProviderProtocolViolationAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend class ViewportEngineProviderEndOfSequenceAccess;
@@ -169,7 +170,8 @@ private:
     ImageViewportInternal::ProviderRequestLedger m_requests;
 };
 
-class ViewportEngineProviderDispatchFailureAccess
+class
+    ViewportEngineProviderDispatchFailureAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend ViewportEngineProviderTerminalEventReduction reduceViewportEngineProviderDispatchFailure(
@@ -204,7 +206,8 @@ private:
     ImageViewportInternal::ProviderRequestLedger m_requests;
 };
 
-class ViewportEngineProviderSessionOpenFailureAccess
+class
+    ViewportEngineProviderSessionOpenFailureAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend ViewportEngineProviderSessionOpenFailureReduction
@@ -241,7 +244,7 @@ private:
     ImageViewportInternal::ProviderRequestLedger m_requests;
 };
 
-class ViewportEngineProviderQueueFailureAccess
+class ViewportEngineProviderQueueFailureAccess // NOLINT(cppcoreguidelines-special-member-functions)
 {
     friend class ViewportEngine;
     friend ViewportEngineProviderQueueFailureReduction reduceViewportEngineProviderQueueFailure(
@@ -263,7 +266,7 @@ public:
         = default;
     ViewportEngineProviderFailureMutation takeMutation()
     {
-        return { std::move(m_request), std::move(m_playback), {}, std::move(m_requests) };
+        return { std::move(m_request), m_playback, {}, std::move(m_requests) };
     }
 
 private:
