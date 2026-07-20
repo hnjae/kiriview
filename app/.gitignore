@@ -1,14 +1,12 @@
 # Managed by devenv:
-rust-analyzer.toml
+/rust-analyzer.toml
+/.qmlls.ini
 
-# Flatpak build artifacts
-.flatpak-builder/
+# Build artifacts:
 .cargo-vendor/
-.flatpak-cargo/
 build-dir/
 repo/
 target/
-.qmlls.ini
 *.flatpak
 *.flatpakref
 *.flatpakrepo

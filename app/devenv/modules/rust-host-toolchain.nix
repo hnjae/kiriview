@@ -1,9 +1,9 @@
 # SPDX-FileCopyrightText: 2026 KIM Hyunjae
 # SPDX-License-Identifier: AGPL-3.0-or-later
 {
-  config,
   pkgs,
   lib,
+  kiriviewApp,
   ...
 }:
 let
@@ -30,7 +30,7 @@ let
       exec ${lib.getExe' pkgs.stdenv.cc "cc"} -B${rustHostLldBin}/bin/ "''${filtered_args[@]}"
     '';
   };
-  rustHostCargoTargetDir = "${config.devenv.root}/target";
+  cargoTargetDir = "${kiriviewApp.appRoot}/target";
   rustHostLinkerFlag = "-C linker=${lib.getExe rustHostLinker}";
   localJobsPrelude = # sh
     ''
@@ -53,11 +53,11 @@ let
           exit 2
       fi
     '';
-  rustHostEnvironment = # sh
+  environment = # sh
     ''
       ${localJobsPrelude}
 
-      export CARGO_TARGET_DIR=${lib.escapeShellArg rustHostCargoTargetDir}
+      export CARGO_TARGET_DIR=${lib.escapeShellArg cargoTargetDir}
       export CARGO_BUILD_JOBS="''${CARGO_BUILD_JOBS:-$kiriview_jobs}"
       export RUST_TEST_THREADS="''${RUST_TEST_THREADS:-$kiriview_jobs}"
 
@@ -71,10 +71,7 @@ let
     '';
 in
 {
-  _module.args = {
-    inherit
-      rustHostCargoTargetDir
-      rustHostEnvironment
-      ;
+  _module.args.rustHost = {
+    inherit cargoTargetDir environment;
   };
 }

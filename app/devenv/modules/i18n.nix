@@ -1,13 +1,13 @@
 # SPDX-FileCopyrightText: 2026 KIM Hyunjae
 # SPDX-License-Identifier: AGPL-3.0-or-later
 {
-  config,
   pkgs,
   lib,
+  kiriviewApp,
   ...
 }:
 let
-  repoRoot = lib.escapeShellArg config.devenv.root;
+  appRoot = lib.escapeShellArg kiriviewApp.appRoot;
   i18nScriptPackages = with pkgs; [
     coreutils
     diffutils
@@ -27,7 +27,7 @@ let
 
       readonly domain="kiriview"
       readonly mode=${lib.escapeShellArg mode}
-      repo_root=${repoRoot}
+      repo_root=${appRoot}
       readonly repo_root
       pot_file="$repo_root/po/$domain.pot"
       readonly pot_file
@@ -208,7 +208,7 @@ in
   };
 
   tasks = {
-    "ci:i18n:check" = {
+    "ci:app:i18n:check" = {
       description = "Check translation catalog syntax";
       exec = # sh
         ''
@@ -216,7 +216,7 @@ in
         '';
     };
 
-    "ci:i18n:pot-check" = {
+    "ci:app:i18n:pot-check" = {
       description = "Check that po/kiriview.pot matches source strings";
       exec = # sh
         ''

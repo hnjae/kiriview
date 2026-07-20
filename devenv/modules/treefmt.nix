@@ -7,6 +7,20 @@
   ...
 }:
 {
+  packages = [
+    pkgs.rustfmt
+    pkgs.taplo
+    pkgs.yamlfmt
+    pkgs.libxml2
+    pkgs.biome
+    pkgs.shellharden
+    pkgs.shfmt
+    (pkgs.runCommandLocal "qmlformat" { } ''
+      mkdir -p "$out/bin"
+      ln -s "${lib.getExe' pkgs.kdePackages.qtdeclarative "qmlformat"}" "$out/bin/qmlformat"
+    '')
+  ];
+
   treefmt = {
     enable = true;
 
@@ -26,7 +40,7 @@
         nixfmt.enable = true;
         rustfmt = {
           enable = true;
-          package = config.languages.rust.toolchain.rustfmt;
+          package = pkgs.rustfmt;
         };
         taplo.enable = true;
         yamlfmt = {
@@ -139,6 +153,14 @@
   };
 
   files."treefmt.toml".source = config.treefmt.config.build.configFile;
+
+  tasks."ci:repo:format" = {
+    description = "Check repository formatting";
+    before = [ "ci:lint" ];
+    exec = ''
+      ${lib.getExe config.treefmt.config.build.wrapper} --ci
+    '';
+  };
 
   # Keep treefmt available without formatting the repository on every devenv shell entry.
   tasks."devenv:treefmt:run".before = lib.mkForce [ ];

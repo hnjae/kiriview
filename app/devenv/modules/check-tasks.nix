@@ -1,21 +1,21 @@
 # SPDX-FileCopyrightText: 2026 KIM Hyunjae
 # SPDX-License-Identifier: AGPL-3.0-or-later
 {
-  config,
   pkgs,
   lib,
   qtCxxqt,
-  rustHostCargoTargetDir,
-  rustHostEnvironment,
+  rustHost,
+  kiriviewApp,
   ...
 }:
 let
-  repoRoot = lib.escapeShellArg config.devenv.root;
+  appRoot = kiriviewApp.appRoot;
+  escapedAppRoot = lib.escapeShellArg appRoot;
   baseTaskPrelude = # sh
     ''
       set -euo pipefail
 
-      cd ${repoRoot}
+      cd ${escapedAppRoot}
 
       export LC_ALL=C.UTF-8
       export LANG=C.UTF-8
@@ -65,234 +65,25 @@ let
       ${jobsPrelude}
       lint_jobs="$kiriview_jobs"
     '';
+  cppLintTaskPrelude = # sh
+    ''
+      ${baseTaskPrelude}
+      ${qtBuildPrelude}
+      ${rustHost.environment}
+      ${lintJobsPrelude}
+      ${qtCxxqt.cppLintPrelude}
+    '';
 in
 {
-  scripts."run-clazy-parallel" = {
-    description = "Run clazy-standalone in parallel with ordered output";
-    packages = [ pkgs.coreutils ];
-    exec = # sh
-      ''
-        set -euo pipefail
-
-        kiriview_default_local_jobs() {
-            local cpu_count
-            cpu_count="$(nproc)"
-            printf '%d\n' "$((cpu_count / 2 + 1))"
-        }
-
-        usage() {
-            cat >&2 <<'EOF'
-        Usage: run-clazy-parallel [options] -- <source>...
-
-        Options:
-          --jobs <count>          Number of clazy-standalone jobs to run in parallel.
-          --clazy-binary <path>   clazy-standalone binary to execute.
-          --checks <checks>       clazy checks to run.
-          --ignore-dirs <regex>   Directories for clazy to ignore.
-          --export-fixes-dir <dir> Directory for per-source exported fixit YAML files.
-          -p, --compile-db <dir>  Compilation database directory.
-        EOF
-        }
-
-        jobs="''${CLAZY_JOBS:-}"
-        clazy_binary="''${CLAZY_BINARY:-clazy-standalone}"
-        checks="''${CLAZY_CHECKS:-level0}"
-        ignore_dirs=""
-        export_fixes_dir=""
-        compile_db="."
-
-        while (($# > 0)); do
-            case "$1" in
-            --jobs)
-                if (($# < 2)); then
-                    usage
-                    exit 2
-                fi
-                jobs="$2"
-                shift 2
-                ;;
-            --jobs=*)
-                jobs="''${1#--jobs=}"
-                shift
-                ;;
-            --clazy-binary)
-                if (($# < 2)); then
-                    usage
-                    exit 2
-                fi
-                clazy_binary="$2"
-                shift 2
-                ;;
-            --clazy-binary=*)
-                clazy_binary="''${1#--clazy-binary=}"
-                shift
-                ;;
-            --checks)
-                if (($# < 2)); then
-                    usage
-                    exit 2
-                fi
-                checks="$2"
-                shift 2
-                ;;
-            --checks=*)
-                checks="''${1#--checks=}"
-                shift
-                ;;
-            --ignore-dirs)
-                if (($# < 2)); then
-                    usage
-                    exit 2
-                fi
-                ignore_dirs="$2"
-                shift 2
-                ;;
-            --ignore-dirs=*)
-                ignore_dirs="''${1#--ignore-dirs=}"
-                shift
-                ;;
-            --export-fixes-dir)
-                if (($# < 2)); then
-                    usage
-                    exit 2
-                fi
-                export_fixes_dir="$2"
-                shift 2
-                ;;
-            --export-fixes-dir=*)
-                export_fixes_dir="''${1#--export-fixes-dir=}"
-                shift
-                ;;
-            -p | --compile-db)
-                if (($# < 2)); then
-                    usage
-                    exit 2
-                fi
-                compile_db="$2"
-                shift 2
-                ;;
-            --compile-db=*)
-                compile_db="''${1#--compile-db=}"
-                shift
-                ;;
-            --help)
-                usage
-                exit 0
-                ;;
-            --)
-                shift
-                break
-                ;;
-            *)
-                usage
-                exit 2
-                ;;
-            esac
-        done
-
-        if [[ -z $jobs ]]; then
-            if [[ -n ''${KIRIVIEW_JOBS:-} ]]; then
-                jobs="$KIRIVIEW_JOBS"
-            else
-                jobs="$(kiriview_default_local_jobs)"
-            fi
-        fi
-        if ! [[ $jobs =~ ^[0-9]+$ ]] || ((jobs < 1)); then
-            printf 'Invalid --jobs value: %s\n' "$jobs" >&2
-            exit 2
-        fi
-        if [[ -n $export_fixes_dir ]]; then
-            mkdir -p "$export_fixes_dir"
-        fi
-
-        sources=("$@")
-        source_count="$#"
-        if ((source_count == 0)); then
-            exit 0
-        fi
-
-        tmp_dir="$(mktemp -d)"
-        trap 'rm -rf "$tmp_dir"' EXIT
-
-        run_clazy_for_source() {
-            local index="$1"
-            local source="$2"
-            local output_file="$tmp_dir/$index.out"
-            local status_file="$tmp_dir/$index.status"
-            local status
-
-            set +e
-            {
-                printf '[%d/%d] Processing file %s.\n' "$((index + 1))" "$source_count" "$source"
-                clazy_args=(
-                    --checks="$checks"
-                    --extra-arg=-Werror
-                    -p "$compile_db"
-                )
-                if [[ -n $ignore_dirs ]]; then
-                    clazy_args+=(--ignore-dirs="$ignore_dirs")
-                fi
-                if [[ -n $export_fixes_dir ]]; then
-                    clazy_args+=(--export-fixes="$export_fixes_dir/$index.yaml")
-                fi
-                "$clazy_binary" "''${clazy_args[@]}" "$source"
-            } >"$output_file" 2>&1
-            status="$?"
-            printf '%s\n' "$status" >"$status_file"
-            exit 0
-        }
-
-        printf 'Running clazy-standalone for %d files with %d jobs...\n' "$source_count" "$jobs"
-
-        running_jobs=0
-        for ((index = 0; index < source_count; index++)); do
-            run_clazy_for_source "$index" "''${sources[$index]}" &
-            running_jobs=$((running_jobs + 1))
-            if ((running_jobs >= jobs)); then
-                wait -n
-                running_jobs=$((running_jobs - 1))
-            fi
-        done
-
-        while ((running_jobs > 0)); do
-            wait -n
-            running_jobs=$((running_jobs - 1))
-        done
-
-        exit_status=0
-        for ((index = 0; index < source_count; index++)); do
-            output_file="$tmp_dir/$index.out"
-            status_file="$tmp_dir/$index.status"
-
-            if [[ -f $output_file ]]; then
-                cat "$output_file"
-            fi
-
-            if [[ ! -f $status_file ]]; then
-                printf 'clazy-standalone did not report a status for %s.\n' "''${sources[$index]}" >&2
-                exit_status=1
-                continue
-            fi
-
-            read -r source_status <"$status_file"
-            if ((source_status != 0)); then
-                exit_status=1
-            fi
-        done
-
-        exit "$exit_status"
-      '';
-  };
-
   tasks = {
-    "dev:fix:cpp" = {
+    "dev:app:fix:cpp" = {
       description = "Apply clazy C++ fixits";
       showOutput = true;
       exec = # sh
         ''
           ${baseTaskPrelude}
           ${qtBuildPrelude}
-          ${rustHostEnvironment}
+          ${rustHost.environment}
           ${lintJobsPrelude}
 
           if [[ -z ''${CLAZY_FIXIT:-} ]]; then
@@ -300,7 +91,7 @@ in
               exit 2
           fi
 
-          ${lib.getExe qtCxxqt.refreshCompileCommands} "$lint_jobs" ${lib.escapeShellArg "${rustHostCargoTargetDir}/debug"}
+          ${lib.getExe qtCxxqt.refreshCompileCommands} "$lint_jobs" ${lib.escapeShellArg "${rustHost.cargoTargetDir}/debug"}
           ${qtCxxqt.cppLintPrelude}
 
           fixes_dir="$(mktemp -d)"
@@ -320,29 +111,29 @@ in
         '';
     };
 
-    "dev:lsp:refresh" = {
+    "dev:app:lsp:refresh" = {
       description = "Refresh generated LSP metadata for rust-analyzer and clangd";
       showOutput = true;
       exec = # sh
         ''
           ${baseTaskPrelude}
           ${qtBuildPrelude}
-          ${rustHostEnvironment}
+          ${rustHost.environment}
           ${testJobsPrelude}
 
-          ${lib.getExe qtCxxqt.refreshCompileCommands} "$test_jobs" ${lib.escapeShellArg "${rustHostCargoTargetDir}/debug"}
+          ${lib.getExe qtCxxqt.refreshCompileCommands} "$test_jobs" ${lib.escapeShellArg "${rustHost.cargoTargetDir}/debug"}
           ${lib.getExe qtCxxqt.refreshCxxqtIncludes}
         '';
     };
 
-    "ci:test:rust" = {
+    "ci:app:test:rust" = {
       description = "Run host Rust library and doc tests";
       showOutput = true;
       exec = # sh
         ''
           ${baseTaskPrelude}
           ${qtRuntimePrelude}
-          ${rustHostEnvironment}
+          ${rustHost.environment}
           ${testJobsPrelude}
 
           printf 'Running host Rust tests with nextest using %d jobs...\n' "$test_jobs"
@@ -367,17 +158,18 @@ in
         '';
     };
 
-    "ci:test:cpp" = {
+    "ci:app:test:cpp" = {
       description = "Run host C++ tests against the Cargo-owned KiriView app library";
       showOutput = true;
+      before = [ "ci:test" ];
       after = [
-        "ci:test:rust@succeeded"
+        "ci:app:test:rust@succeeded"
       ];
       exec = # sh
         ''
           ${baseTaskPrelude}
           ${qtRuntimePrelude}
-          ${rustHostEnvironment}
+          ${rustHost.environment}
           ${testJobsPrelude}
 
           printf 'Building Cargo-owned KiriView app library artifacts with %d jobs...\n' "$test_jobs"
@@ -394,7 +186,7 @@ in
               -B target/devenv/cpp-tests \
               -DCMAKE_BUILD_TYPE=Debug \
               -DCMAKE_MAKE_PROGRAM="$cmake_make_program" \
-              -DKIRIVIEW_CARGO_TARGET_DIR=${lib.escapeShellArg "${rustHostCargoTargetDir}/debug"}
+              -DKIRIVIEW_CARGO_TARGET_DIR=${lib.escapeShellArg "${rustHost.cargoTargetDir}/debug"}
           printf 'Building and running host C++ tests with %d jobs...\n' "$test_jobs"
           cmake --build target/devenv/cpp-tests --parallel "$test_jobs"
           # GNU gettext ignores LANGUAGE under C/POSIX locales; devenv defaults to C.UTF-8.
@@ -406,17 +198,17 @@ in
         '';
     };
 
-    "ci:lint:rust" = {
+    "ci:app:lint:rust" = {
       description = "Run Rust clippy";
       showOutput = true;
       after = [
-        "ci:test:cpp@succeeded"
+        "ci:app:test:cpp@succeeded"
       ];
       exec = # sh
         ''
           ${baseTaskPrelude}
           ${qtBuildPrelude}
-          ${rustHostEnvironment}
+          ${rustHost.environment}
           ${lintJobsPrelude}
 
           cargo \
@@ -432,14 +224,15 @@ in
         '';
     };
 
-    "ci:lint:qml" = {
+    "ci:app:lint:qml" = {
       description = "Run qmllint against QML sources";
       showOutput = true;
+      before = [ "ci:lint" ];
       exec = # sh
         ''
           ${baseTaskPrelude}
           ${qtBuildPrelude}
-          ${rustHostEnvironment}
+          ${rustHost.environment}
           ${lintJobsPrelude}
 
           cargo \
@@ -461,9 +254,10 @@ in
         '';
     };
 
-    "ci:lint:flatpak" = {
+    "ci:app:lint:flatpak" = {
       description = "Check Flatpak manifest permission policy";
       showOutput = true;
+      before = [ "ci:lint" ];
       exec = # sh
         ''
           ${baseTaskPrelude}
@@ -507,9 +301,10 @@ in
         '';
     };
 
-    "ci:lint:repo-policy" = {
+    "ci:app:lint:repo-policy" = {
       description = "Check repository artifact and build-shape policy";
       showOutput = true;
+      before = [ "ci:lint" ];
       exec = # sh
         ''
           ${baseTaskPrelude}
@@ -627,11 +422,12 @@ in
         '';
     };
 
-    "ci:lint:compile-db" = {
+    "ci:app:lint:compile-db" = {
       description = "Check compile_commands.json shape";
       showOutput = true;
+      before = [ "ci:lint" ];
       after = [
-        "ci:lint:cpp@succeeded"
+        "ci:app:lint:cpp:clazy@succeeded"
       ];
       exec = # sh
         ''
@@ -641,7 +437,7 @@ in
           generated_compile_db="target/devenv/compile_commands.json"
 
           if [[ ! -L $compile_db ]]; then
-              printf '%s must be a symlink generated by dev:lsp:refresh.\n' "$compile_db" >&2
+              printf '%s must be a symlink generated by dev:app:lsp:refresh.\n' "$compile_db" >&2
               exit 1
           fi
 
@@ -660,9 +456,10 @@ in
         '';
     };
 
-    "ci:lint:desktop" = {
+    "ci:app:lint:desktop" = {
       description = "Validate desktop metadata";
       showOutput = true;
+      before = [ "ci:lint" ];
       exec = # sh
         ''
           ${baseTaskPrelude}
@@ -671,30 +468,54 @@ in
         '';
     };
 
-    "ci:lint:cpp" = {
-      description = "Run clang-tidy and clazy against C++ sources";
+    "ci:app:lint:cpp:prepare" = {
+      description = "Prepare the app C++ compilation database for linting";
       showOutput = true;
       after = [
-        "ci:lint:rust@succeeded"
+        "ci:app:lint:rust@succeeded"
       ];
       exec = # sh
         ''
           ${baseTaskPrelude}
           ${qtBuildPrelude}
-          ${rustHostEnvironment}
+          ${rustHost.environment}
           ${lintJobsPrelude}
 
-          ${lib.getExe qtCxxqt.refreshCompileCommands} "$lint_jobs" ${lib.escapeShellArg "${rustHostCargoTargetDir}/debug"}
+          ${lib.getExe qtCxxqt.refreshCompileCommands} "$lint_jobs" ${lib.escapeShellArg "${rustHost.cargoTargetDir}/debug"}
           ${qtCxxqt.cppLintPrelude}
+        '';
+    };
+
+    "ci:app:lint:cpp:clang-tidy" = {
+      description = "Run clang-tidy against app C++ sources";
+      showOutput = true;
+      after = [
+        "ci:app:lint:cpp:prepare@succeeded"
+      ];
+      exec = # sh
+        ''
+          ${cppLintTaskPrelude}
 
           ${lib.getExe' pkgs.llvmPackages.clang-unwrapped "run-clang-tidy"} \
               -clang-tidy-binary ${lib.getExe' pkgs.clang-tools "clang-tidy"} \
-              -header-filter=${lib.escapeShellArg "^${config.devenv.root}/src/"} \
-              -exclude-header-filter=${lib.escapeShellArg "^${config.devenv.root}/(target|build-dir)/"} \
+              -header-filter=${lib.escapeShellArg "^${appRoot}/src/"} \
+              -exclude-header-filter=${lib.escapeShellArg "^${appRoot}/(target|build-dir)/"} \
               -p . \
               -j "$lint_jobs" \
               -quiet \
               ${qtCxxqt.cppSourcesShellArgs}
+        '';
+    };
+
+    "ci:app:lint:cpp:clazy" = {
+      description = "Run clazy against app C++ sources";
+      showOutput = true;
+      after = [
+        "ci:app:lint:cpp:clang-tidy@succeeded"
+      ];
+      exec = # sh
+        ''
+          ${cppLintTaskPrelude}
 
           run-clazy-parallel \
               --jobs "$lint_jobs" \

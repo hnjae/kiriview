@@ -2,12 +2,13 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Shared Qt/CXX-Qt tooling context consumed by devenv modules.
 {
-  config,
   pkgs,
   lib,
+  kiriviewApp,
   karchivePackage ? pkgs.kdePackages.karchive,
 }:
 let
+  inherit (kiriviewApp) appRoot repoRoot;
   qtToolPrefix = pkgs.symlinkJoin {
     name = "kiriview-qt-tools";
     paths = [
@@ -66,7 +67,7 @@ let
       exec ${lib.getExe' pkgs.kdePackages.qtbase "qmake6"} "$@"
     ''
   );
-  appQmlRoot = "${config.devenv.root}/target/cxxqt/qml_modules";
+  appQmlRoot = "${appRoot}/target/cxxqt/qml_modules";
   qtQmlRoot = "${pkgs.kdePackages.qtdeclarative}/lib/qt-6/qml";
   qtmultimediaQmlRoot = "${pkgs.kdePackages.qtmultimedia}/lib/qt-6/qml";
   kconfigQmlRoot = "${pkgs.kdePackages.kconfig}/lib/qt-6/qml";
@@ -83,13 +84,13 @@ let
     kirigamiAddonsQmlRoot
   ];
   hostRuntimeLibraryPath = lib.concatStringsSep ":" [
-    "${config.devenv.root}/.devenv/profile/lib"
+    "${repoRoot}/.devenv/profile/lib"
     (lib.makeLibraryPath [
       (lib.getLib pkgs.pipewire)
       (lib.getLib pkgs.stdenv.cc.cc)
     ])
   ];
-  qtPluginPath = "${config.devenv.root}/.devenv/profile/lib/qt-6/plugins";
+  qtPluginPath = "${repoRoot}/.devenv/profile/lib/qt-6/plugins";
   readSourceManifest =
     path:
     lib.filter (source: source != "" && !(lib.hasPrefix "#" source)) (
@@ -221,7 +222,7 @@ let
           exit 2
       fi
 
-      repo_root=${lib.escapeShellArg config.devenv.root}
+      repo_root=${lib.escapeShellArg appRoot}
       cd "$repo_root"
 
       metadata_dir="$repo_root/target/devenv"
@@ -320,7 +321,7 @@ let
     text = ''
       set -euo pipefail
 
-      repo_root=${lib.escapeShellArg config.devenv.root}
+      repo_root=${lib.escapeShellArg appRoot}
       cxxqt_clangd_include="$repo_root/target/cxxqt/clangd/include"
       lock_file="$repo_root/target/cxxqt/clangd/refresh.lock"
 
@@ -367,11 +368,11 @@ let
   ''
     set -euo pipefail
 
-    cd ${lib.escapeShellArg config.devenv.root}
+    cd ${lib.escapeShellArg appRoot}
     ${lib.getExe refreshCxxqtIncludes}
 
     if [[ ! -f compile_commands.json ]]; then
-        echo "compile_commands.json was not found; run 'devenv tasks run --mode single dev:lsp:refresh' to generate editor metadata" >&2
+        echo "compile_commands.json was not found; run 'devenv tasks run --mode single dev:app:lsp:refresh' to generate editor metadata" >&2
         exit 1
     fi
   ''
@@ -384,28 +385,6 @@ let
   qtBuildEnvironment = # sh
     ''
       export QMAKE=${lib.getExe' qmake "qmake6"}
-
-      declare -A seen_cmake_prefix_paths=()
-      cmake_prefix_path=""
-      add_cmake_prefix_path() {
-          local prefix_path=$1
-
-          if [[ -z $prefix_path || ! -d $prefix_path || -v 'seen_cmake_prefix_paths[$prefix_path]' ]]; then
-              return
-          fi
-
-          seen_cmake_prefix_paths[$prefix_path]=1
-          cmake_prefix_path="''${cmake_prefix_path:+$cmake_prefix_path:}$prefix_path"
-      }
-
-      add_cmake_prefix_path ${lib.escapeShellArg "${config.devenv.root}/.devenv/profile"}
-      IFS=: read -r -a existing_cmake_prefix_paths <<<"''${CMAKE_PREFIX_PATH:-}"
-      for prefix_path in "''${existing_cmake_prefix_paths[@]}"; do
-          add_cmake_prefix_path "$prefix_path"
-      done
-      export CMAKE_PREFIX_PATH="$cmake_prefix_path"
-      unset seen_cmake_prefix_paths cmake_prefix_path prefix_path
-      unset -f add_cmake_prefix_path
     '';
   qtRuntimeEnvironment = # sh
     ''
@@ -480,7 +459,7 @@ in
     '';
 
   qmllsGeneral = {
-    buildDir = "${config.devenv.root}/target/cxxqt/qml_modules";
+    buildDir = "${appRoot}/target/cxxqt/qml_modules";
     importPaths = lib.concatStringsSep ":" qmlImportPaths;
     "no-cmake-calls" = true;
   };

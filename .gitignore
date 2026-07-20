@@ -19,3 +19,7 @@ devenv.local.yaml
 # Managed by devenv:
 /.pre-commit-config.yaml
 /treefmt.toml
+
+# Build artifacts
+.flatpak-builder/
+.flatpak-cargo/

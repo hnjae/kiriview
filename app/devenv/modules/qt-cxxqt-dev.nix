@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: 2026 KIM Hyunjae
 # SPDX-License-Identifier: AGPL-3.0-or-later
 {
-  config,
   pkgs,
   lib,
-  rustHostEnvironment,
+  rustHost,
+  kiriviewApp,
   ...
 }:
 let
@@ -17,7 +17,11 @@ let
     ];
   });
   qtCxxqt = import ../internal/qt-cxxqt-context.nix {
-    inherit config lib pkgs;
+    inherit
+      kiriviewApp
+      lib
+      pkgs
+      ;
     karchivePackage = pkgs.kdePackages.karchive;
   };
 in
@@ -38,11 +42,11 @@ in
   enterShell = # sh
     ''
       ${qtCxxqt.enterShell}
-      ${rustHostEnvironment}
+      ${rustHost.environment}
     '';
 
-  files."rust-analyzer.toml".text = qtCxxqt.rustAnalyzerToml;
-  files.".qmlls.ini".ini.General = qtCxxqt.qmllsGeneral;
+  files."app/rust-analyzer.toml".text = qtCxxqt.rustAnalyzerToml;
+  files."app/.qmlls.ini".ini.General = qtCxxqt.qmllsGeneral;
 
   packages = [
     qtCxxqt.qmake
@@ -90,8 +94,4 @@ in
   ];
 
   languages.rust.enable = true;
-  languages.cplusplus = {
-    enable = true;
-    lsp.package = pkgs.clang-tools;
-  };
 }

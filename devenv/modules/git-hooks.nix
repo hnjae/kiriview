@@ -8,6 +8,16 @@
 }:
 
 {
+  packages = [
+    pkgs.reuse
+    pkgs.cocogitto
+    pkgs.typos
+    pkgs.deadnix
+    pkgs.statix
+    pkgs.rumdl
+    pkgs.shellcheck
+  ];
+
   git-hooks.excludes = [ ".*\\.lock$" ];
 
   git-hooks.hooks = {
@@ -48,7 +58,10 @@
     };
   };
 
-  tasks."ci:git-hooks".exec = ''
-    ${lib.getExe config.git-hooks.package} run --all-files
-  '';
+  tasks."ci:repo:git-hooks" = {
+    before = [ "ci:lint" ];
+    exec = ''
+      ${lib.getExe config.git-hooks.package} run --all-files
+    '';
+  };
 }

@@ -2,8 +2,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 {
   imports = [
-    ./devenv/modules
-    ./app/devenv/modules
-    ./libs/image-viewport/devenv/modules
+    ./context.nix
+    ./qt-cxxqt-dev.nix
+    ./check-tasks.nix
+    ./i18n.nix
+    ./rust-host-toolchain.nix
   ];
 }

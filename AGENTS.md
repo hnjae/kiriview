@@ -2,14 +2,28 @@
 
 ## Commands
 
-`just setup`
-: Materialize root devenv-managed files and install the repository Git hooks.
-
 `just format`
 : Format the complete repository with the root treefmt configuration.
 
 `just format-check`
 : Verify repository formatting without changing files.
+
+`just test`
+: Run all repository test tasks.
+
+`just lint`
+: Run all repository lint and policy tasks.
+
+`just check`
+: Run the complete repository integration gate.
+
+## Repository integration gate
+
+Component-local changes use the completion checks defined by that component's `AGENTS.md`. Run the complete repository gate with `devenv tasks run --mode single ci` only when root fan-in or check-task orchestration changes, shared/root devenv wiring changes, files across multiple component ownership groups change, or the user explicitly requests a merge/release integration gate and no trusted full-CI result covers the exact commit.
+
+`devenv tasks run` accepts ownership prefix groups such as `ci`, `ci:test`, and `ci:lint`. Use `--mode single` with prefix groups to run only tasks matching that prefix and prevent dependency resolution from expanding the verification scope. The `ci` prefix selects every repository CI task. The `ci:test` and `ci:lint` tasks are root fan-in points whose owning component endpoints register themselves with `before`.
+
+Always report any trusted external full-CI result used in place of a required repository integration gate.
 
 ## Project conventions
 
