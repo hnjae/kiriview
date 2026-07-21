@@ -8,37 +8,11 @@
 
 #include <utility>
 
-namespace {
-const kiriview::ImageDocumentPageCandidateListSnapshot& emptyCandidateSnapshot()
-{
-    static const kiriview::ImageDocumentPageCandidateListSnapshot snapshot;
-    return snapshot;
-}
-}
-
 namespace kiriview {
 ImageDocumentPageCandidateSnapshotPort::ImageDocumentPageCandidateSnapshotPort(
     ImageDocumentPageNavigationService* navigationService)
     : m_navigationService(navigationService)
 {
-}
-
-std::optional<ImageDocumentPageCandidateSnapshot>
-ImageDocumentPageCandidateSnapshotPort::snapshot() const
-{
-    if (m_navigationService == nullptr) {
-        return std::nullopt;
-    }
-    return m_navigationService->pageCandidateSnapshot();
-}
-
-const ImageDocumentPageCandidateListSnapshot&
-ImageDocumentPageCandidateSnapshotPort::confirmedSnapshot() const
-{
-    if (m_navigationService == nullptr) {
-        return emptyCandidateSnapshot();
-    }
-    return m_navigationService->confirmedPageCandidateSnapshot();
 }
 
 void ImageDocumentPageCandidateSnapshotPort::ensure(ImageDocumentPageCandidateListContext context,

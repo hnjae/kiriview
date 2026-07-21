@@ -8,7 +8,6 @@
 #include "kiriviewapplicationactions.h"
 
 #include <QAction>
-#include <QHash>
 #include <QList>
 #include <QString>
 #include <array>
@@ -34,9 +33,7 @@ public:
     QAction* collectionAction(const QString& actionName) const;
     QAction* collectionAction(const ActionDefinition& definition) const;
     void registerAction(const ActionDefinition& definition, QAction* action);
-    QAction* action(const QString& actionName) const;
     QAction* actionForId(ActionId actionId) const;
-    QString actionName(ActionId actionId) const;
     QList<RegisteredApplicationAction> registeredActions() const;
 
 private:
@@ -45,7 +42,6 @@ private:
 
     ApplicationActionHost& m_host;
     std::array<QAction*, actionDefinitionCount> m_actionsById {};
-    QHash<QString, QAction*> m_actionsByName;
 };
 }
 

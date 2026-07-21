@@ -54,14 +54,10 @@ public:
 
     int shortcutRevision() const;
     QAbstractListModel* shortcutHelpModel() const;
-    ApplicationShortcutProjection shortcutProjection(const QString& actionName) const;
-    ApplicationShortcutProjection shortcutProjectionForId(ActionId actionId) const;
-    QList<QKeySequence> programWideShortcuts(const QString& actionName) const;
     QList<QKeySequence> programWideShortcutsForId(ActionId actionId) const;
-    QList<QKeySequence> viewerLocalShortcuts(const QString& actionName) const;
     QList<QKeySequence> viewerLocalShortcutsForId(ActionId actionId) const;
-    bool setViewerLocalShortcuts(const QString& actionName, const QList<QKeySequence>& shortcuts);
     bool setViewerLocalShortcutsForId(ActionId actionId, const QList<QKeySequence>& shortcuts);
+    QString menuShortcutTextForId(ActionId actionId) const;
 
 private:
     void loadViewerLocalShortcuts();
@@ -69,11 +65,7 @@ private:
     void notifyShortcutRowsChanged();
     void sanitizeProgramWideActionShortcuts();
     void sanitizeProgramWideActionShortcuts(QAction* action);
-    ApplicationShortcutProjection shortcutProjectionForAction(
-        ActionId actionId, const QAction* action) const;
     static QString actionDisplayText(const QAction* action);
-    static QString shortcutDisplayText(const QAction* action);
-    static QStringList shortcutKeyDisplayTexts(const QAction* action);
     QList<ShortcutHelpRow> shortcutHelpRows() const;
     void clearShortcutRouter();
     void rebuildShortcutRouter();

@@ -28,12 +28,6 @@ void ApplicationActionRegistry::registerAction(const ActionDefinition& definitio
     }
 
     m_actionsById[actionIndex(definition.actionId)] = action;
-    m_actionsByName.insert(definitionName(definition), action);
-}
-
-QAction* ApplicationActionRegistry::action(const QString& actionName) const
-{
-    return m_actionsByName.value(actionName, nullptr);
 }
 
 QAction* ApplicationActionRegistry::actionForId(ActionId actionId) const
@@ -44,11 +38,6 @@ QAction* ApplicationActionRegistry::actionForId(ActionId actionId) const
     }
 
     return m_actionsById[actionIndex(definition->actionId)];
-}
-
-QString ApplicationActionRegistry::actionName(ActionId actionId) const
-{
-    return kiriview::ApplicationActions::actionName(actionId);
 }
 
 QList<RegisteredApplicationAction> ApplicationActionRegistry::registeredActions() const

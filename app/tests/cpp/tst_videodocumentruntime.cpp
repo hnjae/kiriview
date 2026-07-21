@@ -1042,7 +1042,6 @@ void TestVideoDocumentRuntime::seekByNoopsWhenNotSeekable()
     fixture.runtime->seekBy(5000);
     QCOMPARE(fixture.backend->setPositionCount, 0);
     QCOMPARE(fixture.runtime->position(), 5000);
-    QCOMPARE(kiriview::VideoDocumentRuntime::clampedSeekPosition(5000, 5000, 10000, false), 5000);
 }
 
 void TestVideoDocumentRuntime::videoOutputDetachAndDestructionClearBackendOutput()

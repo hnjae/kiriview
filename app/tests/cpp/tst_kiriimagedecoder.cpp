@@ -347,7 +347,7 @@ void TestKiriImageDecoder::avifStillBrandUsesHeifStaticPath()
 void TestKiriImageDecoder::avifsSequenceBrandUsesHeifSequencePath()
 {
     const QByteArray imageData = heifFtypBox("avis", {});
-    QVERIFY(kiriview::isLikelyHeifSequenceContainer(imageData));
+    QVERIFY(kiriview::heifContainerInfo(imageData).imageSequence);
 
     kiriview::DecodedImageResult result = kiriview::decodeImageData(imageData);
     const auto* failure = kiriview::decodedImageResultFailure(result);

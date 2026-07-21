@@ -160,8 +160,6 @@ ImageViewportIntegrationRuntime::~ImageViewportIntegrationRuntime()
     }
 }
 
-ImageViewport* ImageViewportIntegrationRuntime::attachedViewport() const { return m_viewport; }
-
 void ImageViewportIntegrationRuntime::attach(ImageViewport* viewport)
 {
     if (m_viewport == viewport) {
@@ -208,7 +206,6 @@ bool ImageViewportIntegrationRuntime::submitTarget(ImageViewportIntegrationTarge
     m_activeRecord = nullptr;
     ImageViewportIntegrationProjection pending;
     pending.sourceGeneration = m_target->sourceGeneration;
-    pending.primaryUrl = m_target->primaryUrl;
     pending.secondaryUrl = m_target->secondaryUrl;
     pending.status = ImageDocumentStatus::Loading;
     pending.loading = true;
@@ -235,8 +232,7 @@ const ImageViewportIntegrationProjection& ImageViewportIntegrationRuntime::proje
 std::optional<StaticDisplayImagePayload> ImageViewportIntegrationRuntime::displayedImage(
     ImageViewportPageRole role) const
 {
-    const TargetRecord* displayed = recordForGeneration(
-        m_projection.component.display().displayedPresentationTargetGeneration());
+    const TargetRecord* displayed = recordForGeneration(m_projection.displayedTargetGeneration);
     if (displayed == nullptr) {
         return std::nullopt;
     }
@@ -353,13 +349,11 @@ void ImageViewportIntegrationRuntime::acceptSnapshot(const ImageViewportStateSna
     ImageViewportIntegrationProjection projection;
     projection.correlated = true;
     projection.sourceGeneration = m_activeRecord->target.sourceGeneration;
-    projection.primaryUrl = m_activeRecord->target.primaryUrl;
     projection.secondaryUrl = m_activeRecord->target.secondaryUrl;
     projection.status = documentStatus(snapshot.request().status());
     projection.loading = projection.status == ImageDocumentStatus::Loading;
     projection.primaryImageSize = logicalSize(snapshot.primary());
     projection.secondaryImageSize = logicalSize(snapshot.secondary());
-    projection.primaryVisible = snapshot.display().displayedRoleSet().primary();
     projection.secondaryVisible = snapshot.display().displayedRoleSet().secondary();
     projection.fitMode = snapshot.presentation().fitMode();
     projection.zoomPercent = snapshot.presentation().zoomPercent();
@@ -371,12 +365,7 @@ void ImageViewportIntegrationRuntime::acceptSnapshot(const ImageViewportStateSna
     projection.horizontallyPannable = snapshot.display().horizontalPannable();
     projection.verticallyPannable = snapshot.display().verticalPannable();
     projection.viewportSize = m_viewport->size();
-    projection.spreadSize = snapshot.display().spreadSize();
     projection.contentRect = snapshot.display().contentRect();
-    projection.contentSize = snapshot.display().contentSize();
-    projection.visibleSpreadRect = snapshot.display().visibleSpreadRect();
-    projection.primaryDisplayRect = snapshot.primary().geometry().displayedItemRect();
-    projection.secondaryDisplayRect = snapshot.secondary().geometry().displayedItemRect();
     projection.contentPosition = snapshot.display().contentPosition();
     projection.maximumContentPosition = snapshot.display().maximumContentPosition();
     projection.horizontalScrollPosition = normalizedScrollPosition(projection.horizontallyPannable,
@@ -387,12 +376,9 @@ void ImageViewportIntegrationRuntime::acceptSnapshot(const ImageViewportStateSna
         projection.contentPosition.y(), projection.maximumContentPosition.y());
     projection.verticalScrollPageSize = normalizedScrollPageSize(projection.verticallyPannable,
         snapshot.display().contentSize().height(), projection.maximumContentPosition.y());
-    projection.displayPhase = snapshot.display().phase();
-    projection.retained = snapshot.display().retained();
     projection.restoredTransition = restoredTransition;
-    projection.restoredTwoPageModeEnabled
-        = restoredTransition ? m_activeRecord->priorTwoPageModeEnabled : std::nullopt;
-    projection.component = snapshot;
+    projection.displayedTargetGeneration
+        = snapshot.display().displayedPresentationTargetGeneration();
 
     const TargetRecord* displayed
         = recordForGeneration(snapshot.display().displayedPresentationTargetGeneration());
@@ -408,8 +394,9 @@ void ImageViewportIntegrationRuntime::acceptSnapshot(const ImageViewportStateSna
     }
     TargetRecord* correlatedRecord = m_activeRecord;
     pruneRecords(acceptedGeneration, snapshot.display().displayedPresentationTargetGeneration());
-    if (projection.restoredTwoPageModeEnabled.has_value()) {
-        invokeIfSet(m_callbacks.restoreTwoPageModeEnabled, *projection.restoredTwoPageModeEnabled);
+    if (restoredTransition && m_activeRecord->priorTwoPageModeEnabled.has_value()) {
+        invokeIfSet(
+            m_callbacks.restoreTwoPageModeEnabled, *m_activeRecord->priorTwoPageModeEnabled);
     }
     if (m_activeRecord != correlatedRecord || !m_target.has_value()
         || m_target->sourceGeneration != projection.sourceGeneration) {
@@ -529,13 +516,6 @@ bool ImageViewportIntegrationRuntime::setContentPosition(QPointF position)
     return submitPresentation(command);
 }
 
-bool ImageViewportIntegrationRuntime::setContentAnchor(ImageViewportContentAnchor anchor)
-{
-    ImageViewportPresentationCommand command;
-    command.setContentAnchor(anchor);
-    return submitPresentation(command);
-}
-
 bool ImageViewportIntegrationRuntime::setRotationDegrees(int degrees)
 {
     ImageViewportPresentationCommand command;
@@ -577,8 +557,4 @@ ImageViewportCoordinateResult ImageViewportIntegrationRuntime::mapPoint(
                                                              : m_viewport->mapPoint(input);
 }
 
-bool ImageViewportIntegrationRuntime::containsPoint(ImageViewportCoordinateInput input) const
-{
-    return m_viewport != nullptr && m_projection.correlated && m_viewport->containsPoint(input);
-}
 }

@@ -316,7 +316,6 @@ kiriview::KiriDocumentSessionDependencies documentSessionDependenciesWithCompose
         request.thumbnailCacheByteBudget = cacheBudgets.thumbnailCacheByteBudget;
     }
     dependencies.imageDocument.cacheBudgetRequest = request;
-    kiriview::configureSharedDisplayImageStoreByteBudget(request.displayImageCacheByteBudget);
     kiriview::configureSharedThumbnailImageStoreByteBudget(request.thumbnailCacheByteBudget);
     inheritMissingDirectMediaPredecodeDependencies(dependencies);
     return dependencies;

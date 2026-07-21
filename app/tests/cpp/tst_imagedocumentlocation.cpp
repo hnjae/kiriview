@@ -8,7 +8,6 @@
 #include <QTest>
 #include <QUrl>
 #include <optional>
-#include <vector>
 
 namespace {
 QString archivePageWindowTitle(const QUrl& pageUrl, const QUrl& archiveFileUrl,
@@ -21,45 +20,10 @@ QString archivePageWindowTitle(const QUrl& pageUrl, const QUrl& archiveFileUrl,
     return kiriview::windowTitleFileNameForDisplayedLocation(location);
 }
 
-struct ArchiveInteriorCase
+std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection(const QUrl& archiveUrl)
 {
-    QString scheme;
-    QString extension;
-    kiriview::OpenedCollectionScopeKind kind;
-};
-
-QUrl archiveRootUrl(const QString& scheme, const QString& archiveName)
-{
-    QUrl rootUrl;
-    rootUrl.setScheme(scheme);
-    rootUrl.setPath(QStringLiteral("/books/") + archiveName + QLatin1Char('/'));
-    return rootUrl;
-}
-
-std::optional<QUrl> containingArchiveRootUrl(
-    const QUrl& pageUrl, kiriview::OpenedCollectionScopeKind kind)
-{
-    if (kind == kiriview::OpenedCollectionScopeKind::ComicBookArchive) {
-        return kiriview::containingComicBookArchiveRootUrl(pageUrl);
-    }
-
-    return kiriview::containingDirectArchiveOpenRootUrl(pageUrl);
-}
-
-void verifyArchiveInteriorRoot(const ArchiveInteriorCase& testCase)
-{
-    const QString archiveName = QStringLiteral("book.") + testCase.extension;
-    const QUrl archiveFileUrl = QUrl::fromLocalFile(QStringLiteral("/books/") + archiveName);
-    const QUrl rootUrl = archiveRootUrl(testCase.scheme, archiveName);
-    QUrl pageUrl = rootUrl;
-    pageUrl.setPath(rootUrl.path() + QStringLiteral("chapter/page001.png"));
-
-    QVERIFY(kiriview::isUrlInsideArchiveRoot(pageUrl, rootUrl));
-
-    const std::optional<QUrl> containingRoot = containingArchiveRootUrl(pageUrl, testCase.kind);
-    QVERIFY(containingRoot.has_value());
-    QCOMPARE(*containingRoot, rootUrl);
-    QCOMPARE(archivePageWindowTitle(pageUrl, archiveFileUrl, rootUrl, testCase.kind), archiveName);
+    return kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+        kiriview::resolvedNavigationSource(archiveUrl, {}));
 }
 }
 
@@ -71,7 +35,6 @@ private Q_SLOTS:
     void comicBookArchiveRootUrlsUseZipScheme();
     void comicBookArchiveRootUrlsUseFormatSpecificKioSchemes();
     void directArchiveRootUrlsUseFormatSpecificKioSchemes();
-    void archiveInteriorUrlsResolveToTheirRootAndTitle();
     void archiveCollectionPagesResolveToArchiveZoomScope();
     void directArchivePagesResolveToZoomScopeOnly();
     void directoryCollectionPagesResolveToDirectoryCollectionScope();
@@ -82,94 +45,58 @@ private Q_SLOTS:
 void TestImageDocumentLocation::comicBookArchiveRootUrlsUseZipScheme()
 {
     const QUrl archiveUrl = QUrl::fromLocalFile(QStringLiteral("/books/book.cbz"));
-    const std::optional<QUrl> archiveRootUrl = kiriview::comicBookArchiveRootUrl(archiveUrl);
+    const auto collection = archiveCollection(archiveUrl);
 
-    QVERIFY(archiveRootUrl.has_value());
-    QCOMPARE(archiveRootUrl->scheme(), QStringLiteral("zip"));
-    QCOMPARE(archiveRootUrl->path(), QStringLiteral("/books/book.cbz/"));
+    QVERIFY(collection.has_value());
+    QCOMPARE(collection->rootUrl().scheme(), QStringLiteral("zip"));
+    QCOMPARE(collection->rootUrl().path(), QStringLiteral("/books/book.cbz/"));
 }
 
 void TestImageDocumentLocation::comicBookArchiveRootUrlsUseFormatSpecificKioSchemes()
 {
-    const std::optional<QUrl> cbtRootUrl
-        = kiriview::comicBookArchiveRootUrl(QUrl::fromLocalFile(QStringLiteral("/books/book.cbt")));
-    QVERIFY(cbtRootUrl.has_value());
-    QCOMPARE(cbtRootUrl->scheme(), QStringLiteral("tar"));
-    QCOMPARE(cbtRootUrl->path(), QStringLiteral("/books/book.cbt/"));
+    const auto cbt = archiveCollection(QUrl::fromLocalFile(QStringLiteral("/books/book.cbt")));
+    QVERIFY(cbt.has_value());
+    QCOMPARE(cbt->rootUrl().scheme(), QStringLiteral("tar"));
+    QCOMPARE(cbt->rootUrl().path(), QStringLiteral("/books/book.cbt/"));
 
-    const std::optional<QUrl> cb7RootUrl
-        = kiriview::comicBookArchiveRootUrl(QUrl::fromLocalFile(QStringLiteral("/books/book.cb7")));
-    QVERIFY(cb7RootUrl.has_value());
-    QCOMPARE(cb7RootUrl->scheme(), QStringLiteral("sevenz"));
-    QCOMPARE(cb7RootUrl->path(), QStringLiteral("/books/book.cb7/"));
+    const auto cb7 = archiveCollection(QUrl::fromLocalFile(QStringLiteral("/books/book.cb7")));
+    QVERIFY(cb7.has_value());
+    QCOMPARE(cb7->rootUrl().scheme(), QStringLiteral("sevenz"));
+    QCOMPARE(cb7->rootUrl().path(), QStringLiteral("/books/book.cb7/"));
 
-    const std::optional<QUrl> cbrRootUrl
-        = kiriview::comicBookArchiveRootUrl(QUrl::fromLocalFile(QStringLiteral("/books/book.cbr")));
-    QVERIFY(cbrRootUrl.has_value());
-    QCOMPARE(cbrRootUrl->scheme(), QStringLiteral("rar"));
-    QCOMPARE(cbrRootUrl->path(), QStringLiteral("/books/book.cbr/"));
+    const auto cbr = archiveCollection(QUrl::fromLocalFile(QStringLiteral("/books/book.cbr")));
+    QVERIFY(cbr.has_value());
+    QCOMPARE(cbr->rootUrl().scheme(), QStringLiteral("rar"));
+    QCOMPARE(cbr->rootUrl().path(), QStringLiteral("/books/book.cbr/"));
 
-    QVERIFY(
-        !kiriview::comicBookArchiveRootUrl(QUrl::fromLocalFile(QStringLiteral("/books/book.zip")))
-            .has_value());
-    QVERIFY(!kiriview::comicBookArchiveRootUrl(QUrl(QStringLiteral("smb://server/books/book.cbz")))
-            .has_value());
+    QVERIFY(archiveCollection(QUrl::fromLocalFile(QStringLiteral("/books/book.zip")))->kind()
+        == kiriview::OpenedCollectionScopeKind::GeneralArchive);
+    QVERIFY(!archiveCollection(QUrl(QStringLiteral("smb://server/books/book.cbz"))).has_value());
 }
 
 void TestImageDocumentLocation::directArchiveRootUrlsUseFormatSpecificKioSchemes()
 {
-    const std::optional<QUrl> zipRootUrl = kiriview::directArchiveOpenRootUrl(
-        QUrl::fromLocalFile(QStringLiteral("/books/book.zip")));
-    QVERIFY(zipRootUrl.has_value());
-    QCOMPARE(zipRootUrl->scheme(), QStringLiteral("zip"));
-    QCOMPARE(zipRootUrl->path(), QStringLiteral("/books/book.zip/"));
+    const auto zip = archiveCollection(QUrl::fromLocalFile(QStringLiteral("/books/book.zip")));
+    QVERIFY(zip.has_value());
+    QCOMPARE(zip->rootUrl().scheme(), QStringLiteral("zip"));
+    QCOMPARE(zip->rootUrl().path(), QStringLiteral("/books/book.zip/"));
 
-    const std::optional<QUrl> tarRootUrl = kiriview::directArchiveOpenRootUrl(
-        QUrl::fromLocalFile(QStringLiteral("/books/book.tar")));
-    QVERIFY(tarRootUrl.has_value());
-    QCOMPARE(tarRootUrl->scheme(), QStringLiteral("tar"));
-    QCOMPARE(tarRootUrl->path(), QStringLiteral("/books/book.tar/"));
+    const auto tar = archiveCollection(QUrl::fromLocalFile(QStringLiteral("/books/book.tar")));
+    QVERIFY(tar.has_value());
+    QCOMPARE(tar->rootUrl().scheme(), QStringLiteral("tar"));
+    QCOMPARE(tar->rootUrl().path(), QStringLiteral("/books/book.tar/"));
 
-    const std::optional<QUrl> sevenZipRootUrl
-        = kiriview::directArchiveOpenRootUrl(QUrl::fromLocalFile(QStringLiteral("/books/book.7z")));
-    QVERIFY(sevenZipRootUrl.has_value());
-    QCOMPARE(sevenZipRootUrl->scheme(), QStringLiteral("sevenz"));
-    QCOMPARE(sevenZipRootUrl->path(), QStringLiteral("/books/book.7z/"));
+    const auto sevenZip = archiveCollection(QUrl::fromLocalFile(QStringLiteral("/books/book.7z")));
+    QVERIFY(sevenZip.has_value());
+    QCOMPARE(sevenZip->rootUrl().scheme(), QStringLiteral("sevenz"));
+    QCOMPARE(sevenZip->rootUrl().path(), QStringLiteral("/books/book.7z/"));
 
-    const std::optional<QUrl> rarRootUrl = kiriview::directArchiveOpenRootUrl(
-        QUrl::fromLocalFile(QStringLiteral("/books/book.rar")));
-    QVERIFY(rarRootUrl.has_value());
-    QCOMPARE(rarRootUrl->scheme(), QStringLiteral("rar"));
-    QCOMPARE(rarRootUrl->path(), QStringLiteral("/books/book.rar/"));
+    const auto rar = archiveCollection(QUrl::fromLocalFile(QStringLiteral("/books/book.rar")));
+    QVERIFY(rar.has_value());
+    QCOMPARE(rar->rootUrl().scheme(), QStringLiteral("rar"));
+    QCOMPARE(rar->rootUrl().path(), QStringLiteral("/books/book.rar/"));
 
-    QVERIFY(!kiriview::directArchiveOpenRootUrl(QUrl(QStringLiteral("smb://server/books/book.zip")))
-            .has_value());
-}
-
-void TestImageDocumentLocation::archiveInteriorUrlsResolveToTheirRootAndTitle()
-{
-    const std::vector<ArchiveInteriorCase> cases = {
-        { QStringLiteral("zip"), QStringLiteral("cbz"),
-            kiriview::OpenedCollectionScopeKind::ComicBookArchive },
-        { QStringLiteral("tar"), QStringLiteral("cbt"),
-            kiriview::OpenedCollectionScopeKind::ComicBookArchive },
-        { QStringLiteral("sevenz"), QStringLiteral("cb7"),
-            kiriview::OpenedCollectionScopeKind::ComicBookArchive },
-        { QStringLiteral("rar"), QStringLiteral("cbr"),
-            kiriview::OpenedCollectionScopeKind::ComicBookArchive },
-        { QStringLiteral("zip"), QStringLiteral("zip"),
-            kiriview::OpenedCollectionScopeKind::GeneralArchive },
-        { QStringLiteral("tar"), QStringLiteral("tar"),
-            kiriview::OpenedCollectionScopeKind::GeneralArchive },
-        { QStringLiteral("sevenz"), QStringLiteral("7z"),
-            kiriview::OpenedCollectionScopeKind::GeneralArchive },
-        { QStringLiteral("rar"), QStringLiteral("rar"),
-            kiriview::OpenedCollectionScopeKind::GeneralArchive },
-    };
-
-    for (const ArchiveInteriorCase& testCase : cases) {
-        verifyArchiveInteriorRoot(testCase);
-    }
+    QVERIFY(!archiveCollection(QUrl(QStringLiteral("smb://server/books/book.zip"))).has_value());
 }
 
 void TestImageDocumentLocation::archiveCollectionPagesResolveToArchiveZoomScope()
@@ -186,7 +113,6 @@ void TestImageDocumentLocation::archiveCollectionPagesResolveToArchiveZoomScope(
         = kiriview::DisplayedImageLocation::fromOpenedCollectionScope(pageUrl, *archiveCollection);
 
     QCOMPARE(kiriview::containerNavigationUrlForLocation(location), archiveUrl);
-    QCOMPARE(kiriview::zoomScopeUrlForLocation(location), archiveUrl);
 }
 
 void TestImageDocumentLocation::directArchivePagesResolveToZoomScopeOnly()
@@ -203,7 +129,6 @@ void TestImageDocumentLocation::directArchivePagesResolveToZoomScopeOnly()
         = kiriview::DisplayedImageLocation::fromOpenedCollectionScope(pageUrl, *archiveCollection);
 
     QVERIFY(kiriview::containerNavigationUrlForLocation(location).isEmpty());
-    QCOMPARE(kiriview::zoomScopeUrlForLocation(location), archiveUrl);
 }
 
 void TestImageDocumentLocation::directoryCollectionPagesResolveToDirectoryCollectionScope()
@@ -228,7 +153,6 @@ void TestImageDocumentLocation::directoryCollectionPagesResolveToDirectoryCollec
             pageUrl, *directoryCollection);
 
     QVERIFY(kiriview::containerNavigationUrlForLocation(location).isEmpty());
-    QCOMPARE(kiriview::zoomScopeUrlForLocation(location), directoryUrl);
     QCOMPARE(kiriview::windowTitleFileNameForDisplayedLocation(location), directoryUrl.fileName());
 }
 
@@ -238,7 +162,6 @@ void TestImageDocumentLocation::regularImagesDoNotResolveToZoomScopes()
     const kiriview::DisplayedImageLocation location
         = kiriview::DisplayedImageLocation::fromUrl(fileUrl);
 
-    QVERIFY(kiriview::zoomScopeUrlForLocation(location).isEmpty());
     QVERIFY(kiriview::containerNavigationUrlForLocation(location).isEmpty());
 }
 
@@ -247,7 +170,6 @@ void TestImageDocumentLocation::explicitKdeArchiveUrlImagesDoNotResolveToZoomSco
     const kiriview::DisplayedImageLocation location = kiriview::DisplayedImageLocation::fromUrl(
         QUrl(QStringLiteral("zip:///books/book.cbz/chapter/page001.png")));
 
-    QVERIFY(kiriview::zoomScopeUrlForLocation(location).isEmpty());
     QVERIFY(kiriview::containerNavigationUrlForLocation(location).isEmpty());
 }
 

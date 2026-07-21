@@ -17,12 +17,8 @@ public:
 
     bool currentContains(const QUrl& url) const;
     bool recentContains(const QUrl& url) const;
-    bool retainedContains(const QUrl& url) const;
     std::size_t currentPriority(const QUrl& url) const;
     std::size_t recentPriority(const QUrl& url) const;
-
-    const std::vector<QUrl>& currentUrls() const;
-    const std::vector<QUrl>& recentUrls() const;
 
 private:
     static bool containsUrl(const std::vector<QUrl>& urls, const QUrl& url);

@@ -22,17 +22,11 @@ QSize scaledImageSizeToFit(QSizeF imageSize, QSize boundsSize)
             Bridge::rustSize<RustImageRenderSize>(boundsSize)));
 }
 
-QSize firstDisplayScaledImageSize(QSize imageSize, QSize physicalViewportSize)
+QSize firstDisplayScaledImageSize(QSize imageSize, QSize logicalViewportSize)
 {
     return Bridge::qtSize(
         rustFirstDisplayScaledImageSize(Bridge::rustSize<RustImageRenderSize>(imageSize),
-            Bridge::rustSize<RustImageRenderSize>(physicalViewportSize)));
-}
-
-qreal imagePixelsPerSourcePixel(QSize imageSize, QSize displaySize)
-{
-    return rustImagePixelsPerSourcePixel(Bridge::rustSize<RustImageRenderSize>(imageSize),
-        Bridge::rustSize<RustImageRenderSize>(displaySize));
+            Bridge::rustSize<RustImageRenderSize>(logicalViewportSize)));
 }
 
 QImage displayReadyImage(const QImage& image)
@@ -43,24 +37,4 @@ QImage displayReadyImage(const QImage& image)
     return image.convertToFormat(QImage::Format_RGBA8888_Premultiplied);
 }
 
-ImageDocumentRenderContext normalizedImageDocumentRenderContext(ImageDocumentRenderContext context)
-{
-    const RustImageDocumentRenderContext normalized = rustNormalizedImageDocumentRenderContext(
-        RustImageDocumentRenderContext { context.devicePixelRatio, context.maximumTextureSize },
-        fallbackTextureSizeMax);
-    return ImageDocumentRenderContext {
-        normalized.device_pixel_ratio,
-        normalized.maximum_texture_size,
-        context.generation,
-    };
-}
-
-ImageFirstDisplayDecodeContext imageFirstDisplayDecodeContext(
-    QSizeF viewportSize, qreal devicePixelRatio)
-{
-    return ImageFirstDisplayDecodeContext {
-        Bridge::qtSize(rustFirstDisplayPhysicalViewportSize(
-            Bridge::rustSizeF<RustImageRenderSizeF>(viewportSize), devicePixelRatio)),
-    };
-}
 }

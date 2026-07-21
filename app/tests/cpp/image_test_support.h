@@ -74,26 +74,24 @@ public:
     QSize imageSize() const override { return m_image.size(); }
     qsizetype byteCost() const override { return m_image.sizeInBytes(); }
 
-    QImage decodeBlockingDisplayImage(int, QString*) const override { return m_image; }
+    StaticImageDisplayDecodeResult decodeBlockingDisplayImage(int) const override
+    {
+        return { m_image, {} };
+    }
 
 private:
     QImage m_image;
 };
 
 inline StaticDisplayImagePayload staticDisplayTestImagePayload(const QImage& sourceImage,
-    const QImage& displayImage, qreal firstDisplayPixelsPerSourcePixel = 0.0,
-    DisplayImageQuality quality = DisplayImageQuality::Exact)
+    const QImage& displayImage, DisplayImageQuality quality = DisplayImageQuality::Exact)
 {
-    const qreal displayPixelsPerSourcePixel = firstDisplayPixelsPerSourcePixel > 0.0
-        ? firstDisplayPixelsPerSourcePixel
-        : (sourceImage.size() == displayImage.size() ? 1.0 : 0.0);
     return StaticDisplayImagePayload {
         QStringLiteral("test-image"),
         {},
         sourceImage.size(),
         displayImage,
         quality,
-        displayPixelsPerSourcePixel,
         {},
         std::make_shared<TestStaticImageDisplaySource>(sourceImage),
     };
@@ -102,7 +100,7 @@ inline StaticDisplayImagePayload staticDisplayTestImagePayload(const QImage& sou
 inline StaticDisplayImagePayload staticDisplayTestImagePayload(
     const QImage& image = testImage(), DisplayImageQuality quality = DisplayImageQuality::Exact)
 {
-    return staticDisplayTestImagePayload(image, image, 0.0, quality);
+    return staticDisplayTestImagePayload(image, image, quality);
 }
 
 inline StaticDecodedImage staticDecodedTestImage(const QImage& image = testImage())

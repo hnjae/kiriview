@@ -107,11 +107,6 @@ mod ffi {
             file_deletion_in_progress: bool,
         ) -> RustActiveNavigationSnapshot;
 
-        #[cxx_name = "rustMaskActiveNavigationDuringDeletion"]
-        fn rust_mask_active_navigation_during_deletion(
-            snapshot: RustActiveNavigationSnapshot,
-        ) -> RustActiveNavigationSnapshot;
-
         #[cxx_name = "rustActiveNavigationBoundaryScopeForSource"]
         fn rust_active_navigation_boundary_scope_for_source(
             source_kind: RustActiveNavigationSourceKind,

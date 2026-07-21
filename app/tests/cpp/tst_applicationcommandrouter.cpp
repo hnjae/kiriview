@@ -34,7 +34,7 @@ struct CommandLog
     int nextSinglePageCount = 0;
     int scanForwardCount = 0;
     int scanBackwardCount = 0;
-    int nextDisplayedImageStartToFinalScanPositionCount = 0;
+    int nextViewportTargetAnchorAtEndCount = 0;
     int firstImageBoundaryCount = 0;
     int seekCount = 0;
     int setVideoPositionCount = 0;
@@ -73,10 +73,9 @@ ApplicationCommandRouterPorts commandPorts(CommandLog& log)
         ++log.scanBackwardCount;
         return log.scanMoved;
     };
-    ports.imagePresentation.requestNextDisplayedImageStartToFinalScanPosition = [&log]() {
-        log.actionCalls.push_back(
-            QStringLiteral("next-displayed-image-start-to-final-scan-position"));
-        ++log.nextDisplayedImageStartToFinalScanPositionCount;
+    ports.imagePresentation.requestNextViewportTargetAnchorAtEnd = [&log]() {
+        log.actionCalls.push_back(QStringLiteral("next-viewport-target-anchor-at-end"));
+        ++log.nextViewportTargetAnchorAtEndCount;
     };
     ports.imageDocument.openPreviousContainer
         = [&log]() { log.actionCalls.push_back(QStringLiteral("previous-container")); };
@@ -465,7 +464,7 @@ void TestApplicationCommandRouter::videoScanShortcutsUseActiveNavigation()
     QCOMPARE(log.scanBackwardCount, 0);
     QCOMPARE(log.nextNavigationCount, 1);
     QCOMPARE(log.previousNavigationCount, 1);
-    QCOMPARE(log.nextDisplayedImageStartToFinalScanPositionCount, 0);
+    QCOMPARE(log.nextViewportTargetAnchorAtEndCount, 0);
     QCOMPARE(log.firstImageBoundaryCount, 0);
 }
 
@@ -494,8 +493,11 @@ void TestApplicationCommandRouter::scanShortcutsRoutePolicyEffects()
     input.atKnownFirstActiveNavigation = false;
     input.canOpenPreviousActiveNavigation = true;
     router.handleScanBackwardAction(input, ports);
-    QCOMPARE(log.nextDisplayedImageStartToFinalScanPositionCount, 1);
+    QCOMPARE(log.nextViewportTargetAnchorAtEndCount, 1);
     QCOMPARE(log.previousNavigationCount, 1);
+    QCOMPARE(log.actionCalls.at(log.actionCalls.size() - 2),
+        QStringLiteral("next-viewport-target-anchor-at-end"));
+    QCOMPARE(log.actionCalls.constLast(), QStringLiteral("previous-navigation"));
 
     input.imagePannable = false;
     router.handleScanBackwardAction(input, ports);

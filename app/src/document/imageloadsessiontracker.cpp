@@ -3,8 +3,6 @@
 
 #include "imageloadsessiontracker.h"
 
-#include "location/imagedocumentlocation.h"
-
 #include <utility>
 
 namespace kiriview {
@@ -28,28 +26,6 @@ void ImageLoadSessionTracker::cancel() { m_session.reset(); }
 bool ImageLoadSessionTracker::isCurrent(const ImageLoadSession& session) const
 {
     return m_session.has_value() && m_session->sameSession(session);
-}
-
-std::optional<ImageLoadSession> ImageLoadSessionTracker::currentForDecodeRequest(
-    const ImageDecodeRequest& request) const
-{
-    if (!m_session.has_value() || !request.matches(m_session->decodeRequest())) {
-        return std::nullopt;
-    }
-
-    return *m_session;
-}
-
-std::optional<ImageLoadSession> ImageLoadSessionTracker::claimCurrentForDecodeRequest(
-    const ImageDecodeRequest& request)
-{
-    if (!m_session.has_value() || !request.matches(m_session->decodeRequest())) {
-        return std::nullopt;
-    }
-
-    std::optional<ImageLoadSession> currentSession = std::move(m_session);
-    m_session.reset();
-    return currentSession;
 }
 
 OpenedCollectionCandidateCompletion ImageLoadSessionTracker::completeOpenedCollectionCandidates(
@@ -80,17 +56,6 @@ OpenedCollectionCandidateCompletion ImageLoadSessionTracker::completeOpenedColle
         OpenedCollectionCandidateCompletionAction::StartImageDecode,
         *m_session,
     };
-}
-
-std::optional<ImageLoadSession> ImageLoadSessionTracker::claimPredecodedImage(
-    const ImageLoadSession& session, DisplayedImageLocation location)
-{
-    if (!isCurrent(session)) {
-        return std::nullopt;
-    }
-
-    m_session->setLocation(std::move(location));
-    return claimCurrent(*m_session);
 }
 
 std::optional<ImageLoadSession> ImageLoadSessionTracker::claimCurrent(

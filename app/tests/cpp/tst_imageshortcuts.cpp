@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-#include "facade/imageactionavailability.h"
 #include "facade/kiridocumentsession.h"
 #include "facade/kiriimagedocument.h"
 #include "facade/kiriimageviewportsurface.h"
@@ -20,7 +19,6 @@
 #include <QAction>
 #include <QBuffer>
 #include <QCoreApplication>
-#include <QDir>
 #include <QFile>
 #include <QImage>
 #include <QObject>
@@ -100,7 +98,6 @@ void registerKiriViewQmlTypes()
     qmlRegisterUncreatableType<KiriMediaInformation>("org.hnjae.kiriview", 1, 0,
         "KiriMediaInformation", "KiriMediaInformation is owned by KiriDocumentSession");
     qmlRegisterType<KiriVideoDocument>("org.hnjae.kiriview", 1, 0, "KiriVideoDocument");
-    qmlRegisterType<ImageActionAvailability>("org.hnjae.kiriview", 1, 0, "ImageActionAvailability");
     qmlRegisterType<KiriViewApplication>("org.hnjae.kiriview", 1, 0, "KiriViewApplication");
     registered = true;
 }
@@ -118,13 +115,6 @@ void resetConfig()
     appConfig->deleteGroup(QStringLiteral("ViewerLocalShortcuts"));
     appConfig->sync();
     appConfig->reparseConfiguration();
-}
-
-QString qmlSourceImport()
-{
-    const QString qmlPath = QDir(QStringLiteral(KIRIVIEW_TEST_SOURCE_DIR))
-                                .absoluteFilePath(QStringLiteral("../../src/qml"));
-    return QUrl::fromLocalFile(qmlPath).toString();
 }
 
 bool writeTestPng(const QString& path)
@@ -215,7 +205,6 @@ QString fixtureQml(const QString& sourceUrl = QString())
     return QStringLiteral(R"(
 import QtQuick
 import org.hnjae.kiriview
-import "%1" as KiriViewQml
 
 Item {
     id: root
@@ -306,16 +295,12 @@ Item {
     KiriDocumentSession {
         id: documentSession
 
-        sourceUrl: "%2"
+        sourceUrl: "%1"
     }
 
     KiriImageViewportSurface {
         anchors.fill: parent
         document: root.sessionImageDocument
-    }
-
-    KiriViewQml.ImageShortcuts {
-        id: imageShortcuts
     }
 
     Connections {
@@ -339,7 +324,7 @@ Item {
     }
 }
 )")
-        .arg(qmlSourceImport(), sourceUrl);
+        .arg(sourceUrl);
 }
 
 ImageShortcutsFixture createFixture(const QString& sourceUrl = QString())
@@ -682,7 +667,8 @@ void TestImageShortcuts::configuredActionShortcutsTriggerActions()
     QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
     QTRY_VERIFY(documentReady(fixture.root));
 
-    QAction* rotateAction = fixture.application->action(QStringLiteral("view_rotate_clockwise"));
+    QAction* rotateAction
+        = fixture.application->actionForId(KiriViewApplication::ViewRotateClockwiseAction);
     QVERIFY(rotateAction != nullptr);
     QSignalSpy triggeredSpy(rotateAction, &QAction::triggered);
 
@@ -706,7 +692,7 @@ void TestImageShortcuts::quitViewerLocalShortcutTriggersQuitAction()
     QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
     QTRY_VERIFY(documentReady(fixture.root));
 
-    QAction* quitAction = fixture.application->action(QStringLiteral("file_quit"));
+    QAction* quitAction = fixture.application->actionForId(KiriViewApplication::FileQuitAction);
     QVERIFY(quitAction != nullptr);
     QSignalSpy triggeredSpy(quitAction, &QAction::triggered);
 
@@ -727,17 +713,14 @@ void TestImageShortcuts::windowCommandShortcutsWorkWithoutQmlShortcutInstallers(
     QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
     QTRY_VERIFY(documentReady(fixture.root));
 
-    QAction* rotateAction = fixture.application->action(QStringLiteral("view_rotate_clockwise"));
+    QAction* rotateAction
+        = fixture.application->actionForId(KiriViewApplication::ViewRotateClockwiseAction);
     QAction* showMenubarAction
-        = fixture.application->action(QStringLiteral("options_show_menubar"));
+        = fixture.application->actionForId(KiriViewApplication::OptionsShowMenubarAction);
     QVERIFY(rotateAction != nullptr);
     QVERIFY(showMenubarAction != nullptr);
     QSignalSpy rotateSpy(rotateAction, &QAction::triggered);
     QSignalSpy showMenubarSpy(showMenubarAction, &QAction::triggered);
-
-    QObject* imageShortcuts = fixture.root->findChild<QObject*>(QStringLiteral("imageShortcuts"));
-    QVERIFY(imageShortcuts != nullptr);
-    imageShortcuts->setProperty("visible", false);
 
     pressKey(fixture.view.get(), Qt::Key_R, Qt::ControlModifier);
     QCOMPARE(rotateSpy.count(), 0);
@@ -764,7 +747,8 @@ void TestImageShortcuts::videoViewerLocalShortcutTriggersFullscreenAction()
     QTRY_COMPARE(fixture.root->property("documentKind").toInt(),
         static_cast<int>(KiriDocumentSession::DocumentKind::Video));
 
-    QAction* fullscreenAction = fixture.application->action(QStringLiteral("window_fullscreen"));
+    QAction* fullscreenAction
+        = fixture.application->actionForId(KiriViewApplication::WindowFullscreenAction);
     QVERIFY(fullscreenAction != nullptr);
     QSignalSpy triggeredSpy(fullscreenAction, &QAction::triggered);
 
@@ -782,7 +766,7 @@ void TestImageShortcuts::videoPlaybackShortcutTriggersPlaybackAction()
         static_cast<int>(KiriDocumentSession::DocumentKind::Video));
 
     QAction* playbackAction
-        = fixture.application->action(QStringLiteral("view_toggle_video_playback"));
+        = fixture.application->actionForId(KiriViewApplication::ViewToggleVideoPlaybackAction);
     QVERIFY(playbackAction != nullptr);
     QSignalSpy triggeredSpy(playbackAction, &QAction::triggered);
 
@@ -800,7 +784,7 @@ void TestImageShortcuts::videoPlaybackShortcutShowsImageUnsupportedToastForReady
     QTRY_VERIFY(documentReady(fixture.root));
 
     QAction* playbackAction
-        = fixture.application->action(QStringLiteral("view_toggle_video_playback"));
+        = fixture.application->actionForId(KiriViewApplication::ViewToggleVideoPlaybackAction);
     QVERIFY(playbackAction != nullptr);
     QSignalSpy triggeredSpy(playbackAction, &QAction::triggered);
 
@@ -822,14 +806,20 @@ void TestImageShortcuts::videoImageOnlyShortcutsShowUnsupportedToast()
     QTRY_COMPARE(fixture.root->property("documentKind").toInt(),
         static_cast<int>(KiriDocumentSession::DocumentKind::Video));
 
-    QAction* rotateAction = fixture.application->action(QStringLiteral("view_rotate_clockwise"));
-    QAction* zoomInAction = fixture.application->action(QStringLiteral("view_zoom_in"));
-    QAction* zoom50Action = fixture.application->action(QStringLiteral("view_zoom_50_percent"));
-    QAction* zoom100Action = fixture.application->action(QStringLiteral("view_zoom_100_percent"));
-    QAction* zoom200Action = fixture.application->action(QStringLiteral("view_zoom_200_percent"));
-    QAction* fitHeightAction = fixture.application->action(QStringLiteral("view_fit_height"));
-    QAction* fitWidthAction = fixture.application->action(QStringLiteral("view_fit_width"));
-    QAction* fitWindowAction = fixture.application->action(QStringLiteral("view_fit"));
+    QAction* rotateAction
+        = fixture.application->actionForId(KiriViewApplication::ViewRotateClockwiseAction);
+    QAction* zoomInAction = fixture.application->actionForId(KiriViewApplication::ViewZoomInAction);
+    QAction* zoom50Action
+        = fixture.application->actionForId(KiriViewApplication::ViewZoom50PercentAction);
+    QAction* zoom100Action
+        = fixture.application->actionForId(KiriViewApplication::ViewZoom100PercentAction);
+    QAction* zoom200Action
+        = fixture.application->actionForId(KiriViewApplication::ViewZoom200PercentAction);
+    QAction* fitHeightAction
+        = fixture.application->actionForId(KiriViewApplication::ViewFitHeightAction);
+    QAction* fitWidthAction
+        = fixture.application->actionForId(KiriViewApplication::ViewFitWidthAction);
+    QAction* fitWindowAction = fixture.application->actionForId(KiriViewApplication::ViewFitAction);
     QVERIFY(rotateAction != nullptr);
     QVERIFY(zoomInAction != nullptr);
     QVERIFY(zoom50Action != nullptr);

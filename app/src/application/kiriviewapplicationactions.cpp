@@ -355,23 +355,6 @@ const ActionDefinition* definitionForId(Actions::ActionId actionId)
     return &actionDefinitions[static_cast<std::size_t>(actionId)];
 }
 
-const ActionDefinition* definitionForName(const QString& actionName)
-{
-    for (const ActionDefinition& definition : actionDefinitions) {
-        if (actionName == QString::fromLatin1(definition.name)) {
-            return &definition;
-        }
-    }
-
-    return nullptr;
-}
-
-QString actionName(Actions::ActionId actionId)
-{
-    const Actions::ActionDefinition* definition = definitionForId(actionId);
-    return definition == nullptr ? QString() : QString::fromLatin1(definition->name);
-}
-
 QString latin1String(const char* text)
 {
     return text == nullptr ? QString() : QString::fromLatin1(text);

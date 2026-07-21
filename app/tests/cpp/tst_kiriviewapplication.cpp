@@ -86,11 +86,11 @@ void resetConfig()
     appConfig->reparseConfiguration();
 }
 
-void expectDefaultShortcuts(KiriViewApplication& application, const QString& actionName,
-    const QList<QKeySequence>& shortcuts)
+void expectDefaultShortcuts(KiriViewApplication& application,
+    KiriViewApplication::ActionId actionId, const QList<QKeySequence>& shortcuts)
 {
-    QAction* action = application.action(actionName);
-    QVERIFY2(action != nullptr, qPrintable(QStringLiteral("Missing action %1").arg(actionName)));
+    QAction* action = application.actionForId(actionId);
+    QVERIFY(action != nullptr);
     QCOMPARE(KirigamiActionCollection::defaultShortcuts(action), shortcuts);
     QCOMPARE(action->shortcuts(), shortcuts);
 }
@@ -139,12 +139,11 @@ private Q_SLOTS:
     void init();
     void cleanup();
     void actionsAreRegisteredWithDefaultShortcuts();
-    void generalSettingsActionIsNotRegistered();
     void actionDefinitionTableIsCanonicalIdentitySource();
     void facadeActionIdsConvertAtApplicationBoundary();
-    void actionIdsResolveActionNamesAndShortcuts();
+    void actionIdsResolveActionsAndShortcutScopes();
     void navigationPresentationApiConvertsRuntimeProjection();
-    void shortcutsApiReturnsCurrentShortcuts();
+    void typedShortcutApisReturnCurrentShortcuts();
     void zoomPresetActionsUseNewDefaultShortcutMap();
     void shortcutScopeApisSeparateProgramWideAndViewerLocalShortcuts();
     void menuShortcutTextReturnsFirstDisplaySafeShortcut();
@@ -175,22 +174,13 @@ void TestKiriViewApplication::actionsAreRegisteredWithDefaultShortcuts()
     KiriViewApplication application;
 
     for (const Actions::ActionDefinition& definition : Actions::definitions()) {
-        const QString actionName = definitionActionName(definition);
-        QVERIFY2(application.action(actionName) != nullptr,
-            qPrintable(QStringLiteral("Missing action %1").arg(actionName)));
+        const auto actionId = facadeActionId(definition.actionId);
+        QVERIFY(application.actionForId(actionId) != nullptr);
         if (actionDefaultShortcutsAreManagedByKiriView(definition)) {
-            expectDefaultShortcuts(application, actionName,
+            expectDefaultShortcuts(application, actionId,
                 Actions::defaultShortcuts(definition.defaultProgramWideShortcuts));
         }
     }
-}
-
-void TestKiriViewApplication::generalSettingsActionIsNotRegistered()
-{
-    KiriViewApplication application;
-
-    QCOMPARE(application.action(QStringLiteral("options_configure")), nullptr);
-    QCOMPARE(application.shortcuts(QStringLiteral("options_configure")), QList<QKeySequence>());
 }
 
 void TestKiriViewApplication::actionDefinitionTableIsCanonicalIdentitySource()
@@ -205,13 +195,10 @@ void TestKiriViewApplication::actionDefinitionTableIsCanonicalIdentitySource()
         QVERIFY(definition != nullptr);
         QCOMPARE(definition, &definitions.at(index));
         QCOMPARE(definition->actionId, actionId);
-        QCOMPARE(Actions::actionName(actionId), definitionActionName(*definition));
     }
 
     QVERIFY(Actions::definitionForId(static_cast<DomainActionId>(-1)) == nullptr);
     QVERIFY(Actions::definitionForId(DomainActionId::ActionCount) == nullptr);
-    QVERIFY(Actions::actionName(static_cast<DomainActionId>(-1)).isEmpty());
-    QVERIFY(Actions::actionName(DomainActionId::ActionCount).isEmpty());
 }
 
 void TestKiriViewApplication::facadeActionIdsConvertAtApplicationBoundary()
@@ -234,55 +221,37 @@ void TestKiriViewApplication::facadeActionIdsConvertAtApplicationBoundary()
         Actions::MenuPresentation::HamburgerMenu);
 }
 
-void TestKiriViewApplication::actionIdsResolveActionNamesAndShortcuts()
+void TestKiriViewApplication::actionIdsResolveActionsAndShortcutScopes()
 {
     KiriViewApplication application;
 
     for (const Actions::ActionDefinition& definition : Actions::definitions()) {
-        const QString actionName = definitionActionName(definition);
         const KiriViewApplication::ActionId actionId = facadeActionId(definition.actionId);
-        QCOMPARE(application.actionName(actionId), actionName);
-        QCOMPARE(application.actionForId(actionId), application.action(actionName));
-        QCOMPARE(application.shortcutsForId(actionId), application.shortcuts(actionName));
-        QCOMPARE(application.programWideShortcutsForId(actionId),
-            application.programWideShortcuts(actionName));
-        QCOMPARE(application.viewerLocalShortcutsForId(actionId),
-            application.viewerLocalShortcuts(actionName));
-        QCOMPARE(application.shortcutTextForId(actionId), application.shortcutText(actionName));
-        QCOMPARE(application.menuShortcutForId(actionId), application.menuShortcut(actionName));
-        QCOMPARE(
-            application.menuShortcutTextForId(actionId), application.menuShortcutText(actionName));
+        QAction* action = application.actionForId(actionId);
+        QVERIFY(action != nullptr);
+        const QList<QKeySequence> programWide = application.programWideShortcutsForId(actionId);
+        QCOMPARE(action->shortcuts(), programWide);
+        QCOMPARE(application.menuShortcutTextForId(actionId),
+            Actions::menuShortcut(programWide).toString(QKeySequence::NativeText));
     }
 
     const auto invalidActionId = static_cast<KiriViewApplication::ActionId>(-1);
-    QVERIFY(application.actionName(invalidActionId).isEmpty());
     QCOMPARE(application.actionForId(invalidActionId), nullptr);
-    QCOMPARE(application.shortcutsForId(invalidActionId), QList<QKeySequence>());
     QCOMPARE(application.programWideShortcutsForId(invalidActionId), QList<QKeySequence>());
     QCOMPARE(application.viewerLocalShortcutsForId(invalidActionId), QList<QKeySequence>());
-    QVERIFY(application.shortcutTextForId(invalidActionId).isEmpty());
-    QVERIFY(application.menuShortcutForId(invalidActionId).isEmpty());
     QVERIFY(application.menuShortcutTextForId(invalidActionId).isEmpty());
 
     const auto outOfRangeActionId = static_cast<KiriViewApplication::ActionId>(999);
-    QVERIFY(application.actionName(outOfRangeActionId).isEmpty());
     QCOMPARE(application.actionForId(outOfRangeActionId), nullptr);
-    QCOMPARE(application.shortcutsForId(outOfRangeActionId), QList<QKeySequence>());
     QCOMPARE(application.programWideShortcutsForId(outOfRangeActionId), QList<QKeySequence>());
     QCOMPARE(application.viewerLocalShortcutsForId(outOfRangeActionId), QList<QKeySequence>());
-    QVERIFY(application.shortcutTextForId(outOfRangeActionId).isEmpty());
-    QVERIFY(application.menuShortcutForId(outOfRangeActionId).isEmpty());
     QVERIFY(application.menuShortcutTextForId(outOfRangeActionId).isEmpty());
 
-    QVERIFY(application.actionName(KiriViewApplication::ActionCount).isEmpty());
     QCOMPARE(application.actionForId(KiriViewApplication::ActionCount), nullptr);
-    QCOMPARE(application.shortcutsForId(KiriViewApplication::ActionCount), QList<QKeySequence>());
     QCOMPARE(application.programWideShortcutsForId(KiriViewApplication::ActionCount),
         QList<QKeySequence>());
     QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ActionCount),
         QList<QKeySequence>());
-    QVERIFY(application.shortcutTextForId(KiriViewApplication::ActionCount).isEmpty());
-    QVERIFY(application.menuShortcutForId(KiriViewApplication::ActionCount).isEmpty());
     QVERIFY(application.menuShortcutTextForId(KiriViewApplication::ActionCount).isEmpty());
 }
 
@@ -326,42 +295,39 @@ void TestKiriViewApplication::navigationPresentationApiConvertsRuntimeProjection
         KiriViewApplication::ActionCount);
 }
 
-void TestKiriViewApplication::shortcutsApiReturnsCurrentShortcuts()
+void TestKiriViewApplication::typedShortcutApisReturnCurrentShortcuts()
 {
     KiriViewApplication application;
 
-    QCOMPARE(application.shortcuts(QStringLiteral("view_zoom_in")),
+    QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewZoomInAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("=")), shortcut(QStringLiteral("+")) }));
-    QCOMPARE(application.shortcuts(QStringLiteral("view_zoom_out")),
+    QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewZoomOutAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("-")) }));
-    QCOMPARE(application.shortcuts(QStringLiteral("view_toggle_two_page_mode")),
-        QList<QKeySequence>({ shortcut(QStringLiteral("S")) }));
-    QCOMPARE(application.shortcuts(QStringLiteral("view_toggle_right_to_left_reading")),
-        QList<QKeySequence>({ shortcut(QStringLiteral("B")) }));
-    QCOMPARE(application.shortcuts(QStringLiteral("view_toggle_info_panel")),
-        QList<QKeySequence>({ shortcut(QStringLiteral("I")) }));
-    QCOMPARE(application.shortcuts(QStringLiteral("view_toggle_thumbnail_panel")),
-        QList<QKeySequence>({ shortcut(QStringLiteral("T")) }));
-    QCOMPARE(application.shortcuts(QStringLiteral("view_toggle_video_playback")),
-        QList<QKeySequence>({ shortcut(QStringLiteral("P")) }));
-    QCOMPARE(application.shortcuts(QStringLiteral("options_show_menubar")),
-        QList<QKeySequence>({ shortcut(QStringLiteral("Ctrl+M")) }));
-    QCOMPARE(application.shortcuts(QStringLiteral("open_application_menu")),
-        QList<QKeySequence>({ shortcut(QStringLiteral("F10")) }));
-    QCOMPARE(application.shortcuts(QStringLiteral("view_rotate_clockwise")),
-        QList<QKeySequence>({ shortcut(QStringLiteral("R")) }));
-    QCOMPARE(application.shortcuts(QStringLiteral("view_rotate_counterclockwise")),
-        QList<QKeySequence>({ shortcut(QStringLiteral("Shift+R")) }));
-    QVERIFY(application.action(QStringLiteral("go_previous_single_page")) == nullptr);
     QCOMPARE(
-        application.shortcuts(QStringLiteral("go_previous_single_page")), QList<QKeySequence>());
-    QVERIFY(application.action(QStringLiteral("go_next_single_page")) == nullptr);
-    QCOMPARE(application.shortcuts(QStringLiteral("go_next_single_page")), QList<QKeySequence>());
-    QVERIFY(application.action(QStringLiteral("view_pan_left")) == nullptr);
-    QCOMPARE(application.shortcuts(QStringLiteral("view_pan_left")), QList<QKeySequence>());
-    QCOMPARE(application.shortcuts(QStringLiteral("missing_action")), QList<QKeySequence>());
+        application.viewerLocalShortcutsForId(KiriViewApplication::ViewToggleTwoPageModeAction),
+        QList<QKeySequence>({ shortcut(QStringLiteral("S")) }));
+    QCOMPARE(application.viewerLocalShortcutsForId(
+                 KiriViewApplication::ViewToggleRightToLeftReadingAction),
+        QList<QKeySequence>({ shortcut(QStringLiteral("B")) }));
+    QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewToggleInfoPanelAction),
+        QList<QKeySequence>({ shortcut(QStringLiteral("I")) }));
+    QCOMPARE(
+        application.viewerLocalShortcutsForId(KiriViewApplication::ViewToggleThumbnailPanelAction),
+        QList<QKeySequence>({ shortcut(QStringLiteral("T")) }));
+    QCOMPARE(
+        application.viewerLocalShortcutsForId(KiriViewApplication::ViewToggleVideoPlaybackAction),
+        QList<QKeySequence>({ shortcut(QStringLiteral("P")) }));
+    QCOMPARE(application.programWideShortcutsForId(KiriViewApplication::OptionsShowMenubarAction),
+        QList<QKeySequence>({ shortcut(QStringLiteral("Ctrl+M")) }));
+    QCOMPARE(application.programWideShortcutsForId(KiriViewApplication::OpenApplicationMenuAction),
+        QList<QKeySequence>({ shortcut(QStringLiteral("F10")) }));
+    QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewRotateClockwiseAction),
+        QList<QKeySequence>({ shortcut(QStringLiteral("R")) }));
+    QCOMPARE(application.viewerLocalShortcutsForId(
+                 KiriViewApplication::ViewRotateCounterclockwiseAction),
+        QList<QKeySequence>({ shortcut(QStringLiteral("Shift+R")) }));
 
-    QAction* openAction = application.action(QStringLiteral("file_open"));
+    QAction* openAction = application.actionForId(KiriViewApplication::FileOpenAction);
     QVERIFY(openAction != nullptr);
     const QList<QKeySequence> customShortcuts = {
         shortcut(QStringLiteral("Alt+O")),
@@ -370,61 +336,60 @@ void TestKiriViewApplication::shortcutsApiReturnsCurrentShortcuts()
 
     openAction->setShortcuts(customShortcuts);
 
-    QCOMPARE(application.shortcuts(QStringLiteral("file_open")), customShortcuts);
+    QCOMPARE(application.programWideShortcutsForId(KiriViewApplication::FileOpenAction),
+        customShortcuts);
 
     openAction->setShortcuts({ shortcut(QStringLiteral("O")) });
-    QCOMPARE(application.shortcuts(QStringLiteral("file_open")), QList<QKeySequence>());
+    QCOMPARE(application.programWideShortcutsForId(KiriViewApplication::FileOpenAction),
+        QList<QKeySequence>());
 }
 
 void TestKiriViewApplication::zoomPresetActionsUseNewDefaultShortcutMap()
 {
     KiriViewApplication application;
 
-    expectDefaultShortcuts(application, QStringLiteral("view_zoom_50_percent"), {});
-    expectDefaultShortcuts(application, QStringLiteral("view_zoom_100_percent"), {});
-    expectDefaultShortcuts(application, QStringLiteral("view_zoom_200_percent"), {});
-    expectDefaultShortcuts(application, QStringLiteral("view_fit_height"), {});
-    expectDefaultShortcuts(application, QStringLiteral("view_fit_width"), {});
-    expectDefaultShortcuts(application, QStringLiteral("view_fit"), {});
-    QCOMPARE(application.viewerLocalShortcuts(QStringLiteral("view_zoom_50_percent")),
+    expectDefaultShortcuts(application, KiriViewApplication::ViewZoom50PercentAction, {});
+    expectDefaultShortcuts(application, KiriViewApplication::ViewZoom100PercentAction, {});
+    expectDefaultShortcuts(application, KiriViewApplication::ViewZoom200PercentAction, {});
+    expectDefaultShortcuts(application, KiriViewApplication::ViewFitHeightAction, {});
+    expectDefaultShortcuts(application, KiriViewApplication::ViewFitWidthAction, {});
+    expectDefaultShortcuts(application, KiriViewApplication::ViewFitAction, {});
+    QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewZoom50PercentAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("`")) }));
-    QCOMPARE(application.viewerLocalShortcuts(QStringLiteral("view_zoom_100_percent")),
+    QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewZoom100PercentAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("1")) }));
-    QCOMPARE(application.viewerLocalShortcuts(QStringLiteral("view_zoom_200_percent")),
+    QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewZoom200PercentAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("2")) }));
-    QCOMPARE(application.viewerLocalShortcuts(QStringLiteral("view_fit_height")),
+    QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewFitHeightAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("8")) }));
-    QCOMPARE(application.viewerLocalShortcuts(QStringLiteral("view_fit_width")),
+    QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewFitWidthAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("9")) }));
-    QCOMPARE(application.viewerLocalShortcuts(QStringLiteral("view_fit")),
+    QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewFitAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("0")) }));
-    QCOMPARE(application.viewerLocalShortcuts(QStringLiteral("view_toggle_video_playback")),
+    QCOMPARE(
+        application.viewerLocalShortcutsForId(KiriViewApplication::ViewToggleVideoPlaybackAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("P")) }));
-    QVERIFY(application.action(QStringLiteral("view_actual_size")) == nullptr);
 }
 
 void TestKiriViewApplication::shortcutScopeApisSeparateProgramWideAndViewerLocalShortcuts()
 {
     KiriViewApplication application;
 
-    QCOMPARE(application.viewerLocalShortcuts(QStringLiteral("file_quit")),
+    QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::FileQuitAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("Q")) }));
-    QCOMPARE(application.programWideShortcuts(QStringLiteral("file_quit")),
+    QCOMPARE(application.programWideShortcutsForId(KiriViewApplication::FileQuitAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("Ctrl+Q")) }));
-    QCOMPARE(application.programWideShortcuts(QStringLiteral("view_rotate_clockwise")),
+    QCOMPARE(application.programWideShortcutsForId(KiriViewApplication::ViewRotateClockwiseAction),
         QList<QKeySequence>());
-    QCOMPARE(application.viewerLocalShortcuts(QStringLiteral("view_rotate_clockwise")),
+    QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewRotateClockwiseAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("R")) }));
-    QCOMPARE(application.programWideShortcuts(QStringLiteral("view_rotate_counterclockwise")),
+    QCOMPARE(application.programWideShortcutsForId(
+                 KiriViewApplication::ViewRotateCounterclockwiseAction),
         QList<QKeySequence>());
-    QCOMPARE(application.viewerLocalShortcuts(QStringLiteral("view_rotate_counterclockwise")),
+    QCOMPARE(application.viewerLocalShortcutsForId(
+                 KiriViewApplication::ViewRotateCounterclockwiseAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("Shift+R")) }));
-    QCOMPARE(
-        application.programWideShortcuts(QStringLiteral("missing_action")), QList<QKeySequence>());
-    QCOMPARE(
-        application.viewerLocalShortcuts(QStringLiteral("missing_action")), QList<QKeySequence>());
-
-    QAction* quitAction = application.action(QStringLiteral("file_quit"));
+    QAction* quitAction = application.actionForId(KiriViewApplication::FileQuitAction);
     QVERIFY(quitAction != nullptr);
     quitAction->setShortcuts({ shortcut(QStringLiteral("Alt+Q")),
         shortcut(QStringLiteral("Shift+Q")), shortcut(QStringLiteral("Meta+Q")),
@@ -434,15 +399,15 @@ void TestKiriViewApplication::shortcutScopeApisSeparateProgramWideAndViewerLocal
         QList<QKeySequence>(
             { shortcut(QStringLiteral("Alt+Q")), shortcut(QStringLiteral("Shift+Q")),
                 shortcut(QStringLiteral("Meta+Q")), shortcut(QStringLiteral("Ctrl+Shift+Q")) }));
-    QCOMPARE(application.programWideShortcuts(QStringLiteral("file_quit")),
+    QCOMPARE(application.programWideShortcutsForId(KiriViewApplication::FileQuitAction),
         QList<QKeySequence>(
             { shortcut(QStringLiteral("Alt+Q")), shortcut(QStringLiteral("Shift+Q")),
                 shortcut(QStringLiteral("Meta+Q")), shortcut(QStringLiteral("Ctrl+Shift+Q")) }));
-    QCOMPARE(application.viewerLocalShortcuts(QStringLiteral("file_quit")),
+    QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::FileQuitAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("Q")) }));
 
-    QVERIFY(application.setViewerLocalShortcuts(
-        QStringLiteral("view_rotate_clockwise"), { shortcut(QStringLiteral("Ctrl+L")) }));
+    QVERIFY(application.setViewerLocalShortcutsForId(
+        KiriViewApplication::ViewRotateClockwiseAction, { shortcut(QStringLiteral("Ctrl+L")) }));
     QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewRotateClockwiseAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("Ctrl+L")) }));
     QCOMPARE(application.menuShortcutTextForId(KiriViewApplication::ViewRotateClockwiseAction),
@@ -453,49 +418,25 @@ void TestKiriViewApplication::menuShortcutTextReturnsFirstDisplaySafeShortcut()
 {
     KiriViewApplication application;
 
-    QVERIFY(application.menuShortcutText(QStringLiteral("view_rotate_clockwise")).isEmpty());
-    QVERIFY(application.menuShortcut(QStringLiteral("view_rotate_clockwise")).isEmpty());
     QVERIFY(application.menuShortcutTextForId(KiriViewApplication::ViewRotateClockwiseAction)
             .isEmpty());
     QVERIFY(
-        application.menuShortcutForId(KiriViewApplication::ViewRotateClockwiseAction).isEmpty());
-    QCOMPARE(application.shortcutText(QStringLiteral("view_rotate_clockwise")),
-        nativeText(shortcut(QStringLiteral("R"))));
+        application.menuShortcutTextForId(KiriViewApplication::FileMoveToTrashAction).isEmpty());
+    QVERIFY(application.menuShortcutTextForId(KiriViewApplication::FileDeleteAction).isEmpty());
+    QVERIFY(
+        application.menuShortcutTextForId(KiriViewApplication::GoPreviousImageAction).isEmpty());
 
-    QVERIFY(application.menuShortcutText(QStringLiteral("movetotrash")).isEmpty());
-    QVERIFY(application.menuShortcutForId(KiriViewApplication::FileMoveToTrashAction).isEmpty());
-    QVERIFY(application.menuShortcutText(QStringLiteral("deletefile")).isEmpty());
-    QVERIFY(application.menuShortcutText(QStringLiteral("view_pan_left")).isEmpty());
-    QVERIFY(application.menuShortcutText(QStringLiteral("go_previous_image")).isEmpty());
-
-    QAction* openAction = application.action(QStringLiteral("file_open"));
+    QAction* openAction = application.actionForId(KiriViewApplication::FileOpenAction);
     QVERIFY(openAction != nullptr);
     openAction->setShortcuts({ QKeySequence(), shortcut(QStringLiteral("Delete")),
         shortcut(QStringLiteral("Alt+O")), shortcut(QStringLiteral("Ctrl+Shift+O")) });
 
-    QCOMPARE(application.menuShortcutText(QStringLiteral("file_open")),
-        nativeText(shortcut(QStringLiteral("Alt+O"))));
-    QCOMPARE(
-        application.menuShortcut(QStringLiteral("file_open")), shortcut(QStringLiteral("Alt+O")));
     QCOMPARE(application.menuShortcutTextForId(KiriViewApplication::FileOpenAction),
         nativeText(shortcut(QStringLiteral("Alt+O"))));
-    QCOMPARE(application.shortcutText(QStringLiteral("file_open")),
-        QStringLiteral("%1 / %2 / %3")
-            .arg(nativeText(shortcut(QStringLiteral("Delete"))),
-                nativeText(shortcut(QStringLiteral("Alt+O"))),
-                nativeText(shortcut(QStringLiteral("Ctrl+Shift+O")))));
-
-    QCOMPARE(application.menuShortcutText(QStringLiteral("options_show_menubar")),
-        nativeText(shortcut(QStringLiteral("Ctrl+M"))));
-    QCOMPARE(application.menuShortcutForId(KiriViewApplication::OptionsShowMenubarAction),
-        shortcut(QStringLiteral("Ctrl+M")));
     QCOMPARE(application.menuShortcutTextForId(KiriViewApplication::OptionsShowMenubarAction),
         nativeText(shortcut(QStringLiteral("Ctrl+M"))));
-    QCOMPARE(application.menuShortcutText(QStringLiteral("open_application_menu")),
+    QCOMPARE(application.menuShortcutTextForId(KiriViewApplication::OpenApplicationMenuAction),
         nativeText(shortcut(QStringLiteral("F10"))));
-    QVERIFY(application.menuShortcutText(QStringLiteral("missing_action")).isEmpty());
-    QVERIFY(
-        application.menuShortcutForId(static_cast<KiriViewApplication::ActionId>(999)).isEmpty());
     QVERIFY(application.menuShortcutTextForId(static_cast<KiriViewApplication::ActionId>(999))
             .isEmpty());
 }
@@ -504,26 +445,26 @@ void TestKiriViewApplication::shortcutRevisionTracksShortcutChanges()
 {
     KiriViewApplication application;
     QSignalSpy revisionSpy(&application, &KiriViewApplication::shortcutRevisionChanged);
-    QAction* rotateAction = application.action(QStringLiteral("view_rotate_clockwise"));
+    QAction* rotateAction = application.actionForId(KiriViewApplication::ViewRotateClockwiseAction);
     QVERIFY(rotateAction != nullptr);
 
     const int initialRevision = application.shortcutRevision();
 
-    QVERIFY(application.setViewerLocalShortcuts(
-        QStringLiteral("view_rotate_clockwise"), { shortcut(QStringLiteral("Ctrl+L")) }));
+    QVERIFY(application.setViewerLocalShortcutsForId(
+        KiriViewApplication::ViewRotateClockwiseAction, { shortcut(QStringLiteral("Ctrl+L")) }));
 
     QTRY_COMPARE(revisionSpy.count(), 1);
     QCOMPARE(application.shortcutRevision(), initialRevision + 1);
-    QCOMPARE(application.shortcuts(QStringLiteral("view_rotate_clockwise")),
+    QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewRotateClockwiseAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("Ctrl+L")) }));
 
-    QVERIFY(application.setViewerLocalShortcuts(
-        QStringLiteral("view_rotate_clockwise"), { shortcut(QStringLiteral("R")) }));
+    QVERIFY(application.setViewerLocalShortcutsForId(
+        KiriViewApplication::ViewRotateClockwiseAction, { shortcut(QStringLiteral("R")) }));
 
     QTRY_COMPARE(revisionSpy.count(), 2);
     QCOMPARE(application.shortcutRevision(), initialRevision + 2);
     QCOMPARE(rotateAction->shortcuts(), QList<QKeySequence>());
-    QCOMPARE(application.shortcuts(QStringLiteral("view_rotate_clockwise")),
+    QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::ViewRotateClockwiseAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("R")) }));
 }
 
@@ -531,7 +472,8 @@ void TestKiriViewApplication::fixedCommandShortcutsAreNonConfigurable()
 {
     KiriViewApplication application;
 
-    QAction* showMenubarAction = application.action(QStringLiteral("options_show_menubar"));
+    QAction* showMenubarAction
+        = application.actionForId(KiriViewApplication::OptionsShowMenubarAction);
     QVERIFY(showMenubarAction != nullptr);
     QCOMPARE(KirigamiActionCollection::defaultShortcuts(showMenubarAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("Ctrl+M")) }));
@@ -540,7 +482,7 @@ void TestKiriViewApplication::fixedCommandShortcutsAreNonConfigurable()
     QVERIFY(!KirigamiActionCollection::isShortcutsConfigurable(showMenubarAction));
 
     QAction* openApplicationMenuAction
-        = application.action(QStringLiteral("open_application_menu"));
+        = application.actionForId(KiriViewApplication::OpenApplicationMenuAction);
     QVERIFY(openApplicationMenuAction != nullptr);
     QCOMPARE(KirigamiActionCollection::defaultShortcuts(openApplicationMenuAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("F10")) }));
@@ -681,8 +623,8 @@ void TestKiriViewApplication::shortcutHelpModelUpdatesShortcutText()
 
     QSignalSpy dataChangedSpy(model, &QAbstractItemModel::dataChanged);
 
-    QVERIFY(application.setViewerLocalShortcuts(
-        QStringLiteral("view_rotate_clockwise"), { shortcut(QStringLiteral("Ctrl+L")) }));
+    QVERIFY(application.setViewerLocalShortcutsForId(
+        KiriViewApplication::ViewRotateClockwiseAction, { shortcut(QStringLiteral("Ctrl+L")) }));
 
     QTRY_VERIFY(!dataChangedSpy.isEmpty());
     QCOMPARE(model->data(rotateIndex, shortcutHelpShortcutTextRole).toString(),
@@ -702,7 +644,7 @@ void TestKiriViewApplication::shortcutHelpModelResetsWhenConfigurableRowsChange(
     QVERIFY(rotateIndex.isValid());
 
     QSignalSpy resetSpy(model, &QAbstractItemModel::modelReset);
-    QAction* rotateAction = application.action(QStringLiteral("view_rotate_clockwise"));
+    QAction* rotateAction = application.actionForId(KiriViewApplication::ViewRotateClockwiseAction);
     QVERIFY(rotateAction != nullptr);
 
     KirigamiActionCollection::setShortcutsConfigurable(rotateAction, false);
@@ -774,7 +716,8 @@ void TestKiriViewApplication::showMenubarActionTogglesMenuPresentation()
 {
     KiriViewApplication application;
 
-    QAction* showMenubarAction = application.action(QStringLiteral("options_show_menubar"));
+    QAction* showMenubarAction
+        = application.actionForId(KiriViewApplication::OptionsShowMenubarAction);
     QVERIFY(showMenubarAction != nullptr);
     QVERIFY(showMenubarAction->isCheckable());
     QVERIFY(!showMenubarAction->isChecked());

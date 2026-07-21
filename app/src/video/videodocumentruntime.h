@@ -79,9 +79,6 @@ public:
     void cancelPlaybackScrub();
     void requestPlaybackControlSeek(qint64 positionMsec);
 
-    static qint64 clampedSeekPosition(
-        qint64 currentPosition, qint64 deltaMilliseconds, qint64 duration, bool seekable);
-
 private:
     struct PlaybackLifecycle
     {

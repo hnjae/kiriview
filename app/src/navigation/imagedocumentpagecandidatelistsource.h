@@ -83,15 +83,6 @@ private:
     ImageDocumentPageCandidateListSource m_source;
 };
 
-bool sameImageDocumentPageCandidateListContext(const ImageDocumentPageCandidateListContext& left,
-    const ImageDocumentPageCandidateListContext& right);
-
-struct ImageDocumentPageCandidateSnapshot
-{
-    ImageDocumentPageCandidateListSource source;
-    std::vector<ImageDocumentPageCandidate> candidates;
-};
-
 using ImageDocumentPageCandidateRows = std::vector<ImageDocumentPageCandidate>;
 
 struct ImageDocumentPageCandidateListSnapshot
@@ -113,17 +104,11 @@ struct ImageDocumentPageCandidateListSnapshotResult
 using ImageDocumentPageCandidateListSnapshotCallback
     = std::function<void(ImageDocumentPageCandidateListSnapshotResult)>;
 
-bool imageDocumentPageCandidateSnapshotMatchesSource(
-    const ImageDocumentPageCandidateSnapshot& snapshot,
-    const ImageDocumentPageCandidateListSource& source);
 bool imageDocumentPageCandidateListSnapshotMatchesSource(
     const ImageDocumentPageCandidateListSnapshot& snapshot,
     const ImageDocumentPageCandidateListSource& source);
 const ImageDocumentPageCandidateRows& imageDocumentPageCandidateRows(
     const ImageDocumentPageCandidateListSnapshot& snapshot);
-std::optional<ImageDocumentPageCandidateSnapshot> imageDocumentPageCandidateValueSnapshot(
-    const ImageDocumentPageCandidateListSnapshot& snapshot);
-
 std::optional<ImageDocumentPageCandidateListContext>
 imageDocumentPageCandidateListContextForDisplayedImage(const DisplayedImageLocation& location);
 }

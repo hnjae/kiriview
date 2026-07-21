@@ -67,17 +67,11 @@ public:
     int shortcutRevision() const;
     QAbstractListModel* shortcutHelpModel() const;
 
-    QAction* action(const QString& actionName);
     QAction* actionForId(ActionId actionId);
-    QString actionName(ActionId actionId) const;
-    ApplicationShortcutProjection shortcutProjection(const QString& actionName) const;
-    ApplicationShortcutProjection shortcutProjectionForId(ActionId actionId) const;
-    QList<QKeySequence> programWideShortcuts(const QString& actionName) const;
     QList<QKeySequence> programWideShortcutsForId(ActionId actionId) const;
-    QList<QKeySequence> viewerLocalShortcuts(const QString& actionName) const;
     QList<QKeySequence> viewerLocalShortcutsForId(ActionId actionId) const;
-    bool setViewerLocalShortcuts(const QString& actionName, const QList<QKeySequence>& shortcuts);
     bool setViewerLocalShortcutsForId(ActionId actionId, const QList<QKeySequence>& shortcuts);
+    QString menuShortcutTextForId(ActionId actionId) const;
     int actionStateRevision() const;
     bool actionPlacementEnabled(ActionId actionId) const;
     QString actionMenuText(ActionId actionId) const;

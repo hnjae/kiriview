@@ -44,12 +44,12 @@ kiriview::ImageWorkerScheduler immediateWorkerScheduler()
 }
 
 kiriview::StaticDisplayImagePayload displayTestImagePayload(
-    const QImage& image, qreal firstDisplayPixelsPerSourcePixel = 0.0)
+    const QImage& image, bool firstDisplay = false)
 {
-    const kiriview::DisplayImageQuality quality = firstDisplayPixelsPerSourcePixel > 0.0
+    const kiriview::DisplayImageQuality quality = firstDisplay
         ? kiriview::DisplayImageQuality::FirstDisplay
         : kiriview::DisplayImageQuality::Exact;
-    return staticDisplayTestImagePayload(image, image, firstDisplayPixelsPerSourcePixel, quality);
+    return staticDisplayTestImagePayload(image, image, quality);
 }
 
 kiriview::DisplayedPredecodeImage displayedPredecodeImage(
@@ -135,7 +135,7 @@ void TestImageDocumentPredecodeController::scheduleAdjacentImagePredecodeUsesPre
 
     state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromUrl(displayedUrl));
     primary = displayedPredecodeImage(
-        state.displayedImageLocation(), displayTestImagePayload(testImage(QSize(10, 8)), 0.5));
+        state.displayedImageLocation(), displayTestImagePayload(testImage(QSize(10, 8)), true));
 
     controller.scheduleAdjacentImagePredecode();
 
@@ -143,11 +143,10 @@ void TestImageDocumentPredecodeController::scheduleAdjacentImagePredecodeUsesPre
         = controller.findPredecodedImage(displayedUrl);
     QVERIFY(displayed.has_value());
     QCOMPARE(displayed->displayImage.quality, kiriview::DisplayImageQuality::FirstDisplay);
-    QCOMPARE(displayed->displayImage.displayPixelsPerSourcePixel, 0.5);
 
     QTRY_COMPARE(dataLoader.loadCount(), std::size_t(1));
     QCOMPARE(dataLoader.frontLoad().url, nextUrl);
-    QCOMPARE(dataLoader.frontLoad().firstDisplay.physicalViewportSize, QSize(640, 480));
+    QCOMPARE(dataLoader.frontLoad().firstDisplay.logicalViewportSize, QSize(640, 480));
 }
 
 void TestImageDocumentPredecodeController::

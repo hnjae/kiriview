@@ -25,7 +25,7 @@ struct ImageViewportProviderWorkIdentity
     ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ImageSequenceProviderRequestToken requestToken;
     ImageViewportDemandRevisionToken demandRevision;
-    QString reuseIdentity;
+    QString locationIdentity;
 };
 
 bool operator==(
@@ -35,9 +35,7 @@ bool operator!=(
 
 struct ImageViewportProviderFrameRequest
 {
-    ImageSequenceProviderRequestKind kind = ImageSequenceProviderRequestKind::Frame;
     int frame = -1;
-    int requestedPosition = -1;
     ImageSequenceProviderDisplayDemand demand;
 };
 
@@ -109,9 +107,9 @@ public:
     using FrameCompletion = std::function<void(
         ImageViewportProviderWorkIdentity, ImageViewportProviderPreparedFrame)>;
 
-    ImageViewportProviderResource(quint64 sourceGeneration, QString reuseIdentity,
+    ImageViewportProviderResource(quint64 sourceGeneration, QString locationIdentity,
         std::shared_ptr<ImageViewportProviderSource> source,
-        std::shared_ptr<DisplayImageStore> displayStore = {},
+        std::shared_ptr<DisplayImageStore> displayStore,
         std::shared_ptr<ImageViewportFailureRegistry> failureRegistry = {},
         std::optional<StaticDisplayImagePayload> predecodedImage = std::nullopt);
     ~ImageViewportProviderResource();
@@ -120,7 +118,7 @@ public:
     ImageViewportProviderResource& operator=(const ImageViewportProviderResource&) = delete;
 
     quint64 sourceGeneration() const { return m_sourceGeneration; }
-    const QString& reuseIdentity() const { return m_reuseIdentity; }
+    const QString& locationIdentity() const { return m_locationIdentity; }
     ImageSequenceProviderMetadata constructionMetadata() const;
     std::shared_ptr<ImageViewportFailureRegistry> failureRegistry() const
     {
@@ -146,7 +144,7 @@ private:
         const ImageViewportProviderWorkIdentity& identity, ImageViewportProviderFrameResult result);
 
     quint64 m_sourceGeneration = 0;
-    QString m_reuseIdentity;
+    QString m_locationIdentity;
     std::shared_ptr<ImageViewportProviderSource> m_source;
     std::shared_ptr<DisplayImageStore> m_displayStore;
     std::shared_ptr<ImageViewportFailureRegistry> m_failureRegistry;

@@ -58,22 +58,7 @@ bool ImageLoadSession::sameSession(const ImageLoadSession& session) const
 
 void ImageLoadSession::setImageDocumentPageCandidate(const ImageDocumentPageCandidate& candidate)
 {
-    setImageTarget(ImageDocumentPageTarget { candidate.url, candidate.kind });
-}
-
-void ImageLoadSession::setImageTarget(const ImageDocumentPageTarget& target)
-{
-    m_location.setImageUrl(target.url);
-    m_kind = target.kind;
-}
-
-void ImageLoadSession::setImageUrl(const QUrl& url)
-{
-    setImageTarget(ImageDocumentPageTarget { url, ImageDocumentPageKind::Image });
-}
-
-void ImageLoadSession::setLocation(DisplayedImageLocation location)
-{
-    m_location = std::move(location);
+    m_location.setImageUrl(candidate.url);
+    m_kind = candidate.kind;
 }
 }

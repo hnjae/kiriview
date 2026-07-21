@@ -117,20 +117,6 @@ ImageDocumentPageCandidateListContext::ImageDocumentPageCandidateListContext(
 {
 }
 
-bool sameImageDocumentPageCandidateListContext(const ImageDocumentPageCandidateListContext& left,
-    const ImageDocumentPageCandidateListContext& right)
-{
-    return sameNormalizedUrl(left.currentUrl(), right.currentUrl())
-        && sameImageDocumentPageCandidateListSource(left.source(), right.source());
-}
-
-bool imageDocumentPageCandidateSnapshotMatchesSource(
-    const ImageDocumentPageCandidateSnapshot& snapshot,
-    const ImageDocumentPageCandidateListSource& source)
-{
-    return sameImageDocumentPageCandidateListSource(snapshot.source, source);
-}
-
 bool imageDocumentPageCandidateListSnapshotMatchesSource(
     const ImageDocumentPageCandidateListSnapshot& snapshot,
     const ImageDocumentPageCandidateListSource& source)
@@ -144,19 +130,6 @@ const ImageDocumentPageCandidateRows& imageDocumentPageCandidateRows(
 {
     static const ImageDocumentPageCandidateRows emptyRows;
     return snapshot.candidates != nullptr ? *snapshot.candidates : emptyRows;
-}
-
-std::optional<ImageDocumentPageCandidateSnapshot> imageDocumentPageCandidateValueSnapshot(
-    const ImageDocumentPageCandidateListSnapshot& snapshot)
-{
-    if (!snapshot.known || !snapshot.source.has_value()) {
-        return std::nullopt;
-    }
-
-    return ImageDocumentPageCandidateSnapshot {
-        *snapshot.source,
-        imageDocumentPageCandidateRows(snapshot),
-    };
 }
 
 std::optional<ImageDocumentPageCandidateListContext>

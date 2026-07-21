@@ -5,7 +5,6 @@
 #define KIRIVIEW_DISPLAYIMAGESTORE_H
 
 #include "rendering/displayimagequality.h"
-#include "rendering/imagerendercontext.h"
 
 #include <QImage>
 #include <QImageIOHandler>
@@ -16,18 +15,15 @@
 #include <optional>
 
 namespace kiriview {
+enum class DisplayedPageRole {
+    Primary,
+    Secondary,
+};
+
 enum class DisplayImageRetentionPriority {
     Nearby,
     Background,
     Visible,
-};
-
-enum class DisplayImagePinKind {
-    Visible,
-    StaleRetained,
-    PendingLoad,
-    FrameRetention,
-    BufferedDisplay,
 };
 
 struct DisplayImageReuseKey
@@ -43,78 +39,43 @@ struct DisplayImageReuseKey
     DisplayedPageRole pageRole = DisplayedPageRole::Primary;
 };
 
-bool operator==(const DisplayImageReuseKey& left, const DisplayImageReuseKey& right);
-bool operator!=(const DisplayImageReuseKey& left, const DisplayImageReuseKey& right);
-
 struct DisplayImageEntry
 {
     QImage image;
     QSize originalSize;
     QSize rasterSize;
-    QString sourceIdentity;
-    DisplayedPageRole pageRole = DisplayedPageRole::Primary;
     DisplayImageQuality quality = DisplayImageQuality::Exact;
     DisplayImageRetentionPriority priority = DisplayImageRetentionPriority::Nearby;
-    quint64 generation = 0;
-    QString debugLabel;
-    DisplayImagePreviewOrigin previewOrigin = DisplayImagePreviewOrigin::None;
 };
 
 struct DisplayImageStoreEntry
 {
-    QString id;
     QImage image;
     QSize originalSize;
     QSize rasterSize;
-    QString sourceIdentity;
-    DisplayedPageRole pageRole = DisplayedPageRole::Primary;
+    QImageIOHandler::Transformations imageReaderTransformations
+        = QImageIOHandler::TransformationNone;
     DisplayImageQuality quality = DisplayImageQuality::Exact;
-    DisplayImageRetentionPriority priority = DisplayImageRetentionPriority::Nearby;
     qsizetype byteCost = 0;
-    quint64 generation = 0;
-    QString debugLabel;
-    DisplayImagePreviewOrigin previewOrigin = DisplayImagePreviewOrigin::None;
-    std::optional<DisplayImageReuseKey> reuseKey;
-};
-
-struct DisplayImageStoreDebugStats
-{
-    qsizetype entryCount = 0;
-    qsizetype idIndexEntryCount = 0;
-    qsizetype reuseIndexEntryCount = 0;
-    qsizetype evictionIndexEntryCount = 0;
-    qsizetype byteCost = 0;
-    qsizetype lastIdLookupEntryScanCount = 0;
-    qsizetype lastReuseLookupEntryScanCount = 0;
 };
 
 class DisplayImageStore final
 {
 public:
-    explicit DisplayImageStore(qsizetype byteBudget = 0);
+    explicit DisplayImageStore(qsizetype byteBudget);
     ~DisplayImageStore();
 
-    QString insert(DisplayImageEntry entry);
     QString acquireReusable(DisplayImageEntry entry, DisplayImageReuseKey reuseKey);
     std::optional<DisplayImageStoreEntry> entry(const QString& id) const;
-    void updatePriority(const QString& id, DisplayImageRetentionPriority priority);
-    bool acquirePinLease(const QString& id, DisplayImagePinKind kind);
-    void releasePinLease(const QString& id, DisplayImagePinKind kind);
-    void release(const QString& id);
-    void clear();
-    void setByteBudget(qsizetype byteBudget);
-    qsizetype byteBudget() const;
+    bool acquireFrameLease(const QString& id);
+    void releaseFrameLease(const QString& id);
     qsizetype byteCost() const;
     qsizetype size() const;
-    DisplayImageStoreDebugStats debugStats() const;
 
 private:
     class Private;
     std::unique_ptr<Private> d;
 };
-
-std::shared_ptr<DisplayImageStore> sharedDisplayImageStore();
-void configureSharedDisplayImageStoreByteBudget(qsizetype byteBudget);
 }
 
 #endif

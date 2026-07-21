@@ -79,7 +79,7 @@ void TestRawDecodeIntegration::smallDngFixtureDecodesWhenRequestUrlLacksRawExten
         = QUrl::fromLocalFile(fixtureInfo.absolutePath() + QStringLiteral("/raw-cfa-smoke"));
     const kiriview::ImageDecodeRequest request
         = kiriview::ImageDecodeRequest::fromUrl(1, extensionlessUrl);
-    QVERIFY(!kiriview::isSupportedRawImageFileName(request.imageUrl().fileName()));
+    QVERIFY(!kiriview::isSupportedImageFileName(request.imageUrl().fileName()));
     verifyDecodedRawFixture(imageData, request);
 }
 

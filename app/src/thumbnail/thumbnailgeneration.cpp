@@ -190,10 +190,10 @@ QImage renderedThumbnailImage(
                     return {};
                 }
                 kiriview::StaticImageDisplayDecodeResult result
-                    = image.displayImage.refinementSource
-                          ->decodeBlockingDisplayImageWithDiagnostics(maximumLongEdge);
+                    = image.displayImage.refinementSource->decodeBlockingDisplayImage(
+                        maximumLongEdge);
                 if (result.image.isNull() && errorString != nullptr) {
-                    *errorString = result.diagnostics.userMessage();
+                    *errorString = result.diagnostics.userMessage;
                 }
                 return result.image;
             } else {
@@ -544,19 +544,6 @@ kiriview::ImageIoJob startVideoThumbnailGenerationJob(QObject* receiver,
 }
 
 namespace kiriview {
-ThumbnailGenerationDependencies defaultThumbnailGenerationDependencies()
-{
-    return ThumbnailGenerationDependencies {
-        defaultThumbnailGenerationBytesLoader,
-        defaultThumbnailGenerationImageDecoder,
-        bucketMaxEdge,
-        defaultOpenedCollectionOriginalIdentityLoader,
-        ThumbnailGenerationCacheRepository {
-            defaultThumbnailGenerationCacheLookup, installThumbnail },
-        videoThumbnailExtractionProvider(),
-    };
-}
-
 ThumbnailGenerationResult generateThumbnail(
     const ThumbnailGenerationRequest& request, ThumbnailGenerationDependencies dependencies)
 {

@@ -19,7 +19,6 @@ Item {
     readonly property bool imageReady: documentSession.activeImageReady
     readonly property url activeDelegateSource: imageMode ? Qt.resolvedUrl("ImageViewport.qml") : videoMode ? Qt.resolvedUrl("VideoViewport.qml") : ""
     readonly property var activeDelegate: mediaViewportDelegateLoader.item
-    readonly property ImageViewportInteractionSurface imageInteractionSurface: imageMode && activeDelegate !== null && activeDelegate.imageInteractionSurface !== null ? activeDelegate.imageInteractionSurface : inactiveImageInteractionSurface
 
     signal viewerClicked
     signal viewerContextMenuRequested(var popupParent, point position)
@@ -34,10 +33,6 @@ Item {
     clip: true
     Controls.SplitView.fillHeight: true
     Controls.SplitView.minimumHeight: Kirigami.Units.gridUnit * 6
-
-    ImageViewportInteractionSurface {
-        id: inactiveImageInteractionSurface
-    }
 
     Loader {
         id: mediaViewportDelegateLoader

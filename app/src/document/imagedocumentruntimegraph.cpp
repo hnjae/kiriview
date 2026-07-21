@@ -22,7 +22,6 @@
 #include "imagedocumentstate.h"
 #include "imageopencontroller.h"
 #include "imageviewportintegrationruntime.h"
-#include "location/sourcekey.h"
 #include "navigation/imagedocumentpagenavigationservice.h"
 #include "presentation/imagespreadpresentationcontroller.h"
 #include "rendering/displayimagestore.h"
@@ -303,11 +302,12 @@ ImageFirstDisplayDecodeContext ImageDocumentRuntimeGraph::firstDisplayDecodeCont
     if (viewportSize.isEmpty()) {
         return {};
     }
-    const ImageDocumentRenderContext context
-        = m_callbacks.renderContext ? m_callbacks.renderContext() : ImageDocumentRenderContext {};
-    const qreal devicePixelRatio = context.devicePixelRatio > 0.0 ? context.devicePixelRatio : 1.0;
-    return { QSize(qCeil(viewportSize.width() * devicePixelRatio),
-        qCeil(viewportSize.height() * devicePixelRatio)) };
+    return { QSize(qCeil(viewportSize.width()), qCeil(viewportSize.height())) };
+}
+
+void ImageDocumentRuntimeGraph::requestNextViewportTargetAnchorAtEnd()
+{
+    m_nextViewportTargetAnchorAtEnd = true;
 }
 
 bool ImageDocumentRuntimeGraph::prepareViewportImageTarget(
@@ -325,7 +325,6 @@ bool ImageDocumentRuntimeGraph::prepareViewportImageTarget(
     ImageViewportIntegrationTarget target;
     target.sourceGeneration = session.id();
     target.primaryUrl = session.imageUrl();
-    target.navigationScopeIdentity = displayScopeIdentityForLocation(session.location());
     target.transitionIntent = session.request().sameScopePageNavigation()
         ? ImageViewportTargetTransitionIntent::SameNavigationScope
         : session.request().preserveTwoPageSpreadTransition()
@@ -333,6 +332,7 @@ bool ImageDocumentRuntimeGraph::prepareViewportImageTarget(
         : ImageViewportTargetTransitionIntent::OutsideNavigationScope;
     target.rightToLeft
         = m_spreadController != nullptr && m_spreadController->rightToLeftReadingEnabled();
+    target.anchorAtEnd = std::exchange(m_nextViewportTargetAnchorAtEnd, false);
     const std::shared_ptr<DisplayImageStore> displayStore = m_viewportDisplayStore;
     target.primaryResource = [prepared, displayStore]() {
         auto source = std::make_shared<ImageViewportDecodeProviderSource>(
@@ -343,8 +343,9 @@ bool ImageDocumentRuntimeGraph::prepareViewportImageTarget(
             predecodedImage = prepared->predecoded->displayImage;
         }
         return std::make_shared<ImageViewportProviderResource>(prepared->session.id(),
-            sourceKeyForUrl(prepared->session.imageUrl()).identity, std::move(source), displayStore,
-            std::make_shared<ImageViewportFailureRegistry>(), std::move(predecodedImage));
+            displayScopeIdentityForLocation(prepared->session.location()), std::move(source),
+            displayStore, std::make_shared<ImageViewportFailureRegistry>(),
+            std::move(predecodedImage));
     };
 
     m_viewportLoadSession = session;
@@ -391,8 +392,9 @@ void ImageDocumentRuntimeGraph::prepareViewportSecondaryImageTarget(ImageLoadSes
             predecodedImage = prepared->predecoded->displayImage;
         }
         return std::make_shared<ImageViewportProviderResource>(prepared->session.id(),
-            sourceKeyForUrl(prepared->session.imageUrl()).identity, std::move(source), displayStore,
-            std::make_shared<ImageViewportFailureRegistry>(), std::move(predecodedImage));
+            displayScopeIdentityForLocation(prepared->session.location()), std::move(source),
+            displayStore, std::make_shared<ImageViewportFailureRegistry>(),
+            std::move(predecodedImage));
     };
     m_viewportSecondaryLoadSession = session;
     m_viewportTarget = std::make_unique<ImageViewportIntegrationTarget>(target);
@@ -427,6 +429,7 @@ void ImageDocumentRuntimeGraph::clearViewportTarget()
     m_viewportTarget.reset();
     m_viewportMetadata = {};
     m_viewportLoadTerminal = false;
+    m_nextViewportTargetAnchorAtEnd = false;
     if (m_viewportIntegration != nullptr) {
         m_viewportIntegration->clearTarget();
     }

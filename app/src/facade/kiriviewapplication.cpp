@@ -192,34 +192,9 @@ KiriViewApplication::ActionId KiriViewApplication::facadeActionId(Actions::Actio
     return static_cast<ActionId>(static_cast<int>(actionId));
 }
 
-QAction* KiriViewApplication::action(const QString& actionName)
-{
-    return m_actionRuntime->action(actionName);
-}
-
 QAction* KiriViewApplication::actionForId(ActionId actionId)
 {
     return m_actionRuntime->actionForId(domainActionId(actionId));
-}
-
-QString KiriViewApplication::actionName(ActionId actionId) const
-{
-    return m_actionRuntime->actionName(domainActionId(actionId));
-}
-
-QList<QKeySequence> KiriViewApplication::shortcuts(const QString& actionName) const
-{
-    return m_actionRuntime->shortcutProjection(actionName).shortcuts;
-}
-
-QList<QKeySequence> KiriViewApplication::shortcutsForId(ActionId actionId) const
-{
-    return m_actionRuntime->shortcutProjectionForId(domainActionId(actionId)).shortcuts;
-}
-
-QList<QKeySequence> KiriViewApplication::programWideShortcuts(const QString& actionName) const
-{
-    return m_actionRuntime->programWideShortcuts(actionName);
 }
 
 QList<QKeySequence> KiriViewApplication::programWideShortcutsForId(ActionId actionId) const
@@ -227,20 +202,9 @@ QList<QKeySequence> KiriViewApplication::programWideShortcutsForId(ActionId acti
     return m_actionRuntime->programWideShortcutsForId(domainActionId(actionId));
 }
 
-QList<QKeySequence> KiriViewApplication::viewerLocalShortcuts(const QString& actionName) const
-{
-    return m_actionRuntime->viewerLocalShortcuts(actionName);
-}
-
 QList<QKeySequence> KiriViewApplication::viewerLocalShortcutsForId(ActionId actionId) const
 {
     return m_actionRuntime->viewerLocalShortcutsForId(domainActionId(actionId));
-}
-
-bool KiriViewApplication::setViewerLocalShortcuts(
-    const QString& actionName, const QList<QKeySequence>& shortcuts)
-{
-    return m_actionRuntime->setViewerLocalShortcuts(actionName, shortcuts);
 }
 
 bool KiriViewApplication::setViewerLocalShortcutsForId(
@@ -249,34 +213,9 @@ bool KiriViewApplication::setViewerLocalShortcutsForId(
     return m_actionRuntime->setViewerLocalShortcutsForId(domainActionId(actionId), shortcuts);
 }
 
-QString KiriViewApplication::shortcutText(const QString& actionName) const
-{
-    return m_actionRuntime->shortcutProjection(actionName).shortcutText;
-}
-
-QString KiriViewApplication::shortcutTextForId(ActionId actionId) const
-{
-    return m_actionRuntime->shortcutProjectionForId(domainActionId(actionId)).shortcutText;
-}
-
-QKeySequence KiriViewApplication::menuShortcut(const QString& actionName) const
-{
-    return m_actionRuntime->shortcutProjection(actionName).menuShortcut;
-}
-
-QKeySequence KiriViewApplication::menuShortcutForId(ActionId actionId) const
-{
-    return m_actionRuntime->shortcutProjectionForId(domainActionId(actionId)).menuShortcut;
-}
-
-QString KiriViewApplication::menuShortcutText(const QString& actionName) const
-{
-    return m_actionRuntime->shortcutProjection(actionName).menuShortcutText;
-}
-
 QString KiriViewApplication::menuShortcutTextForId(ActionId actionId) const
 {
-    return m_actionRuntime->shortcutProjectionForId(domainActionId(actionId)).menuShortcutText;
+    return m_actionRuntime->menuShortcutTextForId(domainActionId(actionId));
 }
 
 bool KiriViewApplication::actionPlacementEnabled(ActionId actionId) const
@@ -494,9 +433,9 @@ Actions::KiriViewApplicationCommandPortSource::commandRouterImagePresentationPor
         KiriImageDocument* image = imageDocument();
         return image != nullptr && image->requestViewportScanBackward();
     };
-    ports.requestNextDisplayedImageStartToFinalScanPosition = [this]() {
+    ports.requestNextViewportTargetAnchorAtEnd = [this]() {
         if (KiriImageDocument* image = imageDocument()) {
-            image->requestNextDisplayedImageStartToFinalScanPosition();
+            image->requestNextViewportTargetAnchorAtEnd();
         }
     };
     ports.requestViewportPanToInitialScanPosition = [this]() {

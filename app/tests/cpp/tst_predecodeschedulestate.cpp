@@ -71,18 +71,18 @@ class TestPredecodeScheduleState : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
-    void schedulePublishesCurrentContextAndPendingGeneration();
-    void invalidScheduleCancelsPendingAndClearsCurrentContext();
+    void schedulePublishesPendingGeneration();
+    void invalidScheduleCancelsPendingAndPreventsResume();
     void scheduleAcceptsCursorWithoutDisplayedImages();
     void immediateScheduleStartsSelectedTargetWithoutDebounce();
     void pendingScheduleCarriesPayload();
-    void powerSaverSuppressesPendingScheduleButKeepsCurrentContext();
-    void disablingPowerSaverReschedulesCurrentContext();
-    void cancelClearsCurrentContextAndMomentum();
+    void powerSaverSuppressesPendingSchedule();
+    void disablingPowerSaverReschedulesLastValidSchedule();
+    void cancelPreventsResumeAndClearsMomentum();
     void settledNeutralScheduleReissuesPendingGeneration();
 };
 
-void TestPredecodeScheduleState::schedulePublishesCurrentContextAndPendingGeneration()
+void TestPredecodeScheduleState::schedulePublishesPendingGeneration()
 {
     kiriview::PredecodeScheduleState state;
     const QUrl firstUrl = kiriview::TestSupport::indexedImageUrl(1);
@@ -109,7 +109,7 @@ void TestPredecodeScheduleState::schedulePublishesCurrentContextAndPendingGenera
     QCOMPARE(pending->generation, debounceOperation->schedule.generation);
 }
 
-void TestPredecodeScheduleState::invalidScheduleCancelsPendingAndClearsCurrentContext()
+void TestPredecodeScheduleState::invalidScheduleCancelsPendingAndPreventsResume()
 {
     kiriview::PredecodeScheduleState state;
     const kiriview::PredecodeScheduleRuntimePlan update
@@ -124,7 +124,8 @@ void TestPredecodeScheduleState::invalidScheduleCancelsPendingAndClearsCurrentCo
     QVERIFY(operationAt<kiriview::CancelBackgroundPredecodeOperation>(invalidUpdate, 0) != nullptr);
     QVERIFY(!state.pendingDebouncedSchedule().has_value());
     QVERIFY(!state.accepts(debounceOperation->schedule.generation));
-    QVERIFY(!state.currentContext().has_value());
+    state.setPowerSaverEnabled(true, 1300);
+    QVERIFY(state.setPowerSaverEnabled(false, 1400).empty());
 }
 
 void TestPredecodeScheduleState::scheduleAcceptsCursorWithoutDisplayedImages()
@@ -193,7 +194,7 @@ void TestPredecodeScheduleState::pendingScheduleCarriesPayload()
     QCOMPARE(payloadMarker(pending->context), 42);
 }
 
-void TestPredecodeScheduleState::powerSaverSuppressesPendingScheduleButKeepsCurrentContext()
+void TestPredecodeScheduleState::powerSaverSuppressesPendingSchedule()
 {
     kiriview::PredecodeScheduleState state;
     const kiriview::PredecodeScheduleRuntimePlan enablePlan = state.setPowerSaverEnabled(true, 900);
@@ -212,13 +213,9 @@ void TestPredecodeScheduleState::powerSaverSuppressesPendingScheduleButKeepsCurr
     QVERIFY(cacheOperation != nullptr);
     QVERIFY(operationAt<kiriview::ClearPredecodeWindowUrlsOperation>(update, 2) != nullptr);
     QVERIFY(!state.pendingDebouncedSchedule().has_value());
-
-    const std::optional<kiriview::PredecodeScheduleContext> current = state.currentContext();
-    QVERIFY(current.has_value());
-    QCOMPARE(current->currentLocation.imageUrl(), displayedUrl);
 }
 
-void TestPredecodeScheduleState::disablingPowerSaverReschedulesCurrentContext()
+void TestPredecodeScheduleState::disablingPowerSaverReschedulesLastValidSchedule()
 {
     kiriview::PredecodeScheduleState state;
     state.setPowerSaverEnabled(true, 900);
@@ -246,7 +243,7 @@ void TestPredecodeScheduleState::disablingPowerSaverReschedulesCurrentContext()
     QVERIFY(state.accepts(debounceOperation->schedule.generation));
 }
 
-void TestPredecodeScheduleState::cancelClearsCurrentContextAndMomentum()
+void TestPredecodeScheduleState::cancelPreventsResumeAndClearsMomentum()
 {
     kiriview::PredecodeScheduleState state;
     state.schedule(scheduleContext(kiriview::TestSupport::indexedImageUrl(4), 4), 1000);
@@ -256,9 +253,10 @@ void TestPredecodeScheduleState::cancelClearsCurrentContextAndMomentum()
 
     state.cancel();
 
-    QVERIFY(!state.currentContext().has_value());
     QVERIFY(!state.pendingDebouncedSchedule().has_value());
     QVERIFY(state.momentumMode() == kiriview::PredecodeMomentumMode::Neutral);
+    state.setPowerSaverEnabled(true, 1700);
+    QVERIFY(state.setPowerSaverEnabled(false, 1800).empty());
 }
 
 void TestPredecodeScheduleState::settledNeutralScheduleReissuesPendingGeneration()

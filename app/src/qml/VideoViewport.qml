@@ -12,8 +12,6 @@ import org.kde.kirigami as Kirigami
 MediaViewportDelegate {
     id: root
 
-    property alias controls: floatingControls
-    property alias videoOutput: videoOutput
     readonly property var videoDocument: root.documentSession.videoDocument
     readonly property var playbackControls: root.videoDocument.playbackControls
     readonly property bool videoReady: root.documentSession.activeVideoReady

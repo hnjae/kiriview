@@ -98,9 +98,6 @@ mod ffi {
     }
 
     extern "Rust" {
-        #[cxx_name = "rustIsSupportedArchiveRootScheme"]
-        fn rust_is_supported_archive_root_scheme(scheme: &str) -> bool;
-
         #[cxx_name = "rustArchiveStorageBackendForRootScheme"]
         fn rust_archive_storage_backend_for_root_scheme(scheme: &str) -> RustArchiveStorageBackend;
 
@@ -110,38 +107,21 @@ mod ffi {
         #[cxx_name = "rustSupportedComicBookArchiveExtensions"]
         fn rust_supported_comic_book_archive_extensions() -> Vec<String>;
 
-        #[cxx_name = "rustSupportedComicBookArchiveMimeTypes"]
-        fn rust_supported_comic_book_archive_mime_types() -> Vec<String>;
-
         #[cxx_name = "rustComicBookArchiveMatchForFileName"]
         fn rust_comic_book_archive_match_for_file_name(file_name: &str) -> RustArchiveOpenMatch;
 
         #[cxx_name = "rustDirectArchiveOpenMatchForFileName"]
         fn rust_direct_archive_open_match_for_file_name(file_name: &str) -> RustArchiveOpenMatch;
 
-        #[cxx_name = "rustComicBookArchiveMatchForMimeTypeName"]
-        fn rust_comic_book_archive_match_for_mime_type_name(
-            mime_type_name: &str,
-        ) -> RustArchiveOpenMatch;
-
         #[cxx_name = "rustDirectArchiveOpenMatchForMimeTypeName"]
         fn rust_direct_archive_open_match_for_mime_type_name(
             mime_type_name: &str,
         ) -> RustArchiveOpenMatch;
 
-        #[cxx_name = "rustComicBookArchiveMarkerForRootScheme"]
-        fn rust_comic_book_archive_marker_for_root_scheme(scheme: &str) -> String;
-
-        #[cxx_name = "rustDirectArchiveOpenMarkersForRootScheme"]
-        fn rust_direct_archive_open_markers_for_root_scheme(scheme: &str) -> Vec<String>;
     }
 }
 
 use ffi::{RustArchiveOpenMatch, RustArchiveOpenMatchKind, RustArchiveStorageBackend};
-
-fn rust_is_supported_archive_root_scheme(scheme: &str) -> bool {
-    archive_format_for_scheme(scheme).is_some()
-}
 
 fn rust_archive_storage_backend_for_root_scheme(scheme: &str) -> RustArchiveStorageBackend {
     archive_format_for_scheme(scheme)
@@ -156,14 +136,6 @@ fn rust_supported_comic_book_archive_extensions() -> Vec<String> {
     supported_comic_book_archive_extensions()
 }
 
-fn rust_supported_comic_book_archive_mime_types() -> Vec<String> {
-    unique_sorted_strings(
-        ARCHIVE_FORMATS
-            .iter()
-            .flat_map(|format| format.comic_book.mime_types.iter().copied()),
-    )
-}
-
 fn rust_comic_book_archive_match_for_file_name(file_name: &str) -> RustArchiveOpenMatch {
     archive_match_for_file_name(file_name, ArchiveProfileSet::ComicBookOnly)
 }
@@ -172,20 +144,8 @@ fn rust_direct_archive_open_match_for_file_name(file_name: &str) -> RustArchiveO
     archive_match_for_file_name(file_name, ArchiveProfileSet::DirectlyOpenable)
 }
 
-fn rust_comic_book_archive_match_for_mime_type_name(mime_type_name: &str) -> RustArchiveOpenMatch {
-    archive_match_for_mime_type_name(mime_type_name, ArchiveProfileSet::ComicBookOnly)
-}
-
 fn rust_direct_archive_open_match_for_mime_type_name(mime_type_name: &str) -> RustArchiveOpenMatch {
     archive_match_for_mime_type_name(mime_type_name, ArchiveProfileSet::DirectlyOpenable)
-}
-
-fn rust_comic_book_archive_marker_for_root_scheme(scheme: &str) -> String {
-    comic_book_archive_marker_for_root_scheme(scheme)
-}
-
-fn rust_direct_archive_open_markers_for_root_scheme(scheme: &str) -> Vec<String> {
-    direct_archive_open_markers_for_root_scheme(scheme)
 }
 
 pub(crate) fn supported_comic_book_archive_extensions() -> Vec<String> {
@@ -193,20 +153,6 @@ pub(crate) fn supported_comic_book_archive_extensions() -> Vec<String> {
         .iter()
         .map(|format| format.comic_book.extension.to_owned())
         .collect()
-}
-
-pub(crate) fn comic_book_archive_marker_for_root_scheme(scheme: &str) -> String {
-    archive_format_for_scheme(scheme)
-        .map_or_else(String::new, |format| marker_string(&format.comic_book))
-}
-
-pub(crate) fn direct_archive_open_markers_for_root_scheme(scheme: &str) -> Vec<String> {
-    archive_format_for_scheme(scheme).map_or_else(Vec::new, |format| {
-        vec![
-            marker_string(&format.comic_book),
-            marker_string(&format.direct_archive),
-        ]
-    })
 }
 
 pub(crate) fn archive_root_scheme_uses_kio_fuse(scheme: &str) -> bool {
@@ -294,17 +240,6 @@ fn empty_archive_open_match() -> RustArchiveOpenMatch {
     }
 }
 
-fn marker_string(profile: &ArchiveOpenProfile) -> String {
-    format!(".{}/", profile.extension)
-}
-
-fn unique_sorted_strings(values: impl IntoIterator<Item = &'static str>) -> Vec<String> {
-    let mut strings: Vec<String> = values.into_iter().map(str::to_owned).collect();
-    strings.sort();
-    strings.dedup();
-    strings
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -318,20 +253,10 @@ mod tests {
     }
 
     #[test]
-    fn exposes_supported_archive_extensions_and_mime_types() {
+    fn exposes_supported_archive_extensions() {
         assert_eq!(
             rust_supported_comic_book_archive_extensions(),
             ["cbz", "cbt", "cb7", "cbr"]
-        );
-        assert_eq!(
-            rust_supported_comic_book_archive_mime_types(),
-            [
-                "application/vnd.comicbook+zip",
-                "application/vnd.comicbook-rar",
-                "application/x-cb7",
-                "application/x-cbr",
-                "application/x-cbt",
-            ]
         );
     }
 
@@ -371,33 +296,15 @@ mod tests {
             general,
             Some((scheme, RustArchiveOpenMatchKind::GeneralArchive)) if scheme == "rar"
         ));
-
-        assert!(
-            match_scheme(rust_comic_book_archive_match_for_mime_type_name(
-                "application/vnd.rar"
-            ))
-            .is_none()
-        );
     }
 
     #[test]
-    fn maps_archive_root_schemes_to_backend_and_markers() {
-        assert!(rust_is_supported_archive_root_scheme("zip"));
-        assert!(!rust_is_supported_archive_root_scheme("unknown"));
+    fn maps_archive_root_schemes_to_backend() {
         assert!(matches!(
             rust_archive_storage_backend_for_root_scheme("tar"),
             RustArchiveStorageBackend::KTar
         ));
         assert!(rust_archive_root_scheme_uses_kio_fuse("sevenz"));
         assert!(!rust_archive_root_scheme_uses_kio_fuse("rar"));
-        assert_eq!(
-            rust_comic_book_archive_marker_for_root_scheme("zip"),
-            ".cbz/"
-        );
-        assert_eq!(
-            rust_direct_archive_open_markers_for_root_scheme("rar"),
-            [".cbr/", ".rar/"]
-        );
-        assert!(rust_direct_archive_open_markers_for_root_scheme("unknown").is_empty());
     }
 }

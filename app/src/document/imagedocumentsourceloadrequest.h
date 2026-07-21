@@ -59,7 +59,6 @@ public:
             ContainerTarget { std::move(scope), std::move(target) }, false);
     }
 
-    const ImageDocumentSourceAssignment& assignment() const { return m_assignment; }
     const QUrl& sourceUrl() const
     {
         return std::visit(
@@ -113,10 +112,6 @@ public:
     bool sameScopePageNavigation() const
     {
         return std::holds_alternative<SameScopePageTarget>(m_assignment);
-    }
-    bool isContainerNavigation() const
-    {
-        return std::holds_alternative<ContainerTarget>(m_assignment);
     }
     bool isEmpty() const { return sourceUrl().isEmpty(); }
 

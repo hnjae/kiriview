@@ -15,12 +15,6 @@
 #include <utility>
 
 namespace kiriview {
-bool PredecodeCache::canCacheImage(
-    const StaticDisplayImagePayload& displayImage, qsizetype byteBudget)
-{
-    return displayImage.byteCostWithinBudget(byteBudget).has_value();
-}
-
 PredecodeCache::PredecodeCache(qsizetype byteBudget)
     : m_byteBudget(byteBudget)
 {
@@ -212,8 +206,6 @@ void PredecodeCache::cacheImage(const QUrl& url,
     const OpenedCollectionScopeLocation& openedCollectionScope,
     StaticDisplayImagePayload displayImage, EmbeddedMetadata metadata)
 {
-    displayImage.displayScopeIdentity = displayScopeIdentityForLocation(
-        DisplayedImageLocation::fromUrl(url, openedCollectionScope));
     if (!metadata.isEmpty()) {
         displayImage.embeddedMetadata = std::move(metadata);
     }

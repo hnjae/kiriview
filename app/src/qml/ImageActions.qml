@@ -14,9 +14,6 @@ Item {
     property bool videoMode: false
 
     readonly property var openAction: openManagedAction.proxy
-    readonly property var openWithAction: openWithManagedAction.proxy
-    readonly property var moveToTrashAction: moveToTrashManagedAction.proxy
-    readonly property var deleteFileAction: deleteFileManagedAction.proxy
     readonly property var previousContainerAction: previousContainerManagedAction.proxy
     readonly property var nextContainerAction: nextContainerManagedAction.proxy
     readonly property var previousImageAction: previousImageManagedAction.proxy
@@ -26,23 +23,14 @@ Item {
     readonly property var fitAction: fitManagedAction.proxy
     readonly property var fitHeightAction: fitHeightManagedAction.proxy
     readonly property var fitWidthAction: fitWidthManagedAction.proxy
-    readonly property var zoom50PercentAction: zoom50PercentManagedAction.proxy
-    readonly property var zoom100PercentAction: zoom100PercentManagedAction.proxy
-    readonly property var zoom200PercentAction: zoom200PercentManagedAction.proxy
-    readonly property var rotateClockwiseAction: rotateClockwiseManagedAction.proxy
-    readonly property var rotateCounterclockwiseAction: rotateCounterclockwiseManagedAction.proxy
     readonly property var twoPageModeAction: twoPageModeManagedAction.proxy
     readonly property var rightToLeftReadingAction: rightToLeftReadingManagedAction.proxy
     readonly property var infoPanelAction: infoPanelManagedAction.proxy
     readonly property var thumbnailPanelAction: thumbnailPanelManagedAction.proxy
     readonly property var zoomInAction: zoomInManagedAction.proxy
-    readonly property var zoomOutAction: zoomOutManagedAction.proxy
     readonly property var scanForwardAction: scanForwardManagedAction.proxy
     readonly property var scanBackwardAction: scanBackwardManagedAction.proxy
-    readonly property var videoPlaybackAction: videoPlaybackManagedAction.proxy
     readonly property var fullscreenAction: fullscreenManagedAction.proxy
-    readonly property var shortcutHelpAction: shortcutHelpManagedAction.proxy
-    readonly property var configureShortcutsAction: configureShortcutsManagedAction.proxy
     readonly property var showMenubarAction: showMenubarManagedAction.proxy
     readonly property var quitAction: quitManagedAction.proxy
     readonly property var openMenuAction: openManagedAction.menuProxy

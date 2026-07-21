@@ -92,7 +92,6 @@ public:
     bool powerSaverEnabled() const;
     PredecodeMomentumMode momentumMode() const;
 
-    std::optional<PredecodeScheduleContext> currentContext() const;
     std::optional<PredecodePendingSchedule> pendingDebouncedSchedule() const;
     PredecodeScheduleRuntimePlan settlePendingScheduleToNeutral();
     bool accepts(quint64 generation) const;

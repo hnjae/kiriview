@@ -64,12 +64,6 @@ mod ffi {
             requested_bucket: RustThumbnailCacheBucket,
         ) -> RustThumbnailCacheLookupResult;
 
-        #[cxx_name = "rustLookupDisplayThumbnailOriginalRgba8"]
-        fn rust_lookup_display_thumbnail_original_rgba8(
-            identity: &RustThumbnailOriginalIdentity,
-            requested_bucket: RustThumbnailCacheBucket,
-        ) -> RustThumbnailCacheLookupResult;
-
         #[cxx_name = "rustLookupDisplayThumbnailNonFileUriRgba8"]
         fn rust_lookup_display_thumbnail_non_file_uri_rgba8(
             uri: &str,
@@ -82,16 +76,6 @@ mod ffi {
         #[cxx_name = "rustInstallDisplayThumbnailRgba8"]
         fn rust_install_display_thumbnail_rgba8(
             local_path_bytes: &[u8],
-            requested_bucket: RustThumbnailCacheBucket,
-            width: i32,
-            height: i32,
-            stride: i32,
-            rgba8_pixels: &[u8],
-        ) -> RustThumbnailCacheInstallResult;
-
-        #[cxx_name = "rustInstallDisplayThumbnailOriginalRgba8"]
-        fn rust_install_display_thumbnail_original_rgba8(
-            identity: &RustThumbnailOriginalIdentity,
             requested_bucket: RustThumbnailCacheBucket,
             width: i32,
             height: i32,

@@ -223,19 +223,22 @@ public:
     qsizetype byteCost() const override { return kiriview::imageByteCost(m_image); }
     bool supportsRasterDisplayRefinement() const override { return true; }
 
-    QImage decodeRasterDisplayImage(const QSize& rasterSize, QString*) const override
+    kiriview::StaticImageDisplayDecodeResult decodeRasterDisplayImage(
+        const QSize& rasterSize) const override
     {
         if (rasterSize.isEmpty()) {
             return {};
         }
 
-        return kiriview::scaledDisplayImage(m_image, rasterSize);
+        return { kiriview::scaledDisplayImage(m_image, rasterSize), {} };
     }
 
-    QImage decodeBlockingDisplayImage(int maximumLongEdge, QString*) const override
+    kiriview::StaticImageDisplayDecodeResult decodeBlockingDisplayImage(
+        int maximumLongEdge) const override
     {
-        return kiriview::scaledDisplayImage(
-            m_image, kiriview::boundedPreviewSize(m_image.size(), maximumLongEdge));
+        return { kiriview::scaledDisplayImage(
+                     m_image, kiriview::boundedPreviewSize(m_image.size(), maximumLongEdge)),
+            {} };
     }
 
 private:

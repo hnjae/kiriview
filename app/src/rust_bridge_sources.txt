@@ -23,6 +23,5 @@ src/policy/imagespreadnavigation.rs
 src/policy/imagespreadpolicy.rs
 src/policy/imagedocumentpagenavigation.rs
 src/policy/predecodepolicy.rs
-src/policy/rasterdisplaybucketpolicy.rs
 src/policy/svgrenderer.rs
 src/policy/videodocumentpolicy.rs

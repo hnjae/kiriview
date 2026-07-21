@@ -27,8 +27,6 @@ struct PredecodeRequest
 class PredecodeCache
 {
 public:
-    static bool canCacheImage(const StaticDisplayImagePayload& displayImage, qsizetype byteBudget);
-
     explicit PredecodeCache(qsizetype byteBudget);
 
     void clear();

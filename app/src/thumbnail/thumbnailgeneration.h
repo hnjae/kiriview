@@ -94,8 +94,6 @@ using ThumbnailGenerationCallback = std::function<void(ThumbnailGenerationResult
 using ThumbnailGenerationProvider
     = std::function<ImageIoJob(QObject*, ThumbnailGenerationRequest, ThumbnailGenerationCallback)>;
 
-ThumbnailGenerationDependencies defaultThumbnailGenerationDependencies();
-
 ThumbnailGenerationResult generateThumbnail(
     const ThumbnailGenerationRequest& request, ThumbnailGenerationDependencies dependencies = {});
 

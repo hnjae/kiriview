@@ -25,11 +25,9 @@ kiriview::StaticDisplayImagePayload displayPayload(QString sourceIdentity)
         QSize(40, 20),
         std::move(image),
         kiriview::DisplayImageQuality::Exact,
-        1.0,
         {},
         {},
         kiriview::DisplayImagePreviewOrigin::None,
-        QStringLiteral("test-scope"),
     };
 }
 
@@ -140,7 +138,6 @@ struct TargetFixture
         result.sourceGeneration = generation;
         result.primaryUrl = primaryUrl;
         result.secondaryUrl = secondaryUrl;
-        result.navigationScopeIdentity = QStringLiteral("test-scope");
         result.transitionIntent = intent;
         result.rightToLeft = rightToLeft;
         result.anchorAtEnd = anchorAtEnd;
@@ -177,6 +174,7 @@ private Q_SLOTS:
     void staleCompletionCannotPublishOverNewerTarget();
     void twoRoleTargetIsSubmittedAtomically();
     void gesturesAndScrollbarsUseMatchedComponentProjection();
+    void targetAnchorAtEndAppliesThroughTransition();
     void failureReferenceResolvesOnlyForMatchingTarget();
     void failedShapeChangeRestoresPriorApplicationPolicy();
 };
@@ -202,7 +200,6 @@ void TestImageViewportIntegrationRuntime::operationRecordCorrelatesReentrantStat
     for (const kiriview::ImageViewportIntegrationProjection& projection : projections) {
         if (projection.correlated) {
             QCOMPARE(projection.sourceGeneration, quint64(11));
-            QCOMPARE(projection.primaryUrl, fixture.primaryUrl);
         }
     }
     QVERIFY(runtime.projection().correlated);
@@ -231,7 +228,6 @@ void TestImageViewportIntegrationRuntime::replacementAttachmentResubmitsCurrentT
     QCOMPARE(replacement.state().request().acceptedRoleSet().primary(), true);
 
     runtime.detach(&first);
-    QCOMPARE(runtime.attachedViewport(), &replacement);
     QCOMPARE(replacement.state().request().acceptedRoleSet().primary(), true);
 }
 
@@ -258,7 +254,6 @@ void TestImageViewportIntegrationRuntime::staleCompletionCannotPublishOverNewerT
     QCoreApplication::processEvents();
 
     QCOMPARE(runtime.projection().sourceGeneration, quint64(32));
-    QCOMPARE(runtime.projection().primaryUrl, currentTarget.primaryUrl);
     QCOMPARE(runtime.projection().status, kiriview::ImageDocumentStatus::Loading);
 }
 
@@ -298,7 +293,6 @@ void TestImageViewportIntegrationRuntime::twoRoleTargetIsSubmittedAtomically()
         QTest::qWait(5);
     }
     QCOMPARE(runtime.projection().status, kiriview::ImageDocumentStatus::Ready);
-    QCOMPARE(runtime.projection().primaryVisible, true);
     QCOMPARE(runtime.projection().secondaryVisible, true);
 }
 
@@ -331,6 +325,44 @@ void TestImageViewportIntegrationRuntime::gesturesAndScrollbarsUseMatchedCompone
     QVERIFY(runtime.submitHorizontalScrollPosition(1.0));
     QTRY_COMPARE(runtime.projection().horizontalScrollPosition, qreal(1.0));
     QVERIFY(runtime.projection().horizontalScrollPageSize < 1.0);
+}
+
+void TestImageViewportIntegrationRuntime::targetAnchorAtEndAppliesThroughTransition()
+{
+    kiriview::ImageViewportIntegrationRuntime runtime;
+    QQuickWindow window;
+    ImageViewport viewport;
+    hostViewport(window, viewport);
+    viewport.setSize(QSizeF(20, 10));
+    runtime.attach(&viewport);
+
+    TargetFixture initial;
+    initial.generation = 46;
+    initial.primaryUrl = QUrl(QStringLiteral("file:///tmp/anchor-initial.png"));
+    QVERIFY(runtime.submitTarget(initial.target()));
+    QTRY_COMPARE(initial.primarySource->pendingFrames.size(), std::size_t(1));
+    initial.primarySource->completeNext(QStringLiteral("anchor-initial"));
+    QTRY_COMPARE(runtime.projection().status, kiriview::ImageDocumentStatus::Ready);
+    QVERIFY(runtime.setPreferredManualZoomPercent(100.0));
+    QTRY_VERIFY(runtime.projection().horizontallyPannable);
+
+    TargetFixture anchored;
+    anchored.generation = 47;
+    anchored.primaryUrl = QUrl(QStringLiteral("file:///tmp/anchor-next.png"));
+    anchored.anchorAtEnd = true;
+    QVERIFY(runtime.submitTarget(anchored.target()));
+    QTRY_COMPARE(anchored.primarySource->pendingFrames.size(), std::size_t(1));
+    anchored.primarySource->completeNext(QStringLiteral("anchor-next"));
+    for (int attempt = 0;
+        attempt < 100 && runtime.projection().status != kiriview::ImageDocumentStatus::Ready;
+        ++attempt) {
+        renderFrame(window);
+        QTest::qWait(5);
+    }
+
+    QCOMPARE(runtime.projection().status, kiriview::ImageDocumentStatus::Ready);
+    QVERIFY(runtime.projection().maximumContentPosition.x() > 0.0);
+    QCOMPARE(runtime.projection().contentPosition, runtime.projection().maximumContentPosition);
 }
 
 void TestImageViewportIntegrationRuntime::failureReferenceResolvesOnlyForMatchingTarget()
@@ -401,7 +433,6 @@ void TestImageViewportIntegrationRuntime::failedShapeChangeRestoresPriorApplicat
     QVERIFY(runtime.projection().restoredTransition);
     QCOMPARE(runtime.projection().sourceGeneration, quint64(62));
     QCOMPARE(runtime.projection().displayedUrl, initial.primaryUrl);
-    QCOMPARE(runtime.projection().restoredTwoPageModeEnabled, std::optional<bool>(false));
     QCOMPARE(restoredPolicies.size(), std::size_t(1));
     QCOMPARE(restoredPolicies.front(), false);
 }

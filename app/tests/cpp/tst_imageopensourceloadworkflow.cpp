@@ -67,14 +67,12 @@ void TestImageOpenSourceLoadWorkflow::currentSourceLoadUsesRuntimeSnapshotAndReq
 void TestImageOpenSourceLoadWorkflow::displayedComicBookScopeSuppressesRightToLeftReadingReset()
 {
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
-    const std::optional<QUrl> archiveRootUrl = kiriview::comicBookArchiveRootUrl(archiveUrl);
-    QVERIFY(archiveRootUrl.has_value());
-    const QUrl imageUrl(QStringLiteral("%1/01.png").arg(archiveRootUrl->toString()));
-    const QUrl replacementUrl = localUrl(QStringLiteral("/images/page.png"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
         = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
             kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
+    const QUrl imageUrl(QStringLiteral("%1/01.png").arg(archiveCollection->rootUrl().toString()));
+    const QUrl replacementUrl = localUrl(QStringLiteral("/images/page.png"));
 
     const kiriview::ImageDocumentSourceLoadSnapshot snapshot {
         replacementUrl,

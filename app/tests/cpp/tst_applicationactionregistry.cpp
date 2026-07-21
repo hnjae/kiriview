@@ -107,21 +107,15 @@ void TestApplicationActionRegistry::registeredActionsResolveThroughDefinitionIde
     }
 
     for (const Actions::ActionDefinition& definition : Actions::definitions()) {
-        const QString actionName = definitionActionName(definition);
-        QAction* action = registry.action(actionName);
+        QAction* action = registry.actionForId(definition.actionId);
 
-        QVERIFY2(
-            action != nullptr, qPrintable(QStringLiteral("Missing action %1").arg(actionName)));
+        QVERIFY(action != nullptr);
         QCOMPARE(registry.actionForId(definition.actionId), action);
-        QCOMPARE(registry.actionName(definition.actionId), actionName);
     }
 
     const auto invalidActionId = static_cast<ActionId>(-1);
     QCOMPARE(registry.actionForId(invalidActionId), nullptr);
-    QVERIFY(registry.actionName(invalidActionId).isEmpty());
     QCOMPARE(registry.actionForId(ActionId::ActionCount), nullptr);
-    QVERIFY(registry.actionName(ActionId::ActionCount).isEmpty());
-    QCOMPARE(registry.action(QStringLiteral("missing_action")), nullptr);
 }
 
 void TestApplicationActionRegistry::registeredActionsFollowDefinitionOrder()
@@ -161,7 +155,6 @@ void TestApplicationActionRegistry::registryUsesHostInheritedActionLookup()
     QCOMPARE(host.inheritedActionLookupCount, 1);
 
     registry.registerAction(definition, registry.collectionAction(definition));
-    QCOMPARE(registry.action(actionName), action);
     QCOMPARE(registry.actionForId(definition.actionId), action);
 }
 

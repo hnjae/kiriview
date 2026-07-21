@@ -226,11 +226,6 @@ const MediaInformationProjectionSnapshot& DocumentSessionState::mediaInformation
     return m_publicSnapshot.mediaInformation;
 }
 
-const DocumentSessionPublicProjection& DocumentSessionState::publicProjection() const
-{
-    return m_publicSnapshot.projection;
-}
-
 const DocumentSessionPublicSnapshot& DocumentSessionState::publicSnapshot() const
 {
     return m_publicSnapshot;
@@ -280,11 +275,6 @@ void DocumentSessionState::setFileDeletionInProgress(bool inProgress)
 void DocumentSessionState::setOpenedCollectionVideoActive(bool active)
 {
     replaceIfChanged(m_openedCollectionVideoActive, active);
-}
-
-void DocumentSessionState::setActiveZoomSnapshot(ActiveZoomSnapshot snapshot)
-{
-    m_activeZoomSnapshot = snapshot;
 }
 
 void DocumentSessionState::setActiveNavigationRevealIntent(ActiveNavigationRevealIntent intent)

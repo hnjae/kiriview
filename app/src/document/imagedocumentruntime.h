@@ -11,9 +11,6 @@
 #include "navigation/imagedocumentpagecandidatelistsource.h"
 #include "navigation/imagedocumentpagenavigationtypes.h"
 #include "predecode/predecodedimage.h"
-#include "presentation/imagepresentationstate.h"
-#include "presentation/imageviewportscanstate.h"
-#include "rendering/imagerendercontext.h"
 #include "system/filedeletion.h"
 
 #include <QPointF>
@@ -36,14 +33,13 @@ struct ImageViewportIntegrationProjection;
 class ImageDocumentRuntime final
 {
 public:
-    using RenderContextProvider = std::function<ImageDocumentRenderContext()>;
     using ChangeCallback = std::function<void(const std::vector<ImageDocumentChange>&)>;
     using FileDeletionFailedCallback = std::function<void(const QString&)>;
     using UnsupportedOpenedCollectionVideoEnteredCallback = std::function<void(const QString&)>;
     using ContainerNavigationBoundaryReachedCallback = std::function<void(const QString&)>;
 
-    ImageDocumentRuntime(QObject* documentObject, RenderContextProvider renderContextProvider,
-        ChangeCallback changeCallback, ImageDocumentRuntimeDependencyOverrides dependencies,
+    ImageDocumentRuntime(QObject* documentObject, ChangeCallback changeCallback,
+        ImageDocumentRuntimeDependencyOverrides dependencies,
         FileDeletionFailedCallback fileDeletionFailedCallback = {},
         UnsupportedOpenedCollectionVideoEnteredCallback
             unsupportedOpenedCollectionVideoEnteredCallback
@@ -82,7 +78,6 @@ public:
     bool requestManualZoomPercentAtCenter(qreal zoomPercent);
     bool requestZoomByStep(qreal stepCount, QPointF viewportAnchorPoint);
     bool requestZoomByStepAtCenter(qreal stepCount);
-    bool requestActualSizeAtCenter();
     bool requestToggleFitOrActualSize(QPointF viewportPoint);
     ImageZoomMode zoomMode() const;
     ImageZoomMode fitModeSelection() const;
@@ -95,8 +90,7 @@ public:
     quint64 requestViewportPanToFinalScanPosition();
     quint64 requestViewportScanForward();
     quint64 requestViewportScanBackward();
-    void requestNextDisplayedImageStartToFinalScanPosition();
-    quint64 requestDisplayedImageInitialContentPosition();
+    void requestNextViewportTargetAnchorAtEnd();
     int currentPageNumber() const;
     int currentLastPageNumber() const;
     int pageCount() const;
@@ -114,8 +108,6 @@ public:
     void setRightToLeftReadingEnabled(bool enabled);
     bool rightToLeftReadingAvailable() const;
     bool secondaryPageVisible() const;
-    ImagePresentationTransitionState presentationTransitionState() const;
-    bool viewportPointInsideImage(QPointF viewportPoint) const;
     QPointF nearestImageViewportPoint(QPointF viewportPoint) const;
     bool unsupportedOpenedCollectionVideo() const;
     std::optional<DisplayedPredecodeImage> primaryDisplayedPredecodeImage() const;
@@ -126,7 +118,6 @@ public:
     const ImageViewportIntegrationProjection& viewportProjection() const;
 
     void notify(const std::vector<ImageDocumentChange>& changes);
-    void setRenderContextProvider(RenderContextProvider provider);
     void shutdown();
     void openPreviousPage();
     void openNextPage();
@@ -142,7 +133,6 @@ public:
     void rotateCounterclockwise();
 
 private:
-    ImageDocumentRenderContext renderContext() const;
     QPointF scanPosition(bool forward) const;
     QPointF scanBoundaryPosition(bool final) const;
     bool submitContentPosition(QPointF position);
@@ -153,11 +143,8 @@ private:
     ImageDocumentChangeBatcher changeBatcher;
     ImageDocumentState state;
     ChangeCallback changeCallback;
-    RenderContextProvider renderContextProvider;
     NavigationSourceResolver navigationSourceResolver;
     std::unique_ptr<ImageDocumentRuntimeGraph> runtimeGraph;
-    ImageViewportScanState viewportScanState;
-    QUrl lastProjectedDisplayedUrl;
     ImageZoomMode fitModeSelectionPreference = ImageZoomMode::Fit;
 };
 }

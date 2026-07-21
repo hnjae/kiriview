@@ -9,7 +9,6 @@
 #include "presentation/imagespreadmodepolicy.h"
 #include "presentation/imagespreadpagecache.h"
 
-#include <algorithm>
 #include <utility>
 
 namespace kiriview {
@@ -38,28 +37,6 @@ ImageSpreadPresentationController::ImageSpreadPresentationController(
 }
 
 ImageSpreadPresentationController::~ImageSpreadPresentationController() { shutdown(); }
-
-const DisplayedImageLocation&
-ImageSpreadPresentationController::committedPrimaryDisplayedImageLocation() const
-{
-    return m_committedPrimaryDisplayedImageLocation;
-}
-
-QSize ImageSpreadPresentationController::committedImageSize() const
-{
-    if (!secondaryPageVisible()) {
-        return m_committedPrimaryImageSize;
-    }
-    return QSize(
-        m_committedPrimaryImageSize.width() + m_secondaryPageController->imageSize().width(),
-        std::max(
-            m_committedPrimaryImageSize.height(), m_secondaryPageController->imageSize().height()));
-}
-
-QSize ImageSpreadPresentationController::committedPrimaryImageSize() const
-{
-    return m_committedPrimaryImageSize;
-}
 
 int ImageSpreadPresentationController::currentLastPageNumber() const
 {
@@ -172,14 +149,12 @@ ImageSpreadPresentationController::secondaryDisplayedPredecodeImage() const
 void ImageSpreadPresentationController::commitPrimaryPageSlot(
     const DisplayedImageLocation& location, QSize imageSize)
 {
-    m_committedPrimaryDisplayedImageLocation = location;
     m_committedPrimaryImageSize = imageSize;
     m_secondaryPageRefresh.cachePageSize(location.imageUrl(), imageSize);
 }
 
 void ImageSpreadPresentationController::clearPrimaryPageSlot()
 {
-    m_committedPrimaryDisplayedImageLocation = {};
     m_committedPrimaryImageSize = {};
     discardSecondaryPage(false);
 }

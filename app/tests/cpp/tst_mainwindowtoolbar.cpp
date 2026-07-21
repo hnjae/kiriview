@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "application/applicationruntime.h"
-#include "facade/imageactionavailability.h"
 #include "facade/kiridocumentsession.h"
 #include "facade/kiriimagedocument.h"
 #include "facade/kiriimageviewportsurface.h"
@@ -138,7 +137,6 @@ void registerKiriViewQmlTypes()
     qmlRegisterType<KiriViewApplication>("org.hnjae.kiriview", 1, 0, "KiriViewApplication");
     qmlRegisterUncreatableType<KiriWindowShell>("org.hnjae.kiriview", 1, 0, "KiriWindowShell",
         "KiriWindowShell is created by the application runtime");
-    qmlRegisterType<ImageActionAvailability>("org.hnjae.kiriview", 1, 0, "ImageActionAvailability");
     qmlRegisterType<ToolbarTestDocumentSession>("org.hnjae.kiriview", 1, 0, "KiriDocumentSession");
     qmlRegisterType<KiriImageDocument>("org.hnjae.kiriview", 1, 0, "KiriImageDocument");
     qmlRegisterType<KiriImageViewportSurface>(

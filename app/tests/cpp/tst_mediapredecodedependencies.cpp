@@ -42,7 +42,7 @@ void TestMediaPredecodeDependencies::defaultsFillRuntimeProvidersAndBudget()
     QVERIFY(dependencies.timerScheduler.currentMonotonicMsec);
     QVERIFY(dependencies.timerScheduler.singleShotTimer);
     QVERIFY(dependencies.cacheByteBudget > 0);
-    QVERIFY(dependencies.cacheByteBudget <= kiriview::predecodeCachePreferredByteBudget());
+    QVERIFY(dependencies.cacheByteBudget <= kiriview::predecodeCacheByteBudgetForSystemMemory(0));
 }
 
 void TestMediaPredecodeDependencies::defaultBudgetUsesInjectedSystemMemorySnapshot()

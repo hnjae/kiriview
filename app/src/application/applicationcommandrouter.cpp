@@ -204,7 +204,7 @@ void ApplicationCommandRouter::handleScanBackwardAction(
         callVoid(ports.session.requestPreviousActiveNavigationWithBoundary);
         return;
     case kiriview::ImageShortcutNavigationPolicy::ScanAction::OpenPreviousPageFromFinalScanStart:
-        callVoid(ports.imagePresentation.requestNextDisplayedImageStartToFinalScanPosition);
+        callVoid(ports.imagePresentation.requestNextViewportTargetAnchorAtEnd);
         callVoid(ports.session.requestPreviousActiveNavigationWithBoundary);
         return;
     case kiriview::ImageShortcutNavigationPolicy::ScanAction::ShowFirstImageBoundary:

@@ -70,11 +70,6 @@ bool PredecodeScheduleState::powerSaverEnabled() const { return m_powerSaverEnab
 
 PredecodeMomentumMode PredecodeScheduleState::momentumMode() const { return m_momentumState.mode; }
 
-std::optional<PredecodeScheduleContext> PredecodeScheduleState::currentContext() const
-{
-    return m_currentContext;
-}
-
 std::optional<PredecodePendingSchedule> PredecodeScheduleState::pendingDebouncedSchedule() const
 {
     if (!m_pendingSchedule.has_value() || !m_generation.accepts(m_pendingSchedule->generation)) {

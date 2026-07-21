@@ -104,28 +104,6 @@ directoryOpenedCollectionScopeLocationForLocalSource(
         kiriview::OpenedCollectionScopeKind::Directory);
 }
 
-std::optional<QUrl> containingArchiveRootUrl(
-    const QUrl& url, kiriview::RustArchiveRootPath (*rustFunction)(rust::Str, rust::Str))
-{
-    const QByteArray scheme = url.scheme().toUtf8();
-    const QByteArray path = url.path().toUtf8();
-    const kiriview::RustArchiveRootPath rootPath
-        = rustFunction(kiriview::Bridge::rustStr(scheme), kiriview::Bridge::rustStr(path));
-    if (!rootPath.found) {
-        return std::nullopt;
-    }
-
-    QUrl archiveRootUrl = url;
-    archiveRootUrl.setPath(kiriview::Bridge::qtString(rootPath.path));
-    archiveRootUrl.setQuery(QString());
-    archiveRootUrl.setFragment(QString());
-    if (!archiveRootUrl.isValid() || archiveRootUrl.path().isEmpty()) {
-        return std::nullopt;
-    }
-
-    return archiveRootUrl;
-}
-
 QUrl openedCollectionScopeSourceNavigationUrl(const kiriview::DisplayedImageLocation& location)
 {
     return kiriview::normalizedFileContainerUrl(
@@ -146,28 +124,6 @@ bool openedCollectionScopeContainsUrlInRust(
 }
 
 namespace kiriview {
-std::optional<QUrl> comicBookArchiveRootUrl(const QUrl& url)
-{
-    const std::optional<ArchiveCollectionRoot> root
-        = archiveCollectionRootForLocalArchive(url, kiriview::comicBookArchiveMatchForUrl(url));
-    if (!root.has_value()) {
-        return std::nullopt;
-    }
-
-    return root->rootUrl;
-}
-
-std::optional<QUrl> directArchiveOpenRootUrl(const QUrl& url)
-{
-    const std::optional<ArchiveCollectionRoot> root
-        = directArchiveCollectionRootForLocalArchive(url);
-    if (!root.has_value()) {
-        return std::nullopt;
-    }
-
-    return root->rootUrl;
-}
-
 std::optional<OpenedCollectionScopeLocation> openedCollectionScopeLocationForLocalArchiveSource(
     const ResolvedNavigationSource& source)
 {
@@ -194,15 +150,6 @@ std::optional<OpenedCollectionScopeLocation> openedCollectionScopeLocationForRes
     return std::nullopt;
 }
 
-bool isUrlInsideArchiveRoot(const QUrl& url, const QUrl& archiveRootUrl)
-{
-    const UrlParts root = urlParts(archiveRootUrl);
-    const UrlParts candidate = urlParts(url);
-    return rustOpenedCollectionScopeContainsUrl(false, root.empty, Bridge::rustStr(root.scheme),
-        Bridge::rustStr(root.path), candidate.empty, Bridge::rustStr(candidate.scheme),
-        Bridge::rustStr(candidate.path));
-}
-
 bool openedCollectionScopeContainsUrl(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& url)
 {
@@ -212,16 +159,6 @@ bool openedCollectionScopeContainsUrl(
 bool displayedLocationIsInsideOpenedCollectionScope(const DisplayedImageLocation& location)
 {
     return openedCollectionScopeContainsUrl(location.openedCollectionScope(), location.imageUrl());
-}
-
-std::optional<QUrl> containingComicBookArchiveRootUrl(const QUrl& url)
-{
-    return containingArchiveRootUrl(url, rustContainingComicBookArchiveRootPath);
-}
-
-std::optional<QUrl> containingDirectArchiveOpenRootUrl(const QUrl& url)
-{
-    return containingArchiveRootUrl(url, rustContainingDirectArchiveOpenRootPath);
 }
 
 QString windowTitleFileNameForDisplayedLocation(const DisplayedImageLocation& location)
@@ -236,15 +173,6 @@ QString windowTitleFileNameForDisplayedLocation(const DisplayedImageLocation& lo
     }
 
     return location.imageUrl().fileName();
-}
-
-QUrl zoomScopeUrlForLocation(const DisplayedImageLocation& location)
-{
-    if (displayedLocationIsInsideOpenedCollectionScope(location)) {
-        return openedCollectionScopeSourceNavigationUrl(location);
-    }
-
-    return {};
 }
 
 QUrl containerNavigationUrlForLocation(const DisplayedImageLocation& location)

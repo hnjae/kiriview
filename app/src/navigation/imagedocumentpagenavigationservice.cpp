@@ -40,12 +40,6 @@ ImageDocumentPageNavigationService::pageNavigationSnapshot() const
     return m_pageNavigation.snapshot();
 }
 
-std::optional<ImageDocumentPageCandidateSnapshot>
-ImageDocumentPageNavigationService::pageCandidateSnapshot() const
-{
-    return m_pageNavigation.candidateSnapshot();
-}
-
 const ImageDocumentPageCandidateListSnapshot&
 ImageDocumentPageNavigationService::confirmedPageCandidateSnapshot() const
 {

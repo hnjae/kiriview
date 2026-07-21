@@ -59,7 +59,7 @@ private:
             request.role(),
             request.token(),
             request.demand().demandRevision(),
-            m_resource->reuseIdentity(),
+            m_resource->locationIdentity(),
         };
     }
 
@@ -70,7 +70,7 @@ private:
             request.role(),
             request.token(),
             {},
-            m_resource->reuseIdentity(),
+            m_resource->locationIdentity(),
         };
         m_metadataWork = work;
         const QPointer<ImageViewportProviderSession> guard(this);
@@ -91,9 +91,7 @@ private:
             ? request.frame()
             : request.resolvedFrame();
         const kiriview::ImageViewportProviderFrameRequest providerRequest {
-            request.kind(),
             resolvedFrame,
-            request.requestedPosition(),
             request.demand(),
         };
         const QPointer<ImageViewportProviderSession> guard(this);

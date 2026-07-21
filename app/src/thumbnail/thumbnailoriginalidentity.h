@@ -44,11 +44,11 @@ struct ThumbnailOriginalIdentity
         return identity;
     }
 
-    bool isLocalPath() const { return mode == ThumbnailOriginalIdentityMode::LocalPath; }
     bool isNonFileUri() const { return mode == ThumbnailOriginalIdentityMode::NonFileUri; }
     bool isValid() const
     {
-        return (isLocalPath() && !localPathBytes.isEmpty()) || (isNonFileUri() && !uri.isEmpty());
+        return (mode == ThumbnailOriginalIdentityMode::LocalPath && !localPathBytes.isEmpty())
+            || (isNonFileUri() && !uri.isEmpty());
     }
 };
 }

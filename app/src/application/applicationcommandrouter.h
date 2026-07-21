@@ -60,7 +60,7 @@ struct ApplicationCommandRouterImagePresentationPorts
     std::function<bool()> requestViewportScanBackward;
     std::function<void()> requestViewportPanToInitialScanPosition;
     std::function<void()> requestViewportPanToFinalScanPosition;
-    std::function<void()> requestNextDisplayedImageStartToFinalScanPosition;
+    std::function<void()> requestNextViewportTargetAnchorAtEnd;
     std::function<void(double)> requestZoomByStepAtCenter;
     std::function<void(double)> requestManualZoomPercent;
     std::function<void()> requestFitMode;

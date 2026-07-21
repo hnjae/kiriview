@@ -14,8 +14,6 @@
 namespace kiriview::Bridge {
 RustImageSpreadReadingAvailability rustImageSpreadReadingAvailability(
     ImageSpreadReadingAvailability availability);
-ImageSpreadTwoPageModeChange imageSpreadTwoPageModeChangeFromRust(
-    RustImageSpreadTwoPageModeChange change);
 RustImageSpreadSecondaryPageRefreshState rustImageSpreadSecondaryPageRefreshState(
     ImageSpreadSecondaryPageRefreshState state);
 ImageSpreadSecondaryPageDecision imageSpreadSecondaryPageDecisionFromRust(

@@ -38,9 +38,6 @@ public:
     bool sameSession(const ImageLoadSession& session) const;
 
     void setImageDocumentPageCandidate(const ImageDocumentPageCandidate& candidate);
-    void setImageTarget(const ImageDocumentPageTarget& target);
-    void setImageUrl(const QUrl& url);
-    void setLocation(DisplayedImageLocation location);
 
 private:
     quint64 m_id = 0;

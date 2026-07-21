@@ -299,7 +299,6 @@ void TestImageDecodePipeline::defaultSvgDecodeUsesFirstDisplayContext()
     QVERIFY(image != nullptr);
     QCOMPARE(image->displayImage.image.size(), QSize(200, 100));
     QCOMPARE(image->displayImage.quality, kiriview::DisplayImageQuality::FirstDisplay);
-    QCOMPARE(image->displayImage.displayPixelsPerSourcePixel, 2.5);
 }
 
 void TestImageDecodePipeline::defaultSvgOpenFailurePreservesAdapterDiagnostics()

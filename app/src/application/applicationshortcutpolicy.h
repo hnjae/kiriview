@@ -24,16 +24,6 @@ struct ApplicationShortcutRoute
     ImageShortcutScope shortcutScope = ImageShortcutScope::HelpShortcutScope;
 };
 
-struct ApplicationShortcutProjection
-{
-    QList<QKeySequence> shortcuts;
-    QList<QKeySequence> programWideShortcuts;
-    QList<QKeySequence> viewerLocalShortcuts;
-    QKeySequence menuShortcut;
-    QString shortcutText;
-    QString menuShortcutText;
-};
-
 enum class FixedShortcutDispatchKind {
     None,
     HorizontalArrow,
@@ -91,12 +81,8 @@ struct GenericShortcutDispatchOutcome
 };
 
 QKeySequence menuShortcut(const QList<QKeySequence>& shortcuts);
-QString shortcutListText(const QList<QKeySequence>& shortcuts);
 QList<QKeySequence> sanitizeProgramWideShortcuts(const QList<QKeySequence>& shortcuts);
-ApplicationShortcutProjection shortcutProjection(const QList<QKeySequence>& programWideShortcuts,
-    const QList<QKeySequence>& viewerLocalShortcuts = {});
 const QList<ApplicationShortcutRoute>& shortcutRoutes();
-std::optional<ImageShortcutScope> imageShortcutScopeFromValue(int value);
 FixedShortcutDispatchOutcome fixedShortcutDispatchOutcome(
     FixedShortcutDispatchInput input, const QKeySequence& shortcut);
 bool genericShortcutBindingEnabled(

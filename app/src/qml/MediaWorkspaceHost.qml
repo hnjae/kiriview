@@ -23,7 +23,6 @@ Item {
     readonly property real infoPanelMaximumWidth: Kirigami.Units.gridUnit * 20
     readonly property real infoPanelWideBreakpoint: Kirigami.Units.gridUnit * 42
     readonly property bool infoPanelInlineMode: width >= infoPanelWideBreakpoint
-    readonly property ImageViewportInteractionSurface imageInteractionSurface: mediaViewportHost.imageInteractionSurface
     readonly property bool infoPanelVisible: infoPanelOpen
     readonly property bool thumbnailPanelVisible: thumbnailPanel.visible
 

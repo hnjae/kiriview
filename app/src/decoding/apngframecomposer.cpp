@@ -104,8 +104,6 @@ bool ApngFrameComposer::canComposeFrame(const ApngFrameControl& control) const
     return m_canvas.contains(region(control));
 }
 
-unsigned char** ApngFrameComposer::frameRows() { return m_frame.rows(); }
-
 bool ApngFrameComposer::setFrameBytes(const ApngFrameControl& control, const unsigned char* bytes,
     std::size_t byteCount, std::size_t rowBytes)
 {

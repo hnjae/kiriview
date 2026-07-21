@@ -9,16 +9,6 @@
 #include <KLocalizedString>
 
 namespace kiriview {
-QStringList supportedImageExtensions()
-{
-    return Bridge::qtStringList(rustSupportedImageExtensions());
-}
-
-QStringList supportedImageMimeTypes()
-{
-    return Bridge::qtStringList(rustSupportedImageMimeTypes());
-}
-
 QStringList supportedOpenExtensions()
 {
     return Bridge::qtStringList(rustSupportedOpenExtensions());
@@ -27,11 +17,6 @@ QStringList supportedOpenExtensions()
 bool isSupportedImageFileName(const QString& name)
 {
     return Bridge::rustResultForQString(name, rustIsSupportedImageFileName);
-}
-
-bool isSupportedRawImageFileName(const QString& name)
-{
-    return Bridge::rustResultForQString(name, rustIsSupportedRawImageFileName);
 }
 
 QStringList openDialogNameFilters()

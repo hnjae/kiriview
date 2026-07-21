@@ -51,19 +51,11 @@ QByteArray jpegWriterFormat()
                                                          : QByteArrayLiteral("jpeg");
 }
 
-void verifyDisplayFailure(const kiriview::QImageReaderDisplayDecodeResult& result,
-    kiriview::QImageReaderDisplayDecodeOperation expectedOperation)
+void verifyDisplayFailure(const kiriview::StaticImageDisplayDecodeResult& result)
 {
     QVERIFY(result.image.isNull());
-    QCOMPARE(result.diagnostics.failures.size(), 1);
-
-    const kiriview::QImageReaderDisplayDecodeFailure& failure = result.diagnostics.failures.front();
-    QCOMPARE(failure.operation, expectedOperation);
-    QVERIFY(!failure.userMessage.isEmpty());
-    QVERIFY(!failure.diagnosticDetail.isEmpty());
-    QCOMPARE(failure.severity, kiriview::QImageReaderDisplayDecodeFailureSeverity::Error);
-    QVERIFY(!failure.retryable);
-    QCOMPARE(result.diagnostics.userMessage(), failure.userMessage);
+    QVERIFY(!result.diagnostics.userMessage.isEmpty());
+    QVERIFY(!result.diagnostics.diagnosticDetail.isEmpty());
 }
 }
 
@@ -73,7 +65,7 @@ class TestQImageReaderDisplaySource : public QObject
 
 private Q_SLOTS:
     void sourceDecodesBlockingAndRasterDisplayImages();
-    void failedDisplayDecodePreservesOperationDiagnostics();
+    void failedDisplayDecodePreservesDiagnostics();
     void jpegSourceDecodesFirstDisplayToViewport();
     void jpegSourceSkipsFirstDisplayWhenImageFitsViewport();
     void pngSourceLeavesFirstDisplayNotImplemented();
@@ -88,43 +80,30 @@ void TestQImageReaderDisplaySource::sourceDecodesBlockingAndRasterDisplayImages(
     QVERIFY2(source != nullptr, qPrintable(errorString));
     QCOMPARE(source->imageSize(), QSize(4, 4));
 
-    const QImage preview = source->decodeBlockingDisplayImage(2, &errorString);
-    QVERIFY2(!preview.isNull(), qPrintable(errorString));
-    QCOMPARE(preview.size(), QSize(2, 2));
+    const kiriview::StaticImageDisplayDecodeResult preview = source->decodeBlockingDisplayImage(2);
+    QVERIFY2(!preview.image.isNull(), qPrintable(preview.diagnostics.userMessage));
+    QCOMPARE(preview.image.size(), QSize(2, 2));
 
-    const QImage raster = source->decodeRasterDisplayImage(QSize(4, 4), &errorString);
-    QVERIFY2(!raster.isNull(), qPrintable(errorString));
-    QCOMPARE(raster.size(), QSize(4, 4));
-    QCOMPARE(raster.pixelColor(0, 0), QColor(Qt::red));
-    QCOMPARE(raster.pixelColor(3, 3), QColor(Qt::blue));
+    const kiriview::StaticImageDisplayDecodeResult raster
+        = source->decodeRasterDisplayImage(QSize(4, 4));
+    QVERIFY2(!raster.image.isNull(), qPrintable(raster.diagnostics.userMessage));
+    QCOMPARE(raster.image.size(), QSize(4, 4));
+    QCOMPARE(raster.image.pixelColor(0, 0), QColor(Qt::red));
+    QCOMPARE(raster.image.pixelColor(3, 3), QColor(Qt::blue));
 }
 
-void TestQImageReaderDisplaySource::failedDisplayDecodePreservesOperationDiagnostics()
+void TestQImageReaderDisplaySource::failedDisplayDecodePreservesDiagnostics()
 {
     kiriview::QImageReaderDisplaySource source(QByteArrayLiteral("not image data"),
         QByteArrayLiteral("png"), QSize(4, 4), kiriview::StaticImageReaderTransform {});
 
-    const kiriview::QImageReaderDisplayDecodeResult rasterResult
-        = source.decodeRasterDisplayImageWithDiagnostics(QSize(2, 2));
-    verifyDisplayFailure(
-        rasterResult, kiriview::QImageReaderDisplayDecodeOperation::RasterDisplayImage);
+    const kiriview::StaticImageDisplayDecodeResult rasterResult
+        = source.decodeRasterDisplayImage(QSize(2, 2));
+    verifyDisplayFailure(rasterResult);
 
-    QString rasterCompatibilityError;
-    const QImage rasterCompatibilityImage
-        = source.decodeRasterDisplayImage(QSize(2, 2), &rasterCompatibilityError);
-    QVERIFY(rasterCompatibilityImage.isNull());
-    QCOMPARE(rasterCompatibilityError, rasterResult.diagnostics.userMessage());
-
-    const kiriview::QImageReaderDisplayDecodeResult blockingResult
-        = source.decodeBlockingDisplayImageWithDiagnostics(2);
-    verifyDisplayFailure(
-        blockingResult, kiriview::QImageReaderDisplayDecodeOperation::BlockingDisplayImage);
-
-    QString blockingCompatibilityError;
-    const QImage blockingCompatibilityImage
-        = source.decodeBlockingDisplayImage(2, &blockingCompatibilityError);
-    QVERIFY(blockingCompatibilityImage.isNull());
-    QCOMPARE(blockingCompatibilityError, blockingResult.diagnostics.userMessage());
+    const kiriview::StaticImageDisplayDecodeResult blockingResult
+        = source.decodeBlockingDisplayImage(2);
+    verifyDisplayFailure(blockingResult);
 }
 
 void TestQImageReaderDisplaySource::jpegSourceDecodesFirstDisplayToViewport()
@@ -144,14 +123,14 @@ void TestQImageReaderDisplaySource::jpegSourceDecodesFirstDisplayToViewport()
         = kiriview::QImageReaderDisplaySource::open(data, QByteArrayLiteral("jpeg"), &errorString);
     QVERIFY2(source != nullptr, qPrintable(errorString));
 
-    const kiriview::FirstDisplayImageDecodeResult result = source->decodeFirstDisplayImage(
-        kiriview::ImageFirstDisplayDecodeContext { QSize(400, 300) }, &errorString);
+    const kiriview::StaticImageFirstDisplayDecodeResult decoded = source->decodeFirstDisplayImage(
+        kiriview::ImageFirstDisplayDecodeContext { QSize(400, 300) });
+    const kiriview::FirstDisplayImageDecodeResult& result = decoded.firstDisplay;
 
     QCOMPARE(result.status, kiriview::FirstDisplayImageDecodeStatus::Ready);
-    QVERIFY2(!result.image.isNull(), qPrintable(errorString));
+    QVERIFY2(!result.image.isNull(), qPrintable(decoded.diagnostics.userMessage));
     QCOMPARE(result.image.size(), QSize(400, 300));
     QVERIFY(result.image.size() != source->imageSize());
-    QCOMPARE(result.displayPixelsPerSourcePixel, 0.25);
 }
 
 void TestQImageReaderDisplaySource::jpegSourceSkipsFirstDisplayWhenImageFitsViewport()
@@ -171,8 +150,11 @@ void TestQImageReaderDisplaySource::jpegSourceSkipsFirstDisplayWhenImageFitsView
         = kiriview::QImageReaderDisplaySource::open(data, QByteArrayLiteral("jpeg"), &errorString);
     QVERIFY2(source != nullptr, qPrintable(errorString));
 
-    const kiriview::FirstDisplayImageDecodeResult result = source->decodeFirstDisplayImage(
-        kiriview::ImageFirstDisplayDecodeContext { QSize(400, 300) }, &errorString);
+    const kiriview::FirstDisplayImageDecodeResult result
+        = source
+              ->decodeFirstDisplayImage(
+                  kiriview::ImageFirstDisplayDecodeContext { QSize(400, 300) })
+              .firstDisplay;
 
     QCOMPARE(result.status, kiriview::FirstDisplayImageDecodeStatus::NotImplemented);
     QVERIFY(result.image.isNull());
@@ -186,13 +168,15 @@ void TestQImageReaderDisplaySource::pngSourceLeavesFirstDisplayNotImplemented()
             pngData(), QByteArrayLiteral("png"), &errorString);
     QVERIFY2(source != nullptr, qPrintable(errorString));
 
-    const kiriview::FirstDisplayImageDecodeResult result = source->decodeFirstDisplayImage(
-        kiriview::ImageFirstDisplayDecodeContext { QSize(2, 2) }, &errorString);
+    const kiriview::FirstDisplayImageDecodeResult result
+        = source->decodeFirstDisplayImage(kiriview::ImageFirstDisplayDecodeContext { QSize(2, 2) })
+              .firstDisplay;
     QCOMPARE(result.status, kiriview::FirstDisplayImageDecodeStatus::NotImplemented);
 
-    const QImage blockingDisplay = source->decodeBlockingDisplayImage(2, &errorString);
-    QVERIFY2(!blockingDisplay.isNull(), qPrintable(errorString));
-    QCOMPARE(blockingDisplay.size(), QSize(2, 2));
+    const kiriview::StaticImageDisplayDecodeResult blockingDisplay
+        = source->decodeBlockingDisplayImage(2);
+    QVERIFY2(!blockingDisplay.image.isNull(), qPrintable(blockingDisplay.diagnostics.userMessage));
+    QCOMPARE(blockingDisplay.image.size(), QSize(2, 2));
 }
 
 QTEST_GUILESS_MAIN(TestQImageReaderDisplaySource)

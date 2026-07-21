@@ -317,7 +317,7 @@ void TestThumbnailGeneration::injectedCacheInstallPublishesInstalledPath()
     QCOMPARE(result.status, Status::Ready);
     QCOMPARE(result.requestedBucket, Bucket::Large);
     QCOMPARE(result.installedCachePath, QStringLiteral("/cache/generated.png"));
-    QVERIFY(installedIdentity.isLocalPath());
+    QCOMPARE(installedIdentity.mode, kiriview::ThumbnailOriginalIdentityMode::LocalPath);
     QCOMPARE(installedIdentity.localPathBytes, QByteArrayLiteral("/missing/source.png"));
     QCOMPARE(installedImage.size(), QSize(4, 3));
     QCOMPARE(installedImage.format(), QImage::Format_RGBA8888);
@@ -387,7 +387,7 @@ void TestThumbnailGeneration::directVideoProviderUsesExtractorAndInstallsCache()
     QCOMPARE(delivered.status, Status::Ready);
     QCOMPARE(delivered.requestedBucket, Bucket::Large);
     QCOMPARE(delivered.installedCachePath, QStringLiteral("/cache/video.png"));
-    QVERIFY(installedIdentity.isLocalPath());
+    QCOMPARE(installedIdentity.mode, kiriview::ThumbnailOriginalIdentityMode::LocalPath);
     QCOMPARE(installedIdentity.localPathBytes, QByteArrayLiteral("/media/clip.mp4"));
     QCOMPARE(installedImage.size(), QSize(12, 8));
     QCOMPARE(installedImage.format(), QImage::Format_RGBA8888);

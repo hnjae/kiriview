@@ -46,17 +46,17 @@ kiriview::PredecodeActiveLoads activeLoads(std::vector<QUrl> urls)
 }
 
 kiriview::StaticDisplayImagePayload cacheDisplayImage(
-    const QImage& image, qreal firstDisplayPixelsPerSourcePixel = 0.0)
+    const QImage& image, bool firstDisplay = false)
 {
-    const kiriview::DisplayImageQuality quality = firstDisplayPixelsPerSourcePixel > 0.0
+    const kiriview::DisplayImageQuality quality = firstDisplay
         ? kiriview::DisplayImageQuality::FirstDisplay
         : kiriview::DisplayImageQuality::Exact;
-    return staticDisplayTestImagePayload(image, image, firstDisplayPixelsPerSourcePixel, quality);
+    return staticDisplayTestImagePayload(image, image, quality);
 }
 
 kiriview::PredecodeCache defaultCache()
 {
-    return kiriview::PredecodeCache(kiriview::predecodeCachePreferredByteBudget());
+    return kiriview::PredecodeCache(kiriview::predecodeCacheByteBudgetForSystemMemory(0));
 }
 }
 
@@ -68,7 +68,6 @@ private Q_SLOTS:
     void queueContainsOnlyMissingWindowImages();
     void queueSkipsAllDisplayedWindowImages();
     void takeNextRequestDiscardsSkippedQueuePrefix();
-    void cacheEligibilityUsesByteBudgetPolicy();
     void cacheStoresAndFindsWindowImages();
     void cacheFindsImagesByUrlAndOpenedCollectionScope();
     void cacheRetainsDisplayedImagesBeforeAdjacentImages();
@@ -152,20 +151,6 @@ void TestPredecodeCache::takeNextRequestDiscardsSkippedQueuePrefix()
     QVERIFY(!cache.takeNextRequest(kiriview::PredecodeActiveLoads {}).has_value());
 }
 
-void TestPredecodeCache::cacheEligibilityUsesByteBudgetPolicy()
-{
-    const kiriview::StaticDisplayImagePayload image = cacheDisplayImage(cacheImage());
-    const qsizetype byteCost = image.byteCost();
-
-    QVERIFY(kiriview::PredecodeCache::canCacheImage(
-        image, kiriview::predecodeCachePreferredByteBudget()));
-    QVERIFY(kiriview::PredecodeCache::canCacheImage(image, byteCost));
-    QVERIFY(!kiriview::PredecodeCache::canCacheImage(image, byteCost - 1));
-    QVERIFY(
-        !kiriview::PredecodeCache::canCacheImage(kiriview::StaticDisplayImagePayload {}, byteCost));
-    QVERIFY(!kiriview::PredecodeCache::canCacheImage(image, 0));
-}
-
 void TestPredecodeCache::cacheStoresAndFindsWindowImages()
 {
     kiriview::PredecodeCache cache(80);
@@ -175,7 +160,7 @@ void TestPredecodeCache::cacheStoresAndFindsWindowImages()
     const QImage image = cacheImage();
 
     cache.setWindowUrls({ url });
-    kiriview::StaticDisplayImagePayload payload = cacheDisplayImage(image, 0.5);
+    kiriview::StaticDisplayImagePayload payload = cacheDisplayImage(image, true);
     payload.sourceIdentity = QStringLiteral("file:///tmp/predecode-source.jpg");
     payload.imageReaderTransform.transformations = QImageIOHandler::TransformationRotate90;
     payload.embeddedMetadata.cameraMake = QStringLiteral("Kiri Camera");
@@ -188,13 +173,12 @@ void TestPredecodeCache::cacheStoresAndFindsWindowImages()
     QCOMPARE(
         found->displayImage.sourceIdentity, QStringLiteral("file:///tmp/predecode-source.jpg"));
     QCOMPARE(found->displayImage.quality, kiriview::DisplayImageQuality::FirstDisplay);
-    QCOMPARE(found->displayImage.displayPixelsPerSourcePixel, 0.5);
     QCOMPARE(found->displayImage.imageReaderTransform.transformations,
         QImageIOHandler::TransformationRotate90);
     QCOMPARE(found->displayImage.embeddedMetadata.cameraMake, QStringLiteral("Kiri Camera"));
     QCOMPARE(found->embeddedMetadata.cameraMake, QStringLiteral("Kiri Camera"));
     QCOMPARE(found->location.imageUrl(), url);
-    QCOMPARE(found->location.openedCollectionScopeRootUrl(), openedCollectionScope.rootUrl());
+    QCOMPARE(found->location.openedCollectionScope().rootUrl(), openedCollectionScope.rootUrl());
     QVERIFY(found->displayImage.refinementSource != nullptr);
 }
 
@@ -211,19 +195,17 @@ void TestPredecodeCache::cacheFindsImagesByUrlAndOpenedCollectionScope()
 
     cache.setWindowUrls({ url });
     cache.cacheImage(url, kiriview::OpenedCollectionScopeLocation::none(),
-        cacheDisplayImage(cacheImage(), 0.25));
-    cache.cacheImage(url, openedCollectionScope, cacheDisplayImage(cacheImage(), 0.75));
+        cacheDisplayImage(cacheImage(), true));
+    cache.cacheImage(url, openedCollectionScope, cacheDisplayImage(cacheImage(), true));
 
     const std::optional<kiriview::PredecodedImage> direct = cache.findImage(directLocation);
     QVERIFY(direct.has_value());
     QVERIFY(direct->location == directLocation);
-    QCOMPARE(direct->displayImage.displayPixelsPerSourcePixel, 0.25);
 
     const std::optional<kiriview::PredecodedImage> openedCollection
         = cache.findImage(openedCollectionLocation);
     QVERIFY(openedCollection.has_value());
     QVERIFY(openedCollection->location == openedCollectionLocation);
-    QCOMPARE(openedCollection->displayImage.displayPixelsPerSourcePixel, 0.75);
 }
 
 void TestPredecodeCache::cacheRetainsDisplayedImagesBeforeAdjacentImages()

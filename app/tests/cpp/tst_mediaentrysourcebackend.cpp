@@ -4,6 +4,7 @@
 #include "archive/mediaentrysourcebackend.h"
 
 #include "archive/mediaentrysourcebackend_p.h"
+#include "archive/mediaentrysourcerunner.h"
 #include "archive/openedcollectionthumbnailpolicy.h"
 #include "image_test_support.h"
 #include "location/imagedocumentlocation.h"
@@ -827,9 +828,9 @@ void TestMediaEntrySourceBackend::storedZipVideoEntryReturnsPlaybackDevice()
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
         = archiveCollectionForPath(archivePath);
     QVERIFY(archiveCollection.has_value());
-    kiriview::MediaEntrySourceVideoPlaybackDeviceResult result
-        = kiriview::loadMediaEntrySourceVideoPlaybackDevice(*archiveCollection,
-            archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("pages/clip.mp4")));
+    kiriview::MediaEntrySourceRunner runner(*archiveCollection, {});
+    kiriview::MediaEntrySourceVideoPlaybackDeviceResult result = runner.loadVideoPlaybackDevice(
+        archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("pages/clip.mp4")));
     kiriview::MediaEntrySourceVideoPlaybackDevice* device
         = mediaEntrySourceVideoPlaybackDevice(result);
 
@@ -853,9 +854,9 @@ void TestMediaEntrySourceBackend::deflatedZipVideoEntryDoesNotReturnPlaybackDevi
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
         = archiveCollectionForPath(archivePath);
     QVERIFY(archiveCollection.has_value());
-    kiriview::MediaEntrySourceVideoPlaybackDeviceResult result
-        = kiriview::loadMediaEntrySourceVideoPlaybackDevice(*archiveCollection,
-            archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("pages/clip.mp4")));
+    kiriview::MediaEntrySourceRunner runner(*archiveCollection, {});
+    kiriview::MediaEntrySourceVideoPlaybackDeviceResult result = runner.loadVideoPlaybackDevice(
+        archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("pages/clip.mp4")));
 
     const kiriview::MediaEntrySourceError* error
         = std::get_if<kiriview::MediaEntrySourceError>(&result);
@@ -879,9 +880,9 @@ void TestMediaEntrySourceBackend::plainTarVideoEntryReturnsPlaybackDevice()
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
         = archiveCollectionForPath(archivePath);
     QVERIFY(archiveCollection.has_value());
-    kiriview::MediaEntrySourceVideoPlaybackDeviceResult result
-        = kiriview::loadMediaEntrySourceVideoPlaybackDevice(*archiveCollection,
-            archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("pages/clip.mov")));
+    kiriview::MediaEntrySourceRunner runner(*archiveCollection, {});
+    kiriview::MediaEntrySourceVideoPlaybackDeviceResult result = runner.loadVideoPlaybackDevice(
+        archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("pages/clip.mov")));
     kiriview::MediaEntrySourceVideoPlaybackDevice* device
         = mediaEntrySourceVideoPlaybackDevice(result);
 
@@ -904,8 +905,9 @@ void TestMediaEntrySourceBackend::directoryCollectionVideoEntryReturnsPlaybackDe
         = kiriview::openedCollectionScopeLocationForResolvedExternalSource(
             kiriview::NavigationSourceResolver().resolveExternalSource(localUrl(dir.path())));
     QVERIFY(directoryCollection.has_value());
+    kiriview::MediaEntrySourceRunner runner(*directoryCollection, {});
     kiriview::MediaEntrySourceVideoPlaybackDeviceResult directoryResult
-        = kiriview::loadMediaEntrySourceVideoPlaybackDevice(*directoryCollection,
+        = runner.loadVideoPlaybackDevice(
             archivePageUrl(directoryCollection->rootUrl(), QStringLiteral("pages/clip.mp4")));
     kiriview::MediaEntrySourceVideoPlaybackDevice* device
         = mediaEntrySourceVideoPlaybackDevice(directoryResult);
@@ -929,8 +931,9 @@ void TestMediaEntrySourceBackend::unsupportedArchiveVideosDoNotReturnPlaybackDev
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
         = archiveCollectionForPath(archivePath);
     QVERIFY(archiveCollection.has_value());
+    kiriview::MediaEntrySourceRunner runner(*archiveCollection, {});
     kiriview::MediaEntrySourceVideoPlaybackDeviceResult sevenZipResult
-        = kiriview::loadMediaEntrySourceVideoPlaybackDevice(*archiveCollection,
+        = runner.loadVideoPlaybackDevice(
             archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("pages/clip.m4v")));
     const kiriview::MediaEntrySourceError* sevenZipError
         = std::get_if<kiriview::MediaEntrySourceError>(&sevenZipResult);

@@ -87,13 +87,10 @@ class TestApplicationShortcutPolicy : public QObject
 private Q_SLOTS:
     void programWideSanitizationKeepsTextInputSafeShortcuts();
     void menuShortcutSkipsViewerLocalShortcuts();
-    void shortcutListTextJoinsAssignedShortcuts();
-    void shortcutProjectionSeparatesActivationScopes();
     void sanitizeProgramWideShortcutsRemovesUnmodifiedTextInputShortcuts();
     void actionDefinitionsOwnApplicationShortcutRoutes();
     void actionDefinitionsOwnShortcutHelpCategories();
     void shortcutRoutesGroupDefinitionOwnedSpecs();
-    void shortcutScopeValuesMapOnlyKnownScopes();
     void unknownShortcutScopesDisableAvailabilityPolicies();
     void videoShortcutScopesUseViewerDeletionAndNavigationGates();
     void videoUnsupportedActionPolicyRejectsImageOnlyCommands();
@@ -137,41 +134,6 @@ void TestApplicationShortcutPolicy::menuShortcutSkipsViewerLocalShortcuts()
         kiriview::ApplicationActions::menuShortcut({ shortcut(QStringLiteral("Home")) }).isEmpty());
     QVERIFY(kiriview::ApplicationActions::menuShortcut({ shortcut(QStringLiteral("Ctrl+X, Q")) })
             .isEmpty());
-}
-
-void TestApplicationShortcutPolicy::shortcutListTextJoinsAssignedShortcuts()
-{
-    QCOMPARE(kiriview::ApplicationActions::shortcutListText({ QKeySequence() }), QString());
-    QCOMPARE(kiriview::ApplicationActions::shortcutListText({ QKeySequence(),
-                 shortcut(QStringLiteral("Alt+O")), shortcut(QStringLiteral("Ctrl+Shift+O")) }),
-        QStringLiteral("%1 / %2").arg(nativeText(shortcut(QStringLiteral("Alt+O"))),
-            nativeText(shortcut(QStringLiteral("Ctrl+Shift+O")))));
-}
-
-void TestApplicationShortcutPolicy::shortcutProjectionSeparatesActivationScopes()
-{
-    const QList<QKeySequence> programWideShortcuts { shortcut(QStringLiteral("Ctrl+R")) };
-    const QList<QKeySequence> viewerLocalShortcuts {
-        shortcut(QStringLiteral("R")),
-        shortcut(QStringLiteral("Shift+R")),
-    };
-
-    const kiriview::ApplicationActions::ApplicationShortcutProjection projection
-        = kiriview::ApplicationActions::shortcutProjection(
-            programWideShortcuts, viewerLocalShortcuts);
-
-    QCOMPARE(projection.shortcuts,
-        QList<QKeySequence>({ shortcut(QStringLiteral("Ctrl+R")), shortcut(QStringLiteral("R")),
-            shortcut(QStringLiteral("Shift+R")) }));
-    QCOMPARE(projection.programWideShortcuts, programWideShortcuts);
-    QCOMPARE(projection.viewerLocalShortcuts, viewerLocalShortcuts);
-    QCOMPARE(projection.menuShortcut, shortcut(QStringLiteral("Ctrl+R")));
-    QCOMPARE(projection.shortcutText,
-        QStringLiteral("%1 / %2 / %3")
-            .arg(nativeText(shortcut(QStringLiteral("Ctrl+R"))),
-                nativeText(shortcut(QStringLiteral("R"))),
-                nativeText(shortcut(QStringLiteral("Shift+R")))));
-    QCOMPARE(projection.menuShortcutText, nativeText(shortcut(QStringLiteral("Ctrl+R"))));
 }
 
 void TestApplicationShortcutPolicy::
@@ -323,24 +285,6 @@ void TestApplicationShortcutPolicy::shortcutRoutesGroupDefinitionOwnedSpecs()
             QVERIFY(route->actionIds.contains(definition.actionId));
         }
     }
-}
-
-void TestApplicationShortcutPolicy::shortcutScopeValuesMapOnlyKnownScopes()
-{
-    const std::optional<Scope> readyViewerScope
-        = kiriview::ApplicationActions::imageShortcutScopeFromValue(
-            static_cast<int>(Scope::ReadyViewerShortcutScope));
-    QVERIFY(readyViewerScope.has_value());
-    QCOMPARE(*readyViewerScope, Scope::ReadyViewerShortcutScope);
-
-    const std::optional<Scope> containerViewerScope
-        = kiriview::ApplicationActions::imageShortcutScopeFromValue(
-            static_cast<int>(Scope::ContainerViewerShortcutScope));
-    QVERIFY(containerViewerScope.has_value());
-    QCOMPARE(*containerViewerScope, Scope::ContainerViewerShortcutScope);
-
-    QVERIFY(!kiriview::ApplicationActions::imageShortcutScopeFromValue(-1).has_value());
-    QVERIFY(!kiriview::ApplicationActions::imageShortcutScopeFromValue(999).has_value());
 }
 
 void TestApplicationShortcutPolicy::unknownShortcutScopesDisableAvailabilityPolicies()

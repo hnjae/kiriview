@@ -117,26 +117,13 @@ public:
     static KiriViewApplication::ActionId facadeActionId(
         kiriview::ApplicationActions::ActionId actionId);
 
-    Q_INVOKABLE QAction* action(const QString& actionName);
     Q_INVOKABLE QAction* actionForId(KiriViewApplication::ActionId actionId);
-    Q_INVOKABLE QString actionName(KiriViewApplication::ActionId actionId) const;
-    Q_INVOKABLE QList<QKeySequence> shortcuts(const QString& actionName) const;
-    Q_INVOKABLE QList<QKeySequence> shortcutsForId(KiriViewApplication::ActionId actionId) const;
-    Q_INVOKABLE QList<QKeySequence> programWideShortcuts(const QString& actionName) const;
     Q_INVOKABLE QList<QKeySequence> programWideShortcutsForId(
         KiriViewApplication::ActionId actionId) const;
-    Q_INVOKABLE QList<QKeySequence> viewerLocalShortcuts(const QString& actionName) const;
     Q_INVOKABLE QList<QKeySequence> viewerLocalShortcutsForId(
         KiriViewApplication::ActionId actionId) const;
-    Q_INVOKABLE bool setViewerLocalShortcuts(
-        const QString& actionName, const QList<QKeySequence>& shortcuts);
     Q_INVOKABLE bool setViewerLocalShortcutsForId(
         KiriViewApplication::ActionId actionId, const QList<QKeySequence>& shortcuts);
-    Q_INVOKABLE QString shortcutText(const QString& actionName) const;
-    Q_INVOKABLE QString shortcutTextForId(KiriViewApplication::ActionId actionId) const;
-    Q_INVOKABLE QKeySequence menuShortcut(const QString& actionName) const;
-    Q_INVOKABLE QKeySequence menuShortcutForId(KiriViewApplication::ActionId actionId) const;
-    Q_INVOKABLE QString menuShortcutText(const QString& actionName) const;
     Q_INVOKABLE QString menuShortcutTextForId(KiriViewApplication::ActionId actionId) const;
     Q_INVOKABLE bool actionPlacementEnabled(KiriViewApplication::ActionId actionId) const;
     Q_INVOKABLE QString actionMenuTextForId(KiriViewApplication::ActionId actionId) const;

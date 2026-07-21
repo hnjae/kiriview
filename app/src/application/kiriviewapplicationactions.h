@@ -77,8 +77,6 @@ struct ActionDefinition
 
 const std::array<ActionDefinition, actionDefinitionCount>& definitions();
 const ActionDefinition* definitionForId(ActionId actionId);
-const ActionDefinition* definitionForName(const QString& actionName);
-QString actionName(ActionId actionId);
 QString latin1String(const char* text);
 QString localizedString(const KLazyLocalizedString& text);
 QString shortcutHelpCategoryKey(ShortcutHelpCategory category);

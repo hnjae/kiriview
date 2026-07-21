@@ -8,11 +8,8 @@
 #include <QStringList>
 
 namespace kiriview {
-QStringList supportedImageExtensions();
-QStringList supportedImageMimeTypes();
 QStringList supportedOpenExtensions();
 bool isSupportedImageFileName(const QString& name);
-bool isSupportedRawImageFileName(const QString& name);
 QStringList openDialogNameFilters();
 }
 

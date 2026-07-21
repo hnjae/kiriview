@@ -66,21 +66,6 @@ kiriview::FileDeletionMode toFileDeletionMode(KiriImageDocument::DeletionMode de
     return kiriview::FileDeletionMode::MoveToTrash;
 }
 
-KiriImageDocument::PresentationTransitionState fromImagePresentationTransitionState(
-    kiriview::ImagePresentationTransitionState state)
-{
-    switch (state) {
-    case kiriview::ImagePresentationTransitionState::PreviousActive:
-        return KiriImageDocument::PresentationTransitionState::PreviousActive;
-    case kiriview::ImagePresentationTransitionState::TransitioningPlaceholder:
-        return KiriImageDocument::PresentationTransitionState::TransitioningPlaceholder;
-    case kiriview::ImagePresentationTransitionState::CommittedActive:
-        return KiriImageDocument::PresentationTransitionState::CommittedActive;
-    }
-
-    return KiriImageDocument::PresentationTransitionState::CommittedActive;
-}
-
 KiriImageDocument::Status fromImageDocumentStatus(ImageDocumentStatus status)
 {
     switch (status) {
@@ -123,9 +108,6 @@ kiriview::ImageDocumentPublicSignalOperations publicSignalOperations(KiriImageDo
     operations.twoPageModeChanged = [&document]() { Q_EMIT document.twoPageModeChanged(); };
     operations.rightToLeftReadingChanged
         = [&document]() { Q_EMIT document.rightToLeftReadingChanged(); };
-    operations.presentationTransitionStateChanged
-        = [&document]() { Q_EMIT document.presentationTransitionStateChanged(); };
-    operations.rotationDegreesChanged = [&document]() { Q_EMIT document.rotationDegreesChanged(); };
     operations.imageDocumentSourceScopeChanged
         = [&document]() { Q_EMIT document.imageDocumentSourceScopeChanged(); };
     operations.unsupportedOpenedCollectionVideoChanged
@@ -146,7 +128,7 @@ KiriImageDocument::KiriImageDocument(
     : QObject(parent)
 {
     m_runtime = std::make_unique<kiriview::ImageDocumentRuntime>(
-        this, RenderContextProvider {},
+        this,
         [this](const std::vector<ImageDocumentChange>& changes) { handleDocumentChanges(changes); },
         std::move(dependencies),
         [this](const QString& errorString) { Q_EMIT fileDeletionFailed(errorString); },
@@ -254,8 +236,6 @@ KiriImageDocument::ZoomMode KiriImageDocument::fitModeSelection() const
     return fromImageZoomMode(m_runtime->fitModeSelection());
 }
 
-int KiriImageDocument::rotationDegrees() const { return m_runtime->rotationDegrees(); }
-
 int KiriImageDocument::minimumManualZoomPercent() const
 {
     return static_cast<int>(ImageViewportDisplayLimits::minimumManualZoomPercent());
@@ -346,12 +326,6 @@ bool KiriImageDocument::rightToLeftReadingAvailable() const
 
 bool KiriImageDocument::secondaryPageVisible() const { return m_runtime->secondaryPageVisible(); }
 
-KiriImageDocument::PresentationTransitionState
-KiriImageDocument::presentationTransitionState() const
-{
-    return fromImagePresentationTransitionState(m_runtime->presentationTransitionState());
-}
-
 bool KiriImageDocument::unsupportedOpenedCollectionVideo() const
 {
     return m_runtime->unsupportedOpenedCollectionVideo();
@@ -371,11 +345,6 @@ kiriview::ImageFirstDisplayDecodeContext KiriImageDocument::firstDisplayDecodeCo
 const kiriview::EmbeddedMetadata& KiriImageDocument::embeddedMetadata() const
 {
     return m_runtime->embeddedMetadata();
-}
-
-void KiriImageDocument::setRenderContextProvider(RenderContextProvider provider)
-{
-    m_runtime->setRenderContextProvider(std::move(provider));
 }
 
 void KiriImageDocument::attachImageViewport(ImageViewport* viewport)
@@ -407,21 +376,9 @@ void KiriImageDocument::deleteDisplayedFile(DeletionMode mode)
 
 void KiriImageDocument::openImageAtPage(int pageNumber) { m_runtime->openImageAtPage(pageNumber); }
 
-void KiriImageDocument::resetZoom() { m_runtime->resetZoom(); }
-
-void KiriImageDocument::setFitMode(ZoomMode zoomMode)
-{
-    m_runtime->setFitMode(toImageZoomMode(zoomMode));
-}
-
 void KiriImageDocument::rotateClockwise() { m_runtime->rotateClockwise(); }
 
 void KiriImageDocument::rotateCounterclockwise() { m_runtime->rotateCounterclockwise(); }
-
-double KiriImageDocument::clampedManualZoomPercent(double zoomPercent) const
-{
-    return m_runtime->clampedManualZoomPercent(zoomPercent);
-}
 
 double KiriImageDocument::steppedManualZoomPercent(double stepCount) const
 {
@@ -443,11 +400,6 @@ bool KiriImageDocument::requestZoomByStepAtCenter(double stepCount)
     return m_runtime->requestZoomByStepAtCenter(stepCount);
 }
 
-bool KiriImageDocument::requestActualSizeAtCenter()
-{
-    return m_runtime->requestActualSizeAtCenter();
-}
-
 bool KiriImageDocument::requestFitMode(ZoomMode zoomMode)
 {
     if (status() != Status::Ready) {
@@ -455,11 +407,11 @@ bool KiriImageDocument::requestFitMode(ZoomMode zoomMode)
     }
 
     if (zoomMode == ZoomMode::Fit) {
-        resetZoom();
+        m_runtime->resetZoom();
         return true;
     }
 
-    setFitMode(zoomMode);
+    m_runtime->setFitMode(toImageZoomMode(zoomMode));
     return true;
 }
 
@@ -493,19 +445,9 @@ bool KiriImageDocument::requestViewportScanBackward()
     return m_runtime->requestViewportScanBackward() > 0;
 }
 
-void KiriImageDocument::requestNextDisplayedImageStartToFinalScanPosition()
+void KiriImageDocument::requestNextViewportTargetAnchorAtEnd()
 {
-    m_runtime->requestNextDisplayedImageStartToFinalScanPosition();
-}
-
-bool KiriImageDocument::requestDisplayedImageInitialContentPosition()
-{
-    return m_runtime->requestDisplayedImageInitialContentPosition() > 0;
-}
-
-bool KiriImageDocument::viewportPointInsideImage(QPointF viewportPoint) const
-{
-    return m_runtime->viewportPointInsideImage(viewportPoint);
+    m_runtime->requestNextViewportTargetAnchorAtEnd();
 }
 
 QPointF KiriImageDocument::nearestImageViewportPoint(QPointF viewportPoint) const

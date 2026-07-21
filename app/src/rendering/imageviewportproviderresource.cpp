@@ -20,9 +20,6 @@ ImageViewportPayloadQuality payloadQuality(kiriview::DisplayImageQuality quality
         return ImageViewportPayloadQuality::BoundedDetail;
     case kiriview::DisplayImageQuality::Exact:
         return ImageViewportPayloadQuality::Exact;
-    case kiriview::DisplayImageQuality::Unsupported:
-    case kiriview::DisplayImageQuality::Failed:
-        return ImageViewportPayloadQuality::Unknown;
     }
     return ImageViewportPayloadQuality::Unknown;
 }
@@ -104,7 +101,7 @@ bool operator==(
 {
     return left.sourceGeneration == right.sourceGeneration && left.role == right.role
         && left.requestToken == right.requestToken && left.demandRevision == right.demandRevision
-        && left.reuseIdentity == right.reuseIdentity;
+        && left.locationIdentity == right.locationIdentity;
 }
 
 bool operator!=(
@@ -151,19 +148,20 @@ ImageViewportProviderFrameResult ImageViewportProviderFrameResult::failed(
 }
 
 ImageViewportProviderResource::ImageViewportProviderResource(quint64 sourceGeneration,
-    QString reuseIdentity, std::shared_ptr<ImageViewportProviderSource> source,
+    QString locationIdentity, std::shared_ptr<ImageViewportProviderSource> source,
     std::shared_ptr<DisplayImageStore> displayStore,
     std::shared_ptr<ImageViewportFailureRegistry> failureRegistry,
     std::optional<StaticDisplayImagePayload> predecodedImage)
     : m_sourceGeneration(sourceGeneration)
-    , m_reuseIdentity(std::move(reuseIdentity))
+    , m_locationIdentity(std::move(locationIdentity))
     , m_source(std::move(source))
-    , m_displayStore(displayStore == nullptr ? sharedDisplayImageStore() : std::move(displayStore))
+    , m_displayStore(std::move(displayStore))
     , m_failureRegistry(failureRegistry == nullptr
               ? std::make_shared<ImageViewportFailureRegistry>()
               : std::move(failureRegistry))
     , m_predecodedImage(std::move(predecodedImage))
 {
+    Q_ASSERT(m_displayStore != nullptr);
 }
 
 ImageViewportProviderResource::~ImageViewportProviderResource() = default;
@@ -266,22 +264,19 @@ ImageSequenceProviderFrameHandle* ImageViewportProviderResource::acquireFrameHan
     const ImageViewportProviderPreparedFrame& preparedFrame)
 {
     if (!preparedFrame.isReady()
-        || !m_displayStore->acquirePinLease(
-            preparedFrame.storeEntryId, DisplayImagePinKind::FrameRetention)) {
+        || !m_displayStore->acquireFrameLease(preparedFrame.storeEntryId)) {
         return nullptr;
     }
 
     const std::optional<DisplayImageStoreEntry> entry
         = m_displayStore->entry(preparedFrame.storeEntryId);
     if (!entry.has_value()) {
-        m_displayStore->releasePinLease(
-            preparedFrame.storeEntryId, DisplayImagePinKind::FrameRetention);
+        m_displayStore->releaseFrameLease(preparedFrame.storeEntryId);
         return nullptr;
     }
 
-    const ImageFrame::OrientationPolicy orientation = entry->reuseKey.has_value()
-        ? orientationPolicy(entry->reuseKey->imageReaderTransformations)
-        : ImageFrame::OrientationPolicy::Identity;
+    const ImageFrame::OrientationPolicy orientation
+        = orientationPolicy(entry->imageReaderTransformations);
     const QImage sourcePayload = sourcePayloadForOrientation(entry->image, orientation);
     auto* frame = new ImageFrame(sourcePayload, entry->originalSize, entry->rasterSize,
         sourceToPayloadScale(entry->originalSize, entry->rasterSize), entry->byteCost,
@@ -291,7 +286,7 @@ ImageSequenceProviderFrameHandle* ImageViewportProviderResource::acquireFrameHan
     const QString entryId = preparedFrame.storeEntryId;
     return new ImageSequenceProviderFrameHandle(frame, [store, entryId](ImageFrame* releasedFrame) {
         delete releasedFrame;
-        store->releasePinLease(entryId, DisplayImagePinKind::FrameRetention);
+        store->releaseFrameLease(entryId);
     });
 }
 
@@ -309,7 +304,7 @@ bool ImageViewportProviderResource::matchesResource(
     const ImageViewportProviderWorkIdentity& identity) const
 {
     return identity.sourceGeneration == m_sourceGeneration
-        && identity.reuseIdentity == m_reuseIdentity;
+        && identity.locationIdentity == m_locationIdentity;
 }
 
 ImageViewportProviderPreparedFrame ImageViewportProviderResource::prepareFrame(
@@ -330,7 +325,7 @@ ImageViewportProviderPreparedFrame ImageViewportProviderResource::prepareFrame(
 
     const StaticDisplayImagePayload& displayImage = *result.displayImage;
     const DisplayImageReuseKey reuseKey {
-        m_reuseIdentity,
+        m_locationIdentity,
         displayImage.sourceIdentity,
         displayImage.imageReaderTransform.transformations,
         displayImage.originalSize,
@@ -344,13 +339,8 @@ ImageViewportProviderPreparedFrame ImageViewportProviderResource::prepareFrame(
             displayImage.image,
             displayImage.originalSize,
             displayImage.image.size(),
-            displayImage.sourceIdentity,
-            displayedPageRole(identity.role),
             displayImage.quality,
             DisplayImageRetentionPriority::Visible,
-            identity.sourceGeneration,
-            m_reuseIdentity,
-            displayImage.previewOrigin,
         },
         reuseKey);
     if (prepared.storeEntryId.isEmpty()) {

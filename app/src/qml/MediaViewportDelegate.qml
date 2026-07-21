@@ -10,11 +10,8 @@ FocusScope {
 
     required property var documentSession
     property bool presentationActive: true
-    property ImageViewportInteractionSurface imageInteractionSurface: defaultImageInteractionSurface
     property bool contextMenuButtonPressed: false
     property bool suppressNextContextMenuTap: false
-    readonly property int documentKind: root.documentSession !== null && root.documentSession.documentKind !== undefined ? root.documentSession.documentKind : -1
-
     signal viewerClicked
     signal viewerContextMenuRequested(var popupParent, point position)
 
@@ -28,10 +25,6 @@ FocusScope {
 
     activeFocusOnTab: true
     focus: true
-
-    ImageViewportInteractionSurface {
-        id: defaultImageInteractionSurface
-    }
 
     TapHandler {
         id: contextMenuTapHandler

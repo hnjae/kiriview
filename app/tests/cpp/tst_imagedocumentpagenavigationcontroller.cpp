@@ -369,7 +369,7 @@ void TestImageDocumentPageNavigationController::
     QCOMPARE(controller.pageCount(), 2);
     QCOMPARE(delayedProvider.openedCollectionLoadCount(), std::size_t(1));
     QCOMPARE(changeCount, 2);
-    QVERIFY(controller.candidateSnapshot().has_value());
+    QVERIFY(controller.confirmedCandidateSnapshot().known);
 
     controller.update(openedCollectionContext(secondUrl, archiveCollection));
 

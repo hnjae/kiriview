@@ -43,7 +43,6 @@ private Q_SLOTS:
     void directoryNavigationHelpersOwnParentAndIdentityRules();
     void normalizedUrlIdentityComparisonHandlesEmptyAndPathEquivalentUrls();
     void sameNormalizedUrlMatchesPathSegments();
-    void sameContainerNavigationUrlMatchesNormalizedPaths();
     void parentUrlForContainerNavigationHandlesContainers();
     void navigationSourceFactsResolveDocumentPortalHostWithoutXattr();
     void navigationSourceFactsRestoreKioFuseArchivesWithoutEnvironment();
@@ -122,9 +121,7 @@ void TestImageUrl::normalizedUrlIdentityComparisonHandlesEmptyAndPathEquivalentU
     QVERIFY(validUrl.has_value());
     QCOMPARE(*validUrl, normalizedUrl);
     QVERIFY(!kiriview::normalizedValidUrlForIdentity(QUrl()).has_value());
-    QVERIFY(kiriview::sameNormalizedUrlOrEmpty(rawUrl, normalizedUrl));
-    QVERIFY(kiriview::sameNormalizedUrlOrEmpty(QUrl(), QUrl()));
-    QVERIFY(!kiriview::sameNormalizedUrlOrEmpty(rawUrl, QUrl()));
+    QVERIFY(kiriview::sameNormalizedUrl(rawUrl, normalizedUrl));
 }
 
 void TestImageUrl::sameNormalizedUrlMatchesPathSegments()
@@ -136,20 +133,11 @@ void TestImageUrl::sameNormalizedUrlMatchesPathSegments()
         QUrl::fromLocalFile(QStringLiteral("/images/other.png"))));
 }
 
-void TestImageUrl::sameContainerNavigationUrlMatchesNormalizedPaths()
-{
-    QVERIFY(kiriview::sameContainerNavigationUrl(
-        QUrl::fromLocalFile(QStringLiteral("/images/chapter/../")),
-        QUrl::fromLocalFile(QStringLiteral("/images/"))));
-    QVERIFY(!kiriview::sameContainerNavigationUrl(
-        QUrl(), QUrl::fromLocalFile(QStringLiteral("/images/"))));
-}
-
 void TestImageUrl::parentUrlForContainerNavigationHandlesContainers()
 {
-    QVERIFY(kiriview::sameContainerNavigationUrl(
+    QCOMPARE(
         kiriview::parentUrlForContainerNavigation(QUrl::fromLocalFile(QStringLiteral("/images/"))),
-        QUrl::fromLocalFile(QStringLiteral("/"))));
+        QUrl::fromLocalFile(QStringLiteral("/")));
     const QUrl archiveUrl = QUrl::fromLocalFile(QStringLiteral("/books/book.cbz"));
     QCOMPARE(kiriview::parentUrlForContainerNavigation(archiveUrl),
         QUrl::fromLocalFile(QStringLiteral("/books/")));
@@ -368,12 +356,11 @@ void TestImageUrl::imageLocationTypesExposeExplicitState()
             QUrl(QStringLiteral("zip:///books/book.cbz/page.png")), archiveCollection);
     QVERIFY(!location.isEmpty());
     QCOMPARE(location.openedCollectionScopeSourceUrl(), archiveCollection.fileUrl());
-    QCOMPARE(location.openedCollectionScopeRootUrl(), archiveCollection.rootUrl());
+    QCOMPARE(location.openedCollectionScope().rootUrl(), archiveCollection.rootUrl());
 
     const kiriview::ImageLoadRequest plainOpen = kiriview::ImageLoadRequest::fromExternalSource(
         kiriview::resolvedNavigationSource(location.imageUrl(), {}));
     QVERIFY(!plainOpen.isEmpty());
-    QVERIFY(!plainOpen.isContainerNavigation());
     QCOMPARE(plainOpen.sourceUrl(), location.imageUrl());
     QVERIFY(plainOpen.openedCollectionScope().rootUrl().isEmpty());
 
@@ -383,9 +370,8 @@ void TestImageUrl::imageLocationTypesExposeExplicitState()
             kiriview::ImageDocumentPageTarget(
                 location.imageUrl(), kiriview::ImageDocumentPageKind::Image),
             location.openedCollectionScope());
-    QVERIFY(containerOpen.isContainerNavigation());
-    QCOMPARE(
-        containerOpen.openedCollectionScope().rootUrl(), location.openedCollectionScopeRootUrl());
+    QCOMPARE(containerOpen.openedCollectionScope().rootUrl(),
+        location.openedCollectionScope().rootUrl());
     QCOMPARE(containerOpen.containerNavigationUrl(), containerUrl);
 }
 

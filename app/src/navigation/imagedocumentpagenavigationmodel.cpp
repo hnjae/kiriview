@@ -41,12 +41,6 @@ ImageDocumentPageNavigationSnapshot ImageDocumentPageNavigationModel::snapshot()
     return ImageDocumentPageNavigationSnapshot { m_state };
 }
 
-std::optional<ImageDocumentPageCandidateSnapshot>
-ImageDocumentPageNavigationModel::candidateSnapshot() const
-{
-    return imageDocumentPageCandidateValueSnapshot(m_candidateSnapshot);
-}
-
 const ImageDocumentPageCandidateListSnapshot&
 ImageDocumentPageNavigationModel::confirmedCandidateSnapshot() const
 {

@@ -56,17 +56,6 @@ kiriview::MediaEntrySourceOpenResult openWithMediaEntrySourceBackend(
     return backend->openSource(openedCollectionScope);
 }
 
-kiriview::MediaEntrySourceVideoPlaybackDeviceResult attachMediaEntrySourceOwner(
-    kiriview::MediaEntrySourceVideoPlaybackDeviceResult result,
-    kiriview::MediaEntrySourcePtr sourceOwner)
-{
-    if (auto* playbackDevice
-        = std::get_if<kiriview::MediaEntrySourceVideoPlaybackDevice>(&result)) {
-        playbackDevice->sourceOwner = std::move(sourceOwner);
-    }
-
-    return result;
-}
 }
 
 namespace kiriview {
@@ -262,26 +251,6 @@ MediaEntrySourceImageDataResult loadMediaEntrySourceImageData(
     }
 
     return (*source)->loadImageData(imageUrl);
-}
-
-MediaEntrySourceVideoPlaybackDeviceResult loadMediaEntrySourceVideoPlaybackDevice(
-    const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl)
-{
-    MediaEntrySourceOpenResult opened = openMediaEntrySource(openedCollectionScope);
-    if (const auto* error = std::get_if<MediaEntrySourceError>(&opened)) {
-        return Backend::mediaEntrySourceErrorResult<MediaEntrySourceVideoPlaybackDeviceResult>(
-            *error);
-    }
-
-    const auto* source = std::get_if<MediaEntrySourcePtr>(&opened);
-    if (source == nullptr || *source == nullptr) {
-        return Backend::mediaEntrySourceErrorResult<MediaEntrySourceVideoPlaybackDeviceResult>(
-            Backend::mediaEntrySourceError(MediaEntrySourceBackendKind::Unknown,
-                MediaEntrySourceOperation::OpenCollection, openedCollectionScope,
-                Backend::fallbackMediaEntrySourceOpenError(openedCollectionScope)));
-    }
-
-    return attachMediaEntrySourceOwner((*source)->loadVideoPlaybackDevice(videoUrl), *source);
 }
 
 MediaEntrySourceThumbnailMetadataResult loadMediaEntrySourceThumbnailMetadata(

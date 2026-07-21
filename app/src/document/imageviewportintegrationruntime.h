@@ -35,7 +35,6 @@ struct ImageViewportIntegrationTarget
     quint64 sourceGeneration = 0;
     QUrl primaryUrl;
     QUrl secondaryUrl;
-    QString navigationScopeIdentity;
     ImageViewportTargetTransitionIntent transitionIntent
         = ImageViewportTargetTransitionIntent::OutsideNavigationScope;
     bool rightToLeft = false;
@@ -51,7 +50,6 @@ struct ImageViewportIntegrationProjection
 {
     bool correlated = false;
     quint64 sourceGeneration = 0;
-    QUrl primaryUrl;
     QUrl secondaryUrl;
     QUrl displayedUrl;
     ImageDocumentStatus status = ImageDocumentStatus::Null;
@@ -60,7 +58,6 @@ struct ImageViewportIntegrationProjection
     std::optional<ImageLoadFailure> failure;
     QSize primaryImageSize;
     QSize secondaryImageSize;
-    bool primaryVisible = false;
     bool secondaryVisible = false;
     ImageViewportFitMode fitMode = ImageViewportFitMode::Contain;
     qreal zoomPercent = 0.0;
@@ -72,23 +69,15 @@ struct ImageViewportIntegrationProjection
     bool horizontallyPannable = false;
     bool verticallyPannable = false;
     QSizeF viewportSize;
-    QSizeF spreadSize;
     QRectF contentRect;
-    QSizeF contentSize;
-    QRectF visibleSpreadRect;
-    QRectF primaryDisplayRect;
-    QRectF secondaryDisplayRect;
     QPointF contentPosition;
     QPointF maximumContentPosition;
     qreal horizontalScrollPosition = 0.0;
     qreal horizontalScrollPageSize = 1.0;
     qreal verticalScrollPosition = 0.0;
     qreal verticalScrollPageSize = 1.0;
-    ImageViewportDisplayPhase displayPhase = ImageViewportDisplayPhase::NoPresentation;
-    bool retained = false;
     bool restoredTransition = false;
-    std::optional<bool> restoredTwoPageModeEnabled;
-    ImageViewportStateSnapshot component;
+    ImageViewportPresentationTargetGenerationToken displayedTargetGeneration;
 };
 
 class ImageViewportIntegrationRuntime final : public QObject
@@ -103,7 +92,6 @@ public:
     explicit ImageViewportIntegrationRuntime(Callbacks callbacks = {}, QObject* parent = nullptr);
     ~ImageViewportIntegrationRuntime() override;
 
-    ImageViewport* attachedViewport() const;
     void attach(ImageViewport* viewport);
     void detach(ImageViewport* viewport);
 
@@ -118,13 +106,11 @@ public:
     bool zoomBySteps(qreal steps, std::optional<QPointF> anchor = std::nullopt);
     bool panBy(QPointF delta);
     bool setContentPosition(QPointF position);
-    bool setContentAnchor(ImageViewportContentAnchor anchor);
     bool setRotationDegrees(int degrees);
     bool setSpreadDirection(ImageViewportSpreadDirection direction);
     bool submitHorizontalScrollPosition(qreal position);
     bool submitVerticalScrollPosition(qreal position);
     ImageViewportCoordinateResult mapPoint(ImageViewportCoordinateInput input) const;
-    bool containsPoint(ImageViewportCoordinateInput input) const;
 
 private:
     struct TargetRecord;

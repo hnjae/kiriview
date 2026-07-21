@@ -30,13 +30,11 @@ kiriview::StaticDisplayImagePayload displayPayload(kiriview::DisplayImageQuality
         originalSize,
         std::move(image),
         quality,
-        qreal(rasterSize.width()) / qreal(originalSize.width()),
         {},
         {},
         quality == kiriview::DisplayImageQuality::ThumbnailPreview
             ? kiriview::DisplayImagePreviewOrigin::XdgThumbnail
             : kiriview::DisplayImagePreviewOrigin::None,
-        QStringLiteral("fake-scope"),
     };
 }
 
@@ -133,10 +131,14 @@ public:
 
 struct ProviderFixture
 {
+    explicit ProviderFixture(qsizetype displayStoreByteBudget = 1024 * 1024)
+        : store(std::make_shared<kiriview::DisplayImageStore>(displayStoreByteBudget))
+    {
+    }
+
     std::shared_ptr<FakeImageViewportProviderSource> source
         = std::make_shared<FakeImageViewportProviderSource>();
-    std::shared_ptr<kiriview::DisplayImageStore> store
-        = std::make_shared<kiriview::DisplayImageStore>(1024 * 1024);
+    std::shared_ptr<kiriview::DisplayImageStore> store;
     std::shared_ptr<kiriview::ImageViewportFailureRegistry> failures
         = std::make_shared<kiriview::ImageViewportFailureRegistry>();
     std::shared_ptr<kiriview::ImageViewportProviderResource> resource;
@@ -146,7 +148,7 @@ struct ProviderFixture
     void create(std::optional<kiriview::StaticDisplayImagePayload> predecoded = std::nullopt)
     {
         resource = std::make_shared<kiriview::ImageViewportProviderResource>(
-            41, QStringLiteral("fake-reuse"), source, store, failures, std::move(predecoded));
+            41, QStringLiteral("fake-location"), source, store, failures, std::move(predecoded));
         adapter = std::make_unique<kiriview::ImageViewportSequenceProvider>(resource);
         ImageSequenceFactory factory;
         factoryResult.reset(factory.fromProvider(adapter.get()));
@@ -230,7 +232,7 @@ void TestImageViewportSequenceProvider::readerOrientationProducesNormalizedFrame
             ImageViewportPageRole::Primary,
             {},
             {},
-            QStringLiteral("fake-reuse"),
+            QStringLiteral("fake-location"),
         },
         {},
         [&prepared](kiriview::ImageViewportProviderWorkIdentity,
@@ -266,7 +268,8 @@ void TestImageViewportSequenceProvider::metadataAndStillFrameFlowThroughProvider
     QCOMPARE(fixture.source->frameIdentities.front().role, ImageViewportPageRole::Primary);
     QVERIFY(fixture.source->frameIdentities.front().requestToken.isValid());
     QVERIFY(fixture.source->frameIdentities.front().demandRevision.isValid());
-    QCOMPARE(fixture.source->frameIdentities.front().reuseIdentity, QStringLiteral("fake-reuse"));
+    QCOMPARE(
+        fixture.source->frameIdentities.front().locationIdentity, QStringLiteral("fake-location"));
     QTRY_COMPARE(fixture.store->size(), qsizetype(1));
 }
 
@@ -297,14 +300,12 @@ void TestImageViewportSequenceProvider::laterDemandRefinesPredecodeThroughSameRe
         ImageViewportPageRole::Primary,
         {},
         {},
-        QStringLiteral("fake-reuse"),
+        QStringLiteral("fake-location"),
     };
     bool previewReady = false;
     fixture.resource->requestFrame(identity,
         kiriview::ImageViewportProviderFrameRequest {
-            ImageSequenceProviderRequestKind::Frame,
             0,
-            -1,
             firstDemand,
         },
         [&previewReady](kiriview::ImageViewportProviderWorkIdentity,
@@ -319,9 +320,7 @@ void TestImageViewportSequenceProvider::laterDemandRefinesPredecodeThroughSameRe
     refinementDemand.setCurrentPayloadExactness(ImageViewportPayloadExactness::NotExact);
     fixture.resource->requestFrame(identity,
         kiriview::ImageViewportProviderFrameRequest {
-            ImageSequenceProviderRequestKind::Frame,
             0,
-            -1,
             refinementDemand,
         },
         [](kiriview::ImageViewportProviderWorkIdentity,
@@ -349,7 +348,6 @@ void TestImageViewportSequenceProvider::animationDemandRequestsOnlyTheSelectedFr
         ImageViewportCommandOutcome::Accepted);
     QTRY_COMPARE(fixture.source->frameRequests.size(), std::size_t(2));
     QCOMPARE(fixture.source->frameRequests.back().frame, 2);
-    QCOMPARE(fixture.source->frameRequests.back().kind, ImageSequenceProviderRequestKind::Frame);
 }
 
 void TestImageViewportSequenceProvider::staleCompletionMayCacheButCannotPublish()
@@ -375,7 +373,8 @@ void TestImageViewportSequenceProvider::staleCompletionMayCacheButCannotPublish(
 
 void TestImageViewportSequenceProvider::componentFrameHandlePinsStoreUntilRelease()
 {
-    ProviderFixture fixture;
+    constexpr qsizetype frameByteCost = 32 * 16 * 4;
+    ProviderFixture fixture(frameByteCost);
     fixture.source->knownMetadata = ImageSequenceProviderMetadata::still(QSizeF(128, 64));
     fixture.source->automaticFrame = kiriview::ImageViewportProviderFrameResult::ready(
         displayPayload(kiriview::DisplayImageQuality::Exact),
@@ -386,11 +385,35 @@ void TestImageViewportSequenceProvider::componentFrameHandlePinsStoreUntilReleas
     fixture.assign(viewport);
     QTRY_COMPARE(fixture.store->size(), qsizetype(1));
 
-    fixture.store->setByteBudget(1);
+    const auto acquireCompetingEntry = [&fixture]() {
+        const kiriview::StaticDisplayImagePayload payload
+            = displayPayload(kiriview::DisplayImageQuality::Exact);
+        return fixture.store->acquireReusable(
+            kiriview::DisplayImageEntry {
+                payload.image,
+                payload.originalSize,
+                payload.image.size(),
+                payload.quality,
+                kiriview::DisplayImageRetentionPriority::Visible,
+            },
+            kiriview::DisplayImageReuseKey {
+                QStringLiteral("competing-reuse"),
+                QStringLiteral("competing-source"),
+                {},
+                payload.originalSize,
+                payload.image.size(),
+                payload.quality,
+                payload.previewOrigin,
+                kiriview::DisplayedPageRole::Primary,
+            });
+    };
+
+    QVERIFY(acquireCompetingEntry().isEmpty());
     QCOMPARE(fixture.store->size(), qsizetype(1));
 
     QCOMPARE(viewport.clear().outcome(), ImageViewportCommandOutcome::Accepted);
-    QTRY_COMPARE(fixture.store->size(), qsizetype(0));
+    QTRY_VERIFY(!acquireCompetingEntry().isEmpty());
+    QCOMPARE(fixture.store->size(), qsizetype(1));
 }
 
 void TestImageViewportSequenceProvider::failureReferenceResolvesAndRetiresWithHandle()

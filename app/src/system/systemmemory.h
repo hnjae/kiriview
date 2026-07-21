@@ -19,8 +19,6 @@ struct SystemMemoryRuntime
 struct SystemMemorySnapshot
 {
     qsizetype physicalByteSize = 0;
-
-    bool hasPhysicalByteSize() const { return physicalByteSize > 0; }
 };
 
 std::optional<qsizetype> physicalSystemMemoryByteSize();

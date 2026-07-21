@@ -5,7 +5,6 @@
 
 #include "cache/imagecachepolicy.h"
 #include "image_async_test_support.h"
-#include "rendering/displayimagestore.h"
 
 #include <QByteArray>
 #include <QObject>
@@ -37,7 +36,6 @@ class TestImageDocumentRuntimeDependencies : public QObject
 
 private Q_SLOTS:
     void defaultDependenciesUseMediaEntrySourceStore();
-    void sharedDisplayStoreDefaultBudgetMatchesImageDocumentBudget();
     void cacheBudgetsUseInjectedSystemMemorySnapshot();
     void partialNonSourceOverridesStillUseMediaEntrySourceStore();
     void customMediaEntrySourceFactoryWrapsOpenedCollectionProviders();
@@ -63,21 +61,10 @@ void TestImageDocumentRuntimeDependencies::defaultDependenciesUseMediaEntrySourc
     QVERIFY(resolved.predecodeThreadCountProvider);
     QVERIFY(resolved.cacheBudgets.predecodeCacheByteBudget > 0);
     QVERIFY(resolved.cacheBudgets.predecodeCacheByteBudget
-        <= kiriview::predecodeCachePreferredByteBudget());
+        <= kiriview::predecodeCacheByteBudgetForSystemMemory(0));
     QVERIFY(resolved.cacheBudgets.displayImageCacheByteBudget > 0);
     QVERIFY(resolved.cacheBudgets.displayImageCacheByteBudget
         <= kiriview::displayImageCachePreferredByteBudget());
-}
-
-void TestImageDocumentRuntimeDependencies::
-    sharedDisplayStoreDefaultBudgetMatchesImageDocumentBudget()
-{
-    const kiriview::ImageCacheBudgets documentBudgets
-        = kiriview::resolveImageDocumentCacheBudgets({});
-    const std::shared_ptr<kiriview::DisplayImageStore> sharedStore
-        = kiriview::sharedDisplayImageStore();
-
-    QCOMPARE(sharedStore->byteBudget(), documentBudgets.displayImageCacheByteBudget);
 }
 
 void TestImageDocumentRuntimeDependencies::cacheBudgetsUseInjectedSystemMemorySnapshot()

@@ -65,11 +65,6 @@ bool PredecodeDisplayedHistory::recentContains(const QUrl& url) const
     return normalizedUrl.has_value() && containsUrl(m_recentUrls, *normalizedUrl);
 }
 
-bool PredecodeDisplayedHistory::retainedContains(const QUrl& url) const
-{
-    return currentContains(url) || recentContains(url);
-}
-
 std::size_t PredecodeDisplayedHistory::currentPriority(const QUrl& url) const
 {
     const std::optional<QUrl> normalizedUrl = normalizedValidImageUrl(url);
@@ -82,10 +77,6 @@ std::size_t PredecodeDisplayedHistory::recentPriority(const QUrl& url) const
     const std::optional<QUrl> normalizedUrl = normalizedValidImageUrl(url);
     return normalizedUrl.has_value() ? priority(m_recentUrls, *normalizedUrl) : m_recentUrls.size();
 }
-
-const std::vector<QUrl>& PredecodeDisplayedHistory::currentUrls() const { return m_currentUrls; }
-
-const std::vector<QUrl>& PredecodeDisplayedHistory::recentUrls() const { return m_recentUrls; }
 
 bool PredecodeDisplayedHistory::containsUrl(const std::vector<QUrl>& urls, const QUrl& url)
 {

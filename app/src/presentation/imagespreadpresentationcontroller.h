@@ -51,9 +51,6 @@ public:
         QObject* parent, ImageDocumentState& state, Callbacks callbacks);
     ~ImageSpreadPresentationController();
 
-    const DisplayedImageLocation& committedPrimaryDisplayedImageLocation() const;
-    QSize committedImageSize() const;
-    QSize committedPrimaryImageSize() const;
     int currentLastPageNumber() const;
     ImageDocumentPageActiveNavigationSnapshot activeNavigationSnapshot() const;
     ImageSpreadPageNavigationTarget imageDocumentPageNavigationTarget(
@@ -105,7 +102,6 @@ private:
     Callbacks m_callbacks;
     std::unique_ptr<ImageSecondaryPageController> m_secondaryPageController;
     ImageSpreadSecondaryPageRefresh m_secondaryPageRefresh;
-    DisplayedImageLocation m_committedPrimaryDisplayedImageLocation;
     QSize m_committedPrimaryImageSize;
     bool m_twoPageModeEnabled = false;
     bool m_rightToLeftReadingEnabled = false;

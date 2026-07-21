@@ -142,27 +142,6 @@ std::optional<kiriview::DecodedImageResult> decodeHeifSequenceImageDataForInfo(
 }
 
 namespace kiriview {
-std::optional<DecodedImageResult> decodeHeifStillImageData(const QByteArray& data)
-{
-    return decodeHeifStillImageData(data, {});
-}
-
-std::optional<DecodedImageResult> decodeHeifStillImageData(
-    const QByteArray& data, const ImageDecodeRequest& request)
-{
-    return decodeHeifStillImageDataForInfo(data, heifContainerInfo(data), request);
-}
-
-std::optional<DecodedImageResult> decodeHeifSequenceImageData(const QByteArray& data)
-{
-    return decodeHeifSequenceImageDataForInfo(data, heifContainerInfo(data), {});
-}
-
-std::optional<DecodedImageResult> decodeHeifImageData(const QByteArray& data)
-{
-    return decodeHeifImageData(data, {});
-}
-
 std::optional<DecodedImageResult> decodeHeifImageData(
     const QByteArray& data, const ImageDecodeRequest& request)
 {

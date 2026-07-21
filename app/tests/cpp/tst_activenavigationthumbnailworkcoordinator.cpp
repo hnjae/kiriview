@@ -371,8 +371,7 @@ void TestActiveNavigationThumbnailWorkCoordinator::
             videoRow(5, QStringLiteral("/media/five.mp4")) });
     ManualProviders providers;
     ManualVideoExtractions extractions;
-    kiriview::ThumbnailGenerationDependencies generationDependencies
-        = kiriview::defaultThumbnailGenerationDependencies();
+    kiriview::ThumbnailGenerationDependencies generationDependencies;
     generationDependencies.videoExtractor = extractions.provider();
     kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(this, rows,
         providers.lookupProvider(),

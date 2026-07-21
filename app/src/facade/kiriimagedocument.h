@@ -11,8 +11,6 @@
 #include "navigation/imagedocumentpagecandidatelistsource.h"
 #include "navigation/imagedocumentpagenavigationtypes.h"
 #include "predecode/predecodedimage.h"
-#include "presentation/imagepresentationstate.h"
-#include "rendering/imagerendercontext.h"
 
 #include <QObject>
 #include <QPointF>
@@ -23,7 +21,6 @@
 #include <QStringList>
 #include <QUrl>
 #include <QtQml/qqmlregistration.h>
-#include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -69,7 +66,6 @@ class KiriImageDocument : public QObject
     Q_PROPERTY(double zoomPercent READ zoomPercent NOTIFY zoomPercentChanged)
     Q_PROPERTY(ZoomMode zoomMode READ zoomMode NOTIFY zoomModeChanged)
     Q_PROPERTY(ZoomMode fitModeSelection READ fitModeSelection NOTIFY zoomModeChanged)
-    Q_PROPERTY(int rotationDegrees READ rotationDegrees NOTIFY rotationDegreesChanged)
     Q_PROPERTY(int minimumManualZoomPercent READ minimumManualZoomPercent CONSTANT)
     Q_PROPERTY(int maximumManualZoomPercent READ maximumManualZoomPercent NOTIFY
             maximumManualZoomPercentChanged)
@@ -93,14 +89,10 @@ class KiriImageDocument : public QObject
     Q_PROPERTY(bool rightToLeftReadingAvailable READ rightToLeftReadingAvailable NOTIFY
             rightToLeftReadingChanged)
     Q_PROPERTY(bool secondaryPageVisible READ secondaryPageVisible NOTIFY twoPageModeChanged)
-    Q_PROPERTY(PresentationTransitionState presentationTransitionState READ
-            presentationTransitionState NOTIFY presentationTransitionStateChanged)
     Q_PROPERTY(bool unsupportedOpenedCollectionVideo READ unsupportedOpenedCollectionVideo NOTIFY
             unsupportedOpenedCollectionVideoChanged)
 
 public:
-    using RenderContextProvider = std::function<kiriview::ImageDocumentRenderContext()>;
-
     enum class Status {
         Null,
         Loading,
@@ -122,13 +114,6 @@ public:
         DeletePermanently,
     };
     Q_ENUM(DeletionMode)
-
-    enum class PresentationTransitionState {
-        PreviousActive,
-        TransitioningPlaceholder,
-        CommittedActive,
-    };
-    Q_ENUM(PresentationTransitionState)
 
     explicit KiriImageDocument(QObject* parent = nullptr);
     explicit KiriImageDocument(
@@ -158,7 +143,6 @@ public:
     double zoomPercent() const;
     ZoomMode zoomMode() const;
     ZoomMode fitModeSelection() const;
-    int rotationDegrees() const;
     int minimumManualZoomPercent() const;
     int maximumManualZoomPercent() const;
     double zoomStepFactor() const;
@@ -178,13 +162,11 @@ public:
     bool rightToLeftReadingEnabled() const;
     bool rightToLeftReadingAvailable() const;
     bool secondaryPageVisible() const;
-    PresentationTransitionState presentationTransitionState() const;
     bool unsupportedOpenedCollectionVideo() const;
     std::optional<kiriview::DisplayedPredecodeImage> primaryDisplayedPredecodeImage() const;
     kiriview::ImageFirstDisplayDecodeContext firstDisplayDecodeContext() const;
     const kiriview::EmbeddedMetadata& embeddedMetadata() const;
 
-    void setRenderContextProvider(RenderContextProvider provider);
     void attachImageViewport(ImageViewport* viewport);
     void detachImageViewport(ImageViewport* viewport);
 
@@ -196,16 +178,12 @@ public:
     void openPreviousContainer();
     void openNextContainer();
     void deleteDisplayedFile(KiriImageDocument::DeletionMode mode);
-    Q_INVOKABLE void resetZoom();
-    Q_INVOKABLE void setFitMode(KiriImageDocument::ZoomMode zoomMode);
     Q_INVOKABLE void rotateClockwise();
     Q_INVOKABLE void rotateCounterclockwise();
-    Q_INVOKABLE double clampedManualZoomPercent(double zoomPercent) const;
     Q_INVOKABLE double steppedManualZoomPercent(double stepCount) const;
     Q_INVOKABLE bool requestManualZoomPercent(double zoomPercent);
     Q_INVOKABLE bool requestZoomByStep(double stepCount, QPointF viewportAnchorPoint);
     Q_INVOKABLE bool requestZoomByStepAtCenter(double stepCount);
-    Q_INVOKABLE bool requestActualSizeAtCenter();
     Q_INVOKABLE bool requestFitMode(KiriImageDocument::ZoomMode zoomMode);
     Q_INVOKABLE bool requestToggleFitOrActualSize(QPointF viewportPoint);
     Q_INVOKABLE bool requestViewportPanBy(double deltaX, double deltaY);
@@ -213,9 +191,7 @@ public:
     Q_INVOKABLE bool requestViewportPanToFinalScanPosition();
     Q_INVOKABLE bool requestViewportScanForward();
     Q_INVOKABLE bool requestViewportScanBackward();
-    Q_INVOKABLE void requestNextDisplayedImageStartToFinalScanPosition();
-    Q_INVOKABLE bool requestDisplayedImageInitialContentPosition();
-    Q_INVOKABLE bool viewportPointInsideImage(QPointF viewportPoint) const;
+    void requestNextViewportTargetAnchorAtEnd();
     Q_INVOKABLE QPointF nearestImageViewportPoint(QPointF viewportPoint) const;
     Q_INVOKABLE void requestToggleTwoPageMode();
     Q_INVOKABLE void requestToggleRightToLeftReading();
@@ -234,7 +210,6 @@ Q_SIGNALS:
     void zoomPercentKnownChanged();
     void zoomPercentChanged();
     void zoomModeChanged();
-    void rotationDegreesChanged();
     void maximumManualZoomPercentChanged();
     void pageNavigationChanged();
     void containerNavigationChanged();
@@ -242,7 +217,6 @@ Q_SIGNALS:
     void fileDeletionInProgressChanged();
     void twoPageModeChanged();
     void rightToLeftReadingChanged();
-    void presentationTransitionStateChanged();
     void fileDeletionFailed(const QString& errorString);
     void unsupportedOpenedCollectionVideoChanged();
     void embeddedMetadataChanged();

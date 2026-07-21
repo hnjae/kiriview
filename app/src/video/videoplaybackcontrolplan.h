@@ -69,8 +69,6 @@ VideoPlaybackControlPlan videoPlaybackSetPositionPlan(
     VideoPlaybackControlSnapshot snapshot, qint64 position);
 VideoPlaybackControlPlan videoPlaybackSeekByPlan(
     VideoPlaybackControlSnapshot snapshot, qint64 deltaMilliseconds);
-qint64 videoPlaybackClampedSeekPosition(
-    qint64 currentPosition, qint64 deltaMilliseconds, qint64 duration, bool seekable);
 }
 
 #endif

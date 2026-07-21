@@ -52,16 +52,6 @@ kiriview::RustNavigationIndex pageRustNavigationIndex(std::optional<std::size_t>
 }
 
 namespace kiriview {
-PageNavigationState::PageNavigationState(std::vector<QUrl> urls, int currentIndex)
-    : currentIndex(currentIndex)
-{
-    targets.reserve(urls.size());
-    for (QUrl& url : urls) {
-        targets.push_back(ImageDocumentPageTarget {
-            url, ImageDocumentPageKind::Image, url.fileName(QUrl::PrettyDecoded) });
-    }
-}
-
 int ImageDocumentPageNavigationSnapshot::currentPageNumber() const
 {
     return pageNavigationCurrentPageNumber(state);
@@ -75,12 +65,6 @@ int ImageDocumentPageNavigationSnapshot::pageCount() const
 std::optional<QUrl> ImageDocumentPageNavigationSnapshot::urlAtPage(int pageNumber) const
 {
     return pageNavigationUrlAtPage(state, pageNumber);
-}
-
-std::vector<QUrl> imageDocumentPageCandidateUrls(
-    const std::vector<ImageDocumentPageCandidate>& candidates)
-{
-    return imageDocumentPageTargetUrls(imageDocumentPageCandidateTargets(candidates));
 }
 
 std::vector<ImageDocumentPageTarget> imageDocumentPageCandidateTargets(
@@ -107,28 +91,9 @@ std::vector<QUrl> imageDocumentPageTargetUrls(const std::vector<ImageDocumentPag
     return urls;
 }
 
-std::vector<QUrl> stillImageDocumentPageCandidateUrls(
-    const std::vector<ImageDocumentPageCandidate>& candidates)
-{
-    std::vector<QUrl> urls;
-    urls.reserve(candidates.size());
-    for (const ImageDocumentPageCandidate& candidate : candidates) {
-        if (imageDocumentPageCandidateIsImage(candidate)) {
-            urls.push_back(candidate.url);
-        }
-    }
-
-    return urls;
-}
-
 bool imageDocumentPageCandidateIsImage(const ImageDocumentPageCandidate& candidate)
 {
     return candidate.kind == ImageDocumentPageKind::Image;
-}
-
-bool imageDocumentPageCandidateIsVideo(const ImageDocumentPageCandidate& candidate)
-{
-    return candidate.kind == ImageDocumentPageKind::Video;
 }
 
 std::optional<std::size_t> imageDocumentPageCandidateIndex(
@@ -141,13 +106,6 @@ bool imageDocumentPageCandidatesContainUrl(
     const std::vector<ImageDocumentPageCandidate>& candidates, const QUrl& url)
 {
     return imageDocumentPageCandidateIndex(candidates, url).has_value();
-}
-
-std::optional<QUrl> adjacentImageDocumentPageUrl(
-    const std::vector<ImageDocumentPageCandidate>& candidates, const QUrl& currentUrl,
-    NavigationDirection direction)
-{
-    return adjacentNavigationCandidateUrl(candidates, currentUrl, direction);
 }
 
 std::optional<ImageDocumentPageCandidate> adjacentImageDocumentPageCandidate(
@@ -261,11 +219,6 @@ PageNavigationState pageNavigationStateForTargets(
     state.currentIndex = update.current_index;
 
     return state;
-}
-
-PageNavigationState pageNavigationStateForUrls(std::vector<QUrl> urls, const QUrl& currentUrl)
-{
-    return pageNavigationStateForTargets(PageNavigationState(std::move(urls)).targets, currentUrl);
 }
 
 bool samePageNavigationState(const PageNavigationState& left, const PageNavigationState& right)

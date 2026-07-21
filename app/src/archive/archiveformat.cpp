@@ -21,11 +21,6 @@ std::optional<kiriview::ArchiveOpenMatch> archiveMatchForQString(
         kiriview::Bridge::rustResultForQString(value, rustFunction));
 }
 
-QString schemeString(const std::optional<kiriview::ArchiveOpenMatch>& match)
-{
-    return match.has_value() ? match->scheme : QString();
-}
-
 std::optional<kiriview::ArchiveOpenMatch> archiveMatchForUrl(const QUrl& url,
     QMimeDatabase::MatchMode mimeMatchMode, ArchiveMatchResolver matchForFileName,
     ArchiveMatchResolver matchForMimeTypeName)
@@ -46,11 +41,6 @@ std::optional<kiriview::ArchiveOpenMatch> archiveMatchForUrl(const QUrl& url,
 }
 
 namespace kiriview {
-bool isSupportedArchiveRootScheme(const QString& scheme)
-{
-    return Bridge::rustResultForQString(scheme, rustIsSupportedArchiveRootScheme);
-}
-
 ArchiveStorageBackend archiveStorageBackendForRootScheme(const QString& scheme)
 {
     return archiveStorageBackendFromBridge(
@@ -67,19 +57,9 @@ QStringList supportedComicBookArchiveExtensions()
     return Bridge::qtStringList(rustSupportedComicBookArchiveExtensions());
 }
 
-QStringList supportedComicBookArchiveMimeTypes()
-{
-    return Bridge::qtStringList(rustSupportedComicBookArchiveMimeTypes());
-}
-
 bool isComicBookArchiveFileName(const QString& name)
 {
-    return !comicBookArchiveKioSchemeForFileName(name).isEmpty();
-}
-
-bool isComicBookArchiveUrl(const QUrl& url)
-{
-    return !comicBookArchiveKioSchemeForUrl(url).isEmpty();
+    return comicBookArchiveMatchForFileName(name).has_value();
 }
 
 std::optional<ArchiveOpenMatch> comicBookArchiveMatchForFileName(const QString& fileName)
@@ -92,20 +72,9 @@ std::optional<ArchiveOpenMatch> directArchiveOpenMatchForFileName(const QString&
     return archiveMatchForQString(fileName, rustDirectArchiveOpenMatchForFileName);
 }
 
-std::optional<ArchiveOpenMatch> comicBookArchiveMatchForMimeTypeName(const QString& mimeTypeName)
-{
-    return archiveMatchForQString(mimeTypeName, rustComicBookArchiveMatchForMimeTypeName);
-}
-
 std::optional<ArchiveOpenMatch> directArchiveOpenMatchForMimeTypeName(const QString& mimeTypeName)
 {
     return archiveMatchForQString(mimeTypeName, rustDirectArchiveOpenMatchForMimeTypeName);
-}
-
-std::optional<ArchiveOpenMatch> comicBookArchiveMatchForUrl(const QUrl& url)
-{
-    return archiveMatchForUrl(url, QMimeDatabase::MatchExtension,
-        kiriview::comicBookArchiveMatchForFileName, kiriview::comicBookArchiveMatchForMimeTypeName);
 }
 
 std::optional<ArchiveOpenMatch> directArchiveOpenMatchForUrl(const QUrl& url)
@@ -115,45 +84,4 @@ std::optional<ArchiveOpenMatch> directArchiveOpenMatchForUrl(const QUrl& url)
         kiriview::directArchiveOpenMatchForMimeTypeName);
 }
 
-QString comicBookArchiveKioSchemeForFileName(const QString& fileName)
-{
-    return schemeString(comicBookArchiveMatchForFileName(fileName));
-}
-
-QString directArchiveOpenKioSchemeForFileName(const QString& fileName)
-{
-    return schemeString(directArchiveOpenMatchForFileName(fileName));
-}
-
-QString comicBookArchiveKioSchemeForMimeTypeName(const QString& mimeTypeName)
-{
-    return schemeString(comicBookArchiveMatchForMimeTypeName(mimeTypeName));
-}
-
-QString directArchiveOpenKioSchemeForMimeTypeName(const QString& mimeTypeName)
-{
-    return schemeString(directArchiveOpenMatchForMimeTypeName(mimeTypeName));
-}
-
-QString comicBookArchiveKioSchemeForUrl(const QUrl& url)
-{
-    return schemeString(comicBookArchiveMatchForUrl(url));
-}
-
-QString directArchiveOpenKioSchemeForUrl(const QUrl& url)
-{
-    return schemeString(directArchiveOpenMatchForUrl(url));
-}
-
-QString comicBookArchiveMarkerForRootScheme(const QString& scheme)
-{
-    return Bridge::qtString(
-        Bridge::rustResultForQString(scheme, rustComicBookArchiveMarkerForRootScheme));
-}
-
-QStringList directArchiveOpenMarkersForRootScheme(const QString& scheme)
-{
-    return Bridge::qtStringList(
-        Bridge::rustResultForQString(scheme, rustDirectArchiveOpenMarkersForRootScheme));
-}
 }

@@ -87,8 +87,7 @@ QPointF invalidPoint()
 }
 
 namespace kiriview {
-ImageDocumentRuntime::ImageDocumentRuntime(QObject* documentObject,
-    RenderContextProvider renderContextProvider, ChangeCallback changeCallback,
+ImageDocumentRuntime::ImageDocumentRuntime(QObject* documentObject, ChangeCallback changeCallback,
     ImageDocumentRuntimeDependencyOverrides dependencies,
     FileDeletionFailedCallback fileDeletionFailedCallback,
     UnsupportedOpenedCollectionVideoEnteredCallback unsupportedOpenedCollectionVideoEnteredCallback,
@@ -97,7 +96,6 @@ ImageDocumentRuntime::ImageDocumentRuntime(QObject* documentObject,
           [this](const std::vector<ImageDocumentChange>& changes) { publishChanges(changes); }))
     , state(changeBatcher)
     , changeCallback(std::move(changeCallback))
-    , renderContextProvider(std::move(renderContextProvider))
     , navigationSourceResolver(dependencies.navigationSourceResolver.has_value()
               ? std::move(*dependencies.navigationSourceResolver)
               : NavigationSourceResolver())
@@ -105,7 +103,6 @@ ImageDocumentRuntime::ImageDocumentRuntime(QObject* documentObject,
     runtimeGraph = std::make_unique<ImageDocumentRuntimeGraph>(documentObject, state,
         std::move(dependencies),
         ImageDocumentRuntimeGraphCallbacks {
-            [this]() { return renderContext(); },
             [this](const std::vector<ImageDocumentChange>& changes) { notify(changes); },
             [this](const ImageDocumentSourceLoadRequest& request) { loadSource(request); },
             [this](const QUrl& url) { return navigationSourceResolver.resolveExternalSource(url); },
@@ -277,11 +274,6 @@ bool ImageDocumentRuntime::requestZoomByStepAtCenter(qreal stepCount)
         stepCount, QPointF(viewportSize.width() / 2.0, viewportSize.height() / 2.0));
 }
 
-bool ImageDocumentRuntime::requestActualSizeAtCenter()
-{
-    return requestManualZoomPercentAtCenter(100.0);
-}
-
 bool ImageDocumentRuntime::requestToggleFitOrActualSize(QPointF viewportPoint)
 {
     if (status() != ImageDocumentStatus::Ready || !pointIsFinite(viewportPoint)) {
@@ -359,15 +351,9 @@ quint64 ImageDocumentRuntime::requestViewportScanBackward()
     return viewportPannable() && submitContentPosition(scanPosition(false)) ? 1 : 0;
 }
 
-void ImageDocumentRuntime::requestNextDisplayedImageStartToFinalScanPosition()
+void ImageDocumentRuntime::requestNextViewportTargetAnchorAtEnd()
 {
-    viewportScanState.requestNextDisplayedImageFinalScanStart();
-}
-
-quint64 ImageDocumentRuntime::requestDisplayedImageInitialContentPosition()
-{
-    const bool final = viewportScanState.displayedImageScanStart() == ImageViewportScanStart::Final;
-    return submitContentPosition(scanBoundaryPosition(final)) ? 1 : 0;
+    runtimeGraph->requestNextViewportTargetAnchorAtEnd();
 }
 
 int ImageDocumentRuntime::currentPageNumber() const
@@ -459,29 +445,6 @@ bool ImageDocumentRuntime::secondaryPageVisible() const
     return viewportProjection().correlated && viewportProjection().secondaryVisible;
 }
 
-ImagePresentationTransitionState ImageDocumentRuntime::presentationTransitionState() const
-{
-    switch (viewportProjection().displayPhase) {
-    case ImageViewportDisplayPhase::PreviousActive:
-        return ImagePresentationTransitionState::PreviousActive;
-    case ImageViewportDisplayPhase::TransitioningPlaceholder:
-        return ImagePresentationTransitionState::TransitioningPlaceholder;
-    case ImageViewportDisplayPhase::NoPresentation:
-    case ImageViewportDisplayPhase::CommittedActive:
-        return ImagePresentationTransitionState::CommittedActive;
-    }
-    return ImagePresentationTransitionState::CommittedActive;
-}
-
-bool ImageDocumentRuntime::viewportPointInsideImage(QPointF viewportPoint) const
-{
-    ImageViewportCoordinateInput input;
-    input.setSourceSpace(ImageViewportCoordinateSpace::Item);
-    input.setTargetSpace(ImageViewportCoordinateSpace::DisplayedSpread);
-    input.setPoint(viewportPoint);
-    return runtimeGraph->viewportIntegration().containsPoint(input);
-}
-
 QPointF ImageDocumentRuntime::nearestImageViewportPoint(QPointF viewportPoint) const
 {
     const QRectF contentRect = viewportProjection().contentRect;
@@ -541,11 +504,6 @@ void ImageDocumentRuntime::notify(const std::vector<ImageDocumentChange>& change
     for (ImageDocumentChange change : changes) {
         runtimeGraph->spreadController().handleDocumentChange(change);
     }
-}
-
-void ImageDocumentRuntime::setRenderContextProvider(RenderContextProvider provider)
-{
-    renderContextProvider = std::move(provider);
 }
 
 void ImageDocumentRuntime::shutdown() { runtimeGraph->shutdownRuntime(); }
@@ -624,11 +582,6 @@ void ImageDocumentRuntime::rotateCounterclockwise()
     }
 }
 
-ImageDocumentRenderContext ImageDocumentRuntime::renderContext() const
-{
-    return renderContextProvider ? renderContextProvider() : ImageDocumentRenderContext {};
-}
-
 QPointF ImageDocumentRuntime::scanPosition(bool forward) const
 {
     const ImageViewportIntegrationProjection& projection = viewportProjection();
@@ -690,18 +643,6 @@ void ImageDocumentRuntime::loadSource(const ImageDocumentSourceLoadRequest& requ
 
 void ImageDocumentRuntime::publishChanges(const std::vector<ImageDocumentChange>& changes)
 {
-    for (ImageDocumentChange change : changes) {
-        if (change == ImageDocumentChange::ViewportProjection) {
-            const QUrl projected = viewportProjection().displayedUrl;
-            if (!projected.isEmpty() && projected != lastProjectedDisplayedUrl) {
-                viewportScanState.beginDisplayedImage();
-                lastProjectedDisplayedUrl = projected;
-            }
-        }
-        if (change == ImageDocumentChange::Loading && !loading()) {
-            viewportScanState.cancelPendingDisplayedImageStart();
-        }
-    }
     invokeIfSet(changeCallback, changes);
 }
 }

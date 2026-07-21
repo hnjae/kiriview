@@ -75,8 +75,4 @@ int animationLoopCountForPlayCount(std::uint32_t playCount)
         std::min(playCount - 1, static_cast<std::uint32_t>(std::numeric_limits<int>::max())));
 }
 
-int apngLoopCountForPlayCount(std::uint32_t playCount)
-{
-    return animationLoopCountForPlayCount(playCount);
-}
 }

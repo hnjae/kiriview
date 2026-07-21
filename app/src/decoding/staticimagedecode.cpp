@@ -20,11 +20,11 @@ kiriview::DecodedImageResult failedStaticDecodedImageResult(
     kiriview::DecodedImageFailureOperation operation, QString* errorString,
     const kiriview::StaticImageDisplayDecodeDiagnostics* diagnostics = nullptr)
 {
-    QString message = diagnostics == nullptr ? QString() : diagnostics->userMessage();
+    QString message = diagnostics == nullptr ? QString() : diagnostics->userMessage;
     if (message.isEmpty()) {
         message = errorStringValue(errorString);
     }
-    QString diagnosticDetail = diagnostics == nullptr ? QString() : diagnostics->diagnosticDetail();
+    QString diagnosticDetail = diagnostics == nullptr ? QString() : diagnostics->diagnosticDetail;
     if (diagnosticDetail.isEmpty()) {
         diagnosticDetail = message;
     }
@@ -46,13 +46,6 @@ QString sourceIdentityForRequest(const kiriview::ImageDecodeRequest& request)
     return kiriview::sourceKeyForUrl(request.imageUrl()).identity;
 }
 
-qreal displayPixelsPerSourcePixel(QSize originalSize, const QImage& image)
-{
-    const qreal pixelsPerSourcePixel
-        = kiriview::imagePixelsPerSourcePixel(originalSize, image.size());
-    return pixelsPerSourcePixel > 0.0 ? pixelsPerSourcePixel : 0.0;
-}
-
 kiriview::DisplayImageQuality displayQualityForImage(
     QSize originalSize, const QImage& image, bool firstDisplay)
 {
@@ -64,14 +57,10 @@ kiriview::DisplayImageQuality displayQualityForImage(
 
 kiriview::StaticDisplayImagePayload staticDisplayPayload(
     std::shared_ptr<kiriview::StaticImageDisplaySource> source,
-    const kiriview::ImageDecodeRequest& request, QImage image, bool firstDisplay,
-    qreal firstDisplayPixelsPerSourcePixel)
+    const kiriview::ImageDecodeRequest& request, QImage image, bool firstDisplay)
 {
     QImage displayImage = kiriview::displayReadyImage(image);
     const QSize originalSize = source == nullptr ? QSize() : source->imageSize();
-    const qreal pixelsPerSourcePixel = firstDisplayPixelsPerSourcePixel > 0.0
-        ? firstDisplayPixelsPerSourcePixel
-        : displayPixelsPerSourcePixel(originalSize, displayImage);
     const kiriview::DisplayImageQuality quality
         = displayQualityForImage(originalSize, displayImage, firstDisplay);
     kiriview::StaticDisplayImagePayload payload {
@@ -81,11 +70,9 @@ kiriview::StaticDisplayImagePayload staticDisplayPayload(
         originalSize,
         std::move(displayImage),
         quality,
-        pixelsPerSourcePixel,
         {},
         std::move(source),
         kiriview::DisplayImagePreviewOrigin::None,
-        kiriview::displayScopeIdentityForLocation(request.location()),
     };
     return payload;
 }
@@ -101,7 +88,7 @@ DecodedImageResult staticDecodedImageResult(std::shared_ptr<StaticImageDisplaySo
     }
 
     StaticImageFirstDisplayDecodeResult firstDisplayResult
-        = source->decodeFirstDisplayImageWithDiagnostics(request.firstDisplay());
+        = source->decodeFirstDisplayImage(request.firstDisplay());
     switch (firstDisplayResult.firstDisplay.status) {
     case FirstDisplayImageDecodeStatus::Ready:
         if (firstDisplayResult.firstDisplay.image.isNull()) {
@@ -110,9 +97,8 @@ DecodedImageResult staticDecodedImageResult(std::shared_ptr<StaticImageDisplaySo
                 &firstDisplayResult.diagnostics);
         }
         return successfulDecodedImageResult(StaticDecodedImage {
-            staticDisplayPayload(std::move(source), request,
-                std::move(firstDisplayResult.firstDisplay.image), true,
-                firstDisplayResult.firstDisplay.displayPixelsPerSourcePixel),
+            staticDisplayPayload(
+                std::move(source), request, std::move(firstDisplayResult.firstDisplay.image), true),
             {},
         });
     case FirstDisplayImageDecodeStatus::NotImplemented:
@@ -123,7 +109,7 @@ DecodedImageResult staticDecodedImageResult(std::shared_ptr<StaticImageDisplaySo
     }
 
     StaticImageDisplayDecodeResult previewResult
-        = source->decodeBlockingDisplayImageWithDiagnostics(imageBlockingDisplayLongEdgeMax);
+        = source->decodeBlockingDisplayImage(imageBlockingDisplayLongEdgeMax);
     if (previewResult.image.isNull()) {
         return failedStaticDecodedImageResult(
             DecodedImageFailureOperation::DecodeBlockingDisplayImage, errorString,
@@ -131,8 +117,7 @@ DecodedImageResult staticDecodedImageResult(std::shared_ptr<StaticImageDisplaySo
     }
 
     return successfulDecodedImageResult(StaticDecodedImage {
-        staticDisplayPayload(
-            std::move(source), request, std::move(previewResult.image), false, 0.0),
+        staticDisplayPayload(std::move(source), request, std::move(previewResult.image), false),
         {},
     });
 }

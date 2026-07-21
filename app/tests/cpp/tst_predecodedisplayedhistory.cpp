@@ -29,10 +29,11 @@ void TestPredecodeDisplayedHistory::currentUrlsAreNormalizedAndDeduplicated()
 
     history.setDisplayedUrls({ firstUrl, QUrl(), firstUrl, secondUrl });
 
-    QCOMPARE(history.currentUrls().size(), std::size_t(2));
-    QCOMPARE(history.currentUrls().at(0), kiriview::normalizedImageUrl(firstUrl));
-    QCOMPARE(history.currentUrls().at(1), kiriview::normalizedImageUrl(secondUrl));
-    QVERIFY(history.recentUrls().empty());
+    QVERIFY(history.currentContains(firstUrl));
+    QVERIFY(history.currentContains(secondUrl));
+    QCOMPARE(history.currentPriority(firstUrl), std::size_t(0));
+    QCOMPARE(history.currentPriority(secondUrl), std::size_t(1));
+    QVERIFY(!history.recentContains(firstUrl));
 }
 
 void TestPredecodeDisplayedHistory::previousCurrentUrlsMoveToRecentHistory()
@@ -45,11 +46,6 @@ void TestPredecodeDisplayedHistory::previousCurrentUrlsMoveToRecentHistory()
     history.setDisplayedUrls({ firstUrl, secondUrl });
     history.setDisplayedUrls({ thirdUrl });
 
-    QCOMPARE(history.currentUrls().size(), std::size_t(1));
-    QCOMPARE(history.currentUrls().front(), kiriview::normalizedImageUrl(thirdUrl));
-    QCOMPARE(history.recentUrls().size(), std::size_t(2));
-    QCOMPARE(history.recentUrls().at(0), kiriview::normalizedImageUrl(secondUrl));
-    QCOMPARE(history.recentUrls().at(1), kiriview::normalizedImageUrl(firstUrl));
     QVERIFY(history.currentContains(kiriview::normalizedImageUrl(thirdUrl)));
     QVERIFY(history.recentContains(kiriview::normalizedImageUrl(firstUrl)));
     QCOMPARE(history.currentPriority(kiriview::normalizedImageUrl(thirdUrl)), std::size_t(0));
@@ -66,12 +62,10 @@ void TestPredecodeDisplayedHistory::redisplayedUrlsAreRemovedFromRecentHistory()
     history.setDisplayedUrls({ secondUrl });
     history.setDisplayedUrls({ firstUrl });
 
-    QCOMPARE(history.currentUrls().size(), std::size_t(1));
-    QCOMPARE(history.currentUrls().front(), kiriview::normalizedImageUrl(firstUrl));
-    QCOMPARE(history.recentUrls().size(), std::size_t(1));
-    QCOMPARE(history.recentUrls().front(), kiriview::normalizedImageUrl(secondUrl));
-    QVERIFY(history.retainedContains(kiriview::normalizedImageUrl(firstUrl)));
-    QVERIFY(history.retainedContains(kiriview::normalizedImageUrl(secondUrl)));
+    QVERIFY(history.currentContains(firstUrl));
+    QVERIFY(!history.recentContains(firstUrl));
+    QVERIFY(history.recentContains(secondUrl));
+    QCOMPARE(history.recentPriority(secondUrl), std::size_t(0));
 }
 
 void TestPredecodeDisplayedHistory::recentHistoryKeepsOnlyMostRecentFourUrls()
@@ -81,14 +75,14 @@ void TestPredecodeDisplayedHistory::recentHistoryKeepsOnlyMostRecentFourUrls()
         history.setDisplayedUrls({ kiriview::TestSupport::indexedImageUrl(index) });
     }
 
-    QCOMPARE(history.currentUrls().size(), std::size_t(1));
-    QCOMPARE(history.currentUrls().front(), kiriview::TestSupport::indexedImageUrl(5));
-    QCOMPARE(history.recentUrls().size(), std::size_t(4));
-    QCOMPARE(history.recentUrls().at(0), kiriview::TestSupport::indexedImageUrl(4));
-    QCOMPARE(history.recentUrls().at(1), kiriview::TestSupport::indexedImageUrl(3));
-    QCOMPARE(history.recentUrls().at(2), kiriview::TestSupport::indexedImageUrl(2));
-    QCOMPARE(history.recentUrls().at(3), kiriview::TestSupport::indexedImageUrl(1));
-    QVERIFY(!history.retainedContains(kiriview::TestSupport::indexedImageUrl(0)));
+    QVERIFY(history.currentContains(kiriview::TestSupport::indexedImageUrl(5)));
+    for (int index = 1; index <= 4; ++index) {
+        const QUrl url = kiriview::TestSupport::indexedImageUrl(5 - index);
+        QVERIFY(history.recentContains(url));
+        QCOMPARE(history.recentPriority(url), static_cast<std::size_t>(index - 1));
+    }
+    QVERIFY(!history.currentContains(kiriview::TestSupport::indexedImageUrl(0)));
+    QVERIFY(!history.recentContains(kiriview::TestSupport::indexedImageUrl(0)));
 }
 
 void TestPredecodeDisplayedHistory::clearRemovesCurrentAndRecentHistory()
@@ -99,8 +93,8 @@ void TestPredecodeDisplayedHistory::clearRemovesCurrentAndRecentHistory()
 
     history.clear();
 
-    QVERIFY(history.currentUrls().empty());
-    QVERIFY(history.recentUrls().empty());
+    QVERIFY(!history.currentContains(kiriview::TestSupport::indexedImageUrl(2)));
+    QVERIFY(!history.recentContains(kiriview::TestSupport::indexedImageUrl(1)));
 }
 
 QTEST_GUILESS_MAIN(TestPredecodeDisplayedHistory)

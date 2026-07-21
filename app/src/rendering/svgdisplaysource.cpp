@@ -54,20 +54,20 @@ QImage renderSvgImage(const QByteArray& data, QSize size)
     return imageFromPremultipliedRgbaBytes(renderSvgImageBytes(data, size), size);
 }
 
-QSize svgFirstDisplayPreviewSize(QSize imageSize, QSize physicalViewportSize)
+QSize svgFirstDisplayPreviewSize(QSize imageSize, QSize logicalViewportSize)
 {
-    if (imageSize.isEmpty() || physicalViewportSize.isEmpty()) {
+    if (imageSize.isEmpty() || logicalViewportSize.isEmpty()) {
         return {};
     }
 
-    const QRectF targetRect = kiriview::imageTargetRect(imageSize, QSizeF(physicalViewportSize));
+    const QRectF targetRect = kiriview::imageTargetRect(imageSize, QSizeF(logicalViewportSize));
     if (targetRect.isEmpty()) {
         return {};
     }
 
     return QSize {
-        std::clamp(qCeil(targetRect.width()), 1, physicalViewportSize.width()),
-        std::clamp(qCeil(targetRect.height()), 1, physicalViewportSize.height()),
+        std::clamp(qCeil(targetRect.width()), 1, logicalViewportSize.width()),
+        std::clamp(qCeil(targetRect.height()), 1, logicalViewportSize.height()),
     };
 }
 }
@@ -99,64 +99,51 @@ SvgDisplaySource::SvgDisplaySource(QByteArray data, QSize imageSize)
 
 QSize SvgDisplaySource::imageSize() const { return m_imageSize; }
 
-FirstDisplayImageDecodeResult SvgDisplaySource::decodeFirstDisplayImage(
-    const ImageFirstDisplayDecodeContext& context, QString* errorString) const
+StaticImageFirstDisplayDecodeResult SvgDisplaySource::decodeFirstDisplayImage(
+    const ImageFirstDisplayDecodeContext& context) const
 {
     if (!context.isValid()) {
         return {};
     }
 
-    const QSize previewSize = svgFirstDisplayPreviewSize(m_imageSize, context.physicalViewportSize);
+    const QSize previewSize = svgFirstDisplayPreviewSize(m_imageSize, context.logicalViewportSize);
     if (previewSize.isEmpty()) {
         return {};
     }
 
     QImage preview = renderSvgImage(m_data, previewSize);
     if (preview.isNull()) {
-        setStaticImageDisplaySourceError(
-            errorString, imageErrorText(ImageErrorTextId::RenderSvgImage));
-        return { FirstDisplayImageDecodeStatus::Error, {}, 0.0 };
+        const QString message = imageErrorText(ImageErrorTextId::RenderSvgImage);
+        return { { FirstDisplayImageDecodeStatus::Error, {} }, { message, message } };
     }
 
-    const qreal displayPixelsPerSourcePixel
-        = imagePixelsPerSourcePixel(m_imageSize, preview.size());
-    if (displayPixelsPerSourcePixel <= 0.0) {
-        setStaticImageDisplaySourceError(
-            errorString, imageErrorText(ImageErrorTextId::RenderSvgImage));
-        return { FirstDisplayImageDecodeStatus::Error, {}, 0.0 };
-    }
-
-    return { FirstDisplayImageDecodeStatus::Ready, std::move(preview),
-        displayPixelsPerSourcePixel };
+    return { { FirstDisplayImageDecodeStatus::Ready, std::move(preview) }, {} };
 }
 
 bool SvgDisplaySource::supportsRasterDisplayRefinement() const { return true; }
 
-QImage SvgDisplaySource::decodeRasterDisplayImage(
-    const QSize& rasterSize, QString* errorString) const
+StaticImageDisplayDecodeResult SvgDisplaySource::decodeRasterDisplayImage(
+    const QSize& rasterSize) const
 {
     const QImage image = renderSvgImage(m_data, rasterSize);
     if (image.isNull()) {
-        setStaticImageDisplaySourceError(
-            errorString, imageErrorText(ImageErrorTextId::RenderSvgImage));
-        return {};
+        const QString message = imageErrorText(ImageErrorTextId::RenderSvgImage);
+        return { {}, { message, message } };
     }
-    return image;
+    return { image, {} };
 }
 
-QImage SvgDisplaySource::decodeBlockingDisplayImage(int maximumLongEdge, QString* errorString) const
+StaticImageDisplayDecodeResult SvgDisplaySource::decodeBlockingDisplayImage(
+    int maximumLongEdge) const
 {
     const QSize previewSize = boundedPreviewSize(m_imageSize, maximumLongEdge);
     const QImage preview = renderSvgImage(m_data, previewSize);
     if (preview.isNull()) {
-        setStaticImageDisplaySourceError(
-            errorString, imageErrorText(ImageErrorTextId::RenderSvgImage));
-        return {};
+        const QString message = imageErrorText(ImageErrorTextId::RenderSvgImage);
+        return { {}, { message, message } };
     }
-    return preview;
+    return { preview, {} };
 }
 
 qsizetype SvgDisplaySource::byteCost() const { return m_data.size(); }
-
-bool SvgDisplaySource::isResolutionIndependent() const { return true; }
 }

@@ -6,47 +6,26 @@ use crate::heifbrands::{HeifBrandKind, heif_brand_kind as policy_heif_brand_kind
 
 #[cxx::bridge(namespace = "kiriview")]
 mod ffi {
-    enum RustHeifBrandKind {
-        Unknown = 0,
-        StillImage = 1,
-        ImageSequence = 2,
-    }
-
     struct RustHeifContainerInfo {
         still_image: bool,
         image_sequence: bool,
     }
 
     extern "Rust" {
-        #[cxx_name = "rustHeifBrandKind"]
-        fn rust_heif_brand_kind(brand: &[u8]) -> RustHeifBrandKind;
-
         #[cxx_name = "rustHeifContainerInfo"]
         fn rust_heif_container_info(data: &[u8]) -> RustHeifContainerInfo;
     }
 }
 
-use ffi::{RustHeifBrandKind, RustHeifContainerInfo};
+use ffi::RustHeifContainerInfo;
 
 const FTYP_BOX_TYPE_OFFSET: usize = 4;
 const FTYP_MAJOR_BRAND_OFFSET: usize = 8;
 const FTYP_COMPATIBLE_BRANDS_OFFSET: usize = 16;
 const BRAND_SIZE: usize = 4;
 
-fn rust_heif_brand_kind(brand: &[u8]) -> RustHeifBrandKind {
-    heif_brand_kind(brand)
-}
-
 fn rust_heif_container_info(data: &[u8]) -> RustHeifContainerInfo {
     scan_heif_brands(data)
-}
-
-fn heif_brand_kind(brand: &[u8]) -> RustHeifBrandKind {
-    match policy_heif_brand_kind(brand) {
-        HeifBrandKind::StillImage => RustHeifBrandKind::StillImage,
-        HeifBrandKind::ImageSequence => RustHeifBrandKind::ImageSequence,
-        HeifBrandKind::Unknown => RustHeifBrandKind::Unknown,
-    }
 }
 
 fn scan_heif_brands(data: &[u8]) -> RustHeifContainerInfo {
@@ -85,11 +64,10 @@ fn ftyp_box_size(data: &[u8]) -> Option<usize> {
 }
 
 fn record_brand(info: &mut RustHeifContainerInfo, brand: &[u8]) {
-    match heif_brand_kind(brand) {
-        RustHeifBrandKind::StillImage => info.still_image = true,
-        RustHeifBrandKind::ImageSequence => info.image_sequence = true,
-        RustHeifBrandKind::Unknown => {}
-        _ => {}
+    match policy_heif_brand_kind(brand) {
+        HeifBrandKind::StillImage => info.still_image = true,
+        HeifBrandKind::ImageSequence => info.image_sequence = true,
+        HeifBrandKind::Unknown => {}
     }
 }
 
@@ -116,26 +94,6 @@ mod tests {
             data.extend_from_slice(brand);
         }
         data
-    }
-
-    #[test]
-    fn classifies_known_brands() {
-        assert!(matches!(
-            heif_brand_kind(b"avif"),
-            RustHeifBrandKind::StillImage
-        ));
-        assert!(matches!(
-            heif_brand_kind(b"avis"),
-            RustHeifBrandKind::ImageSequence
-        ));
-        assert!(matches!(
-            heif_brand_kind(b"png "),
-            RustHeifBrandKind::Unknown
-        ));
-        assert!(matches!(
-            heif_brand_kind(b"too long"),
-            RustHeifBrandKind::Unknown
-        ));
     }
 
     #[test]

@@ -12,7 +12,6 @@ class TestImageSpreadPolicyConversion : public QObject
 
 private Q_SLOTS:
     void readingAvailabilityMapsFields();
-    void twoPageModeChangeMapsFields();
     void secondaryRefreshMapsFieldsAndDecisions();
     void navigationMapsFieldsAndDirections();
 };
@@ -26,19 +25,6 @@ void TestImageSpreadPolicyConversion::readingAvailabilityMapsFields()
     QVERIFY(rust.has_image);
     QVERIFY(!rust.has_displayed_image);
     QVERIFY(rust.displayed_document_is_comic_book);
-}
-
-void TestImageSpreadPolicyConversion::twoPageModeChangeMapsFields()
-{
-    const kiriview::ImageSpreadTwoPageModeChange change
-        = kiriview::Bridge::imageSpreadTwoPageModeChangeFromRust(
-            kiriview::RustImageSpreadTwoPageModeChange { true, true, false, false, true });
-
-    QVERIFY(change.changed);
-    QVERIFY(change.finishTransition);
-    QVERIFY(!change.clearSecondaryPage);
-    QVERIFY(!change.refreshSecondaryPage);
-    QVERIFY(change.notifyTwoPageMode);
 }
 
 void TestImageSpreadPolicyConversion::secondaryRefreshMapsFieldsAndDecisions()

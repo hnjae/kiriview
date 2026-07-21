@@ -28,8 +28,6 @@ enum class ImageDocumentPublicSignal {
     FileDeletionInProgress,
     TwoPageMode,
     RightToLeftReading,
-    PresentationTransitionState,
-    RotationDegrees,
     ImageDocumentSourceScope,
     UnsupportedOpenedCollectionVideo,
     EmbeddedMetadata,
@@ -55,8 +53,6 @@ struct ImageDocumentPublicSignalOperations
     std::function<void()> fileDeletionInProgressChanged;
     std::function<void()> twoPageModeChanged;
     std::function<void()> rightToLeftReadingChanged;
-    std::function<void()> presentationTransitionStateChanged;
-    std::function<void()> rotationDegreesChanged;
     std::function<void()> imageDocumentSourceScopeChanged;
     std::function<void()> unsupportedOpenedCollectionVideoChanged;
     std::function<void()> embeddedMetadataChanged;
@@ -68,7 +64,6 @@ public:
     explicit ImageDocumentPublicSignalEmitter(ImageDocumentPublicSignalOperations operations);
 
     void emitChanges(const std::vector<ImageDocumentChange>& changes) const;
-    void emitChange(ImageDocumentChange change) const;
     void emitSignal(ImageDocumentPublicSignal signal) const;
 
 private:

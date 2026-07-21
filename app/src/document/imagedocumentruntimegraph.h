@@ -12,7 +12,6 @@
 #include "location/imageurl.h"
 #include "metadata/embeddedmetadata.h"
 #include "predecode/predecodedimage.h"
-#include "rendering/imagerendercontext.h"
 
 #include <QString>
 #include <functional>
@@ -46,7 +45,6 @@ struct ImageViewportIntegrationProjection;
 
 struct ImageDocumentRuntimeGraphCallbacks
 {
-    std::function<ImageDocumentRenderContext()> renderContext;
     std::function<void(const std::vector<ImageDocumentChange>&)> notify;
     std::function<void(const ImageDocumentSourceLoadRequest&)> loadSource;
     std::function<ResolvedNavigationSource(const QUrl&)> resolveExternalSource;
@@ -69,6 +67,7 @@ public:
     ImageViewportIntegrationRuntime& viewportIntegration() const;
     std::optional<DisplayedPredecodeImage> primaryDisplayedPredecodeImage() const;
     ImageFirstDisplayDecodeContext firstDisplayDecodeContext() const;
+    void requestNextViewportTargetAnchorAtEnd();
     MediaEntrySourceVideoPlaybackDeviceResult loadOpenedCollectionVideoPlaybackDevice(
         const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl) const;
 
@@ -118,6 +117,7 @@ private:
     bool m_viewportLoadTerminal = false;
     std::unique_ptr<ImageViewportIntegrationTarget> m_viewportTarget;
     std::optional<ImageLoadSession> m_viewportSecondaryLoadSession;
+    bool m_nextViewportTargetAnchorAtEnd = false;
 };
 }
 

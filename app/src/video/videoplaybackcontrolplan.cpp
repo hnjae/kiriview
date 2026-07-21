@@ -61,10 +61,4 @@ VideoPlaybackControlPlan videoPlaybackSeekByPlan(
         rustVideoPlaybackSeekByPlan(rustSnapshot(snapshot), deltaMilliseconds));
 }
 
-qint64 videoPlaybackClampedSeekPosition(
-    qint64 currentPosition, qint64 deltaMilliseconds, qint64 duration, bool seekable)
-{
-    return rustVideoPlaybackClampedSeekPosition(
-        currentPosition, deltaMilliseconds, duration, seekable);
-}
 }

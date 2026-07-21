@@ -32,7 +32,7 @@ void TestSystemMemory::snapshotUsesInjectedPhysicalMemoryReader()
 
     QCOMPARE(readCount, 1);
     QCOMPARE(snapshot.physicalByteSize, qsizetype(4096));
-    QVERIFY(snapshot.hasPhysicalByteSize());
+    QVERIFY(snapshot.physicalByteSize > 0);
 }
 
 void TestSystemMemory::unreadablePhysicalMemoryFallsBackToZero()
@@ -44,7 +44,7 @@ void TestSystemMemory::unreadablePhysicalMemoryFallsBackToZero()
         = kiriview::systemMemorySnapshot(std::move(runtime));
 
     QCOMPARE(snapshot.physicalByteSize, qsizetype(0));
-    QVERIFY(!snapshot.hasPhysicalByteSize());
+    QCOMPARE(snapshot.physicalByteSize, quint64(0));
 
     runtime.readPhysicalSystemMemory = []() -> std::optional<qsizetype> { return -128; };
 
@@ -52,7 +52,7 @@ void TestSystemMemory::unreadablePhysicalMemoryFallsBackToZero()
         = kiriview::systemMemorySnapshot(std::move(runtime));
 
     QCOMPARE(negativeSnapshot.physicalByteSize, qsizetype(0));
-    QVERIFY(!negativeSnapshot.hasPhysicalByteSize());
+    QCOMPARE(negativeSnapshot.physicalByteSize, quint64(0));
 }
 
 void TestSystemMemory::runtimeDefaultsFillMissingProbeAndPreserveOverrides()

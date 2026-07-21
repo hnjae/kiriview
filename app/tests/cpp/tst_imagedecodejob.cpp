@@ -467,7 +467,7 @@ void TestImageDecodeJob::decodeRequestIsPassedToDecoder()
 
     QTRY_VERIFY(decoderRequest.has_value());
     QCOMPARE(decoderRequest->id(), quint64(5));
-    QCOMPARE(decoderRequest->firstDisplay().physicalViewportSize, QSize(320, 200));
+    QCOMPARE(decoderRequest->firstDisplay().logicalViewportSize, QSize(320, 200));
 }
 
 void TestImageDecodeJob::decodeWorkerSchedulerCanBeDrivenManually()

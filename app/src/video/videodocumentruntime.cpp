@@ -311,12 +311,6 @@ void VideoDocumentRuntime::requestPlaybackControlSeek(qint64 positionMsec)
     }
 }
 
-qint64 VideoDocumentRuntime::clampedSeekPosition(
-    qint64 currentPosition, qint64 deltaMilliseconds, qint64 duration, bool seekable)
-{
-    return videoPlaybackClampedSeekPosition(currentPosition, deltaMilliseconds, duration, seekable);
-}
-
 VideoPlaybackControlSnapshot VideoDocumentRuntime::playbackControlSnapshot() const
 {
     const VideoPlaybackControlMediaSnapshot& media = m_playbackControls.mediaSnapshot();

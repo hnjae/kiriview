@@ -33,22 +33,29 @@ qsizetype HeifDisplaySource::byteCost() const { return m_data.size(); }
 
 bool HeifDisplaySource::supportsRasterDisplayRefinement() const { return true; }
 
-QImage HeifDisplaySource::decodeRasterDisplayImage(
-    const QSize& rasterSize, QString* errorString) const
+StaticImageDisplayDecodeResult HeifDisplaySource::decodeRasterDisplayImage(
+    const QSize& rasterSize) const
 {
     if (rasterSize.isEmpty()) {
         return {};
     }
+    QString errorString;
+    QImage image;
     if (m_tileGrid.has_value()) {
-        return decodeGridRasterDisplayImage(rasterSize, errorString);
+        image = decodeGridRasterDisplayImage(rasterSize, &errorString);
+    } else {
+        image = decodeFullOrScaled(rasterSize, &errorString);
     }
-    return decodeFullOrScaled(rasterSize, errorString);
+    return { std::move(image), { errorString, errorString } };
 }
 
-QImage HeifDisplaySource::decodeBlockingDisplayImage(
-    int maximumLongEdge, QString* errorString) const
+StaticImageDisplayDecodeResult HeifDisplaySource::decodeBlockingDisplayImage(
+    int maximumLongEdge) const
 {
-    return decodeFullOrScaled(boundedPreviewSize(m_imageSize, maximumLongEdge), errorString);
+    QString errorString;
+    QImage image
+        = decodeFullOrScaled(boundedPreviewSize(m_imageSize, maximumLongEdge), &errorString);
+    return { std::move(image), { errorString, errorString } };
 }
 
 QImage HeifDisplaySource::decodeFullOrScaled(QSize targetSize, QString* errorString) const

@@ -18,7 +18,6 @@ class TestVideoPlaybackControlPlan : public QObject
 private Q_SLOTS:
     void emptyPlanReportsEmpty();
     void wrapperFunctionsRouteThroughRustPolicy();
-    void clampedSeekWrapperRoutesThroughRustPolicy();
 };
 
 namespace {
@@ -123,14 +122,6 @@ void TestVideoPlaybackControlPlan::wrapperFunctionsRouteThroughRustPolicy()
 
     comparePlans(kiriview::videoPlaybackSeekByPlan(snapshot, 7000),
         convertedRustPlan(kiriview::rustVideoPlaybackSeekByPlan(rustSnapshot(snapshot), 7000)));
-}
-
-void TestVideoPlaybackControlPlan::clampedSeekWrapperRoutesThroughRustPolicy()
-{
-    QCOMPARE(kiriview::videoPlaybackClampedSeekPosition(5000, 7000, 10000, true),
-        kiriview::rustVideoPlaybackClampedSeekPosition(5000, 7000, 10000, true));
-    QCOMPARE(kiriview::videoPlaybackClampedSeekPosition(5000, 1000, 10000, false),
-        kiriview::rustVideoPlaybackClampedSeekPosition(5000, 1000, 10000, false));
 }
 
 QTEST_GUILESS_MAIN(TestVideoPlaybackControlPlan)

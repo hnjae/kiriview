@@ -39,7 +39,6 @@ public:
     int currentPageNumber() const;
     int pageCount() const;
     ImageDocumentPageNavigationSnapshot snapshot() const;
-    std::optional<ImageDocumentPageCandidateSnapshot> candidateSnapshot() const;
     const ImageDocumentPageCandidateListSnapshot& confirmedCandidateSnapshot() const;
     bool hasKnownSelection() const;
     std::optional<QUrl> urlAtPage(int pageNumber) const;

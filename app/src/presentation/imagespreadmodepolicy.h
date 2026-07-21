@@ -12,18 +12,7 @@ struct ImageSpreadReadingAvailability
     bool displayedDocumentIsComicBook = false;
 };
 
-struct ImageSpreadTwoPageModeChange
-{
-    bool changed = false;
-    bool finishTransition = false;
-    bool clearSecondaryPage = false;
-    bool refreshSecondaryPage = false;
-    bool notifyTwoPageMode = false;
-};
-
 bool imageSpreadReadingControlsAvailable(ImageSpreadReadingAvailability availability);
-ImageSpreadTwoPageModeChange imageSpreadTwoPageModeChange(
-    bool currentEnabled, bool nextEnabled, bool secondaryPageVisible);
 }
 
 #endif

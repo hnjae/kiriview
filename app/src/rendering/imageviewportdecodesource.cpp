@@ -477,7 +477,7 @@ void ImageViewportDecodeProviderSource::publishStaticFrame(PendingFrame pending)
     m_workerTasks.push_back(scheduler.run(
         this,
         [refinementSource, targetSize]() {
-            return refinementSource->decodeRasterDisplayImageWithDiagnostics(targetSize);
+            return refinementSource->decodeRasterDisplayImage(targetSize);
         },
         [pending = std::move(pending), basis, session](
             StaticImageDisplayDecodeResult result) mutable {
@@ -486,8 +486,7 @@ void ImageViewportDecodeProviderSource::publishStaticFrame(PendingFrame pending)
                     ImageViewportProviderFrameResult::failed(
                         ImageSequenceProviderFailureCause::Decode,
                         loadFailure(session, ImageLoadFailureKind::Decode,
-                            result.diagnostics.userMessage(),
-                            result.diagnostics.diagnosticDetail())));
+                            result.diagnostics.userMessage, result.diagnostics.diagnosticDetail)));
                 return;
             }
             StaticDisplayImagePayload refined = basis;
@@ -495,8 +494,6 @@ void ImageViewportDecodeProviderSource::publishStaticFrame(PendingFrame pending)
             refined.quality = refined.image.size() == refined.originalSize
                 ? DisplayImageQuality::Exact
                 : DisplayImageQuality::BoundedDetail;
-            refined.displayPixelsPerSourcePixel
-                = qreal(refined.image.width()) / qreal(refined.originalSize.width());
             refined.previewOrigin = DisplayImagePreviewOrigin::None;
             pending.completion(pending.identity,
                 ImageViewportProviderFrameResult::ready(std::move(refined),
@@ -539,11 +536,9 @@ void ImageViewportDecodeProviderSource::publishAnimationFrame(PendingFrame pendi
                 animation.metadata.sourceLogicalSize().toSize(),
                 std::move(result.image),
                 DisplayImageQuality::Exact,
-                1.0,
                 {},
                 {},
                 DisplayImagePreviewOrigin::None,
-                {},
             };
             pending.completion(pending.identity,
                 ImageViewportProviderFrameResult::ready(std::move(payload),

@@ -31,34 +31,22 @@ public:
     QSize imageSize() const override { return m_imageSize; }
     qsizetype byteCost() const override { return 1; }
 
-    kiriview::StaticImageFirstDisplayDecodeResult decodeFirstDisplayImageWithDiagnostics(
+    kiriview::StaticImageFirstDisplayDecodeResult decodeFirstDisplayImage(
         const kiriview::ImageFirstDisplayDecodeContext&) const override
     {
         ++firstDisplayDecodeCount;
         kiriview::StaticImageFirstDisplayDecodeResult result;
         result.firstDisplay = firstDisplayResult;
         if (firstDisplayResult.status == kiriview::FirstDisplayImageDecodeStatus::Error) {
-            result.diagnostics.failures.push_back(kiriview::StaticImageDisplayDecodeFailure {
-                kiriview::StaticImageDisplayDecodeOperation::FirstDisplayImage,
-                firstDisplayError,
-                firstDisplayDiagnosticDetail.isEmpty() ? firstDisplayError
-                                                       : firstDisplayDiagnosticDetail,
-            });
+            result.diagnostics.userMessage = firstDisplayError;
+            result.diagnostics.diagnosticDetail = firstDisplayDiagnosticDetail.isEmpty()
+                ? firstDisplayError
+                : firstDisplayDiagnosticDetail;
         }
         return result;
     }
 
-    kiriview::FirstDisplayImageDecodeResult decodeFirstDisplayImage(
-        const kiriview::ImageFirstDisplayDecodeContext&, QString* errorString) const override
-    {
-        ++firstDisplayDecodeCount;
-        if (!firstDisplayError.isEmpty() && errorString != nullptr) {
-            *errorString = firstDisplayError;
-        }
-        return firstDisplayResult;
-    }
-
-    kiriview::StaticImageDisplayDecodeResult decodeBlockingDisplayImageWithDiagnostics(
+    kiriview::StaticImageDisplayDecodeResult decodeBlockingDisplayImage(
         int maximumLongEdge) const override
     {
         ++blockingDisplayDecodeCount;
@@ -67,24 +55,12 @@ public:
         kiriview::StaticImageDisplayDecodeResult result;
         result.image = blockingDisplay;
         if (blockingDisplay.isNull()) {
-            result.diagnostics.failures.push_back(kiriview::StaticImageDisplayDecodeFailure {
-                kiriview::StaticImageDisplayDecodeOperation::BlockingDisplayImage,
-                blockingDisplayError,
-                blockingDisplayDiagnosticDetail.isEmpty() ? blockingDisplayError
-                                                          : blockingDisplayDiagnosticDetail,
-            });
+            result.diagnostics.userMessage = blockingDisplayError;
+            result.diagnostics.diagnosticDetail = blockingDisplayDiagnosticDetail.isEmpty()
+                ? blockingDisplayError
+                : blockingDisplayDiagnosticDetail;
         }
         return result;
-    }
-
-    QImage decodeBlockingDisplayImage(int maximumLongEdge, QString* errorString) const override
-    {
-        ++blockingDisplayDecodeCount;
-        blockingDisplayMaximumLongEdge = maximumLongEdge;
-        if (!blockingDisplayError.isEmpty() && errorString != nullptr) {
-            *errorString = blockingDisplayError;
-        }
-        return blockingDisplay;
     }
 
     kiriview::FirstDisplayImageDecodeResult firstDisplayResult;
@@ -133,7 +109,6 @@ void TestStaticImageDecode::staticResultUsesReadyFirstDisplayImage()
     source->firstDisplayResult = kiriview::FirstDisplayImageDecodeResult {
         kiriview::FirstDisplayImageDecodeStatus::Ready,
         testImage(QSize(8, 4)),
-        0.5,
     };
 
     QString errorString;
@@ -147,7 +122,6 @@ void TestStaticImageDecode::staticResultUsesReadyFirstDisplayImage()
     QCOMPARE(decoded->displayImage.image.size(), QSize(8, 4));
     QCOMPARE(decoded->displayImage.originalSize, QSize(16, 16));
     QCOMPARE(decoded->displayImage.quality, kiriview::DisplayImageQuality::FirstDisplay);
-    QCOMPARE(decoded->displayImage.displayPixelsPerSourcePixel, 0.5);
     QCOMPARE(decoded->displayImage.sourceIdentity, QStringLiteral("file:///tmp/stage3-source.jpg"));
     QVERIFY(decoded->displayImage.isValid());
     QCOMPARE(source->firstDisplayDecodeCount, 1);
@@ -171,7 +145,6 @@ void TestStaticImageDecode::staticResultFallsBackToBlockingPreview()
     QCOMPARE(decoded->displayImage.image.size(), QSize(12, 9));
     QCOMPARE(decoded->displayImage.originalSize, QSize(12, 9));
     QCOMPARE(decoded->displayImage.quality, kiriview::DisplayImageQuality::Exact);
-    QCOMPARE(decoded->displayImage.displayPixelsPerSourcePixel, 1.0);
     QCOMPARE(decoded->displayImage.previewOrigin, kiriview::DisplayImagePreviewOrigin::None);
     QCOMPARE(source->firstDisplayDecodeCount, 1);
     QCOMPARE(source->blockingDisplayDecodeCount, 1);
@@ -193,8 +166,6 @@ void TestStaticImageDecode::staticResultMarksScaledBlockingPreviewAsFirstDisplay
     QCOMPARE(decoded->displayImage.image.size(), QSize(2048, 1536));
     QCOMPARE(decoded->displayImage.originalSize, QSize(4000, 3000));
     QCOMPARE(decoded->displayImage.quality, kiriview::DisplayImageQuality::FirstDisplay);
-    QVERIFY(decoded->displayImage.displayPixelsPerSourcePixel > 0.0);
-    QVERIFY(decoded->displayImage.displayPixelsPerSourcePixel < 1.0);
     QVERIFY(errorString.isEmpty());
 }
 

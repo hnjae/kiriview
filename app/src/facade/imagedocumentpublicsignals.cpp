@@ -39,8 +39,6 @@ bool affectsSessionSnapshot(kiriview::ImageDocumentPublicSignal signal)
     case Signal::Loading:
     case Signal::DisplayedUrl:
     case Signal::MaximumManualZoomPercent:
-    case Signal::PresentationTransitionState:
-    case Signal::RotationDegrees:
         return false;
     }
 
@@ -53,11 +51,6 @@ ImageDocumentPublicSignalEmitter::ImageDocumentPublicSignalEmitter(
     ImageDocumentPublicSignalOperations operations)
     : m_operations(std::move(operations))
 {
-}
-
-void ImageDocumentPublicSignalEmitter::emitChange(ImageDocumentChange change) const
-{
-    emitChanges({ change });
 }
 
 void ImageDocumentPublicSignalEmitter::emitChanges(
@@ -127,12 +120,6 @@ void ImageDocumentPublicSignalEmitter::emitSignal(ImageDocumentPublicSignal sign
     case ImageDocumentPublicSignal::RightToLeftReading:
         run(m_operations.rightToLeftReadingChanged);
         return;
-    case ImageDocumentPublicSignal::PresentationTransitionState:
-        run(m_operations.presentationTransitionStateChanged);
-        return;
-    case ImageDocumentPublicSignal::RotationDegrees:
-        run(m_operations.rotationDegreesChanged);
-        return;
     case ImageDocumentPublicSignal::ImageDocumentSourceScope:
         run(m_operations.imageDocumentSourceScopeChanged);
         return;
@@ -190,8 +177,6 @@ std::vector<ImageDocumentPublicSignal> imageDocumentPublicSignals(ImageDocumentC
             ImageDocumentPublicSignal::MaximumManualZoomPercent,
             ImageDocumentPublicSignal::TwoPageMode,
             ImageDocumentPublicSignal::RightToLeftReading,
-            ImageDocumentPublicSignal::PresentationTransitionState,
-            ImageDocumentPublicSignal::RotationDegrees,
             ImageDocumentPublicSignal::ImageDocumentSourceScope,
         };
     }

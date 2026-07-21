@@ -162,36 +162,9 @@ QAbstractListModel* ApplicationActionRuntime::shortcutHelpModel() const
     return m_shortcutRuntime->shortcutHelpModel();
 }
 
-QAction* ApplicationActionRuntime::action(const QString& actionName)
-{
-    return m_actionRegistry.action(actionName);
-}
-
 QAction* ApplicationActionRuntime::actionForId(ActionId actionId)
 {
     return m_actionRegistry.actionForId(actionId);
-}
-
-QString ApplicationActionRuntime::actionName(ActionId actionId) const
-{
-    return m_actionRegistry.actionName(actionId);
-}
-
-ApplicationShortcutProjection ApplicationActionRuntime::shortcutProjection(
-    const QString& actionName) const
-{
-    return m_shortcutRuntime->shortcutProjection(actionName);
-}
-
-ApplicationShortcutProjection ApplicationActionRuntime::shortcutProjectionForId(
-    ActionId actionId) const
-{
-    return m_shortcutRuntime->shortcutProjectionForId(actionId);
-}
-
-QList<QKeySequence> ApplicationActionRuntime::programWideShortcuts(const QString& actionName) const
-{
-    return m_shortcutRuntime->programWideShortcuts(actionName);
 }
 
 QList<QKeySequence> ApplicationActionRuntime::programWideShortcutsForId(ActionId actionId) const
@@ -199,26 +172,20 @@ QList<QKeySequence> ApplicationActionRuntime::programWideShortcutsForId(ActionId
     return m_shortcutRuntime->programWideShortcutsForId(actionId);
 }
 
-QList<QKeySequence> ApplicationActionRuntime::viewerLocalShortcuts(const QString& actionName) const
-{
-    return m_shortcutRuntime->viewerLocalShortcuts(actionName);
-}
-
 QList<QKeySequence> ApplicationActionRuntime::viewerLocalShortcutsForId(ActionId actionId) const
 {
     return m_shortcutRuntime->viewerLocalShortcutsForId(actionId);
-}
-
-bool ApplicationActionRuntime::setViewerLocalShortcuts(
-    const QString& actionName, const QList<QKeySequence>& shortcuts)
-{
-    return m_shortcutRuntime->setViewerLocalShortcuts(actionName, shortcuts);
 }
 
 bool ApplicationActionRuntime::setViewerLocalShortcutsForId(
     ActionId actionId, const QList<QKeySequence>& shortcuts)
 {
     return m_shortcutRuntime->setViewerLocalShortcutsForId(actionId, shortcuts);
+}
+
+QString ApplicationActionRuntime::menuShortcutTextForId(ActionId actionId) const
+{
+    return m_shortcutRuntime->menuShortcutTextForId(actionId);
 }
 
 int ApplicationActionRuntime::actionStateRevision() const { return m_actionStateRevision; }

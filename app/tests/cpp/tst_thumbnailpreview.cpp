@@ -115,7 +115,7 @@ void TestThumbnailPreview::buildsLocalStillLookupRequest()
 
     QVERIFY(lookup.has_value());
     QCOMPARE(lookup->localPathBytes, QFile::encodeName(request.sourceUrl.toLocalFile()));
-    QVERIFY(lookup->originalIdentity.isLocalPath());
+    QCOMPARE(lookup->originalIdentity.mode, kiriview::ThumbnailOriginalIdentityMode::LocalPath);
     QCOMPARE(lookup->originalIdentity.localPathBytes,
         QFile::encodeName(request.sourceUrl.toLocalFile()));
     QCOMPARE(lookup->requestedBucket, Bucket::XXLarge);

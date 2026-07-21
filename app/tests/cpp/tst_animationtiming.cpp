@@ -18,7 +18,7 @@ private Q_SLOTS:
     void heifFrameDelayClampsToTimerRange();
     void apngFrameDelayUsesDefaultDenominatorAndFloorRounding();
     void apngFrameDelayClampsToTimerRange();
-    void apngLoopCountMapsZeroToInfiniteAndClampsFiniteLoops();
+    void animationLoopCountMapsZeroToInfiniteAndClampsFiniteLoops();
 };
 
 void TestAnimationTiming::heifFrameDelayRoundsUpDurationToMilliseconds()
@@ -52,12 +52,12 @@ void TestAnimationTiming::apngFrameDelayClampsToTimerRange()
         std::numeric_limits<int>::max());
 }
 
-void TestAnimationTiming::apngLoopCountMapsZeroToInfiniteAndClampsFiniteLoops()
+void TestAnimationTiming::animationLoopCountMapsZeroToInfiniteAndClampsFiniteLoops()
 {
-    QCOMPARE(kiriview::apngLoopCountForPlayCount(0), -1);
-    QCOMPARE(kiriview::apngLoopCountForPlayCount(1), 0);
-    QCOMPARE(kiriview::apngLoopCountForPlayCount(2), 1);
-    QCOMPARE(kiriview::apngLoopCountForPlayCount(std::numeric_limits<std::uint32_t>::max()),
+    QCOMPARE(kiriview::animationLoopCountForPlayCount(0), -1);
+    QCOMPARE(kiriview::animationLoopCountForPlayCount(1), 0);
+    QCOMPARE(kiriview::animationLoopCountForPlayCount(2), 1);
+    QCOMPARE(kiriview::animationLoopCountForPlayCount(std::numeric_limits<std::uint32_t>::max()),
         std::numeric_limits<int>::max());
 }
 

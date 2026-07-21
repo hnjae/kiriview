@@ -13,11 +13,4 @@ bool imageSpreadReadingControlsAvailable(ImageSpreadReadingAvailability availabi
         Bridge::rustImageSpreadReadingAvailability(availability));
 }
 
-ImageSpreadTwoPageModeChange imageSpreadTwoPageModeChange(
-    bool currentEnabled, bool nextEnabled, bool secondaryPageVisible)
-{
-    const RustImageSpreadTwoPageModeChange change
-        = rustImageSpreadTwoPageModeChange(currentEnabled, nextEnabled, secondaryPageVisible);
-    return Bridge::imageSpreadTwoPageModeChangeFromRust(change);
-}
 }

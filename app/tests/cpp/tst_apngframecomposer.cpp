@@ -8,7 +8,6 @@
 #include <QObject>
 #include <QTest>
 #include <array>
-#include <cstring>
 #include <initializer_list>
 #include <optional>
 
@@ -28,11 +27,11 @@ kiriview::ApngFrameControl frameControl(quint32 width, quint32 height)
     return control;
 }
 
-void writeFramePixels(kiriview::ApngFrameComposer* composer, std::initializer_list<Pixel> pixels)
+void writeFramePixels(kiriview::ApngFrameComposer* composer,
+    const kiriview::ApngFrameControl& control, std::initializer_list<Pixel> pixels)
 {
-    unsigned char** rows = composer->frameRows();
-    Q_ASSERT(rows != nullptr);
-    std::memcpy(rows[0], pixels.begin(), pixels.size() * sizeof(Pixel));
+    QVERIFY(composer->setFrameBytes(control, reinterpret_cast<const unsigned char*>(pixels.begin()),
+        pixels.size() * sizeof(Pixel), static_cast<std::size_t>(control.width) * sizeof(Pixel)));
 }
 
 QColor pixel(const QImage& image, int x, int y) { return image.pixelColor(x, y); }
@@ -123,7 +122,7 @@ void TestApngFrameComposer::firstFrameWithDisposePreviousClearsAsBackground()
 
     kiriview::ApngFrameControl first = frameControl(2, 1);
     first.disposeOp = kiriview::ApngFrameDisposeOp::Previous;
-    writeFramePixels(&composer, { rgba(255, 0, 0, 255), rgba(255, 0, 0, 255) });
+    writeFramePixels(&composer, first, { rgba(255, 0, 0, 255), rgba(255, 0, 0, 255) });
     const std::optional<QImage> firstImage = composer.composeFrame(first);
     QVERIFY(firstImage.has_value());
     QCOMPARE(pixel(*firstImage, 0, 0), QColor(255, 0, 0, 255));
@@ -131,7 +130,7 @@ void TestApngFrameComposer::firstFrameWithDisposePreviousClearsAsBackground()
 
     kiriview::ApngFrameControl second = frameControl(1, 1);
     second.xOffset = 1;
-    writeFramePixels(&composer, { rgba(0, 255, 0, 255) });
+    writeFramePixels(&composer, second, { rgba(0, 255, 0, 255) });
     const std::optional<QImage> secondImage = composer.composeFrame(second);
     QVERIFY(secondImage.has_value());
     QCOMPARE(pixel(*secondImage, 0, 0).alpha(), 0);
@@ -143,12 +142,13 @@ void TestApngFrameComposer::blendOverComposesWithExistingCanvas()
     kiriview::ApngFrameComposer composer;
     QVERIFY(composer.initialize(QSize(1, 1), 4));
 
-    writeFramePixels(&composer, { rgba(255, 0, 0, 255) });
-    QVERIFY(composer.composeFrame(frameControl(1, 1)).has_value());
+    const kiriview::ApngFrameControl first = frameControl(1, 1);
+    writeFramePixels(&composer, first, { rgba(255, 0, 0, 255) });
+    QVERIFY(composer.composeFrame(first).has_value());
 
     kiriview::ApngFrameControl over = frameControl(1, 1);
     over.blendOp = kiriview::ApngFrameBlendOp::Over;
-    writeFramePixels(&composer, { rgba(0, 0, 255, 128) });
+    writeFramePixels(&composer, over, { rgba(0, 0, 255, 128) });
     const std::optional<QImage> image = composer.composeFrame(over);
     QVERIFY(image.has_value());
     const QColor color = pixel(*image, 0, 0);
@@ -162,19 +162,20 @@ void TestApngFrameComposer::disposePreviousRestoresCanvasForFollowingFrames()
     kiriview::ApngFrameComposer composer;
     QVERIFY(composer.initialize(QSize(2, 1), 8));
 
-    writeFramePixels(&composer, { rgba(255, 0, 0, 255), rgba(255, 0, 0, 255) });
-    QVERIFY(composer.composeFrame(frameControl(2, 1)).has_value());
+    const kiriview::ApngFrameControl first = frameControl(2, 1);
+    writeFramePixels(&composer, first, { rgba(255, 0, 0, 255), rgba(255, 0, 0, 255) });
+    QVERIFY(composer.composeFrame(first).has_value());
 
     kiriview::ApngFrameControl temporary = frameControl(1, 1);
     temporary.disposeOp = kiriview::ApngFrameDisposeOp::Previous;
-    writeFramePixels(&composer, { rgba(0, 0, 255, 255) });
+    writeFramePixels(&composer, temporary, { rgba(0, 0, 255, 255) });
     const std::optional<QImage> temporaryImage = composer.composeFrame(temporary);
     QVERIFY(temporaryImage.has_value());
     QCOMPARE(pixel(*temporaryImage, 0, 0), QColor(0, 0, 255, 255));
 
     kiriview::ApngFrameControl next = frameControl(1, 1);
     next.xOffset = 1;
-    writeFramePixels(&composer, { rgba(0, 255, 0, 255) });
+    writeFramePixels(&composer, next, { rgba(0, 255, 0, 255) });
     const std::optional<QImage> nextImage = composer.composeFrame(next);
     QVERIFY(nextImage.has_value());
     QCOMPARE(pixel(*nextImage, 0, 0), QColor(255, 0, 0, 255));

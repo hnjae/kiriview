@@ -5,10 +5,10 @@
 
 #include "cache/imagebyteaccounting.h"
 #include "cache/imagebytecost.h"
-#include "cache/imagecachepolicy.h"
 #include <QMutex>
 #include <QMutexLocker>
 #include <QtGlobal>
+#include <algorithm>
 #include <iterator>
 #include <list>
 #include <map>
@@ -16,21 +16,6 @@
 #include <utility>
 
 namespace kiriview {
-bool operator==(const DisplayImageReuseKey& left, const DisplayImageReuseKey& right)
-{
-    return left.locationIdentity == right.locationIdentity
-        && left.sourceIdentity == right.sourceIdentity
-        && left.imageReaderTransformations == right.imageReaderTransformations
-        && left.originalSize == right.originalSize && left.rasterSize == right.rasterSize
-        && left.quality == right.quality && left.previewOrigin == right.previewOrigin
-        && left.pageRole == right.pageRole;
-}
-
-bool operator!=(const DisplayImageReuseKey& left, const DisplayImageReuseKey& right)
-{
-    return !(left == right);
-}
-
 namespace {
     int priorityRank(DisplayImageRetentionPriority priority)
     {
@@ -45,8 +30,6 @@ namespace {
 
         return 0;
     }
-
-    qsizetype defaultDisplayStoreByteBudget() { return displayImageCachePreferredByteBudget(); }
 
     QSize normalizedOriginalSize(const DisplayImageEntry& entry)
     {
@@ -144,29 +127,13 @@ public:
         QImage image;
         QSize originalSize;
         QSize rasterSize;
-        QString sourceIdentity;
-        DisplayedPageRole pageRole = DisplayedPageRole::Primary;
         DisplayImageQuality quality = DisplayImageQuality::Exact;
         DisplayImageRetentionPriority priority = DisplayImageRetentionPriority::Nearby;
         qsizetype byteCost = 0;
-        quint64 generation = 0;
-        QString debugLabel;
-        DisplayImagePreviewOrigin previewOrigin = DisplayImagePreviewOrigin::None;
         quint64 lastUse = 0;
-        bool releaseRequested = false;
-        int visiblePins = 0;
-        int staleRetainedPins = 0;
-        int pendingLoadPins = 0;
-        int frameRetentionPins = 0;
-        int bufferedDisplayPins = 0;
-        std::optional<DisplayImageReuseKey> reuseKey;
+        int frameLeaseCount = 0;
+        DisplayImageReuseKey reuseKey;
         std::optional<EvictionKey> evictionKey;
-
-        int totalPinCount() const
-        {
-            return visiblePins + staleRetainedPins + pendingLoadPins + frameRetentionPins
-                + bufferedDisplayPins;
-        }
     };
 
     using EntryList = std::list<Entry>;
@@ -181,39 +148,17 @@ public:
     qsizetype byteCost = 0;
     mutable quint64 useClock = 0;
     quint64 nextId = 1;
-    mutable qsizetype lastIdLookupEntryScanCount = 0;
-    mutable qsizetype lastReuseLookupEntryScanCount = 0;
 
     EntryIterator findEntry(const QString& id)
     {
-        lastIdLookupEntryScanCount = 0;
         const auto entry = entriesById.find(id);
         return entry == entriesById.end() ? images.end() : entry->second;
     }
 
     EntryIterator findReusableEntry(const DisplayImageReuseKey& reuseKey)
     {
-        lastReuseLookupEntryScanCount = 0;
         const auto entry = entriesByReuseKey.find(reuseKey);
         return entry == entriesByReuseKey.end() ? images.end() : entry->second;
-    }
-
-    int& pinCount(Entry& entry, DisplayImagePinKind kind)
-    {
-        switch (kind) {
-        case DisplayImagePinKind::Visible:
-            return entry.visiblePins;
-        case DisplayImagePinKind::StaleRetained:
-            return entry.staleRetainedPins;
-        case DisplayImagePinKind::PendingLoad:
-            return entry.pendingLoadPins;
-        case DisplayImagePinKind::FrameRetention:
-            return entry.frameRetentionPins;
-        case DisplayImagePinKind::BufferedDisplay:
-            return entry.bufferedDisplayPins;
-        }
-
-        return entry.visiblePins;
     }
 
     void removeEvictionIndex(Entry& entry)
@@ -240,7 +185,7 @@ public:
 
     void addEvictionIndex(EntryIterator entry)
     {
-        if (entry->totalPinCount() > 0) {
+        if (entry->frameLeaseCount > 0) {
             entry->evictionKey = std::nullopt;
             return;
         }
@@ -266,19 +211,12 @@ public:
     DisplayImageStoreEntry publicEntry(const Entry& entry) const
     {
         return DisplayImageStoreEntry {
-            entry.id,
             entry.image,
             entry.originalSize,
             entry.rasterSize,
-            entry.sourceIdentity,
-            entry.pageRole,
+            entry.reuseKey.imageReaderTransformations,
             entry.quality,
-            entry.priority,
             entry.byteCost,
-            entry.generation,
-            entry.debugLabel,
-            entry.previewOrigin,
-            entry.reuseKey,
         };
     }
 
@@ -297,14 +235,12 @@ public:
     void indexEntry(EntryIterator entry)
     {
         entriesById.emplace(entry->id, entry);
-        if (entry->reuseKey.has_value()) {
-            entriesByReuseKey.emplace(*entry->reuseKey, entry);
-        }
+        entriesByReuseKey.emplace(entry->reuseKey, entry);
         addEvictionIndex(entry);
     }
 
-    QString insertNewEntry(DisplayImageEntry entry, qsizetype entryByteCost,
-        std::optional<DisplayImageReuseKey> reuseKey = std::nullopt)
+    QString insertNewEntry(
+        DisplayImageEntry entry, qsizetype entryByteCost, DisplayImageReuseKey reuseKey)
     {
         const QString id = nextEntryId();
         const QSize originalSize = normalizedOriginalSize(entry);
@@ -315,20 +251,10 @@ public:
             std::move(entry.image),
             originalSize,
             rasterSize,
-            std::move(entry.sourceIdentity),
-            entry.pageRole,
             entry.quality,
             entry.priority,
             entryByteCost,
-            entry.generation,
-            std::move(entry.debugLabel),
-            entry.previewOrigin,
             ++useClock,
-            false,
-            0,
-            0,
-            0,
-            0,
             0,
             std::move(reuseKey),
             std::nullopt,
@@ -344,9 +270,7 @@ public:
     {
         removeEvictionIndex(*entry);
         entriesById.erase(entry->id);
-        if (entry->reuseKey.has_value()) {
-            entriesByReuseKey.erase(*entry->reuseKey);
-        }
+        entriesByReuseKey.erase(entry->reuseKey);
         byteCost -= entry->byteCost;
         images.erase(entry);
     }
@@ -365,25 +289,10 @@ public:
 DisplayImageStore::DisplayImageStore(qsizetype byteBudget)
     : d(std::make_unique<Private>())
 {
-    d->byteBudget = byteBudget > 0 ? byteBudget : defaultDisplayStoreByteBudget();
+    d->byteBudget = std::max<qsizetype>(0, byteBudget);
 }
 
 DisplayImageStore::~DisplayImageStore() = default;
-
-QString DisplayImageStore::insert(DisplayImageEntry entry)
-{
-    if (entry.image.isNull()) {
-        return {};
-    }
-
-    const qsizetype byteCost = imageByteCost(entry.image);
-    QMutexLocker locker(&d->mutex);
-    if (byteCost <= 0 || byteCost > d->byteBudget) {
-        return {};
-    }
-
-    return d->insertNewEntry(std::move(entry), byteCost);
-}
 
 QString DisplayImageStore::acquireReusable(DisplayImageEntry entry, DisplayImageReuseKey reuseKey)
 {
@@ -396,7 +305,6 @@ QString DisplayImageStore::acquireReusable(DisplayImageEntry entry, DisplayImage
     auto reusable = d->findReusableEntry(reuseKey);
     if (reusable != d->images.end()) {
         reusable->priority = entry.priority;
-        reusable->releaseRequested = false;
         d->touchEntry(reusable);
         d->trimToBudget();
         return reusable->id;
@@ -425,24 +333,7 @@ std::optional<DisplayImageStoreEntry> DisplayImageStore::entry(const QString& id
     return d->publicEntry(*entry);
 }
 
-void DisplayImageStore::updatePriority(const QString& id, DisplayImageRetentionPriority priority)
-{
-    if (id.isEmpty()) {
-        return;
-    }
-
-    QMutexLocker locker(&d->mutex);
-    auto entry = d->findEntry(id);
-    if (entry == d->images.end()) {
-        return;
-    }
-
-    entry->priority = priority;
-    d->touchEntry(entry);
-    d->trimToBudget();
-}
-
-bool DisplayImageStore::acquirePinLease(const QString& id, DisplayImagePinKind kind)
+bool DisplayImageStore::acquireFrameLease(const QString& id)
 {
     if (id.isEmpty()) {
         return false;
@@ -454,12 +345,12 @@ bool DisplayImageStore::acquirePinLease(const QString& id, DisplayImagePinKind k
         return false;
     }
 
-    ++d->pinCount(*entry, kind);
+    ++entry->frameLeaseCount;
     d->touchPinnedEntry(entry);
     return true;
 }
 
-void DisplayImageStore::releasePinLease(const QString& id, DisplayImagePinKind kind)
+void DisplayImageStore::releaseFrameLease(const QString& id)
 {
     if (id.isEmpty()) {
         return;
@@ -471,60 +362,11 @@ void DisplayImageStore::releasePinLease(const QString& id, DisplayImagePinKind k
         return;
     }
 
-    int& pinCount = d->pinCount(*entry, kind);
-    if (pinCount > 0) {
-        --pinCount;
-    }
-    if (entry->releaseRequested && entry->totalPinCount() == 0) {
-        d->removeEntry(entry);
-        return;
+    if (entry->frameLeaseCount > 0) {
+        --entry->frameLeaseCount;
     }
     d->touchEntry(entry);
     d->trimToBudget();
-}
-
-void DisplayImageStore::release(const QString& id)
-{
-    if (id.isEmpty()) {
-        return;
-    }
-
-    QMutexLocker locker(&d->mutex);
-    auto entry = d->findEntry(id);
-    if (entry == d->images.end()) {
-        return;
-    }
-
-    if (entry->totalPinCount() > 0) {
-        entry->releaseRequested = true;
-        d->touchPinnedEntry(entry);
-        return;
-    }
-
-    d->removeEntry(entry);
-}
-
-void DisplayImageStore::clear()
-{
-    QMutexLocker locker(&d->mutex);
-    d->images.clear();
-    d->entriesById.clear();
-    d->entriesByReuseKey.clear();
-    d->evictionEntries.clear();
-    d->byteCost = 0;
-}
-
-void DisplayImageStore::setByteBudget(qsizetype byteBudget)
-{
-    QMutexLocker locker(&d->mutex);
-    d->byteBudget = byteBudget > 0 ? byteBudget : defaultDisplayStoreByteBudget();
-    d->trimToBudget();
-}
-
-qsizetype DisplayImageStore::byteBudget() const
-{
-    QMutexLocker locker(&d->mutex);
-    return d->byteBudget;
 }
 
 qsizetype DisplayImageStore::byteCost() const
@@ -539,29 +381,4 @@ qsizetype DisplayImageStore::size() const
     return static_cast<qsizetype>(d->images.size());
 }
 
-DisplayImageStoreDebugStats DisplayImageStore::debugStats() const
-{
-    QMutexLocker locker(&d->mutex);
-    return DisplayImageStoreDebugStats {
-        static_cast<qsizetype>(d->images.size()),
-        static_cast<qsizetype>(d->entriesById.size()),
-        static_cast<qsizetype>(d->entriesByReuseKey.size()),
-        static_cast<qsizetype>(d->evictionEntries.size()),
-        d->byteCost,
-        d->lastIdLookupEntryScanCount,
-        d->lastReuseLookupEntryScanCount,
-    };
-}
-
-std::shared_ptr<DisplayImageStore> sharedDisplayImageStore()
-{
-    static const std::shared_ptr<DisplayImageStore> store
-        = std::make_shared<DisplayImageStore>(defaultDisplayStoreByteBudget());
-    return store;
-}
-
-void configureSharedDisplayImageStoreByteBudget(qsizetype byteBudget)
-{
-    sharedDisplayImageStore()->setByteBudget(byteBudget);
-}
 }

@@ -11,85 +11,11 @@ MediaViewportDelegate {
 
     readonly property var imageDocument: root.documentSession.imageDocument
     property bool imageReady: root.presentationActive && root.documentSession.activeImageReady
-    readonly property int minimumManualZoomPercent: root.imageDocument.minimumManualZoomPercent
-    readonly property int maximumManualZoomPercent: root.imageDocument.maximumManualZoomPercent
     readonly property bool imageHorizontallyPannable: root.presentationActive && root.imageDocument.viewportHorizontallyPannable
     readonly property bool imagePannable: root.presentationActive && root.imageDocument.viewportPannable
-    readonly property real viewportWidth: width
-    readonly property real viewportHeight: height
-    property string observedDisplayedUrl: ""
-    property bool observedLoading: false
-    property bool observedTwoPageModeEnabled: false
-
-    imageInteractionSurface: ImageViewportInteractionSurface {
-        imageHorizontallyPannable: root.imageHorizontallyPannable
-        imagePannable: root.imagePannable
-        viewportHeight: root.viewportHeight
-        viewportWidth: root.viewportWidth
-
-        function panBy(deltaX, deltaY) {
-            return root.panBy(deltaX, deltaY);
-        }
-
-        function panToBottomRight() {
-            return root.panToBottomRight();
-        }
-
-        function panToTopLeft() {
-            return root.panToTopLeft();
-        }
-
-        function setNextDisplayedImageStartToFinalScanPosition() {
-            root.setNextDisplayedImageStartToFinalScanPosition();
-        }
-
-        function zoomByStep(stepCount, viewportX, viewportY) {
-            return root.zoomByStep(stepCount, viewportX, viewportY);
-        }
-    }
-
-    function setNextDisplayedImageStartToFinalScanPosition() {
-        root.imageDocument.requestNextDisplayedImageStartToFinalScanPosition();
-    }
-
-    function resetPanGesture() {
-        dragPanHandler.previousTranslation = Qt.point(0, 0);
-    }
-
-    function synchronizeTargetObservation() {
-        const displayedUrl = root.imageDocument.displayedUrl.toString();
-        const loading = root.imageDocument.loading;
-        const twoPageModeEnabled = root.imageDocument.twoPageModeEnabled;
-        const displayedUrlChanged = displayedUrl !== root.observedDisplayedUrl;
-        if (displayedUrlChanged || (loading && !root.observedLoading) || twoPageModeEnabled !== root.observedTwoPageModeEnabled) {
-            root.resetPanGesture();
-        }
-        root.observedDisplayedUrl = displayedUrl;
-        root.observedLoading = loading;
-        root.observedTwoPageModeEnabled = twoPageModeEnabled;
-        if (displayedUrlChanged) {
-            root.applyDisplayedImageInitialContentPosition();
-        }
-    }
-
-    function applyDisplayedImageInitialContentPosition() {
-        root.imageDocument.requestDisplayedImageInitialContentPosition();
-    }
 
     function panBy(deltaX, deltaY) {
         return root.imageDocument.requestViewportPanBy(deltaX, deltaY);
-    }
-
-    function panToBottomRight() {
-        return root.imageDocument.requestViewportPanToFinalScanPosition();
-    }
-
-    function panToTopLeft() {
-        return root.imageDocument.requestViewportPanToInitialScanPosition();
-    }
-
-    function viewportPointInsideImage(viewportX, viewportY) {
-        return root.imageReady && root.imageDocument.viewportPointInsideImage(Qt.point(viewportX, viewportY));
     }
 
     function nearestImageViewportPoint(viewportX, viewportY) {
@@ -122,37 +48,6 @@ MediaViewportDelegate {
 
     ZoomWheelStepPolicy {
         id: wheelZoomPolicy
-    }
-
-    Connections {
-        target: root.presentationActive ? root.imageDocument : null
-
-        function onDisplayedUrlChanged() {
-            root.synchronizeTargetObservation();
-        }
-
-        function onStatusChanged() {
-            root.synchronizeTargetObservation();
-        }
-
-        function onTwoPageModeChanged() {
-            root.synchronizeTargetObservation();
-        }
-    }
-
-    Connections {
-        target: root
-
-        function onPresentationActiveChanged() {
-            root.resetPanGesture();
-            if (root.presentationActive) {
-                root.synchronizeTargetObservation();
-            } else {
-                root.observedDisplayedUrl = "";
-                root.observedLoading = false;
-                root.observedTwoPageModeEnabled = false;
-            }
-        }
     }
 
     KiriImageViewportSurface {

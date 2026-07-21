@@ -57,7 +57,6 @@ public:
     void clear();
 
     bool canComposeFrame(const ApngFrameControl& control) const;
-    unsigned char** frameRows();
     bool setFrameBytes(const ApngFrameControl& control, const unsigned char* bytes,
         std::size_t byteCount, std::size_t rowBytes);
     std::optional<QImage> composeFrame(ApngFrameControl control);

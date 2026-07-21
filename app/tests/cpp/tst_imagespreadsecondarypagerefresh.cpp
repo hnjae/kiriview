@@ -17,9 +17,14 @@ using kiriview::TestSupport::localUrl;
 kiriview::ImageDocumentPageNavigationSnapshot navigationSnapshot(
     const std::vector<QUrl>& urls, int currentPageNumber)
 {
+    std::vector<kiriview::ImageDocumentPageTarget> targets;
+    targets.reserve(urls.size());
+    for (const QUrl& url : urls) {
+        targets.emplace_back(url);
+    }
     return kiriview::ImageDocumentPageNavigationSnapshot {
         kiriview::PageNavigationState {
-            urls,
+            std::move(targets),
             currentPageNumber - 1,
         },
     };

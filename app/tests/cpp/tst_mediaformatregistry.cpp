@@ -35,7 +35,6 @@ class TestMediaFormatRegistry : public QObject
 
 private Q_SLOTS:
     void ordinaryMediaExtensionsIncludeImagesAndDirectVideos();
-    void ordinaryMediaMimeTypesIncludeImagesAndDirectVideos();
     void ordinaryMediaFileNamesIncludeImagesAndDirectVideos();
     void directVideoFileNamesStayExposedThroughMediaRegistry();
     void directMediaUrlsClassifyImagesAndVideos();
@@ -59,23 +58,6 @@ void TestMediaFormatRegistry::ordinaryMediaExtensionsIncludeImagesAndDirectVideo
     QStringList sorted = extensions;
     sorted.sort();
     QCOMPARE(extensions, sorted);
-}
-
-void TestMediaFormatRegistry::ordinaryMediaMimeTypesIncludeImagesAndDirectVideos()
-{
-    const QStringList mimeTypes = kiriview::supportedOrdinaryMediaMimeTypes();
-
-    QVERIFY(mimeTypes.contains(QStringLiteral("image/png")));
-    QVERIFY(mimeTypes.contains(QStringLiteral("video/mp4")));
-    QVERIFY(mimeTypes.contains(QStringLiteral("video/quicktime")));
-
-    QStringList unique = mimeTypes;
-    unique.removeDuplicates();
-    QCOMPARE(mimeTypes, unique);
-
-    QStringList sorted = mimeTypes;
-    sorted.sort();
-    QCOMPARE(mimeTypes, sorted);
 }
 
 void TestMediaFormatRegistry::ordinaryMediaFileNamesIncludeImagesAndDirectVideos()

@@ -213,12 +213,6 @@ msgstr ""
 
 #: src/application/applicationshortcutruntime.cpp
 #, kde-format
-msgctxt "@info:keyboard shortcut"
-msgid "Unassigned"
-msgstr ""
-
-#: src/application/applicationshortcutruntime.cpp
-#, kde-format
 msgctxt "@info:shortcut scope"
 msgid "Program-wide"
 msgstr ""
@@ -227,6 +221,12 @@ msgstr ""
 #, kde-format
 msgctxt "@info:shortcut scope"
 msgid "Viewer-local"
+msgstr ""
+
+#: src/application/applicationshortcutruntime.cpp
+#, kde-format
+msgctxt "@info:keyboard shortcut"
+msgid "Unassigned"
 msgstr ""
 
 #: src/application/applicationzoompresets.h
@@ -494,6 +494,24 @@ msgctxt "@info:status"
 msgid "First image"
 msgstr ""
 
+#: src/facade/kiriwindowshell.cpp
+#, kde-format
+msgctxt "@info:status"
+msgid "This action is not available for videos"
+msgstr ""
+
+#: src/facade/kiriwindowshell.cpp
+#, kde-format
+msgctxt "@info:status"
+msgid "This action is not available for images"
+msgstr ""
+
+#: src/facade/kiriwindowshell.cpp
+#, kde-format
+msgctxt "@info:status"
+msgid "Could not open media with another application"
+msgstr ""
+
 #: src/facade/mediaopendialogfilters.cpp
 #, kde-format
 msgctxt "@item:inlistbox"
@@ -542,11 +560,6 @@ msgstr ""
 
 #: src/localization/imageerrortext.cpp
 #, kde-format
-msgid "Could not decode the selected PNG image."
-msgstr ""
-
-#: src/localization/imageerrortext.cpp
-#, kde-format
 msgid "Could not decode the selected APNG animation."
 msgstr ""
 
@@ -582,32 +595,7 @@ msgstr ""
 
 #: src/localization/imageerrortext.cpp
 #, kde-format
-msgid "Could not render the selected SVG tile."
-msgstr ""
-
-#: src/localization/imageerrortext.cpp
-#, kde-format
 msgid "Could not render the selected SVG image."
-msgstr ""
-
-#: src/localization/imageerrortext.cpp
-#, kde-format
-msgid "Could not determine the selected JPEG first-display size."
-msgstr ""
-
-#: src/localization/imageerrortext.cpp
-#, kde-format
-msgid "The selected image is too large for fallback full-image decoding."
-msgstr ""
-
-#: src/localization/imageerrortext.cpp
-#, kde-format
-msgid "Could not render the selected tile."
-msgstr ""
-
-#: src/localization/imageerrortext.cpp
-#, kde-format
-msgid "Could not allocate the selected tile."
 msgstr ""
 
 #: src/localization/imageerrortext.cpp
@@ -697,11 +685,6 @@ msgstr ""
 #, kde-format
 msgid ""
 "Could not decode the selected RAW image: decoded image allocation failed."
-msgstr ""
-
-#: src/localization/imageerrortext.cpp
-#, kde-format
-msgid "Could not render the selected RAW tile."
 msgstr ""
 
 #: src/localization/imageerrortext.cpp
@@ -1063,21 +1046,6 @@ msgstr ""
 #: src/qml/Main.qml
 msgctxt "@title:window"
 msgid "%1 — KiriView"
-msgstr ""
-
-#: src/qml/Main.qml
-msgctxt "@info:status"
-msgid "This action is not available for videos"
-msgstr ""
-
-#: src/qml/Main.qml
-msgctxt "@info:status"
-msgid "This action is not available for images"
-msgstr ""
-
-#: src/qml/Main.qml
-msgctxt "@info:status"
-msgid "Could not open media with another application"
 msgstr ""
 
 #: src/qml/Main.qml

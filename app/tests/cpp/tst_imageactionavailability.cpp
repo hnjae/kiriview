@@ -1,10 +1,9 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-#include "facade/imageactionavailability.h"
+#include "application/imageactionavailabilitypolicy.h"
 
 #include <QObject>
-#include <QSignalSpy>
 #include <QTest>
 
 class TestImageActionAvailability : public QObject
@@ -14,13 +13,8 @@ class TestImageActionAvailability : public QObject
 private Q_SLOTS:
     void projectionDerivesReadyAndModeAvailabilityFromSnapshot();
     void projectionDerivesShortcutGatesFromSnapshot();
-    void readyActionAvailabilityRejectsCompetingModes();
-    void shortcutAvailabilityUsesViewerAndRuntimeGates();
     void policyScopeLookupUsesApplicationScope();
     void activeImageDocumentSourceScopeLookupUsesSessionNavigationInput();
-    void shortcutScopeLookupUsesProjectionFields();
-    void facadeImageDocumentSourceScopeLookupUsesRuntimePolicy();
-    void settersNotifyOnlyWhenInputsChange();
 };
 
 void TestImageActionAvailability::projectionDerivesReadyAndModeAvailabilityFromSnapshot()
@@ -91,69 +85,6 @@ void TestImageActionAvailability::projectionDerivesShortcutGatesFromSnapshot()
     QVERIFY(!projection.containerShortcutsEnabled);
 }
 
-void TestImageActionAvailability::readyActionAvailabilityRejectsCompetingModes()
-{
-    ImageActionAvailability availability;
-    availability.setImageReady(true);
-    availability.setTwoPageModeAvailable(true);
-    availability.setRightToLeftReadingAvailable(true);
-
-    QVERIFY(availability.canUseReadyActions());
-    QVERIFY(availability.canUseRotateActions());
-    QVERIFY(availability.canUseTwoPageModeActions());
-    QVERIFY(availability.canUseRightToLeftReadingActions());
-    QVERIFY(!availability.twoPageModeActive());
-
-    availability.setTwoPageModeEnabled(true);
-    QVERIFY(availability.twoPageModeActive());
-    QVERIFY(!availability.canUseRotateActions());
-
-    availability.setRightToLeftReadingEnabled(true);
-    QVERIFY(availability.rightToLeftReadingActive());
-
-    availability.setHelpDialogOpen(true);
-    QVERIFY(!availability.canUseReadyActions());
-    QVERIFY(!availability.canUseTwoPageModeActions());
-    QVERIFY(!availability.canUseRightToLeftReadingActions());
-}
-
-void TestImageActionAvailability::shortcutAvailabilityUsesViewerAndRuntimeGates()
-{
-    ImageActionAvailability availability;
-    availability.setImageReady(true);
-    availability.setImagePannable(true);
-    availability.setContainerNavigationAvailable(true);
-    availability.setTwoPageModeAvailable(true);
-    availability.setTwoPageModeEnabled(true);
-    availability.setRightToLeftReadingAvailable(true);
-
-    QVERIFY(availability.helpShortcutsEnabled());
-    QVERIFY(availability.viewerShortcutsEnabled());
-    QVERIFY(availability.readyShortcutsEnabled());
-    QVERIFY(availability.readyViewerShortcutsEnabled());
-    QVERIFY(availability.twoPageViewerShortcutsEnabled());
-    QVERIFY(availability.rightToLeftReadingShortcutsEnabled());
-    QVERIFY(availability.rightToLeftReadingViewerShortcutsEnabled());
-    QVERIFY(availability.pannableShortcutsEnabled());
-    QVERIFY(availability.pannableViewerShortcutsEnabled());
-    QVERIFY(availability.containerShortcutsEnabled());
-    QVERIFY(availability.containerViewerShortcutsEnabled());
-    QVERIFY(!availability.rotateShortcutsEnabled());
-    QVERIFY(!availability.rotateViewerShortcutsEnabled());
-
-    availability.setTextInputFocused(true);
-    QVERIFY(!availability.viewerShortcutsEnabled());
-    QVERIFY(availability.readyShortcutsEnabled());
-    QVERIFY(!availability.readyViewerShortcutsEnabled());
-    QVERIFY(!availability.pannableViewerShortcutsEnabled());
-    QVERIFY(!availability.containerViewerShortcutsEnabled());
-
-    availability.setFileDeletionInProgress(true);
-    QVERIFY(!availability.readyShortcutsEnabled());
-    QVERIFY(!availability.pannableShortcutsEnabled());
-    QVERIFY(!availability.containerShortcutsEnabled());
-}
-
 void TestImageActionAvailability::policyScopeLookupUsesApplicationScope()
 {
     using Scope = kiriview::ApplicationActions::ImageShortcutScope;
@@ -210,103 +141,6 @@ void TestImageActionAvailability::activeImageDocumentSourceScopeLookupUsesSessio
     QVERIFY(!activeMediaShortcutsEnabledForScope(input, Scope::ReadyViewerShortcutScope));
 
     QVERIFY(!activeMediaShortcutsEnabledForScope(input, static_cast<Scope>(999)));
-}
-
-void TestImageActionAvailability::shortcutScopeLookupUsesProjectionFields()
-{
-    ImageActionAvailability availability;
-    availability.setImageReady(true);
-    availability.setImagePannable(true);
-    availability.setContainerNavigationAvailable(true);
-    availability.setTwoPageModeAvailable(true);
-    availability.setRightToLeftReadingAvailable(true);
-
-    QCOMPARE(availability.shortcutsEnabledForScope(ImageActionAvailability::HelpShortcutScope),
-        availability.helpShortcutsEnabled());
-    QCOMPARE(availability.shortcutsEnabledForScope(ImageActionAvailability::ViewerShortcutScope),
-        availability.viewerShortcutsEnabled());
-    QCOMPARE(availability.shortcutsEnabledForScope(ImageActionAvailability::ReadyShortcutScope),
-        availability.readyShortcutsEnabled());
-    QCOMPARE(
-        availability.shortcutsEnabledForScope(ImageActionAvailability::ReadyViewerShortcutScope),
-        availability.readyViewerShortcutsEnabled());
-    QVERIFY(!availability.shortcutsEnabledForScope(
-        ImageActionAvailability::ImageSelectionShortcutScope));
-    QVERIFY(!availability.shortcutsEnabledForScope(
-        ImageActionAvailability::ImageSelectionViewerShortcutScope));
-    QVERIFY(!availability.shortcutsEnabledForScope(ImageActionAvailability::PageShortcutScope));
-    QVERIFY(
-        !availability.shortcutsEnabledForScope(ImageActionAvailability::PageViewerShortcutScope));
-    QCOMPARE(availability.shortcutsEnabledForScope(
-                 ImageActionAvailability::RightToLeftReadingShortcutScope),
-        availability.rightToLeftReadingShortcutsEnabled());
-    QCOMPARE(availability.shortcutsEnabledForScope(
-                 ImageActionAvailability::RightToLeftReadingViewerShortcutScope),
-        availability.rightToLeftReadingViewerShortcutsEnabled());
-    QCOMPARE(availability.shortcutsEnabledForScope(ImageActionAvailability::RotateShortcutScope),
-        availability.rotateShortcutsEnabled());
-    QCOMPARE(
-        availability.shortcutsEnabledForScope(ImageActionAvailability::RotateViewerShortcutScope),
-        availability.rotateViewerShortcutsEnabled());
-    QCOMPARE(availability.shortcutsEnabledForScope(ImageActionAvailability::PannableShortcutScope),
-        availability.pannableShortcutsEnabled());
-    QCOMPARE(
-        availability.shortcutsEnabledForScope(ImageActionAvailability::PannableViewerShortcutScope),
-        availability.pannableViewerShortcutsEnabled());
-    QCOMPARE(availability.shortcutsEnabledForScope(
-                 ImageActionAvailability::MediaStartEndViewerShortcutScope),
-        availability.pannableViewerShortcutsEnabled());
-    QCOMPARE(availability.shortcutsEnabledForScope(ImageActionAvailability::ContainerShortcutScope),
-        availability.containerShortcutsEnabled());
-    QCOMPARE(availability.shortcutsEnabledForScope(
-                 ImageActionAvailability::ContainerViewerShortcutScope),
-        availability.containerViewerShortcutsEnabled());
-    QVERIFY(!availability.shortcutsEnabledForScope(
-        static_cast<ImageActionAvailability::ShortcutScope>(999)));
-}
-
-void TestImageActionAvailability::facadeImageDocumentSourceScopeLookupUsesRuntimePolicy()
-{
-    ImageActionAvailability availability;
-    availability.setImageReady(true);
-
-    QVERIFY(availability.mediaShortcutsEnabledForScope(
-        ImageActionAvailability::ImageSelectionShortcutScope, false, true, false));
-    QVERIFY(availability.mediaShortcutsEnabledForScope(
-        ImageActionAvailability::ImageSelectionViewerShortcutScope, true, true, false));
-    QVERIFY(!availability.mediaShortcutsEnabledForScope(
-        ImageActionAvailability::ImageSelectionViewerShortcutScope, true, false, false));
-    QVERIFY(availability.mediaShortcutsEnabledForScope(
-        ImageActionAvailability::ReadyViewerShortcutScope, true, true, false));
-    QVERIFY(availability.mediaShortcutsEnabledForScope(
-        ImageActionAvailability::MediaStartEndViewerShortcutScope, true, false, false));
-    QVERIFY(!availability.mediaShortcutsEnabledForScope(
-        ImageActionAvailability::MediaStartEndViewerShortcutScope, true, false, true));
-    QVERIFY(!availability.mediaShortcutsEnabledForScope(
-        ImageActionAvailability::ReadyViewerShortcutScope, true, true, true));
-}
-
-void TestImageActionAvailability::settersNotifyOnlyWhenInputsChange()
-{
-    ImageActionAvailability availability;
-    QSignalSpy spy(&availability, &ImageActionAvailability::availabilityChanged);
-    QCOMPARE(availability.availabilityRevision(), 0);
-
-    availability.setImageReady(false);
-    QCOMPARE(spy.count(), 0);
-    QCOMPARE(availability.availabilityRevision(), 0);
-
-    availability.setImageReady(true);
-    QCOMPARE(spy.count(), 1);
-    QCOMPARE(availability.availabilityRevision(), 1);
-
-    availability.setImageReady(true);
-    QCOMPARE(spy.count(), 1);
-    QCOMPARE(availability.availabilityRevision(), 1);
-
-    availability.setTextInputFocused(true);
-    QCOMPARE(spy.count(), 2);
-    QCOMPARE(availability.availabilityRevision(), 2);
 }
 
 QTEST_GUILESS_MAIN(TestImageActionAvailability)

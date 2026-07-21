@@ -17,17 +17,15 @@ using kiriview::TestSupport::indexedImageUrl;
 using kiriview::TestSupport::staticDisplayTestImagePayload;
 using kiriview::TestSupport::testImage;
 
-kiriview::DisplayedPredecodeImage displayedImage(
-    const QUrl& url, qreal firstDisplayPixelsPerSourcePixel = 0.0)
+kiriview::DisplayedPredecodeImage displayedImage(const QUrl& url, bool firstDisplay = false)
 {
-    const kiriview::DisplayImageQuality quality = firstDisplayPixelsPerSourcePixel > 0.0
+    const kiriview::DisplayImageQuality quality = firstDisplay
         ? kiriview::DisplayImageQuality::FirstDisplay
         : kiriview::DisplayImageQuality::Exact;
     return kiriview::DisplayedPredecodeImage {
         kiriview::DisplayedImageLocation::fromUrl(url),
         true,
-        staticDisplayTestImagePayload(
-            testImage(), testImage(), firstDisplayPixelsPerSourcePixel, quality),
+        staticDisplayTestImagePayload(testImage(), testImage(), quality),
     };
 }
 
@@ -38,7 +36,7 @@ kiriview::PredecodeLoadWindow loadWindow(
         displayedUrl,
         kiriview::OpenedCollectionScopeLocation::none(),
         std::move(urls),
-        { displayedImage(displayedUrl, 0.5) },
+        { displayedImage(displayedUrl, true) },
         kiriview::ImageFirstDisplayDecodeContext { QSize(640, 480) },
         generation,
         1,
@@ -78,14 +76,13 @@ void TestPredecodeLoadState::activeWindowBuildsDecodeRequestsFromCanonicalContex
         = state.findPredecodedImage(displayedUrl);
     QVERIFY(displayed.has_value());
     QCOMPARE(displayed->displayImage.quality, kiriview::DisplayImageQuality::FirstDisplay);
-    QCOMPARE(displayed->displayImage.displayPixelsPerSourcePixel, 0.5);
 
     const std::optional<kiriview::PredecodeLoadStart> load
         = state.takeNextLoad(kiriview::PredecodeActiveLoads {});
     QVERIFY(load.has_value());
     QCOMPARE(load->request.id(), quint64(7));
     QCOMPARE(load->request.imageUrl(), nextUrl);
-    QCOMPARE(load->request.firstDisplay().physicalViewportSize, QSize(640, 480));
+    QCOMPARE(load->request.firstDisplay().logicalViewportSize, QSize(640, 480));
     QVERIFY(!state.takeNextLoad(activeLoads({ nextUrl })).has_value());
 }
 
@@ -160,8 +157,6 @@ void TestPredecodeLoadState::findPredecodedImageDoesNotConsumeCachedImage()
     QVERIFY(firstLookup.has_value());
     QVERIFY(secondLookup.has_value());
     QCOMPARE(secondLookup->location.imageUrl(), displayedUrl);
-    QCOMPARE(secondLookup->displayImage.displayPixelsPerSourcePixel,
-        firstLookup->displayImage.displayPixelsPerSourcePixel);
 }
 
 QTEST_GUILESS_MAIN(TestPredecodeLoadState)

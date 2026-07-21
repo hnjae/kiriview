@@ -41,7 +41,6 @@ public:
     bool displayedMediaOpenWithAvailable() const;
     bool displayedFileDeletionAvailable() const;
     const MediaInformationProjectionSnapshot& mediaInformationSnapshot() const;
-    const DocumentSessionPublicProjection& publicProjection() const;
     const DocumentSessionPublicSnapshot& publicSnapshot() const;
     const DirectMediaCursor& directMediaCursor() const;
     QUrl directMediaCursorUrl() const;
@@ -53,7 +52,6 @@ public:
         DocumentSessionKind kind, ActiveZoomSnapshot activeZoomSnapshot);
     void setFileDeletionInProgress(bool inProgress);
     void setOpenedCollectionVideoActive(bool active);
-    void setActiveZoomSnapshot(ActiveZoomSnapshot snapshot);
     void setActiveNavigationRevealIntent(ActiveNavigationRevealIntent intent);
     void setActiveNavigationRevealDirection(ActiveNavigationRevealDirection direction);
     void setDirectMediaNavigation(DirectMediaNavigationBoundaryState state, bool known,

@@ -6,16 +6,12 @@
 #include <QObject>
 #include <QTest>
 #include <QtGlobal>
-#include <vector>
 
 class TestImageCachePolicy : public QObject
 {
     Q_OBJECT
 
 private Q_SLOTS:
-    void retainsLeastRecentlyUsedEntriesWithinBudget();
-    void rejectsInvalidEntriesAndBudgets();
-    void reportsRetainedByteCosts();
     void displayImageCacheByteBudgetUsesPreferredLimitAndSystemMemoryCap();
     void displayImageCachePreferredByteBudgetIsNamedPolicyDefault();
     void predecodeCacheByteBudgetUsesPreferredLimitAndSystemMemoryCap();
@@ -24,49 +20,6 @@ private Q_SLOTS:
     void resolvedCacheBudgetsUseDisplayImagePreferredDefault();
     void resolvedCacheBudgetsUseExplicitDisplayImageOverride();
 };
-
-void TestImageCachePolicy::retainsLeastRecentlyUsedEntriesWithinBudget()
-{
-    using Entry = kiriview::ImageCacheRetentionEntry;
-
-    const std::vector<kiriview::ImageCacheRetainedEntry> twoRetained
-        = kiriview::lruCacheRetentionPlan(
-            { Entry { 16, 3 }, Entry { 16, 1 }, Entry { 16, 2 } }, 32);
-    QCOMPARE(twoRetained.size(), std::size_t(2));
-    QCOMPARE(twoRetained.at(0).originalIndex, std::size_t(0));
-    QCOMPARE(twoRetained.at(1).originalIndex, std::size_t(2));
-
-    const std::vector<kiriview::ImageCacheRetainedEntry> oneRetained
-        = kiriview::lruCacheRetentionPlan(
-            { Entry { 60, 3 }, Entry { 50, 2 }, Entry { 40, 1 } }, 100);
-    QCOMPARE(oneRetained.size(), std::size_t(1));
-    QCOMPARE(oneRetained.at(0).originalIndex, std::size_t(0));
-}
-
-void TestImageCachePolicy::rejectsInvalidEntriesAndBudgets()
-{
-    using Entry = kiriview::ImageCacheRetentionEntry;
-
-    const std::vector<kiriview::ImageCacheRetainedEntry> retained = kiriview::lruCacheRetentionPlan(
-        { Entry { 0, 1 }, Entry { 10, 2 }, Entry { -1, 3 } }, 100);
-    QCOMPARE(retained.size(), std::size_t(1));
-    QCOMPARE(retained.at(0).originalIndex, std::size_t(1));
-    QVERIFY(kiriview::lruCacheRetentionPlan({ Entry { 10, 1 } }, 0).empty());
-}
-
-void TestImageCachePolicy::reportsRetainedByteCosts()
-{
-    using Entry = kiriview::ImageCacheRetentionEntry;
-
-    const std::vector<kiriview::ImageCacheRetainedEntry> retained = kiriview::lruCacheRetentionPlan(
-        { Entry { 18, 3 }, Entry { 16, 1 }, Entry { 14, 2 } }, 32);
-
-    QCOMPARE(retained.size(), std::size_t(2));
-    QCOMPARE(retained.at(0).originalIndex, std::size_t(0));
-    QCOMPARE(retained.at(0).byteCost, qsizetype(18));
-    QCOMPARE(retained.at(1).originalIndex, std::size_t(2));
-    QCOMPARE(retained.at(1).byteCost, qsizetype(14));
-}
 
 void TestImageCachePolicy::displayImageCacheByteBudgetUsesPreferredLimitAndSystemMemoryCap()
 {
@@ -95,7 +48,7 @@ void TestImageCachePolicy::predecodeCacheByteBudgetUsesPreferredLimitAndSystemMe
 {
     constexpr qsizetype preferredByteBudget = 1024 * 1024 * 1024;
 
-    QCOMPARE(kiriview::predecodeCachePreferredByteBudget(), preferredByteBudget);
+    QCOMPARE(kiriview::predecodeCacheByteBudgetForSystemMemory(0), preferredByteBudget);
     QCOMPARE(kiriview::predecodeCacheByteBudgetForSystemMemory(0), preferredByteBudget);
     QCOMPARE(kiriview::predecodeCacheByteBudgetForSystemMemory(preferredByteBudget),
         preferredByteBudget / 8);

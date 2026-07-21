@@ -93,22 +93,6 @@ void ActiveNavigationThumbnailModel::setRows(
 
 void ActiveNavigationThumbnailModel::clear() { setRows({}, m_navigationGeneration); }
 
-bool ActiveNavigationThumbnailModel::containsRowIdentity(
-    int number, const QUrl& url, quint64 navigationGeneration) const
-{
-    if (navigationGeneration == 0 || navigationGeneration != m_navigationGeneration) {
-        return false;
-    }
-
-    for (const ActiveNavigationThumbnailRow& row : m_rows) {
-        if (row.number == number && row.url == url) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 void ActiveNavigationThumbnailModel::setThumbnailResultAt(
     int row, ActiveNavigationThumbnailResultStatus status, const QUrl& imageSource)
 {

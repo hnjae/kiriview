@@ -121,12 +121,12 @@ kiriview::ImageDocumentPageCandidateListSnapshot pageCandidateListSnapshot(
 }
 
 kiriview::StaticDisplayImagePayload displayTestImagePayload(
-    const QImage& image, qreal firstDisplayPixelsPerSourcePixel = 0.0)
+    const QImage& image, bool firstDisplay = false)
 {
-    const kiriview::DisplayImageQuality quality = firstDisplayPixelsPerSourcePixel > 0.0
+    const kiriview::DisplayImageQuality quality = firstDisplay
         ? kiriview::DisplayImageQuality::FirstDisplay
         : kiriview::DisplayImageQuality::Exact;
-    return staticDisplayTestImagePayload(image, image, firstDisplayPixelsPerSourcePixel, quality);
+    return staticDisplayTestImagePayload(image, image, quality);
 }
 
 kiriview::ImagePredecodeCoordinator::Context predecodeContext(
@@ -213,7 +213,7 @@ void TestImagePredecodeCoordinator::scheduleCachesDisplayedImageAndPredecodesWin
             kiriview::DisplayedPredecodeImage {
                 kiriview::DisplayedImageLocation::fromUrl(displayedUrl),
                 true,
-                displayTestImagePayload(displayedImage, 0.5),
+                displayTestImagePayload(displayedImage, true),
             },
             std::nullopt, kiriview::ImageFirstDisplayDecodeContext { QSize(640, 480) }),
         kiriview::ImageDocumentPageCandidateListSource::forDirectory(imagesDirectoryUrl()),
@@ -228,11 +228,10 @@ void TestImagePredecodeCoordinator::scheduleCachesDisplayedImageAndPredecodesWin
     QVERIFY(displayed.has_value());
     QCOMPARE(displayed->location.imageUrl(), displayedUrl);
     QCOMPARE(displayed->displayImage.quality, kiriview::DisplayImageQuality::FirstDisplay);
-    QCOMPARE(displayed->displayImage.displayPixelsPerSourcePixel, 0.5);
 
     QTRY_COMPARE(dataLoader.loadCount(), std::size_t(1));
     QCOMPARE(dataLoader.frontLoad().url, nextUrl);
-    QCOMPARE(dataLoader.frontLoad().firstDisplay.physicalViewportSize, QSize(640, 480));
+    QCOMPARE(dataLoader.frontLoad().firstDisplay.logicalViewportSize, QSize(640, 480));
     dataLoader.finishFrontLoad(QByteArrayLiteral("next"));
 
     QTRY_VERIFY(coordinator.findPredecodedImage(nextUrl).has_value());
@@ -255,12 +254,12 @@ void TestImagePredecodeCoordinator::scheduleCachesVisibleSpreadPagesAndSkipsSeco
                                   kiriview::DisplayedPredecodeImage {
                                       kiriview::DisplayedImageLocation::fromUrl(primaryUrl),
                                       true,
-                                      displayTestImagePayload(testImage(), 0.5),
+                                      displayTestImagePayload(testImage(), true),
                                   },
                                   std::make_optional(kiriview::DisplayedPredecodeImage {
                                       kiriview::DisplayedImageLocation::fromUrl(secondaryUrl),
                                       true,
-                                      displayTestImagePayload(testImage(), 0.75),
+                                      displayTestImagePayload(testImage(), true),
                                   })),
             kiriview::ImageDocumentPageCandidateListSource::forDirectory(imagesDirectoryUrl()),
             {
@@ -272,12 +271,10 @@ void TestImagePredecodeCoordinator::scheduleCachesVisibleSpreadPagesAndSkipsSeco
     const std::optional<kiriview::PredecodedImage> primary
         = coordinator.findPredecodedImage(primaryUrl);
     QVERIFY(primary.has_value());
-    QCOMPARE(primary->displayImage.displayPixelsPerSourcePixel, 0.5);
 
     const std::optional<kiriview::PredecodedImage> secondary
         = coordinator.findPredecodedImage(secondaryUrl);
     QVERIFY(secondary.has_value());
-    QCOMPARE(secondary->displayImage.displayPixelsPerSourcePixel, 0.75);
 
     QTRY_COMPARE(dataLoader.loadCount(), std::size_t(1));
     QCOMPARE(dataLoader.frontLoad().url, nextUrl);
@@ -334,7 +331,8 @@ void TestImagePredecodeCoordinator::archivePredecodeKeepsOpenedCollectionScopeCo
     const std::optional<kiriview::PredecodedImage> predecoded
         = coordinator.findPredecodedImage(nextUrl);
     QVERIFY(predecoded.has_value());
-    QCOMPARE(predecoded->location.openedCollectionScopeRootUrl(), openedCollectionScope->rootUrl());
+    QCOMPARE(
+        predecoded->location.openedCollectionScope().rootUrl(), openedCollectionScope->rootUrl());
 }
 
 void TestImagePredecodeCoordinator::regularPredecodeWindowKeepsTwoPreviousAndTwoNextPages()

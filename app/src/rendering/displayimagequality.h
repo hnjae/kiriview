@@ -10,8 +10,6 @@ enum class DisplayImageQuality {
     FirstDisplay,
     ThumbnailPreview,
     BoundedDetail,
-    Unsupported,
-    Failed,
 };
 
 enum class DisplayImagePreviewOrigin {

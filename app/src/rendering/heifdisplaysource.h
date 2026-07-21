@@ -23,8 +23,8 @@ public:
     QSize imageSize() const override;
     qsizetype byteCost() const override;
     bool supportsRasterDisplayRefinement() const override;
-    QImage decodeRasterDisplayImage(const QSize& rasterSize, QString* errorString) const override;
-    QImage decodeBlockingDisplayImage(int maximumLongEdge, QString* errorString) const override;
+    StaticImageDisplayDecodeResult decodeRasterDisplayImage(const QSize& rasterSize) const override;
+    StaticImageDisplayDecodeResult decodeBlockingDisplayImage(int maximumLongEdge) const override;
 
 private:
     QImage decodeFullOrScaled(QSize targetSize, QString* errorString) const;

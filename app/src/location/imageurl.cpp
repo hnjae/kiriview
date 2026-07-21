@@ -295,17 +295,4 @@ bool sameNormalizedUrl(const QUrl& left, const QUrl& right)
     return left.matches(right, QUrl::NormalizePathSegments);
 }
 
-bool sameNormalizedUrlOrEmpty(const QUrl& left, const QUrl& right)
-{
-    if (left.isEmpty() || right.isEmpty()) {
-        return left.isEmpty() && right.isEmpty();
-    }
-
-    return sameNormalizedUrl(left, right);
-}
-
-bool sameContainerNavigationUrl(const QUrl& left, const QUrl& right)
-{
-    return !left.isEmpty() && !right.isEmpty() && sameNormalizedUrl(left, right);
-}
 }

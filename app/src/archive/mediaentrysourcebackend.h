@@ -110,8 +110,6 @@ MediaEntrySourceCandidatesResult loadMediaEntrySourceCandidates(
     const OpenedCollectionScopeLocation& openedCollectionScope);
 MediaEntrySourceImageDataResult loadMediaEntrySourceImageData(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& imageUrl);
-MediaEntrySourceVideoPlaybackDeviceResult loadMediaEntrySourceVideoPlaybackDevice(
-    const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl);
 MediaEntrySourceThumbnailMetadataResult loadMediaEntrySourceThumbnailMetadata(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& imageUrl);
 MediaEntrySourceOpenResult openMediaEntrySource(

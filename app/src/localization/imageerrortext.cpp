@@ -13,14 +13,10 @@ QString imageErrorText(ImageErrorTextId id)
         return i18n("Could not read the selected image data.");
     case ImageErrorTextId::OpenVideo:
         return i18n("Could not open the selected video.");
-    case ImageErrorTextId::DecodePngImage:
-        return i18n("Could not decode the selected PNG image.");
     case ImageErrorTextId::DecodeApngAnimation:
         return i18n("Could not decode the selected APNG animation.");
     case ImageErrorTextId::DecodeImageAnimation:
         return i18n("Could not decode the selected image animation.");
-    case ImageErrorTextId::DisplayImage:
-        return i18n("Could not display the selected image.");
     case ImageErrorTextId::EmptyOpenedCollection:
         return i18n("The selected collection does not contain any supported media.");
     case ImageErrorTextId::OpenOpenedCollection:
@@ -31,18 +27,8 @@ QString imageErrorText(ImageErrorTextId id)
         return i18n("Could not delete the selected file.");
     case ImageErrorTextId::DetermineSvgImageSize:
         return i18n("Could not determine the selected SVG image size.");
-    case ImageErrorTextId::RenderSvgTile:
-        return i18n("Could not render the selected SVG tile.");
     case ImageErrorTextId::RenderSvgImage:
         return i18n("Could not render the selected SVG image.");
-    case ImageErrorTextId::DetermineJpegFirstDisplaySize:
-        return i18n("Could not determine the selected JPEG first-display size.");
-    case ImageErrorTextId::ImageFullDecodeFallbackTooLarge:
-        return i18n("The selected image is too large for fallback full-image decoding.");
-    case ImageErrorTextId::RenderTile:
-        return i18n("Could not render the selected tile.");
-    case ImageErrorTextId::AllocateTile:
-        return i18n("Could not allocate the selected tile.");
     case ImageErrorTextId::DecodeHeifSequence:
         return i18n("Could not decode the selected HEIF image sequence.");
     case ImageErrorTextId::HeifSequenceTrackMissing:
@@ -78,8 +64,6 @@ QString imageErrorText(ImageErrorTextId id)
         return i18n("Could not decode the selected RAW image: decoded pixel data is invalid.");
     case ImageErrorTextId::RawDecodedImageAllocationFailed:
         return i18n("Could not decode the selected RAW image: decoded image allocation failed.");
-    case ImageErrorTextId::RenderRawTile:
-        return i18n("Could not render the selected RAW tile.");
     case ImageErrorTextId::UnknownLibheifError:
         return i18n("Unknown libheif error.");
     case ImageErrorTextId::UnknownLibrawError:

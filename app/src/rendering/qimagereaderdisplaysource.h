@@ -13,13 +13,6 @@
 #include <memory>
 
 namespace kiriview {
-using QImageReaderDisplayDecodeOperation = StaticImageDisplayDecodeOperation;
-using QImageReaderDisplayDecodeFailureSeverity = StaticImageDisplayDecodeFailureSeverity;
-using QImageReaderDisplayDecodeFailure = StaticImageDisplayDecodeFailure;
-using QImageReaderDisplayDecodeDiagnostics = StaticImageDisplayDecodeDiagnostics;
-using QImageReaderDisplayDecodeResult = StaticImageDisplayDecodeResult;
-using QImageReaderFirstDisplayDecodeResult = StaticImageFirstDisplayDecodeResult;
-
 class QImageReaderDisplaySource final : public StaticImageDisplaySource
 {
 public:
@@ -30,24 +23,17 @@ public:
         QByteArray data, QByteArray format, QSize imageSize, StaticImageReaderTransform transform);
 
     QSize imageSize() const override;
-    QImageReaderFirstDisplayDecodeResult decodeFirstDisplayImageWithDiagnostics(
+    StaticImageFirstDisplayDecodeResult decodeFirstDisplayImage(
         const ImageFirstDisplayDecodeContext& context) const override;
-    FirstDisplayImageDecodeResult decodeFirstDisplayImage(
-        const ImageFirstDisplayDecodeContext& context, QString* errorString) const override;
     bool supportsRasterDisplayRefinement() const override;
-    QImageReaderDisplayDecodeResult decodeRasterDisplayImageWithDiagnostics(
-        const QSize& rasterSize) const override;
-    QImage decodeRasterDisplayImage(const QSize& rasterSize, QString* errorString) const override;
-    QImageReaderDisplayDecodeResult decodeBlockingDisplayImageWithDiagnostics(
-        int maximumLongEdge) const override;
-    QImage decodeBlockingDisplayImage(int maximumLongEdge, QString* errorString) const override;
+    StaticImageDisplayDecodeResult decodeRasterDisplayImage(const QSize& rasterSize) const override;
+    StaticImageDisplayDecodeResult decodeBlockingDisplayImage(int maximumLongEdge) const override;
     qsizetype byteCost() const override;
     StaticImageReaderTransform imageReaderTransform() const override;
 
 private:
     bool supportsJpegScaledFirstDisplay() const;
-    QImageReaderDisplayDecodeResult readScaledDisplayImage(
-        QSize scaledSize, QImageReaderDisplayDecodeOperation operation) const;
+    StaticImageDisplayDecodeResult readScaledDisplayImage(QSize scaledSize) const;
     QImage readScaledImage(QSize scaledSize, QString* errorString) const;
 
     QByteArray m_data;

@@ -100,7 +100,6 @@ ActiveNavigationSnapshot projectActiveNavigation(ActiveNavigationSourceKind sour
     DirectMediaActiveNavigationInput directMediaInput,
     ImageDocumentPageActiveNavigationSnapshot imageDocumentPageSnapshot,
     bool fileDeletionInProgress);
-ActiveNavigationSnapshot maskActiveNavigationDuringDeletion(ActiveNavigationSnapshot snapshot);
 ActiveNavigationBoundaryScope activeNavigationBoundaryScopeForSource(
     ActiveNavigationSourceKind sourceKind);
 ActiveNavigationDispatchRequest previousActiveNavigationDispatchRequest();

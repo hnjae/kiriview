@@ -78,8 +78,6 @@ mod imagespreadpolicy;
 // Rendering policy.
 #[path = "policy/imagerendergeometry.rs"]
 mod imagerendergeometry;
-#[path = "policy/rasterdisplaybucketpolicy.rs"]
-mod rasterdisplaybucketpolicy;
 #[path = "policy/svgrenderer.rs"]
 mod svgrenderer;
 

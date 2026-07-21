@@ -6,8 +6,6 @@
 
 #include "navigation/imagedocumentpagecandidatelistsource.h"
 
-#include <optional>
-
 namespace kiriview {
 class ImageDocumentPageNavigationService;
 
@@ -17,8 +15,6 @@ public:
     explicit ImageDocumentPageCandidateSnapshotPort(
         ImageDocumentPageNavigationService* navigationService = nullptr);
 
-    std::optional<ImageDocumentPageCandidateSnapshot> snapshot() const;
-    const ImageDocumentPageCandidateListSnapshot& confirmedSnapshot() const;
     void ensure(ImageDocumentPageCandidateListContext context,
         ImageDocumentPageCandidateListSnapshotCallback callback) const;
 

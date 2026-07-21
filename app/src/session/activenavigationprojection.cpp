@@ -27,12 +27,6 @@ ActiveNavigationSnapshot projectActiveNavigation(ActiveNavigationSourceKind sour
             fileDeletionInProgress));
 }
 
-ActiveNavigationSnapshot maskActiveNavigationDuringDeletion(ActiveNavigationSnapshot snapshot)
-{
-    return Bridge::activeNavigationSnapshotFromRust(
-        rustMaskActiveNavigationDuringDeletion(Bridge::rustActiveNavigationSnapshot(snapshot)));
-}
-
 ActiveNavigationBoundaryScope activeNavigationBoundaryScopeForSource(
     ActiveNavigationSourceKind sourceKind)
 {

@@ -70,12 +70,6 @@ ImageDocumentPageNavigationSnapshot ImageDocumentPageNavigationController::snaps
     return m_model.snapshot();
 }
 
-std::optional<ImageDocumentPageCandidateSnapshot>
-ImageDocumentPageNavigationController::candidateSnapshot() const
-{
-    return m_model.candidateSnapshot();
-}
-
 const ImageDocumentPageCandidateListSnapshot&
 ImageDocumentPageNavigationController::confirmedCandidateSnapshot() const
 {

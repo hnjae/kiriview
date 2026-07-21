@@ -256,64 +256,16 @@ void ApplicationShortcutRuntime::sanitizeProgramWideActionShortcuts(QAction* act
     m_sanitizingShortcuts = false;
 }
 
-ApplicationShortcutProjection ApplicationShortcutRuntime::shortcutProjectionForAction(
-    ActionId actionId, const QAction* action) const
-{
-    return ApplicationActions::shortcutProjection(
-        action == nullptr ? QList<QKeySequence>() : action->shortcuts(),
-        viewerLocalShortcutsForId(actionId));
-}
-
-ApplicationShortcutProjection ApplicationShortcutRuntime::shortcutProjection(
-    const QString& actionName) const
-{
-    const ActionDefinition* definition = definitionForName(actionName);
-    return shortcutProjectionForAction(
-        definition == nullptr ? ActionId::ActionCount : definition->actionId,
-        m_actionRegistry.action(actionName));
-}
-
-ApplicationShortcutProjection ApplicationShortcutRuntime::shortcutProjectionForId(
-    ActionId actionId) const
-{
-    const ActionDefinition* definition = definitionForId(actionId);
-    return shortcutProjectionForAction(
-        definition == nullptr ? ActionId::ActionCount : definition->actionId,
-        m_actionRegistry.actionForId(actionId));
-}
-
-QList<QKeySequence> ApplicationShortcutRuntime::programWideShortcuts(
-    const QString& actionName) const
-{
-    QAction* action = m_actionRegistry.action(actionName);
-    return action == nullptr ? QList<QKeySequence>() : action->shortcuts();
-}
-
 QList<QKeySequence> ApplicationShortcutRuntime::programWideShortcutsForId(ActionId actionId) const
 {
     QAction* action = m_actionRegistry.actionForId(actionId);
     return action == nullptr ? QList<QKeySequence>() : action->shortcuts();
 }
 
-QList<QKeySequence> ApplicationShortcutRuntime::viewerLocalShortcuts(
-    const QString& actionName) const
-{
-    const ActionDefinition* definition = definitionForName(actionName);
-    return definition == nullptr ? QList<QKeySequence>()
-                                 : viewerLocalShortcutsForId(definition->actionId);
-}
-
 QList<QKeySequence> ApplicationShortcutRuntime::viewerLocalShortcutsForId(ActionId actionId) const
 {
     const std::optional<std::size_t> index = actionIndex(actionId);
     return index.has_value() ? m_viewerLocalShortcuts[*index] : QList<QKeySequence>();
-}
-
-bool ApplicationShortcutRuntime::setViewerLocalShortcuts(
-    const QString& actionName, const QList<QKeySequence>& shortcuts)
-{
-    const ActionDefinition* definition = definitionForName(actionName);
-    return definition != nullptr && setViewerLocalShortcutsForId(definition->actionId, shortcuts);
 }
 
 bool ApplicationShortcutRuntime::setViewerLocalShortcutsForId(
@@ -328,6 +280,11 @@ bool ApplicationShortcutRuntime::setViewerLocalShortcutsForId(
     persistViewerLocalShortcuts(actionId);
     notifyShortcutRowsChanged();
     return true;
+}
+
+QString ApplicationShortcutRuntime::menuShortcutTextForId(ActionId actionId) const
+{
+    return menuShortcut(programWideShortcutsForId(actionId)).toString(QKeySequence::NativeText);
 }
 
 void ApplicationShortcutRuntime::clearShortcutRouter()
@@ -524,31 +481,6 @@ QString ApplicationShortcutRuntime::actionDisplayText(const QAction* action)
     }
 
     return displayText;
-}
-
-QString ApplicationShortcutRuntime::shortcutDisplayText(const QAction* action)
-{
-    return shortcutKeyDisplayTexts(action).join(QStringLiteral(" / "));
-}
-
-QStringList ApplicationShortcutRuntime::shortcutKeyDisplayTexts(const QAction* action)
-{
-    QStringList texts;
-    if (action != nullptr) {
-        const QList<QKeySequence> shortcuts = action->shortcuts();
-        texts.reserve(shortcuts.size());
-        for (const QKeySequence& shortcut : shortcuts) {
-            if (!shortcut.isEmpty()) {
-                texts.push_back(shortcut.toString(QKeySequence::NativeText));
-            }
-        }
-    }
-
-    if (texts.isEmpty()) {
-        texts.push_back(i18nc("@info:keyboard shortcut", "Unassigned"));
-    }
-
-    return texts;
 }
 
 QString shortcutScopeText(ApplicationShortcutActivationScope scope)

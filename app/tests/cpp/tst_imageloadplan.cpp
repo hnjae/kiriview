@@ -43,7 +43,7 @@ void TestImageLoadPlan::localFilePlansDirectImageLoad()
     QCOMPARE(plan.session.id(), quint64(7));
     QCOMPARE(plan.startEffect, kiriview::ImageLoadStartEffect::DecodeImage);
     QCOMPARE(plan.session.imageUrl(), imageUrl);
-    QCOMPARE(plan.session.firstDisplay().physicalViewportSize, QSize(320, 240));
+    QCOMPARE(plan.session.firstDisplay().logicalViewportSize, QSize(320, 240));
     QVERIFY(plan.session.openedCollectionScope().isEmpty());
 }
 
@@ -64,7 +64,8 @@ void TestImageLoadPlan::localComicBookArchivePlansArchiveListing()
     QCOMPARE(plan.session.imageUrl(), archiveUrl);
     QCOMPARE(
         plan.session.location().openedCollectionScopeSourceUrl(), archiveCollection->fileUrl());
-    QCOMPARE(plan.session.location().openedCollectionScopeRootUrl(), archiveCollection->rootUrl());
+    QCOMPARE(
+        plan.session.location().openedCollectionScope().rootUrl(), archiveCollection->rootUrl());
     QCOMPARE(plan.session.openedCollectionScope().kind(),
         kiriview::OpenedCollectionScopeKind::ComicBookArchive);
 }
@@ -95,7 +96,7 @@ void TestImageLoadPlan::sealedDirectorySourcePlansDocumentListing()
     QCOMPARE(plan.startEffect, kiriview::ImageLoadStartEffect::LoadOpenedCollectionScopeCandidates);
     QCOMPARE(plan.session.imageUrl(), directoryUrl);
     QCOMPARE(plan.session.location().openedCollectionScopeSourceUrl(), directoryUrl);
-    QCOMPARE(plan.session.location().openedCollectionScopeRootUrl(),
+    QCOMPARE(plan.session.location().openedCollectionScope().rootUrl(),
         kiriview::normalizedDirectoryContainerUrl(directoryUrl));
     QCOMPARE(plan.session.openedCollectionScope().kind(),
         kiriview::OpenedCollectionScopeKind::Directory);
@@ -119,7 +120,8 @@ void TestImageLoadPlan::resolvedLocalDirectoryScopePlansDocumentListing()
     QCOMPARE(plan.session.imageUrl(), directoryUrl);
     QCOMPARE(
         plan.session.location().openedCollectionScopeSourceUrl(), directoryCollection.fileUrl());
-    QCOMPARE(plan.session.location().openedCollectionScopeRootUrl(), directoryCollection.rootUrl());
+    QCOMPARE(
+        plan.session.location().openedCollectionScope().rootUrl(), directoryCollection.rootUrl());
     QCOMPARE(plan.session.openedCollectionScope().kind(),
         kiriview::OpenedCollectionScopeKind::Directory);
 }
@@ -143,7 +145,8 @@ void TestImageLoadPlan::containerNavigationRestoresArchiveCollectionForInteriorI
     QCOMPARE(plan.session.id(), quint64(9));
     QCOMPARE(plan.startEffect, kiriview::ImageLoadStartEffect::DecodeImage);
     QCOMPARE(plan.session.imageUrl(), imageUrl);
-    QCOMPARE(plan.session.location().openedCollectionScopeRootUrl(), archiveCollection->rootUrl());
+    QCOMPARE(
+        plan.session.location().openedCollectionScope().rootUrl(), archiveCollection->rootUrl());
     QCOMPARE(plan.session.containerNavigationUrl(), archiveUrl);
     QCOMPARE(archivePlan.effect, kiriview::OpenedCollectionScopeLoadEffect::ReadImage);
     QCOMPARE(archivePlan.openedCollectionScope.rootUrl(), archiveCollection->rootUrl());
@@ -170,7 +173,8 @@ void TestImageLoadPlan::displayedArchiveContextIsKeptForInteriorImage()
     QCOMPARE(plan.session.imageUrl(), imageUrl);
     QCOMPARE(
         plan.session.location().openedCollectionScopeSourceUrl(), archiveCollection->fileUrl());
-    QCOMPARE(plan.session.location().openedCollectionScopeRootUrl(), archiveCollection->rootUrl());
+    QCOMPARE(
+        plan.session.location().openedCollectionScope().rootUrl(), archiveCollection->rootUrl());
     QCOMPARE(archivePlan.effect, kiriview::OpenedCollectionScopeLoadEffect::ReadImage);
     QCOMPARE(archivePlan.openedCollectionScope.fileUrl(), archiveCollection->fileUrl());
     QCOMPARE(archivePlan.openedCollectionScope.rootUrl(), archiveCollection->rootUrl());

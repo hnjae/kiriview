@@ -92,8 +92,6 @@ struct PageNavigationState
         , currentIndex(currentIndex)
     {
     }
-    PageNavigationState(std::vector<QUrl> urls, int currentIndex = -1);
-
     std::vector<ImageDocumentPageTarget> targets;
     int currentIndex = -1;
 };

@@ -11,13 +11,6 @@ RustImageSpreadReadingAvailability rustImageSpreadReadingAvailability(
         availability.hasDisplayedImage, availability.displayedDocumentIsComicBook };
 }
 
-ImageSpreadTwoPageModeChange imageSpreadTwoPageModeChangeFromRust(
-    RustImageSpreadTwoPageModeChange change)
-{
-    return ImageSpreadTwoPageModeChange { change.changed, change.finish_transition,
-        change.clear_secondary_page, change.refresh_secondary_page, change.notify_two_page_mode };
-}
-
 RustImageSpreadSecondaryPageRefreshState rustImageSpreadSecondaryPageRefreshState(
     ImageSpreadSecondaryPageRefreshState state)
 {

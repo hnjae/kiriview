@@ -382,18 +382,15 @@ std::optional<StaticDisplayImagePayload> rawEmbeddedThumbnailPreviewDisplayPaylo
         return std::nullopt;
     }
 
-    const qreal pixelsPerSourcePixel = imagePixelsPerSourcePixel(result.originalSize, image.size());
     return StaticDisplayImagePayload {
         sourceKeyForUrl(request.imageUrl()).identity,
         {},
         result.originalSize,
         std::move(image),
         DisplayImageQuality::ThumbnailPreview,
-        pixelsPerSourcePixel > 0.0 ? pixelsPerSourcePixel : 0.0,
         {},
         nullptr,
         DisplayImagePreviewOrigin::RawEmbeddedThumbnail,
-        displayScopeIdentityForLocation(request.location()),
     };
 }
 }

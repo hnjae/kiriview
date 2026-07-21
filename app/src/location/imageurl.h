@@ -85,8 +85,6 @@ ResolvedNavigationSource resolvedNavigationSource(
 DirectoryNavigationLocation directoryNavigationLocationForSource(
     const ResolvedNavigationSource& source);
 bool sameNormalizedUrl(const QUrl& left, const QUrl& right);
-bool sameNormalizedUrlOrEmpty(const QUrl& left, const QUrl& right);
-bool sameContainerNavigationUrl(const QUrl& left, const QUrl& right);
 }
 
 #endif

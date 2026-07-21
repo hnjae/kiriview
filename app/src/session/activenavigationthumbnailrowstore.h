@@ -50,7 +50,6 @@ public:
         = delete;
 
     ActiveNavigationThumbnailRowUpdateKind kind() const { return m_kind; }
-    int currentNumber() const { return m_currentNumber; }
 
 private:
     friend class ActiveNavigationThumbnailRowStore;

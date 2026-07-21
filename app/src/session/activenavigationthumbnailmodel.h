@@ -38,7 +38,6 @@ public:
 
     void setRows(std::vector<ActiveNavigationThumbnailRow> rows, quint64 navigationGeneration);
     void clear();
-    bool containsRowIdentity(int number, const QUrl& url, quint64 navigationGeneration) const;
     void setThumbnailResultAt(
         int row, ActiveNavigationThumbnailResultStatus status, const QUrl& imageSource = {});
 

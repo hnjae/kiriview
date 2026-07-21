@@ -194,18 +194,8 @@ public:
         return m_openedCollectionScope;
     }
     const QUrl& openedCollectionScopeSourceUrl() const { return m_openedCollectionScope.fileUrl(); }
-    const QUrl& openedCollectionScopeRootUrl() const { return m_openedCollectionScope.rootUrl(); }
     bool isEmpty() const { return m_image.isEmpty(); }
     void setImageUrl(QUrl url) { m_image = ImageLocation::fromUrl(std::move(url)); }
-    void setOpenedCollectionScope(OpenedCollectionScopeLocation openedCollectionScope)
-    {
-        m_openedCollectionScope = std::move(openedCollectionScope);
-    }
-    void clearOpenedCollectionScope()
-    {
-        m_openedCollectionScope = OpenedCollectionScopeLocation::none();
-    }
-
     friend bool operator==(const DisplayedImageLocation& left, const DisplayedImageLocation& right)
     {
         return left.m_image == right.m_image

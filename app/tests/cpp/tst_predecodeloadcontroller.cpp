@@ -24,17 +24,15 @@ using kiriview::TestSupport::testImage;
 
 constexpr qsizetype testCacheByteBudget = 1024 * 1024;
 
-kiriview::DisplayedPredecodeImage displayedImage(
-    const QUrl& url, qreal firstDisplayPixelsPerSourcePixel = 0.0)
+kiriview::DisplayedPredecodeImage displayedImage(const QUrl& url, bool firstDisplay = false)
 {
-    const kiriview::DisplayImageQuality quality = firstDisplayPixelsPerSourcePixel > 0.0
+    const kiriview::DisplayImageQuality quality = firstDisplay
         ? kiriview::DisplayImageQuality::FirstDisplay
         : kiriview::DisplayImageQuality::Exact;
     return kiriview::DisplayedPredecodeImage {
         kiriview::DisplayedImageLocation::fromUrl(url),
         true,
-        staticDisplayTestImagePayload(
-            testImage(), testImage(), firstDisplayPixelsPerSourcePixel, quality),
+        staticDisplayTestImagePayload(testImage(), testImage(), quality),
     };
 }
 
@@ -45,7 +43,7 @@ kiriview::PredecodeLoadWindow loadWindow(
         displayedUrl,
         kiriview::OpenedCollectionScopeLocation::none(),
         std::move(urls),
-        { displayedImage(displayedUrl, 0.5) },
+        { displayedImage(displayedUrl, true) },
         kiriview::ImageFirstDisplayDecodeContext { QSize(640, 480) },
         generation,
         1,
@@ -79,11 +77,10 @@ void TestPredecodeLoadController::windowLoadsCacheDisplayedImageAndPumpQueuedDec
         = controller.findPredecodedImage(displayedUrl);
     QVERIFY(displayed.has_value());
     QCOMPARE(displayed->displayImage.quality, kiriview::DisplayImageQuality::FirstDisplay);
-    QCOMPARE(displayed->displayImage.displayPixelsPerSourcePixel, 0.5);
 
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     QCOMPARE(dataLoader.frontLoad().url, nextUrl);
-    QCOMPARE(dataLoader.frontLoad().firstDisplay.physicalViewportSize, QSize(640, 480));
+    QCOMPARE(dataLoader.frontLoad().firstDisplay.logicalViewportSize, QSize(640, 480));
 
     dataLoader.finishFrontLoad(QByteArrayLiteral("next"));
     QTRY_VERIFY(controller.findPredecodedImage(nextUrl).has_value());

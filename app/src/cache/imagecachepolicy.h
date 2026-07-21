@@ -7,22 +7,7 @@
 #include "system/systemmemory.h"
 
 #include <QtGlobal>
-#include <cstddef>
-#include <vector>
-
 namespace kiriview {
-struct ImageCacheRetentionEntry
-{
-    qsizetype byteCost = 0;
-    quint64 lastUse = 0;
-};
-
-struct ImageCacheRetainedEntry
-{
-    std::size_t originalIndex = 0;
-    qsizetype byteCost = 0;
-};
-
 struct ImageCacheBudgetRequest
 {
     qsizetype predecodeCacheByteBudget = 0;
@@ -38,9 +23,6 @@ struct ImageCacheBudgets
     qsizetype thumbnailCacheByteBudget = 0;
 };
 
-std::vector<ImageCacheRetainedEntry> lruCacheRetentionPlan(
-    const std::vector<ImageCacheRetentionEntry>& entries, qsizetype byteBudget);
-qsizetype predecodeCachePreferredByteBudget();
 qsizetype predecodeCacheByteBudgetForSystemMemory(qsizetype systemMemoryByteSize);
 qsizetype thumbnailCachePreferredByteBudget();
 qsizetype thumbnailCacheByteBudgetForSystemMemory(qsizetype systemMemoryByteSize);

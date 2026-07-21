@@ -34,15 +34,6 @@ mod ffi {
         displayed_document_is_comic_book: bool,
     }
 
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    struct RustImageSpreadTwoPageModeChange {
-        changed: bool,
-        finish_transition: bool,
-        clear_secondary_page: bool,
-        refresh_secondary_page: bool,
-        notify_two_page_mode: bool,
-    }
-
     extern "Rust" {
         #[cxx_name = "rustImageSpreadSecondaryPageRefreshPlan"]
         fn rust_image_spread_secondary_page_refresh_plan(
@@ -54,19 +45,12 @@ mod ffi {
             availability: RustImageSpreadReadingAvailability,
         ) -> bool;
 
-        #[cxx_name = "rustImageSpreadTwoPageModeChange"]
-        fn rust_image_spread_two_page_mode_change(
-            current_enabled: bool,
-            next_enabled: bool,
-            secondary_page_visible: bool,
-        ) -> RustImageSpreadTwoPageModeChange;
     }
 }
 
 use ffi::{
     RustImageSpreadReadingAvailability, RustImageSpreadSecondaryPageDecision,
     RustImageSpreadSecondaryPageRefreshPlan, RustImageSpreadSecondaryPageRefreshState,
-    RustImageSpreadTwoPageModeChange,
 };
 
 fn rust_image_spread_secondary_page_refresh_plan(
@@ -105,35 +89,6 @@ fn rust_image_spread_reading_controls_available(
     availability.has_image
         && availability.has_displayed_image
         && availability.displayed_document_is_comic_book
-}
-
-fn rust_image_spread_two_page_mode_change(
-    current_enabled: bool,
-    next_enabled: bool,
-    _secondary_page_visible: bool,
-) -> RustImageSpreadTwoPageModeChange {
-    if current_enabled == next_enabled {
-        return two_page_mode_change(false, false, false, false, false);
-    }
-
-    let disabling = !next_enabled;
-    two_page_mode_change(true, disabling, disabling, true, true)
-}
-
-fn two_page_mode_change(
-    changed: bool,
-    finish_transition: bool,
-    clear_secondary_page: bool,
-    refresh_secondary_page: bool,
-    notify_two_page_mode: bool,
-) -> RustImageSpreadTwoPageModeChange {
-    RustImageSpreadTwoPageModeChange {
-        changed,
-        finish_transition,
-        clear_secondary_page,
-        refresh_secondary_page,
-        notify_two_page_mode,
-    }
 }
 
 fn secondary_page_refresh_plan(
@@ -233,25 +188,5 @@ mod tests {
         assert!(rust_image_spread_reading_controls_available(
             reading_availability(true, true, true)
         ));
-    }
-
-    #[test]
-    fn two_page_mode_change_plans_enable_disable_side_effects() {
-        assert_eq!(
-            rust_image_spread_two_page_mode_change(false, false, true),
-            two_page_mode_change(false, false, false, false, false)
-        );
-        assert_eq!(
-            rust_image_spread_two_page_mode_change(false, true, false),
-            two_page_mode_change(true, false, false, true, true)
-        );
-        assert_eq!(
-            rust_image_spread_two_page_mode_change(true, false, false),
-            two_page_mode_change(true, true, true, true, true)
-        );
-        assert_eq!(
-            rust_image_spread_two_page_mode_change(true, false, true),
-            two_page_mode_change(true, true, true, true, true)
-        );
     }
 }

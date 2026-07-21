@@ -118,13 +118,6 @@ mod ffi {
             delta_milliseconds: i64,
         ) -> RustVideoPlaybackControlPlan;
 
-        #[cxx_name = "rustVideoPlaybackClampedSeekPosition"]
-        fn rust_video_playback_clamped_seek_position(
-            current_position: i64,
-            delta_milliseconds: i64,
-            duration: i64,
-            seekable: bool,
-        ) -> i64;
     }
 }
 

@@ -41,7 +41,7 @@ class TestImageDocumentPageCandidateListSource : public QObject
 
 private Q_SLOTS:
     void displayedImageContextsSelectDirectoryOrArchiveListing();
-    void candidateListIdentityComparesNormalizedSourcesAndCurrentUrls();
+    void candidateListSourceIdentityComparesNormalizedSources();
 };
 
 void TestImageDocumentPageCandidateListSource::
@@ -113,7 +113,7 @@ void TestImageDocumentPageCandidateListSource::
 }
 
 void TestImageDocumentPageCandidateListSource::
-    candidateListIdentityComparesNormalizedSourcesAndCurrentUrls()
+    candidateListSourceIdentityComparesNormalizedSources()
 {
     const ImageDocumentPageCandidateListContext directoryContext
         = ImageDocumentPageCandidateListContext::forDirectory(
@@ -127,12 +127,8 @@ void TestImageDocumentPageCandidateListSource::
 
     QVERIFY(kiriview::sameImageDocumentPageCandidateListSource(
         directoryContext.source(), normalizedDirectoryContext.source()));
-    QVERIFY(kiriview::sameImageDocumentPageCandidateListContext(
-        directoryContext, normalizedDirectoryContext));
     QVERIFY(!kiriview::sameImageDocumentPageCandidateListSource(
         directoryContext.source(), otherDirectoryContext.source()));
-    QVERIFY(!kiriview::sameImageDocumentPageCandidateListContext(
-        directoryContext, otherDirectoryContext));
 
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> openedCollectionScope
@@ -146,7 +142,6 @@ void TestImageDocumentPageCandidateListSource::
 
     QVERIFY(!kiriview::sameImageDocumentPageCandidateListSource(
         directoryContext.source(), archiveContext.source()));
-    QVERIFY(!kiriview::sameImageDocumentPageCandidateListContext(directoryContext, archiveContext));
 }
 
 QTEST_GUILESS_MAIN(TestImageDocumentPageCandidateListSource)

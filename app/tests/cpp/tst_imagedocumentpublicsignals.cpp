@@ -49,10 +49,6 @@ kiriview::ImageDocumentPublicSignalOperations recordingOperations(QStringList& e
     operations.twoPageModeChanged = [&events]() { events.append(QStringLiteral("twoPageMode")); };
     operations.rightToLeftReadingChanged
         = [&events]() { events.append(QStringLiteral("rightToLeftReading")); };
-    operations.presentationTransitionStateChanged
-        = [&events]() { events.append(QStringLiteral("presentationTransitionState")); };
-    operations.rotationDegreesChanged
-        = [&events]() { events.append(QStringLiteral("rotationDegrees")); };
     operations.imageDocumentSourceScopeChanged
         = [&events]() { events.append(QStringLiteral("imageDocumentSourceScope")); };
     return operations;
@@ -78,8 +74,6 @@ void TestImageDocumentPublicSignals::viewportProjectionPlansOneCoherentPublicBat
             Signal::MaximumManualZoomPercent,
             Signal::TwoPageMode,
             Signal::RightToLeftReading,
-            Signal::PresentationTransitionState,
-            Signal::RotationDegrees,
             Signal::ImageDocumentSourceScope,
         });
 }
@@ -107,8 +101,6 @@ void TestImageDocumentPublicSignals::
             Signal::ZoomMode,
             Signal::MaximumManualZoomPercent,
             Signal::RightToLeftReading,
-            Signal::PresentationTransitionState,
-            Signal::RotationDegrees,
             Signal::ImageDocumentSourceScope,
         });
 }
@@ -118,7 +110,7 @@ void TestImageDocumentPublicSignals::emitterCommitsTheSessionSnapshotBeforeProje
     QStringList events;
     const kiriview::ImageDocumentPublicSignalEmitter emitter(recordingOperations(events));
 
-    emitter.emitChange(kiriview::ImageDocumentChange::ViewportProjection);
+    emitter.emitChanges({ kiriview::ImageDocumentChange::ViewportProjection });
 
     QCOMPARE(events,
         QStringList({
@@ -135,8 +127,6 @@ void TestImageDocumentPublicSignals::emitterCommitsTheSessionSnapshotBeforeProje
             QStringLiteral("maximumManualZoomPercent"),
             QStringLiteral("twoPageMode"),
             QStringLiteral("rightToLeftReading"),
-            QStringLiteral("presentationTransitionState"),
-            QStringLiteral("rotationDegrees"),
             QStringLiteral("imageDocumentSourceScope"),
         }));
 }

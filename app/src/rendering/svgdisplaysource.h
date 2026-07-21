@@ -22,13 +22,12 @@ public:
     SvgDisplaySource(QByteArray data, QSize imageSize);
 
     QSize imageSize() const override;
-    FirstDisplayImageDecodeResult decodeFirstDisplayImage(
-        const ImageFirstDisplayDecodeContext& context, QString* errorString) const override;
+    StaticImageFirstDisplayDecodeResult decodeFirstDisplayImage(
+        const ImageFirstDisplayDecodeContext& context) const override;
     bool supportsRasterDisplayRefinement() const override;
-    QImage decodeRasterDisplayImage(const QSize& rasterSize, QString* errorString) const override;
-    QImage decodeBlockingDisplayImage(int maximumLongEdge, QString* errorString) const override;
+    StaticImageDisplayDecodeResult decodeRasterDisplayImage(const QSize& rasterSize) const override;
+    StaticImageDisplayDecodeResult decodeBlockingDisplayImage(int maximumLongEdge) const override;
     qsizetype byteCost() const override;
-    bool isResolutionIndependent() const override;
 
 private:
     QByteArray m_data;

@@ -24,16 +24,6 @@ mod ffi {
         #[cxx_name = "rustRenderSvgImage"]
         fn rust_render_svg_image(data: &[u8], width: i32, height: i32) -> Vec<u8>;
 
-        #[cxx_name = "rustRenderSvgTile"]
-        fn rust_render_svg_tile(
-            data: &[u8],
-            level_width: i32,
-            level_height: i32,
-            texture_x: i32,
-            texture_y: i32,
-            texture_width: i32,
-            texture_height: i32,
-        ) -> Vec<u8>;
     }
 }
 
@@ -45,27 +35,6 @@ fn rust_svg_intrinsic_size(data: &[u8]) -> RustSvgImageSize {
 
 fn rust_render_svg_image(data: &[u8], width: i32, height: i32) -> Vec<u8> {
     render_svg_image(data, width, height).unwrap_or_default()
-}
-
-fn rust_render_svg_tile(
-    data: &[u8],
-    level_width: i32,
-    level_height: i32,
-    texture_x: i32,
-    texture_y: i32,
-    texture_width: i32,
-    texture_height: i32,
-) -> Vec<u8> {
-    render_svg_tile(
-        data,
-        level_width,
-        level_height,
-        texture_x,
-        texture_y,
-        texture_width,
-        texture_height,
-    )
-    .unwrap_or_default()
 }
 
 fn svg_intrinsic_size(data: &[u8]) -> RustSvgImageSize {
@@ -85,31 +54,6 @@ fn render_svg_image(data: &[u8], width: i32, height: i32) -> Option<Vec<u8>> {
     let transform = image_transform(&tree, width, height);
 
     render_tree(&tree, width, height, transform)
-}
-
-fn render_svg_tile(
-    data: &[u8],
-    level_width: i32,
-    level_height: i32,
-    texture_x: i32,
-    texture_y: i32,
-    texture_width: i32,
-    texture_height: i32,
-) -> Option<Vec<u8>> {
-    let (level_width, level_height) = positive_dimensions(level_width, level_height)?;
-    let (texture_width, texture_height) = positive_dimensions(texture_width, texture_height)?;
-    let tree = parse_svg_tree(data)?;
-    let svg_size = tree.size();
-    let transform = Transform::from_row(
-        level_width as f32 / svg_size.width(),
-        0.0,
-        0.0,
-        level_height as f32 / svg_size.height(),
-        -texture_x as f32,
-        -texture_y as f32,
-    );
-
-    render_tree(&tree, texture_width, texture_height, transform)
 }
 
 fn parse_svg_tree(data: &[u8]) -> Option<Tree> {

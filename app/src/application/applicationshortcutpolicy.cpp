@@ -153,19 +153,6 @@ QKeySequence menuShortcut(const QList<QKeySequence>& shortcuts)
     return {};
 }
 
-QString shortcutListText(const QList<QKeySequence>& shortcuts)
-{
-    QStringList texts;
-    texts.reserve(shortcuts.size());
-    for (const QKeySequence& shortcut : shortcuts) {
-        if (!shortcut.isEmpty()) {
-            texts.push_back(shortcut.toString(QKeySequence::NativeText));
-        }
-    }
-
-    return texts.join(QStringLiteral(" / "));
-}
-
 QList<QKeySequence> sanitizeProgramWideShortcuts(const QList<QKeySequence>& shortcuts)
 {
     QList<QKeySequence> sanitizedShortcuts;
@@ -180,37 +167,10 @@ QList<QKeySequence> sanitizeProgramWideShortcuts(const QList<QKeySequence>& shor
     return sanitizedShortcuts;
 }
 
-ApplicationShortcutProjection shortcutProjection(const QList<QKeySequence>& programWideShortcuts,
-    const QList<QKeySequence>& viewerLocalShortcuts)
-{
-    QList<QKeySequence> shortcuts = programWideShortcuts;
-    shortcuts.append(viewerLocalShortcuts);
-    const QKeySequence menu = menuShortcut(programWideShortcuts);
-    return ApplicationShortcutProjection {
-        shortcuts,
-        programWideShortcuts,
-        viewerLocalShortcuts,
-        menu,
-        shortcutListText(shortcuts),
-        menu.toString(QKeySequence::NativeText),
-    };
-}
-
 const QList<ApplicationShortcutRoute>& shortcutRoutes()
 {
     static const QList<ApplicationShortcutRoute> routes = buildShortcutRoutes();
     return routes;
-}
-
-std::optional<ImageShortcutScope> imageShortcutScopeFromValue(int value)
-{
-    const ImageShortcutScope scope = static_cast<ImageShortcutScope>(value);
-
-    if (!imageShortcutScopeKnown(scope)) {
-        return std::nullopt;
-    }
-
-    return scope;
 }
 
 FixedShortcutDispatchOutcome fixedShortcutDispatchOutcome(

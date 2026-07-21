@@ -32,7 +32,12 @@ kiriview::DisplayedImageLocation displayedLocation(const QUrl& url)
 kiriview::ImageDocumentPageNavigationSnapshot navigationSnapshot(
     const std::vector<QUrl>& urls, int currentPageNumber)
 {
-    return { kiriview::PageNavigationState { urls, currentPageNumber - 1 } };
+    std::vector<kiriview::ImageDocumentPageTarget> targets;
+    targets.reserve(urls.size());
+    for (const QUrl& url : urls) {
+        targets.emplace_back(url);
+    }
+    return { kiriview::PageNavigationState { std::move(targets), currentPageNumber - 1 } };
 }
 
 class SpreadFixture
