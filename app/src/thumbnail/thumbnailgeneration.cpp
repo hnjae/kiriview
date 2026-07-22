@@ -208,14 +208,15 @@ QImage defaultThumbnailGenerationImageDecoder(
     QByteArray bytes, int maximumLongEdge, QString* errorString)
 {
     kiriview::DecodedImageResult decodeResult = kiriview::decodeImageData(bytes);
-    if (const kiriview::DecodedImageFailure* failure = decodeResult.failure()) {
+    if (const kiriview::DecodedImageFailure* failure
+        = kiriview::decodedImageResultFailure(decodeResult)) {
         if (errorString != nullptr) {
             *errorString = failure->errorString;
         }
         return {};
     }
 
-    const kiriview::DecodedImage* decoded = decodeResult.image();
+    const kiriview::DecodedImage* decoded = kiriview::decodedImageResultImage(decodeResult);
     if (decoded == nullptr) {
         if (errorString != nullptr) {
             *errorString = QStringLiteral("image decode produced no image");
@@ -267,13 +268,13 @@ QByteArray defaultThumbnailGenerationBytesLoader(
     if (!request.openedCollectionScope.isEmpty()) {
         kiriview::MediaEntrySourceImageDataResult dataResult
             = loadOpenedCollectionThumbnailBytes(request);
-        if (const auto* error = std::get_if<kiriview::MediaEntrySourceError>(&dataResult)) {
+        if (const auto* error = kiriview::mediaEntrySourceResultError(dataResult)) {
             if (errorString != nullptr) {
                 *errorString = error->errorString;
             }
             return {};
         }
-        if (auto* data = std::get_if<kiriview::MediaEntrySourceImageData>(&dataResult)) {
+        if (auto* data = kiriview::mediaEntrySourceResultValue(dataResult)) {
             return std::move(data->data);
         }
         if (errorString != nullptr) {
@@ -298,15 +299,14 @@ std::optional<kiriview::ThumbnailOriginalIdentity> defaultOpenedCollectionOrigin
 {
     kiriview::MediaEntrySourceThumbnailMetadataResult metadataResult
         = loadOpenedCollectionThumbnailMetadata(request);
-    if (const auto* error = std::get_if<kiriview::MediaEntrySourceError>(&metadataResult)) {
+    if (const auto* error = kiriview::mediaEntrySourceResultError(metadataResult)) {
         if (errorString != nullptr) {
             *errorString = error->errorString;
         }
         return std::nullopt;
     }
 
-    const auto* metadata
-        = std::get_if<kiriview::MediaEntrySourceThumbnailMetadata>(&metadataResult);
+    const auto* metadata = kiriview::mediaEntrySourceResultValue(metadataResult);
     if (metadata == nullptr) {
         if (errorString != nullptr) {
             *errorString = QStringLiteral("collection thumbnail metadata failed");

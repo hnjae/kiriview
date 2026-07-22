@@ -97,34 +97,31 @@ public:
             return errorResult(apngDecodeErrorString());
         }
 
-        QString frameError;
-        std::optional<AnimationFrame> firstFrame = readNextFrame(&frameError);
-        if (!firstFrame.has_value()) {
+        AnimationFrameReadResult firstFrame = readNextFrame();
+        if (!firstFrame || !firstFrame->has_value()) {
             close();
-            return errorResult(frameError.isEmpty() ? apngDecodeErrorString() : frameError);
+            return errorResult(firstFrame ? apngDecodeErrorString() : firstFrame.error());
         }
 
+        AnimationFrame decodedFirstFrame = std::move(**firstFrame);
         ApngOpenResult result;
         result.status = ApngOpenStatus::Success;
-        result.firstFrame = std::move(firstFrame->image);
-        result.firstFrameDelay = firstFrame->delay;
+        result.firstFrame = std::move(decodedFirstFrame.image);
+        result.firstFrameDelay = decodedFirstFrame.delay;
         result.loopCount = openResult.loop_count;
         result.frameCount = openResult.frame_count;
         return result;
     }
 
-    std::optional<AnimationFrame> readNextFrame(QString* errorString)
+    AnimationFrameReadResult readNextFrame()
     {
-        clearError(errorString);
-
         const RustApngFrameResult frame = rustReadApngAnimationFrame(*reader);
         switch (frame.status) {
         case RustApngReadStatus::End:
-            return std::nullopt;
+            return std::optional<AnimationFrame>();
         case RustApngReadStatus::Error:
-            setError(errorString, apngDecodeErrorString());
             close();
-            return std::nullopt;
+            return std::unexpected(apngDecodeErrorString());
         case RustApngReadStatus::Frame:
             break;
         }
@@ -132,22 +129,20 @@ public:
         const ApngFrameControl control = frameControlFromRust(frame);
         if (!composer.setFrameBytes(
                 control, frame.pixels.data(), frame.pixels.size(), frame.row_bytes)) {
-            setError(errorString, apngDecodeErrorString());
             close();
-            return std::nullopt;
+            return std::unexpected(apngDecodeErrorString());
         }
 
         std::optional<QImage> image = composer.composeFrame(control);
         if (!image.has_value()) {
-            setError(errorString, apngDecodeErrorString());
             close();
-            return std::nullopt;
+            return std::unexpected(apngDecodeErrorString());
         }
 
-        return AnimationFrame {
+        return std::optional<AnimationFrame>(AnimationFrame {
             std::move(*image),
             apngFrameDelay(frame.delay_num, frame.delay_den),
-        };
+        });
     }
 
     bool hasMoreFrames() const { return rustApngAnimationReaderHasMoreFrames(*reader); }
@@ -159,20 +154,6 @@ public:
     }
 
 private:
-    void clearError(QString* errorString)
-    {
-        if (errorString != nullptr) {
-            errorString->clear();
-        }
-    }
-
-    void setError(QString* errorString, const QString& message)
-    {
-        if (errorString != nullptr) {
-            *errorString = message;
-        }
-    }
-
     rust::Box<RustApngAnimationReader> reader = rustNewApngAnimationReader();
     ApngFrameComposer composer;
 };
@@ -186,10 +167,7 @@ ApngAnimationReader::~ApngAnimationReader() = default;
 
 ApngOpenResult ApngAnimationReader::open(QByteArray data) { return d->open(std::move(data)); }
 
-std::optional<AnimationFrame> ApngAnimationReader::readNextFrame(QString* errorString)
-{
-    return d->readNextFrame(errorString);
-}
+AnimationFrameReadResult ApngAnimationReader::readNextFrame() { return d->readNextFrame(); }
 
 bool ApngAnimationReader::hasMoreFrames() const { return d->hasMoreFrames(); }
 }

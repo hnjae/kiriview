@@ -8,33 +8,21 @@
 #include "async/imageioworkerjob.h"
 
 #include <utility>
-#include <variant>
 
 namespace {
 using kiriview::ErrorCallback;
 using kiriview::MediaEntrySourceCandidates;
 using kiriview::MediaEntrySourceCandidatesResult;
-using kiriview::MediaEntrySourceError;
 
-template <typename... Handlers> struct MediaEntrySourceResultHandler : Handlers...
-{
-    using Handlers::operator()...;
-};
-
-template <typename... Handlers>
-MediaEntrySourceResultHandler(Handlers...) -> MediaEntrySourceResultHandler<Handlers...>;
-
-template <typename Success, typename Result, typename SuccessCallback>
+template <typename Result, typename SuccessCallback>
 void finishMediaEntrySourceWorkerResult(
     Result result, ErrorCallback errorCallback, SuccessCallback successCallback)
 {
-    auto resultHandler = MediaEntrySourceResultHandler {
-        [&errorCallback](const MediaEntrySourceError& error) {
-            kiriview::invokeIfSet(errorCallback, error.errorString);
-        },
-        [&successCallback](Success& success) mutable { successCallback(std::move(success)); },
-    };
-    std::visit(resultHandler, result);
+    if (!result) {
+        kiriview::invokeIfSet(errorCallback, result.error().errorString);
+        return;
+    }
+    successCallback(std::move(*result));
 }
 
 template <typename Work, typename Finish>
@@ -67,8 +55,7 @@ ImageIoJob startOpenedCollectionCandidateList(QObject* receiver,
         },
         [callback = std::move(callback), errorCallback = std::move(errorCallback)](
             MediaEntrySourceCandidatesResult result) mutable {
-            finishMediaEntrySourceWorkerResult<MediaEntrySourceCandidates>(std::move(result),
-                std::move(errorCallback),
+            finishMediaEntrySourceWorkerResult(std::move(result), std::move(errorCallback),
                 [callback = std::move(callback)](MediaEntrySourceCandidates candidates) mutable {
                     kiriview::invokeIfSet(callback, std::move(candidates.candidates));
                 });

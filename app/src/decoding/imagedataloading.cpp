@@ -13,33 +13,21 @@
 #include <KJob>
 #include <QObject>
 #include <utility>
-#include <variant>
 
 namespace {
 using kiriview::ErrorCallback;
-using kiriview::MediaEntrySourceError;
 using kiriview::MediaEntrySourceImageData;
 using kiriview::MediaEntrySourceImageDataResult;
 
-template <typename... Handlers> struct MediaEntrySourceResultHandler : Handlers...
-{
-    using Handlers::operator()...;
-};
-
-template <typename... Handlers>
-MediaEntrySourceResultHandler(Handlers...) -> MediaEntrySourceResultHandler<Handlers...>;
-
-template <typename Success, typename Result, typename SuccessCallback>
+template <typename Result, typename SuccessCallback>
 void finishMediaEntrySourceWorkerResult(
     Result result, ErrorCallback errorCallback, SuccessCallback successCallback)
 {
-    auto resultHandler = MediaEntrySourceResultHandler {
-        [&errorCallback](const MediaEntrySourceError& error) {
-            kiriview::invokeIfSet(errorCallback, error.errorString);
-        },
-        [&successCallback](Success& success) mutable { successCallback(std::move(success)); },
-    };
-    std::visit(resultHandler, result);
+    if (!result) {
+        kiriview::invokeIfSet(errorCallback, result.error().errorString);
+        return;
+    }
+    successCallback(std::move(*result));
 }
 
 void cancelKJob(QObject* object)
@@ -82,8 +70,7 @@ ImageIoJob startStoredImageDataLoad(QObject* receiver, ImageDecodeRequest reques
             },
             [callback = std::move(callback), errorCallback = std::move(errorCallback)](
                 MediaEntrySourceImageDataResult result) mutable {
-                finishMediaEntrySourceWorkerResult<MediaEntrySourceImageData>(std::move(result),
-                    std::move(errorCallback),
+                finishMediaEntrySourceWorkerResult(std::move(result), std::move(errorCallback),
                     [callback = std::move(callback)](MediaEntrySourceImageData data) mutable {
                         kiriview::invokeIfSet(callback, std::move(data.data));
                     });

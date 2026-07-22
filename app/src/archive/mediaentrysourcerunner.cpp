@@ -6,7 +6,6 @@
 #include "mediaentrysourcebackend_p.h"
 
 #include <utility>
-#include <variant>
 
 namespace {
 namespace Backend = kiriview::MediaEntrySourceBackendDetail;
@@ -44,7 +43,7 @@ MediaEntrySourceCandidatesResult MediaEntrySourceRunner::loadImageDocumentPageCa
     }
 
     MediaEntrySourceCandidatesResult result = m_source->loadImageDocumentPageCandidates();
-    if (const auto* candidates = std::get_if<MediaEntrySourceCandidates>(&result)) {
+    if (const auto* candidates = kiriview::mediaEntrySourceResultValue(result)) {
         m_cachedCandidates = candidates->candidates;
     }
     return result;
@@ -72,7 +71,7 @@ MediaEntrySourceVideoPlaybackDeviceResult MediaEntrySourceRunner::loadVideoPlayb
     }
 
     MediaEntrySourceVideoPlaybackDeviceResult result = m_source->loadVideoPlaybackDevice(videoUrl);
-    if (auto* playbackDevice = std::get_if<MediaEntrySourceVideoPlaybackDevice>(&result)) {
+    if (auto* playbackDevice = kiriview::mediaEntrySourceResultValue(result)) {
         playbackDevice->sourceOwner = m_source;
     }
     return result;
@@ -96,12 +95,12 @@ std::optional<MediaEntrySourceError> MediaEntrySourceRunner::ensureSource()
 
     m_openAttempted = true;
     MediaEntrySourceOpenResult result = m_sourceFactory(m_openedCollectionScope);
-    if (const auto* error = std::get_if<MediaEntrySourceError>(&result)) {
+    if (const auto* error = kiriview::mediaEntrySourceResultError(result)) {
         m_openError = *error;
         return m_openError;
     }
 
-    const auto* source = std::get_if<MediaEntrySourcePtr>(&result);
+    const auto* source = kiriview::mediaEntrySourceResultValue(result);
     if (source == nullptr || *source == nullptr) {
         m_openError = Backend::mediaEntrySourceError(MediaEntrySourceBackendKind::Unknown,
             MediaEntrySourceOperation::OpenCollection, m_openedCollectionScope,

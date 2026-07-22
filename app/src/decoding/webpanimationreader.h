@@ -42,7 +42,7 @@ public:
     WebPAnimationReader& operator=(WebPAnimationReader&&) noexcept;
 
     WebPAnimationOpenResult open(QByteArray data);
-    std::optional<AnimationFrame> readNextFrame(QString* errorString);
+    AnimationFrameReadResult readNextFrame();
     bool hasMoreFrames() const;
     void close();
 

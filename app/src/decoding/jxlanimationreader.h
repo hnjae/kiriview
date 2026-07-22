@@ -42,7 +42,7 @@ public:
     JxlAnimationReader& operator=(JxlAnimationReader&&) noexcept;
 
     JxlAnimationOpenResult open(QByteArray data);
-    std::optional<AnimationFrame> readNextFrame(QString* errorString);
+    AnimationFrameReadResult readNextFrame();
     void close();
 
 private:

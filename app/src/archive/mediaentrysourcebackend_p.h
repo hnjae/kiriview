@@ -59,7 +59,7 @@ MediaEntrySourceError mediaEntrySourceError(MediaEntrySourceBackendKind backend,
 
 template <typename Result> Result mediaEntrySourceErrorResult(MediaEntrySourceError error)
 {
-    return Result { std::move(error) };
+    return std::unexpected(std::move(error));
 }
 
 MediaEntrySourceCandidatesResult mediaEntrySourceCandidatesResult(

@@ -5,17 +5,23 @@
 #include "application/applicationstartupsource.h"
 
 #include <QByteArray>
-#include <cstdio>
+#include <QStringList>
+#include <print>
 
 int main(int argumentCount, char* arguments[])
 {
-    const kiriview::ApplicationStartupParseResult startup
-        = kiriview::parseApplicationStartupSource(argumentCount, arguments);
-    if (!startup.accepted()) {
-        const QByteArray error = startup.errorString.toLocal8Bit();
-        std::fprintf(stderr, "KiriView: %s\n", error.constData());
+    QStringList startupArguments;
+    startupArguments.reserve(argumentCount);
+    for (int index = 0; index < argumentCount; ++index) {
+        startupArguments.push_back(QString::fromLocal8Bit(arguments[index]));
+    }
+
+    const auto startup = kiriview::parseApplicationStartupSource(startupArguments);
+    if (!startup) {
+        const QByteArray error = startup.error().toLocal8Bit();
+        std::println(stderr, "KiriView: {}", error.constData());
         return 2;
     }
 
-    return kiriview::runApplication(startup.source);
+    return kiriview::runApplication(*startup);
 }

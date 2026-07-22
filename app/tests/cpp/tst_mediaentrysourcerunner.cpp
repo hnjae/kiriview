@@ -73,8 +73,8 @@ void TestMediaEntrySourceRunner::candidateLoadsAreCachedAfterLazyOpen()
     kiriview::MediaEntrySourceCandidatesResult secondResult
         = runner.loadImageDocumentPageCandidates();
 
-    const auto* firstCandidates = std::get_if<MediaEntrySourceCandidates>(&firstResult);
-    const auto* secondCandidates = std::get_if<MediaEntrySourceCandidates>(&secondResult);
+    const auto* firstCandidates = kiriview::mediaEntrySourceResultValue(firstResult);
+    const auto* secondCandidates = kiriview::mediaEntrySourceResultValue(secondResult);
     QVERIFY(firstCandidates != nullptr);
     QVERIFY(secondCandidates != nullptr);
     QCOMPARE(firstCandidates->candidates.size(), std::size_t(2));
@@ -104,8 +104,8 @@ void TestMediaEntrySourceRunner::dataLoadsReuseLazyOpenSource()
     kiriview::MediaEntrySourceImageDataResult firstResult = runner.loadImageData(pageUrl);
     kiriview::MediaEntrySourceImageDataResult secondResult = runner.loadImageData(pageUrl);
 
-    const auto* firstData = std::get_if<MediaEntrySourceImageData>(&firstResult);
-    const auto* secondData = std::get_if<MediaEntrySourceImageData>(&secondResult);
+    const auto* firstData = kiriview::mediaEntrySourceResultValue(firstResult);
+    const auto* secondData = kiriview::mediaEntrySourceResultValue(secondResult);
     QVERIFY(firstData != nullptr);
     QVERIFY(secondData != nullptr);
     QCOMPARE(firstData->data, QByteArrayLiteral("image"));
@@ -131,8 +131,8 @@ void TestMediaEntrySourceRunner::playbackDeviceLoadsReuseLazyOpenSourceAndAttach
     kiriview::MediaEntrySourceVideoPlaybackDeviceResult secondResult
         = runner.loadVideoPlaybackDevice(videoUrl);
 
-    auto* firstDevice = std::get_if<kiriview::MediaEntrySourceVideoPlaybackDevice>(&firstResult);
-    auto* secondDevice = std::get_if<kiriview::MediaEntrySourceVideoPlaybackDevice>(&secondResult);
+    auto* firstDevice = kiriview::mediaEntrySourceResultValue(firstResult);
+    auto* secondDevice = kiriview::mediaEntrySourceResultValue(secondResult);
     QVERIFY(firstDevice != nullptr);
     QVERIFY(secondDevice != nullptr);
     QVERIFY(firstDevice->sourceOwner != nullptr);
@@ -158,8 +158,8 @@ void TestMediaEntrySourceRunner::failedOpenIsMemoized()
     kiriview::MediaEntrySourceImageDataResult dataResult = runner.loadImageData(
         archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png")));
 
-    QVERIFY(std::get_if<MediaEntrySourceError>(&candidatesResult) != nullptr);
-    QVERIFY(std::get_if<MediaEntrySourceError>(&dataResult) != nullptr);
+    QVERIFY(kiriview::mediaEntrySourceResultError(candidatesResult) != nullptr);
+    QVERIFY(kiriview::mediaEntrySourceResultError(dataResult) != nullptr);
     QCOMPARE(state->openCount.load(), 1);
     QCOMPARE(state->candidateLoadCount.load(), 0);
     QCOMPARE(state->dataLoadCount.load(), 0);

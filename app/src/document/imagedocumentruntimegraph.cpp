@@ -210,7 +210,7 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
                 MediaEntrySourceVideoPlaybackDeviceResult result
                     = m_mediaEntrySourceStore->loadOpenedCollectionVideoPlaybackDevice(
                         openedCollectionScope, videoUrl);
-                const auto* device = std::get_if<MediaEntrySourceVideoPlaybackDevice>(&result);
+                const auto* device = kiriview::mediaEntrySourceResultValue(result);
                 return device != nullptr && device->device != nullptr;
             },
             [this](const DisplayedImageLocation& location, QSize imageSize) {
@@ -486,14 +486,14 @@ ImageDocumentRuntimeGraph::loadOpenedCollectionVideoPlaybackDevice(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl) const
 {
     if (m_mediaEntrySourceStore == nullptr) {
-        return MediaEntrySourceError {
+        return std::unexpected(MediaEntrySourceError {
             MediaEntrySourceBackendKind::Unsupported,
             MediaEntrySourceOperation::OpenVideoPlaybackDevice,
             openedCollectionScope.fileUrl(),
             QString(),
             QString(),
             QString(),
-        };
+        });
     }
 
     return m_mediaEntrySourceStore->loadOpenedCollectionVideoPlaybackDevice(

@@ -39,7 +39,7 @@ public:
     ApngAnimationReader& operator=(const ApngAnimationReader&) = delete;
 
     ApngOpenResult open(QByteArray data);
-    std::optional<AnimationFrame> readNextFrame(QString* errorString);
+    AnimationFrameReadResult readNextFrame();
     bool hasMoreFrames() const;
 
 private:

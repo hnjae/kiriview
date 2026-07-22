@@ -5,6 +5,9 @@
 #define KIRIVIEW_ANIMATIONFRAME_H
 
 #include <QImage>
+#include <QString>
+#include <expected>
+#include <optional>
 
 namespace kiriview {
 struct AnimationFrame
@@ -12,6 +15,8 @@ struct AnimationFrame
     QImage image;
     int delay = 0;
 };
+
+using AnimationFrameReadResult = std::expected<std::optional<AnimationFrame>, QString>;
 }
 
 #endif

@@ -122,18 +122,16 @@ std::optional<kiriview::DecodedImageResult> decodeHeifSequenceImageDataForInfo(
             openResult.errorString, kiriview::DecodedImageFailureOperation::DecodeHeifSequenceOpen);
     }
 
-    QString errorString;
-    std::optional<kiriview::AnimationFrame> firstFrame = reader.readNextFrame(&errorString);
-    if (!firstFrame.has_value()) {
-        if (errorString.isEmpty()) {
-            errorString = kiriview::heifSequenceDecodeErrorString();
-        }
+    kiriview::AnimationFrameReadResult firstFrame = reader.readNextFrame();
+    if (!firstFrame || !firstFrame->has_value()) {
+        const QString errorString
+            = firstFrame ? kiriview::heifSequenceDecodeErrorString() : firstFrame.error();
         return failedHeifDecodedImageResult(
             errorString, kiriview::DecodedImageFailureOperation::DecodeHeifSequenceFrame);
     }
 
     return kiriview::successfulDecodedImageResult(kiriview::HeifSequenceAnimationImage {
-        std::move(firstFrame->image),
+        std::move(**firstFrame).image,
         data,
         {},
         kiriview::sourceKeyForUrl(request.imageUrl()).identity,

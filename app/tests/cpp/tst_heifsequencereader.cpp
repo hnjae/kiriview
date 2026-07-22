@@ -56,20 +56,22 @@ void TestHeifSequenceReader::readsFramesFromStreamingSequence()
     const kiriview::HeifSequenceOpenResult openResult = reader.open(imageData);
     QCOMPARE(openResult.status, kiriview::HeifSequenceOpenStatus::Success);
 
-    QString errorString;
-    const std::optional<kiriview::AnimationFrame> firstFrame = reader.readNextFrame(&errorString);
-    QVERIFY2(firstFrame.has_value(), qPrintable(errorString));
-    QCOMPARE(firstFrame->image.size(), QSize(64, 64));
-    QVERIFY(firstFrame->delay > 0);
-    QVERIFY(qAlpha(firstFrame->image.pixel(16, 32)) > 0);
-    QVERIFY(qAlpha(firstFrame->image.pixel(48, 32)) < 255);
+    const kiriview::AnimationFrameReadResult firstFrame = reader.readNextFrame();
+    QVERIFY2(firstFrame.has_value(), firstFrame ? "missing frame" : qPrintable(firstFrame.error()));
+    QVERIFY(firstFrame->has_value());
+    QCOMPARE((**firstFrame).image.size(), QSize(64, 64));
+    QVERIFY((**firstFrame).delay > 0);
+    QVERIFY(qAlpha((**firstFrame).image.pixel(16, 32)) > 0);
+    QVERIFY(qAlpha((**firstFrame).image.pixel(48, 32)) < 255);
 
-    const std::optional<kiriview::AnimationFrame> secondFrame = reader.readNextFrame(&errorString);
-    QVERIFY2(secondFrame.has_value(), qPrintable(errorString));
-    QCOMPARE(secondFrame->image.size(), QSize(64, 64));
-    QVERIFY(secondFrame->delay > 0);
-    QVERIFY(qAlpha(secondFrame->image.pixel(16, 32)) < 255);
-    QVERIFY(qAlpha(secondFrame->image.pixel(48, 32)) > 0);
+    const kiriview::AnimationFrameReadResult secondFrame = reader.readNextFrame();
+    QVERIFY2(
+        secondFrame.has_value(), secondFrame ? "missing frame" : qPrintable(secondFrame.error()));
+    QVERIFY(secondFrame->has_value());
+    QCOMPARE((**secondFrame).image.size(), QSize(64, 64));
+    QVERIFY((**secondFrame).delay > 0);
+    QVERIFY(qAlpha((**secondFrame).image.pixel(16, 32)) < 255);
+    QVERIFY(qAlpha((**secondFrame).image.pixel(48, 32)) > 0);
 }
 
 void TestHeifSequenceReader::closeClearsTheActiveSequence()
@@ -83,10 +85,9 @@ void TestHeifSequenceReader::closeClearsTheActiveSequence()
 
     reader.close();
 
-    QString errorString;
-    const std::optional<kiriview::AnimationFrame> frame = reader.readNextFrame(&errorString);
+    const kiriview::AnimationFrameReadResult frame = reader.readNextFrame();
     QVERIFY(!frame.has_value());
-    QCOMPARE(errorString,
+    QCOMPARE(frame.error(),
         kiriview::imageErrorText(kiriview::ImageErrorTextId::HeifSequenceTrackMissing));
 }
 

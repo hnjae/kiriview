@@ -10,7 +10,6 @@
 
 #include <optional>
 #include <utility>
-#include <variant>
 
 namespace {
 namespace Backend = kiriview::MediaEntrySourceBackendDetail;
@@ -19,12 +18,12 @@ void finishMediaEntrySourceCandidateResult(const kiriview::MediaEntrySourceCandi
     const kiriview::ImageDocumentPageCandidatesCallback& callback,
     const kiriview::ErrorCallback& errorCallback)
 {
-    if (const auto* error = std::get_if<kiriview::MediaEntrySourceError>(&result)) {
+    if (const auto* error = kiriview::mediaEntrySourceResultError(result)) {
         kiriview::invokeIfSet(errorCallback, error->errorString);
         return;
     }
 
-    const auto* candidates = std::get_if<kiriview::MediaEntrySourceCandidates>(&result);
+    const auto* candidates = kiriview::mediaEntrySourceResultValue(result);
     if (candidates != nullptr) {
         kiriview::invokeIfSet(callback, candidates->candidates);
     }
@@ -33,12 +32,12 @@ void finishMediaEntrySourceCandidateResult(const kiriview::MediaEntrySourceCandi
 void finishMediaEntrySourceDataResult(kiriview::MediaEntrySourceImageDataResult result,
     kiriview::ImageDataCallback callback, kiriview::ErrorCallback errorCallback)
 {
-    if (const auto* error = std::get_if<kiriview::MediaEntrySourceError>(&result)) {
+    if (const auto* error = kiriview::mediaEntrySourceResultError(result)) {
         kiriview::invokeIfSet(errorCallback, error->errorString);
         return;
     }
 
-    auto* data = std::get_if<kiriview::MediaEntrySourceImageData>(&result);
+    auto* data = kiriview::mediaEntrySourceResultValue(result);
     if (data != nullptr) {
         kiriview::invokeIfSet(callback, std::move(data->data));
     }

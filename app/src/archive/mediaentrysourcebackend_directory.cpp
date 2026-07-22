@@ -193,11 +193,11 @@ kiriview::MediaEntrySourceOpenResult openDirectoryCollectionMediaEntrySource(
 {
     kiriview::MediaEntrySourceCandidatesResult candidatesResult
         = loadDirectoryCollectionImageDocumentPageCandidates(openedCollectionScope);
-    if (const auto* error = std::get_if<kiriview::MediaEntrySourceError>(&candidatesResult)) {
+    if (const auto* error = kiriview::mediaEntrySourceResultError(candidatesResult)) {
         return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceOpenResult>(*error);
     }
 
-    const auto* candidates = std::get_if<kiriview::MediaEntrySourceCandidates>(&candidatesResult);
+    const auto* candidates = kiriview::mediaEntrySourceResultValue(candidatesResult);
     if (candidates == nullptr) {
         return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceOpenResult>(
             Backend::mediaEntrySourceError(kiriview::MediaEntrySourceBackendKind::Directory,

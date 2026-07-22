@@ -143,46 +143,43 @@ public:
             = QSize(static_cast<int>(info.canvas_width), static_cast<int>(info.canvas_height));
         loopCount = animationLoopCountForPlayCount(info.loop_count);
 
-        QString errorString;
-        std::optional<AnimationFrame> firstFrame = readNextFrame(&errorString);
-        if (!firstFrame.has_value()) {
+        AnimationFrameReadResult firstFrame = readNextFrame();
+        if (!firstFrame || !firstFrame->has_value()) {
             reset();
             return errorOpenResult(
-                errorString.isEmpty() ? webpAnimationDecodeErrorString() : errorString);
+                firstFrame ? webpAnimationDecodeErrorString() : firstFrame.error());
         }
 
+        AnimationFrame decodedFirstFrame = std::move(**firstFrame);
         WebPAnimationOpenResult result;
         result.status = WebPAnimationOpenStatus::Success;
-        result.firstFrame = std::move(firstFrame->image);
-        result.firstFrameDelay = firstFrame->delay;
+        result.firstFrame = std::move(decodedFirstFrame.image);
+        result.firstFrameDelay = decodedFirstFrame.delay;
         result.loopCount = loopCount;
         result.sourceHasMoreFrames = hasMoreFrames();
         return result;
     }
 
-    std::optional<AnimationFrame> readNextFrame(QString* errorString)
+    AnimationFrameReadResult readNextFrame()
     {
-        clearError(errorString);
         if (decoder == nullptr || !hasMoreFrames()) {
-            return std::nullopt;
+            return std::optional<AnimationFrame>();
         }
 
         std::uint8_t* bytes = nullptr;
         int timestamp = 0;
         if (WebPAnimDecoderGetNext(decoder.get(), &bytes, &timestamp) == 0) {
-            setError(errorString, webpAnimationDecodeErrorString());
-            return std::nullopt;
+            return std::unexpected(webpAnimationDecodeErrorString());
         }
 
         std::optional<QImage> image = imageFromRgbaFrame(bytes, canvasSize);
         if (!image.has_value()) {
-            setError(errorString, webpAnimationDecodeErrorString());
-            return std::nullopt;
+            return std::unexpected(webpAnimationDecodeErrorString());
         }
 
         const int delay = frameTimestamp < 0 ? timestamp : std::max(0, timestamp - frameTimestamp);
         frameTimestamp = timestamp;
-        return AnimationFrame { std::move(*image), delay };
+        return std::optional<AnimationFrame>(AnimationFrame { std::move(*image), delay });
     }
 
     bool hasMoreFrames() const
@@ -200,20 +197,6 @@ public:
     }
 
 private:
-    void clearError(QString* errorString)
-    {
-        if (errorString != nullptr) {
-            errorString->clear();
-        }
-    }
-
-    void setError(QString* errorString, const QString& message)
-    {
-        if (errorString != nullptr) {
-            *errorString = message;
-        }
-    }
-
     QByteArray data;
     WebPAnimDecoderPtr decoder;
     QSize canvasSize;
@@ -237,10 +220,7 @@ WebPAnimationOpenResult WebPAnimationReader::open(QByteArray data)
     return d->open(std::move(data));
 }
 
-std::optional<AnimationFrame> WebPAnimationReader::readNextFrame(QString* errorString)
-{
-    return d->readNextFrame(errorString);
-}
+AnimationFrameReadResult WebPAnimationReader::readNextFrame() { return d->readNextFrame(); }
 
 bool WebPAnimationReader::hasMoreFrames() const { return d->hasMoreFrames(); }
 

@@ -9,24 +9,12 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QUrl>
-#include <QVector>
 
 namespace {
 kiriview::ApplicationStartupParseResult parse(const QStringList& arguments)
 {
-    QVector<QByteArray> encoded;
-    encoded.reserve(arguments.size() + 1);
-    encoded.push_back(QByteArrayLiteral("kiriview"));
-    for (const QString& argument : arguments) {
-        encoded.push_back(argument.toLocal8Bit());
-    }
-
-    QVector<char*> pointers;
-    pointers.reserve(encoded.size());
-    for (QByteArray& argument : encoded) {
-        pointers.push_back(argument.data());
-    }
-    return kiriview::parseApplicationStartupSource(pointers.size(), pointers.data());
+    return kiriview::parseApplicationStartupSource(
+        QStringList { QStringLiteral("kiriview") } + arguments);
 }
 
 class CurrentDirectoryGuard
@@ -60,9 +48,9 @@ void TestApplicationStartupSource::acceptsDefaultOptions()
 {
     const auto result = parse({});
 
-    QVERIFY(result.accepted());
-    QCOMPARE(result.source.kind, kiriview::ApplicationStartupSourceKind::None);
-    QVERIFY(!result.source.verbose);
+    QVERIFY(result.has_value());
+    QCOMPARE(result->kind, kiriview::ApplicationStartupSourceKind::None);
+    QVERIFY(!result->verbose);
 }
 
 void TestApplicationStartupSource::acceptsVerboseAndFirstRelativeSource()
@@ -78,18 +66,18 @@ void TestApplicationStartupSource::acceptsVerboseAndFirstRelativeSource()
     const auto result = parse(
         { QStringLiteral("image.png"), QStringLiteral("-v"), QStringLiteral("ignored.png") });
 
-    QVERIFY(result.accepted());
-    QVERIFY(result.source.verbose);
-    QCOMPARE(result.source.kind, kiriview::ApplicationStartupSourceKind::LocalFilePath);
-    QCOMPARE(result.source.text, directory.filePath(QStringLiteral("image.png")));
+    QVERIFY(result.has_value());
+    QVERIFY(result->verbose);
+    QCOMPARE(result->kind, kiriview::ApplicationStartupSourceKind::LocalFilePath);
+    QCOMPARE(result->text, directory.filePath(QStringLiteral("image.png")));
 }
 
 void TestApplicationStartupSource::rejectsUnknownOption()
 {
     const auto result = parse({ QStringLiteral("--unknown") });
 
-    QVERIFY(!result.accepted());
-    QVERIFY(result.errorString.contains(QStringLiteral("--unknown")));
+    QVERIFY(!result.has_value());
+    QVERIFY(result.error().contains(QStringLiteral("--unknown")));
 }
 
 void TestApplicationStartupSource::treatsOptionAfterSeparatorAsSource()
@@ -104,9 +92,9 @@ void TestApplicationStartupSource::treatsOptionAfterSeparatorAsSource()
 
     const auto result = parse({ QStringLiteral("--"), QStringLiteral("-v") });
 
-    QVERIFY(result.accepted());
-    QVERIFY(!result.source.verbose);
-    QCOMPARE(result.source.text, directory.filePath(QStringLiteral("-v")));
+    QVERIFY(result.has_value());
+    QVERIFY(!result->verbose);
+    QCOMPARE(result->text, directory.filePath(QStringLiteral("-v")));
 }
 
 void TestApplicationStartupSource::rejectsMissingFileUrl()
@@ -117,8 +105,8 @@ void TestApplicationStartupSource::rejectsMissingFileUrl()
 
     const auto result = parse({ QUrl::fromLocalFile(path).toString() });
 
-    QVERIFY(!result.accepted());
-    QVERIFY(result.errorString.contains(path));
+    QVERIFY(!result.has_value());
+    QVERIFY(result.error().contains(path));
 }
 
 QTEST_GUILESS_MAIN(TestApplicationStartupSource)

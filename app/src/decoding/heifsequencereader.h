@@ -37,7 +37,7 @@ public:
     HeifSequenceReader& operator=(HeifSequenceReader&&) noexcept;
 
     HeifSequenceOpenResult open(QByteArray data);
-    std::optional<AnimationFrame> readNextFrame(QString* errorString);
+    AnimationFrameReadResult readNextFrame();
     void close();
 
 private:

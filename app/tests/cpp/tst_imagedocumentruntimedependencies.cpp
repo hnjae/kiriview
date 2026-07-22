@@ -120,14 +120,14 @@ void TestImageDocumentRuntimeDependencies::
         = [&openCount](const kiriview::OpenedCollectionScopeLocation& openedCollectionScope)
         -> kiriview::MediaEntrySourceOpenResult {
         ++openCount;
-        return kiriview::MediaEntrySourceError {
+        return std::unexpected(kiriview::MediaEntrySourceError {
             kiriview::MediaEntrySourceBackendKind::Unknown,
             kiriview::MediaEntrySourceOperation::OpenCollection,
             openedCollectionScope.fileUrl(),
             {},
             QStringLiteral("session failed"),
             QStringLiteral("session failed"),
-        };
+        });
     };
 
     kiriview::ImageDocumentRuntimeDependencies resolved

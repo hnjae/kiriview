@@ -12,7 +12,7 @@
 #include <QImage>
 #include <QString>
 #include <QtGlobal>
-#include <optional>
+#include <expected>
 #include <utility>
 #include <variant>
 
@@ -67,23 +67,7 @@ struct HeifSequenceAnimationImage
 using DecodedImage = std::variant<StaticDecodedImage, ApngAnimationImage, ReaderAnimationImage,
     WebPAnimationImage, JxlAnimationImage, HeifSequenceAnimationImage>;
 
-class DecodedImageResult
-{
-public:
-    explicit DecodedImageResult(DecodedImageFailure failure);
-    explicit DecodedImageResult(DecodedImage image);
-
-    const DecodedImageFailure* failure() const;
-    DecodedImageFailure* failure();
-    const DecodedImage* image() const;
-    DecodedImage* image();
-    std::optional<DecodedImage> takeImage() &&;
-
-private:
-    using Payload = std::variant<DecodedImageFailure, DecodedImage>;
-
-    Payload m_payload;
-};
+using DecodedImageResult = std::expected<DecodedImage, DecodedImageFailure>;
 
 DecodedImageResult failedDecodedImageResult(QString errorString);
 DecodedImageResult failedDecodedImageResult(DecodedImageFailure failure);

@@ -51,13 +51,17 @@ void TestDecodedImageResult::exposesImagePayload()
 
 void TestDecodedImageResult::takeImageMovesImagePayloadOnly()
 {
-    std::optional<kiriview::DecodedImage> image
-        = kiriview::successfulDecodedImageResult(kiriview::TestSupport::staticDecodedTestImage())
-              .takeImage();
+    kiriview::DecodedImageResult result
+        = kiriview::successfulDecodedImageResult(kiriview::TestSupport::staticDecodedTestImage());
+    std::optional<kiriview::DecodedImage> image;
+    if (result) {
+        image = std::move(*result);
+    }
     QVERIFY(image.has_value());
     QVERIFY(std::get_if<kiriview::StaticDecodedImage>(&*image) != nullptr);
 
-    image = kiriview::failedDecodedImageResult(QStringLiteral("decode failed")).takeImage();
+    result = kiriview::failedDecodedImageResult(QStringLiteral("decode failed"));
+    image = result ? std::optional<kiriview::DecodedImage>(std::move(*result)) : std::nullopt;
     QVERIFY(!image.has_value());
 }
 

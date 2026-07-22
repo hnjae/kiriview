@@ -12,9 +12,9 @@
 #include <QString>
 #include <QUrl>
 #include <QtGlobal>
+#include <expected>
 #include <functional>
 #include <memory>
-#include <variant>
 #include <vector>
 
 namespace kiriview {
@@ -79,13 +79,38 @@ struct MediaEntrySourceThumbnailMetadata
     qint64 uncompressedSize = -1;
 };
 
-template <typename Value> using MediaEntrySourceResult = std::variant<Value, MediaEntrySourceError>;
+template <typename Value>
+using MediaEntrySourceResult = std::expected<Value, MediaEntrySourceError>;
 using MediaEntrySourceCandidatesResult = MediaEntrySourceResult<MediaEntrySourceCandidates>;
 using MediaEntrySourceImageDataResult = MediaEntrySourceResult<MediaEntrySourceImageData>;
 using MediaEntrySourceVideoPlaybackDeviceResult
     = MediaEntrySourceResult<MediaEntrySourceVideoPlaybackDevice>;
 using MediaEntrySourceThumbnailMetadataResult
     = MediaEntrySourceResult<MediaEntrySourceThumbnailMetadata>;
+
+template <typename Value>
+const Value* mediaEntrySourceResultValue(const MediaEntrySourceResult<Value>& result)
+{
+    return result ? &*result : nullptr;
+}
+
+template <typename Value> Value* mediaEntrySourceResultValue(MediaEntrySourceResult<Value>& result)
+{
+    return result ? &*result : nullptr;
+}
+
+template <typename Value>
+const MediaEntrySourceError* mediaEntrySourceResultError(
+    const MediaEntrySourceResult<Value>& result)
+{
+    return result ? nullptr : &result.error();
+}
+
+template <typename Value>
+MediaEntrySourceError* mediaEntrySourceResultError(MediaEntrySourceResult<Value>& result)
+{
+    return result ? nullptr : &result.error();
+}
 
 class MediaEntrySource
 {

@@ -167,13 +167,12 @@ public:
             return playbackReadEnd();
         }
 
-        QString errorString;
-        std::optional<kiriview::AnimationFrame> frame = m_reader->readNextFrame(&errorString);
-        if (frame.has_value()) {
-            return playbackReadFrame(std::move(*frame), m_reader->hasMoreFrames());
+        kiriview::AnimationFrameReadResult frame = m_reader->readNextFrame();
+        if (!frame) {
+            return playbackReadError(std::move(frame.error()));
         }
-        if (!errorString.isEmpty()) {
-            return playbackReadError(std::move(errorString));
+        if (frame->has_value()) {
+            return playbackReadFrame(std::move(**frame), m_reader->hasMoreFrames());
         }
         return playbackReadEnd();
     }
@@ -222,13 +221,12 @@ public:
             return playbackReadEnd();
         }
 
-        QString errorString;
-        std::optional<kiriview::AnimationFrame> frame = m_reader->readNextFrame(&errorString);
-        if (frame.has_value()) {
-            return playbackReadFrame(std::move(*frame), m_reader->hasMoreFrames());
+        kiriview::AnimationFrameReadResult frame = m_reader->readNextFrame();
+        if (!frame) {
+            return playbackReadError(std::move(frame.error()));
         }
-        if (!errorString.isEmpty()) {
-            return playbackReadError(std::move(errorString));
+        if (frame->has_value()) {
+            return playbackReadFrame(std::move(**frame), m_reader->hasMoreFrames());
         }
         return playbackReadEnd();
     }
@@ -277,13 +275,12 @@ public:
             return playbackReadEnd();
         }
 
-        QString errorString;
-        std::optional<kiriview::AnimationFrame> frame = m_reader->readNextFrame(&errorString);
-        if (frame.has_value()) {
-            return playbackReadFrame(std::move(*frame), true);
+        kiriview::AnimationFrameReadResult frame = m_reader->readNextFrame();
+        if (!frame) {
+            return playbackReadError(std::move(frame.error()));
         }
-        if (!errorString.isEmpty()) {
-            return playbackReadError(std::move(errorString));
+        if (frame->has_value()) {
+            return playbackReadFrame(std::move(**frame), true);
         }
         return playbackReadEnd();
     }
@@ -314,15 +311,16 @@ public:
                     : openResult.errorString);
         }
 
-        QString errorString;
-        std::optional<kiriview::AnimationFrame> firstFrame = m_reader->readNextFrame(&errorString);
-        if (!firstFrame.has_value()) {
+        kiriview::AnimationFrameReadResult firstFrame = m_reader->readNextFrame();
+        if (!firstFrame || !firstFrame->has_value()) {
             m_reader.reset();
             return playbackOpenError(
-                errorString.isEmpty() ? kiriview::heifSequenceDecodeErrorString() : errorString);
+                firstFrame ? kiriview::heifSequenceDecodeErrorString() : firstFrame.error());
         }
 
-        return playbackOpenResult(std::move(firstFrame->image), firstFrame->delay, 0, true);
+        kiriview::AnimationFrame decodedFirstFrame = std::move(**firstFrame);
+        return playbackOpenResult(
+            std::move(decodedFirstFrame.image), decodedFirstFrame.delay, 0, true);
     }
 
     kiriview::ImageAnimationPlaybackReadResult readNextFrame() override
@@ -331,13 +329,12 @@ public:
             return playbackReadEnd();
         }
 
-        QString errorString;
-        std::optional<kiriview::AnimationFrame> frame = m_reader->readNextFrame(&errorString);
-        if (frame.has_value()) {
-            return playbackReadFrame(std::move(*frame), true);
+        kiriview::AnimationFrameReadResult frame = m_reader->readNextFrame();
+        if (!frame) {
+            return playbackReadError(std::move(frame.error()));
         }
-        if (!errorString.isEmpty()) {
-            return playbackReadError(std::move(errorString));
+        if (frame->has_value()) {
+            return playbackReadFrame(std::move(**frame), true);
         }
         return playbackReadEnd();
     }

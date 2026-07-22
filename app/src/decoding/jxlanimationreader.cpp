@@ -204,25 +204,23 @@ public:
         return result;
     }
 
-    std::optional<AnimationFrame> readNextFrame(QString* errorString)
+    AnimationFrameReadResult readNextFrame()
     {
-        clearError(errorString);
         if (bufferedFrame.has_value()) {
             AnimationFrame frame = std::move(*bufferedFrame);
             bufferedFrame = std::nullopt;
-            return frame;
+            return std::optional<AnimationFrame>(std::move(frame));
         }
 
         JxlReadResult result = readFrame();
         if (result.status == JxlReadStatus::Frame) {
-            return std::move(result.frame);
+            return std::optional<AnimationFrame>(std::move(result.frame));
         }
         if (result.status == JxlReadStatus::Error || result.status == JxlReadStatus::NotAnimation) {
-            setError(errorString,
-                result.errorString.isEmpty() ? jxlAnimationDecodeErrorString()
-                                             : result.errorString);
+            return std::unexpected(result.errorString.isEmpty() ? jxlAnimationDecodeErrorString()
+                                                                : result.errorString);
         }
-        return std::nullopt;
+        return std::optional<AnimationFrame>();
     }
 
     void reset()
@@ -370,20 +368,6 @@ private:
             == JXL_DEC_SUCCESS;
     }
 
-    void clearError(QString* errorString)
-    {
-        if (errorString != nullptr) {
-            errorString->clear();
-        }
-    }
-
-    void setError(QString* errorString, const QString& message)
-    {
-        if (errorString != nullptr) {
-            *errorString = message;
-        }
-    }
-
     QByteArray data;
     JxlDecoderPtr decoder;
     JxlThreadRunnerPtr runner;
@@ -412,10 +396,7 @@ JxlAnimationOpenResult JxlAnimationReader::open(QByteArray data)
     return d->open(std::move(data));
 }
 
-std::optional<AnimationFrame> JxlAnimationReader::readNextFrame(QString* errorString)
-{
-    return d->readNextFrame(errorString);
-}
+AnimationFrameReadResult JxlAnimationReader::readNextFrame() { return d->readNextFrame(); }
 
 void JxlAnimationReader::close() { d->reset(); }
 }

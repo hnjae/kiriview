@@ -5,7 +5,9 @@
 #define KIRIVIEW_APPLICATIONSTARTUPSOURCE_H
 
 #include <QString>
+#include <QStringList>
 #include <QUrl>
+#include <expected>
 
 namespace kiriview {
 enum class ApplicationStartupSourceKind {
@@ -21,16 +23,10 @@ struct ApplicationStartupSource
     bool verbose = false;
 };
 
-struct ApplicationStartupParseResult
-{
-    ApplicationStartupSource source;
-    QString errorString;
-
-    [[nodiscard]] bool accepted() const { return errorString.isEmpty(); }
-};
+using ApplicationStartupParseResult = std::expected<ApplicationStartupSource, QString>;
 
 QUrl initialSourceUrlFromStartupSource(const ApplicationStartupSource& source);
-ApplicationStartupParseResult parseApplicationStartupSource(int argumentCount, char* arguments[]);
+ApplicationStartupParseResult parseApplicationStartupSource(const QStringList& arguments);
 }
 
 #endif

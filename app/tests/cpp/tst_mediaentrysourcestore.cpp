@@ -317,7 +317,7 @@ void TestMediaEntrySourceStore::videoPlaybackDeviceKeepsSourceAliveAfterStoreCle
         kiriview::MediaEntrySourceStore store(instrumentedMediaEntrySourceFactory(state));
         retainedResult.emplace(
             store.loadOpenedCollectionVideoPlaybackDevice(*archiveCollection, videoUrl));
-        auto* device = std::get_if<kiriview::MediaEntrySourceVideoPlaybackDevice>(&*retainedResult);
+        auto* device = kiriview::mediaEntrySourceResultValue(*retainedResult);
         QVERIFY(device != nullptr);
         QVERIFY(device->sourceOwner != nullptr);
         QVERIFY(device->device != nullptr);

@@ -101,46 +101,33 @@ HeifSequenceOpenResult HeifSequenceReader::open(QByteArray data)
     return { HeifSequenceOpenStatus::Success, {} };
 }
 
-std::optional<AnimationFrame> HeifSequenceReader::readNextFrame(QString* errorString)
+AnimationFrameReadResult HeifSequenceReader::readNextFrame()
 {
-    if (errorString != nullptr) {
-        errorString->clear();
-    }
-
     if (d->track.get() == nullptr) {
-        if (errorString != nullptr) {
-            *errorString = imageErrorText(ImageErrorTextId::HeifSequenceTrackMissing);
-        }
-        return std::nullopt;
+        return std::unexpected(imageErrorText(ImageErrorTextId::HeifSequenceTrackMissing));
     }
 
     HeifImage heifImage;
     const heif_error error = heif_track_decode_next_image(d->track.get(), heifImage.out(),
         heif_colorspace_RGB, heif_chroma_interleaved_RGBA, d->options->get());
     if (error.code == heif_error_End_of_sequence) {
-        return std::nullopt;
+        return std::optional<AnimationFrame>();
     }
     if (error.code != heif_error_Ok) {
-        if (errorString != nullptr) {
-            *errorString = heifErrorString(
-                imageErrorActionText(ImageErrorActionTextId::DecodeHeifSequence), error);
-        }
-        return std::nullopt;
+        return std::unexpected(heifErrorString(
+            imageErrorActionText(ImageErrorActionTextId::DecodeHeifSequence), error));
     }
 
     QString conversionError;
     std::optional<QImage> image = qImageFromHeifImage(heifImage.get(), &conversionError);
     if (!image.has_value()) {
-        if (errorString != nullptr) {
-            *errorString = conversionError;
-        }
-        return std::nullopt;
+        return std::unexpected(conversionError);
     }
 
-    return AnimationFrame {
+    return std::optional<AnimationFrame>(AnimationFrame {
         std::move(*image),
         heifFrameDelay(heif_image_get_duration(heifImage.get()), d->timescale),
-    };
+    });
 }
 
 void HeifSequenceReader::close()

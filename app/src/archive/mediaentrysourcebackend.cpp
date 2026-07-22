@@ -13,7 +13,6 @@
 #include <KLocalizedString>
 #include <optional>
 #include <utility>
-#include <variant>
 
 namespace {
 namespace Backend = kiriview::MediaEntrySourceBackendDetail;
@@ -219,11 +218,11 @@ MediaEntrySourceCandidatesResult loadMediaEntrySourceCandidates(
     const OpenedCollectionScopeLocation& openedCollectionScope)
 {
     MediaEntrySourceOpenResult opened = openMediaEntrySource(openedCollectionScope);
-    if (const auto* error = std::get_if<MediaEntrySourceError>(&opened)) {
+    if (const auto* error = kiriview::mediaEntrySourceResultError(opened)) {
         return Backend::mediaEntrySourceErrorResult<MediaEntrySourceCandidatesResult>(*error);
     }
 
-    const auto* source = std::get_if<MediaEntrySourcePtr>(&opened);
+    const auto* source = kiriview::mediaEntrySourceResultValue(opened);
     if (source == nullptr || *source == nullptr) {
         return Backend::mediaEntrySourceErrorResult<MediaEntrySourceCandidatesResult>(
             Backend::mediaEntrySourceError(MediaEntrySourceBackendKind::Unknown,
@@ -238,11 +237,11 @@ MediaEntrySourceImageDataResult loadMediaEntrySourceImageData(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& imageUrl)
 {
     MediaEntrySourceOpenResult opened = openMediaEntrySource(openedCollectionScope);
-    if (const auto* error = std::get_if<MediaEntrySourceError>(&opened)) {
+    if (const auto* error = kiriview::mediaEntrySourceResultError(opened)) {
         return Backend::mediaEntrySourceErrorResult<MediaEntrySourceImageDataResult>(*error);
     }
 
-    const auto* source = std::get_if<MediaEntrySourcePtr>(&opened);
+    const auto* source = kiriview::mediaEntrySourceResultValue(opened);
     if (source == nullptr || *source == nullptr) {
         return Backend::mediaEntrySourceErrorResult<MediaEntrySourceImageDataResult>(
             Backend::mediaEntrySourceError(MediaEntrySourceBackendKind::Unknown,
@@ -257,12 +256,12 @@ MediaEntrySourceThumbnailMetadataResult loadMediaEntrySourceThumbnailMetadata(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& imageUrl)
 {
     MediaEntrySourceOpenResult opened = openMediaEntrySource(openedCollectionScope);
-    if (const auto* error = std::get_if<MediaEntrySourceError>(&opened)) {
+    if (const auto* error = kiriview::mediaEntrySourceResultError(opened)) {
         return Backend::mediaEntrySourceErrorResult<MediaEntrySourceThumbnailMetadataResult>(
             *error);
     }
 
-    const auto* source = std::get_if<MediaEntrySourcePtr>(&opened);
+    const auto* source = kiriview::mediaEntrySourceResultValue(opened);
     if (source == nullptr || *source == nullptr) {
         return Backend::mediaEntrySourceErrorResult<MediaEntrySourceThumbnailMetadataResult>(
             Backend::mediaEntrySourceError(MediaEntrySourceBackendKind::Unknown,

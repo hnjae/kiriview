@@ -250,14 +250,15 @@ void TestApngAnimationReader::readerDecodesSequentialFramesAndLoopCount()
     QCOMPARE(pixel(result.firstFrame, 0, 0), QColor(255, 0, 0, 255));
     QVERIFY(reader.hasMoreFrames());
 
-    QString errorString;
-    const std::optional<kiriview::AnimationFrame> frame = reader.readNextFrame(&errorString);
-    QVERIFY2(frame.has_value(), qPrintable(errorString));
-    QCOMPARE(frame->delay, 200);
-    QCOMPARE(pixel(frame->image, 0, 0), QColor(0, 0, 255, 255));
+    const kiriview::AnimationFrameReadResult frame = reader.readNextFrame();
+    QVERIFY2(frame.has_value(), frame ? "missing frame" : qPrintable(frame.error()));
+    QVERIFY(frame->has_value());
+    QCOMPARE((**frame).delay, 200);
+    QCOMPARE(pixel((**frame).image, 0, 0), QColor(0, 0, 255, 255));
     QVERIFY(!reader.hasMoreFrames());
-    QVERIFY(!reader.readNextFrame(&errorString).has_value());
-    QVERIFY(errorString.isEmpty());
+    const kiriview::AnimationFrameReadResult end = reader.readNextFrame();
+    QVERIFY(end.has_value());
+    QVERIFY(!end->has_value());
 }
 
 void TestApngAnimationReader::hiddenDefaultImageIsNotDisplayed()
@@ -285,10 +286,10 @@ void TestApngAnimationReader::blendOverComposesWithExistingCanvas()
     kiriview::ApngAnimationReader reader;
     QCOMPARE(reader.open(apng).status, kiriview::ApngOpenStatus::Success);
 
-    QString errorString;
-    const std::optional<kiriview::AnimationFrame> frame = reader.readNextFrame(&errorString);
-    QVERIFY2(frame.has_value(), qPrintable(errorString));
-    const QColor color = pixel(frame->image, 0, 0);
+    const kiriview::AnimationFrameReadResult frame = reader.readNextFrame();
+    QVERIFY2(frame.has_value(), frame ? "missing frame" : qPrintable(frame.error()));
+    QVERIFY(frame->has_value());
+    const QColor color = pixel((**frame).image, 0, 0);
     QCOMPARE(color.alpha(), 255);
     QVERIFY(color.red() > 0);
     QVERIFY(color.blue() > 0);
@@ -307,12 +308,13 @@ void TestApngAnimationReader::disposeBackgroundClearsFrameRegion()
     kiriview::ApngAnimationReader reader;
     QCOMPARE(reader.open(apng).status, kiriview::ApngOpenStatus::Success);
 
-    QString errorString;
-    QVERIFY(reader.readNextFrame(&errorString).has_value());
-    const std::optional<kiriview::AnimationFrame> thirdFrame = reader.readNextFrame(&errorString);
-    QVERIFY2(thirdFrame.has_value(), qPrintable(errorString));
-    QCOMPARE(pixel(thirdFrame->image, 0, 0).alpha(), 0);
-    QCOMPARE(pixel(thirdFrame->image, 1, 0), QColor(0, 255, 0, 255));
+    const kiriview::AnimationFrameReadResult secondFrame = reader.readNextFrame();
+    QVERIFY(secondFrame && secondFrame->has_value());
+    const kiriview::AnimationFrameReadResult thirdFrame = reader.readNextFrame();
+    QVERIFY2(thirdFrame.has_value(), thirdFrame ? "missing frame" : qPrintable(thirdFrame.error()));
+    QVERIFY(thirdFrame->has_value());
+    QCOMPARE(pixel((**thirdFrame).image, 0, 0).alpha(), 0);
+    QCOMPARE(pixel((**thirdFrame).image, 1, 0), QColor(0, 255, 0, 255));
 }
 
 void TestApngAnimationReader::disposePreviousRestoresFrameRegion()
@@ -328,12 +330,13 @@ void TestApngAnimationReader::disposePreviousRestoresFrameRegion()
     kiriview::ApngAnimationReader reader;
     QCOMPARE(reader.open(apng).status, kiriview::ApngOpenStatus::Success);
 
-    QString errorString;
-    QVERIFY(reader.readNextFrame(&errorString).has_value());
-    const std::optional<kiriview::AnimationFrame> thirdFrame = reader.readNextFrame(&errorString);
-    QVERIFY2(thirdFrame.has_value(), qPrintable(errorString));
-    QCOMPARE(pixel(thirdFrame->image, 0, 0), QColor(255, 0, 0, 255));
-    QCOMPARE(pixel(thirdFrame->image, 1, 0), QColor(0, 255, 0, 255));
+    const kiriview::AnimationFrameReadResult secondFrame = reader.readNextFrame();
+    QVERIFY(secondFrame && secondFrame->has_value());
+    const kiriview::AnimationFrameReadResult thirdFrame = reader.readNextFrame();
+    QVERIFY2(thirdFrame.has_value(), thirdFrame ? "missing frame" : qPrintable(thirdFrame.error()));
+    QVERIFY(thirdFrame->has_value());
+    QCOMPARE(pixel((**thirdFrame).image, 0, 0), QColor(255, 0, 0, 255));
+    QCOMPARE(pixel((**thirdFrame).image, 1, 0), QColor(0, 255, 0, 255));
 }
 
 void TestApngAnimationReader::malformedApngReportsError()

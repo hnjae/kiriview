@@ -3,15 +3,12 @@
 
 #include "applicationstartupsource.h"
 
+#include <QCommandLineOption>
+#include <QCommandLineParser>
 #include <QDir>
 #include <QFileInfo>
-#include <QStringView>
 
 namespace {
-bool isVerboseOption(QStringView argument) { return argument == u"--verbose" || argument == u"-v"; }
-
-bool isOption(QStringView argument) { return argument.size() > 1 && argument.front() == u'-'; }
-
 QString localPathError(const QString& path)
 {
     return QStringLiteral("cannot open '%1': No such file or directory").arg(path);
@@ -58,60 +55,51 @@ QUrl initialSourceUrlFromStartupSource(const ApplicationStartupSource& source)
     return QUrl();
 }
 
-ApplicationStartupParseResult parseApplicationStartupSource(int argumentCount, char* arguments[])
+ApplicationStartupParseResult parseApplicationStartupSource(const QStringList& arguments)
 {
-    ApplicationStartupParseResult result;
-    bool parseOptions = true;
-    bool sourceArgumentSeen = false;
-
-    for (int index = 1; index < argumentCount; ++index) {
-        const QString argument = QString::fromLocal8Bit(arguments[index]);
-        if (parseOptions) {
-            if (argument == QStringLiteral("--")) {
-                parseOptions = false;
-                continue;
-            }
-            if (isVerboseOption(argument)) {
-                result.source.verbose = true;
-                continue;
-            }
-            if (isOption(argument)) {
-                result.errorString = QStringLiteral("unknown startup option '%1'").arg(argument);
-                return result;
-            }
+    QCommandLineParser parser;
+    parser.addOption(QCommandLineOption(
+        { QStringLiteral("v"), QStringLiteral("verbose") }, QStringLiteral("Verbose output.")));
+    parser.addPositionalArgument(QStringLiteral("source"), QStringLiteral("Initial source."));
+    if (!parser.parse(arguments)) {
+        const QStringList unknownOptions = parser.unknownOptionNames();
+        if (!unknownOptions.isEmpty()) {
+            const QString& option = unknownOptions.front();
+            const QString prefix = option.size() == 1 ? QStringLiteral("-") : QStringLiteral("--");
+            return std::unexpected(
+                QStringLiteral("unknown startup option '%1%2'").arg(prefix, option));
         }
-
-        if (sourceArgumentSeen) {
-            continue;
-        }
-        sourceArgumentSeen = true;
-        if (argument.isEmpty()) {
-            continue;
-        }
-
-        if (hasUrlScheme(argument)) {
-            const QUrl url(argument);
-            if (url.isLocalFile()) {
-                const QString path = url.toLocalFile();
-                if (!path.isEmpty() && !QFileInfo::exists(path)) {
-                    result.errorString = localPathError(path);
-                    return result;
-                }
-            }
-            result.source.kind = ApplicationStartupSourceKind::UrlText;
-            result.source.text = argument;
-            continue;
-        }
-
-        const QString path = QFileInfo(QDir::current(), argument).absoluteFilePath();
-        if (!QFileInfo::exists(path)) {
-            result.errorString = localPathError(path);
-            return result;
-        }
-        result.source.kind = ApplicationStartupSourceKind::LocalFilePath;
-        result.source.text = path;
+        return std::unexpected(parser.errorText());
     }
 
-    return result;
+    ApplicationStartupSource source;
+    source.verbose = parser.isSet(QStringLiteral("verbose"));
+    const QStringList positionalArguments = parser.positionalArguments();
+    if (positionalArguments.isEmpty() || positionalArguments.front().isEmpty()) {
+        return source;
+    }
+
+    const QString& argument = positionalArguments.front();
+
+    if (hasUrlScheme(argument)) {
+        const QUrl url(argument);
+        if (url.isLocalFile()) {
+            const QString path = url.toLocalFile();
+            if (!path.isEmpty() && !QFileInfo::exists(path)) {
+                return std::unexpected(localPathError(path));
+            }
+        }
+        source.kind = ApplicationStartupSourceKind::UrlText;
+        source.text = argument;
+        return source;
+    }
+
+    const QString path = QFileInfo(QDir::current(), argument).absoluteFilePath();
+    if (!QFileInfo::exists(path)) {
+        return std::unexpected(localPathError(path));
+    }
+    source.kind = ApplicationStartupSourceKind::LocalFilePath;
+    source.text = path;
+    return source;
 }
 }

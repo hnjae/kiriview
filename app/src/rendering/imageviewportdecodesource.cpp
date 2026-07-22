@@ -277,18 +277,12 @@ void ImageViewportDecodeProviderSource::finishDecode(
         return;
     }
     m_decodeComplete = true;
-    if (const DecodedImageFailure* failure = result.failure()) {
-        finishFailure(ImageSequenceProviderFailureCause::Decode, loadFailure(m_session, *failure));
+    if (!result) {
+        finishFailure(
+            ImageSequenceProviderFailureCause::Decode, loadFailure(m_session, result.error()));
         return;
     }
-    std::optional<DecodedImage> image = std::move(result).takeImage();
-    if (!image.has_value()) {
-        finishFailure(ImageSequenceProviderFailureCause::ProviderInternal,
-            loadFailure(m_session, ImageLoadFailureKind::Decode, QString(),
-                QStringLiteral("decoder returned neither an image nor a failure")));
-        return;
-    }
-    finishDecodedImage(std::move(*image));
+    finishDecodedImage(std::move(*result));
 }
 
 void ImageViewportDecodeProviderSource::finishDataLoadError(

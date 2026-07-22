@@ -755,7 +755,7 @@ bool DocumentSessionRuntimeGraph::tryEnterOpenedCollectionVideoFromImageSnapshot
     MediaEntrySourceVideoPlaybackDeviceResult result
         = m_imageDocumentCommandRuntime.loadOpenedCollectionVideoPlaybackDevice(
             m_imagePublicSnapshot.displayedOpenedCollectionScope, m_imagePublicSnapshot.sourceUrl);
-    auto* playbackDevice = std::get_if<MediaEntrySourceVideoPlaybackDevice>(&result);
+    auto* playbackDevice = kiriview::mediaEntrySourceResultValue(result);
     if (playbackDevice == nullptr || playbackDevice->device == nullptr) {
         return false;
     }

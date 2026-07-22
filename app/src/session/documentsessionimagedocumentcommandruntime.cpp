@@ -44,14 +44,14 @@ DocumentSessionImageDocumentCommandRuntime::loadOpenedCollectionVideoPlaybackDev
             openedCollectionScope, videoUrl);
     }
 
-    return MediaEntrySourceError {
+    return std::unexpected(MediaEntrySourceError {
         MediaEntrySourceBackendKind::Unsupported,
         MediaEntrySourceOperation::OpenVideoPlaybackDevice,
         openedCollectionScope.fileUrl(),
         QString(),
         QString(),
         QString(),
-    };
+    });
 }
 
 void DocumentSessionImageDocumentCommandRuntime::openPreviousPage()

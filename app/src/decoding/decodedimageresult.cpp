@@ -3,53 +3,15 @@
 
 #include "decodedimageresult.h"
 
-#include <optional>
 #include <type_traits>
 #include <utility>
 #include <variant>
 
 namespace kiriview {
-DecodedImageResult::DecodedImageResult(DecodedImageFailure failure)
-    : m_payload(std::move(failure))
-{
-}
-
-DecodedImageResult::DecodedImageResult(DecodedImage image)
-    : m_payload(std::move(image))
-{
-}
-
-const DecodedImageFailure* DecodedImageResult::failure() const
-{
-    return std::get_if<DecodedImageFailure>(&m_payload);
-}
-
-DecodedImageFailure* DecodedImageResult::failure()
-{
-    return std::get_if<DecodedImageFailure>(&m_payload);
-}
-
-const DecodedImage* DecodedImageResult::image() const
-{
-    return std::get_if<DecodedImage>(&m_payload);
-}
-
-DecodedImage* DecodedImageResult::image() { return std::get_if<DecodedImage>(&m_payload); }
-
-std::optional<DecodedImage> DecodedImageResult::takeImage() &&
-{
-    auto* image = std::get_if<DecodedImage>(&m_payload);
-    if (image == nullptr) {
-        return std::nullopt;
-    }
-
-    return std::move(*image);
-}
-
 DecodedImageResult failedDecodedImageResult(QString errorString)
 {
     const QString diagnosticDetail = errorString;
-    return DecodedImageResult(DecodedImageFailure {
+    return std::unexpected(DecodedImageFailure {
         std::move(errorString),
         DecodedImageFailureRoute::Unknown,
         DecodedImageFailureOperation::Unknown,
@@ -64,30 +26,30 @@ DecodedImageResult failedDecodedImageResult(DecodedImageFailure failure)
     if (failure.diagnosticDetail.isEmpty()) {
         failure.diagnosticDetail = failure.errorString;
     }
-    return DecodedImageResult(std::move(failure));
+    return std::unexpected(std::move(failure));
 }
 
-DecodedImageResult successfulDecodedImageResult(DecodedImage image)
-{
-    return DecodedImageResult(std::move(image));
-}
+DecodedImageResult successfulDecodedImageResult(DecodedImage image) { return image; }
 
 const DecodedImageFailure* decodedImageResultFailure(const DecodedImageResult& result)
 {
-    return result.failure();
+    return result ? nullptr : &result.error();
 }
 
 DecodedImageFailure* decodedImageResultFailure(DecodedImageResult& result)
 {
-    return result.failure();
+    return result ? nullptr : &result.error();
 }
 
 const DecodedImage* decodedImageResultImage(const DecodedImageResult& result)
 {
-    return result.image();
+    return result ? &*result : nullptr;
 }
 
-DecodedImage* decodedImageResultImage(DecodedImageResult& result) { return result.image(); }
+DecodedImage* decodedImageResultImage(DecodedImageResult& result)
+{
+    return result ? &*result : nullptr;
+}
 
 const EmbeddedMetadata& decodedImageEmbeddedMetadata(const DecodedImage& image)
 {
