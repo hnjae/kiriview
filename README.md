@@ -2,9 +2,6 @@
 
 KiriView is a desktop image viewer built with KDE Kirigami.
 
-> [!IMPORTANT]
-> This repository was developed with AI-assisted workflows.
-
 ## Features
 
 - Supports common image formats through Qt and KDE image plugins.
@@ -17,11 +14,6 @@ KiriView is a desktop image viewer built with KDE Kirigami.
 KiriView relies on runtime archive libraries instead of implementing archive parsers itself. ZIP, 7Z, and TAR are handled through KDE KArchive, while RAR is handled through libarchive, so archive compatibility, encryption support, and error handling follow those libraries.
 
 As of May 2026, libarchive 3.8.5 in the current Flatpak SDK does not support RAR4 solid archives.
-
-## Controls
-
-- Alt+mouse wheel scrolls horizontally on KDE/Qt.
-- Ctrl+mouse wheel zooms around the cursor.
 
 ## Known Issues
 
