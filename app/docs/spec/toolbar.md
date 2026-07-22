@@ -22,7 +22,7 @@ When the active navigation scope is a directly opened CBZ, CBT, CB7, CBR, ZIP, T
 
 When the active navigation scope is not an opened archive or directory collection, including empty state, ordinary direct image files, direct video files, and direct KDE archive-entry URLs, the trailing action toolbar does not show Right-to-Left Reading or Two-Page Spread.
 
-Right-to-Left Reading and Two-Page Spread visibility is determined by the active navigation scope, not by whether the current media item is an image, direct video, playable collection video, or unsupported-video placeholder. When a video is displayed, Fit and zoom remain in their image-mode positions; Fit is disabled and zoom is read-only.
+Right-to-Left Reading and Two-Page Spread visibility is determined by the active navigation scope, not by whether the current media item is an image, direct video, playable collection video, or unsupported-video placeholder. When a playable video is displayed, Fit and zoom remain in their image-mode positions; Fit is disabled and zoom is read-only. When an unsupported-video placeholder is displayed, Fit is disabled and the zoom control has no active readout.
 
 When Right-to-Left Reading or Two-Page Spread is visible for an opened collection that is not a directly opened local CBZ, CBT, CB7, or CBR comic book archive, the control is disabled.
 

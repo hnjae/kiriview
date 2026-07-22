@@ -59,7 +59,7 @@ Primary and secondary animated pages have independent component playback state a
 
 Supported animated containers are classified through animation-aware decoding before static fallback so a multi-frame file is not silently reduced to its first frame.
 
-SVG parsing and rasterization disable scripts, animation, and external network or file resources before payload transfer. SVG output uses bounded whole-image buckets keyed by application source identity and component demand. Failed refinement retains the last accepted payload; failed initial display follows the selected-target error or transition-restore policy.
+The Rust support static library uses `resvg` for SVG parsing and rasterization because QtSvg does not implement the complete SVG behavior required by KiriView. The support boundary disables scripts, animation, and external network or file resources before payload transfer. SVG output uses bounded whole-image buckets keyed by application source identity and component demand. Failed refinement retains the last accepted payload; failed initial display follows the selected-target error or transition-restore policy.
 
 ## QML And Render Boundary
 

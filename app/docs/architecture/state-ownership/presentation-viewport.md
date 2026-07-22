@@ -22,7 +22,7 @@ The toolbar and action runtime derive fit selection, zoom readout, editability, 
 
 ## Media Workspace Boundary
 
-QML owns layout composition of the media viewport, layout-reserving panels, runtime-only panel size and visibility, delegate selection, focus handoff, raw gesture sampling, and context-menu signal forwarding. Shared workspace code communicates with image and video viewports only through their declared interaction contracts and must not reach into mode-specific internals.
+QML owns layout composition of the media viewport, layout-reserving panels, runtime-only panel size and visibility, delegate selection, focus handoff, raw gesture sampling, and context-menu signal forwarding. Panel size and visibility are canonical UI-local state; QML reports their current facts through the typed panel and UI-gate ports so C++ action checked state and Escape routing can mirror the layout without becoming another panel-state owner. Fullscreen state is not part of this panel state and remains owned by the C++ application shell. Shared workspace code communicates with image and video viewports only through their declared interaction contracts and must not reach into mode-specific internals.
 
 The image delegate hosts the `ImageViewport` item as the image visual surface. Video playback, seeking, and backend attachment remain behind the video and session boundaries. QML may own the physical video-output item and report an owner-tokened surface claim, but C++ owns attachment, detachment, stale-claim rejection, destroyed-item handling, and public video attachment state.
 

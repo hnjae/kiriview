@@ -1,26 +1,29 @@
 # Architecture Overview
 
-KiriView is a KDE Kirigami image viewer built from cooperating UI, facade, runtime, and policy layers:
+KiriView is a KDE Kirigami image viewer built from cooperating UI, facade, runtime, policy, and media-support layers:
 
 ```mermaid
 flowchart TD
     UI["QML / Kirigami UI composition"]
     Facade["C++ facade boundary"]
     Runtime["C++ Qt/KDE runtime and effect owners"]
-    Policy["Rust Qt-independent policy core"]
+    Policy["C++ product policy"]
+    Support["Rust media-support static library"]
 
     UI --> Facade --> Runtime --> Policy
     Policy -- "typed plans, state deltas, and effect descriptions" --> Runtime
+    Runtime --> Support
+    Support -- "plain results and decoded payloads" --> Runtime
 ```
 
-The architecture keeps product policy testable without moving Qt object lifetime, KDE side effects, QML rendering objects, or authoritative runtime state into Rust. Rust computes policy from plain values. C++ owns runtime state, executes effects through Qt and KDE, rejects stale completions, and publishes coherent projections to QML.
+The C++ application owns product policy, runtime state, Qt object lifetime, KDE side effects, stale-completion rejection, and coherent QML projections. Qt-independent policy remains plain value-oriented C++ rather than becoming QObject plumbing. The statically linked Rust support library provides only the canonical allowlisted media and desktop-format capabilities defined by [Language Boundary](language-boundary.md).
 
 ## Dependency Direction
 
 - QML owns declarative composition and consumes the facade as a placement and interaction surface only.
 - The facade owns the QML API boundary, type conversion, and forwarding. It must not own domain workflow state.
-- C++ runtime owners own Qt/KDE effects, async lifecycles, projections, and platform integration.
-- Rust policy modules consume plain snapshots and return typed plans or values. They must not depend on Qt objects, call KDE adapters, or publish QML-facing state.
+- C++ policy and runtime owners own product decisions, Qt/KDE effects, async lifecycles, projections, and platform integration.
+- The Rust support library accepts plain values or byte buffers and returns plain results, decoded payloads, or opaque capability-local handles. It must not own product policy, call Qt/KDE adapters, or publish QML-facing state.
 - Shared support domains provide explicit capability snapshots or provider ports. Runtime owners consume those ports instead of probing platform state independently.
 
 ## Component Ownership Shape
@@ -44,8 +47,8 @@ flowchart TD
     Predecode["Adjacent still-image preparation"]
     Actions["Actions, shortcuts, and UI gates"]
     System["System, localization, location, and async support"]
-    Bridge["Value bridge"]
-    Policy["Rust policy"]
+    Policy["C++ product policy"]
+    Support["Rust media support"]
 
     UI --> Facade
     Facade --> Shell
@@ -68,17 +71,18 @@ flowchart TD
     Video --> Navigation
     Video --> Collections
     Navigation --> Collections
-    Shell --> Bridge
-    Session --> Bridge
-    Image --> Bridge
-    Video --> Bridge
-    Navigation --> Bridge
-    Integration --> Bridge
-    Provider --> Bridge
-    Decoding --> Bridge
-    Collections --> Bridge
-    Predecode --> Bridge
-    Bridge --> Policy
+    Shell --> Policy
+    Session --> Policy
+    Image --> Policy
+    Video --> Policy
+    Navigation --> Policy
+    Integration --> Policy
+    Provider --> Policy
+    Decoding --> Policy
+    Collections --> Policy
+    Predecode --> Policy
+    Decoding --> Support
+    Session --> Support
 ```
 
 - The document session owns top-level mixed-media routing, public source identity, active navigation projection, active zoom projection, title subject, displayed-media operation availability, displayed-media operation planning inputs, direct-media deletion follow-up, thumbnail-strip projection, and action-availability inputs.
@@ -94,10 +98,12 @@ flowchart TD
 
 ## Build and Tooling Ownership
 
-Each language boundary has one build-owned source and configuration inventory. Application builds, tests, lint, and editor tooling consume that inventory rather than maintaining divergent source lists or compiler settings.
+Each build boundary has one owned source and configuration inventory. Application builds, tests, lint, and editor tooling consume that inventory rather than maintaining divergent source lists or compiler settings.
 
-The application build is the authority for production Rust, C++, generated boundary code, generated configuration, QML resources, and the application artifact. Test builds own test-local artifacts but consume application artifacts through the production build boundary rather than rebuilding production sources independently.
+The top-level CMake application build is the authority for the executable, production C++, generated configuration, QML resources, the repository-internal `ImageViewport` component, and application test targets. It requires ISO C++23 for every application-owned C++ target and generated CXX bridge translation unit, disables vendor C++ language extensions, and owns the shared minimum compiler, standard-library, Qt 6, and KDE Frameworks 6 baselines. Cargo owns the Rust support-library source inventory and produces one repository-internal `staticlib` plus generated CXX boundary artifacts for the CMake build to consume. Test builds own test-local artifacts but consume production targets and the same language and dependency baselines through these build boundaries rather than rebuilding production sources or selecting compatibility modes independently.
 
 The application build owns one canonical installed application identity. Desktop metadata, icon identity, runtime metadata, generated configuration, and application artifacts must consume `org.hnjae.kiriview` from that authority and must not introduce alternate application IDs.
+
+The Rust support library is linked into the application and has no independent installation, dynamic loading, stable ABI, or release-version contract. CXX may implement its typed bridge; CXX-Qt is not an application build or runtime boundary.
 
 Derived build metadata follows the owner of the artifact it describes. Development tooling may orchestrate that metadata but must not become an independent authority for production or test compilation. Shared Qt, language-boundary, runtime, lint, and editor inputs come from one tooling context.

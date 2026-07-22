@@ -90,7 +90,7 @@ Predecode planners consume candidate snapshots as immutable row inputs. Direct-m
 
 ### Decoder Contracts
 
-Decoder contracts are route based. Rust-owned image format policy owns advertised extension/MIME metadata, decoder-family capability, and byte/file-name classification inputs that select one decode route from plain bytes and file-name context. C++ executes the selected decoder route and treats selected-decoder failure as final for that request.
+Decoder contracts are route based. C++ image-format policy owns advertised extension/MIME metadata, decoder-family capability, and byte/file-name classification that selects one decode route from plain bytes and file-name context. The C++ decoder runtime executes the selected route and treats selected-decoder failure as final for that request. A selected route may invoke the Rust support static library for APNG decoding, SVG rasterization, or embedded metadata parsing, but the support result does not select a different route.
 
 A decoder returns decoded static image, animation reader payload, metadata, unsupported, or failure; it must not route to another decoder or mutate document state. Failure payloads preserve selected route, decoder operation, user-facing text, diagnostic detail, severity, and retryability before the image document maps them into its load-failure projection.
 

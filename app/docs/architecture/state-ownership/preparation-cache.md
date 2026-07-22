@@ -8,7 +8,7 @@ The thumbnail runtime owns source adaptation, demand, scheduling, async lifecycl
 
 ## Still-Image Preparation
 
-C++ application runtimes own prepared image objects, decode jobs, reusable provider payload entries, byte pressure, recency, and lifetime. Rust may compute preparation windows, priority, and eviction decisions from plain snapshots but must not own live Qt image objects or async jobs.
+C++ application runtimes own prepared image objects, decode jobs, reusable provider payload entries, byte pressure, recency, lifetime, preparation-window policy, priority, and eviction decisions. Plain policy consumes snapshots and must not acquire a second live image or async-job state.
 
 Preparation windows govern new work and priority, not immediate cache destruction. Current and recently displayed images, the active preparation window, and warm same-scope entries are retained in that order while the byte budget permits. Scope replacement and explicit clear invalidate scope-owned warm entries; selection changes inside the same scope reprioritize rather than clear compatible work.
 

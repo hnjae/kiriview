@@ -1,5 +1,7 @@
 # Explicit Image Input Classification
 
+Status: Partially superseded by [ADR 0008: C++ Application And Rust Support Static Library](0008-cpp-application-rust-support-staticlib.md).
+
 ## Context
 
 KiriView's image decode path historically tried decoder stages in a fixed order. That made Qt imageformats the final fallback for inputs that earlier decoders declined, so format recognition was split across C++ decoder code and Rust file-extension policy.

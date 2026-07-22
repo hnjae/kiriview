@@ -6,13 +6,13 @@ This document is the canonical contract for durable runtime state ownership. Own
 
 Every workflow value has one canonical owner. If another layer needs the value, it receives a derived snapshot, projection, delta, command, or completion event rather than storing a second mutable copy.
 
-C++ owns QObject-facing runtime state unless this document or an owner-group architecture contract explicitly names another owner. This includes QML-facing properties, Qt notification ordering, `QUrl`, `QImage`, `QString`, async job lifetime, presentation objects, and rendering objects.
+C++ owns application runtime state unless this document or an owner-group architecture contract explicitly names another owner. This includes workflow policy state, QML-facing properties, Qt notification ordering, `QUrl`, `QImage`, `QString`, async job lifetime, presentation objects, and rendering objects.
 
-Rust reducers operate on value snapshots and plain events. They return explicit state deltas, transition plans, and effect descriptions for C++ owners to apply; those results are not an independent authoritative copy of the same workflow state.
+C++ policy operates on value snapshots and plain events. It returns explicit state deltas, transition plans, and effect descriptions for runtime owners to apply; those results are not an independent authoritative copy of the same workflow state.
 
-Rust-owned state is limited to self-contained Qt-independent domains where the state is plain data and does not mirror authoritative C++ or component state. Format parsing, navigation projection, page-pairing, scan planning, and cache algorithms may live there; navigation indices, cache policy state, or other workflow state may move to Rust only when an architecture contract names the new owner and exposes it through value-based FFI. Canonical image presentation geometry and zoom remain inside `ImageViewport`.
+Rust-owned state is limited to capability-local implementation state inside the media-support static library, such as an opaque APNG stream decoder. It must not mirror or own application source identity, navigation indices, cache policy, workflow state, public projections, or component state. Canonical image presentation geometry and zoom remain inside `ImageViewport`.
 
-Moving policy into Rust does not move authoritative runtime state. The ownership decision must name both the policy boundary and the state owner.
+Moving a library-backed operation behind FFI does not move authoritative runtime state. The C++ caller remains the application lifecycle owner and decides when a support result is accepted or rejected.
 
 QML and facade objects may observe owner projections, emit UI facts through owner APIs, and render accepted state. They must not store durable mirrors, mutate public workflow state, apply command acknowledgment state, choose cache or render policy, or bypass an owner to update another owner's state.
 
@@ -32,7 +32,7 @@ Image-document page navigation owns confirmed page candidate snapshots for direc
 
 Candidate-list source identity, candidate-list revision, direct-media scope generation, public projection revision, and thumbnail navigation generation are separate tokens. Source identity answers which list the rows belong to, candidate-list revision answers whether row storage can be reused, direct-media scope generation rejects stale direct-media discovery completions, public projection revision orders QML-facing session publication, and thumbnail navigation generation rejects stale thumbnail work derived from a projected row set. Collapsing these tokens creates false stale rejection or false reuse and is not allowed.
 
-Rust may compute navigation, thumbnail, predecode, or deletion policy from candidate snapshot metadata and row views. C++ remains the owner of the accepted snapshot, Qt row values, async listing lifecycle, and publication ordering.
+C++ navigation, thumbnail, predecode, and deletion policy may compute plans from candidate snapshot metadata and row views. The runtime owner remains responsible for the accepted snapshot, Qt row values, async listing lifecycle, and publication ordering.
 
 ## Thumbnail Demand Window Boundary
 

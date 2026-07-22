@@ -8,7 +8,7 @@ If no media item is currently displayed, the UI shows a loading state.
 
 If no media item is selected, the empty state says that no file is selected and offers Open.
 
-If the selected image or video cannot be opened while no media item is displayed, the error state explains that the selected file or URL could not be opened, shows the underlying error when available, and offers Open.
+If the selected image cannot be opened while no media item is displayed, the error state explains that the selected file or URL could not be opened, shows the underlying error when available, and offers Open. Initial video failures use the stable video error behavior defined in [Video Playback](video-playback.md#source-url-identity) and also offer Open.
 
 If a media item is already displayed and users move to a different image through the current active navigation scope, the requested image becomes the selected navigation target immediately. If the requested image is already available, it replaces the view immediately; otherwise the previous committed image remains visible until the requested image is ready to display.
 
@@ -126,9 +126,9 @@ Rotation is unavailable while Two-Page Spread is enabled. Enabling Two-Page Spre
 
 The toolbar provides a fixed-width zoom percentage input with a separate percent suffix. It shows values below 10,000% as a rounded integer percentage without digit grouping, capped at `9999 %`. It shows values from 10,000% through 999,999% in thousands using `k`, adds `+` when the actual value is above the displayed thousand bucket, and shows values at or above 1,000,000% as `999k+ %`. The editable value text is right-aligned, uses a fixed-width font, and excludes `%`; the adjacent percent suffix provides `%` after a one-space visual gap and keeps toolbar spacing before the stepper buttons.
 
-When no image or direct video has an active zoom readout, the toolbar zoom control displays `- %`. An image zoom readout exists only while a ready image with a displayed image size is active. Empty, loading, error, and non-image media states must not expose fallback image-geometry zoom values through the toolbar.
+When neither a ready image nor a playable video has an active zoom readout, the toolbar zoom control displays `- %`. An image zoom readout exists only while a ready image with a displayed image size is active. Empty, loading, error, and unsupported-video placeholder states must not expose fallback image-geometry zoom values through the toolbar.
 
-When a direct video is displayed, the toolbar zoom control remains in the same position as image mode and becomes read-only. It displays the fitted video zoom percentage when KiriView can determine the intrinsic video frame size and current displayed content size, and `? %` when the percentage is unavailable.
+When a playable direct or opened-collection video is displayed, the toolbar zoom control remains in the same position as image mode and becomes read-only. It displays the fitted video zoom percentage when KiriView can determine the intrinsic video frame size and current displayed content size, and `? %` when the percentage is unavailable.
 
 When an image is ready, users can enter manual zoom values from 10% through a dynamic maximum that keeps the displayed image within the application's supported display size.
 
@@ -142,7 +142,7 @@ If the submitted zoom text cannot be parsed as a percentage, KiriView restores t
 
 Submitting a valid zoom value switches to manual zoom.
 
-When an image is ready and the zoom input is not being edited, unmodified wheel or trackpad scrolling over the toolbar zoom percentage control switches to manual zoom and adjusts by half the normal multiplicative zoom step. One wheel detent zooms in by multiplying the current zoom by `2^(1/16)`, and one wheel detent zooms out by multiplying by `2^(-1/16)`. Toolbar wheel zoom uses the same dynamic manual zoom range as the toolbar zoom input and has no effect for read-only zoom readouts such as direct video.
+When an image is ready and the zoom input is not being edited, unmodified wheel or trackpad scrolling over the toolbar zoom percentage control switches to manual zoom and adjusts by half the normal multiplicative zoom step. One wheel detent zooms in by multiplying the current zoom by `2^(1/16)`, and one wheel detent zooms out by multiplying by `2^(-1/16)`. Toolbar wheel zoom uses the same dynamic manual zoom range as the toolbar zoom input and has no effect for read-only zoom readouts such as playable video.
 
 The toolbar fit control is a menu button that starts with Fit to Window selected. The button displays the currently selected fit mode's icon and label and opens a menu when clicked; clicking the button itself does not apply a fit mode. The menu offers Fit to Window, Fit Width, and Fit Height; selecting a menu item immediately applies that fit mode and updates the button's icon, label, and tooltip. Manual zoom does not replace the selected fit mode displayed by the button.
 

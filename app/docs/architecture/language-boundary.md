@@ -1,22 +1,18 @@
 # Language Boundary
 
-The Rust/C++ boundary is a policy boundary, not a mechanical split by feature name. A module belongs in Rust when its inputs and outputs can be expressed as plain values and it does not need to know about Qt object lifetime or side effects.
+The Rust/C++ boundary is a narrow media-support capability boundary, not a product-policy boundary. The C++ application owns product policy, workflows, state transitions, cache decisions, navigation, format routing, Qt/KDE integration, and all public state.
 
-Prefer Rust for logic that:
+This document owns the canonical Rust support dependency allowlist. The statically linked Rust support library owns only capability implementations backed by these required Rust libraries:
 
-- Can be represented as `State + Event -> StateDelta + Effects`.
-- Is reused by multiple controllers or presentation paths.
-- Is complex enough that Rust unit tests materially improve confidence.
-- Parses media bytes or file paths into owned, Qt-independent metadata values.
-- Would make a C++ controller hard to read if left inline.
-- Avoids direct dependency on `QObject`, `QImage`, `QUrl`, KIO, or rendering APIs.
+- `nom-exif` for image and direct-video embedded metadata parsing.
+- `png` for streaming APNG byte decoding and raw subframe metadata.
+- `resvg` for self-contained static SVG parsing and rasterization. QtSvg does not implement the complete SVG behavior required by KiriView and is not a substitute for this boundary.
+- `xdg-thumbnail` for desktop thumbnail-cache lookup and installation.
 
-Prefer C++ for logic that:
+Other architecture contracts refer to these named capabilities instead of restating or extending the dependency allowlist. A capability-specific contract may still name its required library when that choice explains a durable constraint, as with `resvg` and SVG behavior.
 
-- Is mostly `QObject`, Qt property, signal, or QML API plumbing.
-- Depends on `QImage`, `QUrl`, `QAction`, `KIO::Job`, `QQuickItem`, or Qt Quick provider and presenter APIs.
-- Exists to manage async lifetime, cancellation, ownership, or thread affinity.
-- Immediately executes Qt/KDE side effects.
-- Is only a small local branch whose Rust bridge would be larger than the policy itself.
+Rust may contain validation, byte conversion, opaque decoder state, and other adapter logic needed to expose those capabilities safely. That supporting code must remain cohesive with one of the named capabilities and must not become a general home for Qt-independent application logic.
 
-Rust must not call back into Qt/KDE adapters directly. It returns typed plans, state deltas, or effect descriptions. C++ executes those effects and feeds completion events back into the workflow.
+C++ owns both Qt-facing code and plain product policy. Pure policy uses ordinary value types, explicit snapshots, typed plans, and deterministic functions instead of acquiring QObject identity or signal-driven state solely because it is written in C++. Native ownership, borrowing, buffer, and callback code follows [C++ And Qt Safety](cpp-qt-safety.md).
+
+Rust must not call back into Qt/KDE adapters, own application source identity, schedule application work, publish UI state, or execute product workflow effects. C++ passes plain bytes and values into the support library, converts returned payloads into Qt-owned values, and retains all application lifecycle and stale-completion authority.

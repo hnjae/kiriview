@@ -1,6 +1,6 @@
 # Workflow Shape
 
-This document defines how product workflows cross the Rust/C++ policy boundary and how runtime plans preserve ownership while composing controllers.
+This document defines how C++ product policy and runtime plans preserve ownership while composing controllers.
 
 ## Event Boundary
 
@@ -8,26 +8,25 @@ Product workflows are event-driven:
 
 ```mermaid
 sequenceDiagram
-    participant Cpp as C++ runtime/controller
-    participant Rust as Rust policy core
+    participant Runtime as C++ runtime/controller
+    participant Policy as C++ policy
 
-    Cpp->>Cpp: Receive UI/runtime event
-    Cpp->>Cpp: Convert to plain workflow event
-    Cpp->>Rust: Workflow event
-    Rust-->>Cpp: State delta and effects
-    Cpp->>Cpp: Apply authoritative state
-    Cpp->>Cpp: Execute effects and report completions
+    Runtime->>Runtime: Receive UI/runtime event
+    Runtime->>Policy: Plain workflow event and snapshot
+    Policy-->>Runtime: State delta and effects
+    Runtime->>Runtime: Apply authoritative state
+    Runtime->>Runtime: Execute effects and report completions
 ```
 
 Concrete event names are not part of the architecture contract. Request, loading, decoding, failure, presentation, completion, and other out-of-order workflow events must carry enough owner-held identity for the C++ owner to reject stale results.
 
-Rust policy may compute loading status, error recovery, navigation updates, cache policy, and follow-up effects from plain snapshots. C++ keeps the actual KIO job, decoder job, KiriView viewport integration owner, image provider resource, and Qt notification; the repository-internal `ImageViewport` component keeps presentation and render-update mechanics.
+C++ policy may compute loading status, error recovery, navigation updates, cache policy, and follow-up effects from plain snapshots. Runtime owners keep the actual KIO job, decoder job, KiriView viewport integration owner, image provider resource, and Qt notification; the repository-internal `ImageViewport` component keeps presentation and render-update mechanics.
 
 Workflows that update visible state must distinguish committed public state from pending targets. They publish the new state only after the resources required for that state are ready, unless the user-visible spec explicitly defines an intermediate placeholder or retained-display state.
 
 ## Runtime Plan Ownership
 
-When multiple C++ policy adapters emit runtime operations for one workflow, the operation contract lives in a dedicated runtime-plan type. Effect planners, Rust policy adapters, and controllers may produce plans, but a named workflow owner binds the operation vocabulary to runtime ports and dispatches the plans.
+When multiple C++ policy units emit runtime operations for one workflow, the operation contract lives in a dedicated runtime-plan type. Effect planners and controllers may produce plans, but a named workflow owner binds the operation vocabulary to runtime ports and dispatches the plans.
 
 Cross-controller interactions must cross named ports when they preserve ownership, stale-completion rejection, or public projection ordering. The composition root may bind those ports, but callbacks must not capture sibling controllers just to read state, publish presentation, schedule predecode, gate deletion, or report load errors.
 

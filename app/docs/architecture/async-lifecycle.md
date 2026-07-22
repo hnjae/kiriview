@@ -8,9 +8,9 @@ The identity kind is one of operation id, scoped operation id, source key plus f
 
 Cancellation is either guaranteed or best-effort. Guaranteed cancellation means no completion callback can run after cancel returns. Best-effort cancellation means the owner invalidates identity and treats any later callback as stale or no-op. Qt and KIO jobs are usually best-effort unless the provider contract explicitly proves otherwise.
 
-QObject-backed work must use a live owner token or weak Qt reference before queued delivery can run. Owner destruction must disconnect external signals where the owner owns the connection, cancel active jobs, invalidate operation identity, and leave queued callbacks unable to dereference the destroyed owner.
+QObject-backed work must use a live owner token or weak Qt reference before queued delivery can run. Functor connections that capture owner state provide a receiver or context object, and captures that can outlive another object use `QPointer`, weak ownership, or an explicit lifetime handle rather than an unguarded raw pointer. Owner destruction must disconnect external signals where the owner owns the connection, cancel active jobs, invalidate operation identity, and leave queued callbacks unable to dereference the destroyed owner. The complete native lifetime rules are defined in [C++ And Qt Safety](cpp-qt-safety.md).
 
-Worker-thread and Rust async work return plain payloads only. Payloads crossing a worker boundary must be safe to move to the GUI acceptance path, must not contain QObject pointers, and must not carry an alternate authoritative URL, page, frame, or status beside the owner's current identity.
+Worker-thread work and calls into the Rust support library return plain payloads only. Payloads crossing a worker or language boundary must be safe to move to the GUI acceptance path, must not contain QObject pointers, and must not carry an alternate authoritative URL, page, frame, or status beside the owner's current identity.
 
 Worker-backed owners must receive scheduling through an explicit dependency port. Execution adapters may choose an appropriate worker facility, but runtime owners must not bypass the scheduler contract that preserves owner-guarded delivery, cancellation, and stale-completion acceptance.
 
