@@ -37,10 +37,10 @@ public:
     quint64 generation() const;
     quint64 sessionSerial() const;
     bool beginEventIngress();
-    void claimFrameLease();
+    void claimHandleLease();
     void endEventIngress();
     void completeCloseOnSessionAffinity();
-    void completeFrameReleaseOnSessionAffinity();
+    void completeHandleReleaseOnSessionAffinity();
     void markSessionDestroyed();
 
 private:
@@ -54,7 +54,7 @@ private:
     quint64 generationIdentity = 0;
     quint64 sessionIdentity = 0;
     qsizetype activeIngressCount = 0;
-    qsizetype frameLeaseCount = 0;
+    qsizetype handleLeaseCount = 0;
     bool closeCompleted = false;
     bool destructionStarted = false;
 };
@@ -148,11 +148,10 @@ public:
     ViewportProviderTransportResult deliverRequest(const ImageSequenceProviderRequest& request);
     void completeFrameEventDelivery(quint64 leaseId);
     void completeFailureEventDelivery(quint64 leaseId);
-    void reconcileFrameLeases(const QSet<quint64>& liveLeaseIds);
-    void reconcileFailureLeases(const QSet<quint64>& liveLeaseIds);
+    void reconcileLeases(const QSet<quint64>& liveLeaseIds);
     ViewportProviderCleanupResult drainCleanup(bool retryPendingSessions = true);
     bool hasPendingCleanup() const;
-    ViewportProviderCleanupResult releaseAllFrameLeases();
+    ViewportProviderCleanupResult releaseAllProviderLeases();
     void setExecutor(ViewportProviderExecutor& executor);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void failNextCommandDeliveryForTest();
@@ -169,7 +168,7 @@ private:
         ImageSequenceProviderRequestToken metadataToken,
         ImageSequenceProviderRequestToken frameToken);
     void pruneExpiredEventEndpoints();
-    ViewportProviderCleanupResult releaseFrameLease(quint64 leaseId);
+    ViewportProviderCleanupResult releaseLease(quint64 leaseId);
     void retrySessionCleanup(ViewportProviderCleanupResult& result, bool retryPendingSessions);
 
     enum class SessionLifecycle {
@@ -196,7 +195,7 @@ private:
     ViewportProviderExecutor* providerExecutor = nullptr;
     QPointer<ImageSequenceProviderSession> activeSession;
     QHash<ImageSequenceProviderSession*, SessionRecord> sessions;
-    std::shared_ptr<ViewportProviderLeaseRegistry> frameLeaseRegistry;
+    std::shared_ptr<ViewportProviderLeaseRegistry> leaseRegistry;
     std::shared_ptr<ViewportProviderSessionCleanupRegistry> sessionCleanupRegistry;
     QVector<std::weak_ptr<ViewportProviderEventEndpoint>> eventEndpoints;
     bool forceNextCommandDeliveryFailure = false;

@@ -23,7 +23,6 @@ find_package(
                QuickControls2
                Test
                Widgets)
-find_package(OpenGL REQUIRED)
 find_package(KF6Archive CONFIG REQUIRED)
 find_package(KF6Config CONFIG REQUIRED)
 find_package(KF6CoreAddons CONFIG REQUIRED)
@@ -117,7 +116,6 @@ target_link_libraries(
               Qt6::Quick
               Qt6::QuickControls2
               Qt6::Widgets
-              OpenGL::GL
               KF6::Archive
               KF6::ConfigCore
               KF6::ConfigGui

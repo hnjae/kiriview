@@ -38,8 +38,8 @@ ImageViewportProviderHost::ImageViewportProviderHost(
 void ImageViewportProviderHost::shutdown()
 {
     cleanupRetryTimer.stop();
-    recordCleanupResult(mergedCleanupResult(
-        providerBridge.releaseAllFrameLeases(), secondaryProviderBridge.releaseAllFrameLeases()));
+    recordCleanupResult(mergedCleanupResult(providerBridge.releaseAllProviderLeases(),
+        secondaryProviderBridge.releaseAllProviderLeases()));
     recordTransportResult(providerBridge.closeSession({}, {}));
     recordTransportResult(secondaryProviderBridge.closeSession({}, {}));
     retryPendingCleanup();
@@ -69,8 +69,8 @@ void ImageViewportProviderHost::reconcileProviderLeases(
 {
     QSet<quint64> liveLeaseIds = liveFrameLeaseIds;
     liveLeaseIds.unite(liveFailureLeaseIds);
-    providerBridge.reconcileFrameLeases(liveLeaseIds);
-    secondaryProviderBridge.reconcileFrameLeases(liveLeaseIds);
+    providerBridge.reconcileLeases(liveLeaseIds);
+    secondaryProviderBridge.reconcileLeases(liveLeaseIds);
 }
 
 void ImageViewportProviderHost::drainCleanup()
@@ -79,45 +79,10 @@ void ImageViewportProviderHost::drainCleanup()
         providerBridge.drainCleanup(false), secondaryProviderBridge.drainCleanup(false)));
 }
 
-void ImageViewportProviderHost::releaseAllFrameLeases()
+void ImageViewportProviderHost::releaseAllProviderLeases()
 {
-    recordCleanupResult(mergedCleanupResult(
-        providerBridge.releaseAllFrameLeases(), secondaryProviderBridge.releaseAllFrameLeases()));
-}
-
-void ImageViewportProviderHost::applyFrameTransportEffect(
-    const ViewportProviderFrameTransportEffect& effect, PageRole role)
-{
-    ViewportProviderTransportBatch batch;
-    if (effect.cancelToken.isValid()) {
-        batch.append({ ViewportProviderTransportCommand::Kind::SendRequest, role,
-            ImageSequenceProviderRequest::cancel({ effect.cancelToken }), {},
-            ViewportProviderDeferredEngineEvent::None, false });
-    }
-    if (effect.deferredEngineEvent != ViewportProviderDeferredEngineEvent::None) {
-        batch.append({ ViewportProviderTransportCommand::Kind::ScheduleDeferredEvent, role, {}, {},
-            effect.deferredEngineEvent });
-    }
-    if (effect.closeSession) {
-        batch.append({ ViewportProviderTransportCommand::Kind::CloseSession, role, {},
-            effect.sessionClose });
-    }
-    if (effect.sendCommand) {
-        ImageSequenceProviderRequest request;
-        if (effect.command.targetKind == ProviderRequestTargetKind::Playback) {
-            request = ImageSequenceProviderRequest::playback(effect.command.token, role,
-                effect.command.frame, effect.command.position, effect.command.demand);
-        } else if (effect.command.targetKind == ProviderRequestTargetKind::Position) {
-            request = ImageSequenceProviderRequest::position(effect.command.token, role,
-                effect.command.position, effect.command.frame, effect.command.demand);
-        } else {
-            request = ImageSequenceProviderRequest::frame(
-                effect.command.token, role, effect.command.frame, effect.command.demand);
-        }
-        batch.append(
-            { ViewportProviderTransportCommand::Kind::SendRequest, role, std::move(request) });
-    }
-    applyTransportEffects(batch);
+    recordCleanupResult(mergedCleanupResult(providerBridge.releaseAllProviderLeases(),
+        secondaryProviderBridge.releaseAllProviderLeases()));
 }
 
 void ImageViewportProviderHost::applyTransportEffects(const ViewportProviderTransportBatch& effects)

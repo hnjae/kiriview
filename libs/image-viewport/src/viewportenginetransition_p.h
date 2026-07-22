@@ -60,10 +60,6 @@ public:
     {
         return m_draft.playbackSchedules.forRole(role);
     }
-    const ViewportPlaybackScheduleBatch& playbackSchedules() const
-    {
-        return m_draft.playbackSchedules;
-    }
     const ImageViewportInternal::ProviderSchedulerDiagnostic& providerSchedulerDiagnostic() const
     {
         return m_draft.providerSchedulerDiagnostic;

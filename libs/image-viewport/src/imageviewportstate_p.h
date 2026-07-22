@@ -450,15 +450,6 @@ struct DisplayState
         roles[1].pendingRenderPayload = {};
     }
 
-    bool pendingRenderPayloadMatches(PreparedPayloadIdentity identity) const
-    {
-        const auto& pending = roles[0].pendingRenderPayload;
-        const PreparedPayloadIdentity pendingIdentity = pending.identity();
-        return pending.commitPending && identity.isValid()
-            && identity.generation == pendingIdentity.generation
-            && identity.payloadId == pendingIdentity.payloadId;
-    }
-
     bool hasReadyDisplay(bool hasDisplayableSequence) const
     {
         return hasDisplayableSequence
@@ -798,8 +789,6 @@ struct ProviderRequestLedger
         }
         return std::nullopt;
     }
-
-    std::optional<ProviderRequestRecord> retireMetadata() { return retire(metadataToken()); }
 
     std::optional<ProviderRequestRecord> retireFrame() { return retire(frameToken()); }
 

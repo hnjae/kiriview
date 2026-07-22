@@ -33,7 +33,6 @@ ImageViewportInternal::ViewportChangeSet recordViewportEngineDisplayRequestTermi
 ImageViewportInternal::ViewportChangeSet recordViewportEngineGenerationTerminal(
     ViewportEngineTargetSpreadTerminalInput, ImageViewportInternal::RequestState&);
 
-bool viewportEngineHasCurrentDisplayRequestTerminal(const ImageViewportInternal::RequestState&);
 bool viewportEngineHasCurrentGenerationTerminal(const ImageViewportInternal::RequestState&);
 bool viewportEngineHasCurrentTerminal(const ImageViewportInternal::RequestState&);
 bool viewportEngineRoleCanRefineCurrentTerminal(

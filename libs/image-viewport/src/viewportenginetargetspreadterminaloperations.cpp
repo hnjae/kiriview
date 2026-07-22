@@ -135,13 +135,6 @@ ImageViewportInternal::ViewportChangeSet recordViewportEngineGenerationTerminal(
     return projectTerminal(std::move(input), request);
 }
 
-bool viewportEngineHasCurrentDisplayRequestTerminal(
-    const ImageViewportInternal::RequestState& request)
-{
-    return currentDisplayRequestTerminal(request, ImageViewportPageRole::Primary)
-        || currentDisplayRequestTerminal(request, ImageViewportPageRole::Secondary);
-}
-
 bool viewportEngineHasCurrentGenerationTerminal(const ImageViewportInternal::RequestState& request)
 {
     return currentGenerationTerminal(request, ImageViewportPageRole::Primary)

@@ -620,8 +620,6 @@ ImageFrame::OrientationPolicy ImageFrame::orientationPolicy() const { return m_o
 
 QString ImageFrame::formatIdentifier() const { return m_formatIdentifier; }
 
-const QImage& ImageFrame::imagePayload() const { return m_image; }
-
 TimedImageFrame::TimedImageFrame(ImageFrame* frame, int startPosition, int duration)
     : m_startPosition(startPosition)
     , m_duration(duration)

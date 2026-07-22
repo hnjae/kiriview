@@ -36,11 +36,6 @@ inline bool isPositiveFiniteInteger(double value)
     return std::isfinite(value) && value > 0.0 && std::trunc(value) == value;
 }
 
-inline bool isAdmittedLogicalSizeComponent(double value, int maximum)
-{
-    return isPositiveFiniteInteger(value) && value <= static_cast<double>(maximum);
-}
-
 inline bool logicalPixelCountExceedsLimit(qint64 width, qint64 height)
 {
     const qint64 maximum = ImageSequenceLimits::maximumSourceLogicalPixels();

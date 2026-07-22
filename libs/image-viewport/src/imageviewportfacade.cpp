@@ -146,11 +146,6 @@ quint64 providerRequestTokenValueForTest(ImageSequenceProviderRequestToken token
     return ImageViewportInternal::ProviderRequestTokenPrivateAccess::value(token);
 }
 
-RevisionToken revisionTokenForTest(quint64 token)
-{
-    return ImageViewportInternal::RevisionTokenPrivateAccess::fromValue(token);
-}
-
 quint64 revisionTokenValueForTest(RevisionToken token)
 {
     return ImageViewportInternal::RevisionTokenPrivateAccess::value(token);

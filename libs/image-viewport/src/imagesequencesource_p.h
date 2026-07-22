@@ -51,9 +51,7 @@ struct ImageSequenceSource
 ImageSequenceSource makeImageSequenceSource(
     ImageSequence* sequence, std::shared_ptr<ImageSequence> owner = {});
 ImageSequenceSource factorySequenceSource(ImageSequence* sequence);
-bool sourceIsStill(const ImageSequenceSource& source);
 int sourceFrameStartPosition(const ImageSequenceSource& source, int frame);
-int sourceFrameIndexForPosition(const ImageSequenceSource& source, int position);
 QSizeF sourceLogicalSize(const ImageSequenceSource& source);
 QImage sourceFrameImage(const ImageSequenceSource& source, int frame);
 FramePayload sourceFramePayload(const ImageSequenceSource& source, int frame);

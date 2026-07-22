@@ -1,20 +1,9 @@
 # SPDX-FileCopyrightText: 2026 KIM Hyunjae
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-include(CMakePackageConfigHelpers)
-include(GNUInstallDirs)
-
 qt_add_library(ImageViewport STATIC)
 
-qt_add_qml_module(
-    ImageViewport
-    URI
-    ImageViewport
-    VERSION
-    ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
-    OUTPUT_DIRECTORY
-    "${CMAKE_CURRENT_BINARY_DIR}/ImageViewport"
-    SOURCES
+set(imageviewport_sources
     imagesequence.cpp
     imagesequencefactory.cpp
     imagesequencesource.cpp
@@ -107,58 +96,28 @@ qt_add_qml_module(
     viewportproviderbridge.cpp
     viewportproviderbridge_p.h)
 
+if(IMAGEVIEWPORT_BUILD_TESTS)
+    qt_add_qml_module(
+        ImageViewport
+        URI
+        ImageViewportTest
+        OUTPUT_DIRECTORY
+        "${CMAKE_CURRENT_BINARY_DIR}/ImageViewportTest"
+        PLUGIN_TARGET
+        ImageViewportTestPlugin
+        SOURCES
+        ${imageviewport_sources})
+else()
+    target_sources(ImageViewport PRIVATE ${imageviewport_sources})
+endif()
+
 target_include_directories(
     ImageViewport
     PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
-           "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>" ${OPENGL_INCLUDE_DIR}
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/ImageViewport")
 
-target_link_libraries(ImageViewport PUBLIC OpenGL::GL Qt6::Qml Qt6::Quick)
-
-target_compile_options(ImageViewport
-                       PUBLIC $<$<BOOL:${OPENGL_INCLUDE_DIR}>:-I${OPENGL_INCLUDE_DIR}>)
+target_link_libraries(ImageViewport PUBLIC Qt6::Qml Qt6::Quick)
 
 target_compile_definitions(
     ImageViewport
-    PRIVATE
-        $<$<BOOL:${IMAGE_VIEWPORT_ENABLE_PRIVATE_TEST_PROBES}>:IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1>)
-
-set_target_properties(ImageViewport PROPERTIES EXPORT_NAME ImageViewport)
-
-install(
-    TARGETS ImageViewport
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    INCLUDES
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ImageViewport)
-
-install(
-    FILES ImageViewport/ImageViewport ImageViewport/imageviewporttypes.h
-          ImageViewport/imagesequence.h ImageViewport/imagesequenceprovider.h
-          ImageViewport/imageviewportstate.h ImageViewport/imageviewport.h
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ImageViewport)
-
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/ImageViewport/qmldir
-              ${CMAKE_CURRENT_BINARY_DIR}/ImageViewport/ImageViewport.qmltypes
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/qml/ImageViewport)
-
-install(
-    FILES
-        ${CMAKE_CURRENT_BINARY_DIR}/ImageViewport/${CMAKE_STATIC_LIBRARY_PREFIX}ImageViewportplugin${CMAKE_STATIC_LIBRARY_SUFFIX}
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/qml/ImageViewport)
-
-configure_package_config_file(
-    ${CMAKE_CURRENT_SOURCE_DIR}/ImageViewportConfig.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}/ImageViewportConfig.cmake
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ImageViewport
-    PATH_VARS CMAKE_INSTALL_INCLUDEDIR CMAKE_INSTALL_LIBDIR)
-
-write_basic_package_version_file(
-    ${CMAKE_CURRENT_BINARY_DIR}/ImageViewportConfigVersion.cmake
-    VERSION ${PROJECT_VERSION}
-    COMPATIBILITY SameMajorVersion)
-
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/ImageViewportConfig.cmake
-              ${CMAKE_CURRENT_BINARY_DIR}/ImageViewportConfigVersion.cmake
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ImageViewport)
+    PRIVATE $<$<BOOL:${IMAGEVIEWPORT_BUILD_TESTS}>:IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1>)

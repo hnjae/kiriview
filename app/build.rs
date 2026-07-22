@@ -285,9 +285,7 @@ fn build_image_viewport() -> ImageViewportBuild {
         .arg(format!("-DCMAKE_BUILD_TYPE={build_type}"))
         .args([
             "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
-            "-DIMAGEVIEWPORT_BUILD_EXAMPLES=OFF",
             "-DIMAGEVIEWPORT_BUILD_TESTS=OFF",
-            "-DIMAGE_VIEWPORT_ENABLE_PRIVATE_TEST_PROBES=OFF",
         ]);
     if let Some(compiler) = unwrapped_cmake_cxx_compiler() {
         configure.arg(format!("-DCMAKE_CXX_COMPILER={compiler}"));
@@ -327,7 +325,6 @@ fn build_image_viewport() -> ImageViewportBuild {
 
     println!("cargo::rustc-link-search=native={}", library_dir.display());
     println!("cargo::rustc-link-lib=static:+bundle=ImageViewport");
-    println!("cargo::rustc-link-lib=GL");
 
     ImageViewportBuild { include_dir }
 }

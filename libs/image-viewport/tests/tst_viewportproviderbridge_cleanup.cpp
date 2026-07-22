@@ -148,7 +148,7 @@ public:
             return ViewportProviderExecutorOutcome::RetryableFailure;
         }
         delete frameHandle;
-        sessionControl->completeFrameReleaseOnSessionAffinity();
+        sessionControl->completeHandleReleaseOnSessionAffinity();
         return ViewportProviderExecutorOutcome::Completed;
     }
 
@@ -187,7 +187,7 @@ struct BridgeFixture
             {}, handle, ImageSequenceProviderFrameEnvelope::stillFrame()));
         Q_ASSERT(event.frameLeaseId != 0);
         bridge.completeFrameEventDelivery(event.frameLeaseId);
-        bridge.reconcileFrameLeases({});
+        bridge.reconcileLeases({});
         if (!bridge.closeSession({}, {}).delivered) {
             qFatal("test provider session close failed");
         }
@@ -542,7 +542,7 @@ void ViewportProviderBridgeCleanupTest::advisoryBurstDoesNotLoseFrameOwnership()
     QCOMPARE(deliveredEvents.at(1).kind, ImageSequenceProviderEventKind::FrameReady);
     QVERIFY(deliveredEvents.at(1).frameLeaseId != 0);
     bridge.completeFrameEventDelivery(deliveredEvents.at(1).frameLeaseId);
-    bridge.reconcileFrameLeases({});
+    bridge.reconcileLeases({});
     QVERIFY(bridge.closeSession({}, {}).delivered);
     bridge.drainCleanup();
     QCOMPARE(*releaseCount, 1);
@@ -606,7 +606,7 @@ void ViewportProviderBridgeCleanupTest::queuedFrameIngressOwnsHandleBeforeSessio
     QVERIFY(opened.opened);
     QVERIFY(session);
     if (shutdownRetired) {
-        bridge.releaseAllFrameLeases();
+        bridge.releaseAllProviderLeases();
     }
 
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -644,7 +644,7 @@ void ViewportProviderBridgeCleanupTest::queuedFrameIngressOwnsHandleBeforeSessio
     QVERIFY(deliveredEvent.frameLeaseId != 0);
     if (!shutdownRetired) {
         bridge.completeFrameEventDelivery(deliveredEvent.frameLeaseId);
-        bridge.reconcileFrameLeases({});
+        bridge.reconcileLeases({});
         bridge.drainCleanup();
     }
     QVERIFY(QMetaObject::invokeMethod(&workerMarker, []() { }, Qt::BlockingQueuedConnection));

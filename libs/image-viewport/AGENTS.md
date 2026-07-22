@@ -2,14 +2,14 @@
 
 ## Project Structure & Module Organization
 
-`src/` contains the C++17 library, private headers (`*_p.h`), public headers under `src/ImageViewport/`, and the QML module. `tests/` contains Qt Test executables, shared support, header-isolation checks, and an install-consumer test. `examples/viewer/` provides a QML application for manual validation.
+`src/` contains the repository-internal C++17 library, private headers (`*_p.h`), and public headers under `src/ImageViewport/`. `tests/` contains Qt Test executables, shared support, header-isolation checks, and the test-only QML registration.
 
 ## Build, Test, and Development Commands
 
 Run commands from this component directory; recipes enter the repository-managed `devenv` automatically.
 
 - `just configure`: generate `build-ninja/` with CMake and Ninja.
-- `just build`: configure and compile the library, tests, and example viewer.
+- `just build`: configure and compile the library and tests.
 - `just test`: run the component's complete CI test task.
 - `just lint`: run component lint and policy checks.
 - From the repository root, run one C++ analyzer against the current compilation database with `devenv tasks run --mode single ci:image-viewport:lint:clang-tidy` or `devenv tasks run --mode single ci:image-viewport:lint:clazy`; first run `devenv tasks run --mode single ci:image-viewport:lint:prepare` when the database may be stale.

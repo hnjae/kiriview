@@ -110,7 +110,7 @@ private slots:
     void providerPublicValueTypesValidateTiming();
     void typedProviderFailureHandleReleasesExactlyOnce();
     void providerTypedProtocolValuesValidateShape();
-    void typedDescriptorFactoryAndSessionBridgeMatchesLegacyPath();
+    void typedDescriptorFactoryAndSessionBridgeDeliversTypedRequests();
     void dynamicMaximumClampRestagesCoherentProviderDemand();
     void providerSpreadBudgetAccountsForRetainedPayloadAndResourcePressure();
     void providerSpreadCommitReissuesDemandWhenBudgetIncreases();
@@ -437,7 +437,8 @@ void ImageViewportProviderContractTest::providerTypedProtocolValuesValidateShape
     QCOMPARE(descriptor.threadingContract(), ImageSequenceProviderThreadingContract::AffinityBound);
 }
 
-void ImageViewportProviderContractTest::typedDescriptorFactoryAndSessionBridgeMatchesLegacyPath()
+void ImageViewportProviderContractTest::
+    typedDescriptorFactoryAndSessionBridgeDeliversTypedRequests()
 {
     ImageSequenceFactory factory;
     auto sessionFactory = std::make_shared<TypedProviderSessionFactory>();

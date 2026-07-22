@@ -177,7 +177,7 @@ void ImageSequenceFactoryTest::qmlTimedFrameListExposesBuilderState()
     QQmlComponent component(&engine);
     component.setData(R"(
 import QtQuick
-import ImageViewport 1.0
+import ImageViewportTest
 
 Item {
     TimedImageFrameList {
@@ -226,7 +226,7 @@ void ImageSequenceFactoryTest::qmlFactoryCreatesSequencesFromSuppliedTypedHelper
     QQmlComponent component(&engine);
     component.setData(R"(
 import QtQuick
-import ImageViewport 1.0
+import ImageViewportTest
 
 Item {
     property ImageFrame suppliedFrame

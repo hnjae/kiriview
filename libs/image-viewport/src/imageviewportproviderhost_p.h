@@ -32,7 +32,7 @@ public:
     void reconcileProviderLeases(
         const QSet<quint64>& liveFrameLeaseIds, const QSet<quint64>& liveFailureLeaseIds);
     void drainCleanup();
-    void releaseAllFrameLeases();
+    void releaseAllProviderLeases();
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void failNextCommandDeliveryForTest(PageRole role);
@@ -43,8 +43,6 @@ public:
 #endif
 
 private:
-    void applyFrameTransportEffect(
-        const ViewportProviderFrameTransportEffect& effect, PageRole role = PageRole::Primary);
     void handleProviderEvent(const ViewportProviderEvent& event);
     void applyHostEvent(const ViewportProviderHostEvent& event);
 

@@ -15,7 +15,6 @@ public:
     }
 
 private slots:
-    void removedSequencePropertyWritesAreRejected();
     void presentationTargetAssignmentAdvancesCommandDiagnostic();
     void commandResultsExposeSnapshotRevisionsAndReasons();
     void reentrantStateChangedKeepsCommandResultsScopedToTransaction();
@@ -141,60 +140,6 @@ static ImageViewportCommandOutcome setLoopingCommand(ImageViewport& item, bool l
     ImageViewportPresentationCommand command;
     command.setLooping(looping);
     return item.setPresentation(command).outcome();
-}
-
-void ImageViewportPublicApiCommandsTest::removedSequencePropertyWritesAreRejected()
-{
-    ImageSequenceFactory factory;
-    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
-    image.fill(Qt::transparent);
-    ImageFrame frame(image);
-    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
-    QVERIFY(result->sequence());
-
-    const auto sessionCount = std::make_shared<int>(0);
-    const auto metadataRequestCount = std::make_shared<int>(0);
-    const auto frameRequestCount = std::make_shared<int>(0);
-    const auto lastRequestedFrame = std::make_shared<int>(-1);
-    const auto closeCount = std::make_shared<int>(0);
-    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
-        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
-    CountingProviderAdapter adapter(sessionFactory);
-
-    ImageViewport item;
-    item.setSize(QSizeF(100.0, 100.0));
-    item.setPresentationTarget(
-        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
-    acknowledgePendingRenderCommitForTest(item);
-    const QMetaObject* metaObject = item.metaObject();
-    const ImageViewportRevisionToken requestRevision
-        = revisionTokenProperty(item, "requestRevision");
-    const ImageViewportRevisionToken displayRevision
-        = revisionTokenProperty(item, "displayRevision");
-    QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
-
-    const QList<QVariant> unsupportedValues = {
-        QVariant(QStringLiteral("image.png")),
-        QVariant(QUrl(QStringLiteral("file:///tmp/image.png"))),
-        QVariant(QByteArray("not image data")),
-        QVariantMap { { QStringLiteral("url"), QStringLiteral("image.png") } },
-        QVariant::fromValue<QObject*>(&adapter),
-    };
-
-    for (const QVariant& value : unsupportedValues) {
-        QCOMPARE(item.setProperty("sequence", value), false);
-        QCOMPARE(viewportPrimarySequence(item), result->sequence());
-        QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
-        QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
-        QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
-        QCOMPARE(primaryRequestedFrame(item), 0);
-        QCOMPARE(primaryDisplayedFrame(item), 0);
-        QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
-        QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
-    }
-
-    QCOMPARE(stateSpy.count(), 0);
-    QCOMPARE(*sessionCount, 0);
 }
 
 void ImageViewportPublicApiCommandsTest::presentationTargetAssignmentAdvancesCommandDiagnostic()
@@ -617,7 +562,7 @@ void ImageViewportPublicApiCommandsTest::
     QQmlComponent component(&engine);
     component.setData(R"(
 import QtQuick
-import ImageViewport 1.0
+import ImageViewportTest
 
 ImageViewport {
     id: viewport

@@ -133,8 +133,6 @@ public:
 
 private:
     ImageFrame(const QImage& image, qsizetype payloadByteSizeOverride, QObject* parent = nullptr);
-    const QImage& imagePayload() const;
-
     QImage m_image;
     QSizeF m_logicalSize;
     qint64 m_payloadByteSize = 0;

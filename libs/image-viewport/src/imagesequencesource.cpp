@@ -61,11 +61,6 @@ ImageSequenceSource factorySequenceSource(ImageSequence* sequence)
     return makeImageSequenceSource(sequence);
 }
 
-bool sourceIsStill(const ImageSequenceSource& source)
-{
-    return source.facts.present && !source.facts.provider && !source.facts.timed;
-}
-
 int sourceFrameStartPosition(const ImageSequenceSource& source, int frame)
 {
     if (!source.facts.timed) {
@@ -75,17 +70,6 @@ int sourceFrameStartPosition(const ImageSequenceSource& source, int frame)
         return source.facts.timingIntervals.frameStartPosition(frame);
     }
     return ImageSequencePrivateAccess::frameStartPosition(source.sequence, frame);
-}
-
-int sourceFrameIndexForPosition(const ImageSequenceSource& source, int position)
-{
-    if (!source.facts.timed) {
-        return -1;
-    }
-    if (source.facts.timingIntervals.isValid()) {
-        return source.facts.timingIntervals.frameIndexForPosition(position);
-    }
-    return ImageSequencePrivateAccess::frameIndexForPosition(source.sequence, position);
 }
 
 QSizeF sourceLogicalSize(const ImageSequenceSource& source)

@@ -27,7 +27,7 @@ ImageViewportPrivate::~ImageViewportPrivate()
 {
     for (auto& scheduler : playbackSchedulers)
         scheduler->stop();
-    providerHost.releaseAllFrameLeases();
+    providerHost.releaseAllProviderLeases();
     providerHost.applyTransportEffects(engine.shutdown());
     providerHost.shutdown();
 }

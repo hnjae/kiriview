@@ -39,7 +39,6 @@ void useSynchronousProviderEventDeliveryForTest(ImageViewport& item);
 void useSynchronousProviderQueueFlushSchedulerForTest(ImageViewport& item);
 ImageSequenceProviderRequestToken providerRequestTokenForTest(quint64 token);
 quint64 providerRequestTokenValueForTest(ImageSequenceProviderRequestToken token);
-RevisionToken revisionTokenForTest(quint64 token);
 quint64 revisionTokenValueForTest(RevisionToken token);
 quint64 revisionTokenValueForTest(ImageViewportRevisionToken token);
 bool hasPendingRenderCommitForTest(const ImageViewport& item);

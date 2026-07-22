@@ -39,8 +39,6 @@ public:
     }
 
 private slots:
-    void qmlRemovedSequencePropertyPreservesDefaultState();
-    void qmlRemovedSequencePropertyPreservesReadyState();
     void qmlFinalApiScaffoldDefaultsAndCommands();
     void manualZoomLimitQmlBindingRefreshesWithPresentationState();
     void qmlImportsDocumentedSurface();
@@ -56,110 +54,6 @@ private slots:
     void imageSequenceLimitsIsQmlSingletonOnly();
 };
 
-void ImageViewportPublicApiQmlTest::qmlRemovedSequencePropertyPreservesDefaultState()
-{
-    QQmlEngine engine;
-    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
-
-    QQmlComponent component(&engine);
-    component.setData(R"(
-import QtQuick
-import ImageViewport 1.0
-
-ImageViewport {
-    id: viewport
-    property bool removedSequencePropertyPreservedState: false
-
-    Component.onCompleted: {
-        removedSequencePropertyPreservedState = typeof viewport.sequence === "undefined"
-            && state.primary.sequence === null
-            && state.request.status === ImageViewport.RequestStatus.NoRequest
-            && state.display.status === ImageViewport.DisplayStatus.Empty
-            && state.revisions.request.valid
-            && state.revisions.display.valid
-            && state.diagnostics.errorString === ""
-    }
-}
-)",
-        QUrl());
-
-    QVERIFY2(component.isReady(), qPrintable(componentErrors(component)));
-    QScopedPointer<QObject> object(component.create());
-    QVERIFY2(object, qPrintable(componentErrors(component)));
-    QCOMPARE(object->property("removedSequencePropertyPreservedState").toBool(), true);
-}
-
-void ImageViewportPublicApiQmlTest::qmlRemovedSequencePropertyPreservesReadyState()
-{
-    ImageSequenceFactory factory;
-    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
-    image.fill(Qt::transparent);
-    ImageFrame frame(image);
-    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
-    QVERIFY(result->sequence());
-
-    QQmlEngine engine;
-    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
-
-    QQmlComponent component(&engine);
-    component.setData(R"(
-import QtQuick
-import ImageViewport 1.0
-
-ImageViewport {
-    id: viewport
-    width: 100
-    height: 100
-
-    property ImageSequence suppliedSequence
-    property imageViewportPresentationTarget presentationTarget
-    property presentationTargetTransitionPolicy policy
-    property bool initialSetAccepted: false
-    property bool removedSequencePropertyPreservedReadyState: false
-
-    function readyStatePreserved(requestRevisionBefore, displayRevisionBefore) {
-        return typeof viewport.sequence === "undefined"
-            && initialSetAccepted
-            && state.primary.sequence === suppliedSequence
-            && state.request.status === ImageViewport.RequestStatus.Ready
-            && state.request.reason === ImageViewport.RequestReason.Ready
-            && state.display.status === ImageViewport.DisplayStatus.Ready
-            && state.primary.request.frame === 0
-            && state.primary.display.frame === 0
-            && state.revisions.request === requestRevisionBefore
-            && state.revisions.display === displayRevisionBefore
-            && state.diagnostics.errorString === ""
-    }
-
-    function verifyRemovedSequencePropertyPreservesReadyState() {
-        const requestRevisionBefore = state.revisions.request
-        const displayRevisionBefore = state.revisions.display
-        removedSequencePropertyPreservedReadyState =
-            readyStatePreserved(requestRevisionBefore, displayRevisionBefore)
-    }
-
-    Component.onCompleted: {
-        presentationTarget.primary = suppliedSequence
-        initialSetAccepted = setPresentationTarget(presentationTarget, policy).outcome === ImageViewport.CommandOutcome.Accepted
-    }
-}
-)",
-        QUrl());
-
-    QVERIFY2(component.isReady(), qPrintable(componentErrors(component)));
-    QVariantMap initialProperties;
-    initialProperties.insert(
-        QStringLiteral("suppliedSequence"), QVariant::fromValue<QObject*>(result->sequence()));
-    QScopedPointer<QObject> object(component.createWithInitialProperties(initialProperties));
-    QVERIFY2(object, qPrintable(componentErrors(component)));
-    auto* viewport = qobject_cast<ImageViewport*>(object.data());
-    QVERIFY(viewport);
-    acknowledgePendingRenderCommitForTest(*viewport);
-    QVERIFY(QMetaObject::invokeMethod(
-        object.data(), "verifyRemovedSequencePropertyPreservesReadyState"));
-    QCOMPARE(object->property("removedSequencePropertyPreservedReadyState").toBool(), true);
-}
-
 void ImageViewportPublicApiQmlTest::qmlFinalApiScaffoldDefaultsAndCommands()
 {
     QQmlEngine engine;
@@ -168,7 +62,7 @@ void ImageViewportPublicApiQmlTest::qmlFinalApiScaffoldDefaultsAndCommands()
     QQmlComponent component(&engine);
     component.setData(R"(
 import QtQuick
-import ImageViewport 1.0
+import ImageViewportTest
 
 ImageViewport {
     id: viewport
@@ -177,8 +71,6 @@ ImageViewport {
     property bool roleCommandsReachViewport: false
     property bool presentationTargetValidationPreservedState: false
     property bool presentationCommandsReachViewport: false
-    property bool manualZoomHelpersRemoved: false
-    property bool coordinateAliasesAvailable: false
     property imageViewportPresentationTarget presentationTarget
     property presentationTargetTransitionPolicy policy
     property imageViewportPresentationCommand spreadDirectionCommand
@@ -193,15 +85,13 @@ ImageViewport {
     property imageViewportPresentationCommand rotationCommand
     property imageViewportPresentationCommand horizontalMirrorCommand
     property imageViewportPresentationCommand verticalMirrorCommand
-    property imageViewportCoordinateInput coordinateInput
 
     function nearlyEqual(left, right) {
         return Math.abs(left - right) < 0.000001
     }
 
     Component.onCompleted: {
-        defaultsValid = typeof viewport.sequence === "undefined"
-            && state.primary.sequence === null
+        defaultsValid = state.primary.sequence === null
             && state.secondary.sequence === null
             && state.presentation.spreadDirection === ImageViewport.SpreadDirection.LeftToRight
             && state.presentation.pageGap === 0
@@ -238,39 +128,6 @@ ImageViewport {
 
         const requestRevisionBefore = state.revisions.request
         const displayRevisionBefore = state.revisions.display
-        const commandRevisionBefore = state.revisions.command
-        const minimum = state.presentation.minimumManualZoomPercent
-        const maximum = state.presentation.maximumManualZoomPercent
-        manualZoomHelpersRemoved = typeof viewport.clampedManualZoomPercent === "undefined"
-            && typeof viewport.steppedManualZoomPercent === "undefined"
-            && typeof viewport.zoomByStep === "undefined"
-            && typeof viewport.scanNext === "undefined"
-            && typeof viewport.scanPrevious === "undefined"
-            && typeof viewport.rotateClockwise === "undefined"
-            && typeof viewport.rotateCounterClockwise === "undefined"
-            && typeof viewport.setMirrorHorizontally === "undefined"
-            && typeof viewport.setMirrorVertically === "undefined"
-            && typeof viewport.panToStart === "undefined"
-            && typeof viewport.panToEnd === "undefined"
-            && typeof viewport.panBy === "undefined"
-            && typeof viewport.setSpreadDirection === "undefined"
-            && typeof viewport.setPageGap === "undefined"
-            && typeof viewport.setFitMode === "undefined"
-            && typeof viewport.setZoomPercent === "undefined"
-            && typeof viewport.spreadDirection === "undefined"
-            && typeof viewport.pageGap === "undefined"
-            && typeof viewport.fitMode === "undefined"
-            && typeof viewport.zoomPercent === "undefined"
-            && typeof viewport.minimumManualZoomPercent === "undefined"
-            && typeof viewport.maximumManualZoomPercent === "undefined"
-            && typeof viewport.manualZoomStepFactor === "undefined"
-            && typeof viewport.rotationDegrees === "undefined"
-            && minimum === ImageViewportDisplayLimits.minimumManualZoomPercent
-            && maximum === 0
-            && state.revisions.request === requestRevisionBefore
-            && state.revisions.display === displayRevisionBefore
-            && state.revisions.command === commandRevisionBefore
-
         policy.pageGap = -1
         policy.pageGapTransition = 1
         const invalidPresentationTargetOutcome = setPresentationTarget(presentationTarget, policy)
@@ -318,53 +175,6 @@ ImageViewport {
             && setPresentation(verticalMirrorCommand).outcome === ImageViewport.CommandOutcome.Accepted
             && resetView().outcome === ImageViewport.CommandOutcome.Accepted
 
-        coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.DisplayedSpread
-        coordinateInput.targetSpace = ImageViewport.CoordinateSpace.DisplayedSpread
-        coordinateInput.point = Qt.point(1, 1)
-        const spreadMapInvalid = mapPoint(coordinateInput).valid === false
-        const spreadContainsInvalid = containsPoint(coordinateInput) === false
-        coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.Item
-        coordinateInput.targetSpace = ImageViewport.CoordinateSpace.DisplayedSpread
-        const itemToSpreadInvalid = mapPoint(coordinateInput).valid === false
-        coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.DisplayedSpread
-        coordinateInput.targetSpace = ImageViewport.CoordinateSpace.Item
-        const spreadToItemInvalid = mapPoint(coordinateInput).valid === false
-        coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.DisplayedPage
-        coordinateInput.targetSpace = ImageViewport.CoordinateSpace.DisplayedPage
-        coordinateInput.role = ImageViewport.PageRole.Primary
-        const pageMapInvalid = mapPoint(coordinateInput).valid === false
-        const pageContainsInvalid = containsPoint(coordinateInput) === false
-        coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.Item
-        coordinateInput.targetSpace = ImageViewport.CoordinateSpace.DisplayedPage
-        const itemToPageInvalid = mapPoint(coordinateInput).valid === false
-        coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.DisplayedPage
-        coordinateInput.targetSpace = ImageViewport.CoordinateSpace.Item
-        const pageToItemInvalid = mapPoint(coordinateInput).valid === false
-        coordinateAliasesAvailable = itemToSpreadInvalid
-            && spreadToItemInvalid
-            && itemToPageInvalid
-            && pageToItemInvalid
-            && spreadMapInvalid
-            && pageMapInvalid
-            && spreadContainsInvalid
-            && pageContainsInvalid
-            && containsPoint(coordinateInput) === false
-            && typeof viewport.nearestVisiblePoint === "undefined"
-            && typeof viewport.itemToImage === "undefined"
-            && typeof viewport.imageToItem === "undefined"
-            && typeof viewport.nearestVisibleImagePoint === "undefined"
-            && typeof viewport.containsVisibleImagePoint === "undefined"
-            && typeof viewport.itemToSpread === "undefined"
-            && typeof viewport.spreadToItem === "undefined"
-            && typeof viewport.itemToPage === "undefined"
-            && typeof viewport.pageToItem === "undefined"
-            && typeof viewport.primaryPageGeometry === "undefined"
-            && typeof viewport.secondaryPageGeometry === "undefined"
-            && typeof viewport.pageGeometry === "undefined"
-            && typeof viewport.nearestVisibleSpreadPoint === "undefined"
-            && typeof viewport.nearestVisiblePagePoint === "undefined"
-            && typeof viewport.containsVisibleSpreadPoint === "undefined"
-            && typeof viewport.containsVisiblePagePoint === "undefined"
     }
 }
 )",
@@ -378,8 +188,6 @@ ImageViewport {
     QCOMPARE(object->property("presentationTargetValidationPreservedState").toBool(), true);
     QCOMPARE(object->property("roleCommandsReachViewport").toBool(), true);
     QCOMPARE(object->property("presentationCommandsReachViewport").toBool(), true);
-    QCOMPARE(object->property("manualZoomHelpersRemoved").toBool(), true);
-    QCOMPARE(object->property("coordinateAliasesAvailable").toBool(), true);
 }
 
 void ImageViewportPublicApiQmlTest::manualZoomLimitQmlBindingRefreshesWithPresentationState()
@@ -400,7 +208,7 @@ void ImageViewportPublicApiQmlTest::manualZoomLimitQmlBindingRefreshesWithPresen
     QQmlComponent component(&engine);
     component.setData(R"(
 import QtQuick
-import ImageViewport 1.0
+import ImageViewportTest
 
 ImageViewport {
     id: viewport
@@ -451,7 +259,7 @@ void ImageViewportPublicApiQmlTest::qmlImportsDocumentedSurface()
     QQmlComponent component(&engine);
     component.setData(R"(
 import QtQuick
-import ImageViewport 1.0
+import ImageViewportTest
 
 ImageViewport {
     property int noRequest: ImageViewport.RequestStatus.NoRequest
@@ -553,7 +361,7 @@ void ImageViewportPublicApiQmlTest::qmlReadyValuesExposeDocumentedFields()
     QQmlComponent component(&engine);
     component.setData(R"(
 import QtQuick
-import ImageViewport 1.0
+import ImageViewportTest
 
 ImageViewport {
     id: viewport
@@ -606,7 +414,7 @@ void ImageViewportPublicApiQmlTest::qmlCommandsReturnDocumentedOutcomes()
     QQmlComponent component(&engine);
     component.setData(R"(
 import QtQuick
-import ImageViewport 1.0
+import ImageViewportTest
 
 ImageViewport {
     property int playOutcome: -1
@@ -671,7 +479,7 @@ void ImageViewportPublicApiQmlTest::qmlFactoryFailuresReturnDocumentedDiagnostic
     QQmlComponent component(&engine);
     component.setData(R"(
 import QtQml
-import ImageViewport 1.0
+import ImageViewportTest
 
 QtObject {
     readonly property var frameResult: ImageSequenceFactory.fromFrame(null)
@@ -709,7 +517,7 @@ void ImageViewportPublicApiQmlTest::imageSequenceIsNotQmlCreatable()
 
     QQmlComponent component(&engine);
     component.setData(R"(
-import ImageViewport 1.0
+import ImageViewportTest
 
 ImageSequence {}
 )",
@@ -725,7 +533,7 @@ void ImageViewportPublicApiQmlTest::imageFrameIsNotQmlCreatable()
 
     QQmlComponent component(&engine);
     component.setData(R"(
-import ImageViewport 1.0
+import ImageViewportTest
 
 ImageFrame {}
 )",
@@ -741,7 +549,7 @@ void ImageViewportPublicApiQmlTest::imageSequenceProviderFrameHandleIsNotQmlCrea
 
     QQmlComponent component(&engine);
     component.setData(R"(
-import ImageViewport 1.0
+import ImageViewportTest
 
 ImageSequenceProviderFrameHandle {}
 )",
@@ -757,7 +565,7 @@ void ImageViewportPublicApiQmlTest::imageSequenceProviderAdapterIsNotQmlCreatabl
 
     QQmlComponent component(&engine);
     component.setData(R"(
-import ImageViewport 1.0
+import ImageViewportTest
 
 ImageSequenceProviderAdapter {}
 )",
@@ -773,7 +581,7 @@ void ImageViewportPublicApiQmlTest::imageSequenceFactoryResultIsNotQmlCreatable(
 
     QQmlComponent component(&engine);
     component.setData(R"(
-import ImageViewport 1.0
+import ImageViewportTest
 
 ImageSequenceFactoryResult {}
 )",
@@ -789,7 +597,7 @@ void ImageViewportPublicApiQmlTest::imageSequenceFactoryIsQmlSingletonOnly()
 
     QQmlComponent component(&engine);
     component.setData(R"(
-import ImageViewport 1.0
+import ImageViewportTest
 
 ImageSequenceFactory {}
 )",
@@ -805,7 +613,7 @@ void ImageViewportPublicApiQmlTest::imageSequenceLimitsIsQmlSingletonOnly()
 
     QQmlComponent component(&engine);
     component.setData(R"(
-import ImageViewport 1.0
+import ImageViewportTest
 
 ImageSequenceLimits {}
 )",

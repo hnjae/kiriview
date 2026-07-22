@@ -680,7 +680,7 @@ void ImageViewportStateSnapshotTest::qmlReadsNestedSnapshotFields()
     QQmlComponent component(&engine);
     component.setData(R"(
 import QtQuick
-import ImageViewport 1.0
+import ImageViewportTest
 
 ImageViewport {
     id: viewport
