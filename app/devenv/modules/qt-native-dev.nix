@@ -22,7 +22,6 @@ let
       lib
       pkgs
       ;
-    karchivePackage = pkgs.kdePackages.karchive;
   };
 in
 {
@@ -40,7 +39,6 @@ in
   files."app/.qmlls.ini".ini.General = qtNative.qmllsGeneral;
 
   packages = [
-    qtNative.qmake
     pkgs.kdePackages.karchive
     kiriviewLibHeif.bin
     kiriviewLibHeif.dev

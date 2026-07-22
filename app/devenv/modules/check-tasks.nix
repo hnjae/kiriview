@@ -11,6 +11,8 @@
 let
   appRoot = kiriviewApp.appRoot;
   escapedAppRoot = lib.escapeShellArg appRoot;
+  cmakeBuildDir = "target/devenv/cmake";
+  escapedCmakeQmlImportPaths = lib.escapeShellArg qtNative.cmakeQmlImportPaths;
   baseTaskPrelude = # sh
     ''
       set -euo pipefail
@@ -23,11 +25,6 @@ let
   qtRuntimePrelude = # sh
     ''
       ${qtNative.qtRuntimeEnvironment}
-      unset QT_ADDITIONAL_PACKAGES_PREFIX_PATH
-    '';
-  qtBuildPrelude = # sh
-    ''
-      ${qtNative.qtBuildEnvironment}
       unset QT_ADDITIONAL_PACKAGES_PREFIX_PATH
     '';
   localJobsPrelude = # sh
@@ -65,13 +62,62 @@ let
       ${jobsPrelude}
       lint_jobs="$kiriview_jobs"
     '';
+  cargoJobsPrelude = # sh
+    ''
+      export CARGO_BUILD_JOBS="''${CARGO_BUILD_JOBS:-$kiriview_jobs}"
+    '';
+  cmakeConfigurePrelude = # sh
+    ''
+      unset QT_ADDITIONAL_PACKAGES_PREFIX_PATH
+      cmake \
+          -S . \
+          -B ${cmakeBuildDir} \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_MAKE_PROGRAM=${lib.getExe pkgs.gnumake} \
+          -DKIRIVIEW_BUILD_TESTS=ON \
+          -DKIRIVIEW_QML_IMPORT_PATHS=${escapedCmakeQmlImportPaths}
+    '';
+  refreshCompileCommandsPrelude = # sh
+    ''
+      ${cmakeConfigurePrelude}
+      cmake --build ${cmakeBuildDir} --target KiriViewCore --parallel "$kiriview_jobs"
+
+      temporary_link="compile_commands.json.tmp.$$"
+      ln -sT "${cmakeBuildDir}/compile_commands.json" "$temporary_link"
+      mv -Tf "$temporary_link" compile_commands.json
+    '';
+  cppLintPrelude = # sh
+    ''
+      compile_db=${lib.escapeShellArg "${cmakeBuildDir}/compile_commands.json"}
+      if [[ ! -f $compile_db ]]; then
+          printf '%s was not found; run devenv tasks run --mode single ci:app:lint:cpp:prepare.\n' "$compile_db" >&2
+          exit 1
+      fi
+
+      mapfile -d "" cpp_sources < <(
+          ${lib.getExe pkgs.jq} \
+              --raw-output0 \
+              --arg source_root "$PWD/src/" \
+              '
+                  [
+                      .[].file
+                      | select(type == "string")
+                      | select(startswith($source_root) and endswith(".cpp"))
+                  ]
+                  | unique[]
+              ' \
+              "$compile_db"
+      )
+      if ((''${#cpp_sources[@]} == 0)); then
+          printf 'The compilation database does not contain any application C++ sources.\n' >&2
+          exit 1
+      fi
+    '';
   cppLintTaskPrelude = # sh
     ''
       ${baseTaskPrelude}
-      ${qtBuildPrelude}
-      ${rustHost.environment}
       ${lintJobsPrelude}
-      ${qtNative.cppLintPrelude}
+      ${cppLintPrelude}
     '';
 in
 {
@@ -82,17 +128,16 @@ in
       exec = # sh
         ''
           ${baseTaskPrelude}
-          ${qtBuildPrelude}
-          ${rustHost.environment}
           ${lintJobsPrelude}
+          ${cargoJobsPrelude}
 
           if [[ -z ''${CLAZY_FIXIT:-} ]]; then
               printf 'CLAZY_FIXIT is empty; no clazy fixits are configured.\n' >&2
               exit 2
           fi
 
-          ${lib.getExe qtNative.refreshCompileCommands} "$lint_jobs"
-          ${qtNative.cppLintPrelude}
+          ${refreshCompileCommandsPrelude}
+          ${cppLintPrelude}
 
           fixes_dir="$(mktemp -d)"
           trap 'rm -rf "$fixes_dir"' EXIT
@@ -103,35 +148,34 @@ in
               --checks "$CLAZY_FIXIT" \
               --ignore-dirs=${lib.escapeShellArg qtNative.clazyIgnoreDirsRegex} \
               --export-fixes-dir "$fixes_dir" \
-              -p . \
+              -p ${cmakeBuildDir} \
               -- \
-              ${qtNative.cppSourcesShellArgs}
+              "''${cpp_sources[@]}"
 
           ${lib.getExe' pkgs.clang-tools "clang-apply-replacements"} "$fixes_dir"
         '';
     };
 
     "dev:app:lsp:refresh" = {
-      description = "Refresh generated LSP metadata for rust-analyzer and clangd";
+      description = "Refresh the CMake compilation database for clangd";
       showOutput = true;
       exec = # sh
         ''
           ${baseTaskPrelude}
-          ${qtBuildPrelude}
-          ${rustHost.environment}
           ${testJobsPrelude}
+          ${cargoJobsPrelude}
 
-          ${lib.getExe qtNative.refreshCompileCommands} "$test_jobs"
+          ${refreshCompileCommandsPrelude}
         '';
     };
 
     "ci:app:test:rust" = {
       description = "Run host Rust library tests";
       showOutput = true;
+      before = [ "ci:test" ];
       exec = # sh
         ''
           ${baseTaskPrelude}
-          ${qtRuntimePrelude}
           ${rustHost.environment}
           ${testJobsPrelude}
 
@@ -151,27 +195,20 @@ in
       description = "Run host C++ tests against the CMake-owned KiriView targets";
       showOutput = true;
       before = [ "ci:test" ];
-      after = [
-        "ci:app:test:rust@succeeded"
-      ];
       exec = # sh
         ''
           ${baseTaskPrelude}
           ${qtRuntimePrelude}
-          ${rustHost.environment}
           ${testJobsPrelude}
+          ${cargoJobsPrelude}
 
-          cmake \
-              -S . \
-              -B target/devenv/cmake \
-              -DCMAKE_BUILD_TYPE=Debug \
-              -DKIRIVIEW_BUILD_TESTS=ON
+          ${cmakeConfigurePrelude}
           printf 'Building and running host C++ tests with %d jobs...\n' "$test_jobs"
-          cmake --build target/devenv/cmake --parallel "$test_jobs"
+          cmake --build ${cmakeBuildDir} --parallel "$test_jobs"
           # GNU gettext ignores LANGUAGE under C/POSIX locales; devenv defaults to C.UTF-8.
           LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 \
               ctest \
-                  --test-dir target/devenv/cmake \
+                  --test-dir ${cmakeBuildDir} \
                   --tests-regex '^tst_' \
                   --output-on-failure \
                   --parallel "$test_jobs"
@@ -181,13 +218,13 @@ in
     "ci:app:lint:rust" = {
       description = "Run Rust clippy";
       showOutput = true;
+      before = [ "ci:lint" ];
       after = [
-        "ci:app:test:cpp@succeeded"
+        "ci:app:test:rust@succeeded"
       ];
       exec = # sh
         ''
           ${baseTaskPrelude}
-          ${qtBuildPrelude}
           ${rustHost.environment}
           ${lintJobsPrelude}
 
@@ -214,22 +251,15 @@ in
       exec = # sh
         ''
           ${baseTaskPrelude}
-          ${qtBuildPrelude}
-          ${rustHost.environment}
           ${lintJobsPrelude}
-
-          cmake \
-              -S . \
-              -B target/devenv/cmake \
-              -DCMAKE_BUILD_TYPE=Debug \
-              -DKIRIVIEW_BUILD_TESTS=ON
-          cmake --build target/devenv/cmake --target KiriViewQml --parallel "$lint_jobs"
+          ${cargoJobsPrelude}
 
           unset LD_LIBRARY_PATH
           unset QT_PLUGIN_PATH
           unset QT_ADDITIONAL_PACKAGES_PREFIX_PATH
 
-          ${lib.getExe' pkgs.kdePackages.qtdeclarative "qmllint"} ${qtNative.qmlLintImportArgs} --ignore-settings --max-warnings 0 src/qml/*.qml \
+          ${cmakeConfigurePrelude}
+          cmake --build ${cmakeBuildDir} --target KiriViewQml_qmllint --parallel "$lint_jobs" \
               2>&1 \
               | sed \
                   -e '/^Two plugins named "Quick" present, make sure no plugins are duplicated\. The second plugin will not be loaded\.$/d' \
@@ -404,40 +434,6 @@ in
         '';
     };
 
-    "ci:app:lint:compile-db" = {
-      description = "Check compile_commands.json shape";
-      showOutput = true;
-      before = [ "ci:lint" ];
-      after = [
-        "ci:app:lint:cpp:clazy@succeeded"
-      ];
-      exec = # sh
-        ''
-          ${baseTaskPrelude}
-
-          compile_db="compile_commands.json"
-          generated_compile_db="target/devenv/compile_commands.json"
-
-          if [[ ! -L $compile_db ]]; then
-              printf '%s must be a symlink generated by dev:app:lsp:refresh.\n' "$compile_db" >&2
-              exit 1
-          fi
-
-          resolved_compile_db="$(readlink -f "$compile_db")"
-          expected_compile_db="$(readlink -m "$PWD/$generated_compile_db")"
-          if [[ $resolved_compile_db != "$expected_compile_db" ]]; then
-              printf '%s must resolve to %s; got %s.\n' "$compile_db" "$expected_compile_db" "$resolved_compile_db" >&2
-              exit 1
-          fi
-
-          ${lib.getExe pkgs.jq} --exit-status '
-              type == "array"
-              and any(.[]; (.file | strings | (startswith("src/") and endswith(".cpp"))))
-              and any(.[]; (.file | strings | (startswith("tests/cpp/tst_") and endswith(".cpp"))))
-          ' "$compile_db" >/dev/null
-        '';
-    };
-
     "ci:app:lint:desktop" = {
       description = "Validate desktop metadata";
       showOutput = true;
@@ -454,17 +450,16 @@ in
       description = "Prepare the app C++ compilation database for linting";
       showOutput = true;
       after = [
-        "ci:app:lint:rust@succeeded"
+        "ci:app:lint:qml@succeeded"
       ];
       exec = # sh
         ''
           ${baseTaskPrelude}
-          ${qtBuildPrelude}
-          ${rustHost.environment}
           ${lintJobsPrelude}
+          ${cargoJobsPrelude}
 
-          ${lib.getExe qtNative.refreshCompileCommands} "$lint_jobs"
-          ${qtNative.cppLintPrelude}
+          ${refreshCompileCommandsPrelude}
+          ${cppLintPrelude}
         '';
     };
 
@@ -482,16 +477,17 @@ in
               -clang-tidy-binary ${lib.getExe' pkgs.clang-tools "clang-tidy"} \
               -header-filter=${lib.escapeShellArg "^${appRoot}/src/"} \
               -exclude-header-filter=${lib.escapeShellArg "^${appRoot}/(target|build-dir)/"} \
-              -p . \
+              -p ${cmakeBuildDir} \
               -j "$lint_jobs" \
               -quiet \
-              ${qtNative.cppSourcesShellArgs}
+              "''${cpp_sources[@]}"
         '';
     };
 
     "ci:app:lint:cpp:clazy" = {
       description = "Run clazy against app C++ sources";
       showOutput = true;
+      before = [ "ci:lint" ];
       after = [
         "ci:app:lint:cpp:clang-tidy@succeeded"
       ];
@@ -504,9 +500,9 @@ in
               --clazy-binary ${lib.getExe' pkgs.clazy "clazy-standalone"} \
               --checks "''${CLAZY_CHECKS:-level0}" \
               --ignore-dirs=${lib.escapeShellArg qtNative.clazyIgnoreDirsRegex} \
-              -p . \
+              -p ${cmakeBuildDir} \
               -- \
-              ${qtNative.cppSourcesShellArgs}
+              "''${cpp_sources[@]}"
         '';
     };
   };

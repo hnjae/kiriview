@@ -14,6 +14,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(KIRIVIEW_BUILD_TESTS "Build KiriView tests" ON)
 option(KIRIVIEW_CARGO_OFFLINE "Require Cargo to use only locally available sources" OFF)
+set(KIRIVIEW_QML_IMPORT_PATHS
+    ""
+    CACHE STRING "Additional QML import paths for development tooling")
 
 find_package(
     Qt6 6.5 REQUIRED
@@ -239,6 +242,8 @@ qt_add_qml_module(
     KiriViewQml
     URI
     org.hnjae.kiriview
+    IMPORT_PATH
+    ${KIRIVIEW_QML_IMPORT_PATHS}
     DEPENDENCIES
     QtQuick
     org.kde.kirigamiaddons.statefulapp

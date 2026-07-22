@@ -3,7 +3,6 @@
 {
   pkgs,
   lib,
-  kiriviewApp,
   ...
 }:
 let
@@ -30,37 +29,9 @@ let
       exec ${lib.getExe' pkgs.stdenv.cc "cc"} -B${rustHostLldBin}/bin/ "''${filtered_args[@]}"
     '';
   };
-  cargoTargetDir = "${kiriviewApp.appRoot}/target";
   rustHostLinkerFlag = "-C linker=${lib.getExe rustHostLinker}";
-  localJobsPrelude = # sh
-    ''
-      kiriview_default_local_jobs() {
-          local cpu_count
-          cpu_count="$(nproc)"
-          printf '%d\n' "$((cpu_count / 2 + 1))"
-      }
-
-      if [[ -n ''${KIRIVIEW_JOBS:-} ]]; then
-          kiriview_jobs="$KIRIVIEW_JOBS"
-          kiriview_jobs_source="KIRIVIEW_JOBS"
-      else
-          kiriview_jobs="$(kiriview_default_local_jobs)"
-          kiriview_jobs_source="local default job count"
-      fi
-
-      if ! [[ $kiriview_jobs =~ ^[0-9]+$ ]] || ((kiriview_jobs < 1)); then
-          printf 'Invalid %s value: %s\n' "$kiriview_jobs_source" "$kiriview_jobs" >&2
-          exit 2
-      fi
-    '';
   environment = # sh
     ''
-      ${localJobsPrelude}
-
-      export CARGO_TARGET_DIR=${lib.escapeShellArg cargoTargetDir}
-      export CARGO_BUILD_JOBS="''${CARGO_BUILD_JOBS:-$kiriview_jobs}"
-      export RUST_TEST_THREADS="''${RUST_TEST_THREADS:-$kiriview_jobs}"
-
       case " ''${RUSTFLAGS:-} " in
       *" ${rustHostLinkerFlag} "*)
           ;;
@@ -72,6 +43,6 @@ let
 in
 {
   _module.args.rustHost = {
-    inherit cargoTargetDir environment;
+    inherit environment;
   };
 }
