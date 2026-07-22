@@ -5,6 +5,7 @@
 # Build artifacts:
 .cargo-vendor/
 build-dir/
+build-ninja/
 repo/
 target/
 *.flatpak

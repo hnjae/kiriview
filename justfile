@@ -90,7 +90,7 @@ build:
         app/org.hnjae.kiriview.json
 
 [group('build')]
-build-with-tests:
+build-flatpak-with-test:
     flatpak-builder \
         --delete-build-dirs \
         --force-clean app/build-dir \

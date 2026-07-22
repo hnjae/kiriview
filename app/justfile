@@ -5,8 +5,18 @@ set lazy
 set fallback
 set working-directory := '..'
 
+build_dir := "build-ninja"
+
 _:
     @just --list
+
+[group('build')]
+configure:
+    devenv shell -- sh -eu -c 'cd app && cmake -S . -B {{ build_dir }} -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON'
+
+[group('build')]
+build: configure
+    devenv shell -- sh -eu -c 'cd app && cmake --build {{ build_dir }}'
 
 [group('ci')]
 lint:

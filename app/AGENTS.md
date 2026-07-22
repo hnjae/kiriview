@@ -51,7 +51,8 @@ Always report skipped focused or completion checks.
 
 - Run direct `devenv` commands from the repository root; app `just` recipes select the root environment automatically.
 - `devenv shell` — development environment when invoked from the repository root.
-- `just build` / `just build-with-tests` — Flatpak build in `build-dir/` (tests off / on).
+- From `app/`, `just build` — configure and build the native application with CMake and Ninja in `build-ninja/`.
+- From the repository root, `just build` remains the Flatpak build in `app/build-dir/`.
 - `just run` — launch from `build-dir/`.
 - All app lint and app-owned packaging/policy tasks: `devenv tasks run --mode single ci:app:lint`
 - Lint Rust / C++ / QML only: `devenv tasks run --mode single ci:app:lint:rust`, `devenv tasks run --mode single ci:app:lint:cpp`, `devenv tasks run --mode single ci:app:lint:qml`
