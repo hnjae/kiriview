@@ -21,8 +21,6 @@ class ApplicationCommandPortSource
 {
 public:
     ApplicationCommandPortSource() = default;
-
-public:
     virtual ~ApplicationCommandPortSource();
 
     virtual ApplicationCommandRouterShellPorts commandRouterShellPorts();

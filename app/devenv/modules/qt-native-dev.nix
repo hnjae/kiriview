@@ -16,7 +16,7 @@ let
       "-DWITH_JPEG_ENCODER_PLUGIN=OFF"
     ];
   });
-  qtCxxqt = import ../internal/qt-cxxqt-context.nix {
+  qtNative = import ../internal/qt-native-context.nix {
     inherit
       kiriviewApp
       lib
@@ -26,41 +26,28 @@ let
   };
 in
 {
-  # Shared Qt/CXX-Qt tooling context for the dev shell, editor metadata, and
-  # check tasks. Keep cross-module qmake, QML import, and runtime env logic here.
   _module.args = {
-    inherit qtCxxqt;
+    inherit qtNative;
   };
-
-  # Cargo debug builds compile the C++ bridge sources without optimization,
-  # which makes glibc's fortify headers emit one warning per translation unit.
-  hardeningDisable = [
-    "fortify"
-    "fortify3"
-  ];
 
   enterShell = # sh
     ''
-      ${qtCxxqt.enterShell}
+      ${qtNative.enterShell}
       ${rustHost.environment}
     '';
 
-  files."app/rust-analyzer.toml".text = qtCxxqt.rustAnalyzerToml;
-  files."app/.qmlls.ini".ini.General = qtCxxqt.qmllsGeneral;
+  files."app/rust-analyzer.toml".text = qtNative.rustAnalyzerToml;
+  files."app/.qmlls.ini".ini.General = qtNative.qmllsGeneral;
 
   packages = [
-    qtCxxqt.qmake
+    qtNative.qmake
     pkgs.kdePackages.karchive
     kiriviewLibHeif.bin
     kiriviewLibHeif.dev
     kiriviewLibHeif.lib
-
-    # Flatpak
     pkgs.desktop-file-utils
     pkgs.flatpak-builder
     pkgs.jq
-
-    # Rust/Qt host development
     pkgs.cargo-nextest
     pkgs.kdePackages.extra-cmake-modules
     pkgs.kdePackages.kconfig

@@ -3,7 +3,6 @@
 
 #include "application/applicationruntime.h"
 #include "application/applicationstartupsource.h"
-#include "kiriview/src/policy/applicationruntime.cxx.h"
 
 #include <QByteArray>
 #include <QLoggingCategory>
@@ -13,18 +12,12 @@
 #include <QStringList>
 #include <QTest>
 #include <QUrl>
-#include <string>
 
 namespace {
 kiriview::ApplicationStartupSource startupSource(
     kiriview::ApplicationStartupSourceKind kind, const QString& text = {}, bool verbose = false)
 {
-    const QByteArray utf8Text = text.toUtf8();
-    return kiriview::ApplicationStartupSource {
-        kind,
-        rust::String(std::string(utf8Text.constData(), static_cast<std::size_t>(utf8Text.size()))),
-        verbose,
-    };
+    return kiriview::ApplicationStartupSource { kind, text, verbose };
 }
 
 bool categoryDebugEnabled(const QString& name)

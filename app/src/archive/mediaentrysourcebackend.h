@@ -91,8 +91,6 @@ class MediaEntrySource
 {
 public:
     MediaEntrySource() = default;
-
-public:
     virtual ~MediaEntrySource() = default;
 
     virtual MediaEntrySourceCandidatesResult loadImageDocumentPageCandidates() = 0;

@@ -42,6 +42,8 @@ protected:
 private Q_SLOTS:
     void clearMenuAccessKeys();
 
+    // Keep non-slot members outside the Qt slot section.
+    // NOLINTNEXTLINE(readability-redundant-access-specifiers)
 private:
     kiriview::MenuAccessKeyRouterRuntime m_runtime;
 };

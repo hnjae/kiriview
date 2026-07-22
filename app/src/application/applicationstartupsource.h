@@ -4,12 +4,33 @@
 #ifndef KIRIVIEW_APPLICATIONSTARTUPSOURCE_H
 #define KIRIVIEW_APPLICATIONSTARTUPSOURCE_H
 
+#include <QString>
 #include <QUrl>
 
 namespace kiriview {
-struct ApplicationStartupSource;
+enum class ApplicationStartupSourceKind {
+    None,
+    LocalFilePath,
+    UrlText,
+};
+
+struct ApplicationStartupSource
+{
+    ApplicationStartupSourceKind kind = ApplicationStartupSourceKind::None;
+    QString text;
+    bool verbose = false;
+};
+
+struct ApplicationStartupParseResult
+{
+    ApplicationStartupSource source;
+    QString errorString;
+
+    [[nodiscard]] bool accepted() const { return errorString.isEmpty(); }
+};
 
 QUrl initialSourceUrlFromStartupSource(const ApplicationStartupSource& source);
+ApplicationStartupParseResult parseApplicationStartupSource(int argumentCount, char* arguments[]);
 }
 
 #endif

@@ -40,6 +40,8 @@ private Q_SLOTS:
     void handlePropertiesChanged(const QString& interfaceName, const QVariantMap& changedProperties,
         const QStringList& invalidatedProperties);
 
+    // Keep ordinary private methods outside the Qt slot section.
+    // NOLINTNEXTLINE(readability-redundant-access-specifiers)
 private:
     void refreshPowerSaverEnabled();
     void applyPlan(PowerProfileMonitorPlan plan);

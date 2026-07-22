@@ -3,7 +3,7 @@
 {
   imports = [
     ./context.nix
-    ./qt-cxxqt-dev.nix
+    ./qt-native-dev.nix
     ./check-tasks.nix
     ./i18n.nix
     ./rust-host-toolchain.nix

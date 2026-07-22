@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2026 KIM Hyunjae
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-src/policy/applicationruntime.rs
 src/policy/activenavigation.rs
 src/policy/apnganimationreader.rs
 src/policy/archiveformat.rs

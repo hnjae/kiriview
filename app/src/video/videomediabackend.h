@@ -46,8 +46,6 @@ class VideoMediaBackend
 {
 public:
     VideoMediaBackend() = default;
-
-public:
     virtual ~VideoMediaBackend() = default;
 
     virtual void setCallbacks(VideoMediaBackendCallbacks callbacks) = 0;

@@ -27,8 +27,6 @@ class VideoPlaybackUrlResolver
 {
 public:
     VideoPlaybackUrlResolver() = default;
-
-public:
     virtual ~VideoPlaybackUrlResolver() = default;
 
     virtual void resolve(quint64 operationId, const QUrl& sourceUrl, QObject* receiver,

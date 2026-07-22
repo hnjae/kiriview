@@ -5,6 +5,7 @@
   packages = [
     pkgs.git
     pkgs.just
+    pkgs.devenv
   ];
 
   languages.nix.enable = true;

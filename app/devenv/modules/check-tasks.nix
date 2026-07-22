@@ -3,7 +3,7 @@
 {
   pkgs,
   lib,
-  qtCxxqt,
+  qtNative,
   rustHost,
   kiriviewApp,
   ...
@@ -22,12 +22,12 @@ let
     '';
   qtRuntimePrelude = # sh
     ''
-      ${qtCxxqt.qtRuntimeEnvironment}
+      ${qtNative.qtRuntimeEnvironment}
       unset QT_ADDITIONAL_PACKAGES_PREFIX_PATH
     '';
   qtBuildPrelude = # sh
     ''
-      ${qtCxxqt.qtBuildEnvironment}
+      ${qtNative.qtBuildEnvironment}
       unset QT_ADDITIONAL_PACKAGES_PREFIX_PATH
     '';
   localJobsPrelude = # sh
@@ -71,7 +71,7 @@ let
       ${qtBuildPrelude}
       ${rustHost.environment}
       ${lintJobsPrelude}
-      ${qtCxxqt.cppLintPrelude}
+      ${qtNative.cppLintPrelude}
     '';
 in
 {
@@ -91,8 +91,8 @@ in
               exit 2
           fi
 
-          ${lib.getExe qtCxxqt.refreshCompileCommands} "$lint_jobs" ${lib.escapeShellArg "${rustHost.cargoTargetDir}/debug"}
-          ${qtCxxqt.cppLintPrelude}
+          ${lib.getExe qtNative.refreshCompileCommands} "$lint_jobs"
+          ${qtNative.cppLintPrelude}
 
           fixes_dir="$(mktemp -d)"
           trap 'rm -rf "$fixes_dir"' EXIT
@@ -101,11 +101,11 @@ in
               --jobs "$lint_jobs" \
               --clazy-binary ${lib.getExe' pkgs.clazy "clazy-standalone"} \
               --checks "$CLAZY_FIXIT" \
-              --ignore-dirs=${lib.escapeShellArg qtCxxqt.clazyIgnoreDirsRegex} \
+              --ignore-dirs=${lib.escapeShellArg qtNative.clazyIgnoreDirsRegex} \
               --export-fixes-dir "$fixes_dir" \
               -p . \
               -- \
-              ${qtCxxqt.cppSourcesShellArgs}
+              ${qtNative.cppSourcesShellArgs}
 
           ${lib.getExe' pkgs.clang-tools "clang-apply-replacements"} "$fixes_dir"
         '';
@@ -121,8 +121,7 @@ in
           ${rustHost.environment}
           ${testJobsPrelude}
 
-          ${lib.getExe qtCxxqt.refreshCompileCommands} "$test_jobs" ${lib.escapeShellArg "${rustHost.cargoTargetDir}/debug"}
-          ${lib.getExe qtCxxqt.refreshCxxqtIncludes}
+          ${lib.getExe qtNative.refreshCompileCommands} "$test_jobs"
         '';
     };
 
@@ -159,7 +158,7 @@ in
     };
 
     "ci:app:test:cpp" = {
-      description = "Run host C++ tests against the Cargo-owned KiriView app library";
+      description = "Run host C++ tests against the CMake-owned KiriView targets";
       showOutput = true;
       before = [ "ci:test" ];
       after = [
@@ -172,27 +171,18 @@ in
           ${rustHost.environment}
           ${testJobsPrelude}
 
-          printf 'Building Cargo-owned KiriView app library artifacts with %d jobs...\n' "$test_jobs"
-          cargo \
-              build \
-              --locked \
-              --lib \
-              --all-features \
-              --jobs "$test_jobs"
-
-          cmake_make_program="$(command -v make)"
           cmake \
-              -S tests/cpp \
-              -B target/devenv/cpp-tests \
+              -S . \
+              -B target/devenv/cmake \
               -DCMAKE_BUILD_TYPE=Debug \
-              -DCMAKE_MAKE_PROGRAM="$cmake_make_program" \
-              -DKIRIVIEW_CARGO_TARGET_DIR=${lib.escapeShellArg "${rustHost.cargoTargetDir}/debug"}
+              -DKIRIVIEW_BUILD_TESTS=ON
           printf 'Building and running host C++ tests with %d jobs...\n' "$test_jobs"
-          cmake --build target/devenv/cpp-tests --parallel "$test_jobs"
+          cmake --build target/devenv/cmake --parallel "$test_jobs"
           # GNU gettext ignores LANGUAGE under C/POSIX locales; devenv defaults to C.UTF-8.
           LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 \
               ctest \
-                  --test-dir target/devenv/cpp-tests \
+                  --test-dir target/devenv/cmake \
+                  --tests-regex '^tst_' \
                   --output-on-failure \
                   --parallel "$test_jobs"
         '';
@@ -228,6 +218,9 @@ in
       description = "Run qmllint against QML sources";
       showOutput = true;
       before = [ "ci:lint" ];
+      after = [
+        "ci:app:test:cpp@succeeded"
+      ];
       exec = # sh
         ''
           ${baseTaskPrelude}
@@ -235,18 +228,18 @@ in
           ${rustHost.environment}
           ${lintJobsPrelude}
 
-          cargo \
-              build \
-              --locked \
-              --lib \
-              --all-features \
-              --jobs "$lint_jobs"
+          cmake \
+              -S . \
+              -B target/devenv/cmake \
+              -DCMAKE_BUILD_TYPE=Debug \
+              -DKIRIVIEW_BUILD_TESTS=ON
+          cmake --build target/devenv/cmake --target KiriViewQml --parallel "$lint_jobs"
 
           unset LD_LIBRARY_PATH
           unset QT_PLUGIN_PATH
           unset QT_ADDITIONAL_PACKAGES_PREFIX_PATH
 
-          ${lib.getExe' pkgs.kdePackages.qtdeclarative "qmllint"} ${qtCxxqt.qmlLintImportArgs} --ignore-settings --max-warnings 0 src/qml/*.qml \
+          ${lib.getExe' pkgs.kdePackages.qtdeclarative "qmllint"} ${qtNative.qmlLintImportArgs} --ignore-settings --max-warnings 0 src/qml/*.qml \
               2>&1 \
               | sed \
                   -e '/^Two plugins named "Quick" present, make sure no plugins are duplicated\. The second plugin will not be loaded\.$/d' \
@@ -369,8 +362,8 @@ in
           )
           source_manifests=(
               src/cpp_core_sources.txt
-              src/cpp_cxxqt_sources.txt
-              src/cpp_cxxqt_header_sources.txt
+              src/cpp_qml_header_sources.txt
+              src/cpp_qml_sources.txt
           )
 
           for path in "''${forbidden_artifact_files[@]}"; do
@@ -400,9 +393,9 @@ in
               rhi/qshader.h \
               kiriview_manifest_sources \
               cpp_core_sources.txt \
-              cpp_cxxqt_sources.txt \
+              cpp_qml_header_sources.txt \
+              cpp_qml_sources.txt \
               KIRIVIEW_CORE_SOURCE_PATHS \
-              KIRIVIEW_CXXQT_SOURCE_PATHS \
               kconfig_add_kcfg_files; do
               forbid_token_in_file tests/cpp/CMakeLists.txt "$token"
           done
@@ -410,9 +403,8 @@ in
           for token in \
               KiriViewCargoStatic \
               'add_library(kiriview_test_core INTERFACE' \
-              LINK_LIBRARY:WHOLE_ARCHIVE \
-              libkiriview.a; do
-              require_token_in_file tests/cpp/CMakeLists.txt "$token"
+              LINK_LIBRARY:WHOLE_ARCHIVE; do
+              forbid_token_in_file tests/cpp/CMakeLists.txt "$token"
           done
 
           if ((''${#violations[@]} > 0)); then
@@ -481,8 +473,8 @@ in
           ${rustHost.environment}
           ${lintJobsPrelude}
 
-          ${lib.getExe qtCxxqt.refreshCompileCommands} "$lint_jobs" ${lib.escapeShellArg "${rustHost.cargoTargetDir}/debug"}
-          ${qtCxxqt.cppLintPrelude}
+          ${lib.getExe qtNative.refreshCompileCommands} "$lint_jobs"
+          ${qtNative.cppLintPrelude}
         '';
     };
 
@@ -503,7 +495,7 @@ in
               -p . \
               -j "$lint_jobs" \
               -quiet \
-              ${qtCxxqt.cppSourcesShellArgs}
+              ${qtNative.cppSourcesShellArgs}
         '';
     };
 
@@ -521,10 +513,10 @@ in
               --jobs "$lint_jobs" \
               --clazy-binary ${lib.getExe' pkgs.clazy "clazy-standalone"} \
               --checks "''${CLAZY_CHECKS:-level0}" \
-              --ignore-dirs=${lib.escapeShellArg qtCxxqt.clazyIgnoreDirsRegex} \
+              --ignore-dirs=${lib.escapeShellArg qtNative.clazyIgnoreDirsRegex} \
               -p . \
               -- \
-              ${qtCxxqt.cppSourcesShellArgs}
+              ${qtNative.cppSourcesShellArgs}
         '';
     };
   };

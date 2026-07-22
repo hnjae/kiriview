@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-`src/` contains the repository-internal C++17 library, private headers (`*_p.h`), and public headers under `src/ImageViewport/`. `tests/` contains Qt Test executables, shared support, header-isolation checks, and the test-only QML registration.
+`src/` contains the repository-internal C++23 library, private headers (`*_p.h`), and public headers under `src/ImageViewport/`. `tests/` contains Qt Test executables, shared support, header-isolation checks, and the test-only QML registration.
 
 ## Build, Test, and Development Commands
 

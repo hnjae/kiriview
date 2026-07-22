@@ -116,9 +116,9 @@
         }
       },
       "build-commands": [
-        "cargo --offline build --release --jobs ${FLATPAK_BUILDER_N_JOBS:-$(nproc)}",
-        "install -Dm755 target/release/kiriview /app/bin/kiriview",
-        "install -Dm644 data/icons/hicolor/scalable/apps/org.hnjae.kiriview.svg /app/share/icons/hicolor/scalable/apps/org.hnjae.kiriview.svg",
+        "cmake -S . -B target/flatpak/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/app -DKIRIVIEW_BUILD_TESTS=OFF -DKIRIVIEW_CARGO_OFFLINE=ON -DKIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR=$PWD/libs/image-viewport",
+        "cmake --build target/flatpak/release --parallel ${FLATPAK_BUILDER_N_JOBS:-$(nproc)}",
+        "cmake --install target/flatpak/release",
         "scripts/install-translations.sh /app",
         "install -Dm644 target/i18n/org.hnjae.kiriview.desktop /app/share/applications/org.hnjae.kiriview.desktop"
       ],
@@ -126,10 +126,9 @@
       "test-rule": "",
       "test-commands": [
         "env CARGO_TARGET_DIR=target/flatpak LIBHEIF_PLUGIN_PATH=/app/lib/libheif cargo --offline test --all-targets --all-features --jobs ${FLATPAK_BUILDER_N_JOBS:-$(nproc)} -- --test-threads ${FLATPAK_BUILDER_N_JOBS:-$(nproc)}",
-        "env CARGO_TARGET_DIR=target/flatpak LIBHEIF_PLUGIN_PATH=/app/lib/libheif cargo --offline build --lib --all-features --jobs ${FLATPAK_BUILDER_N_JOBS:-$(nproc)}",
-        "env LIBHEIF_PLUGIN_PATH=/app/lib/libheif cmake -S tests/cpp -B target/flatpak/cpp-tests -DCMAKE_BUILD_TYPE=Debug -DKIRIVIEW_CARGO_TARGET_DIR=$PWD/target/flatpak/debug",
-        "env LIBHEIF_PLUGIN_PATH=/app/lib/libheif cmake --build target/flatpak/cpp-tests --parallel ${FLATPAK_BUILDER_N_JOBS:-$(nproc)}",
-        "env LIBHEIF_PLUGIN_PATH=/app/lib/libheif ctest --test-dir target/flatpak/cpp-tests --output-on-failure --parallel ${FLATPAK_BUILDER_N_JOBS:-$(nproc)}"
+        "env LIBHEIF_PLUGIN_PATH=/app/lib/libheif cmake -S . -B target/flatpak/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug -DKIRIVIEW_BUILD_TESTS=ON -DKIRIVIEW_CARGO_OFFLINE=ON -DKIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR=$PWD/libs/image-viewport",
+        "env LIBHEIF_PLUGIN_PATH=/app/lib/libheif cmake --build target/flatpak/tests --parallel ${FLATPAK_BUILDER_N_JOBS:-$(nproc)}",
+        "env LIBHEIF_PLUGIN_PATH=/app/lib/libheif ctest --test-dir target/flatpak/tests --tests-regex '^tst_' --output-on-failure --parallel ${FLATPAK_BUILDER_N_JOBS:-$(nproc)}"
       ],
       "sources": [
         "cargo-sources.json",

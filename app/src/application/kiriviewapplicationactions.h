@@ -62,12 +62,12 @@ struct DefaultShortcutRouteSpec
 
 struct ActionDefinition
 {
-    ActionId actionId;
-    const char* name;
-    RegistrationKind kind;
-    KStandardActions::StandardAction actionType;
+    ActionId actionId {};
+    const char* name {};
+    RegistrationKind kind {};
+    KStandardActions::StandardAction actionType {};
     KLazyLocalizedString text;
-    const char* iconName;
+    const char* iconName {};
     DefaultShortcutSpec defaultProgramWideShortcuts;
     DefaultShortcutSpec defaultViewerLocalShortcuts;
     DefaultShortcutRouteSpec shortcutRoutes;

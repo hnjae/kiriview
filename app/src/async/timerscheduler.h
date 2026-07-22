@@ -17,8 +17,6 @@ class RuntimeTimerHandle
 {
 public:
     RuntimeTimerHandle() = default;
-
-public:
     virtual ~RuntimeTimerHandle() = default;
 
     virtual void start() = 0;

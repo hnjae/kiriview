@@ -84,8 +84,6 @@ class ImageAnimationPlaybackSource
 {
 public:
     ImageAnimationPlaybackSource() = default;
-
-public:
     virtual ~ImageAnimationPlaybackSource() = default;
 
     virtual ImageAnimationPlaybackOpenResult open() = 0;

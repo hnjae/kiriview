@@ -20,8 +20,6 @@ class PredecodeSchedulePayload
 {
 public:
     PredecodeSchedulePayload() = default;
-
-public:
     virtual ~PredecodeSchedulePayload() = default;
     Q_DISABLE_COPY(PredecodeSchedulePayload)
 };

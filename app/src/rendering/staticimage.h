@@ -17,7 +17,7 @@
 
 namespace kiriview {
 inline constexpr int imageBlockingDisplayLongEdgeMax = 2048;
-inline constexpr qsizetype imageFullDecodeFallbackByteLimit = 512 * 1024 * 1024;
+inline constexpr qsizetype imageFullDecodeFallbackByteLimit = qsizetype { 512 } * 1024 * 1024;
 
 struct ImageFirstDisplayDecodeContext
 {
@@ -67,8 +67,6 @@ class StaticImageDisplaySource
 {
 public:
     StaticImageDisplaySource() = default;
-
-public:
     virtual ~StaticImageDisplaySource() = default;
 
     virtual QSize imageSize() const = 0;

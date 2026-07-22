@@ -117,6 +117,8 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/ImageViewport")
 
 target_link_libraries(ImageViewport PUBLIC Qt6::Qml Qt6::Quick)
+target_compile_features(ImageViewport PUBLIC cxx_std_23)
+set_target_properties(ImageViewport PROPERTIES CXX_EXTENSIONS OFF)
 
 target_compile_definitions(
     ImageViewport

@@ -6,7 +6,6 @@
 #include "applicationdiagnostics.h"
 #include "applicationstartupsource.h"
 #include "facade/kiriwindowshell.h"
-#include "kiriview/src/policy/applicationruntime.cxx.h"
 #include "localization/localization.h"
 #include "session/thumbnailimagestore.h"
 
@@ -70,7 +69,7 @@ void loadApplicationMainQml(
     }
     engine.setInitialProperties(initialProperties);
 
-    engine.load(QUrl(QStringLiteral("qrc:/qt/qml/org/hnjae/kiriview/src/qml/Main.qml")));
+    engine.load(QUrl(QStringLiteral("qrc:/qt/qml/org/hnjae/kiriview/Main.qml")));
 }
 
 int runApplication(const ApplicationStartupSource& startupSource)

@@ -16,8 +16,6 @@ class ApplicationActionHost
 {
 public:
     ApplicationActionHost() = default;
-
-public:
     virtual ~ApplicationActionHost() = default;
 
     virtual QObject* actionContext() = 0;

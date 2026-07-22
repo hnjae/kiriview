@@ -1,143 +1,15 @@
 # SPDX-FileCopyrightText: 2026 KIM Hyunjae
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-cmake_minimum_required(VERSION 3.25)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    message(FATAL_ERROR "Configure KiriView tests through the application CMake project")
+endif()
 
-project(KiriViewCppTests LANGUAGES CXX)
-
-enable_testing()
-
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
-find_package(
-    Qt6 REQUIRED
-    COMPONENTS Core
-               DBus
-               Gui
-               Multimedia
-               Qml
-               Quick
-               QuickControls2
-               Test
-               Widgets)
-find_package(KF6Archive CONFIG REQUIRED)
-find_package(KF6Config CONFIG REQUIRED)
-find_package(KF6CoreAddons CONFIG REQUIRED)
-find_package(KF6I18n CONFIG REQUIRED)
-find_package(KF6KirigamiAddons CONFIG REQUIRED)
-find_package(KF6KIO CONFIG REQUIRED)
-find_package(KF6JobWidgets CONFIG REQUIRED)
-find_package(KF6Service CONFIG REQUIRED)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(LibArchive REQUIRED IMPORTED_TARGET libarchive)
-pkg_check_modules(LibHeif REQUIRED IMPORTED_TARGET libheif)
-pkg_check_modules(LibJxl REQUIRED IMPORTED_TARGET libjxl)
-pkg_check_modules(LibJxlThreads REQUIRED IMPORTED_TARGET libjxl_threads)
-pkg_check_modules(LibRaw REQUIRED IMPORTED_TARGET libraw)
-pkg_check_modules(LibWebP REQUIRED IMPORTED_TARGET libwebp)
-pkg_check_modules(LibWebPDemux REQUIRED IMPORTED_TARGET libwebpdemux)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
 find_program(MSGFMT_EXECUTABLE msgfmt REQUIRED)
 
-function(kiriview_latest_path output)
-    set(latest_path "")
-    set(latest_timestamp "")
-    foreach(candidate IN LISTS ARGN)
-        if(NOT EXISTS "${candidate}")
-            continue()
-        endif()
-
-        file(TIMESTAMP "${candidate}" candidate_timestamp "%Y%m%d%H%M%S" UTC)
-        if(NOT latest_path OR candidate_timestamp STRGREATER latest_timestamp)
-            set(latest_path "${candidate}")
-            set(latest_timestamp "${candidate_timestamp}")
-        endif()
-    endforeach()
-
-    set("${output}"
-        "${latest_path}"
-        PARENT_SCOPE)
-endfunction()
-
-set(KIRIVIEW_CARGO_TARGET_DIR
-    "${CMAKE_SOURCE_DIR}/../../target/flatpak/debug"
-    CACHE PATH "Cargo target debug artifacts directory")
-set(KIRIVIEW_CARGO_STATICLIB "${KIRIVIEW_CARGO_TARGET_DIR}/libkiriview.a")
-set(KIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR "$ENV{KIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR}")
-if(NOT KIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR)
-    set(KIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR "../libs/image-viewport")
-endif()
-cmake_path(ABSOLUTE_PATH KIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR BASE_DIRECTORY
-           "${CMAKE_SOURCE_DIR}/../.." NORMALIZE)
-if(NOT EXISTS "${KIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR}/src/ImageViewport/imageviewport.h")
-    message(
-        FATAL_ERROR
-            "ImageViewport source directory is missing: ${KIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR}")
-endif()
-file(GLOB KIRIVIEW_CXXQT_INCLUDE_DIR_CANDIDATES
-     "${KIRIVIEW_CARGO_TARGET_DIR}/build/kiriview-*/out/cxxqtbuild/include")
-kiriview_latest_path(KIRIVIEW_CXXQT_INCLUDE_DIR ${KIRIVIEW_CXXQT_INCLUDE_DIR_CANDIDATES})
-file(GLOB KIRIVIEW_KCONFIG_INCLUDE_DIR_CANDIDATES
-     "${KIRIVIEW_CARGO_TARGET_DIR}/build/kiriview-*/out/kconfig")
-kiriview_latest_path(KIRIVIEW_KCONFIG_INCLUDE_DIR ${KIRIVIEW_KCONFIG_INCLUDE_DIR_CANDIDATES})
-if(NOT EXISTS "${KIRIVIEW_CARGO_STATICLIB}"
-   OR NOT KIRIVIEW_CXXQT_INCLUDE_DIR
-   OR NOT EXISTS "${KIRIVIEW_CXXQT_INCLUDE_DIR}"
-   OR NOT KIRIVIEW_KCONFIG_INCLUDE_DIR
-   OR NOT EXISTS "${KIRIVIEW_KCONFIG_INCLUDE_DIR}")
-    message(
-        FATAL_ERROR
-            "Cargo-owned KiriView app library artifacts are missing. Run the Cargo app library build step first."
-    )
-endif()
-
-add_library(KiriViewCargoStatic STATIC IMPORTED GLOBAL)
-set_target_properties(KiriViewCargoStatic PROPERTIES IMPORTED_LOCATION
-                                                     "${KIRIVIEW_CARGO_STATICLIB}")
-
-add_library(kiriview_test_core INTERFACE)
-target_include_directories(
-    kiriview_test_core INTERFACE ../../src "${KIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR}/src"
-                                 "${KIRIVIEW_CXXQT_INCLUDE_DIR}" "${KIRIVIEW_KCONFIG_INCLUDE_DIR}")
-target_compile_definitions(
-    kiriview_test_core
-    INTERFACE TRANSLATION_DOMAIN="kiriview"
-              KIRIVIEW_QML_IMPORT_PATH="${KIRIVIEW_CARGO_TARGET_DIR}/cxxqt/qml_modules")
-target_link_libraries(
-    kiriview_test_core
-    INTERFACE "$<LINK_LIBRARY:WHOLE_ARCHIVE,KiriViewCargoStatic>"
-              Qt6::Core
-              Qt6::DBus
-              Qt6::Gui
-              Qt6::Multimedia
-              Qt6::Qml
-              Qt6::Quick
-              Qt6::QuickControls2
-              Qt6::Widgets
-              KF6::Archive
-              KF6::ConfigCore
-              KF6::ConfigGui
-              KF6::CoreAddons
-              KF6::I18n
-              KF6::I18nQml
-              KF6::KIOCore
-              KF6::KIOGui
-              KF6::KIOWidgets
-              KF6::JobWidgets
-              KF6::Service
-              KirigamiAddonsStatefulApp
-              PkgConfig::LibArchive
-              PkgConfig::LibHeif
-              PkgConfig::LibJxl
-              PkgConfig::LibJxlThreads
-              PkgConfig::LibRaw
-              PkgConfig::LibWebP
-              PkgConfig::LibWebPDemux)
-
 set(KIRIVIEW_TEST_LOCALE_DIR "${CMAKE_CURRENT_BINARY_DIR}/locale")
-set(KIRIVIEW_TEST_KO_PO "${CMAKE_SOURCE_DIR}/../fixtures/i18n/ko/kiriview.po")
+set(KIRIVIEW_TEST_KO_PO "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/i18n/ko/kiriview.po")
 set(KIRIVIEW_TEST_KO_MO "${KIRIVIEW_TEST_LOCALE_DIR}/ko/LC_MESSAGES/kiriview.mo")
 
 add_custom_command(
@@ -151,8 +23,12 @@ add_custom_target(kiriview_test_i18n ALL DEPENDS "${KIRIVIEW_TEST_KO_MO}")
 
 function(add_kiriview_cpp_test target source)
     add_executable(${target} ${source})
-    target_compile_definitions(${target} PRIVATE KIRIVIEW_TEST_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-    target_link_libraries(${target} PRIVATE kiriview_test_core Qt6::Test)
+    target_compile_features(${target} PRIVATE cxx_std_23)
+    set_target_properties(${target} PROPERTIES CXX_EXTENSIONS OFF)
+    target_compile_definitions(
+        ${target} PRIVATE KIRIVIEW_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+                          KIRIVIEW_QML_IMPORT_PATH="${CMAKE_BINARY_DIR}")
+    target_link_libraries(${target} PRIVATE KiriViewCore KiriViewQml KiriViewQmlplugin Qt6::Test)
     add_test(NAME ${target} COMMAND ${target})
 endfunction()
 

@@ -1,6 +1,6 @@
 # Repository Guidelins
 
-KiriView is a Rust + CXX-Qt + KDE Kirigami desktop app.
+KiriView is a C++23 + Rust support library + KDE Kirigami desktop app built by CMake.
 Layout: `src/` (app), `tests/cpp/` (C++ tests), `docs/` (docs), `po/` (translations), `flatpak/` (packaging), `devenv/` (devenv).
 
 ## Project conventions
@@ -70,14 +70,13 @@ jobs="${KIRIVIEW_JOBS:-$(( $(nproc) / 2 + 1 ))}"
 env CARGO_TARGET_DIR=target cargo nextest run --locked --lib --all-features --build-jobs "$jobs" --test-threads "$jobs" <filter>
 ```
 
-**C++/Qt (build the Cargo-owned app staticlib and generated headers, then run the matching CTest target)** — `<test_target>` e.g. `tst_imagezoomstate`:
+**C++/Qt (configure the application-owned CMake graph, then run the matching CTest target)** — `<test_target>` e.g. `tst_imagezoomstate`:
 
-For the full host C++ test task, run `devenv tasks run --mode single ci:app:test:cpp` when you intentionally want only the C++ task; it skips declared Rust test dependencies and builds the required Cargo-owned KiriView app library artifacts inside the task. Without `--mode single`, `ci:app:test:cpp` runs `ci:app:test:rust` first. The CMake build compiles C++ test binaries that link that Cargo-produced app library.
+For the full host C++ test task, run `devenv tasks run --mode single ci:app:test:cpp` when you intentionally want only the C++ task; it skips declared Rust test dependencies while CMake still builds the required Rust support library and generated CXX bridges. Without `--mode single`, `ci:app:test:cpp` runs `ci:app:test:rust` first. The CMake build compiles C++ test binaries against the same application libraries used by the executable.
 
 ```sh
 jobs="${KIRIVIEW_JOBS:-$(( $(nproc) / 2 + 1 ))}"
-env CARGO_TARGET_DIR=target cargo build --locked --lib --all-features --jobs "$jobs"
-cmake -S tests/cpp -B target/devenv/cpp-tests -DCMAKE_BUILD_TYPE=Debug -DKIRIVIEW_CARGO_TARGET_DIR="$PWD/target/debug"
-cmake --build target/devenv/cpp-tests --target <test_target> --parallel "$jobs"
-env LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 ctest --test-dir target/devenv/cpp-tests -R '^<test_target>$' --output-on-failure --parallel "$jobs"
+cmake -S . -B target/devenv/cmake -DCMAKE_BUILD_TYPE=Debug -DKIRIVIEW_BUILD_TESTS=ON
+cmake --build target/devenv/cmake --target <test_target> --parallel "$jobs"
+env LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 ctest --test-dir target/devenv/cmake -R '^<test_target>$' --output-on-failure --parallel "$jobs"
 ```

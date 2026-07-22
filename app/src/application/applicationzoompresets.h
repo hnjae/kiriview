@@ -12,8 +12,8 @@
 namespace kiriview::ApplicationActions {
 struct ZoomPresetDescriptor
 {
-    ActionId actionId;
-    const char* actionName;
+    ActionId actionId {};
+    const char* actionName {};
     double zoomPercent = 100.0;
     KLazyLocalizedString actionText;
     KLazyLocalizedString menuText;

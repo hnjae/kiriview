@@ -2,12 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Application policy.
-#[path = "policy/applicationruntime.rs"]
-mod applicationruntime;
 #[path = "policy/imageactionavailability.rs"]
 mod imageactionavailability;
-#[path = "policy/startup_arguments.rs"]
-mod startup_arguments;
 
 // Archive policy.
 #[path = "policy/archiveformat.rs"]
@@ -80,22 +76,3 @@ mod imagespreadpolicy;
 mod imagerendergeometry;
 #[path = "policy/svgrenderer.rs"]
 mod svgrenderer;
-
-pub use startup_arguments::{
-    STARTUP_ARGUMENT_ERROR_EXIT_CODE, StartupArgumentError, StartupOptions, StartupSource,
-    initial_source_from_args, startup_options_from_args,
-};
-
-// Keep CXX-Qt dependency initializers linked for Rust test binaries even when Rust does not
-// directly construct Qt runtime objects.
-#[used]
-static CXX_QT_INITIALIZER_LINK_ANCHOR: fn() = link_cxx_qt_initializer_dependencies;
-
-fn link_cxx_qt_initializer_dependencies() {
-    let _ = core::mem::size_of::<cxx_qt_lib::QString>();
-}
-
-pub use applicationruntime::{
-    ApplicationStartupSource, ApplicationStartupSourceKind, application_startup_source,
-    run_application,
-};
