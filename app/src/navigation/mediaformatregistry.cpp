@@ -3,9 +3,8 @@
 
 #include "mediaformatregistry.h"
 
-#include "bridge/rustqtconversion.h"
 #include "decoding/imageformatregistry.h"
-#include "kiriview/src/policy/mediaformatregistry.cxx.h"
+#include "format/supportedmediaformats.h"
 #include "navigation/directmedianavigationmodel.h"
 
 #include <QUrl>
@@ -25,17 +24,17 @@ template <typename Predicate> bool matchesUrlFileNameOrString(const QUrl& url, P
 namespace kiriview {
 QStringList supportedOrdinaryMediaExtensions()
 {
-    return Bridge::qtStringList(rustSupportedOrdinaryMediaExtensions());
+    return SupportedMediaFormats::ordinaryMediaExtensions();
 }
 
 bool isSupportedOrdinaryMediaFileName(const QString& name)
 {
-    return Bridge::rustResultForQString(name, rustIsSupportedOrdinaryMediaFileName);
+    return SupportedMediaFormats::isSupportedOrdinaryMediaFileName(name);
 }
 
 bool isSupportedDirectVideoFileName(const QString& name)
 {
-    return Bridge::rustResultForQString(name, rustIsSupportedDirectVideoFileName);
+    return SupportedMediaFormats::isSupportedDirectVideoFileName(name);
 }
 
 bool isSupportedDirectImageUrl(const QUrl& url)

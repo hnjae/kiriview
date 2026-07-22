@@ -4,7 +4,7 @@
 #include "metadata/embeddedmetadata.h"
 
 #include "bridge/rustqtconversion.h"
-#include "kiriview/src/policy/embeddedmetadata.cxx.h"
+#include "kiriview/src/support/embeddedmetadata.cxx.h"
 
 #include <utility>
 

@@ -4,6 +4,7 @@
 src/decoding/apnganimationreader.cpp
 src/decoding/apngframecomposer.cpp
 src/decoding/apngrgbabuffer.cpp
+src/decoding/avifcompatibility.cpp
 src/decoding/animationtiming.cpp
 src/decoding/decodedimageresult.cpp
 src/application/applicationcommandrouter.cpp
@@ -34,14 +35,6 @@ src/archive/mediaentrysourcerunner.cpp
 src/archive/archiveformat.cpp
 src/archive/archivepath.cpp
 src/decoding/bufferedimagereader.cpp
-src/bridge/activenavigationprojectionconversion.cpp
-src/bridge/archiveformatconversion.cpp
-src/bridge/imageactionavailabilityconversion.cpp
-src/bridge/imageinputclassificationconversion.cpp
-src/bridge/imageopenworkflowconversion.cpp
-src/bridge/imagespreadpolicyconversion.cpp
-src/bridge/predecodepolicyconversion.cpp
-src/bridge/videodocumentpolicyconversion.cpp
 src/rendering/displayimagestore.cpp
 src/rendering/imageviewportdecodesource.cpp
 src/rendering/imageviewportfailureregistry.cpp
@@ -114,6 +107,7 @@ src/decoding/imagedecodejob.cpp
 src/decoding/imagedecodejobstate.cpp
 src/document/imagedocumentstate.cpp
 src/decoding/imageformatregistry.cpp
+src/format/supportedmediaformats.cpp
 src/decoding/imageinputclassification.cpp
 src/localization/activenavigationboundarytext.cpp
 src/localization/imageerrortext.cpp

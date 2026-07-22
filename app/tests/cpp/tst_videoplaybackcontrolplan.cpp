@@ -1,14 +1,10 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-#include "bridge/videodocumentpolicyconversion.h"
-#include "kiriview/src/policy/videodocumentpolicy.cxx.h"
 #include "video/videoplaybackcontrolplan.h"
 
 #include <QObject>
 #include <QTest>
-#include <cstddef>
-#include <optional>
 #include <variant>
 
 class TestVideoPlaybackControlPlan : public QObject
@@ -17,73 +13,21 @@ class TestVideoPlaybackControlPlan : public QObject
 
 private Q_SLOTS:
     void emptyPlanReportsEmpty();
-    void wrapperFunctionsRouteThroughRustPolicy();
+    void playRestartsEndedSeekableMedia();
+    void pauseAndStopRespectBackendAvailability();
+    void seekingClampsToDuration();
 };
 
 namespace {
 kiriview::VideoPlaybackControlSnapshot playableSnapshot()
 {
-    return kiriview::VideoPlaybackControlSnapshot {
-        false,
-        true,
-        false,
-        true,
-        true,
-        5000,
-        10000,
-    };
+    return { false, true, false, false, true, 5000, 10000 };
 }
 
-kiriview::RustVideoPlaybackControlSnapshot rustSnapshot(
-    const kiriview::VideoPlaybackControlSnapshot& snapshot)
+template <typename Operation>
+const Operation* operationAt(const kiriview::VideoPlaybackControlPlan& plan, std::size_t index)
 {
-    return kiriview::Bridge::rustVideoPlaybackControlSnapshot(snapshot);
-}
-
-kiriview::VideoPlaybackControlPlan convertedRustPlan(kiriview::RustVideoPlaybackControlPlan plan)
-{
-    return kiriview::Bridge::videoPlaybackControlPlanFromRust(plan);
-}
-
-void compareOptionalBool(std::optional<bool> actual, std::optional<bool> expected)
-{
-    QCOMPARE(actual.has_value(), expected.has_value());
-    if (actual.has_value()) {
-        QCOMPARE(actual.value(), expected.value());
-    }
-}
-
-void compareOptionalPosition(std::optional<qint64> actual, std::optional<qint64> expected)
-{
-    QCOMPARE(actual.has_value(), expected.has_value());
-    if (actual.has_value()) {
-        QCOMPARE(actual.value(), expected.value());
-    }
-}
-
-void comparePlans(const kiriview::VideoPlaybackControlPlan& actual,
-    const kiriview::VideoPlaybackControlPlan& expected)
-{
-    compareOptionalBool(actual.stateDelta.mediaEnded, expected.stateDelta.mediaEnded);
-    compareOptionalBool(actual.stateDelta.playing, expected.stateDelta.playing);
-    compareOptionalPosition(actual.stateDelta.position, expected.stateDelta.position);
-    QCOMPARE(actual.backendOperations.size(), expected.backendOperations.size());
-    for (std::size_t index = 0; index < actual.backendOperations.size(); ++index) {
-        const kiriview::VideoPlaybackBackendOperation& actualOperation
-            = actual.backendOperations.at(index);
-        const kiriview::VideoPlaybackBackendOperation& expectedOperation
-            = expected.backendOperations.at(index);
-        QCOMPARE(actualOperation.index(), expectedOperation.index());
-        const auto* actualSetPosition
-            = std::get_if<kiriview::SetVideoPlaybackPositionOperation>(&actualOperation);
-        if (actualSetPosition != nullptr) {
-            const auto* expectedSetPosition
-                = std::get_if<kiriview::SetVideoPlaybackPositionOperation>(&expectedOperation);
-            QVERIFY(expectedSetPosition != nullptr);
-            QCOMPARE(actualSetPosition->position, expectedSetPosition->position);
-        }
-    }
-    QCOMPARE(actual.isEmpty(), expected.isEmpty());
+    return std::get_if<Operation>(&plan.backendOperations.at(index));
 }
 }
 
@@ -91,37 +35,54 @@ void TestVideoPlaybackControlPlan::emptyPlanReportsEmpty()
 {
     kiriview::VideoPlaybackControlPlan plan;
     QVERIFY(plan.isEmpty());
-
     plan.stateDelta.playing = false;
     QVERIFY(!plan.isEmpty());
 }
 
-void TestVideoPlaybackControlPlan::wrapperFunctionsRouteThroughRustPolicy()
+void TestVideoPlaybackControlPlan::playRestartsEndedSeekableMedia()
 {
     kiriview::VideoPlaybackControlSnapshot snapshot = playableSnapshot();
     snapshot.mediaEnded = true;
-    snapshot.position = 10000;
-    comparePlans(kiriview::videoPlaybackPlayPlan(snapshot),
-        convertedRustPlan(kiriview::rustVideoPlaybackPlayPlan(rustSnapshot(snapshot))));
+    snapshot.position = snapshot.duration;
+    const kiriview::VideoPlaybackControlPlan plan = kiriview::videoPlaybackPlayPlan(snapshot);
 
-    snapshot = playableSnapshot();
-    comparePlans(kiriview::videoPlaybackPausePlan(snapshot),
-        convertedRustPlan(kiriview::rustVideoPlaybackPausePlan(rustSnapshot(snapshot))));
+    QCOMPARE(plan.stateDelta.mediaEnded, std::optional<bool>(false));
+    QCOMPARE(plan.stateDelta.position, std::optional<qint64>(0));
+    QCOMPARE(plan.backendOperations.size(), std::size_t(3));
+    QVERIFY(operationAt<kiriview::EnsureVideoPlaybackBackendOperation>(plan, 0) != nullptr);
+    const auto* position = operationAt<kiriview::SetVideoPlaybackPositionOperation>(plan, 1);
+    QVERIFY(position != nullptr);
+    QCOMPARE(position->position, qint64(0));
+    QVERIFY(operationAt<kiriview::PlayVideoPlaybackOperation>(plan, 2) != nullptr);
+}
 
-    comparePlans(kiriview::videoPlaybackStopPlan(snapshot),
-        convertedRustPlan(kiriview::rustVideoPlaybackStopPlan(rustSnapshot(snapshot))));
+void TestVideoPlaybackControlPlan::pauseAndStopRespectBackendAvailability()
+{
+    kiriview::VideoPlaybackControlSnapshot snapshot = playableSnapshot();
+    snapshot.mediaBackendAvailable = false;
+    QVERIFY(kiriview::videoPlaybackPausePlan(snapshot).isEmpty());
 
-    snapshot.playing = true;
-    comparePlans(kiriview::videoPlaybackTogglePlan(snapshot),
-        convertedRustPlan(kiriview::rustVideoPlaybackTogglePlan(rustSnapshot(snapshot))));
+    const kiriview::VideoPlaybackControlPlan stop = kiriview::videoPlaybackStopPlan(snapshot);
+    QCOMPARE(stop.stateDelta.mediaEnded, std::optional<bool>(false));
+    QCOMPARE(stop.stateDelta.playing, std::optional<bool>(false));
+    QCOMPARE(stop.stateDelta.position, std::optional<qint64>(0));
+    QVERIFY(stop.backendOperations.empty());
+}
 
-    snapshot = playableSnapshot();
-    comparePlans(kiriview::videoPlaybackSetPositionPlan(snapshot, 12000),
-        convertedRustPlan(
-            kiriview::rustVideoPlaybackSetPositionPlan(rustSnapshot(snapshot), 12000)));
+void TestVideoPlaybackControlPlan::seekingClampsToDuration()
+{
+    const kiriview::VideoPlaybackControlSnapshot snapshot = playableSnapshot();
+    const kiriview::VideoPlaybackControlPlan absolute
+        = kiriview::videoPlaybackSetPositionPlan(snapshot, 12000);
+    QCOMPARE(absolute.stateDelta.position, std::optional<qint64>(10000));
+    const auto* absolutePosition
+        = operationAt<kiriview::SetVideoPlaybackPositionOperation>(absolute, 1);
+    QVERIFY(absolutePosition != nullptr);
+    QCOMPARE(absolutePosition->position, qint64(10000));
 
-    comparePlans(kiriview::videoPlaybackSeekByPlan(snapshot, 7000),
-        convertedRustPlan(kiriview::rustVideoPlaybackSeekByPlan(rustSnapshot(snapshot), 7000)));
+    const kiriview::VideoPlaybackControlPlan relative
+        = kiriview::videoPlaybackSeekByPlan(snapshot, -7000);
+    QCOMPARE(relative.stateDelta.position, std::optional<qint64>(0));
 }
 
 QTEST_GUILESS_MAIN(TestVideoPlaybackControlPlan)

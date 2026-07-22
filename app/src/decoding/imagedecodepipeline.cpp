@@ -4,11 +4,10 @@
 #include "imagedecodepipeline.h"
 
 #include "apnganimationreader.h"
-#include "bridge/rustqtconversion.h"
+#include "avifcompatibility.h"
 #include "heifdecoder.h"
 #include "imagedecodelogging.h"
 #include "jxlanimationreader.h"
-#include "kiriview/src/policy/avifcompat.cxx.h"
 #include "localization/imageerrortext.h"
 #include "location/sourcekey.h"
 #include "metadata/embeddedmetadata.h"
@@ -128,8 +127,7 @@ const char* qtRasterFormatName(kiriview::QtRasterFormat format)
 
 QByteArray avifCompatibleImageData(const QByteArray& data)
 {
-    return kiriview::Bridge::qtByteArray(
-        kiriview::avifDataWithCompatibilityFixes(kiriview::Bridge::rustBytes(data)));
+    return kiriview::avifDataWithCompatibilityFixes(data);
 }
 
 class ImageDecodeRouterByteInputs

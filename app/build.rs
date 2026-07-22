@@ -9,7 +9,7 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-const RUST_BRIDGE_SOURCES_FILE: &str = "src/rust_bridge_sources.txt";
+const RUST_BRIDGE_SOURCES_FILE: &str = "src/rust_support_bridge_sources.txt";
 
 fn main() {
     println!("cargo::rerun-if-env-changed=KIRIVIEW_CXXBRIDGE_OUTPUT_DIR");
@@ -88,7 +88,7 @@ fn validate_source_manifest_path(manifest: &str, source: &str) {
                 Component::ParentDir | Component::RootDir | Component::Prefix(_)
             )
         })
-        || !path.starts_with("src/policy")
+        || !path.starts_with("src/support")
         || path.extension().and_then(|value| value.to_str()) != Some("rs")
         || !path.exists()
     {

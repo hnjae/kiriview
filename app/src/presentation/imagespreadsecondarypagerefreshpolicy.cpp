@@ -3,15 +3,24 @@
 
 #include "presentation/imagespreadsecondarypagerefreshpolicy.h"
 
-#include "bridge/imagespreadpolicyconversion.h"
-#include "kiriview/src/policy/imagespreadpolicy.cxx.h"
+#include <limits>
 
 namespace kiriview {
 ImageSpreadSecondaryPageRefreshPlan imageSpreadSecondaryPageRefreshPlan(
     ImageSpreadSecondaryPageRefreshState state)
 {
-    const RustImageSpreadSecondaryPageRefreshPlan plan = rustImageSpreadSecondaryPageRefreshPlan(
-        Bridge::rustImageSpreadSecondaryPageRefreshState(state));
-    return Bridge::imageSpreadSecondaryPageRefreshPlanFromRust(plan);
+    if (state.currentPageNumber == std::numeric_limits<int>::max()) {
+        return {};
+    }
+    const int nextPageNumber = state.currentPageNumber + 1;
+    if (!state.twoPageModeActive || state.currentPageNumber == 1 || state.primaryPageIsWide
+        || nextPageNumber <= 1 || nextPageNumber > state.pageCount || !state.nextPageAvailable
+        || state.nextPageIsWide) {
+        return {};
+    }
+    return { state.currentSecondaryMatchesNext
+            ? ImageSpreadSecondaryPageDecision::KeepCurrentSecondary
+            : ImageSpreadSecondaryPageDecision::LoadNext,
+        nextPageNumber };
 }
 }

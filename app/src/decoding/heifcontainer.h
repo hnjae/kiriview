@@ -5,8 +5,15 @@
 #define KIRIVIEW_HEIFCONTAINER_H
 
 #include <QByteArray>
+#include <QByteArrayView>
 
 namespace kiriview {
+enum class HeifBrandKind {
+    Unknown,
+    StillImage,
+    ImageSequence,
+};
+
 struct HeifContainerInfo
 {
     bool stillImage = false;
@@ -16,6 +23,7 @@ struct HeifContainerInfo
 };
 
 HeifContainerInfo heifContainerInfo(const QByteArray& data);
+HeifBrandKind heifBrandKind(QByteArrayView brand);
 bool isLikelyHeifContainer(const QByteArray& data);
 bool isLikelyHeifStillImageContainer(const QByteArray& data);
 }

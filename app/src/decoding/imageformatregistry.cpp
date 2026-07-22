@@ -3,20 +3,24 @@
 
 #include "imageformatregistry.h"
 
-#include "bridge/rustqtconversion.h"
-#include "kiriview/src/policy/imageformatregistry.cxx.h"
+#include "archive/archiveformat.h"
+#include "format/supportedmediaformats.h"
 
 #include <KLocalizedString>
 
 namespace kiriview {
 QStringList supportedOpenExtensions()
 {
-    return Bridge::qtStringList(rustSupportedOpenExtensions());
+    QStringList extensions = SupportedMediaFormats::imageExtensions();
+    extensions.append(supportedComicBookArchiveExtensions());
+    extensions.sort();
+    extensions.removeDuplicates();
+    return extensions;
 }
 
 bool isSupportedImageFileName(const QString& name)
 {
-    return Bridge::rustResultForQString(name, rustIsSupportedImageFileName);
+    return SupportedMediaFormats::isSupportedImageFileName(name);
 }
 
 QStringList openDialogNameFilters()

@@ -3,40 +3,50 @@
 
 #include "archivepath.h"
 
-#include "bridge/rustqtconversion.h"
-#include "kiriview/src/policy/archivepath.cxx.h"
+#include "archive/archiveformat.h"
 #include "location/imagelocation.h"
 
-#include <QByteArray>
+#include <QDir>
 #include <optional>
 
 namespace {
-QString rustStringForQString(const QString& value, rust::String (*rustFunction)(rust::Str))
-{
-    return kiriview::Bridge::qtString(kiriview::Bridge::rustResultForQString(value, rustFunction));
-}
+QString cleanPath(const QString& path) { return QDir::cleanPath(path); }
 }
 
 namespace kiriview {
 QString normalizedArchiveRootPath(const QUrl& archiveRootUrl)
 {
-    return rustStringForQString(archiveRootUrl.path(), rustNormalizedArchiveRootPath);
+    QString path = cleanPath(archiveRootUrl.path());
+    if (!path.endsWith(u'/')) {
+        path.append(u'/');
+    }
+    return path;
 }
 
 QString normalizedArchiveEntryPath(const QString& entryPath)
 {
-    return rustStringForQString(entryPath, rustNormalizedArchiveEntryPath);
+    QString path = cleanPath(entryPath);
+    while (path.startsWith(QStringLiteral("./"))) {
+        path.remove(0, 2);
+    }
+    if (path == QStringLiteral(".") || path == QStringLiteral("..")
+        || path.startsWith(QStringLiteral("../")) || path.startsWith(u'/')) {
+        return {};
+    }
+    return path;
 }
 
 QString archiveRelativePathForUrl(const QUrl& archiveRootUrl, const QUrl& url)
 {
-    const QByteArray archiveRootScheme = archiveRootUrl.scheme().toUtf8();
-    const QByteArray archiveRootPath = archiveRootUrl.path().toUtf8();
-    const QByteArray urlScheme = url.scheme().toUtf8();
-    const QByteArray urlPath = url.path().toUtf8();
-    return Bridge::qtString(rustArchiveRelativePathForUrl(archiveRootUrl.isEmpty(),
-        Bridge::rustStr(archiveRootScheme), Bridge::rustStr(archiveRootPath), url.isEmpty(),
-        Bridge::rustStr(urlScheme), Bridge::rustStr(urlPath)));
+    if (archiveRootUrl.isEmpty() || url.isEmpty() || archiveRootUrl.scheme() != url.scheme()) {
+        return {};
+    }
+    const QString rootPath = normalizedArchiveRootPath(archiveRootUrl);
+    const QString path = cleanPath(url.path());
+    if (path.size() <= rootPath.size() || !path.startsWith(rootPath)) {
+        return {};
+    }
+    return path.sliced(rootPath.size());
 }
 
 QString openedCollectionEntryPathForUrl(
@@ -68,18 +78,35 @@ QUrl openedCollectionEntryUrl(
 std::optional<KioFuseArchivePath> kioFuseArchivePath(
     const QString& localPath, const QString& runtimeDir)
 {
-    const QByteArray localPathBytes = localPath.toUtf8();
-    const QByteArray runtimeDirBytes = runtimeDir.toUtf8();
-    const RustKioFuseArchivePath archivePath
-        = rustKioFuseArchivePath(Bridge::rustStr(localPathBytes), Bridge::rustStr(runtimeDirBytes));
-    if (!archivePath.found) {
+    constexpr QStringView marker = u"/kio-fuse-";
+    const QString path = cleanPath(localPath);
+    qsizetype markerIndex = -1;
+    if (runtimeDir.isEmpty()) {
+        markerIndex = path.indexOf(marker);
+    } else {
+        const QString prefix = cleanPath(runtimeDir) + marker;
+        if (path.startsWith(prefix)) {
+            markerIndex = prefix.size() - marker.size();
+        }
+    }
+    if (markerIndex < 0) {
         return std::nullopt;
     }
-
-    return KioFuseArchivePath {
-        Bridge::qtString(archivePath.scheme),
-        Bridge::qtString(archivePath.path),
-    };
+    const qsizetype mountNameStart = markerIndex + marker.size();
+    const qsizetype mountEnd = path.indexOf(u'/', mountNameStart);
+    if (mountEnd < 0 || mountEnd == path.size() - 1) {
+        return std::nullopt;
+    }
+    const QString relativePath = path.sliced(mountEnd + 1);
+    const qsizetype schemeEnd = relativePath.indexOf(u'/');
+    if (schemeEnd <= 0 || schemeEnd == relativePath.size() - 1) {
+        return std::nullopt;
+    }
+    const QString scheme = relativePath.first(schemeEnd);
+    if (!archiveRootSchemeUsesKioFuse(scheme)) {
+        return std::nullopt;
+    }
+    return KioFuseArchivePath { scheme, relativePath.sliced(schemeEnd) };
 }
 
 std::optional<QUrl> kioFuseArchiveUrlForLocalPath(

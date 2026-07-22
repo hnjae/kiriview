@@ -3,37 +3,51 @@
 
 #include "cache/imagecachepolicy.h"
 
-#include "bridge/rustqtconversion.h"
-#include "kiriview/src/policy/cachebudget.cxx.h"
+#include <algorithm>
+
+namespace {
+constexpr qsizetype displayImageCacheSystemMemoryDivisor = 16;
+constexpr qsizetype displayImageCachePreferredBudget = qsizetype { 512 } * 1024 * 1024;
+constexpr qsizetype predecodeCachePreferredBudget = qsizetype { 1024 } * 1024 * 1024;
+constexpr qsizetype predecodeCacheSystemMemoryDivisor = 8;
+constexpr qsizetype thumbnailCachePreferredBudget = qsizetype { 64 } * 1024 * 1024;
+constexpr qsizetype thumbnailCacheSystemMemoryDivisor = 64;
+
+qsizetype systemMemoryCappedByteBudget(
+    qsizetype preferredByteBudget, qsizetype systemMemoryByteSize, qsizetype memoryDivisor)
+{
+    if (preferredByteBudget <= 0) {
+        return 0;
+    }
+    if (systemMemoryByteSize <= 0 || memoryDivisor <= 0) {
+        return preferredByteBudget;
+    }
+    return std::min(preferredByteBudget, systemMemoryByteSize / memoryDivisor);
+}
+}
 
 namespace kiriview {
 qsizetype displayImageCacheByteBudgetForSystemMemory(
     qsizetype systemMemoryByteSize, qsizetype preferredByteBudget)
 {
-    return Bridge::qtByteSize(rustDisplayImageCacheByteBudgetForSystemMemory(
-        Bridge::rustByteSize(systemMemoryByteSize), Bridge::rustByteSize(preferredByteBudget)));
+    return systemMemoryCappedByteBudget(
+        preferredByteBudget, systemMemoryByteSize, displayImageCacheSystemMemoryDivisor);
 }
 
-qsizetype displayImageCachePreferredByteBudget()
-{
-    return Bridge::qtByteSize(rustDisplayImageCachePreferredByteBudget());
-}
+qsizetype displayImageCachePreferredByteBudget() { return displayImageCachePreferredBudget; }
 
 qsizetype predecodeCacheByteBudgetForSystemMemory(qsizetype systemMemoryByteSize)
 {
-    return Bridge::qtByteSize(
-        rustPredecodeCacheByteBudgetForSystemMemory(Bridge::rustByteSize(systemMemoryByteSize)));
+    return systemMemoryCappedByteBudget(
+        predecodeCachePreferredBudget, systemMemoryByteSize, predecodeCacheSystemMemoryDivisor);
 }
 
-qsizetype thumbnailCachePreferredByteBudget()
-{
-    return Bridge::qtByteSize(rustThumbnailCachePreferredByteBudget());
-}
+qsizetype thumbnailCachePreferredByteBudget() { return thumbnailCachePreferredBudget; }
 
 qsizetype thumbnailCacheByteBudgetForSystemMemory(qsizetype systemMemoryByteSize)
 {
-    return Bridge::qtByteSize(
-        rustThumbnailCacheByteBudgetForSystemMemory(Bridge::rustByteSize(systemMemoryByteSize)));
+    return systemMemoryCappedByteBudget(
+        thumbnailCachePreferredBudget, systemMemoryByteSize, thumbnailCacheSystemMemoryDivisor);
 }
 
 ImageCacheBudgets resolvedImageCacheBudgets(

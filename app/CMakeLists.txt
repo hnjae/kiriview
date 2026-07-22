@@ -75,7 +75,7 @@ kiriview_read_source_manifest(kiriview_qml_cpp_sources
 kiriview_read_source_manifest(kiriview_qml_headers
                               "${CMAKE_CURRENT_SOURCE_DIR}/src/cpp_qml_header_sources.txt")
 file(GLOB_RECURSE kiriview_rust_sources CONFIGURE_DEPENDS
-     "${CMAKE_CURRENT_SOURCE_DIR}/src/policy/*.rs")
+     "${CMAKE_CURRENT_SOURCE_DIR}/src/support/*.rs")
 
 set(KIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR
     ""
@@ -109,7 +109,8 @@ else()
 endif()
 set(kiriview_rust_archive "${KIRIVIEW_CARGO_TARGET_DIR}/${kiriview_rust_profile}/libkiriview.a")
 
-file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/rust_bridge_sources.txt" kiriview_rust_bridge_entries)
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/rust_support_bridge_sources.txt"
+     kiriview_rust_bridge_entries)
 set(kiriview_generated_bridge_sources)
 set(kiriview_generated_bridge_headers)
 foreach(entry IN LISTS kiriview_rust_bridge_entries)
@@ -138,27 +139,28 @@ add_custom_command(
         "KIRIVIEW_CXXBRIDGE_TRIGGER=${KIRIVIEW_CXXBRIDGE_TRIGGER}" "${CARGO_EXECUTABLE}"
         ${kiriview_cargo_arguments}
     COMMAND "${CMAKE_COMMAND}" -E touch "${CMAKE_CURRENT_BINARY_DIR}/rust-bridge.stamp"
-    DEPENDS Cargo.toml Cargo.lock build.rs src/lib.rs src/rust_bridge_sources.txt
+    DEPENDS Cargo.toml Cargo.lock build.rs src/lib.rs src/rust_support_bridge_sources.txt
             ${kiriview_rust_sources}
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     VERBATIM)
 add_custom_target(
-    KiriViewRustArtifacts
+    KiriViewRustSupportArtifacts
     DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/rust-bridge.stamp" "${kiriview_rust_archive}"
             "${KIRIVIEW_CXXBRIDGE_OUTPUT_DIR}/rust/cxx.h" ${kiriview_generated_bridge_headers}
             ${kiriview_generated_bridge_sources})
 
-add_library(KiriViewRustArchive STATIC IMPORTED GLOBAL)
-set_target_properties(KiriViewRustArchive PROPERTIES IMPORTED_LOCATION "${kiriview_rust_archive}")
-add_dependencies(KiriViewRustArchive KiriViewRustArtifacts)
+add_library(KiriViewRustSupportArchive STATIC IMPORTED GLOBAL)
+set_target_properties(KiriViewRustSupportArchive PROPERTIES IMPORTED_LOCATION
+                                                            "${kiriview_rust_archive}")
+add_dependencies(KiriViewRustSupportArchive KiriViewRustSupportArtifacts)
 
 set_source_files_properties(${kiriview_generated_bridge_sources} PROPERTIES GENERATED TRUE)
-add_library(KiriViewRustBridge STATIC ${kiriview_generated_bridge_sources})
-add_dependencies(KiriViewRustBridge KiriViewRustArtifacts)
-target_compile_features(KiriViewRustBridge PUBLIC cxx_std_23)
-set_target_properties(KiriViewRustBridge PROPERTIES CXX_EXTENSIONS OFF)
-target_include_directories(KiriViewRustBridge PUBLIC "${KIRIVIEW_CXXBRIDGE_OUTPUT_DIR}")
-target_link_libraries(KiriViewRustBridge PUBLIC KiriViewRustArchive)
+add_library(KiriViewRustSupportBridge STATIC ${kiriview_generated_bridge_sources})
+add_dependencies(KiriViewRustSupportBridge KiriViewRustSupportArtifacts)
+target_compile_features(KiriViewRustSupportBridge PUBLIC cxx_std_23)
+set_target_properties(KiriViewRustSupportBridge PROPERTIES CXX_EXTENSIONS OFF)
+target_include_directories(KiriViewRustSupportBridge PUBLIC "${KIRIVIEW_CXXBRIDGE_OUTPUT_DIR}")
+target_link_libraries(KiriViewRustSupportBridge PUBLIC KiriViewRustSupportArchive)
 
 add_library(KiriViewCore STATIC ${kiriview_core_sources} ${kiriview_qml_cpp_sources})
 target_compile_features(KiriViewCore PUBLIC cxx_std_23)
@@ -170,7 +172,7 @@ target_compile_definitions(KiriViewCore PUBLIC TRANSLATION_DOMAIN="kiriview")
 target_link_libraries(
     KiriViewCore
     PUBLIC ImageViewport
-           KiriViewRustBridge
+           KiriViewRustSupportBridge
            Qt6::Core
            Qt6::DBus
            Qt6::Gui

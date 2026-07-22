@@ -4,7 +4,8 @@
 #include "cache/imagebytecost.h"
 
 #include "cache/imagebyteaccounting.h"
-#include "kiriview/src/policy/imagebytecost.cxx.h"
+
+#include <limits>
 
 namespace kiriview {
 qsizetype imageByteCost(const QImage& image)
@@ -17,6 +18,15 @@ qsizetype imageByteCost(const QImage& image)
 
 qsizetype estimatedRgbaByteCost(QSize size)
 {
-    return saturatedQtByteSize(rustEstimatedRgbaByteCost(size.width(), size.height()));
+    if (size.isEmpty()) {
+        return 0;
+    }
+    constexpr qsizetype bytesPerPixel = 4;
+    const qsizetype width = size.width();
+    const qsizetype height = size.height();
+    if (width > std::numeric_limits<qsizetype>::max() / height / bytesPerPixel) {
+        return std::numeric_limits<qsizetype>::max();
+    }
+    return width * height * bytesPerPixel;
 }
 }

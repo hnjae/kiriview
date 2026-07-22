@@ -3,28 +3,15 @@
 
 #include "imagedocumentpagenavigationpolicy.h"
 
-#include "kiriview/src/policy/imagedocumentpagenavigation.cxx.h"
 #include "location/imageurl.h"
 #include "navigationcandidateordering.h"
 
 #include <algorithm>
 #include <cstddef>
-#include <cstdint>
+#include <limits>
 #include <utility>
 
 namespace {
-kiriview::RustNavigationDirection rustNavigationDirection(kiriview::NavigationDirection direction)
-{
-    switch (direction) {
-    case kiriview::NavigationDirection::Previous:
-        return kiriview::RustNavigationDirection::Previous;
-    case kiriview::NavigationDirection::Next:
-        return kiriview::RustNavigationDirection::Next;
-    }
-
-    return kiriview::RustNavigationDirection::Next;
-}
-
 std::optional<std::size_t> currentUrlIndex(const std::vector<QUrl>& urls, const QUrl& currentUrl)
 {
     const auto current = std::find_if(urls.cbegin(), urls.cend(),
@@ -36,18 +23,11 @@ std::optional<std::size_t> currentUrlIndex(const std::vector<QUrl>& urls, const 
     return static_cast<std::size_t>(std::distance(urls.cbegin(), current));
 }
 
-std::optional<std::size_t> pageNavigationIndexValue(kiriview::RustNavigationIndex index)
+int boundedIndex(std::size_t index)
 {
-    if (!index.found) {
-        return std::nullopt;
-    }
-
-    return index.index;
-}
-
-kiriview::RustNavigationIndex pageRustNavigationIndex(std::optional<std::size_t> index)
-{
-    return kiriview::RustNavigationIndex { index.has_value(), index.value_or(0) };
+    return index > static_cast<std::size_t>(std::numeric_limits<int>::max())
+        ? std::numeric_limits<int>::max()
+        : static_cast<int>(index);
 }
 }
 
@@ -176,30 +156,43 @@ std::optional<ImageDocumentPageTarget> pageNavigationTargetAtPage(
 std::optional<std::size_t> pageNavigationTargetIndex(
     const PageNavigationState& state, int pageNumber)
 {
-    return pageNavigationIndexValue(
-        rustPageNavigationTargetIndex(state.targets.size(), state.currentIndex, pageNumber));
+    if (pageNumber < 1) {
+        return std::nullopt;
+    }
+    const std::size_t index = static_cast<std::size_t>(pageNumber - 1);
+    if (index >= state.targets.size()
+        || (state.currentIndex >= 0 && index == static_cast<std::size_t>(state.currentIndex))) {
+        return std::nullopt;
+    }
+    return index;
 }
 
 std::optional<std::size_t> pageNavigationAdjacentTargetIndex(
     const PageNavigationState& state, NavigationDirection direction)
 {
-    return pageNavigationIndexValue(rustPageNavigationAdjacentTargetIndex(
-        state.targets.size(), state.currentIndex, rustNavigationDirection(direction)));
+    if (!pageNavigationHasKnownSelection(state)) {
+        return std::nullopt;
+    }
+    const std::size_t current = static_cast<std::size_t>(state.currentIndex);
+    if (direction == NavigationDirection::Previous) {
+        return current == 0 ? std::nullopt : std::optional<std::size_t>(current - 1);
+    }
+    return current + 1 < state.targets.size() ? std::optional<std::size_t>(current + 1)
+                                              : std::nullopt;
 }
 
 PageNavigationState pageNavigationStateForCurrentUrl(
     const PageNavigationState& knownState, const QUrl& currentUrl)
 {
     const std::vector<QUrl> knownUrls = imageDocumentPageTargetUrls(knownState.targets);
-    const RustPageNavigationPreviewState preview = rustPageNavigationPreviewState(
-        pageRustNavigationIndex(currentUrlIndex(knownUrls, currentUrl)),
-        currentUrl.isValid() && !currentUrl.isEmpty(), knownState.targets.size());
-
-    if (!preview.keep_known_urls) {
+    const std::optional<std::size_t> current = currentUrlIndex(knownUrls, currentUrl);
+    if (current.has_value()) {
+        return PageNavigationState { knownState.targets, boundedIndex(*current) };
+    }
+    if (!currentUrl.isValid() || currentUrl.isEmpty() || knownState.targets.empty()) {
         return {};
     }
-
-    return PageNavigationState { knownState.targets, preview.current_index };
+    return PageNavigationState { knownState.targets, -1 };
 }
 
 PageNavigationState pageNavigationStateForTargets(
@@ -207,16 +200,18 @@ PageNavigationState pageNavigationStateForTargets(
 {
     PageNavigationState state { std::move(targets), -1 };
     std::vector<QUrl> urls = imageDocumentPageTargetUrls(state.targets);
-    const RustPageNavigationUpdate update
-        = rustPageNavigationStateUpdate(pageRustNavigationIndex(currentUrlIndex(urls, currentUrl)),
-            currentUrl.isValid() && !currentUrl.isEmpty(), state.targets.size());
-    if (update.insert_current_url) {
+    const std::optional<std::size_t> current = currentUrlIndex(urls, currentUrl);
+    if (current.has_value()) {
+        state.currentIndex = boundedIndex(*current);
+        return state;
+    }
+    if (currentUrl.isValid() && !currentUrl.isEmpty() && state.targets.empty()) {
         const QUrl normalizedUrl = normalizedImageUrl(currentUrl);
         state.targets.insert(state.targets.begin(),
             ImageDocumentPageTarget { normalizedUrl, ImageDocumentPageKind::Image,
                 normalizedUrl.fileName(QUrl::PrettyDecoded) });
+        state.currentIndex = 0;
     }
-    state.currentIndex = update.current_index;
 
     return state;
 }

@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 KIM Hyunjae
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+src/support/apnganimationreader.rs
+src/support/embeddedmetadata.rs
+src/support/svgrenderer.rs
+src/support/thumbnailcache.rs

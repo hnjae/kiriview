@@ -5,7 +5,7 @@
 
 #include "bridge/rustqtconversion.h"
 #include "imagerendering.h"
-#include "kiriview/src/policy/svgrenderer.cxx.h"
+#include "kiriview/src/support/svgrenderer.cxx.h"
 #include "localization/imageerrortext.h"
 #include "staticimagedisplaysourcehelpers_p.h"
 

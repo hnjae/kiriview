@@ -8,7 +8,7 @@
 #include "bridge/rustqtconversion.h"
 #include "decoding/decodedimageresult.h"
 #include "decoding/kiriimagedecoder.h"
-#include "kiriview/src/policy/thumbnailcache.cxx.h"
+#include "kiriview/src/support/thumbnailcache.cxx.h"
 #include "rendering/staticimage.h"
 #include "thumbnail/thumbnailcachelookup.h"
 

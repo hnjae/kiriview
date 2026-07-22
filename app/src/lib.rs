@@ -1,78 +1,12 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Application policy.
-#[path = "policy/imageactionavailability.rs"]
-mod imageactionavailability;
-
-// Archive policy.
-#[path = "policy/archiveformat.rs"]
-mod archiveformat;
-#[path = "policy/archivepath.rs"]
-mod archivepath;
-
-// Cache policy.
-#[path = "policy/cachebudget.rs"]
-mod cachebudget;
-#[path = "policy/imagebytecost.rs"]
-mod imagebytecost;
-#[path = "policy/thumbnailcache.rs"]
-mod thumbnailcache;
-
-// Decoding and format policy.
-#[path = "policy/apnganimationreader.rs"]
+// Capability implementations behind the allowlisted C++ support boundary.
+#[path = "support/apnganimationreader.rs"]
 mod apnganimationreader;
-#[path = "policy/avifcompat.rs"]
-mod avifcompat;
-#[path = "policy/bmff.rs"]
-mod bmff;
-#[path = "policy/byteio.rs"]
-mod byteio;
-#[path = "policy/embeddedmetadata.rs"]
+#[path = "support/embeddedmetadata.rs"]
 mod embeddedmetadata;
-#[path = "policy/fileextension.rs"]
-mod fileextension;
-#[path = "policy/heifbrands.rs"]
-mod heifbrands;
-#[path = "policy/heifcontainer.rs"]
-mod heifcontainer;
-#[path = "policy/heiftiling.rs"]
-mod heiftiling;
-#[path = "policy/imageformatregistry.rs"]
-mod imageformatregistry;
-#[path = "policy/imageinputclassification.rs"]
-mod imageinputclassification;
-#[path = "policy/mediaformatregistry.rs"]
-mod mediaformatregistry;
-#[path = "policy/videoformatregistry.rs"]
-mod videoformatregistry;
-
-// Document workflow policy.
-#[path = "policy/imageopenworkflow.rs"]
-mod imageopenworkflow;
-
-// Video document policy.
-#[path = "policy/videodocumentpolicy.rs"]
-mod videodocumentpolicy;
-
-// Navigation policy.
-#[path = "policy/activenavigation.rs"]
-mod activenavigation;
-#[path = "policy/imagedocumentpagenavigation.rs"]
-mod imagedocumentpagenavigation;
-
-// Predecode policy.
-#[path = "policy/predecodepolicy.rs"]
-mod predecodepolicy;
-
-// Presentation policy.
-#[path = "policy/imagespreadnavigation.rs"]
-mod imagespreadnavigation;
-#[path = "policy/imagespreadpolicy.rs"]
-mod imagespreadpolicy;
-
-// Rendering policy.
-#[path = "policy/imagerendergeometry.rs"]
-mod imagerendergeometry;
-#[path = "policy/svgrenderer.rs"]
+#[path = "support/svgrenderer.rs"]
 mod svgrenderer;
+#[path = "support/thumbnailcache.rs"]
+mod thumbnailcache;

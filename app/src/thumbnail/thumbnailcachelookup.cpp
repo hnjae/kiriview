@@ -5,7 +5,7 @@
 
 #include "async/imageioworkerjob.h"
 #include "bridge/rustqtconversion.h"
-#include "kiriview/src/policy/thumbnailcache.cxx.h"
+#include "kiriview/src/support/thumbnailcache.cxx.h"
 
 #include <QImage>
 #include <cstdint>

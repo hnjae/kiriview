@@ -326,7 +326,7 @@ impl RustEmbeddedMetadata {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{fs, time::SystemTime};
+    use std::fs;
 
     const TIFF_HEADER_SIZE: u32 = 8;
     const IFD_ENTRY_SIZE: u32 = 12;
@@ -537,6 +537,8 @@ mod tests {
         test_exif_jpeg_builder()
             .ascii(0x010f, "Kiri Camera Co.")
             .ascii(0x0110, "KiriCam 1")
+            .ascii(0x010e, "Advanced note")
+            .ascii(0x013c, "")
             .ascii(0x0131, "KiriOS Camera")
             .ascii(0x9003, "2026:05:31 12:34:56")
             .ascii(0xa434, "Kiri Prime 35mm")
@@ -589,17 +591,6 @@ mod tests {
         data
     }
 
-    fn unique_temp_path(file_name: &str) -> std::path::PathBuf {
-        let unique = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .expect("system time should be after UNIX epoch")
-            .as_nanos();
-        std::env::temp_dir().join(format!(
-            "kiriview-{}-{unique}-{file_name}",
-            std::process::id()
-        ))
-    }
-
     #[test]
     fn invalid_image_bytes_return_empty_metadata() {
         let metadata = parse_image_metadata(b"not an image");
@@ -631,6 +622,26 @@ mod tests {
     #[test]
     fn advanced_rows_skip_curated_and_empty_values() {
         let metadata = parse_image_metadata(&jpeg_with_exif_metadata());
+        let curated_labels: BTreeSet<String> = [
+            ExifTag::Make,
+            ExifTag::Model,
+            ExifTag::DateTimeOriginal,
+            ExifTag::CreateDate,
+            ExifTag::GPSInfo,
+            ExifTag::GPSLatitudeRef,
+            ExifTag::GPSLatitude,
+            ExifTag::GPSLongitudeRef,
+            ExifTag::GPSLongitude,
+            ExifTag::LensModel,
+            ExifTag::ExposureTime,
+            ExifTag::FNumber,
+            ExifTag::ISOSpeedRatings,
+            ExifTag::FocalLength,
+            ExifTag::Software,
+        ]
+        .into_iter()
+        .map(|tag| tag.to_string())
+        .collect();
 
         assert!(
             metadata
@@ -642,24 +653,49 @@ mod tests {
             metadata
                 .advanced_rows
                 .iter()
-                .all(|row| row.label != "Make" && row.label != "Model")
+                .all(|row| !curated_labels.contains(&row.label))
+        );
+        assert!(
+            metadata
+                .advanced_rows
+                .iter()
+                .any(|row| row.label == ExifTag::ImageDescription.to_string()
+                    && row.value == "Advanced note")
+        );
+        assert!(
+            metadata
+                .advanced_rows
+                .iter()
+                .all(|row| row.label != ExifTag::HostComputer.to_string())
         );
     }
 
     #[test]
     fn missing_video_path_returns_empty_metadata() {
-        let metadata = parse_path_metadata("/tmp/kiriview-missing-video.mp4");
+        let temp = tempfile::TempDir::new().expect("temporary directory should be created");
+        let missing = temp.path().join("missing-video.mp4");
+        let metadata = parse_path_metadata(
+            missing
+                .to_str()
+                .expect("temporary path should be valid UTF-8"),
+        );
 
         assert!(metadata.is_empty());
     }
 
     #[test]
     fn direct_video_track_metadata_is_curated() {
-        let path = unique_temp_path("metadata.mp4");
-        fs::write(&path, tiny_metadata_mp4()).expect("test mp4 should be written");
+        let file = tempfile::Builder::new()
+            .suffix(".mp4")
+            .tempfile()
+            .expect("temporary video should be created");
+        fs::write(file.path(), tiny_metadata_mp4()).expect("test mp4 should be written");
 
-        let metadata = parse_path_metadata(path.to_str().expect("test path should be UTF-8"));
-        let _ = fs::remove_file(path);
+        let metadata = parse_path_metadata(
+            file.path()
+                .to_str()
+                .expect("temporary path should be valid UTF-8"),
+        );
 
         assert_eq!(metadata.duration, "00:00:01.234");
         assert_eq!(metadata.frame_size, "640×360 px");

@@ -3,14 +3,11 @@
 
 #include "presentation/imagespreadmodepolicy.h"
 
-#include "bridge/imagespreadpolicyconversion.h"
-#include "kiriview/src/policy/imagespreadpolicy.cxx.h"
-
 namespace kiriview {
 bool imageSpreadReadingControlsAvailable(ImageSpreadReadingAvailability availability)
 {
-    return rustImageSpreadReadingControlsAvailable(
-        Bridge::rustImageSpreadReadingAvailability(availability));
+    return availability.hasImage && availability.hasDisplayedImage
+        && availability.displayedDocumentIsComicBook;
 }
 
 }

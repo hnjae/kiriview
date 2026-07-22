@@ -4,11 +4,10 @@
 #include "location/imagedocumentlocation.h"
 
 #include "archive/archiveformat.h"
-#include "bridge/rustqtconversion.h"
-#include "kiriview/src/policy/archivepath.cxx.h"
+#include "archive/archivepath.h"
 #include "location/imageurl.h"
 
-#include <QByteArray>
+#include <QDir>
 #include <optional>
 
 namespace {
@@ -18,32 +17,21 @@ struct ArchiveCollectionRoot
     kiriview::OpenedCollectionScopeKind kind = kiriview::OpenedCollectionScopeKind::GeneralArchive;
 };
 
-struct UrlParts
-{
-    QByteArray scheme;
-    QByteArray path;
-    bool empty = true;
-};
-
-UrlParts urlParts(const QUrl& url)
-{
-    return UrlParts { url.scheme().toUtf8(), url.path().toUtf8(), url.isEmpty() };
-}
-
 std::optional<QUrl> archiveRootUrlForLocalArchive(const QUrl& url, const QString& archiveScheme)
 {
-    const QByteArray archiveSchemeBytes = archiveScheme.toUtf8();
-    const QByteArray localPathBytes = url.toLocalFile().toUtf8();
-    const kiriview::RustArchiveRootPath rootPath = kiriview::rustArchiveRootPathForLocalArchive(
-        url.isLocalFile(), kiriview::Bridge::rustStr(archiveSchemeBytes),
-        kiriview::Bridge::rustStr(localPathBytes));
-    if (!rootPath.found) {
+    if (!url.isLocalFile() || archiveScheme.isEmpty()) {
+        return std::nullopt;
+    }
+    const QString localPath = QDir::cleanPath(url.toLocalFile());
+    if (localPath.isEmpty()) {
         return std::nullopt;
     }
 
     QUrl archiveRootUrl;
     archiveRootUrl.setScheme(archiveScheme);
-    archiveRootUrl.setPath(kiriview::Bridge::qtString(rootPath.path));
+    QUrl pathUrl;
+    pathUrl.setPath(localPath);
+    archiveRootUrl.setPath(kiriview::normalizedArchiveRootPath(pathUrl));
     if (!archiveRootUrl.isValid() || archiveRootUrl.path().isEmpty()) {
         return std::nullopt;
     }
@@ -110,17 +98,6 @@ QUrl openedCollectionScopeSourceNavigationUrl(const kiriview::DisplayedImageLoca
         location.openedCollectionScope().navigationSourceUrl());
 }
 
-bool openedCollectionScopeContainsUrlInRust(
-    const kiriview::OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& url)
-{
-    const UrlParts root = urlParts(openedCollectionScope.rootUrl());
-    const UrlParts candidate = urlParts(url);
-    return kiriview::rustOpenedCollectionScopeContainsUrl(openedCollectionScope.isEmpty(),
-        root.empty, kiriview::Bridge::rustStr(root.scheme), kiriview::Bridge::rustStr(root.path),
-        candidate.empty, kiriview::Bridge::rustStr(candidate.scheme),
-        kiriview::Bridge::rustStr(candidate.path));
-}
-
 }
 
 namespace kiriview {
@@ -153,7 +130,8 @@ std::optional<OpenedCollectionScopeLocation> openedCollectionScopeLocationForRes
 bool openedCollectionScopeContainsUrl(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& url)
 {
-    return openedCollectionScopeContainsUrlInRust(openedCollectionScope, url);
+    return !openedCollectionScope.isEmpty()
+        && !archiveRelativePathForUrl(openedCollectionScope.rootUrl(), url).isEmpty();
 }
 
 bool displayedLocationIsInsideOpenedCollectionScope(const DisplayedImageLocation& location)

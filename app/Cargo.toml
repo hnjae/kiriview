@@ -6,10 +6,10 @@ license = "AGPL-3.0-or-later"
 publish = false
 
 [lib]
-crate-type = ["rlib", "staticlib"]
+crate-type = ["staticlib"]
 
 [dependencies]
-cxx = "1.0.192"
+cxx = "1.0.198"
 nom-exif = { version = "3.6.0", default-features = false }
 png = "0.18.1"
 resvg = "0.47.0"
@@ -19,5 +19,5 @@ xdg-thumbnail = "0.1.0"
 tempfile = "3.27.0"
 
 [build-dependencies]
-cxx-gen = "0.7.194"
-proc-macro2 = "1.0.106"
+cxx-gen = "0.7.198"
+proc-macro2 = "1.0.107"

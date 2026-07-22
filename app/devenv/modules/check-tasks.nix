@@ -126,7 +126,7 @@ in
     };
 
     "ci:app:test:rust" = {
-      description = "Run host Rust library and doc tests";
+      description = "Run host Rust library tests";
       showOutput = true;
       exec = # sh
         ''
@@ -143,16 +143,6 @@ in
               --lib \
               --all-features \
               --build-jobs "$test_jobs" \
-              --test-threads "$test_jobs"
-
-          printf 'Running host Rust doc tests with %d jobs...\n' "$test_jobs"
-          cargo \
-              test \
-              --doc \
-              --locked \
-              --all-features \
-              --jobs "$test_jobs" \
-              -- \
               --test-threads "$test_jobs"
         '';
     };

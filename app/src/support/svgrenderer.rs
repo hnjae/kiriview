@@ -117,13 +117,7 @@ fn invalid_svg_image_size() -> RustSvgImageSize {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    const SVG_WITH_CLIP_PATH: &[u8] =
-        br##"<svg xmlns="http://www.w3.org/2000/svg" width="12" height="8">
-<rect width="12" height="8" fill="white"/>
-<clipPath id="clip"><rect x="2" y="1" width="4" height="4"/></clipPath>
-<g clip-path="url(#clip)"><rect width="12" height="8" fill="red"/></g>
-</svg>"##;
+    use std::fs;
 
     #[test]
     fn reports_valid_intrinsic_size() {
@@ -142,25 +136,64 @@ mod tests {
     }
 
     #[test]
-    fn rejects_invalid_svg_data() {
+    fn rejects_invalid_source_and_target_dimensions() {
+        const SVG: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" width="12" height="8"/>"#;
+
         assert!(!svg_intrinsic_size(b"not svg").valid);
         assert!(render_svg_image(b"not svg", 12, 8).is_none());
+        assert!(render_svg_image(SVG, 0, 8).is_none());
+        assert!(render_svg_image(SVG, 12, 0).is_none());
+        assert!(render_svg_image(SVG, -1, 8).is_none());
+        assert!(render_svg_image(SVG, 12, -1).is_none());
     }
 
     #[test]
-    fn renders_clip_path_to_premultiplied_rgba_bytes() {
-        let bytes =
-            render_svg_image(SVG_WITH_CLIP_PATH, 12, 8).expect("clip-path SVG should render");
+    fn renders_translucent_pixels_as_premultiplied_rgba_bytes() {
+        let bytes = render_svg_image(
+            br##"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1">
+<rect width="1" height="1" fill="#c86432" fill-opacity="0.5"/>
+</svg>"##,
+            1,
+            1,
+        )
+        .expect("translucent SVG should render");
 
-        assert_eq!(bytes.len(), 12 * 8 * 4);
-        assert_eq!(pixel(&bytes, 12, 3, 2), [255, 0, 0, 255]);
-        assert_eq!(pixel(&bytes, 12, 7, 2), [255, 255, 255, 255]);
+        assert_eq!(bytes, [100, 50, 25, 128]);
     }
 
-    fn pixel(bytes: &[u8], width: usize, x: usize, y: usize) -> [u8; 4] {
-        let offset = (y * width + x) * 4;
-        bytes[offset..offset + 4]
-            .try_into()
-            .expect("test pixel should be in bounds")
+    #[test]
+    fn does_not_load_external_file_resources() {
+        let external = tempfile::Builder::new()
+            .suffix(".png")
+            .tempfile()
+            .expect("external image fixture should be created");
+        fs::write(external.path(), encode_rgba_png([255, 0, 0, 255]))
+            .expect("external image fixture should be written");
+        let svg = format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1">
+<rect width="1" height="1" fill="blue"/>
+<image href="file://{}" width="1" height="1"/>
+</svg>"#,
+            external.path().display()
+        );
+
+        let bytes = render_svg_image(svg.as_bytes(), 1, 1)
+            .expect("SVG with a blocked external image should render");
+
+        assert_eq!(bytes, [0, 0, 255, 255]);
+    }
+
+    fn encode_rgba_png(pixel: [u8; 4]) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        let mut encoder = png::Encoder::new(&mut bytes, 1, 1);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder
+            .write_header()
+            .expect("PNG header should be written")
+            .write_image_data(&pixel)
+            .expect("PNG pixel should be written");
+
+        bytes
     }
 }

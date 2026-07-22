@@ -6,7 +6,7 @@
 #include "animationtiming.h"
 #include "apngframecomposer.h"
 #include "bridge/rustqtconversion.h"
-#include "kiriview/src/policy/apnganimationreader.cxx.h"
+#include "kiriview/src/support/apnganimationreader.cxx.h"
 #include "localization/imageerrortext.h"
 
 #include <QSize>
