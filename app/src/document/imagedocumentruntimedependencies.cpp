@@ -43,7 +43,7 @@ ImageCacheBudgets resolveImageDocumentCacheBudgets(
 }
 
 ImageDocumentRuntimeDependencies resolveImageDocumentRuntimeDependencies(
-    ImageDocumentRuntimeDependencyOverrides overrides, QObject* parent)
+    ImageDocumentRuntimeDependencyOverrides overrides)
 {
     const bool useMediaEntrySourceStore = shouldUseMediaEntrySourceStore(overrides);
     MediaEntrySourceFactory mediaEntrySourceFactory = std::move(overrides.mediaEntrySourceFactory);
@@ -67,7 +67,7 @@ ImageDocumentRuntimeDependencies resolveImageDocumentRuntimeDependencies(
     std::unique_ptr<MediaEntrySourceStore> mediaEntrySourceStore;
     if (useMediaEntrySourceStore) {
         mediaEntrySourceStore = std::make_unique<MediaEntrySourceStore>(
-            std::move(mediaEntrySourceFactory), parent, overrides.imageDecode.workerScheduler);
+            std::move(mediaEntrySourceFactory), overrides.imageDecode.workerScheduler);
         overrides.candidateProvider
             = mediaEntrySourceStore->wrapCandidateProvider(std::move(overrides.candidateProvider));
         overrides.imageDecode

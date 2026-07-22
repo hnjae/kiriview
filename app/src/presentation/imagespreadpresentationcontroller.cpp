@@ -13,12 +13,12 @@
 
 namespace kiriview {
 ImageSpreadPresentationController::ImageSpreadPresentationController(
-    QObject* parent, ImageDocumentState& state, Callbacks callbacks)
+    ImageDocumentState& state, Callbacks callbacks)
     : m_state(state)
     , m_callbacks(std::move(callbacks))
 {
-    m_secondaryPageController = std::make_unique<ImageSecondaryPageController>(parent,
-        ImageSecondaryPageController::Callbacks {
+    m_secondaryPageController
+        = std::make_unique<ImageSecondaryPageController>(ImageSecondaryPageController::Callbacks {
             [this](ImageSecondaryPageLoadResult result, const DisplayedImageLocation& location,
                 const QSize& imageSize) {
                 handleSecondaryPageLoadFinished(result, location, imageSize);

@@ -10,9 +10,8 @@
 #include <utility>
 
 namespace kiriview::ApplicationActions {
-ShortcutHelpModel::ShortcutHelpModel(ShortcutHelpRowsProvider rowsProvider, QObject* parent)
-    : QAbstractListModel(parent)
-    , m_rowsProvider(std::move(rowsProvider))
+ShortcutHelpModel::ShortcutHelpModel(ShortcutHelpRowsProvider rowsProvider)
+    : m_rowsProvider(std::move(rowsProvider))
     , m_rows(collectRows())
 {
 }

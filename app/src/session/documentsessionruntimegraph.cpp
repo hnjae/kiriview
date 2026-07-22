@@ -280,7 +280,7 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
           std::move(dependencies.fileDeletionFailed),
       })
     , m_mediaOpenWithRuntime(std::move(dependencies.mediaOpenWithProvider))
-    , m_mediaPredecodeRuntime(owner, std::move(dependencies.directMediaPredecodeDependencies))
+    , m_mediaPredecodeRuntime(std::move(dependencies.directMediaPredecodeDependencies))
     , m_imagePublicSnapshot(ports.imagePublicSnapshot)
     , m_videoPublicSnapshot(ports.videoPublicSnapshot)
     , m_publicSnapshotInputPort(&m_state, &m_directMediaActivityPort,

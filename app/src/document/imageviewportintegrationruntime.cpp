@@ -141,10 +141,8 @@ bool ImageViewportIntegrationTarget::isValid() const
         && (secondaryUrl.isEmpty() == !bool(secondaryResource));
 }
 
-ImageViewportIntegrationRuntime::ImageViewportIntegrationRuntime(
-    Callbacks callbacks, QObject* parent)
-    : QObject(parent)
-    , m_callbacks(std::move(callbacks))
+ImageViewportIntegrationRuntime::ImageViewportIntegrationRuntime(Callbacks callbacks)
+    : m_callbacks(std::move(callbacks))
 {
 }
 

@@ -9,6 +9,7 @@
 #include <QQuickWindow>
 #include <QRectF>
 #include <QTest>
+#include <memory>
 
 class TestVideoOutputRuntime : public QObject
 {
@@ -17,6 +18,7 @@ class TestVideoOutputRuntime : public QObject
 private Q_SLOTS:
     void outputAttachDetachAndSameOutputAreCanonical();
     void outputDestructionClearsCanonicalOutputAndBackend();
+    void contextDestructionDoesNotOwnTheRuntimeObserver();
     void geometryAndRenderContextProjectZoom();
 };
 
@@ -83,6 +85,16 @@ void TestVideoOutputRuntime::outputDestructionClearsCanonicalOutputAndBackend()
     QCOMPARE(fixture.runtime.videoOutput(), nullptr);
     QCOMPARE(fixture.backendOutput.data(), nullptr);
     QCOMPARE(fixture.outputChangedCount, 2);
+}
+
+void TestVideoOutputRuntime::contextDestructionDoesNotOwnTheRuntimeObserver()
+{
+    auto context = std::make_unique<QObject>();
+    auto runtime = std::make_unique<kiriview::VideoOutputRuntime>(
+        context.get(), kiriview::VideoOutputRuntimeCallbacks {});
+
+    context.reset();
+    runtime.reset();
 }
 
 void TestVideoOutputRuntime::geometryAndRenderContextProjectZoom()

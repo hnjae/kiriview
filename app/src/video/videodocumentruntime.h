@@ -29,7 +29,7 @@ class VideoDocumentRuntime final
 {
 public:
     using ChangeCallback = std::function<void(const std::vector<VideoDocumentChange>&)>;
-    using MediaBackendFactory = std::function<std::unique_ptr<VideoMediaBackend>(QObject*)>;
+    using MediaBackendFactory = std::function<std::unique_ptr<VideoMediaBackend>()>;
 
     explicit VideoDocumentRuntime(QObject* documentObject, ChangeCallback changeCallback = {},
         std::unique_ptr<VideoPlaybackUrlResolver> playbackUrlResolver = {},

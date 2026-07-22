@@ -68,12 +68,12 @@ ImageDocumentRuntimeGraph::ImageDocumentRuntimeGraph(QObject* documentObject,
     , m_state(state)
 {
     ImageDocumentRuntimeDependencies runtimeDependencies
-        = resolveImageDocumentRuntimeDependencies(std::move(dependencies), documentObject);
+        = resolveImageDocumentRuntimeDependencies(std::move(dependencies));
     ExternalPredecodedImageFinder externalPredecodedImageFinder
         = std::move(runtimeDependencies.externalPredecodedImageFinder);
 
-    composeSurfaceAndPresentation(documentObject, runtimeDependencies);
-    composeNavigationAndCandidatePorts(documentObject, runtimeDependencies);
+    composeSurfaceAndPresentation(runtimeDependencies);
+    composeNavigationAndCandidatePorts(runtimeDependencies);
     composeWorkflowOwners(
         documentObject, state, runtimeDependencies, std::move(externalPredecodedImageFinder));
     composeWorkflowDispatch(state);
@@ -82,7 +82,7 @@ ImageDocumentRuntimeGraph::ImageDocumentRuntimeGraph(QObject* documentObject,
 ImageDocumentRuntimeGraph::~ImageDocumentRuntimeGraph() = default;
 
 void ImageDocumentRuntimeGraph::composeSurfaceAndPresentation(
-    QObject* documentObject, ImageDocumentRuntimeDependencies& dependencies)
+    ImageDocumentRuntimeDependencies& dependencies)
 {
     m_viewportDisplayStore = std::make_shared<DisplayImageStore>(
         dependencies.cacheBudgets.displayImageCacheByteBudget);
@@ -96,14 +96,13 @@ void ImageDocumentRuntimeGraph::composeSurfaceAndPresentation(
                     m_spreadController->restoreTwoPageModeEnabled(enabled);
                 }
             },
-        },
-        documentObject);
+        });
 }
 
 void ImageDocumentRuntimeGraph::composeNavigationAndCandidatePorts(
-    QObject* documentObject, ImageDocumentRuntimeDependencies& dependencies)
+    ImageDocumentRuntimeDependencies& dependencies)
 {
-    m_navigationService = std::make_unique<ImageDocumentPageNavigationService>(documentObject,
+    m_navigationService = std::make_unique<ImageDocumentPageNavigationService>(
         dependencies.candidateProvider,
         ImageDocumentPageNavigationService::Callbacks {
             [this](ImageDocumentPageNavigationPlan plan) {
@@ -162,7 +161,7 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
     m_deletionProgressPort
         = std::make_unique<ImageDocumentDeletionProgressPort>(m_deletionController.get());
     m_predecodeController = std::make_unique<ImageDocumentPredecodeController>(
-        documentObject, state, [this]() { return primaryDisplayedPredecodeImage(); },
+        state, [this]() { return primaryDisplayedPredecodeImage(); },
         [this]() { return firstDisplayDecodeContext(); }, dependencies.imageDecode,
         dependencies.cacheBudgets.predecodeCacheByteBudget,
         [this]() { return m_currentPageNumberPort->currentPageNumber(); },
@@ -175,7 +174,7 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
         std::move(dependencies.predecodeThreadCountProvider));
     m_predecodedImageLookup = std::make_unique<ImageDocumentPredecodedImageLookup>(
         std::move(externalPredecodedImageFinder), m_predecodeController.get());
-    m_spreadController = std::make_unique<ImageSpreadPresentationController>(documentObject, state,
+    m_spreadController = std::make_unique<ImageSpreadPresentationController>(state,
         ImageSpreadPresentationController::Callbacks {
             [this](const std::vector<ImageDocumentChange>& changes) {
                 invokeIfSet(m_callbacks.notify, changes);
@@ -197,7 +196,7 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
         });
     m_primaryPageSlotPort
         = std::make_unique<ImageDocumentPrimaryPageSlotPort>(m_spreadController.get());
-    m_openController = std::make_unique<ImageOpenController>(documentObject, state,
+    m_openController = std::make_unique<ImageOpenController>(state,
         ImageOpenController::Callbacks {
             [this](const QUrl& url) { return m_predecodedImageLookup->find(url); },
             [this](const ImageDocumentRuntimePlan& plan) { dispatchPlan(plan); },

@@ -31,8 +31,8 @@ quint64 nextNavigationGeneration(quint64 generation)
 
 namespace kiriview {
 ActiveNavigationThumbnailRowStore::ActiveNavigationThumbnailRowStore(
-    QObject* owner, std::shared_ptr<ThumbnailImageStore> imageStore)
-    : m_model(std::make_unique<ActiveNavigationThumbnailModel>(owner))
+    std::shared_ptr<ThumbnailImageStore> imageStore)
+    : m_model(std::make_unique<ActiveNavigationThumbnailModel>())
     , m_imageStore(std::move(imageStore))
 {
     if (m_imageStore == nullptr) {

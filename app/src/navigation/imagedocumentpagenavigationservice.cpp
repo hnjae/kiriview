@@ -10,9 +10,8 @@
 
 namespace kiriview {
 ImageDocumentPageNavigationService::ImageDocumentPageNavigationService(
-    QObject* parent, ImageDocumentPageCandidateProvider candidateProvider, Callbacks callbacks)
-    : QObject(parent)
-    , m_callbacks(std::move(callbacks))
+    ImageDocumentPageCandidateProvider candidateProvider, Callbacks callbacks)
+    : m_callbacks(std::move(callbacks))
     , m_candidateRepository(std::move(candidateProvider))
     , m_containerNavigation(this, m_candidateRepository,
           ImageContainerNavigationController::Callbacks {

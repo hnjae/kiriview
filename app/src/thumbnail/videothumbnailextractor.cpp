@@ -34,7 +34,7 @@ public:
         , m_callback(std::move(callback))
         , m_dependencies(resolvedDependencies(std::move(dependencies)))
     {
-        m_backend = m_dependencies.backendFactory(this);
+        m_backend = m_dependencies.backendFactory();
         m_timeout = m_dependencies.timerScheduler.singleShotTimer(
             this, 10000, [this]() { enqueue(m_workflow.handleTimeout()); });
         if (m_backend != nullptr) {

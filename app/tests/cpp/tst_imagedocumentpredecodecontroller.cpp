@@ -121,7 +121,7 @@ void TestImageDocumentPredecodeController::scheduleAdjacentImagePredecodeUsesPre
     kiriview::ImageDocumentState state;
     std::optional<kiriview::DisplayedPredecodeImage> primary;
     kiriview::ImageDocumentPredecodeController controller(
-        this, state, [&primary]() { return primary; }, firstDisplayContext,
+        state, [&primary]() { return primary; }, firstDisplayContext,
         imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget, {},
         candidateSnapshotOwner(this, candidateProvider.provider()));
 
@@ -165,7 +165,7 @@ void TestImageDocumentPredecodeController::
     candidateProvider.setOpenedCollectionCandidateError(
         directoryCollection.rootUrl(), QStringLiteral("unexpected listing"));
     kiriview::ImageDocumentPredecodeController controller(
-        this, state, [&primary]() { return primary; }, firstDisplayContext,
+        state, [&primary]() { return primary; }, firstDisplayContext,
         imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget,
         []() { return 2; },
         [directoryCollection, previousUrl, displayedUrl, nextUrl](
@@ -204,7 +204,7 @@ void TestImageDocumentPredecodeController::
     kiriview::ImageDocumentState state;
     std::optional<kiriview::DisplayedPredecodeImage> primary;
     kiriview::ImageDocumentPredecodeController controller(
-        this, state, [&primary]() { return primary; }, firstDisplayContext,
+        state, [&primary]() { return primary; }, firstDisplayContext,
         imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget, {},
         candidateSnapshotOwner(this, candidateProvider.provider()));
 
@@ -239,7 +239,7 @@ void TestImageDocumentPredecodeController::selectedVideoNavigationTargetDoesNotS
     kiriview::ImageDocumentState state;
     std::optional<kiriview::DisplayedPredecodeImage> primary;
     kiriview::ImageDocumentPredecodeController controller(
-        this, state, [&primary]() { return primary; }, firstDisplayContext,
+        state, [&primary]() { return primary; }, firstDisplayContext,
         imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget);
 
     const QUrl displayedUrl = indexedImageUrl(1);
@@ -266,7 +266,7 @@ void TestImageDocumentPredecodeController::
     kiriview::ImageDocumentState state;
     std::optional<kiriview::DisplayedPredecodeImage> primary;
     kiriview::ImageDocumentPredecodeController controller(
-        this, state, [&primary]() { return primary; }, firstDisplayContext,
+        state, [&primary]() { return primary; }, firstDisplayContext,
         imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget, {},
         candidateSnapshotOwner(this, candidateProvider.provider()));
 
@@ -305,9 +305,8 @@ void TestImageDocumentPredecodeController::
         = imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder());
     decodeDependencies.workerScheduler = immediateWorkerScheduler();
     kiriview::ImageDocumentPredecodeController controller(
-        this, state, [&primary]() { return primary; }, firstDisplayContext,
-        std::move(decodeDependencies), testCacheByteBudget, {},
-        candidateSnapshotOwner(this, candidateProvider.provider()),
+        state, [&primary]() { return primary; }, firstDisplayContext, std::move(decodeDependencies),
+        testCacheByteBudget, {}, candidateSnapshotOwner(this, candidateProvider.provider()),
         powerSaverProviderFor(powerSaverMonitor, true), true, timerScheduler.scheduler(),
         []() { return 4; });
     QVERIFY(powerSaverMonitor != nullptr);

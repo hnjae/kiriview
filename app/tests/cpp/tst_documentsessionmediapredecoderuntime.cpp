@@ -105,7 +105,7 @@ void TestDocumentSessionMediaPredecodeRuntime::
     activeDirectMediaScheduleCachesDisplayedAndLoadsAdjacentImage()
 {
     ManualImageDataLoader dataLoader;
-    kiriview::DocumentSessionMediaPredecodeRuntime runtime(this, predecodeDependencies(dataLoader));
+    kiriview::DocumentSessionMediaPredecodeRuntime runtime(predecodeDependencies(dataLoader));
     const QUrl currentUrl = localUrl(QStringLiteral("/media/current.png"));
     const QUrl nextUrl = localUrl(QStringLiteral("/media/next.png"));
 
@@ -122,7 +122,7 @@ void TestDocumentSessionMediaPredecodeRuntime::
     selectedTargetScheduleLoadsTargetBeforeDisplayedCursor()
 {
     ManualImageDataLoader dataLoader;
-    kiriview::DocumentSessionMediaPredecodeRuntime runtime(this, predecodeDependencies(dataLoader));
+    kiriview::DocumentSessionMediaPredecodeRuntime runtime(predecodeDependencies(dataLoader));
     const QUrl displayedUrl = localUrl(QStringLiteral("/media/00.png"));
     const QUrl oldNextUrl = localUrl(QStringLiteral("/media/01.png"));
     const QUrl targetUrl = localUrl(QStringLiteral("/media/02.png"));
@@ -145,7 +145,7 @@ void TestDocumentSessionMediaPredecodeRuntime::
     selectedTargetScheduleLoadsTargetWithoutDisplayedImage()
 {
     ManualImageDataLoader dataLoader;
-    kiriview::DocumentSessionMediaPredecodeRuntime runtime(this, predecodeDependencies(dataLoader));
+    kiriview::DocumentSessionMediaPredecodeRuntime runtime(predecodeDependencies(dataLoader));
     const QUrl videoCursorUrl = localUrl(QStringLiteral("/media/01.mp4"));
     const QUrl targetUrl = localUrl(QStringLiteral("/media/02.png"));
     kiriview::DocumentSessionMediaPredecodeInput input = activeImageInput(videoCursorUrl);
@@ -166,7 +166,7 @@ void TestDocumentSessionMediaPredecodeRuntime::
 void TestDocumentSessionMediaPredecodeRuntime::inactiveScheduleDoesNotStartPredecode()
 {
     ManualImageDataLoader dataLoader;
-    kiriview::DocumentSessionMediaPredecodeRuntime runtime(this, predecodeDependencies(dataLoader));
+    kiriview::DocumentSessionMediaPredecodeRuntime runtime(predecodeDependencies(dataLoader));
     const QUrl currentUrl = localUrl(QStringLiteral("/media/current.png"));
     const QUrl nextUrl = localUrl(QStringLiteral("/media/next.png"));
 
@@ -182,7 +182,7 @@ void TestDocumentSessionMediaPredecodeRuntime::
     cacheDisplayedImagesUsesOnlyReadyDirectImageSourceScope()
 {
     ManualImageDataLoader dataLoader;
-    kiriview::DocumentSessionMediaPredecodeRuntime runtime(this, predecodeDependencies(dataLoader));
+    kiriview::DocumentSessionMediaPredecodeRuntime runtime(predecodeDependencies(dataLoader));
     const QUrl currentUrl = localUrl(QStringLiteral("/media/current.png"));
 
     runtime.cacheDisplayedImages(inactiveImageInput(currentUrl));
@@ -197,7 +197,7 @@ void TestDocumentSessionMediaPredecodeRuntime::
 void TestDocumentSessionMediaPredecodeRuntime::sameParentScopeSyncKeepsCachedDisplayedImage()
 {
     ManualImageDataLoader dataLoader;
-    kiriview::DocumentSessionMediaPredecodeRuntime runtime(this, predecodeDependencies(dataLoader));
+    kiriview::DocumentSessionMediaPredecodeRuntime runtime(predecodeDependencies(dataLoader));
     const QUrl currentUrl = localUrl(QStringLiteral("/media/current.png"));
     const QUrl nextUrl = localUrl(QStringLiteral("/media/next.png"));
 
@@ -211,7 +211,7 @@ void TestDocumentSessionMediaPredecodeRuntime::sameParentScopeSyncKeepsCachedDis
 void TestDocumentSessionMediaPredecodeRuntime::parentScopeChangeClearsCachedDisplayedImage()
 {
     ManualImageDataLoader dataLoader;
-    kiriview::DocumentSessionMediaPredecodeRuntime runtime(this, predecodeDependencies(dataLoader));
+    kiriview::DocumentSessionMediaPredecodeRuntime runtime(predecodeDependencies(dataLoader));
     const QUrl currentUrl = localUrl(QStringLiteral("/media/current.png"));
     const QUrl otherUrl = localUrl(QStringLiteral("/other/current.png"));
 
@@ -229,7 +229,7 @@ void TestDocumentSessionMediaPredecodeRuntime::parentScopeChangeClearsCachedDisp
 void TestDocumentSessionMediaPredecodeRuntime::leavingDirectMediaScopeClearsCachedDisplayedImage()
 {
     ManualImageDataLoader dataLoader;
-    kiriview::DocumentSessionMediaPredecodeRuntime runtime(this, predecodeDependencies(dataLoader));
+    kiriview::DocumentSessionMediaPredecodeRuntime runtime(predecodeDependencies(dataLoader));
     const QUrl currentUrl = localUrl(QStringLiteral("/media/current.png"));
 
     runtime.cacheDisplayedImages(activeImageInput(currentUrl));

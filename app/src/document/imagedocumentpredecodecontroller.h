@@ -34,7 +34,7 @@ public:
     using PrimaryDisplayedImageCallback = std::function<std::optional<DisplayedPredecodeImage>()>;
     using FirstDisplayDecodeContextCallback = std::function<ImageFirstDisplayDecodeContext()>;
 
-    ImageDocumentPredecodeController(QObject* parent, ImageDocumentState& state,
+    ImageDocumentPredecodeController(ImageDocumentState& state,
         PrimaryDisplayedImageCallback primaryDisplayedImage,
         FirstDisplayDecodeContextCallback firstDisplayDecodeContext,
         ImageDecodeDependencies decodeDependencies, qsizetype cacheByteBudget,

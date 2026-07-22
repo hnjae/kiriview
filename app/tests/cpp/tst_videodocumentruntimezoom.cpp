@@ -123,7 +123,7 @@ struct RuntimeFixture
     {
         runtime = std::make_unique<kiriview::VideoDocumentRuntime>(&documentObject,
             kiriview::VideoDocumentRuntime::ChangeCallback(),
-            std::make_unique<ImmediateVideoPlaybackUrlResolver>(), [this](QObject*) {
+            std::make_unique<ImmediateVideoPlaybackUrlResolver>(), [this]() {
                 auto mediaBackend = std::make_unique<FakeVideoMediaBackend>();
                 backend = mediaBackend.get();
                 return mediaBackend;

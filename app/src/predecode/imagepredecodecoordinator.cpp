@@ -31,12 +31,10 @@ namespace {
     }
 }
 
-ImagePredecodeCoordinator::ImagePredecodeCoordinator(QObject* parent,
-    ImageDecodeDependencies decodeDependencies, PowerSaverProvider powerSaverProvider,
-    qsizetype cacheByteBudget, TimerScheduler timerScheduler,
+ImagePredecodeCoordinator::ImagePredecodeCoordinator(ImageDecodeDependencies decodeDependencies,
+    PowerSaverProvider powerSaverProvider, qsizetype cacheByteBudget, TimerScheduler timerScheduler,
     PredecodeThreadCountProvider threadCountProvider)
-    : QObject(parent)
-    , m_threadCountProvider(
+    : m_threadCountProvider(
           threadCountProvider ? std::move(threadCountProvider) : defaultPredecodeThreadCount)
     , m_loadController(this, std::move(decodeDependencies), cacheByteBudget)
     , m_scheduleRuntime(

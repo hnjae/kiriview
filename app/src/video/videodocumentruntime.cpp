@@ -58,15 +58,14 @@ VideoDocumentRuntime::VideoDocumentRuntime(QObject* documentObject, ChangeCallba
           })
 {
     if (!m_mediaBackendFactory) {
-        m_mediaBackendFactory
-            = [](QObject* parent) { return createDefaultVideoMediaBackend(parent); };
+        m_mediaBackendFactory = []() { return createDefaultVideoMediaBackend(); };
     }
 }
 
 VideoMediaBackend* VideoDocumentRuntime::replaceMediaBackendForSource(const QUrl& publicSourceUrl)
 {
     clearPlaybackSource();
-    m_mediaBackend = m_mediaBackendFactory(m_documentObject);
+    m_mediaBackend = m_mediaBackendFactory();
     if (m_mediaBackend == nullptr) {
         return nullptr;
     }

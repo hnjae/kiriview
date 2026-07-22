@@ -31,7 +31,7 @@ public:
         bool immediate = false;
     };
 
-    MediaPredecodeCoordinator(QObject* parent, MediaPredecodeDependencies dependencies);
+    explicit MediaPredecodeCoordinator(MediaPredecodeDependencies dependencies);
 
     void schedule(Context context);
     void cacheDisplayedImages(const std::vector<DisplayedPredecodeImage>& images);

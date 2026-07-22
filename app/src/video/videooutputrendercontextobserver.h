@@ -21,8 +21,7 @@ class VideoOutputRenderContextObserver final : public QObject
 {
     Q_OBJECT
 public:
-    explicit VideoOutputRenderContextObserver(
-        QObject* parent = nullptr, std::function<void()> renderContextChanged = {});
+    explicit VideoOutputRenderContextObserver(std::function<void()> renderContextChanged = {});
 
     void setVideoOutput(QObject* videoOutput);
     std::optional<qreal> devicePixelRatio() const;

@@ -235,7 +235,7 @@ void TestRuntimeProviderDefaults::
           };
 
     kiriview::ImageDocumentRuntimeDependencies resolved
-        = kiriview::resolveImageDocumentRuntimeDependencies(std::move(overrides), this);
+        = kiriview::resolveImageDocumentRuntimeDependencies(std::move(overrides));
     QVERIFY(resolved.candidateProvider.directoryContainers);
 
     int callbackCount = 0;
@@ -259,7 +259,7 @@ void TestRuntimeProviderDefaults::
     overrides.imageDecode.workerScheduler = workerScheduler.scheduler();
 
     kiriview::ImageDocumentRuntimeDependencies resolved
-        = kiriview::resolveImageDocumentRuntimeDependencies(std::move(overrides), this);
+        = kiriview::resolveImageDocumentRuntimeDependencies(std::move(overrides));
     QVERIFY(resolved.candidateProvider.openedCollectionCandidates);
 
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
@@ -398,7 +398,7 @@ void TestRuntimeProviderDefaults::powerSaverDefaultFillsMissingProviderAndPreser
 {
     int monitorCount = 0;
     kiriview::PowerSaverProvider provider;
-    provider.monitor = [&monitorCount](QObject*, kiriview::PowerSaverChangedCallback) {
+    provider.monitor = [&monitorCount](kiriview::PowerSaverChangedCallback) {
         ++monitorCount;
         return std::unique_ptr<kiriview::PowerSaverStateMonitor>();
     };
@@ -406,7 +406,7 @@ void TestRuntimeProviderDefaults::powerSaverDefaultFillsMissingProviderAndPreser
     kiriview::PowerSaverProvider resolved
         = kiriview::powerSaverProviderWithDefault(std::move(provider));
     QVERIFY(resolved.monitor);
-    resolved.monitor(nullptr, {});
+    resolved.monitor({});
     QCOMPARE(monitorCount, 1);
 
     QVERIFY(kiriview::powerSaverProviderWithDefault({}).monitor);

@@ -12,8 +12,9 @@
 namespace kiriview {
 VideoOutputRuntime::VideoOutputRuntime(QObject* context, VideoOutputRuntimeCallbacks callbacks)
     : m_callbacks(std::move(callbacks))
+    , m_context(context)
     , m_renderContextObserver(std::make_unique<VideoOutputRenderContextObserver>(
-          context, [this]() { notifyZoomProjectionChanged(); }))
+          [this]() { notifyZoomProjectionChanged(); }))
 {
 }
 
@@ -86,21 +87,21 @@ void VideoOutputRuntime::disconnectVideoOutputDestroyed()
 
 void VideoOutputRuntime::notifyVideoOutputChanged() const
 {
-    if (m_callbacks.videoOutputChanged) {
+    if (m_context != nullptr && m_callbacks.videoOutputChanged) {
         m_callbacks.videoOutputChanged();
     }
 }
 
 void VideoOutputRuntime::notifyZoomProjectionChanged() const
 {
-    if (m_callbacks.zoomProjectionChanged) {
+    if (m_context != nullptr && m_callbacks.zoomProjectionChanged) {
         m_callbacks.zoomProjectionChanged();
     }
 }
 
 void VideoOutputRuntime::setBackendVideoOutput(QObject* videoOutput) const
 {
-    if (m_callbacks.setBackendVideoOutput) {
+    if (m_context != nullptr && m_callbacks.setBackendVideoOutput) {
         m_callbacks.setBackendVideoOutput(videoOutput);
     }
 }

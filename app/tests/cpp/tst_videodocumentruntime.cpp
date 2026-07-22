@@ -264,7 +264,7 @@ struct RuntimeFixture
                 changes.insert(changes.end(), nextChanges.begin(), nextChanges.end());
             },
             std::make_unique<FakeVideoPlaybackUrlResolver>(resolverState),
-            [this](QObject*) {
+            [this]() {
                 auto mediaBackend = std::make_unique<FakeVideoMediaBackend>();
                 backend = mediaBackend.get();
                 mediaBackend->destroyed = [this](FakeVideoMediaBackend* destroyedBackend) {
@@ -409,11 +409,9 @@ void TestVideoDocumentRuntime::mediaBackendFactoryIsLazyUntilPlaybackUrlResoluti
     QObject output;
     auto resolverState = std::make_shared<FakeResolverState>();
     FakeVideoMediaBackend* backend = nullptr;
-    QObject* factoryParent = nullptr;
     int factoryCallCount = 0;
-    kiriview::VideoDocumentRuntime runtime(&documentObject, {},
-        std::make_unique<FakeVideoPlaybackUrlResolver>(resolverState), [&](QObject* parent) {
-            factoryParent = parent;
+    kiriview::VideoDocumentRuntime runtime(
+        &documentObject, {}, std::make_unique<FakeVideoPlaybackUrlResolver>(resolverState), [&] {
             ++factoryCallCount;
             auto mediaBackend = std::make_unique<FakeVideoMediaBackend>();
             backend = mediaBackend.get();
@@ -441,7 +439,6 @@ void TestVideoDocumentRuntime::mediaBackendFactoryIsLazyUntilPlaybackUrlResoluti
     });
 
     QCOMPARE(factoryCallCount, 1);
-    QCOMPARE(factoryParent, &documentObject);
     QVERIFY(backend != nullptr);
     QCOMPARE(backend->sourceUrl, sourceUrl);
     QVERIFY(backend->isMuted);

@@ -17,8 +17,8 @@ class MediaEntrySourceStore final : public QObject
 {
     Q_OBJECT
 public:
-    explicit MediaEntrySourceStore(MediaEntrySourceFactory sourceFactory = {},
-        QObject* parent = nullptr, ImageWorkerScheduler workerScheduler = {});
+    explicit MediaEntrySourceStore(
+        MediaEntrySourceFactory sourceFactory = {}, ImageWorkerScheduler workerScheduler = {});
     ~MediaEntrySourceStore() override;
 
     ImageDocumentPageCandidateProvider wrapCandidateProvider(

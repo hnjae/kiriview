@@ -34,9 +34,8 @@ kiriview::VideoMediaErrorCategory videoMediaErrorCategory(QMediaPlayer::Error er
 class QtVideoMediaBackend final : public QObject, public kiriview::VideoMediaBackend
 {
 public:
-    explicit QtVideoMediaBackend(QObject* parent)
-        : QObject(parent)
-        , m_player(this)
+    QtVideoMediaBackend()
+        : m_player(this)
         , m_audioOutput(this)
     {
         m_player.setAudioOutput(&m_audioOutput);
@@ -136,8 +135,8 @@ private:
 }
 
 namespace kiriview {
-std::unique_ptr<VideoMediaBackend> createDefaultVideoMediaBackend(QObject* parent)
+std::unique_ptr<VideoMediaBackend> createDefaultVideoMediaBackend()
 {
-    return std::make_unique<QtVideoMediaBackend>(parent);
+    return std::make_unique<QtVideoMediaBackend>();
 }
 }

@@ -35,7 +35,7 @@ public:
     };
 
     ImageDocumentPageNavigationService(
-        QObject* parent, ImageDocumentPageCandidateProvider candidateProvider, Callbacks callbacks);
+        ImageDocumentPageCandidateProvider candidateProvider, Callbacks callbacks);
 
     int currentPageNumber() const;
     int pageCount() const;

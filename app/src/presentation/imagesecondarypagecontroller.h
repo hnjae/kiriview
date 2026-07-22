@@ -35,7 +35,7 @@ public:
         PreparedImageCallback preparedImage;
     };
 
-    ImageSecondaryPageController(QObject* parent, Callbacks callbacks);
+    explicit ImageSecondaryPageController(Callbacks callbacks);
     ~ImageSecondaryPageController();
 
     bool visible() const;

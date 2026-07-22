@@ -208,7 +208,7 @@ void TestImageDocumentPageNavigationService::directoryAdjacentImageUsesInjectedP
         });
 
     QUrl openedUrl;
-    kiriview::ImageDocumentPageNavigationService service(nullptr, fakeProvider.provider(),
+    kiriview::ImageDocumentPageNavigationService service(fakeProvider.provider(),
         navigationCallbacks([&openedUrl](const QUrl& url) { openedUrl = url; }));
     service.openAdjacentPage(
         navigationContext(kiriview::DisplayedImageLocation::fromUrl(currentUrl)),
@@ -234,7 +234,7 @@ void TestImageDocumentPageNavigationService::comicBookAdjacentImageUsesInjectedP
         });
 
     QUrl openedUrl;
-    kiriview::ImageDocumentPageNavigationService service(nullptr, fakeProvider.provider(),
+    kiriview::ImageDocumentPageNavigationService service(fakeProvider.provider(),
         navigationCallbacks([&openedUrl](const QUrl& url) { openedUrl = url; }));
     service.openAdjacentPage(
         navigationContext(kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
@@ -261,7 +261,7 @@ void TestImageDocumentPageNavigationService::directArchiveAdjacentImageUsesInjec
         });
 
     QUrl openedUrl;
-    kiriview::ImageDocumentPageNavigationService service(nullptr, fakeProvider.provider(),
+    kiriview::ImageDocumentPageNavigationService service(fakeProvider.provider(),
         navigationCallbacks([&openedUrl](const QUrl& url) { openedUrl = url; }));
     service.openAdjacentPage(
         navigationContext(kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
@@ -289,7 +289,7 @@ void TestImageDocumentPageNavigationService::archivePageUpdatePreservesConfirmed
 
     std::vector<kiriview::ImageDocumentPageCandidateListSnapshot> observedSnapshots;
     kiriview::ImageDocumentPageNavigationService* servicePtr = nullptr;
-    kiriview::ImageDocumentPageNavigationService service(nullptr, fakeProvider.provider(),
+    kiriview::ImageDocumentPageNavigationService service(fakeProvider.provider(),
         navigationCallbacks({}, {}, {}, [&servicePtr, &observedSnapshots]() {
             observedSnapshots.push_back(servicePtr->confirmedPageCandidateSnapshot());
         }));
@@ -351,8 +351,8 @@ void TestImageDocumentPageNavigationService::
 
     std::vector<std::pair<int, int>> observedStates;
     kiriview::ImageDocumentPageNavigationService* servicePtr = nullptr;
-    kiriview::ImageDocumentPageNavigationService service(nullptr, fakeProvider.provider(),
-        navigationCallbacks({}, {}, {}, [&servicePtr, &observedStates]() {
+    kiriview::ImageDocumentPageNavigationService service(
+        fakeProvider.provider(), navigationCallbacks({}, {}, {}, [&servicePtr, &observedStates]() {
             observedStates.push_back({ servicePtr->currentPageNumber(), servicePtr->pageCount() });
         }));
     servicePtr = &service;
@@ -387,7 +387,7 @@ void TestImageDocumentPageNavigationService::pageNavigationStaysUnknownUntilArch
 
     std::vector<std::pair<int, int>> observedStates;
     kiriview::ImageDocumentPageNavigationService* servicePtr = nullptr;
-    kiriview::ImageDocumentPageNavigationService service(nullptr, candidateProvider.provider(),
+    kiriview::ImageDocumentPageNavigationService service(candidateProvider.provider(),
         navigationCallbacks({}, {}, {}, [&servicePtr, &observedStates]() {
             observedStates.push_back({ servicePtr->currentPageNumber(), servicePtr->pageCount() });
         }));
@@ -427,8 +427,8 @@ void TestImageDocumentPageNavigationService::
 
     std::vector<std::pair<int, int>> observedStates;
     kiriview::ImageDocumentPageNavigationService* servicePtr = nullptr;
-    kiriview::ImageDocumentPageNavigationService service(nullptr, fakeProvider.provider(),
-        navigationCallbacks({}, {}, {}, [&servicePtr, &observedStates]() {
+    kiriview::ImageDocumentPageNavigationService service(
+        fakeProvider.provider(), navigationCallbacks({}, {}, {}, [&servicePtr, &observedStates]() {
             observedStates.push_back({ servicePtr->currentPageNumber(), servicePtr->pageCount() });
         }));
     servicePtr = &service;
@@ -500,7 +500,7 @@ void TestImageDocumentPageNavigationService::selectPageUpdatesCurrentPageImmedia
         });
 
     int pageNavigationChangeCount = 0;
-    kiriview::ImageDocumentPageNavigationService service(nullptr, fakeProvider.provider(),
+    kiriview::ImageDocumentPageNavigationService service(fakeProvider.provider(),
         navigationCallbacks(
             {}, {}, {}, [&pageNavigationChangeCount]() { ++pageNavigationChangeCount; }));
     service.updatePageNavigation(
@@ -542,7 +542,7 @@ void TestImageDocumentPageNavigationService::snapshotFollowsCanonicalPageNavigat
         });
 
     kiriview::ImageDocumentPageNavigationService service(
-        nullptr, fakeProvider.provider(), navigationCallbacks());
+        fakeProvider.provider(), navigationCallbacks());
     service.updatePageNavigation(
         navigationContext(kiriview::DisplayedImageLocation::fromUrl(firstUrl)));
 
@@ -575,7 +575,7 @@ void TestImageDocumentPageNavigationService::knownAdjacentNavigationUsesPendingC
         });
 
     std::vector<QUrl> openedUrls;
-    kiriview::ImageDocumentPageNavigationService service(nullptr, fakeProvider.provider(),
+    kiriview::ImageDocumentPageNavigationService service(fakeProvider.provider(),
         navigationCallbacks([&openedUrls](const QUrl& url) { openedUrls.push_back(url); }));
     const std::optional<kiriview::ImageDocumentPageCandidateListContext> displayedFirstContext
         = navigationContext(kiriview::DisplayedImageLocation::fromUrl(firstUrl));
@@ -609,7 +609,7 @@ void TestImageDocumentPageNavigationService::
     int pageCountAtOpen = 0;
     kiriview::ImageDocumentPageNavigationService* servicePtr = nullptr;
     kiriview::ImageDocumentPageNavigationService service(
-        nullptr, candidateProvider.provider(), navigationCallbacks([&](const QUrl& url) {
+        candidateProvider.provider(), navigationCallbacks([&](const QUrl& url) {
             openedUrl = url;
             currentPageAtOpen = servicePtr->currentPageNumber();
             pageCountAtOpen = servicePtr->pageCount();
@@ -649,7 +649,7 @@ void TestImageDocumentPageNavigationService::pageNavigationUpdatesWhenDirectoryC
         });
 
     int pageNavigationChangeCount = 0;
-    kiriview::ImageDocumentPageNavigationService service(nullptr, fakeProvider.provider(),
+    kiriview::ImageDocumentPageNavigationService service(fakeProvider.provider(),
         navigationCallbacks(
             {}, {}, {}, [&pageNavigationChangeCount]() { ++pageNavigationChangeCount; }));
     service.updatePageNavigation(
@@ -687,7 +687,7 @@ void TestImageDocumentPageNavigationService::externalCurrentImageRemovalOpensNex
 
     QUrl openedUrl;
     int clearCount = 0;
-    kiriview::ImageDocumentPageNavigationService service(nullptr, fakeProvider.provider(),
+    kiriview::ImageDocumentPageNavigationService service(fakeProvider.provider(),
         navigationCallbacks([&openedUrl](const QUrl& url) { openedUrl = url; }, {}, {}, {},
             [&clearCount]() { ++clearCount; }));
     service.updatePageNavigation(
@@ -719,7 +719,7 @@ void TestImageDocumentPageNavigationService::externalCurrentImageRemovalOpensPre
 
     QUrl openedUrl;
     int clearCount = 0;
-    kiriview::ImageDocumentPageNavigationService service(nullptr, fakeProvider.provider(),
+    kiriview::ImageDocumentPageNavigationService service(fakeProvider.provider(),
         navigationCallbacks([&openedUrl](const QUrl& url) { openedUrl = url; }, {}, {}, {},
             [&clearCount]() { ++clearCount; }));
     service.updatePageNavigation(
@@ -747,7 +747,7 @@ void TestImageDocumentPageNavigationService::externalCurrentImageRemovalClearsWi
 
     QUrl openedUrl;
     int clearCount = 0;
-    kiriview::ImageDocumentPageNavigationService service(nullptr, fakeProvider.provider(),
+    kiriview::ImageDocumentPageNavigationService service(fakeProvider.provider(),
         navigationCallbacks([&openedUrl](const QUrl& url) { openedUrl = url; }, {}, {}, {},
             [&clearCount]() { ++clearCount; }));
     service.updatePageNavigation(
@@ -777,7 +777,7 @@ void TestImageDocumentPageNavigationService::
     QUrl openedUrl;
     int clearCount = 0;
     bool deletionInProgress = true;
-    kiriview::ImageDocumentPageNavigationService service(nullptr, fakeProvider.provider(),
+    kiriview::ImageDocumentPageNavigationService service(fakeProvider.provider(),
         navigationCallbacks([&openedUrl](const QUrl& url) { openedUrl = url; }, {}, {}, {},
             [&clearCount]() { ++clearCount; },
             [&deletionInProgress]() { return deletionInProgress; }));
@@ -812,7 +812,7 @@ void TestImageDocumentPageNavigationService::
         });
 
     kiriview::ImageDocumentPageNavigationService service(
-        nullptr, fakeProvider.provider(), navigationCallbacks());
+        fakeProvider.provider(), navigationCallbacks());
     service.updatePageNavigation(navigationContext(
         kiriview::DisplayedImageLocation::fromOpenedCollectionScope(firstUrl, *archiveCollection)));
 
@@ -833,7 +833,7 @@ void TestImageDocumentPageNavigationService::cancelAllNavigationCancelsPendingAd
     const QUrl nextUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("02.png"));
 
     QUrl openedUrl;
-    kiriview::ImageDocumentPageNavigationService service(nullptr, candidateProvider.provider(),
+    kiriview::ImageDocumentPageNavigationService service(candidateProvider.provider(),
         navigationCallbacks([&openedUrl](const QUrl& url) { openedUrl = url; }));
     service.openAdjacentPage(
         navigationContext(kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
@@ -865,7 +865,7 @@ void TestImageDocumentPageNavigationService::cancelAllNavigationStopsPageRefresh
         });
 
     int pageNavigationChangeCount = 0;
-    kiriview::ImageDocumentPageNavigationService service(nullptr, fakeProvider.provider(),
+    kiriview::ImageDocumentPageNavigationService service(fakeProvider.provider(),
         navigationCallbacks(
             {}, {}, {}, [&pageNavigationChangeCount]() { ++pageNavigationChangeCount; }));
     service.updatePageNavigation(
@@ -907,7 +907,7 @@ void TestImageDocumentPageNavigationService::directoryContainerNavigationOpensFi
 
     QUrl openedImageUrl;
     QUrl openedContainerUrl;
-    kiriview::ImageDocumentPageNavigationService service(nullptr, fakeProvider.provider(),
+    kiriview::ImageDocumentPageNavigationService service(fakeProvider.provider(),
         navigationCallbacks({},
             [&openedImageUrl, &openedContainerUrl](const QUrl& imageUrl, const QUrl& containerUrl) {
                 openedImageUrl = imageUrl;
@@ -933,7 +933,7 @@ void TestImageDocumentPageNavigationService::containerNavigationBoundaryPropagat
 
     int boundaryCount = 0;
     NavigationDirection boundaryDirection = NavigationDirection::Next;
-    kiriview::ImageDocumentPageNavigationService service(nullptr, fakeProvider.provider(),
+    kiriview::ImageDocumentPageNavigationService service(fakeProvider.provider(),
         navigationCallbacks({}, {}, {}, {}, {}, {},
             [&boundaryCount, &boundaryDirection](NavigationDirection direction) {
                 ++boundaryCount;
@@ -968,7 +968,7 @@ void TestImageDocumentPageNavigationService::emptyContainerReportsNavigationErro
     QUrl errorContainerUrl;
     kiriview::ContainerNavigationError navigationError
         = kiriview::ContainerNavigationError::Generic;
-    kiriview::ImageDocumentPageNavigationService service(nullptr, fakeProvider.provider(),
+    kiriview::ImageDocumentPageNavigationService service(fakeProvider.provider(),
         navigationCallbacks({}, {},
             [&errorContainerUrl, &navigationError](const QUrl& containerUrl,
                 kiriview::ContainerNavigationError error, const QString&) {
@@ -998,7 +998,7 @@ void TestImageDocumentPageNavigationService::invalidArchiveContainerReportsNavig
     QUrl errorContainerUrl;
     kiriview::ContainerNavigationError navigationError
         = kiriview::ContainerNavigationError::Generic;
-    kiriview::ImageDocumentPageNavigationService service(nullptr, fakeProvider.provider(),
+    kiriview::ImageDocumentPageNavigationService service(fakeProvider.provider(),
         navigationCallbacks({}, {},
             [&errorContainerUrl, &navigationError](const QUrl& containerUrl,
                 kiriview::ContainerNavigationError error, const QString&) {
@@ -1037,7 +1037,7 @@ void TestImageDocumentPageNavigationService::archiveContainerNavigationOpensFirs
 
     QUrl openedImageUrl;
     QUrl openedContainerUrl;
-    kiriview::ImageDocumentPageNavigationService service(nullptr, fakeProvider.provider(),
+    kiriview::ImageDocumentPageNavigationService service(fakeProvider.provider(),
         navigationCallbacks({},
             [&openedImageUrl, &openedContainerUrl](const QUrl& imageUrl, const QUrl& containerUrl) {
                 openedImageUrl = imageUrl;

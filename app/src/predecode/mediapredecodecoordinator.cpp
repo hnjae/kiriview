@@ -29,10 +29,8 @@ namespace {
     }
 }
 
-MediaPredecodeCoordinator::MediaPredecodeCoordinator(
-    QObject* parent, MediaPredecodeDependencies dependencies)
-    : QObject(parent)
-    , m_loadController(this, std::move(dependencies.imageDecode), dependencies.cacheByteBudget)
+MediaPredecodeCoordinator::MediaPredecodeCoordinator(MediaPredecodeDependencies dependencies)
+    : m_loadController(this, std::move(dependencies.imageDecode), dependencies.cacheByteBudget)
     , m_scheduleRuntime(
           this, m_loadController,
           [this](const PredecodePendingSchedule& schedule) { startPredecodeWindow(schedule); }, {},

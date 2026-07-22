@@ -40,7 +40,7 @@ constexpr qsizetype testCacheByteBudget = 1024 * 1024;
 kiriview::PowerSaverProvider noOpPowerSaverProvider()
 {
     return kiriview::PowerSaverProvider {
-        [](QObject*, kiriview::PowerSaverChangedCallback) {
+        [](kiriview::PowerSaverChangedCallback) {
             return std::unique_ptr<kiriview::PowerSaverStateMonitor>();
         },
     };
@@ -63,38 +63,37 @@ kiriview::ImageDataDecoder defaultImageDataDecoder()
     };
 }
 
-kiriview::ImagePredecodeCoordinator createCoordinator(QObject* parent,
-    FakeCandidateProvider& candidateProvider, ManualImageDataLoader& dataLoader,
-    kiriview::PowerSaverProvider powerSaverProvider, kiriview::TimerScheduler timerScheduler = {},
+kiriview::ImagePredecodeCoordinator createCoordinator(FakeCandidateProvider& candidateProvider,
+    ManualImageDataLoader& dataLoader, kiriview::PowerSaverProvider powerSaverProvider,
+    kiriview::TimerScheduler timerScheduler = {},
     kiriview::PredecodeThreadCountProvider threadCountProvider = {})
 {
     Q_UNUSED(candidateProvider);
     kiriview::ImageDecodeDependencies dependencies
         = imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder());
     dependencies.workerScheduler = immediateWorkerScheduler();
-    return kiriview::ImagePredecodeCoordinator(parent, std::move(dependencies),
+    return kiriview::ImagePredecodeCoordinator(std::move(dependencies),
         std::move(powerSaverProvider), testCacheByteBudget, std::move(timerScheduler),
         std::move(threadCountProvider));
 }
 
-kiriview::ImagePredecodeCoordinator createCoordinator(QObject* parent,
-    FakeCandidateProvider& candidateProvider, ManualImageDataLoader& dataLoader,
-    kiriview::ImageDataDecoder dataDecoder, kiriview::TimerScheduler timerScheduler = {},
+kiriview::ImagePredecodeCoordinator createCoordinator(FakeCandidateProvider& candidateProvider,
+    ManualImageDataLoader& dataLoader, kiriview::ImageDataDecoder dataDecoder,
+    kiriview::TimerScheduler timerScheduler = {},
     kiriview::PredecodeThreadCountProvider threadCountProvider = {})
 {
     Q_UNUSED(candidateProvider);
     kiriview::ImageDecodeDependencies dependencies
         = imageDecodeDependenciesFor(dataLoader, std::move(dataDecoder));
     dependencies.workerScheduler = immediateWorkerScheduler();
-    return kiriview::ImagePredecodeCoordinator(parent, std::move(dependencies),
-        noOpPowerSaverProvider(), testCacheByteBudget, std::move(timerScheduler),
-        std::move(threadCountProvider));
+    return kiriview::ImagePredecodeCoordinator(std::move(dependencies), noOpPowerSaverProvider(),
+        testCacheByteBudget, std::move(timerScheduler), std::move(threadCountProvider));
 }
 
 kiriview::ImagePredecodeCoordinator createCoordinator(
-    QObject* parent, FakeCandidateProvider& candidateProvider, ManualImageDataLoader& dataLoader)
+    FakeCandidateProvider& candidateProvider, ManualImageDataLoader& dataLoader)
 {
-    return createCoordinator(parent, candidateProvider, dataLoader, noOpPowerSaverProvider());
+    return createCoordinator(candidateProvider, dataLoader, noOpPowerSaverProvider());
 }
 
 std::vector<kiriview::ImageDocumentPageCandidate> imageDocumentPageCandidates(int count)
@@ -202,7 +201,7 @@ void TestImagePredecodeCoordinator::scheduleCachesDisplayedImageAndPredecodesWin
     FakeCandidateProvider candidateProvider;
     ManualImageDataLoader dataLoader;
     kiriview::ImagePredecodeCoordinator coordinator
-        = createCoordinator(this, candidateProvider, dataLoader);
+        = createCoordinator(candidateProvider, dataLoader);
 
     const QUrl previousUrl = indexedImageUrl(0);
     const QUrl displayedUrl = indexedImageUrl(1);
@@ -244,7 +243,7 @@ void TestImagePredecodeCoordinator::scheduleCachesVisibleSpreadPagesAndSkipsSeco
     FakeCandidateProvider candidateProvider;
     ManualImageDataLoader dataLoader;
     kiriview::ImagePredecodeCoordinator coordinator
-        = createCoordinator(this, candidateProvider, dataLoader);
+        = createCoordinator(candidateProvider, dataLoader);
 
     const QUrl primaryUrl = indexedImageUrl(0);
     const QUrl secondaryUrl = indexedImageUrl(1);
@@ -285,7 +284,7 @@ void TestImagePredecodeCoordinator::scheduleRejectsInvalidDisplayedContext()
     FakeCandidateProvider candidateProvider;
     ManualImageDataLoader dataLoader;
     kiriview::ImagePredecodeCoordinator coordinator
-        = createCoordinator(this, candidateProvider, dataLoader);
+        = createCoordinator(candidateProvider, dataLoader);
 
     coordinator.schedule(kiriview::ImagePredecodeCoordinator::Context {});
 
@@ -297,7 +296,7 @@ void TestImagePredecodeCoordinator::archivePredecodeKeepsOpenedCollectionScopeCo
     FakeCandidateProvider candidateProvider;
     ManualImageDataLoader dataLoader;
     kiriview::ImagePredecodeCoordinator coordinator
-        = createCoordinator(this, candidateProvider, dataLoader);
+        = createCoordinator(candidateProvider, dataLoader);
 
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> openedCollectionScope
@@ -340,7 +339,7 @@ void TestImagePredecodeCoordinator::regularPredecodeWindowKeepsTwoPreviousAndTwo
     FakeCandidateProvider candidateProvider;
     ManualImageDataLoader dataLoader;
     kiriview::ImagePredecodeCoordinator coordinator
-        = createCoordinator(this, candidateProvider, dataLoader);
+        = createCoordinator(candidateProvider, dataLoader);
 
     const QUrl displayedUrl = indexedImageUrl(5);
     coordinator.schedule(
@@ -376,7 +375,7 @@ void TestImagePredecodeCoordinator::directoryCollectionStartsTwoBackgroundDecode
     FakeCandidateProvider candidateProvider;
     ManualImageDataLoader dataLoader;
     kiriview::ImagePredecodeCoordinator coordinator
-        = createCoordinator(this, candidateProvider, dataLoader);
+        = createCoordinator(candidateProvider, dataLoader);
 
     const kiriview::OpenedCollectionScopeLocation directoryCollection
         = kiriview::OpenedCollectionScopeLocation::fromUrls(imagesDirectoryUrl(),
@@ -403,7 +402,7 @@ void TestImagePredecodeCoordinator::openedCollectionSnapshotPlansWindowWithoutLi
     FakeCandidateProvider candidateProvider;
     ManualImageDataLoader dataLoader;
     kiriview::ImagePredecodeCoordinator coordinator
-        = createCoordinator(this, candidateProvider, dataLoader);
+        = createCoordinator(candidateProvider, dataLoader);
 
     const kiriview::OpenedCollectionScopeLocation directoryCollection
         = kiriview::OpenedCollectionScopeLocation::fromUrls(imagesDirectoryUrl(),
@@ -437,7 +436,7 @@ void TestImagePredecodeCoordinator::
     FakeCandidateProvider candidateProvider;
     ManualImageDataLoader dataLoader;
     kiriview::ImagePredecodeCoordinator coordinator
-        = createCoordinator(this, candidateProvider, dataLoader);
+        = createCoordinator(candidateProvider, dataLoader);
 
     const kiriview::OpenedCollectionScopeLocation directoryCollection
         = kiriview::OpenedCollectionScopeLocation::fromUrls(imagesDirectoryUrl(),
@@ -479,7 +478,7 @@ void TestImagePredecodeCoordinator::missingCandidateSnapshotStartsEmptyFallbackW
     ManualImageDataLoader dataLoader;
     ManualTimerScheduler timerScheduler;
     kiriview::ImagePredecodeCoordinator coordinator = createCoordinator(
-        this, candidateProvider, dataLoader, noOpPowerSaverProvider(), timerScheduler.scheduler());
+        candidateProvider, dataLoader, noOpPowerSaverProvider(), timerScheduler.scheduler());
 
     const QUrl displayedUrl = indexedImageUrl(5);
     timerScheduler.advanceTo(1000);
@@ -500,7 +499,7 @@ void TestImagePredecodeCoordinator::archiveThreadCountProviderControlsParallelLo
     FakeCandidateProvider candidateProvider;
     ManualImageDataLoader dataLoader;
     ManualTimerScheduler timerScheduler;
-    kiriview::ImagePredecodeCoordinator coordinator = createCoordinator(this, candidateProvider,
+    kiriview::ImagePredecodeCoordinator coordinator = createCoordinator(candidateProvider,
         dataLoader, noOpPowerSaverProvider(), timerScheduler.scheduler(), []() { return 8; });
 
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
@@ -554,7 +553,7 @@ void TestImagePredecodeCoordinator::animatedBackgroundDecodeIsNotCachedAsStaticP
     FakeCandidateProvider candidateProvider;
     ManualImageDataLoader dataLoader;
     kiriview::ImagePredecodeCoordinator coordinator
-        = createCoordinator(this, candidateProvider, dataLoader, defaultImageDataDecoder());
+        = createCoordinator(candidateProvider, dataLoader, defaultImageDataDecoder());
 
     const QUrl displayedUrl = indexedImageUrl(0);
     const QUrl animatedUrl = indexedImageUrl(1);
@@ -582,7 +581,7 @@ void TestImagePredecodeCoordinator::sameScopeGenerationChangeRetainsActiveDecode
     FakeCandidateProvider candidateProvider;
     ManualImageDataLoader dataLoader;
     kiriview::ImagePredecodeCoordinator coordinator
-        = createCoordinator(this, candidateProvider, dataLoader);
+        = createCoordinator(candidateProvider, dataLoader);
 
     coordinator.schedule(
         withCandidateSnapshot(predecodeContext(kiriview::DisplayedPredecodeImage {
@@ -614,7 +613,7 @@ void TestImagePredecodeCoordinator::rapidNavigationDebouncesSkippedPagePredecode
     ManualImageDataLoader dataLoader;
     ManualTimerScheduler timerScheduler;
     kiriview::ImagePredecodeCoordinator coordinator = createCoordinator(
-        this, candidateProvider, dataLoader, noOpPowerSaverProvider(), timerScheduler.scheduler());
+        candidateProvider, dataLoader, noOpPowerSaverProvider(), timerScheduler.scheduler());
 
     const auto schedulePage = [&coordinator](int pageIndex) {
         coordinator.schedule(withCandidateSnapshot(
@@ -654,7 +653,7 @@ void TestImagePredecodeCoordinator::powerSaverMonitorSuppressesAndReschedulesPre
     ManualImageDataLoader dataLoader;
     ManualPowerSaverMonitor* powerSaverMonitor = nullptr;
     ManualTimerScheduler timerScheduler;
-    kiriview::ImagePredecodeCoordinator coordinator = createCoordinator(this, candidateProvider,
+    kiriview::ImagePredecodeCoordinator coordinator = createCoordinator(candidateProvider,
         dataLoader, powerSaverProviderFor(powerSaverMonitor, true), timerScheduler.scheduler());
     QVERIFY(powerSaverMonitor != nullptr);
     QVERIFY(coordinator.powerSaverEnabled());
@@ -698,7 +697,7 @@ void TestImagePredecodeCoordinator::cancelSuppressesPendingDecode()
     FakeCandidateProvider candidateProvider;
     ManualImageDataLoader dataLoader;
     kiriview::ImagePredecodeCoordinator coordinator
-        = createCoordinator(this, candidateProvider, dataLoader);
+        = createCoordinator(candidateProvider, dataLoader);
 
     const QUrl displayedUrl = indexedImageUrl(1);
     const QUrl nextUrl = indexedImageUrl(2);

@@ -63,7 +63,7 @@ struct ImageDocumentRuntimeDependencies
 };
 
 ImageDocumentRuntimeDependencies resolveImageDocumentRuntimeDependencies(
-    ImageDocumentRuntimeDependencyOverrides overrides, QObject* parent);
+    ImageDocumentRuntimeDependencyOverrides overrides);
 ImageCacheBudgetRequest imageDocumentCacheBudgetRequestWithDefaults(
     ImageCacheBudgetRequest request);
 ImageCacheBudgets resolveImageDocumentCacheBudgets(ImageCacheBudgetRequest request);

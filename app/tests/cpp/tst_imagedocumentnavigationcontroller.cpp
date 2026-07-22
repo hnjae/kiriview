@@ -42,7 +42,7 @@ class DocumentNavigationFixture
 {
 public:
     DocumentNavigationFixture()
-        : navigation(&context, candidateProvider.provider(),
+        : navigation(candidateProvider.provider(),
               kiriview::ImageDocumentPageNavigationService::Callbacks {
                   [this](kiriview::ImageDocumentPageNavigationPlan plan) {
                       runtimePlans.push_back(kiriview::imageDocumentRuntimePlanForNavigationPlan(
@@ -61,7 +61,7 @@ public:
                           url, kiriview::NavigationSourceEntryFacts {});
                   },
               })
-        , spread(&context, state,
+        , spread(state,
               kiriview::ImageSpreadPresentationController::Callbacks {
                   {},
                   {},

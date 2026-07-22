@@ -427,15 +427,15 @@ KiriDocumentSession::KiriDocumentSession(
 KiriDocumentSession::KiriDocumentSession(kiriview::KiriDocumentSessionDependencies dependencies,
     ResolvedDependenciesTag, QObject* parent)
     : QObject(parent)
-    , m_imageDocument(std::make_unique<KiriImageDocument>(
+    , m_imageDocument(new KiriImageDocument(
           imageDocumentDependenciesWithPredecodeFinder(dependencies.imageDocument,
               [this](const QUrl& url) {
                   return m_runtime != nullptr ? m_runtime->findPredecodedImage(url)
                                               : std::optional<kiriview::PredecodedImage>();
               }),
           this))
-    , m_videoDocument(std::make_unique<KiriVideoDocument>(
-          std::move(dependencies.videoPlaybackControlTimerScheduler), this))
+    , m_videoDocument(
+          new KiriVideoDocument(std::move(dependencies.videoPlaybackControlTimerScheduler), this))
 {
     dependencies.sessionRuntime.fileDeletionFailed
         = [this](const QString& message) { Q_EMIT fileDeletionFailed(message); };
@@ -447,7 +447,7 @@ KiriDocumentSession::KiriDocumentSession(kiriview::KiriDocumentSessionDependenci
             handleSessionChanges(changes);
         },
         std::move(dependencies.sessionRuntime));
-    m_mediaInformation = std::make_unique<KiriMediaInformation>(*this, this);
+    m_mediaInformation = new KiriMediaInformation(*this, this);
 }
 
 KiriDocumentSession::~KiriDocumentSession() = default;
@@ -614,10 +614,7 @@ QAbstractListModel* KiriDocumentSession::activeNavigationThumbnailModel() const
     return m_runtime->activeNavigationThumbnailModel();
 }
 
-KiriMediaInformation* KiriDocumentSession::mediaInformation() const
-{
-    return m_mediaInformation.get();
-}
+KiriMediaInformation* KiriDocumentSession::mediaInformation() const { return m_mediaInformation; }
 
 const kiriview::MediaInformationProjectionSnapshot&
 KiriDocumentSession::mediaInformationSnapshot() const
@@ -656,9 +653,9 @@ KiriDocumentSession::actionAvailabilityFacts() const
     return m_runtime->actionAvailabilityFacts();
 }
 
-KiriImageDocument* KiriDocumentSession::imageDocument() const { return m_imageDocument.get(); }
+KiriImageDocument* KiriDocumentSession::imageDocument() const { return m_imageDocument; }
 
-KiriVideoDocument* KiriDocumentSession::videoDocument() const { return m_videoDocument.get(); }
+KiriVideoDocument* KiriDocumentSession::videoDocument() const { return m_videoDocument; }
 
 void KiriDocumentSession::openPreviousActiveNavigation()
 {

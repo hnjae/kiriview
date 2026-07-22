@@ -44,7 +44,7 @@ class SpreadFixture
 {
 public:
     SpreadFixture()
-        : controller(&context, state,
+        : controller(state,
               kiriview::ImageSpreadPresentationController::Callbacks {
                   {},
                   [this](const QUrl& url) { return findPredecodedImage(url); },

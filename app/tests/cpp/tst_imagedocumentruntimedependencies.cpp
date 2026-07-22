@@ -45,7 +45,7 @@ private Q_SLOTS:
 void TestImageDocumentRuntimeDependencies::defaultDependenciesUseMediaEntrySourceStore()
 {
     kiriview::ImageDocumentRuntimeDependencies resolved
-        = kiriview::resolveImageDocumentRuntimeDependencies({}, this);
+        = kiriview::resolveImageDocumentRuntimeDependencies({});
 
     QVERIFY(resolved.mediaEntrySourceStore);
     QVERIFY(resolved.candidateProvider.directoryImageDocumentPages);
@@ -74,7 +74,7 @@ void TestImageDocumentRuntimeDependencies::cacheBudgetsUseInjectedSystemMemorySn
     dependencies.systemMemorySnapshot = kiriview::SystemMemorySnapshot { physicalByteSize };
 
     kiriview::ImageDocumentRuntimeDependencies resolved
-        = kiriview::resolveImageDocumentRuntimeDependencies(std::move(dependencies), this);
+        = kiriview::resolveImageDocumentRuntimeDependencies(std::move(dependencies));
 
     QCOMPARE(resolved.cacheBudgets.predecodeCacheByteBudget, physicalByteSize / 8);
     QCOMPARE(resolved.cacheBudgets.displayImageCacheByteBudget, physicalByteSize / 16);
@@ -94,7 +94,7 @@ void TestImageDocumentRuntimeDependencies::partialNonSourceOverridesStillUseMedi
           };
 
     kiriview::ImageDocumentRuntimeDependencies resolved
-        = kiriview::resolveImageDocumentRuntimeDependencies(std::move(dependencies), this);
+        = kiriview::resolveImageDocumentRuntimeDependencies(std::move(dependencies));
 
     QVERIFY(resolved.mediaEntrySourceStore);
     QVERIFY(resolved.candidateProvider.directoryImageDocumentPages);
@@ -131,7 +131,7 @@ void TestImageDocumentRuntimeDependencies::
     };
 
     kiriview::ImageDocumentRuntimeDependencies resolved
-        = kiriview::resolveImageDocumentRuntimeDependencies(std::move(dependencies), this);
+        = kiriview::resolveImageDocumentRuntimeDependencies(std::move(dependencies));
 
     QVERIFY(resolved.mediaEntrySourceStore);
 
@@ -179,7 +179,7 @@ void TestImageDocumentRuntimeDependencies::
               return kiriview::ImageIoJob();
           };
     dependencies.powerSaver.monitor
-        = [&powerSaverMonitorCount](QObject*, kiriview::PowerSaverChangedCallback) {
+        = [&powerSaverMonitorCount](kiriview::PowerSaverChangedCallback) {
               ++powerSaverMonitorCount;
               return std::make_unique<FakePowerSaverMonitor>();
           };
@@ -195,7 +195,7 @@ void TestImageDocumentRuntimeDependencies::
     dependencies.cacheBudgetRequest.displayImageCacheByteBudget = 8192;
 
     kiriview::ImageDocumentRuntimeDependencies resolved
-        = kiriview::resolveImageDocumentRuntimeDependencies(std::move(dependencies), this);
+        = kiriview::resolveImageDocumentRuntimeDependencies(std::move(dependencies));
 
     QVERIFY(!resolved.mediaEntrySourceStore);
     QVERIFY(resolved.candidateProvider.directoryImageDocumentPages);
@@ -218,8 +218,7 @@ void TestImageDocumentRuntimeDependencies::
     resolved.imageDecode.dataLoader(nullptr, kiriview::ImageDecodeRequest(),
         [&loadedData](QByteArray data) { loadedData = std::move(data); }, {});
     resolved.fileDeletionProvider(nullptr, kiriview::FileDeletionRequest(), {});
-    std::unique_ptr<kiriview::PowerSaverStateMonitor> monitor
-        = resolved.powerSaver.monitor(nullptr, {});
+    std::unique_ptr<kiriview::PowerSaverStateMonitor> monitor = resolved.powerSaver.monitor({});
     std::unique_ptr<kiriview::RuntimeTimerHandle> timer
         = resolved.predecodeTimerScheduler.singleShotTimer(nullptr, 25, {});
 

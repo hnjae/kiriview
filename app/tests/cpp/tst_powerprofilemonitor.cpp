@@ -67,7 +67,7 @@ void TestPowerProfileMonitor::initialRefreshReadsPortalAndSubscribes()
     std::vector<bool> changes;
 
     kiriview::PowerProfileMonitor monitor(
-        nullptr, [&changes](bool enabled) { changes.push_back(enabled); }, portal.runtime());
+        [&changes](bool enabled) { changes.push_back(enabled); }, portal.runtime());
 
     QCOMPARE(portal.readCount, 1);
     QCOMPARE(portal.subscriptionCount, 1);
@@ -82,7 +82,7 @@ void TestPowerProfileMonitor::changedPropertyUpdatesCanonicalStateWithoutRefresh
     FakePowerProfilePortal portal;
     std::vector<bool> changes;
     kiriview::PowerProfileMonitor monitor(
-        nullptr, [&changes](bool enabled) { changes.push_back(enabled); }, portal.runtime());
+        [&changes](bool enabled) { changes.push_back(enabled); }, portal.runtime());
 
     QVariantMap changedProperties;
     changedProperties.insert(
@@ -102,7 +102,7 @@ void TestPowerProfileMonitor::invalidatedPropertyRequestsRefreshThroughRuntime()
     FakePowerProfilePortal portal;
     std::vector<bool> changes;
     kiriview::PowerProfileMonitor monitor(
-        nullptr, [&changes](bool enabled) { changes.push_back(enabled); }, portal.runtime());
+        [&changes](bool enabled) { changes.push_back(enabled); }, portal.runtime());
 
     portal.readArguments = { true };
     QVERIFY(

@@ -42,6 +42,7 @@ private:
     void setBackendVideoOutput(QObject* videoOutput) const;
 
     VideoOutputRuntimeCallbacks m_callbacks;
+    QPointer<QObject> m_context;
     std::unique_ptr<VideoOutputRenderContextObserver> m_renderContextObserver;
     QPointer<QObject> m_videoOutput;
     QRectF m_contentRect;

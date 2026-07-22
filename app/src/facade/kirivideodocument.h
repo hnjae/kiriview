@@ -120,7 +120,7 @@ private:
     void cancelPlaybackScrub();
     void requestPlaybackControlSeek(qint64 positionMsec);
 
-    std::unique_ptr<KiriVideoPlaybackControls> m_playbackControls;
+    KiriVideoPlaybackControls* m_playbackControls = nullptr;
     std::unique_ptr<kiriview::VideoDocumentRuntime> m_runtime;
     bool m_playbackControlActionStateKnown = false;
     bool m_videoSeekable = false;

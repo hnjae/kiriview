@@ -233,7 +233,7 @@ private Q_SLOTS:
 void TestActiveNavigationThumbnailWorkCoordinator::cacheMissChainsGenerationAndPublishesReadyImage()
 {
     auto images = std::make_shared<kiriview::ThumbnailImageStore>();
-    kiriview::ActiveNavigationThumbnailRowStore rows(this, images);
+    kiriview::ActiveNavigationThumbnailRowStore rows(images);
     const auto schedulingRows = setRows(rows, { row(1, QStringLiteral("/media/one.png")) });
     ManualProviders providers;
     kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(
@@ -255,7 +255,7 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     supersededLookupCompletionIsRejectedByJobIdentity()
 {
     auto images = std::make_shared<kiriview::ThumbnailImageStore>();
-    kiriview::ActiveNavigationThumbnailRowStore rows(this, images);
+    kiriview::ActiveNavigationThumbnailRowStore rows(images);
     const auto schedulingRows = setRows(rows, { row(1, QStringLiteral("/media/one.png")) });
     ManualProviders providers;
     int failureDiagnosticCount = 0;
@@ -289,7 +289,7 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     backgroundResultAndFailedRefinementPreserveForegroundReadyImage()
 {
     auto images = std::make_shared<kiriview::ThumbnailImageStore>();
-    kiriview::ActiveNavigationThumbnailRowStore rows(this, images);
+    kiriview::ActiveNavigationThumbnailRowStore rows(images);
     const auto schedulingRows = setRows(rows, { row(1, QStringLiteral("/media/one.png")) });
     ManualProviders providers;
     int failureDiagnosticCount = 0;
@@ -338,7 +338,7 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     demandWindowAdmitsVisibleBeforeNearbyRegardlessOfReportOrder()
 {
     auto images = std::make_shared<kiriview::ThumbnailImageStore>();
-    kiriview::ActiveNavigationThumbnailRowStore rows(this, images);
+    kiriview::ActiveNavigationThumbnailRowStore rows(images);
     const auto schedulingRows = setRows(rows,
         { row(1, QStringLiteral("/media/one.png")), row(2, QStringLiteral("/media/two.png")) });
     ManualProviders providers;
@@ -362,7 +362,7 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     videoDemandIsCapacityBoundedAndCancellationReleasesExtractor()
 {
     auto images = std::make_shared<kiriview::ThumbnailImageStore>();
-    kiriview::ActiveNavigationThumbnailRowStore rows(this, images);
+    kiriview::ActiveNavigationThumbnailRowStore rows(images);
     const auto schedulingRows = setRows(rows,
         { videoRow(1, QStringLiteral("/media/one.mp4")),
             videoRow(2, QStringLiteral("/media/two.mp4")),
@@ -437,7 +437,7 @@ void TestActiveNavigationThumbnailWorkCoordinator::
 void TestActiveNavigationThumbnailWorkCoordinator::queuedContinuationFindsEligibleBackgroundRow()
 {
     auto images = std::make_shared<kiriview::ThumbnailImageStore>();
-    kiriview::ActiveNavigationThumbnailRowStore rows(this, images);
+    kiriview::ActiveNavigationThumbnailRowStore rows(images);
     std::vector<kiriview::ActiveNavigationThumbnailRow> sourceRows;
     for (int number = 1; number <= 20; ++number) {
         sourceRows.push_back(row(number, QStringLiteral("/media/%1.png").arg(number)));
@@ -469,7 +469,7 @@ void TestActiveNavigationThumbnailWorkCoordinator::queuedContinuationFindsEligib
 void TestActiveNavigationThumbnailWorkCoordinator::invalidationRejectsQueuedContinuation()
 {
     auto images = std::make_shared<kiriview::ThumbnailImageStore>();
-    kiriview::ActiveNavigationThumbnailRowStore rows(this, images);
+    kiriview::ActiveNavigationThumbnailRowStore rows(images);
     std::vector<kiriview::ActiveNavigationThumbnailRow> sourceRows;
     for (int number = 1; number <= 20; ++number) {
         sourceRows.push_back(row(number, QStringLiteral("/media/%1.png").arg(number)));

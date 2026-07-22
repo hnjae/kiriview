@@ -121,7 +121,7 @@ class ManualVideoThumbnailBackendFactory
 public:
     kiriview::VideoThumbnailBackendFactory factory()
     {
-        return [this](QObject*) {
+        return [this]() {
             auto backend = std::make_unique<ManualVideoThumbnailBackend>();
             m_backend = backend.get();
             return backend;

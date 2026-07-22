@@ -38,8 +38,8 @@ PredecodeScheduleRuntime::PredecodeScheduleRuntime(QObject* owner,
 
     powerSaverProvider = powerSaverProviderWithDefault(std::move(powerSaverProvider));
     if (powerSaverProvider.monitor) {
-        m_powerSaverMonitor = powerSaverProvider.monitor(
-            owner, [this](bool enabled) { setPowerSaverEnabled(enabled); });
+        m_powerSaverMonitor
+            = powerSaverProvider.monitor([this](bool enabled) { setPowerSaverEnabled(enabled); });
     }
     if (m_powerSaverMonitor != nullptr) {
         setPowerSaverEnabled(m_powerSaverMonitor->powerSaverEnabled());

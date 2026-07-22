@@ -89,7 +89,7 @@ public:
         std::function<void(bool)> restoreTwoPageModeEnabled;
     };
 
-    explicit ImageViewportIntegrationRuntime(Callbacks callbacks = {}, QObject* parent = nullptr);
+    explicit ImageViewportIntegrationRuntime(Callbacks callbacks = {});
     ~ImageViewportIntegrationRuntime() override;
 
     void attach(ImageViewport* viewport);

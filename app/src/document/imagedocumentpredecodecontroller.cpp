@@ -57,8 +57,8 @@ namespace {
     }
 }
 
-ImageDocumentPredecodeController::ImageDocumentPredecodeController(QObject* parent,
-    ImageDocumentState& state, PrimaryDisplayedImageCallback primaryDisplayedImage,
+ImageDocumentPredecodeController::ImageDocumentPredecodeController(ImageDocumentState& state,
+    PrimaryDisplayedImageCallback primaryDisplayedImage,
     FirstDisplayDecodeContextCallback firstDisplayDecodeContext,
     ImageDecodeDependencies decodeDependencies, qsizetype cacheByteBudget,
     CurrentPageNumberCallback currentPageNumber,
@@ -68,9 +68,9 @@ ImageDocumentPredecodeController::ImageDocumentPredecodeController(QObject* pare
     : m_state(state)
     , m_primaryDisplayedImage(std::move(primaryDisplayedImage))
     , m_firstDisplayDecodeContext(std::move(firstDisplayDecodeContext))
-    , m_coordinator(std::make_unique<ImagePredecodeCoordinator>(parent,
-          std::move(decodeDependencies), std::move(powerSaverProvider), cacheByteBudget,
-          std::move(timerScheduler), std::move(threadCountProvider)))
+    , m_coordinator(std::make_unique<ImagePredecodeCoordinator>(std::move(decodeDependencies),
+          std::move(powerSaverProvider), cacheByteBudget, std::move(timerScheduler),
+          std::move(threadCountProvider)))
     , m_currentPageNumber(std::move(currentPageNumber))
     , m_ensurePageCandidateSnapshot(std::move(ensurePageCandidateSnapshot))
     , m_ordinaryDirectMediaPredecodeEnabled(ordinaryDirectMediaPredecodeEnabled)

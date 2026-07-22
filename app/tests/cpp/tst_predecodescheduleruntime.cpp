@@ -49,7 +49,7 @@ kiriview::PredecodeScheduleContext scheduleContext(const QUrl& url, bool immedia
 kiriview::PowerSaverProvider noOpPowerSaverProvider()
 {
     return kiriview::PowerSaverProvider {
-        [](QObject*, kiriview::PowerSaverChangedCallback) {
+        [](kiriview::PowerSaverChangedCallback) {
             return std::unique_ptr<kiriview::PowerSaverStateMonitor>();
         },
     };

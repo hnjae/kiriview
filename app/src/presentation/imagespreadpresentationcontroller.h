@@ -47,8 +47,7 @@ public:
         SecondaryDisplayImageCallback secondaryDisplayImage;
     };
 
-    ImageSpreadPresentationController(
-        QObject* parent, ImageDocumentState& state, Callbacks callbacks);
+    ImageSpreadPresentationController(ImageDocumentState& state, Callbacks callbacks);
     ~ImageSpreadPresentationController();
 
     int currentLastPageNumber() const;

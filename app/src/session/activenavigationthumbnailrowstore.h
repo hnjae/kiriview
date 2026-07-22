@@ -108,7 +108,7 @@ class ActiveNavigationThumbnailRowStore final : public ActiveNavigationThumbnail
 {
 public:
     explicit ActiveNavigationThumbnailRowStore(
-        QObject* owner = nullptr, std::shared_ptr<ThumbnailImageStore> imageStore = {});
+        std::shared_ptr<ThumbnailImageStore> imageStore = {});
     ~ActiveNavigationThumbnailRowStore() override;
 
     ActiveNavigationThumbnailRowStore(const ActiveNavigationThumbnailRowStore&) = delete;

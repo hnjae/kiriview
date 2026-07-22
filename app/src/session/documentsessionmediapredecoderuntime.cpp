@@ -36,9 +36,9 @@ namespace {
 }
 
 DocumentSessionMediaPredecodeRuntime::DocumentSessionMediaPredecodeRuntime(
-    QObject* owner, MediaPredecodeDependencyOverrides dependencies)
+    MediaPredecodeDependencyOverrides dependencies)
     : m_coordinator(std::make_unique<MediaPredecodeCoordinator>(
-          owner, resolveMediaPredecodeDependencies(std::move(dependencies))))
+          resolveMediaPredecodeDependencies(std::move(dependencies))))
 {
 }
 

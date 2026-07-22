@@ -57,36 +57,35 @@ kiriview::ImageLoadFailure imagePresentationFailure(
 
 namespace kiriview {
 ImageOpenController::ImageOpenController(
-    QObject* parent, ImageDocumentState& state, ImageOpenController::Callbacks callbacks)
+    ImageDocumentState& state, ImageOpenController::Callbacks callbacks)
     : m_state(state)
     , m_callbacks(std::move(callbacks))
 {
     ImageLoader::EnsurePageCandidateSnapshotCallback ensurePageCandidateSnapshot
         = m_callbacks.ensurePageCandidateSnapshot;
-    m_imageLoader = std::make_unique<ImageLoader>(parent,
-        ImageLoader::Callbacks {
-            [this](ImageLoadSession session, ImageLoadFailure failure) {
-                [[maybe_unused]] auto batch = m_state.beginChangeBatch();
-                finishLoadWithError(session, std::move(failure));
-            },
-            [this](ImageLoadSession session) {
-                [[maybe_unused]] auto batch = m_state.beginChangeBatch();
-                finishUnsupportedOpenedCollectionVideoLoad(std::move(session));
-            },
-            [this](const QUrl& url) {
-                return m_callbacks.findPredecodedImage ? m_callbacks.findPredecodedImage(url)
-                                                       : std::optional<PredecodedImage>();
-            },
-            [this](ImageLoadSession session) {
-                [[maybe_unused]] auto batch = m_state.beginChangeBatch();
-                finishSourcePrepared(std::move(session));
-            },
-            std::move(ensurePageCandidateSnapshot),
-            [this](ImageLoadSession session, std::optional<PredecodedImage> predecoded) {
-                [[maybe_unused]] auto batch = m_state.beginChangeBatch();
-                finishPreparedViewportImageLoad(std::move(session), std::move(predecoded));
-            },
-        });
+    m_imageLoader = std::make_unique<ImageLoader>(ImageLoader::Callbacks {
+        [this](ImageLoadSession session, ImageLoadFailure failure) {
+            [[maybe_unused]] auto batch = m_state.beginChangeBatch();
+            finishLoadWithError(session, std::move(failure));
+        },
+        [this](ImageLoadSession session) {
+            [[maybe_unused]] auto batch = m_state.beginChangeBatch();
+            finishUnsupportedOpenedCollectionVideoLoad(std::move(session));
+        },
+        [this](const QUrl& url) {
+            return m_callbacks.findPredecodedImage ? m_callbacks.findPredecodedImage(url)
+                                                   : std::optional<PredecodedImage>();
+        },
+        [this](ImageLoadSession session) {
+            [[maybe_unused]] auto batch = m_state.beginChangeBatch();
+            finishSourcePrepared(std::move(session));
+        },
+        std::move(ensurePageCandidateSnapshot),
+        [this](ImageLoadSession session, std::optional<PredecodedImage> predecoded) {
+            [[maybe_unused]] auto batch = m_state.beginChangeBatch();
+            finishPreparedViewportImageLoad(std::move(session), std::move(predecoded));
+        },
+    });
 }
 
 ImageOpenController::~ImageOpenController() { cancel(); }

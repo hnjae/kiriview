@@ -10,23 +10,22 @@
 #include <utility>
 
 namespace kiriview {
-ImageSecondaryPageController::ImageSecondaryPageController(QObject* parent, Callbacks callbacks)
+ImageSecondaryPageController::ImageSecondaryPageController(Callbacks callbacks)
     : m_callbacks(std::move(callbacks))
 {
-    m_imageLoader = std::make_unique<ImageLoader>(parent,
-        ImageLoader::Callbacks {
-            [this](ImageLoadSession session, ImageLoadFailure) { finishLoadWithError(session); },
-            {},
-            [this](const QUrl& url) {
-                return m_callbacks.findPredecodedImage ? m_callbacks.findPredecodedImage(url)
-                                                       : std::optional<PredecodedImage>();
-            },
-            {},
-            {},
-            [this](ImageLoadSession session, std::optional<PredecodedImage> predecoded) {
-                invokeIfSet(m_callbacks.preparedImage, std::move(session), std::move(predecoded));
-            },
-        });
+    m_imageLoader = std::make_unique<ImageLoader>(ImageLoader::Callbacks {
+        [this](ImageLoadSession session, ImageLoadFailure) { finishLoadWithError(session); },
+        {},
+        [this](const QUrl& url) {
+            return m_callbacks.findPredecodedImage ? m_callbacks.findPredecodedImage(url)
+                                                   : std::optional<PredecodedImage>();
+        },
+        {},
+        {},
+        [this](ImageLoadSession session, std::optional<PredecodedImage> predecoded) {
+            invokeIfSet(m_callbacks.preparedImage, std::move(session), std::move(predecoded));
+        },
+    });
 }
 
 ImageSecondaryPageController::~ImageSecondaryPageController() { cancel(); }

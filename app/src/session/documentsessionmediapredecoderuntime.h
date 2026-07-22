@@ -36,8 +36,8 @@ struct DocumentSessionMediaPredecodeInput
 class DocumentSessionMediaPredecodeRuntime final
 {
 public:
-    DocumentSessionMediaPredecodeRuntime(
-        QObject* owner, MediaPredecodeDependencyOverrides dependencies = {});
+    explicit DocumentSessionMediaPredecodeRuntime(
+        MediaPredecodeDependencyOverrides dependencies = {});
     ~DocumentSessionMediaPredecodeRuntime();
 
     void schedule(const DocumentSessionMediaPredecodeInput& input,

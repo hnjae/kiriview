@@ -265,10 +265,10 @@ private:
 
     void handleSessionChanges(const std::vector<kiriview::DocumentSessionChange>& changes);
 
-    std::unique_ptr<KiriImageDocument> m_imageDocument;
-    std::unique_ptr<KiriVideoDocument> m_videoDocument;
+    KiriImageDocument* m_imageDocument = nullptr;
+    KiriVideoDocument* m_videoDocument = nullptr;
     std::unique_ptr<kiriview::DocumentSessionRuntime> m_runtime;
-    std::unique_ptr<KiriMediaInformation> m_mediaInformation;
+    KiriMediaInformation* m_mediaInformation = nullptr;
 };
 
 #endif

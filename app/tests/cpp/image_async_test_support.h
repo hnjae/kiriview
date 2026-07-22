@@ -351,7 +351,7 @@ inline PowerSaverProvider powerSaverProviderFor(
     ManualPowerSaverMonitor*& monitor, bool initialEnabled)
 {
     return PowerSaverProvider {
-        [&monitor, initialEnabled](QObject*, PowerSaverChangedCallback callback) {
+        [&monitor, initialEnabled](PowerSaverChangedCallback callback) {
             auto instance
                 = std::make_unique<ManualPowerSaverMonitor>(initialEnabled, std::move(callback));
             monitor = instance.get();

@@ -39,8 +39,8 @@ public:
         PreparedImageCallback preparedImage;
     };
 
-    explicit ImageLoader(QObject* parent = nullptr);
-    ImageLoader(QObject* parent, Callbacks callbacks);
+    ImageLoader();
+    explicit ImageLoader(Callbacks callbacks);
 
     void start(ImageLoadRequest request, ImageFirstDisplayDecodeContext firstDisplayContext = {});
     void cancel();

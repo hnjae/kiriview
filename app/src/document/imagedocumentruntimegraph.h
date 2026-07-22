@@ -76,10 +76,8 @@ public:
     void shutdownRuntime();
 
 private:
-    void composeSurfaceAndPresentation(
-        QObject* documentObject, ImageDocumentRuntimeDependencies& dependencies);
-    void composeNavigationAndCandidatePorts(
-        QObject* documentObject, ImageDocumentRuntimeDependencies& dependencies);
+    void composeSurfaceAndPresentation(ImageDocumentRuntimeDependencies& dependencies);
+    void composeNavigationAndCandidatePorts(ImageDocumentRuntimeDependencies& dependencies);
     void composeWorkflowOwners(QObject* documentObject, ImageDocumentState& state,
         ImageDocumentRuntimeDependencies& dependencies,
         ExternalPredecodedImageFinder externalPredecodedImageFinder);

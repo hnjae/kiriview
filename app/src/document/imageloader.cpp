@@ -34,14 +34,13 @@ kiriview::ImageLoadFailure imageLoadFailure(const kiriview::ImageLoadSession& se
 }
 
 namespace kiriview {
-ImageLoader::ImageLoader(QObject* parent)
-    : ImageLoader(parent, {})
+ImageLoader::ImageLoader()
+    : ImageLoader(Callbacks {})
 {
 }
 
-ImageLoader::ImageLoader(QObject* parent, Callbacks callbacks)
-    : QObject(parent)
-    , m_callbacks(std::move(callbacks))
+ImageLoader::ImageLoader(Callbacks callbacks)
+    : m_callbacks(std::move(callbacks))
 {
 }
 

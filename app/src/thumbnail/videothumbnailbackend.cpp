@@ -35,9 +35,8 @@ kiriview::VideoThumbnailBackendMediaStatus mediaStatus(QMediaPlayer::MediaStatus
 class QtVideoThumbnailBackend final : public QObject, public kiriview::VideoThumbnailBackend
 {
 public:
-    explicit QtVideoThumbnailBackend(QObject* parent)
-        : QObject(parent)
-        , m_player(this)
+    QtVideoThumbnailBackend()
+        : m_player(this)
         , m_sink(this)
     {
         m_player.setVideoSink(&m_sink);
@@ -123,8 +122,8 @@ private:
 }
 
 namespace kiriview {
-std::unique_ptr<VideoThumbnailBackend> createDefaultVideoThumbnailBackend(QObject* parent)
+std::unique_ptr<VideoThumbnailBackend> createDefaultVideoThumbnailBackend()
 {
-    return std::make_unique<QtVideoThumbnailBackend>(parent);
+    return std::make_unique<QtVideoThumbnailBackend>();
 }
 }

@@ -29,10 +29,8 @@ class PowerProfileMonitor final : public QObject, public PowerSaverStateMonitor
     Q_OBJECT
 
 public:
-    explicit PowerProfileMonitor(
-        QObject* parent = nullptr, PowerSaverChangedCallback callback = {});
-    PowerProfileMonitor(
-        QObject* parent, PowerSaverChangedCallback callback, PowerProfileMonitorRuntime runtime);
+    explicit PowerProfileMonitor(PowerSaverChangedCallback callback = {});
+    PowerProfileMonitor(PowerSaverChangedCallback callback, PowerProfileMonitorRuntime runtime);
 
     bool powerSaverEnabled() const override;
 

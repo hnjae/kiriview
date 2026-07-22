@@ -145,8 +145,8 @@ void ApplicationShortcutRuntime::setup()
 {
     loadViewerLocalShortcuts();
     sanitizeProgramWideActionShortcuts();
-    m_shortcutHelpModel = std::make_unique<ShortcutHelpModel>(
-        [this]() { return shortcutHelpRows(); }, m_host.actionContext());
+    m_shortcutHelpModel
+        = std::make_unique<ShortcutHelpModel>([this]() { return shortcutHelpRows(); });
 }
 
 void ApplicationShortcutRuntime::handleActionChanged(QAction* changedAction)

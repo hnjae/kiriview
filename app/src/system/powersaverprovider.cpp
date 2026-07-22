@@ -11,8 +11,8 @@ namespace kiriview {
 PowerSaverProvider defaultPowerSaverProvider()
 {
     return PowerSaverProvider {
-        [](QObject* parent, PowerSaverChangedCallback callback) {
-            return std::make_unique<PowerProfileMonitor>(parent, std::move(callback));
+        [](PowerSaverChangedCallback callback) {
+            return std::make_unique<PowerProfileMonitor>(std::move(callback));
         },
     };
 }

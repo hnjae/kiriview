@@ -64,7 +64,7 @@ void TestImageLoader::directImagePreparesProviderTargetWithValidatedPredecode()
         preparedSession = std::move(session);
         preparedImage = std::move(predecoded);
     };
-    kiriview::ImageLoader loader(this, std::move(callbacks));
+    kiriview::ImageLoader loader(std::move(callbacks));
 
     loader.start(kiriview::ImageLoadRequest::fromExternalSource(
         kiriview::resolvedNavigationSource(imageUrl, {})));
@@ -106,7 +106,7 @@ void TestImageLoader::openedCollectionResolvesFirstPageBeforePreparingProviderTa
               QVERIFY(!predecoded.has_value());
               providerPrepared = std::move(session);
           };
-    kiriview::ImageLoader loader(this, std::move(callbacks));
+    kiriview::ImageLoader loader(std::move(callbacks));
 
     loader.start(kiriview::ImageLoadRequest::fromExternalSource(
         kiriview::resolvedNavigationSource(archiveUrl, {})));
@@ -139,7 +139,7 @@ void TestImageLoader::staleOpenedCollectionSnapshotCannotPrepareAReplacedTarget(
     callbacks.preparedImage = [&preparedUrls](kiriview::ImageLoadSession session, auto) {
         preparedUrls.push_back(session.imageUrl());
     };
-    kiriview::ImageLoader loader(this, std::move(callbacks));
+    kiriview::ImageLoader loader(std::move(callbacks));
 
     loader.start(kiriview::ImageLoadRequest::fromExternalSource(
         kiriview::resolvedNavigationSource(archiveUrl, {})));
@@ -168,7 +168,7 @@ void TestImageLoader::missingProviderTargetOwnerReportsTypedPresentationFailure(
     callbacks.error = [&failure](auto, kiriview::ImageLoadFailure loadFailure) {
         failure = std::move(loadFailure);
     };
-    kiriview::ImageLoader loader(this, std::move(callbacks));
+    kiriview::ImageLoader loader(std::move(callbacks));
 
     loader.start(kiriview::ImageLoadRequest::fromExternalSource(
         kiriview::resolvedNavigationSource(imageUrl, {})));

@@ -56,7 +56,7 @@ KiriVideoDocument::KiriVideoDocument(
     kiriview::TimerScheduler playbackControlTimerScheduler, QObject* parent)
     : QObject(parent)
 {
-    m_playbackControls = std::make_unique<KiriVideoPlaybackControls>(*this);
+    m_playbackControls = new KiriVideoPlaybackControls(*this);
     m_runtime = std::make_unique<kiriview::VideoDocumentRuntime>(
         this,
         [this](const std::vector<kiriview::VideoDocumentChange>& changes) {
@@ -125,7 +125,7 @@ QObject* KiriVideoDocument::videoOutput() const { return m_runtime->videoOutput(
 
 KiriVideoPlaybackControls* KiriVideoDocument::playbackControls() const
 {
-    return m_playbackControls.get();
+    return m_playbackControls;
 }
 
 const kiriview::EmbeddedMetadata& KiriVideoDocument::embeddedMetadata() const

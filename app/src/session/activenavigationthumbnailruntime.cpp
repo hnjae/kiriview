@@ -20,7 +20,7 @@ ActiveNavigationThumbnailRuntime::ActiveNavigationThumbnailRuntime(QObject* owne
     ThumbnailGenerationProvider generationProvider, ThumbnailSourceAdapter sourceAdapter,
     ImageWorkerScheduler workerScheduler,
     ActiveNavigationThumbnailFailureDiagnosticCallback failureDiagnosticCallback)
-    : m_rowStore(std::make_unique<ActiveNavigationThumbnailRowStore>(owner, std::move(imageStore)))
+    : m_rowStore(std::make_unique<ActiveNavigationThumbnailRowStore>(std::move(imageStore)))
     , m_workCoordinator(
           std::make_unique<ActiveNavigationThumbnailWorkCoordinator>(owner, *m_rowStore,
               lookupProvider ? std::move(lookupProvider)

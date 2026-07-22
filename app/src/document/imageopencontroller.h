@@ -57,7 +57,7 @@ public:
         ClearViewportTargetCallback clearViewportTarget;
     };
 
-    ImageOpenController(QObject* parent, ImageDocumentState& state, Callbacks callbacks);
+    ImageOpenController(ImageDocumentState& state, Callbacks callbacks);
     ~ImageOpenController();
 
     void open();

@@ -58,10 +58,9 @@ public:
     Q_DISABLE_COPY(VideoThumbnailBackend)
 };
 
-using VideoThumbnailBackendFactory
-    = std::function<std::unique_ptr<VideoThumbnailBackend>(QObject*)>;
+using VideoThumbnailBackendFactory = std::function<std::unique_ptr<VideoThumbnailBackend>()>;
 
-std::unique_ptr<VideoThumbnailBackend> createDefaultVideoThumbnailBackend(QObject* parent);
+std::unique_ptr<VideoThumbnailBackend> createDefaultVideoThumbnailBackend();
 }
 
 #endif

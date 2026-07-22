@@ -13,9 +13,8 @@
 
 namespace kiriview {
 VideoOutputRenderContextObserver::VideoOutputRenderContextObserver(
-    QObject* parent, std::function<void()> renderContextChanged)
-    : QObject(parent)
-    , m_renderContextChanged(std::move(renderContextChanged))
+    std::function<void()> renderContextChanged)
+    : m_renderContextChanged(std::move(renderContextChanged))
 {
 }
 

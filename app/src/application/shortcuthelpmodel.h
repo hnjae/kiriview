@@ -47,7 +47,7 @@ public:
         ScopeTextRole,
     };
 
-    explicit ShortcutHelpModel(ShortcutHelpRowsProvider rowsProvider, QObject* parent = nullptr);
+    explicit ShortcutHelpModel(ShortcutHelpRowsProvider rowsProvider);
 
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
     QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;

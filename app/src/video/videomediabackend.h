@@ -70,7 +70,7 @@ public:
     Q_DISABLE_COPY(VideoMediaBackend)
 };
 
-std::unique_ptr<VideoMediaBackend> createDefaultVideoMediaBackend(QObject* parent);
+std::unique_ptr<VideoMediaBackend> createDefaultVideoMediaBackend();
 }
 
 #endif

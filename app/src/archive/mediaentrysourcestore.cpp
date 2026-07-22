@@ -10,9 +10,8 @@
 
 namespace kiriview {
 MediaEntrySourceStore::MediaEntrySourceStore(
-    MediaEntrySourceFactory sourceFactory, QObject* parent, ImageWorkerScheduler workerScheduler)
-    : QObject(parent)
-    , m_runtime(this, std::move(sourceFactory), std::move(workerScheduler))
+    MediaEntrySourceFactory sourceFactory, ImageWorkerScheduler workerScheduler)
+    : m_runtime(this, std::move(sourceFactory), std::move(workerScheduler))
 {
 }
 
