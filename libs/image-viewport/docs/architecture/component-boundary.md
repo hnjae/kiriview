@@ -4,6 +4,14 @@
 
 The component must remain a separately named build target so ownership and dependencies are explicit. KiriView production code depends only on the declared component interface; it must not include engine-private headers, provider-host transport internals, render-host types, scene graph resources, native texture handles, or instrumentation types.
 
+## Language And Build Baseline
+
+`ImageViewport` must follow the repository application build's ISO C++23 and toolchain baseline rather than own an independent compiler, standard-library, or Qt compatibility policy. The component implementation, supported headers, and Qt-generated translation units must compile as ISO C++23 with vendor language extensions disabled.
+
+The named component target must publish its C++23 compile requirement to KiriView so the supported headers and their sole consumer cannot be compiled under different language modes. Every supported build configuration that compiles the component must enforce the same C++23 requirement; any locally repeated minimum toolchain or Qt value must mirror the application build authority and must not diverge from it.
+
+KiriView and `ImageViewport` coordinate any toolchain-baseline change atomically. The component does not provide lower-standard headers, conditional C++17 or C++20 implementations, compatibility shims, or an alternate target that weakens the shared language requirement.
+
 ## Component Header Boundary
 
 Component declarations are partitioned into five canonical interface subjects: shared values and tokens, image sequences and factories, the provider adapter contract, the viewport item and presentation commands, and state snapshots, command results, and coordinate input and result values. The supported include forms are defined by the [component-boundary specification](../spec/image-viewport-component-boundary.md). Other declarations and all implementation definitions remain private to the component.
@@ -29,7 +37,7 @@ flowchart TD
 
 Shared enums, opaque tokens, roles, ranges, and value primitives needed by more than one subject belong to shared values rather than the viewport item. State and operation values do not depend on the item declaration, provider implementations do not acquire a Qt Quick item dependency merely to use protocol values, and snapshot consumers do not acquire provider-session transport merely to observe state.
 
-KiriView and the component evolve atomically in one repository. A contract change updates the component interface, application integration, and focused coverage together; it does not preserve old signatures, duplicate values, compatibility adapters, ABI shims, or versioned QML imports for hypothetical consumers.
+KiriView and the component must evolve atomically in one repository. A contract change must update the component interface and application integration together; it must not preserve old signatures, duplicate values, compatibility adapters, ABI shims, or versioned QML imports for hypothetical consumers.
 
 Backend libraries are private component build dependencies unless KiriView must use one through another application-owned boundary. Backend choice does not make graphics API resources, scene graph object lifetime, texture injection, or render synchronization part of the component interface.
 

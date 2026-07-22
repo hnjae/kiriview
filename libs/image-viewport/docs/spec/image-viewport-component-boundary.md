@@ -14,6 +14,8 @@ Every available published maximum, minimum, and step is finite and positive, and
 
 `ImageViewport` exposes a repository-internal interface solely to KiriView. It is not an independently consumable SDK or QML module and makes no standalone QML URI, import-version, package-target, ABI, semantic-versioning, or source-compatibility promise.
 
+The supported C++ interface requires ISO C++23. KiriView and `ImageViewport` evolve together and do not provide C++17 or C++20 source-compatibility modes for this interface.
+
 The component exposes one intentional C++ include surface to KiriView. `<ImageViewport/ImageViewport>` is the umbrella header for that surface; repository code may instead include only the canonical subject headers it uses:
 
 - `<ImageViewport/imageviewporttypes.h>` provides shared public values, roles, ranges, and opaque tokens.
