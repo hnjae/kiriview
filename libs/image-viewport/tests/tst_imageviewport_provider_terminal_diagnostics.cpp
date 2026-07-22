@@ -43,7 +43,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void providerDiagnosticsAreDiscardedBeforePublicProjection();
     void providerDiagnosticsRedactPrivateDetails();
     void providerUnsupportedAndCancellationDiagnosticsArePublicSafe();

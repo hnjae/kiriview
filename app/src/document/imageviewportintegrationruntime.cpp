@@ -409,7 +409,7 @@ ImageViewportIntegrationRuntime::TargetRecord* ImageViewportIntegrationRuntime::
     if (!generation.isValid()) {
         return nullptr;
     }
-    const auto found = std::find_if(m_records.crbegin(), m_records.crend(),
+    const auto found = std::ranges::find_if(m_records.crbegin(), m_records.crend(),
         [generation](const std::unique_ptr<TargetRecord>& record) {
             return record->acceptedGeneration == generation;
         });
@@ -420,14 +420,13 @@ void ImageViewportIntegrationRuntime::pruneRecords(
     ImageViewportPresentationTargetGenerationToken acceptedGeneration,
     ImageViewportPresentationTargetGenerationToken displayedGeneration)
 {
-    m_records.erase(std::remove_if(m_records.begin(), m_records.end(),
-                        [this, acceptedGeneration, displayedGeneration](
-                            const std::unique_ptr<TargetRecord>& record) {
-                            return record.get() != m_activeRecord
-                                && record->acceptedGeneration != acceptedGeneration
-                                && record->acceptedGeneration != displayedGeneration;
-                        }),
-        m_records.end());
+    std::erase_if(m_records,
+        [this, acceptedGeneration, displayedGeneration](
+            const std::unique_ptr<TargetRecord>& record) {
+            return record.get() != m_activeRecord
+                && record->acceptedGeneration != acceptedGeneration
+                && record->acceptedGeneration != displayedGeneration;
+        });
 }
 
 std::optional<ImageLoadFailure> ImageViewportIntegrationRuntime::resolveFailure(

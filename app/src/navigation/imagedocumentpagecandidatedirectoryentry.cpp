@@ -17,10 +17,9 @@ std::vector<kiriview::ImageDocumentPageCandidate> imageDocumentPageCandidatesWit
     std::vector<kiriview::ImageDocumentPageCandidate> filteredCandidates;
     filteredCandidates.reserve(candidates.size());
     for (const kiriview::ImageDocumentPageCandidate& candidate : candidates) {
-        const bool removed
-            = std::any_of(deletedUrls.cbegin(), deletedUrls.cend(), [&candidate](const QUrl& url) {
-                  return kiriview::sameNormalizedUrl(candidate.url, url);
-              });
+        const bool removed = std::ranges::any_of(deletedUrls, [&candidate](const QUrl& url) {
+            return kiriview::sameNormalizedUrl(candidate.url, url);
+        });
         if (!removed) {
             filteredCandidates.push_back(candidate);
         }

@@ -216,8 +216,7 @@ void VideoDocumentState::publish(std::vector<VideoDocumentChange> changes)
 
     std::vector<VideoDocumentChange> uniqueChanges;
     for (VideoDocumentChange change : changes) {
-        if (std::find(uniqueChanges.cbegin(), uniqueChanges.cend(), change)
-            == uniqueChanges.cend()) {
+        if (!std::ranges::contains(uniqueChanges, change)) {
             uniqueChanges.push_back(change);
         }
     }

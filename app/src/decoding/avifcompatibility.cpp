@@ -283,11 +283,11 @@ bool writeIpma(QByteArray& target, std::array<char, 4> flags, quint32 count, QBy
         return false;
     }
     std::memcpy(target.data() + 4, "ipma", 4);
-    std::copy(flags.begin(), flags.end(), target.data() + boxHeaderSize);
+    std::ranges::copy(flags, target.data() + boxHeaderSize);
     if (!writeBigEndian<quint32>(target, boxHeaderSize + fullBoxFieldsSize, count)) {
         return false;
     }
-    std::copy(entries.begin(), entries.end(), target.data() + ipmaEntriesOffset);
+    std::ranges::copy(entries, target.data() + ipmaEntriesOffset);
     return true;
 }
 
@@ -319,7 +319,7 @@ bool mergeIpma(QByteArray& data, const IpmaBox& first, const IpmaBox& second)
     if (replacement.size() != available || first.box.offset > data.size() - available) {
         return false;
     }
-    std::copy(replacement.begin(), replacement.end(), data.begin() + first.box.offset);
+    std::ranges::copy(replacement, data.begin() + first.box.offset);
     return true;
 }
 

@@ -271,9 +271,7 @@ ActiveNavigationThumbnailScheduler::acceptCompletion(
     }
     state.activeWork.reset();
     if (claim.kind == ActiveNavigationThumbnailWorkKind::Background) {
-        if (std::find(state.completedBackgroundBuckets.cbegin(),
-                state.completedBackgroundBuckets.cend(), completion.bucket)
-            == state.completedBackgroundBuckets.cend()) {
+        if (!std::ranges::contains(state.completedBackgroundBuckets, completion.bucket)) {
             state.completedBackgroundBuckets.push_back(completion.bucket);
         }
     } else {
@@ -386,9 +384,7 @@ bool ActiveNavigationThumbnailScheduler::backgroundComplete(
         && static_cast<int>(state.acceptedDemand->bucket) >= static_cast<int>(bucket)) {
         return true;
     }
-    return std::find(state.completedBackgroundBuckets.cbegin(),
-               state.completedBackgroundBuckets.cend(), bucket)
-        != state.completedBackgroundBuckets.cend();
+    return std::ranges::contains(state.completedBackgroundBuckets, bucket);
 }
 
 void ActiveNavigationThumbnailScheduler::advanceAdmissionEpoch()
@@ -540,7 +536,7 @@ void ActiveNavigationThumbnailScheduler::admit(
                 && supportsGeneratedThumbnail(currentState.acceptedDemand->sourcePlan)
                 && m_foregroundCapacity != 0) {
                 while (activeForeground >= m_foregroundCapacity) {
-                    const auto activeVisible = std::find_if(m_highDemandRows.crbegin(),
+                    const auto activeVisible = std::ranges::find_if(m_highDemandRows.crbegin(),
                         m_highDemandRows.crend(), [this](std::size_t row) {
                             const RowState& state = m_rows.at(row);
                             return (!m_currentRow.has_value() || row != *m_currentRow)

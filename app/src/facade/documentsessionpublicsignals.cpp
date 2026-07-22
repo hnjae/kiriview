@@ -115,9 +115,7 @@ std::vector<DocumentSessionPublicSignal> documentSessionPublicSignalsForChanges(
     std::vector<DocumentSessionPublicSignal> plannedSignals;
     for (DocumentSessionChange change : changes) {
         for (DocumentSessionPublicSignal signal : documentSessionPublicSignals(change)) {
-            const bool alreadyPlanned
-                = std::find(plannedSignals.cbegin(), plannedSignals.cend(), signal)
-                != plannedSignals.cend();
+            const bool alreadyPlanned = std::ranges::contains(plannedSignals, signal);
             if (!alreadyPlanned) {
                 plannedSignals.push_back(signal);
             }

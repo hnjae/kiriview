@@ -33,7 +33,7 @@ bool PredecodeActiveDecodeStore::containsUrl(const QUrl& url) const
         return false;
     }
 
-    return std::any_of(m_entries.cbegin(), m_entries.cend(),
+    return std::ranges::any_of(m_entries,
         [&normalizedUrl](const Entry& entry) { return entry.normalizedUrl == *normalizedUrl; });
 }
 
@@ -50,7 +50,7 @@ PredecodeActiveLoads PredecodeActiveDecodeStore::activeLoads() const
 std::optional<ImageDecodeRequest> PredecodeActiveDecodeStore::finish(
     const ImageDecodeRequest& request)
 {
-    const auto entry = std::find_if(m_entries.begin(), m_entries.end(),
+    const auto entry = std::ranges::find_if(m_entries,
         [&request](const Entry& candidate) { return candidate.request.matches(request); });
     if (entry == m_entries.end()) {
         return std::nullopt;

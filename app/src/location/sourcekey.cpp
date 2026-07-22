@@ -104,11 +104,6 @@ bool operator==(const ThumbnailRowKey& left, const ThumbnailRowKey& right)
         && left.pageKind == right.pageKind && left.sourceKind == right.sourceKind;
 }
 
-bool operator!=(const ThumbnailRowKey& left, const ThumbnailRowKey& right)
-{
-    return !(left == right);
-}
-
 bool operator==(const ThumbnailDemandKey& left, const ThumbnailDemandKey& right)
 {
     return left.rowNumber == right.rowNumber && left.source.valid == right.source.valid
@@ -116,19 +111,9 @@ bool operator==(const ThumbnailDemandKey& left, const ThumbnailDemandKey& right)
         && left.navigationGeneration == right.navigationGeneration;
 }
 
-bool operator!=(const ThumbnailDemandKey& left, const ThumbnailDemandKey& right)
-{
-    return !(left == right);
-}
-
 bool operator==(const ThumbnailSourceRevisionKey& left, const ThumbnailSourceRevisionKey& right)
 {
     return left.row == right.row && left.navigationGeneration == right.navigationGeneration;
-}
-
-bool operator!=(const ThumbnailSourceRevisionKey& left, const ThumbnailSourceRevisionKey& right)
-{
-    return !(left == right);
 }
 
 uint qHash(const SourceKey& key, uint seed) { return qHash(key.identity, seed); }

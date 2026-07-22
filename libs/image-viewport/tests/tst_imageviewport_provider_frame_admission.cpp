@@ -16,7 +16,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void providerStillFrameReadyCommitsDisplay();
     void providerStillFrameUsesDeviceIndependentPayloadSize();
     void providerOrientedFramePayloadCommitsNormalizedLogicalSize();

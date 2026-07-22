@@ -17,7 +17,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void replacementClearsRetainedDisplayDiagnostics();
     void providerTokenOverflowClosesSessionWithoutInvalidRequest();
     void secondaryProviderTokenOverflowClosesSessionWithoutMetadataRequest();

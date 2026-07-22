@@ -192,7 +192,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void defaultSnapshotMatchesPublicDefaultProjection();
     void snapshotProjectsCanonicalEngineState();
     void defaultDisplayStateMatchesEmptyRenderState();

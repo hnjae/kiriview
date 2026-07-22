@@ -42,7 +42,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void advancementWithinCurrentFrameKeepsDisplayTarget();
     void advancementAtFrameBoundarySelectsNextFrame();
     void advancementWithoutCurrentPositionSeedsFromCurrentFrame();

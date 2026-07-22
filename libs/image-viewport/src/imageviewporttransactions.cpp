@@ -73,7 +73,7 @@ ImageViewportStateSnapshot ImageViewportPrivate::finalizeItemTransaction()
     const bool snapshotChanged = publishedSnapshot != lastStateSnapshot;
     if (snapshotChanged) {
         lastStateSnapshot = publishedSnapshot;
-        emit q->stateChanged();
+        Q_EMIT q->stateChanged();
     }
     if (!drainingExternalWork) {
         drainExternalWork();

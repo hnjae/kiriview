@@ -104,12 +104,6 @@ bool operator==(
         && left.locationIdentity == right.locationIdentity;
 }
 
-bool operator!=(
-    const ImageViewportProviderWorkIdentity& left, const ImageViewportProviderWorkIdentity& right)
-{
-    return !(left == right);
-}
-
 ImageViewportProviderMetadataResult ImageViewportProviderMetadataResult::ready(
     ImageSequenceProviderMetadata metadata)
 {

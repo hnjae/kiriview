@@ -36,10 +36,6 @@ public:
     {
         return left.url() == right.url();
     }
-    friend bool operator!=(const ImageLocation& left, const ImageLocation& right)
-    {
-        return !(left == right);
-    }
 
 private:
     static ResolvedNavigationSource normalizedSource(QUrl url)
@@ -70,10 +66,6 @@ public:
     friend bool operator==(const ContainerLocation& left, const ContainerLocation& right)
     {
         return left.m_url == right.m_url;
-    }
-    friend bool operator!=(const ContainerLocation& left, const ContainerLocation& right)
-    {
-        return !(left == right);
     }
 
 private:
@@ -136,11 +128,6 @@ public:
         return left.fileUrl() == right.fileUrl() && left.m_rootUrl == right.m_rootUrl
             && left.m_kind == right.m_kind;
     }
-    friend bool operator!=(
-        const OpenedCollectionScopeLocation& left, const OpenedCollectionScopeLocation& right)
-    {
-        return !(left == right);
-    }
 
 private:
     ResolvedNavigationSource m_source;
@@ -200,10 +187,6 @@ public:
     {
         return left.m_image == right.m_image
             && left.m_openedCollectionScope == right.m_openedCollectionScope;
-    }
-    friend bool operator!=(const DisplayedImageLocation& left, const DisplayedImageLocation& right)
-    {
-        return !(left == right);
     }
 
 private:

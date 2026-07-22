@@ -21,7 +21,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void exposesTypedSequenceFactorySurface();
     void factoryRejectsNullTypedInputs();
     void timedFrameListNativeFactoryRejectsMismatchedCounts();

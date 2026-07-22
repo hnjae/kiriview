@@ -28,8 +28,8 @@ public:
     void retire(ImageSequenceProviderFailureReference reference)
     {
         QMutexLocker locker(&mutex);
-        const auto match = std::find_if(entries.begin(), entries.end(),
-            [reference](const Entry& entry) { return entry.reference == reference; });
+        const auto match = std::ranges::find_if(
+            entries, [reference](const Entry& entry) { return entry.reference == reference; });
         if (match != entries.end()) {
             entries.erase(match);
         }
@@ -41,8 +41,8 @@ public:
             return std::nullopt;
         }
         QMutexLocker locker(&mutex);
-        const auto match = std::find_if(entries.cbegin(), entries.cend(),
-            [reference](const Entry& entry) { return entry.reference == reference; });
+        const auto match = std::ranges::find_if(
+            entries, [reference](const Entry& entry) { return entry.reference == reference; });
         return match == entries.cend() ? std::nullopt
                                        : std::optional<ImageLoadFailure>(match->failure);
     }

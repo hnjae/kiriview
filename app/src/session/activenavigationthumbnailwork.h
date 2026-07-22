@@ -38,10 +38,6 @@ struct ActiveNavigationThumbnailWorkId
     {
         return value == other.value;
     }
-    bool operator!=(const ActiveNavigationThumbnailWorkId& other) const
-    {
-        return !(*this == other);
-    }
 };
 
 enum class ActiveNavigationThumbnailFailureKind {

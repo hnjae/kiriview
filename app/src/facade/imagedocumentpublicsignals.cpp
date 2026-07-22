@@ -58,7 +58,7 @@ void ImageDocumentPublicSignalEmitter::emitChanges(
 {
     const std::vector<ImageDocumentPublicSignal> signals
         = imageDocumentPublicSignalsForChanges(changes);
-    if (std::any_of(signals.cbegin(), signals.cend(), affectsSessionSnapshot)) {
+    if (std::ranges::any_of(signals, affectsSessionSnapshot)) {
         run(m_operations.sessionSnapshotChanged);
     }
     for (ImageDocumentPublicSignal signal : signals) {
@@ -193,18 +193,15 @@ std::vector<ImageDocumentPublicSignal> imageDocumentPublicSignalsForChanges(
         imageDocumentSourceScopeChanged = imageDocumentSourceScopeChanged
             || change == ImageDocumentChange::DisplayedUrl || change == ImageDocumentChange::Status;
         for (ImageDocumentPublicSignal signal : imageDocumentPublicSignals(change)) {
-            const bool alreadyPlanned
-                = std::find(plannedSignals.cbegin(), plannedSignals.cend(), signal)
-                != plannedSignals.cend();
+            const bool alreadyPlanned = std::ranges::contains(plannedSignals, signal);
             if (!alreadyPlanned) {
                 plannedSignals.push_back(signal);
             }
         }
     }
     if (imageDocumentSourceScopeChanged
-        && std::find(plannedSignals.cbegin(), plannedSignals.cend(),
-               ImageDocumentPublicSignal::ImageDocumentSourceScope)
-            == plannedSignals.cend()) {
+        && !std::ranges::contains(
+            plannedSignals, ImageDocumentPublicSignal::ImageDocumentSourceScope)) {
         plannedSignals.push_back(ImageDocumentPublicSignal::ImageDocumentSourceScope);
     }
     return plannedSignals;

@@ -26,7 +26,6 @@ public:
     {
         return lhs.m_valid == rhs.m_valid && lhs.m_x == rhs.m_x && lhs.m_y == rhs.m_y;
     }
-    friend bool operator!=(CoordinateResult lhs, CoordinateResult rhs) { return !(lhs == rhs); }
 
 private:
     bool m_valid = false;

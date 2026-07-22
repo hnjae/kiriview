@@ -38,7 +38,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void qmlFinalApiScaffoldDefaultsAndCommands();
     void manualZoomLimitQmlBindingRefreshesWithPresentationState();
     void qmlImportsDocumentedSurface();

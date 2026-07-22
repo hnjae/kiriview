@@ -14,7 +14,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void secondaryProviderPresentationTargetOpensRoleLocalSessionAndWaits();
     void secondaryProviderMetadataUpdatesRoleObservations();
 };

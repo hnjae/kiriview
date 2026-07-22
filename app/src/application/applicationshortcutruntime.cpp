@@ -556,20 +556,19 @@ QList<ShortcutHelpRow> ApplicationShortcutRuntime::shortcutHelpRows() const
             viewerLocalShortcutsForId(registeredAction.actionId));
     }
 
-    std::stable_sort(
-        rows.begin(), rows.end(), [](const ShortcutHelpRow& left, const ShortcutHelpRow& right) {
-            const int leftOrder
-                = shortcutHelpCategoryOrderForAction(static_cast<ActionId>(left.actionId));
-            const int rightOrder
-                = shortcutHelpCategoryOrderForAction(static_cast<ActionId>(right.actionId));
-            if (leftOrder != rightOrder) {
-                return leftOrder < rightOrder;
-            }
-            if (left.actionId != right.actionId) {
-                return left.actionId < right.actionId;
-            }
-            return left.scopeText < right.scopeText;
-        });
+    std::ranges::stable_sort(rows, [](const ShortcutHelpRow& left, const ShortcutHelpRow& right) {
+        const int leftOrder
+            = shortcutHelpCategoryOrderForAction(static_cast<ActionId>(left.actionId));
+        const int rightOrder
+            = shortcutHelpCategoryOrderForAction(static_cast<ActionId>(right.actionId));
+        if (leftOrder != rightOrder) {
+            return leftOrder < rightOrder;
+        }
+        if (left.actionId != right.actionId) {
+            return left.actionId < right.actionId;
+        }
+        return left.scopeText < right.scopeText;
+    });
 
     for (qsizetype index = 0; index < rows.size(); ++index) {
         rows[index].categoryFirst

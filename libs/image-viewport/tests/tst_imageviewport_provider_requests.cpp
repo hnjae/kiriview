@@ -15,7 +15,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void providerRequestTokensAreUniqueWithinSession();
     void providerFrameSeekUsesFrameRequest();
     void providerFrameSeekBeforeMetadataResolvesAfterMetadata();

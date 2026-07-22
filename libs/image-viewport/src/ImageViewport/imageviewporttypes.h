@@ -237,11 +237,6 @@ public:
     {
         return lhs.m_value == rhs.m_value;
     }
-    friend bool operator!=(
-        ImageSequenceProviderFailureReference lhs, ImageSequenceProviderFailureReference rhs)
-    {
-        return !(lhs == rhs);
-    }
 
 private:
     explicit ImageSequenceProviderFailureReference(quint64 value)
@@ -276,7 +271,6 @@ public:
     {
         return lhs.m_minimum == rhs.m_minimum && lhs.m_maximum == rhs.m_maximum;
     }
-    friend bool operator!=(ImageViewportRange lhs, ImageViewportRange rhs) { return !(lhs == rhs); }
 
 private:
     int m_minimum = -1;
@@ -301,10 +295,6 @@ public:
     friend bool operator==(ImageViewportRevisionToken lhs, ImageViewportRevisionToken rhs)
     {
         return lhs.m_value == rhs.m_value;
-    }
-    friend bool operator!=(ImageViewportRevisionToken lhs, ImageViewportRevisionToken rhs)
-    {
-        return !(lhs == rhs);
     }
 
 private:
@@ -340,11 +330,6 @@ public:
         ImageViewportPresentationTargetGenerationToken rhs)
     {
         return lhs.m_value == rhs.m_value;
-    }
-    friend bool operator!=(ImageViewportPresentationTargetGenerationToken lhs,
-        ImageViewportPresentationTargetGenerationToken rhs)
-    {
-        return !(lhs == rhs);
     }
 
 private:
@@ -382,11 +367,6 @@ public:
     {
         return lhs.m_value == rhs.m_value;
     }
-    friend bool operator!=(
-        ImageViewportDemandRevisionToken lhs, ImageViewportDemandRevisionToken rhs)
-    {
-        return !(lhs == rhs);
-    }
 
 private:
     explicit ImageViewportDemandRevisionToken(quint64 value)
@@ -422,11 +402,6 @@ public:
     {
         return lhs.m_value == rhs.m_value;
     }
-    friend bool operator!=(
-        ImageViewportAllocationGenerationToken lhs, ImageViewportAllocationGenerationToken rhs)
-    {
-        return !(lhs == rhs);
-    }
 
 private:
     explicit ImageViewportAllocationGenerationToken(quint64 value)
@@ -460,10 +435,6 @@ public:
     friend bool operator==(ImageViewportRoleSet lhs, ImageViewportRoleSet rhs)
     {
         return lhs.m_primary == rhs.m_primary && lhs.m_secondary == rhs.m_secondary;
-    }
-    friend bool operator!=(ImageViewportRoleSet lhs, ImageViewportRoleSet rhs)
-    {
-        return !(lhs == rhs);
     }
 
 private:

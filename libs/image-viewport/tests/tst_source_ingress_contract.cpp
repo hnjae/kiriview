@@ -94,7 +94,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void factoryUsesCanonicalOutcomeAndReason();
     void frameOwnsReusablePayloadFacts();
     void logicalSourceAndPayloadLimitsAreIndependent();

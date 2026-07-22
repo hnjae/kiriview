@@ -37,7 +37,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void roleScopedMetadataProjectionUsesOnePath_data();
     void roleScopedMetadataProjectionUsesOnePath();
     void providerPartialMetadataProjectsExplicitAvailability();

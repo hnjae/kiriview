@@ -134,12 +134,6 @@ public:
         return left.m_id == right.m_id;
     }
 
-    friend bool operator!=(
-        ImageSequenceProviderRequestToken left, ImageSequenceProviderRequestToken right)
-    {
-        return !(left == right);
-    }
-
 private:
     explicit ImageSequenceProviderRequestToken(quint64 id);
 
@@ -214,7 +208,7 @@ public:
 
     virtual void request(const ImageSequenceProviderRequest& request) = 0;
 
-signals:
+Q_SIGNALS:
     void providerEvent(const ImageSequenceProviderEvent& event);
 };
 
@@ -302,11 +296,6 @@ public:
         return lhs.m_demandRevision == rhs.m_demandRevision && lhs.m_frame == rhs.m_frame
             && lhs.m_frameStartPosition == rhs.m_frameStartPosition
             && lhs.m_frameDuration == rhs.m_frameDuration;
-    }
-    friend bool operator!=(const ImageSequenceProviderFrameEnvelope& lhs,
-        const ImageSequenceProviderFrameEnvelope& rhs)
-    {
-        return !(lhs == rhs);
     }
 
 private:

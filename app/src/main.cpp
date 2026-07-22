@@ -6,7 +6,19 @@
 
 #include <QByteArray>
 #include <QStringList>
+#include <cstdio>
 #include <print>
+
+namespace {
+void printStartupError(const QByteArray& error) noexcept
+{
+    try {
+        std::println(stderr, "KiriView: {}", error.constData());
+    } catch (...) {
+        std::fputs("KiriView: startup failed\n", stderr);
+    }
+}
+}
 
 int main(int argumentCount, char* arguments[])
 {
@@ -19,7 +31,7 @@ int main(int argumentCount, char* arguments[])
     const auto startup = kiriview::parseApplicationStartupSource(startupArguments);
     if (!startup) {
         const QByteArray error = startup.error().toLocal8Bit();
-        std::println(stderr, "KiriView: {}", error.constData());
+        printStartupError(error);
         return 2;
     }
 

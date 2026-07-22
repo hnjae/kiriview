@@ -30,7 +30,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void defaultConstructsAsQuickItem();
     void exposesDocumentedQmlSurface();
     void exposesFinalApiScaffold();

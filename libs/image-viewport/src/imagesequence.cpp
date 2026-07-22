@@ -712,7 +712,7 @@ void TimedImageFrameList::setAutoplay(bool autoplay)
         return;
     }
     m_authoredAnimationFacts.setAutoplay(autoplay);
-    emit animationFactsChanged();
+    Q_EMIT animationFactsChanged();
 }
 
 ImageSequenceAuthoredAnimationLoopMode TimedImageFrameList::loopMode() const
@@ -736,7 +736,7 @@ void TimedImageFrameList::setAuthoredAnimationFacts(
         return;
     }
     m_authoredAnimationFacts = authoredAnimationFacts;
-    emit animationFactsChanged();
+    Q_EMIT animationFactsChanged();
 }
 
 bool TimedImageFrameList::appendFrame(const QImage& image, int durationMilliseconds)
@@ -799,9 +799,9 @@ bool TimedImageFrameList::appendFrame(const TimedImageFrame& timedFrame)
     m_frames.append(timedFrame);
     if (!m_errorString.isEmpty()) {
         m_errorString.clear();
-        emit diagnosticsChanged();
+        Q_EMIT diagnosticsChanged();
     }
-    emit countChanged();
+    Q_EMIT countChanged();
     return true;
 }
 
@@ -818,10 +818,10 @@ void TimedImageFrameList::clear()
     m_frames.clear();
     m_errorString.clear();
     if (shouldEmitCountChanged) {
-        emit countChanged();
+        Q_EMIT countChanged();
     }
     if (shouldEmitDiagnosticsChanged) {
-        emit diagnosticsChanged();
+        Q_EMIT diagnosticsChanged();
     }
 }
 
@@ -848,5 +848,5 @@ void TimedImageFrameList::setErrorString(const QString& errorString)
     }
 
     m_errorString = errorString;
-    emit diagnosticsChanged();
+    Q_EMIT diagnosticsChanged();
 }

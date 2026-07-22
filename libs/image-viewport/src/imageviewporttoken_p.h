@@ -18,7 +18,6 @@ public:
     {
         return lhs.m_value == rhs.m_value;
     }
-    friend bool operator!=(RevisionToken lhs, RevisionToken rhs) { return !(lhs == rhs); }
 
 private:
     explicit RevisionToken(quint64 value)

@@ -35,9 +35,10 @@ std::vector<QUrl> mediaPredecodeEligibleUrlsForTargetIndices(
     urls.reserve(indices.size());
 
     for (std::size_t index : indices) {
-        const auto eligible = std::find_if(snapshot.images.cbegin(), snapshot.images.cend(),
-            [index](
-                const MediaPredecodeEligibleImage& image) { return image.mediaIndex == index; });
+        const auto eligible = std::ranges::find_if(
+            snapshot.images, [index](const MediaPredecodeEligibleImage& image) {
+                return image.mediaIndex == index;
+            });
         if (eligible != snapshot.images.cend()) {
             urls.push_back(eligible->url);
         }

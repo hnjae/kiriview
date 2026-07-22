@@ -160,7 +160,7 @@ int frameStartPosition(const QVector<int>& durations, int frame)
 bool containsToken(const QVector<ImageSequenceProviderRequestToken>& tokens,
     ImageSequenceProviderRequestToken token)
 {
-    return std::find(tokens.cbegin(), tokens.cend(), token) != tokens.cend();
+    return std::ranges::contains(tokens, token);
 }
 }
 
@@ -234,16 +234,12 @@ void ImageViewportDecodeProviderSource::requestFrame(
 void ImageViewportDecodeProviderSource::cancel(
     const QVector<ImageSequenceProviderRequestToken>& tokens)
 {
-    m_pendingMetadata.erase(std::remove_if(m_pendingMetadata.begin(), m_pendingMetadata.end(),
-                                [&tokens](const PendingMetadata& pending) {
-                                    return containsToken(tokens, pending.identity.requestToken);
-                                }),
-        m_pendingMetadata.end());
-    m_pendingFrames.erase(std::remove_if(m_pendingFrames.begin(), m_pendingFrames.end(),
-                              [&tokens](const PendingFrame& pending) {
-                                  return containsToken(tokens, pending.identity.requestToken);
-                              }),
-        m_pendingFrames.end());
+    std::erase_if(m_pendingMetadata, [&tokens](const PendingMetadata& pending) {
+        return containsToken(tokens, pending.identity.requestToken);
+    });
+    std::erase_if(m_pendingFrames, [&tokens](const PendingFrame& pending) {
+        return containsToken(tokens, pending.identity.requestToken);
+    });
 }
 
 void ImageViewportDecodeProviderSource::close()

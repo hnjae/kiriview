@@ -55,11 +55,6 @@ struct ViewportEnginePresentationTarget
         return lhs.primarySequence == rhs.primarySequence
             && lhs.secondarySequence == rhs.secondarySequence && lhs.shapeValid == rhs.shapeValid;
     }
-    friend bool operator!=(
-        const ViewportEnginePresentationTarget& lhs, const ViewportEnginePresentationTarget& rhs)
-    {
-        return !(lhs == rhs);
-    }
 };
 
 struct ViewportEnginePresentationTargetTransitionPolicy

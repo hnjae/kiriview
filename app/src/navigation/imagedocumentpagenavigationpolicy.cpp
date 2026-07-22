@@ -14,20 +14,18 @@
 namespace {
 std::optional<std::size_t> currentUrlIndex(const std::vector<QUrl>& urls, const QUrl& currentUrl)
 {
-    const auto current = std::find_if(urls.cbegin(), urls.cend(),
+    const auto current = std::ranges::find_if(urls,
         [&currentUrl](const QUrl& url) { return kiriview::sameNormalizedUrl(url, currentUrl); });
     if (current == urls.cend()) {
         return std::nullopt;
     }
 
-    return static_cast<std::size_t>(std::distance(urls.cbegin(), current));
+    return static_cast<std::size_t>(std::ranges::distance(urls.cbegin(), current));
 }
 
 int boundedIndex(std::size_t index)
 {
-    return index > static_cast<std::size_t>(std::numeric_limits<int>::max())
-        ? std::numeric_limits<int>::max()
-        : static_cast<int>(index);
+    return std::in_range<int>(index) ? static_cast<int>(index) : std::numeric_limits<int>::max();
 }
 }
 

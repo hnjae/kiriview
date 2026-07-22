@@ -13,7 +13,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void resetViewWithoutRequestClearsTransformAndCommandDiagnostic();
     void resetViewWithoutTransformChangePreservesCommandDiagnostic();
     void resetViewResetsTransformsAndPreservesNonTransformPresentationState();

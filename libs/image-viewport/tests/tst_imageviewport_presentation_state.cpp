@@ -18,7 +18,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void invalidPresentationEnumCommandsRejectWithoutDisplayMutation();
     void failureTransitionPolicyValidity();
     void restorePreviousRejectsWithoutCommittedPresentation();
@@ -173,7 +173,7 @@ void ImageViewportPresentationStateTest::restorePreviousRestoresCompleteCommitte
     auto* failureHandle = new ImageSequenceProviderFailureHandle(
         [failureReleaseCount]() { ++*failureReleaseCount; });
     const ImageSequenceProviderFailureReference failureReference = failureHandle->reference();
-    emit sessionFactory->lastSession()->providerEvent(
+    Q_EMIT sessionFactory->lastSession()->providerEvent(
         ImageSequenceProviderEvent::failed(sessionFactory->lastSession()->lastFrameToken(),
             ImageSequenceProviderFailure(
                 ImageSequenceProviderFailureCause::ProviderInternal, failureHandle)));

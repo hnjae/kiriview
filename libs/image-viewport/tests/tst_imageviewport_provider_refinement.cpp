@@ -40,7 +40,7 @@ public:
         auto envelope = ImageSequenceProviderFrameEnvelope::stillFrame();
         if (echoDemandRevision)
             envelope.setDemandRevision(request.demand().demandRevision());
-        emit providerEvent(ImageSequenceProviderEvent::frameReady(request.token(),
+        Q_EMIT providerEvent(ImageSequenceProviderEvent::frameReady(request.token(),
             new ImageSequenceProviderFrameHandle(std::move(frame), this), envelope));
     }
 
@@ -137,7 +137,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void largeLogicalSourceAcceptsBoundedPreviewAndRefinement();
     void committedProviderPayloadRefinesWithoutLeavingReady();
     void newerDemandCancelsOlderRefinementAndStaleResultCannotCommit();

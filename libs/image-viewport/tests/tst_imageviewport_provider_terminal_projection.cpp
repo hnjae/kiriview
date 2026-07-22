@@ -29,7 +29,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void secondaryProviderMetadataFailureReportsAggregateProviderFailure();
     void providerMetadataUnsupportedCauseProjectsRequestReason_data();
     void providerMetadataUnsupportedCauseProjectsRequestReason();

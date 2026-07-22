@@ -6,7 +6,6 @@
 #include "location/imageurl.h"
 
 #include <algorithm>
-#include <iterator>
 #include <optional>
 #include <utility>
 
@@ -80,21 +79,21 @@ std::size_t PredecodeDisplayedHistory::recentPriority(const QUrl& url) const
 
 bool PredecodeDisplayedHistory::containsUrl(const std::vector<QUrl>& urls, const QUrl& url)
 {
-    return std::find(urls.cbegin(), urls.cend(), url) != urls.cend();
+    return std::ranges::contains(urls, url);
 }
 
 void PredecodeDisplayedHistory::removeUrl(std::vector<QUrl>& urls, const QUrl& url)
 {
-    urls.erase(std::remove(urls.begin(), urls.end(), url), urls.end());
+    std::erase(urls, url);
 }
 
 std::size_t PredecodeDisplayedHistory::priority(const std::vector<QUrl>& urls, const QUrl& url)
 {
-    const auto priorityEntry = std::find(urls.cbegin(), urls.cend(), url);
+    const auto priorityEntry = std::ranges::find(urls, url);
     if (priorityEntry == urls.cend()) {
         return urls.size();
     }
 
-    return static_cast<std::size_t>(std::distance(urls.cbegin(), priorityEntry));
+    return static_cast<std::size_t>(std::ranges::distance(urls.cbegin(), priorityEntry));
 }
 }

@@ -25,11 +25,6 @@ struct ViewportEngineViewportState
             && lhs.devicePixelRatio == rhs.devicePixelRatio
             && lhs.renderAvailable == rhs.renderAvailable;
     }
-    friend bool operator!=(
-        const ViewportEngineViewportState& lhs, const ViewportEngineViewportState& rhs)
-    {
-        return !(lhs == rhs);
-    }
 };
 
 struct ViewportEngineGeometryInput

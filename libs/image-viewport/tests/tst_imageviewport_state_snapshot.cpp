@@ -29,7 +29,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void defaultSnapshotValuesAndCopySemantics();
     void authoredAnimationMetadataUsesExplicitAvailability();
     void readyStillSnapshotMatchesFlatProperties();
@@ -523,7 +523,7 @@ void ImageViewportStateSnapshotTest::terminalProviderFailureProjectsDiagnostics(
         auto* handle
             = new ImageSequenceProviderFailureHandle([releaseCount]() { ++*releaseCount; });
         const ImageSequenceProviderFailureReference reference = handle->reference();
-        emit sessionFactory->lastSession()->providerEvent(ImageSequenceProviderEvent::failed(
+        Q_EMIT sessionFactory->lastSession()->providerEvent(ImageSequenceProviderEvent::failed(
             sessionFactory->lastSession()->lastMetadataToken(),
             ImageSequenceProviderFailure(ImageSequenceProviderFailureCause::SourceAccess, handle)));
         drainQueuedProviderResults();

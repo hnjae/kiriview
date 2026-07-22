@@ -44,7 +44,7 @@ public:
 private:
     bool containsNormalized(const QUrl& normalizedUrl) const
     {
-        return std::find(m_urls.cbegin(), m_urls.cend(), normalizedUrl) != m_urls.cend();
+        return std::ranges::contains(m_urls, normalizedUrl);
     }
 
     std::vector<QUrl> m_urls;

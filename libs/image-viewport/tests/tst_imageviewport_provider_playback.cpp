@@ -15,7 +15,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void providerRuntimeAutoplayStartsAfterMetadata();
     void providerSpreadAutoplayWaitsForEveryRole_data();
     void providerSpreadAutoplayWaitsForEveryRole();

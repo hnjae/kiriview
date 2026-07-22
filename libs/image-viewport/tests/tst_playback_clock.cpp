@@ -17,7 +17,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void invalidClockTakesZeroElapsed();
     void elapsedObservationPreservesClock();
     void restartedClockTakesMonotonicElapsedAndInvalidates();

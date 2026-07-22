@@ -26,10 +26,6 @@ public:
     {
         return lhs.m_text == rhs.m_text;
     }
-    friend bool operator!=(const PublicDiagnosticText& lhs, const PublicDiagnosticText& rhs)
-    {
-        return !(lhs == rhs);
-    }
 
 private:
     explicit PublicDiagnosticText(QString text);

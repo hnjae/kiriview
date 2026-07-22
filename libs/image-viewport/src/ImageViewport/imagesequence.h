@@ -203,7 +203,7 @@ public:
     Q_INVOKABLE bool appendFrame(const TimedImageFrame& frame);
     Q_INVOKABLE void clear();
 
-signals:
+Q_SIGNALS:
     void countChanged();
     void animationFactsChanged();
     void diagnosticsChanged();

@@ -49,7 +49,7 @@ void VideoDocumentPublicSignalEmitter::emitChanges(
 {
     const std::vector<VideoDocumentPublicSignal> signals
         = videoDocumentPublicSignalsForChanges(changes);
-    if (std::any_of(signals.cbegin(), signals.cend(), affectsSessionSnapshot)) {
+    if (std::ranges::any_of(signals, affectsSessionSnapshot)) {
         run(m_operations.sessionSnapshotChanged);
     }
     for (VideoDocumentPublicSignal signal : signals) {
@@ -132,9 +132,7 @@ std::vector<VideoDocumentPublicSignal> videoDocumentPublicSignalsForChanges(
     std::vector<VideoDocumentPublicSignal> plannedSignals;
     for (VideoDocumentChange change : changes) {
         for (VideoDocumentPublicSignal signal : videoDocumentPublicSignals(change)) {
-            const bool alreadyPlanned
-                = std::find(plannedSignals.cbegin(), plannedSignals.cend(), signal)
-                != plannedSignals.cend();
+            const bool alreadyPlanned = std::ranges::contains(plannedSignals, signal);
             if (!alreadyPlanned) {
                 plannedSignals.push_back(signal);
             }

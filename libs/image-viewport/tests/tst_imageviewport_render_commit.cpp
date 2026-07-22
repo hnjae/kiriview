@@ -15,7 +15,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void stillAssignmentWaitsForRenderCommitWithPositiveGeometry();
     void timedListAssignmentWaitsForRenderCommitWithPositiveGeometry();
     void builtInTwoPageSpreadWaitsForCompleteRenderCommit();

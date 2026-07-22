@@ -14,7 +14,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void presentationTargetAssignmentAdvancesCommandDiagnostic();
     void commandResultsExposeSnapshotRevisionsAndReasons();
     void reentrantStateChangedKeepsCommandResultsScopedToTransaction();

@@ -43,9 +43,7 @@ ImageDocumentChangeBatcher::Batch ImageDocumentChangeBatcher::beginBatch() { ret
 void ImageDocumentChangeBatcher::notify(ImageDocumentChange change)
 {
     if (m_batchDepth > 0) {
-        const bool alreadyPending
-            = std::find(m_pendingChanges.cbegin(), m_pendingChanges.cend(), change)
-            != m_pendingChanges.cend();
+        const bool alreadyPending = std::ranges::contains(m_pendingChanges, change);
         if (!alreadyPending) {
             m_pendingChanges.push_back(change);
         }
@@ -60,9 +58,7 @@ void ImageDocumentChangeBatcher::notifyAll(const std::vector<ImageDocumentChange
     if (m_batchDepth == 0) {
         std::vector<ImageDocumentChange> uniqueChanges;
         for (ImageDocumentChange change : changes) {
-            const bool alreadyIncluded
-                = std::find(uniqueChanges.cbegin(), uniqueChanges.cend(), change)
-                != uniqueChanges.cend();
+            const bool alreadyIncluded = std::ranges::contains(uniqueChanges, change);
             if (!alreadyIncluded) {
                 uniqueChanges.push_back(change);
             }

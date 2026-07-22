@@ -59,11 +59,6 @@ public:
             == rhs.m_acceptedPresentationTargetGeneration
             && lhs.m_acceptedRoleSet == rhs.m_acceptedRoleSet;
     }
-    friend bool operator!=(
-        const ImageViewportRequestSnapshot& lhs, const ImageViewportRequestSnapshot& rhs)
-    {
-        return !(lhs == rhs);
-    }
 
 private:
     ImageViewportRequestStatus m_status = ImageViewportRequestStatus::NoRequest;
@@ -179,11 +174,6 @@ public:
             && lhs.m_visibleSpreadRect == rhs.m_visibleSpreadRect
             && lhs.m_horizontalPannable == rhs.m_horizontalPannable
             && lhs.m_verticalPannable == rhs.m_verticalPannable;
-    }
-    friend bool operator!=(
-        const ImageViewportDisplaySnapshot& lhs, const ImageViewportDisplaySnapshot& rhs)
-    {
-        return !(lhs == rhs);
     }
 
 private:
@@ -311,11 +301,6 @@ public:
             && lhs.m_looping == rhs.m_looping && lhs.m_qualityPreference == rhs.m_qualityPreference
             && lhs.m_exactnessPreference == rhs.m_exactnessPreference;
     }
-    friend bool operator!=(
-        const ImageViewportPresentationSnapshot& lhs, const ImageViewportPresentationSnapshot& rhs)
-    {
-        return !(lhs == rhs);
-    }
 
 private:
     ImageViewportFitMode m_fitMode = ImageViewportFitMode::Contain;
@@ -400,11 +385,6 @@ public:
             && lhs.m_sourceLogicalSize == rhs.m_sourceLogicalSize
             && lhs.m_demandRevision == rhs.m_demandRevision;
     }
-    friend bool operator!=(
-        const ImageViewportRoleRequestSnapshot& lhs, const ImageViewportRoleRequestSnapshot& rhs)
-    {
-        return !(lhs == rhs);
-    }
 
 private:
     bool m_belongsToAcceptedPresentationTarget = false;
@@ -483,11 +463,6 @@ public:
             && lhs.m_quality == rhs.m_quality && lhs.m_exactness == rhs.m_exactness
             && lhs.m_currentForDemand == rhs.m_currentForDemand
             && lhs.m_demandRevision == rhs.m_demandRevision;
-    }
-    friend bool operator!=(
-        const ImageViewportRoleDisplaySnapshot& lhs, const ImageViewportRoleDisplaySnapshot& rhs)
-    {
-        return !(lhs == rhs);
     }
 
 private:
@@ -573,11 +548,6 @@ public:
             && lhs.m_autoplay == rhs.m_autoplay && lhs.m_loopMode == rhs.m_loopMode
             && lhs.m_loopCount == rhs.m_loopCount;
     }
-    friend bool operator!=(
-        const ImageViewportRoleMetadataSnapshot& lhs, const ImageViewportRoleMetadataSnapshot& rhs)
-    {
-        return !(lhs == rhs);
-    }
 
 private:
     bool m_available = false;
@@ -639,11 +609,6 @@ public:
             && lhs.m_displayedItemRect == rhs.m_displayedItemRect
             && lhs.m_displayedVisiblePageRect == rhs.m_displayedVisiblePageRect;
     }
-    friend bool operator!=(
-        const ImageViewportRoleGeometrySnapshot& lhs, const ImageViewportRoleGeometrySnapshot& rhs)
-    {
-        return !(lhs == rhs);
-    }
 
 private:
     QRectF m_acceptedPageRect;
@@ -692,11 +657,6 @@ public:
         return lhs.m_present == rhs.m_present && lhs.m_sequence == rhs.m_sequence
             && lhs.m_request == rhs.m_request && lhs.m_display == rhs.m_display
             && lhs.m_metadata == rhs.m_metadata && lhs.m_geometry == rhs.m_geometry;
-    }
-    friend bool operator!=(
-        const ImageViewportRoleSnapshot& lhs, const ImageViewportRoleSnapshot& rhs)
-    {
-        return !(lhs == rhs);
     }
 
 private:
@@ -758,11 +718,6 @@ public:
             && lhs.m_providerCause == rhs.m_providerCause
             && lhs.m_providerReference == rhs.m_providerReference;
     }
-    friend bool operator!=(
-        const ImageViewportFailureSnapshot& lhs, const ImageViewportFailureSnapshot& rhs)
-    {
-        return !(lhs == rhs);
-    }
 
 private:
     bool m_available = false;
@@ -807,11 +762,6 @@ public:
         return lhs.m_errorString == rhs.m_errorString && lhs.m_warningString == rhs.m_warningString
             && lhs.m_failure == rhs.m_failure && lhs.m_commandReason == rhs.m_commandReason;
     }
-    friend bool operator!=(
-        const ImageViewportDiagnosticsSnapshot& lhs, const ImageViewportDiagnosticsSnapshot& rhs)
-    {
-        return !(lhs == rhs);
-    }
 
 private:
     QString m_errorString;
@@ -855,11 +805,6 @@ public:
         return lhs.m_request == rhs.m_request && lhs.m_display == rhs.m_display
             && lhs.m_presentation == rhs.m_presentation && lhs.m_command == rhs.m_command
             && lhs.m_snapshot == rhs.m_snapshot;
-    }
-    friend bool operator!=(
-        const ImageViewportRevisionsSnapshot& lhs, const ImageViewportRevisionsSnapshot& rhs)
-    {
-        return !(lhs == rhs);
     }
 
 private:
@@ -914,11 +859,6 @@ public:
             && lhs.m_secondary == rhs.m_secondary && lhs.m_diagnostics == rhs.m_diagnostics
             && lhs.m_revisions == rhs.m_revisions;
     }
-    friend bool operator!=(
-        const ImageViewportStateSnapshot& lhs, const ImageViewportStateSnapshot& rhs)
-    {
-        return !(lhs == rhs);
-    }
 
 private:
     ImageViewportRequestSnapshot m_request;
@@ -963,11 +903,6 @@ public:
             && lhs.m_commandRevision == rhs.m_commandRevision
             && lhs.m_snapshotRevision == rhs.m_snapshotRevision;
     }
-    friend bool operator!=(
-        const ImageViewportCommandResult& lhs, const ImageViewportCommandResult& rhs)
-    {
-        return !(lhs == rhs);
-    }
 
 private:
     ImageViewportCommandOutcome m_outcome = ImageViewportCommandOutcome::Accepted;
@@ -1003,11 +938,6 @@ public:
     {
         return lhs.m_sourceSpace == rhs.m_sourceSpace && lhs.m_targetSpace == rhs.m_targetSpace
             && lhs.m_role == rhs.m_role && lhs.m_point == rhs.m_point;
-    }
-    friend bool operator!=(
-        const ImageViewportCoordinateInput& lhs, const ImageViewportCoordinateInput& rhs)
-    {
-        return !(lhs == rhs);
     }
 
 private:
@@ -1047,11 +977,6 @@ public:
     {
         return lhs.m_valid == rhs.m_valid && lhs.m_point == rhs.m_point
             && lhs.m_space == rhs.m_space && lhs.m_role == rhs.m_role;
-    }
-    friend bool operator!=(
-        const ImageViewportCoordinateResult& lhs, const ImageViewportCoordinateResult& rhs)
-    {
-        return !(lhs == rhs);
     }
 
 private:

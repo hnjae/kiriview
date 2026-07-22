@@ -32,11 +32,6 @@ struct MediaInformationProjectionRow
     {
         return left.label == right.label && left.value == right.value;
     }
-    friend bool operator!=(
-        const MediaInformationProjectionRow& left, const MediaInformationProjectionRow& right)
-    {
-        return !(left == right);
-    }
 };
 
 struct MediaInformationProjectionSnapshot

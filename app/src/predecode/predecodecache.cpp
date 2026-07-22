@@ -158,10 +158,9 @@ bool PredecodeCache::isInFlight(const QUrl& url, const PredecodeActiveLoads& act
     }
 
     return activeLoads.contains(*normalizedUrl)
-        || std::any_of(
-            m_queue.cbegin(), m_queue.cend(), [&normalizedUrl](const PredecodeRequest& request) {
-                return request.url == *normalizedUrl;
-            });
+        || std::ranges::any_of(m_queue, [&normalizedUrl](const PredecodeRequest& request) {
+               return request.url == *normalizedUrl;
+           });
 }
 
 std::optional<PredecodedImage> PredecodeCache::findImage(const QUrl& url) const
@@ -255,27 +254,27 @@ void PredecodeCache::cacheDisplayedImage(bool cacheable, const QUrl& url,
 
 bool PredecodeCache::containsUrl(const std::vector<QUrl>& urls, const QUrl& url)
 {
-    return std::find(urls.cbegin(), urls.cend(), url) != urls.cend();
+    return std::ranges::contains(urls, url);
 }
 
 PredecodeCache::CachedImageIterator PredecodeCache::findCachedImage(const QUrl& normalizedUrl)
 {
-    return std::find_if(m_images.begin(), m_images.end(),
+    return std::ranges::find_if(m_images,
         [&normalizedUrl](const CachedImage& entry) { return entry.url == normalizedUrl; });
 }
 
 PredecodeCache::ConstCachedImageIterator PredecodeCache::findCachedImage(
     const QUrl& normalizedUrl) const
 {
-    return std::find_if(m_images.cbegin(), m_images.cend(),
+    return std::ranges::find_if(m_images,
         [&normalizedUrl](const CachedImage& entry) { return entry.url == normalizedUrl; });
 }
 
 PredecodeCache::CachedImageIterator PredecodeCache::findCachedImage(
     const QUrl& normalizedUrl, const OpenedCollectionScopeLocation& openedCollectionScope)
 {
-    return std::find_if(m_images.begin(), m_images.end(),
-        [&normalizedUrl, &openedCollectionScope](const CachedImage& entry) {
+    return std::ranges::find_if(
+        m_images, [&normalizedUrl, &openedCollectionScope](const CachedImage& entry) {
             return entry.url == normalizedUrl
                 && sameOpenedCollectionScopeLocation(
                     entry.openedCollectionScope, openedCollectionScope);
@@ -285,8 +284,8 @@ PredecodeCache::CachedImageIterator PredecodeCache::findCachedImage(
 PredecodeCache::ConstCachedImageIterator PredecodeCache::findCachedImage(
     const QUrl& normalizedUrl, const OpenedCollectionScopeLocation& openedCollectionScope) const
 {
-    return std::find_if(m_images.cbegin(), m_images.cend(),
-        [&normalizedUrl, &openedCollectionScope](const CachedImage& entry) {
+    return std::ranges::find_if(
+        m_images, [&normalizedUrl, &openedCollectionScope](const CachedImage& entry) {
             return entry.url == normalizedUrl
                 && sameOpenedCollectionScopeLocation(
                     entry.openedCollectionScope, openedCollectionScope);
@@ -304,12 +303,12 @@ void PredecodeCache::removeCachedImage(
 
 std::size_t PredecodeCache::windowPriority(const QUrl& normalizedUrl) const
 {
-    const auto priorityEntry = std::find(m_windowUrls.cbegin(), m_windowUrls.cend(), normalizedUrl);
+    const auto priorityEntry = std::ranges::find(m_windowUrls, normalizedUrl);
     if (priorityEntry == m_windowUrls.cend()) {
         return m_windowUrls.size();
     }
 
-    return static_cast<std::size_t>(std::distance(m_windowUrls.cbegin(), priorityEntry));
+    return static_cast<std::size_t>(std::ranges::distance(m_windowUrls.cbegin(), priorityEntry));
 }
 
 quint64 PredecodeCache::nextLastUsedSequence() const

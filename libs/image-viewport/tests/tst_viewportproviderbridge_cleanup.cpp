@@ -94,7 +94,7 @@ public:
         if (request.kind() != ImageSequenceProviderRequestKind::Close || !m_closeFrameHandle) {
             return;
         }
-        emit providerEvent(ImageSequenceProviderEvent::frameReady(
+        Q_EMIT providerEvent(ImageSequenceProviderEvent::frameReady(
             {}, m_closeFrameHandle, ImageSequenceProviderFrameEnvelope::stillFrame()));
         m_closeFrameHandle = nullptr;
     }
@@ -183,7 +183,7 @@ struct BridgeFixture
                 ++*releaseCount;
                 delete frame;
             });
-        emit session->providerEvent(ImageSequenceProviderEvent::frameReady(
+        Q_EMIT session->providerEvent(ImageSequenceProviderEvent::frameReady(
             {}, handle, ImageSequenceProviderFrameEnvelope::stillFrame()));
         Q_ASSERT(event.frameLeaseId != 0);
         bridge.completeFrameEventDelivery(event.frameLeaseId);
@@ -213,7 +213,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void releaseFailureRetainsLeaseUntilRetrySucceeds();
     void pendingSessionCleanupSurvivesBridgeDestruction();
     void scheduledCloseIsNotDuplicatedAfterBridgeDestruction();
@@ -399,7 +399,7 @@ void ViewportProviderBridgeCleanupTest::queuedEndpointRemainsRevocableAfterSessi
     QVERIFY(opened.opened);
     QVERIFY(session);
 
-    emit session->providerEvent(ImageSequenceProviderEvent::waiting({}));
+    Q_EMIT session->providerEvent(ImageSequenceProviderEvent::waiting({}));
     const auto closed = bridge->closeSession({}, {});
     QVERIFY(closed.delivered);
     QVERIFY(!session);
@@ -434,11 +434,11 @@ void ViewportProviderBridgeCleanupTest::activeAdvisoryBurstIsCoalescedAheadOfTer
     const auto token = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(1);
     QVERIFY(bridge.deliverRequest(ImageSequenceProviderRequest::metadata(token)).delivered);
     for (int index = 0; index < 1024; ++index) {
-        emit session->providerEvent(index % 2 == 0
+        Q_EMIT session->providerEvent(index % 2 == 0
                 ? ImageSequenceProviderEvent::waiting(token)
                 : ImageSequenceProviderEvent::progress(token, 0.5));
     }
-    emit session->providerEvent(ImageSequenceProviderEvent::failed(
+    Q_EMIT session->providerEvent(ImageSequenceProviderEvent::failed(
         token, ImageSequenceProviderFailure(ImageSequenceProviderFailureCause::ProviderInternal)));
     QCOMPARE(deliveredEvents.size(), 0);
 
@@ -486,8 +486,8 @@ void ViewportProviderBridgeCleanupTest::
     QVERIFY(bridge.deliverRequest(ImageSequenceProviderRequest::metadata(activeToken)).delivered);
 
     for (int index = 0; index < 1024; ++index) {
-        emit session->providerEvent(ImageSequenceProviderEvent::progress(retiredToken, 0.5));
-        emit session->providerEvent(ImageSequenceProviderEvent::waiting(mismatchToken));
+        Q_EMIT session->providerEvent(ImageSequenceProviderEvent::progress(retiredToken, 0.5));
+        Q_EMIT session->providerEvent(ImageSequenceProviderEvent::waiting(mismatchToken));
     }
     QCOMPARE(deliveredEvents.size(), 0);
 
@@ -523,7 +523,7 @@ void ViewportProviderBridgeCleanupTest::advisoryBurstDoesNotLoseFrameOwnership()
     const auto token = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(1);
     QVERIFY(bridge.deliverRequest(ImageSequenceProviderRequest::metadata(token)).delivered);
     for (int index = 0; index < 1024; ++index) {
-        emit session->providerEvent(ImageSequenceProviderEvent::progress(token, 0.5));
+        Q_EMIT session->providerEvent(ImageSequenceProviderEvent::progress(token, 0.5));
     }
     const auto releaseCount = std::make_shared<int>(0);
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -533,7 +533,7 @@ void ViewportProviderBridgeCleanupTest::advisoryBurstDoesNotLoseFrameOwnership()
             ++*releaseCount;
             delete frame;
         });
-    emit session->providerEvent(ImageSequenceProviderEvent::frameReady(
+    Q_EMIT session->providerEvent(ImageSequenceProviderEvent::frameReady(
         token, handle, ImageSequenceProviderFrameEnvelope::stillFrame()));
 
     QCoreApplication::sendPostedEvents(&callbackTarget, QEvent::MetaCall);
@@ -626,7 +626,7 @@ void ViewportProviderBridgeCleanupTest::queuedFrameIngressOwnsHandleBeforeSessio
         QVERIFY(QMetaObject::invokeMethod(
             session,
             [session, handle]() {
-                emit session->providerEvent(ImageSequenceProviderEvent::frameReady(
+                Q_EMIT session->providerEvent(ImageSequenceProviderEvent::frameReady(
                     {}, handle, ImageSequenceProviderFrameEnvelope::stillFrame()));
             },
             Qt::BlockingQueuedConnection));

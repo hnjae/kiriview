@@ -28,7 +28,9 @@ find_package(
                Quick
                QuickControls2
                Widgets)
+qt_standard_project_setup(REQUIRES 6.5)
 qt_policy(SET QTP0004 NEW)
+add_compile_definitions(QT_NO_KEYWORDS)
 find_package(KF6Archive CONFIG REQUIRED)
 find_package(KF6Config CONFIG REQUIRED)
 find_package(KF6CoreAddons CONFIG REQUIRED)

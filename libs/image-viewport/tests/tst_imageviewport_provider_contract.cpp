@@ -33,7 +33,7 @@ public:
     {
         requests.append(request);
         if (request.kind() == ImageSequenceProviderRequestKind::Metadata) {
-            emit providerEvent(ImageSequenceProviderEvent::metadataReady(
+            Q_EMIT providerEvent(ImageSequenceProviderEvent::metadataReady(
                 request.token(), ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0))));
         }
     }
@@ -51,7 +51,7 @@ public:
             }
         }
         auto frame = std::make_unique<ImageFrame>(image);
-        emit providerEvent(ImageSequenceProviderEvent::frameReady(
+        Q_EMIT providerEvent(ImageSequenceProviderEvent::frameReady(
             token, new ImageSequenceProviderFrameHandle(std::move(frame), this), envelope));
     }
 
@@ -106,7 +106,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void providerPublicValueTypesValidateTiming();
     void typedProviderFailureHandleReleasesExactlyOnce();
     void providerTypedProtocolValuesValidateShape();

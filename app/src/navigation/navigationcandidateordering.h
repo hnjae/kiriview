@@ -46,15 +46,15 @@ template <typename Candidate>
 std::optional<std::size_t> navigationCandidateIndex(
     const std::vector<Candidate>& candidates, const QUrl& currentUrl)
 {
-    const auto currentCandidate = std::find_if(
-        candidates.cbegin(), candidates.cend(), [&currentUrl](const Candidate& candidate) {
-            return sameNormalizedUrl(candidate.url, currentUrl);
-        });
+    const auto currentCandidate
+        = std::ranges::find_if(candidates, [&currentUrl](const Candidate& candidate) {
+              return sameNormalizedUrl(candidate.url, currentUrl);
+          });
     if (currentCandidate == candidates.cend()) {
         return std::nullopt;
     }
 
-    return static_cast<std::size_t>(std::distance(candidates.cbegin(), currentCandidate));
+    return static_cast<std::size_t>(std::ranges::distance(candidates.cbegin(), currentCandidate));
 }
 
 template <typename Candidate>
@@ -99,8 +99,8 @@ void sortNavigationCandidatesByNameAndUrl(std::vector<Candidate>* candidates)
     collator.setNumericMode(false);
     collator.setIgnorePunctuation(false);
 
-    std::stable_sort(candidates->begin(), candidates->end(),
-        [&collator](const Candidate& left, const Candidate& right) {
+    std::ranges::stable_sort(
+        *candidates, [&collator](const Candidate& left, const Candidate& right) {
             const int nameComparison = collator.compare(left.name, right.name);
             if (nameComparison != 0) {
                 return nameComparison < 0;
@@ -109,11 +109,11 @@ void sortNavigationCandidatesByNameAndUrl(std::vector<Candidate>* candidates)
             return left.url.toEncoded() < right.url.toEncoded();
         });
 
-    const auto duplicateStart = std::unique(
-        candidates->begin(), candidates->end(), [](const Candidate& left, const Candidate& right) {
-            return sameNormalizedUrl(left.url, right.url);
-        });
-    candidates->erase(duplicateStart, candidates->end());
+    const auto duplicates
+        = std::ranges::unique(*candidates, [](const Candidate& left, const Candidate& right) {
+              return sameNormalizedUrl(left.url, right.url);
+          });
+    candidates->erase(duplicates.begin(), duplicates.end());
 }
 }
 

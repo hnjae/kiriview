@@ -24,7 +24,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void transparentBackgroundDoesNotCreatePaintNode();
     void solidBackgroundCreatesPaintNode();
     void backgroundOnlyPaintDoesNotAdvanceProviderRequest();

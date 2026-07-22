@@ -466,8 +466,7 @@ void DocumentSessionState::publish(std::vector<DocumentSessionChange> changes)
 
     std::vector<DocumentSessionChange> uniqueChanges;
     for (DocumentSessionChange change : changes) {
-        if (std::find(uniqueChanges.cbegin(), uniqueChanges.cend(), change)
-            == uniqueChanges.cend()) {
+        if (!std::ranges::contains(uniqueChanges, change)) {
             uniqueChanges.push_back(change);
         }
     }

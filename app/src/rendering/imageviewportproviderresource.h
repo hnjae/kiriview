@@ -30,8 +30,6 @@ struct ImageViewportProviderWorkIdentity
 
 bool operator==(
     const ImageViewportProviderWorkIdentity& left, const ImageViewportProviderWorkIdentity& right);
-bool operator!=(
-    const ImageViewportProviderWorkIdentity& left, const ImageViewportProviderWorkIdentity& right);
 
 struct ImageViewportProviderFrameRequest
 {

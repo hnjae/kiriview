@@ -28,9 +28,7 @@ bool sameImageDocumentPageCandidates(const std::vector<kiriview::ImageDocumentPa
 
 template <typename Item> void pruneInactiveItems(std::vector<Item>* items)
 {
-    const auto inactiveStart = std::remove_if(
-        items->begin(), items->end(), [](const Item& item) { return item.token.isNull(); });
-    items->erase(inactiveStart, items->end());
+    std::erase_if(*items, [](const Item& item) { return item.token.isNull(); });
 }
 }
 
@@ -72,20 +70,18 @@ void ImageDocumentPageCandidateStoreEntryState::addSubscriber(
 
 void ImageDocumentPageCandidateStoreEntryState::removePendingLoad(QObject* token)
 {
-    const auto removed = std::remove_if(m_pendingLoads.begin(), m_pendingLoads.end(),
-        [token](const ImageDocumentPageCandidateStoreEntryPendingLoad& load) {
+    std::erase_if(
+        m_pendingLoads, [token](const ImageDocumentPageCandidateStoreEntryPendingLoad& load) {
             return load.completion.object() == token;
         });
-    m_pendingLoads.erase(removed, m_pendingLoads.end());
 }
 
 void ImageDocumentPageCandidateStoreEntryState::removeSubscriber(QObject* token)
 {
-    const auto removed = std::remove_if(m_subscribers.begin(), m_subscribers.end(),
-        [token](const ImageDocumentPageCandidateStoreEntrySubscriber& subscriber) {
+    std::erase_if(
+        m_subscribers, [token](const ImageDocumentPageCandidateStoreEntrySubscriber& subscriber) {
             return subscriber.token.data() == token;
         });
-    m_subscribers.erase(removed, m_subscribers.end());
 }
 
 ImageDocumentPageCandidateStoreEntryNotificationPlan

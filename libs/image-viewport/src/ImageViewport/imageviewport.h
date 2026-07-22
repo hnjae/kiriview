@@ -84,11 +84,6 @@ public:
     {
         return lhs.m_primary == rhs.m_primary && lhs.m_secondary == rhs.m_secondary;
     }
-    friend bool operator!=(
-        const ImageViewportPresentationTarget& lhs, const ImageViewportPresentationTarget& rhs)
-    {
-        return !(lhs == rhs);
-    }
 
 private:
     QPointer<ImageSequence> m_primary;
@@ -131,7 +126,7 @@ public:
     Q_INVOKABLE ImageViewportCoordinateResult mapPoint(ImageViewportCoordinateInput input) const;
     Q_INVOKABLE bool containsPoint(ImageViewportCoordinateInput input) const;
 
-signals:
+Q_SIGNALS:
     void stateChanged(); // clazy:exclude=overloaded-signal
 
 protected:
@@ -590,11 +585,6 @@ public:
             && lhs.m_pageGapTransition == rhs.m_pageGapTransition && lhs.m_pageGap == rhs.m_pageGap
             && lhs.m_pageGapSet == rhs.m_pageGapSet
             && lhs.m_replacementIntent == rhs.m_replacementIntent;
-    }
-    friend bool operator!=(
-        PresentationTargetTransitionPolicy lhs, PresentationTargetTransitionPolicy rhs)
-    {
-        return !(lhs == rhs);
     }
 
 private:

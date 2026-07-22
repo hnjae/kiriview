@@ -558,10 +558,10 @@ private:
     void retireTokenLocked(ImageSequenceProviderRequestToken token)
     {
         activeTokens.removeAll(token);
-        bool staleRepresentativeExists = std::any_of(pendingAdvisories.cbegin(),
-            pendingAdvisories.cend(), [](const PendingAdvisory& candidate) {
-                return candidate.category == AdvisoryCategory::Stale;
-            });
+        bool staleRepresentativeExists
+            = std::ranges::any_of(pendingAdvisories, [](const PendingAdvisory& candidate) {
+                  return candidate.category == AdvisoryCategory::Stale;
+              });
         for (qsizetype index = pendingAdvisories.size(); index-- > 0;) {
             auto& pending = pendingAdvisories[index]; // clazy:exclude=detaching-member
             if (pending.category != AdvisoryCategory::Active || pending.event.token != token) {
@@ -686,9 +686,9 @@ public:
     void reconcile(const QSet<quint64>& liveLeaseIds)
     {
         QMutexLocker locker(&mutex);
-        for (auto it = leases.cbegin(); it != leases.cend(); ++it) {
-            if (!it->pendingEngineDelivery && !liveLeaseIds.contains(it.key())) {
-                retiredLeases.insert(it.key());
+        for (const auto& [leaseId, lease] : std::as_const(leases).asKeyValueRange()) {
+            if (!lease.pendingEngineDelivery && !liveLeaseIds.contains(leaseId)) {
+                retiredLeases.insert(leaseId);
             }
         }
     }
@@ -909,8 +909,8 @@ private:
 
     bool hasUnscheduledCloseLocked() const
     {
-        return std::any_of(sessions.cbegin(), sessions.cend(),
-            [](const SessionSnapshot& session) { return !session.closeScheduled; });
+        return std::ranges::any_of(
+            sessions, [](const SessionSnapshot& session) { return !session.closeScheduled; });
     }
 
     void scheduleRetry()
@@ -938,9 +938,9 @@ private:
             QMutexLocker locker(&mutex);
             retryScheduled = false;
             sessionKeys.reserve(sessions.size());
-            for (auto it = sessions.cbegin(); it != sessions.cend(); ++it) {
-                if (!it->closeScheduled) {
-                    sessionKeys.append(it.key());
+            for (const auto& [session, snapshot] : std::as_const(sessions).asKeyValueRange()) {
+                if (!snapshot.closeScheduled) {
+                    sessionKeys.append(session);
                 }
             }
         }
@@ -1150,9 +1150,9 @@ ViewportProviderTransportResult ViewportProviderBridge::closeSession(quint64 gen
     if (generation == 0 && sessionSerial == 0) {
         session = activeSession;
     } else {
-        for (auto it = sessions.cbegin(); it != sessions.cend(); ++it) {
-            if (it->generation == generation && it->sessionSerial == sessionSerial) {
-                session = it.key();
+        for (const auto& [candidate, record] : std::as_const(sessions).asKeyValueRange()) {
+            if (record.generation == generation && record.sessionSerial == sessionSerial) {
+                session = candidate;
                 break;
             }
         }
@@ -1198,10 +1198,10 @@ ViewportProviderTransportResult ViewportProviderBridge::closeSession(quint64 gen
 ViewportProviderTransportResult ViewportProviderBridge::activateSession(
     quint64 generation, quint64 sessionSerial)
 {
-    for (auto it = sessions.cbegin(); it != sessions.cend(); ++it) {
-        if (it->generation == generation && it->sessionSerial == sessionSerial
-            && it->lifecycle == SessionLifecycle::Active && it->session) {
-            activeSession = it->session;
+    for (const auto& [session, record] : std::as_const(sessions).asKeyValueRange()) {
+        if (record.generation == generation && record.sessionSerial == sessionSerial
+            && record.lifecycle == SessionLifecycle::Active && record.session) {
+            activeSession = session;
             return { true };
         }
     }

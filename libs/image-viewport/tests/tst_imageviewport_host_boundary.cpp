@@ -47,7 +47,7 @@ public:
     {
     }
 
-private slots:
+private Q_SLOTS:
     void hostsExposeNarrowFactBoundaries();
     void providerHostEventsCarryTypedFactsOnly();
     void trustedDiagnosticsUseUnicodeScalarLimit();
