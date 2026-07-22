@@ -24,7 +24,7 @@ private Q_SLOTS:
 namespace {
 struct ManualTimerState
 {
-    int intervalMsec = 0;
+    kiriview::TimerDuration interval {};
     bool active = false;
     kiriview::RuntimeTimerCallback callback;
 };
@@ -37,7 +37,11 @@ public:
     {
     }
 
-    void start() override { m_state->active = true; }
+    void start(kiriview::TimerDuration interval) override
+    {
+        m_state->interval = interval;
+        m_state->active = true;
+    }
     void stop() override { m_state->active = false; }
 
 private:
@@ -50,10 +54,11 @@ public:
     kiriview::TimerScheduler scheduler()
     {
         return {
-            []() { return qint64(0); },
-            [this](QObject*, int intervalMsec, kiriview::RuntimeTimerCallback callback) {
+            []() { return kiriview::TimerDuration(0); },
+            [this](QObject*, kiriview::TimerDuration interval,
+                kiriview::RuntimeTimerCallback callback) {
                 auto state = std::make_shared<ManualTimerState>();
-                state->intervalMsec = intervalMsec;
+                state->interval = interval;
                 state->callback = std::move(callback);
                 m_timers.push_back(state);
                 return std::make_unique<ManualTimer>(std::move(state));

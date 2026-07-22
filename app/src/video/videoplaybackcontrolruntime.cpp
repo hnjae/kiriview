@@ -278,7 +278,7 @@ void VideoPlaybackControlRuntime::synchronizeAutoHideTimer()
     }
     ensureAutoHideTimer();
     if (m_autoHideTimer != nullptr) {
-        m_autoHideTimer->start();
+        m_autoHideTimer->start(TimerDuration(m_environment.autoHideDelayMsec));
     }
 }
 
@@ -297,7 +297,7 @@ void VideoPlaybackControlRuntime::ensureAutoHideTimer()
     stopAutoHideTimer();
     m_timerIntervalMsec = m_environment.autoHideDelayMsec;
     m_autoHideTimer = m_timerScheduler.singleShotTimer(
-        m_owner, m_timerIntervalMsec, [this]() { handleAutoHideTimer(); });
+        m_owner, TimerDuration(m_timerIntervalMsec), [this]() { handleAutoHideTimer(); });
 }
 
 void VideoPlaybackControlRuntime::handleAutoHideTimer()

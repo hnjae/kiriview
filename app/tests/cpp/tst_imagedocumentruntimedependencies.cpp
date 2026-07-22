@@ -56,7 +56,7 @@ void TestImageDocumentRuntimeDependencies::defaultDependenciesUseMediaEntrySourc
     QVERIFY(resolved.imageDecode.dataDecoder);
     QVERIFY(resolved.fileDeletionProvider);
     QVERIFY(resolved.powerSaver.monitor);
-    QVERIFY(resolved.predecodeTimerScheduler.currentMonotonicMsec);
+    QVERIFY(resolved.predecodeTimerScheduler.currentMonotonicTime);
     QVERIFY(resolved.predecodeTimerScheduler.singleShotTimer);
     QVERIFY(resolved.predecodeThreadCountProvider);
     QVERIFY(resolved.cacheBudgets.predecodeCacheByteBudget > 0);
@@ -183,13 +183,15 @@ void TestImageDocumentRuntimeDependencies::
               ++powerSaverMonitorCount;
               return std::make_unique<FakePowerSaverMonitor>();
           };
-    dependencies.predecodeTimerScheduler.currentMonotonicMsec = []() { return 8675; };
-    dependencies.predecodeTimerScheduler.singleShotTimer =
-        [&timerFactoryCount](QObject*, int intervalMsec, kiriview::RuntimeTimerCallback callback) {
-            ++timerFactoryCount;
-            return std::make_unique<kiriview::TestSupport::ManualRuntimeTimer>(
-                intervalMsec, std::move(callback));
-        };
+    dependencies.predecodeTimerScheduler.currentMonotonicTime
+        = []() { return kiriview::TimerDuration(8675); };
+    dependencies.predecodeTimerScheduler.singleShotTimer
+        = [&timerFactoryCount](
+              QObject*, kiriview::TimerDuration interval, kiriview::RuntimeTimerCallback callback) {
+              ++timerFactoryCount;
+              return std::make_unique<kiriview::TestSupport::ManualRuntimeTimer>(
+                  interval, std::move(callback));
+          };
     dependencies.predecodeThreadCountProvider = []() { return 6; };
     dependencies.cacheBudgetRequest.predecodeCacheByteBudget = 4096;
     dependencies.cacheBudgetRequest.displayImageCacheByteBudget = 8192;
@@ -220,7 +222,8 @@ void TestImageDocumentRuntimeDependencies::
     resolved.fileDeletionProvider(nullptr, kiriview::FileDeletionRequest(), {});
     std::unique_ptr<kiriview::PowerSaverStateMonitor> monitor = resolved.powerSaver.monitor({});
     std::unique_ptr<kiriview::RuntimeTimerHandle> timer
-        = resolved.predecodeTimerScheduler.singleShotTimer(nullptr, 25, {});
+        = resolved.predecodeTimerScheduler.singleShotTimer(
+            nullptr, kiriview::TimerDuration(25), {});
 
     QCOMPARE(openedCollectionLoadCount, 1);
     QVERIFY(candidatesReported);
@@ -230,7 +233,8 @@ void TestImageDocumentRuntimeDependencies::
     QCOMPARE(powerSaverMonitorCount, 1);
     QVERIFY(monitor);
     QVERIFY(monitor->powerSaverEnabled());
-    QCOMPARE(resolved.predecodeTimerScheduler.currentMonotonicMsec(), qint64(8675));
+    QCOMPARE(
+        resolved.predecodeTimerScheduler.currentMonotonicTime(), kiriview::TimerDuration(8675));
     QCOMPARE(timerFactoryCount, 1);
     QVERIFY(timer);
     QCOMPARE(resolved.predecodeThreadCountProvider(), 6);

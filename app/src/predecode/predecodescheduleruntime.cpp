@@ -32,9 +32,10 @@ PredecodeScheduleRuntime::PredecodeScheduleRuntime(QObject* owner,
     , m_timerScheduler(timerSchedulerWithDefaults(std::move(timerScheduler)))
 {
     m_debounceTimer = m_timerScheduler.singleShotTimer(
-        owner, predecodeDebounceMsec(), [this]() { startDebouncedPredecode(); });
-    m_neutralTimer = m_timerScheduler.singleShotTimer(
-        owner, predecodeNeutralRefreshMsec(), [this]() { scheduleSettledNeutralPredecode(); });
+        owner, TimerDuration(predecodeDebounceMsec()), [this]() { startDebouncedPredecode(); });
+    m_neutralTimer
+        = m_timerScheduler.singleShotTimer(owner, TimerDuration(predecodeNeutralRefreshMsec()),
+            [this]() { scheduleSettledNeutralPredecode(); });
 
     powerSaverProvider = powerSaverProviderWithDefault(std::move(powerSaverProvider));
     if (powerSaverProvider.monitor) {
@@ -111,10 +112,10 @@ void PredecodeScheduleRuntime::dispatchScheduleOperation(
                     << "generation" << payload.schedule.generation << "url"
                     << payload.schedule.context.currentLocation.imageUrl();
                 if (m_debounceTimer != nullptr) {
-                    m_debounceTimer->start();
+                    m_debounceTimer->start(TimerDuration(predecodeDebounceMsec()));
                 }
                 if (m_neutralTimer != nullptr) {
-                    m_neutralTimer->start();
+                    m_neutralTimer->start(TimerDuration(predecodeNeutralRefreshMsec()));
                 }
             } else if constexpr (std::is_same_v<Operation, StartAdjacentPredecodeOperation>) {
                 qCDebug(kiriviewPredecodeLog)
@@ -173,7 +174,8 @@ void PredecodeScheduleRuntime::cancelBackgroundRuntime()
 
 qint64 PredecodeScheduleRuntime::currentMonotonicMsec() const
 {
-    return m_timerScheduler.currentMonotonicMsec ? m_timerScheduler.currentMonotonicMsec() : 0;
+    return m_timerScheduler.currentMonotonicTime ? m_timerScheduler.currentMonotonicTime().count()
+                                                 : 0;
 }
 
 void PredecodeScheduleRuntime::cancel()

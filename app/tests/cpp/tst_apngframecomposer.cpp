@@ -10,6 +10,7 @@
 #include <array>
 #include <initializer_list>
 #include <optional>
+#include <span>
 
 namespace {
 using Pixel = std::array<unsigned char, 4>;
@@ -30,8 +31,9 @@ kiriview::ApngFrameControl frameControl(quint32 width, quint32 height)
 void writeFramePixels(kiriview::ApngFrameComposer* composer,
     const kiriview::ApngFrameControl& control, std::initializer_list<Pixel> pixels)
 {
-    QVERIFY(composer->setFrameBytes(control, reinterpret_cast<const unsigned char*>(pixels.begin()),
-        pixels.size() * sizeof(Pixel), static_cast<std::size_t>(control.width) * sizeof(Pixel)));
+    const auto* bytes = reinterpret_cast<const unsigned char*>(pixels.begin());
+    QVERIFY(composer->setFrameBytes(control, std::span(bytes, pixels.size() * sizeof(Pixel)),
+        static_cast<std::size_t>(control.width) * sizeof(Pixel)));
 }
 
 QColor pixel(const QImage& image, int x, int y) { return image.pixelColor(x, y); }

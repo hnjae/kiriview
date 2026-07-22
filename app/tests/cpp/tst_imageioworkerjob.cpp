@@ -7,6 +7,7 @@
 #include <QSemaphore>
 #include <QTest>
 #include <QThreadPool>
+#include <memory>
 #include <vector>
 
 namespace {
@@ -32,6 +33,7 @@ class TestImageIoWorkerJob : public QObject
 
 private Q_SLOTS:
     void nullReceiverRunsSynchronously();
+    void moveOnlyWorkAndCompletionAreSupported();
     void workerCompletionFinishesJobOnce();
     void canceledWorkerCompletionIsIgnored();
     void canceledQueuedWorkerReleasesPayloadWithoutRunning();
@@ -54,6 +56,21 @@ void TestImageIoWorkerJob::nullReceiverRunsSynchronously()
     QVERIFY(!job.isActive());
     QCOMPARE(workCount, 1);
     QCOMPARE(finishValue, 7);
+}
+
+void TestImageIoWorkerJob::moveOnlyWorkAndCompletionAreSupported()
+{
+    auto workPayload = std::make_unique<int>(17);
+    auto completionPayload = std::make_unique<int>(5);
+    int finishedValue = 0;
+
+    kiriview::ImageIoJob job = kiriview::startImageIoWorkerJob(
+        nullptr, [payload = std::move(workPayload)]() { return *payload; },
+        [payload = std::move(completionPayload), &finishedValue](
+            int value) { finishedValue = value + *payload; });
+
+    QVERIFY(!job.isActive());
+    QCOMPARE(finishedValue, 22);
 }
 
 void TestImageIoWorkerJob::workerCompletionFinishesJobOnce()

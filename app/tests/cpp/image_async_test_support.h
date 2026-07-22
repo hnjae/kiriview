@@ -64,16 +64,20 @@ namespace Detail {
 class ManualRuntimeTimer final : public RuntimeTimerHandle
 {
 public:
-    ManualRuntimeTimer(int intervalMsec, RuntimeTimerCallback callback)
-        : m_intervalMsec(intervalMsec)
+    ManualRuntimeTimer(TimerDuration interval, RuntimeTimerCallback callback)
+        : m_interval(interval)
         , m_callback(std::move(callback))
     {
     }
 
-    int intervalMsec() const { return m_intervalMsec; }
+    int intervalMsec() const { return static_cast<int>(m_interval.count()); }
     bool active() const { return m_active; }
 
-    void start() override { m_active = true; }
+    void start(TimerDuration interval) override
+    {
+        m_interval = interval;
+        m_active = true;
+    }
     void stop() override { m_active = false; }
 
     void fire()
@@ -87,7 +91,7 @@ public:
     }
 
 private:
-    int m_intervalMsec = 0;
+    TimerDuration m_interval {};
     RuntimeTimerCallback m_callback;
     bool m_active = false;
 };
@@ -98,11 +102,10 @@ public:
     TimerScheduler scheduler()
     {
         return TimerScheduler {
-            [this]() { return m_currentMsec; },
-            [this](QObject*, int intervalMsec,
+            [this]() { return TimerDuration(m_currentMsec); },
+            [this](QObject*, TimerDuration interval,
                 RuntimeTimerCallback callback) -> std::unique_ptr<RuntimeTimerHandle> {
-                auto timer
-                    = std::make_unique<ManualRuntimeTimer>(intervalMsec, std::move(callback));
+                auto timer = std::make_unique<ManualRuntimeTimer>(interval, std::move(callback));
                 m_timers.push_back(timer.get());
                 return timer;
             },

@@ -11,6 +11,7 @@
 #include <QtGlobal>
 #include <cstddef>
 #include <optional>
+#include <span>
 #include <vector>
 
 namespace kiriview {
@@ -57,8 +58,8 @@ public:
     void clear();
 
     bool canComposeFrame(const ApngFrameControl& control) const;
-    bool setFrameBytes(const ApngFrameControl& control, const unsigned char* bytes,
-        std::size_t byteCount, std::size_t rowBytes);
+    bool setFrameBytes(const ApngFrameControl& control, std::span<const unsigned char> bytes,
+        std::size_t rowBytes);
     std::optional<QImage> composeFrame(ApngFrameControl control);
 
 private:

@@ -54,10 +54,6 @@ bool ApngRgbaBuffer::initialize(QSize imageSize, std::size_t rowBytes)
     m_imageSize = imageSize;
     m_rowBytes = rowBytes;
     m_bytes.assign(*bufferSize, 0);
-    m_rows.resize(static_cast<std::size_t>(imageSize.height()));
-    for (std::size_t y = 0; y < m_rows.size(); ++y) {
-        m_rows[y] = m_bytes.data() + y * rowBytes;
-    }
     return true;
 }
 
@@ -66,7 +62,6 @@ void ApngRgbaBuffer::clear()
     m_imageSize = QSize();
     m_rowBytes = 0;
     m_bytes.clear();
-    m_rows.clear();
 }
 
 bool ApngRgbaBuffer::isValid() const { return !m_imageSize.isEmpty() && !m_bytes.empty(); }
@@ -75,24 +70,25 @@ QSize ApngRgbaBuffer::imageSize() const { return m_imageSize; }
 
 std::size_t ApngRgbaBuffer::rowBytes() const { return m_rowBytes; }
 
-unsigned char* ApngRgbaBuffer::data() { return m_bytes.empty() ? nullptr : m_bytes.data(); }
+std::span<unsigned char> ApngRgbaBuffer::bytes() { return m_bytes; }
 
-const unsigned char* ApngRgbaBuffer::data() const
+std::span<const unsigned char> ApngRgbaBuffer::bytes() const { return m_bytes; }
+
+std::span<unsigned char> ApngRgbaBuffer::row(std::size_t y)
 {
-    return m_bytes.empty() ? nullptr : m_bytes.data();
+    if (y >= static_cast<std::size_t>(m_imageSize.height())) {
+        return {};
+    }
+    return std::span(m_bytes).subspan(y * m_rowBytes, m_rowBytes);
 }
 
-unsigned char* ApngRgbaBuffer::row(std::size_t y)
+std::span<const unsigned char> ApngRgbaBuffer::row(std::size_t y) const
 {
-    return y >= m_rows.size() ? nullptr : m_rows[y];
+    if (y >= static_cast<std::size_t>(m_imageSize.height())) {
+        return {};
+    }
+    return std::span(m_bytes).subspan(y * m_rowBytes, m_rowBytes);
 }
-
-const unsigned char* ApngRgbaBuffer::row(std::size_t y) const
-{
-    return y >= m_rows.size() ? nullptr : m_rows[y];
-}
-
-unsigned char** ApngRgbaBuffer::rows() { return m_rows.empty() ? nullptr : m_rows.data(); }
 
 bool ApngRgbaBuffer::contains(ApngRgbaRegion region) const
 {
@@ -163,7 +159,7 @@ bool ApngRgbaBuffer::clearRegion(ApngRgbaRegion region)
     return true;
 }
 
-bool ApngRgbaBuffer::restoreRegion(ApngRgbaRegion region, const std::vector<unsigned char>& bytes)
+bool ApngRgbaBuffer::restoreRegion(ApngRgbaRegion region, std::span<const unsigned char> bytes)
 {
     if (!contains(region)) {
         return false;

@@ -6,7 +6,7 @@
 #include <utility>
 
 namespace {
-constexpr int fullscreenChromeTimeoutMsec = 1000;
+constexpr kiriview::TimerDuration fullscreenChromeTimeout { 1000 };
 
 bool restorable(kiriview::WindowVisibility visibility)
 {
@@ -150,20 +150,20 @@ void WindowChromeRuntime::schedulePointerHide()
 {
     invalidatePointerTimer();
     const quint64 generation = m_pointerTimerGeneration;
-    m_pointerTimer = m_timerScheduler.singleShotTimer(
-        m_owner, fullscreenChromeTimeoutMsec, [this, generation]() {
-            if (generation != m_pointerTimerGeneration || !m_snapshot.fullscreen) {
-                return;
-            }
+    m_pointerTimer
+        = m_timerScheduler.singleShotTimer(m_owner, fullscreenChromeTimeout, [this, generation]() {
+              if (generation != m_pointerTimerGeneration || !m_snapshot.fullscreen) {
+                  return;
+              }
 
-            WindowChromeSnapshot next = m_snapshot;
-            next.pointerHidden = true;
-            if (!m_toolbarInteractionActive) {
-                next.toolbarRevealed = false;
-            }
-            commit(next);
-        });
-    m_pointerTimer->start();
+              WindowChromeSnapshot next = m_snapshot;
+              next.pointerHidden = true;
+              if (!m_toolbarInteractionActive) {
+                  next.toolbarRevealed = false;
+              }
+              commit(next);
+          });
+    m_pointerTimer->start(fullscreenChromeTimeout);
 }
 
 void WindowChromeRuntime::scheduleToolbarHide()
@@ -174,18 +174,18 @@ void WindowChromeRuntime::scheduleToolbarHide()
     }
 
     const quint64 generation = m_toolbarTimerGeneration;
-    m_toolbarTimer = m_timerScheduler.singleShotTimer(
-        m_owner, fullscreenChromeTimeoutMsec, [this, generation]() {
-            if (generation != m_toolbarTimerGeneration || !m_snapshot.fullscreen
-                || m_toolbarInteractionActive) {
-                return;
-            }
+    m_toolbarTimer
+        = m_timerScheduler.singleShotTimer(m_owner, fullscreenChromeTimeout, [this, generation]() {
+              if (generation != m_toolbarTimerGeneration || !m_snapshot.fullscreen
+                  || m_toolbarInteractionActive) {
+                  return;
+              }
 
-            WindowChromeSnapshot next = m_snapshot;
-            next.toolbarRevealed = false;
-            commit(next);
-        });
-    m_toolbarTimer->start();
+              WindowChromeSnapshot next = m_snapshot;
+              next.toolbarRevealed = false;
+              commit(next);
+          });
+    m_toolbarTimer->start(fullscreenChromeTimeout);
 }
 
 void WindowChromeRuntime::invalidatePointerTimer()

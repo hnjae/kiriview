@@ -281,9 +281,9 @@ void inheritMissingDirectMediaPredecodeDependencies(
     if (!directMediaPredecode.powerSaver.monitor) {
         directMediaPredecode.powerSaver.monitor = imageDocument.powerSaver.monitor;
     }
-    if (!directMediaPredecode.timerScheduler.currentMonotonicMsec) {
-        directMediaPredecode.timerScheduler.currentMonotonicMsec
-            = imageDocument.predecodeTimerScheduler.currentMonotonicMsec;
+    if (!directMediaPredecode.timerScheduler.currentMonotonicTime) {
+        directMediaPredecode.timerScheduler.currentMonotonicTime
+            = imageDocument.predecodeTimerScheduler.currentMonotonicTime;
     }
     if (!directMediaPredecode.timerScheduler.singleShotTimer) {
         directMediaPredecode.timerScheduler.singleShotTimer

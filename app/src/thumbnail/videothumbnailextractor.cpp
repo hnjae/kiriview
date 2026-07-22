@@ -35,8 +35,8 @@ public:
         , m_dependencies(resolvedDependencies(std::move(dependencies)))
     {
         m_backend = m_dependencies.backendFactory();
-        m_timeout = m_dependencies.timerScheduler.singleShotTimer(
-            this, 10000, [this]() { enqueue(m_workflow.handleTimeout()); });
+        m_timeout = m_dependencies.timerScheduler.singleShotTimer(this,
+            kiriview::TimerDuration(10000), [this]() { enqueue(m_workflow.handleTimeout()); });
         if (m_backend != nullptr) {
             m_backend->setCallbacks(kiriview::VideoThumbnailBackendCallbacks {
                 [this](kiriview::VideoThumbnailBackendMediaFacts facts) {
@@ -96,7 +96,7 @@ private:
                 using Operation = decltype(payload);
                 if constexpr (std::is_same_v<Operation, kiriview::StartVideoThumbnailTimeout>) {
                     if (m_timeout != nullptr) {
-                        m_timeout->start(payload.intervalMsec);
+                        m_timeout->start(kiriview::TimerDuration(payload.intervalMsec));
                     }
                 } else if constexpr (std::is_same_v<Operation,
                                          kiriview::StopVideoThumbnailTimeout>) {

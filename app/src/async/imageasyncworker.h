@@ -21,7 +21,7 @@ namespace kiriview {
 class ImageWorkerTaskState final
 {
 public:
-    using CancelCallback = std::function<void()>;
+    using CancelCallback = std::move_only_function<void()>;
 
     explicit ImageWorkerTaskState(CancelCallback cancelCallback)
         : m_cancelCallback(std::move(cancelCallback))

@@ -18,10 +18,10 @@ std::optional<std::size_t> frameRowBytes(quint32 width)
     return pixelCount * kiriview::ApngRgbaBuffer::bytesPerPixel;
 }
 
-void premultiplyRgbaRow(unsigned char* row, std::size_t width)
+void premultiplyRgbaRow(std::span<unsigned char> row, std::size_t width)
 {
     for (std::size_t x = 0; x < width; ++x) {
-        unsigned char* pixel = row + x * kiriview::ApngRgbaBuffer::bytesPerPixel;
+        unsigned char* pixel = row.data() + x * kiriview::ApngRgbaBuffer::bytesPerPixel;
         const unsigned int alpha = pixel[3];
         pixel[0]
             = static_cast<unsigned char>((static_cast<unsigned int>(pixel[0]) * alpha + 127) / 255);
@@ -104,22 +104,24 @@ bool ApngFrameComposer::canComposeFrame(const ApngFrameControl& control) const
     return m_canvas.contains(region(control));
 }
 
-bool ApngFrameComposer::setFrameBytes(const ApngFrameControl& control, const unsigned char* bytes,
-    std::size_t byteCount, std::size_t rowBytes)
+bool ApngFrameComposer::setFrameBytes(
+    const ApngFrameControl& control, std::span<const unsigned char> bytes, std::size_t rowBytes)
 {
-    if (bytes == nullptr || !canComposeFrame(control)) {
+    if (bytes.empty() || !canComposeFrame(control)) {
         return false;
     }
 
     const std::optional<std::size_t> expectedRowBytes = frameRowBytes(control.width);
     if (!expectedRowBytes.has_value() || rowBytes != *expectedRowBytes
-        || (control.height != 0 && byteCount / static_cast<std::size_t>(control.height) != rowBytes)
-        || byteCount != rowBytes * static_cast<std::size_t>(control.height)) {
+        || (control.height != 0
+            && bytes.size() / static_cast<std::size_t>(control.height) != rowBytes)
+        || bytes.size() != rowBytes * static_cast<std::size_t>(control.height)) {
         return false;
     }
 
     for (quint32 y = 0; y < control.height; ++y) {
-        std::memcpy(m_frame.row(y), bytes + static_cast<std::size_t>(y) * rowBytes, rowBytes);
+        std::ranges::copy(bytes.subspan(static_cast<std::size_t>(y) * rowBytes, rowBytes),
+            m_frame.row(y).begin());
     }
     return true;
 }
@@ -181,8 +183,8 @@ bool ApngFrameComposer::blendFrame(const ApngFrameControl& control)
             return false;
         }
 
-        unsigned char* destination = m_canvas.data() + *destinationOffset;
-        const unsigned char* source = m_frame.row(y);
+        unsigned char* destination = m_canvas.bytes().data() + *destinationOffset;
+        const unsigned char* source = m_frame.row(y).data();
         if (control.blendOp == ApngFrameBlendOp::Over) {
             for (std::size_t x = 0; x < width; ++x) {
                 blendPixelOver(destination + x * ApngRgbaBuffer::bytesPerPixel,

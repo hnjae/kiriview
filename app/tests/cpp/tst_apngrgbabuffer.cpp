@@ -10,6 +10,7 @@
 #include <cstring>
 #include <initializer_list>
 #include <optional>
+#include <span>
 #include <vector>
 
 namespace {
@@ -20,9 +21,9 @@ Pixel rgba(unsigned char red, unsigned char green, unsigned char blue, unsigned 
     return Pixel { red, green, blue, alpha };
 }
 
-void writePixels(unsigned char* row, std::initializer_list<Pixel> pixels)
+void writePixels(std::span<unsigned char> row, std::initializer_list<Pixel> pixels)
 {
-    std::memcpy(row, pixels.begin(), pixels.size() * sizeof(Pixel));
+    std::memcpy(row.data(), pixels.begin(), pixels.size() * sizeof(Pixel));
 }
 
 QColor pixel(const QImage& image, int x, int y) { return image.pixelColor(x, y); }
@@ -59,10 +60,10 @@ void TestApngRgbaBuffer::rowsExposePaddedRgbaStorage()
     kiriview::ApngRgbaBuffer buffer;
     QVERIFY(buffer.initialize(QSize(1, 2), 8));
 
-    QVERIFY(buffer.rows() != nullptr);
-    QVERIFY(buffer.row(0) != nullptr);
-    QVERIFY(buffer.row(1) != nullptr);
-    QCOMPARE(buffer.row(1), buffer.row(0) + 8);
+    QVERIFY(!buffer.bytes().empty());
+    QVERIFY(!buffer.row(0).empty());
+    QVERIFY(!buffer.row(1).empty());
+    QCOMPARE(buffer.row(1).data(), buffer.row(0).data() + 8);
 }
 
 void TestApngRgbaBuffer::regionCopyClearAndRestoreUseCanvasOffsets()

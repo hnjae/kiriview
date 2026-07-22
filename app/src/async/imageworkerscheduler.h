@@ -15,8 +15,8 @@
 #include <utility>
 
 namespace kiriview {
-using ImageWorkerOperation = std::function<void()>;
-using ImageWorkerCompletion = std::function<void()>;
+using ImageWorkerOperation = std::move_only_function<void()>;
+using ImageWorkerCompletion = std::move_only_function<void()>;
 using ImageWorkerScheduleCallback
     = std::function<ImageWorkerTask(QObject*, ImageWorkerOperation, ImageWorkerCompletion)>;
 

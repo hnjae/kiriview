@@ -6,7 +6,7 @@
 #include <utility>
 
 namespace {
-constexpr int notificationTimeoutMsec = 7000;
+constexpr kiriview::TimerDuration notificationTimeout { 7000 };
 }
 
 namespace kiriview {
@@ -61,13 +61,12 @@ void WindowNotificationRuntime::scheduleDismissal()
 {
     invalidateTimer();
     const quint64 generation = m_timerGeneration;
-    m_timer
-        = m_timerScheduler.singleShotTimer(m_owner, notificationTimeoutMsec, [this, generation]() {
-              if (generation == m_timerGeneration) {
-                  dismiss();
-              }
-          });
-    m_timer->start();
+    m_timer = m_timerScheduler.singleShotTimer(m_owner, notificationTimeout, [this, generation]() {
+        if (generation == m_timerGeneration) {
+            dismiss();
+        }
+    });
+    m_timer->start(notificationTimeout);
 }
 
 void WindowNotificationRuntime::invalidateTimer()

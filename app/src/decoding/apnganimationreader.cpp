@@ -128,7 +128,7 @@ public:
 
         const ApngFrameControl control = frameControlFromRust(frame);
         if (!composer.setFrameBytes(
-                control, frame.pixels.data(), frame.pixels.size(), frame.row_bytes)) {
+                control, std::span(frame.pixels.data(), frame.pixels.size()), frame.row_bytes)) {
             close();
             return std::unexpected(apngDecodeErrorString());
         }
