@@ -5,6 +5,8 @@
 
 #include <QtTest/QTest>
 
+#include <limits>
+
 namespace {
 
 int frameStartFor(int frame)
@@ -48,6 +50,8 @@ private Q_SLOTS:
     void advancementWithoutCurrentPositionSeedsFromCurrentFrame();
     void playOnceEndSelectsFinalFrame();
     void loopingEndWrapsToSequenceStart();
+    void playOnceLongStallSelectsFinalFrame();
+    void loopingLongStallWrapsWithoutOverflow();
     void invalidFrameLookupRejectsTarget();
 };
 
@@ -112,6 +116,32 @@ void PlaybackTimelineTest::loopingEndWrapsToSequenceStart()
     QCOMPARE(target.displayTarget.frame, 0);
     QCOMPARE(target.displayTarget.position, 0);
     QCOMPARE(target.playbackPosition, 0);
+    QCOMPARE(target.reachedEnd, false);
+    QCOMPARE(target.looped, true);
+}
+
+void PlaybackTimelineTest::playOnceLongStallSelectsFinalFrame()
+{
+    const auto target = ImageViewportInternal::playbackAdvanceTarget(
+        std::numeric_limits<int>::max(), 1, 100, false, 350, 2, frameStartFor, frameIndexFor);
+
+    QVERIFY(target.valid);
+    QCOMPARE(target.displayTarget.frame, 1);
+    QCOMPARE(target.displayTarget.position, 100);
+    QCOMPARE(target.playbackPosition, 350);
+    QCOMPARE(target.reachedEnd, true);
+    QCOMPARE(target.looped, false);
+}
+
+void PlaybackTimelineTest::loopingLongStallWrapsWithoutOverflow()
+{
+    const auto target = ImageViewportInternal::playbackAdvanceTarget(
+        std::numeric_limits<int>::max(), 1, 100, true, 350, 2, frameStartFor, frameIndexFor);
+
+    QVERIFY(target.valid);
+    QCOMPARE(target.displayTarget.frame, 1);
+    QCOMPARE(target.displayTarget.position, 100);
+    QCOMPARE(target.playbackPosition, 297);
     QCOMPARE(target.reachedEnd, false);
     QCOMPARE(target.looped, true);
 }

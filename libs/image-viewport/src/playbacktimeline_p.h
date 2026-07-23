@@ -24,14 +24,14 @@ PlaybackAdvanceTarget playbackAdvanceTarget(int elapsedMilliseconds, int current
     FrameStartFor frameStartFor, FrameIndexFor frameIndexFor)
 {
     PlaybackAdvanceTarget target;
-    int nextPlaybackPosition
+    const qint64 initialPlaybackPosition
         = currentPlaybackPosition < 0 ? frameStartFor(currentFrame) : currentPlaybackPosition;
-    nextPlaybackPosition += elapsedMilliseconds;
+    const qint64 nextPlaybackPosition = initialPlaybackPosition + elapsedMilliseconds;
 
     if (nextPlaybackPosition >= totalDuration) {
         if (looping) {
             const int wrappedPosition
-                = totalDuration > 0 ? nextPlaybackPosition % totalDuration : 0;
+                = totalDuration > 0 ? int(nextPlaybackPosition % totalDuration) : 0;
             const int wrappedFrame = frameIndexFor(wrappedPosition);
             if (wrappedFrame < 0) {
                 return target;
@@ -53,13 +53,14 @@ PlaybackAdvanceTarget playbackAdvanceTarget(int elapsedMilliseconds, int current
         return target;
     }
 
-    const int nextFrame = frameIndexFor(nextPlaybackPosition);
+    const int admittedPlaybackPosition = int(nextPlaybackPosition);
+    const int nextFrame = frameIndexFor(admittedPlaybackPosition);
     if (nextFrame < 0) {
         return target;
     }
     target.displayTarget.frame = nextFrame;
     target.displayTarget.position = frameStartFor(nextFrame);
-    target.playbackPosition = nextPlaybackPosition;
+    target.playbackPosition = admittedPlaybackPosition;
     target.valid = true;
     return target;
 }
