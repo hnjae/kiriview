@@ -99,7 +99,8 @@ void ImageViewportPrivate::applyRenderHostFact(ViewportRenderHostFact fact)
     auto apply = [this, fact = std::move(fact)]() mutable {
         applyEngineTransition(engine.handleRenderHostFact({ std::move(fact) }));
     };
-    if (QThread::currentThread() == q->thread()) {
+    const QThread* renderThread = q->thread();
+    if (renderThread != nullptr && renderThread->isCurrentThread()) {
         apply();
         return;
     }

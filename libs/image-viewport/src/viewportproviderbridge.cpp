@@ -38,6 +38,12 @@ ViewportProviderExecutorOutcome ViewportProviderExecutor::releaseFailureHandle(
 }
 
 namespace {
+bool hasCurrentThreadAffinity(const QObject* object)
+{
+    const QThread* thread = object == nullptr ? nullptr : object->thread();
+    return thread != nullptr && thread->isCurrentThread();
+}
+
 QMutex& providerSessionOwnershipMutex()
 {
     static QMutex mutex;
@@ -114,7 +120,7 @@ public:
             command();
             return ViewportProviderExecutorOutcome::Completed;
         }
-        if (session->thread() == QThread::currentThread()) {
+        if (hasCurrentThreadAffinity(session)) {
             command();
             return ViewportProviderExecutorOutcome::Completed;
         }
@@ -157,7 +163,7 @@ public:
             if (!sessionControl || !session) {
                 return ViewportProviderExecutorOutcome::RetryableFailure;
             }
-            if (session->thread() == QThread::currentThread()) {
+            if (hasCurrentThreadAffinity(session)) {
                 sessionControl->completeHandleReleaseOnSessionAffinity();
                 return ViewportProviderExecutorOutcome::Completed;
             }
@@ -172,7 +178,7 @@ public:
         }
         if (threadingContract == ImageSequenceProviderThreadingContract::ThreadSafe) {
             frameHandle->release();
-            if (!session || session->thread() == QThread::currentThread()) {
+            if (!session || hasCurrentThreadAffinity(session)) {
                 delete frameHandle;
                 if (sessionControl) {
                     sessionControl->completeHandleReleaseOnSessionAffinity();
@@ -191,7 +197,7 @@ public:
         }
         if (!session)
             return ViewportProviderExecutorOutcome::RetryableFailure;
-        if (session->thread() == QThread::currentThread()) {
+        if (hasCurrentThreadAffinity(session)) {
             frameHandle->release();
             delete frameHandle;
             sessionControl->completeHandleReleaseOnSessionAffinity();
@@ -224,7 +230,7 @@ public:
             if (failureHandle) {
                 failureHandle->release();
             }
-            if (!session || session->thread() == QThread::currentThread()) {
+            if (!session || hasCurrentThreadAffinity(session)) {
                 delete failureHandle;
                 sessionControl->completeHandleReleaseOnSessionAffinity();
                 return ViewportProviderExecutorOutcome::Completed;
@@ -242,7 +248,7 @@ public:
         if (!session) {
             return ViewportProviderExecutorOutcome::RetryableFailure;
         }
-        if (session->thread() == QThread::currentThread()) {
+        if (hasCurrentThreadAffinity(session)) {
             delete failureHandle;
             sessionControl->completeHandleReleaseOnSessionAffinity();
             return ViewportProviderExecutorOutcome::Completed;
@@ -1139,7 +1145,7 @@ void ViewportProviderSessionControl::destroySessionIfReadyOnSessionAffinity()
         sessionToDestroy = providerSession;
         providerSession = nullptr;
     }
-    Q_ASSERT(sessionToDestroy->thread() == QThread::currentThread());
+    Q_ASSERT(hasCurrentThreadAffinity(sessionToDestroy));
     sessionToDestroy->setParent(nullptr);
     delete sessionToDestroy;
 }
@@ -1150,7 +1156,7 @@ void ViewportProviderSessionControl::scheduleDestructionCheck()
     if (!currentSession) {
         return;
     }
-    if (currentSession->thread() == QThread::currentThread()) {
+    if (hasCurrentThreadAffinity(currentSession)) {
         destroySessionIfReadyOnSessionAffinity();
         return;
     }
@@ -1285,7 +1291,7 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
     if (!claimProviderSession(session)) {
         return {};
     }
-    if (session->parent() && session->thread() == QThread::currentThread()) {
+    if (session->parent() && hasCurrentThreadAffinity(session)) {
         session->setParent(nullptr);
     }
     const auto sessionControl = std::make_shared<ViewportProviderSessionControl>(
@@ -1323,7 +1329,7 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
                 || event.kind == ImageSequenceProviderEventKind::Progress;
             std::shared_ptr<ViewportProviderDeliverySlotReservation> deliverySlot;
             if (!deliverSynchronously && !advisory && callbackTarget
-                && QThread::currentThread() != callbackTarget->thread()) {
+                && !hasCurrentThreadAffinity(callbackTarget.data())) {
                 deliverySlot = eventEndpoint->reserveNonAdvisoryDelivery();
             }
             if (event.frameHandle) {

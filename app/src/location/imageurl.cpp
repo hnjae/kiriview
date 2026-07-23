@@ -82,7 +82,7 @@ std::optional<QString> documentPortalHostPath(const QUrl& url)
         }
 
         QByteArray value;
-        value.resize(valueSize);
+        value.resizeForOverwrite(valueSize);
         const ssize_t bytesRead = getxattr(encodedLocalPath.constData(),
             documentPortalHostPathAttribute, value.data(), static_cast<std::size_t>(value.size()));
         const int readErrno = errno;
