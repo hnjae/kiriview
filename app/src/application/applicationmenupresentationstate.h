@@ -13,8 +13,8 @@ public:
     explicit ApplicationMenuPresentationState(
         MenuPresentation presentation = MenuPresentation::HamburgerMenu);
 
-    MenuPresentation presentation() const;
-    int storedValue() const;
+    [[nodiscard]] MenuPresentation presentation() const;
+    [[nodiscard]] int storedValue() const;
 
     bool setPresentation(MenuPresentation presentation);
     bool setStoredValue(int value);

@@ -48,7 +48,7 @@ namespace Detail {
             return *this;
         }
 
-        Resource* get() const { return m_resource; }
+        [[nodiscard]] Resource* get() const { return m_resource; }
 
         Resource** out()
         {
@@ -80,7 +80,7 @@ public:
     HeifContext(HeifContext&& other) noexcept = default;
     HeifContext& operator=(HeifContext&& other) noexcept = default;
 
-    heif_context* get() const;
+    [[nodiscard]] heif_context* get() const;
 
 private:
     Detail::HeifResource<heif_context, heif_context_free> m_context;
@@ -98,7 +98,7 @@ public:
     HeifImageHandle& operator=(HeifImageHandle&& other) noexcept = default;
 
     heif_image_handle** out();
-    const heif_image_handle* get() const;
+    [[nodiscard]] const heif_image_handle* get() const;
 
 private:
     Detail::HeifResource<heif_image_handle, heif_image_handle_release> m_handle;
@@ -116,7 +116,7 @@ public:
     HeifTrack(HeifTrack&& other) noexcept = default;
     HeifTrack& operator=(HeifTrack&& other) noexcept = default;
 
-    heif_track* get() const;
+    [[nodiscard]] heif_track* get() const;
 
 private:
     Detail::HeifResource<heif_track, heif_track_release> m_track;
@@ -134,7 +134,7 @@ public:
     HeifImage& operator=(HeifImage&& other) noexcept = default;
 
     heif_image** out();
-    const heif_image* get() const;
+    [[nodiscard]] const heif_image* get() const;
 
 private:
     Detail::HeifResource<heif_image, heif_image_release> m_image;
@@ -151,7 +151,7 @@ public:
     HeifDecodingOptions(HeifDecodingOptions&& other) noexcept = default;
     HeifDecodingOptions& operator=(HeifDecodingOptions&& other) noexcept = default;
 
-    const heif_decoding_options* get() const;
+    [[nodiscard]] const heif_decoding_options* get() const;
 
 private:
     Detail::HeifResource<heif_decoding_options, heif_decoding_options_free> m_options;

@@ -22,7 +22,7 @@ public:
     explicit ImageDocumentPredecodedImageLookup(ExternalFinder externalFinder = {},
         const ImageDocumentPredecodeController* predecodeController = nullptr);
 
-    std::optional<PredecodedImage> find(const QUrl& url) const;
+    [[nodiscard]] std::optional<PredecodedImage> find(const QUrl& url) const;
 
 private:
     ExternalFinder m_externalFinder;

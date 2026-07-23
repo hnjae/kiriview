@@ -46,7 +46,7 @@ public:
         QObject* owner, TimerScheduler timerScheduler = {}, WindowChromeRuntimePorts ports = {});
     ~WindowChromeRuntime();
 
-    const WindowChromeSnapshot& snapshot() const;
+    [[nodiscard]] const WindowChromeSnapshot& snapshot() const;
     void observeVisibility(WindowVisibility visibility);
     void requestToggleFullscreen();
     void reportPointerMoved(bool inTopRevealArea);

@@ -182,7 +182,7 @@ public:
         return std::optional<AnimationFrame>(AnimationFrame { std::move(*image), delay });
     }
 
-    bool hasMoreFrames() const
+    [[nodiscard]] bool hasMoreFrames() const
     {
         return decoder != nullptr && WebPAnimDecoderHasMoreFrames(decoder.get()) != 0;
     }

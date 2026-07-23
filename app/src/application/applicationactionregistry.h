@@ -30,11 +30,11 @@ class ApplicationActionRegistry final
 public:
     explicit ApplicationActionRegistry(ApplicationActionHost& host);
 
-    QAction* collectionAction(const QString& actionName) const;
-    QAction* collectionAction(const ActionDefinition& definition) const;
+    [[nodiscard]] QAction* collectionAction(const QString& actionName) const;
+    [[nodiscard]] QAction* collectionAction(const ActionDefinition& definition) const;
     void registerAction(const ActionDefinition& definition, QAction* action);
-    QAction* actionForId(ActionId actionId) const;
-    QList<RegisteredApplicationAction> registeredActions() const;
+    [[nodiscard]] QAction* actionForId(ActionId actionId) const;
+    [[nodiscard]] QList<RegisteredApplicationAction> registeredActions() const;
 
 private:
     static QString definitionName(const ActionDefinition& definition);

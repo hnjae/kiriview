@@ -43,7 +43,7 @@ struct ImageViewportIntegrationTarget
     ImageViewportProviderResourceFactory primaryResource;
     ImageViewportProviderResourceFactory secondaryResource;
 
-    bool isValid() const;
+    [[nodiscard]] bool isValid() const;
 };
 
 struct ImageViewportIntegrationProjection

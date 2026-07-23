@@ -80,7 +80,7 @@ public:
     {
     }
 
-    bool isActive() const { return m_state != nullptr && m_state->isActive(); }
+    [[nodiscard]] bool isActive() const { return m_state != nullptr && m_state->isActive(); }
 
     void cancel() const
     {
@@ -128,9 +128,12 @@ public:
         }
     }
 
-    bool isActive() const { return m_state != nullptr && m_state->isActive(); }
+    [[nodiscard]] bool isActive() const { return m_state != nullptr && m_state->isActive(); }
 
-    ImageWorkerTaskCompletion completion() const { return ImageWorkerTaskCompletion(m_state); }
+    [[nodiscard]] ImageWorkerTaskCompletion completion() const
+    {
+        return ImageWorkerTaskCompletion(m_state);
+    }
 
 private:
     std::shared_ptr<ImageWorkerTaskState> m_state;

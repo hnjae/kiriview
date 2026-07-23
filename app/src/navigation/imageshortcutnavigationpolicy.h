@@ -28,13 +28,13 @@ public:
         ShowFirstImageBoundary,
     };
 
-    ImageShortcutNavigationPolicy::HorizontalArrowAction horizontalArrowAction(
+    [[nodiscard]] ImageShortcutNavigationPolicy::HorizontalArrowAction horizontalArrowAction(
         bool leftArrow, bool horizontallyPannable, bool rightToLeftReadingActive) const;
-    ImageShortcutNavigationPolicy::SinglePageArrowAction singlePageArrowAction(
+    [[nodiscard]] ImageShortcutNavigationPolicy::SinglePageArrowAction singlePageArrowAction(
         bool leftArrow, bool rightToLeftReadingActive) const;
-    ImageShortcutNavigationPolicy::ScanAction scanForwardAction(
+    [[nodiscard]] ImageShortcutNavigationPolicy::ScanAction scanForwardAction(
         bool imagePannable, bool viewportMoved) const;
-    ImageShortcutNavigationPolicy::ScanAction scanBackwardAction(bool imagePannable,
+    [[nodiscard]] ImageShortcutNavigationPolicy::ScanAction scanBackwardAction(bool imagePannable,
         bool viewportMoved, bool imageDocumentPageNavigationActive,
         bool atKnownFirstActiveNavigation, bool canOpenPreviousActiveNavigation) const;
 };

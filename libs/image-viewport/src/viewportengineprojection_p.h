@@ -35,8 +35,8 @@ public:
     ViewportEngineCurrentGeometryProjectionAccess(
         const ViewportEngineCurrentGeometryProjectionAccess&)
         = delete;
-    const ImageViewportInternal::RequestState& request() const { return m_request; }
-    const ImageViewportInternal::DisplayState& display() const { return m_display; }
+    [[nodiscard]] const ImageViewportInternal::RequestState& request() const { return m_request; }
+    [[nodiscard]] const ImageViewportInternal::DisplayState& display() const { return m_display; }
 
 private:
     const ImageViewportInternal::RequestState& m_request;
@@ -59,8 +59,11 @@ public:
     ViewportEnginePendingGeometryProjectionAccess(
         const ViewportEnginePendingGeometryProjectionAccess&)
         = delete;
-    const ImageViewportInternal::RequestState& request() const { return m_request; }
-    const ViewportEngineProviderFactsView& providerFacts() const { return m_providerFacts; }
+    [[nodiscard]] const ImageViewportInternal::RequestState& request() const { return m_request; }
+    [[nodiscard]] const ViewportEngineProviderFactsView& providerFacts() const
+    {
+        return m_providerFacts;
+    }
 
 private:
     const ImageViewportInternal::RequestState& m_request;
@@ -83,8 +86,11 @@ public:
     ViewportEngineAcceptedGeometryProjectionAccess(
         const ViewportEngineAcceptedGeometryProjectionAccess&)
         = delete;
-    const ImageViewportInternal::RequestState& request() const { return m_request; }
-    const ViewportEngineProviderFactsView& providerFacts() const { return m_providerFacts; }
+    [[nodiscard]] const ImageViewportInternal::RequestState& request() const { return m_request; }
+    [[nodiscard]] const ViewportEngineProviderFactsView& providerFacts() const
+    {
+        return m_providerFacts;
+    }
 
 private:
     const ImageViewportInternal::RequestState& m_request;
@@ -111,9 +117,12 @@ public:
         = delete;
     ViewportEngineRenderSnapshotProjectionAccess(ViewportEngineRenderSnapshotProjectionAccess&&)
         = default;
-    const ImageViewportInternal::RequestState& request() const { return m_request; }
-    const ImageViewportInternal::DisplayState& display() const { return m_display; }
-    const ImageViewportInternal::PresentationState& presentation() const { return m_presentation; }
+    [[nodiscard]] const ImageViewportInternal::RequestState& request() const { return m_request; }
+    [[nodiscard]] const ImageViewportInternal::DisplayState& display() const { return m_display; }
+    [[nodiscard]] const ImageViewportInternal::PresentationState& presentation() const
+    {
+        return m_presentation;
+    }
 
 private:
     const ImageViewportInternal::RequestState& m_request;

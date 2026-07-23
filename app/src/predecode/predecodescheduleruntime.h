@@ -30,9 +30,9 @@ public:
 
     void schedule(PredecodeScheduleContext context);
     void setPowerSaverEnabled(bool enabled);
-    bool powerSaverEnabled() const;
-    PredecodeMomentumMode momentumMode() const;
-    bool accepts(quint64 generation) const;
+    [[nodiscard]] bool powerSaverEnabled() const;
+    [[nodiscard]] PredecodeMomentumMode momentumMode() const;
+    [[nodiscard]] bool accepts(quint64 generation) const;
     void cancel();
 
 private:
@@ -42,7 +42,7 @@ private:
     void scheduleSettledNeutralPredecode();
     void supersedeScheduleRuntime();
     void cancelBackgroundRuntime();
-    qint64 currentMonotonicMsec() const;
+    [[nodiscard]] qint64 currentMonotonicMsec() const;
 
     PredecodeLoadController& m_loadController;
     StartAdjacentPredecodeCallback m_startAdjacentPredecode;

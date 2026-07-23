@@ -37,12 +37,13 @@ public:
     ImageDocumentPageNavigationService(
         ImageDocumentPageCandidateProvider candidateProvider, Callbacks callbacks);
 
-    int currentPageNumber() const;
-    int pageCount() const;
-    ImageDocumentPageNavigationSnapshot pageNavigationSnapshot() const;
-    const ImageDocumentPageCandidateListSnapshot& confirmedPageCandidateSnapshot() const;
-    std::optional<QUrl> urlAtPage(int pageNumber) const;
-    std::optional<ImageDocumentPageTarget> targetAtPage(int pageNumber) const;
+    [[nodiscard]] int currentPageNumber() const;
+    [[nodiscard]] int pageCount() const;
+    [[nodiscard]] ImageDocumentPageNavigationSnapshot pageNavigationSnapshot() const;
+    [[nodiscard]] const ImageDocumentPageCandidateListSnapshot&
+    confirmedPageCandidateSnapshot() const;
+    [[nodiscard]] std::optional<QUrl> urlAtPage(int pageNumber) const;
+    [[nodiscard]] std::optional<ImageDocumentPageTarget> targetAtPage(int pageNumber) const;
     ImageDocumentPageSelectionResult selectPage(int pageNumber);
 
     void openAdjacentPage(std::optional<ImageDocumentPageCandidateListContext> context,

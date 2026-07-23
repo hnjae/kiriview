@@ -152,7 +152,7 @@ void TestImageDecodePipeline::runtimeExecutesRoutePlansWithoutClassifier()
         kiriview::QtRasterFormat::Jxl,
     };
 
-    runtime.execute(route, originalData, kiriview::ImageDecodeRequest {});
+    (void)runtime.execute(route, originalData, kiriview::ImageDecodeRequest {});
 
     QCOMPARE(compatibleTransformCount, 1);
     QCOMPARE(calls, QStringList({ QStringLiteral("qt") }));
@@ -230,7 +230,7 @@ void TestImageDecodePipeline::compatibleDataIsComputedOnlyWhenClassificationRequ
             return compatibleData;
         });
 
-    qtRouter.decode(originalData, kiriview::ImageDecodeRequest {});
+    (void)qtRouter.decode(originalData, kiriview::ImageDecodeRequest {});
 
     QCOMPARE(qtCompatibleTransformCount, 0);
     QCOMPARE(qtCalls, QStringList({ QStringLiteral("qt") }));
@@ -250,7 +250,7 @@ void TestImageDecodePipeline::compatibleDataIsComputedOnlyWhenClassificationRequ
             return compatibleData;
         });
 
-    heifRouter.decode(originalData, kiriview::ImageDecodeRequest {});
+    (void)heifRouter.decode(originalData, kiriview::ImageDecodeRequest {});
 
     QCOMPARE(heifCompatibleTransformCount, 1);
     QCOMPARE(heifCalls, QStringList({ QStringLiteral("heif") }));
@@ -278,7 +278,7 @@ void TestImageDecodePipeline::qtRasterClassificationCarriesExplicitFormat()
                 return classification(kiriview::ImageInputKind::QtRaster, format);
             });
 
-        router.decode(QByteArrayLiteral("raster bytes"), kiriview::ImageDecodeRequest {});
+        (void)router.decode(QByteArrayLiteral("raster bytes"), kiriview::ImageDecodeRequest {});
 
         QCOMPARE(calls, QStringList({ QStringLiteral("qt") }));
         QCOMPARE(qtFormats, QList<kiriview::QtRasterFormat>({ format }));

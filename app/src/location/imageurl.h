@@ -15,7 +15,7 @@ struct DirectoryNavigationLocation
     QUrl fileUrl;
     QUrl directoryUrl;
 
-    bool isValid() const;
+    [[nodiscard]] bool isValid() const;
 };
 
 enum class NavigationSourceEntryKind {
@@ -40,7 +40,7 @@ class NavigationSourceResolver
 public:
     NavigationSourceResolver();
     explicit NavigationSourceResolver(NavigationSourceEntryFactProvider provider);
-    ResolvedNavigationSource resolveExternalSource(const QUrl& url) const;
+    [[nodiscard]] ResolvedNavigationSource resolveExternalSource(const QUrl& url) const;
 
 private:
     NavigationSourceEntryFactProvider m_provider;
@@ -54,11 +54,11 @@ public:
         QUrl navigationUrl,
         NavigationSourceEntryKind entryKind = NavigationSourceEntryKind::Direct);
 
-    const QUrl& requestedUrl() const { return m_requestedUrl; }
-    const NavigationSourceEntryFacts& facts() const { return m_facts; }
-    const QUrl& navigationUrl() const { return m_navigationUrl; }
-    NavigationSourceEntryKind entryKind() const { return m_entryKind; }
-    bool isEmpty() const { return m_requestedUrl.isEmpty(); }
+    [[nodiscard]] const QUrl& requestedUrl() const { return m_requestedUrl; }
+    [[nodiscard]] const NavigationSourceEntryFacts& facts() const { return m_facts; }
+    [[nodiscard]] const QUrl& navigationUrl() const { return m_navigationUrl; }
+    [[nodiscard]] NavigationSourceEntryKind entryKind() const { return m_entryKind; }
+    [[nodiscard]] bool isEmpty() const { return m_requestedUrl.isEmpty(); }
 
 private:
     QUrl m_requestedUrl;

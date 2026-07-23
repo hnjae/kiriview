@@ -26,9 +26,9 @@ public:
     PredecodeActiveDecodeStore& operator=(const PredecodeActiveDecodeStore&) = delete;
 
     bool add(ImageDecodeRequest request, ImageDecodeJob* decodeJob);
-    std::size_t size() const;
-    bool containsUrl(const QUrl& url) const;
-    PredecodeActiveLoads activeLoads() const;
+    [[nodiscard]] std::size_t size() const;
+    [[nodiscard]] bool containsUrl(const QUrl& url) const;
+    [[nodiscard]] PredecodeActiveLoads activeLoads() const;
     std::optional<ImageDecodeRequest> finish(const ImageDecodeRequest& request);
     void cancel();
 

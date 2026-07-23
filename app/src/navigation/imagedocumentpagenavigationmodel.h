@@ -36,17 +36,18 @@ struct ImageDocumentPageNavigationCandidateReuseResult
 class ImageDocumentPageNavigationModel
 {
 public:
-    int currentPageNumber() const;
-    int pageCount() const;
-    ImageDocumentPageNavigationSnapshot snapshot() const;
-    const ImageDocumentPageCandidateListSnapshot& confirmedCandidateSnapshot() const;
-    bool hasKnownSelection() const;
-    std::optional<QUrl> urlAtPage(int pageNumber) const;
-    std::optional<ImageDocumentPageTarget> targetAtPage(int pageNumber) const;
+    [[nodiscard]] int currentPageNumber() const;
+    [[nodiscard]] int pageCount() const;
+    [[nodiscard]] ImageDocumentPageNavigationSnapshot snapshot() const;
+    [[nodiscard]] const ImageDocumentPageCandidateListSnapshot& confirmedCandidateSnapshot() const;
+    [[nodiscard]] bool hasKnownSelection() const;
+    [[nodiscard]] std::optional<QUrl> urlAtPage(int pageNumber) const;
+    [[nodiscard]] std::optional<ImageDocumentPageTarget> targetAtPage(int pageNumber) const;
     std::optional<ImageDocumentPageTarget> selectPage(int pageNumber);
     std::optional<ImageDocumentPageTarget> selectAdjacentPage(NavigationDirection direction);
 
-    bool shouldKeepExistingWatcherFor(const ImageDocumentPageCandidateListContext& context) const;
+    [[nodiscard]] bool shouldKeepExistingWatcherFor(
+        const ImageDocumentPageCandidateListContext& context) const;
     ImageDocumentPageNavigationCandidateReuseResult reuseConfirmedCandidates(
         const ImageDocumentPageCandidateListContext& context, bool forceChanged = true);
     bool reuseConfirmedCandidateSnapshot(const ImageDocumentPageCandidateListContext& context);
@@ -75,10 +76,11 @@ private:
     ImageDocumentPageNavigationRefreshResult completeRefreshFromCurrentContext(
         const std::vector<ImageDocumentPageCandidate>& candidates,
         ImageDocumentPageCandidateListContext context);
-    std::optional<ImageDocumentPageCandidateListContext> acceptedPendingRefreshContext(
+    [[nodiscard]] std::optional<ImageDocumentPageCandidateListContext>
+    acceptedPendingRefreshContext(
         quint64 refreshId, ImageDocumentPageCandidateListSource source) const;
-    std::optional<ImageDocumentPageCandidateListContext> acceptedWatchedRefreshContext(
-        ImageDocumentPageCandidateListSource source) const;
+    [[nodiscard]] std::optional<ImageDocumentPageCandidateListContext>
+    acceptedWatchedRefreshContext(ImageDocumentPageCandidateListSource source) const;
     bool completeRefresh(const std::vector<ImageDocumentPageCandidate>& candidates,
         ImageDocumentPageCandidateListContext context);
     void finishRefresh(const std::vector<ImageDocumentPageCandidate>& candidates,

@@ -43,21 +43,21 @@ public:
 
     explicit KiriVideoPlaybackControls(KiriVideoDocument& document);
 
-    quint64 revision() const;
-    bool ready() const;
-    bool fixedMode() const;
-    bool reserveSpace() const;
-    bool shown() const;
-    bool autoHideEligible() const;
-    bool playing() const;
-    bool muted() const;
-    TimelineKind timelineKind() const;
-    bool timelineInteractive() const;
-    double sliderValueMsec() const;
-    double sliderMaximumMsec() const;
-    QString currentTimeText() const;
-    QString durationText() const;
-    bool scrubbing() const;
+    [[nodiscard]] quint64 revision() const;
+    [[nodiscard]] bool ready() const;
+    [[nodiscard]] bool fixedMode() const;
+    [[nodiscard]] bool reserveSpace() const;
+    [[nodiscard]] bool shown() const;
+    [[nodiscard]] bool autoHideEligible() const;
+    [[nodiscard]] bool playing() const;
+    [[nodiscard]] bool muted() const;
+    [[nodiscard]] TimelineKind timelineKind() const;
+    [[nodiscard]] bool timelineInteractive() const;
+    [[nodiscard]] double sliderValueMsec() const;
+    [[nodiscard]] double sliderMaximumMsec() const;
+    [[nodiscard]] QString currentTimeText() const;
+    [[nodiscard]] QString durationText() const;
+    [[nodiscard]] bool scrubbing() const;
 
     Q_INVOKABLE void reportEnvironment(qreal viewportWidth, qreal viewportHeight, qreal gridUnit,
         bool mobile, bool transientTouchInput, int longAnimationDurationMsec,

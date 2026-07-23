@@ -43,7 +43,7 @@ public:
 
     WebPAnimationOpenResult open(QByteArray data);
     AnimationFrameReadResult readNextFrame();
-    bool hasMoreFrames() const;
+    [[nodiscard]] bool hasMoreFrames() const;
     void close();
 
 private:

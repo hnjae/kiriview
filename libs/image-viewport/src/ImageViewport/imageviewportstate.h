@@ -43,13 +43,14 @@ public:
     {
     }
 
-    ImageViewportRequestStatus status() const { return m_status; }
-    ImageViewportRequestReason reason() const { return m_reason; }
-    ImageViewportPresentationTargetGenerationToken acceptedPresentationTargetGeneration() const
+    [[nodiscard]] ImageViewportRequestStatus status() const { return m_status; }
+    [[nodiscard]] ImageViewportRequestReason reason() const { return m_reason; }
+    [[nodiscard]] ImageViewportPresentationTargetGenerationToken
+    acceptedPresentationTargetGeneration() const
     {
         return m_acceptedPresentationTargetGeneration;
     }
-    ImageViewportRoleSet acceptedRoleSet() const { return m_acceptedRoleSet; }
+    [[nodiscard]] ImageViewportRoleSet acceptedRoleSet() const { return m_acceptedRoleSet; }
 
     friend bool operator==(
         const ImageViewportRequestSnapshot& lhs, const ImageViewportRequestSnapshot& rhs)
@@ -124,35 +125,36 @@ public:
     {
     }
 
-    ImageViewportDisplayStatus status() const { return m_status; }
-    ImageViewportDisplayPhase phase() const { return m_phase; }
-    ImageViewportPresentationTargetGenerationToken displayedPresentationTargetGeneration() const
+    [[nodiscard]] ImageViewportDisplayStatus status() const { return m_status; }
+    [[nodiscard]] ImageViewportDisplayPhase phase() const { return m_phase; }
+    [[nodiscard]] ImageViewportPresentationTargetGenerationToken
+    displayedPresentationTargetGeneration() const
     {
         return m_displayedPresentationTargetGeneration;
     }
-    ImageViewportRoleSet displayedRoleSet() const { return m_displayedRoleSet; }
-    ImageViewportRoleSet targetRoleSet() const { return m_targetRoleSet; }
-    bool belongsToAcceptedPresentationTarget() const
+    [[nodiscard]] ImageViewportRoleSet displayedRoleSet() const { return m_displayedRoleSet; }
+    [[nodiscard]] ImageViewportRoleSet targetRoleSet() const { return m_targetRoleSet; }
+    [[nodiscard]] bool belongsToAcceptedPresentationTarget() const
     {
         return m_belongsToAcceptedPresentationTarget;
     }
-    bool retained() const { return m_retained; }
-    ImageViewportRevisionToken displayedPresentationRevision() const
+    [[nodiscard]] bool retained() const { return m_retained; }
+    [[nodiscard]] ImageViewportRevisionToken displayedPresentationRevision() const
     {
         return m_displayedPresentationRevision;
     }
-    ImageViewportRevisionToken targetPresentationRevision() const
+    [[nodiscard]] ImageViewportRevisionToken targetPresentationRevision() const
     {
         return m_targetPresentationRevision;
     }
-    QSizeF spreadSize() const { return m_spreadSize; }
-    QRectF contentRect() const { return m_contentRect; }
-    QSizeF contentSize() const { return m_contentSize; }
-    QPointF contentPosition() const { return m_contentPosition; }
-    QPointF maximumContentPosition() const { return m_maximumContentPosition; }
-    QRectF visibleSpreadRect() const { return m_visibleSpreadRect; }
-    bool horizontalPannable() const { return m_horizontalPannable; }
-    bool verticalPannable() const { return m_verticalPannable; }
+    [[nodiscard]] QSizeF spreadSize() const { return m_spreadSize; }
+    [[nodiscard]] QRectF contentRect() const { return m_contentRect; }
+    [[nodiscard]] QSizeF contentSize() const { return m_contentSize; }
+    [[nodiscard]] QPointF contentPosition() const { return m_contentPosition; }
+    [[nodiscard]] QPointF maximumContentPosition() const { return m_maximumContentPosition; }
+    [[nodiscard]] QRectF visibleSpreadRect() const { return m_visibleSpreadRect; }
+    [[nodiscard]] bool horizontalPannable() const { return m_horizontalPannable; }
+    [[nodiscard]] bool verticalPannable() const { return m_verticalPannable; }
 
     friend bool operator==(
         const ImageViewportDisplaySnapshot& lhs, const ImageViewportDisplaySnapshot& rhs)
@@ -258,27 +260,33 @@ public:
     {
     }
 
-    ImageViewportFitMode fitMode() const { return m_fitMode; }
-    double zoomPercent() const { return m_zoomPercent; }
-    double preferredManualZoomPercent() const { return m_preferredManualZoomPercent; }
-    double minimumManualZoomPercent() const { return m_minimumManualZoomPercent; }
-    double maximumManualZoomPercent() const { return m_maximumManualZoomPercent; }
-    double manualZoomStepFactor() const { return m_manualZoomStepFactor; }
-    int rotationDegrees() const { return m_rotationDegrees; }
-    bool mirrorHorizontally() const { return m_mirrorHorizontally; }
-    bool mirrorVertically() const { return m_mirrorVertically; }
-    ImageViewportSpreadDirection spreadDirection() const { return m_spreadDirection; }
-    double pageGap() const { return m_pageGap; }
-    ImageViewportBackgroundMode backgroundMode() const { return m_backgroundMode; }
-    QColor backgroundColor() const { return m_backgroundColor; }
-    QColor checkerboardLightColor() const { return m_checkerboardLightColor; }
-    QColor checkerboardDarkColor() const { return m_checkerboardDarkColor; }
-    double checkerboardCellSize() const { return m_checkerboardCellSize; }
-    bool smoothing() const { return m_smoothing; }
-    bool mipmap() const { return m_mipmap; }
-    bool looping() const { return m_looping; }
-    ImageViewportQualityPreference qualityPreference() const { return m_qualityPreference; }
-    ImageViewportExactnessPreference exactnessPreference() const { return m_exactnessPreference; }
+    [[nodiscard]] ImageViewportFitMode fitMode() const { return m_fitMode; }
+    [[nodiscard]] double zoomPercent() const { return m_zoomPercent; }
+    [[nodiscard]] double preferredManualZoomPercent() const { return m_preferredManualZoomPercent; }
+    [[nodiscard]] double minimumManualZoomPercent() const { return m_minimumManualZoomPercent; }
+    [[nodiscard]] double maximumManualZoomPercent() const { return m_maximumManualZoomPercent; }
+    [[nodiscard]] double manualZoomStepFactor() const { return m_manualZoomStepFactor; }
+    [[nodiscard]] int rotationDegrees() const { return m_rotationDegrees; }
+    [[nodiscard]] bool mirrorHorizontally() const { return m_mirrorHorizontally; }
+    [[nodiscard]] bool mirrorVertically() const { return m_mirrorVertically; }
+    [[nodiscard]] ImageViewportSpreadDirection spreadDirection() const { return m_spreadDirection; }
+    [[nodiscard]] double pageGap() const { return m_pageGap; }
+    [[nodiscard]] ImageViewportBackgroundMode backgroundMode() const { return m_backgroundMode; }
+    [[nodiscard]] QColor backgroundColor() const { return m_backgroundColor; }
+    [[nodiscard]] QColor checkerboardLightColor() const { return m_checkerboardLightColor; }
+    [[nodiscard]] QColor checkerboardDarkColor() const { return m_checkerboardDarkColor; }
+    [[nodiscard]] double checkerboardCellSize() const { return m_checkerboardCellSize; }
+    [[nodiscard]] bool smoothing() const { return m_smoothing; }
+    [[nodiscard]] bool mipmap() const { return m_mipmap; }
+    [[nodiscard]] bool looping() const { return m_looping; }
+    [[nodiscard]] ImageViewportQualityPreference qualityPreference() const
+    {
+        return m_qualityPreference;
+    }
+    [[nodiscard]] ImageViewportExactnessPreference exactnessPreference() const
+    {
+        return m_exactnessPreference;
+    }
 
     friend bool operator==(
         const ImageViewportPresentationSnapshot& lhs, const ImageViewportPresentationSnapshot& rhs)
@@ -359,20 +367,24 @@ public:
     {
     }
 
-    bool belongsToAcceptedPresentationTarget() const
+    [[nodiscard]] bool belongsToAcceptedPresentationTarget() const
     {
         return m_belongsToAcceptedPresentationTarget;
     }
-    ImageViewportPresentationTargetGenerationToken presentationTargetGeneration() const
+    [[nodiscard]] ImageViewportPresentationTargetGenerationToken
+    presentationTargetGeneration() const
     {
         return m_presentationTargetGeneration;
     }
-    ImageViewportPageRole role() const { return m_role; }
-    ImageViewportPlaybackPhase playbackPhase() const { return m_playbackPhase; }
-    int frame() const { return m_frame; }
-    int position() const { return m_position; }
-    QSizeF sourceLogicalSize() const { return m_sourceLogicalSize; }
-    ImageViewportDemandRevisionToken demandRevision() const { return m_demandRevision; }
+    [[nodiscard]] ImageViewportPageRole role() const { return m_role; }
+    [[nodiscard]] ImageViewportPlaybackPhase playbackPhase() const { return m_playbackPhase; }
+    [[nodiscard]] int frame() const { return m_frame; }
+    [[nodiscard]] int position() const { return m_position; }
+    [[nodiscard]] QSizeF sourceLogicalSize() const { return m_sourceLogicalSize; }
+    [[nodiscard]] ImageViewportDemandRevisionToken demandRevision() const
+    {
+        return m_demandRevision;
+    }
 
     friend bool operator==(
         const ImageViewportRoleRequestSnapshot& lhs, const ImageViewportRoleRequestSnapshot& rhs)
@@ -435,20 +447,23 @@ public:
     {
     }
 
-    bool belongsToAcceptedPresentationTarget() const
+    [[nodiscard]] bool belongsToAcceptedPresentationTarget() const
     {
         return m_belongsToAcceptedPresentationTarget;
     }
-    bool retained() const { return m_retained; }
-    int frame() const { return m_frame; }
-    int position() const { return m_position; }
-    QSizeF sourceLogicalSize() const { return m_sourceLogicalSize; }
-    QSizeF payloadRasterSize() const { return m_payloadRasterSize; }
-    QSizeF sourceToPayloadScale() const { return m_sourceToPayloadScale; }
-    ImageViewportPayloadQuality quality() const { return m_quality; }
-    ImageViewportPayloadExactness exactness() const { return m_exactness; }
-    bool currentForDemand() const { return m_currentForDemand; }
-    ImageViewportDemandRevisionToken demandRevision() const { return m_demandRevision; }
+    [[nodiscard]] bool retained() const { return m_retained; }
+    [[nodiscard]] int frame() const { return m_frame; }
+    [[nodiscard]] int position() const { return m_position; }
+    [[nodiscard]] QSizeF sourceLogicalSize() const { return m_sourceLogicalSize; }
+    [[nodiscard]] QSizeF payloadRasterSize() const { return m_payloadRasterSize; }
+    [[nodiscard]] QSizeF sourceToPayloadScale() const { return m_sourceToPayloadScale; }
+    [[nodiscard]] ImageViewportPayloadQuality quality() const { return m_quality; }
+    [[nodiscard]] ImageViewportPayloadExactness exactness() const { return m_exactness; }
+    [[nodiscard]] bool currentForDemand() const { return m_currentForDemand; }
+    [[nodiscard]] ImageViewportDemandRevisionToken demandRevision() const
+    {
+        return m_demandRevision;
+    }
 
     friend bool operator==(
         const ImageViewportRoleDisplaySnapshot& lhs, const ImageViewportRoleDisplaySnapshot& rhs)
@@ -521,18 +536,27 @@ public:
     {
     }
 
-    bool available() const { return m_available; }
-    QSizeF sourceLogicalSize() const { return m_sourceLogicalSize; }
-    int frameCount() const { return m_frameCount; }
-    int totalDuration() const { return m_totalDuration; }
-    ImageViewportRange frameSeekBounds() const { return m_frameSeekBounds; }
-    ImageViewportRange positionSeekBounds() const { return m_positionSeekBounds; }
-    ImageViewportCapabilitySupport frameSeekSupport() const { return m_frameSeekSupport; }
-    ImageViewportCapabilitySupport positionSeekSupport() const { return m_positionSeekSupport; }
-    ImageViewportCapabilitySupport timedPlaybackSupport() const { return m_timedPlaybackSupport; }
-    ImageViewportCapabilitySupport autoplay() const { return m_autoplay; }
-    ImageSequenceAuthoredAnimationLoopMode loopMode() const { return m_loopMode; }
-    int loopCount() const { return m_loopCount; }
+    [[nodiscard]] bool available() const { return m_available; }
+    [[nodiscard]] QSizeF sourceLogicalSize() const { return m_sourceLogicalSize; }
+    [[nodiscard]] int frameCount() const { return m_frameCount; }
+    [[nodiscard]] int totalDuration() const { return m_totalDuration; }
+    [[nodiscard]] ImageViewportRange frameSeekBounds() const { return m_frameSeekBounds; }
+    [[nodiscard]] ImageViewportRange positionSeekBounds() const { return m_positionSeekBounds; }
+    [[nodiscard]] ImageViewportCapabilitySupport frameSeekSupport() const
+    {
+        return m_frameSeekSupport;
+    }
+    [[nodiscard]] ImageViewportCapabilitySupport positionSeekSupport() const
+    {
+        return m_positionSeekSupport;
+    }
+    [[nodiscard]] ImageViewportCapabilitySupport timedPlaybackSupport() const
+    {
+        return m_timedPlaybackSupport;
+    }
+    [[nodiscard]] ImageViewportCapabilitySupport autoplay() const { return m_autoplay; }
+    [[nodiscard]] ImageSequenceAuthoredAnimationLoopMode loopMode() const { return m_loopMode; }
+    [[nodiscard]] int loopCount() const { return m_loopCount; }
 
     friend bool operator==(
         const ImageViewportRoleMetadataSnapshot& lhs, const ImageViewportRoleMetadataSnapshot& rhs)
@@ -592,12 +616,12 @@ public:
     {
     }
 
-    QRectF acceptedPageRect() const { return m_acceptedPageRect; }
-    QRectF acceptedItemRect() const { return m_acceptedItemRect; }
-    QRectF acceptedVisiblePageRect() const { return m_acceptedVisiblePageRect; }
-    QRectF displayedPageRect() const { return m_displayedPageRect; }
-    QRectF displayedItemRect() const { return m_displayedItemRect; }
-    QRectF displayedVisiblePageRect() const { return m_displayedVisiblePageRect; }
+    [[nodiscard]] QRectF acceptedPageRect() const { return m_acceptedPageRect; }
+    [[nodiscard]] QRectF acceptedItemRect() const { return m_acceptedItemRect; }
+    [[nodiscard]] QRectF acceptedVisiblePageRect() const { return m_acceptedVisiblePageRect; }
+    [[nodiscard]] QRectF displayedPageRect() const { return m_displayedPageRect; }
+    [[nodiscard]] QRectF displayedItemRect() const { return m_displayedItemRect; }
+    [[nodiscard]] QRectF displayedVisiblePageRect() const { return m_displayedVisiblePageRect; }
 
     friend bool operator==(
         const ImageViewportRoleGeometrySnapshot& lhs, const ImageViewportRoleGeometrySnapshot& rhs)
@@ -644,12 +668,12 @@ public:
     {
     }
 
-    bool present() const { return m_present; }
-    ImageSequence* sequence() const { return m_sequence; }
-    ImageViewportRoleRequestSnapshot request() const { return m_request; }
-    ImageViewportRoleDisplaySnapshot display() const { return m_display; }
-    ImageViewportRoleMetadataSnapshot metadata() const { return m_metadata; }
-    ImageViewportRoleGeometrySnapshot geometry() const { return m_geometry; }
+    [[nodiscard]] bool present() const { return m_present; }
+    [[nodiscard]] ImageSequence* sequence() const { return m_sequence; }
+    [[nodiscard]] ImageViewportRoleRequestSnapshot request() const { return m_request; }
+    [[nodiscard]] ImageViewportRoleDisplaySnapshot display() const { return m_display; }
+    [[nodiscard]] ImageViewportRoleMetadataSnapshot metadata() const { return m_metadata; }
+    [[nodiscard]] ImageViewportRoleGeometrySnapshot geometry() const { return m_geometry; }
 
     friend bool operator==(
         const ImageViewportRoleSnapshot& lhs, const ImageViewportRoleSnapshot& rhs)
@@ -699,14 +723,20 @@ public:
     {
     }
 
-    bool available() const { return m_available; }
-    ImageViewportFailureContext context() const { return m_context; }
-    ImageViewportRequestReason reason() const { return m_reason; }
-    QVariant role() const { return m_role; }
-    ImageViewportFailureScope scope() const { return m_scope; }
-    bool providerFailureAvailable() const { return m_providerFailureAvailable; }
-    ImageSequenceProviderFailureCause providerCause() const { return m_providerCause; }
-    ImageSequenceProviderFailureReference providerReference() const { return m_providerReference; }
+    [[nodiscard]] bool available() const { return m_available; }
+    [[nodiscard]] ImageViewportFailureContext context() const { return m_context; }
+    [[nodiscard]] ImageViewportRequestReason reason() const { return m_reason; }
+    [[nodiscard]] QVariant role() const { return m_role; }
+    [[nodiscard]] ImageViewportFailureScope scope() const { return m_scope; }
+    [[nodiscard]] bool providerFailureAvailable() const { return m_providerFailureAvailable; }
+    [[nodiscard]] ImageSequenceProviderFailureCause providerCause() const
+    {
+        return m_providerCause;
+    }
+    [[nodiscard]] ImageSequenceProviderFailureReference providerReference() const
+    {
+        return m_providerReference;
+    }
 
     friend bool operator==(
         const ImageViewportFailureSnapshot& lhs, const ImageViewportFailureSnapshot& rhs)
@@ -751,10 +781,10 @@ public:
     {
     }
 
-    QString errorString() const { return m_errorString; }
-    QString warningString() const { return m_warningString; }
-    ImageViewportFailureSnapshot failure() const { return m_failure; }
-    ImageViewportCommandReason commandReason() const { return m_commandReason; }
+    [[nodiscard]] QString errorString() const { return m_errorString; }
+    [[nodiscard]] QString warningString() const { return m_warningString; }
+    [[nodiscard]] ImageViewportFailureSnapshot failure() const { return m_failure; }
+    [[nodiscard]] ImageViewportCommandReason commandReason() const { return m_commandReason; }
 
     friend bool operator==(
         const ImageViewportDiagnosticsSnapshot& lhs, const ImageViewportDiagnosticsSnapshot& rhs)
@@ -793,11 +823,11 @@ public:
     {
     }
 
-    ImageViewportRevisionToken request() const { return m_request; }
-    ImageViewportRevisionToken display() const { return m_display; }
-    ImageViewportRevisionToken presentation() const { return m_presentation; }
-    ImageViewportRevisionToken command() const { return m_command; }
-    ImageViewportRevisionToken snapshot() const { return m_snapshot; }
+    [[nodiscard]] ImageViewportRevisionToken request() const { return m_request; }
+    [[nodiscard]] ImageViewportRevisionToken display() const { return m_display; }
+    [[nodiscard]] ImageViewportRevisionToken presentation() const { return m_presentation; }
+    [[nodiscard]] ImageViewportRevisionToken command() const { return m_command; }
+    [[nodiscard]] ImageViewportRevisionToken snapshot() const { return m_snapshot; }
 
     friend bool operator==(
         const ImageViewportRevisionsSnapshot& lhs, const ImageViewportRevisionsSnapshot& rhs)
@@ -843,13 +873,13 @@ public:
     {
     }
 
-    ImageViewportRequestSnapshot request() const { return m_request; }
-    ImageViewportDisplaySnapshot display() const { return m_display; }
-    ImageViewportPresentationSnapshot presentation() const { return m_presentation; }
-    ImageViewportRoleSnapshot primary() const { return m_primary; }
-    ImageViewportRoleSnapshot secondary() const { return m_secondary; }
-    ImageViewportDiagnosticsSnapshot diagnostics() const { return m_diagnostics; }
-    ImageViewportRevisionsSnapshot revisions() const { return m_revisions; }
+    [[nodiscard]] ImageViewportRequestSnapshot request() const { return m_request; }
+    [[nodiscard]] ImageViewportDisplaySnapshot display() const { return m_display; }
+    [[nodiscard]] ImageViewportPresentationSnapshot presentation() const { return m_presentation; }
+    [[nodiscard]] ImageViewportRoleSnapshot primary() const { return m_primary; }
+    [[nodiscard]] ImageViewportRoleSnapshot secondary() const { return m_secondary; }
+    [[nodiscard]] ImageViewportDiagnosticsSnapshot diagnostics() const { return m_diagnostics; }
+    [[nodiscard]] ImageViewportRevisionsSnapshot revisions() const { return m_revisions; }
 
     friend bool operator==(
         const ImageViewportStateSnapshot& lhs, const ImageViewportStateSnapshot& rhs)
@@ -891,10 +921,10 @@ public:
     {
     }
 
-    ImageViewportCommandOutcome outcome() const { return m_outcome; }
-    ImageViewportCommandReason reason() const { return m_reason; }
-    ImageViewportRevisionToken commandRevision() const { return m_commandRevision; }
-    ImageViewportRevisionToken snapshotRevision() const { return m_snapshotRevision; }
+    [[nodiscard]] ImageViewportCommandOutcome outcome() const { return m_outcome; }
+    [[nodiscard]] ImageViewportCommandReason reason() const { return m_reason; }
+    [[nodiscard]] ImageViewportRevisionToken commandRevision() const { return m_commandRevision; }
+    [[nodiscard]] ImageViewportRevisionToken snapshotRevision() const { return m_snapshotRevision; }
 
     friend bool operator==(
         const ImageViewportCommandResult& lhs, const ImageViewportCommandResult& rhs)
@@ -924,13 +954,13 @@ class ImageViewportCoordinateInput
 public:
     ImageViewportCoordinateInput() = default;
 
-    ImageViewportCoordinateSpace sourceSpace() const { return m_sourceSpace; }
+    [[nodiscard]] ImageViewportCoordinateSpace sourceSpace() const { return m_sourceSpace; }
     void setSourceSpace(ImageViewportCoordinateSpace sourceSpace) { m_sourceSpace = sourceSpace; }
-    ImageViewportCoordinateSpace targetSpace() const { return m_targetSpace; }
+    [[nodiscard]] ImageViewportCoordinateSpace targetSpace() const { return m_targetSpace; }
     void setTargetSpace(ImageViewportCoordinateSpace targetSpace) { m_targetSpace = targetSpace; }
-    QVariant role() const { return m_role; }
+    [[nodiscard]] QVariant role() const { return m_role; }
     void setRole(QVariant role) { m_role = std::move(role); }
-    QPointF point() const { return m_point; }
+    [[nodiscard]] QPointF point() const { return m_point; }
     void setPoint(QPointF point) { m_point = point; }
 
     friend bool operator==(
@@ -967,10 +997,10 @@ public:
     {
     }
 
-    bool isValid() const { return m_valid; }
-    QPointF point() const { return m_point; }
-    ImageViewportCoordinateSpace space() const { return m_space; }
-    QVariant role() const { return m_role; }
+    [[nodiscard]] bool isValid() const { return m_valid; }
+    [[nodiscard]] QPointF point() const { return m_point; }
+    [[nodiscard]] ImageViewportCoordinateSpace space() const { return m_space; }
+    [[nodiscard]] QVariant role() const { return m_role; }
 
     friend bool operator==(
         const ImageViewportCoordinateResult& lhs, const ImageViewportCoordinateResult& rhs)

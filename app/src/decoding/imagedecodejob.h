@@ -39,7 +39,7 @@ public:
 
     void start(ImageDecodeRequest request);
     void cancel();
-    bool hasActiveRequest() const;
+    [[nodiscard]] bool hasActiveRequest() const;
 
 private:
     void startThumbnailPreviewLookup(

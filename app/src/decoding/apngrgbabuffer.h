@@ -29,20 +29,20 @@ public:
     bool initialize(QSize imageSize, std::size_t rowBytes);
     void clear();
 
-    bool isValid() const;
-    QSize imageSize() const;
-    std::size_t rowBytes() const;
+    [[nodiscard]] bool isValid() const;
+    [[nodiscard]] QSize imageSize() const;
+    [[nodiscard]] std::size_t rowBytes() const;
     std::span<unsigned char> bytes();
-    std::span<const unsigned char> bytes() const;
+    [[nodiscard]] std::span<const unsigned char> bytes() const;
     std::span<unsigned char> row(std::size_t y);
-    std::span<const unsigned char> row(std::size_t y) const;
+    [[nodiscard]] std::span<const unsigned char> row(std::size_t y) const;
 
-    bool contains(ApngRgbaRegion region) const;
-    std::optional<std::size_t> rowOffset(quint32 x, quint32 y) const;
-    std::optional<std::vector<unsigned char>> copyRegion(ApngRgbaRegion region) const;
+    [[nodiscard]] bool contains(ApngRgbaRegion region) const;
+    [[nodiscard]] std::optional<std::size_t> rowOffset(quint32 x, quint32 y) const;
+    [[nodiscard]] std::optional<std::vector<unsigned char>> copyRegion(ApngRgbaRegion region) const;
     bool clearRegion(ApngRgbaRegion region);
     bool restoreRegion(ApngRgbaRegion region, std::span<const unsigned char> bytes);
-    std::optional<QImage> imageCopy() const;
+    [[nodiscard]] std::optional<QImage> imageCopy() const;
 
 private:
     QSize m_imageSize;

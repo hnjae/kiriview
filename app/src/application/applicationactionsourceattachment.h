@@ -24,6 +24,8 @@ public:
     void setUiGateSnapshot(ApplicationActionUiGateSnapshot snapshot);
 
 private:
+    Q_DISABLE_COPY_MOVE(ApplicationActionSourceAttachment)
+
     void connectSource();
     void disconnectSource();
     void refresh();

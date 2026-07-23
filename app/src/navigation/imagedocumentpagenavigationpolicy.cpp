@@ -51,8 +51,7 @@ std::vector<ImageDocumentPageTarget> imageDocumentPageCandidateTargets(
     std::vector<ImageDocumentPageTarget> targets;
     targets.reserve(candidates.size());
     for (const ImageDocumentPageCandidate& candidate : candidates) {
-        targets.push_back(
-            ImageDocumentPageTarget { candidate.url, candidate.kind, candidate.name });
+        targets.emplace_back(candidate.url, candidate.kind, candidate.name);
     }
 
     return targets;

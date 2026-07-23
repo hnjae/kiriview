@@ -40,7 +40,7 @@ public:
 
     ApngOpenResult open(QByteArray data);
     AnimationFrameReadResult readNextFrame();
-    bool hasMoreFrames() const;
+    [[nodiscard]] bool hasMoreFrames() const;
 
 private:
     class Private;

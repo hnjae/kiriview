@@ -44,7 +44,7 @@ public:
         const DirectMediaScope& scope, ScopeAccepted scopeAccepted,
         DocumentSessionKind documentKind, CompletionCallback callback);
     void cancel();
-    bool active() const;
+    [[nodiscard]] bool active() const;
 
 private:
     void finish(quint64 operationId, DocumentSessionKind documentKind,

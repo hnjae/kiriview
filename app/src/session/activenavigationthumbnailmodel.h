@@ -32,9 +32,10 @@ public:
 
     explicit ActiveNavigationThumbnailModel(QObject* parent = nullptr);
 
-    int rowCount(const QModelIndex& parent = QModelIndex()) const override;
-    QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
-    QHash<int, QByteArray> roleNames() const override;
+    [[nodiscard]] int rowCount(const QModelIndex& parent = QModelIndex()) const override;
+    [[nodiscard]] QVariant data(
+        const QModelIndex& index, int role = Qt::DisplayRole) const override;
+    [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
 
     void setRows(std::vector<ActiveNavigationThumbnailRow> rows, quint64 navigationGeneration);
     void clear();

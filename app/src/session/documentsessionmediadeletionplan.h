@@ -20,7 +20,7 @@ struct DocumentSessionMediaDeletionFallbackPlan
     std::optional<QUrl> preferredFallbackUrl;
     std::optional<QUrl> fallbackUrl;
 
-    bool hasTarget() const { return !actualTargetUrl.isEmpty(); }
+    [[nodiscard]] bool hasTarget() const { return !actualTargetUrl.isEmpty(); }
 };
 
 struct DocumentSessionMediaDeletionStartPlan
@@ -35,7 +35,7 @@ struct DocumentSessionMediaDeletionCompletionPlan
     DocumentSessionRoutePlan routePlan;
     bool reportFailure = false;
 
-    bool hasRoutePlan() const
+    [[nodiscard]] bool hasRoutePlan() const
     {
         return !routePlan.mutations.empty() || routePlan.publishPublicProjection
             || !routePlan.followUpEffects.empty();

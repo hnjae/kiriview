@@ -38,7 +38,7 @@ public:
         ImageLoadRequest request, ImageFirstDisplayDecodeContext firstDisplayContext = {});
     void cancel();
 
-    bool isCurrent(const ImageLoadSession& session) const;
+    [[nodiscard]] bool isCurrent(const ImageLoadSession& session) const;
     OpenedCollectionCandidateCompletion completeOpenedCollectionCandidates(
         const ImageLoadSession& session, const std::vector<ImageDocumentPageCandidate>& candidates);
     std::optional<ImageLoadSession> claimCurrent(const ImageLoadSession& session);

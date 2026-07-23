@@ -102,7 +102,7 @@ public:
         = default;
     ~ViewportEngineProviderHostEventRequest() = default;
 
-    const ViewportProviderHostEvent& event() const { return m_event; }
+    [[nodiscard]] const ViewportProviderHostEvent& event() const { return m_event; }
 
 private:
     explicit ViewportEngineProviderHostEventRequest(ViewportProviderHostEvent event)

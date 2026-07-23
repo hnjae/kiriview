@@ -36,7 +36,7 @@ struct MenuAccessKeySessionPlan
 class MenuAccessKeySessionState final
 {
 public:
-    bool isActive() const;
+    [[nodiscard]] bool isActive() const;
 
     MenuAccessKeySessionPlan handleSessionEvent(MenuAccessKeySessionEvent event);
     MenuAccessKeySessionPlan routeOpenMenuKey(

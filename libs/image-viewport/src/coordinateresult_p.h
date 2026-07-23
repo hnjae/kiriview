@@ -18,9 +18,9 @@ public:
     {
     }
 
-    bool isValid() const { return m_valid; }
-    double x() const { return m_x; }
-    double y() const { return m_y; }
+    [[nodiscard]] bool isValid() const { return m_valid; }
+    [[nodiscard]] double x() const { return m_x; }
+    [[nodiscard]] double y() const { return m_y; }
 
     friend bool operator==(CoordinateResult lhs, CoordinateResult rhs)
     {

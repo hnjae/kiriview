@@ -48,7 +48,7 @@ struct ImageAnimationPlaybackRequest
 
     Payload payload;
 
-    bool isValid() const;
+    [[nodiscard]] bool isValid() const;
 };
 
 enum class ImageAnimationPlaybackOpenStatus {
@@ -88,7 +88,7 @@ public:
 
     virtual ImageAnimationPlaybackOpenResult open() = 0;
     virtual ImageAnimationPlaybackReadResult readNextFrame() = 0;
-    virtual bool restartable() const = 0;
+    [[nodiscard]] virtual bool restartable() const = 0;
     Q_DISABLE_COPY(ImageAnimationPlaybackSource)
 };
 

@@ -44,10 +44,13 @@ struct ViewportEnginePresentationTarget
     bool shapeValid = true;
 
     static ViewportEnginePresentationTarget clear() { return {}; }
-    ImageSequence* primary() const { return primarySequence; }
-    ImageSequence* secondary() const { return secondarySequence; }
-    bool isClear() const { return !primarySequence && !secondarySequence; }
-    bool isValid() const { return shapeValid && (primarySequence || !secondarySequence); }
+    [[nodiscard]] ImageSequence* primary() const { return primarySequence; }
+    [[nodiscard]] ImageSequence* secondary() const { return secondarySequence; }
+    [[nodiscard]] bool isClear() const { return !primarySequence && !secondarySequence; }
+    [[nodiscard]] bool isValid() const
+    {
+        return shapeValid && (primarySequence || !secondarySequence);
+    }
 
     friend bool operator==(
         const ViewportEnginePresentationTarget& lhs, const ViewportEnginePresentationTarget& rhs)
@@ -155,30 +158,33 @@ struct ViewportEnginePresentationTargetTransitionPolicy
     ReplacementIntent replacementIntentValue = ReplacementIntent::NewTarget;
     bool shapeValid = true;
 
-    DisplayTransition displayTransition() const { return displayTransitionValue; }
-    FailureTransition failureTransition() const { return failureTransitionValue; }
-    ZoomTransition zoomTransition() const { return zoomTransitionValue; }
-    ContentPositionTransition contentPositionTransition() const
+    [[nodiscard]] DisplayTransition displayTransition() const { return displayTransitionValue; }
+    [[nodiscard]] FailureTransition failureTransition() const { return failureTransitionValue; }
+    [[nodiscard]] ZoomTransition zoomTransition() const { return zoomTransitionValue; }
+    [[nodiscard]] ContentPositionTransition contentPositionTransition() const
     {
         return contentPositionTransitionValue;
     }
-    RotationTransition rotationTransition() const { return rotationTransitionValue; }
-    MirrorTransition mirrorTransition() const { return mirrorTransitionValue; }
-    FitModeTransition fitModeTransition() const { return fitModeTransitionValue; }
-    ImageViewportFitMode fitMode() const { return fitModeValue; }
-    SpreadDirectionTransition spreadDirectionTransition() const
+    [[nodiscard]] RotationTransition rotationTransition() const { return rotationTransitionValue; }
+    [[nodiscard]] MirrorTransition mirrorTransition() const { return mirrorTransitionValue; }
+    [[nodiscard]] FitModeTransition fitModeTransition() const { return fitModeTransitionValue; }
+    [[nodiscard]] ImageViewportFitMode fitMode() const { return fitModeValue; }
+    [[nodiscard]] SpreadDirectionTransition spreadDirectionTransition() const
     {
         return spreadDirectionTransitionValue;
     }
-    ImageViewportSpreadDirection spreadDirection() const { return spreadDirectionValue; }
-    PageGapTransition pageGapTransition() const { return pageGapTransitionValue; }
-    double pageGap() const { return pageGapValue; }
-    ReplacementIntent replacementIntent() const { return replacementIntentValue; }
-    bool hasExplicitFitMode() const { return fitModeSet; }
-    bool hasExplicitSpreadDirection() const { return spreadDirectionSet; }
-    bool hasExplicitPageGap() const { return pageGapSet; }
+    [[nodiscard]] ImageViewportSpreadDirection spreadDirection() const
+    {
+        return spreadDirectionValue;
+    }
+    [[nodiscard]] PageGapTransition pageGapTransition() const { return pageGapTransitionValue; }
+    [[nodiscard]] double pageGap() const { return pageGapValue; }
+    [[nodiscard]] ReplacementIntent replacementIntent() const { return replacementIntentValue; }
+    [[nodiscard]] bool hasExplicitFitMode() const { return fitModeSet; }
+    [[nodiscard]] bool hasExplicitSpreadDirection() const { return spreadDirectionSet; }
+    [[nodiscard]] bool hasExplicitPageGap() const { return pageGapSet; }
 
-    bool isValid() const
+    [[nodiscard]] bool isValid() const
     {
         return shapeValid && displayTransitionValue != DisplayTransition::Invalid
             && failureTransitionValue != FailureTransition::Invalid
@@ -293,51 +299,63 @@ struct ViewportEnginePresentationCommand
     bool qualityPreferenceSet = false;
     bool exactnessPreferenceSet = false;
 
-    bool resetView() const { return resetViewValue; }
-    bool hasFitMode() const { return fitModeSet; }
-    ImageViewportFitMode fitMode() const { return fitModeValue; }
-    bool hasPreferredManualZoomPercent() const { return preferredManualZoomPercentSet; }
-    double preferredManualZoomPercent() const { return preferredManualZoomPercentValue; }
-    bool hasZoomStepDelta() const { return zoomStepDeltaSet; }
-    double zoomStepDelta() const { return zoomStepDeltaValue; }
-    bool hasZoomAnchor() const { return zoomAnchorSet; }
-    QPointF zoomAnchor() const { return zoomAnchorValue; }
-    bool hasContentPosition() const { return contentPositionSet; }
-    QPointF contentPosition() const { return contentPositionValue; }
-    bool hasPanDelta() const { return panDeltaSet; }
-    QPointF panDelta() const { return panDeltaValue; }
-    bool hasContentAnchor() const { return contentAnchorSet; }
-    ImageViewportContentAnchor contentAnchor() const { return contentAnchorValue; }
-    bool hasRotationDegrees() const { return rotationDegreesSet; }
-    int rotationDegrees() const { return rotationDegreesValue; }
-    bool hasMirrorHorizontally() const { return mirrorHorizontallySet; }
-    bool mirrorHorizontally() const { return mirrorHorizontallyValue; }
-    bool hasMirrorVertically() const { return mirrorVerticallySet; }
-    bool mirrorVertically() const { return mirrorVerticallyValue; }
-    bool hasSpreadDirection() const { return spreadDirectionSet; }
-    ImageViewportSpreadDirection spreadDirection() const { return spreadDirectionValue; }
-    bool hasPageGap() const { return pageGapSet; }
-    double pageGap() const { return pageGapValue; }
-    bool hasBackgroundMode() const { return backgroundModeSet; }
-    ImageViewportBackgroundMode backgroundMode() const { return backgroundModeValue; }
-    bool hasBackgroundColor() const { return backgroundColorSet; }
-    QColor backgroundColor() const { return backgroundColorValue; }
-    bool hasCheckerboardLightColor() const { return checkerboardLightColorSet; }
-    QColor checkerboardLightColor() const { return checkerboardLightColorValue; }
-    bool hasCheckerboardDarkColor() const { return checkerboardDarkColorSet; }
-    QColor checkerboardDarkColor() const { return checkerboardDarkColorValue; }
-    bool hasCheckerboardCellSize() const { return checkerboardCellSizeSet; }
-    double checkerboardCellSize() const { return checkerboardCellSizeValue; }
-    bool hasSmoothing() const { return smoothingSet; }
-    bool smoothing() const { return smoothingValue; }
-    bool hasMipmap() const { return mipmapSet; }
-    bool mipmap() const { return mipmapValue; }
-    bool hasLooping() const { return loopingSet; }
-    bool looping() const { return loopingValue; }
-    bool hasQualityPreference() const { return qualityPreferenceSet; }
-    ImageViewportQualityPreference qualityPreference() const { return qualityPreferenceValue; }
-    bool hasExactnessPreference() const { return exactnessPreferenceSet; }
-    ImageViewportExactnessPreference exactnessPreference() const
+    [[nodiscard]] bool resetView() const { return resetViewValue; }
+    [[nodiscard]] bool hasFitMode() const { return fitModeSet; }
+    [[nodiscard]] ImageViewportFitMode fitMode() const { return fitModeValue; }
+    [[nodiscard]] bool hasPreferredManualZoomPercent() const
+    {
+        return preferredManualZoomPercentSet;
+    }
+    [[nodiscard]] double preferredManualZoomPercent() const
+    {
+        return preferredManualZoomPercentValue;
+    }
+    [[nodiscard]] bool hasZoomStepDelta() const { return zoomStepDeltaSet; }
+    [[nodiscard]] double zoomStepDelta() const { return zoomStepDeltaValue; }
+    [[nodiscard]] bool hasZoomAnchor() const { return zoomAnchorSet; }
+    [[nodiscard]] QPointF zoomAnchor() const { return zoomAnchorValue; }
+    [[nodiscard]] bool hasContentPosition() const { return contentPositionSet; }
+    [[nodiscard]] QPointF contentPosition() const { return contentPositionValue; }
+    [[nodiscard]] bool hasPanDelta() const { return panDeltaSet; }
+    [[nodiscard]] QPointF panDelta() const { return panDeltaValue; }
+    [[nodiscard]] bool hasContentAnchor() const { return contentAnchorSet; }
+    [[nodiscard]] ImageViewportContentAnchor contentAnchor() const { return contentAnchorValue; }
+    [[nodiscard]] bool hasRotationDegrees() const { return rotationDegreesSet; }
+    [[nodiscard]] int rotationDegrees() const { return rotationDegreesValue; }
+    [[nodiscard]] bool hasMirrorHorizontally() const { return mirrorHorizontallySet; }
+    [[nodiscard]] bool mirrorHorizontally() const { return mirrorHorizontallyValue; }
+    [[nodiscard]] bool hasMirrorVertically() const { return mirrorVerticallySet; }
+    [[nodiscard]] bool mirrorVertically() const { return mirrorVerticallyValue; }
+    [[nodiscard]] bool hasSpreadDirection() const { return spreadDirectionSet; }
+    [[nodiscard]] ImageViewportSpreadDirection spreadDirection() const
+    {
+        return spreadDirectionValue;
+    }
+    [[nodiscard]] bool hasPageGap() const { return pageGapSet; }
+    [[nodiscard]] double pageGap() const { return pageGapValue; }
+    [[nodiscard]] bool hasBackgroundMode() const { return backgroundModeSet; }
+    [[nodiscard]] ImageViewportBackgroundMode backgroundMode() const { return backgroundModeValue; }
+    [[nodiscard]] bool hasBackgroundColor() const { return backgroundColorSet; }
+    [[nodiscard]] QColor backgroundColor() const { return backgroundColorValue; }
+    [[nodiscard]] bool hasCheckerboardLightColor() const { return checkerboardLightColorSet; }
+    [[nodiscard]] QColor checkerboardLightColor() const { return checkerboardLightColorValue; }
+    [[nodiscard]] bool hasCheckerboardDarkColor() const { return checkerboardDarkColorSet; }
+    [[nodiscard]] QColor checkerboardDarkColor() const { return checkerboardDarkColorValue; }
+    [[nodiscard]] bool hasCheckerboardCellSize() const { return checkerboardCellSizeSet; }
+    [[nodiscard]] double checkerboardCellSize() const { return checkerboardCellSizeValue; }
+    [[nodiscard]] bool hasSmoothing() const { return smoothingSet; }
+    [[nodiscard]] bool smoothing() const { return smoothingValue; }
+    [[nodiscard]] bool hasMipmap() const { return mipmapSet; }
+    [[nodiscard]] bool mipmap() const { return mipmapValue; }
+    [[nodiscard]] bool hasLooping() const { return loopingSet; }
+    [[nodiscard]] bool looping() const { return loopingValue; }
+    [[nodiscard]] bool hasQualityPreference() const { return qualityPreferenceSet; }
+    [[nodiscard]] ImageViewportQualityPreference qualityPreference() const
+    {
+        return qualityPreferenceValue;
+    }
+    [[nodiscard]] bool hasExactnessPreference() const { return exactnessPreferenceSet; }
+    [[nodiscard]] ImageViewportExactnessPreference exactnessPreference() const
     {
         return exactnessPreferenceValue;
     }

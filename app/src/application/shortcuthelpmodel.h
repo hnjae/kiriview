@@ -49,13 +49,14 @@ public:
 
     explicit ShortcutHelpModel(ShortcutHelpRowsProvider rowsProvider);
 
-    int rowCount(const QModelIndex& parent = QModelIndex()) const override;
-    QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
-    QHash<int, QByteArray> roleNames() const override;
+    [[nodiscard]] int rowCount(const QModelIndex& parent = QModelIndex()) const override;
+    [[nodiscard]] QVariant data(
+        const QModelIndex& index, int role = Qt::DisplayRole) const override;
+    [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
     void handleRowsChanged();
 
 private:
-    QList<ShortcutHelpRow> collectRows() const;
+    [[nodiscard]] QList<ShortcutHelpRow> collectRows() const;
 
     static bool sameRowIdentities(
         const QList<ShortcutHelpRow>& left, const QList<ShortcutHelpRow>& right);

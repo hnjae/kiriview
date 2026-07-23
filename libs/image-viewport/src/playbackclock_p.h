@@ -27,9 +27,9 @@ public:
         m_startedAtMilliseconds = 0;
     }
 
-    bool isValid() const { return m_valid; }
+    [[nodiscard]] bool isValid() const { return m_valid; }
 
-    int elapsed(qint64 nowMilliseconds) const
+    [[nodiscard]] int elapsed(qint64 nowMilliseconds) const
     {
         const qint64 elapsedMilliseconds
             = m_valid ? std::max<qint64>(0, nowMilliseconds - m_startedAtMilliseconds) : 0;

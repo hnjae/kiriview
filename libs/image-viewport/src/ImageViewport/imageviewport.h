@@ -36,11 +36,11 @@ class ImageViewportDisplayLimits : public QObject
 public:
     explicit ImageViewportDisplayLimits(QObject* parent = nullptr);
 
-    double getMinimumManualZoomPercent() const;
-    double getManualZoomStepFactor() const;
-    double getMaximumPageGap() const;
-    double getMinimumCheckerboardCellSize() const;
-    double getMaximumCheckerboardCellSize() const;
+    [[nodiscard]] double getMinimumManualZoomPercent() const;
+    [[nodiscard]] double getManualZoomStepFactor() const;
+    [[nodiscard]] double getMaximumPageGap() const;
+    [[nodiscard]] double getMinimumCheckerboardCellSize() const;
+    [[nodiscard]] double getMaximumCheckerboardCellSize() const;
 
     static double minimumManualZoomPercent();
     static double manualZoomStepFactor();
@@ -72,12 +72,12 @@ public:
 
     Q_INVOKABLE static ImageViewportPresentationTarget clear() { return {}; }
 
-    ImageSequence* primary() const { return m_primary; }
+    [[nodiscard]] ImageSequence* primary() const { return m_primary; }
     void setPrimary(ImageSequence* primary) { m_primary = primary; }
-    ImageSequence* secondary() const { return m_secondary; }
+    [[nodiscard]] ImageSequence* secondary() const { return m_secondary; }
     void setSecondary(ImageSequence* secondary) { m_secondary = secondary; }
-    bool isClear() const { return !m_primary && !m_secondary; }
-    bool isValid() const { return m_primary || !m_secondary; }
+    [[nodiscard]] bool isClear() const { return !m_primary && !m_secondary; }
+    [[nodiscard]] bool isValid() const { return m_primary || !m_secondary; }
 
     friend bool operator==(
         const ImageViewportPresentationTarget& lhs, const ImageViewportPresentationTarget& rhs)
@@ -103,7 +103,7 @@ public:
     ~ImageViewport() override;
     Q_DISABLE_COPY_MOVE(ImageViewport)
 
-    ImageViewportStateSnapshot state() const;
+    [[nodiscard]] ImageViewportStateSnapshot state() const;
 
     Q_INVOKABLE ImageViewportCommandResult clear();
     Q_INVOKABLE ImageViewportCommandResult play(
@@ -123,8 +123,9 @@ public:
     Q_INVOKABLE ImageViewportCommandResult resetView();
     Q_INVOKABLE ImageViewportCommandResult setPresentation(
         ImageViewportPresentationCommand command);
-    Q_INVOKABLE ImageViewportCoordinateResult mapPoint(ImageViewportCoordinateInput input) const;
-    Q_INVOKABLE bool containsPoint(ImageViewportCoordinateInput input) const;
+    Q_INVOKABLE [[nodiscard]] ImageViewportCoordinateResult mapPoint(
+        ImageViewportCoordinateInput input) const;
+    Q_INVOKABLE [[nodiscard]] bool containsPoint(ImageViewportCoordinateInput input) const;
 
 Q_SIGNALS:
     void stateChanged(); // clazy:exclude=overloaded-signal
@@ -207,157 +208,166 @@ public:
         return command;
     }
 
-    bool resetView() const { return m_resetView; }
+    [[nodiscard]] bool resetView() const { return m_resetView; }
     void setResetView(bool reset) { m_resetView = reset; }
-    bool hasFitMode() const { return m_hasFitMode; }
-    ImageViewportFitMode fitMode() const { return m_fitMode; }
+    [[nodiscard]] bool hasFitMode() const { return m_hasFitMode; }
+    [[nodiscard]] ImageViewportFitMode fitMode() const { return m_fitMode; }
     void setFitMode(ImageViewportFitMode mode)
     {
         m_fitMode = mode;
         m_hasFitMode = true;
     }
-    bool hasPreferredManualZoomPercent() const { return m_hasPreferredManualZoomPercent; }
-    double preferredManualZoomPercent() const { return m_preferredManualZoomPercent; }
+    [[nodiscard]] bool hasPreferredManualZoomPercent() const
+    {
+        return m_hasPreferredManualZoomPercent;
+    }
+    [[nodiscard]] double preferredManualZoomPercent() const { return m_preferredManualZoomPercent; }
     void setPreferredManualZoomPercent(double percent)
     {
         m_preferredManualZoomPercent = percent;
         m_hasPreferredManualZoomPercent = true;
     }
-    bool hasZoomStepDelta() const { return m_hasZoomStepDelta; }
-    double zoomStepDelta() const { return m_zoomStepDelta; }
+    [[nodiscard]] bool hasZoomStepDelta() const { return m_hasZoomStepDelta; }
+    [[nodiscard]] double zoomStepDelta() const { return m_zoomStepDelta; }
     void setZoomStepDelta(double delta)
     {
         m_zoomStepDelta = delta;
         m_hasZoomStepDelta = true;
     }
-    bool hasZoomAnchor() const { return m_hasZoomAnchor; }
-    QPointF zoomAnchor() const { return m_zoomAnchor; }
+    [[nodiscard]] bool hasZoomAnchor() const { return m_hasZoomAnchor; }
+    [[nodiscard]] QPointF zoomAnchor() const { return m_zoomAnchor; }
     void setZoomAnchor(QPointF anchor)
     {
         m_zoomAnchor = anchor;
         m_hasZoomAnchor = true;
     }
-    bool hasContentPosition() const { return m_hasContentPosition; }
-    QPointF contentPosition() const { return m_contentPosition; }
+    [[nodiscard]] bool hasContentPosition() const { return m_hasContentPosition; }
+    [[nodiscard]] QPointF contentPosition() const { return m_contentPosition; }
     void setContentPosition(QPointF position)
     {
         m_contentPosition = position;
         m_hasContentPosition = true;
     }
-    bool hasPanDelta() const { return m_hasPanDelta; }
-    QPointF panDelta() const { return m_panDelta; }
+    [[nodiscard]] bool hasPanDelta() const { return m_hasPanDelta; }
+    [[nodiscard]] QPointF panDelta() const { return m_panDelta; }
     void setPanDelta(QPointF delta)
     {
         m_panDelta = delta;
         m_hasPanDelta = true;
     }
-    bool hasContentAnchor() const { return m_hasContentAnchor; }
-    ImageViewportContentAnchor contentAnchor() const { return m_contentAnchor; }
+    [[nodiscard]] bool hasContentAnchor() const { return m_hasContentAnchor; }
+    [[nodiscard]] ImageViewportContentAnchor contentAnchor() const { return m_contentAnchor; }
     void setContentAnchor(ImageViewportContentAnchor direction)
     {
         m_contentAnchor = direction;
         m_hasContentAnchor = true;
     }
-    bool hasRotationDegrees() const { return m_hasRotationDegrees; }
-    int rotationDegrees() const { return m_rotationDegrees; }
+    [[nodiscard]] bool hasRotationDegrees() const { return m_hasRotationDegrees; }
+    [[nodiscard]] int rotationDegrees() const { return m_rotationDegrees; }
     void setRotationDegrees(int degrees)
     {
         m_rotationDegrees = degrees;
         m_hasRotationDegrees = true;
     }
-    bool hasMirrorHorizontally() const { return m_hasMirrorHorizontally; }
-    bool mirrorHorizontally() const { return m_mirrorHorizontally; }
+    [[nodiscard]] bool hasMirrorHorizontally() const { return m_hasMirrorHorizontally; }
+    [[nodiscard]] bool mirrorHorizontally() const { return m_mirrorHorizontally; }
     void setMirrorHorizontally(bool mirror)
     {
         m_mirrorHorizontally = mirror;
         m_hasMirrorHorizontally = true;
     }
-    bool hasMirrorVertically() const { return m_hasMirrorVertically; }
-    bool mirrorVertically() const { return m_mirrorVertically; }
+    [[nodiscard]] bool hasMirrorVertically() const { return m_hasMirrorVertically; }
+    [[nodiscard]] bool mirrorVertically() const { return m_mirrorVertically; }
     void setMirrorVertically(bool mirror)
     {
         m_mirrorVertically = mirror;
         m_hasMirrorVertically = true;
     }
-    bool hasSpreadDirection() const { return m_hasSpreadDirection; }
-    ImageViewportSpreadDirection spreadDirection() const { return m_spreadDirection; }
+    [[nodiscard]] bool hasSpreadDirection() const { return m_hasSpreadDirection; }
+    [[nodiscard]] ImageViewportSpreadDirection spreadDirection() const { return m_spreadDirection; }
     void setSpreadDirection(ImageViewportSpreadDirection direction)
     {
         m_spreadDirection = direction;
         m_hasSpreadDirection = true;
     }
-    bool hasPageGap() const { return m_hasPageGap; }
-    double pageGap() const { return m_pageGap; }
+    [[nodiscard]] bool hasPageGap() const { return m_hasPageGap; }
+    [[nodiscard]] double pageGap() const { return m_pageGap; }
     void setPageGap(double gap)
     {
         m_pageGap = gap;
         m_hasPageGap = true;
     }
-    bool hasBackgroundMode() const { return m_hasBackgroundMode; }
-    ImageViewportBackgroundMode backgroundMode() const { return m_backgroundMode; }
+    [[nodiscard]] bool hasBackgroundMode() const { return m_hasBackgroundMode; }
+    [[nodiscard]] ImageViewportBackgroundMode backgroundMode() const { return m_backgroundMode; }
     void setBackgroundMode(ImageViewportBackgroundMode mode)
     {
         m_backgroundMode = mode;
         m_hasBackgroundMode = true;
     }
-    bool hasBackgroundColor() const { return m_hasBackgroundColor; }
-    QColor backgroundColor() const { return m_backgroundColor; }
+    [[nodiscard]] bool hasBackgroundColor() const { return m_hasBackgroundColor; }
+    [[nodiscard]] QColor backgroundColor() const { return m_backgroundColor; }
     void setBackgroundColor(const QColor& color)
     {
         m_backgroundColor = color;
         m_hasBackgroundColor = true;
     }
-    bool hasCheckerboardLightColor() const { return m_hasCheckerboardLightColor; }
-    QColor checkerboardLightColor() const { return m_checkerboardLightColor; }
+    [[nodiscard]] bool hasCheckerboardLightColor() const { return m_hasCheckerboardLightColor; }
+    [[nodiscard]] QColor checkerboardLightColor() const { return m_checkerboardLightColor; }
     void setCheckerboardLightColor(const QColor& color)
     {
         m_checkerboardLightColor = color;
         m_hasCheckerboardLightColor = true;
     }
-    bool hasCheckerboardDarkColor() const { return m_hasCheckerboardDarkColor; }
-    QColor checkerboardDarkColor() const { return m_checkerboardDarkColor; }
+    [[nodiscard]] bool hasCheckerboardDarkColor() const { return m_hasCheckerboardDarkColor; }
+    [[nodiscard]] QColor checkerboardDarkColor() const { return m_checkerboardDarkColor; }
     void setCheckerboardDarkColor(const QColor& color)
     {
         m_checkerboardDarkColor = color;
         m_hasCheckerboardDarkColor = true;
     }
-    bool hasCheckerboardCellSize() const { return m_hasCheckerboardCellSize; }
-    double checkerboardCellSize() const { return m_checkerboardCellSize; }
+    [[nodiscard]] bool hasCheckerboardCellSize() const { return m_hasCheckerboardCellSize; }
+    [[nodiscard]] double checkerboardCellSize() const { return m_checkerboardCellSize; }
     void setCheckerboardCellSize(double size)
     {
         m_checkerboardCellSize = size;
         m_hasCheckerboardCellSize = true;
     }
-    bool hasSmoothing() const { return m_hasSmoothing; }
-    bool smoothing() const { return m_smoothing; }
+    [[nodiscard]] bool hasSmoothing() const { return m_hasSmoothing; }
+    [[nodiscard]] bool smoothing() const { return m_smoothing; }
     void setSmoothing(bool smoothing)
     {
         m_smoothing = smoothing;
         m_hasSmoothing = true;
     }
-    bool hasMipmap() const { return m_hasMipmap; }
-    bool mipmap() const { return m_mipmap; }
+    [[nodiscard]] bool hasMipmap() const { return m_hasMipmap; }
+    [[nodiscard]] bool mipmap() const { return m_mipmap; }
     void setMipmap(bool mipmap)
     {
         m_mipmap = mipmap;
         m_hasMipmap = true;
     }
-    bool hasLooping() const { return m_hasLooping; }
-    bool looping() const { return m_looping; }
+    [[nodiscard]] bool hasLooping() const { return m_hasLooping; }
+    [[nodiscard]] bool looping() const { return m_looping; }
     void setLooping(bool looping)
     {
         m_looping = looping;
         m_hasLooping = true;
     }
-    bool hasQualityPreference() const { return m_hasQualityPreference; }
-    ImageViewportQualityPreference qualityPreference() const { return m_qualityPreference; }
+    [[nodiscard]] bool hasQualityPreference() const { return m_hasQualityPreference; }
+    [[nodiscard]] ImageViewportQualityPreference qualityPreference() const
+    {
+        return m_qualityPreference;
+    }
     void setQualityPreference(ImageViewportQualityPreference preference)
     {
         m_qualityPreference = preference;
         m_hasQualityPreference = true;
     }
-    bool hasExactnessPreference() const { return m_hasExactnessPreference; }
-    ImageViewportExactnessPreference exactnessPreference() const { return m_exactnessPreference; }
+    [[nodiscard]] bool hasExactnessPreference() const { return m_hasExactnessPreference; }
+    [[nodiscard]] ImageViewportExactnessPreference exactnessPreference() const
+    {
+        return m_exactnessPreference;
+    }
     void setExactnessPreference(ImageViewportExactnessPreference preference)
     {
         m_exactnessPreference = preference;
@@ -512,13 +522,13 @@ public:
         return policy;
     }
 
-    DisplayTransition displayTransition() const { return m_displayTransition; }
+    [[nodiscard]] DisplayTransition displayTransition() const { return m_displayTransition; }
     void setDisplayTransition(DisplayTransition transition) { m_displayTransition = transition; }
-    FailureTransition failureTransition() const { return m_failureTransition; }
+    [[nodiscard]] FailureTransition failureTransition() const { return m_failureTransition; }
     void setFailureTransition(FailureTransition transition) { m_failureTransition = transition; }
-    ZoomTransition zoomTransition() const { return m_zoomTransition; }
+    [[nodiscard]] ZoomTransition zoomTransition() const { return m_zoomTransition; }
     void setZoomTransition(ZoomTransition transition) { m_zoomTransition = transition; }
-    ContentPositionTransition contentPositionTransition() const
+    [[nodiscard]] ContentPositionTransition contentPositionTransition() const
     {
         return m_contentPositionTransition;
     }
@@ -526,19 +536,19 @@ public:
     {
         m_contentPositionTransition = transition;
     }
-    RotationTransition rotationTransition() const { return m_rotationTransition; }
+    [[nodiscard]] RotationTransition rotationTransition() const { return m_rotationTransition; }
     void setRotationTransition(RotationTransition transition) { m_rotationTransition = transition; }
-    MirrorTransition mirrorTransition() const { return m_mirrorTransition; }
+    [[nodiscard]] MirrorTransition mirrorTransition() const { return m_mirrorTransition; }
     void setMirrorTransition(MirrorTransition transition) { m_mirrorTransition = transition; }
-    FitModeTransition fitModeTransition() const { return m_fitModeTransition; }
+    [[nodiscard]] FitModeTransition fitModeTransition() const { return m_fitModeTransition; }
     void setFitModeTransition(FitModeTransition transition) { m_fitModeTransition = transition; }
-    ImageViewportFitMode fitMode() const { return m_fitMode; }
+    [[nodiscard]] ImageViewportFitMode fitMode() const { return m_fitMode; }
     void setFitMode(ImageViewportFitMode mode)
     {
         m_fitMode = mode;
         m_fitModeSet = true;
     }
-    SpreadDirectionTransition spreadDirectionTransition() const
+    [[nodiscard]] SpreadDirectionTransition spreadDirectionTransition() const
     {
         return m_spreadDirectionTransition;
     }
@@ -546,27 +556,27 @@ public:
     {
         m_spreadDirectionTransition = transition;
     }
-    ImageViewportSpreadDirection spreadDirection() const { return m_spreadDirection; }
+    [[nodiscard]] ImageViewportSpreadDirection spreadDirection() const { return m_spreadDirection; }
     void setSpreadDirection(ImageViewportSpreadDirection direction)
     {
         m_spreadDirection = direction;
         m_spreadDirectionSet = true;
     }
-    PageGapTransition pageGapTransition() const { return m_pageGapTransition; }
+    [[nodiscard]] PageGapTransition pageGapTransition() const { return m_pageGapTransition; }
     void setPageGapTransition(PageGapTransition transition) { m_pageGapTransition = transition; }
-    double pageGap() const { return m_pageGap; }
+    [[nodiscard]] double pageGap() const { return m_pageGap; }
     void setPageGap(double gap)
     {
         m_pageGap = gap;
         m_pageGapSet = true;
     }
-    ReplacementIntent replacementIntent() const { return m_replacementIntent; }
+    [[nodiscard]] ReplacementIntent replacementIntent() const { return m_replacementIntent; }
     void setReplacementIntent(ReplacementIntent intent) { m_replacementIntent = intent; }
 
-    bool hasExplicitFitMode() const { return m_fitModeSet; }
-    bool hasExplicitSpreadDirection() const { return m_spreadDirectionSet; }
-    bool hasExplicitPageGap() const { return m_pageGapSet; }
-    bool isValid() const;
+    [[nodiscard]] bool hasExplicitFitMode() const { return m_fitModeSet; }
+    [[nodiscard]] bool hasExplicitSpreadDirection() const { return m_spreadDirectionSet; }
+    [[nodiscard]] bool hasExplicitPageGap() const { return m_pageGapSet; }
+    [[nodiscard]] bool isValid() const;
 
     friend bool operator==(
         PresentationTargetTransitionPolicy lhs, PresentationTargetTransitionPolicy rhs)

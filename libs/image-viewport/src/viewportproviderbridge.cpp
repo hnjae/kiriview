@@ -542,7 +542,8 @@ private:
                 && std::isfinite(event.progress) && event.progress >= 0.0 && event.progress <= 1.0);
     }
 
-    AdvisoryCategory classifyAdvisoryLocked(ImageSequenceProviderRequestToken token) const
+    [[nodiscard]] AdvisoryCategory classifyAdvisoryLocked(
+        ImageSequenceProviderRequestToken token) const
     {
         if (activeTokens.contains(token)) {
             return AdvisoryCategory::Active;

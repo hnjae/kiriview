@@ -39,7 +39,7 @@ struct PredecodeWindowStartPlan
     PredecodeWindowPlan fallbackWindow;
     std::optional<PredecodeCandidateListLoadPlan> candidateList;
 
-    bool shouldLoadCandidates() const;
+    [[nodiscard]] bool shouldLoadCandidates() const;
 };
 
 PredecodeWindowStartPlan predecodeWindowStartPlan(const PredecodeWindowPlanRequest& request);

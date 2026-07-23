@@ -61,9 +61,12 @@ public:
         const ViewportEnginePresentationCommandStateView&)
         = delete;
 
-    const ImageViewportInternal::PresentationState& presentation() const { return m_presentation; }
-    bool looping() const { return m_looping; }
-    bool readyDisplay() const { return m_readyDisplay; }
+    [[nodiscard]] const ImageViewportInternal::PresentationState& presentation() const
+    {
+        return m_presentation;
+    }
+    [[nodiscard]] bool looping() const { return m_looping; }
+    [[nodiscard]] bool readyDisplay() const { return m_readyDisplay; }
 
 private:
     const ImageViewportInternal::PresentationState& m_presentation;
@@ -93,7 +96,10 @@ public:
         const ViewportEnginePresentationTargetTransitionStateView&)
         = delete;
 
-    const ImageViewportInternal::PresentationState& presentation() const { return m_presentation; }
+    [[nodiscard]] const ImageViewportInternal::PresentationState& presentation() const
+    {
+        return m_presentation;
+    }
 
 private:
     const ImageViewportInternal::PresentationState& m_presentation;

@@ -57,11 +57,20 @@ public:
         }
     }
 
-    ImageSequenceProviderRequestToken lastMetadataToken() const { return m_lastMetadataToken; }
+    [[nodiscard]] ImageSequenceProviderRequestToken lastMetadataToken() const
+    {
+        return m_lastMetadataToken;
+    }
 
-    ImageSequenceProviderRequestToken lastFrameToken() const { return m_lastFrameToken; }
+    [[nodiscard]] ImageSequenceProviderRequestToken lastFrameToken() const
+    {
+        return m_lastFrameToken;
+    }
 
-    ImageSequenceProviderRequestToken lastPlaybackToken() const { return m_lastPlaybackToken; }
+    [[nodiscard]] ImageSequenceProviderRequestToken lastPlaybackToken() const
+    {
+        return m_lastPlaybackToken;
+    }
 
 private:
     std::shared_ptr<QThread*> m_metadataRequestThread;
@@ -101,7 +110,7 @@ public:
         return session;
     }
 
-    AffinityProviderSession* lastSession() const { return m_lastSession; }
+    [[nodiscard]] AffinityProviderSession* lastSession() const { return m_lastSession; }
 
 private:
     QThread* m_thread = nullptr;

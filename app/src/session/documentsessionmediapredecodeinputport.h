@@ -20,7 +20,7 @@ public:
         const DocumentSessionDirectMediaScopePort* scope,
         const DocumentSessionPublicImageLeafSnapshot* image);
 
-    DocumentSessionMediaPredecodeInput currentInput() const;
+    [[nodiscard]] DocumentSessionMediaPredecodeInput currentInput() const;
 
 private:
     const DocumentSessionState* m_state = nullptr;

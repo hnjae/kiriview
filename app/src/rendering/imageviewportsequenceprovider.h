@@ -17,7 +17,7 @@ public:
     explicit ImageViewportSequenceProvider(
         std::shared_ptr<ImageViewportProviderResource> resource, QObject* parent = nullptr);
 
-    ImageSequenceProviderDescriptor descriptor() const override;
+    [[nodiscard]] ImageSequenceProviderDescriptor descriptor() const override;
 
 private:
     std::shared_ptr<ImageViewportProviderResource> m_resource;

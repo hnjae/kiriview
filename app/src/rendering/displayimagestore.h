@@ -66,11 +66,11 @@ public:
     ~DisplayImageStore();
 
     QString acquireReusable(DisplayImageEntry entry, DisplayImageReuseKey reuseKey);
-    std::optional<DisplayImageStoreEntry> entry(const QString& id) const;
+    [[nodiscard]] std::optional<DisplayImageStoreEntry> entry(const QString& id) const;
     bool acquireFrameLease(const QString& id);
     void releaseFrameLease(const QString& id);
-    qsizetype byteCost() const;
-    qsizetype size() const;
+    [[nodiscard]] qsizetype byteCost() const;
+    [[nodiscard]] qsizetype size() const;
 
 private:
     class Private;

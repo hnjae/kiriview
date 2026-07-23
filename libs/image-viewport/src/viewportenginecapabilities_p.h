@@ -41,22 +41,34 @@ public:
     ViewportEngineSnapshotStateAccess(const ViewportEngineSnapshotStateAccess&) = delete;
     ViewportEngineSnapshotStateAccess& operator=(const ViewportEngineSnapshotStateAccess&) = delete;
 
-    const ImageViewportInternal::RequestState& request() const { return m_request; }
-    const ImageViewportInternal::PlaybackState& playback() const { return m_playback; }
-    const ImageViewportInternal::DisplayState& display() const { return m_display; }
-    const ViewportEngineProviderFactsView& providerFacts() const { return m_providerFacts; }
-    const ImageViewportInternal::PresentationState& presentation() const { return m_presentation; }
-    const ViewportEnginePresentationTargetState& presentationTarget() const
+    [[nodiscard]] const ImageViewportInternal::RequestState& request() const { return m_request; }
+    [[nodiscard]] const ImageViewportInternal::PlaybackState& playback() const
+    {
+        return m_playback;
+    }
+    [[nodiscard]] const ImageViewportInternal::DisplayState& display() const { return m_display; }
+    [[nodiscard]] const ViewportEngineProviderFactsView& providerFacts() const
+    {
+        return m_providerFacts;
+    }
+    [[nodiscard]] const ImageViewportInternal::PresentationState& presentation() const
+    {
+        return m_presentation;
+    }
+    [[nodiscard]] const ViewportEnginePresentationTargetState& presentationTarget() const
     {
         return m_presentationTarget;
     }
-    const RevisionToken& commandRevision() const { return m_commandRevision; }
-    ImageViewportCommandReason commandReason() const { return m_commandReason; }
-    quint64 publishedCommandRevision() const { return m_publishedCommandRevision; }
-    quint64 presentationRevision() const { return m_presentationRevision; }
-    quint64 targetPresentationRevision() const { return m_targetPresentationRevision; }
-    quint64 snapshotRevision() const { return m_snapshotRevision; }
-    const std::optional<ViewportEngineRecoveredTransitionFailure>&
+    [[nodiscard]] const RevisionToken& commandRevision() const { return m_commandRevision; }
+    [[nodiscard]] ImageViewportCommandReason commandReason() const { return m_commandReason; }
+    [[nodiscard]] quint64 publishedCommandRevision() const { return m_publishedCommandRevision; }
+    [[nodiscard]] quint64 presentationRevision() const { return m_presentationRevision; }
+    [[nodiscard]] quint64 targetPresentationRevision() const
+    {
+        return m_targetPresentationRevision;
+    }
+    [[nodiscard]] quint64 snapshotRevision() const { return m_snapshotRevision; }
+    [[nodiscard]] const std::optional<ViewportEngineRecoveredTransitionFailure>&
     recoveredTransitionFailure() const
     {
         return m_recoveredTransitionFailure;

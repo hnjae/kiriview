@@ -60,19 +60,22 @@ public:
         = delete;
     ViewportEngineAuthoredAutoplayMutation takeMutation() { return { m_playback }; }
 
-    const ImageViewportInternal::ImageSequenceSource& source(ImageViewportPageRole role) const
+    [[nodiscard]] const ImageViewportInternal::ImageSequenceSource& source(
+        ImageViewportPageRole role) const
     {
         return m_request.roles[role == ImageViewportPageRole::Secondary ? 1U : 0U].source;
     }
-    const ImageViewportInternal::ProviderFactsState& providerFacts(ImageViewportPageRole role) const
+    [[nodiscard]] const ImageViewportInternal::ProviderFactsState& providerFacts(
+        ImageViewportPageRole role) const
     {
         return m_providerFacts[role == ImageViewportPageRole::Secondary ? 1U : 0U];
     }
-    const ImageViewportInternal::DisplayRequest& activeRequest(ImageViewportPageRole role) const
+    [[nodiscard]] const ImageViewportInternal::DisplayRequest& activeRequest(
+        ImageViewportPageRole role) const
     {
         return m_request.roles[role == ImageViewportPageRole::Secondary ? 1U : 0U].activeRequest;
     }
-    ImageViewportRequestStatus requestStatus() const { return m_request.status; }
+    [[nodiscard]] ImageViewportRequestStatus requestStatus() const { return m_request.status; }
 
 private:
     ImageViewportInternal::PlaybackState& playback() { return m_playback; }
@@ -366,9 +369,15 @@ public:
     ViewportEnginePlaybackScheduleAccess& operator=(const ViewportEnginePlaybackScheduleAccess&)
         = delete;
 
-    const ImageViewportInternal::RequestState& request() const { return m_request; }
-    const ImageViewportInternal::PlaybackState& playback() const { return m_playback; }
-    const ViewportEngineProviderFactsView& providerFacts() const { return m_providerFacts; }
+    [[nodiscard]] const ImageViewportInternal::RequestState& request() const { return m_request; }
+    [[nodiscard]] const ImageViewportInternal::PlaybackState& playback() const
+    {
+        return m_playback;
+    }
+    [[nodiscard]] const ViewportEngineProviderFactsView& providerFacts() const
+    {
+        return m_providerFacts;
+    }
 
 private:
     const ImageViewportInternal::RequestState& m_request;

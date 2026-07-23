@@ -44,8 +44,11 @@ struct ThumbnailOriginalIdentity
         return identity;
     }
 
-    bool isNonFileUri() const { return mode == ThumbnailOriginalIdentityMode::NonFileUri; }
-    bool isValid() const
+    [[nodiscard]] bool isNonFileUri() const
+    {
+        return mode == ThumbnailOriginalIdentityMode::NonFileUri;
+    }
+    [[nodiscard]] bool isValid() const
     {
         return (mode == ThumbnailOriginalIdentityMode::LocalPath && !localPathBytes.isEmpty())
             || (isNonFileUri() && !uri.isEmpty());

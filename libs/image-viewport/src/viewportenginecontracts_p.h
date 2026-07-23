@@ -53,7 +53,7 @@ struct ViewportEnginePresentationTargetState
             = ViewportEnginePresentationTargetTransitionPolicy::ContentPositionTransition::Clamp;
         QPointF previousContentPosition;
 
-        bool isValid() const { return generation != 0; }
+        [[nodiscard]] bool isValid() const { return generation != 0; }
     };
 
     ViewportEnginePresentationTarget presentationTarget = ViewportEnginePresentationTarget::clear();

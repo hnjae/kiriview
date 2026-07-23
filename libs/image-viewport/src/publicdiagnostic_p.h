@@ -16,10 +16,10 @@ public:
 
     static PublicDiagnosticText fromTrusted(QString diagnostic);
 
-    PublicDiagnosticText withTrustedFallback(QString fallback) const;
+    [[nodiscard]] PublicDiagnosticText withTrustedFallback(QString fallback) const;
 
-    const QString& text() const { return m_text; }
-    bool isEmpty() const { return m_text.isEmpty(); }
+    [[nodiscard]] const QString& text() const { return m_text; }
+    [[nodiscard]] bool isEmpty() const { return m_text.isEmpty(); }
     void clear() { m_text.clear(); }
 
     friend bool operator==(const PublicDiagnosticText& lhs, const PublicDiagnosticText& rhs)

@@ -23,9 +23,9 @@ public:
 
     void invalidate() { advance(); }
 
-    quint64 current() const { return m_current; }
+    [[nodiscard]] quint64 current() const { return m_current; }
 
-    bool accepts(quint64 ticket) const { return ticket != 0 && ticket == m_current; }
+    [[nodiscard]] bool accepts(quint64 ticket) const { return ticket != 0 && ticket == m_current; }
 
 private:
     void advance()

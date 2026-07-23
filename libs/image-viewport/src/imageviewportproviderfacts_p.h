@@ -35,16 +35,16 @@ public:
     static ImageSequenceProviderKnownFacts timedFrameList(
         QSizeF logicalSize, QVector<int> frameDurations);
 
-    bool isSpecified() const;
-    bool isValid() const;
-    bool isComplete() const;
-    bool isLogicalSizeOnly() const;
-    bool isStill() const;
-    bool isTimedFrameCount() const;
-    bool isTimedFrameList() const;
-    QSizeF logicalSize() const;
-    int frameCount() const;
-    QVector<int> frameDurations() const;
+    [[nodiscard]] bool isSpecified() const;
+    [[nodiscard]] bool isValid() const;
+    [[nodiscard]] bool isComplete() const;
+    [[nodiscard]] bool isLogicalSizeOnly() const;
+    [[nodiscard]] bool isStill() const;
+    [[nodiscard]] bool isTimedFrameCount() const;
+    [[nodiscard]] bool isTimedFrameList() const;
+    [[nodiscard]] QSizeF logicalSize() const;
+    [[nodiscard]] int frameCount() const;
+    [[nodiscard]] QVector<int> frameDurations() const;
 
 private:
     Kind m_kind = Kind::Unknown;

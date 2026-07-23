@@ -92,5 +92,5 @@ public:
         bool mipmap = false;
     };
 
-    RenderPlan createPlan(const Input& input) const;
+    [[nodiscard]] RenderPlan createPlan(const Input& input) const;
 };

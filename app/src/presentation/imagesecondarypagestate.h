@@ -33,14 +33,15 @@ struct ImageSecondaryPageLoadCompletion
 class ImageSecondaryPageState final
 {
 public:
-    bool visible() const;
-    DisplayedImageLocation displayedImageLocation() const;
-    QSize imageSize() const;
+    [[nodiscard]] bool visible() const;
+    [[nodiscard]] DisplayedImageLocation displayedImageLocation() const;
+    [[nodiscard]] QSize imageSize() const;
 
     void clear();
     ImageSecondaryPageLoadCompletion finishPresentedLoad(
         const DisplayedImageLocation& location, QSize imageSize, bool primaryOnly);
-    ImageSecondaryPageLoadCompletion finishFailedLoad(const DisplayedImageLocation& location) const;
+    [[nodiscard]] ImageSecondaryPageLoadCompletion finishFailedLoad(
+        const DisplayedImageLocation& location) const;
 
 private:
     std::optional<ImageSecondaryPageDisplayState> m_displayedPage;

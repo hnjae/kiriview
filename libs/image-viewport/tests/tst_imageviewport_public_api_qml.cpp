@@ -22,7 +22,7 @@ public:
         return value;
     }
 
-    int count() const { return m_count; }
+    [[nodiscard]] int count() const { return m_count; }
 
 private:
     int m_count = 0;

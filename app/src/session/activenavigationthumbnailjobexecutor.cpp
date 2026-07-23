@@ -72,7 +72,7 @@ public:
 
     bool start(ActiveNavigationThumbnailWorkRequest request)
     {
-        if (!request.workId.isValid() || records.find(request.workId.value) != records.end()) {
+        if (!request.workId.isValid() || records.contains(request.workId.value)) {
             return false;
         }
         if (usesCacheLookup(request.sourcePlan)) {

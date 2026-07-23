@@ -51,13 +51,13 @@ public:
     void open(QObject* receiver, DirectMediaNavigationOpenRequest request);
 
 private:
-    bool navigationActive() const;
-    bool directImageSourceScopeEligible() const;
-    std::optional<DirectMediaScope> currentScope() const;
-    bool cursorMatches(const DirectMediaScope& scope) const;
-    QUrl activeCursorUrl() const;
-    ActiveNavigationSourceKind activeNavigationSourceKind() const;
-    ActiveNavigationSnapshot activeNavigationSnapshot() const;
+    [[nodiscard]] bool navigationActive() const;
+    [[nodiscard]] bool directImageSourceScopeEligible() const;
+    [[nodiscard]] std::optional<DirectMediaScope> currentScope() const;
+    [[nodiscard]] bool cursorMatches(const DirectMediaScope& scope) const;
+    [[nodiscard]] QUrl activeCursorUrl() const;
+    [[nodiscard]] ActiveNavigationSourceKind activeNavigationSourceKind() const;
+    [[nodiscard]] ActiveNavigationSnapshot activeNavigationSnapshot() const;
 
     DocumentSessionDirectMediaNavigationCoordinatorPorts m_ports;
     DocumentSessionDirectMediaNavigationRuntime m_navigationRuntime;

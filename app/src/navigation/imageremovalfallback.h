@@ -47,7 +47,7 @@ struct ImageRemovalPlan
     QUrl targetUrl;
     ImageRemovalFallbackPlan fallbackPlan;
 
-    bool hasTarget() const { return !targetUrl.isEmpty(); }
+    [[nodiscard]] bool hasTarget() const { return !targetUrl.isEmpty(); }
 };
 
 ImageRemovalPlan imageRemovalPlanForDisplayedLocation(const DisplayedImageLocation& location);

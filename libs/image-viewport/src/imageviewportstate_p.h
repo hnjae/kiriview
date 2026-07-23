@@ -224,7 +224,7 @@ struct ResolvedFrameIdentity
     int frame = -1;
     int position = -1;
 
-    bool isValid() const { return frame >= 0; }
+    [[nodiscard]] bool isValid() const { return frame >= 0; }
 };
 
 struct DisplayRequest
@@ -247,14 +247,14 @@ struct TargetSpreadIdentity
     quint64 generation = 0;
     quint64 requestId = 0;
 
-    bool isValid() const { return generation != 0 && requestId != 0; }
+    [[nodiscard]] bool isValid() const { return generation != 0 && requestId != 0; }
 };
 
 struct RenderPresentationIdentity
 {
     quint64 revision = 0;
 
-    bool isValid() const { return revision != 0; }
+    [[nodiscard]] bool isValid() const { return revision != 0; }
 };
 
 struct PreparedPayloadIdentity
@@ -262,7 +262,7 @@ struct PreparedPayloadIdentity
     quint64 generation = 0;
     quint64 payloadId = 0;
 
-    bool isValid() const { return generation != 0 && payloadId != 0; }
+    [[nodiscard]] bool isValid() const { return generation != 0 && payloadId != 0; }
 };
 
 struct PreparedPayload
@@ -287,8 +287,8 @@ struct PreparedPayload
     ImageViewportDemandRevisionToken demandRevision;
     quint64 providerFrameLeaseId = 0;
 
-    PreparedPayloadIdentity identity() const { return { generation, payloadId }; }
-    bool hasPresentableContent() const
+    [[nodiscard]] PreparedPayloadIdentity identity() const { return { generation, payloadId }; }
+    [[nodiscard]] bool hasPresentableContent() const
     {
         return identity().isValid() && !image.isNull() && sourceLogicalSize.isValid()
             && sourceLogicalSize.width() > 0.0 && sourceLogicalSize.height() > 0.0;
@@ -326,7 +326,8 @@ struct PayloadAllocationState
 
 struct RenderQualityFallbackState
 {
-    bool activeFor(quint64 acceptedGeneration, const PresentationState& presentation) const
+    [[nodiscard]] bool activeFor(
+        quint64 acceptedGeneration, const PresentationState& presentation) const
     {
         return generation != 0 && generation == acceptedGeneration
             && ((smoothingUnavailable && presentation.smoothing)
@@ -381,7 +382,7 @@ struct DisplayState
     DisplayState& operator=(DisplayState&&) noexcept = default;
     ~DisplayState() = default;
 
-    DisplayRequestSnapshot activeRequestSnapshot(quint64 sequenceGeneration,
+    [[nodiscard]] DisplayRequestSnapshot activeRequestSnapshot(quint64 sequenceGeneration,
         const DisplayRequest& activeRequest, int displayedPosition) const
     {
         DisplayRequestSnapshot snapshot = roles[0].displayedRequest;
@@ -450,7 +451,7 @@ struct DisplayState
         roles[1].pendingRenderPayload = {};
     }
 
-    bool hasReadyDisplay(bool hasDisplayableSequence) const
+    [[nodiscard]] bool hasReadyDisplay(bool hasDisplayableSequence) const
     {
         return hasDisplayableSequence
             && (status == ImageViewportDisplayStatus::Ready
@@ -458,7 +459,7 @@ struct DisplayState
             && roles[0].displayedPayload.hasPresentableContent();
     }
 
-    bool hasActiveRenderQualityFallback(
+    [[nodiscard]] bool hasActiveRenderQualityFallback(
         quint64 acceptedGeneration, const PresentationState& presentation) const
     {
         return status != ImageViewportDisplayStatus::Empty
@@ -511,7 +512,7 @@ struct PlaybackState
         return roles[role == ImageViewportPageRole::Secondary ? 1U : 0U];
     }
 
-    const RolePlaybackState& forRole(ImageViewportPageRole role) const
+    [[nodiscard]] const RolePlaybackState& forRole(ImageViewportPageRole role) const
     {
         return roles[role == ImageViewportPageRole::Secondary ? 1U : 0U];
     }
@@ -625,7 +626,7 @@ struct RequestState
         return true;
     }
 
-    bool activeRequestOwnsPreparedPayload(
+    [[nodiscard]] bool activeRequestOwnsPreparedPayload(
         ImageViewportPageRole role, PreparedPayloadIdentity identity) const
     {
         const std::size_t index = role == ImageViewportPageRole::Secondary ? 1U : 0U;
@@ -633,7 +634,7 @@ struct RequestState
             && identity.payloadId == roles[index].activeRequest.preparedPayloadId;
     }
 
-    TargetSpreadIdentity activeTargetSpreadIdentity() const
+    [[nodiscard]] TargetSpreadIdentity activeTargetSpreadIdentity() const
     {
         return { sequenceGeneration, roles[0].activeRequest.identity.id };
     }
@@ -674,14 +675,20 @@ struct ProviderRequestRecord
     ResolvedFrameIdentity resolvedFrame;
     std::optional<ImageSequenceProviderDisplayDemand> demand;
 
-    bool isMetadata() const { return kind == ImageSequenceProviderRequestKind::Metadata; }
-    bool isFrameWork() const
+    [[nodiscard]] bool isMetadata() const
+    {
+        return kind == ImageSequenceProviderRequestKind::Metadata;
+    }
+    [[nodiscard]] bool isFrameWork() const
     {
         return kind == ImageSequenceProviderRequestKind::Frame
             || kind == ImageSequenceProviderRequestKind::Position
             || kind == ImageSequenceProviderRequestKind::Playback;
     }
-    bool isRefinement() const { return ownership == ProviderRequestOwnership::Refinement; }
+    [[nodiscard]] bool isRefinement() const
+    {
+        return ownership == ProviderRequestOwnership::Refinement;
+    }
 };
 
 struct QueuedProviderFrameRequest
@@ -707,7 +714,7 @@ struct ProviderRequestTokenAdmission
 
 struct ProviderRequestLedger
 {
-    const ProviderRequestRecord* find(ImageSequenceProviderRequestToken token) const
+    [[nodiscard]] const ProviderRequestRecord* find(ImageSequenceProviderRequestToken token) const
     {
         for (const auto& record : active) {
             if (token.isValid() && record.token == token) {
@@ -727,7 +734,7 @@ struct ProviderRequestLedger
         return nullptr;
     }
 
-    ProviderRequestTokenAdmission admit(ImageSequenceProviderRequestToken token) const
+    [[nodiscard]] ProviderRequestTokenAdmission admit(ImageSequenceProviderRequestToken token) const
     {
         if (const auto* record = find(token)) {
             return { ProviderRequestTokenAdmissionKind::Active, record };
@@ -739,7 +746,7 @@ struct ProviderRequestLedger
         return { ProviderRequestTokenAdmissionKind::Mismatch, nullptr };
     }
 
-    const ProviderRequestRecord* metadataRequest() const
+    [[nodiscard]] const ProviderRequestRecord* metadataRequest() const
     {
         for (const auto& record : active) {
             if (record.isMetadata()) {
@@ -749,7 +756,7 @@ struct ProviderRequestLedger
         return nullptr;
     }
 
-    const ProviderRequestRecord* frameRequest() const
+    [[nodiscard]] const ProviderRequestRecord* frameRequest() const
     {
         for (const auto& record : active) {
             if (record.isFrameWork()) {
@@ -759,13 +766,13 @@ struct ProviderRequestLedger
         return nullptr;
     }
 
-    ImageSequenceProviderRequestToken metadataToken() const
+    [[nodiscard]] ImageSequenceProviderRequestToken metadataToken() const
     {
         const auto* record = metadataRequest();
         return record ? record->token : ImageSequenceProviderRequestToken {};
     }
 
-    ImageSequenceProviderRequestToken frameToken() const
+    [[nodiscard]] ImageSequenceProviderRequestToken frameToken() const
     {
         const auto* record = frameRequest();
         return record ? record->token : ImageSequenceProviderRequestToken {};

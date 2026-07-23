@@ -50,7 +50,7 @@ bool hasStateChanges(const ImageViewportInternal::ViewportChangeSet& changes)
 
 bool hasProviderEffects(const std::array<ViewportProviderFrameTransportEffect, 2>& effects)
 {
-    return std::any_of(effects.cbegin(), effects.cend(), [](const auto& effect) {
+    return std::ranges::any_of(effects, [](const auto& effect) {
         return effect.cancelToken.isValid()
             || effect.deferredEngineEvent != ViewportProviderDeferredEngineEvent::None
             || effect.closeSession || effect.sendCommand;

@@ -120,52 +120,55 @@ public:
         kiriview::ImageDocumentRuntimeDependencyOverrides dependencies, QObject* parent = nullptr);
     ~KiriImageDocument() override;
 
-    QUrl sourceUrl() const;
-    kiriview::ImageDocumentPageKind sourceKind() const;
+    [[nodiscard]] QUrl sourceUrl() const;
+    [[nodiscard]] kiriview::ImageDocumentPageKind sourceKind() const;
 
-    Status status() const;
-    bool loading() const;
-    QString errorString() const;
-    QString windowTitleFileName() const;
-    QUrl displayedUrl() const;
-    kiriview::OpenedCollectionScopeLocation displayedOpenedCollectionScope() const;
-    QSize imageSize() const;
-    QSize primaryImageSize() const;
-    QSize secondaryImageSize() const;
-    bool viewportHorizontallyPannable() const;
-    bool viewportVerticallyPannable() const;
-    bool viewportPannable() const;
-    double horizontalScrollPosition() const;
-    double horizontalScrollPageSize() const;
-    double verticalScrollPosition() const;
-    double verticalScrollPageSize() const;
-    bool zoomPercentKnown() const;
-    double zoomPercent() const;
-    ZoomMode zoomMode() const;
-    ZoomMode fitModeSelection() const;
-    int minimumManualZoomPercent() const;
-    int maximumManualZoomPercent() const;
-    double zoomStepFactor() const;
-    QStringList openDialogNameFilters() const;
-    int currentPageNumber() const;
-    int currentLastPageNumber() const;
-    int pageCount() const;
-    kiriview::ImageDocumentPageNavigationSnapshot pageNavigationSnapshot() const;
-    const kiriview::ImageDocumentPageCandidateListSnapshot& confirmedPageCandidateSnapshot() const;
-    kiriview::ImageDocumentPageActiveNavigationSnapshot activeNavigationSnapshot() const;
-    bool containerNavigationAvailable() const;
-    bool ordinaryDirectMediaScopeActive() const;
-    bool openedCollectionScopeActive() const;
-    bool fileDeletionInProgress() const;
-    bool twoPageModeEnabled() const;
-    bool twoPageModeAvailable() const;
-    bool rightToLeftReadingEnabled() const;
-    bool rightToLeftReadingAvailable() const;
-    bool secondaryPageVisible() const;
-    bool unsupportedOpenedCollectionVideo() const;
-    std::optional<kiriview::DisplayedPredecodeImage> primaryDisplayedPredecodeImage() const;
-    kiriview::ImageFirstDisplayDecodeContext firstDisplayDecodeContext() const;
-    const kiriview::EmbeddedMetadata& embeddedMetadata() const;
+    [[nodiscard]] Status status() const;
+    [[nodiscard]] bool loading() const;
+    [[nodiscard]] QString errorString() const;
+    [[nodiscard]] QString windowTitleFileName() const;
+    [[nodiscard]] QUrl displayedUrl() const;
+    [[nodiscard]] kiriview::OpenedCollectionScopeLocation displayedOpenedCollectionScope() const;
+    [[nodiscard]] QSize imageSize() const;
+    [[nodiscard]] QSize primaryImageSize() const;
+    [[nodiscard]] QSize secondaryImageSize() const;
+    [[nodiscard]] bool viewportHorizontallyPannable() const;
+    [[nodiscard]] bool viewportVerticallyPannable() const;
+    [[nodiscard]] bool viewportPannable() const;
+    [[nodiscard]] double horizontalScrollPosition() const;
+    [[nodiscard]] double horizontalScrollPageSize() const;
+    [[nodiscard]] double verticalScrollPosition() const;
+    [[nodiscard]] double verticalScrollPageSize() const;
+    [[nodiscard]] bool zoomPercentKnown() const;
+    [[nodiscard]] double zoomPercent() const;
+    [[nodiscard]] ZoomMode zoomMode() const;
+    [[nodiscard]] ZoomMode fitModeSelection() const;
+    [[nodiscard]] int minimumManualZoomPercent() const;
+    [[nodiscard]] int maximumManualZoomPercent() const;
+    [[nodiscard]] double zoomStepFactor() const;
+    [[nodiscard]] QStringList openDialogNameFilters() const;
+    [[nodiscard]] int currentPageNumber() const;
+    [[nodiscard]] int currentLastPageNumber() const;
+    [[nodiscard]] int pageCount() const;
+    [[nodiscard]] kiriview::ImageDocumentPageNavigationSnapshot pageNavigationSnapshot() const;
+    [[nodiscard]] const kiriview::ImageDocumentPageCandidateListSnapshot&
+    confirmedPageCandidateSnapshot() const;
+    [[nodiscard]] kiriview::ImageDocumentPageActiveNavigationSnapshot
+    activeNavigationSnapshot() const;
+    [[nodiscard]] bool containerNavigationAvailable() const;
+    [[nodiscard]] bool ordinaryDirectMediaScopeActive() const;
+    [[nodiscard]] bool openedCollectionScopeActive() const;
+    [[nodiscard]] bool fileDeletionInProgress() const;
+    [[nodiscard]] bool twoPageModeEnabled() const;
+    [[nodiscard]] bool twoPageModeAvailable() const;
+    [[nodiscard]] bool rightToLeftReadingEnabled() const;
+    [[nodiscard]] bool rightToLeftReadingAvailable() const;
+    [[nodiscard]] bool secondaryPageVisible() const;
+    [[nodiscard]] bool unsupportedOpenedCollectionVideo() const;
+    [[nodiscard]] std::optional<kiriview::DisplayedPredecodeImage>
+    primaryDisplayedPredecodeImage() const;
+    [[nodiscard]] kiriview::ImageFirstDisplayDecodeContext firstDisplayDecodeContext() const;
+    [[nodiscard]] const kiriview::EmbeddedMetadata& embeddedMetadata() const;
 
     void attachImageViewport(ImageViewport* viewport);
     void detachImageViewport(ImageViewport* viewport);
@@ -180,7 +183,7 @@ public:
     void deleteDisplayedFile(KiriImageDocument::DeletionMode mode);
     Q_INVOKABLE void rotateClockwise();
     Q_INVOKABLE void rotateCounterclockwise();
-    Q_INVOKABLE double steppedManualZoomPercent(double stepCount) const;
+    Q_INVOKABLE [[nodiscard]] double steppedManualZoomPercent(double stepCount) const;
     Q_INVOKABLE bool requestManualZoomPercent(double zoomPercent);
     Q_INVOKABLE bool requestZoomByStep(double stepCount, QPointF viewportAnchorPoint);
     Q_INVOKABLE bool requestZoomByStepAtCenter(double stepCount);
@@ -192,7 +195,7 @@ public:
     Q_INVOKABLE bool requestViewportScanForward();
     Q_INVOKABLE bool requestViewportScanBackward();
     void requestNextViewportTargetAnchorAtEnd();
-    Q_INVOKABLE QPointF nearestImageViewportPoint(QPointF viewportPoint) const;
+    Q_INVOKABLE [[nodiscard]] QPointF nearestImageViewportPoint(QPointF viewportPoint) const;
     Q_INVOKABLE void requestToggleTwoPageMode();
     Q_INVOKABLE void requestToggleRightToLeftReading();
     Q_INVOKABLE bool submitHorizontalScrollPosition(double position);
@@ -231,7 +234,8 @@ private:
     void setSourceUrl(const QUrl& sourceUrl);
     void setSource(const kiriview::ResolvedNavigationSource& source);
     void setExternalSourcePreservingPresentation(const kiriview::ResolvedNavigationSource& source);
-    kiriview::MediaEntrySourceVideoPlaybackDeviceResult loadOpenedCollectionVideoPlaybackDevice(
+    [[nodiscard]] kiriview::MediaEntrySourceVideoPlaybackDeviceResult
+    loadOpenedCollectionVideoPlaybackDevice(
         const kiriview::OpenedCollectionScopeLocation& openedCollectionScope,
         const QUrl& videoUrl) const;
     void setTwoPageModeEnabled(bool enabled);

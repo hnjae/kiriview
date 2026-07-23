@@ -29,13 +29,13 @@ public:
         return true;
     }
     void cancel();
-    bool isActive() const;
+    [[nodiscard]] bool isActive() const;
 
 private:
     friend class ImageIoJob;
     friend class ImageIoJobCompletion;
 
-    QObject* token() const;
+    [[nodiscard]] QObject* token() const;
 
     QPointer<QObject> m_token;
     QPointer<QObject> m_activeObject;
@@ -48,8 +48,8 @@ public:
     ImageIoJobCompletion() = default;
     explicit ImageIoJobCompletion(std::shared_ptr<ImageIoJobState> state);
 
-    QObject* object() const;
-    bool isActive() const;
+    [[nodiscard]] QObject* object() const;
+    [[nodiscard]] bool isActive() const;
     void cancel() const;
 
     template <typename Finish> bool claimAndRun(Finish&& finish) const
@@ -94,8 +94,8 @@ public:
     ImageIoJob& operator=(ImageIoJob&& other) noexcept;
 
     void cancel();
-    bool isActive() const;
-    ImageIoJobCompletion completion() const;
+    [[nodiscard]] bool isActive() const;
+    [[nodiscard]] ImageIoJobCompletion completion() const;
 
 private:
     std::shared_ptr<ImageIoJobState> m_state;

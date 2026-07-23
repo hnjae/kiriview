@@ -24,7 +24,7 @@ public:
     explicit VideoSourceLoadRuntime(std::unique_ptr<VideoPlaybackUrlResolver> resolver = {});
     ~VideoSourceLoadRuntime();
 
-    bool active() const;
+    [[nodiscard]] bool active() const;
     void setSourceUrl(
         const QUrl& sourceUrl, QObject* receiver, VideoSourceLoadPlanCallback planCallback);
     void cancelPendingResolution();

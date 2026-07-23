@@ -106,15 +106,30 @@ public:
         }
     }
 
-    ImageSequenceProviderRequestToken lastMetadataToken() const { return m_lastMetadataToken; }
+    [[nodiscard]] ImageSequenceProviderRequestToken lastMetadataToken() const
+    {
+        return m_lastMetadataToken;
+    }
 
-    ImageSequenceProviderRequestToken lastFrameToken() const { return m_lastFrameToken; }
+    [[nodiscard]] ImageSequenceProviderRequestToken lastFrameToken() const
+    {
+        return m_lastFrameToken;
+    }
 
-    ImageSequenceProviderRequestToken lastPositionToken() const { return m_lastPositionToken; }
+    [[nodiscard]] ImageSequenceProviderRequestToken lastPositionToken() const
+    {
+        return m_lastPositionToken;
+    }
 
-    ImageSequenceProviderRequestToken lastCancelledToken() const { return m_lastCancelledToken; }
+    [[nodiscard]] ImageSequenceProviderRequestToken lastCancelledToken() const
+    {
+        return m_lastCancelledToken;
+    }
 
-    ImageSequenceProviderDisplayDemand lastFrameDemand() const { return m_lastFrameDemand; }
+    [[nodiscard]] ImageSequenceProviderDisplayDemand lastFrameDemand() const
+    {
+        return m_lastFrameDemand;
+    }
 
 private:
     void recordFrameRequest(ImageSequenceProviderRequestToken token, int frame)
@@ -218,9 +233,12 @@ public:
         return session;
     }
 
-    CountingProviderSession* lastSession() const { return m_lastSession; }
+    [[nodiscard]] CountingProviderSession* lastSession() const { return m_lastSession; }
 
-    CountingProviderSession* sessionAt(qsizetype index) const { return m_sessions.at(index); }
+    [[nodiscard]] CountingProviderSession* sessionAt(qsizetype index) const
+    {
+        return m_sessions.at(index);
+    }
 
 private:
     std::shared_ptr<int> m_sessionCount;
@@ -271,7 +289,7 @@ public:
     {
     }
 
-    ImageSequenceProviderDescriptor descriptor() const override
+    [[nodiscard]] ImageSequenceProviderDescriptor descriptor() const override
     {
         ImageSequenceProviderMetadata metadata = m_knownMetadata;
         metadata.setTimedPlaybackSupport(m_timedPlaybackSupport);

@@ -26,18 +26,18 @@ public:
 
     explicit VideoDocumentState(ChangeCallback changeCallback = {});
 
-    const QUrl& sourceUrl() const;
-    VideoDocumentStatus status() const;
-    const QString& errorString() const;
-    const std::optional<VideoSourceLoadFailure>& sourceLoadFailure() const;
-    const std::optional<VideoBackendFailure>& backendFailure() const;
-    const QString& windowTitleFileName() const;
-    bool hasVideo() const;
-    bool hasAudio() const;
-    QSize videoSize() const;
-    bool zoomPercentKnown() const;
-    int zoomPercent() const;
-    const EmbeddedMetadata& embeddedMetadata() const;
+    [[nodiscard]] const QUrl& sourceUrl() const;
+    [[nodiscard]] VideoDocumentStatus status() const;
+    [[nodiscard]] const QString& errorString() const;
+    [[nodiscard]] const std::optional<VideoSourceLoadFailure>& sourceLoadFailure() const;
+    [[nodiscard]] const std::optional<VideoBackendFailure>& backendFailure() const;
+    [[nodiscard]] const QString& windowTitleFileName() const;
+    [[nodiscard]] bool hasVideo() const;
+    [[nodiscard]] bool hasAudio() const;
+    [[nodiscard]] QSize videoSize() const;
+    [[nodiscard]] bool zoomPercentKnown() const;
+    [[nodiscard]] int zoomPercent() const;
+    [[nodiscard]] const EmbeddedMetadata& embeddedMetadata() const;
 
     void resetForClearedSource();
     void resetForSourceLoad(const QUrl& sourceUrl);

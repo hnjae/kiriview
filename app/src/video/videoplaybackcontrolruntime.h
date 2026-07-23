@@ -78,8 +78,8 @@ public:
     explicit VideoPlaybackControlRuntime(QObject* owner, TimerScheduler timerScheduler = {},
         VideoPlaybackControlProjectionCallback projectionCallback = {});
 
-    const VideoPlaybackControlProjection& projection() const;
-    const VideoPlaybackControlMediaSnapshot& mediaSnapshot() const;
+    [[nodiscard]] const VideoPlaybackControlProjection& projection() const;
+    [[nodiscard]] const VideoPlaybackControlMediaSnapshot& mediaSnapshot() const;
 
     void replaceSource(quint64 sourceRevision);
     void acceptEnvironment(VideoPlaybackControlEnvironment environment);
@@ -93,10 +93,10 @@ public:
     std::optional<qint64> requestSeek(qint64 positionMsec);
 
 private:
-    VideoPlaybackControlProjection projectedState() const;
-    VideoPlaybackControlPresentationMode presentationMode() const;
-    VideoPlaybackTimelineKind timelineKind() const;
-    qint64 normalizedPosition(qint64 positionMsec) const;
+    [[nodiscard]] VideoPlaybackControlProjection projectedState() const;
+    [[nodiscard]] VideoPlaybackControlPresentationMode presentationMode() const;
+    [[nodiscard]] VideoPlaybackTimelineKind timelineKind() const;
+    [[nodiscard]] qint64 normalizedPosition(qint64 positionMsec) const;
     void publishProjection();
     void synchronizeAutoHideTimer();
     void stopAutoHideTimer();

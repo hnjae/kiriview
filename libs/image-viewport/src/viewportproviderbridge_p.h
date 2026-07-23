@@ -150,19 +150,19 @@ public:
     void completeFailureEventDelivery(quint64 leaseId);
     void reconcileLeases(const QSet<quint64>& liveLeaseIds);
     ViewportProviderCleanupResult drainCleanup(bool retryPendingSessions = true);
-    bool hasPendingCleanup() const;
+    [[nodiscard]] bool hasPendingCleanup() const;
     ViewportProviderCleanupResult releaseAllProviderLeases();
     void setExecutor(ViewportProviderExecutor& executor);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void failNextCommandDeliveryForTest();
     void failNextSessionCloseDeliveriesForTest(qsizetype count);
     void useSynchronousEventDeliveryForTest();
-    qsizetype retainedEventEndpointCountForTest() const;
+    [[nodiscard]] qsizetype retainedEventEndpointCountForTest() const;
 #endif
 
 private:
     bool takeForcedDeliveryFailureForTest();
-    ViewportProviderExecutor& executor() const;
+    [[nodiscard]] ViewportProviderExecutor& executor() const;
     ViewportProviderExecutorOutcome queueSessionClose(
         const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
         ImageSequenceProviderRequestToken metadataToken,

@@ -28,6 +28,7 @@ class MediaEntrySourceWithCandidateSnapshot : public MediaEntrySource
 public:
     explicit MediaEntrySourceWithCandidateSnapshot(
         std::vector<ImageDocumentPageCandidate> candidates);
+    ~MediaEntrySourceWithCandidateSnapshot() override = default;
 
     MediaEntrySourceCandidatesResult loadImageDocumentPageCandidates() final;
 

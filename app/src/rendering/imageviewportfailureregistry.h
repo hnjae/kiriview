@@ -23,8 +23,9 @@ public:
     ImageViewportFailureRegistry& operator=(const ImageViewportFailureRegistry&) = delete;
 
     ImageSequenceProviderFailureHandle* registerFailure(ImageLoadFailure failure);
-    std::optional<ImageLoadFailure> resolve(ImageSequenceProviderFailureReference reference) const;
-    qsizetype size() const;
+    [[nodiscard]] std::optional<ImageLoadFailure> resolve(
+        ImageSequenceProviderFailureReference reference) const;
+    [[nodiscard]] qsizetype size() const;
 
 private:
     class State;

@@ -12,7 +12,7 @@ class RevisionToken
 public:
     RevisionToken() = default;
 
-    bool isValid() const { return m_value != 0; }
+    [[nodiscard]] bool isValid() const { return m_value != 0; }
 
     friend bool operator==(RevisionToken lhs, RevisionToken rhs)
     {

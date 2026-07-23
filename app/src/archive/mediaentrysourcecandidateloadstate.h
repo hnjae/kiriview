@@ -34,8 +34,8 @@ public:
     ImageIoJob addLoad(QObject* receiver, ImageDocumentPageCandidatesCallback callback,
         ErrorCallback errorCallback);
     std::optional<MediaEntrySourceCandidateLoadBatch> startBatch();
-    bool acceptsBatch(MediaEntrySourceCandidateLoadBatch batch) const;
-    bool batchInProgress() const;
+    [[nodiscard]] bool acceptsBatch(MediaEntrySourceCandidateLoadBatch batch) const;
+    [[nodiscard]] bool batchInProgress() const;
     std::vector<MediaEntrySourceCandidateLoad> finishBatch(
         MediaEntrySourceCandidateLoadBatch batch);
     void cancel();

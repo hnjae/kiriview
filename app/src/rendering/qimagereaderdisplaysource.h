@@ -22,18 +22,20 @@ public:
     QImageReaderDisplaySource(
         QByteArray data, QByteArray format, QSize imageSize, StaticImageReaderTransform transform);
 
-    QSize imageSize() const override;
-    StaticImageFirstDisplayDecodeResult decodeFirstDisplayImage(
+    [[nodiscard]] QSize imageSize() const override;
+    [[nodiscard]] StaticImageFirstDisplayDecodeResult decodeFirstDisplayImage(
         const ImageFirstDisplayDecodeContext& context) const override;
-    bool supportsRasterDisplayRefinement() const override;
-    StaticImageDisplayDecodeResult decodeRasterDisplayImage(const QSize& rasterSize) const override;
-    StaticImageDisplayDecodeResult decodeBlockingDisplayImage(int maximumLongEdge) const override;
-    qsizetype byteCost() const override;
-    StaticImageReaderTransform imageReaderTransform() const override;
+    [[nodiscard]] bool supportsRasterDisplayRefinement() const override;
+    [[nodiscard]] StaticImageDisplayDecodeResult decodeRasterDisplayImage(
+        const QSize& rasterSize) const override;
+    [[nodiscard]] StaticImageDisplayDecodeResult decodeBlockingDisplayImage(
+        int maximumLongEdge) const override;
+    [[nodiscard]] qsizetype byteCost() const override;
+    [[nodiscard]] StaticImageReaderTransform imageReaderTransform() const override;
 
 private:
-    bool supportsJpegScaledFirstDisplay() const;
-    StaticImageDisplayDecodeResult readScaledDisplayImage(QSize scaledSize) const;
+    [[nodiscard]] bool supportsJpegScaledFirstDisplay() const;
+    [[nodiscard]] StaticImageDisplayDecodeResult readScaledDisplayImage(QSize scaledSize) const;
     QImage readScaledImage(QSize scaledSize, QString* errorString) const;
 
     QByteArray m_data;

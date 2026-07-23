@@ -20,14 +20,17 @@ public:
     static std::shared_ptr<SvgDisplaySource> open(const QByteArray& data, QString* errorString);
 
     SvgDisplaySource(QByteArray data, QSize imageSize);
+    ~SvgDisplaySource() override = default;
 
-    QSize imageSize() const override;
-    StaticImageFirstDisplayDecodeResult decodeFirstDisplayImage(
+    [[nodiscard]] QSize imageSize() const override;
+    [[nodiscard]] StaticImageFirstDisplayDecodeResult decodeFirstDisplayImage(
         const ImageFirstDisplayDecodeContext& context) const override;
-    bool supportsRasterDisplayRefinement() const override;
-    StaticImageDisplayDecodeResult decodeRasterDisplayImage(const QSize& rasterSize) const override;
-    StaticImageDisplayDecodeResult decodeBlockingDisplayImage(int maximumLongEdge) const override;
-    qsizetype byteCost() const override;
+    [[nodiscard]] bool supportsRasterDisplayRefinement() const override;
+    [[nodiscard]] StaticImageDisplayDecodeResult decodeRasterDisplayImage(
+        const QSize& rasterSize) const override;
+    [[nodiscard]] StaticImageDisplayDecodeResult decodeBlockingDisplayImage(
+        int maximumLongEdge) const override;
+    [[nodiscard]] qsizetype byteCost() const override;
 
 private:
     QByteArray m_data;

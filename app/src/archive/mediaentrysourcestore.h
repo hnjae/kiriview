@@ -29,8 +29,8 @@ public:
         const OpenedCollectionScopeLocation& openedCollectionScope);
     void clear();
 
-    bool hasCurrentOpenedCollectionScope() const;
-    bool hasCurrentOpenedCollectionScope(
+    [[nodiscard]] bool hasCurrentOpenedCollectionScope() const;
+    [[nodiscard]] bool hasCurrentOpenedCollectionScope(
         const OpenedCollectionScopeLocation& openedCollectionScope) const;
 
     ImageIoJob loadOpenedCollectionCandidates(QObject* receiver,

@@ -15,7 +15,7 @@ public:
     explicit ImageDocumentNavigationSnapshotPort(
         const ImageDocumentPageNavigationService* navigationService = nullptr);
 
-    ImageDocumentPageNavigationSnapshot snapshot() const;
+    [[nodiscard]] ImageDocumentPageNavigationSnapshot snapshot() const;
 
 private:
     const ImageDocumentPageNavigationService* m_navigationService = nullptr;

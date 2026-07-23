@@ -33,12 +33,12 @@ public:
     ImageDocumentPageNavigationController(QObject* parent,
         const ImageDocumentPageCandidateRepository& candidateRepository, Callbacks callbacks);
 
-    int currentPageNumber() const;
-    int pageCount() const;
-    ImageDocumentPageNavigationSnapshot snapshot() const;
-    const ImageDocumentPageCandidateListSnapshot& confirmedCandidateSnapshot() const;
-    std::optional<QUrl> urlAtPage(int pageNumber) const;
-    std::optional<ImageDocumentPageTarget> targetAtPage(int pageNumber) const;
+    [[nodiscard]] int currentPageNumber() const;
+    [[nodiscard]] int pageCount() const;
+    [[nodiscard]] ImageDocumentPageNavigationSnapshot snapshot() const;
+    [[nodiscard]] const ImageDocumentPageCandidateListSnapshot& confirmedCandidateSnapshot() const;
+    [[nodiscard]] std::optional<QUrl> urlAtPage(int pageNumber) const;
+    [[nodiscard]] std::optional<ImageDocumentPageTarget> targetAtPage(int pageNumber) const;
     ImageDocumentPageSelectionResult selectPage(int pageNumber);
 
     void openAdjacentPage(std::optional<ImageDocumentPageCandidateListContext> context,
@@ -65,7 +65,7 @@ private:
     ImageDocumentPageNavigationPlan recoveryPlanFromCurrentPageRemoved(
         std::vector<ImageDocumentPageCandidate> candidates,
         ImageDocumentPageCandidateListContext context);
-    bool deletionInProgress() const;
+    [[nodiscard]] bool deletionInProgress() const;
 
     const ImageDocumentPageCandidateRepository& m_candidateRepository;
     Callbacks m_callbacks;

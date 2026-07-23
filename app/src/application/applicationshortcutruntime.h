@@ -52,12 +52,12 @@ public:
     void setActionStateInput(const ApplicationActionStateInput& input);
     void setShortcutHost(QObject* host);
 
-    int shortcutRevision() const;
-    QAbstractListModel* shortcutHelpModel() const;
-    QList<QKeySequence> programWideShortcutsForId(ActionId actionId) const;
-    QList<QKeySequence> viewerLocalShortcutsForId(ActionId actionId) const;
+    [[nodiscard]] int shortcutRevision() const;
+    [[nodiscard]] QAbstractListModel* shortcutHelpModel() const;
+    [[nodiscard]] QList<QKeySequence> programWideShortcutsForId(ActionId actionId) const;
+    [[nodiscard]] QList<QKeySequence> viewerLocalShortcutsForId(ActionId actionId) const;
     bool setViewerLocalShortcutsForId(ActionId actionId, const QList<QKeySequence>& shortcuts);
-    QString menuShortcutTextForId(ActionId actionId) const;
+    [[nodiscard]] QString menuShortcutTextForId(ActionId actionId) const;
 
 private:
     void loadViewerLocalShortcuts();
@@ -66,7 +66,7 @@ private:
     void sanitizeProgramWideActionShortcuts();
     void sanitizeProgramWideActionShortcuts(QAction* action);
     static QString actionDisplayText(const QAction* action);
-    QList<ShortcutHelpRow> shortcutHelpRows() const;
+    [[nodiscard]] QList<ShortcutHelpRow> shortcutHelpRows() const;
     void clearShortcutRouter();
     void rebuildShortcutRouter();
     void addShortcutBinding(ActionId actionId, const QList<QKeySequence>& shortcuts,
@@ -74,7 +74,7 @@ private:
         std::optional<ImageShortcutScope> shortcutScope = std::nullopt);
     bool handleShortcutEvent(const QKeySequence& shortcut);
     bool handleFixedShortcutEvent(const QKeySequence& shortcut);
-    bool actionEnabledForShortcut(ActionId actionId) const;
+    [[nodiscard]] bool actionEnabledForShortcut(ActionId actionId) const;
     void updateShortcutEnabledStates();
 
     struct ShortcutBinding

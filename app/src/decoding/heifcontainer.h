@@ -19,7 +19,7 @@ struct HeifContainerInfo
     bool stillImage = false;
     bool imageSequence = false;
 
-    bool isHeif() const { return stillImage || imageSequence; }
+    [[nodiscard]] bool isHeif() const { return stillImage || imageSequence; }
 };
 
 HeifContainerInfo heifContainerInfo(const QByteArray& data);

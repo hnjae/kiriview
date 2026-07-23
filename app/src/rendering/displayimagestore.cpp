@@ -228,7 +228,7 @@ public:
             if (nextId == 0) {
                 ++nextId;
             }
-        } while (entriesById.find(id) != entriesById.end());
+        } while (entriesById.contains(id));
         return id;
     }
 
@@ -263,7 +263,7 @@ public:
         byteCost = saturatedQtByteSum(byteCost, entryByteCost);
         indexEntry(inserted);
         trimToBudget();
-        return entriesById.find(id) == entriesById.end() ? QString() : id;
+        return entriesById.contains(id) ? id : QString();
     }
 
     void removeEntry(EntryIterator entry)

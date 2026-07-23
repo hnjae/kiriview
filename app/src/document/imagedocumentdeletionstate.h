@@ -24,7 +24,7 @@ class ImageDocumentDeletionState final
 public:
     explicit ImageDocumentDeletionState(quint64 nextOperationId = 0);
 
-    bool inProgress() const;
+    [[nodiscard]] bool inProgress() const;
     ImageDocumentDeletionFileOperationStart startFileDeletion();
     ImageDocumentDeletionFileOperationFinish finishFileDeletion(quint64 operationId);
     bool cancelFileDeletion();

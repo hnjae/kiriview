@@ -46,8 +46,8 @@ public:
     ViewportEngineTransition& operator=(ViewportEngineTransition&&) noexcept = default;
     ~ViewportEngineTransition() = default;
 
-    bool schedulesRenderUpdate() const { return m_draft.changes.scheduleUpdate; }
-    const ViewportProviderTransportBatch& providerTransport() const
+    [[nodiscard]] bool schedulesRenderUpdate() const { return m_draft.changes.scheduleUpdate; }
+    [[nodiscard]] const ViewportProviderTransportBatch& providerTransport() const
     {
         return m_draft.providerTransport;
     }
@@ -55,20 +55,22 @@ public:
     {
         return std::move(m_draft.providerTransport);
     }
-    const ViewportPlaybackScheduleEffect& playbackSchedule(
+    [[nodiscard]] const ViewportPlaybackScheduleEffect& playbackSchedule(
         ImageViewportPageRole role = ImageViewportPageRole::Primary) const
     {
         return m_draft.playbackSchedules.forRole(role);
     }
-    const ImageViewportInternal::ProviderSchedulerDiagnostic& providerSchedulerDiagnostic() const
+    [[nodiscard]] const ImageViewportInternal::ProviderSchedulerDiagnostic&
+    providerSchedulerDiagnostic() const
     {
         return m_draft.providerSchedulerDiagnostic;
     }
-    const ImageViewportInternal::RenderFailureDiagnostic& renderFailureDiagnostic() const
+    [[nodiscard]] const ImageViewportInternal::RenderFailureDiagnostic&
+    renderFailureDiagnostic() const
     {
         return m_draft.changes.renderFailureDiagnostic;
     }
-    const ImageViewportInternal::InternalObservationBatch& observations() const
+    [[nodiscard]] const ImageViewportInternal::InternalObservationBatch& observations() const
     {
         return m_draft.observations;
     }
@@ -94,8 +96,8 @@ public:
         = default;
     ~ViewportEngineCommandTransition() = default;
 
-    ImageViewportCommandOutcome outcome() const { return m_outcome; }
-    const ViewportEngineTransition& transition() const { return m_transition; }
+    [[nodiscard]] ImageViewportCommandOutcome outcome() const { return m_outcome; }
+    [[nodiscard]] const ViewportEngineTransition& transition() const { return m_transition; }
     ViewportEngineTransition takeTransition() { return std::move(m_transition); }
 
 private:

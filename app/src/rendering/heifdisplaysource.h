@@ -19,12 +19,15 @@ class HeifDisplaySource final : public StaticImageDisplaySource
 {
 public:
     HeifDisplaySource(QByteArray data, QSize imageSize, std::optional<HeifTileGrid> tileGrid);
+    ~HeifDisplaySource() override = default;
 
-    QSize imageSize() const override;
-    qsizetype byteCost() const override;
-    bool supportsRasterDisplayRefinement() const override;
-    StaticImageDisplayDecodeResult decodeRasterDisplayImage(const QSize& rasterSize) const override;
-    StaticImageDisplayDecodeResult decodeBlockingDisplayImage(int maximumLongEdge) const override;
+    [[nodiscard]] QSize imageSize() const override;
+    [[nodiscard]] qsizetype byteCost() const override;
+    [[nodiscard]] bool supportsRasterDisplayRefinement() const override;
+    [[nodiscard]] StaticImageDisplayDecodeResult decodeRasterDisplayImage(
+        const QSize& rasterSize) const override;
+    [[nodiscard]] StaticImageDisplayDecodeResult decodeBlockingDisplayImage(
+        int maximumLongEdge) const override;
 
 private:
     QImage decodeFullOrScaled(QSize targetSize, QString* errorString) const;

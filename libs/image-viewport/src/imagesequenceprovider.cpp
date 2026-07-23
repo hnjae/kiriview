@@ -643,8 +643,8 @@ bool ImageSequenceProviderRequest::isValid() const
         if (m_tokens.isEmpty()) {
             return false;
         }
-        return std::all_of(m_tokens.cbegin(), m_tokens.cend(),
-            [](ImageSequenceProviderRequestToken token) { return token.isValid(); });
+        return std::ranges::all_of(
+            m_tokens, [](ImageSequenceProviderRequestToken token) { return token.isValid(); });
     case ImageSequenceProviderRequestKind::Close:
         return true;
     }

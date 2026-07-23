@@ -61,14 +61,14 @@ public:
         ImageDocumentRuntimeGraphCallbacks callbacks);
     ~ImageDocumentRuntimeGraph();
 
-    ImageDocumentDeletionController& deletionController() const;
-    ImageDocumentNavigationController& navigationController() const;
-    ImageSpreadPresentationController& spreadController() const;
-    ImageViewportIntegrationRuntime& viewportIntegration() const;
-    std::optional<DisplayedPredecodeImage> primaryDisplayedPredecodeImage() const;
-    ImageFirstDisplayDecodeContext firstDisplayDecodeContext() const;
+    [[nodiscard]] ImageDocumentDeletionController& deletionController() const;
+    [[nodiscard]] ImageDocumentNavigationController& navigationController() const;
+    [[nodiscard]] ImageSpreadPresentationController& spreadController() const;
+    [[nodiscard]] ImageViewportIntegrationRuntime& viewportIntegration() const;
+    [[nodiscard]] std::optional<DisplayedPredecodeImage> primaryDisplayedPredecodeImage() const;
+    [[nodiscard]] ImageFirstDisplayDecodeContext firstDisplayDecodeContext() const;
     void requestNextViewportTargetAnchorAtEnd();
-    MediaEntrySourceVideoPlaybackDeviceResult loadOpenedCollectionVideoPlaybackDevice(
+    [[nodiscard]] MediaEntrySourceVideoPlaybackDeviceResult loadOpenedCollectionVideoPlaybackDevice(
         const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl) const;
 
     void dispatchPlan(const ImageDocumentRuntimePlan& plan);

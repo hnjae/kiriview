@@ -59,7 +59,7 @@ public:
             ContainerTarget { std::move(scope), std::move(target) }, false);
     }
 
-    const QUrl& sourceUrl() const
+    [[nodiscard]] const QUrl& sourceUrl() const
     {
         return std::visit(
             [](const auto& assignment) -> const QUrl& {
@@ -72,7 +72,7 @@ public:
             },
             m_assignment);
     }
-    ImageDocumentPageKind sourceKind() const
+    [[nodiscard]] ImageDocumentPageKind sourceKind() const
     {
         return std::visit(
             [](const auto& assignment) {
@@ -85,7 +85,7 @@ public:
             },
             m_assignment);
     }
-    OpenedCollectionScopeLocation openedCollectionScope() const
+    [[nodiscard]] OpenedCollectionScopeLocation openedCollectionScope() const
     {
         return std::visit(
             [](const auto& assignment) {
@@ -98,22 +98,25 @@ public:
             },
             m_assignment);
     }
-    QUrl containerNavigationUrl() const
+    [[nodiscard]] QUrl containerNavigationUrl() const
     {
         const auto* target = std::get_if<ContainerTarget>(&m_assignment);
         return target == nullptr ? QUrl() : target->scope.fileUrl();
     }
-    const ResolvedNavigationSource* externalSource() const
+    [[nodiscard]] const ResolvedNavigationSource* externalSource() const
     {
         const auto* source = std::get_if<ExternalResolvedSource>(&m_assignment);
         return source == nullptr ? nullptr : &source->source;
     }
-    bool preserveTwoPageSpreadTransition() const { return m_preserveTwoPageSpreadTransition; }
-    bool sameScopePageNavigation() const
+    [[nodiscard]] bool preserveTwoPageSpreadTransition() const
+    {
+        return m_preserveTwoPageSpreadTransition;
+    }
+    [[nodiscard]] bool sameScopePageNavigation() const
     {
         return std::holds_alternative<SameScopePageTarget>(m_assignment);
     }
-    bool isEmpty() const { return sourceUrl().isEmpty(); }
+    [[nodiscard]] bool isEmpty() const { return sourceUrl().isEmpty(); }
 
 private:
     explicit ImageDocumentSourceLoadRequest(

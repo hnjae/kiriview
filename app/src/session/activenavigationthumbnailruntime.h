@@ -43,8 +43,8 @@ public:
     ActiveNavigationThumbnailRuntime(const ActiveNavigationThumbnailRuntime&) = delete;
     ActiveNavigationThumbnailRuntime& operator=(const ActiveNavigationThumbnailRuntime&) = delete;
 
-    QAbstractListModel* model() const;
-    quint64 navigationGeneration() const;
+    [[nodiscard]] QAbstractListModel* model() const;
+    [[nodiscard]] quint64 navigationGeneration() const;
 
     void setRows(std::vector<ActiveNavigationThumbnailRow> rows);
     void setCurrentNumber(int currentNumber);

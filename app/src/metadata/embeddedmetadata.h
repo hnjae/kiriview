@@ -30,7 +30,7 @@ struct EmbeddedMetadata
     QString frameSize;
     std::vector<EmbeddedMetadataRow> advancedRows;
 
-    bool isEmpty() const;
+    [[nodiscard]] bool isEmpty() const;
 };
 
 EmbeddedMetadata parseImageEmbeddedMetadata(const QByteArray& data);

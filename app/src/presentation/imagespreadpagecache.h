@@ -17,7 +17,7 @@ class ImageSpreadPageCache
 {
 public:
     void cachePageSize(const QUrl& url, QSize imageSize);
-    std::optional<bool> cachedPageIsWide(const QUrl& url) const;
+    [[nodiscard]] std::optional<bool> cachedPageIsWide(const QUrl& url) const;
 
     static QString cacheKey(const QUrl& url);
 

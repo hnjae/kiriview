@@ -49,7 +49,7 @@ struct ImageDecodeJobRuntimePlan
 {
     ImageDecodeJobRuntimeOperation operation;
 
-    bool hasOperation() const
+    [[nodiscard]] bool hasOperation() const
     {
         return !std::holds_alternative<NoImageDecodeJobOperation>(operation);
     }
@@ -62,7 +62,7 @@ public:
 
     ImageDecodeJobTicket start(ImageDecodeRequest request);
     void cancel();
-    bool hasActiveRequest() const;
+    [[nodiscard]] bool hasActiveRequest() const;
 
     ImageDecodeJobRuntimePlan acceptLoadedData(const ImageDecodeJobTicket& ticket);
     ImageDecodeJobRuntimePlan acceptLoadError(const ImageDecodeJobTicket& ticket);
@@ -75,10 +75,12 @@ private:
         Decoding,
     };
 
-    bool accepts(const ImageDecodeJobTicket& ticket) const;
-    ImageDecodeJobRuntimePlan noOperation() const;
-    ImageDecodeJobRuntimePlan startDecodePlan(const ImageDecodeRequest& request) const;
-    ImageDecodeJobRuntimePlan thumbnailPreviewPlan(const ImageDecodeRequest& request) const;
+    [[nodiscard]] bool accepts(const ImageDecodeJobTicket& ticket) const;
+    [[nodiscard]] ImageDecodeJobRuntimePlan noOperation() const;
+    [[nodiscard]] ImageDecodeJobRuntimePlan startDecodePlan(
+        const ImageDecodeRequest& request) const;
+    [[nodiscard]] ImageDecodeJobRuntimePlan thumbnailPreviewPlan(
+        const ImageDecodeRequest& request) const;
     template <typename Operation>
     ImageDecodeJobRuntimePlan claim(const ImageDecodeJobTicket& ticket, Phase phase);
 

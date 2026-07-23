@@ -382,7 +382,7 @@ ImageDocumentPageNavigationController::recoveryPlanFromCurrentPageRemoved(
         = imageRemovalFallbackTarget(std::move(candidates), fallback);
     ImageDocumentPageNavigationPlan plan { ClearCurrentImageDocumentPageNavigationEffect {} };
     if (fallbackTarget.has_value()) {
-        plan.push_back(OpenImageDocumentPageUrlEffect { *fallbackTarget });
+        plan.emplace_back(OpenImageDocumentPageUrlEffect { *fallbackTarget });
     }
     return plan;
 }

@@ -22,7 +22,7 @@ public:
     explicit DocumentSessionDirectMediaNavigationLoadState(quint64 nextOperationId = 0);
 
     DocumentSessionDirectMediaNavigationLoad start(const DirectMediaScope& scope);
-    bool accepts(const DocumentSessionDirectMediaNavigationLoad& load) const;
+    [[nodiscard]] bool accepts(const DocumentSessionDirectMediaNavigationLoad& load) const;
     bool finish(const DocumentSessionDirectMediaNavigationLoad& load);
     void cancel();
 

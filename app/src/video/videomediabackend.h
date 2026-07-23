@@ -57,16 +57,16 @@ public:
     virtual void setPosition(qint64 position) = 0;
     virtual void setMuted(bool muted) = 0;
     virtual void setVideoOutput(QObject* videoOutput) = 0;
-    virtual QObject* videoOutput() const = 0;
-    virtual VideoMediaStatus mediaStatus() const = 0;
-    virtual qint64 duration() const = 0;
-    virtual qint64 position() const = 0;
-    virtual bool playing() const = 0;
-    virtual bool seekable() const = 0;
-    virtual bool hasVideo() const = 0;
-    virtual bool hasAudio() const = 0;
-    virtual QSize videoSize() const = 0;
-    virtual bool muted() const = 0;
+    [[nodiscard]] virtual QObject* videoOutput() const = 0;
+    [[nodiscard]] virtual VideoMediaStatus mediaStatus() const = 0;
+    [[nodiscard]] virtual qint64 duration() const = 0;
+    [[nodiscard]] virtual qint64 position() const = 0;
+    [[nodiscard]] virtual bool playing() const = 0;
+    [[nodiscard]] virtual bool seekable() const = 0;
+    [[nodiscard]] virtual bool hasVideo() const = 0;
+    [[nodiscard]] virtual bool hasAudio() const = 0;
+    [[nodiscard]] virtual QSize videoSize() const = 0;
+    [[nodiscard]] virtual bool muted() const = 0;
     Q_DISABLE_COPY(VideoMediaBackend)
 };
 

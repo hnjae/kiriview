@@ -24,7 +24,7 @@ public:
     explicit VideoOutputRenderContextObserver(std::function<void()> renderContextChanged = {});
 
     void setVideoOutput(QObject* videoOutput);
-    std::optional<qreal> devicePixelRatio() const;
+    [[nodiscard]] std::optional<qreal> devicePixelRatio() const;
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;

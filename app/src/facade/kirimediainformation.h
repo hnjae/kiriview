@@ -33,9 +33,10 @@ public:
 
     explicit KiriMediaInformationRowModel(QObject* parent = nullptr);
 
-    int rowCount(const QModelIndex& parent = QModelIndex()) const override;
-    QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
-    QHash<int, QByteArray> roleNames() const override;
+    [[nodiscard]] int rowCount(const QModelIndex& parent = QModelIndex()) const override;
+    [[nodiscard]] QVariant data(
+        const QModelIndex& index, int role = Qt::DisplayRole) const override;
+    [[nodiscard]] QHash<int, QByteArray> roleNames() const override;
 
     void setRows(std::vector<Row> rows);
 
@@ -66,19 +67,19 @@ class KiriMediaInformation : public QObject
 public:
     explicit KiriMediaInformation(KiriDocumentSession& session, QObject* parent = nullptr);
 
-    bool available() const;
-    quint64 revision() const;
-    QString title() const;
-    QString summary() const;
-    QString mediaSectionTitle() const;
-    bool hasCameraSection() const;
-    bool hasAdvancedSection() const;
+    [[nodiscard]] bool available() const;
+    [[nodiscard]] quint64 revision() const;
+    [[nodiscard]] QString title() const;
+    [[nodiscard]] QString summary() const;
+    [[nodiscard]] QString mediaSectionTitle() const;
+    [[nodiscard]] bool hasCameraSection() const;
+    [[nodiscard]] bool hasAdvancedSection() const;
     QAbstractListModel* generalRows();
     QAbstractListModel* mediaRows();
     QAbstractListModel* cameraRows();
     QAbstractListModel* advancedRows();
-    bool canCopyFilePath() const;
-    bool canOpenContainingFolder() const;
+    [[nodiscard]] bool canCopyFilePath() const;
+    [[nodiscard]] bool canOpenContainingFolder() const;
 
     Q_INVOKABLE void copyFilePath();
     Q_INVOKABLE void openContainingFolder();
@@ -88,8 +89,8 @@ Q_SIGNALS:
 
 private:
     void refresh();
-    QUrl targetUrl() const;
-    QString copiedFilePath() const;
+    [[nodiscard]] QUrl targetUrl() const;
+    [[nodiscard]] QString copiedFilePath() const;
 
     KiriDocumentSession& m_session;
     KiriMediaInformationRowModel m_generalRows;

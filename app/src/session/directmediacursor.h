@@ -25,12 +25,12 @@ public:
     static std::optional<DirectMediaScope> fromSource(
         const ResolvedNavigationSource& source, quint64 generation);
 
-    const QUrl& currentUrl() const { return m_currentUrl; }
-    const QUrl& parentUrl() const { return m_parentUrl; }
-    quint64 generation() const { return m_generation; }
-    const SourceKey& currentKey() const { return m_currentKey; }
-    const SourceKey& parentKey() const { return m_parentKey; }
-    const QUrl& navigationUrl() const { return m_navigationUrl; }
+    [[nodiscard]] const QUrl& currentUrl() const { return m_currentUrl; }
+    [[nodiscard]] const QUrl& parentUrl() const { return m_parentUrl; }
+    [[nodiscard]] quint64 generation() const { return m_generation; }
+    [[nodiscard]] const SourceKey& currentKey() const { return m_currentKey; }
+    [[nodiscard]] const SourceKey& parentKey() const { return m_parentKey; }
+    [[nodiscard]] const QUrl& navigationUrl() const { return m_navigationUrl; }
 
     friend bool operator==(const DirectMediaScope& left, const DirectMediaScope& right)
     {

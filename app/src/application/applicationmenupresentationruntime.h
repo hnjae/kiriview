@@ -20,7 +20,7 @@ public:
     explicit ApplicationMenuPresentationRuntime(
         ApplicationActionHost& host, ChangeCallback changeCallback = {});
 
-    MenuPresentation menuPresentation() const;
+    [[nodiscard]] MenuPresentation menuPresentation() const;
     void setMenuPresentation(MenuPresentation presentation);
     void bindShowMenuBarAction(QAction* action);
     void syncFromSettings();

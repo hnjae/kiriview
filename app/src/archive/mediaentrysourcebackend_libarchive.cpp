@@ -48,7 +48,7 @@ public:
         return *this;
     }
 
-    int get() const { return m_fileDescriptor; }
+    [[nodiscard]] int get() const { return m_fileDescriptor; }
 
     explicit operator bool() const { return m_fileDescriptor >= 0; }
 

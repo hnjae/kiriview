@@ -123,7 +123,7 @@ public:
             m_reader->canRead());
     }
 
-    bool restartable() const override { return true; }
+    [[nodiscard]] bool restartable() const override { return true; }
 
 private:
     QByteArray m_data;
@@ -177,7 +177,7 @@ public:
         return playbackReadEnd();
     }
 
-    bool restartable() const override { return true; }
+    [[nodiscard]] bool restartable() const override { return true; }
 
 private:
     QByteArray m_data;
@@ -231,7 +231,7 @@ public:
         return playbackReadEnd();
     }
 
-    bool restartable() const override { return true; }
+    [[nodiscard]] bool restartable() const override { return true; }
 
 private:
     QByteArray m_data;
@@ -285,7 +285,7 @@ public:
         return playbackReadEnd();
     }
 
-    bool restartable() const override { return true; }
+    [[nodiscard]] bool restartable() const override { return true; }
 
 private:
     QByteArray m_data;
@@ -339,7 +339,7 @@ public:
         return playbackReadEnd();
     }
 
-    bool restartable() const override { return false; }
+    [[nodiscard]] bool restartable() const override { return false; }
 
 private:
     QByteArray m_data;

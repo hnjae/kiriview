@@ -48,7 +48,7 @@ public:
     void cacheDisplayedImages(const DocumentSessionMediaPredecodeInput& input);
     void cancel();
     void clear();
-    std::optional<PredecodedImage> findPredecodedImage(const QUrl& url) const;
+    [[nodiscard]] std::optional<PredecodedImage> findPredecodedImage(const QUrl& url) const;
 
 private:
     static std::vector<DisplayedPredecodeImage> displayedImages(

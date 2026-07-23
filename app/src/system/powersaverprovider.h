@@ -17,7 +17,7 @@ class PowerSaverStateMonitor
 public:
     PowerSaverStateMonitor() = default;
     virtual ~PowerSaverStateMonitor() = default;
-    virtual bool powerSaverEnabled() const = 0;
+    [[nodiscard]] virtual bool powerSaverEnabled() const = 0;
     Q_DISABLE_COPY(PowerSaverStateMonitor)
 };
 

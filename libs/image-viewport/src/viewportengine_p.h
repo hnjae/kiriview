@@ -33,8 +33,8 @@ public:
     ViewportEngine& operator=(const ViewportEngine&) = delete;
     ViewportEngine(ViewportEngine&&) = delete;
     ViewportEngine& operator=(ViewportEngine&&) = delete;
-    ImageViewportStateSnapshot snapshot() const;
-    ViewportEngineCoordinateQueryResult queryCoordinate(
+    [[nodiscard]] ImageViewportStateSnapshot snapshot() const;
+    [[nodiscard]] ViewportEngineCoordinateQueryResult queryCoordinate(
         const ViewportEngineCoordinateQueryRequest& input) const;
     ViewportRenderAttempt beginRenderSynchronization();
     ViewportEngineTransition handleRenderHostFact(const ViewportEngineRenderHostFactRequest& input);
@@ -45,24 +45,26 @@ public:
     ViewportEngineCommandTransition applyPlaybackCommand(
         ViewportEnginePlaybackCommandRequest input);
     ViewportEngineTransition advancePlayback(ViewportEnginePlaybackTickRequest input);
-    bool canAssignPresentationTarget(
+    [[nodiscard]] bool canAssignPresentationTarget(
         const ViewportEnginePresentationTargetAssignmentRequest& input) const;
     ViewportEngineCommandTransition assignPresentationTarget(
         const ViewportEnginePresentationTargetAssignmentRequest& input);
     ViewportEngineCommandTransition applyPresentationCommand(
         const ViewportEnginePresentationCommandRequest& input);
     ViewportProviderTransportBatch shutdown();
-    QSet<quint64> providerFrameLeaseIds() const;
-    QSet<quint64> providerFailureLeaseIds() const;
-    bool acceptsProviderTransportCommand(const ViewportProviderTransportCommand& command) const;
+    [[nodiscard]] QSet<quint64> providerFrameLeaseIds() const;
+    [[nodiscard]] QSet<quint64> providerFailureLeaseIds() const;
+    [[nodiscard]] bool acceptsProviderTransportCommand(
+        const ViewportProviderTransportCommand& command) const;
 
 private:
     using GeometryInput = ViewportEngineGeometryInput;
-    ViewportEngineCommandDiagnostics commandDiagnostics() const;
-    ViewportEnginePresentationTargetState presentationTargetState() const;
-    ViewportRenderSnapshot renderSnapshot(const ViewportRenderSnapshotInput& input) const;
+    [[nodiscard]] ViewportEngineCommandDiagnostics commandDiagnostics() const;
+    [[nodiscard]] ViewportEnginePresentationTargetState presentationTargetState() const;
+    [[nodiscard]] ViewportRenderSnapshot renderSnapshot(
+        const ViewportRenderSnapshotInput& input) const;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-    const ImageViewportInternal::PresentationState& presentationState() const;
+    [[nodiscard]] const ImageViewportInternal::PresentationState& presentationState() const;
 #endif
     ViewportEngineCommandResult rejectInvalidCommand();
     quint64 allocateRevisionValue();
@@ -80,21 +82,21 @@ private:
         const ViewportEngineCommandResult& command, ViewportEngineTransitionDraft draft);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     ImageViewportInternal::DisplayState& displayState();
-    const ImageViewportInternal::DisplayState& displayState() const;
+    [[nodiscard]] const ImageViewportInternal::DisplayState& displayState() const;
     ImageViewportInternal::RequestState& requestState();
-    const ImageViewportInternal::RequestState& requestState() const;
+    [[nodiscard]] const ImageViewportInternal::RequestState& requestState() const;
     ImageViewportInternal::PlaybackState& playbackState();
-    const ImageViewportInternal::PlaybackState& playbackState() const;
+    [[nodiscard]] const ImageViewportInternal::PlaybackState& playbackState() const;
 #endif
-    ViewportEngineSnapshotStateAccess snapshotAccess() const;
-    ViewportEngineProviderFactsView providerFactsView() const;
+    [[nodiscard]] ViewportEngineSnapshotStateAccess snapshotAccess() const;
+    [[nodiscard]] ViewportEngineProviderFactsView providerFactsView() const;
     ViewportPlaybackScheduleBatch currentPlaybackSchedules();
-    PresentationGeometry::State geometryState() const;
-    GeometryInput currentGeometry() const;
-    GeometryInput pendingGeometry() const;
-    GeometryInput rawAcceptedGeometry() const;
-    GeometryInput acceptedGeometry() const;
-    PresentationGeometry::State geometryState(const GeometryInput& input) const;
+    [[nodiscard]] PresentationGeometry::State geometryState() const;
+    [[nodiscard]] GeometryInput currentGeometry() const;
+    [[nodiscard]] GeometryInput pendingGeometry() const;
+    [[nodiscard]] GeometryInput rawAcceptedGeometry() const;
+    [[nodiscard]] GeometryInput acceptedGeometry() const;
+    [[nodiscard]] PresentationGeometry::State geometryState(const GeometryInput& input) const;
     std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands(
         const GeometryInput& geometry);
     std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands();
@@ -113,7 +115,7 @@ private:
     ViewportProviderFrameQueueFlushResult reduceQueuedProviderFrameRequest(
         ImageViewportPageRole role);
     ViewportProviderFrameTransportEffect closeProviderSession(ImageViewportPageRole role);
-    bool hasCompleteCommittedPresentation() const;
+    [[nodiscard]] bool hasCompleteCommittedPresentation() const;
     ViewportProviderTransportBatch pinCurrentPresentationForRestoration();
     void retireRestoration(ViewportEngineTransitionDraft& transition);
     bool restorePreviousIfTerminal(ViewportEngineTransitionDraft& transition);
@@ -126,7 +128,7 @@ private:
     ViewportEngineCommandResult rejected(
         ImageViewportCommandOutcome outcome, ImageViewportCommandReason reason);
     ViewportEngineCommandResult accepted();
-    ViewportEngineCommandResult acceptedPreservingCommandDiagnostics() const;
+    [[nodiscard]] ViewportEngineCommandResult acceptedPreservingCommandDiagnostics() const;
     RevisionToken nextCommandRevision();
 
     std::unique_ptr<ViewportEngineCanonicalState> m_state;

@@ -62,32 +62,32 @@ public:
     explicit ApplicationActionRuntime(ApplicationActionHost& host, Callbacks callbacks = {});
     ~ApplicationActionRuntime();
 
-    MenuPresentation menuPresentation() const;
+    [[nodiscard]] MenuPresentation menuPresentation() const;
     void setMenuPresentation(MenuPresentation presentation);
-    int shortcutRevision() const;
-    QAbstractListModel* shortcutHelpModel() const;
+    [[nodiscard]] int shortcutRevision() const;
+    [[nodiscard]] QAbstractListModel* shortcutHelpModel() const;
 
     QAction* actionForId(ActionId actionId);
-    QList<QKeySequence> programWideShortcutsForId(ActionId actionId) const;
-    QList<QKeySequence> viewerLocalShortcutsForId(ActionId actionId) const;
+    [[nodiscard]] QList<QKeySequence> programWideShortcutsForId(ActionId actionId) const;
+    [[nodiscard]] QList<QKeySequence> viewerLocalShortcutsForId(ActionId actionId) const;
     bool setViewerLocalShortcutsForId(ActionId actionId, const QList<QKeySequence>& shortcuts);
-    QString menuShortcutTextForId(ActionId actionId) const;
-    int actionStateRevision() const;
-    bool actionPlacementEnabled(ActionId actionId) const;
-    QString actionMenuText(ActionId actionId) const;
-    QString actionToolbarText(ActionId actionId) const;
-    QString actionToolbarTooltipText(ActionId actionId) const;
+    [[nodiscard]] QString menuShortcutTextForId(ActionId actionId) const;
+    [[nodiscard]] int actionStateRevision() const;
+    [[nodiscard]] bool actionPlacementEnabled(ActionId actionId) const;
+    [[nodiscard]] QString actionMenuText(ActionId actionId) const;
+    [[nodiscard]] QString actionToolbarText(ActionId actionId) const;
+    [[nodiscard]] QString actionToolbarTooltipText(ActionId actionId) const;
     void setActionStateSnapshot(const ApplicationActionStateSnapshot& snapshot);
     void setActionStateInput(const ApplicationActionStateInput& input);
     void setCommandPortSource(ApplicationCommandPortSource* source);
-    ApplicationCommandRouterInput commandRouterInput() const;
-    bool rightToLeftReadingActive() const;
-    NavigationPresentationProjection navigationPresentationProjection() const;
+    [[nodiscard]] ApplicationCommandRouterInput commandRouterInput() const;
+    [[nodiscard]] bool rightToLeftReadingActive() const;
+    [[nodiscard]] NavigationPresentationProjection navigationPresentationProjection() const;
     void handleActionTriggered(ActionId actionId) const;
-    bool executeHorizontalArrowShortcut(bool leftArrow) const;
-    bool executeSinglePageArrowShortcut(bool leftArrow) const;
-    bool executeVerticalPanShortcut(bool up) const;
-    bool executeVideoSeekShortcut(qint64 deltaMilliseconds) const;
+    [[nodiscard]] bool executeHorizontalArrowShortcut(bool leftArrow) const;
+    [[nodiscard]] bool executeSinglePageArrowShortcut(bool leftArrow) const;
+    [[nodiscard]] bool executeVerticalPanShortcut(bool up) const;
+    [[nodiscard]] bool executeVideoSeekShortcut(qint64 deltaMilliseconds) const;
     void setShortcutHost(QObject* host);
 
     void setupActions();
@@ -100,7 +100,7 @@ private:
     QAction* finishRegisteredAction(QAction* registeredAction, const QString& text,
         const QList<QKeySequence>& defaultShortcuts);
     void applyActionState();
-    ApplicationCommandRouterPorts commandRouterPorts() const;
+    [[nodiscard]] ApplicationCommandRouterPorts commandRouterPorts() const;
     void handleActionChanged(QAction* changedAction);
     void handleActionTriggered(ActionId actionId, QAction* triggeredAction);
 

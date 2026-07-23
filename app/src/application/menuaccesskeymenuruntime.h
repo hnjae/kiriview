@@ -14,10 +14,10 @@ namespace kiriview {
 class MenuAccessKeyMenuRuntime final
 {
 public:
-    QObject* menu() const;
+    [[nodiscard]] QObject* menu() const;
     bool setMenu(QObject* menu);
 
-    QObject* openMenu() const;
+    [[nodiscard]] QObject* openMenu() const;
     bool triggerMnemonic(QKeyEvent* event, bool accessKeySessionActive);
     void setAccessKeysActive(bool active);
 

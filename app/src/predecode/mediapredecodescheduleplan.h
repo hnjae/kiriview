@@ -17,6 +17,8 @@ struct MediaPredecodeSchedulePayload final : PredecodeSchedulePayload
 {
 public:
     MediaPredecodeSchedulePayload() = default;
+    ~MediaPredecodeSchedulePayload() override = default;
+
     DirectMediaNavigationCandidateSnapshot directMediaNavigationCandidateSnapshot;
     MediaPredecodeEligibilitySnapshot eligibleImages;
     Q_DISABLE_COPY(MediaPredecodeSchedulePayload)
@@ -35,7 +37,7 @@ struct MediaPredecodeSchedulePlan
 {
     PredecodeScheduleContext context;
 
-    bool shouldSchedule() const;
+    [[nodiscard]] bool shouldSchedule() const;
 };
 
 MediaPredecodeSchedulePlan mediaPredecodeSchedulePlan(MediaPredecodeScheduleRequest request);

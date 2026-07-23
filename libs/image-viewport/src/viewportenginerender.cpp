@@ -74,10 +74,9 @@ bool acknowledgementMatchesAttempt(
     }
     const QVector<ViewportRenderRolePayload> expected = expectedPayloads(attempt);
     if (fact.outcome == ViewportRenderHostFact::Outcome::Failed) {
-        const auto expectedFailed = std::find_if(expected.cbegin(), expected.cend(),
+        const auto expectedFailed = std::ranges::find_if(expected,
             [&](const auto& payload) { return payload.role == acknowledgement.failedRole; });
-        const auto actualFailed = std::find_if(acknowledgement.rolePayloads.cbegin(),
-            acknowledgement.rolePayloads.cend(),
+        const auto actualFailed = std::ranges::find_if(acknowledgement.rolePayloads,
             [&](const auto& payload) { return payload.role == acknowledgement.failedRole; });
         return expectedFailed != expected.cend()
             && actualFailed != acknowledgement.rolePayloads.cend()

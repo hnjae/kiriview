@@ -698,11 +698,10 @@ ViewportEngineAuthoredAutoplayReduction reduceViewportEngineAuthoredAutoplay(
         result.playbackPhaseChanged
             = result.playbackPhaseChanged || previousPhase != rolePlayback.phase;
     }
-    result.resolved
-        = std::all_of(playback.roles.cbegin(), playback.roles.cend(), [](const auto& rolePlayback) {
-              return rolePlayback.authoredAutoplayArbitration
-                  != AuthoredAutoplayArbitrationState::Pending;
-          });
+    result.resolved = std::ranges::all_of(playback.roles, [](const auto& rolePlayback) {
+        return rolePlayback.authoredAutoplayArbitration
+            != AuthoredAutoplayArbitrationState::Pending;
+    });
     return result;
 }
 

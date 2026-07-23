@@ -29,10 +29,10 @@ public:
     void release(const QString& id);
     void clear();
     void setByteBudget(qsizetype byteBudget);
-    QImage image(const QString& id) const;
-    qsizetype byteBudget() const;
-    qsizetype byteCost() const;
-    qsizetype size() const;
+    [[nodiscard]] QImage image(const QString& id) const;
+    [[nodiscard]] qsizetype byteBudget() const;
+    [[nodiscard]] qsizetype byteCost() const;
+    [[nodiscard]] qsizetype size() const;
 
 private:
     class Private;

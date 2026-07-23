@@ -25,17 +25,17 @@ public:
     ImageLoadSession(quint64 id, ImageLoadRequest request, DisplayedImageLocation location,
         ImageFirstDisplayDecodeContext firstDisplay = {});
 
-    quint64 id() const;
-    const ImageLoadRequest& request() const;
-    const DisplayedImageLocation& location() const;
-    const ImageFirstDisplayDecodeContext& firstDisplay() const;
-    const QUrl& imageUrl() const;
-    ImageDocumentPageKind kind() const;
-    const OpenedCollectionScopeLocation& openedCollectionScope() const;
-    QUrl containerNavigationUrl() const;
-    bool hasContainerNavigationTarget() const;
-    ImageDecodeRequest decodeRequest() const;
-    bool sameSession(const ImageLoadSession& session) const;
+    [[nodiscard]] quint64 id() const;
+    [[nodiscard]] const ImageLoadRequest& request() const;
+    [[nodiscard]] const DisplayedImageLocation& location() const;
+    [[nodiscard]] const ImageFirstDisplayDecodeContext& firstDisplay() const;
+    [[nodiscard]] const QUrl& imageUrl() const;
+    [[nodiscard]] ImageDocumentPageKind kind() const;
+    [[nodiscard]] const OpenedCollectionScopeLocation& openedCollectionScope() const;
+    [[nodiscard]] QUrl containerNavigationUrl() const;
+    [[nodiscard]] bool hasContainerNavigationTarget() const;
+    [[nodiscard]] ImageDecodeRequest decodeRequest() const;
+    [[nodiscard]] bool sameSession(const ImageLoadSession& session) const;
 
     void setImageDocumentPageCandidate(const ImageDocumentPageCandidate& candidate);
 

@@ -19,10 +19,10 @@ public:
     void record(InternalObservation observation);
     void record(const InternalObservationBatch& observations);
 
-    ProviderTransportDiagnostic lastProviderCleanupFailure() const;
-    ProviderSchedulerDiagnostic lastProviderSchedulerFailure() const;
-    RenderFailureDiagnostic lastRenderFailure() const;
-    QVector<InternalObservation> observations() const;
+    [[nodiscard]] ProviderTransportDiagnostic lastProviderCleanupFailure() const;
+    [[nodiscard]] ProviderSchedulerDiagnostic lastProviderSchedulerFailure() const;
+    [[nodiscard]] RenderFailureDiagnostic lastRenderFailure() const;
+    [[nodiscard]] QVector<InternalObservation> observations() const;
 
 private:
     ProviderTransportDiagnostic m_lastProviderCleanupFailure;

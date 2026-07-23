@@ -137,11 +137,14 @@ public:
     ViewportEngineRenderSynchronizationMutation takeMutation() { return { std::move(m_render) }; }
 
 private:
-    const ImageViewportInternal::RequestState& request() const { return m_request; }
-    const ImageViewportInternal::DisplayState& display() const { return m_display; }
-    const ImageViewportInternal::PresentationState& presentation() const { return m_presentation; }
+    [[nodiscard]] const ImageViewportInternal::RequestState& request() const { return m_request; }
+    [[nodiscard]] const ImageViewportInternal::DisplayState& display() const { return m_display; }
+    [[nodiscard]] const ImageViewportInternal::PresentationState& presentation() const
+    {
+        return m_presentation;
+    }
     ViewportEngineRenderCoordinationState& render() { return m_render; }
-    ViewportEngineRenderSnapshotProjectionAccess renderSnapshot() const
+    [[nodiscard]] ViewportEngineRenderSnapshotProjectionAccess renderSnapshot() const
     {
         return { m_request, m_display, m_presentation };
     }
@@ -174,7 +177,10 @@ public:
     {
         return { std::move(m_request), std::move(m_display), m_playback };
     }
-    const ViewportEngineProviderFactsView& providerFacts() const { return m_providerFacts; }
+    [[nodiscard]] const ViewportEngineProviderFactsView& providerFacts() const
+    {
+        return m_providerFacts;
+    }
 
 private:
     ImageViewportInternal::RequestState& request() { return m_request; }

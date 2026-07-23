@@ -51,7 +51,7 @@ public:
     }
 
 private:
-    kiriview::ImageViewportProviderWorkIdentity identity(
+    [[nodiscard]] kiriview::ImageViewportProviderWorkIdentity identity(
         const ImageSequenceProviderRequest& request) const
     {
         return {

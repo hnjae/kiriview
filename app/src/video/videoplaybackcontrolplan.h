@@ -58,7 +58,7 @@ struct VideoPlaybackControlPlan
     VideoPlaybackStateDelta stateDelta;
     std::vector<VideoPlaybackBackendOperation> backendOperations;
 
-    bool isEmpty() const;
+    [[nodiscard]] bool isEmpty() const;
 };
 
 VideoPlaybackControlPlan videoPlaybackPlayPlan(VideoPlaybackControlSnapshot snapshot);

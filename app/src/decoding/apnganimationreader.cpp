@@ -145,7 +145,10 @@ public:
         });
     }
 
-    bool hasMoreFrames() const { return rustApngAnimationReaderHasMoreFrames(*reader); }
+    [[nodiscard]] bool hasMoreFrames() const
+    {
+        return rustApngAnimationReaderHasMoreFrames(*reader);
+    }
 
     void close()
     {

@@ -33,7 +33,7 @@ public:
         QSizeF logicalSize;
         TimingIntervals timingIntervals;
 
-        bool accepted() const;
+        [[nodiscard]] bool accepted() const;
     };
 
     struct ProviderKnownFactsAdmissionResult
@@ -56,7 +56,7 @@ public:
         int frameCount = -1;
         TimingIntervals timingIntervals;
 
-        bool accepted() const;
+        [[nodiscard]] bool accepted() const;
     };
 
     struct ProviderFrameState
@@ -99,7 +99,7 @@ public:
         QString diagnostic;
         ImageViewportInternal::PreparedPayload preparedPayload;
 
-        bool accepted() const;
+        [[nodiscard]] bool accepted() const;
     };
 
     struct BuiltInFrameAdmissionResult
@@ -117,7 +117,7 @@ public:
         QString diagnostic;
         ImageViewportInternal::PreparedPayload preparedPayload;
 
-        bool accepted() const;
+        [[nodiscard]] bool accepted() const;
     };
 
     static ProviderMetadataAdmissionResult admitProviderMetadata(

@@ -50,29 +50,29 @@ public:
     ImageSpreadPresentationController(ImageDocumentState& state, Callbacks callbacks);
     ~ImageSpreadPresentationController();
 
-    int currentLastPageNumber() const;
-    ImageDocumentPageActiveNavigationSnapshot activeNavigationSnapshot() const;
-    ImageSpreadPageNavigationTarget imageDocumentPageNavigationTarget(
+    [[nodiscard]] int currentLastPageNumber() const;
+    [[nodiscard]] ImageDocumentPageActiveNavigationSnapshot activeNavigationSnapshot() const;
+    [[nodiscard]] ImageSpreadPageNavigationTarget imageDocumentPageNavigationTarget(
         NavigationDirection direction) const;
-    int relativePageNavigationTarget(int offset) const;
+    [[nodiscard]] int relativePageNavigationTarget(int offset) const;
 
-    bool twoPageModeEnabled() const;
+    [[nodiscard]] bool twoPageModeEnabled() const;
     void setTwoPageModeEnabled(bool enabled);
     void restoreTwoPageModeEnabled(bool enabled);
-    bool twoPageModeAvailable() const;
-    bool twoPageModeActive() const;
-    bool rightToLeftReadingEnabled() const;
+    [[nodiscard]] bool twoPageModeAvailable() const;
+    [[nodiscard]] bool twoPageModeActive() const;
+    [[nodiscard]] bool rightToLeftReadingEnabled() const;
     void setRightToLeftReadingEnabled(bool enabled);
-    bool rightToLeftReadingAvailable() const;
-    bool rightToLeftReadingActive() const;
-    bool secondaryPageVisible() const;
-    std::optional<DisplayedPredecodeImage> secondaryDisplayedPredecodeImage() const;
+    [[nodiscard]] bool rightToLeftReadingAvailable() const;
+    [[nodiscard]] bool rightToLeftReadingActive() const;
+    [[nodiscard]] bool secondaryPageVisible() const;
+    [[nodiscard]] std::optional<DisplayedPredecodeImage> secondaryDisplayedPredecodeImage() const;
 
     void commitPrimaryPageSlot(const DisplayedImageLocation& location, QSize imageSize);
     void clearPrimaryPageSlot();
     void refreshSecondaryPage();
     void handleDocumentChange(ImageDocumentChange change);
-    bool shouldBeginTransition(int targetPageNumber) const;
+    [[nodiscard]] bool shouldBeginTransition(int targetPageNumber) const;
     void clearSecondaryPage();
     void shutdown();
     void finishViewportSecondaryPageLoad(
@@ -88,12 +88,12 @@ private:
     void discardSecondaryPage(bool submitShapeChange);
     void finishSecondaryPageAsPrimaryOnly();
     void finishSecondaryPageVisible();
-    bool primaryPageIsWide() const;
-    bool readingControlsAvailable() const;
-    bool secondaryPageVisibleForNavigation() const;
-    ImageSpreadPageNavigationContext pageNavigationContext() const;
+    [[nodiscard]] bool primaryPageIsWide() const;
+    [[nodiscard]] bool readingControlsAvailable() const;
+    [[nodiscard]] bool secondaryPageVisibleForNavigation() const;
+    [[nodiscard]] ImageSpreadPageNavigationContext pageNavigationContext() const;
     void scheduleAdjacentPredecode();
-    ImageDocumentPageNavigationSnapshot pageNavigationSnapshot() const;
+    [[nodiscard]] ImageDocumentPageNavigationSnapshot pageNavigationSnapshot() const;
     void notifyTwoPageModeChanged();
     void notifyChanges(const std::vector<ImageDocumentChange>& changes);
 

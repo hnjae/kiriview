@@ -123,12 +123,13 @@ private:
     static ActiveNavigationThumbnailRetentionClass retentionClass(
         ActiveNavigationThumbnailDemandPriority priority);
     static std::vector<ActiveNavigationThumbnailDemandBucket> backgroundBuckets();
-    std::optional<std::size_t> rowForIdentity(
+    [[nodiscard]] std::optional<std::size_t> rowForIdentity(
         int number, const QUrl& url, quint64 generation) const;
-    std::optional<std::size_t> rowForSourceKey(const ThumbnailSourceRevisionKey& sourceKey) const;
-    Tier tierFor(std::size_t row, const Demand& demand) const;
-    bool demandComplete(const RowState& state) const;
-    bool backgroundComplete(
+    [[nodiscard]] std::optional<std::size_t> rowForSourceKey(
+        const ThumbnailSourceRevisionKey& sourceKey) const;
+    [[nodiscard]] Tier tierFor(std::size_t row, const Demand& demand) const;
+    [[nodiscard]] bool demandComplete(const RowState& state) const;
+    [[nodiscard]] bool backgroundComplete(
         const RowState& state, ActiveNavigationThumbnailDemandBucket bucket) const;
     void advanceAdmissionEpoch();
     void armBackgroundSweep();
@@ -141,7 +142,7 @@ private:
     void cancel(std::size_t row, std::vector<ActiveNavigationThumbnailScheduleEffect>& effects);
     void start(std::size_t row, ActiveNavigationThumbnailWorkKind kind, Tier tier,
         const Demand& demand, std::vector<ActiveNavigationThumbnailScheduleEffect>& effects);
-    std::size_t activeForegroundCount() const;
+    [[nodiscard]] std::size_t activeForegroundCount() const;
     void admit(std::vector<ActiveNavigationThumbnailScheduleEffect>& effects);
 
     ThumbnailSourceAdapter m_sourceAdapter;

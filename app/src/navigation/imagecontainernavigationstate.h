@@ -13,7 +13,7 @@ public:
     explicit ImageContainerNavigationState(quint64 nextOperationId = 0);
 
     quint64 startNavigation();
-    bool acceptsNavigation(quint64 operationId) const;
+    [[nodiscard]] bool acceptsNavigation(quint64 operationId) const;
     bool finishNavigation(quint64 operationId);
     void cancel();
 

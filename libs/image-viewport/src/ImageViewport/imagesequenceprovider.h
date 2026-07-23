@@ -40,8 +40,8 @@ public:
     ~ImageSequenceProviderFailureHandle() override;
     Q_DISABLE_COPY_MOVE(ImageSequenceProviderFailureHandle)
 
-    ImageSequenceProviderFailureReference reference() const { return m_reference; }
-    bool isValid() const;
+    [[nodiscard]] ImageSequenceProviderFailureReference reference() const { return m_reference; }
+    [[nodiscard]] bool isValid() const;
     void release();
 
 private:
@@ -68,9 +68,9 @@ public:
     {
     }
 
-    bool isValid() const;
-    ImageSequenceProviderFailureCause cause() const { return m_cause; }
-    ImageSequenceProviderFailureHandle* applicationFailureHandle() const
+    [[nodiscard]] bool isValid() const;
+    [[nodiscard]] ImageSequenceProviderFailureCause cause() const { return m_cause; }
+    [[nodiscard]] ImageSequenceProviderFailureHandle* applicationFailureHandle() const
     {
         return m_applicationFailureHandle;
     }
@@ -101,7 +101,7 @@ public:
     ~ImageSequenceProviderFrameHandle() override;
     Q_DISABLE_COPY_MOVE(ImageSequenceProviderFrameHandle)
 
-    ImageFrame* frame() const;
+    [[nodiscard]] ImageFrame* frame() const;
     void release();
 
 private:
@@ -118,7 +118,7 @@ class ImageSequenceProviderAdapter : public QObject
 
 public:
     explicit ImageSequenceProviderAdapter(QObject* parent = nullptr);
-    virtual ImageSequenceProviderDescriptor descriptor() const = 0;
+    [[nodiscard]] virtual ImageSequenceProviderDescriptor descriptor() const = 0;
 };
 
 class ImageSequenceProviderRequestToken
@@ -126,7 +126,7 @@ class ImageSequenceProviderRequestToken
 public:
     ImageSequenceProviderRequestToken() = default;
 
-    bool isValid() const;
+    [[nodiscard]] bool isValid() const;
 
     friend bool operator==(
         ImageSequenceProviderRequestToken left, ImageSequenceProviderRequestToken right)
@@ -161,29 +161,29 @@ public:
     static ImageSequenceProviderMetadata withSourceLogicalSize(QSizeF sourceLogicalSize);
     static ImageSequenceProviderMetadata timedFrameCount(QSizeF logicalSize, int frameCount);
 
-    bool isSpecified() const;
-    bool hasCompleteModel() const;
-    bool isValid() const;
-    bool isStill() const;
-    bool isTimedFrameList() const;
-    QSizeF sourceLogicalSize() const;
-    int frameCount() const;
-    int totalDuration() const;
-    ImageViewportRange frameSeekBounds() const;
-    ImageViewportRange positionSeekBounds() const;
-    QVector<int> frameDurations() const;
-    bool hasAuthoredAnimationFacts() const;
-    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts() const;
+    [[nodiscard]] bool isSpecified() const;
+    [[nodiscard]] bool hasCompleteModel() const;
+    [[nodiscard]] bool isValid() const;
+    [[nodiscard]] bool isStill() const;
+    [[nodiscard]] bool isTimedFrameList() const;
+    [[nodiscard]] QSizeF sourceLogicalSize() const;
+    [[nodiscard]] int frameCount() const;
+    [[nodiscard]] int totalDuration() const;
+    [[nodiscard]] ImageViewportRange frameSeekBounds() const;
+    [[nodiscard]] ImageViewportRange positionSeekBounds() const;
+    [[nodiscard]] QVector<int> frameDurations() const;
+    [[nodiscard]] bool hasAuthoredAnimationFacts() const;
+    [[nodiscard]] ImageSequenceAuthoredAnimationFacts authoredAnimationFacts() const;
     void setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts authoredAnimationFacts);
     void setTimedPlaybackSupport(ImageViewportCapabilitySupport support);
     void setFrameSeekSupport(ImageViewportCapabilitySupport support);
     void setPositionSeekSupport(ImageViewportCapabilitySupport support);
-    ImageViewportCapabilitySupport timedPlaybackSupport() const;
-    ImageViewportCapabilitySupport frameSeekSupport() const;
-    ImageViewportCapabilitySupport positionSeekSupport() const;
-    ImageViewportCapabilitySupport autoplay() const;
-    ImageSequenceAuthoredAnimationLoopMode authoredLoopMode() const;
-    int authoredLoopCount() const;
+    [[nodiscard]] ImageViewportCapabilitySupport timedPlaybackSupport() const;
+    [[nodiscard]] ImageViewportCapabilitySupport frameSeekSupport() const;
+    [[nodiscard]] ImageViewportCapabilitySupport positionSeekSupport() const;
+    [[nodiscard]] ImageViewportCapabilitySupport autoplay() const;
+    [[nodiscard]] ImageSequenceAuthoredAnimationLoopMode authoredLoopMode() const;
+    [[nodiscard]] int authoredLoopCount() const;
 
 private:
     Kind m_kind = Kind::Invalid;
@@ -224,9 +224,9 @@ public:
     static ImageSequenceProviderSessionFactoryResult created(ImageSequenceProviderSession* session);
     static ImageSequenceProviderSessionFactoryResult failed(ImageSequenceProviderFailure failure);
 
-    ImageSequenceProviderSessionFactoryOutcome outcome() const;
-    ImageSequenceProviderSession* session() const;
-    ImageSequenceProviderFailure failure() const { return m_failure; }
+    [[nodiscard]] ImageSequenceProviderSessionFactoryOutcome outcome() const;
+    [[nodiscard]] ImageSequenceProviderSession* session() const;
+    [[nodiscard]] ImageSequenceProviderFailure failure() const { return m_failure; }
 
 private:
     ImageSequenceProviderSessionFactoryOutcome m_outcome
@@ -276,19 +276,22 @@ public:
     static ImageSequenceProviderFrameEnvelope timedFrame(
         int frame, int frameStartPosition, int frameDuration);
 
-    bool isValid() const;
-    bool isStillFrame() const;
-    bool isTimedFrame() const;
-    ImageViewportDemandRevisionToken demandRevision() const { return m_demandRevision; }
+    [[nodiscard]] bool isValid() const;
+    [[nodiscard]] bool isStillFrame() const;
+    [[nodiscard]] bool isTimedFrame() const;
+    [[nodiscard]] ImageViewportDemandRevisionToken demandRevision() const
+    {
+        return m_demandRevision;
+    }
     void setDemandRevision(ImageViewportDemandRevisionToken revision)
     {
         m_demandRevision = revision;
     }
-    int frame() const { return m_frame; }
+    [[nodiscard]] int frame() const { return m_frame; }
     void setFrame(int frame) { m_frame = frame; }
-    int frameStartPosition() const { return m_frameStartPosition; }
+    [[nodiscard]] int frameStartPosition() const { return m_frameStartPosition; }
     void setFrameStartPosition(int position) { m_frameStartPosition = position; }
-    int frameDuration() const { return m_frameDuration; }
+    [[nodiscard]] int frameDuration() const { return m_frameDuration; }
     void setFrameDuration(int duration) { m_frameDuration = duration; }
     friend bool operator==(const ImageSequenceProviderFrameEnvelope& lhs,
         const ImageSequenceProviderFrameEnvelope& rhs)
@@ -348,55 +351,67 @@ class ImageSequenceProviderDisplayDemand
 public:
     ImageSequenceProviderDisplayDemand() = default;
 
-    ImageViewportDemandRevisionToken demandRevision() const { return m_demandRevision; }
+    [[nodiscard]] ImageViewportDemandRevisionToken demandRevision() const
+    {
+        return m_demandRevision;
+    }
     void setDemandRevision(ImageViewportDemandRevisionToken revision)
     {
         m_demandRevision = revision;
     }
-    ImageViewportRevisionToken requestRevision() const { return m_requestRevision; }
+    [[nodiscard]] ImageViewportRevisionToken requestRevision() const { return m_requestRevision; }
     void setRequestRevision(ImageViewportRevisionToken revision) { m_requestRevision = revision; }
-    ImageViewportRevisionToken presentationRevision() const { return m_presentationRevision; }
+    [[nodiscard]] ImageViewportRevisionToken presentationRevision() const
+    {
+        return m_presentationRevision;
+    }
     void setPresentationRevision(ImageViewportRevisionToken revision)
     {
         m_presentationRevision = revision;
     }
-    ImageViewportPageRole role() const { return m_role; }
+    [[nodiscard]] ImageViewportPageRole role() const { return m_role; }
     void setRole(ImageViewportPageRole role) { m_role = role; }
-    int resolvedFrame() const { return m_resolvedFrame; }
+    [[nodiscard]] int resolvedFrame() const { return m_resolvedFrame; }
     void setResolvedFrame(int frame) { m_resolvedFrame = frame; }
-    int requestedPosition() const { return m_requestedPosition; }
+    [[nodiscard]] int requestedPosition() const { return m_requestedPosition; }
     void setRequestedPosition(int position) { m_requestedPosition = position; }
-    QSizeF sourceLogicalSize() const { return m_sourceLogicalSize; }
+    [[nodiscard]] QSizeF sourceLogicalSize() const { return m_sourceLogicalSize; }
     void setSourceLogicalSize(QSizeF size) { m_sourceLogicalSize = size; }
-    QRectF visibleSourceRect() const { return m_visibleSourceRect; }
+    [[nodiscard]] QRectF visibleSourceRect() const { return m_visibleSourceRect; }
     void setVisibleSourceRect(QRectF rect) { m_visibleSourceRect = rect; }
-    QSizeF targetDisplaySizePixels() const { return m_targetDisplaySizePixels; }
+    [[nodiscard]] QSizeF targetDisplaySizePixels() const { return m_targetDisplaySizePixels; }
     void setTargetDisplaySizePixels(QSizeF size) { m_targetDisplaySizePixels = size; }
-    double effectiveDevicePixelRatio() const { return m_effectiveDevicePixelRatio; }
+    [[nodiscard]] double effectiveDevicePixelRatio() const { return m_effectiveDevicePixelRatio; }
     void setEffectiveDevicePixelRatio(double ratio) { m_effectiveDevicePixelRatio = ratio; }
-    int rotationDegrees() const { return m_rotationDegrees; }
+    [[nodiscard]] int rotationDegrees() const { return m_rotationDegrees; }
     void setRotationDegrees(int degrees) { m_rotationDegrees = degrees; }
-    bool mirrorHorizontally() const { return m_mirrorHorizontally; }
+    [[nodiscard]] bool mirrorHorizontally() const { return m_mirrorHorizontally; }
     void setMirrorHorizontally(bool mirror) { m_mirrorHorizontally = mirror; }
-    bool mirrorVertically() const { return m_mirrorVertically; }
+    [[nodiscard]] bool mirrorVertically() const { return m_mirrorVertically; }
     void setMirrorVertically(bool mirror) { m_mirrorVertically = mirror; }
-    ImageViewportQualityPreference qualityPreference() const { return m_qualityPreference; }
+    [[nodiscard]] ImageViewportQualityPreference qualityPreference() const
+    {
+        return m_qualityPreference;
+    }
     void setQualityPreference(ImageViewportQualityPreference preference)
     {
         m_qualityPreference = preference;
     }
-    ImageViewportExactnessPreference exactnessPreference() const { return m_exactnessPreference; }
+    [[nodiscard]] ImageViewportExactnessPreference exactnessPreference() const
+    {
+        return m_exactnessPreference;
+    }
     void setExactnessPreference(ImageViewportExactnessPreference preference)
     {
         m_exactnessPreference = preference;
     }
-    qint64 maximumTextureSize() const { return m_maximumTextureSize; }
+    [[nodiscard]] qint64 maximumTextureSize() const { return m_maximumTextureSize; }
     void setMaximumTextureSize(qint64 size) { m_maximumTextureSize = size; }
-    qint64 maximumPayloadBytes() const { return m_maximumPayloadBytes; }
+    [[nodiscard]] qint64 maximumPayloadBytes() const { return m_maximumPayloadBytes; }
     void setMaximumPayloadBytes(qint64 bytes) { m_maximumPayloadBytes = bytes; }
-    qint64 displayByteBudget() const { return m_displayByteBudget; }
+    [[nodiscard]] qint64 displayByteBudget() const { return m_displayByteBudget; }
     void setDisplayByteBudget(qint64 bytes) { m_displayByteBudget = bytes; }
-    ImageViewportAllocationGenerationToken allocationGeneration() const
+    [[nodiscard]] ImageViewportAllocationGenerationToken allocationGeneration() const
     {
         return m_allocationGeneration;
     }
@@ -404,12 +419,15 @@ public:
     {
         m_allocationGeneration = generation;
     }
-    ImageViewportPayloadQuality currentPayloadQuality() const { return m_currentPayloadQuality; }
+    [[nodiscard]] ImageViewportPayloadQuality currentPayloadQuality() const
+    {
+        return m_currentPayloadQuality;
+    }
     void setCurrentPayloadQuality(ImageViewportPayloadQuality quality)
     {
         m_currentPayloadQuality = quality;
     }
-    ImageViewportPayloadExactness currentPayloadExactness() const
+    [[nodiscard]] ImageViewportPayloadExactness currentPayloadExactness() const
     {
         return m_currentPayloadExactness;
     }
@@ -417,9 +435,12 @@ public:
     {
         m_currentPayloadExactness = exactness;
     }
-    QSizeF currentPayloadRasterSize() const { return m_currentPayloadRasterSize; }
+    [[nodiscard]] QSizeF currentPayloadRasterSize() const { return m_currentPayloadRasterSize; }
     void setCurrentPayloadRasterSize(QSizeF size) { m_currentPayloadRasterSize = size; }
-    QSizeF currentSourceToPayloadScale() const { return m_currentSourceToPayloadScale; }
+    [[nodiscard]] QSizeF currentSourceToPayloadScale() const
+    {
+        return m_currentSourceToPayloadScale;
+    }
     void setCurrentSourceToPayloadScale(QSizeF scale) { m_currentSourceToPayloadScale = scale; }
 
 private:
@@ -478,15 +499,15 @@ public:
     static ImageSequenceProviderRequest cancel(QVector<ImageSequenceProviderRequestToken> tokens);
     static ImageSequenceProviderRequest close();
 
-    bool isValid() const;
-    ImageSequenceProviderRequestKind kind() const { return m_kind; }
-    ImageSequenceProviderRequestToken token() const { return m_token; }
-    ImageViewportPageRole role() const { return m_role; }
-    int frame() const { return m_frame; }
-    int requestedPosition() const { return m_requestedPosition; }
-    int resolvedFrame() const { return m_resolvedFrame; }
-    ImageSequenceProviderDisplayDemand demand() const { return m_demand; }
-    QVector<ImageSequenceProviderRequestToken> tokens() const { return m_tokens; }
+    [[nodiscard]] bool isValid() const;
+    [[nodiscard]] ImageSequenceProviderRequestKind kind() const { return m_kind; }
+    [[nodiscard]] ImageSequenceProviderRequestToken token() const { return m_token; }
+    [[nodiscard]] ImageViewportPageRole role() const { return m_role; }
+    [[nodiscard]] int frame() const { return m_frame; }
+    [[nodiscard]] int requestedPosition() const { return m_requestedPosition; }
+    [[nodiscard]] int resolvedFrame() const { return m_resolvedFrame; }
+    [[nodiscard]] ImageSequenceProviderDisplayDemand demand() const { return m_demand; }
+    [[nodiscard]] QVector<ImageSequenceProviderRequestToken> tokens() const { return m_tokens; }
 
 private:
     ImageSequenceProviderRequestKind m_kind = ImageSequenceProviderRequestKind::Metadata;
@@ -531,15 +552,21 @@ public:
     static ImageSequenceProviderEvent failed(
         ImageSequenceProviderRequestToken token, ImageSequenceProviderFailure failure);
 
-    bool isValid() const;
-    ImageSequenceProviderEventKind kind() const { return m_kind; }
-    ImageSequenceProviderRequestToken token() const { return m_token; }
-    ImageSequenceProviderMetadata metadata() const { return m_metadata; }
-    ImageSequenceProviderFrameHandle* frameHandle() const { return m_frameHandle; }
-    ImageSequenceProviderFrameEnvelope frameEnvelope() const { return m_frameEnvelope; }
-    double progress() const { return m_progress; }
-    ImageSequenceProviderUnsupportedCause unsupportedCause() const { return m_unsupportedCause; }
-    ImageSequenceProviderFailure failure() const { return m_failure; }
+    [[nodiscard]] bool isValid() const;
+    [[nodiscard]] ImageSequenceProviderEventKind kind() const { return m_kind; }
+    [[nodiscard]] ImageSequenceProviderRequestToken token() const { return m_token; }
+    [[nodiscard]] ImageSequenceProviderMetadata metadata() const { return m_metadata; }
+    [[nodiscard]] ImageSequenceProviderFrameHandle* frameHandle() const { return m_frameHandle; }
+    [[nodiscard]] ImageSequenceProviderFrameEnvelope frameEnvelope() const
+    {
+        return m_frameEnvelope;
+    }
+    [[nodiscard]] double progress() const { return m_progress; }
+    [[nodiscard]] ImageSequenceProviderUnsupportedCause unsupportedCause() const
+    {
+        return m_unsupportedCause;
+    }
+    [[nodiscard]] ImageSequenceProviderFailure failure() const { return m_failure; }
 
 private:
     ImageSequenceProviderEventKind m_kind = ImageSequenceProviderEventKind::Failed;
@@ -564,10 +591,16 @@ public:
     ImageSequenceProviderDescriptor(ImageSequenceProviderMetadata constructionMetadata,
         ImageSequenceProviderThreadingContract threadingContract, SessionFactory sessionFactory);
 
-    bool isValid() const;
-    ImageSequenceProviderMetadata constructionMetadata() const { return m_constructionMetadata; }
-    ImageSequenceProviderThreadingContract threadingContract() const { return m_threadingContract; }
-    SessionFactory sessionFactory() const { return m_sessionFactory; }
+    [[nodiscard]] bool isValid() const;
+    [[nodiscard]] ImageSequenceProviderMetadata constructionMetadata() const
+    {
+        return m_constructionMetadata;
+    }
+    [[nodiscard]] ImageSequenceProviderThreadingContract threadingContract() const
+    {
+        return m_threadingContract;
+    }
+    [[nodiscard]] SessionFactory sessionFactory() const { return m_sessionFactory; }
 
 private:
     ImageSequenceProviderMetadata m_constructionMetadata;

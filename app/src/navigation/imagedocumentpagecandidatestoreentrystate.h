@@ -43,10 +43,10 @@ struct ImageDocumentPageCandidateStoreEntryNotificationPlan
 class ImageDocumentPageCandidateStoreEntryState final
 {
 public:
-    const std::vector<ImageDocumentPageCandidate>& candidates() const;
-    bool listed() const;
-    bool failed() const;
-    const QString& errorString() const;
+    [[nodiscard]] const std::vector<ImageDocumentPageCandidate>& candidates() const;
+    [[nodiscard]] bool listed() const;
+    [[nodiscard]] bool failed() const;
+    [[nodiscard]] const QString& errorString() const;
 
     void addPendingLoad(ImageIoJobCompletion completion,
         ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback);

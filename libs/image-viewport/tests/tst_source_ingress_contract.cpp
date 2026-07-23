@@ -28,7 +28,7 @@ public:
     {
     }
 
-    ImageSequenceProviderDescriptor descriptor() const override
+    [[nodiscard]] ImageSequenceProviderDescriptor descriptor() const override
     {
         const auto invocationCount = m_invocationCount;
         return ImageSequenceProviderDescriptor(ImageSequenceProviderMetadata::still(QSizeF(4, 2)),
@@ -52,7 +52,7 @@ public:
     {
     }
 
-    ImageSequenceProviderDescriptor descriptor() const override
+    [[nodiscard]] ImageSequenceProviderDescriptor descriptor() const override
     {
         const auto session = m_session;
         return ImageSequenceProviderDescriptor(ImageSequenceProviderMetadata::still(QSizeF(4, 2)),
@@ -73,7 +73,7 @@ public:
     {
     }
 
-    ImageSequenceProviderDescriptor descriptor() const override
+    [[nodiscard]] ImageSequenceProviderDescriptor descriptor() const override
     {
         return ImageSequenceProviderDescriptor(ImageSequenceProviderMetadata::still(QSizeF(4, 2)),
             ImageSequenceProviderThreadingContract::AffinityBound, []() {

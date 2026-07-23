@@ -33,7 +33,7 @@ struct ActiveNavigationThumbnailWorkId
 {
     quint64 value = 0;
 
-    bool isValid() const { return value != 0; }
+    [[nodiscard]] bool isValid() const { return value != 0; }
     bool operator==(const ActiveNavigationThumbnailWorkId& other) const
     {
         return value == other.value;

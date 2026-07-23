@@ -46,7 +46,7 @@ public:
     {
     }
 
-    bool isValid() const { return static_cast<bool>(m_schedule); }
+    [[nodiscard]] bool isValid() const { return static_cast<bool>(m_schedule); }
 
     // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks)
     template <typename Work, typename Finish>

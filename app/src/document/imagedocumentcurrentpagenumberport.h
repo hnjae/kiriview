@@ -13,7 +13,7 @@ public:
     explicit ImageDocumentCurrentPageNumberPort(
         const ImageDocumentPageNavigationService* navigationService = nullptr);
 
-    int currentPageNumber() const;
+    [[nodiscard]] int currentPageNumber() const;
 
 private:
     const ImageDocumentPageNavigationService* m_navigationService = nullptr;

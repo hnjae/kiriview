@@ -17,10 +17,10 @@ public:
     explicit ImageAsyncOperationState(quint64 nextOperationId = 0);
 
     quint64 start();
-    bool accepts(quint64 operationId) const;
+    [[nodiscard]] bool accepts(quint64 operationId) const;
     bool finish(quint64 operationId);
     void cancel();
-    bool active() const;
+    [[nodiscard]] bool active() const;
 
 private:
     ImageAsyncTicket m_ticket;
@@ -50,12 +50,12 @@ public:
         };
     }
 
-    bool accepts(const ImageAsyncScopedOperation<Scope>& operation) const
+    [[nodiscard]] bool accepts(const ImageAsyncScopedOperation<Scope>& operation) const
     {
         return accepts(operation.operationId, operation.scope);
     }
 
-    bool accepts(quint64 operationId, const Scope& scope) const
+    [[nodiscard]] bool accepts(quint64 operationId, const Scope& scope) const
     {
         return m_operation.accepts(operationId) && m_scope.has_value() && *m_scope == scope;
     }
@@ -81,7 +81,7 @@ public:
         m_operation.cancel();
     }
 
-    bool active() const { return m_operation.active(); }
+    [[nodiscard]] bool active() const { return m_operation.active(); }
 
 private:
     ImageAsyncOperationState m_operation;

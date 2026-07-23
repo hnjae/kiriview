@@ -17,7 +17,7 @@ public:
     MediaEntrySourceRunner(
         OpenedCollectionScopeLocation openedCollectionScope, MediaEntrySourceFactory sourceFactory);
 
-    const OpenedCollectionScopeLocation& openedCollectionScope() const;
+    [[nodiscard]] const OpenedCollectionScopeLocation& openedCollectionScope() const;
 
     MediaEntrySourceCandidatesResult loadImageDocumentPageCandidates();
     MediaEntrySourceImageDataResult loadImageData(const QUrl& imageUrl);

@@ -33,16 +33,16 @@ public:
         return loads;
     }
 
-    std::size_t size() const { return m_urls.size(); }
+    [[nodiscard]] std::size_t size() const { return m_urls.size(); }
 
-    bool contains(const QUrl& url) const
+    [[nodiscard]] bool contains(const QUrl& url) const
     {
         const std::optional<QUrl> normalizedUrl = normalizedValidImageUrl(url);
         return normalizedUrl.has_value() && containsNormalized(*normalizedUrl);
     }
 
 private:
-    bool containsNormalized(const QUrl& normalizedUrl) const
+    [[nodiscard]] bool containsNormalized(const QUrl& normalizedUrl) const
     {
         return std::ranges::contains(m_urls, normalizedUrl);
     }

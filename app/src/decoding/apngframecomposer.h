@@ -57,13 +57,13 @@ public:
     bool initialize(QSize canvasSize, std::size_t rowBytes);
     void clear();
 
-    bool canComposeFrame(const ApngFrameControl& control) const;
+    [[nodiscard]] bool canComposeFrame(const ApngFrameControl& control) const;
     bool setFrameBytes(const ApngFrameControl& control, std::span<const unsigned char> bytes,
         std::size_t rowBytes);
     std::optional<QImage> composeFrame(ApngFrameControl control);
 
 private:
-    ApngRgbaRegion region(const ApngFrameControl& control) const;
+    [[nodiscard]] ApngRgbaRegion region(const ApngFrameControl& control) const;
     void premultiplyFrame(const ApngFrameControl& control);
     bool blendFrame(const ApngFrameControl& control);
     bool applyDispose(const ApngFrameCompositionPlan& plan,

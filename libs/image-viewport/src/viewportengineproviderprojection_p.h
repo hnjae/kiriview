@@ -44,10 +44,16 @@ public:
     ViewportEngineProviderDemandProjectionAccess(
         ViewportEngineProviderDemandProjectionAccess&&) noexcept
         = default;
-    const ImageViewportInternal::RequestState& request() const { return m_request; }
-    const ImageViewportInternal::DisplayState& display() const { return m_display; }
-    const ViewportEngineProviderFactsView& providerFacts() const { return m_providerFacts; }
-    const ImageViewportInternal::PresentationState& presentation() const { return m_presentation; }
+    [[nodiscard]] const ImageViewportInternal::RequestState& request() const { return m_request; }
+    [[nodiscard]] const ImageViewportInternal::DisplayState& display() const { return m_display; }
+    [[nodiscard]] const ViewportEngineProviderFactsView& providerFacts() const
+    {
+        return m_providerFacts;
+    }
+    [[nodiscard]] const ImageViewportInternal::PresentationState& presentation() const
+    {
+        return m_presentation;
+    }
 
 private:
     const ImageViewportInternal::RequestState& m_request;

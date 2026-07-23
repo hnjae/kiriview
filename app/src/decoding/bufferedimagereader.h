@@ -24,14 +24,14 @@ public:
     ~BufferedImageReader();
 
     explicit operator bool() const;
-    bool canRead() const;
-    bool supportsAnimation() const;
-    QSize size() const;
-    QByteArray format() const;
-    QImageIOHandler::Transformations transformation() const;
-    int nextImageDelay() const;
-    int loopCount() const;
-    QString errorString() const;
+    [[nodiscard]] bool canRead() const;
+    [[nodiscard]] bool supportsAnimation() const;
+    [[nodiscard]] QSize size() const;
+    [[nodiscard]] QByteArray format() const;
+    [[nodiscard]] QImageIOHandler::Transformations transformation() const;
+    [[nodiscard]] int nextImageDelay() const;
+    [[nodiscard]] int loopCount() const;
+    [[nodiscard]] QString errorString() const;
 
     void setScaledSize(QSize size);
     void setScaledClipRect(QRect rect);

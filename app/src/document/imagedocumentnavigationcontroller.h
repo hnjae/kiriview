@@ -25,10 +25,11 @@ public:
         ImageSpreadPresentationController& spreadController,
         RuntimeTransactionCallback runtimeTransactionCallback);
 
-    int currentPageNumber() const;
-    int pageCount() const;
-    ImageDocumentPageNavigationSnapshot pageNavigationSnapshot() const;
-    const ImageDocumentPageCandidateListSnapshot& confirmedPageCandidateSnapshot() const;
+    [[nodiscard]] int currentPageNumber() const;
+    [[nodiscard]] int pageCount() const;
+    [[nodiscard]] ImageDocumentPageNavigationSnapshot pageNavigationSnapshot() const;
+    [[nodiscard]] const ImageDocumentPageCandidateListSnapshot&
+    confirmedPageCandidateSnapshot() const;
 
     void openAdjacentPage(NavigationDirection direction);
     void openAdjacentContainer(NavigationDirection direction);

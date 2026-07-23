@@ -35,7 +35,7 @@ public:
     static ImageDocumentPageCandidateListSource forOpenedCollectionScope(
         OpenedCollectionScopeLocation openedCollectionScope);
 
-    OpenedCollectionScopeLocation openedCollectionScope() const;
+    [[nodiscard]] OpenedCollectionScopeLocation openedCollectionScope() const;
 
     template <typename Visitor> decltype(auto) visit(Visitor&& visitor) const
     {
@@ -66,9 +66,9 @@ public:
     static ImageDocumentPageCandidateListContext forSource(
         QUrl currentUrl, ImageDocumentPageCandidateListSource source);
 
-    const QUrl& currentUrl() const;
-    const ImageDocumentPageCandidateListSource& source() const;
-    OpenedCollectionScopeLocation openedCollectionScope() const;
+    [[nodiscard]] const QUrl& currentUrl() const;
+    [[nodiscard]] const ImageDocumentPageCandidateListSource& source() const;
+    [[nodiscard]] OpenedCollectionScopeLocation openedCollectionScope() const;
 
     template <typename Visitor> decltype(auto) visit(Visitor&& visitor) const
     {

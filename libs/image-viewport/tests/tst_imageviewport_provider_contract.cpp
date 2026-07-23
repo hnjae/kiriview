@@ -81,7 +81,7 @@ public:
     {
     }
 
-    ImageSequenceProviderDescriptor descriptor() const override
+    [[nodiscard]] ImageSequenceProviderDescriptor descriptor() const override
     {
         const auto factory = m_factory;
         return ImageSequenceProviderDescriptor(

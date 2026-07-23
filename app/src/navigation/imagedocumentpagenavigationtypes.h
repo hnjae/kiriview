@@ -100,9 +100,9 @@ struct ImageDocumentPageNavigationSnapshot
 {
     PageNavigationState state;
 
-    int currentPageNumber() const;
-    int pageCount() const;
-    std::optional<QUrl> urlAtPage(int pageNumber) const;
+    [[nodiscard]] int currentPageNumber() const;
+    [[nodiscard]] int pageCount() const;
+    [[nodiscard]] std::optional<QUrl> urlAtPage(int pageNumber) const;
 };
 
 struct ImageDocumentPageActiveNavigationSnapshot

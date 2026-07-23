@@ -44,7 +44,7 @@ class StubProviderAdapter final : public ImageSequenceProviderAdapter
 public:
     using ImageSequenceProviderAdapter::ImageSequenceProviderAdapter;
 
-    ImageSequenceProviderDescriptor descriptor() const override
+    [[nodiscard]] ImageSequenceProviderDescriptor descriptor() const override
     {
         auto factory = std::make_shared<StubProviderSessionFactory>();
         return ImageSequenceProviderDescriptor(
@@ -1858,7 +1858,7 @@ void ViewportEngineTest::providerAssignmentRegistersSessionIdentityBeforeHostOpe
     const auto result = engine.assignPresentationTarget(
         { ImageViewportPresentationTarget(sequence->sequence()), {} });
     const auto& transport = result.transition().providerTransport();
-    const auto open = std::find_if(transport.cbegin(), transport.cend(), [](const auto& command) {
+    const auto open = std::ranges::find_if(transport, [](const auto& command) {
         return command.kind == ViewportProviderTransportCommand::Kind::OpenSession;
     });
 

@@ -594,7 +594,7 @@ void VideoDocumentRuntime::updateZoomPercent()
         return;
     }
 
-    m_state.setZoomPercent(zoomPercent.value());
+    m_state.setZoomPercent(zoomPercent);
 }
 
 void VideoDocumentRuntime::publish(VideoDocumentChange change) { m_state.publish(change); }

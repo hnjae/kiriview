@@ -31,6 +31,7 @@ Checks: >
   bugprone-no-escape,
   bugprone-non-zero-enum-to-bool-conversion,
   bugprone-not-null-terminated-result,
+  bugprone-optional-value-conversion,
   bugprone-parent-virtual-call,
   bugprone-posix-return,
   bugprone-redundant-branch-condition,
@@ -69,6 +70,7 @@ Checks: >
   cppcoreguidelines-pro-type-cstyle-cast,
   cppcoreguidelines-pro-type-member-init,
   cppcoreguidelines-slicing,
+  cppcoreguidelines-special-member-functions,
   cppcoreguidelines-virtual-class-destructor,
   misc-confusable-identifiers,
   misc-misleading-bidirectional,
@@ -86,12 +88,17 @@ Checks: >
   modernize-shrink-to-fit,
   modernize-unary-static-assert,
   modernize-use-bool-literals,
+  modernize-use-constraints,
   modernize-use-default-member-init,
+  modernize-use-emplace,
   modernize-use-equals-default,
   modernize-use-equals-delete,
+  modernize-use-nodiscard,
   modernize-use-noexcept,
   modernize-use-nullptr,
   modernize-use-override,
+  modernize-use-ranges,
+  modernize-use-std-print,
   performance-faster-string-find,
   performance-for-range-copy,
   performance-implicit-conversion-in-loop,
@@ -108,6 +115,7 @@ Checks: >
   performance-use-transparent-functors,
   performance-avoid-endl,
   readability-avoid-return-with-void-value,
+  readability-container-contains,
   readability-const-return-type,
   readability-container-data-pointer,
   readability-container-size-empty,
@@ -134,5 +142,9 @@ WarningsAsErrors: '*'
 HeaderFilterRegex: '^(src|tests|examples)/'
 FormatStyle: none
 CheckOptions:
+  cppcoreguidelines-special-member-functions.AllowImplicitlyDeletedCopyOrMove: 'true'
+  cppcoreguidelines-special-member-functions.AllowMissingMoveFunctions: 'true'
+  cppcoreguidelines-special-member-functions.AllowMissingMoveFunctionsWhenCopyIsDeleted: 'true'
+  cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor: 'true'
   modernize-use-nullptr.NullMacros: 'NULL'
   performance-for-range-copy.WarnOnAllAutoCopies: 'false'

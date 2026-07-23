@@ -30,7 +30,7 @@ struct MediaOpenWithPlan
 {
     std::optional<MediaOpenWithRequest> request;
 
-    bool hasRequest() const { return request.has_value(); }
+    [[nodiscard]] bool hasRequest() const { return request.has_value(); }
 };
 
 MediaOpenWithPlan mediaOpenWithPlan(const MediaOpenWithPlanInput& input);

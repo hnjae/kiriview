@@ -73,7 +73,7 @@ public:
     ImageViewportProviderSource() = default;
     virtual ~ImageViewportProviderSource() = default;
 
-    virtual ImageSequenceProviderMetadata constructionMetadata() const = 0;
+    [[nodiscard]] virtual ImageSequenceProviderMetadata constructionMetadata() const = 0;
     virtual void requestMetadata(
         const ImageViewportProviderWorkIdentity& identity, MetadataCompletion completion)
         = 0;
@@ -94,7 +94,7 @@ struct ImageViewportProviderPreparedFrame
     ImageSequenceProviderFailureCause failureCause = ImageSequenceProviderFailureCause::Unavailable;
     std::optional<ImageLoadFailure> failure;
 
-    bool isReady() const { return !storeEntryId.isEmpty(); }
+    [[nodiscard]] bool isReady() const { return !storeEntryId.isEmpty(); }
 };
 
 class ImageViewportProviderResource final

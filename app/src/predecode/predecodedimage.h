@@ -25,11 +25,14 @@ struct DisplayedPredecodeImage
     std::optional<StaticDisplayImagePayload> displayImage;
     EmbeddedMetadata embeddedMetadata;
 
-    bool hasLocation() const { return !location.isEmpty(); }
+    [[nodiscard]] bool hasLocation() const { return !location.isEmpty(); }
 
-    bool hasDisplayImage() const { return displayImage.has_value() && displayImage->isValid(); }
+    [[nodiscard]] bool hasDisplayImage() const
+    {
+        return displayImage.has_value() && displayImage->isValid();
+    }
 
-    bool isCacheable() const { return cacheable && hasDisplayImage(); }
+    [[nodiscard]] bool isCacheable() const { return cacheable && hasDisplayImage(); }
 };
 }
 

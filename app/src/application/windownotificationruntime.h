@@ -50,7 +50,7 @@ public:
         QObject* owner, TimerScheduler timerScheduler = {}, SnapshotChanged snapshotChanged = {});
     ~WindowNotificationRuntime();
 
-    const WindowNotificationSnapshot& snapshot() const;
+    [[nodiscard]] const WindowNotificationSnapshot& snapshot() const;
     void submit(WindowNotificationRequest request);
     void clear(WindowNotificationScope scope);
     void dismiss();

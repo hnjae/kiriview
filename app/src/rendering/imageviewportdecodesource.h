@@ -27,8 +27,8 @@ public:
         ImageLoadSession session, ImageDecodeDependencies dependencies);
     ~ImageViewportDecodeProviderSource() override;
 
-    const EmbeddedMetadata& embeddedMetadata() const;
-    ImageSequenceProviderMetadata constructionMetadata() const override;
+    [[nodiscard]] const EmbeddedMetadata& embeddedMetadata() const;
+    [[nodiscard]] ImageSequenceProviderMetadata constructionMetadata() const override;
     void requestMetadata(
         const ImageViewportProviderWorkIdentity& identity, MetadataCompletion completion) override;
     void requestFrame(const ImageViewportProviderWorkIdentity& identity,

@@ -28,6 +28,8 @@ public:
     {
     }
 
+    ~KiriViewApplicationActionHost() override = default;
+
     QObject* actionContext() override { return &m_application; }
     KirigamiActionCollection* mainActionCollection() override
     {
@@ -52,6 +54,8 @@ public:
     {
     }
 
+    ~KiriViewApplicationCommandPortSource() override = default;
+
     ApplicationCommandRouterShellPorts commandRouterShellPorts() override;
     ApplicationCommandRouterSessionPorts commandRouterSessionPorts() override;
     ApplicationCommandRouterImageDocumentPorts commandRouterImageDocumentPorts() override;
@@ -62,9 +66,9 @@ public:
     ApplicationCommandRouterVideoPorts commandRouterVideoPorts() override;
 
 private:
-    KiriDocumentSession* documentSession() const;
-    KiriImageDocument* imageDocument() const;
-    KiriVideoDocument* videoDocument() const;
+    [[nodiscard]] KiriDocumentSession* documentSession() const;
+    [[nodiscard]] KiriImageDocument* imageDocument() const;
+    [[nodiscard]] KiriVideoDocument* videoDocument() const;
     void deleteDisplayedFileByMode(KiriDocumentSession::DeletionMode mode);
     void requestImageFitMode(KiriImageDocument::ZoomMode mode);
     void requestPreviousActiveNavigationWithBoundary();

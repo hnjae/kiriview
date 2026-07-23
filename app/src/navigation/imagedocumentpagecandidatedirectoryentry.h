@@ -26,10 +26,10 @@ public:
         ImageDocumentPageCandidateWatchProvider watchProvider, QObject* signalContext);
     ~ImageDocumentPageCandidateDirectoryEntry();
 
-    bool failed() const;
-    bool listed() const;
-    const QString& errorString() const;
-    const std::vector<ImageDocumentPageCandidate>& candidates() const;
+    [[nodiscard]] bool failed() const;
+    [[nodiscard]] bool listed() const;
+    [[nodiscard]] const QString& errorString() const;
+    [[nodiscard]] const std::vector<ImageDocumentPageCandidate>& candidates() const;
 
     bool open();
     void handleCompleted(std::vector<ImageDocumentPageCandidate> candidates);

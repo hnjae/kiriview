@@ -15,7 +15,7 @@ public:
     {
     }
 
-    ImageSequenceProviderDescriptor descriptor() const override
+    [[nodiscard]] ImageSequenceProviderDescriptor descriptor() const override
     {
         const QString diagnostic = m_diagnostic;
         return ImageSequenceProviderDescriptor(ImageSequenceProviderMetadata::still(QSizeF(4, 2)),

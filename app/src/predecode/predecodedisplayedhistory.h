@@ -15,10 +15,10 @@ public:
     void clear();
     void setDisplayedUrls(const std::vector<QUrl>& urls);
 
-    bool currentContains(const QUrl& url) const;
-    bool recentContains(const QUrl& url) const;
-    std::size_t currentPriority(const QUrl& url) const;
-    std::size_t recentPriority(const QUrl& url) const;
+    [[nodiscard]] bool currentContains(const QUrl& url) const;
+    [[nodiscard]] bool recentContains(const QUrl& url) const;
+    [[nodiscard]] std::size_t currentPriority(const QUrl& url) const;
+    [[nodiscard]] std::size_t recentPriority(const QUrl& url) const;
 
 private:
     static bool containsUrl(const std::vector<QUrl>& urls, const QUrl& url);

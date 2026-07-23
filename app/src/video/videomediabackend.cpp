@@ -89,9 +89,9 @@ public:
     void setPosition(qint64 position) override { m_player.setPosition(position); }
     void setMuted(bool muted) override { m_audioOutput.setMuted(muted); }
     void setVideoOutput(QObject* videoOutput) override { m_player.setVideoOutput(videoOutput); }
-    QObject* videoOutput() const override { return m_player.videoOutput(); }
+    [[nodiscard]] QObject* videoOutput() const override { return m_player.videoOutput(); }
 
-    kiriview::VideoMediaStatus mediaStatus() const override
+    [[nodiscard]] kiriview::VideoMediaStatus mediaStatus() const override
     {
         switch (m_player.mediaStatus()) {
         case QMediaPlayer::NoMedia:
@@ -115,17 +115,23 @@ public:
         return kiriview::VideoMediaStatus::Null;
     }
 
-    qint64 duration() const override { return std::max<qint64>(0, m_player.duration()); }
-    qint64 position() const override { return std::max<qint64>(0, m_player.position()); }
-    bool playing() const override { return m_player.isPlaying(); }
-    bool seekable() const override { return m_player.isSeekable(); }
-    bool hasVideo() const override { return m_player.hasVideo(); }
-    bool hasAudio() const override { return m_player.hasAudio(); }
-    QSize videoSize() const override
+    [[nodiscard]] qint64 duration() const override
+    {
+        return std::max<qint64>(0, m_player.duration());
+    }
+    [[nodiscard]] qint64 position() const override
+    {
+        return std::max<qint64>(0, m_player.position());
+    }
+    [[nodiscard]] bool playing() const override { return m_player.isPlaying(); }
+    [[nodiscard]] bool seekable() const override { return m_player.isSeekable(); }
+    [[nodiscard]] bool hasVideo() const override { return m_player.hasVideo(); }
+    [[nodiscard]] bool hasAudio() const override { return m_player.hasAudio(); }
+    [[nodiscard]] QSize videoSize() const override
     {
         return m_player.metaData().value(QMediaMetaData::Resolution).toSize();
     }
-    bool muted() const override { return m_audioOutput.isMuted(); }
+    [[nodiscard]] bool muted() const override { return m_audioOutput.isMuted(); }
 
 private:
     QMediaPlayer m_player;

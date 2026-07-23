@@ -14,8 +14,8 @@ public:
     DocumentSessionDirectMediaActivityPort(
         const DocumentSessionState* state, const DocumentSessionDirectMediaScopePort* scope);
 
-    bool navigationActive() const;
-    bool directImageSourceScopeEligible() const;
+    [[nodiscard]] bool navigationActive() const;
+    [[nodiscard]] bool directImageSourceScopeEligible() const;
 
 private:
     const DocumentSessionState* m_state = nullptr;

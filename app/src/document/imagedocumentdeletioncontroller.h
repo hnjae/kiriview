@@ -43,7 +43,7 @@ public:
         std::function<ResolvedNavigationSource(const QUrl&)> resolveExternalSource);
     ~ImageDocumentDeletionController();
 
-    bool inProgress() const;
+    [[nodiscard]] bool inProgress() const;
     void deleteDisplayedFile(FileDeletionMode mode);
     void cancel();
 

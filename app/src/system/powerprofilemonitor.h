@@ -32,7 +32,7 @@ public:
     explicit PowerProfileMonitor(PowerSaverChangedCallback callback = {});
     PowerProfileMonitor(PowerSaverChangedCallback callback, PowerProfileMonitorRuntime runtime);
 
-    bool powerSaverEnabled() const override;
+    [[nodiscard]] bool powerSaverEnabled() const override;
 
 private Q_SLOTS:
     void handlePropertiesChanged(const QString& interfaceName, const QVariantMap& changedProperties,

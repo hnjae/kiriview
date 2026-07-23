@@ -50,12 +50,12 @@ public:
     static ImageSequenceAuthoredAnimationFacts finiteLoop(int loopCount);
     static ImageSequenceAuthoredAnimationFacts infiniteLoop();
 
-    bool autoplay() const;
+    [[nodiscard]] bool autoplay() const;
     void setAutoplay(bool autoplay);
-    ImageSequenceAuthoredAnimationLoopMode loopMode() const;
-    int loopCount() const;
+    [[nodiscard]] ImageSequenceAuthoredAnimationLoopMode loopMode() const;
+    [[nodiscard]] int loopCount() const;
     bool setFiniteLoopCount(int loopCount);
-    bool isValid() const;
+    [[nodiscard]] bool isValid() const;
 
 private:
     bool m_autoplay = false;
@@ -120,16 +120,16 @@ public:
         ImageViewportPayloadExactness exactness, bool hasAlpha, OrientationPolicy orientationPolicy,
         QString formatIdentifier, QObject* parent = nullptr);
 
-    bool isValid() const;
-    QSizeF sourceLogicalSize() const;
-    qint64 payloadByteSize() const;
-    QSizeF payloadRasterSize() const;
-    QSizeF sourceToPayloadScale() const;
-    ImageViewportPayloadQuality quality() const;
-    ImageViewportPayloadExactness exactness() const;
-    bool hasAlpha() const;
-    OrientationPolicy orientationPolicy() const;
-    QString formatIdentifier() const;
+    [[nodiscard]] bool isValid() const;
+    [[nodiscard]] QSizeF sourceLogicalSize() const;
+    [[nodiscard]] qint64 payloadByteSize() const;
+    [[nodiscard]] QSizeF payloadRasterSize() const;
+    [[nodiscard]] QSizeF sourceToPayloadScale() const;
+    [[nodiscard]] ImageViewportPayloadQuality quality() const;
+    [[nodiscard]] ImageViewportPayloadExactness exactness() const;
+    [[nodiscard]] bool hasAlpha() const;
+    [[nodiscard]] OrientationPolicy orientationPolicy() const;
+    [[nodiscard]] QString formatIdentifier() const;
 
 private:
     ImageFrame(const QImage& image, qsizetype payloadByteSizeOverride, QObject* parent = nullptr);
@@ -163,10 +163,10 @@ public:
     TimedImageFrame() = default;
     TimedImageFrame(ImageFrame* frame, int startPosition, int duration);
 
-    ImageFrame* frame() const;
-    int startPosition() const;
-    int duration() const;
-    bool isValid() const;
+    [[nodiscard]] ImageFrame* frame() const;
+    [[nodiscard]] int startPosition() const;
+    [[nodiscard]] int duration() const;
+    [[nodiscard]] bool isValid() const;
 
 private:
     std::shared_ptr<ImageFrame> m_frame;
@@ -189,14 +189,14 @@ class TimedImageFrameList : public QObject
 public:
     explicit TimedImageFrameList(QObject* parent = nullptr);
 
-    int count() const;
-    QList<TimedImageFrame> frames() const;
-    QString errorString() const;
-    bool autoplay() const;
+    [[nodiscard]] int count() const;
+    [[nodiscard]] QList<TimedImageFrame> frames() const;
+    [[nodiscard]] QString errorString() const;
+    [[nodiscard]] bool autoplay() const;
     void setAutoplay(bool autoplay);
-    ImageSequenceAuthoredAnimationLoopMode loopMode() const;
-    int loopCount() const;
-    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts() const;
+    [[nodiscard]] ImageSequenceAuthoredAnimationLoopMode loopMode() const;
+    [[nodiscard]] int loopCount() const;
+    [[nodiscard]] ImageSequenceAuthoredAnimationFacts authoredAnimationFacts() const;
     void setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts authoredAnimationFacts);
     bool appendFrame(const QImage& image, int durationMilliseconds);
     Q_INVOKABLE bool appendFrame(ImageFrame* frame, int durationMilliseconds);
@@ -209,10 +209,10 @@ Q_SIGNALS:
     void diagnosticsChanged();
 
 private:
-    bool isValid() const;
-    QSizeF logicalSize() const;
-    QVector<int> frameDurations() const;
-    int totalDuration() const;
+    [[nodiscard]] bool isValid() const;
+    [[nodiscard]] QSizeF logicalSize() const;
+    [[nodiscard]] QVector<int> frameDurations() const;
+    [[nodiscard]] int totalDuration() const;
     void setErrorString(const QString& errorString);
 
     QSizeF m_logicalSize;
@@ -263,10 +263,10 @@ public:
         ImageSequenceFactoryOutcome outcome, ImageSequenceFactoryReason reason,
         QObject* parent = nullptr);
 
-    ImageSequence* sequence() const;
-    ImageSequenceFactoryOutcome outcome() const;
-    ImageSequenceFactoryReason reason() const;
-    QString errorString() const;
+    [[nodiscard]] ImageSequence* sequence() const;
+    [[nodiscard]] ImageSequenceFactoryOutcome outcome() const;
+    [[nodiscard]] ImageSequenceFactoryReason reason() const;
+    [[nodiscard]] QString errorString() const;
 
 private:
     friend class ImageSequenceFactory;
@@ -325,17 +325,17 @@ class ImageSequenceLimits : public QObject
 public:
     explicit ImageSequenceLimits(QObject* parent = nullptr);
 
-    int getMaximumSourceLogicalWidth() const;
-    int getMaximumSourceLogicalHeight() const;
-    qint64 getMaximumSourceLogicalPixels() const;
-    int getMaximumPayloadRasterWidth() const;
-    int getMaximumPayloadRasterHeight() const;
-    qint64 getMaximumPayloadBytes() const;
-    int getMaximumFrameCount() const;
-    int getMaximumFrameDurationMilliseconds() const;
-    int getMaximumTotalDurationMilliseconds() const;
-    int getMaximumDiagnosticCharacters() const;
-    int getMaximumFormatIdentifierCharacters() const;
+    [[nodiscard]] int getMaximumSourceLogicalWidth() const;
+    [[nodiscard]] int getMaximumSourceLogicalHeight() const;
+    [[nodiscard]] qint64 getMaximumSourceLogicalPixels() const;
+    [[nodiscard]] int getMaximumPayloadRasterWidth() const;
+    [[nodiscard]] int getMaximumPayloadRasterHeight() const;
+    [[nodiscard]] qint64 getMaximumPayloadBytes() const;
+    [[nodiscard]] int getMaximumFrameCount() const;
+    [[nodiscard]] int getMaximumFrameDurationMilliseconds() const;
+    [[nodiscard]] int getMaximumTotalDurationMilliseconds() const;
+    [[nodiscard]] int getMaximumDiagnosticCharacters() const;
+    [[nodiscard]] int getMaximumFormatIdentifierCharacters() const;
 
     static int maximumSourceLogicalWidth();
     static int maximumSourceLogicalHeight();

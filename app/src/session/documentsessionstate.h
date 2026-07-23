@@ -20,31 +20,33 @@ public:
 
     explicit DocumentSessionState(ChangeCallback changeCallback = {});
 
-    const QUrl& sourceUrl() const;
-    DocumentSessionKind documentKind() const;
-    const QString& sessionErrorString() const;
-    const QString& windowTitleSubject() const;
-    bool fileDeletionInProgress() const;
-    bool openedCollectionVideoActive() const;
-    const ActiveZoomSnapshot& activeZoomSnapshot() const;
-    bool activeImageReady() const;
-    bool activeImageUnsupportedOpenedCollectionVideo() const;
-    const DirectMediaNavigationBoundaryState& directMediaNavigationState() const;
-    bool directMediaNavigationKnown() const;
-    const std::vector<DirectMediaNavigationCandidate>& directMediaNavigationCandidates() const;
-    const DirectMediaNavigationCandidateSnapshot& directMediaNavigationCandidateSnapshot() const;
-    const ActiveNavigationSnapshot& activeNavigationSnapshot() const;
-    ActiveNavigationRevealIntent activeNavigationRevealIntent() const;
-    ActiveNavigationRevealDirection activeNavigationRevealDirection() const;
-    ActiveNavigationSourceKind activeNavigationSourceKind() const;
-    ActiveNavigationBoundaryScope activeNavigationBoundaryScope() const;
-    bool displayedMediaOpenWithAvailable() const;
-    bool displayedFileDeletionAvailable() const;
-    const MediaInformationProjectionSnapshot& mediaInformationSnapshot() const;
-    const DocumentSessionPublicSnapshot& publicSnapshot() const;
-    const DirectMediaCursor& directMediaCursor() const;
-    QUrl directMediaCursorUrl() const;
-    std::optional<DirectMediaScope> directMediaScope() const;
+    [[nodiscard]] const QUrl& sourceUrl() const;
+    [[nodiscard]] DocumentSessionKind documentKind() const;
+    [[nodiscard]] const QString& sessionErrorString() const;
+    [[nodiscard]] const QString& windowTitleSubject() const;
+    [[nodiscard]] bool fileDeletionInProgress() const;
+    [[nodiscard]] bool openedCollectionVideoActive() const;
+    [[nodiscard]] const ActiveZoomSnapshot& activeZoomSnapshot() const;
+    [[nodiscard]] bool activeImageReady() const;
+    [[nodiscard]] bool activeImageUnsupportedOpenedCollectionVideo() const;
+    [[nodiscard]] const DirectMediaNavigationBoundaryState& directMediaNavigationState() const;
+    [[nodiscard]] bool directMediaNavigationKnown() const;
+    [[nodiscard]] const std::vector<DirectMediaNavigationCandidate>&
+    directMediaNavigationCandidates() const;
+    [[nodiscard]] const DirectMediaNavigationCandidateSnapshot&
+    directMediaNavigationCandidateSnapshot() const;
+    [[nodiscard]] const ActiveNavigationSnapshot& activeNavigationSnapshot() const;
+    [[nodiscard]] ActiveNavigationRevealIntent activeNavigationRevealIntent() const;
+    [[nodiscard]] ActiveNavigationRevealDirection activeNavigationRevealDirection() const;
+    [[nodiscard]] ActiveNavigationSourceKind activeNavigationSourceKind() const;
+    [[nodiscard]] ActiveNavigationBoundaryScope activeNavigationBoundaryScope() const;
+    [[nodiscard]] bool displayedMediaOpenWithAvailable() const;
+    [[nodiscard]] bool displayedFileDeletionAvailable() const;
+    [[nodiscard]] const MediaInformationProjectionSnapshot& mediaInformationSnapshot() const;
+    [[nodiscard]] const DocumentSessionPublicSnapshot& publicSnapshot() const;
+    [[nodiscard]] const DirectMediaCursor& directMediaCursor() const;
+    [[nodiscard]] QUrl directMediaCursorUrl() const;
+    [[nodiscard]] std::optional<DirectMediaScope> directMediaScope() const;
 
     void setSourceIdentity(const QUrl& url);
     void setDocumentKind(DocumentSessionKind kind);

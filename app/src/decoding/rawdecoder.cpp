@@ -219,11 +219,13 @@ public:
     {
     }
 
-    QSize imageSize() const override { return m_image.size(); }
-    qsizetype byteCost() const override { return kiriview::imageByteCost(m_image); }
-    bool supportsRasterDisplayRefinement() const override { return true; }
+    ~RawStaticImageDisplaySource() override = default;
 
-    kiriview::StaticImageDisplayDecodeResult decodeRasterDisplayImage(
+    [[nodiscard]] QSize imageSize() const override { return m_image.size(); }
+    [[nodiscard]] qsizetype byteCost() const override { return kiriview::imageByteCost(m_image); }
+    [[nodiscard]] bool supportsRasterDisplayRefinement() const override { return true; }
+
+    [[nodiscard]] kiriview::StaticImageDisplayDecodeResult decodeRasterDisplayImage(
         const QSize& rasterSize) const override
     {
         if (rasterSize.isEmpty()) {
@@ -233,7 +235,7 @@ public:
         return { kiriview::scaledDisplayImage(m_image, rasterSize), {} };
     }
 
-    kiriview::StaticImageDisplayDecodeResult decodeBlockingDisplayImage(
+    [[nodiscard]] kiriview::StaticImageDisplayDecodeResult decodeBlockingDisplayImage(
         int maximumLongEdge) const override
     {
         return { kiriview::scaledDisplayImage(

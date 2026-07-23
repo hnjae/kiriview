@@ -23,9 +23,9 @@ struct BoxHeader
     qsizetype headerSize = 0;
     std::array<char, 4> kind {};
 
-    qsizetype bodyOffset() const { return offset + headerSize; }
-    qsizetype endOffset() const { return offset + size; }
-    bool isType(const char (&expected)[5]) const
+    [[nodiscard]] qsizetype bodyOffset() const { return offset + headerSize; }
+    [[nodiscard]] qsizetype endOffset() const { return offset + size; }
+    [[nodiscard]] bool isType(const char (&expected)[5]) const
     {
         return std::equal(kind.begin(), kind.end(), expected);
     }

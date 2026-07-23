@@ -18,7 +18,7 @@ public:
         const DocumentSessionPublicImageLeafSnapshot* image,
         const DocumentSessionPublicVideoLeafSnapshot* video);
 
-    MediaOpenWithPlan currentPlan() const;
+    [[nodiscard]] MediaOpenWithPlan currentPlan() const;
 
 private:
     const DocumentSessionState* m_state = nullptr;

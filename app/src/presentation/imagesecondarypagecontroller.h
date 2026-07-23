@@ -38,9 +38,9 @@ public:
     explicit ImageSecondaryPageController(Callbacks callbacks);
     ~ImageSecondaryPageController();
 
-    bool visible() const;
-    DisplayedImageLocation displayedImageLocation() const;
-    QSize imageSize() const;
+    [[nodiscard]] bool visible() const;
+    [[nodiscard]] DisplayedImageLocation displayedImageLocation() const;
+    [[nodiscard]] QSize imageSize() const;
 
     void startLoad(
         const QUrl& url, const OpenedCollectionScopeLocation& displayedOpenedCollectionScope);

@@ -30,7 +30,7 @@ struct PowerProfileMonitorPlan
 class PowerProfileMonitorState final
 {
 public:
-    bool powerSaverEnabled() const;
+    [[nodiscard]] bool powerSaverEnabled() const;
 
     PowerProfileMonitorPlan applyEvent(PowerProfileMonitorEvent event);
 

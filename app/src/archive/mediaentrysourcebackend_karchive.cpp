@@ -49,7 +49,7 @@ public:
         return *this;
     }
 
-    const KArchiveDirectory* directory() const
+    [[nodiscard]] const KArchiveDirectory* directory() const
     {
         return m_archive == nullptr ? nullptr : m_archive->directory();
     }

@@ -44,12 +44,13 @@ public:
     ActiveNavigationThumbnailRowUpdatePlan& operator=(
         ActiveNavigationThumbnailRowUpdatePlan&&) noexcept
         = default;
+    ~ActiveNavigationThumbnailRowUpdatePlan() = default;
 
     ActiveNavigationThumbnailRowUpdatePlan(const ActiveNavigationThumbnailRowUpdatePlan&) = delete;
     ActiveNavigationThumbnailRowUpdatePlan& operator=(const ActiveNavigationThumbnailRowUpdatePlan&)
         = delete;
 
-    ActiveNavigationThumbnailRowUpdateKind kind() const { return m_kind; }
+    [[nodiscard]] ActiveNavigationThumbnailRowUpdateKind kind() const { return m_kind; }
 
 private:
     friend class ActiveNavigationThumbnailRowStore;
@@ -89,7 +90,9 @@ public:
     ActiveNavigationThumbnailRowPort(const ActiveNavigationThumbnailRowPort&) = delete;
     ActiveNavigationThumbnailRowPort& operator=(const ActiveNavigationThumbnailRowPort&) = delete;
 
-    virtual bool hasUsableReadyImage(const ThumbnailSourceRevisionKey& sourceKey) const = 0;
+    [[nodiscard]] virtual bool hasUsableReadyImage(
+        const ThumbnailSourceRevisionKey& sourceKey) const
+        = 0;
     virtual void applyPending(const ThumbnailSourceRevisionKey& sourceKey) = 0;
     virtual void applyUnsupported(const ThumbnailSourceRevisionKey& sourceKey) = 0;
     virtual void applyFailed(const ThumbnailSourceRevisionKey& sourceKey) = 0;
@@ -114,14 +117,15 @@ public:
     ActiveNavigationThumbnailRowStore(const ActiveNavigationThumbnailRowStore&) = delete;
     ActiveNavigationThumbnailRowStore& operator=(const ActiveNavigationThumbnailRowStore&) = delete;
 
-    QAbstractListModel* model() const;
-    quint64 navigationGeneration() const;
-    ActiveNavigationThumbnailRowUpdatePlan prepareRows(
+    [[nodiscard]] QAbstractListModel* model() const;
+    [[nodiscard]] quint64 navigationGeneration() const;
+    [[nodiscard]] ActiveNavigationThumbnailRowUpdatePlan prepareRows(
         std::vector<ActiveNavigationThumbnailRow> rows) const;
     ActiveNavigationThumbnailRowCommit commitRows(ActiveNavigationThumbnailRowUpdatePlan plan);
-    ActiveNavigationThumbnailSchedulingSnapshot schedulingSnapshot() const;
+    [[nodiscard]] ActiveNavigationThumbnailSchedulingSnapshot schedulingSnapshot() const;
     void setCurrentNumber(int currentNumber);
-    bool hasUsableReadyImage(const ThumbnailSourceRevisionKey& sourceKey) const override;
+    [[nodiscard]] bool hasUsableReadyImage(
+        const ThumbnailSourceRevisionKey& sourceKey) const override;
     void applyPending(const ThumbnailSourceRevisionKey& sourceKey) override;
     void applyUnsupported(const ThumbnailSourceRevisionKey& sourceKey) override;
     void applyFailed(const ThumbnailSourceRevisionKey& sourceKey) override;
@@ -140,9 +144,9 @@ private:
     };
 
     static bool sameRowIdentity(const ThumbnailRowKey& left, const ThumbnailRowKey& right);
-    std::optional<std::size_t> rowIndexForSourceKey(
+    [[nodiscard]] std::optional<std::size_t> rowIndexForSourceKey(
         const ThumbnailSourceRevisionKey& sourceKey) const;
-    bool hasUsableReadyImage(const RowState& state) const;
+    [[nodiscard]] bool hasUsableReadyImage(const RowState& state) const;
     void releaseImage(RowState& state);
     void releaseAllImages();
     void rebuildRowIndexes();

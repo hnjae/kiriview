@@ -23,7 +23,7 @@ struct ImageFirstDisplayDecodeContext
 {
     QSize logicalViewportSize;
 
-    bool isValid() const { return !logicalViewportSize.isEmpty(); }
+    [[nodiscard]] bool isValid() const { return !logicalViewportSize.isEmpty(); }
 };
 
 enum class FirstDisplayImageDecodeStatus {
@@ -60,7 +60,10 @@ struct StaticImageReaderTransform
 {
     QImageIOHandler::Transformations transformations = QImageIOHandler::TransformationNone;
 
-    bool hasTransform() const { return transformations != QImageIOHandler::TransformationNone; }
+    [[nodiscard]] bool hasTransform() const
+    {
+        return transformations != QImageIOHandler::TransformationNone;
+    }
 };
 
 class StaticImageDisplaySource
@@ -69,15 +72,17 @@ public:
     StaticImageDisplaySource() = default;
     virtual ~StaticImageDisplaySource() = default;
 
-    virtual QSize imageSize() const = 0;
-    virtual StaticImageFirstDisplayDecodeResult decodeFirstDisplayImage(
+    [[nodiscard]] virtual QSize imageSize() const = 0;
+    [[nodiscard]] virtual StaticImageFirstDisplayDecodeResult decodeFirstDisplayImage(
         const ImageFirstDisplayDecodeContext& context) const;
-    virtual bool supportsRasterDisplayRefinement() const;
-    virtual StaticImageDisplayDecodeResult decodeRasterDisplayImage(const QSize& rasterSize) const;
-    virtual StaticImageDisplayDecodeResult decodeBlockingDisplayImage(int maximumLongEdge) const
+    [[nodiscard]] virtual bool supportsRasterDisplayRefinement() const;
+    [[nodiscard]] virtual StaticImageDisplayDecodeResult decodeRasterDisplayImage(
+        const QSize& rasterSize) const;
+    [[nodiscard]] virtual StaticImageDisplayDecodeResult decodeBlockingDisplayImage(
+        int maximumLongEdge) const
         = 0;
-    virtual qsizetype byteCost() const = 0;
-    virtual StaticImageReaderTransform imageReaderTransform() const;
+    [[nodiscard]] virtual qsizetype byteCost() const = 0;
+    [[nodiscard]] virtual StaticImageReaderTransform imageReaderTransform() const;
     Q_DISABLE_COPY(StaticImageDisplaySource)
 };
 
@@ -92,9 +97,9 @@ struct StaticDisplayImagePayload
     std::shared_ptr<StaticImageDisplaySource> refinementSource;
     DisplayImagePreviewOrigin previewOrigin = DisplayImagePreviewOrigin::None;
 
-    bool isValid() const;
-    qsizetype byteCost() const;
-    std::optional<qsizetype> byteCostWithinBudget(qsizetype byteBudget) const;
+    [[nodiscard]] bool isValid() const;
+    [[nodiscard]] qsizetype byteCost() const;
+    [[nodiscard]] std::optional<qsizetype> byteCostWithinBudget(qsizetype byteBudget) const;
 };
 }
 

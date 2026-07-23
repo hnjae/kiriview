@@ -87,12 +87,12 @@ class PredecodeScheduleState final
 public:
     PredecodeScheduleRuntimePlan schedule(PredecodeScheduleContext context, qint64 monotonicMsec);
     PredecodeScheduleRuntimePlan setPowerSaverEnabled(bool enabled, qint64 monotonicMsec);
-    bool powerSaverEnabled() const;
-    PredecodeMomentumMode momentumMode() const;
+    [[nodiscard]] bool powerSaverEnabled() const;
+    [[nodiscard]] PredecodeMomentumMode momentumMode() const;
 
-    std::optional<PredecodePendingSchedule> pendingDebouncedSchedule() const;
+    [[nodiscard]] std::optional<PredecodePendingSchedule> pendingDebouncedSchedule() const;
     PredecodeScheduleRuntimePlan settlePendingScheduleToNeutral();
-    bool accepts(quint64 generation) const;
+    [[nodiscard]] bool accepts(quint64 generation) const;
 
     void cancel();
 

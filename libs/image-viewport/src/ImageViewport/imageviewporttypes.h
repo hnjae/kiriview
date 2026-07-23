@@ -226,8 +226,8 @@ class ImageSequenceProviderFailureReference
 public:
     ImageSequenceProviderFailureReference() = default;
 
-    bool isValid() const { return m_value != 0; }
-    Q_INVOKABLE bool equals(ImageSequenceProviderFailureReference other) const
+    [[nodiscard]] bool isValid() const { return m_value != 0; }
+    Q_INVOKABLE [[nodiscard]] bool equals(ImageSequenceProviderFailureReference other) const
     {
         return m_value == other.m_value;
     }
@@ -264,8 +264,8 @@ public:
     {
     }
 
-    int minimum() const { return m_minimum; }
-    int maximum() const { return m_maximum; }
+    [[nodiscard]] int minimum() const { return m_minimum; }
+    [[nodiscard]] int maximum() const { return m_maximum; }
 
     friend bool operator==(ImageViewportRange lhs, ImageViewportRange rhs)
     {
@@ -286,8 +286,8 @@ class ImageViewportRevisionToken
 public:
     ImageViewportRevisionToken() = default;
 
-    bool isValid() const { return m_value != 0; }
-    Q_INVOKABLE bool equals(ImageViewportRevisionToken other) const
+    [[nodiscard]] bool isValid() const { return m_value != 0; }
+    Q_INVOKABLE [[nodiscard]] bool equals(ImageViewportRevisionToken other) const
     {
         return m_value == other.m_value;
     }
@@ -320,8 +320,9 @@ class ImageViewportPresentationTargetGenerationToken
 public:
     ImageViewportPresentationTargetGenerationToken() = default;
 
-    bool isValid() const { return m_value != 0; }
-    Q_INVOKABLE bool equals(ImageViewportPresentationTargetGenerationToken other) const
+    [[nodiscard]] bool isValid() const { return m_value != 0; }
+    Q_INVOKABLE [[nodiscard]] bool equals(
+        ImageViewportPresentationTargetGenerationToken other) const
     {
         return m_value == other.m_value;
     }
@@ -356,8 +357,8 @@ class ImageViewportDemandRevisionToken
 public:
     ImageViewportDemandRevisionToken() = default;
 
-    bool isValid() const { return m_value != 0; }
-    Q_INVOKABLE bool equals(ImageViewportDemandRevisionToken other) const
+    [[nodiscard]] bool isValid() const { return m_value != 0; }
+    Q_INVOKABLE [[nodiscard]] bool equals(ImageViewportDemandRevisionToken other) const
     {
         return m_value == other.m_value;
     }
@@ -391,8 +392,8 @@ class ImageViewportAllocationGenerationToken
 public:
     ImageViewportAllocationGenerationToken() = default;
 
-    bool isValid() const { return m_value != 0; }
-    Q_INVOKABLE bool equals(ImageViewportAllocationGenerationToken other) const
+    [[nodiscard]] bool isValid() const { return m_value != 0; }
+    Q_INVOKABLE [[nodiscard]] bool equals(ImageViewportAllocationGenerationToken other) const
     {
         return m_value == other.m_value;
     }
@@ -429,8 +430,8 @@ public:
     {
     }
 
-    bool primary() const { return m_primary; }
-    bool secondary() const { return m_secondary; }
+    [[nodiscard]] bool primary() const { return m_primary; }
+    [[nodiscard]] bool secondary() const { return m_secondary; }
 
     friend bool operator==(ImageViewportRoleSet lhs, ImageViewportRoleSet rhs)
     {

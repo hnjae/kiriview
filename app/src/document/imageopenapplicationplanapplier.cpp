@@ -148,7 +148,7 @@ private:
         applyUnsupportedOpenedCollectionVideo(delta.unsupportedOpenedCollectionVideo, true);
     }
 
-    bool trackedLoadCompletionBeforeVisibleState(
+    [[nodiscard]] bool trackedLoadCompletionBeforeVisibleState(
         const kiriview::ImageOpenResolvedStateDelta& delta) const
     {
         return delta.clearLoadingContainerNavigationUrl && !delta.displayedLocation.has_value();

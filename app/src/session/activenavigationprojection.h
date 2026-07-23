@@ -93,7 +93,7 @@ struct ActiveNavigationDispatchPlan
     ActiveNavigationDispatchOperation operation;
     ActiveNavigationDispatchOutcome outcome = ActiveNavigationDispatchOutcome::NoOp;
 
-    bool shouldDispatch() const;
+    [[nodiscard]] bool shouldDispatch() const;
 };
 
 ActiveNavigationSnapshot projectActiveNavigation(ActiveNavigationSourceKind sourceKind,

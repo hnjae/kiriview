@@ -31,8 +31,8 @@ public:
     void clear();
     void switchToOpenedCollectionScope(OpenedCollectionScopeLocation openedCollectionScope);
 
-    bool hasCurrentOpenedCollectionScope() const;
-    bool hasCurrentOpenedCollectionScope(
+    [[nodiscard]] bool hasCurrentOpenedCollectionScope() const;
+    [[nodiscard]] bool hasCurrentOpenedCollectionScope(
         const OpenedCollectionScopeLocation& openedCollectionScope) const;
 
     ImageIoJob loadOpenedCollectionCandidates(QObject* receiver,

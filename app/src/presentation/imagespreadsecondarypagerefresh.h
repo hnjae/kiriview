@@ -46,26 +46,27 @@ class ImageSpreadSecondaryPageRefresh final
 {
 public:
     void cachePageSize(const QUrl& url, QSize imageSize);
-    std::optional<bool> cachedPageIsWide(const QUrl& url) const;
+    [[nodiscard]] std::optional<bool> cachedPageIsWide(const QUrl& url) const;
 
-    ImageSpreadSecondaryPageRefreshResult planRefresh(
+    [[nodiscard]] ImageSpreadSecondaryPageRefreshResult planRefresh(
         const ImageSpreadSecondaryPageRefreshRequest& request) const;
-    int currentLastPageNumber(const ImageSpreadPageNavigationContext& context) const;
-    ImageDocumentPageActiveNavigationSnapshot activeNavigationSnapshot(
+    [[nodiscard]] int currentLastPageNumber(const ImageSpreadPageNavigationContext& context) const;
+    [[nodiscard]] ImageDocumentPageActiveNavigationSnapshot activeNavigationSnapshot(
         const ImageSpreadPageNavigationContext& context) const;
-    ImageSpreadPageNavigationTarget pageNavigationTarget(
+    [[nodiscard]] ImageSpreadPageNavigationTarget pageNavigationTarget(
         NavigationDirection direction, const ImageSpreadPageNavigationContext& context) const;
-    int relativePageNavigationTarget(
+    [[nodiscard]] int relativePageNavigationTarget(
         int offset, const ImageSpreadPageNavigationContext& context) const;
-    bool shouldBeginNavigationTransition(
+    [[nodiscard]] bool shouldBeginNavigationTransition(
         int targetPageNumber, const ImageSpreadPageNavigationContext& context) const;
-    bool primarySelectionMatchesDisplayed(
+    [[nodiscard]] bool primarySelectionMatchesDisplayed(
         const ImageDocumentPageNavigationSnapshot& navigation, const QUrl& displayedUrl) const;
 
 private:
-    ImageSpreadNavigationState navigationState(
+    [[nodiscard]] ImageSpreadNavigationState navigationState(
         const ImageSpreadPageNavigationContext& context, bool previousPageIsWide = false) const;
-    bool previousPageIsWideForNavigation(const ImageSpreadPageNavigationContext& context) const;
+    [[nodiscard]] bool previousPageIsWideForNavigation(
+        const ImageSpreadPageNavigationContext& context) const;
     ImageSpreadPageCache m_pageCache;
 };
 }

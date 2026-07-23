@@ -47,7 +47,10 @@ public:
         }
     }
 
-    ImageSequenceProviderRequestToken lastMetadataToken() const { return m_lastMetadataToken; }
+    [[nodiscard]] ImageSequenceProviderRequestToken lastMetadataToken() const
+    {
+        return m_lastMetadataToken;
+    }
 
 private:
     std::shared_ptr<int> m_cancelRequestCount;
@@ -78,7 +81,7 @@ public:
         return session;
     }
 
-    SlowCleanupProviderSession* lastSession() const { return m_lastSession; }
+    [[nodiscard]] SlowCleanupProviderSession* lastSession() const { return m_lastSession; }
 
 private:
     QThread* m_thread = nullptr;
@@ -146,7 +149,10 @@ public:
         }
     }
 
-    ImageSequenceProviderRequestToken lastMetadataToken() const { return m_lastMetadataToken; }
+    [[nodiscard]] ImageSequenceProviderRequestToken lastMetadataToken() const
+    {
+        return m_lastMetadataToken;
+    }
 
 private:
     std::shared_ptr<int> m_metadataRequestCount;
@@ -180,7 +186,10 @@ public:
         return session;
     }
 
-    CancellingAcknowledgementProviderSession* lastSession() const { return m_lastSession; }
+    [[nodiscard]] CancellingAcknowledgementProviderSession* lastSession() const
+    {
+        return m_lastSession;
+    }
 
 private:
     std::shared_ptr<int> m_sessionCount;
@@ -199,7 +208,7 @@ public:
     {
     }
 
-    ImageSequenceProviderDescriptor descriptor() const override { return {}; }
+    [[nodiscard]] ImageSequenceProviderDescriptor descriptor() const override { return {}; }
 };
 
 }

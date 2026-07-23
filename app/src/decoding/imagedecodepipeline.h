@@ -34,7 +34,7 @@ struct ImageDecodeRoute
     ImageDecodeDataSource dataSource = ImageDecodeDataSource::Original;
     QtRasterFormat qtRasterFormat = QtRasterFormat::None;
 
-    bool shouldDecode() const { return handlerKind != ImageDecodeHandlerKind::None; }
+    [[nodiscard]] bool shouldDecode() const { return handlerKind != ImageDecodeHandlerKind::None; }
 };
 
 using ImageDecodeRouterHandler = std::function<DecodedImageResult(const ImageDecodeRouterInput&)>;
@@ -60,7 +60,7 @@ public:
     explicit ImageDecodeRouterRuntime(ImageDecodeRouterHandlers handlers = {},
         ImageDecodeCompatibleDataTransform compatibleDataTransform = {});
 
-    DecodedImageResult execute(
+    [[nodiscard]] DecodedImageResult execute(
         ImageDecodeRoute route, const QByteArray& data, const ImageDecodeRequest& request) const;
 
 private:
@@ -75,7 +75,8 @@ public:
         ImageDecodeInputClassifier classifier = {},
         ImageDecodeCompatibleDataTransform compatibleDataTransform = {});
 
-    DecodedImageResult decode(const QByteArray& data, const ImageDecodeRequest& request) const;
+    [[nodiscard]] DecodedImageResult decode(
+        const QByteArray& data, const ImageDecodeRequest& request) const;
 
 private:
     ImageDecodeInputClassifier m_classifier;

@@ -54,7 +54,8 @@ private:
         const ImageLoadSession& session, const std::vector<ImageDocumentPageCandidate>& candidates);
     bool tryReportUnsupportedOpenedCollectionVideo(ImageLoadSession session);
     void prepareProviderImage(ImageLoadSession session);
-    std::optional<PredecodedImage> matchingPredecodedImage(const ImageLoadSession& session) const;
+    [[nodiscard]] std::optional<PredecodedImage> matchingPredecodedImage(
+        const ImageLoadSession& session) const;
 
     Callbacks m_callbacks;
     ImageLoadSessionTracker m_sessionTracker;

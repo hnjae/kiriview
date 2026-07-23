@@ -26,17 +26,17 @@ PredecodeScheduleRuntimePlan PredecodeScheduleState::schedule(
     updateNavigationMomentum(context.pageIndex, monotonicMsec);
     const quint64 generation = m_generation.next();
     m_currentContext = context;
-    plan.push_back(CacheDisplayedPredecodeContextOperation { context.displayedImages });
+    plan.emplace_back(CacheDisplayedPredecodeContextOperation { context.displayedImages });
 
     if (!m_powerSaverEnabled) {
         m_pendingSchedule = PredecodePendingSchedule { context, generation };
         if (context.immediate) {
-            plan.push_back(StartAdjacentPredecodeOperation { *m_pendingSchedule });
+            plan.emplace_back(StartAdjacentPredecodeOperation { *m_pendingSchedule });
         } else {
-            plan.push_back(StartPredecodeDebounceOperation { *m_pendingSchedule });
+            plan.emplace_back(StartPredecodeDebounceOperation { *m_pendingSchedule });
         }
     } else {
-        plan.push_back(ClearPredecodeWindowUrlsOperation {});
+        plan.emplace_back(ClearPredecodeWindowUrlsOperation {});
     }
 
     return plan;

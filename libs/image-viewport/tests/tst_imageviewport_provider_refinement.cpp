@@ -44,7 +44,7 @@ public:
             new ImageSequenceProviderFrameHandle(std::move(frame), this), envelope));
     }
 
-    QVector<ImageSequenceProviderRequest> frameRequests() const
+    [[nodiscard]] QVector<ImageSequenceProviderRequest> frameRequests() const
     {
         QVector<ImageSequenceProviderRequest> result;
         for (const auto& request : requests) {

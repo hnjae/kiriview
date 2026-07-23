@@ -24,7 +24,7 @@ struct ImageContainerOpenPlan
     OpenedCollectionScopeLocation openedCollectionScope;
     ImageContainerOpenError error = ImageContainerOpenError::Generic;
 
-    bool shouldLoadCandidates() const;
+    [[nodiscard]] bool shouldLoadCandidates() const;
 };
 
 struct ImageContainerOpenResult
@@ -32,7 +32,7 @@ struct ImageContainerOpenResult
     std::optional<ImageDocumentPageTarget> target;
     ImageContainerOpenError error = ImageContainerOpenError::Generic;
 
-    bool openedImage() const;
+    [[nodiscard]] bool openedImage() const;
 };
 
 ImageContainerOpenPlan imageContainerOpenPlanForCandidate(

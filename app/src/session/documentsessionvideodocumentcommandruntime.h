@@ -24,10 +24,10 @@ public:
     void setSource(const ResolvedNavigationSource& source);
     void setSourceDevice(const QUrl& sourceUrl, VideoPlaybackSourceDevice sourceDevice);
     void leaveMode(const QUrl& currentSourceUrl);
-    DocumentSessionVideoOutputAttachmentPort outputAttachmentPort() const;
+    [[nodiscard]] DocumentSessionVideoOutputAttachmentPort outputAttachmentPort() const;
 
 private:
-    QObject* videoOutput() const;
+    [[nodiscard]] QObject* videoOutput() const;
     void clearVideoOutput();
 
     DocumentSessionVideoDocumentCommandPort m_commands;

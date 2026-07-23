@@ -28,21 +28,21 @@ public:
 
     ChangeBatch beginChangeBatch();
 
-    const QUrl& sourceUrl() const;
-    ImageDocumentPageKind sourceKind() const;
-    const DisplayedImageLocation& displayedImageLocation() const;
-    const OpenedCollectionScopeLocation& displayedOpenedCollectionScope() const;
-    const QUrl& displayedUrl() const;
-    ImageDocumentStatus status() const;
-    bool loading() const;
-    const QString& errorString() const;
-    const std::optional<ImageLoadFailure>& loadFailure() const;
-    QString windowTitleFileName() const;
-    const QUrl& containerNavigationUrl() const;
-    const QUrl& loadingContainerNavigationUrl() const;
-    bool containerNavigationAvailable() const;
-    bool unsupportedOpenedCollectionVideo() const;
-    const EmbeddedMetadata& embeddedMetadata() const;
+    [[nodiscard]] const QUrl& sourceUrl() const;
+    [[nodiscard]] ImageDocumentPageKind sourceKind() const;
+    [[nodiscard]] const DisplayedImageLocation& displayedImageLocation() const;
+    [[nodiscard]] const OpenedCollectionScopeLocation& displayedOpenedCollectionScope() const;
+    [[nodiscard]] const QUrl& displayedUrl() const;
+    [[nodiscard]] ImageDocumentStatus status() const;
+    [[nodiscard]] bool loading() const;
+    [[nodiscard]] const QString& errorString() const;
+    [[nodiscard]] const std::optional<ImageLoadFailure>& loadFailure() const;
+    [[nodiscard]] QString windowTitleFileName() const;
+    [[nodiscard]] const QUrl& containerNavigationUrl() const;
+    [[nodiscard]] const QUrl& loadingContainerNavigationUrl() const;
+    [[nodiscard]] bool containerNavigationAvailable() const;
+    [[nodiscard]] bool unsupportedOpenedCollectionVideo() const;
+    [[nodiscard]] const EmbeddedMetadata& embeddedMetadata() const;
 
     void setSourceUrl(const QUrl& sourceUrl);
     void setSourceKind(ImageDocumentPageKind sourceKind);

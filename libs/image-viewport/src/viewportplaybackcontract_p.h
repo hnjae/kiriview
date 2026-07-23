@@ -47,7 +47,7 @@ struct ViewportPlaybackScheduleBatch
         return effects[role == ImageViewportPageRole::Secondary ? 1U : 0U];
     }
 
-    const ViewportPlaybackScheduleEffect& forRole(ImageViewportPageRole role) const
+    [[nodiscard]] const ViewportPlaybackScheduleEffect& forRole(ImageViewportPageRole role) const
     {
         return effects[role == ImageViewportPageRole::Secondary ? 1U : 0U];
     }

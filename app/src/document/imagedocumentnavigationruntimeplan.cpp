@@ -20,46 +20,46 @@ void appendNavigationEffectRuntimeOperation(kiriview::ImageDocumentRuntimePlan& 
         [&plan, &openedCollectionScope](const auto& payload) {
             using Effect = std::decay_t<decltype(payload)>;
             if constexpr (std::is_same_v<Effect, kiriview::OpenImageDocumentPageUrlEffect>) {
-                plan.push_back(kiriview::ScheduleAdjacentImagePredecodeOperation {
+                plan.emplace_back(kiriview::ScheduleAdjacentImagePredecodeOperation {
                     payload.target,
                     -1,
                 });
-                plan.push_back(kiriview::LoadPageNavigationUrlOperation {
+                plan.emplace_back(kiriview::LoadPageNavigationUrlOperation {
                     payload.target, openedCollectionScope, false });
             } else if constexpr (std::is_same_v<Effect,
                                      kiriview::OpenContainerImageDocumentPageNavigationEffect>) {
-                plan.push_back(kiriview::LoadContainerImageOperation {
+                plan.emplace_back(kiriview::LoadContainerImageOperation {
                     payload.target,
                     payload.openedCollectionScope,
                 });
             } else if constexpr (std::is_same_v<Effect,
                                      kiriview::ReportContainerNavigationErrorEffect>) {
                 if (payload.error == kiriview::ContainerNavigationError::EmptyContainer) {
-                    plan.push_back(
+                    plan.emplace_back(
                         kiriview::FinishEmptyContainerNavigationOperation { payload.containerUrl });
                     return;
                 }
 
                 if (payload.error == kiriview::ContainerNavigationError::InvalidComicBookArchive) {
-                    plan.push_back(kiriview::FinishContainerNavigationLoadWithErrorOperation {
+                    plan.emplace_back(kiriview::FinishContainerNavigationLoadWithErrorOperation {
                         payload.containerUrl,
                         kiriview::imageErrorText(kiriview::ImageErrorTextId::OpenComicBookArchive),
                     });
                     return;
                 }
 
-                plan.push_back(kiriview::FinishContainerNavigationLoadWithErrorOperation {
+                plan.emplace_back(kiriview::FinishContainerNavigationLoadWithErrorOperation {
                     payload.containerUrl,
                     payload.errorString,
                 });
             } else if constexpr (std::is_same_v<Effect,
                                      kiriview::ReportContainerNavigationBoundaryEffect>) {
-                plan.push_back(kiriview::ReportContainerNavigationBoundaryOperation {
+                plan.emplace_back(kiriview::ReportContainerNavigationBoundaryOperation {
                     payload.direction,
                 });
             } else if constexpr (std::is_same_v<Effect,
                                      kiriview::ReportContainerNavigationListErrorEffect>) {
-                plan.push_back(kiriview::ReportContainerNavigationListFailureOperation {
+                plan.emplace_back(kiriview::ReportContainerNavigationListFailureOperation {
                     payload.failure,
                 });
             } else if constexpr (std::is_same_v<Effect,

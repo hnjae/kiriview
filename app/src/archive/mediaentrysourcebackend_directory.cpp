@@ -152,6 +152,8 @@ public:
     {
     }
 
+    ~DirectoryCollectionMediaEntrySource() override = default;
+
     kiriview::MediaEntrySourceImageDataResult loadImageData(const QUrl& imageUrl) override
     {
         const std::optional<QString> entryPath

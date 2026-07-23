@@ -115,13 +115,13 @@ public:
         ApplicationCommandRouterInput input, const ApplicationCommandRouterPorts& ports) const;
     void handleScanBackwardAction(
         ApplicationCommandRouterInput input, const ApplicationCommandRouterPorts& ports) const;
-    bool executeHorizontalArrowShortcut(ApplicationCommandRouterInput input,
+    [[nodiscard]] bool executeHorizontalArrowShortcut(ApplicationCommandRouterInput input,
         const ApplicationCommandRouterPorts& ports, bool leftArrow) const;
-    bool executeSinglePageArrowShortcut(ApplicationCommandRouterInput input,
+    [[nodiscard]] bool executeSinglePageArrowShortcut(ApplicationCommandRouterInput input,
         const ApplicationCommandRouterPorts& ports, bool leftArrow) const;
-    bool executeVerticalPanShortcut(ApplicationCommandRouterInput input,
+    [[nodiscard]] bool executeVerticalPanShortcut(ApplicationCommandRouterInput input,
         const ApplicationCommandRouterPorts& ports, bool up) const;
-    bool executeVideoSeekShortcut(ApplicationCommandRouterInput input,
+    [[nodiscard]] bool executeVideoSeekShortcut(ApplicationCommandRouterInput input,
         const ApplicationCommandRouterPorts& ports, qint64 deltaMilliseconds) const;
 
 private:

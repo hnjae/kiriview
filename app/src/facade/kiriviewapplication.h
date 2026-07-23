@@ -102,11 +102,11 @@ public:
     explicit KiriViewApplication(QObject* parent = nullptr);
     ~KiriViewApplication() override;
 
-    MenuPresentation menuPresentation() const;
+    [[nodiscard]] MenuPresentation menuPresentation() const;
     void setMenuPresentation(MenuPresentation presentation);
-    int shortcutRevision() const;
-    int actionStateRevision() const;
-    QAbstractListModel* shortcutHelpModel() const;
+    [[nodiscard]] int shortcutRevision() const;
+    [[nodiscard]] int actionStateRevision() const;
+    [[nodiscard]] QAbstractListModel* shortcutHelpModel() const;
 
     static kiriview::ApplicationActions::MenuPresentation domainMenuPresentation(
         KiriViewApplication::MenuPresentation presentation);
@@ -118,22 +118,27 @@ public:
         kiriview::ApplicationActions::ActionId actionId);
 
     Q_INVOKABLE QAction* actionForId(KiriViewApplication::ActionId actionId);
-    Q_INVOKABLE QList<QKeySequence> programWideShortcutsForId(
+    Q_INVOKABLE [[nodiscard]] QList<QKeySequence> programWideShortcutsForId(
         KiriViewApplication::ActionId actionId) const;
-    Q_INVOKABLE QList<QKeySequence> viewerLocalShortcutsForId(
+    Q_INVOKABLE [[nodiscard]] QList<QKeySequence> viewerLocalShortcutsForId(
         KiriViewApplication::ActionId actionId) const;
     Q_INVOKABLE bool setViewerLocalShortcutsForId(
         KiriViewApplication::ActionId actionId, const QList<QKeySequence>& shortcuts);
-    Q_INVOKABLE QString menuShortcutTextForId(KiriViewApplication::ActionId actionId) const;
-    Q_INVOKABLE bool actionPlacementEnabled(KiriViewApplication::ActionId actionId) const;
-    Q_INVOKABLE QString actionMenuTextForId(KiriViewApplication::ActionId actionId) const;
-    Q_INVOKABLE QString actionToolbarTextForId(KiriViewApplication::ActionId actionId) const;
-    Q_INVOKABLE QString actionToolbarTooltipTextForId(KiriViewApplication::ActionId actionId) const;
-    Q_INVOKABLE KiriViewApplication::ActionId navigationPresentationActionId(
+    Q_INVOKABLE [[nodiscard]] QString menuShortcutTextForId(
+        KiriViewApplication::ActionId actionId) const;
+    Q_INVOKABLE [[nodiscard]] bool actionPlacementEnabled(
+        KiriViewApplication::ActionId actionId) const;
+    Q_INVOKABLE [[nodiscard]] QString actionMenuTextForId(
+        KiriViewApplication::ActionId actionId) const;
+    Q_INVOKABLE [[nodiscard]] QString actionToolbarTextForId(
+        KiriViewApplication::ActionId actionId) const;
+    Q_INVOKABLE [[nodiscard]] QString actionToolbarTooltipTextForId(
+        KiriViewApplication::ActionId actionId) const;
+    Q_INVOKABLE [[nodiscard]] KiriViewApplication::ActionId navigationPresentationActionId(
         KiriViewApplication::NavigationPresentationSlot slot) const;
-    Q_INVOKABLE KiriViewApplication::ActionId navigationPresentationIconActionId(
+    Q_INVOKABLE [[nodiscard]] KiriViewApplication::ActionId navigationPresentationIconActionId(
         KiriViewApplication::NavigationPresentationSlot slot) const;
-    Q_INVOKABLE QVariantList navigationApplicationMenuActionIds() const;
+    Q_INVOKABLE [[nodiscard]] QVariantList navigationApplicationMenuActionIds() const;
     Q_INVOKABLE void setDocumentSession(QObject* session);
     Q_INVOKABLE void setWindowShell(QObject* shell);
     Q_INVOKABLE void updateActionUiGateSnapshot(bool helpDialogOpen, bool textInputFocused,
