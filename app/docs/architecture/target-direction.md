@@ -1,26 +1,26 @@
 # Policy Contracts
 
-KiriView product policy is native C++ organized around meaningful workflow or algorithmic domains such as opening, navigation, deletion, page pairing, scan planning, format routing, and cache policy. Policy that does not need Qt remains plain value-oriented C++ and must not become QObject state or signal plumbing merely to share the application language.
+KiriView product policy is organized around meaningful workflow or algorithmic domains such as opening, navigation, deletion, page pairing, scan planning, format routing, and cache policy. Policy that does not need Qt remains value-oriented and must not become QObject state or signal plumbing without a runtime need.
 
-Policy boundaries must clarify ownership, preserve value semantics, and let multiple runtime paths share one named decision without creating duplicate state. A product decision must not cross into the Rust support library; only the media-support capabilities named by the language-boundary contract cross FFI.
+Policy boundaries must clarify ownership, preserve value semantics, and let multiple runtime paths share one named decision without creating duplicate state. A product decision must not cross into the Rust support library; only the capabilities named by [Rust Support Boundary](rust-support-boundary.md) cross its bridge.
 
 Policy units must be cohesive:
 
-- Workflow reducers that accept plain events and return state deltas plus effects.
-- Application geometry policy modules that compute scan, nearest-point, or placement decisions without owning presentation objects.
-- Format and routing modules that inspect plain inputs and return typed classification values.
-- Cache prioritization and navigation policies that remain independent of Qt event loops and do not own Qt runtime objects.
+- Side-effect-free workflow policy that maps coherent inputs to explicit decisions.
+- Geometry policy computes scan, nearest-point, or placement decisions without owning presentation objects.
+- Format and routing policy inspects explicit inputs and returns classification decisions.
+- Cache prioritization and navigation policy remain independent of Qt event loops and do not own Qt runtime objects.
 
-Document-session policy changes must cross coherent internal C++ contracts rather than individual property-shaped adapters. Stable boundaries include active navigation projection from session and image-document snapshots, direct media routing plans, ordinary direct media deletion fallback plans, action-availability projections, and a named still-image-only direct media predecode eligibility policy.
+Document-session policy consumes coherent application state rather than reconstructing decisions from unrelated property reads. Stable responsibilities include active navigation projection, direct media routing, ordinary direct media deletion fallback, action availability, and still-image-only direct media predecode eligibility.
 
-Session-to-leaf document boundaries expose cohesive snapshot families and explicit command/effect ports, not property-shaped signal bags or direct leaf facade queries. Projection refresh, thumbnail-source adaptation, routing, page navigation, deletion, playback stop, and video-output attachment must cross the session boundary through typed ports whose ownership is visible at the boundary.
+Session-to-leaf boundaries provide coherent observations and owner-routed commands. Their internal representation may use snapshots, direct owner APIs, callbacks, or other application mechanisms, provided callers cannot mutate another owner's state or observe a partially committed transition.
 
-Document-session subowners are justified only when a concern needs its own lifecycle, stale-completion checks, projection commit order, or grouped command/effect ports. Regardless of internal decomposition, public output still passes through the document-session state owner.
+The document session may centralize a concern or delegate it to collaborators according to cohesion and lifecycle needs. Regardless of internal decomposition, public mixed-media output still passes through the document-session state owner.
 
-Session runtime code may supply committed snapshots and bind ports, but it must not become a second owner for projection commits, leaf-to-public mapping, route-local sequencing, or stale-completion acceptance. These boundaries stay stable at the contract level across internal refactoring that preserves the same ownership, port, and stale-completion contracts.
+Runtime composition must not create a second owner for public projection commits, leaf-to-public mapping, route-local sequencing, or stale-completion acceptance. Refactoring may change component and call topology when those ownership and lifecycle contracts remain intact.
 
-Scan-start and stepped-reading policy belong to the C++ image-document integration layer, not QML. The policy computes scan or nearest-point plans from a matched public viewport observation, uses only supported coordinate queries and commands, and does not reproduce presentation geometry. The integration owner routes UI facts and rejects application commands or projections correlated to a superseded application target or dependency observation.
+Scan-start and stepped-reading policy belong to the image-document integration layer, not QML. The policy computes scan or nearest-point plans from a matched public viewport observation, uses only supported coordinate queries and commands, and does not reproduce presentation geometry. The integration owner routes UI facts and rejects application commands or projections correlated to a superseded application target or dependency observation.
 
-Those boundaries keep the document-session state owner as the public owner. Plain C++ policy computes projections and plans from snapshots; runtime owners apply the resulting state, execute document routing and Qt/KDE effects, publish signal batches, and preserve cursor-generation rejection for stale async completions.
+Those boundaries keep the document-session state owner as the public owner. Policy computes projections and decisions from coherent inputs; runtime owners apply the resulting state, execute document routing and Qt/KDE effects, publish coherent observable state, and preserve direct-media freshness checks for async completions.
 
-Policy types must not depend on Qt runtime objects merely because they live in C++. Qt value types may be used when they are the canonical application representation and do not obscure deterministic ownership or require an event loop.
+Policy types must not depend on Qt runtime objects without a domain need. Qt value types may be used when they are the canonical application representation and do not obscure deterministic ownership or require an event loop.

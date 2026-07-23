@@ -8,7 +8,7 @@ The image-document integration owner retains only application-side facts: select
 
 Reading direction remains an application navigation and pairing policy because it affects page order and scan commands. The integration owner supplies the requested presentation direction through the supported command boundary and publishes only the resulting matched observation.
 
-Every different image target clears the prior KiriView displayed-image projection as soon as the source load or navigation selection is accepted, before candidate discovery or decoding can delay visible selection feedback. This applies to same-scope navigation and presentation-shape changes as well as source replacement. The selected target and requested presentation-shape policy remain active when loading fails. Same-image refinement does not change the selected target.
+Target selection and presentation-shape changes publish application state according to [Image Display](../../spec/image-display.md) and [Navigation](../../spec/navigation.md). The integration owner keeps selected, displayed, and refinement identities distinct so a prior presentation or stale completion cannot be attributed to the new target.
 
 ## Viewport Command Boundary
 
@@ -22,9 +22,9 @@ The toolbar and action runtime derive fit selection, zoom readout, editability, 
 
 ## Media Workspace Boundary
 
-QML owns layout composition of the media viewport, layout-reserving panels, runtime-only panel size and visibility, delegate selection, focus handoff, raw gesture sampling, and context-menu signal forwarding. Panel size and visibility are canonical UI-local state; QML reports their current facts through the typed panel and UI-gate ports so C++ action checked state and Escape routing can mirror the layout without becoming another panel-state owner. Fullscreen state is not part of this panel state and remains owned by the C++ application shell. Shared workspace code communicates with image and video viewports only through their declared interaction contracts and must not reach into mode-specific internals.
+QML owns layout composition of the media viewport, layout-reserving panels, runtime-only panel size and visibility, delegate selection, focus handoff, raw gesture sampling, and context-menu signal forwarding. Panel size and visibility are canonical UI-local state; QML reports their current facts through owner inputs so action checked state and Escape routing can mirror the layout without becoming another panel-state owner. Fullscreen state is not part of this panel state and remains owned by the application shell. Shared workspace code communicates with image and video viewports only through their declared interaction contracts and must not reach into mode-specific internals.
 
-The image delegate hosts the KiriView image-viewport facade as the image visual surface. The facade owns dependency attachment and hides the dependency surface from general QML code. Video playback, seeking, and backend attachment remain behind the video and session boundaries. QML may own the physical video-output item and report an owner-tokened surface claim, but C++ owns attachment, detachment, stale-claim rejection, destroyed-item handling, and public video attachment state.
+The image delegate hosts the KiriView image-viewport facade as the image visual surface. The facade owns dependency attachment and hides the dependency surface from general QML code. Video playback, seeking, and backend attachment remain behind the video and session boundaries. QML may own the physical video-output item and report an owner-tokened surface claim, but the video-output attachment owner holds attachment, detachment, stale-claim rejection, destroyed-item handling, and public video attachment state.
 
 ## Source, Failure, And Resource Boundary
 

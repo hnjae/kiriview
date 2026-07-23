@@ -24,7 +24,7 @@ flowchart LR
 
 Before submitting a target, the integration owner records the intended application source and role identities. A displayed URL, image readiness, toolbar zoom, page-role projection, or error projection is published only from a supported observation that matches that application record. Opaque correlation values from the dependency are compared only as its public contract permits; delayed observations or UI actions associated with an older application target cannot update a newer selection.
 
-The integration owner submits target and presentation requests needed to implement the transitions defined in the product specification. KiriView publishes the selected target, loading state, displayed source, and requested presentation shape from one coherent application transaction and does not infer intermediate dependency state.
+The integration owner submits target and presentation requests needed to implement the transitions defined in the product specification. KiriView publishes coherent application state for those transitions and does not infer intermediate dependency state.
 
 ## Sequence Provider Boundary
 
@@ -50,7 +50,7 @@ KiriView's decoding boundary owns source-specific animation readers, metadata no
 
 Supported animated containers are classified through animation-aware decoding before static fallback so a multi-frame file is not silently reduced to its first frame.
 
-The Rust support static library uses `resvg` for SVG parsing and rasterization because QtSvg does not implement the complete SVG behavior required by KiriView. The support boundary disables scripts, animation, and external network or file resources before payload transfer. KiriView keys reusable SVG output by application source identity and the public provider request facts that affect raster detail.
+The Rust static SVG capability parses and rasterizes self-contained SVG content with scripts, animation, and external network or file resources disabled. KiriView keys reusable SVG output by application source identity and the public provider request facts that affect raster detail. The selected library and rationale are recorded in the applicable ADR rather than forming part of the provider contract.
 
 ## QML Boundary
 

@@ -11,17 +11,17 @@ KiriView uses ISO C++23 and Qt 6 ownership facilities to minimize memory, lifeti
 
 ## Value-Oriented Policy
 
-- Product policy uses ordinary structs, scoped enums, `std::optional`, `std::variant`, explicit snapshots, and typed results or plans. It does not acquire QObject identity, signals, or an event-loop dependency solely because it is implemented in C++.
+- Product policy consumes owned values and produces typed decisions without acquiring QObject identity, signals, or an event-loop dependency solely because it is implemented in C++. The concrete value representation is an implementation choice.
 - Qt value types such as `QString`, `QByteArray`, `QUrl`, `QSize`, and `QRect` may be canonical policy values when they match the application domain and retain deterministic value semantics.
 - Policy avoids environment-dependent Qt services. Filesystem, clock, locale, plugin, desktop-service, and runtime capability facts enter as explicit values supplied by their owners.
-- APIs use typed Qt 6 signal and slot syntax, scoped enums, range-based iteration, and non-deprecated Qt 6 and C++ standard-library facilities. Compatibility wrappers for obsolete Qt or C++ APIs are not architecture boundaries.
+- APIs must preserve type safety and explicit lifetime semantics and use non-deprecated Qt 6 and C++ standard-library facilities. Compatibility wrappers for obsolete Qt or C++ APIs are not architecture boundaries.
 
 ## Ownership
 
-- Prefer automatic storage and value members. Non-QObject exclusive heap ownership uses `std::unique_ptr`; shared ownership uses `std::shared_ptr` only when multiple owners genuinely extend the same lifetime, and observers use `std::weak_ptr` when they may outlive an owner.
+- Prefer automatic storage and value members. Non-QObject heap ownership uses an RAII owner whose semantics match the actual lifetime; shared lifetime is used only when multiple owners genuinely extend it, and observers that may outlive an owner can detect expiration. Concrete smart-pointer types are local implementation choices unless they form a declared boundary.
 - QObject graphs use one explicit Qt parent owner for heap-allocated children. A QObject must not simultaneously have a parent owner and a competing smart-pointer owner, and stack-allocated QObjects must not be assigned a parent that can delete them.
-- Raw pointers and references are non-owning. An owning raw pointer is not an application ownership contract; observations that may survive the current call or a queued delivery use an owner-scoped handle, `QPointer` for QObject observation, or an appropriate weak smart pointer.
-- Application code does not use direct `delete` or `malloc`/`free` for ordinary ownership. Direct `new` is limited to QObject children that immediately receive their parent or APIs that explicitly take ownership; other heap objects use `std::make_unique` or `std::make_shared`. External C APIs, placement construction, custom deleters, and ownership-transfer APIs are isolated behind narrow RAII adapters that document the required allocator and release operation.
+- Raw pointers and references are non-owning. An owning raw pointer is not an application ownership contract; observations that may survive the current call or queued delivery use a lifetime-aware owner-scoped handle.
+- Ordinary ownership must not depend on manually paired raw allocation and release. External C APIs, placement construction, custom deleters, and ownership-transfer APIs are isolated behind narrow RAII adapters that document the required allocator and release operation.
 - Representation-changing casts and direct buffer access stay inside codec, rendering, FFI, or external-library adapters and validate size, alignment, format, and lifetime before exposing a typed value.
 
 ## Views And Buffers
@@ -30,11 +30,11 @@ KiriView uses ISO C++23 and Qt 6 ownership facilities to minimize memory, lifeti
 - Values crossing worker, queued, cache, or public boundaries own their storage. A borrowed input may be used synchronously, but a deferred operation captures an owning value or a declared lifetime handle.
 - Indexing, byte counts, strides, dimensions, and integer conversions are validated before access or allocation. Code must not rely on debug-only assertions to establish release-build memory safety.
 - A `QImage` or other Qt value created over external storage either owns that storage through a documented cleanup contract or detaches by copying before the external storage can be invalidated.
-- Implicit sharing does not make concurrent mutation safe. Cross-thread values are immutable snapshots or independently owned copies unless a synchronization owner explicitly governs mutation.
+- Implicit sharing does not make concurrent mutation safe. Cross-thread values are immutable owned values or independently owned copies unless a synchronization owner explicitly governs mutation.
 
 ## QObject And Async Lifetimes
 
 - QObject, signal, timer, job, and thread-affinity state belong to runtime, facade, or effect owners rather than plain policy.
-- Functor connections that capture owner state provide a receiver or context object so Qt disconnects delivery when that context is destroyed. Other captured objects use value ownership, `QPointer`, weak ownership, or the operation-token rules from [Async Lifecycle](async-lifecycle.md); durable contextless captures of raw `this` are not allowed.
+- Connections that capture owner state must bind delivery to a lifetime that is invalidated automatically when the owner is destroyed. Other captured objects use value ownership, lifetime-aware observation, or the operation-identity rules from [Async Lifecycle](async-lifecycle.md); durable contextless captures of raw `this` are not allowed.
 - A QObject is accessed only from its owning thread unless its API explicitly permits otherwise. Cross-thread work returns owned plain payloads through queued delivery, and QObject destruction that must occur on its affinity thread uses the owning runtime's Qt lifecycle path.
 - Cancellation never substitutes for lifetime validation. Queued and worker completions validate both a live owner and the current operation identity before dereferencing owner state or publishing a result.

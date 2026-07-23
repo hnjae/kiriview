@@ -5,96 +5,39 @@ KiriView is a KDE Kirigami image viewer built from cooperating UI, facade, runti
 ```mermaid
 flowchart TD
     UI["QML / Kirigami UI composition"]
-    Facade["C++ facade boundary"]
-    Runtime["C++ Qt/KDE runtime and effect owners"]
-    Policy["C++ product policy"]
+    Facade["QObject / QQuickItem facade boundary"]
+    Runtime["Qt/KDE runtime and effect owners"]
+    Policy["Product policy"]
     Support["Rust media-support static library"]
 
     UI --> Facade --> Runtime --> Policy
-    Policy -- "typed plans, state deltas, and effect descriptions" --> Runtime
     Runtime --> Support
-    Support -- "plain results and decoded payloads" --> Runtime
 ```
 
-The C++ application owns product policy, runtime state, Qt object lifetime, KDE side effects, stale-completion rejection, and coherent QML projections. Qt-independent policy remains plain value-oriented C++ rather than becoming QObject plumbing. The statically linked Rust support library provides only the canonical allowlisted media and desktop-format capabilities defined by [Language Boundary](language-boundary.md).
+The application owns product policy, runtime state, Qt object lifetime, KDE side effects, stale-completion rejection, and coherent QML projections. Qt-independent policy remains value-oriented rather than becoming QObject plumbing. The statically linked Rust support library provides only the media-support capabilities defined by [Rust Support Boundary](rust-support-boundary.md).
 
 ## Dependency Direction
 
 - QML owns declarative composition and consumes the facade as a placement and interaction surface only.
 - The facade owns the QML API boundary, type conversion, and forwarding. It must not own domain workflow state.
-- C++ policy and runtime owners own product decisions, Qt/KDE effects, async lifecycles, projections, and platform integration.
+- Policy and runtime owners own product decisions, Qt/KDE effects, async lifecycles, projections, and platform integration.
 - The Rust support library accepts plain values or byte buffers and returns plain results, decoded payloads, or opaque capability-local handles. It must not own product policy, call Qt/KDE adapters, or publish QML-facing state.
-- Shared support domains provide explicit capability snapshots or provider ports. Runtime owners consume those ports instead of probing platform state independently.
+- Shared support domains publish coherent capability facts through owned boundaries. Runtime owners consume those facts instead of probing platform state independently.
 
-## Component Ownership Shape
+## Responsibility Boundaries
 
-The component graph is a responsibility contract, not a complete call graph:
-
-```mermaid
-flowchart TD
-    UI["UI composition"]
-    Facade["Facade boundary"]
-    Shell["Application shell"]
-    Session["Document session"]
-    Image["Image runtime"]
-    Video["Video runtime"]
-    Navigation["Navigation and candidate lists"]
-    Integration["ImageViewport integration"]
-    Viewport["ImageViewport public boundary"]
-    Provider["Image sequence provider resources"]
-    Decoding["Image decode and metadata"]
-    Collections["Opened collection access"]
-    Predecode["Adjacent still-image preparation"]
-    Actions["Actions, shortcuts, and UI gates"]
-    System["System, localization, location, and async support"]
-    Policy["C++ product policy"]
-    Support["Rust media support"]
-
-    UI --> Facade
-    Facade --> Shell
-    Facade --> Session
-    Shell --> Actions
-    Shell --> System
-    Session --> Image
-    Session --> Video
-    Session --> Navigation
-    Session --> Predecode
-    Session --> Actions
-    Session --> System
-    Image --> Navigation
-    Image --> Integration
-    Image --> Decoding
-    Image --> Collections
-    Integration --> Viewport
-    Viewport <--> Provider
-    Provider --> Decoding
-    Video --> Navigation
-    Video --> Collections
-    Navigation --> Collections
-    Shell --> Policy
-    Session --> Policy
-    Image --> Policy
-    Video --> Policy
-    Navigation --> Policy
-    Integration --> Policy
-    Provider --> Policy
-    Decoding --> Policy
-    Collections --> Policy
-    Predecode --> Policy
-    Decoding --> Support
-    Session --> Support
-```
+The following responsibilities are durable ownership boundaries, not a prescribed component graph. An implementation may combine or split internal collaborators when it preserves each authority, the dependency direction above, and the cross-owner contracts:
 
 - The document session owns top-level mixed-media routing, public source identity, active navigation projection, active zoom projection, title subject, displayed-media operation availability, displayed-media operation planning inputs, direct-media deletion follow-up, thumbnail-strip projection, and action-availability inputs.
 - Image runtime owns image-mode loading, opened collection page state, viewport target and command adaptation, still-image provider resources, embedded image metadata, image-mode removal fallback facts, and image-specific navigation facts.
 - Video runtime owns direct-video resolution, opened-collection video source-device acceptance, playback state, video status, video zoom readout, video metadata where supported, and playback-control readiness.
-- Navigation owns candidate ordering, page/media cursor state, boundary facts, live direct-media refresh, and sibling archive discovery. It exposes snapshots and plans rather than public UI state.
+- Navigation responsibilities own candidate ordering, route-local cursor state, boundary facts, live direct-media refresh, and sibling archive discovery within the enclosing document owner. They expose readonly observations and decisions rather than an alternate public UI state.
 - Collection access owns directly opened archive and directory listing, entry-byte access, entry metadata, and eligible collection-video playback devices. It must not update document, video, thumbnail, or QML state directly.
 - The KiriView `ImageViewport` integration owner maps navigation targets, application commands, and interaction facts to the dependency's supported interface, correlates public observations with application source identity, and does not keep a second presentation state.
 - Image provider resources own source access, decode and refinement work, reusable payloads, predecode adoption, application cache and display-store pressure, typed failure detail, and provider leases. They answer supported provider requests without inferring presentation or rendering internals.
 - Decoding owns route-specific image decoding, animation frame enumeration, metadata extraction, and provider-compatible refinement payloads. Decoder failures preserve typed diagnostics before any user-facing projection is derived.
 - Predecode owns still-image-only adjacent preparation. Video rows may be cursor positions for scheduling, but they do not produce video-frame quick-navigation payloads.
-- Actions own `QAction` identity, shortcut routing, accepted UI-gate revisions, command dispatch, and unsupported-media shortcut interception. QML reports UI-local gate facts and renders action placements.
+- Actions own `QAction` identity, shortcut routing, UI-gate freshness, command dispatch, and unsupported-media shortcut interception. QML reports UI-local gate facts and renders action placements.
 
 ## Build and Tooling Ownership
 
@@ -104,6 +47,6 @@ The top-level CMake application build is the authority for the executable, produ
 
 The application build owns one canonical installed application identity. Desktop metadata, icon identity, runtime metadata, generated configuration, and application artifacts must consume `org.hnjae.kiriview` from that authority and must not introduce alternate application IDs.
 
-The Rust support library is linked into the application and has no independent installation, dynamic loading, stable ABI, or release-version contract. CXX may implement its typed bridge; CXX-Qt is not an application build or runtime boundary.
+The Rust support library's installation and ABI constraints are defined by [Rust Support Boundary](rust-support-boundary.md#build-contract). CXX may implement its typed bridge; CXX-Qt is not an application build or runtime boundary.
 
 Derived build metadata follows the owner of the artifact it describes. Development tooling may orchestrate that metadata but must not become an independent authority for production or test compilation. Shared Qt, language-boundary, runtime, lint, and editor inputs come from one tooling context.

@@ -122,9 +122,9 @@ KiriView has one visible in-app toast notification slot.
 
 New toast requests replace the current toast and replay the entrance animation, including when the same message and scope are requested again while already visible.
 
-A first-item or last-item toast is scoped to the currently displayed item's known boundary.
+A first-item or last-item toast is scoped to the active navigation selection and its known boundary.
 
-When the displayed item changes or is cleared, KiriView removes the current toast only if its scope is the boundary. Non-boundary toasts such as file operation errors remain governed by normal replacement and timeout behavior.
+When the active navigation selection changes or becomes unknown or unavailable, KiriView removes the current toast only if its scope is the boundary. Displaying the already selected item does not clear that boundary toast. Non-boundary toasts such as file operation errors remain governed by normal replacement and timeout behavior.
 
 ## Panning and Viewer Keys
 

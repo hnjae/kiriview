@@ -18,13 +18,13 @@ Open, Open With, Previous Archive, and Next Archive are provided by the applicat
 
 ## Collection Controls
 
-When the active navigation scope is a directly opened CBZ, CBT, CB7, CBR, ZIP, TAR, 7Z, RAR, or local directory collection, the trailing action toolbar contains Right-to-Left Reading, Two-Page Spread, a Fit menu button, zoom, and, when Hamburger Menu presentation is active outside fullscreen, a toolbar application menu button.
+When the active navigation scope is a directly opened archive or local directory collection, the trailing action toolbar contains Right-to-Left Reading, Two-Page Spread, a Fit menu button, zoom, and, when Hamburger Menu presentation is active outside fullscreen, a toolbar application menu button.
 
 When the active navigation scope is not an opened archive or directory collection, including empty state, ordinary direct image files, direct video files, and direct KDE archive-entry URLs, the trailing action toolbar does not show Right-to-Left Reading or Two-Page Spread.
 
 Right-to-Left Reading and Two-Page Spread visibility is determined by the active navigation scope, not by whether the current media item is an image, direct video, playable collection video, or unsupported-video placeholder. When a playable video is displayed, Fit and zoom remain in their image-mode positions; Fit is disabled and zoom is read-only. When an unsupported-video placeholder is displayed, Fit is disabled and the zoom control has no active readout.
 
-When Right-to-Left Reading or Two-Page Spread is visible for an opened collection that is not a directly opened local CBZ, CBT, CB7, or CBR comic book archive, the control is disabled.
+When Right-to-Left Reading or Two-Page Spread is visible for an opened collection that is not a [comic book archive](comic-archives.md#two-page-spread-and-reading-direction), the control is disabled.
 
 When full trailing toolbar controls fit and Right-to-Left Reading and Two-Page Spread are visible, they are text-beside-icon buttons with the toolbar labels `Right-to-Left` and `Two-Page Spread`. If the toolbar cannot fit the text-bearing controls, KiriView may collapse them to icon-only controls or move them into overflow according to Kirigami toolbar layout behavior.
 

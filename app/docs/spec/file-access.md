@@ -94,7 +94,7 @@ The deletion target is the displayed image URL for ordinary images, remote URLs,
 
 The deletion target is the original direct media URL for direct videos, including videos opened directly from KDE-supported archive URLs such as `zip://`, regardless of any playback preparation needed to play the video.
 
-When the displayed media item is inside a local CBZ, CBT, CB7, CBR, ZIP, TAR, 7Z, or RAR archive collection opened directly by KiriView, the deletion target is the archive file itself rather than the currently displayed internal entry.
+When the displayed media item is inside a directly opened local archive collection, the deletion target is the archive file itself rather than the currently displayed internal entry.
 
 When the displayed media item is inside a local directory collection opened directly by KiriView, the deletion target is the directory itself rather than the currently displayed file. Confirming the deletion deletes the entire directly opened directory as handled by KDE.
 

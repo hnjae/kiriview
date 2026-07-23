@@ -1,8 +1,10 @@
 # Comic Archives
 
+In this specification, a comic book archive is a directly opened local CBZ, CBT, CB7, or CBR archive.
+
 ## Two-Page Spread and Reading Direction
 
-When the active navigation scope is a directly opened local CBZ, CBT, CB7, or CBR comic book archive, `S` toggles Two-Page Spread.
+When the active navigation scope is a comic book archive, `S` toggles Two-Page Spread.
 
 Two-Page Spread displays the current page and the next page when both pages are eligible images. Their left/right placement follows the active reading direction.
 
@@ -14,15 +16,15 @@ If the next page after the current page is wide, the current page is displayed a
 
 If the next opened collection item after the current image is a video, the current image is displayed alone and the next navigation action opens that item according to the collection-video behavior in [File Access](file-access.md#opened-collections).
 
-Two-Page Spread is unavailable for ordinary image files, direct video files, KDE-supported archive URLs, directly opened ZIP, TAR, 7Z, or RAR archives, and directly opened directories.
+Two-Page Spread is unavailable for ordinary image files, direct video files, KDE-supported archive URLs, directly opened non-comic archives, and directly opened directories.
 
-Showing a disabled Two-Page Spread toolbar control while a directly opened ZIP, TAR, 7Z, RAR, or directory collection is active does not make Two-Page Spread available.
+Showing a disabled Two-Page Spread toolbar control while a non-comic archive or directory collection is active does not make Two-Page Spread available.
 
-When the active navigation scope is a directly opened local CBZ, CBT, CB7, or CBR comic book archive, `B` toggles Right-to-Left Reading mode.
+When the active navigation scope is a comic book archive, `B` toggles Right-to-Left Reading mode.
 
-Right-to-Left Reading mode is off by default, is unavailable for ordinary image files, direct video files, KDE-supported archive URLs, directly opened ZIP, TAR, 7Z, or RAR archives, and directly opened directories, and is not saved as a global setting.
+Right-to-Left Reading mode is off by default, is unavailable for ordinary image files, direct video files, KDE-supported archive URLs, directly opened non-comic archives, and directly opened directories, and is not saved as a global setting.
 
-Showing a disabled Right-to-Left Reading toolbar control while a directly opened ZIP, TAR, 7Z, RAR, or directory collection is active does not make Right-to-Left Reading available.
+Showing a disabled Right-to-Left Reading toolbar control while a non-comic archive or directory collection is active does not make Right-to-Left Reading available.
 
 Moving to a sibling comic book archive with Previous Archive or Next Archive preserves the current Right-to-Left Reading mode state.
 
@@ -70,7 +72,7 @@ KiriView moves by one primary page selection at a time while loading. The final 
 
 ## Archive Navigation
 
-An archive for archive navigation is a local CBZ, CBT, CB7, or CBR comic book archive.
+Archive navigation considers only comic book archives.
 
 The current archive can be the comic book archive whose image is displayed, or an empty sibling comic book archive reached through archive navigation.
 
@@ -78,11 +80,11 @@ When the current media item is inside a local comic book archive opened directly
 
 The Previous Archive and Next Archive actions open the previous or next sibling comic book archive beside the current archive.
 
-When the current item is a normal image file, direct video file, inside a KDE-supported archive URL, or inside a directly opened ZIP, TAR, 7Z, or RAR archive collection, the Previous Archive and Next Archive actions are disabled.
+When the current item is a normal image file, direct video file, inside a KDE-supported archive URL, or inside a directly opened non-comic archive collection, the Previous Archive and Next Archive actions are disabled.
 
 Previous Archive and Next Archive are also disabled inside directly opened directory collections.
 
-Sibling archive candidates are local `.cbz`, `.cbt`, `.cb7`, or `.cbr` files in the current archive's parent directory.
+Sibling archive candidates are comic book archives in the current archive's parent directory.
 
 Candidates are sorted with the same user locale-aware file name order used for image navigation.
 

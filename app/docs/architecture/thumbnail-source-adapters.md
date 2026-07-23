@@ -4,25 +4,25 @@ Active-navigation thumbnails use source adapters so scheduling, cache policy, so
 
 ## Ownership
 
-The navigation owner remains canonical for candidate rows and their candidate-list revision. The document-session thumbnail runtime retains an accepted immutable candidate-derived row snapshot as lifecycle input and owns the current-row thumbnail projection, demand state, scheduling, cancellation, stale-completion rejection, result publication, and thumbnail image-store lifetime. QML reports the current visible and nearby demand window and renders projected results; it must not retain readiness, choose source capability, schedule work, or mutate row state.
+The navigation owner remains canonical for candidate rows and their freshness. The document-session thumbnail runtime retains an accepted immutable candidate-derived view as lifecycle input and owns thumbnail projection, demand state, admission, cancellation, stale-completion rejection, result publication, and thumbnail image-store lifetime. QML reports the current visible and nearby demand window and renders projected results; it must not retain readiness, choose source capability, schedule work, or mutate row state.
 
-Source adapters classify an owner-supplied thumbnail source revision and return a typed plan for unsupported fallback, cacheable generation, or non-persistent generation. They may describe how bytes or a representative video image can be obtained, but they must not schedule jobs, mutate projections, install cache entries, or invent navigation identity.
+Source adapters classify an owner-supplied thumbnail source identity and return an explicit result for unsupported fallback, cacheable generation, or non-persistent generation. They may describe how bytes or a representative video image can be obtained, but they must not schedule jobs, mutate projections, install cache entries, or invent navigation identity.
 
-Cache lookup, generation, and source access execute behind injectable provider ports. The default persistent-cache provider delegates specification-compatible lookup and installation to the Rust support static library's allowlisted [desktop thumbnail-cache capability](language-boundary.md); the C++ thumbnail runtime owns scheduling, capability selection, result acceptance, and publication. Thumbnail work must not borrow video playback state, mutable collection state, or another runtime's cache authority. Collection entry bytes and metadata remain owned by the collection-access boundary.
+Cache lookup, generation, and source access remain behind replaceable provider boundaries. The default persistent-cache provider delegates specification-compatible lookup and installation to the Rust support static library's [desktop thumbnail-cache capability](rust-support-boundary.md); the thumbnail runtime owns admission, capability selection, result acceptance, and publication. Thumbnail work must not borrow video playback state, mutable collection state, or another runtime's cache authority. Collection entry bytes and metadata remain owned by the collection-access boundary.
 
-Video thumbnail extraction has one deterministic workflow owner separate from its Qt Multimedia adapter. The adapter owns media-player, video-sink, metadata, and frame conversion objects; it reports plain media facts, images, and failures through a narrow backend port and executes source, seek, playback, and stop commands returned by the workflow. The runtime owner supplies timeout firing through an injectable timer-scheduler boundary, serializes reentrant backend events, and invalidates the workflow before cancellation or terminal cleanup so late callbacks cannot publish a result.
+Video thumbnail extraction has one deterministic workflow owner separate from its Qt Multimedia adapter. The adapter owns backend-specific playback, metadata, frame conversion, and resource lifetime; it reports plain media facts, images, and failures through a narrow backend boundary and executes source, seek, playback, and stop decisions from the workflow. Timeout and reentrant backend events remain subordinate to the workflow lifecycle, which is invalidated before cancellation or terminal cleanup so late callbacks cannot publish a result. The concrete object, timer, and adapter interfaces are implementation choices.
 
 ## Demand And Scheduling
 
-Each demand update is one immutable, generation-scoped snapshot. The runtime validates the complete snapshot before replacing accepted demand; malformed, mixed-generation, duplicate, or unknown-row input is rejected without partial mutation.
+Each demand update is one immutable snapshot correlated with the accepted navigation view. The runtime validates the complete snapshot before replacing accepted demand; malformed, inconsistently correlated, duplicate, or unknown-row input is rejected without partial mutation.
 
-The selected row and visible rows are foreground demand. Nearby rows are admitted only after foreground demand is satisfied or inactive. Optional background filling runs only while foreground and nearby demand are idle. New higher-priority demand preempts lower-priority work, and a failed higher-detail request preserves an already usable lower-detail result.
+Admission follows the visible, nearby, selected, and optional background priorities defined by [Navigation](../spec/navigation.md). Higher-priority demand can displace lower-priority work, and a failed higher-detail request preserves an already usable lower-detail result.
 
-The document-session thumbnail scheduler owns bounded foreground and background admission capacities. It admits the selected row first, then visible rows in navigation order, then nearby rows in navigation order; demand beyond foreground capacity remains pending and must not construct lookup, generation, or multimedia backend resources until a slot is available. Background filling yields to any foreground demand. Exact capacities are runtime resource policy rather than architecture contract constants.
+The thumbnail runtime bounds admitted work and backend resources. Demand that is not admitted remains pending without acquiring expensive source or multimedia resources, and optional background work yields to foreground demand. Exact capacities, queue structure, and tie-breaking among equal-priority rows are runtime resource policy.
 
-Row identity, source revision, requested physical-size bucket, priority, and work identity travel together through scheduling and completion. A completion may publish only after both the backend job owner and the scheduling owner accept those identities. Cancellation is best-effort; invalidated or late callbacks are no-ops.
+Row identity, source freshness, requested physical-size bucket, priority, and work correlation remain associated through scheduling and completion. A completion may publish only after both the backend job owner and the thumbnail runtime accept that correlation. Cancellation is best-effort; invalidated or late callbacks are no-ops.
 
-Changing only the current row preserves compatible results and work. Replacing row identity or order advances the navigation generation, invalidates incompatible demand and work before publication, and releases entries no longer referenced by the new row set. Equivalent source-payload refreshes may preserve generation only when durable row identity and ordering are unchanged.
+Position-only changes preserve compatible results and work. A source, row-identity, or ordering change invalidates incompatible demand and work before publication and releases entries no longer retained by the accepted row set. Equivalent refreshes may preserve compatible work when durable identity and ordering are unchanged.
 
 ## Cache And Provider Boundary
 
@@ -32,11 +32,8 @@ Persistent cache lookup and installation are allowed only for source kinds whose
 
 The thumbnail image provider is cache-only and reentrant. It may return an already published immutable image entry and its stored size; it must not decode, resize, perform I/O, schedule work, decide freshness, or mutate active navigation.
 
-## Source Classes
+## Source Eligibility
 
-- Eligible direct local image and video rows may use persistent lookup and generation from stable local-file identity. Video generation may use an embedded representative image or a representative decoded frame, but it must remain isolated from playback state and does not promise a frame or timestamp.
-- Direct KDE archive-entry media rows return the specification's fallback and must not reuse opened-collection entry access or cache identity.
-- Eligible image rows inside supported ZIP-backed opened collections may use collection-owned public entry metadata and byte access. Other opened-collection rows return the specification's fallback.
-- Directory-collection rows and collection-container rows return the specification's fallback and must not trigger representative-file selection or directory traversal.
+Thumbnail eligibility, representative-preview behavior, and visible fallbacks are defined by [Navigation](../spec/navigation.md). Adapters implement that contract without expanding eligibility merely because a backend could technically render another source class.
 
-Adapters must not expand the thumbnail eligibility declared in the product specification merely because a backend could technically render another source class.
+Eligible persistent-cache work requires stable source identity and freshness supplied by the source owner. Opened-collection generation uses only collection-owned public metadata and byte access, direct archive-entry media does not borrow opened-collection authority, directory rows do not trigger representative-file traversal, and video thumbnail generation remains isolated from playback state.

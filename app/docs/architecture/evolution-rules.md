@@ -2,11 +2,9 @@
 
 The architecture must preserve these invariants as its internal structure evolves:
 
-1. Every workflow value has one canonical owner; derived projections and caches must not become alternate mutable authorities.
-1. Product policy and authoritative application state remain in C++, including policy that is independent of Qt runtime objects.
-1. The Rust/C++ boundary exposes only the support capabilities named by [Language Boundary](language-boundary.md) through explicit typed values, results, and opaque capability-local handles.
-1. Rust support code does not call back into C++, own application lifecycle or source identity, or expose property-shaped product decisions.
-1. Native code uses one explicit owner per allocation, non-owning raw pointers only within a proven lifetime, context-bound Qt callbacks, owned cross-boundary payloads, and value-oriented policy as defined by [C++ And Qt Safety](cpp-qt-safety.md).
-1. QObject and QML API exposure remains behind C++ facade boundaries and does not transfer domain ownership to the facade or UI.
-1. KiriView documents may define application obligations at a dependency's supported interface but must not restate or constrain that dependency's private state, algorithms, scheduling, rendering, resource management, or private types.
+1. Authoritative mutable workflow state has one canonical owner; derived projections and caches must not become alternate authorities.
+1. The Rust support library remains a capability adapter: product policy, authoritative application state, source identity, scheduling, lifecycle decisions, and result acceptance remain with named application owners, as defined by [Rust Support Boundary](rust-support-boundary.md).
+1. Native and asynchronous paths preserve explicit ownership, valid lifetimes, thread affinity, and owned cross-boundary payloads as defined by [C++ And Qt Safety](cpp-qt-safety.md) and [Async Lifecycle](async-lifecycle.md).
+1. QML-facing facades expose application APIs without becoming owners of domain state or workflow policy.
+1. KiriView architecture constrains dependencies only through their supported interfaces; it does not freeze private state, algorithms, scheduling, rendering, resource management, or types.
 1. Internal formats have one authoritative schema unless an explicit product or interoperability contract requires compatibility behavior.

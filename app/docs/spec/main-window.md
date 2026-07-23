@@ -28,7 +28,7 @@ When a direct video file is displayed and its intrinsic video frame size is know
 
 When a direct video file is displayed and its intrinsic video frame size is unknown, the title omits the size and uses the original direct media URL's file name, a spaced em dash, and `KiriView`.
 
-When a CBZ, CBT, CB7, CBR, ZIP, TAR, 7Z, or RAR archive collection opened by KiriView is displayed and the active page position is known, the title is the archive file name, a spaced en dash, the current primary page number, `/`, the total supported item count, a spaced em dash, and `KiriView`.
+When a directly opened archive collection is displayed and the active page position is known, the title is the archive file name, a spaced en dash, the current primary page number, `/`, the total supported item count, a spaced em dash, and `KiriView`.
 
 When a directly opened local directory collection is displayed and the active page position is known, the title is the directory name, a spaced en dash, the current primary page number, `/`, the total supported item count, a spaced em dash, and `KiriView`.
 
