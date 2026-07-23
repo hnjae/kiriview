@@ -10,6 +10,7 @@
 #include <QtCore/QMutex>
 #include <QtCore/QMutexLocker>
 #include <QtCore/QPointer>
+#include <QtCore/QSemaphore>
 #include <QtCore/QSet>
 #include <QtCore/QThread>
 #include <QtCore/QTimer>
@@ -389,6 +390,29 @@ ImageViewportInternal::ProviderTransportDiagnostic providerTransportDiagnostic(
 }
 }
 
+class ViewportProviderDeliverySlotReservation
+{
+public:
+    explicit ViewportProviderDeliverySlotReservation(std::shared_ptr<QSemaphore> slots)
+        : deliverySlots(std::move(slots))
+    {
+    }
+
+    ~ViewportProviderDeliverySlotReservation() { deliverySlots->release(); }
+
+    ViewportProviderDeliverySlotReservation(const ViewportProviderDeliverySlotReservation&)
+        = delete;
+    ViewportProviderDeliverySlotReservation& operator=(
+        const ViewportProviderDeliverySlotReservation&)
+        = delete;
+    ViewportProviderDeliverySlotReservation(ViewportProviderDeliverySlotReservation&&) = delete;
+    ViewportProviderDeliverySlotReservation& operator=(ViewportProviderDeliverySlotReservation&&)
+        = delete;
+
+private:
+    std::shared_ptr<QSemaphore> deliverySlots;
+};
+
 class ViewportProviderEventEndpoint
 {
 public:
@@ -409,6 +433,12 @@ public:
         }
         sink(event);
         return true;
+    }
+
+    std::shared_ptr<ViewportProviderDeliverySlotReservation> reserveNonAdvisoryDelivery()
+    {
+        nonAdvisoryDeliverySlots->acquire();
+        return std::make_shared<ViewportProviderDeliverySlotReservation>(nonAdvisoryDeliverySlots);
     }
 
     void observeRequest(const ImageSequenceProviderRequest& request)
@@ -592,6 +622,7 @@ private:
     std::function<void(const ViewportProviderEvent&)> eventSink;
     QVector<ImageSequenceProviderRequestToken> activeTokens;
     QVector<PendingAdvisory> pendingAdvisories;
+    std::shared_ptr<QSemaphore> nonAdvisoryDeliverySlots = std::make_shared<QSemaphore>(1);
     quint64 highestIssuedToken = 0;
     bool advisoryDeliveryScheduled = false;
 };
@@ -1267,7 +1298,7 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
     QObject::connect(
         session, &ImageSequenceProviderSession::providerEvent, input.callbackTarget,
         [sessionControl, eventEndpoint, leaseRegistry = leaseRegistry,
-            callbackTarget = input.callbackTarget, eventRole = role,
+            callbackTarget = QPointer<QObject>(input.callbackTarget), eventRole = role,
             sessionSerial = input.sessionSerial, generation = input.generation,
             deliverSynchronously](const ImageSequenceProviderEvent& typedEvent) {
             if (!sessionControl->beginEventIngress()) {
@@ -1275,14 +1306,19 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
             }
             ViewportProviderEvent event
                 = viewportProviderEventFromTyped(eventRole, sessionSerial, generation, typedEvent);
+            const bool advisory = event.kind == ImageSequenceProviderEventKind::Waiting
+                || event.kind == ImageSequenceProviderEventKind::Progress;
+            std::shared_ptr<ViewportProviderDeliverySlotReservation> deliverySlot;
+            if (!deliverSynchronously && !advisory && callbackTarget
+                && QThread::currentThread() != callbackTarget->thread()) {
+                deliverySlot = eventEndpoint->reserveNonAdvisoryDelivery();
+            }
             if (event.frameHandle) {
                 event.frameLeaseId = leaseRegistry->claim(sessionControl, event.frameHandle);
             }
             if (event.failureHandle) {
                 event.failureLeaseId = leaseRegistry->claim(sessionControl, event.failureHandle);
             }
-            const bool advisory = event.kind == ImageSequenceProviderEventKind::Waiting
-                || event.kind == ImageSequenceProviderEventKind::Progress;
             if (!deliverSynchronously && advisory) {
                 if (eventEndpoint->enqueueAdvisory(std::move(event))) {
                     auto deliverAdvisories = [eventEndpoint]() {
@@ -1291,8 +1327,9 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
                             eventEndpoint->deliver(pendingEvent);
                         }
                     };
-                    if (!QMetaObject::invokeMethod(
-                            callbackTarget, std::move(deliverAdvisories), Qt::QueuedConnection)) {
+                    if (!callbackTarget
+                        || !QMetaObject::invokeMethod(callbackTarget.data(),
+                            std::move(deliverAdvisories), Qt::QueuedConnection)) {
                         eventEndpoint->advisoryDeliverySchedulingFailed();
                     }
                 }
@@ -1302,16 +1339,18 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
             if (!advisory) {
                 eventEndpoint->observeTerminal(event.token);
             }
-            auto deliver = [eventEndpoint, leaseRegistry, event]() {
-                if (!eventEndpoint->deliver(event)) {
-                    leaseRegistry->retire(event.frameLeaseId);
-                    leaseRegistry->retire(event.failureLeaseId);
-                }
-            };
+            auto deliver
+                = [eventEndpoint, leaseRegistry, event, deliverySlot = std::move(deliverySlot)]() {
+                      if (!eventEndpoint->deliver(event)) {
+                          leaseRegistry->retire(event.frameLeaseId);
+                          leaseRegistry->retire(event.failureLeaseId);
+                      }
+                  };
             if (deliverSynchronously) {
                 deliver();
-            } else if (!QMetaObject::invokeMethod(
-                           callbackTarget, std::move(deliver), Qt::QueuedConnection)
+            } else if ((!callbackTarget
+                           || !QMetaObject::invokeMethod(
+                               callbackTarget.data(), std::move(deliver), Qt::QueuedConnection))
                 && (event.frameLeaseId != 0 || event.failureLeaseId != 0)) {
                 leaseRegistry->retire(event.frameLeaseId);
                 leaseRegistry->retire(event.failureLeaseId);
