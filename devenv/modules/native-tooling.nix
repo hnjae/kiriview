@@ -6,13 +6,14 @@ let
 in
 {
   packages = [
-    pkgs.clazy
     pkgs.cmake
+    pkgs.cmake-format
+    pkgs.cmake-lint
     pkgs.ninja
     pkgs.pkg-config
-    pkgs.cmake-format
-    pkgs.clang-tools
+    pkgs.clazy
     pkgs.libglvnd
+    pkgs.clang-tools
     (pkgs.runCommandLocal "run-clang-tidy" { } ''
       mkdir -p "$out/bin"
       ln -s "${pkgs.libclang.out}/bin/run-clang-tidy" "$out/bin/run-clang-tidy"
