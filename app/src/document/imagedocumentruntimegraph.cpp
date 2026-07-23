@@ -91,11 +91,6 @@ void ImageDocumentRuntimeGraph::composeSurfaceAndPresentation(
             [this](const ImageViewportIntegrationProjection& projection) {
                 handleViewportProjection(projection);
             },
-            [this](bool enabled) {
-                if (m_spreadController != nullptr) {
-                    m_spreadController->restoreTwoPageModeEnabled(enabled);
-                }
-            },
         });
 }
 
@@ -107,7 +102,7 @@ void ImageDocumentRuntimeGraph::composeNavigationAndCandidatePorts(
         ImageDocumentPageNavigationService::Callbacks {
             [this](ImageDocumentPageNavigationPlan plan) {
                 dispatchPlan(imageDocumentRuntimePlanForNavigationPlan(
-                    plan, m_state.displayedOpenedCollectionScope()));
+                    plan, pageNavigationOpenedCollectionScope()));
             },
             [this](ImageDocumentPageNavigationCommit commit) {
                 dispatchTransaction(ImageDocumentRuntimeTransaction {
@@ -115,7 +110,7 @@ void ImageDocumentRuntimeGraph::composeNavigationAndCandidatePorts(
                         ? std::vector<ImageDocumentChange> { ImageDocumentChange::PageNavigation }
                         : std::vector<ImageDocumentChange> {},
                     imageDocumentRuntimePlanForNavigationPlan(
-                        commit.effects, m_state.displayedOpenedCollectionScope()),
+                        commit.effects, pageNavigationOpenedCollectionScope()),
                 });
             },
             [this]() {
@@ -132,6 +127,19 @@ void ImageDocumentRuntimeGraph::composeNavigationAndCandidatePorts(
     m_adjacentPredecodeSchedulerPort
         = std::make_unique<ImageDocumentAdjacentPredecodeSchedulerPort>(
             [this](const ImageDocumentRuntimePlan& plan) { dispatchPlan(plan); });
+}
+
+OpenedCollectionScopeLocation ImageDocumentRuntimeGraph::pageNavigationOpenedCollectionScope() const
+{
+    if (m_navigationService != nullptr) {
+        const std::optional<ImageDocumentPageCandidateListContext> context
+            = m_navigationService->selectedPageCandidateContext();
+        if (context.has_value()) {
+            return context->openedCollectionScope();
+        }
+    }
+
+    return m_state.displayedOpenedCollectionScope();
 }
 
 void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
@@ -182,14 +190,10 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
             [this](const QUrl& url) { return m_predecodedImageLookup->find(url); },
             [this]() { return m_navigationSnapshotPort->snapshot(); },
             [this]() { m_adjacentPredecodeSchedulerPort->scheduleAdjacentImagePredecode(); },
-            [this](ImageLoadSession session, std::optional<PredecodedImage> predecoded,
-                bool priorTwoPageModeEnabled) {
-                prepareViewportSecondaryImageTarget(
-                    std::move(session), std::move(predecoded), priorTwoPageModeEnabled);
+            [this](ImageLoadSession session, std::optional<PredecodedImage> predecoded) {
+                prepareViewportSecondaryImageTarget(std::move(session), std::move(predecoded));
             },
-            [this](bool priorTwoPageModeEnabled) {
-                clearViewportSecondaryImageTarget(priorTwoPageModeEnabled);
-            },
+            [this]() { clearViewportSecondaryImageTarget(); },
             [this]() {
                 return m_viewportIntegration->displayedImage(ImageViewportPageRole::Secondary);
             },
@@ -216,7 +220,6 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
             [this](const DisplayedImageLocation& location, QSize imageSize) {
                 m_primaryPageSlotPort->commit(location, imageSize);
             },
-            [this]() { m_primaryPageSlotPort->clear(); },
             [this](ImageDocumentPageCandidateListContext context,
                 ImageDocumentPageCandidateListSnapshotCallback callback) {
                 m_pageCandidateSnapshotPort->ensure(std::move(context), std::move(callback));
@@ -229,7 +232,6 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
                 return m_viewportIntegration != nullptr
                     && !m_viewportIntegration->projection().displayedUrl.isEmpty();
             },
-            [this]() { clearViewportTarget(); },
         });
     m_navigationController = std::make_unique<ImageDocumentNavigationController>(state,
         *m_navigationService, *m_spreadController,
@@ -326,8 +328,6 @@ bool ImageDocumentRuntimeGraph::prepareViewportImageTarget(
     target.primaryUrl = session.imageUrl();
     target.transitionIntent = session.request().sameScopePageNavigation()
         ? ImageViewportTargetTransitionIntent::SameNavigationScope
-        : session.request().preserveTwoPageSpreadTransition()
-        ? ImageViewportTargetTransitionIntent::RetainedDirectImage
         : ImageViewportTargetTransitionIntent::OutsideNavigationScope;
     target.rightToLeft
         = m_spreadController != nullptr && m_spreadController->rightToLeftReadingEnabled();
@@ -361,8 +361,8 @@ bool ImageDocumentRuntimeGraph::prepareViewportImageTarget(
     return m_viewportIntegration->submitTarget(std::move(target));
 }
 
-void ImageDocumentRuntimeGraph::prepareViewportSecondaryImageTarget(ImageLoadSession session,
-    std::optional<PredecodedImage> predecoded, bool priorTwoPageModeEnabled)
+void ImageDocumentRuntimeGraph::prepareViewportSecondaryImageTarget(
+    ImageLoadSession session, std::optional<PredecodedImage> predecoded)
 {
     if (m_viewportIntegration == nullptr || m_viewportTarget == nullptr
         || !m_viewportTarget->isValid()) {
@@ -381,7 +381,6 @@ void ImageDocumentRuntimeGraph::prepareViewportSecondaryImageTarget(ImageLoadSes
     ImageViewportIntegrationTarget target = *m_viewportTarget;
     target.secondaryUrl = session.imageUrl();
     target.transitionIntent = ImageViewportTargetTransitionIntent::PresentationShapeChange;
-    target.priorTwoPageModeEnabled = priorTwoPageModeEnabled;
     target.secondaryResource = [prepared, displayStore]() {
         auto source = std::make_shared<ImageViewportDecodeProviderSource>(
             prepared->session, prepared->dependencies);
@@ -403,7 +402,7 @@ void ImageDocumentRuntimeGraph::prepareViewportSecondaryImageTarget(ImageLoadSes
     }
 }
 
-void ImageDocumentRuntimeGraph::clearViewportSecondaryImageTarget(bool priorTwoPageModeEnabled)
+void ImageDocumentRuntimeGraph::clearViewportSecondaryImageTarget()
 {
     if (m_viewportIntegration == nullptr || m_viewportTarget == nullptr
         || m_viewportTarget->secondaryUrl.isEmpty()) {
@@ -415,7 +414,6 @@ void ImageDocumentRuntimeGraph::clearViewportSecondaryImageTarget(bool priorTwoP
     target.secondaryUrl = QUrl();
     target.secondaryResource = {};
     target.transitionIntent = ImageViewportTargetTransitionIntent::PresentationShapeChange;
-    target.priorTwoPageModeEnabled = priorTwoPageModeEnabled;
     m_viewportSecondaryLoadSession.reset();
     m_viewportTarget = std::make_unique<ImageViewportIntegrationTarget>(target);
     m_viewportIntegration->submitTarget(std::move(target));
@@ -443,16 +441,12 @@ void ImageDocumentRuntimeGraph::handleViewportProjection(
         && m_viewportTarget != nullptr
         && projection.sourceGeneration == m_viewportTarget->sourceGeneration
         && projection.secondaryUrl == m_viewportSecondaryLoadSession->imageUrl()) {
-        if (projection.restoredTransition) {
-            const ImageLoadSession session = *m_viewportSecondaryLoadSession;
-            m_viewportSecondaryLoadSession.reset();
-            m_spreadController->finishViewportSecondaryPageLoadWithError(session);
-        } else if (projection.status == ImageDocumentStatus::Ready
+        if (projection.status == ImageDocumentStatus::Ready
             && !projection.secondaryImageSize.isEmpty()) {
             const ImageLoadSession session = *m_viewportSecondaryLoadSession;
             m_viewportSecondaryLoadSession.reset();
             m_spreadController->finishViewportSecondaryPageLoad(
-                session, projection.secondaryImageSize, false);
+                session, projection.secondaryImageSize);
         } else if (projection.status == ImageDocumentStatus::Error) {
             const ImageLoadSession session = *m_viewportSecondaryLoadSession;
             m_viewportSecondaryLoadSession.reset();

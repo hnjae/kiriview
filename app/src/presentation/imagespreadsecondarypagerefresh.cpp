@@ -125,12 +125,6 @@ int ImageSpreadSecondaryPageRefresh::relativePageNavigationTarget(
     return imageSpreadRelativePageNavigationTarget(navigationState(context), offset);
 }
 
-bool ImageSpreadSecondaryPageRefresh::shouldBeginNavigationTransition(
-    int targetPageNumber, const ImageSpreadPageNavigationContext& context) const
-{
-    return imageSpreadShouldBeginNavigationTransition(navigationState(context), targetPageNumber);
-}
-
 bool ImageSpreadSecondaryPageRefresh::primarySelectionMatchesDisplayed(
     const ImageDocumentPageNavigationSnapshot& navigation, const QUrl& displayedUrl) const
 {

@@ -13,7 +13,6 @@ class TestDocumentSessionImageDocumentCommandRuntime : public QObject
 
 private Q_SLOTS:
     void forwardsSourceRoutingThroughPort();
-    void forwardsSameScopeImageNavigationThroughPort();
     void forwardsPageNavigationThroughPort();
     void forwardsImageDocumentDeletionThroughPort();
 };
@@ -32,10 +31,6 @@ struct ImageCommandProbe
                 [this](const kiriview::ResolvedNavigationSource& source) {
                     sourceUrl = source.requestedUrl();
                     events.push_back(QStringLiteral("set-source"));
-                },
-                [this](const kiriview::ResolvedNavigationSource& source) {
-                    sourceUrl = source.requestedUrl();
-                    events.push_back(QStringLiteral("same-scope-source"));
                 } },
             { [this]() { events.push_back(QStringLiteral("previous-page")); },
                 [this]() { events.push_back(QStringLiteral("next-page")); },
@@ -69,19 +64,6 @@ void TestDocumentSessionImageDocumentCommandRuntime::forwardsSourceRoutingThroug
     QCOMPARE(probe.sourceUrl, QUrl());
     QCOMPARE(probe.events,
         QStringList({ QStringLiteral("set-source"), QStringLiteral("clear-source") }));
-}
-
-void TestDocumentSessionImageDocumentCommandRuntime::forwardsSameScopeImageNavigationThroughPort()
-{
-    ImageCommandProbe probe;
-    kiriview::DocumentSessionImageDocumentCommandRuntime runtime(probe.port());
-    const QUrl imageUrl(QStringLiteral("file:///tmp/next.png"));
-
-    runtime.setExternalSourcePreservingPresentation(
-        kiriview::resolvedNavigationSource(imageUrl, {}));
-
-    QCOMPARE(probe.sourceUrl, imageUrl);
-    QCOMPARE(probe.events, QStringList({ QStringLiteral("same-scope-source") }));
 }
 
 void TestDocumentSessionImageDocumentCommandRuntime::forwardsPageNavigationThroughPort()

@@ -85,8 +85,6 @@ void TestImageDocumentNavigationRuntimePlan::
     QCOMPARE(operationAt<kiriview::LoadPageNavigationUrlOperation>(plan, 1).target.url, url);
     QCOMPARE(operationAt<kiriview::LoadPageNavigationUrlOperation>(plan, 1).target.kind,
         kiriview::ImageDocumentPageKind::Video);
-    QVERIFY(!operationAt<kiriview::LoadPageNavigationUrlOperation>(plan, 1)
-            .preserveTwoPageSpreadTransition);
     QCOMPARE(operationAt<kiriview::LoadPageNavigationUrlOperation>(plan, 1).openedCollectionScope,
         scope);
 }

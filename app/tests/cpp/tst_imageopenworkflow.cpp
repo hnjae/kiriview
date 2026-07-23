@@ -30,10 +30,10 @@ kiriview::ImageLoadSession loadSession(const QUrl& sourceUrl, const QUrl& imageU
         sourceUrl, kiriview::ImageDocumentPageKind::Image);
     const kiriview::ImageLoadRequest request = !containerNavigationUrl.isEmpty()
         ? kiriview::ImageLoadRequest::fromContainerTarget(target, archiveCollection)
-        : (!archiveCollection.isEmpty() ? kiriview::ImageLoadRequest::fromSameScopePageTarget(
-                                              target, archiveCollection, false)
-                                        : kiriview::ImageLoadRequest::fromExternalSource(
-                                              kiriview::resolvedNavigationSource(sourceUrl, {})));
+        : (!archiveCollection.isEmpty()
+                  ? kiriview::ImageLoadRequest::fromSameScopePageTarget(target, archiveCollection)
+                  : kiriview::ImageLoadRequest::fromExternalSource(
+                        kiriview::resolvedNavigationSource(sourceUrl, {})));
     return kiriview::ImageLoadSession(
         1, request, kiriview::DisplayedImageLocation::fromUrl(imageUrl, archiveCollection));
 }
@@ -188,6 +188,9 @@ void TestImageOpenWorkflow::applicationPlansUseExplicitInputs()
     QCOMPARE(replacementLoad.stateDelta.loading, std::optional<bool>(true));
     QCOMPARE(replacementLoad.stateDelta.status,
         std::optional<kiriview::ImageDocumentStatus>(kiriview::ImageDocumentStatus::Loading));
+    QCOMPARE(replacementLoad.runtimePlan.size(), std::size_t(1));
+    QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(replacementLoad.runtimePlan));
+    QVERIFY(!hasOperation<kiriview::ClearPageNavigationOperation>(replacementLoad.runtimePlan));
 
     const QUrl imageUrl = localUrl(QStringLiteral("/images/missing.png"));
     const kiriview::ImageLoadSession session = loadSession(imageUrl, imageUrl);
@@ -237,7 +240,7 @@ void TestImageOpenWorkflow::sourceResolutionTracksSessionSourceKind()
     const kiriview::ImageLoadSession session(1,
         kiriview::ImageLoadRequest::fromSameScopePageTarget(
             kiriview::ImageDocumentPageTarget { videoUrl, kiriview::ImageDocumentPageKind::Video },
-            kiriview::OpenedCollectionScopeLocation::none(), false),
+            kiriview::OpenedCollectionScopeLocation::none()),
         kiriview::DisplayedImageLocation::fromUrl(videoUrl));
 
     const kiriview::ImageDocumentRuntimePlan plan = resolveSourceImage(state, session);
@@ -270,7 +273,7 @@ void TestImageOpenWorkflow::unsupportedOpenedCollectionVideoTransitionPublishesR
     const kiriview::ImageLoadSession session(8,
         kiriview::ImageLoadRequest::fromSameScopePageTarget(
             kiriview::ImageDocumentPageTarget { videoUrl, kiriview::ImageDocumentPageKind::Video },
-            *archiveCollection, false),
+            *archiveCollection),
         location);
 
     const kiriview::ImageDocumentRuntimePlan plan
@@ -309,7 +312,7 @@ void TestImageOpenWorkflow::playableOpenedCollectionVideoTransitionPublishesHand
     const kiriview::ImageLoadSession session(9,
         kiriview::ImageLoadRequest::fromSameScopePageTarget(
             kiriview::ImageDocumentPageTarget { videoUrl, kiriview::ImageDocumentPageKind::Video },
-            *archiveCollection, false),
+            *archiveCollection),
         location);
 
     const kiriview::ImageDocumentRuntimePlan plan
@@ -334,10 +337,8 @@ void TestImageOpenWorkflow::firstImageLoadSuccessTransitionsToReady()
     state.setSourceUrl(imageUrl);
 
     const kiriview::ImageDocumentRuntimePlan beginPlan = beginSourceLoad(state, false);
+    QVERIFY(hasOperation<kiriview::ClearMediaEntrySourceOperation>(beginPlan));
     QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(beginPlan));
-    QCOMPARE(beginPlan.size(), std::size_t(8));
-    QVERIFY(operationAtType<kiriview::ClearMediaEntrySourceOperation>(beginPlan, 0));
-    QVERIFY(operationAtType<kiriview::ClearPresentationImageOperation>(beginPlan, 5));
     QVERIFY(state.loading());
     QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Loading);
 

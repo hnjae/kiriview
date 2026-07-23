@@ -179,8 +179,8 @@ void TestImageLoadSessionTracker::sameScopePageLoadDoesNotProbeAgain()
     QCOMPARE(probeCount, 1);
 
     tracker.start(kiriview::ImageLoadRequest::fromSameScopePageTarget(
-        kiriview::ImageDocumentPageTarget(pageUrl, kiriview::ImageDocumentPageKind::Image), *scope,
-        false));
+        kiriview::ImageDocumentPageTarget(pageUrl, kiriview::ImageDocumentPageKind::Image),
+        *scope));
 
     QCOMPARE(probeCount, 1);
 }

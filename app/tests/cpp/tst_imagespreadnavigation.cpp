@@ -13,7 +13,7 @@ private Q_SLOTS:
     void adjacentNavigationFallsBackWhenSpreadIsInactive();
     void adjacentNavigationUsesVisibleSpreadEdges();
     void previousNavigationAccountsForWidePreviousPage();
-    void relativeNavigationAndTransitionsUseSpreadState();
+    void relativeNavigationUsesSpreadState();
 };
 
 void TestImageSpreadNavigation::adjacentNavigationFallsBackWhenSpreadIsInactive()
@@ -58,14 +58,12 @@ void TestImageSpreadNavigation::previousNavigationAccountsForWidePreviousPage()
         4);
 }
 
-void TestImageSpreadNavigation::relativeNavigationAndTransitionsUseSpreadState()
+void TestImageSpreadNavigation::relativeNavigationUsesSpreadState()
 {
     const kiriview::ImageSpreadNavigationState state { true, 3, 5, false, false };
 
     QCOMPARE(kiriview::imageSpreadRelativePageNavigationTarget(state, -1), 2);
     QCOMPARE(kiriview::imageSpreadRelativePageNavigationTarget(state, 1), 4);
-    QVERIFY(kiriview::imageSpreadShouldBeginNavigationTransition(state, 4));
-    QVERIFY(!kiriview::imageSpreadShouldBeginNavigationTransition(state, 6));
 }
 
 QTEST_GUILESS_MAIN(TestImageSpreadNavigation)

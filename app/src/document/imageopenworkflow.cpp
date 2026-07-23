@@ -106,9 +106,7 @@ ImageDocumentRuntimePlan sourceLoadPlan(
     if (resetReading) {
         plan.emplace_back(ResetRightToLeftReadingOperation {});
     }
-    if (!request.preserveTwoPageSpreadTransition()) {
-        plan.emplace_back(ClearSecondaryPageOperation {});
-    }
+    plan.emplace_back(ClearSecondaryPageOperation {});
     plan.emplace_back(
         SetLoadingContainerNavigationUrlOperation { request.containerNavigationUrl() });
     plan.emplace_back(PrepareSourceLoadOperation { request });
@@ -132,7 +130,9 @@ ImageOpenApplicationPlan beginSourceLoadPlan(ImageOpenBeginSourceLoadSnapshot sn
     }
     plan.stateDelta.loading = true;
     plan.stateDelta.status = ImageDocumentStatus::Loading;
-    if (!snapshot.hasImage) {
+    if (snapshot.hasImage) {
+        plan.runtimePlan.emplace_back(ClearPresentationImageOperation {});
+    } else {
         appendClearImage(plan.runtimePlan);
     }
     return plan;

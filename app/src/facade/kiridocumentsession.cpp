@@ -370,10 +370,7 @@ kiriview::DocumentSessionImageDocumentCommandPort KiriDocumentSession::imageDocu
                     openedCollectionScope, videoUrl);
             },
             [&document](
-                const kiriview::ResolvedNavigationSource& source) { document.setSource(source); },
-            [&document](const kiriview::ResolvedNavigationSource& source) {
-                document.setExternalSourcePreservingPresentation(source);
-            } },
+                const kiriview::ResolvedNavigationSource& source) { document.setSource(source); } },
         { [&document]() { document.openPreviousPage(); },
             [&document]() { document.openNextPage(); },
             [&document](int pageNumber) { document.openImageAtPage(pageNumber); } },

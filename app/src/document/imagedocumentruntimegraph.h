@@ -81,12 +81,13 @@ private:
     void composeWorkflowOwners(QObject* documentObject, ImageDocumentState& state,
         ImageDocumentRuntimeDependencies& dependencies,
         ExternalPredecodedImageFinder externalPredecodedImageFinder);
+    [[nodiscard]] OpenedCollectionScopeLocation pageNavigationOpenedCollectionScope() const;
     void composeWorkflowDispatch(ImageDocumentState& state);
     bool prepareViewportImageTarget(
         ImageLoadSession session, std::optional<PredecodedImage> predecoded);
-    void prepareViewportSecondaryImageTarget(ImageLoadSession session,
-        std::optional<PredecodedImage> predecoded, bool priorTwoPageModeEnabled);
-    void clearViewportSecondaryImageTarget(bool priorTwoPageModeEnabled);
+    void prepareViewportSecondaryImageTarget(
+        ImageLoadSession session, std::optional<PredecodedImage> predecoded);
+    void clearViewportSecondaryImageTarget();
     void clearViewportTarget();
     void handleViewportProjection(const ImageViewportIntegrationProjection& projection);
 

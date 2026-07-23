@@ -26,8 +26,6 @@ int imageSpreadNavigationCurrentLastPageNumber(ImageSpreadNavigationState state)
 ImageSpreadPageNavigationTarget imageSpreadPageNavigationTarget(
     NavigationDirection direction, ImageSpreadNavigationState state);
 int imageSpreadRelativePageNavigationTarget(ImageSpreadNavigationState state, int offset);
-bool imageSpreadShouldBeginNavigationTransition(
-    ImageSpreadNavigationState state, int targetPageNumber);
 }
 
 #endif

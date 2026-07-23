@@ -19,11 +19,4 @@ void ImageDocumentPrimaryPageSlotPort::commit(
         m_spreadController->commitPrimaryPageSlot(location, imageSize);
     }
 }
-
-void ImageDocumentPrimaryPageSlotPort::clear() const
-{
-    if (m_spreadController != nullptr) {
-        m_spreadController->clearPrimaryPageSlot();
-    }
-}
 }

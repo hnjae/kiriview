@@ -117,7 +117,7 @@ private Q_SLOTS:
     void stalePageNavigationCannotDispatchForOrdinaryDirectImage();
     void adjacentImageDocumentPageNavigationUsesOpenedCollectionContext();
     void pageSelectionDispatchesPageNavigationRuntimePlan();
-    void spreadPageSelectionStartsTrackedTransition();
+    void spreadPageSelectionUsesStandardTargetLoad();
 };
 
 void TestImageDocumentNavigationController::updatePageNavigationUsesOpenedCollectionContext()
@@ -257,7 +257,6 @@ void TestImageDocumentNavigationController::
         = findOperation<kiriview::LoadPageNavigationUrlOperation>(fixture.runtimePlans.front());
     QVERIFY(operation != nullptr);
     QCOMPARE(operation->target.url, secondUrl);
-    QVERIFY(!operation->preserveTwoPageSpreadTransition);
 }
 
 void TestImageDocumentNavigationController::pageSelectionDispatchesPageNavigationRuntimePlan()
@@ -287,11 +286,10 @@ void TestImageDocumentNavigationController::pageSelectionDispatchesPageNavigatio
     QVERIFY(operation != nullptr);
     QCOMPARE(operation->target.url, secondUrl);
     QCOMPARE(operation->target.kind, kiriview::ImageDocumentPageKind::Video);
-    QVERIFY(!operation->preserveTwoPageSpreadTransition);
     QCOMPARE(fixture.controller.currentPageNumber(), 2);
 }
 
-void TestImageDocumentNavigationController::spreadPageSelectionStartsTrackedTransition()
+void TestImageDocumentNavigationController::spreadPageSelectionUsesStandardTargetLoad()
 {
     DocumentNavigationFixture fixture;
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
@@ -317,7 +315,6 @@ void TestImageDocumentNavigationController::spreadPageSelectionStartsTrackedTran
         = findOperation<kiriview::LoadPageNavigationUrlOperation>(fixture.runtimePlans.front());
     QVERIFY(operation != nullptr);
     QCOMPARE(operation->target.url, secondUrl);
-    QVERIFY(operation->preserveTwoPageSpreadTransition);
 }
 
 QTEST_GUILESS_MAIN(TestImageDocumentNavigationController)

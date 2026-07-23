@@ -80,7 +80,6 @@ struct DocumentSessionImageDocumentSourceCommandPort
         const OpenedCollectionScopeLocation&, const QUrl&)>
         loadOpenedCollectionVideoPlaybackDevice;
     std::function<void(const ResolvedNavigationSource&)> setSource;
-    std::function<void(const ResolvedNavigationSource&)> setExternalSourcePreservingPresentation;
 };
 
 struct DocumentSessionImageDocumentPageNavigationCommandPort

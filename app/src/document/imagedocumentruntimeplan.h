@@ -93,12 +93,8 @@ struct LoadPageNavigationUrlOperation
 {
     ImageDocumentPageTarget target;
     OpenedCollectionScopeLocation openedCollectionScope;
-    bool preserveTwoPageSpreadTransition = false;
 };
 struct CancelOpenOperation
-{
-};
-struct ClearDisplayedImageLocationOperation
 {
 };
 struct ClearPresentationImageOperation
@@ -144,7 +140,7 @@ using ImageDocumentRuntimeOperation = std::variant<CancelFileDeletionOperation,
     LoadContainerImageOperation, FinishEmptyContainerNavigationOperation,
     FinishContainerNavigationLoadWithErrorOperation, ReportContainerNavigationBoundaryOperation,
     ReportContainerNavigationListFailureOperation, LoadPageNavigationUrlOperation,
-    CancelOpenOperation, ClearDisplayedImageLocationOperation, ClearPresentationImageOperation,
+    CancelOpenOperation, ClearPresentationImageOperation,
     ClearLoadingContainerNavigationUrlOperation, SetLoadingContainerNavigationUrlOperation,
     SetContainerNavigationUrlOperation, PrepareSourceLoadOperation, SetSourceUrlOperation,
     BeginOpenOperation, SetErrorStringOperation, FinishEmptySourceLoadOperation>;

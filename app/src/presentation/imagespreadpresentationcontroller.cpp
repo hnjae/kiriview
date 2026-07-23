@@ -28,10 +28,9 @@ ImageSpreadPresentationController::ImageSpreadPresentationController(
                                                        : std::optional<PredecodedImage>();
             },
             [this](ImageLoadSession session, std::optional<PredecodedImage> predecoded) {
-                const bool prior = m_pendingShapePriorTwoPageMode.value_or(m_twoPageModeEnabled);
-                m_pendingShapePriorTwoPageMode.reset();
-                invokeIfSet(m_callbacks.secondaryImagePrepared, std::move(session),
-                    std::move(predecoded), prior);
+                m_pendingShapeChange = false;
+                invokeIfSet(
+                    m_callbacks.secondaryImagePrepared, std::move(session), std::move(predecoded));
             },
         });
 }
@@ -69,26 +68,12 @@ void ImageSpreadPresentationController::setTwoPageModeEnabled(bool enabled)
         return;
     }
 
-    const bool prior = m_twoPageModeEnabled;
     m_twoPageModeEnabled = enabled;
-    m_pendingShapePriorTwoPageMode = prior;
+    m_pendingShapeChange = true;
     if (enabled) {
         refreshSecondaryPage();
     } else {
         discardSecondaryPage(true);
-    }
-    notifyTwoPageModeChanged();
-}
-
-void ImageSpreadPresentationController::restoreTwoPageModeEnabled(bool enabled)
-{
-    if (m_twoPageModeEnabled == enabled) {
-        return;
-    }
-    m_twoPageModeEnabled = enabled;
-    m_pendingShapePriorTwoPageMode.reset();
-    if (!enabled) {
-        discardSecondaryPage(false);
     }
     notifyTwoPageModeChanged();
 }
@@ -196,12 +181,6 @@ void ImageSpreadPresentationController::handleDocumentChange(ImageDocumentChange
     notifyRightToLeftReadingChanged();
 }
 
-bool ImageSpreadPresentationController::shouldBeginTransition(int targetPageNumber) const
-{
-    return m_secondaryPageRefresh.shouldBeginNavigationTransition(
-        targetPageNumber, pageNavigationContext());
-}
-
 void ImageSpreadPresentationController::clearSecondaryPage() { discardSecondaryPage(true); }
 
 void ImageSpreadPresentationController::shutdown()
@@ -212,9 +191,9 @@ void ImageSpreadPresentationController::shutdown()
 }
 
 void ImageSpreadPresentationController::finishViewportSecondaryPageLoad(
-    const ImageLoadSession& session, QSize imageSize, bool presentationRestored)
+    const ImageLoadSession& session, QSize imageSize)
 {
-    m_secondaryPageController->finishProviderLoad(session, imageSize, presentationRestored);
+    m_secondaryPageController->finishProviderLoad(session, imageSize);
 }
 
 void ImageSpreadPresentationController::finishViewportSecondaryPageLoadWithError(
@@ -255,10 +234,9 @@ void ImageSpreadPresentationController::discardSecondaryPage(bool submitShapeCha
 {
     const bool hadSecondary = secondaryPageVisible();
     m_secondaryPageController->clear();
-    if (submitShapeChange && (hadSecondary || m_pendingShapePriorTwoPageMode.has_value())) {
-        const bool prior = m_pendingShapePriorTwoPageMode.value_or(m_twoPageModeEnabled);
-        m_pendingShapePriorTwoPageMode.reset();
-        invokeIfSet(m_callbacks.secondaryImageCleared, prior);
+    if (submitShapeChange && (hadSecondary || m_pendingShapeChange)) {
+        m_pendingShapeChange = false;
+        invokeIfSet(m_callbacks.secondaryImageCleared);
     }
 }
 

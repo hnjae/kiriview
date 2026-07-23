@@ -27,7 +27,7 @@ struct ImageDocumentNavigationRuntimeOperations
     std::function<void(const QUrl&, const QString&)> finishContainerNavigationLoadWithError;
     std::function<void(NavigationDirection)> reportContainerNavigationBoundary;
     std::function<void(const ContainerNavigationListFailure&)> reportContainerNavigationListFailure;
-    std::function<void(const ImageDocumentPageTarget&, const OpenedCollectionScopeLocation&, bool)>
+    std::function<void(const ImageDocumentPageTarget&, const OpenedCollectionScopeLocation&)>
         loadPageNavigationUrl;
 };
 

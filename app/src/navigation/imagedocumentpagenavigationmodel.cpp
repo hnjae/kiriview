@@ -47,6 +47,18 @@ ImageDocumentPageNavigationModel::confirmedCandidateSnapshot() const
     return m_candidateSnapshot;
 }
 
+std::optional<ImageDocumentPageCandidateListContext>
+ImageDocumentPageNavigationModel::selectedPageCandidateContext() const
+{
+    const std::optional<QUrl> selectedUrl = urlAtPage(currentPageNumber());
+    if (!selectedUrl.has_value() || !m_knownRefreshContext.has_value()) {
+        return std::nullopt;
+    }
+
+    return ImageDocumentPageCandidateListContext::forSource(
+        *selectedUrl, m_knownRefreshContext->source());
+}
+
 bool ImageDocumentPageNavigationModel::hasKnownSelection() const
 {
     return pageNavigationHasKnownSelection(m_state);

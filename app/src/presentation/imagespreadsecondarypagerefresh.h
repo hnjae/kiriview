@@ -57,8 +57,6 @@ public:
         NavigationDirection direction, const ImageSpreadPageNavigationContext& context) const;
     [[nodiscard]] int relativePageNavigationTarget(
         int offset, const ImageSpreadPageNavigationContext& context) const;
-    [[nodiscard]] bool shouldBeginNavigationTransition(
-        int targetPageNumber, const ImageSpreadPageNavigationContext& context) const;
     [[nodiscard]] bool primarySelectionMatchesDisplayed(
         const ImageDocumentPageNavigationSnapshot& navigation, const QUrl& displayedUrl) const;
 

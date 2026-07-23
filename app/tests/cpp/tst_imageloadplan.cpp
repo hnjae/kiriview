@@ -113,7 +113,7 @@ void TestImageLoadPlan::resolvedLocalDirectoryScopePlansDocumentListing()
     const kiriview::ImageLoadPlan plan = kiriview::imageLoadPlan(13,
         kiriview::ImageLoadRequest::fromSameScopePageTarget(
             kiriview::ImageDocumentPageTarget(directoryUrl, kiriview::ImageDocumentPageKind::Image),
-            directoryCollection, false));
+            directoryCollection));
 
     QCOMPARE(plan.session.id(), quint64(13));
     QCOMPARE(plan.startEffect, kiriview::ImageLoadStartEffect::LoadOpenedCollectionScopeCandidates);
@@ -163,7 +163,7 @@ void TestImageLoadPlan::displayedArchiveContextIsKeptForInteriorImage()
 
     const kiriview::ImageLoadRequest request = kiriview::ImageLoadRequest::fromSameScopePageTarget(
         kiriview::ImageDocumentPageTarget(imageUrl, kiriview::ImageDocumentPageKind::Image),
-        *archiveCollection, false);
+        *archiveCollection);
     const kiriview::ImageLoadPlan plan = kiriview::imageLoadPlan(10, request);
     const kiriview::OpenedCollectionScopeLoadPlan archivePlan
         = kiriview::openedCollectionScopeLoadPlan(request);

@@ -11,7 +11,6 @@ ImageDocumentRuntimePlan imageDocumentClearImagePlan()
         ClearPredecodeOperation {},
         ClearSecondaryPageOperation {},
         CancelPageNavigationUpdateOperation {},
-        ClearDisplayedImageLocationOperation {},
         ClearPresentationImageOperation {},
         ClearPageNavigationOperation {},
         NotifyRightToLeftReadingChangedOperation {},

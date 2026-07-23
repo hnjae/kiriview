@@ -54,7 +54,7 @@ private Q_SLOTS:
     void videoNextPageFallsBackToPrimaryOnly();
     void previousNavigationUsesCachedPreviousPageWidth();
     void previousNavigationTreatsVideoAsSinglePage();
-    void transitionPlanningUsesNavigationContext();
+    void relativePlanningUsesNavigationContext();
     void activeNavigationSnapshotUsesVisibleSpreadBoundary();
     void primarySelectionMatchingNormalizesDisplayedUrl();
     void pageWidthCacheNormalizesUrlKeys();
@@ -181,7 +181,7 @@ void TestImageSpreadSecondaryPageRefresh::previousNavigationTreatsVideoAsSingleP
     QCOMPARE(target.pageNumber, 4);
 }
 
-void TestImageSpreadSecondaryPageRefresh::transitionPlanningUsesNavigationContext()
+void TestImageSpreadSecondaryPageRefresh::relativePlanningUsesNavigationContext()
 {
     const std::vector<QUrl> urls {
         localUrl(QStringLiteral("/books/001.png")),
@@ -193,17 +193,10 @@ void TestImageSpreadSecondaryPageRefresh::transitionPlanningUsesNavigationContex
         false,
         navigationSnapshot(urls, 2),
     };
-    const kiriview::ImageSpreadPageNavigationContext inactiveContext {
-        false,
-        false,
-        navigationSnapshot(urls, 2),
-    };
     kiriview::ImageSpreadSecondaryPageRefresh refresh;
 
     QCOMPARE(refresh.currentLastPageNumber(activeContext), 2);
     QCOMPARE(refresh.relativePageNavigationTarget(1, activeContext), 3);
-    QVERIFY(refresh.shouldBeginNavigationTransition(3, activeContext));
-    QVERIFY(!refresh.shouldBeginNavigationTransition(3, inactiveContext));
 }
 
 void TestImageSpreadSecondaryPageRefresh::activeNavigationSnapshotUsesVisibleSpreadBoundary()

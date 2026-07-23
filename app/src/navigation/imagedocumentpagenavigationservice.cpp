@@ -45,6 +45,12 @@ ImageDocumentPageNavigationService::confirmedPageCandidateSnapshot() const
     return m_pageNavigation.confirmedCandidateSnapshot();
 }
 
+std::optional<ImageDocumentPageCandidateListContext>
+ImageDocumentPageNavigationService::selectedPageCandidateContext() const
+{
+    return m_pageNavigation.selectedPageCandidateContext();
+}
+
 std::optional<QUrl> ImageDocumentPageNavigationService::urlAtPage(int pageNumber) const
 {
     return m_pageNavigation.urlAtPage(pageNumber);

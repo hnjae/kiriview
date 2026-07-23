@@ -79,7 +79,7 @@ void TestImageDocumentSourceLoadScope::displayedScopeIsKeptForInteriorImage()
         = kiriview::openedCollectionScopeForImageDocumentSourceLoad(
             kiriview::ImageDocumentSourceLoadRequest::fromSameScopePageTarget(
                 kiriview::ImageDocumentPageTarget(imageUrl, kiriview::ImageDocumentPageKind::Image),
-                *archiveCollection, true),
+                *archiveCollection),
             *archiveCollection);
 
     QCOMPARE(scope.fileUrl(), archiveCollection->fileUrl());

@@ -83,7 +83,7 @@ void TestImageOpenSourceLoadWorkflow::displayedComicBookScopeSuppressesRightToLe
     kiriview::ImageDocumentSourceLoadRequest request
         = kiriview::ImageDocumentSourceLoadRequest::fromSameScopePageTarget(
             kiriview::ImageDocumentPageTarget(imageUrl, kiriview::ImageDocumentPageKind::Image),
-            *archiveCollection, true);
+            *archiveCollection);
     kiriview::ImageDocumentRuntimePlan plan
         = kiriview::ImageOpenWorkflow::sourceLoadPlan(snapshot, request);
     QVERIFY(hasOperationTypes(plan,
@@ -110,7 +110,7 @@ void TestImageOpenSourceLoadWorkflow::sameScopeImageNavigationStartsOpenWithoutR
     const kiriview::ImageDocumentSourceLoadRequest request
         = kiriview::ImageDocumentSourceLoadRequest::fromSameScopePageTarget(
             kiriview::ImageDocumentPageTarget(targetUrl, kiriview::ImageDocumentPageKind::Image),
-            kiriview::OpenedCollectionScopeLocation::none(), true);
+            kiriview::OpenedCollectionScopeLocation::none());
     const kiriview::ImageDocumentSourceLoadSnapshot snapshot {
         currentUrl,
         {},

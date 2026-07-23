@@ -63,36 +63,20 @@ PresentationTargetTransitionPolicy transitionPolicy(
         PresentationTargetTransitionPolicy::SpreadDirectionTransition::SetExplicit);
     policy.setSpreadDirection(target.rightToLeft ? ImageViewportSpreadDirection::RightToLeft
                                                  : ImageViewportSpreadDirection::LeftToRight);
+    policy.setDisplayTransition(
+        PresentationTargetTransitionPolicy::DisplayTransition::ClearBeforeLoad);
+    policy.setFailureTransition(
+        PresentationTargetTransitionPolicy::FailureTransition::KeepFailedTarget);
 
     switch (target.transitionIntent) {
     case kiriview::ImageViewportTargetTransitionIntent::SameNavigationScope:
-        policy.setDisplayTransition(
-            PresentationTargetTransitionPolicy::DisplayTransition::RetainPrevious);
-        policy.setFailureTransition(
-            PresentationTargetTransitionPolicy::FailureTransition::KeepFailedTarget);
         policy.setZoomTransition(PresentationTargetTransitionPolicy::ZoomTransition::Preserve);
         return policy;
     case kiriview::ImageViewportTargetTransitionIntent::OutsideNavigationScope:
-        policy.setDisplayTransition(
-            PresentationTargetTransitionPolicy::DisplayTransition::ClearBeforeLoad);
-        policy.setFailureTransition(
-            PresentationTargetTransitionPolicy::FailureTransition::KeepFailedTarget);
-        policy.setZoomTransition(
-            PresentationTargetTransitionPolicy::ZoomTransition::ResetToContain);
-        return policy;
-    case kiriview::ImageViewportTargetTransitionIntent::RetainedDirectImage:
-        policy.setDisplayTransition(
-            PresentationTargetTransitionPolicy::DisplayTransition::RetainPrevious);
-        policy.setFailureTransition(
-            PresentationTargetTransitionPolicy::FailureTransition::KeepFailedTarget);
         policy.setZoomTransition(
             PresentationTargetTransitionPolicy::ZoomTransition::ResetToContain);
         return policy;
     case kiriview::ImageViewportTargetTransitionIntent::PresentationShapeChange:
-        policy.setDisplayTransition(
-            PresentationTargetTransitionPolicy::DisplayTransition::RetainPrevious);
-        policy.setFailureTransition(
-            PresentationTargetTransitionPolicy::FailureTransition::RestorePrevious);
         policy.setZoomTransition(PresentationTargetTransitionPolicy::ZoomTransition::Preserve);
         policy.setContentPositionTransition(
             PresentationTargetTransitionPolicy::ContentPositionTransition::Clamp);
@@ -132,7 +116,6 @@ struct ImageViewportIntegrationRuntime::TargetRecord
     std::unique_ptr<ImageSequenceFactoryResult> primaryFactoryResult;
     std::unique_ptr<ImageSequenceFactoryResult> secondaryFactoryResult;
     ImageViewportPresentationTargetGenerationToken acceptedGeneration;
-    std::optional<bool> priorTwoPageModeEnabled;
 };
 
 bool ImageViewportIntegrationTarget::isValid() const
@@ -207,7 +190,6 @@ bool ImageViewportIntegrationRuntime::submitTarget(ImageViewportIntegrationTarge
     pending.secondaryUrl = m_target->secondaryUrl;
     pending.status = ImageDocumentStatus::Loading;
     pending.loading = true;
-    pending.secondaryVisible = m_projection.secondaryVisible;
     publishProjection(std::move(pending));
     return m_viewport == nullptr || submitCurrentTarget();
 }
@@ -278,7 +260,6 @@ bool ImageViewportIntegrationRuntime::submitCurrentTarget()
     }
 
     TargetRecord* installed = record.get();
-    record->priorTwoPageModeEnabled = record->target.priorTwoPageModeEnabled;
     m_records.push_back(std::move(record));
     m_activeRecord = installed;
     const ImageViewportPresentationTarget presentationTarget(
@@ -337,9 +318,7 @@ void ImageViewportIntegrationRuntime::acceptSnapshot(const ImageViewportStateSna
         m_activeRecord->acceptedGeneration = acceptedGeneration;
     }
     const ImageViewportFailureSnapshot componentFailure = snapshot.diagnostics().failure();
-    const bool restoredTransition = componentFailure.available()
-        && componentFailure.context() == ImageViewportFailureContext::RestoredTransition;
-    if ((!restoredTransition && acceptedGeneration != m_activeRecord->acceptedGeneration)
+    if (acceptedGeneration != m_activeRecord->acceptedGeneration
         || m_activeRecord->target.sourceGeneration != m_target->sourceGeneration) {
         return;
     }
@@ -374,7 +353,6 @@ void ImageViewportIntegrationRuntime::acceptSnapshot(const ImageViewportStateSna
         projection.contentPosition.y(), projection.maximumContentPosition.y());
     projection.verticalScrollPageSize = normalizedScrollPageSize(projection.verticallyPannable,
         snapshot.display().contentSize().height(), projection.maximumContentPosition.y());
-    projection.restoredTransition = restoredTransition;
     projection.displayedTargetGeneration
         = snapshot.display().displayedPresentationTargetGeneration();
 
@@ -392,10 +370,6 @@ void ImageViewportIntegrationRuntime::acceptSnapshot(const ImageViewportStateSna
     }
     TargetRecord* correlatedRecord = m_activeRecord;
     pruneRecords(acceptedGeneration, snapshot.display().displayedPresentationTargetGeneration());
-    if (restoredTransition && m_activeRecord->priorTwoPageModeEnabled.has_value()) {
-        invokeIfSet(
-            m_callbacks.restoreTwoPageModeEnabled, *m_activeRecord->priorTwoPageModeEnabled);
-    }
     if (m_activeRecord != correlatedRecord || !m_target.has_value()
         || m_target->sourceGeneration != projection.sourceGeneration) {
         return;

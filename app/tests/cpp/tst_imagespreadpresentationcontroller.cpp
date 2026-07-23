@@ -51,16 +51,13 @@ public:
                   [this]() { return snapshot; },
                   [this]() { ++predecodeScheduleCount; },
                   [this](kiriview::ImageLoadSession session,
-                      std::optional<kiriview::PredecodedImage> predecoded, bool priorEnabled) {
-                      preparedPriorEnabled = priorEnabled;
+                      std::optional<kiriview::PredecodedImage> predecoded) {
+                      ++preparedCount;
                       QVERIFY(predecoded.has_value());
                       controller.finishViewportSecondaryPageLoad(
-                          session, predecoded->displayImage.originalSize, false);
+                          session, predecoded->displayImage.originalSize);
                   },
-                  [this](bool priorEnabled) {
-                      clearedPriorEnabled = priorEnabled;
-                      ++clearCount;
-                  },
+                  [this]() { ++clearCount; },
                   {},
               })
     {
@@ -98,8 +95,7 @@ public:
     };
     std::map<QUrl, QSize> predecodedSizes;
     kiriview::ImageDocumentPageNavigationSnapshot snapshot;
-    std::optional<bool> preparedPriorEnabled;
-    std::optional<bool> clearedPriorEnabled;
+    int preparedCount = 0;
     int clearCount = 0;
     int predecodeScheduleCount = 0;
     kiriview::ImageSpreadPresentationController controller;
@@ -112,8 +108,7 @@ class TestImageSpreadPresentationController : public QObject
 
 private Q_SLOTS:
     void pagePairingAndWidthCacheRemainApplicationOwned();
-    void shapeChangeCarriesPriorApplicationPolicy();
-    void restoredShapePolicyDoesNotSubmitCompensatingTarget();
+    void shapeChangeSubmitsRequestedTargets();
 };
 
 void TestImageSpreadPresentationController::pagePairingAndWidthCacheRemainApplicationOwned()
@@ -136,7 +131,7 @@ void TestImageSpreadPresentationController::pagePairingAndWidthCacheRemainApplic
     QCOMPARE(target.pageNumber, 4);
 }
 
-void TestImageSpreadPresentationController::shapeChangeCarriesPriorApplicationPolicy()
+void TestImageSpreadPresentationController::shapeChangeSubmitsRequestedTargets()
 {
     SpreadFixture fixture;
     fixture.displayPrimary(5, QSize(800, 1200));
@@ -144,26 +139,13 @@ void TestImageSpreadPresentationController::shapeChangeCarriesPriorApplicationPo
 
     fixture.controller.setTwoPageModeEnabled(true);
 
-    QCOMPARE(fixture.preparedPriorEnabled, std::optional<bool>(false));
+    QCOMPARE(fixture.preparedCount, 1);
     QVERIFY(fixture.controller.secondaryPageVisible());
 
     fixture.controller.setTwoPageModeEnabled(false);
 
-    QCOMPARE(fixture.clearedPriorEnabled, std::optional<bool>(true));
+    QCOMPARE(fixture.clearCount, 1);
     QVERIFY(!fixture.controller.secondaryPageVisible());
-}
-
-void TestImageSpreadPresentationController::restoredShapePolicyDoesNotSubmitCompensatingTarget()
-{
-    SpreadFixture fixture;
-    fixture.displayPrimary(5, QSize(800, 1200));
-    fixture.controller.restoreTwoPageModeEnabled(true);
-    const int clearCount = fixture.clearCount;
-
-    fixture.controller.restoreTwoPageModeEnabled(false);
-
-    QVERIFY(!fixture.controller.twoPageModeEnabled());
-    QCOMPARE(fixture.clearCount, clearCount);
 }
 
 QTEST_GUILESS_MAIN(TestImageSpreadPresentationController)

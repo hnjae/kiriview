@@ -112,12 +112,16 @@ void ImageDocumentNavigationController::openAdjacentContainer(NavigationDirectio
 
 void ImageDocumentNavigationController::openImageAtPage(int pageNumber)
 {
-    if (!navigationCandidateContext(m_state).has_value()) {
+    std::optional<ImageDocumentPageCandidateListContext> context
+        = navigationCandidateContext(m_state);
+    if (!context.has_value()) {
+        context = m_navigationService.selectedPageCandidateContext();
+    }
+    if (!context.has_value() || context->currentUrl() != m_state.sourceUrl()) {
         m_navigationService.clearPageNavigation();
         return;
     }
 
-    const bool spreadTransition = m_spreadController.shouldBeginTransition(pageNumber);
     ImageDocumentPageSelectionResult selection = m_navigationService.selectPage(pageNumber);
     if (!selection.target.has_value()) {
         return;
@@ -131,7 +135,7 @@ void ImageDocumentNavigationController::openImageAtPage(int pageNumber)
             ImageDocumentRuntimePlan {
                 ScheduleAdjacentImagePredecodeOperation { selection.target, pageNumber - 1 },
                 LoadPageNavigationUrlOperation {
-                    *selection.target, m_state.displayedOpenedCollectionScope(), spreadTransition },
+                    *selection.target, context->openedCollectionScope() },
             },
         });
 }

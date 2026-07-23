@@ -128,13 +128,6 @@ void ImageDocumentRuntime::setSource(const ResolvedNavigationSource& source)
     loadSource(ImageDocumentSourceLoadRequest::fromExternalSource(source));
 }
 
-void ImageDocumentRuntime::setExternalSourcePreservingPresentation(
-    const ResolvedNavigationSource& source)
-{
-    loadSource(ImageDocumentSourceLoadRequest::fromExternalSource(
-        source, ImageDocumentPageKind::Image, true));
-}
-
 MediaEntrySourceVideoPlaybackDeviceResult
 ImageDocumentRuntime::loadOpenedCollectionVideoPlaybackDevice(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl) const

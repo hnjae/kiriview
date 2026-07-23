@@ -32,8 +32,8 @@ public:
     using PageNavigationSnapshotProvider = std::function<ImageDocumentPageNavigationSnapshot()>;
     using ScheduleAdjacentPredecodeCallback = std::function<void()>;
     using SecondaryImagePreparedCallback
-        = std::function<void(ImageLoadSession, std::optional<PredecodedImage>, bool)>;
-    using SecondaryImageClearedCallback = std::function<void(bool)>;
+        = std::function<void(ImageLoadSession, std::optional<PredecodedImage>)>;
+    using SecondaryImageClearedCallback = std::function<void()>;
     using SecondaryDisplayImageCallback = std::function<std::optional<StaticDisplayImagePayload>()>;
 
     struct Callbacks
@@ -58,7 +58,6 @@ public:
 
     [[nodiscard]] bool twoPageModeEnabled() const;
     void setTwoPageModeEnabled(bool enabled);
-    void restoreTwoPageModeEnabled(bool enabled);
     [[nodiscard]] bool twoPageModeAvailable() const;
     [[nodiscard]] bool twoPageModeActive() const;
     [[nodiscard]] bool rightToLeftReadingEnabled() const;
@@ -72,11 +71,9 @@ public:
     void clearPrimaryPageSlot();
     void refreshSecondaryPage();
     void handleDocumentChange(ImageDocumentChange change);
-    [[nodiscard]] bool shouldBeginTransition(int targetPageNumber) const;
     void clearSecondaryPage();
     void shutdown();
-    void finishViewportSecondaryPageLoad(
-        const ImageLoadSession& session, QSize imageSize, bool presentationRestored);
+    void finishViewportSecondaryPageLoad(const ImageLoadSession& session, QSize imageSize);
     void finishViewportSecondaryPageLoadWithError(const ImageLoadSession& session);
     void resetRightToLeftReading();
     void notifyRightToLeftReadingChanged();
@@ -104,7 +101,7 @@ private:
     QSize m_committedPrimaryImageSize;
     bool m_twoPageModeEnabled = false;
     bool m_rightToLeftReadingEnabled = false;
-    std::optional<bool> m_pendingShapePriorTwoPageMode;
+    bool m_pendingShapeChange = false;
 };
 }
 

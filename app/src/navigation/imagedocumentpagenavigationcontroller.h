@@ -37,6 +37,8 @@ public:
     [[nodiscard]] int pageCount() const;
     [[nodiscard]] ImageDocumentPageNavigationSnapshot snapshot() const;
     [[nodiscard]] const ImageDocumentPageCandidateListSnapshot& confirmedCandidateSnapshot() const;
+    [[nodiscard]] std::optional<ImageDocumentPageCandidateListContext>
+    selectedPageCandidateContext() const;
     [[nodiscard]] std::optional<QUrl> urlAtPage(int pageNumber) const;
     [[nodiscard]] std::optional<ImageDocumentPageTarget> targetAtPage(int pageNumber) const;
     ImageDocumentPageSelectionResult selectPage(int pageNumber);

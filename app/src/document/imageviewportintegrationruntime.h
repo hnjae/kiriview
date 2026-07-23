@@ -23,7 +23,6 @@ namespace kiriview {
 enum class ImageViewportTargetTransitionIntent {
     SameNavigationScope,
     OutsideNavigationScope,
-    RetainedDirectImage,
     PresentationShapeChange,
 };
 
@@ -39,7 +38,6 @@ struct ImageViewportIntegrationTarget
         = ImageViewportTargetTransitionIntent::OutsideNavigationScope;
     bool rightToLeft = false;
     bool anchorAtEnd = false;
-    std::optional<bool> priorTwoPageModeEnabled;
     ImageViewportProviderResourceFactory primaryResource;
     ImageViewportProviderResourceFactory secondaryResource;
 
@@ -76,7 +74,6 @@ struct ImageViewportIntegrationProjection
     qreal horizontalScrollPageSize = 1.0;
     qreal verticalScrollPosition = 0.0;
     qreal verticalScrollPageSize = 1.0;
-    bool restoredTransition = false;
     ImageViewportPresentationTargetGenerationToken displayedTargetGeneration;
 };
 
@@ -86,7 +83,6 @@ public:
     struct Callbacks
     {
         std::function<void(const ImageViewportIntegrationProjection&)> projectionChanged;
-        std::function<void(bool)> restoreTwoPageModeEnabled;
     };
 
     explicit ImageViewportIntegrationRuntime(Callbacks callbacks = {});

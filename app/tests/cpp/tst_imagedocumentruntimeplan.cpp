@@ -44,7 +44,6 @@ void TestImageDocumentRuntimePlan::clearImagePlansOrderedRuntimeOperations()
     QVERIFY(hasOperationTypes(plan,
         operationTypes<kiriview::ClearMediaEntrySourceOperation, kiriview::ClearPredecodeOperation,
             kiriview::ClearSecondaryPageOperation, kiriview::CancelPageNavigationUpdateOperation,
-            kiriview::ClearDisplayedImageLocationOperation,
             kiriview::ClearPresentationImageOperation, kiriview::ClearPageNavigationOperation,
             kiriview::NotifyRightToLeftReadingChangedOperation>()));
 }
@@ -127,14 +126,11 @@ void TestImageDocumentRuntimePlan::payloadOperationsCarryRuntimeData()
             kiriview::ImageDocumentPageKind::Video,
         },
         testScope(localUrl(QStringLiteral("/next.png"))),
-        true,
     } };
     QCOMPARE(operationAt<kiriview::LoadPageNavigationUrlOperation>(plan, 0).target.url,
         localUrl(QStringLiteral("/next.png")));
     QCOMPARE(operationAt<kiriview::LoadPageNavigationUrlOperation>(plan, 0).target.kind,
         kiriview::ImageDocumentPageKind::Video);
-    QVERIFY(operationAt<kiriview::LoadPageNavigationUrlOperation>(plan, 0)
-            .preserveTwoPageSpreadTransition);
 }
 
 void TestImageDocumentRuntimePlan::operationTypeAssertionsCoverEveryRuntimeOperation()
@@ -182,10 +178,8 @@ void TestImageDocumentRuntimePlan::operationTypeAssertionsCoverEveryRuntimeOpera
                 kiriview::ImageDocumentPageKind::Image,
             },
             testScope(containerUrl),
-            true,
         },
         kiriview::CancelOpenOperation {},
-        kiriview::ClearDisplayedImageLocationOperation {},
         kiriview::ClearPresentationImageOperation {},
         kiriview::ClearLoadingContainerNavigationUrlOperation {},
         kiriview::SetLoadingContainerNavigationUrlOperation { containerUrl },
@@ -222,7 +216,6 @@ void TestImageDocumentRuntimePlan::operationTypeAssertionsCoverEveryRuntimeOpera
             kiriview::ReportContainerNavigationBoundaryOperation,
             kiriview::ReportContainerNavigationListFailureOperation,
             kiriview::LoadPageNavigationUrlOperation, kiriview::CancelOpenOperation,
-            kiriview::ClearDisplayedImageLocationOperation,
             kiriview::ClearPresentationImageOperation,
             kiriview::ClearLoadingContainerNavigationUrlOperation,
             kiriview::SetLoadingContainerNavigationUrlOperation,

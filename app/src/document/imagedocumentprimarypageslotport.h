@@ -18,7 +18,6 @@ public:
         ImageSpreadPresentationController* spreadController = nullptr);
 
     void commit(const DisplayedImageLocation& location, QSize imageSize) const;
-    void clear() const;
 
 private:
     ImageSpreadPresentationController* m_spreadController = nullptr;

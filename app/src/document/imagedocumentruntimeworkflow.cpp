@@ -123,8 +123,8 @@ kiriview::ImageDocumentRuntimeOperations runtimeOperations(
     operations.navigation.loadUrl = [ports](const kiriview::ImageDocumentPageTarget& target,
                                         const kiriview::OpenedCollectionScopeLocation& scope) {
         if (ports.loadSource) {
-            ports.loadSource(kiriview::ImageDocumentSourceLoadRequest::fromSameScopePageTarget(
-                target, scope, false));
+            ports.loadSource(
+                kiriview::ImageDocumentSourceLoadRequest::fromSameScopePageTarget(target, scope));
         }
     };
     operations.navigation.loadContainerImage
@@ -164,15 +164,13 @@ kiriview::ImageDocumentRuntimeOperations runtimeOperations(
           };
     operations.navigation.loadPageNavigationUrl =
         [ports](const kiriview::ImageDocumentPageTarget& target,
-            const kiriview::OpenedCollectionScopeLocation& scope,
-            bool preserveTwoPageSpreadTransition) {
+            const kiriview::OpenedCollectionScopeLocation& scope) {
             qCDebug(kiriviewNavigationLog)
                 << "runtime loading page navigation target"
-                << "targetUrl" << target.url << "targetKind" << static_cast<int>(target.kind)
-                << "preserveTwoPageSpreadTransition" << preserveTwoPageSpreadTransition;
+                << "targetUrl" << target.url << "targetKind" << static_cast<int>(target.kind);
             if (ports.loadSource) {
                 ports.loadSource(kiriview::ImageDocumentSourceLoadRequest::fromSameScopePageTarget(
-                    target, scope, preserveTwoPageSpreadTransition));
+                    target, scope));
             }
         };
     operations.open.cancelOpen = [ports]() {
@@ -180,12 +178,10 @@ kiriview::ImageDocumentRuntimeOperations runtimeOperations(
             ports.openController->cancel();
         }
     };
-    operations.open.clearDisplayedImageLocation = [ports]() {
+    operations.open.clearPresentationImage = [ports]() {
         if (ports.state != nullptr) {
             ports.state->clearDisplayedImageLocation();
         }
-    };
-    operations.open.clearPresentationImage = [ports]() {
         kiriview::invokeIfSet(ports.clearViewportTarget);
         if (ports.spreadController != nullptr) {
             ports.spreadController->clearPrimaryPageSlot();

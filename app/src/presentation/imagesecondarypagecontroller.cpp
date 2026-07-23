@@ -45,7 +45,7 @@ void ImageSecondaryPageController::startLoad(
     cancel();
     m_imageLoader->start(ImageLoadRequest::fromSameScopePageTarget(
         ImageDocumentPageTarget { url, ImageDocumentPageKind::Image },
-        displayedOpenedCollectionScope, false));
+        displayedOpenedCollectionScope));
 }
 
 void ImageSecondaryPageController::clear()
@@ -62,10 +62,10 @@ void ImageSecondaryPageController::cancel()
 }
 
 void ImageSecondaryPageController::finishProviderLoad(
-    const ImageLoadSession& session, QSize imageSize, bool presentationRestored)
+    const ImageLoadSession& session, QSize imageSize)
 {
     applyLoadCompletion(m_displayState.finishPresentedLoad(
-        session.location(), imageSize, presentationRestored || imageSpreadPageIsWide(imageSize)));
+        session.location(), imageSize, imageSpreadPageIsWide(imageSize)));
 }
 
 void ImageSecondaryPageController::finishProviderLoadWithError(const ImageLoadSession& session)

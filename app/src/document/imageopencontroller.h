@@ -33,14 +33,12 @@ public:
     using OpenedCollectionVideoPlaybackAvailableCallback
         = std::function<bool(const OpenedCollectionScopeLocation&, const QUrl&)>;
     using CommitPrimaryPageSlotCallback = std::function<void(const DisplayedImageLocation&, QSize)>;
-    using ClearPrimaryPageSlotCallback = std::function<void()>;
     using EnsurePageCandidateSnapshotCallback = std::function<void(
         ImageDocumentPageCandidateListContext, ImageDocumentPageCandidateListSnapshotCallback)>;
     using PrepareViewportImageTargetCallback
         = std::function<bool(ImageLoadSession, std::optional<PredecodedImage>)>;
     using FirstDisplayDecodeContextCallback = std::function<ImageFirstDisplayDecodeContext()>;
     using HasCommittedImageCallback = std::function<bool()>;
-    using ClearViewportTargetCallback = std::function<void()>;
 
     struct Callbacks
     {
@@ -49,12 +47,10 @@ public:
         UnsupportedOpenedCollectionVideoEnteredCallback unsupportedOpenedCollectionVideoEntered;
         OpenedCollectionVideoPlaybackAvailableCallback openedCollectionVideoPlaybackAvailable;
         CommitPrimaryPageSlotCallback commitPrimaryPageSlot;
-        ClearPrimaryPageSlotCallback clearPrimaryPageSlot;
         EnsurePageCandidateSnapshotCallback ensurePageCandidateSnapshot;
         PrepareViewportImageTargetCallback prepareViewportImageTarget;
         FirstDisplayDecodeContextCallback firstDisplayDecodeContext;
         HasCommittedImageCallback hasCommittedImage;
-        ClearViewportTargetCallback clearViewportTarget;
     };
 
     ImageOpenController(ImageDocumentState& state, Callbacks callbacks);

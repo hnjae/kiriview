@@ -24,8 +24,6 @@ struct RecordedWorkflowOperations
             = [this]() { events.append(QStringLiteral("clearSecondaryPage")); };
         operations.navigation.cancelPageNavigationUpdate
             = [this]() { events.append(QStringLiteral("cancelPageNavigationUpdate")); };
-        operations.open.clearDisplayedImageLocation
-            = [this]() { events.append(QStringLiteral("clearDisplayedImageLocation")); };
         operations.open.clearPresentationImage
             = [this]() { events.append(QStringLiteral("clearPresentationImage")); };
         operations.navigation.clearPageNavigation
@@ -57,7 +55,6 @@ void TestImageDocumentRuntimeWorkflow::dispatchesRuntimePlansThroughInjectedOper
             QStringLiteral("clearPredecode"),
             QStringLiteral("clearSecondaryPage"),
             QStringLiteral("cancelPageNavigationUpdate"),
-            QStringLiteral("clearDisplayedImageLocation"),
             QStringLiteral("clearPresentationImage"),
             QStringLiteral("clearPageNavigation"),
             QStringLiteral("notifyRightToLeftReadingChanged"),

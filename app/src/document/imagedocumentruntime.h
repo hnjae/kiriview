@@ -51,7 +51,6 @@ public:
     [[nodiscard]] ImageDocumentPageKind sourceKind() const;
     void setSourceUrl(const QUrl& sourceUrl);
     void setSource(const ResolvedNavigationSource& source);
-    void setExternalSourcePreservingPresentation(const ResolvedNavigationSource& source);
     [[nodiscard]] MediaEntrySourceVideoPlaybackDeviceResult loadOpenedCollectionVideoPlaybackDevice(
         const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl) const;
     [[nodiscard]] ImageDocumentStatus status() const;

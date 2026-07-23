@@ -152,12 +152,6 @@ void KiriImageDocument::setSource(const kiriview::ResolvedNavigationSource& sour
     m_runtime->setSource(source);
 }
 
-void KiriImageDocument::setExternalSourcePreservingPresentation(
-    const kiriview::ResolvedNavigationSource& source)
-{
-    m_runtime->setExternalSourcePreservingPresentation(source);
-}
-
 kiriview::MediaEntrySourceVideoPlaybackDeviceResult
 KiriImageDocument::loadOpenedCollectionVideoPlaybackDevice(
     const kiriview::OpenedCollectionScopeLocation& openedCollectionScope,

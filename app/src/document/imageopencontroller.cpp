@@ -134,7 +134,6 @@ void ImageOpenController::finishViewportImageLoadWithError(
 
 void ImageOpenController::finishEmptySourceLoad()
 {
-    invokeIfSet(m_callbacks.clearViewportTarget);
     reportRuntimePlan(
         applyImageOpenApplicationPlan(m_state, ImageOpenWorkflow::finishEmptySourceLoadPlan()));
 }
@@ -178,8 +177,6 @@ void ImageOpenController::finishUnsupportedOpenedCollectionVideoLoad(ImageLoadSe
     }
 
     const QString message = unsupportedOpenedCollectionVideoMessage();
-    invokeIfSet(m_callbacks.clearViewportTarget);
-    invokeIfSet(m_callbacks.clearPrimaryPageSlot);
     const ImageDocumentRuntimePlan plan = applyImageOpenApplicationPlan(
         m_state, ImageOpenWorkflow::finishUnsupportedOpenedCollectionVideoLoadPlan(session));
     invokeIfSet(m_callbacks.unsupportedOpenedCollectionVideoEntered, message);
@@ -188,8 +185,6 @@ void ImageOpenController::finishUnsupportedOpenedCollectionVideoLoad(ImageLoadSe
 
 void ImageOpenController::finishPlayableOpenedCollectionVideoLoad(ImageLoadSession session)
 {
-    invokeIfSet(m_callbacks.clearViewportTarget);
-    invokeIfSet(m_callbacks.clearPrimaryPageSlot);
     reportRuntimePlan(applyImageOpenApplicationPlan(
         m_state, ImageOpenWorkflow::finishPlayableOpenedCollectionVideoLoadPlan(session)));
 }

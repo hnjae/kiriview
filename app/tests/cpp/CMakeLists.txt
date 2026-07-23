@@ -76,6 +76,10 @@ if(TARGET tst_imagezoomcontrols)
     set_tests_properties(tst_imagezoomcontrols PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
 
+if(TARGET tst_imagestateoverlay)
+    set_tests_properties(tst_imagestateoverlay PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
+
 if(TARGET tst_thumbnailpanel)
     set_tests_properties(tst_thumbnailpanel PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()

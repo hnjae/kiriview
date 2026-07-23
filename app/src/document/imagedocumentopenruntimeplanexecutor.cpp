@@ -30,10 +30,6 @@ bool ImageDocumentOpenRuntimePlanExecutor::dispatchOperation(
         run(m_operations.cancelOpen);
         return true;
     }
-    if (std::holds_alternative<ClearDisplayedImageLocationOperation>(operation)) {
-        run(m_operations.clearDisplayedImageLocation);
-        return true;
-    }
     if (std::holds_alternative<ClearPresentationImageOperation>(operation)) {
         run(m_operations.clearPresentationImage);
         return true;

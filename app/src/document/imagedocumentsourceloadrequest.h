@@ -36,27 +36,24 @@ using ImageDocumentSourceAssignment
 class ImageDocumentSourceLoadRequest
 {
 public:
-    static ImageDocumentSourceLoadRequest fromExternalSource(ResolvedNavigationSource source,
-        ImageDocumentPageKind kind = ImageDocumentPageKind::Image,
-        bool preserveTwoPageSpreadTransition = false)
+    static ImageDocumentSourceLoadRequest fromExternalSource(
+        ResolvedNavigationSource source, ImageDocumentPageKind kind = ImageDocumentPageKind::Image)
     {
-        return ImageDocumentSourceLoadRequest(
-            ExternalResolvedSource { std::move(source), kind }, preserveTwoPageSpreadTransition);
+        return ImageDocumentSourceLoadRequest(ExternalResolvedSource { std::move(source), kind });
     }
 
-    static ImageDocumentSourceLoadRequest fromSameScopePageTarget(ImageDocumentPageTarget target,
-        OpenedCollectionScopeLocation scope, bool preserveTwoPageSpreadTransition)
+    static ImageDocumentSourceLoadRequest fromSameScopePageTarget(
+        ImageDocumentPageTarget target, OpenedCollectionScopeLocation scope)
     {
         return ImageDocumentSourceLoadRequest(
-            SameScopePageTarget { std::move(scope), std::move(target) },
-            preserveTwoPageSpreadTransition);
+            SameScopePageTarget { std::move(scope), std::move(target) });
     }
 
     static ImageDocumentSourceLoadRequest fromContainerTarget(
         ImageDocumentPageTarget target, OpenedCollectionScopeLocation scope)
     {
         return ImageDocumentSourceLoadRequest(
-            ContainerTarget { std::move(scope), std::move(target) }, false);
+            ContainerTarget { std::move(scope), std::move(target) });
     }
 
     [[nodiscard]] const QUrl& sourceUrl() const
@@ -108,10 +105,6 @@ public:
         const auto* source = std::get_if<ExternalResolvedSource>(&m_assignment);
         return source == nullptr ? nullptr : &source->source;
     }
-    [[nodiscard]] bool preserveTwoPageSpreadTransition() const
-    {
-        return m_preserveTwoPageSpreadTransition;
-    }
     [[nodiscard]] bool sameScopePageNavigation() const
     {
         return std::holds_alternative<SameScopePageTarget>(m_assignment);
@@ -119,15 +112,12 @@ public:
     [[nodiscard]] bool isEmpty() const { return sourceUrl().isEmpty(); }
 
 private:
-    explicit ImageDocumentSourceLoadRequest(
-        ImageDocumentSourceAssignment assignment, bool preserveTwoPageSpreadTransition)
+    explicit ImageDocumentSourceLoadRequest(ImageDocumentSourceAssignment assignment)
         : m_assignment(std::move(assignment))
-        , m_preserveTwoPageSpreadTransition(preserveTwoPageSpreadTransition)
     {
     }
 
     ImageDocumentSourceAssignment m_assignment;
-    bool m_preserveTwoPageSpreadTransition = false;
 };
 }
 

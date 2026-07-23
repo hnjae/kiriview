@@ -20,14 +20,6 @@ void DocumentSessionImageDocumentCommandRuntime::setSource(const ResolvedNavigat
     }
 }
 
-void DocumentSessionImageDocumentCommandRuntime::setExternalSourcePreservingPresentation(
-    const ResolvedNavigationSource& source)
-{
-    if (m_commands.source.setExternalSourcePreservingPresentation) {
-        m_commands.source.setExternalSourcePreservingPresentation(source);
-    }
-}
-
 void DocumentSessionImageDocumentCommandRuntime::clearSourceUrl()
 {
     if (m_commands.source.clearSource) {

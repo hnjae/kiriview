@@ -16,7 +16,6 @@ public:
         DocumentSessionImageDocumentCommandPort commands = {});
 
     void setSource(const ResolvedNavigationSource& source);
-    void setExternalSourcePreservingPresentation(const ResolvedNavigationSource& source);
     void clearSourceUrl();
     MediaEntrySourceVideoPlaybackDeviceResult loadOpenedCollectionVideoPlaybackDevice(
         const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl);

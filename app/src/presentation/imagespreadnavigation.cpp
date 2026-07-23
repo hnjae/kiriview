@@ -40,10 +40,4 @@ int imageSpreadRelativePageNavigationTarget(ImageSpreadNavigationState state, in
     return target >= 1 && target <= state.pageCount ? static_cast<int>(target) : 0;
 }
 
-bool imageSpreadShouldBeginNavigationTransition(
-    ImageSpreadNavigationState state, int targetPageNumber)
-{
-    return state.twoPageModeActive && state.currentPageNumber > 0 && targetPageNumber > 0
-        && targetPageNumber <= state.pageCount && targetPageNumber != state.currentPageNumber;
-}
 }

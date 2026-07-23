@@ -13,7 +13,6 @@ namespace kiriview {
 struct ImageDocumentOpenRuntimeOperations
 {
     std::function<void()> cancelOpen;
-    std::function<void()> clearDisplayedImageLocation;
     std::function<void()> clearPresentationImage;
     std::function<void(const ImageDocumentPageTarget&)> setSourceUrl;
     std::function<void(const QString&)> setErrorString;

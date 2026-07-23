@@ -29,7 +29,6 @@ namespace {
 
     template <typename Operation>
     inline constexpr bool isOpenRuntimeOperation = std::is_same_v<Operation, CancelOpenOperation>
-        || std::is_same_v<Operation, ClearDisplayedImageLocationOperation>
         || std::is_same_v<Operation, ClearPresentationImageOperation>
         || std::is_same_v<Operation, SetSourceUrlOperation>
         || std::is_same_v<Operation, SetErrorStringOperation>

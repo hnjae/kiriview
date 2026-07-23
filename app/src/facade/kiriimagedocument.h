@@ -233,7 +233,6 @@ private:
 
     void setSourceUrl(const QUrl& sourceUrl);
     void setSource(const kiriview::ResolvedNavigationSource& source);
-    void setExternalSourcePreservingPresentation(const kiriview::ResolvedNavigationSource& source);
     [[nodiscard]] kiriview::MediaEntrySourceVideoPlaybackDeviceResult
     loadOpenedCollectionVideoPlaybackDevice(
         const kiriview::OpenedCollectionScopeLocation& openedCollectionScope,

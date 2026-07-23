@@ -46,8 +46,7 @@ public:
         const QUrl& url, const OpenedCollectionScopeLocation& displayedOpenedCollectionScope);
     void clear();
     void cancel();
-    void finishProviderLoad(
-        const ImageLoadSession& session, QSize imageSize, bool presentationRestored);
+    void finishProviderLoad(const ImageLoadSession& session, QSize imageSize);
     void finishProviderLoadWithError(const ImageLoadSession& session);
 
 private:

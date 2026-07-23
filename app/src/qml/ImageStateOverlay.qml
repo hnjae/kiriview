@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import QtQuick
-import QtQuick.Controls as Controls
 import org.hnjae.kiriview
 import org.kde.ki18n
 import org.kde.kirigami as Kirigami
@@ -15,27 +14,61 @@ Item {
     required property var openAction
     required property bool unsupportedOpenedCollectionVideo
 
-    Kirigami.LoadingPlaceholder {
-        anchors.centerIn: parent
-        visible: root.imageDocument.status === KiriImageDocument.Loading
-        width: Math.min(parent.width - Kirigami.Units.largeSpacing * 2, Kirigami.Units.gridUnit * 18)
+    readonly property bool imageLoading: imageDocument.status === KiriImageDocument.Loading
+    readonly property bool loadingFeedbackVisible: imageLoading && loadingFeedbackArmed
+    readonly property string loadingTargetKey: imageDocument.sourceUrl.toString() + "|" + imageDocument.twoPageModeEnabled
+    property bool loadingFeedbackArmed: false
+
+    function cancelLoadingFeedback() {
+        loadingFeedbackTimer.stop();
+        loadingFeedbackArmed = false;
     }
 
-    Rectangle {
-        anchors.left: parent.left
-        anchors.margins: Kirigami.Units.largeSpacing
-        anchors.top: parent.top
-        color: Qt.rgba(0, 0, 0, 0.55)
-        height: Kirigami.Units.gridUnit * 2
-        radius: Kirigami.Units.smallSpacing
-        visible: root.imageReady && root.imageDocument.loading
-        width: height
-
-        Controls.BusyIndicator {
-            anchors.fill: parent
-            anchors.margins: Kirigami.Units.smallSpacing
-            running: visible
+    function scheduleLoadingFeedback() {
+        if (!imageLoading) {
+            cancelLoadingFeedback();
+            return;
         }
+        if (loadingFeedbackVisible) {
+            return;
+        }
+        loadingFeedbackArmed = false;
+        loadingFeedbackTimer.restart();
+    }
+
+    onImageLoadingChanged: {
+        if (imageLoading) {
+            scheduleLoadingFeedback();
+        } else {
+            cancelLoadingFeedback();
+        }
+    }
+    onLoadingTargetKeyChanged: {
+        if (imageLoading && !loadingFeedbackVisible) {
+            scheduleLoadingFeedback();
+        }
+    }
+    Component.onCompleted: {
+        if (imageLoading) {
+            scheduleLoadingFeedback();
+        }
+    }
+
+    Timer {
+        id: loadingFeedbackTimer
+
+        interval: 150
+        onTriggered: {
+            if (root.imageLoading) {
+                root.loadingFeedbackArmed = true;
+            }
+        }
+    }
+
+    Kirigami.LoadingPlaceholder {
+        anchors.centerIn: parent
+        visible: root.loadingFeedbackVisible
+        width: Math.min(parent.width - Kirigami.Units.largeSpacing * 2, Kirigami.Units.gridUnit * 18)
     }
 
     Kirigami.InlineMessage {

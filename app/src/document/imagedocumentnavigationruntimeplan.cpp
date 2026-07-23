@@ -25,7 +25,7 @@ void appendNavigationEffectRuntimeOperation(kiriview::ImageDocumentRuntimePlan& 
                     -1,
                 });
                 plan.emplace_back(kiriview::LoadPageNavigationUrlOperation {
-                    payload.target, openedCollectionScope, false });
+                    payload.target, openedCollectionScope });
             } else if constexpr (std::is_same_v<Effect,
                                      kiriview::OpenContainerImageDocumentPageNavigationEffect>) {
                 plan.emplace_back(kiriview::LoadContainerImageOperation {

@@ -209,8 +209,7 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
               },
               [this](const QUrl&) {
                   m_state.setOpenedCollectionVideoActive(false);
-                  m_imageDocumentCommandRuntime.setExternalSourcePreservingPresentation(
-                      m_routeNavigationSource);
+                  m_imageDocumentCommandRuntime.setSource(m_routeNavigationSource);
                   refreshImagePublicSnapshot();
                   setDocumentKind(DocumentSessionKind::Image);
               },

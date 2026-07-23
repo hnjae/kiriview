@@ -78,8 +78,7 @@ bool ImageDocumentNavigationRuntimePlanExecutor::dispatchOperation(
         return true;
     }
     if (const auto* payload = std::get_if<LoadPageNavigationUrlOperation>(&operation)) {
-        run(m_operations.loadPageNavigationUrl, payload->target, payload->openedCollectionScope,
-            payload->preserveTwoPageSpreadTransition);
+        run(m_operations.loadPageNavigationUrl, payload->target, payload->openedCollectionScope);
         return true;
     }
 
