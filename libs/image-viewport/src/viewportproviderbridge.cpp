@@ -398,7 +398,19 @@ public:
     {
     }
 
-    ~ViewportProviderDeliverySlotReservation() { deliverySlots->release(); }
+    ~ViewportProviderDeliverySlotReservation() { release(); }
+
+    void release()
+    {
+        std::shared_ptr<QSemaphore> slots;
+        {
+            QMutexLocker locker(&mutex);
+            slots = std::exchange(deliverySlots, {});
+        }
+        if (slots) {
+            slots->release();
+        }
+    }
 
     ViewportProviderDeliverySlotReservation(const ViewportProviderDeliverySlotReservation&)
         = delete;
@@ -410,6 +422,7 @@ public:
         = delete;
 
 private:
+    QMutex mutex;
     std::shared_ptr<QSemaphore> deliverySlots;
 };
 
@@ -1341,6 +1354,9 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
             }
             auto deliver
                 = [eventEndpoint, leaseRegistry, event, deliverySlot = std::move(deliverySlot)]() {
+                      if (deliverySlot) {
+                          deliverySlot->release();
+                      }
                       if (!eventEndpoint->deliver(event)) {
                           leaseRegistry->retire(event.frameLeaseId);
                           leaseRegistry->retire(event.failureLeaseId);
