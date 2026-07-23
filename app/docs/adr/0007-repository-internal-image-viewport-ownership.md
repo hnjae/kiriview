@@ -1,5 +1,7 @@
 # Repository-Internal ImageViewport Ownership
 
+Status: Partially superseded by [ADR 0009: Non-Retained Image Target Transitions](0009-non-retained-image-target-transitions.md).
+
 ## Context
 
 KiriView needs one presentation engine to preserve atomic page and spread transitions, physical-pixel zoom, pan and coordinate geometry, retained commits, and independently animated page roles. Keeping those responsibilities split between an application presentation runtime, QML `Flickable` and `Image` objects, page-resource owners, and a viewport library creates duplicate state authorities and makes terminal transition rollback dependent on reconstructing already retired resources.

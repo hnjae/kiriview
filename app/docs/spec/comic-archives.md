@@ -38,15 +38,15 @@ In Left-to-Right Reading mode, the primary/current page is rendered on the left 
 
 In Right-to-Left Reading mode, the primary/current page is rendered on the right and the next page is rendered on the left.
 
-When navigation in Two-Page Spread targets another eligible two-page spread, KiriView shows the target as loading while keeping the previous complete page or spread as the committed presentation. It never presents only one page of the target spread.
+When navigation in Two-Page Spread targets another eligible two-page spread, KiriView clears the previous page or spread immediately. It never presents only one page of the target spread.
 
 The target spread appears only after both pages are ready.
 
 If the target page is the cover, wide, last page, or cannot be paired with an eligible next page, KiriView displays the target page alone once that page is ready.
 
-While a Two-Page Spread transition is loading, the previously displayed page or spread remains the last committed image presentation. KiriView must not expose a partially prepared target spread as the active image presentation.
+While a Two-Page Spread transition is loading, the image viewport remains empty until the complete target is ready. KiriView must not expose a partially prepared target spread as the active image presentation.
 
-If switching between single-page and Two-Page Spread display cannot complete, KiriView atomically restores that last committed presentation and does not leave the failed target or a placeholder active.
+If switching between single-page and Two-Page Spread display cannot complete, KiriView keeps the requested display mode selected and shows the target's error state instead of restoring the previous presentation.
 
 ## Two-Page Spread Navigation
 

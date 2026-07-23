@@ -4,21 +4,19 @@
 
 The UI remains responsive while a selected image is being opened.
 
-If no media item is currently displayed, the UI shows a loading state.
+When an image target is selected, KiriView immediately clears any previously displayed image. If the target is ready within 150 milliseconds, it appears without an intervening loading state. Otherwise the empty image viewport shows the loading state until the target is ready.
 
 If no media item is selected, the empty state says that no file is selected and offers Open.
 
 If the selected image cannot be opened while no media item is displayed, the error state explains that the selected file or URL could not be opened, shows the underlying error when available, and offers Open. Initial video failures use the stable video error behavior defined in [Video Playback](video-playback.md#source-url-identity) and also offer Open.
 
-If a media item is already displayed and users move to a different image through the current active navigation scope, the requested image becomes the selected navigation target immediately. If the requested image is already available, it replaces the view immediately; otherwise the previous committed image remains visible until the requested image is ready to display.
-
-If a media item is already displayed and users select a different image outside the current active navigation scope, the new selection owns the image viewport immediately. If the new image is already available, it replaces the view immediately; otherwise KiriView clears the previous image presentation and shows the normal loading state until the new image is ready.
+If a media item is already displayed and users select a different image, the requested image becomes the selected target and owns the image viewport immediately, whether or not it belongs to the current active navigation scope. The previous image presentation is cleared before KiriView prepares the requested image.
 
 If a media item is already displayed and users select a video, KiriView leaves image mode immediately and shows the video loading state.
 
 If another file or navigation target is selected before the previous load finishes, only the most recent selection is displayed.
 
-When a new image outside the current active navigation scope is selected while an image is already displayed and the new image is not already available from prior preparation, any running animation stops when the previous image presentation is cleared.
+When a different image target is selected while an image is already displayed, any running animation stops when the previous image presentation is cleared.
 
 If the selected URL cannot be read or the file is not a decodable image or playable video, KiriView keeps the selected target active and shows the target's error state instead of restoring the previous media item.
 
@@ -160,7 +158,7 @@ Viewport zoom, fit, panning, and scan results follow the currently visible image
 
 During active gestures, KiriView may update the immediate visual position before settling the final position. Settling must preserve the user's newest visible zoom, pan, rotation, resize, and display-scale result.
 
-Switching between single-page display and Two-Page Spread is atomic from the user's perspective. During a transition, users may temporarily see the previous presentation or a placeholder for the next presentation, but controls, zoom readout, panning availability, and render output must not combine properties from both presentations. If the transition cannot be completed, the previous presentation remains active.
+Switching between single-page display and Two-Page Spread clears the previous presentation immediately and is atomic from the user's perspective. During the transition, controls, zoom readout, panning availability, and render output must not combine properties from the previous and requested presentations. If the transition cannot be completed, the requested presentation remains selected and KiriView shows its error state instead of restoring the previous presentation.
 
 ## Animation
 
