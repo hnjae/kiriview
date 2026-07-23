@@ -1,6 +1,6 @@
 # Repository Component Boundary
 
-`ImageViewport` is a repository-internal component with one consumer, KiriView. The application build compiles and links the component directly and registers its QML type as part of the application-owned QML surface. The build must not install or advertise a standalone SDK, QML URI and import version, exported package target, compatibility version, or independently consumable plugin.
+`ImageViewport` is a repository-internal component with one consumer, KiriView. The application build compiles and links the component directly and registers the application-owned `KiriImageViewportSurface` façade as part of its QML surface; that façade owns an `ImageViewport` C++ child. The component does not directly register or expose `ImageViewport` as a production QML type. The build must not install or advertise a standalone SDK, QML URI and import version, exported package target, compatibility version, or independently consumable plugin.
 
 The component must remain a separately named build target so ownership and dependencies are explicit. KiriView production code depends only on the declared component interface; it must not include engine-private headers, provider-host transport internals, render-host types, scene graph resources, native texture handles, or instrumentation types.
 
