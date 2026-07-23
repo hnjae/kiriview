@@ -97,6 +97,26 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
 {
     const auto& event = input.event();
     ViewportEngineTransitionDraft result;
+    if (event.kind == ViewportProviderHostEvent::Kind::SessionOpened
+        || event.kind == ViewportProviderHostEvent::Kind::SessionOpenFailed) {
+        const auto& provider = m_state->providerState.roles[roleIndex(event.role)].provider;
+        ViewportEngineProviderSessionAdmissionAccess sessionAccess(
+            m_state->requestState.request.sequenceGeneration, provider.session);
+        if (!acceptsViewportEngineProviderSessionEvent(
+                { event.generation, event.sessionSerial }, std::move(sessionAccess))) {
+            ImageViewportInternal::InternalObservation observation;
+            observation.subsystem = ImageViewportInternal::InternalObservationSubsystem::Engine;
+            observation.category = ImageViewportInternal::InternalObservationCategory::StaleDrop;
+            observation.cause
+                = ImageViewportInternal::InternalObservationCause::RetiredProviderSession;
+            observation.identity.roleValid = true;
+            observation.identity.role = event.role;
+            observation.identity.generation = event.generation;
+            observation.identity.sessionSerial = event.sessionSerial;
+            result.observations.append(observation);
+            return finalizeTransition(std::move(result));
+        }
+    }
     switch (event.kind) {
     case ViewportProviderHostEvent::Kind::SessionOpened: {
         const auto opened = reduceProviderSessionOpened(event.role);

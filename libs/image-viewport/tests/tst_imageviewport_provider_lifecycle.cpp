@@ -5,7 +5,30 @@
 
 #include <QtCore/QElapsedTimer>
 
+#include <algorithm>
 #include <utility>
+
+namespace {
+
+class DirectSessionFactoryProviderAdapter final : public ImageSequenceProviderAdapter
+{
+public:
+    explicit DirectSessionFactoryProviderAdapter(ImageSequenceProviderSessionFactory sessionFactory)
+        : m_sessionFactory(std::move(sessionFactory))
+    {
+    }
+
+    [[nodiscard]] ImageSequenceProviderDescriptor descriptor() const override
+    {
+        return ImageSequenceProviderDescriptor(
+            {}, ImageSequenceProviderThreadingContract::AffinityBound, m_sessionFactory);
+    }
+
+private:
+    ImageSequenceProviderSessionFactory m_sessionFactory;
+};
+
+}
 
 class ImageViewportProviderLifecycleTest : public QObject
 {
@@ -51,6 +74,8 @@ private Q_SLOTS:
     void providerResultsAreQueuedFromSessionEntryPoint();
     void afterPublicationRequestObservesCurrentSnapshot();
     void reentrantClearSuppressesRetiredProviderOpen();
+    void reentrantReplacementIgnoresRetiredSessionOpen();
+    void reentrantReplacementIgnoresRetiredSessionOpenFailure();
     void synchronousProviderEventDeliveryBypassesEventLoopForProtocolTests();
     void providerQueuedMetadataFromClosedGenerationIsIgnoredAfterReplacement();
     void providerFrameResultsAreQueuedFromSessionEntryPoint();
@@ -1905,6 +1930,131 @@ void ImageViewportProviderLifecycleTest::reentrantClearSuppressesRetiredProvider
     QCOMPARE(*closeCount, 0);
     QCOMPARE(viewportPrimarySequence(item), nullptr);
     QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::NoRequest);
+}
+
+void ImageViewportProviderLifecycleTest::reentrantReplacementIgnoresRetiredSessionOpen()
+{
+    ImageSequenceFactory factory;
+    const auto replacementSessionCount = std::make_shared<int>(0);
+    const auto replacementMetadataRequestCount = std::make_shared<int>(0);
+    const auto replacementFrameRequestCount = std::make_shared<int>(0);
+    const auto replacementLastRequestedFrame = std::make_shared<int>(-1);
+    const auto replacementCloseCount = std::make_shared<int>(0);
+    auto replacementSessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        replacementSessionCount, replacementMetadataRequestCount, replacementFrameRequestCount,
+        replacementLastRequestedFrame, replacementCloseCount);
+    CountingProviderAdapter replacementAdapter(replacementSessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> replacementResult(
+        factory.fromProvider(&replacementAdapter));
+    QVERIFY(replacementResult->sequence());
+
+    ImageViewport item;
+    useSynchronousProviderExecutorForTest(item);
+    const auto retiredSessionCount = std::make_shared<int>(0);
+    const auto retiredMetadataRequestCount = std::make_shared<int>(0);
+    const auto retiredFrameRequestCount = std::make_shared<int>(0);
+    const auto retiredLastRequestedFrame = std::make_shared<int>(-1);
+    const auto retiredCloseCount = std::make_shared<int>(0);
+    ImageViewportCommandOutcome reentrantOutcome = ImageViewportCommandOutcome::Invalid;
+    DirectSessionFactoryProviderAdapter retiredAdapter([&] {
+        ++*retiredSessionCount;
+        reentrantOutcome = item.setPresentationTarget(
+                                   ImageViewportPresentationTarget(replacementResult->sequence()),
+                                   PresentationTargetTransitionPolicy {})
+                               .outcome();
+        return ImageSequenceProviderSessionFactoryResult::created(
+            new CountingProviderSession(retiredMetadataRequestCount, retiredFrameRequestCount,
+                retiredLastRequestedFrame, retiredCloseCount));
+    });
+    QScopedPointer<ImageSequenceFactoryResult> retiredResult(factory.fromProvider(&retiredAdapter));
+    QVERIFY(retiredResult->sequence());
+
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(retiredResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+
+    QCOMPARE(reentrantOutcome, ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(*retiredSessionCount, 1);
+    QCOMPARE(*retiredMetadataRequestCount, 0);
+    QCOMPARE(*retiredFrameRequestCount, 0);
+    QCOMPARE(*retiredCloseCount, 1);
+    QCOMPARE(*replacementSessionCount, 1);
+    QCOMPARE(*replacementMetadataRequestCount, 1);
+    QCOMPARE(*replacementFrameRequestCount, 0);
+    QCOMPARE(viewportPrimarySequence(item), replacementResult->sequence());
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Loading);
+
+    const auto observations = internalObservationsForTest(item);
+    const auto stale = std::ranges::find_if(observations, [](const auto& entry) {
+        return entry.category == InternalObservationCategoryForTest::StaleDrop
+            && entry.cause == InternalObservationCauseForTest::RetiredProviderSession;
+    });
+    QVERIFY(stale != observations.cend());
+    QCOMPARE(stale->subsystem, InternalObservationSubsystemForTest::Engine);
+    QVERIFY(stale->identity.roleValid);
+    QCOMPARE(stale->identity.role, ImageViewportPageRole::Primary);
+    QVERIFY(stale->identity.generation > 0);
+    QVERIFY(stale->identity.sessionSerial > 0);
+}
+
+void ImageViewportProviderLifecycleTest::reentrantReplacementIgnoresRetiredSessionOpenFailure()
+{
+    ImageSequenceFactory factory;
+    const auto replacementSessionCount = std::make_shared<int>(0);
+    const auto replacementMetadataRequestCount = std::make_shared<int>(0);
+    const auto replacementFrameRequestCount = std::make_shared<int>(0);
+    const auto replacementLastRequestedFrame = std::make_shared<int>(-1);
+    const auto replacementCloseCount = std::make_shared<int>(0);
+    auto replacementSessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        replacementSessionCount, replacementMetadataRequestCount, replacementFrameRequestCount,
+        replacementLastRequestedFrame, replacementCloseCount);
+    CountingProviderAdapter replacementAdapter(replacementSessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> replacementResult(
+        factory.fromProvider(&replacementAdapter));
+    QVERIFY(replacementResult->sequence());
+
+    ImageViewport item;
+    useSynchronousProviderExecutorForTest(item);
+    const auto retiredFailureReleaseCount = std::make_shared<int>(0);
+    ImageViewportCommandOutcome reentrantOutcome = ImageViewportCommandOutcome::Invalid;
+    DirectSessionFactoryProviderAdapter retiredAdapter([&] {
+        reentrantOutcome = item.setPresentationTarget(
+                                   ImageViewportPresentationTarget(replacementResult->sequence()),
+                                   PresentationTargetTransitionPolicy {})
+                               .outcome();
+        auto* failureHandle = new ImageSequenceProviderFailureHandle(
+            [retiredFailureReleaseCount] { ++*retiredFailureReleaseCount; });
+        return ImageSequenceProviderSessionFactoryResult::failed(ImageSequenceProviderFailure(
+            ImageSequenceProviderFailureCause::ProviderInternal, failureHandle));
+    });
+    QScopedPointer<ImageSequenceFactoryResult> retiredResult(factory.fromProvider(&retiredAdapter));
+    QVERIFY(retiredResult->sequence());
+
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(retiredResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+
+    QCOMPARE(reentrantOutcome, ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(*replacementSessionCount, 1);
+    QCOMPARE(*replacementMetadataRequestCount, 1);
+    QCOMPARE(*replacementFrameRequestCount, 0);
+    QCOMPARE(viewportPrimarySequence(item), replacementResult->sequence());
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Loading);
+    QCOMPARE(*retiredFailureReleaseCount, 1);
+
+    const auto observations = internalObservationsForTest(item);
+    const auto stale = std::ranges::find_if(observations, [](const auto& entry) {
+        return entry.category == InternalObservationCategoryForTest::StaleDrop
+            && entry.cause == InternalObservationCauseForTest::RetiredProviderSession;
+    });
+    QVERIFY(stale != observations.cend());
+    QCOMPARE(stale->subsystem, InternalObservationSubsystemForTest::Engine);
+    QVERIFY(stale->identity.roleValid);
+    QCOMPARE(stale->identity.role, ImageViewportPageRole::Primary);
+    QVERIFY(stale->identity.generation > 0);
+    QVERIFY(stale->identity.sessionSerial > 0);
 }
 
 void ImageViewportProviderLifecycleTest::

@@ -106,10 +106,17 @@ void ImageViewportProviderHost::applyTransportEffects(const ViewportProviderTran
                 event.providerCause = openResult.providerCause;
                 event.providerReference = openResult.providerReference;
                 event.providerFailureLeaseId = openResult.providerFailureLeaseId;
+                event.generation = effect.generation;
+                event.sessionSerial = effect.sessionSerial;
                 applyHostEvent(event);
                 return;
             } else {
-                applyHostEvent({ ViewportProviderHostEvent::Kind::SessionOpened, effect.role });
+                ViewportProviderHostEvent event;
+                event.kind = ViewportProviderHostEvent::Kind::SessionOpened;
+                event.role = effect.role;
+                event.generation = effect.generation;
+                event.sessionSerial = effect.sessionSerial;
+                applyHostEvent(event);
             }
             break;
         }

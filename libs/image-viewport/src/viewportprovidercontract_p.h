@@ -161,4 +161,6 @@ struct ViewportProviderHostEvent
         = ImageSequenceProviderFailureCause::Unavailable;
     ImageSequenceProviderFailureReference providerReference;
     quint64 providerFailureLeaseId = 0;
+    quint64 generation = 0;
+    quint64 sessionSerial = 0;
 };
