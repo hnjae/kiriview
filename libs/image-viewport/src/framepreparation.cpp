@@ -208,7 +208,8 @@ FramePreparation::ProviderMetadataAdmissionResult FramePreparation::admitProvide
             Cause::InvalidMetadata, QStringLiteral("provider metadata is invalid"));
     }
     if (metadata.isStill()
-        && (metadata.timedPlaybackSupport() == ImageViewportCapabilitySupport::True
+        && (metadata.frameSeekSupport() != ImageViewportCapabilitySupport::True
+            || metadata.timedPlaybackSupport() == ImageViewportCapabilitySupport::True
             || metadata.positionSeekSupport() == ImageViewportCapabilitySupport::True)) {
         return providerMetadataRejection(
             Cause::InvalidMetadata, QStringLiteral("provider metadata is invalid"));

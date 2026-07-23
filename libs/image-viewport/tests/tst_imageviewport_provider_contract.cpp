@@ -187,6 +187,13 @@ void ImageViewportProviderContractTest::providerPublicValueTypesValidateTiming()
     QCOMPARE(stillMetadata.sourceLogicalSize(), QSizeF(16.0, 8.0));
     QCOMPARE(stillMetadata.frameDurations(), QVector<int>());
 
+    ImageSequenceProviderMetadata stillMetadataWithoutFrameSeek = stillMetadata;
+    stillMetadataWithoutFrameSeek.setFrameSeekSupport(ImageViewportCapabilitySupport::False);
+    QCOMPARE(stillMetadataWithoutFrameSeek.isValid(), false);
+    QCOMPARE(
+        ImageSequenceProviderEvent::metadataReady(token, stillMetadataWithoutFrameSeek).isValid(),
+        false);
+
     const ImageSequenceProviderMetadata fixedDurationMetadata
         = ImageSequenceProviderMetadata::fixedDurationFrames(QSizeF(16.0, 8.0), 3, 100);
     QCOMPARE(fixedDurationMetadata.isSpecified(), true);

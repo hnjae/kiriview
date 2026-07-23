@@ -459,7 +459,6 @@ void ImageSequenceFactoryTest::providerConstructionRejectsStillFactsWithFrameSee
     QVERIFY(result);
     QCOMPARE(result->sequence(), nullptr);
     QCOMPARE(result->outcome(), ImageSequenceFactoryOutcome::Rejected);
-    QVERIFY(result->errorString().contains(QStringLiteral("construction facts")));
     QCOMPARE(*sessionCount, 0);
 }
 

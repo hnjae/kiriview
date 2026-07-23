@@ -344,7 +344,8 @@ bool ImageSequenceProviderMetadata::isValid() const
         return false;
     }
     if (isStill()) {
-        return timedPlaybackSupport() != ImageViewportCapabilitySupport::True
+        return frameSeekSupport() == ImageViewportCapabilitySupport::True
+            && timedPlaybackSupport() != ImageViewportCapabilitySupport::True
             && positionSeekSupport() != ImageViewportCapabilitySupport::True;
     }
     if (isTimedFrameList()) {

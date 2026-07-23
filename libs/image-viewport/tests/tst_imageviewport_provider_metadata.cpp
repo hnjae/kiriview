@@ -63,6 +63,7 @@ private Q_SLOTS:
     void providerDeclaredTrueCapabilityProjectsBeforeMetadata();
     void providerKnownCapabilityProjectsBeforeMetadata();
     void providerDeclaredCapabilityContradictionRejectsMetadata();
+    void providerRuntimeStillMetadataWithoutFrameSeekIsRejected();
     void providerDeclaredTrueCapabilityContradictionRejectsMetadata();
     void providerRuntimeMetadataCapabilitiesOverrideTimingInference();
     void providerDeclaredNoPlaybackRejectsPlayBeforeMetadata();
@@ -1232,6 +1233,39 @@ void ImageViewportProviderMetadataTest::providerDeclaredCapabilityContradictionR
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }),
         ImageViewportCapabilitySupport::Unavailable, ImageViewportCapabilitySupport::Unavailable,
         ImageViewportCapabilitySupport::False, primaryPositionSeekSupport);
+}
+
+void ImageViewportProviderMetadataTest::providerRuntimeStillMetadataWithoutFrameSeekIsRejected()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+
+    QVERIFY(sessionFactory->lastSession());
+    ImageSequenceProviderMetadata metadata
+        = ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0));
+    metadata.setFrameSeekSupport(ImageViewportCapabilitySupport::False);
+    emitProviderMetadataReady(sessionFactory->lastSession(),
+        sessionFactory->lastSession()->lastMetadataToken(), metadata);
+    drainQueuedProviderResults();
+
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(*closeCount, 1);
+    QCOMPARE(item.state().primary().metadata().available(), false);
+    QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Error);
+    QCOMPARE(item.state().request().reason(), ImageViewportRequestReason::PayloadRejection);
 }
 
 void ImageViewportProviderMetadataTest::providerDeclaredTrueCapabilityContradictionRejectsMetadata()
