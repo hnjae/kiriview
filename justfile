@@ -76,7 +76,11 @@ run:
 
 [group('build')]
 install:
-    flatpak-builder --install --user --disable-tests \
+    flatpak-builder \
+        --install \
+        --user \
+        --disable-tests \
+        --install-deps-from=flathub \
         --default-branch main \
         --delete-build-dirs \
         --force-clean app/build-dir \
@@ -84,7 +88,9 @@ install:
 
 [group('build')]
 build:
-    flatpak-builder --disable-tests \
+    flatpak-builder \
+        --disable-tests \
+        --install-deps-from=flathub \
         --delete-build-dirs \
         --force-clean app/build-dir \
         app/org.hnjae.kiriview.json
@@ -92,6 +98,7 @@ build:
 [group('build')]
 build-flatpak-with-test:
     flatpak-builder \
+        --install-deps-from=flathub \
         --delete-build-dirs \
         --force-clean app/build-dir \
         app/org.hnjae.kiriview.json
