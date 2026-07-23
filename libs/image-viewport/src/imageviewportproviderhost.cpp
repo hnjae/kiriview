@@ -7,11 +7,15 @@
 #include <QtCore/QObject>
 
 #include <array>
+#include <chrono>
+#include <utility>
 
 using namespace ImageViewportInternal;
 
 namespace {
-constexpr std::array<int, 5> cleanupRetryDelays { 0, 10, 50, 250, 1000 };
+using namespace std::chrono_literals;
+
+constexpr std::array cleanupRetryDelays { 0ms, 10ms, 50ms, 250ms, 1000ms };
 
 ViewportProviderCleanupResult mergedCleanupResult(
     ViewportProviderCleanupResult primary, const ViewportProviderCleanupResult& secondary)
@@ -196,7 +200,7 @@ void ImageViewportProviderHost::scheduleCleanupRetry(bool progress)
         return;
     }
     cleanupRetryTimer.start(cleanupRetryDelays[size_t(cleanupRetryDelayIndex)]);
-    if (!progress && cleanupRetryDelayIndex < int(cleanupRetryDelays.size()) - 1) {
+    if (!progress && std::cmp_less(cleanupRetryDelayIndex + 1, cleanupRetryDelays.size())) {
         ++cleanupRetryDelayIndex;
     }
 }

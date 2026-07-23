@@ -30,7 +30,7 @@ find_package(
                Widgets)
 qt_standard_project_setup(REQUIRES 6.5)
 qt_policy(SET QTP0004 NEW)
-add_compile_definitions(QT_NO_KEYWORDS)
+add_compile_definitions(QT_ENABLE_STRICT_MODE_UP_TO=0x060500 QT_NO_KEYWORDS)
 find_package(KF6Archive CONFIG REQUIRED)
 find_package(KF6Config CONFIG REQUIRED)
 find_package(KF6CoreAddons CONFIG REQUIRED)

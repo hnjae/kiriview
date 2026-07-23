@@ -52,10 +52,10 @@ namespace {
             if (!directMediaNavigationCandidateSnapshot.known) {
                 return "direct-media-candidates-unknown";
             }
-            if (static_cast<int>(
+            if (std::cmp_not_equal(
                     directMediaNavigationCandidateRows(directMediaNavigationCandidateSnapshot)
-                        .size())
-                != navigation.count) {
+                        .size(),
+                    navigation.count)) {
                 return "direct-media-count-mismatch";
             }
             return "direct-media-identity-missing";
@@ -66,9 +66,9 @@ namespace {
             if (!imageDocumentPageCandidateSnapshot.source.has_value()) {
                 return "image-page-candidate-source-missing";
             }
-            if (static_cast<int>(
-                    imageDocumentPageCandidateRows(imageDocumentPageCandidateSnapshot).size())
-                != navigation.count) {
+            if (std::cmp_not_equal(
+                    imageDocumentPageCandidateRows(imageDocumentPageCandidateSnapshot).size(),
+                    navigation.count)) {
                 return "image-page-count-mismatch";
             }
             return "image-page-identity-missing";

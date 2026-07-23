@@ -63,14 +63,9 @@ void ImageSequenceFactoryTest::exposesTypedSequenceFactorySurface()
     ImageSequenceFactory factory;
     const QMetaObject* metaObject = factory.metaObject();
 
-    QVERIFY(
-        metaObject->indexOfMethod(QMetaObject::normalizedSignature("fromFrame(ImageFrame*)")) >= 0);
-    QVERIFY(metaObject->indexOfMethod(
-                QMetaObject::normalizedSignature("fromTimedFrameList(TimedImageFrameList*)"))
-        >= 0);
-    QVERIFY(metaObject->indexOfMethod(
-                QMetaObject::normalizedSignature("fromProvider(ImageSequenceProviderAdapter*)"))
-        >= 0);
+    QVERIFY(metaObject->indexOfMethod("fromFrame(ImageFrame*)") >= 0);
+    QVERIFY(metaObject->indexOfMethod("fromTimedFrameList(TimedImageFrameList*)") >= 0);
+    QVERIFY(metaObject->indexOfMethod("fromProvider(ImageSequenceProviderAdapter*)") >= 0);
 
     QScopedPointer<QObject> result(factory.fromFrame(nullptr));
     QVERIFY(result);

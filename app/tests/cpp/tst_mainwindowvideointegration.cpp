@@ -377,7 +377,8 @@ bool metaObjectHasProperty(const QMetaObject& metaObject, const char* name)
 
 bool metaObjectHasMethod(const QMetaObject& metaObject, const char* signature)
 {
-    return metaObject.indexOfMethod(QMetaObject::normalizedSignature(signature)) >= 0;
+    const QByteArray normalizedSignature = QMetaObject::normalizedSignature(signature);
+    return metaObject.indexOfMethod(normalizedSignature.constData()) >= 0;
 }
 
 bool metaObjectExposesName(const QMetaObject& metaObject, const QByteArray& name)

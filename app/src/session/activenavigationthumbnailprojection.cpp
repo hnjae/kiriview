@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <optional>
+#include <utility>
 
 namespace {
 kiriview::ActiveNavigationThumbnailKind thumbnailKindForDirectMediaNavigationCandidate(
@@ -163,7 +164,7 @@ std::optional<ActiveNavigationThumbnailRowSetIdentity> activeNavigationThumbnail
             = directMediaNavigationCandidateRows(directMediaNavigationCandidateSnapshot);
         if (!directMediaNavigationCandidateSnapshot.known
             || !directMediaNavigationCandidateSnapshot.source.has_value()
-            || static_cast<int>(rows.size()) != navigation.count) {
+            || std::cmp_not_equal(rows.size(), navigation.count)) {
             return std::nullopt;
         }
 
@@ -181,7 +182,7 @@ std::optional<ActiveNavigationThumbnailRowSetIdentity> activeNavigationThumbnail
             = imageDocumentPageCandidateRows(imageDocumentPageCandidateSnapshot);
         if (!imageDocumentPageCandidateSnapshot.known
             || !imageDocumentPageCandidateSnapshot.source.has_value()
-            || static_cast<int>(rows.size()) != navigation.count) {
+            || std::cmp_not_equal(rows.size(), navigation.count)) {
             return std::nullopt;
         }
 
@@ -227,7 +228,7 @@ std::vector<ActiveNavigationThumbnailRow> projectActiveNavigationThumbnailRows(
         break;
     }
 
-    if (static_cast<int>(rows.size()) != navigation.count) {
+    if (std::cmp_not_equal(rows.size(), navigation.count)) {
         return {};
     }
 

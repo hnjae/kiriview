@@ -10,9 +10,12 @@
 #include <KIO/Job>
 #include <QPointer>
 #include <QTimer>
+#include <chrono>
 #include <utility>
 
 namespace {
+using namespace std::chrono_literals;
+
 constexpr const char* CanceledProperty = "_kiriviewCanceledImageDocumentPageCandidateWatch";
 
 void cancelLiveImageDocumentPageCandidateLister(QObject* object)
@@ -64,7 +67,7 @@ void notifyChanged(KCoreDirLister* lister, const QUrl& directoryUrl,
     kiriview::ImageDocumentPageCandidateWatchSnapshotCallback changedSnapshot)
 {
     QPointer<KCoreDirLister> guardedLister(lister);
-    QTimer::singleShot(0, lister,
+    QTimer::singleShot(0ms, lister,
         [guardedLister, directoryUrl, changedSnapshot = std::move(changedSnapshot)]() mutable {
             if (guardedLister.isNull() || watchCanceled(guardedLister.data())) {
                 return;

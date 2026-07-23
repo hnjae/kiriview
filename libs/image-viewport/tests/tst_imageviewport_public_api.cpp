@@ -125,9 +125,7 @@ void ImageViewportPublicApiTest::exposesDocumentedQmlSurface()
     };
 
     for (const QByteArray& method : absentMethods) {
-        QVERIFY2(
-            metaObject->indexOfMethod(QMetaObject::normalizedSignature(method.constData())) < 0,
-            method.constData());
+        QVERIFY2(metaObject->indexOfMethod(method.constData()) < 0, method.constData());
     }
 
     const QList<QByteArray> presentMethods = {
@@ -143,9 +141,7 @@ void ImageViewportPublicApiTest::exposesDocumentedQmlSurface()
     };
 
     for (const QByteArray& method : presentMethods) {
-        QVERIFY2(
-            metaObject->indexOfMethod(QMetaObject::normalizedSignature(method.constData())) >= 0,
-            method.constData());
+        QVERIFY2(metaObject->indexOfMethod(method.constData()) >= 0, method.constData());
     }
 }
 
@@ -208,9 +204,7 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
     };
 
     for (const QByteArray& method : methods) {
-        QVERIFY2(
-            metaObject->indexOfMethod(QMetaObject::normalizedSignature(method.constData())) >= 0,
-            method.constData());
+        QVERIFY2(metaObject->indexOfMethod(method.constData()) >= 0, method.constData());
     }
 }
 

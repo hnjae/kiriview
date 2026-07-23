@@ -9,6 +9,7 @@
 #include <cstring>
 #include <limits>
 #include <optional>
+#include <string_view>
 #include <vector>
 
 namespace {
@@ -27,7 +28,7 @@ struct BoxHeader
     [[nodiscard]] qsizetype endOffset() const { return offset + size; }
     [[nodiscard]] bool isType(const char (&expected)[5]) const
     {
-        return std::equal(kind.begin(), kind.end(), expected);
+        return std::ranges::equal(kind, std::string_view(expected, kind.size()));
     }
 };
 
@@ -73,7 +74,7 @@ std::optional<BoxHeader> readBox(QByteArrayView data, qsizetype offset, qsizetyp
         return std::nullopt;
     }
     BoxHeader box { offset, static_cast<qsizetype>(*smallSize), boxHeaderSize, {} };
-    std::copy_n(data.data() + offset + 4, 4, box.kind.begin());
+    std::ranges::copy_n(data.data() + offset + 4, 4, box.kind.begin());
     if (*smallSize == 1) {
         const std::optional<quint64> largeSize
             = readBigEndian<quint64>(data, offset + boxHeaderSize);
@@ -117,7 +118,7 @@ std::optional<FullBox> readFullBox(
     if (full.payloadOffset > box.endOffset() - minimumPayload) {
         return std::nullopt;
     }
-    std::copy_n(data.data() + box.bodyOffset(), 4, full.versionAndFlags.begin());
+    std::ranges::copy_n(data.data() + box.bodyOffset(), 4, full.versionAndFlags.begin());
     return full;
 }
 

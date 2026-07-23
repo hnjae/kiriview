@@ -14,6 +14,7 @@
 #include <cstring>
 #include <limits>
 #include <optional>
+#include <utility>
 
 namespace {
 constexpr QByteArrayView pngSignature("\x89PNG\r\n\x1a\n", 8);
@@ -75,10 +76,10 @@ bool pngContainsAnimationControl(QByteArrayView data)
             return true;
         }
         if (kind == QByteArrayView("IDAT", 4) || kind == QByteArrayView("IEND", 4)
-            || *length > quint32(std::numeric_limits<qsizetype>::max() - offset - 12)) {
+            || std::cmp_greater(*length, std::numeric_limits<qsizetype>::max() - offset - 12)) {
             return false;
         }
-        offset += 12 + *length;
+        offset += 12 + static_cast<qsizetype>(*length);
     }
     return false;
 }
@@ -97,8 +98,8 @@ std::optional<kiriview::ImageInputClassification> bmffClassification(QByteArrayV
         return std::nullopt;
     }
     const std::optional<quint32> encodedSize = readBigEndianU32(data, 0);
-    if (!encodedSize.has_value() || *encodedSize < compatibleBrandsOffset
-        || *encodedSize > quint32(data.size())) {
+    if (!encodedSize.has_value() || std::cmp_less(*encodedSize, compatibleBrandsOffset)
+        || std::cmp_greater(*encodedSize, data.size())) {
         return std::nullopt;
     }
     bool raw = false;

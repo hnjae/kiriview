@@ -6,6 +6,7 @@
 #include <QColorSpace>
 #include <cstring>
 #include <limits>
+#include <utility>
 
 namespace {
 std::optional<std::size_t> checkedMul(std::size_t lhs, std::size_t rhs)
@@ -76,7 +77,7 @@ std::span<const unsigned char> ApngRgbaBuffer::bytes() const { return m_bytes; }
 
 std::span<unsigned char> ApngRgbaBuffer::row(std::size_t y)
 {
-    if (y >= static_cast<std::size_t>(m_imageSize.height())) {
+    if (std::cmp_greater_equal(y, m_imageSize.height())) {
         return {};
     }
     return std::span(m_bytes).subspan(y * m_rowBytes, m_rowBytes);
@@ -84,7 +85,7 @@ std::span<unsigned char> ApngRgbaBuffer::row(std::size_t y)
 
 std::span<const unsigned char> ApngRgbaBuffer::row(std::size_t y) const
 {
-    if (y >= static_cast<std::size_t>(m_imageSize.height())) {
+    if (std::cmp_greater_equal(y, m_imageSize.height())) {
         return {};
     }
     return std::span(m_bytes).subspan(y * m_rowBytes, m_rowBytes);
@@ -95,8 +96,8 @@ bool ApngRgbaBuffer::contains(ApngRgbaRegion region) const
     const auto right = static_cast<quint64>(region.xOffset) + region.width;
     const auto bottom = static_cast<quint64>(region.yOffset) + region.height;
     return isValid() && region.width > 0 && region.height > 0
-        && right <= static_cast<quint64>(m_imageSize.width())
-        && bottom <= static_cast<quint64>(m_imageSize.height());
+        && std::cmp_less_equal(right, m_imageSize.width())
+        && std::cmp_less_equal(bottom, m_imageSize.height());
 }
 
 std::optional<std::size_t> ApngRgbaBuffer::rowOffset(quint32 x, quint32 y) const

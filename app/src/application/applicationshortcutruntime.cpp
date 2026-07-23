@@ -42,8 +42,7 @@ int shortcutHelpCategoryOrderForAction(ActionId actionId)
 std::optional<std::size_t> actionIndex(ActionId actionId)
 {
     const int index = static_cast<int>(actionId);
-    if (index < 0
-        || index >= static_cast<int>(kiriview::ApplicationActions::actionDefinitionCount)) {
+    if (index < 0 || !std::cmp_less(index, kiriview::ApplicationActions::actionDefinitionCount)) {
         return std::nullopt;
     }
 

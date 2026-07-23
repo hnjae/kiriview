@@ -5,6 +5,7 @@
 
 #include "mediaentrysourcebackend_p.h"
 
+#include <mutex>
 #include <utility>
 
 namespace {
@@ -32,7 +33,7 @@ const OpenedCollectionScopeLocation& MediaEntrySourceRunner::openedCollectionSco
 
 MediaEntrySourceCandidatesResult MediaEntrySourceRunner::loadImageDocumentPageCandidates()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (m_cachedCandidates.has_value()) {
         return MediaEntrySourceCandidates { *m_cachedCandidates };
     }
@@ -51,7 +52,7 @@ MediaEntrySourceCandidatesResult MediaEntrySourceRunner::loadImageDocumentPageCa
 
 MediaEntrySourceImageDataResult MediaEntrySourceRunner::loadImageData(const QUrl& imageUrl)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     const std::optional<MediaEntrySourceError> error = ensureSource();
     if (error.has_value()) {
         return Backend::mediaEntrySourceErrorResult<MediaEntrySourceImageDataResult>(*error);
@@ -63,7 +64,7 @@ MediaEntrySourceImageDataResult MediaEntrySourceRunner::loadImageData(const QUrl
 MediaEntrySourceVideoPlaybackDeviceResult MediaEntrySourceRunner::loadVideoPlaybackDevice(
     const QUrl& videoUrl)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     const std::optional<MediaEntrySourceError> error = ensureSource();
     if (error.has_value()) {
         return Backend::mediaEntrySourceErrorResult<MediaEntrySourceVideoPlaybackDeviceResult>(
@@ -80,7 +81,7 @@ MediaEntrySourceVideoPlaybackDeviceResult MediaEntrySourceRunner::loadVideoPlayb
 std::optional<std::vector<ImageDocumentPageCandidate>>
 MediaEntrySourceRunner::cachedImageDocumentPageCandidates()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_cachedCandidates;
 }
 

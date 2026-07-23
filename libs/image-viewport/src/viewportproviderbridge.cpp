@@ -16,11 +16,14 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
+
+using namespace std::chrono_literals;
 
 ViewportProviderExecutorOutcome ViewportProviderExecutor::releaseFailureHandle(
     const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
@@ -830,7 +833,7 @@ private:
             return;
         }
         if (cleanupDispatchTarget) {
-            QTimer::singleShot(10, cleanupDispatchTarget,
+            QTimer::singleShot(10ms, cleanupDispatchTarget,
                 [self, leaseId]() { self->releaseAutomatically(leaseId); });
         }
     }
@@ -906,7 +909,7 @@ public:
 #endif
 
 private:
-    static constexpr std::array<int, 5> retryDelays { 0, 10, 50, 250, 1000 };
+    static constexpr std::array retryDelays { 0ms, 10ms, 50ms, 250ms, 1000ms };
 
     bool hasUnscheduledCloseLocked() const
     {
@@ -918,7 +921,7 @@ private:
     {
         std::shared_ptr<ViewportProviderSessionCleanupRegistry> self;
         QPointer<QObject> target;
-        int delay = 0;
+        std::chrono::milliseconds delay {};
         {
             QMutexLocker locker(&mutex);
             if (retryScheduled || !hasUnscheduledCloseLocked() || !cleanupDispatchTarget) {
@@ -979,7 +982,7 @@ private:
             QMutexLocker locker(&mutex);
             if (progress) {
                 retryDelayIndex = 0;
-            } else if (failed && retryDelayIndex < int(retryDelays.size()) - 1) {
+            } else if (failed && std::cmp_less(retryDelayIndex + 1, retryDelays.size())) {
                 ++retryDelayIndex;
             }
         }

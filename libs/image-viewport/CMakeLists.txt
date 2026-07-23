@@ -11,7 +11,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Qml Quick)
 qt_standard_project_setup(REQUIRES 6.5)
-add_compile_definitions(QT_NO_KEYWORDS)
+add_compile_definitions(QT_ENABLE_STRICT_MODE_UP_TO=0x060500 QT_NO_KEYWORDS)
 
 option(IMAGEVIEWPORT_BUILD_TESTS "Build ImageViewport tests" ON)
 

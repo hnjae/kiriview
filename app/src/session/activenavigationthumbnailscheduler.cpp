@@ -509,11 +509,10 @@ void ActiveNavigationThumbnailScheduler::start(std::size_t row,
 
 std::size_t ActiveNavigationThumbnailScheduler::activeForegroundCount() const
 {
-    return static_cast<std::size_t>(
-        std::count_if(m_rows.cbegin(), m_rows.cend(), [](const RowState& state) {
-            return state.activeWork.has_value()
-                && state.activeWork->kind == ActiveNavigationThumbnailWorkKind::Foreground;
-        }));
+    return static_cast<std::size_t>(std::ranges::count_if(m_rows, [](const RowState& state) {
+        return state.activeWork.has_value()
+            && state.activeWork->kind == ActiveNavigationThumbnailWorkKind::Foreground;
+    }));
 }
 
 void ActiveNavigationThumbnailScheduler::admit(
@@ -529,8 +528,7 @@ void ActiveNavigationThumbnailScheduler::admit(
         }
 
         std::size_t activeForeground = activeForegroundCount();
-        if (m_currentRow.has_value()
-            && m_highDemandRows.find(*m_currentRow) != m_highDemandRows.cend()) {
+        if (m_currentRow.has_value() && m_highDemandRows.contains(*m_currentRow)) {
             RowState& currentState = m_rows.at(*m_currentRow);
             if (!currentState.activeWork.has_value() && currentState.acceptedDemand.has_value()
                 && supportsGeneratedThumbnail(currentState.acceptedDemand->sourcePlan)

@@ -92,10 +92,8 @@ void ImageViewportTimedTest::timedFrameListBuilderValidatesEntries()
     QVERIFY(metaObject->indexOfProperty("loopCount") >= 0);
     QVERIFY(metaObject->indexOfProperty("errorString") >= 0);
     QVERIFY(metaObject->indexOfProperty("warningString") < 0);
-    QVERIFY(
-        metaObject->indexOfMethod(QMetaObject::normalizedSignature("appendFrame(ImageFrame*,int)"))
-        >= 0);
-    QVERIFY(metaObject->indexOfMethod(QMetaObject::normalizedSignature("clear()")) >= 0);
+    QVERIFY(metaObject->indexOfMethod("appendFrame(ImageFrame*,int)") >= 0);
+    QVERIFY(metaObject->indexOfMethod("clear()") >= 0);
 
     QCOMPARE(list.count(), 0);
     QCOMPARE(list.appendFrame(nullptr, 100), false);

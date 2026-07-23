@@ -5,6 +5,8 @@
 
 #include "applicationzoompresets.h"
 
+#include <utility>
+
 namespace {
 namespace Actions = kiriview::ApplicationActions;
 using ActivationScope = kiriview::ApplicationActions::ApplicationShortcutActivationScope;
@@ -303,7 +305,7 @@ static_assert(actionDefinitionsFollowActionIdOrder());
 bool actionIdInRange(Actions::ActionId actionId)
 {
     const int index = static_cast<int>(actionId);
-    return index >= 0 && index < static_cast<int>(Actions::actionDefinitionCount);
+    return index >= 0 && std::cmp_less(index, Actions::actionDefinitionCount);
 }
 
 QKeySequence shortcut(const char* sequence)

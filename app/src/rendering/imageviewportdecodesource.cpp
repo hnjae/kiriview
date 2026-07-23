@@ -10,7 +10,7 @@
 #include <QSizeF>
 #include <algorithm>
 #include <limits>
-#include <numeric>
+#include <ranges>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -149,8 +149,8 @@ int frameStartPosition(const QVector<int>& durations, int frame)
     if (frame <= 0) {
         return 0;
     }
-    return std::accumulate(
-        durations.cbegin(), durations.cbegin() + frame, 0, [](int total, int duration) {
+    return std::ranges::fold_left(
+        durations | std::views::take(frame), 0, [](int total, int duration) {
             return total > std::numeric_limits<int>::max() - duration
                 ? std::numeric_limits<int>::max()
                 : total + duration;

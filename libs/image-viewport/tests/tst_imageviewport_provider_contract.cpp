@@ -4,6 +4,7 @@
 #include "imageviewport_provider_test_support.h"
 
 #include <QtCore/QElapsedTimer>
+#include <ranges>
 
 namespace {
 ImageSequenceProviderFrameEnvelope exactTestEnvelope(QSizeF logicalSize, QSize payloadSize,
@@ -44,9 +45,9 @@ public:
         image.fill(Qt::transparent);
         ImageSequenceProviderFrameEnvelope envelope = exactTestEnvelope(
             QSizeF(16.0, 8.0), image.size(), image.sizeInBytes(), image.hasAlphaChannel());
-        for (auto it = requests.crbegin(); it != requests.crend(); ++it) {
-            if (it->token() == token) {
-                envelope.setDemandRevision(it->demand().demandRevision());
+        for (const ImageSequenceProviderRequest& request : requests | std::views::reverse) {
+            if (request.token() == token) {
+                envelope.setDemandRevision(request.demand().demandRevision());
                 break;
             }
         }

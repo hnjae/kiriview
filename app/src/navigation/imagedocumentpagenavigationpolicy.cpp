@@ -158,7 +158,7 @@ std::optional<std::size_t> pageNavigationTargetIndex(
     }
     const std::size_t index = static_cast<std::size_t>(pageNumber - 1);
     if (index >= state.targets.size()
-        || (state.currentIndex >= 0 && index == static_cast<std::size_t>(state.currentIndex))) {
+        || (state.currentIndex >= 0 && std::cmp_equal(index, state.currentIndex))) {
         return std::nullopt;
     }
     return index;

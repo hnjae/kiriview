@@ -9,6 +9,7 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
+#include <utility>
 
 namespace {
 constexpr std::array<std::array<char, 4>, 13> stillImageBrands { { { 'a', 'v', 'c', 'i' },
@@ -69,7 +70,8 @@ HeifContainerInfo heifContainerInfo(const QByteArray& data)
     const std::optional<quint32> encodedSize = readBigEndianU32(view, 0);
     if (!encodedSize.has_value() || view.size() < compatibleBrandsOffset
         || view.sliced(boxTypeOffset, brandSize) != QByteArrayView("ftyp", brandSize)
-        || *encodedSize < compatibleBrandsOffset || *encodedSize > quint32(view.size())) {
+        || std::cmp_less(*encodedSize, compatibleBrandsOffset)
+        || std::cmp_greater(*encodedSize, view.size())) {
         return {};
     }
 
