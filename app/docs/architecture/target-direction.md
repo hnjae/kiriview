@@ -7,7 +7,7 @@ Policy boundaries must clarify ownership, preserve value semantics, and let mult
 Policy units must be cohesive:
 
 - Workflow reducers that accept plain events and return state deltas plus effects.
-- Geometry and rendering policy modules that compute values without owning renderer objects.
+- Application geometry policy modules that compute scan, nearest-point, or placement decisions without owning presentation objects.
 - Format and routing modules that inspect plain inputs and return typed classification values.
 - Cache prioritization and navigation policies that remain independent of Qt event loops and do not own Qt runtime objects.
 
@@ -19,7 +19,7 @@ Document-session subowners are justified only when a concern needs its own lifec
 
 Session runtime code may supply committed snapshots and bind ports, but it must not become a second owner for projection commits, leaf-to-public mapping, route-local sequencing, or stale-completion acceptance. These boundaries stay stable at the contract level across internal refactoring that preserves the same ownership, port, and stale-completion contracts.
 
-Scan-start and stepped-reading policy belong to the C++ image-document integration layer, not QML. The policy computes scan or nearest-point plans from a plain matched component snapshot. `ImageViewport` owns point-query geometry, anchored zoom resolution, final pan and zoom state, command revisions, and snapshot ordering; the integration owner routes UI facts and rejects application commands or projections correlated to superseded component generations.
+Scan-start and stepped-reading policy belong to the C++ image-document integration layer, not QML. The policy computes scan or nearest-point plans from a matched public viewport observation, uses only supported coordinate queries and commands, and does not reproduce presentation geometry. The integration owner routes UI facts and rejects application commands or projections correlated to a superseded application target or dependency observation.
 
 Those boundaries keep the document-session state owner as the public owner. Plain C++ policy computes projections and plans from snapshots; runtime owners apply the resulting state, execute document routing and Qt/KDE effects, publish signal batches, and preserve cursor-generation rejection for stale async completions.
 

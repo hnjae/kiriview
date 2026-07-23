@@ -10,7 +10,7 @@ Four Rust libraries continue to provide capabilities that KiriView requires: `no
 
 The KiriView application, product policy, and Qt/KDE runtime are C++. Plain policy remains value-oriented and testable without becoming QObject state solely to share the application language.
 
-CMake owns the application executable, production C++ and QML, generated Qt/KDE artifacts, the repository-internal `ImageViewport` component, and application test targets.
+CMake owns the application executable, production C++ and QML, generated Qt/KDE artifacts, application test targets, and linkage to the supported `ImageViewport` target. It does not own the dependency's private implementation or source inventory.
 
 Cargo owns one repository-internal Rust support library built as a `staticlib`. The library provides only the capabilities backed by `nom-exif`, `png`, `resvg`, and `xdg-thumbnail`, plus capability-local adapter logic and opaque state required to expose them safely. It does not own product workflows, navigation, format routing, cache policy, application source identity, Qt objects, or public state.
 
@@ -24,6 +24,6 @@ The Rust library has no independent installation, dynamic loading, stable ABI, o
 
 Consolidating product policy in C++ does not introduce raw ownership as an application design. The native layer follows the value, RAII, QObject, buffer, callback, and thread-affinity contracts in [C++ And Qt Safety](../architecture/cpp-qt-safety.md).
 
-The `nom-exif`, `png`, `resvg`, and `xdg-thumbnail` dependencies remain part of the application. ADR 0003 remains authoritative for resvg rendering, ADR 0005 remains authoritative for Rust `png` APNG streaming, and ADRs 0006 and 0007 retain their declared consequences for SVG and provider-backed rendering.
+The `nom-exif`, `png`, `resvg`, and `xdg-thumbnail` dependencies remain part of the application. ADR 0003 remains authoritative for resvg rasterization, ADR 0005 remains authoritative for Rust `png` APNG streaming, ADR 0006 defines application provider adaptation, and ADR 0007 defines the `ImageViewport` integration boundary.
 
 ADR 0004 remains authoritative for explicit image-input classification and selected-decoder failure semantics, but this decision supersedes its assignment of classification policy and its tests to Rust. Classification is native C++ product policy.

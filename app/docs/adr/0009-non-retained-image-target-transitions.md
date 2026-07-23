@@ -2,7 +2,7 @@
 
 ## Context
 
-Retaining a previous image while another navigation target loads makes the visible image disagree with the user's current selection. It also requires presentation-shape failures to pin and restore an entire prior component generation and the application policy associated with it. KiriView already prepares adjacent images so common navigation can commit quickly, and transient internal loading phases do not by themselves justify immediate full-page loading feedback.
+Retaining a previous image while another navigation target loads makes the visible image disagree with the user's current selection and complicates KiriView's selected-target, readiness, and error projections. KiriView already prepares adjacent images so common navigation can complete quickly, and transient loading phases do not by themselves justify immediate full-page loading feedback.
 
 ## Decision
 
@@ -14,8 +14,8 @@ Canonical loading state advances immediately. QML delays only the visible loadin
 
 ## Consequences
 
-The selected target, displayed image, readiness projection, and presentation-shape policy no longer require a restore correlation path. Accepting a target immediately stops any prior presentation and its animation resources.
+The selected target, displayed image, readiness projection, and presentation-shape policy do not require an application restoration path. KiriView clears its prior displayed-image projection when it accepts the new target and derives later presentation facts only from a matching public observation.
 
 The viewport can remain visually empty during a short load. Loads that outlast the feedback delay show the normal loading state, while terminal ready, error, or empty state cancels pending loading feedback immediately.
 
-This decision supersedes ADR 0007's restore-on-failure decision for presentation-shape changes. ADR 0007 remains authoritative for repository-internal component ownership, provider failure handles, and the other component boundaries it defines.
+The `ImageViewport` integration must express this product transition through the dependency's supported interface without depending on or constraining its private implementation.

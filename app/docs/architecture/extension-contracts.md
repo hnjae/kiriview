@@ -4,25 +4,25 @@ KiriView extension points are adapter contracts, not state backdoors.
 
 ## Contract
 
-A media source, thumbnail source, predecode planner, decoder, or image-sequence provider returns typed keys, capabilities, plans, demands, payloads, or completion results to its owning runtime or component boundary. It must not mutate QML state, physical item state, public session state, platform action state, cache state, viewport presentation, or render policy directly.
+A media source, thumbnail source, predecode planner, decoder, or image-sequence provider returns typed keys, capabilities, plans, demands, payloads, or completion results to its owning application runtime or supported dependency boundary. It must not mutate QML state, physical item state, public session state, platform action state, cache state, or image presentation directly.
 
-Adapters are synchronous policy providers or asynchronous payload providers behind an owner. Synchronous adapters return plans and capability facts. Asynchronous adapters return payloads through the owner's lifecycle contract, carrying the owner-held operation id, source key plus generation, demand key, or component request and demand identities needed for stale-completion rejection.
+Adapters are synchronous policy providers or asynchronous payload providers behind an owner. Synchronous adapters return plans and capability facts. Asynchronous adapters return payloads through the owner's lifecycle contract, carrying the owner-held operation id, source key plus generation, demand key, or opaque public dependency correlation needed for stale-completion rejection.
 
 Adapter APIs must not accept QML objects, facade objects, mutable public projection objects, or platform action objects. If a capability needs Qt runtime data, the owner captures that data into a plain demand before calling the adapter.
 
-Capabilities are descriptive. They may say whether bytes can be read, thumbnails can be generated or cached, a still image can be predecoded, a collection video source device can be opened, a decode route is supported, an `ImageSequence` can be produced, or a whole-image refinement source is available. Capabilities must not imply ownership of public state, viewport presentation, or platform side effects.
+Capabilities are descriptive. They may say whether bytes can be read, thumbnails can be generated or cached, a still image can be predecoded, a collection video source device can be opened, a decode route is supported, an `ImageSequence` can be produced, or a refinement source is available. Capabilities must not imply ownership of public state, image presentation, or platform side effects.
 
 ## Identity
 
 Durable identity is the stable key for the thing being addressed. Freshness generation is the owner's proof that a result still belongs to the accepted lifecycle. Equality compares durable identity within one key family only; generation is used to accept or reject work for that lifecycle.
 
-Boundary APIs must encode key families as distinct value types or explicit tagged structs so code cannot accidentally compare ordinary files, opened-collection entries, thumbnails, predecode candidates, and render surfaces through one generic URL identity.
+Boundary APIs must encode key families as distinct value types or explicit tagged structs so code cannot accidentally compare ordinary files, opened-collection entries, thumbnails, predecode candidates, and provider work through one generic URL identity.
 
 Candidate snapshots are owner publications defined by [State Ownership](state-ownership.md#candidate-snapshot-boundary). A boundary that consumes active-navigation, thumbnail, deletion, opened-collection foreground-load, or predecode rows receives a typed candidate snapshot or a row/key derived from one, including the source identity and candidate-list revision needed for reuse decisions. Adapter contracts may carry owner-supplied scope generations or thumbnail navigation generations for stale rejection, but they must not invent candidate-list revisions or public projection revisions.
 
-A demand describes requested work from an owner snapshot: key, generation, size bucket, priority, render context, visible area, decode window, or similar inputs. A result reports ready, pending, unsupported, failed, canceled, or stale without changing ownership. Unsupported means the adapter cannot provide the capability for that key; failed means the adapter accepted the demand and could not complete it.
+A demand describes requested work from an owner snapshot: key, generation, size bucket, priority, display context, visible area, decode window, or similar inputs. A result reports ready, pending, unsupported, failed, canceled, or stale without changing ownership. Unsupported means the adapter cannot provide the capability for that key; failed means the adapter accepted the demand and could not complete it.
 
-Key-family types are operational contracts, not marker structs. Each family that crosses an adapter, cache, predecode, thumbnail, or render boundary provides construction from its owning snapshot, durable equality, hashing where used in sets or caches, freshness generation access, and explicit result or capability status. The generic top-level `SourceKey` may appear inside family factories as an implementation detail, but boundary APIs accept and return the family type.
+Key-family types are operational contracts, not marker structs. Each family that crosses an adapter, cache, predecode, thumbnail, or provider boundary provides construction from its owning snapshot, durable equality, hashing where used in sets or caches, freshness generation access, and explicit result or capability status. The generic top-level `SourceKey` may appear inside family factories as an implementation detail, but boundary APIs accept and return the family type.
 
 ## Source Key Families
 
@@ -36,7 +36,7 @@ Direct-media scope identity and freshness are owned by the source-key contract. 
 
 ### Collection And Entry Keys
 
-Image-document page keys identify a page URL plus its image-document source scope. Ordinary direct image pages use the direct media key. Opened-collection pages include the opened collection scope and page URL. Page keys preserve page kind so image and video rows do not share render, thumbnail, or predecode capabilities by accident.
+Image-document page keys identify a page URL plus its image-document source scope. Ordinary direct image pages use the direct media key. Opened-collection pages include the opened collection scope and page URL. Page keys preserve page kind so image and video rows do not share provider, thumbnail, or predecode capabilities by accident.
 
 Opened-collection scope keys identify the backing collection file URL, collection root URL, and collection kind. Comic-book archive, general archive, and directory scopes are distinct even if URLs match. A collection entry key adds the entry URL relative to that scope and carries the page kind needed to keep playable video source devices separate from image byte reads.
 
@@ -50,13 +50,13 @@ Thumbnail identity uses separate typed families for durable row reuse, generatio
 
 Predecode candidate keys identify still-image payloads eligible for adjacent decode. Direct media predecode is still-image-only; videos may be cursor positions for window planning, but they do not produce cached video frame payloads. Opened-collection predecode candidates carry the opened collection scope so byte access stays behind the media entry source owner.
 
-### ImageViewport Demand Keys
+### ImageViewport Provider Work Keys
 
-Application provider-work keys combine source and scope identity with page role, application source generation, component request token, component demand revision, and the application reuse identity needed for decode or cache work. The component tokens remain opaque and are never replaced by application URLs or cache keys.
+Application provider-work keys combine source and scope identity, page role, application source generation, the dependency's opaque public request correlation, and the application reuse identity needed for decode or cache work. Dependency correlation remains opaque and is never replaced by application URLs or cache keys.
 
-Window changes, scene-graph invalidation, DPR changes, presentation changes, and resource-capability changes advance component demand when they can change payload choice. A completion may populate an application cache under its reuse identity, but it may enter the viewport only when its source generation, provider request token, and component demand revision remain current. The lifecycle is defined by [ImageViewport Integration Architecture](provider-rendering.md#sequence-provider-boundary).
+A completion may populate an application cache under its reuse identity, but the provider may return it only when the application source generation and the complete public request correlation remain current. KiriView does not define how the dependency creates, advances, or admits that correlation. The application lifecycle is defined by [ImageViewport Integration Architecture](provider-rendering.md#sequence-provider-boundary).
 
-Provider work returns only complete-frame payload handles, not visual page tiles. Source-internal tiling is allowed only inside a decoder or refinement job that assembles one accepted bounded display image before returning to the provider owner.
+Provider work returns payloads supported by the dependency's public provider contract. Source-internal tiling may remain a private decoder or refinement technique but must not create an application-owned image-presentation path.
 
 ## Adapter Contracts
 
@@ -98,14 +98,14 @@ Source-neutral display diagnostics expose typed operation outcomes for first-dis
 
 ### ImageSequence Provider Contracts
 
-The KiriView `ImageSequence` provider adapts application source access, decode, cache, predecode, and refinement owners to component metadata and complete-frame requests. It receives opaque component request and demand identities and returns typed events, payload handles, or typed failures without owning component state.
+The KiriView `ImageSequence` provider adapts application source access, decode, cache, predecode, and refinement owners to the supported dependency protocol. It receives opaque public request correlation and returns supported results without owning or inferring presentation state.
 
-Provider request handling may reuse an already accepted application cache entry or schedule source work through the owning runtime's lifecycle boundary. The provider may apply tighter application cache, display-store, or source-work budgets and choose preview, bounded-detail, or exact whole-image payloads from component demand, but it must echo the active token and demand revision, must obey every applicable component cap, and must not mutate component allocation or display-budget state or use QML engine caching as freshness authority.
+Provider request handling may reuse an already accepted application cache entry or schedule source work through the owning runtime's lifecycle boundary. The provider may apply tighter application cache, display-store, or source-work budgets when selecting a supported result, but it must preserve the public request correlation, obey supplied public limits, and never use QML engine caching as freshness authority.
 
-Frame handles carry application display-store leases into the component and receive exact-once release through the declared provider boundary. Provider sessions and application resource owners may observe release for lifetime and backpressure but must not block component progress or infer viewport state from release timing.
+Application payload ownership may carry display-store leases across the provider boundary. Provider sessions and application resource owners follow supported ownership callbacks for lifetime and backpressure but must not infer presentation state from callback timing.
 
-Provider failures preserve application detail in the existing typed KiriView failure value. Only a generic component failure cause and optional opaque correlation handle cross the component protocol; provider-authored free-form diagnostic strings do not. The component snapshot exposes the handle's reference for lookup scoped to the matching application target, and exact-once handle release retires the application registry record after the observation becomes unreachable.
+Provider failures preserve application detail in the existing typed KiriView failure value. Only values allowed by the supported provider protocol cross the dependency boundary. An opaque application reference is resolved only for a matching application target, and the application registry follows public ownership callbacks for retirement.
 
 ### Excluded Extension Paths
 
-Application image extensions stop at the sequence-provider boundary. They must not introduce visual tile scheduling, application-owned image rendering items, scene graph nodes, texture providers, framebuffer paths, direct texture ownership, low-level rendering resources, or custom shaders. Those are private implementation concerns of the repository-internal `ImageViewport` component, not application extension points.
+Application image extensions stop at the supported sequence-provider boundary. They must not access dependency-private APIs or introduce an alternate application-owned image-presentation path.

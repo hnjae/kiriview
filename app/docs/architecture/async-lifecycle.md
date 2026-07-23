@@ -4,7 +4,7 @@ Out-of-order workflows must have one local lifecycle owner. The owner is the onl
 
 Every async owner contract names its owner token, QObject affinity, queued acceptance path, identity kind, destruction invalidation point, cancellation behavior, and result publication point.
 
-The identity kind is one of operation id, scoped operation id, source key plus freshness generation, demand key, component generation, provider request token, or component demand revision. A completion must carry that identity back to the owner, and the owner must accept or reject the identity before mutating authoritative state.
+The identity kind is one of operation id, scoped operation id, source key plus freshness generation, demand key, or opaque public dependency correlation. A completion must carry that identity back to the owner, and the owner must accept or reject the identity before mutating authoritative state.
 
 Cancellation is either guaranteed or best-effort. Guaranteed cancellation means no completion callback can run after cancel returns. Best-effort cancellation means the owner invalidates identity and treats any later callback as stale or no-op. Qt and KIO jobs are usually best-effort unless the provider contract explicitly proves otherwise.
 
@@ -22,7 +22,7 @@ Shared async support owns reusable callback delivery, cancelable job wrappers, o
 
 Session runtime dependencies own active-navigation thumbnail worker scheduling. Thumbnail lookup and generation providers must use the scheduler supplied to the thumbnail runtime. Scheduling identity and backend-job identity remain distinct; a completion is publishable only after both owners accept their respective identity, and cancellation invalidates acceptance before canceling backend work. The detailed ownership contract is defined in [Thumbnail Source Adapters](thumbnail-source-adapters.md).
 
-Image provider-resource owners schedule decode and refinement through an injected worker scheduler. Work carries separate application reuse identity and active component-demand identity; a completion may populate a compatible bounded cache by reuse identity but may enter the viewport only after the provider accepts the source generation, request token, and demand revision. In-flight sharing and worker start gates are best-effort cancellation tools, not alternate publication authority.
+Image provider-resource owners schedule decode and refinement through an injected worker scheduler. Work carries separate application reuse identity and active public provider-request correlation; a completion may populate a compatible bounded cache by reuse identity but may be returned only after the provider accepts the source generation and complete request correlation. In-flight sharing and worker start gates are best-effort cancellation tools, not alternate publication authority.
 
 Timer-backed owners must receive monotonic time and timer firing through dependency ports when behavior depends on elapsed time. Runtime state must consume plain timestamps and scheduled callback events rather than owning a second wall-clock-derived state.
 

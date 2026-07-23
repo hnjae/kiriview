@@ -8,4 +8,5 @@ The architecture must preserve these invariants as its internal structure evolve
 1. Rust support code does not call back into C++, own application lifecycle or source identity, or expose property-shaped product decisions.
 1. Native code uses one explicit owner per allocation, non-owning raw pointers only within a proven lifetime, context-bound Qt callbacks, owned cross-boundary payloads, and value-oriented policy as defined by [C++ And Qt Safety](cpp-qt-safety.md).
 1. QObject and QML API exposure remains behind C++ facade boundaries and does not transfer domain ownership to the facade or UI.
+1. KiriView documents may define application obligations at a dependency's supported interface but must not restate or constrain that dependency's private state, algorithms, scheduling, rendering, resource management, or private types.
 1. Internal formats have one authoritative schema unless an explicit product or interoperability contract requires compatibility behavior.

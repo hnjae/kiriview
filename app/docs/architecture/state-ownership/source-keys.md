@@ -10,6 +10,6 @@ Direct-media scope identity is `{ current key, parent key, generation }`. The cu
 
 Direct-media freshness changes only when the effective current key or parent scope key changes. Resolving pending direct-image confirmation to an equivalent displayed URL is a phase change within the same freshness generation.
 
-Archive-entry key families, render keys, thumbnail cache keys, predecode candidate keys, and sandbox-specific freshness beyond the defined navigation-source handling are defined by the extension contracts. Code that crosses adapter, cache, thumbnail, predecode, or render boundaries must use typed family-specific keys instead of a generic URL identity key.
+Archive-entry key families, provider-work keys, thumbnail cache keys, predecode candidate keys, and sandbox-specific freshness beyond the defined navigation-source handling are defined by the extension contracts. Code that crosses adapter, cache, thumbnail, predecode, or provider boundaries must use typed family-specific keys instead of a generic URL identity key.
 
 The generic top-level source key is not an adapter boundary type. Extension boundaries must use family-specific key structs whose equality cannot accidentally compare unrelated families. Durable identity and freshness generation are separate types: durable row keys compare reusable identity, while explicitly generation-scoped demand and revision keys compare both durable identity and freshness. A family must not place generation on a durable key while silently omitting it from equality or hashing.

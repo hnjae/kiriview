@@ -6,17 +6,17 @@ This document is the canonical contract for durable runtime state ownership. Own
 
 Every workflow value has one canonical owner. If another layer needs the value, it receives a derived snapshot, projection, delta, command, or completion event rather than storing a second mutable copy.
 
-C++ owns application runtime state unless this document or an owner-group architecture contract explicitly names another owner. This includes workflow policy state, QML-facing properties, Qt notification ordering, `QUrl`, `QImage`, `QString`, async job lifetime, presentation objects, and rendering objects.
+C++ owns application runtime state unless this document or an owner-group architecture contract explicitly names another owner. This includes workflow policy state, QML-facing properties, Qt notification ordering, `QUrl`, `QImage`, `QString`, async job lifetime, viewport integration objects, and provider resources. Dependency-private state is outside this ownership contract.
 
 C++ policy operates on value snapshots and plain events. It returns explicit state deltas, transition plans, and effect descriptions for runtime owners to apply; those results are not an independent authoritative copy of the same workflow state.
 
-Rust-owned state is limited to capability-local implementation state inside the media-support static library, such as an opaque APNG stream decoder. It must not mirror or own application source identity, navigation indices, cache policy, workflow state, public projections, or component state. Canonical image presentation geometry and zoom remain inside `ImageViewport`.
+Rust-owned state is limited to capability-local implementation state inside the media-support static library, such as an opaque APNG stream decoder. It must not mirror or own application source identity, navigation indices, cache policy, workflow state, public projections, or dependency state. KiriView consumes image-presentation observations through the supported `ImageViewport` boundary and does not maintain a second mutable presentation authority.
 
 Moving a library-backed operation behind FFI does not move authoritative runtime state. The C++ caller remains the application lifecycle owner and decides when a support result is accepted or rejected.
 
-QML and facade objects may observe owner projections, emit UI facts through owner APIs, and render accepted state. They must not store durable mirrors, mutate public workflow state, apply command acknowledgment state, choose cache or render policy, or bypass an owner to update another owner's state.
+QML and facade objects may observe owner projections, emit UI facts through owner APIs, and render accepted state. They must not store durable mirrors, mutate public workflow state, apply command acknowledgment state, choose cache or presentation policy, or bypass an owner to update another owner's state.
 
-Derived public values may combine multiple C++ runtime states, such as document state and a matched `ImageViewport` snapshot. The derived value must not become a second mutable source of truth, and notification dependencies must follow the canonical owners that feed it.
+Derived public values may combine multiple C++ runtime states with a matched viewport observation. The derived value must not become a second mutable source of truth, and notification dependencies must follow the canonical owners that feed it.
 
 When a public value has mode-specific ownership, only the active mode owns that value. Inactive mode state is a cache, projection, or restoration point. Transition code must synchronize the next active owner before exposing the mode change.
 
@@ -50,7 +50,7 @@ Background thumbnail fill is optional idle work and is not a full-list product g
 - [Actions and UI Gates](state-ownership/actions-ui-gates.md): actions, shortcuts, menu presentation, command dispatch, and UI-local gates.
 - [Media Runtime Owners](state-ownership/media-runtime.md): image loading, provider-backed animated sources, video loading and playback controls, and metadata parsing.
 - [Navigation and Location](state-ownership/navigation-location.md): active navigation projection, supported-media lists, sibling archives, and source identity.
-- [Presentation and Viewport](state-ownership/presentation-viewport.md): `ImageViewport` ownership, application integration, viewport command flow, media workspace composition, source resources, and failure correlation.
+- [Presentation and Viewport](state-ownership/presentation-viewport.md): KiriView's `ImageViewport` integration, command flow, media workspace composition, source resources, and failure correlation.
 - [Operations and Platform Effects](state-ownership/operations-platform.md): deletion, Open With, platform capability snapshots, and owner bypass rules.
 - [Preparation and Cache](state-ownership/preparation-cache.md): thumbnail strip preparation, still-image predecode, caches, and HEIF source-internal tiling.
 - [Source Key Contract](state-ownership/source-keys.md): top-level source identity, direct-media freshness, and family-specific key boundaries.

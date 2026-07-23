@@ -40,7 +40,7 @@ flowchart TD
     Video["Video runtime"]
     Navigation["Navigation and candidate lists"]
     Integration["ImageViewport integration"]
-    Viewport["Repository-internal ImageViewport"]
+    Viewport["ImageViewport public boundary"]
     Provider["Image sequence provider resources"]
     Decoding["Image decode and metadata"]
     Collections["Opened collection access"]
@@ -66,7 +66,7 @@ flowchart TD
     Image --> Decoding
     Image --> Collections
     Integration --> Viewport
-    Viewport --> Provider
+    Viewport <--> Provider
     Provider --> Decoding
     Video --> Navigation
     Video --> Collections
@@ -90,9 +90,9 @@ flowchart TD
 - Video runtime owns direct-video resolution, opened-collection video source-device acceptance, playback state, video status, video zoom readout, video metadata where supported, and playback-control readiness.
 - Navigation owns candidate ordering, page/media cursor state, boundary facts, live direct-media refresh, and sibling archive discovery. It exposes snapshots and plans rather than public UI state.
 - Collection access owns directly opened archive and directory listing, entry-byte access, entry metadata, and eligible collection-video playback devices. It must not update document, video, thumbnail, or QML state directly.
-- The repository-internal `ImageViewport` component owns accepted image presentation, target transitions, geometry, per-role animation playback, render admission, and scene graph resources. The KiriView integration owner maps navigation targets and application commands to the component and correlates component generations back to application source identity without keeping a second presentation state.
-- Image provider resources own source access, decode and refinement work, reusable whole-image payloads, predecode adoption, application cache and display-store pressure, typed failure detail, and provider handle leases. They answer component demand but do not own viewport presentation or rendering.
-- Decoding owns route-specific image decoding, animation frame enumeration, metadata extraction, and whole-image refinement payloads. Decoder failures preserve typed diagnostics before any user-facing projection is derived.
+- The KiriView `ImageViewport` integration owner maps navigation targets, application commands, and interaction facts to the dependency's supported interface, correlates public observations with application source identity, and does not keep a second presentation state.
+- Image provider resources own source access, decode and refinement work, reusable payloads, predecode adoption, application cache and display-store pressure, typed failure detail, and provider leases. They answer supported provider requests without inferring presentation or rendering internals.
+- Decoding owns route-specific image decoding, animation frame enumeration, metadata extraction, and provider-compatible refinement payloads. Decoder failures preserve typed diagnostics before any user-facing projection is derived.
 - Predecode owns still-image-only adjacent preparation. Video rows may be cursor positions for scheduling, but they do not produce video-frame quick-navigation payloads.
 - Actions own `QAction` identity, shortcut routing, accepted UI-gate revisions, command dispatch, and unsupported-media shortcut interception. QML reports UI-local gate facts and renders action placements.
 
@@ -100,7 +100,7 @@ flowchart TD
 
 Each build boundary has one owned source and configuration inventory. Application builds, tests, lint, and editor tooling consume that inventory rather than maintaining divergent source lists or compiler settings.
 
-The top-level CMake application build is the authority for the executable, production C++, generated configuration, QML resources, the repository-internal `ImageViewport` component, and application test targets. It requires ISO C++23 for every application-owned C++ target and generated CXX bridge translation unit, disables vendor C++ language extensions, and owns the shared minimum compiler, standard-library, Qt 6, and KDE Frameworks 6 baselines. Cargo owns the Rust support-library source inventory and produces one repository-internal `staticlib` plus generated CXX boundary artifacts for the CMake build to consume. Test builds own test-local artifacts but consume production targets and the same language and dependency baselines through these build boundaries rather than rebuilding production sources or selecting compatibility modes independently.
+The top-level CMake application build is the authority for the executable, production C++, generated configuration, QML resources, application test targets, and application linkage to the supported `ImageViewport` target. The dependency owns its source inventory and private build details. The application build requires ISO C++23 for every application-owned C++ target and generated CXX bridge translation unit, disables vendor C++ language extensions, and owns the application minimum compiler, standard-library, Qt 6, and KDE Frameworks 6 baselines. Cargo owns the Rust support-library source inventory and produces one repository-internal `staticlib` plus generated CXX boundary artifacts for the CMake build to consume. Test builds own test-local artifacts but consume production targets and the same language and dependency baselines through these build boundaries rather than rebuilding production sources or selecting compatibility modes independently.
 
 The application build owns one canonical installed application identity. Desktop metadata, icon identity, runtime metadata, generated configuration, and application artifacts must consume `org.hnjae.kiriview` from that authority and must not introduce alternate application IDs.
 

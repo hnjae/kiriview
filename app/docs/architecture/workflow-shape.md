@@ -20,7 +20,7 @@ sequenceDiagram
 
 Concrete event names are not part of the architecture contract. Request, loading, decoding, failure, presentation, completion, and other out-of-order workflow events must carry enough owner-held identity for the C++ owner to reject stale results.
 
-C++ policy may compute loading status, error recovery, navigation updates, cache policy, and follow-up effects from plain snapshots. Runtime owners keep the actual KIO job, decoder job, KiriView viewport integration owner, image provider resource, and Qt notification; the repository-internal `ImageViewport` component keeps presentation and render-update mechanics.
+C++ policy may compute loading status, error recovery, navigation updates, cache policy, and follow-up effects from plain snapshots. Runtime owners keep the actual KIO job, decoder job, KiriView viewport integration owner, image provider resource, and Qt notification. The viewport integration owner uses only the supported dependency boundary and does not model presentation internals.
 
 Workflows that update visible state must distinguish committed public state from pending targets. They publish the new state only after the resources required for that state are ready, unless the user-visible spec explicitly defines an intermediate placeholder or retained-display state.
 
@@ -38,7 +38,7 @@ Image-open workflow transitions apply C++-owned document state and return typed 
 
 Image-open state deltas own invariant-coupled document facts: source URL, source kind, displayed location, loading, status, error text, sibling archive navigation, unsupported opened-collection video, playable opened-collection video handoff, and embedded metadata. Controllers may prepare decoded images and metadata, but publication of those facts happens through the transition application plan.
 
-Same-scope image-to-image active navigation is a target-selection workflow, not source replacement. For ordinary direct media scopes and opened collection scopes, selecting another image row may update the pending navigation target and active-navigation projection before component display commit, but it must not clear the component's committed image presentation, cancel active navigation, or clear provider-eligible predecode/cache state solely because the selected image URL changed.
+Same-scope image-to-image active navigation is a target-selection workflow, not source replacement. For ordinary direct media scopes and opened collection scopes, selecting another image row updates the pending navigation target and active-navigation projection and clears the prior displayed-image projection immediately. It must not cancel active navigation or clear provider-eligible predecode/cache state solely because the selected image URL changed.
 
 Source replacement remains the workflow for top-level source assignment, active scope changes, image-to-video or video-to-image mode changes, empty/error clearing, and sibling archive navigation that changes the opened collection scope.
 

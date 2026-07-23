@@ -14,10 +14,10 @@ Preparation windows govern new work and priority, not immediate cache destructio
 
 The document-session preparation runtime owns still-image preparation for mixed direct-media scopes. The image-document preparation runtime owns it for image-page and opened-collection scopes. Each consumes the confirmed candidate snapshot of its owning navigation scope, accepted selection and presentation facts, power-saver state, resource limits, and scheduler dependencies through explicit ports.
 
-Video rows may influence the position of adjacent still-image work but never produce cached video frames. Preparation results return provider-eligible still-image payloads to the owning load and `ImageSequence` provider boundary and must not publish navigation, viewport readiness, errors, zoom, or page selection.
+Video rows may influence the position of adjacent still-image work but never produce cached video frames. Preparation results return provider-eligible still-image payloads to the owning load and supported `ImageSequence` provider boundary and must not publish navigation, viewport readiness, errors, zoom, or page selection.
 
 Pending debounce, suspended Power Saver work, and in-flight completion retain their candidate-snapshot identity. Resume or completion is accepted only if the owning scope and generation remain current. Power Saver suppresses new background work without blocking foreground loads or visible-detail refinement.
 
 ## Decoder-Internal Tiling
 
-Source-internal HEIF tiling is allowed only inside a decode or refinement job that assembles one accepted bounded display image. Decoder-internal tiling must not publish multiple visual page tiles, introduce viewport tile scheduling, or become an independent presentation cache.
+Source-internal HEIF tiling is allowed only inside a decode or refinement job that produces a payload accepted by the supported provider contract. Decoder-internal tiling must not escape the decoder as an application-owned image-presentation path or become an independent presentation cache.
