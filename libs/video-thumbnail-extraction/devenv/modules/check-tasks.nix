@@ -128,22 +128,5 @@ in
         '';
     };
 
-    "ci:video-thumbnail-extraction:lint:cmake" = {
-      description = "Lint VideoThumbnailExtraction CMake sources";
-      showOutput = true;
-      before = [ "ci:lint" ];
-      after = [
-        "ci:video-thumbnail-extraction:lint:clazy"
-      ];
-      exec = # sh
-        ''
-          ${taskPrelude}
-
-          mapfile -d "" cmake_files < <(
-              git ls-files -z '*CMakeLists.txt' '*.cmake' '*.cmake.in'
-          )
-          cmake-lint "''${cmake_files[@]}"
-        '';
-    };
   };
 }

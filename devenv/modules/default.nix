@@ -4,6 +4,7 @@
   imports = [
     ./workspace-tools.nix
     ./native-tooling.nix
+    ./cmake-lint.nix
     ./clazy-runner.nix
     ./cpp-lint-policy.nix
     ./treefmt.nix

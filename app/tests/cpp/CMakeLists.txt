@@ -17,10 +17,15 @@ add_custom_command(
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${KIRIVIEW_TEST_LOCALE_DIR}/ko/LC_MESSAGES"
     COMMAND "${MSGFMT_EXECUTABLE}" --output-file "${KIRIVIEW_TEST_KO_MO}" "${KIRIVIEW_TEST_KO_PO}"
     DEPENDS "${KIRIVIEW_TEST_KO_PO}"
+    COMMENT "Compile the Korean test translation catalog"
     VERBATIM)
 
-add_custom_target(kiriview_test_i18n ALL DEPENDS "${KIRIVIEW_TEST_KO_MO}")
+add_custom_target(
+    kiriview_test_i18n ALL
+    DEPENDS "${KIRIVIEW_TEST_KO_MO}"
+    COMMENT "Build the test translation catalogs")
 
+# Register a C++ test executable with the application-owned targets.
 function(add_kiriview_cpp_test target source)
     add_executable(${target} ${source})
     target_compile_features(${target} PRIVATE cxx_std_23)

@@ -14,6 +14,9 @@
 `just lint`
 : Run all repository lint and policy tasks.
 
+`devenv tasks run --mode single ci:repo:lint:cmake`
+: Lint all tracked `CMakeLists.txt`, `*.cmake`, and `*.cmake.in` files.
+
 `just check`
 : Run the complete repository integration gate.
 

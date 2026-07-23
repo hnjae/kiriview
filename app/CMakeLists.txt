@@ -48,6 +48,7 @@ pkg_check_modules(LibRaw REQUIRED IMPORTED_TARGET libraw)
 pkg_check_modules(LibWebP REQUIRED IMPORTED_TARGET libwebp)
 pkg_check_modules(LibWebPDemux REQUIRED IMPORTED_TARGET libwebpdemux)
 
+# Read a source manifest into the caller-provided output variable.
 function(kiriview_read_source_manifest output manifest)
     set_property(
         DIRECTORY
@@ -147,16 +148,18 @@ add_custom_command(
     DEPENDS Cargo.toml Cargo.lock build.rs src/lib.rs src/rust_support_bridge_sources.txt
             ${kiriview_rust_sources}
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    COMMENT "Build the Rust support library and CXX bridges"
     VERBATIM)
 add_custom_target(
     KiriViewRustSupportArtifacts
     DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/rust-bridge.stamp" "${kiriview_rust_archive}"
             "${KIRIVIEW_CXXBRIDGE_OUTPUT_DIR}/rust/cxx.h" ${kiriview_generated_bridge_headers}
-            ${kiriview_generated_bridge_sources})
+            ${kiriview_generated_bridge_sources}
+    COMMENT "Build the Rust support artifacts")
 
 add_library(KiriViewRustSupportArchive STATIC IMPORTED GLOBAL)
-set_target_properties(KiriViewRustSupportArchive PROPERTIES IMPORTED_LOCATION
-                                                            "${kiriview_rust_archive}")
+set_property(TARGET KiriViewRustSupportArchive PROPERTY IMPORTED_LOCATION
+                                                        "${kiriview_rust_archive}")
 add_dependencies(KiriViewRustSupportArchive KiriViewRustSupportArtifacts)
 
 set_source_files_properties(${kiriview_generated_bridge_sources} PROPERTIES GENERATED TRUE)

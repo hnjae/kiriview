@@ -129,22 +129,5 @@ in
         '';
     };
 
-    "ci:image-viewport:lint:cmake" = {
-      description = "Lint ImageViewport CMake sources";
-      showOutput = true;
-      before = [ "ci:lint" ];
-      after = [
-        "ci:image-viewport:lint:clazy"
-      ];
-      exec = # sh
-        ''
-          ${taskPrelude}
-
-          mapfile -d "" cmake_files < <(
-              git ls-files -z '*CMakeLists.txt' '*.cmake' '*.cmake.in'
-          )
-          cmake-lint "''${cmake_files[@]}"
-        '';
-    };
   };
 }
