@@ -1,0 +1,32 @@
+#!/usr/bin/env -S just --justfile
+
+set lazy
+set fallback
+set unstable
+
+set shell := ["sh", "-eu", "-c"]
+set working-directory := '../..'
+
+build_dir := "build-ninja"
+
+_:
+    @just --list
+
+[group('build')]
+configure:
+    devenv shell -- sh -eu -c 'cd libs/video-thumbnail-extraction && cmake -S . -B {{ build_dir }} -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON'
+
+[group('build')]
+build: configure
+    devenv shell -- sh -eu -c 'cd libs/video-thumbnail-extraction && cmake --build {{ build_dir }}'
+
+[group('ci')]
+test:
+    devenv shell -- devenv tasks run --mode=single ci:video-thumbnail-extraction:test
+
+[group('ci')]
+lint:
+    devenv shell -- devenv tasks run --mode=single ci:video-thumbnail-extraction:lint
+
+clean:
+    devenv shell -- sh -eu -c 'cd libs/video-thumbnail-extraction && cmake -E rm -rf {{ build_dir }}'

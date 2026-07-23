@@ -5,5 +5,6 @@
     ./devenv/modules
     ./app/devenv/modules
     ./libs/image-viewport/devenv/modules
+    ./libs/video-thumbnail-extraction/devenv/modules
   ];
 }

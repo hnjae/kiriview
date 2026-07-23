@@ -1,0 +1,9 @@
+// SPDX-FileCopyrightText: 2026 KIM Hyunjae
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+#ifndef KIRIVIEW_VIDEO_THUMBNAIL_EXTRACTION_UMBRELLA_H
+#define KIRIVIEW_VIDEO_THUMBNAIL_EXTRACTION_UMBRELLA_H
+
+#include <VideoThumbnailExtraction/videothumbnailextraction.h>
+
+#endif
