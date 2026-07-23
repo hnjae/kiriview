@@ -167,6 +167,7 @@ private:
         const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
         ImageSequenceProviderRequestToken metadataToken,
         ImageSequenceProviderRequestToken frameToken);
+    bool pruneDestroyedSessions();
     void pruneExpiredEventEndpoints();
     ViewportProviderCleanupResult releaseLease(quint64 leaseId);
     void retrySessionCleanup(ViewportProviderCleanupResult& result, bool retryPendingSessions);

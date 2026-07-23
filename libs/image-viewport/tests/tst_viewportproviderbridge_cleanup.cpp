@@ -201,6 +201,69 @@ public:
     int releaseAttempts = 0;
 };
 
+class StallingCloseExecutor final : public ViewportProviderExecutor
+{
+public:
+    StallingCloseExecutor() = default;
+    ~StallingCloseExecutor() override { completeAllCloses(); }
+    StallingCloseExecutor(const StallingCloseExecutor&) = delete;
+    StallingCloseExecutor& operator=(const StallingCloseExecutor&) = delete;
+    StallingCloseExecutor(StallingCloseExecutor&&) = delete;
+    StallingCloseExecutor& operator=(StallingCloseExecutor&&) = delete;
+
+    ViewportProviderExecutorOutcome invokeSessionCommand(ImageSequenceProviderSession* session,
+        ImageSequenceProviderThreadingContract, std::function<void()> command) override
+    {
+        if (!session) {
+            return ViewportProviderExecutorOutcome::RetryableFailure;
+        }
+        command();
+        return ViewportProviderExecutorOutcome::Completed;
+    }
+
+    ViewportProviderExecutorOutcome queueSessionClose(
+        const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
+        ImageSequenceProviderRequestToken, ImageSequenceProviderRequestToken) override
+    {
+        if (!sessionControl || !sessionControl->session()) {
+            return ViewportProviderExecutorOutcome::RetryableFailure;
+        }
+        pendingCloses.append(sessionControl);
+        return ViewportProviderExecutorOutcome::Scheduled;
+    }
+
+    ViewportProviderExecutorOutcome releaseFrameHandle(
+        const std::shared_ptr<ViewportProviderSessionControl>&,
+        ImageSequenceProviderFrameHandle*) override
+    {
+        return ViewportProviderExecutorOutcome::RetryableFailure;
+    }
+
+    void completeNextClose()
+    {
+        if (pendingCloses.isEmpty()) {
+            return;
+        }
+        const auto sessionControl = pendingCloses.takeFirst();
+        ImageSequenceProviderSession* session = sessionControl->session();
+        if (!session) {
+            return;
+        }
+        session->request(ImageSequenceProviderRequest::close());
+        sessionControl->completeCloseOnSessionAffinity();
+    }
+
+    void completeAllCloses()
+    {
+        while (!pendingCloses.isEmpty()) {
+            completeNextClose();
+        }
+    }
+
+private:
+    QVector<std::shared_ptr<ViewportProviderSessionControl>> pendingCloses;
+};
+
 struct BridgeFixture
 {
     BridgeFixture()
@@ -263,6 +326,7 @@ private Q_SLOTS:
     void pendingSessionCleanupSurvivesBridgeDestruction();
     void scheduledCloseIsNotDuplicatedAfterBridgeDestruction();
     void completedSessionsDoNotAccumulateEventEndpoints();
+    void stalledClosesBoundSessionAdmission();
     void queuedEndpointRemainsRevocableAfterSessionCleanup();
     void activeAdvisoryBurstIsCoalescedAheadOfTerminal();
     void staleAndMismatchAdvisoryBurstsPreserveRepresentativeIdentity();
@@ -427,6 +491,48 @@ void ViewportProviderBridgeCleanupTest::completedSessionsDoNotAccumulateEventEnd
         QVERIFY(!bridge.hasPendingCleanup());
         QCOMPARE(bridge.retainedEventEndpointCountForTest(), qsizetype(0));
     }
+}
+
+void ViewportProviderBridgeCleanupTest::stalledClosesBoundSessionAdmission()
+{
+    QObject callbackTarget;
+    StallingCloseExecutor executor;
+    ViewportProviderBridge bridge;
+    bridge.setExecutor(executor);
+    int factoryInvocationCount = 0;
+    QVector<QPointer<CleanupSession>> sessions;
+    auto factory = std::make_shared<ImageSequenceProviderSessionFactory>([&]() {
+        ++factoryInvocationCount;
+        auto* session = new CleanupSession;
+        sessions.append(session);
+        return ImageSequenceProviderSessionFactoryResult::created(session);
+    });
+    const auto open = [&](quint64 identity) {
+        return bridge.openSession({ factory, ImageSequenceProviderThreadingContract::AffinityBound,
+            identity, identity, &callbackTarget, [](const ViewportProviderEvent&) { } });
+    };
+
+    QVERIFY(open(1).opened);
+    QVERIFY(bridge.closeSession({}, {}).delivered);
+    QVERIFY(open(2).opened);
+    QVERIFY(bridge.closeSession({}, {}).delivered);
+    QCOMPARE(factoryInvocationCount, 2);
+    QCOMPARE(bridge.retainedEventEndpointCountForTest(), qsizetype(2));
+
+    const auto rejected = open(3);
+
+    QVERIFY(!rejected.opened);
+    QVERIFY(!rejected.providerFailureAvailable);
+    QCOMPARE(rejected.providerFailureLeaseId, quint64(0));
+    QCOMPARE(factoryInvocationCount, 2);
+    QCOMPARE(bridge.retainedEventEndpointCountForTest(), qsizetype(2));
+
+    executor.completeNextClose();
+    QVERIFY(!sessions[0]);
+    QVERIFY(open(4).opened);
+    QCOMPARE(factoryInvocationCount, 3);
+    QCOMPARE(bridge.retainedEventEndpointCountForTest(), qsizetype(2));
+    QVERIFY(bridge.closeSession({}, {}).delivered);
 }
 
 void ViewportProviderBridgeCleanupTest::queuedEndpointRemainsRevocableAfterSessionCleanup()

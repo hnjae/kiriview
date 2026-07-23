@@ -38,6 +38,8 @@ ViewportProviderExecutorOutcome ViewportProviderExecutor::releaseFailureHandle(
 }
 
 namespace {
+constexpr qsizetype maximumRetainedProviderSessionCountPerRole = 2;
+
 bool hasCurrentThreadAffinity(const QObject* object)
 {
     const QThread* thread = object == nullptr ? nullptr : object->thread();
@@ -1270,6 +1272,11 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
         return {};
     }
 
+    pruneDestroyedSessions();
+    if (sessions.size() >= maximumRetainedProviderSessionCountPerRole) {
+        return {};
+    }
+
     const ImageSequenceProviderSessionFactoryResult factoryResult = (*input.factory)();
     ImageSequenceProviderSession* session = factoryResult.session();
     const bool validCreated
@@ -1450,6 +1457,26 @@ void ViewportProviderBridge::pruneExpiredEventEndpoints()
     });
 }
 
+bool ViewportProviderBridge::pruneDestroyedSessions()
+{
+    bool pruned = false;
+    const auto sessionKeys = sessions.keys();
+    for (ImageSequenceProviderSession* session : sessionKeys) {
+        sessions.detach();
+        auto recordIt = sessions.find(session); // clazy:exclude=detaching-member
+        if (recordIt == sessions.end() || recordIt->session) {
+            continue;
+        }
+        if (activeSession == session) {
+            activeSession.clear();
+        }
+        sessions.erase(recordIt);
+        pruned = true;
+    }
+    pruneExpiredEventEndpoints();
+    return pruned;
+}
+
 void ViewportProviderBridge::completeFrameEventDelivery(quint64 leaseId)
 {
     leaseRegistry->completeEventDelivery(leaseId);
@@ -1525,6 +1552,7 @@ ViewportProviderCleanupResult ViewportProviderBridge::releaseLease(quint64 lease
 void ViewportProviderBridge::retrySessionCleanup(
     ViewportProviderCleanupResult& result, bool retryPendingSessions)
 {
+    result.progress = pruneDestroyedSessions() || result.progress;
     const auto sessionKeys = sessions.keys();
     for (ImageSequenceProviderSession* session : sessionKeys) {
         sessions.detach();
