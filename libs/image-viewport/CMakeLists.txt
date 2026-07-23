@@ -9,14 +9,14 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Qml Quick)
-qt_standard_project_setup(REQUIRES 6.5)
-add_compile_definitions(QT_ENABLE_STRICT_MODE_UP_TO=0x060500 QT_NO_KEYWORDS)
+find_package(Qt6 6.11 REQUIRED COMPONENTS Qml Quick)
+qt_standard_project_setup(REQUIRES 6.11)
+add_compile_definitions(QT_ENABLE_STRICT_MODE_UP_TO=0x060b00 QT_NO_KEYWORDS)
 
 option(IMAGEVIEWPORT_BUILD_TESTS "Build ImageViewport tests" ON)
 
 if(IMAGEVIEWPORT_BUILD_TESTS)
-    find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
+    find_package(Qt6 6.11 REQUIRED COMPONENTS Test)
     enable_testing()
 endif()
 

@@ -19,7 +19,7 @@ set(KIRIVIEW_QML_IMPORT_PATHS
     CACHE STRING "Additional QML import paths for development tooling")
 
 find_package(
-    Qt6 6.5 REQUIRED
+    Qt6 6.11 REQUIRED
     COMPONENTS Core
                DBus
                Gui
@@ -28,9 +28,8 @@ find_package(
                Quick
                QuickControls2
                Widgets)
-qt_standard_project_setup(REQUIRES 6.5)
-qt_policy(SET QTP0004 NEW)
-add_compile_definitions(QT_ENABLE_STRICT_MODE_UP_TO=0x060500 QT_NO_KEYWORDS)
+qt_standard_project_setup(REQUIRES 6.11)
+add_compile_definitions(QT_ENABLE_STRICT_MODE_UP_TO=0x060b00 QT_NO_KEYWORDS)
 find_package(KF6Archive CONFIG REQUIRED)
 find_package(KF6Config CONFIG REQUIRED)
 find_package(KF6CoreAddons CONFIG REQUIRED)

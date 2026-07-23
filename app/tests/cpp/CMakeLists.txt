@@ -5,7 +5,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     message(FATAL_ERROR "Configure KiriView tests through the application CMake project")
 endif()
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
+find_package(Qt6 6.11 REQUIRED COMPONENTS Test)
 find_program(MSGFMT_EXECUTABLE msgfmt REQUIRED)
 
 set(KIRIVIEW_TEST_LOCALE_DIR "${CMAKE_CURRENT_BINARY_DIR}/locale")
