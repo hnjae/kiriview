@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-`src/` contains the repository-internal static library and public headers under `src/VideoThumbnailExtraction/`. Future private headers use the `*_p.h` suffix.
+`src/` contains the repository-internal static library implementation and public headers under `src/VideoThumbnailExtraction/`. `private/` contains component-private headers, which use the `*_p.h` suffix.
 
 ## Build, Test, and Development Commands
 

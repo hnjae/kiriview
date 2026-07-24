@@ -9,12 +9,14 @@ target_sources(
             videothumbnailextraction.cpp
             videothumbnailextractionoperation.cpp
             videothumbnailextractionpolicy.cpp
-            videothumbnailextraction_p.h
+            "${PROJECT_SOURCE_DIR}/private/videothumbnailextraction_p.h"
             VideoThumbnailExtraction/VideoThumbnailExtraction
             VideoThumbnailExtraction/videothumbnailextraction.h)
 
-target_include_directories(VideoThumbnailExtraction
-                           PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>")
+target_include_directories(
+    VideoThumbnailExtraction
+    PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
+    PRIVATE "${PROJECT_SOURCE_DIR}/private")
 
 target_link_libraries(
     VideoThumbnailExtraction

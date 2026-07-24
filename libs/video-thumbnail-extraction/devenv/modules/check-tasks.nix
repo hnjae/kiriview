@@ -74,7 +74,7 @@ in
               -j "$lint_jobs" \
               -quiet \
               -source-filter="$PWD/src/.*[.]cpp" \
-              -header-filter="$PWD/src/.*"
+              -header-filter="$PWD/(src|private)/.*"
         '';
     };
 
@@ -122,7 +122,7 @@ in
               --jobs "$lint_jobs" \
               --clazy-binary ${lib.getExe' pkgs.clazy "clazy-standalone"} \
               --checks "''${CLAZY_CHECKS:-level0}" \
-              --header-filter="$PWD/src/.*" \
+              --header-filter="$PWD/(src|private)/.*" \
               --ignore-dirs=${qtHeaders} \
               -p ${buildDir} \
               -- \
