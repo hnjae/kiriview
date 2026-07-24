@@ -5,7 +5,12 @@ qt_add_library(VideoThumbnailExtraction STATIC)
 
 target_sources(
     VideoThumbnailExtraction
-    PRIVATE videothumbnailextraction.cpp VideoThumbnailExtraction/VideoThumbnailExtraction
+    PRIVATE qtmultimediathumbnailbackend.cpp
+            videothumbnailextraction.cpp
+            videothumbnailextractionoperation.cpp
+            videothumbnailextractionpolicy.cpp
+            videothumbnailextraction_p.h
+            VideoThumbnailExtraction/VideoThumbnailExtraction
             VideoThumbnailExtraction/videothumbnailextraction.h)
 
 target_include_directories(VideoThumbnailExtraction
