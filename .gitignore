@@ -1,4 +1,4 @@
-# Editor / local tooling
+# Editor / local tooling:
 .devenv*
 .direnv
 .cache/
@@ -7,12 +7,12 @@
 .rumdl_cache/
 .codex
 
-# Logs and temporary files
+# Logs and temporary files:
 *.log
 *.tmp
 *~
 
-# local devenv:
+# Local devenv:
 devenv.local.nix
 devenv.local.yaml
 
@@ -20,6 +20,8 @@ devenv.local.yaml
 /.pre-commit-config.yaml
 /treefmt.toml
 
-# Build artifacts
+# Build artifacts:
 .flatpak-builder/
 .flatpak-cargo/
+build/
+build-ninja/

@@ -1,11 +1,10 @@
 # Managed by devenv:
 /rust-analyzer.toml
 /.qmlls.ini
+/compile_commands.json
 
 # Build artifacts:
 .cargo-vendor/
-build-dir/
-build-ninja/
 repo/
 target/
 *.flatpak
@@ -17,7 +16,6 @@ build/
 cmake-build-*/
 CMakeCache.txt
 CMakeFiles/
-compile_commands.json
 install_manifest.txt
 *.ninja
 .ninja_deps
