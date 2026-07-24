@@ -1,12 +1,10 @@
-# Repository Guidelines
+# Video Thumbnail Extraction Library Guidelines
 
 ## Project Structure & Module Organization
 
-`src/` contains the repository-internal C++23 static library and public headers under `src/VideoThumbnailExtraction/`. Future private headers use the `*_p.h` suffix.
+`src/` contains the repository-internal static library and public headers under `src/VideoThumbnailExtraction/`. Future private headers use the `*_p.h` suffix.
 
 ## Build, Test, and Development Commands
-
-Run commands from this component directory; recipes enter the repository-managed `devenv` automatically.
 
 `just configure`
 : generate `build-ninja/` with CMake and Ninja.
@@ -20,8 +18,18 @@ Run commands from this component directory; recipes enter the repository-managed
 `just lint`
 : run component lint and policy checks.
 
+`devenv tasks run --mode=single ci:video-thumbnail-extraction:lint:prepare`
+: prepare the compilation database before running an analyzer when the database may be stale.
+
+`devenv tasks run --mode=single ci:video-thumbnail-extraction:lint:clang-tidy`
+: run clang-tidy against the current compilation database.
+
+`devenv tasks run --mode=single ci:video-thumbnail-extraction:lint:clazy`
+: run Clazy against the current compilation database.
+
 `just clean`
 : remove the generated `build-ninja/` directory.
 
-> [!NOTE]
-> From the repository root, run one C++ analyzer against the current compilation database with `devenv tasks run --mode single ci:video-thumbnail-extraction:lint:clang-tidy` or `devenv tasks run --mode single ci:video-thumbnail-extraction:lint:clazy`; first run `devenv tasks run --mode single ci:video-thumbnail-extraction:lint:prepare` when the database may be stale.
+## Verification discipline
+
+Use the smallest relevant focused test while iterating. Before handoff, run `just test` followed by `just lint` for implementation, header, test, or CMake changes. Always report skipped completion checks.

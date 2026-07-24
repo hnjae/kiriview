@@ -81,6 +81,7 @@ in
     "ci:image-viewport:lint:clazy" = {
       description = "Run clazy against ImageViewport C++ sources";
       showOutput = true;
+      before = [ "ci:lint" ];
       after = [
         "ci:image-viewport:lint:clang-tidy"
       ];

@@ -19,11 +19,11 @@ format-check:
 
 [group('ci')]
 lint:
-    devenv shell -- devenv tasks run --mode=single ci:lint
+    devenv shell -- devenv tasks run ci:lint
 
 [group('ci')]
 test:
-    devenv shell -- devenv tasks run --mode=single ci:test
+    devenv shell -- devenv tasks run ci:test
 
 alias check := ci
 

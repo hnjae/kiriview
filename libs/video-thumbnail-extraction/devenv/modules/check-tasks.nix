@@ -80,6 +80,7 @@ in
     "ci:video-thumbnail-extraction:lint:clazy" = {
       description = "Run clazy against VideoThumbnailExtraction C++ sources";
       showOutput = true;
+      before = [ "ci:lint" ];
       after = [
         "ci:video-thumbnail-extraction:lint:clang-tidy"
       ];
