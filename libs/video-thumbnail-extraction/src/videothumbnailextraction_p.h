@@ -7,6 +7,7 @@
 #include <VideoThumbnailExtraction/videothumbnailextraction.h>
 
 #include <QImage>
+#include <QSize>
 #include <QString>
 #include <QUrl>
 #include <QtTypes>
@@ -46,11 +47,30 @@ struct VideoThumbnailEmbeddedImages
     QImage thumbnail;
 };
 
+struct VideoThumbnailBackendFrame
+{
+    VideoThumbnailBackendFrame() = default;
+    VideoThumbnailBackendFrame(QSize pixelSize, std::function<QImage()> materialize)
+        : pixelSize(pixelSize)
+        , materialize(std::move(materialize))
+    {
+    }
+
+    VideoThumbnailBackendFrame(const VideoThumbnailBackendFrame&) = delete;
+    auto operator=(const VideoThumbnailBackendFrame&) -> VideoThumbnailBackendFrame& = delete;
+    VideoThumbnailBackendFrame(VideoThumbnailBackendFrame&&) noexcept = default;
+    auto operator=(VideoThumbnailBackendFrame&&) noexcept -> VideoThumbnailBackendFrame& = default;
+    ~VideoThumbnailBackendFrame() = default;
+
+    QSize pixelSize;
+    std::function<QImage()> materialize;
+};
+
 struct VideoThumbnailBackendCallbacks
 {
     std::function<void(VideoThumbnailBackendMediaFacts)> mediaFactsChanged;
     std::function<void(qint64)> positionChanged;
-    std::function<void(QImage)> frameAvailable;
+    std::function<void(VideoThumbnailBackendFrame)> frameAvailable;
     std::function<void(VideoThumbnailEmbeddedImages)> metadataAvailable;
     std::function<void(VideoThumbnailBackendError, QString)> errorOccurred;
 };
@@ -120,6 +140,8 @@ struct VideoThumbnailExtractionJobControl
 
 [[nodiscard]] auto isVideoThumbnailExtractionRequestValid(
     const VideoThumbnailExtractionRequest& request) -> bool;
+[[nodiscard]] auto admitVideoThumbnailFrameSize(const QSize& size)
+    -> VideoThumbnailImageAdmissionStatus;
 [[nodiscard]] auto admitVideoThumbnailImage(const QImage& source, int maximumLongEdge)
     -> VideoThumbnailImageAdmission;
 [[nodiscard]] auto makeVideoThumbnailReadyResult(QImage image) -> VideoThumbnailExtractionResult;

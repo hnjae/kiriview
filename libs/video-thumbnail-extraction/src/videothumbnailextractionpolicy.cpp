@@ -23,6 +23,7 @@ constexpr int maximumInputLongEdge
     = kiriview::VideoThumbnailExtractionLimits::maximumOutputLongEdge * 4;
 constexpr qsizetype maximumInputBytes
     = kiriview::VideoThumbnailExtractionLimits::maximumOutputBytes * 4;
+constexpr qsizetype maximumMaterializedBytesPerPixel = 16;
 
 auto normalizedDiagnostic(const QString& diagnostic) -> QString
 {
@@ -111,17 +112,38 @@ auto isVideoThumbnailExtractionRequestValid(const VideoThumbnailExtractionReques
         && request.maximumLongEdge <= VideoThumbnailExtractionLimits::maximumOutputLongEdge;
 }
 
+auto admitVideoThumbnailFrameSize(const QSize& size) -> VideoThumbnailImageAdmissionStatus
+{
+    if (size.isEmpty() || size.width() <= 0 || size.height() <= 0) {
+        return VideoThumbnailImageAdmissionStatus::Missing;
+    }
+
+    const int sourceLongEdge = std::max(size.width(), size.height());
+    const qsizetype width = size.width();
+    const qsizetype height = size.height();
+    const qsizetype maximumInputPixels = maximumInputBytes / maximumMaterializedBytesPerPixel;
+    if (sourceLongEdge > maximumInputLongEdge || width > maximumInputPixels / height) {
+        return VideoThumbnailImageAdmissionStatus::ResourceLimit;
+    }
+    return VideoThumbnailImageAdmissionStatus::Ready;
+}
+
 auto admitVideoThumbnailImage(const QImage& source, int maximumLongEdge)
     -> VideoThumbnailImageAdmission
 {
-    if (source.isNull() || source.width() <= 0 || source.height() <= 0) {
+    if (source.isNull()) {
         return {};
+    }
+
+    const VideoThumbnailImageAdmissionStatus sizeStatus
+        = admitVideoThumbnailFrameSize(source.size());
+    if (sizeStatus != VideoThumbnailImageAdmissionStatus::Ready) {
+        return { sizeStatus, {} };
     }
 
     const int sourceLongEdge = std::max(source.width(), source.height());
     const qsizetype sourceBytes = source.sizeInBytes();
-    if (sourceLongEdge > maximumInputLongEdge || sourceBytes <= 0
-        || sourceBytes > maximumInputBytes) {
+    if (sourceBytes <= 0 || sourceBytes > maximumInputBytes) {
         return { VideoThumbnailImageAdmissionStatus::ResourceLimit, {} };
     }
 

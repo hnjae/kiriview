@@ -17,6 +17,7 @@ namespace kiriview::test {
 
 using detail::VideoThumbnailBackendCallbacks;
 using detail::VideoThumbnailBackendError;
+using detail::VideoThumbnailBackendFrame;
 using detail::VideoThumbnailBackendMediaFacts;
 using detail::VideoThumbnailBackendMediaStatus;
 using detail::VideoThumbnailEmbeddedImages;
@@ -38,6 +39,7 @@ public:
 
     void emitMediaFacts(VideoThumbnailBackendMediaFacts facts);
     void emitFrame(QImage image);
+    void emitFrame(VideoThumbnailBackendFrame frame);
     void emitMetadata(VideoThumbnailEmbeddedImages images);
     void emitError(VideoThumbnailBackendError error, QString diagnostic = {});
 
@@ -111,8 +113,15 @@ inline void FakeVideoThumbnailBackend::emitMediaFacts(VideoThumbnailBackendMedia
 
 inline void FakeVideoThumbnailBackend::emitFrame(QImage image)
 {
+    const QSize pixelSize = image.size();
+    emitFrame(VideoThumbnailBackendFrame(
+        pixelSize, [image = std::move(image)]() mutable { return std::move(image); }));
+}
+
+inline void FakeVideoThumbnailBackend::emitFrame(VideoThumbnailBackendFrame frame)
+{
     if (callbacks_.frameAvailable) {
-        callbacks_.frameAvailable(std::move(image));
+        callbacks_.frameAvailable(std::move(frame));
     }
 }
 

@@ -21,6 +21,7 @@ namespace {
 
 using kiriview::detail::VideoThumbnailBackendCallbacks;
 using kiriview::detail::VideoThumbnailBackendError;
+using kiriview::detail::VideoThumbnailBackendFrame;
 using kiriview::detail::VideoThumbnailBackendMediaFacts;
 using kiriview::detail::VideoThumbnailBackendMediaStatus;
 using kiriview::detail::VideoThumbnailEmbeddedImages;
@@ -73,7 +74,10 @@ public:
             &sink_, &QVideoSink::videoFrameChanged, &sink_, [this](const QVideoFrame& frame) {
                 publishMetadata();
                 if (callbacks_.frameAvailable) {
-                    callbacks_.frameAvailable(frame.isValid() ? frame.toImage() : QImage {});
+                    callbacks_.frameAvailable(frame.isValid()
+                            ? VideoThumbnailBackendFrame(
+                                  frame.size(), [frame]() { return frame.toImage(); })
+                            : VideoThumbnailBackendFrame {});
                 }
             });
         QObject::connect(

@@ -8,6 +8,7 @@
 #include <QTest>
 
 #include <array>
+#include <limits>
 #include <optional>
 
 namespace {
@@ -35,6 +36,9 @@ private Q_SLOTS:
     void unusableCoverFallsBackToThumbnail();
     void frameOutputIsDetachedFromBackendStorage();
     void nonSeekableMediaUsesFirstUsableFrame();
+    void oversizedFrameDoesNotMaterialize();
+    void admissibleFrameMaterializesOnce();
+    void frameConversionFailureIsTyped();
     void resourceLimitIsTyped();
     void backendFailuresAreTyped_data();
     void backendFailuresAreTyped();
@@ -228,6 +232,93 @@ void VideoThumbnailExtractionContractTest::nonSeekableMediaUsesFirstUsableFrame(
     QVERIFY(result.has_value());
     QCOMPARE(result->status, VideoThumbnailExtractionStatus::Ready);
     QCOMPARE(result->image.size(), QSize(12, 20));
+}
+
+void VideoThumbnailExtractionContractTest::oversizedFrameDoesNotMaterialize()
+{
+    QObject receiver;
+    ExtractionHarness harness;
+    std::optional<VideoThumbnailExtractionResult> result;
+    bool materialized = false;
+
+    auto job = kiriview::detail::startVideoThumbnailExtractionWithDependencies(
+        &receiver, kiriview::test::validRequest(),
+        [&result](VideoThumbnailExtractionResult value) { result = std::move(value); },
+        harness.dependencies());
+    kiriview::test::drainQueuedCalls();
+
+    harness.backend->instance->emitMediaFacts(
+        { VideoThumbnailBackendMediaStatus::Ready, 0, false, true });
+    harness.backend->instance->emitFrame(kiriview::detail::VideoThumbnailBackendFrame(
+        QSize(std::numeric_limits<int>::max(), std::numeric_limits<int>::max()), [&materialized]() {
+            materialized = true;
+            return QImage(1, 1, QImage::Format_RGBA8888);
+        }));
+    kiriview::test::drainQueuedCalls();
+
+    QVERIFY(!materialized);
+    QVERIFY(!job.isActive());
+    QVERIFY(result.has_value());
+    QCOMPARE(result->status, VideoThumbnailExtractionStatus::Failed);
+    QVERIFY(result->failure.has_value());
+    QCOMPARE(result->failure->cause, VideoThumbnailExtractionFailureCause::ResourceLimit);
+}
+
+void VideoThumbnailExtractionContractTest::admissibleFrameMaterializesOnce()
+{
+    QObject receiver;
+    ExtractionHarness harness;
+    std::optional<VideoThumbnailExtractionResult> result;
+    int materializationCount = 0;
+
+    auto job = kiriview::detail::startVideoThumbnailExtractionWithDependencies(
+        &receiver, kiriview::test::validRequest(),
+        [&result](VideoThumbnailExtractionResult value) { result = std::move(value); },
+        harness.dependencies());
+    kiriview::test::drainQueuedCalls();
+
+    harness.backend->instance->emitMediaFacts(
+        { VideoThumbnailBackendMediaStatus::Ready, 0, false, true });
+    harness.backend->instance->emitFrame(
+        kiriview::detail::VideoThumbnailBackendFrame(QSize(32, 18), [&materializationCount]() {
+            ++materializationCount;
+            QImage image(32, 18, QImage::Format_RGBA8888);
+            image.fill(Qt::cyan);
+            return image;
+        }));
+    kiriview::test::drainQueuedCalls();
+
+    QCOMPARE(materializationCount, 1);
+    QVERIFY(!job.isActive());
+    QVERIFY(result.has_value());
+    QCOMPARE(result->status, VideoThumbnailExtractionStatus::Ready);
+    QCOMPARE(result->image.size(), QSize(32, 18));
+    QCOMPARE(result->image.pixelColor(0, 0), QColor(Qt::cyan));
+}
+
+void VideoThumbnailExtractionContractTest::frameConversionFailureIsTyped()
+{
+    QObject receiver;
+    ExtractionHarness harness;
+    std::optional<VideoThumbnailExtractionResult> result;
+
+    auto job = kiriview::detail::startVideoThumbnailExtractionWithDependencies(
+        &receiver, kiriview::test::validRequest(),
+        [&result](VideoThumbnailExtractionResult value) { result = std::move(value); },
+        harness.dependencies());
+    kiriview::test::drainQueuedCalls();
+
+    harness.backend->instance->emitMediaFacts(
+        { VideoThumbnailBackendMediaStatus::Ready, 0, false, true });
+    harness.backend->instance->emitFrame(
+        kiriview::detail::VideoThumbnailBackendFrame(QSize(32, 18), []() { return QImage {}; }));
+    kiriview::test::drainQueuedCalls();
+
+    QVERIFY(!job.isActive());
+    QVERIFY(result.has_value());
+    QCOMPARE(result->status, VideoThumbnailExtractionStatus::Failed);
+    QVERIFY(result->failure.has_value());
+    QCOMPARE(result->failure->cause, VideoThumbnailExtractionFailureCause::BackendFailure);
 }
 
 void VideoThumbnailExtractionContractTest::resourceLimitIsTyped()

@@ -27,6 +27,7 @@ using namespace std::chrono_literals;
 
 using kiriview::detail::VideoThumbnailBackend;
 using kiriview::detail::VideoThumbnailBackendError;
+using kiriview::detail::VideoThumbnailBackendFrame;
 using kiriview::detail::VideoThumbnailBackendMediaFacts;
 using kiriview::detail::VideoThumbnailBackendMediaStatus;
 using kiriview::detail::VideoThumbnailDeadline;
@@ -47,8 +48,9 @@ struct DeadlineExpiredEvent
 {
 };
 
-using ExtractionEvent = std::variant<VideoThumbnailBackendMediaFacts, qint64, QImage,
-    VideoThumbnailEmbeddedImages, BackendErrorEvent, DeadlineExpiredEvent>;
+using ExtractionEvent
+    = std::variant<VideoThumbnailBackendMediaFacts, qint64, VideoThumbnailBackendFrame,
+        VideoThumbnailEmbeddedImages, BackendErrorEvent, DeadlineExpiredEvent>;
 
 class VideoThumbnailExtractionOperation final : public QObject
 {
@@ -104,7 +106,7 @@ public:
         backend_->setCallbacks({
             [this](VideoThumbnailBackendMediaFacts facts) { enqueue(facts); },
             [this](qint64 positionMsec) { enqueue(positionMsec); },
-            [this](QImage image) { enqueue(std::move(image)); },
+            [this](VideoThumbnailBackendFrame frame) { enqueue(std::move(frame)); },
             [this](VideoThumbnailEmbeddedImages images) { enqueue(std::move(images)); },
             [this](VideoThumbnailBackendError error, const QString&) {
                 enqueue(BackendErrorEvent { error });
@@ -167,7 +169,7 @@ private:
                     handleMediaFacts(payload);
                 } else if constexpr (std::is_same_v<Event, qint64>) {
                     handlePosition(payload);
-                } else if constexpr (std::is_same_v<Event, QImage>) {
+                } else if constexpr (std::is_same_v<Event, VideoThumbnailBackendFrame>) {
                     handleFrame(std::forward<decltype(payload)>(payload));
                 } else if constexpr (std::is_same_v<Event, VideoThumbnailEmbeddedImages>) {
                     handleMetadata(std::forward<decltype(payload)>(payload));
@@ -219,14 +221,46 @@ private:
 
     void handlePosition(qint64) { }
 
-    void handleFrame(const QImage& frame)
+    void handleFrame(VideoThumbnailBackendFrame frame)
     {
         if (!frameExtractionStarted_ || !awaitingFrame_) {
             return;
         }
 
+        const VideoThumbnailImageAdmissionStatus sizeStatus
+            = kiriview::detail::admitVideoThumbnailFrameSize(frame.pixelSize);
+        switch (sizeStatus) {
+        case VideoThumbnailImageAdmissionStatus::Ready:
+            break;
+        case VideoThumbnailImageAdmissionStatus::ResourceLimit:
+            finish(kiriview::detail::makeVideoThumbnailFailureResult(
+                kiriview::VideoThumbnailExtractionFailureCause::ResourceLimit));
+            return;
+        case VideoThumbnailImageAdmissionStatus::ConversionFailure:
+            finish(kiriview::detail::makeVideoThumbnailFailureResult(
+                kiriview::VideoThumbnailExtractionFailureCause::BackendFailure));
+            return;
+        case VideoThumbnailImageAdmissionStatus::Missing:
+            advanceAfterUnusableFrame();
+            return;
+        }
+
+        if (!frame.materialize) {
+            finish(kiriview::detail::makeVideoThumbnailFailureResult(
+                kiriview::VideoThumbnailExtractionFailureCause::BackendFailure));
+            return;
+        }
+        auto materialize = std::move(frame.materialize);
+        QImage image = materialize();
+        materialize = {};
+        if (image.isNull()) {
+            finish(kiriview::detail::makeVideoThumbnailFailureResult(
+                kiriview::VideoThumbnailExtractionFailureCause::BackendFailure));
+            return;
+        }
+
         VideoThumbnailImageAdmission admitted
-            = kiriview::detail::admitVideoThumbnailImage(frame, request_.maximumLongEdge);
+            = kiriview::detail::admitVideoThumbnailImage(image, request_.maximumLongEdge);
         switch (admitted.status) {
         case VideoThumbnailImageAdmissionStatus::Ready:
             finish(kiriview::detail::makeVideoThumbnailReadyResult(std::move(admitted.image)));
@@ -235,11 +269,19 @@ private:
             finish(kiriview::detail::makeVideoThumbnailFailureResult(
                 kiriview::VideoThumbnailExtractionFailureCause::ResourceLimit));
             return;
-        case VideoThumbnailImageAdmissionStatus::Missing:
         case VideoThumbnailImageAdmissionStatus::ConversionFailure:
+            finish(kiriview::detail::makeVideoThumbnailFailureResult(
+                kiriview::VideoThumbnailExtractionFailureCause::BackendFailure));
+            return;
+        case VideoThumbnailImageAdmissionStatus::Missing:
             break;
         }
 
+        advanceAfterUnusableFrame();
+    }
+
+    void advanceAfterUnusableFrame()
+    {
         if (!candidatePositions_.empty()) {
             backend_->pause();
             ++candidateIndex_;
@@ -270,6 +312,12 @@ private:
                 && thumbnail.status == VideoThumbnailImageAdmissionStatus::ResourceLimit)) {
             finish(kiriview::detail::makeVideoThumbnailFailureResult(
                 kiriview::VideoThumbnailExtractionFailureCause::ResourceLimit));
+            return;
+        }
+        if (cover.status == VideoThumbnailImageAdmissionStatus::ConversionFailure
+            || thumbnail.status == VideoThumbnailImageAdmissionStatus::ConversionFailure) {
+            finish(kiriview::detail::makeVideoThumbnailFailureResult(
+                kiriview::VideoThumbnailExtractionFailureCause::BackendFailure));
         }
     }
 
