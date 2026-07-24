@@ -25,7 +25,7 @@ ImageDocumentRuntimePlan imageDocumentClearDeletedImagePlan()
         CancelPredecodeOperation {},
         CancelOpenOperation {},
         ClearSecondaryPageOperation {},
-        SetSourceUrlOperation { ImageDocumentPageTarget {} },
+        SelectImageTargetOperation { ImageDocumentSelectedTarget {} },
         SetErrorStringOperation { QString() },
         FinishEmptySourceLoadOperation {},
     };

@@ -3,7 +3,6 @@
 
 #include "imagedocumentstate.h"
 
-#include "imagedocumentnotifications.h"
 #include "location/imagedocumentlocation.h"
 
 #include <utility>
@@ -37,9 +36,19 @@ ImageDocumentState::ChangeBatch ImageDocumentState::beginChangeBatch()
     return m_changes->beginBatch();
 }
 
-const QUrl& ImageDocumentState::sourceUrl() const { return m_sourceUrl; }
+const ImageDocumentSelectedTarget& ImageDocumentState::selectedTarget() const
+{
+    return m_selectedTarget;
+}
 
-ImageDocumentPageKind ImageDocumentState::sourceKind() const { return m_sourceKind; }
+const QUrl& ImageDocumentState::sourceUrl() const { return m_selectedTarget.url; }
+
+ImageDocumentPageKind ImageDocumentState::sourceKind() const { return m_selectedTarget.kind; }
+
+const OpenedCollectionScopeLocation& ImageDocumentState::selectedOpenedCollectionScope() const
+{
+    return m_selectedTarget.openedCollectionScope;
+}
 
 const DisplayedImageLocation& ImageDocumentState::displayedImageLocation() const
 {
@@ -66,7 +75,7 @@ const std::optional<ImageLoadFailure>& ImageDocumentState::loadFailure() const
 
 QString ImageDocumentState::windowTitleFileName() const
 {
-    return windowTitleFileNameForDisplayedLocation(m_displayedImageLocation);
+    return windowTitleFileNameForImageLocation(sourceUrl(), selectedOpenedCollectionScope());
 }
 
 const QUrl& ImageDocumentState::containerNavigationUrl() const { return m_containerNavigationUrl; }
@@ -88,16 +97,25 @@ bool ImageDocumentState::unsupportedOpenedCollectionVideo() const
 
 const EmbeddedMetadata& ImageDocumentState::embeddedMetadata() const { return m_embeddedMetadata; }
 
-void ImageDocumentState::setSourceUrl(const QUrl& sourceUrl)
+void ImageDocumentState::setSelectedTarget(ImageDocumentSelectedTarget target)
 {
-    if (replaceIfChanged(m_sourceUrl, sourceUrl)) {
+    const QUrl previousSourceUrl = sourceUrl();
+    const OpenedCollectionScopeLocation previousScope = selectedOpenedCollectionScope();
+    const QString previousWindowTitle = windowTitleFileName();
+    if (!replaceIfChanged(m_selectedTarget, target)) {
+        return;
+    }
+
+    [[maybe_unused]] auto batch = beginChangeBatch();
+    if (previousSourceUrl != sourceUrl()) {
         notify(ImageDocumentChange::SourceUrl);
     }
-}
-
-void ImageDocumentState::setSourceKind(ImageDocumentPageKind sourceKind)
-{
-    m_sourceKind = sourceKind;
+    if (previousScope != selectedOpenedCollectionScope()) {
+        notify(ImageDocumentChange::SelectedTargetScope);
+    }
+    if (previousWindowTitle != windowTitleFileName()) {
+        notify(ImageDocumentChange::WindowTitleFileName);
+    }
 }
 
 void ImageDocumentState::setDisplayedImageLocation(const DisplayedImageLocation& location)
@@ -112,14 +130,14 @@ void ImageDocumentState::clearDisplayedImageLocation()
 
 void ImageDocumentState::replaceDisplayedImageLocation(DisplayedImageLocation location)
 {
-    const QString previousWindowTitle = windowTitleFileName();
     const QUrl previousDisplayedUrl = displayedUrl();
     if (!replaceIfChanged(m_displayedImageLocation, location)) {
         return;
     }
 
-    m_changes->notifyAll(imageDocumentDisplayedLocationNotifications(
-        previousDisplayedUrl != displayedUrl(), previousWindowTitle != windowTitleFileName()));
+    if (previousDisplayedUrl != displayedUrl()) {
+        notify(ImageDocumentChange::DisplayedUrl);
+    }
 }
 
 void ImageDocumentState::setStatus(ImageDocumentStatus status)

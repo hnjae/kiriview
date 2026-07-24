@@ -28,10 +28,6 @@ void compareChanges(const std::vector<kiriview::ImageDocumentChange>& actual,
 
 void TestImageDocumentNotifications::applicationOwnedNotificationPlansRemainFocused()
 {
-    compareChanges(kiriview::imageDocumentDisplayedLocationNotifications(true, true),
-        { kiriview::ImageDocumentChange::DisplayedUrl,
-            kiriview::ImageDocumentChange::WindowTitleFileName });
-    compareChanges(kiriview::imageDocumentDisplayedLocationNotifications(false, false), {});
     compareChanges(kiriview::imageDocumentTwoPageModeNotifications(),
         { kiriview::ImageDocumentChange::TwoPageMode });
     compareChanges(kiriview::imageDocumentRightToLeftReadingNotifications(false),

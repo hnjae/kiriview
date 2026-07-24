@@ -18,7 +18,8 @@ std::optional<OpenedCollectionScopeLocation> openedCollectionScopeLocationForRes
 bool openedCollectionScopeContainsUrl(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& url);
 bool displayedLocationIsInsideOpenedCollectionScope(const DisplayedImageLocation& location);
-QString windowTitleFileNameForDisplayedLocation(const DisplayedImageLocation& location);
+QString windowTitleFileNameForImageLocation(
+    const QUrl& imageUrl, const OpenedCollectionScopeLocation& openedCollectionScope);
 QUrl containerNavigationUrlForLocation(const DisplayedImageLocation& location);
 }
 

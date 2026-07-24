@@ -21,10 +21,16 @@ QString finalErrorString(
     return state.errorString();
 }
 
+kiriview::ImageDocumentSelectedTarget finalSelectedTarget(
+    const kiriview::ImageDocumentState& state, const kiriview::ImageOpenResolvedStateDelta& delta)
+{
+    return delta.selectedTarget.value_or(state.selectedTarget());
+}
+
 QUrl finalSourceUrl(
     const kiriview::ImageDocumentState& state, const kiriview::ImageOpenResolvedStateDelta& delta)
 {
-    return delta.sourceUrl.value_or(state.sourceUrl());
+    return finalSelectedTarget(state, delta).url;
 }
 
 kiriview::DisplayedImageLocation finalDisplayedLocation(
@@ -36,7 +42,7 @@ kiriview::DisplayedImageLocation finalDisplayedLocation(
 kiriview::ImageDocumentPageKind finalSourceKind(
     const kiriview::ImageDocumentState& state, const kiriview::ImageOpenResolvedStateDelta& delta)
 {
-    return delta.sourceKind.value_or(state.sourceKind());
+    return finalSelectedTarget(state, delta).kind;
 }
 
 bool finalUnsupportedOpenedCollectionVideo(
@@ -123,8 +129,7 @@ private:
         if (trackedLoadCompletionBeforeVisibleState(delta)) {
             applyTrackedLoadCompletion(delta);
             applyContainerNavigationUrl(delta.containerNavigationUrl);
-            applySourceUrl(delta.sourceUrl);
-            applySourceKind(delta.sourceKind);
+            applySelectedTarget(delta);
             applyDisplayedLocation(delta.displayedLocation);
             applyError(delta.errorString, delta.loadFailure);
             applyEmbeddedMetadata(delta.embeddedMetadata);
@@ -133,8 +138,7 @@ private:
             return;
         }
 
-        applySourceUrl(delta.sourceUrl);
-        applySourceKind(delta.sourceKind);
+        applySelectedTarget(delta);
         applyDisplayedLocation(delta.displayedLocation);
         applyContainerNavigationUrl(delta.containerNavigationUrl);
         applyError(delta.errorString, delta.loadFailure);
@@ -162,17 +166,10 @@ private:
         applyLoading(delta.loading);
     }
 
-    void applySourceUrl(const std::optional<QUrl>& url)
+    void applySelectedTarget(const kiriview::ImageOpenResolvedStateDelta& delta)
     {
-        if (url.has_value()) {
-            m_state.setSourceUrl(*url);
-        }
-    }
-
-    void applySourceKind(std::optional<kiriview::ImageDocumentPageKind> sourceKind)
-    {
-        if (sourceKind.has_value()) {
-            m_state.setSourceKind(*sourceKind);
+        if (delta.selectedTarget.has_value()) {
+            m_state.setSelectedTarget(*delta.selectedTarget);
         }
     }
 

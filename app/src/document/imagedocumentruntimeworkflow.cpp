@@ -209,16 +209,15 @@ kiriview::ImageDocumentRuntimeOperations runtimeOperations(
               }
               if (ports.mediaEntrySourceStore != nullptr && ports.state != nullptr) {
                   ports.mediaEntrySourceStore->prepareForOpenedCollectionScope(
-                      kiriview::openedCollectionScopeForImageDocumentSourceLoad(
-                          request, ports.state->displayedOpenedCollectionScope()));
+                      kiriview::openedCollectionScopeForImageDocumentSourceLoad(request));
               }
           };
-    operations.open.setSourceUrl = [ports](const kiriview::ImageDocumentPageTarget& target) {
-        if (ports.state != nullptr) {
-            ports.state->setSourceKind(target.kind);
-            ports.state->setSourceUrl(target.url);
-        }
-    };
+    operations.open.selectImageTarget
+        = [ports](const kiriview::SelectImageTargetOperation& operation) {
+              if (ports.state != nullptr) {
+                  ports.state->setSelectedTarget(operation.target);
+              }
+          };
     operations.sourceLoad.beginOpen = [ports]() {
         if (ports.openController != nullptr) {
             ports.openController->open();

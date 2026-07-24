@@ -1723,6 +1723,8 @@ void TestKiriDocumentSession::freshDirectImageReadoutUsesRequestedCursorBeforeDi
     QCOMPARE(session->imageDocument()->displayedUrl(), QUrl());
     QVERIFY(session->activeNavigationAvailable());
     QCOMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Loading);
+    QCOMPARE(session->windowTitleSubject(), QStringLiteral("01.png"));
+    QVERIFY(!session->activeImageReady());
     QVERIFY(session->activeNavigationKnown());
     QVERIFY(session->activeNavigationEditable());
     QCOMPARE(session->activeNavigationCurrentNumber(), 1);
@@ -1796,6 +1798,8 @@ void TestKiriDocumentSession::directImageReplacementFailureKeepsTargetMediaCurso
     QCOMPARE(session->imageDocument()->displayedUrl(), QUrl());
     QCOMPARE(session->sourceUrl(), secondImage);
     QCOMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Loading);
+    QCOMPARE(session->windowTitleSubject(), QStringLiteral("02.png"));
+    QVERIFY(!session->activeImageReady());
     QVERIFY(session->activeNavigationKnown());
     QVERIFY(session->activeNavigationEditable());
     QCOMPARE(session->activeNavigationCurrentNumber(), 2);
@@ -1806,6 +1810,8 @@ void TestKiriDocumentSession::directImageReplacementFailureKeepsTargetMediaCurso
     QTRY_COMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Error);
     QCOMPARE(session->sourceUrl(), secondImage);
     QCOMPARE(session->imageDocument()->displayedUrl(), QUrl());
+    QCOMPARE(session->windowTitleSubject(), QStringLiteral("02.png"));
+    QVERIFY(!session->activeImageReady());
     QVERIFY(session->activeNavigationAvailable());
     QVERIFY(session->activeNavigationKnown());
     QVERIFY(session->activeNavigationEditable());
@@ -2065,6 +2071,12 @@ void TestKiriDocumentSession::activeNavigationNumberDispatchRoutesImageDocumentP
 
     QTRY_VERIFY(leafSnapshotSpy.count() > snapshotCountBeforeNavigation);
     QTRY_COMPARE(dataLoader.backLoad().url, secondPage);
+    QCOMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Loading);
+    QCOMPARE(session->imageDocument()->displayedUrl(), QUrl());
+    QVERIFY(session->imageDocument()->displayedOpenedCollectionScope().isEmpty());
+    QVERIFY(session->activeImageOpenedCollectionScopeActive());
+    QVERIFY(!session->activeImageReady());
+    QCOMPARE(session->windowTitleSubject(), QStringLiteral("number-dispatch.cbz – 2/2"));
     dataLoader.finishBackLoad(QByteArrayLiteral("second"));
     QTRY_COMPARE(session->imageDocument()->currentPageNumber(), 2);
     QCOMPARE(session->activeNavigationCurrentNumber(), 2);

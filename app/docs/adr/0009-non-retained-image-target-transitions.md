@@ -12,9 +12,13 @@ Same-image refinement is not a target transition. It may keep the current accept
 
 Canonical loading state advances immediately. QML delays only the visible loading indicator so a target that becomes ready within 150 milliseconds appears without an intervening loading screen.
 
+Clearing the prior presentation does not clear the accepted selected target. Target-identifying chrome follows the selected target during loading and target-specific errors, while controls and operations that require displayed media remain unavailable until a matching presentation is ready.
+
 ## Consequences
 
 The selected target, displayed image, readiness projection, and presentation-shape policy do not require an application restoration path. KiriView clears its prior displayed-image projection when it accepts the new target and derives later presentation facts only from a matching public observation.
+
+Selected-target identity and scope remain available independently of displayed-presentation readiness, so title and toolbar placement do not need QML-owned retained values.
 
 The viewport can remain visually empty during a short load. Loads that outlast the feedback delay show the normal loading state, while terminal ready, error, or empty state cancels pending loading feedback immediately.
 

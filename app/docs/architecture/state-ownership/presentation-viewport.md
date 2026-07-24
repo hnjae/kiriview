@@ -20,6 +20,8 @@ Anchored zoom, drag pan, wheel steps, and scan movement may begin from UI-local 
 
 The toolbar and action runtime derive fit selection, zoom readout, editability, pannability, and image readiness from the current matched public observation. The toolbar must not preserve an independent applied zoom.
 
+Clearing a prior presentation does not clear the accepted selected target. Window-title identity and collection-specific control placement follow that selected target, while controls that operate on a displayed image remain gated by a matching ready observation.
+
 ## Media Workspace Boundary
 
 QML owns layout composition of the media viewport, layout-reserving panels, runtime-only panel size and visibility, delegate selection, focus handoff, raw gesture sampling, and context-menu signal forwarding. Panel size and visibility are canonical UI-local state; QML reports their current facts through owner inputs so action checked state and Escape routing can mirror the layout without becoming another panel-state owner. Fullscreen state is not part of this panel state and remains owned by the application shell. Shared workspace code communicates with image and video viewports only through their declared interaction contracts and must not reach into mode-specific internals.

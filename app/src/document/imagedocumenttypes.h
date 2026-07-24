@@ -21,6 +21,7 @@ enum class ImageZoomMode {
 
 enum class ImageDocumentChange {
     SourceUrl,
+    SelectedTargetScope,
     Status,
     Loading,
     ErrorString,

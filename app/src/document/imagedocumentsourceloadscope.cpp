@@ -7,10 +7,8 @@
 
 namespace kiriview {
 OpenedCollectionScopeLocation openedCollectionScopeForImageDocumentSourceLoad(
-    const ImageDocumentSourceLoadRequest& request,
-    const OpenedCollectionScopeLocation& displayedOpenedCollectionScope)
+    const ImageDocumentSourceLoadRequest& request)
 {
-    Q_UNUSED(displayedOpenedCollectionScope);
     return openedCollectionScopeLoadPlan(request).openedCollectionScope;
 }
 }

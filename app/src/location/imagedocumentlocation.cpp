@@ -139,18 +139,19 @@ bool displayedLocationIsInsideOpenedCollectionScope(const DisplayedImageLocation
     return openedCollectionScopeContainsUrl(location.openedCollectionScope(), location.imageUrl());
 }
 
-QString windowTitleFileNameForDisplayedLocation(const DisplayedImageLocation& location)
+QString windowTitleFileNameForImageLocation(
+    const QUrl& imageUrl, const OpenedCollectionScopeLocation& openedCollectionScope)
 {
-    if (location.imageUrl().isEmpty()) {
+    if (imageUrl.isEmpty()) {
         return QString();
     }
 
-    if (displayedLocationIsInsideOpenedCollectionScope(location)
-        && !location.openedCollectionScopeSourceUrl().fileName().isEmpty()) {
-        return location.openedCollectionScopeSourceUrl().fileName();
+    if (openedCollectionScopeContainsUrl(openedCollectionScope, imageUrl)
+        && !openedCollectionScope.fileUrl().fileName().isEmpty()) {
+        return openedCollectionScope.fileUrl().fileName();
     }
 
-    return location.imageUrl().fileName();
+    return imageUrl.fileName();
 }
 
 QUrl containerNavigationUrlForLocation(const DisplayedImageLocation& location)

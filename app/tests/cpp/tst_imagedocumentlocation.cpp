@@ -15,9 +15,7 @@ QString archivePageWindowTitle(const QUrl& pageUrl, const QUrl& archiveFileUrl,
 {
     const kiriview::OpenedCollectionScopeLocation archiveCollection
         = kiriview::OpenedCollectionScopeLocation::fromUrls(archiveFileUrl, archiveRootUrl, kind);
-    const kiriview::DisplayedImageLocation location
-        = kiriview::DisplayedImageLocation::fromOpenedCollectionScope(pageUrl, archiveCollection);
-    return kiriview::windowTitleFileNameForDisplayedLocation(location);
+    return kiriview::windowTitleFileNameForImageLocation(pageUrl, archiveCollection);
 }
 
 std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection(const QUrl& archiveUrl)
@@ -153,7 +151,9 @@ void TestImageDocumentLocation::directoryCollectionPagesResolveToDirectoryCollec
             pageUrl, *directoryCollection);
 
     QVERIFY(kiriview::containerNavigationUrlForLocation(location).isEmpty());
-    QCOMPARE(kiriview::windowTitleFileNameForDisplayedLocation(location), directoryUrl.fileName());
+    QCOMPARE(kiriview::windowTitleFileNameForImageLocation(
+                 location.imageUrl(), location.openedCollectionScope()),
+        directoryUrl.fileName());
 }
 
 void TestImageDocumentLocation::regularImagesDoNotResolveToZoomScopes()

@@ -103,7 +103,7 @@ void ImageOpenController::open()
 
     ImageLoadRequest request = std::move(*m_sourceLoadRequest);
     m_sourceLoadRequest.reset();
-    beginSourceLoad();
+    beginSourceLoad(request.sameScopePageNavigation());
     const ImageFirstDisplayDecodeContext firstDisplayContext = m_callbacks.firstDisplayDecodeContext
         ? m_callbacks.firstDisplayDecodeContext()
         : ImageFirstDisplayDecodeContext {};
@@ -138,12 +138,13 @@ void ImageOpenController::finishEmptySourceLoad()
         applyImageOpenApplicationPlan(m_state, ImageOpenWorkflow::finishEmptySourceLoadPlan()));
 }
 
-void ImageOpenController::beginSourceLoad()
+void ImageOpenController::beginSourceLoad(bool sameScopePageNavigation)
 {
     reportRuntimePlan(applyImageOpenApplicationPlan(m_state,
         ImageOpenWorkflow::beginSourceLoadPlan(ImageOpenBeginSourceLoadSnapshot {
             m_callbacks.hasCommittedImage && m_callbacks.hasCommittedImage(),
             !m_state.loadingContainerNavigationUrl().isEmpty(),
+            sameScopePageNavigation,
         })));
 }
 
@@ -156,9 +157,11 @@ void ImageOpenController::finishContainerNavigationLoadWithError(
     const QUrl& containerUrl, const QString& errorString)
 {
     cancel();
+    ImageDocumentSelectedTarget selectedTarget = m_state.selectedTarget();
+    selectedTarget.url = containerUrl;
     reportRuntimePlan(applyImageOpenApplicationPlan(m_state,
         ImageOpenWorkflow::finishContainerNavigationLoadWithErrorPlan(
-            containerUrl, openedCollectionOpenErrorMessage(errorString))));
+            std::move(selectedTarget), openedCollectionOpenErrorMessage(errorString))));
 }
 
 void ImageOpenController::finishSourcePrepared(ImageLoadSession session)

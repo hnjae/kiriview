@@ -80,7 +80,7 @@ public:
 
     void displayImage(const QUrl& url)
     {
-        state.setSourceUrl(url);
+        state.setSelectedTarget(kiriview::ImageDocumentSelectedTarget { url, {}, {} });
         state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromUrl(url));
         state.setStatus(kiriview::ImageDocumentStatus::Ready);
         spread.commitPrimaryPageSlot(state.displayedImageLocation(), testImage().size());
@@ -89,7 +89,8 @@ public:
     void displayComicPage(
         const QUrl& url, const kiriview::OpenedCollectionScopeLocation& archiveCollection)
     {
-        state.setSourceUrl(url);
+        state.setSelectedTarget(
+            kiriview::ImageDocumentSelectedTarget { url, {}, archiveCollection });
         state.setDisplayedImageLocation(
             kiriview::DisplayedImageLocation::fromOpenedCollectionScope(url, archiveCollection));
         state.setStatus(kiriview::ImageDocumentStatus::Ready);
@@ -176,7 +177,8 @@ void TestImageDocumentNavigationController::updatePageNavigationRequiresPresente
             imageDocumentPageCandidate(firstUrl),
             imageDocumentPageCandidate(secondUrl),
         });
-    fixture.state.setSourceUrl(firstUrl);
+    fixture.state.setSelectedTarget(
+        kiriview::ImageDocumentSelectedTarget { firstUrl, {}, *archiveCollection });
     fixture.state.setDisplayedImageLocation(
         kiriview::DisplayedImageLocation::fromOpenedCollectionScope(firstUrl, *archiveCollection));
 

@@ -60,8 +60,11 @@ void TestImageOpenSourceLoadWorkflow::currentSourceLoadUsesRuntimeSnapshotAndReq
     QVERIFY(hasOperationTypes(plan,
         operationTypes<kiriview::CancelFileDeletionOperation,
             kiriview::ClearLoadingContainerNavigationUrlOperation,
-            kiriview::SetContainerNavigationUrlOperation>()));
-    QCOMPARE(operationAt<kiriview::SetContainerNavigationUrlOperation>(plan, 2).url, containerUrl);
+            kiriview::SelectImageTargetOperation, kiriview::SetContainerNavigationUrlOperation>()));
+    QCOMPARE(
+        operationAt<kiriview::SelectImageTargetOperation>(plan, 2).target.openedCollectionScope,
+        request.openedCollectionScope());
+    QCOMPARE(operationAt<kiriview::SetContainerNavigationUrlOperation>(plan, 3).url, containerUrl);
 }
 
 void TestImageOpenSourceLoadWorkflow::displayedComicBookScopeSuppressesRightToLeftReadingReset()
@@ -89,9 +92,9 @@ void TestImageOpenSourceLoadWorkflow::displayedComicBookScopeSuppressesRightToLe
     QVERIFY(hasOperationTypes(plan,
         operationTypes<kiriview::CancelFileDeletionOperation,
             kiriview::ClearLoadingContainerNavigationUrlOperation,
-            kiriview::PrepareSourceLoadOperation, kiriview::SetSourceUrlOperation,
+            kiriview::PrepareSourceLoadOperation, kiriview::SelectImageTargetOperation,
             kiriview::BeginOpenOperation>()));
-    QCOMPARE(operationAt<kiriview::SetSourceUrlOperation>(plan, 3).target.url, imageUrl);
+    QCOMPARE(operationAt<kiriview::SelectImageTargetOperation>(plan, 3).target.url, imageUrl);
 
     request = kiriview::ImageDocumentSourceLoadRequest::fromExternalSource(
         kiriview::resolvedNavigationSource(replacementUrl, {}));
@@ -100,7 +103,8 @@ void TestImageOpenSourceLoadWorkflow::displayedComicBookScopeSuppressesRightToLe
         operationTypes<kiriview::CancelFileDeletionOperation,
             kiriview::ResetRightToLeftReadingOperation,
             kiriview::NotifyRightToLeftReadingChangedOperation,
-            kiriview::ClearLoadingContainerNavigationUrlOperation>()));
+            kiriview::ClearLoadingContainerNavigationUrlOperation,
+            kiriview::SelectImageTargetOperation>()));
 }
 
 void TestImageOpenSourceLoadWorkflow::sameScopeImageNavigationStartsOpenWithoutReplacementReset()
@@ -122,10 +126,10 @@ void TestImageOpenSourceLoadWorkflow::sameScopeImageNavigationStartsOpenWithoutR
     QVERIFY(hasOperationTypes(plan,
         operationTypes<kiriview::CancelFileDeletionOperation,
             kiriview::ClearLoadingContainerNavigationUrlOperation,
-            kiriview::PrepareSourceLoadOperation, kiriview::SetSourceUrlOperation,
+            kiriview::PrepareSourceLoadOperation, kiriview::SelectImageTargetOperation,
             kiriview::BeginOpenOperation>()));
-    QCOMPARE(operationAt<kiriview::SetSourceUrlOperation>(plan, 3).target.url, targetUrl);
-    QCOMPARE(operationAt<kiriview::SetSourceUrlOperation>(plan, 3).target.kind,
+    QCOMPARE(operationAt<kiriview::SelectImageTargetOperation>(plan, 3).target.url, targetUrl);
+    QCOMPARE(operationAt<kiriview::SelectImageTargetOperation>(plan, 3).target.kind,
         kiriview::ImageDocumentPageKind::Image);
 }
 
@@ -149,7 +153,7 @@ void TestImageOpenSourceLoadWorkflow::replacementSourceLoadStartsFreshRuntimeWor
             kiriview::CancelAllNavigationOperation, kiriview::CancelPredecodeOperation,
             kiriview::ResetRightToLeftReadingOperation, kiriview::ClearSecondaryPageOperation,
             kiriview::SetLoadingContainerNavigationUrlOperation,
-            kiriview::PrepareSourceLoadOperation, kiriview::SetSourceUrlOperation,
+            kiriview::PrepareSourceLoadOperation, kiriview::SelectImageTargetOperation,
             kiriview::BeginOpenOperation, kiriview::NotifyRightToLeftReadingChangedOperation>()));
 }
 
@@ -177,7 +181,7 @@ void TestImageOpenSourceLoadWorkflow::sourceLoadPlanResolvesRequestedRuntimePayl
             kiriview::CancelAllNavigationOperation, kiriview::CancelPredecodeOperation,
             kiriview::ClearSecondaryPageOperation,
             kiriview::SetLoadingContainerNavigationUrlOperation,
-            kiriview::PrepareSourceLoadOperation, kiriview::SetSourceUrlOperation,
+            kiriview::PrepareSourceLoadOperation, kiriview::SelectImageTargetOperation,
             kiriview::BeginOpenOperation>()));
     QCOMPARE(
         operationAt<kiriview::SetLoadingContainerNavigationUrlOperation>(replacementPlan, 4).url,
@@ -191,9 +195,9 @@ void TestImageOpenSourceLoadWorkflow::sourceLoadPlanResolvesRequestedRuntimePayl
     QCOMPARE(operationAt<kiriview::PrepareSourceLoadOperation>(replacementPlan, 5)
                  .request.containerNavigationUrl(),
         containerUrl);
-    QCOMPARE(
-        operationAt<kiriview::SetSourceUrlOperation>(replacementPlan, 6).target.url, sourceUrl);
-    QCOMPARE(operationAt<kiriview::SetSourceUrlOperation>(replacementPlan, 6).target.kind,
+    QCOMPARE(operationAt<kiriview::SelectImageTargetOperation>(replacementPlan, 6).target.url,
+        sourceUrl);
+    QCOMPARE(operationAt<kiriview::SelectImageTargetOperation>(replacementPlan, 6).target.kind,
         kiriview::ImageDocumentPageKind::Video);
 
     const kiriview::ImageDocumentSourceLoadSnapshot currentSnapshot {
@@ -203,7 +207,7 @@ void TestImageOpenSourceLoadWorkflow::sourceLoadPlanResolvesRequestedRuntimePayl
     };
     const kiriview::ImageDocumentRuntimePlan currentPlan
         = kiriview::ImageOpenWorkflow::sourceLoadPlan(currentSnapshot, request);
-    QCOMPARE(operationAt<kiriview::SetContainerNavigationUrlOperation>(currentPlan, 2).url,
+    QCOMPARE(operationAt<kiriview::SetContainerNavigationUrlOperation>(currentPlan, 3).url,
         containerUrl);
 }
 

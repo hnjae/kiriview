@@ -17,8 +17,7 @@
 namespace kiriview {
 struct ImageOpenResolvedStateDelta
 {
-    std::optional<QUrl> sourceUrl;
-    std::optional<ImageDocumentPageKind> sourceKind;
+    std::optional<ImageDocumentSelectedTarget> selectedTarget;
     std::optional<DisplayedImageLocation> displayedLocation;
     std::optional<QUrl> containerNavigationUrl;
     std::optional<bool> loading;

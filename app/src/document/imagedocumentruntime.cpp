@@ -392,7 +392,7 @@ bool ImageDocumentRuntime::ordinaryDirectMediaScopeActive() const
 
 bool ImageDocumentRuntime::openedCollectionScopeActive() const
 {
-    return !state.displayedOpenedCollectionScope().isEmpty();
+    return !state.selectedOpenedCollectionScope().isEmpty();
 }
 
 bool ImageDocumentRuntime::fileDeletionInProgress() const

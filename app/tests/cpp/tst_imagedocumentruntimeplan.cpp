@@ -56,9 +56,9 @@ void TestImageDocumentRuntimePlan::clearDeletedImagePlansDeletionClearAndEmptySo
         operationTypes<kiriview::ClearMediaEntrySourceOperation,
             kiriview::CancelAllNavigationOperation, kiriview::CancelPredecodeOperation,
             kiriview::CancelOpenOperation, kiriview::ClearSecondaryPageOperation,
-            kiriview::SetSourceUrlOperation, kiriview::SetErrorStringOperation,
+            kiriview::SelectImageTargetOperation, kiriview::SetErrorStringOperation,
             kiriview::FinishEmptySourceLoadOperation>()));
-    QVERIFY(operationAt<kiriview::SetSourceUrlOperation>(plan, 5).target.url.isEmpty());
+    QVERIFY(operationAt<kiriview::SelectImageTargetOperation>(plan, 5).target.url.isEmpty());
     QVERIFY(operationAt<kiriview::SetErrorStringOperation>(plan, 6).errorString.isEmpty());
 }
 
@@ -190,10 +190,11 @@ void TestImageDocumentRuntimePlan::operationTypeAssertionsCoverEveryRuntimeOpera
                     sourceUrl, kiriview::ImageDocumentPageKind::Image),
                 testScope(containerUrl)),
         },
-        kiriview::SetSourceUrlOperation {
-            kiriview::ImageDocumentPageTarget {
+        kiriview::SelectImageTargetOperation {
+            kiriview::ImageDocumentSelectedTarget {
                 sourceUrl,
                 kiriview::ImageDocumentPageKind::Image,
+                testScope(containerUrl),
             },
         },
         kiriview::BeginOpenOperation {},
@@ -220,7 +221,7 @@ void TestImageDocumentRuntimePlan::operationTypeAssertionsCoverEveryRuntimeOpera
             kiriview::ClearLoadingContainerNavigationUrlOperation,
             kiriview::SetLoadingContainerNavigationUrlOperation,
             kiriview::SetContainerNavigationUrlOperation, kiriview::PrepareSourceLoadOperation,
-            kiriview::SetSourceUrlOperation, kiriview::BeginOpenOperation,
+            kiriview::SelectImageTargetOperation, kiriview::BeginOpenOperation,
             kiriview::SetErrorStringOperation, kiriview::FinishEmptySourceLoadOperation>()));
 }
 

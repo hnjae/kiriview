@@ -23,6 +23,7 @@ struct ImageOpenBeginSourceLoadSnapshot
 {
     bool hasImage = false;
     bool hasLoadingContainerNavigationTarget = false;
+    bool sameScopePageNavigation = false;
 };
 
 struct ImageOpenSuccessfulImageLoadSnapshot
@@ -48,7 +49,7 @@ namespace ImageOpenWorkflow {
     ImageOpenApplicationPlan finishLoadWithErrorPlan(
         const ImageLoadSession& session, ImageLoadFailure failure);
     ImageOpenApplicationPlan finishContainerNavigationLoadWithErrorPlan(
-        const QUrl& containerUrl, const QString& errorString);
+        ImageDocumentSelectedTarget selectedTarget, const QString& errorString);
 }
 }
 

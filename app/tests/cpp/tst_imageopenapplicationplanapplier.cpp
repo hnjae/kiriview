@@ -14,6 +14,12 @@
 namespace {
 QUrl localUrl(const QString& path) { return QUrl::fromLocalFile(path); }
 
+kiriview::ImageDocumentSelectedTarget directTarget(
+    const QUrl& url, kiriview::ImageDocumentPageKind kind = kiriview::ImageDocumentPageKind::Image)
+{
+    return { url, kind, {} };
+}
+
 template <typename Operation> bool hasOperation(const kiriview::ImageDocumentRuntimePlan& plan)
 {
     for (const kiriview::ImageDocumentRuntimeOperation& operation : plan) {
@@ -46,7 +52,7 @@ void TestImageOpenApplicationPlanApplier::validPlanAppliesStateAndReturnsEffects
     state.setStatus(kiriview::ImageDocumentStatus::Loading);
 
     kiriview::ImageOpenApplicationPlan applicationPlan;
-    applicationPlan.stateDelta.sourceUrl = imageUrl;
+    applicationPlan.stateDelta.selectedTarget = directTarget(imageUrl);
     applicationPlan.stateDelta.displayedLocation
         = kiriview::DisplayedImageLocation::fromUrl(imageUrl);
     applicationPlan.stateDelta.containerNavigationUrl = QUrl();
@@ -71,7 +77,7 @@ void TestImageOpenApplicationPlanApplier::invalidReadyWithErrorPlanDoesNotMutate
     kiriview::ImageDocumentState state(
         [&changes](kiriview::ImageDocumentChange change) { changes.push_back(change); });
     const QUrl sourceUrl = localUrl(QStringLiteral("/images/current.png"));
-    state.setSourceUrl(sourceUrl);
+    state.setSelectedTarget(directTarget(sourceUrl));
     state.setLoading(true);
     state.setStatus(kiriview::ImageDocumentStatus::Loading);
     changes.clear();
@@ -101,14 +107,14 @@ void TestImageOpenApplicationPlanApplier::
         [&changes](kiriview::ImageDocumentChange change) { changes.push_back(change); });
     const QUrl sourceUrl = localUrl(QStringLiteral("/images/current.png"));
     const QUrl displayedUrl = localUrl(QStringLiteral("/images/displayed.png"));
-    state.setSourceUrl(sourceUrl);
+    state.setSelectedTarget(directTarget(sourceUrl));
     state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromUrl(displayedUrl));
     state.setStatus(kiriview::ImageDocumentStatus::Loading);
     state.setLoading(true);
     changes.clear();
 
     kiriview::ImageOpenApplicationPlan applicationPlan;
-    applicationPlan.stateDelta.sourceUrl = QUrl();
+    applicationPlan.stateDelta.selectedTarget = directTarget(QUrl());
     applicationPlan.stateDelta.loading = false;
     applicationPlan.stateDelta.status = kiriview::ImageDocumentStatus::Ready;
     applicationPlan.stateDelta.errorString = QString();
@@ -133,15 +139,15 @@ void TestImageOpenApplicationPlanApplier::
         [&changes](kiriview::ImageDocumentChange change) { changes.push_back(change); });
     const QUrl sourceUrl = localUrl(QStringLiteral("/images/current.png"));
     const QUrl videoUrl = localUrl(QStringLiteral("/archive/video.mp4"));
-    state.setSourceUrl(sourceUrl);
+    state.setSelectedTarget(directTarget(sourceUrl));
     state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromUrl(sourceUrl));
     state.setStatus(kiriview::ImageDocumentStatus::Loading);
     state.setLoading(true);
     changes.clear();
 
     kiriview::ImageOpenApplicationPlan applicationPlan;
-    applicationPlan.stateDelta.sourceUrl = videoUrl;
-    applicationPlan.stateDelta.sourceKind = kiriview::ImageDocumentPageKind::Video;
+    applicationPlan.stateDelta.selectedTarget
+        = directTarget(videoUrl, kiriview::ImageDocumentPageKind::Video);
     applicationPlan.stateDelta.displayedLocation
         = kiriview::DisplayedImageLocation::fromUrl(videoUrl);
     applicationPlan.stateDelta.loading = false;
@@ -171,14 +177,14 @@ void TestImageOpenApplicationPlanApplier::
     const QUrl sourceUrl = localUrl(QStringLiteral("/images/current.png"));
     const QUrl nextUrl = localUrl(QStringLiteral("/images/next.png"));
     const QUrl unrelatedContainerUrl = localUrl(QStringLiteral("/books/book.cbz"));
-    state.setSourceUrl(sourceUrl);
+    state.setSelectedTarget(directTarget(sourceUrl));
     state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromUrl(sourceUrl));
     state.setStatus(kiriview::ImageDocumentStatus::Loading);
     state.setLoading(true);
     changes.clear();
 
     kiriview::ImageOpenApplicationPlan applicationPlan;
-    applicationPlan.stateDelta.sourceUrl = nextUrl;
+    applicationPlan.stateDelta.selectedTarget = directTarget(nextUrl);
     applicationPlan.stateDelta.displayedLocation
         = kiriview::DisplayedImageLocation::fromUrl(nextUrl);
     applicationPlan.stateDelta.containerNavigationUrl = unrelatedContainerUrl;
@@ -207,7 +213,7 @@ void TestImageOpenApplicationPlanApplier::
         [&changes](kiriview::ImageDocumentChange change) { changes.push_back(change); });
     const QUrl sourceUrl = localUrl(QStringLiteral("/images/current.png"));
     const QUrl containerUrl = localUrl(QStringLiteral("/images/"));
-    state.setSourceUrl(sourceUrl);
+    state.setSelectedTarget(directTarget(sourceUrl));
     state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromUrl(sourceUrl));
     state.setStatus(kiriview::ImageDocumentStatus::Loading);
     state.setLoading(true);

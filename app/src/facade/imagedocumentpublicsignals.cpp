@@ -137,6 +137,8 @@ std::vector<ImageDocumentPublicSignal> imageDocumentPublicSignals(ImageDocumentC
     switch (change) {
     case ImageDocumentChange::SourceUrl:
         return { ImageDocumentPublicSignal::SourceUrl };
+    case ImageDocumentChange::SelectedTargetScope:
+        return { ImageDocumentPublicSignal::ImageDocumentSourceScope };
     case ImageDocumentChange::Status:
         return { ImageDocumentPublicSignal::Status, ImageDocumentPublicSignal::ZoomPercentKnown };
     case ImageDocumentChange::Loading:

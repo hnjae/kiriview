@@ -139,11 +139,13 @@ struct RecordedRuntimeOperations
                   secondaryUrl = request.containerNavigationUrl();
                   record(QStringLiteral("prepareSourceLoad"));
               };
-        operations.open.setSourceUrl = [this](const kiriview::ImageDocumentPageTarget& target) {
-            url = target.url;
-            kind = target.kind;
-            record(QStringLiteral("setSourceUrl"));
-        };
+        operations.open.selectImageTarget
+            = [this](const kiriview::SelectImageTargetOperation& operation) {
+                  url = operation.target.url;
+                  kind = operation.target.kind;
+                  secondaryUrl = operation.target.openedCollectionScope.fileUrl();
+                  record(QStringLiteral("selectImageTarget"));
+              };
         operations.sourceLoad.beginOpen = [this]() { record(QStringLiteral("beginOpen")); };
         operations.open.setErrorString = [this](const QString& message) {
             errorString = message;
@@ -217,7 +219,7 @@ void TestImageDocumentRuntimePlanExecutor::
             QStringLiteral("cancelPredecode"),
             QStringLiteral("cancelOpen"),
             QStringLiteral("clearSecondaryPage"),
-            QStringLiteral("setSourceUrl"),
+            QStringLiteral("selectImageTarget"),
             QStringLiteral("setErrorString"),
             QStringLiteral("finishEmptySourceLoad"),
         }));
@@ -368,10 +370,11 @@ void TestImageDocumentRuntimePlanExecutor::runtimePlansDispatchSourceLoadOperati
                     sourceUrl, kiriview::ImageDocumentPageKind::Image),
                 testScope(containerUrl)),
         },
-        kiriview::SetSourceUrlOperation {
-            kiriview::ImageDocumentPageTarget {
+        kiriview::SelectImageTargetOperation {
+            kiriview::ImageDocumentSelectedTarget {
                 sourceUrl,
                 kiriview::ImageDocumentPageKind::Video,
+                testScope(containerUrl),
             },
         },
         kiriview::BeginOpenOperation {},
@@ -389,13 +392,13 @@ void TestImageDocumentRuntimePlanExecutor::runtimePlansDispatchSourceLoadOperati
             QStringLiteral("setLoadingContainerNavigationUrl"),
             QStringLiteral("setContainerNavigationUrl"),
             QStringLiteral("prepareSourceLoad"),
-            QStringLiteral("setSourceUrl"),
+            QStringLiteral("selectImageTarget"),
             QStringLiteral("beginOpen"),
             QStringLiteral("notifyRightToLeftReadingChanged"),
         }));
     QCOMPARE(recorded.url, sourceUrl);
     QCOMPARE(recorded.kind, kiriview::ImageDocumentPageKind::Video);
-    QVERIFY(recorded.secondaryUrl.isEmpty());
+    QCOMPARE(recorded.secondaryUrl, containerUrl);
 }
 
 void TestImageDocumentRuntimePlanExecutor::runtimePlansDispatchEveryOperationExplicitly()
@@ -469,10 +472,11 @@ void TestImageDocumentRuntimePlanExecutor::runtimePlansDispatchEveryOperationExp
                     sourceUrl, kiriview::ImageDocumentPageKind::Image),
                 testScope(containerUrl)),
         },
-        kiriview::SetSourceUrlOperation {
-            kiriview::ImageDocumentPageTarget {
+        kiriview::SelectImageTargetOperation {
+            kiriview::ImageDocumentSelectedTarget {
                 sourceUrl,
                 kiriview::ImageDocumentPageKind::Image,
+                testScope(containerUrl),
             },
         },
         kiriview::BeginOpenOperation {},
@@ -510,7 +514,7 @@ void TestImageDocumentRuntimePlanExecutor::runtimePlansDispatchEveryOperationExp
             QStringLiteral("setLoadingContainerNavigationUrl"),
             QStringLiteral("setContainerNavigationUrl"),
             QStringLiteral("prepareSourceLoad"),
-            QStringLiteral("setSourceUrl"),
+            QStringLiteral("selectImageTarget"),
             QStringLiteral("beginOpen"),
             QStringLiteral("setErrorString"),
             QStringLiteral("finishEmptySourceLoad"),

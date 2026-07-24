@@ -3,6 +3,7 @@
 
 #include "imageopenworkflow.h"
 
+#include "imagedocumentsourceloadscope.h"
 #include "location/imagedocumentlocation.h"
 
 #include <iterator>
@@ -27,12 +28,20 @@ void appendClearImage(ImageDocumentRuntimePlan& plan)
         std::make_move_iterator(clearPlan.end()));
 }
 
+ImageDocumentSelectedTarget selectedTargetForSession(const ImageLoadSession& session)
+{
+    return {
+        session.imageUrl(),
+        session.kind(),
+        session.location().openedCollectionScope(),
+    };
+}
+
 ImageOpenApplicationPlan openedCollectionVideoPlan(
     const ImageLoadSession& session, bool unsupported)
 {
     ImageOpenApplicationPlan plan;
-    plan.stateDelta.sourceUrl = session.imageUrl();
-    plan.stateDelta.sourceKind = session.kind();
+    plan.stateDelta.selectedTarget = selectedTargetForSession(session);
     plan.stateDelta.displayedLocation = session.location();
     plan.stateDelta.containerNavigationUrl = containerNavigationUrlForLocation(session.location());
     plan.stateDelta.loading = false;
@@ -50,7 +59,7 @@ ImageOpenApplicationPlan successfulImageLoadPlan(ImageOpenSuccessfulImageLoadSna
     const ImageLoadSession& session, std::optional<EmbeddedMetadata> metadata)
 {
     ImageOpenApplicationPlan plan;
-    plan.stateDelta.sourceUrl = session.imageUrl();
+    plan.stateDelta.selectedTarget = selectedTargetForSession(session);
     plan.stateDelta.displayedLocation = session.location();
     plan.stateDelta.containerNavigationUrl = snapshot.hasRequestContainerNavigationTarget
         ? session.containerNavigationUrl()
@@ -81,6 +90,13 @@ ImageDocumentRuntimePlan sourceLoadPlan(
             plan.emplace_back(NotifyRightToLeftReadingChangedOperation {});
         }
         plan.emplace_back(ClearLoadingContainerNavigationUrlOperation {});
+        plan.emplace_back(SelectImageTargetOperation {
+            ImageDocumentSelectedTarget {
+                request.sourceUrl(),
+                request.sourceKind(),
+                openedCollectionScopeForImageDocumentSourceLoad(request),
+            },
+        });
         if (!request.containerNavigationUrl().isEmpty()) {
             plan.emplace_back(
                 SetContainerNavigationUrlOperation { request.containerNavigationUrl() });
@@ -95,8 +111,13 @@ ImageDocumentRuntimePlan sourceLoadPlan(
         }
         plan.emplace_back(ClearLoadingContainerNavigationUrlOperation {});
         plan.emplace_back(PrepareSourceLoadOperation { request });
-        plan.emplace_back(SetSourceUrlOperation {
-            ImageDocumentPageTarget { request.sourceUrl(), request.sourceKind() } });
+        plan.emplace_back(SelectImageTargetOperation {
+            ImageDocumentSelectedTarget {
+                request.sourceUrl(),
+                request.sourceKind(),
+                openedCollectionScopeForImageDocumentSourceLoad(request),
+            },
+        });
         plan.emplace_back(BeginOpenOperation {});
         return plan;
     }
@@ -110,8 +131,13 @@ ImageDocumentRuntimePlan sourceLoadPlan(
     plan.emplace_back(
         SetLoadingContainerNavigationUrlOperation { request.containerNavigationUrl() });
     plan.emplace_back(PrepareSourceLoadOperation { request });
-    plan.emplace_back(SetSourceUrlOperation {
-        ImageDocumentPageTarget { request.sourceUrl(), request.sourceKind() } });
+    plan.emplace_back(SelectImageTargetOperation {
+        ImageDocumentSelectedTarget {
+            request.sourceUrl(),
+            request.sourceKind(),
+            openedCollectionScopeForImageDocumentSourceLoad(request),
+        },
+    });
     plan.emplace_back(BeginOpenOperation {});
     if (resetReading) {
         plan.emplace_back(NotifyRightToLeftReadingChangedOperation {});
@@ -130,7 +156,7 @@ ImageOpenApplicationPlan beginSourceLoadPlan(ImageOpenBeginSourceLoadSnapshot sn
     }
     plan.stateDelta.loading = true;
     plan.stateDelta.status = ImageDocumentStatus::Loading;
-    if (snapshot.hasImage) {
+    if (snapshot.hasImage || snapshot.sameScopePageNavigation) {
         plan.runtimePlan.emplace_back(ClearPresentationImageOperation {});
     } else {
         appendClearImage(plan.runtimePlan);
@@ -155,8 +181,7 @@ ImageOpenApplicationPlan finishEmptySourceLoadPlan()
 ImageOpenApplicationPlan resolveSourceImagePlan(const ImageLoadSession& session)
 {
     ImageOpenApplicationPlan plan;
-    plan.stateDelta.sourceUrl = session.imageUrl();
-    plan.stateDelta.sourceKind = session.kind();
+    plan.stateDelta.selectedTarget = selectedTargetForSession(session);
     return plan;
 }
 
@@ -198,7 +223,9 @@ ImageOpenApplicationPlan finishLoadWithErrorPlan(
     if (session.hasContainerNavigationTarget()) {
         appendClearImage(plan.runtimePlan);
         plan.stateDelta.containerNavigationUrl = session.containerNavigationUrl();
-        plan.stateDelta.sourceUrl = session.containerNavigationUrl();
+        ImageDocumentSelectedTarget selectedTarget = selectedTargetForSession(session);
+        selectedTarget.url = session.containerNavigationUrl();
+        plan.stateDelta.selectedTarget = std::move(selectedTarget);
     } else {
         plan.stateDelta.containerNavigationUrl = QUrl();
         plan.stateDelta.embeddedMetadata = EmbeddedMetadata {};
@@ -207,12 +234,12 @@ ImageOpenApplicationPlan finishLoadWithErrorPlan(
 }
 
 ImageOpenApplicationPlan finishContainerNavigationLoadWithErrorPlan(
-    const QUrl& containerUrl, const QString& errorString)
+    ImageDocumentSelectedTarget selectedTarget, const QString& errorString)
 {
     ImageOpenApplicationPlan plan;
     appendClearImage(plan.runtimePlan);
-    plan.stateDelta.sourceUrl = containerUrl;
-    plan.stateDelta.containerNavigationUrl = containerUrl;
+    plan.stateDelta.containerNavigationUrl = selectedTarget.url;
+    plan.stateDelta.selectedTarget = std::move(selectedTarget);
     plan.stateDelta.loading = false;
     plan.stateDelta.status = ImageDocumentStatus::Error;
     plan.stateDelta.errorString = errorString;

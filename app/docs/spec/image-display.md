@@ -6,6 +6,8 @@ The UI remains responsive while a selected image is being opened.
 
 When an image target is selected, KiriView immediately clears any previously displayed image. If the target is ready within 150 milliseconds, it appears without an intervening loading state. Otherwise the empty image viewport shows the loading state until the target is ready.
 
+While the selected image target is loading or showing its target-specific error, the window title identifies that selected file or collection. Collection-specific toolbar controls remain placed when the selected target remains in that collection, but controls that require a ready displayed image stay disabled until the matching target is ready.
+
 If no media item is selected, the empty state says that no file is selected and offers Open.
 
 If the selected image cannot be opened while no media item is displayed, the error state explains that the selected file or URL could not be opened, shows the underlying error when available, and offers Open. Initial video failures use the stable video error behavior defined in [Video Playback](video-playback.md#source-url-identity) and also offer Open.

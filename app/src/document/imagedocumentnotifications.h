@@ -9,8 +9,6 @@
 #include <vector>
 
 namespace kiriview {
-std::vector<ImageDocumentChange> imageDocumentDisplayedLocationNotifications(
-    bool displayedUrlChanged, bool windowTitleFileNameChanged);
 std::vector<ImageDocumentChange> imageDocumentTwoPageModeNotifications();
 std::vector<ImageDocumentChange> imageDocumentRightToLeftReadingNotifications(
     bool secondaryPageVisible);

@@ -34,8 +34,8 @@ bool ImageDocumentOpenRuntimePlanExecutor::dispatchOperation(
         run(m_operations.clearPresentationImage);
         return true;
     }
-    if (const auto* payload = std::get_if<SetSourceUrlOperation>(&operation)) {
-        run(m_operations.setSourceUrl, payload->target);
+    if (const auto* payload = std::get_if<SelectImageTargetOperation>(&operation)) {
+        run(m_operations.selectImageTarget, *payload);
         return true;
     }
     if (const auto* payload = std::get_if<SetErrorStringOperation>(&operation)) {

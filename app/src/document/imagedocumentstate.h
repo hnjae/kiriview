@@ -17,6 +17,20 @@
 #include <optional>
 
 namespace kiriview {
+struct ImageDocumentSelectedTarget
+{
+    QUrl url;
+    ImageDocumentPageKind kind = ImageDocumentPageKind::Image;
+    OpenedCollectionScopeLocation openedCollectionScope;
+
+    friend bool operator==(
+        const ImageDocumentSelectedTarget& left, const ImageDocumentSelectedTarget& right)
+    {
+        return left.url == right.url && left.kind == right.kind
+            && left.openedCollectionScope == right.openedCollectionScope;
+    }
+};
+
 class ImageDocumentState
 {
 public:
@@ -28,8 +42,10 @@ public:
 
     ChangeBatch beginChangeBatch();
 
+    [[nodiscard]] const ImageDocumentSelectedTarget& selectedTarget() const;
     [[nodiscard]] const QUrl& sourceUrl() const;
     [[nodiscard]] ImageDocumentPageKind sourceKind() const;
+    [[nodiscard]] const OpenedCollectionScopeLocation& selectedOpenedCollectionScope() const;
     [[nodiscard]] const DisplayedImageLocation& displayedImageLocation() const;
     [[nodiscard]] const OpenedCollectionScopeLocation& displayedOpenedCollectionScope() const;
     [[nodiscard]] const QUrl& displayedUrl() const;
@@ -44,8 +60,7 @@ public:
     [[nodiscard]] bool unsupportedOpenedCollectionVideo() const;
     [[nodiscard]] const EmbeddedMetadata& embeddedMetadata() const;
 
-    void setSourceUrl(const QUrl& sourceUrl);
-    void setSourceKind(ImageDocumentPageKind sourceKind);
+    void setSelectedTarget(ImageDocumentSelectedTarget target);
     void setDisplayedImageLocation(const DisplayedImageLocation& location);
     void clearDisplayedImageLocation();
     void setStatus(ImageDocumentStatus status);
@@ -64,8 +79,7 @@ private:
 
     std::unique_ptr<ImageDocumentChangeBatcher> m_ownedChanges;
     ImageDocumentChangeBatcher* m_changes = nullptr;
-    QUrl m_sourceUrl;
-    ImageDocumentPageKind m_sourceKind = ImageDocumentPageKind::Image;
+    ImageDocumentSelectedTarget m_selectedTarget;
     DisplayedImageLocation m_displayedImageLocation;
     ImageDocumentStatus m_status = ImageDocumentStatus::Null;
     bool m_loading = false;

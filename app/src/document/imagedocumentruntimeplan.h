@@ -5,6 +5,7 @@
 #define KIRIVIEW_IMAGEDOCUMENTRUNTIMEPLAN_H
 
 #include "imagedocumentsourceloadrequest.h"
+#include "imagedocumentstate.h"
 #include "imagedocumenttypes.h"
 #include "navigation/imagedocumentpagenavigationtypes.h"
 
@@ -115,9 +116,9 @@ struct PrepareSourceLoadOperation
 {
     ImageDocumentSourceLoadRequest request;
 };
-struct SetSourceUrlOperation
+struct SelectImageTargetOperation
 {
-    ImageDocumentPageTarget target;
+    ImageDocumentSelectedTarget target;
 };
 struct BeginOpenOperation
 {
@@ -142,7 +143,7 @@ using ImageDocumentRuntimeOperation = std::variant<CancelFileDeletionOperation,
     ReportContainerNavigationListFailureOperation, LoadPageNavigationUrlOperation,
     CancelOpenOperation, ClearPresentationImageOperation,
     ClearLoadingContainerNavigationUrlOperation, SetLoadingContainerNavigationUrlOperation,
-    SetContainerNavigationUrlOperation, PrepareSourceLoadOperation, SetSourceUrlOperation,
+    SetContainerNavigationUrlOperation, PrepareSourceLoadOperation, SelectImageTargetOperation,
     BeginOpenOperation, SetErrorStringOperation, FinishEmptySourceLoadOperation>;
 
 using ImageDocumentRuntimePlan = std::vector<ImageDocumentRuntimeOperation>;

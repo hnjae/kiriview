@@ -21,6 +21,18 @@ namespace {
 using kiriview::TestSupport::archivePageUrl;
 using kiriview::TestSupport::localUrl;
 
+kiriview::ImageDocumentSelectedTarget directTarget(
+    const QUrl& url, kiriview::ImageDocumentPageKind kind = kiriview::ImageDocumentPageKind::Image)
+{
+    return { url, kind, {} };
+}
+
+void selectDirectTarget(kiriview::ImageDocumentState& state, const QUrl& url,
+    kiriview::ImageDocumentPageKind kind = kiriview::ImageDocumentPageKind::Image)
+{
+    state.setSelectedTarget(directTarget(url, kind));
+}
+
 kiriview::ImageLoadSession loadSession(const QUrl& sourceUrl, const QUrl& imageUrl,
     const kiriview::OpenedCollectionScopeLocation& archiveCollection
     = kiriview::OpenedCollectionScopeLocation::none(),
@@ -135,9 +147,11 @@ kiriview::ImageDocumentRuntimePlan finishLoadWithError(kiriview::ImageDocumentSt
 kiriview::ImageDocumentRuntimePlan finishContainerNavigationLoadWithError(
     kiriview::ImageDocumentState& state, const QUrl& containerUrl, const QString& errorString)
 {
+    kiriview::ImageDocumentSelectedTarget selectedTarget = state.selectedTarget();
+    selectedTarget.url = containerUrl;
     return kiriview::applyImageOpenApplicationPlan(state,
         kiriview::ImageOpenWorkflow::finishContainerNavigationLoadWithErrorPlan(
-            containerUrl, errorString));
+            std::move(selectedTarget), errorString));
 }
 
 }
@@ -192,6 +206,15 @@ void TestImageOpenWorkflow::applicationPlansUseExplicitInputs()
     QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(replacementLoad.runtimePlan));
     QVERIFY(!hasOperation<kiriview::ClearPageNavigationOperation>(replacementLoad.runtimePlan));
 
+    const kiriview::ImageOpenApplicationPlan pendingPageNavigationLoad
+        = kiriview::ImageOpenWorkflow::beginSourceLoadPlan(
+            kiriview::ImageOpenBeginSourceLoadSnapshot { false, false, true });
+    QCOMPARE(pendingPageNavigationLoad.runtimePlan.size(), std::size_t(1));
+    QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(
+        pendingPageNavigationLoad.runtimePlan));
+    QVERIFY(!hasOperation<kiriview::ClearPageNavigationOperation>(
+        pendingPageNavigationLoad.runtimePlan));
+
     const QUrl imageUrl = localUrl(QStringLiteral("/images/missing.png"));
     const kiriview::ImageLoadSession session = loadSession(imageUrl, imageUrl);
     kiriview::ImageLoadFailure failure { imageUrl, session.id(),
@@ -200,7 +223,7 @@ void TestImageOpenWorkflow::applicationPlansUseExplicitInputs()
         QStringLiteral("missing"), kiriview::ImageLoadFailureSeverity::Error, false };
     const kiriview::ImageOpenApplicationPlan replacementFailure
         = kiriview::ImageOpenWorkflow::finishLoadWithErrorPlan(session, std::move(failure));
-    QVERIFY(!replacementFailure.stateDelta.sourceUrl.has_value());
+    QVERIFY(!replacementFailure.stateDelta.selectedTarget.has_value());
     QCOMPARE(replacementFailure.stateDelta.status,
         std::optional<kiriview::ImageDocumentStatus>(kiriview::ImageDocumentStatus::Error));
     QVERIFY(!hasOperation<kiriview::UpdatePageNavigationOperation>(replacementFailure.runtimePlan));
@@ -215,7 +238,7 @@ void TestImageOpenWorkflow::sourceResolutionUsesCanonicalSessionImageUrl()
             kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
     const QUrl imageUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png"));
-    state.setSourceUrl(archiveUrl);
+    selectDirectTarget(state, archiveUrl);
     state.setLoading(true);
     state.setStatus(kiriview::ImageDocumentStatus::Loading);
 
@@ -233,7 +256,7 @@ void TestImageOpenWorkflow::sourceResolutionTracksSessionSourceKind()
 {
     kiriview::ImageDocumentState state;
     const QUrl videoUrl = localUrl(QStringLiteral("/videos/clip.mp4"));
-    state.setSourceUrl(videoUrl);
+    selectDirectTarget(state, videoUrl);
     state.setLoading(true);
     state.setStatus(kiriview::ImageDocumentStatus::Loading);
 
@@ -334,7 +357,7 @@ void TestImageOpenWorkflow::firstImageLoadSuccessTransitionsToReady()
 {
     kiriview::ImageDocumentState state;
     const QUrl imageUrl = localUrl(QStringLiteral("/images/page.png"));
-    state.setSourceUrl(imageUrl);
+    selectDirectTarget(state, imageUrl);
 
     const kiriview::ImageDocumentRuntimePlan beginPlan = beginSourceLoad(state, false);
     QVERIFY(hasOperation<kiriview::ClearMediaEntrySourceOperation>(beginPlan));
@@ -383,7 +406,7 @@ void TestImageOpenWorkflow::directArchiveImageLoadSuccessDisablesContainerNaviga
     QVERIFY(archiveCollection.has_value());
     const QUrl imageUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png"));
 
-    state.setSourceUrl(archiveUrl);
+    selectDirectTarget(state, archiveUrl);
 
     const kiriview::ImageDocumentRuntimePlan successPlan
         = finishSuccessfulImageLoad(state, loadSession(archiveUrl, imageUrl, *archiveCollection));
@@ -401,7 +424,7 @@ void TestImageOpenWorkflow::replacementLoadFailureSelectsTargetError()
 {
     kiriview::ImageDocumentState state;
     const QUrl replacementUrl = localUrl(QStringLiteral("/images/missing.png"));
-    state.setSourceUrl(replacementUrl);
+    selectDirectTarget(state, replacementUrl);
     state.setLoading(true);
     state.setStatus(kiriview::ImageDocumentStatus::Loading);
 
@@ -459,7 +482,7 @@ void TestImageOpenWorkflow::routedLoadFailureAppliesErrorTransitions()
 
     {
         kiriview::ImageDocumentState state;
-        state.setSourceUrl(localUrl(QStringLiteral("/images/missing.png")));
+        selectDirectTarget(state, localUrl(QStringLiteral("/images/missing.png")));
         state.setLoading(true);
         state.setStatus(kiriview::ImageDocumentStatus::Loading);
         const kiriview::ImageDocumentRuntimePlan plan
@@ -565,7 +588,7 @@ void TestImageOpenWorkflow::workflowTransitionsClearUnsupportedOpenedCollectionV
     {
         kiriview::ImageDocumentState state;
         state.setUnsupportedOpenedCollectionVideo(true);
-        state.setSourceUrl(localUrl(QStringLiteral("/images/missing.png")));
+        selectDirectTarget(state, localUrl(QStringLiteral("/images/missing.png")));
         state.setLoading(true);
         state.setStatus(kiriview::ImageDocumentStatus::Loading);
 
@@ -616,7 +639,7 @@ void TestImageOpenWorkflow::workflowTransitionsClearEmbeddedMetadata()
     {
         kiriview::ImageDocumentState state;
         publishMetadata(state);
-        state.setSourceUrl(localUrl(QStringLiteral("/images/missing.png")));
+        selectDirectTarget(state, localUrl(QStringLiteral("/images/missing.png")));
         state.setLoading(true);
         state.setStatus(kiriview::ImageDocumentStatus::Loading);
 
@@ -673,8 +696,8 @@ void TestImageOpenWorkflow::stateChangesFollowWorkflowDeltaOrder()
 
         QCOMPARE(changes.size(), std::size_t(4));
         QCOMPARE(changes.at(0), kiriview::ImageDocumentChange::SourceUrl);
-        QCOMPARE(changes.at(1), kiriview::ImageDocumentChange::DisplayedUrl);
-        QCOMPARE(changes.at(2), kiriview::ImageDocumentChange::WindowTitleFileName);
+        QCOMPARE(changes.at(1), kiriview::ImageDocumentChange::WindowTitleFileName);
+        QCOMPARE(changes.at(2), kiriview::ImageDocumentChange::DisplayedUrl);
         QCOMPARE(changes.at(3), kiriview::ImageDocumentChange::Status);
     }
 
@@ -683,7 +706,7 @@ void TestImageOpenWorkflow::stateChangesFollowWorkflowDeltaOrder()
         kiriview::ImageDocumentState state(
             [&changes](kiriview::ImageDocumentChange change) { changes.push_back(change); });
         const QUrl replacementUrl = localUrl(QStringLiteral("/images/missing.png"));
-        state.setSourceUrl(replacementUrl);
+        selectDirectTarget(state, replacementUrl);
         state.setLoading(true);
         state.setStatus(kiriview::ImageDocumentStatus::Loading);
         changes.clear();

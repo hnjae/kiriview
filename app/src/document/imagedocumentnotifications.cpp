@@ -4,19 +4,6 @@
 #include "imagedocumentnotifications.h"
 
 namespace kiriview {
-std::vector<ImageDocumentChange> imageDocumentDisplayedLocationNotifications(
-    bool displayedUrlChanged, bool windowTitleFileNameChanged)
-{
-    std::vector<ImageDocumentChange> changes;
-    if (displayedUrlChanged) {
-        changes.push_back(ImageDocumentChange::DisplayedUrl);
-    }
-    if (windowTitleFileNameChanged) {
-        changes.push_back(ImageDocumentChange::WindowTitleFileName);
-    }
-    return changes;
-}
-
 std::vector<ImageDocumentChange> imageDocumentTwoPageModeNotifications()
 {
     return { ImageDocumentChange::TwoPageMode };

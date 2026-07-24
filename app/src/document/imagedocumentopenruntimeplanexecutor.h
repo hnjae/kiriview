@@ -14,7 +14,7 @@ struct ImageDocumentOpenRuntimeOperations
 {
     std::function<void()> cancelOpen;
     std::function<void()> clearPresentationImage;
-    std::function<void(const ImageDocumentPageTarget&)> setSourceUrl;
+    std::function<void(const SelectImageTargetOperation&)> selectImageTarget;
     std::function<void(const QString&)> setErrorString;
     std::function<void()> finishEmptySourceLoad;
 };

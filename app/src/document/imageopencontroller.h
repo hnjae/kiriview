@@ -69,7 +69,7 @@ public:
         const QUrl& containerUrl, const QString& errorString);
 
 private:
-    void beginSourceLoad();
+    void beginSourceLoad(bool sameScopePageNavigation);
     void finishSourcePrepared(ImageLoadSession session);
     void finishUnsupportedOpenedCollectionVideoLoad(ImageLoadSession session);
     void finishPlayableOpenedCollectionVideoLoad(ImageLoadSession session);

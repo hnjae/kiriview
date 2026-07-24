@@ -23,7 +23,7 @@ class TestImageDocumentSourceLoadScope : public QObject
 private Q_SLOTS:
     void directlyOpenedArchiveResolvesOpenedCollectionScope();
     void containerNavigationRestoresScopeForInteriorImage();
-    void displayedScopeIsKeptForInteriorImage();
+    void sameScopeRequestCarriesScopeForInteriorImage();
     void ordinaryImageResolvesEmptyScope();
 };
 
@@ -38,8 +38,7 @@ void TestImageDocumentSourceLoadScope::directlyOpenedArchiveResolvesOpenedCollec
     const kiriview::OpenedCollectionScopeLocation scope
         = kiriview::openedCollectionScopeForImageDocumentSourceLoad(
             kiriview::ImageDocumentSourceLoadRequest::fromExternalSource(
-                kiriview::resolvedNavigationSource(archiveUrl, {})),
-            kiriview::OpenedCollectionScopeLocation::none());
+                kiriview::resolvedNavigationSource(archiveUrl, {})));
 
     QCOMPARE(scope.fileUrl(), archiveCollection->fileUrl());
     QCOMPARE(scope.rootUrl(), archiveCollection->rootUrl());
@@ -59,14 +58,13 @@ void TestImageDocumentSourceLoadScope::containerNavigationRestoresScopeForInteri
         = kiriview::openedCollectionScopeForImageDocumentSourceLoad(
             kiriview::ImageDocumentSourceLoadRequest::fromContainerTarget(
                 kiriview::ImageDocumentPageTarget(imageUrl, kiriview::ImageDocumentPageKind::Image),
-                *archiveCollection),
-            kiriview::OpenedCollectionScopeLocation::none());
+                *archiveCollection));
 
     QCOMPARE(scope.fileUrl(), archiveCollection->fileUrl());
     QCOMPARE(scope.rootUrl(), archiveCollection->rootUrl());
 }
 
-void TestImageDocumentSourceLoadScope::displayedScopeIsKeptForInteriorImage()
+void TestImageDocumentSourceLoadScope::sameScopeRequestCarriesScopeForInteriorImage()
 {
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
@@ -79,8 +77,7 @@ void TestImageDocumentSourceLoadScope::displayedScopeIsKeptForInteriorImage()
         = kiriview::openedCollectionScopeForImageDocumentSourceLoad(
             kiriview::ImageDocumentSourceLoadRequest::fromSameScopePageTarget(
                 kiriview::ImageDocumentPageTarget(imageUrl, kiriview::ImageDocumentPageKind::Image),
-                *archiveCollection),
-            *archiveCollection);
+                *archiveCollection));
 
     QCOMPARE(scope.fileUrl(), archiveCollection->fileUrl());
     QCOMPARE(scope.rootUrl(), archiveCollection->rootUrl());
@@ -91,8 +88,8 @@ void TestImageDocumentSourceLoadScope::ordinaryImageResolvesEmptyScope()
     const kiriview::OpenedCollectionScopeLocation scope
         = kiriview::openedCollectionScopeForImageDocumentSourceLoad(
             kiriview::ImageDocumentSourceLoadRequest::fromExternalSource(
-                kiriview::resolvedNavigationSource(localUrl(QStringLiteral("/images/01.png")), {})),
-            kiriview::OpenedCollectionScopeLocation::none());
+                kiriview::resolvedNavigationSource(
+                    localUrl(QStringLiteral("/images/01.png")), {})));
 
     QVERIFY(scope.isEmpty());
 }

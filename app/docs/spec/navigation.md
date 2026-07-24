@@ -76,6 +76,8 @@ When moving between items in the current scope, the page navigation controls kee
 
 The current page number updates to the newly selected item, and the known total item count remains visible while KiriView prepares and commits the selected media item.
 
+Collection-specific toolbar controls follow the selected target's collection scope during loading. They do not disappear merely because the selected image has not yet become the displayed image.
+
 ## Adjacent Media
 
 When an ordinary direct image or video is open, Page Up opens the previous supported media file in the same ordinary direct media URL scope and Page Down opens the next one.

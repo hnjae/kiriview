@@ -22,7 +22,7 @@ class TestImageDocumentState : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
-    void displayedUrlAndWindowTitleFollowDisplayedImageLocation();
+    void selectedTargetAndDisplayedLocationRemainIndependent();
     void displayedImageLocationUsesCanonicalIdentity();
     void containerNavigationAvailabilityFollowsContainerUrl();
     void statusAndLoadingReducersOnlyNotifyWhenChanged();
@@ -31,7 +31,7 @@ private Q_SLOTS:
     void injectedChangeBatchSharesStateAndRuntimeNotifications();
 };
 
-void TestImageDocumentState::displayedUrlAndWindowTitleFollowDisplayedImageLocation()
+void TestImageDocumentState::selectedTargetAndDisplayedLocationRemainIndependent()
 {
     std::vector<kiriview::ImageDocumentChange> changes;
     kiriview::ImageDocumentState state(
@@ -40,10 +40,19 @@ void TestImageDocumentState::displayedUrlAndWindowTitleFollowDisplayedImageLocat
     const QUrl localImageUrl = localUrl(QStringLiteral("/images/page.png"));
     const kiriview::DisplayedImageLocation localLocation
         = kiriview::DisplayedImageLocation::fromUrl(localImageUrl);
+    state.setSelectedTarget(kiriview::ImageDocumentSelectedTarget {
+        localImageUrl,
+        kiriview::ImageDocumentPageKind::Image,
+        {},
+    });
+    QCOMPARE(state.sourceUrl(), localImageUrl);
+    QCOMPARE(state.windowTitleFileName(), QStringLiteral("page.png"));
+    QCOMPARE(changes.back(), kiriview::ImageDocumentChange::WindowTitleFileName);
+
     state.setDisplayedImageLocation(localLocation);
     QCOMPARE(state.displayedUrl(), localImageUrl);
     QCOMPARE(state.windowTitleFileName(), QStringLiteral("page.png"));
-    QCOMPARE(changes.back(), kiriview::ImageDocumentChange::WindowTitleFileName);
+    QCOMPARE(changes.back(), kiriview::ImageDocumentChange::DisplayedUrl);
     const std::size_t localChangeCount = changes.size();
     state.setDisplayedImageLocation(localLocation);
     QCOMPARE(changes.size(), localChangeCount);
@@ -55,11 +64,17 @@ void TestImageDocumentState::displayedUrlAndWindowTitleFollowDisplayedImageLocat
     QVERIFY(archiveCollection.has_value());
     const QUrl firstArchivePageUrl
         = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("page001.png"));
+    state.setSelectedTarget(kiriview::ImageDocumentSelectedTarget {
+        firstArchivePageUrl,
+        kiriview::ImageDocumentPageKind::Image,
+        *archiveCollection,
+    });
+    QCOMPARE(state.selectedOpenedCollectionScope(), *archiveCollection);
+    QCOMPARE(state.windowTitleFileName(), QStringLiteral("book.cbz"));
     state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
         firstArchivePageUrl, *archiveCollection));
     QCOMPARE(state.displayedUrl(), firstArchivePageUrl);
     QCOMPARE(state.windowTitleFileName(), QStringLiteral("book.cbz"));
-    QCOMPARE(changes.back(), kiriview::ImageDocumentChange::WindowTitleFileName);
 
     const std::size_t changeCount = changes.size();
     const QUrl secondArchivePageUrl
@@ -73,6 +88,12 @@ void TestImageDocumentState::displayedUrlAndWindowTitleFollowDisplayedImageLocat
 
     state.clearDisplayedImageLocation();
     QCOMPARE(state.displayedUrl(), QUrl());
+    QCOMPARE(state.windowTitleFileName(), QStringLiteral("book.cbz"));
+    QCOMPARE(changes.back(), kiriview::ImageDocumentChange::DisplayedUrl);
+
+    state.setSelectedTarget({});
+    QCOMPARE(state.sourceUrl(), QUrl());
+    QVERIFY(state.selectedOpenedCollectionScope().isEmpty());
     QCOMPARE(state.windowTitleFileName(), QString());
     QCOMPARE(changes.back(), kiriview::ImageDocumentChange::WindowTitleFileName);
 }
