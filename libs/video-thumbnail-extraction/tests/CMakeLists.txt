@@ -28,3 +28,10 @@ add_video_thumbnail_extraction_test(video_thumbnail_extraction_contract
                                     tst_videothumbnailextraction_contract.cpp)
 add_video_thumbnail_extraction_test(video_thumbnail_extraction_lifecycle
                                     tst_videothumbnailextraction_lifecycle.cpp)
+
+add_executable(video_thumbnail_extraction_qt_adapter tst_qtmultimediathumbnailbackend.cpp)
+target_link_libraries(video_thumbnail_extraction_qt_adapter PRIVATE VideoThumbnailExtraction
+                                                                    Qt6::Multimedia Qt6::Test)
+target_include_directories(video_thumbnail_extraction_qt_adapter
+                           PRIVATE "${PROJECT_SOURCE_DIR}/private")
+add_test(NAME video_thumbnail_extraction_qt_adapter COMMAND video_thumbnail_extraction_qt_adapter)

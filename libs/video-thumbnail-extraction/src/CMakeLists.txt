@@ -9,6 +9,7 @@ target_sources(
             videothumbnailextraction.cpp
             videothumbnailextractionoperation.cpp
             videothumbnailextractionpolicy.cpp
+            "${PROJECT_SOURCE_DIR}/private/qtmultimediathumbnailbackend_p.h"
             "${PROJECT_SOURCE_DIR}/private/videothumbnailextraction_p.h"
             VideoThumbnailExtraction/VideoThumbnailExtraction
             VideoThumbnailExtraction/videothumbnailextraction.h)
