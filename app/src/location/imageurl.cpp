@@ -111,7 +111,7 @@ std::optional<QString> documentPortalHostPath(const QUrl& url)
             value.chop(1);
         }
 
-        const QString hostPath = QFile::decodeName(value);
+        QString hostPath = QFile::decodeName(value);
         if (hostPath.isEmpty() || hostPath == localPath) {
             return std::nullopt;
         }
@@ -171,7 +171,7 @@ QString normalizedUrlIdentityKey(const QUrl& url, QUrl::ComponentFormattingOptio
 
 std::optional<QUrl> normalizedValidUrlForIdentity(const QUrl& url)
 {
-    const QUrl normalizedUrl = normalizedUrlForIdentity(url);
+    QUrl normalizedUrl = normalizedUrlForIdentity(url);
     if (!normalizedUrl.isValid() || normalizedUrl.isEmpty()) {
         return std::nullopt;
     }

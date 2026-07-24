@@ -25,6 +25,7 @@ public:
     ImageDocumentPageCandidateDirectoryEntry(QUrl directoryUrl,
         ImageDocumentPageCandidateWatchProvider watchProvider, QObject* signalContext);
     ~ImageDocumentPageCandidateDirectoryEntry();
+    Q_DISABLE_COPY_MOVE(ImageDocumentPageCandidateDirectoryEntry)
 
     [[nodiscard]] bool failed() const;
     [[nodiscard]] bool listed() const;

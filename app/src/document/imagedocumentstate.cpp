@@ -97,7 +97,7 @@ bool ImageDocumentState::unsupportedOpenedCollectionVideo() const
 
 const EmbeddedMetadata& ImageDocumentState::embeddedMetadata() const { return m_embeddedMetadata; }
 
-void ImageDocumentState::setSelectedTarget(ImageDocumentSelectedTarget target)
+void ImageDocumentState::setSelectedTarget(const ImageDocumentSelectedTarget& target)
 {
     const QUrl previousSourceUrl = sourceUrl();
     const OpenedCollectionScopeLocation previousScope = selectedOpenedCollectionScope();
@@ -128,7 +128,7 @@ void ImageDocumentState::clearDisplayedImageLocation()
     replaceDisplayedImageLocation(DisplayedImageLocation {});
 }
 
-void ImageDocumentState::replaceDisplayedImageLocation(DisplayedImageLocation location)
+void ImageDocumentState::replaceDisplayedImageLocation(const DisplayedImageLocation& location)
 {
     const QUrl previousDisplayedUrl = displayedUrl();
     if (!replaceIfChanged(m_displayedImageLocation, location)) {

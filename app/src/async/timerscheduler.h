@@ -26,7 +26,7 @@ public:
 
     virtual void start(TimerDuration interval) = 0;
     virtual void stop() = 0;
-    Q_DISABLE_COPY(RuntimeTimerHandle)
+    Q_DISABLE_COPY_MOVE(RuntimeTimerHandle)
 };
 
 using RuntimeTimerCallback = std::move_only_function<void()>;

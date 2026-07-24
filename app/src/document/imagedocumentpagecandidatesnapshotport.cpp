@@ -15,7 +15,8 @@ ImageDocumentPageCandidateSnapshotPort::ImageDocumentPageCandidateSnapshotPort(
 {
 }
 
-void ImageDocumentPageCandidateSnapshotPort::ensure(ImageDocumentPageCandidateListContext context,
+void ImageDocumentPageCandidateSnapshotPort::ensure(
+    const ImageDocumentPageCandidateListContext& context,
     ImageDocumentPageCandidateListSnapshotCallback callback) const
 {
     if (m_navigationService == nullptr) {
@@ -23,6 +24,6 @@ void ImageDocumentPageCandidateSnapshotPort::ensure(ImageDocumentPageCandidateLi
         return;
     }
 
-    m_navigationService->ensurePageCandidateSnapshot(std::move(context), std::move(callback));
+    m_navigationService->ensurePageCandidateSnapshot(context, std::move(callback));
 }
 }

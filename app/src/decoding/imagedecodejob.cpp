@@ -164,7 +164,7 @@ void ImageDecodeJob::startThumbnailPreviewLookup(
             }
 
             std::optional<StaticDisplayImagePayload> payload
-                = xdgThumbnailPreviewDisplayPayload(operation->request, std::move(previewResult));
+                = xdgThumbnailPreviewDisplayPayload(operation->request, previewResult);
             if (!payload.has_value()) {
                 return;
             }
@@ -174,7 +174,7 @@ void ImageDecodeJob::startThumbnailPreviewLookup(
 }
 
 void ImageDecodeJob::startRawEmbeddedThumbnailPreviewValidation(
-    QByteArray data, ImageDecodeJobTicket ticket, ImageDecodeRequest request)
+    QByteArray data, ImageDecodeJobTicket ticket, const ImageDecodeRequest& request)
 {
     if (!m_dependencies.rawEmbeddedThumbnailPreviewExtractor) {
         return;
@@ -186,7 +186,7 @@ void ImageDecodeJob::startRawEmbeddedThumbnailPreviewValidation(
         this,
         [extractor, data = std::move(data), request]() mutable {
             RawEmbeddedThumbnailPreviewResult result = extractor(data, request);
-            return rawEmbeddedThumbnailPreviewDisplayPayload(request, std::move(result));
+            return rawEmbeddedThumbnailPreviewDisplayPayload(request, result);
         },
         [this, ticket = std::move(ticket)](
             std::optional<StaticDisplayImagePayload> payload) mutable {

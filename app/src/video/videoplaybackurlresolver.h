@@ -35,7 +35,7 @@ public:
         = 0;
     virtual void cancel() = 0;
     virtual void cleanup() = 0;
-    Q_DISABLE_COPY(VideoPlaybackUrlResolver)
+    Q_DISABLE_COPY_MOVE(VideoPlaybackUrlResolver)
 };
 
 bool videoPlaybackBackendCanConsumeUrl(const QUrl& url);

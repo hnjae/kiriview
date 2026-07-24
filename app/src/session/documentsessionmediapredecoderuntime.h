@@ -39,6 +39,7 @@ public:
     explicit DocumentSessionMediaPredecodeRuntime(
         MediaPredecodeDependencyOverrides dependencies = {});
     ~DocumentSessionMediaPredecodeRuntime();
+    Q_DISABLE_COPY_MOVE(DocumentSessionMediaPredecodeRuntime)
 
     void schedule(const DocumentSessionMediaPredecodeInput& input,
         DirectMediaNavigationCandidateSnapshot candidateSnapshot);

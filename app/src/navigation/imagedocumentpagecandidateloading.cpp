@@ -19,7 +19,7 @@ kiriview::ImageIoJob startDirectoryCandidateList(QObject* receiver, const QUrl& 
     return kiriview::startDirectoryItemList(
         receiver, directoryUrl,
         [callback = std::move(callback), candidateFactory = std::move(candidateFactory)](
-            KFileItemList items) mutable {
+            const KFileItemList& items) mutable {
             kiriview::invokeIfSet(callback, candidateFactory(items));
         },
         std::move(errorCallback), std::move(directoryItemListProvider));
@@ -27,14 +27,14 @@ kiriview::ImageIoJob startDirectoryCandidateList(QObject* receiver, const QUrl& 
 }
 
 namespace kiriview {
-ImageIoJob startDirectoryImageDocumentPageCandidateList(QObject* receiver, QUrl directoryUrl,
+ImageIoJob startDirectoryImageDocumentPageCandidateList(QObject* receiver, const QUrl& directoryUrl,
     ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback)
 {
     return startDirectoryCandidateList(receiver, directoryUrl, std::move(callback),
         std::move(errorCallback), {}, imageDocumentPageNavigationCandidates);
 }
 
-ImageIoJob startDirectoryImageDocumentPageCandidateList(QObject* receiver, QUrl directoryUrl,
+ImageIoJob startDirectoryImageDocumentPageCandidateList(QObject* receiver, const QUrl& directoryUrl,
     ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback,
     DirectoryItemListProvider directoryItemListProvider)
 {
@@ -43,14 +43,14 @@ ImageIoJob startDirectoryImageDocumentPageCandidateList(QObject* receiver, QUrl 
         imageDocumentPageNavigationCandidates);
 }
 
-ImageIoJob startDirectoryContainerCandidateList(QObject* receiver, QUrl directoryUrl,
+ImageIoJob startDirectoryContainerCandidateList(QObject* receiver, const QUrl& directoryUrl,
     ContainerCandidatesCallback callback, ErrorCallback errorCallback)
 {
     return startDirectoryCandidateList(receiver, directoryUrl, std::move(callback),
         std::move(errorCallback), {}, containerNavigationCandidates);
 }
 
-ImageIoJob startDirectoryContainerCandidateList(QObject* receiver, QUrl directoryUrl,
+ImageIoJob startDirectoryContainerCandidateList(QObject* receiver, const QUrl& directoryUrl,
     ContainerCandidatesCallback callback, ErrorCallback errorCallback,
     DirectoryItemListProvider directoryItemListProvider)
 {

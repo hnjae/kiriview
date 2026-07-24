@@ -21,7 +21,7 @@ class PredecodeSchedulePayload
 public:
     PredecodeSchedulePayload() = default;
     virtual ~PredecodeSchedulePayload() = default;
-    Q_DISABLE_COPY(PredecodeSchedulePayload)
+    Q_DISABLE_COPY_MOVE(PredecodeSchedulePayload)
 };
 
 struct PredecodeScheduleContext
@@ -85,7 +85,8 @@ using PredecodeScheduleRuntimePlan = std::vector<PredecodeScheduleOperation>;
 class PredecodeScheduleState final
 {
 public:
-    PredecodeScheduleRuntimePlan schedule(PredecodeScheduleContext context, qint64 monotonicMsec);
+    PredecodeScheduleRuntimePlan schedule(
+        const PredecodeScheduleContext& context, qint64 monotonicMsec);
     PredecodeScheduleRuntimePlan setPowerSaverEnabled(bool enabled, qint64 monotonicMsec);
     [[nodiscard]] bool powerSaverEnabled() const;
     [[nodiscard]] PredecodeMomentumMode momentumMode() const;

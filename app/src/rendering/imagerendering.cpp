@@ -51,4 +51,19 @@ QImage displayReadyImage(const QImage& image)
     return image.convertToFormat(QImage::Format_RGBA8888_Premultiplied);
 }
 
+QImage copiedImageFromBytes(
+    const QByteArray& bytes, QSize size, qsizetype bytesPerLine, QImage::Format format)
+{
+    if (bytes.isEmpty() || size.isEmpty() || bytesPerLine <= 0
+        || bytesPerLine > bytes.size() / size.height()) {
+        return {};
+    }
+
+    const QImage borrowedImage(
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) -- QImage byte API.
+        reinterpret_cast<const uchar*>(bytes.constData()), size.width(), size.height(),
+        bytesPerLine, format);
+    return borrowedImage.copy();
+}
+
 }

@@ -46,7 +46,8 @@ struct ImageDocumentRuntimeDependencyOverrides
     std::optional<NavigationSourceResolver> navigationSourceResolver;
 };
 
-struct ImageDocumentRuntimeDependencies
+struct ImageDocumentRuntimeDependencies // NOLINT(cppcoreguidelines-special-member-functions) --
+                                        // Aggregate dependency bundle with unique ownership.
 {
     ImageDocumentPageCandidateProvider candidateProvider;
     ImageDecodeDependencies imageDecode;

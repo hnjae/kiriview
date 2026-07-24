@@ -37,6 +37,7 @@ public:
 
     explicit ImageSecondaryPageController(Callbacks callbacks);
     ~ImageSecondaryPageController();
+    Q_DISABLE_COPY_MOVE(ImageSecondaryPageController)
 
     [[nodiscard]] bool visible() const;
     [[nodiscard]] DisplayedImageLocation displayedImageLocation() const;

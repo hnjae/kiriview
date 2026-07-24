@@ -223,7 +223,8 @@ void ImageViewportProviderResource::requestFrame(const ImageViewportProviderWork
 
     const std::weak_ptr<ImageViewportProviderResource> resource = weak_from_this();
     m_source->requestFrame(identity, request,
-        [resource, completion = std::move(completion)](ImageViewportProviderWorkIdentity completed,
+        [resource, completion = std::move(completion)](
+            const ImageViewportProviderWorkIdentity& completed,
             ImageViewportProviderFrameResult result) mutable {
             const std::shared_ptr<ImageViewportProviderResource> owner = resource.lock();
             if (owner == nullptr || !owner->matchesResource(completed)) {

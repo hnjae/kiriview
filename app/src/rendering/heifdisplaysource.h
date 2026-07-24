@@ -36,7 +36,7 @@ private:
     QByteArray m_data;
     QSize m_imageSize;
     std::optional<HeifTileGrid> m_tileGrid;
-    Q_DISABLE_COPY(HeifDisplaySource)
+    Q_DISABLE_COPY_MOVE(HeifDisplaySource)
 };
 
 std::shared_ptr<HeifDisplaySource> openHeifDisplaySource(

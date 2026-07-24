@@ -46,6 +46,7 @@ public:
         const ApplicationActionRegistry& actionRegistry, ChangeCallback changeCallback = {},
         TriggerCallbacks triggerCallbacks = {});
     ~ApplicationShortcutRuntime();
+    Q_DISABLE_COPY_MOVE(ApplicationShortcutRuntime)
 
     void setup();
     void handleActionChanged(QAction* changedAction);

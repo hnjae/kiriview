@@ -60,7 +60,7 @@ public:
     [[nodiscard]] bool unsupportedOpenedCollectionVideo() const;
     [[nodiscard]] const EmbeddedMetadata& embeddedMetadata() const;
 
-    void setSelectedTarget(ImageDocumentSelectedTarget target);
+    void setSelectedTarget(const ImageDocumentSelectedTarget& target);
     void setDisplayedImageLocation(const DisplayedImageLocation& location);
     void clearDisplayedImageLocation();
     void setStatus(ImageDocumentStatus status);
@@ -74,7 +74,7 @@ public:
     void setEmbeddedMetadata(EmbeddedMetadata metadata);
 
 private:
-    void replaceDisplayedImageLocation(DisplayedImageLocation location);
+    void replaceDisplayedImageLocation(const DisplayedImageLocation& location);
     void notify(ImageDocumentChange change);
 
     std::unique_ptr<ImageDocumentChangeBatcher> m_ownedChanges;

@@ -53,7 +53,7 @@ public:
     void setEmbeddedMetadata(EmbeddedMetadata metadata);
 
     void publish(VideoDocumentChange change);
-    void publish(std::vector<VideoDocumentChange> changes);
+    void publish(const std::vector<VideoDocumentChange>& changes);
 
 private:
     void appendIfSourceUrlChanged(std::vector<VideoDocumentChange>& changes, const QUrl& sourceUrl);

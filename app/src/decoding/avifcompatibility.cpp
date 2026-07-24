@@ -52,6 +52,7 @@ template <typename T> std::optional<T> readBigEndian(QByteArrayView data, qsizet
     if (offset < 0 || offset > data.size() - static_cast<qsizetype>(sizeof(T))) {
         return std::nullopt;
     }
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) -- Qt byte API.
     return qFromBigEndian<T>(reinterpret_cast<const uchar*>(data.data() + offset));
 }
 
@@ -60,6 +61,7 @@ template <typename T> bool writeBigEndian(QByteArray& data, qsizetype offset, T 
     if (offset < 0 || offset > data.size() - static_cast<qsizetype>(sizeof(T))) {
         return false;
     }
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) -- Qt byte API.
     qToBigEndian<T>(value, reinterpret_cast<uchar*>(data.data() + offset));
     return true;
 }

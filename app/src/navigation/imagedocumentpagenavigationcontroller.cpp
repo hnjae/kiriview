@@ -149,7 +149,7 @@ void ImageDocumentPageNavigationController::openAdjacentPage(
         this, *context,
         [this, operationId, direction, currentUrl = context->currentUrl(),
             candidateSource = context->source()](
-            std::vector<ImageDocumentPageCandidate> candidates) mutable {
+            const std::vector<ImageDocumentPageCandidate>& candidates) mutable {
             if (operationId != m_activeNavigationOperationId) {
                 qCDebug(kiriviewNavigationLog)
                     << "image document page adjacent navigation stale candidate list ignored"
@@ -158,8 +158,7 @@ void ImageDocumentPageNavigationController::openAdjacentPage(
                 return;
             }
             m_activeNavigationOperationId = 0;
-            finishNavigation(
-                std::move(candidates), direction, currentUrl, std::move(candidateSource));
+            finishNavigation(candidates, direction, currentUrl, std::move(candidateSource));
         },
         [](const QString&) {});
 }
@@ -174,19 +173,19 @@ void ImageDocumentPageNavigationController::update(
         return;
     }
 
-    startUpdate(std::move(*context), {}, false);
+    startUpdate(*context, {}, false);
 }
 
 void ImageDocumentPageNavigationController::ensureConfirmedSnapshot(
-    ImageDocumentPageCandidateListContext context,
+    const ImageDocumentPageCandidateListContext& context,
     ImageDocumentPageCandidateListSnapshotCallback callback)
 {
     m_refreshListerJob.cancel();
-    startUpdate(std::move(context), std::move(callback), true);
+    startUpdate(context, std::move(callback), true);
 }
 
 void ImageDocumentPageNavigationController::startUpdate(
-    ImageDocumentPageCandidateListContext context,
+    const ImageDocumentPageCandidateListContext& context,
     ImageDocumentPageCandidateListSnapshotCallback callback, bool reuseAnyConfirmedSnapshot)
 {
     const bool ensureUpdatesNavigationState
@@ -241,7 +240,7 @@ void ImageDocumentPageNavigationController::startUpdate(
         this, context,
         [this, refreshId = refreshPlan.refreshId, candidateSource = context.source(), callback,
             refreshUpdatesNavigationState](
-            std::vector<ImageDocumentPageCandidate> candidates) mutable {
+            const std::vector<ImageDocumentPageCandidate>& candidates) mutable {
             if (!refreshUpdatesNavigationState) {
                 if (!m_model.completePendingCandidateSnapshotRefresh(
                         candidates, refreshId, candidateSource)) {
@@ -294,7 +293,7 @@ void ImageDocumentPageNavigationController::clear()
 }
 
 void ImageDocumentPageNavigationController::finishNavigation(
-    std::vector<ImageDocumentPageCandidate> candidates, NavigationDirection direction,
+    const std::vector<ImageDocumentPageCandidate>& candidates, NavigationDirection direction,
     const QUrl& currentUrl, ImageDocumentPageCandidateListSource candidateSource)
 {
     const std::optional<ImageDocumentPageCandidate> candidate
@@ -377,7 +376,7 @@ void ImageDocumentPageNavigationController::reportCommit(ImageDocumentPageNaviga
 ImageDocumentPageNavigationPlan
 ImageDocumentPageNavigationController::recoveryPlanFromCurrentPageRemoved(
     std::vector<ImageDocumentPageCandidate> candidates,
-    ImageDocumentPageCandidateListContext context)
+    const ImageDocumentPageCandidateListContext& context)
 {
     if (deletionInProgress()) {
         return {};

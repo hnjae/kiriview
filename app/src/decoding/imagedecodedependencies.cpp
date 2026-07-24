@@ -27,6 +27,8 @@ kiriview::DecodedImageResult decodeImageDataWithDefaults(
 }
 
 namespace kiriview {
+// NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) -- std::function owns the
+// heap-allocated callable captured by the returned dependency bundle.
 ImageDecodeDependencies defaultImageDecodeDependencies()
 {
     ImageWorkerScheduler workerScheduler = defaultImageWorkerScheduler();
@@ -38,6 +40,7 @@ ImageDecodeDependencies defaultImageDecodeDependencies()
         std::move(workerScheduler),
     };
 }
+// NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 ImageDecodeDependencies imageDecodeDependenciesWithDefaults(ImageDecodeDependencies dependencies)
 {

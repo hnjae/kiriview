@@ -46,16 +46,16 @@ public:
     void openAdjacentPage(std::optional<ImageDocumentPageCandidateListContext> context,
         NavigationDirection direction);
     void update(std::optional<ImageDocumentPageCandidateListContext> context);
-    void ensureConfirmedSnapshot(ImageDocumentPageCandidateListContext context,
+    void ensureConfirmedSnapshot(const ImageDocumentPageCandidateListContext& context,
         ImageDocumentPageCandidateListSnapshotCallback callback);
     void cancelNavigation();
     void cancelUpdate();
     void clear();
 
 private:
-    void startUpdate(ImageDocumentPageCandidateListContext context,
+    void startUpdate(const ImageDocumentPageCandidateListContext& context,
         ImageDocumentPageCandidateListSnapshotCallback callback, bool reuseAnyConfirmedSnapshot);
-    void finishNavigation(std::vector<ImageDocumentPageCandidate> candidates,
+    void finishNavigation(const std::vector<ImageDocumentPageCandidate>& candidates,
         NavigationDirection direction, const QUrl& currentUrl,
         ImageDocumentPageCandidateListSource candidateSource);
     void watchChanges(
@@ -66,7 +66,7 @@ private:
     void reportCommit(ImageDocumentPageNavigationCommit commit);
     ImageDocumentPageNavigationPlan recoveryPlanFromCurrentPageRemoved(
         std::vector<ImageDocumentPageCandidate> candidates,
-        ImageDocumentPageCandidateListContext context);
+        const ImageDocumentPageCandidateListContext& context);
     [[nodiscard]] bool deletionInProgress() const;
 
     const ImageDocumentPageCandidateRepository& m_candidateRepository;

@@ -45,6 +45,7 @@ public:
     explicit WindowChromeRuntime(
         QObject* owner, TimerScheduler timerScheduler = {}, WindowChromeRuntimePorts ports = {});
     ~WindowChromeRuntime();
+    Q_DISABLE_COPY_MOVE(WindowChromeRuntime)
 
     [[nodiscard]] const WindowChromeSnapshot& snapshot() const;
     void observeVisibility(WindowVisibility visibility);

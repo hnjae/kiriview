@@ -46,6 +46,7 @@ public:
         = {},
         ContainerNavigationBoundaryReachedCallback containerNavigationBoundaryReachedCallback = {});
     ~ImageDocumentRuntime();
+    Q_DISABLE_COPY_MOVE(ImageDocumentRuntime)
 
     [[nodiscard]] QUrl sourceUrl() const;
     [[nodiscard]] ImageDocumentPageKind sourceKind() const;

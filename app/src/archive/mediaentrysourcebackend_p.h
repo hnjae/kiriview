@@ -37,7 +37,7 @@ protected:
 
 private:
     std::vector<ImageDocumentPageCandidate> m_candidates;
-    Q_DISABLE_COPY(MediaEntrySourceWithCandidateSnapshot)
+    Q_DISABLE_COPY_MOVE(MediaEntrySourceWithCandidateSnapshot)
 };
 
 std::optional<ImageDocumentPageCandidate> openedCollectionImageDocumentPageCandidate(

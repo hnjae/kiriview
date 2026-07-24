@@ -34,9 +34,8 @@ QImage imageFromPremultipliedRgbaBytes(const QByteArray& bytes, QSize size)
         return {};
     }
 
-    const QImage image(reinterpret_cast<const uchar*>(bytes.constData()), size.width(),
-        size.height(), QImage::Format_RGBA8888_Premultiplied);
-    return image.copy();
+    return kiriview::copiedImageFromBytes(bytes, size, static_cast<qsizetype>(size.width()) * 4,
+        QImage::Format_RGBA8888_Premultiplied);
 }
 
 QByteArray renderSvgImageBytes(const QByteArray& data, QSize size)

@@ -55,6 +55,7 @@ public:
 
     ImageOpenController(ImageDocumentState& state, Callbacks callbacks);
     ~ImageOpenController();
+    Q_DISABLE_COPY_MOVE(ImageOpenController)
 
     void open();
     void prepareSourceLoad(const ImageDocumentSourceLoadRequest& request);
@@ -70,14 +71,14 @@ public:
 
 private:
     void beginSourceLoad(bool sameScopePageNavigation);
-    void finishSourcePrepared(ImageLoadSession session);
-    void finishUnsupportedOpenedCollectionVideoLoad(ImageLoadSession session);
-    void finishPlayableOpenedCollectionVideoLoad(ImageLoadSession session);
+    void finishSourcePrepared(const ImageLoadSession& session);
+    void finishUnsupportedOpenedCollectionVideoLoad(const ImageLoadSession& session);
+    void finishPlayableOpenedCollectionVideoLoad(const ImageLoadSession& session);
     void finishPreparedViewportImageLoad(
-        ImageLoadSession session, std::optional<PredecodedImage> predecoded);
+        const ImageLoadSession& session, std::optional<PredecodedImage> predecoded);
     void finishLoadWithError(const ImageLoadSession& session, ImageLoadFailure failure);
     void finishSuccessfulImageLoad(const ImageLoadSession& session, EmbeddedMetadata metadata);
-    void reportRuntimePlan(ImageDocumentRuntimePlan plan);
+    void reportRuntimePlan(const ImageDocumentRuntimePlan& plan);
 
     ImageDocumentState& m_state;
     Callbacks m_callbacks;

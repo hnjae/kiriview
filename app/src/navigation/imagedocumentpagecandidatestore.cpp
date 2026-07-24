@@ -43,7 +43,7 @@ ImageIoJob ImageDocumentPageCandidateStore::loadDirectoryImages(QObject* receive
 {
     if (!isLiveLocalDirectoryUrl(directoryUrl)) {
         return startDirectoryImageDocumentPageCandidateList(
-            receiver, std::move(directoryUrl), std::move(callback), std::move(errorCallback));
+            receiver, directoryUrl, std::move(callback), std::move(errorCallback));
     }
 
     directoryUrl = normalizedDirectoryUrlForIdentity(directoryUrl);

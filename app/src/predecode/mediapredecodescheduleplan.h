@@ -21,7 +21,7 @@ public:
 
     DirectMediaNavigationCandidateSnapshot directMediaNavigationCandidateSnapshot;
     MediaPredecodeEligibilitySnapshot eligibleImages;
-    Q_DISABLE_COPY(MediaPredecodeSchedulePayload)
+    Q_DISABLE_COPY_MOVE(MediaPredecodeSchedulePayload)
 };
 
 struct MediaPredecodeScheduleRequest

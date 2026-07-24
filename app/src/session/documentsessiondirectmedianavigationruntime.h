@@ -50,6 +50,7 @@ public:
     explicit DocumentSessionDirectMediaNavigationRuntime(
         DirectMediaNavigationCandidateProvider provider = {});
     ~DocumentSessionDirectMediaNavigationRuntime();
+    Q_DISABLE_COPY_MOVE(DocumentSessionDirectMediaNavigationRuntime)
 
     void loadCandidates(QObject* receiver, const DirectMediaScope& scope,
         ScopeAccepted scopeAccepted, CandidatesCallback callback);
@@ -63,7 +64,7 @@ public:
 private:
     void startLoad(QObject* receiver, const DirectMediaScope& scope, ScopeAccepted scopeAccepted,
         CandidatesCallback callback);
-    void finish(DocumentSessionDirectMediaNavigationLoad load,
+    void finish(const DocumentSessionDirectMediaNavigationLoad& load,
         DocumentSessionDirectMediaNavigationCandidatesResult result,
         const ScopeAccepted& scopeAccepted, const CandidatesCallback& callback);
 

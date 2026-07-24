@@ -11,8 +11,8 @@
 #include <utility>
 
 namespace {
-kiriview::ImageIoJob noOpImageDocumentPageCandidateChanges(
-    QObject*, QUrl, kiriview::ImageDocumentPageCandidatesCallback, kiriview::ErrorCallback)
+kiriview::ImageIoJob noOpImageDocumentPageCandidateChanges(QObject*, const QUrl&,
+    const kiriview::ImageDocumentPageCandidatesCallback&, const kiriview::ErrorCallback&)
 {
     return kiriview::ImageIoJob();
 }
@@ -30,9 +30,10 @@ ImageDocumentPageCandidateProvider defaultImageDocumentPageCandidateProvider(
                 receiver, std::move(directoryUrl), std::move(callback), std::move(errorCallback));
         },
         [directoryItemListProvider = std::move(directoryItemListProvider)](QObject* receiver,
-            QUrl directoryUrl, ContainerCandidatesCallback callback, ErrorCallback errorCallback) {
-            return startDirectoryContainerCandidateList(receiver, std::move(directoryUrl),
-                std::move(callback), std::move(errorCallback), directoryItemListProvider);
+            const QUrl& directoryUrl, ContainerCandidatesCallback callback,
+            ErrorCallback errorCallback) {
+            return startDirectoryContainerCandidateList(receiver, directoryUrl, std::move(callback),
+                std::move(errorCallback), directoryItemListProvider);
         },
         [workerScheduler = std::move(workerScheduler)](QObject* receiver,
             OpenedCollectionScopeLocation openedCollectionScope,

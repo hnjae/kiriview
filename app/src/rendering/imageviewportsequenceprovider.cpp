@@ -26,6 +26,7 @@ public:
     }
 
     ~ImageViewportProviderSession() override { close(); }
+    Q_DISABLE_COPY_MOVE(ImageViewportProviderSession)
 
     void request(const ImageSequenceProviderRequest& request) override
     {
@@ -75,10 +76,10 @@ private:
         m_metadataWork = work;
         const QPointer<ImageViewportProviderSession> guard(this);
         m_resource->requestMetadata(work,
-            [guard](kiriview::ImageViewportProviderWorkIdentity completed,
+            [guard](const kiriview::ImageViewportProviderWorkIdentity& completed,
                 kiriview::ImageViewportProviderMetadataResult result) {
                 if (guard) {
-                    guard->completeMetadata(std::move(completed), std::move(result));
+                    guard->completeMetadata(completed, std::move(result));
                 }
             });
     }
@@ -96,15 +97,15 @@ private:
         };
         const QPointer<ImageViewportProviderSession> guard(this);
         m_resource->requestFrame(work, providerRequest,
-            [guard](kiriview::ImageViewportProviderWorkIdentity completed,
+            [guard](const kiriview::ImageViewportProviderWorkIdentity& completed,
                 kiriview::ImageViewportProviderPreparedFrame result) {
                 if (guard) {
-                    guard->completeFrame(std::move(completed), std::move(result));
+                    guard->completeFrame(completed, std::move(result));
                 }
             });
     }
 
-    void completeMetadata(kiriview::ImageViewportProviderWorkIdentity identity,
+    void completeMetadata(const kiriview::ImageViewportProviderWorkIdentity& identity,
         kiriview::ImageViewportProviderMetadataResult result)
     {
         if (m_closed || !m_metadataWork.has_value() || identity != *m_metadataWork) {
@@ -124,7 +125,7 @@ private:
             identity.requestToken, m_resource->failure(cause, std::move(result.failure))));
     }
 
-    void completeFrame(kiriview::ImageViewportProviderWorkIdentity identity,
+    void completeFrame(const kiriview::ImageViewportProviderWorkIdentity& identity,
         kiriview::ImageViewportProviderPreparedFrame result)
     {
         if (m_closed || !m_frameWork.has_value() || identity != *m_frameWork) {

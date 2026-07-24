@@ -109,7 +109,7 @@ bool ImageDocumentPageCandidateDirectoryEntry::open()
         [this](std::vector<ImageDocumentPageCandidate> candidates) {
             handleChanged(std::move(candidates));
         },
-        [this](QList<QUrl> urls) { handleDeleted(urls); },
+        [this](const QList<QUrl>& urls) { handleDeleted(urls); },
         [this](const QString& errorString) { handleError(errorString); });
     return m_watchJob.isActive();
 }

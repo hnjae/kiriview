@@ -15,7 +15,7 @@ public:
     explicit ImageDocumentPageCandidateSnapshotPort(
         ImageDocumentPageNavigationService* navigationService = nullptr);
 
-    void ensure(ImageDocumentPageCandidateListContext context,
+    void ensure(const ImageDocumentPageCandidateListContext& context,
         ImageDocumentPageCandidateListSnapshotCallback callback) const;
 
 private:

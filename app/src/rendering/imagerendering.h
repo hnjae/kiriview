@@ -6,6 +6,7 @@
 
 #include "staticimage.h"
 
+#include <QByteArray>
 #include <QImage>
 #include <QRectF>
 #include <QSize>
@@ -17,6 +18,8 @@ QRectF imageTargetRect(QSize imageSize, QSizeF boundsSize);
 QSize scaledImageSizeToFit(QSizeF imageSize, QSize boundsSize);
 QSize firstDisplayScaledImageSize(QSize imageSize, QSize logicalViewportSize);
 QImage displayReadyImage(const QImage& image);
+QImage copiedImageFromBytes(
+    const QByteArray& bytes, QSize size, qsizetype bytesPerLine, QImage::Format format);
 }
 
 #endif

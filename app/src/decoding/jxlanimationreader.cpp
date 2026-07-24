@@ -10,6 +10,7 @@
 #include <jxl/decode.h>
 #include <jxl/thread_parallel_runner.h>
 
+#include <QByteArrayView>
 #include <QColorSpace>
 #include <QSize>
 #include <algorithm>
@@ -18,10 +19,20 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <span>
 #include <utility>
 #include <vector>
 
 namespace {
+std::span<const std::uint8_t> jxlBytes(QByteArrayView data)
+{
+    return {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) -- libjxl byte API.
+        reinterpret_cast<const std::uint8_t*>(data.data()),
+        static_cast<std::size_t>(data.size()),
+    };
+}
+
 struct JxlDecoderDeleter
 {
     void operator()(JxlDecoder* decoder) const
@@ -95,9 +106,8 @@ bool isJxlData(const QByteArray& data)
     if (data.isEmpty()) {
         return false;
     }
-    const JxlSignature signature
-        = JxlSignatureCheck(reinterpret_cast<const std::uint8_t*>(data.constData()),
-            static_cast<std::size_t>(data.size()));
+    const std::span<const std::uint8_t> bytes = jxlBytes(data);
+    const JxlSignature signature = JxlSignatureCheck(bytes.data(), bytes.size());
     return signature == JXL_SIG_CODESTREAM || signature == JXL_SIG_CONTAINER;
 }
 
@@ -258,10 +268,8 @@ private:
             return false;
         }
 
-        if (JxlDecoderSetInput(decoder.get(),
-                reinterpret_cast<const std::uint8_t*>(data.constData()),
-                static_cast<std::size_t>(data.size()))
-            != JXL_DEC_SUCCESS) {
+        const std::span<const std::uint8_t> bytes = jxlBytes(data);
+        if (JxlDecoderSetInput(decoder.get(), bytes.data(), bytes.size()) != JXL_DEC_SUCCESS) {
             return false;
         }
         JxlDecoderCloseInput(decoder.get());
@@ -398,5 +406,5 @@ JxlAnimationOpenResult JxlAnimationReader::open(QByteArray data)
 
 AnimationFrameReadResult JxlAnimationReader::readNextFrame() { return d->readNextFrame(); }
 
-void JxlAnimationReader::close() { d->reset(); }
+void JxlAnimationReader::close() { (*d).reset(); }
 }

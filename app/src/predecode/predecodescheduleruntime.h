@@ -28,7 +28,7 @@ public:
         CancelDomainBackgroundCallback cancelDomainBackground,
         PowerSaverProvider powerSaverProvider = {}, TimerScheduler timerScheduler = {});
 
-    void schedule(PredecodeScheduleContext context);
+    void schedule(const PredecodeScheduleContext& context);
     void setPowerSaverEnabled(bool enabled);
     [[nodiscard]] bool powerSaverEnabled() const;
     [[nodiscard]] PredecodeMomentumMode momentumMode() const;

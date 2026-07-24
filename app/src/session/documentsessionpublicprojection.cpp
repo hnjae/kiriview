@@ -253,7 +253,7 @@ kiriview::DocumentSessionActionStateSnapshot actionStateSnapshotForInput(
 
 namespace kiriview {
 DocumentSessionPublicProjection projectDocumentSessionPublicState(
-    DocumentSessionPublicProjectionInput input)
+    const DocumentSessionPublicProjectionInput& input)
 {
     DocumentSessionPublicProjection projection;
     projection.sourceKind = sourceKindForInput(input);

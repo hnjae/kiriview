@@ -83,7 +83,7 @@ public:
     virtual void cancel(const QVector<ImageSequenceProviderRequestToken>& tokens) = 0;
     virtual void close() = 0;
 
-    Q_DISABLE_COPY(ImageViewportProviderSource)
+    Q_DISABLE_COPY_MOVE(ImageViewportProviderSource)
 };
 
 struct ImageViewportProviderPreparedFrame
@@ -111,9 +111,7 @@ public:
         std::shared_ptr<ImageViewportFailureRegistry> failureRegistry = {},
         std::optional<StaticDisplayImagePayload> predecodedImage = std::nullopt);
     ~ImageViewportProviderResource();
-
-    ImageViewportProviderResource(const ImageViewportProviderResource&) = delete;
-    ImageViewportProviderResource& operator=(const ImageViewportProviderResource&) = delete;
+    Q_DISABLE_COPY_MOVE(ImageViewportProviderResource)
 
     quint64 sourceGeneration() const { return m_sourceGeneration; }
     const QString& locationIdentity() const { return m_locationIdentity; }

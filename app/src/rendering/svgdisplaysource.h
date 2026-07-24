@@ -35,7 +35,7 @@ public:
 private:
     QByteArray m_data;
     QSize m_imageSize;
-    Q_DISABLE_COPY(SvgDisplaySource)
+    Q_DISABLE_COPY_MOVE(SvgDisplaySource)
 };
 }
 

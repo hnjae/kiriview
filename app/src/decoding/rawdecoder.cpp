@@ -245,7 +245,7 @@ public:
 
 private:
     QImage m_image;
-    Q_DISABLE_COPY(RawStaticImageDisplaySource)
+    Q_DISABLE_COPY_MOVE(RawStaticImageDisplaySource)
 };
 }
 

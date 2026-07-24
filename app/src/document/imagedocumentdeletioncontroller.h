@@ -42,6 +42,7 @@ public:
         FileDeletionProvider fileDeletionProvider, Callbacks callbacks,
         std::function<ResolvedNavigationSource(const QUrl&)> resolveExternalSource);
     ~ImageDocumentDeletionController();
+    Q_DISABLE_COPY_MOVE(ImageDocumentDeletionController)
 
     [[nodiscard]] bool inProgress() const;
     void deleteDisplayedFile(FileDeletionMode mode);

@@ -164,6 +164,7 @@ public:
     explicit KiriDocumentSession(
         kiriview::KiriDocumentSessionDependencies dependencies, QObject* parent = nullptr);
     ~KiriDocumentSession() override;
+    Q_DISABLE_COPY_MOVE(KiriDocumentSession)
 
     [[nodiscard]] QUrl sourceUrl() const;
     void setSourceUrl(const QUrl& sourceUrl);

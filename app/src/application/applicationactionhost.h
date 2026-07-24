@@ -22,7 +22,7 @@ public:
     virtual KirigamiActionCollection* mainActionCollection() = 0;
     virtual QAction* inheritedAction(const QString& actionName) = 0;
     virtual void readActionSettings() = 0;
-    Q_DISABLE_COPY(ApplicationActionHost)
+    Q_DISABLE_COPY_MOVE(ApplicationActionHost)
 };
 }
 

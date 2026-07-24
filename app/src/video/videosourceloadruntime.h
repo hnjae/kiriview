@@ -23,10 +23,11 @@ class VideoSourceLoadRuntime final
 public:
     explicit VideoSourceLoadRuntime(std::unique_ptr<VideoPlaybackUrlResolver> resolver = {});
     ~VideoSourceLoadRuntime();
+    Q_DISABLE_COPY_MOVE(VideoSourceLoadRuntime)
 
     [[nodiscard]] bool active() const;
     void setSourceUrl(
-        const QUrl& sourceUrl, QObject* receiver, VideoSourceLoadPlanCallback planCallback);
+        const QUrl& sourceUrl, QObject* receiver, const VideoSourceLoadPlanCallback& planCallback);
     void cancelPendingResolution();
     void shutdown();
 

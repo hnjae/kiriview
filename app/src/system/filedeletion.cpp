@@ -35,8 +35,8 @@ void cancelKJob(QObject* object)
     job->kill(KJob::Quietly);
 }
 
-kiriview::ImageIoJob startKioFileDeletion(QObject* receiver, kiriview::FileDeletionRequest request,
-    kiriview::FileDeletionCallback callback)
+kiriview::ImageIoJob startKioFileDeletion(QObject* receiver,
+    const kiriview::FileDeletionRequest& request, kiriview::FileDeletionCallback callback)
 {
     if (request.targetUrl.isEmpty()) {
         kiriview::invokeIfSet(callback, kiriview::FileDeletionResult::Failed,
@@ -103,9 +103,10 @@ FileDeletionCompletionAction fileDeletionCompletionAction(FileDeletionResult res
 
 FileDeletionProvider defaultFileDeletionProvider()
 {
-    return [](QObject* receiver, FileDeletionRequest request, FileDeletionCallback callback) {
-        return startKioFileDeletion(receiver, std::move(request), std::move(callback));
-    };
+    return
+        [](QObject* receiver, const FileDeletionRequest& request, FileDeletionCallback callback) {
+            return startKioFileDeletion(receiver, request, std::move(callback));
+        };
 }
 
 FileDeletionProvider fileDeletionProviderWithDefault(FileDeletionProvider provider)

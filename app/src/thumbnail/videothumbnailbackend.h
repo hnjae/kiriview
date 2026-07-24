@@ -55,7 +55,7 @@ public:
     virtual void pause() = 0;
     virtual void stop() = 0;
     virtual void setPosition(qint64 position) = 0;
-    Q_DISABLE_COPY(VideoThumbnailBackend)
+    Q_DISABLE_COPY_MOVE(VideoThumbnailBackend)
 };
 
 using VideoThumbnailBackendFactory = std::function<std::unique_ptr<VideoThumbnailBackend>()>;

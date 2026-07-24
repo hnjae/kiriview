@@ -47,14 +47,14 @@ PredecodeScheduleRuntime::PredecodeScheduleRuntime(QObject* owner,
     }
 }
 
-void PredecodeScheduleRuntime::schedule(PredecodeScheduleContext context)
+void PredecodeScheduleRuntime::schedule(const PredecodeScheduleContext& context)
 {
     qCDebug(kiriviewPredecodeLog) << "schedule requested"
                                   << "url" << context.currentLocation.imageUrl() << "pageIndex"
                                   << context.pageIndex << "displayedImages"
                                   << context.displayedImages.size() << "powerSaver"
                                   << m_scheduleState.powerSaverEnabled();
-    dispatchSchedulePlan(m_scheduleState.schedule(std::move(context), currentMonotonicMsec()));
+    dispatchSchedulePlan(m_scheduleState.schedule(context, currentMonotonicMsec()));
 }
 
 void PredecodeScheduleRuntime::setPowerSaverEnabled(bool enabled)

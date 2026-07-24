@@ -77,7 +77,7 @@ public:
     std::vector<ActiveNavigationThumbnailScheduleEffect> invalidate();
     std::vector<ActiveNavigationThumbnailScheduleEffect> setCurrentNumber(int currentNumber);
     std::optional<std::vector<ActiveNavigationThumbnailScheduleEffect>> replaceDemandSnapshot(
-        ActiveNavigationThumbnailDemandSnapshot snapshot);
+        const ActiveNavigationThumbnailDemandSnapshot& snapshot);
     std::vector<ActiveNavigationThumbnailScheduleEffect> acceptCompletion(
         ActiveNavigationThumbnailWorkCompletion completion);
     std::vector<ActiveNavigationThumbnailScheduleEffect> continueAdmission(quint64 admissionEpoch);

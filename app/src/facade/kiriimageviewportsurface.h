@@ -21,6 +21,7 @@ class KiriImageViewportSurface : public QQuickItem
 public:
     explicit KiriImageViewportSurface(QQuickItem* parent = nullptr);
     ~KiriImageViewportSurface() override;
+    Q_DISABLE_COPY_MOVE(KiriImageViewportSurface)
 
     KiriImageDocument* document() const;
     void setDocument(KiriImageDocument* document);

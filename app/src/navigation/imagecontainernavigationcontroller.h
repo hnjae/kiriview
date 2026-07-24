@@ -41,7 +41,7 @@ public:
 
 private:
     void finishContainerNavigation(quint64 operationId,
-        std::vector<ContainerNavigationCandidate> candidates, NavigationDirection direction,
+        const std::vector<ContainerNavigationCandidate>& candidates, NavigationDirection direction,
         const QUrl& currentContainerUrl);
     void finishContainerNavigationListWithError(quint64 operationId,
         const QUrl& currentContainerUrl, const QUrl& parentUrl, NavigationDirection direction,
@@ -50,7 +50,7 @@ private:
         quint64 operationId, const ContainerNavigationCandidate& container);
     void finishContainerNavigationImageLoad(quint64 operationId,
         OpenedCollectionScopeLocation openedCollectionScope,
-        std::vector<ImageDocumentPageCandidate> candidates);
+        const std::vector<ImageDocumentPageCandidate>& candidates);
     void openImageFromContainerNavigation(quint64 operationId,
         const ImageDocumentPageTarget& target, OpenedCollectionScopeLocation openedCollectionScope);
     void finishContainerNavigationLoadWithError(quint64 operationId, const QUrl& containerUrl,

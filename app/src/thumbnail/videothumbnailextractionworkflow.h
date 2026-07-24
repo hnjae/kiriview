@@ -69,7 +69,7 @@ using VideoThumbnailExtractionOperation
 using VideoThumbnailExtractionPlan = std::vector<VideoThumbnailExtractionOperation>;
 
 QImage videoThumbnailImageFromFrameImage(
-    QImage image, int maximumLongEdge, QString* errorString = nullptr);
+    const QImage& image, int maximumLongEdge, QString* errorString = nullptr);
 QImage videoThumbnailImageFromEmbeddedImages(
     VideoThumbnailEmbeddedImages images, int maximumLongEdge, QString* errorString = nullptr);
 QVector<qint64> videoThumbnailCandidatePositions(qint64 durationMsec);
@@ -93,7 +93,8 @@ private:
     VideoThumbnailExtractionPlan acceptCandidateFrame(QImage image);
     VideoThumbnailExtractionPlan advanceToNextCandidate();
     VideoThumbnailExtractionPlan finishCandidateExtraction();
-    VideoThumbnailExtractionPlan finishReadyFromImage(QImage image, QString fallbackErrorString);
+    VideoThumbnailExtractionPlan finishReadyFromImage(
+        const QImage& image, QString fallbackErrorString);
     VideoThumbnailExtractionPlan finish(VideoThumbnailExtractionResult result);
 
     VideoThumbnailExtractionRequest m_request;

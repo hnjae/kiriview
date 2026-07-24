@@ -45,7 +45,7 @@ private:
     void startThumbnailPreviewLookup(
         const QByteArray& data, ImageDecodeJobTicket ticket, const ImageDecodeRequest& request);
     void startRawEmbeddedThumbnailPreviewValidation(
-        QByteArray data, ImageDecodeJobTicket ticket, ImageDecodeRequest request);
+        QByteArray data, ImageDecodeJobTicket ticket, const ImageDecodeRequest& request);
     void startDecode(QByteArray data, ImageDecodeJobTicket ticket, ImageDecodeRequest request);
 
     ImageDecodeDependencies m_dependencies;

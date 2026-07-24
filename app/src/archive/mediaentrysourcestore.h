@@ -20,6 +20,7 @@ public:
     explicit MediaEntrySourceStore(
         MediaEntrySourceFactory sourceFactory = {}, ImageWorkerScheduler workerScheduler = {});
     ~MediaEntrySourceStore() override;
+    Q_DISABLE_COPY_MOVE(MediaEntrySourceStore)
 
     ImageDocumentPageCandidateProvider wrapCandidateProvider(
         ImageDocumentPageCandidateProvider provider);
@@ -36,7 +37,7 @@ public:
     ImageIoJob loadOpenedCollectionCandidates(QObject* receiver,
         OpenedCollectionScopeLocation openedCollectionScope,
         ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback);
-    ImageIoJob loadOpenedCollectionImageData(QObject* receiver, ImageDecodeRequest request,
+    ImageIoJob loadOpenedCollectionImageData(QObject* receiver, const ImageDecodeRequest& request,
         ImageDataCallback callback, ErrorCallback errorCallback);
     MediaEntrySourceVideoPlaybackDeviceResult loadOpenedCollectionVideoPlaybackDevice(
         OpenedCollectionScopeLocation openedCollectionScope, const QUrl& videoUrl);

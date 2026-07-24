@@ -24,9 +24,7 @@ public:
     explicit MediaEntrySourceRuntime(QObject* context, MediaEntrySourceFactory sourceFactory = {},
         ImageWorkerScheduler workerScheduler = {});
     ~MediaEntrySourceRuntime();
-
-    MediaEntrySourceRuntime(const MediaEntrySourceRuntime&) = delete;
-    MediaEntrySourceRuntime& operator=(const MediaEntrySourceRuntime&) = delete;
+    Q_DISABLE_COPY_MOVE(MediaEntrySourceRuntime)
 
     void clear();
     void switchToOpenedCollectionScope(OpenedCollectionScopeLocation openedCollectionScope);
@@ -38,7 +36,7 @@ public:
     ImageIoJob loadOpenedCollectionCandidates(QObject* receiver,
         OpenedCollectionScopeLocation openedCollectionScope,
         ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback);
-    ImageIoJob loadOpenedCollectionImageData(QObject* receiver, ImageDecodeRequest request,
+    ImageIoJob loadOpenedCollectionImageData(QObject* receiver, const ImageDecodeRequest& request,
         ImageDataCallback callback, ErrorCallback errorCallback);
     MediaEntrySourceVideoPlaybackDeviceResult loadOpenedCollectionVideoPlaybackDevice(
         OpenedCollectionScopeLocation openedCollectionScope, const QUrl& videoUrl);

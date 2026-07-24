@@ -29,7 +29,7 @@ QUrl absoluteLocalFileIdentityUrl(const QUrl& url)
 
 QUrl normalizedSourceIdentityUrl(const QUrl& url)
 {
-    const QUrl normalizedUrl = url.adjusted(QUrl::NormalizePathSegments);
+    QUrl normalizedUrl = url.adjusted(QUrl::NormalizePathSegments);
     if (normalizedUrl.isLocalFile() || isRelativeLocalPathUrl(normalizedUrl)) {
         return absoluteLocalFileIdentityUrl(normalizedUrl);
     }

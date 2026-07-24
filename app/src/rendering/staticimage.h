@@ -83,7 +83,7 @@ public:
         = 0;
     [[nodiscard]] virtual qsizetype byteCost() const = 0;
     [[nodiscard]] virtual StaticImageReaderTransform imageReaderTransform() const;
-    Q_DISABLE_COPY(StaticImageDisplaySource)
+    Q_DISABLE_COPY_MOVE(StaticImageDisplaySource)
 };
 
 struct StaticDisplayImagePayload

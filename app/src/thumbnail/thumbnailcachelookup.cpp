@@ -6,6 +6,7 @@
 #include "async/imageioworkerjob.h"
 #include "bridge/rustqtconversion.h"
 #include "kiriview/src/support/thumbnailcache.cxx.h"
+#include "rendering/imagerendering.h"
 
 #include <QImage>
 #include <cstdint>
@@ -99,15 +100,15 @@ kiriview::ThumbnailCacheLookupResult lookupThumbnailCache(
     }
 
     const QByteArray pixels = kiriview::Bridge::qtByteArray(rustResult.pixels);
-    const QImage image(reinterpret_cast<const uchar*>(pixels.constData()), rustResult.width,
-        rustResult.height, rustResult.stride, QImage::Format_RGBA8888);
+    const QImage image = kiriview::copiedImageFromBytes(pixels,
+        QSize(rustResult.width, rustResult.height), rustResult.stride, QImage::Format_RGBA8888);
     if (image.isNull()) {
         result.status = kiriview::ThumbnailCacheLookupStatus::Failed;
         result.errorString = QStringLiteral("thumbnail cache RGBA8 result could not form a QImage");
         return result;
     }
 
-    result.image = image.copy();
+    result.image = image;
     return result;
 }
 }

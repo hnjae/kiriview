@@ -12,7 +12,7 @@ bool validPredecodeScheduleContext(const kiriview::PredecodeScheduleContext& con
 
 namespace kiriview {
 PredecodeScheduleRuntimePlan PredecodeScheduleState::schedule(
-    PredecodeScheduleContext context, qint64 monotonicMsec)
+    const PredecodeScheduleContext& context, qint64 monotonicMsec)
 {
     invalidatePendingSchedule();
 

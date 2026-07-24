@@ -44,7 +44,7 @@ PredecodeActiveLoads PredecodeActiveDecodeStore::activeLoads() const
     for (const Entry& entry : m_entries) {
         urls.push_back(entry.normalizedUrl);
     }
-    return PredecodeActiveLoads::fromUrls(std::move(urls));
+    return PredecodeActiveLoads::fromUrls(urls);
 }
 
 std::optional<ImageDecodeRequest> PredecodeActiveDecodeStore::finish(

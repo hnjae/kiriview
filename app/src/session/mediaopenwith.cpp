@@ -25,7 +25,7 @@ void cancelKJob(QObject* object)
 }
 
 kiriview::ImageIoJob startKioMediaOpenWith(QObject* receiver,
-    kiriview::MediaOpenWithRequest request, kiriview::MediaOpenWithCallback callback)
+    const kiriview::MediaOpenWithRequest& request, kiriview::MediaOpenWithCallback callback)
 {
     if (request.targetUrl.isEmpty()) {
         kiriview::invokeIfSet(callback, kiriview::MediaOpenWithResult::Failed,
@@ -81,9 +81,10 @@ kiriview::ImageIoJob startKioMediaOpenWith(QObject* receiver,
 namespace kiriview {
 MediaOpenWithProvider defaultMediaOpenWithProvider()
 {
-    return [](QObject* receiver, MediaOpenWithRequest request, MediaOpenWithCallback callback) {
-        return startKioMediaOpenWith(receiver, std::move(request), std::move(callback));
-    };
+    return
+        [](QObject* receiver, const MediaOpenWithRequest& request, MediaOpenWithCallback callback) {
+            return startKioMediaOpenWith(receiver, request, std::move(callback));
+        };
 }
 
 MediaOpenWithProvider mediaOpenWithProviderWithDefault(MediaOpenWithProvider provider)

@@ -22,6 +22,7 @@ class ThumbnailImageStore final
 public:
     explicit ThumbnailImageStore(qsizetype byteBudget = 0);
     ~ThumbnailImageStore();
+    Q_DISABLE_COPY_MOVE(ThumbnailImageStore)
 
     QString insert(QImage image,
         ThumbnailImageRetentionPriority priority = ThumbnailImageRetentionPriority::Nearby);

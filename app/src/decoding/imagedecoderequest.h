@@ -19,9 +19,9 @@ public:
     ImageDecodeRequest() = default;
 
     static ImageDecodeRequest fromUrl(
-        quint64 id, QUrl imageUrl, ImageFirstDisplayDecodeContext firstDisplay = {})
+        quint64 id, const QUrl& imageUrl, ImageFirstDisplayDecodeContext firstDisplay = {})
     {
-        return fromLocation(id, DisplayedImageLocation::fromUrl(std::move(imageUrl)), firstDisplay);
+        return fromLocation(id, DisplayedImageLocation::fromUrl(imageUrl), firstDisplay);
     }
 
     static ImageDecodeRequest fromLocation(quint64 id, DisplayedImageLocation location,

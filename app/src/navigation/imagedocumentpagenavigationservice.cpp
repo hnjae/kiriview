@@ -99,10 +99,10 @@ void ImageDocumentPageNavigationService::updatePageNavigation(
 }
 
 void ImageDocumentPageNavigationService::ensurePageCandidateSnapshot(
-    ImageDocumentPageCandidateListContext context,
+    const ImageDocumentPageCandidateListContext& context,
     ImageDocumentPageCandidateListSnapshotCallback callback)
 {
-    m_pageNavigation.ensureConfirmedSnapshot(std::move(context), std::move(callback));
+    m_pageNavigation.ensureConfirmedSnapshot(context, std::move(callback));
 }
 
 void ImageDocumentPageNavigationService::cancelPageNavigationUpdate()

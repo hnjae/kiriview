@@ -57,7 +57,7 @@ void MediaPredecodeCoordinator::schedule(Context context)
                                       << "reason"
                                       << "invalid-current-url";
     }
-    m_scheduleRuntime.schedule(std::move(plan.context));
+    m_scheduleRuntime.schedule(plan.context);
 }
 
 void MediaPredecodeCoordinator::cacheDisplayedImages(

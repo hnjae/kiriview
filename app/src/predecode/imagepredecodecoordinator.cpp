@@ -46,12 +46,12 @@ ImagePredecodeCoordinator::ImagePredecodeCoordinator(ImageDecodeDependencies dec
 {
 }
 
-void ImagePredecodeCoordinator::schedule(Context context)
+void ImagePredecodeCoordinator::schedule(const Context& context)
 {
     qCDebug(kiriviewPredecodeLog) << "image predecode schedule"
                                   << "url" << context.currentLocation.imageUrl()
                                   << "displayedImages" << context.displayedImages.size();
-    m_scheduleRuntime.schedule(std::move(context));
+    m_scheduleRuntime.schedule(context);
 }
 
 void ImagePredecodeCoordinator::setPowerSaverEnabled(bool enabled)

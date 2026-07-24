@@ -239,7 +239,7 @@ std::optional<XdgThumbnailPreviewRequest> xdgThumbnailPreviewRequestForDecodeDat
 }
 
 std::optional<StaticDisplayImagePayload> xdgThumbnailPreviewDisplayPayload(
-    const ImageDecodeRequest& request, XdgThumbnailPreviewResult result)
+    const ImageDecodeRequest& request, const XdgThumbnailPreviewResult& result)
 {
     if (result.status != ThumbnailCacheLookupStatus::Ready || result.image.isNull()
         || !validImageSize(result.originalSize)) {

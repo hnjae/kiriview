@@ -24,6 +24,7 @@ public:
     explicit ImageDocumentPageCandidateStore(
         ImageDocumentPageCandidateWatchProvider watchProvider, QObject* parent = nullptr);
     ~ImageDocumentPageCandidateStore() override;
+    Q_DISABLE_COPY_MOVE(ImageDocumentPageCandidateStore)
 
     ImageIoJob loadDirectoryImages(QObject* receiver, QUrl directoryUrl,
         ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback);

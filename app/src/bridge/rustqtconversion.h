@@ -23,7 +23,9 @@ inline rust::Str rustStr(const QByteArray& bytes)
 
 inline rust::Slice<const std::uint8_t> rustBytes(const QByteArray& bytes)
 {
-    return rust::Slice<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(bytes.constData()),
+    return rust::Slice<const std::uint8_t>(
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) -- CXX bridge byte view.
+        reinterpret_cast<const std::uint8_t*>(bytes.constData()),
         static_cast<std::size_t>(bytes.size()));
 }
 
@@ -34,6 +36,7 @@ inline QByteArray qtByteArray(const rust::Vec<std::uint8_t>& bytes)
     }
 
     return QByteArray(
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) -- Qt byte view.
         reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size()));
 }
 

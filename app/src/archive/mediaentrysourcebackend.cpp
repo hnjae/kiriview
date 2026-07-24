@@ -122,7 +122,7 @@ std::optional<ImageDocumentPageCandidate> openedCollectionImageDocumentPageCandi
 std::optional<QString> openedCollectionImageEntryPathForRead(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& imageUrl)
 {
-    const QString entryPath = openedCollectionEntryPathForUrl(openedCollectionScope, imageUrl);
+    QString entryPath = openedCollectionEntryPathForUrl(openedCollectionScope, imageUrl);
     if (openedCollectionScope.isEmpty() || entryPath.isEmpty()) {
         return std::nullopt;
     }
@@ -133,7 +133,7 @@ std::optional<QString> openedCollectionImageEntryPathForRead(
 std::optional<QString> openedCollectionVideoEntryPathForRead(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl)
 {
-    const QString entryPath = openedCollectionEntryPathForUrl(openedCollectionScope, videoUrl);
+    QString entryPath = openedCollectionEntryPathForUrl(openedCollectionScope, videoUrl);
     if (openedCollectionScope.isEmpty() || entryPath.isEmpty()
         || !isSupportedDirectVideoFileName(entryPath)) {
         return std::nullopt;

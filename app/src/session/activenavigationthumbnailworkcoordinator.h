@@ -37,18 +37,13 @@ public:
         ThumbnailGenerationProvider generationProvider, ThumbnailSourceAdapter sourceAdapter,
         ActiveNavigationThumbnailFailureDiagnosticCallback failureDiagnosticCallback = {});
     ~ActiveNavigationThumbnailWorkCoordinator() override;
-
-    ActiveNavigationThumbnailWorkCoordinator(const ActiveNavigationThumbnailWorkCoordinator&)
-        = delete;
-    ActiveNavigationThumbnailWorkCoordinator& operator=(
-        const ActiveNavigationThumbnailWorkCoordinator&)
-        = delete;
+    Q_DISABLE_COPY_MOVE(ActiveNavigationThumbnailWorkCoordinator)
 
     bool resetRows(ActiveNavigationThumbnailSchedulingSnapshot snapshot);
     bool refreshRows(ActiveNavigationThumbnailSchedulingSnapshot snapshot);
     void invalidateRows();
     void setCurrentNumber(int currentNumber);
-    bool replaceDemandSnapshot(ActiveNavigationThumbnailDemandSnapshot snapshot);
+    bool replaceDemandSnapshot(const ActiveNavigationThumbnailDemandSnapshot& snapshot);
 
 private:
     static ThumbnailImageRetentionPriority imageRetentionPriority(
@@ -56,10 +51,10 @@ private:
     void applyEffects(std::vector<ActiveNavigationThumbnailScheduleEffect> effects);
     void applyEffect(ActiveNavigationThumbnailCancelWorkEffect effect);
     void applyEffect(ActiveNavigationThumbnailStartWorkEffect effect);
-    void applyEffect(ActiveNavigationThumbnailApplyPendingEffect effect);
-    void applyEffect(ActiveNavigationThumbnailApplyUnsupportedEffect effect);
-    void applyEffect(ActiveNavigationThumbnailUpdateRetentionEffect effect);
-    void applyEffect(ActiveNavigationThumbnailAcceptCompletionEffect effect);
+    void applyEffect(const ActiveNavigationThumbnailApplyPendingEffect& effect);
+    void applyEffect(const ActiveNavigationThumbnailApplyUnsupportedEffect& effect);
+    void applyEffect(const ActiveNavigationThumbnailUpdateRetentionEffect& effect);
+    void applyEffect(const ActiveNavigationThumbnailAcceptCompletionEffect& effect);
     void applyEffect(ActiveNavigationThumbnailScheduleContinuationEffect effect);
     void publishCompletion(const ActiveNavigationThumbnailAcceptCompletionEffect& effect);
     void reportFailureDiagnostic(ActiveNavigationThumbnailWorkId workId,

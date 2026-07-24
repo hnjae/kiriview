@@ -14,7 +14,9 @@ ImageSecondaryPageController::ImageSecondaryPageController(Callbacks callbacks)
     : m_callbacks(std::move(callbacks))
 {
     m_imageLoader = std::make_unique<ImageLoader>(ImageLoader::Callbacks {
-        [this](ImageLoadSession session, ImageLoadFailure) { finishLoadWithError(session); },
+        [this](const ImageLoadSession& session, const ImageLoadFailure&) {
+            finishLoadWithError(session);
+        },
         {},
         [this](const QUrl& url) {
             return m_callbacks.findPredecodedImage ? m_callbacks.findPredecodedImage(url)

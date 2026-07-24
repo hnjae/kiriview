@@ -23,7 +23,7 @@ kiriview::ImageIoJob startDirectoryDirectMediaNavigationCandidateList(QObject* r
                                    << "directoryUrl" << directoryUrl;
     return kiriview::startDirectoryItemList(
         receiver, directoryUrl,
-        [callback = std::move(callback), directoryUrl](KFileItemList items) mutable {
+        [callback = std::move(callback), directoryUrl](const KFileItemList& items) mutable {
             std::vector<kiriview::DirectMediaNavigationCandidate> candidates
                 = kiriview::directMediaNavigationCandidates(items);
             qCDebug(kiriviewNavigationLog)
@@ -48,7 +48,7 @@ DirectMediaNavigationCandidateProvider defaultDirectMediaNavigationCandidateProv
 {
     return DirectMediaNavigationCandidateProvider {
         [directoryItemListProvider = std::move(directoryItemListProvider)](QObject* receiver,
-            QUrl directoryUrl, DirectMediaNavigationCandidatesCallback callback,
+            const QUrl& directoryUrl, DirectMediaNavigationCandidatesCallback callback,
             ErrorCallback errorCallback) {
             return startDirectoryDirectMediaNavigationCandidateList(receiver, directoryUrl,
                 std::move(callback), std::move(errorCallback), directoryItemListProvider);

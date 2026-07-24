@@ -36,6 +36,7 @@ public:
         DocumentSessionVideoDocumentCommandPort videoCommands, ChangeCallback changeCallback = {},
         DocumentSessionRuntimeDependencies dependencies = {});
     ~DocumentSessionRuntime();
+    Q_DISABLE_COPY_MOVE(DocumentSessionRuntime)
 
     [[nodiscard]] QUrl sourceUrl() const;
     void setSourceUrl(const QUrl& sourceUrl);
@@ -76,7 +77,7 @@ public:
     [[nodiscard]] ActiveNavigationRevealDirection activeNavigationRevealDirection() const;
     [[nodiscard]] QAbstractListModel* activeNavigationThumbnailModel() const;
     bool replaceActiveNavigationThumbnailDemandSnapshot(
-        ActiveNavigationThumbnailDemandSnapshot snapshot);
+        const ActiveNavigationThumbnailDemandSnapshot& snapshot);
     QString nextVideoOutputSurfaceClaimToken();
     bool reportVideoOutputSurfaceClaim(const QString& claimToken, quint64 projectionRevision,
         QObject* surfaceOwner, QObject* videoOutput, bool active, const QRectF& contentRect,

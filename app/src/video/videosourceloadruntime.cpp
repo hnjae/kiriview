@@ -27,7 +27,7 @@ VideoSourceLoadRuntime::~VideoSourceLoadRuntime() { shutdown(); }
 bool VideoSourceLoadRuntime::active() const { return m_resolution.active(); }
 
 void VideoSourceLoadRuntime::setSourceUrl(
-    const QUrl& sourceUrl, QObject* receiver, VideoSourceLoadPlanCallback planCallback)
+    const QUrl& sourceUrl, QObject* receiver, const VideoSourceLoadPlanCallback& planCallback)
 {
     m_shutdown = false;
     cancelAndCleanup();
@@ -42,10 +42,11 @@ void VideoSourceLoadRuntime::setSourceUrl(
 
     m_resolver->resolve(
         operation.operationId, sourceUrl, receiver,
-        [this, planCallback](VideoPlaybackUrlResolution resolution) {
+        [this, planCallback](const VideoPlaybackUrlResolution& resolution) {
             completePlaybackUrlResolution(resolution, planCallback);
         },
-        [this, planCallback](quint64 operationId, QUrl failedSourceUrl, QString errorString) {
+        [this, planCallback](
+            quint64 operationId, const QUrl& failedSourceUrl, const QString& errorString) {
             failPlaybackUrlResolution(operationId, failedSourceUrl, errorString, planCallback);
         });
 }

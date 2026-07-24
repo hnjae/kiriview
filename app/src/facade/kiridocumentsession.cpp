@@ -244,7 +244,7 @@ kiriview::DocumentSessionSnapshotConnector documentSnapshotConnector(
     Document& document, void (Document::*signal)())
 {
     return [&document, signal](
-               QObject* context, kiriview::DocumentSessionSnapshotChangeHandler handler) {
+               QObject* context, const kiriview::DocumentSessionSnapshotChangeHandler& handler) {
         std::vector<QMetaObject::Connection> connections;
         connections.push_back(QObject::connect(&document, signal, context, [handler]() {
             if (handler) {
@@ -704,7 +704,7 @@ bool KiriDocumentSession::replaceActiveNavigationThumbnailDemandSnapshot(
 {
     auto snapshot = thumbnailDemandSnapshot(navigationGeneration, demands);
     return snapshot.has_value()
-        && m_runtime->replaceActiveNavigationThumbnailDemandSnapshot(std::move(*snapshot));
+        && m_runtime->replaceActiveNavigationThumbnailDemandSnapshot(*snapshot);
 }
 
 QString KiriDocumentSession::nextVideoOutputSurfaceClaimToken()

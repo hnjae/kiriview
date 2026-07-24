@@ -22,10 +22,11 @@ public:
     PredecodeLoadController(
         QObject* parent, ImageDecodeDependencies decodeDependencies, qsizetype cacheByteBudget);
     ~PredecodeLoadController();
+    Q_DISABLE_COPY_MOVE(PredecodeLoadController)
 
     void cacheDisplayedImages(const std::vector<DisplayedPredecodeImage>& images);
     void clearWindowUrls();
-    void startWindowLoads(PredecodeLoadWindow window);
+    void startWindowLoads(const PredecodeLoadWindow& window);
     void cancelBackgroundWork();
     void clear();
     std::optional<PredecodedImage> findPredecodedImage(const QUrl& url) const;
@@ -34,7 +35,7 @@ private:
     void startNextLoads();
     bool startLoad(PredecodeLoadStart load);
     void finishLoadError(const ImageDecodeRequest& request);
-    void finishDecode(ImageDecodeRequest request, const DecodedImageResult& result);
+    void finishDecode(const ImageDecodeRequest& request, const DecodedImageResult& result);
 
     QObject* m_parent = nullptr;
     ImageDecodeDependencies m_decodeDependencies;

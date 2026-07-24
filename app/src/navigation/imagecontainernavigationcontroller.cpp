@@ -50,9 +50,8 @@ void ImageContainerNavigationController::openAdjacentContainer(
     m_containerListJob = m_candidateRepository.loadContainers(
         this, parentUrl,
         [this, operationId, direction, currentContainerUrl](
-            std::vector<ContainerNavigationCandidate> candidates) {
-            finishContainerNavigation(
-                operationId, std::move(candidates), direction, currentContainerUrl);
+            const std::vector<ContainerNavigationCandidate>& candidates) {
+            finishContainerNavigation(operationId, candidates, direction, currentContainerUrl);
         },
         [this, operationId, currentContainerUrl, parentUrl, direction](const QString& errorString) {
             finishContainerNavigationListWithError(
@@ -68,7 +67,7 @@ void ImageContainerNavigationController::cancel()
 }
 
 void ImageContainerNavigationController::finishContainerNavigation(quint64 operationId,
-    std::vector<ContainerNavigationCandidate> candidates, NavigationDirection direction,
+    const std::vector<ContainerNavigationCandidate>& candidates, NavigationDirection direction,
     const QUrl& currentContainerUrl)
 {
     if (!m_navigationState.acceptsNavigation(operationId)) {
@@ -134,9 +133,8 @@ void ImageContainerNavigationController::loadFirstImageFromContainerNavigation(
     m_firstImageJob = m_candidateRepository.loadImages(
         this, *plan.source,
         [this, operationId, scope = plan.openedCollectionScope](
-            std::vector<ImageDocumentPageCandidate> candidates) mutable {
-            finishContainerNavigationImageLoad(
-                operationId, std::move(scope), std::move(candidates));
+            const std::vector<ImageDocumentPageCandidate>& candidates) mutable {
+            finishContainerNavigationImageLoad(operationId, std::move(scope), candidates);
         },
         [this, operationId, containerUrl = container.url](const QString& errorString) {
             finishContainerNavigationLoadWithError(
@@ -146,7 +144,7 @@ void ImageContainerNavigationController::loadFirstImageFromContainerNavigation(
 
 void ImageContainerNavigationController::finishContainerNavigationImageLoad(quint64 operationId,
     OpenedCollectionScopeLocation openedCollectionScope,
-    std::vector<ImageDocumentPageCandidate> candidates)
+    const std::vector<ImageDocumentPageCandidate>& candidates)
 {
     const ImageContainerOpenResult result = imageContainerOpenResultForCandidates(candidates);
     if (result.openedImage()) {

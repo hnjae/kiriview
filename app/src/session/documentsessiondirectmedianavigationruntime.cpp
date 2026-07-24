@@ -124,7 +124,7 @@ void DocumentSessionDirectMediaNavigationRuntime::cancel()
 }
 
 void DocumentSessionDirectMediaNavigationRuntime::finish(
-    DocumentSessionDirectMediaNavigationLoad load,
+    const DocumentSessionDirectMediaNavigationLoad& load,
     DocumentSessionDirectMediaNavigationCandidatesResult result, const ScopeAccepted& scopeAccepted,
     const CandidatesCallback& callback)
 {

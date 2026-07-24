@@ -100,11 +100,11 @@ void ImageDocumentRuntimeGraph::composeNavigationAndCandidatePorts(
     m_navigationService = std::make_unique<ImageDocumentPageNavigationService>(
         dependencies.candidateProvider,
         ImageDocumentPageNavigationService::Callbacks {
-            [this](ImageDocumentPageNavigationPlan plan) {
+            [this](const ImageDocumentPageNavigationPlan& plan) {
                 dispatchPlan(imageDocumentRuntimePlanForNavigationPlan(
                     plan, pageNavigationOpenedCollectionScope()));
             },
-            [this](ImageDocumentPageNavigationCommit commit) {
+            [this](const ImageDocumentPageNavigationCommit& commit) {
                 dispatchTransaction(ImageDocumentRuntimeTransaction {
                     commit.pageNavigationChanged
                         ? std::vector<ImageDocumentChange> { ImageDocumentChange::PageNavigation }
@@ -162,7 +162,7 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
                     std::vector<ImageDocumentChange> {
                         ImageDocumentChange::FileDeletionInProgress });
             },
-            [this](ImageDocumentRuntimePlan plan) { dispatchPlan(plan); },
+            [this](const ImageDocumentRuntimePlan& plan) { dispatchPlan(plan); },
             std::move(m_callbacks.fileDeletionFailed),
         },
         m_callbacks.resolveExternalSource);
@@ -173,9 +173,9 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
         [this]() { return firstDisplayDecodeContext(); }, dependencies.imageDecode,
         dependencies.cacheBudgets.predecodeCacheByteBudget,
         [this]() { return m_currentPageNumberPort->currentPageNumber(); },
-        [this](ImageDocumentPageCandidateListContext context,
+        [this](const ImageDocumentPageCandidateListContext& context,
             ImageDocumentPageCandidateListSnapshotCallback callback) {
-            m_pageCandidateSnapshotPort->ensure(std::move(context), std::move(callback));
+            m_pageCandidateSnapshotPort->ensure(context, std::move(callback));
         },
         std::move(dependencies.powerSaver), dependencies.ordinaryDirectMediaPredecodeEnabled,
         std::move(dependencies.predecodeTimerScheduler),
@@ -190,8 +190,8 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
             [this](const QUrl& url) { return m_predecodedImageLookup->find(url); },
             [this]() { return m_navigationSnapshotPort->snapshot(); },
             [this]() { m_adjacentPredecodeSchedulerPort->scheduleAdjacentImagePredecode(); },
-            [this](ImageLoadSession session, std::optional<PredecodedImage> predecoded) {
-                prepareViewportSecondaryImageTarget(std::move(session), std::move(predecoded));
+            [this](const ImageLoadSession& session, std::optional<PredecodedImage> predecoded) {
+                prepareViewportSecondaryImageTarget(session, std::move(predecoded));
             },
             [this]() { clearViewportSecondaryImageTarget(); },
             [this]() {
@@ -220,12 +220,12 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
             [this](const DisplayedImageLocation& location, QSize imageSize) {
                 m_primaryPageSlotPort->commit(location, imageSize);
             },
-            [this](ImageDocumentPageCandidateListContext context,
+            [this](const ImageDocumentPageCandidateListContext& context,
                 ImageDocumentPageCandidateListSnapshotCallback callback) {
-                m_pageCandidateSnapshotPort->ensure(std::move(context), std::move(callback));
+                m_pageCandidateSnapshotPort->ensure(context, std::move(callback));
             },
-            [this](ImageLoadSession session, std::optional<PredecodedImage> predecoded) {
-                return prepareViewportImageTarget(std::move(session), std::move(predecoded));
+            [this](const ImageLoadSession& session, std::optional<PredecodedImage> predecoded) {
+                return prepareViewportImageTarget(session, std::move(predecoded));
             },
             [this]() { return firstDisplayDecodeContext(); },
             [this]() {
@@ -233,9 +233,11 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
                     && !m_viewportIntegration->projection().displayedUrl.isEmpty();
             },
         });
-    m_navigationController = std::make_unique<ImageDocumentNavigationController>(state,
-        *m_navigationService, *m_spreadController,
-        [this](ImageDocumentRuntimeTransaction transaction) { dispatchTransaction(transaction); });
+    m_navigationController
+        = std::make_unique<ImageDocumentNavigationController>(state, *m_navigationService,
+            *m_spreadController, [this](const ImageDocumentRuntimeTransaction& transaction) {
+                dispatchTransaction(transaction);
+            });
 }
 
 void ImageDocumentRuntimeGraph::composeWorkflowDispatch(ImageDocumentState& state)
@@ -312,7 +314,7 @@ void ImageDocumentRuntimeGraph::requestNextViewportTargetAnchorAtEnd()
 }
 
 bool ImageDocumentRuntimeGraph::prepareViewportImageTarget(
-    ImageLoadSession session, std::optional<PredecodedImage> predecoded)
+    const ImageLoadSession& session, std::optional<PredecodedImage> predecoded)
 {
     if (m_viewportIntegration == nullptr) {
         return false;
@@ -362,7 +364,7 @@ bool ImageDocumentRuntimeGraph::prepareViewportImageTarget(
 }
 
 void ImageDocumentRuntimeGraph::prepareViewportSecondaryImageTarget(
-    ImageLoadSession session, std::optional<PredecodedImage> predecoded)
+    const ImageLoadSession& session, std::optional<PredecodedImage> predecoded)
 {
     if (m_viewportIntegration == nullptr || m_viewportTarget == nullptr
         || !m_viewportTarget->isValid()) {

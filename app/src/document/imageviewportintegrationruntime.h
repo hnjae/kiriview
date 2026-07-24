@@ -87,6 +87,7 @@ public:
 
     explicit ImageViewportIntegrationRuntime(Callbacks callbacks = {});
     ~ImageViewportIntegrationRuntime() override;
+    Q_DISABLE_COPY_MOVE(ImageViewportIntegrationRuntime)
 
     void attach(ImageViewport* viewport);
     void detach(ImageViewport* viewport);

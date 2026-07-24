@@ -26,6 +26,7 @@ class MenuAccessKeyRouter : public QObject
 public:
     explicit MenuAccessKeyRouter(QObject* parent = nullptr);
     ~MenuAccessKeyRouter() override;
+    Q_DISABLE_COPY_MOVE(MenuAccessKeyRouter)
 
     QObject* menu() const;
     void setMenu(QObject* menu);

@@ -419,7 +419,7 @@ bool DocumentSessionState::applyPublicSnapshot(DocumentSessionPublicSnapshot sna
         changes.push_back(DocumentSessionChange::ActiveNavigationRevealDirection);
     }
 
-    publish(std::move(changes));
+    publish(changes);
     return true;
 }
 
@@ -458,7 +458,7 @@ void DocumentSessionState::publish(DocumentSessionChange change)
     publish(std::vector<DocumentSessionChange> { change });
 }
 
-void DocumentSessionState::publish(std::vector<DocumentSessionChange> changes)
+void DocumentSessionState::publish(const std::vector<DocumentSessionChange>& changes)
 {
     if (changes.empty()) {
         return;

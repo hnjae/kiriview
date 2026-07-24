@@ -25,7 +25,7 @@ std::optional<QString> directoryPathForCollection(
         return std::nullopt;
     }
 
-    const QString path = openedCollectionScope.fileUrl().toLocalFile();
+    QString path = openedCollectionScope.fileUrl().toLocalFile();
     if (path.isEmpty() || !QFileInfo(path).isDir()) {
         return std::nullopt;
     }
@@ -187,7 +187,7 @@ public:
 
 private:
     kiriview::OpenedCollectionScopeLocation m_openedCollectionScope;
-    Q_DISABLE_COPY(DirectoryCollectionMediaEntrySource)
+    Q_DISABLE_COPY_MOVE(DirectoryCollectionMediaEntrySource)
 };
 
 kiriview::MediaEntrySourceOpenResult openDirectoryCollectionMediaEntrySource(

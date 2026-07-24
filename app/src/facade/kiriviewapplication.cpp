@@ -43,7 +43,7 @@ public:
 
 private:
     KiriViewApplication& m_application;
-    Q_DISABLE_COPY(KiriViewApplicationActionHost)
+    Q_DISABLE_COPY_MOVE(KiriViewApplicationActionHost)
 };
 
 class KiriViewApplicationCommandPortSource final : public ApplicationCommandPortSource
@@ -76,7 +76,7 @@ private:
     void emitBoundaryText(const QString& message);
 
     KiriViewApplication& m_application;
-    Q_DISABLE_COPY(KiriViewApplicationCommandPortSource)
+    Q_DISABLE_COPY_MOVE(KiriViewApplicationCommandPortSource)
 };
 }
 

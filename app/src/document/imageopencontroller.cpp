@@ -39,7 +39,7 @@ QString unsupportedOpenedCollectionVideoMessage()
 }
 
 kiriview::ImageLoadFailure imagePresentationFailure(
-    const kiriview::ImageLoadSession& session, QString message)
+    const kiriview::ImageLoadSession& session, const QString& message)
 {
     return {
         session.imageUrl(),
@@ -64,26 +64,26 @@ ImageOpenController::ImageOpenController(
     ImageLoader::EnsurePageCandidateSnapshotCallback ensurePageCandidateSnapshot
         = m_callbacks.ensurePageCandidateSnapshot;
     m_imageLoader = std::make_unique<ImageLoader>(ImageLoader::Callbacks {
-        [this](ImageLoadSession session, ImageLoadFailure failure) {
+        [this](const ImageLoadSession& session, ImageLoadFailure failure) {
             [[maybe_unused]] auto batch = m_state.beginChangeBatch();
             finishLoadWithError(session, std::move(failure));
         },
-        [this](ImageLoadSession session) {
+        [this](const ImageLoadSession& session) {
             [[maybe_unused]] auto batch = m_state.beginChangeBatch();
-            finishUnsupportedOpenedCollectionVideoLoad(std::move(session));
+            finishUnsupportedOpenedCollectionVideoLoad(session);
         },
         [this](const QUrl& url) {
             return m_callbacks.findPredecodedImage ? m_callbacks.findPredecodedImage(url)
                                                    : std::optional<PredecodedImage>();
         },
-        [this](ImageLoadSession session) {
+        [this](const ImageLoadSession& session) {
             [[maybe_unused]] auto batch = m_state.beginChangeBatch();
-            finishSourcePrepared(std::move(session));
+            finishSourcePrepared(session);
         },
         std::move(ensurePageCandidateSnapshot),
-        [this](ImageLoadSession session, std::optional<PredecodedImage> predecoded) {
+        [this](const ImageLoadSession& session, std::optional<PredecodedImage> predecoded) {
             [[maybe_unused]] auto batch = m_state.beginChangeBatch();
-            finishPreparedViewportImageLoad(std::move(session), std::move(predecoded));
+            finishPreparedViewportImageLoad(session, std::move(predecoded));
         },
     });
 }
@@ -164,18 +164,19 @@ void ImageOpenController::finishContainerNavigationLoadWithError(
             std::move(selectedTarget), openedCollectionOpenErrorMessage(errorString))));
 }
 
-void ImageOpenController::finishSourcePrepared(ImageLoadSession session)
+void ImageOpenController::finishSourcePrepared(const ImageLoadSession& session)
 {
     reportRuntimePlan(
         applyImageOpenApplicationPlan(m_state, ImageOpenWorkflow::resolveSourceImagePlan(session)));
 }
 
-void ImageOpenController::finishUnsupportedOpenedCollectionVideoLoad(ImageLoadSession session)
+void ImageOpenController::finishUnsupportedOpenedCollectionVideoLoad(
+    const ImageLoadSession& session)
 {
     if (m_callbacks.openedCollectionVideoPlaybackAvailable
         && m_callbacks.openedCollectionVideoPlaybackAvailable(
             session.openedCollectionScope(), session.imageUrl())) {
-        finishPlayableOpenedCollectionVideoLoad(std::move(session));
+        finishPlayableOpenedCollectionVideoLoad(session);
         return;
     }
 
@@ -186,14 +187,14 @@ void ImageOpenController::finishUnsupportedOpenedCollectionVideoLoad(ImageLoadSe
     reportRuntimePlan(plan);
 }
 
-void ImageOpenController::finishPlayableOpenedCollectionVideoLoad(ImageLoadSession session)
+void ImageOpenController::finishPlayableOpenedCollectionVideoLoad(const ImageLoadSession& session)
 {
     reportRuntimePlan(applyImageOpenApplicationPlan(
         m_state, ImageOpenWorkflow::finishPlayableOpenedCollectionVideoLoadPlan(session)));
 }
 
 void ImageOpenController::finishPreparedViewportImageLoad(
-    ImageLoadSession session, std::optional<PredecodedImage> predecoded)
+    const ImageLoadSession& session, std::optional<PredecodedImage> predecoded)
 {
     if (m_callbacks.prepareViewportImageTarget
         && m_callbacks.prepareViewportImageTarget(session, std::move(predecoded))) {
@@ -222,7 +223,7 @@ void ImageOpenController::finishSuccessfulImageLoad(
             session, std::move(metadata))));
 }
 
-void ImageOpenController::reportRuntimePlan(ImageDocumentRuntimePlan plan)
+void ImageOpenController::reportRuntimePlan(const ImageDocumentRuntimePlan& plan)
 {
     invokeIfSet(m_callbacks.runtimePlan, plan);
 }

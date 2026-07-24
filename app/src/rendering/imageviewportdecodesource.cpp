@@ -171,8 +171,8 @@ ImageViewportDecodeProviderSource::ImageViewportDecodeProviderSource(
     , m_dependencies(imageDecodeDependenciesWithDefaults(std::move(dependencies)))
     , m_decodeJob(this, m_dependencies,
           ImageDecodeJob::Callbacks {
-              [this](ImageDecodeRequest request, DecodedImageResult result) {
-                  finishDecode(std::move(request), std::move(result));
+              [this](const ImageDecodeRequest& request, DecodedImageResult result) {
+                  finishDecode(request, std::move(result));
               },
               [this](const ImageDecodeRequest& request, const QString& errorString) {
                   finishDataLoadError(request, errorString);
@@ -267,7 +267,7 @@ void ImageViewportDecodeProviderSource::ensureDecoded()
 }
 
 void ImageViewportDecodeProviderSource::finishDecode(
-    ImageDecodeRequest request, DecodedImageResult result)
+    const ImageDecodeRequest& request, DecodedImageResult result)
 {
     if (m_closed || !request.matches(m_session.decodeRequest())) {
         return;

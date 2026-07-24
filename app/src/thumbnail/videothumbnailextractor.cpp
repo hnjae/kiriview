@@ -92,8 +92,8 @@ private:
     void dispatch(kiriview::VideoThumbnailExtractionOperation operation)
     {
         std::visit(
-            [this](auto payload) {
-                using Operation = decltype(payload);
+            [this](auto&& payload) {
+                using Operation = std::remove_cvref_t<decltype(payload)>;
                 if constexpr (std::is_same_v<Operation, kiriview::StartVideoThumbnailTimeout>) {
                     if (m_timeout != nullptr) {
                         m_timeout->start(kiriview::TimerDuration(payload.intervalMsec));

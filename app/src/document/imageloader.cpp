@@ -52,7 +52,7 @@ void ImageLoader::start(
     ImageLoadPlan plan = m_sessionTracker.start(std::move(request), firstDisplayContext);
     ImageLoadSession session = std::move(plan.session);
     if (plan.startEffect == ImageLoadStartEffect::LoadOpenedCollectionScopeCandidates) {
-        startOpenedCollectionLoad(std::move(session));
+        startOpenedCollectionLoad(session);
         return;
     }
 
@@ -63,7 +63,7 @@ void ImageLoader::start(
 
 void ImageLoader::cancel() { m_sessionTracker.cancel(); }
 
-void ImageLoader::startOpenedCollectionLoad(ImageLoadSession session)
+void ImageLoader::startOpenedCollectionLoad(const ImageLoadSession& session)
 {
     ImageDocumentPageCandidateListSource candidateSource
         = ImageDocumentPageCandidateListSource::forOpenedCollectionScope(
@@ -86,14 +86,14 @@ void ImageLoader::startOpenedCollectionLoad(ImageLoadSession session)
         = ImageDocumentPageCandidateListContext::forSource(session.imageUrl(), candidateSource);
     m_callbacks.ensurePageCandidateSnapshot(candidateContext,
         [this, session, candidateSource = std::move(candidateSource)](
-            ImageDocumentPageCandidateListSnapshotResult result) mutable {
-            finishOpenedCollectionSnapshot(session, std::move(candidateSource), std::move(result));
+            const ImageDocumentPageCandidateListSnapshotResult& result) mutable {
+            finishOpenedCollectionSnapshot(session, candidateSource, result);
         });
 }
 
-void ImageLoader::finishOpenedCollectionSnapshot(ImageLoadSession session,
-    ImageDocumentPageCandidateListSource candidateSource,
-    ImageDocumentPageCandidateListSnapshotResult result)
+void ImageLoader::finishOpenedCollectionSnapshot(const ImageLoadSession& session,
+    const ImageDocumentPageCandidateListSource& candidateSource,
+    const ImageDocumentPageCandidateListSnapshotResult& result)
 {
     if (!m_sessionTracker.isCurrent(session)) {
         return;
@@ -149,7 +149,7 @@ void ImageLoader::finishOpenedCollectionCandidates(
     prepareProviderImage(std::move(completion.session));
 }
 
-bool ImageLoader::tryReportUnsupportedOpenedCollectionVideo(ImageLoadSession session)
+bool ImageLoader::tryReportUnsupportedOpenedCollectionVideo(const ImageLoadSession& session)
 {
     if (session.openedCollectionScope().isEmpty()
         || session.kind() != ImageDocumentPageKind::Video) {

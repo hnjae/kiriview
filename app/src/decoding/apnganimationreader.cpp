@@ -72,7 +72,7 @@ namespace kiriview {
 class ApngAnimationReader::Private
 {
 public:
-    ApngOpenResult open(QByteArray inputData)
+    ApngOpenResult open(const QByteArray& inputData)
     {
         close();
 
@@ -168,7 +168,7 @@ ApngAnimationReader::ApngAnimationReader()
 
 ApngAnimationReader::~ApngAnimationReader() = default;
 
-ApngOpenResult ApngAnimationReader::open(QByteArray data) { return d->open(std::move(data)); }
+ApngOpenResult ApngAnimationReader::open(const QByteArray& data) { return d->open(data); }
 
 AnimationFrameReadResult ApngAnimationReader::readNextFrame() { return d->readNextFrame(); }
 

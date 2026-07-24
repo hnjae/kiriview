@@ -64,6 +64,7 @@ class DisplayImageStore final
 public:
     explicit DisplayImageStore(qsizetype byteBudget);
     ~DisplayImageStore();
+    Q_DISABLE_COPY_MOVE(DisplayImageStore)
 
     QString acquireReusable(DisplayImageEntry entry, DisplayImageReuseKey reuseKey);
     [[nodiscard]] std::optional<DisplayImageStoreEntry> entry(const QString& id) const;

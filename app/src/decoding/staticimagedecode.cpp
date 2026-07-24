@@ -57,7 +57,7 @@ kiriview::DisplayImageQuality displayQualityForImage(
 
 kiriview::StaticDisplayImagePayload staticDisplayPayload(
     std::shared_ptr<kiriview::StaticImageDisplaySource> source,
-    const kiriview::ImageDecodeRequest& request, QImage image, bool firstDisplay)
+    const kiriview::ImageDecodeRequest& request, const QImage& image, bool firstDisplay)
 {
     QImage displayImage = kiriview::displayReadyImage(image);
     const QSize originalSize = source == nullptr ? QSize() : source->imageSize();
@@ -98,7 +98,7 @@ DecodedImageResult staticDecodedImageResult(std::shared_ptr<StaticImageDisplaySo
         }
         return successfulDecodedImageResult(StaticDecodedImage {
             staticDisplayPayload(
-                std::move(source), request, std::move(firstDisplayResult.firstDisplay.image), true),
+                std::move(source), request, firstDisplayResult.firstDisplay.image, true),
             {},
         });
     case FirstDisplayImageDecodeStatus::NotImplemented:
@@ -117,7 +117,7 @@ DecodedImageResult staticDecodedImageResult(std::shared_ptr<StaticImageDisplaySo
     }
 
     return successfulDecodedImageResult(StaticDecodedImage {
-        staticDisplayPayload(std::move(source), request, std::move(previewResult.image), false),
+        staticDisplayPayload(std::move(source), request, previewResult.image, false),
         {},
     });
 }

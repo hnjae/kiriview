@@ -196,7 +196,9 @@ std::optional<QImage> jpegThumbnailImage(
         return std::nullopt;
     }
 
-    const QByteArray jpegData(reinterpret_cast<const char*>(processedImage->data),
+    const QByteArray jpegData(
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) -- LibRaw byte API.
+        reinterpret_cast<const char*>(processedImage->data),
         static_cast<qsizetype>(processedImage->data_size));
     kiriview::BufferedImageReader reader(jpegData, QByteArrayLiteral("jpeg"));
     if (!reader.canRead()) {
@@ -370,7 +372,7 @@ RawEmbeddedThumbnailPreviewResult rawEmbeddedThumbnailPreviewResult(
 }
 
 std::optional<StaticDisplayImagePayload> rawEmbeddedThumbnailPreviewDisplayPayload(
-    const ImageDecodeRequest& request, RawEmbeddedThumbnailPreviewResult result)
+    const ImageDecodeRequest& request, const RawEmbeddedThumbnailPreviewResult& result)
 {
     if (result.status != RawEmbeddedThumbnailPreviewStatus::Ready) {
         return std::nullopt;

@@ -49,6 +49,7 @@ public:
 
     ImageSpreadPresentationController(ImageDocumentState& state, Callbacks callbacks);
     ~ImageSpreadPresentationController();
+    Q_DISABLE_COPY_MOVE(ImageSpreadPresentationController)
 
     [[nodiscard]] int currentLastPageNumber() const;
     [[nodiscard]] ImageDocumentPageActiveNavigationSnapshot activeNavigationSnapshot() const;

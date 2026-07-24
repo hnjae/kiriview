@@ -213,9 +213,9 @@ QAbstractListModel* DocumentSessionRuntime::activeNavigationThumbnailModel() con
 }
 
 bool DocumentSessionRuntime::replaceActiveNavigationThumbnailDemandSnapshot(
-    ActiveNavigationThumbnailDemandSnapshot snapshot)
+    const ActiveNavigationThumbnailDemandSnapshot& snapshot)
 {
-    return m_runtimeGraph->replaceActiveNavigationThumbnailDemandSnapshot(std::move(snapshot));
+    return m_runtimeGraph->replaceActiveNavigationThumbnailDemandSnapshot(snapshot);
 }
 
 QString DocumentSessionRuntime::nextVideoOutputSurfaceClaimToken()

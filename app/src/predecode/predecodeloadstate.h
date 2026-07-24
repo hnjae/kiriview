@@ -40,7 +40,7 @@ public:
 
     void cacheDisplayedImages(const std::vector<DisplayedPredecodeImage>& images);
     void clearWindowUrls();
-    void startWindow(PredecodeLoadWindow window, const PredecodeActiveLoads& activeLoads);
+    void startWindow(const PredecodeLoadWindow& window, const PredecodeActiveLoads& activeLoads);
     std::optional<PredecodeLoadStart> takeNextLoad(const PredecodeActiveLoads& activeLoads);
     void cacheDecodedImage(
         const ImageDecodeRequest& request, StaticDisplayImagePayload displayImage);

@@ -12,7 +12,7 @@ enum class ImageDocumentEnterMode {
 };
 
 void prependMutations(kiriview::DocumentSessionRoutePlan& plan,
-    std::vector<kiriview::DocumentSessionRouteMutation> mutations)
+    const std::vector<kiriview::DocumentSessionRouteMutation>& mutations)
 {
     plan.mutations.insert(plan.mutations.begin(), mutations.cbegin(), mutations.cend());
 }

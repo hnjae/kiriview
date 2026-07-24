@@ -28,6 +28,7 @@ public:
         RuntimePlanCallback runtimePlanCallback,
         std::function<ResolvedNavigationSource(const QUrl&)> resolveExternalSource);
     ~ImageDocumentDeletionFallbackController();
+    Q_DISABLE_COPY_MOVE(ImageDocumentDeletionFallbackController)
 
     void open(const ImageRemovalFallbackPlan& fallbackPlan);
     void cancel();
@@ -45,7 +46,7 @@ private:
     void finishComicBookFallbackImageLoad(quint64 operationId,
         OpenedCollectionScopeLocation openedCollectionScope,
         const std::optional<ContainerNavigationCandidate>& fallbackCandidate,
-        std::vector<ImageDocumentPageCandidate> candidates);
+        const std::vector<ImageDocumentPageCandidate>& candidates);
     void failComicBookFallbackImageLoad(
         quint64 operationId, const std::optional<ContainerNavigationCandidate>& fallbackCandidate);
     void reportRuntimePlan(ImageDocumentRuntimePlan plan);

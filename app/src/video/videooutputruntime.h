@@ -28,6 +28,7 @@ class VideoOutputRuntime final
 public:
     explicit VideoOutputRuntime(QObject* context, VideoOutputRuntimeCallbacks callbacks = {});
     ~VideoOutputRuntime();
+    Q_DISABLE_COPY_MOVE(VideoOutputRuntime)
 
     QObject* videoOutput() const;
     void setVideoOutput(QObject* videoOutput);

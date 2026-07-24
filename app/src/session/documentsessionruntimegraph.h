@@ -69,6 +69,7 @@ public:
         DocumentSessionVideoDocumentCommandPort videoCommands,
         DocumentSessionRuntimeDependencies dependencies = {});
     ~DocumentSessionRuntimeGraph();
+    Q_DISABLE_COPY_MOVE(DocumentSessionRuntimeGraph)
 
     [[nodiscard]] QUrl sourceUrl() const;
     void setSourceUrl(const QUrl& sourceUrl);
@@ -109,7 +110,7 @@ public:
     [[nodiscard]] ActiveNavigationRevealDirection activeNavigationRevealDirection() const;
     [[nodiscard]] QAbstractListModel* activeNavigationThumbnailModel() const;
     bool replaceActiveNavigationThumbnailDemandSnapshot(
-        ActiveNavigationThumbnailDemandSnapshot snapshot);
+        const ActiveNavigationThumbnailDemandSnapshot& snapshot);
     QString nextVideoOutputSurfaceClaimToken();
     bool reportVideoOutputSurfaceClaim(const QString& claimToken, quint64 projectionRevision,
         QObject* surfaceOwner, QObject* videoOutput, bool active, const QRectF& contentRect,
@@ -162,7 +163,7 @@ private:
     void cancelMediaDeletion();
     void cancelMediaOpenWith();
     DocumentSessionVideoOutputAttachmentPort videoOutputAttachmentPort();
-    void finishMediaDeletion(DocumentSessionMediaDeletionCompletion completion);
+    void finishMediaDeletion(const DocumentSessionMediaDeletionCompletion& completion);
     [[nodiscard]] ActiveZoomSnapshot activeZoomSnapshotForKind(DocumentSessionKind kind) const;
     QObject* m_owner = nullptr;
     DocumentSessionImageDocumentSnapshotPort& m_imageDocument;

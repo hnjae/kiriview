@@ -133,7 +133,7 @@ ImageIoJob MediaEntrySourceRuntime::loadOpenedCollectionCandidates(QObject* rece
 }
 
 ImageIoJob MediaEntrySourceRuntime::loadOpenedCollectionImageData(QObject* receiver,
-    ImageDecodeRequest request, ImageDataCallback callback, ErrorCallback errorCallback)
+    const ImageDecodeRequest& request, ImageDataCallback callback, ErrorCallback errorCallback)
 {
     const OpenedCollectionScopeLocation& requestedOpenedCollectionScope
         = request.openedCollectionScope();

@@ -1,12 +1,14 @@
 # SPDX-FileCopyrightText: 2026 KIM Hyunjae
 # SPDX-License-Identifier: AGPL-3.0-or-later
+{ lib, pkgs, ... }:
 {
   env.CLAZY_CHECKS = builtins.concatStringsSep "," [
     # Checks from Manual Level:
     # "assert-with-side-effects" # managed by clang-tidy: bugprone-assert-side-effect
-    # "unneeded-cast"            # managed by clang-tidy: readability-redundant-casting/cppcoreguidelines-pro-type-cstyle-cast
-    # "unused-result-check"      # managed by clang-tidy: bugprone-unused-return-value
+    # "unneeded-cast" # too many false positives; its generic cases partially overlap clang-tidy
+    # "unused-result-check" # too broad for const methods with intentional side effects
     "ifndef-define-typo"
+    "qbytearray-conversion-to-c-style"
     "qhash-with-char-pointer-key"
     "qproperty-type-mismatch"
     "qstring-varargs"
@@ -23,16 +25,17 @@
     # "reserve-candidates"
     "use-chrono-in-qtimer"
     "use-arrow-operator-instead-of-data"
+    "used-qunused-variable"
 
     # Checks from Level 0-1:
     "level1"
+    "no-range-loop-reference"
     "no-rule-of-two-soft"
 
     # Checks from Level 2:
     # "function-args-by-ref"      # too noisy for Qt callback and implicitly shared value patterns
-    # "implicit-casts"            # managed by clang-tidy: bugprone-bool-pointer-implicit-conversion
+    "implicit-casts"
     # "returning-void-expression" # managed by clang-tidy: readability-avoid-return-with-void-value
-    "rule-of-three"
     # "virtual-call-ctor"         # managed by clang-tidy: clang-analyzer-cplusplus.PureVirtualCall/clang-analyzer-optin.cplusplus.VirtualCall
     "base-class-event"
     "copyable-polymorphic"
@@ -66,11 +69,16 @@
     # Checks from Level 1:
     "fix-auto-unexpected-qstringbuilder"
     "fix-range-loop-add-qasconst"
-    "fix-range-loop-add-ref"
 
     # Checks from Level 2:
     # "fix-function-args-by-ref" # disabled with the corresponding clazy check
     # "fix-missing-qobject-macro" # Q_OBJECT additions require matching moc build metadata
     # "fix-old-style-connect"
   ];
+
+  tasks."ci:repo:lint:clang-tidy-config" = {
+    description = "Validate the repository clang-tidy configuration";
+    before = [ "ci:lint" ];
+    exec = "${lib.getExe' pkgs.clang-tools "clang-tidy"} --verify-config --config-file=.clang-tidy";
+  };
 }

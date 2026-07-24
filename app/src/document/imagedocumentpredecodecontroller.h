@@ -43,6 +43,7 @@ public:
         PowerSaverProvider powerSaverProvider = {}, bool ordinaryDirectMediaPredecodeEnabled = true,
         TimerScheduler timerScheduler = {}, PredecodeThreadCountProvider threadCountProvider = {});
     ~ImageDocumentPredecodeController();
+    Q_DISABLE_COPY_MOVE(ImageDocumentPredecodeController)
 
     void scheduleAdjacentImagePredecode(
         std::optional<DisplayedPredecodeImage> secondaryImage = std::nullopt);

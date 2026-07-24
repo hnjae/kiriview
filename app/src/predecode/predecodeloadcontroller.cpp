@@ -30,13 +30,13 @@ void PredecodeLoadController::cacheDisplayedImages(
 
 void PredecodeLoadController::clearWindowUrls() { m_loadState.clearWindowUrls(); }
 
-void PredecodeLoadController::startWindowLoads(PredecodeLoadWindow window)
+void PredecodeLoadController::startWindowLoads(const PredecodeLoadWindow& window)
 {
     qCDebug(kiriviewPredecodeLog) << "predecode controller start window"
                                   << "generation" << window.generation << "primaryUrl"
                                   << window.primaryDisplayedUrl << "urls" << window.urls.size()
                                   << "parallelLimit" << window.parallelLimit;
-    m_loadState.startWindow(std::move(window), m_activeDecodes.activeLoads());
+    m_loadState.startWindow(window, m_activeDecodes.activeLoads());
     startNextLoads();
 }
 
@@ -65,8 +65,8 @@ bool PredecodeLoadController::startLoad(PredecodeLoadStart load)
 
     auto* decodeJob = new ImageDecodeJob(m_parent, m_decodeDependencies,
         ImageDecodeJob::Callbacks {
-            [this](ImageDecodeRequest request, DecodedImageResult result) {
-                finishDecode(std::move(request), result);
+            [this](const ImageDecodeRequest& request, const DecodedImageResult& result) {
+                finishDecode(request, result);
             },
             [this](const ImageDecodeRequest& request, const QString&) { finishLoadError(request); },
             {},
@@ -106,7 +106,7 @@ void PredecodeLoadController::finishLoadError(const ImageDecodeRequest& request)
 }
 
 void PredecodeLoadController::finishDecode(
-    ImageDecodeRequest request, const DecodedImageResult& result)
+    const ImageDecodeRequest& request, const DecodedImageResult& result)
 {
     std::optional<ImageDecodeRequest> activeRequest = m_activeDecodes.finish(request);
     if (!activeRequest.has_value()) {

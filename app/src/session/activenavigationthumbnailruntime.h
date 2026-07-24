@@ -36,19 +36,17 @@ public:
         ThumbnailCacheLookupProvider lookupProvider = {},
         std::shared_ptr<ThumbnailImageStore> imageStore = {},
         ThumbnailGenerationProvider generationProvider = {},
-        ThumbnailSourceAdapter sourceAdapter = {}, ImageWorkerScheduler workerScheduler = {},
+        ThumbnailSourceAdapter sourceAdapter = {}, const ImageWorkerScheduler& workerScheduler = {},
         ActiveNavigationThumbnailFailureDiagnosticCallback failureDiagnosticCallback = {});
     ~ActiveNavigationThumbnailRuntime();
-
-    ActiveNavigationThumbnailRuntime(const ActiveNavigationThumbnailRuntime&) = delete;
-    ActiveNavigationThumbnailRuntime& operator=(const ActiveNavigationThumbnailRuntime&) = delete;
+    Q_DISABLE_COPY_MOVE(ActiveNavigationThumbnailRuntime)
 
     [[nodiscard]] QAbstractListModel* model() const;
     [[nodiscard]] quint64 navigationGeneration() const;
 
     void setRows(std::vector<ActiveNavigationThumbnailRow> rows);
     void setCurrentNumber(int currentNumber);
-    bool replaceDemandSnapshot(ActiveNavigationThumbnailDemandSnapshot snapshot);
+    bool replaceDemandSnapshot(const ActiveNavigationThumbnailDemandSnapshot& snapshot);
 
 private:
     std::unique_ptr<ActiveNavigationThumbnailRowStore> m_rowStore;

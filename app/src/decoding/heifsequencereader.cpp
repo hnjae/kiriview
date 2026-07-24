@@ -26,9 +26,7 @@ class HeifSequenceReader::Private
 public:
     Private() = default;
     ~Private() = default;
-
-    Private(const Private&) = delete;
-    Private& operator=(const Private&) = delete;
+    Q_DISABLE_COPY_MOVE(Private)
 
     void reset()
     {
@@ -133,7 +131,7 @@ AnimationFrameReadResult HeifSequenceReader::readNextFrame()
 void HeifSequenceReader::close()
 {
     if (d != nullptr) {
-        d->reset();
+        (*d).reset();
     }
 }
 }

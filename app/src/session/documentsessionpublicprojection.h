@@ -119,7 +119,7 @@ struct DocumentSessionPublicSnapshotInput
 };
 
 DocumentSessionPublicProjection projectDocumentSessionPublicState(
-    DocumentSessionPublicProjectionInput input);
+    const DocumentSessionPublicProjectionInput& input);
 
 DocumentSessionPublicSnapshot projectDocumentSessionPublicSnapshot(
     const DocumentSessionPublicSnapshotInput& input, quint64 revision);

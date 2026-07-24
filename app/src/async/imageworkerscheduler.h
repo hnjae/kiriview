@@ -71,7 +71,7 @@ public:
                   }
 
                   finish(std::move(**result));
-                  result->reset();
+                  (*result).reset();
               };
 
         return schedule(context, std::move(operation), std::move(completion));

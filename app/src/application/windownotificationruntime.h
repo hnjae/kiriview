@@ -49,6 +49,7 @@ public:
     explicit WindowNotificationRuntime(
         QObject* owner, TimerScheduler timerScheduler = {}, SnapshotChanged snapshotChanged = {});
     ~WindowNotificationRuntime();
+    Q_DISABLE_COPY_MOVE(WindowNotificationRuntime)
 
     [[nodiscard]] const WindowNotificationSnapshot& snapshot() const;
     void submit(WindowNotificationRequest request);

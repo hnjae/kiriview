@@ -83,9 +83,9 @@ void ActiveNavigationThumbnailWorkCoordinator::setCurrentNumber(int currentNumbe
 }
 
 bool ActiveNavigationThumbnailWorkCoordinator::replaceDemandSnapshot(
-    ActiveNavigationThumbnailDemandSnapshot snapshot)
+    const ActiveNavigationThumbnailDemandSnapshot& snapshot)
 {
-    auto effects = m_scheduler.replaceDemandSnapshot(std::move(snapshot));
+    auto effects = m_scheduler.replaceDemandSnapshot(snapshot);
     if (!effects.has_value()) {
         return false;
     }
@@ -111,7 +111,8 @@ void ActiveNavigationThumbnailWorkCoordinator::applyEffects(
     std::vector<ActiveNavigationThumbnailScheduleEffect> effects)
 {
     for (ActiveNavigationThumbnailScheduleEffect& effect : effects) {
-        std::visit([this](auto value) { applyEffect(std::move(value)); }, std::move(effect));
+        std::visit([this](auto&& value) { applyEffect(std::forward<decltype(value)>(value)); },
+            std::move(effect));
     }
 }
 
@@ -128,26 +129,26 @@ void ActiveNavigationThumbnailWorkCoordinator::applyEffect(
 }
 
 void ActiveNavigationThumbnailWorkCoordinator::applyEffect(
-    ActiveNavigationThumbnailApplyPendingEffect effect)
+    const ActiveNavigationThumbnailApplyPendingEffect& effect)
 {
     m_rowPort.applyPending(effect.sourceKey);
 }
 
 void ActiveNavigationThumbnailWorkCoordinator::applyEffect(
-    ActiveNavigationThumbnailApplyUnsupportedEffect effect)
+    const ActiveNavigationThumbnailApplyUnsupportedEffect& effect)
 {
     m_rowPort.applyUnsupported(effect.sourceKey);
 }
 
 void ActiveNavigationThumbnailWorkCoordinator::applyEffect(
-    ActiveNavigationThumbnailUpdateRetentionEffect effect)
+    const ActiveNavigationThumbnailUpdateRetentionEffect& effect)
 {
     m_rowPort.updateRetentionPriority(
         effect.sourceKey, imageRetentionPriority(effect.retentionClass));
 }
 
 void ActiveNavigationThumbnailWorkCoordinator::applyEffect(
-    ActiveNavigationThumbnailAcceptCompletionEffect effect)
+    const ActiveNavigationThumbnailAcceptCompletionEffect& effect)
 {
     publishCompletion(effect);
 }

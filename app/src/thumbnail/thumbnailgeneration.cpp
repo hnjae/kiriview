@@ -9,6 +9,7 @@
 #include "decoding/decodedimageresult.h"
 #include "decoding/kiriimagedecoder.h"
 #include "kiriview/src/support/thumbnailcache.cxx.h"
+#include "rendering/imagerendering.h"
 #include "rendering/staticimage.h"
 #include "thumbnail/thumbnailcachelookup.h"
 
@@ -125,15 +126,15 @@ kiriview::ThumbnailCacheLookupResult lookupResultFromRust(
     }
 
     const QByteArray pixels = kiriview::Bridge::qtByteArray(rustResult.pixels);
-    const QImage image(reinterpret_cast<const uchar*>(pixels.constData()), rustResult.width,
-        rustResult.height, rustResult.stride, QImage::Format_RGBA8888);
+    const QImage image = kiriview::copiedImageFromBytes(pixels,
+        QSize(rustResult.width, rustResult.height), rustResult.stride, QImage::Format_RGBA8888);
     if (image.isNull()) {
         result.status = kiriview::ThumbnailCacheLookupStatus::Failed;
         result.errorString = QStringLiteral("thumbnail cache RGBA8 result could not form a QImage");
         return result;
     }
 
-    result.image = image.copy();
+    result.image = image;
     return result;
 }
 
@@ -197,7 +198,6 @@ QImage renderedThumbnailImage(
                 }
                 return result.image;
             } else {
-                Q_UNUSED(errorString)
                 return thumbnailFrame(image.firstFrame, maximumLongEdge);
             }
         },
@@ -205,7 +205,7 @@ QImage renderedThumbnailImage(
 }
 
 QImage defaultThumbnailGenerationImageDecoder(
-    QByteArray bytes, int maximumLongEdge, QString* errorString)
+    const QByteArray& bytes, int maximumLongEdge, QString* errorString)
 {
     kiriview::DecodedImageResult decodeResult = kiriview::decodeImageData(bytes);
     if (const kiriview::DecodedImageFailure* failure
@@ -345,8 +345,7 @@ kiriview::ThumbnailGenerationCacheInstallResult installThumbnail(
     kiriview::ActiveNavigationThumbnailDemandBucket requestedBucket, const QImage& rgba8)
 {
     const rust::Slice<const std::uint8_t> pixels(
-        reinterpret_cast<const std::uint8_t*>(rgba8.constBits()),
-        static_cast<std::size_t>(rgba8.sizeInBytes()));
+        rgba8.constBits(), static_cast<std::size_t>(rgba8.sizeInBytes()));
     kiriview::RustThumbnailCacheInstallResult install;
     if (identity.isNonFileUri()) {
         const QByteArray uri = identity.uri.toUtf8();
@@ -371,7 +370,7 @@ kiriview::ThumbnailGenerationCacheInstallResult installThumbnail(
 
 kiriview::ThumbnailGenerationResult finishGeneratedThumbnailImage(
     const kiriview::ThumbnailGenerationRequest& request,
-    const kiriview::ThumbnailOriginalIdentity& originalIdentity, QImage image,
+    const kiriview::ThumbnailOriginalIdentity& originalIdentity, const QImage& image,
     const kiriview::ThumbnailGenerationDependencies& dependencies)
 {
     QImage rgba8 = image.convertToFormat(QImage::Format_RGBA8888);
@@ -435,7 +434,7 @@ kiriview::ThumbnailGenerationDependencies resolvedThumbnailGenerationDependencie
 
 kiriview::ThumbnailGenerationResult generateThumbnailWithDependencies(
     const kiriview::ThumbnailGenerationRequest& request,
-    kiriview::ThumbnailGenerationDependencies dependencies)
+    const kiriview::ThumbnailGenerationDependencies& dependencies)
 {
     const int maximumLongEdge = dependencies.maximumLongEdgeForBucket(request.requestedBucket);
     if (maximumLongEdge <= 0) {
@@ -485,7 +484,7 @@ kiriview::ThumbnailGenerationResult generateThumbnailWithDependencies(
                                   : std::move(decodeError));
     }
 
-    return finishGeneratedThumbnailImage(request, originalIdentity, std::move(image), dependencies);
+    return finishGeneratedThumbnailImage(request, originalIdentity, image, dependencies);
 }
 
 kiriview::ImageIoJob startVideoThumbnailGenerationJob(QObject* receiver,
@@ -538,7 +537,7 @@ kiriview::ImageIoJob startVideoThumbnailGenerationJob(QObject* receiver,
             }
 
             callback(finishGeneratedThumbnailImage(
-                request, originalIdentity, std::move(extractionResult.image), dependencies));
+                request, originalIdentity, extractionResult.image, dependencies));
         });
 }
 }

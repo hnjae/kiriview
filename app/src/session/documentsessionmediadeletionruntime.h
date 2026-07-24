@@ -35,6 +35,7 @@ public:
     explicit DocumentSessionMediaDeletionRuntime(FileDeletionProvider fileDeletionProvider = {},
         DirectMediaNavigationCandidateProvider candidateProvider = {});
     ~DocumentSessionMediaDeletionRuntime();
+    Q_DISABLE_COPY_MOVE(DocumentSessionMediaDeletionRuntime)
 
     DocumentSessionMediaDeletionStartPlan start(QObject* receiver, FileDeletionMode mode,
         std::vector<DirectMediaNavigationCandidate> candidates, const QUrl& actualTargetUrl,

@@ -77,7 +77,7 @@ void VideoDocumentState::resetForClearedSource()
     appendIfZoomPercentChanged(changes, 0);
     m_embeddedMetadata = {};
     changes.push_back(VideoDocumentChange::EmbeddedMetadata);
-    publish(std::move(changes));
+    publish(changes);
 }
 
 void VideoDocumentState::resetForSourceLoad(const QUrl& sourceUrl)
@@ -97,7 +97,7 @@ void VideoDocumentState::resetForSourceLoad(const QUrl& sourceUrl)
     appendIfZoomPercentChanged(changes, 0);
     m_embeddedMetadata = {};
     changes.push_back(VideoDocumentChange::EmbeddedMetadata);
-    publish(std::move(changes));
+    publish(changes);
 }
 
 void VideoDocumentState::setSourceLoadFailure(VideoSourceLoadFailure failure)
@@ -108,7 +108,7 @@ void VideoDocumentState::setSourceLoadFailure(VideoSourceLoadFailure failure)
     std::vector<VideoDocumentChange> changes;
     appendIfErrorStringChanged(changes, m_sourceLoadFailure->userMessage);
     appendIfStatusChanged(changes, VideoDocumentStatus::Error);
-    publish(std::move(changes));
+    publish(changes);
 }
 
 void VideoDocumentState::setBackendFailure(VideoBackendFailure failure)
@@ -119,7 +119,7 @@ void VideoDocumentState::setBackendFailure(VideoBackendFailure failure)
     std::vector<VideoDocumentChange> changes;
     appendIfErrorStringChanged(changes, m_backendFailure->userMessage);
     appendIfStatusChanged(changes, VideoDocumentStatus::Error);
-    publish(std::move(changes));
+    publish(changes);
 }
 
 void VideoDocumentState::setStatus(VideoDocumentStatus status)
@@ -131,7 +131,7 @@ void VideoDocumentState::setStatus(VideoDocumentStatus status)
 
     std::vector<VideoDocumentChange> changes;
     appendIfStatusChanged(changes, status);
-    publish(std::move(changes));
+    publish(changes);
 }
 
 void VideoDocumentState::setStatusAndError(VideoDocumentStatus status, const QString& errorString)
@@ -150,7 +150,7 @@ void VideoDocumentState::setStatusAndError(VideoDocumentStatus status, const QSt
     std::vector<VideoDocumentChange> changes;
     appendIfErrorStringChanged(changes, nextErrorString);
     appendIfStatusChanged(changes, status);
-    publish(std::move(changes));
+    publish(changes);
 }
 
 void VideoDocumentState::setErrorString(const QString& errorString)
@@ -160,28 +160,28 @@ void VideoDocumentState::setErrorString(const QString& errorString)
 
     std::vector<VideoDocumentChange> changes;
     appendIfErrorStringChanged(changes, errorString);
-    publish(std::move(changes));
+    publish(changes);
 }
 
 void VideoDocumentState::setHasVideo(bool hasVideo)
 {
     std::vector<VideoDocumentChange> changes;
     appendIfHasVideoChanged(changes, hasVideo);
-    publish(std::move(changes));
+    publish(changes);
 }
 
 void VideoDocumentState::setHasAudio(bool hasAudio)
 {
     std::vector<VideoDocumentChange> changes;
     appendIfHasAudioChanged(changes, hasAudio);
-    publish(std::move(changes));
+    publish(changes);
 }
 
 void VideoDocumentState::setVideoSize(QSize size)
 {
     std::vector<VideoDocumentChange> changes;
     appendIfVideoSizeChanged(changes, size);
-    publish(std::move(changes));
+    publish(changes);
 }
 
 void VideoDocumentState::setZoomPercent(std::optional<int> zoomPercent)
@@ -194,7 +194,7 @@ void VideoDocumentState::setZoomPercent(std::optional<int> zoomPercent)
         appendIfZoomPercentKnownChanged(changes, false);
         appendIfZoomPercentChanged(changes, 0);
     }
-    publish(std::move(changes));
+    publish(changes);
 }
 
 void VideoDocumentState::setEmbeddedMetadata(EmbeddedMetadata metadata)
@@ -208,7 +208,7 @@ void VideoDocumentState::publish(VideoDocumentChange change)
     publish(std::vector<VideoDocumentChange> { change });
 }
 
-void VideoDocumentState::publish(std::vector<VideoDocumentChange> changes)
+void VideoDocumentState::publish(const std::vector<VideoDocumentChange>& changes)
 {
     if (changes.empty()) {
         return;

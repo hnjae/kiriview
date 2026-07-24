@@ -18,7 +18,7 @@ struct WindowTitleSubjectInput
     ActiveNavigationSnapshot activeNavigation;
 };
 
-QString projectWindowTitleSubject(WindowTitleSubjectInput input);
+QString projectWindowTitleSubject(const WindowTitleSubjectInput& input);
 }
 
 #endif

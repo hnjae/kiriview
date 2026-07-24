@@ -18,7 +18,7 @@ class PredecodeActiveLoads final
 public:
     PredecodeActiveLoads() = default;
 
-    static PredecodeActiveLoads fromUrls(std::vector<QUrl> urls)
+    static PredecodeActiveLoads fromUrls(const std::vector<QUrl>& urls)
     {
         PredecodeActiveLoads loads;
         loads.m_urls.reserve(urls.size());

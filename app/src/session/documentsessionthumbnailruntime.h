@@ -28,7 +28,7 @@ public:
     [[nodiscard]] quint64 navigationGeneration() const;
     void setRows(std::vector<ActiveNavigationThumbnailRow> rows);
     void setCurrentNumber(int currentNumber);
-    bool replaceDemandSnapshot(ActiveNavigationThumbnailDemandSnapshot snapshot);
+    bool replaceDemandSnapshot(const ActiveNavigationThumbnailDemandSnapshot& snapshot);
 
 private:
     ActiveNavigationThumbnailRuntime m_runtime;

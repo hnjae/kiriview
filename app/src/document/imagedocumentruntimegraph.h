@@ -60,6 +60,7 @@ public:
         ImageDocumentRuntimeDependencyOverrides dependencies,
         ImageDocumentRuntimeGraphCallbacks callbacks);
     ~ImageDocumentRuntimeGraph();
+    Q_DISABLE_COPY_MOVE(ImageDocumentRuntimeGraph)
 
     [[nodiscard]] ImageDocumentDeletionController& deletionController() const;
     [[nodiscard]] ImageDocumentNavigationController& navigationController() const;
@@ -84,9 +85,9 @@ private:
     [[nodiscard]] OpenedCollectionScopeLocation pageNavigationOpenedCollectionScope() const;
     void composeWorkflowDispatch(ImageDocumentState& state);
     bool prepareViewportImageTarget(
-        ImageLoadSession session, std::optional<PredecodedImage> predecoded);
+        const ImageLoadSession& session, std::optional<PredecodedImage> predecoded);
     void prepareViewportSecondaryImageTarget(
-        ImageLoadSession session, std::optional<PredecodedImage> predecoded);
+        const ImageLoadSession& session, std::optional<PredecodedImage> predecoded);
     void clearViewportSecondaryImageTarget();
     void clearViewportTarget();
     void handleViewportProjection(const ImageViewportIntegrationProjection& projection);

@@ -32,7 +32,7 @@ public:
         PowerSaverProvider powerSaverProvider, qsizetype cacheByteBudget,
         TimerScheduler timerScheduler = {}, PredecodeThreadCountProvider threadCountProvider = {});
 
-    void schedule(Context context);
+    void schedule(const Context& context);
     void setPowerSaverEnabled(bool enabled);
     bool powerSaverEnabled() const;
     void cancel();

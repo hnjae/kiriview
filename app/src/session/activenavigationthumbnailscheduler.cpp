@@ -13,7 +13,7 @@
 namespace kiriview {
 ThumbnailSourceAdapter defaultThumbnailSourceAdapter()
 {
-    return [](ThumbnailSourceAdapterRequest request) {
+    return [](const ThumbnailSourceAdapterRequest& request) {
         const QString directImage = activeNavigationThumbnailSourceKindIdentity(
             ActiveNavigationThumbnailSourceKind::DirectImage);
         const QString directVideo = activeNavigationThumbnailSourceKindIdentity(
@@ -160,14 +160,14 @@ ActiveNavigationThumbnailScheduler::setCurrentNumber(int currentNumber)
 
 std::optional<std::vector<ActiveNavigationThumbnailScheduleEffect>>
 ActiveNavigationThumbnailScheduler::replaceDemandSnapshot(
-    ActiveNavigationThumbnailDemandSnapshot snapshot)
+    const ActiveNavigationThumbnailDemandSnapshot& snapshot)
 {
     if (snapshot.navigationGeneration == 0
         || snapshot.navigationGeneration != m_navigationGeneration) {
         return std::nullopt;
     }
     std::map<std::size_t, ActiveNavigationThumbnailDemand> normalized;
-    for (ActiveNavigationThumbnailDemand& fact : snapshot.demands) {
+    for (const ActiveNavigationThumbnailDemand& fact : snapshot.demands) {
         if (fact.bucket < ActiveNavigationThumbnailDemandBucket::Normal
             || fact.bucket > ActiveNavigationThumbnailDemandBucket::XXLarge
             || (fact.priority != ActiveNavigationThumbnailDemandPriority::Visible
@@ -178,7 +178,7 @@ ActiveNavigationThumbnailScheduler::replaceDemandSnapshot(
         if (!row.has_value()) {
             return std::nullopt;
         }
-        auto [iterator, inserted] = normalized.try_emplace(*row, std::move(fact));
+        auto [iterator, inserted] = normalized.try_emplace(*row, fact);
         if (inserted) {
             continue;
         }

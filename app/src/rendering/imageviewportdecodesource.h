@@ -26,6 +26,7 @@ public:
     ImageViewportDecodeProviderSource(
         ImageLoadSession session, ImageDecodeDependencies dependencies);
     ~ImageViewportDecodeProviderSource() override;
+    Q_DISABLE_COPY_MOVE(ImageViewportDecodeProviderSource)
 
     [[nodiscard]] const EmbeddedMetadata& embeddedMetadata() const;
     [[nodiscard]] ImageSequenceProviderMetadata constructionMetadata() const override;
@@ -59,7 +60,7 @@ private:
     };
 
     void ensureDecoded();
-    void finishDecode(ImageDecodeRequest request, DecodedImageResult result);
+    void finishDecode(const ImageDecodeRequest& request, DecodedImageResult result);
     void finishDataLoadError(const ImageDecodeRequest& request, const QString& errorString);
     void finishThumbnail(const ImageDecodeRequest& request, StaticDisplayImagePayload displayImage);
     void finishDecodedImage(DecodedImage image);

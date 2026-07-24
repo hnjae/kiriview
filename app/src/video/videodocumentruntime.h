@@ -37,6 +37,7 @@ public:
         TimerScheduler playbackControlTimerScheduler = {},
         VideoPlaybackControlProjectionCallback playbackControlProjectionCallback = {});
     ~VideoDocumentRuntime();
+    Q_DISABLE_COPY_MOVE(VideoDocumentRuntime)
 
     QUrl sourceUrl() const;
     void setSourceUrl(const QUrl& sourceUrl);

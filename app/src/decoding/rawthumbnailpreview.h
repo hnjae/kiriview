@@ -38,7 +38,7 @@ std::optional<QSize> rawEmbeddedThumbnailPreviewTrustedOriginalSize(
 RawEmbeddedThumbnailPreviewResult rawEmbeddedThumbnailPreviewResult(
     const QByteArray& data, const ImageDecodeRequest& request);
 std::optional<StaticDisplayImagePayload> rawEmbeddedThumbnailPreviewDisplayPayload(
-    const ImageDecodeRequest& request, RawEmbeddedThumbnailPreviewResult result);
+    const ImageDecodeRequest& request, const RawEmbeddedThumbnailPreviewResult& result);
 }
 
 #endif

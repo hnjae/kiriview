@@ -34,11 +34,9 @@ class ApngAnimationReader final
 public:
     ApngAnimationReader();
     ~ApngAnimationReader();
+    Q_DISABLE_COPY_MOVE(ApngAnimationReader)
 
-    ApngAnimationReader(const ApngAnimationReader&) = delete;
-    ApngAnimationReader& operator=(const ApngAnimationReader&) = delete;
-
-    ApngOpenResult open(QByteArray data);
+    ApngOpenResult open(const QByteArray& data);
     AnimationFrameReadResult readNextFrame();
     [[nodiscard]] bool hasMoreFrames() const;
 

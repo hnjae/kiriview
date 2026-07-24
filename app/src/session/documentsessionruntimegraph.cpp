@@ -491,9 +491,9 @@ QAbstractListModel* DocumentSessionRuntimeGraph::activeNavigationThumbnailModel(
 }
 
 bool DocumentSessionRuntimeGraph::replaceActiveNavigationThumbnailDemandSnapshot(
-    ActiveNavigationThumbnailDemandSnapshot snapshot)
+    const ActiveNavigationThumbnailDemandSnapshot& snapshot)
 {
-    return m_activeNavigationThumbnailRuntime.replaceDemandSnapshot(std::move(snapshot));
+    return m_activeNavigationThumbnailRuntime.replaceDemandSnapshot(snapshot);
 }
 
 QString DocumentSessionRuntimeGraph::nextVideoOutputSurfaceClaimToken()
@@ -670,8 +670,8 @@ void DocumentSessionRuntimeGraph::deleteDisplayedFile(FileDeletionMode mode)
                 return m_directMediaScopePort.cursorMatches(scope);
             },
             m_state.documentKind(),
-            [this](DocumentSessionMediaDeletionCompletion completion) {
-                finishMediaDeletion(std::move(completion));
+            [this](const DocumentSessionMediaDeletionCompletion& completion) {
+                finishMediaDeletion(completion);
             });
     if (!started) {
         m_state.setFileDeletionInProgress(false);
@@ -945,7 +945,7 @@ DocumentSessionVideoOutputAttachmentPort DocumentSessionRuntimeGraph::videoOutpu
 }
 
 void DocumentSessionRuntimeGraph::finishMediaDeletion(
-    DocumentSessionMediaDeletionCompletion completion)
+    const DocumentSessionMediaDeletionCompletion& completion)
 {
     m_mediaDeletionCompletionRuntime.apply(completion);
 }

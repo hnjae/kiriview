@@ -22,6 +22,7 @@ public:
     explicit BufferedImageReader(
         const QByteArray& data, const QByteArray& format, bool autoTransform = true);
     ~BufferedImageReader();
+    Q_DISABLE_COPY_MOVE(BufferedImageReader)
 
     explicit operator bool() const;
     [[nodiscard]] bool canRead() const;

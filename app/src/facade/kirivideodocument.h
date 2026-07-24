@@ -59,6 +59,7 @@ public:
     explicit KiriVideoDocument(
         kiriview::TimerScheduler playbackControlTimerScheduler, QObject* parent = nullptr);
     ~KiriVideoDocument() override;
+    Q_DISABLE_COPY_MOVE(KiriVideoDocument)
 
     [[nodiscard]] QUrl sourceUrl() const;
     [[nodiscard]] Status status() const;

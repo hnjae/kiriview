@@ -18,7 +18,7 @@ public:
     PowerSaverStateMonitor() = default;
     virtual ~PowerSaverStateMonitor() = default;
     [[nodiscard]] virtual bool powerSaverEnabled() const = 0;
-    Q_DISABLE_COPY(PowerSaverStateMonitor)
+    Q_DISABLE_COPY_MOVE(PowerSaverStateMonitor)
 };
 
 using PowerSaverChangedCallback = std::function<void(bool)>;

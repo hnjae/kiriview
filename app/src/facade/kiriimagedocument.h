@@ -119,6 +119,7 @@ public:
     explicit KiriImageDocument(
         kiriview::ImageDocumentRuntimeDependencyOverrides dependencies, QObject* parent = nullptr);
     ~KiriImageDocument() override;
+    Q_DISABLE_COPY_MOVE(KiriImageDocument)
 
     [[nodiscard]] QUrl sourceUrl() const;
     [[nodiscard]] kiriview::ImageDocumentPageKind sourceKind() const;

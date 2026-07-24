@@ -55,7 +55,7 @@ kiriview::ImageIoJob watchChangesForSource(
 
 kiriview::ImageIoJob watchChangesForSource(const kiriview::ImageDocumentPageCandidateRepository&,
     QObject*, const kiriview::ImageDocumentPageCandidateListSource::OpenedCollectionScope&,
-    kiriview::ImageDocumentPageCandidatesCallback, kiriview::ErrorCallback)
+    const kiriview::ImageDocumentPageCandidatesCallback&, const kiriview::ErrorCallback&)
 {
     return kiriview::ImageIoJob();
 }

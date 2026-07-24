@@ -46,13 +46,13 @@ public:
     void cancel();
 
 private:
-    void startOpenedCollectionLoad(ImageLoadSession session);
-    void finishOpenedCollectionSnapshot(ImageLoadSession session,
-        ImageDocumentPageCandidateListSource candidateSource,
-        ImageDocumentPageCandidateListSnapshotResult result);
+    void startOpenedCollectionLoad(const ImageLoadSession& session);
+    void finishOpenedCollectionSnapshot(const ImageLoadSession& session,
+        const ImageDocumentPageCandidateListSource& candidateSource,
+        const ImageDocumentPageCandidateListSnapshotResult& result);
     void finishOpenedCollectionCandidates(
         const ImageLoadSession& session, const std::vector<ImageDocumentPageCandidate>& candidates);
-    bool tryReportUnsupportedOpenedCollectionVideo(ImageLoadSession session);
+    bool tryReportUnsupportedOpenedCollectionVideo(const ImageLoadSession& session);
     void prepareProviderImage(ImageLoadSession session);
     [[nodiscard]] std::optional<PredecodedImage> matchingPredecodedImage(
         const ImageLoadSession& session) const;

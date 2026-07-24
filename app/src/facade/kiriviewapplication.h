@@ -101,6 +101,7 @@ public:
 
     explicit KiriViewApplication(QObject* parent = nullptr);
     ~KiriViewApplication() override;
+    Q_DISABLE_COPY_MOVE(KiriViewApplication)
 
     [[nodiscard]] MenuPresentation menuPresentation() const;
     void setMenuPresentation(MenuPresentation presentation);

@@ -69,7 +69,7 @@ public:
     bool setDirectVideoCursor(ResolvedNavigationSource source);
 
     void publish(DocumentSessionChange change);
-    void publish(std::vector<DocumentSessionChange> changes);
+    void publish(const std::vector<DocumentSessionChange>& changes);
 
 private:
     bool applyPublicSnapshot(DocumentSessionPublicSnapshot snapshot);

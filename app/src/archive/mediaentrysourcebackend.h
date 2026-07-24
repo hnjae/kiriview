@@ -122,7 +122,7 @@ public:
     virtual MediaEntrySourceImageDataResult loadImageData(const QUrl& imageUrl) = 0;
     virtual MediaEntrySourceVideoPlaybackDeviceResult loadVideoPlaybackDevice(const QUrl& videoUrl);
     virtual MediaEntrySourceThumbnailMetadataResult loadThumbnailMetadata(const QUrl& imageUrl);
-    Q_DISABLE_COPY(MediaEntrySource)
+    Q_DISABLE_COPY_MOVE(MediaEntrySource)
 };
 
 using MediaEntrySourceOpenResult = MediaEntrySourceResult<MediaEntrySourcePtr>;

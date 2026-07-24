@@ -52,7 +52,7 @@ void PredecodeLoadState::cacheDisplayedImages(const std::vector<DisplayedPredeco
 void PredecodeLoadState::clearWindowUrls() { m_cache.setWindowUrls({}); }
 
 void PredecodeLoadState::startWindow(
-    PredecodeLoadWindow window, const PredecodeActiveLoads& activeLoads)
+    const PredecodeLoadWindow& window, const PredecodeActiveLoads& activeLoads)
 {
     qCDebug(kiriviewPredecodeLog) << "predecode load window"
                                   << "generation" << window.generation << "primaryUrl"

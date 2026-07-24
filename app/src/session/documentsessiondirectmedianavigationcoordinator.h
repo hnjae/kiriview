@@ -42,6 +42,7 @@ public:
         DirectMediaNavigationCandidateProvider provider = {},
         DocumentSessionDirectMediaNavigationCoordinatorPorts ports = {});
     ~DocumentSessionDirectMediaNavigationCoordinator();
+    Q_DISABLE_COPY_MOVE(DocumentSessionDirectMediaNavigationCoordinator)
 
     void cancel();
     void refresh(QObject* receiver);

@@ -231,7 +231,8 @@ void stampAdapterFailure(kiriview::DecodedImageResult& result,
         adapterName, failure->operation, failure->diagnosticDetail);
 }
 
-kiriview::DecodedImageResult failedAnimationOpenResult(QString errorString, QString adapterName)
+kiriview::DecodedImageResult failedAnimationOpenResult(
+    QString errorString, const QString& adapterName)
 {
     const QString backendError = errorString;
     return kiriview::failedDecodedImageResult(kiriview::DecodedImageFailure {
@@ -239,8 +240,7 @@ kiriview::DecodedImageResult failedAnimationOpenResult(QString errorString, QStr
         kiriview::DecodedImageFailureRoute::QtRaster,
         kiriview::DecodedImageFailureOperation::DecodeAnimationOpen,
         QStringLiteral("%1 animation open failed: %2")
-            .arg(std::move(adapterName),
-                backendError.isEmpty() ? QStringLiteral("<empty>") : backendError),
+            .arg(adapterName, backendError.isEmpty() ? QStringLiteral("<empty>") : backendError),
         kiriview::DecodedImageFailureSeverity::Error,
         false,
     });

@@ -89,7 +89,7 @@ public:
     virtual ImageAnimationPlaybackOpenResult open() = 0;
     virtual ImageAnimationPlaybackReadResult readNextFrame() = 0;
     [[nodiscard]] virtual bool restartable() const = 0;
-    Q_DISABLE_COPY(ImageAnimationPlaybackSource)
+    Q_DISABLE_COPY_MOVE(ImageAnimationPlaybackSource)
 };
 
 ImageAnimationPlaybackRequest readerAnimationPlaybackRequest(QByteArray data, QByteArray format);

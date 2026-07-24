@@ -31,7 +31,8 @@ kiriview::VideoThumbnailExtractionResult failedExtraction(QString errorString)
 }
 
 namespace kiriview {
-QImage videoThumbnailImageFromFrameImage(QImage image, int maximumLongEdge, QString* errorString)
+QImage videoThumbnailImageFromFrameImage(
+    const QImage& image, int maximumLongEdge, QString* errorString)
 {
     if (image.isNull()) {
         if (errorString != nullptr) {
@@ -62,7 +63,7 @@ QImage videoThumbnailImageFromEmbeddedImages(
         }
         return {};
     }
-    return videoThumbnailImageFromFrameImage(std::move(image), maximumLongEdge, errorString);
+    return videoThumbnailImageFromFrameImage(image, maximumLongEdge, errorString);
 }
 
 QVector<qint64> videoThumbnailCandidatePositions(qint64 durationMsec)
@@ -192,7 +193,7 @@ VideoThumbnailExtractionPlan VideoThumbnailExtractionWorkflow::handleFrame(QImag
     }
     if (m_firstFrameFallback) {
         return finishReadyFromImage(
-            std::move(image), QStringLiteral("video thumbnail frame conversion failed"));
+            image, QStringLiteral("video thumbnail frame conversion failed"));
     }
     return acceptCandidateFrame(std::move(image));
 }
@@ -229,8 +230,8 @@ VideoThumbnailExtractionPlan VideoThumbnailExtractionWorkflow::handleTimeout()
         return {};
     }
     if (!m_firstFrameFallback && !m_lastCapturedCandidate.isNull()) {
-        return finishReadyFromImage(std::move(m_lastCapturedCandidate),
-            QStringLiteral("video thumbnail candidate conversion failed"));
+        return finishReadyFromImage(
+            m_lastCapturedCandidate, QStringLiteral("video thumbnail candidate conversion failed"));
     }
     return finish(failedExtraction(QStringLiteral("video thumbnail extraction timed out")));
 }
@@ -271,7 +272,7 @@ VideoThumbnailExtractionPlan VideoThumbnailExtractionWorkflow::acceptCandidateFr
     VideoThumbnailExtractionPlan plan { PauseVideoThumbnailBackend {} };
     if (!image.isNull() && videoThumbnailFrameIsInteresting(image)) {
         VideoThumbnailExtractionPlan completion = finishReadyFromImage(
-            std::move(image), QStringLiteral("video thumbnail candidate conversion failed"));
+            image, QStringLiteral("video thumbnail candidate conversion failed"));
         plan.insert(plan.end(), std::make_move_iterator(completion.begin()),
             std::make_move_iterator(completion.end()));
         return plan;
@@ -297,16 +298,16 @@ VideoThumbnailExtractionPlan VideoThumbnailExtractionWorkflow::finishCandidateEx
         return finish(failedExtraction(
             QStringLiteral("video thumbnail decode produced no usable candidate frame")));
     }
-    return finishReadyFromImage(std::move(m_lastCapturedCandidate),
-        QStringLiteral("video thumbnail candidate conversion failed"));
+    return finishReadyFromImage(
+        m_lastCapturedCandidate, QStringLiteral("video thumbnail candidate conversion failed"));
 }
 
 VideoThumbnailExtractionPlan VideoThumbnailExtractionWorkflow::finishReadyFromImage(
-    QImage image, QString fallbackErrorString)
+    const QImage& image, QString fallbackErrorString)
 {
     QString errorString;
-    QImage thumbnail = videoThumbnailImageFromFrameImage(
-        std::move(image), m_request.maximumLongEdge, &errorString);
+    QImage thumbnail
+        = videoThumbnailImageFromFrameImage(image, m_request.maximumLongEdge, &errorString);
     if (thumbnail.isNull()) {
         return finish(failedExtraction(
             errorString.isEmpty() ? std::move(fallbackErrorString) : std::move(errorString)));

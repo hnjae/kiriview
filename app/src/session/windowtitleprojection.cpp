@@ -27,7 +27,7 @@ QString navigationStatus(kiriview::ActiveNavigationSnapshot snapshot)
 }
 
 namespace kiriview {
-QString projectWindowTitleSubject(WindowTitleSubjectInput input)
+QString projectWindowTitleSubject(const WindowTitleSubjectInput& input)
 {
     if (input.baseName.isEmpty()) {
         return {};

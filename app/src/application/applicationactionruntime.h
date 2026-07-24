@@ -61,6 +61,7 @@ public:
 
     explicit ApplicationActionRuntime(ApplicationActionHost& host, Callbacks callbacks = {});
     ~ApplicationActionRuntime();
+    Q_DISABLE_COPY_MOVE(ApplicationActionRuntime)
 
     [[nodiscard]] MenuPresentation menuPresentation() const;
     void setMenuPresentation(MenuPresentation presentation);

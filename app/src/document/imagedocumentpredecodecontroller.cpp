@@ -150,7 +150,7 @@ void ImageDocumentPredecodeController::scheduleWithConfirmedCandidateSnapshot(
     const std::optional<ImageDocumentPageCandidateListContext> candidateContext
         = imageDocumentPageCandidateListContextForDisplayedImage(context.currentLocation);
     if (!candidateContext.has_value() || !m_ensurePageCandidateSnapshot) {
-        m_coordinator->schedule(std::move(context));
+        m_coordinator->schedule(context);
         return;
     }
 
@@ -165,7 +165,7 @@ void ImageDocumentPredecodeController::scheduleWithConfirmedCandidateSnapshot(
             if (result.succeeded) {
                 context.candidateSnapshot = std::move(result.snapshot);
             }
-            m_coordinator->schedule(std::move(context));
+            m_coordinator->schedule(context);
         });
 }
 

@@ -18,6 +18,7 @@ class DocumentSessionMediaOpenWithRuntime final
 public:
     explicit DocumentSessionMediaOpenWithRuntime(MediaOpenWithProvider provider = {});
     ~DocumentSessionMediaOpenWithRuntime();
+    Q_DISABLE_COPY_MOVE(DocumentSessionMediaOpenWithRuntime)
 
     void open(QObject* receiver, const MediaOpenWithPlan& plan, MediaOpenWithCallback callback);
     void cancel();

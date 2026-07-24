@@ -48,7 +48,7 @@ XdgThumbnailPreviewResult xdgThumbnailPreviewResult(
 std::optional<XdgThumbnailPreviewRequest> xdgThumbnailPreviewRequestForDecodeData(
     const QByteArray& data, const ImageDecodeRequest& request);
 std::optional<StaticDisplayImagePayload> xdgThumbnailPreviewDisplayPayload(
-    const ImageDecodeRequest& request, XdgThumbnailPreviewResult result);
+    const ImageDecodeRequest& request, const XdgThumbnailPreviewResult& result);
 }
 
 #endif

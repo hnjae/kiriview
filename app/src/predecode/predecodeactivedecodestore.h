@@ -21,9 +21,7 @@ class PredecodeActiveDecodeStore final
 public:
     PredecodeActiveDecodeStore() = default;
     ~PredecodeActiveDecodeStore();
-
-    PredecodeActiveDecodeStore(const PredecodeActiveDecodeStore&) = delete;
-    PredecodeActiveDecodeStore& operator=(const PredecodeActiveDecodeStore&) = delete;
+    Q_DISABLE_COPY_MOVE(PredecodeActiveDecodeStore)
 
     bool add(ImageDecodeRequest request, ImageDecodeJob* decodeJob);
     [[nodiscard]] std::size_t size() const;

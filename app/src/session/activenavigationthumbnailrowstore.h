@@ -86,9 +86,7 @@ class ActiveNavigationThumbnailRowPort
 {
 public:
     virtual ~ActiveNavigationThumbnailRowPort() = default;
-
-    ActiveNavigationThumbnailRowPort(const ActiveNavigationThumbnailRowPort&) = delete;
-    ActiveNavigationThumbnailRowPort& operator=(const ActiveNavigationThumbnailRowPort&) = delete;
+    Q_DISABLE_COPY_MOVE(ActiveNavigationThumbnailRowPort)
 
     [[nodiscard]] virtual bool hasUsableReadyImage(
         const ThumbnailSourceRevisionKey& sourceKey) const
@@ -113,9 +111,7 @@ public:
     explicit ActiveNavigationThumbnailRowStore(
         std::shared_ptr<ThumbnailImageStore> imageStore = {});
     ~ActiveNavigationThumbnailRowStore() override;
-
-    ActiveNavigationThumbnailRowStore(const ActiveNavigationThumbnailRowStore&) = delete;
-    ActiveNavigationThumbnailRowStore& operator=(const ActiveNavigationThumbnailRowStore&) = delete;
+    Q_DISABLE_COPY_MOVE(ActiveNavigationThumbnailRowStore)
 
     [[nodiscard]] QAbstractListModel* model() const;
     [[nodiscard]] quint64 navigationGeneration() const;

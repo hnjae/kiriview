@@ -57,6 +57,7 @@ kiriview::WebPAnimationOpenResult errorOpenResult(QString errorString)
 WebPData webpDataFor(const QByteArray& data)
 {
     return WebPData {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) -- libwebp byte API.
         reinterpret_cast<const std::uint8_t*>(data.constData()),
         static_cast<std::size_t>(data.size()),
     };
@@ -98,9 +99,8 @@ public:
 
         int width = 0;
         int height = 0;
-        if (WebPGetInfo(reinterpret_cast<const std::uint8_t*>(inputData.constData()),
-                static_cast<std::size_t>(inputData.size()), &width, &height)
-            == 0) {
+        const WebPData input = webpDataFor(inputData);
+        if (WebPGetInfo(input.bytes, input.size, &width, &height) == 0) {
             return notWebPResult();
         }
         if (width <= 0 || height <= 0) {
@@ -224,5 +224,5 @@ AnimationFrameReadResult WebPAnimationReader::readNextFrame() { return d->readNe
 
 bool WebPAnimationReader::hasMoreFrames() const { return d->hasMoreFrames(); }
 
-void WebPAnimationReader::close() { d->reset(); }
+void WebPAnimationReader::close() { (*d).reset(); }
 }

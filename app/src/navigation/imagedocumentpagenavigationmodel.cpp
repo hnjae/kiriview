@@ -84,7 +84,7 @@ std::optional<ImageDocumentPageTarget> ImageDocumentPageNavigationModel::selectP
 
     PageNavigationState state = m_state;
     state.currentIndex = static_cast<int>(*targetIndex);
-    const ImageDocumentPageTarget target = state.targets.at(*targetIndex);
+    ImageDocumentPageTarget target = state.targets.at(*targetIndex);
     replaceState(std::move(state));
     return target;
 }
@@ -100,7 +100,7 @@ std::optional<ImageDocumentPageTarget> ImageDocumentPageNavigationModel::selectA
 
     PageNavigationState state = m_state;
     state.currentIndex = static_cast<int>(*targetIndex);
-    const ImageDocumentPageTarget target = state.targets.at(*targetIndex);
+    ImageDocumentPageTarget target = state.targets.at(*targetIndex);
     replaceState(std::move(state));
     return target;
 }

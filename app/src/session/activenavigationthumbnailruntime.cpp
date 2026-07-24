@@ -10,7 +10,7 @@ ActiveNavigationThumbnailRuntime::ActiveNavigationThumbnailRuntime(
     QObject* owner, ActiveNavigationThumbnailRuntimeDependencies dependencies)
     : ActiveNavigationThumbnailRuntime(owner, std::move(dependencies.lookupProvider),
           std::move(dependencies.imageStore), std::move(dependencies.generationProvider),
-          std::move(dependencies.sourceAdapter), std::move(dependencies.workerScheduler),
+          std::move(dependencies.sourceAdapter), dependencies.workerScheduler,
           std::move(dependencies.failureDiagnosticCallback))
 {
 }
@@ -18,7 +18,7 @@ ActiveNavigationThumbnailRuntime::ActiveNavigationThumbnailRuntime(
 ActiveNavigationThumbnailRuntime::ActiveNavigationThumbnailRuntime(QObject* owner,
     ThumbnailCacheLookupProvider lookupProvider, std::shared_ptr<ThumbnailImageStore> imageStore,
     ThumbnailGenerationProvider generationProvider, ThumbnailSourceAdapter sourceAdapter,
-    ImageWorkerScheduler workerScheduler,
+    const ImageWorkerScheduler& workerScheduler,
     ActiveNavigationThumbnailFailureDiagnosticCallback failureDiagnosticCallback)
     : m_rowStore(std::make_unique<ActiveNavigationThumbnailRowStore>(std::move(imageStore)))
     , m_workCoordinator(
@@ -74,9 +74,9 @@ void ActiveNavigationThumbnailRuntime::setCurrentNumber(int currentNumber)
 }
 
 bool ActiveNavigationThumbnailRuntime::replaceDemandSnapshot(
-    ActiveNavigationThumbnailDemandSnapshot snapshot)
+    const ActiveNavigationThumbnailDemandSnapshot& snapshot)
 {
-    return m_workCoordinator->replaceDemandSnapshot(std::move(snapshot));
+    return m_workCoordinator->replaceDemandSnapshot(snapshot);
 }
 
 }

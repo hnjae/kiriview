@@ -31,7 +31,7 @@ public:
     virtual ApplicationCommandRouterWindowPorts commandRouterWindowPorts();
     virtual ApplicationCommandRouterHelpPorts commandRouterHelpPorts();
     virtual ApplicationCommandRouterVideoPorts commandRouterVideoPorts();
-    Q_DISABLE_COPY(ApplicationCommandPortSource)
+    Q_DISABLE_COPY_MOVE(ApplicationCommandPortSource)
 };
 
 ApplicationCommandRouterPorts applicationCommandRouterPorts(ApplicationCommandPortSource& source);

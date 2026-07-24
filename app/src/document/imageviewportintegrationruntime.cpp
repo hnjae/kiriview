@@ -524,8 +524,9 @@ bool ImageViewportIntegrationRuntime::submitVerticalScrollPosition(qreal positio
 ImageViewportCoordinateResult ImageViewportIntegrationRuntime::mapPoint(
     ImageViewportCoordinateInput input) const
 {
-    return m_viewport == nullptr || !m_projection.correlated ? ImageViewportCoordinateResult {}
-                                                             : m_viewport->mapPoint(input);
+    return m_viewport == nullptr || !m_projection.correlated
+        ? ImageViewportCoordinateResult {}
+        : m_viewport->mapPoint(std::move(input));
 }
 
 }

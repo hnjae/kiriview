@@ -148,7 +148,7 @@ void VideoDocumentRuntime::setSourceUrl(const QUrl& sourceUrl)
     }
 
     m_sourceLoadRuntime.setSourceUrl(sourceUrl, m_documentObject,
-        [this](VideoSourceLoadPlan plan) { executeSourceLoadPlan(plan); });
+        [this](const VideoSourceLoadPlan& plan) { executeSourceLoadPlan(plan); });
 }
 
 void VideoDocumentRuntime::setSourceDevice(

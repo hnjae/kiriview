@@ -18,9 +18,7 @@ class ImageViewportFailureRegistry final
 public:
     ImageViewportFailureRegistry();
     ~ImageViewportFailureRegistry();
-
-    ImageViewportFailureRegistry(const ImageViewportFailureRegistry&) = delete;
-    ImageViewportFailureRegistry& operator=(const ImageViewportFailureRegistry&) = delete;
+    Q_DISABLE_COPY_MOVE(ImageViewportFailureRegistry)
 
     ImageSequenceProviderFailureHandle* registerFailure(ImageLoadFailure failure);
     [[nodiscard]] std::optional<ImageLoadFailure> resolve(

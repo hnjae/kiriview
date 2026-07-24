@@ -38,7 +38,7 @@ ImageDecodeDependencies MediaEntrySourceStore::wrapDecodeDependencies(
                                   ImageDataCallback callback, ErrorCallback errorCallback) {
         if (openedCollectionScopeContainsUrl(request.openedCollectionScope(), request.imageUrl())) {
             return loadOpenedCollectionImageData(
-                receiver, std::move(request), std::move(callback), std::move(errorCallback));
+                receiver, request, std::move(callback), std::move(errorCallback));
         }
 
         if (!upstreamDataLoader) {
@@ -85,10 +85,10 @@ ImageIoJob MediaEntrySourceStore::loadOpenedCollectionCandidates(QObject* receiv
 }
 
 ImageIoJob MediaEntrySourceStore::loadOpenedCollectionImageData(QObject* receiver,
-    ImageDecodeRequest request, ImageDataCallback callback, ErrorCallback errorCallback)
+    const ImageDecodeRequest& request, ImageDataCallback callback, ErrorCallback errorCallback)
 {
     return m_runtime.loadOpenedCollectionImageData(
-        receiver, std::move(request), std::move(callback), std::move(errorCallback));
+        receiver, request, std::move(callback), std::move(errorCallback));
 }
 
 MediaEntrySourceVideoPlaybackDeviceResult

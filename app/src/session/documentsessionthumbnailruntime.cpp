@@ -14,7 +14,7 @@ kiriview::ThumbnailSourceAdapter documentSessionThumbnailSourceAdapter(
 {
     return [imageDocument, injectedAdapter = std::move(injectedAdapter),
                directAdapter = kiriview::defaultThumbnailSourceAdapter()](
-               kiriview::ThumbnailSourceAdapterRequest request) mutable {
+               const kiriview::ThumbnailSourceAdapterRequest& request) mutable {
         if (injectedAdapter) {
             kiriview::ThumbnailSourceAdapterPlan plan = injectedAdapter(request);
             if (plan.kind != kiriview::ThumbnailSourceAdapterPlanKind::Unsupported) {
@@ -87,8 +87,8 @@ void DocumentSessionThumbnailRuntime::setCurrentNumber(int currentNumber)
 }
 
 bool DocumentSessionThumbnailRuntime::replaceDemandSnapshot(
-    ActiveNavigationThumbnailDemandSnapshot snapshot)
+    const ActiveNavigationThumbnailDemandSnapshot& snapshot)
 {
-    return m_runtime.replaceDemandSnapshot(std::move(snapshot));
+    return m_runtime.replaceDemandSnapshot(snapshot);
 }
 }

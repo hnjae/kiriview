@@ -67,7 +67,7 @@ public:
     [[nodiscard]] virtual bool hasAudio() const = 0;
     [[nodiscard]] virtual QSize videoSize() const = 0;
     [[nodiscard]] virtual bool muted() const = 0;
-    Q_DISABLE_COPY(VideoMediaBackend)
+    Q_DISABLE_COPY_MOVE(VideoMediaBackend)
 };
 
 std::unique_ptr<VideoMediaBackend> createDefaultVideoMediaBackend();

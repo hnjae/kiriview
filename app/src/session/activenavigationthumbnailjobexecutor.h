@@ -24,10 +24,7 @@ public:
         ThumbnailCacheLookupProvider lookupProvider, ThumbnailGenerationProvider generationProvider,
         ActiveNavigationThumbnailWorkCallback completionCallback);
     ~ActiveNavigationThumbnailJobExecutor();
-
-    ActiveNavigationThumbnailJobExecutor(const ActiveNavigationThumbnailJobExecutor&) = delete;
-    ActiveNavigationThumbnailJobExecutor& operator=(const ActiveNavigationThumbnailJobExecutor&)
-        = delete;
+    Q_DISABLE_COPY_MOVE(ActiveNavigationThumbnailJobExecutor)
 
     bool start(ActiveNavigationThumbnailWorkRequest request);
     bool cancel(ActiveNavigationThumbnailWorkId workId);
