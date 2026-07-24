@@ -6,11 +6,11 @@ Active-navigation thumbnails use source adapters so scheduling, cache policy, so
 
 The navigation owner remains canonical for candidate rows and their freshness. The document-session thumbnail runtime retains an accepted immutable candidate-derived view as lifecycle input and owns thumbnail projection, demand state, admission, cancellation, stale-completion rejection, result publication, and thumbnail image-store lifetime. QML reports the current visible and nearby demand window and renders projected results; it must not retain readiness, choose source capability, schedule work, or mutate row state.
 
-Source adapters classify an owner-supplied thumbnail source identity and return an explicit result for unsupported fallback, cacheable generation, or non-persistent generation. They may describe how bytes or a representative video image can be obtained, but they must not schedule jobs, mutate projections, install cache entries, or invent navigation identity.
+Source adapters classify an owner-supplied thumbnail source identity and return an explicit result for unsupported fallback, cacheable generation, or non-persistent generation. They may expose source bytes or an authorized media source through public provider inputs, but they must not schedule jobs, mutate projections, install cache entries, or invent navigation identity.
 
 Cache lookup, generation, and source access remain behind replaceable provider boundaries. The default persistent-cache provider delegates specification-compatible lookup and installation to the Rust support static library's [desktop thumbnail-cache capability](rust-support-boundary.md); the thumbnail runtime owns admission, capability selection, result acceptance, and publication. Thumbnail work must not borrow video playback state, mutable collection state, or another runtime's cache authority. Collection entry bytes and metadata remain owned by the collection-access boundary.
 
-Video thumbnail extraction has one deterministic workflow owner separate from its Qt Multimedia adapter. The adapter owns backend-specific playback, metadata, frame conversion, and resource lifetime; it reports plain media facts, images, and failures through a narrow backend boundary and executes source, seek, playback, and stop decisions from the workflow. Timeout and reentrant backend events remain subordinate to the workflow lifecycle, which is invalidated before cancellation or terminal cleanup so late callbacks cannot publish a result. The concrete object, timer, and adapter interfaces are implementation choices.
+Video thumbnail extraction remains behind a provider boundary. KiriView supplies an eligible authorized source and requested bound, keeps caller-owned access prerequisites valid while an extraction job is active, and maps the typed result into application failure and publication policy. KiriView treats the extraction job as an opaque asynchronous capability and must not depend on provider implementation mechanisms or borrow application playback state for extraction.
 
 ## Demand And Scheduling
 
@@ -18,7 +18,7 @@ Each demand update is one immutable snapshot correlated with the accepted naviga
 
 Admission follows the visible, nearby, selected, and optional background priorities defined by [Navigation](../spec/navigation.md). Higher-priority demand can displace lower-priority work, and a failed higher-detail request preserves an already usable lower-detail result.
 
-The thumbnail runtime bounds admitted work and backend resources. Demand that is not admitted remains pending without acquiring expensive source or multimedia resources, and optional background work yields to foreground demand. Exact capacities, queue structure, and tie-breaking among equal-priority rows are runtime resource policy.
+The thumbnail runtime bounds aggregate admitted work and resource pressure across source providers. Each provider bounds one admitted operation within its own contract. Demand that is not admitted remains pending without acquiring expensive provider resources, and optional background work yields to foreground demand. Exact capacities, queue structure, and tie-breaking among equal-priority rows are runtime resource policy.
 
 Row identity, source freshness, requested physical-size bucket, priority, and work correlation remain associated through scheduling and completion. A completion may publish only after both the backend job owner and the thumbnail runtime accept that correlation. Cancellation is best-effort; invalidated or late callbacks are no-ops.
 

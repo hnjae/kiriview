@@ -1,72 +1,62 @@
 # Extraction Runtime
 
-Each extraction operation has one runtime owner and one private workflow instance. The runtime is the sole owner allowed to accept backend or timer facts, execute workflow effects, claim terminal completion, and invoke the caller callback.
+Each extraction operation has one lifecycle authority that exclusively accepts multimedia and deadline events, selects a terminal outcome, controls callback eligibility, and retires extraction resources. Internal object decomposition, event representation, and dispatch mechanisms remain implementation choices.
 
 ```mermaid
 sequenceDiagram
     participant Caller as KiriView
-    participant Runtime as Extraction runtime
-    participant Workflow as Workflow
-    participant Backend as Multimedia adapter
-    participant Timer as Monotonic timer
+    participant Component as Extraction component
+    participant QtMM as Qt Multimedia
 
-    Caller->>Runtime: admitted request and callback
-    Runtime->>Workflow: start(request)
-    Workflow-->>Runtime: backend and deadline effects
-    Runtime->>Timer: start deadline
-    Runtime->>Backend: set source and extraction commands
-    Backend-->>Runtime: media, metadata, frame, or failure fact
-    Runtime->>Workflow: serialized fact
-    Workflow-->>Runtime: next effects or terminal result
-    Runtime->>Timer: stop
-    Runtime->>Backend: stop and detach
-    Runtime-->>Caller: queued terminal callback
+    Caller->>Component: admitted request and callback
+    Component->>QtMM: open source and request representative image
+    QtMM-->>Component: metadata, frame, status, or failure
+    Component->>QtMM: stop and release extraction work
+    Component-->>Caller: queued terminal callback
 ```
 
 ## Request Admission
 
-The public adapter validates the complete request against the public contract before constructing a multimedia backend, timer, or workflow-owned candidate state. Rejection produces an asynchronous typed `InvalidRequest` result through the same completion path as any other terminal result and does not touch the source.
+The component validates the complete request against the public contract before touching the source or starting multimedia or deadline work. Rejection produces an `InvalidRequest` result subject to the same asynchronous affinity and cancellation guarantees as any other terminal result.
 
-An admitted operation copies or moves all request values into its runtime owner. The caller's URL object, callback storage, and request object are not borrowed after start returns.
+An admitted operation owns its request values after start returns and does not borrow the caller's request or URL storage. The start barrier prevents callback delivery before `startVideoThumbnailExtraction` returns, including when request rejection or multimedia behavior produces a terminal outcome synchronously.
 
-The public start barrier prevents callback delivery before `startVideoThumbnailExtraction` returns. A terminal fact produced synchronously during request startup or a reentrant backend command is retained by the runtime and delivered only through the queued completion path after that barrier.
+Receiver validity, callback presence, event-dispatcher availability, and affinity-thread use are caller preconditions defined by the public specification rather than request admission conditions.
 
-## Workflow Boundary
+## Source Access
 
-The workflow is a deterministic reducer over one ordered stream of admitted request, media-status, duration, seekability, position, embedded-image, decoded-frame, backend-failure, and deadline facts. It returns plain effects for deadline control, backend source and playback commands, and terminal completion. It owns representative-image selection state and terminal decision state but owns no `QObject`, multimedia object, timer, callback, thread, cache, or application identity.
+The caller keeps its authorization and any caller-owned access grant, mount, lease, or equivalent prerequisite valid while the public job is active. The component owns every source-facing resource it creates and stops source access before the job becomes inactive.
 
-The workflow may prefer a usable embedded cover image to an embedded thumbnail, sample a bounded set of positions for seekable media, fall back to first-frame extraction for non-seekable media, and retain a bounded fallback candidate. Candidate positions, interest scoring, thresholds, and the order among decoded candidates remain private policy because the public result promises no exact frame or timestamp.
+Source access is read-only and confined to extraction from the supplied source. The component does not request write authority, mutate source content or caller-managed metadata, create source-adjacent artifacts, derive identity or freshness, or acquire application-private access authority.
 
-For one identical ordered fact stream, the workflow produces the same ordered effects and terminal classification. Platform codec behavior may change the fact stream and therefore does not create a cross-platform image-equivalence guarantee.
+## Representative-Image Authority
 
-## Backend And Timer Ports
+The component alone decides whether an embedded image or decoded frame is usable and which admissible image represents the source. Qt Multimedia supplies source capabilities, metadata, frames, status, and failures but does not acquire application cache, navigation, scheduling, publication, or playback authority.
 
-The backend port owns extraction-only source, play, pause, seek, stop, media-fact, metadata-image, and decoded-frame operations. The default adapter exclusively owns its `QMediaPlayer`, `QVideoSink`, metadata observations, signal connections, and frame-to-`QImage` conversion. It reports plain facts and images and does not decide request validity, candidate order, timeout outcome, failure presentation, cache policy, or completion.
-
-The timer port owns one monotonic single-shot deadline resource and reports only deadline expiry. Wall-clock time, UI timers, and application scheduling state do not enter workflow state. The exact duration is one component resource-policy value shared by production and injected timer adapters, not duplicated by the workflow and runtime.
-
-Private backend and timer ports are injectable inside the component boundary so lifecycle and policy can be exercised without real multimedia or elapsed wall-clock time. Injection is not part of KiriView's supported public interface.
+Representative-image selection remains bounded in time and retained resources. Candidate positions, interest scoring, thresholds, and decoded-candidate ordering remain private policy because the public result promises no exact frame, timestamp, or cross-platform image equivalence.
 
 ## Serialization And Reentrancy
 
-All backend callbacks, timer firing, cancellation, and startup effects enter one runtime-owned serialized event loop. Backend and timer facts pass through one FIFO before workflow reduction; cancellation retires runtime authority before any later queued fact is considered. If a backend synchronously emits a signal while executing a source, seek, playback, pause, or stop command, the resulting fact is appended and processed only after the current effect dispatch returns. Neither backend nor timer callbacks may recursively enter the workflow or invoke caller completion directly.
+Startup, multimedia events, deadline expiry, cancellation, cleanup, and terminal delivery are serialized per operation so they cannot produce concurrent state transitions or multiple callbacks. A terminal outcome is immutable once selected, and no later event may replace it.
 
-Effect dispatch preserves workflow order. A terminal effect invalidates workflow input and completion eligibility before executing stop, disconnect, destruction, or callback-related effects that can reenter the runtime. Facts already queued after terminal invalidation are discarded without changing the result.
+Terminal invalidation prevents further multimedia or deadline events from affecting the operation before cleanup performs actions that may synchronously or asynchronously reenter the component. Reentrant and already queued events observed after invalidation are ignored. The implementation may satisfy these outcomes with any lifecycle and dispatch structure that preserves ordering, affinity, and exact-once delivery.
 
 ## Completion, Cancellation, And Destruction
 
-An active runtime has one claimable completion token. Ready and failed terminal paths atomically claim it, mark the public job inactive, invalidate further workflow input, stop the deadline, detach backend callbacks, and stop backend work before scheduling caller delivery. Only the claimed terminal result reaches the callback.
+The public job remains active from return until cancellation, receiver destruction, or the moment terminal delivery begins. Selecting a terminal result stops the deadline and extraction work but preserves cancellation authority while callback delivery is pending. Immediately before invoking the callback, the operation marks the job inactive and retires cancellation authority.
 
-Cancellation first retires the completion token and invalidates workflow input, then stops the timer and backend and releases pending candidates. This ordering makes errors, frames, metadata, position changes, and timer events emitted reentrantly during cleanup harmless. Repeated cancellation is a no-op, and cancellation never constructs a failed result.
+Cancellation first makes terminal selection and pending delivery ineligible, then releases multimedia, deadline, and candidate resources. This ordering makes cleanup-time reentrancy harmless. Repeated cancellation is a no-op, cancellation never constructs a failed result, and canceling during pending terminal delivery suppresses that delivery.
 
-The receiver owns callback context, not backend state. Receiver destruction cancels the operation and prevents queued completion from dereferencing the receiver. Runtime, backend, timer, and queued-delivery resources are destroyed on the receiver's affinity thread. The public job may be moved as a value, but start, cancellation, replacement, and destruction of an active job occur on that same thread.
+The receiver's affinity thread owns public job state and callback delivery rather than multimedia resource lifetime. Receiver destruction has the same suppression behavior as cancellation and prevents queued delivery from dereferencing it. Start, moving or replacing an active job, cancellation, and destruction of an active job occur on that thread. Internal resources stop and retire according to their own ownership and affinity requirements; lifecycle authority is invalidated before teardown so those resources can no longer affect terminal selection or delivery.
 
-The callback runs only after the job is inactive and the component no longer retains it. Callback code may destroy the receiver, start another extraction, replace application demand, or release related application state without reentering an active instance.
+The callback runs after the job becomes inactive, enforcing the public guarantee that callback code may release the job, destroy the receiver, or start another extraction without reentering an active instance.
 
-## Failure And Resource Admission
+## Deadline, Failure, And Resource Admission
 
-The runtime maps private backend categories and workflow terminal reasons to the public typed failure causes. Unsupported format and unavailable source remain distinguishable when the backend supplies that distinction; an unclassified multimedia error maps to `BackendFailure`. Failure mapping occurs before diagnostic construction.
+Each admitted operation has a bounded monotonic deadline under component resource policy. Deadline behavior does not depend on wall-clock changes or application scheduling state.
 
-Embedded images and decoded frames are untrusted resource inputs. The runtime validates non-null positive dimensions, overflow-safe scaling, actual retained output bytes, and the public limits before a candidate can complete successfully. Rejected or superseded images are released promptly, and the workflow retains at most one bounded decoded fallback in addition to the candidate currently being processed.
+The component maps multimedia outcomes and its own terminal reasons to the public typed failure causes before constructing diagnostics. A reliably identified inaccessible source maps to `SourceUnavailable`, a reliably identified unsupported format or extraction operation maps to `UnsupportedMedia`, and a multimedia or conversion error without a more specific reliable classification maps to `BackendFailure`.
 
-Successful completion transfers exactly one admitted `QImage` to the result. Failed completion retains no candidate image. Internal observability may record typed cause, lifecycle phase, candidate source class, cancellation, and stale-event counts, but it must not record image content, credentials, complete source URLs, backend object addresses, or unbounded backend diagnostics.
+Embedded images and decoded frames are untrusted resource inputs. For each operation, the component uses overflow-safe dimension calculations, validates positive dimensions, bounds retained candidate data, and admits a successful result only when its long edge and `QImage::sizeInBytes()` satisfy the public limits. Successful output has self-contained pixel-storage lifetime; failed completion retains no candidate image. KiriView separately owns aggregate admission, concurrency, priority, and resource-pressure policy across operations.
+
+Internal observability, if present, must use bounded, non-sensitive projections. It must not record image content, credentials, complete source URLs, backend object addresses, or unbounded backend diagnostics.

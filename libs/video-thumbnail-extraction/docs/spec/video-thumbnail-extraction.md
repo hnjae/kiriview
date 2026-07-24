@@ -12,22 +12,26 @@
 - `maximumOutputBytes` is `67108864`.
 - `maximumDiagnosticCharacters` is `1024`, counted as Unicode scalar values.
 
-The caller authorizes the source and decides whether its source class is eligible for thumbnail work before making a request. Accepting a `QUrl` does not promise support for any URL scheme, container, codec, network location, credential form, or protected media. The component must not expand caller eligibility or use the source URL as navigation, cache, session, or freshness identity.
+These limits apply to one extraction operation and its result. They are not an aggregate concurrency or memory budget; the caller bounds the number and priority of operations it admits.
 
-An invalid request completes with `InvalidRequest` without constructing multimedia or timer resources.
+The caller authorizes the source, keeps any caller-owned access grant, mount, lease, or equivalent prerequisite valid while the job is active, and decides whether the source class is eligible for thumbnail work. Accepting a `QUrl` does not promise support for any URL scheme, container, codec, network location, credential form, or protected media. The component must not expand caller eligibility or use the source URL as navigation, cache, session, or freshness identity.
+
+The component requests only read access to the source. It must not modify source content or caller-managed metadata, replace or delete the source, or create source-adjacent artifacts.
+
+An invalid request completes with `InvalidRequest` without touching the source or starting multimedia or deadline work.
 
 ## Result
 
 `VideoThumbnailExtractionResult` has status `Ready` or `Failed`.
 
-A `Ready` result contains one non-null `QImage`, contains no failure, has positive dimensions, preserves the selected source image's aspect ratio subject to integer raster dimensions, and has a long edge no greater than the request. Extraction does not upscale a selected image whose long edge is already within the request. The returned image satisfies both public output limits, including its actual retained byte size.
+A `Ready` result contains one non-null `QImage`, contains no failure, has positive dimensions, preserves the selected source image's aspect ratio subject to integer raster dimensions, and has a long edge no greater than the request. Extraction does not upscale a selected image whose long edge is already within the request. The returned image has `QImage::sizeInBytes()` no greater than `VideoThumbnailExtractionLimits::maximumOutputBytes` and owns or shares self-contained pixel storage whose lifetime does not depend on a multimedia backend, decoded frame, or other source object.
 
 A `Failed` result contains no image and contains one `VideoThumbnailExtractionFailure`. The failure has a typed `cause` and an optional bounded `diagnostic`. `VideoThumbnailExtractionFailureCause` contains:
 
 - `InvalidRequest` for malformed or out-of-range request values.
-- `SourceUnavailable` when the source cannot be opened or accessed.
-- `UnsupportedMedia` when the multimedia backend cannot handle the source format or required extraction operations.
-- `BackendFailure` for another multimedia or conversion failure.
+- `SourceUnavailable` when the component identifies that the source cannot be opened or accessed.
+- `UnsupportedMedia` when the component identifies that the multimedia backend cannot handle the source format or required extraction operations.
+- `BackendFailure` for a multimedia or conversion failure that the component cannot classify more specifically.
 - `TimedOut` when the extraction deadline expires without an admissible image.
 - `NoRepresentativeImage` when the source reaches a terminal state without a usable embedded image or decoded frame.
 - `ResourceLimit` when an input-derived or output resource would exceed a component limit.
@@ -44,11 +48,11 @@ The result makes no promise about an exact frame, timestamp, seek sequence, fram
 
 ## Asynchronous Operation
 
-`startVideoThumbnailExtraction` accepts a live `QObject` receiver, one request, and one completion callback and returns a move-only `VideoThumbnailExtractionJob`. Start and job control occur on the receiver's affinity thread, and completion is delivered on that thread while the receiver is alive.
+`startVideoThumbnailExtraction` accepts a live non-null `QObject` receiver, one request, and one non-empty completion callback and returns a move-only `VideoThumbnailExtractionJob`. The receiver's affinity thread must have an event dispatcher capable of queued delivery for the operation lifetime. Start, moving or replacing an active job, cancellation, and destruction of an active job occur on the receiver's affinity thread; completion is delivered on that thread while the receiver is alive. These receiver, callback, dispatcher, and thread requirements are caller preconditions rather than request values, and violating them has no supported result or callback behavior.
 
-Completion is never invoked before `startVideoThumbnailExtraction` returns. Every admitted operation that is not canceled delivers exactly one terminal `Ready` or `Failed` result. The job becomes inactive before invoking completion, so completion may safely release the job or receiver.
+Completion is never invoked before `startVideoThumbnailExtraction` returns. Every admitted operation that is not canceled delivers exactly one terminal `Ready` or `Failed` result. The job remains active while terminal delivery is pending and becomes inactive immediately before invoking completion, so completion may safely release the job, destroy the receiver, or start another extraction.
 
-`VideoThumbnailExtractionJob::cancel()` is idempotent. Destroying or replacing an active job cancels it. Once cancellation returns, completion is permanently suppressed even if backend, timer, queued, or reentrant events arrive later. Destroying the receiver has the same suppression guarantee.
+`VideoThumbnailExtractionJob::cancel()` is idempotent. Destroying or replacing an active job cancels it. Cancellation while terminal delivery is pending suppresses that delivery. Once cancellation returns, completion is permanently suppressed even if backend, timer, queued, or reentrant events arrive later. Destroying the receiver has the same suppression guarantee.
 
 The extraction deadline is bounded and measured with monotonic time. Its exact duration is component resource policy rather than a caller scheduling guarantee; callers must not infer progress or failure timing from wall-clock delay.
 
