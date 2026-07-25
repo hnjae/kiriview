@@ -37,8 +37,7 @@ Controls.ToolBar {
     property bool activeNavigationEditable: false
     property bool activeNavigationKnown: false
     property var openActiveNavigationAtNumber: function (number) {}
-    property bool rightToLeftReadingControlVisible: false
-    property bool twoPageModeControlVisible: false
+    property bool collectionControlsVisible: false
     property bool pageNavigationInputFocused: false
     property bool zoomInputFocused: false
     property Item applicationMenuButtonAnchor: null
@@ -50,7 +49,7 @@ Controls.ToolBar {
     readonly property bool fitMenuButtonTextVisible: width >= Kirigami.Units.gridUnit * 40
     readonly property bool interactionActive: textInputFocused() || applicationMenuOpen()
     readonly property int toolbarVerticalPadding: controlSpacing
-    readonly property var imageToolbarControls: (root.rightToLeftReadingControlVisible ? [root.actions.rightToLeftReadingAction] : []).concat(root.twoPageModeControlVisible ? [root.actions.twoPageModeAction] : [], [fitMenuAction, zoomLevelAction])
+    readonly property var imageToolbarControls: (root.collectionControlsVisible ? [root.actions.rightToLeftReadingAction, root.actions.twoPageModeAction] : []).concat([fitMenuAction, zoomLevelAction])
     readonly property var toolbarControls: imageToolbarControls
     readonly property var toolbarActions: showApplicationMenuActions ? toolbarControls.concat([applicationMenuAction]) : toolbarControls
 

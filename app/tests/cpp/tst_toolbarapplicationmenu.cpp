@@ -611,15 +611,14 @@ Item {
         activeNavigationEditable: root.sessionImageDocument.pageCount > 0
         activeNavigationKnown: root.sessionImageDocument.currentPageNumber > 0 && root.sessionImageDocument.pageCount > 0
         applicationMenuActions: [openMenuAction, separatorAction, quitMenuAction]
+        collectionControlsVisible: root.readingControlsVisible
         compact: true
         imageDocument: root.sessionImageDocument
         imageReady: !root.videoMode && root.sessionImageDocument.status === KiriImageDocument.Ready
         maximumManualZoomPercent: root.sessionImageDocument.maximumManualZoomPercent
         minimumManualZoomPercent: root.sessionImageDocument.minimumManualZoomPercent
         navigationPresentationProvider: navigationPresentationProvider
-        rightToLeftReadingControlVisible: root.readingControlsVisible
         showApplicationMenuActions: true
-        twoPageModeControlVisible: root.readingControlsVisible
         videoMode: root.videoMode
         zoomEditable: !root.videoMode && root.sessionImageDocument.zoomPercentKnown
         zoomPercent: root.videoMode ? 67 : (root.sessionImageDocument.zoomPercentKnown ? root.sessionImageDocument.zoomPercent : 0)

@@ -316,13 +316,12 @@ StatefulApp.StatefulWindow {
             imageReady: page.imageReady
             navigationPresentationProvider: kiriApplication
             applicationMenuActions: imageActions.applicationMenuActions
+            collectionControlsVisible: documentSession.activeImageOpenedCollectionScopeActive
             openActiveNavigationAtNumber: function (number) {
                 documentSession.openActiveNavigationAtNumber(number);
             }
-            rightToLeftReadingControlVisible: documentSession.activeImageOpenedCollectionScopeActive
             showApplicationMenuActions: !root.menuBarMode && !root.fullscreen
             transientOverlay: root.fullscreen
-            twoPageModeControlVisible: documentSession.activeImageOpenedCollectionScopeActive
             videoMode: page.videoMode
             visible: !root.fullscreen || root.windowShell.toolbarRevealed
             zoomEditable: documentSession.activeZoomEditable
