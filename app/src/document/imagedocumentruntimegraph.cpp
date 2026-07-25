@@ -23,6 +23,7 @@
 #include "imageopencontroller.h"
 #include "imageviewportintegrationruntime.h"
 #include "navigation/imagedocumentpagenavigationservice.h"
+#include "navigation/navigationlogging.h"
 #include "presentation/imagespreadpresentationcontroller.h"
 #include "rendering/displayimagestore.h"
 #include "rendering/imageviewportdecodesource.h"
@@ -471,6 +472,20 @@ void ImageDocumentRuntimeGraph::handleViewportProjection(
         return;
     }
 
+    qCWarning(kiriviewNavigationLog)
+        << "viewport image load failed"
+        << "url" << m_viewportLoadSession->imageUrl() << "sourceGeneration"
+        << projection.sourceGeneration << "displayedUrl" << projection.displayedUrl << "errorString"
+        << projection.errorString << "applicationFailureAvailable"
+        << projection.failure.has_value();
+    if (projection.failure.has_value()) {
+        qCWarning(kiriviewNavigationLog)
+            << "viewport image load failure detail"
+            << "kind" << static_cast<int>(projection.failure->kind) << "decodeRoute"
+            << static_cast<int>(projection.failure->decodeRoute) << "decodeOperation"
+            << static_cast<int>(projection.failure->decodeOperation) << "diagnosticDetail"
+            << projection.failure->diagnosticDetail << "retryable" << projection.failure->retryable;
+    }
     m_viewportLoadTerminal = true;
     ImageLoadFailure failure = projection.failure.value_or(viewportPresentationFailure(
         *m_viewportLoadSession, projection.errorString, projection.errorString));

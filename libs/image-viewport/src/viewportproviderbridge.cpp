@@ -6,6 +6,7 @@
 #include "imageviewporttoken_p.h"
 
 #include <QtCore/QCoreApplication>
+#include <QtCore/QLoggingCategory>
 #include <QtCore/QMetaObject>
 #include <QtCore/QMutex>
 #include <QtCore/QMutexLocker>
@@ -25,6 +26,8 @@
 #include <utility>
 
 using namespace std::chrono_literals;
+
+Q_LOGGING_CATEGORY(imageViewportProviderLog, "org.hnjae.imageviewport.provider", QtWarningMsg)
 
 ViewportProviderExecutorOutcome ViewportProviderExecutor::releaseFailureHandle(
     const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
@@ -1223,6 +1226,11 @@ ViewportProviderTransportResult ViewportProviderBridge::closeSession(quint64 gen
         return result;
     }
     SessionRecord& record = recordIt.value();
+    qCDebug(imageViewportProviderLog)
+        << "provider session close requested"
+        << "role" << static_cast<int>(role) << "generation" << record.generation << "sessionSerial"
+        << record.sessionSerial << "retainedSessions" << sessions.size() << "metadataTokenValid"
+        << metadataToken.isValid() << "frameTokenValid" << frameToken.isValid();
     record.metadataToken = metadataToken;
     record.frameToken = frameToken;
     record.eventEndpoint->observeClose();
@@ -1235,6 +1243,11 @@ ViewportProviderTransportResult ViewportProviderBridge::closeSession(quint64 gen
             ImageViewportInternal::ProviderTransportOperation::Close, metadataToken, frameToken,
             false, true, record.generation, record.sessionSerial);
         record.lifecycle = SessionLifecycle::CleanupPending;
+        qCWarning(imageViewportProviderLog)
+            << "provider session close delivery failed"
+            << "role" << static_cast<int>(role) << "generation" << record.generation
+            << "sessionSerial" << record.sessionSerial << "lifecycle"
+            << "cleanup-pending";
         return result;
     }
 
@@ -1245,9 +1258,19 @@ ViewportProviderTransportResult ViewportProviderBridge::closeSession(quint64 gen
             ImageViewportInternal::ProviderTransportOperation::Close, metadataToken, frameToken,
             false, true, record.generation, record.sessionSerial);
         record.lifecycle = SessionLifecycle::CleanupPending;
+        qCWarning(imageViewportProviderLog)
+            << "provider session close delivery failed"
+            << "role" << static_cast<int>(role) << "generation" << record.generation
+            << "sessionSerial" << record.sessionSerial << "lifecycle"
+            << "cleanup-pending";
         return result;
     }
     record.lifecycle = SessionLifecycle::Closing;
+    qCDebug(imageViewportProviderLog)
+        << "provider session close queued"
+        << "role" << static_cast<int>(role) << "generation" << record.generation << "sessionSerial"
+        << record.sessionSerial << "lifecycle"
+        << "closing";
     return result;
 }
 
@@ -1272,8 +1295,43 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
         return {};
     }
 
+    const auto logRetainedSessions = [this, &input](const char* event) {
+        qsizetype activeCount = 0;
+        qsizetype cleanupPendingCount = 0;
+        qsizetype closingCount = 0;
+        qsizetype destroyedCount = 0;
+        for (const SessionRecord& record : std::as_const(sessions)) {
+            if (!record.session) {
+                ++destroyedCount;
+            }
+            switch (record.lifecycle) {
+            case SessionLifecycle::Active:
+                ++activeCount;
+                break;
+            case SessionLifecycle::CleanupPending:
+                ++cleanupPendingCount;
+                break;
+            case SessionLifecycle::Closing:
+                ++closingCount;
+                break;
+            }
+        }
+        qCDebug(imageViewportProviderLog)
+            << event << "role" << static_cast<int>(role) << "generation" << input.generation
+            << "sessionSerial" << input.sessionSerial << "retainedSessions" << sessions.size()
+            << "active" << activeCount << "cleanupPending" << cleanupPendingCount << "closing"
+            << closingCount << "destroyed" << destroyedCount;
+    };
+
+    logRetainedSessions("provider session open requested");
     pruneDestroyedSessions();
+    logRetainedSessions("provider session open after prune");
     if (sessions.size() >= maximumRetainedProviderSessionCountPerRole) {
+        qCWarning(imageViewportProviderLog)
+            << "provider session capacity rejected"
+            << "role" << static_cast<int>(role) << "generation" << input.generation
+            << "sessionSerial" << input.sessionSerial << "retainedSessions" << sessions.size()
+            << "limit" << maximumRetainedProviderSessionCountPerRole;
         return {};
     }
 
@@ -1305,7 +1363,12 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
         session, input.threadingContract, input.generation, input.sessionSerial);
     const auto eventEndpoint = std::make_shared<ViewportProviderEventEndpoint>(input.eventSink);
     QObject::connect(session, &QObject::destroyed, session,
-        [session, sessionControl, cleanupRegistry = sessionCleanupRegistry]() {
+        [session, sessionControl, cleanupRegistry = sessionCleanupRegistry, eventRole = role,
+            generation = input.generation, sessionSerial = input.sessionSerial]() {
+            qCDebug(imageViewportProviderLog)
+                << "provider session destroyed"
+                << "role" << static_cast<int>(eventRole) << "generation" << generation
+                << "sessionSerial" << sessionSerial;
             sessionControl->markSessionDestroyed();
             cleanupRegistry->sessionDestroyed(session);
             releaseProviderSession(session);
@@ -1314,6 +1377,10 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
     sessions.insert(session,
         { session, input.threadingContract, input.generation, input.sessionSerial,
             SessionLifecycle::Active, {}, {}, sessionControl, eventEndpoint });
+    qCDebug(imageViewportProviderLog)
+        << "provider session opened"
+        << "role" << static_cast<int>(role) << "generation" << input.generation << "sessionSerial"
+        << input.sessionSerial << "retainedSessions" << sessions.size();
     eventEndpoints.append(eventEndpoint);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     const bool deliverSynchronously = synchronousEventDelivery;
@@ -1470,6 +1537,11 @@ bool ViewportProviderBridge::pruneDestroyedSessions()
         if (activeSession == session) {
             activeSession.clear();
         }
+        qCDebug(imageViewportProviderLog)
+            << "provider session pruned"
+            << "role" << static_cast<int>(role) << "generation" << recordIt->generation
+            << "sessionSerial" << recordIt->sessionSerial << "retainedSessionsBefore"
+            << sessions.size();
         sessions.erase(recordIt);
         pruned = true;
     }
