@@ -109,11 +109,12 @@
       "buildsystem": "simple",
       "build-options": {
         "env": {
-          "KIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR": "libs/image-viewport"
+          "KIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR": "libs/image-viewport",
+          "KIRIVIEW_VIDEO_THUMBNAIL_EXTRACTION_SOURCE_DIR": "libs/video-thumbnail-extraction"
         }
       },
       "build-commands": [
-        "cmake -S . -B target/flatpak/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/app -DKIRIVIEW_BUILD_TESTS=OFF -DKIRIVIEW_CARGO_OFFLINE=ON -DKIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR=$PWD/libs/image-viewport",
+        "cmake -S . -B target/flatpak/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/app -DKIRIVIEW_BUILD_TESTS=OFF -DKIRIVIEW_CARGO_OFFLINE=ON -DKIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR=$PWD/libs/image-viewport -DKIRIVIEW_VIDEO_THUMBNAIL_EXTRACTION_SOURCE_DIR=$PWD/libs/video-thumbnail-extraction",
         "cmake --build target/flatpak/release --parallel ${FLATPAK_BUILDER_N_JOBS:-$(nproc)}",
         "cmake --install target/flatpak/release",
         "scripts/install-translations.sh /app",
@@ -123,7 +124,7 @@
       "test-rule": "",
       "test-commands": [
         "env CARGO_TARGET_DIR=target/flatpak LIBHEIF_PLUGIN_PATH=/app/lib/libheif cargo --offline test --all-targets --all-features --jobs ${FLATPAK_BUILDER_N_JOBS:-$(nproc)} -- --test-threads ${FLATPAK_BUILDER_N_JOBS:-$(nproc)}",
-        "env LIBHEIF_PLUGIN_PATH=/app/lib/libheif cmake -S . -B target/flatpak/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug -DKIRIVIEW_BUILD_TESTS=ON -DKIRIVIEW_CARGO_OFFLINE=ON -DKIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR=$PWD/libs/image-viewport",
+        "env LIBHEIF_PLUGIN_PATH=/app/lib/libheif cmake -S . -B target/flatpak/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug -DKIRIVIEW_BUILD_TESTS=ON -DKIRIVIEW_CARGO_OFFLINE=ON -DKIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR=$PWD/libs/image-viewport -DKIRIVIEW_VIDEO_THUMBNAIL_EXTRACTION_SOURCE_DIR=$PWD/libs/video-thumbnail-extraction",
         "env LIBHEIF_PLUGIN_PATH=/app/lib/libheif cmake --build target/flatpak/tests --parallel ${FLATPAK_BUILDER_N_JOBS:-$(nproc)}",
         "env LIBHEIF_PLUGIN_PATH=/app/lib/libheif ctest --test-dir target/flatpak/tests --tests-regex '^tst_' --output-on-failure --parallel ${FLATPAK_BUILDER_N_JOBS:-$(nproc)}"
       ],
@@ -133,6 +134,12 @@
           "type": "dir",
           "path": "../libs/image-viewport",
           "dest": "libs/image-viewport",
+          "skip": [".git", "build", "target"]
+        },
+        {
+          "type": "dir",
+          "path": "../libs/video-thumbnail-extraction",
+          "dest": "libs/video-thumbnail-extraction",
           "skip": [".git", "build", "target"]
         },
         {

@@ -123,28 +123,28 @@ public:
     std::vector<Generation> generations;
 };
 
-struct ManualVideoExtraction
+struct ManualGeneration
 {
     QObject* object = nullptr;
-    kiriview::VideoThumbnailExtractionRequest request;
-    kiriview::VideoThumbnailExtractionCallback callback;
+    kiriview::ThumbnailGenerationRequest request;
+    kiriview::ThumbnailGenerationCallback callback;
     kiriview::ImageIoJobCompletion completion;
     bool canceled = false;
 };
 
-class ManualVideoExtractions
+class ManualGenerations
 {
 public:
-    kiriview::VideoThumbnailExtractionProvider provider()
+    kiriview::ThumbnailGenerationProvider provider()
     {
-        return [this](QObject* receiver, kiriview::VideoThumbnailExtractionRequest request,
-                   kiriview::VideoThumbnailExtractionCallback callback) {
-            auto extraction = std::make_shared<ManualVideoExtraction>();
-            extraction->request = std::move(request);
-            extraction->callback = std::move(callback);
+        return [this](QObject* receiver, kiriview::ThumbnailGenerationRequest request,
+                   kiriview::ThumbnailGenerationCallback callback) {
+            auto generation = std::make_shared<ManualGeneration>();
+            generation->request = std::move(request);
+            generation->callback = std::move(callback);
             kiriview::ImageIoJob job
-                = kiriview::TestSupport::Detail::startManualIoJob(receiver, extraction);
-            extractions.push_back(std::move(extraction));
+                = kiriview::TestSupport::Detail::startManualIoJob(receiver, generation);
+            generations.push_back(std::move(generation));
             maximumActiveCount = std::max(maximumActiveCount, activeCount());
             return job;
         };
@@ -152,21 +152,22 @@ public:
 
     std::size_t activeCount() const
     {
-        return static_cast<std::size_t>(std::count_if(extractions.cbegin(), extractions.cend(),
-            [](const auto& extraction) { return extraction->completion.isActive(); }));
+        return static_cast<std::size_t>(std::count_if(generations.cbegin(), generations.cend(),
+            [](const auto& generation) { return generation->completion.isActive(); }));
     }
 
     void fail(std::size_t index)
     {
-        const std::shared_ptr<ManualVideoExtraction> extraction = extractions.at(index);
+        const std::shared_ptr<ManualGeneration> generation = generations.at(index);
         kiriview::TestSupport::Detail::finishManualIoJob(
-            extraction, [](ManualVideoExtraction& finished) {
-                finished.callback({ kiriview::VideoThumbnailExtractionStatus::Failed, {},
-                    QStringLiteral("synthetic extraction failure") });
+            generation, [](ManualGeneration& finished) {
+                finished.callback({ kiriview::ThumbnailGenerationStatus::Failed, {},
+                    finished.request.requestedBucket, {},
+                    QStringLiteral("synthetic generation failure") });
             });
     }
 
-    std::vector<std::shared_ptr<ManualVideoExtraction>> extractions;
+    std::vector<std::shared_ptr<ManualGeneration>> generations;
     std::size_t maximumActiveCount = 0;
 };
 
@@ -370,13 +371,9 @@ void TestActiveNavigationThumbnailWorkCoordinator::
             videoRow(4, QStringLiteral("/media/four.mp4")),
             videoRow(5, QStringLiteral("/media/five.mp4")) });
     ManualProviders providers;
-    ManualVideoExtractions extractions;
-    kiriview::ThumbnailGenerationDependencies generationDependencies;
-    generationDependencies.videoExtractor = extractions.provider();
-    kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(this, rows,
-        providers.lookupProvider(),
-        kiriview::defaultThumbnailGenerationProvider({}, std::move(generationDependencies)),
-        localAdapter());
+    ManualGenerations generations;
+    kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(
+        this, rows, providers.lookupProvider(), generations.provider(), localAdapter());
     QVERIFY(coordinator.resetRows(schedulingRows));
     coordinator.setCurrentNumber(4);
     const quint64 generation = rows.navigationGeneration();
@@ -395,43 +392,43 @@ void TestActiveNavigationThumbnailWorkCoordinator::
 
     providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Missing);
     providers.finishLookup(1, kiriview::ThumbnailCacheLookupStatus::Missing);
-    QCOMPARE(extractions.extractions.size(), std::size_t(2));
-    QCOMPARE(extractions.extractions.at(0)->request.sourceUrl,
+    QCOMPARE(generations.generations.size(), std::size_t(2));
+    QCOMPARE(generations.generations.at(0)->request.sourceUrl,
         QUrl::fromLocalFile(QStringLiteral("/media/four.mp4")));
-    QCOMPARE(extractions.extractions.at(1)->request.sourceUrl,
+    QCOMPARE(generations.generations.at(1)->request.sourceUrl,
         QUrl::fromLocalFile(QStringLiteral("/media/one.mp4")));
-    QCOMPARE(extractions.activeCount(), std::size_t(2));
-    QCOMPARE(extractions.maximumActiveCount, std::size_t(2));
+    QCOMPARE(generations.activeCount(), std::size_t(2));
+    QCOMPARE(generations.maximumActiveCount, std::size_t(2));
 
     QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(generation,
         { { 5, schedulingRows.rows.at(4).sourceUrl, Bucket::Normal, Priority::Nearby },
             { 4, schedulingRows.rows.at(3).sourceUrl, Bucket::Normal, Priority::Nearby },
             { 2, schedulingRows.rows.at(1).sourceUrl, Bucket::Normal, Priority::Visible } })));
-    QVERIFY(extractions.extractions.at(1)->canceled);
-    QCOMPARE(extractions.activeCount(), std::size_t(1));
+    QVERIFY(generations.generations.at(1)->canceled);
+    QCOMPARE(generations.activeCount(), std::size_t(1));
     QCOMPARE(providers.lookups.size(), std::size_t(3));
     QCOMPARE(providers.lookups.back().request.localPathBytes, QByteArray("/media/two.mp4"));
 
     providers.finishLookup(2, kiriview::ThumbnailCacheLookupStatus::Missing);
-    QCOMPARE(extractions.extractions.size(), std::size_t(3));
-    QCOMPARE(extractions.extractions.back()->request.sourceUrl,
+    QCOMPARE(generations.generations.size(), std::size_t(3));
+    QCOMPARE(generations.generations.back()->request.sourceUrl,
         QUrl::fromLocalFile(QStringLiteral("/media/two.mp4")));
-    QCOMPARE(extractions.activeCount(), std::size_t(2));
-    QCOMPARE(extractions.maximumActiveCount, std::size_t(2));
+    QCOMPARE(generations.activeCount(), std::size_t(2));
+    QCOMPARE(generations.maximumActiveCount, std::size_t(2));
 
-    extractions.fail(0);
+    generations.fail(0);
     QCOMPARE(providers.lookups.size(), std::size_t(3));
-    QCOMPARE(extractions.activeCount(), std::size_t(1));
+    QCOMPARE(generations.activeCount(), std::size_t(1));
 
-    extractions.fail(2);
+    generations.fail(2);
     QCOMPARE(providers.lookups.size(), std::size_t(4));
     QCOMPARE(providers.lookups.back().request.localPathBytes, QByteArray("/media/five.mp4"));
     providers.finishLookup(3, kiriview::ThumbnailCacheLookupStatus::Missing);
-    QCOMPARE(extractions.extractions.size(), std::size_t(4));
-    QCOMPARE(extractions.extractions.back()->request.sourceUrl,
+    QCOMPARE(generations.generations.size(), std::size_t(4));
+    QCOMPARE(generations.generations.back()->request.sourceUrl,
         QUrl::fromLocalFile(QStringLiteral("/media/five.mp4")));
-    QCOMPARE(extractions.activeCount(), std::size_t(1));
-    QCOMPARE(extractions.maximumActiveCount, std::size_t(2));
+    QCOMPARE(generations.activeCount(), std::size_t(1));
+    QCOMPARE(generations.maximumActiveCount, std::size_t(2));
 }
 
 void TestActiveNavigationThumbnailWorkCoordinator::queuedContinuationFindsEligibleBackgroundRow()

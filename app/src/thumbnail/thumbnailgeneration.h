@@ -11,7 +11,6 @@
 #include "thumbnail/thumbnailcachelookup.h"
 #include "thumbnail/thumbnailoriginalidentity.h"
 #include "thumbnail/thumbnailsourcekind.h"
-#include "thumbnail/videothumbnailextractor.h"
 
 #include <QByteArray>
 #include <QImage>
@@ -87,7 +86,6 @@ struct ThumbnailGenerationDependencies
     ThumbnailGenerationMaximumLongEdgePolicy maximumLongEdgeForBucket;
     ThumbnailGenerationOriginalIdentityLoader openedCollectionOriginalIdentityLoader;
     ThumbnailGenerationCacheRepository cacheRepository;
-    VideoThumbnailExtractionProvider videoExtractor;
 };
 
 using ThumbnailGenerationCallback = std::function<void(ThumbnailGenerationResult)>;

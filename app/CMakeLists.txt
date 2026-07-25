@@ -98,6 +98,24 @@ set(IMAGEVIEWPORT_BUILD_TESTS
 add_subdirectory("${KIRIVIEW_IMAGE_VIEWPORT_SOURCE_DIR}"
                  "${CMAKE_CURRENT_BINARY_DIR}/image-viewport")
 
+set(KIRIVIEW_VIDEO_THUMBNAIL_EXTRACTION_SOURCE_DIR
+    ""
+    CACHE PATH "VideoThumbnailExtraction source directory")
+if(NOT KIRIVIEW_VIDEO_THUMBNAIL_EXTRACTION_SOURCE_DIR)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../libs/video-thumbnail-extraction/CMakeLists.txt")
+        set(KIRIVIEW_VIDEO_THUMBNAIL_EXTRACTION_SOURCE_DIR
+            "${CMAKE_CURRENT_SOURCE_DIR}/../libs/video-thumbnail-extraction")
+    else()
+        set(KIRIVIEW_VIDEO_THUMBNAIL_EXTRACTION_SOURCE_DIR
+            "${CMAKE_CURRENT_SOURCE_DIR}/libs/video-thumbnail-extraction")
+    endif()
+endif()
+set(VIDEO_THUMBNAIL_EXTRACTION_BUILD_TESTS
+    OFF
+    CACHE BOOL "Build VideoThumbnailExtraction tests as part of the application" FORCE)
+add_subdirectory("${KIRIVIEW_VIDEO_THUMBNAIL_EXTRACTION_SOURCE_DIR}"
+                 "${CMAKE_CURRENT_BINARY_DIR}/video-thumbnail-extraction")
+
 find_program(CARGO_EXECUTABLE cargo REQUIRED)
 set(KIRIVIEW_CARGO_TARGET_DIR "${CMAKE_CURRENT_BINARY_DIR}/cargo")
 set(KIRIVIEW_CXXBRIDGE_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/cxxbridge")
@@ -180,6 +198,7 @@ target_link_libraries(
     KiriViewCore
     PUBLIC ImageViewport
            KiriViewRustSupportBridge
+           VideoThumbnailExtraction
            Qt6::Core
            Qt6::DBus
            Qt6::Gui
