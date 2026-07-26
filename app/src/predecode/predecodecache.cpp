@@ -205,6 +205,15 @@ void PredecodeCache::cacheImage(const QUrl& url,
     const OpenedCollectionScopeLocation& openedCollectionScope,
     StaticDisplayImagePayload displayImage, EmbeddedMetadata metadata)
 {
+    if (!displayImage.isValid() || displayImage.quality == DisplayImageQuality::ThumbnailPreview
+        || displayImage.previewOrigin != DisplayImagePreviewOrigin::None) {
+        qCDebug(kiriviewPredecodeLog) << "predecode cache store skipped"
+                                      << "reason"
+                                      << "non-authoritative-payload"
+                                      << "url" << url;
+        return;
+    }
+
     if (!metadata.isEmpty()) {
         displayImage.embeddedMetadata = std::move(metadata);
     }

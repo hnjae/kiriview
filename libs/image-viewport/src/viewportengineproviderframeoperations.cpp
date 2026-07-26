@@ -42,30 +42,51 @@ bool activeTokenMatches(const ProviderRoleState& provider, const RequestState& r
         && record->requestId == active.identity.id;
 }
 
+bool displayedPayloadMatchesActiveTarget(
+    const DisplayState& display, const RequestState& request, ImageViewportPageRole role)
+{
+    const auto index = role == ImageViewportPageRole::Secondary ? 1U : 0U;
+    const auto& active = request.roles[index].activeRequest;
+    const auto& displayed = display.roles[index];
+    return display.hasReadyDisplay(request.roles[0].source.facts.present)
+        && displayed.displayedRequest.generation == request.sequenceGeneration
+        && displayed.displayedRequest.request.resolvedFrame.frame == active.resolvedFrame.frame
+        && displayed.displayedRequest.request.resolvedFrame.position
+        == active.resolvedFrame.position;
+}
+
 bool displayedPrimaryPayloadMatchesActiveTarget(
     const DisplayState& display, const RequestState& request)
 {
-    const auto& active = request.roles[0].activeRequest;
-    return display.hasReadyDisplay(request.roles[0].source.facts.present)
-        && display.roles[0].displayedRequest.generation == request.sequenceGeneration
-        && display.roles[0].displayedRequest.request.resolvedFrame.frame
-        == active.resolvedFrame.frame
-        && display.roles[0].displayedRequest.request.resolvedFrame.position
-        == active.resolvedFrame.position;
+    return displayedPayloadMatchesActiveTarget(display, request, ImageViewportPageRole::Primary);
+}
+
+bool targetSpreadCandidatesComplete(const DisplayState& display, const RequestState& request)
+{
+    const bool secondaryRequired
+        = request.roles[1].sequence && request.roles[1].activeRequest.target.frame >= 0;
+    return display.roles[0].pendingRenderPayload.hasPresentableContent()
+        && (!secondaryRequired || display.roles[1].pendingRenderPayload.hasPresentableContent());
+}
+
+void updateTargetSpreadCommitEligibility(DisplayState& display, const RequestState& request)
+{
+    const bool complete = targetSpreadCandidatesComplete(display, request);
+    for (auto& role : display.roles) {
+        role.pendingRenderPayload.commitPending
+            = complete && role.pendingRenderPayload.hasPresentableContent();
+    }
 }
 
 FramePreparation::ProviderFrameState preparationState(const RequestState& request,
     const DisplayState& display, const ProviderRoleState& provider,
     const ProviderRequestRecord& providerRequest, const PresentationState& presentation,
-    ImageViewportPageRole role, bool refinement)
+    ImageViewportPageRole role)
 {
     const auto& active = requestForRole(request, role);
-    const auto index = role == ImageViewportPageRole::Secondary ? 1U : 0U;
-    PreparedPayload preparedPayload = display.roles[index].pendingRenderPayload;
-    if (!preparedPayload.identity().isValid()) {
-        preparedPayload.generation = request.sequenceGeneration;
-        preparedPayload.payloadId = active.identity.id == 0 ? 0 : display.nextPreparedPayloadId + 1;
-    }
+    PreparedPayload preparedPayload;
+    preparedPayload.generation = request.sequenceGeneration;
+    preparedPayload.payloadId = active.identity.id == 0 ? 0 : display.nextPreparedPayloadId + 1;
     const auto* demand = providerRequest.demand ? &*providerRequest.demand : nullptr;
     return { provider.facts.metadataReady, provider.facts.timedMetadata, provider.facts.logicalSize,
         provider.facts.timingIntervals, providerRequest.resolvedFrame, role, preparedPayload,
@@ -74,8 +95,20 @@ FramePreparation::ProviderFrameState preparationState(const RequestState& reques
         demand ? demand->displayByteBudget() : -1, presentation.exactnessPreference };
 }
 
-ImageViewportDisplayStatus retainedDisplayStatus(const DisplayState& display)
+ImageViewportDisplayStatus retainedDisplayStatus(
+    const DisplayState& display, const RequestState& request)
 {
+    const bool secondaryRequired
+        = request.roles[1].sequence && request.roles[1].activeRequest.target.frame >= 0;
+    const bool activeProvisional = display.status == ImageViewportDisplayStatus::Ready
+        && hasProvisionalDisplayedPayload(display)
+        && displayedPayloadMatchesActiveTarget(display, request, ImageViewportPageRole::Primary)
+        && (!secondaryRequired
+            || displayedPayloadMatchesActiveTarget(
+                display, request, ImageViewportPageRole::Secondary));
+    if (activeProvisional) {
+        return ImageViewportDisplayStatus::Ready;
+    }
     const bool retained = (display.status == ImageViewportDisplayStatus::Ready
                               || display.status == ImageViewportDisplayStatus::Retained)
         && display.roles[0].displayedPayload.hasPresentableContent();
@@ -137,31 +170,18 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         return result;
     }
 
-    const auto* activeProviderRequest = access.m_provider.requests.find(input.token);
+    auto* activeProviderRequest = access.m_provider.requests.find(input.token);
     if (!activeProviderRequest) {
         return result;
+    }
+    if (input.provisional) {
+        activeProviderRequest->provisionalDelivered = true;
     }
     const ProviderRequestRecord providerRequest = *activeProviderRequest;
     const bool refinement = providerRequest.isRefinement();
 
-    if (input.role == ImageViewportPageRole::Secondary && !refinement && !terminalContinuation) {
-        auto& preparedPayload = access.m_display.roles[0].pendingRenderPayload;
-        auto& primaryRequest = access.m_request.roles[0].activeRequest;
-        if (!preparedPayload.identity().isValid()) {
-            if (displayedPrimaryPayloadMatchesActiveTarget(access.m_display, access.m_request)) {
-                preparedPayload = access.m_display.roles[0].displayedPayload;
-            } else {
-                preparedPayload.generation = access.m_request.sequenceGeneration;
-                preparedPayload.payloadId = ++access.m_display.nextPreparedPayloadId;
-            }
-            preparedPayload.commitPending = true;
-            primaryRequest.preparedPayloadId = preparedPayload.payloadId;
-        }
-        access.m_provider.requests.retire(input.token);
-    }
-
     const auto frameState = preparationState(access.m_request, access.m_display, access.m_provider,
-        providerRequest, access.m_presentation, input.role, refinement);
+        providerRequest, access.m_presentation, input.role);
     const auto admission
         = FramePreparation::admitProviderFrame(input.frame, input.envelope, frameState);
     if (!admission.accepted()) {
@@ -179,6 +199,9 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         observation.identity.providerLeaseId = input.providerFrameLeaseId;
         observation.detail = int(admission.cause);
         result.observations.append(observation);
+        if (input.provisional) {
+            return result;
+        }
         access.m_provider.requests.clearQueue();
         access.m_provider.requests.retire(input.token);
         if (refinement)
@@ -193,12 +216,40 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
     }
 
     auto admittedPayload = admission.preparedPayload;
+    if (input.provisional
+        && (admittedPayload.quality != ImageViewportPayloadQuality::Preview
+            || admittedPayload.exactness != ImageViewportPayloadExactness::NotExact)) {
+        return result;
+    }
+    admittedPayload.provisional = input.provisional;
+    admittedPayload.auxiliaryRefinement = refinement;
+    admittedPayload.firstDisplayRefinementIssued = false;
     admittedPayload.providerFrameLeaseId = input.providerFrameLeaseId;
+    if (admittedPayload.payloadId > access.m_display.nextPreparedPayloadId) {
+        access.m_display.nextPreparedPayloadId = admittedPayload.payloadId;
+    }
+
+    if (input.role == ImageViewportPageRole::Secondary && !refinement && !terminalContinuation) {
+        auto& preparedPayload = access.m_display.roles[0].pendingRenderPayload;
+        auto& primaryRequest = access.m_request.roles[0].activeRequest;
+        if (!preparedPayload.identity().isValid()) {
+            if (displayedPrimaryPayloadMatchesActiveTarget(access.m_display, access.m_request)) {
+                preparedPayload = access.m_display.roles[0].displayedPayload;
+            } else {
+                preparedPayload.generation = access.m_request.sequenceGeneration;
+                preparedPayload.payloadId = ++access.m_display.nextPreparedPayloadId;
+            }
+            preparedPayload.commitPending = true;
+            primaryRequest.preparedPayloadId = preparedPayload.payloadId;
+        }
+    }
 
     const auto oldRequestStatus = access.m_request.status;
     const auto oldRequestReason = access.m_request.reason;
     const auto oldGeometry = projectViewportGeometryState(input.geometry, access.m_presentation);
-    access.m_provider.requests.retire(input.token);
+    if (!input.provisional) {
+        access.m_provider.requests.retire(input.token);
+    }
 
     if (terminalContinuation && !refinement) {
         result.changes = projectViewportEngineCurrentTerminal(result.changes, access.m_request);
@@ -221,9 +272,6 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         admittedPayload.commitPending = true;
         access.m_display.roles[1].pendingRenderPayload = admittedPayload;
         access.m_request.roles[1].activeRequest.preparedPayloadId = admittedPayload.payloadId;
-        if (admittedPayload.payloadId > access.m_display.nextPreparedPayloadId) {
-            access.m_display.nextPreparedPayloadId = admittedPayload.payloadId;
-        }
         const bool primaryReady = access.m_display.roles[0].pendingRenderPayload.commitPending
             && !access.m_display.roles[0].pendingRenderPayload.image.isNull();
         TargetSpreadWaitState wait;
@@ -241,7 +289,7 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         }
         access.m_request.status = ImageViewportRequestStatus::Loading;
         access.m_request.reason = projectWaitReason(wait);
-        access.m_display.status = retainedDisplayStatus(access.m_display);
+        access.m_display.status = retainedDisplayStatus(access.m_display, access.m_request);
     } else {
         access.m_request.targetSpreadTerminal.clear();
         access.m_display.commitPreparedPayloadIdentity(
@@ -278,7 +326,7 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         }
         access.m_request.status = ImageViewportRequestStatus::Loading;
         access.m_request.reason = projectWaitReason(wait);
-        access.m_display.status = retainedDisplayStatus(access.m_display);
+        access.m_display.status = retainedDisplayStatus(access.m_display, access.m_request);
         access.m_display.roles[0].pendingRenderPayload.commitPending = true;
         auto& rolePlayback = access.m_playback.forRole(input.role);
         if (rolePlayback.phase == ImageViewportPlaybackPhase::Waiting
@@ -292,6 +340,7 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         }
     }
 
+    updateTargetSpreadCommitEligibility(access.m_display, access.m_request);
     const auto newGeometry = projectViewportGeometryState(input.geometry, access.m_presentation);
     result.changes.requestRevision = oldRequestStatus != access.m_request.status
         || oldRequestReason != access.m_request.reason;
@@ -303,6 +352,7 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         || PresentationGeometry::visibleImageRect(oldGeometry)
             != PresentationGeometry::visibleImageRect(newGeometry);
     result.changes.diagnostics = diagnosticsChanged;
-    result.changes.scheduleUpdate = true;
+    result.changes.scheduleUpdate
+        = targetSpreadCandidatesComplete(access.m_display, access.m_request);
     return result;
 }

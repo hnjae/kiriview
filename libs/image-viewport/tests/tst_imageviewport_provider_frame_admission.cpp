@@ -6,6 +6,85 @@
 
 #include <QtCore/QElapsedTimer>
 
+namespace {
+std::unique_ptr<ImageFrame> providerDetailFrame(
+    QSize rasterSize, ImageViewportPayloadQuality quality, QColor color = Qt::transparent)
+{
+    const QSizeF logicalSize(16.0, 8.0);
+    QImage image(rasterSize, QImage::Format_ARGB32_Premultiplied);
+    image.fill(color);
+    return std::make_unique<ImageFrame>(image, logicalSize, QSizeF(rasterSize),
+        QSizeF(
+            rasterSize.width() / logicalSize.width(), rasterSize.height() / logicalSize.height()),
+        image.sizeInBytes(), quality,
+        quality == ImageViewportPayloadQuality::Exact
+            ? ImageViewportPayloadExactness::ExactForSource
+            : ImageViewportPayloadExactness::NotExact,
+        image.hasAlphaChannel(), ImageFrame::OrientationPolicy::Identity, QString {});
+}
+
+struct PendingProvisionalReplacementFixture
+{
+    PendingProvisionalReplacementFixture()
+        : sessionFactory(std::make_shared<CountingProviderSessionFactory>(sessionCount,
+              metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount))
+        , adapter(sessionFactory)
+        , result(factory.fromProvider(&adapter))
+    {
+        if (!result || !result->sequence()) {
+            return;
+        }
+        useSynchronousProviderEventDeliveryForTest(item);
+        item.setSize(QSizeF(100.0, 100.0));
+        item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
+            PresentationTargetTransitionPolicy {});
+
+        CountingProviderSession* session = sessionFactory->lastSession();
+        if (!session) {
+            return;
+        }
+        emitProviderMetadataReady(session, session->lastMetadataToken(),
+            ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+        token = session->lastFrameToken();
+        preview = providerDetailFrame(QSize(8, 4), ImageViewportPayloadQuality::Preview, Qt::red);
+        emitProviderProvisionalFrameReady(session, token, preview.get());
+        generation = pendingRenderGenerationForTest(item);
+        requestId = activeRequestIdForTest(item);
+        provisionalPayloadId = pendingRenderPayloadIdForTest(item);
+
+        authoritative
+            = providerDetailFrame(QSize(16, 8), ImageViewportPayloadQuality::Exact, Qt::blue);
+        emitProviderFrameReady(session, token, authoritative.get());
+        authoritativePayloadId = pendingRenderPayloadIdForTest(item);
+    }
+
+    [[nodiscard]] bool initialized() const
+    {
+        return result && result->sequence() && sessionFactory->lastSession()
+            && *frameRequestCount == 1 && token.isValid() && generation != 0 && requestId != 0
+            && provisionalPayloadId != 0 && authoritativePayloadId != 0;
+    }
+
+    std::shared_ptr<int> sessionCount = std::make_shared<int>(0);
+    std::shared_ptr<int> metadataRequestCount = std::make_shared<int>(0);
+    std::shared_ptr<int> frameRequestCount = std::make_shared<int>(0);
+    std::shared_ptr<int> lastRequestedFrame = std::make_shared<int>(-1);
+    std::shared_ptr<int> closeCount = std::make_shared<int>(0);
+    std::shared_ptr<CountingProviderSessionFactory> sessionFactory;
+    CountingProviderAdapter adapter;
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> result;
+    std::unique_ptr<ImageFrame> preview;
+    std::unique_ptr<ImageFrame> authoritative;
+    ImageSequenceProviderRequestToken token;
+    quint64 generation = 0;
+    quint64 requestId = 0;
+    quint64 provisionalPayloadId = 0;
+    quint64 authoritativePayloadId = 0;
+    ImageViewport item;
+};
+}
+
 class ImageViewportProviderFrameAdmissionTest : public QObject
 {
     Q_OBJECT
@@ -18,6 +97,11 @@ public:
 
 private Q_SLOTS:
     void providerStillFrameReadyCommitsDisplay();
+    void providerProvisionalFrameRemainsLoadingUntilAuthoritativeCommit();
+    void providerAuthoritativeFrameRejectsDelayedProvisionalCommit();
+    void providerAuthoritativeFrameRejectsDelayedProvisionalFailure();
+    void providerTerminalFailureClearsProvisionalDisplay();
+    void providerSpreadDoesNotExposePartialProvisionalRoles();
     void providerStillFrameUsesDeviceIndependentPayloadSize();
     void providerOrientedFramePayloadCommitsNormalizedLogicalSize();
     void providerTimedFrameReadyCommitsTimedDisplay();
@@ -86,6 +170,291 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameReadyCommitsDisp
     QCOMPARE(primaryDisplayedPosition(item), -1);
     QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
     QCOMPARE(contentRect(item), QRectF(0.0, 25.0, 100.0, 50.0));
+}
+
+void ImageViewportProviderFrameAdmissionTest::
+    providerProvisionalFrameRemainsLoadingUntilAuthoritativeCommit()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    useSynchronousProviderEventDeliveryForTest(item);
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+
+    QVERIFY(sessionFactory->lastSession());
+    emitProviderMetadataReady(sessionFactory->lastSession(),
+        sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    QCOMPARE(*frameRequestCount, 1);
+    const ImageSequenceProviderRequestToken token = sessionFactory->lastSession()->lastFrameToken();
+
+    const std::unique_ptr<ImageFrame> preview
+        = providerDetailFrame(QSize(8, 4), ImageViewportPayloadQuality::Preview, Qt::red);
+    QVERIFY(preview->isValid());
+    emitProviderProvisionalFrameReady(sessionFactory->lastSession(), token, preview.get());
+
+    QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Loading);
+    QCOMPARE(requestReason(item), ImageViewportRequestReason::RenderWaiting);
+    QCOMPARE(displayStatus(item), ImageViewportDisplayStatus::Empty);
+    QVERIFY(hasPendingRenderCommitForTest(item));
+
+    acknowledgePendingRenderCommitForTest(item);
+
+    QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Loading);
+    QCOMPARE(requestReason(item), ImageViewportRequestReason::ProviderWaiting);
+    QCOMPARE(displayStatus(item), ImageViewportDisplayStatus::Ready);
+    QCOMPARE(item.state().primary().display().quality(), ImageViewportPayloadQuality::Preview);
+    QCOMPARE(item.state().primary().display().exactness(), ImageViewportPayloadExactness::NotExact);
+    QCOMPARE(item.state().primary().display().payloadRasterSize(), QSizeF(8.0, 4.0));
+    QCOMPARE(item.state().primary().display().currentForDemand(), false);
+    QCOMPARE(*frameRequestCount, 1);
+
+    const std::unique_ptr<ImageFrame> authoritative
+        = providerDetailFrame(QSize(16, 8), ImageViewportPayloadQuality::Exact, Qt::blue);
+    QVERIFY(authoritative->isValid());
+    emitProviderFrameReady(sessionFactory->lastSession(), token, authoritative.get());
+
+    QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Loading);
+    QCOMPARE(requestReason(item), ImageViewportRequestReason::RenderWaiting);
+    QCOMPARE(displayStatus(item), ImageViewportDisplayStatus::Ready);
+    QCOMPARE(item.state().primary().display().quality(), ImageViewportPayloadQuality::Preview);
+    QVERIFY(hasPendingRenderCommitForTest(item));
+
+    acknowledgePendingRenderCommitForTest(item);
+
+    QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Ready);
+    QCOMPARE(requestReason(item), ImageViewportRequestReason::Ready);
+    QCOMPARE(displayStatus(item), ImageViewportDisplayStatus::Ready);
+    QCOMPARE(item.state().primary().display().quality(), ImageViewportPayloadQuality::Exact);
+    QCOMPARE(item.state().primary().display().exactness(),
+        ImageViewportPayloadExactness::ExactForSource);
+    QCOMPARE(item.state().primary().display().payloadRasterSize(), QSizeF(16.0, 8.0));
+    QCOMPARE(item.state().primary().display().currentForDemand(), true);
+    QCOMPARE(*frameRequestCount, 1);
+}
+
+void ImageViewportProviderFrameAdmissionTest::
+    providerAuthoritativeFrameRejectsDelayedProvisionalCommit()
+{
+    PendingProvisionalReplacementFixture fixture;
+    QVERIFY(fixture.initialized());
+    QVERIFY(fixture.authoritativePayloadId != fixture.provisionalPayloadId);
+
+    acknowledgeRenderCommitForTest(
+        fixture.item, fixture.generation, fixture.requestId, fixture.provisionalPayloadId);
+
+    QCOMPARE(requestStatus(fixture.item), ImageViewportRequestStatus::Loading);
+    QCOMPARE(requestReason(fixture.item), ImageViewportRequestReason::RenderWaiting);
+    QCOMPARE(displayStatus(fixture.item), ImageViewportDisplayStatus::Empty);
+    QVERIFY(hasPendingRenderCommitForTest(fixture.item));
+    QCOMPARE(pendingRenderPayloadIdForTest(fixture.item), fixture.authoritativePayloadId);
+
+    acknowledgeRenderCommitForTest(
+        fixture.item, fixture.generation, fixture.requestId, fixture.authoritativePayloadId);
+
+    QCOMPARE(requestStatus(fixture.item), ImageViewportRequestStatus::Ready);
+    QCOMPARE(requestReason(fixture.item), ImageViewportRequestReason::Ready);
+    QCOMPARE(displayStatus(fixture.item), ImageViewportDisplayStatus::Ready);
+    QCOMPARE(
+        fixture.item.state().primary().display().quality(), ImageViewportPayloadQuality::Exact);
+    QCOMPARE(fixture.item.state().primary().display().payloadRasterSize(), QSizeF(16.0, 8.0));
+}
+
+void ImageViewportProviderFrameAdmissionTest::
+    providerAuthoritativeFrameRejectsDelayedProvisionalFailure()
+{
+    PendingProvisionalReplacementFixture fixture;
+    QVERIFY(fixture.initialized());
+    QVERIFY(fixture.authoritativePayloadId != fixture.provisionalPayloadId);
+
+    acknowledgeRenderFailureForTest(
+        fixture.item, fixture.generation, fixture.requestId, fixture.provisionalPayloadId);
+
+    QCOMPARE(requestStatus(fixture.item), ImageViewportRequestStatus::Loading);
+    QCOMPARE(requestReason(fixture.item), ImageViewportRequestReason::RenderWaiting);
+    QCOMPARE(displayStatus(fixture.item), ImageViewportDisplayStatus::Empty);
+    QVERIFY(hasPendingRenderCommitForTest(fixture.item));
+    QCOMPARE(pendingRenderPayloadIdForTest(fixture.item), fixture.authoritativePayloadId);
+
+    acknowledgeRenderCommitForTest(
+        fixture.item, fixture.generation, fixture.requestId, fixture.authoritativePayloadId);
+
+    QCOMPARE(requestStatus(fixture.item), ImageViewportRequestStatus::Ready);
+    QCOMPARE(requestReason(fixture.item), ImageViewportRequestReason::Ready);
+    QCOMPARE(displayStatus(fixture.item), ImageViewportDisplayStatus::Ready);
+    QCOMPARE(
+        fixture.item.state().primary().display().quality(), ImageViewportPayloadQuality::Exact);
+    QCOMPARE(fixture.item.state().primary().display().payloadRasterSize(), QSizeF(16.0, 8.0));
+}
+
+void ImageViewportProviderFrameAdmissionTest::providerTerminalFailureClearsProvisionalDisplay()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    useSynchronousProviderEventDeliveryForTest(item);
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+
+    QVERIFY(sessionFactory->lastSession());
+    emitProviderMetadataReady(sessionFactory->lastSession(),
+        sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    const ImageSequenceProviderRequestToken token = sessionFactory->lastSession()->lastFrameToken();
+
+    const auto releaseCount = std::make_shared<int>(0);
+    auto* previewHandle = new ImageSequenceProviderFrameHandle(
+        providerDetailFrame(QSize(8, 4), ImageViewportPayloadQuality::Preview, Qt::red).release(),
+        [releaseCount](ImageFrame* frame) {
+            ++*releaseCount;
+            delete frame;
+        });
+    QVERIFY(previewHandle->frame()->isValid());
+    emitProviderProvisionalFrameHandleReady(sessionFactory->lastSession(), token, previewHandle);
+    acknowledgePendingRenderCommitForTest(item);
+
+    QCOMPARE(displayStatus(item), ImageViewportDisplayStatus::Ready);
+    QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Loading);
+    QCOMPARE(*releaseCount, 0);
+
+    emitProviderFailed(
+        sessionFactory->lastSession(), token, QStringLiteral("authoritative decode failed"));
+
+    QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Error);
+    QCOMPARE(requestReason(item), ImageViewportRequestReason::ProviderFailure);
+    QCOMPARE(displayStatus(item), ImageViewportDisplayStatus::Empty);
+    QCOMPARE(primaryDisplayedFrame(item), -1);
+    QCOMPARE(item.state().primary().display().belongsToAcceptedPresentationTarget(), false);
+    QCOMPARE(item.state().primary().display().retained(), false);
+    QCOMPARE(item.state().primary().display().quality(), ImageViewportPayloadQuality::Unknown);
+    QCOMPARE(*releaseCount, 1);
+    QVERIFY(!hasPendingRenderCommitForTest(item));
+}
+
+void ImageViewportProviderFrameAdmissionTest::providerSpreadDoesNotExposePartialProvisionalRoles()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto closeCount = std::make_shared<int>(0);
+    const auto primaryFrameRequestCount = std::make_shared<int>(0);
+    const auto primaryLastRequestedFrame = std::make_shared<int>(-1);
+    const auto secondaryFrameRequestCount = std::make_shared<int>(0);
+    const auto secondaryLastRequestedFrame = std::make_shared<int>(-1);
+    auto primarySessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount, primaryFrameRequestCount, primaryLastRequestedFrame, closeCount);
+    auto secondarySessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount, secondaryFrameRequestCount, secondaryLastRequestedFrame, closeCount);
+    CountingProviderAdapter primaryAdapter(primarySessionFactory);
+    CountingProviderAdapter secondaryAdapter(secondarySessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> primary(factory.fromProvider(&primaryAdapter));
+    QScopedPointer<ImageSequenceFactoryResult> secondary(factory.fromProvider(&secondaryAdapter));
+    QVERIFY(primary->sequence());
+    QVERIFY(secondary->sequence());
+
+    ImageViewport item;
+    useSynchronousProviderEventDeliveryForTest(item);
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPresentationTarget(
+                     ImageViewportPresentationTarget(primary->sequence(), secondary->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+
+    QVERIFY(primarySessionFactory->lastSession());
+    QVERIFY(secondarySessionFactory->lastSession());
+    emitProviderMetadataReady(primarySessionFactory->lastSession(),
+        primarySessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    emitProviderMetadataReady(secondarySessionFactory->lastSession(),
+        secondarySessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    QCOMPARE(*primaryFrameRequestCount, 1);
+    QCOMPARE(*secondaryFrameRequestCount, 1);
+    const ImageSequenceProviderRequestToken primaryToken
+        = primarySessionFactory->lastSession()->lastFrameToken();
+    const ImageSequenceProviderRequestToken secondaryToken
+        = secondarySessionFactory->lastSession()->lastFrameToken();
+
+    const std::unique_ptr<ImageFrame> primaryPreview
+        = providerDetailFrame(QSize(8, 4), ImageViewportPayloadQuality::Preview, Qt::red);
+    const std::unique_ptr<ImageFrame> secondaryPreview
+        = providerDetailFrame(QSize(8, 4), ImageViewportPayloadQuality::Preview, Qt::green);
+    emitProviderProvisionalFrameReady(
+        primarySessionFactory->lastSession(), primaryToken, primaryPreview.get());
+
+    QCOMPARE(displayStatus(item), ImageViewportDisplayStatus::Empty);
+    QCOMPARE(primaryDisplayedFrame(item), -1);
+    QCOMPARE(secondaryDisplayedFrame(item), -1);
+    QVERIFY(!hasPendingRenderCommitForTest(item));
+
+    emitProviderProvisionalFrameReady(
+        secondarySessionFactory->lastSession(), secondaryToken, secondaryPreview.get());
+    QVERIFY(hasPendingRenderCommitForTest(item));
+    acknowledgePendingRenderCommitForTest(item);
+
+    QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Loading);
+    QCOMPARE(requestReason(item), ImageViewportRequestReason::ProviderWaiting);
+    QCOMPARE(displayStatus(item), ImageViewportDisplayStatus::Ready);
+    QCOMPARE(primaryDisplayedFrame(item), 0);
+    QCOMPARE(secondaryDisplayedFrame(item), 0);
+    QCOMPARE(item.state().primary().display().quality(), ImageViewportPayloadQuality::Preview);
+    QCOMPARE(item.state().secondary().display().quality(), ImageViewportPayloadQuality::Preview);
+
+    const std::unique_ptr<ImageFrame> primaryAuthoritative
+        = providerDetailFrame(QSize(16, 8), ImageViewportPayloadQuality::Exact, Qt::blue);
+    emitProviderFrameReady(
+        primarySessionFactory->lastSession(), primaryToken, primaryAuthoritative.get());
+    QVERIFY(hasPendingRenderCommitForTest(item));
+    acknowledgePendingRenderCommitForTest(item);
+
+    QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Loading);
+    QCOMPARE(requestReason(item), ImageViewportRequestReason::ProviderWaiting);
+    QCOMPARE(displayStatus(item), ImageViewportDisplayStatus::Ready);
+    QCOMPARE(item.state().primary().display().quality(), ImageViewportPayloadQuality::Exact);
+    QCOMPARE(item.state().secondary().display().quality(), ImageViewportPayloadQuality::Preview);
+    QCOMPARE(item.state().primary().display().currentForDemand(), true);
+    QCOMPARE(item.state().secondary().display().currentForDemand(), false);
+
+    const std::unique_ptr<ImageFrame> secondaryAuthoritative
+        = providerDetailFrame(QSize(16, 8), ImageViewportPayloadQuality::Exact, Qt::yellow);
+    emitProviderFrameReady(
+        secondarySessionFactory->lastSession(), secondaryToken, secondaryAuthoritative.get());
+    QVERIFY(hasPendingRenderCommitForTest(item));
+    acknowledgePendingRenderCommitForTest(item);
+
+    QCOMPARE(requestStatus(item), ImageViewportRequestStatus::Ready);
+    QCOMPARE(requestReason(item), ImageViewportRequestReason::Ready);
+    QCOMPARE(displayStatus(item), ImageViewportDisplayStatus::Ready);
+    QCOMPARE(item.state().primary().display().quality(), ImageViewportPayloadQuality::Exact);
+    QCOMPARE(item.state().secondary().display().quality(), ImageViewportPayloadQuality::Exact);
+    QCOMPARE(item.state().primary().display().currentForDemand(), true);
+    QCOMPARE(item.state().secondary().display().currentForDemand(), true);
+    QCOMPARE(*primaryFrameRequestCount, 1);
+    QCOMPARE(*secondaryFrameRequestCount, 1);
 }
 
 void ImageViewportProviderFrameAdmissionTest::providerStillFrameUsesDeviceIndependentPayloadSize()

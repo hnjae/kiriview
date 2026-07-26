@@ -24,6 +24,8 @@ struct ViewportEngineProviderQueueFlushInput
 struct ViewportEngineProviderDemandRestageInput
 {
     ViewportEngineGeometryInput geometry;
+    ImageViewportRoleSet forcedRefinementRoles;
+    bool restageUnforcedRoles = true;
 };
 
 struct ViewportEngineProviderFrameRequestInput

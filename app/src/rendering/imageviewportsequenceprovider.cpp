@@ -52,6 +52,12 @@ public:
     }
 
 private:
+    struct ActiveFrameWork
+    {
+        kiriview::ImageViewportProviderWorkIdentity identity;
+        bool provisionalEmitted = false;
+    };
+
     [[nodiscard]] kiriview::ImageViewportProviderWorkIdentity identity(
         const ImageSequenceProviderRequest& request) const
     {
@@ -87,7 +93,10 @@ private:
     void requestFrame(const ImageSequenceProviderRequest& request)
     {
         const kiriview::ImageViewportProviderWorkIdentity work = identity(request);
-        m_frameWork = work;
+        m_frameWork = ActiveFrameWork {
+            work,
+            false,
+        };
         const int resolvedFrame = request.kind() == ImageSequenceProviderRequestKind::Frame
             ? request.frame()
             : request.resolvedFrame();
@@ -128,11 +137,25 @@ private:
     void completeFrame(const kiriview::ImageViewportProviderWorkIdentity& identity,
         kiriview::ImageViewportProviderPreparedFrame result)
     {
-        if (m_closed || !m_frameWork.has_value() || identity != *m_frameWork) {
+        if (m_closed || !m_frameWork.has_value() || identity != m_frameWork->identity) {
             return;
         }
-        m_frameWork.reset();
+        if (result.isProvisional()) {
+            if (m_frameWork->provisionalEmitted || !result.isReady()) {
+                return;
+            }
+            ImageSequenceProviderFrameHandle* handle = m_resource->acquireFrameHandle(result);
+            if (handle == nullptr) {
+                return;
+            }
+            m_frameWork->provisionalEmitted = true;
+            Q_EMIT providerEvent(ImageSequenceProviderEvent::provisionalFrameReady(
+                identity.requestToken, handle, result.envelope));
+            return;
+        }
+
         if (!result.isReady()) {
+            m_frameWork.reset();
             const ImageSequenceProviderFailureCause cause
                 = result.failureCause == ImageSequenceProviderFailureCause::Unavailable
                 ? ImageSequenceProviderFailureCause::ProviderInternal
@@ -144,11 +167,22 @@ private:
 
         ImageSequenceProviderFrameHandle* handle = m_resource->acquireFrameHandle(result);
         if (handle == nullptr) {
+            m_frameWork.reset();
             Q_EMIT providerEvent(ImageSequenceProviderEvent::failed(identity.requestToken,
                 m_resource->failure(
                     ImageSequenceProviderFailureCause::ResourceExhausted, std::nullopt)));
             return;
         }
+        if (result.authoritativeStillDisplayImage.has_value()
+            && !m_resource->acceptAuthoritativeStillDisplayImage(identity, result)) {
+            delete handle;
+            m_frameWork.reset();
+            Q_EMIT providerEvent(ImageSequenceProviderEvent::failed(identity.requestToken,
+                m_resource->failure(
+                    ImageSequenceProviderFailureCause::ProviderInternal, std::nullopt)));
+            return;
+        }
+        m_frameWork.reset();
         Q_EMIT providerEvent(
             ImageSequenceProviderEvent::frameReady(identity.requestToken, handle, result.envelope));
     }
@@ -161,8 +195,8 @@ private:
             m_metadataWork.reset();
             Q_EMIT providerEvent(ImageSequenceProviderEvent::cancelled(token));
         }
-        if (m_frameWork.has_value() && containsToken(tokens, m_frameWork->requestToken)) {
-            const ImageSequenceProviderRequestToken token = m_frameWork->requestToken;
+        if (m_frameWork.has_value() && containsToken(tokens, m_frameWork->identity.requestToken)) {
+            const ImageSequenceProviderRequestToken token = m_frameWork->identity.requestToken;
             m_frameWork.reset();
             Q_EMIT providerEvent(ImageSequenceProviderEvent::cancelled(token));
         }
@@ -181,7 +215,7 @@ private:
 
     std::shared_ptr<kiriview::ImageViewportProviderResource> m_resource;
     std::optional<kiriview::ImageViewportProviderWorkIdentity> m_metadataWork;
-    std::optional<kiriview::ImageViewportProviderWorkIdentity> m_frameWork;
+    std::optional<ActiveFrameWork> m_frameWork;
     bool m_closed = false;
 };
 }

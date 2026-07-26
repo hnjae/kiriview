@@ -183,11 +183,25 @@ void emitProviderFrameHandleReady(CountingProviderSession* session,
         providerStillFrameEnvelope(session->lastFrameDemand()));
 }
 
+void emitProviderProvisionalFrameHandleReady(CountingProviderSession* session,
+    ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* handle)
+{
+    emitProviderProvisionalFrameHandleReady(static_cast<ImageSequenceProviderSession*>(session),
+        token, handle, providerStillFrameEnvelope(session->lastFrameDemand()));
+}
+
 void emitProviderFrameReady(
     CountingProviderSession* session, ImageSequenceProviderRequestToken token, ImageFrame* frame)
 {
     emitProviderFrameReady(static_cast<ImageSequenceProviderSession*>(session), token, frame,
         providerStillFrameEnvelope(session->lastFrameDemand()));
+}
+
+void emitProviderProvisionalFrameReady(
+    CountingProviderSession* session, ImageSequenceProviderRequestToken token, ImageFrame* frame)
+{
+    emitProviderProvisionalFrameReady(static_cast<ImageSequenceProviderSession*>(session), token,
+        frame, providerStillFrameEnvelope(session->lastFrameDemand()));
 }
 
 class CountingProviderSessionFactory final

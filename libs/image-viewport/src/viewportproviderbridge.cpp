@@ -1401,6 +1401,8 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
                 = viewportProviderEventFromTyped(eventRole, sessionSerial, generation, typedEvent);
             const bool advisory = event.kind == ImageSequenceProviderEventKind::Waiting
                 || event.kind == ImageSequenceProviderEventKind::Progress;
+            const bool provisional
+                = event.kind == ImageSequenceProviderEventKind::ProvisionalFrameReady;
             std::shared_ptr<ViewportProviderDeliverySlotReservation> deliverySlot;
             if (!deliverSynchronously && !advisory && callbackTarget
                 && !hasCurrentThreadAffinity(callbackTarget.data())) {
@@ -1429,7 +1431,7 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
                 sessionControl->endEventIngress();
                 return;
             }
-            if (!advisory) {
+            if (!advisory && !provisional) {
                 eventEndpoint->observeTerminal(event.token);
             }
             auto deliver

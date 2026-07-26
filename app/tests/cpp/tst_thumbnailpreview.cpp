@@ -86,6 +86,15 @@ QByteArray rawFixtureData()
     }
     return file.readAll();
 }
+
+QByteArray fixtureData(const QString& fileName)
+{
+    QFile file(QStringLiteral(KIRIVIEW_TEST_SOURCE_DIR "/../fixtures/") + fileName);
+    if (!file.open(QFile::ReadOnly)) {
+        return {};
+    }
+    return file.readAll();
+}
 }
 
 class TestThumbnailPreview : public QObject
@@ -95,6 +104,8 @@ class TestThumbnailPreview : public QObject
 private Q_SLOTS:
     void buildsLocalStillLookupRequest();
     void rejectsLookupWithoutLocalStillIdentity();
+    void animatedDecodeDataCannotClaimStillThumbnailPreview_data();
+    void animatedDecodeDataCannotClaimStillThumbnailPreview();
     void acceptsReadyThumbnailWithTrustedOriginalSize();
     void acceptsFallbackCacheBuckets();
     void acceptsExifRotatedProjectionOnlyWithTrustedDimensions();
@@ -139,6 +150,28 @@ void TestThumbnailPreview::rejectsLookupWithoutLocalStillIdentity()
         previewRequest(QUrl::fromLocalFile(QStringLiteral("/tmp/source.jpg")), QSize(4000, 3000),
             Bucket::None))
             .has_value());
+}
+
+void TestThumbnailPreview::animatedDecodeDataCannotClaimStillThumbnailPreview_data()
+{
+    QTest::addColumn<QString>("fileName");
+
+    QTest::newRow("apng") << QStringLiteral("animated-smoke.apng");
+    QTest::newRow("webp") << QStringLiteral("animated-smoke.webp");
+    QTest::newRow("jxl") << QStringLiteral("animated-smoke.jxl");
+    QTest::newRow("heif-sequence") << QStringLiteral("heif-sequence-alpha.heics");
+}
+
+void TestThumbnailPreview::animatedDecodeDataCannotClaimStillThumbnailPreview()
+{
+    QFETCH(QString, fileName);
+
+    const QByteArray data = fixtureData(fileName);
+    QVERIFY2(!data.isEmpty(), qPrintable(fileName));
+    const kiriview::ImageDecodeRequest request = kiriview::ImageDecodeRequest::fromUrl(
+        16, QUrl::fromLocalFile(QStringLiteral("/tmp/") + fileName));
+
+    QVERIFY(!kiriview::xdgThumbnailPreviewRequestForDecodeData(data, request).has_value());
 }
 
 void TestThumbnailPreview::acceptsReadyThumbnailWithTrustedOriginalSize()

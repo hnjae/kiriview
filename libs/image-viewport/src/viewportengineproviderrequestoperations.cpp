@@ -62,7 +62,10 @@ ViewportProviderFrameRequestStartResult startFrameRequest(RequestContext context
     }
     context.request.status = ImageViewportRequestStatus::Loading;
     context.request.reason = projectWaitReason(wait);
-    context.display.status = context.display.roles[0].displayedPayload.hasPresentableContent()
+    context.display.status = context.display.status == ImageViewportDisplayStatus::Ready
+            && hasProvisionalDisplayedPayload(context.display)
+        ? ImageViewportDisplayStatus::Ready
+        : context.display.roles[0].displayedPayload.hasPresentableContent()
         ? ImageViewportDisplayStatus::Retained
         : ImageViewportDisplayStatus::Empty;
 
@@ -270,6 +273,17 @@ std::array<ViewportProviderFrameTransportEffect, 2> reduceViewportEngineProvider
         const std::size_t index = role == ImageViewportPageRole::Secondary ? 1U : 0U;
         auto& provider = access.m_roles[index].provider;
         auto& request = requestForRole(access.m_request, role);
+        auto& displayedPayload = access.m_display.roles[index].displayedPayload;
+        const bool forceRequested = role == ImageViewportPageRole::Primary
+            ? input.forcedRefinementRoles.primary()
+            : input.forcedRefinementRoles.secondary();
+        if (!input.restageUnforcedRoles && !forceRequested) {
+            continue;
+        }
+        const bool forceRefinement = forceRequested && displayedPayload.hasPresentableContent()
+            && !displayedPayload.provisional && !displayedPayload.auxiliaryRefinement
+            && !displayedPayload.firstDisplayRefinementIssued
+            && displayedPayload.quality == ImageViewportPayloadQuality::FirstDisplay;
         const bool present = role == ImageViewportPageRole::Primary
             ? access.m_request.roles[0].source.facts.provider
             : access.m_request.roles[1].sequence && access.m_request.roles[1].provider;
@@ -279,13 +293,14 @@ std::array<ViewportProviderFrameTransportEffect, 2> reduceViewportEngineProvider
         }
         const auto previousRevision = request.demandRevision;
         const auto projected = access.demand(role, input.geometry);
-        if (provider.requests.lastIssuedFrameDemand
+        if (!forceRefinement && provider.requests.lastIssuedFrameDemand
             && sameSelectionDemand(projected, *provider.requests.lastIssuedFrameDemand)) {
             request.demandRevision = previousRevision;
             continue;
         }
         const auto* activeFrame = provider.requests.frameRequest();
-        if (!activeFrame && access.m_request.status != ImageViewportRequestStatus::Ready) {
+        if (!activeFrame && access.m_request.status != ImageViewportRequestStatus::Ready
+            && !forceRefinement) {
             request.demandRevision = previousRevision;
             continue;
         }
@@ -297,7 +312,8 @@ std::array<ViewportProviderFrameTransportEffect, 2> reduceViewportEngineProvider
             provider.requests.retire(activeFrame->token);
         }
         access.m_display.roles[index].pendingRenderPayload = {};
-        const bool committedTarget = access.m_request.status == ImageViewportRequestStatus::Ready
+        const bool committedTarget
+            = (access.m_request.status == ImageViewportRequestStatus::Ready || forceRefinement)
             && access.m_display.status == ImageViewportDisplayStatus::Ready
             && access.m_display.roles[index].displayedRequest.generation
                 == access.m_request.sequenceGeneration
@@ -325,6 +341,9 @@ std::array<ViewportProviderFrameTransportEffect, 2> reduceViewportEngineProvider
         effects[index].sessionClose = start.sessionClose;
         effects[index].sendCommand = start.sendCommand;
         effects[index].command = start.command;
+        if (forceRefinement && start.accepted) {
+            access.m_display.roles[index].displayedPayload.firstDisplayRefinementIssued = true;
+        }
     }
     return effects;
 }

@@ -17,6 +17,7 @@ struct ViewportEngineProviderFrameReadyInput
     ImageFrame* frame = nullptr;
     quint64 providerFrameLeaseId = 0;
     ImageSequenceProviderFrameEnvelope envelope;
+    bool provisional = false;
     ViewportEngineGeometryInput geometry;
 };
 

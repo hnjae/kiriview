@@ -662,6 +662,18 @@ ImageSequenceProviderEvent ImageSequenceProviderEvent::metadataReady(
     return event;
 }
 
+ImageSequenceProviderEvent ImageSequenceProviderEvent::provisionalFrameReady(
+    ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* frameHandle,
+    ImageSequenceProviderFrameEnvelope frameEnvelope)
+{
+    ImageSequenceProviderEvent event;
+    event.m_kind = ImageSequenceProviderEventKind::ProvisionalFrameReady;
+    event.m_token = token;
+    event.m_frameHandle = frameHandle;
+    event.m_frameEnvelope = frameEnvelope;
+    return event;
+}
+
 ImageSequenceProviderEvent ImageSequenceProviderEvent::frameReady(
     ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* frameHandle,
     ImageSequenceProviderFrameEnvelope frameEnvelope)
@@ -736,6 +748,7 @@ bool ImageSequenceProviderEvent::isValid() const
     switch (m_kind) {
     case ImageSequenceProviderEventKind::MetadataReady:
         return m_token.isValid() && m_metadata.isValid();
+    case ImageSequenceProviderEventKind::ProvisionalFrameReady:
     case ImageSequenceProviderEventKind::FrameReady:
         return m_token.isValid() && m_frameHandle && m_frameEnvelope.isValid();
     case ImageSequenceProviderEventKind::Waiting:

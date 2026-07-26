@@ -98,7 +98,9 @@ private:
     [[nodiscard]] GeometryInput acceptedGeometry() const;
     [[nodiscard]] PresentationGeometry::State geometryState(const GeometryInput& input) const;
     std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands(
-        const GeometryInput& geometry);
+        const GeometryInput& geometry,
+        ImageViewportRoleSet forcedRefinementRoles = ImageViewportRoleSet {},
+        bool restageUnforcedRoles = true);
     std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands();
     ViewportProviderEventResult reduceProviderEvent(const ViewportProviderEvent& event);
     ViewportProviderTerminalEventResult reduceProviderProtocolViolation(ImageViewportPageRole role,
@@ -120,6 +122,8 @@ private:
     void retireRestoration(ViewportEngineTransitionDraft& transition);
     bool restorePreviousIfTerminal(ViewportEngineTransitionDraft& transition);
     void commitReplacementIfReady(ViewportEngineTransitionDraft& transition);
+    void discardProvisionalPresentationIfTerminal(
+        ImageViewportInternal::ViewportChangeSet& changes);
 
     static constexpr std::size_t roleIndex(ImageViewportPageRole role)
     {

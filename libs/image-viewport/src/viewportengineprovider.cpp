@@ -62,6 +62,8 @@ bool eventKindCompatible(
     switch (eventKind) {
     case ImageSequenceProviderEventKind::MetadataReady:
         return requestKind == ImageSequenceProviderRequestKind::Metadata;
+    case ImageSequenceProviderEventKind::ProvisionalFrameReady:
+        return requestKind == ImageSequenceProviderRequestKind::Frame;
     case ImageSequenceProviderEventKind::FrameReady:
         return requestKind == ImageSequenceProviderRequestKind::Frame
             || requestKind == ImageSequenceProviderRequestKind::Position
@@ -90,6 +92,36 @@ void commitProviderRequestMutation(
     state.providerState.roles = std::move(mutation.roles);
     state.revisions.nextRevision = mutation.nextRevision;
 }
+}
+
+void ViewportEngine::discardProvisionalPresentationIfTerminal(
+    ImageViewportInternal::ViewportChangeSet& changes)
+{
+    using namespace ImageViewportInternal;
+    auto& request = m_state->requestState.request;
+    auto& display = m_state->displayState.display;
+    if (!viewportEngineHasCurrentTerminal(request)) {
+        return;
+    }
+    const bool pending = hasProvisionalPendingPayload(display);
+    const bool displayed = hasProvisionalDisplayedPayload(display);
+    if (!pending && !displayed) {
+        return;
+    }
+    display.clearPendingRenderPayload();
+    request.roles[0].activeRequest.preparedPayloadId = 0;
+    request.roles[1].activeRequest.preparedPayloadId = 0;
+    changes.scheduleUpdate = true;
+    if (!displayed) {
+        return;
+    }
+    display.clearDisplayedDisplay();
+    display.status = ImageViewportDisplayStatus::Empty;
+    display.displayedPresentation = {};
+    display.displayedPresentationRevision = 0;
+    changes.displayState = true;
+    changes.displayRevision = true;
+    changes.geometryState = true;
 }
 
 ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
@@ -133,6 +165,7 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
                 event.providerCause, event.providerReference, event.providerFailureLeaseId });
         result.changes = reduced.changes;
         result.playbackSchedules = reduced.schedules;
+        discardProvisionalPresentationIfTerminal(result.changes);
         restorePreviousIfTerminal(result);
         return finalizeTransition(std::move(result));
     }
@@ -145,6 +178,7 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
         if (result.changes.playbackPhase) {
             result.playbackSchedules = reduced.schedules;
         }
+        discardProvisionalPresentationIfTerminal(result.changes);
         restorePreviousIfTerminal(result);
         return finalizeTransition(std::move(result));
     }
@@ -156,6 +190,7 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
         if (result.changes.playbackPhase) {
             result.playbackSchedules = reduced.schedules;
         }
+        discardProvisionalPresentationIfTerminal(result.changes);
         restorePreviousIfTerminal(result);
         return finalizeTransition(std::move(result));
     }
@@ -167,6 +202,7 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
         if (result.changes.playbackPhase) {
             result.playbackSchedules = reduced.schedules;
         }
+        discardProvisionalPresentationIfTerminal(result.changes);
         restorePreviousIfTerminal(result);
         return finalizeTransition(std::move(result));
     }
@@ -177,6 +213,7 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
         if (result.changes.playbackPhase) {
             result.playbackSchedules = reduced.schedules;
         }
+        discardProvisionalPresentationIfTerminal(result.changes);
         restorePreviousIfTerminal(result);
         return finalizeTransition(std::move(result));
     }
@@ -286,14 +323,16 @@ std::array<ViewportProviderFrameTransportEffect, 2> ViewportEngine::restageProvi
 }
 
 std::array<ViewportProviderFrameTransportEffect, 2> ViewportEngine::restageProviderDemands(
-    const GeometryInput& geometry)
+    const GeometryInput& geometry, ImageViewportRoleSet forcedRefinementRoles,
+    bool restageUnforcedRoles)
 {
     ViewportEngineProviderDemandRestageAccess access(m_state->requestState.request,
         m_state->playbackState.playback, m_state->displayState.display,
         m_state->providerState.roles, m_state->presentationState.presentation,
         m_state->revisions.nextRevision, m_state->revisions.targetPresentationRevision,
         m_state->requestState.presentationTarget.generation);
-    auto effects = reduceViewportEngineProviderDemandRestage({ geometry }, access);
+    auto effects = reduceViewportEngineProviderDemandRestage(
+        { geometry, forcedRefinementRoles, restageUnforcedRoles }, access);
     commitProviderRequestMutation(*m_state, access.takeMutation());
     return effects;
 }
@@ -371,6 +410,30 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
     } else if (!eventShapeCompatible(event)) {
         violationCause
             = ImageViewportInternal::InternalObservationCause::ProviderProtocolEventShapeMismatch;
+    } else if (event.kind == ImageSequenceProviderEventKind::ProvisionalFrameReady) {
+        const auto role = roleIndex(event.role);
+        const auto& displayed = m_state->displayState.display.roles[role];
+        const bool demandHasNoCurrentPayload = providerRequest->demand
+            && providerRequest->demand->currentPayloadQuality()
+                == ImageViewportPayloadQuality::Unknown
+            && providerRequest->demand->currentPayloadExactness()
+                == ImageViewportPayloadExactness::Unknown;
+        const bool authoritativeCurrent
+            = m_state->displayState.display.status == ImageViewportDisplayStatus::Ready
+            && displayed.displayedPayload.hasPresentableContent()
+            && !displayed.displayedPayload.provisional
+            && displayed.displayedRequest.generation == providerRequest->generation
+            && displayed.displayedRequest.request.identity.id == providerRequest->requestId;
+        if (providerRequest->ownership
+                != ImageViewportInternal::ProviderRequestOwnership::DisplayRequest
+            || providerRequest->target.providerTargetKind
+                != ImageViewportInternal::ProviderRequestTargetKind::Frame
+            || !eventProvider.facts.metadataReady || eventProvider.facts.timedMetadata
+            || !demandHasNoCurrentPayload || providerRequest->provisionalDelivered
+            || authoritativeCurrent) {
+            violationCause = ImageViewportInternal::InternalObservationCause::
+                ProviderProtocolEventStateMismatch;
+        }
     }
     if (violationCause != ImageViewportInternal::InternalObservationCause::None) {
         const auto reduced
@@ -406,6 +469,7 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
         result.providerFrameTransport = metadata.providerFrameTransport;
         break;
     }
+    case ImageSequenceProviderEventKind::ProvisionalFrameReady:
     case ImageSequenceProviderEventKind::FrameReady: {
         auto& provider = m_state->providerState.roles[roleIndex(event.role)].provider;
         ViewportEngineProviderFrameReadyAccess access(m_state->requestState.request,
@@ -413,7 +477,8 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
             m_state->presentationState.presentation);
         const auto frame = reduceViewportEngineProviderFrameReady(
             { event.role, event.token, event.frameHandle ? event.frameHandle->frame() : nullptr,
-                event.frameLeaseId, event.frameEnvelope, geometry },
+                event.frameLeaseId, event.frameEnvelope,
+                event.kind == ImageSequenceProviderEventKind::ProvisionalFrameReady, geometry },
             access);
         auto mutation = access.takeMutation();
         m_state->requestState.request = std::move(mutation.request);

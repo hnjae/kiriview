@@ -449,7 +449,7 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
             && displayedRequest.generation == acceptedGenerationValue
             && displayedRequest.request.resolvedFrame.frame == active.resolvedFrame.frame
             && displayedRequest.request.resolvedFrame.position == active.resolvedFrame.position;
-        const bool currentForDemand = targetMatches
+        const bool currentForDemand = targetMatches && !payload.provisional
             && (!source.facts.provider
                 || (payload.demandRevision.isValid()
                     && payload.demandRevision == active.demandRevision));

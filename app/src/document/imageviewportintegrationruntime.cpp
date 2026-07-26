@@ -215,14 +215,32 @@ const ImageViewportIntegrationProjection& ImageViewportIntegrationRuntime::proje
 std::optional<StaticDisplayImagePayload> ImageViewportIntegrationRuntime::displayedImage(
     ImageViewportPageRole role) const
 {
-    const TargetRecord* displayed = recordForGeneration(m_projection.displayedTargetGeneration);
+    if (m_viewport == nullptr) {
+        return std::nullopt;
+    }
+    const ImageViewportStateSnapshot snapshot = m_viewport->state();
+    if (snapshot.display().displayedPresentationTargetGeneration()
+        != m_projection.displayedTargetGeneration) {
+        return std::nullopt;
+    }
+    const ImageViewportRoleSet displayedRoles = snapshot.display().displayedRoleSet();
+    if ((role == ImageViewportPageRole::Primary && !displayedRoles.primary())
+        || (role == ImageViewportPageRole::Secondary && !displayedRoles.secondary())) {
+        return std::nullopt;
+    }
+
+    const TargetRecord* displayed
+        = recordForGeneration(snapshot.display().displayedPresentationTargetGeneration());
     if (displayed == nullptr) {
         return std::nullopt;
     }
     const std::shared_ptr<ImageViewportProviderResource>& resource
         = role == ImageViewportPageRole::Secondary ? displayed->secondaryResource
                                                    : displayed->primaryResource;
-    return resource == nullptr ? std::nullopt : resource->currentStillDisplayImage();
+    const ImageViewportDemandRevisionToken demandRevision = role == ImageViewportPageRole::Secondary
+        ? snapshot.secondary().display().demandRevision()
+        : snapshot.primary().display().demandRevision();
+    return resource == nullptr ? std::nullopt : resource->currentStillDisplayImage(demandRevision);
 }
 
 bool ImageViewportIntegrationRuntime::submitCurrentTarget()
@@ -359,10 +377,22 @@ void ImageViewportIntegrationRuntime::acceptSnapshot(const ImageViewportStateSna
     projection.displayedTargetGeneration
         = snapshot.display().displayedPresentationTargetGeneration();
 
-    const TargetRecord* displayed
+    TargetRecord* displayed
         = recordForGeneration(snapshot.display().displayedPresentationTargetGeneration());
     if (displayed != nullptr) {
         projection.displayedUrl = displayed->target.primaryUrl;
+        if (snapshot.request().status() == ImageViewportRequestStatus::Ready) {
+            const ImageViewportRoleSet displayedRoles = snapshot.display().displayedRoleSet();
+            if (displayedRoles.primary() && displayed->primaryResource != nullptr) {
+                displayed->primaryResource->acceptDisplayedStillDisplayImage(
+                    ImageViewportPageRole::Primary, snapshot.primary().display().demandRevision());
+            }
+            if (displayedRoles.secondary() && displayed->secondaryResource != nullptr) {
+                displayed->secondaryResource->acceptDisplayedStillDisplayImage(
+                    ImageViewportPageRole::Secondary,
+                    snapshot.secondary().display().demandRevision());
+            }
+        }
     }
 
     projection.failure = resolveFailure(*m_activeRecord, componentFailure);

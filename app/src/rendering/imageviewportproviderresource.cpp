@@ -6,6 +6,8 @@
 #include <QImageIOHandler>
 #include <QSizeF>
 #include <QTransform>
+#include <algorithm>
+#include <ranges>
 #include <utility>
 
 namespace {
@@ -132,6 +134,18 @@ ImageViewportProviderFrameResult ImageViewportProviderFrameResult::ready(
     return result;
 }
 
+ImageViewportProviderFrameResult ImageViewportProviderFrameResult::provisional(
+    StaticDisplayImagePayload displayImage, ImageSequenceProviderFrameEnvelope envelope,
+    QString formatIdentifier)
+{
+    ImageViewportProviderFrameResult result;
+    result.displayImage = std::move(displayImage);
+    result.envelope = envelope;
+    result.formatIdentifier = std::move(formatIdentifier);
+    result.stage = ImageViewportProviderFrameStage::Provisional;
+    return result;
+}
+
 ImageViewportProviderFrameResult ImageViewportProviderFrameResult::failed(
     ImageSequenceProviderFailureCause cause, ImageLoadFailure failure)
 {
@@ -144,8 +158,7 @@ ImageViewportProviderFrameResult ImageViewportProviderFrameResult::failed(
 ImageViewportProviderResource::ImageViewportProviderResource(quint64 sourceGeneration,
     QString locationIdentity, std::shared_ptr<ImageViewportProviderSource> source,
     std::shared_ptr<DisplayImageStore> displayStore,
-    std::shared_ptr<ImageViewportFailureRegistry> failureRegistry,
-    std::optional<StaticDisplayImagePayload> predecodedImage)
+    std::shared_ptr<ImageViewportFailureRegistry> failureRegistry)
     : m_sourceGeneration(sourceGeneration)
     , m_locationIdentity(std::move(locationIdentity))
     , m_source(std::move(source))
@@ -153,7 +166,6 @@ ImageViewportProviderResource::ImageViewportProviderResource(quint64 sourceGener
     , m_failureRegistry(failureRegistry == nullptr
               ? std::make_shared<ImageViewportFailureRegistry>()
               : std::move(failureRegistry))
-    , m_predecodedImage(std::move(predecodedImage))
 {
     Q_ASSERT(m_displayStore != nullptr);
 }
@@ -162,16 +174,8 @@ ImageViewportProviderResource::~ImageViewportProviderResource() = default;
 
 ImageSequenceProviderMetadata ImageViewportProviderResource::constructionMetadata() const
 {
-    if (m_source != nullptr) {
-        const ImageSequenceProviderMetadata metadata = m_source->constructionMetadata();
-        if (metadata.isSpecified()) {
-            return metadata;
-        }
-    }
-    if (m_predecodedImage.has_value() && m_predecodedImage->isValid()) {
-        return ImageSequenceProviderMetadata::still(m_predecodedImage->originalSize);
-    }
-    return {};
+    return m_source == nullptr ? ImageSequenceProviderMetadata {}
+                               : m_source->constructionMetadata();
 }
 
 void ImageViewportProviderResource::requestMetadata(
@@ -180,12 +184,23 @@ void ImageViewportProviderResource::requestMetadata(
     if (!matchesResource(identity) || m_source == nullptr || !completion) {
         return;
     }
+    {
+        const QMutexLocker lock(&m_stateMutex);
+        if (m_closed) {
+            return;
+        }
+        if (std::ranges::contains(m_activeMetadataWork, identity)) {
+            return;
+        }
+        m_activeMetadataWork.push_back(identity);
+    }
     const std::weak_ptr<ImageViewportProviderResource> resource = weak_from_this();
     m_source->requestMetadata(identity,
         [resource, completion = std::move(completion)](ImageViewportProviderWorkIdentity completed,
             ImageViewportProviderMetadataResult result) mutable {
             const std::shared_ptr<ImageViewportProviderResource> owner = resource.lock();
-            if (owner != nullptr && owner->matchesResource(completed)) {
+            if (owner != nullptr && owner->matchesResource(completed)
+                && owner->finalizeMetadata(completed)) {
                 completion(std::move(completed), std::move(result));
             }
         });
@@ -197,27 +212,34 @@ void ImageViewportProviderResource::requestFrame(const ImageViewportProviderWork
     if (!matchesResource(identity) || !completion) {
         return;
     }
-
-    const bool initialPayloadDemand
-        = request.demand.currentPayloadQuality() == ImageViewportPayloadQuality::Unknown
-        && request.demand.currentPayloadExactness() == ImageViewportPayloadExactness::Unknown;
-    if (initialPayloadDemand && m_predecodedImage.has_value() && m_predecodedImage->isValid()) {
-        StaticDisplayImagePayload predecoded = *m_predecodedImage;
-        ImageSequenceProviderFrameEnvelope envelope = request.frame == 0
-            ? ImageSequenceProviderFrameEnvelope::stillFrame()
-            : ImageSequenceProviderFrameEnvelope {};
-        envelope.setDemandRevision(identity.demandRevision);
-        completion(identity,
-            prepareFrame(identity,
-                ImageViewportProviderFrameResult::ready(
-                    std::move(predecoded), envelope, QString())));
-        return;
+    {
+        const QMutexLocker lock(&m_stateMutex);
+        if (m_closed) {
+            return;
+        }
+        std::erase_if(
+            m_activeFrameWork, [&identity](const ImageViewportProviderWorkIdentity& active) {
+                return active.role == identity.role && active != identity;
+            });
+        std::erase_if(m_authoritativeFrameCandidates,
+            [&identity](const AuthoritativeFrameCandidate& candidate) {
+                return candidate.identity.role == identity.role;
+            });
+        if (m_authoritativeStillDisplayImageCandidate.has_value()
+            && m_authoritativeStillDisplayImageCandidate->identity.role == identity.role) {
+            m_authoritativeStillDisplayImageCandidate.reset();
+        }
+        if (!std::ranges::contains(m_activeFrameWork, identity)) {
+            m_activeFrameWork.push_back(identity);
+        }
     }
 
     if (m_source == nullptr) {
         ImageViewportProviderPreparedFrame result;
         result.failureCause = ImageSequenceProviderFailureCause::ProviderInternal;
-        completion(identity, std::move(result));
+        if (finalizePreparedFrame(identity, result)) {
+            completion(identity, std::move(result));
+        }
         return;
     }
 
@@ -230,12 +252,36 @@ void ImageViewportProviderResource::requestFrame(const ImageViewportProviderWork
             if (owner == nullptr || !owner->matchesResource(completed)) {
                 return;
             }
-            completion(completed, owner->prepareFrame(completed, std::move(result)));
+            ImageViewportProviderPreparedFrame prepared
+                = owner->prepareFrame(completed, std::move(result));
+            if (owner->finalizePreparedFrame(completed, prepared)) {
+                completion(completed, std::move(prepared));
+            }
         });
 }
 
 void ImageViewportProviderResource::cancel(const QVector<ImageSequenceProviderRequestToken>& tokens)
 {
+    {
+        const QMutexLocker lock(&m_stateMutex);
+        std::erase_if(
+            m_activeMetadataWork, [&tokens](const ImageViewportProviderWorkIdentity& identity) {
+                return std::ranges::contains(tokens, identity.requestToken);
+            });
+        std::erase_if(
+            m_activeFrameWork, [&tokens](const ImageViewportProviderWorkIdentity& identity) {
+                return std::ranges::contains(tokens, identity.requestToken);
+            });
+        std::erase_if(m_authoritativeFrameCandidates,
+            [&tokens](const AuthoritativeFrameCandidate& candidate) {
+                return std::ranges::contains(tokens, candidate.identity.requestToken);
+            });
+        if (m_authoritativeStillDisplayImageCandidate.has_value()
+            && std::ranges::contains(
+                tokens, m_authoritativeStillDisplayImageCandidate->identity.requestToken)) {
+            m_authoritativeStillDisplayImageCandidate.reset();
+        }
+    }
     if (m_source != nullptr) {
         m_source->cancel(tokens);
     }
@@ -243,16 +289,90 @@ void ImageViewportProviderResource::cancel(const QVector<ImageSequenceProviderRe
 
 void ImageViewportProviderResource::close()
 {
+    {
+        const QMutexLocker lock(&m_stateMutex);
+        if (m_closed) {
+            return;
+        }
+        m_closed = true;
+        m_activeMetadataWork.clear();
+        m_activeFrameWork.clear();
+        m_authoritativeFrameCandidates.clear();
+        m_authoritativeStillDisplayImageCandidate.reset();
+    }
     if (m_source != nullptr) {
         m_source->close();
     }
 }
 
-std::optional<StaticDisplayImagePayload>
-ImageViewportProviderResource::currentStillDisplayImage() const
+std::optional<StaticDisplayImagePayload> ImageViewportProviderResource::currentStillDisplayImage(
+    ImageViewportDemandRevisionToken demandRevision) const
 {
-    const QMutexLocker lock(&m_currentPayloadMutex);
-    return m_currentStillDisplayImage;
+    const QMutexLocker lock(&m_stateMutex);
+    if (!m_currentStillDisplayImage.has_value()
+        || m_currentStillDisplayImage->identity.demandRevision != demandRevision) {
+        return std::nullopt;
+    }
+    const std::optional<DisplayImageStoreEntry> entry
+        = m_displayStore->entry(m_currentStillDisplayImage->storeEntryId);
+    if (!entry.has_value()) {
+        return std::nullopt;
+    }
+
+    StaticDisplayImagePayload displayImage = m_currentStillDisplayImage->displayImage;
+    displayImage.image = entry->image;
+    return displayImage.isValid()
+        ? std::optional<StaticDisplayImagePayload>(std::move(displayImage))
+        : std::nullopt;
+}
+
+bool ImageViewportProviderResource::acceptAuthoritativeStillDisplayImage(
+    const ImageViewportProviderWorkIdentity& identity,
+    const ImageViewportProviderPreparedFrame& preparedFrame)
+{
+    if (!matchesResource(identity) || preparedFrame.isProvisional() || !preparedFrame.isReady()
+        || !preparedFrame.envelope.isStillFrame()
+        || preparedFrame.envelope.demandRevision() != identity.demandRevision
+        || !preparedFrame.authoritativeStillDisplayImage.has_value()
+        || !preparedFrame.authoritativeStillDisplayImage->isValid()) {
+        return false;
+    }
+
+    const QMutexLocker lock(&m_stateMutex);
+    const auto candidate = std::ranges::find_if(m_authoritativeFrameCandidates,
+        [&identity, &preparedFrame](const AuthoritativeFrameCandidate& current) {
+            return current.identity == identity
+                && current.storeEntryId == preparedFrame.storeEntryId;
+        });
+    if (m_closed || candidate == m_authoritativeFrameCandidates.end()) {
+        return false;
+    }
+
+    m_authoritativeFrameCandidates.erase(candidate);
+    StaticDisplayImagePayload displayImage = *preparedFrame.authoritativeStillDisplayImage;
+    displayImage.image = {};
+    m_authoritativeStillDisplayImageCandidate = AuthoritativeStillDisplayImage { identity,
+        preparedFrame.storeEntryId, std::move(displayImage) };
+    return true;
+}
+
+bool ImageViewportProviderResource::acceptDisplayedStillDisplayImage(
+    ImageViewportPageRole role, ImageViewportDemandRevisionToken demandRevision)
+{
+    const QMutexLocker lock(&m_stateMutex);
+    if (m_currentStillDisplayImage.has_value() && m_currentStillDisplayImage->identity.role == role
+        && m_currentStillDisplayImage->identity.demandRevision == demandRevision) {
+        return true;
+    }
+    if (!m_authoritativeStillDisplayImageCandidate.has_value()
+        || m_authoritativeStillDisplayImageCandidate->identity.role != role
+        || m_authoritativeStillDisplayImageCandidate->identity.demandRevision != demandRevision) {
+        return false;
+    }
+
+    m_currentStillDisplayImage = std::move(m_authoritativeStillDisplayImageCandidate);
+    m_authoritativeStillDisplayImageCandidate.reset();
+    return true;
 }
 
 ImageSequenceProviderFrameHandle* ImageViewportProviderResource::acquireFrameHandle(
@@ -302,10 +422,49 @@ bool ImageViewportProviderResource::matchesResource(
         && identity.locationIdentity == m_locationIdentity;
 }
 
+bool ImageViewportProviderResource::finalizeMetadata(
+    const ImageViewportProviderWorkIdentity& identity)
+{
+    const QMutexLocker lock(&m_stateMutex);
+    const auto active = std::ranges::find(m_activeMetadataWork, identity);
+    if (m_closed || active == m_activeMetadataWork.end()) {
+        return false;
+    }
+    m_activeMetadataWork.erase(active);
+    return true;
+}
+
+bool ImageViewportProviderResource::finalizePreparedFrame(
+    const ImageViewportProviderWorkIdentity& identity,
+    const ImageViewportProviderPreparedFrame& preparedFrame)
+{
+    const QMutexLocker lock(&m_stateMutex);
+    const auto active = std::ranges::find(m_activeFrameWork, identity);
+    if (m_closed || active == m_activeFrameWork.end()) {
+        return false;
+    }
+    if (preparedFrame.isProvisional()) {
+        return true;
+    }
+
+    m_activeFrameWork.erase(active);
+    std::erase_if(
+        m_authoritativeFrameCandidates, [&identity](const AuthoritativeFrameCandidate& candidate) {
+            return candidate.identity.role == identity.role;
+        });
+    if (preparedFrame.isReady() && preparedFrame.authoritativeStillDisplayImage.has_value()
+        && preparedFrame.envelope.isStillFrame()) {
+        m_authoritativeFrameCandidates.push_back(
+            AuthoritativeFrameCandidate { identity, preparedFrame.storeEntryId });
+    }
+    return true;
+}
+
 ImageViewportProviderPreparedFrame ImageViewportProviderResource::prepareFrame(
     const ImageViewportProviderWorkIdentity& identity, ImageViewportProviderFrameResult result)
 {
     ImageViewportProviderPreparedFrame prepared;
+    prepared.stage = result.stage;
     prepared.envelope = result.envelope;
     prepared.envelope.setDemandRevision(identity.demandRevision);
     prepared.formatIdentifier = std::move(result.formatIdentifier);
@@ -342,9 +501,8 @@ ImageViewportProviderPreparedFrame ImageViewportProviderResource::prepareFrame(
         prepared.failureCause = ImageSequenceProviderFailureCause::ResourceExhausted;
         return prepared;
     }
-    if (result.envelope.isStillFrame()) {
-        const QMutexLocker lock(&m_currentPayloadMutex);
-        m_currentStillDisplayImage = displayImage;
+    if (!prepared.isProvisional() && prepared.envelope.isStillFrame()) {
+        prepared.authoritativeStillDisplayImage = displayImage;
     }
     return prepared;
 }

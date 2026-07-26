@@ -279,6 +279,7 @@ ViewportEngineTransition ViewportEngine::handleRenderHostFact(
         m_state->playbackState.playback = mutation.playback;
         transition.changes = reduction.changes;
         transition.observations = reduction.observations;
+        discardProvisionalPresentationIfTerminal(transition.changes);
         rebuildViewportEnginePayloadAllocation(
             m_state->requestState.request, m_state->displayState.display);
     } else if (input.fact.outcome == ViewportRenderHostFact::Outcome::Committed
@@ -299,11 +300,30 @@ ViewportEngineTransition ViewportEngine::handleRenderHostFact(
         transition.observations = reduction.observations;
         const auto allocation = rebuildViewportEnginePayloadAllocation(
             m_state->requestState.request, m_state->displayState.display);
-        if (context.pendingTargetCommit && allocation.roleBudgetsIncreased) {
+        const auto needsFirstDisplayRefinement = [this](ImageViewportPageRole role) {
+            const auto index = roleIndex(role);
+            const auto& requestRole = m_state->requestState.request.roles[index];
+            const auto& payload = m_state->displayState.display.roles[index].displayedPayload;
+            return requestRole.source.facts.provider && payload.hasPresentableContent()
+                && !payload.provisional && !payload.auxiliaryRefinement
+                && !payload.firstDisplayRefinementIssued
+                && payload.quality == ImageViewportPayloadQuality::FirstDisplay;
+        };
+        const ImageViewportRoleSet forcedRefinements(context.pendingTargetCommit
+                && needsFirstDisplayRefinement(ImageViewportPageRole::Primary),
+            context.pendingTargetCommit
+                && needsFirstDisplayRefinement(ImageViewportPageRole::Secondary));
+        const bool provisionalCommit
+            = ImageViewportInternal::hasProvisionalDisplayedPayload(m_state->displayState.display);
+        const bool restageUnforcedRoles = allocation.roleBudgetsIncreased && !provisionalCommit;
+        if (context.pendingTargetCommit
+            && (restageUnforcedRoles || forcedRefinements.primary()
+                || forcedRefinements.secondary())) {
             const GeometryInput geometry { context.geometryState.hasReadyDisplay,
                 context.geometryState.itemBounds, context.geometryState.primaryImageSize,
                 context.geometryState.secondaryImageSize, context.geometryState.devicePixelRatio };
-            const auto providerEffects = restageProviderDemands(geometry);
+            const auto providerEffects
+                = restageProviderDemands(geometry, forcedRefinements, restageUnforcedRoles);
             appendProviderTransport(
                 transition.providerTransport, providerEffects[0], ImageViewportPageRole::Primary);
             appendProviderTransport(

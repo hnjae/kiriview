@@ -27,12 +27,29 @@ void emitProviderFrameHandleReady(ImageSequenceProviderSession* session,
     Q_EMIT session->providerEvent(event);
 }
 
+void emitProviderProvisionalFrameHandleReady(ImageSequenceProviderSession* session,
+    ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* handle,
+    ImageSequenceProviderFrameEnvelope envelope)
+{
+    ImageSequenceProviderEvent event
+        = ImageSequenceProviderEvent::provisionalFrameReady(token, handle, envelope);
+    Q_EMIT session->providerEvent(event);
+}
+
 void emitProviderFrameReady(ImageSequenceProviderSession* session,
     ImageSequenceProviderRequestToken token, ImageFrame* frame,
     ImageSequenceProviderFrameEnvelope envelope)
 {
     auto* handle = new ImageSequenceProviderFrameHandle(frame, [](ImageFrame*) { });
     emitProviderFrameHandleReady(session, token, handle, envelope);
+}
+
+void emitProviderProvisionalFrameReady(ImageSequenceProviderSession* session,
+    ImageSequenceProviderRequestToken token, ImageFrame* frame,
+    ImageSequenceProviderFrameEnvelope envelope)
+{
+    auto* handle = new ImageSequenceProviderFrameHandle(frame, [](ImageFrame*) { });
+    emitProviderProvisionalFrameHandleReady(session, token, handle, envelope);
 }
 
 void emitProviderWaiting(

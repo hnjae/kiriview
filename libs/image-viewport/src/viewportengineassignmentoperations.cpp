@@ -172,7 +172,8 @@ ImageViewportDisplayStatus retained(const DisplayState& d)
 {
     bool ok = (d.status == ImageViewportDisplayStatus::Ready
                   || d.status == ImageViewportDisplayStatus::Retained)
-        && d.roles[0].displayedPayload.hasPresentableContent();
+        && d.roles[0].displayedPayload.hasPresentableContent()
+        && !hasProvisionalDisplayedPayload(d);
     return ok ? ImageViewportDisplayStatus::Retained : ImageViewportDisplayStatus::Empty;
 }
 void resetProvider(ProviderRoleState& p, ImageSequenceAuthoredAnimationFacts a = {},
@@ -334,7 +335,8 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
     bool noop = out.clear && a.m_mutation.target.acceptedRoleSet == ImageViewportRoleSet();
     out.presentationTargetChanged = !noop;
     out.retainPreviousDisplay = in.transitionPolicy.displayTransition()
-        == ViewportEnginePresentationTargetTransitionPolicy::DisplayTransition::RetainPrevious;
+            == ViewportEnginePresentationTargetTransitionPolicy::DisplayTransition::RetainPrevious
+        && !hasProvisionalDisplayedPayload(a.m_mutation.display);
     out.releaseDisplayedState = out.clear || !out.retainPreviousDisplay;
     out.resetDisplayRequests = out.closeProviderSessions = out.presentationTargetChanged;
     out.stopPlayback = out.presentationTargetChanged && !refinement;

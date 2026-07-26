@@ -15,7 +15,8 @@
 #include <vector>
 
 namespace {
-kiriview::StaticDisplayImagePayload displayPayload(QString sourceIdentity)
+kiriview::StaticDisplayImagePayload displayPayload(QString sourceIdentity,
+    kiriview::DisplayImageQuality quality = kiriview::DisplayImageQuality::Exact)
 {
     QImage image(40, 20, QImage::Format_RGBA8888);
     image.fill(QColor(20, 40, 60, 255));
@@ -24,10 +25,12 @@ kiriview::StaticDisplayImagePayload displayPayload(QString sourceIdentity)
         {},
         QSize(40, 20),
         std::move(image),
-        kiriview::DisplayImageQuality::Exact,
+        quality,
         {},
         {},
-        kiriview::DisplayImagePreviewOrigin::None,
+        quality == kiriview::DisplayImageQuality::ThumbnailPreview
+            ? kiriview::DisplayImagePreviewOrigin::XdgThumbnail
+            : kiriview::DisplayImagePreviewOrigin::None,
     };
 }
 
@@ -86,6 +89,9 @@ public:
 
     ImageSequenceProviderMetadata constructionMetadata() const override
     {
+        if (authoritativeSeed.has_value()) {
+            return ImageSequenceProviderMetadata::still(authoritativeSeed->originalSize);
+        }
         return ImageSequenceProviderMetadata::still(QSizeF(40, 20));
     }
 
@@ -99,20 +105,38 @@ public:
     void requestFrame(const kiriview::ImageViewportProviderWorkIdentity& identity,
         kiriview::ImageViewportProviderFrameRequest, FrameCompletion completion) override
     {
+        if (authoritativeSeed.has_value()) {
+            completion(identity,
+                kiriview::ImageViewportProviderFrameResult::ready(*authoritativeSeed,
+                    ImageSequenceProviderFrameEnvelope::stillFrame(), QStringLiteral("png")));
+            return;
+        }
         pendingFrames.push_back({ identity, std::move(completion) });
     }
 
     void cancel(const QVector<ImageSequenceProviderRequestToken>&) override { }
     void close() override { ++closeCount; }
 
-    void completeNext(QString sourceIdentity)
+    void completeNext(QString sourceIdentity,
+        kiriview::DisplayImageQuality quality = kiriview::DisplayImageQuality::Exact)
     {
         QVERIFY(!pendingFrames.empty());
         PendingFrame pending = std::move(pendingFrames.front());
         pendingFrames.pop_front();
         pending.completion(pending.identity,
             kiriview::ImageViewportProviderFrameResult::ready(
-                displayPayload(std::move(sourceIdentity)),
+                displayPayload(std::move(sourceIdentity), quality),
+                ImageSequenceProviderFrameEnvelope::stillFrame(), QStringLiteral("png")));
+    }
+
+    void emitNextProvisional(QString sourceIdentity)
+    {
+        QVERIFY(!pendingFrames.empty());
+        const PendingFrame& pending = pendingFrames.front();
+        pending.completion(pending.identity,
+            kiriview::ImageViewportProviderFrameResult::provisional(
+                displayPayload(
+                    std::move(sourceIdentity), kiriview::DisplayImageQuality::ThumbnailPreview),
                 ImageSequenceProviderFrameEnvelope::stillFrame(), QStringLiteral("png")));
     }
 
@@ -127,6 +151,7 @@ public:
     }
 
     std::deque<PendingFrame> pendingFrames;
+    std::optional<kiriview::StaticDisplayImagePayload> authoritativeSeed;
     int closeCount = 0;
 };
 
@@ -142,6 +167,7 @@ struct TargetFixture
     std::shared_ptr<PendingProviderSource> primarySource
         = std::make_shared<PendingProviderSource>();
     std::shared_ptr<PendingProviderSource> secondarySource;
+    std::shared_ptr<kiriview::ImageViewportProviderResource> primaryResource;
     std::optional<kiriview::StaticDisplayImagePayload> primaryPredecodedImage;
     int primaryFactoryCalls = 0;
     int secondaryFactoryCalls = 0;
@@ -157,10 +183,12 @@ struct TargetFixture
         result.anchorAtEnd = anchorAtEnd;
         result.primaryResource = [this]() {
             ++primaryFactoryCalls;
-            return std::make_shared<kiriview::ImageViewportProviderResource>(generation,
+            primarySource->authoritativeSeed = primaryPredecodedImage;
+            primaryResource = std::make_shared<kiriview::ImageViewportProviderResource>(generation,
                 QStringLiteral("primary-%1").arg(generation), primarySource,
                 std::make_shared<kiriview::DisplayImageStore>(1024 * 1024),
-                std::make_shared<kiriview::ImageViewportFailureRegistry>(), primaryPredecodedImage);
+                std::make_shared<kiriview::ImageViewportFailureRegistry>());
+            return primaryResource;
         };
         if (!secondaryUrl.isEmpty()) {
             if (secondarySource == nullptr) {
@@ -192,6 +220,9 @@ private Q_SLOTS:
     void failureReferenceResolvesOnlyForMatchingTarget();
     void targetTransitionsRetainPriorPresentationUntilReplacementCommit_data();
     void targetTransitionsRetainPriorPresentationUntilReplacementCommit();
+    void displayedImageFollowsCommittedAndRetainedDisplay();
+    void authoritativeCandidateWaitsForCommitOverProvisionalDisplay();
+    void firstDisplayRemainsAvailableDuringFailedForcedRefinement();
     void predecodedReplacementRetainsCommittedDisplayUntilRenderCommit();
     void failedShapeChangeKeepsRequestedTargetErrorUntilClear();
 };
@@ -476,6 +507,125 @@ void TestImageViewportIntegrationRuntime::
     QVERIFY(viewport.state().display().displayedRoleSet().primary());
     QCOMPARE(viewport.state().display().displayedRoleSet().secondary(),
         replacement.secondarySource != nullptr);
+}
+
+void TestImageViewportIntegrationRuntime::displayedImageFollowsCommittedAndRetainedDisplay()
+{
+    kiriview::ImageViewportIntegrationRuntime runtime;
+    QQuickWindow window;
+    ImageViewport viewport;
+    hostViewport(window, viewport);
+    runtime.attach(&viewport);
+
+    TargetFixture initial;
+    initial.generation = 63;
+    initial.primaryUrl = QUrl(QStringLiteral("file:///tmp/displayed-image-initial.png"));
+    QVERIFY(runtime.submitTarget(initial.target()));
+    QTRY_COMPARE(initial.primarySource->pendingFrames.size(), std::size_t(1));
+    initial.primarySource->completeNext(QStringLiteral("committed"));
+    QVERIFY(driveRenderUntil(window, [&runtime]() {
+        return runtime.projection().status == kiriview::ImageDocumentStatus::Ready;
+    }));
+    const std::optional<kiriview::StaticDisplayImagePayload> committed
+        = runtime.displayedImage(ImageViewportPageRole::Primary);
+    QVERIFY(committed.has_value());
+    QCOMPARE(committed->sourceIdentity, QStringLiteral("committed"));
+
+    TargetFixture replacement;
+    replacement.generation = 64;
+    replacement.primaryUrl = QUrl(QStringLiteral("file:///tmp/displayed-image-replacement.png"));
+    QVERIFY(runtime.submitTarget(replacement.target()));
+    QTRY_COMPARE(replacement.primarySource->pendingFrames.size(), std::size_t(1));
+    QCOMPARE(viewport.state().display().status(), ImageViewportDisplayStatus::Retained);
+    const std::optional<kiriview::StaticDisplayImagePayload> retained
+        = runtime.displayedImage(ImageViewportPageRole::Primary);
+    QVERIFY(retained.has_value());
+    QCOMPARE(retained->sourceIdentity, QStringLiteral("committed"));
+}
+
+void TestImageViewportIntegrationRuntime::
+    authoritativeCandidateWaitsForCommitOverProvisionalDisplay()
+{
+    kiriview::ImageViewportIntegrationRuntime runtime;
+    QQuickWindow window;
+    ImageViewport viewport;
+    hostViewport(window, viewport);
+    runtime.attach(&viewport);
+
+    TargetFixture fixture;
+    fixture.generation = 65;
+    fixture.primaryUrl = QUrl(QStringLiteral("file:///tmp/provisional-commit.png"));
+    fixture.secondaryUrl = QUrl(QStringLiteral("file:///tmp/provisional-commit-secondary.png"));
+    QVERIFY(runtime.submitTarget(fixture.target()));
+    QTRY_COMPARE(fixture.primarySource->pendingFrames.size(), std::size_t(1));
+    QTRY_COMPARE(fixture.secondarySource->pendingFrames.size(), std::size_t(1));
+    fixture.primarySource->emitNextProvisional(QStringLiteral("preview"));
+    fixture.secondarySource->emitNextProvisional(QStringLiteral("secondary-preview"));
+    QVERIFY(driveRenderUntil(window, [&viewport]() {
+        return viewport.state().display().status() == ImageViewportDisplayStatus::Ready
+            && viewport.state().display().displayedRoleSet().secondary();
+    }));
+    QCOMPARE(viewport.state().primary().display().quality(), ImageViewportPayloadQuality::Preview);
+    QCOMPARE(
+        viewport.state().secondary().display().quality(), ImageViewportPayloadQuality::Preview);
+    QCOMPARE(viewport.state().request().status(), ImageViewportRequestStatus::Loading);
+    QVERIFY(!runtime.displayedImage(ImageViewportPageRole::Primary).has_value());
+
+    fixture.primarySource->completeNext(QStringLiteral("authoritative"));
+    QVERIFY(driveRenderUntil(window, [&viewport]() {
+        return viewport.state().primary().display().quality() == ImageViewportPayloadQuality::Exact;
+    }));
+    QCOMPARE(
+        viewport.state().secondary().display().quality(), ImageViewportPayloadQuality::Preview);
+    QCOMPARE(viewport.state().request().status(), ImageViewportRequestStatus::Loading);
+    QVERIFY(!fixture.primaryResource
+            ->currentStillDisplayImage(viewport.state().primary().display().demandRevision())
+            .has_value());
+    QVERIFY(!runtime.displayedImage(ImageViewportPageRole::Primary).has_value());
+
+    fixture.secondarySource->completeNext(QStringLiteral("secondary-authoritative"));
+    QVERIFY(driveRenderUntil(window, [&runtime]() {
+        return runtime.projection().status == kiriview::ImageDocumentStatus::Ready;
+    }));
+    const std::optional<kiriview::StaticDisplayImagePayload> committed
+        = runtime.displayedImage(ImageViewportPageRole::Primary);
+    QVERIFY(committed.has_value());
+    QCOMPARE(committed->sourceIdentity, QStringLiteral("authoritative"));
+}
+
+void TestImageViewportIntegrationRuntime::firstDisplayRemainsAvailableDuringFailedForcedRefinement()
+{
+    kiriview::ImageViewportIntegrationRuntime runtime;
+    QQuickWindow window;
+    ImageViewport viewport;
+    hostViewport(window, viewport);
+    runtime.attach(&viewport);
+
+    TargetFixture fixture;
+    fixture.generation = 66;
+    fixture.primaryUrl = QUrl(QStringLiteral("file:///tmp/first-display.png"));
+    QVERIFY(runtime.submitTarget(fixture.target()));
+    QTRY_COMPARE(fixture.primarySource->pendingFrames.size(), std::size_t(1));
+    fixture.primarySource->completeNext(
+        QStringLiteral("first-display"), kiriview::DisplayImageQuality::FirstDisplay);
+    QVERIFY(driveRenderUntil(window, [&fixture, &viewport]() {
+        return viewport.state().request().status() == ImageViewportRequestStatus::Ready
+            && fixture.primarySource->pendingFrames.size() == 1;
+    }));
+    QVERIFY(!viewport.state().primary().display().currentForDemand());
+
+    const std::optional<kiriview::StaticDisplayImagePayload> committed
+        = runtime.displayedImage(ImageViewportPageRole::Primary);
+    QVERIFY(committed.has_value());
+    QCOMPARE(committed->sourceIdentity, QStringLiteral("first-display"));
+    QCOMPARE(committed->quality, kiriview::DisplayImageQuality::FirstDisplay);
+
+    fixture.primarySource->failNext(loadFailure(fixture.primaryUrl, 660));
+    QTRY_COMPARE(viewport.state().request().status(), ImageViewportRequestStatus::Ready);
+    const std::optional<kiriview::StaticDisplayImagePayload> preserved
+        = runtime.displayedImage(ImageViewportPageRole::Primary);
+    QVERIFY(preserved.has_value());
+    QCOMPARE(preserved->sourceIdentity, QStringLiteral("first-display"));
 }
 
 void TestImageViewportIntegrationRuntime::

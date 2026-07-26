@@ -32,6 +32,8 @@ The KiriView provider adapter implements only the supported provider interface. 
 
 Source access, decode routing, cache lookup, predecode reuse, SVG rasterization, animation frame production, and refinement remain KiriView responsibilities. Provider results must carry the current public correlation values and valid payload facts required by the supported interface. Application extensions must not bypass that interface with an alternate image-presentation path.
 
+Each accepted provider request has one authoritative application completion owner. A source-derived thumbnail may be emitted only through the protocol's provisional event and cannot consume, replace, or race that request's later authoritative terminal result. Decoded or predecoded authoritative payloads enter that same request owner as reusable source state rather than through a parallel presentation shortcut.
+
 The display image store owns KiriView's reusable decoded entries, byte accounting, priority, eviction, and leases. Provider ownership callbacks are the only dependency inputs that may change the application lease state; QML load status, visual-item lifetime, and polling are not application resource authorities.
 
 The application provider retains source-specific failure detail in a KiriView-owned immutable failure record and sends only values allowed by the public provider protocol. The integration owner resolves an opaque application reference only when a matching supported observation exposes it. An absent, stale, or unresolved reference cannot recover detail from another application target and falls back to the generic failure exposed by the dependency.
@@ -40,9 +42,11 @@ The application provider retains source-specific failure detail in a KiriView-ow
 
 KiriView may answer public provider demand with a validated preview, bounded-detail payload, cache entry, or exact payload when the supported interface permits it. It may apply stricter application cache, display-store, and source-work budgets than the supplied limits.
 
+Provisional preview production and authoritative still production remain separate source facts even when they overlap in time. A matching preview can improve loading presentation, but only the authoritative terminal result may establish reusable current-still state, report success, or report source failure. Preview-origin and thumbnail-quality payloads are ineligible as authoritative predecode seeds.
+
 Refinement work is best-effort cancelable. A completion may populate an application-owned bounded cache under its reuse identity, but the provider may return it only for a matching current public request. KiriView does not decide whether or how the dependency incorporates a valid result into presentation.
 
-Predecoded still images are adapted through the same supported provider interface as foreground decodes. Their availability is not a presentation-ready observation and does not select loading feedback. Video rows may guide adjacent-image preparation but never create still-image provider payloads.
+Predecoded still images seed the same supported provider source lifecycle as foreground decodes and refinements. Their availability is not a presentation-ready observation, does not independently answer a viewport request, and does not select loading feedback. Video rows may guide adjacent-image preparation but never create still-image provider payloads.
 
 ## Animation And SVG
 

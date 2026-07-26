@@ -152,6 +152,10 @@ public:
     }
 
     std::size_t scheduleCount() const { return m_schedules.size(); }
+    bool isActive(std::size_t index) const
+    {
+        return m_schedules.at(index)->taskCompletion.isActive();
+    }
 
     void runWork(std::size_t index)
     {

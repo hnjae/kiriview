@@ -162,11 +162,45 @@ bool containsToken(const QVector<ImageSequenceProviderRequestToken>& tokens,
 {
     return std::ranges::contains(tokens, token);
 }
+
+bool isAuthoritativeStaticPayload(const kiriview::StaticDisplayImagePayload& payload)
+{
+    return payload.isValid() && payload.quality != kiriview::DisplayImageQuality::ThumbnailPreview
+        && payload.previewOrigin == kiriview::DisplayImagePreviewOrigin::None;
+}
+
+bool isProvisionalPreviewPayload(const kiriview::StaticDisplayImagePayload& payload)
+{
+    return payload.isValid() && payload.quality == kiriview::DisplayImageQuality::ThumbnailPreview
+        && payload.previewOrigin != kiriview::DisplayImagePreviewOrigin::None;
+}
+
+bool isReusableAuthoritativeUpgrade(const kiriview::StaticDisplayImagePayload& candidate,
+    const kiriview::StaticDisplayImagePayload& current)
+{
+    if (candidate.quality == kiriview::DisplayImageQuality::Exact) {
+        return true;
+    }
+    if (current.quality == kiriview::DisplayImageQuality::Exact) {
+        return false;
+    }
+
+    const qint64 candidatePixelCount = qint64(candidate.image.width()) * candidate.image.height();
+    const qint64 currentPixelCount = qint64(current.image.width()) * current.image.height();
+    return candidatePixelCount >= currentPixelCount;
+}
+
+bool hasNoAcceptedCurrentPayload(const ImageSequenceProviderDisplayDemand& demand)
+{
+    return demand.currentPayloadQuality() == ImageViewportPayloadQuality::Unknown
+        && demand.currentPayloadExactness() == ImageViewportPayloadExactness::Unknown;
+}
 }
 
 namespace kiriview {
-ImageViewportDecodeProviderSource::ImageViewportDecodeProviderSource(
-    ImageLoadSession session, ImageDecodeDependencies dependencies)
+ImageViewportDecodeProviderSource::ImageViewportDecodeProviderSource(ImageLoadSession session,
+    ImageDecodeDependencies dependencies,
+    std::optional<StaticDisplayImagePayload> authoritativeSeed)
     : m_session(std::move(session))
     , m_dependencies(imageDecodeDependenciesWithDefaults(std::move(dependencies)))
     , m_decodeJob(this, m_dependencies,
@@ -182,6 +216,15 @@ ImageViewportDecodeProviderSource::ImageViewportDecodeProviderSource(
               },
           })
 {
+    if (!authoritativeSeed.has_value() || !isAuthoritativeStaticPayload(*authoritativeSeed)) {
+        return;
+    }
+
+    m_embeddedMetadata = authoritativeSeed->embeddedMetadata;
+    m_metadata = ImageSequenceProviderMetadata::still(authoritativeSeed->originalSize);
+    m_authoritativeStaticImage = std::move(*authoritativeSeed);
+    m_decodeStarted = true;
+    m_decodeComplete = true;
 }
 
 ImageViewportDecodeProviderSource::~ImageViewportDecodeProviderSource() { close(); }
@@ -240,6 +283,20 @@ void ImageViewportDecodeProviderSource::cancel(
     std::erase_if(m_pendingFrames, [&tokens](const PendingFrame& pending) {
         return containsToken(tokens, pending.identity.requestToken);
     });
+
+    std::vector<ImageWorkerTask> detachedTasks;
+    auto unit = m_workerUnits.begin();
+    while (unit != m_workerUnits.end()) {
+        if (!unit->identity.has_value() || !containsToken(tokens, unit->identity->requestToken)) {
+            ++unit;
+            continue;
+        }
+        detachedTasks.push_back(std::move(unit->task));
+        unit = m_workerUnits.erase(unit);
+    }
+    for (ImageWorkerTask& task : detachedTasks) {
+        task.cancel();
+    }
 }
 
 void ImageViewportDecodeProviderSource::close()
@@ -248,13 +305,20 @@ void ImageViewportDecodeProviderSource::close()
         return;
     }
     m_closed = true;
-    m_decodeJob.cancel();
-    for (ImageWorkerTask& task : m_workerTasks) {
-        task.cancel();
-    }
-    m_workerTasks.clear();
     m_pendingMetadata.clear();
     m_pendingFrames.clear();
+
+    std::vector<ImageWorkerTask> detachedTasks;
+    detachedTasks.reserve(m_workerUnits.size());
+    for (WorkerUnit& unit : m_workerUnits) {
+        detachedTasks.push_back(std::move(unit.task));
+    }
+    m_workerUnits.clear();
+
+    m_decodeJob.cancel();
+    for (ImageWorkerTask& task : detachedTasks) {
+        task.cancel();
+    }
 }
 
 void ImageViewportDecodeProviderSource::ensureDecoded()
@@ -295,12 +359,17 @@ void ImageViewportDecodeProviderSource::finishDataLoadError(
 void ImageViewportDecodeProviderSource::finishThumbnail(
     const ImageDecodeRequest& request, StaticDisplayImagePayload displayImage)
 {
-    if (!m_closed && request.matches(m_session.decodeRequest()) && displayImage.isValid()) {
-        m_metadata = ImageSequenceProviderMetadata::still(displayImage.originalSize);
-        m_staticDisplayImage = std::move(displayImage);
-        publishMetadata();
-        publishFrames();
+    if (m_closed || m_decodeComplete || !request.matches(m_session.decodeRequest())
+        || m_failure.has_value() || m_authoritativeStaticImage.has_value()
+        || m_animation.has_value() || m_provisionalPreview.has_value()
+        || !isProvisionalPreviewPayload(displayImage)) {
+        return;
     }
+
+    m_metadata = ImageSequenceProviderMetadata::still(displayImage.originalSize);
+    m_provisionalPreview = std::move(displayImage);
+    publishMetadata();
+    publishProvisionalFrames();
 }
 
 void ImageViewportDecodeProviderSource::finishDecodedImage(DecodedImage image)
@@ -334,14 +403,16 @@ void ImageViewportDecodeProviderSource::finishDecodedImage(DecodedImage image)
 
 void ImageViewportDecodeProviderSource::finishStaticImage(StaticDecodedImage image)
 {
-    if (!image.displayImage.isValid()) {
+    if (!isAuthoritativeStaticPayload(image.displayImage)) {
         finishFailure(ImageSequenceProviderFailureCause::Decode,
             loadFailure(m_session, ImageLoadFailureKind::Decode, QString(),
                 QStringLiteral("decoded static image is not displayable")));
         return;
     }
+    m_provisionalPreview.reset();
+    m_animation.reset();
     m_metadata = ImageSequenceProviderMetadata::still(image.displayImage.originalSize);
-    m_staticDisplayImage = std::move(image.displayImage);
+    m_authoritativeStaticImage = std::move(image.displayImage);
     publishMetadata();
     publishFrames();
 }
@@ -349,14 +420,17 @@ void ImageViewportDecodeProviderSource::finishStaticImage(StaticDecodedImage ima
 void ImageViewportDecodeProviderSource::finishAnimationImage(
     ImageAnimationPlaybackRequest playbackRequest, QString sourceIdentity, QString formatIdentifier)
 {
+    m_provisionalPreview.reset();
+    m_authoritativeStaticImage.reset();
     const ImageWorkerScheduler scheduler = m_dependencies.workerScheduler;
     ImageAnimationPlaybackRequest scanRequest = playbackRequest;
-    m_workerTasks.push_back(scheduler.run(
+    const quint64 workerUnitId = reserveWorkerUnit();
+    ImageWorkerTask task = scheduler.run(
         this, [scanRequest]() mutable { return scanAnimation(std::move(scanRequest)); },
-        [this, playbackRequest = std::move(playbackRequest),
+        [this, workerUnitId, playbackRequest = std::move(playbackRequest),
             sourceIdentity = std::move(sourceIdentity),
             formatIdentifier = std::move(formatIdentifier)](AnimationScanResult result) mutable {
-            if (m_closed) {
+            if (!detachWorkerUnit(workerUnitId) || m_closed) {
                 return;
             }
             if (!result.ready) {
@@ -381,24 +455,29 @@ void ImageViewportDecodeProviderSource::finishAnimationImage(
             };
             publishMetadata();
             publishFrames();
-        }));
+        });
+    attachWorkerTask(workerUnitId, std::move(task));
 }
 
 void ImageViewportDecodeProviderSource::finishFailure(
     ImageSequenceProviderFailureCause cause, ImageLoadFailure failure)
 {
+    m_provisionalPreview.reset();
     m_failureCause = cause;
     m_failure = std::move(failure);
-    for (PendingMetadata& pending : m_pendingMetadata) {
+
+    while (!m_closed && !m_pendingMetadata.empty()) {
+        PendingMetadata pending = std::move(m_pendingMetadata.front());
+        m_pendingMetadata.erase(m_pendingMetadata.begin());
         pending.completion(
             pending.identity, ImageViewportProviderMetadataResult::failed(cause, *m_failure));
     }
-    m_pendingMetadata.clear();
-    for (PendingFrame& pending : m_pendingFrames) {
+    while (!m_closed && !m_pendingFrames.empty()) {
+        PendingFrame pending = std::move(m_pendingFrames.front());
+        m_pendingFrames.erase(m_pendingFrames.begin());
         pending.completion(
             pending.identity, ImageViewportProviderFrameResult::failed(cause, *m_failure));
     }
-    m_pendingFrames.clear();
 }
 
 void ImageViewportDecodeProviderSource::publishMetadata()
@@ -406,21 +485,25 @@ void ImageViewportDecodeProviderSource::publishMetadata()
     if (!m_metadata.has_value()) {
         return;
     }
-    for (PendingMetadata& pending : m_pendingMetadata) {
+
+    while (!m_closed && !m_pendingMetadata.empty()) {
+        PendingMetadata pending = std::move(m_pendingMetadata.front());
+        m_pendingMetadata.erase(m_pendingMetadata.begin());
         pending.completion(
             pending.identity, ImageViewportProviderMetadataResult::ready(*m_metadata));
     }
-    m_pendingMetadata.clear();
 }
 
 void ImageViewportDecodeProviderSource::publishFrames()
 {
-    if (!m_staticDisplayImage.has_value() && !m_animation.has_value()) {
+    if (!m_authoritativeStaticImage.has_value() && !m_animation.has_value()) {
+        publishProvisionalFrames();
         return;
     }
-    std::vector<PendingFrame> pending = std::move(m_pendingFrames);
-    m_pendingFrames.clear();
-    for (PendingFrame& frame : pending) {
+
+    while (!m_closed && !m_pendingFrames.empty()) {
+        PendingFrame frame = std::move(m_pendingFrames.front());
+        m_pendingFrames.erase(m_pendingFrames.begin());
         if (m_animation.has_value()) {
             publishAnimationFrame(std::move(frame));
         } else {
@@ -429,9 +512,37 @@ void ImageViewportDecodeProviderSource::publishFrames()
     }
 }
 
+void ImageViewportDecodeProviderSource::publishProvisionalFrames()
+{
+    if (m_closed || !m_provisionalPreview.has_value() || m_authoritativeStaticImage.has_value()
+        || m_animation.has_value() || m_failure.has_value()) {
+        return;
+    }
+
+    while (!m_closed) {
+        auto pending = std::ranges::find_if(m_pendingFrames, [](const PendingFrame& candidate) {
+            return !candidate.provisionalPublished && candidate.request.frame == 0
+                && hasNoAcceptedCurrentPayload(candidate.request.demand);
+        });
+        if (pending == m_pendingFrames.end()) {
+            return;
+        }
+
+        pending->provisionalPublished = true;
+        const ImageViewportProviderWorkIdentity identity = pending->identity;
+        const FrameCompletion completion = pending->completion;
+        completion(identity,
+            ImageViewportProviderFrameResult::provisional(*m_provisionalPreview,
+                ImageSequenceProviderFrameEnvelope::stillFrame(), QString()));
+    }
+}
+
 void ImageViewportDecodeProviderSource::publishStaticFrame(PendingFrame pending)
 {
-    if (!m_staticDisplayImage.has_value() || pending.request.frame != 0) {
+    if (m_closed) {
+        return;
+    }
+    if (!m_authoritativeStaticImage.has_value() || pending.request.frame != 0) {
         pending.completion(pending.identity,
             ImageViewportProviderFrameResult::failed(ImageSequenceProviderFailureCause::Decode,
                 loadFailure(m_session, ImageLoadFailureKind::Decode, QString(),
@@ -439,38 +550,36 @@ void ImageViewportDecodeProviderSource::publishStaticFrame(PendingFrame pending)
         return;
     }
 
-    const bool refinementDemand
-        = pending.request.demand.currentPayloadQuality() != ImageViewportPayloadQuality::Unknown;
-    if (refinementDemand && !m_decodeComplete
-        && m_staticDisplayImage->quality == DisplayImageQuality::ThumbnailPreview) {
-        m_pendingFrames.push_back(std::move(pending));
-        return;
-    }
+    const bool refinementDemand = !hasNoAcceptedCurrentPayload(pending.request.demand);
     const std::shared_ptr<StaticImageDisplaySource> refinementSource
-        = m_staticDisplayImage->refinementSource;
+        = m_authoritativeStaticImage->refinementSource;
     if (!refinementDemand || refinementSource == nullptr
         || !refinementSource->supportsRasterDisplayRefinement()) {
         pending.completion(pending.identity,
-            ImageViewportProviderFrameResult::ready(*m_staticDisplayImage,
+            ImageViewportProviderFrameResult::ready(*m_authoritativeStaticImage,
                 ImageSequenceProviderFrameEnvelope::stillFrame(), QString()));
         return;
     }
 
     QSize targetSize = pending.request.demand.targetDisplaySizePixels().toSize();
     if (targetSize.isEmpty()) {
-        targetSize = m_staticDisplayImage->originalSize;
+        targetSize = m_authoritativeStaticImage->originalSize;
     }
-    targetSize = targetSize.boundedTo(m_staticDisplayImage->originalSize);
+    targetSize = targetSize.boundedTo(m_authoritativeStaticImage->originalSize);
     const ImageWorkerScheduler scheduler = m_dependencies.workerScheduler;
-    const StaticDisplayImagePayload basis = *m_staticDisplayImage;
+    const StaticDisplayImagePayload basis = *m_authoritativeStaticImage;
     const ImageLoadSession session = m_session;
-    m_workerTasks.push_back(scheduler.run(
+    const quint64 workerUnitId = reserveWorkerUnit(pending.identity);
+    ImageWorkerTask task = scheduler.run(
         this,
         [refinementSource, targetSize]() {
             return refinementSource->decodeRasterDisplayImage(targetSize);
         },
-        [pending = std::move(pending), basis, session](
+        [this, workerUnitId, pending = std::move(pending), basis, session](
             StaticImageDisplayDecodeResult result) mutable {
+            if (!detachWorkerUnit(workerUnitId) || m_closed) {
+                return;
+            }
             if (result.image.isNull()) {
                 pending.completion(pending.identity,
                     ImageViewportProviderFrameResult::failed(
@@ -485,14 +594,21 @@ void ImageViewportDecodeProviderSource::publishStaticFrame(PendingFrame pending)
                 ? DisplayImageQuality::Exact
                 : DisplayImageQuality::BoundedDetail;
             refined.previewOrigin = DisplayImagePreviewOrigin::None;
+            if (isReusableAuthoritativeUpgrade(refined, *m_authoritativeStaticImage)) {
+                m_authoritativeStaticImage = refined;
+            }
             pending.completion(pending.identity,
                 ImageViewportProviderFrameResult::ready(std::move(refined),
                     ImageSequenceProviderFrameEnvelope::stillFrame(), QString()));
-        }));
+        });
+    attachWorkerTask(workerUnitId, std::move(task));
 }
 
 void ImageViewportDecodeProviderSource::publishAnimationFrame(PendingFrame pending)
 {
+    if (m_closed) {
+        return;
+    }
     if (!m_animation.has_value() || pending.request.frame < 0
         || pending.request.frame >= m_animation->metadata.frameCount()) {
         pending.completion(pending.identity,
@@ -504,13 +620,17 @@ void ImageViewportDecodeProviderSource::publishAnimationFrame(PendingFrame pendi
     const AnimationState animation = *m_animation;
     const int requestedFrame = pending.request.frame;
     const ImageLoadSession session = m_session;
-    m_workerTasks.push_back(m_dependencies.workerScheduler.run(
+    const quint64 workerUnitId = reserveWorkerUnit(pending.identity);
+    ImageWorkerTask task = m_dependencies.workerScheduler.run(
         this,
         [request = animation.playbackRequest, requestedFrame]() mutable {
             return decodeAnimationFrame(std::move(request), requestedFrame);
         },
-        [pending = std::move(pending), animation, requestedFrame, session](
+        [this, workerUnitId, pending = std::move(pending), animation, requestedFrame, session](
             AnimationFrameDecodeResult result) mutable {
+            if (!detachWorkerUnit(workerUnitId) || m_closed) {
+                return;
+            }
             if (!result.ready) {
                 pending.completion(pending.identity,
                     ImageViewportProviderFrameResult::failed(
@@ -536,6 +656,53 @@ void ImageViewportDecodeProviderSource::publishAnimationFrame(PendingFrame pendi
                         frameStartPosition(durations, requestedFrame),
                         durations.at(requestedFrame)),
                     animation.formatIdentifier));
-        }));
+        });
+    attachWorkerTask(workerUnitId, std::move(task));
+}
+
+quint64 ImageViewportDecodeProviderSource::reserveWorkerUnit(
+    std::optional<ImageViewportProviderWorkIdentity> identity)
+{
+    if (m_nextWorkerUnitId == 0) {
+        m_nextWorkerUnitId = 1;
+    }
+
+    quint64 workerUnitId = m_nextWorkerUnitId;
+    while (std::ranges::any_of(m_workerUnits,
+        [workerUnitId](const WorkerUnit& candidate) { return candidate.id == workerUnitId; })) {
+        ++workerUnitId;
+        if (workerUnitId == 0) {
+            workerUnitId = 1;
+        }
+    }
+
+    m_nextWorkerUnitId = workerUnitId + 1;
+    if (m_nextWorkerUnitId == 0) {
+        m_nextWorkerUnitId = 1;
+    }
+    m_workerUnits.push_back({ workerUnitId, std::move(identity), {} });
+    return workerUnitId;
+}
+
+void ImageViewportDecodeProviderSource::attachWorkerTask(quint64 workerUnitId, ImageWorkerTask task)
+{
+    const auto unit = std::ranges::find_if(m_workerUnits,
+        [workerUnitId](const WorkerUnit& candidate) { return candidate.id == workerUnitId; });
+    if (unit == m_workerUnits.end()) {
+        task.cancel();
+        return;
+    }
+    unit->task = std::move(task);
+}
+
+bool ImageViewportDecodeProviderSource::detachWorkerUnit(quint64 workerUnitId)
+{
+    const auto unit = std::ranges::find_if(m_workerUnits,
+        [workerUnitId](const WorkerUnit& candidate) { return candidate.id == workerUnitId; });
+    if (unit == m_workerUnits.end()) {
+        return false;
+    }
+    m_workerUnits.erase(unit);
+    return true;
 }
 }

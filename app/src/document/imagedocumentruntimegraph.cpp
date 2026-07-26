@@ -59,6 +59,20 @@ namespace {
         std::optional<PredecodedImage> predecoded;
         std::shared_ptr<ImageViewportDecodeProviderSource> source;
     };
+
+    std::optional<StaticDisplayImagePayload> authoritativeSeed(
+        const std::optional<PredecodedImage>& predecoded)
+    {
+        if (!predecoded.has_value()) {
+            return std::nullopt;
+        }
+
+        StaticDisplayImagePayload seed = predecoded->displayImage;
+        if (!predecoded->embeddedMetadata.isEmpty()) {
+            seed.embeddedMetadata = predecoded->embeddedMetadata;
+        }
+        return seed;
+    }
 }
 
 ImageDocumentRuntimeGraph::ImageDocumentRuntimeGraph(QObject* documentObject,
@@ -319,16 +333,11 @@ bool ImageDocumentRuntimeGraph::prepareViewportImageTarget(
     const std::shared_ptr<DisplayImageStore> displayStore = m_viewportDisplayStore;
     target.primaryResource = [prepared, displayStore]() {
         auto source = std::make_shared<ImageViewportDecodeProviderSource>(
-            prepared->session, prepared->dependencies);
+            prepared->session, prepared->dependencies, authoritativeSeed(prepared->predecoded));
         prepared->source = source;
-        std::optional<StaticDisplayImagePayload> predecodedImage;
-        if (prepared->predecoded.has_value()) {
-            predecodedImage = prepared->predecoded->displayImage;
-        }
         return std::make_shared<ImageViewportProviderResource>(prepared->session.id(),
             displayScopeIdentityForLocation(prepared->session.location()), std::move(source),
-            displayStore, std::make_shared<ImageViewportFailureRegistry>(),
-            std::move(predecodedImage));
+            displayStore, std::make_shared<ImageViewportFailureRegistry>());
     };
 
     m_pendingViewportImageLoad = PendingViewportImageLoad {
@@ -365,16 +374,11 @@ void ImageDocumentRuntimeGraph::prepareViewportSecondaryImageTarget(
     target.transitionIntent = ImageViewportTargetTransitionIntent::PresentationShapeChange;
     target.secondaryResource = [prepared, displayStore]() {
         auto source = std::make_shared<ImageViewportDecodeProviderSource>(
-            prepared->session, prepared->dependencies);
+            prepared->session, prepared->dependencies, authoritativeSeed(prepared->predecoded));
         prepared->source = source;
-        std::optional<StaticDisplayImagePayload> predecodedImage;
-        if (prepared->predecoded.has_value()) {
-            predecodedImage = prepared->predecoded->displayImage;
-        }
         return std::make_shared<ImageViewportProviderResource>(prepared->session.id(),
             displayScopeIdentityForLocation(prepared->session.location()), std::move(source),
-            displayStore, std::make_shared<ImageViewportFailureRegistry>(),
-            std::move(predecodedImage));
+            displayStore, std::make_shared<ImageViewportFailureRegistry>());
     };
     m_viewportSecondaryLoadSession = session;
     m_viewportTarget = std::make_unique<ImageViewportIntegrationTarget>(target);

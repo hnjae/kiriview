@@ -20,11 +20,14 @@
 #include <vector>
 
 namespace kiriview {
+class ImageViewportDecodeProviderSourceTestAccess;
+
 class ImageViewportDecodeProviderSource final : public QObject, public ImageViewportProviderSource
 {
 public:
-    ImageViewportDecodeProviderSource(
-        ImageLoadSession session, ImageDecodeDependencies dependencies);
+    ImageViewportDecodeProviderSource(ImageLoadSession session,
+        ImageDecodeDependencies dependencies,
+        std::optional<StaticDisplayImagePayload> authoritativeSeed = std::nullopt);
     ~ImageViewportDecodeProviderSource() override;
     Q_DISABLE_COPY_MOVE(ImageViewportDecodeProviderSource)
 
@@ -38,6 +41,8 @@ public:
     void close() override;
 
 private:
+    friend class ImageViewportDecodeProviderSourceTestAccess;
+
     struct PendingMetadata
     {
         ImageViewportProviderWorkIdentity identity;
@@ -49,6 +54,7 @@ private:
         ImageViewportProviderWorkIdentity identity;
         ImageViewportProviderFrameRequest request;
         FrameCompletion completion;
+        bool provisionalPublished = false;
     };
 
     struct AnimationState
@@ -57,6 +63,13 @@ private:
         ImageSequenceProviderMetadata metadata;
         QString sourceIdentity;
         QString formatIdentifier;
+    };
+
+    struct WorkerUnit
+    {
+        quint64 id = 0;
+        std::optional<ImageViewportProviderWorkIdentity> identity;
+        ImageWorkerTask task;
     };
 
     void ensureDecoded();
@@ -70,22 +83,29 @@ private:
     void finishFailure(ImageSequenceProviderFailureCause cause, ImageLoadFailure failure);
     void publishMetadata();
     void publishFrames();
+    void publishProvisionalFrames();
     void publishStaticFrame(PendingFrame pending);
     void publishAnimationFrame(PendingFrame pending);
+    quint64 reserveWorkerUnit(
+        std::optional<ImageViewportProviderWorkIdentity> identity = std::nullopt);
+    void attachWorkerTask(quint64 workerUnitId, ImageWorkerTask task);
+    [[nodiscard]] bool detachWorkerUnit(quint64 workerUnitId);
 
     ImageLoadSession m_session;
     ImageDecodeDependencies m_dependencies;
     ImageDecodeJob m_decodeJob;
     EmbeddedMetadata m_embeddedMetadata;
     std::optional<ImageSequenceProviderMetadata> m_metadata;
-    std::optional<StaticDisplayImagePayload> m_staticDisplayImage;
+    std::optional<StaticDisplayImagePayload> m_provisionalPreview;
+    std::optional<StaticDisplayImagePayload> m_authoritativeStaticImage;
     std::optional<AnimationState> m_animation;
     std::optional<ImageLoadFailure> m_failure;
     ImageSequenceProviderFailureCause m_failureCause
         = ImageSequenceProviderFailureCause::Unavailable;
     std::vector<PendingMetadata> m_pendingMetadata;
     std::vector<PendingFrame> m_pendingFrames;
-    std::vector<ImageWorkerTask> m_workerTasks;
+    std::vector<WorkerUnit> m_workerUnits;
+    quint64 m_nextWorkerUnitId = 1;
     bool m_decodeStarted = false;
     bool m_decodeComplete = false;
     bool m_closed = false;

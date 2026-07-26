@@ -23,25 +23,34 @@ public:
         }
     }
 
-    void emitReady(const ImageSequenceProviderRequest& request, QColor color,
-        bool echoDemandRevision = true, QSize payloadRasterSize = QSize(16, 8))
+    void emitReadyWithQuality(const ImageSequenceProviderRequest& request, QColor color,
+        ImageViewportPayloadQuality quality, QSize payloadRasterSize,
+        bool echoDemandRevision = true)
     {
         QImage image(payloadRasterSize, QImage::Format_ARGB32_Premultiplied);
         image.fill(color);
-        const bool exact = QSizeF(payloadRasterSize) == m_logicalSize;
         auto frame = std::make_unique<ImageFrame>(image, m_logicalSize, QSizeF(payloadRasterSize),
             QSizeF(payloadRasterSize.width() / m_logicalSize.width(),
                 payloadRasterSize.height() / m_logicalSize.height()),
-            image.sizeInBytes(),
-            exact ? ImageViewportPayloadQuality::Exact : ImageViewportPayloadQuality::Preview,
-            exact ? ImageViewportPayloadExactness::ExactForSource
-                  : ImageViewportPayloadExactness::NotExact,
+            image.sizeInBytes(), quality,
+            quality == ImageViewportPayloadQuality::Exact
+                ? ImageViewportPayloadExactness::ExactForSource
+                : ImageViewportPayloadExactness::NotExact,
             true, ImageFrame::OrientationPolicy::Identity, QString {});
         auto envelope = ImageSequenceProviderFrameEnvelope::stillFrame();
         if (echoDemandRevision)
             envelope.setDemandRevision(request.demand().demandRevision());
         Q_EMIT providerEvent(ImageSequenceProviderEvent::frameReady(request.token(),
             new ImageSequenceProviderFrameHandle(std::move(frame), this), envelope));
+    }
+
+    void emitReady(const ImageSequenceProviderRequest& request, QColor color,
+        bool echoDemandRevision = true, QSize payloadRasterSize = QSize(16, 8))
+    {
+        const bool exact = QSizeF(payloadRasterSize) == m_logicalSize;
+        emitReadyWithQuality(request, color,
+            exact ? ImageViewportPayloadQuality::Exact : ImageViewportPayloadQuality::Preview,
+            payloadRasterSize, echoDemandRevision);
     }
 
     [[nodiscard]] QVector<ImageSequenceProviderRequest> frameRequests() const
@@ -139,6 +148,7 @@ public:
 
 private Q_SLOTS:
     void largeLogicalSourceAcceptsBoundedPreviewAndRefinement();
+    void firstDisplayTargetCommitIssuesOneNonRecursiveRefinement();
     void committedProviderPayloadRefinesWithoutLeavingReady();
     void newerDemandCancelsOlderRefinementAndStaleResultCannotCommit();
     void refinementFailureIsIsolatedFromTheDisplayRequest();
@@ -173,6 +183,73 @@ void ImageViewportProviderRefinementTest::largeLogicalSourceAcceptsBoundedPrevie
     QCOMPARE(fixture.viewport.state().primary().display().sourceLogicalSize(), logicalSize);
     QCOMPARE(fixture.viewport.state().primary().display().payloadRasterSize(), QSizeF(400, 200));
     QCOMPARE(fixture.viewport.state().primary().display().currentForDemand(), true);
+}
+
+void ImageViewportProviderRefinementTest::firstDisplayTargetCommitIssuesOneNonRecursiveRefinement()
+{
+    ImageSequenceFactory factory;
+    RefinementProviderAdapter adapter;
+    QScopedPointer<ImageSequenceFactoryResult> sequence(factory.fromProvider(&adapter));
+    QVERIFY(sequence->sequence());
+
+    ImageViewport viewport;
+    viewport.setSize(QSizeF(100.0, 50.0));
+    useSynchronousProviderEventDeliveryForTest(viewport);
+    QCOMPARE(viewport
+                 .setPresentationTarget(ImageViewportPresentationTarget(sequence->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QVERIFY(adapter.session);
+    QCOMPARE(adapter.session->frameRequests().size(), 1);
+    const ImageSequenceProviderRequest initial = adapter.session->frameRequests().constFirst();
+    const ImageViewportRevisionToken presentationRevision
+        = viewport.state().display().targetPresentationRevision();
+
+    adapter.session->emitReadyWithQuality(
+        initial, Qt::red, ImageViewportPayloadQuality::FirstDisplay, QSize(8, 4));
+
+    QCOMPARE(adapter.session->frameRequests().size(), 1);
+    QCOMPARE(requestStatus(viewport), ImageViewportRequestStatus::Loading);
+    QVERIFY(hasPendingRenderCommitForTest(viewport));
+    acknowledgePendingRenderCommitForTest(viewport);
+
+    QCOMPARE(requestStatus(viewport), ImageViewportRequestStatus::Ready);
+    QCOMPARE(requestReason(viewport), ImageViewportRequestReason::Ready);
+    QCOMPARE(displayStatus(viewport), ImageViewportDisplayStatus::Ready);
+    QCOMPARE(
+        viewport.state().primary().display().quality(), ImageViewportPayloadQuality::FirstDisplay);
+    QCOMPARE(
+        viewport.state().primary().display().exactness(), ImageViewportPayloadExactness::NotExact);
+    QCOMPARE(viewport.state().primary().display().currentForDemand(), false);
+    QCOMPARE(viewport.state().display().targetPresentationRevision(), presentationRevision);
+
+    const QVector<ImageSequenceProviderRequest> requests = adapter.session->frameRequests();
+    QCOMPARE(requests.size(), 2);
+    const ImageSequenceProviderRequest& refinement = requests.constLast();
+    QCOMPARE(refinement.kind(), ImageSequenceProviderRequestKind::Frame);
+    QVERIFY(refinement.token() != initial.token());
+    QCOMPARE(refinement.demand().presentationRevision(), presentationRevision);
+    QCOMPARE(
+        refinement.demand().currentPayloadQuality(), ImageViewportPayloadQuality::FirstDisplay);
+    QCOMPARE(
+        refinement.demand().currentPayloadExactness(), ImageViewportPayloadExactness::NotExact);
+    QCOMPARE(refinement.demand().currentPayloadRasterSize(), QSizeF(8.0, 4.0));
+
+    adapter.session->emitReadyWithQuality(
+        refinement, Qt::blue, ImageViewportPayloadQuality::FirstDisplay, QSize(12, 6));
+    QVERIFY(hasPendingRenderCommitForTest(viewport));
+    acknowledgePendingRenderCommitForTest(viewport);
+
+    QCOMPARE(requestStatus(viewport), ImageViewportRequestStatus::Ready);
+    QCOMPARE(requestReason(viewport), ImageViewportRequestReason::Ready);
+    QCOMPARE(displayStatus(viewport), ImageViewportDisplayStatus::Ready);
+    QCOMPARE(
+        viewport.state().primary().display().quality(), ImageViewportPayloadQuality::FirstDisplay);
+    QCOMPARE(viewport.state().primary().display().payloadRasterSize(), QSizeF(12.0, 6.0));
+    QCOMPARE(viewport.state().primary().display().currentForDemand(), true);
+    QCOMPARE(viewport.state().display().targetPresentationRevision(), presentationRevision);
+    QCOMPARE(adapter.session->frameRequests().size(), 2);
 }
 
 void ImageViewportProviderRefinementTest::committedProviderPayloadRefinesWithoutLeavingReady()

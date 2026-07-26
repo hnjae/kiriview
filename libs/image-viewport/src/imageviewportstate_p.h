@@ -17,6 +17,7 @@
 #include <QtCore/QVector>
 #include <QtGui/QImage>
 
+#include <algorithm>
 #include <array>
 #include <memory>
 #include <optional>
@@ -286,6 +287,9 @@ struct PreparedPayload
     int frameDuration = -1;
     ImageViewportDemandRevisionToken demandRevision;
     quint64 providerFrameLeaseId = 0;
+    bool provisional = false;
+    bool auxiliaryRefinement = false;
+    bool firstDisplayRefinementIssued = false;
 
     [[nodiscard]] PreparedPayloadIdentity identity() const { return { generation, payloadId }; }
     [[nodiscard]] bool hasPresentableContent() const
@@ -477,6 +481,21 @@ struct DisplayState
     quint64 displayedPresentationRevision = 0;
     quint64 revision = 0;
 };
+
+inline bool hasProvisionalDisplayedPayload(const DisplayState& display)
+{
+    return std::ranges::any_of(display.roles, [](const DisplayState::RoleState& role) {
+        return role.displayedPayload.hasPresentableContent() && role.displayedPayload.provisional;
+    });
+}
+
+inline bool hasProvisionalPendingPayload(const DisplayState& display)
+{
+    return std::ranges::any_of(display.roles, [](const DisplayState::RoleState& role) {
+        return role.pendingRenderPayload.hasPresentableContent()
+            && role.pendingRenderPayload.provisional;
+    });
+}
 
 enum class AuthoredAutoplayArbitrationState {
     Pending,
@@ -674,6 +693,7 @@ struct ProviderRequestRecord
     DisplayRequestTarget target;
     ResolvedFrameIdentity resolvedFrame;
     std::optional<ImageSequenceProviderDisplayDemand> demand;
+    bool provisionalDelivered = false;
 
     [[nodiscard]] bool isMetadata() const
     {

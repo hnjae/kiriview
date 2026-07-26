@@ -74,6 +74,7 @@ private Q_SLOTS:
     void cacheRetainsRecentDisplayedImagesBeforeAdjacentImages();
     void cacheKeepsOnlyFourRecentDisplayedImages();
     void cacheRejectsUncacheableAndOversizedImages();
+    void cacheRejectsProvisionalPreviewPayloads();
     void cacheEvictsLowestPriorityImagesWhenBudgetIsExceeded();
     void cacheRetainsWarmImagesAcrossWindowReprioritization();
     void cacheRefreshesWarmImageRecencyOnLookup();
@@ -294,6 +295,26 @@ void TestPredecodeCache::cacheRejectsUncacheableAndOversizedImages()
 
     const QImage largeImage = tooLargeImage();
     cache.cacheImage(url, openedCollectionScope, cacheDisplayImage(largeImage));
+    QVERIFY(!cache.hasImage(url));
+}
+
+void TestPredecodeCache::cacheRejectsProvisionalPreviewPayloads()
+{
+    kiriview::PredecodeCache cache(160);
+    const QUrl url = indexedImageUrl(0);
+    const kiriview::OpenedCollectionScopeLocation openedCollectionScope
+        = comicBookArchiveCollection();
+    cache.setWindowUrls({ url });
+
+    kiriview::StaticDisplayImagePayload thumbnail = cacheDisplayImage(cacheImage());
+    thumbnail.quality = kiriview::DisplayImageQuality::ThumbnailPreview;
+    thumbnail.previewOrigin = kiriview::DisplayImagePreviewOrigin::XdgThumbnail;
+    cache.cacheImage(url, openedCollectionScope, std::move(thumbnail));
+    QVERIFY(!cache.hasImage(url));
+
+    kiriview::StaticDisplayImagePayload previewOrigin = cacheDisplayImage(cacheImage(), true);
+    previewOrigin.previewOrigin = kiriview::DisplayImagePreviewOrigin::RawEmbeddedThumbnail;
+    cache.cacheDisplayedImage(true, url, openedCollectionScope, std::move(previewOrigin));
     QVERIFY(!cache.hasImage(url));
 }
 

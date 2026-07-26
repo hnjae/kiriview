@@ -17,6 +17,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <vector>
 
 namespace kiriview {
 struct ImageViewportProviderWorkIdentity
@@ -37,6 +38,11 @@ struct ImageViewportProviderFrameRequest
     ImageSequenceProviderDisplayDemand demand;
 };
 
+enum class ImageViewportProviderFrameStage {
+    Provisional,
+    Authoritative,
+};
+
 struct ImageViewportProviderMetadataResult
 {
     std::optional<ImageSequenceProviderMetadata> metadata;
@@ -55,11 +61,19 @@ struct ImageViewportProviderFrameResult
     QString formatIdentifier;
     ImageSequenceProviderFailureCause failureCause = ImageSequenceProviderFailureCause::Unavailable;
     std::optional<ImageLoadFailure> failure;
+    ImageViewportProviderFrameStage stage = ImageViewportProviderFrameStage::Authoritative;
 
     static ImageViewportProviderFrameResult ready(StaticDisplayImagePayload displayImage,
         ImageSequenceProviderFrameEnvelope envelope, QString formatIdentifier);
+    static ImageViewportProviderFrameResult provisional(StaticDisplayImagePayload displayImage,
+        ImageSequenceProviderFrameEnvelope envelope, QString formatIdentifier);
     static ImageViewportProviderFrameResult failed(
         ImageSequenceProviderFailureCause cause, ImageLoadFailure failure);
+
+    [[nodiscard]] bool isProvisional() const
+    {
+        return stage == ImageViewportProviderFrameStage::Provisional;
+    }
 };
 
 class ImageViewportProviderSource
@@ -93,8 +107,14 @@ struct ImageViewportProviderPreparedFrame
     QString formatIdentifier;
     ImageSequenceProviderFailureCause failureCause = ImageSequenceProviderFailureCause::Unavailable;
     std::optional<ImageLoadFailure> failure;
+    ImageViewportProviderFrameStage stage = ImageViewportProviderFrameStage::Authoritative;
+    std::optional<StaticDisplayImagePayload> authoritativeStillDisplayImage;
 
     [[nodiscard]] bool isReady() const { return !storeEntryId.isEmpty(); }
+    [[nodiscard]] bool isProvisional() const
+    {
+        return stage == ImageViewportProviderFrameStage::Provisional;
+    }
 };
 
 class ImageViewportProviderResource final
@@ -108,8 +128,7 @@ public:
     ImageViewportProviderResource(quint64 sourceGeneration, QString locationIdentity,
         std::shared_ptr<ImageViewportProviderSource> source,
         std::shared_ptr<DisplayImageStore> displayStore,
-        std::shared_ptr<ImageViewportFailureRegistry> failureRegistry = {},
-        std::optional<StaticDisplayImagePayload> predecodedImage = std::nullopt);
+        std::shared_ptr<ImageViewportFailureRegistry> failureRegistry = {});
     ~ImageViewportProviderResource();
     Q_DISABLE_COPY_MOVE(ImageViewportProviderResource)
 
@@ -128,7 +147,12 @@ public:
     void cancel(const QVector<ImageSequenceProviderRequestToken>& tokens);
     void close();
 
-    std::optional<StaticDisplayImagePayload> currentStillDisplayImage() const;
+    std::optional<StaticDisplayImagePayload> currentStillDisplayImage(
+        ImageViewportDemandRevisionToken demandRevision) const;
+    bool acceptAuthoritativeStillDisplayImage(const ImageViewportProviderWorkIdentity& identity,
+        const ImageViewportProviderPreparedFrame& preparedFrame);
+    bool acceptDisplayedStillDisplayImage(
+        ImageViewportPageRole role, ImageViewportDemandRevisionToken demandRevision);
     ImageSequenceProviderFrameHandle* acquireFrameHandle(
         const ImageViewportProviderPreparedFrame& preparedFrame);
     ImageSequenceProviderFailure failure(
@@ -136,17 +160,37 @@ public:
 
 private:
     bool matchesResource(const ImageViewportProviderWorkIdentity& identity) const;
+    bool finalizeMetadata(const ImageViewportProviderWorkIdentity& identity);
+    bool finalizePreparedFrame(const ImageViewportProviderWorkIdentity& identity,
+        const ImageViewportProviderPreparedFrame& preparedFrame);
     ImageViewportProviderPreparedFrame prepareFrame(
         const ImageViewportProviderWorkIdentity& identity, ImageViewportProviderFrameResult result);
+
+    struct AuthoritativeStillDisplayImage
+    {
+        ImageViewportProviderWorkIdentity identity;
+        QString storeEntryId;
+        StaticDisplayImagePayload displayImage;
+    };
+
+    struct AuthoritativeFrameCandidate
+    {
+        ImageViewportProviderWorkIdentity identity;
+        QString storeEntryId;
+    };
 
     quint64 m_sourceGeneration = 0;
     QString m_locationIdentity;
     std::shared_ptr<ImageViewportProviderSource> m_source;
     std::shared_ptr<DisplayImageStore> m_displayStore;
     std::shared_ptr<ImageViewportFailureRegistry> m_failureRegistry;
-    std::optional<StaticDisplayImagePayload> m_predecodedImage;
-    mutable QMutex m_currentPayloadMutex;
-    std::optional<StaticDisplayImagePayload> m_currentStillDisplayImage;
+    mutable QMutex m_stateMutex;
+    std::vector<ImageViewportProviderWorkIdentity> m_activeMetadataWork;
+    std::vector<ImageViewportProviderWorkIdentity> m_activeFrameWork;
+    std::vector<AuthoritativeFrameCandidate> m_authoritativeFrameCandidates;
+    std::optional<AuthoritativeStillDisplayImage> m_authoritativeStillDisplayImageCandidate;
+    std::optional<AuthoritativeStillDisplayImage> m_currentStillDisplayImage;
+    bool m_closed = false;
 };
 }
 

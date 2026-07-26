@@ -246,6 +246,7 @@ enum class ImageSequenceProviderRequestKind {
 
 enum class ImageSequenceProviderEventKind {
     MetadataReady,
+    ProvisionalFrameReady,
     FrameReady,
     Waiting,
     Progress,
@@ -539,6 +540,9 @@ public:
     ImageSequenceProviderEvent() = default;
     static ImageSequenceProviderEvent metadataReady(
         ImageSequenceProviderRequestToken token, ImageSequenceProviderMetadata metadata);
+    static ImageSequenceProviderEvent provisionalFrameReady(ImageSequenceProviderRequestToken token,
+        ImageSequenceProviderFrameHandle* frameHandle,
+        ImageSequenceProviderFrameEnvelope frameEnvelope);
     static ImageSequenceProviderEvent frameReady(ImageSequenceProviderRequestToken token,
         ImageSequenceProviderFrameHandle* frameHandle,
         ImageSequenceProviderFrameEnvelope frameEnvelope);

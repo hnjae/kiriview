@@ -4,6 +4,7 @@
 #include "thumbnailpreview.h"
 
 #include "bufferedimagereader.h"
+#include "heifcontainer.h"
 #include "imageinputclassification.h"
 #include "location/sourcekey.h"
 #include "rawthumbnailpreview.h"
@@ -105,6 +106,11 @@ std::optional<QSize> svgTrustedOriginalSize(const QByteArray& data)
 
 std::optional<QSize> heifTrustedOriginalSize(const QByteArray& data)
 {
+    const kiriview::HeifContainerInfo container = kiriview::heifContainerInfo(data);
+    if (!container.stillImage || container.imageSequence) {
+        return std::nullopt;
+    }
+
     QString errorString;
     const std::shared_ptr<kiriview::StaticImageDisplaySource> source
         = kiriview::openHeifDisplaySource(data, &errorString);
