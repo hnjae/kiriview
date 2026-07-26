@@ -26,7 +26,7 @@ private Q_SLOTS:
     void displayedImageLocationUsesCanonicalIdentity();
     void containerNavigationAvailabilityFollowsContainerUrl();
     void statusAndLoadingReducersOnlyNotifyWhenChanged();
-    void loadingTargetRevisionAdvancesForEveryLifecycle();
+    void presentationLifecycleRevisionAdvancesForEveryTransition();
     void loadFailureStoresDiagnosticsAndPublishesUserMessage();
     void changeBatchQueuesUniqueChangesUntilDestroyed();
     void injectedChangeBatchSharesStateAndRuntimeNotifications();
@@ -155,23 +155,23 @@ void TestImageDocumentState::statusAndLoadingReducersOnlyNotifyWhenChanged()
     QCOMPARE(changes.size(), std::size_t(2));
 }
 
-void TestImageDocumentState::loadingTargetRevisionAdvancesForEveryLifecycle()
+void TestImageDocumentState::presentationLifecycleRevisionAdvancesForEveryTransition()
 {
     std::vector<kiriview::ImageDocumentChange> changes;
     kiriview::ImageDocumentState state(
         [&changes](kiriview::ImageDocumentChange change) { changes.push_back(change); });
 
-    QCOMPARE(state.loadingTargetRevision(), quint64(0));
+    QCOMPARE(state.presentationLifecycleRevision(), quint64(0));
 
-    state.advanceLoadingTargetRevision();
-    const quint64 firstRevision = state.loadingTargetRevision();
+    state.advancePresentationLifecycle();
+    const quint64 firstRevision = state.presentationLifecycleRevision();
     QVERIFY(firstRevision != 0);
-    QCOMPARE(changes.back(), kiriview::ImageDocumentChange::LoadingTarget);
+    QCOMPARE(changes.back(), kiriview::ImageDocumentChange::PresentationLifecycle);
 
-    state.advanceLoadingTargetRevision();
-    QVERIFY(state.loadingTargetRevision() != firstRevision);
+    state.advancePresentationLifecycle();
+    QVERIFY(state.presentationLifecycleRevision() != firstRevision);
     QCOMPARE(changes.size(), std::size_t(2));
-    QCOMPARE(changes.back(), kiriview::ImageDocumentChange::LoadingTarget);
+    QCOMPARE(changes.back(), kiriview::ImageDocumentChange::PresentationLifecycle);
 }
 
 void TestImageDocumentState::loadFailureStoresDiagnosticsAndPublishesUserMessage()

@@ -56,7 +56,7 @@ public:
         const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl) const;
     [[nodiscard]] ImageDocumentStatus status() const;
     [[nodiscard]] bool loading() const;
-    [[nodiscard]] QString loadingTargetToken() const;
+    [[nodiscard]] QString presentationLifecycleToken() const;
     [[nodiscard]] QString errorString() const;
     [[nodiscard]] const std::optional<ImageLoadFailure>& loadFailure() const;
     [[nodiscard]] QString windowTitleFileName() const;

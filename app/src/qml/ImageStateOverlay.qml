@@ -16,16 +16,16 @@ Item {
 
     readonly property bool imageLoading: imageDocument.status === KiriImageDocument.Loading
     readonly property bool loadingFeedbackVisible: imageLoading && loadingFeedbackArmed
-    readonly property string loadingTargetKey: imageDocument.loadingTargetToken + "|" + imageDocument.twoPageModeEnabled
+    readonly property string presentationLifecycleToken: imageDocument.presentationLifecycleToken
     readonly property bool retainedPresentationPending: imageLoading && imageDocument.displayedUrl.toString().length > 0
     readonly property bool replacementGraceActive: retainedPresentationPending && !loadingFeedbackVisible
     property bool loadingFeedbackArmed: false
-    property string scheduledLoadingTargetKey: ""
+    property string scheduledPresentationLifecycleToken: ""
 
     function cancelLoadingFeedback() {
         loadingFeedbackTimer.stop();
         loadingFeedbackArmed = false;
-        scheduledLoadingTargetKey = "";
+        scheduledPresentationLifecycleToken = "";
     }
 
     function scheduleLoadingFeedback() {
@@ -37,7 +37,7 @@ Item {
             return;
         }
         loadingFeedbackArmed = false;
-        scheduledLoadingTargetKey = loadingTargetKey;
+        scheduledPresentationLifecycleToken = presentationLifecycleToken;
         loadingFeedbackTimer.restart();
     }
 
@@ -48,7 +48,7 @@ Item {
             cancelLoadingFeedback();
         }
     }
-    onLoadingTargetKeyChanged: {
+    onPresentationLifecycleTokenChanged: {
         if (imageLoading && !loadingFeedbackVisible) {
             scheduleLoadingFeedback();
         }
@@ -64,7 +64,7 @@ Item {
 
         interval: 150
         onTriggered: {
-            if (root.imageLoading && root.scheduledLoadingTargetKey === root.loadingTargetKey) {
+            if (root.imageLoading && root.scheduledPresentationLifecycleToken === root.presentationLifecycleToken) {
                 root.loadingFeedbackArmed = true;
             }
         }

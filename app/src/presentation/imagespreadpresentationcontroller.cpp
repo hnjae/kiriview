@@ -28,7 +28,11 @@ ImageSpreadPresentationController::ImageSpreadPresentationController(
                                                        : std::optional<PredecodedImage>();
             },
             [this](ImageLoadSession session, std::optional<PredecodedImage> predecoded) {
+                const bool lifecycleAlreadyAdvanced = m_pendingShapeChange;
                 m_pendingShapeChange = false;
+                if (!lifecycleAlreadyAdvanced) {
+                    m_state.advancePresentationLifecycle();
+                }
                 invokeIfSet(
                     m_callbacks.secondaryImagePrepared, std::move(session), std::move(predecoded));
             },
@@ -69,6 +73,7 @@ void ImageSpreadPresentationController::setTwoPageModeEnabled(bool enabled)
     }
 
     m_twoPageModeEnabled = enabled;
+    m_state.advancePresentationLifecycle();
     m_pendingShapeChange = true;
     if (enabled) {
         refreshSecondaryPage();
@@ -235,7 +240,11 @@ void ImageSpreadPresentationController::discardSecondaryPage(bool submitShapeCha
     const bool hadSecondary = secondaryPageVisible();
     m_secondaryPageController->clear();
     if (submitShapeChange && (hadSecondary || m_pendingShapeChange)) {
+        const bool lifecycleAlreadyAdvanced = m_pendingShapeChange;
         m_pendingShapeChange = false;
+        if (!lifecycleAlreadyAdvanced) {
+            m_state.advancePresentationLifecycle();
+        }
         invokeIfSet(m_callbacks.secondaryImageCleared);
     }
 }

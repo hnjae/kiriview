@@ -161,9 +161,9 @@ bool ImageDocumentRuntime::loading() const
     return projectionActive(viewportProjection()) ? viewportProjection().loading : state.loading();
 }
 
-QString ImageDocumentRuntime::loadingTargetToken() const
+QString ImageDocumentRuntime::presentationLifecycleToken() const
 {
-    return QString::number(state.loadingTargetRevision());
+    return QStringLiteral("image-presentation:%1").arg(state.presentationLifecycleRevision());
 }
 
 QString ImageDocumentRuntime::errorString() const

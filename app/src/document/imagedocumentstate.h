@@ -51,7 +51,7 @@ public:
     [[nodiscard]] const QUrl& displayedUrl() const;
     [[nodiscard]] ImageDocumentStatus status() const;
     [[nodiscard]] bool loading() const;
-    [[nodiscard]] quint64 loadingTargetRevision() const;
+    [[nodiscard]] quint64 presentationLifecycleRevision() const;
     [[nodiscard]] const QString& errorString() const;
     [[nodiscard]] const std::optional<ImageLoadFailure>& loadFailure() const;
     [[nodiscard]] QString windowTitleFileName() const;
@@ -66,7 +66,7 @@ public:
     void clearDisplayedImageLocation();
     void setStatus(ImageDocumentStatus status);
     void setLoading(bool loading);
-    void advanceLoadingTargetRevision();
+    void advancePresentationLifecycle();
     void setErrorString(const QString& errorString);
     void setLoadFailure(ImageLoadFailure failure);
     void setContainerNavigationUrl(const QUrl& containerUrl);
@@ -85,7 +85,7 @@ private:
     DisplayedImageLocation m_displayedImageLocation;
     ImageDocumentStatus m_status = ImageDocumentStatus::Null;
     bool m_loading = false;
-    quint64 m_loadingTargetRevision = 0;
+    quint64 m_presentationLifecycleRevision = 0;
     bool m_unsupportedOpenedCollectionVideo = false;
     EmbeddedMetadata m_embeddedMetadata;
     QString m_errorString;

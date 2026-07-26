@@ -24,7 +24,7 @@ enum class ImageDocumentChange {
     SelectedTargetScope,
     Status,
     Loading,
-    LoadingTarget,
+    PresentationLifecycle,
     ErrorString,
     WindowTitleFileName,
     DisplayedUrl,

@@ -136,16 +136,20 @@ void TestImageSpreadPresentationController::shapeChangeSubmitsRequestedTargets()
     SpreadFixture fixture;
     fixture.displayPrimary(5, QSize(800, 1200));
     fixture.predecodedSizes[fixture.pageUrls.at(5)] = QSize(800, 1200);
+    const quint64 initialRevision = fixture.state.presentationLifecycleRevision();
 
     fixture.controller.setTwoPageModeEnabled(true);
 
     QCOMPARE(fixture.preparedCount, 1);
     QVERIFY(fixture.controller.secondaryPageVisible());
+    QVERIFY(fixture.state.presentationLifecycleRevision() != initialRevision);
+    const quint64 twoPageRevision = fixture.state.presentationLifecycleRevision();
 
     fixture.controller.setTwoPageModeEnabled(false);
 
     QCOMPARE(fixture.clearCount, 1);
     QVERIFY(!fixture.controller.secondaryPageVisible());
+    QVERIFY(fixture.state.presentationLifecycleRevision() != twoPageRevision);
 }
 
 QTEST_GUILESS_MAIN(TestImageSpreadPresentationController)

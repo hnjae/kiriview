@@ -88,8 +88,8 @@ kiriview::ImageDocumentPublicSignalOperations publicSignalOperations(KiriImageDo
     operations.sourceUrlChanged = [&document]() { Q_EMIT document.sourceUrlChanged(); };
     operations.statusChanged = [&document]() { Q_EMIT document.statusChanged(); };
     operations.loadingChanged = [&document]() { Q_EMIT document.loadingChanged(); };
-    operations.loadingTargetChanged
-        = [&document]() { Q_EMIT document.loadingTargetTokenChanged(); };
+    operations.presentationLifecycleChanged
+        = [&document]() { Q_EMIT document.presentationLifecycleTokenChanged(); };
     operations.errorStringChanged = [&document]() { Q_EMIT document.errorStringChanged(); };
     operations.windowTitleFileNameChanged
         = [&document]() { Q_EMIT document.windowTitleFileNameChanged(); };
@@ -169,7 +169,10 @@ KiriImageDocument::Status KiriImageDocument::status() const
 
 bool KiriImageDocument::loading() const { return m_runtime->loading(); }
 
-QString KiriImageDocument::loadingTargetToken() const { return m_runtime->loadingTargetToken(); }
+QString KiriImageDocument::presentationLifecycleToken() const
+{
+    return m_runtime->presentationLifecycleToken();
+}
 
 QString KiriImageDocument::errorString() const { return m_runtime->errorString(); }
 

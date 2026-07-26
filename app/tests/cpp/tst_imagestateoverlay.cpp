@@ -90,7 +90,7 @@ class TestImageStateOverlay : public QObject
 private Q_SLOTS:
     void initTestCase();
     void loadingFeedbackIsDelayedAndCancelledByTerminalState();
-    void targetLifecycleTokenRestartsLoadingFeedbackDelay();
+    void presentationLifecycleTokenTracksReplacementAndTerminalPublication();
 };
 
 void TestImageStateOverlay::initTestCase()
@@ -137,7 +137,7 @@ void TestImageStateOverlay::loadingFeedbackIsDelayedAndCancelledByTerminalState(
     QVERIFY(!loadingFeedbackVisible(*fixture.root));
 }
 
-void TestImageStateOverlay::targetLifecycleTokenRestartsLoadingFeedbackDelay()
+void TestImageStateOverlay::presentationLifecycleTokenTracksReplacementAndTerminalPublication()
 {
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
@@ -154,15 +154,24 @@ void TestImageStateOverlay::targetLifecycleTokenRestartsLoadingFeedbackDelay()
     fixture.documentSession->setSourceUrl(firstUrl);
     QTRY_COMPARE(
         fixture.documentSession->imageDocument()->status(), KiriImageDocument::Status::Loading);
-    const QString firstToken = fixture.documentSession->imageDocument()->loadingTargetToken();
-    const QString firstTargetKey = fixture.root->property("loadingTargetKey").toString();
+    const QString firstToken
+        = fixture.documentSession->imageDocument()->presentationLifecycleToken();
     QVERIFY(!firstToken.isEmpty());
-    QVERIFY(!firstTargetKey.isEmpty());
 
     fixture.documentSession->setSourceUrl(secondUrl);
 
-    QTRY_VERIFY(fixture.documentSession->imageDocument()->loadingTargetToken() != firstToken);
-    QTRY_VERIFY(fixture.root->property("loadingTargetKey").toString() != firstTargetKey);
+    QTRY_VERIFY(
+        fixture.documentSession->imageDocument()->presentationLifecycleToken() != firstToken);
+    QVERIFY(!loadingFeedbackVisible(*fixture.root));
+
+    const QString replacementToken
+        = fixture.documentSession->imageDocument()->presentationLifecycleToken();
+    fixture.documentSession->setSourceUrl(QUrl());
+
+    QTRY_COMPARE(
+        fixture.documentSession->imageDocument()->status(), KiriImageDocument::Status::Null);
+    QTRY_VERIFY(
+        fixture.documentSession->imageDocument()->presentationLifecycleToken() != replacementToken);
     QVERIFY(!loadingFeedbackVisible(*fixture.root));
 }
 

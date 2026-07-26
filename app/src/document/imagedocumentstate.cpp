@@ -66,7 +66,10 @@ ImageDocumentStatus ImageDocumentState::status() const { return m_status; }
 
 bool ImageDocumentState::loading() const { return m_loading; }
 
-quint64 ImageDocumentState::loadingTargetRevision() const { return m_loadingTargetRevision; }
+quint64 ImageDocumentState::presentationLifecycleRevision() const
+{
+    return m_presentationLifecycleRevision;
+}
 
 const QString& ImageDocumentState::errorString() const { return m_errorString; }
 
@@ -160,13 +163,13 @@ void ImageDocumentState::setLoading(bool loading)
     }
 }
 
-void ImageDocumentState::advanceLoadingTargetRevision()
+void ImageDocumentState::advancePresentationLifecycle()
 {
-    ++m_loadingTargetRevision;
-    if (m_loadingTargetRevision == 0) {
-        ++m_loadingTargetRevision;
+    ++m_presentationLifecycleRevision;
+    if (m_presentationLifecycleRevision == 0) {
+        ++m_presentationLifecycleRevision;
     }
-    notify(ImageDocumentChange::LoadingTarget);
+    notify(ImageDocumentChange::PresentationLifecycle);
 }
 
 void ImageDocumentState::setErrorString(const QString& errorString)

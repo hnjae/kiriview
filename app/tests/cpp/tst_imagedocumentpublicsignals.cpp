@@ -15,7 +15,7 @@ class TestImageDocumentPublicSignals : public QObject
 private Q_SLOTS:
     void viewportProjectionPlansOneCoherentPublicBatch();
     void statusPlansReadinessDependentPresentationSignals();
-    void loadingTargetPlansDedicatedPublicSignal();
+    void presentationLifecyclePlansDedicatedPublicSignal();
     void publicSignalBatchPlansDeduplicateDerivedSignalsInEmissionOrder();
     void emitterCommitsTheSessionSnapshotBeforeProjectionSignals();
 };
@@ -37,8 +37,8 @@ kiriview::ImageDocumentPublicSignalOperations recordingOperations(QStringList& e
         = [&events]() { events.append(QStringLiteral("sessionSnapshot")); };
     operations.statusChanged = [&events]() { events.append(QStringLiteral("status")); };
     operations.loadingChanged = [&events]() { events.append(QStringLiteral("loading")); };
-    operations.loadingTargetChanged
-        = [&events]() { events.append(QStringLiteral("loadingTarget")); };
+    operations.presentationLifecycleChanged
+        = [&events]() { events.append(QStringLiteral("presentationLifecycle")); };
     operations.errorStringChanged = [&events]() { events.append(QStringLiteral("errorString")); };
     operations.displayedUrlChanged = [&events]() { events.append(QStringLiteral("displayedUrl")); };
     operations.imageSizeChanged = [&events]() { events.append(QStringLiteral("imageSize")); };
@@ -98,13 +98,13 @@ void TestImageDocumentPublicSignals::statusPlansReadinessDependentPresentationSi
         });
 }
 
-void TestImageDocumentPublicSignals::loadingTargetPlansDedicatedPublicSignal()
+void TestImageDocumentPublicSignals::presentationLifecyclePlansDedicatedPublicSignal()
 {
     using Signal = kiriview::ImageDocumentPublicSignal;
 
     comparePublicSignals(
-        kiriview::imageDocumentPublicSignals(kiriview::ImageDocumentChange::LoadingTarget),
-        { Signal::LoadingTarget });
+        kiriview::imageDocumentPublicSignals(kiriview::ImageDocumentChange::PresentationLifecycle),
+        { Signal::PresentationLifecycle });
 }
 
 void TestImageDocumentPublicSignals::

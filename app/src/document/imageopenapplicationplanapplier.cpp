@@ -123,6 +123,7 @@ private:
             applyDisplayedLocation(delta.displayedLocation);
             applyError(delta.errorString, delta.loadFailure);
             applyEmbeddedMetadata(delta.embeddedMetadata);
+            applyPresentationLifecycle(delta);
             applyStatus(delta.status);
             applyUnsupportedOpenedCollectionVideo(delta.unsupportedOpenedCollectionVideo, true);
             return;
@@ -133,7 +134,7 @@ private:
         applyContainerNavigationUrl(delta.containerNavigationUrl);
         applyError(delta.errorString, delta.loadFailure);
         applyEmbeddedMetadata(delta.embeddedMetadata);
-        applyLoadingTargetRevision(delta);
+        applyPresentationLifecycle(delta);
         if (delta.clearLoadingContainerNavigationUrl) {
             applyTrackedLoadCompletion(delta);
         } else {
@@ -185,10 +186,10 @@ private:
         }
     }
 
-    void applyLoadingTargetRevision(const kiriview::ImageOpenResolvedStateDelta& delta)
+    void applyPresentationLifecycle(const kiriview::ImageOpenResolvedStateDelta& delta)
     {
-        if (delta.advanceLoadingTargetRevision) {
-            m_state.advanceLoadingTargetRevision();
+        if (delta.advancePresentationLifecycle) {
+            m_state.advancePresentationLifecycle();
         }
     }
 

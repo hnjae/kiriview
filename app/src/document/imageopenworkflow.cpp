@@ -50,6 +50,7 @@ ImageOpenApplicationPlan openedCollectionVideoPlan(
     plan.stateDelta.unsupportedOpenedCollectionVideo = unsupported;
     plan.stateDelta.embeddedMetadata = EmbeddedMetadata {};
     plan.stateDelta.clearLoadingContainerNavigationUrl = true;
+    plan.stateDelta.advancePresentationLifecycle = true;
     plan.runtimePlan.emplace_back(RetireViewportPresentationOperation {});
     plan.runtimePlan.emplace_back(ClearSecondaryPageOperation {});
     plan.runtimePlan.emplace_back(UpdatePageNavigationOperation {});
@@ -71,6 +72,7 @@ ImageOpenApplicationPlan successfulImageLoadPlan(ImageOpenSuccessfulImageLoadSna
     plan.stateDelta.unsupportedOpenedCollectionVideo = false;
     plan.stateDelta.embeddedMetadata = std::move(metadata);
     plan.stateDelta.clearLoadingContainerNavigationUrl = true;
+    plan.stateDelta.advancePresentationLifecycle = true;
     plan.runtimePlan.emplace_back(UpdatePageNavigationOperation {});
     plan.runtimePlan.emplace_back(ScheduleAdjacentImagePredecodeOperation {});
     return plan;
@@ -157,7 +159,7 @@ ImageOpenApplicationPlan beginSourceLoadPlan(ImageOpenBeginSourceLoadSnapshot sn
     }
     plan.stateDelta.loading = true;
     plan.stateDelta.status = ImageDocumentStatus::Loading;
-    plan.stateDelta.advanceLoadingTargetRevision = true;
+    plan.stateDelta.advancePresentationLifecycle = true;
     if (snapshot.hasImage || snapshot.sameScopePageNavigation) {
         plan.runtimePlan.emplace_back(StopPresentationPlaybackOperation {});
     } else {
@@ -177,6 +179,7 @@ ImageOpenApplicationPlan finishEmptySourceLoadPlan()
     plan.stateDelta.containerNavigationUrl = QUrl();
     plan.stateDelta.status = ImageDocumentStatus::Null;
     plan.stateDelta.clearLoadingContainerNavigationUrl = true;
+    plan.stateDelta.advancePresentationLifecycle = true;
     return plan;
 }
 
@@ -222,6 +225,7 @@ ImageOpenApplicationPlan finishLoadWithErrorPlan(
     plan.stateDelta.unsupportedOpenedCollectionVideo = false;
     plan.stateDelta.status = ImageDocumentStatus::Error;
     plan.stateDelta.clearLoadingContainerNavigationUrl = true;
+    plan.stateDelta.advancePresentationLifecycle = true;
     if (session.hasContainerNavigationTarget()) {
         appendClearImage(plan.runtimePlan);
         plan.stateDelta.containerNavigationUrl = session.containerNavigationUrl();
@@ -248,6 +252,7 @@ ImageOpenApplicationPlan finishContainerNavigationLoadWithErrorPlan(
     plan.stateDelta.errorString = errorString;
     plan.stateDelta.unsupportedOpenedCollectionVideo = false;
     plan.stateDelta.clearLoadingContainerNavigationUrl = true;
+    plan.stateDelta.advancePresentationLifecycle = true;
     return plan;
 }
 }

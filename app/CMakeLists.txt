@@ -238,6 +238,9 @@ set(kiriview_qml_files
     src/qml/ImageDocumentToolBar.qml
     src/qml/ImageStateOverlay.qml
     src/qml/ImageToolBar.qml
+    src/qml/ImageToolBarMenuCoordinator.qml
+    src/qml/ImageToolBarRetainedPresentation.qml
+    src/qml/ImageToolBarTextInputCoordinator.qml
     src/qml/ImageViewport.qml
     src/qml/ImageZoomControls.qml
     src/qml/InfoPanel.qml
@@ -255,6 +258,9 @@ set(kiriview_qml_files
     src/qml/VideoFloatingControls.qml
     src/qml/VideoViewport.qml
     src/qml/ZoomWheelStepPolicy.qml)
+set_source_files_properties(
+    src/qml/ImageToolBarMenuCoordinator.qml src/qml/ImageToolBarRetainedPresentation.qml
+    src/qml/ImageToolBarTextInputCoordinator.qml PROPERTIES QT_QML_INTERNAL_TYPE TRUE)
 foreach(qml_file IN LISTS kiriview_qml_files)
     get_filename_component(qml_name "${qml_file}" NAME)
     set_source_files_properties("${qml_file}" PROPERTIES QT_RESOURCE_ALIAS "${qml_name}")

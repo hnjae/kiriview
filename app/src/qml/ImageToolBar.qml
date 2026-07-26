@@ -39,169 +39,64 @@ Controls.ToolBar {
     property bool activeNavigationKnown: false
     property var openActiveNavigationAtNumber: function (number) {}
     property bool collectionControlsVisible: false
-    property bool pageNavigationInputFocused: false
-    property bool zoomInputFocused: false
-    property Item applicationMenuButtonAnchor: null
-    // Popup.Window may close before the same button click reaches the toolbar.
-    property double applicationMenuClosedTimestamp: 0
+    readonly property Item applicationMenuButtonAnchor: applicationMenuCoordinator.buttonAnchor
     readonly property int controlSpacing: compact ? Math.max(1, Math.round(Kirigami.Units.smallSpacing / 2)) : Kirigami.Units.smallSpacing
     readonly property int edgeMargin: controlSpacing
     readonly property int fitModeSelection: imageDocument?.fitModeSelection ?? KiriImageDocument.Fit
     readonly property bool fitMenuButtonTextVisible: width >= Kirigami.Units.gridUnit * 40
-    readonly property bool interactionActive: textInputFocused() || applicationMenuOpen()
-    readonly property bool readyImageControlPresentationRetained: replacementGraceActive && !imageReady && !videoMode
-    readonly property int presentedFitModeSelection: readyImageControlPresentationRetained ? lastReadyPresentation.fitModeSelection : fitModeSelection
-    readonly property bool presentedImageReady: readyImageControlPresentationRetained || imageReady
-    readonly property bool presentedZoomEditable: readyImageControlPresentationRetained ? lastReadyPresentation.zoomEditable : zoomEditable
-    readonly property bool presentedZoomPercentAvailable: readyImageControlPresentationRetained ? lastReadyPresentation.zoomPercentAvailable : zoomPercentAvailable
-    readonly property bool presentedZoomPercentKnown: readyImageControlPresentationRetained ? lastReadyPresentation.zoomPercentKnown : zoomPercentKnown
-    readonly property real presentedZoomPercent: readyImageControlPresentationRetained ? lastReadyPresentation.zoomPercent : zoomPercent
+    readonly property bool interactionActive: textInputCoordinator.active || applicationMenuCoordinator.open
+    readonly property bool readyImageControlPresentationRetained: retainedPresentation.presentationRetained
+    readonly property int presentedFitModeSelection: retainedPresentation.presentedFitModeSelection
+    readonly property bool presentedImageReady: retainedPresentation.presentedImageReady
+    readonly property bool presentedZoomEditable: retainedPresentation.presentedZoomEditable
+    readonly property bool presentedZoomPercentAvailable: retainedPresentation.presentedZoomPercentAvailable
+    readonly property bool presentedZoomPercentKnown: retainedPresentation.presentedZoomPercentKnown
+    readonly property real presentedZoomPercent: retainedPresentation.presentedZoomPercent
     readonly property int toolbarVerticalPadding: controlSpacing
     readonly property var imageToolbarControls: (root.collectionControlsVisible ? [rightToLeftToolbarAction, twoPageToolbarAction] : []).concat([fitMenuAction, zoomLevelAction])
     readonly property var toolbarControls: imageToolbarControls
     readonly property var toolbarActions: showApplicationMenuActions ? toolbarControls.concat([applicationMenuAction]) : toolbarControls
 
-    signal pageNumberResetRequested
-    signal textInputCancelRequested(bool returnViewerFocus)
-    signal textInputCommitRequested(bool returnViewerFocus)
     signal textInputFocusReturnRequested
 
-    component RetainedPresentationAction: Kirigami.Action {
-        required property var sourceAction
-        required property bool presentationRetained
-        property bool retainedChecked: false
-        property bool retainedEnabled: false
-
-        function capturePresentation() {
-            retainedChecked = sourceAction?.checked ?? false;
-            retainedEnabled = sourceAction?.enabled ?? false;
-        }
-
-        autoExclusive: sourceAction?.autoExclusive ?? false
-        checkable: sourceAction?.checkable ?? false
-        checked: presentationRetained ? retainedChecked : (sourceAction?.checked ?? false)
-        displayHint: sourceAction?.displayHint ?? Kirigami.DisplayHint.KeepVisible
-        enabled: presentationRetained ? retainedEnabled : (sourceAction?.enabled ?? false)
-        icon.name: sourceAction?.icon.name ?? ""
-        shortcut: ""
-        text: sourceAction?.text ?? ""
-        tooltip: sourceAction?.tooltip ?? text
-        visible: sourceAction?.visible ?? true
-
-        onTriggered: {
-            if (sourceAction?.enabled ?? false) {
-                sourceAction.trigger();
-            }
-        }
-    }
-
     function cancelTextInputEditing(returnViewerFocus) {
-        if (!textInputFocused()) {
-            return false;
-        }
-
-        textInputCancelRequested(returnViewerFocus === undefined ? true : returnViewerFocus);
-        return true;
+        return textInputCoordinator.cancel(returnViewerFocus);
     }
 
     function commitTextInputEditing(returnViewerFocus) {
-        if (!textInputFocused()) {
-            return false;
-        }
-
-        textInputCommitRequested(returnViewerFocus === undefined ? true : returnViewerFocus);
-        return true;
-    }
-
-    function captureReadyControlPresentation() {
-        if (!imageReady || videoMode || readyImageControlPresentationRetained) {
-            return;
-        }
-
-        rightToLeftToolbarAction.capturePresentation();
-        twoPageToolbarAction.capturePresentation();
-        lastReadyPresentation.fitEnabled = fitModeAction(fitModeSelection)?.enabled ?? false;
-        lastReadyPresentation.fitModeSelection = fitModeSelection;
-        lastReadyPresentation.zoomActionEnabled = !videoMode && imageReady;
-        lastReadyPresentation.zoomEditable = zoomEditable;
-        lastReadyPresentation.zoomPercentAvailable = zoomPercentAvailable;
-        lastReadyPresentation.zoomPercentKnown = zoomPercentKnown;
-        lastReadyPresentation.zoomPercent = zoomPercent;
-    }
-
-    function scheduleReadyControlPresentationCapture() {
-        readyControlPresentationCaptureTimer.restart();
+        return textInputCoordinator.commit(returnViewerFocus);
     }
 
     function applicationMenuOpen() {
-        return applicationMenuPopup.visible || applicationMenuPopup.opened;
+        return applicationMenuCoordinator.open;
     }
 
     function applicationMenuButtonUsable(button) {
-        if (!button || !button.visible || button.width <= 0 || button.height <= 0 || !actionToolBar.visible) {
-            return false;
-        }
-
-        try {
-            const center = button.mapToItem(actionToolBar, button.width / 2, button.height / 2);
-            return center.x >= 0 && center.x <= actionToolBar.width && center.y >= 0 && center.y <= actionToolBar.height;
-        } catch (error) {
-            console.warn("KiriView ImageToolBar application menu button mapping failed:", error && error.message ? error.message : String(error));
-            return false;
-        }
+        return applicationMenuCoordinator.buttonUsable(button);
     }
 
     function updateApplicationMenuButtonAnchor(button) {
-        if (applicationMenuButtonUsable(button)) {
-            if (applicationMenuButtonAnchor === button || !applicationMenuButtonUsable(applicationMenuButtonAnchor)) {
-                applicationMenuButtonAnchor = button;
-            }
-        } else if (applicationMenuButtonAnchor === button) {
-            applicationMenuButtonAnchor = null;
-        }
+        applicationMenuCoordinator.updateButtonAnchor(button);
     }
 
     function popupApplicationMenu() {
-        if (!showApplicationMenuActions || applicationMenuActions.length <= 0) {
-            return false;
-        }
-
-        const menuButton = applicationMenuButtonAnchor;
-        if (applicationMenuButtonUsable(menuButton)) {
-            const popupPosition = menuButton.mapToItem(root, 0, menuButton.height);
-            applicationMenuPopupAnchor.x = popupPosition.x;
-            applicationMenuPopupAnchor.y = popupPosition.y;
-            applicationMenuPopup.popup(applicationMenuPopupAnchor, 0, 0);
-            return true;
-        }
-
-        applicationMenuPopup.popup(actionToolBar, Math.max(0, actionToolBar.width - applicationMenuPopup.implicitWidth), actionToolBar.height);
-        return true;
+        return applicationMenuCoordinator.popupMenu();
     }
 
     function openApplicationMenu() {
-        if (applicationMenuOpen()) {
-            return true;
-        }
-
-        return popupApplicationMenu();
+        return applicationMenuCoordinator.openMenu();
     }
 
     function toggleApplicationMenu() {
-        if (applicationMenuOpen()) {
-            applicationMenuPopup.dismiss();
-            return true;
-        }
-
-        return popupApplicationMenu();
+        return applicationMenuCoordinator.toggleMenu();
     }
 
     function resetPageNumberText() {
-        pageNumberResetRequested();
+        textInputCoordinator.resetPageNumber();
     }
 
     function textInputFocused() {
-        return pageNavigationInputFocused || zoomInputFocused;
+        return textInputCoordinator.active;
     }
 
     function fitModeIsSelectable(zoomMode) {
@@ -254,78 +149,43 @@ Controls.ToolBar {
     topPadding: toolbarVerticalPadding
     bottomPadding: toolbarVerticalPadding
 
-    onActionsChanged: scheduleReadyControlPresentationCapture()
-    onFitModeSelectionChanged: scheduleReadyControlPresentationCapture()
-    onImageReadyChanged: scheduleReadyControlPresentationCapture()
-    onReplacementGraceActiveChanged: {
-        if (replacementGraceActive && imageReady) {
-            captureReadyControlPresentation();
-        } else {
-            scheduleReadyControlPresentationCapture();
-        }
-    }
-    onVideoModeChanged: scheduleReadyControlPresentationCapture()
-    onZoomEditableChanged: scheduleReadyControlPresentationCapture()
-    onZoomPercentAvailableChanged: scheduleReadyControlPresentationCapture()
-    onZoomPercentChanged: scheduleReadyControlPresentationCapture()
-    onZoomPercentKnownChanged: scheduleReadyControlPresentationCapture()
-
     Component.onCompleted: {
         if (floating) {
             background = floatingBackgroundComponent.createObject(root);
         }
-        scheduleReadyControlPresentationCapture();
     }
 
-    Timer {
-        id: readyControlPresentationCaptureTimer
+    ImageToolBarRetainedPresentation {
+        id: retainedPresentation
 
-        interval: 0
-        onTriggered: root.captureReadyControlPresentation()
+        fitEnabled: root.fitModeAction(root.fitModeSelection)?.enabled ?? false
+        fitModeSelection: root.fitModeSelection
+        imageReady: root.imageReady
+        replacementGraceActive: root.replacementGraceActive
+        rightToLeftSourceAction: root.actions.rightToLeftReadingAction
+        twoPageSourceAction: root.actions.twoPageModeAction
+        videoMode: root.videoMode
+        zoomEditable: root.zoomEditable
+        zoomPercent: root.zoomPercent
+        zoomPercentAvailable: root.zoomPercentAvailable
+        zoomPercentKnown: root.zoomPercentKnown
     }
 
-    QtObject {
-        id: lastReadyPresentation
+    ImageToolBarTextInputCoordinator {
+        id: textInputCoordinator
 
-        property bool fitEnabled: false
-        property int fitModeSelection: KiriImageDocument.Fit
-        property bool zoomActionEnabled: false
-        property bool zoomEditable: false
-        property bool zoomPercentAvailable: false
-        property bool zoomPercentKnown: false
-        property real zoomPercent: 0
+        onFocusReturnRequested: root.textInputFocusReturnRequested()
     }
 
-    Connections {
-        target: root.actions.rightToLeftReadingAction
+    ImageToolBarMenuCoordinator {
+        id: applicationMenuCoordinator
 
-        function onCheckedChanged() {
-            root.scheduleReadyControlPresentationCapture();
-        }
-
-        function onEnabledChanged() {
-            root.scheduleReadyControlPresentationCapture();
-        }
-    }
-
-    Connections {
-        target: root.actions.twoPageModeAction
-
-        function onCheckedChanged() {
-            root.scheduleReadyControlPresentationCapture();
-        }
-
-        function onEnabledChanged() {
-            root.scheduleReadyControlPresentationCapture();
-        }
-    }
-
-    Connections {
-        target: root.fitModeAction(root.fitModeSelection)
-
-        function onEnabledChanged() {
-            root.scheduleReadyControlPresentationCapture();
-        }
+        actionSurface: actionToolBar
+        anchorItem: applicationMenuPopupAnchor
+        hostToolbar: root
+        menuActions: root.applicationMenuActions
+        menuEnabled: root.showApplicationMenuActions
+        menuPopup: applicationMenuPopup
     }
 
     HoverHandler {
@@ -352,15 +212,8 @@ Controls.ToolBar {
         }
     }
 
-    readonly property RetainedPresentationAction rightToLeftToolbarAction: RetainedPresentationAction {
-        presentationRetained: root.readyImageControlPresentationRetained
-        sourceAction: root.actions.rightToLeftReadingAction
-    }
-
-    readonly property RetainedPresentationAction twoPageToolbarAction: RetainedPresentationAction {
-        presentationRetained: root.readyImageControlPresentationRetained
-        sourceAction: root.actions.twoPageModeAction
-    }
+    readonly property var rightToLeftToolbarAction: retainedPresentation.rightToLeftAction
+    readonly property var twoPageToolbarAction: retainedPresentation.twoPageAction
 
     readonly property Kirigami.Action zoomLevelAction: Kirigami.Action {
         displayComponent: ImageZoomControls {
@@ -384,31 +237,31 @@ Controls.ToolBar {
 
             Component.onDestruction: {
                 if (textInputActive) {
-                    root.zoomInputFocused = false;
+                    textInputCoordinator.zoomFocused = false;
                 }
             }
-            onTextInputActiveChanged: root.zoomInputFocused = textInputActive
+            onTextInputActiveChanged: textInputCoordinator.zoomFocused = textInputActive
 
             onEditingCompleted: function (returnViewerFocus) {
                 if (returnViewerFocus) {
-                    root.textInputFocusReturnRequested();
+                    textInputCoordinator.focusReturnRequested();
                 }
             }
 
             Connections {
-                target: root
+                target: textInputCoordinator
 
-                function onTextInputCancelRequested(returnViewerFocus) {
+                function onCancelRequested(returnViewerFocus) {
                     zoomControls.cancelEditing(returnViewerFocus);
                 }
 
-                function onTextInputCommitRequested(returnViewerFocus) {
+                function onCommitRequested(returnViewerFocus) {
                     zoomControls.commitEditing(returnViewerFocus);
                 }
             }
         }
         displayHint: Kirigami.DisplayHint.KeepVisible
-        enabled: root.readyImageControlPresentationRetained ? lastReadyPresentation.zoomActionEnabled : (!root.videoMode && root.imageReady)
+        enabled: root.readyImageControlPresentationRetained ? retainedPresentation.retainedZoomActionEnabled : (!root.videoMode && root.imageReady)
         icon.name: "zoom-original-symbolic"
         text: KI18n.i18nc("@action", "Zoom")
         tooltip: root.videoMode ? (root.zoomPercentKnown ? KI18n.i18nc("@info:tooltip", "Fitted video zoom") : KI18n.i18nc("@info:tooltip", "Video zoom unavailable")) : text
@@ -432,7 +285,7 @@ Controls.ToolBar {
             }
         }
         displayHint: Kirigami.DisplayHint.KeepVisible
-        enabled: root.readyImageControlPresentationRetained ? lastReadyPresentation.fitEnabled : root.fitModeAction(root.fitModeSelection).enabled
+        enabled: root.readyImageControlPresentationRetained ? retainedPresentation.retainedFitEnabled : root.fitModeAction(root.fitModeSelection).enabled
         icon.name: root.fitModeIconName(root.presentedFitModeSelection)
         text: root.fitModeText(root.presentedFitModeSelection)
         tooltip: text
@@ -463,7 +316,7 @@ Controls.ToolBar {
             Component.onCompleted: root.updateApplicationMenuButtonAnchor(applicationMenuButton)
             Component.onDestruction: {
                 if (root.applicationMenuButtonAnchor === applicationMenuButton) {
-                    root.applicationMenuButtonAnchor = null;
+                    applicationMenuCoordinator.buttonAnchor = null;
                 }
             }
             onHeightChanged: root.updateApplicationMenuButtonAnchor(applicationMenuButton)
@@ -478,7 +331,7 @@ Controls.ToolBar {
                     skipNextClick = false;
                     return;
                 }
-                if (Date.now() - root.applicationMenuClosedTimestamp < 250) {
+                if (Date.now() - applicationMenuCoordinator.closedTimestamp < 250) {
                     return;
                 }
 
@@ -514,7 +367,7 @@ Controls.ToolBar {
         closePolicy: Controls.Popup.CloseOnEscape | Controls.Popup.CloseOnPressOutsideParent
         popupType: Controls.Popup.Window
 
-        onAboutToHide: root.applicationMenuClosedTimestamp = Date.now()
+        onAboutToHide: applicationMenuCoordinator.recordClosed()
 
         MenuAccessKeyRouter {
             enabled: root.showApplicationMenuActions
@@ -569,29 +422,29 @@ Controls.ToolBar {
 
             Component.onDestruction: {
                 if (textInputActive) {
-                    root.pageNavigationInputFocused = false;
+                    textInputCoordinator.pageNavigationFocused = false;
                 }
             }
-            onTextInputActiveChanged: root.pageNavigationInputFocused = textInputActive
+            onTextInputActiveChanged: textInputCoordinator.pageNavigationFocused = textInputActive
 
             onEditingCompleted: function (returnViewerFocus) {
                 if (returnViewerFocus) {
-                    root.textInputFocusReturnRequested();
+                    textInputCoordinator.focusReturnRequested();
                 }
             }
 
             Connections {
-                target: root
+                target: textInputCoordinator
 
                 function onPageNumberResetRequested() {
                     pageNavigation.resetPageNumberText();
                 }
 
-                function onTextInputCancelRequested(returnViewerFocus) {
+                function onCancelRequested(returnViewerFocus) {
                     pageNavigation.cancelEditing(returnViewerFocus);
                 }
 
-                function onTextInputCommitRequested(returnViewerFocus) {
+                function onCommitRequested(returnViewerFocus) {
                     pageNavigation.commitEditing(returnViewerFocus);
                 }
             }

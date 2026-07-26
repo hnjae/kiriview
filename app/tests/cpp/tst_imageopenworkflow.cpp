@@ -176,6 +176,7 @@ private Q_SLOTS:
     void workflowTransitionsClearUnsupportedOpenedCollectionVideo();
     void workflowTransitionsClearEmbeddedMetadata();
     void workflowTransitionsClearOpenStartErrorString();
+    void presentationLifecycleCoversLoadStartAndTerminalPublication();
     void stateChangesFollowWorkflowDeltaOrder();
 };
 
@@ -189,7 +190,7 @@ void TestImageOpenWorkflow::applicationPlansUseExplicitInputs()
     QCOMPARE(initialLoad.stateDelta.loading, std::optional<bool>(true));
     QCOMPARE(initialLoad.stateDelta.status,
         std::optional<kiriview::ImageDocumentStatus>(kiriview::ImageDocumentStatus::Loading));
-    QVERIFY(initialLoad.stateDelta.advanceLoadingTargetRevision);
+    QVERIFY(initialLoad.stateDelta.advancePresentationLifecycle);
     QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(initialLoad.runtimePlan));
 
     const kiriview::ImageOpenApplicationPlan routedLoad
@@ -211,6 +212,7 @@ void TestImageOpenWorkflow::applicationPlansUseExplicitInputs()
     const kiriview::ImageOpenApplicationPlan pendingPageNavigationLoad
         = kiriview::ImageOpenWorkflow::beginSourceLoadPlan(
             kiriview::ImageOpenBeginSourceLoadSnapshot { false, false, true });
+    QVERIFY(pendingPageNavigationLoad.stateDelta.advancePresentationLifecycle);
     QCOMPARE(pendingPageNavigationLoad.runtimePlan.size(), std::size_t(1));
     QVERIFY(hasOperation<kiriview::StopPresentationPlaybackOperation>(
         pendingPageNavigationLoad.runtimePlan));
@@ -233,6 +235,24 @@ void TestImageOpenWorkflow::applicationPlansUseExplicitInputs()
     QVERIFY(
         hasOperation<kiriview::ClearPresentationImageOperation>(replacementFailure.runtimePlan));
     QVERIFY(!hasOperation<kiriview::UpdatePageNavigationOperation>(replacementFailure.runtimePlan));
+}
+
+void TestImageOpenWorkflow::presentationLifecycleCoversLoadStartAndTerminalPublication()
+{
+    kiriview::ImageDocumentState state;
+    const QUrl imageUrl = localUrl(QStringLiteral("/images/page.png"));
+    selectDirectTarget(state, imageUrl);
+
+    beginSourceLoad(state, false);
+
+    const quint64 loadingRevision = state.presentationLifecycleRevision();
+    QVERIFY(loadingRevision != 0);
+    QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Loading);
+
+    finishSuccessfulImageLoad(state, loadSession(imageUrl, imageUrl));
+
+    QVERIFY(state.presentationLifecycleRevision() != loadingRevision);
+    QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Ready);
 }
 
 void TestImageOpenWorkflow::sourceResolutionUsesCanonicalSessionImageUrl()
@@ -691,7 +711,7 @@ void TestImageOpenWorkflow::stateChangesFollowWorkflowDeltaOrder()
 
         QCOMPARE(changes.size(), std::size_t(4));
         QCOMPARE(changes.at(0), kiriview::ImageDocumentChange::EmbeddedMetadata);
-        QCOMPARE(changes.at(1), kiriview::ImageDocumentChange::LoadingTarget);
+        QCOMPARE(changes.at(1), kiriview::ImageDocumentChange::PresentationLifecycle);
         QCOMPARE(changes.at(2), kiriview::ImageDocumentChange::Loading);
         QCOMPARE(changes.at(3), kiriview::ImageDocumentChange::Status);
     }
@@ -703,11 +723,12 @@ void TestImageOpenWorkflow::stateChangesFollowWorkflowDeltaOrder()
 
         finishSuccessfulImageLoad(state, loadSession(imageUrl, imageUrl));
 
-        QCOMPARE(changes.size(), std::size_t(4));
+        QCOMPARE(changes.size(), std::size_t(5));
         QCOMPARE(changes.at(0), kiriview::ImageDocumentChange::SourceUrl);
         QCOMPARE(changes.at(1), kiriview::ImageDocumentChange::WindowTitleFileName);
         QCOMPARE(changes.at(2), kiriview::ImageDocumentChange::DisplayedUrl);
-        QCOMPARE(changes.at(3), kiriview::ImageDocumentChange::Status);
+        QCOMPARE(changes.at(3), kiriview::ImageDocumentChange::PresentationLifecycle);
+        QCOMPARE(changes.at(4), kiriview::ImageDocumentChange::Status);
     }
 
     {
@@ -723,11 +744,12 @@ void TestImageOpenWorkflow::stateChangesFollowWorkflowDeltaOrder()
         finishLoadWithError(
             state, loadSession(replacementUrl, replacementUrl), QStringLiteral("missing"));
 
-        QCOMPARE(changes.size(), std::size_t(4));
+        QCOMPARE(changes.size(), std::size_t(5));
         QCOMPARE(changes.at(0), kiriview::ImageDocumentChange::Loading);
         QCOMPARE(changes.at(1), kiriview::ImageDocumentChange::ErrorString);
         QCOMPARE(changes.at(2), kiriview::ImageDocumentChange::EmbeddedMetadata);
-        QCOMPARE(changes.at(3), kiriview::ImageDocumentChange::Status);
+        QCOMPARE(changes.at(3), kiriview::ImageDocumentChange::PresentationLifecycle);
+        QCOMPARE(changes.at(4), kiriview::ImageDocumentChange::Status);
     }
 }
 
