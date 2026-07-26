@@ -197,17 +197,11 @@ target_compile_definitions(KiriViewCore PUBLIC TRANSLATION_DOMAIN="kiriview")
 target_link_libraries(
     KiriViewCore
     PUBLIC ImageViewport
-           KiriViewRustSupportBridge
            VideoThumbnailExtraction
            Qt6::Core
-           Qt6::DBus
            Qt6::Gui
-           Qt6::Multimedia
            Qt6::Qml
            Qt6::Quick
-           Qt6::QuickControls2
-           Qt6::Widgets
-           KF6::Archive
            KF6::ConfigCore
            KF6::ConfigGui
            KF6::CoreAddons
@@ -219,13 +213,19 @@ target_link_libraries(
            KF6::JobWidgets
            KF6::Service
            KirigamiAddonsStatefulApp
-           PkgConfig::LibArchive
-           PkgConfig::LibHeif
-           PkgConfig::LibJxl
-           PkgConfig::LibJxlThreads
-           PkgConfig::LibRaw
-           PkgConfig::LibWebP
-           PkgConfig::LibWebPDemux)
+    PRIVATE KiriViewRustSupportBridge
+            Qt6::DBus
+            Qt6::Multimedia
+            Qt6::QuickControls2
+            Qt6::Widgets
+            KF6::Archive
+            PkgConfig::LibArchive
+            PkgConfig::LibHeif
+            PkgConfig::LibJxl
+            PkgConfig::LibJxlThreads
+            PkgConfig::LibRaw
+            PkgConfig::LibWebP
+            PkgConfig::LibWebPDemux)
 kconfig_add_kcfg_files(KiriViewCore src/kiriviewstate.kcfgc)
 
 set(kiriview_qml_files

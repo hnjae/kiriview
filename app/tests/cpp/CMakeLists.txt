@@ -44,6 +44,39 @@ foreach(test_source IN LISTS KIRIVIEW_CPP_TEST_SOURCES)
     add_kiriview_cpp_test("${test_target}" "${test_source}")
 endforeach()
 
+foreach(test_target IN
+        ITEMS tst_imageactions tst_imageshortcuts tst_mainwindowtoolbar tst_mediaentrysourcebackend
+              tst_toolbarapplicationmenu tst_videoplaybackurlresolver)
+    target_link_libraries(${test_target} PRIVATE KF6::Archive)
+endforeach()
+
+foreach(test_target IN ITEMS tst_heiftilingplan tst_kiriimagedecoder)
+    target_link_libraries(${test_target} PRIVATE PkgConfig::LibHeif)
+endforeach()
+
+foreach(test_target IN ITEMS tst_imagestateoverlay tst_imagezoomcontrols tst_mainwindowtoolbar
+                             tst_mainwindowvideointegration tst_thumbnailpanel)
+    target_link_libraries(${test_target} PRIVATE Qt6::QuickControls2)
+endforeach()
+
+foreach(
+    test_target IN
+    ITEMS tst_applicationactionregistry
+          tst_applicationactionruntime
+          tst_applicationactionsourceattachment
+          tst_applicationmenupresentationruntime
+          tst_imageactions
+          tst_imageshortcuts
+          tst_kiriviewapplication
+          tst_localization)
+    target_link_libraries(${test_target} PRIVATE Qt6::Widgets)
+endforeach()
+
+foreach(test_target IN ITEMS tst_powerprofilemonitor tst_powerprofileportalevents
+                             tst_videoplaybackurlresolver)
+    target_link_libraries(${test_target} PRIVATE Qt6::DBus)
+endforeach()
+
 if(TARGET tst_localization)
     add_dependencies(tst_localization kiriview_test_i18n)
     target_compile_definitions(tst_localization
@@ -98,9 +131,17 @@ if(TARGET tst_imageshortcuts)
     set_tests_properties(tst_imageshortcuts PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
 
-if(TARGET tst_kiridocumentsession)
-    set_tests_properties(tst_kiridocumentsession PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
-endif()
+foreach(
+    test_target IN
+    ITEMS tst_kiridocumentsessioncollectionvideo
+          tst_kiridocumentsessiondeletion
+          tst_kiridocumentsessionmediainformation
+          tst_kiridocumentsessionmediaoperations
+          tst_kiridocumentsessionnavigation
+          tst_kiridocumentsessionrouting
+          tst_kiridocumentsessionthumbnail)
+    set_tests_properties(${test_target} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endforeach()
 
 if(TARGET tst_imageviewportcomponentboundary)
     set_tests_properties(tst_imageviewportcomponentboundary PROPERTIES ENVIRONMENT

@@ -61,6 +61,20 @@ void renderFrame(QQuickWindow& window)
     QCoreApplication::processEvents();
 }
 
+template <typename Predicate> bool driveRenderUntil(QQuickWindow& window, Predicate predicate)
+{
+    constexpr int maximumAttempts = 100;
+    constexpr int eventIntervalMilliseconds = 5;
+    for (int attempt = 0; attempt < maximumAttempts; ++attempt) {
+        if (predicate()) {
+            return true;
+        }
+        renderFrame(window);
+        QTest::qWait(eventIntervalMilliseconds);
+    }
+    return predicate();
+}
+
 class PendingProviderSource final : public kiriview::ImageViewportProviderSource
 {
 public:
@@ -289,13 +303,9 @@ void TestImageViewportIntegrationRuntime::twoRoleTargetIsSubmittedAtomically()
     renderFrame(window);
     QCOMPARE(runtime.projection().secondaryVisible, false);
     fixture.secondarySource->completeNext(QStringLiteral("secondary"));
-    for (int attempt = 0;
-        attempt < 100 && runtime.projection().status != kiriview::ImageDocumentStatus::Ready;
-        ++attempt) {
-        renderFrame(window);
-        QTest::qWait(5);
-    }
-    QCOMPARE(runtime.projection().status, kiriview::ImageDocumentStatus::Ready);
+    QVERIFY(driveRenderUntil(window, [&runtime]() {
+        return runtime.projection().status == kiriview::ImageDocumentStatus::Ready;
+    }));
     QCOMPARE(runtime.projection().secondaryVisible, true);
 }
 
@@ -314,13 +324,9 @@ void TestImageViewportIntegrationRuntime::gesturesAndScrollbarsUseMatchedCompone
     QVERIFY(runtime.submitTarget(fixture.target()));
     QTRY_COMPARE(fixture.primarySource->pendingFrames.size(), std::size_t(1));
     fixture.primarySource->completeNext(QStringLiteral("gesture"));
-    for (int attempt = 0;
-        attempt < 100 && runtime.projection().status != kiriview::ImageDocumentStatus::Ready;
-        ++attempt) {
-        renderFrame(window);
-        QTest::qWait(5);
-    }
-    QCOMPARE(runtime.projection().status, kiriview::ImageDocumentStatus::Ready);
+    QVERIFY(driveRenderUntil(window, [&runtime]() {
+        return runtime.projection().status == kiriview::ImageDocumentStatus::Ready;
+    }));
 
     QVERIFY(runtime.setPreferredManualZoomPercent(100.0, QPointF(10, 5)));
     QTRY_VERIFY(runtime.projection().horizontallyPannable);
@@ -356,14 +362,9 @@ void TestImageViewportIntegrationRuntime::targetAnchorAtEndAppliesThroughTransit
     QVERIFY(runtime.submitTarget(anchored.target()));
     QTRY_COMPARE(anchored.primarySource->pendingFrames.size(), std::size_t(1));
     anchored.primarySource->completeNext(QStringLiteral("anchor-next"));
-    for (int attempt = 0;
-        attempt < 100 && runtime.projection().status != kiriview::ImageDocumentStatus::Ready;
-        ++attempt) {
-        renderFrame(window);
-        QTest::qWait(5);
-    }
-
-    QCOMPARE(runtime.projection().status, kiriview::ImageDocumentStatus::Ready);
+    QVERIFY(driveRenderUntil(window, [&runtime]() {
+        return runtime.projection().status == kiriview::ImageDocumentStatus::Ready;
+    }));
     QVERIFY(runtime.projection().maximumContentPosition.x() > 0.0);
     QCOMPARE(runtime.projection().contentPosition, runtime.projection().maximumContentPosition);
 }
@@ -427,12 +428,9 @@ void TestImageViewportIntegrationRuntime::
     QVERIFY(runtime.submitTarget(initial.target()));
     QTRY_COMPARE(initial.primarySource->pendingFrames.size(), std::size_t(1));
     initial.primarySource->completeNext(QStringLiteral("initial"));
-    for (int attempt = 0;
-        attempt < 100 && runtime.projection().status != kiriview::ImageDocumentStatus::Ready;
-        ++attempt) {
-        renderFrame(window);
-        QTest::qWait(5);
-    }
+    QVERIFY(driveRenderUntil(window, [&runtime]() {
+        return runtime.projection().status == kiriview::ImageDocumentStatus::Ready;
+    }));
     QCOMPARE(runtime.projection().displayedUrl, initial.primaryUrl);
     QVERIFY(viewport.state().display().displayedRoleSet().primary());
     projections.clear();
@@ -470,14 +468,9 @@ void TestImageViewportIntegrationRuntime::
         QTRY_COMPARE(replacement.secondarySource->pendingFrames.size(), std::size_t(1));
         replacement.secondarySource->completeNext(QStringLiteral("secondary"));
     }
-    for (int attempt = 0;
-        attempt < 100 && runtime.projection().status != kiriview::ImageDocumentStatus::Ready;
-        ++attempt) {
-        renderFrame(window);
-        QTest::qWait(5);
-    }
-
-    QCOMPARE(runtime.projection().status, kiriview::ImageDocumentStatus::Ready);
+    QVERIFY(driveRenderUntil(window, [&runtime]() {
+        return runtime.projection().status == kiriview::ImageDocumentStatus::Ready;
+    }));
     QCOMPARE(runtime.projection().displayedUrl, replacement.primaryUrl);
     QVERIFY(viewport.state().display().belongsToAcceptedPresentationTarget());
     QVERIFY(viewport.state().display().displayedRoleSet().primary());
@@ -500,12 +493,9 @@ void TestImageViewportIntegrationRuntime::
     QVERIFY(runtime.submitTarget(initial.target()));
     QTRY_COMPARE(initial.primarySource->pendingFrames.size(), std::size_t(1));
     initial.primarySource->completeNext(QStringLiteral("predecoded-initial"));
-    for (int attempt = 0;
-        attempt < 100 && runtime.projection().status != kiriview::ImageDocumentStatus::Ready;
-        ++attempt) {
-        renderFrame(window);
-        QTest::qWait(5);
-    }
+    QVERIFY(driveRenderUntil(window, [&runtime]() {
+        return runtime.projection().status == kiriview::ImageDocumentStatus::Ready;
+    }));
     QCOMPARE(runtime.projection().displayedUrl, initial.primaryUrl);
 
     TargetFixture replacement;
@@ -519,14 +509,9 @@ void TestImageViewportIntegrationRuntime::
     QCOMPARE(runtime.projection().displayedUrl, initial.primaryUrl);
     QCOMPARE(runtime.projection().status, kiriview::ImageDocumentStatus::Loading);
 
-    for (int attempt = 0;
-        attempt < 100 && runtime.projection().status != kiriview::ImageDocumentStatus::Ready;
-        ++attempt) {
-        renderFrame(window);
-        QTest::qWait(5);
-    }
-
-    QCOMPARE(runtime.projection().status, kiriview::ImageDocumentStatus::Ready);
+    QVERIFY(driveRenderUntil(window, [&runtime]() {
+        return runtime.projection().status == kiriview::ImageDocumentStatus::Ready;
+    }));
     QCOMPARE(runtime.projection().displayedUrl, replacement.primaryUrl);
 }
 
@@ -544,12 +529,9 @@ void TestImageViewportIntegrationRuntime::failedShapeChangeKeepsRequestedTargetE
     QVERIFY(runtime.submitTarget(initial.target()));
     QTRY_COMPARE(initial.primarySource->pendingFrames.size(), std::size_t(1));
     initial.primarySource->completeNext(QStringLiteral("initial"));
-    for (int attempt = 0;
-        attempt < 100 && runtime.projection().status != kiriview::ImageDocumentStatus::Ready;
-        ++attempt) {
-        renderFrame(window);
-        QTest::qWait(5);
-    }
+    QVERIFY(driveRenderUntil(window, [&runtime]() {
+        return runtime.projection().status == kiriview::ImageDocumentStatus::Ready;
+    }));
     QCOMPARE(runtime.projection().displayedUrl, initial.primaryUrl);
 
     TargetFixture shape;
@@ -560,25 +542,16 @@ void TestImageViewportIntegrationRuntime::failedShapeChangeKeepsRequestedTargetE
     QVERIFY(runtime.submitTarget(shape.target()));
     QTRY_COMPARE(shape.secondarySource->pendingFrames.size(), std::size_t(1));
     shape.secondarySource->failNext(loadFailure(shape.secondaryUrl, 720));
-    for (int attempt = 0;
-        attempt < 100 && runtime.projection().status != kiriview::ImageDocumentStatus::Error;
-        ++attempt) {
-        renderFrame(window);
-        QTest::qWait(5);
-    }
-
-    QCOMPARE(runtime.projection().status, kiriview::ImageDocumentStatus::Error);
+    QVERIFY(driveRenderUntil(window, [&runtime]() {
+        return runtime.projection().status == kiriview::ImageDocumentStatus::Error;
+    }));
     QCOMPARE(runtime.projection().sourceGeneration, quint64(72));
     QVERIFY(runtime.projection().failure.has_value());
     QCOMPARE(runtime.projection().failure->sessionId, quint64(720));
 
     QTRY_COMPARE(shape.primarySource->pendingFrames.size(), std::size_t(1));
     shape.primarySource->completeNext(QStringLiteral("primary"));
-    for (int attempt = 0; attempt < 100 && !runtime.projection().displayedUrl.isEmpty();
-        ++attempt) {
-        renderFrame(window);
-        QTest::qWait(5);
-    }
+    renderFrame(window);
     QCOMPARE(runtime.projection().displayedUrl, initial.primaryUrl);
 
     runtime.clearTarget();
