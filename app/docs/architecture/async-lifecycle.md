@@ -30,4 +30,6 @@ Directory listing and watching remain behind the navigation or collection-access
 
 QML may own UI-local timers and physical item transients, but it must not use delayed callbacks to reconcile durable domain state. If a delayed UI callback observes public session state, the session owner must already have published a coherent snapshot for that state.
 
+Delayed image-loading feedback is subordinate to the accepted application target lifecycle. A pending deadline is replaced when a newer target is accepted and cannot arm feedback for that newer target; matching ready, error, or empty publication cancels the pending deadline. Presentation readiness comes from the matching committed-display observation rather than decode completion or cache availability.
+
 Reusable async primitives must preserve each owner's operation identity, stale-completion rejection, cancellation semantics, and QObject lifetime rules without becoming a shared authoritative state machine.

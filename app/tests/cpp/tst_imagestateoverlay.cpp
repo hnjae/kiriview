@@ -90,6 +90,7 @@ class TestImageStateOverlay : public QObject
 private Q_SLOTS:
     void initTestCase();
     void loadingFeedbackIsDelayedAndCancelledByTerminalState();
+    void targetLifecycleTokenRestartsLoadingFeedbackDelay();
 };
 
 void TestImageStateOverlay::initTestCase()
@@ -133,6 +134,35 @@ void TestImageStateOverlay::loadingFeedbackIsDelayedAndCancelledByTerminalState(
     fixture.documentSession->setSourceUrl(QUrl());
     QTRY_COMPARE(
         fixture.documentSession->imageDocument()->status(), KiriImageDocument::Status::Null);
+    QVERIFY(!loadingFeedbackVisible(*fixture.root));
+}
+
+void TestImageStateOverlay::targetLifecycleTokenRestartsLoadingFeedbackDelay()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QUrl firstUrl = QUrl::fromLocalFile(directory.filePath(QStringLiteral("first.png")));
+    const QUrl secondUrl = QUrl::fromLocalFile(directory.filePath(QStringLiteral("second.png")));
+    QImage image(40, 20, QImage::Format_RGBA8888);
+    image.fill(QColor(20, 40, 60, 255));
+    QVERIFY(image.save(firstUrl.toLocalFile()));
+    QVERIFY(image.save(secondUrl.toLocalFile()));
+
+    ImageStateOverlayFixture fixture = createFixture();
+    QVERIFY2(fixture.root != nullptr, qPrintable(fixture.errorString));
+
+    fixture.documentSession->setSourceUrl(firstUrl);
+    QTRY_COMPARE(
+        fixture.documentSession->imageDocument()->status(), KiriImageDocument::Status::Loading);
+    const QString firstToken = fixture.documentSession->imageDocument()->loadingTargetToken();
+    const QString firstTargetKey = fixture.root->property("loadingTargetKey").toString();
+    QVERIFY(!firstToken.isEmpty());
+    QVERIFY(!firstTargetKey.isEmpty());
+
+    fixture.documentSession->setSourceUrl(secondUrl);
+
+    QTRY_VERIFY(fixture.documentSession->imageDocument()->loadingTargetToken() != firstToken);
+    QTRY_VERIFY(fixture.root->property("loadingTargetKey").toString() != firstTargetKey);
     QVERIFY(!loadingFeedbackVisible(*fixture.root));
 }
 

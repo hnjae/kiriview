@@ -34,6 +34,14 @@ bool ImageDocumentOpenRuntimePlanExecutor::dispatchOperation(
         run(m_operations.clearPresentationImage);
         return true;
     }
+    if (std::holds_alternative<RetireViewportPresentationOperation>(operation)) {
+        run(m_operations.retireViewportPresentation);
+        return true;
+    }
+    if (std::holds_alternative<StopPresentationPlaybackOperation>(operation)) {
+        run(m_operations.stopPresentationPlayback);
+        return true;
+    }
     if (const auto* payload = std::get_if<SelectImageTargetOperation>(&operation)) {
         run(m_operations.selectImageTarget, *payload);
         return true;

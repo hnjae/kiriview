@@ -37,6 +37,7 @@ bool affectsSessionSnapshot(kiriview::ImageDocumentPublicSignal signal)
     case Signal::EmbeddedMetadata:
         return true;
     case Signal::Loading:
+    case Signal::LoadingTarget:
     case Signal::DisplayedUrl:
     case Signal::MaximumManualZoomPercent:
         return false;
@@ -77,6 +78,9 @@ void ImageDocumentPublicSignalEmitter::emitSignal(ImageDocumentPublicSignal sign
         return;
     case ImageDocumentPublicSignal::Loading:
         run(m_operations.loadingChanged);
+        return;
+    case ImageDocumentPublicSignal::LoadingTarget:
+        run(m_operations.loadingTargetChanged);
         return;
     case ImageDocumentPublicSignal::ErrorString:
         run(m_operations.errorStringChanged);
@@ -140,9 +144,18 @@ std::vector<ImageDocumentPublicSignal> imageDocumentPublicSignals(ImageDocumentC
     case ImageDocumentChange::SelectedTargetScope:
         return { ImageDocumentPublicSignal::ImageDocumentSourceScope };
     case ImageDocumentChange::Status:
-        return { ImageDocumentPublicSignal::Status, ImageDocumentPublicSignal::ZoomPercentKnown };
+        return {
+            ImageDocumentPublicSignal::Status,
+            ImageDocumentPublicSignal::ImageSize,
+            ImageDocumentPublicSignal::ViewportFrame,
+            ImageDocumentPublicSignal::ZoomPercentKnown,
+            ImageDocumentPublicSignal::ZoomPercent,
+            ImageDocumentPublicSignal::TwoPageMode,
+        };
     case ImageDocumentChange::Loading:
         return { ImageDocumentPublicSignal::Loading };
+    case ImageDocumentChange::LoadingTarget:
+        return { ImageDocumentPublicSignal::LoadingTarget };
     case ImageDocumentChange::ErrorString:
         return { ImageDocumentPublicSignal::ErrorString };
     case ImageDocumentChange::WindowTitleFileName:

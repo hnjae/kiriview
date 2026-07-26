@@ -42,6 +42,7 @@ class KiriImageDocument : public QObject
     Q_PROPERTY(QUrl sourceUrl READ sourceUrl NOTIFY sourceUrlChanged)
     Q_PROPERTY(Status status READ status NOTIFY statusChanged)
     Q_PROPERTY(bool loading READ loading NOTIFY loadingChanged)
+    Q_PROPERTY(QString loadingTargetToken READ loadingTargetToken NOTIFY loadingTargetTokenChanged)
     Q_PROPERTY(QString errorString READ errorString NOTIFY errorStringChanged)
     Q_PROPERTY(
         QString windowTitleFileName READ windowTitleFileName NOTIFY windowTitleFileNameChanged)
@@ -126,6 +127,7 @@ public:
 
     [[nodiscard]] Status status() const;
     [[nodiscard]] bool loading() const;
+    [[nodiscard]] QString loadingTargetToken() const;
     [[nodiscard]] QString errorString() const;
     [[nodiscard]] QString windowTitleFileName() const;
     [[nodiscard]] QUrl displayedUrl() const;
@@ -206,6 +208,7 @@ Q_SIGNALS:
     void sourceUrlChanged();
     void statusChanged();
     void loadingChanged();
+    void loadingTargetTokenChanged();
     void errorStringChanged();
     void windowTitleFileNameChanged();
     void displayedUrlChanged();

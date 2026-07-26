@@ -14,6 +14,7 @@ enum class ImageDocumentPublicSignal {
     SourceUrl,
     Status,
     Loading,
+    LoadingTarget,
     ErrorString,
     WindowTitleFileName,
     DisplayedUrl,
@@ -39,6 +40,7 @@ struct ImageDocumentPublicSignalOperations
     std::function<void()> sourceUrlChanged;
     std::function<void()> statusChanged;
     std::function<void()> loadingChanged;
+    std::function<void()> loadingTargetChanged;
     std::function<void()> errorStringChanged;
     std::function<void()> windowTitleFileNameChanged;
     std::function<void()> displayedUrlChanged;

@@ -27,6 +27,7 @@ struct ImageOpenResolvedStateDelta
     std::optional<bool> unsupportedOpenedCollectionVideo;
     std::optional<EmbeddedMetadata> embeddedMetadata;
     bool clearLoadingContainerNavigationUrl = false;
+    bool advanceLoadingTargetRevision = false;
 };
 
 struct ImageOpenApplicationPlan

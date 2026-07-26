@@ -28,6 +28,7 @@ struct ImageDocumentRuntimeWorkflowPorts
     MediaEntrySourceStore* mediaEntrySourceStore = nullptr;
     ImageDocumentDeletionController* deletionController = nullptr;
     std::function<void()> clearViewportTarget;
+    std::function<void()> stopViewportPlayback;
     ImageOpenController* openController = nullptr;
     ImageDocumentPredecodeController* predecodeController = nullptr;
     ImageSpreadPresentationController* spreadController = nullptr;

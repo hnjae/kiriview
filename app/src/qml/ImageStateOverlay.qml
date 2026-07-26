@@ -16,12 +16,14 @@ Item {
 
     readonly property bool imageLoading: imageDocument.status === KiriImageDocument.Loading
     readonly property bool loadingFeedbackVisible: imageLoading && loadingFeedbackArmed
-    readonly property string loadingTargetKey: imageDocument.sourceUrl.toString() + "|" + imageDocument.twoPageModeEnabled
+    readonly property string loadingTargetKey: imageDocument.loadingTargetToken + "|" + imageDocument.twoPageModeEnabled
     property bool loadingFeedbackArmed: false
+    property string scheduledLoadingTargetKey: ""
 
     function cancelLoadingFeedback() {
         loadingFeedbackTimer.stop();
         loadingFeedbackArmed = false;
+        scheduledLoadingTargetKey = "";
     }
 
     function scheduleLoadingFeedback() {
@@ -33,6 +35,7 @@ Item {
             return;
         }
         loadingFeedbackArmed = false;
+        scheduledLoadingTargetKey = loadingTargetKey;
         loadingFeedbackTimer.restart();
     }
 
@@ -59,16 +62,21 @@ Item {
 
         interval: 150
         onTriggered: {
-            if (root.imageLoading) {
+            if (root.imageLoading && root.scheduledLoadingTargetKey === root.loadingTargetKey) {
                 root.loadingFeedbackArmed = true;
             }
         }
     }
 
-    Kirigami.LoadingPlaceholder {
-        anchors.centerIn: parent
+    Rectangle {
+        anchors.fill: parent
+        color: Kirigami.Theme.backgroundColor
         visible: root.loadingFeedbackVisible
-        width: Math.min(parent.width - Kirigami.Units.largeSpacing * 2, Kirigami.Units.gridUnit * 18)
+
+        Kirigami.LoadingPlaceholder {
+            anchors.centerIn: parent
+            width: Math.min(parent.width - Kirigami.Units.largeSpacing * 2, Kirigami.Units.gridUnit * 18)
+        }
     }
 
     Kirigami.InlineMessage {

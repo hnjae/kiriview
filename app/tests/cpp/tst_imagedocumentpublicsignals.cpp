@@ -14,6 +14,8 @@ class TestImageDocumentPublicSignals : public QObject
 
 private Q_SLOTS:
     void viewportProjectionPlansOneCoherentPublicBatch();
+    void statusPlansReadinessDependentPresentationSignals();
+    void loadingTargetPlansDedicatedPublicSignal();
     void publicSignalBatchPlansDeduplicateDerivedSignalsInEmissionOrder();
     void emitterCommitsTheSessionSnapshotBeforeProjectionSignals();
 };
@@ -35,6 +37,8 @@ kiriview::ImageDocumentPublicSignalOperations recordingOperations(QStringList& e
         = [&events]() { events.append(QStringLiteral("sessionSnapshot")); };
     operations.statusChanged = [&events]() { events.append(QStringLiteral("status")); };
     operations.loadingChanged = [&events]() { events.append(QStringLiteral("loading")); };
+    operations.loadingTargetChanged
+        = [&events]() { events.append(QStringLiteral("loadingTarget")); };
     operations.errorStringChanged = [&events]() { events.append(QStringLiteral("errorString")); };
     operations.displayedUrlChanged = [&events]() { events.append(QStringLiteral("displayedUrl")); };
     operations.imageSizeChanged = [&events]() { events.append(QStringLiteral("imageSize")); };
@@ -78,6 +82,31 @@ void TestImageDocumentPublicSignals::viewportProjectionPlansOneCoherentPublicBat
         });
 }
 
+void TestImageDocumentPublicSignals::statusPlansReadinessDependentPresentationSignals()
+{
+    using Signal = kiriview::ImageDocumentPublicSignal;
+
+    comparePublicSignals(
+        kiriview::imageDocumentPublicSignals(kiriview::ImageDocumentChange::Status),
+        {
+            Signal::Status,
+            Signal::ImageSize,
+            Signal::ViewportFrame,
+            Signal::ZoomPercentKnown,
+            Signal::ZoomPercent,
+            Signal::TwoPageMode,
+        });
+}
+
+void TestImageDocumentPublicSignals::loadingTargetPlansDedicatedPublicSignal()
+{
+    using Signal = kiriview::ImageDocumentPublicSignal;
+
+    comparePublicSignals(
+        kiriview::imageDocumentPublicSignals(kiriview::ImageDocumentChange::LoadingTarget),
+        { Signal::LoadingTarget });
+}
+
 void TestImageDocumentPublicSignals::
     publicSignalBatchPlansDeduplicateDerivedSignalsInEmissionOrder()
 {
@@ -92,12 +121,12 @@ void TestImageDocumentPublicSignals::
             Signal::PageNavigation,
             Signal::DisplayedUrl,
             Signal::Status,
-            Signal::ZoomPercentKnown,
-            Signal::Loading,
-            Signal::ErrorString,
             Signal::ImageSize,
             Signal::ViewportFrame,
+            Signal::ZoomPercentKnown,
             Signal::ZoomPercent,
+            Signal::Loading,
+            Signal::ErrorString,
             Signal::ZoomMode,
             Signal::MaximumManualZoomPercent,
             Signal::RightToLeftReading,

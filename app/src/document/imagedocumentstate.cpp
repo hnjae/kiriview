@@ -66,6 +66,8 @@ ImageDocumentStatus ImageDocumentState::status() const { return m_status; }
 
 bool ImageDocumentState::loading() const { return m_loading; }
 
+quint64 ImageDocumentState::loadingTargetRevision() const { return m_loadingTargetRevision; }
+
 const QString& ImageDocumentState::errorString() const { return m_errorString; }
 
 const std::optional<ImageLoadFailure>& ImageDocumentState::loadFailure() const
@@ -156,6 +158,15 @@ void ImageDocumentState::setLoading(bool loading)
     if (replaceIfChanged(m_loading, loading)) {
         notify(ImageDocumentChange::Loading);
     }
+}
+
+void ImageDocumentState::advanceLoadingTargetRevision()
+{
+    ++m_loadingTargetRevision;
+    if (m_loadingTargetRevision == 0) {
+        ++m_loadingTargetRevision;
+    }
+    notify(ImageDocumentChange::LoadingTarget);
 }
 
 void ImageDocumentState::setErrorString(const QString& errorString)

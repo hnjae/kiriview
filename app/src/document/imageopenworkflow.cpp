@@ -50,6 +50,7 @@ ImageOpenApplicationPlan openedCollectionVideoPlan(
     plan.stateDelta.unsupportedOpenedCollectionVideo = unsupported;
     plan.stateDelta.embeddedMetadata = EmbeddedMetadata {};
     plan.stateDelta.clearLoadingContainerNavigationUrl = true;
+    plan.runtimePlan.emplace_back(RetireViewportPresentationOperation {});
     plan.runtimePlan.emplace_back(ClearSecondaryPageOperation {});
     plan.runtimePlan.emplace_back(UpdatePageNavigationOperation {});
     return plan;
@@ -156,8 +157,9 @@ ImageOpenApplicationPlan beginSourceLoadPlan(ImageOpenBeginSourceLoadSnapshot sn
     }
     plan.stateDelta.loading = true;
     plan.stateDelta.status = ImageDocumentStatus::Loading;
+    plan.stateDelta.advanceLoadingTargetRevision = true;
     if (snapshot.hasImage || snapshot.sameScopePageNavigation) {
-        plan.runtimePlan.emplace_back(ClearPresentationImageOperation {});
+        plan.runtimePlan.emplace_back(StopPresentationPlaybackOperation {});
     } else {
         appendClearImage(plan.runtimePlan);
     }
@@ -229,6 +231,7 @@ ImageOpenApplicationPlan finishLoadWithErrorPlan(
     } else {
         plan.stateDelta.containerNavigationUrl = QUrl();
         plan.stateDelta.embeddedMetadata = EmbeddedMetadata {};
+        plan.runtimePlan.emplace_back(ClearPresentationImageOperation {});
     }
     return plan;
 }

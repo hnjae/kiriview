@@ -1,5 +1,8 @@
 # Non-Retained Image Target Transitions
 
+> [!NOTE]
+> This decision is superseded by [ADR 0010](0010-commit-gated-image-target-transitions.md).
+
 ## Context
 
 Retaining a previous image while another navigation target loads makes the visible image disagree with the user's current selection and complicates KiriView's selected-target, readiness, and error projections. KiriView already prepares adjacent images so common navigation can complete quickly, and transient loading phases do not by themselves justify immediate full-page loading feedback.

@@ -29,6 +29,16 @@ bool projectionActive(const kiriview::ImageViewportIntegrationProjection& projec
     return projection.sourceGeneration != 0;
 }
 
+bool projectionMatchesReadyImage(const kiriview::ImageDocumentState& state,
+    const kiriview::ImageViewportIntegrationProjection& projection)
+{
+    return state.status() == kiriview::ImageDocumentStatus::Ready
+        && state.sourceKind() == kiriview::ImageDocumentPageKind::Image
+        && projectionActive(projection) && projection.correlated
+        && projection.status == kiriview::ImageDocumentStatus::Ready
+        && !state.displayedUrl().isEmpty() && projection.displayedUrl == state.displayedUrl();
+}
+
 kiriview::ImageZoomMode imageZoomMode(ImageViewportFitMode fitMode)
 {
     switch (fitMode) {
@@ -137,22 +147,39 @@ ImageDocumentRuntime::loadOpenedCollectionVideoPlaybackDevice(
 
 ImageDocumentStatus ImageDocumentRuntime::status() const
 {
+    if (state.status() != ImageDocumentStatus::Ready) {
+        return state.status();
+    }
     return projectionActive(viewportProjection()) ? viewportProjection().status : state.status();
 }
 
 bool ImageDocumentRuntime::loading() const
 {
+    if (state.status() != ImageDocumentStatus::Ready) {
+        return state.loading();
+    }
     return projectionActive(viewportProjection()) ? viewportProjection().loading : state.loading();
+}
+
+QString ImageDocumentRuntime::loadingTargetToken() const
+{
+    return QString::number(state.loadingTargetRevision());
 }
 
 QString ImageDocumentRuntime::errorString() const
 {
+    if (state.status() != ImageDocumentStatus::Ready) {
+        return state.errorString();
+    }
     return projectionActive(viewportProjection()) ? viewportProjection().errorString
                                                   : state.errorString();
 }
 
 const std::optional<ImageLoadFailure>& ImageDocumentRuntime::loadFailure() const
 {
+    if (state.status() != ImageDocumentStatus::Ready) {
+        return state.loadFailure();
+    }
     return projectionActive(viewportProjection()) ? viewportProjection().failure
                                                   : state.loadFailure();
 }
@@ -180,23 +207,28 @@ QSize ImageDocumentRuntime::imageSize() const
 
 QSize ImageDocumentRuntime::primaryImageSize() const
 {
-    return projectionActive(viewportProjection()) ? viewportProjection().primaryImageSize : QSize();
+    return projectionMatchesReadyImage(state, viewportProjection())
+        ? viewportProjection().primaryImageSize
+        : QSize();
 }
 
 QSize ImageDocumentRuntime::secondaryImageSize() const
 {
-    return projectionActive(viewportProjection()) ? viewportProjection().secondaryImageSize
-                                                  : QSize();
+    return projectionMatchesReadyImage(state, viewportProjection())
+        ? viewportProjection().secondaryImageSize
+        : QSize();
 }
 
 bool ImageDocumentRuntime::viewportHorizontallyPannable() const
 {
-    return viewportProjection().correlated && viewportProjection().horizontallyPannable;
+    return projectionMatchesReadyImage(state, viewportProjection())
+        && viewportProjection().horizontallyPannable;
 }
 
 bool ImageDocumentRuntime::viewportVerticallyPannable() const
 {
-    return viewportProjection().correlated && viewportProjection().verticallyPannable;
+    return projectionMatchesReadyImage(state, viewportProjection())
+        && viewportProjection().verticallyPannable;
 }
 
 bool ImageDocumentRuntime::viewportPannable() const
@@ -206,42 +238,57 @@ bool ImageDocumentRuntime::viewportPannable() const
 
 qreal ImageDocumentRuntime::horizontalScrollPosition() const
 {
-    return viewportProjection().horizontalScrollPosition;
+    return projectionMatchesReadyImage(state, viewportProjection())
+        ? viewportProjection().horizontalScrollPosition
+        : 0.0;
 }
 
 qreal ImageDocumentRuntime::horizontalScrollPageSize() const
 {
-    return viewportProjection().horizontalScrollPageSize;
+    return projectionMatchesReadyImage(state, viewportProjection())
+        ? viewportProjection().horizontalScrollPageSize
+        : 1.0;
 }
 
 qreal ImageDocumentRuntime::verticalScrollPosition() const
 {
-    return viewportProjection().verticalScrollPosition;
+    return projectionMatchesReadyImage(state, viewportProjection())
+        ? viewportProjection().verticalScrollPosition
+        : 0.0;
 }
 
 qreal ImageDocumentRuntime::verticalScrollPageSize() const
 {
-    return viewportProjection().verticalScrollPageSize;
+    return projectionMatchesReadyImage(state, viewportProjection())
+        ? viewportProjection().verticalScrollPageSize
+        : 1.0;
 }
 
 bool ImageDocumentRuntime::submitHorizontalScrollPosition(qreal position)
 {
-    return runtimeGraph->viewportIntegration().submitHorizontalScrollPosition(position);
+    return projectionMatchesReadyImage(state, viewportProjection())
+        && runtimeGraph->viewportIntegration().submitHorizontalScrollPosition(position);
 }
 
 bool ImageDocumentRuntime::submitVerticalScrollPosition(qreal position)
 {
-    return runtimeGraph->viewportIntegration().submitVerticalScrollPosition(position);
+    return projectionMatchesReadyImage(state, viewportProjection())
+        && runtimeGraph->viewportIntegration().submitVerticalScrollPosition(position);
 }
 
 bool ImageDocumentRuntime::zoomPercentKnown() const
 {
     const ImageViewportIntegrationProjection& projection = viewportProjection();
-    return projection.correlated && projection.status == ImageDocumentStatus::Ready
-        && std::isfinite(projection.zoomPercent) && projection.zoomPercent > 0.0;
+    return projectionMatchesReadyImage(state, projection) && std::isfinite(projection.zoomPercent)
+        && projection.zoomPercent > 0.0;
 }
 
-qreal ImageDocumentRuntime::zoomPercent() const { return viewportProjection().zoomPercent; }
+qreal ImageDocumentRuntime::zoomPercent() const
+{
+    return projectionMatchesReadyImage(state, viewportProjection())
+        ? viewportProjection().zoomPercent
+        : 0.0;
+}
 
 bool ImageDocumentRuntime::requestManualZoomPercentAtCenter(qreal zoomPercent)
 {
@@ -435,11 +482,15 @@ bool ImageDocumentRuntime::rightToLeftReadingAvailable() const
 
 bool ImageDocumentRuntime::secondaryPageVisible() const
 {
-    return viewportProjection().correlated && viewportProjection().secondaryVisible;
+    return projectionMatchesReadyImage(state, viewportProjection())
+        && viewportProjection().secondaryVisible;
 }
 
 QPointF ImageDocumentRuntime::nearestImageViewportPoint(QPointF viewportPoint) const
 {
+    if (!projectionMatchesReadyImage(state, viewportProjection())) {
+        return invalidPoint();
+    }
     const QRectF contentRect = viewportProjection().contentRect;
     if (contentRect.isEmpty() || !pointIsFinite(viewportPoint)) {
         return invalidPoint();

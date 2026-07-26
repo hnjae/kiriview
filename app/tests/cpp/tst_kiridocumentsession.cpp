@@ -1795,7 +1795,7 @@ void TestKiriDocumentSession::directImageReplacementFailureKeepsTargetMediaCurso
     session->setSourceUrl(secondImage);
 
     QCOMPARE(imageDataLoader.loadCount(), std::size_t(2));
-    QCOMPARE(session->imageDocument()->displayedUrl(), QUrl());
+    QCOMPARE(session->imageDocument()->displayedUrl(), firstImage);
     QCOMPARE(session->sourceUrl(), secondImage);
     QCOMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Loading);
     QCOMPARE(session->windowTitleSubject(), QStringLiteral("02.png"));
@@ -2072,8 +2072,8 @@ void TestKiriDocumentSession::activeNavigationNumberDispatchRoutesImageDocumentP
     QTRY_VERIFY(leafSnapshotSpy.count() > snapshotCountBeforeNavigation);
     QTRY_COMPARE(dataLoader.backLoad().url, secondPage);
     QCOMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Loading);
-    QCOMPARE(session->imageDocument()->displayedUrl(), QUrl());
-    QVERIFY(session->imageDocument()->displayedOpenedCollectionScope().isEmpty());
+    QCOMPARE(session->imageDocument()->displayedUrl(), firstPage);
+    QCOMPARE(session->imageDocument()->displayedOpenedCollectionScope(), *archiveCollection);
     QVERIFY(session->activeImageOpenedCollectionScopeActive());
     QVERIFY(!session->activeImageReady());
     QCOMPARE(session->windowTitleSubject(), QStringLiteral("number-dispatch.cbz – 2/2"));
@@ -3107,7 +3107,9 @@ void TestKiriDocumentSession::pendingDirectImageReplacementDoesNotExposeDisplaye
     session->setSourceUrl(secondImage);
 
     QCOMPARE(imageDataLoader.loadCount(), std::size_t(2));
-    QCOMPARE(session->imageDocument()->displayedUrl(), QUrl());
+    QCOMPARE(session->imageDocument()->displayedUrl(), firstImage);
+    QCOMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Loading);
+    QVERIFY(!session->activeImageReady());
     QVERIFY(!session->displayedFileDeletionAvailable());
     session->deleteDisplayedFile(KiriDocumentSession::DeletionMode::MoveToTrash);
     QCOMPARE(fileDeletionProvider.operationCount(), std::size_t(0));

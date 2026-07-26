@@ -143,6 +143,7 @@ private:
         applyContainerNavigationUrl(delta.containerNavigationUrl);
         applyError(delta.errorString, delta.loadFailure);
         applyEmbeddedMetadata(delta.embeddedMetadata);
+        applyLoadingTargetRevision(delta);
         if (delta.clearLoadingContainerNavigationUrl) {
             applyTrackedLoadCompletion(delta);
         } else {
@@ -191,6 +192,13 @@ private:
     {
         if (loading.has_value()) {
             m_state.setLoading(*loading);
+        }
+    }
+
+    void applyLoadingTargetRevision(const kiriview::ImageOpenResolvedStateDelta& delta)
+    {
+        if (delta.advanceLoadingTargetRevision) {
+            m_state.advanceLoadingTargetRevision();
         }
     }
 

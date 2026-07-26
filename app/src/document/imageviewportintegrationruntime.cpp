@@ -64,7 +64,7 @@ PresentationTargetTransitionPolicy transitionPolicy(
     policy.setSpreadDirection(target.rightToLeft ? ImageViewportSpreadDirection::RightToLeft
                                                  : ImageViewportSpreadDirection::LeftToRight);
     policy.setDisplayTransition(
-        PresentationTargetTransitionPolicy::DisplayTransition::ClearBeforeLoad);
+        PresentationTargetTransitionPolicy::DisplayTransition::RetainPrevious);
     policy.setFailureTransition(
         PresentationTargetTransitionPolicy::FailureTransition::KeepFailedTarget);
 
@@ -185,12 +185,6 @@ bool ImageViewportIntegrationRuntime::submitTarget(ImageViewportIntegrationTarge
     }
     m_target = std::move(target);
     m_activeRecord = nullptr;
-    ImageViewportIntegrationProjection pending;
-    pending.sourceGeneration = m_target->sourceGeneration;
-    pending.secondaryUrl = m_target->secondaryUrl;
-    pending.status = ImageDocumentStatus::Loading;
-    pending.loading = true;
-    publishProjection(std::move(pending));
     return m_viewport == nullptr || submitCurrentTarget();
 }
 
@@ -202,6 +196,15 @@ void ImageViewportIntegrationRuntime::clearTarget()
         m_viewport->clear();
     }
     publishProjection({});
+}
+
+void ImageViewportIntegrationRuntime::stopPlayback()
+{
+    if (m_viewport == nullptr) {
+        return;
+    }
+    m_viewport->stop(ImageViewportPageRole::Primary);
+    m_viewport->stop(ImageViewportPageRole::Secondary);
 }
 
 const ImageViewportIntegrationProjection& ImageViewportIntegrationRuntime::projection() const

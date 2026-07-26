@@ -249,6 +249,11 @@ void ImageDocumentRuntimeGraph::composeWorkflowDispatch(ImageDocumentState& stat
             m_mediaEntrySourceStore.get(),
             m_deletionController.get(),
             [this]() { clearViewportTarget(); },
+            [this]() {
+                if (m_viewportIntegration != nullptr) {
+                    m_viewportIntegration->stopPlayback();
+                }
+            },
             m_openController.get(),
             m_predecodeController.get(),
             m_spreadController.get(),
@@ -281,7 +286,11 @@ ImageViewportIntegrationRuntime& ImageDocumentRuntimeGraph::viewportIntegration(
 std::optional<DisplayedPredecodeImage>
 ImageDocumentRuntimeGraph::primaryDisplayedPredecodeImage() const
 {
-    if (m_viewportIntegration == nullptr || m_state.displayedImageLocation().isEmpty()) {
+    if (m_viewportIntegration == nullptr || m_state.status() != ImageDocumentStatus::Ready
+        || m_state.sourceKind() != ImageDocumentPageKind::Image
+        || m_state.displayedImageLocation().isEmpty()
+        || m_viewportIntegration->projection().status != ImageDocumentStatus::Ready
+        || m_viewportIntegration->projection().displayedUrl != m_state.displayedUrl()) {
         return std::nullopt;
     }
     std::optional<StaticDisplayImagePayload> displayImage

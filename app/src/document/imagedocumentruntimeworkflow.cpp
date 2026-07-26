@@ -187,6 +187,14 @@ kiriview::ImageDocumentRuntimeOperations runtimeOperations(
             ports.spreadController->clearPrimaryPageSlot();
         }
     };
+    operations.open.retireViewportPresentation = [ports]() {
+        kiriview::invokeIfSet(ports.clearViewportTarget);
+        if (ports.spreadController != nullptr) {
+            ports.spreadController->clearPrimaryPageSlot();
+        }
+    };
+    operations.open.stopPresentationPlayback
+        = [ports]() { kiriview::invokeIfSet(ports.stopViewportPlayback); };
     operations.sourceLoad.clearLoadingContainerNavigationUrl = [ports]() {
         if (ports.state != nullptr) {
             ports.state->clearLoadingContainerNavigationUrl();

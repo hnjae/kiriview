@@ -123,6 +123,10 @@ struct RecordedRuntimeOperations
         operations.open.cancelOpen = [this]() { record(QStringLiteral("cancelOpen")); };
         operations.open.clearPresentationImage
             = [this]() { record(QStringLiteral("clearPresentationImage")); };
+        operations.open.retireViewportPresentation
+            = [this]() { record(QStringLiteral("retireViewportPresentation")); };
+        operations.open.stopPresentationPlayback
+            = [this]() { record(QStringLiteral("stopPresentationPlayback")); };
         operations.sourceLoad.clearLoadingContainerNavigationUrl
             = [this]() { record(QStringLiteral("clearLoadingContainerNavigationUrl")); };
         operations.sourceLoad.setLoadingContainerNavigationUrl = [this](const QUrl& targetUrl) {
@@ -463,6 +467,8 @@ void TestImageDocumentRuntimePlanExecutor::runtimePlansDispatchEveryOperationExp
         },
         kiriview::CancelOpenOperation {},
         kiriview::ClearPresentationImageOperation {},
+        kiriview::RetireViewportPresentationOperation {},
+        kiriview::StopPresentationPlaybackOperation {},
         kiriview::ClearLoadingContainerNavigationUrlOperation {},
         kiriview::SetLoadingContainerNavigationUrlOperation { containerUrl },
         kiriview::SetContainerNavigationUrlOperation { containerUrl },
@@ -510,6 +516,8 @@ void TestImageDocumentRuntimePlanExecutor::runtimePlansDispatchEveryOperationExp
             QStringLiteral("loadPageNavigationUrl"),
             QStringLiteral("cancelOpen"),
             QStringLiteral("clearPresentationImage"),
+            QStringLiteral("retireViewportPresentation"),
+            QStringLiteral("stopPresentationPlayback"),
             QStringLiteral("clearLoadingContainerNavigationUrl"),
             QStringLiteral("setLoadingContainerNavigationUrl"),
             QStringLiteral("setContainerNavigationUrl"),

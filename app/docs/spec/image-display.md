@@ -4,7 +4,9 @@
 
 The UI remains responsive while a selected image is being opened.
 
-When an image target is selected, KiriView immediately clears any previously displayed image. If the target is ready within 150 milliseconds, it appears without an intervening loading state. Otherwise the empty image viewport shows the loading state until the target is ready.
+When an image target is selected, KiriView accepts that selected target immediately. A previous complete image may remain visible as a non-interactive fallback while the matching replacement presentation is pending.
+
+If the matching replacement presentation becomes display-ready within 150 milliseconds, it replaces the fallback without an intervening blank viewport or loading state. Otherwise a loading surface covers the image viewport until the target is display-ready.
 
 While the selected image target is loading or showing its target-specific error, the window title identifies that selected file or collection. Collection-specific toolbar controls remain placed when the selected target remains in that collection, but controls that require a ready displayed image stay disabled until the matching target is ready.
 
@@ -12,13 +14,13 @@ If no media item is selected, the empty state says that no file is selected and 
 
 If the selected image cannot be opened while no media item is displayed, the error state explains that the selected file or URL could not be opened, shows the underlying error when available, and offers Open. Initial video failures use the stable video error behavior defined in [Video Playback](video-playback.md#source-url-identity) and also offer Open.
 
-If a media item is already displayed and users select a different image, the requested image becomes the selected target and owns the image viewport immediately, whether or not it belongs to the current active navigation scope. The previous image presentation is cleared before KiriView prepares the requested image.
+If a media item is already displayed and users select a different image, the requested image becomes the selected target immediately, whether or not it belongs to the current active navigation scope. Any retained fallback pixels continue to identify the previous committed presentation and are not treated as a ready presentation of the selected target.
 
 If a media item is already displayed and users select a video, KiriView leaves image mode immediately and shows the video loading state.
 
 If another file or navigation target is selected before the previous load finishes, only the most recent selection is displayed.
 
-When a different image target is selected while an image is already displayed, any running animation stops when the previous image presentation is cleared.
+When a different image target is selected while an image is already displayed, any running animation stops immediately even when its last complete frame remains temporarily visible as the fallback.
 
 If the selected URL cannot be read or the file is not a decodable image or playable video, KiriView keeps the selected target active and shows the target's error state instead of restoring the previous media item.
 

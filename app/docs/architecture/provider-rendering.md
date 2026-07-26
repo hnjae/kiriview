@@ -24,7 +24,7 @@ flowchart LR
 
 Before submitting a target, the integration owner records the intended application source and role identities. A displayed URL, image readiness, toolbar zoom, page-role projection, or error projection is published only from a supported observation that matches that application record. Opaque correlation values from the dependency are compared only as its public contract permits; delayed observations or UI actions associated with an older application target cannot update a newer selection.
 
-The integration owner submits target and presentation requests needed to implement the transitions defined in the product specification. KiriView publishes coherent application state for those transitions and does not infer intermediate dependency state.
+The integration owner submits target and presentation requests needed to implement the transitions defined in the product specification. A replacement retains only the dependency-observed complete committed display until the accepted target render-commits or becomes terminal; retained pixels remain correlated with their displayed generation and never supply readiness or geometry for the accepted target. KiriView publishes coherent application state for those transitions and does not infer intermediate dependency state.
 
 ## Sequence Provider Boundary
 
@@ -42,7 +42,7 @@ KiriView may answer public provider demand with a validated preview, bounded-det
 
 Refinement work is best-effort cancelable. A completion may populate an application-owned bounded cache under its reuse identity, but the provider may return it only for a matching current public request. KiriView does not decide whether or how the dependency incorporates a valid result into presentation.
 
-Predecoded still images are adapted through the same supported provider interface as foreground decodes. Video rows may guide adjacent-image preparation but never create still-image provider payloads.
+Predecoded still images are adapted through the same supported provider interface as foreground decodes. Their availability is not a presentation-ready observation and does not select loading feedback. Video rows may guide adjacent-image preparation but never create still-image provider payloads.
 
 ## Animation And SVG
 
@@ -54,4 +54,4 @@ The Rust static SVG capability parses and rasterizes self-contained SVG content 
 
 ## QML Boundary
 
-QML owns workspace layout, panels, focus, context-menu placement, raw gesture sampling, and the presentation delay for transient loading feedback. It forwards image interaction facts through the KiriView integration owner and renders application projections. QML must not invoke the dependency directly, reconstruct its state, derive shared readiness or action state from unmatched observations, or use visual-item events as provider lifetime acknowledgements.
+QML owns workspace layout, panels, focus, context-menu placement, raw gesture sampling, and the presentation delay for transient loading feedback. The delay is correlated with an application-owned accepted-target lifecycle; a pending callback from a superseded lifecycle cannot make feedback visible for the current target. It forwards image interaction facts through the KiriView integration owner and renders application projections. QML must not invoke the dependency directly, reconstruct its state, derive shared readiness or action state from unmatched observations, use cache availability as presentation readiness, or use visual-item events as provider lifetime acknowledgements.

@@ -94,6 +94,7 @@ public:
 
     bool submitTarget(ImageViewportIntegrationTarget target);
     void clearTarget();
+    void stopPlayback();
     const ImageViewportIntegrationProjection& projection() const;
     std::optional<StaticDisplayImagePayload> displayedImage(ImageViewportPageRole role) const;
 

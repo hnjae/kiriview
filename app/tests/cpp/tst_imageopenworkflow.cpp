@@ -189,6 +189,7 @@ void TestImageOpenWorkflow::applicationPlansUseExplicitInputs()
     QCOMPARE(initialLoad.stateDelta.loading, std::optional<bool>(true));
     QCOMPARE(initialLoad.stateDelta.status,
         std::optional<kiriview::ImageDocumentStatus>(kiriview::ImageDocumentStatus::Loading));
+    QVERIFY(initialLoad.stateDelta.advanceLoadingTargetRevision);
     QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(initialLoad.runtimePlan));
 
     const kiriview::ImageOpenApplicationPlan routedLoad
@@ -203,14 +204,17 @@ void TestImageOpenWorkflow::applicationPlansUseExplicitInputs()
     QCOMPARE(replacementLoad.stateDelta.status,
         std::optional<kiriview::ImageDocumentStatus>(kiriview::ImageDocumentStatus::Loading));
     QCOMPARE(replacementLoad.runtimePlan.size(), std::size_t(1));
-    QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(replacementLoad.runtimePlan));
+    QVERIFY(hasOperation<kiriview::StopPresentationPlaybackOperation>(replacementLoad.runtimePlan));
+    QVERIFY(!hasOperation<kiriview::ClearPresentationImageOperation>(replacementLoad.runtimePlan));
     QVERIFY(!hasOperation<kiriview::ClearPageNavigationOperation>(replacementLoad.runtimePlan));
 
     const kiriview::ImageOpenApplicationPlan pendingPageNavigationLoad
         = kiriview::ImageOpenWorkflow::beginSourceLoadPlan(
             kiriview::ImageOpenBeginSourceLoadSnapshot { false, false, true });
     QCOMPARE(pendingPageNavigationLoad.runtimePlan.size(), std::size_t(1));
-    QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(
+    QVERIFY(hasOperation<kiriview::StopPresentationPlaybackOperation>(
+        pendingPageNavigationLoad.runtimePlan));
+    QVERIFY(!hasOperation<kiriview::ClearPresentationImageOperation>(
         pendingPageNavigationLoad.runtimePlan));
     QVERIFY(!hasOperation<kiriview::ClearPageNavigationOperation>(
         pendingPageNavigationLoad.runtimePlan));
@@ -226,6 +230,8 @@ void TestImageOpenWorkflow::applicationPlansUseExplicitInputs()
     QVERIFY(!replacementFailure.stateDelta.selectedTarget.has_value());
     QCOMPARE(replacementFailure.stateDelta.status,
         std::optional<kiriview::ImageDocumentStatus>(kiriview::ImageDocumentStatus::Error));
+    QVERIFY(
+        hasOperation<kiriview::ClearPresentationImageOperation>(replacementFailure.runtimePlan));
     QVERIFY(!hasOperation<kiriview::UpdatePageNavigationOperation>(replacementFailure.runtimePlan));
 }
 
@@ -312,9 +318,10 @@ void TestImageOpenWorkflow::unsupportedOpenedCollectionVideoTransitionPublishesR
     QVERIFY(!state.loading());
     QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Ready);
     QVERIFY(state.unsupportedOpenedCollectionVideo());
-    QCOMPARE(plan.size(), std::size_t(2));
-    QVERIFY(operationAtType<kiriview::ClearSecondaryPageOperation>(plan, 0));
-    QVERIFY(operationAtType<kiriview::UpdatePageNavigationOperation>(plan, 1));
+    QCOMPARE(plan.size(), std::size_t(3));
+    QVERIFY(operationAtType<kiriview::RetireViewportPresentationOperation>(plan, 0));
+    QVERIFY(operationAtType<kiriview::ClearSecondaryPageOperation>(plan, 1));
+    QVERIFY(operationAtType<kiriview::UpdatePageNavigationOperation>(plan, 2));
 }
 
 void TestImageOpenWorkflow::playableOpenedCollectionVideoTransitionPublishesHandoffState()
@@ -348,9 +355,10 @@ void TestImageOpenWorkflow::playableOpenedCollectionVideoTransitionPublishesHand
     QVERIFY(!state.loading());
     QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Ready);
     QVERIFY(!state.unsupportedOpenedCollectionVideo());
-    QCOMPARE(plan.size(), std::size_t(2));
-    QVERIFY(operationAtType<kiriview::ClearSecondaryPageOperation>(plan, 0));
-    QVERIFY(operationAtType<kiriview::UpdatePageNavigationOperation>(plan, 1));
+    QCOMPARE(plan.size(), std::size_t(3));
+    QVERIFY(operationAtType<kiriview::RetireViewportPresentationOperation>(plan, 0));
+    QVERIFY(operationAtType<kiriview::ClearSecondaryPageOperation>(plan, 1));
+    QVERIFY(operationAtType<kiriview::UpdatePageNavigationOperation>(plan, 2));
 }
 
 void TestImageOpenWorkflow::firstImageLoadSuccessTransitionsToReady()
@@ -430,7 +438,7 @@ void TestImageOpenWorkflow::replacementLoadFailureSelectsTargetError()
 
     const kiriview::ImageDocumentRuntimePlan plan = finishLoadWithError(
         state, loadSession(replacementUrl, replacementUrl), QStringLiteral("missing"));
-    QVERIFY(!hasOperation<kiriview::ClearPresentationImageOperation>(plan));
+    QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(plan));
     QVERIFY(!hasOperation<kiriview::UpdatePageNavigationOperation>(plan));
     QVERIFY(!hasOperation<kiriview::ScheduleAdjacentImagePredecodeOperation>(plan));
     QCOMPARE(state.sourceUrl(), replacementUrl);
@@ -487,7 +495,7 @@ void TestImageOpenWorkflow::routedLoadFailureAppliesErrorTransitions()
         state.setStatus(kiriview::ImageDocumentStatus::Loading);
         const kiriview::ImageDocumentRuntimePlan plan
             = finishLoadWithError(state, imageSession, QStringLiteral("missing"));
-        QVERIFY(!hasOperation<kiriview::ClearPresentationImageOperation>(plan));
+        QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(plan));
         QVERIFY(!hasOperation<kiriview::UpdatePageNavigationOperation>(plan));
         QCOMPARE(state.sourceUrl(), localUrl(QStringLiteral("/images/missing.png")));
         QCOMPARE(state.displayedUrl(), QUrl());
@@ -499,7 +507,7 @@ void TestImageOpenWorkflow::routedLoadFailureAppliesErrorTransitions()
         state.setLoading(true);
         const kiriview::ImageDocumentRuntimePlan plan
             = finishLoadWithError(state, imageSession, QStringLiteral("missing"));
-        QVERIFY(!hasOperation<kiriview::ClearPresentationImageOperation>(plan));
+        QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(plan));
         QCOMPARE(state.sourceUrl(), QUrl());
         QCOMPARE(state.containerNavigationUrl(), QUrl());
         QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Error);
@@ -681,10 +689,11 @@ void TestImageOpenWorkflow::stateChangesFollowWorkflowDeltaOrder()
 
         beginSourceLoad(state, false);
 
-        QCOMPARE(changes.size(), std::size_t(3));
+        QCOMPARE(changes.size(), std::size_t(4));
         QCOMPARE(changes.at(0), kiriview::ImageDocumentChange::EmbeddedMetadata);
-        QCOMPARE(changes.at(1), kiriview::ImageDocumentChange::Loading);
-        QCOMPARE(changes.at(2), kiriview::ImageDocumentChange::Status);
+        QCOMPARE(changes.at(1), kiriview::ImageDocumentChange::LoadingTarget);
+        QCOMPARE(changes.at(2), kiriview::ImageDocumentChange::Loading);
+        QCOMPARE(changes.at(3), kiriview::ImageDocumentChange::Status);
     }
 
     {

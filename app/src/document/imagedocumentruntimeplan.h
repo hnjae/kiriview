@@ -101,6 +101,12 @@ struct CancelOpenOperation
 struct ClearPresentationImageOperation
 {
 };
+struct RetireViewportPresentationOperation
+{
+};
+struct StopPresentationPlaybackOperation
+{
+};
 struct ClearLoadingContainerNavigationUrlOperation
 {
 };
@@ -141,10 +147,11 @@ using ImageDocumentRuntimeOperation = std::variant<CancelFileDeletionOperation,
     LoadContainerImageOperation, FinishEmptyContainerNavigationOperation,
     FinishContainerNavigationLoadWithErrorOperation, ReportContainerNavigationBoundaryOperation,
     ReportContainerNavigationListFailureOperation, LoadPageNavigationUrlOperation,
-    CancelOpenOperation, ClearPresentationImageOperation,
-    ClearLoadingContainerNavigationUrlOperation, SetLoadingContainerNavigationUrlOperation,
-    SetContainerNavigationUrlOperation, PrepareSourceLoadOperation, SelectImageTargetOperation,
-    BeginOpenOperation, SetErrorStringOperation, FinishEmptySourceLoadOperation>;
+    CancelOpenOperation, ClearPresentationImageOperation, RetireViewportPresentationOperation,
+    StopPresentationPlaybackOperation, ClearLoadingContainerNavigationUrlOperation,
+    SetLoadingContainerNavigationUrlOperation, SetContainerNavigationUrlOperation,
+    PrepareSourceLoadOperation, SelectImageTargetOperation, BeginOpenOperation,
+    SetErrorStringOperation, FinishEmptySourceLoadOperation>;
 
 using ImageDocumentRuntimePlan = std::vector<ImageDocumentRuntimeOperation>;
 

@@ -26,6 +26,7 @@ private Q_SLOTS:
     void displayedImageLocationUsesCanonicalIdentity();
     void containerNavigationAvailabilityFollowsContainerUrl();
     void statusAndLoadingReducersOnlyNotifyWhenChanged();
+    void loadingTargetRevisionAdvancesForEveryLifecycle();
     void loadFailureStoresDiagnosticsAndPublishesUserMessage();
     void changeBatchQueuesUniqueChangesUntilDestroyed();
     void injectedChangeBatchSharesStateAndRuntimeNotifications();
@@ -152,6 +153,25 @@ void TestImageDocumentState::statusAndLoadingReducersOnlyNotifyWhenChanged()
 
     state.setLoading(true);
     QCOMPARE(changes.size(), std::size_t(2));
+}
+
+void TestImageDocumentState::loadingTargetRevisionAdvancesForEveryLifecycle()
+{
+    std::vector<kiriview::ImageDocumentChange> changes;
+    kiriview::ImageDocumentState state(
+        [&changes](kiriview::ImageDocumentChange change) { changes.push_back(change); });
+
+    QCOMPARE(state.loadingTargetRevision(), quint64(0));
+
+    state.advanceLoadingTargetRevision();
+    const quint64 firstRevision = state.loadingTargetRevision();
+    QVERIFY(firstRevision != 0);
+    QCOMPARE(changes.back(), kiriview::ImageDocumentChange::LoadingTarget);
+
+    state.advanceLoadingTargetRevision();
+    QVERIFY(state.loadingTargetRevision() != firstRevision);
+    QCOMPARE(changes.size(), std::size_t(2));
+    QCOMPARE(changes.back(), kiriview::ImageDocumentChange::LoadingTarget);
 }
 
 void TestImageDocumentState::loadFailureStoresDiagnosticsAndPublishesUserMessage()
