@@ -21,6 +21,7 @@ Controls.Control {
     required property int fitWidthMode
     required property int fitModeSelection
     property bool textVisible: true
+    property bool interactionEnabled: enabled
 
     property alias display: fitButton.display
     property alias text: fitButton.text
@@ -43,6 +44,12 @@ Controls.Control {
     rightPadding: 0
     topPadding: 0
 
+    onInteractionEnabledChanged: {
+        if (!interactionEnabled) {
+            fitMenu.dismiss();
+        }
+    }
+
     contentItem: Controls.ToolButton {
         id: fitButton
 
@@ -50,7 +57,7 @@ Controls.Control {
 
         Accessible.name: menuTooltip
         Accessible.role: Accessible.ButtonMenu
-        Accessible.ignored: !visible
+        Accessible.ignored: !visible || !root.interactionEnabled
 
         display: root.textVisible ? Controls.AbstractButton.TextBesideIcon : Controls.AbstractButton.IconOnly
         enabled: root.enabled
@@ -61,7 +68,11 @@ Controls.Control {
         Controls.ToolTip.text: menuTooltip
         Controls.ToolTip.visible: hovered && Controls.ToolTip.text.length > 0 && !fitMenu.visible && !pressed && !Kirigami.Settings.hasTransientTouchInput
 
-        onClicked: fitMenu.open()
+        onClicked: {
+            if (root.interactionEnabled) {
+                fitMenu.open();
+            }
+        }
     }
 
     Controls.Menu {

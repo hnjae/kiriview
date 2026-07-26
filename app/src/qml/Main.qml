@@ -320,6 +320,7 @@ StatefulApp.StatefulWindow {
             openActiveNavigationAtNumber: function (number) {
                 documentSession.openActiveNavigationAtNumber(number);
             }
+            replacementGraceActive: mediaWorkspaceHost.imageReplacementGraceActive
             showApplicationMenuActions: !root.menuBarMode && !root.fullscreen
             transientOverlay: root.fullscreen
             videoMode: page.videoMode

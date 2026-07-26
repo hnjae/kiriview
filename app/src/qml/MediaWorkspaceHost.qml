@@ -25,6 +25,7 @@ Item {
     readonly property bool infoPanelInlineMode: width >= infoPanelWideBreakpoint
     readonly property bool infoPanelVisible: infoPanelOpen
     readonly property bool thumbnailPanelVisible: thumbnailPanel.visible
+    readonly property bool imageReplacementGraceActive: mediaViewportHost.imageReplacementGraceActive
 
     signal viewerClicked
     signal viewerContextMenuRequested(var popupParent, point position)

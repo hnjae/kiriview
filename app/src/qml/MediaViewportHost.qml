@@ -17,6 +17,7 @@ Item {
     readonly property bool imageMode: documentSession.documentKind === KiriDocumentSession.Image
     readonly property bool videoMode: documentSession.documentKind === KiriDocumentSession.Video
     readonly property bool imageReady: documentSession.activeImageReady
+    readonly property alias imageReplacementGraceActive: imageStateOverlay.replacementGraceActive
     readonly property url activeDelegateSource: imageMode ? Qt.resolvedUrl("ImageViewport.qml") : videoMode ? Qt.resolvedUrl("VideoViewport.qml") : ""
     readonly property var activeDelegate: mediaViewportDelegateLoader.item
 
@@ -86,6 +87,8 @@ Item {
     }
 
     ImageStateOverlay {
+        id: imageStateOverlay
+
         anchors.fill: parent
         imageDocument: root.imageDocument
         imageReady: root.imageReady

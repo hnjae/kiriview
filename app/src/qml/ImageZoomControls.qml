@@ -19,6 +19,8 @@ RowLayout {
     property bool readOnlyDisplayMode: false
     property bool readOnlyPercentKnown: false
     property int readOnlyPercent: 0
+    property bool presentationEnabled: zoomEditable
+    property bool interactionEnabled: zoomEditable
     property bool zoomPercentAvailable: readOnlyDisplayMode || imageReady
     property bool zoomPercentKnown: readOnlyDisplayMode ? readOnlyPercentKnown : imageReady
     property real zoomPercent: readOnlyDisplayMode ? readOnlyPercent : imageDocument.zoomPercent
@@ -46,6 +48,12 @@ RowLayout {
 
     function textInputFocused() {
         return zoomSpinBox.activeFocus || zoomTextInput.activeFocus;
+    }
+
+    onInteractionEnabledChanged: {
+        if (!interactionEnabled) {
+            cancelEditing(false);
+        }
     }
 
     function steppedZoomValue(stepCount) {
@@ -78,6 +86,8 @@ RowLayout {
 
         objectName: "zoomSpinBox"
 
+        Accessible.ignored: root.presentationEnabled && !root.interactionEnabled
+
         property bool completingEdit: false
         readonly property int zoomDisplayWidth: 5
         readonly property real zoomDisplayEpsilon: 0.001
@@ -91,7 +101,7 @@ RowLayout {
         readonly property string editableDisplayText: plainZoomText(value)
 
         editable: root.zoomEditable
-        enabled: root.zoomEditable
+        enabled: root.presentationEnabled
         from: root.zoomEditable ? Math.min(root.minimumManualZoomPercent, Math.floor(numericZoomPercent)) : 0
         implicitWidth: Kirigami.Units.gridUnit * 5
         live: false
@@ -333,6 +343,17 @@ RowLayout {
                 if (zoomSpinBox.down.pressed) {
                     root.pendingZoomStepCount = -1;
                 }
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.AllButtons
+            enabled: root.presentationEnabled && !root.interactionEnabled
+            z: 100
+
+            onWheel: wheel => {
+                wheel.accepted = true;
             }
         }
     }

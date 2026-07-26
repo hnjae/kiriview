@@ -17,6 +17,8 @@ Item {
     readonly property bool imageLoading: imageDocument.status === KiriImageDocument.Loading
     readonly property bool loadingFeedbackVisible: imageLoading && loadingFeedbackArmed
     readonly property string loadingTargetKey: imageDocument.loadingTargetToken + "|" + imageDocument.twoPageModeEnabled
+    readonly property bool replacementPending: imageLoading && imageDocument.displayedUrl.toString().length > 0
+    readonly property bool replacementGraceActive: replacementPending && !loadingFeedbackVisible
     property bool loadingFeedbackArmed: false
     property string scheduledLoadingTargetKey: ""
 

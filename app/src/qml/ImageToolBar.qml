@@ -27,6 +27,7 @@ Controls.ToolBar {
     property var applicationMenuActions: []
     property bool showApplicationMenuActions: false
     property bool videoMode: false
+    property bool replacementGraceActive: false
     property bool zoomPercentAvailable: imageReady
     property bool zoomPercentKnown: imageReady
     property real zoomPercent: imageDocument.zoomPercent
@@ -48,8 +49,15 @@ Controls.ToolBar {
     readonly property int fitModeSelection: imageDocument?.fitModeSelection ?? KiriImageDocument.Fit
     readonly property bool fitMenuButtonTextVisible: width >= Kirigami.Units.gridUnit * 40
     readonly property bool interactionActive: textInputFocused() || applicationMenuOpen()
+    readonly property bool readyControlPresentationRetained: replacementGraceActive && !imageReady && !videoMode
+    readonly property int presentedFitModeSelection: readyControlPresentationRetained ? lastReadyPresentation.fitModeSelection : fitModeSelection
+    readonly property bool presentedImageReady: readyControlPresentationRetained || imageReady
+    readonly property bool presentedZoomEditable: readyControlPresentationRetained ? lastReadyPresentation.zoomEditable : zoomEditable
+    readonly property bool presentedZoomPercentAvailable: readyControlPresentationRetained ? lastReadyPresentation.zoomPercentAvailable : zoomPercentAvailable
+    readonly property bool presentedZoomPercentKnown: readyControlPresentationRetained ? lastReadyPresentation.zoomPercentKnown : zoomPercentKnown
+    readonly property real presentedZoomPercent: readyControlPresentationRetained ? lastReadyPresentation.zoomPercent : zoomPercent
     readonly property int toolbarVerticalPadding: controlSpacing
-    readonly property var imageToolbarControls: (root.collectionControlsVisible ? [root.actions.rightToLeftReadingAction, root.actions.twoPageModeAction] : []).concat([fitMenuAction, zoomLevelAction])
+    readonly property var imageToolbarControls: (root.collectionControlsVisible ? [rightToLeftToolbarAction, twoPageToolbarAction] : []).concat([fitMenuAction, zoomLevelAction])
     readonly property var toolbarControls: imageToolbarControls
     readonly property var toolbarActions: showApplicationMenuActions ? toolbarControls.concat([applicationMenuAction]) : toolbarControls
 
@@ -74,6 +82,28 @@ Controls.ToolBar {
 
         textInputCommitRequested(returnViewerFocus === undefined ? true : returnViewerFocus);
         return true;
+    }
+
+    function captureReadyControlPresentation() {
+        if (!imageReady || videoMode || readyControlPresentationRetained) {
+            return;
+        }
+
+        lastReadyPresentation.rightToLeftEnabled = actions.rightToLeftReadingAction?.enabled ?? false;
+        lastReadyPresentation.rightToLeftChecked = actions.rightToLeftReadingAction?.checked ?? false;
+        lastReadyPresentation.twoPageEnabled = actions.twoPageModeAction?.enabled ?? false;
+        lastReadyPresentation.twoPageChecked = actions.twoPageModeAction?.checked ?? false;
+        lastReadyPresentation.fitEnabled = fitModeAction(fitModeSelection)?.enabled ?? false;
+        lastReadyPresentation.fitModeSelection = fitModeSelection;
+        lastReadyPresentation.zoomActionEnabled = !videoMode && imageReady;
+        lastReadyPresentation.zoomEditable = zoomEditable;
+        lastReadyPresentation.zoomPercentAvailable = zoomPercentAvailable;
+        lastReadyPresentation.zoomPercentKnown = zoomPercentKnown;
+        lastReadyPresentation.zoomPercent = zoomPercent;
+    }
+
+    function scheduleReadyControlPresentationCapture() {
+        readyControlPresentationCaptureTimer.restart();
     }
 
     function applicationMenuOpen() {
@@ -197,9 +227,81 @@ Controls.ToolBar {
     topPadding: toolbarVerticalPadding
     bottomPadding: toolbarVerticalPadding
 
+    onActionsChanged: scheduleReadyControlPresentationCapture()
+    onFitModeSelectionChanged: scheduleReadyControlPresentationCapture()
+    onImageReadyChanged: scheduleReadyControlPresentationCapture()
+    onReplacementGraceActiveChanged: {
+        if (replacementGraceActive && imageReady) {
+            captureReadyControlPresentation();
+        } else {
+            scheduleReadyControlPresentationCapture();
+        }
+    }
+    onVideoModeChanged: scheduleReadyControlPresentationCapture()
+    onZoomEditableChanged: scheduleReadyControlPresentationCapture()
+    onZoomPercentAvailableChanged: scheduleReadyControlPresentationCapture()
+    onZoomPercentChanged: scheduleReadyControlPresentationCapture()
+    onZoomPercentKnownChanged: scheduleReadyControlPresentationCapture()
+
     Component.onCompleted: {
         if (floating) {
             background = floatingBackgroundComponent.createObject(root);
+        }
+        scheduleReadyControlPresentationCapture();
+    }
+
+    Timer {
+        id: readyControlPresentationCaptureTimer
+
+        interval: 0
+        onTriggered: root.captureReadyControlPresentation()
+    }
+
+    QtObject {
+        id: lastReadyPresentation
+
+        property bool rightToLeftEnabled: false
+        property bool rightToLeftChecked: false
+        property bool twoPageEnabled: false
+        property bool twoPageChecked: false
+        property bool fitEnabled: false
+        property int fitModeSelection: KiriImageDocument.Fit
+        property bool zoomActionEnabled: false
+        property bool zoomEditable: false
+        property bool zoomPercentAvailable: false
+        property bool zoomPercentKnown: false
+        property real zoomPercent: 0
+    }
+
+    Connections {
+        target: root.actions.rightToLeftReadingAction
+
+        function onCheckedChanged() {
+            root.scheduleReadyControlPresentationCapture();
+        }
+
+        function onEnabledChanged() {
+            root.scheduleReadyControlPresentationCapture();
+        }
+    }
+
+    Connections {
+        target: root.actions.twoPageModeAction
+
+        function onCheckedChanged() {
+            root.scheduleReadyControlPresentationCapture();
+        }
+
+        function onEnabledChanged() {
+            root.scheduleReadyControlPresentationCapture();
+        }
+    }
+
+    Connections {
+        target: root.fitModeAction(root.fitModeSelection)
+
+        function onEnabledChanged() {
+            root.scheduleReadyControlPresentationCapture();
         }
     }
 
@@ -227,22 +329,66 @@ Controls.ToolBar {
         }
     }
 
+    readonly property Kirigami.Action rightToLeftToolbarAction: Kirigami.Action {
+        readonly property var sourceAction: root.actions.rightToLeftReadingAction
+
+        autoExclusive: sourceAction?.autoExclusive ?? false
+        checkable: sourceAction?.checkable ?? false
+        checked: root.readyControlPresentationRetained ? lastReadyPresentation.rightToLeftChecked : (sourceAction?.checked ?? false)
+        displayHint: sourceAction?.displayHint ?? Kirigami.DisplayHint.KeepVisible
+        enabled: root.readyControlPresentationRetained ? lastReadyPresentation.rightToLeftEnabled : (sourceAction?.enabled ?? false)
+        icon.name: sourceAction?.icon.name ?? ""
+        shortcut: ""
+        text: sourceAction?.text ?? ""
+        tooltip: sourceAction?.tooltip ?? text
+        visible: sourceAction?.visible ?? true
+
+        onTriggered: {
+            if (sourceAction?.enabled ?? false) {
+                sourceAction.trigger();
+            }
+        }
+    }
+
+    readonly property Kirigami.Action twoPageToolbarAction: Kirigami.Action {
+        readonly property var sourceAction: root.actions.twoPageModeAction
+
+        autoExclusive: sourceAction?.autoExclusive ?? false
+        checkable: sourceAction?.checkable ?? false
+        checked: root.readyControlPresentationRetained ? lastReadyPresentation.twoPageChecked : (sourceAction?.checked ?? false)
+        displayHint: sourceAction?.displayHint ?? Kirigami.DisplayHint.KeepVisible
+        enabled: root.readyControlPresentationRetained ? lastReadyPresentation.twoPageEnabled : (sourceAction?.enabled ?? false)
+        icon.name: sourceAction?.icon.name ?? ""
+        shortcut: ""
+        text: sourceAction?.text ?? ""
+        tooltip: sourceAction?.tooltip ?? text
+        visible: sourceAction?.visible ?? true
+
+        onTriggered: {
+            if (sourceAction?.enabled ?? false) {
+                sourceAction.trigger();
+            }
+        }
+    }
+
     readonly property Kirigami.Action zoomLevelAction: Kirigami.Action {
         displayComponent: ImageZoomControls {
             id: zoomControls
 
             compact: root.compact
             imageDocument: root.imageDocument
-            imageReady: root.imageReady
+            imageReady: root.presentedImageReady
+            interactionEnabled: root.zoomEditable
             maximumManualZoomPercent: root.maximumManualZoomPercent
             minimumManualZoomPercent: root.minimumManualZoomPercent
             readOnlyDisplayMode: root.videoMode
-            readOnlyPercent: Math.round(root.zoomPercent)
-            readOnlyPercentKnown: root.zoomPercentKnown
+            readOnlyPercent: Math.round(root.presentedZoomPercent)
+            readOnlyPercentKnown: root.presentedZoomPercentKnown
+            presentationEnabled: root.presentedZoomEditable
             zoomEditable: root.zoomEditable
-            zoomPercent: root.zoomPercent
-            zoomPercentAvailable: root.zoomPercentAvailable
-            zoomPercentKnown: root.zoomPercentKnown
+            zoomPercent: root.presentedZoomPercent
+            zoomPercentAvailable: root.presentedZoomPercentAvailable
+            zoomPercentKnown: root.presentedZoomPercentKnown
             zoomStepFactor: root.zoomStepFactor
 
             Component.onDestruction: {
@@ -271,7 +417,7 @@ Controls.ToolBar {
             }
         }
         displayHint: Kirigami.DisplayHint.KeepVisible
-        enabled: !root.videoMode && root.imageReady
+        enabled: root.readyControlPresentationRetained ? lastReadyPresentation.zoomActionEnabled : (!root.videoMode && root.imageReady)
         icon.name: "zoom-original-symbolic"
         text: KI18n.i18nc("@action", "Zoom")
         tooltip: root.videoMode ? (root.zoomPercentKnown ? KI18n.i18nc("@info:tooltip", "Fitted video zoom") : KI18n.i18nc("@info:tooltip", "Video zoom unavailable")) : text
@@ -286,7 +432,8 @@ Controls.ToolBar {
             fitMode: KiriImageDocument.Fit
             fitWidthAction: root.actions.fitWidthAction
             fitWidthMode: KiriImageDocument.FitWidth
-            fitModeSelection: root.fitModeSelection
+            fitModeSelection: root.presentedFitModeSelection
+            interactionEnabled: root.fitModeAction(root.fitModeSelection).enabled
             textVisible: root.fitMenuButtonTextVisible
 
             onFitModeTriggered: function (zoomMode) {
@@ -294,9 +441,9 @@ Controls.ToolBar {
             }
         }
         displayHint: Kirigami.DisplayHint.KeepVisible
-        enabled: root.fitModeAction(root.fitModeSelection).enabled
-        icon.name: root.fitModeIconName(root.fitModeSelection)
-        text: root.fitModeText(root.fitModeSelection)
+        enabled: root.readyControlPresentationRetained ? lastReadyPresentation.fitEnabled : root.fitModeAction(root.fitModeSelection).enabled
+        icon.name: root.fitModeIconName(root.presentedFitModeSelection)
+        text: root.fitModeText(root.presentedFitModeSelection)
         tooltip: text
 
         onTriggered: root.triggerFitMode(root.fitModeSelection)
