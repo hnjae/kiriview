@@ -359,14 +359,15 @@ bool ImageDocumentRuntimeGraph::prepareViewportImageTarget(
             std::move(predecodedImage));
     };
 
-    m_viewportLoadSession = session;
-    m_viewportLoadTerminal = false;
-    m_viewportMetadata = [prepared]() {
-        if (prepared->source != nullptr) {
-            return prepared->source->embeddedMetadata();
-        }
-        return prepared->predecoded.has_value() ? prepared->predecoded->embeddedMetadata
-                                                : EmbeddedMetadata {};
+    m_pendingViewportImageLoad = PendingViewportImageLoad {
+        session,
+        [prepared]() {
+            if (prepared->source != nullptr) {
+                return prepared->source->embeddedMetadata();
+            }
+            return prepared->predecoded.has_value() ? prepared->predecoded->embeddedMetadata
+                                                    : EmbeddedMetadata {};
+        },
     };
     m_viewportTarget = std::make_unique<ImageViewportIntegrationTarget>(target);
     m_viewportSecondaryLoadSession.reset();
@@ -433,11 +434,9 @@ void ImageDocumentRuntimeGraph::clearViewportSecondaryImageTarget()
 
 void ImageDocumentRuntimeGraph::clearViewportTarget()
 {
-    m_viewportLoadSession.reset();
+    m_pendingViewportImageLoad.reset();
     m_viewportSecondaryLoadSession.reset();
     m_viewportTarget.reset();
-    m_viewportMetadata = {};
-    m_viewportLoadTerminal = false;
     m_nextViewportTargetAnchorAtEnd = false;
     if (m_viewportIntegration != nullptr) {
         m_viewportIntegration->clearTarget();
@@ -465,16 +464,18 @@ void ImageDocumentRuntimeGraph::handleViewportProjection(
             m_spreadController->finishViewportSecondaryPageLoadWithError(session);
         }
     }
-    if (m_openController == nullptr || !m_viewportLoadSession.has_value()
-        || projection.sourceGeneration != m_viewportLoadSession->id() || m_viewportLoadTerminal) {
+    if (m_openController == nullptr || !m_pendingViewportImageLoad.has_value()
+        || projection.sourceGeneration != m_pendingViewportImageLoad->session.id()) {
         return;
     }
 
     if (projection.status == ImageDocumentStatus::Ready) {
-        m_viewportLoadTerminal = true;
-        m_openController->finishViewportImageLoadReady(*m_viewportLoadSession,
-            projection.primaryImageSize,
-            m_viewportMetadata ? m_viewportMetadata() : EmbeddedMetadata {});
+        PendingViewportImageLoad completedLoad = std::move(*m_pendingViewportImageLoad);
+        m_pendingViewportImageLoad.reset();
+        EmbeddedMetadata metadata
+            = completedLoad.metadata ? completedLoad.metadata() : EmbeddedMetadata {};
+        m_openController->finishViewportImageLoadReady(
+            completedLoad.session, projection.primaryImageSize, std::move(metadata));
         return;
     }
     if (projection.status != ImageDocumentStatus::Error) {
@@ -483,7 +484,7 @@ void ImageDocumentRuntimeGraph::handleViewportProjection(
 
     qCWarning(kiriviewNavigationLog)
         << "viewport image load failed"
-        << "url" << m_viewportLoadSession->imageUrl() << "sourceGeneration"
+        << "url" << m_pendingViewportImageLoad->session.imageUrl() << "sourceGeneration"
         << projection.sourceGeneration << "displayedUrl" << projection.displayedUrl << "errorString"
         << projection.errorString << "applicationFailureAvailable"
         << projection.failure.has_value();
@@ -495,10 +496,11 @@ void ImageDocumentRuntimeGraph::handleViewportProjection(
             << static_cast<int>(projection.failure->decodeOperation) << "diagnosticDetail"
             << projection.failure->diagnosticDetail << "retryable" << projection.failure->retryable;
     }
-    m_viewportLoadTerminal = true;
+    PendingViewportImageLoad completedLoad = std::move(*m_pendingViewportImageLoad);
+    m_pendingViewportImageLoad.reset();
     ImageLoadFailure failure = projection.failure.value_or(viewportPresentationFailure(
-        *m_viewportLoadSession, projection.errorString, projection.errorString));
-    m_openController->finishViewportImageLoadWithError(*m_viewportLoadSession, std::move(failure));
+        completedLoad.session, projection.errorString, projection.errorString));
+    m_openController->finishViewportImageLoadWithError(completedLoad.session, std::move(failure));
 }
 
 MediaEntrySourceVideoPlaybackDeviceResult

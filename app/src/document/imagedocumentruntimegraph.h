@@ -16,6 +16,7 @@
 #include <QString>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <vector>
 
 class QObject;
@@ -77,6 +78,12 @@ public:
     void shutdownRuntime();
 
 private:
+    struct PendingViewportImageLoad
+    {
+        ImageLoadSession session;
+        std::function<EmbeddedMetadata()> metadata;
+    };
+
     void composeSurfaceAndPresentation(ImageDocumentRuntimeDependencies& dependencies);
     void composeNavigationAndCandidatePorts(ImageDocumentRuntimeDependencies& dependencies);
     void composeWorkflowOwners(QObject* documentObject, ImageDocumentState& state,
@@ -112,9 +119,7 @@ private:
     std::unique_ptr<ImageDocumentNavigationController> m_navigationController;
     std::unique_ptr<ImageDocumentRuntimeWorkflow> m_runtimeWorkflow;
     ImageDecodeDependencies m_imageDecodeDependencies;
-    std::optional<ImageLoadSession> m_viewportLoadSession;
-    std::function<EmbeddedMetadata()> m_viewportMetadata;
-    bool m_viewportLoadTerminal = false;
+    std::optional<PendingViewportImageLoad> m_pendingViewportImageLoad;
     std::unique_ptr<ImageViewportIntegrationTarget> m_viewportTarget;
     std::optional<ImageLoadSession> m_viewportSecondaryLoadSession;
     bool m_nextViewportTargetAnchorAtEnd = false;
