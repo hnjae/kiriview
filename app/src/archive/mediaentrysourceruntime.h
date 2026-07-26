@@ -35,9 +35,9 @@ public:
 
     ImageIoJob loadOpenedCollectionCandidates(QObject* receiver,
         OpenedCollectionScopeLocation openedCollectionScope,
-        ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback);
+        ImageDocumentPageCandidatesCallback callback, MediaEntrySourceErrorCallback errorCallback);
     ImageIoJob loadOpenedCollectionImageData(QObject* receiver, const ImageDecodeRequest& request,
-        ImageDataCallback callback, ErrorCallback errorCallback);
+        ImageDataCallback callback, MediaEntrySourceErrorCallback errorCallback);
     MediaEntrySourceVideoPlaybackDeviceResult loadOpenedCollectionVideoPlaybackDevice(
         OpenedCollectionScopeLocation openedCollectionScope, const QUrl& videoUrl);
 

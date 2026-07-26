@@ -80,6 +80,11 @@ std::optional<kiriview::ImageDocumentPageCandidateListContext> navigationContext
     return kiriview::imageDocumentPageCandidateListContextForDisplayedImage(
         std::move(displayedImage));
 }
+
+QString testMediaEntrySourceErrorProjection(const kiriview::MediaEntrySourceError& error)
+{
+    return error.diagnosticDetail;
+}
 }
 
 class TestMediaEntrySourceStore : public QObject
@@ -214,7 +219,8 @@ void TestMediaEntrySourceStore::navigationReusesCachedOpenedCollectionCandidates
     kiriview::MediaEntrySourceStore store(instrumentedMediaEntrySourceFactory(state));
     QUrl openedUrl;
     kiriview::ImageDocumentPageNavigationService service(
-        store.wrapCandidateProvider(openedCollectionOnlyProvider()),
+        store.wrapCandidateProvider(
+            openedCollectionOnlyProvider(), testMediaEntrySourceErrorProjection),
         navigationCallbacks([&openedUrl](const QUrl& url) { openedUrl = url; }));
 
     service.updatePageNavigation(navigationContext(
@@ -258,7 +264,9 @@ void TestMediaEntrySourceStore::predecodeLoadsAdjacentOpenedCollectionImagesThro
 
     kiriview::MediaEntrySourceStore store(instrumentedMediaEntrySourceFactory(state));
     kiriview::ImageDocumentPageNavigationService navigationService(
-        store.wrapCandidateProvider(openedCollectionOnlyProvider()), navigationCallbacks());
+        store.wrapCandidateProvider(
+            openedCollectionOnlyProvider(), testMediaEntrySourceErrorProjection),
+        navigationCallbacks());
     kiriview::ImageDocumentPageCandidateListSnapshot candidateSnapshot;
     bool candidateSnapshotReady = false;
     const std::optional<kiriview::ImageDocumentPageCandidateListContext> candidateContext
@@ -272,11 +280,12 @@ void TestMediaEntrySourceStore::predecodeLoadsAdjacentOpenedCollectionImagesThro
         });
     QTRY_VERIFY(candidateSnapshotReady);
 
-    kiriview::ImagePredecodeCoordinator coordinator(
-        store.wrapDecodeDependencies(kiriview::ImageDecodeDependencies {
-            {},
-            staticImageDataDecoder(),
-        }),
+    kiriview::ImagePredecodeCoordinator coordinator(store.wrapDecodeDependencies(
+                                                        kiriview::ImageDecodeDependencies {
+                                                            {},
+                                                            staticImageDataDecoder(),
+                                                        },
+                                                        testMediaEntrySourceErrorProjection),
         kiriview::PowerSaverProvider {}, 1024 * 1024);
 
     kiriview::DisplayedPredecodeImage displayedImage {

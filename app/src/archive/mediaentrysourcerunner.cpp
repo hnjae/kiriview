@@ -103,9 +103,10 @@ std::optional<MediaEntrySourceError> MediaEntrySourceRunner::ensureSource()
 
     const auto* source = kiriview::mediaEntrySourceResultValue(result);
     if (source == nullptr || *source == nullptr) {
-        m_openError = Backend::mediaEntrySourceError(MediaEntrySourceBackendKind::Unknown,
+        m_openError = Backend::mediaEntrySourceError(
+            MediaEntrySourceErrorCause::ProviderUnavailable, MediaEntrySourceBackendKind::Unknown,
             MediaEntrySourceOperation::OpenCollection, m_openedCollectionScope,
-            Backend::fallbackMediaEntrySourceOpenError(m_openedCollectionScope));
+            QStringLiteral("media entry source factory returned no source"));
         return m_openError;
     }
 

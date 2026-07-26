@@ -441,48 +441,6 @@ msgctxt "@action"
 msgid "Open Application Menu"
 msgstr ""
 
-#: src/archive/mediaentrysourcebackend.cpp
-#, kde-format
-msgctxt "@info:status"
-msgid "Could not open the selected collection."
-msgstr ""
-
-#: src/archive/mediaentrysourcebackend.cpp
-#, kde-format
-msgctxt "@info:status"
-msgid "Could not open %1."
-msgstr ""
-
-#: src/archive/mediaentrysourcebackend.cpp
-#, kde-format
-msgctxt "@info:status"
-msgid "Could not find the selected image in the collection."
-msgstr ""
-
-#: src/archive/mediaentrysourcebackend.cpp
-#, kde-format
-msgctxt "@info:status"
-msgid "Could not read the selected collection image."
-msgstr ""
-
-#: src/archive/mediaentrysourcebackend.cpp
-#, kde-format
-msgctxt "@info:status"
-msgid "Could not find the selected video in the collection."
-msgstr ""
-
-#: src/archive/mediaentrysourcebackend.cpp src/document/imageopencontroller.cpp
-#, kde-format
-msgctxt "@info:status"
-msgid "KiriView can’t play this video from the selected collection."
-msgstr ""
-
-#: src/archive/mediaentrysourcebackend.cpp
-#, kde-format
-msgctxt "@info:status"
-msgid "Could not cache a preview thumbnail for this collection item."
-msgstr ""
-
 #: src/decoding/imageformatregistry.cpp
 #, kde-format
 msgctxt "@item:inlistbox"
@@ -493,6 +451,13 @@ msgstr ""
 #, kde-format
 msgctxt "@item:inlistbox"
 msgid "All files (*)"
+msgstr ""
+
+#: src/document/imageopencontroller.cpp
+#: src/localization/mediaentrysourceerrortext.cpp
+#, kde-format
+msgctxt "@info:status"
+msgid "KiriView can’t play this video from the selected collection."
 msgstr ""
 
 #: src/facade/kiriviewapplication.cpp
@@ -765,6 +730,42 @@ msgstr ""
 #, kde-format
 msgctxt "@info:status"
 msgid "Could not decode the selected RAW image: %1: %2"
+msgstr ""
+
+#: src/localization/mediaentrysourceerrortext.cpp
+#, kde-format
+msgctxt "@info:status"
+msgid "Could not open the selected collection."
+msgstr ""
+
+#: src/localization/mediaentrysourceerrortext.cpp
+#, kde-format
+msgctxt "@info:status"
+msgid "Could not open %1."
+msgstr ""
+
+#: src/localization/mediaentrysourceerrortext.cpp
+#, kde-format
+msgctxt "@info:status"
+msgid "Could not find the selected video in the collection."
+msgstr ""
+
+#: src/localization/mediaentrysourceerrortext.cpp
+#, kde-format
+msgctxt "@info:status"
+msgid "Could not find the selected image in the collection."
+msgstr ""
+
+#: src/localization/mediaentrysourceerrortext.cpp
+#, kde-format
+msgctxt "@info:status"
+msgid "Could not read the selected collection image."
+msgstr ""
+
+#: src/localization/mediaentrysourceerrortext.cpp
+#, kde-format
+msgctxt "@info:status"
+msgid "Could not cache a preview thumbnail for this collection item."
 msgstr ""
 
 #: src/session/mediainformationprojection.cpp

@@ -54,6 +54,11 @@ void logDirectMediaScope(
         << (scope.has_value() ? scope->generation() : 0);
 }
 
+void logMediaEntrySourceError(const char* message, const kiriview::MediaEntrySourceError& error)
+{
+    qCWarning(kiriviewNavigationLog).noquote() << message << error;
+}
+
 void appendConnection(std::vector<QMetaObject::Connection>& connections,
     const kiriview::DocumentSessionSnapshotConnector& connector, QObject* owner,
     kiriview::DocumentSessionSnapshotChangeHandler handler)
@@ -754,6 +759,11 @@ bool DocumentSessionRuntimeGraph::tryEnterOpenedCollectionVideoFromImageSnapshot
     MediaEntrySourceVideoPlaybackDeviceResult result
         = m_imageDocumentCommandRuntime.loadOpenedCollectionVideoPlaybackDevice(
             m_imagePublicSnapshot.displayedOpenedCollectionScope, m_imagePublicSnapshot.sourceUrl);
+    if (const auto* error = kiriview::mediaEntrySourceResultError(result)) {
+        logMediaEntrySourceError("opened collection video loading failed", *error);
+        return false;
+    }
+
     auto* playbackDevice = kiriview::mediaEntrySourceResultValue(result);
     if (playbackDevice == nullptr || playbackDevice->device == nullptr) {
         return false;

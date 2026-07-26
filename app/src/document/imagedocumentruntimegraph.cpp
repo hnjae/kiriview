@@ -47,6 +47,11 @@ namespace {
         };
     }
 
+    void logMediaEntrySourceError(const char* message, const MediaEntrySourceError& error)
+    {
+        qCWarning(kiriviewNavigationLog).noquote() << message << error;
+    }
+
     struct PreparedViewportTargetState
     {
         ImageLoadSession session;
@@ -189,13 +194,14 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
             std::move(m_callbacks.unsupportedOpenedCollectionVideoEntered),
             [this](
                 const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl) {
-                if (m_mediaEntrySourceStore == nullptr) {
+                MediaEntrySourceVideoPlaybackDeviceResult result
+                    = loadOpenedCollectionVideoPlaybackDevice(openedCollectionScope, videoUrl);
+                if (const auto* error = kiriview::mediaEntrySourceResultError(result)) {
+                    logMediaEntrySourceError(
+                        "opened collection video availability probe failed", *error);
                     return false;
                 }
 
-                MediaEntrySourceVideoPlaybackDeviceResult result
-                    = m_mediaEntrySourceStore->loadOpenedCollectionVideoPlaybackDevice(
-                        openedCollectionScope, videoUrl);
                 const auto* device = kiriview::mediaEntrySourceResultValue(result);
                 return device != nullptr && device->device != nullptr;
             },
@@ -468,12 +474,12 @@ ImageDocumentRuntimeGraph::loadOpenedCollectionVideoPlaybackDevice(
 {
     if (m_mediaEntrySourceStore == nullptr) {
         return std::unexpected(MediaEntrySourceError {
-            MediaEntrySourceBackendKind::Unsupported,
+            MediaEntrySourceErrorCause::ProviderUnavailable,
+            MediaEntrySourceBackendKind::Unknown,
             MediaEntrySourceOperation::OpenVideoPlaybackDevice,
             openedCollectionScope.fileUrl(),
-            QString(),
-            QString(),
-            QString(),
+            {},
+            QStringLiteral("image document runtime has no media entry source store"),
         });
     }
 

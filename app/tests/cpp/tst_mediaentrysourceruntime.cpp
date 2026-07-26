@@ -75,6 +75,7 @@ private Q_SLOTS:
     void candidateLoadAddedDuringActiveBatchSharesWorker();
     void candidateBatchCancellationPreventsStaleCallbacks();
     void dataCompletionAfterOpenedCollectionSwitchIsIgnored();
+    void errorsRemainTypedThroughRuntimeCallbacks();
 };
 
 void TestMediaEntrySourceRuntime::synchronousLoadsShareLazyOpenAndCandidateCache()
@@ -259,6 +260,43 @@ void TestMediaEntrySourceRuntime::dataCompletionAfterOpenedCollectionSwitchIsIgn
     QVERIFY(!staleJob.isActive());
     QCOMPARE(staleCallbackCount, 0);
     QVERIFY(runtime.hasCurrentOpenedCollectionScope(*secondArchiveCollection));
+}
+
+void TestMediaEntrySourceRuntime::errorsRemainTypedThroughRuntimeCallbacks()
+{
+    const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
+        = archiveCollectionForLocalArchiveUrl(localUrl(QStringLiteral("/books/broken.cbr")));
+    QVERIFY(archiveCollection.has_value());
+    const QString diagnostic = QStringLiteral("libarchive header scan failed");
+    kiriview::MediaEntrySourceRuntime runtime(this,
+        [diagnostic](const kiriview::OpenedCollectionScopeLocation& openedCollectionScope)
+            -> kiriview::MediaEntrySourceOpenResult {
+            return std::unexpected(kiriview::MediaEntrySourceError {
+                kiriview::MediaEntrySourceErrorCause::CandidateListingFailed,
+                kiriview::MediaEntrySourceBackendKind::LibArchive,
+                kiriview::MediaEntrySourceOperation::ListCandidates,
+                openedCollectionScope.fileUrl(),
+                {},
+                diagnostic,
+            });
+        });
+
+    bool candidatesReported = false;
+    std::optional<kiriview::MediaEntrySourceError> failure;
+    runtime.loadOpenedCollectionCandidates(
+        nullptr, *archiveCollection,
+        [&candidatesReported](
+            std::vector<kiriview::ImageDocumentPageCandidate>) { candidatesReported = true; },
+        [&failure](kiriview::MediaEntrySourceError error) { failure = std::move(error); });
+
+    QVERIFY(!candidatesReported);
+    QVERIFY(failure.has_value());
+    QCOMPARE(failure->cause, kiriview::MediaEntrySourceErrorCause::CandidateListingFailed);
+    QCOMPARE(failure->backend, kiriview::MediaEntrySourceBackendKind::LibArchive);
+    QCOMPARE(failure->operation, kiriview::MediaEntrySourceOperation::ListCandidates);
+    QCOMPARE(failure->collectionUrl, archiveCollection->fileUrl());
+    QVERIFY(failure->entryPath.isEmpty());
+    QCOMPARE(failure->diagnosticDetail, diagnostic);
 }
 
 QTEST_GUILESS_MAIN(TestMediaEntrySourceRuntime)

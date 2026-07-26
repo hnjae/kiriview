@@ -70,7 +70,7 @@ private:
 struct OpenKArchiveResult
 {
     ScopedKArchive archive;
-    QString errorString;
+    QString diagnosticDetail;
 };
 
 std::unique_ptr<KArchive> createArchive(
@@ -149,15 +149,17 @@ OpenKArchiveResult openKArchiveCollection(
 {
     std::unique_ptr<KArchive> archive = createArchive(openedCollectionScope);
     if (archive == nullptr) {
-        return OpenKArchiveResult { {},
-            Backend::fallbackMediaEntrySourceOpenError(openedCollectionScope) };
+        return OpenKArchiveResult {
+            {},
+            QStringLiteral("KArchive backend could not create an archive reader"),
+        };
     }
 
     if (!archive->open(QIODevice::ReadOnly)) {
-        const QString errorString = archive->errorString().isEmpty()
-            ? Backend::fallbackMediaEntrySourceOpenError(openedCollectionScope)
+        const QString diagnosticDetail = archive->errorString().isEmpty()
+            ? QStringLiteral("KArchive could not open the collection")
             : archive->errorString();
-        return OpenKArchiveResult { {}, errorString };
+        return OpenKArchiveResult { {}, diagnosticDetail };
     }
 
     return OpenKArchiveResult { ScopedKArchive(std::move(archive)), QString() };
@@ -170,18 +172,20 @@ kiriview::MediaEntrySourceImageDataResult readKArchiveFileData(
     std::unique_ptr<QIODevice> device(file.createDevice());
     if (device == nullptr) {
         return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceImageDataResult>(
-            Backend::mediaEntrySourceError(kiriview::MediaEntrySourceBackendKind::KArchive,
-                kiriview::MediaEntrySourceOperation::ReadImageData, openedCollectionScope,
-                Backend::openedCollectionImageReadError(), {}, entryPath));
+            Backend::mediaEntrySourceError(kiriview::MediaEntrySourceErrorCause::EntryReadFailed,
+                kiriview::MediaEntrySourceBackendKind::KArchive,
+                kiriview::MediaEntrySourceOperation::ReadImageData, openedCollectionScope, {},
+                entryPath));
     }
 
     QByteArray data = device->readAll();
     const qint64 expectedSize = file.size();
     if (expectedSize >= 0 && data.size() != expectedSize) {
         return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceImageDataResult>(
-            Backend::mediaEntrySourceError(kiriview::MediaEntrySourceBackendKind::KArchive,
+            Backend::mediaEntrySourceError(kiriview::MediaEntrySourceErrorCause::EntryReadFailed,
+                kiriview::MediaEntrySourceBackendKind::KArchive,
                 kiriview::MediaEntrySourceOperation::ReadImageData, openedCollectionScope,
-                Backend::openedCollectionImageReadError(), {}, entryPath));
+                QStringLiteral("KArchive entry size did not match the declared size"), entryPath));
     }
 
     return Backend::mediaEntrySourceImageDataResult(std::move(data));
@@ -231,19 +235,21 @@ kiriview::MediaEntrySourceVideoPlaybackDeviceResult openKArchiveFileVideoPlaybac
 {
     if (!kArchiveFileSupportsVideoPlayback(openedCollectionScope, file)) {
         return Backend::mediaEntrySourceErrorResult<
-            kiriview::MediaEntrySourceVideoPlaybackDeviceResult>(
-            Backend::mediaEntrySourceError(kiriview::MediaEntrySourceBackendKind::KArchive,
-                kiriview::MediaEntrySourceOperation::OpenVideoPlaybackDevice, openedCollectionScope,
-                Backend::openedCollectionVideoPlaybackUnsupportedError(), {}, entryPath));
+            kiriview::MediaEntrySourceVideoPlaybackDeviceResult>(Backend::mediaEntrySourceError(
+            kiriview::MediaEntrySourceErrorCause::VideoPlaybackUnsupported,
+            kiriview::MediaEntrySourceBackendKind::KArchive,
+            kiriview::MediaEntrySourceOperation::OpenVideoPlaybackDevice, openedCollectionScope, {},
+            entryPath));
     }
 
     std::unique_ptr<QIODevice> device(file.createDevice());
     if (device == nullptr) {
         return Backend::mediaEntrySourceErrorResult<
-            kiriview::MediaEntrySourceVideoPlaybackDeviceResult>(
-            Backend::mediaEntrySourceError(kiriview::MediaEntrySourceBackendKind::KArchive,
-                kiriview::MediaEntrySourceOperation::OpenVideoPlaybackDevice, openedCollectionScope,
-                Backend::openedCollectionVideoPlaybackUnsupportedError(), {}, entryPath));
+            kiriview::MediaEntrySourceVideoPlaybackDeviceResult>(Backend::mediaEntrySourceError(
+            kiriview::MediaEntrySourceErrorCause::VideoPlaybackUnsupported,
+            kiriview::MediaEntrySourceBackendKind::KArchive,
+            kiriview::MediaEntrySourceOperation::OpenVideoPlaybackDevice, openedCollectionScope,
+            QStringLiteral("KArchive could not create an entry device"), entryPath));
     }
 
     return Backend::mediaEntrySourceVideoPlaybackDeviceResult(std::move(device));
@@ -266,18 +272,20 @@ public:
             = Backend::openedCollectionImageEntryPathForRead(m_openedCollectionScope, imageUrl);
         if (!entryPath.has_value()) {
             return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceImageDataResult>(
-                Backend::mediaEntrySourceError(kiriview::MediaEntrySourceBackendKind::KArchive,
+                Backend::mediaEntrySourceError(kiriview::MediaEntrySourceErrorCause::EntryNotFound,
+                    kiriview::MediaEntrySourceBackendKind::KArchive,
                     kiriview::MediaEntrySourceOperation::ReadImageData, m_openedCollectionScope,
-                    Backend::openedCollectionImageNotFoundError(), imageUrl.toString()));
+                    imageUrl.toString()));
         }
 
         const KArchiveDirectory* directory = m_archive.directory();
         const KArchiveFile* file = directory == nullptr ? nullptr : directory->file(*entryPath);
         if (file == nullptr) {
             return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceImageDataResult>(
-                Backend::mediaEntrySourceError(kiriview::MediaEntrySourceBackendKind::KArchive,
-                    kiriview::MediaEntrySourceOperation::ReadImageData, m_openedCollectionScope,
-                    Backend::openedCollectionImageNotFoundError(), {}, *entryPath));
+                Backend::mediaEntrySourceError(kiriview::MediaEntrySourceErrorCause::EntryNotFound,
+                    kiriview::MediaEntrySourceBackendKind::KArchive,
+                    kiriview::MediaEntrySourceOperation::ReadImageData, m_openedCollectionScope, {},
+                    *entryPath));
         }
 
         return readKArchiveFileData(m_openedCollectionScope, *entryPath, *file);
@@ -291,10 +299,10 @@ public:
         if (!entryPath.has_value()) {
             return Backend::mediaEntrySourceErrorResult<
                 kiriview::MediaEntrySourceVideoPlaybackDeviceResult>(
-                Backend::mediaEntrySourceError(kiriview::MediaEntrySourceBackendKind::KArchive,
+                Backend::mediaEntrySourceError(kiriview::MediaEntrySourceErrorCause::EntryNotFound,
+                    kiriview::MediaEntrySourceBackendKind::KArchive,
                     kiriview::MediaEntrySourceOperation::OpenVideoPlaybackDevice,
-                    m_openedCollectionScope, Backend::openedCollectionVideoNotFoundError(),
-                    videoUrl.toString()));
+                    m_openedCollectionScope, videoUrl.toString()));
         }
 
         const KArchiveDirectory* directory = m_archive.directory();
@@ -302,10 +310,10 @@ public:
         if (file == nullptr) {
             return Backend::mediaEntrySourceErrorResult<
                 kiriview::MediaEntrySourceVideoPlaybackDeviceResult>(
-                Backend::mediaEntrySourceError(kiriview::MediaEntrySourceBackendKind::KArchive,
+                Backend::mediaEntrySourceError(kiriview::MediaEntrySourceErrorCause::EntryNotFound,
+                    kiriview::MediaEntrySourceBackendKind::KArchive,
                     kiriview::MediaEntrySourceOperation::OpenVideoPlaybackDevice,
-                    m_openedCollectionScope, Backend::openedCollectionVideoNotFoundError(), {},
-                    *entryPath));
+                    m_openedCollectionScope, {}, *entryPath));
         }
 
         return openKArchiveFileVideoPlaybackDevice(m_openedCollectionScope, *entryPath, *file);
@@ -318,29 +326,32 @@ public:
             = Backend::openedCollectionImageEntryPathForRead(m_openedCollectionScope, imageUrl);
         if (!entryPath.has_value()) {
             return Backend::mediaEntrySourceErrorResult<
-                kiriview::MediaEntrySourceThumbnailMetadataResult>(Backend::mediaEntrySourceError(
-                kiriview::MediaEntrySourceBackendKind::KArchive,
-                kiriview::MediaEntrySourceOperation::LoadThumbnailMetadata, m_openedCollectionScope,
-                Backend::openedCollectionImageNotFoundError(), imageUrl.toString()));
+                kiriview::MediaEntrySourceThumbnailMetadataResult>(
+                Backend::mediaEntrySourceError(kiriview::MediaEntrySourceErrorCause::EntryNotFound,
+                    kiriview::MediaEntrySourceBackendKind::KArchive,
+                    kiriview::MediaEntrySourceOperation::LoadThumbnailMetadata,
+                    m_openedCollectionScope, imageUrl.toString()));
         }
 
         if (!kiriview::openedCollectionEntryPathSupportsThumbnailContentIdentity(
                 m_openedCollectionScope, *entryPath)) {
             return Backend::mediaEntrySourceErrorResult<
                 kiriview::MediaEntrySourceThumbnailMetadataResult>(Backend::mediaEntrySourceError(
+                kiriview::MediaEntrySourceErrorCause::ThumbnailMetadataUnsupported,
                 kiriview::MediaEntrySourceBackendKind::KArchive,
                 kiriview::MediaEntrySourceOperation::LoadThumbnailMetadata, m_openedCollectionScope,
-                Backend::openedCollectionThumbnailMetadataUnsupportedError(), {}, *entryPath));
+                {}, *entryPath));
         }
 
         const KArchiveDirectory* directory = m_archive.directory();
         const KArchiveFile* file = directory == nullptr ? nullptr : directory->file(*entryPath);
         if (file == nullptr) {
             return Backend::mediaEntrySourceErrorResult<
-                kiriview::MediaEntrySourceThumbnailMetadataResult>(Backend::mediaEntrySourceError(
-                kiriview::MediaEntrySourceBackendKind::KArchive,
-                kiriview::MediaEntrySourceOperation::LoadThumbnailMetadata, m_openedCollectionScope,
-                Backend::openedCollectionImageNotFoundError(), {}, *entryPath));
+                kiriview::MediaEntrySourceThumbnailMetadataResult>(
+                Backend::mediaEntrySourceError(kiriview::MediaEntrySourceErrorCause::EntryNotFound,
+                    kiriview::MediaEntrySourceBackendKind::KArchive,
+                    kiriview::MediaEntrySourceOperation::LoadThumbnailMetadata,
+                    m_openedCollectionScope, {}, *entryPath));
         }
 
         const std::optional<kiriview::MediaEntrySourceThumbnailMetadata> metadata
@@ -348,9 +359,10 @@ public:
         if (!metadata.has_value()) {
             return Backend::mediaEntrySourceErrorResult<
                 kiriview::MediaEntrySourceThumbnailMetadataResult>(Backend::mediaEntrySourceError(
+                kiriview::MediaEntrySourceErrorCause::ThumbnailMetadataUnsupported,
                 kiriview::MediaEntrySourceBackendKind::KArchive,
                 kiriview::MediaEntrySourceOperation::LoadThumbnailMetadata, m_openedCollectionScope,
-                Backend::openedCollectionThumbnailMetadataUnsupportedError(), {}, *entryPath));
+                {}, *entryPath));
         }
 
         return Backend::mediaEntrySourceThumbnailMetadataResult(*metadata);
@@ -367,9 +379,11 @@ kiriview::MediaEntrySourceOpenResult openKArchiveMediaEntrySource(
     OpenKArchiveResult opened = openKArchiveCollection(openedCollectionScope);
     if (!opened.archive) {
         return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceOpenResult>(
-            Backend::mediaEntrySourceError(kiriview::MediaEntrySourceBackendKind::KArchive,
+            Backend::mediaEntrySourceError(
+                kiriview::MediaEntrySourceErrorCause::CollectionOpenFailed,
+                kiriview::MediaEntrySourceBackendKind::KArchive,
                 kiriview::MediaEntrySourceOperation::OpenCollection, openedCollectionScope,
-                opened.errorString));
+                opened.diagnosticDetail));
     }
 
     std::vector<kiriview::ImageDocumentPageCandidate> candidates

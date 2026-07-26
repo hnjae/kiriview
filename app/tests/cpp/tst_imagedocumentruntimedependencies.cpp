@@ -121,11 +121,11 @@ void TestImageDocumentRuntimeDependencies::
         -> kiriview::MediaEntrySourceOpenResult {
         ++openCount;
         return std::unexpected(kiriview::MediaEntrySourceError {
+            kiriview::MediaEntrySourceErrorCause::CollectionOpenFailed,
             kiriview::MediaEntrySourceBackendKind::Unknown,
             kiriview::MediaEntrySourceOperation::OpenCollection,
             openedCollectionScope.fileUrl(),
             {},
-            QStringLiteral("session failed"),
             QStringLiteral("session failed"),
         });
     };
@@ -145,7 +145,7 @@ void TestImageDocumentRuntimeDependencies::
 
     QCOMPARE(openCount, 1);
     QVERIFY(!candidatesReported);
-    QCOMPARE(errorString, QStringLiteral("session failed"));
+    QCOMPARE(errorString, QStringLiteral("Could not open book.cbz."));
 }
 
 void TestImageDocumentRuntimeDependencies::

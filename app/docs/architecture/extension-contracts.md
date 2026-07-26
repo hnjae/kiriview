@@ -72,7 +72,7 @@ Directory collection traversal must resolve candidates within the selected root,
 
 Video playback source devices may be exposed only for collection entries whose storage backend can provide the final product's playable collection-video contract. Unsupported video entries remain navigation candidates without playback devices. A returned video playback source device keeps backing archive, entry, and device lifetime behind the media entry source contract until the video source owner clears or supersedes it.
 
-Failure payloads preserve backend, operation, collection URL, optional entry path, user-facing text, and diagnostic detail before any document, video, or thumbnail owner projects them into broader UI messages. They do not update document source state, page navigation, deletion state, thumbnails, playback state, or QML models directly.
+Failure payloads preserve a typed cause, backend, operation, collection URL, optional entry path, and raw diagnostic detail through the media entry source owner. Collection backends do not translate or localize failures. The consuming document, video, or thumbnail integration owner logs the raw diagnostic and maps the typed failure to a stable localized user message when that owner projects the result into its broader application failure contract; only that projected user message may enter public UI state. Media entry source failures do not update document source state, page navigation, deletion state, thumbnails, playback state, or QML models directly.
 
 ### Thumbnail Source Adapters
 

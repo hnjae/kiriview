@@ -16,10 +16,10 @@ namespace Backend = kiriview::MediaEntrySourceBackendDetail;
 
 void finishMediaEntrySourceCandidateResult(const kiriview::MediaEntrySourceCandidatesResult& result,
     const kiriview::ImageDocumentPageCandidatesCallback& callback,
-    const kiriview::ErrorCallback& errorCallback)
+    const kiriview::MediaEntrySourceErrorCallback& errorCallback)
 {
     if (const auto* error = kiriview::mediaEntrySourceResultError(result)) {
-        kiriview::invokeIfSet(errorCallback, error->errorString);
+        kiriview::invokeIfSet(errorCallback, *error);
         return;
     }
 
@@ -30,10 +30,10 @@ void finishMediaEntrySourceCandidateResult(const kiriview::MediaEntrySourceCandi
 }
 
 void finishMediaEntrySourceDataResult(kiriview::MediaEntrySourceImageDataResult result,
-    kiriview::ImageDataCallback callback, kiriview::ErrorCallback errorCallback)
+    kiriview::ImageDataCallback callback, kiriview::MediaEntrySourceErrorCallback errorCallback)
 {
     if (const auto* error = kiriview::mediaEntrySourceResultError(result)) {
-        kiriview::invokeIfSet(errorCallback, error->errorString);
+        kiriview::invokeIfSet(errorCallback, *error);
         return;
     }
 
@@ -95,13 +95,16 @@ bool MediaEntrySourceRuntime::hasCurrentOpenedCollectionScope(
 
 ImageIoJob MediaEntrySourceRuntime::loadOpenedCollectionCandidates(QObject* receiver,
     OpenedCollectionScopeLocation openedCollectionScope,
-    ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback)
+    ImageDocumentPageCandidatesCallback callback, MediaEntrySourceErrorCallback errorCallback)
 {
     const OpenedCollectionScopeLocation requestedOpenedCollectionScope = openedCollectionScope;
     switchToOpenedCollectionScope(std::move(openedCollectionScope));
     if (m_runner == nullptr) {
         invokeIfSet(errorCallback,
-            Backend::fallbackMediaEntrySourceOpenError(requestedOpenedCollectionScope));
+            Backend::mediaEntrySourceError(MediaEntrySourceErrorCause::ProviderUnavailable,
+                MediaEntrySourceBackendKind::Unknown, MediaEntrySourceOperation::OpenCollection,
+                requestedOpenedCollectionScope,
+                QStringLiteral("media entry source runtime has no collection runner")));
         return ImageIoJob();
     }
 
@@ -133,14 +136,18 @@ ImageIoJob MediaEntrySourceRuntime::loadOpenedCollectionCandidates(QObject* rece
 }
 
 ImageIoJob MediaEntrySourceRuntime::loadOpenedCollectionImageData(QObject* receiver,
-    const ImageDecodeRequest& request, ImageDataCallback callback, ErrorCallback errorCallback)
+    const ImageDecodeRequest& request, ImageDataCallback callback,
+    MediaEntrySourceErrorCallback errorCallback)
 {
     const OpenedCollectionScopeLocation& requestedOpenedCollectionScope
         = request.openedCollectionScope();
     switchToOpenedCollectionScope(request.openedCollectionScope());
     if (m_runner == nullptr) {
         invokeIfSet(errorCallback,
-            Backend::fallbackMediaEntrySourceOpenError(requestedOpenedCollectionScope));
+            Backend::mediaEntrySourceError(MediaEntrySourceErrorCause::ProviderUnavailable,
+                MediaEntrySourceBackendKind::Unknown, MediaEntrySourceOperation::OpenCollection,
+                requestedOpenedCollectionScope,
+                QStringLiteral("media entry source runtime has no collection runner")));
         return ImageIoJob();
     }
 
@@ -177,9 +184,10 @@ MediaEntrySourceRuntime::loadOpenedCollectionVideoPlaybackDevice(
     switchToOpenedCollectionScope(std::move(openedCollectionScope));
     if (m_runner == nullptr) {
         return Backend::mediaEntrySourceErrorResult<MediaEntrySourceVideoPlaybackDeviceResult>(
-            Backend::mediaEntrySourceError(MediaEntrySourceBackendKind::Unknown,
-                MediaEntrySourceOperation::OpenCollection, requestedOpenedCollectionScope,
-                Backend::fallbackMediaEntrySourceOpenError(requestedOpenedCollectionScope)));
+            Backend::mediaEntrySourceError(MediaEntrySourceErrorCause::ProviderUnavailable,
+                MediaEntrySourceBackendKind::Unknown,
+                MediaEntrySourceOperation::OpenVideoPlaybackDevice, requestedOpenedCollectionScope,
+                QStringLiteral("media entry source runtime has no collection runner")));
     }
 
     return m_runner->loadVideoPlaybackDevice(videoUrl);

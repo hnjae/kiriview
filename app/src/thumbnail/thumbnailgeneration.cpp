@@ -9,8 +9,10 @@
 #include "decoding/decodedimageresult.h"
 #include "decoding/kiriimagedecoder.h"
 #include "kiriview/src/support/thumbnailcache.cxx.h"
+#include "localization/mediaentrysourceerrortext.h"
 #include "rendering/imagerendering.h"
 #include "rendering/staticimage.h"
+#include "session/thumbnaillogging.h"
 #include "thumbnail/thumbnailcachelookup.h"
 #include "thumbnail/videothumbnailextractionadapter.h"
 
@@ -26,6 +28,12 @@
 #include <variant>
 
 namespace {
+QString projectThumbnailMediaEntrySourceError(const kiriview::MediaEntrySourceError& error)
+{
+    qCWarning(kiriviewThumbnailLog).noquote() << "collection thumbnail access failed" << error;
+    return kiriview::mediaEntrySourceErrorText(error);
+}
+
 kiriview::RustThumbnailCacheBucket rustBucket(
     kiriview::ActiveNavigationThumbnailDemandBucket bucket)
 {
@@ -270,8 +278,9 @@ QByteArray defaultThumbnailGenerationBytesLoader(
         kiriview::MediaEntrySourceImageDataResult dataResult
             = loadOpenedCollectionThumbnailBytes(request);
         if (const auto* error = kiriview::mediaEntrySourceResultError(dataResult)) {
+            QString projectedError = projectThumbnailMediaEntrySourceError(*error);
             if (errorString != nullptr) {
-                *errorString = error->errorString;
+                *errorString = std::move(projectedError);
             }
             return {};
         }
@@ -301,8 +310,9 @@ std::optional<kiriview::ThumbnailOriginalIdentity> defaultOpenedCollectionOrigin
     kiriview::MediaEntrySourceThumbnailMetadataResult metadataResult
         = loadOpenedCollectionThumbnailMetadata(request);
     if (const auto* error = kiriview::mediaEntrySourceResultError(metadataResult)) {
+        QString projectedError = projectThumbnailMediaEntrySourceError(*error);
         if (errorString != nullptr) {
-            *errorString = error->errorString;
+            *errorString = std::move(projectedError);
         }
         return std::nullopt;
     }

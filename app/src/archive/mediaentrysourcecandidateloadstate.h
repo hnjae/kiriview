@@ -7,6 +7,7 @@
 #include "async/imageasynccallbacks.h"
 #include "async/imageasyncoperationstate.h"
 #include "async/imageiojob.h"
+#include "mediaentrysourcebackend.h"
 #include "navigation/imagedocumentpagecandidatecallbacks.h"
 
 #include <QtGlobal>
@@ -20,7 +21,7 @@ struct MediaEntrySourceCandidateLoad
 {
     ImageIoJobCompletion completion;
     ImageDocumentPageCandidatesCallback callback;
-    ErrorCallback errorCallback;
+    MediaEntrySourceErrorCallback errorCallback;
 };
 
 struct MediaEntrySourceCandidateLoadBatch
@@ -32,7 +33,7 @@ class MediaEntrySourceCandidateLoadState final
 {
 public:
     ImageIoJob addLoad(QObject* receiver, ImageDocumentPageCandidatesCallback callback,
-        ErrorCallback errorCallback);
+        MediaEntrySourceErrorCallback errorCallback);
     std::optional<MediaEntrySourceCandidateLoadBatch> startBatch();
     [[nodiscard]] bool acceptsBatch(MediaEntrySourceCandidateLoadBatch batch) const;
     [[nodiscard]] bool batchInProgress() const;

@@ -16,8 +16,8 @@ void cancelMediaEntrySourceCandidateLoadToken(QObject* object)
 }
 
 namespace kiriview {
-ImageIoJob MediaEntrySourceCandidateLoadState::addLoad(
-    QObject* receiver, ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback)
+ImageIoJob MediaEntrySourceCandidateLoadState::addLoad(QObject* receiver,
+    ImageDocumentPageCandidatesCallback callback, MediaEntrySourceErrorCallback errorCallback)
 {
     QObject* token = new QObject(receiver);
     ImageIoJob job(token, cancelMediaEntrySourceCandidateLoadToken);

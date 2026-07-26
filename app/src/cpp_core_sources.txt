@@ -97,6 +97,7 @@ src/format/supportedmediaformats.cpp
 src/decoding/imageinputclassification.cpp
 src/localization/activenavigationboundarytext.cpp
 src/localization/imageerrortext.cpp
+src/localization/mediaentrysourceerrortext.cpp
 src/navigation/imagedocumentpagecandidateitems.cpp
 src/navigation/imagedocumentpagecandidateloading.cpp
 src/navigation/imagedocumentpagecandidaterepository.cpp

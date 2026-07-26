@@ -6,6 +6,8 @@
 #include "archive/mediaentrysourcebackend.h"
 #include "async/imagecallback.h"
 #include "async/imageioworkerjob.h"
+#include "decoding/imagedecodelogging.h"
+#include "localization/mediaentrysourceerrortext.h"
 #include "location/imagedocumentlocation.h"
 
 #include <KIO/Job>
@@ -24,7 +26,9 @@ void finishMediaEntrySourceWorkerResult(
     Result result, ErrorCallback errorCallback, SuccessCallback successCallback)
 {
     if (!result) {
-        kiriview::invokeIfSet(errorCallback, result.error().errorString);
+        const kiriview::MediaEntrySourceError& error = result.error();
+        qCWarning(kiriviewDecodeLog).noquote() << "collection image data loading failed" << error;
+        kiriview::invokeIfSet(errorCallback, kiriview::mediaEntrySourceErrorText(error));
         return;
     }
     successCallback(std::move(*result));

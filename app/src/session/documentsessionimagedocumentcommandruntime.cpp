@@ -37,12 +37,12 @@ DocumentSessionImageDocumentCommandRuntime::loadOpenedCollectionVideoPlaybackDev
     }
 
     return std::unexpected(MediaEntrySourceError {
-        MediaEntrySourceBackendKind::Unsupported,
+        MediaEntrySourceErrorCause::ProviderUnavailable,
+        MediaEntrySourceBackendKind::Unknown,
         MediaEntrySourceOperation::OpenVideoPlaybackDevice,
         openedCollectionScope.fileUrl(),
-        QString(),
-        QString(),
-        QString(),
+        {},
+        QStringLiteral("document session has no opened collection video command"),
     });
 }
 

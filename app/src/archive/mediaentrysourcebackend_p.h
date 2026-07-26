@@ -46,17 +46,11 @@ std::optional<QString> openedCollectionImageEntryPathForRead(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& imageUrl);
 std::optional<QString> openedCollectionVideoEntryPathForRead(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl);
-QString fallbackMediaEntrySourceOpenError(
-    const OpenedCollectionScopeLocation& openedCollectionScope);
-QString openedCollectionImageNotFoundError();
-QString openedCollectionImageReadError();
-QString openedCollectionVideoNotFoundError();
-QString openedCollectionVideoPlaybackUnsupportedError();
-QString openedCollectionThumbnailMetadataUnsupportedError();
 
-MediaEntrySourceError mediaEntrySourceError(MediaEntrySourceBackendKind backend,
-    MediaEntrySourceOperation operation, const OpenedCollectionScopeLocation& openedCollectionScope,
-    QString errorString, QString diagnosticDetail = QString(), QString entryPath = QString());
+MediaEntrySourceError mediaEntrySourceError(MediaEntrySourceErrorCause cause,
+    MediaEntrySourceBackendKind backend, MediaEntrySourceOperation operation,
+    const OpenedCollectionScopeLocation& openedCollectionScope,
+    QString diagnosticDetail = QString(), QString entryPath = QString());
 
 template <typename Result> Result mediaEntrySourceErrorResult(MediaEntrySourceError error)
 {

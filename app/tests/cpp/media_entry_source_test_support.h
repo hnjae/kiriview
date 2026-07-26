@@ -76,10 +76,11 @@ public:
         std::lock_guard<std::mutex> lock(m_state->mutex);
         const auto data = fixture().dataByUrl.find(keyForUrl(imageUrl));
         if (data == fixture().dataByUrl.cend()) {
-            return std::unexpected(MediaEntrySourceError { MediaEntrySourceBackendKind::Unknown,
-                MediaEntrySourceOperation::ReadImageData, m_openedCollectionScope.fileUrl(),
-                imageUrl.toString(), QStringLiteral("missing fake media entry source image data"),
-                QStringLiteral("missing fake media entry source image data") });
+            return std::unexpected(
+                MediaEntrySourceError { MediaEntrySourceErrorCause::EntryNotFound,
+                    MediaEntrySourceBackendKind::Unknown, MediaEntrySourceOperation::ReadImageData,
+                    m_openedCollectionScope.fileUrl(), imageUrl.toString(),
+                    QStringLiteral("missing fake media entry source image data") });
         }
 
         return MediaEntrySourceImageData { data->second };
@@ -92,10 +93,10 @@ public:
         std::lock_guard<std::mutex> lock(m_state->mutex);
         const auto data = fixture().dataByUrl.find(keyForUrl(videoUrl));
         if (data == fixture().dataByUrl.cend()) {
-            return std::unexpected(MediaEntrySourceError { MediaEntrySourceBackendKind::Unknown,
+            return std::unexpected(MediaEntrySourceError {
+                MediaEntrySourceErrorCause::EntryNotFound, MediaEntrySourceBackendKind::Unknown,
                 MediaEntrySourceOperation::OpenVideoPlaybackDevice,
                 m_openedCollectionScope.fileUrl(), videoUrl.toString(),
-                QStringLiteral("missing fake media entry source playback device data"),
                 QStringLiteral("missing fake media entry source playback device data") });
         }
 
@@ -146,10 +147,11 @@ inline MediaEntrySourceFactory instrumentedMediaEntrySourceFactory(
         ++state->openCount;
         std::lock_guard<std::mutex> lock(state->mutex);
         if (!state->fixturesByRootUrl.count(keyForUrl(openedCollectionScope.rootUrl()))) {
-            return std::unexpected(MediaEntrySourceError { MediaEntrySourceBackendKind::Unknown,
-                MediaEntrySourceOperation::OpenCollection, openedCollectionScope.fileUrl(), {},
-                QStringLiteral("missing fake media entry source fixture"),
-                QStringLiteral("missing fake media entry source fixture") });
+            return std::unexpected(
+                MediaEntrySourceError { MediaEntrySourceErrorCause::ProviderUnavailable,
+                    MediaEntrySourceBackendKind::Unknown, MediaEntrySourceOperation::OpenCollection,
+                    openedCollectionScope.fileUrl(), {},
+                    QStringLiteral("missing fake media entry source fixture") });
         }
 
         return MediaEntrySourcePtr(

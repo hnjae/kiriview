@@ -615,7 +615,8 @@ void TestMediaEntrySourceBackend::
     const kiriview::MediaEntrySourceError* standaloneError
         = mediaEntrySourceDataError(standaloneResult);
     QVERIFY(standaloneError != nullptr);
-    QVERIFY(!standaloneError->errorString.isEmpty());
+    QCOMPARE(standaloneError->cause, kiriview::MediaEntrySourceErrorCause::CollectionOpenFailed);
+    QVERIFY(!standaloneError->diagnosticDetail.isEmpty());
 }
 
 void TestMediaEntrySourceBackend::openedCollectionThumbnailPolicyAllowsZipBackedImagesOnly()
@@ -758,7 +759,9 @@ void TestMediaEntrySourceBackend::cb7ImageEntryDoesNotReturnThumbnailMetadata()
     const kiriview::MediaEntrySourceThumbnailMetadataResult result
         = kiriview::loadMediaEntrySourceThumbnailMetadata(*archiveCollection,
             archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("pages/01.png")));
-    QVERIFY(kiriview::mediaEntrySourceResultError(result) != nullptr);
+    const kiriview::MediaEntrySourceError* error = kiriview::mediaEntrySourceResultError(result);
+    QVERIFY(error != nullptr);
+    QCOMPARE(error->cause, kiriview::MediaEntrySourceErrorCause::ThumbnailMetadataUnsupported);
 }
 
 void TestMediaEntrySourceBackend::unsupportedCollectionEntriesDoNotReturnThumbnailMetadata()
@@ -863,6 +866,7 @@ void TestMediaEntrySourceBackend::deflatedZipVideoEntryDoesNotReturnPlaybackDevi
     QCOMPARE(error->backend, kiriview::MediaEntrySourceBackendKind::KArchive);
     QCOMPARE(error->operation, kiriview::MediaEntrySourceOperation::OpenVideoPlaybackDevice);
     QCOMPARE(error->entryPath, QStringLiteral("pages/clip.mp4"));
+    QCOMPARE(error->cause, kiriview::MediaEntrySourceErrorCause::VideoPlaybackUnsupported);
 }
 
 void TestMediaEntrySourceBackend::plainTarVideoEntryReturnsPlaybackDevice()
@@ -962,7 +966,8 @@ void TestMediaEntrySourceBackend::readingUrlOutsideArchiveReturnsNotFound()
     const kiriview::MediaEntrySourceError* error = mediaEntrySourceDataError(result);
 
     QVERIFY(error != nullptr);
-    QVERIFY(!error->errorString.isEmpty());
+    QCOMPARE(error->cause, kiriview::MediaEntrySourceErrorCause::EntryNotFound);
+    QVERIFY(!error->diagnosticDetail.isEmpty());
 }
 
 void TestMediaEntrySourceBackend::sourceErrorsPreserveBackendOperationAndIdentity()
@@ -985,7 +990,8 @@ void TestMediaEntrySourceBackend::sourceErrorsPreserveBackendOperationAndIdentit
     QCOMPARE(missingArchiveError->operation, kiriview::MediaEntrySourceOperation::OpenCollection);
     QCOMPARE(missingArchiveError->collectionUrl, missingArchive.fileUrl());
     QVERIFY(missingArchiveError->entryPath.isEmpty());
-    QVERIFY(!missingArchiveError->errorString.isEmpty());
+    QCOMPARE(
+        missingArchiveError->cause, kiriview::MediaEntrySourceErrorCause::CollectionOpenFailed);
     QVERIFY(!missingArchiveError->diagnosticDetail.isEmpty());
 
     QDir root(dir.path());
@@ -1007,7 +1013,7 @@ void TestMediaEntrySourceBackend::sourceErrorsPreserveBackendOperationAndIdentit
     QCOMPARE(missingEntryError->operation, kiriview::MediaEntrySourceOperation::ReadImageData);
     QCOMPARE(missingEntryError->collectionUrl, directoryCollection->fileUrl());
     QCOMPARE(missingEntryError->entryPath, QStringLiteral("missing.png"));
-    QVERIFY(!missingEntryError->errorString.isEmpty());
+    QCOMPARE(missingEntryError->cause, kiriview::MediaEntrySourceErrorCause::EntryNotFound);
     QVERIFY(!missingEntryError->diagnosticDetail.isEmpty());
 
     const QString invalidRarPath = dir.filePath(QStringLiteral("invalid.cbr"));
@@ -1025,7 +1031,7 @@ void TestMediaEntrySourceBackend::sourceErrorsPreserveBackendOperationAndIdentit
     QCOMPARE(invalidRarError->operation, kiriview::MediaEntrySourceOperation::OpenCollection);
     QCOMPARE(invalidRarError->collectionUrl, invalidRarCollection->fileUrl());
     QVERIFY(invalidRarError->entryPath.isEmpty());
-    QVERIFY(!invalidRarError->errorString.isEmpty());
+    QCOMPARE(invalidRarError->cause, kiriview::MediaEntrySourceErrorCause::CollectionOpenFailed);
     QVERIFY(!invalidRarError->diagnosticDetail.isEmpty());
 }
 
@@ -1043,7 +1049,8 @@ void TestMediaEntrySourceBackend::missingEmptyAndInvalidArchivesReportExpectedRe
         = kiriview::loadMediaEntrySourceCandidates(missingArchive);
     const kiriview::MediaEntrySourceError* missingError = mediaEntrySourceError(missingResult);
     QVERIFY(missingError != nullptr);
-    QVERIFY(!missingError->errorString.isEmpty());
+    QCOMPARE(missingError->cause, kiriview::MediaEntrySourceErrorCause::CollectionOpenFailed);
+    QVERIFY(!missingError->diagnosticDetail.isEmpty());
 
     const QString emptyArchivePath = dir.filePath(QStringLiteral("empty.cbz"));
     writeZipArchive(emptyArchivePath, {});
@@ -1071,7 +1078,8 @@ void TestMediaEntrySourceBackend::missingEmptyAndInvalidArchivesReportExpectedRe
         = kiriview::loadMediaEntrySourceCandidates(*invalidArchiveCollection);
     const kiriview::MediaEntrySourceError* invalidError = mediaEntrySourceError(invalidResult);
     QVERIFY(invalidError != nullptr);
-    QVERIFY(!invalidError->errorString.isEmpty());
+    QCOMPARE(invalidError->cause, kiriview::MediaEntrySourceErrorCause::CollectionOpenFailed);
+    QVERIFY(!invalidError->diagnosticDetail.isEmpty());
 }
 
 QTEST_GUILESS_MAIN(TestMediaEntrySourceBackend)

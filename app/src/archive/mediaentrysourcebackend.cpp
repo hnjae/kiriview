@@ -10,12 +10,38 @@
 #include "navigation/imagedocumentpagenavigationpolicy.h"
 #include "navigation/mediaformatregistry.h"
 
-#include <KLocalizedString>
+#include <QDebug>
 #include <optional>
 #include <utility>
 
 namespace {
 namespace Backend = kiriview::MediaEntrySourceBackendDetail;
+
+QString defaultMediaEntrySourceDiagnostic(kiriview::MediaEntrySourceErrorCause cause)
+{
+    using Cause = kiriview::MediaEntrySourceErrorCause;
+
+    switch (cause) {
+    case Cause::CollectionOpenFailed:
+        return QStringLiteral("collection access backend could not open the collection");
+    case Cause::UnsupportedCollection:
+        return QStringLiteral("no collection access backend supports the collection");
+    case Cause::CandidateListingFailed:
+        return QStringLiteral("collection access backend could not list media entries");
+    case Cause::EntryNotFound:
+        return QStringLiteral("requested collection entry was not found");
+    case Cause::EntryReadFailed:
+        return QStringLiteral("collection access backend could not read the image entry");
+    case Cause::VideoPlaybackUnsupported:
+        return QStringLiteral("collection access backend cannot provide a video playback device");
+    case Cause::ThumbnailMetadataUnsupported:
+        return QStringLiteral("collection entry thumbnail metadata is unavailable");
+    case Cause::ProviderUnavailable:
+        return QStringLiteral("media entry source provider is unavailable");
+    }
+
+    return QStringLiteral("unknown collection access failure");
+}
 
 const Backend::MediaEntrySourceBackendOperations*
 mediaEntrySourceBackendOperationsForOpenedCollection(
@@ -47,9 +73,10 @@ kiriview::MediaEntrySourceOpenResult openWithMediaEntrySourceBackend(
         = mediaEntrySourceBackendOperationsForOpenedCollection(openedCollectionScope);
     if (backend == nullptr) {
         return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceOpenResult>(
-            Backend::mediaEntrySourceError(kiriview::MediaEntrySourceBackendKind::Unsupported,
-                kiriview::MediaEntrySourceOperation::OpenCollection, openedCollectionScope,
-                Backend::fallbackMediaEntrySourceOpenError(openedCollectionScope)));
+            Backend::mediaEntrySourceError(
+                kiriview::MediaEntrySourceErrorCause::UnsupportedCollection,
+                kiriview::MediaEntrySourceBackendKind::Unsupported,
+                kiriview::MediaEntrySourceOperation::OpenCollection, openedCollectionScope));
     }
 
     return backend->openSource(openedCollectionScope);
@@ -58,15 +85,26 @@ kiriview::MediaEntrySourceOpenResult openWithMediaEntrySourceBackend(
 }
 
 namespace kiriview {
+QDebug operator<<(QDebug debug, const MediaEntrySourceError& error)
+{
+    QDebugStateSaver stateSaver(debug);
+    debug.noquote() << "cause" << static_cast<int>(error.cause) << "backend"
+                    << static_cast<int>(error.backend) << "operation"
+                    << static_cast<int>(error.operation) << "collection" << error.collectionUrl
+                    << "entry" << error.entryPath << "diagnostic" << error.diagnosticDetail;
+    return debug;
+}
+
 MediaEntrySourceVideoPlaybackDeviceResult MediaEntrySource::loadVideoPlaybackDevice(
     const QUrl& videoUrl)
 {
     Q_UNUSED(videoUrl)
     return MediaEntrySourceBackendDetail::mediaEntrySourceErrorResult<
         MediaEntrySourceVideoPlaybackDeviceResult>(
-        MediaEntrySourceBackendDetail::mediaEntrySourceError(MediaEntrySourceBackendKind::Unknown,
-            MediaEntrySourceOperation::OpenVideoPlaybackDevice, {},
-            MediaEntrySourceBackendDetail::openedCollectionVideoPlaybackUnsupportedError()));
+        MediaEntrySourceBackendDetail::mediaEntrySourceError(
+            MediaEntrySourceErrorCause::VideoPlaybackUnsupported,
+            MediaEntrySourceBackendKind::Unknown,
+            MediaEntrySourceOperation::OpenVideoPlaybackDevice, {}));
 }
 
 MediaEntrySourceThumbnailMetadataResult MediaEntrySource::loadThumbnailMetadata(
@@ -75,9 +113,10 @@ MediaEntrySourceThumbnailMetadataResult MediaEntrySource::loadThumbnailMetadata(
     Q_UNUSED(imageUrl)
     return MediaEntrySourceBackendDetail::mediaEntrySourceErrorResult<
         MediaEntrySourceThumbnailMetadataResult>(
-        MediaEntrySourceBackendDetail::mediaEntrySourceError(MediaEntrySourceBackendKind::Unknown,
-            MediaEntrySourceOperation::LoadThumbnailMetadata, {},
-            MediaEntrySourceBackendDetail::openedCollectionThumbnailMetadataUnsupportedError()));
+        MediaEntrySourceBackendDetail::mediaEntrySourceError(
+            MediaEntrySourceErrorCause::ThumbnailMetadataUnsupported,
+            MediaEntrySourceBackendKind::Unknown, MediaEntrySourceOperation::LoadThumbnailMetadata,
+            {}));
 }
 }
 
@@ -142,50 +181,16 @@ std::optional<QString> openedCollectionVideoEntryPathForRead(
     return entryPath;
 }
 
-QString fallbackMediaEntrySourceOpenError(
-    const OpenedCollectionScopeLocation& openedCollectionScope)
+MediaEntrySourceError mediaEntrySourceError(MediaEntrySourceErrorCause cause,
+    MediaEntrySourceBackendKind backend, MediaEntrySourceOperation operation,
+    const OpenedCollectionScopeLocation& openedCollectionScope, QString diagnosticDetail,
+    QString entryPath)
 {
-    const QString fileName = openedCollectionScope.fileUrl().fileName();
-    if (fileName.isEmpty()) {
-        return i18nc("@info:status", "Could not open the selected collection.");
+    if (diagnosticDetail.isEmpty()) {
+        diagnosticDetail = defaultMediaEntrySourceDiagnostic(cause);
     }
-
-    return ki18nc("@info:status", "Could not open %1.").subs(fileName).toString();
-}
-
-QString openedCollectionImageNotFoundError()
-{
-    return i18nc("@info:status", "Could not find the selected image in the collection.");
-}
-
-QString openedCollectionImageReadError()
-{
-    return i18nc("@info:status", "Could not read the selected collection image.");
-}
-
-QString openedCollectionVideoNotFoundError()
-{
-    return i18nc("@info:status", "Could not find the selected video in the collection.");
-}
-
-QString openedCollectionVideoPlaybackUnsupportedError()
-{
-    return i18nc("@info:status", "KiriView can’t play this video from the selected collection.");
-}
-
-QString openedCollectionThumbnailMetadataUnsupportedError()
-{
-    return i18nc("@info:status", "Could not cache a preview thumbnail for this collection item.");
-}
-
-MediaEntrySourceError mediaEntrySourceError(MediaEntrySourceBackendKind backend,
-    MediaEntrySourceOperation operation, const OpenedCollectionScopeLocation& openedCollectionScope,
-    QString errorString, QString diagnosticDetail, QString entryPath)
-{
-    const QString resolvedDiagnosticDetail
-        = diagnosticDetail.isEmpty() ? errorString : std::move(diagnosticDetail);
-    return MediaEntrySourceError { backend, operation, openedCollectionScope.fileUrl(),
-        std::move(entryPath), std::move(errorString), resolvedDiagnosticDetail };
+    return MediaEntrySourceError { cause, backend, operation, openedCollectionScope.fileUrl(),
+        std::move(entryPath), std::move(diagnosticDetail) };
 }
 
 MediaEntrySourceCandidatesResult mediaEntrySourceCandidatesResult(
@@ -225,9 +230,9 @@ MediaEntrySourceCandidatesResult loadMediaEntrySourceCandidates(
     const auto* source = kiriview::mediaEntrySourceResultValue(opened);
     if (source == nullptr || *source == nullptr) {
         return Backend::mediaEntrySourceErrorResult<MediaEntrySourceCandidatesResult>(
-            Backend::mediaEntrySourceError(MediaEntrySourceBackendKind::Unknown,
-                MediaEntrySourceOperation::OpenCollection, openedCollectionScope,
-                Backend::fallbackMediaEntrySourceOpenError(openedCollectionScope)));
+            Backend::mediaEntrySourceError(MediaEntrySourceErrorCause::ProviderUnavailable,
+                MediaEntrySourceBackendKind::Unknown, MediaEntrySourceOperation::OpenCollection,
+                openedCollectionScope));
     }
 
     return (*source)->loadImageDocumentPageCandidates();
@@ -244,9 +249,9 @@ MediaEntrySourceImageDataResult loadMediaEntrySourceImageData(
     const auto* source = kiriview::mediaEntrySourceResultValue(opened);
     if (source == nullptr || *source == nullptr) {
         return Backend::mediaEntrySourceErrorResult<MediaEntrySourceImageDataResult>(
-            Backend::mediaEntrySourceError(MediaEntrySourceBackendKind::Unknown,
-                MediaEntrySourceOperation::OpenCollection, openedCollectionScope,
-                Backend::fallbackMediaEntrySourceOpenError(openedCollectionScope)));
+            Backend::mediaEntrySourceError(MediaEntrySourceErrorCause::ProviderUnavailable,
+                MediaEntrySourceBackendKind::Unknown, MediaEntrySourceOperation::OpenCollection,
+                openedCollectionScope));
     }
 
     return (*source)->loadImageData(imageUrl);
@@ -264,9 +269,9 @@ MediaEntrySourceThumbnailMetadataResult loadMediaEntrySourceThumbnailMetadata(
     const auto* source = kiriview::mediaEntrySourceResultValue(opened);
     if (source == nullptr || *source == nullptr) {
         return Backend::mediaEntrySourceErrorResult<MediaEntrySourceThumbnailMetadataResult>(
-            Backend::mediaEntrySourceError(MediaEntrySourceBackendKind::Unknown,
-                MediaEntrySourceOperation::OpenCollection, openedCollectionScope,
-                Backend::fallbackMediaEntrySourceOpenError(openedCollectionScope)));
+            Backend::mediaEntrySourceError(MediaEntrySourceErrorCause::ProviderUnavailable,
+                MediaEntrySourceBackendKind::Unknown, MediaEntrySourceOperation::OpenCollection,
+                openedCollectionScope));
     }
 
     return (*source)->loadThumbnailMetadata(imageUrl);
@@ -277,9 +282,9 @@ MediaEntrySourceOpenResult openMediaEntrySource(
 {
     if (openedCollectionScope.isEmpty()) {
         return Backend::mediaEntrySourceErrorResult<MediaEntrySourceOpenResult>(
-            Backend::mediaEntrySourceError(MediaEntrySourceBackendKind::Unknown,
-                MediaEntrySourceOperation::OpenCollection, openedCollectionScope,
-                i18nc("@info:status", "Could not open the selected collection.")));
+            Backend::mediaEntrySourceError(MediaEntrySourceErrorCause::CollectionOpenFailed,
+                MediaEntrySourceBackendKind::Unknown, MediaEntrySourceOperation::OpenCollection,
+                openedCollectionScope, QStringLiteral("opened collection scope is empty")));
     }
 
     return openWithMediaEntrySourceBackend(openedCollectionScope);
