@@ -36,6 +36,7 @@ struct ImageViewportProviderFrameRequest
 {
     int frame = -1;
     ImageSequenceProviderDisplayDemand demand;
+    qint64 maximumStoreEntryBytes = -1;
 };
 
 enum class ImageViewportProviderFrameStage {
@@ -61,12 +62,15 @@ struct ImageViewportProviderFrameResult
     QString formatIdentifier;
     ImageSequenceProviderFailureCause failureCause = ImageSequenceProviderFailureCause::Unavailable;
     std::optional<ImageLoadFailure> failure;
+    std::optional<ImageSequenceProviderUnsupportedCause> unsupportedCause;
     ImageViewportProviderFrameStage stage = ImageViewportProviderFrameStage::Authoritative;
 
     static ImageViewportProviderFrameResult ready(StaticDisplayImagePayload displayImage,
         ImageSequenceProviderFrameEnvelope envelope, QString formatIdentifier);
     static ImageViewportProviderFrameResult provisional(StaticDisplayImagePayload displayImage,
         ImageSequenceProviderFrameEnvelope envelope, QString formatIdentifier);
+    static ImageViewportProviderFrameResult unsupported(
+        ImageSequenceProviderUnsupportedCause cause);
     static ImageViewportProviderFrameResult failed(
         ImageSequenceProviderFailureCause cause, ImageLoadFailure failure);
 
@@ -107,10 +111,12 @@ struct ImageViewportProviderPreparedFrame
     QString formatIdentifier;
     ImageSequenceProviderFailureCause failureCause = ImageSequenceProviderFailureCause::Unavailable;
     std::optional<ImageLoadFailure> failure;
+    std::optional<ImageSequenceProviderUnsupportedCause> unsupportedCause;
     ImageViewportProviderFrameStage stage = ImageViewportProviderFrameStage::Authoritative;
     std::optional<StaticDisplayImagePayload> authoritativeStillDisplayImage;
 
     [[nodiscard]] bool isReady() const { return !storeEntryId.isEmpty(); }
+    [[nodiscard]] bool isUnsupported() const { return unsupportedCause.has_value(); }
     [[nodiscard]] bool isProvisional() const
     {
         return stage == ImageViewportProviderFrameStage::Provisional;

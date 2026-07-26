@@ -38,7 +38,7 @@ Image zoom is expressed in physical display pixels. At 100%, one image pixel map
 
 Static image files, including bitmap images and SVG files, appear at full resolution when they are small enough to display directly.
 
-When adjacent images are already available, Previous and Next navigation can replace the view immediately.
+When matching current-detail output for adjacent images is already available, Previous and Next navigation can replace the view immediately.
 
 If a static image exceeds the supported decode or display size, KiriView reports an error or unsupported state for the selected target instead of restoring a previously displayed image.
 
@@ -50,7 +50,11 @@ KiriView may display a source-derived thumbnail as provisional pixels while the 
 
 If authoritative decoding fails after provisional pixels were shown, KiriView removes those pixels and shows the selected target's error state instead of treating the preview as a successfully opened image.
 
-An authoritative first-display image may make the selected image ready before its best matching detail is available. KiriView automatically requests sharper current-detail output after that first display commits; no zoom, resize, or other presentation change is required to start refinement.
+KiriView prefers authoritative output with enough detail for the current physical display size. When that output is already available, including from preparation performed before navigation, it appears directly without a lower-detail predecessor.
+
+When available authoritative output has less detail than the current display requires, KiriView prepares matching current-detail output before making the selected image ready when it can do so promptly.
+
+If matching current-detail output is not available promptly, a valid lower-detail authoritative image may make the selected image ready as a latency fallback. The visible result then becomes sharper automatically when matching detail is available; no zoom, resize, or other presentation change is required.
 
 While sharper detail is being prepared for the same image, KiriView may keep the current accepted image visible. Zooming, panning, resizing, rotation, and display scale changes must not expose blank regions while a replacement for the same image is pending.
 

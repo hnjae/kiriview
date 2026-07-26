@@ -222,6 +222,7 @@ private Q_SLOTS:
     void targetTransitionsRetainPriorPresentationUntilReplacementCommit();
     void displayedImageFollowsCommittedAndRetainedDisplay();
     void authoritativeCandidateWaitsForCommitOverProvisionalDisplay();
+    void firstDisplayAutomaticallyRefinesWithoutInteraction();
     void firstDisplayRemainsAvailableDuringFailedForcedRefinement();
     void predecodedReplacementRetainsCommittedDisplayUntilRenderCommit();
     void failedShapeChangeKeepsRequestedTargetErrorUntilClear();
@@ -591,6 +592,48 @@ void TestImageViewportIntegrationRuntime::
         = runtime.displayedImage(ImageViewportPageRole::Primary);
     QVERIFY(committed.has_value());
     QCOMPARE(committed->sourceIdentity, QStringLiteral("authoritative"));
+}
+
+void TestImageViewportIntegrationRuntime::firstDisplayAutomaticallyRefinesWithoutInteraction()
+{
+    kiriview::ImageViewportIntegrationRuntime runtime;
+    QQuickWindow window;
+    ImageViewport viewport;
+    hostViewport(window, viewport);
+    runtime.attach(&viewport);
+
+    TargetFixture fixture;
+    fixture.generation = 66;
+    fixture.primaryUrl = QUrl(QStringLiteral("file:///tmp/automatic-first-display-refinement.png"));
+    QVERIFY(runtime.submitTarget(fixture.target()));
+    QTRY_COMPARE(fixture.primarySource->pendingFrames.size(), std::size_t(1));
+    fixture.primarySource->completeNext(
+        QStringLiteral("first-display"), kiriview::DisplayImageQuality::FirstDisplay);
+    QVERIFY(driveRenderUntil(window, [&fixture, &viewport]() {
+        return viewport.state().request().status() == ImageViewportRequestStatus::Ready
+            && fixture.primarySource->pendingFrames.size() == 1;
+    }));
+    QCOMPARE(
+        viewport.state().primary().display().quality(), ImageViewportPayloadQuality::FirstDisplay);
+    QVERIFY(!viewport.state().primary().display().currentForDemand());
+
+    fixture.primarySource->completeNext(
+        QStringLiteral("refined"), kiriview::DisplayImageQuality::BoundedDetail);
+    QVERIFY(driveRenderUntil(window, [&runtime, &viewport]() {
+        const std::optional<kiriview::StaticDisplayImagePayload> displayed
+            = runtime.displayedImage(ImageViewportPageRole::Primary);
+        return viewport.state().primary().display().quality()
+            == ImageViewportPayloadQuality::BoundedDetail
+            && viewport.state().primary().display().currentForDemand() && displayed.has_value()
+            && displayed->sourceIdentity == QStringLiteral("refined");
+    }));
+
+    QCOMPARE(viewport.state().request().status(), ImageViewportRequestStatus::Ready);
+    QCOMPARE(fixture.primarySource->pendingFrames.size(), std::size_t(0));
+    const std::optional<kiriview::StaticDisplayImagePayload> refined
+        = runtime.displayedImage(ImageViewportPageRole::Primary);
+    QVERIFY(refined.has_value());
+    QCOMPARE(refined->quality, kiriview::DisplayImageQuality::BoundedDetail);
 }
 
 void TestImageViewportIntegrationRuntime::firstDisplayRemainsAvailableDuringFailedForcedRefinement()

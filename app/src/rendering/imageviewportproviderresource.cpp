@@ -146,6 +146,14 @@ ImageViewportProviderFrameResult ImageViewportProviderFrameResult::provisional(
     return result;
 }
 
+ImageViewportProviderFrameResult ImageViewportProviderFrameResult::unsupported(
+    ImageSequenceProviderUnsupportedCause cause)
+{
+    ImageViewportProviderFrameResult result;
+    result.unsupportedCause = cause;
+    return result;
+}
+
 ImageViewportProviderFrameResult ImageViewportProviderFrameResult::failed(
     ImageSequenceProviderFailureCause cause, ImageLoadFailure failure)
 {
@@ -243,6 +251,10 @@ void ImageViewportProviderResource::requestFrame(const ImageViewportProviderWork
         return;
     }
 
+    const qint64 displayStoreEntryBudget = m_displayStore->byteBudget();
+    request.maximumStoreEntryBytes = request.maximumStoreEntryBytes < 0
+        ? displayStoreEntryBudget
+        : std::min(request.maximumStoreEntryBytes, displayStoreEntryBudget);
     const std::weak_ptr<ImageViewportProviderResource> resource = weak_from_this();
     m_source->requestFrame(identity, request,
         [resource, completion = std::move(completion)](
@@ -470,8 +482,13 @@ ImageViewportProviderPreparedFrame ImageViewportProviderResource::prepareFrame(
     prepared.formatIdentifier = std::move(result.formatIdentifier);
     prepared.failureCause = result.failureCause;
     prepared.failure = std::move(result.failure);
+    prepared.unsupportedCause = result.unsupportedCause;
+    if (prepared.unsupportedCause.has_value()) {
+        return prepared;
+    }
     if (!result.displayImage.has_value() || !result.displayImage->isValid()) {
-        if (prepared.failureCause == ImageSequenceProviderFailureCause::Unavailable) {
+        if (!prepared.unsupportedCause.has_value()
+            && prepared.failureCause == ImageSequenceProviderFailureCause::Unavailable) {
             prepared.failureCause = ImageSequenceProviderFailureCause::ProviderInternal;
         }
         return prepared;

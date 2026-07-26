@@ -70,6 +70,7 @@ public:
     [[nodiscard]] std::optional<DisplayImageStoreEntry> entry(const QString& id) const;
     bool acquireFrameLease(const QString& id);
     void releaseFrameLease(const QString& id);
+    [[nodiscard]] qsizetype byteBudget() const;
     [[nodiscard]] qsizetype byteCost() const;
     [[nodiscard]] qsizetype size() const;
 

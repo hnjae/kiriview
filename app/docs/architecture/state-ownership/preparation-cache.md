@@ -16,6 +16,8 @@ The document-session preparation runtime owns still-image preparation for mixed 
 
 Video rows may influence the position of adjacent still-image work but never produce cached video frames. Preparation results return provider-eligible still-image payloads to the owning load and supported `ImageSequence` provider boundary and must not publish navigation, viewport readiness, errors, zoom, or page selection.
 
+Prepared payloads preserve the source and scope identity, freshness, source dimensions, available raster detail, authoritative origin, and refinement eligibility needed for the provider boundary to validate reuse against current accepted demand. The preparation owner does not decide whether a prepared payload is sufficient for initial display, should be used only as a refinement basis, or may serve as a bounded-latency fallback.
+
 Pending debounce, suspended Power Saver work, and in-flight completion retain their candidate-snapshot identity. Resume or completion is accepted only if the owning scope and generation remain current. Power Saver suppresses new background work without blocking foreground loads or visible-detail refinement.
 
 ## Decoder-Internal Tiling

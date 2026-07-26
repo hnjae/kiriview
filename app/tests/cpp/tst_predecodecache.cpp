@@ -161,9 +161,12 @@ void TestPredecodeCache::cacheStoresAndFindsWindowImages()
     const QImage image = cacheImage();
 
     cache.setWindowUrls({ url });
-    kiriview::StaticDisplayImagePayload payload = cacheDisplayImage(image, true);
+    kiriview::StaticDisplayImagePayload payload
+        = staticDisplayTestImagePayload(image, image, kiriview::DisplayImageQuality::FirstDisplay,
+            kiriview::StaticImageReaderTransform {
+                QImageIOHandler::TransformationRotate90,
+            });
     payload.sourceIdentity = QStringLiteral("file:///tmp/predecode-source.jpg");
-    payload.imageReaderTransform.transformations = QImageIOHandler::TransformationRotate90;
     payload.embeddedMetadata.cameraMake = QStringLiteral("Kiri Camera");
     cache.cacheImage(url, openedCollectionScope, std::move(payload));
 

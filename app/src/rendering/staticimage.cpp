@@ -7,6 +7,11 @@
 #include "cache/imagebytecost.h"
 
 namespace kiriview {
+StaticImageSourceDetailModel StaticImageDisplaySource::detailModel() const
+{
+    return StaticImageSourceDetailModel::FiniteRaster;
+}
+
 StaticImageFirstDisplayDecodeResult StaticImageDisplaySource::decodeFirstDisplayImage(
     const ImageFirstDisplayDecodeContext& context) const
 {
@@ -30,7 +35,20 @@ StaticImageReaderTransform StaticImageDisplaySource::imageReaderTransform() cons
 
 bool StaticDisplayImagePayload::isValid() const
 {
-    return !image.isNull() && originalSize.isValid() && !originalSize.isEmpty();
+    if (image.isNull() || !originalSize.isValid() || originalSize.isEmpty()) {
+        return false;
+    }
+    if (refinementSource != nullptr) {
+        const StaticImageReaderTransform sourceTransform = refinementSource->imageReaderTransform();
+        if (refinementSource->imageSize() != originalSize
+            || refinementSource->detailModel() != sourceDetailModel
+            || sourceTransform.transformations != imageReaderTransform.transformations) {
+            return false;
+        }
+    }
+    return quality != DisplayImageQuality::Exact
+        || (sourceDetailModel == StaticImageSourceDetailModel::FiniteRaster
+            && image.size() == originalSize);
 }
 
 qsizetype StaticDisplayImagePayload::byteCost() const

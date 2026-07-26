@@ -66,6 +66,11 @@ struct StaticImageReaderTransform
     }
 };
 
+enum class StaticImageSourceDetailModel {
+    FiniteRaster,
+    ScalableRasterization,
+};
+
 class StaticImageDisplaySource
 {
 public:
@@ -73,6 +78,7 @@ public:
     virtual ~StaticImageDisplaySource() = default;
 
     [[nodiscard]] virtual QSize imageSize() const = 0;
+    [[nodiscard]] virtual StaticImageSourceDetailModel detailModel() const;
     [[nodiscard]] virtual StaticImageFirstDisplayDecodeResult decodeFirstDisplayImage(
         const ImageFirstDisplayDecodeContext& context) const;
     [[nodiscard]] virtual bool supportsRasterDisplayRefinement() const;
@@ -96,6 +102,7 @@ struct StaticDisplayImagePayload
     EmbeddedMetadata embeddedMetadata;
     std::shared_ptr<StaticImageDisplaySource> refinementSource;
     DisplayImagePreviewOrigin previewOrigin = DisplayImagePreviewOrigin::None;
+    StaticImageSourceDetailModel sourceDetailModel = StaticImageSourceDetailModel::FiniteRaster;
 
     [[nodiscard]] bool isValid() const;
     [[nodiscard]] qsizetype byteCost() const;

@@ -23,6 +23,7 @@ public:
     ~SvgDisplaySource() override = default;
 
     [[nodiscard]] QSize imageSize() const override;
+    [[nodiscard]] StaticImageSourceDetailModel detailModel() const override;
     [[nodiscard]] StaticImageFirstDisplayDecodeResult decodeFirstDisplayImage(
         const ImageFirstDisplayDecodeContext& context) const override;
     [[nodiscard]] bool supportsRasterDisplayRefinement() const override;

@@ -98,6 +98,11 @@ SvgDisplaySource::SvgDisplaySource(QByteArray data, QSize imageSize)
 
 QSize SvgDisplaySource::imageSize() const { return m_imageSize; }
 
+StaticImageSourceDetailModel SvgDisplaySource::detailModel() const
+{
+    return StaticImageSourceDetailModel::ScalableRasterization;
+}
+
 StaticImageFirstDisplayDecodeResult SvgDisplaySource::decodeFirstDisplayImage(
     const ImageFirstDisplayDecodeContext& context) const
 {

@@ -140,6 +140,12 @@ private:
         if (m_closed || !m_frameWork.has_value() || identity != m_frameWork->identity) {
             return;
         }
+        if (result.isUnsupported()) {
+            m_frameWork.reset();
+            Q_EMIT providerEvent(ImageSequenceProviderEvent::unsupported(
+                identity.requestToken, *result.unsupportedCause));
+            return;
+        }
         if (result.isProvisional()) {
             if (m_frameWork->provisionalEmitted || !result.isReady()) {
                 return;

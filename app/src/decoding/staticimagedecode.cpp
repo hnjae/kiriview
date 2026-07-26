@@ -47,9 +47,11 @@ QString sourceIdentityForRequest(const kiriview::ImageDecodeRequest& request)
 }
 
 kiriview::DisplayImageQuality displayQualityForImage(
-    QSize originalSize, const QImage& image, bool firstDisplay)
+    kiriview::StaticImageSourceDetailModel detailModel, QSize originalSize, const QImage& image,
+    bool firstDisplay)
 {
-    if (firstDisplay || image.size() != originalSize) {
+    if (firstDisplay || detailModel != kiriview::StaticImageSourceDetailModel::FiniteRaster
+        || image.size() != originalSize) {
         return kiriview::DisplayImageQuality::FirstDisplay;
     }
     return kiriview::DisplayImageQuality::Exact;
@@ -61,8 +63,11 @@ kiriview::StaticDisplayImagePayload staticDisplayPayload(
 {
     QImage displayImage = kiriview::displayReadyImage(image);
     const QSize originalSize = source == nullptr ? QSize() : source->imageSize();
+    const kiriview::StaticImageSourceDetailModel detailModel = source == nullptr
+        ? kiriview::StaticImageSourceDetailModel::FiniteRaster
+        : source->detailModel();
     const kiriview::DisplayImageQuality quality
-        = displayQualityForImage(originalSize, displayImage, firstDisplay);
+        = displayQualityForImage(detailModel, originalSize, displayImage, firstDisplay);
     kiriview::StaticDisplayImagePayload payload {
         sourceIdentityForRequest(request),
         source == nullptr ? kiriview::StaticImageReaderTransform {}
@@ -73,6 +78,7 @@ kiriview::StaticDisplayImagePayload staticDisplayPayload(
         {},
         std::move(source),
         kiriview::DisplayImagePreviewOrigin::None,
+        detailModel,
     };
     return payload;
 }

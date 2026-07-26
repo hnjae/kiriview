@@ -369,6 +369,12 @@ void DisplayImageStore::releaseFrameLease(const QString& id)
     d->trimToBudget();
 }
 
+qsizetype DisplayImageStore::byteBudget() const
+{
+    QMutexLocker locker(&d->mutex);
+    return d->byteBudget;
+}
+
 qsizetype DisplayImageStore::byteCost() const
 {
     QMutexLocker locker(&d->mutex);

@@ -66,13 +66,15 @@ inline QImage testImage(int width, int height = 1) { return testImage(QSize(widt
 class TestStaticImageDisplaySource final : public StaticImageDisplaySource
 {
 public:
-    explicit TestStaticImageDisplaySource(QImage image)
+    explicit TestStaticImageDisplaySource(QImage image, StaticImageReaderTransform transform = {})
         : m_image(std::move(image))
+        , m_transform(transform)
     {
     }
 
     QSize imageSize() const override { return m_image.size(); }
     qsizetype byteCost() const override { return m_image.sizeInBytes(); }
+    StaticImageReaderTransform imageReaderTransform() const override { return m_transform; }
 
     StaticImageDisplayDecodeResult decodeBlockingDisplayImage(int) const override
     {
@@ -81,19 +83,21 @@ public:
 
 private:
     QImage m_image;
+    StaticImageReaderTransform m_transform;
 };
 
 inline StaticDisplayImagePayload staticDisplayTestImagePayload(const QImage& sourceImage,
-    const QImage& displayImage, DisplayImageQuality quality = DisplayImageQuality::Exact)
+    const QImage& displayImage, DisplayImageQuality quality = DisplayImageQuality::Exact,
+    StaticImageReaderTransform transform = {})
 {
     return StaticDisplayImagePayload {
         QStringLiteral("test-image"),
-        {},
+        transform,
         sourceImage.size(),
         displayImage,
         quality,
         {},
-        std::make_shared<TestStaticImageDisplaySource>(sourceImage),
+        std::make_shared<TestStaticImageDisplaySource>(sourceImage, transform),
     };
 }
 
