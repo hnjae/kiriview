@@ -18,249 +18,161 @@
 #include "presentation/imagespreadpresentationcontroller.h"
 
 #include <QDebug>
+#include <QtGlobal>
 #include <optional>
+#include <type_traits>
 #include <utility>
+#include <variant>
 
 namespace {
-kiriview::ImageDocumentRuntimeOperations runtimeOperations(
-    kiriview::ImageDocumentRuntimeWorkflowPorts ports)
-{
-    kiriview::ImageDocumentRuntimeOperations operations;
-    operations.lifecycle.cancelFileDeletion = [ports]() {
-        if (ports.deletionController != nullptr) {
-            ports.deletionController->cancel();
-        }
-    };
-    operations.lifecycle.shutdownSpread = [ports]() {
-        if (ports.spreadController != nullptr) {
-            ports.spreadController->shutdown();
-        }
-    };
-    operations.mediaEntrySource.clear = [ports]() {
-        if (ports.mediaEntrySourceStore != nullptr) {
-            ports.mediaEntrySourceStore->clear();
-        }
-    };
-    operations.predecode.clearPredecode = [ports]() {
-        if (ports.predecodeController != nullptr) {
-            ports.predecodeController->clear();
-        }
-    };
-    operations.predecode.cancelPredecode = [ports]() {
-        if (ports.predecodeController != nullptr) {
-            ports.predecodeController->cancel();
-        }
-    };
-    operations.predecode.scheduleAdjacentImagePredecode
-        = [ports](const kiriview::ScheduleAdjacentImagePredecodeOperation& operation) {
-              if (ports.predecodeController != nullptr && ports.spreadController != nullptr) {
-                  std::optional<kiriview::DisplayedPredecodeImage> secondaryImage
-                      = ports.spreadController->secondaryDisplayedPredecodeImage();
-                  qCDebug(kiriviewPredecodeLog)
-                      << "runtime scheduling adjacent image predecode"
-                      << "hasExplicitTarget" << operation.target.has_value() << "targetUrl"
-                      << (operation.target.has_value() ? operation.target->url : QUrl())
-                      << "targetKind"
-                      << (operation.target.has_value() ? static_cast<int>(operation.target->kind)
-                                                       : -1)
-                      << "targetPageIndex" << operation.targetPageIndex << "hasSecondaryImage"
-                      << (secondaryImage.has_value() && secondaryImage->hasLocation());
-                  if (operation.target.has_value()) {
-                      ports.predecodeController->scheduleImageNavigationTargetPredecode(
-                          *operation.target, operation.targetPageIndex, std::move(secondaryImage));
-                      return;
-                  }
-
-                  ports.predecodeController->scheduleAdjacentImagePredecode(
-                      std::move(secondaryImage));
-              }
-          };
-    operations.spread.resetRightToLeftReading = [ports]() {
-        if (ports.spreadController != nullptr) {
-            ports.spreadController->resetRightToLeftReading();
-        }
-    };
-    operations.spread.clearSecondaryPage = [ports]() {
-        if (ports.spreadController != nullptr) {
-            ports.spreadController->clearSecondaryPage();
-        }
-    };
-    operations.spread.notifyRightToLeftReadingChanged = [ports]() {
-        if (ports.spreadController != nullptr) {
-            ports.spreadController->notifyRightToLeftReadingChanged();
-        }
-    };
-    operations.navigation.cancelPageNavigationUpdate = [ports]() {
-        if (ports.navigationController != nullptr) {
-            ports.navigationController->cancelPageNavigationUpdate();
-        }
-    };
-    operations.navigation.cancelNavigation = [ports]() {
-        if (ports.navigationController != nullptr) {
-            ports.navigationController->cancelNavigation();
-        }
-    };
-    operations.navigation.cancelContainerNavigation = [ports]() {
-        if (ports.navigationController != nullptr) {
-            ports.navigationController->cancelContainerNavigation();
-        }
-    };
-    operations.navigation.cancelAllNavigation = [ports]() {
-        if (ports.navigationController != nullptr) {
-            ports.navigationController->cancelAllNavigation();
-        }
-    };
-    operations.navigation.clearPageNavigation = [ports]() {
-        if (ports.navigationController != nullptr) {
-            ports.navigationController->clearPageNavigation();
-        }
-    };
-    operations.navigation.updatePageNavigation = [ports]() {
-        if (ports.navigationController != nullptr) {
-            ports.navigationController->updatePageNavigation();
-        }
-    };
-    operations.navigation.loadUrl = [ports](const kiriview::ImageDocumentPageTarget& target,
-                                        const kiriview::OpenedCollectionScopeLocation& scope) {
-        if (ports.loadSource) {
-            ports.loadSource(
-                kiriview::ImageDocumentSourceLoadRequest::fromSameScopePageTarget(target, scope));
-        }
-    };
-    operations.navigation.loadContainerImage
-        = [ports](const kiriview::ImageDocumentPageTarget& target,
-              const kiriview::OpenedCollectionScopeLocation& scope) {
-              if (ports.loadSource && !scope.isEmpty()) {
-                  ports.loadSource(
-                      kiriview::ImageDocumentSourceLoadRequest::fromContainerTarget(target, scope));
-              }
-          };
-    operations.navigation.finishEmptyContainerNavigation = [ports](const QUrl& containerUrl) {
-        if (ports.openController != nullptr) {
-            ports.openController->finishContainerNavigationWithEmptyContainer(containerUrl);
-        }
-    };
-    operations.navigation.finishContainerNavigationLoadWithError = [ports](const QUrl& containerUrl,
-                                                                       const QString& errorString) {
-        if (ports.openController != nullptr) {
-            ports.openController->finishContainerNavigationLoadWithError(containerUrl, errorString);
-        }
-    };
-    operations.navigation.reportContainerNavigationBoundary
-        = [ports](kiriview::NavigationDirection direction) {
-              if (ports.containerNavigationBoundaryReached) {
-                  ports.containerNavigationBoundaryReached(
-                      kiriview::containerNavigationBoundaryFeedbackText(direction));
-              }
-          };
-    operations.navigation.reportContainerNavigationListFailure
-        = [](const kiriview::ContainerNavigationListFailure& failure) {
-              qCDebug(kiriviewNavigationLog)
-                  << "container navigation listing failed"
-                  << "currentContainerUrl" << failure.currentContainerUrl << "parentUrl"
-                  << failure.parentUrl << "direction" << static_cast<int>(failure.direction)
-                  << "kind" << static_cast<int>(failure.kind) << "detail"
-                  << failure.diagnosticDetail;
-          };
-    operations.navigation.loadPageNavigationUrl =
-        [ports](const kiriview::ImageDocumentPageTarget& target,
-            const kiriview::OpenedCollectionScopeLocation& scope) {
-            qCDebug(kiriviewNavigationLog)
-                << "runtime loading page navigation target"
-                << "targetUrl" << target.url << "targetKind" << static_cast<int>(target.kind);
-            if (ports.loadSource) {
-                ports.loadSource(kiriview::ImageDocumentSourceLoadRequest::fromSameScopePageTarget(
-                    target, scope));
-            }
-        };
-    operations.open.cancelOpen = [ports]() {
-        if (ports.openController != nullptr) {
-            ports.openController->cancel();
-        }
-    };
-    operations.open.clearPresentationImage = [ports]() {
-        if (ports.state != nullptr) {
-            ports.state->clearDisplayedImageLocation();
-        }
-        kiriview::invokeIfSet(ports.clearViewportTarget);
-        if (ports.spreadController != nullptr) {
-            ports.spreadController->clearPrimaryPageSlot();
-        }
-    };
-    operations.open.retireViewportPresentation = [ports]() {
-        kiriview::invokeIfSet(ports.clearViewportTarget);
-        if (ports.spreadController != nullptr) {
-            ports.spreadController->clearPrimaryPageSlot();
-        }
-    };
-    operations.open.stopPresentationPlayback
-        = [ports]() { kiriview::invokeIfSet(ports.stopViewportPlayback); };
-    operations.sourceLoad.clearLoadingContainerNavigationUrl = [ports]() {
-        if (ports.state != nullptr) {
-            ports.state->clearLoadingContainerNavigationUrl();
-        }
-    };
-    operations.sourceLoad.setLoadingContainerNavigationUrl = [ports](const QUrl& url) {
-        if (ports.state != nullptr) {
-            ports.state->setLoadingContainerNavigationUrl(url);
-        }
-    };
-    operations.sourceLoad.setContainerNavigationUrl = [ports](const QUrl& url) {
-        if (ports.state != nullptr) {
-            ports.state->setContainerNavigationUrl(url);
-        }
-    };
-    operations.sourceLoad.prepareSourceLoad
-        = [ports](const kiriview::ImageDocumentSourceLoadRequest& request) {
-              if (ports.openController != nullptr) {
-                  ports.openController->prepareSourceLoad(request);
-              }
-              if (ports.mediaEntrySourceStore != nullptr && ports.state != nullptr) {
-                  ports.mediaEntrySourceStore->prepareForOpenedCollectionScope(
-                      kiriview::openedCollectionScopeForImageDocumentSourceLoad(request));
-              }
-          };
-    operations.open.selectImageTarget
-        = [ports](const kiriview::SelectImageTargetOperation& operation) {
-              if (ports.state != nullptr) {
-                  ports.state->setSelectedTarget(operation.target);
-              }
-          };
-    operations.sourceLoad.beginOpen = [ports]() {
-        if (ports.openController != nullptr) {
-            ports.openController->open();
-        }
-    };
-    operations.open.setErrorString = [ports](const QString& errorString) {
-        if (ports.state != nullptr) {
-            ports.state->setErrorString(errorString);
-        }
-    };
-    operations.open.finishEmptySourceLoad = [ports]() {
-        if (ports.openController != nullptr) {
-            ports.openController->finishEmptySourceLoad();
-        }
-    };
-    return operations;
-}
+template <typename> inline constexpr bool alwaysFalse = false;
 }
 
 namespace kiriview {
-ImageDocumentRuntimeWorkflow::ImageDocumentRuntimeWorkflow(
-    ImageDocumentRuntimeOperations operations)
-    : m_executor(std::move(operations))
-{
-}
-
 ImageDocumentRuntimeWorkflow::ImageDocumentRuntimeWorkflow(ImageDocumentRuntimeWorkflowPorts ports)
-    : ImageDocumentRuntimeWorkflow(runtimeOperations(std::move(ports)))
+    : m_ports(std::move(ports))
 {
+    if (!m_ports.clearViewportTarget || !m_ports.stopViewportPlayback || !m_ports.loadSource) {
+        qFatal("Image-document runtime workflow requires all command callbacks");
+    }
 }
 
 void ImageDocumentRuntimeWorkflow::dispatchPlan(const ImageDocumentRuntimePlan& plan)
 {
-    m_executor.dispatchPlan(plan);
+    for (const ImageDocumentRuntimeOperation& operation : plan) {
+        dispatchOperation(operation);
+    }
 }
 
-void ImageDocumentRuntimeWorkflow::shutdownRuntime() { m_executor.shutdownRuntime(); }
+void ImageDocumentRuntimeWorkflow::dispatchOperation(const ImageDocumentRuntimeOperation& operation)
+{
+    std::visit(
+        [this](const auto& payload) {
+            using Operation = std::decay_t<decltype(payload)>;
+            if constexpr (std::is_same_v<Operation, CancelFileDeletionOperation>) {
+                m_ports.deletionController.cancel();
+            } else if constexpr (std::is_same_v<Operation, ShutdownSpreadOperation>) {
+                m_ports.spreadController.shutdown();
+            } else if constexpr (std::is_same_v<Operation, ClearMediaEntrySourceOperation>) {
+                if (m_ports.mediaEntrySourceStore != nullptr) {
+                    m_ports.mediaEntrySourceStore->clear();
+                }
+            } else if constexpr (std::is_same_v<Operation, ClearPredecodeOperation>) {
+                m_ports.predecodeController.clear();
+            } else if constexpr (std::is_same_v<Operation, CancelPredecodeOperation>) {
+                m_ports.predecodeController.cancel();
+            } else if constexpr (std::is_same_v<Operation,
+                                     ScheduleAdjacentImagePredecodeOperation>) {
+                std::optional<DisplayedPredecodeImage> secondaryImage
+                    = m_ports.spreadController.secondaryDisplayedPredecodeImage();
+                qCDebug(kiriviewPredecodeLog)
+                    << "runtime scheduling adjacent image predecode"
+                    << "hasExplicitTarget" << payload.target.has_value() << "targetUrl"
+                    << (payload.target.has_value() ? payload.target->url : QUrl()) << "targetKind"
+                    << (payload.target.has_value() ? static_cast<int>(payload.target->kind) : -1)
+                    << "targetPageIndex" << payload.targetPageIndex << "hasSecondaryImage"
+                    << (secondaryImage.has_value() && secondaryImage->hasLocation());
+                if (payload.target.has_value()) {
+                    m_ports.predecodeController.scheduleImageNavigationTargetPredecode(
+                        *payload.target, payload.targetPageIndex, std::move(secondaryImage));
+                } else {
+                    m_ports.predecodeController.scheduleAdjacentImagePredecode(
+                        std::move(secondaryImage));
+                }
+            } else if constexpr (std::is_same_v<Operation, ResetRightToLeftReadingOperation>) {
+                m_ports.spreadController.resetRightToLeftReading();
+            } else if constexpr (std::is_same_v<Operation, ClearSecondaryPageOperation>) {
+                m_ports.spreadController.clearSecondaryPage();
+            } else if constexpr (std::is_same_v<Operation,
+                                     NotifyRightToLeftReadingChangedOperation>) {
+                m_ports.spreadController.notifyRightToLeftReadingChanged();
+            } else if constexpr (std::is_same_v<Operation, CancelPageNavigationUpdateOperation>) {
+                m_ports.navigationController.cancelPageNavigationUpdate();
+            } else if constexpr (std::is_same_v<Operation, CancelNavigationOperation>) {
+                m_ports.navigationController.cancelNavigation();
+            } else if constexpr (std::is_same_v<Operation, CancelContainerNavigationOperation>) {
+                m_ports.navigationController.cancelContainerNavigation();
+            } else if constexpr (std::is_same_v<Operation, CancelAllNavigationOperation>) {
+                m_ports.navigationController.cancelAllNavigation();
+            } else if constexpr (std::is_same_v<Operation, ClearPageNavigationOperation>) {
+                m_ports.navigationController.clearPageNavigation();
+            } else if constexpr (std::is_same_v<Operation, UpdatePageNavigationOperation>) {
+                m_ports.navigationController.updatePageNavigation();
+            } else if constexpr (std::is_same_v<Operation, LoadUrlOperation>) {
+                m_ports.loadSource(ImageDocumentSourceLoadRequest::fromSameScopePageTarget(
+                    payload.target, payload.openedCollectionScope));
+            } else if constexpr (std::is_same_v<Operation, LoadContainerImageOperation>) {
+                if (payload.openedCollectionScope.isEmpty()) {
+                    qFatal("Container image load operation requires an opened collection scope");
+                }
+                m_ports.loadSource(ImageDocumentSourceLoadRequest::fromContainerTarget(
+                    payload.target, payload.openedCollectionScope));
+            } else if constexpr (std::is_same_v<Operation,
+                                     FinishEmptyContainerNavigationOperation>) {
+                m_ports.openController.finishContainerNavigationWithEmptyContainer(
+                    payload.containerUrl);
+            } else if constexpr (std::is_same_v<Operation,
+                                     FinishContainerNavigationLoadWithErrorOperation>) {
+                m_ports.openController.finishContainerNavigationLoadWithError(
+                    payload.containerUrl, payload.errorString);
+            } else if constexpr (std::is_same_v<Operation,
+                                     ReportContainerNavigationBoundaryOperation>) {
+                invokeIfSet(m_ports.containerNavigationBoundaryReached,
+                    containerNavigationBoundaryFeedbackText(payload.direction));
+            } else if constexpr (std::is_same_v<Operation,
+                                     ReportContainerNavigationListFailureOperation>) {
+                qCDebug(kiriviewNavigationLog)
+                    << "container navigation listing failed"
+                    << "currentContainerUrl" << payload.failure.currentContainerUrl << "parentUrl"
+                    << payload.failure.parentUrl << "direction"
+                    << static_cast<int>(payload.failure.direction) << "kind"
+                    << static_cast<int>(payload.failure.kind) << "detail"
+                    << payload.failure.diagnosticDetail;
+            } else if constexpr (std::is_same_v<Operation, LoadPageNavigationUrlOperation>) {
+                qCDebug(kiriviewNavigationLog) << "runtime loading page navigation target"
+                                               << "targetUrl" << payload.target.url << "targetKind"
+                                               << static_cast<int>(payload.target.kind);
+                m_ports.loadSource(ImageDocumentSourceLoadRequest::fromSameScopePageTarget(
+                    payload.target, payload.openedCollectionScope));
+            } else if constexpr (std::is_same_v<Operation, CancelOpenOperation>) {
+                m_ports.openController.cancel();
+            } else if constexpr (std::is_same_v<Operation, ClearPresentationImageOperation>) {
+                m_ports.state.clearDisplayedImageLocation();
+                m_ports.clearViewportTarget();
+                m_ports.spreadController.clearPrimaryPageSlot();
+            } else if constexpr (std::is_same_v<Operation, RetireViewportPresentationOperation>) {
+                m_ports.clearViewportTarget();
+                m_ports.spreadController.clearPrimaryPageSlot();
+            } else if constexpr (std::is_same_v<Operation, StopPresentationPlaybackOperation>) {
+                m_ports.stopViewportPlayback();
+            } else if constexpr (std::is_same_v<Operation,
+                                     ClearLoadingContainerNavigationUrlOperation>) {
+                m_ports.state.clearLoadingContainerNavigationUrl();
+            } else if constexpr (std::is_same_v<Operation,
+                                     SetLoadingContainerNavigationUrlOperation>) {
+                m_ports.state.setLoadingContainerNavigationUrl(payload.url);
+            } else if constexpr (std::is_same_v<Operation, SetContainerNavigationUrlOperation>) {
+                m_ports.state.setContainerNavigationUrl(payload.url);
+            } else if constexpr (std::is_same_v<Operation, PrepareSourceLoadOperation>) {
+                m_ports.openController.prepareSourceLoad(payload.request);
+                if (m_ports.mediaEntrySourceStore != nullptr) {
+                    m_ports.mediaEntrySourceStore->prepareForOpenedCollectionScope(
+                        openedCollectionScopeForImageDocumentSourceLoad(payload.request));
+                }
+            } else if constexpr (std::is_same_v<Operation, SelectImageTargetOperation>) {
+                m_ports.state.setSelectedTarget(payload.target);
+            } else if constexpr (std::is_same_v<Operation, BeginOpenOperation>) {
+                m_ports.openController.open();
+            } else if constexpr (std::is_same_v<Operation, SetErrorStringOperation>) {
+                m_ports.state.setErrorString(payload.errorString);
+            } else if constexpr (std::is_same_v<Operation, FinishEmptySourceLoadOperation>) {
+                m_ports.openController.finishEmptySourceLoad();
+            } else {
+                static_assert(alwaysFalse<Operation>, "Unhandled image document runtime operation");
+            }
+        },
+        operation);
+}
+
+void ImageDocumentRuntimeWorkflow::shutdownRuntime() { dispatchPlan(imageDocumentShutdownPlan()); }
 }

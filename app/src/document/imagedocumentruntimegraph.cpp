@@ -4,18 +4,11 @@
 #include "imagedocumentruntimegraph.h"
 
 #include "archive/mediaentrysourcestore.h"
-#include "async/imagecallback.h"
-#include "imagedocumentadjacentpredecodeschedulerport.h"
-#include "imagedocumentcurrentpagenumberport.h"
 #include "imagedocumentdeletioncontroller.h"
-#include "imagedocumentdeletionprogressport.h"
 #include "imagedocumentnavigationcontroller.h"
 #include "imagedocumentnavigationruntimeplan.h"
-#include "imagedocumentnavigationsnapshotport.h"
-#include "imagedocumentpagecandidatesnapshotport.h"
 #include "imagedocumentpredecodecontroller.h"
 #include "imagedocumentpredecodedimagelookup.h"
-#include "imagedocumentprimarypageslotport.h"
 #include "imagedocumentruntimedependencies.h"
 #include "imagedocumentruntimeworkflow.h"
 #include "imagedocumentsourceloadrequest.h"
@@ -30,6 +23,7 @@
 
 #include <QObject>
 #include <QUrl>
+#include <QtGlobal>
 #include <QtMath>
 #include <optional>
 #include <utility>
@@ -68,6 +62,10 @@ ImageDocumentRuntimeGraph::ImageDocumentRuntimeGraph(QObject* documentObject,
     : m_callbacks(std::move(callbacks))
     , m_state(state)
 {
+    if (!m_callbacks.notify || !m_callbacks.loadSource || !m_callbacks.resolveExternalSource) {
+        qFatal("Image-document runtime graph requires all command and state callbacks");
+    }
+
     ImageDocumentRuntimeDependencies runtimeDependencies
         = resolveImageDocumentRuntimeDependencies(std::move(dependencies));
     ExternalPredecodedImageFinder externalPredecodedImageFinder
@@ -77,7 +75,7 @@ ImageDocumentRuntimeGraph::ImageDocumentRuntimeGraph(QObject* documentObject,
     composeNavigationAndCandidatePorts(runtimeDependencies);
     composeWorkflowOwners(
         documentObject, state, runtimeDependencies, std::move(externalPredecodedImageFinder));
-    composeWorkflowDispatch(state);
+    composeWorkflowDispatch();
 }
 
 ImageDocumentRuntimeGraph::~ImageDocumentRuntimeGraph() = default;
@@ -114,30 +112,17 @@ void ImageDocumentRuntimeGraph::composeNavigationAndCandidatePorts(
                         commit.effects, pageNavigationOpenedCollectionScope()),
                 });
             },
-            [this]() {
-                return m_deletionProgressPort != nullptr && m_deletionProgressPort->inProgress();
-            },
+            [this]() { return m_deletionController->inProgress(); },
             m_callbacks.resolveExternalSource,
         });
-    m_navigationSnapshotPort
-        = std::make_unique<ImageDocumentNavigationSnapshotPort>(m_navigationService.get());
-    m_currentPageNumberPort
-        = std::make_unique<ImageDocumentCurrentPageNumberPort>(m_navigationService.get());
-    m_pageCandidateSnapshotPort
-        = std::make_unique<ImageDocumentPageCandidateSnapshotPort>(m_navigationService.get());
-    m_adjacentPredecodeSchedulerPort
-        = std::make_unique<ImageDocumentAdjacentPredecodeSchedulerPort>(
-            [this](const ImageDocumentRuntimePlan& plan) { dispatchPlan(plan); });
 }
 
 OpenedCollectionScopeLocation ImageDocumentRuntimeGraph::pageNavigationOpenedCollectionScope() const
 {
-    if (m_navigationService != nullptr) {
-        const std::optional<ImageDocumentPageCandidateListContext> context
-            = m_navigationService->selectedPageCandidateContext();
-        if (context.has_value()) {
-            return context->openedCollectionScope();
-        }
+    const std::optional<ImageDocumentPageCandidateListContext> context
+        = m_navigationService->selectedPageCandidateContext();
+    if (context.has_value()) {
+        return context->openedCollectionScope();
     }
 
     return m_state.displayedOpenedCollectionScope();
@@ -152,45 +137,43 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
     m_deletionController = std::make_unique<ImageDocumentDeletionController>(
         documentObject, state,
         [this]() {
-            return m_viewportIntegration != nullptr
-                && m_viewportIntegration->projection().correlated
+            return m_viewportIntegration->projection().correlated
                 && !m_viewportIntegration->projection().displayedUrl.isEmpty();
         },
         dependencies.candidateProvider, std::move(dependencies.fileDeletionProvider),
         ImageDocumentDeletionController::Callbacks {
             [this]() {
-                invokeIfSet(m_callbacks.notify,
-                    std::vector<ImageDocumentChange> {
-                        ImageDocumentChange::FileDeletionInProgress });
+                m_callbacks.notify(std::vector<ImageDocumentChange> {
+                    ImageDocumentChange::FileDeletionInProgress });
             },
             [this](const ImageDocumentRuntimePlan& plan) { dispatchPlan(plan); },
             std::move(m_callbacks.fileDeletionFailed),
         },
         m_callbacks.resolveExternalSource);
-    m_deletionProgressPort
-        = std::make_unique<ImageDocumentDeletionProgressPort>(m_deletionController.get());
     m_predecodeController = std::make_unique<ImageDocumentPredecodeController>(
         state, [this]() { return primaryDisplayedPredecodeImage(); },
         [this]() { return firstDisplayDecodeContext(); }, dependencies.imageDecode,
         dependencies.cacheBudgets.predecodeCacheByteBudget,
-        [this]() { return m_currentPageNumberPort->currentPageNumber(); },
+        [this]() { return m_navigationService->currentPageNumber(); },
         [this](const ImageDocumentPageCandidateListContext& context,
             ImageDocumentPageCandidateListSnapshotCallback callback) {
-            m_pageCandidateSnapshotPort->ensure(context, std::move(callback));
+            m_navigationService->ensurePageCandidateSnapshot(context, std::move(callback));
         },
         std::move(dependencies.powerSaver), dependencies.ordinaryDirectMediaPredecodeEnabled,
         std::move(dependencies.predecodeTimerScheduler),
         std::move(dependencies.predecodeThreadCountProvider));
     m_predecodedImageLookup = std::make_unique<ImageDocumentPredecodedImageLookup>(
-        std::move(externalPredecodedImageFinder), m_predecodeController.get());
+        *m_predecodeController, std::move(externalPredecodedImageFinder));
     m_spreadController = std::make_unique<ImageSpreadPresentationController>(state,
         ImageSpreadPresentationController::Callbacks {
-            [this](const std::vector<ImageDocumentChange>& changes) {
-                invokeIfSet(m_callbacks.notify, changes);
-            },
+            [this](
+                const std::vector<ImageDocumentChange>& changes) { m_callbacks.notify(changes); },
             [this](const QUrl& url) { return m_predecodedImageLookup->find(url); },
-            [this]() { return m_navigationSnapshotPort->snapshot(); },
-            [this]() { m_adjacentPredecodeSchedulerPort->scheduleAdjacentImagePredecode(); },
+            [this]() { return m_navigationService->pageNavigationSnapshot(); },
+            [this]() {
+                dispatchPlan(
+                    ImageDocumentRuntimePlan { ScheduleAdjacentImagePredecodeOperation {} });
+            },
             [this](const ImageLoadSession& session, std::optional<PredecodedImage> predecoded) {
                 prepareViewportSecondaryImageTarget(session, std::move(predecoded));
             },
@@ -199,8 +182,6 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
                 return m_viewportIntegration->displayedImage(ImageViewportPageRole::Secondary);
             },
         });
-    m_primaryPageSlotPort
-        = std::make_unique<ImageDocumentPrimaryPageSlotPort>(m_spreadController.get());
     m_openController = std::make_unique<ImageOpenController>(state,
         ImageOpenController::Callbacks {
             [this](const QUrl& url) { return m_predecodedImageLookup->find(url); },
@@ -219,20 +200,17 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
                 return device != nullptr && device->device != nullptr;
             },
             [this](const DisplayedImageLocation& location, QSize imageSize) {
-                m_primaryPageSlotPort->commit(location, imageSize);
+                m_spreadController->commitPrimaryPageSlot(location, imageSize);
             },
             [this](const ImageDocumentPageCandidateListContext& context,
                 ImageDocumentPageCandidateListSnapshotCallback callback) {
-                m_pageCandidateSnapshotPort->ensure(context, std::move(callback));
+                m_navigationService->ensurePageCandidateSnapshot(context, std::move(callback));
             },
             [this](const ImageLoadSession& session, std::optional<PredecodedImage> predecoded) {
                 return prepareViewportImageTarget(session, std::move(predecoded));
             },
             [this]() { return firstDisplayDecodeContext(); },
-            [this]() {
-                return m_viewportIntegration != nullptr
-                    && !m_viewportIntegration->projection().displayedUrl.isEmpty();
-            },
+            [this]() { return !m_viewportIntegration->projection().displayedUrl.isEmpty(); },
         });
     m_navigationController
         = std::make_unique<ImageDocumentNavigationController>(state, *m_navigationService,
@@ -241,23 +219,19 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
             });
 }
 
-void ImageDocumentRuntimeGraph::composeWorkflowDispatch(ImageDocumentState& state)
+void ImageDocumentRuntimeGraph::composeWorkflowDispatch()
 {
     m_runtimeWorkflow
         = std::make_unique<ImageDocumentRuntimeWorkflow>(ImageDocumentRuntimeWorkflowPorts {
-            &state,
+            m_state,
             m_mediaEntrySourceStore.get(),
-            m_deletionController.get(),
+            *m_deletionController,
             [this]() { clearViewportTarget(); },
-            [this]() {
-                if (m_viewportIntegration != nullptr) {
-                    m_viewportIntegration->stopPlayback();
-                }
-            },
-            m_openController.get(),
-            m_predecodeController.get(),
-            m_spreadController.get(),
-            m_navigationController.get(),
+            [this]() { m_viewportIntegration->stopPlayback(); },
+            *m_openController,
+            *m_predecodeController,
+            *m_spreadController,
+            *m_navigationController,
             m_callbacks.loadSource,
             m_callbacks.containerNavigationBoundaryReached,
         });
@@ -286,7 +260,7 @@ ImageViewportIntegrationRuntime& ImageDocumentRuntimeGraph::viewportIntegration(
 std::optional<DisplayedPredecodeImage>
 ImageDocumentRuntimeGraph::primaryDisplayedPredecodeImage() const
 {
-    if (m_viewportIntegration == nullptr || m_state.status() != ImageDocumentStatus::Ready
+    if (m_state.status() != ImageDocumentStatus::Ready
         || m_state.sourceKind() != ImageDocumentPageKind::Image
         || m_state.displayedImageLocation().isEmpty()
         || m_viewportIntegration->projection().status != ImageDocumentStatus::Ready
@@ -308,9 +282,6 @@ ImageDocumentRuntimeGraph::primaryDisplayedPredecodeImage() const
 
 ImageFirstDisplayDecodeContext ImageDocumentRuntimeGraph::firstDisplayDecodeContext() const
 {
-    if (m_viewportIntegration == nullptr) {
-        return {};
-    }
     const QSizeF viewportSize = m_viewportIntegration->projection().viewportSize;
     if (viewportSize.isEmpty()) {
         return {};
@@ -326,10 +297,6 @@ void ImageDocumentRuntimeGraph::requestNextViewportTargetAnchorAtEnd()
 bool ImageDocumentRuntimeGraph::prepareViewportImageTarget(
     const ImageLoadSession& session, std::optional<PredecodedImage> predecoded)
 {
-    if (m_viewportIntegration == nullptr) {
-        return false;
-    }
-
     auto prepared = std::make_shared<PreparedViewportTargetState>();
     prepared->session = session;
     prepared->dependencies = m_imageDecodeDependencies;
@@ -341,8 +308,7 @@ bool ImageDocumentRuntimeGraph::prepareViewportImageTarget(
     target.transitionIntent = session.request().sameScopePageNavigation()
         ? ImageViewportTargetTransitionIntent::SameNavigationScope
         : ImageViewportTargetTransitionIntent::OutsideNavigationScope;
-    target.rightToLeft
-        = m_spreadController != nullptr && m_spreadController->rightToLeftReadingEnabled();
+    target.rightToLeft = m_spreadController->rightToLeftReadingEnabled();
     target.anchorAtEnd = std::exchange(m_nextViewportTargetAnchorAtEnd, false);
     const std::shared_ptr<DisplayImageStore> displayStore = m_viewportDisplayStore;
     target.primaryResource = [prepared, displayStore]() {
@@ -377,11 +343,8 @@ bool ImageDocumentRuntimeGraph::prepareViewportImageTarget(
 void ImageDocumentRuntimeGraph::prepareViewportSecondaryImageTarget(
     const ImageLoadSession& session, std::optional<PredecodedImage> predecoded)
 {
-    if (m_viewportIntegration == nullptr || m_viewportTarget == nullptr
-        || !m_viewportTarget->isValid()) {
-        if (m_spreadController != nullptr) {
-            m_spreadController->finishViewportSecondaryPageLoadWithError(session);
-        }
+    if (m_viewportTarget == nullptr || !m_viewportTarget->isValid()) {
+        m_spreadController->finishViewportSecondaryPageLoadWithError(session);
         return;
     }
 
@@ -417,8 +380,7 @@ void ImageDocumentRuntimeGraph::prepareViewportSecondaryImageTarget(
 
 void ImageDocumentRuntimeGraph::clearViewportSecondaryImageTarget()
 {
-    if (m_viewportIntegration == nullptr || m_viewportTarget == nullptr
-        || m_viewportTarget->secondaryUrl.isEmpty()) {
+    if (m_viewportTarget == nullptr || m_viewportTarget->secondaryUrl.isEmpty()) {
         m_viewportSecondaryLoadSession.reset();
         return;
     }
@@ -438,18 +400,15 @@ void ImageDocumentRuntimeGraph::clearViewportTarget()
     m_viewportSecondaryLoadSession.reset();
     m_viewportTarget.reset();
     m_nextViewportTargetAnchorAtEnd = false;
-    if (m_viewportIntegration != nullptr) {
-        m_viewportIntegration->clearTarget();
-    }
+    m_viewportIntegration->clearTarget();
 }
 
 void ImageDocumentRuntimeGraph::handleViewportProjection(
     const ImageViewportIntegrationProjection& projection)
 {
-    invokeIfSet(m_callbacks.notify,
+    m_callbacks.notify(
         std::vector<ImageDocumentChange> { ImageDocumentChange::ViewportProjection });
-    if (m_spreadController != nullptr && m_viewportSecondaryLoadSession.has_value()
-        && m_viewportTarget != nullptr
+    if (m_viewportSecondaryLoadSession.has_value() && m_viewportTarget != nullptr
         && projection.sourceGeneration == m_viewportTarget->sourceGeneration
         && projection.secondaryUrl == m_viewportSecondaryLoadSession->imageUrl()) {
         if (projection.status == ImageDocumentStatus::Ready
@@ -464,7 +423,7 @@ void ImageDocumentRuntimeGraph::handleViewportProjection(
             m_spreadController->finishViewportSecondaryPageLoadWithError(session);
         }
     }
-    if (m_openController == nullptr || !m_pendingViewportImageLoad.has_value()
+    if (!m_pendingViewportImageLoad.has_value()
         || projection.sourceGeneration != m_pendingViewportImageLoad->session.id()) {
         return;
     }
@@ -524,23 +483,16 @@ ImageDocumentRuntimeGraph::loadOpenedCollectionVideoPlaybackDevice(
 
 void ImageDocumentRuntimeGraph::dispatchPlan(const ImageDocumentRuntimePlan& plan)
 {
-    if (m_runtimeWorkflow != nullptr) {
-        m_runtimeWorkflow->dispatchPlan(plan);
-    }
+    m_runtimeWorkflow->dispatchPlan(plan);
 }
 
 void ImageDocumentRuntimeGraph::dispatchTransaction(
     const ImageDocumentRuntimeTransaction& transaction)
 {
     [[maybe_unused]] auto batch = m_state.beginChangeBatch();
-    invokeIfSet(m_callbacks.notify, transaction.changes);
+    m_callbacks.notify(transaction.changes);
     dispatchPlan(transaction.plan);
 }
 
-void ImageDocumentRuntimeGraph::shutdownRuntime()
-{
-    if (m_runtimeWorkflow != nullptr) {
-        m_runtimeWorkflow->shutdownRuntime();
-    }
-}
+void ImageDocumentRuntimeGraph::shutdownRuntime() { m_runtimeWorkflow->shutdownRuntime(); }
 }

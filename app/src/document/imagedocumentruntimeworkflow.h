@@ -4,13 +4,10 @@
 #ifndef KIRIVIEW_IMAGEDOCUMENTRUNTIMEWORKFLOW_H
 #define KIRIVIEW_IMAGEDOCUMENTRUNTIMEWORKFLOW_H
 
-#include "imagedocumentruntimeplanexecutor.h"
-#include "location/imageurl.h"
+#include "imagedocumentruntimeplan.h"
 
 #include <QString>
 #include <functional>
-
-class QUrl;
 
 namespace kiriview {
 class MediaEntrySourceStore;
@@ -24,15 +21,15 @@ class ImageSpreadPresentationController;
 
 struct ImageDocumentRuntimeWorkflowPorts
 {
-    ImageDocumentState* state = nullptr;
+    ImageDocumentState& state;
     MediaEntrySourceStore* mediaEntrySourceStore = nullptr;
-    ImageDocumentDeletionController* deletionController = nullptr;
+    ImageDocumentDeletionController& deletionController;
     std::function<void()> clearViewportTarget;
     std::function<void()> stopViewportPlayback;
-    ImageOpenController* openController = nullptr;
-    ImageDocumentPredecodeController* predecodeController = nullptr;
-    ImageSpreadPresentationController* spreadController = nullptr;
-    ImageDocumentNavigationController* navigationController = nullptr;
+    ImageOpenController& openController;
+    ImageDocumentPredecodeController& predecodeController;
+    ImageSpreadPresentationController& spreadController;
+    ImageDocumentNavigationController& navigationController;
     std::function<void(const ImageDocumentSourceLoadRequest&)> loadSource;
     std::function<void(const QString&)> containerNavigationBoundaryReached;
 };
@@ -40,14 +37,15 @@ struct ImageDocumentRuntimeWorkflowPorts
 class ImageDocumentRuntimeWorkflow final
 {
 public:
-    explicit ImageDocumentRuntimeWorkflow(ImageDocumentRuntimeOperations operations);
     explicit ImageDocumentRuntimeWorkflow(ImageDocumentRuntimeWorkflowPorts ports);
 
     void dispatchPlan(const ImageDocumentRuntimePlan& plan);
     void shutdownRuntime();
 
 private:
-    ImageDocumentRuntimePlanExecutor m_executor;
+    void dispatchOperation(const ImageDocumentRuntimeOperation& operation);
+
+    ImageDocumentRuntimeWorkflowPorts m_ports;
 };
 }
 

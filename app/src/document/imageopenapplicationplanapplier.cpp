@@ -100,26 +100,16 @@ bool finalImageOpenStateIsValid(
     return false;
 }
 
-class ImageOpenApplicationPlanApplier final
+class ImageOpenStateDeltaApplier final
 {
 public:
-    explicit ImageOpenApplicationPlanApplier(kiriview::ImageDocumentState& state)
+    explicit ImageOpenStateDeltaApplier(kiriview::ImageDocumentState& state)
         : m_state(state)
         , m_batch(m_state.beginChangeBatch())
     {
     }
 
-    void apply(kiriview::ImageOpenApplicationPlan plan)
-    {
-        if (!finalImageOpenStateIsValid(m_state, plan.stateDelta)) {
-            return;
-        }
-
-        applyStateDelta(plan.stateDelta);
-        m_runtimePlan = std::move(plan.runtimePlan);
-    }
-
-    kiriview::ImageDocumentRuntimePlan takeRuntimePlan() { return std::move(m_runtimePlan); }
+    void apply(const kiriview::ImageOpenResolvedStateDelta& delta) { applyStateDelta(delta); }
 
 private:
     void applyStateDelta(const kiriview::ImageOpenResolvedStateDelta& delta)
@@ -238,16 +228,28 @@ private:
 
     kiriview::ImageDocumentState& m_state;
     kiriview::ImageDocumentState::ChangeBatch m_batch;
-    kiriview::ImageDocumentRuntimePlan m_runtimePlan;
 };
 }
 
 namespace kiriview {
+ImageOpenApplicationResult tryApplyImageOpenApplicationPlan(
+    ImageDocumentState& state, ImageOpenApplicationPlan plan)
+{
+    if (!finalImageOpenStateIsValid(state, plan.stateDelta)) {
+        return std::unexpected(ImageOpenApplicationError::InvalidFinalState);
+    }
+
+    ImageOpenStateDeltaApplier(state).apply(plan.stateDelta);
+    return std::move(plan.runtimePlan);
+}
+
 ImageDocumentRuntimePlan applyImageOpenApplicationPlan(
     ImageDocumentState& state, ImageOpenApplicationPlan plan)
 {
-    ImageOpenApplicationPlanApplier applier(state);
-    applier.apply(std::move(plan));
-    return applier.takeRuntimePlan();
+    ImageOpenApplicationResult result = tryApplyImageOpenApplicationPlan(state, std::move(plan));
+    if (!result.has_value()) {
+        qFatal("Image-open application plan violates final state invariants");
+    }
+    return std::move(result).value();
 }
 }

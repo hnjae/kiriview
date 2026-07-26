@@ -10,9 +10,9 @@
 
 namespace kiriview {
 ImageDocumentPredecodedImageLookup::ImageDocumentPredecodedImageLookup(
-    ExternalFinder externalFinder, const ImageDocumentPredecodeController* predecodeController)
-    : m_externalFinder(std::move(externalFinder))
-    , m_predecodeController(predecodeController)
+    const ImageDocumentPredecodeController& predecodeController, ExternalFinder externalFinder)
+    : m_predecodeController(predecodeController)
+    , m_externalFinder(std::move(externalFinder))
 {
 }
 
@@ -25,10 +25,6 @@ std::optional<PredecodedImage> ImageDocumentPredecodedImageLookup::find(const QU
         }
     }
 
-    if (m_predecodeController != nullptr) {
-        return m_predecodeController->findPredecodedImage(url);
-    }
-
-    return std::nullopt;
+    return m_predecodeController.findPredecodedImage(url);
 }
 }

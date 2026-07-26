@@ -19,14 +19,15 @@ class ImageDocumentPredecodedImageLookup final
 public:
     using ExternalFinder = std::function<std::optional<PredecodedImage>(const QUrl&)>;
 
-    explicit ImageDocumentPredecodedImageLookup(ExternalFinder externalFinder = {},
-        const ImageDocumentPredecodeController* predecodeController = nullptr);
+    explicit ImageDocumentPredecodedImageLookup(
+        const ImageDocumentPredecodeController& predecodeController,
+        ExternalFinder externalFinder = {});
 
     [[nodiscard]] std::optional<PredecodedImage> find(const QUrl& url) const;
 
 private:
+    const ImageDocumentPredecodeController& m_predecodeController;
     ExternalFinder m_externalFinder;
-    const ImageDocumentPredecodeController* m_predecodeController = nullptr;
 };
 }
 

@@ -37,11 +37,11 @@ class TestImageOpenApplicationPlanApplier : public QObject
 
 private Q_SLOTS:
     void validPlanAppliesStateAndReturnsEffects();
-    void invalidReadyWithErrorPlanDoesNotMutateStateOrRunEffects();
-    void invalidReadyWithEmptySourcePlanDoesNotMutateStateOrRunEffects();
-    void invalidReadyVideoSourceWithoutUnsupportedFlagDoesNotMutateStateOrRunEffects();
-    void invalidReadyWithUnrelatedContainerNavigationPlanDoesNotMutateStateOrRunEffects();
-    void invalidNullWithContainerNavigationPlanDoesNotMutateStateOrRunEffects();
+    void invalidReadyWithErrorPlanReturnsErrorWithoutMutatingState();
+    void invalidReadyWithEmptySourcePlanReturnsErrorWithoutMutatingState();
+    void invalidReadyVideoSourceWithoutUnsupportedFlagReturnsErrorWithoutMutatingState();
+    void invalidReadyWithUnrelatedContainerNavigationPlanReturnsErrorWithoutMutatingState();
+    void invalidNullWithContainerNavigationPlanReturnsErrorWithoutMutatingState();
 };
 
 void TestImageOpenApplicationPlanApplier::validPlanAppliesStateAndReturnsEffects()
@@ -71,7 +71,8 @@ void TestImageOpenApplicationPlanApplier::validPlanAppliesStateAndReturnsEffects
     QVERIFY(hasOperation<kiriview::UpdatePageNavigationOperation>(plan));
 }
 
-void TestImageOpenApplicationPlanApplier::invalidReadyWithErrorPlanDoesNotMutateStateOrRunEffects()
+void TestImageOpenApplicationPlanApplier::
+    invalidReadyWithErrorPlanReturnsErrorWithoutMutatingState()
 {
     std::vector<kiriview::ImageDocumentChange> changes;
     kiriview::ImageDocumentState state(
@@ -88,19 +89,20 @@ void TestImageOpenApplicationPlanApplier::invalidReadyWithErrorPlanDoesNotMutate
     applicationPlan.stateDelta.errorString = QStringLiteral("late error");
     applicationPlan.runtimePlan.push_back(kiriview::UpdatePageNavigationOperation {});
 
-    const kiriview::ImageDocumentRuntimePlan plan
-        = kiriview::applyImageOpenApplicationPlan(state, std::move(applicationPlan));
+    const kiriview::ImageOpenApplicationResult result
+        = kiriview::tryApplyImageOpenApplicationPlan(state, std::move(applicationPlan));
 
     QCOMPARE(state.sourceUrl(), sourceUrl);
     QVERIFY(state.loading());
     QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Loading);
     QVERIFY(state.errorString().isEmpty());
-    QVERIFY(plan.empty());
+    QVERIFY(!result.has_value());
+    QCOMPARE(result.error(), kiriview::ImageOpenApplicationError::InvalidFinalState);
     QVERIFY(changes.empty());
 }
 
 void TestImageOpenApplicationPlanApplier::
-    invalidReadyWithEmptySourcePlanDoesNotMutateStateOrRunEffects()
+    invalidReadyWithEmptySourcePlanReturnsErrorWithoutMutatingState()
 {
     std::vector<kiriview::ImageDocumentChange> changes;
     kiriview::ImageDocumentState state(
@@ -120,19 +122,20 @@ void TestImageOpenApplicationPlanApplier::
     applicationPlan.stateDelta.errorString = QString();
     applicationPlan.runtimePlan.push_back(kiriview::UpdatePageNavigationOperation {});
 
-    const kiriview::ImageDocumentRuntimePlan plan
-        = kiriview::applyImageOpenApplicationPlan(state, std::move(applicationPlan));
+    const kiriview::ImageOpenApplicationResult result
+        = kiriview::tryApplyImageOpenApplicationPlan(state, std::move(applicationPlan));
 
     QCOMPARE(state.sourceUrl(), sourceUrl);
     QCOMPARE(state.displayedUrl(), displayedUrl);
     QVERIFY(state.loading());
     QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Loading);
-    QVERIFY(plan.empty());
+    QVERIFY(!result.has_value());
+    QCOMPARE(result.error(), kiriview::ImageOpenApplicationError::InvalidFinalState);
     QVERIFY(changes.empty());
 }
 
 void TestImageOpenApplicationPlanApplier::
-    invalidReadyVideoSourceWithoutUnsupportedFlagDoesNotMutateStateOrRunEffects()
+    invalidReadyVideoSourceWithoutUnsupportedFlagReturnsErrorWithoutMutatingState()
 {
     std::vector<kiriview::ImageDocumentChange> changes;
     kiriview::ImageDocumentState state(
@@ -155,8 +158,8 @@ void TestImageOpenApplicationPlanApplier::
     applicationPlan.stateDelta.errorString = QString();
     applicationPlan.runtimePlan.push_back(kiriview::UpdatePageNavigationOperation {});
 
-    const kiriview::ImageDocumentRuntimePlan plan
-        = kiriview::applyImageOpenApplicationPlan(state, std::move(applicationPlan));
+    const kiriview::ImageOpenApplicationResult result
+        = kiriview::tryApplyImageOpenApplicationPlan(state, std::move(applicationPlan));
 
     QCOMPARE(state.sourceUrl(), sourceUrl);
     QCOMPARE(state.displayedUrl(), sourceUrl);
@@ -164,12 +167,13 @@ void TestImageOpenApplicationPlanApplier::
     QVERIFY(!state.unsupportedOpenedCollectionVideo());
     QVERIFY(state.loading());
     QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Loading);
-    QVERIFY(plan.empty());
+    QVERIFY(!result.has_value());
+    QCOMPARE(result.error(), kiriview::ImageOpenApplicationError::InvalidFinalState);
     QVERIFY(changes.empty());
 }
 
 void TestImageOpenApplicationPlanApplier::
-    invalidReadyWithUnrelatedContainerNavigationPlanDoesNotMutateStateOrRunEffects()
+    invalidReadyWithUnrelatedContainerNavigationPlanReturnsErrorWithoutMutatingState()
 {
     std::vector<kiriview::ImageDocumentChange> changes;
     kiriview::ImageDocumentState state(
@@ -193,20 +197,21 @@ void TestImageOpenApplicationPlanApplier::
     applicationPlan.stateDelta.errorString = QString();
     applicationPlan.runtimePlan.push_back(kiriview::UpdatePageNavigationOperation {});
 
-    const kiriview::ImageDocumentRuntimePlan plan
-        = kiriview::applyImageOpenApplicationPlan(state, std::move(applicationPlan));
+    const kiriview::ImageOpenApplicationResult result
+        = kiriview::tryApplyImageOpenApplicationPlan(state, std::move(applicationPlan));
 
     QCOMPARE(state.sourceUrl(), sourceUrl);
     QCOMPARE(state.displayedUrl(), sourceUrl);
     QVERIFY(state.containerNavigationUrl().isEmpty());
     QVERIFY(state.loading());
     QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Loading);
-    QVERIFY(plan.empty());
+    QVERIFY(!result.has_value());
+    QCOMPARE(result.error(), kiriview::ImageOpenApplicationError::InvalidFinalState);
     QVERIFY(changes.empty());
 }
 
 void TestImageOpenApplicationPlanApplier::
-    invalidNullWithContainerNavigationPlanDoesNotMutateStateOrRunEffects()
+    invalidNullWithContainerNavigationPlanReturnsErrorWithoutMutatingState()
 {
     std::vector<kiriview::ImageDocumentChange> changes;
     kiriview::ImageDocumentState state(
@@ -226,15 +231,16 @@ void TestImageOpenApplicationPlanApplier::
     applicationPlan.stateDelta.errorString = QString();
     applicationPlan.runtimePlan.push_back(kiriview::ClearPresentationImageOperation {});
 
-    const kiriview::ImageDocumentRuntimePlan plan
-        = kiriview::applyImageOpenApplicationPlan(state, std::move(applicationPlan));
+    const kiriview::ImageOpenApplicationResult result
+        = kiriview::tryApplyImageOpenApplicationPlan(state, std::move(applicationPlan));
 
     QCOMPARE(state.sourceUrl(), sourceUrl);
     QCOMPARE(state.displayedUrl(), sourceUrl);
     QVERIFY(state.containerNavigationUrl().isEmpty());
     QVERIFY(state.loading());
     QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Loading);
-    QVERIFY(plan.empty());
+    QVERIFY(!result.has_value());
+    QCOMPARE(result.error(), kiriview::ImageOpenApplicationError::InvalidFinalState);
     QVERIFY(changes.empty());
 }
 

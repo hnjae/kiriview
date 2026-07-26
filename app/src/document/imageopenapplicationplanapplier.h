@@ -6,9 +6,20 @@
 
 #include "imageopenapplicationplan.h"
 
+#include <expected>
+
 namespace kiriview {
 class ImageDocumentState;
 
+enum class ImageOpenApplicationError {
+    InvalidFinalState,
+};
+
+using ImageOpenApplicationResult
+    = std::expected<ImageDocumentRuntimePlan, ImageOpenApplicationError>;
+
+[[nodiscard]] ImageOpenApplicationResult tryApplyImageOpenApplicationPlan(
+    ImageDocumentState& state, ImageOpenApplicationPlan plan);
 ImageDocumentRuntimePlan applyImageOpenApplicationPlan(
     ImageDocumentState& state, ImageOpenApplicationPlan plan);
 }

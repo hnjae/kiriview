@@ -11,6 +11,7 @@
 #include "localization/imageerrortext.h"
 
 #include <KLocalizedString>
+#include <QtGlobal>
 #include <utility>
 
 namespace {
@@ -61,6 +62,13 @@ ImageOpenController::ImageOpenController(
     : m_state(state)
     , m_callbacks(std::move(callbacks))
 {
+    if (!m_callbacks.findPredecodedImage || !m_callbacks.runtimePlan
+        || !m_callbacks.openedCollectionVideoPlaybackAvailable || !m_callbacks.commitPrimaryPageSlot
+        || !m_callbacks.ensurePageCandidateSnapshot || !m_callbacks.prepareViewportImageTarget
+        || !m_callbacks.firstDisplayDecodeContext || !m_callbacks.hasCommittedImage) {
+        qFatal("Image-open controller requires all workflow callbacks");
+    }
+
     ImageLoader::EnsurePageCandidateSnapshotCallback ensurePageCandidateSnapshot
         = m_callbacks.ensurePageCandidateSnapshot;
     m_imageLoader = std::make_unique<ImageLoader>(ImageLoader::Callbacks {
@@ -72,10 +80,7 @@ ImageOpenController::ImageOpenController(
             [[maybe_unused]] auto batch = m_state.beginChangeBatch();
             finishUnsupportedOpenedCollectionVideoLoad(session);
         },
-        [this](const QUrl& url) {
-            return m_callbacks.findPredecodedImage ? m_callbacks.findPredecodedImage(url)
-                                                   : std::optional<PredecodedImage>();
-        },
+        [this](const QUrl& url) { return m_callbacks.findPredecodedImage(url); },
         [this](const ImageLoadSession& session) {
             [[maybe_unused]] auto batch = m_state.beginChangeBatch();
             finishSourcePrepared(session);
@@ -104,9 +109,8 @@ void ImageOpenController::open()
     ImageLoadRequest request = std::move(*m_sourceLoadRequest);
     m_sourceLoadRequest.reset();
     beginSourceLoad(request.sameScopePageNavigation());
-    const ImageFirstDisplayDecodeContext firstDisplayContext = m_callbacks.firstDisplayDecodeContext
-        ? m_callbacks.firstDisplayDecodeContext()
-        : ImageFirstDisplayDecodeContext {};
+    const ImageFirstDisplayDecodeContext firstDisplayContext
+        = m_callbacks.firstDisplayDecodeContext();
     m_imageLoader->start(std::move(request), firstDisplayContext);
 }
 
@@ -121,7 +125,7 @@ void ImageOpenController::finishViewportImageLoadReady(
     const ImageLoadSession& session, QSize imageSize, EmbeddedMetadata metadata)
 {
     [[maybe_unused]] auto batch = m_state.beginChangeBatch();
-    invokeIfSet(m_callbacks.commitPrimaryPageSlot, session.location(), imageSize);
+    m_callbacks.commitPrimaryPageSlot(session.location(), imageSize);
     finishSuccessfulImageLoad(session, std::move(metadata));
 }
 
@@ -142,7 +146,7 @@ void ImageOpenController::beginSourceLoad(bool sameScopePageNavigation)
 {
     reportRuntimePlan(applyImageOpenApplicationPlan(m_state,
         ImageOpenWorkflow::beginSourceLoadPlan(ImageOpenBeginSourceLoadSnapshot {
-            m_callbacks.hasCommittedImage && m_callbacks.hasCommittedImage(),
+            m_callbacks.hasCommittedImage(),
             !m_state.loadingContainerNavigationUrl().isEmpty(),
             sameScopePageNavigation,
         })));
@@ -173,8 +177,7 @@ void ImageOpenController::finishSourcePrepared(const ImageLoadSession& session)
 void ImageOpenController::finishUnsupportedOpenedCollectionVideoLoad(
     const ImageLoadSession& session)
 {
-    if (m_callbacks.openedCollectionVideoPlaybackAvailable
-        && m_callbacks.openedCollectionVideoPlaybackAvailable(
+    if (m_callbacks.openedCollectionVideoPlaybackAvailable(
             session.openedCollectionScope(), session.imageUrl())) {
         finishPlayableOpenedCollectionVideoLoad(session);
         return;
@@ -196,8 +199,7 @@ void ImageOpenController::finishPlayableOpenedCollectionVideoLoad(const ImageLoa
 void ImageOpenController::finishPreparedViewportImageLoad(
     const ImageLoadSession& session, std::optional<PredecodedImage> predecoded)
 {
-    if (m_callbacks.prepareViewportImageTarget
-        && m_callbacks.prepareViewportImageTarget(session, std::move(predecoded))) {
+    if (m_callbacks.prepareViewportImageTarget(session, std::move(predecoded))) {
         return;
     }
     finishLoadWithError(session,
@@ -225,6 +227,6 @@ void ImageOpenController::finishSuccessfulImageLoad(
 
 void ImageOpenController::reportRuntimePlan(const ImageDocumentRuntimePlan& plan)
 {
-    invokeIfSet(m_callbacks.runtimePlan, plan);
+    m_callbacks.runtimePlan(plan);
 }
 }
