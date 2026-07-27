@@ -115,8 +115,15 @@ public:
 
 private:
     struct TargetRecord;
+    struct SubmissionStamp;
+    enum class SubmissionOutcome;
 
-    bool submitCurrentTarget();
+    SubmissionOutcome submitCurrentTarget();
+    [[nodiscard]] quint64 beginTargetRevision();
+    [[nodiscard]] quint64 beginAttachmentRevision();
+    [[nodiscard]] bool submissionIsCurrent(const SubmissionStamp& stamp) const;
+    [[nodiscard]] bool containsRecord(const TargetRecord* record) const;
+    void retireRecord(TargetRecord* record);
     void invalidateAttachment(ImageViewport* viewport);
     void handleStateChanged();
     void acceptSnapshot(const ImageViewportStateSnapshot& snapshot);
@@ -137,6 +144,8 @@ private:
     std::vector<std::unique_ptr<TargetRecord>> m_records;
     TargetRecord* m_activeRecord = nullptr;
     ImageViewportIntegrationProjection m_projection;
+    quint64 m_targetRevision = 0;
+    quint64 m_attachmentRevision = 0;
 };
 }
 

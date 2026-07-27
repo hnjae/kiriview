@@ -9,6 +9,7 @@
 #include <QTest>
 
 #include <deque>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -172,6 +173,8 @@ struct TargetFixture
     bool primaryUrlResolved = true;
     int primaryFactoryCalls = 0;
     int secondaryFactoryCalls = 0;
+    std::function<void()> primaryFactoryCallback;
+    std::function<void()> secondaryFactoryCallback;
 
     kiriview::ImageViewportIntegrationTarget target()
     {
@@ -185,6 +188,9 @@ struct TargetFixture
         result.anchorAtEnd = anchorAtEnd;
         result.primaryResource = [this]() {
             ++primaryFactoryCalls;
+            if (primaryFactoryCallback) {
+                primaryFactoryCallback();
+            }
             primarySource->authoritativeSeed = primaryPredecodedImage;
             primaryResource = std::make_shared<kiriview::ImageViewportProviderResource>(generation,
                 QStringLiteral("primary-%1").arg(generation), primarySource,
@@ -198,6 +204,9 @@ struct TargetFixture
             }
             result.secondaryResource = [this]() {
                 ++secondaryFactoryCalls;
+                if (secondaryFactoryCallback) {
+                    secondaryFactoryCallback();
+                }
                 return std::make_shared<kiriview::ImageViewportProviderResource>(generation,
                     QStringLiteral("secondary-%1").arg(generation), secondarySource,
                     std::make_shared<kiriview::DisplayImageStore>(1024 * 1024));
@@ -216,6 +225,12 @@ private Q_SLOTS:
     void operationRecordCorrelatesReentrantState();
     void replacementAttachmentResubmitsCurrentTarget();
     void staleCompletionCannotPublishOverNewerTarget();
+    void reentrantResourceFactoryKeepsNewerTargetAuthoritative_data();
+    void reentrantResourceFactoryKeepsNewerTargetAuthoritative();
+    void reentrantProjectionDetachmentLeavesTargetPendingForReattachment();
+    void projectionCallbackRetainsPublishedSnapshotAcrossReentry();
+    void reentrantClearCannotEraseNewerTarget();
+    void reentrantAttachmentReplacementKeepsLatestAttachment();
     void twoRoleTargetIsSubmittedAtomically();
     void gesturesAndScrollbarsUseMatchedComponentProjection();
     void targetAnchorAtEndAppliesThroughTransition();
@@ -322,6 +337,218 @@ void TestImageViewportIntegrationRuntime::staleCompletionCannotPublishOverNewerT
 
     QCOMPARE(runtime.projection().sourceGeneration, quint64(32));
     QCOMPARE(runtime.projection().status, kiriview::ImageDocumentStatus::Loading);
+}
+
+void TestImageViewportIntegrationRuntime::
+    reentrantResourceFactoryKeepsNewerTargetAuthoritative_data()
+{
+    QTest::addColumn<bool>("reenterFromSecondaryFactory");
+
+    QTest::newRow("primary factory") << false;
+    QTest::newRow("secondary factory") << true;
+}
+
+void TestImageViewportIntegrationRuntime::reentrantResourceFactoryKeepsNewerTargetAuthoritative()
+{
+    QFETCH(bool, reenterFromSecondaryFactory);
+
+    kiriview::ImageViewportIntegrationRuntime runtime;
+    QQuickWindow window;
+    ImageViewport viewport;
+    hostViewport(window, viewport);
+    runtime.attach(&viewport);
+
+    TargetFixture newer;
+    newer.generation = 101;
+    newer.primaryUrl = QUrl(QStringLiteral("file:///tmp/reentrant-shape.png"));
+    if (!reenterFromSecondaryFactory) {
+        newer.secondaryUrl = QUrl(QStringLiteral("file:///tmp/reentrant-newer-secondary.png"));
+    }
+
+    bool nestedAccepted = false;
+    TargetFixture superseded;
+    superseded.generation = 101;
+    superseded.primaryUrl = newer.primaryUrl;
+    if (reenterFromSecondaryFactory) {
+        superseded.secondaryUrl
+            = QUrl(QStringLiteral("file:///tmp/reentrant-superseded-secondary.png"));
+        superseded.secondaryFactoryCallback = [&runtime, &newer, &nestedAccepted]() {
+            nestedAccepted = runtime.submitTarget(newer.target());
+        };
+    } else {
+        superseded.primaryFactoryCallback = [&runtime, &newer, &nestedAccepted]() {
+            nestedAccepted = runtime.submitTarget(newer.target());
+        };
+    }
+
+    QVERIFY(runtime.submitTarget(superseded.target()));
+    QVERIFY(nestedAccepted);
+    QTRY_COMPARE(newer.primarySource->pendingFrames.size(), std::size_t(1));
+    newer.primarySource->completeNext(QStringLiteral("reentrant-newer"));
+    if (newer.secondarySource != nullptr) {
+        QTRY_COMPARE(newer.secondarySource->pendingFrames.size(), std::size_t(1));
+        newer.secondarySource->completeNext(QStringLiteral("reentrant-newer-secondary"));
+    }
+
+    QVERIFY(driveRenderUntil(window, [&runtime]() {
+        return runtime.projection().status == kiriview::ImageDocumentStatus::Ready;
+    }));
+    QCOMPARE(runtime.projection().sourceGeneration, newer.generation);
+    QCOMPARE(runtime.projection().displayedUrl, newer.primaryUrl);
+    QCOMPARE(runtime.projection().secondaryUrl, newer.secondaryUrl);
+    QCOMPARE(
+        viewport.state().request().acceptedRoleSet().secondary(), !newer.secondaryUrl.isEmpty());
+}
+
+void TestImageViewportIntegrationRuntime::
+    reentrantProjectionDetachmentLeavesTargetPendingForReattachment()
+{
+    ImageViewport first;
+    ImageViewport replacement;
+    first.setSize(QSizeF(100, 80));
+    replacement.setSize(QSizeF(100, 80));
+    bool detached = false;
+    kiriview::ImageViewportIntegrationRuntime* runtimePointer = nullptr;
+    kiriview::ImageViewportIntegrationRuntime runtime(
+        { [&first, &detached, &runtimePointer](
+              const kiriview::ImageViewportIntegrationProjection& projection) {
+            if (!detached && projection.correlated) {
+                detached = true;
+                runtimePointer->detach(&first);
+            }
+        } });
+    runtimePointer = &runtime;
+    runtime.attach(&first);
+
+    TargetFixture fixture;
+    fixture.generation = 103;
+    fixture.primaryUrl = QUrl(QStringLiteral("file:///tmp/reentrant-detach.png"));
+    QVERIFY(runtime.submitTarget(fixture.target()));
+    QVERIFY(detached);
+    QVERIFY(!runtime.projection().correlated);
+    QCOMPARE(first.state().request().status(), ImageViewportRequestStatus::NoRequest);
+
+    runtime.attach(&replacement);
+    QCOMPARE(replacement.state().request().status(), ImageViewportRequestStatus::Loading);
+    QVERIFY(runtime.projection().correlated);
+    QCOMPARE(runtime.projection().sourceGeneration, fixture.generation);
+}
+
+void TestImageViewportIntegrationRuntime::projectionCallbackRetainsPublishedSnapshotAcrossReentry()
+{
+    ImageViewport viewport;
+    viewport.setSize(QSizeF(100, 80));
+    bool correlatedProjectionObserved = false;
+    bool nestedProjectionObserved = false;
+    bool publishedSnapshotRemainedStable = false;
+    kiriview::ImageViewportIntegrationRuntime* runtimePointer = nullptr;
+    kiriview::ImageViewportIntegrationRuntime runtime(
+        { [&correlatedProjectionObserved, &nestedProjectionObserved,
+              &publishedSnapshotRemainedStable,
+              &runtimePointer](const kiriview::ImageViewportIntegrationProjection& projection) {
+            if (!projection.correlated) {
+                nestedProjectionObserved = correlatedProjectionObserved;
+                return;
+            }
+            if (correlatedProjectionObserved) {
+                return;
+            }
+
+            correlatedProjectionObserved = true;
+            const quint64 publishedGeneration = projection.sourceGeneration;
+            runtimePointer->clearTarget();
+            publishedSnapshotRemainedStable
+                = projection.correlated && projection.sourceGeneration == publishedGeneration;
+        } });
+    runtimePointer = &runtime;
+    runtime.attach(&viewport);
+
+    TargetFixture fixture;
+    fixture.generation = 107;
+    fixture.primaryUrl = QUrl(QStringLiteral("file:///tmp/reentrant-projection-snapshot.png"));
+    QVERIFY(runtime.submitTarget(fixture.target()));
+
+    QVERIFY(correlatedProjectionObserved);
+    QVERIFY(nestedProjectionObserved);
+    QVERIFY(publishedSnapshotRemainedStable);
+    QVERIFY(!runtime.projection().correlated);
+}
+
+void TestImageViewportIntegrationRuntime::reentrantClearCannotEraseNewerTarget()
+{
+    kiriview::ImageViewportIntegrationRuntime runtime;
+    QQuickWindow window;
+    ImageViewport viewport;
+    hostViewport(window, viewport);
+    runtime.attach(&viewport);
+
+    TargetFixture initial;
+    initial.generation = 104;
+    initial.primaryUrl = QUrl(QStringLiteral("file:///tmp/reentrant-clear-initial.png"));
+    QVERIFY(runtime.submitTarget(initial.target()));
+
+    TargetFixture newer;
+    newer.generation = 105;
+    newer.primaryUrl = QUrl(QStringLiteral("file:///tmp/reentrant-clear-newer.png"));
+    bool reentered = false;
+    bool nestedAccepted = false;
+    const QMetaObject::Connection connection
+        = QObject::connect(&viewport, &ImageViewport::stateChanged, &viewport, [&]() {
+              if (!reentered
+                  && viewport.state().request().status() == ImageViewportRequestStatus::NoRequest) {
+                  reentered = true;
+                  nestedAccepted = runtime.submitTarget(newer.target());
+              }
+          });
+
+    runtime.clearTarget();
+    QObject::disconnect(connection);
+    QVERIFY(reentered);
+    QVERIFY(nestedAccepted);
+    QTRY_COMPARE(newer.primarySource->pendingFrames.size(), std::size_t(1));
+    newer.primarySource->completeNext(QStringLiteral("reentrant-clear-newer"));
+
+    QVERIFY(driveRenderUntil(window, [&runtime]() {
+        return runtime.projection().status == kiriview::ImageDocumentStatus::Ready;
+    }));
+    QCOMPARE(runtime.projection().sourceGeneration, newer.generation);
+    QCOMPARE(runtime.projection().displayedUrl, newer.primaryUrl);
+}
+
+void TestImageViewportIntegrationRuntime::reentrantAttachmentReplacementKeepsLatestAttachment()
+{
+    ImageViewport first;
+    ImageViewport supersededReplacement;
+    ImageViewport latestReplacement;
+    first.setSize(QSizeF(100, 80));
+    supersededReplacement.setSize(QSizeF(100, 80));
+    latestReplacement.setSize(QSizeF(100, 80));
+    bool replaceAgain = false;
+    kiriview::ImageViewportIntegrationRuntime* runtimePointer = nullptr;
+    kiriview::ImageViewportIntegrationRuntime runtime(
+        { [&latestReplacement, &replaceAgain, &runtimePointer](
+              const kiriview::ImageViewportIntegrationProjection& projection) {
+            if (replaceAgain && !projection.correlated) {
+                replaceAgain = false;
+                runtimePointer->attach(&latestReplacement);
+            }
+        } });
+    runtimePointer = &runtime;
+    runtime.attach(&first);
+
+    TargetFixture fixture;
+    fixture.generation = 106;
+    fixture.primaryUrl = QUrl(QStringLiteral("file:///tmp/reentrant-attachment.png"));
+    QVERIFY(runtime.submitTarget(fixture.target()));
+
+    replaceAgain = true;
+    runtime.attach(&supersededReplacement);
+
+    QCOMPARE(
+        supersededReplacement.state().request().status(), ImageViewportRequestStatus::NoRequest);
+    QCOMPARE(latestReplacement.state().request().status(), ImageViewportRequestStatus::Loading);
+    QVERIFY(runtime.projection().correlated);
+    QCOMPARE(runtime.projection().sourceGeneration, fixture.generation);
 }
 
 void TestImageViewportIntegrationRuntime::twoRoleTargetIsSubmittedAtomically()

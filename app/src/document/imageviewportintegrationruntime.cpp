@@ -11,6 +11,7 @@
 #include <QVariant>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <utility>
 
 namespace {
@@ -118,6 +119,21 @@ struct ImageViewportIntegrationRuntime::TargetRecord
     std::unique_ptr<ImageSequenceFactoryResult> primaryFactoryResult;
     std::unique_ptr<ImageSequenceFactoryResult> secondaryFactoryResult;
     ImageViewportPresentationTargetGenerationToken acceptedGeneration;
+    quint64 targetRevision = 0;
+    quint64 attachmentRevision = 0;
+};
+
+struct ImageViewportIntegrationRuntime::SubmissionStamp
+{
+    quint64 targetRevision = 0;
+    quint64 attachmentRevision = 0;
+    QPointer<ImageViewport> viewport;
+};
+
+enum class ImageViewportIntegrationRuntime::SubmissionOutcome {
+    Installed,
+    FailedCurrent,
+    Superseded,
 };
 
 bool ImageViewportIntegrationTarget::isValid() const
@@ -136,11 +152,13 @@ ImageViewportIntegrationRuntime::~ImageViewportIntegrationRuntime()
     if (m_viewport != nullptr) {
         QObject::disconnect(m_stateConnection);
         QObject::disconnect(m_destroyedConnection);
-        ImageViewport* viewport = m_viewport;
+        ImageViewport* viewport = m_viewport.data();
         m_viewport = nullptr;
         m_activeRecord = nullptr;
-        viewport->clear();
+        std::vector<std::unique_ptr<TargetRecord>> retiredRecords = std::move(m_records);
         m_records.clear();
+        viewport->clear();
+        retiredRecords.clear();
     }
 }
 
@@ -149,27 +167,40 @@ void ImageViewportIntegrationRuntime::attach(ImageViewport* viewport)
     if (m_viewport == viewport) {
         return;
     }
+    const quint64 attachmentRevision = beginAttachmentRevision();
+    const QPointer<ImageViewport> requestedViewport(viewport);
     if (m_viewport != nullptr) {
-        invalidateAttachment(m_viewport);
+        invalidateAttachment(m_viewport.data());
     }
-    if (viewport == nullptr) {
+    if (m_attachmentRevision != attachmentRevision || requestedViewport == nullptr) {
         return;
     }
 
-    m_viewport = viewport;
-    m_stateConnection = connect(viewport, &ImageViewport::stateChanged, this,
+    m_viewport = requestedViewport;
+    m_stateConnection = connect(requestedViewport, &ImageViewport::stateChanged, this,
         &ImageViewportIntegrationRuntime::handleStateChanged);
-    m_destroyedConnection = connect(viewport, &QObject::destroyed, this, [this]() {
-        QObject::disconnect(m_stateConnection);
-        m_viewport = nullptr;
-        m_activeRecord = nullptr;
-        m_records.clear();
-        ImageViewportIntegrationProjection projection = m_projection;
-        projection.correlated = false;
-        publishProjection(std::move(projection));
-    });
+    m_destroyedConnection = connect(
+        requestedViewport, &QObject::destroyed, this, [this, viewport, attachmentRevision]() {
+            if (m_attachmentRevision != attachmentRevision || sender() != viewport) {
+                return;
+            }
+            const quint64 destroyedRevision = beginAttachmentRevision();
+            QObject::disconnect(m_stateConnection);
+            QObject::disconnect(m_destroyedConnection);
+            m_viewport = nullptr;
+            m_activeRecord = nullptr;
+            std::vector<std::unique_ptr<TargetRecord>> retiredRecords = std::move(m_records);
+            m_records.clear();
+            retiredRecords.clear();
+            if (m_attachmentRevision != destroyedRevision || m_viewport != nullptr) {
+                return;
+            }
+            ImageViewportIntegrationProjection projection = m_projection;
+            projection.correlated = false;
+            publishProjection(std::move(projection));
+        });
     if (m_target.has_value()) {
-        submitCurrentTarget();
+        static_cast<void>(submitCurrentTarget());
     } else {
         handleStateChanged();
     }
@@ -178,6 +209,7 @@ void ImageViewportIntegrationRuntime::attach(ImageViewport* viewport)
 void ImageViewportIntegrationRuntime::detach(ImageViewport* viewport)
 {
     if (viewport != nullptr && m_viewport == viewport) {
+        static_cast<void>(beginAttachmentRevision());
         invalidateAttachment(viewport);
     }
 }
@@ -187,9 +219,20 @@ bool ImageViewportIntegrationRuntime::submitTarget(ImageViewportIntegrationTarge
     if (!target.isValid()) {
         return false;
     }
-    m_target = std::move(target);
+    const quint64 targetRevision = beginTargetRevision();
+    const quint64 attachmentRevision = m_attachmentRevision;
+    std::optional<ImageViewportIntegrationTarget> retiredTarget;
+    retiredTarget.swap(m_target);
+    m_target.emplace(std::move(target));
     m_activeRecord = nullptr;
-    return m_viewport == nullptr || submitCurrentTarget();
+    retiredTarget.reset();
+    if (m_targetRevision != targetRevision || m_attachmentRevision != attachmentRevision) {
+        return true;
+    }
+    if (m_viewport == nullptr) {
+        return true;
+    }
+    return submitCurrentTarget() != SubmissionOutcome::FailedCurrent;
 }
 
 bool ImageViewportIntegrationRuntime::resolvePrimaryTargetUrl(
@@ -200,8 +243,12 @@ bool ImageViewportIntegrationRuntime::resolvePrimaryTargetUrl(
         || !m_target->resolvedPrimaryUrl.isEmpty()) {
         return false;
     }
-    if (m_activeRecord != nullptr && m_activeRecord->target.sourceGeneration != sourceGeneration) {
-        return false;
+    if (m_activeRecord != nullptr) {
+        if (!containsRecord(m_activeRecord) || m_activeRecord->targetRevision != m_targetRevision
+            || m_activeRecord->attachmentRevision != m_attachmentRevision
+            || m_activeRecord->target.sourceGeneration != sourceGeneration) {
+            return false;
+        }
     }
 
     m_target->resolvedPrimaryUrl = resolvedPrimaryUrl;
@@ -214,22 +261,48 @@ bool ImageViewportIntegrationRuntime::resolvePrimaryTargetUrl(
 
 void ImageViewportIntegrationRuntime::clearTarget()
 {
-    m_target.reset();
+    const quint64 targetRevision = beginTargetRevision();
+    const quint64 attachmentRevision = m_attachmentRevision;
+    const QPointer<ImageViewport> viewport = m_viewport;
+    std::optional<ImageViewportIntegrationTarget> retiredTarget;
+    retiredTarget.swap(m_target);
     m_activeRecord = nullptr;
-    if (m_viewport != nullptr) {
-        m_viewport->clear();
+    retiredTarget.reset();
+    if (m_targetRevision != targetRevision || m_attachmentRevision != attachmentRevision
+        || m_viewport.data() != viewport.data()) {
+        return;
     }
+    if (viewport != nullptr) {
+        viewport->clear();
+    }
+    if (m_targetRevision != targetRevision || m_attachmentRevision != attachmentRevision
+        || m_viewport.data() != viewport.data()) {
+        return;
+    }
+    std::vector<std::unique_ptr<TargetRecord>> retiredRecords = std::move(m_records);
     m_records.clear();
+    retiredRecords.clear();
+    if (m_targetRevision != targetRevision || m_attachmentRevision != attachmentRevision
+        || m_viewport.data() != viewport.data()) {
+        return;
+    }
     publishProjection({});
 }
 
 void ImageViewportIntegrationRuntime::stopPlayback()
 {
-    if (m_viewport == nullptr) {
+    const quint64 targetRevision = m_targetRevision;
+    const quint64 attachmentRevision = m_attachmentRevision;
+    const QPointer<ImageViewport> viewport = m_viewport;
+    if (viewport == nullptr) {
         return;
     }
-    m_viewport->stop(ImageViewportPageRole::Primary);
-    m_viewport->stop(ImageViewportPageRole::Secondary);
+    viewport->stop(ImageViewportPageRole::Primary);
+    if (m_targetRevision != targetRevision || m_attachmentRevision != attachmentRevision
+        || m_viewport.data() != viewport.data()) {
+        return;
+    }
+    viewport->stop(ImageViewportPageRole::Secondary);
 }
 
 const ImageViewportIntegrationProjection& ImageViewportIntegrationRuntime::projection() const
@@ -285,40 +358,122 @@ std::optional<StaticDisplayImagePayload> ImageViewportIntegrationRuntime::displa
     return resource == nullptr ? std::nullopt : resource->currentStillDisplayImage(demandRevision);
 }
 
-bool ImageViewportIntegrationRuntime::submitCurrentTarget()
+quint64 ImageViewportIntegrationRuntime::beginTargetRevision()
+{
+    if (m_targetRevision == std::numeric_limits<quint64>::max()) {
+        qFatal("Image-viewport target revision exhausted");
+    }
+    return ++m_targetRevision;
+}
+
+quint64 ImageViewportIntegrationRuntime::beginAttachmentRevision()
+{
+    if (m_attachmentRevision == std::numeric_limits<quint64>::max()) {
+        qFatal("Image-viewport attachment revision exhausted");
+    }
+    return ++m_attachmentRevision;
+}
+
+bool ImageViewportIntegrationRuntime::submissionIsCurrent(const SubmissionStamp& stamp) const
+{
+    return m_target.has_value() && stamp.targetRevision == m_targetRevision
+        && stamp.attachmentRevision == m_attachmentRevision && stamp.viewport != nullptr
+        && m_viewport.data() == stamp.viewport.data();
+}
+
+bool ImageViewportIntegrationRuntime::containsRecord(const TargetRecord* record) const
+{
+    return record != nullptr
+        && std::ranges::any_of(m_records, [record](const std::unique_ptr<TargetRecord>& candidate) {
+               return candidate.get() == record;
+           });
+}
+
+void ImageViewportIntegrationRuntime::retireRecord(TargetRecord* record)
+{
+    const auto found
+        = std::ranges::find_if(m_records, [record](const std::unique_ptr<TargetRecord>& candidate) {
+              return candidate.get() == record;
+          });
+    if (found == m_records.end()) {
+        return;
+    }
+    if (m_activeRecord == record) {
+        m_activeRecord = nullptr;
+    }
+    std::unique_ptr<TargetRecord> retired = std::move(*found);
+    m_records.erase(found);
+    retired.reset();
+}
+
+ImageViewportIntegrationRuntime::SubmissionOutcome
+ImageViewportIntegrationRuntime::submitCurrentTarget()
 {
     if (m_viewport == nullptr || !m_target.has_value()) {
-        return false;
+        return SubmissionOutcome::FailedCurrent;
     }
 
+    const SubmissionStamp stamp {
+        m_targetRevision,
+        m_attachmentRevision,
+        m_viewport,
+    };
     auto record = std::make_unique<TargetRecord>();
     record->target = *m_target;
+    record->targetRevision = stamp.targetRevision;
+    record->attachmentRevision = stamp.attachmentRevision;
+    const auto discardSuperseded = [&record]() {
+        record.reset();
+        return SubmissionOutcome::Superseded;
+    };
+    const auto discardFailedCurrent = [this, &record, &stamp]() {
+        record.reset();
+        return submissionIsCurrent(stamp) ? SubmissionOutcome::FailedCurrent
+                                          : SubmissionOutcome::Superseded;
+    };
+
     record->primaryResource = record->target.primaryResource();
+    if (!submissionIsCurrent(stamp)) {
+        return discardSuperseded();
+    }
+    record->target.resolvedPrimaryUrl = m_target->resolvedPrimaryUrl;
     if (record->primaryResource == nullptr) {
-        return false;
+        return discardFailedCurrent();
     }
     record->primaryAdapter
         = std::make_unique<ImageViewportSequenceProvider>(record->primaryResource);
     ImageSequenceFactory factory;
     record->primaryFactoryResult.reset(factory.fromProvider(record->primaryAdapter.get()));
+    if (!submissionIsCurrent(stamp)) {
+        return discardSuperseded();
+    }
+    record->target.resolvedPrimaryUrl = m_target->resolvedPrimaryUrl;
     if (record->primaryFactoryResult == nullptr
         || record->primaryFactoryResult->outcome() != ImageSequenceFactoryOutcome::Created
         || record->primaryFactoryResult->sequence() == nullptr) {
-        return false;
+        return discardFailedCurrent();
     }
 
     if (record->target.secondaryResource) {
         record->secondaryResource = record->target.secondaryResource();
+        if (!submissionIsCurrent(stamp)) {
+            return discardSuperseded();
+        }
+        record->target.resolvedPrimaryUrl = m_target->resolvedPrimaryUrl;
         if (record->secondaryResource == nullptr) {
-            return false;
+            return discardFailedCurrent();
         }
         record->secondaryAdapter
             = std::make_unique<ImageViewportSequenceProvider>(record->secondaryResource);
         record->secondaryFactoryResult.reset(factory.fromProvider(record->secondaryAdapter.get()));
+        if (!submissionIsCurrent(stamp)) {
+            return discardSuperseded();
+        }
+        record->target.resolvedPrimaryUrl = m_target->resolvedPrimaryUrl;
         if (record->secondaryFactoryResult == nullptr
             || record->secondaryFactoryResult->outcome() != ImageSequenceFactoryOutcome::Created
             || record->secondaryFactoryResult->sequence() == nullptr) {
-            return false;
+            return discardFailedCurrent();
         }
     }
 
@@ -330,25 +485,36 @@ bool ImageViewportIntegrationRuntime::submitCurrentTarget()
         installed->secondaryFactoryResult == nullptr
             ? nullptr
             : installed->secondaryFactoryResult->sequence());
-    const ImageViewportCommandResult result = m_viewport->setPresentationTarget(
+    const ImageViewportCommandResult result = stamp.viewport->setPresentationTarget(
         presentationTarget, transitionPolicy(installed->target));
-    if (!accepted(result)) {
-        m_activeRecord = nullptr;
-        m_records.pop_back();
-        return false;
+    if (!submissionIsCurrent(stamp) || !containsRecord(installed) || m_activeRecord != installed) {
+        return SubmissionOutcome::Superseded;
     }
-    acceptSnapshot(m_viewport->state());
-    return true;
+    if (!accepted(result)) {
+        retireRecord(installed);
+        return submissionIsCurrent(stamp) ? SubmissionOutcome::FailedCurrent
+                                          : SubmissionOutcome::Superseded;
+    }
+    acceptSnapshot(stamp.viewport->state());
+    return submissionIsCurrent(stamp) && containsRecord(installed) && m_activeRecord == installed
+        ? SubmissionOutcome::Installed
+        : SubmissionOutcome::Superseded;
 }
 
 void ImageViewportIntegrationRuntime::invalidateAttachment(ImageViewport* viewport)
 {
+    const quint64 attachmentRevision = m_attachmentRevision;
     QObject::disconnect(m_stateConnection);
     QObject::disconnect(m_destroyedConnection);
     m_viewport = nullptr;
     m_activeRecord = nullptr;
-    viewport->clear();
+    std::vector<std::unique_ptr<TargetRecord>> retiredRecords = std::move(m_records);
     m_records.clear();
+    viewport->clear();
+    retiredRecords.clear();
+    if (m_attachmentRevision != attachmentRevision || m_viewport != nullptr) {
+        return;
+    }
     ImageViewportIntegrationProjection projection = m_projection;
     projection.correlated = false;
     publishProjection(std::move(projection));
@@ -364,6 +530,10 @@ void ImageViewportIntegrationRuntime::handleStateChanged()
 void ImageViewportIntegrationRuntime::acceptSnapshot(const ImageViewportStateSnapshot& snapshot)
 {
     if (m_activeRecord == nullptr || !m_target.has_value()) {
+        return;
+    }
+    if (!containsRecord(m_activeRecord) || m_activeRecord->targetRevision != m_targetRevision
+        || m_activeRecord->attachmentRevision != m_attachmentRevision) {
         return;
     }
     const ImageViewportPresentationTargetGenerationToken acceptedGeneration
@@ -384,7 +554,9 @@ void ImageViewportIntegrationRuntime::acceptSnapshot(const ImageViewportStateSna
     }
     const ImageViewportFailureSnapshot componentFailure = snapshot.diagnostics().failure();
     if (acceptedGeneration != m_activeRecord->acceptedGeneration
-        || m_activeRecord->target.sourceGeneration != m_target->sourceGeneration) {
+        || m_activeRecord->target.sourceGeneration != m_target->sourceGeneration
+        || m_activeRecord->targetRevision != m_targetRevision
+        || m_activeRecord->attachmentRevision != m_attachmentRevision) {
         return;
     }
 
@@ -449,8 +621,10 @@ void ImageViewportIntegrationRuntime::acceptSnapshot(const ImageViewportStateSna
     }
     TargetRecord* correlatedRecord = m_activeRecord;
     pruneRecords(acceptedGeneration, snapshot.display().displayedPresentationTargetGeneration());
-    if (m_activeRecord != correlatedRecord || !m_target.has_value()
-        || m_target->sourceGeneration != projection.sourceGeneration) {
+    if (m_activeRecord != correlatedRecord || !containsRecord(correlatedRecord)
+        || !m_target.has_value() || m_target->sourceGeneration != projection.sourceGeneration
+        || correlatedRecord->targetRevision != m_targetRevision
+        || correlatedRecord->attachmentRevision != m_attachmentRevision) {
         return;
     }
     publishProjection(std::move(projection));
@@ -473,13 +647,20 @@ void ImageViewportIntegrationRuntime::pruneRecords(
     ImageViewportPresentationTargetGenerationToken acceptedGeneration,
     ImageViewportPresentationTargetGenerationToken displayedGeneration)
 {
-    std::erase_if(m_records,
-        [this, acceptedGeneration, displayedGeneration](
-            const std::unique_ptr<TargetRecord>& record) {
-            return record.get() != m_activeRecord
-                && record->acceptedGeneration != acceptedGeneration
-                && record->acceptedGeneration != displayedGeneration;
-        });
+    std::vector<std::unique_ptr<TargetRecord>> retained;
+    std::vector<std::unique_ptr<TargetRecord>> retired;
+    retained.reserve(m_records.size());
+    retired.reserve(m_records.size());
+    for (std::unique_ptr<TargetRecord>& record : m_records) {
+        if (record.get() != m_activeRecord && record->acceptedGeneration != acceptedGeneration
+            && record->acceptedGeneration != displayedGeneration) {
+            retired.push_back(std::move(record));
+        } else {
+            retained.push_back(std::move(record));
+        }
+    }
+    m_records = std::move(retained);
+    retired.clear();
 }
 
 std::optional<ImageLoadFailure> ImageViewportIntegrationRuntime::resolveFailure(
@@ -502,7 +683,8 @@ void ImageViewportIntegrationRuntime::publishProjection(
     ImageViewportIntegrationProjection projection)
 {
     m_projection = std::move(projection);
-    invokeIfSet(m_callbacks.projectionChanged, m_projection);
+    const ImageViewportIntegrationProjection published = m_projection;
+    invokeIfSet(m_callbacks.projectionChanged, published);
 }
 
 bool ImageViewportIntegrationRuntime::submitPresentation(ImageViewportPresentationCommand command)
