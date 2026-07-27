@@ -8,12 +8,16 @@
 #include "localization/imageerrortext.h"
 #include "location/imagedocumentlocation.h"
 
+#include <QPointer>
+#include <optional>
 #include <utility>
 
 namespace {
-QString genericFileDeletionErrorMessage()
+QString fileDeletionErrorMessage(const kiriview::KioOperationFailure& failure)
 {
-    return kiriview::imageErrorText(kiriview::ImageErrorTextId::DeleteFile);
+    return failure.userMessage.isEmpty()
+        ? kiriview::imageErrorText(kiriview::ImageErrorTextId::DeleteFile)
+        : failure.userMessage;
 }
 
 bool documentReadyForFileDeletion(const kiriview::ImageDocumentState& state)
@@ -48,6 +52,7 @@ ImageDocumentDeletionController::ImageDocumentDeletionController(QObject* parent
 
 ImageDocumentDeletionController::~ImageDocumentDeletionController()
 {
+    m_callbackLifetime.reset();
     static_cast<void>(m_deletionState.cancelFileDeletion());
     m_fallbackController.cancel();
     m_fileDeletionJob.cancel();
@@ -58,7 +63,10 @@ bool ImageDocumentDeletionController::inProgress() const { return m_deletionStat
 
 void ImageDocumentDeletionController::deleteDisplayedFile(FileDeletionMode mode)
 {
-    if (m_deletionState.inProgress() || !documentReadyForFileDeletion(m_state)) {
+    const std::weak_ptr<int> lifetime = m_callbackLifetime;
+    const QPointer<QObject> owner = m_parent;
+    if (owner == nullptr || m_deletionState.inProgress()
+        || !documentReadyForFileDeletion(m_state)) {
         return;
     }
 
@@ -71,6 +79,9 @@ void ImageDocumentDeletionController::deleteDisplayedFile(FileDeletionMode mode)
     }
 
     const bool hasDisplayedImage = m_hasDisplayedImage && m_hasDisplayedImage();
+    if (lifetime.expired() || owner == nullptr) {
+        return;
+    }
     if (!hasDisplayedImage
         && !displayedOpenedCollectionVideoHasDeletionTarget(sourceKind, displayedLocation)) {
         return;
@@ -87,21 +98,31 @@ void ImageDocumentDeletionController::deleteDisplayedFile(FileDeletionMode mode)
     }
 
     m_fallbackController.cancel();
+    if (lifetime.expired() || owner == nullptr) {
+        return;
+    }
     m_fileDeletionJob.cancel();
+    if (lifetime.expired() || owner == nullptr) {
+        return;
+    }
     if (!m_deletionState.acceptsFileDeletion(operation.operationId)) {
         return;
     }
     publishFileDeletionStarted(operation.operationId);
-    if (!m_deletionState.acceptsFileDeletion(operation.operationId)) {
+    if (lifetime.expired() || !m_deletionState.acceptsFileDeletion(operation.operationId)) {
         return;
     }
 
     ImageIoJob startedJob
-        = m_fileDeletionProvider(m_parent, FileDeletionRequest { removalPlan.targetUrl, mode },
+        = m_fileDeletionProvider(owner.data(), FileDeletionRequest { removalPlan.targetUrl, mode },
             [this, operationId = operation.operationId, fallbackPlan = removalPlan.fallbackPlan](
                 FileDeletionResult result, const KioOperationFailure& failure) {
                 finishFileDeletion(operationId, fallbackPlan, result, failure);
             });
+    if (lifetime.expired() || owner == nullptr) {
+        startedJob.cancel();
+        return;
+    }
     if (!m_deletionState.acceptsFileDeletion(operation.operationId)) {
         startedJob.cancel();
         return;
@@ -113,32 +134,45 @@ void ImageDocumentDeletionController::finishFileDeletion(quint64 operationId,
     const ImageRemovalFallbackPlan& fallbackPlan, FileDeletionResult result,
     const KioOperationFailure& failure)
 {
+    const std::weak_ptr<int> lifetime = m_callbackLifetime;
+    const QPointer<QObject> owner = m_parent;
     const ImageDocumentDeletionFileOperationClaim operation
         = m_deletionState.claimFileDeletion(operationId);
     if (!operation.accepted) {
         return;
     }
 
+    std::optional<QString> failureMessage;
     switch (fileDeletionCompletionAction(result)) {
     case FileDeletionCompletionAction::ClearDeletedTargetAndOpenFallback:
         reportRuntimePlan(imageDocumentClearDeletedImagePlan());
-        if (!m_deletionState.acceptsClaimedFileDeletion(operationId)) {
+        if (lifetime.expired() || owner == nullptr
+            || !m_deletionState.acceptsClaimedFileDeletion(operationId)) {
             return;
         }
         m_fallbackController.open(fallbackPlan);
+        if (lifetime.expired() || owner == nullptr) {
+            return;
+        }
         break;
     case FileDeletionCompletionAction::Ignore:
         break;
     case FileDeletionCompletionAction::ReportFailure:
-        reportFailure(failure);
+        failureMessage = fileDeletionErrorMessage(failure);
         break;
     }
 
     if (!m_deletionState.acceptsClaimedFileDeletion(operationId)) {
         return;
     }
-    if (m_deletionState.settleClaimedFileDeletion(operationId)) {
-        publishFileDeletionSettled(operationId);
+    if (!m_deletionState.settleClaimedFileDeletion(operationId)) {
+        return;
+    }
+
+    const FailedCallback failed = m_callbacks.failed;
+    publishFileDeletionSettled(operationId);
+    if (!lifetime.expired() && failureMessage.has_value() && owner != nullptr) {
+        invokeIfSet(failed, *failureMessage);
     }
 }
 
@@ -147,7 +181,8 @@ void ImageDocumentDeletionController::publishFileDeletionStarted(quint64 operati
     const bool inProgressWasPublished = m_publishedFileDeletionOperationId != 0;
     m_publishedFileDeletionOperationId = operationId;
     if (!inProgressWasPublished) {
-        invokeIfSet(m_callbacks.inProgressChanged);
+        InProgressChangedCallback callback = m_callbacks.inProgressChanged;
+        invokeIfSet(callback);
     }
 }
 
@@ -158,15 +193,23 @@ void ImageDocumentDeletionController::publishFileDeletionSettled(quint64 operati
     }
 
     m_publishedFileDeletionOperationId = 0;
-    invokeIfSet(m_callbacks.inProgressChanged);
+    InProgressChangedCallback callback = m_callbacks.inProgressChanged;
+    invokeIfSet(callback);
 }
 
 void ImageDocumentDeletionController::cancel()
 {
+    const std::weak_ptr<int> lifetime = m_callbackLifetime;
     const quint64 publishedOperationId = m_publishedFileDeletionOperationId;
     const bool inProgressChanged = m_deletionState.cancelFileDeletion();
     m_fileDeletionJob.cancel();
+    if (lifetime.expired()) {
+        return;
+    }
     m_fallbackController.cancel();
+    if (lifetime.expired()) {
+        return;
+    }
     if (inProgressChanged && publishedOperationId != 0
         && m_publishedFileDeletionOperationId == publishedOperationId) {
         publishFileDeletionSettled(publishedOperationId);
@@ -175,13 +218,7 @@ void ImageDocumentDeletionController::cancel()
 
 void ImageDocumentDeletionController::reportRuntimePlan(ImageDocumentRuntimePlan plan)
 {
-    invokeIfSet(m_callbacks.runtimePlan, std::move(plan));
-}
-
-void ImageDocumentDeletionController::reportFailure(const KioOperationFailure& failure)
-{
-    const QString message
-        = failure.userMessage.isEmpty() ? genericFileDeletionErrorMessage() : failure.userMessage;
-    invokeIfSet(m_callbacks.failed, message);
+    RuntimePlanCallback callback = m_callbacks.runtimePlan;
+    invokeIfSet(callback, std::move(plan));
 }
 }

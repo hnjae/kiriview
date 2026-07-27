@@ -21,6 +21,7 @@
 #include <QStringList>
 #include <QUrl>
 #include <QtQml/qqmlregistration.h>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -225,7 +226,6 @@ Q_SIGNALS:
     void fileDeletionInProgressChanged();
     void twoPageModeChanged();
     void rightToLeftReadingChanged();
-    void fileDeletionFailed(const QString& errorString);
     void unsupportedOpenedCollectionVideoChanged();
     void embeddedMetadataChanged();
     void unsupportedOpenedCollectionVideoEntered(const QString& message);
@@ -233,6 +233,9 @@ Q_SIGNALS:
 
 private:
     friend class KiriDocumentSession;
+
+    KiriImageDocument(kiriview::ImageDocumentRuntimeDependencyOverrides dependencies,
+        std::function<void(const QString&)> fileDeletionFailed, QObject* parent);
 
     Q_SIGNAL void documentSessionSnapshotChanged();
 

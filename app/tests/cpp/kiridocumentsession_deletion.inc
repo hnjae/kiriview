@@ -13,14 +13,38 @@ void TestKiriDocumentSessionDeletion::nonMediaImageDeletionProgressIsMirroredThr
 
     FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
     kiriview::TestSupport::ManualFileDeletionProvider fileDeletionProvider;
+    kiriview::TestSupport::FakeImageDocumentPageCandidateProvider pageCandidateProvider;
+    kiriview::TestSupport::ManualImageDataLoader imageDataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler imageWorkerScheduler;
     const QUrl directoryUrl = localUrl(directory.path());
-    std::unique_ptr<KiriDocumentSession> session
-        = createSession(directMediaNavigationProvider, &fileDeletionProvider);
+    const QUrl imageUrl = localUrl(imagePath);
+    pageCandidateProvider.setOpenedCollectionCandidates(
+        kiriview::normalizedDirectoryContainerUrl(directoryUrl),
+        { kiriview::TestSupport::imageDocumentPageCandidate(imageUrl) });
+    std::unique_ptr<KiriDocumentSession> session = createSessionWithProvider(
+        directMediaNavigationProvider.provider(), &fileDeletionProvider, &imageDataLoader,
+        pageCandidateProvider.provider(), kiriview::TestSupport::staticImageDataDecoder(), {}, {},
+        {}, {}, {},
+        [directoryUrl](const QUrl& url) {
+            return kiriview::NavigationSourceEntryFacts {
+                {},
+                {},
+                url == directoryUrl,
+            };
+        },
+        imageWorkerScheduler.scheduler());
     QSignalSpy progressSpy(session.get(), &KiriDocumentSession::fileDeletionInProgressChanged);
 
     session->setSourceUrl(directoryUrl);
+    QTRY_COMPARE(imageDataLoader.loadCount(), std::size_t(1));
+    QCOMPARE(imageDataLoader.frontLoad().url, imageUrl);
+    imageDataLoader.finishBackLoad(QByteArrayLiteral("image"));
+    QCOMPARE(imageWorkerScheduler.scheduleCount(), std::size_t(1));
+    imageWorkerScheduler.runWork(0);
+    imageWorkerScheduler.finish(0);
     QTRY_COMPARE(session->documentKind(), KiriDocumentSession::DocumentKind::Image);
-    QTRY_COMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Ready);
+    QVERIFY(driveTestViewportUntil(*session,
+        [&]() { return session->imageDocument()->status() == KiriImageDocument::Status::Ready; }));
     QCOMPARE(session->activeNavigationBoundaryScope(),
         KiriDocumentSession::ActiveNavigationBoundaryScope::ImageDocumentPageNavigationBoundary);
 
@@ -35,6 +59,74 @@ void TestKiriDocumentSessionDeletion::nonMediaImageDeletionProgressIsMirroredThr
 
     QVERIFY(!session->fileDeletionInProgress());
     QCOMPARE(progressSpy.count(), 2);
+}
+
+void TestKiriDocumentSessionDeletion::nonMediaImageDeletionFailureUsesSettledSessionEvent()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+
+    const QString imagePath = directory.filePath(QStringLiteral("page.png"));
+    QImage image(QSize(2, 2), QImage::Format_RGBA8888);
+    image.fill(Qt::red);
+    QVERIFY(image.save(imagePath, "PNG"));
+
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    kiriview::TestSupport::ManualFileDeletionProvider fileDeletionProvider;
+    kiriview::TestSupport::FakeImageDocumentPageCandidateProvider pageCandidateProvider;
+    kiriview::TestSupport::ManualImageDataLoader imageDataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler imageWorkerScheduler;
+    const QUrl directoryUrl = localUrl(directory.path());
+    const QUrl imageUrl = localUrl(imagePath);
+    pageCandidateProvider.setOpenedCollectionCandidates(
+        kiriview::normalizedDirectoryContainerUrl(directoryUrl),
+        { kiriview::TestSupport::imageDocumentPageCandidate(imageUrl) });
+    std::unique_ptr<KiriDocumentSession> session = createSessionWithProvider(
+        directMediaNavigationProvider.provider(), &fileDeletionProvider, &imageDataLoader,
+        pageCandidateProvider.provider(), kiriview::TestSupport::staticImageDataDecoder(), {}, {},
+        {}, {}, {},
+        [directoryUrl](const QUrl& url) {
+            return kiriview::NavigationSourceEntryFacts {
+                {},
+                {},
+                url == directoryUrl,
+            };
+        },
+        imageWorkerScheduler.scheduler());
+
+    session->setSourceUrl(directoryUrl);
+    QTRY_COMPARE(imageDataLoader.loadCount(), std::size_t(1));
+    QCOMPARE(imageDataLoader.frontLoad().url, imageUrl);
+    imageDataLoader.finishBackLoad(QByteArrayLiteral("image"));
+    QCOMPARE(imageWorkerScheduler.scheduleCount(), std::size_t(1));
+    imageWorkerScheduler.runWork(0);
+    imageWorkerScheduler.finish(0);
+    QTRY_COMPARE(session->documentKind(), KiriDocumentSession::DocumentKind::Image);
+    QVERIFY(driveTestViewportUntil(*session,
+        [&]() { return session->imageDocument()->status() == KiriImageDocument::Status::Ready; }));
+
+    bool failureNotified = false;
+    bool deletionInProgressAtFailure = true;
+    QString failureMessage;
+    connect(session.get(), &KiriDocumentSession::fileDeletionFailed, session.get(),
+        [&](const QString& message) {
+            failureNotified = true;
+            deletionInProgressAtFailure = session->fileDeletionInProgress();
+            failureMessage = message;
+            session->deleteDisplayedFile(KiriDocumentSession::DeletionMode::MoveToTrash);
+        });
+
+    session->deleteDisplayedFile(KiriDocumentSession::DeletionMode::MoveToTrash);
+    QCOMPARE(fileDeletionProvider.operationCount(), std::size_t(1));
+
+    fileDeletionProvider.finishBackOperation(kiriview::FileDeletionResult::Failed);
+
+    QVERIFY(failureNotified);
+    QVERIFY(!deletionInProgressAtFailure);
+    QVERIFY(!failureMessage.isEmpty());
+    QCOMPARE(fileDeletionProvider.operationCount(), std::size_t(2));
+    QCOMPARE(fileDeletionProvider.backOperation().request.targetUrl, directoryUrl);
+    QVERIFY(session->fileDeletionInProgress());
 }
 
 void TestKiriDocumentSessionDeletion::

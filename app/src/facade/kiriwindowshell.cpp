@@ -129,10 +129,6 @@ void KiriWindowShell::attachDocumentSession(QObject* session)
     m_notificationConnections.push_back(
         QObject::connect(imageDocument, &KiriImageDocument::displayedUrlChanged, this,
             [this]() { clearNavigationBoundaryNotification(); }));
-    m_notificationConnections.push_back(QObject::connect(imageDocument,
-        &KiriImageDocument::fileDeletionFailed, this, [this](const QString& message) {
-            submitNotification(kiriview::WindowNotificationScope::OperationFailure, message);
-        }));
     m_notificationConnections.push_back(
         QObject::connect(imageDocument, &KiriImageDocument::containerNavigationBoundaryReached,
             this, [this](const QString& message) {

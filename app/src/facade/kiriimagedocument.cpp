@@ -127,13 +127,18 @@ KiriImageDocument::KiriImageDocument(QObject* parent)
 
 KiriImageDocument::KiriImageDocument(
     kiriview::ImageDocumentRuntimeDependencyOverrides dependencies, QObject* parent)
+    : KiriImageDocument(std::move(dependencies), {}, parent)
+{
+}
+
+KiriImageDocument::KiriImageDocument(kiriview::ImageDocumentRuntimeDependencyOverrides dependencies,
+    std::function<void(const QString&)> fileDeletionFailed, QObject* parent)
     : QObject(parent)
 {
     m_runtime = std::make_unique<kiriview::ImageDocumentRuntime>(
         this,
         [this](const std::vector<ImageDocumentChange>& changes) { handleDocumentChanges(changes); },
-        std::move(dependencies),
-        [this](const QString& errorString) { Q_EMIT fileDeletionFailed(errorString); },
+        std::move(dependencies), std::move(fileDeletionFailed),
         [this](const QString& message) { Q_EMIT unsupportedOpenedCollectionVideoEntered(message); },
         [this](const QString& message) { Q_EMIT containerNavigationBoundaryReached(message); });
 }

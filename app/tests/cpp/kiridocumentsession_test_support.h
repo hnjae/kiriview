@@ -23,6 +23,7 @@
 
 #include <QAbstractItemModel>
 #include <QBuffer>
+#include <QCoreApplication>
 #include <QFile>
 #include <QImage>
 #include <QObject>
@@ -441,6 +442,27 @@ void attachTestViewport(KiriDocumentSession& session)
     viewportWindow->show();
 }
 
+template <typename Predicate>
+bool driveTestViewportUntil(KiriDocumentSession& session, Predicate predicate)
+{
+    QQuickWindow* viewportWindow = session.findChild<QQuickWindow*>();
+    if (viewportWindow == nullptr) {
+        return false;
+    }
+
+    constexpr int maximumAttempts = 100;
+    for (int attempt = 0; attempt < maximumAttempts; ++attempt) {
+        if (predicate()) {
+            return true;
+        }
+        viewportWindow->update();
+        viewportWindow->grabWindow();
+        QCoreApplication::processEvents();
+        QTest::qWait(1);
+    }
+    return predicate();
+}
+
 std::unique_ptr<KiriDocumentSession> createSessionWithProvider(
     kiriview::DirectMediaNavigationCandidateProvider directMediaNavigationCandidateProvider,
     kiriview::TestSupport::ManualFileDeletionProvider* fileDeletion = nullptr,
@@ -452,7 +474,8 @@ std::unique_ptr<KiriDocumentSession> createSessionWithProvider(
     kiriview::ThumbnailGenerationProvider thumbnailGenerationProvider = {},
     std::shared_ptr<kiriview::ThumbnailImageStore> thumbnailImageStore = {},
     kiriview::MediaEntrySourceFactory mediaEntrySourceFactory = {},
-    kiriview::NavigationSourceEntryFactProvider navigationSourceFacts = {})
+    kiriview::NavigationSourceEntryFactProvider navigationSourceFacts = {},
+    kiriview::ImageWorkerScheduler imageWorkerScheduler = {})
 {
     kiriview::KiriDocumentSessionDependencies dependencies;
     dependencies.sessionRuntime.directMediaNavigationCandidateProvider
@@ -479,6 +502,7 @@ std::unique_ptr<KiriDocumentSession> createSessionWithProvider(
     if (imageDataLoader != nullptr) {
         dependencies.imageDocument.imageDecode = kiriview::TestSupport::imageDecodeDependenciesFor(
             *imageDataLoader, std::move(imageDataDecoder));
+        dependencies.imageDocument.imageDecode.workerScheduler = std::move(imageWorkerScheduler);
     }
     auto session = std::make_unique<KiriDocumentSession>(std::move(dependencies));
     attachTestViewport(*session);

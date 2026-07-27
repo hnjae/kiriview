@@ -12,9 +12,11 @@
 #include "navigation/imageremovalfallback.h"
 #include "system/filedeletion.h"
 
+#include <QPointer>
 #include <QString>
 #include <QtGlobal>
 #include <functional>
+#include <memory>
 
 class QObject;
 
@@ -54,9 +56,8 @@ private:
     void publishFileDeletionStarted(quint64 operationId);
     void publishFileDeletionSettled(quint64 operationId);
     void reportRuntimePlan(ImageDocumentRuntimePlan plan);
-    void reportFailure(const KioOperationFailure& failure);
 
-    QObject* m_parent = nullptr;
+    QPointer<QObject> m_parent;
     ImageDocumentState& m_state;
     HasDisplayedImageCallback m_hasDisplayedImage;
     Callbacks m_callbacks;
@@ -64,6 +65,7 @@ private:
     ImageIoJob m_fileDeletionJob;
     ImageDocumentDeletionState m_deletionState;
     ImageDocumentDeletionFallbackController m_fallbackController;
+    std::shared_ptr<int> m_callbackLifetime = std::make_shared<int>(0);
     quint64 m_publishedFileDeletionOperationId = 0;
 };
 }

@@ -430,7 +430,7 @@ KiriDocumentSession::KiriDocumentSession(kiriview::KiriDocumentSessionDependenci
                   return m_runtime != nullptr ? m_runtime->findPredecodedImage(url)
                                               : std::optional<kiriview::PredecodedImage>();
               }),
-          this))
+          [this](const QString& message) { Q_EMIT fileDeletionFailed(message); }, this))
     , m_videoDocument(
           new KiriVideoDocument(std::move(dependencies.videoPlaybackControlTimerScheduler), this))
 {

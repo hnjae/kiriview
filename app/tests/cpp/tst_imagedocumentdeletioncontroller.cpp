@@ -145,6 +145,9 @@ private Q_SLOTS:
     void reentrantDisplayProbePreservesNestedDeletion();
     void presentationChangeDuringDisplayProbePreventsDeletion();
     void successInvalidatesDeletedTargetBeforeCompletionNotification();
+    void failureSettlesBeforeNotificationAndAllowsImmediateRetry();
+    void destructionDuringStartNotificationDoesNotStartFileOperation();
+    void destructionDuringSettlementSuppressesLaterFailureNotification();
 };
 
 void TestImageDocumentDeletionController::
@@ -426,6 +429,112 @@ void TestImageDocumentDeletionController::
     QCOMPARE(fixture.runtimePlans.size(), std::size_t(1));
     QVERIFY(!fixture.controller->inProgress());
     QVERIFY(fixture.failures.empty());
+}
+
+void TestImageDocumentDeletionController::failureSettlesBeforeNotificationAndAllowsImmediateRetry()
+{
+    QObject parent;
+    kiriview::ImageDocumentState state;
+    kiriview::TestSupport::ManualFileDeletionProvider fileDeletionProvider;
+    ManualDeletionCandidateProvider candidateProvider;
+    const QUrl imageUrl = localUrl(QStringLiteral("/images/retry-after-failure.png"));
+    state.setStatus(kiriview::ImageDocumentStatus::Ready);
+    state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromUrl(imageUrl));
+
+    bool inProgressAtFailure = true;
+    QString failureMessage;
+    std::unique_ptr<kiriview::ImageDocumentDeletionController> controller;
+    controller = std::make_unique<kiriview::ImageDocumentDeletionController>(
+        &parent, state, []() { return true; }, candidateProvider.provider(),
+        kiriview::TestSupport::fileDeletionProviderFor(fileDeletionProvider),
+        kiriview::ImageDocumentDeletionController::Callbacks {
+            {},
+            {},
+            [&](const QString& message) {
+                inProgressAtFailure = controller->inProgress();
+                failureMessage = message;
+                controller->deleteDisplayedFile(kiriview::FileDeletionMode::MoveToTrash);
+            },
+        },
+        [](const QUrl& url) { return kiriview::resolvedNavigationSource(url, {}); });
+
+    controller->deleteDisplayedFile(kiriview::FileDeletionMode::MoveToTrash);
+    QCOMPARE(fileDeletionProvider.operationCount(), std::size_t(1));
+
+    fileDeletionProvider.finishBackOperation(kiriview::FileDeletionResult::Failed);
+
+    QVERIFY(!inProgressAtFailure);
+    QVERIFY(!failureMessage.isEmpty());
+    QCOMPARE(fileDeletionProvider.operationCount(), std::size_t(2));
+    QCOMPARE(fileDeletionProvider.backOperation().request.targetUrl, imageUrl);
+    QVERIFY(controller->inProgress());
+}
+
+void TestImageDocumentDeletionController::
+    destructionDuringStartNotificationDoesNotStartFileOperation()
+{
+    QObject parent;
+    kiriview::ImageDocumentState state;
+    kiriview::TestSupport::ManualFileDeletionProvider fileDeletionProvider;
+    ManualDeletionCandidateProvider candidateProvider;
+    const QUrl imageUrl = localUrl(QStringLiteral("/images/destroy-on-start.png"));
+    state.setStatus(kiriview::ImageDocumentStatus::Ready);
+    state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromUrl(imageUrl));
+
+    std::unique_ptr<kiriview::ImageDocumentDeletionController> controller;
+    controller = std::make_unique<kiriview::ImageDocumentDeletionController>(
+        &parent, state, []() { return true; }, candidateProvider.provider(),
+        kiriview::TestSupport::fileDeletionProviderFor(fileDeletionProvider),
+        kiriview::ImageDocumentDeletionController::Callbacks {
+            [&]() { controller.reset(); },
+            {},
+            {},
+        },
+        [](const QUrl& url) { return kiriview::resolvedNavigationSource(url, {}); });
+
+    controller->deleteDisplayedFile(kiriview::FileDeletionMode::MoveToTrash);
+
+    QVERIFY(controller == nullptr);
+    QCOMPARE(fileDeletionProvider.operationCount(), std::size_t(0));
+}
+
+void TestImageDocumentDeletionController::
+    destructionDuringSettlementSuppressesLaterFailureNotification()
+{
+    QObject parent;
+    kiriview::ImageDocumentState state;
+    kiriview::TestSupport::ManualFileDeletionProvider fileDeletionProvider;
+    ManualDeletionCandidateProvider candidateProvider;
+    const QUrl imageUrl = localUrl(QStringLiteral("/images/destroy-on-settlement.png"));
+    state.setStatus(kiriview::ImageDocumentStatus::Ready);
+    state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromUrl(imageUrl));
+
+    int progressNotificationCount = 0;
+    bool failureNotified = false;
+    std::unique_ptr<kiriview::ImageDocumentDeletionController> controller;
+    controller = std::make_unique<kiriview::ImageDocumentDeletionController>(
+        &parent, state, []() { return true; }, candidateProvider.provider(),
+        kiriview::TestSupport::fileDeletionProviderFor(fileDeletionProvider),
+        kiriview::ImageDocumentDeletionController::Callbacks {
+            [&]() {
+                ++progressNotificationCount;
+                if (progressNotificationCount == 2) {
+                    controller.reset();
+                }
+            },
+            {},
+            [&](const QString&) { failureNotified = true; },
+        },
+        [](const QUrl& url) { return kiriview::resolvedNavigationSource(url, {}); });
+
+    controller->deleteDisplayedFile(kiriview::FileDeletionMode::MoveToTrash);
+    QCOMPARE(fileDeletionProvider.operationCount(), std::size_t(1));
+
+    fileDeletionProvider.finishBackOperation(kiriview::FileDeletionResult::Failed);
+
+    QVERIFY(controller == nullptr);
+    QCOMPARE(progressNotificationCount, 2);
+    QVERIFY(!failureNotified);
 }
 
 QTEST_GUILESS_MAIN(TestImageDocumentDeletionController)
