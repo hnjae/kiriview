@@ -39,14 +39,15 @@ public:
         , m_audioOutput(this)
     {
         m_player.setAudioOutput(&m_audioOutput);
-        QObject::connect(&m_player, &QMediaPlayer::mediaStatusChanged, this,
-            [this]() { kiriview::invokeIfSet(m_callbacks.mediaStatusChanged); });
+        QObject::connect(&m_player, &QMediaPlayer::mediaStatusChanged, this, [this]() {
+            invokeCallback(&kiriview::VideoMediaBackendCallbacks::mediaStatusChanged);
+        });
         QObject::connect(&m_player, &QMediaPlayer::errorOccurred, this,
             [this](QMediaPlayer::Error error, const QString& diagnosticDetail) {
                 if (error == QMediaPlayer::NoError) {
                     return;
                 }
-                kiriview::invokeIfSet(m_callbacks.errorOccurred,
+                invokeCallback(&kiriview::VideoMediaBackendCallbacks::errorOccurred,
                     kiriview::VideoMediaError {
                         videoMediaErrorCategory(error),
                         static_cast<int>(error),
@@ -54,23 +55,24 @@ public:
                     });
             });
         QObject::connect(&m_player, &QMediaPlayer::durationChanged, this,
-            [this]() { kiriview::invokeIfSet(m_callbacks.durationChanged); });
+            [this]() { invokeCallback(&kiriview::VideoMediaBackendCallbacks::durationChanged); });
         QObject::connect(&m_player, &QMediaPlayer::positionChanged, this,
-            [this]() { kiriview::invokeIfSet(m_callbacks.positionChanged); });
+            [this]() { invokeCallback(&kiriview::VideoMediaBackendCallbacks::positionChanged); });
         QObject::connect(&m_player, &QMediaPlayer::playingChanged, this,
-            [this]() { kiriview::invokeIfSet(m_callbacks.playingChanged); });
+            [this]() { invokeCallback(&kiriview::VideoMediaBackendCallbacks::playingChanged); });
         QObject::connect(&m_player, &QMediaPlayer::seekableChanged, this,
-            [this]() { kiriview::invokeIfSet(m_callbacks.seekableChanged); });
+            [this]() { invokeCallback(&kiriview::VideoMediaBackendCallbacks::seekableChanged); });
         QObject::connect(&m_player, &QMediaPlayer::hasVideoChanged, this,
-            [this]() { kiriview::invokeIfSet(m_callbacks.hasVideoChanged); });
+            [this]() { invokeCallback(&kiriview::VideoMediaBackendCallbacks::hasVideoChanged); });
         QObject::connect(&m_player, &QMediaPlayer::hasAudioChanged, this,
-            [this]() { kiriview::invokeIfSet(m_callbacks.hasAudioChanged); });
+            [this]() { invokeCallback(&kiriview::VideoMediaBackendCallbacks::hasAudioChanged); });
         QObject::connect(&m_player, &QMediaPlayer::metaDataChanged, this,
-            [this]() { kiriview::invokeIfSet(m_callbacks.videoSizeChanged); });
+            [this]() { invokeCallback(&kiriview::VideoMediaBackendCallbacks::videoSizeChanged); });
         QObject::connect(&m_audioOutput, &QAudioOutput::mutedChanged, this,
-            [this]() { kiriview::invokeIfSet(m_callbacks.mutedChanged); });
-        QObject::connect(&m_player, &QMediaPlayer::videoOutputChanged, this,
-            [this]() { kiriview::invokeIfSet(m_callbacks.videoOutputChanged); });
+            [this]() { invokeCallback(&kiriview::VideoMediaBackendCallbacks::mutedChanged); });
+        QObject::connect(&m_player, &QMediaPlayer::videoOutputChanged, this, [this]() {
+            invokeCallback(&kiriview::VideoMediaBackendCallbacks::videoOutputChanged);
+        });
     }
 
     void setCallbacks(kiriview::VideoMediaBackendCallbacks callbacks) override
@@ -134,6 +136,13 @@ public:
     [[nodiscard]] bool muted() const override { return m_audioOutput.isMuted(); }
 
 private:
+    template <typename Callback, typename... Args>
+    void invokeCallback(Callback kiriview::VideoMediaBackendCallbacks::* member, Args&&... args)
+    {
+        Callback callback = m_callbacks.*member;
+        kiriview::invokeIfSet(callback, std::forward<Args>(args)...);
+    }
+
     QMediaPlayer m_player;
     QAudioOutput m_audioOutput;
     kiriview::VideoMediaBackendCallbacks m_callbacks;

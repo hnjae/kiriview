@@ -70,10 +70,15 @@ struct VideoPlaybackControlProjection
     bool scrubbing = false;
 };
 
-struct VideoPlaybackSeekIntent
+struct VideoPlaybackSeekScope
 {
     quint64 sourceRevision = 0;
-    quint64 admissionRevision = 0;
+    quint64 gateRevision = 0;
+};
+
+struct VideoPlaybackSeekIntent
+{
+    VideoPlaybackSeekScope scope;
     qint64 positionMsec = 0;
 };
 
@@ -99,6 +104,8 @@ public:
     std::optional<VideoPlaybackSeekIntent> commitScrub();
     void cancelScrub();
     std::optional<VideoPlaybackSeekIntent> requestSeek(qint64 positionMsec);
+    [[nodiscard]] std::optional<VideoPlaybackSeekScope> seekScope() const;
+    [[nodiscard]] bool acceptsSeekScope(const VideoPlaybackSeekScope& scope) const;
     [[nodiscard]] bool acceptsSeekIntent(const VideoPlaybackSeekIntent& intent) const;
 
 private:
@@ -120,7 +127,7 @@ private:
     VideoPlaybackControlEnvironment m_environment;
     VideoPlaybackControlMediaSnapshot m_media;
     VideoPlaybackControlProjection m_projection;
-    ImageAsyncTicket m_seekAdmission;
+    ImageAsyncTicket m_seekGate;
     quint64 m_sourceRevision = 0;
     quint64 m_nextProjectionRevision = 1;
     qint64 m_scrubPositionMsec = 0;

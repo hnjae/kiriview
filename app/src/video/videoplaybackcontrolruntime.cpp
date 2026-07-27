@@ -65,7 +65,7 @@ const VideoPlaybackControlMediaSnapshot& VideoPlaybackControlRuntime::mediaSnaps
 void VideoPlaybackControlRuntime::replaceSource(quint64 sourceRevision)
 {
     stopAutoHideTimer();
-    m_seekAdmission.invalidate();
+    m_seekGate.invalidate();
     const bool muted = m_media.muted;
     m_sourceRevision = sourceRevision;
     m_media = {};
@@ -114,7 +114,7 @@ void VideoPlaybackControlRuntime::acceptMediaSnapshot(VideoPlaybackControlMediaS
     m_media = snapshot;
     if (!m_media.ready || timelineKind() != VideoPlaybackTimelineKind::Seekable) {
         if (seekGateWasOpen) {
-            m_seekAdmission.invalidate();
+            m_seekGate.invalidate();
         }
         m_scrubbing = false;
     }
@@ -193,8 +193,7 @@ std::optional<VideoPlaybackSeekIntent> VideoPlaybackControlRuntime::commitScrub(
     const std::weak_ptr<void> lifetime = m_callbackLifetime;
     const qint64 positionMsec = normalizedPosition(m_scrubPositionMsec);
     const VideoPlaybackSeekIntent intent {
-        m_sourceRevision,
-        m_seekAdmission.next(),
+        *seekScope(),
         positionMsec,
     };
     m_media.positionMsec = positionMsec;
@@ -232,8 +231,7 @@ std::optional<VideoPlaybackSeekIntent> VideoPlaybackControlRuntime::requestSeek(
     const std::weak_ptr<void> lifetime = m_callbackLifetime;
     const qint64 acceptedPosition = normalizedPosition(positionMsec);
     const VideoPlaybackSeekIntent intent {
-        m_sourceRevision,
-        m_seekAdmission.next(),
+        *seekScope(),
         acceptedPosition,
     };
     m_media.positionMsec = acceptedPosition;
@@ -249,11 +247,26 @@ std::optional<VideoPlaybackSeekIntent> VideoPlaybackControlRuntime::requestSeek(
     return intent;
 }
 
+std::optional<VideoPlaybackSeekScope> VideoPlaybackControlRuntime::seekScope() const
+{
+    if (timelineKind() != VideoPlaybackTimelineKind::Seekable) {
+        return std::nullopt;
+    }
+    return VideoPlaybackSeekScope {
+        m_sourceRevision,
+        m_seekGate.current(),
+    };
+}
+
+bool VideoPlaybackControlRuntime::acceptsSeekScope(const VideoPlaybackSeekScope& scope) const
+{
+    return scope.sourceRevision == m_sourceRevision && m_seekGate.accepts(scope.gateRevision)
+        && timelineKind() == VideoPlaybackTimelineKind::Seekable;
+}
+
 bool VideoPlaybackControlRuntime::acceptsSeekIntent(const VideoPlaybackSeekIntent& intent) const
 {
-    return intent.sourceRevision == m_sourceRevision
-        && m_seekAdmission.accepts(intent.admissionRevision)
-        && timelineKind() == VideoPlaybackTimelineKind::Seekable;
+    return acceptsSeekScope(intent.scope);
 }
 
 VideoPlaybackControlProjection VideoPlaybackControlRuntime::projectedState() const

@@ -21,6 +21,7 @@
 #include <QSize>
 #include <QString>
 #include <QUrl>
+#include <deque>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -97,10 +98,39 @@ private:
         QUrl publicSourceUrl;
     };
 
+    enum class PlaybackCommandKind {
+        Play,
+        Pause,
+        Stop,
+        Toggle,
+        BeginScrub,
+        UpdateScrub,
+        CommitScrub,
+        CancelScrub,
+        AbsoluteSeek,
+        RelativeSeek,
+    };
+
+    struct PlaybackCommandRequest
+    {
+        PlaybackCommandKind kind = PlaybackCommandKind::Play;
+        qint64 value = 0;
+        quint64 sourceRevision = 0;
+        std::optional<PlaybackLifecycle> lifecycle;
+        VideoMediaBackend* mediaBackend = nullptr;
+        std::optional<VideoPlaybackSeekScope> seekScope;
+    };
+
     VideoPlaybackControlSnapshot playbackControlSnapshot() const;
+    void submitPlaybackCommand(PlaybackCommandKind kind, qint64 value = 0,
+        std::optional<VideoPlaybackSeekScope> seekScope = std::nullopt);
+    void drainPlaybackCommands();
+    void schedulePlaybackCommandDrain();
+    [[nodiscard]] bool playbackCommandRequestAccepted(const PlaybackCommandRequest& request) const;
+    void executePlaybackCommandRequest(const PlaybackCommandRequest& request);
+    void executePlaybackSeekRequest(const PlaybackCommandRequest& request);
     void executePlaybackControlPlan(const VideoPlaybackControlPlan& plan,
         std::optional<VideoPlaybackSeekIntent> seekIntent = std::nullopt);
-    void executePlaybackSeekIntent(const VideoPlaybackSeekIntent& intent);
     void executePlaybackBackendOperation(VideoPlaybackBackendOperation operation);
     void executePlaybackBackendOperation(EnsureVideoPlaybackBackendOperation operation);
     void executePlaybackBackendOperation(PlayVideoPlaybackOperation operation);
@@ -154,6 +184,9 @@ private:
     std::optional<PlaybackLifecycle> m_activePlaybackLifecycle;
     quint64 m_playbackControlSourceRevision = 0;
     ImageAsyncTicket m_muteCommandAdmission;
+    std::deque<PlaybackCommandRequest> m_pendingPlaybackCommands;
+    bool m_playbackCommandDispatchActive = false;
+    bool m_playbackCommandDrainScheduled = false;
 };
 }
 

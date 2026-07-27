@@ -40,6 +40,7 @@ private Q_SLOTS:
     void backendRecoveryClearsStaleErrorText();
     void sourceDevicePlaybackBypassesResolverAndSkipsMetadata();
     void sourceDeviceOwnerLivesUntilReplacementAndDestruction();
+    void defaultBackendCallbackRetainsItsTargetAcrossReentrantReplacement();
     void sourceDevicePlaybackInvalidatesPendingResolverCompletion();
     void staleResolverCompletionsAreIgnored();
     void loadingPublicationReentryAdmitsOnlyLatestResolver();
@@ -60,19 +61,29 @@ private Q_SLOTS:
     void playbackControlScrubCommitsWithoutBackendOverwrite();
     void scrubCommitReentryDoesNotSeekReplacementSource();
     void playbackControlSeekReentryDoesNotSeekReplacementSource();
-    void scrubCommitReentryAppliesOnlyLatestSeekIntent();
-    void seekProjectionReentryKeepsLatestPositionIntent();
-    void backendSeekReentryPreservesLatestSeekState();
+    void scrubCommitReentryPreservesSeekOrder();
+    void seekProjectionReentryPreservesPositionOrder();
+    void backendSeekReentryPreservesPositionOrder();
+    void seekProjectionReentryQueuesStopBehindSeek();
     void adjustedSeekLandingRemainsAuthoritative();
     void seekGateRevocationDoesNotRevivePendingIntent();
     void environmentProjectionReentryPreservesAcceptedSeek();
     void scrubCommitPublicationCanDestroyRuntime();
     void playbackControlSeekPublicationCanDestroyRuntime();
+    void backendSeekCallbackCanDestroyRuntime();
     void playbackControlAutoHideUsesInjectedTimer();
     void naturalPlaybackEndKeepsPresentationReadyWithoutBackendStop();
     void playAfterEndOfMediaRestartsFromBeginningWhenSeekable();
-    void positionCommandReentryKeepsLatestPosition_data();
-    void positionCommandReentryKeepsLatestPosition();
+    void endedPlaybackRestartQueuesReentrantPause_data();
+    void endedPlaybackRestartQueuesReentrantPause();
+    void endedPlaybackRestartCompletesBeforeQueuedSeek();
+    void endedPlaybackRestartDoesNotContinueOnReplacementBackend();
+    void stopReentryReplansQueuedPositionCommand_data();
+    void stopReentryReplansQueuedPositionCommand();
+    void stopCompletesBeforeQueuedPlay();
+    void positionCommandReentryPreservesPositionOrder_data();
+    void positionCommandReentryPreservesPositionOrder();
+    void playbackCommandDrainYieldsUnderSustainedReentry();
     void seekByClampsToKnownDuration();
     void seekByNoopsWhenNotSeekable();
     void videoOutputDetachAndDestructionClearBackendOutput();
@@ -135,11 +146,15 @@ public:
     {
         currentPosition = nextPosition;
         ++setPositionCount;
+        setPositionRequests.push_back(nextPosition);
         const std::function<void(qint64)> hook = setPositionHook;
+        const std::function<void()> positionChanged = callbacks.positionChanged;
         if (hook) {
             hook(nextPosition);
         }
-        callbacks.positionChanged();
+        if (positionChanged) {
+            positionChanged();
+        }
     }
 
     void setMuted(bool nextMuted) override
@@ -227,6 +242,7 @@ public:
     bool audioAvailable = false;
     QSize currentVideoSize;
     std::function<void(qint64)> setPositionHook;
+    std::vector<qint64> setPositionRequests;
     int setSourceCount = 0;
     int setSourceDeviceCount = 0;
     int setPositionCount = 0;
@@ -784,6 +800,36 @@ void TestVideoDocumentRuntime::sourceDeviceOwnerLivesUntilReplacementAndDestruct
 
     QVERIFY(destructionOwner.expired());
     QCOMPARE(destructionDestructionCount, 1);
+}
+
+void TestVideoDocumentRuntime::defaultBackendCallbackRetainsItsTargetAcrossReentrantReplacement()
+{
+    std::unique_ptr<kiriview::VideoMediaBackend> backend
+        = kiriview::createDefaultVideoMediaBackend();
+    std::shared_ptr<void> callbackLease = std::make_shared<char>();
+    const std::weak_ptr<void> callbackLifetime = callbackLease;
+    bool callbackInvoked = false;
+    bool callbackTargetRetained = false;
+
+    kiriview::VideoMediaBackendCallbacks callbacks;
+    callbacks.mutedChanged
+        = [callbackLease = std::move(callbackLease), backend = backend.get(),
+              callbackLifetime = &callbackLifetime, callbackInvoked = &callbackInvoked,
+              callbackTargetRetained = &callbackTargetRetained]() {
+              kiriview::VideoMediaBackend* currentBackend = backend;
+              const std::weak_ptr<void>* currentLifetime = callbackLifetime;
+              bool* currentInvoked = callbackInvoked;
+              bool* currentTargetRetained = callbackTargetRetained;
+              currentBackend->setCallbacks({});
+              *currentInvoked = true;
+              *currentTargetRetained = !currentLifetime->expired();
+          };
+    backend->setCallbacks(std::move(callbacks));
+
+    backend->setMuted(!backend->muted());
+
+    QVERIFY(callbackInvoked);
+    QVERIFY(callbackTargetRetained);
 }
 
 void TestVideoDocumentRuntime::sourceDevicePlaybackInvalidatesPendingResolverCompletion()
@@ -1353,7 +1399,7 @@ void TestVideoDocumentRuntime::playbackControlSeekReentryDoesNotSeekReplacementS
     QCOMPARE(fixture.backend->currentPosition, 0);
 }
 
-void TestVideoDocumentRuntime::scrubCommitReentryAppliesOnlyLatestSeekIntent()
+void TestVideoDocumentRuntime::scrubCommitReentryPreservesSeekOrder()
 {
     RuntimeFixture fixture;
     const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/home/me/clip.mp4"));
@@ -1380,11 +1426,12 @@ void TestVideoDocumentRuntime::scrubCommitReentryAppliesOnlyLatestSeekIntent()
     fixture.runtime->commitPlaybackScrub();
 
     QVERIFY(reentered);
-    QCOMPARE(fixture.backend->setPositionCount, 1);
+    QCOMPARE(fixture.backend->setPositionRequests,
+        (std::vector<qint64> { qint64(45000), qint64(60000) }));
     QCOMPARE(fixture.backend->currentPosition, qint64(60000));
 }
 
-void TestVideoDocumentRuntime::seekProjectionReentryKeepsLatestPositionIntent()
+void TestVideoDocumentRuntime::seekProjectionReentryPreservesPositionOrder()
 {
     RuntimeFixture fixture;
     prepareReadySeekableVideo(fixture);
@@ -1402,12 +1449,13 @@ void TestVideoDocumentRuntime::seekProjectionReentryKeepsLatestPositionIntent()
     fixture.runtime->requestPlaybackControlSeek(45000);
 
     QVERIFY(reentered);
-    QCOMPARE(fixture.backend->setPositionCount, 1);
+    QCOMPARE(fixture.backend->setPositionRequests,
+        (std::vector<qint64> { qint64(45000), qint64(60000) }));
     QCOMPARE(fixture.backend->currentPosition, qint64(60000));
     QCOMPARE(fixture.runtime->position(), qint64(60000));
 }
 
-void TestVideoDocumentRuntime::backendSeekReentryPreservesLatestSeekState()
+void TestVideoDocumentRuntime::backendSeekReentryPreservesPositionOrder()
 {
     RuntimeFixture fixture;
     const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/home/me/clip.mp4"));
@@ -1432,9 +1480,35 @@ void TestVideoDocumentRuntime::backendSeekReentryPreservesLatestSeekState()
     fixture.runtime->requestPlaybackControlSeek(45000);
 
     QVERIFY(reentered);
-    QCOMPARE(fixture.backend->setPositionCount, 2);
+    QCOMPARE(fixture.backend->setPositionRequests,
+        (std::vector<qint64> { qint64(45000), qint64(60000) }));
     QCOMPARE(fixture.backend->currentPosition, qint64(60000));
     QCOMPARE(fixture.runtime->position(), qint64(60000));
+}
+
+void TestVideoDocumentRuntime::seekProjectionReentryQueuesStopBehindSeek()
+{
+    RuntimeFixture fixture;
+    prepareReadySeekableVideo(fixture);
+
+    bool reentered = false;
+    fixture.projectionHook = [&](const kiriview::VideoPlaybackControlProjection& projection) {
+        if (reentered || projection.sliderValueMsec != 45000) {
+            return;
+        }
+
+        reentered = true;
+        fixture.runtime->stop();
+    };
+
+    fixture.runtime->requestPlaybackControlSeek(45000);
+
+    QVERIFY(reentered);
+    QCOMPARE(
+        fixture.backend->setPositionRequests, (std::vector<qint64> { qint64(45000), qint64(0) }));
+    QCOMPARE(fixture.backend->currentPosition, qint64(0));
+    QCOMPARE(fixture.runtime->position(), qint64(0));
+    QVERIFY(!fixture.runtime->playing());
 }
 
 void TestVideoDocumentRuntime::adjustedSeekLandingRemainsAuthoritative()
@@ -1570,6 +1644,28 @@ void TestVideoDocumentRuntime::playbackControlSeekPublicationCanDestroyRuntime()
     QVERIFY(fixture.runtime == nullptr);
 }
 
+void TestVideoDocumentRuntime::backendSeekCallbackCanDestroyRuntime()
+{
+    RuntimeFixture fixture;
+    prepareReadySeekableVideo(fixture);
+
+    bool destroyed = false;
+    fixture.backend->setPositionHook = [&](qint64 positionMsec) {
+        if (destroyed || positionMsec != 45000) {
+            return;
+        }
+
+        destroyed = true;
+        fixture.runtime.reset();
+    };
+    kiriview::VideoDocumentRuntime* runtimePointer = fixture.runtime.get();
+
+    runtimePointer->requestPlaybackControlSeek(45000);
+
+    QVERIFY(destroyed);
+    QVERIFY(fixture.runtime == nullptr);
+}
+
 void TestVideoDocumentRuntime::playbackControlAutoHideUsesInjectedTimer()
 {
     kiriview::TestSupport::ManualTimerScheduler timers;
@@ -1634,14 +1730,167 @@ void TestVideoDocumentRuntime::playAfterEndOfMediaRestartsFromBeginningWhenSeeka
     QVERIFY(fixture.runtime->playing());
 }
 
-void TestVideoDocumentRuntime::positionCommandReentryKeepsLatestPosition_data()
+void TestVideoDocumentRuntime::endedPlaybackRestartQueuesReentrantPause_data()
+{
+    QTest::addColumn<bool>("togglePlayback");
+    QTest::newRow("play") << false;
+    QTest::newRow("toggle") << true;
+}
+
+void TestVideoDocumentRuntime::endedPlaybackRestartQueuesReentrantPause()
+{
+    QFETCH(bool, togglePlayback);
+    RuntimeFixture fixture;
+    prepareReadySeekableVideo(fixture, 10000, 10000);
+    fixture.backend->emitStatus(kiriview::VideoMediaStatus::EndOfMedia);
+
+    bool reentered = false;
+    fixture.projectionHook = [&](const kiriview::VideoPlaybackControlProjection& projection) {
+        if (reentered || projection.sliderValueMsec != 0) {
+            return;
+        }
+
+        reentered = true;
+        fixture.runtime->pause();
+    };
+
+    if (togglePlayback) {
+        fixture.runtime->togglePlayback();
+    } else {
+        fixture.runtime->play();
+    }
+
+    QVERIFY(reentered);
+    QVERIFY(!fixture.backend->isPlaying);
+    QVERIFY(!fixture.runtime->playing());
+    QCOMPARE(fixture.backend->currentPosition, qint64(0));
+    QCOMPARE(fixture.runtime->position(), qint64(0));
+}
+
+void TestVideoDocumentRuntime::endedPlaybackRestartCompletesBeforeQueuedSeek()
+{
+    RuntimeFixture fixture;
+    prepareReadySeekableVideo(fixture, 10000, 10000);
+    fixture.backend->emitStatus(kiriview::VideoMediaStatus::EndOfMedia);
+
+    bool reentered = false;
+    fixture.projectionHook = [&](const kiriview::VideoPlaybackControlProjection& projection) {
+        if (reentered || projection.sliderValueMsec != 0) {
+            return;
+        }
+
+        reentered = true;
+        fixture.runtime->requestPlaybackControlSeek(6000);
+    };
+
+    fixture.runtime->play();
+
+    QVERIFY(reentered);
+    QVERIFY(fixture.backend->isPlaying);
+    QVERIFY(fixture.runtime->playing());
+    QCOMPARE(fixture.backend->currentPosition, qint64(6000));
+    QCOMPARE(fixture.runtime->position(), qint64(6000));
+}
+
+void TestVideoDocumentRuntime::endedPlaybackRestartDoesNotContinueOnReplacementBackend()
+{
+    RuntimeFixture fixture;
+    prepareReadySeekableVideo(fixture, 10000, 10000);
+    fixture.backend->emitStatus(kiriview::VideoMediaStatus::EndOfMedia);
+    const QUrl replacementSourceUrl(QStringLiteral("zip:///home/me/videos.zip!/replacement.mp4"));
+
+    bool reentered = false;
+    fixture.backend->setPositionHook = [&](qint64 positionMsec) {
+        if (reentered || positionMsec != 0) {
+            return;
+        }
+
+        reentered = true;
+        fixture.backendFactoryHook = [&] {
+            fixture.backend->currentDuration = 10000;
+            fixture.backend->isSeekable = true;
+        };
+        fixture.runtime->setSourceDevice(
+            replacementSourceUrl, makePlaybackSourceDevice(std::make_shared<int>(1)));
+    };
+
+    fixture.runtime->play();
+
+    QVERIFY(reentered);
+    QCOMPARE(fixture.runtime->sourceUrl(), replacementSourceUrl);
+    QCOMPARE(fixture.backend->playCount, 1);
+}
+
+void TestVideoDocumentRuntime::stopReentryReplansQueuedPositionCommand_data()
+{
+    QTest::addColumn<bool>("relativeSeek");
+    QTest::addColumn<qint64>("expectedPositionMsec");
+    QTest::newRow("absolute") << false << qint64(60000);
+    QTest::newRow("relative") << true << qint64(5000);
+}
+
+void TestVideoDocumentRuntime::stopReentryReplansQueuedPositionCommand()
+{
+    QFETCH(bool, relativeSeek);
+    QFETCH(qint64, expectedPositionMsec);
+    RuntimeFixture fixture;
+    prepareReadySeekableVideo(fixture);
+
+    bool reentered = false;
+    fixture.projectionHook = [&](const kiriview::VideoPlaybackControlProjection& projection) {
+        if (reentered || projection.playing || projection.sliderValueMsec != 12000) {
+            return;
+        }
+
+        reentered = true;
+        if (relativeSeek) {
+            fixture.runtime->seekBy(5000);
+        } else {
+            fixture.runtime->requestPlaybackControlSeek(60000);
+        }
+    };
+
+    fixture.runtime->stop();
+
+    QVERIFY(reentered);
+    QVERIFY(!fixture.backend->isPlaying);
+    QVERIFY(!fixture.runtime->playing());
+    QCOMPARE(fixture.backend->currentPosition, expectedPositionMsec);
+    QCOMPARE(fixture.runtime->position(), expectedPositionMsec);
+}
+
+void TestVideoDocumentRuntime::stopCompletesBeforeQueuedPlay()
+{
+    RuntimeFixture fixture;
+    prepareReadySeekableVideo(fixture);
+
+    bool reentered = false;
+    fixture.projectionHook = [&](const kiriview::VideoPlaybackControlProjection& projection) {
+        if (reentered || projection.playing || projection.sliderValueMsec != 12000) {
+            return;
+        }
+
+        reentered = true;
+        fixture.runtime->play();
+    };
+
+    fixture.runtime->stop();
+
+    QVERIFY(reentered);
+    QVERIFY(fixture.backend->isPlaying);
+    QVERIFY(fixture.runtime->playing());
+    QCOMPARE(fixture.backend->currentPosition, qint64(0));
+    QCOMPARE(fixture.runtime->position(), qint64(0));
+}
+
+void TestVideoDocumentRuntime::positionCommandReentryPreservesPositionOrder_data()
 {
     QTest::addColumn<bool>("relativeOuterCommand");
     QTest::newRow("set-position-then-timeline-seek") << false;
     QTest::newRow("seek-by-then-set-position") << true;
 }
 
-void TestVideoDocumentRuntime::positionCommandReentryKeepsLatestPosition()
+void TestVideoDocumentRuntime::positionCommandReentryPreservesPositionOrder()
 {
     QFETCH(bool, relativeOuterCommand);
     RuntimeFixture fixture;
@@ -1668,10 +1917,37 @@ void TestVideoDocumentRuntime::positionCommandReentryKeepsLatestPosition()
     }
 
     QVERIFY(reentered);
-    QCOMPARE(fixture.backend->setPositionCount, 2);
+    QCOMPARE(fixture.backend->setPositionRequests,
+        (std::vector<qint64> { qint64(45000), qint64(60000) }));
     QCOMPARE(fixture.backend->currentPosition, qint64(60000));
     QCOMPARE(fixture.runtime->position(), qint64(60000));
     QCOMPARE(fixture.runtime->playbackControlProjection().sliderValueMsec, qint64(60000));
+}
+
+void TestVideoDocumentRuntime::playbackCommandDrainYieldsUnderSustainedReentry()
+{
+    RuntimeFixture fixture;
+    prepareReadySeekableVideo(fixture);
+    constexpr int requestCount = 512;
+    int submittedCount = 1;
+
+    fixture.projectionHook = [&](const kiriview::VideoPlaybackControlProjection& projection) {
+        if (submittedCount >= requestCount
+            || projection.sliderValueMsec != qint64(12000 + submittedCount)) {
+            return;
+        }
+
+        ++submittedCount;
+        fixture.runtime->setPosition(12000 + submittedCount);
+    };
+
+    fixture.runtime->setPosition(12001);
+
+    QVERIFY(fixture.backend->setPositionCount > 0);
+    QVERIFY(fixture.backend->setPositionCount < requestCount);
+    QTRY_COMPARE_WITH_TIMEOUT(fixture.backend->setPositionCount, requestCount, 5000);
+    QCOMPARE(fixture.backend->currentPosition, qint64(12000 + requestCount));
+    QCOMPARE(fixture.runtime->position(), qint64(12000 + requestCount));
 }
 
 void TestVideoDocumentRuntime::seekByClampsToKnownDuration()
