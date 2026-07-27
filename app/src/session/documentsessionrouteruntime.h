@@ -5,6 +5,7 @@
 #define KIRIVIEW_DOCUMENTSESSIONROUTERUNTIME_H
 
 #include "async/imageasyncoperationstate.h"
+#include "async/imageasyncticket.h"
 #include "location/imageurl.h"
 #include "session/documentsessionrouteplan.h"
 
@@ -85,6 +86,7 @@ private:
     void executeSuppressed(const std::function<void()>& mutation);
 
     DocumentSessionRouteRuntimePorts m_ports;
+    ImageAsyncTicket m_admission;
     ImageAsyncOperationState m_execution;
 };
 }

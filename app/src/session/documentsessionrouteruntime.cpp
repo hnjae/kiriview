@@ -27,13 +27,23 @@ bool DocumentSessionRouteRuntime::executeWithSourceResolver(const DocumentSessio
         bool syncMediaPredecodeScope = false;
     };
 
+    const quint64 admissionRevision = m_admission.current();
+    if (control.isCurrent && !control.isCurrent()) {
+        return false;
+    }
+    if (m_admission.current() != admissionRevision) {
+        return false;
+    }
+
+    const quint64 admissionId = m_admission.next();
     const quint64 operationId = m_execution.start();
-    const auto isCurrent = [this, operationId, &control]() {
-        if (!m_execution.accepts(operationId)) {
+    const auto isCurrent = [this, admissionId, operationId, &control]() {
+        if (!m_admission.accepts(admissionId) || !m_execution.accepts(operationId)) {
             return false;
         }
         const bool externallyCurrent = !control.isCurrent || control.isCurrent();
-        return externallyCurrent && m_execution.accepts(operationId);
+        return externallyCurrent && m_admission.accepts(admissionId)
+            && m_execution.accepts(operationId);
     };
     const auto abortExecution = [this, operationId]() {
         static_cast<void>(m_execution.finish(operationId));

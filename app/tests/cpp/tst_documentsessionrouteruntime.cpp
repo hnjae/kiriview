@@ -24,6 +24,8 @@ private Q_SLOTS:
     void directMediaScopeChangeSyncsPredecodeScopeAfterFinalCursorMutation();
     void activeNavigationRefreshesWithoutScopeChange();
     void externalAuthorityLossStopsBeforeCommitAndFollowUps();
+    void staleReentrantExecutionDoesNotSupersedeCurrentRoute();
+    void authorityPreflightReentryKeepsNewerRoute();
     void reentrantExecutionSupersedesRemainingRoute();
     void sourceResolutionReentrySupersedesOlderRoute();
 };
@@ -543,6 +545,122 @@ void TestDocumentSessionRouteRuntime::externalAuthorityLossStopsBeforeCommitAndF
     QCOMPARE(publicationCount, 0);
     QCOMPARE(followUpCount, 0);
     QCOMPARE(completionCount, 0);
+}
+
+void TestDocumentSessionRouteRuntime::staleReentrantExecutionDoesNotSupersedeCurrentRoute()
+{
+    const QUrl currentUrl = localUrl(QStringLiteral("/media/current.png"));
+    const QUrl staleUrl = localUrl(QStringLiteral("/media/stale.png"));
+    bool staleCompleted = true;
+    int staleResolverCount = 0;
+    int publicationCount = 0;
+    int followUpCount = 0;
+    int completionCount = 0;
+    QUrl sourceIdentity;
+    std::unique_ptr<kiriview::DocumentSessionRouteRuntime> runtime;
+    kiriview::DocumentSessionRouteRuntimePorts ports;
+    ports.session.cancelMediaOpenWith = []() { };
+    ports.directMedia.clearDirectMediaCursor = [&]() {
+        kiriview::DocumentSessionRoutePlan stalePlan;
+        stalePlan.sourceUrl = staleUrl;
+        stalePlan.mutations = {
+            kiriview::DocumentSessionRouteMutation {
+                kiriview::SetDirectVideoCursorRouteOperation {} },
+        };
+        const kiriview::DocumentSessionRouteExecutionControl staleControl {
+            []() { return false; },
+            {},
+        };
+        staleCompleted = runtime->executeWithSourceResolver(
+            stalePlan,
+            [&](const QUrl& url) {
+                ++staleResolverCount;
+                return resolveIdentitySource(url);
+            },
+            staleControl);
+        return true;
+    };
+    ports.sourceIdentity.useOriginalSourceIdentity = [&](const QUrl& url) { sourceIdentity = url; };
+    ports.followUp.recomputePublicProjection = [&]() { ++publicationCount; };
+    ports.followUp.syncMediaPredecodeScope = [&]() { ++followUpCount; };
+    ports.session.routeCompleted = [&]() { ++completionCount; };
+    runtime = std::make_unique<kiriview::DocumentSessionRouteRuntime>(std::move(ports));
+
+    kiriview::DocumentSessionRoutePlan currentPlan;
+    currentPlan.sourceUrl = currentUrl;
+    currentPlan.mutations = {
+        kiriview::DocumentSessionRouteMutation {
+            kiriview::ClearDirectMediaCursorRouteOperation {} },
+        kiriview::DocumentSessionRouteMutation {
+            kiriview::UseOriginalSourceIdentityRouteOperation {} },
+    };
+    currentPlan.publishPublicProjection = true;
+    currentPlan.followUpEffects = {
+        kiriview::DocumentSessionRouteFollowUpEffect {
+            kiriview::ClearMediaPredecodeRouteEffect {} },
+    };
+
+    QVERIFY(executeRoute(*runtime, currentPlan));
+    QVERIFY(!staleCompleted);
+    QCOMPARE(staleResolverCount, 0);
+    QCOMPARE(sourceIdentity, currentUrl);
+    QCOMPARE(publicationCount, 1);
+    QCOMPARE(followUpCount, 1);
+    QCOMPARE(completionCount, 1);
+}
+
+void TestDocumentSessionRouteRuntime::authorityPreflightReentryKeepsNewerRoute()
+{
+    const QUrl olderUrl = localUrl(QStringLiteral("/media/older.png"));
+    const QUrl newerUrl = localUrl(QStringLiteral("/media/newer.png"));
+    bool newerSubmitted = false;
+    bool newerCompleted = false;
+    int olderResolverCount = 0;
+    std::vector<QUrl> appliedSources;
+    std::unique_ptr<kiriview::DocumentSessionRouteRuntime> runtime;
+    kiriview::DocumentSessionRouteRuntimePorts ports;
+    ports.session.cancelMediaOpenWith = []() { };
+    ports.sourceIdentity.useOriginalSourceIdentity
+        = [&](const QUrl& url) { appliedSources.push_back(url); };
+    ports.session.routeCompleted = []() { };
+    runtime = std::make_unique<kiriview::DocumentSessionRouteRuntime>(std::move(ports));
+
+    kiriview::DocumentSessionRoutePlan newerPlan;
+    newerPlan.sourceUrl = newerUrl;
+    newerPlan.mutations = {
+        kiriview::DocumentSessionRouteMutation {
+            kiriview::UseOriginalSourceIdentityRouteOperation {} },
+    };
+    kiriview::DocumentSessionRoutePlan olderPlan;
+    olderPlan.sourceUrl = olderUrl;
+    olderPlan.mutations = {
+        kiriview::DocumentSessionRouteMutation {
+            kiriview::UseOriginalSourceIdentityRouteOperation {} },
+    };
+    const kiriview::DocumentSessionRouteExecutionControl olderControl {
+        [&]() {
+            if (!newerSubmitted) {
+                newerSubmitted = true;
+                newerCompleted = executeRoute(*runtime, newerPlan);
+            }
+            return true;
+        },
+        {},
+    };
+
+    const bool olderCompleted = runtime->executeWithSourceResolver(
+        olderPlan,
+        [&](const QUrl& url) {
+            ++olderResolverCount;
+            return resolveIdentitySource(url);
+        },
+        olderControl);
+
+    QVERIFY(newerSubmitted);
+    QVERIFY(newerCompleted);
+    QVERIFY(!olderCompleted);
+    QCOMPARE(olderResolverCount, 0);
+    QCOMPARE(appliedSources, std::vector<QUrl> { newerUrl });
 }
 
 void TestDocumentSessionRouteRuntime::reentrantExecutionSupersedesRemainingRoute()
