@@ -25,8 +25,11 @@ private Q_SLOTS:
     void directMediaMultiCandidateWithoutNextUsesPrevious();
     void directMediaStartKeepsActualTargetSeparateFromNavigationIdentity();
     void directMediaCandidateFailureAbortsBeforeFileOperation();
+    void directMediaCandidatePhaseIsOwnedByRuntime();
     void directMediaCandidateLoadCancelRejectsLateCompletion();
     void cancelRejectsLateCompletion();
+    void cancellationInvalidatesBeforeFileProviderCallback();
+    void synchronousCompletionPreservesReplacementJob();
     void replacementStartRejectsStaleCompletion();
     void failedCompletionReportsFailureWithTypedFailure();
 };
@@ -324,6 +327,19 @@ void TestDocumentSessionMediaDeletionRuntime::directMediaCandidateFailureAbortsB
     QVERIFY(!fixture.completion.failure.retryable);
 }
 
+void TestDocumentSessionMediaDeletionRuntime::directMediaCandidatePhaseIsOwnedByRuntime()
+{
+    RuntimeFixture fixture;
+    const QUrl currentUrl = localUrl(QStringLiteral("/media/02.mp4"));
+
+    QVERIFY(fixture.startDirectMedia(
+        kiriview::FileDeletionMode::MoveToTrash, directMediaScope(currentUrl)));
+
+    QVERIFY(fixture.runtime.active());
+    QCOMPARE(fixture.candidateProvider.loadCount(), std::size_t(1));
+    QCOMPARE(fixture.fileDeletionProvider.operationCount(), std::size_t(0));
+}
+
 void TestDocumentSessionMediaDeletionRuntime::directMediaCandidateLoadCancelRejectsLateCompletion()
 {
     RuntimeFixture fixture;
@@ -356,6 +372,79 @@ void TestDocumentSessionMediaDeletionRuntime::cancelRejectsLateCompletion()
         0, kiriview::FileDeletionResult::Succeeded);
 
     QCOMPARE(fixture.completionCount, 0);
+}
+
+void TestDocumentSessionMediaDeletionRuntime::cancellationInvalidatesBeforeFileProviderCallback()
+{
+    QObject receiver;
+    bool providerCanceled = false;
+    kiriview::FileDeletionProvider provider
+        = [&](QObject* operationReceiver, kiriview::FileDeletionRequest request,
+              kiriview::FileDeletionCallback callback) {
+              QObject* token = new QObject(operationReceiver);
+              const kiriview::KioOperationFailure failure
+                  = kiriview::TestSupport::manualFileDeletionFailure(
+                      request, kiriview::FileDeletionResult::Succeeded, {});
+              return kiriview::ImageIoJob(
+                  token, [&, callback = std::move(callback), failure](QObject* object) mutable {
+                      providerCanceled = true;
+                      callback(kiriview::FileDeletionResult::Succeeded, failure);
+                      object->deleteLater();
+                  });
+          };
+    kiriview::DocumentSessionMediaDeletionRuntime runtime(std::move(provider));
+    const QUrl currentUrl = localUrl(QStringLiteral("/media/02.mp4"));
+    int completionCount = 0;
+    runtime.start(&receiver, kiriview::FileDeletionMode::MoveToTrash,
+        { directMediaNavigationCandidate(currentUrl) }, currentUrl, currentUrl,
+        kiriview::DocumentSessionKind::Video,
+        [&](kiriview::DocumentSessionMediaDeletionCompletion) { ++completionCount; });
+
+    runtime.cancel();
+
+    QVERIFY(providerCanceled);
+    QCOMPARE(completionCount, 0);
+    QVERIFY(!runtime.active());
+}
+
+void TestDocumentSessionMediaDeletionRuntime::synchronousCompletionPreservesReplacementJob()
+{
+    QObject receiver;
+    kiriview::TestSupport::ManualFileDeletionProvider fileDeletionProvider;
+    bool synchronouslyComplete = true;
+    kiriview::FileDeletionProvider provider
+        = [&](QObject* operationReceiver, kiriview::FileDeletionRequest request,
+              kiriview::FileDeletionCallback callback) {
+              kiriview::ImageIoJob job = fileDeletionProvider.start(
+                  operationReceiver, std::move(request), std::move(callback));
+              if (std::exchange(synchronouslyComplete, false)) {
+                  fileDeletionProvider.finishBackOperation(kiriview::FileDeletionResult::Succeeded);
+              }
+              return job;
+          };
+    kiriview::DocumentSessionMediaDeletionRuntime runtime(std::move(provider));
+    const QUrl firstUrl = localUrl(QStringLiteral("/first/01.mp4"));
+    const QUrl secondUrl = localUrl(QStringLiteral("/second/01.mp4"));
+    int completionCount = 0;
+    runtime.start(&receiver, kiriview::FileDeletionMode::MoveToTrash,
+        { directMediaNavigationCandidate(firstUrl) }, firstUrl, firstUrl,
+        kiriview::DocumentSessionKind::Video,
+        [&](kiriview::DocumentSessionMediaDeletionCompletion) {
+            ++completionCount;
+            runtime.start(&receiver, kiriview::FileDeletionMode::MoveToTrash,
+                { directMediaNavigationCandidate(secondUrl) }, secondUrl, secondUrl,
+                kiriview::DocumentSessionKind::Video,
+                [&](kiriview::DocumentSessionMediaDeletionCompletion) { ++completionCount; });
+        });
+
+    QCOMPARE(completionCount, 1);
+    QCOMPARE(fileDeletionProvider.operationCount(), std::size_t(2));
+    QVERIFY(!fileDeletionProvider.operationAt(1).canceled);
+    QVERIFY(runtime.active());
+
+    fileDeletionProvider.finishBackOperation(kiriview::FileDeletionResult::Succeeded);
+    QCOMPARE(completionCount, 2);
+    QVERIFY(!runtime.active());
 }
 
 void TestDocumentSessionMediaDeletionRuntime::replacementStartRejectsStaleCompletion()

@@ -15,6 +15,7 @@
 #include <QString>
 #include <QUrl>
 #include <functional>
+#include <memory>
 #include <vector>
 
 class QObject;
@@ -48,6 +49,9 @@ public:
     [[nodiscard]] bool active() const;
 
 private:
+    bool startFileOperation(QObject* receiver, quint64 operationId,
+        DocumentSessionMediaDeletionStartPlan plan, DocumentSessionKind documentKind,
+        const std::shared_ptr<CompletionCallback>& callback);
     void finish(quint64 operationId, DocumentSessionKind documentKind,
         const DocumentSessionMediaDeletionFallbackPlan& fallbackPlan, FileDeletionResult result,
         const KioOperationFailure& failure, const CompletionCallback& callback);

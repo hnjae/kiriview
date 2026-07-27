@@ -24,21 +24,22 @@ DocumentSessionMediaDeletionStartPlan DocumentSessionMediaDeletionRuntime::start
     const QUrl& actualTargetUrl, const QUrl& navigationIdentityUrl,
     DocumentSessionKind documentKind, CompletionCallback callback)
 {
-    const DocumentSessionMediaDeletionStartPlan plan = documentSessionMediaDeletionStartPlan(
+    DocumentSessionMediaDeletionStartPlan plan = documentSessionMediaDeletionStartPlan(
         mode, std::move(candidates), actualTargetUrl, navigationIdentityUrl);
     if (!plan.shouldStartDeletion) {
         return plan;
     }
 
+    const quint64 operationId = m_operation.start();
     m_candidateRuntime.cancel();
     m_job.cancel();
-    const quint64 operationId = m_operation.start();
+    if (!m_operation.accepts(operationId)) {
+        return {};
+    }
     auto sharedCallback = std::make_shared<CompletionCallback>(std::move(callback));
-    m_job = m_fileDeletionProvider(receiver, plan.request,
-        [this, operationId, documentKind, fallbackPlan = plan.fallbackPlan, sharedCallback](
-            FileDeletionResult result, const KioOperationFailure& failure) {
-            finish(operationId, documentKind, fallbackPlan, result, failure, *sharedCallback);
-        });
+    if (!startFileOperation(receiver, operationId, plan, documentKind, sharedCallback)) {
+        return {};
+    }
     return plan;
 }
 
@@ -46,19 +47,29 @@ bool DocumentSessionMediaDeletionRuntime::startForDirectMedia(QObject* receiver,
     FileDeletionMode mode, const DirectMediaScope& scope, ScopeAccepted scopeAccepted,
     DocumentSessionKind documentKind, CompletionCallback callback)
 {
-    cancel();
     if (scope.currentUrl().isEmpty() || scope.parentUrl().isEmpty()
         || !scope.parentUrl().isValid()) {
         return false;
     }
 
+    const quint64 operationId = m_operation.start();
+    m_job.cancel();
+    if (!m_operation.accepts(operationId)) {
+        return false;
+    }
     auto sharedCallback = std::make_shared<CompletionCallback>(std::move(callback));
     m_candidateRuntime.loadCandidates(receiver, scope, std::move(scopeAccepted),
-        [this, receiver, mode, actualTargetUrl = scope.currentUrl(),
+        [this, receiver, operationId, mode, actualTargetUrl = scope.currentUrl(),
             navigationIdentityUrl = scope.navigationUrl(), candidateTargetUrl = scope.parentUrl(),
             documentKind,
             sharedCallback](DocumentSessionDirectMediaNavigationCandidatesResult result) mutable {
+            if (!m_operation.accepts(operationId)) {
+                return;
+            }
             if (!result.succeeded) {
+                if (!m_operation.finish(operationId)) {
+                    return;
+                }
                 invokeIfSet(*sharedCallback,
                     DocumentSessionMediaDeletionCompletion {
                         DocumentSessionMediaDeletionCompletionPlan { {}, true },
@@ -74,20 +85,47 @@ bool DocumentSessionMediaDeletionRuntime::startForDirectMedia(QObject* receiver,
                     });
                 return;
             }
-            start(receiver, mode, std::move(result.candidates), actualTargetUrl,
-                navigationIdentityUrl, documentKind, std::move(*sharedCallback));
+            DocumentSessionMediaDeletionStartPlan plan = documentSessionMediaDeletionStartPlan(
+                mode, std::move(result.candidates), actualTargetUrl, navigationIdentityUrl);
+            if (!plan.shouldStartDeletion) {
+                static_cast<void>(m_operation.finish(operationId));
+                return;
+            }
+            static_cast<void>(startFileOperation(
+                receiver, operationId, std::move(plan), documentKind, sharedCallback));
         });
     return true;
 }
 
 void DocumentSessionMediaDeletionRuntime::cancel()
 {
+    m_operation.cancel();
     m_candidateRuntime.cancel();
     m_job.cancel();
-    m_operation.cancel();
 }
 
 bool DocumentSessionMediaDeletionRuntime::active() const { return m_operation.active(); }
+
+bool DocumentSessionMediaDeletionRuntime::startFileOperation(QObject* receiver, quint64 operationId,
+    DocumentSessionMediaDeletionStartPlan plan, DocumentSessionKind documentKind,
+    const std::shared_ptr<CompletionCallback>& callback)
+{
+    if (!m_operation.accepts(operationId)) {
+        return false;
+    }
+
+    ImageIoJob startedJob = m_fileDeletionProvider(receiver, plan.request,
+        [this, operationId, documentKind, fallbackPlan = std::move(plan.fallbackPlan), callback](
+            FileDeletionResult result, const KioOperationFailure& failure) {
+            finish(operationId, documentKind, fallbackPlan, result, failure, *callback);
+        });
+    if (!m_operation.accepts(operationId)) {
+        startedJob.cancel();
+        return true;
+    }
+    m_job = std::move(startedJob);
+    return true;
+}
 
 void DocumentSessionMediaDeletionRuntime::finish(quint64 operationId,
     DocumentSessionKind documentKind, const DocumentSessionMediaDeletionFallbackPlan& fallbackPlan,
