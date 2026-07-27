@@ -35,6 +35,7 @@ struct ImageViewportIntegrationTarget
     QUrl selectedSourceUrl;
     QUrl resolvedPrimaryUrl;
     QUrl secondaryUrl;
+    quint64 secondarySessionId = 0;
     ImageViewportTargetTransitionIntent transitionIntent
         = ImageViewportTargetTransitionIntent::OutsideNavigationScope;
     bool rightToLeft = false;
@@ -50,6 +51,7 @@ struct ImageViewportIntegrationProjection
     bool correlated = false;
     quint64 sourceGeneration = 0;
     QUrl secondaryUrl;
+    quint64 secondarySessionId = 0;
     QUrl displayedUrl;
     ImageDocumentStatus status = ImageDocumentStatus::Null;
     bool loading = false;

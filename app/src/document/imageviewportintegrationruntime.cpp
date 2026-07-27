@@ -138,8 +138,11 @@ enum class ImageViewportIntegrationRuntime::SubmissionOutcome {
 
 bool ImageViewportIntegrationTarget::isValid() const
 {
+    const bool hasSecondaryUrl = !secondaryUrl.isEmpty();
+    const bool hasSecondaryResource = bool(secondaryResource);
+    const bool hasSecondarySession = secondarySessionId != 0;
     return sourceGeneration != 0 && !selectedSourceUrl.isEmpty() && bool(primaryResource)
-        && (secondaryUrl.isEmpty() == !bool(secondaryResource));
+        && hasSecondaryUrl == hasSecondaryResource && hasSecondaryUrl == hasSecondarySession;
 }
 
 ImageViewportIntegrationRuntime::ImageViewportIntegrationRuntime(Callbacks callbacks)
@@ -564,6 +567,7 @@ void ImageViewportIntegrationRuntime::acceptSnapshot(const ImageViewportStateSna
     projection.correlated = true;
     projection.sourceGeneration = m_activeRecord->target.sourceGeneration;
     projection.secondaryUrl = m_activeRecord->target.secondaryUrl;
+    projection.secondarySessionId = m_activeRecord->target.secondarySessionId;
     projection.status = documentStatus(snapshot.request().status());
     projection.loading = projection.status == ImageDocumentStatus::Loading;
     projection.primaryImageSize = logicalSize(snapshot.primary());

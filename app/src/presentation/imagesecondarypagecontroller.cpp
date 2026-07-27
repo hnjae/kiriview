@@ -15,7 +15,7 @@ ImageSecondaryPageController::ImageSecondaryPageController(Callbacks callbacks)
 {
     ImageLoader::Callbacks loaderCallbacks;
     loaderCallbacks.error = [this](const ImageLoadSession& session, const ImageLoadFailure&) {
-        finishLoadWithError(session);
+        finishClaimedLoadWithError(session);
     };
     loaderCallbacks.findPredecodedImage = [this](const QUrl& url) {
         return m_callbacks.findPredecodedImage ? m_callbacks.findPredecodedImage(url)
@@ -65,16 +65,26 @@ void ImageSecondaryPageController::cancel()
 void ImageSecondaryPageController::finishProviderLoad(
     const ImageLoadSession& session, QSize imageSize)
 {
+    const std::optional<ImageLoadSession> claimedSession
+        = m_imageLoader->claimCurrentSession(session);
+    if (!claimedSession.has_value()) {
+        return;
+    }
     applyLoadCompletion(m_displayState.finishPresentedLoad(
-        session.location(), imageSize, imageSpreadPageIsWide(imageSize)));
+        claimedSession->location(), imageSize, imageSpreadPageIsWide(imageSize)));
 }
 
 void ImageSecondaryPageController::finishProviderLoadWithError(const ImageLoadSession& session)
 {
-    finishLoadWithError(session);
+    const std::optional<ImageLoadSession> claimedSession
+        = m_imageLoader->claimCurrentSession(session);
+    if (!claimedSession.has_value()) {
+        return;
+    }
+    finishClaimedLoadWithError(*claimedSession);
 }
 
-void ImageSecondaryPageController::finishLoadWithError(const ImageLoadSession& session)
+void ImageSecondaryPageController::finishClaimedLoadWithError(const ImageLoadSession& session)
 {
     applyLoadCompletion(m_displayState.finishFailedLoad(session.location()));
 }

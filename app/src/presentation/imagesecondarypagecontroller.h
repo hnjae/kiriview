@@ -51,7 +51,7 @@ public:
     void finishProviderLoadWithError(const ImageLoadSession& session);
 
 private:
-    void finishLoadWithError(const ImageLoadSession& session);
+    void finishClaimedLoadWithError(const ImageLoadSession& session);
     void applyLoadCompletion(const ImageSecondaryPageLoadCompletion& completion);
 
     Callbacks m_callbacks;

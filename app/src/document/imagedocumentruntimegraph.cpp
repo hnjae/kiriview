@@ -478,6 +478,7 @@ void ImageDocumentRuntimeGraph::prepareViewportSecondaryImageTarget(
 
     ImageViewportIntegrationTarget target = *m_viewportTarget;
     target.secondaryUrl = session.imageUrl();
+    target.secondarySessionId = session.id();
     target.transitionIntent = ImageViewportTargetTransitionIntent::PresentationShapeChange;
     target.secondaryResource = [prepared, displayStore]() {
         prepared->refreshPredecodedImage();
@@ -498,8 +499,13 @@ void ImageDocumentRuntimeGraph::prepareViewportSecondaryImageTarget(
     m_viewportSecondaryLoadSession = session;
     m_viewportTarget = std::make_unique<ImageViewportIntegrationTarget>(target);
     if (!m_viewportIntegration->submitTarget(std::move(target))) {
-        m_spreadController->finishViewportSecondaryPageLoadWithError(session);
+        if (!m_viewportSecondaryLoadSession.has_value()
+            || !m_viewportSecondaryLoadSession->sameSession(session) || m_viewportTarget == nullptr
+            || m_viewportTarget->secondarySessionId != session.id()) {
+            return;
+        }
         m_viewportSecondaryLoadSession.reset();
+        m_spreadController->finishViewportSecondaryPageLoadWithError(session);
     }
 }
 
@@ -516,6 +522,7 @@ void ImageDocumentRuntimeGraph::clearViewportSecondaryImageTarget()
     }
     ImageViewportIntegrationTarget target = *m_viewportTarget;
     target.secondaryUrl = QUrl();
+    target.secondarySessionId = 0;
     target.secondaryResource = {};
     target.transitionIntent = ImageViewportTargetTransitionIntent::PresentationShapeChange;
     m_viewportSecondaryLoadSession.reset();
@@ -536,21 +543,25 @@ void ImageDocumentRuntimeGraph::clearViewportTarget()
 void ImageDocumentRuntimeGraph::handleViewportProjection(
     const ImageViewportIntegrationProjection& projection)
 {
+    const std::optional<ImageLoadSession> observedSecondaryLoad = m_viewportSecondaryLoadSession;
     m_callbacks.notify(
         std::vector<ImageDocumentChange> { ImageDocumentChange::ViewportProjection });
-    if (m_viewportSecondaryLoadSession.has_value() && m_viewportTarget != nullptr
+    if (observedSecondaryLoad.has_value() && m_viewportSecondaryLoadSession.has_value()
+        && m_viewportSecondaryLoadSession->sameSession(*observedSecondaryLoad)
+        && m_viewportTarget != nullptr
         && projection.sourceGeneration == m_viewportTarget->sourceGeneration
-        && projection.secondaryUrl == m_viewportSecondaryLoadSession->imageUrl()) {
+        && projection.secondarySessionId == observedSecondaryLoad->id()
+        && m_viewportTarget->secondarySessionId == observedSecondaryLoad->id()
+        && projection.secondaryUrl == observedSecondaryLoad->imageUrl()
+        && m_viewportTarget->secondaryUrl == observedSecondaryLoad->imageUrl()) {
         if (projection.status == ImageDocumentStatus::Ready
             && !projection.secondaryImageSize.isEmpty()) {
-            const ImageLoadSession session = *m_viewportSecondaryLoadSession;
             m_viewportSecondaryLoadSession.reset();
             m_spreadController->finishViewportSecondaryPageLoad(
-                session, projection.secondaryImageSize);
+                *observedSecondaryLoad, projection.secondaryImageSize);
         } else if (projection.status == ImageDocumentStatus::Error) {
-            const ImageLoadSession session = *m_viewportSecondaryLoadSession;
             m_viewportSecondaryLoadSession.reset();
-            m_spreadController->finishViewportSecondaryPageLoadWithError(session);
+            m_spreadController->finishViewportSecondaryPageLoadWithError(*observedSecondaryLoad);
         }
     }
     if (!m_pendingViewportImageLoad.has_value()

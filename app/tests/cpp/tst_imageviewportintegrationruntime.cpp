@@ -161,6 +161,7 @@ struct TargetFixture
     quint64 generation = 0;
     QUrl primaryUrl;
     QUrl secondaryUrl;
+    quint64 secondarySessionId = 0;
     kiriview::ImageViewportTargetTransitionIntent intent
         = kiriview::ImageViewportTargetTransitionIntent::SameNavigationScope;
     bool rightToLeft = false;
@@ -183,6 +184,9 @@ struct TargetFixture
         result.selectedSourceUrl = primaryUrl;
         result.resolvedPrimaryUrl = primaryUrlResolved ? primaryUrl : QUrl();
         result.secondaryUrl = secondaryUrl;
+        result.secondarySessionId = secondaryUrl.isEmpty()
+            ? 0
+            : (secondarySessionId != 0 ? secondarySessionId : generation);
         result.transitionIntent = intent;
         result.rightToLeft = rightToLeft;
         result.anchorAtEnd = anchorAtEnd;
@@ -231,6 +235,7 @@ private Q_SLOTS:
     void projectionCallbackRetainsPublishedSnapshotAcrossReentry();
     void reentrantClearCannotEraseNewerTarget();
     void reentrantAttachmentReplacementKeepsLatestAttachment();
+    void secondaryTargetRequiresSessionIdentity();
     void twoRoleTargetIsSubmittedAtomically();
     void gesturesAndScrollbarsUseMatchedComponentProjection();
     void targetAnchorAtEndAppliesThroughTransition();
@@ -551,6 +556,31 @@ void TestImageViewportIntegrationRuntime::reentrantAttachmentReplacementKeepsLat
     QCOMPARE(runtime.projection().sourceGeneration, fixture.generation);
 }
 
+void TestImageViewportIntegrationRuntime::secondaryTargetRequiresSessionIdentity()
+{
+    kiriview::ImageViewportIntegrationRuntime runtime;
+
+    TargetFixture secondary;
+    secondary.generation = 40;
+    secondary.primaryUrl = QUrl(QStringLiteral("file:///tmp/primary.png"));
+    secondary.secondaryUrl = QUrl(QStringLiteral("file:///tmp/secondary.png"));
+    kiriview::ImageViewportIntegrationTarget missingIdentity = secondary.target();
+    missingIdentity.secondarySessionId = 0;
+    QVERIFY(!runtime.submitTarget(std::move(missingIdentity)));
+
+    TargetFixture primaryOnly;
+    primaryOnly.generation = 41;
+    primaryOnly.primaryUrl = QUrl(QStringLiteral("file:///tmp/primary-only.png"));
+    kiriview::ImageViewportIntegrationTarget orphanedIdentity = primaryOnly.target();
+    orphanedIdentity.secondarySessionId = 17;
+    QVERIFY(!runtime.submitTarget(std::move(orphanedIdentity)));
+
+    QCOMPARE(secondary.primaryFactoryCalls, 0);
+    QCOMPARE(secondary.secondaryFactoryCalls, 0);
+    QCOMPARE(primaryOnly.primaryFactoryCalls, 0);
+    QVERIFY(!runtime.projection().correlated);
+}
+
 void TestImageViewportIntegrationRuntime::twoRoleTargetIsSubmittedAtomically()
 {
     kiriview::ImageViewportIntegrationRuntime runtime;
@@ -574,6 +604,7 @@ void TestImageViewportIntegrationRuntime::twoRoleTargetIsSubmittedAtomically()
     QCOMPARE(viewport.state().presentation().spreadDirection(),
         ImageViewportSpreadDirection::RightToLeft);
     QCOMPARE(runtime.projection().secondaryUrl, fixture.secondaryUrl);
+    QCOMPARE(runtime.projection().secondarySessionId, fixture.generation);
     QCOMPARE(runtime.projection().secondaryVisible, false);
 
     fixture.primarySource->completeNext(QStringLiteral("primary"));
