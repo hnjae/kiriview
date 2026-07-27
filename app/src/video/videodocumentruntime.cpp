@@ -43,6 +43,25 @@ const char* videoMediaErrorCategoryName(kiriview::VideoMediaErrorCategory catego
 
     return "Unknown";
 }
+
+kiriview::VideoPlaybackStateDelta stateDeltaAfterBackendOperations(
+    const kiriview::VideoPlaybackControlPlan& plan, bool mediaBackendAvailable)
+{
+    kiriview::VideoPlaybackStateDelta delta = plan.stateDelta;
+    if (!mediaBackendAvailable) {
+        return delta;
+    }
+
+    for (const kiriview::VideoPlaybackBackendOperation& operation : plan.backendOperations) {
+        if (std::holds_alternative<kiriview::SetVideoPlaybackPositionOperation>(operation)) {
+            delta.position.reset();
+        }
+        if (std::holds_alternative<kiriview::StopVideoPlaybackOperation>(operation)) {
+            delta.playing.reset();
+        }
+    }
+    return delta;
+}
 }
 
 namespace kiriview {
@@ -279,10 +298,7 @@ qint64 VideoDocumentRuntime::position() const
     return m_playbackControls.mediaSnapshot().positionMsec;
 }
 
-void VideoDocumentRuntime::setPosition(qint64 position)
-{
-    executePlaybackControlPlan(videoPlaybackSetPositionPlan(playbackControlSnapshot(), position));
-}
+void VideoDocumentRuntime::setPosition(qint64 position) { requestPlaybackControlSeek(position); }
 
 bool VideoDocumentRuntime::playing() const { return m_playbackControls.mediaSnapshot().playing; }
 
@@ -303,13 +319,22 @@ bool VideoDocumentRuntime::muted() const { return m_playbackControls.mediaSnapsh
 void VideoDocumentRuntime::setMuted(bool muted)
 {
     const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    if (m_playbackControls.mediaSnapshot().muted == muted) {
+        return;
+    }
+
     const std::shared_ptr<VideoMediaBackend> mediaBackend = m_mediaBackend;
     const std::optional<PlaybackLifecycle> lifecycle = m_activePlaybackLifecycle;
+    const quint64 commandRevision = m_muteCommandAdmission.next();
     VideoPlaybackControlMediaSnapshot snapshot = m_playbackControls.mediaSnapshot();
     snapshot.muted = muted;
     m_playbackControls.acceptMediaSnapshot(snapshot);
-    if (lifetime.expired() || mediaBackend == nullptr || !lifecycle.has_value()
-        || m_mediaBackend != mediaBackend || !playbackCallbacksAccepted(*lifecycle)) {
+    if (lifetime.expired() || !m_muteCommandAdmission.accepts(commandRevision)
+        || mediaBackend == nullptr) {
+        return;
+    }
+    if (!lifecycle.has_value() || m_mediaBackend != mediaBackend
+        || !playbackCallbacksAccepted(*lifecycle)) {
         return;
     }
     mediaBackend->setMuted(muted);
@@ -357,8 +382,11 @@ void VideoDocumentRuntime::toggleMuted() { setMuted(!muted()); }
 
 void VideoDocumentRuntime::seekBy(qint64 deltaMilliseconds)
 {
-    executePlaybackControlPlan(
-        videoPlaybackSeekByPlan(playbackControlSnapshot(), deltaMilliseconds));
+    const VideoPlaybackControlPlan plan
+        = videoPlaybackSeekByPlan(playbackControlSnapshot(), deltaMilliseconds);
+    if (plan.stateDelta.position.has_value()) {
+        requestPlaybackControlSeek(*plan.stateDelta.position);
+    }
 }
 
 const VideoPlaybackControlProjection& VideoDocumentRuntime::playbackControlProjection() const
@@ -388,20 +416,37 @@ void VideoDocumentRuntime::updatePlaybackScrub(qint64 positionMsec)
 
 void VideoDocumentRuntime::commitPlaybackScrub()
 {
-    const std::optional<qint64> positionMsec = m_playbackControls.commitScrub();
-    if (positionMsec.has_value()) {
-        setPosition(positionMsec.value());
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const std::shared_ptr<VideoMediaBackend> mediaBackend = m_mediaBackend;
+    const std::optional<PlaybackLifecycle> lifecycle = m_activePlaybackLifecycle;
+    const quint64 controlSourceRevision = m_playbackControls.projection().sourceRevision;
+    const std::optional<VideoPlaybackSeekIntent> intent = m_playbackControls.commitScrub();
+    if (lifetime.expired() || !intent.has_value() || intent->sourceRevision != controlSourceRevision
+        || mediaBackend == nullptr || !lifecycle.has_value() || m_mediaBackend != mediaBackend
+        || !playbackCallbacksAccepted(*lifecycle)
+        || !m_playbackControls.acceptsSeekIntent(*intent)) {
+        return;
     }
+    executePlaybackSeekIntent(*intent);
 }
 
 void VideoDocumentRuntime::cancelPlaybackScrub() { m_playbackControls.cancelScrub(); }
 
 void VideoDocumentRuntime::requestPlaybackControlSeek(qint64 positionMsec)
 {
-    const std::optional<qint64> acceptedPosition = m_playbackControls.requestSeek(positionMsec);
-    if (acceptedPosition.has_value()) {
-        setPosition(acceptedPosition.value());
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const std::shared_ptr<VideoMediaBackend> mediaBackend = m_mediaBackend;
+    const std::optional<PlaybackLifecycle> lifecycle = m_activePlaybackLifecycle;
+    const quint64 controlSourceRevision = m_playbackControls.projection().sourceRevision;
+    const std::optional<VideoPlaybackSeekIntent> intent
+        = m_playbackControls.requestSeek(positionMsec);
+    if (lifetime.expired() || !intent.has_value() || intent->sourceRevision != controlSourceRevision
+        || mediaBackend == nullptr || !lifecycle.has_value() || m_mediaBackend != mediaBackend
+        || !playbackCallbacksAccepted(*lifecycle)
+        || !m_playbackControls.acceptsSeekIntent(*intent)) {
+        return;
     }
+    executePlaybackSeekIntent(*intent);
 }
 
 VideoPlaybackControlSnapshot VideoDocumentRuntime::playbackControlSnapshot() const
@@ -418,30 +463,45 @@ VideoPlaybackControlSnapshot VideoDocumentRuntime::playbackControlSnapshot() con
     };
 }
 
-void VideoDocumentRuntime::executePlaybackControlPlan(const VideoPlaybackControlPlan& plan)
+void VideoDocumentRuntime::executePlaybackControlPlan(
+    const VideoPlaybackControlPlan& plan, std::optional<VideoPlaybackSeekIntent> seekIntent)
 {
     const std::weak_ptr<void> lifetime = m_callbackLifetime;
     const std::shared_ptr<VideoMediaBackend> mediaBackend = m_mediaBackend;
     const std::optional<PlaybackLifecycle> lifecycle = m_activePlaybackLifecycle;
-    const auto backendAccepted = [this, &lifetime, &mediaBackend, &lifecycle]() {
-        return !lifetime.expired() && mediaBackend != nullptr && lifecycle.has_value()
-            && m_mediaBackend == mediaBackend && playbackCallbacksAccepted(*lifecycle);
+    const auto executionAccepted = [this, &lifetime, &mediaBackend, &lifecycle, &seekIntent]() {
+        if (lifetime.expired()
+            || (seekIntent.has_value() && !m_playbackControls.acceptsSeekIntent(*seekIntent))) {
+            return false;
+        }
+        return mediaBackend == nullptr
+            || (lifecycle.has_value() && m_mediaBackend == mediaBackend
+                && playbackCallbacksAccepted(*lifecycle));
     };
 
     for (const VideoPlaybackBackendOperation& operation : plan.backendOperations) {
-        if (mediaBackend != nullptr && !backendAccepted()) {
+        if (!executionAccepted()) {
             return;
         }
         executePlaybackBackendOperation(operation);
-        if (mediaBackend != nullptr && !backendAccepted()) {
+        if (!executionAccepted()) {
             return;
         }
     }
 
-    if (lifetime.expired()) {
+    if (!executionAccepted()) {
         return;
     }
-    applyPlaybackStateDelta(plan.stateDelta);
+    applyPlaybackStateDelta(stateDeltaAfterBackendOperations(plan, mediaBackend != nullptr));
+}
+
+void VideoDocumentRuntime::executePlaybackSeekIntent(const VideoPlaybackSeekIntent& intent)
+{
+    if (!m_playbackControls.acceptsSeekIntent(intent)) {
+        return;
+    }
+    executePlaybackControlPlan(
+        videoPlaybackSetPositionPlan(playbackControlSnapshot(), intent.positionMsec), intent);
 }
 
 void VideoDocumentRuntime::executePlaybackBackendOperation(VideoPlaybackBackendOperation operation)
@@ -769,7 +829,11 @@ VideoSourceLoadFailure VideoDocumentRuntime::makeSourceLoadFailure(
     };
 }
 
-void VideoDocumentRuntime::invalidatePlaybackCallbacks() { m_activePlaybackLifecycle.reset(); }
+void VideoDocumentRuntime::invalidatePlaybackCallbacks()
+{
+    m_muteCommandAdmission.invalidate();
+    m_activePlaybackLifecycle.reset();
+}
 
 VideoDocumentRuntime::PlaybackLifecycle VideoDocumentRuntime::acceptPlaybackCallbacks(
     const QUrl& publicSourceUrl)

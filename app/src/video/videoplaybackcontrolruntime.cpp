@@ -65,6 +65,7 @@ const VideoPlaybackControlMediaSnapshot& VideoPlaybackControlRuntime::mediaSnaps
 void VideoPlaybackControlRuntime::replaceSource(quint64 sourceRevision)
 {
     stopAutoHideTimer();
+    m_seekAdmission.invalidate();
     const bool muted = m_media.muted;
     m_sourceRevision = sourceRevision;
     m_media = {};
@@ -101,6 +102,7 @@ void VideoPlaybackControlRuntime::acceptEnvironment(VideoPlaybackControlEnvironm
 void VideoPlaybackControlRuntime::acceptMediaSnapshot(VideoPlaybackControlMediaSnapshot snapshot)
 {
     const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const bool seekGateWasOpen = timelineKind() == VideoPlaybackTimelineKind::Seekable;
     snapshot.durationMsec = std::max<qint64>(0, snapshot.durationMsec);
     snapshot.positionMsec = std::max<qint64>(0, snapshot.positionMsec);
     if (snapshot.durationMsec > 0) {
@@ -111,6 +113,9 @@ void VideoPlaybackControlRuntime::acceptMediaSnapshot(VideoPlaybackControlMediaS
     const bool playingChanged = m_media.playing != snapshot.playing;
     m_media = snapshot;
     if (!m_media.ready || timelineKind() != VideoPlaybackTimelineKind::Seekable) {
+        if (seekGateWasOpen) {
+            m_seekAdmission.invalidate();
+        }
         m_scrubbing = false;
     }
     if (readinessChanged || playingChanged) {
@@ -179,7 +184,7 @@ void VideoPlaybackControlRuntime::updateScrub(qint64 positionMsec)
     publishProjection();
 }
 
-std::optional<qint64> VideoPlaybackControlRuntime::commitScrub()
+std::optional<VideoPlaybackSeekIntent> VideoPlaybackControlRuntime::commitScrub()
 {
     if (!m_scrubbing || timelineKind() != VideoPlaybackTimelineKind::Seekable) {
         cancelScrub();
@@ -187,14 +192,22 @@ std::optional<qint64> VideoPlaybackControlRuntime::commitScrub()
     }
     const std::weak_ptr<void> lifetime = m_callbackLifetime;
     const qint64 positionMsec = normalizedPosition(m_scrubPositionMsec);
+    const VideoPlaybackSeekIntent intent {
+        m_sourceRevision,
+        m_seekAdmission.next(),
+        positionMsec,
+    };
     m_media.positionMsec = positionMsec;
     m_scrubbing = false;
     publishProjection();
-    if (lifetime.expired()) {
-        return positionMsec;
+    if (lifetime.expired() || !acceptsSeekIntent(intent)) {
+        return std::nullopt;
     }
     synchronizeAutoHideTimer();
-    return positionMsec;
+    if (lifetime.expired() || !acceptsSeekIntent(intent)) {
+        return std::nullopt;
+    }
+    return intent;
 }
 
 void VideoPlaybackControlRuntime::cancelScrub()
@@ -211,21 +224,36 @@ void VideoPlaybackControlRuntime::cancelScrub()
     synchronizeAutoHideTimer();
 }
 
-std::optional<qint64> VideoPlaybackControlRuntime::requestSeek(qint64 positionMsec)
+std::optional<VideoPlaybackSeekIntent> VideoPlaybackControlRuntime::requestSeek(qint64 positionMsec)
 {
     if (timelineKind() != VideoPlaybackTimelineKind::Seekable) {
         return std::nullopt;
     }
     const std::weak_ptr<void> lifetime = m_callbackLifetime;
     const qint64 acceptedPosition = normalizedPosition(positionMsec);
+    const VideoPlaybackSeekIntent intent {
+        m_sourceRevision,
+        m_seekAdmission.next(),
+        acceptedPosition,
+    };
     m_media.positionMsec = acceptedPosition;
     m_explicitlyRevealed = true;
     publishProjection();
-    if (lifetime.expired()) {
-        return acceptedPosition;
+    if (lifetime.expired() || !acceptsSeekIntent(intent)) {
+        return std::nullopt;
     }
     synchronizeAutoHideTimer();
-    return acceptedPosition;
+    if (lifetime.expired() || !acceptsSeekIntent(intent)) {
+        return std::nullopt;
+    }
+    return intent;
+}
+
+bool VideoPlaybackControlRuntime::acceptsSeekIntent(const VideoPlaybackSeekIntent& intent) const
+{
+    return intent.sourceRevision == m_sourceRevision
+        && m_seekAdmission.accepts(intent.admissionRevision)
+        && timelineKind() == VideoPlaybackTimelineKind::Seekable;
 }
 
 VideoPlaybackControlProjection VideoPlaybackControlRuntime::projectedState() const

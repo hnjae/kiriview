@@ -4,6 +4,7 @@
 #ifndef KIRIVIEW_VIDEOPLAYBACKCONTROLRUNTIME_H
 #define KIRIVIEW_VIDEOPLAYBACKCONTROLRUNTIME_H
 
+#include "async/imageasyncticket.h"
 #include "async/timerscheduler.h"
 
 #include <QString>
@@ -69,6 +70,13 @@ struct VideoPlaybackControlProjection
     bool scrubbing = false;
 };
 
+struct VideoPlaybackSeekIntent
+{
+    quint64 sourceRevision = 0;
+    quint64 admissionRevision = 0;
+    qint64 positionMsec = 0;
+};
+
 using VideoPlaybackControlProjectionCallback
     = std::function<void(const VideoPlaybackControlProjection&)>;
 
@@ -88,9 +96,10 @@ public:
     void reveal();
     void beginScrub();
     void updateScrub(qint64 positionMsec);
-    std::optional<qint64> commitScrub();
+    std::optional<VideoPlaybackSeekIntent> commitScrub();
     void cancelScrub();
-    std::optional<qint64> requestSeek(qint64 positionMsec);
+    std::optional<VideoPlaybackSeekIntent> requestSeek(qint64 positionMsec);
+    [[nodiscard]] bool acceptsSeekIntent(const VideoPlaybackSeekIntent& intent) const;
 
 private:
     [[nodiscard]] VideoPlaybackControlProjection projectedState() const;
@@ -111,6 +120,7 @@ private:
     VideoPlaybackControlEnvironment m_environment;
     VideoPlaybackControlMediaSnapshot m_media;
     VideoPlaybackControlProjection m_projection;
+    ImageAsyncTicket m_seekAdmission;
     quint64 m_sourceRevision = 0;
     quint64 m_nextProjectionRevision = 1;
     qint64 m_scrubPositionMsec = 0;

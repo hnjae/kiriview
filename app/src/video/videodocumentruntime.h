@@ -5,6 +5,7 @@
 #define KIRIVIEW_VIDEODOCUMENTRUNTIME_H
 
 #include "async/imageasyncoperationstate.h"
+#include "async/imageasyncticket.h"
 #include "metadata/embeddedmetadata.h"
 #include "video/videodocumentstate.h"
 #include "video/videomediabackend.h"
@@ -97,7 +98,9 @@ private:
     };
 
     VideoPlaybackControlSnapshot playbackControlSnapshot() const;
-    void executePlaybackControlPlan(const VideoPlaybackControlPlan& plan);
+    void executePlaybackControlPlan(const VideoPlaybackControlPlan& plan,
+        std::optional<VideoPlaybackSeekIntent> seekIntent = std::nullopt);
+    void executePlaybackSeekIntent(const VideoPlaybackSeekIntent& intent);
     void executePlaybackBackendOperation(VideoPlaybackBackendOperation operation);
     void executePlaybackBackendOperation(EnsureVideoPlaybackBackendOperation operation);
     void executePlaybackBackendOperation(PlayVideoPlaybackOperation operation);
@@ -150,6 +153,7 @@ private:
     quint64 m_nextPlaybackRevision = 0;
     std::optional<PlaybackLifecycle> m_activePlaybackLifecycle;
     quint64 m_playbackControlSourceRevision = 0;
+    ImageAsyncTicket m_muteCommandAdmission;
 };
 }
 

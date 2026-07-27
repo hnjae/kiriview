@@ -124,13 +124,18 @@ void TestVideoPlaybackControlRuntime::activeScrubRejectsBackendPositionProjectio
     runtime.acceptMediaSnapshot(backendUpdate);
     QCOMPARE(runtime.projection().sliderValueMsec, qint64(45000));
 
-    const std::optional<qint64> seekPosition = runtime.commitScrub();
-    QCOMPARE(seekPosition, std::optional<qint64>(45000));
+    const std::optional<kiriview::VideoPlaybackSeekIntent> seekIntent = runtime.commitScrub();
+    QVERIFY(seekIntent.has_value());
+    QCOMPARE(seekIntent->positionMsec, qint64(45000));
+    QVERIFY(runtime.acceptsSeekIntent(*seekIntent));
     QVERIFY(!runtime.projection().scrubbing);
 
     runtime.beginScrub();
     runtime.updateScrub(120000);
-    QCOMPARE(runtime.commitScrub(), std::optional<qint64>(90000));
+    const std::optional<kiriview::VideoPlaybackSeekIntent> clampedIntent = runtime.commitScrub();
+    QVERIFY(clampedIntent.has_value());
+    QCOMPARE(clampedIntent->positionMsec, qint64(90000));
+    QVERIFY(runtime.acceptsSeekIntent(*clampedIntent));
 }
 
 void TestVideoPlaybackControlRuntime::autoHideUsesInjectedTimerEvents()
