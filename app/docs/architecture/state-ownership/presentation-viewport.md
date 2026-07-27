@@ -10,6 +10,8 @@ Reading direction remains an application navigation and pairing policy because i
 
 Target selection and presentation-shape changes publish application state according to [Image Display](../../spec/image-display.md) and [Navigation](../../spec/navigation.md). The integration owner keeps selected, displayed, and refinement identities distinct so a prior presentation or stale completion cannot be attributed to the new target.
 
+An accepted image selection owns physical presentation authority even while collection or page resolution is pending. Acceptance immediately revokes every older target's authority to render-commit, publish provisional pixels, or alter the accepted selection's projection; older work may complete only for cleanup or independently valid resource reuse.
+
 ## Viewport Command Boundary
 
 The image-document integration owner is the sole KiriView production caller of supported `ImageViewport` commands. QML reports raw interaction facts through that owner, application action handlers route through the application command router, and shared application state consumes only matched public observations through the integration publication.

@@ -44,6 +44,8 @@ KiriView may answer public provider demand with a validated preview, bounded-det
 
 Provisional preview production and authoritative still production remain separate source facts even when they overlap in time. A matching preview can improve loading presentation, but only the authoritative terminal result may establish reusable current-still state, report success, or report source failure. Preview-origin and thumbnail-quality payloads are ineligible as authoritative predecode seeds.
 
+Provisional pixels are eligible only when the accepted image transition has no retained complete authoritative display. When a complete display is retained during replacement, it remains the sole visual fallback until the accepted target commits or becomes terminal; preview availability cannot displace it.
+
 KiriView orders authoritative candidates by whether they satisfy the current accepted physical-display demand, not by whether they came from foreground decode, predecode, or cache. A validated authoritative candidate that already satisfies that demand and the active resource limits is used directly without first publishing a lower-detail candidate. An insufficient prepared image is a refinement basis, not evidence that the current request has matching detail.
 
 An initial authoritative completion may use lower detail only when matching current-detail output cannot be produced within KiriView's bounded initial-detail wait policy or cannot be produced under the accepted source and resource constraints, and only when the public demand permits inexact output. The same accepted source lifecycle remains responsible for eventual current-detail refinement without requiring a presentation change. Exact demand never falls back to an inexact authoritative result.
