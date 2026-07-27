@@ -103,6 +103,7 @@ private:
     void ensureAutoHideTimer();
     void handleAutoHideTimer();
 
+    std::shared_ptr<void> m_callbackLifetime = std::make_shared<char>();
     QObject* m_owner = nullptr;
     TimerScheduler m_timerScheduler;
     VideoPlaybackControlProjectionCallback m_projectionCallback;

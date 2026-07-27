@@ -220,8 +220,9 @@ void VideoDocumentState::publish(const std::vector<VideoDocumentChange>& changes
             uniqueChanges.push_back(change);
         }
     }
-    if (m_changeCallback) {
-        m_changeCallback(uniqueChanges);
+    const ChangeCallback callback = m_changeCallback;
+    if (callback) {
+        callback(uniqueChanges);
     }
 }
 

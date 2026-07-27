@@ -4,6 +4,7 @@
 #ifndef KIRIVIEW_VIDEODOCUMENTRUNTIME_H
 #define KIRIVIEW_VIDEODOCUMENTRUNTIME_H
 
+#include "async/imageasyncoperationstate.h"
 #include "metadata/embeddedmetadata.h"
 #include "video/videodocumentstate.h"
 #include "video/videomediabackend.h"
@@ -11,10 +12,10 @@
 #include "video/videoplaybackcontrolplan.h"
 #include "video/videoplaybackcontrolruntime.h"
 #include "video/videoplaybacksource.h"
-#include "video/videosourceloadplan.h"
-#include "video/videosourceloadruntime.h"
+#include "video/videoplaybackurlresolver.h"
 
 #include <QObject>
+#include <QPointer>
 #include <QRectF>
 #include <QSize>
 #include <QString>
@@ -81,6 +82,14 @@ public:
     void requestPlaybackControlSeek(qint64 positionMsec);
 
 private:
+    enum class SourceTransitionPhase {
+        Idle,
+        ResolvingPlaybackUrl,
+        ApplyingTerminalResult,
+    };
+
+    using SourceTransition = ImageAsyncScopedOperation<QUrl>;
+
     struct PlaybackLifecycle
     {
         quint64 revision = 0;
@@ -96,19 +105,27 @@ private:
     void executePlaybackBackendOperation(StopVideoPlaybackOperation operation);
     void executePlaybackBackendOperation(SetVideoPlaybackPositionOperation operation);
     void applyPlaybackStateDelta(const VideoPlaybackStateDelta& delta);
-    VideoMediaBackend* replaceMediaBackendForSource(const QUrl& publicSourceUrl);
-    void installMediaBackendCallbacks(const PlaybackLifecycle& lifecycle);
-    void executeSourceLoadPlan(const VideoSourceLoadPlan& plan);
-    void executeSourceLoadOperation(const VideoSourceLoadOperation& operation);
-    void executeSourceLoadOperation(ClearVideoPlaybackSourceOperation operation);
-    void executeSourceLoadOperation(ResetClearedVideoSourceOperation operation);
-    void executeSourceLoadOperation(const ResetVideoSourceLoadOperation& operation);
-    void executeSourceLoadOperation(const ApplyVideoPlaybackUrlOperation& operation);
-    void executeSourceLoadOperation(const PublishVideoSourceLoadFailureOperation& operation);
-    void clearPlaybackSource();
-    void applyResolvedPlaybackUrl(const QUrl& playbackUrl);
-    void applyPlaybackSourceDevice(VideoPlaybackSourceDevice sourceDevice, const QUrl& sourceUrl);
-    void publishSourceLoadFailure(const VideoSourceLoadFailure& failure);
+    std::optional<SourceTransition> beginSourceTransition(
+        const QUrl& sourceUrl, SourceTransitionPhase phase);
+    [[nodiscard]] bool sourceTransitionAccepted(const SourceTransition& transition) const;
+    [[nodiscard]] bool sourceBackendAccepted(const SourceTransition& transition,
+        const PlaybackLifecycle& lifecycle, const VideoMediaBackend* backend) const;
+    void resolvePlaybackUrl(const SourceTransition& transition);
+    void completePlaybackUrlResolution(
+        const SourceTransition& transition, const VideoPlaybackUrlResolution& resolution);
+    void failPlaybackUrlResolution(const SourceTransition& transition, quint64 operationId,
+        const QUrl& sourceUrl, const QString& diagnosticDetail);
+    void finishSourceTransition(const SourceTransition& transition);
+    void retirePlaybackSource();
+    void installMediaBackendCallbacks(
+        VideoMediaBackend* backend, const PlaybackLifecycle& lifecycle);
+    void applyResolvedPlaybackUrl(const SourceTransition& transition, const QUrl& playbackUrl);
+    void applyPlaybackSourceDevice(
+        const SourceTransition& transition, VideoPlaybackSourceDevice sourceDevice);
+    void publishSourceLoadFailure(
+        const SourceTransition& transition, VideoSourceLoadFailure failure);
+    VideoSourceLoadFailure makeSourceLoadFailure(const SourceTransition& transition,
+        VideoSourceLoadFailureKind kind, QString diagnosticDetail) const;
     void invalidatePlaybackCallbacks();
     PlaybackLifecycle acceptPlaybackCallbacks(const QUrl& publicSourceUrl);
     bool playbackCallbacksAccepted(const PlaybackLifecycle& lifecycle) const;
@@ -119,13 +136,16 @@ private:
     void updateZoomPercent();
     void publish(VideoDocumentChange change);
 
-    QObject* m_documentObject = nullptr;
+    QPointer<QObject> m_documentObject;
+    std::shared_ptr<void> m_callbackLifetime = std::make_shared<char>();
     VideoDocumentState m_state;
     VideoPlaybackControlRuntime m_playbackControls;
-    std::unique_ptr<VideoMediaBackend> m_mediaBackend;
+    std::shared_ptr<VideoMediaBackend> m_mediaBackend;
     MediaBackendFactory m_mediaBackendFactory;
-    VideoSourceLoadRuntime m_sourceLoadRuntime;
-    VideoPlaybackSourceDevice m_playbackSourceDevice;
+    std::shared_ptr<VideoPlaybackUrlResolver> m_playbackUrlResolver;
+    ImageAsyncScopedOperationState<QUrl> m_sourceTransition;
+    SourceTransitionPhase m_sourceTransitionPhase = SourceTransitionPhase::Idle;
+    std::shared_ptr<VideoPlaybackSourceDevice> m_playbackSourceDevice;
     VideoOutputRuntime m_outputRuntime;
     quint64 m_nextPlaybackRevision = 0;
     std::optional<PlaybackLifecycle> m_activePlaybackLifecycle;

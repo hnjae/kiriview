@@ -15,6 +15,7 @@
 #include <QSize>
 #include <QTemporaryDir>
 #include <QTest>
+#include <algorithm>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -26,6 +27,7 @@ class TestVideoDocumentRuntime : public QObject
 private Q_SLOTS:
     void initialStateIsNull();
     void mediaBackendFactoryIsLazyUntilPlaybackUrlResolution();
+    void backendFactoryFailureSettlesAndAllowsRetry();
     void playbackUrlResolutionStartsPlayback();
     void localResolverCompletionUsesOriginalPlaybackUrl();
     void settingAndClearingSourcePreservesUserFacingUrlAndTitle();
@@ -40,6 +42,14 @@ private Q_SLOTS:
     void sourceDeviceOwnerLivesUntilReplacementAndDestruction();
     void sourceDevicePlaybackInvalidatesPendingResolverCompletion();
     void staleResolverCompletionsAreIgnored();
+    void loadingPublicationReentryAdmitsOnlyLatestResolver();
+    void failurePublicationReentryKeepsLatestSourceLoading();
+    void backendFactoryReentryRejectsSupersededBackend();
+    void metadataPublicationReentryRejectsSupersededBackend();
+    void sourceDeviceLoadingPublicationReentryRejectsSupersededDevice();
+    void sourceDeviceVideoSizePublicationReentryRejectsSupersededDevice();
+    void loadingPublicationCanDestroyRuntimeBeforeResolverAdmission();
+    void resolverCompletionAfterRuntimeDestructionIsIgnored();
     void resolverCleanupRunsOnSourceChangeAndDestruction();
     void videoSizeFollowsBackendMetadata();
     void staleBackendCallbacksAfterSourceChangeAreIgnored();
@@ -254,6 +264,8 @@ struct RuntimeFixture
     FakeVideoMediaBackend* backend = nullptr;
     std::shared_ptr<FakeResolverState> resolverState = std::make_shared<FakeResolverState>();
     std::vector<kiriview::VideoDocumentChange> changes;
+    std::function<void(const std::vector<kiriview::VideoDocumentChange>&)> changeHook;
+    std::function<void()> backendFactoryHook;
     std::unique_ptr<kiriview::VideoDocumentRuntime> runtime;
 
     explicit RuntimeFixture(kiriview::TimerScheduler playbackControlTimerScheduler = {})
@@ -262,6 +274,9 @@ struct RuntimeFixture
             &documentObject,
             [this](const std::vector<kiriview::VideoDocumentChange>& nextChanges) {
                 changes.insert(changes.end(), nextChanges.begin(), nextChanges.end());
+                if (changeHook) {
+                    changeHook(nextChanges);
+                }
             },
             std::make_unique<FakeVideoPlaybackUrlResolver>(resolverState),
             [this]() {
@@ -272,6 +287,9 @@ struct RuntimeFixture
                         backend = nullptr;
                     }
                 };
+                if (backendFactoryHook) {
+                    backendFactoryHook();
+                }
                 return mediaBackend;
             },
             std::move(playbackControlTimerScheduler));
@@ -444,6 +462,37 @@ void TestVideoDocumentRuntime::mediaBackendFactoryIsLazyUntilPlaybackUrlResoluti
     QVERIFY(backend->isMuted);
     QCOMPARE(backend->setMutedCount, 1);
     QCOMPARE(backend->videoOutput(), &output);
+}
+
+void TestVideoDocumentRuntime::backendFactoryFailureSettlesAndAllowsRetry()
+{
+    QObject documentObject;
+    auto resolverState = std::make_shared<FakeResolverState>();
+    kiriview::VideoDocumentRuntime runtime(&documentObject, {},
+        std::make_unique<FakeVideoPlaybackUrlResolver>(resolverState),
+        []() -> std::unique_ptr<kiriview::VideoMediaBackend> { return nullptr; });
+    const QUrl sourceUrl(QStringLiteral("zip:///home/me/videos.zip!/clip.mp4"));
+    const QUrl playbackUrl = QUrl::fromLocalFile(QStringLiteral("/tmp/clip.mp4"));
+
+    runtime.setSourceUrl(sourceUrl);
+    const FakeResolverState::Request request = resolverState->requests.back();
+    request.resolvedCallback(kiriview::VideoPlaybackUrlResolution {
+        request.operationId,
+        request.sourceUrl,
+        playbackUrl,
+    });
+
+    QCOMPARE(runtime.status(), kiriview::VideoDocumentStatus::Error);
+    QVERIFY(runtime.sourceLoadFailure().has_value());
+    QCOMPARE(runtime.sourceLoadFailure()->sourceUrl, sourceUrl);
+    QVERIFY(runtime.sourceLoadFailure()->kind
+        == kiriview::VideoSourceLoadFailureKind::PlaybackBackendCreation);
+
+    runtime.setSourceUrl(sourceUrl);
+
+    QCOMPARE(runtime.status(), kiriview::VideoDocumentStatus::Loading);
+    QVERIFY(!runtime.sourceLoadFailure().has_value());
+    QCOMPARE(resolverState->requests.size(), std::size_t(2));
 }
 
 void TestVideoDocumentRuntime::playbackUrlResolutionStartsPlayback()
@@ -751,6 +800,236 @@ void TestVideoDocumentRuntime::staleResolverCompletionsAreIgnored()
     fixture.resolveLatest(currentPlaybackUrl);
     QCOMPARE(fixture.runtime->sourceUrl(), secondSourceUrl);
     QCOMPARE(fixture.backend->sourceUrl, currentPlaybackUrl);
+}
+
+void TestVideoDocumentRuntime::loadingPublicationReentryAdmitsOnlyLatestResolver()
+{
+    RuntimeFixture fixture;
+    const QUrl firstSourceUrl(QStringLiteral("zip:///home/me/videos.zip!/first.mp4"));
+    const QUrl secondSourceUrl(QStringLiteral("zip:///home/me/videos.zip!/second.mp4"));
+    bool reentered = false;
+    fixture.changeHook = [&](const std::vector<kiriview::VideoDocumentChange>& changes) {
+        if (reentered || !std::ranges::contains(changes, kiriview::VideoDocumentChange::SourceUrl)
+            || fixture.runtime->sourceUrl() != firstSourceUrl) {
+            return;
+        }
+
+        reentered = true;
+        fixture.runtime->setSourceUrl(secondSourceUrl);
+    };
+
+    fixture.runtime->setSourceUrl(firstSourceUrl);
+
+    QVERIFY(reentered);
+    QCOMPARE(fixture.runtime->sourceUrl(), secondSourceUrl);
+    QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Loading);
+    QCOMPARE(fixture.resolverState->requests.size(), std::size_t(1));
+    QCOMPARE(fixture.resolverState->requests.front().sourceUrl, secondSourceUrl);
+}
+
+void TestVideoDocumentRuntime::failurePublicationReentryKeepsLatestSourceLoading()
+{
+    RuntimeFixture fixture;
+    const QUrl firstSourceUrl(QStringLiteral("zip:///home/me/videos.zip!/first.mp4"));
+    const QUrl secondSourceUrl(QStringLiteral("zip:///home/me/videos.zip!/second.mp4"));
+    fixture.runtime->setSourceUrl(firstSourceUrl);
+    const FakeResolverState::Request firstRequest = fixture.resolverState->requests.front();
+
+    bool reentered = false;
+    fixture.changeHook = [&](const std::vector<kiriview::VideoDocumentChange>& changes) {
+        if (reentered || changes.empty() || fixture.runtime->sourceUrl() != firstSourceUrl) {
+            return;
+        }
+
+        reentered = true;
+        fixture.runtime->setSourceUrl(secondSourceUrl);
+    };
+
+    firstRequest.failedCallback(
+        firstRequest.operationId, firstRequest.sourceUrl, QStringLiteral("first failed"));
+
+    QVERIFY(reentered);
+    QCOMPARE(fixture.runtime->sourceUrl(), secondSourceUrl);
+    QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Loading);
+    QCOMPARE(fixture.runtime->errorString(), QString());
+    QVERIFY(!fixture.runtime->sourceLoadFailure().has_value());
+    QCOMPARE(fixture.resolverState->requests.size(), std::size_t(2));
+    QCOMPARE(fixture.resolverState->requests.back().sourceUrl, secondSourceUrl);
+}
+
+void TestVideoDocumentRuntime::backendFactoryReentryRejectsSupersededBackend()
+{
+    RuntimeFixture fixture;
+    const QUrl firstSourceUrl(QStringLiteral("zip:///home/me/videos.zip!/first.mp4"));
+    const QUrl firstPlaybackUrl = QUrl::fromLocalFile(QStringLiteral("/tmp/first.mp4"));
+    const QUrl secondSourceUrl(QStringLiteral("zip:///home/me/videos.zip!/second.mp4"));
+    fixture.runtime->setSourceUrl(firstSourceUrl);
+
+    bool reentered = false;
+    fixture.backendFactoryHook = [&] {
+        if (reentered || fixture.runtime->sourceUrl() != firstSourceUrl) {
+            return;
+        }
+
+        reentered = true;
+        fixture.runtime->setSourceUrl(secondSourceUrl);
+    };
+
+    fixture.resolveLatest(firstPlaybackUrl);
+
+    QVERIFY(reentered);
+    QCOMPARE(fixture.runtime->sourceUrl(), secondSourceUrl);
+    QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Loading);
+    QCOMPARE(fixture.backend, nullptr);
+    QVERIFY(fixture.runtime->embeddedMetadata().isEmpty());
+    QCOMPARE(fixture.resolverState->requests.size(), std::size_t(2));
+    QCOMPARE(fixture.resolverState->requests.back().sourceUrl, secondSourceUrl);
+}
+
+void TestVideoDocumentRuntime::metadataPublicationReentryRejectsSupersededBackend()
+{
+    RuntimeFixture fixture;
+    const QUrl firstSourceUrl(QStringLiteral("zip:///home/me/videos.zip!/first.mp4"));
+    const QUrl firstPlaybackUrl = QUrl::fromLocalFile(QStringLiteral("/tmp/first.mp4"));
+    const QUrl secondSourceUrl(QStringLiteral("zip:///home/me/videos.zip!/second.mp4"));
+    fixture.runtime->setSourceUrl(firstSourceUrl);
+
+    bool reentered = false;
+    fixture.changeHook = [&](const std::vector<kiriview::VideoDocumentChange>& changes) {
+        if (reentered
+            || !std::ranges::contains(changes, kiriview::VideoDocumentChange::EmbeddedMetadata)
+            || fixture.runtime->sourceUrl() != firstSourceUrl) {
+            return;
+        }
+
+        reentered = true;
+        fixture.runtime->setSourceUrl(secondSourceUrl);
+    };
+
+    fixture.resolveLatest(firstPlaybackUrl);
+
+    QVERIFY(reentered);
+    QCOMPARE(fixture.runtime->sourceUrl(), secondSourceUrl);
+    QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Loading);
+    QCOMPARE(fixture.backend, nullptr);
+    QVERIFY(fixture.runtime->embeddedMetadata().isEmpty());
+    QCOMPARE(fixture.resolverState->requests.size(), std::size_t(2));
+    QCOMPARE(fixture.resolverState->requests.back().sourceUrl, secondSourceUrl);
+}
+
+void TestVideoDocumentRuntime::sourceDeviceLoadingPublicationReentryRejectsSupersededDevice()
+{
+    RuntimeFixture fixture;
+    const QUrl collectionSourceUrl(QStringLiteral("zip:///home/me/videos.zip!/collection.mp4"));
+    const QUrl replacementSourceUrl(QStringLiteral("zip:///home/me/videos.zip!/replacement.mp4"));
+    int destructionCount = 0;
+    bool reentered = false;
+    fixture.changeHook = [&](const std::vector<kiriview::VideoDocumentChange>& changes) {
+        if (reentered || !std::ranges::contains(changes, kiriview::VideoDocumentChange::SourceUrl)
+            || fixture.runtime->sourceUrl() != collectionSourceUrl) {
+            return;
+        }
+
+        reentered = true;
+        fixture.runtime->setSourceUrl(replacementSourceUrl);
+    };
+
+    fixture.runtime->setSourceDevice(collectionSourceUrl,
+        makePlaybackSourceDevice(std::make_shared<SourceDeviceOwner>(&destructionCount)));
+
+    QVERIFY(reentered);
+    QCOMPARE(fixture.runtime->sourceUrl(), replacementSourceUrl);
+    QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Loading);
+    QCOMPARE(fixture.backend, nullptr);
+    QCOMPARE(destructionCount, 1);
+    QCOMPARE(fixture.resolverState->requests.size(), std::size_t(1));
+    QCOMPARE(fixture.resolverState->requests.back().sourceUrl, replacementSourceUrl);
+}
+
+void TestVideoDocumentRuntime::sourceDeviceVideoSizePublicationReentryRejectsSupersededDevice()
+{
+    RuntimeFixture fixture;
+    const QUrl collectionSourceUrl(QStringLiteral("zip:///home/me/videos.zip!/collection.mp4"));
+    const QUrl replacementSourceUrl(QStringLiteral("zip:///home/me/videos.zip!/replacement.mp4"));
+    int destructionCount = 0;
+    fixture.backendFactoryHook = [&] { fixture.backend->currentVideoSize = QSize(1280, 720); };
+
+    bool reentered = false;
+    fixture.changeHook = [&](const std::vector<kiriview::VideoDocumentChange>& changes) {
+        if (reentered || !std::ranges::contains(changes, kiriview::VideoDocumentChange::VideoSize)
+            || fixture.runtime->sourceUrl() != collectionSourceUrl) {
+            return;
+        }
+
+        reentered = true;
+        fixture.runtime->setSourceUrl(replacementSourceUrl);
+    };
+
+    fixture.runtime->setSourceDevice(collectionSourceUrl,
+        makePlaybackSourceDevice(std::make_shared<SourceDeviceOwner>(&destructionCount)));
+
+    QVERIFY(reentered);
+    QCOMPARE(fixture.runtime->sourceUrl(), replacementSourceUrl);
+    QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Loading);
+    QCOMPARE(fixture.backend, nullptr);
+    QCOMPARE(fixture.runtime->videoSize(), QSize());
+    QCOMPARE(destructionCount, 1);
+    QCOMPARE(fixture.resolverState->requests.size(), std::size_t(1));
+    QCOMPARE(fixture.resolverState->requests.back().sourceUrl, replacementSourceUrl);
+}
+
+void TestVideoDocumentRuntime::loadingPublicationCanDestroyRuntimeBeforeResolverAdmission()
+{
+    QObject documentObject;
+    auto resolverState = std::make_shared<FakeResolverState>();
+    std::unique_ptr<kiriview::VideoDocumentRuntime> runtime;
+    bool destroyed = false;
+    runtime = std::make_unique<kiriview::VideoDocumentRuntime>(
+        &documentObject,
+        [&](const std::vector<kiriview::VideoDocumentChange>& changes) {
+            if (destroyed
+                || !std::ranges::contains(changes, kiriview::VideoDocumentChange::SourceUrl)) {
+                return;
+            }
+
+            destroyed = true;
+            runtime.reset();
+        },
+        std::make_unique<FakeVideoPlaybackUrlResolver>(resolverState));
+    kiriview::VideoDocumentRuntime* runtimePointer = runtime.get();
+
+    runtimePointer->setSourceUrl(
+        QUrl(QStringLiteral("zip:///home/me/videos.zip!/destroy-owner.mp4")));
+
+    QVERIFY(destroyed);
+    QVERIFY(runtime == nullptr);
+    QVERIFY(resolverState->requests.empty());
+}
+
+void TestVideoDocumentRuntime::resolverCompletionAfterRuntimeDestructionIsIgnored()
+{
+    QObject documentObject;
+    auto resolverState = std::make_shared<FakeResolverState>();
+    int factoryCallCount = 0;
+    auto runtime = std::make_unique<kiriview::VideoDocumentRuntime>(&documentObject,
+        kiriview::VideoDocumentRuntime::ChangeCallback {},
+        std::make_unique<FakeVideoPlaybackUrlResolver>(resolverState), [&] {
+            ++factoryCallCount;
+            return std::make_unique<FakeVideoMediaBackend>();
+        });
+    const QUrl sourceUrl(QStringLiteral("zip:///home/me/videos.zip!/late.mp4"));
+    runtime->setSourceUrl(sourceUrl);
+    const FakeResolverState::Request request = resolverState->requests.back();
+
+    runtime.reset();
+    request.resolvedCallback(kiriview::VideoPlaybackUrlResolution {
+        request.operationId,
+        request.sourceUrl,
+        QUrl::fromLocalFile(QStringLiteral("/tmp/late.mp4")),
+    });
+    request.failedCallback(request.operationId, request.sourceUrl, QStringLiteral("late failure"));
+
+    QCOMPARE(factoryCallCount, 0);
 }
 
 void TestVideoDocumentRuntime::resolverCleanupRunsOnSourceChangeAndDestruction()

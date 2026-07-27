@@ -6,7 +6,6 @@
 
 #include "video/videobackendfailure.h"
 #include "video/videodocumenttypes.h"
-#include "video/videosourceloadplan.h"
 
 #include "metadata/embeddedmetadata.h"
 

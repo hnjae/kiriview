@@ -4,6 +4,9 @@
 #ifndef KIRIVIEW_VIDEODOCUMENTTYPES_H
 #define KIRIVIEW_VIDEODOCUMENTTYPES_H
 
+#include <QString>
+#include <QUrl>
+
 namespace kiriview {
 enum class VideoDocumentStatus {
     Null,
@@ -24,6 +27,25 @@ enum class VideoDocumentChange {
     ZoomPercent,
     VideoOutput,
     EmbeddedMetadata,
+};
+
+enum class VideoSourceLoadFailureKind {
+    PlaybackUrlResolution,
+    PlaybackBackendCreation,
+};
+
+enum class VideoSourceLoadFailureSeverity {
+    Error,
+};
+
+struct VideoSourceLoadFailure
+{
+    QUrl sourceUrl;
+    VideoSourceLoadFailureKind kind = VideoSourceLoadFailureKind::PlaybackUrlResolution;
+    QString userMessage;
+    QString diagnosticDetail;
+    VideoSourceLoadFailureSeverity severity = VideoSourceLoadFailureSeverity::Error;
+    bool retryable = false;
 };
 }
 

@@ -78,6 +78,7 @@ void VideoPlaybackControlRuntime::replaceSource(quint64 sourceRevision)
 
 void VideoPlaybackControlRuntime::acceptEnvironment(VideoPlaybackControlEnvironment environment)
 {
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
     const VideoPlaybackControlPresentationMode previousMode = presentationMode();
     const int previousDelay = m_environment.autoHideDelayMsec;
     m_environment = environment;
@@ -91,11 +92,15 @@ void VideoPlaybackControlRuntime::acceptEnvironment(VideoPlaybackControlEnvironm
         m_timerIntervalMsec = 0;
     }
     publishProjection();
+    if (lifetime.expired()) {
+        return;
+    }
     synchronizeAutoHideTimer();
 }
 
 void VideoPlaybackControlRuntime::acceptMediaSnapshot(VideoPlaybackControlMediaSnapshot snapshot)
 {
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
     snapshot.durationMsec = std::max<qint64>(0, snapshot.durationMsec);
     snapshot.positionMsec = std::max<qint64>(0, snapshot.positionMsec);
     if (snapshot.durationMsec > 0) {
@@ -112,6 +117,9 @@ void VideoPlaybackControlRuntime::acceptMediaSnapshot(VideoPlaybackControlMediaS
         m_explicitlyRevealed = true;
     }
     publishProjection();
+    if (lifetime.expired()) {
+        return;
+    }
     synchronizeAutoHideTimer();
 }
 
@@ -120,11 +128,15 @@ void VideoPlaybackControlRuntime::setInteractionActive(bool active)
     if (m_interactionActive == active) {
         return;
     }
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
     m_interactionActive = active;
     if (active) {
         m_explicitlyRevealed = true;
     }
     publishProjection();
+    if (lifetime.expired()) {
+        return;
+    }
     synchronizeAutoHideTimer();
 }
 
@@ -133,8 +145,12 @@ void VideoPlaybackControlRuntime::reveal()
     if (!m_media.ready) {
         return;
     }
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
     m_explicitlyRevealed = true;
     publishProjection();
+    if (lifetime.expired()) {
+        return;
+    }
     synchronizeAutoHideTimer();
 }
 
@@ -143,10 +159,14 @@ void VideoPlaybackControlRuntime::beginScrub()
     if (timelineKind() != VideoPlaybackTimelineKind::Seekable) {
         return;
     }
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
     m_scrubbing = true;
     m_scrubPositionMsec = normalizedPosition(m_media.positionMsec);
     m_explicitlyRevealed = true;
     publishProjection();
+    if (lifetime.expired()) {
+        return;
+    }
     synchronizeAutoHideTimer();
 }
 
@@ -165,10 +185,14 @@ std::optional<qint64> VideoPlaybackControlRuntime::commitScrub()
         cancelScrub();
         return std::nullopt;
     }
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
     const qint64 positionMsec = normalizedPosition(m_scrubPositionMsec);
     m_media.positionMsec = positionMsec;
     m_scrubbing = false;
     publishProjection();
+    if (lifetime.expired()) {
+        return positionMsec;
+    }
     synchronizeAutoHideTimer();
     return positionMsec;
 }
@@ -178,8 +202,12 @@ void VideoPlaybackControlRuntime::cancelScrub()
     if (!m_scrubbing) {
         return;
     }
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
     m_scrubbing = false;
     publishProjection();
+    if (lifetime.expired()) {
+        return;
+    }
     synchronizeAutoHideTimer();
 }
 
@@ -188,11 +216,16 @@ std::optional<qint64> VideoPlaybackControlRuntime::requestSeek(qint64 positionMs
     if (timelineKind() != VideoPlaybackTimelineKind::Seekable) {
         return std::nullopt;
     }
-    m_media.positionMsec = normalizedPosition(positionMsec);
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const qint64 acceptedPosition = normalizedPosition(positionMsec);
+    m_media.positionMsec = acceptedPosition;
     m_explicitlyRevealed = true;
     publishProjection();
+    if (lifetime.expired()) {
+        return acceptedPosition;
+    }
     synchronizeAutoHideTimer();
-    return m_media.positionMsec;
+    return acceptedPosition;
 }
 
 VideoPlaybackControlProjection VideoPlaybackControlRuntime::projectedState() const
@@ -264,8 +297,10 @@ void VideoPlaybackControlRuntime::publishProjection()
     }
     projection.revision = m_nextProjectionRevision++;
     m_projection = std::move(projection);
-    if (m_projectionCallback) {
-        m_projectionCallback(m_projection);
+    const VideoPlaybackControlProjectionCallback callback = m_projectionCallback;
+    const VideoPlaybackControlProjection publishedProjection = m_projection;
+    if (callback) {
+        callback(publishedProjection);
     }
 }
 
@@ -296,8 +331,17 @@ void VideoPlaybackControlRuntime::ensureAutoHideTimer()
     }
     stopAutoHideTimer();
     m_timerIntervalMsec = m_environment.autoHideDelayMsec;
-    m_autoHideTimer = m_timerScheduler.singleShotTimer(
-        m_owner, TimerDuration(m_timerIntervalMsec), [this]() { handleAutoHideTimer(); });
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    std::unique_ptr<RuntimeTimerHandle> timer = m_timerScheduler.singleShotTimer(
+        m_owner, TimerDuration(m_timerIntervalMsec), [this, lifetime]() {
+            if (!lifetime.expired()) {
+                handleAutoHideTimer();
+            }
+        });
+    if (lifetime.expired()) {
+        return;
+    }
+    m_autoHideTimer = std::move(timer);
 }
 
 void VideoPlaybackControlRuntime::handleAutoHideTimer()

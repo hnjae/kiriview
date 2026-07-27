@@ -10,12 +10,22 @@
 #include <QDebug>
 #include <QLoggingCategory>
 #include <QObject>
+#include <memory>
 #include <utility>
 #include <variant>
 
 Q_LOGGING_CATEGORY(kiriviewVideoLog, "org.hnjae.kiriview.video", QtWarningMsg)
 
 namespace {
+std::shared_ptr<kiriview::VideoPlaybackUrlResolver> sharedPlaybackUrlResolver(
+    std::unique_ptr<kiriview::VideoPlaybackUrlResolver> resolver)
+{
+    if (resolver == nullptr) {
+        resolver = kiriview::createDefaultVideoPlaybackUrlResolver();
+    }
+    return std::shared_ptr<kiriview::VideoPlaybackUrlResolver>(std::move(resolver));
+}
+
 const char* videoMediaErrorCategoryName(kiriview::VideoMediaErrorCategory category)
 {
     switch (category) {
@@ -45,16 +55,28 @@ VideoDocumentRuntime::VideoDocumentRuntime(QObject* documentObject, ChangeCallba
     , m_playbackControls(documentObject, std::move(playbackControlTimerScheduler),
           std::move(playbackControlProjectionCallback))
     , m_mediaBackendFactory(std::move(mediaBackendFactory))
-    , m_sourceLoadRuntime(std::move(playbackUrlResolver))
+    , m_playbackUrlResolver(sharedPlaybackUrlResolver(std::move(playbackUrlResolver)))
     , m_outputRuntime(documentObject,
           VideoOutputRuntimeCallbacks {
-              [this](QObject* videoOutput) {
-                  if (m_mediaBackend != nullptr) {
-                      m_mediaBackend->setVideoOutput(videoOutput);
+              [this, lifetime = std::weak_ptr<void>(m_callbackLifetime)](QObject* videoOutput) {
+                  if (lifetime.expired()) {
+                      return;
+                  }
+                  const std::shared_ptr<VideoMediaBackend> mediaBackend = m_mediaBackend;
+                  if (mediaBackend != nullptr) {
+                      mediaBackend->setVideoOutput(videoOutput);
                   }
               },
-              [this]() { publish(VideoDocumentChange::VideoOutput); },
-              [this]() { updateZoomPercent(); },
+              [this, lifetime = std::weak_ptr<void>(m_callbackLifetime)]() {
+                  if (!lifetime.expired()) {
+                      publish(VideoDocumentChange::VideoOutput);
+                  }
+              },
+              [this, lifetime = std::weak_ptr<void>(m_callbackLifetime)]() {
+                  if (!lifetime.expired()) {
+                      updateZoomPercent();
+                  }
+              },
           })
 {
     if (!m_mediaBackendFactory) {
@@ -62,70 +84,79 @@ VideoDocumentRuntime::VideoDocumentRuntime(QObject* documentObject, ChangeCallba
     }
 }
 
-VideoMediaBackend* VideoDocumentRuntime::replaceMediaBackendForSource(const QUrl& publicSourceUrl)
+void VideoDocumentRuntime::installMediaBackendCallbacks(
+    VideoMediaBackend* backend, const PlaybackLifecycle& lifecycle)
 {
-    clearPlaybackSource();
-    m_mediaBackend = m_mediaBackendFactory();
-    if (m_mediaBackend == nullptr) {
-        return nullptr;
-    }
-
-    const PlaybackLifecycle lifecycle = acceptPlaybackCallbacks(publicSourceUrl);
-    installMediaBackendCallbacks(lifecycle);
-    m_mediaBackend->setMuted(m_playbackControls.mediaSnapshot().muted);
-    if (m_outputRuntime.videoOutput() != nullptr) {
-        m_mediaBackend->setVideoOutput(m_outputRuntime.videoOutput());
-    }
-
-    return m_mediaBackend.get();
-}
-
-void VideoDocumentRuntime::installMediaBackendCallbacks(const PlaybackLifecycle& lifecycle)
-{
-    m_mediaBackend->setCallbacks(VideoMediaBackendCallbacks {
-        [this, lifecycle]() { updateStatusFromBackend(lifecycle); },
-        [this, lifecycle](
-            VideoMediaError error) { updateErrorFromBackend(lifecycle, std::move(error)); },
-        [this, lifecycle]() {
-            if (playbackCallbacksAccepted(lifecycle)) {
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    backend->setCallbacks(VideoMediaBackendCallbacks {
+        [this, lifetime, lifecycle]() {
+            if (!lifetime.expired()) {
+                updateStatusFromBackend(lifecycle);
+            }
+        },
+        [this, lifetime, lifecycle](VideoMediaError error) {
+            if (!lifetime.expired()) {
+                updateErrorFromBackend(lifecycle, std::move(error));
+            }
+        },
+        [this, lifetime, lifecycle]() {
+            if (!lifetime.expired() && playbackCallbacksAccepted(lifecycle)) {
                 refreshPlaybackControlsFromBackend(lifecycle);
             }
         },
-        [this, lifecycle]() {
-            if (playbackCallbacksAccepted(lifecycle)) {
+        [this, lifetime, lifecycle]() {
+            if (!lifetime.expired() && playbackCallbacksAccepted(lifecycle)) {
                 refreshPlaybackControlsFromBackend(lifecycle);
             }
         },
-        [this, lifecycle]() {
-            if (playbackCallbacksAccepted(lifecycle)) {
+        [this, lifetime, lifecycle]() {
+            if (!lifetime.expired() && playbackCallbacksAccepted(lifecycle)) {
                 refreshPlaybackControlsFromBackend(lifecycle);
             }
         },
-        [this, lifecycle]() {
-            if (playbackCallbacksAccepted(lifecycle)) {
+        [this, lifetime, lifecycle]() {
+            if (!lifetime.expired() && playbackCallbacksAccepted(lifecycle)) {
                 refreshPlaybackControlsFromBackend(lifecycle);
             }
         },
-        [this, lifecycle]() {
-            if (!playbackCallbacksAccepted(lifecycle)) {
+        [this, lifetime, lifecycle]() {
+            if (lifetime.expired() || !playbackCallbacksAccepted(lifecycle)) {
                 return;
             }
-            m_state.setHasVideo(m_mediaBackend->hasVideo());
+            const std::shared_ptr<VideoMediaBackend> mediaBackend = m_mediaBackend;
+            if (mediaBackend == nullptr) {
+                return;
+            }
+            m_state.setHasVideo(mediaBackend->hasVideo());
+            if (lifetime.expired() || !playbackCallbacksAccepted(lifecycle)) {
+                return;
+            }
             refreshPlaybackControlsFromBackend(lifecycle);
+            if (lifetime.expired() || !playbackCallbacksAccepted(lifecycle)) {
+                return;
+            }
             updateZoomPercent();
         },
-        [this, lifecycle]() {
-            if (playbackCallbacksAccepted(lifecycle)) {
-                m_state.setHasAudio(m_mediaBackend->hasAudio());
+        [this, lifetime, lifecycle]() {
+            if (lifetime.expired() || !playbackCallbacksAccepted(lifecycle)) {
+                return;
+            }
+            const std::shared_ptr<VideoMediaBackend> mediaBackend = m_mediaBackend;
+            if (mediaBackend != nullptr) {
+                m_state.setHasAudio(mediaBackend->hasAudio());
             }
         },
-        [this, lifecycle]() {
-            if (playbackCallbacksAccepted(lifecycle)) {
-                m_state.setVideoSize(m_mediaBackend->videoSize());
+        [this, lifetime, lifecycle]() {
+            if (lifetime.expired() || !playbackCallbacksAccepted(lifecycle)) {
+                return;
+            }
+            const std::shared_ptr<VideoMediaBackend> mediaBackend = m_mediaBackend;
+            if (mediaBackend != nullptr) {
+                m_state.setVideoSize(mediaBackend->videoSize());
             }
         },
-        [this, lifecycle]() {
-            if (playbackCallbacksAccepted(lifecycle)) {
+        [this, lifetime, lifecycle]() {
+            if (!lifetime.expired() && playbackCallbacksAccepted(lifecycle)) {
                 refreshPlaybackControlsFromBackend(lifecycle);
             }
         },
@@ -135,20 +166,59 @@ void VideoDocumentRuntime::installMediaBackendCallbacks(const PlaybackLifecycle&
 
 VideoDocumentRuntime::~VideoDocumentRuntime()
 {
-    m_sourceLoadRuntime.shutdown();
-    clearPlaybackSource();
+    m_callbackLifetime.reset();
+    m_sourceTransition.cancel();
+    m_sourceTransitionPhase = SourceTransitionPhase::Idle;
+    const std::shared_ptr<VideoPlaybackUrlResolver> resolver = std::move(m_playbackUrlResolver);
+    if (resolver != nullptr) {
+        resolver->cancel();
+        resolver->cleanup();
+    }
+    retirePlaybackSource();
 }
 
 QUrl VideoDocumentRuntime::sourceUrl() const { return m_state.sourceUrl(); }
 
 void VideoDocumentRuntime::setSourceUrl(const QUrl& sourceUrl)
 {
-    if (m_state.sourceUrl() == sourceUrl && m_playbackSourceDevice.device == nullptr) {
+    if (m_state.sourceUrl() == sourceUrl && m_playbackSourceDevice == nullptr
+        && (sourceUrl.isEmpty() || m_sourceTransitionPhase != SourceTransitionPhase::Idle
+            || m_mediaBackend != nullptr)) {
         return;
     }
 
-    m_sourceLoadRuntime.setSourceUrl(sourceUrl, m_documentObject,
-        [this](const VideoSourceLoadPlan& plan) { executeSourceLoadPlan(plan); });
+    const std::optional<SourceTransition> transition = beginSourceTransition(sourceUrl,
+        sourceUrl.isEmpty() ? SourceTransitionPhase::ApplyingTerminalResult
+                            : SourceTransitionPhase::ResolvingPlaybackUrl);
+    if (!transition.has_value()) {
+        return;
+    }
+
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    retirePlaybackSource();
+    if (lifetime.expired() || !sourceTransitionAccepted(*transition)) {
+        return;
+    }
+
+    replacePlaybackControlSource();
+    if (lifetime.expired() || !sourceTransitionAccepted(*transition)) {
+        return;
+    }
+
+    if (sourceUrl.isEmpty()) {
+        m_state.resetForClearedSource();
+        if (lifetime.expired() || !sourceTransitionAccepted(*transition)) {
+            return;
+        }
+        finishSourceTransition(*transition);
+        return;
+    }
+
+    m_state.resetForSourceLoad(sourceUrl);
+    if (lifetime.expired() || !sourceTransitionAccepted(*transition)) {
+        return;
+    }
+    resolvePlaybackUrl(*transition);
 }
 
 void VideoDocumentRuntime::setSourceDevice(
@@ -159,9 +229,28 @@ void VideoDocumentRuntime::setSourceDevice(
         return;
     }
 
-    m_sourceLoadRuntime.cancelPendingResolution();
-    executeSourceLoadPlan(videoSourceLoadStartPlan(sourceUrl));
-    applyPlaybackSourceDevice(std::move(sourceDevice), sourceUrl);
+    const std::optional<SourceTransition> transition
+        = beginSourceTransition(sourceUrl, SourceTransitionPhase::ApplyingTerminalResult);
+    if (!transition.has_value()) {
+        return;
+    }
+
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    retirePlaybackSource();
+    if (lifetime.expired() || !sourceTransitionAccepted(*transition)) {
+        return;
+    }
+
+    replacePlaybackControlSource();
+    if (lifetime.expired() || !sourceTransitionAccepted(*transition)) {
+        return;
+    }
+
+    m_state.resetForSourceLoad(sourceUrl);
+    if (lifetime.expired() || !sourceTransitionAccepted(*transition)) {
+        return;
+    }
+    applyPlaybackSourceDevice(*transition, std::move(sourceDevice));
 }
 
 VideoDocumentStatus VideoDocumentRuntime::status() const { return m_state.status(); }
@@ -213,12 +302,17 @@ bool VideoDocumentRuntime::muted() const { return m_playbackControls.mediaSnapsh
 
 void VideoDocumentRuntime::setMuted(bool muted)
 {
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const std::shared_ptr<VideoMediaBackend> mediaBackend = m_mediaBackend;
+    const std::optional<PlaybackLifecycle> lifecycle = m_activePlaybackLifecycle;
     VideoPlaybackControlMediaSnapshot snapshot = m_playbackControls.mediaSnapshot();
     snapshot.muted = muted;
     m_playbackControls.acceptMediaSnapshot(snapshot);
-    if (m_mediaBackend != nullptr) {
-        m_mediaBackend->setMuted(muted);
+    if (lifetime.expired() || mediaBackend == nullptr || !lifecycle.has_value()
+        || m_mediaBackend != mediaBackend || !playbackCallbacksAccepted(*lifecycle)) {
+        return;
     }
+    mediaBackend->setMuted(muted);
 }
 
 QObject* VideoDocumentRuntime::videoOutput() const { return m_outputRuntime.videoOutput(); }
@@ -326,10 +420,27 @@ VideoPlaybackControlSnapshot VideoDocumentRuntime::playbackControlSnapshot() con
 
 void VideoDocumentRuntime::executePlaybackControlPlan(const VideoPlaybackControlPlan& plan)
 {
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const std::shared_ptr<VideoMediaBackend> mediaBackend = m_mediaBackend;
+    const std::optional<PlaybackLifecycle> lifecycle = m_activePlaybackLifecycle;
+    const auto backendAccepted = [this, &lifetime, &mediaBackend, &lifecycle]() {
+        return !lifetime.expired() && mediaBackend != nullptr && lifecycle.has_value()
+            && m_mediaBackend == mediaBackend && playbackCallbacksAccepted(*lifecycle);
+    };
+
     for (const VideoPlaybackBackendOperation& operation : plan.backendOperations) {
+        if (mediaBackend != nullptr && !backendAccepted()) {
+            return;
+        }
         executePlaybackBackendOperation(operation);
+        if (mediaBackend != nullptr && !backendAccepted()) {
+            return;
+        }
     }
 
+    if (lifetime.expired()) {
+        return;
+    }
     applyPlaybackStateDelta(plan.stateDelta);
 }
 
@@ -388,98 +499,274 @@ void VideoDocumentRuntime::applyPlaybackStateDelta(const VideoPlaybackStateDelta
     m_playbackControls.acceptMediaSnapshot(snapshot);
 }
 
-void VideoDocumentRuntime::clearPlaybackSource()
+std::optional<VideoDocumentRuntime::SourceTransition> VideoDocumentRuntime::beginSourceTransition(
+    const QUrl& sourceUrl, SourceTransitionPhase phase)
 {
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    SourceTransition transition = m_sourceTransition.start(sourceUrl);
+    m_sourceTransitionPhase = phase;
     invalidatePlaybackCallbacks();
-    if (m_mediaBackend != nullptr) {
-        m_mediaBackend->stop();
-        m_mediaBackend->setSource(QUrl());
-        m_mediaBackend->setVideoOutput(nullptr);
-        m_mediaBackend->setCallbacks({});
+
+    const std::shared_ptr<VideoPlaybackUrlResolver> resolver = m_playbackUrlResolver;
+    if (resolver == nullptr) {
+        return transition;
     }
-    m_mediaBackend.reset();
-    m_playbackSourceDevice = {};
-}
 
-void VideoDocumentRuntime::executeSourceLoadPlan(const VideoSourceLoadPlan& plan)
-{
-    for (const VideoSourceLoadOperation& operation : plan) {
-        executeSourceLoadOperation(operation);
+    resolver->cancel();
+    if (lifetime.expired() || !sourceTransitionAccepted(transition)) {
+        return std::nullopt;
     }
+    resolver->cleanup();
+    if (lifetime.expired() || !sourceTransitionAccepted(transition)) {
+        return std::nullopt;
+    }
+    return transition;
 }
 
-void VideoDocumentRuntime::executeSourceLoadOperation(const VideoSourceLoadOperation& operation)
+bool VideoDocumentRuntime::sourceTransitionAccepted(const SourceTransition& transition) const
 {
-    std::visit([this](const auto& payload) { executeSourceLoadOperation(payload); }, operation);
+    return m_sourceTransition.accepts(transition);
 }
 
-void VideoDocumentRuntime::executeSourceLoadOperation(ClearVideoPlaybackSourceOperation)
+bool VideoDocumentRuntime::sourceBackendAccepted(const SourceTransition& transition,
+    const PlaybackLifecycle& lifecycle, const VideoMediaBackend* backend) const
 {
-    clearPlaybackSource();
+    return sourceTransitionAccepted(transition) && playbackCallbacksAccepted(lifecycle)
+        && m_mediaBackend.get() == backend;
 }
 
-void VideoDocumentRuntime::executeSourceLoadOperation(ResetClearedVideoSourceOperation)
+void VideoDocumentRuntime::resolvePlaybackUrl(const SourceTransition& transition)
 {
-    replacePlaybackControlSource();
-    m_state.resetForClearedSource();
-}
-
-void VideoDocumentRuntime::executeSourceLoadOperation(
-    const ResetVideoSourceLoadOperation& operation)
-{
-    invalidatePlaybackCallbacks();
-    replacePlaybackControlSource();
-    m_state.resetForSourceLoad(operation.sourceUrl);
-}
-
-void VideoDocumentRuntime::executeSourceLoadOperation(
-    const ApplyVideoPlaybackUrlOperation& operation)
-{
-    applyResolvedPlaybackUrl(operation.playbackUrl);
-}
-
-void VideoDocumentRuntime::executeSourceLoadOperation(
-    const PublishVideoSourceLoadFailureOperation& operation)
-{
-    publishSourceLoadFailure(operation.failure);
-}
-
-void VideoDocumentRuntime::applyResolvedPlaybackUrl(const QUrl& playbackUrl)
-{
-    VideoMediaBackend* mediaBackend = replaceMediaBackendForSource(m_state.sourceUrl());
-    if (mediaBackend == nullptr) {
+    const std::shared_ptr<VideoPlaybackUrlResolver> resolver = m_playbackUrlResolver;
+    if (resolver == nullptr || !sourceTransitionAccepted(transition)
+        || m_sourceTransitionPhase != SourceTransitionPhase::ResolvingPlaybackUrl) {
         return;
     }
+
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    resolver->resolve(
+        transition.operationId, transition.scope, m_documentObject.data(),
+        [this, lifetime, transition](const VideoPlaybackUrlResolution& resolution) {
+            if (!lifetime.expired()) {
+                completePlaybackUrlResolution(transition, resolution);
+            }
+        },
+        [this, lifetime, transition](
+            quint64 operationId, const QUrl& sourceUrl, const QString& diagnosticDetail) {
+            if (!lifetime.expired()) {
+                failPlaybackUrlResolution(transition, operationId, sourceUrl, diagnosticDetail);
+            }
+        });
+}
+
+void VideoDocumentRuntime::completePlaybackUrlResolution(
+    const SourceTransition& transition, const VideoPlaybackUrlResolution& resolution)
+{
+    if (resolution.operationId != transition.operationId || resolution.sourceUrl != transition.scope
+        || !sourceTransitionAccepted(transition)
+        || m_sourceTransitionPhase != SourceTransitionPhase::ResolvingPlaybackUrl) {
+        return;
+    }
+
+    m_sourceTransitionPhase = SourceTransitionPhase::ApplyingTerminalResult;
+    applyResolvedPlaybackUrl(transition, resolution.playbackUrl);
+}
+
+void VideoDocumentRuntime::failPlaybackUrlResolution(const SourceTransition& transition,
+    quint64 operationId, const QUrl& sourceUrl, const QString& diagnosticDetail)
+{
+    if (operationId != transition.operationId || sourceUrl != transition.scope
+        || !sourceTransitionAccepted(transition)
+        || m_sourceTransitionPhase != SourceTransitionPhase::ResolvingPlaybackUrl) {
+        return;
+    }
+
+    m_sourceTransitionPhase = SourceTransitionPhase::ApplyingTerminalResult;
+    publishSourceLoadFailure(transition,
+        makeSourceLoadFailure(
+            transition, VideoSourceLoadFailureKind::PlaybackUrlResolution, diagnosticDetail));
+}
+
+void VideoDocumentRuntime::finishSourceTransition(const SourceTransition& transition)
+{
+    if (m_sourceTransition.finish(transition)) {
+        m_sourceTransitionPhase = SourceTransitionPhase::Idle;
+    }
+}
+
+void VideoDocumentRuntime::retirePlaybackSource()
+{
+    invalidatePlaybackCallbacks();
+    const std::shared_ptr<VideoPlaybackSourceDevice> retiredSourceDevice
+        = std::move(m_playbackSourceDevice);
+    const std::shared_ptr<VideoMediaBackend> retiredMediaBackend = std::move(m_mediaBackend);
+    if (retiredMediaBackend == nullptr) {
+        return;
+    }
+
+    retiredMediaBackend->stop();
+    retiredMediaBackend->setCallbacks({});
+    retiredMediaBackend->setSource(QUrl());
+    retiredMediaBackend->setVideoOutput(nullptr);
+}
+
+void VideoDocumentRuntime::applyResolvedPlaybackUrl(
+    const SourceTransition& transition, const QUrl& playbackUrl)
+{
+    const EmbeddedMetadata metadata = playbackUrl.isLocalFile()
+        ? parsePathEmbeddedMetadata(playbackUrl.toLocalFile())
+        : EmbeddedMetadata {};
+    const MediaBackendFactory mediaBackendFactory = m_mediaBackendFactory;
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    std::unique_ptr<VideoMediaBackend> candidate
+        = mediaBackendFactory ? mediaBackendFactory() : nullptr;
+    if (lifetime.expired() || !sourceTransitionAccepted(transition)) {
+        return;
+    }
+    if (candidate == nullptr) {
+        publishSourceLoadFailure(transition,
+            makeSourceLoadFailure(transition, VideoSourceLoadFailureKind::PlaybackBackendCreation,
+                QStringLiteral("Could not create the video playback backend.")));
+        return;
+    }
+
+    const std::shared_ptr<VideoMediaBackend> mediaBackend(std::move(candidate));
+    m_mediaBackend = mediaBackend;
+    m_playbackSourceDevice.reset();
+    const PlaybackLifecycle lifecycle = acceptPlaybackCallbacks(transition.scope);
+    installMediaBackendCallbacks(mediaBackend.get(), lifecycle);
+    if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
+        return;
+    }
+
+    mediaBackend->setMuted(m_playbackControls.mediaSnapshot().muted);
+    if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
+        return;
+    }
+
+    if (QObject* videoOutput = m_outputRuntime.videoOutput(); videoOutput != nullptr) {
+        mediaBackend->setVideoOutput(videoOutput);
+        if (lifetime.expired()
+            || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
+            return;
+        }
+    }
+
     mediaBackend->setSource(playbackUrl);
-    m_playbackSourceDevice = {};
-    m_state.setEmbeddedMetadata(playbackUrl.isLocalFile()
-            ? parsePathEmbeddedMetadata(playbackUrl.toLocalFile())
-            : EmbeddedMetadata {});
-    m_state.setVideoSize(mediaBackend->videoSize());
-    updateStatusFromBackend(*m_activePlaybackLifecycle);
+    if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
+        return;
+    }
+    const QSize videoSize = mediaBackend->videoSize();
+
+    m_state.setEmbeddedMetadata(metadata);
+    if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
+        return;
+    }
+    m_state.setVideoSize(videoSize);
+    if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
+        return;
+    }
+    updateStatusFromBackend(lifecycle);
+    if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
+        return;
+    }
     play();
+    if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
+        return;
+    }
+    finishSourceTransition(transition);
 }
 
 void VideoDocumentRuntime::applyPlaybackSourceDevice(
-    VideoPlaybackSourceDevice sourceDevice, const QUrl& sourceUrl)
+    const SourceTransition& transition, VideoPlaybackSourceDevice sourceDevice)
 {
-    VideoMediaBackend* mediaBackend = replaceMediaBackendForSource(sourceUrl);
-    if (mediaBackend == nullptr) {
+    const std::shared_ptr<VideoPlaybackSourceDevice> sourceDeviceLease
+        = std::make_shared<VideoPlaybackSourceDevice>(std::move(sourceDevice));
+    const MediaBackendFactory mediaBackendFactory = m_mediaBackendFactory;
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    std::unique_ptr<VideoMediaBackend> candidate
+        = mediaBackendFactory ? mediaBackendFactory() : nullptr;
+    if (lifetime.expired() || !sourceTransitionAccepted(transition)) {
         return;
     }
-    m_playbackSourceDevice = std::move(sourceDevice);
-    mediaBackend->setSourceDevice(m_playbackSourceDevice.device.get(), sourceUrl);
-    m_state.setVideoSize(mediaBackend->videoSize());
-    updateStatusFromBackend(*m_activePlaybackLifecycle);
+    if (candidate == nullptr) {
+        publishSourceLoadFailure(transition,
+            makeSourceLoadFailure(transition, VideoSourceLoadFailureKind::PlaybackBackendCreation,
+                QStringLiteral("Could not create the video playback backend.")));
+        return;
+    }
+
+    const std::shared_ptr<VideoMediaBackend> mediaBackend(std::move(candidate));
+    m_playbackSourceDevice = sourceDeviceLease;
+    m_mediaBackend = mediaBackend;
+    const PlaybackLifecycle lifecycle = acceptPlaybackCallbacks(transition.scope);
+    installMediaBackendCallbacks(mediaBackend.get(), lifecycle);
+    if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
+        return;
+    }
+
+    mediaBackend->setMuted(m_playbackControls.mediaSnapshot().muted);
+    if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
+        return;
+    }
+
+    if (QObject* videoOutput = m_outputRuntime.videoOutput(); videoOutput != nullptr) {
+        mediaBackend->setVideoOutput(videoOutput);
+        if (lifetime.expired()
+            || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
+            return;
+        }
+    }
+
+    mediaBackend->setSourceDevice(sourceDeviceLease->device.get(), transition.scope);
+    if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
+        return;
+    }
+    const QSize videoSize = mediaBackend->videoSize();
+
+    m_state.setVideoSize(videoSize);
+    if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
+        return;
+    }
+    updateStatusFromBackend(lifecycle);
+    if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
+        return;
+    }
     play();
+    if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
+        return;
+    }
+    finishSourceTransition(transition);
 }
 
-void VideoDocumentRuntime::publishSourceLoadFailure(const VideoSourceLoadFailure& failure)
+void VideoDocumentRuntime::publishSourceLoadFailure(
+    const SourceTransition& transition, VideoSourceLoadFailure failure)
 {
+    if (!sourceTransitionAccepted(transition)) {
+        return;
+    }
+
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
     invalidatePlaybackCallbacks();
-    m_state.setEmbeddedMetadata({});
-    m_state.setSourceLoadFailure(failure);
-    updateZoomPercent();
+    m_state.setSourceLoadFailure(std::move(failure));
+    if (lifetime.expired() || !sourceTransitionAccepted(transition)) {
+        return;
+    }
+    finishSourceTransition(transition);
+}
+
+VideoSourceLoadFailure VideoDocumentRuntime::makeSourceLoadFailure(
+    const SourceTransition& transition, VideoSourceLoadFailureKind kind,
+    QString diagnosticDetail) const
+{
+    return VideoSourceLoadFailure {
+        transition.scope,
+        kind,
+        imageErrorText(ImageErrorTextId::OpenVideo),
+        std::move(diagnosticDetail),
+        VideoSourceLoadFailureSeverity::Error,
+        false,
+    };
 }
 
 void VideoDocumentRuntime::invalidatePlaybackCallbacks() { m_activePlaybackLifecycle.reset(); }
@@ -505,48 +792,80 @@ bool VideoDocumentRuntime::playbackCallbacksAccepted(const PlaybackLifecycle& li
 
 void VideoDocumentRuntime::updateStatusFromBackend(const PlaybackLifecycle& lifecycle)
 {
-    if (!playbackCallbacksAccepted(lifecycle)) {
+    const std::shared_ptr<VideoMediaBackend> mediaBackend = m_mediaBackend;
+    if (mediaBackend == nullptr || !playbackCallbacksAccepted(lifecycle)) {
+        return;
+    }
+
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const VideoMediaStatus mediaStatus = mediaBackend->mediaStatus();
+    const qint64 duration = mediaBackend->duration();
+    const qint64 position = mediaBackend->position();
+    const bool playing = mediaBackend->playing();
+    const bool seekable = mediaBackend->seekable();
+    const bool muted = mediaBackend->muted();
+    if (lifetime.expired() || m_mediaBackend != mediaBackend
+        || !playbackCallbacksAccepted(lifecycle)) {
         return;
     }
 
     const VideoDocumentStatusPlan plan = videoDocumentStatusPlan(VideoDocumentStatusSnapshot {
         m_state.sourceUrl().isEmpty(),
-        m_sourceLoadRuntime.active(),
-        m_mediaBackend != nullptr,
-        m_mediaBackend != nullptr ? m_mediaBackend->mediaStatus() : VideoMediaStatus::Null,
+        m_sourceTransitionPhase == SourceTransitionPhase::ResolvingPlaybackUrl,
+        true,
+        mediaStatus,
     });
     m_state.setStatusAndError(
         plan.status, plan.status == VideoDocumentStatus::Error ? m_state.errorString() : QString());
-    VideoPlaybackControlMediaSnapshot snapshot = m_playbackControls.mediaSnapshot();
-    if (m_mediaBackend != nullptr) {
-        snapshot.ready = m_state.status() == VideoDocumentStatus::Ready && m_state.hasVideo();
-        snapshot.durationMsec = m_mediaBackend->duration();
-        snapshot.positionMsec = m_mediaBackend->position();
-        snapshot.playing = m_mediaBackend->playing();
-        snapshot.seekable = m_mediaBackend->seekable();
-        snapshot.muted = m_mediaBackend->muted();
-    }
-    snapshot.mediaEnded = plan.mediaEnded;
-    if (plan.clearPlaying) {
-        snapshot.playing = false;
-    }
-    m_playbackControls.acceptMediaSnapshot(snapshot);
-    updateZoomPercent();
-}
-
-void VideoDocumentRuntime::refreshPlaybackControlsFromBackend(const PlaybackLifecycle& lifecycle)
-{
-    if (m_mediaBackend == nullptr || !playbackCallbacksAccepted(lifecycle)) {
+    if (lifetime.expired() || m_mediaBackend != mediaBackend
+        || !playbackCallbacksAccepted(lifecycle)) {
         return;
     }
 
     VideoPlaybackControlMediaSnapshot snapshot = m_playbackControls.mediaSnapshot();
     snapshot.ready = m_state.status() == VideoDocumentStatus::Ready && m_state.hasVideo();
-    snapshot.durationMsec = m_mediaBackend->duration();
-    snapshot.positionMsec = m_mediaBackend->position();
-    snapshot.playing = m_mediaBackend->playing();
-    snapshot.seekable = m_mediaBackend->seekable();
-    snapshot.muted = m_mediaBackend->muted();
+    snapshot.durationMsec = duration;
+    snapshot.positionMsec = position;
+    snapshot.playing = playing;
+    snapshot.seekable = seekable;
+    snapshot.muted = muted;
+    snapshot.mediaEnded = plan.mediaEnded;
+    if (plan.clearPlaying) {
+        snapshot.playing = false;
+    }
+    m_playbackControls.acceptMediaSnapshot(snapshot);
+    if (lifetime.expired() || m_mediaBackend != mediaBackend
+        || !playbackCallbacksAccepted(lifecycle)) {
+        return;
+    }
+    updateZoomPercent();
+}
+
+void VideoDocumentRuntime::refreshPlaybackControlsFromBackend(const PlaybackLifecycle& lifecycle)
+{
+    const std::shared_ptr<VideoMediaBackend> mediaBackend = m_mediaBackend;
+    if (mediaBackend == nullptr || !playbackCallbacksAccepted(lifecycle)) {
+        return;
+    }
+
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const qint64 duration = mediaBackend->duration();
+    const qint64 position = mediaBackend->position();
+    const bool playing = mediaBackend->playing();
+    const bool seekable = mediaBackend->seekable();
+    const bool muted = mediaBackend->muted();
+    if (lifetime.expired() || m_mediaBackend != mediaBackend
+        || !playbackCallbacksAccepted(lifecycle)) {
+        return;
+    }
+
+    VideoPlaybackControlMediaSnapshot snapshot = m_playbackControls.mediaSnapshot();
+    snapshot.ready = m_state.status() == VideoDocumentStatus::Ready && m_state.hasVideo();
+    snapshot.durationMsec = duration;
+    snapshot.positionMsec = position;
+    snapshot.playing = playing;
+    snapshot.seekable = seekable;
+    snapshot.muted = muted;
     m_playbackControls.acceptMediaSnapshot(snapshot);
 }
 
@@ -558,10 +877,12 @@ void VideoDocumentRuntime::replacePlaybackControlSource()
 void VideoDocumentRuntime::updateErrorFromBackend(
     const PlaybackLifecycle& lifecycle, VideoMediaError error)
 {
-    if (m_mediaBackend == nullptr || !playbackCallbacksAccepted(lifecycle)) {
+    const std::shared_ptr<VideoMediaBackend> mediaBackend = m_mediaBackend;
+    if (mediaBackend == nullptr || !playbackCallbacksAccepted(lifecycle)) {
         return;
     }
 
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
     qCDebug(kiriviewVideoLog).noquote()
         << "playback backend failure"
         << "source=" << lifecycle.publicSourceUrl
@@ -577,7 +898,15 @@ void VideoDocumentRuntime::updateErrorFromBackend(
         VideoBackendFailureSeverity::Error,
         false,
     });
+    if (lifetime.expired() || m_mediaBackend != mediaBackend
+        || !playbackCallbacksAccepted(lifecycle)) {
+        return;
+    }
     refreshPlaybackControlsFromBackend(lifecycle);
+    if (lifetime.expired() || m_mediaBackend != mediaBackend
+        || !playbackCallbacksAccepted(lifecycle)) {
+        return;
+    }
     updateZoomPercent();
 }
 
