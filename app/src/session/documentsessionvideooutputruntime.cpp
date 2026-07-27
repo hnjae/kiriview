@@ -3,6 +3,7 @@
 
 #include "documentsessionvideooutputruntime.h"
 
+#include <algorithm>
 #include <optional>
 
 namespace {
@@ -12,7 +13,7 @@ std::optional<quint64> surfaceClaimRevisionFromToken(const QString& token)
 {
     bool ok = false;
     const quint64 revision = token.toULongLong(&ok);
-    if (!ok) {
+    if (!ok || revision == 0 || token != surfaceClaimToken(revision)) {
         return std::nullopt;
     }
 
@@ -23,25 +24,27 @@ std::optional<quint64> surfaceClaimRevisionFromToken(const QString& token)
 namespace kiriview {
 QString DocumentSessionVideoOutputRuntime::nextSurfaceClaimToken()
 {
-    ++m_nextSurfaceClaimRevision;
-    return surfaceClaimToken(m_nextSurfaceClaimRevision);
+    ++m_lastIssuedSurfaceClaimRevision;
+    if (m_lastIssuedSurfaceClaimRevision == 0) {
+        ++m_lastIssuedSurfaceClaimRevision;
+    }
+    return surfaceClaimToken(m_lastIssuedSurfaceClaimRevision);
 }
 
 bool DocumentSessionVideoOutputRuntime::reportSurfaceClaim(
     const DocumentSessionVideoOutputClaimReport& report,
+    const DocumentSessionVideoOutputClaimAdmission& admission,
     const DocumentSessionVideoOutputAttachmentPort& attachmentPort)
 {
-    const std::optional<quint64> claimRevision = surfaceClaimRevisionFromToken(report.claimToken);
-    if (!claimRevision || report.surfaceOwner == nullptr) {
+    const std::optional<quint64> claimRevision = consumeSurfaceClaimToken(report.claimToken);
+    if (!claimRevision.has_value()
+        || report.projectionRevision != admission.currentProjectionRevision
+        || report.surfaceOwner == nullptr) {
         return false;
     }
 
     const bool sameOwner = m_surfaceClaimOwner == report.surfaceOwner;
-    if (sameOwner && *claimRevision < m_surfaceClaimRevision) {
-        return false;
-    }
-
-    if (!report.attachRequested) {
+    if (!report.active || !admission.videoDocumentActive) {
         if (!sameOwner) {
             return false;
         }
@@ -54,7 +57,6 @@ bool DocumentSessionVideoOutputRuntime::reportSurfaceClaim(
     }
 
     m_surfaceClaimOwner = report.surfaceOwner;
-    m_surfaceClaimRevision = *claimRevision;
     if (attachmentPort.setVideoOutput) {
         attachmentPort.setVideoOutput(report.videoOutput);
     }
@@ -75,7 +77,21 @@ void DocumentSessionVideoOutputRuntime::clearAttachment(
 
 void DocumentSessionVideoOutputRuntime::clear()
 {
+    m_lastObservedSurfaceClaimRevision
+        = std::max(m_lastObservedSurfaceClaimRevision, m_lastIssuedSurfaceClaimRevision);
     m_surfaceClaimOwner.clear();
-    m_surfaceClaimRevision = 0;
+}
+
+std::optional<quint64> DocumentSessionVideoOutputRuntime::consumeSurfaceClaimToken(
+    const QString& token)
+{
+    const std::optional<quint64> revision = surfaceClaimRevisionFromToken(token);
+    if (!revision.has_value() || *revision > m_lastIssuedSurfaceClaimRevision
+        || *revision <= m_lastObservedSurfaceClaimRevision) {
+        return std::nullopt;
+    }
+
+    m_lastObservedSurfaceClaimRevision = *revision;
+    return revision;
 }
 }

@@ -290,6 +290,10 @@ void TestKiriVideoDocument::videoOutputCanDetachAndToleratesDestroyedOutput()
         staleProjectionRevision, &staleSurfaceOwner, output, true, QRectF(), QRectF()));
     QCOMPARE(document.videoOutput(), nullptr);
     QCOMPARE(videoOutputSpy.count(), 0);
+    QVERIFY(!session.reportVideoOutputSurfaceClaim(staleProjectionClaimToken,
+        session.publicProjectionRevision(), &staleSurfaceOwner, output, true, QRectF(), QRectF()));
+    QCOMPARE(document.videoOutput(), nullptr);
+    QCOMPARE(videoOutputSpy.count(), 0);
 
     QVERIFY(!session.reportVideoOutputSurfaceClaim(session.nextVideoOutputSurfaceClaimToken(),
         session.publicProjectionRevision(), nullptr, output, true, QRectF(), QRectF()));

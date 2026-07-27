@@ -9,6 +9,7 @@
 #include <QString>
 #include <QtGlobal>
 #include <functional>
+#include <optional>
 
 class QObject;
 
@@ -24,9 +25,16 @@ struct DocumentSessionVideoOutputClaimReport
     QString claimToken;
     QObject* surfaceOwner = nullptr;
     QObject* videoOutput = nullptr;
-    bool attachRequested = false;
+    bool active = false;
     QRectF contentRect;
     QRectF sourceRect;
+    quint64 projectionRevision = 0;
+};
+
+struct DocumentSessionVideoOutputClaimAdmission
+{
+    quint64 currentProjectionRevision = 0;
+    bool videoDocumentActive = false;
 };
 
 class DocumentSessionVideoOutputRuntime final
@@ -34,14 +42,17 @@ class DocumentSessionVideoOutputRuntime final
 public:
     QString nextSurfaceClaimToken();
     bool reportSurfaceClaim(const DocumentSessionVideoOutputClaimReport& report,
+        const DocumentSessionVideoOutputClaimAdmission& admission,
         const DocumentSessionVideoOutputAttachmentPort& attachmentPort);
     void clearAttachment(const DocumentSessionVideoOutputAttachmentPort& attachmentPort);
     void clear();
 
 private:
+    std::optional<quint64> consumeSurfaceClaimToken(const QString& token);
+
     QPointer<QObject> m_surfaceClaimOwner;
-    quint64 m_nextSurfaceClaimRevision = 0;
-    quint64 m_surfaceClaimRevision = 0;
+    quint64 m_lastIssuedSurfaceClaimRevision = 0;
+    quint64 m_lastObservedSurfaceClaimRevision = 0;
 };
 }
 

@@ -513,17 +513,11 @@ bool DocumentSessionRuntimeGraph::reportVideoOutputSurfaceClaim(const QString& c
     quint64 projectionRevision, QObject* surfaceOwner, QObject* videoOutput, bool active,
     const QRectF& contentRect, const QRectF& sourceRect)
 {
-    const bool currentProjection = projectionRevision == m_state.publicSnapshot().revision;
-    if (!currentProjection) {
-        return false;
-    }
-
-    const bool attach = active
-        && m_state.publicSnapshot().documentKind == DocumentSessionKind::Video
-        && videoOutput != nullptr;
-
     return m_videoOutputRuntime.reportSurfaceClaim(
-        { claimToken, surfaceOwner, videoOutput, attach, contentRect, sourceRect },
+        { claimToken, surfaceOwner, videoOutput, active, contentRect, sourceRect,
+            projectionRevision },
+        { m_state.publicSnapshot().revision,
+            m_state.publicSnapshot().documentKind == DocumentSessionKind::Video },
         videoOutputAttachmentPort());
 }
 
