@@ -7,6 +7,7 @@
 #include "imageviewportvalidation_p.h"
 #include "viewportenginetestaccess_p.h"
 
+#include <QtCore/QMetaObject>
 #include <QtQuick/QQuickWindow>
 
 using namespace ImageViewportInternal;
@@ -88,6 +89,16 @@ void ImageViewportPrivate::enqueueProviderHostEvent(ViewportProviderHostEvent ev
     if (transitionApplicationDepth == 0 && !drainingExternalWork) {
         drainExternalWork();
     }
+}
+
+void ImageViewportPrivate::enqueueDeferredProviderTransport(
+    ViewportProviderTransportCommand command)
+{
+    pendingProviderTransport.append(std::move(command));
+    if (transitionApplicationDepth != 0 || itemTransactionDepth != 0 || drainingExternalWork) {
+        return;
+    }
+    QMetaObject::invokeMethod(q, [this]() { drainExternalWork(); }, Qt::QueuedConnection);
 }
 
 void ImageViewportPrivate::drainExternalWork()

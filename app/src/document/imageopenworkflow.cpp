@@ -31,7 +31,8 @@ void appendClearImage(ImageDocumentRuntimePlan& plan)
 ImageDocumentSelectedTarget selectedTargetForSession(const ImageLoadSession& session)
 {
     return {
-        session.imageUrl(),
+        session.kind() == ImageDocumentPageKind::Video ? session.imageUrl()
+                                                       : session.request().sourceUrl(),
         session.kind(),
         session.location().openedCollectionScope(),
     };

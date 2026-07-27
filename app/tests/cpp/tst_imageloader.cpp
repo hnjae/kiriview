@@ -42,7 +42,7 @@ class TestImageLoader : public QObject
 
 private Q_SLOTS:
     void directImagePreparesProviderTargetWithValidatedPredecode();
-    void openedCollectionResolvesFirstPageBeforePreparingProviderTarget();
+    void openedCollectionStartsProviderTargetBeforeResolvingFirstPage();
     void staleOpenedCollectionSnapshotCannotPrepareAReplacedTarget();
     void reentrantReplacementCannotPublishResolvedStaleVideoTerminal();
     void missingProviderTargetOwnerReportsTypedPresentationFailure();
@@ -57,11 +57,15 @@ void TestImageLoader::directImagePreparesProviderTargetWithValidatedPredecode()
         staticDisplayTestImagePayload(testImage(QSize(24, 12))),
         location,
     };
+    std::optional<kiriview::ImageLoadSession> startedSession;
     std::optional<kiriview::ImageLoadSession> preparedSession;
     std::optional<kiriview::PredecodedImage> preparedImage;
     kiriview::ImageLoader::Callbacks callbacks;
     callbacks.findPredecodedImage = [cached](const QUrl&) { return cached; };
-    callbacks.preparedImage = [&preparedSession, &preparedImage](kiriview::ImageLoadSession session,
+    callbacks.targetStarted = [&startedSession](kiriview::ImageLoadSession session) {
+        startedSession = std::move(session);
+    };
+    callbacks.resolvedImage = [&preparedSession, &preparedImage](kiriview::ImageLoadSession session,
                                   std::optional<kiriview::PredecodedImage> predecoded) {
         preparedSession = std::move(session);
         preparedImage = std::move(predecoded);
@@ -71,6 +75,8 @@ void TestImageLoader::directImagePreparesProviderTargetWithValidatedPredecode()
     loader.start(kiriview::ImageLoadRequest::fromExternalSource(
         kiriview::resolvedNavigationSource(imageUrl, {})));
 
+    QVERIFY(startedSession.has_value());
+    QCOMPARE(startedSession->imageUrl(), imageUrl);
     QVERIFY(preparedSession.has_value());
     QCOMPARE(preparedSession->imageUrl(), imageUrl);
     QVERIFY(preparedImage.has_value());
@@ -78,7 +84,7 @@ void TestImageLoader::directImagePreparesProviderTargetWithValidatedPredecode()
     QCOMPARE(preparedImage->displayImage.image.size(), QSize(24, 12));
 }
 
-void TestImageLoader::openedCollectionResolvesFirstPageBeforePreparingProviderTarget()
+void TestImageLoader::openedCollectionStartsProviderTargetBeforeResolvingFirstPage()
 {
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
@@ -87,37 +93,53 @@ void TestImageLoader::openedCollectionResolvesFirstPageBeforePreparingProviderTa
     QVERIFY(archiveCollection.has_value());
     const QUrl firstImageUrl
         = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png"));
-    const kiriview::ImageDocumentPageCandidateListSnapshot snapshot = pageCandidateListSnapshot(
-        kiriview::ImageDocumentPageCandidateListSource::forOpenedCollectionScope(
-            *archiveCollection),
-        { imageDocumentPageCandidate(firstImageUrl) });
-
+    std::optional<kiriview::ImageDocumentPageCandidateListSnapshotCallback> pendingSnapshot;
+    std::optional<kiriview::ImageLoadSession> targetStarted;
     std::optional<kiriview::ImageLoadSession> sourcePrepared;
-    std::optional<kiriview::ImageLoadSession> providerPrepared;
+    std::optional<kiriview::ImageLoadSession> resolvedImage;
     kiriview::ImageLoader::Callbacks callbacks;
+    callbacks.targetStarted = [&targetStarted](kiriview::ImageLoadSession session) {
+        targetStarted = std::move(session);
+    };
     callbacks.sourcePrepared = [&sourcePrepared](kiriview::ImageLoadSession session) {
         sourcePrepared = std::move(session);
     };
     callbacks.ensurePageCandidateSnapshot
-        = [snapshot](auto, kiriview::ImageDocumentPageCandidateListSnapshotCallback completion) {
-              completion(
-                  kiriview::ImageDocumentPageCandidateListSnapshotResult { snapshot, true, {} });
+        = [&pendingSnapshot](
+              auto, kiriview::ImageDocumentPageCandidateListSnapshotCallback completion) {
+              pendingSnapshot = std::move(completion);
           };
-    callbacks.preparedImage
-        = [&providerPrepared](kiriview::ImageLoadSession session, auto predecoded) {
+    callbacks.resolvedImage
+        = [&resolvedImage](kiriview::ImageLoadSession session, auto predecoded) {
               QVERIFY(!predecoded.has_value());
-              providerPrepared = std::move(session);
+              resolvedImage = std::move(session);
           };
     kiriview::ImageLoader loader(std::move(callbacks));
 
     loader.start(kiriview::ImageLoadRequest::fromExternalSource(
         kiriview::resolvedNavigationSource(archiveUrl, {})));
 
+    QVERIFY(targetStarted.has_value());
+    QCOMPARE(targetStarted->imageUrl(), archiveUrl);
+    QCOMPARE(targetStarted->openedCollectionScope(), *archiveCollection);
+    QVERIFY(pendingSnapshot.has_value());
+    QVERIFY(!sourcePrepared.has_value());
+    QVERIFY(!resolvedImage.has_value());
+
+    (*pendingSnapshot)(kiriview::ImageDocumentPageCandidateListSnapshotResult {
+        pageCandidateListSnapshot(
+            kiriview::ImageDocumentPageCandidateListSource::forOpenedCollectionScope(
+                *archiveCollection),
+            { imageDocumentPageCandidate(firstImageUrl) }),
+        true,
+        {},
+    });
+
     QVERIFY(sourcePrepared.has_value());
-    QVERIFY(providerPrepared.has_value());
+    QVERIFY(resolvedImage.has_value());
     QCOMPARE(sourcePrepared->imageUrl(), firstImageUrl);
-    QCOMPARE(providerPrepared->imageUrl(), firstImageUrl);
-    QCOMPARE(providerPrepared->openedCollectionScope(), *archiveCollection);
+    QCOMPARE(resolvedImage->imageUrl(), firstImageUrl);
+    QCOMPARE(resolvedImage->openedCollectionScope(), *archiveCollection);
 }
 
 void TestImageLoader::staleOpenedCollectionSnapshotCannotPrepareAReplacedTarget()
@@ -131,15 +153,19 @@ void TestImageLoader::staleOpenedCollectionSnapshotCannotPrepareAReplacedTarget(
         = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png"));
     const QUrl replacementUrl = localUrl(QStringLiteral("/images/replacement.png"));
     std::optional<kiriview::ImageDocumentPageCandidateListSnapshotCallback> pendingSnapshot;
-    std::vector<QUrl> preparedUrls;
+    std::vector<QUrl> startedUrls;
+    std::vector<QUrl> resolvedUrls;
     kiriview::ImageLoader::Callbacks callbacks;
+    callbacks.targetStarted = [&startedUrls](kiriview::ImageLoadSession session) {
+        startedUrls.push_back(session.imageUrl());
+    };
     callbacks.ensurePageCandidateSnapshot
         = [&pendingSnapshot](
               auto, kiriview::ImageDocumentPageCandidateListSnapshotCallback callback) {
               pendingSnapshot = std::move(callback);
           };
-    callbacks.preparedImage = [&preparedUrls](kiriview::ImageLoadSession session, auto) {
-        preparedUrls.push_back(session.imageUrl());
+    callbacks.resolvedImage = [&resolvedUrls](kiriview::ImageLoadSession session, auto) {
+        resolvedUrls.push_back(session.imageUrl());
     };
     kiriview::ImageLoader loader(std::move(callbacks));
 
@@ -158,8 +184,11 @@ void TestImageLoader::staleOpenedCollectionSnapshotCannotPrepareAReplacedTarget(
         {},
     });
 
-    QCOMPARE(preparedUrls.size(), std::size_t(1));
-    QCOMPARE(preparedUrls.front(), replacementUrl);
+    QCOMPARE(startedUrls.size(), std::size_t(2));
+    QCOMPARE(startedUrls.front(), archiveUrl);
+    QCOMPARE(startedUrls.back(), replacementUrl);
+    QCOMPARE(resolvedUrls.size(), std::size_t(1));
+    QCOMPARE(resolvedUrls.front(), replacementUrl);
 }
 
 void TestImageLoader::reentrantReplacementCannotPublishResolvedStaleVideoTerminal()
@@ -177,9 +206,13 @@ void TestImageLoader::reentrantReplacementCannotPublishResolvedStaleVideoTermina
         { videoCandidate(videoUrl) });
 
     kiriview::ImageLoader* loader = nullptr;
-    std::vector<QUrl> preparedUrls;
+    std::vector<QUrl> startedUrls;
+    std::vector<QUrl> resolvedUrls;
     std::vector<QUrl> unsupportedVideoUrls;
     kiriview::ImageLoader::Callbacks callbacks;
+    callbacks.targetStarted = [&startedUrls](kiriview::ImageLoadSession session) {
+        startedUrls.push_back(session.imageUrl());
+    };
     callbacks.ensurePageCandidateSnapshot
         = [snapshot](auto, kiriview::ImageDocumentPageCandidateListSnapshotCallback completion) {
               completion(
@@ -194,8 +227,8 @@ void TestImageLoader::reentrantReplacementCannotPublishResolvedStaleVideoTermina
         = [&unsupportedVideoUrls](kiriview::ImageLoadSession session) {
               unsupportedVideoUrls.push_back(session.imageUrl());
           };
-    callbacks.preparedImage = [&preparedUrls](kiriview::ImageLoadSession session, auto) {
-        preparedUrls.push_back(session.imageUrl());
+    callbacks.resolvedImage = [&resolvedUrls](kiriview::ImageLoadSession session, auto) {
+        resolvedUrls.push_back(session.imageUrl());
     };
     kiriview::ImageLoader imageLoader(std::move(callbacks));
     loader = &imageLoader;
@@ -203,8 +236,11 @@ void TestImageLoader::reentrantReplacementCannotPublishResolvedStaleVideoTermina
     imageLoader.start(kiriview::ImageLoadRequest::fromExternalSource(
         kiriview::resolvedNavigationSource(archiveUrl, {})));
 
-    QCOMPARE(preparedUrls.size(), std::size_t(1));
-    QCOMPARE(preparedUrls.front(), replacementUrl);
+    QCOMPARE(startedUrls.size(), std::size_t(2));
+    QCOMPARE(startedUrls.front(), archiveUrl);
+    QCOMPARE(startedUrls.back(), replacementUrl);
+    QCOMPARE(resolvedUrls.size(), std::size_t(1));
+    QCOMPARE(resolvedUrls.front(), replacementUrl);
     QVERIFY(unsupportedVideoUrls.empty());
 }
 

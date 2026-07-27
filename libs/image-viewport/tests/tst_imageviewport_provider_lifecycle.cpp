@@ -6,6 +6,7 @@
 #include <QtCore/QElapsedTimer>
 
 #include <algorithm>
+#include <memory>
 #include <utility>
 
 namespace {
@@ -26,6 +27,101 @@ public:
 
 private:
     ImageSequenceProviderSessionFactory m_sessionFactory;
+};
+
+struct ProviderLifecycleTarget
+{
+    explicit ProviderLifecycleTarget(ImageSequenceFactory& sequenceFactory)
+        : sessionFactory(std::make_shared<CountingProviderSessionFactory>(sessionCount,
+              metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount))
+        , adapter(sessionFactory, ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)))
+        , result(sequenceFactory.fromProvider(&adapter))
+    {
+    }
+
+    [[nodiscard]] ImageSequence* sequence() const
+    {
+        return result == nullptr ? nullptr : result->sequence();
+    }
+
+    std::shared_ptr<int> sessionCount = std::make_shared<int>(0);
+    std::shared_ptr<int> metadataRequestCount = std::make_shared<int>(0);
+    std::shared_ptr<int> frameRequestCount = std::make_shared<int>(0);
+    std::shared_ptr<int> lastRequestedFrame = std::make_shared<int>(-1);
+    std::shared_ptr<int> closeCount = std::make_shared<int>(0);
+    std::shared_ptr<CountingProviderSessionFactory> sessionFactory;
+    CountingProviderAdapter adapter;
+    QScopedPointer<ImageSequenceFactoryResult> result;
+};
+
+class DeferredProviderAdmissionScenario final
+{
+public:
+    DeferredProviderAdmissionScenario()
+        : retainedTarget(sequenceFactory)
+        , retiringTarget(sequenceFactory)
+        , pendingTarget(sequenceFactory)
+        , replacementTarget(sequenceFactory)
+    {
+        useSynchronousProviderEventDeliveryForTest(viewport);
+        viewport.setSize(QSizeF(100.0, 100.0));
+    }
+
+    [[nodiscard]] bool occupyBothLiveSessionSlots()
+    {
+        if (retainedTarget.sequence() == nullptr || retiringTarget.sequence() == nullptr
+            || pendingTarget.sequence() == nullptr || replacementTarget.sequence() == nullptr) {
+            return false;
+        }
+        if (viewport
+                .setPresentationTarget(ImageViewportPresentationTarget(retainedTarget.sequence()),
+                    PresentationTargetTransitionPolicy {})
+                .outcome()
+            != ImageViewportCommandOutcome::Accepted) {
+            return false;
+        }
+
+        CountingProviderSession* retainedSession = retainedTarget.sessionFactory->lastSession();
+        if (retainedSession == nullptr || *retainedTarget.sessionCount != 1
+            || *retainedTarget.frameRequestCount != 1) {
+            return false;
+        }
+
+        QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        auto* handle = new ImageSequenceProviderFrameHandle(
+            new ImageFrame(image), [releaseCount = retainedFrameReleaseCount](ImageFrame* frame) {
+                ++*releaseCount;
+                delete frame;
+            });
+        emitProviderFrameHandleReady(retainedSession, retainedSession->lastFrameToken(), handle);
+        acknowledgePendingRenderCommitForTest(viewport);
+        if (viewport.state().request().status() != ImageViewportRequestStatus::Ready
+            || *retainedFrameReleaseCount != 0) {
+            return false;
+        }
+
+        if (viewport
+                .setPresentationTarget(ImageViewportPresentationTarget(retiringTarget.sequence()),
+                    PresentationTargetTransitionPolicy {})
+                .outcome()
+            != ImageViewportCommandOutcome::Accepted) {
+            return false;
+        }
+        return *retiringTarget.sessionCount == 1 && *retiringTarget.frameRequestCount == 1
+            && viewport.state().request().status() == ImageViewportRequestStatus::Loading
+            && viewport.state().request().reason() == ImageViewportRequestReason::ProviderWaiting
+            && viewport.state().display().status() == ImageViewportDisplayStatus::Retained
+            && *retainedFrameReleaseCount == 0;
+    }
+
+    ImageSequenceFactory sequenceFactory;
+    ProviderLifecycleTarget retainedTarget;
+    ProviderLifecycleTarget retiringTarget;
+    ProviderLifecycleTarget pendingTarget;
+    ProviderLifecycleTarget replacementTarget;
+    std::shared_ptr<int> retainedFrameReleaseCount = std::make_shared<int>(0);
+    ImageViewport viewport;
 };
 
 }
@@ -82,6 +178,10 @@ private Q_SLOTS:
     void providerTerminalResultsAreQueuedFromSessionEntryPoint();
     void providerUnsupportedResultsAreQueuedFromSessionEntryPoint();
     void restorePreviousPinsProviderSessionAndFrameHandle();
+    void latestProviderTargetWaitsForRetiringSessionCapacity();
+    void newerProviderTargetSupersedesDeferredAdmission();
+    void clearDiscardsDeferredProviderAdmission();
+    void shutdownDiscardsDeferredProviderAdmission();
 };
 
 void ImageViewportProviderLifecycleTest::replacementClearsRetainedDisplayDiagnostics()
@@ -232,6 +332,139 @@ void ImageViewportProviderLifecycleTest::restorePreviousPinsProviderSessionAndFr
     QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
     QCOMPARE(*firstCloseCount, 1);
     QCOMPARE(*frameReleaseCount, 1);
+}
+
+void ImageViewportProviderLifecycleTest::latestProviderTargetWaitsForRetiringSessionCapacity()
+{
+    DeferredProviderAdmissionScenario scenario;
+    QVERIFY(scenario.occupyBothLiveSessionSlots());
+
+    QCOMPARE(scenario.viewport
+                 .setPresentationTarget(
+                     ImageViewportPresentationTarget(scenario.pendingTarget.sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+
+    QCOMPARE(*scenario.pendingTarget.sessionCount, 0);
+    const ImageViewportRequestStatus statusWhileCapacityIsOccupied
+        = scenario.viewport.state().request().status();
+    const ImageViewportRequestReason reasonWhileCapacityIsOccupied
+        = scenario.viewport.state().request().reason();
+    const ImageViewportDisplayStatus displayWhileCapacityIsOccupied
+        = scenario.viewport.state().display().status();
+
+    drainQueuedProviderResults();
+    drainQueuedProviderResults();
+
+    QCOMPARE(statusWhileCapacityIsOccupied, ImageViewportRequestStatus::Loading);
+    QCOMPARE(reasonWhileCapacityIsOccupied, ImageViewportRequestReason::ProviderWaiting);
+    QCOMPARE(displayWhileCapacityIsOccupied, ImageViewportDisplayStatus::Retained);
+    QCOMPARE(*scenario.pendingTarget.sessionCount, 1);
+    QCOMPARE(*scenario.pendingTarget.frameRequestCount, 1);
+    QCOMPARE(scenario.viewport.state().request().status(), ImageViewportRequestStatus::Loading);
+    QCOMPARE(
+        scenario.viewport.state().request().reason(), ImageViewportRequestReason::ProviderWaiting);
+
+    drainQueuedProviderResults();
+    QCOMPARE(*scenario.pendingTarget.sessionCount, 1);
+}
+
+void ImageViewportProviderLifecycleTest::newerProviderTargetSupersedesDeferredAdmission()
+{
+    DeferredProviderAdmissionScenario scenario;
+    QVERIFY(scenario.occupyBothLiveSessionSlots());
+
+    QCOMPARE(scenario.viewport
+                 .setPresentationTarget(
+                     ImageViewportPresentationTarget(scenario.pendingTarget.sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(*scenario.pendingTarget.sessionCount, 0);
+    const ImageViewportRequestStatus supersededStatus
+        = scenario.viewport.state().request().status();
+
+    QCOMPARE(scenario.viewport
+                 .setPresentationTarget(
+                     ImageViewportPresentationTarget(scenario.replacementTarget.sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(*scenario.pendingTarget.sessionCount, 0);
+    QCOMPARE(*scenario.replacementTarget.sessionCount, 0);
+    const ImageViewportRequestStatus replacementStatus
+        = scenario.viewport.state().request().status();
+    const ImageViewportRequestReason replacementReason
+        = scenario.viewport.state().request().reason();
+
+    drainQueuedProviderResults();
+    drainQueuedProviderResults();
+
+    QCOMPARE(supersededStatus, ImageViewportRequestStatus::Loading);
+    QCOMPARE(replacementStatus, ImageViewportRequestStatus::Loading);
+    QCOMPARE(replacementReason, ImageViewportRequestReason::ProviderWaiting);
+    QCOMPARE(*scenario.pendingTarget.sessionCount, 0);
+    QCOMPARE(*scenario.replacementTarget.sessionCount, 1);
+    QCOMPARE(*scenario.replacementTarget.frameRequestCount, 1);
+
+    drainQueuedProviderResults();
+    QCOMPARE(*scenario.pendingTarget.sessionCount, 0);
+    QCOMPARE(*scenario.replacementTarget.sessionCount, 1);
+}
+
+void ImageViewportProviderLifecycleTest::clearDiscardsDeferredProviderAdmission()
+{
+    DeferredProviderAdmissionScenario scenario;
+    QVERIFY(scenario.occupyBothLiveSessionSlots());
+
+    QCOMPARE(scenario.viewport
+                 .setPresentationTarget(
+                     ImageViewportPresentationTarget(scenario.pendingTarget.sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(*scenario.pendingTarget.sessionCount, 0);
+    const ImageViewportRequestStatus statusWhileCapacityIsOccupied
+        = scenario.viewport.state().request().status();
+
+    QCOMPARE(scenario.viewport.clear().outcome(), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(scenario.viewport.state().request().status(), ImageViewportRequestStatus::NoRequest);
+
+    drainQueuedProviderResults();
+    drainQueuedProviderResults();
+    drainQueuedProviderResults();
+
+    QCOMPARE(statusWhileCapacityIsOccupied, ImageViewportRequestStatus::Loading);
+    QCOMPARE(*scenario.pendingTarget.sessionCount, 0);
+}
+
+void ImageViewportProviderLifecycleTest::shutdownDiscardsDeferredProviderAdmission()
+{
+    std::shared_ptr<int> pendingSessionCount;
+    ImageViewportRequestStatus statusWhileCapacityIsOccupied
+        = ImageViewportRequestStatus::NoRequest;
+    {
+        auto scenario = std::make_unique<DeferredProviderAdmissionScenario>();
+        QVERIFY(scenario->occupyBothLiveSessionSlots());
+
+        QCOMPARE(scenario->viewport
+                     .setPresentationTarget(
+                         ImageViewportPresentationTarget(scenario->pendingTarget.sequence()),
+                         PresentationTargetTransitionPolicy {})
+                     .outcome(),
+            ImageViewportCommandOutcome::Accepted);
+        QCOMPARE(*scenario->pendingTarget.sessionCount, 0);
+        statusWhileCapacityIsOccupied = scenario->viewport.state().request().status();
+        pendingSessionCount = scenario->pendingTarget.sessionCount;
+    }
+
+    drainQueuedProviderResults();
+    drainQueuedProviderResults();
+    drainQueuedProviderResults();
+
+    QCOMPARE(statusWhileCapacityIsOccupied, ImageViewportRequestStatus::Loading);
+    QCOMPARE(*pendingSessionCount, 0);
 }
 
 void ImageViewportProviderLifecycleTest::providerTokenOverflowClosesSessionWithoutInvalidRequest()

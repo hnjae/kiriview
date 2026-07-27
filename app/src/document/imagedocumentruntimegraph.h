@@ -73,6 +73,8 @@ public:
     void shutdownRuntime();
 
 private:
+    struct PreparedViewportTargetState;
+
     struct PendingViewportImageLoad
     {
         ImageLoadSession session;
@@ -86,7 +88,8 @@ private:
         ExternalPredecodedImageFinder externalPredecodedImageFinder);
     [[nodiscard]] OpenedCollectionScopeLocation pageNavigationOpenedCollectionScope() const;
     void composeWorkflowDispatch();
-    bool prepareViewportImageTarget(
+    bool startViewportImageTarget(const ImageLoadSession& session);
+    bool resolveViewportImageTarget(
         const ImageLoadSession& session, std::optional<PredecodedImage> predecoded);
     void prepareViewportSecondaryImageTarget(
         const ImageLoadSession& session, std::optional<PredecodedImage> predecoded);
@@ -108,6 +111,7 @@ private:
     std::unique_ptr<ImageDocumentNavigationController> m_navigationController;
     std::unique_ptr<ImageDocumentRuntimeWorkflow> m_runtimeWorkflow;
     ImageDecodeDependencies m_imageDecodeDependencies;
+    std::shared_ptr<PreparedViewportTargetState> m_preparedViewportTarget;
     std::optional<PendingViewportImageLoad> m_pendingViewportImageLoad;
     std::unique_ptr<ImageViewportIntegrationTarget> m_viewportTarget;
     std::optional<ImageLoadSession> m_viewportSecondaryLoadSession;

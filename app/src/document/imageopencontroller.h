@@ -23,6 +23,7 @@ class QObject;
 namespace kiriview {
 class ImageDocumentState;
 class ImageLoader;
+struct ImageOpenApplicationPlan;
 
 class ImageOpenController final
 {
@@ -36,10 +37,11 @@ public:
     using InvalidatePendingViewportImageLoadCallback = std::function<void()>;
     using EnsurePageCandidateSnapshotCallback = std::function<void(
         ImageDocumentPageCandidateListContext, ImageDocumentPageCandidateListSnapshotCallback)>;
-    using PrepareViewportImageTargetCallback
+    using StartViewportImageTargetCallback = std::function<bool(ImageLoadSession)>;
+    using ResolveViewportImageTargetCallback
         = std::function<bool(ImageLoadSession, std::optional<PredecodedImage>)>;
     using FirstDisplayDecodeContextCallback = std::function<ImageFirstDisplayDecodeContext()>;
-    using HasCommittedImageCallback = std::function<bool()>;
+    using HasAuthoritativeDisplayCallback = std::function<bool()>;
 
     struct Callbacks
     {
@@ -50,9 +52,10 @@ public:
         CommitPrimaryPageSlotCallback commitPrimaryPageSlot;
         InvalidatePendingViewportImageLoadCallback invalidatePendingViewportImageLoad;
         EnsurePageCandidateSnapshotCallback ensurePageCandidateSnapshot;
-        PrepareViewportImageTargetCallback prepareViewportImageTarget;
+        StartViewportImageTargetCallback startViewportImageTarget;
+        ResolveViewportImageTargetCallback resolveViewportImageTarget;
         FirstDisplayDecodeContextCallback firstDisplayDecodeContext;
-        HasCommittedImageCallback hasCommittedImage;
+        HasAuthoritativeDisplayCallback hasAuthoritativeDisplay;
     };
 
     ImageOpenController(ImageDocumentState& state, Callbacks callbacks);
@@ -72,11 +75,16 @@ public:
         const QUrl& containerUrl, const QString& errorString);
 
 private:
-    void beginSourceLoad(bool sameScopePageNavigation);
+    [[nodiscard]] quint64 beginOperation();
+    [[nodiscard]] bool operationIsCurrent(quint64 revision) const;
+    void cancelActiveLoad();
+    [[nodiscard]] bool applyAndReportIfCurrent(ImageOpenApplicationPlan plan, quint64 revision);
+    [[nodiscard]] bool beginSourceLoad(bool sameScopePageNavigation, quint64 revision);
     void finishSourcePrepared(const ImageLoadSession& session);
     void finishUnsupportedOpenedCollectionVideoLoad(const ImageLoadSession& session);
     void finishPlayableOpenedCollectionVideoLoad(const ImageLoadSession& session);
-    void finishPreparedViewportImageLoad(
+    void finishStartedViewportImageLoad(const ImageLoadSession& session);
+    void finishResolvedViewportImageLoad(
         const ImageLoadSession& session, std::optional<PredecodedImage> predecoded);
     void finishLoadWithError(const ImageLoadSession& session, ImageLoadFailure failure);
     void finishSuccessfulImageLoad(const ImageLoadSession& session, EmbeddedMetadata metadata);
@@ -86,6 +94,7 @@ private:
     Callbacks m_callbacks;
     std::unique_ptr<ImageLoader> m_imageLoader;
     std::optional<ImageDocumentSourceLoadRequest> m_sourceLoadRequest;
+    quint64 m_operationRevision = 0;
 };
 }
 

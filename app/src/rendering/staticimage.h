@@ -105,6 +105,8 @@ struct StaticDisplayImagePayload
     StaticImageSourceDetailModel sourceDetailModel = StaticImageSourceDetailModel::FiniteRaster;
 
     [[nodiscard]] bool isValid() const;
+    [[nodiscard]] bool isAuthoritative() const;
+    [[nodiscard]] bool isProvisionalPreview() const;
     [[nodiscard]] qsizetype byteCost() const;
     [[nodiscard]] std::optional<qsizetype> byteCostWithinBudget(qsizetype byteBudget) const;
 };

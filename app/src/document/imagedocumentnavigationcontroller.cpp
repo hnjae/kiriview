@@ -22,9 +22,27 @@ bool imageDocumentPageNavigationScopeActive(const kiriview::ImageDocumentState& 
         return false;
     }
 
-    return !state.sourceUrl().isEmpty()
-        && kiriview::openedCollectionScopeContainsUrl(
-            location.openedCollectionScope(), state.sourceUrl());
+    const kiriview::OpenedCollectionScopeLocation& selectedScope
+        = state.selectedOpenedCollectionScope();
+    return !state.sourceUrl().isEmpty() && !selectedScope.isEmpty()
+        && kiriview::sameOpenedCollectionScopeLocation(
+            location.openedCollectionScope(), selectedScope);
+}
+
+bool pageNavigationContextMatchesSelection(
+    const kiriview::ImageDocumentPageCandidateListContext& context,
+    const kiriview::ImageDocumentState& state, const QUrl& expectedCurrentUrl)
+{
+    const kiriview::OpenedCollectionScopeLocation contextScope = context.openedCollectionScope();
+    const kiriview::OpenedCollectionScopeLocation& selectedScope
+        = state.selectedOpenedCollectionScope();
+    if (contextScope.isEmpty() || selectedScope.isEmpty()
+        || !kiriview::sameOpenedCollectionScopeLocation(contextScope, selectedScope)) {
+        return false;
+    }
+
+    return kiriview::openedCollectionScopeContainsUrl(selectedScope, expectedCurrentUrl)
+        && kiriview::sameNormalizedUrl(context.currentUrl(), expectedCurrentUrl);
 }
 
 bool imageDocumentPageNavigationSurfaceActive(const kiriview::ImageDocumentState& state)
@@ -114,10 +132,13 @@ void ImageDocumentNavigationController::openImageAtPage(int pageNumber)
 {
     std::optional<ImageDocumentPageCandidateListContext> context
         = navigationCandidateContext(m_state);
+    QUrl expectedCurrentUrl = m_state.displayedUrl();
     if (!context.has_value()) {
         context = m_navigationService.selectedPageCandidateContext();
+        expectedCurrentUrl = m_state.sourceUrl();
     }
-    if (!context.has_value() || context->currentUrl() != m_state.sourceUrl()) {
+    if (!context.has_value()
+        || !pageNavigationContextMatchesSelection(*context, m_state, expectedCurrentUrl)) {
         m_navigationService.clearPageNavigation();
         return;
     }

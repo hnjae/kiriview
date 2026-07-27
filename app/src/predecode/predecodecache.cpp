@@ -205,8 +205,7 @@ void PredecodeCache::cacheImage(const QUrl& url,
     const OpenedCollectionScopeLocation& openedCollectionScope,
     StaticDisplayImagePayload displayImage, EmbeddedMetadata metadata)
 {
-    if (!displayImage.isValid() || displayImage.quality == DisplayImageQuality::ThumbnailPreview
-        || displayImage.previewOrigin != DisplayImagePreviewOrigin::None) {
+    if (!displayImage.isAuthoritative()) {
         qCDebug(kiriviewPredecodeLog) << "predecode cache store skipped"
                                       << "reason"
                                       << "non-authoritative-payload"

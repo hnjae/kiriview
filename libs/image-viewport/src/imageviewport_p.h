@@ -97,6 +97,7 @@ public:
     ImageViewportStateSnapshot applyEngineTransition(ViewportEngineTransition transition);
     ImageViewportStateSnapshot finalizeItemTransaction();
     void enqueueProviderHostEvent(ViewportProviderHostEvent event);
+    void enqueueDeferredProviderTransport(ViewportProviderTransportCommand command);
     void drainProviderHostEvents();
     void drainExternalWork();
     void viewportChanged();

@@ -277,7 +277,7 @@ struct BridgeFixture
         const auto opened = bridge.openSession(
             { factory, ImageSequenceProviderThreadingContract::AffinityBound, 17, 23,
                 &callbackTarget, [this](const ViewportProviderEvent& value) { event = value; } });
-        if (!opened.opened) {
+        if (!opened.isOpened()) {
             qFatal("provider cleanup fixture could not open its session");
         }
     }
@@ -400,7 +400,7 @@ void ViewportProviderBridgeCleanupTest::pendingSessionCleanupSurvivesBridgeDestr
     const auto opened
         = bridge->openSession({ factory, ImageSequenceProviderThreadingContract::AffinityBound, 17,
             23, &callbackTarget, [](const ViewportProviderEvent&) { } });
-    QVERIFY(opened.opened);
+    QVERIFY(opened.isOpened());
     QVERIFY(session);
 
     bridge->failNextSessionCloseDeliveriesForTest(3);
@@ -451,7 +451,7 @@ void ViewportProviderBridgeCleanupTest::scheduledCloseIsNotDuplicatedAfterBridge
     const auto opened
         = bridge->openSession({ factory, ImageSequenceProviderThreadingContract::AffinityBound, 31,
             47, &callbackTarget, [](const ViewportProviderEvent&) { } });
-    QVERIFY(opened.opened);
+    QVERIFY(opened.isOpened());
     QVERIFY(session);
     QVERIFY(bridge->closeSession({}, {}).delivered);
 
@@ -479,7 +479,7 @@ void ViewportProviderBridgeCleanupTest::completedSessionsDoNotAccumulateEventEnd
         const auto opened
             = bridge.openSession({ factory, ImageSequenceProviderThreadingContract::AffinityBound,
                 generation, generation, &callbackTarget, [](const ViewportProviderEvent&) { } });
-        QVERIFY(opened.opened);
+        QVERIFY(opened.isOpened());
         QVERIFY(session);
         QCOMPARE(bridge.retainedEventEndpointCountForTest(), qsizetype(1));
 
@@ -512,16 +512,16 @@ void ViewportProviderBridgeCleanupTest::stalledClosesBoundSessionAdmission()
             identity, identity, &callbackTarget, [](const ViewportProviderEvent&) { } });
     };
 
-    QVERIFY(open(1).opened);
+    QVERIFY(open(1).isOpened());
     QVERIFY(bridge.closeSession({}, {}).delivered);
-    QVERIFY(open(2).opened);
+    QVERIFY(open(2).isOpened());
     QVERIFY(bridge.closeSession({}, {}).delivered);
     QCOMPARE(factoryInvocationCount, 2);
     QCOMPARE(bridge.retainedEventEndpointCountForTest(), qsizetype(2));
 
     const auto rejected = open(3);
 
-    QVERIFY(!rejected.opened);
+    QVERIFY(rejected.isDeferred());
     QVERIFY(!rejected.providerFailureAvailable);
     QCOMPARE(rejected.providerFailureLeaseId, quint64(0));
     QCOMPARE(factoryInvocationCount, 2);
@@ -529,7 +529,7 @@ void ViewportProviderBridgeCleanupTest::stalledClosesBoundSessionAdmission()
 
     executor.completeNextClose();
     QVERIFY(!sessions[0]);
-    QVERIFY(open(4).opened);
+    QVERIFY(open(4).isOpened());
     QCOMPARE(factoryInvocationCount, 3);
     QCOMPARE(bridge.retainedEventEndpointCountForTest(), qsizetype(2));
     QVERIFY(bridge.closeSession({}, {}).delivered);
@@ -549,7 +549,7 @@ void ViewportProviderBridgeCleanupTest::queuedEndpointRemainsRevocableAfterSessi
     const auto opened = bridge->openSession(
         { factory, ImageSequenceProviderThreadingContract::AffinityBound, 17, 23, &callbackTarget,
             [&deliveryCount](const ViewportProviderEvent&) { ++deliveryCount; } });
-    QVERIFY(opened.opened);
+    QVERIFY(opened.isOpened());
     QVERIFY(session);
 
     Q_EMIT session->providerEvent(ImageSequenceProviderEvent::waiting({}));
@@ -581,7 +581,7 @@ void ViewportProviderBridgeCleanupTest::activeAdvisoryBurstIsCoalescedAheadOfTer
             23, &callbackTarget, [&deliveredEvents](const ViewportProviderEvent& event) {
                 deliveredEvents.append(event);
             } });
-    QVERIFY(opened.opened);
+    QVERIFY(opened.isOpened());
     QVERIFY(session);
 
     const auto token = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(1);
@@ -625,7 +625,7 @@ void ViewportProviderBridgeCleanupTest::
             23, &callbackTarget, [&deliveredEvents](const ViewportProviderEvent& event) {
                 deliveredEvents.append(event);
             } });
-    QVERIFY(opened.opened);
+    QVERIFY(opened.isOpened());
     QVERIFY(session);
 
     const auto retiredToken
@@ -670,7 +670,7 @@ void ViewportProviderBridgeCleanupTest::advisoryBurstDoesNotLoseFrameOwnership()
             23, &callbackTarget, [&deliveredEvents](const ViewportProviderEvent& event) {
                 deliveredEvents.append(event);
             } });
-    QVERIFY(opened.opened);
+    QVERIFY(opened.isOpened());
     QVERIFY(session);
 
     const auto token = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(1);
@@ -722,7 +722,7 @@ void ViewportProviderBridgeCleanupTest::nonAdvisoryBurstIsBackpressuredBeforeLea
                 bridge.reconcileLeases({});
                 bridge.drainCleanup();
             } });
-    QVERIFY(opened.opened);
+    QVERIFY(opened.isOpened());
     QVERIFY(session);
 
     const auto activeToken = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(1);
@@ -859,7 +859,7 @@ void ViewportProviderBridgeCleanupTest::
                     frameLeaseId = event.frameLeaseId;
                 }
             } });
-    QVERIFY(opened.opened);
+    QVERIFY(opened.isOpened());
     QVERIFY(session);
 
     QVERIFY(bridge.deliverRequest(ImageSequenceProviderRequest::metadata(metadataToken)).delivered);
@@ -941,7 +941,7 @@ void ViewportProviderBridgeCleanupTest::queuedFrameIngressOwnsHandleBeforeSessio
     ViewportProviderBridge bridge;
     const auto opened = bridge.openSession({ factory, threadingContract, 31, 47, &callbackTarget,
         [&](const ViewportProviderEvent& event) { deliveredEvent = event; } });
-    QVERIFY(opened.opened);
+    QVERIFY(opened.isOpened());
     QVERIFY(session);
     if (shutdownRetired) {
         bridge.releaseAllProviderLeases();

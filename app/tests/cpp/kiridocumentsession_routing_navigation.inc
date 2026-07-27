@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-void TestKiriDocumentSessionRouting::imageDocumentPageNavigationChangesEmitActiveNavigationWhenRelevant()
+void TestKiriDocumentSessionRouting::
+    imageDocumentPageNavigationChangesEmitActiveNavigationWhenRelevant()
 {
     FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
     kiriview::TestSupport::FakeImageDocumentPageCandidateProvider imageDocumentPageCandidates;
@@ -95,7 +96,7 @@ void TestKiriDocumentSessionRouting::activeNavigationNumberDispatchRoutesImageDo
     QTRY_VERIFY(leafSnapshotSpy.count() > snapshotCountBeforeNavigation);
     QTRY_COMPARE(dataLoader.backLoad().url, secondPage);
     QCOMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Loading);
-    QCOMPARE(session->imageDocument()->displayedUrl(), firstPage);
+    QCOMPARE(session->imageDocument()->displayedUrl(), QUrl());
     QCOMPARE(session->imageDocument()->displayedOpenedCollectionScope(), *archiveCollection);
     QVERIFY(session->activeImageOpenedCollectionScopeActive());
     QVERIFY(!session->activeImageReady());

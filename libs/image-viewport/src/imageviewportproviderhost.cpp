@@ -27,11 +27,12 @@ ViewportProviderCleanupResult mergedCleanupResult(
 }
 }
 
-ImageViewportProviderHost::ImageViewportProviderHost(
-    QObject& dispatchContext, EventSink eventSink, DiagnosticSink diagnosticSink)
+ImageViewportProviderHost::ImageViewportProviderHost(QObject& dispatchContext, EventSink eventSink,
+    DiagnosticSink diagnosticSink, DeferredTransportSink deferredTransportSink)
     : dispatchContext(dispatchContext)
     , eventSink(std::move(eventSink))
     , diagnosticSink(std::move(diagnosticSink))
+    , deferredTransportSink(std::move(deferredTransportSink))
     , secondaryProviderBridge(PageRole::Secondary)
 {
     cleanupRetryTimer.setSingleShot(true);
@@ -42,6 +43,8 @@ ImageViewportProviderHost::ImageViewportProviderHost(
 void ImageViewportProviderHost::shutdown()
 {
     cleanupRetryTimer.stop();
+    deferredPrimarySessionOpen.reset();
+    deferredSecondarySessionOpen.reset();
     recordCleanupResult(mergedCleanupResult(providerBridge.releaseAllProviderLeases(),
         secondaryProviderBridge.releaseAllProviderLeases()));
     recordTransportResult(providerBridge.closeSession({}, {}));
@@ -79,8 +82,11 @@ void ImageViewportProviderHost::reconcileProviderLeases(
 
 void ImageViewportProviderHost::drainCleanup()
 {
-    recordCleanupResult(mergedCleanupResult(
-        providerBridge.drainCleanup(false), secondaryProviderBridge.drainCleanup(false)));
+    const ViewportProviderCleanupResult result = mergedCleanupResult(
+        providerBridge.drainCleanup(false), secondaryProviderBridge.drainCleanup(false));
+    recordCleanupResult(result);
+    resumeDeferredSessionOpen(PageRole::Primary);
+    resumeDeferredSessionOpen(PageRole::Secondary);
 }
 
 void ImageViewportProviderHost::releaseAllProviderLeases()
@@ -94,32 +100,9 @@ void ImageViewportProviderHost::applyTransportEffects(const ViewportProviderTran
     for (const auto& effect : effects) {
         ViewportProviderBridge& bridge = bridgeForRole(effect.role);
         switch (effect.kind) {
-        case ViewportProviderTransportCommand::Kind::OpenSession: {
-            const auto openResult = bridge.openSession({ effect.sessionFactory,
-                effect.threadingContract, effect.generation, effect.sessionSerial, &dispatchContext,
-                [this](const ViewportProviderEvent& event) { handleProviderEvent(event); } });
-            if (!openResult.opened) {
-                ViewportProviderHostEvent event;
-                event.kind = ViewportProviderHostEvent::Kind::SessionOpenFailed;
-                event.role = effect.role;
-                event.providerFailureAvailable = openResult.providerFailureAvailable;
-                event.providerCause = openResult.providerCause;
-                event.providerReference = openResult.providerReference;
-                event.providerFailureLeaseId = openResult.providerFailureLeaseId;
-                event.generation = effect.generation;
-                event.sessionSerial = effect.sessionSerial;
-                applyHostEvent(event);
-                return;
-            } else {
-                ViewportProviderHostEvent event;
-                event.kind = ViewportProviderHostEvent::Kind::SessionOpened;
-                event.role = effect.role;
-                event.generation = effect.generation;
-                event.sessionSerial = effect.sessionSerial;
-                applyHostEvent(event);
-            }
+        case ViewportProviderTransportCommand::Kind::OpenSession:
+            openOrDeferSession(effect);
             break;
-        }
         case ViewportProviderTransportCommand::Kind::ActivateSession:
             recordTransportResult(bridge.activateSession(effect.generation, effect.sessionSerial));
             break;
@@ -133,6 +116,7 @@ void ImageViewportProviderHost::applyTransportEffects(const ViewportProviderTran
             break;
         }
         case ViewportProviderTransportCommand::Kind::CloseSession: {
+            revokeDeferredSessionOpen(effect.role, effect.generation, effect.sessionSerial);
             recordTransportResult(bridge.closeSession(effect.generation, effect.sessionSerial,
                 effect.sessionClose.metadataToken, effect.sessionClose.frameToken));
             if (bridge.hasPendingCleanup()) {
@@ -168,6 +152,80 @@ void ImageViewportProviderHost::applyHostEvent(const ViewportProviderHostEvent& 
 ViewportProviderBridge& ImageViewportProviderHost::bridgeForRole(PageRole role)
 {
     return role == PageRole::Secondary ? secondaryProviderBridge : providerBridge;
+}
+
+std::optional<ViewportProviderTransportCommand>&
+ImageViewportProviderHost::deferredSessionOpenForRole(PageRole role)
+{
+    return role == PageRole::Secondary ? deferredSecondarySessionOpen : deferredPrimarySessionOpen;
+}
+
+void ImageViewportProviderHost::openOrDeferSession(const ViewportProviderTransportCommand& command)
+{
+    std::optional<ViewportProviderTransportCommand>& deferred
+        = deferredSessionOpenForRole(command.role);
+    deferred.reset();
+    ViewportProviderBridge& bridge = bridgeForRole(command.role);
+    const ViewportProviderSessionOpenTransportResult result
+        = bridge.openSession({ command.sessionFactory, command.threadingContract,
+            command.generation, command.sessionSerial, &dispatchContext,
+            [this](const ViewportProviderEvent& event) { handleProviderEvent(event); } });
+    if (result.outcome == ViewportProviderSessionOpenTransportOutcome::Deferred) {
+        deferred = command;
+        if (bridge.hasPendingCleanup()) {
+            scheduleCleanupRetry(true);
+        }
+        return;
+    }
+    publishSessionOpenResult(command.role, command.generation, command.sessionSerial, result);
+}
+
+void ImageViewportProviderHost::resumeDeferredSessionOpen(PageRole role)
+{
+    std::optional<ViewportProviderTransportCommand>& deferred = deferredSessionOpenForRole(role);
+    if (!deferred.has_value() || !bridgeForRole(role).canAdmitSession()) {
+        return;
+    }
+
+    ViewportProviderTransportCommand command = std::move(*deferred);
+    deferred.reset();
+    if (deferredTransportSink) {
+        deferredTransportSink(std::move(command));
+    }
+}
+
+void ImageViewportProviderHost::revokeDeferredSessionOpen(
+    PageRole role, quint64 generation, quint64 sessionSerial)
+{
+    std::optional<ViewportProviderTransportCommand>& deferred = deferredSessionOpenForRole(role);
+    if (!deferred.has_value()) {
+        return;
+    }
+    if ((generation == 0 && sessionSerial == 0)
+        || (deferred->generation == generation && deferred->sessionSerial == sessionSerial)) {
+        deferred.reset();
+    }
+}
+
+void ImageViewportProviderHost::publishSessionOpenResult(PageRole role, quint64 generation,
+    quint64 sessionSerial, const ViewportProviderSessionOpenTransportResult& result)
+{
+    if (result.outcome == ViewportProviderSessionOpenTransportOutcome::Deferred) {
+        return;
+    }
+
+    ViewportProviderHostEvent event;
+    event.kind = result.outcome == ViewportProviderSessionOpenTransportOutcome::Opened
+        ? ViewportProviderHostEvent::Kind::SessionOpened
+        : ViewportProviderHostEvent::Kind::SessionOpenFailed;
+    event.role = role;
+    event.providerFailureAvailable = result.providerFailureAvailable;
+    event.providerCause = result.providerCause;
+    event.providerReference = result.providerReference;
+    event.providerFailureLeaseId = result.providerFailureLeaseId;
+    event.generation = generation;
+    event.sessionSerial = sessionSerial;
+    applyHostEvent(event);
 }
 
 void ImageViewportProviderHost::recordTransportResult(const ViewportProviderTransportResult& result)
@@ -214,8 +272,11 @@ void ImageViewportProviderHost::scheduleCleanupRetry(bool progress)
 
 void ImageViewportProviderHost::retryPendingCleanup()
 {
-    recordCleanupResult(mergedCleanupResult(
-        providerBridge.drainCleanup(true), secondaryProviderBridge.drainCleanup(true)));
+    const ViewportProviderCleanupResult result = mergedCleanupResult(
+        providerBridge.drainCleanup(true), secondaryProviderBridge.drainCleanup(true));
+    recordCleanupResult(result);
+    resumeDeferredSessionOpen(PageRole::Primary);
+    resumeDeferredSessionOpen(PageRole::Secondary);
 }
 
 bool ImageViewportProviderHost::scheduleDeferredEngineEvent(

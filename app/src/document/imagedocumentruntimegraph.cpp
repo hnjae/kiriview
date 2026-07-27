@@ -52,14 +52,6 @@ namespace {
         qCWarning(kiriviewNavigationLog).noquote() << message << error;
     }
 
-    struct PreparedViewportTargetState
-    {
-        ImageLoadSession session;
-        ImageDecodeDependencies dependencies;
-        std::optional<PredecodedImage> predecoded;
-        std::shared_ptr<ImageViewportDecodeProviderSource> source;
-    };
-
     std::optional<StaticDisplayImagePayload> authoritativeSeed(
         const std::optional<PredecodedImage>& predecoded)
     {
@@ -74,6 +66,41 @@ namespace {
         return seed;
     }
 }
+
+struct ImageDocumentRuntimeGraph::PreparedViewportTargetState
+{
+    ImageLoadSession selectedSession;
+    std::optional<ImageLoadSession> resolvedSession;
+    ImageDecodeDependencies dependencies;
+    std::optional<PredecodedImage> predecoded;
+    std::optional<ImageViewportProvisionalPreviewPolicy> provisionalPreviewPolicyOverride;
+    std::function<bool()> hasAuthoritativeDisplay;
+    std::function<std::optional<PredecodedImage>(const QUrl&)> findPredecodedImage;
+    std::weak_ptr<ImageViewportProviderResource> activeResource;
+    std::weak_ptr<ImageViewportDecodeProviderSource> activeSource;
+
+    [[nodiscard]] ImageViewportProvisionalPreviewPolicy provisionalPreviewPolicy() const
+    {
+        if (provisionalPreviewPolicyOverride.has_value()) {
+            return *provisionalPreviewPolicyOverride;
+        }
+        return hasAuthoritativeDisplay && hasAuthoritativeDisplay()
+            ? ImageViewportProvisionalPreviewPolicy::Suppress
+            : ImageViewportProvisionalPreviewPolicy::Allow;
+    }
+
+    void refreshPredecodedImage()
+    {
+        if (!resolvedSession.has_value() || !findPredecodedImage) {
+            return;
+        }
+        std::optional<PredecodedImage> candidate = findPredecodedImage(resolvedSession->imageUrl());
+        if (candidate.has_value() && candidate->location == resolvedSession->location()
+            && candidate->displayImage.isAuthoritative()) {
+            predecoded = std::move(candidate);
+        }
+    }
+};
 
 ImageDocumentRuntimeGraph::ImageDocumentRuntimeGraph(QObject* documentObject,
     ImageDocumentState& state, ImageDocumentRuntimeDependencyOverrides dependencies,
@@ -227,11 +254,12 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
                 ImageDocumentPageCandidateListSnapshotCallback callback) {
                 m_navigationService->ensurePageCandidateSnapshot(context, std::move(callback));
             },
+            [this](const ImageLoadSession& session) { return startViewportImageTarget(session); },
             [this](const ImageLoadSession& session, std::optional<PredecodedImage> predecoded) {
-                return prepareViewportImageTarget(session, std::move(predecoded));
+                return resolveViewportImageTarget(session, std::move(predecoded));
             },
             [this]() { return firstDisplayDecodeContext(); },
-            [this]() { return !m_viewportIntegration->projection().displayedUrl.isEmpty(); },
+            [this]() { return m_viewportIntegration->hasAuthoritativeDisplay(); },
         });
     m_navigationController
         = std::make_unique<ImageDocumentNavigationController>(state, *m_navigationService,
@@ -315,17 +343,19 @@ void ImageDocumentRuntimeGraph::requestNextViewportTargetAnchorAtEnd()
     m_nextViewportTargetAnchorAtEnd = true;
 }
 
-bool ImageDocumentRuntimeGraph::prepareViewportImageTarget(
-    const ImageLoadSession& session, std::optional<PredecodedImage> predecoded)
+bool ImageDocumentRuntimeGraph::startViewportImageTarget(const ImageLoadSession& session)
 {
     auto prepared = std::make_shared<PreparedViewportTargetState>();
-    prepared->session = session;
+    prepared->selectedSession = session;
     prepared->dependencies = m_imageDecodeDependencies;
-    prepared->predecoded = std::move(predecoded);
+    prepared->hasAuthoritativeDisplay
+        = [this]() { return m_viewportIntegration->hasAuthoritativeDisplay(); };
+    prepared->findPredecodedImage
+        = [this](const QUrl& url) { return m_predecodedImageLookup->find(url); };
 
     ImageViewportIntegrationTarget target;
     target.sourceGeneration = session.id();
-    target.primaryUrl = session.imageUrl();
+    target.selectedSourceUrl = session.request().sourceUrl();
     target.transitionIntent = session.request().sameScopePageNavigation()
         ? ImageViewportTargetTransitionIntent::SameNavigationScope
         : ImageViewportTargetTransitionIntent::OutsideNavigationScope;
@@ -333,27 +363,93 @@ bool ImageDocumentRuntimeGraph::prepareViewportImageTarget(
     target.anchorAtEnd = std::exchange(m_nextViewportTargetAnchorAtEnd, false);
     const std::shared_ptr<DisplayImageStore> displayStore = m_viewportDisplayStore;
     target.primaryResource = [prepared, displayStore]() {
+        prepared->refreshPredecodedImage();
         auto source = std::make_shared<ImageViewportDecodeProviderSource>(
-            prepared->session, prepared->dependencies, authoritativeSeed(prepared->predecoded));
-        prepared->source = source;
-        return std::make_shared<ImageViewportProviderResource>(prepared->session.id(),
-            displayScopeIdentityForLocation(prepared->session.location()), std::move(source),
-            displayStore, std::make_shared<ImageViewportFailureRegistry>());
+            prepared->dependencies, prepared->provisionalPreviewPolicy());
+        auto resource
+            = std::make_shared<ImageViewportProviderResource>(prepared->selectedSession.id(),
+                displayScopeIdentityForLocation(prepared->selectedSession.location()), source,
+                displayStore, std::make_shared<ImageViewportFailureRegistry>());
+        prepared->activeResource = resource;
+        prepared->activeSource = source;
+        if (prepared->resolvedSession.has_value()) {
+            if (!resource->bindDisplayLocationIdentity(
+                    displayScopeIdentityForLocation(prepared->resolvedSession->location()))
+                || !source->resolveSession(
+                    *prepared->resolvedSession, authoritativeSeed(prepared->predecoded))) {
+                resource->close();
+                return std::shared_ptr<ImageViewportProviderResource> {};
+            }
+        }
+        return resource;
     };
 
+    m_pendingViewportImageLoad.reset();
+    m_preparedViewportTarget = prepared;
+    m_viewportTarget = std::make_unique<ImageViewportIntegrationTarget>(target);
+    m_viewportSecondaryLoadSession.reset();
+    if (m_viewportIntegration->submitTarget(std::move(target))) {
+        return true;
+    }
+    m_preparedViewportTarget.reset();
+    m_viewportTarget.reset();
+    return false;
+}
+
+bool ImageDocumentRuntimeGraph::resolveViewportImageTarget(
+    const ImageLoadSession& session, std::optional<PredecodedImage> predecoded)
+{
+    const std::shared_ptr<PreparedViewportTargetState> prepared = m_preparedViewportTarget;
+    if (prepared == nullptr || prepared->resolvedSession.has_value()
+        || !prepared->selectedSession.sameSession(session) || m_viewportTarget == nullptr
+        || m_viewportTarget->sourceGeneration != session.id()) {
+        return false;
+    }
+    if (!m_viewportIntegration->resolvePrimaryTargetUrl(session.id(), session.imageUrl())) {
+        return false;
+    }
+    if (m_preparedViewportTarget != prepared || prepared->resolvedSession.has_value()
+        || m_viewportTarget == nullptr || m_viewportTarget->sourceGeneration != session.id()) {
+        return false;
+    }
+
+    m_viewportTarget->resolvedPrimaryUrl = session.imageUrl();
+    prepared->resolvedSession = session;
+    prepared->predecoded = std::move(predecoded);
     m_pendingViewportImageLoad = PendingViewportImageLoad {
         session,
         [prepared]() {
-            if (prepared->source != nullptr) {
-                return prepared->source->embeddedMetadata();
+            if (const std::shared_ptr<ImageViewportDecodeProviderSource> source
+                = prepared->activeSource.lock()) {
+                return source->embeddedMetadata();
             }
             return prepared->predecoded.has_value() ? prepared->predecoded->embeddedMetadata
                                                     : EmbeddedMetadata {};
         },
     };
-    m_viewportTarget = std::make_unique<ImageViewportIntegrationTarget>(target);
-    m_viewportSecondaryLoadSession.reset();
-    return m_viewportIntegration->submitTarget(std::move(target));
+
+    const ImageViewportIntegrationProjection& projection = m_viewportIntegration->projection();
+    if (!projection.correlated) {
+        return true;
+    }
+    if (projection.sourceGeneration != session.id()) {
+        return false;
+    }
+
+    const std::shared_ptr<ImageViewportProviderResource> resource = prepared->activeResource.lock();
+    const std::shared_ptr<ImageViewportDecodeProviderSource> source = prepared->activeSource.lock();
+    if (resource == nullptr || source == nullptr) {
+        return false;
+    }
+    if (!resource->bindDisplayLocationIdentity(
+            displayScopeIdentityForLocation(session.location()))) {
+        return false;
+    }
+    if (!source->resolveSession(session, authoritativeSeed(prepared->predecoded))) {
+        return m_preparedViewportTarget != prepared || m_viewportTarget == nullptr
+            || m_viewportTarget->sourceGeneration != session.id();
+    }
+    return true;
 }
 
 void ImageDocumentRuntimeGraph::prepareViewportSecondaryImageTarget(
@@ -365,21 +461,39 @@ void ImageDocumentRuntimeGraph::prepareViewportSecondaryImageTarget(
     }
 
     auto prepared = std::make_shared<PreparedViewportTargetState>();
-    prepared->session = session;
+    prepared->selectedSession = session;
+    prepared->resolvedSession = session;
     prepared->dependencies = m_imageDecodeDependencies;
     prepared->predecoded = std::move(predecoded);
+    prepared->provisionalPreviewPolicyOverride = ImageViewportProvisionalPreviewPolicy::Suppress;
+    prepared->hasAuthoritativeDisplay
+        = [this]() { return m_viewportIntegration->hasAuthoritativeDisplay(); };
+    prepared->findPredecodedImage
+        = [this](const QUrl& url) { return m_predecodedImageLookup->find(url); };
+    if (m_preparedViewportTarget != nullptr) {
+        m_preparedViewportTarget->provisionalPreviewPolicyOverride
+            = ImageViewportProvisionalPreviewPolicy::Suppress;
+    }
     const std::shared_ptr<DisplayImageStore> displayStore = m_viewportDisplayStore;
 
     ImageViewportIntegrationTarget target = *m_viewportTarget;
     target.secondaryUrl = session.imageUrl();
     target.transitionIntent = ImageViewportTargetTransitionIntent::PresentationShapeChange;
     target.secondaryResource = [prepared, displayStore]() {
+        prepared->refreshPredecodedImage();
         auto source = std::make_shared<ImageViewportDecodeProviderSource>(
-            prepared->session, prepared->dependencies, authoritativeSeed(prepared->predecoded));
-        prepared->source = source;
-        return std::make_shared<ImageViewportProviderResource>(prepared->session.id(),
-            displayScopeIdentityForLocation(prepared->session.location()), std::move(source),
-            displayStore, std::make_shared<ImageViewportFailureRegistry>());
+            prepared->dependencies, prepared->provisionalPreviewPolicy());
+        prepared->activeSource = source;
+        auto resource
+            = std::make_shared<ImageViewportProviderResource>(prepared->resolvedSession->id(),
+                displayScopeIdentityForLocation(prepared->resolvedSession->location()), source,
+                displayStore, std::make_shared<ImageViewportFailureRegistry>());
+        if (!source->resolveSession(
+                *prepared->resolvedSession, authoritativeSeed(prepared->predecoded))) {
+            resource->close();
+            return std::shared_ptr<ImageViewportProviderResource> {};
+        }
+        return resource;
     };
     m_viewportSecondaryLoadSession = session;
     m_viewportTarget = std::make_unique<ImageViewportIntegrationTarget>(target);
@@ -396,6 +510,10 @@ void ImageDocumentRuntimeGraph::clearViewportSecondaryImageTarget()
         return;
     }
 
+    if (m_preparedViewportTarget != nullptr) {
+        m_preparedViewportTarget->provisionalPreviewPolicyOverride
+            = ImageViewportProvisionalPreviewPolicy::Suppress;
+    }
     ImageViewportIntegrationTarget target = *m_viewportTarget;
     target.secondaryUrl = QUrl();
     target.secondaryResource = {};
@@ -407,6 +525,7 @@ void ImageDocumentRuntimeGraph::clearViewportSecondaryImageTarget()
 
 void ImageDocumentRuntimeGraph::clearViewportTarget()
 {
+    m_preparedViewportTarget.reset();
     m_pendingViewportImageLoad.reset();
     m_viewportSecondaryLoadSession.reset();
     m_viewportTarget.reset();

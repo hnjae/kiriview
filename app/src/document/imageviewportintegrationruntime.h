@@ -32,7 +32,8 @@ using ImageViewportProviderResourceFactory
 struct ImageViewportIntegrationTarget
 {
     quint64 sourceGeneration = 0;
-    QUrl primaryUrl;
+    QUrl selectedSourceUrl;
+    QUrl resolvedPrimaryUrl;
     QUrl secondaryUrl;
     ImageViewportTargetTransitionIntent transitionIntent
         = ImageViewportTargetTransitionIntent::OutsideNavigationScope;
@@ -93,8 +94,10 @@ public:
     void detach(ImageViewport* viewport);
 
     bool submitTarget(ImageViewportIntegrationTarget target);
+    bool resolvePrimaryTargetUrl(quint64 sourceGeneration, const QUrl& resolvedPrimaryUrl);
     void clearTarget();
     void stopPlayback();
+    [[nodiscard]] bool hasAuthoritativeDisplay() const;
     const ImageViewportIntegrationProjection& projection() const;
     std::optional<StaticDisplayImagePayload> displayedImage(ImageViewportPageRole role) const;
 

@@ -26,7 +26,8 @@ public:
     using FindPredecodedImageCallback = std::function<std::optional<PredecodedImage>(const QUrl&)>;
     using EnsurePageCandidateSnapshotCallback = std::function<void(
         ImageDocumentPageCandidateListContext, ImageDocumentPageCandidateListSnapshotCallback)>;
-    using PreparedImageCallback
+    using TargetStartedCallback = std::function<void(ImageLoadSession)>;
+    using ResolvedImageCallback
         = std::function<void(ImageLoadSession, std::optional<PredecodedImage>)>;
 
     struct Callbacks
@@ -36,7 +37,8 @@ public:
         FindPredecodedImageCallback findPredecodedImage;
         SourcePreparedCallback sourcePrepared;
         EnsurePageCandidateSnapshotCallback ensurePageCandidateSnapshot;
-        PreparedImageCallback preparedImage;
+        TargetStartedCallback targetStarted;
+        ResolvedImageCallback resolvedImage;
     };
 
     ImageLoader();
@@ -56,7 +58,8 @@ private:
     void finishOpenedCollectionCandidates(
         const ImageLoadSession& session, const std::vector<ImageDocumentPageCandidate>& candidates);
     bool tryReportUnsupportedOpenedCollectionVideo(const ImageLoadSession& session);
-    void prepareProviderImage(ImageLoadSession session);
+    bool startProviderTarget(const ImageLoadSession& session);
+    void resolveProviderImage(ImageLoadSession session);
     [[nodiscard]] std::optional<PredecodedImage> matchingPredecodedImage(
         const ImageLoadSession& session) const;
 

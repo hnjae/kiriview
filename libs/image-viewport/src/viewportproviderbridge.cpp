@@ -1287,6 +1287,12 @@ ViewportProviderTransportResult ViewportProviderBridge::activateSession(
     return {};
 }
 
+bool ViewportProviderBridge::canAdmitSession()
+{
+    pruneDestroyedSessions();
+    return sessions.size() < maximumRetainedProviderSessionCountPerRole;
+}
+
 ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
     const ViewportProviderSessionOpenInput& input)
 {
@@ -1327,12 +1333,14 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
     pruneDestroyedSessions();
     logRetainedSessions("provider session open after prune");
     if (sessions.size() >= maximumRetainedProviderSessionCountPerRole) {
-        qCWarning(imageViewportProviderLog)
-            << "provider session capacity rejected"
+        qCDebug(imageViewportProviderLog)
+            << "provider session admission deferred"
             << "role" << static_cast<int>(role) << "generation" << input.generation
             << "sessionSerial" << input.sessionSerial << "retainedSessions" << sessions.size()
             << "limit" << maximumRetainedProviderSessionCountPerRole;
-        return {};
+        ViewportProviderSessionOpenTransportResult result;
+        result.outcome = ViewportProviderSessionOpenTransportOutcome::Deferred;
+        return result;
     }
 
     const ImageSequenceProviderSessionFactoryResult factoryResult = (*input.factory)();
@@ -1348,10 +1356,14 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
         const bool admitted
             = factoryResult.outcome() == ImageSequenceProviderSessionFactoryOutcome::Failed
             && !session && failure.isValid();
-        return { false, admitted,
-            admitted ? failure.cause() : ImageSequenceProviderFailureCause::Unavailable,
-            admitted && handle ? handle->reference() : ImageSequenceProviderFailureReference {},
-            leaseId };
+        ViewportProviderSessionOpenTransportResult result;
+        result.providerFailureAvailable = admitted;
+        result.providerCause
+            = admitted ? failure.cause() : ImageSequenceProviderFailureCause::Unavailable;
+        result.providerReference
+            = admitted && handle ? handle->reference() : ImageSequenceProviderFailureReference {};
+        result.providerFailureLeaseId = leaseId;
+        return result;
     }
     if (!claimProviderSession(session)) {
         return {};
@@ -1457,7 +1469,9 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
         },
         Qt::DirectConnection);
 
-    return { true };
+    ViewportProviderSessionOpenTransportResult result;
+    result.outcome = ViewportProviderSessionOpenTransportOutcome::Opened;
+    return result;
 }
 
 ViewportProviderTransportResult ViewportProviderBridge::deliverRequest(

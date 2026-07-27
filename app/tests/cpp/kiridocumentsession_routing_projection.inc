@@ -85,7 +85,8 @@ void TestKiriDocumentSessionRouting::freshDirectImageReadoutUsesRequestedCursorB
     QCOMPARE(session->activeNavigationCount(), 2);
 }
 
-void TestKiriDocumentSessionRouting::directImageDocumentPageCandidateCompletionSurvivesCursorConfirmation()
+void TestKiriDocumentSessionRouting::
+    directImageDocumentPageCandidateCompletionSurvivesCursorConfirmation()
 {
     ManualDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
     kiriview::TestSupport::ManualImageDataLoader imageDataLoader;
@@ -149,7 +150,7 @@ void TestKiriDocumentSessionRouting::directImageReplacementFailureKeepsTargetMed
     session->setSourceUrl(secondImage);
 
     QCOMPARE(imageDataLoader.loadCount(), std::size_t(2));
-    QCOMPARE(session->imageDocument()->displayedUrl(), firstImage);
+    QCOMPARE(session->imageDocument()->displayedUrl(), QUrl());
     QCOMPARE(session->sourceUrl(), secondImage);
     QCOMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Loading);
     QCOMPARE(session->windowTitleSubject(), QStringLiteral("02.png"));

@@ -113,6 +113,7 @@ class TestImageDocumentNavigationController : public QObject
 
 private Q_SLOTS:
     void updatePageNavigationUsesOpenedCollectionContext();
+    void collectionSourceIdentityKeepsDisplayedPageNavigation();
     void updatePageNavigationIgnoresOrdinaryDirectImage();
     void updatePageNavigationRequiresPresentedImage();
     void stalePageNavigationCannotDispatchForOrdinaryDirectImage();
@@ -142,6 +143,42 @@ void TestImageDocumentNavigationController::updatePageNavigationUsesOpenedCollec
 
     QCOMPARE(fixture.controller.currentPageNumber(), 1);
     QCOMPARE(fixture.controller.pageCount(), 2);
+}
+
+void TestImageDocumentNavigationController::collectionSourceIdentityKeepsDisplayedPageNavigation()
+{
+    DocumentNavigationFixture fixture;
+    const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
+    const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
+    QVERIFY(archiveCollection.has_value());
+    const QUrl firstUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png"));
+    const QUrl secondUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("02.png"));
+    fixture.candidateProvider.setOpenedCollectionCandidates(archiveCollection->rootUrl(),
+        {
+            imageDocumentPageCandidate(firstUrl),
+            imageDocumentPageCandidate(secondUrl),
+        });
+    fixture.state.setSelectedTarget(
+        kiriview::ImageDocumentSelectedTarget { archiveUrl, {}, *archiveCollection });
+    fixture.state.setDisplayedImageLocation(
+        kiriview::DisplayedImageLocation::fromOpenedCollectionScope(firstUrl, *archiveCollection));
+    fixture.state.setStatus(kiriview::ImageDocumentStatus::Ready);
+    fixture.spread.commitPrimaryPageSlot(fixture.state.displayedImageLocation(), QSize(800, 1200));
+
+    fixture.controller.updatePageNavigation();
+
+    QCOMPARE(fixture.controller.currentPageNumber(), 1);
+    QCOMPARE(fixture.controller.pageCount(), 2);
+
+    fixture.controller.openImageAtPage(2);
+
+    QCOMPARE(fixture.runtimePlans.size(), std::size_t(1));
+    const auto* operation
+        = findOperation<kiriview::LoadPageNavigationUrlOperation>(fixture.runtimePlans.front());
+    QVERIFY(operation != nullptr);
+    QCOMPARE(operation->target.url, secondUrl);
 }
 
 void TestImageDocumentNavigationController::updatePageNavigationIgnoresOrdinaryDirectImage()

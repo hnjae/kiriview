@@ -23,9 +23,18 @@
 namespace kiriview {
 class ImageViewportDecodeProviderSourceTestAccess;
 
+enum class ImageViewportProvisionalPreviewPolicy {
+    Allow,
+    Suppress,
+};
+
 class ImageViewportDecodeProviderSource final : public QObject, public ImageViewportProviderSource
 {
 public:
+    explicit ImageViewportDecodeProviderSource(ImageDecodeDependencies dependencies,
+        ImageViewportProvisionalPreviewPolicy provisionalPreviewPolicy
+        = ImageViewportProvisionalPreviewPolicy::Allow,
+        TimerScheduler initialDetailTimerScheduler = {});
     ImageViewportDecodeProviderSource(ImageLoadSession session,
         ImageDecodeDependencies dependencies,
         std::optional<StaticDisplayImagePayload> authoritativeSeed = std::nullopt,
@@ -41,6 +50,8 @@ public:
         ImageViewportProviderFrameRequest request, FrameCompletion completion) override;
     void cancel(const QVector<ImageSequenceProviderRequestToken>& tokens) override;
     void close() override;
+    bool resolveSession(ImageLoadSession session,
+        std::optional<StaticDisplayImagePayload> authoritativeSeed = std::nullopt);
 
 private:
     friend class ImageViewportDecodeProviderSourceTestAccess;
@@ -142,9 +153,12 @@ private:
         std::optional<ImageViewportProviderWorkIdentity> identity = std::nullopt);
     void attachWorkerTask(quint64 workerUnitId, ImageWorkerTask task);
     [[nodiscard]] bool detachWorkerUnit(quint64 workerUnitId);
+    [[nodiscard]] const ImageLoadSession& resolvedSession() const;
 
-    ImageLoadSession m_session;
+    std::optional<ImageLoadSession> m_session;
     ImageDecodeDependencies m_dependencies;
+    ImageViewportProvisionalPreviewPolicy m_provisionalPreviewPolicy
+        = ImageViewportProvisionalPreviewPolicy::Allow;
     TimerScheduler m_initialDetailTimerScheduler;
     ImageDecodeJob m_decodeJob;
     EmbeddedMetadata m_embeddedMetadata;

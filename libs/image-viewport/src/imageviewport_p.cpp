@@ -13,6 +13,9 @@ ImageViewportPrivate::ImageViewportPrivate(ImageViewport* viewport)
           [this](ViewportProviderHostEvent event) { enqueueProviderHostEvent(std::move(event)); },
           [this](ImageViewportInternal::ProviderTransportDiagnostic diagnostic) {
               internalObservability.recordProviderCleanupFailure(diagnostic);
+          },
+          [this](ViewportProviderTransportCommand command) {
+              enqueueDeferredProviderTransport(std::move(command));
           })
 {
     for (const auto role : { PageRole::Primary, PageRole::Secondary }) {

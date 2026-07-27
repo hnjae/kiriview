@@ -51,14 +51,19 @@ void ImageLoader::start(
 
     ImageLoadPlan plan = m_sessionTracker.start(std::move(request), firstDisplayContext);
     ImageLoadSession session = std::move(plan.session);
+    if (plan.startEffect != ImageLoadStartEffect::LoadOpenedCollectionScopeCandidates
+        && tryReportUnsupportedOpenedCollectionVideo(session)) {
+        return;
+    }
+    if (!startProviderTarget(session) || !m_sessionTracker.isCurrent(session)) {
+        return;
+    }
     if (plan.startEffect == ImageLoadStartEffect::LoadOpenedCollectionScopeCandidates) {
         startOpenedCollectionLoad(session);
         return;
     }
 
-    if (!tryReportUnsupportedOpenedCollectionVideo(session)) {
-        prepareProviderImage(std::move(session));
-    }
+    resolveProviderImage(std::move(session));
 }
 
 void ImageLoader::cancel() { m_sessionTracker.cancel(); }
@@ -159,7 +164,7 @@ void ImageLoader::finishOpenedCollectionCandidates(
     }
 
     invokeIfSet(m_callbacks.sourcePrepared, completion.session);
-    prepareProviderImage(std::move(completion.session));
+    resolveProviderImage(std::move(completion.session));
 }
 
 bool ImageLoader::tryReportUnsupportedOpenedCollectionVideo(const ImageLoadSession& session)
@@ -177,23 +182,44 @@ bool ImageLoader::tryReportUnsupportedOpenedCollectionVideo(const ImageLoadSessi
     return true;
 }
 
-void ImageLoader::prepareProviderImage(ImageLoadSession session)
+bool ImageLoader::startProviderTarget(const ImageLoadSession& session)
 {
     if (!m_sessionTracker.isCurrent(session)) {
-        return;
+        return false;
     }
-    if (!m_callbacks.preparedImage) {
+    if (!m_callbacks.targetStarted) {
         std::optional<ImageLoadSession> currentSession = m_sessionTracker.claimCurrent(session);
         if (currentSession.has_value()) {
             invokeIfSet(m_callbacks.error, *currentSession,
                 imageLoadFailure(*currentSession, ImageLoadFailureKind::Presentation, {},
                     QStringLiteral("viewport provider target owner is unavailable")));
         }
-        return;
+        return false;
     }
 
+    invokeIfSet(m_callbacks.targetStarted, session);
+    return m_sessionTracker.isCurrent(session);
+}
+
+void ImageLoader::resolveProviderImage(ImageLoadSession session)
+{
+    if (!m_sessionTracker.isCurrent(session)) {
+        return;
+    }
+    if (!m_callbacks.resolvedImage) {
+        std::optional<ImageLoadSession> currentSession = m_sessionTracker.claimCurrent(session);
+        if (currentSession.has_value()) {
+            invokeIfSet(m_callbacks.error, *currentSession,
+                imageLoadFailure(*currentSession, ImageLoadFailureKind::Presentation, {},
+                    QStringLiteral("viewport provider target resolver is unavailable")));
+        }
+        return;
+    }
     std::optional<PredecodedImage> predecoded = matchingPredecodedImage(session);
-    invokeIfSet(m_callbacks.preparedImage, std::move(session), std::move(predecoded));
+    if (!m_sessionTracker.isCurrent(session)) {
+        return;
+    }
+    invokeIfSet(m_callbacks.resolvedImage, std::move(session), std::move(predecoded));
 }
 
 std::optional<PredecodedImage> ImageLoader::matchingPredecodedImage(

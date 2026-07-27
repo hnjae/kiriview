@@ -169,6 +169,7 @@ ImageViewportProviderResource::ImageViewportProviderResource(quint64 sourceGener
     std::shared_ptr<ImageViewportFailureRegistry> failureRegistry)
     : m_sourceGeneration(sourceGeneration)
     , m_locationIdentity(std::move(locationIdentity))
+    , m_displayLocationIdentity(m_locationIdentity)
     , m_source(std::move(source))
     , m_displayStore(std::move(displayStore))
     , m_failureRegistry(failureRegistry == nullptr
@@ -179,6 +180,21 @@ ImageViewportProviderResource::ImageViewportProviderResource(quint64 sourceGener
 }
 
 ImageViewportProviderResource::~ImageViewportProviderResource() = default;
+
+bool ImageViewportProviderResource::bindDisplayLocationIdentity(QString locationIdentity)
+{
+    if (locationIdentity.isEmpty()) {
+        return false;
+    }
+
+    const QMutexLocker lock(&m_stateMutex);
+    if (m_closed || m_displayLocationIdentityBound || m_payloadPreparationStarted) {
+        return false;
+    }
+    m_displayLocationIdentity = std::move(locationIdentity);
+    m_displayLocationIdentityBound = true;
+    return true;
+}
 
 ImageSequenceProviderMetadata ImageViewportProviderResource::constructionMetadata() const
 {
@@ -475,6 +491,7 @@ bool ImageViewportProviderResource::finalizePreparedFrame(
 ImageViewportProviderPreparedFrame ImageViewportProviderResource::prepareFrame(
     const ImageViewportProviderWorkIdentity& identity, ImageViewportProviderFrameResult result)
 {
+    const QString displayLocationIdentity = displayLocationIdentityForPayloadPreparation();
     ImageViewportProviderPreparedFrame prepared;
     prepared.stage = result.stage;
     prepared.envelope = result.envelope;
@@ -496,7 +513,7 @@ ImageViewportProviderPreparedFrame ImageViewportProviderResource::prepareFrame(
 
     const StaticDisplayImagePayload& displayImage = *result.displayImage;
     const DisplayImageReuseKey reuseKey {
-        m_locationIdentity,
+        displayLocationIdentity,
         displayImage.sourceIdentity,
         displayImage.imageReaderTransform.transformations,
         displayImage.originalSize,
@@ -522,5 +539,12 @@ ImageViewportProviderPreparedFrame ImageViewportProviderResource::prepareFrame(
         prepared.authoritativeStillDisplayImage = displayImage;
     }
     return prepared;
+}
+
+QString ImageViewportProviderResource::displayLocationIdentityForPayloadPreparation()
+{
+    const QMutexLocker lock(&m_stateMutex);
+    m_payloadPreparationStarted = true;
+    return m_displayLocationIdentity;
 }
 }

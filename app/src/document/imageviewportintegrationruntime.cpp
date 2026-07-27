@@ -77,6 +77,8 @@ PresentationTargetTransitionPolicy transitionPolicy(
             PresentationTargetTransitionPolicy::ZoomTransition::ResetToContain);
         return policy;
     case kiriview::ImageViewportTargetTransitionIntent::PresentationShapeChange:
+        policy.setDisplayTransition(
+            PresentationTargetTransitionPolicy::DisplayTransition::ClearBeforeLoad);
         policy.setZoomTransition(PresentationTargetTransitionPolicy::ZoomTransition::Preserve);
         policy.setContentPositionTransition(
             PresentationTargetTransitionPolicy::ContentPositionTransition::Clamp);
@@ -120,7 +122,7 @@ struct ImageViewportIntegrationRuntime::TargetRecord
 
 bool ImageViewportIntegrationTarget::isValid() const
 {
-    return sourceGeneration != 0 && !primaryUrl.isEmpty() && bool(primaryResource)
+    return sourceGeneration != 0 && !selectedSourceUrl.isEmpty() && bool(primaryResource)
         && (secondaryUrl.isEmpty() == !bool(secondaryResource));
 }
 
@@ -138,6 +140,7 @@ ImageViewportIntegrationRuntime::~ImageViewportIntegrationRuntime()
         m_viewport = nullptr;
         m_activeRecord = nullptr;
         viewport->clear();
+        m_records.clear();
     }
 }
 
@@ -160,6 +163,7 @@ void ImageViewportIntegrationRuntime::attach(ImageViewport* viewport)
         QObject::disconnect(m_stateConnection);
         m_viewport = nullptr;
         m_activeRecord = nullptr;
+        m_records.clear();
         ImageViewportIntegrationProjection projection = m_projection;
         projection.correlated = false;
         publishProjection(std::move(projection));
@@ -188,6 +192,26 @@ bool ImageViewportIntegrationRuntime::submitTarget(ImageViewportIntegrationTarge
     return m_viewport == nullptr || submitCurrentTarget();
 }
 
+bool ImageViewportIntegrationRuntime::resolvePrimaryTargetUrl(
+    quint64 sourceGeneration, const QUrl& resolvedPrimaryUrl)
+{
+    if (sourceGeneration == 0 || resolvedPrimaryUrl.isEmpty() || !m_target.has_value()
+        || m_target->sourceGeneration != sourceGeneration
+        || !m_target->resolvedPrimaryUrl.isEmpty()) {
+        return false;
+    }
+    if (m_activeRecord != nullptr && m_activeRecord->target.sourceGeneration != sourceGeneration) {
+        return false;
+    }
+
+    m_target->resolvedPrimaryUrl = resolvedPrimaryUrl;
+    if (m_activeRecord != nullptr) {
+        m_activeRecord->target.resolvedPrimaryUrl = resolvedPrimaryUrl;
+    }
+    handleStateChanged();
+    return true;
+}
+
 void ImageViewportIntegrationRuntime::clearTarget()
 {
     m_target.reset();
@@ -195,6 +219,7 @@ void ImageViewportIntegrationRuntime::clearTarget()
     if (m_viewport != nullptr) {
         m_viewport->clear();
     }
+    m_records.clear();
     publishProjection({});
 }
 
@@ -210,6 +235,23 @@ void ImageViewportIntegrationRuntime::stopPlayback()
 const ImageViewportIntegrationProjection& ImageViewportIntegrationRuntime::projection() const
 {
     return m_projection;
+}
+
+bool ImageViewportIntegrationRuntime::hasAuthoritativeDisplay() const
+{
+    if (m_viewport == nullptr) {
+        return false;
+    }
+    const ImageViewportStateSnapshot snapshot = m_viewport->state();
+    const ImageViewportRoleSet displayedRoles = snapshot.display().displayedRoleSet();
+    if (!displayedRoles.primary() && !displayedRoles.secondary()) {
+        return false;
+    }
+    if (snapshot.display().phase() == ImageViewportDisplayPhase::PreviousActive) {
+        return true;
+    }
+    return snapshot.display().phase() == ImageViewportDisplayPhase::CommittedActive
+        && snapshot.request().status() == ImageViewportRequestStatus::Ready;
 }
 
 std::optional<StaticDisplayImagePayload> ImageViewportIntegrationRuntime::displayedImage(
@@ -292,6 +334,7 @@ bool ImageViewportIntegrationRuntime::submitCurrentTarget()
         presentationTarget, transitionPolicy(installed->target));
     if (!accepted(result)) {
         m_activeRecord = nullptr;
+        m_records.pop_back();
         return false;
     }
     acceptSnapshot(m_viewport->state());
@@ -305,6 +348,7 @@ void ImageViewportIntegrationRuntime::invalidateAttachment(ImageViewport* viewpo
     m_viewport = nullptr;
     m_activeRecord = nullptr;
     viewport->clear();
+    m_records.clear();
     ImageViewportIntegrationProjection projection = m_projection;
     projection.correlated = false;
     publishProjection(std::move(projection));
@@ -380,8 +424,10 @@ void ImageViewportIntegrationRuntime::acceptSnapshot(const ImageViewportStateSna
     TargetRecord* displayed
         = recordForGeneration(snapshot.display().displayedPresentationTargetGeneration());
     if (displayed != nullptr) {
-        projection.displayedUrl = displayed->target.primaryUrl;
         if (snapshot.request().status() == ImageViewportRequestStatus::Ready) {
+            if (displayed == m_activeRecord && !displayed->target.resolvedPrimaryUrl.isEmpty()) {
+                projection.displayedUrl = displayed->target.resolvedPrimaryUrl;
+            }
             const ImageViewportRoleSet displayedRoles = snapshot.display().displayedRoleSet();
             if (displayedRoles.primary() && displayed->primaryResource != nullptr) {
                 displayed->primaryResource->acceptDisplayedStillDisplayImage(

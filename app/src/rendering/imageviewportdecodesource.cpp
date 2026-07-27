@@ -170,14 +170,12 @@ bool containsToken(const QVector<ImageSequenceProviderRequestToken>& tokens,
 
 bool isAuthoritativeStaticPayload(const kiriview::StaticDisplayImagePayload& payload)
 {
-    return payload.isValid() && payload.quality != kiriview::DisplayImageQuality::ThumbnailPreview
-        && payload.previewOrigin == kiriview::DisplayImagePreviewOrigin::None;
+    return payload.isAuthoritative();
 }
 
 bool isProvisionalPreviewPayload(const kiriview::StaticDisplayImagePayload& payload)
 {
-    return payload.isValid() && payload.quality == kiriview::DisplayImageQuality::ThumbnailPreview
-        && payload.previewOrigin != kiriview::DisplayImagePreviewOrigin::None;
+    return payload.isProvisionalPreview();
 }
 
 bool isReusableAuthoritativeUpgrade(const kiriview::StaticDisplayImagePayload& candidate,
@@ -453,12 +451,12 @@ kiriview::StaticDisplayImagePayload classifiedFirstDisplayPayload(
 }
 
 namespace kiriview {
-ImageViewportDecodeProviderSource::ImageViewportDecodeProviderSource(ImageLoadSession session,
+ImageViewportDecodeProviderSource::ImageViewportDecodeProviderSource(
     ImageDecodeDependencies dependencies,
-    std::optional<StaticDisplayImagePayload> authoritativeSeed,
+    ImageViewportProvisionalPreviewPolicy provisionalPreviewPolicy,
     TimerScheduler initialDetailTimerScheduler)
-    : m_session(std::move(session))
-    , m_dependencies(imageDecodeDependenciesWithDefaults(std::move(dependencies)))
+    : m_dependencies(imageDecodeDependenciesWithDefaults(std::move(dependencies)))
+    , m_provisionalPreviewPolicy(provisionalPreviewPolicy)
     , m_initialDetailTimerScheduler(
           timerSchedulerWithDefaults(std::move(initialDetailTimerScheduler)))
     , m_decodeJob(this, m_dependencies,
@@ -474,18 +472,43 @@ ImageViewportDecodeProviderSource::ImageViewportDecodeProviderSource(ImageLoadSe
               },
           })
 {
-    if (!authoritativeSeed.has_value() || !isAuthoritativeStaticPayload(*authoritativeSeed)) {
-        return;
-    }
+}
 
-    m_embeddedMetadata = authoritativeSeed->embeddedMetadata;
-    m_metadata = ImageSequenceProviderMetadata::still(authoritativeSeed->originalSize);
-    m_authoritativeStaticImage = std::move(*authoritativeSeed);
-    m_decodeStarted = true;
-    m_decodeComplete = true;
+ImageViewportDecodeProviderSource::ImageViewportDecodeProviderSource(ImageLoadSession session,
+    ImageDecodeDependencies dependencies,
+    std::optional<StaticDisplayImagePayload> authoritativeSeed,
+    TimerScheduler initialDetailTimerScheduler)
+    : ImageViewportDecodeProviderSource(std::move(dependencies),
+          ImageViewportProvisionalPreviewPolicy::Allow, std::move(initialDetailTimerScheduler))
+{
+    static_cast<void>(resolveSession(std::move(session), std::move(authoritativeSeed)));
 }
 
 ImageViewportDecodeProviderSource::~ImageViewportDecodeProviderSource() { close(); }
+
+bool ImageViewportDecodeProviderSource::resolveSession(
+    ImageLoadSession session, std::optional<StaticDisplayImagePayload> authoritativeSeed)
+{
+    if (m_closed || m_session.has_value() || session.id() == 0
+        || session.decodeRequest().isEmpty()) {
+        return false;
+    }
+
+    m_session = std::move(session);
+    if (authoritativeSeed.has_value() && isAuthoritativeStaticPayload(*authoritativeSeed)) {
+        m_embeddedMetadata = authoritativeSeed->embeddedMetadata;
+        m_metadata = ImageSequenceProviderMetadata::still(authoritativeSeed->originalSize);
+        m_authoritativeStaticImage = std::move(*authoritativeSeed);
+        m_decodeStarted = true;
+        m_decodeComplete = true;
+        publishMetadata();
+        publishFrames();
+        return true;
+    }
+
+    ensureDecoded();
+    return true;
+}
 
 const EmbeddedMetadata& ImageViewportDecodeProviderSource::embeddedMetadata() const
 {
@@ -598,23 +621,24 @@ void ImageViewportDecodeProviderSource::close()
 
 void ImageViewportDecodeProviderSource::ensureDecoded()
 {
-    if (m_closed || m_decodeStarted || m_metadata.has_value() || m_failure.has_value()) {
+    if (m_closed || !m_session.has_value() || m_decodeStarted || m_metadata.has_value()
+        || m_failure.has_value() || (m_pendingMetadata.empty() && m_pendingFrames.empty())) {
         return;
     }
     m_decodeStarted = true;
-    m_decodeJob.start(m_session.decodeRequest());
+    m_decodeJob.start(resolvedSession().decodeRequest());
 }
 
 void ImageViewportDecodeProviderSource::finishDecode(
     const ImageDecodeRequest& request, DecodedImageResult result)
 {
-    if (m_closed || !request.matches(m_session.decodeRequest())) {
+    if (m_closed || !m_session.has_value() || !request.matches(resolvedSession().decodeRequest())) {
         return;
     }
     m_decodeComplete = true;
     if (!result) {
-        finishFailure(
-            ImageSequenceProviderFailureCause::Decode, loadFailure(m_session, result.error()));
+        finishFailure(ImageSequenceProviderFailureCause::Decode,
+            loadFailure(resolvedSession(), result.error()));
         return;
     }
     finishDecodedImage(std::move(*result));
@@ -623,21 +647,21 @@ void ImageViewportDecodeProviderSource::finishDecode(
 void ImageViewportDecodeProviderSource::finishDataLoadError(
     const ImageDecodeRequest& request, const QString& errorString)
 {
-    if (m_closed || !request.matches(m_session.decodeRequest())) {
+    if (m_closed || !m_session.has_value() || !request.matches(resolvedSession().decodeRequest())) {
         return;
     }
     m_decodeComplete = true;
     finishFailure(ImageSequenceProviderFailureCause::SourceAccess,
-        loadFailure(m_session, ImageLoadFailureKind::DataLoad, errorString, errorString));
+        loadFailure(resolvedSession(), ImageLoadFailureKind::DataLoad, errorString, errorString));
 }
 
 void ImageViewportDecodeProviderSource::finishThumbnail(
     const ImageDecodeRequest& request, StaticDisplayImagePayload displayImage)
 {
-    if (m_closed || m_decodeComplete || !request.matches(m_session.decodeRequest())
-        || m_failure.has_value() || m_authoritativeStaticImage.has_value()
-        || m_animation.has_value() || m_provisionalPreview.has_value()
-        || !isProvisionalPreviewPayload(displayImage)) {
+    if (m_closed || m_decodeComplete || !m_session.has_value()
+        || !request.matches(resolvedSession().decodeRequest()) || m_failure.has_value()
+        || m_authoritativeStaticImage.has_value() || m_animation.has_value()
+        || m_provisionalPreview.has_value() || !isProvisionalPreviewPayload(displayImage)) {
         return;
     }
 
@@ -680,7 +704,7 @@ void ImageViewportDecodeProviderSource::finishStaticImage(StaticDecodedImage ima
 {
     if (!isAuthoritativeStaticPayload(image.displayImage)) {
         finishFailure(ImageSequenceProviderFailureCause::Decode,
-            loadFailure(m_session, ImageLoadFailureKind::Decode, QString(),
+            loadFailure(resolvedSession(), ImageLoadFailureKind::Decode, QString(),
                 QStringLiteral("decoded static image is not displayable")));
         return;
     }
@@ -710,7 +734,7 @@ void ImageViewportDecodeProviderSource::finishAnimationImage(
             }
             if (!result.ready) {
                 finishFailure(ImageSequenceProviderFailureCause::Decode,
-                    loadFailure(m_session, ImageLoadFailureKind::Decode, result.errorString,
+                    loadFailure(resolvedSession(), ImageLoadFailureKind::Decode, result.errorString,
                         result.errorString.isEmpty()
                             ? QStringLiteral("animation timing metadata is invalid")
                             : result.errorString,
@@ -789,7 +813,8 @@ void ImageViewportDecodeProviderSource::publishFrames()
 
 void ImageViewportDecodeProviderSource::publishProvisionalFrames()
 {
-    if (m_closed || !m_provisionalPreview.has_value() || m_authoritativeStaticImage.has_value()
+    if (m_closed || m_provisionalPreviewPolicy != ImageViewportProvisionalPreviewPolicy::Allow
+        || !m_provisionalPreview.has_value() || m_authoritativeStaticImage.has_value()
         || m_animation.has_value() || m_failure.has_value()) {
         return;
     }
@@ -820,7 +845,7 @@ void ImageViewportDecodeProviderSource::publishStaticFrame(PendingFrame pending)
     if (!m_authoritativeStaticImage.has_value() || pending.request.frame != 0) {
         pending.completion(pending.identity,
             ImageViewportProviderFrameResult::failed(ImageSequenceProviderFailureCause::Decode,
-                loadFailure(m_session, ImageLoadFailureKind::Decode, QString(),
+                loadFailure(resolvedSession(), ImageLoadFailureKind::Decode, QString(),
                     QStringLiteral("requested static frame is unavailable"))));
         return;
     }
@@ -840,7 +865,7 @@ void ImageViewportDecodeProviderSource::publishStaticFrame(PendingFrame pending)
         pending.completion(pending.identity,
             ImageViewportProviderFrameResult::failed(
                 ImageSequenceProviderFailureCause::ResourceExhausted,
-                loadFailure(m_session, ImageLoadFailureKind::Presentation, QString(),
+                loadFailure(resolvedSession(), ImageLoadFailureKind::Presentation, QString(),
                     QStringLiteral(
                         "current image detail exceeds the active display resource limits"))));
         return;
@@ -1166,8 +1191,8 @@ void ImageViewportDecodeProviderSource::finishStaticFrameAttempt(StaticFrameAtte
         attempt.pending.completion(attempt.pending.identity,
             ImageViewportProviderFrameResult::failed(
                 ImageSequenceProviderFailureCause::ProviderInternal,
-                loadFailure(m_session, ImageLoadFailureKind::Presentation, diagnostics.userMessage,
-                    diagnosticDetail)));
+                loadFailure(resolvedSession(), ImageLoadFailureKind::Presentation,
+                    diagnostics.userMessage, diagnosticDetail)));
         return;
     }
 
@@ -1185,8 +1210,8 @@ void ImageViewportDecodeProviderSource::finishStaticFrameAttempt(StaticFrameAtte
             : diagnostics.diagnosticDetail;
         attempt.pending.completion(attempt.pending.identity,
             ImageViewportProviderFrameResult::failed(ImageSequenceProviderFailureCause::Decode,
-                loadFailure(m_session, ImageLoadFailureKind::Decode, diagnostics.userMessage,
-                    diagnosticDetail)));
+                loadFailure(resolvedSession(), ImageLoadFailureKind::Decode,
+                    diagnostics.userMessage, diagnosticDetail)));
         return;
     }
 
@@ -1209,7 +1234,7 @@ void ImageViewportDecodeProviderSource::finishStaticFrameAttempt(StaticFrameAtte
         attempt.pending.completion(attempt.pending.identity,
             ImageViewportProviderFrameResult::failed(
                 ImageSequenceProviderFailureCause::ResourceExhausted,
-                loadFailure(m_session, ImageLoadFailureKind::Presentation, QString(),
+                loadFailure(resolvedSession(), ImageLoadFailureKind::Presentation, QString(),
                     QStringLiteral(
                         "current image output exceeds the application display-store limit"))));
         return;
@@ -1231,8 +1256,8 @@ void ImageViewportDecodeProviderSource::finishStaticFrameAttempt(StaticFrameAtte
             : QStringLiteral("current image output has no valid authoritative candidate");
         attempt.pending.completion(attempt.pending.identity,
             ImageViewportProviderFrameResult::failed(cause,
-                loadFailure(
-                    m_session, ImageLoadFailureKind::Presentation, QString(), diagnosticDetail)));
+                loadFailure(resolvedSession(), ImageLoadFailureKind::Presentation, QString(),
+                    diagnosticDetail)));
         return;
     }
 
@@ -1241,7 +1266,7 @@ void ImageViewportDecodeProviderSource::finishStaticFrameAttempt(StaticFrameAtte
         : diagnostics.diagnosticDetail;
     attempt.pending.completion(attempt.pending.identity,
         ImageViewportProviderFrameResult::failed(ImageSequenceProviderFailureCause::Decode,
-            loadFailure(m_session, ImageLoadFailureKind::Decode, diagnostics.userMessage,
+            loadFailure(resolvedSession(), ImageLoadFailureKind::Decode, diagnostics.userMessage,
                 diagnosticDetail)));
 }
 
@@ -1329,13 +1354,13 @@ void ImageViewportDecodeProviderSource::publishAnimationFrame(PendingFrame pendi
         || pending.request.frame >= m_animation->metadata.frameCount()) {
         pending.completion(pending.identity,
             ImageViewportProviderFrameResult::failed(ImageSequenceProviderFailureCause::Decode,
-                loadFailure(m_session, ImageLoadFailureKind::Decode, QString(),
+                loadFailure(resolvedSession(), ImageLoadFailureKind::Decode, QString(),
                     QStringLiteral("requested animation frame is unavailable"))));
         return;
     }
     const AnimationState animation = *m_animation;
     const int requestedFrame = pending.request.frame;
-    const ImageLoadSession session = m_session;
+    const ImageLoadSession session = resolvedSession();
     const quint64 workerUnitId = reserveWorkerUnit(pending.identity);
     ImageWorkerTask task = m_dependencies.workerScheduler.run(
         this,
@@ -1420,5 +1445,11 @@ bool ImageViewportDecodeProviderSource::detachWorkerUnit(quint64 workerUnitId)
     }
     m_workerUnits.erase(unit);
     return true;
+}
+
+const ImageLoadSession& ImageViewportDecodeProviderSource::resolvedSession() const
+{
+    Q_ASSERT(m_session.has_value());
+    return *m_session;
 }
 }

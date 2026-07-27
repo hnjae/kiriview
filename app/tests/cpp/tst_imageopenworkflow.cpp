@@ -162,8 +162,9 @@ class TestImageOpenWorkflow : public QObject
 
 private Q_SLOTS:
     void applicationPlansUseExplicitInputs();
-    void sourceResolutionUsesCanonicalSessionImageUrl();
+    void sourceResolutionKeepsRequestedCollectionIdentity();
     void sourceResolutionTracksSessionSourceKind();
+    void directlyOpenedCollectionVideoUsesResolvedEntryIdentity();
     void unsupportedOpenedCollectionVideoTransitionPublishesReadyVideoState();
     void playableOpenedCollectionVideoTransitionPublishesHandoffState();
     void firstImageLoadSuccessTransitionsToReady();
@@ -255,7 +256,7 @@ void TestImageOpenWorkflow::presentationLifecycleCoversLoadStartAndTerminalPubli
     QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Ready);
 }
 
-void TestImageOpenWorkflow::sourceResolutionUsesCanonicalSessionImageUrl()
+void TestImageOpenWorkflow::sourceResolutionKeepsRequestedCollectionIdentity()
 {
     kiriview::ImageDocumentState state;
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.zip"));
@@ -272,7 +273,7 @@ void TestImageOpenWorkflow::sourceResolutionUsesCanonicalSessionImageUrl()
         = resolveSourceImage(state, loadSession(archiveUrl, imageUrl, *archiveCollection));
 
     QVERIFY(plan.empty());
-    QCOMPARE(state.sourceUrl(), imageUrl);
+    QCOMPARE(state.sourceUrl(), archiveUrl);
     QVERIFY(state.displayedUrl().isEmpty());
     QVERIFY(state.loading());
     QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Loading);
@@ -299,6 +300,33 @@ void TestImageOpenWorkflow::sourceResolutionTracksSessionSourceKind()
     QCOMPARE(state.sourceKind(), kiriview::ImageDocumentPageKind::Video);
     QVERIFY(state.loading());
     QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Loading);
+}
+
+void TestImageOpenWorkflow::directlyOpenedCollectionVideoUsesResolvedEntryIdentity()
+{
+    kiriview::ImageDocumentState state;
+    const QUrl archiveUrl = localUrl(QStringLiteral("/books/video-first.zip"));
+    const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
+    QVERIFY(archiveCollection.has_value());
+    const QUrl videoUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.mp4"));
+    kiriview::ImageLoadSession session(7,
+        kiriview::ImageLoadRequest::fromExternalSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {})),
+        kiriview::DisplayedImageLocation::fromUrl(archiveUrl, *archiveCollection));
+    session.setImageDocumentPageCandidate(kiriview::ImageDocumentPageCandidate {
+        videoUrl, QStringLiteral("01.mp4"), kiriview::ImageDocumentPageKind::Video });
+
+    const kiriview::ImageDocumentRuntimePlan plan
+        = finishUnsupportedOpenedCollectionVideoLoad(state, session);
+
+    QCOMPARE(state.sourceUrl(), videoUrl);
+    QCOMPARE(state.sourceKind(), kiriview::ImageDocumentPageKind::Video);
+    QCOMPARE(state.displayedUrl(), videoUrl);
+    QCOMPARE(state.selectedOpenedCollectionScope(), *archiveCollection);
+    QVERIFY(state.unsupportedOpenedCollectionVideo());
+    QCOMPARE(plan.size(), std::size_t(3));
 }
 
 void TestImageOpenWorkflow::unsupportedOpenedCollectionVideoTransitionPublishesReadyVideoState()
@@ -440,7 +468,7 @@ void TestImageOpenWorkflow::directArchiveImageLoadSuccessDisablesContainerNaviga
         = finishSuccessfulImageLoad(state, loadSession(archiveUrl, imageUrl, *archiveCollection));
 
     QVERIFY(hasOperation<kiriview::UpdatePageNavigationOperation>(successPlan));
-    QCOMPARE(state.sourceUrl(), imageUrl);
+    QCOMPARE(state.sourceUrl(), archiveUrl);
     QCOMPARE(state.displayedUrl(), imageUrl);
     QCOMPARE(state.windowTitleFileName(), QStringLiteral("book.zip"));
     QVERIFY(state.containerNavigationUrl().isEmpty());

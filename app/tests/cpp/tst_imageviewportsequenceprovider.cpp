@@ -366,6 +366,12 @@ class TestImageViewportSequenceProvider : public QObject
 private Q_SLOTS:
     void metadataAndStillFrameFlowThroughProvider();
     void productionDecodeStartsOnlyForProviderDemand();
+    void deferredDecodeSourcePreservesDemandUntilResolution();
+    void deferredDecodeSourceAuthoritativeSeedFlushesQueuedDemandSynchronously();
+    void deferredDecodeSourceInvalidationDropsLateResolution_data();
+    void deferredDecodeSourceInvalidationDropsLateResolution();
+    void deferredDecodeSourceSuppressesProvisionalFrameUntilAuthoritativeTerminal();
+    void providerResourceSeparatesWorkAndDisplayReuseIdentity();
     void foregroundThumbnailRemainsProvisionalUntilAuthoritativeTerminal_data();
     void foregroundThumbnailRemainsProvisionalUntilAuthoritativeTerminal();
     void readerOrientationProducesNormalizedFrame();
@@ -426,6 +432,370 @@ void TestImageViewportSequenceProvider::productionDecodeStartsOnlyForProviderDem
             kiriview::ImageViewportProviderMetadataResult) { });
 
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+}
+
+void TestImageViewportSequenceProvider::deferredDecodeSourcePreservesDemandUntilResolution()
+{
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImageDecodeDependencies dependencies
+        = kiriview::TestSupport::imageDecodeDependenciesFor(dataLoader,
+            kiriview::TestSupport::staticImageDataDecoder(
+                kiriview::TestSupport::testImage(128, 64)));
+    dependencies.workerScheduler = workerScheduler.scheduler();
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        std::move(dependencies), kiriview::ImageViewportProvisionalPreviewPolicy::Allow);
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        91,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("deferred-provider-demand"),
+    };
+    std::vector<kiriview::ImageViewportProviderWorkIdentity> metadataIdentities;
+    std::vector<kiriview::ImageViewportProviderMetadataResult> metadataResults;
+    std::vector<kiriview::ImageViewportProviderWorkIdentity> frameIdentities;
+    std::vector<kiriview::ImageViewportProviderFrameResult> frameResults;
+
+    source->requestMetadata(identity,
+        [&metadataIdentities, &metadataResults](
+            kiriview::ImageViewportProviderWorkIdentity completedIdentity,
+            kiriview::ImageViewportProviderMetadataResult result) {
+            metadataIdentities.push_back(std::move(completedIdentity));
+            metadataResults.push_back(std::move(result));
+        });
+    source->requestFrame(identity,
+        kiriview::ImageViewportProviderFrameRequest {
+            0,
+            {},
+        },
+        [&frameIdentities, &frameResults](
+            kiriview::ImageViewportProviderWorkIdentity completedIdentity,
+            kiriview::ImageViewportProviderFrameResult result) {
+            frameIdentities.push_back(std::move(completedIdentity));
+            frameResults.push_back(std::move(result));
+        });
+
+    QVERIFY(dataLoader.empty());
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(0));
+    QCOMPARE(metadataResults.size(), std::size_t(0));
+    QCOMPARE(frameResults.size(), std::size_t(0));
+
+    const QUrl resolvedUrl(QStringLiteral("file:///tmp/deferred-provider-demand.png"));
+    QVERIFY(source->resolveSession(kiriview::ImageLoadSession(91,
+        kiriview::ImageLoadRequest::fromExternalSource(
+            kiriview::resolvedNavigationSource(resolvedUrl, {})),
+        kiriview::DisplayedImageLocation::fromUrl(resolvedUrl))));
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+    QCOMPARE(dataLoader.frontLoad().url, resolvedUrl);
+
+    const QUrl rejectedUrl(QStringLiteral("file:///tmp/rejected-late-session.png"));
+    QVERIFY(!source->resolveSession(kiriview::ImageLoadSession(92,
+        kiriview::ImageLoadRequest::fromExternalSource(
+            kiriview::resolvedNavigationSource(rejectedUrl, {})),
+        kiriview::DisplayedImageLocation::fromUrl(rejectedUrl))));
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+
+    dataLoader.finishFrontLoad(QByteArrayLiteral("decoded-image-data"));
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
+
+    QCOMPARE(metadataResults.size(), std::size_t(1));
+    QCOMPARE(metadataIdentities.size(), std::size_t(1));
+    QVERIFY(metadataIdentities.front() == identity);
+    QVERIFY(metadataResults.front().metadata.has_value());
+    QCOMPARE(frameResults.size(), std::size_t(1));
+    QCOMPARE(frameIdentities.size(), std::size_t(1));
+    QVERIFY(frameIdentities.front() == identity);
+    QVERIFY(frameResults.front().displayImage.has_value());
+    QVERIFY(!frameResults.front().isProvisional());
+}
+
+void TestImageViewportSequenceProvider::
+    deferredDecodeSourceAuthoritativeSeedFlushesQueuedDemandSynchronously()
+{
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::TestSupport::imageDecodeDependenciesFor(
+            dataLoader, kiriview::TestSupport::staticImageDataDecoder()));
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        92,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("seeded-deferred-provider"),
+    };
+    std::vector<kiriview::ImageViewportProviderMetadataResult> metadataResults;
+    std::vector<kiriview::ImageViewportProviderFrameResult> frameResults;
+    source->requestMetadata(identity,
+        [&metadataResults](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderMetadataResult result) {
+            metadataResults.push_back(std::move(result));
+        });
+    source->requestFrame(identity,
+        kiriview::ImageViewportProviderFrameRequest {
+            0,
+            {},
+        },
+        [&frameResults](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderFrameResult result) {
+            frameResults.push_back(std::move(result));
+        });
+
+    const QUrl url(QStringLiteral("file:///tmp/seeded-deferred-provider.png"));
+    QVERIFY(source->resolveSession(kiriview::ImageLoadSession(92,
+                                       kiriview::ImageLoadRequest::fromExternalSource(
+                                           kiriview::resolvedNavigationSource(url, {})),
+                                       kiriview::DisplayedImageLocation::fromUrl(url)),
+        displayPayload(kiriview::DisplayImageQuality::Exact)));
+
+    QVERIFY(dataLoader.empty());
+    QCOMPARE(metadataResults.size(), std::size_t(1));
+    QVERIFY(metadataResults.front().metadata.has_value());
+    QCOMPARE(frameResults.size(), std::size_t(1));
+    QVERIFY(frameResults.front().displayImage.has_value());
+    QVERIFY(!frameResults.front().isProvisional());
+}
+
+void TestImageViewportSequenceProvider::deferredDecodeSourceInvalidationDropsLateResolution_data()
+{
+    QTest::addColumn<bool>("closeSource");
+
+    QTest::newRow("cancel") << false;
+    QTest::newRow("close") << true;
+}
+
+void TestImageViewportSequenceProvider::deferredDecodeSourceInvalidationDropsLateResolution()
+{
+    QFETCH(bool, closeSource);
+
+    ProviderFixture tokenFixture;
+    tokenFixture.source->knownMetadata = ImageSequenceProviderMetadata::still(QSizeF(32, 16));
+    tokenFixture.create();
+    ImageViewport tokenViewport;
+    tokenFixture.assign(tokenViewport);
+    QTRY_COMPARE(tokenFixture.source->frameIdentities.size(), std::size_t(1));
+    const ImageSequenceProviderRequestToken requestToken
+        = tokenFixture.source->frameIdentities.front().requestToken;
+    QVERIFY(requestToken.isValid());
+
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::TestSupport::imageDecodeDependenciesFor(dataLoader,
+            kiriview::TestSupport::staticImageDataDecoder(
+                kiriview::TestSupport::testImage(128, 64))));
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        93,
+        ImageViewportPageRole::Primary,
+        requestToken,
+        {},
+        QStringLiteral("invalidated-deferred-provider"),
+    };
+    int metadataCompletionCount = 0;
+    int frameCompletionCount = 0;
+    source->requestMetadata(identity,
+        [&metadataCompletionCount](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderMetadataResult) { ++metadataCompletionCount; });
+    source->requestFrame(identity,
+        kiriview::ImageViewportProviderFrameRequest {
+            0,
+            {},
+        },
+        [&frameCompletionCount](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderFrameResult) { ++frameCompletionCount; });
+    QVERIFY(dataLoader.empty());
+
+    if (closeSource) {
+        source->close();
+    } else {
+        source->cancel({ requestToken });
+    }
+
+    const QUrl resolvedUrl(QStringLiteral("file:///tmp/invalidated-deferred-provider.png"));
+    const bool resolved
+        = source->resolveSession(kiriview::ImageLoadSession(93,
+                                     kiriview::ImageLoadRequest::fromExternalSource(
+                                         kiriview::resolvedNavigationSource(resolvedUrl, {})),
+                                     kiriview::DisplayedImageLocation::fromUrl(resolvedUrl)),
+            displayPayload(kiriview::DisplayImageQuality::Exact));
+
+    QCOMPARE(resolved, !closeSource);
+    QCOMPARE(metadataCompletionCount, 0);
+    QCOMPARE(frameCompletionCount, 0);
+    QVERIFY(dataLoader.empty());
+}
+
+void TestImageViewportSequenceProvider::
+    deferredDecodeSourceSuppressesProvisionalFrameUntilAuthoritativeTerminal()
+{
+    const QByteArray data = encodedPngData(QSize(800, 600));
+    QVERIFY(!data.isEmpty());
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    ManualThumbnailLookupProvider thumbnailLookup;
+    kiriview::ImageDecodeDependencies dependencies
+        = kiriview::TestSupport::imageDecodeDependenciesFor(dataLoader,
+            kiriview::TestSupport::staticImageDataDecoder(
+                kiriview::TestSupport::testImage(800, 600)));
+    dependencies.thumbnailPreviewLookupProvider = thumbnailLookup.provider();
+    dependencies.workerScheduler = workerScheduler.scheduler();
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        std::move(dependencies), kiriview::ImageViewportProvisionalPreviewPolicy::Suppress);
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        94,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("suppressed-provisional"),
+    };
+    std::vector<kiriview::ImageViewportProviderMetadataResult> metadataResults;
+    std::vector<kiriview::ImageViewportProviderWorkIdentity> frameIdentities;
+    std::vector<kiriview::ImageViewportProviderFrameResult> frameResults;
+    source->requestMetadata(identity,
+        [&metadataResults](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderMetadataResult result) {
+            metadataResults.push_back(std::move(result));
+        });
+    source->requestFrame(identity,
+        kiriview::ImageViewportProviderFrameRequest {
+            0,
+            {},
+        },
+        [&frameIdentities, &frameResults](
+            kiriview::ImageViewportProviderWorkIdentity completedIdentity,
+            kiriview::ImageViewportProviderFrameResult result) {
+            frameIdentities.push_back(std::move(completedIdentity));
+            frameResults.push_back(std::move(result));
+        });
+
+    const QUrl url(QStringLiteral("file:///tmp/suppressed-provisional.png"));
+    QVERIFY(source->resolveSession(kiriview::ImageLoadSession(94,
+        kiriview::ImageLoadRequest::fromExternalSource(kiriview::resolvedNavigationSource(url, {})),
+        kiriview::DisplayedImageLocation::fromUrl(url))));
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+    dataLoader.finishFrontLoad(data);
+    QCOMPARE(thumbnailLookup.requests.size(), std::size_t(1));
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+
+    thumbnailLookup.finish(0, readyThumbnailLookup());
+    QCOMPARE(metadataResults.size(), std::size_t(1));
+    QVERIFY(metadataResults.front().metadata.has_value());
+    QCOMPARE(frameResults.size(), std::size_t(0));
+
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
+    QCOMPARE(frameResults.size(), std::size_t(1));
+    QCOMPARE(frameIdentities.size(), std::size_t(1));
+    QVERIFY(frameIdentities.front() == identity);
+    QVERIFY(frameResults.front().displayImage.has_value());
+    QVERIFY(!frameResults.front().isProvisional());
+}
+
+void TestImageViewportSequenceProvider::providerResourceSeparatesWorkAndDisplayReuseIdentity()
+{
+    const auto sourceWithAutomaticFrame = []() {
+        auto source = std::make_shared<FakeImageViewportProviderSource>();
+        source->automaticFrame = kiriview::ImageViewportProviderFrameResult::ready(
+            displayPayload(kiriview::DisplayImageQuality::Exact),
+            ImageSequenceProviderFrameEnvelope::stillFrame(), QStringLiteral("png"));
+        return source;
+    };
+    const auto requestFrame
+        = [](const std::shared_ptr<kiriview::ImageViewportProviderResource>& resource,
+              kiriview::ImageViewportProviderWorkIdentity identity) {
+              kiriview::ImageViewportProviderPreparedFrame prepared;
+              resource->requestFrame(identity,
+                  kiriview::ImageViewportProviderFrameRequest {
+                      0,
+                      {},
+                  },
+                  [&prepared](kiriview::ImageViewportProviderWorkIdentity,
+                      kiriview::ImageViewportProviderPreparedFrame result) {
+                      prepared = std::move(result);
+                  });
+              return prepared;
+          };
+
+    auto sharedStore = std::make_shared<kiriview::DisplayImageStore>(1024 * 1024);
+    auto firstSource = sourceWithAutomaticFrame();
+    auto secondSource = sourceWithAutomaticFrame();
+    auto firstResource = std::make_shared<kiriview::ImageViewportProviderResource>(
+        101, QStringLiteral("work-a"), firstSource, sharedStore);
+    auto secondResource = std::make_shared<kiriview::ImageViewportProviderResource>(
+        102, QStringLiteral("work-b"), secondSource, sharedStore);
+    QVERIFY(firstResource->bindDisplayLocationIdentity(QStringLiteral("resolved-display")));
+    QVERIFY(secondResource->bindDisplayLocationIdentity(QStringLiteral("resolved-display")));
+    QVERIFY(!firstResource->bindDisplayLocationIdentity(QStringLiteral("replacement-display")));
+
+    const kiriview::ImageViewportProviderPreparedFrame firstPrepared = requestFrame(firstResource,
+        kiriview::ImageViewportProviderWorkIdentity {
+            101,
+            ImageViewportPageRole::Primary,
+            {},
+            {},
+            QStringLiteral("work-a"),
+        });
+    const kiriview::ImageViewportProviderPreparedFrame secondPrepared = requestFrame(secondResource,
+        kiriview::ImageViewportProviderWorkIdentity {
+            102,
+            ImageViewportPageRole::Primary,
+            {},
+            {},
+            QStringLiteral("work-b"),
+        });
+
+    QVERIFY(firstPrepared.isReady());
+    QVERIFY(secondPrepared.isReady());
+    QCOMPARE(firstPrepared.storeEntryId, secondPrepared.storeEntryId);
+    QCOMPARE(sharedStore->size(), qsizetype(1));
+    QCOMPARE(firstSource->frameIdentities.front().locationIdentity, QStringLiteral("work-a"));
+    QCOMPARE(secondSource->frameIdentities.front().locationIdentity, QStringLiteral("work-b"));
+
+    auto legacyStore = std::make_shared<kiriview::DisplayImageStore>(1024 * 1024);
+    auto firstLegacyResource = std::make_shared<kiriview::ImageViewportProviderResource>(
+        103, QStringLiteral("legacy-display"), sourceWithAutomaticFrame(), legacyStore);
+    auto secondLegacyResource = std::make_shared<kiriview::ImageViewportProviderResource>(
+        104, QStringLiteral("legacy-display"), sourceWithAutomaticFrame(), legacyStore);
+    const kiriview::ImageViewportProviderPreparedFrame firstLegacyPrepared
+        = requestFrame(firstLegacyResource,
+            kiriview::ImageViewportProviderWorkIdentity {
+                103,
+                ImageViewportPageRole::Primary,
+                {},
+                {},
+                QStringLiteral("legacy-display"),
+            });
+    const kiriview::ImageViewportProviderPreparedFrame secondLegacyPrepared
+        = requestFrame(secondLegacyResource,
+            kiriview::ImageViewportProviderWorkIdentity {
+                104,
+                ImageViewportPageRole::Primary,
+                {},
+                {},
+                QStringLiteral("legacy-display"),
+            });
+
+    QVERIFY(firstLegacyPrepared.isReady());
+    QCOMPARE(firstLegacyPrepared.storeEntryId, secondLegacyPrepared.storeEntryId);
+    QVERIFY(!firstLegacyResource->bindDisplayLocationIdentity(QStringLiteral("too-late")));
+
+    auto unsupportedSource = std::make_shared<FakeImageViewportProviderSource>();
+    unsupportedSource->automaticFrame = kiriview::ImageViewportProviderFrameResult::unsupported(
+        ImageSequenceProviderUnsupportedCause::PayloadRejection);
+    auto unsupportedResource = std::make_shared<kiriview::ImageViewportProviderResource>(
+        105, QStringLiteral("unsupported-work"), unsupportedSource, legacyStore);
+    const kiriview::ImageViewportProviderPreparedFrame unsupportedPrepared
+        = requestFrame(unsupportedResource,
+            kiriview::ImageViewportProviderWorkIdentity {
+                105,
+                ImageViewportPageRole::Primary,
+                {},
+                {},
+                QStringLiteral("unsupported-work"),
+            });
+    QVERIFY(unsupportedPrepared.isUnsupported());
+    QVERIFY(!unsupportedResource->bindDisplayLocationIdentity(QStringLiteral("too-late")));
 }
 
 void TestImageViewportSequenceProvider::

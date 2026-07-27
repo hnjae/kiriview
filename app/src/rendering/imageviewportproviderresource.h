@@ -140,6 +140,7 @@ public:
 
     quint64 sourceGeneration() const { return m_sourceGeneration; }
     const QString& locationIdentity() const { return m_locationIdentity; }
+    bool bindDisplayLocationIdentity(QString locationIdentity);
     ImageSequenceProviderMetadata constructionMetadata() const;
     std::shared_ptr<ImageViewportFailureRegistry> failureRegistry() const
     {
@@ -171,6 +172,7 @@ private:
         const ImageViewportProviderPreparedFrame& preparedFrame);
     ImageViewportProviderPreparedFrame prepareFrame(
         const ImageViewportProviderWorkIdentity& identity, ImageViewportProviderFrameResult result);
+    [[nodiscard]] QString displayLocationIdentityForPayloadPreparation();
 
     struct AuthoritativeStillDisplayImage
     {
@@ -187,6 +189,7 @@ private:
 
     quint64 m_sourceGeneration = 0;
     QString m_locationIdentity;
+    QString m_displayLocationIdentity;
     std::shared_ptr<ImageViewportProviderSource> m_source;
     std::shared_ptr<DisplayImageStore> m_displayStore;
     std::shared_ptr<ImageViewportFailureRegistry> m_failureRegistry;
@@ -196,6 +199,8 @@ private:
     std::vector<AuthoritativeFrameCandidate> m_authoritativeFrameCandidates;
     std::optional<AuthoritativeStillDisplayImage> m_authoritativeStillDisplayImageCandidate;
     std::optional<AuthoritativeStillDisplayImage> m_currentStillDisplayImage;
+    bool m_displayLocationIdentityBound = false;
+    bool m_payloadPreparationStarted = false;
     bool m_closed = false;
 };
 }

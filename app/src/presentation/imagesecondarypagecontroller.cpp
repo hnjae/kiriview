@@ -13,21 +13,20 @@ namespace kiriview {
 ImageSecondaryPageController::ImageSecondaryPageController(Callbacks callbacks)
     : m_callbacks(std::move(callbacks))
 {
-    m_imageLoader = std::make_unique<ImageLoader>(ImageLoader::Callbacks {
-        [this](const ImageLoadSession& session, const ImageLoadFailure&) {
-            finishLoadWithError(session);
-        },
-        {},
-        [this](const QUrl& url) {
-            return m_callbacks.findPredecodedImage ? m_callbacks.findPredecodedImage(url)
-                                                   : std::optional<PredecodedImage>();
-        },
-        {},
-        {},
-        [this](ImageLoadSession session, std::optional<PredecodedImage> predecoded) {
-            invokeIfSet(m_callbacks.preparedImage, std::move(session), std::move(predecoded));
-        },
-    });
+    ImageLoader::Callbacks loaderCallbacks;
+    loaderCallbacks.error = [this](const ImageLoadSession& session, const ImageLoadFailure&) {
+        finishLoadWithError(session);
+    };
+    loaderCallbacks.findPredecodedImage = [this](const QUrl& url) {
+        return m_callbacks.findPredecodedImage ? m_callbacks.findPredecodedImage(url)
+                                               : std::optional<PredecodedImage>();
+    };
+    loaderCallbacks.targetStarted = [](const ImageLoadSession&) { };
+    loaderCallbacks.resolvedImage
+        = [this](ImageLoadSession session, std::optional<PredecodedImage> predecoded) {
+              invokeIfSet(m_callbacks.preparedImage, std::move(session), std::move(predecoded));
+          };
+    m_imageLoader = std::make_unique<ImageLoader>(std::move(loaderCallbacks));
 }
 
 ImageSecondaryPageController::~ImageSecondaryPageController() { cancel(); }

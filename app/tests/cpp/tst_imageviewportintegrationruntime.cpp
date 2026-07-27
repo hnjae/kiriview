@@ -169,6 +169,7 @@ struct TargetFixture
     std::shared_ptr<PendingProviderSource> secondarySource;
     std::shared_ptr<kiriview::ImageViewportProviderResource> primaryResource;
     std::optional<kiriview::StaticDisplayImagePayload> primaryPredecodedImage;
+    bool primaryUrlResolved = true;
     int primaryFactoryCalls = 0;
     int secondaryFactoryCalls = 0;
 
@@ -176,7 +177,8 @@ struct TargetFixture
     {
         kiriview::ImageViewportIntegrationTarget result;
         result.sourceGeneration = generation;
-        result.primaryUrl = primaryUrl;
+        result.selectedSourceUrl = primaryUrl;
+        result.resolvedPrimaryUrl = primaryUrlResolved ? primaryUrl : QUrl();
         result.secondaryUrl = secondaryUrl;
         result.transitionIntent = intent;
         result.rightToLeft = rightToLeft;
@@ -218,14 +220,16 @@ private Q_SLOTS:
     void gesturesAndScrollbarsUseMatchedComponentProjection();
     void targetAnchorAtEndAppliesThroughTransition();
     void failureReferenceResolvesOnlyForMatchingTarget();
-    void targetTransitionsRetainPriorPresentationUntilReplacementCommit_data();
-    void targetTransitionsRetainPriorPresentationUntilReplacementCommit();
+    void targetTransitionsApplyIntentSpecificFallbackPolicy_data();
+    void targetTransitionsApplyIntentSpecificFallbackPolicy();
     void displayedImageFollowsCommittedAndRetainedDisplay();
     void authoritativeCandidateWaitsForCommitOverProvisionalDisplay();
     void firstDisplayAutomaticallyRefinesWithoutInteraction();
     void firstDisplayRemainsAvailableDuringFailedForcedRefinement();
     void predecodedReplacementRetainsCommittedDisplayUntilRenderCommit();
-    void failedShapeChangeKeepsRequestedTargetErrorUntilClear();
+    void failedShapeChangeKeepsRequestedTargetErrorWithoutPriorPixels();
+    void deferredPrimaryUrlResolvesWithoutReplacingAcceptedTarget();
+    void authoritativeDisplayExcludesProvisionalPixelsAndIncludesRetainedPixels();
 };
 
 void TestImageViewportIntegrationRuntime::operationRecordCorrelatesReentrantState()
@@ -270,14 +274,28 @@ void TestImageViewportIntegrationRuntime::replacementAttachmentResubmitsCurrentT
     fixture.primaryUrl = QUrl(QStringLiteral("file:///tmp/twenty-one.png"));
     QVERIFY(runtime.submitTarget(fixture.target()));
     QTRY_COMPARE(fixture.primaryFactoryCalls, 1);
+    const std::weak_ptr<kiriview::ImageViewportProviderResource> firstResource
+        = fixture.primaryResource;
+    fixture.primaryResource.reset();
+    QVERIFY(!firstResource.expired());
 
     runtime.attach(&replacement);
     QTRY_COMPARE(fixture.primaryFactoryCalls, 2);
+    QTRY_VERIFY(firstResource.expired());
     QCOMPARE(first.state().request().status(), ImageViewportRequestStatus::NoRequest);
     QCOMPARE(replacement.state().request().acceptedRoleSet().primary(), true);
 
-    runtime.detach(&first);
-    QCOMPARE(replacement.state().request().acceptedRoleSet().primary(), true);
+    const std::weak_ptr<kiriview::ImageViewportProviderResource> replacementResource
+        = fixture.primaryResource;
+    fixture.primaryResource.reset();
+    QVERIFY(!replacementResource.expired());
+    runtime.detach(&replacement);
+    QTRY_VERIFY(replacementResource.expired());
+    QCOMPARE(replacement.state().request().status(), ImageViewportRequestStatus::NoRequest);
+
+    runtime.attach(&first);
+    QTRY_COMPARE(fixture.primaryFactoryCalls, 3);
+    QCOMPARE(first.state().request().acceptedRoleSet().primary(), true);
 }
 
 void TestImageViewportIntegrationRuntime::staleCompletionCannotPublishOverNewerTarget()
@@ -428,8 +446,7 @@ void TestImageViewportIntegrationRuntime::failureReferenceResolvesOnlyForMatchin
     QVERIFY(!runtime.projection().failure.has_value());
 }
 
-void TestImageViewportIntegrationRuntime::
-    targetTransitionsRetainPriorPresentationUntilReplacementCommit_data()
+void TestImageViewportIntegrationRuntime::targetTransitionsApplyIntentSpecificFallbackPolicy_data()
 {
     QTest::addColumn<int>("intent");
     QTest::newRow("same navigation scope")
@@ -440,8 +457,7 @@ void TestImageViewportIntegrationRuntime::
         << static_cast<int>(kiriview::ImageViewportTargetTransitionIntent::PresentationShapeChange);
 }
 
-void TestImageViewportIntegrationRuntime::
-    targetTransitionsRetainPriorPresentationUntilReplacementCommit()
+void TestImageViewportIntegrationRuntime::targetTransitionsApplyIntentSpecificFallbackPolicy()
 {
     QFETCH(int, intent);
     std::vector<kiriview::ImageViewportIntegrationProjection> projections;
@@ -482,16 +498,21 @@ void TestImageViewportIntegrationRuntime::
     QVERIFY(runtime.submitTarget(replacement.target()));
     QTRY_COMPARE(replacement.primarySource->pendingFrames.size(), std::size_t(1));
 
-    QCOMPARE(viewport.state().display().status(), ImageViewportDisplayStatus::Retained);
-    QVERIFY(viewport.state().display().retained());
+    const bool shapeChange = replacement.intent
+        == kiriview::ImageViewportTargetTransitionIntent::PresentationShapeChange;
+    QCOMPARE(viewport.state().display().status(),
+        shapeChange ? ImageViewportDisplayStatus::Empty : ImageViewportDisplayStatus::Retained);
+    QCOMPARE(viewport.state().display().retained(), !shapeChange);
     QVERIFY(!viewport.state().display().belongsToAcceptedPresentationTarget());
-    QVERIFY(viewport.state().display().displayedRoleSet().primary());
+    QCOMPARE(viewport.state().display().displayedRoleSet().primary(), !shapeChange);
     QVERIFY(!viewport.state().display().displayedRoleSet().secondary());
-    QCOMPARE(runtime.projection().displayedUrl, initial.primaryUrl);
+    QCOMPARE(
+        viewport.state().display().displayedPresentationTargetGeneration().isValid(), !shapeChange);
+    QCOMPARE(runtime.projection().displayedUrl, QUrl());
     QCOMPARE(runtime.projection().status, kiriview::ImageDocumentStatus::Loading);
     for (const kiriview::ImageViewportIntegrationProjection& projection : projections) {
         if (projection.sourceGeneration == replacement.generation) {
-            QCOMPARE(projection.displayedUrl, initial.primaryUrl);
+            QCOMPARE(projection.displayedUrl, QUrl());
         }
     }
 
@@ -699,7 +720,7 @@ void TestImageViewportIntegrationRuntime::
 
     QCOMPARE(viewport.state().display().status(), ImageViewportDisplayStatus::Retained);
     QVERIFY(viewport.state().display().displayedRoleSet().primary());
-    QCOMPARE(runtime.projection().displayedUrl, initial.primaryUrl);
+    QCOMPARE(runtime.projection().displayedUrl, QUrl());
     QCOMPARE(runtime.projection().status, kiriview::ImageDocumentStatus::Loading);
 
     QVERIFY(driveRenderUntil(window, [&runtime]() {
@@ -708,7 +729,8 @@ void TestImageViewportIntegrationRuntime::
     QCOMPARE(runtime.projection().displayedUrl, replacement.primaryUrl);
 }
 
-void TestImageViewportIntegrationRuntime::failedShapeChangeKeepsRequestedTargetErrorUntilClear()
+void TestImageViewportIntegrationRuntime::
+    failedShapeChangeKeepsRequestedTargetErrorWithoutPriorPixels()
 {
     kiriview::ImageViewportIntegrationRuntime runtime;
     QQuickWindow window;
@@ -733,6 +755,11 @@ void TestImageViewportIntegrationRuntime::failedShapeChangeKeepsRequestedTargetE
     shape.secondaryUrl = QUrl(QStringLiteral("file:///tmp/missing-secondary.png"));
     shape.intent = kiriview::ImageViewportTargetTransitionIntent::PresentationShapeChange;
     QVERIFY(runtime.submitTarget(shape.target()));
+    QCOMPARE(viewport.state().display().status(), ImageViewportDisplayStatus::Empty);
+    QVERIFY(!viewport.state().display().displayedRoleSet().primary());
+    QVERIFY(!viewport.state().display().displayedRoleSet().secondary());
+    QVERIFY(!viewport.state().display().displayedPresentationTargetGeneration().isValid());
+    QCOMPARE(runtime.projection().displayedUrl, QUrl());
     QTRY_COMPARE(shape.secondarySource->pendingFrames.size(), std::size_t(1));
     shape.secondarySource->failNext(loadFailure(shape.secondaryUrl, 720));
     QVERIFY(driveRenderUntil(window, [&runtime]() {
@@ -745,10 +772,82 @@ void TestImageViewportIntegrationRuntime::failedShapeChangeKeepsRequestedTargetE
     QTRY_COMPARE(shape.primarySource->pendingFrames.size(), std::size_t(1));
     shape.primarySource->completeNext(QStringLiteral("primary"));
     renderFrame(window);
-    QCOMPARE(runtime.projection().displayedUrl, initial.primaryUrl);
+    QCOMPARE(runtime.projection().displayedUrl, QUrl());
+    QCOMPARE(viewport.state().display().status(), ImageViewportDisplayStatus::Empty);
+    QVERIFY(!viewport.state().display().displayedPresentationTargetGeneration().isValid());
 
     runtime.clearTarget();
     QCOMPARE(runtime.projection().displayedUrl, QUrl());
+}
+
+void TestImageViewportIntegrationRuntime::deferredPrimaryUrlResolvesWithoutReplacingAcceptedTarget()
+{
+    kiriview::ImageViewportIntegrationRuntime runtime;
+    QQuickWindow window;
+    ImageViewport viewport;
+    hostViewport(window, viewport);
+    runtime.attach(&viewport);
+
+    TargetFixture fixture;
+    fixture.generation = 91;
+    fixture.primaryUrl = QUrl(QStringLiteral("file:///tmp/book.cbz"));
+    fixture.primaryUrlResolved = false;
+    QVERIFY(runtime.submitTarget(fixture.target()));
+    QTRY_COMPARE(fixture.primarySource->pendingFrames.size(), std::size_t(1));
+    const ImageViewportPresentationTargetGenerationToken acceptedGeneration
+        = viewport.state().request().acceptedPresentationTargetGeneration();
+    QVERIFY(acceptedGeneration.isValid());
+
+    const QUrl resolvedPageUrl(QStringLiteral("zip:///tmp/book.cbz!/01.jpg"));
+    QVERIFY(runtime.resolvePrimaryTargetUrl(fixture.generation, resolvedPageUrl));
+    QCOMPARE(viewport.state().request().acceptedPresentationTargetGeneration(), acceptedGeneration);
+    QVERIFY(!runtime.resolvePrimaryTargetUrl(fixture.generation, resolvedPageUrl));
+    QVERIFY(!runtime.resolvePrimaryTargetUrl(fixture.generation + 1, resolvedPageUrl));
+
+    fixture.primarySource->completeNext(QStringLiteral("resolved-page"));
+    QVERIFY(driveRenderUntil(window, [&runtime]() {
+        return runtime.projection().status == kiriview::ImageDocumentStatus::Ready;
+    }));
+    QCOMPARE(viewport.state().request().acceptedPresentationTargetGeneration(), acceptedGeneration);
+    QCOMPARE(runtime.projection().displayedUrl, resolvedPageUrl);
+}
+
+void TestImageViewportIntegrationRuntime::
+    authoritativeDisplayExcludesProvisionalPixelsAndIncludesRetainedPixels()
+{
+    kiriview::ImageViewportIntegrationRuntime runtime;
+    QQuickWindow window;
+    ImageViewport viewport;
+    hostViewport(window, viewport);
+    runtime.attach(&viewport);
+
+    TargetFixture initial;
+    initial.generation = 92;
+    initial.primaryUrl = QUrl(QStringLiteral("file:///tmp/initial.png"));
+    QVERIFY(runtime.submitTarget(initial.target()));
+    QTRY_COMPARE(initial.primarySource->pendingFrames.size(), std::size_t(1));
+    QVERIFY(!runtime.hasAuthoritativeDisplay());
+
+    initial.primarySource->emitNextProvisional(QStringLiteral("initial-preview"));
+    QVERIFY(driveRenderUntil(window, [&viewport]() {
+        return viewport.state().display().phase() == ImageViewportDisplayPhase::CommittedActive;
+    }));
+    QCOMPARE(viewport.state().request().status(), ImageViewportRequestStatus::Loading);
+    QVERIFY(!runtime.hasAuthoritativeDisplay());
+
+    initial.primarySource->completeNext(QStringLiteral("initial-authoritative"));
+    QVERIFY(driveRenderUntil(window, [&runtime]() {
+        return runtime.projection().status == kiriview::ImageDocumentStatus::Ready;
+    }));
+    QVERIFY(runtime.hasAuthoritativeDisplay());
+
+    TargetFixture replacement;
+    replacement.generation = 93;
+    replacement.primaryUrl = QUrl(QStringLiteral("file:///tmp/replacement.png"));
+    QVERIFY(runtime.submitTarget(replacement.target()));
+    QTRY_COMPARE(replacement.primarySource->pendingFrames.size(), std::size_t(1));
+    QCOMPARE(viewport.state().display().phase(), ImageViewportDisplayPhase::PreviousActive);
+    QVERIFY(runtime.hasAuthoritativeDisplay());
 }
 
 QTEST_MAIN(TestImageViewportIntegrationRuntime)

@@ -84,7 +84,12 @@ class OpenControllerFixture
 {
 public:
     OpenControllerFixture()
-        : state([this](kiriview::ImageDocumentChange change) { stateChanges.push_back(change); })
+        : state([this](kiriview::ImageDocumentChange change) {
+            stateChanges.push_back(change);
+            if (stateChangeHook) {
+                stateChangeHook(change);
+            }
+        })
     {
         kiriview::ImageOpenController::Callbacks callbacks;
         callbacks.findPredecodedImage
@@ -113,14 +118,18 @@ public:
                   candidateContexts.push_back(std::move(context));
                   pendingCandidateSnapshot = std::move(callback);
               };
-        callbacks.prepareViewportImageTarget
+        callbacks.startViewportImageTarget = [this](kiriview::ImageLoadSession session) {
+            startedSessions.push_back(std::move(session));
+            return acceptViewportTargetStart;
+        };
+        callbacks.resolveViewportImageTarget
             = [this](kiriview::ImageLoadSession session, std::optional<kiriview::PredecodedImage>) {
-                  preparedSessions.push_back(std::move(session));
-                  return acceptViewportTarget;
+                  resolvedSessions.push_back(std::move(session));
+                  return acceptViewportTargetResolution;
               };
         callbacks.firstDisplayDecodeContext
             = []() { return kiriview::ImageFirstDisplayDecodeContext {}; };
-        callbacks.hasCommittedImage = [this]() { return hasCommittedImage; };
+        callbacks.hasAuthoritativeDisplay = [this]() { return hasAuthoritativeDisplay; };
         controller = std::make_unique<kiriview::ImageOpenController>(state, std::move(callbacks));
     }
 
@@ -133,19 +142,22 @@ public:
     }
 
     std::vector<kiriview::ImageDocumentChange> stateChanges;
+    std::function<void(kiriview::ImageDocumentChange)> stateChangeHook;
     kiriview::ImageDocumentState state;
     std::vector<kiriview::ImageDocumentRuntimePlan> runtimePlans;
     std::vector<PageSlotCommit> pageSlotCommits;
     std::vector<kiriview::ImageDocumentPageCandidateListContext> candidateContexts;
     std::optional<kiriview::ImageDocumentPageCandidateListSnapshotCallback>
         pendingCandidateSnapshot;
-    std::vector<kiriview::ImageLoadSession> preparedSessions;
+    std::vector<kiriview::ImageLoadSession> startedSessions;
+    std::vector<kiriview::ImageLoadSession> resolvedSessions;
     std::size_t pendingViewportInvalidationCount = 0;
     std::function<void()> pendingViewportInvalidationHook;
     std::function<bool(const kiriview::OpenedCollectionScopeLocation&, const QUrl&)>
         videoPlaybackAvailability;
-    bool acceptViewportTarget = true;
-    bool hasCommittedImage = false;
+    bool acceptViewportTargetStart = true;
+    bool acceptViewportTargetResolution = true;
+    bool hasAuthoritativeDisplay = false;
     std::unique_ptr<kiriview::ImageOpenController> controller;
 };
 }
@@ -160,7 +172,9 @@ private Q_SLOTS:
     void currentViewportTerminalPublishesExactlyOnce();
     void currentViewportFailureUsesClaimedSessionIdentity();
     void failedViewportTargetSubmissionClaimsTerminalSession();
+    void failedViewportTargetResolutionClaimsTerminalSession();
     void cancelInvalidatesSessionBeforePendingViewportCleanup();
+    void reentrantLoadingNotificationCannotResumeSupersededOpen();
     void reentrantVideoAvailabilityProbeCannotPublishStaleVideoTerminal();
 };
 
@@ -181,7 +195,7 @@ void TestImageOpenController::staleViewportTerminalCannotPublishIntoReplacementL
     QFETCH(bool, readyTerminal);
 
     OpenControllerFixture fixture;
-    fixture.hasCommittedImage = true;
+    fixture.hasAuthoritativeDisplay = true;
 
     const QUrl retainedUrl = localUrl(QStringLiteral("/images/retained.png"));
     const kiriview::DisplayedImageLocation retainedLocation
@@ -192,8 +206,9 @@ void TestImageOpenController::staleViewportTerminalCannotPublishIntoReplacementL
 
     const QUrl staleUrl = localUrl(QStringLiteral("/images/pending.png"));
     fixture.openSource(directImageRequest(staleUrl));
-    QCOMPARE(fixture.preparedSessions.size(), std::size_t(1));
-    const kiriview::ImageLoadSession staleSession = fixture.preparedSessions.front();
+    QCOMPARE(fixture.startedSessions.size(), std::size_t(1));
+    QCOMPARE(fixture.resolvedSessions.size(), std::size_t(1));
+    const kiriview::ImageLoadSession staleSession = fixture.resolvedSessions.front();
 
     const QUrl replacementUrl = directorySource
         ? localUrl(QStringLiteral("/collections/replacement/"))
@@ -206,7 +221,9 @@ void TestImageOpenController::staleViewportTerminalCannotPublishIntoReplacementL
 
     QVERIFY(fixture.pendingCandidateSnapshot.has_value());
     QCOMPARE(fixture.candidateContexts.size(), std::size_t(1));
-    QCOMPARE(fixture.preparedSessions.size(), std::size_t(1));
+    QCOMPARE(fixture.startedSessions.size(), std::size_t(2));
+    QCOMPARE(fixture.startedSessions.back().imageUrl(), replacementUrl);
+    QCOMPARE(fixture.resolvedSessions.size(), std::size_t(1));
     QVERIFY(fixture.state.selectedTarget() == replacementTarget);
     QVERIFY(fixture.state.displayedImageLocation() == retainedLocation);
     QVERIFY(fixture.state.loading());
@@ -254,9 +271,9 @@ void TestImageOpenController::staleViewportTerminalCannotPublishIntoReplacementL
         {},
     });
 
-    QCOMPARE(fixture.preparedSessions.size(), std::size_t(2));
-    QCOMPARE(fixture.preparedSessions.back().imageUrl(), replacementPageUrl);
-    QCOMPARE(fixture.preparedSessions.back().openedCollectionScope(),
+    QCOMPARE(fixture.resolvedSessions.size(), std::size_t(2));
+    QCOMPARE(fixture.resolvedSessions.back().imageUrl(), replacementPageUrl);
+    QCOMPARE(fixture.resolvedSessions.back().openedCollectionScope(),
         replacementTarget.openedCollectionScope);
     QVERIFY(fixture.state.loading());
     QCOMPARE(fixture.state.status(), kiriview::ImageDocumentStatus::Loading);
@@ -268,8 +285,9 @@ void TestImageOpenController::currentViewportTerminalPublishesExactlyOnce()
     const QUrl imageUrl = localUrl(QStringLiteral("/images/current.png"));
     fixture.openSource(directImageRequest(imageUrl));
 
-    QCOMPARE(fixture.preparedSessions.size(), std::size_t(1));
-    const kiriview::ImageLoadSession session = fixture.preparedSessions.front();
+    QCOMPARE(fixture.startedSessions.size(), std::size_t(1));
+    QCOMPARE(fixture.resolvedSessions.size(), std::size_t(1));
+    const kiriview::ImageLoadSession session = fixture.resolvedSessions.front();
     const std::size_t loadingRuntimePlanCount = fixture.runtimePlans.size();
 
     kiriview::EmbeddedMetadata firstMetadata;
@@ -315,8 +333,9 @@ void TestImageOpenController::currentViewportFailureUsesClaimedSessionIdentity()
     const QUrl imageUrl = localUrl(QStringLiteral("/images/current-error.png"));
     fixture.openSource(directImageRequest(imageUrl));
 
-    QCOMPARE(fixture.preparedSessions.size(), std::size_t(1));
-    const kiriview::ImageLoadSession session = fixture.preparedSessions.front();
+    QCOMPARE(fixture.startedSessions.size(), std::size_t(1));
+    QCOMPARE(fixture.resolvedSessions.size(), std::size_t(1));
+    const kiriview::ImageLoadSession session = fixture.resolvedSessions.front();
     kiriview::ImageLoadFailure failure
         = presentationFailure(session, QStringLiteral("presentation failure"));
     failure.sourceUrl = localUrl(QStringLiteral("/images/forged.png"));
@@ -334,12 +353,13 @@ void TestImageOpenController::currentViewportFailureUsesClaimedSessionIdentity()
 void TestImageOpenController::failedViewportTargetSubmissionClaimsTerminalSession()
 {
     OpenControllerFixture fixture;
-    fixture.acceptViewportTarget = false;
+    fixture.acceptViewportTargetStart = false;
     const QUrl imageUrl = localUrl(QStringLiteral("/images/unpresentable.png"));
     fixture.openSource(directImageRequest(imageUrl));
 
-    QCOMPARE(fixture.preparedSessions.size(), std::size_t(1));
-    const kiriview::ImageLoadSession session = fixture.preparedSessions.front();
+    QCOMPARE(fixture.startedSessions.size(), std::size_t(1));
+    QVERIFY(fixture.resolvedSessions.empty());
+    const kiriview::ImageLoadSession session = fixture.startedSessions.front();
     QCOMPARE(fixture.state.status(), kiriview::ImageDocumentStatus::Error);
     QVERIFY(!fixture.state.loading());
     QVERIFY(fixture.state.displayedImageLocation().isEmpty());
@@ -369,14 +389,34 @@ void TestImageOpenController::failedViewportTargetSubmissionClaimsTerminalSessio
     QVERIFY(fixture.stateChanges.empty());
 }
 
+void TestImageOpenController::failedViewportTargetResolutionClaimsTerminalSession()
+{
+    OpenControllerFixture fixture;
+    fixture.acceptViewportTargetResolution = false;
+    const QUrl imageUrl = localUrl(QStringLiteral("/images/unresolvable.png"));
+    fixture.openSource(directImageRequest(imageUrl));
+
+    QCOMPARE(fixture.startedSessions.size(), std::size_t(1));
+    QCOMPARE(fixture.resolvedSessions.size(), std::size_t(1));
+    const kiriview::ImageLoadSession session = fixture.resolvedSessions.front();
+    QCOMPARE(fixture.state.status(), kiriview::ImageDocumentStatus::Error);
+    QVERIFY(!fixture.state.loading());
+    QVERIFY(fixture.state.displayedImageLocation().isEmpty());
+    QVERIFY(fixture.state.loadFailure().has_value());
+    QCOMPARE(fixture.state.loadFailure()->sourceUrl, imageUrl);
+    QCOMPARE(fixture.state.loadFailure()->sessionId, session.id());
+    QVERIFY(fixture.pageSlotCommits.empty());
+}
+
 void TestImageOpenController::cancelInvalidatesSessionBeforePendingViewportCleanup()
 {
     OpenControllerFixture fixture;
     const QUrl imageUrl = localUrl(QStringLiteral("/images/cancelled.png"));
     fixture.openSource(directImageRequest(imageUrl));
 
-    QCOMPARE(fixture.preparedSessions.size(), std::size_t(1));
-    const kiriview::ImageLoadSession session = fixture.preparedSessions.front();
+    QCOMPARE(fixture.startedSessions.size(), std::size_t(1));
+    QCOMPARE(fixture.resolvedSessions.size(), std::size_t(1));
+    const kiriview::ImageLoadSession session = fixture.resolvedSessions.front();
     const std::size_t runtimePlanCount = fixture.runtimePlans.size();
     const std::size_t invalidationCount = fixture.pendingViewportInvalidationCount;
     fixture.stateChanges.clear();
@@ -394,6 +434,37 @@ void TestImageOpenController::cancelInvalidatesSessionBeforePendingViewportClean
     QCOMPARE(fixture.state.status(), kiriview::ImageDocumentStatus::Loading);
     QVERIFY(fixture.state.displayedImageLocation().isEmpty());
     QVERIFY(fixture.stateChanges.empty());
+}
+
+void TestImageOpenController::reentrantLoadingNotificationCannotResumeSupersededOpen()
+{
+    OpenControllerFixture fixture;
+    const QUrl staleUrl = localUrl(QStringLiteral("/images/reentrant-stale.png"));
+    const QUrl replacementUrl = localUrl(QStringLiteral("/images/reentrant-replacement.png"));
+    const kiriview::ImageDocumentSourceLoadRequest replacementRequest
+        = directImageRequest(replacementUrl);
+    bool replacementStarted = false;
+    fixture.stateChangeHook = [&fixture, replacementRequest, staleUrl, &replacementStarted](
+                                  kiriview::ImageDocumentChange change) {
+        if (replacementStarted || change != kiriview::ImageDocumentChange::Loading
+            || fixture.state.sourceUrl() != staleUrl) {
+            return;
+        }
+        replacementStarted = true;
+        fixture.openSource(replacementRequest);
+    };
+
+    fixture.openSource(directImageRequest(staleUrl));
+
+    QVERIFY(replacementStarted);
+    QCOMPARE(fixture.startedSessions.size(), std::size_t(1));
+    QCOMPARE(fixture.startedSessions.front().imageUrl(), replacementUrl);
+    QCOMPARE(fixture.resolvedSessions.size(), std::size_t(1));
+    QCOMPARE(fixture.resolvedSessions.front().imageUrl(), replacementUrl);
+    QCOMPARE(fixture.state.sourceUrl(), replacementUrl);
+    QVERIFY(fixture.state.loading());
+    QCOMPARE(fixture.state.status(), kiriview::ImageDocumentStatus::Loading);
+    QCOMPARE(fixture.runtimePlans.size(), std::size_t(1));
 }
 
 void TestImageOpenController::reentrantVideoAvailabilityProbeCannotPublishStaleVideoTerminal()
@@ -434,8 +505,10 @@ void TestImageOpenController::reentrantVideoAvailabilityProbeCannotPublishStaleV
     fixture.openSource(videoRequest);
 
     QCOMPARE(probeCount, 1);
-    QCOMPARE(fixture.preparedSessions.size(), std::size_t(1));
-    QCOMPARE(fixture.preparedSessions.front().imageUrl(), replacementUrl);
+    QCOMPARE(fixture.startedSessions.size(), std::size_t(1));
+    QCOMPARE(fixture.startedSessions.front().imageUrl(), replacementUrl);
+    QCOMPARE(fixture.resolvedSessions.size(), std::size_t(1));
+    QCOMPARE(fixture.resolvedSessions.front().imageUrl(), replacementUrl);
     QVERIFY(fixture.state.selectedTarget() == replacementTarget);
     QVERIFY(fixture.state.loading());
     QCOMPARE(fixture.state.status(), kiriview::ImageDocumentStatus::Loading);

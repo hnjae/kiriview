@@ -51,6 +51,18 @@ bool StaticDisplayImagePayload::isValid() const
             && image.size() == originalSize);
 }
 
+bool StaticDisplayImagePayload::isAuthoritative() const
+{
+    return isValid() && quality != DisplayImageQuality::ThumbnailPreview
+        && previewOrigin == DisplayImagePreviewOrigin::None;
+}
+
+bool StaticDisplayImagePayload::isProvisionalPreview() const
+{
+    return isValid() && quality == DisplayImageQuality::ThumbnailPreview
+        && previewOrigin != DisplayImagePreviewOrigin::None;
+}
+
 qsizetype StaticDisplayImagePayload::byteCost() const
 {
     if (!isValid()) {

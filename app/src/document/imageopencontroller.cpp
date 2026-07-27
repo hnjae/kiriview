@@ -12,6 +12,7 @@
 
 #include <KLocalizedString>
 #include <QtGlobal>
+#include <limits>
 #include <utility>
 
 namespace {
@@ -65,40 +66,51 @@ ImageOpenController::ImageOpenController(
     if (!m_callbacks.findPredecodedImage || !m_callbacks.runtimePlan
         || !m_callbacks.openedCollectionVideoPlaybackAvailable || !m_callbacks.commitPrimaryPageSlot
         || !m_callbacks.invalidatePendingViewportImageLoad
-        || !m_callbacks.ensurePageCandidateSnapshot || !m_callbacks.prepareViewportImageTarget
-        || !m_callbacks.firstDisplayDecodeContext || !m_callbacks.hasCommittedImage) {
+        || !m_callbacks.ensurePageCandidateSnapshot || !m_callbacks.startViewportImageTarget
+        || !m_callbacks.resolveViewportImageTarget || !m_callbacks.firstDisplayDecodeContext
+        || !m_callbacks.hasAuthoritativeDisplay) {
         qFatal("Image-open controller requires all workflow callbacks");
     }
 
     ImageLoader::EnsurePageCandidateSnapshotCallback ensurePageCandidateSnapshot
         = m_callbacks.ensurePageCandidateSnapshot;
-    m_imageLoader = std::make_unique<ImageLoader>(ImageLoader::Callbacks {
-        [this](const ImageLoadSession& session, ImageLoadFailure failure) {
-            [[maybe_unused]] auto batch = m_state.beginChangeBatch();
-            finishLoadWithError(session, std::move(failure));
-        },
-        [this](const ImageLoadSession& session) {
-            [[maybe_unused]] auto batch = m_state.beginChangeBatch();
-            finishUnsupportedOpenedCollectionVideoLoad(session);
-        },
-        [this](const QUrl& url) { return m_callbacks.findPredecodedImage(url); },
-        [this](const ImageLoadSession& session) {
-            [[maybe_unused]] auto batch = m_state.beginChangeBatch();
-            finishSourcePrepared(session);
-        },
-        std::move(ensurePageCandidateSnapshot),
-        [this](const ImageLoadSession& session, std::optional<PredecodedImage> predecoded) {
-            [[maybe_unused]] auto batch = m_state.beginChangeBatch();
-            finishPreparedViewportImageLoad(session, std::move(predecoded));
-        },
-    });
+    ImageLoader::Callbacks loaderCallbacks;
+    loaderCallbacks.error = [this](const ImageLoadSession& session, ImageLoadFailure failure) {
+        [[maybe_unused]] auto batch = m_state.beginChangeBatch();
+        finishLoadWithError(session, std::move(failure));
+    };
+    loaderCallbacks.unsupportedOpenedCollectionVideo = [this](const ImageLoadSession& session) {
+        [[maybe_unused]] auto batch = m_state.beginChangeBatch();
+        finishUnsupportedOpenedCollectionVideoLoad(session);
+    };
+    loaderCallbacks.findPredecodedImage
+        = [this](const QUrl& url) { return m_callbacks.findPredecodedImage(url); };
+    loaderCallbacks.sourcePrepared = [this](const ImageLoadSession& session) {
+        [[maybe_unused]] auto batch = m_state.beginChangeBatch();
+        finishSourcePrepared(session);
+    };
+    loaderCallbacks.ensurePageCandidateSnapshot = std::move(ensurePageCandidateSnapshot);
+    loaderCallbacks.targetStarted = [this](const ImageLoadSession& session) {
+        [[maybe_unused]] auto batch = m_state.beginChangeBatch();
+        finishStartedViewportImageLoad(session);
+    };
+    loaderCallbacks.resolvedImage
+        = [this](const ImageLoadSession& session, std::optional<PredecodedImage> predecoded) {
+              [[maybe_unused]] auto batch = m_state.beginChangeBatch();
+              finishResolvedViewportImageLoad(session, std::move(predecoded));
+          };
+    m_imageLoader = std::make_unique<ImageLoader>(std::move(loaderCallbacks));
 }
 
 ImageOpenController::~ImageOpenController() { m_imageLoader->cancel(); }
 
 void ImageOpenController::open()
 {
-    cancel();
+    const quint64 revision = beginOperation();
+    cancelActiveLoad();
+    if (!operationIsCurrent(revision)) {
+        return;
+    }
     if (m_state.sourceUrl().isEmpty()) {
         finishEmptySourceLoad();
         return;
@@ -109,9 +121,14 @@ void ImageOpenController::open()
 
     ImageLoadRequest request = std::move(*m_sourceLoadRequest);
     m_sourceLoadRequest.reset();
-    beginSourceLoad(request.sameScopePageNavigation());
+    if (!beginSourceLoad(request.sameScopePageNavigation(), revision)) {
+        return;
+    }
     const ImageFirstDisplayDecodeContext firstDisplayContext
         = m_callbacks.firstDisplayDecodeContext();
+    if (!operationIsCurrent(revision)) {
+        return;
+    }
     m_imageLoader->start(std::move(request), firstDisplayContext);
 }
 
@@ -122,13 +139,44 @@ void ImageOpenController::prepareSourceLoad(const ImageDocumentSourceLoadRequest
 
 void ImageOpenController::cancel()
 {
+    static_cast<void>(beginOperation());
+    cancelActiveLoad();
+}
+
+quint64 ImageOpenController::beginOperation()
+{
+    if (m_operationRevision == std::numeric_limits<quint64>::max()) {
+        qFatal("Image-open operation revision exhausted");
+    }
+    return ++m_operationRevision;
+}
+
+bool ImageOpenController::operationIsCurrent(quint64 revision) const
+{
+    return revision == m_operationRevision;
+}
+
+void ImageOpenController::cancelActiveLoad()
+{
     m_imageLoader->cancel();
     m_callbacks.invalidatePendingViewportImageLoad();
+}
+
+bool ImageOpenController::applyAndReportIfCurrent(ImageOpenApplicationPlan plan, quint64 revision)
+{
+    const ImageDocumentRuntimePlan runtimePlan
+        = applyImageOpenApplicationPlan(m_state, std::move(plan));
+    if (!operationIsCurrent(revision)) {
+        return false;
+    }
+    reportRuntimePlan(runtimePlan);
+    return operationIsCurrent(revision);
 }
 
 void ImageOpenController::finishViewportImageLoadReady(
     const ImageLoadSession& session, QSize imageSize, EmbeddedMetadata metadata)
 {
+    const quint64 revision = m_operationRevision;
     std::optional<ImageLoadSession> currentSession = m_imageLoader->claimCurrentSession(session);
     if (!currentSession.has_value()) {
         return;
@@ -136,12 +184,16 @@ void ImageOpenController::finishViewportImageLoadReady(
 
     [[maybe_unused]] auto batch = m_state.beginChangeBatch();
     m_callbacks.commitPrimaryPageSlot(currentSession->location(), imageSize);
+    if (!operationIsCurrent(revision)) {
+        return;
+    }
     finishSuccessfulImageLoad(*currentSession, std::move(metadata));
 }
 
 void ImageOpenController::finishViewportImageLoadWithError(
     const ImageLoadSession& session, ImageLoadFailure failure)
 {
+    const quint64 revision = m_operationRevision;
     std::optional<ImageLoadSession> currentSession = m_imageLoader->claimCurrentSession(session);
     if (!currentSession.has_value()) {
         return;
@@ -149,24 +201,33 @@ void ImageOpenController::finishViewportImageLoadWithError(
 
     failure.sourceUrl = currentSession->imageUrl();
     failure.sessionId = currentSession->id();
+    if (!operationIsCurrent(revision)) {
+        return;
+    }
     [[maybe_unused]] auto batch = m_state.beginChangeBatch();
     finishLoadWithError(*currentSession, std::move(failure));
 }
 
 void ImageOpenController::finishEmptySourceLoad()
 {
-    reportRuntimePlan(
-        applyImageOpenApplicationPlan(m_state, ImageOpenWorkflow::finishEmptySourceLoadPlan()));
+    const quint64 revision = m_operationRevision;
+    static_cast<void>(
+        applyAndReportIfCurrent(ImageOpenWorkflow::finishEmptySourceLoadPlan(), revision));
 }
 
-void ImageOpenController::beginSourceLoad(bool sameScopePageNavigation)
+bool ImageOpenController::beginSourceLoad(bool sameScopePageNavigation, quint64 revision)
 {
-    reportRuntimePlan(applyImageOpenApplicationPlan(m_state,
+    const bool hasAuthoritativeDisplay = m_callbacks.hasAuthoritativeDisplay();
+    if (!operationIsCurrent(revision)) {
+        return false;
+    }
+    return applyAndReportIfCurrent(
         ImageOpenWorkflow::beginSourceLoadPlan(ImageOpenBeginSourceLoadSnapshot {
-            m_callbacks.hasCommittedImage(),
+            hasAuthoritativeDisplay,
             !m_state.loadingContainerNavigationUrl().isEmpty(),
             sameScopePageNavigation,
-        })));
+        }),
+        revision);
 }
 
 void ImageOpenController::finishContainerNavigationWithEmptyContainer(const QUrl& containerUrl)
@@ -177,23 +238,30 @@ void ImageOpenController::finishContainerNavigationWithEmptyContainer(const QUrl
 void ImageOpenController::finishContainerNavigationLoadWithError(
     const QUrl& containerUrl, const QString& errorString)
 {
-    cancel();
+    const quint64 revision = beginOperation();
+    cancelActiveLoad();
+    if (!operationIsCurrent(revision)) {
+        return;
+    }
     ImageDocumentSelectedTarget selectedTarget = m_state.selectedTarget();
     selectedTarget.url = containerUrl;
-    reportRuntimePlan(applyImageOpenApplicationPlan(m_state,
+    static_cast<void>(applyAndReportIfCurrent(
         ImageOpenWorkflow::finishContainerNavigationLoadWithErrorPlan(
-            std::move(selectedTarget), openedCollectionOpenErrorMessage(errorString))));
+            std::move(selectedTarget), openedCollectionOpenErrorMessage(errorString)),
+        revision));
 }
 
 void ImageOpenController::finishSourcePrepared(const ImageLoadSession& session)
 {
-    reportRuntimePlan(
-        applyImageOpenApplicationPlan(m_state, ImageOpenWorkflow::resolveSourceImagePlan(session)));
+    const quint64 revision = m_operationRevision;
+    static_cast<void>(
+        applyAndReportIfCurrent(ImageOpenWorkflow::resolveSourceImagePlan(session), revision));
 }
 
 void ImageOpenController::finishUnsupportedOpenedCollectionVideoLoad(
     const ImageLoadSession& session)
 {
+    const quint64 revision = m_operationRevision;
     if (!m_imageLoader->isCurrentSession(session)) {
         return;
     }
@@ -211,22 +279,34 @@ void ImageOpenController::finishUnsupportedOpenedCollectionVideoLoad(
     }
 
     const QString message = unsupportedOpenedCollectionVideoMessage();
-    const ImageDocumentRuntimePlan plan = applyImageOpenApplicationPlan(m_state,
-        ImageOpenWorkflow::finishUnsupportedOpenedCollectionVideoLoadPlan(*currentSession));
-    reportRuntimePlan(plan);
+    if (!applyAndReportIfCurrent(
+            ImageOpenWorkflow::finishUnsupportedOpenedCollectionVideoLoadPlan(*currentSession),
+            revision)) {
+        return;
+    }
     invokeIfSet(m_callbacks.unsupportedOpenedCollectionVideoEntered, message);
 }
 
 void ImageOpenController::finishPlayableOpenedCollectionVideoLoad(const ImageLoadSession& session)
 {
-    reportRuntimePlan(applyImageOpenApplicationPlan(
-        m_state, ImageOpenWorkflow::finishPlayableOpenedCollectionVideoLoadPlan(session)));
+    const quint64 revision = m_operationRevision;
+    static_cast<void>(applyAndReportIfCurrent(
+        ImageOpenWorkflow::finishPlayableOpenedCollectionVideoLoadPlan(session), revision));
 }
 
-void ImageOpenController::finishPreparedViewportImageLoad(
+void ImageOpenController::finishStartedViewportImageLoad(const ImageLoadSession& session)
+{
+    if (m_callbacks.startViewportImageTarget(session)) {
+        return;
+    }
+    finishViewportImageLoadWithError(session,
+        imagePresentationFailure(session, imageErrorText(ImageErrorTextId::DecodeImageAnimation)));
+}
+
+void ImageOpenController::finishResolvedViewportImageLoad(
     const ImageLoadSession& session, std::optional<PredecodedImage> predecoded)
 {
-    if (m_callbacks.prepareViewportImageTarget(session, std::move(predecoded))) {
+    if (m_callbacks.resolveViewportImageTarget(session, std::move(predecoded))) {
         return;
     }
     finishViewportImageLoadWithError(session,
@@ -236,20 +316,22 @@ void ImageOpenController::finishPreparedViewportImageLoad(
 void ImageOpenController::finishLoadWithError(
     const ImageLoadSession& session, ImageLoadFailure failure)
 {
+    const quint64 revision = m_operationRevision;
     failure.userMessage = loadFailureUserMessage(failure);
-    reportRuntimePlan(applyImageOpenApplicationPlan(
-        m_state, ImageOpenWorkflow::finishLoadWithErrorPlan(session, failure)));
+    static_cast<void>(applyAndReportIfCurrent(
+        ImageOpenWorkflow::finishLoadWithErrorPlan(session, failure), revision));
 }
 
 void ImageOpenController::finishSuccessfulImageLoad(
     const ImageLoadSession& session, EmbeddedMetadata metadata)
 {
-    reportRuntimePlan(applyImageOpenApplicationPlan(m_state,
-        ImageOpenWorkflow::finishSuccessfulImageLoadPlan(
-            ImageOpenSuccessfulImageLoadSnapshot {
-                session.hasContainerNavigationTarget(),
-            },
-            session, std::move(metadata))));
+    const quint64 revision = m_operationRevision;
+    static_cast<void>(applyAndReportIfCurrent(ImageOpenWorkflow::finishSuccessfulImageLoadPlan(
+                                                  ImageOpenSuccessfulImageLoadSnapshot {
+                                                      session.hasContainerNavigationTarget(),
+                                                  },
+                                                  session, std::move(metadata)),
+        revision));
 }
 
 void ImageOpenController::reportRuntimePlan(const ImageDocumentRuntimePlan& plan)

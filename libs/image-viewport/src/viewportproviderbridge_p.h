@@ -110,14 +110,30 @@ struct ViewportProviderTransportResult
     ImageViewportInternal::ProviderTransportDiagnostic diagnostic;
 };
 
+enum class ViewportProviderSessionOpenTransportOutcome {
+    Failed,
+    Opened,
+    Deferred,
+};
+
 struct ViewportProviderSessionOpenTransportResult
 {
-    bool opened = false;
+    ViewportProviderSessionOpenTransportOutcome outcome
+        = ViewportProviderSessionOpenTransportOutcome::Failed;
     bool providerFailureAvailable = false;
     ImageSequenceProviderFailureCause providerCause
         = ImageSequenceProviderFailureCause::Unavailable;
     ImageSequenceProviderFailureReference providerReference;
     quint64 providerFailureLeaseId = 0;
+
+    [[nodiscard]] bool isOpened() const
+    {
+        return outcome == ViewportProviderSessionOpenTransportOutcome::Opened;
+    }
+    [[nodiscard]] bool isDeferred() const
+    {
+        return outcome == ViewportProviderSessionOpenTransportOutcome::Deferred;
+    }
 };
 
 struct ViewportProviderCleanupResult
@@ -143,6 +159,7 @@ public:
         ImageSequenceProviderRequestToken metadataToken,
         ImageSequenceProviderRequestToken frameToken);
     ViewportProviderTransportResult activateSession(quint64 generation, quint64 sessionSerial);
+    [[nodiscard]] bool canAdmitSession();
     ViewportProviderSessionOpenTransportResult openSession(
         const ViewportProviderSessionOpenInput& input);
     ViewportProviderTransportResult deliverRequest(const ImageSequenceProviderRequest& request);
