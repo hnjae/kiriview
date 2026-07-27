@@ -9,6 +9,7 @@
 #include <QObject>
 #include <QTest>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -24,6 +25,9 @@ private Q_SLOTS:
     void cancelRejectsLateCompletion();
     void cancelRejectsLateError();
     void predicateRejectionDropsCurrentCompletion();
+    void cancellationInvalidatesBeforeProviderCallback();
+    void synchronousCompletionPreservesReplacementJob();
+    void predicateReentryRejectsSupersededCompletion();
     void acceptedScopeAllowsEquivalentCursorConfirmation();
 };
 
@@ -62,6 +66,13 @@ public:
                 kiriview::ImageIoJob job
                     = kiriview::TestSupport::Detail::startManualIoJob(receiver, load);
                 m_loads.push_back(load);
+                if (m_synchronousFirstCandidates.has_value() && m_loads.size() == 1) {
+                    const std::vector<kiriview::DirectMediaNavigationCandidate> candidates
+                        = std::move(*m_synchronousFirstCandidates);
+                    m_synchronousFirstCandidates.reset();
+                    load->completion.claimAndRun(
+                        [load, candidates]() mutable { load->callback(std::move(candidates)); });
+                }
                 return job;
             },
         };
@@ -91,8 +102,39 @@ public:
         }
     }
 
+    void synchronouslyCompleteFirstWith(
+        std::vector<kiriview::DirectMediaNavigationCandidate> candidates)
+    {
+        m_synchronousFirstCandidates = std::move(candidates);
+    }
+
 private:
+    std::optional<std::vector<kiriview::DirectMediaNavigationCandidate>>
+        m_synchronousFirstCandidates;
     std::vector<std::shared_ptr<ManualDirectMediaNavigationCandidateLoad>> m_loads;
+};
+
+class CancellationCompletingCandidateProvider
+{
+public:
+    kiriview::DirectMediaNavigationCandidateProvider provider()
+    {
+        return kiriview::DirectMediaNavigationCandidateProvider {
+            [this](QObject* receiver, QUrl,
+                kiriview::DirectMediaNavigationCandidatesCallback callback,
+                kiriview::ErrorCallback) {
+                QObject* token = new QObject(receiver);
+                return kiriview::ImageIoJob(
+                    token, [this, callback = std::move(callback)](QObject* object) mutable {
+                        canceled = true;
+                        callback({});
+                        object->deleteLater();
+                    });
+            },
+        };
+    }
+
+    bool canceled = false;
 };
 
 struct RuntimeFixture
@@ -252,6 +294,76 @@ void TestDocumentSessionDirectMediaNavigationRuntime::predicateRejectionDropsCur
     fixture.provider.deliverIgnoringCancellation(0, { directMediaNavigationCandidate(currentUrl) });
 
     QCOMPARE(fixture.completionCount, 0);
+}
+
+void TestDocumentSessionDirectMediaNavigationRuntime::
+    cancellationInvalidatesBeforeProviderCallback()
+{
+    QObject receiver;
+    CancellationCompletingCandidateProvider provider;
+    kiriview::DocumentSessionDirectMediaNavigationRuntime runtime(provider.provider());
+    int completionCount = 0;
+    runtime.loadCandidates(
+        &receiver, directMediaScope(localUrl(QStringLiteral("/media/01.mp4"))),
+        [](const kiriview::DirectMediaScope&) { return true; },
+        [&](kiriview::DocumentSessionDirectMediaNavigationCandidatesResult) { ++completionCount; });
+
+    runtime.cancel();
+
+    QVERIFY(provider.canceled);
+    QCOMPARE(completionCount, 0);
+}
+
+void TestDocumentSessionDirectMediaNavigationRuntime::synchronousCompletionPreservesReplacementJob()
+{
+    QObject receiver;
+    ManualDirectMediaNavigationCandidateProvider provider;
+    const QUrl firstUrl = localUrl(QStringLiteral("/first/01.mp4"));
+    const QUrl secondUrl = localUrl(QStringLiteral("/second/01.mp4"));
+    provider.synchronouslyCompleteFirstWith({ directMediaNavigationCandidate(firstUrl) });
+    kiriview::DocumentSessionDirectMediaNavigationRuntime runtime(provider.provider());
+    int firstCompletionCount = 0;
+    runtime.loadCandidates(
+        &receiver, directMediaScope(firstUrl),
+        [](const kiriview::DirectMediaScope&) { return true; },
+        [&](kiriview::DocumentSessionDirectMediaNavigationCandidatesResult) {
+            ++firstCompletionCount;
+            runtime.loadCandidates(
+                &receiver, directMediaScope(secondUrl),
+                [](const kiriview::DirectMediaScope&) { return true; },
+                [](kiriview::DocumentSessionDirectMediaNavigationCandidatesResult) {});
+        });
+
+    QCOMPARE(firstCompletionCount, 1);
+    QCOMPARE(provider.loadCount(), std::size_t(2));
+    QVERIFY(!provider.loadAt(1).canceled);
+}
+
+void TestDocumentSessionDirectMediaNavigationRuntime::predicateReentryRejectsSupersededCompletion()
+{
+    RuntimeFixture fixture;
+    const QUrl firstUrl = localUrl(QStringLiteral("/first/01.mp4"));
+    const QUrl secondUrl = localUrl(QStringLiteral("/second/01.mp4"));
+    bool reentered = false;
+    fixture.runtime.loadCandidates(
+        &fixture.receiver, directMediaScope(firstUrl),
+        [&](const kiriview::DirectMediaScope&) {
+            if (!reentered) {
+                reentered = true;
+                fixture.load(directMediaScope(secondUrl));
+            }
+            return true;
+        },
+        [&](kiriview::DocumentSessionDirectMediaNavigationCandidatesResult) {
+            ++fixture.completionCount;
+        });
+
+    fixture.provider.deliverIgnoringCancellation(0, { directMediaNavigationCandidate(firstUrl) });
+
+    QVERIFY(reentered);
+    QCOMPARE(fixture.provider.loadCount(), std::size_t(2));
+    QCOMPARE(fixture.completionCount, 0);
+    QVERIFY(!fixture.provider.loadAt(1).canceled);
 }
 
 void TestDocumentSessionDirectMediaNavigationRuntime::
