@@ -60,7 +60,7 @@ The public source URL for a direct image or direct video is the URL requested th
 
 An accepted direct-media selection becomes the selected source and error context immediately. A successful open keeps that requested URL as the public source. A failed open also keeps the failed requested URL as the public source and error context rather than exposing a previous item or an internal access location.
 
-During image navigation, the selected source may differ temporarily from the displayed image URL because KiriView clears the previous presentation before the selected image is ready, as defined in [Navigation](navigation.md#pending-selection-and-loading).
+During image navigation, the selected source may differ temporarily from the displayed image URL because KiriView accepts the replacement before the selected image is ready. Any retained previous pixels remain only as the non-interactive fallback defined in [Navigation](navigation.md#pending-selection-and-loading).
 
 Any temporary, local, mounted, cached, or otherwise prepared representation used to read or play a direct media item is private and never becomes its public source. Routing and error context use the requested direct media URL. Titles, navigation, and operation targets use the selected or displayed public identity required by their subject specifications; in particular, direct-video preparation never changes the URL used for its title, adjacent navigation, or deletion.
 

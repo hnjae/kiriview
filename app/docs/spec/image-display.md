@@ -46,7 +46,7 @@ If a static image exceeds the supported decode or display size, KiriView reports
 
 Large static images may first appear as a lower-detail preview and then become sharper when matching current-detail output is ready.
 
-KiriView may display a source-derived thumbnail as provisional pixels while the selected image is still loading. Provisional pixels do not make the selected image ready or enable readiness-dependent controls, and they are replaced automatically when authoritative decoded output becomes available without requiring zoom, resize, or another user action.
+KiriView may display source-derived provisional pixels while the selected image is still loading only when no complete authoritative image is retained as its replacement fallback. When a complete authoritative display is retained, it remains the sole visual fallback and provisional pixels for the replacement are not displayed. Provisional pixels do not make the selected image ready or enable readiness-dependent controls, and they are replaced automatically when authoritative decoded output becomes available without requiring zoom, resize, or another user action.
 
 If authoritative decoding fails after provisional pixels were shown, KiriView removes those pixels and shows the selected target's error state instead of treating the preview as a successfully opened image.
 

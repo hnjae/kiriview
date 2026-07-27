@@ -64,7 +64,7 @@ During that loading interval, the page number shown in the UI is the most recent
 
 The active navigation selection and the displayed media item may temporarily differ. The active navigation readout, selected thumbnail, and page-number entry follow the most recent valid page selection, while the displayed image URL or direct video source URL continues to mean the media item actually being shown.
 
-For image selections that are still loading, KiriView does not retain the previous committed image. The displayed image URL is empty until the selected target is ready even though the source URL and active navigation selection already refer to that target.
+For image selections that are still loading, the previous image is no longer the active displayed media item. Its pixels may remain only as the non-interactive fallback defined in [Image Display](image-display.md#loading-and-replacement); the displayed image URL is empty until the selected target is ready even though the source URL and active navigation selection already refer to that target.
 
 If users make multiple page selections before loading finishes, only the most recent selection is displayed.
 
