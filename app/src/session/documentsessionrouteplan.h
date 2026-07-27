@@ -41,17 +41,14 @@ struct ClearDirectMediaCursorRouteOperation
 
 struct SetDirectVideoCursorRouteOperation
 {
-    QUrl url;
 };
 
 struct RequestDirectImageCursorRouteOperation
 {
-    QUrl url;
 };
 
 struct ClearThenRequestDirectImageCursorRouteOperation
 {
-    QUrl url;
 };
 
 struct ClearImageDocumentRouteOperation
@@ -68,17 +65,14 @@ struct EnterEmptyDocumentRouteOperation
 
 struct EnterImageDocumentRouteOperation
 {
-    QUrl url;
 };
 
 struct EnterImageDocumentSameScopeNavigationRouteOperation
 {
-    QUrl url;
 };
 
 struct EnterVideoDocumentRouteOperation
 {
-    QUrl url;
 };
 
 struct SyncDirectImageCursorFromDocumentRouteOperation
@@ -91,7 +85,6 @@ struct ClearSourceIdentityRouteOperation
 
 struct UseOriginalSourceIdentityRouteOperation
 {
-    QUrl url;
 };
 
 struct UseImageDocumentSourceIdentityRouteOperation

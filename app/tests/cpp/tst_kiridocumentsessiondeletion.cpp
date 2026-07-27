@@ -11,12 +11,17 @@ private Q_SLOTS:
     void nonMediaImageDeletionProgressIsMirroredThroughSessionState();
     void directMediaDeletionInProgressDisablesActiveNavigationDispatch();
     void directImageDeletionCanOpenVideoFallback();
+    void directImageDeletionWithoutFallbackPublishesCoherentCompletion();
     void pendingDirectImageReplacementDoesNotExposeDisplayedDeletion();
     void pendingDirectMediaDeletionCandidateLoadIsCanceledBySourceChange();
+    void sourceChangeDuringDirectMediaDeletionStartCannotRetargetDestructiveRequest();
     void reentrantSourceSelectionDuringDeletionCancellationKeepsLatestSelection();
     void videoDeletionUsesOriginalUrlAndOpensMediaFallback();
+    void reentrantSourceSelectionDuringSuccessfulVideoDeletionKeepsLatestSelection();
+    void pendingNavigationCompletionSupersedingDeletionFallbackReleasesDeletionTransaction();
     void canceledVideoDeletionKeepsCurrentVideo();
     void failedVideoDeletionPublishesErrorWithProgressCompletion();
+    void failedVideoDeletionCompletionAllowsImmediateRetryAndUsesGenericMessage();
     void staleVideoDeletionCompletionAfterSourceChangeIsIgnored();
 };
 

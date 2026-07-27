@@ -3,6 +3,7 @@
 
 #include "documentsessionruntimegraph.h"
 
+#include "localization/imageerrortext.h"
 #include "navigation/navigationlogging.h"
 #include "session/documentsessionactivezoom.h"
 
@@ -76,6 +77,13 @@ kiriview::VideoPlaybackSourceDevice videoPlaybackSourceDeviceFromMediaEntryDevic
         std::move(device.sourceOwner),
         std::move(device.device),
     };
+}
+
+QString fileDeletionErrorMessage(const kiriview::KioOperationFailure& failure)
+{
+    return failure.userMessage.isEmpty()
+        ? kiriview::imageErrorText(kiriview::ImageErrorTextId::DeleteFile)
+        : failure.userMessage;
 }
 
 }
@@ -172,13 +180,13 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
                   logDirectMediaScope("direct media cursor cleared", m_state.directMediaScope());
                   return changed;
               },
-              [this](const QUrl&) {
-                  const bool changed = m_state.setDirectVideoCursor(m_routeNavigationSource);
+              [this](const ResolvedNavigationSource& source) {
+                  const bool changed = m_state.setDirectVideoCursor(source);
                   logDirectMediaScope("direct video cursor set", m_state.directMediaScope());
                   return changed;
               },
-              [this](const QUrl&) {
-                  const bool changed = m_state.requestDirectImageCursor(m_routeNavigationSource);
+              [this](const ResolvedNavigationSource& source) {
+                  const bool changed = m_state.requestDirectImageCursor(source);
                   logDirectMediaScope("direct image cursor requested", m_state.directMediaScope());
                   return changed;
               },
@@ -206,21 +214,21 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
                   m_state.setOpenedCollectionVideoActive(false);
                   setDocumentKind(DocumentSessionKind::Empty);
               },
-              [this](const QUrl&) {
+              [this](const ResolvedNavigationSource& source) {
                   m_state.setOpenedCollectionVideoActive(false);
-                  m_imageDocumentCommandRuntime.setSource(m_routeNavigationSource);
+                  m_imageDocumentCommandRuntime.setSource(source);
                   refreshImagePublicSnapshot();
                   setDocumentKind(DocumentSessionKind::Image);
               },
-              [this](const QUrl&) {
+              [this](const ResolvedNavigationSource& source) {
                   m_state.setOpenedCollectionVideoActive(false);
-                  m_imageDocumentCommandRuntime.setSource(m_routeNavigationSource);
+                  m_imageDocumentCommandRuntime.setSource(source);
                   refreshImagePublicSnapshot();
                   setDocumentKind(DocumentSessionKind::Image);
               },
-              [this](const QUrl&) {
+              [this](const ResolvedNavigationSource& source) {
                   m_state.setOpenedCollectionVideoActive(false);
-                  m_videoDocumentCommandRuntime.setSource(m_routeNavigationSource);
+                  m_videoDocumentCommandRuntime.setSource(source);
                   refreshVideoPublicSnapshot();
                   setDocumentKind(DocumentSessionKind::Video);
               },
@@ -276,13 +284,7 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
           })
     , m_mediaDeletionRuntime(std::move(dependencies.fileDeletionProvider),
           std::move(dependencies.directMediaNavigationCandidateProvider))
-    , m_mediaDeletionCompletionRuntime(DocumentSessionMediaDeletionCompletionRuntimePorts {
-          [this](bool inProgress) { m_state.setFileDeletionInProgress(inProgress); },
-          [this](const QString& errorString) { m_state.setSessionErrorString(errorString); },
-          [this]() { recomputePublicProjection(); },
-          [this](const DocumentSessionRoutePlan& plan) { executeRoutePlan(plan); },
-          std::move(dependencies.fileDeletionFailed),
-      })
+    , m_fileDeletionFailed(std::move(dependencies.fileDeletionFailed))
     , m_mediaOpenWithRuntime(std::move(dependencies.mediaOpenWithProvider))
     , m_mediaPredecodeRuntime(std::move(dependencies.directMediaPredecodeDependencies))
     , m_imagePublicSnapshot(ports.imagePublicSnapshot)
@@ -302,6 +304,7 @@ DocumentSessionRuntimeGraph::~DocumentSessionRuntimeGraph()
     for (const QMetaObject::Connection& connection : m_documentConnections) {
         QObject::disconnect(connection);
     }
+    m_mediaDeletionTransaction.cancel();
     m_mediaDeletionRuntime.cancel();
     cancelMediaOpenWith();
     m_mediaPredecodeRuntime.cancel();
@@ -665,20 +668,37 @@ void DocumentSessionRuntimeGraph::deleteDisplayedFile(FileDeletionMode mode)
         return;
     }
 
+    const std::optional<DirectMediaScope> scope = m_directMediaScopePort.currentScope();
+    if (!scope.has_value() || m_mediaDeletionTransaction.active()
+        || m_mediaDeletionRuntime.active()) {
+        return;
+    }
+    const DocumentSessionKind documentKind = m_state.documentKind();
+    const ImageAsyncScopedOperation<DirectMediaScope> operation
+        = m_mediaDeletionTransaction.start(*scope);
     m_state.setFileDeletionInProgress(true);
     recomputePublicProjection();
-    const std::optional<DirectMediaScope> scope = m_directMediaScopePort.currentScope();
-    const bool started = scope.has_value()
-        && m_mediaDeletionRuntime.startForDirectMedia(
-            m_owner, mode, *scope,
-            [this](const DirectMediaScope& scope) {
-                return m_directMediaScopePort.cursorMatches(scope);
-            },
-            m_state.documentKind(),
-            [this](const DocumentSessionMediaDeletionCompletion& completion) {
-                finishMediaDeletion(completion);
-            });
-    if (!started) {
+
+    if (!m_mediaDeletionTransaction.accepts(operation)
+        || !m_directMediaScopePort.cursorMatches(operation.scope)) {
+        if (m_mediaDeletionTransaction.finish(operation)) {
+            m_state.setFileDeletionInProgress(false);
+            recomputePublicProjection();
+        }
+        return;
+    }
+
+    const bool started = m_mediaDeletionRuntime.startForDirectMedia(
+        m_owner, mode, operation.scope,
+        [this, operation](const DirectMediaScope& acceptedScope) {
+            return acceptedScope == operation.scope && m_mediaDeletionTransaction.accepts(operation)
+                && m_directMediaScopePort.cursorMatches(acceptedScope);
+        },
+        documentKind,
+        [this, operation](const DocumentSessionMediaDeletionCompletion& completion) {
+            finishMediaDeletion(operation, completion);
+        });
+    if (!started && m_mediaDeletionTransaction.finish(operation)) {
         m_state.setFileDeletionInProgress(false);
         recomputePublicProjection();
     }
@@ -854,6 +874,10 @@ void DocumentSessionRuntimeGraph::refreshLeafPublicSnapshots()
 
 void DocumentSessionRuntimeGraph::syncImageDocumentFileDeletionProgress()
 {
+    if (m_routingSource) {
+        return;
+    }
+
     const bool imageDeletionOwnsProgress
         = (m_state.documentKind() == DocumentSessionKind::Image
               && !m_directMediaActivityPort.directImageSourceScopeEligible())
@@ -901,22 +925,32 @@ void DocumentSessionRuntimeGraph::openMediaUrl(const QUrl& url)
 
 void DocumentSessionRuntimeGraph::executeRoutePlan(const DocumentSessionRoutePlan& plan)
 {
-    m_routeNavigationSource = plan.sourceUrl.isEmpty()
-        ? ResolvedNavigationSource {}
-        : m_navigationSourceResolver.resolveExternalSource(plan.sourceUrl);
+    static_cast<void>(executeRoutePlan(plan, {}));
+}
+
+bool DocumentSessionRuntimeGraph::executeRoutePlan(
+    const DocumentSessionRoutePlan& plan, const DocumentSessionRouteExecutionControl& control)
+{
     qCDebug(kiriviewNavigationLog)
         << "execute route plan"
         << "routeKind" << routeKindName(plan.kind) << "sourceUrl" << plan.sourceUrl
         << "documentKindBefore" << documentKindName(m_state.documentKind());
-    m_routeRuntime.execute(plan);
+    const bool completed = m_routeRuntime.executeWithSourceResolver(
+        plan,
+        [this](const QUrl& sourceUrl) {
+            return m_navigationSourceResolver.resolveExternalSource(sourceUrl);
+        },
+        control);
     qCDebug(kiriviewNavigationLog)
         << "execute route plan complete"
-        << "routeKind" << routeKindName(plan.kind) << "documentKindAfter"
-        << documentKindName(m_state.documentKind()) << "sourceUrl" << m_state.sourceUrl()
-        << "activeNavigationAvailable" << m_state.activeNavigationSnapshot().available
-        << "activeNavigationKnown" << m_state.activeNavigationSnapshot().known
-        << "activeNavigationCurrent" << m_state.activeNavigationSnapshot().currentNumber
-        << "activeNavigationCount" << m_state.activeNavigationSnapshot().count;
+        << "routeKind" << routeKindName(plan.kind) << "completed" << completed
+        << "documentKindAfter" << documentKindName(m_state.documentKind()) << "sourceUrl"
+        << m_state.sourceUrl() << "activeNavigationAvailable"
+        << m_state.activeNavigationSnapshot().available << "activeNavigationKnown"
+        << m_state.activeNavigationSnapshot().known << "activeNavigationCurrent"
+        << m_state.activeNavigationSnapshot().currentNumber << "activeNavigationCount"
+        << m_state.activeNavigationSnapshot().count;
+    return completed;
 }
 
 void DocumentSessionRuntimeGraph::leaveVideoMode()
@@ -936,15 +970,16 @@ void DocumentSessionRuntimeGraph::cacheDisplayedMediaPredecodeImages()
 
 void DocumentSessionRuntimeGraph::cancelMediaDeletion()
 {
-    const bool sessionMediaDeletionInProgress
-        = m_state.fileDeletionInProgress() && m_directMediaActivityPort.navigationActive();
-    if (!m_mediaDeletionRuntime.active() && !sessionMediaDeletionInProgress) {
+    if (!m_mediaDeletionTransaction.active() && !m_mediaDeletionRuntime.active()) {
         return;
     }
 
+    const bool clearProgress = m_state.fileDeletionInProgress();
+    m_mediaDeletionTransaction.cancel();
     m_mediaDeletionRuntime.cancel();
-    m_state.setFileDeletionInProgress(false);
-    recomputePublicProjection();
+    if (clearProgress) {
+        m_state.setFileDeletionInProgress(false);
+    }
 }
 
 void DocumentSessionRuntimeGraph::cancelMediaOpenWith() { m_mediaOpenWithRuntime.cancel(); }
@@ -955,9 +990,61 @@ DocumentSessionVideoOutputAttachmentPort DocumentSessionRuntimeGraph::videoOutpu
 }
 
 void DocumentSessionRuntimeGraph::finishMediaDeletion(
+    const ImageAsyncScopedOperation<DirectMediaScope>& operation,
     const DocumentSessionMediaDeletionCompletion& completion)
 {
-    m_mediaDeletionCompletionRuntime.apply(completion);
+    if (!m_mediaDeletionTransaction.accepts(operation)) {
+        return;
+    }
+    if (!m_directMediaScopePort.cursorMatches(operation.scope)) {
+        if (m_mediaDeletionTransaction.finish(operation)) {
+            m_state.setFileDeletionInProgress(false);
+            recomputePublicProjection();
+        }
+        return;
+    }
+
+    if (completion.plan.reportFailure) {
+        const QString message = fileDeletionErrorMessage(completion.failure);
+        if (!m_mediaDeletionTransaction.finish(operation)) {
+            return;
+        }
+        m_state.setSessionErrorString(message);
+        m_state.setFileDeletionInProgress(false);
+        recomputePublicProjection();
+        if (m_fileDeletionFailed) {
+            m_fileDeletionFailed(message);
+        }
+        return;
+    }
+
+    if (completion.plan.hasRoutePlan()) {
+        bool committed = false;
+        const DocumentSessionRouteExecutionControl control {
+            [this, operation, &committed]() {
+                return committed || m_mediaDeletionTransaction.accepts(operation);
+            },
+            [this, operation, &committed]() {
+                if (!m_mediaDeletionTransaction.finish(operation)) {
+                    return;
+                }
+                committed = true;
+                m_state.setFileDeletionInProgress(false);
+            },
+        };
+        static_cast<void>(executeRoutePlan(completion.plan.routePlan, control));
+        if (!committed && m_mediaDeletionTransaction.finish(operation)) {
+            m_state.setFileDeletionInProgress(false);
+            recomputePublicProjection();
+        }
+        return;
+    }
+
+    if (!m_mediaDeletionTransaction.finish(operation)) {
+        return;
+    }
+    m_state.setFileDeletionInProgress(false);
+    recomputePublicProjection();
 }
 
 ActiveZoomSnapshot DocumentSessionRuntimeGraph::activeZoomSnapshotForKind(

@@ -4,6 +4,8 @@
 #ifndef KIRIVIEW_DOCUMENTSESSIONROUTERUNTIME_H
 #define KIRIVIEW_DOCUMENTSESSIONROUTERUNTIME_H
 
+#include "async/imageasyncoperationstate.h"
+#include "location/imageurl.h"
 #include "session/documentsessionrouteplan.h"
 
 #include <functional>
@@ -23,8 +25,8 @@ struct DocumentSessionRouteDirectMediaPorts
     std::function<void()> cancelMediaDeletion;
     std::function<void()> clearDirectMediaNavigation;
     std::function<bool()> clearDirectMediaCursor;
-    std::function<bool(const QUrl&)> setDirectVideoCursor;
-    std::function<bool(const QUrl&)> requestDirectImageCursor;
+    std::function<bool(const ResolvedNavigationSource&)> setDirectVideoCursor;
+    std::function<bool(const ResolvedNavigationSource&)> requestDirectImageCursor;
     std::function<bool()> syncDirectImageCursorFromDocument;
     std::function<bool()> directMediaNavigationActive;
     std::function<void()> refreshDirectMediaNavigation;
@@ -35,9 +37,9 @@ struct DocumentSessionRouteDocumentPorts
     std::function<void()> clearImageDocument;
     std::function<void()> leaveVideoMode;
     std::function<void()> enterEmptyDocument;
-    std::function<void(const QUrl&)> enterImageDocument;
-    std::function<void(const QUrl&)> enterImageDocumentSameScopeNavigation;
-    std::function<void(const QUrl&)> enterVideoDocument;
+    std::function<void(const ResolvedNavigationSource&)> enterImageDocument;
+    std::function<void(const ResolvedNavigationSource&)> enterImageDocumentSameScopeNavigation;
+    std::function<void(const ResolvedNavigationSource&)> enterVideoDocument;
 };
 
 struct DocumentSessionRouteSourceIdentityPorts
@@ -62,19 +64,28 @@ struct DocumentSessionRouteRuntimePorts
     DocumentSessionRouteFollowUpPorts followUp;
 };
 
+struct DocumentSessionRouteExecutionControl
+{
+    std::function<bool()> isCurrent;
+    std::function<void()> beforePublicProjection;
+};
+
+using DocumentSessionRouteSourceResolver = std::function<ResolvedNavigationSource(const QUrl&)>;
+
 class DocumentSessionRouteRuntime final
 {
 public:
     explicit DocumentSessionRouteRuntime(DocumentSessionRouteRuntimePorts ports = {});
 
-    void routeSourceUrl(const QUrl& sourceUrl, DocumentSessionKind currentKind);
-    void routeMediaUrl(const QUrl& url, DocumentSessionKind currentKind);
-    void execute(const DocumentSessionRoutePlan& plan);
+    [[nodiscard]] bool executeWithSourceResolver(const DocumentSessionRoutePlan& plan,
+        const DocumentSessionRouteSourceResolver& resolveSource,
+        const DocumentSessionRouteExecutionControl& control = {});
 
 private:
     void executeSuppressed(const std::function<void()>& mutation);
 
     DocumentSessionRouteRuntimePorts m_ports;
+    ImageAsyncOperationState m_execution;
 };
 }
 

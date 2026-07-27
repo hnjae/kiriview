@@ -129,10 +129,7 @@ void TestDocumentSessionMediaDeletionPlan::
     QCOMPARE(imagePlan.routePlan.kind, kiriview::DocumentSessionRouteKind::DirectImage);
     QCOMPARE(imagePlan.routePlan.sourceUrl, localUrl(QStringLiteral("/media/03.png")));
     QVERIFY(operationAt<kiriview::ClearImageDocumentRouteOperation>(imagePlan, 0) != nullptr);
-    const auto* imageCursor
-        = operationAt<kiriview::RequestDirectImageCursorRouteOperation>(imagePlan, 1);
-    QVERIFY(imageCursor != nullptr);
-    QCOMPARE(imageCursor->url, localUrl(QStringLiteral("/media/03.png")));
+    QVERIFY(operationAt<kiriview::RequestDirectImageCursorRouteOperation>(imagePlan, 1) != nullptr);
 
     const kiriview::DocumentSessionMediaDeletionCompletionPlan videoPlan
         = kiriview::documentSessionMediaDeletionCompletionPlan(kiriview::DocumentSessionKind::Video,

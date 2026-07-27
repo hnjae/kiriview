@@ -4,6 +4,7 @@
 #ifndef KIRIVIEW_DOCUMENTSESSIONRUNTIMEGRAPH_H
 #define KIRIVIEW_DOCUMENTSESSIONRUNTIMEGRAPH_H
 
+#include "async/imageasyncoperationstate.h"
 #include "navigation/directmedianavigationcandidateprovider.h"
 #include "navigation/directmedianavigationmodel.h"
 #include "session/activenavigationprojection.h"
@@ -15,7 +16,6 @@
 #include "session/documentsessiondocumentports.h"
 #include "session/documentsessionimagedocumentcommandruntime.h"
 #include "session/documentsessionimagedocumentsyncruntime.h"
-#include "session/documentsessionmediadeletioncompletionruntime.h"
 #include "session/documentsessionmediadeletionruntime.h"
 #include "session/documentsessionmediaopenwithplanport.h"
 #include "session/documentsessionmediaopenwithruntime.h"
@@ -157,13 +157,16 @@ private:
     void routeSourceUrl(const QUrl& sourceUrl);
     void openMediaUrl(const QUrl& url);
     void executeRoutePlan(const DocumentSessionRoutePlan& plan);
+    [[nodiscard]] bool executeRoutePlan(
+        const DocumentSessionRoutePlan& plan, const DocumentSessionRouteExecutionControl& control);
     void leaveVideoMode();
     void syncMediaPredecodeScope();
     void cacheDisplayedMediaPredecodeImages();
     void cancelMediaDeletion();
     void cancelMediaOpenWith();
     DocumentSessionVideoOutputAttachmentPort videoOutputAttachmentPort();
-    void finishMediaDeletion(const DocumentSessionMediaDeletionCompletion& completion);
+    void finishMediaDeletion(const ImageAsyncScopedOperation<DirectMediaScope>& operation,
+        const DocumentSessionMediaDeletionCompletion& completion);
     [[nodiscard]] ActiveZoomSnapshot activeZoomSnapshotForKind(DocumentSessionKind kind) const;
     QObject* m_owner = nullptr;
     DocumentSessionImageDocumentSnapshotPort& m_imageDocument;
@@ -173,7 +176,6 @@ private:
     DocumentSessionVideoDocumentCommandRuntime m_videoDocumentCommandRuntime;
     DocumentSessionState& m_state;
     NavigationSourceResolver m_navigationSourceResolver;
-    ResolvedNavigationSource m_routeNavigationSource;
     DocumentSessionVideoDocumentSyncRuntime m_videoDocumentSyncRuntime;
     DocumentSessionDirectMediaScopePort m_directMediaScopePort;
     DocumentSessionDirectMediaActivityPort m_directMediaActivityPort;
@@ -183,8 +185,9 @@ private:
     DocumentSessionActiveNavigationRuntime m_activeNavigationRuntime;
     DocumentSessionThumbnailRuntime m_activeNavigationThumbnailRuntime;
     DocumentSessionDirectMediaNavigationCoordinator m_directMediaNavigationCoordinator;
+    ImageAsyncScopedOperationState<DirectMediaScope> m_mediaDeletionTransaction;
     DocumentSessionMediaDeletionRuntime m_mediaDeletionRuntime;
-    DocumentSessionMediaDeletionCompletionRuntime m_mediaDeletionCompletionRuntime;
+    std::function<void(const QString&)> m_fileDeletionFailed;
     DocumentSessionMediaOpenWithRuntime m_mediaOpenWithRuntime;
     DocumentSessionMediaPredecodeRuntime m_mediaPredecodeRuntime;
     std::vector<QMetaObject::Connection> m_documentConnections;
