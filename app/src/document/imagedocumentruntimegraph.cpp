@@ -222,6 +222,7 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
             [this](const DisplayedImageLocation& location, QSize imageSize) {
                 m_spreadController->commitPrimaryPageSlot(location, imageSize);
             },
+            [this]() { m_pendingViewportImageLoad.reset(); },
             [this](const ImageDocumentPageCandidateListContext& context,
                 ImageDocumentPageCandidateListSnapshotCallback callback) {
                 m_navigationService->ensurePageCandidateSnapshot(context, std::move(callback));
@@ -493,16 +494,31 @@ ImageDocumentRuntimeGraph::loadOpenedCollectionVideoPlaybackDevice(
 
 void ImageDocumentRuntimeGraph::dispatchPlan(const ImageDocumentRuntimePlan& plan)
 {
-    m_runtimeWorkflow->dispatchPlan(plan);
+    const quint64 revision = m_sourceLoadPlanRevision;
+    m_runtimeWorkflow->dispatchPlanWhile(
+        plan, [this, revision]() { return revision == m_sourceLoadPlanRevision; });
+}
+
+void ImageDocumentRuntimeGraph::dispatchSourceLoadPlan(const ImageDocumentRuntimePlan& plan)
+{
+    const quint64 revision = ++m_sourceLoadPlanRevision;
+    m_runtimeWorkflow->dispatchPlanWhile(
+        plan, [this, revision]() { return revision == m_sourceLoadPlanRevision; });
 }
 
 void ImageDocumentRuntimeGraph::dispatchTransaction(
     const ImageDocumentRuntimeTransaction& transaction)
 {
+    const quint64 revision = m_sourceLoadPlanRevision;
     [[maybe_unused]] auto batch = m_state.beginChangeBatch();
     m_callbacks.notify(transaction.changes);
-    dispatchPlan(transaction.plan);
+    m_runtimeWorkflow->dispatchPlanWhile(
+        transaction.plan, [this, revision]() { return revision == m_sourceLoadPlanRevision; });
 }
 
-void ImageDocumentRuntimeGraph::shutdownRuntime() { m_runtimeWorkflow->shutdownRuntime(); }
+void ImageDocumentRuntimeGraph::shutdownRuntime()
+{
+    ++m_sourceLoadPlanRevision;
+    m_runtimeWorkflow->shutdownRuntime();
+}
 }

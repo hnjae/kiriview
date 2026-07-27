@@ -64,6 +64,7 @@ ImageOpenController::ImageOpenController(
 {
     if (!m_callbacks.findPredecodedImage || !m_callbacks.runtimePlan
         || !m_callbacks.openedCollectionVideoPlaybackAvailable || !m_callbacks.commitPrimaryPageSlot
+        || !m_callbacks.invalidatePendingViewportImageLoad
         || !m_callbacks.ensurePageCandidateSnapshot || !m_callbacks.prepareViewportImageTarget
         || !m_callbacks.firstDisplayDecodeContext || !m_callbacks.hasCommittedImage) {
         qFatal("Image-open controller requires all workflow callbacks");
@@ -93,7 +94,7 @@ ImageOpenController::ImageOpenController(
     });
 }
 
-ImageOpenController::~ImageOpenController() { cancel(); }
+ImageOpenController::~ImageOpenController() { m_imageLoader->cancel(); }
 
 void ImageOpenController::open()
 {
@@ -119,21 +120,37 @@ void ImageOpenController::prepareSourceLoad(const ImageDocumentSourceLoadRequest
     m_sourceLoadRequest = request;
 }
 
-void ImageOpenController::cancel() { m_imageLoader->cancel(); }
+void ImageOpenController::cancel()
+{
+    m_imageLoader->cancel();
+    m_callbacks.invalidatePendingViewportImageLoad();
+}
 
 void ImageOpenController::finishViewportImageLoadReady(
     const ImageLoadSession& session, QSize imageSize, EmbeddedMetadata metadata)
 {
+    std::optional<ImageLoadSession> currentSession = m_imageLoader->claimCurrentSession(session);
+    if (!currentSession.has_value()) {
+        return;
+    }
+
     [[maybe_unused]] auto batch = m_state.beginChangeBatch();
-    m_callbacks.commitPrimaryPageSlot(session.location(), imageSize);
-    finishSuccessfulImageLoad(session, std::move(metadata));
+    m_callbacks.commitPrimaryPageSlot(currentSession->location(), imageSize);
+    finishSuccessfulImageLoad(*currentSession, std::move(metadata));
 }
 
 void ImageOpenController::finishViewportImageLoadWithError(
     const ImageLoadSession& session, ImageLoadFailure failure)
 {
+    std::optional<ImageLoadSession> currentSession = m_imageLoader->claimCurrentSession(session);
+    if (!currentSession.has_value()) {
+        return;
+    }
+
+    failure.sourceUrl = currentSession->imageUrl();
+    failure.sessionId = currentSession->id();
     [[maybe_unused]] auto batch = m_state.beginChangeBatch();
-    finishLoadWithError(session, std::move(failure));
+    finishLoadWithError(*currentSession, std::move(failure));
 }
 
 void ImageOpenController::finishEmptySourceLoad()
@@ -177,17 +194,27 @@ void ImageOpenController::finishSourcePrepared(const ImageLoadSession& session)
 void ImageOpenController::finishUnsupportedOpenedCollectionVideoLoad(
     const ImageLoadSession& session)
 {
-    if (m_callbacks.openedCollectionVideoPlaybackAvailable(
-            session.openedCollectionScope(), session.imageUrl())) {
-        finishPlayableOpenedCollectionVideoLoad(session);
+    if (!m_imageLoader->isCurrentSession(session)) {
+        return;
+    }
+
+    const bool playbackAvailable = m_callbacks.openedCollectionVideoPlaybackAvailable(
+        session.openedCollectionScope(), session.imageUrl());
+    std::optional<ImageLoadSession> currentSession = m_imageLoader->claimCurrentSession(session);
+    if (!currentSession.has_value()) {
+        return;
+    }
+
+    if (playbackAvailable) {
+        finishPlayableOpenedCollectionVideoLoad(*currentSession);
         return;
     }
 
     const QString message = unsupportedOpenedCollectionVideoMessage();
-    const ImageDocumentRuntimePlan plan = applyImageOpenApplicationPlan(
-        m_state, ImageOpenWorkflow::finishUnsupportedOpenedCollectionVideoLoadPlan(session));
-    invokeIfSet(m_callbacks.unsupportedOpenedCollectionVideoEntered, message);
+    const ImageDocumentRuntimePlan plan = applyImageOpenApplicationPlan(m_state,
+        ImageOpenWorkflow::finishUnsupportedOpenedCollectionVideoLoadPlan(*currentSession));
     reportRuntimePlan(plan);
+    invokeIfSet(m_callbacks.unsupportedOpenedCollectionVideoEntered, message);
 }
 
 void ImageOpenController::finishPlayableOpenedCollectionVideoLoad(const ImageLoadSession& session)
@@ -202,7 +229,7 @@ void ImageOpenController::finishPreparedViewportImageLoad(
     if (m_callbacks.prepareViewportImageTarget(session, std::move(predecoded))) {
         return;
     }
-    finishLoadWithError(session,
+    finishViewportImageLoadWithError(session,
         imagePresentationFailure(session, imageErrorText(ImageErrorTextId::DecodeImageAnimation)));
 }
 

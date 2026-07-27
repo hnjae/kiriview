@@ -213,3 +213,45 @@ void TestKiriDocumentSessionDeletion::pendingDirectMediaDeletionCandidateLoadIsC
     QCOMPARE(session->sourceUrl(), secondClip);
     QVERIFY(!session->fileDeletionInProgress());
 }
+
+void TestKiriDocumentSessionDeletion::
+    reentrantSourceSelectionDuringDeletionCancellationKeepsLatestSelection()
+{
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    kiriview::TestSupport::ManualFileDeletionProvider fileDeletionProvider;
+    kiriview::TestSupport::ManualImageDataLoader imageDataLoader;
+    const QUrl firstImage = localUrl(QStringLiteral("/media/01.png"));
+    const QUrl supersededImage = localUrl(QStringLiteral("/media/02.png"));
+    const QUrl latestImage = localUrl(QStringLiteral("/media/03.png"));
+    directMediaNavigationProvider.setMedia(localUrl(QStringLiteral("/media/")),
+        { directMediaNavigationCandidate(firstImage),
+            directMediaNavigationCandidate(supersededImage),
+            directMediaNavigationCandidate(latestImage) });
+    std::unique_ptr<KiriDocumentSession> session
+        = createSession(directMediaNavigationProvider, &fileDeletionProvider, &imageDataLoader);
+
+    session->setSourceUrl(firstImage);
+    imageDataLoader.finishBackLoad(QByteArrayLiteral("first"));
+    QTRY_COMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Ready);
+
+    session->deleteDisplayedFile(KiriDocumentSession::DeletionMode::MoveToTrash);
+    QVERIFY(session->fileDeletionInProgress());
+
+    bool latestSelectionSubmitted = false;
+    connect(session.get(), &KiriDocumentSession::fileDeletionInProgressChanged, session.get(),
+        [&]() {
+            if (session->fileDeletionInProgress() || latestSelectionSubmitted) {
+                return;
+            }
+            latestSelectionSubmitted = true;
+            session->setSourceUrl(latestImage);
+        });
+
+    session->setSourceUrl(supersededImage);
+
+    QVERIFY(latestSelectionSubmitted);
+    QCOMPARE(session->sourceUrl(), latestImage);
+    QCOMPARE(session->imageDocument()->sourceUrl(), latestImage);
+    QVERIFY(imageDataLoader.hasActiveLoadForUrl(latestImage));
+    QVERIFY(!imageDataLoader.hasActiveLoadForUrl(supersededImage));
+}

@@ -37,9 +37,13 @@ struct ImageDocumentRuntimeWorkflowPorts
 class ImageDocumentRuntimeWorkflow final
 {
 public:
+    using ContinuePlanCallback = std::function<bool()>;
+
     explicit ImageDocumentRuntimeWorkflow(ImageDocumentRuntimeWorkflowPorts ports);
 
     void dispatchPlan(const ImageDocumentRuntimePlan& plan);
+    void dispatchPlanWhile(
+        const ImageDocumentRuntimePlan& plan, const ContinuePlanCallback& shouldContinue);
     void shutdownRuntime();
 
 private:

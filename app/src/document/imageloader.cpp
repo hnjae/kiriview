@@ -63,6 +63,16 @@ void ImageLoader::start(
 
 void ImageLoader::cancel() { m_sessionTracker.cancel(); }
 
+bool ImageLoader::isCurrentSession(const ImageLoadSession& session) const
+{
+    return m_sessionTracker.isCurrent(session);
+}
+
+std::optional<ImageLoadSession> ImageLoader::claimCurrentSession(const ImageLoadSession& session)
+{
+    return m_sessionTracker.claimCurrent(session);
+}
+
 void ImageLoader::startOpenedCollectionLoad(const ImageLoadSession& session)
 {
     ImageDocumentPageCandidateListSource candidateSource
@@ -139,6 +149,9 @@ void ImageLoader::finishOpenedCollectionCandidates(
         return;
     case OpenedCollectionCandidateCompletionAction::ReportUnsupportedOpenedCollectionVideo:
         invokeIfSet(m_callbacks.sourcePrepared, completion.session);
+        if (!m_sessionTracker.isCurrent(completion.session)) {
+            return;
+        }
         invokeIfSet(m_callbacks.unsupportedOpenedCollectionVideo, std::move(completion.session));
         return;
     case OpenedCollectionCandidateCompletionAction::StartImageDecode:
@@ -156,12 +169,11 @@ bool ImageLoader::tryReportUnsupportedOpenedCollectionVideo(const ImageLoadSessi
         return false;
     }
 
-    std::optional<ImageLoadSession> currentSession = m_sessionTracker.claimCurrent(session);
-    if (!currentSession.has_value()) {
+    if (!m_sessionTracker.isCurrent(session)) {
         return false;
     }
 
-    invokeIfSet(m_callbacks.unsupportedOpenedCollectionVideo, std::move(*currentSession));
+    invokeIfSet(m_callbacks.unsupportedOpenedCollectionVideo, session);
     return true;
 }
 

@@ -45,10 +45,9 @@ OpenedCollectionCandidateCompletion ImageLoadSessionTracker::completeOpenedColle
 
     m_session->setImageDocumentPageCandidate(candidates.front());
     if (candidates.front().kind == ImageDocumentPageKind::Video) {
-        std::optional<ImageLoadSession> claimedSession = claimCurrent(*m_session);
         return OpenedCollectionCandidateCompletion {
             OpenedCollectionCandidateCompletionAction::ReportUnsupportedOpenedCollectionVideo,
-            claimedSession.value_or(ImageLoadSession {}),
+            *m_session,
         };
     }
 

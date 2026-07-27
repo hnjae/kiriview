@@ -261,7 +261,7 @@ void TestImageLoadSessionTracker::archiveResolutionReportsUnsupportedOpenedColle
             ReportUnsupportedOpenedCollectionVideo);
     QCOMPARE(completion.session.imageUrl(), videoUrl);
     QCOMPARE(completion.session.kind(), kiriview::ImageDocumentPageKind::Video);
-    QVERIFY(!tracker.isCurrent(session));
+    QVERIFY(tracker.isCurrent(completion.session));
 }
 
 void TestImageLoadSessionTracker::archiveResolutionUsesCandidateKindInsteadOfExtension()

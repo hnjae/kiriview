@@ -44,6 +44,17 @@ void ImageDocumentRuntimeWorkflow::dispatchPlan(const ImageDocumentRuntimePlan& 
     }
 }
 
+void ImageDocumentRuntimeWorkflow::dispatchPlanWhile(
+    const ImageDocumentRuntimePlan& plan, const ContinuePlanCallback& shouldContinue)
+{
+    for (const ImageDocumentRuntimeOperation& operation : plan) {
+        if (!shouldContinue()) {
+            return;
+        }
+        dispatchOperation(operation);
+    }
+}
+
 void ImageDocumentRuntimeWorkflow::dispatchOperation(const ImageDocumentRuntimeOperation& operation)
 {
     std::visit(

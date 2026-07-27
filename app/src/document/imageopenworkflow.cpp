@@ -84,10 +84,14 @@ ImageDocumentRuntimePlan sourceLoadPlan(
     const ImageDocumentSourceLoadSnapshot& snapshot, const ImageDocumentSourceLoadRequest& request)
 {
     ImageDocumentRuntimePlan plan;
+    const bool currentSourceLoad = snapshot.currentSourceUrl == request.sourceUrl();
+    if (!currentSourceLoad) {
+        plan.emplace_back(CancelOpenOperation {});
+    }
     plan.emplace_back(CancelFileDeletionOperation {});
     const bool resetReading = shouldResetRightToLeftReading(snapshot, request);
 
-    if (snapshot.currentSourceUrl == request.sourceUrl()) {
+    if (currentSourceLoad) {
         if (resetReading) {
             plan.emplace_back(ResetRightToLeftReadingOperation {});
             plan.emplace_back(NotifyRightToLeftReadingChangedOperation {});

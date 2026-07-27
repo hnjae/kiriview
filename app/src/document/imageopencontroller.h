@@ -33,6 +33,7 @@ public:
     using OpenedCollectionVideoPlaybackAvailableCallback
         = std::function<bool(const OpenedCollectionScopeLocation&, const QUrl&)>;
     using CommitPrimaryPageSlotCallback = std::function<void(const DisplayedImageLocation&, QSize)>;
+    using InvalidatePendingViewportImageLoadCallback = std::function<void()>;
     using EnsurePageCandidateSnapshotCallback = std::function<void(
         ImageDocumentPageCandidateListContext, ImageDocumentPageCandidateListSnapshotCallback)>;
     using PrepareViewportImageTargetCallback
@@ -47,6 +48,7 @@ public:
         UnsupportedOpenedCollectionVideoEnteredCallback unsupportedOpenedCollectionVideoEntered;
         OpenedCollectionVideoPlaybackAvailableCallback openedCollectionVideoPlaybackAvailable;
         CommitPrimaryPageSlotCallback commitPrimaryPageSlot;
+        InvalidatePendingViewportImageLoadCallback invalidatePendingViewportImageLoad;
         EnsurePageCandidateSnapshotCallback ensurePageCandidateSnapshot;
         PrepareViewportImageTargetCallback prepareViewportImageTarget;
         FirstDisplayDecodeContextCallback firstDisplayDecodeContext;

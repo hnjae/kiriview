@@ -676,7 +676,7 @@ bool ImageDocumentRuntime::requestAnchoredManualZoom(qreal zoomPercent, QPointF 
 
 void ImageDocumentRuntime::loadSource(const ImageDocumentSourceLoadRequest& request)
 {
-    runtimeGraph->dispatchPlan(ImageOpenWorkflow::sourceLoadPlan(
+    runtimeGraph->dispatchSourceLoadPlan(ImageOpenWorkflow::sourceLoadPlan(
         ImageDocumentSourceLoadSnapshot {
             state.sourceUrl(),
             state.displayedOpenedCollectionScope(),

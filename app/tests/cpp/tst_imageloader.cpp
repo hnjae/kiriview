@@ -20,6 +20,7 @@ using kiriview::TestSupport::imageDocumentPageCandidate;
 using kiriview::TestSupport::localUrl;
 using kiriview::TestSupport::staticDisplayTestImagePayload;
 using kiriview::TestSupport::testImage;
+using kiriview::TestSupport::videoCandidate;
 
 kiriview::ImageDocumentPageCandidateListSnapshot pageCandidateListSnapshot(
     kiriview::ImageDocumentPageCandidateListSource source,
@@ -43,6 +44,7 @@ private Q_SLOTS:
     void directImagePreparesProviderTargetWithValidatedPredecode();
     void openedCollectionResolvesFirstPageBeforePreparingProviderTarget();
     void staleOpenedCollectionSnapshotCannotPrepareAReplacedTarget();
+    void reentrantReplacementCannotPublishResolvedStaleVideoTerminal();
     void missingProviderTargetOwnerReportsTypedPresentationFailure();
 };
 
@@ -158,6 +160,52 @@ void TestImageLoader::staleOpenedCollectionSnapshotCannotPrepareAReplacedTarget(
 
     QCOMPARE(preparedUrls.size(), std::size_t(1));
     QCOMPARE(preparedUrls.front(), replacementUrl);
+}
+
+void TestImageLoader::reentrantReplacementCannotPublishResolvedStaleVideoTerminal()
+{
+    const QUrl archiveUrl = localUrl(QStringLiteral("/books/video.cbz"));
+    const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
+    QVERIFY(archiveCollection.has_value());
+    const QUrl videoUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.mp4"));
+    const QUrl replacementUrl = localUrl(QStringLiteral("/images/replacement.png"));
+    const kiriview::ImageDocumentPageCandidateListSnapshot snapshot = pageCandidateListSnapshot(
+        kiriview::ImageDocumentPageCandidateListSource::forOpenedCollectionScope(
+            *archiveCollection),
+        { videoCandidate(videoUrl) });
+
+    kiriview::ImageLoader* loader = nullptr;
+    std::vector<QUrl> preparedUrls;
+    std::vector<QUrl> unsupportedVideoUrls;
+    kiriview::ImageLoader::Callbacks callbacks;
+    callbacks.ensurePageCandidateSnapshot
+        = [snapshot](auto, kiriview::ImageDocumentPageCandidateListSnapshotCallback completion) {
+              completion(
+                  kiriview::ImageDocumentPageCandidateListSnapshotResult { snapshot, true, {} });
+          };
+    callbacks.sourcePrepared = [&loader, replacementUrl](kiriview::ImageLoadSession) {
+        QVERIFY(loader != nullptr);
+        loader->start(kiriview::ImageLoadRequest::fromExternalSource(
+            kiriview::resolvedNavigationSource(replacementUrl, {})));
+    };
+    callbacks.unsupportedOpenedCollectionVideo
+        = [&unsupportedVideoUrls](kiriview::ImageLoadSession session) {
+              unsupportedVideoUrls.push_back(session.imageUrl());
+          };
+    callbacks.preparedImage = [&preparedUrls](kiriview::ImageLoadSession session, auto) {
+        preparedUrls.push_back(session.imageUrl());
+    };
+    kiriview::ImageLoader imageLoader(std::move(callbacks));
+    loader = &imageLoader;
+
+    imageLoader.start(kiriview::ImageLoadRequest::fromExternalSource(
+        kiriview::resolvedNavigationSource(archiveUrl, {})));
+
+    QCOMPARE(preparedUrls.size(), std::size_t(1));
+    QCOMPARE(preparedUrls.front(), replacementUrl);
+    QVERIFY(unsupportedVideoUrls.empty());
 }
 
 void TestImageLoader::missingProviderTargetOwnerReportsTypedPresentationFailure()

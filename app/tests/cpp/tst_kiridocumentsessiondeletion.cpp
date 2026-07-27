@@ -13,6 +13,7 @@ private Q_SLOTS:
     void directImageDeletionCanOpenVideoFallback();
     void pendingDirectImageReplacementDoesNotExposeDisplayedDeletion();
     void pendingDirectMediaDeletionCandidateLoadIsCanceledBySourceChange();
+    void reentrantSourceSelectionDuringDeletionCancellationKeepsLatestSelection();
     void videoDeletionUsesOriginalUrlAndOpensMediaFallback();
     void canceledVideoDeletionKeepsCurrentVideo();
     void failedVideoDeletionPublishesErrorWithProgressCompletion();

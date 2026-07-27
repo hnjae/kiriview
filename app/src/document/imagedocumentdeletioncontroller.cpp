@@ -112,8 +112,8 @@ void ImageDocumentDeletionController::notifyInProgressChangedIf(bool changed)
 
 void ImageDocumentDeletionController::cancel()
 {
-    cancelFileDeletion();
     m_fallbackController.cancel();
+    cancelFileDeletion();
 }
 
 void ImageDocumentDeletionController::cancelFileDeletion()

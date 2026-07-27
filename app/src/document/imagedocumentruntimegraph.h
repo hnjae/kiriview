@@ -68,6 +68,7 @@ public:
         const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl) const;
 
     void dispatchPlan(const ImageDocumentRuntimePlan& plan);
+    void dispatchSourceLoadPlan(const ImageDocumentRuntimePlan& plan);
     void dispatchTransaction(const ImageDocumentRuntimeTransaction& transaction);
     void shutdownRuntime();
 
@@ -111,6 +112,7 @@ private:
     std::unique_ptr<ImageViewportIntegrationTarget> m_viewportTarget;
     std::optional<ImageLoadSession> m_viewportSecondaryLoadSession;
     bool m_nextViewportTargetAnchorAtEnd = false;
+    quint64 m_sourceLoadPlanRevision = 0;
 };
 }
 

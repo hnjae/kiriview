@@ -44,6 +44,9 @@ public:
 
     void start(ImageLoadRequest request, ImageFirstDisplayDecodeContext firstDisplayContext = {});
     void cancel();
+    [[nodiscard]] bool isCurrentSession(const ImageLoadSession& session) const;
+    [[nodiscard]] std::optional<ImageLoadSession> claimCurrentSession(
+        const ImageLoadSession& session);
 
 private:
     void startOpenedCollectionLoad(const ImageLoadSession& session);
