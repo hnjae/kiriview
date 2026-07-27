@@ -3,9 +3,11 @@
 
 #include "facade/kirivideodocument.h"
 
-#include "facade/videodocumentpublicsignals.h"
 #include "video/videodocumentruntime.h"
 
+#include <QPointer>
+#include <algorithm>
+#include <iterator>
 #include <memory>
 #include <utility>
 
@@ -43,7 +45,27 @@ kiriview::VideoDocumentPublicSignalOperations publicSignalOperations(KiriVideoDo
     operations.videoOutputChanged = [&document]() { Q_EMIT document.videoOutputChanged(); };
     operations.embeddedMetadataChanged
         = [&document]() { Q_EMIT document.embeddedMetadataChanged(); };
+    operations.playbackControlProjectionChanged
+        = [&document]() { Q_EMIT document.playbackControls()->projectionChanged(); };
     return operations;
+}
+
+std::vector<kiriview::VideoDocumentPublicSignal> mergePublicSignals(
+    std::vector<kiriview::VideoDocumentPublicSignal> preferred,
+    const std::vector<kiriview::VideoDocumentPublicSignal>& fallback)
+{
+    for (kiriview::VideoDocumentPublicSignal signal : fallback) {
+        if (!std::ranges::contains(preferred, signal)) {
+            preferred.push_back(signal);
+        }
+    }
+
+    const auto sessionSnapshot
+        = std::ranges::find(preferred, kiriview::VideoDocumentPublicSignal::SessionSnapshot);
+    if (sessionSnapshot != preferred.end() && sessionSnapshot != preferred.begin()) {
+        std::rotate(preferred.begin(), sessionSnapshot, std::next(sessionSnapshot));
+    }
+    return preferred;
 }
 }
 
@@ -73,10 +95,12 @@ KiriVideoDocument::KiriVideoDocument(
             m_playbackControlActionStateKnown = true;
             m_videoSeekable = projection.timelineInteractive;
             m_videoDuration = videoDuration;
+            std::vector<kiriview::VideoDocumentPublicSignal> signals;
             if (actionStateChanged) {
-                Q_EMIT documentSessionSnapshotChanged();
+                signals.push_back(kiriview::VideoDocumentPublicSignal::SessionSnapshot);
             }
-            Q_EMIT m_playbackControls->projectionChanged();
+            signals.push_back(kiriview::VideoDocumentPublicSignal::PlaybackControlProjection);
+            enqueuePublicSignals(std::move(signals));
         });
 }
 
@@ -196,7 +220,34 @@ void KiriVideoDocument::setVideoOutputGeometry(const QRectF& contentRect, const 
 void KiriVideoDocument::handleDocumentChanges(
     const std::vector<kiriview::VideoDocumentChange>& changes)
 {
+    enqueuePublicSignals(kiriview::videoDocumentPublicationSignalsForChanges(changes));
+}
+
+void KiriVideoDocument::enqueuePublicSignals(
+    std::vector<kiriview::VideoDocumentPublicSignal> signals)
+{
+    m_pendingPublicSignals = mergePublicSignals(std::move(signals), m_pendingPublicSignals);
+    if (m_publicSignalDispatchActive) {
+        return;
+    }
+    drainPublicSignals();
+}
+
+void KiriVideoDocument::drainPublicSignals()
+{
+    const QPointer<KiriVideoDocument> owner(this);
+    m_publicSignalDispatchActive = true;
     kiriview::VideoDocumentPublicSignalOperations operations = publicSignalOperations(*this);
     operations.sessionSnapshotChanged = [this]() { Q_EMIT documentSessionSnapshotChanged(); };
-    kiriview::VideoDocumentPublicSignalEmitter(std::move(operations)).emitChanges(changes);
+    const kiriview::VideoDocumentPublicSignalEmitter emitter(std::move(operations));
+
+    while (!m_pendingPublicSignals.empty()) {
+        const kiriview::VideoDocumentPublicSignal signal = m_pendingPublicSignals.front();
+        m_pendingPublicSignals.erase(m_pendingPublicSignals.begin());
+        emitter.emitSignal(signal);
+        if (owner.isNull()) {
+            return;
+        }
+    }
+    m_publicSignalDispatchActive = false;
 }

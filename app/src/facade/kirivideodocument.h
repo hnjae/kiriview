@@ -6,6 +6,7 @@
 
 #include "async/timerscheduler.h"
 #include "facade/kirivideoplaybackcontrols.h"
+#include "facade/videodocumentpublicsignals.h"
 #include "metadata/embeddedmetadata.h"
 #include "video/videoplaybackcontrolruntime.h"
 #include "video/videoplaybacksource.h"
@@ -22,7 +23,6 @@
 
 namespace kiriview {
 class VideoDocumentRuntime;
-enum class VideoDocumentChange;
 }
 
 class KiriDocumentSession;
@@ -111,6 +111,8 @@ private:
     void setVideoOutput(QObject* videoOutput);
     void setVideoOutputGeometry(const QRectF& contentRect, const QRectF& sourceRect);
     void handleDocumentChanges(const std::vector<kiriview::VideoDocumentChange>& changes);
+    void enqueuePublicSignals(std::vector<kiriview::VideoDocumentPublicSignal> signals);
+    void drainPublicSignals();
     [[nodiscard]] const kiriview::VideoPlaybackControlProjection& playbackControlProjection() const;
     void reportPlaybackControlEnvironment(kiriview::VideoPlaybackControlEnvironment environment);
     void reportPlaybackControlInteraction(bool active);
@@ -126,6 +128,8 @@ private:
     bool m_playbackControlActionStateKnown = false;
     bool m_videoSeekable = false;
     qint64 m_videoDuration = 0;
+    std::vector<kiriview::VideoDocumentPublicSignal> m_pendingPublicSignals;
+    bool m_publicSignalDispatchActive = false;
 };
 
 #endif

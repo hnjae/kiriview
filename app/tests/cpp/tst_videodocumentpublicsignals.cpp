@@ -15,6 +15,7 @@ class TestVideoDocumentPublicSignals : public QObject
 private Q_SLOTS:
     void publicSignalPlansReturnSignalsInEmissionOrder();
     void publicSignalBatchPlansDeduplicateSignalsInEmissionOrder();
+    void publicationPlansSessionSnapshotBeforeDependentSignals();
     void emitterDispatchesChangeSignalsInProjectionOrder();
     void emitterSkipsSessionSnapshotForUnrelatedChanges();
 };
@@ -46,6 +47,10 @@ kiriview::VideoDocumentPublicSignalOperations recordingOperations(QStringList& e
         = [&events]() { events.append(QStringLiteral("zoomPercentKnown")); };
     operations.zoomPercentChanged = [&events]() { events.append(QStringLiteral("zoomPercent")); };
     operations.videoOutputChanged = [&events]() { events.append(QStringLiteral("videoOutput")); };
+    operations.embeddedMetadataChanged
+        = [&events]() { events.append(QStringLiteral("embeddedMetadata")); };
+    operations.playbackControlProjectionChanged
+        = [&events]() { events.append(QStringLiteral("playbackControlProjection")); };
     return operations;
 }
 }
@@ -86,14 +91,30 @@ void TestVideoDocumentPublicSignals::publicSignalBatchPlansDeduplicateSignalsInE
         { Signal::Status, Signal::HasAudio, Signal::VideoSize });
 }
 
+void TestVideoDocumentPublicSignals::publicationPlansSessionSnapshotBeforeDependentSignals()
+{
+    using Change = kiriview::VideoDocumentChange;
+    using Signal = kiriview::VideoDocumentPublicSignal;
+
+    comparePublicSignals(kiriview::videoDocumentPublicationSignalsForChanges({ Change::HasAudio,
+                             Change::Status, Change::VideoOutput, Change::VideoSize }),
+        { Signal::SessionSnapshot, Signal::HasAudio, Signal::Status, Signal::VideoOutput,
+            Signal::VideoSize });
+}
+
 void TestVideoDocumentPublicSignals::emitterDispatchesChangeSignalsInProjectionOrder()
 {
     QStringList events;
     const kiriview::VideoDocumentPublicSignalEmitter emitter(recordingOperations(events));
 
-    emitter.emitChanges({ kiriview::VideoDocumentChange::HasAudio,
-        kiriview::VideoDocumentChange::HasVideo, kiriview::VideoDocumentChange::ZoomPercent });
+    for (const kiriview::VideoDocumentPublicSignal signal :
+        kiriview::videoDocumentPublicationSignalsForChanges(
+            { kiriview::VideoDocumentChange::HasAudio, kiriview::VideoDocumentChange::HasVideo,
+                kiriview::VideoDocumentChange::ZoomPercent })) {
+        emitter.emitSignal(signal);
+    }
     emitter.emitSignal(kiriview::VideoDocumentPublicSignal::VideoOutput);
+    emitter.emitSignal(kiriview::VideoDocumentPublicSignal::PlaybackControlProjection);
 
     QCOMPARE(events,
         QStringList({
@@ -102,6 +123,7 @@ void TestVideoDocumentPublicSignals::emitterDispatchesChangeSignalsInProjectionO
             QStringLiteral("hasVideo"),
             QStringLiteral("zoomPercent"),
             QStringLiteral("videoOutput"),
+            QStringLiteral("playbackControlProjection"),
         }));
 }
 
@@ -110,8 +132,12 @@ void TestVideoDocumentPublicSignals::emitterSkipsSessionSnapshotForUnrelatedChan
     QStringList events;
     const kiriview::VideoDocumentPublicSignalEmitter emitter(recordingOperations(events));
 
-    emitter.emitChanges(
-        { kiriview::VideoDocumentChange::HasAudio, kiriview::VideoDocumentChange::VideoOutput });
+    for (const kiriview::VideoDocumentPublicSignal signal :
+        kiriview::videoDocumentPublicationSignalsForChanges(
+            { kiriview::VideoDocumentChange::HasAudio,
+                kiriview::VideoDocumentChange::VideoOutput })) {
+        emitter.emitSignal(signal);
+    }
 
     QCOMPARE(events,
         QStringList({

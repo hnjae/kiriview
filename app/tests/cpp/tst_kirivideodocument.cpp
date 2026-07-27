@@ -4,11 +4,33 @@
 #include "facade/kirivideodocument.h"
 
 #include "facade/kiridocumentsession.h"
+#include <QMetaMethod>
 #include <QMetaProperty>
 #include <QObject>
+#include <QPointer>
 #include <QRectF>
 #include <QSignalSpy>
+#include <QStringList>
 #include <QTest>
+#include <functional>
+#include <memory>
+
+class SignalCallback final : public QObject
+{
+    Q_OBJECT
+
+public:
+    std::function<void()> callback;
+
+public Q_SLOTS:
+    void invoke()
+    {
+        const std::function<void()> currentCallback = callback;
+        if (currentCallback) {
+            currentCallback();
+        }
+    }
+};
 
 class TestKiriVideoDocument : public QObject
 {
@@ -19,8 +41,27 @@ private Q_SLOTS:
     void sourceUrlAndVideoOutputPropertiesAreReadOnlyObservations();
     void mutedPropertyNotifiesAndToggles();
     void sourceUrlAndTitleNotifyOnSetAndClear();
+    void sourceReplacementReentryCoalescesSupersededNotifications();
+    void playbackProjectionReentryPreservesDocumentNotifications();
+    void playbackProjectionReentryCoalescesSupersededProjection();
+    void sessionSnapshotPublicationCanDestroyDocument();
     void videoOutputCanDetachAndToleratesDestroyedOutput();
 };
+
+namespace {
+QMetaObject::Connection connectSessionSnapshotSignal(
+    KiriVideoDocument& document, SignalCallback& callback)
+{
+    const QMetaObject& documentMetaObject = *document.metaObject();
+    const int signalIndex = documentMetaObject.indexOfSignal("documentSessionSnapshotChanged()");
+    const int slotIndex = callback.metaObject()->indexOfSlot("invoke()");
+    if (signalIndex < 0 || slotIndex < 0) {
+        return {};
+    }
+    return QObject::connect(&document, documentMetaObject.method(signalIndex), &callback,
+        callback.metaObject()->method(slotIndex), Qt::DirectConnection);
+}
+}
 
 void TestKiriVideoDocument::initialStateIsNull()
 {
@@ -115,6 +156,116 @@ void TestKiriVideoDocument::sourceUrlAndTitleNotifyOnSetAndClear()
     QCOMPARE(document.status(), KiriVideoDocument::Status::Null);
     QCOMPARE(sourceUrlSpy.count(), 2);
     QCOMPARE(titleSpy.count(), 2);
+}
+
+void TestKiriVideoDocument::sourceReplacementReentryCoalescesSupersededNotifications()
+{
+    KiriDocumentSession session;
+    KiriVideoDocument& document = *session.videoDocument();
+    const QUrl firstSourceUrl = QUrl::fromLocalFile(QStringLiteral("/tmp/first.mp4"));
+    const QUrl replacementSourceUrl = QUrl::fromLocalFile(QStringLiteral("/tmp/replacement.mp4"));
+    QStringList notifiedTitles;
+    int statusNotificationCount = 0;
+    bool reentered = false;
+
+    connect(&document, &KiriVideoDocument::sourceUrlChanged, &document, [&]() {
+        if (reentered) {
+            return;
+        }
+        reentered = true;
+        session.setSourceUrl(replacementSourceUrl);
+    });
+    connect(&document, &KiriVideoDocument::windowTitleFileNameChanged, &document,
+        [&]() { notifiedTitles.append(document.windowTitleFileName()); });
+    connect(&document, &KiriVideoDocument::statusChanged, &document,
+        [&]() { ++statusNotificationCount; });
+
+    session.setSourceUrl(firstSourceUrl);
+
+    QVERIFY(reentered);
+    QCOMPARE(document.sourceUrl(), replacementSourceUrl);
+    QCOMPARE(document.status(), KiriVideoDocument::Status::Loading);
+    QCOMPARE(notifiedTitles, QStringList { QStringLiteral("replacement.mp4") });
+    QCOMPARE(statusNotificationCount, 1);
+}
+
+void TestKiriVideoDocument::playbackProjectionReentryPreservesDocumentNotifications()
+{
+    KiriDocumentSession session;
+    KiriVideoDocument& document = *session.videoDocument();
+    const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/tmp/clip.mp4"));
+    QSignalSpy titleSpy(&document, &KiriVideoDocument::windowTitleFileNameChanged);
+    QSignalSpy statusSpy(&document, &KiriVideoDocument::statusChanged);
+    bool reentered = false;
+
+    connect(&document, &KiriVideoDocument::sourceUrlChanged, &document, [&]() {
+        if (reentered) {
+            return;
+        }
+        reentered = true;
+        document.setMuted(true);
+    });
+
+    session.setSourceUrl(sourceUrl);
+
+    QVERIFY(reentered);
+    QVERIFY(document.muted());
+    QCOMPARE(document.windowTitleFileName(), QStringLiteral("clip.mp4"));
+    QCOMPARE(document.status(), KiriVideoDocument::Status::Loading);
+    QCOMPARE(titleSpy.count(), 1);
+    QCOMPARE(statusSpy.count(), 1);
+}
+
+void TestKiriVideoDocument::playbackProjectionReentryCoalescesSupersededProjection()
+{
+    KiriVideoDocument document;
+    SignalCallback sessionSnapshotCallback;
+    bool reentered = false;
+    sessionSnapshotCallback.callback = [&]() {
+        if (reentered) {
+            return;
+        }
+        reentered = true;
+        document.setMuted(false);
+    };
+    const QMetaObject::Connection connection
+        = connectSessionSnapshotSignal(document, sessionSnapshotCallback);
+    QVERIFY(connection);
+    QSignalSpy projectionSpy(
+        document.playbackControls(), &KiriVideoPlaybackControls::projectionChanged);
+
+    document.setMuted(true);
+
+    QVERIFY(reentered);
+    QVERIFY(!document.muted());
+    QCOMPARE(projectionSpy.count(), 1);
+}
+
+void TestKiriVideoDocument::sessionSnapshotPublicationCanDestroyDocument()
+{
+    std::unique_ptr<KiriVideoDocument> document = std::make_unique<KiriVideoDocument>();
+    QPointer<KiriVideoDocument> documentGuard(document.get());
+    KiriVideoPlaybackControls* playbackControls = document->playbackControls();
+    // Keep the signal target alive only so a post-owner emission remains observable.
+    playbackControls->setParent(nullptr);
+    const std::unique_ptr<KiriVideoPlaybackControls> playbackControlsOwner(playbackControls);
+    QSignalSpy projectionSpy(playbackControls, &KiriVideoPlaybackControls::projectionChanged);
+    SignalCallback sessionSnapshotCallback;
+    bool destroyed = false;
+    sessionSnapshotCallback.callback = [&]() {
+        destroyed = true;
+        document.reset();
+    };
+    const QMetaObject::Connection connection
+        = connectSessionSnapshotSignal(*document, sessionSnapshotCallback);
+    QVERIFY(connection);
+    KiriVideoDocument* documentPointer = document.get();
+
+    documentPointer->setMuted(true);
+
+    QVERIFY(destroyed);
+    QVERIFY(documentGuard == nullptr);
+    QCOMPARE(projectionSpy.count(), 0);
 }
 
 void TestKiriVideoDocument::videoOutputCanDetachAndToleratesDestroyedOutput()

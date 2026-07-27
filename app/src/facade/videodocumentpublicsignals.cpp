@@ -18,6 +18,9 @@ bool affectsSessionSnapshot(kiriview::VideoDocumentPublicSignal signal)
 {
     using Signal = kiriview::VideoDocumentPublicSignal;
     switch (signal) {
+    case Signal::SessionSnapshot:
+    case Signal::PlaybackControlProjection:
+        return false;
     case Signal::SourceUrl:
     case Signal::Status:
     case Signal::ErrorString:
@@ -44,22 +47,12 @@ VideoDocumentPublicSignalEmitter::VideoDocumentPublicSignalEmitter(
 {
 }
 
-void VideoDocumentPublicSignalEmitter::emitChanges(
-    const std::vector<VideoDocumentChange>& changes) const
-{
-    const std::vector<VideoDocumentPublicSignal> signals
-        = videoDocumentPublicSignalsForChanges(changes);
-    if (std::ranges::any_of(signals, affectsSessionSnapshot)) {
-        run(m_operations.sessionSnapshotChanged);
-    }
-    for (VideoDocumentPublicSignal signal : signals) {
-        emitSignal(signal);
-    }
-}
-
 void VideoDocumentPublicSignalEmitter::emitSignal(VideoDocumentPublicSignal signal) const
 {
     switch (signal) {
+    case VideoDocumentPublicSignal::SessionSnapshot:
+        run(m_operations.sessionSnapshotChanged);
+        return;
     case VideoDocumentPublicSignal::SourceUrl:
         run(m_operations.sourceUrlChanged);
         return;
@@ -92,6 +85,9 @@ void VideoDocumentPublicSignalEmitter::emitSignal(VideoDocumentPublicSignal sign
         return;
     case VideoDocumentPublicSignal::EmbeddedMetadata:
         run(m_operations.embeddedMetadataChanged);
+        return;
+    case VideoDocumentPublicSignal::PlaybackControlProjection:
+        run(m_operations.playbackControlProjectionChanged);
         return;
     }
 }
@@ -137,6 +133,17 @@ std::vector<VideoDocumentPublicSignal> videoDocumentPublicSignalsForChanges(
                 plannedSignals.push_back(signal);
             }
         }
+    }
+    return plannedSignals;
+}
+
+std::vector<VideoDocumentPublicSignal> videoDocumentPublicationSignalsForChanges(
+    const std::vector<VideoDocumentChange>& changes)
+{
+    std::vector<VideoDocumentPublicSignal> plannedSignals
+        = videoDocumentPublicSignalsForChanges(changes);
+    if (std::ranges::any_of(plannedSignals, affectsSessionSnapshot)) {
+        plannedSignals.insert(plannedSignals.begin(), VideoDocumentPublicSignal::SessionSnapshot);
     }
     return plannedSignals;
 }

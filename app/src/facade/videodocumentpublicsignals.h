@@ -11,6 +11,7 @@
 
 namespace kiriview {
 enum class VideoDocumentPublicSignal {
+    SessionSnapshot,
     SourceUrl,
     Status,
     ErrorString,
@@ -22,6 +23,7 @@ enum class VideoDocumentPublicSignal {
     ZoomPercent,
     VideoOutput,
     EmbeddedMetadata,
+    PlaybackControlProjection,
 };
 
 struct VideoDocumentPublicSignalOperations
@@ -38,6 +40,7 @@ struct VideoDocumentPublicSignalOperations
     std::function<void()> zoomPercentChanged;
     std::function<void()> videoOutputChanged;
     std::function<void()> embeddedMetadataChanged;
+    std::function<void()> playbackControlProjectionChanged;
 };
 
 class VideoDocumentPublicSignalEmitter final
@@ -45,7 +48,6 @@ class VideoDocumentPublicSignalEmitter final
 public:
     explicit VideoDocumentPublicSignalEmitter(VideoDocumentPublicSignalOperations operations);
 
-    void emitChanges(const std::vector<VideoDocumentChange>& changes) const;
     void emitSignal(VideoDocumentPublicSignal signal) const;
 
 private:
@@ -54,6 +56,8 @@ private:
 
 std::vector<VideoDocumentPublicSignal> videoDocumentPublicSignals(VideoDocumentChange change);
 std::vector<VideoDocumentPublicSignal> videoDocumentPublicSignalsForChanges(
+    const std::vector<VideoDocumentChange>& changes);
+std::vector<VideoDocumentPublicSignal> videoDocumentPublicationSignalsForChanges(
     const std::vector<VideoDocumentChange>& changes);
 }
 
