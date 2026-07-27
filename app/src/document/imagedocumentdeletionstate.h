@@ -9,14 +9,14 @@
 namespace kiriview {
 struct ImageDocumentDeletionFileOperationStart
 {
+    bool accepted = false;
     quint64 operationId = 0;
     bool inProgressChanged = false;
 };
 
-struct ImageDocumentDeletionFileOperationFinish
+struct ImageDocumentDeletionFileOperationClaim
 {
     bool accepted = false;
-    bool inProgressChanged = false;
 };
 
 class ImageDocumentDeletionState final
@@ -26,13 +26,17 @@ public:
 
     [[nodiscard]] bool inProgress() const;
     ImageDocumentDeletionFileOperationStart startFileDeletion();
-    ImageDocumentDeletionFileOperationFinish finishFileDeletion(quint64 operationId);
+    [[nodiscard]] bool acceptsFileDeletion(quint64 operationId) const;
+    ImageDocumentDeletionFileOperationClaim claimFileDeletion(quint64 operationId);
+    [[nodiscard]] bool acceptsClaimedFileDeletion(quint64 operationId) const;
+    bool settleClaimedFileDeletion(quint64 operationId);
     bool cancelFileDeletion();
 
 private:
     bool setInProgress(bool inProgress);
 
     bool m_inProgress = false;
+    quint64 m_claimedFileDeletionOperationId = 0;
     ImageAsyncOperationState m_fileDeletion;
 };
 }

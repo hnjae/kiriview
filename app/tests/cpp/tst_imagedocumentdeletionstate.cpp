@@ -12,41 +12,48 @@ class TestImageDocumentDeletionState : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
-    void fileDeletionCompletionClaimsOnlyCurrentOperation();
+    void fileDeletionLifecycleRejectsOverlapAndSettlesClaimedOperation();
     void cancelFileDeletionClearsProgressAndRejectsCompletion();
     void operationIdsStayNonZeroAfterWrap();
 };
 
-void TestImageDocumentDeletionState::fileDeletionCompletionClaimsOnlyCurrentOperation()
+void TestImageDocumentDeletionState::fileDeletionLifecycleRejectsOverlapAndSettlesClaimedOperation()
 {
     kiriview::ImageDocumentDeletionState state;
 
-    const kiriview::ImageDocumentDeletionFileOperationStart stale = state.startFileDeletion();
     const kiriview::ImageDocumentDeletionFileOperationStart current = state.startFileDeletion();
+    const kiriview::ImageDocumentDeletionFileOperationStart overlapping = state.startFileDeletion();
 
-    QVERIFY(stale.operationId != 0);
+    QVERIFY(current.accepted);
     QVERIFY(current.operationId != 0);
-    QVERIFY(stale.operationId != current.operationId);
+    QVERIFY(current.inProgressChanged);
+    QVERIFY(!overlapping.accepted);
+    QCOMPARE(overlapping.operationId, quint64(0));
+    QVERIFY(!overlapping.inProgressChanged);
     QVERIFY(state.inProgress());
-    QVERIFY(stale.inProgressChanged);
-    QVERIFY(!current.inProgressChanged);
+    QVERIFY(state.acceptsFileDeletion(current.operationId));
 
-    const kiriview::ImageDocumentDeletionFileOperationFinish staleFinish
-        = state.finishFileDeletion(stale.operationId);
-    QVERIFY(!staleFinish.accepted);
-    QVERIFY(!staleFinish.inProgressChanged);
+    const kiriview::ImageDocumentDeletionFileOperationClaim staleClaim
+        = state.claimFileDeletion(current.operationId + 1);
+    QVERIFY(!staleClaim.accepted);
     QVERIFY(state.inProgress());
 
-    const kiriview::ImageDocumentDeletionFileOperationFinish currentFinish
-        = state.finishFileDeletion(current.operationId);
-    QVERIFY(currentFinish.accepted);
-    QVERIFY(currentFinish.inProgressChanged);
+    const kiriview::ImageDocumentDeletionFileOperationClaim currentClaim
+        = state.claimFileDeletion(current.operationId);
+    QVERIFY(currentClaim.accepted);
+    QVERIFY(state.inProgress());
+    QVERIFY(!state.acceptsFileDeletion(current.operationId));
+    QVERIFY(state.acceptsClaimedFileDeletion(current.operationId));
+
+    const kiriview::ImageDocumentDeletionFileOperationClaim repeatedClaim
+        = state.claimFileDeletion(current.operationId);
+    QVERIFY(!repeatedClaim.accepted);
+    QVERIFY(!state.settleClaimedFileDeletion(current.operationId + 1));
+    QVERIFY(state.inProgress());
+    QVERIFY(state.settleClaimedFileDeletion(current.operationId));
     QVERIFY(!state.inProgress());
-
-    const kiriview::ImageDocumentDeletionFileOperationFinish repeatedFinish
-        = state.finishFileDeletion(current.operationId);
-    QVERIFY(!repeatedFinish.accepted);
-    QVERIFY(!repeatedFinish.inProgressChanged);
+    QVERIFY(!state.acceptsClaimedFileDeletion(current.operationId));
+    QVERIFY(!state.settleClaimedFileDeletion(current.operationId));
 }
 
 void TestImageDocumentDeletionState::cancelFileDeletionClearsProgressAndRejectsCompletion()
@@ -54,14 +61,16 @@ void TestImageDocumentDeletionState::cancelFileDeletionClearsProgressAndRejectsC
     kiriview::ImageDocumentDeletionState state;
     const kiriview::ImageDocumentDeletionFileOperationStart operation = state.startFileDeletion();
 
+    QVERIFY(operation.accepted);
     QVERIFY(state.inProgress());
     QVERIFY(state.cancelFileDeletion());
     QVERIFY(!state.inProgress());
 
-    const kiriview::ImageDocumentDeletionFileOperationFinish finish
-        = state.finishFileDeletion(operation.operationId);
-    QVERIFY(!finish.accepted);
-    QVERIFY(!finish.inProgressChanged);
+    const kiriview::ImageDocumentDeletionFileOperationClaim claim
+        = state.claimFileDeletion(operation.operationId);
+    QVERIFY(!claim.accepted);
+    QVERIFY(!state.acceptsClaimedFileDeletion(operation.operationId));
+    QVERIFY(!state.settleClaimedFileDeletion(operation.operationId));
     QVERIFY(!state.cancelFileDeletion());
 }
 
@@ -72,6 +81,7 @@ void TestImageDocumentDeletionState::operationIdsStayNonZeroAfterWrap()
     const kiriview::ImageDocumentDeletionFileOperationStart fileDeletion
         = state.startFileDeletion();
 
+    QVERIFY(fileDeletion.accepted);
     QCOMPARE(fileDeletion.operationId, quint64(1));
 }
 

@@ -21,10 +21,11 @@ bool documentReadyForFileDeletion(const kiriview::ImageDocumentState& state)
     return state.status() == kiriview::ImageDocumentStatus::Ready;
 }
 
-bool displayedOpenedCollectionVideoHasDeletionTarget(const kiriview::ImageDocumentState& state)
+bool displayedOpenedCollectionVideoHasDeletionTarget(kiriview::ImageDocumentPageKind sourceKind,
+    const kiriview::DisplayedImageLocation& displayedLocation)
 {
-    return state.sourceKind() == kiriview::ImageDocumentPageKind::Video
-        && kiriview::displayedLocationIsInsideOpenedCollectionScope(state.displayedImageLocation());
+    return sourceKind == kiriview::ImageDocumentPageKind::Video
+        && kiriview::displayedLocationIsInsideOpenedCollectionScope(displayedLocation);
 }
 }
 
@@ -45,82 +46,131 @@ ImageDocumentDeletionController::ImageDocumentDeletionController(QObject* parent
 {
 }
 
-ImageDocumentDeletionController::~ImageDocumentDeletionController() = default;
+ImageDocumentDeletionController::~ImageDocumentDeletionController()
+{
+    static_cast<void>(m_deletionState.cancelFileDeletion());
+    m_fallbackController.cancel();
+    m_fileDeletionJob.cancel();
+    m_publishedFileDeletionOperationId = 0;
+}
 
 bool ImageDocumentDeletionController::inProgress() const { return m_deletionState.inProgress(); }
 
 void ImageDocumentDeletionController::deleteDisplayedFile(FileDeletionMode mode)
 {
-    if (!documentReadyForFileDeletion(m_state)) {
+    if (m_deletionState.inProgress() || !documentReadyForFileDeletion(m_state)) {
         return;
     }
 
-    if ((!m_hasDisplayedImage || !m_hasDisplayedImage())
-        && !displayedOpenedCollectionVideoHasDeletionTarget(m_state)) {
-        return;
-    }
-
-    const ImageRemovalPlan removalPlan
-        = imageRemovalPlanForDisplayedLocation(m_state.displayedImageLocation());
+    const DisplayedImageLocation displayedLocation = m_state.displayedImageLocation();
+    const quint64 presentationLifecycleRevision = m_state.presentationLifecycleRevision();
+    const ImageDocumentPageKind sourceKind = m_state.sourceKind();
+    const ImageRemovalPlan removalPlan = imageRemovalPlanForDisplayedLocation(displayedLocation);
     if (!removalPlan.hasTarget()) {
+        return;
+    }
+
+    const bool hasDisplayedImage = m_hasDisplayedImage && m_hasDisplayedImage();
+    if (!hasDisplayedImage
+        && !displayedOpenedCollectionVideoHasDeletionTarget(sourceKind, displayedLocation)) {
+        return;
+    }
+    if (m_deletionState.inProgress() || !documentReadyForFileDeletion(m_state)
+        || m_state.presentationLifecycleRevision() != presentationLifecycleRevision
+        || m_state.displayedImageLocation() != displayedLocation) {
+        return;
+    }
+
+    const ImageDocumentDeletionFileOperationStart operation = m_deletionState.startFileDeletion();
+    if (!operation.accepted) {
         return;
     }
 
     m_fallbackController.cancel();
     m_fileDeletionJob.cancel();
-    const ImageDocumentDeletionFileOperationStart operation = m_deletionState.startFileDeletion();
-    notifyInProgressChangedIf(operation.inProgressChanged);
-    m_fileDeletionJob
+    if (!m_deletionState.acceptsFileDeletion(operation.operationId)) {
+        return;
+    }
+    publishFileDeletionStarted(operation.operationId);
+    if (!m_deletionState.acceptsFileDeletion(operation.operationId)) {
+        return;
+    }
+
+    ImageIoJob startedJob
         = m_fileDeletionProvider(m_parent, FileDeletionRequest { removalPlan.targetUrl, mode },
             [this, operationId = operation.operationId, fallbackPlan = removalPlan.fallbackPlan](
                 FileDeletionResult result, const KioOperationFailure& failure) {
                 finishFileDeletion(operationId, fallbackPlan, result, failure);
             });
+    if (!m_deletionState.acceptsFileDeletion(operation.operationId)) {
+        startedJob.cancel();
+        return;
+    }
+    m_fileDeletionJob = std::move(startedJob);
 }
 
 void ImageDocumentDeletionController::finishFileDeletion(quint64 operationId,
     const ImageRemovalFallbackPlan& fallbackPlan, FileDeletionResult result,
     const KioOperationFailure& failure)
 {
-    const ImageDocumentDeletionFileOperationFinish operation
-        = m_deletionState.finishFileDeletion(operationId);
+    const ImageDocumentDeletionFileOperationClaim operation
+        = m_deletionState.claimFileDeletion(operationId);
     if (!operation.accepted) {
         return;
     }
 
-    notifyInProgressChangedIf(operation.inProgressChanged);
-
     switch (fileDeletionCompletionAction(result)) {
     case FileDeletionCompletionAction::ClearDeletedTargetAndOpenFallback:
         reportRuntimePlan(imageDocumentClearDeletedImagePlan());
+        if (!m_deletionState.acceptsClaimedFileDeletion(operationId)) {
+            return;
+        }
         m_fallbackController.open(fallbackPlan);
-        return;
+        break;
     case FileDeletionCompletionAction::Ignore:
-        return;
+        break;
     case FileDeletionCompletionAction::ReportFailure:
         reportFailure(failure);
+        break;
+    }
+
+    if (!m_deletionState.acceptsClaimedFileDeletion(operationId)) {
         return;
+    }
+    if (m_deletionState.settleClaimedFileDeletion(operationId)) {
+        publishFileDeletionSettled(operationId);
     }
 }
 
-void ImageDocumentDeletionController::notifyInProgressChangedIf(bool changed)
+void ImageDocumentDeletionController::publishFileDeletionStarted(quint64 operationId)
 {
-    if (changed) {
+    const bool inProgressWasPublished = m_publishedFileDeletionOperationId != 0;
+    m_publishedFileDeletionOperationId = operationId;
+    if (!inProgressWasPublished) {
         invokeIfSet(m_callbacks.inProgressChanged);
     }
 }
 
-void ImageDocumentDeletionController::cancel()
+void ImageDocumentDeletionController::publishFileDeletionSettled(quint64 operationId)
 {
-    m_fallbackController.cancel();
-    cancelFileDeletion();
+    if (m_publishedFileDeletionOperationId != operationId) {
+        return;
+    }
+
+    m_publishedFileDeletionOperationId = 0;
+    invokeIfSet(m_callbacks.inProgressChanged);
 }
 
-void ImageDocumentDeletionController::cancelFileDeletion()
+void ImageDocumentDeletionController::cancel()
 {
+    const quint64 publishedOperationId = m_publishedFileDeletionOperationId;
     const bool inProgressChanged = m_deletionState.cancelFileDeletion();
     m_fileDeletionJob.cancel();
-    notifyInProgressChangedIf(inProgressChanged);
+    m_fallbackController.cancel();
+    if (inProgressChanged && publishedOperationId != 0
+        && m_publishedFileDeletionOperationId == publishedOperationId) {
+        publishFileDeletionSettled(publishedOperationId);
+    }
 }
 
 void ImageDocumentDeletionController::reportRuntimePlan(ImageDocumentRuntimePlan plan)

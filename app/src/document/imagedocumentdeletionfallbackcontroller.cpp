@@ -21,13 +21,16 @@ ImageDocumentDeletionFallbackController::ImageDocumentDeletionFallbackController
 {
 }
 
-ImageDocumentDeletionFallbackController::~ImageDocumentDeletionFallbackController() = default;
+ImageDocumentDeletionFallbackController::~ImageDocumentDeletionFallbackController() { cancel(); }
 
 void ImageDocumentDeletionFallbackController::open(const ImageRemovalFallbackPlan& fallbackPlan)
 {
-    cancel();
-
     const quint64 operationId = m_operation.start();
+    m_jobRequest.cancel();
+    m_job.cancel();
+    if (!m_operation.accepts(operationId)) {
+        return;
+    }
     std::visit([this, operationId](const auto& plan) { openFallbackPlan(operationId, plan); },
         fallbackPlan);
 }
@@ -35,6 +38,7 @@ void ImageDocumentDeletionFallbackController::open(const ImageRemovalFallbackPla
 void ImageDocumentDeletionFallbackController::cancel()
 {
     m_operation.cancel();
+    m_jobRequest.cancel();
     m_job.cancel();
 }
 
@@ -47,22 +51,34 @@ void ImageDocumentDeletionFallbackController::openFallbackPlan(
 void ImageDocumentDeletionFallbackController::openFallbackPlan(
     quint64 operationId, const ImageRemovalFallback& fallback)
 {
-    m_job = m_candidateRepository.loadImages(
+    const quint64 requestId = beginJobRequest(operationId);
+    if (requestId == 0) {
+        return;
+    }
+    ImageIoJob startedJob = m_candidateRepository.loadImages(
         m_parent, fallback.imageContext,
-        [this, operationId, fallback](std::vector<ImageDocumentPageCandidate> candidates) {
-            if (!m_operation.accepts(operationId)) {
+        [this, operationId, requestId, fallback](
+            std::vector<ImageDocumentPageCandidate> candidates) {
+            if (!claimJobRequest(operationId, requestId)) {
                 return;
             }
 
             const std::optional<ImageDocumentPageTarget> fallbackTarget
                 = imageRemovalFallbackTarget(std::move(candidates), fallback);
-            m_operation.finish(operationId);
+            if (!m_operation.finish(operationId)) {
+                return;
+            }
             if (fallbackTarget.has_value()) {
                 reportRuntimePlan(ImageDocumentRuntimePlan { LoadUrlOperation {
                     *fallbackTarget, fallback.imageContext.openedCollectionScope() } });
             }
         },
-        [this, operationId](const QString&) { m_operation.finish(operationId); });
+        [this, operationId, requestId](const QString&) {
+            if (claimJobRequest(operationId, requestId)) {
+                static_cast<void>(m_operation.finish(operationId));
+            }
+        });
+    retainJobIfCurrent(operationId, requestId, std::move(startedJob));
 }
 
 void ImageDocumentDeletionFallbackController::openFallbackPlan(
@@ -73,10 +89,15 @@ void ImageDocumentDeletionFallbackController::openFallbackPlan(
         return;
     }
 
-    m_job = m_candidateRepository.loadContainers(
+    const quint64 requestId = beginJobRequest(operationId);
+    if (requestId == 0) {
+        return;
+    }
+    ImageIoJob startedJob = m_candidateRepository.loadContainers(
         m_parent, fallback.candidateDirectoryUrl,
-        [this, operationId, fallback](std::vector<ContainerNavigationCandidate> candidates) {
-            if (!m_operation.accepts(operationId)) {
+        [this, operationId, requestId, fallback](
+            std::vector<ContainerNavigationCandidate> candidates) {
+            if (!claimJobRequest(operationId, requestId)) {
                 return;
             }
 
@@ -85,7 +106,42 @@ void ImageDocumentDeletionFallbackController::openFallbackPlan(
             openComicBookFallbackCandidate(
                 operationId, fallbackCandidates.preferred, fallbackCandidates.fallback);
         },
-        [this, operationId](const QString&) { m_operation.finish(operationId); });
+        [this, operationId, requestId](const QString&) {
+            if (claimJobRequest(operationId, requestId)) {
+                static_cast<void>(m_operation.finish(operationId));
+            }
+        });
+    retainJobIfCurrent(operationId, requestId, std::move(startedJob));
+}
+
+quint64 ImageDocumentDeletionFallbackController::beginJobRequest(quint64 operationId)
+{
+    if (!m_operation.accepts(operationId)) {
+        return 0;
+    }
+
+    const quint64 requestId = m_jobRequest.start();
+    m_job.cancel();
+    if (!m_operation.accepts(operationId) || !m_jobRequest.accepts(requestId)) {
+        return 0;
+    }
+    return requestId;
+}
+
+bool ImageDocumentDeletionFallbackController::claimJobRequest(
+    quint64 operationId, quint64 requestId)
+{
+    return m_operation.accepts(operationId) && m_jobRequest.finish(requestId);
+}
+
+void ImageDocumentDeletionFallbackController::retainJobIfCurrent(
+    quint64 operationId, quint64 requestId, ImageIoJob job)
+{
+    if (!m_operation.accepts(operationId) || !m_jobRequest.accepts(requestId)) {
+        job.cancel();
+        return;
+    }
+    m_job = std::move(job);
 }
 
 void ImageDocumentDeletionFallbackController::openComicBookFallbackCandidate(quint64 operationId,
@@ -116,29 +172,41 @@ void ImageDocumentDeletionFallbackController::loadComicBookFallbackImage(quint64
         failComicBookFallbackImageLoad(operationId, fallbackCandidate);
         return;
     }
-    const ImageContainerOpenPlan plan
-        = imageContainerOpenPlanForCandidate(candidate, m_resolveExternalSource(candidate.url));
+    const ResolvedNavigationSource source = m_resolveExternalSource(candidate.url);
+    if (!m_operation.accepts(operationId)) {
+        return;
+    }
+    const ImageContainerOpenPlan plan = imageContainerOpenPlanForCandidate(candidate, source);
     if (!plan.shouldLoadCandidates()) {
         failComicBookFallbackImageLoad(operationId, fallbackCandidate);
         return;
     }
 
-    m_job = m_candidateRepository.loadImages(
+    const quint64 requestId = beginJobRequest(operationId);
+    if (requestId == 0) {
+        return;
+    }
+    ImageIoJob startedJob = m_candidateRepository.loadImages(
         m_parent, *plan.source,
-        [this, operationId, scope = plan.openedCollectionScope, fallbackCandidate](
+        [this, operationId, requestId, scope = plan.openedCollectionScope, fallbackCandidate](
             const std::vector<ImageDocumentPageCandidate>& candidates) {
-            finishComicBookFallbackImageLoad(operationId, scope, fallbackCandidate, candidates);
+            finishComicBookFallbackImageLoad(
+                operationId, requestId, scope, fallbackCandidate, candidates);
         },
-        [this, operationId, fallbackCandidate](
-            const QString&) { failComicBookFallbackImageLoad(operationId, fallbackCandidate); });
+        [this, operationId, requestId, fallbackCandidate](const QString&) {
+            if (claimJobRequest(operationId, requestId)) {
+                failComicBookFallbackImageLoad(operationId, fallbackCandidate);
+            }
+        });
+    retainJobIfCurrent(operationId, requestId, std::move(startedJob));
 }
 
 void ImageDocumentDeletionFallbackController::finishComicBookFallbackImageLoad(quint64 operationId,
-    OpenedCollectionScopeLocation openedCollectionScope,
+    quint64 requestId, OpenedCollectionScopeLocation openedCollectionScope,
     const std::optional<ContainerNavigationCandidate>& fallbackCandidate,
     const std::vector<ImageDocumentPageCandidate>& candidates)
 {
-    if (!m_operation.accepts(operationId)) {
+    if (!claimJobRequest(operationId, requestId)) {
         return;
     }
 

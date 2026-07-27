@@ -51,8 +51,8 @@ public:
 private:
     void finishFileDeletion(quint64 operationId, const ImageRemovalFallbackPlan& fallbackPlan,
         FileDeletionResult result, const KioOperationFailure& failure);
-    void notifyInProgressChangedIf(bool changed);
-    void cancelFileDeletion();
+    void publishFileDeletionStarted(quint64 operationId);
+    void publishFileDeletionSettled(quint64 operationId);
     void reportRuntimePlan(ImageDocumentRuntimePlan plan);
     void reportFailure(const KioOperationFailure& failure);
 
@@ -64,6 +64,7 @@ private:
     ImageIoJob m_fileDeletionJob;
     ImageDocumentDeletionState m_deletionState;
     ImageDocumentDeletionFallbackController m_fallbackController;
+    quint64 m_publishedFileDeletionOperationId = 0;
 };
 }
 

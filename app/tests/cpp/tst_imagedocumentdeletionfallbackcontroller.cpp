@@ -50,6 +50,13 @@ public:
                   kiriview::ImageIoJob job
                       = kiriview::TestSupport::Detail::startManualIoJob(receiver, load);
                   m_imageLoads.push_back(load);
+                  if (m_synchronousFirstCandidates.has_value() && m_imageLoads.size() == 1) {
+                      const std::vector<kiriview::ImageDocumentPageCandidate> candidates
+                          = std::move(*m_synchronousFirstCandidates);
+                      m_synchronousFirstCandidates.reset();
+                      load->completion.claimAndRun(
+                          [load, candidates]() mutable { load->callback(std::move(candidates)); });
+                  }
                   return job;
               };
         provider.directoryContainers
@@ -68,7 +75,18 @@ public:
 
     std::size_t imageLoadCount() const { return m_imageLoads.size(); }
 
+    ManualImageDocumentPageCandidateLoad& imageLoad(std::size_t index)
+    {
+        return *m_imageLoads.at(index);
+    }
+
     ManualImageDocumentPageCandidateLoad& backImageLoad() { return *m_imageLoads.back(); }
+
+    void synchronouslyCompleteFirstImageLoadWith(
+        std::vector<kiriview::ImageDocumentPageCandidate> candidates)
+    {
+        m_synchronousFirstCandidates = std::move(candidates);
+    }
 
     void deliverBackImageDocumentPageCandidatesIgnoringCancellation(
         std::vector<kiriview::ImageDocumentPageCandidate> candidates)
@@ -79,6 +97,59 @@ public:
     }
 
 private:
+    std::optional<std::vector<kiriview::ImageDocumentPageCandidate>> m_synchronousFirstCandidates;
+    std::vector<std::shared_ptr<ManualImageDocumentPageCandidateLoad>> m_imageLoads;
+};
+
+class SynchronousContainerThenManualImageProvider
+{
+public:
+    explicit SynchronousContainerThenManualImageProvider(QUrl containerUrl)
+        : m_containerUrl(std::move(containerUrl))
+    {
+    }
+
+    kiriview::ImageDocumentPageCandidateProvider provider()
+    {
+        kiriview::ImageDocumentPageCandidateProvider provider;
+        provider.directoryImageDocumentPages
+            = [](QObject*, QUrl, kiriview::ImageDocumentPageCandidatesCallback,
+                  kiriview::ErrorCallback) { return kiriview::ImageIoJob(); };
+        provider.directoryContainers
+            = [this](QObject* receiver, QUrl, kiriview::ContainerCandidatesCallback callback,
+                  kiriview::ErrorCallback) {
+                  auto load = std::make_shared<ManualImageDocumentPageCandidateLoad>();
+                  kiriview::ImageIoJob job
+                      = kiriview::TestSupport::Detail::startManualIoJob(receiver, load);
+                  load->completion.claimAndRun([this, callback = std::move(callback)]() mutable {
+                      callback({ comicBookContainerCandidate(m_containerUrl) });
+                  });
+                  return job;
+              };
+        provider.openedCollectionCandidates
+            = [this](QObject* receiver, kiriview::OpenedCollectionScopeLocation,
+                  kiriview::ImageDocumentPageCandidatesCallback callback,
+                  kiriview::ErrorCallback errorCallback) {
+                  auto load = std::make_shared<ManualImageDocumentPageCandidateLoad>();
+                  load->callback = std::move(callback);
+                  load->errorCallback = std::move(errorCallback);
+                  kiriview::ImageIoJob job
+                      = kiriview::TestSupport::Detail::startManualIoJob(receiver, load);
+                  m_imageLoads.push_back(load);
+                  return job;
+              };
+        provider.directoryImageDocumentPageChanges
+            = [](QObject*, QUrl, kiriview::ImageDocumentPageCandidatesCallback,
+                  kiriview::ErrorCallback) { return kiriview::ImageIoJob(); };
+        return provider;
+    }
+
+    std::size_t imageLoadCount() const { return m_imageLoads.size(); }
+
+    ManualImageDocumentPageCandidateLoad& backImageLoad() { return *m_imageLoads.back(); }
+
+private:
+    QUrl m_containerUrl;
     std::vector<std::shared_ptr<ManualImageDocumentPageCandidateLoad>> m_imageLoads;
 };
 
@@ -121,6 +192,9 @@ class TestImageDocumentDeletionFallbackController : public QObject
 private Q_SLOTS:
     void imageFallbackOpensNextSibling();
     void canceledImageFallbackCompletionIsIgnored();
+    void synchronousReplacementKeepsReplacementJob();
+    void synchronousContainerPhaseKeepsImagePhaseJob();
+    void resolverReentryPreventsStaleImagePhase();
     void comicBookFallbackTriesPreviousContainerWhenPreferredIsEmpty();
 };
 
@@ -183,6 +257,96 @@ void TestImageDocumentDeletionFallbackController::canceledImageFallbackCompletio
         { imageDocumentPageCandidate(nextUrl) });
 
     QVERIFY(runtimePlans.empty());
+}
+
+void TestImageDocumentDeletionFallbackController::synchronousReplacementKeepsReplacementJob()
+{
+    QObject parent;
+    ManualDeletionFallbackCandidateProvider provider;
+    const QUrl firstCurrentUrl = localUrl(QStringLiteral("/first/02.png"));
+    const QUrl firstNextUrl = localUrl(QStringLiteral("/first/03.png"));
+    const QUrl secondCurrentUrl = localUrl(QStringLiteral("/second/02.png"));
+    provider.synchronouslyCompleteFirstImageLoadWith({ imageDocumentPageCandidate(firstNextUrl) });
+
+    std::unique_ptr<kiriview::ImageDocumentDeletionFallbackController> controller;
+    bool replacementStarted = false;
+    controller = std::make_unique<kiriview::ImageDocumentDeletionFallbackController>(
+        &parent, provider.provider(),
+        [&](kiriview::ImageDocumentRuntimePlan plan) {
+            if (!planLoadsUrl(plan, firstNextUrl) || replacementStarted) {
+                return;
+            }
+            replacementStarted = true;
+            controller->open(kiriview::ImageRemovalFallback {
+                kiriview::ImageDocumentPageCandidateListContext::forDirectory(
+                    secondCurrentUrl, localUrl(QStringLiteral("/second/"))),
+                secondCurrentUrl,
+                QStringLiteral("02.png"),
+            });
+        },
+        resolveExternalSource);
+
+    controller->open(kiriview::ImageRemovalFallback {
+        kiriview::ImageDocumentPageCandidateListContext::forDirectory(
+            firstCurrentUrl, localUrl(QStringLiteral("/first/"))),
+        firstCurrentUrl,
+        QStringLiteral("02.png"),
+    });
+
+    QVERIFY(replacementStarted);
+    QCOMPARE(provider.imageLoadCount(), std::size_t(2));
+    QVERIFY(!provider.imageLoad(1).canceled);
+}
+
+void TestImageDocumentDeletionFallbackController::synchronousContainerPhaseKeepsImagePhaseJob()
+{
+    QObject parent;
+    const QUrl nextContainerUrl = localUrl(QStringLiteral("/books/c.cbz"));
+    SynchronousContainerThenManualImageProvider provider(nextContainerUrl);
+    std::vector<kiriview::ImageDocumentRuntimePlan> runtimePlans;
+    kiriview::ImageDocumentDeletionFallbackController controller(
+        &parent, provider.provider(),
+        [&runtimePlans](
+            kiriview::ImageDocumentRuntimePlan plan) { runtimePlans.push_back(std::move(plan)); },
+        resolveExternalSource);
+
+    controller.open(kiriview::ComicBookRemovalFallback {
+        localUrl(QStringLiteral("/books/b.cbz")),
+        localUrl(QStringLiteral("/books/")),
+        QStringLiteral("b.cbz"),
+    });
+
+    QCOMPARE(provider.imageLoadCount(), std::size_t(1));
+    QVERIFY(!provider.backImageLoad().canceled);
+    QVERIFY(runtimePlans.empty());
+}
+
+void TestImageDocumentDeletionFallbackController::resolverReentryPreventsStaleImagePhase()
+{
+    QObject parent;
+    const QUrl nextContainerUrl = localUrl(QStringLiteral("/books/c.cbz"));
+    SynchronousContainerThenManualImageProvider provider(nextContainerUrl);
+    std::unique_ptr<kiriview::ImageDocumentDeletionFallbackController> controller;
+    bool reentered = false;
+    controller = std::make_unique<kiriview::ImageDocumentDeletionFallbackController>(&parent,
+        provider.provider(),
+        kiriview::ImageDocumentDeletionFallbackController::RuntimePlanCallback {},
+        [&](const QUrl& url) {
+            if (!reentered) {
+                reentered = true;
+                controller->open(kiriview::NoImageRemovalFallback {});
+            }
+            return resolveExternalSource(url);
+        });
+
+    controller->open(kiriview::ComicBookRemovalFallback {
+        localUrl(QStringLiteral("/books/b.cbz")),
+        localUrl(QStringLiteral("/books/")),
+        QStringLiteral("b.cbz"),
+    });
+
+    QVERIFY(reentered);
+    QCOMPARE(provider.imageLoadCount(), std::size_t(0));
 }
 
 void TestImageDocumentDeletionFallbackController::

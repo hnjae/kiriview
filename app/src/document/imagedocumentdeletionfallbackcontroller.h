@@ -37,13 +37,16 @@ private:
     void openFallbackPlan(quint64 operationId, NoImageRemovalFallback);
     void openFallbackPlan(quint64 operationId, const ImageRemovalFallback& fallback);
     void openFallbackPlan(quint64 operationId, const ComicBookRemovalFallback& fallback);
+    [[nodiscard]] quint64 beginJobRequest(quint64 operationId);
+    [[nodiscard]] bool claimJobRequest(quint64 operationId, quint64 requestId);
+    void retainJobIfCurrent(quint64 operationId, quint64 requestId, ImageIoJob job);
     void openComicBookFallbackCandidate(quint64 operationId,
         const std::optional<ContainerNavigationCandidate>& candidate,
         const std::optional<ContainerNavigationCandidate>& fallbackCandidate);
     void loadComicBookFallbackImage(quint64 operationId,
         const ContainerNavigationCandidate& candidate,
         const std::optional<ContainerNavigationCandidate>& fallbackCandidate);
-    void finishComicBookFallbackImageLoad(quint64 operationId,
+    void finishComicBookFallbackImageLoad(quint64 operationId, quint64 requestId,
         OpenedCollectionScopeLocation openedCollectionScope,
         const std::optional<ContainerNavigationCandidate>& fallbackCandidate,
         const std::vector<ImageDocumentPageCandidate>& candidates);
@@ -56,6 +59,7 @@ private:
     RuntimePlanCallback m_runtimePlanCallback;
     std::function<ResolvedNavigationSource(const QUrl&)> m_resolveExternalSource;
     ImageIoJob m_job;
+    ImageAsyncOperationState m_jobRequest;
     ImageAsyncOperationState m_operation;
 };
 }
