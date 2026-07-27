@@ -49,10 +49,17 @@ private Q_SLOTS:
     void metadataPublicationReentryRejectsSupersededBackend();
     void sourceDeviceLoadingPublicationReentryRejectsSupersededDevice();
     void sourceDeviceVideoSizePublicationReentryRejectsSupersededDevice();
+    void initialVideoSizeGetterReplacementRejectsSupersededLoad_data();
+    void initialVideoSizeGetterReplacementRejectsSupersededLoad();
     void loadingPublicationCanDestroyRuntimeBeforeResolverAdmission();
     void resolverCompletionAfterRuntimeDestructionIsIgnored();
     void resolverCleanupRunsOnSourceChangeAndDestruction();
     void videoSizeFollowsBackendMetadata();
+    void backendScalarGetterReplacementRejectsSupersededValue_data();
+    void backendScalarGetterReplacementRejectsSupersededValue();
+    void backendScalarGetterDestructionStopsBeforeCommit_data();
+    void backendScalarGetterDestructionStopsBeforeCommit();
+    void nestedBackendObservationKeepsLatestPlaybackFacts();
     void staleBackendCallbacksAfterSourceChangeAreIgnored();
     void supersededBackendLifecycleEventsAfterReplacementAreIgnored();
     void mutedStateDispatchesBackendAndPersistsAcrossSourceChanges();
@@ -87,6 +94,8 @@ private Q_SLOTS:
     void seekByClampsToKnownDuration();
     void seekByNoopsWhenNotSeekable();
     void videoOutputDetachAndDestructionClearBackendOutput();
+    void backendReplacementDuringOutputEffectConverges_data();
+    void backendReplacementDuringOutputEffectConverges();
 };
 
 namespace {
@@ -168,6 +177,10 @@ public:
     {
         output = nextVideoOutput;
         ++setVideoOutputCount;
+        const std::function<void(QObject*)> hook = setVideoOutputHook;
+        if (hook) {
+            hook(nextVideoOutput);
+        }
     }
 
     QObject* videoOutput() const override { return output.data(); }
@@ -176,9 +189,35 @@ public:
     qint64 position() const override { return currentPosition; }
     bool playing() const override { return isPlaying; }
     bool seekable() const override { return isSeekable; }
-    bool hasVideo() const override { return videoAvailable; }
-    bool hasAudio() const override { return audioAvailable; }
-    QSize videoSize() const override { return currentVideoSize; }
+    bool hasVideo() const override
+    {
+        const bool value = videoAvailable;
+        const std::function<void()> hook = hasVideoGetterHook;
+        if (hook) {
+            hook();
+        }
+        return value;
+    }
+
+    bool hasAudio() const override
+    {
+        const bool value = audioAvailable;
+        const std::function<void()> hook = hasAudioGetterHook;
+        if (hook) {
+            hook();
+        }
+        return value;
+    }
+
+    QSize videoSize() const override
+    {
+        const QSize value = currentVideoSize;
+        const std::function<void()> hook = videoSizeGetterHook;
+        if (hook) {
+            hook();
+        }
+        return value;
+    }
     bool muted() const override { return isMuted; }
 
     void emitStatus(kiriview::VideoMediaStatus status)
@@ -242,6 +281,10 @@ public:
     bool audioAvailable = false;
     QSize currentVideoSize;
     std::function<void(qint64)> setPositionHook;
+    std::function<void(QObject*)> setVideoOutputHook;
+    std::function<void()> hasVideoGetterHook;
+    std::function<void()> hasAudioGetterHook;
+    std::function<void()> videoSizeGetterHook;
     std::vector<qint64> setPositionRequests;
     int setSourceCount = 0;
     int setSourceDeviceCount = 0;
@@ -267,6 +310,12 @@ struct FakeResolverState
     std::vector<Request> requests;
     int cancelCount = 0;
     int cleanupCount = 0;
+};
+
+enum class BackendScalarGetter {
+    HasVideo,
+    HasAudio,
+    VideoSize,
 };
 
 class FakeVideoPlaybackUrlResolver final : public kiriview::VideoPlaybackUrlResolver
@@ -491,7 +540,7 @@ void TestVideoDocumentRuntime::mediaBackendFactoryIsLazyUntilPlaybackUrlResoluti
     const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/home/me/clip.mp4"));
 
     QCOMPARE(factoryCallCount, 0);
-    runtime.setVideoOutput(&output);
+    runtime.setVideoOutputAttachment(&output, {}, {});
     QCOMPARE(factoryCallCount, 0);
     runtime.setMuted(true);
     QVERIFY(runtime.muted());
@@ -1061,6 +1110,56 @@ void TestVideoDocumentRuntime::sourceDeviceVideoSizePublicationReentryRejectsSup
     QCOMPARE(fixture.resolverState->requests.back().sourceUrl, replacementSourceUrl);
 }
 
+void TestVideoDocumentRuntime::initialVideoSizeGetterReplacementRejectsSupersededLoad_data()
+{
+    QTest::addColumn<bool>("sourceDevice");
+
+    QTest::newRow("resolved-url") << false;
+    QTest::newRow("source-device") << true;
+}
+
+void TestVideoDocumentRuntime::initialVideoSizeGetterReplacementRejectsSupersededLoad()
+{
+    QFETCH(bool, sourceDevice);
+
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString playbackPath = directory.filePath(QStringLiteral("resolved.mp4"));
+    QVERIFY(writeTinyMetadataMp4(playbackPath));
+
+    RuntimeFixture fixture;
+    const QUrl firstSourceUrl(QStringLiteral("zip:///home/me/videos.zip!/first.mp4"));
+    const QUrl replacementSourceUrl(QStringLiteral("zip:///home/me/videos.zip!/replacement.mp4"));
+    int sourceDeviceDestructionCount = 0;
+    bool reentered = false;
+    fixture.backendFactoryHook = [&] {
+        fixture.backend->currentVideoSize = QSize(1280, 720);
+        fixture.backend->videoSizeGetterHook = [&] {
+            if (std::exchange(reentered, true)) {
+                return;
+            }
+            fixture.runtime->setSourceUrl(replacementSourceUrl);
+        };
+    };
+
+    if (sourceDevice) {
+        fixture.runtime->setSourceDevice(firstSourceUrl,
+            makePlaybackSourceDevice(
+                std::make_shared<SourceDeviceOwner>(&sourceDeviceDestructionCount)));
+    } else {
+        fixture.runtime->setSourceUrl(firstSourceUrl);
+        fixture.resolveLatest(QUrl::fromLocalFile(playbackPath));
+    }
+
+    QVERIFY(reentered);
+    QCOMPARE(fixture.runtime->sourceUrl(), replacementSourceUrl);
+    QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Loading);
+    QCOMPARE(fixture.backend, nullptr);
+    QVERIFY(fixture.runtime->embeddedMetadata().isEmpty());
+    QCOMPARE(fixture.runtime->videoSize(), QSize());
+    QCOMPARE(sourceDeviceDestructionCount, sourceDevice ? 1 : 0);
+}
+
 void TestVideoDocumentRuntime::loadingPublicationCanDestroyRuntimeBeforeResolverAdmission()
 {
     QObject documentObject;
@@ -1146,6 +1245,130 @@ void TestVideoDocumentRuntime::videoSizeFollowsBackendMetadata()
 
     fixture.backend->emitVideoSize(QSize());
     QCOMPARE(fixture.runtime->videoSize(), QSize());
+}
+
+void TestVideoDocumentRuntime::backendScalarGetterReplacementRejectsSupersededValue_data()
+{
+    QTest::addColumn<int>("getter");
+
+    QTest::newRow("has-video") << static_cast<int>(BackendScalarGetter::HasVideo);
+    QTest::newRow("has-audio") << static_cast<int>(BackendScalarGetter::HasAudio);
+    QTest::newRow("video-size") << static_cast<int>(BackendScalarGetter::VideoSize);
+}
+
+void TestVideoDocumentRuntime::backendScalarGetterReplacementRejectsSupersededValue()
+{
+    QFETCH(int, getter);
+
+    RuntimeFixture fixture;
+    const QUrl firstSourceUrl = QUrl::fromLocalFile(QStringLiteral("/home/me/first.mp4"));
+    const QUrl replacementSourceUrl
+        = QUrl::fromLocalFile(QStringLiteral("/home/me/replacement.mp4"));
+    fixture.runtime->setSourceUrl(firstSourceUrl);
+    fixture.resolveLatest(firstSourceUrl);
+
+    const BackendScalarGetter scalarGetter = static_cast<BackendScalarGetter>(getter);
+    const kiriview::VideoMediaBackendCallbacks callbacks = fixture.backend->callbacks;
+    bool reentered = false;
+    const std::function<void()> replacementHook = [&] {
+        if (std::exchange(reentered, true)) {
+            return;
+        }
+        fixture.runtime->setSourceUrl(replacementSourceUrl);
+    };
+    switch (scalarGetter) {
+    case BackendScalarGetter::HasVideo:
+        fixture.backend->videoAvailable = true;
+        fixture.backend->hasVideoGetterHook = replacementHook;
+        callbacks.hasVideoChanged();
+        break;
+    case BackendScalarGetter::HasAudio:
+        fixture.backend->audioAvailable = true;
+        fixture.backend->hasAudioGetterHook = replacementHook;
+        callbacks.hasAudioChanged();
+        break;
+    case BackendScalarGetter::VideoSize:
+        fixture.backend->currentVideoSize = QSize(1280, 720);
+        fixture.backend->videoSizeGetterHook = replacementHook;
+        callbacks.videoSizeChanged();
+        break;
+    }
+
+    QVERIFY(reentered);
+    QCOMPARE(fixture.runtime->sourceUrl(), replacementSourceUrl);
+    QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Loading);
+    QCOMPARE(fixture.backend, nullptr);
+    QVERIFY(!fixture.runtime->hasVideo());
+    QVERIFY(!fixture.runtime->hasAudio());
+    QCOMPARE(fixture.runtime->videoSize(), QSize());
+}
+
+void TestVideoDocumentRuntime::backendScalarGetterDestructionStopsBeforeCommit_data()
+{
+    backendScalarGetterReplacementRejectsSupersededValue_data();
+}
+
+void TestVideoDocumentRuntime::backendScalarGetterDestructionStopsBeforeCommit()
+{
+    QFETCH(int, getter);
+
+    RuntimeFixture fixture;
+    const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/home/me/clip.mp4"));
+    fixture.runtime->setSourceUrl(sourceUrl);
+    fixture.resolveLatest(sourceUrl);
+
+    const BackendScalarGetter scalarGetter = static_cast<BackendScalarGetter>(getter);
+    const kiriview::VideoMediaBackendCallbacks callbacks = fixture.backend->callbacks;
+    const std::function<void()> destructionHook = [&] { fixture.runtime.reset(); };
+    switch (scalarGetter) {
+    case BackendScalarGetter::HasVideo:
+        fixture.backend->videoAvailable = true;
+        fixture.backend->hasVideoGetterHook = destructionHook;
+        callbacks.hasVideoChanged();
+        break;
+    case BackendScalarGetter::HasAudio:
+        fixture.backend->audioAvailable = true;
+        fixture.backend->hasAudioGetterHook = destructionHook;
+        callbacks.hasAudioChanged();
+        break;
+    case BackendScalarGetter::VideoSize:
+        fixture.backend->currentVideoSize = QSize(1280, 720);
+        fixture.backend->videoSizeGetterHook = destructionHook;
+        callbacks.videoSizeChanged();
+        break;
+    }
+
+    QVERIFY(fixture.runtime == nullptr);
+    QCOMPARE(fixture.backend, nullptr);
+}
+
+void TestVideoDocumentRuntime::nestedBackendObservationKeepsLatestPlaybackFacts()
+{
+    RuntimeFixture fixture;
+    const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/home/me/clip.mp4"));
+
+    fixture.runtime->setSourceUrl(sourceUrl);
+    fixture.resolveLatest(sourceUrl);
+    fixture.backend->emitHasVideo(true);
+    fixture.backend->currentDuration = 10000;
+    fixture.backend->isSeekable = true;
+
+    bool reentered = false;
+    fixture.changeHook = [&](const std::vector<kiriview::VideoDocumentChange>& changes) {
+        if (reentered || !std::ranges::contains(changes, kiriview::VideoDocumentChange::Status)) {
+            return;
+        }
+
+        reentered = true;
+        fixture.backend->emitDuration(20000);
+    };
+
+    fixture.backend->emitStatus(kiriview::VideoMediaStatus::Buffered);
+
+    QVERIFY(reentered);
+    QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Ready);
+    QCOMPARE(fixture.runtime->duration(), 20000);
+    QCOMPARE(fixture.runtime->playbackControlProjection().sliderMaximumMsec, 20000);
 }
 
 void TestVideoDocumentRuntime::staleBackendCallbacksAfterSourceChangeAreIgnored()
@@ -1998,7 +2221,7 @@ void TestVideoDocumentRuntime::videoOutputDetachAndDestructionClearBackendOutput
     const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/home/me/clip.mp4"));
     auto* output = new QObject();
 
-    fixture.runtime->setVideoOutput(output);
+    fixture.runtime->setVideoOutputAttachment(output, {}, {});
     QCOMPARE(fixture.runtime->videoOutput(), output);
     QCOMPARE(fixture.backend, nullptr);
 
@@ -2006,16 +2229,64 @@ void TestVideoDocumentRuntime::videoOutputDetachAndDestructionClearBackendOutput
     fixture.resolveLatest(sourceUrl);
     QCOMPARE(fixture.backend->videoOutput(), output);
 
-    fixture.runtime->setVideoOutput(nullptr);
+    fixture.runtime->setVideoOutputAttachment(nullptr, {}, {});
     QCOMPARE(fixture.runtime->videoOutput(), nullptr);
     QCOMPARE(fixture.backend->videoOutput(), nullptr);
 
     output = new QObject();
-    fixture.runtime->setVideoOutput(output);
+    fixture.runtime->setVideoOutputAttachment(output, {}, {});
     delete output;
 
     QCOMPARE(fixture.runtime->videoOutput(), nullptr);
     QCOMPARE(fixture.backend->videoOutput(), nullptr);
+}
+
+void TestVideoDocumentRuntime::backendReplacementDuringOutputEffectConverges_data()
+{
+    QTest::addColumn<bool>("detach");
+
+    QTest::newRow("attach") << false;
+    QTest::newRow("detach") << true;
+}
+
+void TestVideoDocumentRuntime::backendReplacementDuringOutputEffectConverges()
+{
+    QFETCH(bool, detach);
+
+    RuntimeFixture fixture;
+    const QUrl firstSourceUrl
+        = QUrl::fromLocalFile(QStringLiteral("/home/me/first-output-backend.mp4"));
+    const QUrl replacementSourceUrl(
+        QStringLiteral("zip:///home/me/videos.zip!/replacement-output-backend.mp4"));
+    QObject output;
+    fixture.runtime->setSourceUrl(firstSourceUrl);
+    fixture.resolveLatest(firstSourceUrl);
+    QVERIFY(fixture.backend != nullptr);
+    if (detach) {
+        fixture.runtime->setVideoOutputAttachment(&output, {}, {});
+        QCOMPARE(fixture.backend->videoOutput(), &output);
+    }
+
+    FakeVideoMediaBackend* const firstBackend = fixture.backend;
+    FakeVideoMediaBackend* replacementBackend = nullptr;
+    bool replacementSubmitted = false;
+    firstBackend->setVideoOutputHook = [&](QObject* requestedOutput) {
+        const QObject* const expectedOutput = detach ? nullptr : &output;
+        if (replacementSubmitted || requestedOutput != expectedOutput) {
+            return;
+        }
+        replacementSubmitted = true;
+        fixture.runtime->setSourceDevice(
+            replacementSourceUrl, makePlaybackSourceDevice(std::make_shared<char>()));
+        replacementBackend = fixture.backend;
+    };
+
+    fixture.runtime->setVideoOutputAttachment(detach ? nullptr : &output, {}, {});
+
+    QVERIFY(replacementSubmitted);
+    QVERIFY(replacementBackend != nullptr);
+    QCOMPARE(fixture.runtime->videoOutput(), detach ? nullptr : &output);
+    QCOMPARE(replacementBackend->videoOutput(), fixture.runtime->videoOutput());
 }
 
 QTEST_GUILESS_MAIN(TestVideoDocumentRuntime)

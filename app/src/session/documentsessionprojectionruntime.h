@@ -4,11 +4,14 @@
 #ifndef KIRIVIEW_DOCUMENTSESSIONPROJECTIONRUNTIME_H
 #define KIRIVIEW_DOCUMENTSESSIONPROJECTIONRUNTIME_H
 
+#include "async/imageasyncticket.h"
 #include "session/activenavigationprojection.h"
 #include "session/activenavigationthumbnailprojection.h"
 #include "session/documentsessionpublicprojection.h"
 
+#include <QtGlobal>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -31,6 +34,8 @@ class DocumentSessionProjectionRuntime final
 {
 public:
     explicit DocumentSessionProjectionRuntime(DocumentSessionProjectionRuntimePorts ports = {});
+    ~DocumentSessionProjectionRuntime();
+    Q_DISABLE_COPY_MOVE(DocumentSessionProjectionRuntime)
 
     void publish(const DocumentSessionPublicSnapshotInput& input,
         const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot);
@@ -40,10 +45,13 @@ public:
 
 private:
     bool syncActiveNavigationThumbnailRows(
-        const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot);
-    void clearActiveNavigationRevealContextIfUnavailable();
+        const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot,
+        const DocumentSessionProjectionRuntimePorts& ports,
+        const std::weak_ptr<void>& callbackLifetime, quint64 publicationRevision);
 
+    std::shared_ptr<void> m_callbackLifetime = std::make_shared<char>();
     DocumentSessionProjectionRuntimePorts m_ports;
+    ImageAsyncTicket m_publicationAdmission;
     std::optional<DocumentSessionPublicSnapshotInput> m_publicDependencyInput;
     std::optional<ActiveNavigationThumbnailRowSetIdentity> m_activeNavigationThumbnailIdentity;
     int m_activeNavigationThumbnailCurrentNumber = 0;

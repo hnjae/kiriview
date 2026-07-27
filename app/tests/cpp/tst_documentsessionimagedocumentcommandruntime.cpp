@@ -5,6 +5,7 @@
 
 #include <QObject>
 #include <QTest>
+#include <memory>
 #include <optional>
 
 class TestDocumentSessionImageDocumentCommandRuntime : public QObject
@@ -15,6 +16,8 @@ private Q_SLOTS:
     void forwardsSourceRoutingThroughPort();
     void forwardsPageNavigationThroughPort();
     void forwardsImageDocumentDeletionThroughPort();
+    void reentrantSourceCommandSupersedesOuterCommand();
+    void sourceCommandCanDestroyRuntime();
 };
 
 namespace {
@@ -58,8 +61,8 @@ void TestDocumentSessionImageDocumentCommandRuntime::forwardsSourceRoutingThroug
     kiriview::DocumentSessionImageDocumentCommandRuntime runtime(probe.port());
     const QUrl imageUrl(QStringLiteral("file:///tmp/image.png"));
 
-    runtime.setSource(kiriview::resolvedNavigationSource(imageUrl, {}));
-    runtime.clearSourceUrl();
+    QVERIFY(runtime.setSource(kiriview::resolvedNavigationSource(imageUrl, {})));
+    QVERIFY(runtime.clearSourceUrl());
 
     QCOMPARE(probe.sourceUrl, QUrl());
     QCOMPARE(probe.events,
@@ -91,6 +94,47 @@ void TestDocumentSessionImageDocumentCommandRuntime::forwardsImageDocumentDeleti
     QVERIFY(probe.deletionMode.has_value());
     QCOMPARE(*probe.deletionMode, kiriview::FileDeletionMode::MoveToTrash);
     QCOMPARE(probe.events, QStringList({ QStringLiteral("delete-displayed-file") }));
+}
+
+void TestDocumentSessionImageDocumentCommandRuntime::reentrantSourceCommandSupersedesOuterCommand()
+{
+    const QUrl outerUrl(QStringLiteral("file:///tmp/outer.png"));
+    const QUrl replacementUrl(QStringLiteral("file:///tmp/replacement.png"));
+    QStringList events;
+    bool replacementAccepted = false;
+    kiriview::DocumentSessionImageDocumentCommandRuntime* runtime = nullptr;
+    kiriview::DocumentSessionImageDocumentCommandPort commands;
+    commands.source.setSource = [&](const kiriview::ResolvedNavigationSource& source) {
+        events.push_back(source.requestedUrl().fileName());
+        if (source.requestedUrl() == outerUrl) {
+            replacementAccepted
+                = runtime->setSource(kiriview::resolvedNavigationSource(replacementUrl, {}));
+        }
+    };
+    kiriview::DocumentSessionImageDocumentCommandRuntime ownedRuntime(std::move(commands));
+    runtime = &ownedRuntime;
+
+    const bool outerAccepted = runtime->setSource(kiriview::resolvedNavigationSource(outerUrl, {}));
+
+    QVERIFY(replacementAccepted);
+    QVERIFY(!outerAccepted);
+    QCOMPARE(
+        events, QStringList({ QStringLiteral("outer.png"), QStringLiteral("replacement.png") }));
+}
+
+void TestDocumentSessionImageDocumentCommandRuntime::sourceCommandCanDestroyRuntime()
+{
+    std::unique_ptr<kiriview::DocumentSessionImageDocumentCommandRuntime> runtime;
+    kiriview::DocumentSessionImageDocumentCommandPort commands;
+    commands.source.clearSource = [&]() { runtime.reset(); };
+    runtime = std::make_unique<kiriview::DocumentSessionImageDocumentCommandRuntime>(
+        std::move(commands));
+
+    kiriview::DocumentSessionImageDocumentCommandRuntime* executingRuntime = runtime.get();
+    const bool accepted = executingRuntime->clearSourceUrl();
+
+    QVERIFY(!accepted);
+    QVERIFY(runtime == nullptr);
 }
 
 QTEST_GUILESS_MAIN(TestDocumentSessionImageDocumentCommandRuntime)

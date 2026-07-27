@@ -19,6 +19,7 @@ DocumentSessionDirectMediaNavigationRuntime::DocumentSessionDirectMediaNavigatio
 
 DocumentSessionDirectMediaNavigationRuntime::~DocumentSessionDirectMediaNavigationRuntime()
 {
+    m_callbackLifetime.reset();
     cancel();
 }
 
@@ -78,23 +79,29 @@ void DocumentSessionDirectMediaNavigationRuntime::open(QObject* receiver,
 void DocumentSessionDirectMediaNavigationRuntime::startLoad(QObject* receiver,
     const DirectMediaScope& scope, ScopeAccepted scopeAccepted, CandidatesCallback callback)
 {
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const DirectMediaNavigationCandidateProvider provider = m_provider;
     if (scope.currentUrl().isEmpty() || scope.parentUrl().isEmpty() || !scope.parentUrl().isValid()
-        || !m_provider.directoryCandidateLoader) {
+        || !provider.directoryCandidateLoader) {
         cancel();
+        if (lifetime.expired()) {
+            return;
+        }
         qCDebug(kiriviewNavigationLog)
             << "direct media navigation candidate load skipped"
             << "reason"
             << "invalid-scope"
             << "currentUrl" << scope.currentUrl() << "parentUrl" << scope.parentUrl()
             << "generation" << scope.generation() << "providerPresent"
-            << static_cast<bool>(m_provider.directoryCandidateLoader);
+            << static_cast<bool>(provider.directoryCandidateLoader);
         invokeIfSet(callback, DocumentSessionDirectMediaNavigationCandidatesResult {});
         return;
     }
 
     const DocumentSessionDirectMediaNavigationLoad load = m_loadState.start(scope);
-    m_job.cancel();
-    if (!m_loadState.accepts(load)) {
+    ImageIoJob previousJob = std::move(m_job);
+    previousJob.cancel();
+    if (lifetime.expired() || !m_loadState.accepts(load)) {
         return;
     }
     qCDebug(kiriviewNavigationLog)
@@ -104,21 +111,27 @@ void DocumentSessionDirectMediaNavigationRuntime::startLoad(QObject* receiver,
     auto sharedScopeAccepted = std::make_shared<ScopeAccepted>(std::move(scopeAccepted));
     auto sharedCallback = std::make_shared<CandidatesCallback>(std::move(callback));
 
-    ImageIoJob startedJob = m_provider.directoryCandidateLoader(
+    ImageIoJob startedJob = provider.directoryCandidateLoader(
         receiver, scope.parentUrl(),
-        [this, load, sharedScopeAccepted, sharedCallback](
+        [this, lifetime, load, sharedScopeAccepted, sharedCallback](
             std::vector<DirectMediaNavigationCandidate> candidates) mutable {
+            if (lifetime.expired()) {
+                return;
+            }
             finish(load,
                 DocumentSessionDirectMediaNavigationCandidatesResult {
                     std::move(candidates), true, QString() },
                 *sharedScopeAccepted, *sharedCallback);
         },
-        [this, load, sharedScopeAccepted, sharedCallback](const QString& errorString) {
+        [this, lifetime, load, sharedScopeAccepted, sharedCallback](const QString& errorString) {
+            if (lifetime.expired()) {
+                return;
+            }
             finish(load,
                 DocumentSessionDirectMediaNavigationCandidatesResult { {}, false, errorString },
                 *sharedScopeAccepted, *sharedCallback);
         });
-    if (!m_loadState.accepts(load)) {
+    if (lifetime.expired() || !m_loadState.accepts(load)) {
         startedJob.cancel();
         return;
     }
@@ -127,8 +140,9 @@ void DocumentSessionDirectMediaNavigationRuntime::startLoad(QObject* receiver,
 
 void DocumentSessionDirectMediaNavigationRuntime::cancel()
 {
+    ImageIoJob job = std::move(m_job);
     m_loadState.cancel();
-    m_job.cancel();
+    job.cancel();
 }
 
 void DocumentSessionDirectMediaNavigationRuntime::finish(
@@ -136,6 +150,7 @@ void DocumentSessionDirectMediaNavigationRuntime::finish(
     DocumentSessionDirectMediaNavigationCandidatesResult result, const ScopeAccepted& scopeAccepted,
     const CandidatesCallback& callback)
 {
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
     if (!m_loadState.accepts(load)) {
         qCDebug(kiriviewNavigationLog)
             << "direct media navigation candidate load ignored"
@@ -147,7 +162,7 @@ void DocumentSessionDirectMediaNavigationRuntime::finish(
     }
 
     const bool scopeIsAccepted = !scopeAccepted || scopeAccepted(load.scope);
-    if (!m_loadState.accepts(load)) {
+    if (lifetime.expired() || !m_loadState.accepts(load)) {
         qCDebug(kiriviewNavigationLog)
             << "direct media navigation candidate load ignored"
             << "reason"

@@ -17,19 +17,61 @@ DocumentSessionDirectMediaNavigationApplicationRuntime::
 {
 }
 
-void DocumentSessionDirectMediaNavigationApplicationRuntime::applyInactiveRefresh()
+DocumentSessionDirectMediaNavigationApplicationRuntime::
+    ~DocumentSessionDirectMediaNavigationApplicationRuntime()
 {
-    invokeIfSet(m_ports.setDirectMediaNavigation, DirectMediaNavigationBoundaryState {}, false,
+    m_callbackLifetime.reset();
+}
+
+void DocumentSessionDirectMediaNavigationApplicationRuntime::applyInactiveRefresh(
+    const DocumentSessionDirectMediaNavigationApplicationControl& control)
+{
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const DocumentSessionDirectMediaNavigationApplicationPorts ports = m_ports;
+    const std::function<bool()> externallyCurrent = control.isCurrent;
+    const auto current = [lifetime, externallyCurrent]() {
+        if (lifetime.expired()) {
+            return false;
+        }
+        const bool accepted = !externallyCurrent || externallyCurrent();
+        return accepted && !lifetime.expired();
+    };
+    if (!current()) {
+        return;
+    }
+
+    invokeIfSet(ports.setDirectMediaNavigation, DirectMediaNavigationBoundaryState {}, false,
         std::vector<DirectMediaNavigationCandidate> {});
-    invokeIfSet(m_ports.applyRevealAction,
+    if (!current()) {
+        return;
+    }
+    invokeIfSet(ports.applyRevealAction,
         DocumentSessionDirectMediaNavigationRevealAction::ProgrammaticSync);
-    invokeIfSet(m_ports.publishProjection);
+    if (!current()) {
+        return;
+    }
+    invokeIfSet(ports.publishProjection);
 }
 
 void DocumentSessionDirectMediaNavigationApplicationRuntime::applyRefresh(
     ActiveNavigationSourceKind sourceKind, ActiveNavigationSnapshot previousSnapshot,
-    DocumentSessionDirectMediaNavigationRefreshResult result)
+    DocumentSessionDirectMediaNavigationRefreshResult result,
+    const DocumentSessionDirectMediaNavigationApplicationControl& control)
 {
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const DocumentSessionDirectMediaNavigationApplicationPorts ports = m_ports;
+    const std::function<bool()> externallyCurrent = control.isCurrent;
+    const auto current = [lifetime, externallyCurrent]() {
+        if (lifetime.expired()) {
+            return false;
+        }
+        const bool accepted = !externallyCurrent || externallyCurrent();
+        return accepted && !lifetime.expired();
+    };
+    if (!current()) {
+        return;
+    }
+
     const QString errorString = result.errorString;
     const DocumentSessionDirectMediaNavigationRefreshApplication application
         = documentSessionDirectMediaNavigationRefreshApplication(
@@ -46,18 +88,53 @@ void DocumentSessionDirectMediaNavigationApplicationRuntime::applyRefresh(
             << application.boundaryState.canOpenNext;
     }
 
-    invokeIfSet(m_ports.setDirectMediaNavigation, application.boundaryState, application.known,
+    invokeIfSet(ports.setDirectMediaNavigation, application.boundaryState, application.known,
         application.candidates);
-    invokeIfSet(m_ports.applyRevealAction, application.revealAction);
-    invokeIfSet(m_ports.publishProjection);
+    if (!current()) {
+        return;
+    }
+    invokeIfSet(ports.applyRevealAction, application.revealAction);
+    if (!current()) {
+        return;
+    }
+    invokeIfSet(ports.publishProjection);
+    if (!current()) {
+        return;
+    }
     if (application.schedulePredecode) {
-        invokeIfSet(m_ports.schedulePredecode, QUrl());
+        invokeIfSet(ports.schedulePredecode, QUrl());
     }
 }
 
 void DocumentSessionDirectMediaNavigationApplicationRuntime::applyOpen(
-    const QUrl& activeDirectMediaCursorUrl, DocumentSessionDirectMediaNavigationOpenResult result)
+    const QUrl& activeDirectMediaCursorUrl, DocumentSessionDirectMediaNavigationOpenResult result,
+    const DocumentSessionDirectMediaNavigationApplicationControl& control)
 {
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const DocumentSessionDirectMediaNavigationApplicationPorts ports = m_ports;
+    const std::function<bool()> externallyCurrent = control.isCurrent;
+    const std::function<bool()> externallyRouteContinuationCurrent
+        = control.routeContinuationIsCurrent ? control.routeContinuationIsCurrent
+                                             : externallyCurrent;
+    const auto current = [lifetime, externallyCurrent]() {
+        if (lifetime.expired()) {
+            return false;
+        }
+        const bool accepted = !externallyCurrent || externallyCurrent();
+        return accepted && !lifetime.expired();
+    };
+    const auto routeContinuationCurrent = [lifetime, externallyRouteContinuationCurrent]() {
+        if (lifetime.expired()) {
+            return false;
+        }
+        const bool accepted
+            = !externallyRouteContinuationCurrent || externallyRouteContinuationCurrent();
+        return accepted && !lifetime.expired();
+    };
+    if (!current()) {
+        return;
+    }
+
     const QString errorString = result.errorString;
     const DocumentSessionDirectMediaNavigationOpenApplication application
         = documentSessionDirectMediaNavigationOpenApplication(
@@ -73,15 +150,28 @@ void DocumentSessionDirectMediaNavigationApplicationRuntime::applyOpen(
             << "targetUrl" << application.routeTargetUrl.value_or(QUrl());
     }
 
-    invokeIfSet(m_ports.setDirectMediaNavigation, application.boundaryState, application.known,
+    invokeIfSet(ports.setDirectMediaNavigation, application.boundaryState, application.known,
         application.candidates);
-    invokeIfSet(m_ports.applyRevealAction, application.revealAction);
-    invokeIfSet(m_ports.publishProjection);
+    if (!current()) {
+        return;
+    }
+    invokeIfSet(ports.applyRevealAction, application.revealAction);
+    if (!current()) {
+        return;
+    }
+    invokeIfSet(ports.publishProjection);
+    if (!current()) {
+        return;
+    }
     if (application.schedulePredecode) {
-        invokeIfSet(m_ports.schedulePredecode, application.routeTargetUrl.value_or(QUrl()));
+        invokeIfSet(ports.schedulePredecode, application.routeTargetUrl.value_or(QUrl()));
+        if (!current()) {
+            return;
+        }
     }
     if (application.routeTargetUrl.has_value()) {
-        invokeIfSet(m_ports.routeMediaUrl, *application.routeTargetUrl);
+        invokeIfSet(ports.routeMediaUrl, *application.routeTargetUrl,
+            std::function<bool()>(routeContinuationCurrent));
     }
 }
 }

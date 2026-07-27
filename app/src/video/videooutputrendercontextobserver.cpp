@@ -69,11 +69,12 @@ std::optional<qreal> VideoOutputRenderContextObserver::devicePixelRatio() const
 
 bool VideoOutputRenderContextObserver::eventFilter(QObject* watched, QEvent* event)
 {
+    const bool filtered = QObject::eventFilter(watched, event);
     if (watched == m_window.data() && event->type() == QEvent::DevicePixelRatioChange) {
         notifyRenderContextChanged();
     }
 
-    return QObject::eventFilter(watched, event);
+    return filtered;
 }
 
 void VideoOutputRenderContextObserver::clearVideoOutputConnections()
@@ -123,8 +124,9 @@ void VideoOutputRenderContextObserver::clearWindowConnections()
 
 void VideoOutputRenderContextObserver::notifyRenderContextChanged() const
 {
-    if (m_renderContextChanged) {
-        m_renderContextChanged();
+    const auto renderContextChanged = m_renderContextChanged;
+    if (renderContextChanged) {
+        renderContextChanged();
     }
 }
 }

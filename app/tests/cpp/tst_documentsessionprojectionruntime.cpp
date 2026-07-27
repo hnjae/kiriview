@@ -65,10 +65,14 @@ private Q_SLOTS:
     void sameDirectMediaCandidateRevisionUpdatesCurrentWithoutRows();
     void unchangedDependenciesSkipPublicAndThumbnailProjection();
     void publicOnlyChangesSkipThumbnailProjection();
+    void actionStateInputsInvalidatePublicDependency();
     void candidateRevisionChangesThumbnailWithoutPublicProjection();
     void repeatedUnavailableThumbnailDependencyClearsRowsOnce();
     void mediaInformationRevisionDoesNotInvalidateSemanticDependency();
     void sourceKindPublishSkipsThumbnailRowsWhenRejected();
+    void destructionDuringPublicSnapshotCommitStopsPublication();
+    void nestedPublicationSupersedesOuterContinuation();
+    void destructionDuringThumbnailRowsCommitStopsPublication();
 };
 
 void TestDocumentSessionProjectionRuntime::
@@ -242,6 +246,39 @@ void TestDocumentSessionProjectionRuntime::publicOnlyChangesSkipThumbnailProject
             QStringLiteral("commit"), QStringLiteral("rows"), QStringLiteral("commit") }));
 }
 
+void TestDocumentSessionProjectionRuntime::actionStateInputsInvalidatePublicDependency()
+{
+    std::vector<kiriview::DocumentSessionActionStateSnapshot> committedActionStates;
+    kiriview::DocumentSessionProjectionRuntimePorts ports;
+    ports.updatePublicSnapshot = [&committedActionStates](const auto& input) {
+        committedActionStates.push_back(
+            kiriview::projectDocumentSessionPublicSnapshot(input, 0).actionState);
+        return true;
+    };
+    kiriview::DocumentSessionProjectionRuntime runtime(std::move(ports));
+    kiriview::DocumentSessionPublicSnapshotInput input;
+    input.session.documentKind = kiriview::DocumentSessionKind::Image;
+
+    runtime.publish(input, {});
+    input.image.viewportPannable = true;
+    runtime.publish(input, {});
+    input.session.documentKind = kiriview::DocumentSessionKind::Video;
+    runtime.publish(input, {});
+    input.video.videoSeekable = true;
+    runtime.publish(input, {});
+    input.video.videoDuration = 42'000;
+    runtime.publish(input, {});
+
+    QCOMPARE(committedActionStates.size(), std::size_t(5));
+    QVERIFY(!committedActionStates.at(0).imagePannable);
+    QVERIFY(committedActionStates.at(1).imagePannable);
+    QVERIFY(committedActionStates.at(2).videoMode);
+    QVERIFY(!committedActionStates.at(2).videoSeekable);
+    QCOMPARE(committedActionStates.at(2).videoDuration, qint64(0));
+    QVERIFY(committedActionStates.at(3).videoSeekable);
+    QCOMPARE(committedActionStates.at(4).videoDuration, qint64(42'000));
+}
+
 void TestDocumentSessionProjectionRuntime::
     candidateRevisionChangesThumbnailWithoutPublicProjection()
 {
@@ -350,6 +387,94 @@ void TestDocumentSessionProjectionRuntime::sourceKindPublishSkipsThumbnailRowsWh
         QStringLiteral("clear-reveal"),
     };
     QCOMPARE(events, expected);
+}
+
+void TestDocumentSessionProjectionRuntime::destructionDuringPublicSnapshotCommitStopsPublication()
+{
+    int thumbnailRowsCommitCount = 0;
+    int revealCleanupCount = 0;
+    std::unique_ptr<kiriview::DocumentSessionProjectionRuntime> runtime;
+    kiriview::DocumentSessionProjectionRuntimePorts ports;
+    ports.updatePublicSnapshot = [&runtime](const auto&) {
+        runtime.reset();
+        return true;
+    };
+    ports.setActiveNavigationThumbnailRows
+        = [&thumbnailRowsCommitCount](auto) { ++thumbnailRowsCommitCount; };
+    ports.clearActiveNavigationRevealContextIfUnavailable
+        = [&revealCleanupCount]() { ++revealCleanupCount; };
+    runtime = std::make_unique<kiriview::DocumentSessionProjectionRuntime>(std::move(ports));
+
+    runtime->publish({}, {});
+
+    QVERIFY(!runtime);
+    QCOMPARE(thumbnailRowsCommitCount, 0);
+    QCOMPARE(revealCleanupCount, 0);
+}
+
+void TestDocumentSessionProjectionRuntime::nestedPublicationSupersedesOuterContinuation()
+{
+    const QUrl firstUrl = localUrl(QStringLiteral("/media/first.png"));
+    const QUrl replacementUrl = localUrl(QStringLiteral("/media/replacement.png"));
+    std::vector<QUrl> committedUrls;
+    int thumbnailRowsCommitCount = 0;
+    int revealCleanupCount = 0;
+    bool replacementSubmitted = false;
+    std::unique_ptr<kiriview::DocumentSessionProjectionRuntime> runtime;
+    kiriview::DocumentSessionPublicSnapshotInput replacementInput;
+    replacementInput.session.sourceUrl = replacementUrl;
+    kiriview::DocumentSessionProjectionRuntimePorts ports;
+    ports.updatePublicSnapshot
+        = [&runtime, &replacementInput, &committedUrls, &replacementSubmitted](
+              const kiriview::DocumentSessionPublicSnapshotInput& input) {
+              committedUrls.push_back(input.session.sourceUrl);
+              if (!replacementSubmitted) {
+                  replacementSubmitted = true;
+                  runtime->publish(replacementInput, {});
+              }
+              return true;
+          };
+    ports.setActiveNavigationThumbnailRows
+        = [&thumbnailRowsCommitCount](auto) { ++thumbnailRowsCommitCount; };
+    ports.clearActiveNavigationRevealContextIfUnavailable
+        = [&revealCleanupCount]() { ++revealCleanupCount; };
+    runtime = std::make_unique<kiriview::DocumentSessionProjectionRuntime>(std::move(ports));
+    kiriview::DocumentSessionPublicSnapshotInput firstInput;
+    firstInput.session.sourceUrl = firstUrl;
+
+    runtime->publish(firstInput, {});
+    runtime->publish(replacementInput, {});
+
+    QCOMPARE(committedUrls, (std::vector<QUrl> { firstUrl, replacementUrl }));
+    QCOMPARE(thumbnailRowsCommitCount, 1);
+    QCOMPARE(revealCleanupCount, 1);
+}
+
+void TestDocumentSessionProjectionRuntime::destructionDuringThumbnailRowsCommitStopsPublication()
+{
+    const kiriview::ActiveNavigationSourceKind sourceKind
+        = kiriview::ActiveNavigationSourceKind::OrdinaryDirectMedia;
+    const kiriview::ActiveNavigationSnapshot navigation = activeNavigationSnapshot(1, 1);
+    const kiriview::DirectMediaNavigationCandidateSnapshot candidates
+        = directMediaNavigationCandidateSnapshot(
+            { directMediaNavigationCandidate(localUrl(QStringLiteral("/media/01.png"))) });
+    int revealCleanupCount = 0;
+    std::unique_ptr<kiriview::DocumentSessionProjectionRuntime> runtime;
+    kiriview::DocumentSessionProjectionRuntimePorts ports;
+    ports.updatePublicSnapshot = [](const auto&) { return true; };
+    ports.activeNavigationSourceKind = [&sourceKind]() { return sourceKind; };
+    ports.activeNavigationSnapshot = [&navigation]() { return navigation; };
+    ports.directMediaNavigationCandidateSnapshot
+        = [&candidates]() -> const auto& { return candidates; };
+    ports.setActiveNavigationThumbnailRows = [&runtime](auto) { runtime.reset(); };
+    ports.clearActiveNavigationRevealContextIfUnavailable
+        = [&revealCleanupCount]() { ++revealCleanupCount; };
+    runtime = std::make_unique<kiriview::DocumentSessionProjectionRuntime>(std::move(ports));
+
+    runtime->publish({}, {});
+
+    QVERIFY(!runtime);
+    QCOMPARE(revealCleanupCount, 0);
 }
 
 QTEST_GUILESS_MAIN(TestDocumentSessionProjectionRuntime)

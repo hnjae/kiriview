@@ -13,64 +13,88 @@ DocumentSessionImageDocumentCommandRuntime::DocumentSessionImageDocumentCommandR
 {
 }
 
-void DocumentSessionImageDocumentCommandRuntime::setSource(const ResolvedNavigationSource& source)
+DocumentSessionImageDocumentCommandRuntime::~DocumentSessionImageDocumentCommandRuntime()
 {
-    if (m_commands.source.setSource) {
-        m_commands.source.setSource(source);
-    }
+    m_callbackLifetime.reset();
 }
 
-void DocumentSessionImageDocumentCommandRuntime::clearSourceUrl()
+bool DocumentSessionImageDocumentCommandRuntime::setSource(const ResolvedNavigationSource& source)
 {
-    if (m_commands.source.clearSource) {
-        m_commands.source.clearSource();
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const quint64 commandRevision = m_sourceCommandAdmission.next();
+    const auto setSource = m_commands.source.setSource;
+    if (setSource) {
+        setSource(source);
     }
+    return !lifetime.expired() && m_sourceCommandAdmission.accepts(commandRevision);
 }
 
-MediaEntrySourceVideoPlaybackDeviceResult
+bool DocumentSessionImageDocumentCommandRuntime::clearSourceUrl()
+{
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const quint64 commandRevision = m_sourceCommandAdmission.next();
+    const auto clearSource = m_commands.source.clearSource;
+    if (clearSource) {
+        clearSource();
+    }
+    return !lifetime.expired() && m_sourceCommandAdmission.accepts(commandRevision);
+}
+
+std::optional<MediaEntrySourceVideoPlaybackDeviceResult>
 DocumentSessionImageDocumentCommandRuntime::loadOpenedCollectionVideoPlaybackDevice(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl)
 {
-    if (m_commands.source.loadOpenedCollectionVideoPlaybackDevice) {
-        return m_commands.source.loadOpenedCollectionVideoPlaybackDevice(
-            openedCollectionScope, videoUrl);
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const quint64 commandRevision = m_sourceCommandAdmission.next();
+    const auto loadPlaybackDevice = m_commands.source.loadOpenedCollectionVideoPlaybackDevice;
+    if (loadPlaybackDevice) {
+        MediaEntrySourceVideoPlaybackDeviceResult result
+            = loadPlaybackDevice(openedCollectionScope, videoUrl);
+        if (lifetime.expired() || !m_sourceCommandAdmission.accepts(commandRevision)) {
+            return std::nullopt;
+        }
+        return result;
     }
 
-    return std::unexpected(MediaEntrySourceError {
+    return MediaEntrySourceVideoPlaybackDeviceResult(std::unexpected(MediaEntrySourceError {
         MediaEntrySourceErrorCause::ProviderUnavailable,
         MediaEntrySourceBackendKind::Unknown,
         MediaEntrySourceOperation::OpenVideoPlaybackDevice,
         openedCollectionScope.fileUrl(),
         {},
         QStringLiteral("document session has no opened collection video command"),
-    });
+    }));
 }
 
 void DocumentSessionImageDocumentCommandRuntime::openPreviousPage()
 {
-    if (m_commands.pageNavigation.openPreviousPage) {
-        m_commands.pageNavigation.openPreviousPage();
+    const auto openPreviousPage = m_commands.pageNavigation.openPreviousPage;
+    if (openPreviousPage) {
+        openPreviousPage();
     }
 }
 
 void DocumentSessionImageDocumentCommandRuntime::openNextPage()
 {
-    if (m_commands.pageNavigation.openNextPage) {
-        m_commands.pageNavigation.openNextPage();
+    const auto openNextPage = m_commands.pageNavigation.openNextPage;
+    if (openNextPage) {
+        openNextPage();
     }
 }
 
 void DocumentSessionImageDocumentCommandRuntime::openImageAtPage(int number)
 {
-    if (m_commands.pageNavigation.openImageAtPage) {
-        m_commands.pageNavigation.openImageAtPage(number);
+    const auto openImageAtPage = m_commands.pageNavigation.openImageAtPage;
+    if (openImageAtPage) {
+        openImageAtPage(number);
     }
 }
 
 void DocumentSessionImageDocumentCommandRuntime::deleteDisplayedFile(FileDeletionMode mode)
 {
-    if (m_commands.deletion.deleteDisplayedFile) {
-        m_commands.deletion.deleteDisplayedFile(mode);
+    const auto deleteDisplayedFile = m_commands.deletion.deleteDisplayedFile;
+    if (deleteDisplayedFile) {
+        deleteDisplayedFile(mode);
     }
 }
 }

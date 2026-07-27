@@ -4,15 +4,17 @@
 #ifndef KIRIVIEW_DOCUMENTSESSIONVIDEODOCUMENTCOMMANDRUNTIME_H
 #define KIRIVIEW_DOCUMENTSESSIONVIDEODOCUMENTCOMMANDRUNTIME_H
 
+#include "async/imageasyncticket.h"
 #include "session/documentsessiondocumentports.h"
 #include "session/documentsessionvideooutputruntime.h"
 
 #include <QUrl>
+#include <QtGlobal>
 #include <functional>
+#include <memory>
 
 namespace kiriview {
-using DocumentSessionVideoOutputClearPort
-    = std::function<void(const DocumentSessionVideoOutputAttachmentPort&)>;
+using DocumentSessionVideoOutputClearPort = std::function<void()>;
 
 class DocumentSessionVideoDocumentCommandRuntime final
 {
@@ -20,18 +22,20 @@ public:
     explicit DocumentSessionVideoDocumentCommandRuntime(
         DocumentSessionVideoDocumentCommandPort commands = {},
         DocumentSessionVideoOutputClearPort clearVideoOutput = {});
+    ~DocumentSessionVideoDocumentCommandRuntime();
+    Q_DISABLE_COPY_MOVE(DocumentSessionVideoDocumentCommandRuntime)
 
-    void setSource(const ResolvedNavigationSource& source);
-    void setSourceDevice(const QUrl& sourceUrl, VideoPlaybackSourceDevice sourceDevice);
-    void leaveMode(const QUrl& currentSourceUrl);
+    [[nodiscard]] bool setSource(const ResolvedNavigationSource& source);
+    [[nodiscard]] bool setSourceDevice(
+        const QUrl& sourceUrl, VideoPlaybackSourceDevice sourceDevice);
+    [[nodiscard]] bool leaveMode(const QUrl& currentSourceUrl);
     [[nodiscard]] DocumentSessionVideoOutputAttachmentPort outputAttachmentPort() const;
 
 private:
-    [[nodiscard]] QObject* videoOutput() const;
-    void clearVideoOutput();
-
+    std::shared_ptr<void> m_callbackLifetime = std::make_shared<char>();
     DocumentSessionVideoDocumentCommandPort m_commands;
     DocumentSessionVideoOutputClearPort m_clearVideoOutput;
+    ImageAsyncTicket m_commandAdmission;
 };
 }
 

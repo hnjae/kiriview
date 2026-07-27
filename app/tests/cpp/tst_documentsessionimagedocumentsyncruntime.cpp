@@ -6,6 +6,7 @@
 #include <QObject>
 #include <QTest>
 #include <QUrl>
+#include <memory>
 #include <vector>
 
 class TestDocumentSessionImageDocumentSyncRuntime : public QObject
@@ -18,6 +19,8 @@ private Q_SLOTS:
     void mirrorsDeletionProgressWhenImageDocumentOwnsSourceScope();
     void syncsCollectionScopeWithoutInactiveDirectMediaRefresh();
     void publishesImagePageNavigationWhenTheLeafNavigationChanges();
+    void sourceIdentityCallbackCanDestroyRuntime();
+    void nestedSyncSupersedesRemainingMutation();
 };
 
 namespace {
@@ -190,6 +193,68 @@ void TestDocumentSessionImageDocumentSyncRuntime::
             ImageSyncFixture::Event::CacheDisplayedPredecode,
             ImageSyncFixture::Event::PublishImagePages,
         }));
+}
+
+void TestDocumentSessionImageDocumentSyncRuntime::sourceIdentityCallbackCanDestroyRuntime()
+{
+    int remainingMutationCount = 0;
+    using Runtime = kiriview::DocumentSessionImageDocumentSyncRuntime;
+    std::unique_ptr<Runtime> runtime;
+    kiriview::DocumentSessionImageDocumentSyncRuntimePorts ports;
+    ports.setSourceIdentity = [&](const QUrl&) { runtime.reset(); };
+    ports.setFileDeletionInProgress = [&](bool) { ++remainingMutationCount; };
+    ports.refreshDirectMediaNavigation = [&]() { ++remainingMutationCount; };
+    ports.recomputePublicProjection = [&]() { ++remainingMutationCount; };
+    runtime = std::make_unique<Runtime>(std::move(ports));
+    kiriview::DocumentSessionImageDocumentSyncRuntimeInput input
+        = activeInput(localUrl(QStringLiteral("/media/01.png")));
+    input.directImageLoadMayUseImageDocumentSourceScope = false;
+    input.directMediaNavigationActive = false;
+
+    runtime->sync(input);
+
+    QCOMPARE(remainingMutationCount, 0);
+}
+
+void TestDocumentSessionImageDocumentSyncRuntime::nestedSyncSupersedesRemainingMutation()
+{
+    const QUrl originalUrl = localUrl(QStringLiteral("/media/original.png"));
+    const QUrl replacementUrl = localUrl(QStringLiteral("/media/replacement.png"));
+    QUrl sourceIdentity;
+    int deletionProgressCount = 0;
+    int publishCount = 0;
+    bool nestedSyncSubmitted = false;
+    using Runtime = kiriview::DocumentSessionImageDocumentSyncRuntime;
+    Runtime* runtime = nullptr;
+    kiriview::DocumentSessionImageDocumentSyncRuntimePorts ports;
+    ports.setSourceIdentity = [&](const QUrl& url) {
+        sourceIdentity = url;
+        if (nestedSyncSubmitted || url != originalUrl) {
+            return;
+        }
+        nestedSyncSubmitted = true;
+        kiriview::DocumentSessionImageDocumentSyncRuntimeInput nestedInput
+            = activeInput(replacementUrl);
+        nestedInput.directImageLoadMayUseImageDocumentSourceScope = false;
+        nestedInput.directMediaNavigationActive = false;
+        nestedInput.image.openedCollectionScopeActive = true;
+        runtime->sync(nestedInput);
+    };
+    ports.setFileDeletionInProgress = [&](bool) { ++deletionProgressCount; };
+    ports.recomputePublicProjection = [&]() { ++publishCount; };
+    Runtime ownedRuntime(std::move(ports));
+    runtime = &ownedRuntime;
+    kiriview::DocumentSessionImageDocumentSyncRuntimeInput input = activeInput(originalUrl);
+    input.directImageLoadMayUseImageDocumentSourceScope = false;
+    input.directMediaNavigationActive = false;
+    input.image.openedCollectionScopeActive = true;
+
+    runtime->sync(input);
+
+    QVERIFY(nestedSyncSubmitted);
+    QCOMPARE(sourceIdentity, replacementUrl);
+    QCOMPARE(deletionProgressCount, 1);
+    QCOMPARE(publishCount, 1);
 }
 
 QTEST_GUILESS_MAIN(TestDocumentSessionImageDocumentSyncRuntime)

@@ -91,14 +91,9 @@ VideoDocumentRuntime::VideoDocumentRuntime(QObject* documentObject, ChangeCallba
                       mediaBackend->setVideoOutput(videoOutput);
                   }
               },
-              [this, lifetime = std::weak_ptr<void>(m_callbackLifetime)]() {
+              [this, lifetime = std::weak_ptr<void>(m_callbackLifetime)](bool videoOutputChanged) {
                   if (!lifetime.expired()) {
-                      publish(VideoDocumentChange::VideoOutput);
-                  }
-              },
-              [this, lifetime = std::weak_ptr<void>(m_callbackLifetime)]() {
-                  if (!lifetime.expired()) {
-                      updateZoomPercent();
+                      updateOutputProjection(videoOutputChanged);
                   }
               },
           })
@@ -144,39 +139,18 @@ void VideoDocumentRuntime::installMediaBackendCallbacks(
             }
         },
         [this, lifetime, lifecycle]() {
-            if (lifetime.expired() || !playbackCallbacksAccepted(lifecycle)) {
-                return;
-            }
-            const std::shared_ptr<VideoMediaBackend> mediaBackend = m_mediaBackend;
-            if (mediaBackend == nullptr) {
-                return;
-            }
-            m_state.setHasVideo(mediaBackend->hasVideo());
-            if (lifetime.expired() || !playbackCallbacksAccepted(lifecycle)) {
-                return;
-            }
-            refreshPlaybackControlsFromBackend(lifecycle);
-            if (lifetime.expired() || !playbackCallbacksAccepted(lifecycle)) {
-                return;
-            }
-            updateZoomPercent();
-        },
-        [this, lifetime, lifecycle]() {
-            if (lifetime.expired() || !playbackCallbacksAccepted(lifecycle)) {
-                return;
-            }
-            const std::shared_ptr<VideoMediaBackend> mediaBackend = m_mediaBackend;
-            if (mediaBackend != nullptr) {
-                m_state.setHasAudio(mediaBackend->hasAudio());
+            if (!lifetime.expired()) {
+                updateHasVideoFromBackend(lifecycle);
             }
         },
         [this, lifetime, lifecycle]() {
-            if (lifetime.expired() || !playbackCallbacksAccepted(lifecycle)) {
-                return;
+            if (!lifetime.expired()) {
+                updateHasAudioFromBackend(lifecycle);
             }
-            const std::shared_ptr<VideoMediaBackend> mediaBackend = m_mediaBackend;
-            if (mediaBackend != nullptr) {
-                m_state.setVideoSize(mediaBackend->videoSize());
+        },
+        [this, lifetime, lifecycle]() {
+            if (!lifetime.expired()) {
+                updateVideoSizeFromBackend(lifecycle);
             }
         },
         [this, lifetime, lifecycle]() {
@@ -352,15 +326,10 @@ const EmbeddedMetadata& VideoDocumentRuntime::embeddedMetadata() const
     return m_state.embeddedMetadata();
 }
 
-void VideoDocumentRuntime::setVideoOutput(QObject* videoOutput)
+void VideoDocumentRuntime::setVideoOutputAttachment(
+    QObject* videoOutput, const QRectF& contentRect, const QRectF& sourceRect)
 {
-    m_outputRuntime.setVideoOutput(videoOutput);
-}
-
-void VideoDocumentRuntime::setVideoOutputGeometry(
-    const QRectF& contentRect, const QRectF& sourceRect)
-{
-    m_outputRuntime.setVideoOutputGeometry(contentRect, sourceRect);
+    m_outputRuntime.setVideoOutputAttachment(videoOutput, contentRect, sourceRect);
 }
 
 void VideoDocumentRuntime::play() { submitPlaybackCommand(PlaybackCommandKind::Play); }
@@ -850,25 +819,21 @@ void VideoDocumentRuntime::applyResolvedPlaybackUrl(
         return;
     }
 
-    if (QObject* videoOutput = m_outputRuntime.videoOutput(); videoOutput != nullptr) {
-        mediaBackend->setVideoOutput(videoOutput);
-        if (lifetime.expired()
-            || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
-            return;
-        }
+    m_outputRuntime.backendVideoOutputTargetChanged();
+    if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
+        return;
     }
 
     mediaBackend->setSource(playbackUrl);
     if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
         return;
     }
-    const QSize videoSize = mediaBackend->videoSize();
 
     m_state.setEmbeddedMetadata(metadata);
     if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
         return;
     }
-    m_state.setVideoSize(videoSize);
+    updateVideoSizeFromBackend(lifecycle);
     if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
         return;
     }
@@ -916,21 +881,17 @@ void VideoDocumentRuntime::applyPlaybackSourceDevice(
         return;
     }
 
-    if (QObject* videoOutput = m_outputRuntime.videoOutput(); videoOutput != nullptr) {
-        mediaBackend->setVideoOutput(videoOutput);
-        if (lifetime.expired()
-            || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
-            return;
-        }
+    m_outputRuntime.backendVideoOutputTargetChanged();
+    if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
+        return;
     }
 
     mediaBackend->setSourceDevice(sourceDeviceLease->device.get(), transition.scope);
     if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
         return;
     }
-    const QSize videoSize = mediaBackend->videoSize();
 
-    m_state.setVideoSize(videoSize);
+    updateVideoSizeFromBackend(lifecycle);
     if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
         return;
     }
@@ -978,6 +939,7 @@ VideoSourceLoadFailure VideoDocumentRuntime::makeSourceLoadFailure(
 void VideoDocumentRuntime::invalidatePlaybackCallbacks()
 {
     m_muteCommandAdmission.invalidate();
+    m_backendObservationAdmission.invalidate();
     m_activePlaybackLifecycle.reset();
 }
 
@@ -1000,22 +962,97 @@ bool VideoDocumentRuntime::playbackCallbacksAccepted(const PlaybackLifecycle& li
         && m_activePlaybackLifecycle->publicSourceUrl == lifecycle.publicSourceUrl;
 }
 
-void VideoDocumentRuntime::updateStatusFromBackend(const PlaybackLifecycle& lifecycle)
+std::optional<VideoDocumentRuntime::BackendObservation>
+VideoDocumentRuntime::beginBackendObservation(const PlaybackLifecycle& lifecycle)
 {
-    const std::shared_ptr<VideoMediaBackend> mediaBackend = m_mediaBackend;
+    std::shared_ptr<VideoMediaBackend> mediaBackend = m_mediaBackend;
     if (mediaBackend == nullptr || !playbackCallbacksAccepted(lifecycle)) {
+        return std::nullopt;
+    }
+
+    return BackendObservation {
+        m_backendObservationAdmission.next(),
+        lifecycle,
+        std::move(mediaBackend),
+    };
+}
+
+bool VideoDocumentRuntime::backendObservationAccepted(const BackendObservation& observation) const
+{
+    return m_backendObservationAdmission.accepts(observation.revision)
+        && m_mediaBackend == observation.backend
+        && playbackCallbacksAccepted(observation.lifecycle);
+}
+
+void VideoDocumentRuntime::updateHasVideoFromBackend(const PlaybackLifecycle& lifecycle)
+{
+    const std::optional<BackendObservation> observation = beginBackendObservation(lifecycle);
+    if (!observation.has_value()) {
         return;
     }
 
     const std::weak_ptr<void> lifetime = m_callbackLifetime;
-    const VideoMediaStatus mediaStatus = mediaBackend->mediaStatus();
-    const qint64 duration = mediaBackend->duration();
-    const qint64 position = mediaBackend->position();
-    const bool playing = mediaBackend->playing();
-    const bool seekable = mediaBackend->seekable();
-    const bool muted = mediaBackend->muted();
-    if (lifetime.expired() || m_mediaBackend != mediaBackend
-        || !playbackCallbacksAccepted(lifecycle)) {
+    const bool hasVideo = observation->backend->hasVideo();
+    if (lifetime.expired() || !backendObservationAccepted(*observation)) {
+        return;
+    }
+
+    m_state.setHasVideo(hasVideo);
+    if (lifetime.expired() || m_mediaBackend != observation->backend
+        || !playbackCallbacksAccepted(observation->lifecycle)) {
+        return;
+    }
+
+    refreshPlaybackControlsFromBackend(observation->lifecycle);
+    if (lifetime.expired() || m_mediaBackend != observation->backend
+        || !playbackCallbacksAccepted(observation->lifecycle)) {
+        return;
+    }
+    updateZoomPercent();
+}
+
+void VideoDocumentRuntime::updateHasAudioFromBackend(const PlaybackLifecycle& lifecycle)
+{
+    const std::optional<BackendObservation> observation = beginBackendObservation(lifecycle);
+    if (!observation.has_value()) {
+        return;
+    }
+
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const bool hasAudio = observation->backend->hasAudio();
+    if (lifetime.expired() || !backendObservationAccepted(*observation)) {
+        return;
+    }
+
+    m_state.setHasAudio(hasAudio);
+}
+
+void VideoDocumentRuntime::updateVideoSizeFromBackend(const PlaybackLifecycle& lifecycle)
+{
+    const std::optional<BackendObservation> observation = beginBackendObservation(lifecycle);
+    if (!observation.has_value()) {
+        return;
+    }
+
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const QSize videoSize = observation->backend->videoSize();
+    if (lifetime.expired() || !backendObservationAccepted(*observation)) {
+        return;
+    }
+
+    m_state.setVideoSize(videoSize);
+}
+
+void VideoDocumentRuntime::updateStatusFromBackend(const PlaybackLifecycle& lifecycle)
+{
+    const std::optional<BackendObservation> observation = beginBackendObservation(lifecycle);
+    if (!observation.has_value()) {
+        return;
+    }
+
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const VideoMediaStatus mediaStatus = observation->backend->mediaStatus();
+    if (lifetime.expired() || !backendObservationAccepted(*observation)) {
         return;
     }
 
@@ -1027,48 +1064,49 @@ void VideoDocumentRuntime::updateStatusFromBackend(const PlaybackLifecycle& life
     });
     m_state.setStatusAndError(
         plan.status, plan.status == VideoDocumentStatus::Error ? m_state.errorString() : QString());
-    if (lifetime.expired() || m_mediaBackend != mediaBackend
-        || !playbackCallbacksAccepted(lifecycle)) {
+    if (lifetime.expired() || m_mediaBackend != observation->backend
+        || !playbackCallbacksAccepted(observation->lifecycle)) {
         return;
     }
 
-    VideoPlaybackControlMediaSnapshot snapshot = m_playbackControls.mediaSnapshot();
-    snapshot.ready = m_state.status() == VideoDocumentStatus::Ready && m_state.hasVideo();
-    snapshot.durationMsec = duration;
-    snapshot.positionMsec = position;
-    snapshot.playing = playing;
-    snapshot.seekable = seekable;
-    snapshot.muted = muted;
-    snapshot.mediaEnded = plan.mediaEnded;
-    if (plan.clearPlaying) {
-        snapshot.playing = false;
-    }
-    m_playbackControls.acceptMediaSnapshot(snapshot);
-    if (lifetime.expired() || m_mediaBackend != mediaBackend
-        || !playbackCallbacksAccepted(lifecycle)) {
+    refreshPlaybackControlsFromBackend(observation->lifecycle, true);
+    if (lifetime.expired() || m_mediaBackend != observation->backend
+        || !playbackCallbacksAccepted(observation->lifecycle)) {
         return;
     }
+
     updateZoomPercent();
 }
 
-void VideoDocumentRuntime::refreshPlaybackControlsFromBackend(const PlaybackLifecycle& lifecycle)
+void VideoDocumentRuntime::refreshPlaybackControlsFromBackend(
+    const PlaybackLifecycle& lifecycle, bool reconcileMediaStatus)
 {
-    const std::shared_ptr<VideoMediaBackend> mediaBackend = m_mediaBackend;
-    if (mediaBackend == nullptr || !playbackCallbacksAccepted(lifecycle)) {
+    const std::optional<BackendObservation> observation = beginBackendObservation(lifecycle);
+    if (!observation.has_value()) {
         return;
     }
 
     const std::weak_ptr<void> lifetime = m_callbackLifetime;
-    const qint64 duration = mediaBackend->duration();
-    const qint64 position = mediaBackend->position();
-    const bool playing = mediaBackend->playing();
-    const bool seekable = mediaBackend->seekable();
-    const bool muted = mediaBackend->muted();
-    if (lifetime.expired() || m_mediaBackend != mediaBackend
-        || !playbackCallbacksAccepted(lifecycle)) {
+    const VideoMediaStatus mediaStatus
+        = reconcileMediaStatus ? observation->backend->mediaStatus() : VideoMediaStatus::Null;
+    const qint64 duration = observation->backend->duration();
+    const qint64 position = observation->backend->position();
+    const bool playing = observation->backend->playing();
+    const bool seekable = observation->backend->seekable();
+    const bool muted = observation->backend->muted();
+    if (lifetime.expired() || !backendObservationAccepted(*observation)) {
         return;
     }
 
+    std::optional<VideoDocumentStatusPlan> statusPlan;
+    if (reconcileMediaStatus) {
+        statusPlan = videoDocumentStatusPlan(VideoDocumentStatusSnapshot {
+            m_state.sourceUrl().isEmpty(),
+            m_sourceTransitionPhase == SourceTransitionPhase::ResolvingPlaybackUrl,
+            true,
+            mediaStatus,
+        });
+    }
     VideoPlaybackControlMediaSnapshot snapshot = m_playbackControls.mediaSnapshot();
     snapshot.ready = m_state.status() == VideoDocumentStatus::Ready && m_state.hasVideo();
     snapshot.durationMsec = duration;
@@ -1076,6 +1114,12 @@ void VideoDocumentRuntime::refreshPlaybackControlsFromBackend(const PlaybackLife
     snapshot.playing = playing;
     snapshot.seekable = seekable;
     snapshot.muted = muted;
+    if (statusPlan.has_value()) {
+        snapshot.mediaEnded = statusPlan->mediaEnded;
+        if (statusPlan->clearPlaying) {
+            snapshot.playing = false;
+        }
+    }
     m_playbackControls.acceptMediaSnapshot(snapshot);
 }
 
@@ -1120,20 +1164,17 @@ void VideoDocumentRuntime::updateErrorFromBackend(
     updateZoomPercent();
 }
 
-void VideoDocumentRuntime::updateZoomPercent()
+void VideoDocumentRuntime::updateZoomPercent() { updateOutputProjection(false); }
+
+void VideoDocumentRuntime::updateOutputProjection(bool videoOutputChanged)
 {
     if (m_state.status() != VideoDocumentStatus::Ready || !m_state.hasVideo()) {
-        m_state.setZoomPercent(std::nullopt);
+        m_state.applyVideoOutputProjection(std::nullopt, videoOutputChanged);
         return;
     }
 
     const std::optional<int> zoomPercent = m_outputRuntime.zoomPercent();
-    if (!zoomPercent.has_value()) {
-        m_state.setZoomPercent(std::nullopt);
-        return;
-    }
-
-    m_state.setZoomPercent(zoomPercent);
+    m_state.applyVideoOutputProjection(zoomPercent, videoOutputChanged);
 }
 
 void VideoDocumentRuntime::publish(VideoDocumentChange change) { m_state.publish(change); }

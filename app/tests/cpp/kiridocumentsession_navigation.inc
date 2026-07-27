@@ -237,6 +237,29 @@ void TestKiriDocumentSessionNavigation::activeNavigationBoundaryTextFollowsSessi
     QCOMPARE(imageSession->requestNextActiveNavigationBoundaryText(), QStringLiteral("Last image"));
 }
 
+void TestKiriDocumentSessionNavigation::boundaryTextRequestSurvivesSynchronousSessionDestruction()
+{
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    const QUrl first = localUrl(QStringLiteral("/media/01.mp4"));
+    directMediaNavigationProvider.setMedia(
+        localUrl(QStringLiteral("/media/")), { directMediaNavigationCandidate(first) });
+    std::unique_ptr<KiriDocumentSession> session = createSession(directMediaNavigationProvider);
+    QObject observer;
+
+    session->setSourceUrl(first);
+    QCOMPARE(session->activeNavigationRevealIntent(),
+        KiriDocumentSession::ActiveNavigationRevealIntent::LoadOrOpen);
+
+    connect(session.get(), &KiriDocumentSession::publicProjectionRevisionChanged, &observer,
+        [&session]() { session.reset(); });
+
+    KiriDocumentSession* const rawSession = session.get();
+    const QString boundaryText = rawSession->requestPreviousActiveNavigationBoundaryText();
+
+    QVERIFY(!session);
+    QVERIFY(!boundaryText.isEmpty());
+}
+
 void TestKiriDocumentSessionNavigation::activeNavigationNumberDispatchIgnoresUnknownNavigation()
 {
     ManualDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
@@ -328,7 +351,8 @@ void TestKiriDocumentSessionNavigation::activeNavigationClearsWhenSwitchingFromK
     compareUnavailableActiveNavigation(*session);
 }
 
-void TestKiriDocumentSessionNavigation::activeNavigationAvailabilityUsesSameSnapshotAsCurrentAndCount()
+void TestKiriDocumentSessionNavigation::
+    activeNavigationAvailabilityUsesSameSnapshotAsCurrentAndCount()
 {
     FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
     const QUrl first = localUrl(QStringLiteral("/media/01.mp4"));
@@ -407,4 +431,47 @@ void TestKiriDocumentSessionNavigation::activeNavigationBoundaryScopeFollowsSess
     QTRY_VERIFY(session->activeNavigationKnown());
     QCOMPARE(session->activeNavigationBoundaryScope(),
         KiriDocumentSession::ActiveNavigationBoundaryScope::ImageDocumentPageNavigationBoundary);
+}
+
+void TestKiriDocumentSessionNavigation::routeProjectionReentrantNavigationPreservesNewerRequest()
+{
+    ManualDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    const QUrl first = localUrl(QStringLiteral("/media/01.mp4"));
+    const QUrl second = localUrl(QStringLiteral("/media/02.mp4"));
+    const QUrl third = localUrl(QStringLiteral("/media/03.mp4"));
+    const std::vector<kiriview::DirectMediaNavigationCandidate> candidates {
+        directMediaNavigationCandidate(first),
+        directMediaNavigationCandidate(second),
+        directMediaNavigationCandidate(third),
+    };
+    std::unique_ptr<KiriDocumentSession> session
+        = createSessionWithProvider(directMediaNavigationProvider.provider());
+
+    session->setSourceUrl(first);
+    QCOMPARE(directMediaNavigationProvider.loadCount(), std::size_t(1));
+    directMediaNavigationProvider.finishLoad(0, candidates);
+    QVERIFY(session->activeNavigationKnown());
+
+    session->openNextActiveNavigation();
+    QCOMPARE(directMediaNavigationProvider.loadCount(), std::size_t(2));
+
+    bool submittedNewerNavigation = false;
+    connect(
+        session.get(), &KiriDocumentSession::publicProjectionRevisionChanged, session.get(), [&]() {
+            if (submittedNewerNavigation || session->sourceUrl() != second) {
+                return;
+            }
+            submittedNewerNavigation = true;
+            session->openNextActiveNavigation();
+        });
+
+    directMediaNavigationProvider.finishLoad(1, candidates);
+
+    QVERIFY(submittedNewerNavigation);
+    QCOMPARE(directMediaNavigationProvider.loadCount(), std::size_t(3));
+    QVERIFY(!directMediaNavigationProvider.loadAt(2).canceled);
+
+    directMediaNavigationProvider.finishLoad(2, candidates);
+
+    QCOMPARE(session->sourceUrl(), third);
 }

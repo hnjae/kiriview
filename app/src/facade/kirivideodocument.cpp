@@ -6,6 +6,7 @@
 #include "video/videodocumentruntime.h"
 
 #include <QPointer>
+#include <QScopeGuard>
 #include <algorithm>
 #include <iterator>
 #include <memory>
@@ -70,12 +71,19 @@ std::vector<kiriview::VideoDocumentPublicSignal> mergePublicSignals(
 }
 
 KiriVideoDocument::KiriVideoDocument(QObject* parent)
-    : KiriVideoDocument(kiriview::TimerScheduler {}, parent)
+    : KiriVideoDocument(kiriview::TimerScheduler {}, kiriview::VideoMediaBackendFactory {}, parent)
 {
 }
 
 KiriVideoDocument::KiriVideoDocument(
     kiriview::TimerScheduler playbackControlTimerScheduler, QObject* parent)
+    : KiriVideoDocument(
+          std::move(playbackControlTimerScheduler), kiriview::VideoMediaBackendFactory {}, parent)
+{
+}
+
+KiriVideoDocument::KiriVideoDocument(kiriview::TimerScheduler playbackControlTimerScheduler,
+    kiriview::VideoMediaBackendFactory videoMediaBackendFactory, QObject* parent)
     : QObject(parent)
 {
     m_playbackControls = new KiriVideoPlaybackControls(*this);
@@ -84,8 +92,7 @@ KiriVideoDocument::KiriVideoDocument(
         [this](const std::vector<kiriview::VideoDocumentChange>& changes) {
             handleDocumentChanges(changes);
         },
-        std::unique_ptr<kiriview::VideoPlaybackUrlResolver>(),
-        kiriview::VideoDocumentRuntime::MediaBackendFactory {},
+        std::unique_ptr<kiriview::VideoPlaybackUrlResolver>(), std::move(videoMediaBackendFactory),
         std::move(playbackControlTimerScheduler),
         [this](const kiriview::VideoPlaybackControlProjection& projection) {
             const qint64 videoDuration = static_cast<qint64>(projection.sliderMaximumMsec);
@@ -157,9 +164,24 @@ const kiriview::EmbeddedMetadata& KiriVideoDocument::embeddedMetadata() const
     return m_runtime->embeddedMetadata();
 }
 
-void KiriVideoDocument::setVideoOutput(QObject* videoOutput)
+void KiriVideoDocument::setVideoOutputAttachment(
+    QObject* videoOutput, const QRectF& contentRect, const QRectF& sourceRect)
 {
-    m_runtime->setVideoOutput(videoOutput);
+    m_runtime->setVideoOutputAttachment(videoOutput, contentRect, sourceRect);
+}
+
+void KiriVideoDocument::runWithPublicSignalsSuppressed(const std::function<void()>& effect)
+{
+    ++m_publicSignalSuppressionDepth;
+    const QPointer<KiriVideoDocument> owner(this);
+    [[maybe_unused]] const auto restoreSuppression = qScopeGuard([owner]() {
+        if (owner != nullptr) {
+            --owner->m_publicSignalSuppressionDepth;
+        }
+    });
+    if (effect) {
+        effect();
+    }
 }
 
 void KiriVideoDocument::play() { m_runtime->play(); }
@@ -212,11 +234,6 @@ void KiriVideoDocument::requestPlaybackControlSeek(qint64 positionMsec)
     m_runtime->requestPlaybackControlSeek(positionMsec);
 }
 
-void KiriVideoDocument::setVideoOutputGeometry(const QRectF& contentRect, const QRectF& sourceRect)
-{
-    m_runtime->setVideoOutputGeometry(contentRect, sourceRect);
-}
-
 void KiriVideoDocument::handleDocumentChanges(
     const std::vector<kiriview::VideoDocumentChange>& changes)
 {
@@ -226,6 +243,9 @@ void KiriVideoDocument::handleDocumentChanges(
 void KiriVideoDocument::enqueuePublicSignals(
     std::vector<kiriview::VideoDocumentPublicSignal> signals)
 {
+    if (m_publicSignalSuppressionDepth != 0) {
+        return;
+    }
     m_pendingPublicSignals = mergePublicSignals(std::move(signals), m_pendingPublicSignals);
     if (m_publicSignalDispatchActive) {
         return;

@@ -15,72 +15,93 @@ DocumentSessionVideoDocumentCommandRuntime::DocumentSessionVideoDocumentCommandR
 {
 }
 
-void DocumentSessionVideoDocumentCommandRuntime::setSource(const ResolvedNavigationSource& source)
+DocumentSessionVideoDocumentCommandRuntime::~DocumentSessionVideoDocumentCommandRuntime()
 {
-    if (m_commands.source.setSource) {
-        m_commands.source.setSource(source);
-    }
+    m_callbackLifetime.reset();
 }
 
-void DocumentSessionVideoDocumentCommandRuntime::setSourceDevice(
+bool DocumentSessionVideoDocumentCommandRuntime::setSource(const ResolvedNavigationSource& source)
+{
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const quint64 commandRevision = m_commandAdmission.next();
+    const auto setSource = m_commands.source.setSource;
+    if (setSource) {
+        setSource(source);
+    }
+    return !lifetime.expired() && m_commandAdmission.accepts(commandRevision);
+}
+
+bool DocumentSessionVideoDocumentCommandRuntime::setSourceDevice(
     const QUrl& sourceUrl, VideoPlaybackSourceDevice sourceDevice)
 {
-    if (m_commands.source.setSourceDevice) {
-        m_commands.source.setSourceDevice(sourceUrl, std::move(sourceDevice));
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const quint64 commandRevision = m_commandAdmission.next();
+    const auto setSourceDevice = m_commands.source.setSourceDevice;
+    if (setSourceDevice) {
+        setSourceDevice(sourceUrl, std::move(sourceDevice));
     }
+    return !lifetime.expired() && m_commandAdmission.accepts(commandRevision);
 }
 
-void DocumentSessionVideoDocumentCommandRuntime::leaveMode(const QUrl& currentSourceUrl)
+bool DocumentSessionVideoDocumentCommandRuntime::leaveMode(const QUrl& currentSourceUrl)
 {
-    if (currentSourceUrl.isEmpty() && videoOutput() == nullptr) {
-        return;
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const quint64 commandRevision = m_commandAdmission.next();
+    const auto videoOutput = m_commands.output.videoOutput;
+    const DocumentSessionVideoOutputAttachmentPort attachmentPort = outputAttachmentPort();
+    const auto clearVideoOutput = m_clearVideoOutput;
+    const auto stop = m_commands.playback.stop;
+    const auto clearSource = m_commands.source.clearSource;
+
+    QObject* attachedVideoOutput = videoOutput ? videoOutput() : nullptr;
+    if (lifetime.expired() || !m_commandAdmission.accepts(commandRevision)) {
+        return false;
+    }
+    const bool cleanupRequired = !currentSourceUrl.isEmpty() || attachedVideoOutput != nullptr;
+
+    if (clearVideoOutput) {
+        clearVideoOutput();
+    } else if (cleanupRequired) {
+        if (attachmentPort.setVideoOutputAttachment) {
+            attachmentPort.setVideoOutputAttachment(nullptr, {}, {});
+        }
+    }
+    if (lifetime.expired() || !m_commandAdmission.accepts(commandRevision)) {
+        return false;
+    }
+    if (!cleanupRequired) {
+        return true;
     }
 
-    clearVideoOutput();
-    if (m_commands.playback.stop) {
-        m_commands.playback.stop();
+    if (stop) {
+        stop();
     }
-    if (m_commands.source.clearSource) {
-        m_commands.source.clearSource();
+    if (lifetime.expired() || !m_commandAdmission.accepts(commandRevision)) {
+        return false;
     }
+
+    if (clearSource) {
+        clearSource();
+    }
+    return !lifetime.expired() && m_commandAdmission.accepts(commandRevision);
 }
 
 DocumentSessionVideoOutputAttachmentPort
 DocumentSessionVideoDocumentCommandRuntime::outputAttachmentPort() const
 {
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const auto setVideoOutputAttachment = m_commands.output.setVideoOutputAttachment;
     return DocumentSessionVideoOutputAttachmentPort {
-        [this](QObject* videoOutput) {
-            if (m_commands.output.setVideoOutput) {
-                m_commands.output.setVideoOutput(videoOutput);
+        [lifetime, setVideoOutputAttachment](
+            QObject* videoOutput, const QRectF& contentRect, const QRectF& sourceRect) {
+            if (lifetime.expired()) {
+                return;
             }
-        },
-        [this](const QRectF& contentRect, const QRectF& sourceRect) {
-            if (m_commands.output.setVideoOutputGeometry) {
-                m_commands.output.setVideoOutputGeometry(contentRect, sourceRect);
+            const auto callback = setVideoOutputAttachment;
+            if (callback) {
+                callback(videoOutput, contentRect, sourceRect);
             }
         },
     };
-}
-
-QObject* DocumentSessionVideoDocumentCommandRuntime::videoOutput() const
-{
-    if (!m_commands.output.videoOutput) {
-        return nullptr;
-    }
-
-    return m_commands.output.videoOutput();
-}
-
-void DocumentSessionVideoDocumentCommandRuntime::clearVideoOutput()
-{
-    const DocumentSessionVideoOutputAttachmentPort attachmentPort = outputAttachmentPort();
-    if (m_clearVideoOutput) {
-        m_clearVideoOutput(attachmentPort);
-        return;
-    }
-
-    if (attachmentPort.setVideoOutput) {
-        attachmentPort.setVideoOutput(nullptr);
-    }
 }
 }

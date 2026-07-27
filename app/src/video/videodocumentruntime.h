@@ -32,7 +32,7 @@ class VideoDocumentRuntime final
 {
 public:
     using ChangeCallback = std::function<void(const std::vector<VideoDocumentChange>&)>;
-    using MediaBackendFactory = std::function<std::unique_ptr<VideoMediaBackend>()>;
+    using MediaBackendFactory = VideoMediaBackendFactory;
 
     explicit VideoDocumentRuntime(QObject* documentObject, ChangeCallback changeCallback = {},
         std::unique_ptr<VideoPlaybackUrlResolver> playbackUrlResolver = {},
@@ -64,8 +64,8 @@ public:
     void setMuted(bool muted);
     QObject* videoOutput() const;
     const EmbeddedMetadata& embeddedMetadata() const;
-    void setVideoOutput(QObject* videoOutput);
-    void setVideoOutputGeometry(const QRectF& contentRect, const QRectF& sourceRect);
+    void setVideoOutputAttachment(
+        QObject* videoOutput, const QRectF& contentRect, const QRectF& sourceRect);
 
     void play();
     void pause();
@@ -96,6 +96,13 @@ private:
     {
         quint64 revision = 0;
         QUrl publicSourceUrl;
+    };
+
+    struct BackendObservation
+    {
+        quint64 revision = 0;
+        PlaybackLifecycle lifecycle;
+        std::shared_ptr<VideoMediaBackend> backend;
     };
 
     enum class PlaybackCommandKind {
@@ -162,10 +169,17 @@ private:
     void invalidatePlaybackCallbacks();
     PlaybackLifecycle acceptPlaybackCallbacks(const QUrl& publicSourceUrl);
     bool playbackCallbacksAccepted(const PlaybackLifecycle& lifecycle) const;
+    std::optional<BackendObservation> beginBackendObservation(const PlaybackLifecycle& lifecycle);
+    bool backendObservationAccepted(const BackendObservation& observation) const;
+    void updateHasVideoFromBackend(const PlaybackLifecycle& lifecycle);
+    void updateHasAudioFromBackend(const PlaybackLifecycle& lifecycle);
+    void updateVideoSizeFromBackend(const PlaybackLifecycle& lifecycle);
     void updateStatusFromBackend(const PlaybackLifecycle& lifecycle);
     void updateErrorFromBackend(const PlaybackLifecycle& lifecycle, VideoMediaError error);
-    void refreshPlaybackControlsFromBackend(const PlaybackLifecycle& lifecycle);
+    void refreshPlaybackControlsFromBackend(
+        const PlaybackLifecycle& lifecycle, bool reconcileMediaStatus = false);
     void replacePlaybackControlSource();
+    void updateOutputProjection(bool videoOutputChanged);
     void updateZoomPercent();
     void publish(VideoDocumentChange change);
 
@@ -182,6 +196,7 @@ private:
     VideoOutputRuntime m_outputRuntime;
     quint64 m_nextPlaybackRevision = 0;
     std::optional<PlaybackLifecycle> m_activePlaybackLifecycle;
+    ImageAsyncTicket m_backendObservationAdmission;
     quint64 m_playbackControlSourceRevision = 0;
     ImageAsyncTicket m_muteCommandAdmission;
     std::deque<PlaybackCommandRequest> m_pendingPlaybackCommands;

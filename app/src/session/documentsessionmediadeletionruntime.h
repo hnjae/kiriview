@@ -52,14 +52,14 @@ private:
     bool startFileOperation(QObject* receiver, quint64 operationId,
         DocumentSessionMediaDeletionStartPlan plan, DocumentSessionKind documentKind,
         const std::shared_ptr<CompletionCallback>& callback);
-    void finish(quint64 operationId, DocumentSessionKind documentKind,
-        const DocumentSessionMediaDeletionFallbackPlan& fallbackPlan, FileDeletionResult result,
-        const KioOperationFailure& failure, const CompletionCallback& callback);
 
+    std::shared_ptr<void> m_lifetime = std::make_shared<char>();
     FileDeletionProvider m_fileDeletionProvider;
     DocumentSessionDirectMediaNavigationRuntime m_candidateRuntime;
     ImageIoJob m_job;
-    ImageAsyncOperationState m_operation;
+    std::shared_ptr<ImageAsyncOperationState> m_operation {
+        std::make_shared<ImageAsyncOperationState>()
+    };
 };
 }
 

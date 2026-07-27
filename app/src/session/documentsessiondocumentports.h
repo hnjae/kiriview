@@ -144,8 +144,7 @@ struct DocumentSessionVideoDocumentPlaybackCommandPort
 struct DocumentSessionVideoDocumentOutputCommandPort
 {
     std::function<QObject*()> videoOutput;
-    std::function<void(QObject*)> setVideoOutput;
-    std::function<void(const QRectF&, const QRectF&)> setVideoOutputGeometry;
+    std::function<void(QObject*, const QRectF&, const QRectF&)> setVideoOutputAttachment;
 };
 
 struct DocumentSessionVideoDocumentCommandPort

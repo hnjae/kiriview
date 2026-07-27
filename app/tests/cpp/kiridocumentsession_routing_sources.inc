@@ -63,6 +63,32 @@ void TestKiriDocumentSessionRouting::publicProjectionRevisionCommitsBeforeScalar
     QVERIFY(revisionIndex < sourceIndex);
 }
 
+void TestKiriDocumentSessionRouting::destroyingSessionDuringPublicSignalStopsFanOut()
+{
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    const QUrl clip = localUrl(QStringLiteral("/media/destroy-during-signal.mp4"));
+    directMediaNavigationProvider.setMedia(
+        localUrl(QStringLiteral("/media/")), { directMediaNavigationCandidate(clip) });
+    std::unique_ptr<KiriDocumentSession> session = createSession(directMediaNavigationProvider);
+    QObject observer;
+    int sourceSignalCountAfterDestruction = 0;
+
+    connect(session.get(), &KiriDocumentSession::publicProjectionRevisionChanged, &observer,
+        [&session, &clip]() {
+            if (session && session->sourceUrl() == clip) {
+                session.reset();
+            }
+        });
+    connect(session.get(), &KiriDocumentSession::sourceUrlChanged, &observer,
+        [&sourceSignalCountAfterDestruction]() { ++sourceSignalCountAfterDestruction; });
+
+    KiriDocumentSession* const rawSession = session.get();
+    rawSession->setSourceUrl(clip);
+
+    QVERIFY(!session);
+    QCOMPARE(sourceSignalCountAfterDestruction, 0);
+}
+
 void TestKiriDocumentSessionRouting::archiveAndDirectoryInputsRouteToImageDocument()
 {
     FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;

@@ -187,6 +187,24 @@ void VideoDocumentState::setVideoSize(QSize size)
 void VideoDocumentState::setZoomPercent(std::optional<int> zoomPercent)
 {
     std::vector<VideoDocumentChange> changes;
+    appendZoomPercentChanges(changes, zoomPercent);
+    publish(changes);
+}
+
+void VideoDocumentState::applyVideoOutputProjection(
+    std::optional<int> zoomPercent, bool videoOutputChanged)
+{
+    std::vector<VideoDocumentChange> changes;
+    appendZoomPercentChanges(changes, zoomPercent);
+    if (videoOutputChanged) {
+        changes.push_back(VideoDocumentChange::VideoOutput);
+    }
+    publish(changes);
+}
+
+void VideoDocumentState::appendZoomPercentChanges(
+    std::vector<VideoDocumentChange>& changes, std::optional<int> zoomPercent)
+{
     if (zoomPercent.has_value()) {
         appendIfZoomPercentChanged(changes, zoomPercent.value());
         appendIfZoomPercentKnownChanged(changes, true);
@@ -194,7 +212,6 @@ void VideoDocumentState::setZoomPercent(std::optional<int> zoomPercent)
         appendIfZoomPercentKnownChanged(changes, false);
         appendIfZoomPercentChanged(changes, 0);
     }
-    publish(changes);
 }
 
 void VideoDocumentState::setEmbeddedMetadata(EmbeddedMetadata metadata)

@@ -171,6 +171,7 @@ namespace {
                 || leftImage.fitWidthModeSelected != rightImage.fitWidthModeSelected
                 || leftImage.zoomPercentKnown != rightImage.zoomPercentKnown
                 || leftImage.zoomPercent != rightImage.zoomPercent
+                || leftImage.viewportPannable != rightImage.viewportPannable
                 || leftImage.errorString != rightImage.errorString)) {
             return false;
         }
@@ -187,6 +188,8 @@ namespace {
             && leftVideo.ready == rightVideo.ready && leftVideo.hasVideo == rightVideo.hasVideo
             && leftVideo.sourcePresent == rightVideo.sourcePresent
             && leftVideo.error == rightVideo.error
+            && leftVideo.videoSeekable == rightVideo.videoSeekable
+            && leftVideo.videoDuration == rightVideo.videoDuration
             && leftVideo.zoomPercentKnown == rightVideo.zoomPercentKnown
             && leftVideo.zoomPercent == rightVideo.zoomPercent
             && leftVideo.errorString == rightVideo.errorString;
@@ -199,21 +202,39 @@ DocumentSessionProjectionRuntime::DocumentSessionProjectionRuntime(
 {
 }
 
+DocumentSessionProjectionRuntime::~DocumentSessionProjectionRuntime()
+{
+    m_callbackLifetime.reset();
+}
+
 void DocumentSessionProjectionRuntime::publish(const DocumentSessionPublicSnapshotInput& input,
     const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot)
 {
+    const std::weak_ptr<void> callbackLifetime = m_callbackLifetime;
+    const quint64 publicationRevision = m_publicationAdmission.next();
+    const DocumentSessionProjectionRuntimePorts ports = m_ports;
+    const auto current = [this, callbackLifetime, publicationRevision]() {
+        return !callbackLifetime.expired() && m_publicationAdmission.accepts(publicationRevision);
+    };
     const bool publicDependencyChanged = !m_publicDependencyInput.has_value()
         || !samePublicProjectionDependency(*m_publicDependencyInput, input);
-    if (publicDependencyChanged && m_ports.updatePublicSnapshot) {
-        m_ports.updatePublicSnapshot(input);
+    if (publicDependencyChanged && ports.updatePublicSnapshot) {
+        ports.updatePublicSnapshot(input);
+        if (!current()) {
+            return;
+        }
     }
     if (publicDependencyChanged) {
         m_publicDependencyInput = input;
     }
-    const bool thumbnailDependencyChanged
-        = syncActiveNavigationThumbnailRows(imageDocumentPageCandidateSnapshot);
-    if (publicDependencyChanged || thumbnailDependencyChanged) {
-        clearActiveNavigationRevealContextIfUnavailable();
+    const bool thumbnailDependencyChanged = syncActiveNavigationThumbnailRows(
+        imageDocumentPageCandidateSnapshot, ports, callbackLifetime, publicationRevision);
+    if (!current()) {
+        return;
+    }
+    if ((publicDependencyChanged || thumbnailDependencyChanged)
+        && ports.clearActiveNavigationRevealContextIfUnavailable) {
+        ports.clearActiveNavigationRevealContextIfUnavailable();
     }
 }
 
@@ -221,35 +242,75 @@ void DocumentSessionProjectionRuntime::publishForSourceKind(
     const DocumentSessionPublicSnapshotInput& input, ActiveNavigationSourceKind sourceKind,
     const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot)
 {
+    const std::weak_ptr<void> callbackLifetime = m_callbackLifetime;
+    const quint64 publicationRevision = m_publicationAdmission.next();
+    const DocumentSessionProjectionRuntimePorts ports = m_ports;
+    const auto current = [this, callbackLifetime, publicationRevision]() {
+        return !callbackLifetime.expired() && m_publicationAdmission.accepts(publicationRevision);
+    };
     const bool publicDependencyChanged = !m_publicDependencyInput.has_value()
         || !samePublicProjectionDependency(*m_publicDependencyInput, input);
-    bool accepted
-        = m_ports.activeNavigationSourceKind && m_ports.activeNavigationSourceKind() == sourceKind;
-    if (publicDependencyChanged && m_ports.updatePublicSnapshotForSourceKind) {
-        accepted = m_ports.updatePublicSnapshotForSourceKind(input, sourceKind);
+    bool accepted = false;
+    if (ports.activeNavigationSourceKind) {
+        accepted = ports.activeNavigationSourceKind() == sourceKind;
+        if (!current()) {
+            return;
+        }
+    }
+    if (publicDependencyChanged && ports.updatePublicSnapshotForSourceKind) {
+        accepted = ports.updatePublicSnapshotForSourceKind(input, sourceKind);
+        if (!current()) {
+            return;
+        }
         if (accepted) {
             m_publicDependencyInput = input;
         }
     }
     if (accepted) {
-        syncActiveNavigationThumbnailRows(imageDocumentPageCandidateSnapshot);
+        syncActiveNavigationThumbnailRows(
+            imageDocumentPageCandidateSnapshot, ports, callbackLifetime, publicationRevision);
+        if (!current()) {
+            return;
+        }
     }
-    clearActiveNavigationRevealContextIfUnavailable();
+    if (ports.clearActiveNavigationRevealContextIfUnavailable) {
+        ports.clearActiveNavigationRevealContextIfUnavailable();
+    }
 }
 
 bool DocumentSessionProjectionRuntime::syncActiveNavigationThumbnailRows(
-    const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot)
+    const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot,
+    const DocumentSessionProjectionRuntimePorts& ports, const std::weak_ptr<void>& callbackLifetime,
+    quint64 publicationRevision)
 {
-    const ActiveNavigationSourceKind sourceKind = m_ports.activeNavigationSourceKind
-        ? m_ports.activeNavigationSourceKind()
-        : ActiveNavigationSourceKind::None;
-    const ActiveNavigationSnapshot navigation = m_ports.activeNavigationSnapshot
-        ? m_ports.activeNavigationSnapshot()
-        : ActiveNavigationSnapshot {};
-    const DirectMediaNavigationCandidateSnapshot& directMediaNavigationCandidateSnapshot
-        = m_ports.directMediaNavigationCandidateSnapshot
-        ? m_ports.directMediaNavigationCandidateSnapshot()
-        : emptyDirectMediaNavigationCandidateSnapshot();
+    const auto current = [this, callbackLifetime, publicationRevision]() {
+        return !callbackLifetime.expired() && m_publicationAdmission.accepts(publicationRevision);
+    };
+    ActiveNavigationSourceKind sourceKind = ActiveNavigationSourceKind::None;
+    if (ports.activeNavigationSourceKind) {
+        sourceKind = ports.activeNavigationSourceKind();
+        if (!current()) {
+            return false;
+        }
+    }
+    ActiveNavigationSnapshot navigation;
+    if (ports.activeNavigationSnapshot) {
+        navigation = ports.activeNavigationSnapshot();
+        if (!current()) {
+            return false;
+        }
+    }
+    DirectMediaNavigationCandidateSnapshot directMediaNavigationCandidateSnapshot;
+    if (ports.directMediaNavigationCandidateSnapshot) {
+        const DirectMediaNavigationCandidateSnapshot& candidateSnapshot
+            = ports.directMediaNavigationCandidateSnapshot();
+        if (!current()) {
+            return false;
+        }
+        directMediaNavigationCandidateSnapshot = candidateSnapshot;
+    } else {
+        directMediaNavigationCandidateSnapshot = emptyDirectMediaNavigationCandidateSnapshot();
+    }
     const std::optional<ActiveNavigationThumbnailRowSetIdentity> rowSetIdentity
         = activeNavigationThumbnailRowSetIdentity(sourceKind, navigation,
             directMediaNavigationCandidateSnapshot, imageDocumentPageCandidateSnapshot);
@@ -278,10 +339,10 @@ bool DocumentSessionProjectionRuntime::syncActiveNavigationThumbnailRows(
             << imageDocumentPageCandidateRows(imageDocumentPageCandidateSnapshot).size()
             << "hadPreviousIdentity" << m_activeNavigationThumbnailIdentity.has_value();
         m_activeNavigationThumbnailIdentity.reset();
-        if (m_ports.setActiveNavigationThumbnailRows) {
-            m_ports.setActiveNavigationThumbnailRows({});
-        }
         m_activeNavigationThumbnailCurrentNumber = 0;
+        if (ports.setActiveNavigationThumbnailRows) {
+            ports.setActiveNavigationThumbnailRows({});
+        }
         return true;
     }
 
@@ -291,10 +352,10 @@ bool DocumentSessionProjectionRuntime::syncActiveNavigationThumbnailRows(
         if (m_activeNavigationThumbnailCurrentNumber == navigation.currentNumber) {
             return false;
         }
-        if (m_ports.setActiveNavigationThumbnailCurrentNumber) {
-            m_ports.setActiveNavigationThumbnailCurrentNumber(navigation.currentNumber);
-        }
         m_activeNavigationThumbnailCurrentNumber = navigation.currentNumber;
+        if (ports.setActiveNavigationThumbnailCurrentNumber) {
+            ports.setActiveNavigationThumbnailCurrentNumber(navigation.currentNumber);
+        }
         return true;
     }
 
@@ -304,16 +365,9 @@ bool DocumentSessionProjectionRuntime::syncActiveNavigationThumbnailRows(
     m_activeNavigationThumbnailIdentity = rowSetIdentity;
     m_activeNavigationThumbnailProjectionInitialized = true;
     m_activeNavigationThumbnailCurrentNumber = navigation.currentNumber;
-    if (m_ports.setActiveNavigationThumbnailRows) {
-        m_ports.setActiveNavigationThumbnailRows(std::move(rows));
+    if (ports.setActiveNavigationThumbnailRows) {
+        ports.setActiveNavigationThumbnailRows(std::move(rows));
     }
     return true;
-}
-
-void DocumentSessionProjectionRuntime::clearActiveNavigationRevealContextIfUnavailable()
-{
-    if (m_ports.clearActiveNavigationRevealContextIfUnavailable) {
-        m_ports.clearActiveNavigationRevealContextIfUnavailable();
-    }
 }
 }

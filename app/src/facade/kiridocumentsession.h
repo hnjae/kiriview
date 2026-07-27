@@ -23,11 +23,14 @@
 #include <vector>
 
 namespace kiriview {
+enum class DocumentSessionPublicSignal;
+
 struct KiriDocumentSessionDependencies
 {
     DocumentSessionRuntimeDependencies sessionRuntime;
     ImageDocumentRuntimeDependencyOverrides imageDocument;
     TimerScheduler videoPlaybackControlTimerScheduler;
+    VideoMediaBackendFactory videoMediaBackendFactory;
 };
 }
 
@@ -267,11 +270,15 @@ private:
         ResolvedDependenciesTag, QObject* parent = nullptr);
 
     void handleSessionChanges(const std::vector<kiriview::DocumentSessionChange>& changes);
+    void enqueuePublicSignals(std::vector<kiriview::DocumentSessionPublicSignal> signals);
+    void drainPublicSignals();
 
     KiriImageDocument* m_imageDocument = nullptr;
     KiriVideoDocument* m_videoDocument = nullptr;
     std::unique_ptr<kiriview::DocumentSessionRuntime> m_runtime;
     KiriMediaInformation* m_mediaInformation = nullptr;
+    std::vector<kiriview::DocumentSessionPublicSignal> m_pendingPublicSignals;
+    bool m_publicSignalDispatchActive = false;
 };
 
 #endif

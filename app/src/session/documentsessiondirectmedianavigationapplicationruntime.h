@@ -8,6 +8,7 @@
 
 #include <QUrl>
 #include <functional>
+#include <memory>
 #include <vector>
 
 namespace kiriview {
@@ -19,7 +20,13 @@ struct DocumentSessionDirectMediaNavigationApplicationPorts
     std::function<void(DocumentSessionDirectMediaNavigationRevealAction)> applyRevealAction;
     std::function<void()> publishProjection;
     std::function<void(const QUrl&)> schedulePredecode;
-    std::function<void(const QUrl&)> routeMediaUrl;
+    std::function<void(const QUrl&, std::function<bool()>)> routeMediaUrl;
+};
+
+struct DocumentSessionDirectMediaNavigationApplicationControl
+{
+    std::function<bool()> isCurrent;
+    std::function<bool()> routeContinuationIsCurrent;
 };
 
 class DocumentSessionDirectMediaNavigationApplicationRuntime final
@@ -27,15 +34,21 @@ class DocumentSessionDirectMediaNavigationApplicationRuntime final
 public:
     explicit DocumentSessionDirectMediaNavigationApplicationRuntime(
         DocumentSessionDirectMediaNavigationApplicationPorts ports);
+    ~DocumentSessionDirectMediaNavigationApplicationRuntime();
+    Q_DISABLE_COPY_MOVE(DocumentSessionDirectMediaNavigationApplicationRuntime)
 
-    void applyInactiveRefresh();
+    void applyInactiveRefresh(
+        const DocumentSessionDirectMediaNavigationApplicationControl& control = {});
     void applyRefresh(ActiveNavigationSourceKind sourceKind,
         ActiveNavigationSnapshot previousSnapshot,
-        DocumentSessionDirectMediaNavigationRefreshResult result);
+        DocumentSessionDirectMediaNavigationRefreshResult result,
+        const DocumentSessionDirectMediaNavigationApplicationControl& control = {});
     void applyOpen(const QUrl& activeDirectMediaCursorUrl,
-        DocumentSessionDirectMediaNavigationOpenResult result);
+        DocumentSessionDirectMediaNavigationOpenResult result,
+        const DocumentSessionDirectMediaNavigationApplicationControl& control = {});
 
 private:
+    std::shared_ptr<void> m_callbackLifetime = std::make_shared<char>();
     DocumentSessionDirectMediaNavigationApplicationPorts m_ports;
 };
 }

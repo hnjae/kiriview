@@ -14,10 +14,12 @@
 
 #include <QByteArray>
 #include <QObject>
+#include <QPointer>
 #include <QString>
 #include <QUrl>
 #include <algorithm>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -25,22 +27,34 @@
 namespace kiriview::TestSupport {
 namespace Detail {
     template <typename Operation>
-    ImageIoJob startManualIoJob(QObject* receiver, const std::shared_ptr<Operation>& operation)
+    ImageIoJob startManualIoJob(QObject* receiver, const std::shared_ptr<Operation>& operation,
+        std::function<void()> cancelHook)
     {
         operation->object = new QObject(receiver);
 
         std::weak_ptr<Operation> weakOperation = operation;
-        ImageIoJob job(operation->object, [weakOperation](QObject* object) {
-            if (std::shared_ptr<Operation> operation = weakOperation.lock()) {
-                operation->canceled = true;
-                operation->object = nullptr;
-            }
-            if (object != nullptr) {
-                object->deleteLater();
-            }
-        });
+        ImageIoJob job(operation->object,
+            [weakOperation, cancelHook = std::move(cancelHook)](QObject* object) {
+                const QPointer<QObject> guardedObject(object);
+                if (std::shared_ptr<Operation> operation = weakOperation.lock()) {
+                    operation->canceled = true;
+                    operation->object = nullptr;
+                }
+                if (cancelHook) {
+                    cancelHook();
+                }
+                if (guardedObject != nullptr) {
+                    guardedObject->deleteLater();
+                }
+            });
         operation->completion = job.completion();
         return job;
+    }
+
+    template <typename Operation>
+    ImageIoJob startManualIoJob(QObject* receiver, const std::shared_ptr<Operation>& operation)
+    {
+        return startManualIoJob(receiver, operation, {});
     }
 
     template <typename Operation, typename Delivery>
@@ -392,13 +406,15 @@ inline KioOperationFailure manualFileDeletionFailure(
 class ManualFileDeletionProvider
 {
 public:
+    void setCancelHook(std::function<void()> cancelHook) { m_cancelHook = std::move(cancelHook); }
+
     ImageIoJob start(QObject* receiver, FileDeletionRequest request, FileDeletionCallback callback)
     {
         auto operation = std::make_shared<ManualFileDeletionOperation>();
         operation->request = std::move(request);
         operation->callback = std::move(callback);
 
-        ImageIoJob job = Detail::startManualIoJob(receiver, operation);
+        ImageIoJob job = Detail::startManualIoJob(receiver, operation, m_cancelHook);
         m_operations.push_back(operation);
         return job;
     }
@@ -455,6 +471,7 @@ private:
     }
 
     std::vector<std::shared_ptr<ManualFileDeletionOperation>> m_operations;
+    std::function<void()> m_cancelHook;
 };
 
 class ManualFileDeletionProviderAdapter

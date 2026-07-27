@@ -6,6 +6,7 @@
 #include <QObject>
 #include <QTest>
 
+#include <memory>
 #include <vector>
 
 class TestDocumentSessionActiveNavigationRuntime : public QObject
@@ -14,6 +15,8 @@ class TestDocumentSessionActiveNavigationRuntime : public QObject
 
 private Q_SLOTS:
     void acceptedImagePageDispatchStoresPendingRevealAndExecutesPort();
+    void revealPublicationCanDestroyRuntimeBeforeDispatch();
+    void reentrantDispatchSupersedesOuterCommand();
     void rejectedDispatchClearsRevealAndPublishes();
     void numberedDirectMediaDispatchUsesDirectMediaPort();
 };
@@ -71,6 +74,73 @@ void TestDocumentSessionActiveNavigationRuntime::
         = runtime.takePendingRevealContext(kiriview::ActiveNavigationRevealIntent::LargeJump);
     QCOMPARE(fallback.intent, kiriview::ActiveNavigationRevealIntent::LargeJump);
     QCOMPARE(fallback.direction, kiriview::ActiveNavigationRevealDirection::None);
+}
+
+void TestDocumentSessionActiveNavigationRuntime::revealPublicationCanDestroyRuntimeBeforeDispatch()
+{
+    int nextPageCount = 0;
+    using Runtime = kiriview::DocumentSessionActiveNavigationRuntime;
+    std::unique_ptr<Runtime> runtime;
+    kiriview::DocumentSessionActiveNavigationRuntimePorts ports;
+    ports.setRevealContext = [&](kiriview::ActiveNavigationRevealContext) { runtime.reset(); };
+    ports.openNextImageDocumentPage = [&]() { ++nextPageCount; };
+    runtime = std::make_unique<Runtime>(std::move(ports));
+
+    const kiriview::ActiveNavigationDispatchOutcome outcome
+        = runtime->dispatch(kiriview::ActiveNavigationSourceKind::ImageDocumentPages,
+            activeNavigationSnapshot(2, 4), kiriview::nextActiveNavigationDispatchRequest(),
+            kiriview::ActiveNavigationRevealContext {
+                kiriview::ActiveNavigationRevealIntent::AdjacentNavigation,
+                kiriview::ActiveNavigationRevealDirection::Next,
+            });
+
+    QCOMPARE(outcome, kiriview::ActiveNavigationDispatchOutcome::Dispatch);
+    QVERIFY(runtime == nullptr);
+    QCOMPARE(nextPageCount, 0);
+}
+
+void TestDocumentSessionActiveNavigationRuntime::reentrantDispatchSupersedesOuterCommand()
+{
+    int previousPageCount = 0;
+    int nextPageCount = 0;
+    bool dispatchInner = true;
+    kiriview::DocumentSessionActiveNavigationRuntime* runtime = nullptr;
+    kiriview::DocumentSessionActiveNavigationRuntimePorts ports;
+    ports.setRevealContext = [&](kiriview::ActiveNavigationRevealContext) {
+        if (!dispatchInner) {
+            return;
+        }
+        dispatchInner = false;
+        QCOMPARE(
+            runtime->dispatch(kiriview::ActiveNavigationSourceKind::ImageDocumentPages,
+                activeNavigationSnapshot(2, 4), kiriview::nextActiveNavigationDispatchRequest(),
+                kiriview::ActiveNavigationRevealContext {
+                    kiriview::ActiveNavigationRevealIntent::AdjacentNavigation,
+                    kiriview::ActiveNavigationRevealDirection::Next,
+                }),
+            kiriview::ActiveNavigationDispatchOutcome::Dispatch);
+    };
+    ports.openPreviousImageDocumentPage = [&]() { ++previousPageCount; };
+    ports.openNextImageDocumentPage = [&]() { ++nextPageCount; };
+
+    kiriview::DocumentSessionActiveNavigationRuntime ownedRuntime(std::move(ports));
+    runtime = &ownedRuntime;
+
+    QCOMPARE(
+        runtime->dispatch(kiriview::ActiveNavigationSourceKind::ImageDocumentPages,
+            activeNavigationSnapshot(2, 4), kiriview::previousActiveNavigationDispatchRequest(),
+            kiriview::ActiveNavigationRevealContext {
+                kiriview::ActiveNavigationRevealIntent::AdjacentNavigation,
+                kiriview::ActiveNavigationRevealDirection::Previous,
+            }),
+        kiriview::ActiveNavigationDispatchOutcome::Dispatch);
+
+    QCOMPARE(previousPageCount, 0);
+    QCOMPARE(nextPageCount, 1);
+    const kiriview::ActiveNavigationRevealContext pending = runtime->takePendingRevealContext(
+        kiriview::ActiveNavigationRevealIntent::ProgrammaticSync);
+    QCOMPARE(pending.intent, kiriview::ActiveNavigationRevealIntent::AdjacentNavigation);
+    QCOMPARE(pending.direction, kiriview::ActiveNavigationRevealDirection::Next);
 }
 
 void TestDocumentSessionActiveNavigationRuntime::rejectedDispatchClearsRevealAndPublishes()

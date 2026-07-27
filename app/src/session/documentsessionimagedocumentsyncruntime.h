@@ -4,10 +4,13 @@
 #ifndef KIRIVIEW_DOCUMENTSESSIONIMAGEDOCUMENTSYNCRUNTIME_H
 #define KIRIVIEW_DOCUMENTSESSIONIMAGEDOCUMENTSYNCRUNTIME_H
 
+#include "async/imageasyncticket.h"
 #include "session/documentsessiondirectimagecursorsync.h"
 #include "session/documentsessionimagedocumentsync.h"
 
+#include <QtGlobal>
 #include <functional>
+#include <memory>
 
 namespace kiriview {
 struct DocumentSessionImageDocumentSyncRuntimeInput
@@ -39,15 +42,19 @@ class DocumentSessionImageDocumentSyncRuntime final
 public:
     explicit DocumentSessionImageDocumentSyncRuntime(
         DocumentSessionImageDocumentSyncRuntimePorts ports = {});
+    ~DocumentSessionImageDocumentSyncRuntime();
+    Q_DISABLE_COPY_MOVE(DocumentSessionImageDocumentSyncRuntime)
 
     void sync(const DocumentSessionImageDocumentSyncRuntimeInput& input);
     bool syncDirectImageCursor(DocumentSessionKind documentKind, const DirectMediaCursor& cursor,
         const DocumentSessionPublicImageLeafSnapshot& image);
 
 private:
-    void apply(const DocumentSessionImageDocumentSyncPlan& plan);
+    void apply(const DocumentSessionImageDocumentSyncPlan& plan, quint64 syncRevision);
 
+    std::shared_ptr<void> m_callbackLifetime = std::make_shared<char>();
     DocumentSessionImageDocumentSyncRuntimePorts m_ports;
+    ImageAsyncTicket m_syncAdmission;
 };
 }
 

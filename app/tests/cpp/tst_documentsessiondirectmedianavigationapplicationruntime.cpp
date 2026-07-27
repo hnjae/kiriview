@@ -6,6 +6,7 @@
 #include <QObject>
 #include <QTest>
 #include <QUrl>
+#include <memory>
 #include <vector>
 
 class TestDocumentSessionDirectMediaNavigationApplicationRuntime : public QObject
@@ -17,6 +18,7 @@ private Q_SLOTS:
     void failedRefreshPublishesUnknownNavigationAndReveal();
     void successfulRefreshPublishesNavigationRevealAndPredecode();
     void successfulOpenSchedulesPredecodeBeforeRoutingTarget();
+    void successfulOpenStopsAfterPublicationDestroysRuntime();
 };
 
 namespace {
@@ -81,7 +83,7 @@ struct ApplicationFixture
                 events.push_back(Event::Predecode);
                 predecodeTargetUrl = targetUrl;
             },
-            [this](const QUrl& url) {
+            [this](const QUrl& url, std::function<bool()>) {
                 events.push_back(Event::Route);
                 routeTargetUrl = url;
             },
@@ -205,6 +207,58 @@ void TestDocumentSessionDirectMediaNavigationApplicationRuntime::
         (std::vector<ApplicationFixture::Event> { ApplicationFixture::Event::SetNavigation,
             ApplicationFixture::Event::Reveal, ApplicationFixture::Event::Publish,
             ApplicationFixture::Event::Predecode, ApplicationFixture::Event::Route }));
+}
+
+void TestDocumentSessionDirectMediaNavigationApplicationRuntime::
+    successfulOpenStopsAfterPublicationDestroysRuntime()
+{
+    const QUrl currentUrl = localUrl(QStringLiteral("/media/01.png"));
+    const QUrl nextUrl = localUrl(QStringLiteral("/media/02.png"));
+    std::vector<ApplicationFixture::Event> events;
+    std::unique_ptr<kiriview::DocumentSessionDirectMediaNavigationApplicationRuntime> runtime;
+    kiriview::DocumentSessionDirectMediaNavigationApplicationPorts ports;
+    ports.setDirectMediaNavigation = [&events](kiriview::DirectMediaNavigationBoundaryState, bool,
+                                         std::vector<kiriview::DirectMediaNavigationCandidate>) {
+        events.push_back(ApplicationFixture::Event::SetNavigation);
+    };
+    ports.applyRevealAction
+        = [&events](kiriview::DocumentSessionDirectMediaNavigationRevealAction) {
+              events.push_back(ApplicationFixture::Event::Reveal);
+          };
+    ports.publishProjection = [&events, &runtime]() {
+        events.push_back(ApplicationFixture::Event::Publish);
+        runtime.reset();
+    };
+    ports.schedulePredecode
+        = [&events](const QUrl&) { events.push_back(ApplicationFixture::Event::Predecode); };
+    ports.routeMediaUrl = [&events](const QUrl&, std::function<bool()>) {
+        events.push_back(ApplicationFixture::Event::Route);
+    };
+    runtime = std::make_unique<kiriview::DocumentSessionDirectMediaNavigationApplicationRuntime>(
+        std::move(ports));
+
+    runtime->applyOpen(currentUrl,
+        kiriview::DocumentSessionDirectMediaNavigationOpenResult {
+            { directMediaNavigationCandidate(currentUrl), directMediaNavigationCandidate(nextUrl) },
+            kiriview::DirectMediaNavigationOpenPlan {
+                kiriview::DirectMediaNavigationBoundaryState {
+                    false,
+                    true,
+                    true,
+                    false,
+                    1,
+                    2,
+                },
+                nextUrl,
+            },
+            true,
+            QString(),
+        });
+
+    QVERIFY(!runtime);
+    QCOMPARE(events,
+        (std::vector<ApplicationFixture::Event> { ApplicationFixture::Event::SetNavigation,
+            ApplicationFixture::Event::Reveal, ApplicationFixture::Event::Publish }));
 }
 
 QTEST_GUILESS_MAIN(TestDocumentSessionDirectMediaNavigationApplicationRuntime)

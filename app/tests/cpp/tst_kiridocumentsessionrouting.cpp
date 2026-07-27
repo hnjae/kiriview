@@ -10,6 +10,7 @@ class TestKiriDocumentSessionRouting : public QObject
 private Q_SLOTS:
     void directVideoRoutesToVideoDocumentWithOriginalSource();
     void publicProjectionRevisionCommitsBeforeScalarSignals();
+    void destroyingSessionDuringPublicSignalStopsFanOut();
     void archiveAndDirectoryInputsRouteToImageDocument();
     void directImageAfterVideoRestoresImageDocument();
     void directImageRouteCollectsNavigationSourceFactsOnce();

@@ -114,8 +114,10 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
       })
     , m_videoDocument(ports.videoDocument)
     , m_videoDocumentCommandRuntime(std::move(videoCommands),
-          [this](const DocumentSessionVideoOutputAttachmentPort& attachmentPort) {
-              m_videoOutputRuntime.clearAttachment(attachmentPort);
+          [this, lifetime = std::weak_ptr<void>(m_callbackLifetime)]() {
+              if (!lifetime.expired()) {
+                  m_videoOutputRuntime.retireSurfaceClaimEpoch();
+              }
           })
     , m_state(ports.state)
     , m_navigationSourceResolver(dependencies.navigationSourceResolver.has_value()
@@ -129,7 +131,13 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
               }
           },
           [this](const QUrl& url) { m_state.setSourceIdentity(url); },
-          [this](DocumentSessionKind kind) { setDocumentKind(kind); },
+          [this, lifetime = std::weak_ptr<void>(m_callbackLifetime)](DocumentSessionKind kind) {
+              if (lifetime.expired()) {
+                  return false;
+              }
+              setDocumentKind(kind);
+              return !lifetime.expired() && m_state.documentKind() == kind;
+          },
           [this]() { m_state.setDirectMediaNavigation({}, false, {}); },
           [this](const QUrl& url) {
               return confirmDirectVideoCursor(m_state.directMediaCursor(), url);
@@ -166,8 +174,7 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
               [this]() { cancelMediaOpenWith(); },
               [this]() { m_state.setSessionErrorString(QString()); },
               [this](const std::function<void()>& mutation) {
-                  QScopedValueRollback<bool> routingSource(m_routingSource, true);
-                  mutation();
+                  executeWithRoutingSuppressed(mutation);
               },
               [this]() { clearActiveNavigationRevealContextIfUnavailable(); },
           },
@@ -201,35 +208,55 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
               [this]() { m_directMediaNavigationCoordinator.refresh(m_owner); },
           },
           DocumentSessionRouteDocumentPorts {
-              [this]() {
+              [this, lifetime = std::weak_ptr<void>(m_callbackLifetime)]() {
                   m_state.setOpenedCollectionVideoActive(false);
-                  m_imageDocumentCommandRuntime.clearSourceUrl();
-                  refreshImagePublicSnapshot();
+                  if (!m_imageDocumentCommandRuntime.clearSourceUrl() || lifetime.expired()) {
+                      return;
+                  }
+                  static_cast<void>(refreshImagePublicSnapshot());
               },
-              [this]() {
-                  leaveVideoMode();
-                  refreshVideoPublicSnapshot();
+              [this, lifetime = std::weak_ptr<void>(m_callbackLifetime)]() {
+                  if (!leaveVideoMode() || lifetime.expired()) {
+                      return;
+                  }
+                  static_cast<void>(refreshVideoPublicSnapshot());
               },
               [this]() {
                   m_state.setOpenedCollectionVideoActive(false);
                   setDocumentKind(DocumentSessionKind::Empty);
               },
-              [this](const ResolvedNavigationSource& source) {
+              [this, lifetime = std::weak_ptr<void>(m_callbackLifetime)](
+                  const ResolvedNavigationSource& source) {
                   m_state.setOpenedCollectionVideoActive(false);
-                  m_imageDocumentCommandRuntime.setSource(source);
-                  refreshImagePublicSnapshot();
+                  if (!m_imageDocumentCommandRuntime.setSource(source) || lifetime.expired()) {
+                      return;
+                  }
+                  if (!refreshImagePublicSnapshot()) {
+                      return;
+                  }
                   setDocumentKind(DocumentSessionKind::Image);
               },
-              [this](const ResolvedNavigationSource& source) {
+              [this, lifetime = std::weak_ptr<void>(m_callbackLifetime)](
+                  const ResolvedNavigationSource& source) {
                   m_state.setOpenedCollectionVideoActive(false);
-                  m_imageDocumentCommandRuntime.setSource(source);
-                  refreshImagePublicSnapshot();
+                  if (!m_imageDocumentCommandRuntime.setSource(source) || lifetime.expired()) {
+                      return;
+                  }
+                  if (!refreshImagePublicSnapshot()) {
+                      return;
+                  }
                   setDocumentKind(DocumentSessionKind::Image);
               },
-              [this](const ResolvedNavigationSource& source) {
+              [this, lifetime = std::weak_ptr<void>(m_callbackLifetime)](
+                  const ResolvedNavigationSource& source) {
                   m_state.setOpenedCollectionVideoActive(false);
-                  m_videoDocumentCommandRuntime.setSource(source);
-                  refreshVideoPublicSnapshot();
+                  m_videoOutputRuntime.activateSurfaceClaimEpoch();
+                  if (!m_videoDocumentCommandRuntime.setSource(source) || lifetime.expired()) {
+                      return;
+                  }
+                  if (!refreshVideoPublicSnapshot()) {
+                      return;
+                  }
                   setDocumentKind(DocumentSessionKind::Video);
               },
           },
@@ -260,10 +287,25 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
     , m_directMediaNavigationCoordinator(dependencies.directMediaNavigationCandidateProvider,
           DocumentSessionDirectMediaNavigationCoordinatorPorts {
               [this]() { return m_directMediaActivityPort.navigationActive(); },
-              [this]() { return m_directMediaActivityPort.directImageSourceScopeEligible(); },
               [this]() { return m_directMediaScopePort.currentScope(); },
               [this](const DirectMediaScope& scope) {
                   return m_directMediaScopePort.cursorMatches(scope);
+              },
+              [this, lifetime = std::weak_ptr<void>(m_callbackLifetime)]() {
+                  const quint64 transitionRevision = m_documentTransitionAdmission.current();
+                  return [this, lifetime, transitionRevision]() {
+                      return !lifetime.expired()
+                          && m_documentTransitionAdmission.current() == transitionRevision;
+                  };
+              },
+              [this, lifetime = std::weak_ptr<void>(m_callbackLifetime)]() {
+                  const quint64 supersessionRevision
+                      = m_directMediaOpenSupersessionAdmission.current();
+                  return [this, lifetime, supersessionRevision]() {
+                      return !lifetime.expired()
+                          && m_directMediaOpenSupersessionAdmission.current()
+                          == supersessionRevision;
+                  };
               },
               [this]() { return m_directMediaScopePort.activeCursorUrl(); },
               [this]() { return m_state.activeNavigationSourceKind(); },
@@ -280,7 +322,9 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
                   m_mediaPredecodeRuntime.schedule(m_mediaPredecodeInputPort.currentInput(),
                       targetUrl, m_state.directMediaNavigationCandidateSnapshot());
               },
-              [this](const QUrl& url) { openMediaUrl(url); },
+              [this](const QUrl& url, std::function<bool()> originatingCurrent) {
+                  openMediaUrl(url, std::move(originatingCurrent));
+              },
           })
     , m_mediaDeletionRuntime(std::move(dependencies.fileDeletionProvider),
           std::move(dependencies.directMediaNavigationCandidateProvider))
@@ -294,6 +338,7 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
     , m_mediaPredecodeInputPort(
           &m_state, &m_directMediaActivityPort, &m_directMediaScopePort, &m_imagePublicSnapshot)
     , m_mediaOpenWithPlanPort(&m_state, &m_imagePublicSnapshot, &m_videoPublicSnapshot)
+    , m_videoOutputRuntime(m_videoDocumentCommandRuntime.outputAttachmentPort())
 {
     refreshLeafPublicSnapshots();
     connectDocuments();
@@ -301,6 +346,7 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
 
 DocumentSessionRuntimeGraph::~DocumentSessionRuntimeGraph()
 {
+    m_callbackLifetime.reset();
     for (const QMetaObject::Connection& connection : m_documentConnections) {
         QObject::disconnect(connection);
     }
@@ -517,8 +563,7 @@ bool DocumentSessionRuntimeGraph::reportVideoOutputSurfaceClaim(const QString& c
         { claimToken, surfaceOwner, videoOutput, active, contentRect, sourceRect,
             projectionRevision },
         { m_state.publicSnapshot().revision,
-            m_state.publicSnapshot().documentKind == DocumentSessionKind::Video },
-        videoOutputAttachmentPort());
+            m_state.publicSnapshot().documentKind == DocumentSessionKind::Video });
 }
 
 std::optional<PredecodedImage> DocumentSessionRuntimeGraph::findPredecodedImage(
@@ -638,8 +683,29 @@ void DocumentSessionRuntimeGraph::clearActiveNavigationRevealContextIfUnavailabl
     m_activeNavigationRuntime.clearRevealContextIfUnavailable(m_state.activeNavigationSnapshot());
 }
 
+void DocumentSessionRuntimeGraph::executeWithRoutingSuppressed(
+    const std::function<void()>& mutation)
+{
+    const std::shared_ptr<CallbackState> callbackState = m_callbackState;
+    QScopedValueRollback<bool> suppression(callbackState->routingSource, true);
+    if (mutation) {
+        mutation();
+    }
+}
+
+void DocumentSessionRuntimeGraph::executeWithVideoLeafSyncSuppressed(
+    const std::function<void()>& mutation)
+{
+    const std::shared_ptr<CallbackState> callbackState = m_callbackState;
+    QScopedValueRollback<bool> suppression(callbackState->videoLeafSyncSuppressed, true);
+    if (mutation) {
+        mutation();
+    }
+}
+
 void DocumentSessionRuntimeGraph::deleteDisplayedFile(FileDeletionMode mode)
 {
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
     if (m_state.documentKind() == DocumentSessionKind::Video
         && m_state.openedCollectionVideoActive()) {
         if (!displayedFileDeletionAvailable()) {
@@ -647,6 +713,9 @@ void DocumentSessionRuntimeGraph::deleteDisplayedFile(FileDeletionMode mode)
         }
 
         m_imageDocumentCommandRuntime.deleteDisplayedFile(mode);
+        if (lifetime.expired()) {
+            return;
+        }
         syncImageDocumentFileDeletionProgress();
         return;
     }
@@ -654,6 +723,9 @@ void DocumentSessionRuntimeGraph::deleteDisplayedFile(FileDeletionMode mode)
     if (m_state.documentKind() == DocumentSessionKind::Image
         && !m_directMediaActivityPort.directImageSourceScopeEligible()) {
         m_imageDocumentCommandRuntime.deleteDisplayedFile(mode);
+        if (lifetime.expired()) {
+            return;
+        }
         syncImageDocumentFileDeletionProgress();
         return;
     }
@@ -670,11 +742,27 @@ void DocumentSessionRuntimeGraph::deleteDisplayedFile(FileDeletionMode mode)
     const DocumentSessionKind documentKind = m_state.documentKind();
     const ImageAsyncScopedOperation<DirectMediaScope> operation
         = m_mediaDeletionTransaction.start(*scope);
+    const std::function<bool()> navigationCancellationCurrent
+        = m_directMediaNavigationCoordinator.cancelAndCaptureCurrent();
+    const auto current = [this, lifetime, operation, navigationCancellationCurrent]() {
+        return !lifetime.expired() && navigationCancellationCurrent()
+            && m_mediaDeletionTransaction.accepts(operation)
+            && m_directMediaScopePort.cursorMatches(operation.scope);
+    };
+    if (!current()) {
+        if (!lifetime.expired()) {
+            static_cast<void>(m_mediaDeletionTransaction.finish(operation));
+        }
+        return;
+    }
+
     m_state.setFileDeletionInProgress(true);
     recomputePublicProjection();
+    if (lifetime.expired()) {
+        return;
+    }
 
-    if (!m_mediaDeletionTransaction.accepts(operation)
-        || !m_directMediaScopePort.cursorMatches(operation.scope)) {
+    if (!current()) {
         if (m_mediaDeletionTransaction.finish(operation)) {
             m_state.setFileDeletionInProgress(false);
             recomputePublicProjection();
@@ -692,6 +780,9 @@ void DocumentSessionRuntimeGraph::deleteDisplayedFile(FileDeletionMode mode)
         [this, operation](const DocumentSessionMediaDeletionCompletion& completion) {
             finishMediaDeletion(operation, completion);
         });
+    if (lifetime.expired()) {
+        return;
+    }
     if (!started && m_mediaDeletionTransaction.finish(operation)) {
         m_state.setFileDeletionInProgress(false);
         recomputePublicProjection();
@@ -706,29 +797,53 @@ void DocumentSessionRuntimeGraph::openCurrentMediaWith(MediaOpenWithCallback cal
 
 void DocumentSessionRuntimeGraph::connectDocuments()
 {
-    appendConnection(m_documentConnections, m_imageDocument.snapshotChanged, m_owner,
-        [this]() { handleImageDocumentSnapshotChanged(); });
-    appendConnection(m_documentConnections, m_videoDocument.snapshotChanged, m_owner,
-        [this]() { handleVideoDocumentSnapshotChanged(); });
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    appendConnection(
+        m_documentConnections, m_imageDocument.snapshotChanged, m_owner, [this, lifetime]() {
+            if (!lifetime.expired()) {
+                handleImageDocumentSnapshotChanged();
+            }
+        });
+    appendConnection(
+        m_documentConnections, m_videoDocument.snapshotChanged, m_owner, [this, lifetime]() {
+            if (!lifetime.expired()) {
+                handleVideoDocumentSnapshotChanged();
+            }
+        });
 }
 
 void DocumentSessionRuntimeGraph::handleImageDocumentSnapshotChanged()
 {
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
     const ImageDocumentPageActiveNavigationSnapshot previousPageNavigation
         = m_imagePublicSnapshot.pageNavigation;
-    refreshImagePublicSnapshot();
+    if (!refreshImagePublicSnapshot()) {
+        return;
+    }
     if (tryEnterOpenedCollectionVideoFromImageSnapshot()) {
+        return;
+    }
+    if (lifetime.expired()) {
         return;
     }
     if (tryReturnToImageDocumentFromOpenedCollectionVideo()) {
         return;
     }
+    if (lifetime.expired()) {
+        return;
+    }
     if (tryClearOpenedCollectionVideoAfterImageDocumentCleared()) {
         return;
     }
+    if (lifetime.expired()) {
+        return;
+    }
     syncImageDocumentFileDeletionProgress();
+    if (lifetime.expired()) {
+        return;
+    }
     m_imageDocumentSyncRuntime.sync(DocumentSessionImageDocumentSyncRuntimeInput {
-        m_routingSource,
+        m_callbackState->routingSource,
         m_state.documentKind(),
         m_directMediaActivityPort.directImageSourceScopeEligible(),
         m_directMediaActivityPort.navigationActive(),
@@ -741,21 +856,34 @@ void DocumentSessionRuntimeGraph::handleImageDocumentSnapshotChanged()
 
 void DocumentSessionRuntimeGraph::handleVideoDocumentSnapshotChanged()
 {
-    refreshVideoPublicSnapshot();
-    if (m_routingSource) {
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    if (!refreshVideoPublicSnapshot()) {
+        return;
+    }
+    if (m_callbackState->routingSource || m_callbackState->videoLeafSyncSuppressed) {
         return;
     }
 
-    m_videoDocumentSyncRuntime.sync(DocumentSessionVideoDocumentSyncRuntimeInput {
-        m_state.documentKind(),
-        m_videoPublicSnapshot,
-        m_state.openedCollectionVideoActive(),
-    });
+    const quint64 transitionRevision = m_documentTransitionAdmission.current();
+    m_videoDocumentSyncRuntime.sync(
+        DocumentSessionVideoDocumentSyncRuntimeInput {
+            m_state.documentKind(),
+            m_videoPublicSnapshot,
+            m_state.openedCollectionVideoActive(),
+        },
+        DocumentSessionVideoDocumentSyncRuntimeControl {
+            [this, lifetime, transitionRevision]() {
+                return !lifetime.expired()
+                    && m_documentTransitionAdmission.current() == transitionRevision;
+            },
+        });
 }
 
 bool DocumentSessionRuntimeGraph::tryEnterOpenedCollectionVideoFromImageSnapshot()
 {
-    if (m_routingSource || m_imagePublicSnapshot.sourceKind != ImageDocumentPageKind::Video
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    if (m_callbackState->routingSource
+        || m_imagePublicSnapshot.sourceKind != ImageDocumentPageKind::Video
         || m_imagePublicSnapshot.unsupportedOpenedCollectionVideo
         || !m_imagePublicSnapshot.readyForInformation
         || m_imagePublicSnapshot.displayedOpenedCollectionScope.isEmpty()
@@ -770,27 +898,44 @@ bool DocumentSessionRuntimeGraph::tryEnterOpenedCollectionVideoFromImageSnapshot
         return false;
     }
 
-    MediaEntrySourceVideoPlaybackDeviceResult result
+    const ImageDocumentPageKind requestedSourceKind = m_imagePublicSnapshot.sourceKind;
+    const QUrl requestedSourceUrl = m_imagePublicSnapshot.sourceUrl;
+    const QUrl requestedDisplayedUrl = m_imagePublicSnapshot.displayedUrl;
+    const OpenedCollectionScopeLocation requestedScope
+        = m_imagePublicSnapshot.displayedOpenedCollectionScope;
+    m_directMediaOpenSupersessionAdmission.next();
+    const quint64 transitionRevision = m_documentTransitionAdmission.next();
+    std::optional<MediaEntrySourceVideoPlaybackDeviceResult> result
         = m_imageDocumentCommandRuntime.loadOpenedCollectionVideoPlaybackDevice(
-            m_imagePublicSnapshot.displayedOpenedCollectionScope, m_imagePublicSnapshot.sourceUrl);
-    if (const auto* error = kiriview::mediaEntrySourceResultError(result)) {
+            requestedScope, requestedSourceUrl);
+    if (lifetime.expired() || !m_documentTransitionAdmission.accepts(transitionRevision)
+        || !result.has_value() || m_imagePublicSnapshot.sourceKind != requestedSourceKind
+        || m_imagePublicSnapshot.sourceUrl != requestedSourceUrl
+        || m_imagePublicSnapshot.displayedUrl != requestedDisplayedUrl
+        || m_imagePublicSnapshot.displayedOpenedCollectionScope != requestedScope
+        || m_imagePublicSnapshot.unsupportedOpenedCollectionVideo
+        || !m_imagePublicSnapshot.readyForInformation) {
+        return false;
+    }
+    if (const auto* error = kiriview::mediaEntrySourceResultError(*result)) {
         logMediaEntrySourceError("opened collection video loading failed", *error);
         return false;
     }
 
-    auto* playbackDevice = kiriview::mediaEntrySourceResultValue(result);
+    auto* playbackDevice = kiriview::mediaEntrySourceResultValue(*result);
     if (playbackDevice == nullptr || playbackDevice->device == nullptr) {
         return false;
     }
 
-    enterOpenedCollectionVideoDocument(m_imagePublicSnapshot.sourceUrl,
+    enterOpenedCollectionVideoDocument(transitionRevision, requestedSourceUrl,
         videoPlaybackSourceDeviceFromMediaEntryDevice(std::move(*playbackDevice)));
     return true;
 }
 
 bool DocumentSessionRuntimeGraph::tryReturnToImageDocumentFromOpenedCollectionVideo()
 {
-    if (m_routingSource || !m_state.openedCollectionVideoActive()
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    if (m_callbackState->routingSource || !m_state.openedCollectionVideoActive()
         || m_state.documentKind() != DocumentSessionKind::Video
         || m_imagePublicSnapshot.sourceKind == ImageDocumentPageKind::Video
         || !m_imagePublicSnapshot.readyForInformation
@@ -798,77 +943,175 @@ bool DocumentSessionRuntimeGraph::tryReturnToImageDocumentFromOpenedCollectionVi
         return false;
     }
 
-    leaveVideoMode();
-    refreshVideoPublicSnapshot();
-    m_state.setOpenedCollectionVideoActive(false);
-    m_state.setSourceIdentity(m_imagePublicSnapshot.sourceUrl);
-    m_state.setFileDeletionInProgress(m_imagePublicSnapshot.fileDeletionInProgress);
-    setDocumentKind(DocumentSessionKind::Image);
-    publishActiveNavigationForImagePages();
+    const quint64 transitionRevision = m_documentTransitionAdmission.next();
+    const auto current = [this, lifetime, transitionRevision]() {
+        return !lifetime.expired() && m_documentTransitionAdmission.accepts(transitionRevision);
+    };
+    executeWithVideoLeafSyncSuppressed([this, current]() {
+        if (!current() || !leaveVideoMode() || !current()) {
+            return;
+        }
+        if (!refreshVideoPublicSnapshot() || !current()) {
+            return;
+        }
+        m_state.setOpenedCollectionVideoActive(false);
+        m_state.setSourceIdentity(m_imagePublicSnapshot.sourceUrl);
+        m_state.setFileDeletionInProgress(m_imagePublicSnapshot.fileDeletionInProgress);
+        setDocumentKind(DocumentSessionKind::Image);
+        if (!current()) {
+            return;
+        }
+        publishActiveNavigationForImagePages();
+    });
     return true;
 }
 
 bool DocumentSessionRuntimeGraph::tryClearOpenedCollectionVideoAfterImageDocumentCleared()
 {
-    if (m_routingSource || !m_state.openedCollectionVideoActive()
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    if (m_callbackState->routingSource || !m_state.openedCollectionVideoActive()
         || m_state.documentKind() != DocumentSessionKind::Video
         || !m_imagePublicSnapshot.sourceUrl.isEmpty() || m_imagePublicSnapshot.readyForInformation
         || m_imagePublicSnapshot.error || m_imagePublicSnapshot.fileDeletionInProgress) {
         return false;
     }
 
-    leaveVideoMode();
-    refreshVideoPublicSnapshot();
-    m_state.setOpenedCollectionVideoActive(false);
-    m_state.setSourceIdentity({});
-    m_state.setFileDeletionInProgress(false);
-    setDocumentKind(DocumentSessionKind::Empty);
-    recomputePublicProjection();
-    clearActiveNavigationRevealContextIfUnavailable();
+    const quint64 transitionRevision = m_documentTransitionAdmission.next();
+    const auto current = [this, lifetime, transitionRevision]() {
+        return !lifetime.expired() && m_documentTransitionAdmission.accepts(transitionRevision);
+    };
+    executeWithVideoLeafSyncSuppressed([this, current]() {
+        if (!current() || !leaveVideoMode() || !current()) {
+            return;
+        }
+        if (!refreshVideoPublicSnapshot() || !current()) {
+            return;
+        }
+        m_state.setOpenedCollectionVideoActive(false);
+        m_state.setSourceIdentity({});
+        m_state.setFileDeletionInProgress(false);
+        setDocumentKind(DocumentSessionKind::Empty);
+        if (!current()) {
+            return;
+        }
+        recomputePublicProjection();
+    });
     return true;
 }
 
 void DocumentSessionRuntimeGraph::enterOpenedCollectionVideoDocument(
-    const QUrl& sourceUrl, VideoPlaybackSourceDevice sourceDevice)
+    quint64 transitionRevision, const QUrl& sourceUrl, VideoPlaybackSourceDevice sourceDevice)
 {
-    cancelMediaOpenWith();
-    cancelMediaDeletion();
-    m_state.setDirectMediaNavigation({}, false, {});
-    const bool directMediaScopeChanged = m_state.clearDirectMediaCursor();
-    if (directMediaScopeChanged) {
-        syncMediaPredecodeScope();
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const auto current = [this, lifetime, transitionRevision]() {
+        return !lifetime.expired() && m_documentTransitionAdmission.accepts(transitionRevision);
+    };
+    auto sourceDeviceOwner = std::make_shared<VideoPlaybackSourceDevice>(std::move(sourceDevice));
+    executeWithVideoLeafSyncSuppressed([this, current, sourceUrl, sourceDeviceOwner]() {
+        if (!current()) {
+            return;
+        }
+        cancelMediaOpenWith();
+        if (!current()) {
+            return;
+        }
+        cancelMediaDeletion();
+        if (!current()) {
+            return;
+        }
+        m_state.setDirectMediaNavigation({}, false, {});
+        if (!current()) {
+            return;
+        }
+        const bool directMediaScopeChanged = m_state.clearDirectMediaCursor();
+        if (!current()) {
+            return;
+        }
+        if (directMediaScopeChanged) {
+            syncMediaPredecodeScope();
+            if (!current()) {
+                return;
+            }
+        }
+        if (!leaveVideoMode() || !current()) {
+            return;
+        }
+        if (!refreshVideoPublicSnapshot() || !current()) {
+            return;
+        }
+
+        m_state.setOpenedCollectionVideoActive(true);
+        if (!current()) {
+            return;
+        }
+        m_state.setSourceIdentity(sourceUrl);
+        if (!current()) {
+            return;
+        }
+        m_videoOutputRuntime.activateSurfaceClaimEpoch();
+        if (!current()) {
+            return;
+        }
+        if (!m_videoDocumentCommandRuntime.setSourceDevice(sourceUrl, std::move(*sourceDeviceOwner))
+            || !current()) {
+            return;
+        }
+        if (!refreshVideoPublicSnapshot() || !current()) {
+            return;
+        }
+        setDocumentKind(DocumentSessionKind::Video);
+        if (!current()) {
+            return;
+        }
+        recomputePublicProjection();
+    });
+}
+
+bool DocumentSessionRuntimeGraph::refreshImagePublicSnapshot()
+{
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const quint64 transitionRevision = m_documentTransitionAdmission.current();
+    const quint64 refreshRevision = m_imageSnapshotRefreshAdmission.next();
+    const auto snapshot = m_imageDocument.snapshot;
+    DocumentSessionPublicImageLeafSnapshot nextSnapshot
+        = buildDocumentSessionPublicImageLeafSnapshot(snapshot());
+    if (lifetime.expired() || m_documentTransitionAdmission.current() != transitionRevision
+        || !m_imageSnapshotRefreshAdmission.accepts(refreshRevision)) {
+        return false;
     }
-    leaveVideoMode();
-    refreshVideoPublicSnapshot();
 
-    m_state.setOpenedCollectionVideoActive(true);
-    m_state.setSourceIdentity(sourceUrl);
-    m_videoDocumentCommandRuntime.setSourceDevice(sourceUrl, std::move(sourceDevice));
-    refreshVideoPublicSnapshot();
-    setDocumentKind(DocumentSessionKind::Video);
-    recomputePublicProjection();
-    clearActiveNavigationRevealContextIfUnavailable();
+    m_imagePublicSnapshot = std::move(nextSnapshot);
+    return true;
 }
 
-void DocumentSessionRuntimeGraph::refreshImagePublicSnapshot()
+bool DocumentSessionRuntimeGraph::refreshVideoPublicSnapshot()
 {
-    m_imagePublicSnapshot = buildDocumentSessionPublicImageLeafSnapshot(m_imageDocument.snapshot());
-}
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const quint64 transitionRevision = m_documentTransitionAdmission.current();
+    const quint64 refreshRevision = m_videoSnapshotRefreshAdmission.next();
+    const auto snapshot = m_videoDocument.snapshot;
+    DocumentSessionPublicVideoLeafSnapshot nextSnapshot
+        = buildDocumentSessionPublicVideoLeafSnapshot(snapshot());
+    if (lifetime.expired() || m_documentTransitionAdmission.current() != transitionRevision
+        || !m_videoSnapshotRefreshAdmission.accepts(refreshRevision)) {
+        return false;
+    }
 
-void DocumentSessionRuntimeGraph::refreshVideoPublicSnapshot()
-{
-    m_videoPublicSnapshot = buildDocumentSessionPublicVideoLeafSnapshot(m_videoDocument.snapshot());
+    m_videoPublicSnapshot = std::move(nextSnapshot);
+    return true;
 }
 
 void DocumentSessionRuntimeGraph::refreshLeafPublicSnapshots()
 {
-    refreshImagePublicSnapshot();
-    refreshVideoPublicSnapshot();
+    if (!refreshImagePublicSnapshot()) {
+        return;
+    }
+    static_cast<void>(refreshVideoPublicSnapshot());
 }
 
 void DocumentSessionRuntimeGraph::syncImageDocumentFileDeletionProgress()
 {
-    if (m_routingSource) {
+    if (m_callbackState->routingSource) {
         return;
     }
 
@@ -888,6 +1131,11 @@ void DocumentSessionRuntimeGraph::syncImageDocumentFileDeletionProgress()
 void DocumentSessionRuntimeGraph::setDocumentKind(DocumentSessionKind kind)
 {
     m_state.setDocumentKindAndActiveZoomSnapshot(kind, activeZoomSnapshotForKind(kind));
+    if (kind == DocumentSessionKind::Video) {
+        m_videoOutputRuntime.activateSurfaceClaimEpoch();
+    } else {
+        m_videoOutputRuntime.retireSurfaceClaimEpoch();
+    }
 }
 
 void DocumentSessionRuntimeGraph::publishActiveNavigationForImagePages()
@@ -907,14 +1155,18 @@ void DocumentSessionRuntimeGraph::recomputePublicProjection()
 
 void DocumentSessionRuntimeGraph::routeSourceUrl(const QUrl& sourceUrl)
 {
+    m_directMediaOpenSupersessionAdmission.next();
     setPendingActiveNavigationRevealContext(
         ActiveNavigationRevealContext { ActiveNavigationRevealIntent::LoadOrOpen });
     executeRoutePlan(documentSessionRoutePlanForSourceUrl(sourceUrl, m_state.documentKind()));
 }
 
-void DocumentSessionRuntimeGraph::openMediaUrl(const QUrl& url)
+void DocumentSessionRuntimeGraph::openMediaUrl(
+    const QUrl& url, std::function<bool()> originatingCurrent)
 {
-    executeRoutePlan(documentSessionRoutePlanForMediaUrl(url, m_state.documentKind()));
+    static_cast<void>(
+        executeRoutePlan(documentSessionRoutePlanForMediaUrl(url, m_state.documentKind()),
+            DocumentSessionRouteExecutionControl { std::move(originatingCurrent), {} }));
 }
 
 void DocumentSessionRuntimeGraph::executeRoutePlan(const DocumentSessionRoutePlan& plan)
@@ -925,16 +1177,39 @@ void DocumentSessionRuntimeGraph::executeRoutePlan(const DocumentSessionRoutePla
 bool DocumentSessionRuntimeGraph::executeRoutePlan(
     const DocumentSessionRoutePlan& plan, const DocumentSessionRouteExecutionControl& control)
 {
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const NavigationSourceResolver sourceResolver = m_navigationSourceResolver;
+    const std::function<bool()> externallyCurrent = control.isCurrent;
+    const quint64 observedTransitionRevision = m_documentTransitionAdmission.current();
+    const bool externalAccepted = !externallyCurrent || externallyCurrent();
+    if (lifetime.expired() || m_documentTransitionAdmission.current() != observedTransitionRevision
+        || !externalAccepted) {
+        return false;
+    }
+    const quint64 transitionRevision = m_documentTransitionAdmission.next();
+    const DocumentSessionRouteExecutionControl executionControl {
+        [this, lifetime, transitionRevision, externallyCurrent]() {
+            if (lifetime.expired() || !m_documentTransitionAdmission.accepts(transitionRevision)) {
+                return false;
+            }
+            const bool externalAccepted = !externallyCurrent || externallyCurrent();
+            return externalAccepted && !lifetime.expired()
+                && m_documentTransitionAdmission.accepts(transitionRevision);
+        },
+        control.beforePublicProjection,
+    };
     qCDebug(kiriviewNavigationLog)
         << "execute route plan"
         << "routeKind" << routeKindName(plan.kind) << "sourceUrl" << plan.sourceUrl
         << "documentKindBefore" << documentKindName(m_state.documentKind());
     const bool completed = m_routeRuntime.executeWithSourceResolver(
         plan,
-        [this](const QUrl& sourceUrl) {
-            return m_navigationSourceResolver.resolveExternalSource(sourceUrl);
-        },
-        control);
+        [sourceResolver](
+            const QUrl& sourceUrl) { return sourceResolver.resolveExternalSource(sourceUrl); },
+        executionControl);
+    if (lifetime.expired()) {
+        return completed;
+    }
     qCDebug(kiriviewNavigationLog)
         << "execute route plan complete"
         << "routeKind" << routeKindName(plan.kind) << "completed" << completed
@@ -947,9 +1222,9 @@ bool DocumentSessionRuntimeGraph::executeRoutePlan(
     return completed;
 }
 
-void DocumentSessionRuntimeGraph::leaveVideoMode()
+bool DocumentSessionRuntimeGraph::leaveVideoMode()
 {
-    m_videoDocumentCommandRuntime.leaveMode(m_videoPublicSnapshot.sourceUrl);
+    return m_videoDocumentCommandRuntime.leaveMode(m_videoPublicSnapshot.sourceUrl);
 }
 
 void DocumentSessionRuntimeGraph::syncMediaPredecodeScope()
@@ -970,23 +1245,19 @@ void DocumentSessionRuntimeGraph::cancelMediaDeletion()
 
     const bool clearProgress = m_state.fileDeletionInProgress();
     m_mediaDeletionTransaction.cancel();
-    m_mediaDeletionRuntime.cancel();
     if (clearProgress) {
         m_state.setFileDeletionInProgress(false);
     }
+    m_mediaDeletionRuntime.cancel();
 }
 
 void DocumentSessionRuntimeGraph::cancelMediaOpenWith() { m_mediaOpenWithRuntime.cancel(); }
-
-DocumentSessionVideoOutputAttachmentPort DocumentSessionRuntimeGraph::videoOutputAttachmentPort()
-{
-    return m_videoDocumentCommandRuntime.outputAttachmentPort();
-}
 
 void DocumentSessionRuntimeGraph::finishMediaDeletion(
     const ImageAsyncScopedOperation<DirectMediaScope>& operation,
     const DocumentSessionMediaDeletionCompletion& completion)
 {
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
     if (!m_mediaDeletionTransaction.accepts(operation)) {
         return;
     }
@@ -1000,14 +1271,18 @@ void DocumentSessionRuntimeGraph::finishMediaDeletion(
 
     if (completion.plan.reportFailure) {
         const QString message = fileDeletionErrorMessage(completion.failure);
+        const std::function<void(const QString&)> fileDeletionFailed = m_fileDeletionFailed;
         if (!m_mediaDeletionTransaction.finish(operation)) {
             return;
         }
         m_state.setSessionErrorString(message);
         m_state.setFileDeletionInProgress(false);
         recomputePublicProjection();
-        if (m_fileDeletionFailed) {
-            m_fileDeletionFailed(message);
+        if (lifetime.expired()) {
+            return;
+        }
+        if (fileDeletionFailed) {
+            fileDeletionFailed(message);
         }
         return;
     }
@@ -1027,6 +1302,9 @@ void DocumentSessionRuntimeGraph::finishMediaDeletion(
             },
         };
         static_cast<void>(executeRoutePlan(completion.plan.routePlan, control));
+        if (lifetime.expired()) {
+            return;
+        }
         if (!committed && m_mediaDeletionTransaction.finish(operation)) {
             m_state.setFileDeletionInProgress(false);
             recomputePublicProjection();

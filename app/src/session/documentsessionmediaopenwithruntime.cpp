@@ -15,7 +15,11 @@ DocumentSessionMediaOpenWithRuntime::DocumentSessionMediaOpenWithRuntime(
 {
 }
 
-DocumentSessionMediaOpenWithRuntime::~DocumentSessionMediaOpenWithRuntime() { cancel(); }
+DocumentSessionMediaOpenWithRuntime::~DocumentSessionMediaOpenWithRuntime()
+{
+    m_lifetime.reset();
+    cancel();
+}
 
 void DocumentSessionMediaOpenWithRuntime::open(
     QObject* receiver, const MediaOpenWithPlan& plan, MediaOpenWithCallback callback)
@@ -27,11 +31,18 @@ void DocumentSessionMediaOpenWithRuntime::open(
         return;
     }
 
-    cancel();
+    const std::weak_ptr<void> lifetime = m_lifetime;
     const std::shared_ptr<ImageAsyncOperationState> operationState = m_operation;
+    const MediaOpenWithProvider provider = m_provider;
     const quint64 operationId = operationState->start();
+    ImageIoJob previousJob = std::move(m_job);
+    previousJob.cancel();
+    if (lifetime.expired() || !operationState->accepts(operationId)) {
+        return;
+    }
+
     auto sharedCallback = std::make_shared<MediaOpenWithCallback>(std::move(callback));
-    m_job = m_provider(receiver, *plan.request,
+    ImageIoJob startedJob = provider(receiver, *plan.request,
         [operationState, operationId, sharedCallback](
             MediaOpenWithResult result, const KioOperationFailure& failure) {
             if (!operationState->finish(operationId)) {
@@ -40,12 +51,19 @@ void DocumentSessionMediaOpenWithRuntime::open(
 
             invokeIfSet(*sharedCallback, result, failure);
         });
+    if (lifetime.expired() || !operationState->accepts(operationId)) {
+        startedJob.cancel();
+        return;
+    }
+    m_job = std::move(startedJob);
 }
 
 void DocumentSessionMediaOpenWithRuntime::cancel()
 {
-    m_job.cancel();
-    m_operation->cancel();
+    const std::shared_ptr<ImageAsyncOperationState> operationState = m_operation;
+    ImageIoJob job = std::move(m_job);
+    operationState->cancel();
+    job.cancel();
 }
 
 bool DocumentSessionMediaOpenWithRuntime::active() const { return m_operation->active(); }

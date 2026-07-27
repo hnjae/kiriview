@@ -6,6 +6,7 @@
 #include <QObject>
 #include <QTest>
 #include <QUrl>
+#include <memory>
 #include <vector>
 
 class TestDocumentSessionVideoDocumentSyncRuntime : public QObject
@@ -15,6 +16,9 @@ class TestDocumentSessionVideoDocumentSyncRuntime : public QObject
 private Q_SLOTS:
     void ignoresInactiveDocumentKind();
     void emptyVideoSourceClearsSessionDirectMedia();
+    void supersededDocumentKindClearStopsRemainingMutation();
+    void documentKindClearCanDestroyRuntime();
+    void nestedSyncSupersedesRemainingClearMutation();
     void directVideoSourceCommitsCursorAndRefreshesWhenScopeChanged();
     void staleDirectVideoConfirmationPreservesSourceIdentity();
     void openedCollectionVideoSourceDoesNotCommitDirectCursor();
@@ -50,6 +54,7 @@ struct VideoSyncFixture
             [this](kiriview::DocumentSessionKind kind) {
                 events.push_back(Event::SetDocumentKind);
                 documentKind = kind;
+                return true;
             },
             [this]() { events.push_back(Event::ClearNavigation); },
             [this](const QUrl& url) {
@@ -90,9 +95,85 @@ void TestDocumentSessionVideoDocumentSyncRuntime::emptyVideoSourceClearsSessionD
     QCOMPARE(fixture.documentKind, kiriview::DocumentSessionKind::Empty);
     QVERIFY(fixture.sourceIdentity.isEmpty());
     QCOMPARE(fixture.events,
-        (std::vector<VideoSyncFixture::Event> { VideoSyncFixture::Event::ClearCursor,
-            VideoSyncFixture::Event::SetSourceIdentity, VideoSyncFixture::Event::SetDocumentKind,
+        (std::vector<VideoSyncFixture::Event> { VideoSyncFixture::Event::SetDocumentKind,
+            VideoSyncFixture::Event::ClearCursor, VideoSyncFixture::Event::SetSourceIdentity,
             VideoSyncFixture::Event::ClearNavigation, VideoSyncFixture::Event::Publish }));
+}
+
+void TestDocumentSessionVideoDocumentSyncRuntime::
+    supersededDocumentKindClearStopsRemainingMutation()
+{
+    int clearCursorCount = 0;
+    int clearSourceIdentityCount = 0;
+    int clearNavigationCount = 0;
+    int publishCount = 0;
+    kiriview::DocumentSessionVideoDocumentSyncRuntimePorts ports;
+    ports.clearDirectMediaCursor = [&]() { ++clearCursorCount; };
+    ports.setSourceIdentity = [&](const QUrl&) { ++clearSourceIdentityCount; };
+    ports.setDocumentKind = [](kiriview::DocumentSessionKind) { return false; };
+    ports.clearDirectMediaNavigation = [&]() { ++clearNavigationCount; };
+    ports.recomputePublicProjection = [&]() { ++publishCount; };
+    kiriview::DocumentSessionVideoDocumentSyncRuntime runtime(std::move(ports));
+
+    runtime.sync(kiriview::DocumentSessionKind::Video, videoSnapshot(QUrl()));
+
+    QCOMPARE(clearCursorCount, 0);
+    QCOMPARE(clearSourceIdentityCount, 0);
+    QCOMPARE(clearNavigationCount, 0);
+    QCOMPARE(publishCount, 0);
+}
+
+void TestDocumentSessionVideoDocumentSyncRuntime::documentKindClearCanDestroyRuntime()
+{
+    int remainingMutationCount = 0;
+    using Runtime = kiriview::DocumentSessionVideoDocumentSyncRuntime;
+    std::unique_ptr<Runtime> runtime;
+    kiriview::DocumentSessionVideoDocumentSyncRuntimePorts ports;
+    ports.setDocumentKind = [&](kiriview::DocumentSessionKind) {
+        runtime.reset();
+        return false;
+    };
+    ports.clearDirectMediaNavigation = [&]() { ++remainingMutationCount; };
+    ports.recomputePublicProjection = [&]() { ++remainingMutationCount; };
+    runtime = std::make_unique<Runtime>(std::move(ports));
+
+    runtime->sync(kiriview::DocumentSessionKind::Video, videoSnapshot(QUrl()));
+
+    QCOMPARE(remainingMutationCount, 0);
+}
+
+void TestDocumentSessionVideoDocumentSyncRuntime::nestedSyncSupersedesRemainingClearMutation()
+{
+    const QUrl replacementUrl = localUrl(QStringLiteral("/media/replacement.mkv"));
+    QUrl sourceIdentity;
+    int clearNavigationCount = 0;
+    int publishCount = 0;
+    bool nestedSyncSubmitted = false;
+    using Runtime = kiriview::DocumentSessionVideoDocumentSyncRuntime;
+    Runtime* runtime = nullptr;
+    kiriview::DocumentSessionVideoDocumentSyncRuntimePorts ports;
+    ports.clearDirectMediaCursor = [&]() {
+        if (nestedSyncSubmitted) {
+            return;
+        }
+        nestedSyncSubmitted = true;
+        runtime->sync(kiriview::DocumentSessionKind::Video, videoSnapshot(replacementUrl));
+    };
+    ports.setSourceIdentity = [&](const QUrl& url) { sourceIdentity = url; };
+    ports.setDocumentKind = [](kiriview::DocumentSessionKind) { return true; };
+    ports.clearDirectMediaNavigation = [&]() { ++clearNavigationCount; };
+    ports.confirmDirectVideoCursor
+        = [](const QUrl&) { return kiriview::DirectMediaConfirmation::Committed; };
+    ports.recomputePublicProjection = [&]() { ++publishCount; };
+    Runtime ownedRuntime(std::move(ports));
+    runtime = &ownedRuntime;
+
+    runtime->sync(kiriview::DocumentSessionKind::Video, videoSnapshot(QUrl()));
+
+    QVERIFY(nestedSyncSubmitted);
+    QCOMPARE(sourceIdentity, replacementUrl);
+    QCOMPARE(clearNavigationCount, 0);
+    QCOMPARE(publishCount, 1);
 }
 
 void TestDocumentSessionVideoDocumentSyncRuntime::

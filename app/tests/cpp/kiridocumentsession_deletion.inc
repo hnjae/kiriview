@@ -300,7 +300,7 @@ void TestKiriDocumentSessionDeletion::pendingDirectImageReplacementDoesNotExpose
     session->setSourceUrl(secondImage);
 
     QCOMPARE(imageDataLoader.loadCount(), std::size_t(2));
-    QCOMPARE(session->imageDocument()->displayedUrl(), firstImage);
+    QCOMPARE(session->imageDocument()->displayedUrl(), QUrl());
     QCOMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Loading);
     QVERIFY(!session->activeImageReady());
     QVERIFY(!session->displayedFileDeletionAvailable());
@@ -317,6 +317,49 @@ void TestKiriDocumentSessionDeletion::pendingDirectImageReplacementDoesNotExpose
     session->deleteDisplayedFile(KiriDocumentSession::DeletionMode::MoveToTrash);
 
     QCOMPARE(fileDeletionProvider.operationCount(), std::size_t(0));
+}
+
+void TestKiriDocumentSessionDeletion::directMediaDeletionSupersedesPendingNavigation()
+{
+    ManualDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    kiriview::TestSupport::ManualFileDeletionProvider fileDeletionProvider;
+    const QUrl currentClip = localUrl(QStringLiteral("/media/01.mp4"));
+    const QUrl nextClip = localUrl(QStringLiteral("/media/02.mp4"));
+    const std::vector<kiriview::DirectMediaNavigationCandidate> candidates {
+        directMediaNavigationCandidate(currentClip),
+        directMediaNavigationCandidate(nextClip),
+    };
+    std::unique_ptr<KiriDocumentSession> session = createSessionWithProvider(
+        directMediaNavigationProvider.provider(), &fileDeletionProvider);
+
+    session->setSourceUrl(currentClip);
+    QCOMPARE(directMediaNavigationProvider.loadCount(), std::size_t(1));
+    directMediaNavigationProvider.finishLoad(0, candidates);
+    QVERIFY(session->activeNavigationKnown());
+
+    session->openNextActiveNavigation();
+    QCOMPARE(directMediaNavigationProvider.loadCount(), std::size_t(2));
+    QVERIFY(!directMediaNavigationProvider.loadAt(1).canceled);
+
+    session->deleteDisplayedFile(KiriDocumentSession::DeletionMode::MoveToTrash);
+
+    QCOMPARE(directMediaNavigationProvider.loadCount(), std::size_t(3));
+    QVERIFY(directMediaNavigationProvider.loadAt(1).canceled);
+    QVERIFY(!directMediaNavigationProvider.loadAt(2).canceled);
+    QVERIFY(session->fileDeletionInProgress());
+
+    directMediaNavigationProvider.deliverIgnoringCancellation(1, candidates);
+
+    QCOMPARE(session->sourceUrl(), currentClip);
+    QCOMPARE(session->videoDocument()->sourceUrl(), currentClip);
+    QVERIFY(session->fileDeletionInProgress());
+    QVERIFY(!directMediaNavigationProvider.loadAt(2).canceled);
+    QCOMPARE(fileDeletionProvider.operationCount(), std::size_t(0));
+
+    directMediaNavigationProvider.finishLoad(2, candidates);
+
+    QCOMPARE(fileDeletionProvider.operationCount(), std::size_t(1));
+    QCOMPARE(fileDeletionProvider.backOperation().request.targetUrl, currentClip);
 }
 
 void TestKiriDocumentSessionDeletion::
@@ -442,4 +485,67 @@ void TestKiriDocumentSessionDeletion::
     QCOMPARE(session->imageDocument()->sourceUrl(), latestImage);
     QTRY_VERIFY(imageDataLoader.hasActiveLoadForUrl(latestImage));
     QTRY_VERIFY(!imageDataLoader.hasActiveLoadForUrl(supersededImage));
+}
+
+void TestKiriDocumentSessionDeletion::deletionCancellationCallbackCanDestroySession()
+{
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    kiriview::TestSupport::ManualFileDeletionProvider fileDeletionProvider;
+    const QUrl firstVideo = localUrl(QStringLiteral("/first/cancel-destroy-first.mp4"));
+    const QUrl replacementVideo
+        = localUrl(QStringLiteral("/replacement/cancel-destroy-replacement.mp4"));
+    directMediaNavigationProvider.setMedia(
+        localUrl(QStringLiteral("/first/")), { directMediaNavigationCandidate(firstVideo) });
+    directMediaNavigationProvider.setMedia(localUrl(QStringLiteral("/replacement/")),
+        { directMediaNavigationCandidate(replacementVideo) });
+    std::unique_ptr<KiriDocumentSession> session
+        = createSession(directMediaNavigationProvider, &fileDeletionProvider);
+    session->setSourceUrl(firstVideo);
+    fileDeletionProvider.setCancelHook([&session]() { session.reset(); });
+    session->deleteDisplayedFile(KiriDocumentSession::DeletionMode::MoveToTrash);
+    QCOMPARE(fileDeletionProvider.operationCount(), std::size_t(1));
+
+    KiriDocumentSession* const executingSession = session.get();
+    executingSession->setSourceUrl(replacementVideo);
+
+    QVERIFY(!session);
+    QVERIFY(fileDeletionProvider.operationAt(0).canceled);
+}
+
+void TestKiriDocumentSessionDeletion::deletionCancellationReentryCanStartLatestDeletion()
+{
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    kiriview::TestSupport::ManualFileDeletionProvider fileDeletionProvider;
+    const QUrl firstVideo = localUrl(QStringLiteral("/first/cancel-first.mp4"));
+    const QUrl supersededVideo = localUrl(QStringLiteral("/superseded/cancel-superseded.mp4"));
+    const QUrl latestVideo = localUrl(QStringLiteral("/latest/cancel-latest.mp4"));
+    directMediaNavigationProvider.setMedia(
+        localUrl(QStringLiteral("/first/")), { directMediaNavigationCandidate(firstVideo) });
+    directMediaNavigationProvider.setMedia(localUrl(QStringLiteral("/superseded/")),
+        { directMediaNavigationCandidate(supersededVideo) });
+    directMediaNavigationProvider.setMedia(
+        localUrl(QStringLiteral("/latest/")), { directMediaNavigationCandidate(latestVideo) });
+    std::unique_ptr<KiriDocumentSession> session
+        = createSession(directMediaNavigationProvider, &fileDeletionProvider);
+    session->setSourceUrl(firstVideo);
+    bool latestDeletionSubmitted = false;
+    fileDeletionProvider.setCancelHook([&]() {
+        if (latestDeletionSubmitted) {
+            return;
+        }
+        latestDeletionSubmitted = true;
+        session->setSourceUrl(latestVideo);
+        session->deleteDisplayedFile(KiriDocumentSession::DeletionMode::MoveToTrash);
+    });
+    session->deleteDisplayedFile(KiriDocumentSession::DeletionMode::MoveToTrash);
+    QCOMPARE(fileDeletionProvider.operationCount(), std::size_t(1));
+    QVERIFY(session->fileDeletionInProgress());
+
+    session->setSourceUrl(supersededVideo);
+
+    QVERIFY(latestDeletionSubmitted);
+    QCOMPARE(session->sourceUrl(), latestVideo);
+    QCOMPARE(fileDeletionProvider.operationCount(), std::size_t(2));
+    QCOMPARE(fileDeletionProvider.backOperation().request.targetUrl, latestVideo);
+    QVERIFY(session->fileDeletionInProgress());
 }

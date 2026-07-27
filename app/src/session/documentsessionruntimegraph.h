@@ -5,6 +5,7 @@
 #define KIRIVIEW_DOCUMENTSESSIONRUNTIMEGRAPH_H
 
 #include "async/imageasyncoperationstate.h"
+#include "async/imageasyncticket.h"
 #include "navigation/directmedianavigationcandidateprovider.h"
 #include "navigation/directmedianavigationmodel.h"
 #include "session/activenavigationprojection.h"
@@ -129,6 +130,12 @@ public:
     void openCurrentMediaWith(MediaOpenWithCallback callback);
 
 private:
+    struct CallbackState
+    {
+        bool routingSource = false;
+        bool videoLeafSyncSuppressed = false;
+    };
+
     void applyDirectMediaNavigationRevealAction(
         DocumentSessionDirectMediaNavigationRevealAction action);
     ActiveNavigationDispatchOutcome executeActiveNavigationDispatchRequest(
@@ -139,6 +146,8 @@ private:
     void setActiveNavigationRevealContext(ActiveNavigationRevealContext context);
     void applyActiveNavigationRevealContext(ActiveNavigationRevealContext context);
     void clearActiveNavigationRevealContextIfUnavailable();
+    void executeWithRoutingSuppressed(const std::function<void()>& mutation);
+    void executeWithVideoLeafSyncSuppressed(const std::function<void()>& mutation);
     void connectDocuments();
     void handleImageDocumentSnapshotChanged();
     void handleVideoDocumentSnapshotChanged();
@@ -146,28 +155,29 @@ private:
     bool tryReturnToImageDocumentFromOpenedCollectionVideo();
     bool tryClearOpenedCollectionVideoAfterImageDocumentCleared();
     void enterOpenedCollectionVideoDocument(
-        const QUrl& sourceUrl, VideoPlaybackSourceDevice sourceDevice);
-    void refreshImagePublicSnapshot();
-    void refreshVideoPublicSnapshot();
+        quint64 transitionRevision, const QUrl& sourceUrl, VideoPlaybackSourceDevice sourceDevice);
+    [[nodiscard]] bool refreshImagePublicSnapshot();
+    [[nodiscard]] bool refreshVideoPublicSnapshot();
     void refreshLeafPublicSnapshots();
     void syncImageDocumentFileDeletionProgress();
     void setDocumentKind(DocumentSessionKind kind);
     void publishActiveNavigationForImagePages();
     void recomputePublicProjection();
     void routeSourceUrl(const QUrl& sourceUrl);
-    void openMediaUrl(const QUrl& url);
+    void openMediaUrl(const QUrl& url, std::function<bool()> originatingCurrent);
     void executeRoutePlan(const DocumentSessionRoutePlan& plan);
     [[nodiscard]] bool executeRoutePlan(
         const DocumentSessionRoutePlan& plan, const DocumentSessionRouteExecutionControl& control);
-    void leaveVideoMode();
+    [[nodiscard]] bool leaveVideoMode();
     void syncMediaPredecodeScope();
     void cacheDisplayedMediaPredecodeImages();
     void cancelMediaDeletion();
     void cancelMediaOpenWith();
-    DocumentSessionVideoOutputAttachmentPort videoOutputAttachmentPort();
     void finishMediaDeletion(const ImageAsyncScopedOperation<DirectMediaScope>& operation,
         const DocumentSessionMediaDeletionCompletion& completion);
     [[nodiscard]] ActiveZoomSnapshot activeZoomSnapshotForKind(DocumentSessionKind kind) const;
+    std::shared_ptr<void> m_callbackLifetime = std::make_shared<char>();
+    std::shared_ptr<CallbackState> m_callbackState = std::make_shared<CallbackState>();
     QObject* m_owner = nullptr;
     DocumentSessionImageDocumentSnapshotPort& m_imageDocument;
     DocumentSessionImageDocumentCommandRuntime m_imageDocumentCommandRuntime;
@@ -182,6 +192,10 @@ private:
     DocumentSessionDirectMediaNavigationInputPort m_directMediaNavigationInputPort;
     DocumentSessionProjectionRuntime m_projectionRuntime;
     DocumentSessionRouteRuntime m_routeRuntime;
+    ImageAsyncTicket m_documentTransitionAdmission;
+    ImageAsyncTicket m_directMediaOpenSupersessionAdmission;
+    ImageAsyncTicket m_imageSnapshotRefreshAdmission;
+    ImageAsyncTicket m_videoSnapshotRefreshAdmission;
     DocumentSessionActiveNavigationRuntime m_activeNavigationRuntime;
     DocumentSessionThumbnailRuntime m_activeNavigationThumbnailRuntime;
     DocumentSessionDirectMediaNavigationCoordinator m_directMediaNavigationCoordinator;
@@ -197,7 +211,6 @@ private:
     DocumentSessionMediaPredecodeInputPort m_mediaPredecodeInputPort;
     DocumentSessionMediaOpenWithPlanPort m_mediaOpenWithPlanPort;
     DocumentSessionVideoOutputRuntime m_videoOutputRuntime;
-    bool m_routingSource = false;
 };
 }
 

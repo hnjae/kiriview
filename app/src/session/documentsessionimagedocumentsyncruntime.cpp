@@ -5,6 +5,37 @@
 
 #include <utility>
 
+namespace {
+template <typename Current>
+bool syncDirectImageCursorWithPorts(kiriview::DocumentSessionKind documentKind,
+    const kiriview::DirectMediaCursor& cursor,
+    const kiriview::DocumentSessionPublicImageLeafSnapshot& image,
+    const kiriview::DocumentSessionImageDocumentSyncRuntimePorts& ports, const Current& current)
+{
+    const kiriview::DocumentSessionDirectImageCursorSyncPlan plan
+        = kiriview::documentSessionDirectImageCursorSyncPlan(
+            kiriview::DocumentSessionDirectImageCursorSyncInput { documentKind, cursor, image });
+    switch (plan.operation) {
+    case kiriview::DocumentSessionDirectImageCursorSyncOperation::None:
+        return false;
+    case kiriview::DocumentSessionDirectImageCursorSyncOperation::ConfirmDirectImageCursor:
+        if (ports.confirmDirectImageCursor) {
+            ports.confirmDirectImageCursor(plan.url);
+        }
+        return false;
+    case kiriview::DocumentSessionDirectImageCursorSyncOperation::
+        RestoreDirectImageCursorAfterFailure: {
+        const bool changed = ports.restoreDirectImageCursorAfterFailure
+            ? ports.restoreDirectImageCursorAfterFailure()
+            : false;
+        return current() && changed;
+    }
+    }
+
+    return false;
+}
+}
+
 namespace kiriview {
 DocumentSessionImageDocumentSyncRuntime::DocumentSessionImageDocumentSyncRuntime(
     DocumentSessionImageDocumentSyncRuntimePorts ports)
@@ -12,75 +43,97 @@ DocumentSessionImageDocumentSyncRuntime::DocumentSessionImageDocumentSyncRuntime
 {
 }
 
+DocumentSessionImageDocumentSyncRuntime::~DocumentSessionImageDocumentSyncRuntime()
+{
+    m_callbackLifetime.reset();
+}
+
 void DocumentSessionImageDocumentSyncRuntime::sync(
     const DocumentSessionImageDocumentSyncRuntimeInput& input)
 {
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const quint64 syncRevision = m_syncAdmission.next();
+    const DocumentSessionImageDocumentSyncRuntimePorts ports = m_ports;
+    const auto current = [this, lifetime, syncRevision]() {
+        return !lifetime.expired() && m_syncAdmission.accepts(syncRevision);
+    };
     if (input.routingSource || input.documentKind != DocumentSessionKind::Image) {
         return;
     }
 
-    const bool directMediaScopeChanged
-        = syncDirectImageCursor(input.documentKind, input.directMediaCursor, input.image);
+    const bool directMediaScopeChanged = syncDirectImageCursorWithPorts(
+        input.documentKind, input.directMediaCursor, input.image, ports, current);
+    if (!current()) {
+        return;
+    }
     apply(documentSessionImageDocumentSyncPlan(DocumentSessionImageDocumentSyncInput {
-        input.routingSource,
-        input.documentKind,
-        input.directImageLoadMayUseImageDocumentSourceScope,
-        input.directMediaNavigationActive,
-        input.directMediaNavigationKnown,
-        directMediaScopeChanged,
-        input.previousPageNavigation,
-        input.image,
-    }));
+              input.routingSource,
+              input.documentKind,
+              input.directImageLoadMayUseImageDocumentSourceScope,
+              input.directMediaNavigationActive,
+              input.directMediaNavigationKnown,
+              directMediaScopeChanged,
+              input.previousPageNavigation,
+              input.image,
+          }),
+        syncRevision);
 }
 
 bool DocumentSessionImageDocumentSyncRuntime::syncDirectImageCursor(
     DocumentSessionKind documentKind, const DirectMediaCursor& cursor,
     const DocumentSessionPublicImageLeafSnapshot& image)
 {
-    const DocumentSessionDirectImageCursorSyncPlan plan = documentSessionDirectImageCursorSyncPlan(
-        DocumentSessionDirectImageCursorSyncInput { documentKind, cursor, image });
-    switch (plan.operation) {
-    case DocumentSessionDirectImageCursorSyncOperation::None:
-        return false;
-    case DocumentSessionDirectImageCursorSyncOperation::ConfirmDirectImageCursor:
-        if (m_ports.confirmDirectImageCursor) {
-            m_ports.confirmDirectImageCursor(plan.url);
-        }
-        return false;
-    case DocumentSessionDirectImageCursorSyncOperation::RestoreDirectImageCursorAfterFailure:
-        return m_ports.restoreDirectImageCursorAfterFailure
-            ? m_ports.restoreDirectImageCursorAfterFailure()
-            : false;
-    }
-
-    return false;
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const quint64 syncRevision = m_syncAdmission.next();
+    const DocumentSessionImageDocumentSyncRuntimePorts ports = m_ports;
+    const auto current = [this, lifetime, syncRevision]() {
+        return !lifetime.expired() && m_syncAdmission.accepts(syncRevision);
+    };
+    return syncDirectImageCursorWithPorts(documentKind, cursor, image, ports, current);
 }
 
 void DocumentSessionImageDocumentSyncRuntime::apply(
-    const DocumentSessionImageDocumentSyncPlan& plan)
+    const DocumentSessionImageDocumentSyncPlan& plan, quint64 syncRevision)
 {
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const DocumentSessionImageDocumentSyncRuntimePorts ports = m_ports;
+    const auto current = [this, lifetime, syncRevision]() {
+        return !lifetime.expired() && m_syncAdmission.accepts(syncRevision);
+    };
     if (!plan.active) {
         return;
     }
 
-    if (plan.setSourceIdentity && m_ports.setSourceIdentity) {
-        m_ports.setSourceIdentity(plan.sourceIdentityUrl);
+    if (plan.setSourceIdentity && ports.setSourceIdentity) {
+        ports.setSourceIdentity(plan.sourceIdentityUrl);
+        if (!current()) {
+            return;
+        }
     }
-    if (plan.syncFileDeletionProgress && m_ports.setFileDeletionInProgress) {
-        m_ports.setFileDeletionInProgress(plan.fileDeletionInProgress);
+    if (plan.syncFileDeletionProgress && ports.setFileDeletionInProgress) {
+        ports.setFileDeletionInProgress(plan.fileDeletionInProgress);
+        if (!current()) {
+            return;
+        }
     }
 
     switch (plan.directMediaOperation) {
     case DocumentSessionImageDocumentSyncDirectMediaOperation::None:
         break;
     case DocumentSessionImageDocumentSyncDirectMediaOperation::RefreshDirectMediaNavigation:
-        if (m_ports.refreshDirectMediaNavigation) {
-            m_ports.refreshDirectMediaNavigation();
+        if (ports.refreshDirectMediaNavigation) {
+            ports.refreshDirectMediaNavigation();
+            if (!current()) {
+                return;
+            }
         }
         break;
     case DocumentSessionImageDocumentSyncDirectMediaOperation::CacheDisplayedMediaPredecodeImages:
-        if (m_ports.cacheDisplayedMediaPredecodeImages) {
-            m_ports.cacheDisplayedMediaPredecodeImages();
+        if (ports.cacheDisplayedMediaPredecodeImages) {
+            ports.cacheDisplayedMediaPredecodeImages();
+            if (!current()) {
+                return;
+            }
         }
         break;
     }
@@ -89,13 +142,13 @@ void DocumentSessionImageDocumentSyncRuntime::apply(
     case DocumentSessionImageDocumentSyncProjectionOperation::None:
         return;
     case DocumentSessionImageDocumentSyncProjectionOperation::RecomputePublicProjection:
-        if (m_ports.recomputePublicProjection) {
-            m_ports.recomputePublicProjection();
+        if (ports.recomputePublicProjection) {
+            ports.recomputePublicProjection();
         }
         return;
     case DocumentSessionImageDocumentSyncProjectionOperation::PublishImagePageActiveNavigation:
-        if (m_ports.publishImagePageActiveNavigation) {
-            m_ports.publishImagePageActiveNavigation();
+        if (ports.publishImagePageActiveNavigation) {
+            ports.publishImagePageActiveNavigation();
         }
         return;
     }

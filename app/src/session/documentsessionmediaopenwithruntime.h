@@ -25,6 +25,7 @@ public:
     [[nodiscard]] bool active() const;
 
 private:
+    std::shared_ptr<void> m_lifetime = std::make_shared<char>();
     MediaOpenWithProvider m_provider;
     ImageIoJob m_job;
     std::shared_ptr<ImageAsyncOperationState> m_operation {

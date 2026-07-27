@@ -14,7 +14,10 @@
 #include "session/thumbnailimagestore.h"
 
 #include <QPointer>
+#include <QSignalBlocker>
 #include <QVariantMap>
+#include <algorithm>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -44,6 +47,24 @@ kiriview::FileDeletionMode toFileDeletionMode(KiriDocumentSession::DeletionMode 
     }
 
     return kiriview::FileDeletionMode::MoveToTrash;
+}
+
+std::vector<kiriview::DocumentSessionPublicSignal> mergePublicSignals(
+    std::vector<kiriview::DocumentSessionPublicSignal> preferred,
+    const std::vector<kiriview::DocumentSessionPublicSignal>& fallback)
+{
+    for (kiriview::DocumentSessionPublicSignal signal : fallback) {
+        if (!std::ranges::contains(preferred, signal)) {
+            preferred.push_back(signal);
+        }
+    }
+
+    const auto projectionRevision = std::ranges::find(
+        preferred, kiriview::DocumentSessionPublicSignal::PublicProjectionRevision);
+    if (projectionRevision != preferred.end() && projectionRevision != preferred.begin()) {
+        std::rotate(preferred.begin(), projectionRevision, std::next(projectionRevision));
+    }
+    return preferred;
 }
 
 KiriImageDocument::DeletionMode toImageDocumentDeletionMode(kiriview::FileDeletionMode mode)
@@ -402,9 +423,8 @@ kiriview::DocumentSessionVideoDocumentCommandPort KiriDocumentSession::videoDocu
             } },
         { [&document]() { document.stop(); } },
         { [&document]() { return document.videoOutput(); },
-            [&document](QObject* videoOutput) { document.setVideoOutput(videoOutput); },
-            [&document](const QRectF& contentRect, const QRectF& sourceRect) {
-                document.setVideoOutputGeometry(contentRect, sourceRect);
+            [&document](QObject* videoOutput, const QRectF& contentRect, const QRectF& sourceRect) {
+                document.setVideoOutputAttachment(videoOutput, contentRect, sourceRect);
             } },
     };
 }
@@ -432,7 +452,8 @@ KiriDocumentSession::KiriDocumentSession(kiriview::KiriDocumentSessionDependenci
               }),
           [this](const QString& message) { Q_EMIT fileDeletionFailed(message); }, this))
     , m_videoDocument(
-          new KiriVideoDocument(std::move(dependencies.videoPlaybackControlTimerScheduler), this))
+          new KiriVideoDocument(std::move(dependencies.videoPlaybackControlTimerScheduler),
+              std::move(dependencies.videoMediaBackendFactory), this))
 {
     dependencies.sessionRuntime.fileDeletionFailed
         = [this](const QString& message) { Q_EMIT fileDeletionFailed(message); };
@@ -447,7 +468,13 @@ KiriDocumentSession::KiriDocumentSession(kiriview::KiriDocumentSessionDependenci
     m_mediaInformation = new KiriMediaInformation(*this, this);
 }
 
-KiriDocumentSession::~KiriDocumentSession() = default;
+KiriDocumentSession::~KiriDocumentSession()
+{
+    const QSignalBlocker sessionSignals(this);
+    const QSignalBlocker imageDocumentSignals(m_imageDocument);
+    const QSignalBlocker videoDocumentSignals(m_videoDocument);
+    m_videoDocument->runWithPublicSignalsSuppressed([this]() { m_runtime.reset(); });
+}
 
 QUrl KiriDocumentSession::sourceUrl() const { return m_runtime->sourceUrl(); }
 
@@ -689,14 +716,16 @@ KiriDocumentSession::requestNextActiveNavigation()
 
 QString KiriDocumentSession::requestPreviousActiveNavigationBoundaryText()
 {
-    return kiriview::activeNavigationBoundaryFeedbackText(
-        m_runtime->activeNavigationBoundaryScope(), m_runtime->requestPreviousActiveNavigation());
+    const auto boundaryScope = m_runtime->activeNavigationBoundaryScope();
+    const auto outcome = m_runtime->requestPreviousActiveNavigation();
+    return kiriview::activeNavigationBoundaryFeedbackText(boundaryScope, outcome);
 }
 
 QString KiriDocumentSession::requestNextActiveNavigationBoundaryText()
 {
-    return kiriview::activeNavigationBoundaryFeedbackText(
-        m_runtime->activeNavigationBoundaryScope(), m_runtime->requestNextActiveNavigation());
+    const auto boundaryScope = m_runtime->activeNavigationBoundaryScope();
+    const auto outcome = m_runtime->requestNextActiveNavigation();
+    return kiriview::activeNavigationBoundaryFeedbackText(boundaryScope, outcome);
 }
 
 bool KiriDocumentSession::replaceActiveNavigationThumbnailDemandSnapshot(
@@ -738,6 +767,32 @@ void KiriDocumentSession::openCurrentMediaWith()
 void KiriDocumentSession::handleSessionChanges(
     const std::vector<kiriview::DocumentSessionChange>& changes)
 {
-    kiriview::DocumentSessionPublicSignalEmitter(publicSignalOperations(*this))
-        .emitChanges(changes);
+    enqueuePublicSignals(kiriview::documentSessionPublicSignalsForChanges(changes));
+}
+
+void KiriDocumentSession::enqueuePublicSignals(
+    std::vector<kiriview::DocumentSessionPublicSignal> signals)
+{
+    m_pendingPublicSignals = mergePublicSignals(std::move(signals), m_pendingPublicSignals);
+    if (m_publicSignalDispatchActive) {
+        return;
+    }
+    drainPublicSignals();
+}
+
+void KiriDocumentSession::drainPublicSignals()
+{
+    const QPointer<KiriDocumentSession> owner(this);
+    m_publicSignalDispatchActive = true;
+    const kiriview::DocumentSessionPublicSignalEmitter emitter(publicSignalOperations(*this));
+
+    while (!m_pendingPublicSignals.empty()) {
+        const kiriview::DocumentSessionPublicSignal signal = m_pendingPublicSignals.front();
+        m_pendingPublicSignals.erase(m_pendingPublicSignals.begin());
+        emitter.emitSignal(signal);
+        if (owner.isNull()) {
+            return;
+        }
+    }
+    m_publicSignalDispatchActive = false;
 }

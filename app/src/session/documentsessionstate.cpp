@@ -471,8 +471,9 @@ void DocumentSessionState::publish(const std::vector<DocumentSessionChange>& cha
         }
     }
 
-    if (m_changeCallback) {
-        m_changeCallback(uniqueChanges);
+    const ChangeCallback changeCallback = m_changeCallback;
+    if (changeCallback) {
+        changeCallback(uniqueChanges);
     }
 }
 }

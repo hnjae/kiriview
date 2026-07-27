@@ -111,9 +111,8 @@ ImageIoJob MediaEntrySourceStore::loadOpenedCollectionImageData(QObject* receive
 
 MediaEntrySourceVideoPlaybackDeviceResult
 MediaEntrySourceStore::loadOpenedCollectionVideoPlaybackDevice(
-    OpenedCollectionScopeLocation openedCollectionScope, const QUrl& videoUrl)
+    const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl)
 {
-    return m_runtime.loadOpenedCollectionVideoPlaybackDevice(
-        std::move(openedCollectionScope), videoUrl);
+    return m_runtime.loadOpenedCollectionVideoPlaybackDevice(openedCollectionScope, videoUrl);
 }
 }

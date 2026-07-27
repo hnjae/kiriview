@@ -10,6 +10,7 @@
 #include <QRectF>
 #include <QSize>
 #include <QTest>
+#include <algorithm>
 #include <memory>
 #include <utility>
 
@@ -20,6 +21,7 @@ class TestVideoDocumentRuntimeZoom : public QObject
 private Q_SLOTS:
     void remainsUnknownWithoutRenderContext();
     void calculatesZoomWhenVideoOutputHasWindow();
+    void attachmentPublishesOutputAndZoomAsOneTransaction();
 };
 
 namespace {
@@ -119,11 +121,11 @@ struct RuntimeFixture
     FakeVideoMediaBackend* backend = nullptr;
     std::unique_ptr<kiriview::VideoDocumentRuntime> runtime;
 
-    RuntimeFixture()
+    explicit RuntimeFixture(kiriview::VideoDocumentRuntime::ChangeCallback changeCallback = {})
     {
         runtime = std::make_unique<kiriview::VideoDocumentRuntime>(&documentObject,
-            kiriview::VideoDocumentRuntime::ChangeCallback(),
-            std::make_unique<ImmediateVideoPlaybackUrlResolver>(), [this]() {
+            std::move(changeCallback), std::make_unique<ImmediateVideoPlaybackUrlResolver>(),
+            [this]() {
                 auto mediaBackend = std::make_unique<FakeVideoMediaBackend>();
                 backend = mediaBackend.get();
                 return mediaBackend;
@@ -138,9 +140,10 @@ struct RuntimeFixture
 void TestVideoDocumentRuntimeZoom::remainsUnknownWithoutRenderContext()
 {
     RuntimeFixture fixture;
+    QObject output;
 
-    fixture.runtime->setVideoOutputGeometry(
-        QRectF(0.0, 0.0, 1280.0, 720.0), QRectF(0.0, 0.0, 1280.0, 720.0));
+    fixture.runtime->setVideoOutputAttachment(
+        &output, QRectF(0.0, 0.0, 1280.0, 720.0), QRectF(0.0, 0.0, 1280.0, 720.0));
 
     QVERIFY(!fixture.runtime->zoomPercentKnown());
     QCOMPARE(fixture.runtime->zoomPercent(), 0);
@@ -153,12 +156,46 @@ void TestVideoDocumentRuntimeZoom::calculatesZoomWhenVideoOutputHasWindow()
     QQuickItem output;
     output.setParentItem(window.contentItem());
 
-    fixture.runtime->setVideoOutput(&output);
-    fixture.runtime->setVideoOutputGeometry(
-        QRectF(0.0, 0.0, 1280.0, 720.0), QRectF(0.0, 0.0, 1280.0, 720.0));
+    fixture.runtime->setVideoOutputAttachment(
+        &output, QRectF(0.0, 0.0, 1280.0, 720.0), QRectF(0.0, 0.0, 1280.0, 720.0));
 
     QVERIFY(fixture.runtime->zoomPercentKnown());
     QCOMPARE(fixture.runtime->zoomPercent(), 100);
+}
+
+void TestVideoDocumentRuntimeZoom::attachmentPublishesOutputAndZoomAsOneTransaction()
+{
+    std::vector<std::vector<kiriview::VideoDocumentChange>> transactions;
+    RuntimeFixture fixture([&](const std::vector<kiriview::VideoDocumentChange>& changes) {
+        transactions.push_back(changes);
+    });
+    transactions.clear();
+    QQuickWindow window;
+    QQuickItem output;
+    output.setParentItem(window.contentItem());
+
+    fixture.runtime->setVideoOutputAttachment(
+        &output, QRectF(0.0, 0.0, 1280.0, 720.0), QRectF(0.0, 0.0, 1280.0, 720.0));
+
+    bool observedOutputChange = false;
+    bool observedZoomChange = false;
+    for (const std::vector<kiriview::VideoDocumentChange>& transaction : transactions) {
+        const bool containsOutput
+            = std::ranges::contains(transaction, kiriview::VideoDocumentChange::VideoOutput);
+        const bool containsZoom
+            = std::ranges::contains(transaction, kiriview::VideoDocumentChange::ZoomPercentKnown)
+            || std::ranges::contains(transaction, kiriview::VideoDocumentChange::ZoomPercent);
+        if (containsOutput) {
+            observedOutputChange = true;
+            QVERIFY(containsZoom);
+        }
+        if (containsZoom) {
+            observedZoomChange = true;
+            QVERIFY(containsOutput);
+        }
+    }
+    QVERIFY(observedOutputChange);
+    QVERIFY(observedZoomChange);
 }
 
 QTEST_MAIN(TestVideoDocumentRuntimeZoom)

@@ -4,10 +4,12 @@
 #ifndef KIRIVIEW_DOCUMENTSESSIONACTIVENAVIGATIONRUNTIME_H
 #define KIRIVIEW_DOCUMENTSESSIONACTIVENAVIGATIONRUNTIME_H
 
+#include "async/imageasyncticket.h"
 #include "session/activenavigationprojection.h"
 #include "session/documentsessiontypes.h"
 
 #include <functional>
+#include <memory>
 
 namespace kiriview {
 struct DocumentSessionActiveNavigationRuntimePorts
@@ -27,6 +29,8 @@ class DocumentSessionActiveNavigationRuntime final
 public:
     explicit DocumentSessionActiveNavigationRuntime(
         DocumentSessionActiveNavigationRuntimePorts ports = {});
+    ~DocumentSessionActiveNavigationRuntime();
+    Q_DISABLE_COPY_MOVE(DocumentSessionActiveNavigationRuntime)
 
     ActiveNavigationDispatchOutcome dispatch(ActiveNavigationSourceKind sourceKind,
         ActiveNavigationSnapshot snapshot, ActiveNavigationDispatchRequest request,
@@ -38,9 +42,9 @@ public:
     void clearRevealContextIfUnavailable(ActiveNavigationSnapshot snapshot);
 
 private:
-    void executeDispatchPlan(ActiveNavigationDispatchPlan plan);
-
+    std::shared_ptr<void> m_callbackLifetime = std::make_shared<char>();
     DocumentSessionActiveNavigationRuntimePorts m_ports;
+    ImageAsyncTicket m_dispatchAdmission;
     ActiveNavigationRevealContext m_pendingRevealContext;
 };
 }

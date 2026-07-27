@@ -4,6 +4,7 @@
 #ifndef KIRIVIEW_DOCUMENTSESSIONDIRECTMEDIANAVIGATIONCOORDINATOR_H
 #define KIRIVIEW_DOCUMENTSESSIONDIRECTMEDIANAVIGATIONCOORDINATOR_H
 
+#include "async/imageasyncticket.h"
 #include "navigation/directmedianavigationcandidateprovider.h"
 #include "session/activenavigationprojection.h"
 #include "session/documentsessiondirectmedianavigationapplicationruntime.h"
@@ -20,9 +21,10 @@ namespace kiriview {
 struct DocumentSessionDirectMediaNavigationCoordinatorPorts
 {
     std::function<bool()> navigationActive;
-    std::function<bool()> directImageSourceScopeEligible;
     std::function<std::optional<DirectMediaScope>()> currentScope;
     std::function<bool(const DirectMediaScope&)> cursorMatches;
+    std::function<std::function<bool()>()> captureRefreshTransitionCurrent;
+    std::function<std::function<bool()>()> captureOpenTransitionCurrent;
     std::function<QUrl()> activeCursorUrl;
     std::function<ActiveNavigationSourceKind()> activeNavigationSourceKind;
     std::function<ActiveNavigationSnapshot()> activeNavigationSnapshot;
@@ -32,7 +34,7 @@ struct DocumentSessionDirectMediaNavigationCoordinatorPorts
     std::function<void(DocumentSessionDirectMediaNavigationRevealAction)> applyRevealAction;
     std::function<void()> recomputePublicProjection;
     std::function<void(const QUrl&)> schedulePredecode;
-    std::function<void(const QUrl&)> openMediaUrl;
+    std::function<void(const QUrl&, std::function<bool()>)> openMediaUrl;
 };
 
 class DocumentSessionDirectMediaNavigationCoordinator final
@@ -45,6 +47,7 @@ public:
     Q_DISABLE_COPY_MOVE(DocumentSessionDirectMediaNavigationCoordinator)
 
     void cancel();
+    [[nodiscard]] std::function<bool()> cancelAndCaptureCurrent();
     void refresh(QObject* receiver);
     void openPrevious(QObject* receiver);
     void openNext(QObject* receiver);
@@ -52,14 +55,8 @@ public:
     void open(QObject* receiver, DirectMediaNavigationOpenRequest request);
 
 private:
-    [[nodiscard]] bool navigationActive() const;
-    [[nodiscard]] bool directImageSourceScopeEligible() const;
-    [[nodiscard]] std::optional<DirectMediaScope> currentScope() const;
-    [[nodiscard]] bool cursorMatches(const DirectMediaScope& scope) const;
-    [[nodiscard]] QUrl activeCursorUrl() const;
-    [[nodiscard]] ActiveNavigationSourceKind activeNavigationSourceKind() const;
-    [[nodiscard]] ActiveNavigationSnapshot activeNavigationSnapshot() const;
-
+    std::shared_ptr<void> m_callbackLifetime = std::make_shared<char>();
+    std::shared_ptr<ImageAsyncTicket> m_applicationAdmission = std::make_shared<ImageAsyncTicket>();
     DocumentSessionDirectMediaNavigationCoordinatorPorts m_ports;
     DocumentSessionDirectMediaNavigationRuntime m_navigationRuntime;
     DocumentSessionDirectMediaNavigationApplicationRuntime m_applicationRuntime;

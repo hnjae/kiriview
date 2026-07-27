@@ -71,7 +71,7 @@ void TestKiriDocumentSessionDeletion::
 }
 
 void TestKiriDocumentSessionDeletion::
-    pendingNavigationCompletionSupersedingDeletionFallbackReleasesDeletionTransaction()
+    stalePendingNavigationCompletionCannotSupersedeDeletionFallback()
 {
     ManualDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
     kiriview::TestSupport::ManualFileDeletionProvider fileDeletionProvider;
@@ -97,14 +97,8 @@ void TestKiriDocumentSessionDeletion::
             directMediaNavigationCandidate(deletionFallback) });
     QCOMPARE(fileDeletionProvider.operationCount(), std::size_t(1));
 
-    bool pendingNavigationCompleted = false;
-    bool deletionInProgressWhenNavigationPublished = true;
+    bool staleNavigationDelivered = false;
     QUrl sourceAtProgressCompletion;
-    connect(session.get(), &KiriDocumentSession::sourceUrlChanged, session.get(), [&]() {
-        if (session->sourceUrl() == navigationClip) {
-            deletionInProgressWhenNavigationPublished = session->fileDeletionInProgress();
-        }
-    });
     connect(
         session.get(), &KiriDocumentSession::fileDeletionInProgressChanged, session.get(), [&]() {
             if (!session->fileDeletionInProgress()) {
@@ -112,24 +106,23 @@ void TestKiriDocumentSessionDeletion::
             }
         });
     connect(session->videoDocument(), &KiriVideoDocument::sourceUrlChanged, session.get(), [&]() {
-        if (pendingNavigationCompleted || !session->videoDocument()->sourceUrl().isEmpty()) {
+        if (staleNavigationDelivered || !session->videoDocument()->sourceUrl().isEmpty()) {
             return;
         }
-        pendingNavigationCompleted = true;
-        directMediaNavigationProvider.finishLoad(1,
+        staleNavigationDelivered = true;
+        directMediaNavigationProvider.deliverIgnoringCancellation(1,
             { directMediaNavigationCandidate(deletedClip),
                 directMediaNavigationCandidate(navigationClip) });
     });
 
     fileDeletionProvider.finishBackOperation(kiriview::FileDeletionResult::Succeeded);
 
-    QVERIFY(pendingNavigationCompleted);
-    QCOMPARE(session->sourceUrl(), navigationClip);
+    QVERIFY(staleNavigationDelivered);
+    QCOMPARE(session->sourceUrl(), deletionFallback);
     QCOMPARE(session->documentKind(), KiriDocumentSession::DocumentKind::Video);
-    QCOMPARE(session->videoDocument()->sourceUrl(), navigationClip);
+    QCOMPARE(session->videoDocument()->sourceUrl(), deletionFallback);
     QVERIFY(!session->fileDeletionInProgress());
-    QVERIFY(!deletionInProgressWhenNavigationPublished);
-    QCOMPARE(sourceAtProgressCompletion, navigationClip);
+    QCOMPARE(sourceAtProgressCompletion, deletionFallback);
 }
 
 void TestKiriDocumentSessionDeletion::canceledVideoDeletionKeepsCurrentVideo()

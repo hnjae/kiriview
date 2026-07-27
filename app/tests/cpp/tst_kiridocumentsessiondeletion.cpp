@@ -14,12 +14,15 @@ private Q_SLOTS:
     void directImageDeletionCanOpenVideoFallback();
     void directImageDeletionWithoutFallbackPublishesCoherentCompletion();
     void pendingDirectImageReplacementDoesNotExposeDisplayedDeletion();
+    void directMediaDeletionSupersedesPendingNavigation();
     void pendingDirectMediaDeletionCandidateLoadIsCanceledBySourceChange();
     void sourceChangeDuringDirectMediaDeletionStartCannotRetargetDestructiveRequest();
     void reentrantSourceSelectionDuringDeletionCancellationKeepsLatestSelection();
+    void deletionCancellationCallbackCanDestroySession();
+    void deletionCancellationReentryCanStartLatestDeletion();
     void videoDeletionUsesOriginalUrlAndOpensMediaFallback();
     void reentrantSourceSelectionDuringSuccessfulVideoDeletionKeepsLatestSelection();
-    void pendingNavigationCompletionSupersedingDeletionFallbackReleasesDeletionTransaction();
+    void stalePendingNavigationCompletionCannotSupersedeDeletionFallback();
     void canceledVideoDeletionKeepsCurrentVideo();
     void failedVideoDeletionPublishesErrorWithProgressCompletion();
     void failedVideoDeletionCompletionAllowsImmediateRetryAndUsesGenericMessage();

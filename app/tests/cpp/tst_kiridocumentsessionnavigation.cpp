@@ -16,10 +16,12 @@ private Q_SLOTS:
     void sourceOpenReplacesStaleRevealIntent();
     void unavailableActiveNavigationRequestsClearRevealDirection();
     void activeNavigationBoundaryTextFollowsSessionSource();
+    void boundaryTextRequestSurvivesSynchronousSessionDestruction();
     void activeNavigationNumberDispatchIgnoresUnknownNavigation();
     void activeNavigationClearsWhenSwitchingFromKnownDirectMedia();
     void activeNavigationAvailabilityUsesSameSnapshotAsCurrentAndCount();
     void activeNavigationBoundaryScopeFollowsSessionSource();
+    void routeProjectionReentrantNavigationPreservesNewerRequest();
 };
 
 #include "kiridocumentsession_navigation.inc"

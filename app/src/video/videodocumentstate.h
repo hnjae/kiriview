@@ -49,6 +49,7 @@ public:
     void setHasAudio(bool hasAudio);
     void setVideoSize(QSize size);
     void setZoomPercent(std::optional<int> zoomPercent);
+    void applyVideoOutputProjection(std::optional<int> zoomPercent, bool videoOutputChanged);
     void setEmbeddedMetadata(EmbeddedMetadata metadata);
 
     void publish(VideoDocumentChange change);
@@ -67,6 +68,8 @@ private:
     void appendIfVideoSizeChanged(std::vector<VideoDocumentChange>& changes, QSize size);
     void appendIfZoomPercentKnownChanged(std::vector<VideoDocumentChange>& changes, bool known);
     void appendIfZoomPercentChanged(std::vector<VideoDocumentChange>& changes, int zoomPercent);
+    void appendZoomPercentChanges(
+        std::vector<VideoDocumentChange>& changes, std::optional<int> zoomPercent);
 
     ChangeCallback m_changeCallback;
     QUrl m_sourceUrl;

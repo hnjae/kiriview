@@ -6,6 +6,7 @@
 #include <QObject>
 #include <QRectF>
 #include <QTest>
+#include <memory>
 
 class TestDocumentSessionVideoOutputRuntime : public QObject
 {
@@ -18,6 +19,13 @@ private Q_SLOTS:
     void rejectsReplayedAndUnissuedClaimTokens();
     void clearInvalidatesEveryPreviouslyIssuedClaim();
     void clearForgetsActiveClaim();
+    void reentrantReplacementKeepsReplacementGeometry();
+    void activeOwnerDestructionDetachesOutput();
+    void activeOutputDestructionDetachesOutput();
+    void retiredEpochRejectsReentrantFreshClaim();
+    void activationInvalidatesTokensIssuedWhileRetired();
+    void destructionDetachesActiveClaimAfterRetiringEpoch();
+    void destructionWithoutActiveClaimDoesNotTouchPort();
 };
 
 namespace {
@@ -28,14 +36,12 @@ struct AttachmentProbe
     kiriview::DocumentSessionVideoOutputAttachmentPort port()
     {
         return kiriview::DocumentSessionVideoOutputAttachmentPort {
-            [this](QObject* videoOutput) {
+            [this](QObject* videoOutput, const QRectF& contentRect, const QRectF& sourceRect) {
                 attachedVideoOutput = videoOutput;
-                ++setVideoOutputCount;
-            },
-            [this](const QRectF& contentRect, const QRectF& sourceRect) {
                 lastContentRect = contentRect;
                 lastSourceRect = sourceRect;
-                ++setGeometryCount;
+                lastAttachmentWasDetach = videoOutput == nullptr;
+                ++setAttachmentCount;
             },
         };
     }
@@ -43,150 +49,333 @@ struct AttachmentProbe
     QObject* attachedVideoOutput = nullptr;
     QRectF lastContentRect;
     QRectF lastSourceRect;
-    int setVideoOutputCount = 0;
-    int setGeometryCount = 0;
+    int setAttachmentCount = 0;
+    bool lastAttachmentWasDetach = false;
 };
 
 bool reportSurfaceClaim(kiriview::DocumentSessionVideoOutputRuntime& runtime,
-    const kiriview::DocumentSessionVideoOutputClaimReport& report,
-    const kiriview::DocumentSessionVideoOutputAttachmentPort& port)
+    const kiriview::DocumentSessionVideoOutputClaimReport& report)
 {
-    return runtime.reportSurfaceClaim(report, acceptedAdmission, port);
+    return runtime.reportSurfaceClaim(report, acceptedAdmission);
 }
 }
 
 void TestDocumentSessionVideoOutputRuntime::appliesAcceptedAttachAndDetachThroughPort()
 {
-    kiriview::DocumentSessionVideoOutputRuntime runtime;
+    AttachmentProbe probe;
+    kiriview::DocumentSessionVideoOutputRuntime runtime(probe.port());
+    runtime.activateSurfaceClaimEpoch();
     QObject owner;
     QObject videoOutput;
-    AttachmentProbe probe;
     const QRectF contentRect(1.0, 2.0, 320.0, 180.0);
     const QRectF sourceRect(3.0, 4.0, 640.0, 360.0);
 
     QVERIFY(reportSurfaceClaim(runtime,
-        { runtime.nextSurfaceClaimToken(), &owner, &videoOutput, true, contentRect, sourceRect },
-        probe.port()));
+        { runtime.nextSurfaceClaimToken(), &owner, &videoOutput, true, contentRect, sourceRect }));
     QCOMPARE(probe.attachedVideoOutput, &videoOutput);
     QCOMPARE(probe.lastContentRect, contentRect);
     QCOMPARE(probe.lastSourceRect, sourceRect);
-    QCOMPARE(probe.setVideoOutputCount, 1);
-    QCOMPARE(probe.setGeometryCount, 1);
+    QCOMPARE(probe.setAttachmentCount, 1);
 
-    QVERIFY(reportSurfaceClaim(runtime,
-        { runtime.nextSurfaceClaimToken(), &owner, nullptr, false, {}, {} }, probe.port()));
+    QVERIFY(reportSurfaceClaim(
+        runtime, { runtime.nextSurfaceClaimToken(), &owner, nullptr, false, {}, {} }));
     QCOMPARE(probe.attachedVideoOutput, nullptr);
-    QCOMPARE(probe.setVideoOutputCount, 2);
-    QCOMPARE(probe.setGeometryCount, 1);
+    QCOMPARE(probe.lastContentRect, QRectF());
+    QCOMPARE(probe.lastSourceRect, QRectF());
+    QCOMPARE(probe.setAttachmentCount, 2);
 }
 
 void TestDocumentSessionVideoOutputRuntime::rejectsStaleInvalidAndForeignClaimsWithoutTouchingPort()
 {
-    kiriview::DocumentSessionVideoOutputRuntime runtime;
+    AttachmentProbe probe;
+    kiriview::DocumentSessionVideoOutputRuntime runtime(probe.port());
+    runtime.activateSurfaceClaimEpoch();
     QObject owner;
     QObject otherOwner;
     QObject videoOutput;
-    AttachmentProbe probe;
 
     const QString staleToken = runtime.nextSurfaceClaimToken();
     const QString attachToken = runtime.nextSurfaceClaimToken();
-    QVERIFY(reportSurfaceClaim(
-        runtime, { attachToken, &owner, &videoOutput, true, {}, {} }, probe.port()));
+    QVERIFY(reportSurfaceClaim(runtime, { attachToken, &owner, &videoOutput, true, {}, {} }));
 
     probe = AttachmentProbe {};
-    QVERIFY(
-        !reportSurfaceClaim(runtime, { staleToken, &owner, nullptr, false, {}, {} }, probe.port()));
-    QVERIFY(!reportSurfaceClaim(runtime,
-        { QStringLiteral("not-a-token"), &owner, &videoOutput, true, {}, {} }, probe.port()));
-    QVERIFY(!reportSurfaceClaim(runtime,
-        { runtime.nextSurfaceClaimToken(), nullptr, &videoOutput, true, {}, {} }, probe.port()));
-    QVERIFY(!reportSurfaceClaim(runtime,
-        { runtime.nextSurfaceClaimToken(), &otherOwner, nullptr, false, {}, {} }, probe.port()));
-    QCOMPARE(probe.setVideoOutputCount, 0);
-    QCOMPARE(probe.setGeometryCount, 0);
+    QVERIFY(!reportSurfaceClaim(runtime, { staleToken, &owner, nullptr, false, {}, {} }));
+    QVERIFY(!reportSurfaceClaim(
+        runtime, { QStringLiteral("not-a-token"), &owner, &videoOutput, true, {}, {} }));
+    QVERIFY(!reportSurfaceClaim(
+        runtime, { runtime.nextSurfaceClaimToken(), nullptr, &videoOutput, true, {}, {} }));
+    QVERIFY(!reportSurfaceClaim(
+        runtime, { runtime.nextSurfaceClaimToken(), &otherOwner, nullptr, false, {}, {} }));
+    QCOMPARE(probe.setAttachmentCount, 0);
+    runtime.clearAttachment();
 }
 
 void TestDocumentSessionVideoOutputRuntime::rejectsGloballyStaleClaimsFromDifferentOwners()
 {
-    kiriview::DocumentSessionVideoOutputRuntime runtime;
+    AttachmentProbe probe;
+    kiriview::DocumentSessionVideoOutputRuntime runtime(probe.port());
+    runtime.activateSurfaceClaimEpoch();
     QObject staleOwner;
     QObject currentOwner;
     QObject staleVideoOutput;
     QObject currentVideoOutput;
-    AttachmentProbe probe;
     const QString staleToken = runtime.nextSurfaceClaimToken();
     const QString currentToken = runtime.nextSurfaceClaimToken();
 
     QVERIFY(reportSurfaceClaim(
-        runtime, { currentToken, &currentOwner, &currentVideoOutput, true, {}, {} }, probe.port()));
+        runtime, { currentToken, &currentOwner, &currentVideoOutput, true, {}, {} }));
     probe = AttachmentProbe {};
 
-    QVERIFY(!reportSurfaceClaim(
-        runtime, { staleToken, &staleOwner, &staleVideoOutput, true, {}, {} }, probe.port()));
-    QCOMPARE(probe.setVideoOutputCount, 0);
-    QCOMPARE(probe.setGeometryCount, 0);
+    QVERIFY(
+        !reportSurfaceClaim(runtime, { staleToken, &staleOwner, &staleVideoOutput, true, {}, {} }));
+    QCOMPARE(probe.setAttachmentCount, 0);
+    runtime.clearAttachment();
 }
 
 void TestDocumentSessionVideoOutputRuntime::rejectsReplayedAndUnissuedClaimTokens()
 {
-    kiriview::DocumentSessionVideoOutputRuntime runtime;
+    AttachmentProbe probe;
+    kiriview::DocumentSessionVideoOutputRuntime runtime(probe.port());
+    runtime.activateSurfaceClaimEpoch();
     QObject owner;
     QObject videoOutput;
-    AttachmentProbe probe;
     const QString acceptedToken = runtime.nextSurfaceClaimToken();
 
-    QVERIFY(reportSurfaceClaim(
-        runtime, { acceptedToken, &owner, &videoOutput, true, {}, {} }, probe.port()));
+    QVERIFY(reportSurfaceClaim(runtime, { acceptedToken, &owner, &videoOutput, true, {}, {} }));
     probe = AttachmentProbe {};
 
-    QVERIFY(!reportSurfaceClaim(
-        runtime, { acceptedToken, &owner, &videoOutput, true, {}, {} }, probe.port()));
+    QVERIFY(!reportSurfaceClaim(runtime, { acceptedToken, &owner, &videoOutput, true, {}, {} }));
     const quint64 unissuedRevision = acceptedToken.toULongLong() + 1;
-    QVERIFY(!reportSurfaceClaim(runtime,
-        { QString::number(unissuedRevision), &owner, &videoOutput, true, {}, {} }, probe.port()));
+    QVERIFY(!reportSurfaceClaim(
+        runtime, { QString::number(unissuedRevision), &owner, &videoOutput, true, {}, {} }));
 
     const QString invalidPayloadToken = runtime.nextSurfaceClaimToken();
-    QVERIFY(!reportSurfaceClaim(
-        runtime, { invalidPayloadToken, nullptr, &videoOutput, true, {}, {} }, probe.port()));
-    QVERIFY(!reportSurfaceClaim(
-        runtime, { invalidPayloadToken, &owner, &videoOutput, true, {}, {} }, probe.port()));
-    QCOMPARE(probe.setVideoOutputCount, 0);
-    QCOMPARE(probe.setGeometryCount, 0);
+    QVERIFY(
+        !reportSurfaceClaim(runtime, { invalidPayloadToken, nullptr, &videoOutput, true, {}, {} }));
+    QVERIFY(
+        !reportSurfaceClaim(runtime, { invalidPayloadToken, &owner, &videoOutput, true, {}, {} }));
+    QCOMPARE(probe.setAttachmentCount, 0);
+    runtime.clearAttachment();
 }
 
 void TestDocumentSessionVideoOutputRuntime::clearInvalidatesEveryPreviouslyIssuedClaim()
 {
-    kiriview::DocumentSessionVideoOutputRuntime runtime;
+    AttachmentProbe probe;
+    kiriview::DocumentSessionVideoOutputRuntime runtime(probe.port());
+    runtime.activateSurfaceClaimEpoch();
     QObject owner;
     QObject videoOutput;
-    AttachmentProbe probe;
     const QString issuedBeforeClear = runtime.nextSurfaceClaimToken();
 
-    runtime.clear();
+    runtime.clearAttachment();
 
-    QVERIFY(!reportSurfaceClaim(
-        runtime, { issuedBeforeClear, &owner, &videoOutput, true, {}, {} }, probe.port()));
-    QCOMPARE(probe.setVideoOutputCount, 0);
-    QCOMPARE(probe.setGeometryCount, 0);
+    QVERIFY(
+        !reportSurfaceClaim(runtime, { issuedBeforeClear, &owner, &videoOutput, true, {}, {} }));
+    QCOMPARE(probe.setAttachmentCount, 1);
+    QVERIFY(probe.lastAttachmentWasDetach);
 }
 
 void TestDocumentSessionVideoOutputRuntime::clearForgetsActiveClaim()
 {
-    kiriview::DocumentSessionVideoOutputRuntime runtime;
+    AttachmentProbe probe;
+    kiriview::DocumentSessionVideoOutputRuntime runtime(probe.port());
+    runtime.activateSurfaceClaimEpoch();
     QObject owner;
     QObject videoOutput;
-    AttachmentProbe probe;
 
-    QVERIFY(reportSurfaceClaim(runtime,
-        { runtime.nextSurfaceClaimToken(), &owner, &videoOutput, true, {}, {} }, probe.port()));
+    QVERIFY(reportSurfaceClaim(
+        runtime, { runtime.nextSurfaceClaimToken(), &owner, &videoOutput, true, {}, {} }));
 
-    runtime.clear();
+    runtime.clearAttachment();
 
     probe = AttachmentProbe {};
-    QVERIFY(!reportSurfaceClaim(runtime,
-        { runtime.nextSurfaceClaimToken(), &owner, nullptr, false, {}, {} }, probe.port()));
-    QCOMPARE(probe.setVideoOutputCount, 0);
-    QCOMPARE(probe.setGeometryCount, 0);
+    QVERIFY(!reportSurfaceClaim(
+        runtime, { runtime.nextSurfaceClaimToken(), &owner, nullptr, false, {}, {} }));
+    QCOMPARE(probe.setAttachmentCount, 0);
+}
+
+void TestDocumentSessionVideoOutputRuntime::reentrantReplacementKeepsReplacementGeometry()
+{
+    auto firstOwner = std::make_unique<QObject>();
+    QObject replacementOwner;
+    auto firstVideoOutput = std::make_unique<QObject>();
+    QObject replacementVideoOutput;
+    AttachmentProbe probe;
+    const QRectF firstContentRect(1.0, 2.0, 320.0, 180.0);
+    const QRectF firstSourceRect(3.0, 4.0, 640.0, 360.0);
+    const QRectF replacementContentRect(5.0, 6.0, 800.0, 450.0);
+    const QRectF replacementSourceRect(7.0, 8.0, 1600.0, 900.0);
+    bool reentered = false;
+    bool replacementAccepted = false;
+    std::unique_ptr<kiriview::DocumentSessionVideoOutputRuntime> runtime;
+    kiriview::DocumentSessionVideoOutputAttachmentPort port;
+    port.setVideoOutputAttachment
+        = [&](QObject* videoOutput, const QRectF& contentRect, const QRectF& sourceRect) {
+              probe.attachedVideoOutput = videoOutput;
+              probe.lastContentRect = contentRect;
+              probe.lastSourceRect = sourceRect;
+              probe.lastAttachmentWasDetach = videoOutput == nullptr;
+              ++probe.setAttachmentCount;
+              if (videoOutput != firstVideoOutput.get() || reentered) {
+                  return;
+              }
+              reentered = true;
+              replacementAccepted = reportSurfaceClaim(*runtime,
+                  { runtime->nextSurfaceClaimToken(), &replacementOwner, &replacementVideoOutput,
+                      true, replacementContentRect, replacementSourceRect });
+          };
+    runtime = std::make_unique<kiriview::DocumentSessionVideoOutputRuntime>(port);
+    runtime->activateSurfaceClaimEpoch();
+
+    QVERIFY(reportSurfaceClaim(*runtime,
+        { runtime->nextSurfaceClaimToken(), firstOwner.get(), firstVideoOutput.get(), true,
+            firstContentRect, firstSourceRect }));
+
+    QVERIFY(reentered);
+    QVERIFY(replacementAccepted);
+    QCOMPARE(probe.attachedVideoOutput, &replacementVideoOutput);
+    QCOMPARE(probe.lastContentRect, replacementContentRect);
+    QCOMPARE(probe.lastSourceRect, replacementSourceRect);
+
+    firstOwner.reset();
+    firstVideoOutput.reset();
+
+    QCOMPARE(probe.attachedVideoOutput, &replacementVideoOutput);
+    QCOMPARE(probe.lastContentRect, replacementContentRect);
+    QCOMPARE(probe.lastSourceRect, replacementSourceRect);
+}
+
+void TestDocumentSessionVideoOutputRuntime::activeOwnerDestructionDetachesOutput()
+{
+    AttachmentProbe probe;
+    kiriview::DocumentSessionVideoOutputRuntime runtime(probe.port());
+    runtime.activateSurfaceClaimEpoch();
+    auto owner = std::make_unique<QObject>();
+    QObject videoOutput;
+
+    QVERIFY(reportSurfaceClaim(
+        runtime, { runtime.nextSurfaceClaimToken(), owner.get(), &videoOutput, true, {}, {} }));
+    QCOMPARE(probe.attachedVideoOutput, &videoOutput);
+    const QString pendingClaimToken = runtime.nextSurfaceClaimToken();
+
+    owner.reset();
+
+    QCOMPARE(probe.attachedVideoOutput, nullptr);
+    QVERIFY(probe.lastAttachmentWasDetach);
+
+    QObject staleOwner;
+    QObject staleVideoOutput;
+    QVERIFY(!reportSurfaceClaim(
+        runtime, { pendingClaimToken, &staleOwner, &staleVideoOutput, true, {}, {} }));
+}
+
+void TestDocumentSessionVideoOutputRuntime::activeOutputDestructionDetachesOutput()
+{
+    AttachmentProbe probe;
+    kiriview::DocumentSessionVideoOutputRuntime runtime(probe.port());
+    runtime.activateSurfaceClaimEpoch();
+    QObject owner;
+    auto videoOutput = std::make_unique<QObject>();
+
+    QVERIFY(reportSurfaceClaim(
+        runtime, { runtime.nextSurfaceClaimToken(), &owner, videoOutput.get(), true, {}, {} }));
+    QCOMPARE(probe.attachedVideoOutput, videoOutput.get());
+
+    videoOutput.reset();
+
+    QCOMPARE(probe.setAttachmentCount, 2);
+    QVERIFY(probe.lastAttachmentWasDetach);
+}
+
+void TestDocumentSessionVideoOutputRuntime::retiredEpochRejectsReentrantFreshClaim()
+{
+    QObject owner;
+    QObject videoOutput;
+    QObject* attachedVideoOutput = nullptr;
+    bool reattachAttempted = false;
+    bool reattachAccepted = true;
+    std::unique_ptr<kiriview::DocumentSessionVideoOutputRuntime> runtime;
+    kiriview::DocumentSessionVideoOutputAttachmentPort port;
+    port.setVideoOutputAttachment = [&](QObject* output, const QRectF&, const QRectF&) {
+        attachedVideoOutput = output;
+        if (output != nullptr || reattachAttempted) {
+            return;
+        }
+        reattachAttempted = true;
+        reattachAccepted = reportSurfaceClaim(
+            *runtime, { runtime->nextSurfaceClaimToken(), &owner, &videoOutput, true, {}, {} });
+    };
+    runtime = std::make_unique<kiriview::DocumentSessionVideoOutputRuntime>(std::move(port));
+    runtime->activateSurfaceClaimEpoch();
+    QVERIFY(reportSurfaceClaim(
+        *runtime, { runtime->nextSurfaceClaimToken(), &owner, &videoOutput, true, {}, {} }));
+
+    runtime->retireSurfaceClaimEpoch();
+
+    QVERIFY(reattachAttempted);
+    QVERIFY(!reattachAccepted);
+    QCOMPARE(attachedVideoOutput, nullptr);
+}
+
+void TestDocumentSessionVideoOutputRuntime::activationInvalidatesTokensIssuedWhileRetired()
+{
+    AttachmentProbe probe;
+    kiriview::DocumentSessionVideoOutputRuntime runtime(probe.port());
+    QObject owner;
+    QObject videoOutput;
+    const QString retiredToken = runtime.nextSurfaceClaimToken();
+
+    runtime.activateSurfaceClaimEpoch();
+
+    QVERIFY(!reportSurfaceClaim(runtime, { retiredToken, &owner, &videoOutput, true, {}, {} }));
+    QVERIFY(reportSurfaceClaim(
+        runtime, { runtime.nextSurfaceClaimToken(), &owner, &videoOutput, true, {}, {} }));
+    QCOMPARE(probe.attachedVideoOutput, &videoOutput);
+}
+
+void TestDocumentSessionVideoOutputRuntime::destructionDetachesActiveClaimAfterRetiringEpoch()
+{
+    QObject owner;
+    QObject videoOutput;
+    QObject* attachedVideoOutput = nullptr;
+    bool reattachAttempted = false;
+    bool reattachAccepted = true;
+    kiriview::DocumentSessionVideoOutputRuntime* runtimeDuringDestruction = nullptr;
+    kiriview::DocumentSessionVideoOutputAttachmentPort port;
+    port.setVideoOutputAttachment = [&](QObject* output, const QRectF&, const QRectF&) {
+        attachedVideoOutput = output;
+        if (output != nullptr || reattachAttempted) {
+            return;
+        }
+        reattachAttempted = true;
+        runtimeDuringDestruction->activateSurfaceClaimEpoch();
+        reattachAccepted = reportSurfaceClaim(*runtimeDuringDestruction,
+            { runtimeDuringDestruction->nextSurfaceClaimToken(), &owner, &videoOutput, true, {},
+                {} });
+    };
+    auto runtime = std::make_unique<kiriview::DocumentSessionVideoOutputRuntime>(std::move(port));
+    runtimeDuringDestruction = runtime.get();
+    runtime->activateSurfaceClaimEpoch();
+    QVERIFY(reportSurfaceClaim(
+        *runtime, { runtime->nextSurfaceClaimToken(), &owner, &videoOutput, true, {}, {} }));
+
+    runtime.reset();
+
+    QVERIFY(reattachAttempted);
+    QVERIFY(!reattachAccepted);
+    QCOMPARE(attachedVideoOutput, nullptr);
+}
+
+void TestDocumentSessionVideoOutputRuntime::destructionWithoutActiveClaimDoesNotTouchPort()
+{
+    AttachmentProbe probe;
+
+    {
+        kiriview::DocumentSessionVideoOutputRuntime runtime(probe.port());
+        runtime.activateSurfaceClaimEpoch();
+    }
+
+    QCOMPARE(probe.setAttachmentCount, 0);
 }
 
 QTEST_GUILESS_MAIN(TestDocumentSessionVideoOutputRuntime)

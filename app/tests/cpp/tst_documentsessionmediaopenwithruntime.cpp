@@ -9,6 +9,7 @@
 #include <QTest>
 #include <QUrl>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -23,6 +24,8 @@ private Q_SLOTS:
     void failedProviderCompletionForwardsTypedFailure();
     void canceledProviderCompletionForwardsCanceledResult();
     void cancelRejectsLateCompletion();
+    void cancellationInvalidatesBeforeProviderCallback();
+    void cancellationPreservesReentrantReplacement();
     void replacementStartRejectsStaleCompletion();
     void destructionCancelsAndRejectsLateCompletion();
 };
@@ -54,6 +57,7 @@ struct ManualMediaOpenWithOperation
     kiriview::MediaOpenWithRequest request;
     kiriview::MediaOpenWithCallback callback;
     kiriview::ImageIoJobCompletion completion;
+    std::function<void()> cancelHook;
     bool canceled = false;
 };
 
@@ -71,13 +75,18 @@ public:
 
             std::weak_ptr<ManualMediaOpenWithOperation> weakOperation = operation;
             kiriview::ImageIoJob job(operation->object, [weakOperation](QObject* object) {
+                std::function<void()> cancelHook;
                 if (std::shared_ptr<ManualMediaOpenWithOperation> operation
                     = weakOperation.lock()) {
                     operation->canceled = true;
                     operation->object = nullptr;
+                    cancelHook = std::move(operation->cancelHook);
                 }
                 if (object != nullptr) {
                     object->deleteLater();
+                }
+                if (cancelHook) {
+                    cancelHook();
                 }
             });
             operation->completion = job.completion();
@@ -89,6 +98,11 @@ public:
     std::size_t operationCount() const { return m_operations.size(); }
 
     ManualMediaOpenWithOperation& operationAt(std::size_t index) { return *m_operations.at(index); }
+
+    void setCancelHookAt(std::size_t index, std::function<void()> cancelHook)
+    {
+        m_operations.at(index)->cancelHook = std::move(cancelHook);
+    }
 
     void finishOperationAt(std::size_t index, kiriview::MediaOpenWithResult result,
         const QString& errorString = QString())
@@ -244,6 +258,47 @@ void TestDocumentSessionMediaOpenWithRuntime::cancelRejectsLateCompletion()
         0, kiriview::MediaOpenWithResult::Failed, QStringLiteral("late launcher failed"));
 
     QVERIFY(fixture.completions.empty());
+}
+
+void TestDocumentSessionMediaOpenWithRuntime::cancellationInvalidatesBeforeProviderCallback()
+{
+    RuntimeFixture fixture;
+
+    fixture.open(openWithPlanFor(localUrl(QStringLiteral("/media/01.png"))));
+    fixture.provider.setCancelHookAt(0, [&fixture]() {
+        fixture.provider.deliverOperationAtIgnoringCancellation(
+            0, kiriview::MediaOpenWithResult::Succeeded);
+    });
+
+    fixture.runtime.cancel();
+
+    QVERIFY(fixture.provider.operationAt(0).canceled);
+    QVERIFY(!fixture.runtime.active());
+    QVERIFY(fixture.completions.empty());
+}
+
+void TestDocumentSessionMediaOpenWithRuntime::cancellationPreservesReentrantReplacement()
+{
+    RuntimeFixture fixture;
+    const QUrl replacementUrl = localUrl(QStringLiteral("/media/02.png"));
+
+    fixture.open(openWithPlanFor(localUrl(QStringLiteral("/media/01.png"))));
+    fixture.provider.setCancelHookAt(
+        0, [&fixture, replacementUrl]() { fixture.open(openWithPlanFor(replacementUrl)); });
+
+    fixture.runtime.cancel();
+
+    QCOMPARE(fixture.provider.operationCount(), std::size_t(2));
+    QVERIFY(fixture.provider.operationAt(0).canceled);
+    QCOMPARE(fixture.provider.operationAt(1).request.targetUrl, replacementUrl);
+    QVERIFY(!fixture.provider.operationAt(1).canceled);
+    QVERIFY(fixture.runtime.active());
+
+    fixture.provider.finishOperationAt(1, kiriview::MediaOpenWithResult::Succeeded);
+
+    QCOMPARE(fixture.completions.size(), std::size_t(1));
+    QCOMPARE(fixture.completions.at(0).result, kiriview::MediaOpenWithResult::Succeeded);
+    QVERIFY(!fixture.runtime.active());
 }
 
 void TestDocumentSessionMediaOpenWithRuntime::replacementStartRejectsStaleCompletion()

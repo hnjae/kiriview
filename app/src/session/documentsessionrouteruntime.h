@@ -9,7 +9,9 @@
 #include "location/imageurl.h"
 #include "session/documentsessionrouteplan.h"
 
+#include <QtGlobal>
 #include <functional>
+#include <memory>
 
 namespace kiriview {
 struct DocumentSessionRouteSessionPorts
@@ -77,14 +79,15 @@ class DocumentSessionRouteRuntime final
 {
 public:
     explicit DocumentSessionRouteRuntime(DocumentSessionRouteRuntimePorts ports = {});
+    ~DocumentSessionRouteRuntime();
+    Q_DISABLE_COPY_MOVE(DocumentSessionRouteRuntime)
 
     [[nodiscard]] bool executeWithSourceResolver(const DocumentSessionRoutePlan& plan,
         const DocumentSessionRouteSourceResolver& resolveSource,
         const DocumentSessionRouteExecutionControl& control = {});
 
 private:
-    void executeSuppressed(const std::function<void()>& mutation);
-
+    std::shared_ptr<void> m_callbackLifetime = std::make_shared<char>();
     DocumentSessionRouteRuntimePorts m_ports;
     ImageAsyncTicket m_admission;
     ImageAsyncOperationState m_execution;

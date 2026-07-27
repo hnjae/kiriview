@@ -70,6 +70,8 @@ public:
     Q_DISABLE_COPY_MOVE(VideoMediaBackend)
 };
 
+using VideoMediaBackendFactory = std::function<std::unique_ptr<VideoMediaBackend>()>;
+
 std::unique_ptr<VideoMediaBackend> createDefaultVideoMediaBackend();
 }
 

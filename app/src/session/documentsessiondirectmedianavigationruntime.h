@@ -10,6 +10,7 @@
 
 #include <QString>
 #include <functional>
+#include <memory>
 #include <vector>
 
 class QObject;
@@ -68,6 +69,7 @@ private:
         DocumentSessionDirectMediaNavigationCandidatesResult result,
         const ScopeAccepted& scopeAccepted, const CandidatesCallback& callback);
 
+    std::shared_ptr<void> m_callbackLifetime = std::make_shared<char>();
     DirectMediaNavigationCandidateProvider m_provider;
     ImageIoJob m_job;
     DocumentSessionDirectMediaNavigationLoadState m_loadState;

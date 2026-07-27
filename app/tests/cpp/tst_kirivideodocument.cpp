@@ -4,6 +4,7 @@
 #include "facade/kirivideodocument.h"
 
 #include "facade/kiridocumentsession.h"
+#include "video/videomediabackend.h"
 #include <QMetaMethod>
 #include <QMetaProperty>
 #include <QObject>
@@ -46,9 +47,77 @@ private Q_SLOTS:
     void playbackProjectionReentryCoalescesSupersededProjection();
     void sessionSnapshotPublicationCanDestroyDocument();
     void videoOutputCanDetachAndToleratesDestroyedOutput();
+    void videoOutputSignalObserversSeeCommittedAttachment();
+    void leavingVideoRejectsReentrantSurfaceClaim();
+    void leavingVideoKeepsSurfaceClaimsRetiredUntilImageProjection();
+    void reentrantVideoRouteCanActivateNewSurfaceClaimEpoch();
+    void supersededVideoEntryCannotKeepClaimEpochActive();
+    void sessionDestructionSilentlyDetachesRetainedVideoDocument();
+    void sessionDestructionDuringVideoSignalSilentlySettlesPlaybackProjection();
 };
 
 namespace {
+class TeardownCallbackVideoBackend final : public kiriview::VideoMediaBackend
+{
+public:
+    void setCallbacks(kiriview::VideoMediaBackendCallbacks callbacks) override
+    {
+        m_callbacks = std::move(callbacks);
+    }
+
+    void setSource(const QUrl&) override { }
+    void setSourceDevice(QIODevice*, const QUrl&) override { }
+    void play() override { }
+    void pause() override { }
+    void stop() override { }
+    void setPosition(qint64) override { }
+    void setMuted(bool muted) override { m_muted = muted; }
+
+    void setVideoOutput(QObject* videoOutput) override
+    {
+        const bool detaching = m_videoOutput != nullptr && videoOutput == nullptr;
+        m_videoOutput = videoOutput;
+        if (!detaching) {
+            return;
+        }
+
+        m_muted = true;
+        const std::function<void()> mutedChanged = m_callbacks.mutedChanged;
+        if (mutedChanged) {
+            mutedChanged();
+        }
+    }
+
+    [[nodiscard]] QObject* videoOutput() const override { return m_videoOutput.data(); }
+    [[nodiscard]] kiriview::VideoMediaStatus mediaStatus() const override
+    {
+        return kiriview::VideoMediaStatus::Loading;
+    }
+    [[nodiscard]] qint64 duration() const override { return 0; }
+    [[nodiscard]] qint64 position() const override { return 0; }
+    [[nodiscard]] bool playing() const override { return false; }
+    [[nodiscard]] bool seekable() const override { return false; }
+    [[nodiscard]] bool hasVideo() const override { return false; }
+    [[nodiscard]] bool hasAudio() const override { return m_hasAudio; }
+    [[nodiscard]] QSize videoSize() const override { return {}; }
+    [[nodiscard]] bool muted() const override { return m_muted; }
+
+    void emitHasAudio()
+    {
+        m_hasAudio = true;
+        const std::function<void()> hasAudioChanged = m_callbacks.hasAudioChanged;
+        if (hasAudioChanged) {
+            hasAudioChanged();
+        }
+    }
+
+private:
+    kiriview::VideoMediaBackendCallbacks m_callbacks;
+    QPointer<QObject> m_videoOutput;
+    bool m_muted = false;
+    bool m_hasAudio = false;
+};
+
 QMetaObject::Connection connectSessionSnapshotSignal(
     KiriVideoDocument& document, SignalCallback& callback)
 {
@@ -331,6 +400,241 @@ void TestKiriVideoDocument::videoOutputCanDetachAndToleratesDestroyedOutput()
     delete output;
     QCOMPARE(document.videoOutput(), nullptr);
     QCOMPARE(videoOutputSpy.count(), 4);
+}
+
+void TestKiriVideoDocument::videoOutputSignalObserversSeeCommittedAttachment()
+{
+    QObject firstOwner;
+    QObject replacementOwner;
+    QObject firstOutput;
+    QObject replacementOutput;
+    KiriDocumentSession session;
+    KiriVideoDocument& document = *session.videoDocument();
+    session.setSourceUrl(QUrl::fromLocalFile(QStringLiteral("/tmp/movie.mp4")));
+    QList<QObject*> laterReceiverObservations;
+    bool reentered = false;
+
+    connect(&document, &KiriVideoDocument::videoOutputChanged, &document, [&]() {
+        if (reentered) {
+            return;
+        }
+        QCOMPARE(document.videoOutput(), &firstOutput);
+        reentered = true;
+        QVERIFY(session.reportVideoOutputSurfaceClaim(session.nextVideoOutputSurfaceClaimToken(),
+            session.publicProjectionRevision(), &replacementOwner, &replacementOutput, true, {},
+            {}));
+        QCOMPARE(document.videoOutput(), &firstOutput);
+    });
+    connect(&document, &KiriVideoDocument::videoOutputChanged, &document,
+        [&]() { laterReceiverObservations.push_back(document.videoOutput()); });
+
+    QVERIFY(session.reportVideoOutputSurfaceClaim(session.nextVideoOutputSurfaceClaimToken(),
+        session.publicProjectionRevision(), &firstOwner, &firstOutput, true, {}, {}));
+
+    QVERIFY(reentered);
+    QCOMPARE(laterReceiverObservations, QList<QObject*>({ &firstOutput, &replacementOutput }));
+    QCOMPARE(document.videoOutput(), &replacementOutput);
+}
+
+void TestKiriVideoDocument::leavingVideoRejectsReentrantSurfaceClaim()
+{
+    QObject surfaceOwner;
+    QObject videoOutput;
+    KiriDocumentSession session;
+    KiriVideoDocument& document = *session.videoDocument();
+    session.setSourceUrl(QUrl::fromLocalFile(QStringLiteral("/tmp/movie.mp4")));
+    QVERIFY(session.reportVideoOutputSurfaceClaim(session.nextVideoOutputSurfaceClaimToken(),
+        session.publicProjectionRevision(), &surfaceOwner, &videoOutput, true, {}, {}));
+    bool reattachAttempted = false;
+    bool reattachAccepted = true;
+
+    connect(&document, &KiriVideoDocument::videoOutputChanged, &document, [&]() {
+        if (reattachAttempted || document.videoOutput() != nullptr) {
+            return;
+        }
+        reattachAttempted = true;
+        reattachAccepted
+            = session.reportVideoOutputSurfaceClaim(session.nextVideoOutputSurfaceClaimToken(),
+                session.publicProjectionRevision(), &surfaceOwner, &videoOutput, true, {}, {});
+    });
+
+    session.setSourceUrl(QUrl::fromLocalFile(QStringLiteral("/tmp/picture.jpg")));
+
+    QVERIFY(reattachAttempted);
+    QVERIFY(!reattachAccepted);
+    QCOMPARE(document.videoOutput(), nullptr);
+    QCOMPARE(session.documentKind(), KiriDocumentSession::DocumentKind::Image);
+}
+
+void TestKiriVideoDocument::leavingVideoKeepsSurfaceClaimsRetiredUntilImageProjection()
+{
+    const QUrl imageUrl = QUrl::fromLocalFile(QStringLiteral("/tmp/picture.jpg"));
+    QObject surfaceOwner;
+    QObject videoOutput;
+    KiriDocumentSession session;
+    KiriVideoDocument& document = *session.videoDocument();
+    session.setSourceUrl(QUrl::fromLocalFile(QStringLiteral("/tmp/movie.mp4")));
+    QVERIFY(session.reportVideoOutputSurfaceClaim(session.nextVideoOutputSurfaceClaimToken(),
+        session.publicProjectionRevision(), &surfaceOwner, &videoOutput, true, {}, {}));
+    bool reattachAttempted = false;
+    bool reattachAccepted = true;
+
+    connect(session.imageDocument(), &KiriImageDocument::sourceUrlChanged, session.imageDocument(),
+        [&]() {
+            if (reattachAttempted || session.imageDocument()->sourceUrl() != imageUrl) {
+                return;
+            }
+            reattachAttempted = true;
+            reattachAccepted
+                = session.reportVideoOutputSurfaceClaim(session.nextVideoOutputSurfaceClaimToken(),
+                    session.publicProjectionRevision(), &surfaceOwner, &videoOutput, true, {}, {});
+        });
+
+    session.setSourceUrl(imageUrl);
+
+    QVERIFY(reattachAttempted);
+    QVERIFY(!reattachAccepted);
+    QCOMPARE(document.videoOutput(), nullptr);
+    QCOMPARE(session.documentKind(), KiriDocumentSession::DocumentKind::Image);
+}
+
+void TestKiriVideoDocument::reentrantVideoRouteCanActivateNewSurfaceClaimEpoch()
+{
+    const QUrl firstVideoUrl = QUrl::fromLocalFile(QStringLiteral("/tmp/first.mp4"));
+    const QUrl replacementVideoUrl = QUrl::fromLocalFile(QStringLiteral("/tmp/replacement.mp4"));
+    const QUrl supersededImageUrl = QUrl::fromLocalFile(QStringLiteral("/tmp/superseded.jpg"));
+    QObject firstSurfaceOwner;
+    QObject firstVideoOutput;
+    QObject replacementSurfaceOwner;
+    QObject replacementVideoOutput;
+    KiriDocumentSession session;
+    KiriVideoDocument& document = *session.videoDocument();
+    session.setSourceUrl(firstVideoUrl);
+    QVERIFY(session.reportVideoOutputSurfaceClaim(session.nextVideoOutputSurfaceClaimToken(),
+        session.publicProjectionRevision(), &firstSurfaceOwner, &firstVideoOutput, true, {}, {}));
+    bool replacementRouteSubmitted = false;
+    bool replacementClaimAttempted = false;
+    bool replacementClaimAccepted = false;
+
+    connect(&session, &KiriDocumentSession::publicProjectionRevisionChanged, &session, [&]() {
+        if (!replacementRouteSubmitted || replacementClaimAttempted
+            || session.sourceUrl() != replacementVideoUrl
+            || session.documentKind() != KiriDocumentSession::DocumentKind::Video) {
+            return;
+        }
+        replacementClaimAttempted = true;
+        replacementClaimAccepted = session.reportVideoOutputSurfaceClaim(
+            session.nextVideoOutputSurfaceClaimToken(), session.publicProjectionRevision(),
+            &replacementSurfaceOwner, &replacementVideoOutput, true, {}, {});
+    });
+    connect(&document, &KiriVideoDocument::videoOutputChanged, &document, [&]() {
+        if (replacementRouteSubmitted || document.videoOutput() != nullptr) {
+            return;
+        }
+        replacementRouteSubmitted = true;
+        session.setSourceUrl(replacementVideoUrl);
+    });
+
+    session.setSourceUrl(supersededImageUrl);
+
+    QVERIFY(replacementRouteSubmitted);
+    QVERIFY(replacementClaimAttempted);
+    QVERIFY(replacementClaimAccepted);
+    QCOMPARE(session.sourceUrl(), replacementVideoUrl);
+    QCOMPARE(session.documentKind(), KiriDocumentSession::DocumentKind::Video);
+    QCOMPARE(document.videoOutput(), &replacementVideoOutput);
+}
+
+void TestKiriVideoDocument::supersededVideoEntryCannotKeepClaimEpochActive()
+{
+    const QUrl supersededVideoUrl = QUrl::fromLocalFile(QStringLiteral("/tmp/superseded.mp4"));
+    const QUrl imageUrl = QUrl::fromLocalFile(QStringLiteral("/tmp/current.jpg"));
+    const QUrl currentVideoUrl = QUrl::fromLocalFile(QStringLiteral("/tmp/current.mp4"));
+    QObject surfaceOwner;
+    QObject videoOutput;
+    KiriDocumentSession session;
+    KiriVideoDocument& document = *session.videoDocument();
+    bool imageRouteSubmitted = false;
+
+    connect(&document, &KiriVideoDocument::sourceUrlChanged, &document, [&]() {
+        if (imageRouteSubmitted || document.sourceUrl() != supersededVideoUrl) {
+            return;
+        }
+        imageRouteSubmitted = true;
+        session.setSourceUrl(imageUrl);
+    });
+
+    session.setSourceUrl(supersededVideoUrl);
+
+    QVERIFY(imageRouteSubmitted);
+    QCOMPARE(session.sourceUrl(), imageUrl);
+    QCOMPARE(session.documentKind(), KiriDocumentSession::DocumentKind::Image);
+    const QString tokenIssuedWhileImageActive = session.nextVideoOutputSurfaceClaimToken();
+
+    session.setSourceUrl(currentVideoUrl);
+
+    QCOMPARE(session.documentKind(), KiriDocumentSession::DocumentKind::Video);
+    QVERIFY(!session.reportVideoOutputSurfaceClaim(tokenIssuedWhileImageActive,
+        session.publicProjectionRevision(), &surfaceOwner, &videoOutput, true, {}, {}));
+    QCOMPARE(document.videoOutput(), nullptr);
+}
+
+void TestKiriVideoDocument::sessionDestructionSilentlyDetachesRetainedVideoDocument()
+{
+    QObject surfaceOwner;
+    QObject videoOutput;
+    auto session = std::make_unique<KiriDocumentSession>();
+    KiriVideoDocument* document = session->videoDocument();
+    session->setSourceUrl(QUrl::fromLocalFile(QStringLiteral("/tmp/movie.mp4")));
+    QVERIFY(session->reportVideoOutputSurfaceClaim(session->nextVideoOutputSurfaceClaimToken(),
+        session->publicProjectionRevision(), &surfaceOwner, &videoOutput, true, {}, {}));
+    QCOMPARE(document->videoOutput(), &videoOutput);
+    QSignalSpy videoOutputSpy(document, &KiriVideoDocument::videoOutputChanged);
+    document->setParent(nullptr);
+    const std::unique_ptr<KiriVideoDocument> retainedDocument(document);
+
+    session.reset();
+
+    QCOMPARE(retainedDocument->videoOutput(), nullptr);
+    QCOMPARE(videoOutputSpy.count(), 0);
+}
+
+void TestKiriVideoDocument::sessionDestructionDuringVideoSignalSilentlySettlesPlaybackProjection()
+{
+    kiriview::KiriDocumentSessionDependencies dependencies;
+    TeardownCallbackVideoBackend* backend = nullptr;
+    dependencies.videoMediaBackendFactory
+        = [&backend]() -> std::unique_ptr<kiriview::VideoMediaBackend> {
+        auto candidate = std::make_unique<TeardownCallbackVideoBackend>();
+        backend = candidate.get();
+        return candidate;
+    };
+
+    QObject surfaceOwner;
+    QObject videoOutput;
+    auto session = std::make_unique<KiriDocumentSession>(std::move(dependencies));
+    QPointer<KiriDocumentSession> sessionGuard(session.get());
+    KiriVideoDocument* document = session->videoDocument();
+    session->setSourceUrl(QUrl::fromLocalFile(QStringLiteral("/tmp/movie.mp4")));
+    QVERIFY(backend != nullptr);
+    QVERIFY(session->reportVideoOutputSurfaceClaim(session->nextVideoOutputSurfaceClaimToken(),
+        session->publicProjectionRevision(), &surfaceOwner, &videoOutput, true, {}, {}));
+    QCOMPARE(document->videoOutput(), &videoOutput);
+
+    document->setParent(nullptr);
+    const std::unique_ptr<KiriVideoDocument> retainedDocument(document);
+    QSignalSpy projectionSpy(
+        retainedDocument->playbackControls(), &KiriVideoPlaybackControls::projectionChanged);
+    connect(retainedDocument.get(), &KiriVideoDocument::hasAudioChanged, retainedDocument.get(),
+        [&session]() { session.reset(); });
+
+    backend->emitHasAudio();
+
+    QVERIFY(sessionGuard.isNull());
+    QVERIFY(retainedDocument->hasAudio());
+    QCOMPARE(retainedDocument->videoOutput(), nullptr);
+    QVERIFY(retainedDocument->playbackControls()->muted());
+    QCOMPARE(projectionSpy.count(), 0);
 }
 
 QTEST_GUILESS_MAIN(TestKiriVideoDocument)

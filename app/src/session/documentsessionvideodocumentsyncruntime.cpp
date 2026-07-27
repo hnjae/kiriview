@@ -13,6 +13,11 @@ DocumentSessionVideoDocumentSyncRuntime::DocumentSessionVideoDocumentSyncRuntime
 {
 }
 
+DocumentSessionVideoDocumentSyncRuntime::~DocumentSessionVideoDocumentSyncRuntime()
+{
+    m_callbackLifetime.reset();
+}
+
 void DocumentSessionVideoDocumentSyncRuntime::sync(
     DocumentSessionKind documentKind, const DocumentSessionPublicVideoLeafSnapshot& video)
 {
@@ -20,52 +25,84 @@ void DocumentSessionVideoDocumentSyncRuntime::sync(
 }
 
 void DocumentSessionVideoDocumentSyncRuntime::sync(
-    const DocumentSessionVideoDocumentSyncRuntimeInput& input)
+    const DocumentSessionVideoDocumentSyncRuntimeInput& input,
+    const DocumentSessionVideoDocumentSyncRuntimeControl& control)
 {
-    apply(documentSessionVideoDocumentSyncPlan(input));
+    const quint64 syncRevision = m_syncAdmission.next();
+    apply(documentSessionVideoDocumentSyncPlan(input), syncRevision, control);
 }
 
 void DocumentSessionVideoDocumentSyncRuntime::apply(
-    const DocumentSessionVideoDocumentSyncPlan& plan)
+    const DocumentSessionVideoDocumentSyncPlan& plan, quint64 syncRevision,
+    const DocumentSessionVideoDocumentSyncRuntimeControl& control)
 {
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    const DocumentSessionVideoDocumentSyncRuntimePorts ports = m_ports;
+    const std::function<bool()> externallyCurrent = control.isCurrent;
+    const auto current = [this, lifetime, syncRevision, externallyCurrent]() {
+        if (lifetime.expired() || !m_syncAdmission.accepts(syncRevision)) {
+            return false;
+        }
+        const bool accepted = !externallyCurrent || externallyCurrent();
+        return accepted && !lifetime.expired() && m_syncAdmission.accepts(syncRevision);
+    };
+    if (!current()) {
+        return;
+    }
     switch (plan.operation) {
     case DocumentSessionVideoDocumentSyncOperation::None:
         return;
     case DocumentSessionVideoDocumentSyncOperation::ClearSessionDirectMedia:
-        if (m_ports.clearDirectMediaCursor) {
-            m_ports.clearDirectMediaCursor();
+        if (ports.setDocumentKind
+            && (!ports.setDocumentKind(DocumentSessionKind::Empty) || !current())) {
+            return;
         }
-        if (m_ports.setSourceIdentity) {
-            m_ports.setSourceIdentity(QUrl());
+        if (ports.clearDirectMediaCursor) {
+            ports.clearDirectMediaCursor();
+            if (!current()) {
+                return;
+            }
         }
-        if (m_ports.setDocumentKind) {
-            m_ports.setDocumentKind(DocumentSessionKind::Empty);
+        if (ports.setSourceIdentity) {
+            ports.setSourceIdentity(QUrl());
+            if (!current()) {
+                return;
+            }
         }
-        if (m_ports.clearDirectMediaNavigation) {
-            m_ports.clearDirectMediaNavigation();
+        if (ports.clearDirectMediaNavigation) {
+            ports.clearDirectMediaNavigation();
+            if (!current()) {
+                return;
+            }
         }
         break;
     case DocumentSessionVideoDocumentSyncOperation::CommitDirectVideoCursor: {
-        const DirectMediaConfirmation confirmation = m_ports.confirmDirectVideoCursor
-            ? m_ports.confirmDirectVideoCursor(plan.url)
+        const DirectMediaConfirmation confirmation = ports.confirmDirectVideoCursor
+            ? ports.confirmDirectVideoCursor(plan.url)
             : DirectMediaConfirmation::Bypassed;
-        if (confirmation != DirectMediaConfirmation::Committed) {
+        if (!current() || confirmation != DirectMediaConfirmation::Committed) {
             return;
         }
-        if (m_ports.setSourceIdentity) {
-            m_ports.setSourceIdentity(plan.url);
+        if (ports.setSourceIdentity) {
+            ports.setSourceIdentity(plan.url);
+            if (!current()) {
+                return;
+            }
         }
         break;
     }
     case DocumentSessionVideoDocumentSyncOperation::CommitOpenedCollectionVideoSource:
-        if (m_ports.setSourceIdentity) {
-            m_ports.setSourceIdentity(plan.url);
+        if (ports.setSourceIdentity) {
+            ports.setSourceIdentity(plan.url);
+            if (!current()) {
+                return;
+            }
         }
         break;
     }
 
-    if (m_ports.recomputePublicProjection) {
-        m_ports.recomputePublicProjection();
+    if (ports.recomputePublicProjection) {
+        ports.recomputePublicProjection();
     }
 }
 }

@@ -8,6 +8,7 @@
 #include "facade/kirivideoplaybackcontrols.h"
 #include "facade/videodocumentpublicsignals.h"
 #include "metadata/embeddedmetadata.h"
+#include "video/videomediabackend.h"
 #include "video/videoplaybackcontrolruntime.h"
 #include "video/videoplaybacksource.h"
 
@@ -18,6 +19,7 @@
 #include <QUrl>
 #include <QtGlobal>
 #include <QtQml/qqmlregistration.h>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -58,6 +60,8 @@ public:
     explicit KiriVideoDocument(QObject* parent = nullptr);
     explicit KiriVideoDocument(
         kiriview::TimerScheduler playbackControlTimerScheduler, QObject* parent = nullptr);
+    KiriVideoDocument(kiriview::TimerScheduler playbackControlTimerScheduler,
+        kiriview::VideoMediaBackendFactory videoMediaBackendFactory, QObject* parent = nullptr);
     ~KiriVideoDocument() override;
     Q_DISABLE_COPY_MOVE(KiriVideoDocument)
 
@@ -108,8 +112,9 @@ private:
 
     void setSourceUrl(const QUrl& sourceUrl);
     void setSourceDevice(const QUrl& sourceUrl, kiriview::VideoPlaybackSourceDevice sourceDevice);
-    void setVideoOutput(QObject* videoOutput);
-    void setVideoOutputGeometry(const QRectF& contentRect, const QRectF& sourceRect);
+    void setVideoOutputAttachment(
+        QObject* videoOutput, const QRectF& contentRect, const QRectF& sourceRect);
+    void runWithPublicSignalsSuppressed(const std::function<void()>& effect);
     void handleDocumentChanges(const std::vector<kiriview::VideoDocumentChange>& changes);
     void enqueuePublicSignals(std::vector<kiriview::VideoDocumentPublicSignal> signals);
     void drainPublicSignals();
@@ -130,6 +135,7 @@ private:
     qint64 m_videoDuration = 0;
     std::vector<kiriview::VideoDocumentPublicSignal> m_pendingPublicSignals;
     bool m_publicSignalDispatchActive = false;
+    quint64 m_publicSignalSuppressionDepth = 0;
 };
 
 #endif

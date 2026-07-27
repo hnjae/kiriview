@@ -10,6 +10,7 @@
 #include <QObject>
 #include <QTest>
 #include <QUrl>
+#include <functional>
 #include <utility>
 #include <vector>
 
@@ -27,6 +28,7 @@ private Q_SLOTS:
     void directMediaCandidateFailureAbortsBeforeFileOperation();
     void directMediaCandidatePhaseIsOwnedByRuntime();
     void directMediaCandidateLoadCancelRejectsLateCompletion();
+    void directMediaCandidateCancellationPreservesReentrantReplacement();
     void cancelRejectsLateCompletion();
     void cancellationInvalidatesBeforeFileProviderCallback();
     void synchronousCompletionPreservesReplacementJob();
@@ -55,6 +57,8 @@ struct ManualDirectMediaNavigationCandidateLoad
 class ManualDirectMediaNavigationCandidateProvider
 {
 public:
+    void setCancelHook(std::function<void()> cancelHook) { m_cancelHook = std::move(cancelHook); }
+
     kiriview::DirectMediaNavigationCandidateProvider provider()
     {
         return kiriview::DirectMediaNavigationCandidateProvider {
@@ -67,7 +71,7 @@ public:
                 load->errorCallback = std::move(errorCallback);
 
                 kiriview::ImageIoJob job
-                    = kiriview::TestSupport::Detail::startManualIoJob(receiver, load);
+                    = kiriview::TestSupport::Detail::startManualIoJob(receiver, load, m_cancelHook);
                 m_loads.push_back(load);
                 return job;
             },
@@ -100,6 +104,7 @@ public:
 
 private:
     std::vector<std::shared_ptr<ManualDirectMediaNavigationCandidateLoad>> m_loads;
+    std::function<void()> m_cancelHook;
 };
 
 kiriview::DirectMediaScope directMediaScope(const QUrl& currentUrl)
@@ -355,6 +360,39 @@ void TestDocumentSessionMediaDeletionRuntime::directMediaCandidateLoadCancelReje
 
     QCOMPARE(fixture.fileDeletionProvider.operationCount(), std::size_t(0));
     QCOMPARE(fixture.completionCount, 0);
+}
+
+void TestDocumentSessionMediaDeletionRuntime::
+    directMediaCandidateCancellationPreservesReentrantReplacement()
+{
+    RuntimeFixture fixture;
+    const QUrl canceledUrl = localUrl(QStringLiteral("/canceled/01.mp4"));
+    const QUrl replacementUrl = localUrl(QStringLiteral("/replacement/01.mp4"));
+    bool replacementStarted = false;
+    fixture.candidateProvider.setCancelHook([&]() {
+        if (std::exchange(replacementStarted, true)) {
+            return;
+        }
+        fixture.start(kiriview::FileDeletionMode::MoveToTrash,
+            { directMediaNavigationCandidate(replacementUrl) }, replacementUrl);
+    });
+
+    QVERIFY(fixture.startDirectMedia(
+        kiriview::FileDeletionMode::MoveToTrash, directMediaScope(canceledUrl)));
+    QCOMPARE(fixture.fileDeletionProvider.operationCount(), std::size_t(0));
+
+    fixture.runtime.cancel();
+
+    QVERIFY(replacementStarted);
+    QCOMPARE(fixture.fileDeletionProvider.operationCount(), std::size_t(1));
+    QCOMPARE(fixture.fileDeletionProvider.backOperation().request.targetUrl, replacementUrl);
+    QVERIFY(!fixture.fileDeletionProvider.backOperation().canceled);
+    QVERIFY(fixture.runtime.active());
+
+    fixture.fileDeletionProvider.finishBackOperation(kiriview::FileDeletionResult::Succeeded);
+
+    QCOMPARE(fixture.completionCount, 1);
+    QVERIFY(!fixture.runtime.active());
 }
 
 void TestDocumentSessionMediaDeletionRuntime::cancelRejectsLateCompletion()
