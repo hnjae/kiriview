@@ -26,26 +26,39 @@ struct MediaEntrySourceBackendOperations
 class MediaEntrySourceWithCandidateSnapshot : public MediaEntrySource
 {
 public:
-    explicit MediaEntrySourceWithCandidateSnapshot(
-        std::vector<ImageDocumentPageCandidate> candidates);
+    MediaEntrySourceWithCandidateSnapshot(OpenedCollectionScopeLocation openedCollectionScope,
+        MediaEntrySourceBackendKind backend, std::vector<ImageDocumentPageCandidate> candidates);
     ~MediaEntrySourceWithCandidateSnapshot() override = default;
 
     MediaEntrySourceCandidatesResult loadImageDocumentPageCandidates() final;
+    MediaEntrySourceImageDataResult loadImageData(const QUrl& imageUrl) final;
+    MediaEntrySourceVideoPlaybackDeviceResult loadVideoPlaybackDevice(const QUrl& videoUrl) final;
+    MediaEntrySourceThumbnailMetadataResult loadThumbnailMetadata(const QUrl& imageUrl) final;
 
 protected:
-    void replaceCandidateSnapshot(std::vector<ImageDocumentPageCandidate> candidates);
+    [[nodiscard]] const OpenedCollectionScopeLocation& openedCollectionScope() const;
+
+    virtual MediaEntrySourceImageDataResult loadAuthorizedImageData(
+        const ImageDocumentPageCandidate& candidate)
+        = 0;
+    virtual MediaEntrySourceVideoPlaybackDeviceResult loadAuthorizedVideoPlaybackDevice(
+        const ImageDocumentPageCandidate& candidate);
+    virtual MediaEntrySourceThumbnailMetadataResult loadAuthorizedThumbnailMetadata(
+        const ImageDocumentPageCandidate& candidate);
 
 private:
+    [[nodiscard]] const ImageDocumentPageCandidate* authorizedCandidate(
+        const QUrl& url, ImageDocumentPageKind expectedKind) const;
+    [[nodiscard]] QString rejectedSelectorEntryPath(const QUrl& url) const;
+
+    OpenedCollectionScopeLocation m_openedCollectionScope;
+    MediaEntrySourceBackendKind m_backend = MediaEntrySourceBackendKind::Unknown;
     std::vector<ImageDocumentPageCandidate> m_candidates;
     Q_DISABLE_COPY_MOVE(MediaEntrySourceWithCandidateSnapshot)
 };
 
 std::optional<ImageDocumentPageCandidate> openedCollectionImageDocumentPageCandidate(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QString& entryPath);
-std::optional<QString> openedCollectionImageEntryPathForRead(
-    const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& imageUrl);
-std::optional<QString> openedCollectionVideoEntryPathForRead(
-    const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl);
 
 MediaEntrySourceError mediaEntrySourceError(MediaEntrySourceErrorCause cause,
     MediaEntrySourceBackendKind backend, MediaEntrySourceOperation operation,

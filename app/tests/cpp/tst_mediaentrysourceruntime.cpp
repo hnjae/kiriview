@@ -24,6 +24,7 @@ using kiriview::TestSupport::instrumentedMediaEntrySourceFactory;
 using kiriview::TestSupport::InstrumentedMediaEntrySourceState;
 using kiriview::TestSupport::localUrl;
 using kiriview::TestSupport::releaseInstrumentedMediaEntrySourceLoads;
+using kiriview::TestSupport::videoCandidate;
 
 struct ManualImageWorkerSchedule
 {
@@ -75,6 +76,7 @@ private Q_SLOTS:
     void candidateLoadAddedDuringActiveBatchSharesWorker();
     void candidateBatchCancellationPreventsStaleCallbacks();
     void dataCompletionAfterOpenedCollectionSwitchIsIgnored();
+    void nonCurrentScopeAccessIsRejectedWithoutReplacingCurrentSnapshot();
     void errorsRemainTypedThroughRuntimeCallbacks();
 };
 
@@ -238,6 +240,7 @@ void TestMediaEntrySourceRuntime::dataCompletionAfterOpenedCollectionSwitchIsIgn
     ManualImageWorkerScheduler workerScheduler;
     kiriview::MediaEntrySourceRuntime runtime(
         this, instrumentedMediaEntrySourceFactory(state), workerScheduler.scheduler());
+    runtime.switchToOpenedCollectionScope(*firstArchiveCollection);
     int staleCallbackCount = 0;
     kiriview::ImageIoJob staleJob = runtime.loadOpenedCollectionImageData(this,
         kiriview::ImageDecodeRequest::fromLocation(1,
@@ -260,6 +263,91 @@ void TestMediaEntrySourceRuntime::dataCompletionAfterOpenedCollectionSwitchIsIgn
     QVERIFY(!staleJob.isActive());
     QCOMPARE(staleCallbackCount, 0);
     QVERIFY(runtime.hasCurrentOpenedCollectionScope(*secondArchiveCollection));
+}
+
+void TestMediaEntrySourceRuntime::nonCurrentScopeAccessIsRejectedWithoutReplacingCurrentSnapshot()
+{
+    auto state = std::make_shared<InstrumentedMediaEntrySourceState>();
+    const std::optional<kiriview::OpenedCollectionScopeLocation> currentCollection
+        = archiveCollectionForLocalArchiveUrl(localUrl(QStringLiteral("/books/current.cbz")));
+    const std::optional<kiriview::OpenedCollectionScopeLocation> foreignCollection
+        = archiveCollectionForLocalArchiveUrl(localUrl(QStringLiteral("/books/foreign.cbz")));
+    QVERIFY(currentCollection.has_value());
+    QVERIFY(foreignCollection.has_value());
+    const QUrl currentUrl
+        = archivePageUrl(currentCollection->rootUrl(), QStringLiteral("current.png"));
+    const QUrl foreignImageUrl
+        = archivePageUrl(foreignCollection->rootUrl(), QStringLiteral("foreign.png"));
+    const QUrl foreignVideoUrl
+        = archivePageUrl(foreignCollection->rootUrl(), QStringLiteral("foreign.mp4"));
+    addInstrumentedMediaEntrySourceFixture(
+        state, *currentCollection, { imageDocumentPageCandidate(currentUrl) });
+    addInstrumentedMediaEntrySourceFixture(state, *foreignCollection,
+        { imageDocumentPageCandidate(foreignImageUrl), videoCandidate(foreignVideoUrl) });
+
+    kiriview::MediaEntrySourceRuntime runtime(this, instrumentedMediaEntrySourceFactory(state));
+    std::vector<ImageDocumentPageCandidate> initialCandidates;
+    runtime.loadOpenedCollectionCandidates(nullptr, *currentCollection,
+        [&initialCandidates](auto candidates) { initialCandidates = std::move(candidates); }, {});
+    QCOMPARE(initialCandidates.size(), std::size_t(1));
+    QCOMPARE(state->openCount.load(), 1);
+    QCOMPARE(state->candidateLoadCount.load(), 1);
+    QVERIFY(runtime.hasCurrentOpenedCollectionScope(*currentCollection));
+
+    bool imageAccessSucceeded = false;
+    std::optional<kiriview::MediaEntrySourceError> imageAccessError;
+    runtime.loadOpenedCollectionImageData(
+        nullptr,
+        kiriview::ImageDecodeRequest::fromLocation(1,
+            kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
+                foreignImageUrl, *foreignCollection)),
+        [&imageAccessSucceeded](QByteArray) { imageAccessSucceeded = true; },
+        [&imageAccessError](
+            kiriview::MediaEntrySourceError error) { imageAccessError = std::move(error); });
+    const kiriview::MediaEntrySourceVideoPlaybackDeviceResult videoResult
+        = runtime.loadOpenedCollectionVideoPlaybackDevice(*foreignCollection, foreignVideoUrl);
+    const bool videoAccessSucceeded = kiriview::mediaEntrySourceResultValue(videoResult) != nullptr;
+    const kiriview::MediaEntrySourceError* videoAccessError
+        = kiriview::mediaEntrySourceResultError(videoResult);
+
+    const bool currentScopePreserved = runtime.hasCurrentOpenedCollectionScope(*currentCollection)
+        && !runtime.hasCurrentOpenedCollectionScope(*foreignCollection);
+    std::vector<ImageDocumentPageCandidate> candidatesAfterRejectedAccess;
+    runtime.loadOpenedCollectionCandidates(nullptr, *currentCollection,
+        [&candidatesAfterRejectedAccess](
+            auto candidates) { candidatesAfterRejectedAccess = std::move(candidates); },
+        {});
+    const bool currentSnapshotPreserved
+        = candidatesAfterRejectedAccess.size() == initialCandidates.size()
+        && !candidatesAfterRejectedAccess.empty()
+        && candidatesAfterRejectedAccess.front().url == initialCandidates.front().url
+        && state->openCount.load() == 1 && state->candidateLoadCount.load() == 1;
+    const QString failureDetail
+        = QStringLiteral("imageSucceeded=%1 imageFailed=%2 videoSucceeded=%3 videoFailed=%4 "
+                         "currentScopePreserved=%5 currentSnapshotPreserved=%6 openCount=%7 "
+                         "candidateLoadCount=%8 dataLoadCount=%9 playbackDeviceLoadCount=%10")
+              .arg(imageAccessSucceeded)
+              .arg(imageAccessError.has_value())
+              .arg(videoAccessSucceeded)
+              .arg(videoAccessError != nullptr)
+              .arg(currentScopePreserved)
+              .arg(currentSnapshotPreserved)
+              .arg(state->openCount.load())
+              .arg(state->candidateLoadCount.load())
+              .arg(state->dataLoadCount.load())
+              .arg(state->playbackDeviceLoadCount.load());
+
+    QVERIFY2(!imageAccessSucceeded && imageAccessError.has_value() && !videoAccessSucceeded
+            && videoAccessError != nullptr && currentScopePreserved && currentSnapshotPreserved
+            && state->dataLoadCount.load() == 0 && state->playbackDeviceLoadCount.load() == 0,
+        qPrintable(failureDetail));
+    QCOMPARE(imageAccessError->cause, kiriview::MediaEntrySourceErrorCause::EntryNotFound);
+    QCOMPARE(imageAccessError->operation, kiriview::MediaEntrySourceOperation::ReadImageData);
+    QCOMPARE(imageAccessError->collectionUrl, foreignCollection->fileUrl());
+    QCOMPARE(videoAccessError->cause, kiriview::MediaEntrySourceErrorCause::EntryNotFound);
+    QCOMPARE(
+        videoAccessError->operation, kiriview::MediaEntrySourceOperation::OpenVideoPlaybackDevice);
+    QCOMPARE(videoAccessError->collectionUrl, foreignCollection->fileUrl());
 }
 
 void TestMediaEntrySourceRuntime::errorsRemainTypedThroughRuntimeCallbacks()

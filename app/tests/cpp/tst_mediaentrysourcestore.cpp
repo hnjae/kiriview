@@ -186,6 +186,7 @@ void TestMediaEntrySourceStore::staleDataLoadCompletionIsIgnoredAfterArchiveSwit
     blockInstrumentedMediaEntrySourceDataLoads(state);
 
     kiriview::MediaEntrySourceStore store(instrumentedMediaEntrySourceFactory(state));
+    store.prepareForOpenedCollectionScope(*firstArchiveCollection);
     int staleCallbackCount = 0;
     kiriview::ImageIoJob staleJob = store.loadOpenedCollectionImageData(this,
         kiriview::ImageDecodeRequest::fromLocation(1,
@@ -324,6 +325,7 @@ void TestMediaEntrySourceStore::videoPlaybackDeviceKeepsSourceAliveAfterStoreCle
     std::optional<kiriview::MediaEntrySourceVideoPlaybackDeviceResult> retainedResult;
     {
         kiriview::MediaEntrySourceStore store(instrumentedMediaEntrySourceFactory(state));
+        store.prepareForOpenedCollectionScope(*archiveCollection);
         retainedResult.emplace(
             store.loadOpenedCollectionVideoPlaybackDevice(*archiveCollection, videoUrl));
         auto* device = kiriview::mediaEntrySourceResultValue(*retainedResult);

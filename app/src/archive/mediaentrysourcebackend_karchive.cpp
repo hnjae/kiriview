@@ -260,98 +260,68 @@ class KArchiveMediaEntrySource final : public Backend::MediaEntrySourceWithCandi
 public:
     KArchiveMediaEntrySource(kiriview::OpenedCollectionScopeLocation openedCollectionScope,
         ScopedKArchive archive, std::vector<kiriview::ImageDocumentPageCandidate> candidates)
-        : Backend::MediaEntrySourceWithCandidateSnapshot(std::move(candidates))
-        , m_openedCollectionScope(std::move(openedCollectionScope))
+        : Backend::MediaEntrySourceWithCandidateSnapshot(std::move(openedCollectionScope),
+              kiriview::MediaEntrySourceBackendKind::KArchive, std::move(candidates))
         , m_archive(std::move(archive))
     {
     }
 
-    kiriview::MediaEntrySourceImageDataResult loadImageData(const QUrl& imageUrl) override
+protected:
+    kiriview::MediaEntrySourceImageDataResult loadAuthorizedImageData(
+        const kiriview::ImageDocumentPageCandidate& candidate) override
     {
-        const std::optional<QString> entryPath
-            = Backend::openedCollectionImageEntryPathForRead(m_openedCollectionScope, imageUrl);
-        if (!entryPath.has_value()) {
-            return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceImageDataResult>(
-                Backend::mediaEntrySourceError(kiriview::MediaEntrySourceErrorCause::EntryNotFound,
-                    kiriview::MediaEntrySourceBackendKind::KArchive,
-                    kiriview::MediaEntrySourceOperation::ReadImageData, m_openedCollectionScope,
-                    imageUrl.toString()));
-        }
-
         const KArchiveDirectory* directory = m_archive.directory();
-        const KArchiveFile* file = directory == nullptr ? nullptr : directory->file(*entryPath);
+        const KArchiveFile* file = directory == nullptr ? nullptr : directory->file(candidate.name);
         if (file == nullptr) {
             return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceImageDataResult>(
                 Backend::mediaEntrySourceError(kiriview::MediaEntrySourceErrorCause::EntryNotFound,
                     kiriview::MediaEntrySourceBackendKind::KArchive,
-                    kiriview::MediaEntrySourceOperation::ReadImageData, m_openedCollectionScope, {},
-                    *entryPath));
+                    kiriview::MediaEntrySourceOperation::ReadImageData, openedCollectionScope(), {},
+                    candidate.name));
         }
 
-        return readKArchiveFileData(m_openedCollectionScope, *entryPath, *file);
+        return readKArchiveFileData(openedCollectionScope(), candidate.name, *file);
     }
 
-    kiriview::MediaEntrySourceVideoPlaybackDeviceResult loadVideoPlaybackDevice(
-        const QUrl& videoUrl) override
+    kiriview::MediaEntrySourceVideoPlaybackDeviceResult loadAuthorizedVideoPlaybackDevice(
+        const kiriview::ImageDocumentPageCandidate& candidate) override
     {
-        const std::optional<QString> entryPath
-            = Backend::openedCollectionVideoEntryPathForRead(m_openedCollectionScope, videoUrl);
-        if (!entryPath.has_value()) {
-            return Backend::mediaEntrySourceErrorResult<
-                kiriview::MediaEntrySourceVideoPlaybackDeviceResult>(
-                Backend::mediaEntrySourceError(kiriview::MediaEntrySourceErrorCause::EntryNotFound,
-                    kiriview::MediaEntrySourceBackendKind::KArchive,
-                    kiriview::MediaEntrySourceOperation::OpenVideoPlaybackDevice,
-                    m_openedCollectionScope, videoUrl.toString()));
-        }
-
         const KArchiveDirectory* directory = m_archive.directory();
-        const KArchiveFile* file = directory == nullptr ? nullptr : directory->file(*entryPath);
+        const KArchiveFile* file = directory == nullptr ? nullptr : directory->file(candidate.name);
         if (file == nullptr) {
             return Backend::mediaEntrySourceErrorResult<
                 kiriview::MediaEntrySourceVideoPlaybackDeviceResult>(
                 Backend::mediaEntrySourceError(kiriview::MediaEntrySourceErrorCause::EntryNotFound,
                     kiriview::MediaEntrySourceBackendKind::KArchive,
                     kiriview::MediaEntrySourceOperation::OpenVideoPlaybackDevice,
-                    m_openedCollectionScope, {}, *entryPath));
+                    openedCollectionScope(), {}, candidate.name));
         }
 
-        return openKArchiveFileVideoPlaybackDevice(m_openedCollectionScope, *entryPath, *file);
+        return openKArchiveFileVideoPlaybackDevice(openedCollectionScope(), candidate.name, *file);
     }
 
-    kiriview::MediaEntrySourceThumbnailMetadataResult loadThumbnailMetadata(
-        const QUrl& imageUrl) override
+    kiriview::MediaEntrySourceThumbnailMetadataResult loadAuthorizedThumbnailMetadata(
+        const kiriview::ImageDocumentPageCandidate& candidate) override
     {
-        const std::optional<QString> entryPath
-            = Backend::openedCollectionImageEntryPathForRead(m_openedCollectionScope, imageUrl);
-        if (!entryPath.has_value()) {
-            return Backend::mediaEntrySourceErrorResult<
-                kiriview::MediaEntrySourceThumbnailMetadataResult>(
-                Backend::mediaEntrySourceError(kiriview::MediaEntrySourceErrorCause::EntryNotFound,
-                    kiriview::MediaEntrySourceBackendKind::KArchive,
-                    kiriview::MediaEntrySourceOperation::LoadThumbnailMetadata,
-                    m_openedCollectionScope, imageUrl.toString()));
-        }
-
         if (!kiriview::openedCollectionEntryPathSupportsThumbnailContentIdentity(
-                m_openedCollectionScope, *entryPath)) {
+                openedCollectionScope(), candidate.name)) {
             return Backend::mediaEntrySourceErrorResult<
                 kiriview::MediaEntrySourceThumbnailMetadataResult>(Backend::mediaEntrySourceError(
                 kiriview::MediaEntrySourceErrorCause::ThumbnailMetadataUnsupported,
                 kiriview::MediaEntrySourceBackendKind::KArchive,
-                kiriview::MediaEntrySourceOperation::LoadThumbnailMetadata, m_openedCollectionScope,
-                {}, *entryPath));
+                kiriview::MediaEntrySourceOperation::LoadThumbnailMetadata, openedCollectionScope(),
+                {}, candidate.name));
         }
 
         const KArchiveDirectory* directory = m_archive.directory();
-        const KArchiveFile* file = directory == nullptr ? nullptr : directory->file(*entryPath);
+        const KArchiveFile* file = directory == nullptr ? nullptr : directory->file(candidate.name);
         if (file == nullptr) {
             return Backend::mediaEntrySourceErrorResult<
                 kiriview::MediaEntrySourceThumbnailMetadataResult>(
                 Backend::mediaEntrySourceError(kiriview::MediaEntrySourceErrorCause::EntryNotFound,
                     kiriview::MediaEntrySourceBackendKind::KArchive,
                     kiriview::MediaEntrySourceOperation::LoadThumbnailMetadata,
-                    m_openedCollectionScope, {}, *entryPath));
+                    openedCollectionScope(), {}, candidate.name));
         }
 
         const std::optional<kiriview::MediaEntrySourceThumbnailMetadata> metadata
@@ -361,15 +331,14 @@ public:
                 kiriview::MediaEntrySourceThumbnailMetadataResult>(Backend::mediaEntrySourceError(
                 kiriview::MediaEntrySourceErrorCause::ThumbnailMetadataUnsupported,
                 kiriview::MediaEntrySourceBackendKind::KArchive,
-                kiriview::MediaEntrySourceOperation::LoadThumbnailMetadata, m_openedCollectionScope,
-                {}, *entryPath));
+                kiriview::MediaEntrySourceOperation::LoadThumbnailMetadata, openedCollectionScope(),
+                {}, candidate.name));
         }
 
         return Backend::mediaEntrySourceThumbnailMetadataResult(*metadata);
     }
 
 private:
-    kiriview::OpenedCollectionScopeLocation m_openedCollectionScope;
     ScopedKArchive m_archive;
 };
 

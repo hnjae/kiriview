@@ -39,7 +39,7 @@ public:
     ImageIoJob loadOpenedCollectionImageData(QObject* receiver, const ImageDecodeRequest& request,
         ImageDataCallback callback, MediaEntrySourceErrorCallback errorCallback);
     MediaEntrySourceVideoPlaybackDeviceResult loadOpenedCollectionVideoPlaybackDevice(
-        OpenedCollectionScopeLocation openedCollectionScope, const QUrl& videoUrl);
+        const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl);
 
 private:
     void startCandidateLoad(MediaEntrySourceCandidateLoadBatch batch);
