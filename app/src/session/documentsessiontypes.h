@@ -111,6 +111,7 @@ struct DocumentSessionPublicSnapshot
     bool fileDeletionInProgress = false;
     ActiveZoomSnapshot activeZoom;
     bool activeImageReady = false;
+    bool activeImageReplacementFallbackAvailable = false;
     bool activeImageUnsupportedOpenedCollectionVideo = false;
     bool activeImageOpenedCollectionScopeActive = false;
     bool activeImageRightToLeftReadingActive = false;

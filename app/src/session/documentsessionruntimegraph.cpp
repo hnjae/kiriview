@@ -426,6 +426,11 @@ bool DocumentSessionRuntimeGraph::activeImageReady() const
     return m_state.publicSnapshot().activeImageReady;
 }
 
+bool DocumentSessionRuntimeGraph::activeImageReplacementFallbackAvailable() const
+{
+    return m_state.publicSnapshot().activeImageReplacementFallbackAvailable;
+}
+
 bool DocumentSessionRuntimeGraph::activeImageUnsupportedOpenedCollectionVideo() const
 {
     return m_state.publicSnapshot().activeImageUnsupportedOpenedCollectionVideo;

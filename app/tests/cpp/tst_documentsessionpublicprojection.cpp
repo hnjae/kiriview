@@ -23,6 +23,7 @@ private Q_SLOTS:
     void videoDeletionAvailabilityRequiresSourceWithoutError();
     void deletionProgressSuppressesDeletionAvailability();
     void pendingImageNavigationKeepsVisibleImageInformationWithoutReadyAffordances();
+    void loadingImageProjectsAuthoritativeReplacementFallback();
     void publicSnapshotProjectsRevisionedMixedMediaState();
     void actionStateSnapshotCommitsSessionImageAndVideoFacts();
 };
@@ -324,6 +325,38 @@ void TestDocumentSessionPublicProjection::
     QCOMPARE(snapshot.mediaInformation.summary, QStringLiteral("Image, 640×480 px"));
     QCOMPARE(snapshot.projection.activeNavigation.currentNumber, 2);
     QCOMPARE(snapshot.projection.activeNavigation.count, 5);
+}
+
+void TestDocumentSessionPublicProjection::loadingImageProjectsAuthoritativeReplacementFallback()
+{
+    kiriview::DocumentSessionPublicSnapshotInput input;
+    input.session.documentKind = kiriview::DocumentSessionKind::Image;
+    input.image.loading = true;
+    input.image.completeAuthoritativeDisplayAvailable = true;
+
+    kiriview::DocumentSessionPublicSnapshot snapshot
+        = kiriview::projectDocumentSessionPublicSnapshot(input, 1);
+    QVERIFY(snapshot.activeImageReplacementFallbackAvailable);
+    QVERIFY(!snapshot.activeImageReady);
+
+    input.image.completeAuthoritativeDisplayAvailable = false;
+    snapshot = kiriview::projectDocumentSessionPublicSnapshot(input, 2);
+    QVERIFY(!snapshot.activeImageReplacementFallbackAvailable);
+
+    input.image.completeAuthoritativeDisplayAvailable = true;
+    input.image.loading = false;
+    snapshot = kiriview::projectDocumentSessionPublicSnapshot(input, 3);
+    QVERIFY(!snapshot.activeImageReplacementFallbackAvailable);
+
+    input.image.loading = true;
+    input.session.documentKind = kiriview::DocumentSessionKind::Video;
+    snapshot = kiriview::projectDocumentSessionPublicSnapshot(input, 4);
+    QVERIFY(!snapshot.activeImageReplacementFallbackAvailable);
+
+    input.session.documentKind = kiriview::DocumentSessionKind::Image;
+    input.image.unsupportedOpenedCollectionVideo = true;
+    snapshot = kiriview::projectDocumentSessionPublicSnapshot(input, 5);
+    QVERIFY(!snapshot.activeImageReplacementFallbackAvailable);
 }
 
 void TestDocumentSessionPublicProjection::publicSnapshotProjectsRevisionedMixedMediaState()

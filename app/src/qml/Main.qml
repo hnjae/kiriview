@@ -320,6 +320,9 @@ StatefulApp.StatefulWindow {
             openActiveNavigationAtNumber: function (number) {
                 documentSession.openActiveNavigationAtNumber(number);
             }
+            retainImageControlPresentation: function () {
+                return mediaWorkspaceHost.imageRetainedPresentationAvailable && documentSession.documentKind === KiriDocumentSession.Image && (documentSession.activeImageReplacementFallbackAvailable || (documentSession.activeImageReady && !mainImageToolBar.imageReady));
+            }
             replacementGraceActive: mediaWorkspaceHost.imageReplacementGraceActive
             showApplicationMenuActions: !root.menuBarMode && !root.fullscreen
             transientOverlay: root.fullscreen

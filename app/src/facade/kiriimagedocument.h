@@ -49,6 +49,8 @@ class KiriImageDocument : public QObject
     Q_PROPERTY(
         QString windowTitleFileName READ windowTitleFileName NOTIFY windowTitleFileNameChanged)
     Q_PROPERTY(QUrl displayedUrl READ displayedUrl NOTIFY displayedUrlChanged)
+    Q_PROPERTY(bool completeAuthoritativeDisplayAvailable READ completeAuthoritativeDisplayAvailable
+            NOTIFY completeAuthoritativeDisplayAvailableChanged)
     Q_PROPERTY(QSize imageSize READ imageSize NOTIFY imageSizeChanged)
     Q_PROPERTY(QSize primaryImageSize READ primaryImageSize NOTIFY imageSizeChanged)
     Q_PROPERTY(QSize secondaryImageSize READ secondaryImageSize NOTIFY twoPageModeChanged)
@@ -133,6 +135,7 @@ public:
     [[nodiscard]] QString errorString() const;
     [[nodiscard]] QString windowTitleFileName() const;
     [[nodiscard]] QUrl displayedUrl() const;
+    [[nodiscard]] bool completeAuthoritativeDisplayAvailable() const;
     [[nodiscard]] kiriview::OpenedCollectionScopeLocation displayedOpenedCollectionScope() const;
     [[nodiscard]] QSize imageSize() const;
     [[nodiscard]] QSize primaryImageSize() const;
@@ -214,6 +217,7 @@ Q_SIGNALS:
     void errorStringChanged();
     void windowTitleFileNameChanged();
     void displayedUrlChanged();
+    void completeAuthoritativeDisplayAvailableChanged();
     void imageSizeChanged();
     void viewportFrameChanged();
     void zoomPercentKnownChanged();

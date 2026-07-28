@@ -10,6 +10,7 @@
 #include "facade/kiriviewapplication.h"
 #include "facade/kiriwindowshell.h"
 #include "facade/menuaccesskeyrouter.h"
+#include "image_async_test_support.h"
 #include "kiriviewstate.h"
 #include "localization/localization.h"
 
@@ -41,6 +42,7 @@
 #include <QtQml/qqml.h>
 #include <cmath>
 #include <memory>
+#include <optional>
 
 class TestMainWindowToolBar : public QObject
 {
@@ -52,6 +54,7 @@ private Q_SLOTS:
     void startupCreatesOneVisibleToolbarWithDisabledMediaControls();
     void startupInitialDirectImageRendersMainViewport();
     void startupInitialComicArchiveRendersAndNavigatesMainViewport();
+    void comicPageReplacementKeepsRightToolbarPresentationStable();
     void dropOpensFirstUrlOnly();
     void fileDialogUsesSingleSelectionMode();
     void directImageShowsMediaPositionAfterSiblingListing();
@@ -72,6 +75,8 @@ private Q_SLOTS:
 };
 
 namespace {
+std::optional<kiriview::ImageWorkerScheduler> toolbarImageWorkerSchedulerOverride;
+
 kiriview::ThumbnailGenerationProvider disabledThumbnailGenerationProvider()
 {
     return [](QObject*, kiriview::ThumbnailGenerationRequest request,
@@ -94,8 +99,27 @@ kiriview::KiriDocumentSessionDependencies toolbarTestDocumentSessionDependencies
     kiriview::KiriDocumentSessionDependencies dependencies;
     dependencies.sessionRuntime.activeNavigationThumbnails.generationProvider
         = disabledThumbnailGenerationProvider();
+    if (toolbarImageWorkerSchedulerOverride.has_value()) {
+        dependencies.imageDocument.imageDecode.workerScheduler
+            = *toolbarImageWorkerSchedulerOverride;
+    }
     return dependencies;
 }
+
+class ScopedToolbarImageWorkerSchedulerOverride final
+{
+public:
+    explicit ScopedToolbarImageWorkerSchedulerOverride(
+        kiriview::ImageWorkerScheduler workerScheduler)
+    {
+        Q_ASSERT(!toolbarImageWorkerSchedulerOverride.has_value());
+        toolbarImageWorkerSchedulerOverride = std::move(workerScheduler);
+    }
+
+    ~ScopedToolbarImageWorkerSchedulerOverride() { toolbarImageWorkerSchedulerOverride.reset(); }
+
+    Q_DISABLE_COPY_MOVE(ScopedToolbarImageWorkerSchedulerOverride)
+};
 
 class ToolbarTestDocumentSession : public KiriDocumentSession
 {
@@ -787,6 +811,107 @@ void TestMainWindowToolBar::startupInitialComicArchiveRendersAndNavigatesMainVie
         && documentSession->imageDocument()->displayedUrl() != secondPageSource);
     QVERIFY(!documentSession->imageDocument()->displayedUrl().isEmpty());
     QVERIFY(!thumbnailPanel->isVisible());
+}
+
+void TestMainWindowToolBar::comicPageReplacementKeepsRightToolbarPresentationStable()
+{
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    ScopedToolbarImageWorkerSchedulerOverride workerSchedulerOverride(workerScheduler.scheduler());
+    QString archivePath;
+    QString errorString;
+    std::unique_ptr<QTemporaryDir> archiveDirectory
+        = createComicBookArchive(&archivePath, &errorString);
+    QVERIFY2(archiveDirectory != nullptr, qPrintable(errorString));
+
+    MainWindowFixture fixture = createMainWindowFixture(QUrl::fromLocalFile(archivePath));
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    KiriDocumentSession* documentSession = findDocumentSession(fixture.window);
+    QVERIFY(documentSession != nullptr);
+
+    std::size_t nextWorkerSchedule = 0;
+    for (int attempt = 0; attempt < 2'000 && !documentSession->activeImageReady(); ++attempt) {
+        if (nextWorkerSchedule < workerScheduler.scheduleCount()) {
+            workerScheduler.runWork(nextWorkerSchedule);
+            workerScheduler.finish(nextWorkerSchedule);
+            ++nextWorkerSchedule;
+        }
+        fixture.window->update();
+        static_cast<void>(fixture.window->grabWindow());
+        QCoreApplication::processEvents();
+        QTest::qWait(1);
+    }
+    QVERIFY2(
+        documentSession->activeImageReady(), qPrintable(imageViewportStateReport(fixture.window)));
+
+    QObject* toolbar = findObject(fixture.window, QStringLiteral("mainImageToolBar"));
+    QVERIFY(toolbar != nullptr);
+    const auto toolbarAction = [toolbar](const char* propertyName) {
+        return qvariant_cast<QObject*>(toolbar->property(propertyName));
+    };
+    const QList<QObject*> presentedActions {
+        toolbarAction("rightToLeftToolbarAction"),
+        toolbarAction("twoPageToolbarAction"),
+        toolbarAction("fitMenuAction"),
+        toolbarAction("zoomLevelAction"),
+    };
+    for (QObject* action : presentedActions) {
+        QVERIFY(action != nullptr);
+        QVERIFY(action->property("enabled").toBool());
+    }
+
+    QQuickItem* zoomTextInput = findQuickItem(fixture.window, QStringLiteral("zoomTextInput"));
+    QVERIFY(zoomTextInput != nullptr);
+    const QString readyZoomText = zoomTextInput->property("text").toString();
+    QVERIFY(!readyZoomText.isEmpty());
+    QVERIFY(toolbar->property("presentedZoomPercentAvailable").toBool());
+    QVERIFY(toolbar->property("presentedZoomPercentKnown").toBool());
+    QVERIFY(documentSession->imageDocument()->completeAuthoritativeDisplayAvailable());
+    QVERIFY(!documentSession->activeImageReplacementFallbackAvailable());
+
+    const QUrl firstPageUrl = documentSession->imageDocument()->displayedUrl();
+    documentSession->imageDocument()->openNextPage();
+
+    QCOMPARE(documentSession->imageDocument()->status(), KiriImageDocument::Status::Loading);
+    QVERIFY(!documentSession->activeImageReady());
+    QVERIFY(documentSession->activeImageReplacementFallbackAvailable());
+    QVERIFY(toolbar->property("readyImageControlPresentationRetained").toBool());
+    fixture.window->update();
+    static_cast<void>(fixture.window->grabWindow());
+    for (QObject* action : presentedActions) {
+        QVERIFY(action->property("enabled").toBool());
+    }
+    QCOMPARE(zoomTextInput->property("text").toString(), readyZoomText);
+
+    QVERIFY(!documentSession->activeZoomEditable());
+    KiriImageDocument* imageDocument = documentSession->imageDocument();
+    const bool rightToLeftBefore = imageDocument->rightToLeftReadingEnabled();
+    const bool twoPageBefore = imageDocument->twoPageModeEnabled();
+    const KiriImageDocument::ZoomMode fitModeBefore = imageDocument->fitModeSelection();
+    QVERIFY(QMetaObject::invokeMethod(presentedActions.at(0), "trigger", Qt::DirectConnection));
+    QVERIFY(QMetaObject::invokeMethod(presentedActions.at(1), "trigger", Qt::DirectConnection));
+    invokeWithVariant(
+        toolbar, "triggerFitMode", static_cast<int>(KiriImageDocument::ZoomMode::FitWidth));
+    QCOMPARE(imageDocument->rightToLeftReadingEnabled(), rightToLeftBefore);
+    QCOMPARE(imageDocument->twoPageModeEnabled(), twoPageBefore);
+    QCOMPARE(imageDocument->fitModeSelection(), fitModeBefore);
+
+    for (int attempt = 0; attempt < 2'000 && !documentSession->activeImageReady(); ++attempt) {
+        if (nextWorkerSchedule < workerScheduler.scheduleCount()) {
+            workerScheduler.runWork(nextWorkerSchedule);
+            workerScheduler.finish(nextWorkerSchedule);
+            ++nextWorkerSchedule;
+        }
+        fixture.window->update();
+        static_cast<void>(fixture.window->grabWindow());
+        QCoreApplication::processEvents();
+        QTest::qWait(1);
+    }
+
+    QVERIFY(documentSession->activeImageReady());
+    QVERIFY(documentSession->imageDocument()->displayedUrl() != firstPageUrl);
+    for (QObject* action : presentedActions) {
+        QVERIFY(action->property("enabled").toBool());
+    }
 }
 
 void TestMainWindowToolBar::dropOpensFirstUrlOnly()

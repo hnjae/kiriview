@@ -59,6 +59,8 @@ class KiriDocumentSession : public QObject
     Q_PROPERTY(double activeZoomPercent READ activeZoomPercent NOTIFY activeZoomReadoutChanged)
     Q_PROPERTY(bool activeZoomEditable READ activeZoomEditable NOTIFY activeZoomReadoutChanged)
     Q_PROPERTY(bool activeImageReady READ activeImageReady NOTIFY activeMediaReadinessChanged)
+    Q_PROPERTY(bool activeImageReplacementFallbackAvailable READ
+            activeImageReplacementFallbackAvailable NOTIFY publicProjectionRevisionChanged)
     Q_PROPERTY(bool activeImageUnsupportedOpenedCollectionVideo READ
             activeImageUnsupportedOpenedCollectionVideo NOTIFY activeMediaReadinessChanged)
     Q_PROPERTY(bool activeImageOpenedCollectionScopeActive READ
@@ -184,6 +186,7 @@ public:
     [[nodiscard]] double activeZoomPercent() const;
     [[nodiscard]] bool activeZoomEditable() const;
     [[nodiscard]] bool activeImageReady() const;
+    [[nodiscard]] bool activeImageReplacementFallbackAvailable() const;
     [[nodiscard]] bool activeImageUnsupportedOpenedCollectionVideo() const;
     [[nodiscard]] bool activeImageOpenedCollectionScopeActive() const;
     [[nodiscard]] bool activeImageRightToLeftReadingActive() const;

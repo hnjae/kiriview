@@ -51,6 +51,19 @@ QSize logicalSize(const ImageViewportRoleSnapshot& role)
     return size.toSize();
 }
 
+bool completeAuthoritativeDisplayAvailable(const ImageViewportStateSnapshot& snapshot)
+{
+    const ImageViewportRoleSet displayedRoles = snapshot.display().displayedRoleSet();
+    if (!displayedRoles.primary() && !displayedRoles.secondary()) {
+        return false;
+    }
+    if (snapshot.display().phase() == ImageViewportDisplayPhase::PreviousActive) {
+        return true;
+    }
+    return snapshot.display().phase() == ImageViewportDisplayPhase::CommittedActive
+        && snapshot.request().status() == ImageViewportRequestStatus::Ready;
+}
+
 PresentationTargetTransitionPolicy transitionPolicy(
     const kiriview::ImageViewportIntegrationTarget& target)
 {
@@ -200,6 +213,7 @@ void ImageViewportIntegrationRuntime::attach(ImageViewport* viewport)
             }
             ImageViewportIntegrationProjection projection = m_projection;
             projection.correlated = false;
+            projection.completeAuthoritativeDisplayAvailable = false;
             publishProjection(std::move(projection));
         });
     if (m_target.has_value()) {
@@ -318,16 +332,7 @@ bool ImageViewportIntegrationRuntime::hasAuthoritativeDisplay() const
     if (m_viewport == nullptr) {
         return false;
     }
-    const ImageViewportStateSnapshot snapshot = m_viewport->state();
-    const ImageViewportRoleSet displayedRoles = snapshot.display().displayedRoleSet();
-    if (!displayedRoles.primary() && !displayedRoles.secondary()) {
-        return false;
-    }
-    if (snapshot.display().phase() == ImageViewportDisplayPhase::PreviousActive) {
-        return true;
-    }
-    return snapshot.display().phase() == ImageViewportDisplayPhase::CommittedActive
-        && snapshot.request().status() == ImageViewportRequestStatus::Ready;
+    return completeAuthoritativeDisplayAvailable(m_viewport->state());
 }
 
 std::optional<StaticDisplayImagePayload> ImageViewportIntegrationRuntime::displayedImage(
@@ -520,6 +525,7 @@ void ImageViewportIntegrationRuntime::invalidateAttachment(ImageViewport* viewpo
     }
     ImageViewportIntegrationProjection projection = m_projection;
     projection.correlated = false;
+    projection.completeAuthoritativeDisplayAvailable = false;
     publishProjection(std::move(projection));
 }
 
@@ -596,6 +602,8 @@ void ImageViewportIntegrationRuntime::acceptSnapshot(const ImageViewportStateSna
         snapshot.display().contentSize().height(), projection.maximumContentPosition.y());
     projection.displayedTargetGeneration
         = snapshot.display().displayedPresentationTargetGeneration();
+    projection.completeAuthoritativeDisplayAvailable
+        = ::completeAuthoritativeDisplayAvailable(snapshot);
 
     TargetRecord* displayed
         = recordForGeneration(snapshot.display().displayedPresentationTargetGeneration());

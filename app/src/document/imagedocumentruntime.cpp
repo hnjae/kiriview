@@ -192,6 +192,12 @@ QUrl ImageDocumentRuntime::displayedUrl() const
                                                   : state.displayedUrl();
 }
 
+bool ImageDocumentRuntime::completeAuthoritativeDisplayAvailable() const
+{
+    return projectionActive(viewportProjection()) && viewportProjection().correlated
+        && viewportProjection().completeAuthoritativeDisplayAvailable;
+}
+
 OpenedCollectionScopeLocation ImageDocumentRuntime::displayedOpenedCollectionScope() const
 {
     return state.displayedOpenedCollectionScope();

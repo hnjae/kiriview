@@ -154,6 +154,9 @@ namespace {
                 || leftImage.windowTitleFileName != rightImage.windowTitleFileName
                 || leftImage.directMediaSize != rightImage.directMediaSize
                 || !sameMetadata(leftImage.embeddedMetadata, rightImage.embeddedMetadata)
+                || leftImage.loading != rightImage.loading
+                || leftImage.completeAuthoritativeDisplayAvailable
+                    != rightImage.completeAuthoritativeDisplayAvailable
                 || leftImage.readyForDeletion != rightImage.readyForDeletion
                 || leftImage.readyForInformation != rightImage.readyForInformation
                 || leftImage.openedCollectionScopeActive != rightImage.openedCollectionScopeActive

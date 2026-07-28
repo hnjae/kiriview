@@ -109,6 +109,8 @@ bool samePublicSnapshot(const kiriview::DocumentSessionPublicSnapshot& left,
         && left.fileDeletionInProgress == right.fileDeletionInProgress
         && sameActiveZoomSnapshot(left.activeZoom, right.activeZoom)
         && left.activeImageReady == right.activeImageReady
+        && left.activeImageReplacementFallbackAvailable
+        == right.activeImageReplacementFallbackAvailable
         && left.activeImageUnsupportedOpenedCollectionVideo
         == right.activeImageUnsupportedOpenedCollectionVideo
         && left.activeImageOpenedCollectionScopeActive

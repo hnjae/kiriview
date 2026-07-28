@@ -53,6 +53,7 @@ struct ImageViewportIntegrationProjection
     QUrl secondaryUrl;
     quint64 secondarySessionId = 0;
     QUrl displayedUrl;
+    bool completeAuthoritativeDisplayAvailable = false;
     ImageDocumentStatus status = ImageDocumentStatus::Null;
     bool loading = false;
     QString errorString;

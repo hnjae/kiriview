@@ -24,6 +24,8 @@ void TestDocumentSessionPublicLeafSnapshotBuilder::buildsImageLeafSnapshotFromCo
     leaf.displayedUrl = QUrl::fromLocalFile(QStringLiteral("/media/page.png"));
     leaf.windowTitleFileName = QStringLiteral("page.png");
     leaf.primaryImageSize = QSize(320, 200);
+    leaf.loading = true;
+    leaf.completeAuthoritativeDisplayAvailable = true;
     leaf.ready = true;
     leaf.error = true;
     leaf.unsupportedOpenedCollectionVideo = true;
@@ -55,6 +57,8 @@ void TestDocumentSessionPublicLeafSnapshotBuilder::buildsImageLeafSnapshotFromCo
     QCOMPARE(snapshot.displayedUrl, leaf.displayedUrl);
     QCOMPARE(snapshot.windowTitleFileName, QStringLiteral("page.png"));
     QCOMPARE(snapshot.directMediaSize, QSize(320, 200));
+    QVERIFY(snapshot.loading);
+    QVERIFY(snapshot.completeAuthoritativeDisplayAvailable);
     QVERIFY(snapshot.readyForDeletion);
     QVERIFY(snapshot.readyForInformation);
     QVERIFY(snapshot.error);

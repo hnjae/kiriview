@@ -23,6 +23,9 @@ DocumentSessionPublicImageLeafSnapshot buildDocumentSessionPublicImageLeafSnapsh
     snapshot.windowTitleFileName = leafSnapshot.windowTitleFileName;
     snapshot.directMediaSize = leafSnapshot.primaryImageSize;
     snapshot.embeddedMetadata = leafSnapshot.embeddedMetadata;
+    snapshot.loading = leafSnapshot.loading;
+    snapshot.completeAuthoritativeDisplayAvailable
+        = leafSnapshot.completeAuthoritativeDisplayAvailable;
     snapshot.readyForDeletion = leafSnapshot.ready;
     snapshot.readyForInformation = leafSnapshot.ready;
     snapshot.error = leafSnapshot.error;

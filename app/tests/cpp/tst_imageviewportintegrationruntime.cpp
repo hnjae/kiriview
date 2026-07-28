@@ -250,6 +250,7 @@ private Q_SLOTS:
     void failedShapeChangeKeepsRequestedTargetErrorWithoutPriorPixels();
     void deferredPrimaryUrlResolvesWithoutReplacingAcceptedTarget();
     void authoritativeDisplayExcludesProvisionalPixelsAndIncludesRetainedPixels();
+    void completeAuthoritativeDisplayAvailabilityFollowsPresentationFallback();
 };
 
 void TestImageViewportIntegrationRuntime::operationRecordCorrelatesReentrantState()
@@ -895,6 +896,7 @@ void TestImageViewportIntegrationRuntime::firstDisplayAutomaticallyRefinesWithou
     QCOMPARE(
         viewport.state().primary().display().quality(), ImageViewportPayloadQuality::FirstDisplay);
     QVERIFY(!viewport.state().primary().display().currentForDemand());
+    QVERIFY(runtime.projection().completeAuthoritativeDisplayAvailable);
 
     fixture.primarySource->completeNext(
         QStringLiteral("refined"), kiriview::DisplayImageQuality::BoundedDetail);
@@ -908,6 +910,7 @@ void TestImageViewportIntegrationRuntime::firstDisplayAutomaticallyRefinesWithou
     }));
 
     QCOMPARE(viewport.state().request().status(), ImageViewportRequestStatus::Ready);
+    QVERIFY(runtime.projection().completeAuthoritativeDisplayAvailable);
     QCOMPARE(fixture.primarySource->pendingFrames.size(), std::size_t(0));
     const std::optional<kiriview::StaticDisplayImagePayload> refined
         = runtime.displayedImage(ImageViewportPageRole::Primary);
@@ -1106,6 +1109,79 @@ void TestImageViewportIntegrationRuntime::
     QTRY_COMPARE(replacement.primarySource->pendingFrames.size(), std::size_t(1));
     QCOMPARE(viewport.state().display().phase(), ImageViewportDisplayPhase::PreviousActive);
     QVERIFY(runtime.hasAuthoritativeDisplay());
+}
+
+void TestImageViewportIntegrationRuntime::
+    completeAuthoritativeDisplayAvailabilityFollowsPresentationFallback()
+{
+    kiriview::ImageViewportIntegrationRuntime runtime;
+    QQuickWindow window;
+    ImageViewport viewport;
+    hostViewport(window, viewport);
+    runtime.attach(&viewport);
+
+    QVERIFY(!runtime.projection().completeAuthoritativeDisplayAvailable);
+
+    TargetFixture initial;
+    initial.generation = 94;
+    initial.primaryUrl = QUrl(QStringLiteral("file:///tmp/initial-preview.png"));
+    QVERIFY(runtime.submitTarget(initial.target()));
+    QTRY_COMPARE(initial.primarySource->pendingFrames.size(), std::size_t(1));
+    QCOMPARE(runtime.projection().status, kiriview::ImageDocumentStatus::Loading);
+    QVERIFY(!runtime.projection().completeAuthoritativeDisplayAvailable);
+
+    initial.primarySource->emitNextProvisional(QStringLiteral("initial-preview"));
+    QVERIFY(driveRenderUntil(window, [&viewport]() {
+        return viewport.state().display().phase() == ImageViewportDisplayPhase::CommittedActive;
+    }));
+    QCOMPARE(viewport.state().request().status(), ImageViewportRequestStatus::Loading);
+    QVERIFY(!runtime.projection().completeAuthoritativeDisplayAvailable);
+
+    TargetFixture previewReplacement;
+    previewReplacement.generation = 95;
+    previewReplacement.primaryUrl = QUrl(QStringLiteral("file:///tmp/preview-replacement.png"));
+    QVERIFY(runtime.submitTarget(previewReplacement.target()));
+    QTRY_COMPARE(previewReplacement.primarySource->pendingFrames.size(), std::size_t(1));
+    QVERIFY(!viewport.state().display().retained());
+    QVERIFY(!runtime.projection().completeAuthoritativeDisplayAvailable);
+
+    previewReplacement.primarySource->completeNext(
+        QStringLiteral("initial-complete"), kiriview::DisplayImageQuality::ThumbnailPreview);
+    QVERIFY(driveRenderUntil(window, [&runtime]() {
+        return runtime.projection().status == kiriview::ImageDocumentStatus::Ready;
+    }));
+    QCOMPARE(viewport.state().primary().display().quality(), ImageViewportPayloadQuality::Preview);
+    QVERIFY(runtime.projection().completeAuthoritativeDisplayAvailable);
+
+    TargetFixture replacement;
+    replacement.generation = 96;
+    replacement.primaryUrl = QUrl(QStringLiteral("file:///tmp/replacement.png"));
+    replacement.intent = kiriview::ImageViewportTargetTransitionIntent::SameNavigationScope;
+    QVERIFY(runtime.submitTarget(replacement.target()));
+    QTRY_COMPARE(replacement.primarySource->pendingFrames.size(), std::size_t(1));
+    QCOMPARE(runtime.projection().displayedUrl, QUrl());
+    QCOMPARE(runtime.projection().status, kiriview::ImageDocumentStatus::Loading);
+    QCOMPARE(viewport.state().display().phase(), ImageViewportDisplayPhase::PreviousActive);
+    QVERIFY(runtime.projection().completeAuthoritativeDisplayAvailable);
+
+    replacement.primarySource->completeNext(QStringLiteral("replacement-complete"));
+    QVERIFY(driveRenderUntil(window, [&runtime]() {
+        return runtime.projection().status == kiriview::ImageDocumentStatus::Ready;
+    }));
+    QVERIFY(runtime.projection().completeAuthoritativeDisplayAvailable);
+
+    TargetFixture shapeChange;
+    shapeChange.generation = 97;
+    shapeChange.primaryUrl = replacement.primaryUrl;
+    shapeChange.secondaryUrl = QUrl(QStringLiteral("file:///tmp/replacement-secondary.png"));
+    shapeChange.intent = kiriview::ImageViewportTargetTransitionIntent::PresentationShapeChange;
+    QVERIFY(runtime.submitTarget(shapeChange.target()));
+    QCOMPARE(viewport.state().display().status(), ImageViewportDisplayStatus::Empty);
+    QVERIFY(!runtime.projection().completeAuthoritativeDisplayAvailable);
+
+    runtime.clearTarget();
+    QCOMPARE(runtime.projection().displayedUrl, QUrl());
+    QVERIFY(!runtime.projection().completeAuthoritativeDisplayAvailable);
 }
 
 QTEST_MAIN(TestImageViewportIntegrationRuntime)

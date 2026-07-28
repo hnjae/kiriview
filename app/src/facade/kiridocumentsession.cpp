@@ -89,6 +89,8 @@ kiriview::DocumentSessionImageDocumentSnapshot imageDocumentSessionSnapshot(
         document.displayedUrl(),
         document.displayedOpenedCollectionScope(),
         document.primaryImageSize(),
+        document.status() == KiriImageDocument::Status::Loading,
+        document.completeAuthoritativeDisplayAvailable(),
         document.status() == KiriImageDocument::Status::Ready,
         document.status() == KiriImageDocument::Status::Error,
         document.unsupportedOpenedCollectionVideo(),
@@ -532,6 +534,11 @@ double KiriDocumentSession::activeZoomPercent() const { return m_runtime->active
 bool KiriDocumentSession::activeZoomEditable() const { return m_runtime->activeZoomEditable(); }
 
 bool KiriDocumentSession::activeImageReady() const { return m_runtime->activeImageReady(); }
+
+bool KiriDocumentSession::activeImageReplacementFallbackAvailable() const
+{
+    return m_runtime->activeImageReplacementFallbackAvailable();
+}
 
 bool KiriDocumentSession::activeImageUnsupportedOpenedCollectionVideo() const
 {

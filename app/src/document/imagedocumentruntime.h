@@ -61,6 +61,7 @@ public:
     [[nodiscard]] const std::optional<ImageLoadFailure>& loadFailure() const;
     [[nodiscard]] QString windowTitleFileName() const;
     [[nodiscard]] QUrl displayedUrl() const;
+    [[nodiscard]] bool completeAuthoritativeDisplayAvailable() const;
     [[nodiscard]] OpenedCollectionScopeLocation displayedOpenedCollectionScope() const;
     [[nodiscard]] QSize imageSize() const;
     [[nodiscard]] QSize primaryImageSize() const;

@@ -63,6 +63,8 @@ struct DocumentSessionPublicImageLeafSnapshot
     QString windowTitleFileName;
     QSize directMediaSize;
     EmbeddedMetadata embeddedMetadata;
+    bool loading = false;
+    bool completeAuthoritativeDisplayAvailable = false;
     bool readyForDeletion = false;
     bool readyForInformation = false;
     bool error = false;

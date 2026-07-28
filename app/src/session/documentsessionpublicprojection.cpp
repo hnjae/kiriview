@@ -105,6 +105,14 @@ bool activeImageReadyForInput(const kiriview::DocumentSessionPublicSnapshotInput
         && input.image.readyForInformation && !input.image.unsupportedOpenedCollectionVideo;
 }
 
+bool activeImageReplacementFallbackAvailableForInput(
+    const kiriview::DocumentSessionPublicSnapshotInput& input)
+{
+    return input.session.documentKind == kiriview::DocumentSessionKind::Image && input.image.loading
+        && input.image.completeAuthoritativeDisplayAvailable
+        && !input.image.unsupportedOpenedCollectionVideo;
+}
+
 bool activeImageOpenedCollectionScopeActiveForInput(
     const kiriview::DocumentSessionPublicSnapshotInput& input)
 {
@@ -285,6 +293,8 @@ DocumentSessionPublicSnapshot projectDocumentSessionPublicSnapshot(
     snapshot.activeZoom
         = documentSessionActiveZoomSnapshot(input.session.documentKind, input.image, input.video);
     snapshot.activeImageReady = activeImageReadyForInput(input);
+    snapshot.activeImageReplacementFallbackAvailable
+        = activeImageReplacementFallbackAvailableForInput(input);
     snapshot.activeImageUnsupportedOpenedCollectionVideo
         = input.session.documentKind == DocumentSessionKind::Image
         && input.image.unsupportedOpenedCollectionVideo;

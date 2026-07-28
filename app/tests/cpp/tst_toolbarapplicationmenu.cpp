@@ -1319,6 +1319,7 @@ void TestToolBarApplicationMenu::replacementGraceRetainsNonInteractiveToolbarPre
         enabledPresentation);
     QVERIFY(invoked);
     invokeVoid(fixture.root, "prepareCheckedImageControlPresentation");
+    QCoreApplication::processEvents();
     QTRY_COMPARE(
         invokeVariant(fixture.root, "toolbarReadingControlCheckedStates", &invoked).toList(),
         checkedReadingControls);

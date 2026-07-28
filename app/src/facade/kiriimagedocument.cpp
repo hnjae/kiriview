@@ -94,6 +94,8 @@ kiriview::ImageDocumentPublicSignalOperations publicSignalOperations(KiriImageDo
     operations.windowTitleFileNameChanged
         = [&document]() { Q_EMIT document.windowTitleFileNameChanged(); };
     operations.displayedUrlChanged = [&document]() { Q_EMIT document.displayedUrlChanged(); };
+    operations.completeAuthoritativeDisplayAvailableChanged
+        = [&document]() { Q_EMIT document.completeAuthoritativeDisplayAvailableChanged(); };
     operations.imageSizeChanged = [&document]() { Q_EMIT document.imageSizeChanged(); };
     operations.viewportFrameChanged = [&document]() { Q_EMIT document.viewportFrameChanged(); };
     operations.zoomPercentKnownChanged
@@ -184,6 +186,11 @@ QString KiriImageDocument::errorString() const { return m_runtime->errorString()
 QString KiriImageDocument::windowTitleFileName() const { return m_runtime->windowTitleFileName(); }
 
 QUrl KiriImageDocument::displayedUrl() const { return m_runtime->displayedUrl(); }
+
+bool KiriImageDocument::completeAuthoritativeDisplayAvailable() const
+{
+    return m_runtime->completeAuthoritativeDisplayAvailable();
+}
 
 kiriview::OpenedCollectionScopeLocation KiriImageDocument::displayedOpenedCollectionScope() const
 {

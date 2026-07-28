@@ -87,6 +87,7 @@ public:
     [[nodiscard]] qreal activeZoomPercent() const;
     [[nodiscard]] bool activeZoomEditable() const;
     [[nodiscard]] bool activeImageReady() const;
+    [[nodiscard]] bool activeImageReplacementFallbackAvailable() const;
     [[nodiscard]] bool activeImageUnsupportedOpenedCollectionVideo() const;
     [[nodiscard]] bool activeImageOpenedCollectionScopeActive() const;
     [[nodiscard]] bool activeImageRightToLeftReadingActive() const;

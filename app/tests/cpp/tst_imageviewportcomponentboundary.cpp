@@ -520,6 +520,8 @@ void TestImageViewportComponentBoundary::replacementThumbnailDoesNotDisplaceAuth
             && surface->viewport()->state().primary().display().quality()
             == ImageViewportPayloadQuality::Exact;
     }));
+    QVERIFY(session->imageDocument()->completeAuthoritativeDisplayAvailable());
+    QVERIFY(!session->activeImageReplacementFallbackAvailable());
     const auto initialDisplayGeneration
         = surface->viewport()->state().display().displayedPresentationTargetGeneration();
     QVERIFY(initialDisplayGeneration.isValid());
@@ -532,6 +534,8 @@ void TestImageViewportComponentBoundary::replacementThumbnailDoesNotDisplaceAuth
 
     QCOMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Loading);
     QCOMPARE(session->imageDocument()->displayedUrl(), QUrl());
+    QVERIFY(session->imageDocument()->completeAuthoritativeDisplayAvailable());
+    QVERIFY(session->activeImageReplacementFallbackAvailable());
     QCOMPARE(surface->viewport()->state().request().status(), ImageViewportRequestStatus::Loading);
     QCOMPARE(surface->viewport()->state().display().status(), ImageViewportDisplayStatus::Retained);
     QCOMPARE(surface->viewport()->state().display().displayedPresentationTargetGeneration(),
@@ -548,6 +552,8 @@ void TestImageViewportComponentBoundary::replacementThumbnailDoesNotDisplaceAuth
     }));
     QCOMPARE(surface->viewport()->state().primary().display().quality(),
         ImageViewportPayloadQuality::Exact);
+    QVERIFY(session->imageDocument()->completeAuthoritativeDisplayAvailable());
+    QVERIFY(!session->activeImageReplacementFallbackAvailable());
     QCOMPARE(surface->viewport()->state().display().displayedPresentationTargetGeneration(),
         surface->viewport()->state().request().acceptedPresentationTargetGeneration());
 }
@@ -711,6 +717,8 @@ void TestImageViewportComponentBoundary::twoPageShapeChangeSuppressesProvisional
 
     QCOMPARE(surface->viewport()->state().request().status(), ImageViewportRequestStatus::Loading);
     QCOMPARE(surface->viewport()->state().display().status(), ImageViewportDisplayStatus::Empty);
+    QVERIFY(!session->imageDocument()->completeAuthoritativeDisplayAvailable());
+    QVERIFY(!session->activeImageReplacementFallbackAvailable());
     QVERIFY(!surface->viewport()->state().display().displayedRoleSet().primary());
     QVERIFY(!surface->viewport()->state().display().displayedRoleSet().secondary());
 }

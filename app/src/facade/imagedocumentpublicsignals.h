@@ -18,6 +18,7 @@ enum class ImageDocumentPublicSignal {
     ErrorString,
     WindowTitleFileName,
     DisplayedUrl,
+    CompleteAuthoritativeDisplayAvailable,
     ImageSize,
     ViewportFrame,
     ZoomPercentKnown,
@@ -44,6 +45,7 @@ struct ImageDocumentPublicSignalOperations
     std::function<void()> errorStringChanged;
     std::function<void()> windowTitleFileNameChanged;
     std::function<void()> displayedUrlChanged;
+    std::function<void()> completeAuthoritativeDisplayAvailableChanged;
     std::function<void()> imageSizeChanged;
     std::function<void()> viewportFrameChanged;
     std::function<void()> zoomPercentKnownChanged;

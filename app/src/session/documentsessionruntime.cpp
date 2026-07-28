@@ -99,6 +99,11 @@ bool DocumentSessionRuntime::activeZoomEditable() const
 
 bool DocumentSessionRuntime::activeImageReady() const { return m_runtimeGraph->activeImageReady(); }
 
+bool DocumentSessionRuntime::activeImageReplacementFallbackAvailable() const
+{
+    return m_runtimeGraph->activeImageReplacementFallbackAvailable();
+}
+
 bool DocumentSessionRuntime::activeImageUnsupportedOpenedCollectionVideo() const
 {
     return m_runtimeGraph->activeImageUnsupportedOpenedCollectionVideo();

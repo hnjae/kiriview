@@ -22,6 +22,7 @@ bool affectsSessionSnapshot(kiriview::ImageDocumentPublicSignal signal)
     case Signal::Status:
     case Signal::ErrorString:
     case Signal::WindowTitleFileName:
+    case Signal::CompleteAuthoritativeDisplayAvailable:
     case Signal::ImageSize:
     case Signal::ViewportFrame:
     case Signal::ZoomPercentKnown:
@@ -90,6 +91,9 @@ void ImageDocumentPublicSignalEmitter::emitSignal(ImageDocumentPublicSignal sign
         return;
     case ImageDocumentPublicSignal::DisplayedUrl:
         run(m_operations.displayedUrlChanged);
+        return;
+    case ImageDocumentPublicSignal::CompleteAuthoritativeDisplayAvailable:
+        run(m_operations.completeAuthoritativeDisplayAvailableChanged);
         return;
     case ImageDocumentPublicSignal::ImageSize:
         run(m_operations.imageSizeChanged);
@@ -184,6 +188,7 @@ std::vector<ImageDocumentPublicSignal> imageDocumentPublicSignals(ImageDocumentC
             ImageDocumentPublicSignal::Loading,
             ImageDocumentPublicSignal::ErrorString,
             ImageDocumentPublicSignal::DisplayedUrl,
+            ImageDocumentPublicSignal::CompleteAuthoritativeDisplayAvailable,
             ImageDocumentPublicSignal::ImageSize,
             ImageDocumentPublicSignal::ViewportFrame,
             ImageDocumentPublicSignal::ZoomPercentKnown,

@@ -13,7 +13,7 @@ QtObject {
     required property var twoPageSourceAction
     required property bool imageReady
     required property bool videoMode
-    required property bool replacementGraceActive
+    required property var retainPresentation
     required property bool fitEnabled
     required property int fitModeSelection
     required property bool zoomEditable
@@ -21,20 +21,22 @@ QtObject {
     required property bool zoomPercentKnown
     required property real zoomPercent
 
-    readonly property bool presentationRetained: replacementGraceActive && !imageReady && !videoMode
-    readonly property int presentedFitModeSelection: presentationRetained ? retainedFitModeSelection : fitModeSelection
-    readonly property bool presentedImageReady: presentationRetained || imageReady
-    readonly property bool presentedZoomEditable: presentationRetained ? retainedZoomEditable : zoomEditable
-    readonly property bool presentedZoomPercentAvailable: presentationRetained ? retainedZoomPercentAvailable : zoomPercentAvailable
-    readonly property bool presentedZoomPercentKnown: presentationRetained ? retainedZoomPercentKnown : zoomPercentKnown
-    readonly property real presentedZoomPercent: presentationRetained ? retainedZoomPercent : zoomPercent
+    readonly property bool presentationRetained: shouldRetainPresentation()
+    readonly property int presentedFitModeSelection: shouldRetainPresentation() ? retainedFitModeSelection : fitModeSelection
+    readonly property bool presentedImageReady: shouldRetainPresentation() || imageReady
+    readonly property bool presentedZoomEditable: shouldRetainPresentation() ? retainedZoomEditable : zoomEditable
+    readonly property bool presentedZoomPercentAvailable: shouldRetainPresentation() ? retainedZoomPercentAvailable : zoomPercentAvailable
+    readonly property bool presentedZoomPercentKnown: shouldRetainPresentation() ? retainedZoomPercentKnown : zoomPercentKnown
+    readonly property real presentedZoomPercent: shouldRetainPresentation() ? retainedZoomPercent : zoomPercent
     readonly property RetainedPresentationAction rightToLeftAction: RetainedPresentationAction {
-        presentationRetained: root.presentationRetained
+        retainPresentation: root.retainPresentation
         sourceAction: root.rightToLeftSourceAction
+        videoMode: root.videoMode
     }
     readonly property RetainedPresentationAction twoPageAction: RetainedPresentationAction {
-        presentationRetained: root.presentationRetained
+        retainPresentation: root.retainPresentation
         sourceAction: root.twoPageSourceAction
+        videoMode: root.videoMode
     }
 
     property bool retainedFitEnabled: false
@@ -47,9 +49,14 @@ QtObject {
 
     component RetainedPresentationAction: Kirigami.Action {
         required property var sourceAction
-        required property bool presentationRetained
+        required property var retainPresentation
+        required property bool videoMode
         property bool retainedChecked: false
         property bool retainedEnabled: false
+
+        function shouldRetainPresentation() {
+            return !videoMode && typeof retainPresentation === "function" && retainPresentation();
+        }
 
         function capturePresentation() {
             retainedChecked = sourceAction?.checked ?? false;
@@ -58,9 +65,9 @@ QtObject {
 
         autoExclusive: sourceAction?.autoExclusive ?? false
         checkable: sourceAction?.checkable ?? false
-        checked: presentationRetained ? retainedChecked : (sourceAction?.checked ?? false)
+        checked: shouldRetainPresentation() ? retainedChecked : (sourceAction?.checked ?? false)
         displayHint: sourceAction?.displayHint ?? Kirigami.DisplayHint.KeepVisible
-        enabled: presentationRetained ? retainedEnabled : (sourceAction?.enabled ?? false)
+        enabled: shouldRetainPresentation() ? retainedEnabled : (sourceAction?.enabled ?? false)
         icon.name: sourceAction?.icon.name ?? ""
         shortcut: ""
         text: sourceAction?.text ?? ""
@@ -68,14 +75,18 @@ QtObject {
         visible: sourceAction?.visible ?? true
 
         onTriggered: {
-            if (sourceAction?.enabled ?? false) {
+            if (!shouldRetainPresentation() && (sourceAction?.enabled ?? false)) {
                 sourceAction.trigger();
             }
         }
     }
 
+    function shouldRetainPresentation() {
+        return !videoMode && typeof retainPresentation === "function" && retainPresentation();
+    }
+
     function capture() {
-        if (!imageReady || videoMode || presentationRetained) {
+        if (!imageReady || videoMode || shouldRetainPresentation()) {
             return;
         }
 
@@ -97,13 +108,7 @@ QtObject {
     onFitEnabledChanged: scheduleCapture()
     onFitModeSelectionChanged: scheduleCapture()
     onImageReadyChanged: scheduleCapture()
-    onReplacementGraceActiveChanged: {
-        if (replacementGraceActive && imageReady) {
-            capture();
-        } else {
-            scheduleCapture();
-        }
-    }
+    onPresentationRetainedChanged: scheduleCapture()
     onRightToLeftSourceActionChanged: scheduleCapture()
     onTwoPageSourceActionChanged: scheduleCapture()
     onVideoModeChanged: scheduleCapture()

@@ -66,6 +66,7 @@ private Q_SLOTS:
     void unchangedDependenciesSkipPublicAndThumbnailProjection();
     void publicOnlyChangesSkipThumbnailProjection();
     void actionStateInputsInvalidatePublicDependency();
+    void replacementFallbackFactsInvalidatePublicDependency();
     void candidateRevisionChangesThumbnailWithoutPublicProjection();
     void repeatedUnavailableThumbnailDependencyClearsRowsOnce();
     void mediaInformationRevisionDoesNotInvalidateSemanticDependency();
@@ -277,6 +278,37 @@ void TestDocumentSessionProjectionRuntime::actionStateInputsInvalidatePublicDepe
     QCOMPARE(committedActionStates.at(2).videoDuration, qint64(0));
     QVERIFY(committedActionStates.at(3).videoSeekable);
     QCOMPARE(committedActionStates.at(4).videoDuration, qint64(42'000));
+}
+
+void TestDocumentSessionProjectionRuntime::replacementFallbackFactsInvalidatePublicDependency()
+{
+    std::vector<bool> committedFallbackAvailability;
+    kiriview::DocumentSessionProjectionRuntimePorts ports;
+    ports.updatePublicSnapshot = [&committedFallbackAvailability](const auto& input) {
+        committedFallbackAvailability.push_back(
+            kiriview::projectDocumentSessionPublicSnapshot(input, 0)
+                .activeImageReplacementFallbackAvailable);
+        return true;
+    };
+    kiriview::DocumentSessionProjectionRuntime runtime(std::move(ports));
+    kiriview::DocumentSessionPublicSnapshotInput input;
+    input.session.documentKind = kiriview::DocumentSessionKind::Image;
+
+    runtime.publish(input, {});
+    input.image.completeAuthoritativeDisplayAvailable = true;
+    runtime.publish(input, {});
+    input.image.loading = true;
+    runtime.publish(input, {});
+    input.image.completeAuthoritativeDisplayAvailable = false;
+    runtime.publish(input, {});
+
+    QCOMPARE(committedFallbackAvailability,
+        (std::vector<bool> {
+            false,
+            false,
+            true,
+            false,
+        }));
 }
 
 void TestDocumentSessionProjectionRuntime::

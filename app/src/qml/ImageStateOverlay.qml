@@ -17,7 +17,8 @@ Item {
     readonly property bool imageLoading: imageDocument.status === KiriImageDocument.Loading
     readonly property bool loadingFeedbackVisible: imageLoading && loadingFeedbackArmed
     readonly property string presentationLifecycleToken: imageDocument.presentationLifecycleToken
-    readonly property bool retainedPresentationPending: imageLoading && imageDocument.displayedUrl.toString().length > 0
+    readonly property bool retainedPresentationPending: imageLoading && imageDocument.completeAuthoritativeDisplayAvailable
+    readonly property bool retainedPresentationAvailable: imageDocument.completeAuthoritativeDisplayAvailable && !loadingFeedbackVisible
     readonly property bool replacementGraceActive: retainedPresentationPending && !loadingFeedbackVisible
     property bool loadingFeedbackArmed: false
     property string scheduledPresentationLifecycleToken: ""

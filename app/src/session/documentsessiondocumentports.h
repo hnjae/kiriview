@@ -41,6 +41,8 @@ struct DocumentSessionImageDocumentSnapshot
     QUrl displayedUrl;
     OpenedCollectionScopeLocation displayedOpenedCollectionScope;
     QSize primaryImageSize;
+    bool loading = false;
+    bool completeAuthoritativeDisplayAvailable = false;
     bool ready = false;
     bool error = false;
     bool unsupportedOpenedCollectionVideo = false;

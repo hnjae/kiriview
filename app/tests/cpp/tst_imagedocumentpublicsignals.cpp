@@ -41,6 +41,8 @@ kiriview::ImageDocumentPublicSignalOperations recordingOperations(QStringList& e
         = [&events]() { events.append(QStringLiteral("presentationLifecycle")); };
     operations.errorStringChanged = [&events]() { events.append(QStringLiteral("errorString")); };
     operations.displayedUrlChanged = [&events]() { events.append(QStringLiteral("displayedUrl")); };
+    operations.completeAuthoritativeDisplayAvailableChanged
+        = [&events]() { events.append(QStringLiteral("completeAuthoritativeDisplayAvailable")); };
     operations.imageSizeChanged = [&events]() { events.append(QStringLiteral("imageSize")); };
     operations.viewportFrameChanged
         = [&events]() { events.append(QStringLiteral("viewportFrame")); };
@@ -70,6 +72,7 @@ void TestImageDocumentPublicSignals::viewportProjectionPlansOneCoherentPublicBat
             Signal::Loading,
             Signal::ErrorString,
             Signal::DisplayedUrl,
+            Signal::CompleteAuthoritativeDisplayAvailable,
             Signal::ImageSize,
             Signal::ViewportFrame,
             Signal::ZoomPercentKnown,
@@ -127,6 +130,7 @@ void TestImageDocumentPublicSignals::
             Signal::ZoomPercent,
             Signal::Loading,
             Signal::ErrorString,
+            Signal::CompleteAuthoritativeDisplayAvailable,
             Signal::ZoomMode,
             Signal::MaximumManualZoomPercent,
             Signal::RightToLeftReading,
@@ -148,6 +152,7 @@ void TestImageDocumentPublicSignals::emitterCommitsTheSessionSnapshotBeforeProje
             QStringLiteral("loading"),
             QStringLiteral("errorString"),
             QStringLiteral("displayedUrl"),
+            QStringLiteral("completeAuthoritativeDisplayAvailable"),
             QStringLiteral("imageSize"),
             QStringLiteral("viewportFrame"),
             QStringLiteral("zoomPercentKnown"),

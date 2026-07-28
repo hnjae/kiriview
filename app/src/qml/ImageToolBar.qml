@@ -28,6 +28,9 @@ Controls.ToolBar {
     property bool showApplicationMenuActions: false
     property bool videoMode: false
     property bool replacementGraceActive: false
+    property var retainImageControlPresentation: function () {
+        return root.replacementGraceActive && !root.imageReady && !root.videoMode;
+    }
     property bool zoomPercentAvailable: imageReady
     property bool zoomPercentKnown: imageReady
     property real zoomPercent: imageDocument.zoomPercent
@@ -45,7 +48,7 @@ Controls.ToolBar {
     readonly property int fitModeSelection: imageDocument?.fitModeSelection ?? KiriImageDocument.Fit
     readonly property bool fitMenuButtonTextVisible: width >= Kirigami.Units.gridUnit * 40
     readonly property bool interactionActive: textInputCoordinator.active || applicationMenuCoordinator.open
-    readonly property bool readyImageControlPresentationRetained: retainedPresentation.presentationRetained
+    readonly property bool readyImageControlPresentationRetained: retainedPresentation.shouldRetainPresentation()
     readonly property int presentedFitModeSelection: retainedPresentation.presentedFitModeSelection
     readonly property bool presentedImageReady: retainedPresentation.presentedImageReady
     readonly property bool presentedZoomEditable: retainedPresentation.presentedZoomEditable
@@ -134,6 +137,9 @@ Controls.ToolBar {
     }
 
     function triggerFitMode(zoomMode) {
+        if (retainedPresentation.shouldRetainPresentation()) {
+            return;
+        }
         if (!fitModeIsSelectable(zoomMode)) {
             return;
         }
@@ -161,7 +167,7 @@ Controls.ToolBar {
         fitEnabled: root.fitModeAction(root.fitModeSelection)?.enabled ?? false
         fitModeSelection: root.fitModeSelection
         imageReady: root.imageReady
-        replacementGraceActive: root.replacementGraceActive
+        retainPresentation: root.retainImageControlPresentation
         rightToLeftSourceAction: root.actions.rightToLeftReadingAction
         twoPageSourceAction: root.actions.twoPageModeAction
         videoMode: root.videoMode
@@ -261,7 +267,7 @@ Controls.ToolBar {
             }
         }
         displayHint: Kirigami.DisplayHint.KeepVisible
-        enabled: root.readyImageControlPresentationRetained ? retainedPresentation.retainedZoomActionEnabled : (!root.videoMode && root.imageReady)
+        enabled: retainedPresentation.shouldRetainPresentation() ? retainedPresentation.retainedZoomActionEnabled : (!root.videoMode && root.imageReady)
         icon.name: "zoom-original-symbolic"
         text: KI18n.i18nc("@action", "Zoom")
         tooltip: root.videoMode ? (root.zoomPercentKnown ? KI18n.i18nc("@info:tooltip", "Fitted video zoom") : KI18n.i18nc("@info:tooltip", "Video zoom unavailable")) : text
@@ -285,7 +291,7 @@ Controls.ToolBar {
             }
         }
         displayHint: Kirigami.DisplayHint.KeepVisible
-        enabled: root.readyImageControlPresentationRetained ? retainedPresentation.retainedFitEnabled : root.fitModeAction(root.fitModeSelection).enabled
+        enabled: retainedPresentation.shouldRetainPresentation() ? retainedPresentation.retainedFitEnabled : root.fitModeAction(root.fitModeSelection).enabled
         icon.name: root.fitModeIconName(root.presentedFitModeSelection)
         text: root.fitModeText(root.presentedFitModeSelection)
         tooltip: text
