@@ -7,6 +7,7 @@
 #include "candidate_test_support.h"
 #include "document/imagedocumentruntimedependencies.h"
 #include "image_async_test_support.h"
+#include "location/sourcekey.h"
 #include "rendering/staticimage.h"
 
 #include <QByteArray>
@@ -98,6 +99,10 @@ inline StaticDisplayImagePayload staticDisplayTestImagePayload(const QImage& sou
         quality,
         {},
         std::make_shared<TestStaticImageDisplaySource>(sourceImage, transform),
+        DisplayImagePreviewOrigin::None,
+        StaticImageSourceDetailModel::FiniteRaster,
+        ImageSourceRevision::fromData(QByteArrayView("image-test-support")),
+        DisplayImageRasterKind::AuthoritativeStill,
     };
 }
 
@@ -141,8 +146,13 @@ inline ImageDataDecoder imageDataDecoderReturningFailure(DecodedImageFailure fai
 
 inline ImageDataDecoder staticImageDataDecoder(QImage image = testImage())
 {
-    return [image = std::move(image)](const QByteArray&, const ImageDecodeRequest&) {
-        return successfulDecodedImageResult(staticDecodedTestImage(image));
+    return [image = std::move(image)](const QByteArray&, const ImageDecodeRequest& request) {
+        StaticDecodedImage decoded = staticDecodedTestImage(image);
+        decoded.displayImage.sourceIdentity = sourceKeyForUrl(request.imageUrl()).identity;
+        if (request.sourceRevision().isValid()) {
+            decoded.displayImage.sourceRevision = request.sourceRevision();
+        }
+        return successfulDecodedImageResult(std::move(decoded));
     };
 }
 

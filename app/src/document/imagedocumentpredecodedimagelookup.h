@@ -9,21 +9,20 @@
 #include <functional>
 #include <optional>
 
-class QUrl;
-
 namespace kiriview {
 class ImageDocumentPredecodeController;
 
 class ImageDocumentPredecodedImageLookup final
 {
 public:
-    using ExternalFinder = std::function<std::optional<PredecodedImage>(const QUrl&)>;
+    using ExternalFinder
+        = std::function<std::optional<PredecodedImage>(const DisplayedImageLocation&)>;
 
     explicit ImageDocumentPredecodedImageLookup(
         const ImageDocumentPredecodeController& predecodeController,
         ExternalFinder externalFinder = {});
 
-    [[nodiscard]] std::optional<PredecodedImage> find(const QUrl& url) const;
+    [[nodiscard]] std::optional<PredecodedImage> find(const DisplayedImageLocation& location) const;
 
 private:
     const ImageDocumentPredecodeController& m_predecodeController;

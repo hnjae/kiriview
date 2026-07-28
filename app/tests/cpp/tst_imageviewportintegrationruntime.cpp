@@ -32,6 +32,11 @@ kiriview::StaticDisplayImagePayload displayPayload(QString sourceIdentity,
         quality == kiriview::DisplayImageQuality::ThumbnailPreview
             ? kiriview::DisplayImagePreviewOrigin::XdgThumbnail
             : kiriview::DisplayImagePreviewOrigin::None,
+        kiriview::StaticImageSourceDetailModel::FiniteRaster,
+        kiriview::ImageSourceRevision::fromData(QByteArrayView("integration-test-image")),
+        quality == kiriview::DisplayImageQuality::ThumbnailPreview
+            ? kiriview::DisplayImageRasterKind::ProvisionalPreview
+            : kiriview::DisplayImageRasterKind::AuthoritativeStill,
     };
 }
 
@@ -124,9 +129,11 @@ public:
         QVERIFY(!pendingFrames.empty());
         PendingFrame pending = std::move(pendingFrames.front());
         pendingFrames.pop_front();
+        kiriview::StaticDisplayImagePayload payload
+            = displayPayload(std::move(sourceIdentity), quality);
+        payload.rasterKind = kiriview::DisplayImageRasterKind::AuthoritativeStill;
         pending.completion(pending.identity,
-            kiriview::ImageViewportProviderFrameResult::ready(
-                displayPayload(std::move(sourceIdentity), quality),
+            kiriview::ImageViewportProviderFrameResult::ready(std::move(payload),
                 ImageSequenceProviderFrameEnvelope::stillFrame(), QStringLiteral("png")));
     }
 

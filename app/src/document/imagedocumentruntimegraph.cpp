@@ -75,7 +75,8 @@ struct ImageDocumentRuntimeGraph::PreparedViewportTargetState
     std::optional<PredecodedImage> predecoded;
     std::optional<ImageViewportProvisionalPreviewPolicy> provisionalPreviewPolicyOverride;
     std::function<bool()> hasAuthoritativeDisplay;
-    std::function<std::optional<PredecodedImage>(const QUrl&)> findPredecodedImage;
+    std::function<std::optional<PredecodedImage>(const DisplayedImageLocation&)>
+        findPredecodedImage;
     std::weak_ptr<ImageViewportProviderResource> activeResource;
     std::weak_ptr<ImageViewportDecodeProviderSource> activeSource;
 
@@ -94,7 +95,7 @@ struct ImageDocumentRuntimeGraph::PreparedViewportTargetState
         if (!resolvedSession.has_value() || !findPredecodedImage) {
             return;
         }
-        std::optional<PredecodedImage> candidate = findPredecodedImage(resolvedSession->imageUrl());
+        std::optional<PredecodedImage> candidate = findPredecodedImage(resolvedSession->location());
         if (candidate.has_value() && candidate->location == resolvedSession->location()
             && candidate->displayImage.isAuthoritative()) {
             predecoded = std::move(candidate);
@@ -214,7 +215,9 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
         ImageSpreadPresentationController::Callbacks {
             [this](
                 const std::vector<ImageDocumentChange>& changes) { m_callbacks.notify(changes); },
-            [this](const QUrl& url) { return m_predecodedImageLookup->find(url); },
+            [this](const DisplayedImageLocation& location) {
+                return m_predecodedImageLookup->find(location);
+            },
             [this]() { return m_navigationService->pageNavigationSnapshot(); },
             [this]() {
                 dispatchPlan(
@@ -230,7 +233,9 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
         });
     m_openController = std::make_unique<ImageOpenController>(state,
         ImageOpenController::Callbacks {
-            [this](const QUrl& url) { return m_predecodedImageLookup->find(url); },
+            [this](const DisplayedImageLocation& location) {
+                return m_predecodedImageLookup->find(location);
+            },
             [this](const ImageDocumentRuntimePlan& plan) { dispatchPlan(plan); },
             std::move(m_callbacks.unsupportedOpenedCollectionVideoEntered),
             [this](
@@ -350,8 +355,9 @@ bool ImageDocumentRuntimeGraph::startViewportImageTarget(const ImageLoadSession&
     prepared->dependencies = m_imageDecodeDependencies;
     prepared->hasAuthoritativeDisplay
         = [this]() { return m_viewportIntegration->hasAuthoritativeDisplay(); };
-    prepared->findPredecodedImage
-        = [this](const QUrl& url) { return m_predecodedImageLookup->find(url); };
+    prepared->findPredecodedImage = [this](const DisplayedImageLocation& location) {
+        return m_predecodedImageLookup->find(location);
+    };
 
     ImageViewportIntegrationTarget target;
     target.sourceGeneration = session.id();
@@ -468,8 +474,9 @@ void ImageDocumentRuntimeGraph::prepareViewportSecondaryImageTarget(
     prepared->provisionalPreviewPolicyOverride = ImageViewportProvisionalPreviewPolicy::Suppress;
     prepared->hasAuthoritativeDisplay
         = [this]() { return m_viewportIntegration->hasAuthoritativeDisplay(); };
-    prepared->findPredecodedImage
-        = [this](const QUrl& url) { return m_predecodedImageLookup->find(url); };
+    prepared->findPredecodedImage = [this](const DisplayedImageLocation& location) {
+        return m_predecodedImageLookup->find(location);
+    };
     if (m_preparedViewportTarget != nullptr) {
         m_preparedViewportTarget->provisionalPreviewPolicyOverride
             = ImageViewportProvisionalPreviewPolicy::Suppress;

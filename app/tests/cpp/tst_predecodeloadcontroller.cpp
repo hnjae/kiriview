@@ -36,13 +36,27 @@ kiriview::DisplayedPredecodeImage displayedImage(const QUrl& url, bool firstDisp
     };
 }
 
+kiriview::DisplayedImageLocation displayedLocation(const QUrl& url)
+{
+    return kiriview::DisplayedImageLocation::fromUrl(url);
+}
+
+std::vector<kiriview::DisplayedImageLocation> displayedLocations(const std::vector<QUrl>& urls)
+{
+    std::vector<kiriview::DisplayedImageLocation> locations;
+    locations.reserve(urls.size());
+    for (const QUrl& url : urls) {
+        locations.push_back(displayedLocation(url));
+    }
+    return locations;
+}
+
 kiriview::PredecodeLoadWindow loadWindow(
     const QUrl& displayedUrl, std::vector<QUrl> urls, quint64 generation = 7)
 {
     return kiriview::PredecodeLoadWindow {
-        displayedUrl,
-        kiriview::OpenedCollectionScopeLocation::none(),
-        std::move(urls),
+        displayedLocation(displayedUrl),
+        displayedLocations(urls),
         { displayedImage(displayedUrl, true) },
         kiriview::ImageFirstDisplayDecodeContext { QSize(640, 480) },
         generation,
@@ -74,7 +88,7 @@ void TestPredecodeLoadController::windowLoadsCacheDisplayedImageAndPumpQueuedDec
     controller.startWindowLoads(loadWindow(displayedUrl, { displayedUrl, nextUrl, previousUrl }));
 
     const std::optional<kiriview::PredecodedImage> displayed
-        = controller.findPredecodedImage(displayedUrl);
+        = controller.findPredecodedImage(displayedLocation(displayedUrl));
     QVERIFY(displayed.has_value());
     QCOMPARE(displayed->displayImage.quality, kiriview::DisplayImageQuality::FirstDisplay);
 
@@ -83,9 +97,10 @@ void TestPredecodeLoadController::windowLoadsCacheDisplayedImageAndPumpQueuedDec
     QCOMPARE(dataLoader.frontLoad().firstDisplay.logicalViewportSize, QSize(640, 480));
 
     dataLoader.finishFrontLoad(QByteArrayLiteral("next"));
-    QTRY_VERIFY(controller.findPredecodedImage(nextUrl).has_value());
-    const std::optional<kiriview::PredecodedImage> next = controller.findPredecodedImage(nextUrl);
-    QCOMPARE(next->displayImage.sourceIdentity, QStringLiteral("test-image"));
+    QTRY_VERIFY(controller.findPredecodedImage(displayedLocation(nextUrl)).has_value());
+    const std::optional<kiriview::PredecodedImage> next
+        = controller.findPredecodedImage(displayedLocation(nextUrl));
+    QCOMPARE(next->displayImage.sourceIdentity, kiriview::sourceKeyForUrl(nextUrl).identity);
     QCOMPARE(next->displayImage.originalSize, testImage().size());
     QCOMPARE(next->displayImage.image.size(), testImage().size());
     QCOMPARE(next->displayImage.quality, kiriview::DisplayImageQuality::Exact);
@@ -139,7 +154,7 @@ void TestPredecodeLoadController::startWindowLoadsReprioritizesWithoutCancelingA
     QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     workerScheduler.runWork(0);
     workerScheduler.finish(0);
-    QVERIFY(controller.findPredecodedImage(staleNextUrl).has_value());
+    QVERIFY(controller.findPredecodedImage(displayedLocation(staleNextUrl)).has_value());
     QTRY_COMPARE(dataLoader.loadCount(), std::size_t(2));
     QCOMPARE(dataLoader.backLoad().url, nextUrl);
 
@@ -147,7 +162,7 @@ void TestPredecodeLoadController::startWindowLoadsReprioritizesWithoutCancelingA
     QCOMPARE(workerScheduler.scheduleCount(), std::size_t(2));
     workerScheduler.runWork(1);
     workerScheduler.finish(1);
-    QVERIFY(controller.findPredecodedImage(nextUrl).has_value());
+    QVERIFY(controller.findPredecodedImage(displayedLocation(nextUrl)).has_value());
 }
 
 void TestPredecodeLoadController::cancelBackgroundWorkSuppressesStaleDecode()
@@ -170,8 +185,8 @@ void TestPredecodeLoadController::cancelBackgroundWorkSuppressesStaleDecode()
 
     dataLoader.deliverFrontLoadDataIgnoringCancellation(QByteArrayLiteral("stale"));
     QCOMPARE(workerScheduler.scheduleCount(), std::size_t(0));
-    QVERIFY(!controller.findPredecodedImage(nextUrl).has_value());
-    QVERIFY(controller.findPredecodedImage(displayedUrl).has_value());
+    QVERIFY(!controller.findPredecodedImage(displayedLocation(nextUrl)).has_value());
+    QVERIFY(controller.findPredecodedImage(displayedLocation(displayedUrl)).has_value());
 }
 
 QTEST_GUILESS_MAIN(TestPredecodeLoadController)

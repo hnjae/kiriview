@@ -6,7 +6,6 @@
 #include "location/imageurl.h"
 
 #include <algorithm>
-#include <optional>
 #include <utility>
 
 namespace {
@@ -16,84 +15,89 @@ constexpr std::size_t recentDisplayedCacheLimit = 4;
 namespace kiriview {
 void PredecodeDisplayedHistory::clear()
 {
-    m_currentUrls.clear();
-    m_recentUrls.clear();
+    m_currentLocations.clear();
+    m_recentLocations.clear();
 }
 
-void PredecodeDisplayedHistory::setDisplayedUrls(const std::vector<QUrl>& urls)
+void PredecodeDisplayedHistory::setDisplayedLocations(
+    const std::vector<DisplayedImageLocation>& locations)
 {
-    std::vector<QUrl> displayedUrls;
+    std::vector<DisplayedImageLocation> displayedLocations;
 
-    for (const QUrl& url : urls) {
-        const std::optional<QUrl> normalizedUrl = normalizedValidImageUrl(url);
-        if (!normalizedUrl.has_value() || containsUrl(displayedUrls, *normalizedUrl)) {
+    for (const DisplayedImageLocation& location : locations) {
+        if (!normalizedValidImageUrl(location.imageUrl()).has_value()
+            || containsLocation(displayedLocations, location)) {
             continue;
         }
 
-        displayedUrls.push_back(*normalizedUrl);
+        displayedLocations.push_back(location);
     }
 
-    for (const QUrl& url : m_currentUrls) {
-        if (containsUrl(displayedUrls, url)) {
+    for (const DisplayedImageLocation& location : m_currentLocations) {
+        if (containsLocation(displayedLocations, location)) {
             continue;
         }
 
-        removeUrl(m_recentUrls, url);
-        m_recentUrls.insert(m_recentUrls.begin(), url);
+        removeLocation(m_recentLocations, location);
+        m_recentLocations.insert(m_recentLocations.begin(), location);
     }
 
-    for (const QUrl& url : displayedUrls) {
-        removeUrl(m_recentUrls, url);
+    for (const DisplayedImageLocation& location : displayedLocations) {
+        removeLocation(m_recentLocations, location);
     }
-    if (m_recentUrls.size() > recentDisplayedCacheLimit) {
-        m_recentUrls.resize(recentDisplayedCacheLimit);
-    }
-
-    m_currentUrls = std::move(displayedUrls);
-}
-
-bool PredecodeDisplayedHistory::currentContains(const QUrl& url) const
-{
-    const std::optional<QUrl> normalizedUrl = normalizedValidImageUrl(url);
-    return normalizedUrl.has_value() && containsUrl(m_currentUrls, *normalizedUrl);
-}
-
-bool PredecodeDisplayedHistory::recentContains(const QUrl& url) const
-{
-    const std::optional<QUrl> normalizedUrl = normalizedValidImageUrl(url);
-    return normalizedUrl.has_value() && containsUrl(m_recentUrls, *normalizedUrl);
-}
-
-std::size_t PredecodeDisplayedHistory::currentPriority(const QUrl& url) const
-{
-    const std::optional<QUrl> normalizedUrl = normalizedValidImageUrl(url);
-    return normalizedUrl.has_value() ? priority(m_currentUrls, *normalizedUrl)
-                                     : m_currentUrls.size();
-}
-
-std::size_t PredecodeDisplayedHistory::recentPriority(const QUrl& url) const
-{
-    const std::optional<QUrl> normalizedUrl = normalizedValidImageUrl(url);
-    return normalizedUrl.has_value() ? priority(m_recentUrls, *normalizedUrl) : m_recentUrls.size();
-}
-
-bool PredecodeDisplayedHistory::containsUrl(const std::vector<QUrl>& urls, const QUrl& url)
-{
-    return std::ranges::contains(urls, url);
-}
-
-void PredecodeDisplayedHistory::removeUrl(std::vector<QUrl>& urls, const QUrl& url)
-{
-    std::erase(urls, url);
-}
-
-std::size_t PredecodeDisplayedHistory::priority(const std::vector<QUrl>& urls, const QUrl& url)
-{
-    const auto priorityEntry = std::ranges::find(urls, url);
-    if (priorityEntry == urls.cend()) {
-        return urls.size();
+    if (m_recentLocations.size() > recentDisplayedCacheLimit) {
+        m_recentLocations.resize(recentDisplayedCacheLimit);
     }
 
-    return static_cast<std::size_t>(std::ranges::distance(urls.cbegin(), priorityEntry));
+    m_currentLocations = std::move(displayedLocations);
+}
+
+bool PredecodeDisplayedHistory::currentContains(const DisplayedImageLocation& location) const
+{
+    return normalizedValidImageUrl(location.imageUrl()).has_value()
+        && containsLocation(m_currentLocations, location);
+}
+
+bool PredecodeDisplayedHistory::recentContains(const DisplayedImageLocation& location) const
+{
+    return normalizedValidImageUrl(location.imageUrl()).has_value()
+        && containsLocation(m_recentLocations, location);
+}
+
+std::size_t PredecodeDisplayedHistory::currentPriority(const DisplayedImageLocation& location) const
+{
+    return normalizedValidImageUrl(location.imageUrl()).has_value()
+        ? priority(m_currentLocations, location)
+        : m_currentLocations.size();
+}
+
+std::size_t PredecodeDisplayedHistory::recentPriority(const DisplayedImageLocation& location) const
+{
+    return normalizedValidImageUrl(location.imageUrl()).has_value()
+        ? priority(m_recentLocations, location)
+        : m_recentLocations.size();
+}
+
+bool PredecodeDisplayedHistory::containsLocation(
+    const std::vector<DisplayedImageLocation>& locations, const DisplayedImageLocation& location)
+{
+    return std::ranges::contains(locations, location);
+}
+
+void PredecodeDisplayedHistory::removeLocation(
+    std::vector<DisplayedImageLocation>& locations, const DisplayedImageLocation& location)
+{
+    std::erase(locations, location);
+}
+
+std::size_t PredecodeDisplayedHistory::priority(
+    const std::vector<DisplayedImageLocation>& locations, const DisplayedImageLocation& location)
+{
+    const auto priorityEntry = std::ranges::find(locations, location);
+    if (priorityEntry == locations.cend()) {
+        return locations.size();
+    }
+
+    return static_cast<std::size_t>(std::ranges::distance(locations.cbegin(), priorityEntry));
 }
 }

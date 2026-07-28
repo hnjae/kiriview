@@ -81,7 +81,7 @@ ImageIoJob startStoredImageDataLoad(QObject* receiver, ImageDecodeRequest reques
             });
     }
 
-    auto* job = KIO::storedGet(request.imageUrl(), KIO::NoReload, KIO::HideProgressInfo);
+    auto* job = KIO::storedGet(request.imageUrl(), KIO::Reload, KIO::HideProgressInfo);
     ImageIoJob ioJob(job, cancelKJob);
     const ImageIoJobCompletion completion = ioJob.completion();
 

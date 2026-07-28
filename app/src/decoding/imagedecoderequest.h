@@ -4,6 +4,7 @@
 #ifndef KIRIVIEW_IMAGEDECODEREQUEST_H
 #define KIRIVIEW_IMAGEDECODEREQUEST_H
 
+#include "decoding/imagesourcerevision.h"
 #include "location/imagelocation.h"
 #include "location/imageurl.h"
 #include "rendering/staticimage.h"
@@ -41,6 +42,13 @@ public:
     {
         return m_firstDisplay;
     }
+    [[nodiscard]] const ImageSourceRevision& sourceRevision() const { return m_sourceRevision; }
+    [[nodiscard]] ImageDecodeRequest withSourceRevision(ImageSourceRevision revision) const
+    {
+        ImageDecodeRequest request = *this;
+        request.m_sourceRevision = std::move(revision);
+        return request;
+    }
     [[nodiscard]] bool isEmpty() const { return m_location.isEmpty(); }
     [[nodiscard]] bool matches(quint64 id, const QUrl& imageUrl) const
     {
@@ -48,7 +56,7 @@ public:
     }
     [[nodiscard]] bool matches(const ImageDecodeRequest& request) const
     {
-        return matches(request.id(), request.imageUrl());
+        return m_id == request.m_id && m_location == request.m_location;
     }
 
 private:
@@ -63,6 +71,7 @@ private:
     quint64 m_id = 0;
     DisplayedImageLocation m_location;
     ImageFirstDisplayDecodeContext m_firstDisplay;
+    ImageSourceRevision m_sourceRevision;
 };
 }
 

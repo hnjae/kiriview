@@ -113,9 +113,9 @@ void DocumentSessionMediaPredecodeRuntime::clear()
 }
 
 std::optional<PredecodedImage> DocumentSessionMediaPredecodeRuntime::findPredecodedImage(
-    const QUrl& url) const
+    const DisplayedImageLocation& location) const
 {
-    return m_coordinator->findPredecodedImage(url);
+    return m_coordinator->findPredecodedImage(location);
 }
 
 std::vector<DisplayedPredecodeImage> DocumentSessionMediaPredecodeRuntime::displayedImages(

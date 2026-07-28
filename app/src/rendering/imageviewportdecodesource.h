@@ -75,6 +75,7 @@ private:
         ImageAnimationPlaybackRequest playbackRequest;
         ImageSequenceProviderMetadata metadata;
         QString sourceIdentity;
+        ImageSourceRevision sourceRevision;
         QString formatIdentifier;
     };
 
@@ -128,7 +129,7 @@ private:
     void finishDecodedImage(DecodedImage image);
     void finishStaticImage(StaticDecodedImage image);
     void finishAnimationImage(ImageAnimationPlaybackRequest playbackRequest, QString sourceIdentity,
-        QString formatIdentifier);
+        ImageSourceRevision sourceRevision, QString formatIdentifier);
     void finishFailure(ImageSequenceProviderFailureCause cause, ImageLoadFailure failure);
     void publishMetadata();
     void publishFrames();
@@ -165,6 +166,7 @@ private:
     std::optional<ImageSequenceProviderMetadata> m_metadata;
     std::optional<StaticDisplayImagePayload> m_provisionalPreview;
     std::optional<StaticDisplayImagePayload> m_authoritativeStaticImage;
+    std::optional<StaticDisplayImagePayload> m_authoritativeSeed;
     std::optional<AnimationState> m_animation;
     std::optional<ImageLoadFailure> m_failure;
     ImageSequenceProviderFailureCause m_failureCause

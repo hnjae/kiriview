@@ -86,7 +86,9 @@ kiriview::ImageDecodeRequest testDecodeRequest(
     kiriview::ImageFirstDisplayDecodeContext firstDisplay = {})
 {
     return kiriview::ImageDecodeRequest::fromUrl(
-        7, QUrl::fromLocalFile(QStringLiteral("/tmp/stage3-source.jpg")), std::move(firstDisplay));
+        7, QUrl::fromLocalFile(QStringLiteral("/tmp/stage3-source.jpg")), std::move(firstDisplay))
+        .withSourceRevision(
+            kiriview::ImageSourceRevision::fromData(QByteArrayView("static-image-decode-test")));
 }
 }
 

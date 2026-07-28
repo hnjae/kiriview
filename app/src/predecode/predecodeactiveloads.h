@@ -4,12 +4,10 @@
 #ifndef KIRIVIEW_PREDECODEACTIVELOADS_H
 #define KIRIVIEW_PREDECODEACTIVELOADS_H
 
-#include "location/imageurl.h"
+#include "location/imagelocation.h"
 
-#include <QUrl>
 #include <algorithm>
 #include <cstddef>
-#include <optional>
 #include <vector>
 
 namespace kiriview {
@@ -18,36 +16,31 @@ class PredecodeActiveLoads final
 public:
     PredecodeActiveLoads() = default;
 
-    static PredecodeActiveLoads fromUrls(const std::vector<QUrl>& urls)
+    static PredecodeActiveLoads fromLocations(const std::vector<DisplayedImageLocation>& locations)
     {
         PredecodeActiveLoads loads;
-        loads.m_urls.reserve(urls.size());
-        for (const QUrl& url : urls) {
-            const std::optional<QUrl> normalizedUrl = normalizedValidImageUrl(url);
-            if (!normalizedUrl.has_value() || loads.containsNormalized(*normalizedUrl)) {
+        loads.m_locations.reserve(locations.size());
+        for (const DisplayedImageLocation& location : locations) {
+            if (!normalizedValidImageUrl(location.imageUrl()).has_value()
+                || loads.contains(location)) {
                 continue;
             }
 
-            loads.m_urls.push_back(*normalizedUrl);
+            loads.m_locations.push_back(location);
         }
         return loads;
     }
 
-    [[nodiscard]] std::size_t size() const { return m_urls.size(); }
+    [[nodiscard]] std::size_t size() const { return m_locations.size(); }
 
-    [[nodiscard]] bool contains(const QUrl& url) const
+    [[nodiscard]] bool contains(const DisplayedImageLocation& location) const
     {
-        const std::optional<QUrl> normalizedUrl = normalizedValidImageUrl(url);
-        return normalizedUrl.has_value() && containsNormalized(*normalizedUrl);
+        return normalizedValidImageUrl(location.imageUrl()).has_value()
+            && std::ranges::contains(m_locations, location);
     }
 
 private:
-    [[nodiscard]] bool containsNormalized(const QUrl& normalizedUrl) const
-    {
-        return std::ranges::contains(m_urls, normalizedUrl);
-    }
-
-    std::vector<QUrl> m_urls;
+    std::vector<DisplayedImageLocation> m_locations;
 };
 }
 

@@ -472,8 +472,8 @@ KiriDocumentSession::KiriDocumentSession(kiriview::KiriDocumentSessionDependenci
     : QObject(parent)
     , m_imageDocument(new KiriImageDocument(
           imageDocumentDependenciesWithPredecodeFinder(dependencies.imageDocument,
-              [this](const QUrl& url) {
-                  return m_runtime != nullptr ? m_runtime->findPredecodedImage(url)
+              [this](const kiriview::DisplayedImageLocation& location) {
+                  return m_runtime != nullptr ? m_runtime->findPredecodedImage(location)
                                               : std::optional<kiriview::PredecodedImage>();
               }),
           [this](const QString& message) { Q_EMIT fileDeletionFailed(message); }, this))

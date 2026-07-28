@@ -236,9 +236,10 @@ bool DocumentSessionRuntime::reportVideoOutputSurfaceClaim(const QString& claimT
         claimToken, projectionRevision, surfaceOwner, videoOutput, active, contentRect, sourceRect);
 }
 
-std::optional<PredecodedImage> DocumentSessionRuntime::findPredecodedImage(const QUrl& url) const
+std::optional<PredecodedImage> DocumentSessionRuntime::findPredecodedImage(
+    const DisplayedImageLocation& location) const
 {
-    return m_runtimeGraph->findPredecodedImage(url);
+    return m_runtimeGraph->findPredecodedImage(location);
 }
 
 void DocumentSessionRuntime::openPreviousActiveNavigation()

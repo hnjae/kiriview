@@ -47,7 +47,9 @@ public:
         : controller(state,
               kiriview::ImageSpreadPresentationController::Callbacks {
                   {},
-                  [this](const QUrl& url) { return findPredecodedImage(url); },
+                  [this](const kiriview::DisplayedImageLocation& location) {
+                      return findPredecodedImage(location);
+                  },
                   [this]() { return snapshot; },
                   [this]() { ++predecodeScheduleCount; },
                   [this](kiriview::ImageLoadSession session,
@@ -71,15 +73,16 @@ public:
         controller.commitPrimaryPageSlot(state.displayedImageLocation(), size);
     }
 
-    std::optional<kiriview::PredecodedImage> findPredecodedImage(const QUrl& url) const
+    std::optional<kiriview::PredecodedImage> findPredecodedImage(
+        const kiriview::DisplayedImageLocation& location) const
     {
-        const auto found = predecodedSizes.find(url);
+        const auto found = predecodedSizes.find(location.imageUrl());
         if (found == predecodedSizes.end()) {
             return std::nullopt;
         }
         return kiriview::PredecodedImage {
             staticDisplayTestImagePayload(testImage(found->second)),
-            displayedLocation(url),
+            location,
         };
     }
 

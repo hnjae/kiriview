@@ -3,6 +3,9 @@
 
 #include "rendering/displayimagestore.h"
 
+#include "decoding/imagesourcerevision.h"
+
+#include <QByteArrayView>
 #include <QColor>
 #include <QImage>
 #include <QObject>
@@ -21,6 +24,7 @@ private Q_SLOTS:
     void evictsLeastRecentlyUsedImagesByPriority();
     void frameLeasePreventsEvictionUntilReleased();
     void reusableAcquisitionRequiresExactKeyMatch();
+    void reusableAcquisitionDistinguishesFreshnessAndAuthoredRasterIdentity();
 };
 
 namespace {
@@ -31,11 +35,11 @@ QImage testImage(const QSize& size, QColor color = Qt::red)
     return image;
 }
 
-kiriview::DisplayImageEntry testEntry(
-    const QSize& rasterSize, kiriview::DisplayImageRetentionPriority priority = {})
+kiriview::DisplayImageEntry testEntry(const QSize& rasterSize,
+    kiriview::DisplayImageRetentionPriority priority = {}, QColor color = Qt::red)
 {
     return kiriview::DisplayImageEntry {
-        testImage(rasterSize),
+        testImage(rasterSize, color),
         QSize(rasterSize.width() * 2, rasterSize.height() * 2),
         rasterSize,
         kiriview::DisplayImageQuality::Exact,
@@ -50,6 +54,8 @@ kiriview::DisplayImageReuseKey testReuseKey(
     return kiriview::DisplayImageReuseKey {
         sourceIdentity,
         sourceIdentity,
+        kiriview::ImageSourceRevision::fromData(QByteArrayView("current-content")),
+        kiriview::DisplayImageRasterIdentity::authoritativeStill(),
         {},
         QSize(rasterSize.width() * 2, rasterSize.height() * 2),
         rasterSize,
@@ -151,6 +157,44 @@ void TestDisplayImageStore::reusableAcquisitionRequiresExactKeyMatch()
     QVERIFY(first != otherLocation);
     QVERIFY(first != otherSource);
     QCOMPARE(store.size(), qsizetype(3));
+}
+
+void TestDisplayImageStore::reusableAcquisitionDistinguishesFreshnessAndAuthoredRasterIdentity()
+{
+    kiriview::DisplayImageStore store(4096);
+    const kiriview::DisplayImageReuseKey stillKey = testReuseKey();
+    kiriview::DisplayImageReuseKey newerContentKey = stillKey;
+    newerContentKey.sourceRevision
+        = kiriview::ImageSourceRevision::fromData(QByteArrayView("newer-content"));
+    kiriview::DisplayImageReuseKey firstFrameKey = stillKey;
+    firstFrameKey.rasterIdentity = kiriview::DisplayImageRasterIdentity::timedFrame(0);
+    kiriview::DisplayImageReuseKey secondFrameKey = stillKey;
+    secondFrameKey.rasterIdentity = kiriview::DisplayImageRasterIdentity::timedFrame(1);
+    kiriview::DisplayImageReuseKey refinementKey = stillKey;
+    refinementKey.rasterIdentity = kiriview::DisplayImageRasterIdentity::refinement();
+
+    const QString still = store.acquireReusable(testEntry(QSize(8, 4), {}, Qt::red), stillKey);
+    const QString reused = store.acquireReusable(testEntry(QSize(8, 4), {}, Qt::yellow), stillKey);
+    const QString newer
+        = store.acquireReusable(testEntry(QSize(8, 4), {}, Qt::blue), newerContentKey);
+    const QString firstFrame
+        = store.acquireReusable(testEntry(QSize(8, 4), {}, Qt::green), firstFrameKey);
+    const QString secondFrame
+        = store.acquireReusable(testEntry(QSize(8, 4), {}, Qt::cyan), secondFrameKey);
+    const QString refinement
+        = store.acquireReusable(testEntry(QSize(8, 4), {}, Qt::magenta), refinementKey);
+
+    QCOMPARE(reused, still);
+    QVERIFY(newer != still);
+    QVERIFY(firstFrame != still);
+    QVERIFY(firstFrame != secondFrame);
+    QVERIFY(refinement != still);
+    QCOMPARE(store.entry(still)->image.pixelColor(0, 0), QColor(Qt::red));
+    QCOMPARE(store.entry(newer)->image.pixelColor(0, 0), QColor(Qt::blue));
+    QCOMPARE(store.entry(firstFrame)->image.pixelColor(0, 0), QColor(Qt::green));
+    QCOMPARE(store.entry(secondFrame)->image.pixelColor(0, 0), QColor(Qt::cyan));
+    QCOMPARE(store.entry(refinement)->image.pixelColor(0, 0), QColor(Qt::magenta));
+    QCOMPARE(store.size(), qsizetype(5));
 }
 
 QTEST_GUILESS_MAIN(TestDisplayImageStore)

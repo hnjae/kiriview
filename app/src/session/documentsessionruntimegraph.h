@@ -117,7 +117,8 @@ public:
     bool reportVideoOutputSurfaceClaim(const QString& claimToken, quint64 projectionRevision,
         QObject* surfaceOwner, QObject* videoOutput, bool active, const QRectF& contentRect,
         const QRectF& sourceRect);
-    [[nodiscard]] std::optional<PredecodedImage> findPredecodedImage(const QUrl& url) const;
+    [[nodiscard]] std::optional<PredecodedImage> findPredecodedImage(
+        const DisplayedImageLocation& location) const;
 
     void openPreviousActiveNavigation();
     void openNextActiveNavigation();

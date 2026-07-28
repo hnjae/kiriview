@@ -37,6 +37,11 @@ using kiriview::TestSupport::testImage;
 
 QUrl localUrl(const QString& path) { return QUrl::fromLocalFile(path); }
 
+kiriview::DisplayedImageLocation displayedLocation(const QUrl& url)
+{
+    return kiriview::DisplayedImageLocation::fromUrl(url);
+}
+
 kiriview::DirectMediaNavigationCandidate directMediaNavigationCandidate(const QUrl& url)
 {
     return kiriview::DirectMediaNavigationCandidate { url, url.fileName(QUrl::PrettyDecoded) };
@@ -113,7 +118,7 @@ void TestDocumentSessionMediaPredecodeRuntime::
         directMediaNavigationCandidateSnapshot({ directMediaNavigationCandidate(currentUrl),
             directMediaNavigationCandidate(nextUrl) }));
 
-    QVERIFY(runtime.findPredecodedImage(currentUrl).has_value());
+    QVERIFY(runtime.findPredecodedImage(displayedLocation(currentUrl)).has_value());
     QTRY_COMPARE(dataLoader.loadCount(), std::size_t(1));
     QCOMPARE(dataLoader.frontLoad().url, nextUrl);
 }
@@ -136,7 +141,7 @@ void TestDocumentSessionMediaPredecodeRuntime::
             directMediaNavigationCandidate(nextTargetUrl),
         }));
 
-    QVERIFY(runtime.findPredecodedImage(displayedUrl).has_value());
+    QVERIFY(runtime.findPredecodedImage(displayedLocation(displayedUrl)).has_value());
     QTRY_COMPARE(dataLoader.loadCount(), std::size_t(1));
     QCOMPARE(dataLoader.frontLoad().url, targetUrl);
 }
@@ -175,7 +180,7 @@ void TestDocumentSessionMediaPredecodeRuntime::inactiveScheduleDoesNotStartPrede
             directMediaNavigationCandidate(nextUrl) }));
 
     QCOMPARE(dataLoader.loadCount(), std::size_t(0));
-    QVERIFY(!runtime.findPredecodedImage(currentUrl).has_value());
+    QVERIFY(!runtime.findPredecodedImage(displayedLocation(currentUrl)).has_value());
 }
 
 void TestDocumentSessionMediaPredecodeRuntime::
@@ -187,11 +192,11 @@ void TestDocumentSessionMediaPredecodeRuntime::
 
     runtime.cacheDisplayedImages(inactiveImageInput(currentUrl));
 
-    QVERIFY(!runtime.findPredecodedImage(currentUrl).has_value());
+    QVERIFY(!runtime.findPredecodedImage(displayedLocation(currentUrl)).has_value());
 
     runtime.cacheDisplayedImages(activeImageInput(currentUrl));
 
-    QVERIFY(runtime.findPredecodedImage(currentUrl).has_value());
+    QVERIFY(runtime.findPredecodedImage(displayedLocation(currentUrl)).has_value());
 }
 
 void TestDocumentSessionMediaPredecodeRuntime::sameParentScopeSyncKeepsCachedDisplayedImage()
@@ -205,7 +210,7 @@ void TestDocumentSessionMediaPredecodeRuntime::sameParentScopeSyncKeepsCachedDis
     runtime.syncScope(activeImageInput(nextUrl));
     runtime.syncScope(activeImageInput(nextUrl));
 
-    QVERIFY(runtime.findPredecodedImage(currentUrl).has_value());
+    QVERIFY(runtime.findPredecodedImage(displayedLocation(currentUrl)).has_value());
 }
 
 void TestDocumentSessionMediaPredecodeRuntime::parentScopeChangeClearsCachedDisplayedImage()
@@ -218,12 +223,12 @@ void TestDocumentSessionMediaPredecodeRuntime::parentScopeChangeClearsCachedDisp
     runtime.cacheDisplayedImages(activeImageInput(currentUrl));
     runtime.syncScope(activeImageInput(otherUrl));
 
-    QVERIFY(!runtime.findPredecodedImage(currentUrl).has_value());
+    QVERIFY(!runtime.findPredecodedImage(displayedLocation(currentUrl)).has_value());
 
     runtime.cacheDisplayedImages(activeImageInput(otherUrl));
     runtime.syncScope(activeImageInput(localUrl(QStringLiteral("/other/next.png"))));
 
-    QVERIFY(runtime.findPredecodedImage(otherUrl).has_value());
+    QVERIFY(runtime.findPredecodedImage(displayedLocation(otherUrl)).has_value());
 }
 
 void TestDocumentSessionMediaPredecodeRuntime::leavingDirectMediaScopeClearsCachedDisplayedImage()
@@ -236,7 +241,7 @@ void TestDocumentSessionMediaPredecodeRuntime::leavingDirectMediaScopeClearsCach
     runtime.syncScope(inactiveImageInput(currentUrl));
     runtime.syncScope(inactiveImageInput(currentUrl));
 
-    QVERIFY(!runtime.findPredecodedImage(currentUrl).has_value());
+    QVERIFY(!runtime.findPredecodedImage(displayedLocation(currentUrl)).has_value());
 }
 
 QTEST_GUILESS_MAIN(TestDocumentSessionMediaPredecodeRuntime)

@@ -292,6 +292,7 @@ kiriview::DecodedImageResult decodeApngImageData(const kiriview::ImageDecodeRout
         input.data,
         {},
         sourceIdentityForRequest(input.request),
+        input.request.sourceRevision(),
     });
 }
 
@@ -324,6 +325,7 @@ kiriview::DecodedImageResult decodeQImageReaderRouterImageData(
                 input.data,
                 {},
                 sourceIdentityForRequest(input.request),
+                input.request.sourceRevision(),
             });
         case kiriview::WebPAnimationOpenStatus::Error:
             return failedAnimationOpenResult(openResult.errorString, QStringLiteral("WebP"));
@@ -343,6 +345,7 @@ kiriview::DecodedImageResult decodeQImageReaderRouterImageData(
                 input.data,
                 {},
                 sourceIdentityForRequest(input.request),
+                input.request.sourceRevision(),
             });
         case kiriview::JxlAnimationOpenStatus::Error:
             return failedAnimationOpenResult(openResult.errorString, QStringLiteral("JXL"));

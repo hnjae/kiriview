@@ -262,6 +262,9 @@ std::optional<StaticDisplayImagePayload> xdgThumbnailPreviewDisplayPayload(
         {},
         nullptr,
         DisplayImagePreviewOrigin::XdgThumbnail,
+        StaticImageSourceDetailModel::FiniteRaster,
+        request.sourceRevision(),
+        DisplayImageRasterKind::ProvisionalPreview,
     };
 }
 }

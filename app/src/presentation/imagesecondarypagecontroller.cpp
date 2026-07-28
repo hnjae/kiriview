@@ -17,9 +17,9 @@ ImageSecondaryPageController::ImageSecondaryPageController(Callbacks callbacks)
     loaderCallbacks.error = [this](const ImageLoadSession& session, const ImageLoadFailure&) {
         finishClaimedLoadWithError(session);
     };
-    loaderCallbacks.findPredecodedImage = [this](const QUrl& url) {
-        return m_callbacks.findPredecodedImage ? m_callbacks.findPredecodedImage(url)
-                                               : std::optional<PredecodedImage>();
+    loaderCallbacks.findPredecodedImage = [this](const DisplayedImageLocation& location) {
+        return m_callbacks.findPredecodedImage ? m_callbacks.findPredecodedImage(location)
+                                               : std::optional<PredecodedImage> {};
     };
     loaderCallbacks.targetStarted = [](const ImageLoadSession&) { };
     loaderCallbacks.resolvedImage

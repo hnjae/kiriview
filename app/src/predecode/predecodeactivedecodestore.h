@@ -8,7 +8,6 @@
 #include "predecodeactiveloads.h"
 
 #include <QPointer>
-#include <QUrl>
 #include <cstddef>
 #include <optional>
 #include <vector>
@@ -25,7 +24,7 @@ public:
 
     bool add(ImageDecodeRequest request, ImageDecodeJob* decodeJob);
     [[nodiscard]] std::size_t size() const;
-    [[nodiscard]] bool containsUrl(const QUrl& url) const;
+    [[nodiscard]] bool contains(const DisplayedImageLocation& location) const;
     [[nodiscard]] PredecodeActiveLoads activeLoads() const;
     std::optional<ImageDecodeRequest> finish(const ImageDecodeRequest& request);
     void cancel();
@@ -34,7 +33,6 @@ private:
     struct Entry
     {
         ImageDecodeRequest request;
-        QUrl normalizedUrl;
         QPointer<ImageDecodeJob> decodeJob;
     };
 

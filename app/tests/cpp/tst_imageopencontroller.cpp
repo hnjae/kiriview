@@ -92,8 +92,9 @@ public:
         })
     {
         kiriview::ImageOpenController::Callbacks callbacks;
-        callbacks.findPredecodedImage
-            = [](const QUrl&) { return std::optional<kiriview::PredecodedImage>(); };
+        callbacks.findPredecodedImage = [](const kiriview::DisplayedImageLocation&) {
+            return std::optional<kiriview::PredecodedImage>();
+        };
         callbacks.runtimePlan = [this](const kiriview::ImageDocumentRuntimePlan& plan) {
             runtimePlans.push_back(plan);
         };

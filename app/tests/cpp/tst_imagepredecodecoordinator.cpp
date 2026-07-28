@@ -37,6 +37,13 @@ using FakeCandidateProvider = kiriview::TestSupport::FakeImageDocumentPageCandid
 
 constexpr qsizetype testCacheByteBudget = 1024 * 1024;
 
+kiriview::DisplayedImageLocation displayedLocation(const QUrl& url,
+    const kiriview::OpenedCollectionScopeLocation& openedCollectionScope
+    = kiriview::OpenedCollectionScopeLocation::none())
+{
+    return kiriview::DisplayedImageLocation::fromUrl(url, openedCollectionScope);
+}
+
 kiriview::PowerSaverProvider noOpPowerSaverProvider()
 {
     return kiriview::PowerSaverProvider {
@@ -223,7 +230,7 @@ void TestImagePredecodeCoordinator::scheduleCachesDisplayedImageAndPredecodesWin
         }));
 
     const std::optional<kiriview::PredecodedImage> displayed
-        = coordinator.findPredecodedImage(displayedUrl);
+        = coordinator.findPredecodedImage(displayedLocation(displayedUrl));
     QVERIFY(displayed.has_value());
     QCOMPARE(displayed->location.imageUrl(), displayedUrl);
     QCOMPARE(displayed->displayImage.quality, kiriview::DisplayImageQuality::FirstDisplay);
@@ -233,7 +240,7 @@ void TestImagePredecodeCoordinator::scheduleCachesDisplayedImageAndPredecodesWin
     QCOMPARE(dataLoader.frontLoad().firstDisplay.logicalViewportSize, QSize(640, 480));
     dataLoader.finishFrontLoad(QByteArrayLiteral("next"));
 
-    QTRY_VERIFY(coordinator.findPredecodedImage(nextUrl).has_value());
+    QTRY_VERIFY(coordinator.findPredecodedImage(displayedLocation(nextUrl)).has_value());
     QTRY_COMPARE(dataLoader.loadCount(), std::size_t(2));
     QCOMPARE(dataLoader.backLoad().url, previousUrl);
 }
@@ -268,11 +275,11 @@ void TestImagePredecodeCoordinator::scheduleCachesVisibleSpreadPagesAndSkipsSeco
             }));
 
     const std::optional<kiriview::PredecodedImage> primary
-        = coordinator.findPredecodedImage(primaryUrl);
+        = coordinator.findPredecodedImage(displayedLocation(primaryUrl));
     QVERIFY(primary.has_value());
 
     const std::optional<kiriview::PredecodedImage> secondary
-        = coordinator.findPredecodedImage(secondaryUrl);
+        = coordinator.findPredecodedImage(displayedLocation(secondaryUrl));
     QVERIFY(secondary.has_value());
 
     QTRY_COMPARE(dataLoader.loadCount(), std::size_t(1));
@@ -326,9 +333,11 @@ void TestImagePredecodeCoordinator::archivePredecodeKeepsOpenedCollectionScopeCo
         dataLoader.frontLoad().openedCollectionScope.rootUrl(), openedCollectionScope->rootUrl());
     dataLoader.finishFrontLoad(QByteArrayLiteral("next"));
 
-    QTRY_VERIFY(coordinator.findPredecodedImage(nextUrl).has_value());
+    const kiriview::DisplayedImageLocation nextLocation
+        = displayedLocation(nextUrl, *openedCollectionScope);
+    QTRY_VERIFY(coordinator.findPredecodedImage(nextLocation).has_value());
     const std::optional<kiriview::PredecodedImage> predecoded
-        = coordinator.findPredecodedImage(nextUrl);
+        = coordinator.findPredecodedImage(nextLocation);
     QVERIFY(predecoded.has_value());
     QCOMPARE(
         predecoded->location.openedCollectionScope().rootUrl(), openedCollectionScope->rootUrl());
@@ -469,7 +478,8 @@ void TestImagePredecodeCoordinator::
         candidateProvider.openedCollectionCandidateLoadCount(staleDirectoryCollection.rootUrl()),
         0);
     QCOMPARE(dataLoader.loadCount(), std::size_t(0));
-    QVERIFY(coordinator.findPredecodedImage(displayedUrl).has_value());
+    QVERIFY(coordinator.findPredecodedImage(displayedLocation(displayedUrl, directoryCollection))
+            .has_value());
 }
 
 void TestImagePredecodeCoordinator::missingCandidateSnapshotStartsEmptyFallbackWindow()
@@ -491,7 +501,7 @@ void TestImagePredecodeCoordinator::missingCandidateSnapshotStartsEmptyFallbackW
     timerScheduler.timerAt(0).fire();
 
     QCOMPARE(dataLoader.loadCount(), std::size_t(0));
-    QVERIFY(coordinator.findPredecodedImage(displayedUrl).has_value());
+    QVERIFY(coordinator.findPredecodedImage(displayedLocation(displayedUrl)).has_value());
 }
 
 void TestImagePredecodeCoordinator::archiveThreadCountProviderControlsParallelLoadLimit()
@@ -573,7 +583,7 @@ void TestImagePredecodeCoordinator::animatedBackgroundDecodeIsNotCachedAsStaticP
     QCOMPARE(dataLoader.frontLoad().url, animatedUrl);
     dataLoader.finishFrontLoad(imageData);
 
-    QVERIFY(!coordinator.findPredecodedImage(animatedUrl).has_value());
+    QVERIFY(!coordinator.findPredecodedImage(displayedLocation(animatedUrl)).has_value());
 }
 
 void TestImagePredecodeCoordinator::sameScopeGenerationChangeRetainsActiveDecodeCompletion()
@@ -604,7 +614,7 @@ void TestImagePredecodeCoordinator::sameScopeGenerationChangeRetainsActiveDecode
             imageDocumentPageCandidates(5)));
 
     dataLoader.finishFrontLoad(QByteArrayLiteral("warm"));
-    QVERIFY(coordinator.findPredecodedImage(indexedImageUrl(1)).has_value());
+    QVERIFY(coordinator.findPredecodedImage(displayedLocation(indexedImageUrl(1))).has_value());
 }
 
 void TestImagePredecodeCoordinator::rapidNavigationDebouncesSkippedPagePredecode()
@@ -673,7 +683,7 @@ void TestImagePredecodeCoordinator::powerSaverMonitorSuppressesAndReschedulesPre
                 imageDocumentPageCandidate(nextUrl),
             }));
 
-    QVERIFY(coordinator.findPredecodedImage(displayedUrl).has_value());
+    QVERIFY(coordinator.findPredecodedImage(displayedLocation(displayedUrl)).has_value());
     QCOMPARE(dataLoader.loadCount(), std::size_t(0));
 
     timerScheduler.advanceTo(1200);
@@ -688,8 +698,8 @@ void TestImagePredecodeCoordinator::powerSaverMonitorSuppressesAndReschedulesPre
     QVERIFY(coordinator.powerSaverEnabled());
     QVERIFY(dataLoader.frontLoad().canceled);
     dataLoader.deliverFrontLoadDataIgnoringCancellation(QByteArrayLiteral("stale"));
-    QVERIFY(!coordinator.findPredecodedImage(nextUrl).has_value());
-    QVERIFY(coordinator.findPredecodedImage(displayedUrl).has_value());
+    QVERIFY(!coordinator.findPredecodedImage(displayedLocation(nextUrl)).has_value());
+    QVERIFY(coordinator.findPredecodedImage(displayedLocation(displayedUrl)).has_value());
 }
 
 void TestImagePredecodeCoordinator::cancelSuppressesPendingDecode()
@@ -719,7 +729,7 @@ void TestImagePredecodeCoordinator::cancelSuppressesPendingDecode()
     QVERIFY(dataLoader.frontLoad().canceled);
 
     dataLoader.finishFrontLoad(QByteArrayLiteral("next"));
-    QVERIFY(!coordinator.findPredecodedImage(nextUrl).has_value());
+    QVERIFY(!coordinator.findPredecodedImage(displayedLocation(nextUrl)).has_value());
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
 }
 

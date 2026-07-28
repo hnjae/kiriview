@@ -28,7 +28,8 @@ struct ImageOpenApplicationPlan;
 class ImageOpenController final
 {
 public:
-    using FindPredecodedImageCallback = std::function<std::optional<PredecodedImage>(const QUrl&)>;
+    using FindPredecodedImageCallback
+        = std::function<std::optional<PredecodedImage>(const DisplayedImageLocation&)>;
     using RuntimePlanCallback = std::function<void(const ImageDocumentRuntimePlan&)>;
     using UnsupportedOpenedCollectionVideoEnteredCallback = std::function<void(const QString&)>;
     using OpenedCollectionVideoPlaybackAvailableCallback

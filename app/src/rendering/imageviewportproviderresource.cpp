@@ -72,6 +72,42 @@ QSizeF sourceToPayloadScale(QSize sourceSize, QSize rasterSize)
         qreal(rasterSize.height()) / qreal(sourceSize.height()));
 }
 
+std::optional<kiriview::DisplayImageRasterIdentity> rasterIdentityFor(
+    const kiriview::StaticDisplayImagePayload& displayImage,
+    const ImageSequenceProviderFrameEnvelope& envelope,
+    kiriview::ImageViewportProviderFrameStage stage)
+{
+    if (envelope.isTimedFrame()) {
+        if (stage == kiriview::ImageViewportProviderFrameStage::Provisional
+            || displayImage.rasterKind != kiriview::DisplayImageRasterKind::TimedFrame) {
+            return std::nullopt;
+        }
+        kiriview::DisplayImageRasterIdentity identity
+            = kiriview::DisplayImageRasterIdentity::timedFrame(envelope.frame());
+        return identity.isValid() ? std::optional<kiriview::DisplayImageRasterIdentity>(identity)
+                                  : std::nullopt;
+    }
+    if (!envelope.isStillFrame()) {
+        return std::nullopt;
+    }
+    if (stage == kiriview::ImageViewportProviderFrameStage::Provisional) {
+        return displayImage.rasterKind == kiriview::DisplayImageRasterKind::ProvisionalPreview
+            ? std::optional<kiriview::DisplayImageRasterIdentity>(
+                  kiriview::DisplayImageRasterIdentity::provisionalPreview())
+            : std::nullopt;
+    }
+    switch (displayImage.rasterKind) {
+    case kiriview::DisplayImageRasterKind::AuthoritativeStill:
+        return kiriview::DisplayImageRasterIdentity::authoritativeStill();
+    case kiriview::DisplayImageRasterKind::Refinement:
+        return kiriview::DisplayImageRasterIdentity::refinement();
+    case kiriview::DisplayImageRasterKind::ProvisionalPreview:
+    case kiriview::DisplayImageRasterKind::TimedFrame:
+        return std::nullopt;
+    }
+    return std::nullopt;
+}
+
 QImage sourcePayloadForOrientation(
     const QImage& normalizedImage, ImageFrame::OrientationPolicy orientation)
 {
@@ -512,9 +548,17 @@ ImageViewportProviderPreparedFrame ImageViewportProviderResource::prepareFrame(
     }
 
     const StaticDisplayImagePayload& displayImage = *result.displayImage;
+    const std::optional<DisplayImageRasterIdentity> rasterIdentity
+        = rasterIdentityFor(displayImage, prepared.envelope, prepared.stage);
+    if (!rasterIdentity.has_value()) {
+        prepared.failureCause = ImageSequenceProviderFailureCause::ProviderInternal;
+        return prepared;
+    }
     const DisplayImageReuseKey reuseKey {
         displayLocationIdentity,
         displayImage.sourceIdentity,
+        displayImage.sourceRevision,
+        *rasterIdentity,
         displayImage.imageReaderTransform.transformations,
         displayImage.originalSize,
         displayImage.image.size(),

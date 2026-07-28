@@ -178,8 +178,8 @@ void ImageDocumentPredecodeController::cancel()
 void ImageDocumentPredecodeController::clear() { m_coordinator->clear(); }
 
 std::optional<PredecodedImage> ImageDocumentPredecodeController::findPredecodedImage(
-    const QUrl& url) const
+    const DisplayedImageLocation& location) const
 {
-    return m_coordinator->findPredecodedImage(url);
+    return m_coordinator->findPredecodedImage(location);
 }
 }

@@ -9,18 +9,18 @@
 #include <utility>
 
 namespace {
-std::vector<QUrl> displayedPredecodeImageUrls(
+std::vector<kiriview::DisplayedImageLocation> displayedPredecodeImageLocations(
     const std::vector<kiriview::DisplayedPredecodeImage>& images)
 {
-    std::vector<QUrl> urls;
-    urls.reserve(images.size());
+    std::vector<kiriview::DisplayedImageLocation> locations;
+    locations.reserve(images.size());
     for (const kiriview::DisplayedPredecodeImage& image : images) {
         if (image.hasLocation()) {
-            urls.push_back(image.location.imageUrl());
+            locations.push_back(image.location);
         }
     }
 
-    return urls;
+    return locations;
 }
 }
 
@@ -34,7 +34,7 @@ void PredecodeLoadState::cacheDisplayedImages(const std::vector<DisplayedPredeco
 {
     qCDebug(kiriviewPredecodeLog) << "cache displayed images"
                                   << "count" << images.size();
-    m_cache.setDisplayedUrls(displayedPredecodeImageUrls(images));
+    m_cache.setDisplayedLocations(displayedPredecodeImageLocations(images));
     for (const DisplayedPredecodeImage& image : images) {
         if (!image.isCacheable()) {
             qCDebug(kiriviewPredecodeLog) << "displayed image cache skipped"
@@ -44,31 +44,31 @@ void PredecodeLoadState::cacheDisplayedImages(const std::vector<DisplayedPredeco
             continue;
         }
 
-        m_cache.cacheDisplayedImage(true, image.location.imageUrl(),
-            image.location.openedCollectionScope(), *image.displayImage, image.embeddedMetadata);
+        m_cache.cacheDisplayedImage(
+            true, image.location, *image.displayImage, image.embeddedMetadata);
     }
 }
 
-void PredecodeLoadState::clearWindowUrls() { m_cache.setWindowUrls({}); }
+void PredecodeLoadState::clearWindow() { m_cache.setWindowLocations({}); }
 
 void PredecodeLoadState::startWindow(
     const PredecodeLoadWindow& window, const PredecodeActiveLoads& activeLoads)
 {
     qCDebug(kiriviewPredecodeLog) << "predecode load window"
                                   << "generation" << window.generation << "primaryUrl"
-                                  << window.primaryDisplayedUrl << "urls" << window.urls.size()
-                                  << "displayedImages" << window.displayedImages.size()
-                                  << "parallelLimit" << window.parallelLimit;
+                                  << window.primaryDisplayedLocation.imageUrl() << "locations"
+                                  << window.locations.size() << "displayedImages"
+                                  << window.displayedImages.size() << "parallelLimit"
+                                  << window.parallelLimit;
     cancelBackgroundWork();
     m_activeWindow = ActiveWindow {
         window.firstDisplayContext,
         window.generation,
         window.parallelLimit,
     };
-    m_cache.setWindowUrls(window.urls);
+    m_cache.setWindowLocations(window.locations);
     cacheDisplayedImages(window.displayedImages);
-    m_cache.enqueueMissingWindowLoads(
-        window.primaryDisplayedUrl, window.openedCollectionScope, activeLoads);
+    m_cache.enqueueMissingWindowLoads(window.primaryDisplayedLocation, activeLoads);
 }
 
 bool PredecodeLoadState::canStartMoreLoads(const PredecodeActiveLoads& activeLoads) const
@@ -93,11 +93,11 @@ std::optional<PredecodeLoadStart> PredecodeLoadState::takeNextLoad(
 
     qCDebug(kiriviewPredecodeLog) << "predecode next load selected"
                                   << "generation" << m_activeWindow->generation << "url"
-                                  << request->url << "activeLoads" << activeLoads.size();
+                                  << request->location.imageUrl() << "activeLoads"
+                                  << activeLoads.size();
     return PredecodeLoadStart {
-        ImageDecodeRequest::fromLocation(m_activeWindow->generation,
-            DisplayedImageLocation::fromUrl(request->url, request->openedCollectionScope),
-            m_activeWindow->firstDisplayContext),
+        ImageDecodeRequest::fromLocation(
+            m_activeWindow->generation, request->location, m_activeWindow->firstDisplayContext),
     };
 }
 
@@ -112,8 +112,7 @@ void PredecodeLoadState::cacheDecodedImage(const ImageDecodeRequest& request,
 {
     qCDebug(kiriviewPredecodeLog) << "cache decoded predecode image"
                                   << "generation" << request.id() << "url" << request.imageUrl();
-    m_cache.cacheImage(request.imageUrl(), request.openedCollectionScope(), std::move(displayImage),
-        std::move(metadata));
+    m_cache.cacheImage(request.location(), std::move(displayImage), std::move(metadata));
 }
 
 void PredecodeLoadState::cancelBackgroundWork()
@@ -129,8 +128,9 @@ void PredecodeLoadState::clear()
     m_cache.clear();
 }
 
-std::optional<PredecodedImage> PredecodeLoadState::findPredecodedImage(const QUrl& url) const
+std::optional<PredecodedImage> PredecodeLoadState::findPredecodedImage(
+    const DisplayedImageLocation& location) const
 {
-    return m_cache.findImage(url);
+    return m_cache.findImage(location);
 }
 }

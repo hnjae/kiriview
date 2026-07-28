@@ -16,18 +16,29 @@ namespace kiriview {
 namespace {
     int defaultPredecodeThreadCount() { return QThread::idealThreadCount(); }
 
-    QUrl primaryDisplayedUrlForWindow(const PredecodePendingSchedule& schedule)
+    DisplayedImageLocation primaryDisplayedLocationForWindow(
+        const PredecodePendingSchedule& schedule)
     {
         if (schedule.context.immediate) {
             if (!schedule.context.displayedImages.empty()
                 && schedule.context.displayedImages.front().hasLocation()) {
-                return schedule.context.displayedImages.front().location.imageUrl();
+                return schedule.context.displayedImages.front().location;
             }
 
             return {};
         }
 
-        return schedule.context.currentLocation.imageUrl();
+        return schedule.context.currentLocation;
+    }
+
+    std::vector<DisplayedImageLocation> displayedLocationsForWindow(const PredecodeWindowPlan& plan)
+    {
+        std::vector<DisplayedImageLocation> locations;
+        locations.reserve(plan.urls.size());
+        for (const QUrl& url : plan.urls) {
+            locations.push_back(DisplayedImageLocation::fromUrl(url, plan.openedCollectionScope));
+        }
+        return locations;
     }
 }
 
@@ -121,9 +132,8 @@ void ImagePredecodeCoordinator::startPredecodeImageLoads(
                                   << schedule.context.currentLocation.imageUrl() << "urls"
                                   << plan.urls.size() << "parallelLimit" << plan.parallelLimit;
     m_loadController.startWindowLoads(PredecodeLoadWindow {
-        primaryDisplayedUrlForWindow(schedule),
-        plan.openedCollectionScope,
-        plan.urls,
+        primaryDisplayedLocationForWindow(schedule),
+        displayedLocationsForWindow(plan),
         schedule.context.displayedImages,
         schedule.context.firstDisplayContext,
         schedule.generation,
@@ -139,8 +149,9 @@ void ImagePredecodeCoordinator::clear()
     m_loadController.clear();
 }
 
-std::optional<PredecodedImage> ImagePredecodeCoordinator::findPredecodedImage(const QUrl& url) const
+std::optional<PredecodedImage> ImagePredecodeCoordinator::findPredecodedImage(
+    const DisplayedImageLocation& location) const
 {
-    return m_loadController.findPredecodedImage(url);
+    return m_loadController.findPredecodedImage(location);
 }
 }

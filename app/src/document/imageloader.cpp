@@ -229,7 +229,7 @@ std::optional<PredecodedImage> ImageLoader::matchingPredecodedImage(
         return std::nullopt;
     }
 
-    std::optional<PredecodedImage> predecoded = m_callbacks.findPredecodedImage(session.imageUrl());
+    std::optional<PredecodedImage> predecoded = m_callbacks.findPredecodedImage(session.location());
     if (!predecoded.has_value() || predecoded->location != session.location()) {
         return std::nullopt;
     }

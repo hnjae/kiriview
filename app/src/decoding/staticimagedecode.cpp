@@ -79,6 +79,8 @@ kiriview::StaticDisplayImagePayload staticDisplayPayload(
         std::move(source),
         kiriview::DisplayImagePreviewOrigin::None,
         detailModel,
+        request.sourceRevision(),
+        kiriview::DisplayImageRasterKind::AuthoritativeStill,
     };
     return payload;
 }

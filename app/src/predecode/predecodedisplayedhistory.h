@@ -4,7 +4,8 @@
 #ifndef KIRIVIEW_PREDECODEDISPLAYEDHISTORY_H
 #define KIRIVIEW_PREDECODEDISPLAYEDHISTORY_H
 
-#include <QUrl>
+#include "location/imagelocation.h"
+
 #include <cstddef>
 #include <vector>
 
@@ -13,20 +14,23 @@ class PredecodeDisplayedHistory
 {
 public:
     void clear();
-    void setDisplayedUrls(const std::vector<QUrl>& urls);
+    void setDisplayedLocations(const std::vector<DisplayedImageLocation>& locations);
 
-    [[nodiscard]] bool currentContains(const QUrl& url) const;
-    [[nodiscard]] bool recentContains(const QUrl& url) const;
-    [[nodiscard]] std::size_t currentPriority(const QUrl& url) const;
-    [[nodiscard]] std::size_t recentPriority(const QUrl& url) const;
+    [[nodiscard]] bool currentContains(const DisplayedImageLocation& location) const;
+    [[nodiscard]] bool recentContains(const DisplayedImageLocation& location) const;
+    [[nodiscard]] std::size_t currentPriority(const DisplayedImageLocation& location) const;
+    [[nodiscard]] std::size_t recentPriority(const DisplayedImageLocation& location) const;
 
 private:
-    static bool containsUrl(const std::vector<QUrl>& urls, const QUrl& url);
-    static void removeUrl(std::vector<QUrl>& urls, const QUrl& url);
-    static std::size_t priority(const std::vector<QUrl>& urls, const QUrl& url);
+    static bool containsLocation(const std::vector<DisplayedImageLocation>& locations,
+        const DisplayedImageLocation& location);
+    static void removeLocation(
+        std::vector<DisplayedImageLocation>& locations, const DisplayedImageLocation& location);
+    static std::size_t priority(const std::vector<DisplayedImageLocation>& locations,
+        const DisplayedImageLocation& location);
 
-    std::vector<QUrl> m_currentUrls;
-    std::vector<QUrl> m_recentUrls;
+    std::vector<DisplayedImageLocation> m_currentLocations;
+    std::vector<DisplayedImageLocation> m_recentLocations;
 };
 }
 

@@ -4,6 +4,7 @@
 #ifndef KIRIVIEW_STATICIMAGE_H
 #define KIRIVIEW_STATICIMAGE_H
 
+#include "decoding/imagesourcerevision.h"
 #include "displayimagequality.h"
 #include "metadata/embeddedmetadata.h"
 
@@ -103,6 +104,8 @@ struct StaticDisplayImagePayload
     std::shared_ptr<StaticImageDisplaySource> refinementSource;
     DisplayImagePreviewOrigin previewOrigin = DisplayImagePreviewOrigin::None;
     StaticImageSourceDetailModel sourceDetailModel = StaticImageSourceDetailModel::FiniteRaster;
+    ImageSourceRevision sourceRevision;
+    DisplayImageRasterKind rasterKind = DisplayImageRasterKind::AuthoritativeStill;
 
     [[nodiscard]] bool isValid() const;
     [[nodiscard]] bool isAuthoritative() const;

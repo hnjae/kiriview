@@ -5,6 +5,7 @@
 
 #include "async/imagecallback.h"
 #include "imageinputclassification.h"
+#include "location/sourcekey.h"
 #include "rawthumbnailpreview.h"
 #include "thumbnailpreview.h"
 
@@ -20,6 +21,14 @@ bool rawEmbeddedThumbnailPreviewEligible(
     const kiriview::ImageInputClassification classification
         = kiriview::classifyImageInput(data, request.imageUrl().fileName());
     return classification.kind == kiriview::ImageInputKind::Raw;
+}
+
+bool reusableAuthoritativeSeed(
+    const kiriview::StaticDisplayImagePayload& seed, const kiriview::ImageDecodeRequest& request)
+{
+    return seed.isAuthoritative()
+        && seed.sourceIdentity == kiriview::sourceKeyForUrl(request.imageUrl()).identity
+        && seed.sourceRevision == request.sourceRevision();
 }
 }
 
@@ -47,7 +56,8 @@ ImageDecodeJob::ImageDecodeJob(
 {
 }
 
-void ImageDecodeJob::start(ImageDecodeRequest request)
+void ImageDecodeJob::start(
+    ImageDecodeRequest request, std::optional<StaticDisplayImagePayload> authoritativeSeed)
 {
     cancel();
     if (request.isEmpty()) {
@@ -59,6 +69,7 @@ void ImageDecodeJob::start(ImageDecodeRequest request)
         return;
     }
 
+    m_authoritativeSeed = std::move(authoritativeSeed);
     const ImageDecodeJobTicket ticket = m_state.start(std::move(request));
     m_dataLoadJob = m_dependencies.dataLoader(
         this, ticket.request,
@@ -69,7 +80,25 @@ void ImageDecodeJob::start(ImageDecodeRequest request)
                 return;
             }
 
-            startDecode(std::move(data), ticket, std::move(operation->request));
+            ImageDecodeRequest currentRequest
+                = operation->request.withSourceRevision(ImageSourceRevision::fromData(data));
+            if (m_authoritativeSeed.has_value()
+                && reusableAuthoritativeSeed(*m_authoritativeSeed, currentRequest)) {
+                StaticDisplayImagePayload seed = std::move(*m_authoritativeSeed);
+                m_authoritativeSeed.reset();
+                ImageDecodeJobRuntimePlan resultPlan = m_state.acceptDecodeResult(ticket);
+                if (!std::holds_alternative<DeliverImageDecodeResultOperation>(
+                        resultPlan.operation)) {
+                    return;
+                }
+                EmbeddedMetadata metadata = seed.embeddedMetadata;
+                invokeIfSet(m_callbacks.decoded, std::move(currentRequest),
+                    successfulDecodedImageResult(
+                        StaticDecodedImage { std::move(seed), std::move(metadata) }));
+                return;
+            }
+            m_authoritativeSeed.reset();
+            startDecode(std::move(data), ticket, std::move(currentRequest));
         },
         [this, ticket](const QString& errorString) {
             ImageDecodeJobRuntimePlan plan = m_state.acceptLoadError(ticket);
@@ -89,6 +118,7 @@ void ImageDecodeJob::cancel()
     m_thumbnailPreviewLookupJob.cancel();
     m_decodeWorkerTask.cancel();
     m_rawThumbnailPreviewWorkerTask.cancel();
+    m_authoritativeSeed.reset();
 }
 
 bool ImageDecodeJob::hasActiveRequest() const { return m_state.hasActiveRequest(); }
@@ -99,19 +129,20 @@ void ImageDecodeJob::startDecode(
     startThumbnailPreviewLookup(data, ticket, request);
 
     const ImageDataDecoder decoder = m_dependencies.dataDecoder;
+    ImageDecodeRequest deliveredRequest = request;
     m_decodeWorkerTask = m_dependencies.workerScheduler.run(
         this,
         [decoder, data = std::move(data), request = std::move(request)]() mutable {
             return decoder(data, request);
         },
-        [this, ticket = std::move(ticket)](DecodedImageResult result) mutable {
+        [this, ticket = std::move(ticket), request = std::move(deliveredRequest)](
+            DecodedImageResult result) mutable {
             ImageDecodeJobRuntimePlan plan = m_state.acceptDecodeResult(ticket);
-            auto* operation = std::get_if<DeliverImageDecodeResultOperation>(&plan.operation);
-            if (operation == nullptr) {
+            if (!std::holds_alternative<DeliverImageDecodeResultOperation>(plan.operation)) {
                 return;
             }
 
-            invokeIfSet(m_callbacks.decoded, std::move(operation->request), std::move(result));
+            invokeIfSet(m_callbacks.decoded, std::move(request), std::move(result));
         });
 }
 
@@ -141,13 +172,11 @@ void ImageDecodeJob::startThumbnailPreviewLookup(
     QByteArray rawPreviewData = rawPreviewEligible ? data : QByteArray();
     m_thumbnailPreviewLookupJob = m_dependencies.thumbnailPreviewLookupProvider(this,
         std::move(*lookupRequest),
-        [this, ticket = std::move(ticket), previewRequest = std::move(*previewRequest),
+        [this, ticket = std::move(ticket), previewRequest = std::move(*previewRequest), request,
             rawPreviewEligible, rawPreviewData = std::move(rawPreviewData)](
             ThumbnailCacheLookupResult lookupResult) mutable {
             ImageDecodeJobRuntimePlan plan = m_state.acceptThumbnailPreview(ticket);
-            const auto* operation
-                = std::get_if<DeliverImageThumbnailPreviewOperation>(&plan.operation);
-            if (operation == nullptr) {
+            if (!std::holds_alternative<DeliverImageThumbnailPreviewOperation>(plan.operation)) {
                 return;
             }
 
@@ -155,7 +184,7 @@ void ImageDecodeJob::startThumbnailPreviewLookup(
                 = xdgThumbnailPreviewResult(previewRequest, std::move(lookupResult));
             if (previewResult.status == ThumbnailCacheLookupStatus::Missing && rawPreviewEligible) {
                 startRawEmbeddedThumbnailPreviewValidation(
-                    std::move(rawPreviewData), ticket, operation->request);
+                    std::move(rawPreviewData), ticket, request);
                 return;
             }
             if (previewResult.status != ThumbnailCacheLookupStatus::Ready
@@ -164,12 +193,12 @@ void ImageDecodeJob::startThumbnailPreviewLookup(
             }
 
             std::optional<StaticDisplayImagePayload> payload
-                = xdgThumbnailPreviewDisplayPayload(operation->request, previewResult);
+                = xdgThumbnailPreviewDisplayPayload(request, previewResult);
             if (!payload.has_value()) {
                 return;
             }
 
-            invokeIfSet(m_callbacks.thumbnailPreview, operation->request, std::move(*payload));
+            invokeIfSet(m_callbacks.thumbnailPreview, request, std::move(*payload));
         });
 }
 
@@ -188,20 +217,18 @@ void ImageDecodeJob::startRawEmbeddedThumbnailPreviewValidation(
             RawEmbeddedThumbnailPreviewResult result = extractor(data, request);
             return rawEmbeddedThumbnailPreviewDisplayPayload(request, result);
         },
-        [this, ticket = std::move(ticket)](
+        [this, ticket = std::move(ticket), request](
             std::optional<StaticDisplayImagePayload> payload) mutable {
             if (!payload.has_value() || !m_callbacks.thumbnailPreview) {
                 return;
             }
 
             ImageDecodeJobRuntimePlan plan = m_state.acceptThumbnailPreview(ticket);
-            const auto* operation
-                = std::get_if<DeliverImageThumbnailPreviewOperation>(&plan.operation);
-            if (operation == nullptr) {
+            if (!std::holds_alternative<DeliverImageThumbnailPreviewOperation>(plan.operation)) {
                 return;
             }
 
-            invokeIfSet(m_callbacks.thumbnailPreview, operation->request, std::move(*payload));
+            invokeIfSet(m_callbacks.thumbnailPreview, request, std::move(*payload));
         });
 }
 }

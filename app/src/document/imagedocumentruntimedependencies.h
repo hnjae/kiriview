@@ -27,7 +27,8 @@ class QObject;
 namespace kiriview {
 class MediaEntrySourceStore;
 
-using ExternalPredecodedImageFinder = std::function<std::optional<PredecodedImage>(const QUrl&)>;
+using ExternalPredecodedImageFinder
+    = std::function<std::optional<PredecodedImage>(const DisplayedImageLocation&)>;
 
 struct ImageDocumentRuntimeDependencyOverrides
 {

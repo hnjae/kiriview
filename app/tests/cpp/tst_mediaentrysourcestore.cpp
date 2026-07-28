@@ -305,8 +305,14 @@ void TestMediaEntrySourceStore::predecodeLoadsAdjacentOpenedCollectionImagesThro
         std::move(candidateSnapshot),
     });
 
-    QTRY_VERIFY(coordinator.findPredecodedImage(thirdUrl).has_value());
-    QTRY_VERIFY(coordinator.findPredecodedImage(firstUrl).has_value());
+    QTRY_VERIFY(coordinator
+            .findPredecodedImage(kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
+                thirdUrl, *archiveCollection))
+            .has_value());
+    QTRY_VERIFY(coordinator
+            .findPredecodedImage(kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
+                firstUrl, *archiveCollection))
+            .has_value());
     QCOMPARE(state->openCount.load(), 1);
     QCOMPARE(state->candidateLoadCount.load(), 1);
     QCOMPARE(state->dataLoadCount.load(), 2);

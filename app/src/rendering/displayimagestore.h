@@ -4,6 +4,7 @@
 #ifndef KIRIVIEW_DISPLAYIMAGESTORE_H
 #define KIRIVIEW_DISPLAYIMAGESTORE_H
 
+#include "decoding/imagesourcerevision.h"
 #include "rendering/displayimagequality.h"
 
 #include <QImage>
@@ -26,10 +27,25 @@ enum class DisplayImageRetentionPriority {
     Visible,
 };
 
+struct DisplayImageRasterIdentity
+{
+    DisplayImageRasterKind kind = DisplayImageRasterKind::AuthoritativeStill;
+    int authoredFrame = -1;
+
+    static DisplayImageRasterIdentity provisionalPreview();
+    static DisplayImageRasterIdentity authoritativeStill();
+    static DisplayImageRasterIdentity timedFrame(int authoredFrame);
+    static DisplayImageRasterIdentity refinement();
+
+    [[nodiscard]] bool isValid() const;
+};
+
 struct DisplayImageReuseKey
 {
     QString locationIdentity;
     QString sourceIdentity;
+    ImageSourceRevision sourceRevision;
+    DisplayImageRasterIdentity rasterIdentity;
     QImageIOHandler::Transformations imageReaderTransformations
         = QImageIOHandler::TransformationNone;
     QSize originalSize;

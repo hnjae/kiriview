@@ -572,9 +572,9 @@ bool DocumentSessionRuntimeGraph::reportVideoOutputSurfaceClaim(const QString& c
 }
 
 std::optional<PredecodedImage> DocumentSessionRuntimeGraph::findPredecodedImage(
-    const QUrl& url) const
+    const DisplayedImageLocation& location) const
 {
-    return m_mediaPredecodeRuntime.findPredecodedImage(url);
+    return m_mediaPredecodeRuntime.findPredecodedImage(location);
 }
 
 void DocumentSessionRuntimeGraph::applyDirectMediaNavigationRevealAction(

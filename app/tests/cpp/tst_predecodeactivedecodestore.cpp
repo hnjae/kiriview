@@ -25,6 +25,11 @@ kiriview::ImageDecodeRequest decodeRequest(quint64 id, const QUrl& url)
     return kiriview::ImageDecodeRequest::fromUrl(id, url);
 }
 
+kiriview::DisplayedImageLocation displayedLocation(const QUrl& url)
+{
+    return kiriview::DisplayedImageLocation::fromUrl(url);
+}
+
 void sendDeferredDeletes() { QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete); }
 }
 
@@ -68,11 +73,11 @@ void TestPredecodeActiveDecodeStore::finishReturnsMatchingRequestAndDeletesJob()
     QVERIFY(store.add(decodeRequest(7, url), job));
 
     QCOMPARE(store.size(), std::size_t(1));
-    QVERIFY(store.containsUrl(url));
+    QVERIFY(store.contains(displayedLocation(url)));
     const kiriview::PredecodeActiveLoads activeLoads = store.activeLoads();
     QCOMPARE(activeLoads.size(), std::size_t(1));
-    QVERIFY(activeLoads.contains(url));
-    QVERIFY(activeLoads.contains(kiriview::normalizedImageUrl(url)));
+    QVERIFY(activeLoads.contains(displayedLocation(url)));
+    QVERIFY(activeLoads.contains(displayedLocation(kiriview::normalizedImageUrl(url))));
 
     const std::optional<kiriview::ImageDecodeRequest> finished
         = store.finish(decodeRequest(7, url));
@@ -119,8 +124,8 @@ void TestPredecodeActiveDecodeStore::finishRemovesOnlyMatchingEntry()
     QVERIFY(store.finish(decodeRequest(7, firstUrl)).has_value());
 
     QCOMPARE(store.size(), std::size_t(1));
-    QVERIFY(!store.containsUrl(firstUrl));
-    QVERIFY(store.containsUrl(secondUrl));
+    QVERIFY(!store.contains(displayedLocation(firstUrl)));
+    QVERIFY(store.contains(displayedLocation(secondUrl)));
     sendDeferredDeletes();
     QVERIFY(firstJobGuard.isNull());
     QVERIFY(!secondJobGuard.isNull());

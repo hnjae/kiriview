@@ -42,6 +42,7 @@ class TestImageLoader : public QObject
 
 private Q_SLOTS:
     void directImagePreparesProviderTargetWithValidatedPredecode();
+    void openedCollectionPredecodeLookupPreservesExactScope();
     void openedCollectionStartsProviderTargetBeforeResolvingFirstPage();
     void staleOpenedCollectionSnapshotCannotPrepareAReplacedTarget();
     void reentrantReplacementCannotPublishResolvedStaleVideoTerminal();
@@ -61,7 +62,8 @@ void TestImageLoader::directImagePreparesProviderTargetWithValidatedPredecode()
     std::optional<kiriview::ImageLoadSession> preparedSession;
     std::optional<kiriview::PredecodedImage> preparedImage;
     kiriview::ImageLoader::Callbacks callbacks;
-    callbacks.findPredecodedImage = [cached](const QUrl&) { return cached; };
+    callbacks.findPredecodedImage
+        = [cached](const kiriview::DisplayedImageLocation&) { return cached; };
     callbacks.targetStarted = [&startedSession](kiriview::ImageLoadSession session) {
         startedSession = std::move(session);
     };
@@ -82,6 +84,69 @@ void TestImageLoader::directImagePreparesProviderTargetWithValidatedPredecode()
     QVERIFY(preparedImage.has_value());
     QCOMPARE(preparedImage->location, location);
     QCOMPARE(preparedImage->displayImage.image.size(), QSize(24, 12));
+}
+
+void TestImageLoader::openedCollectionPredecodeLookupPreservesExactScope()
+{
+    const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
+    const QUrl otherArchiveUrl = localUrl(QStringLiteral("/books/other.cbz"));
+    const auto scope = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+        kiriview::resolvedNavigationSource(archiveUrl, {}));
+    const auto otherScope = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+        kiriview::resolvedNavigationSource(otherArchiveUrl, {}));
+    QVERIFY(scope.has_value());
+    QVERIFY(otherScope.has_value());
+    const QUrl sharedEntryUrl = archivePageUrl(scope->rootUrl(), QStringLiteral("same-entry.png"));
+    const kiriview::DisplayedImageLocation expectedLocation
+        = kiriview::DisplayedImageLocation::fromOpenedCollectionScope(sharedEntryUrl, *scope);
+    const kiriview::DisplayedImageLocation wrongLocation
+        = kiriview::DisplayedImageLocation::fromOpenedCollectionScope(sharedEntryUrl, *otherScope);
+    const kiriview::PredecodedImage expected {
+        staticDisplayTestImagePayload(testImage(QSize(24, 12))),
+        expectedLocation,
+    };
+    std::vector<kiriview::DisplayedImageLocation> lookups;
+    std::optional<kiriview::PredecodedImage> resolvedPredecode;
+    kiriview::ImageLoader::Callbacks callbacks;
+    callbacks.findPredecodedImage
+        = [&lookups, wrongLocation, expected](const kiriview::DisplayedImageLocation& location)
+        -> std::optional<kiriview::PredecodedImage> {
+        lookups.push_back(location);
+        return location == expected.location
+            ? std::optional<kiriview::PredecodedImage>(expected)
+            : std::optional<kiriview::PredecodedImage>(kiriview::PredecodedImage {
+                  staticDisplayTestImagePayload(testImage(QSize(1, 1))),
+                  wrongLocation,
+              });
+    };
+    callbacks.targetStarted = [](kiriview::ImageLoadSession) { };
+    callbacks.ensurePageCandidateSnapshot
+        = [scope, sharedEntryUrl](
+              auto, kiriview::ImageDocumentPageCandidateListSnapshotCallback completion) {
+              completion(kiriview::ImageDocumentPageCandidateListSnapshotResult {
+                  pageCandidateListSnapshot(
+                      kiriview::ImageDocumentPageCandidateListSource::forOpenedCollectionScope(
+                          *scope),
+                      { imageDocumentPageCandidate(sharedEntryUrl) }),
+                  true,
+                  {},
+              });
+          };
+    callbacks.sourcePrepared = [](kiriview::ImageLoadSession) { };
+    callbacks.resolvedImage = [&resolvedPredecode](kiriview::ImageLoadSession,
+                                  std::optional<kiriview::PredecodedImage> predecoded) {
+        resolvedPredecode = std::move(predecoded);
+    };
+    kiriview::ImageLoader loader(std::move(callbacks));
+
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+        kiriview::resolvedNavigationSource(archiveUrl, {})));
+
+    QCOMPARE(lookups.size(), std::size_t(1));
+    QVERIFY(lookups.front() == expectedLocation);
+    QVERIFY(resolvedPredecode.has_value());
+    QVERIFY(resolvedPredecode->location == expectedLocation);
+    QCOMPARE(resolvedPredecode->displayImage.image.size(), QSize(24, 12));
 }
 
 void TestImageLoader::openedCollectionStartsProviderTargetBeforeResolvingFirstPage()

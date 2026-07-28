@@ -5,7 +5,6 @@
 
 #include "imagedocumentpredecodecontroller.h"
 
-#include <QUrl>
 #include <utility>
 
 namespace kiriview {
@@ -16,15 +15,16 @@ ImageDocumentPredecodedImageLookup::ImageDocumentPredecodedImageLookup(
 {
 }
 
-std::optional<PredecodedImage> ImageDocumentPredecodedImageLookup::find(const QUrl& url) const
+std::optional<PredecodedImage> ImageDocumentPredecodedImageLookup::find(
+    const DisplayedImageLocation& location) const
 {
     if (m_externalFinder) {
-        std::optional<PredecodedImage> predecoded = m_externalFinder(url);
+        std::optional<PredecodedImage> predecoded = m_externalFinder(location);
         if (predecoded.has_value()) {
             return predecoded;
         }
     }
 
-    return m_predecodeController.findPredecodedImage(url);
+    return m_predecodeController.findPredecodedImage(location);
 }
 }

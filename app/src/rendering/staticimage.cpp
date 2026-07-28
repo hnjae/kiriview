@@ -35,7 +35,8 @@ StaticImageReaderTransform StaticImageDisplaySource::imageReaderTransform() cons
 
 bool StaticDisplayImagePayload::isValid() const
 {
-    if (image.isNull() || !originalSize.isValid() || originalSize.isEmpty()) {
+    if (sourceIdentity.isEmpty() || !sourceRevision.isValid() || image.isNull()
+        || !originalSize.isValid() || originalSize.isEmpty()) {
         return false;
     }
     if (refinementSource != nullptr) {
@@ -46,6 +47,16 @@ bool StaticDisplayImagePayload::isValid() const
             return false;
         }
     }
+    const bool previewRaster = quality == DisplayImageQuality::ThumbnailPreview
+        && previewOrigin != DisplayImagePreviewOrigin::None;
+    if (rasterKind == DisplayImageRasterKind::ProvisionalPreview && !previewRaster) {
+        return false;
+    }
+    if ((rasterKind == DisplayImageRasterKind::TimedFrame
+            || rasterKind == DisplayImageRasterKind::Refinement)
+        && previewRaster) {
+        return false;
+    }
     return quality != DisplayImageQuality::Exact
         || (sourceDetailModel == StaticImageSourceDetailModel::FiniteRaster
             && image.size() == originalSize);
@@ -53,13 +64,17 @@ bool StaticDisplayImagePayload::isValid() const
 
 bool StaticDisplayImagePayload::isAuthoritative() const
 {
-    return isValid() && quality != DisplayImageQuality::ThumbnailPreview
+    return isValid()
+        && (rasterKind == DisplayImageRasterKind::AuthoritativeStill
+            || rasterKind == DisplayImageRasterKind::Refinement)
+        && quality != DisplayImageQuality::ThumbnailPreview
         && previewOrigin == DisplayImagePreviewOrigin::None;
 }
 
 bool StaticDisplayImagePayload::isProvisionalPreview() const
 {
-    return isValid() && quality == DisplayImageQuality::ThumbnailPreview
+    return isValid() && rasterKind == DisplayImageRasterKind::ProvisionalPreview
+        && quality == DisplayImageQuality::ThumbnailPreview
         && previewOrigin != DisplayImagePreviewOrigin::None;
 }
 

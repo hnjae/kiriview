@@ -9,7 +9,6 @@
 #include "predecodedimage.h"
 #include "predecodeloadstate.h"
 
-#include <QUrl>
 #include <QtGlobal>
 #include <optional>
 
@@ -25,11 +24,12 @@ public:
     Q_DISABLE_COPY_MOVE(PredecodeLoadController)
 
     void cacheDisplayedImages(const std::vector<DisplayedPredecodeImage>& images);
-    void clearWindowUrls();
+    void clearWindow();
     void startWindowLoads(const PredecodeLoadWindow& window);
     void cancelBackgroundWork();
     void clear();
-    std::optional<PredecodedImage> findPredecodedImage(const QUrl& url) const;
+    std::optional<PredecodedImage> findPredecodedImage(
+        const DisplayedImageLocation& location) const;
 
 private:
     void startNextLoads();

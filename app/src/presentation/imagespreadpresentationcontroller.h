@@ -28,7 +28,8 @@ class ImageSpreadPresentationController final
 {
 public:
     using ChangeBatchCallback = std::function<void(const std::vector<ImageDocumentChange>&)>;
-    using FindPredecodedImageCallback = std::function<std::optional<PredecodedImage>(const QUrl&)>;
+    using FindPredecodedImageCallback
+        = std::function<std::optional<PredecodedImage>(const DisplayedImageLocation&)>;
     using PageNavigationSnapshotProvider = std::function<ImageDocumentPageNavigationSnapshot()>;
     using ScheduleAdjacentPredecodeCallback = std::function<void()>;
     using SecondaryImagePreparedCallback

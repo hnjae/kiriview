@@ -29,6 +29,7 @@ struct ApngAnimationImage
     QByteArray data;
     EmbeddedMetadata embeddedMetadata;
     QString sourceIdentity;
+    ImageSourceRevision sourceRevision;
 };
 
 struct ReaderAnimationImage
@@ -38,6 +39,7 @@ struct ReaderAnimationImage
     QByteArray format;
     EmbeddedMetadata embeddedMetadata;
     QString sourceIdentity;
+    ImageSourceRevision sourceRevision;
 };
 
 struct WebPAnimationImage
@@ -46,6 +48,7 @@ struct WebPAnimationImage
     QByteArray data;
     EmbeddedMetadata embeddedMetadata;
     QString sourceIdentity;
+    ImageSourceRevision sourceRevision;
 };
 
 struct JxlAnimationImage
@@ -54,6 +57,7 @@ struct JxlAnimationImage
     QByteArray data;
     EmbeddedMetadata embeddedMetadata;
     QString sourceIdentity;
+    ImageSourceRevision sourceRevision;
 };
 
 struct HeifSequenceAnimationImage
@@ -62,6 +66,7 @@ struct HeifSequenceAnimationImage
     QByteArray data;
     EmbeddedMetadata embeddedMetadata;
     QString sourceIdentity;
+    ImageSourceRevision sourceRevision;
 };
 
 using DecodedImage = std::variant<StaticDecodedImage, ApngAnimationImage, ReaderAnimationImage,

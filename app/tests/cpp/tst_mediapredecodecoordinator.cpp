@@ -26,6 +26,11 @@ using kiriview::TestSupport::testImage;
 
 constexpr qsizetype testCacheByteBudget = 1024 * 1024;
 
+kiriview::DisplayedImageLocation displayedLocation(const QUrl& url)
+{
+    return kiriview::DisplayedImageLocation::fromUrl(url);
+}
+
 kiriview::DirectMediaNavigationCandidate directMediaNavigationCandidate(const QUrl& url)
 {
     return kiriview::DirectMediaNavigationCandidate { url, url.fileName(QUrl::PrettyDecoded) };
@@ -124,11 +129,11 @@ void TestMediaPredecodeCoordinator::videoCursorKeepsImageCacheAndLoadsAdjacentIm
         { displayedImage(displayedUrl) },
     });
 
-    QVERIFY(coordinator.findPredecodedImage(displayedUrl).has_value());
+    QVERIFY(coordinator.findPredecodedImage(displayedLocation(displayedUrl)).has_value());
     QTRY_COMPARE(dataLoader.loadCount(), std::size_t(1));
     QCOMPARE(dataLoader.frontLoad().url, nextUrl);
     QVERIFY(dataLoader.finishOldestActiveLoadForUrl(nextUrl, QByteArrayLiteral("next")));
-    QTRY_VERIFY(coordinator.findPredecodedImage(nextUrl).has_value());
+    QTRY_VERIFY(coordinator.findPredecodedImage(displayedLocation(nextUrl)).has_value());
 
     coordinator.schedule(kiriview::MediaPredecodeCoordinator::Context {
         videoUrl,
@@ -139,8 +144,8 @@ void TestMediaPredecodeCoordinator::videoCursorKeepsImageCacheAndLoadsAdjacentIm
     QTRY_COMPARE(dataLoader.loadCount(), std::size_t(2));
     QCOMPARE(dataLoader.backLoad().url, laterUrl);
     QVERIFY(dataLoader.backLoad().url != videoUrl);
-    QVERIFY(coordinator.findPredecodedImage(displayedUrl).has_value());
-    QVERIFY(coordinator.findPredecodedImage(nextUrl).has_value());
+    QVERIFY(coordinator.findPredecodedImage(displayedLocation(displayedUrl)).has_value());
+    QVERIFY(coordinator.findPredecodedImage(displayedLocation(nextUrl)).has_value());
 }
 
 void TestMediaPredecodeCoordinator::powerSaverSuppressesLoadsButRetainsDisplayedImages()
@@ -161,7 +166,7 @@ void TestMediaPredecodeCoordinator::powerSaverSuppressesLoadsButRetainsDisplayed
         { displayedImage(displayedUrl) },
     });
 
-    QVERIFY(coordinator.findPredecodedImage(displayedUrl).has_value());
+    QVERIFY(coordinator.findPredecodedImage(displayedLocation(displayedUrl)).has_value());
     QCOMPARE(dataLoader.loadCount(), std::size_t(0));
 
     timerScheduler.advanceTo(1200);
@@ -172,7 +177,7 @@ void TestMediaPredecodeCoordinator::powerSaverSuppressesLoadsButRetainsDisplayed
 
     QTRY_COMPARE(dataLoader.loadCount(), std::size_t(1));
     QCOMPARE(dataLoader.frontLoad().url, nextUrl);
-    QVERIFY(coordinator.findPredecodedImage(displayedUrl).has_value());
+    QVERIFY(coordinator.findPredecodedImage(displayedLocation(displayedUrl)).has_value());
 }
 
 void TestMediaPredecodeCoordinator::powerSaverReschedulesVideoCursorWithoutDisplayedImages()

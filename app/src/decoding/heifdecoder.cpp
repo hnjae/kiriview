@@ -135,6 +135,7 @@ std::optional<kiriview::DecodedImageResult> decodeHeifSequenceImageDataForInfo(
         data,
         {},
         kiriview::sourceKeyForUrl(request.imageUrl()).identity,
+        request.sourceRevision(),
     });
 }
 }

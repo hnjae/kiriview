@@ -71,6 +71,16 @@ namespace {
             if (left.sourceIdentity != right.sourceIdentity) {
                 return left.sourceIdentity < right.sourceIdentity;
             }
+            if (left.sourceRevision != right.sourceRevision) {
+                return left.sourceRevision.digest() < right.sourceRevision.digest();
+            }
+            if (left.rasterIdentity.kind != right.rasterIdentity.kind) {
+                return static_cast<int>(left.rasterIdentity.kind)
+                    < static_cast<int>(right.rasterIdentity.kind);
+            }
+            if (left.rasterIdentity.authoredFrame != right.rasterIdentity.authoredFrame) {
+                return left.rasterIdentity.authoredFrame < right.rasterIdentity.authoredFrame;
+            }
             const int leftTransform = static_cast<int>(left.imageReaderTransformations);
             const int rightTransform = static_cast<int>(right.imageReaderTransformations);
             if (leftTransform != rightTransform) {
@@ -95,6 +105,31 @@ namespace {
         }
     };
 
+}
+
+DisplayImageRasterIdentity DisplayImageRasterIdentity::provisionalPreview()
+{
+    return { DisplayImageRasterKind::ProvisionalPreview, -1 };
+}
+
+DisplayImageRasterIdentity DisplayImageRasterIdentity::authoritativeStill()
+{
+    return { DisplayImageRasterKind::AuthoritativeStill, -1 };
+}
+
+DisplayImageRasterIdentity DisplayImageRasterIdentity::timedFrame(int authoredFrame)
+{
+    return { DisplayImageRasterKind::TimedFrame, authoredFrame };
+}
+
+DisplayImageRasterIdentity DisplayImageRasterIdentity::refinement()
+{
+    return { DisplayImageRasterKind::Refinement, -1 };
+}
+
+bool DisplayImageRasterIdentity::isValid() const
+{
+    return kind == DisplayImageRasterKind::TimedFrame ? authoredFrame >= 0 : authoredFrame == -1;
 }
 
 class DisplayImageStore::Private
@@ -296,7 +331,9 @@ DisplayImageStore::~DisplayImageStore() = default;
 
 QString DisplayImageStore::acquireReusable(DisplayImageEntry entry, DisplayImageReuseKey reuseKey)
 {
-    if (entry.image.isNull()) {
+    if (entry.image.isNull() || reuseKey.locationIdentity.isEmpty()
+        || reuseKey.sourceIdentity.isEmpty() || !reuseKey.sourceRevision.isValid()
+        || !reuseKey.rasterIdentity.isValid()) {
         return {};
     }
 

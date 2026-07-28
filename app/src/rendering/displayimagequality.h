@@ -17,6 +17,13 @@ enum class DisplayImagePreviewOrigin {
     XdgThumbnail,
     RawEmbeddedThumbnail,
 };
+
+enum class DisplayImageRasterKind {
+    ProvisionalPreview,
+    AuthoritativeStill,
+    TimedFrame,
+    Refinement,
+};
 }
 
 #endif

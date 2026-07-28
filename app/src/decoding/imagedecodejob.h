@@ -14,6 +14,7 @@
 #include <QObject>
 #include <QString>
 #include <functional>
+#include <optional>
 
 namespace kiriview {
 class ImageDecodeJob final : public QObject
@@ -37,7 +38,8 @@ public:
     ImageDecodeJob(QObject* parent, ImageDecodeDependencies dependencies);
     ImageDecodeJob(QObject* parent, ImageDecodeDependencies dependencies, Callbacks callbacks);
 
-    void start(ImageDecodeRequest request);
+    void start(ImageDecodeRequest request,
+        std::optional<StaticDisplayImagePayload> authoritativeSeed = std::nullopt);
     void cancel();
     [[nodiscard]] bool hasActiveRequest() const;
 
@@ -55,6 +57,7 @@ private:
     ImageWorkerTask m_decodeWorkerTask;
     ImageWorkerTask m_rawThumbnailPreviewWorkerTask;
     ImageDecodeJobState m_state;
+    std::optional<StaticDisplayImagePayload> m_authoritativeSeed;
 };
 }
 

@@ -94,6 +94,7 @@ src/document/imagedocumentstate.cpp
 src/decoding/imageformatregistry.cpp
 src/format/supportedmediaformats.cpp
 src/decoding/imageinputclassification.cpp
+src/decoding/imagesourcerevision.cpp
 src/localization/activenavigationboundarytext.cpp
 src/localization/imageerrortext.cpp
 src/localization/mediaentrysourceerrortext.cpp

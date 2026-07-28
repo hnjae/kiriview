@@ -10,7 +10,6 @@
 #include "predecodedimage.h"
 #include "rendering/staticimage.h"
 
-#include <QUrl>
 #include <QtGlobal>
 #include <cstddef>
 #include <optional>
@@ -19,9 +18,8 @@
 namespace kiriview {
 struct PredecodeLoadWindow
 {
-    QUrl primaryDisplayedUrl;
-    OpenedCollectionScopeLocation openedCollectionScope;
-    std::vector<QUrl> urls;
+    DisplayedImageLocation primaryDisplayedLocation;
+    std::vector<DisplayedImageLocation> locations;
     std::vector<DisplayedPredecodeImage> displayedImages;
     ImageFirstDisplayDecodeContext firstDisplayContext;
     quint64 generation = 0;
@@ -39,7 +37,7 @@ public:
     explicit PredecodeLoadState(qsizetype cacheByteBudget);
 
     void cacheDisplayedImages(const std::vector<DisplayedPredecodeImage>& images);
-    void clearWindowUrls();
+    void clearWindow();
     void startWindow(const PredecodeLoadWindow& window, const PredecodeActiveLoads& activeLoads);
     std::optional<PredecodeLoadStart> takeNextLoad(const PredecodeActiveLoads& activeLoads);
     void cacheDecodedImage(
@@ -48,7 +46,8 @@ public:
         StaticDisplayImagePayload displayImage, EmbeddedMetadata metadata);
     void cancelBackgroundWork();
     void clear();
-    std::optional<PredecodedImage> findPredecodedImage(const QUrl& url) const;
+    std::optional<PredecodedImage> findPredecodedImage(
+        const DisplayedImageLocation& location) const;
 
 private:
     struct ActiveWindow

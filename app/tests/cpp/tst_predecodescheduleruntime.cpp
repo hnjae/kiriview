@@ -25,6 +25,11 @@ using kiriview::TestSupport::testImage;
 
 constexpr qsizetype testCacheByteBudget = 1024 * 1024;
 
+kiriview::DisplayedImageLocation displayedLocation(const QUrl& url)
+{
+    return kiriview::DisplayedImageLocation::fromUrl(url);
+}
+
 kiriview::DisplayedPredecodeImage displayedImage(const QUrl& url)
 {
     return kiriview::DisplayedPredecodeImage {
@@ -90,7 +95,7 @@ void TestPredecodeScheduleRuntime::scheduleCachesDisplayedImagesAndStartsAdjacen
     timerScheduler.advanceTo(1000);
     runtime.schedule(scheduleContext(displayedUrl));
 
-    QVERIFY(loadController.findPredecodedImage(displayedUrl).has_value());
+    QVERIFY(loadController.findPredecodedImage(displayedLocation(displayedUrl)).has_value());
     QCOMPARE(startCount, 0);
     QVERIFY(timerScheduler.timerAt(0).active());
 
@@ -184,9 +189,8 @@ void TestPredecodeScheduleRuntime::validScheduleSupersedesPlanningWithoutCanceli
     const QUrl displayedUrl = indexedImageUrl(20);
     const QUrl activeUrl = indexedImageUrl(21);
     loadController.startWindowLoads(kiriview::PredecodeLoadWindow {
-        displayedUrl,
-        kiriview::OpenedCollectionScopeLocation::none(),
-        { displayedUrl, activeUrl },
+        displayedLocation(displayedUrl),
+        { displayedLocation(displayedUrl), displayedLocation(activeUrl) },
         { displayedImage(displayedUrl) },
         {},
         1,
@@ -223,7 +227,7 @@ void TestPredecodeScheduleRuntime::powerSaverSuppressesAndReschedulesPendingPred
     timerScheduler.advanceTo(1000);
     runtime.schedule(scheduleContext(displayedUrl));
 
-    QVERIFY(loadController.findPredecodedImage(displayedUrl).has_value());
+    QVERIFY(loadController.findPredecodedImage(displayedLocation(displayedUrl)).has_value());
     QCOMPARE(startCount, 0);
     QVERIFY(!timerScheduler.timerAt(0).active());
 
@@ -255,11 +259,11 @@ void TestPredecodeScheduleRuntime::enablingPowerSaverKeepsDisplayedImageCache()
     timerScheduler.advanceTo(1000);
     runtime.schedule(scheduleContext(displayedUrl));
 
-    QVERIFY(loadController.findPredecodedImage(displayedUrl).has_value());
+    QVERIFY(loadController.findPredecodedImage(displayedLocation(displayedUrl)).has_value());
 
     powerSaverMonitor->setPowerSaverEnabled(true);
 
-    QVERIFY(loadController.findPredecodedImage(displayedUrl).has_value());
+    QVERIFY(loadController.findPredecodedImage(displayedLocation(displayedUrl)).has_value());
     QVERIFY(!timerScheduler.timerAt(0).active());
 }
 

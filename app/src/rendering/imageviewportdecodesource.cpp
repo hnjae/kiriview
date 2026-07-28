@@ -496,14 +496,7 @@ bool ImageViewportDecodeProviderSource::resolveSession(
 
     m_session = std::move(session);
     if (authoritativeSeed.has_value() && isAuthoritativeStaticPayload(*authoritativeSeed)) {
-        m_embeddedMetadata = authoritativeSeed->embeddedMetadata;
-        m_metadata = ImageSequenceProviderMetadata::still(authoritativeSeed->originalSize);
-        m_authoritativeStaticImage = std::move(*authoritativeSeed);
-        m_decodeStarted = true;
-        m_decodeComplete = true;
-        publishMetadata();
-        publishFrames();
-        return true;
+        m_authoritativeSeed = std::move(authoritativeSeed);
     }
 
     ensureDecoded();
@@ -626,7 +619,7 @@ void ImageViewportDecodeProviderSource::ensureDecoded()
         return;
     }
     m_decodeStarted = true;
-    m_decodeJob.start(resolvedSession().decodeRequest());
+    m_decodeJob.start(resolvedSession().decodeRequest(), std::move(m_authoritativeSeed));
 }
 
 void ImageViewportDecodeProviderSource::finishDecode(
@@ -682,19 +675,24 @@ void ImageViewportDecodeProviderSource::finishDecodedImage(DecodedImage image)
             } else if constexpr (std::is_same_v<Image, ReaderAnimationImage>) {
                 finishAnimationImage(
                     readerAnimationPlaybackRequest(std::move(decoded.data), decoded.format),
-                    std::move(decoded.sourceIdentity), QString::fromLatin1(decoded.format));
+                    std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
+                    QString::fromLatin1(decoded.format));
             } else if constexpr (std::is_same_v<Image, ApngAnimationImage>) {
                 finishAnimationImage(apngAnimationPlaybackRequest(std::move(decoded.data)),
-                    std::move(decoded.sourceIdentity), QStringLiteral("apng"));
+                    std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
+                    QStringLiteral("apng"));
             } else if constexpr (std::is_same_v<Image, WebPAnimationImage>) {
                 finishAnimationImage(webpAnimationPlaybackRequest(std::move(decoded.data)),
-                    std::move(decoded.sourceIdentity), QStringLiteral("webp"));
+                    std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
+                    QStringLiteral("webp"));
             } else if constexpr (std::is_same_v<Image, JxlAnimationImage>) {
                 finishAnimationImage(jxlAnimationPlaybackRequest(std::move(decoded.data)),
-                    std::move(decoded.sourceIdentity), QStringLiteral("jxl"));
+                    std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
+                    QStringLiteral("jxl"));
             } else if constexpr (std::is_same_v<Image, HeifSequenceAnimationImage>) {
                 finishAnimationImage(heifSequenceAnimationPlaybackRequest(std::move(decoded.data)),
-                    std::move(decoded.sourceIdentity), QStringLiteral("heif"));
+                    std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
+                    QStringLiteral("heif"));
             }
         },
         std::move(image));
@@ -717,7 +715,8 @@ void ImageViewportDecodeProviderSource::finishStaticImage(StaticDecodedImage ima
 }
 
 void ImageViewportDecodeProviderSource::finishAnimationImage(
-    ImageAnimationPlaybackRequest playbackRequest, QString sourceIdentity, QString formatIdentifier)
+    ImageAnimationPlaybackRequest playbackRequest, QString sourceIdentity,
+    ImageSourceRevision sourceRevision, QString formatIdentifier)
 {
     m_provisionalPreview.reset();
     m_authoritativeStaticImage.reset();
@@ -727,7 +726,7 @@ void ImageViewportDecodeProviderSource::finishAnimationImage(
     ImageWorkerTask task = scheduler.run(
         this, [scanRequest]() mutable { return scanAnimation(std::move(scanRequest)); },
         [this, workerUnitId, playbackRequest = std::move(playbackRequest),
-            sourceIdentity = std::move(sourceIdentity),
+            sourceIdentity = std::move(sourceIdentity), sourceRevision = std::move(sourceRevision),
             formatIdentifier = std::move(formatIdentifier)](AnimationScanResult result) mutable {
             if (!detachWorkerUnit(workerUnitId) || m_closed) {
                 return;
@@ -750,6 +749,7 @@ void ImageViewportDecodeProviderSource::finishAnimationImage(
                 std::move(playbackRequest),
                 std::move(metadata),
                 std::move(sourceIdentity),
+                std::move(sourceRevision),
                 std::move(formatIdentifier),
             };
             publishMetadata();
@@ -1018,6 +1018,7 @@ void ImageViewportDecodeProviderSource::finishStaticRefinement(
         refined.quality
             = exactForSource ? DisplayImageQuality::Exact : DisplayImageQuality::BoundedDetail;
         refined.previewOrigin = DisplayImagePreviewOrigin::None;
+        refined.rasterKind = DisplayImageRasterKind::Refinement;
         if (resultMatchesRequest && isAuthoritativeStaticPayload(refined)) {
             refinementCandidate = refined;
         } else {
@@ -1390,6 +1391,9 @@ void ImageViewportDecodeProviderSource::publishAnimationFrame(PendingFrame pendi
                 {},
                 {},
                 DisplayImagePreviewOrigin::None,
+                StaticImageSourceDetailModel::FiniteRaster,
+                animation.sourceRevision,
+                DisplayImageRasterKind::TimedFrame,
             };
             pending.completion(pending.identity,
                 ImageViewportProviderFrameResult::ready(std::move(payload),

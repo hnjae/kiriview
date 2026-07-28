@@ -83,8 +83,9 @@ ImageOpenController::ImageOpenController(
         [[maybe_unused]] auto batch = m_state.beginChangeBatch();
         finishUnsupportedOpenedCollectionVideoLoad(session);
     };
-    loaderCallbacks.findPredecodedImage
-        = [this](const QUrl& url) { return m_callbacks.findPredecodedImage(url); };
+    loaderCallbacks.findPredecodedImage = [this](const DisplayedImageLocation& location) {
+        return m_callbacks.findPredecodedImage(location);
+    };
     loaderCallbacks.sourcePrepared = [this](const ImageLoadSession& session) {
         [[maybe_unused]] auto batch = m_state.beginChangeBatch();
         finishSourcePrepared(session);

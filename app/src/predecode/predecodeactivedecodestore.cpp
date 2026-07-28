@@ -5,7 +5,6 @@
 
 #include "decoding/imagedecodejob.h"
 #include "location/imageurl.h"
-
 #include <algorithm>
 #include <utility>
 
@@ -14,37 +13,35 @@ PredecodeActiveDecodeStore::~PredecodeActiveDecodeStore() { cancel(); }
 
 bool PredecodeActiveDecodeStore::add(ImageDecodeRequest request, ImageDecodeJob* decodeJob)
 {
-    const std::optional<QUrl> normalizedUrl = normalizedValidImageUrl(request.imageUrl());
-    if (request.isEmpty() || decodeJob == nullptr || !normalizedUrl.has_value()
-        || containsUrl(*normalizedUrl)) {
+    if (!normalizedValidImageUrl(request.imageUrl()).has_value() || decodeJob == nullptr
+        || contains(request.location())) {
         return false;
     }
 
-    m_entries.push_back(Entry { std::move(request), *normalizedUrl, decodeJob });
+    m_entries.push_back(Entry { std::move(request), decodeJob });
     return true;
 }
 
 std::size_t PredecodeActiveDecodeStore::size() const { return m_entries.size(); }
 
-bool PredecodeActiveDecodeStore::containsUrl(const QUrl& url) const
+bool PredecodeActiveDecodeStore::contains(const DisplayedImageLocation& location) const
 {
-    const std::optional<QUrl> normalizedUrl = normalizedValidImageUrl(url);
-    if (!normalizedUrl.has_value()) {
+    if (!normalizedValidImageUrl(location.imageUrl()).has_value()) {
         return false;
     }
 
     return std::ranges::any_of(m_entries,
-        [&normalizedUrl](const Entry& entry) { return entry.normalizedUrl == *normalizedUrl; });
+        [&location](const Entry& entry) { return entry.request.location() == location; });
 }
 
 PredecodeActiveLoads PredecodeActiveDecodeStore::activeLoads() const
 {
-    std::vector<QUrl> urls;
-    urls.reserve(m_entries.size());
+    std::vector<DisplayedImageLocation> locations;
+    locations.reserve(m_entries.size());
     for (const Entry& entry : m_entries) {
-        urls.push_back(entry.normalizedUrl);
+        locations.push_back(entry.request.location());
     }
-    return PredecodeActiveLoads::fromUrls(urls);
+    return PredecodeActiveLoads::fromLocations(locations);
 }
 
 std::optional<ImageDecodeRequest> PredecodeActiveDecodeStore::finish(

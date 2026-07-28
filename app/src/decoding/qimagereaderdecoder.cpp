@@ -127,6 +127,7 @@ DecodedImageResult decodeQImageReaderImageData(
             animationFormat,
             {},
             sourceIdentityForRequest(request),
+            request.sourceRevision(),
         });
     }
     return openedStaticImageResult(data, request, readerFormat);

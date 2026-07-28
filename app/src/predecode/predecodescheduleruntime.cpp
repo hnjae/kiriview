@@ -105,7 +105,7 @@ void PredecodeScheduleRuntime::dispatchScheduleOperation(
                 m_loadController.cacheDisplayedImages(payload.images);
             } else if constexpr (std::is_same_v<Operation, ClearPredecodeWindowUrlsOperation>) {
                 qCDebug(kiriviewPredecodeLog) << "clear predecode window urls";
-                m_loadController.clearWindowUrls();
+                m_loadController.clearWindow();
             } else if constexpr (std::is_same_v<Operation, StartPredecodeDebounceOperation>) {
                 qCDebug(kiriviewPredecodeLog)
                     << "start predecode debounce"

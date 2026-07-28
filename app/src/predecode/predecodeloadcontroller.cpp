@@ -28,14 +28,15 @@ void PredecodeLoadController::cacheDisplayedImages(
     m_loadState.cacheDisplayedImages(images);
 }
 
-void PredecodeLoadController::clearWindowUrls() { m_loadState.clearWindowUrls(); }
+void PredecodeLoadController::clearWindow() { m_loadState.clearWindow(); }
 
 void PredecodeLoadController::startWindowLoads(const PredecodeLoadWindow& window)
 {
     qCDebug(kiriviewPredecodeLog) << "predecode controller start window"
                                   << "generation" << window.generation << "primaryUrl"
-                                  << window.primaryDisplayedUrl << "urls" << window.urls.size()
-                                  << "parallelLimit" << window.parallelLimit;
+                                  << window.primaryDisplayedLocation.imageUrl() << "locations"
+                                  << window.locations.size() << "parallelLimit"
+                                  << window.parallelLimit;
     m_loadState.startWindow(window, m_activeDecodes.activeLoads());
     startNextLoads();
 }
@@ -162,8 +163,9 @@ void PredecodeLoadController::clear()
     m_loadState.clear();
 }
 
-std::optional<PredecodedImage> PredecodeLoadController::findPredecodedImage(const QUrl& url) const
+std::optional<PredecodedImage> PredecodeLoadController::findPredecodedImage(
+    const DisplayedImageLocation& location) const
 {
-    return m_loadState.findPredecodedImage(url);
+    return m_loadState.findPredecodedImage(location);
 }
 }

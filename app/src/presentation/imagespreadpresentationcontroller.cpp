@@ -23,9 +23,9 @@ ImageSpreadPresentationController::ImageSpreadPresentationController(
                 const QSize& imageSize) {
                 handleSecondaryPageLoadFinished(result, location, imageSize);
             },
-            [this](const QUrl& url) {
-                return m_callbacks.findPredecodedImage ? m_callbacks.findPredecodedImage(url)
-                                                       : std::optional<PredecodedImage>();
+            [this](const DisplayedImageLocation& location) {
+                return m_callbacks.findPredecodedImage ? m_callbacks.findPredecodedImage(location)
+                                                       : std::optional<PredecodedImage> {};
             },
             [this](ImageLoadSession session, std::optional<PredecodedImage> predecoded) {
                 const bool lifecycleAlreadyAdvanced = m_pendingShapeChange;

@@ -393,6 +393,9 @@ std::optional<StaticDisplayImagePayload> rawEmbeddedThumbnailPreviewDisplayPaylo
         {},
         nullptr,
         DisplayImagePreviewOrigin::RawEmbeddedThumbnail,
+        StaticImageSourceDetailModel::FiniteRaster,
+        request.sourceRevision(),
+        DisplayImageRasterKind::ProvisionalPreview,
     };
 }
 }

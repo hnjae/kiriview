@@ -51,7 +51,8 @@ public:
         int targetPageIndex, std::optional<DisplayedPredecodeImage> secondaryImage = std::nullopt);
     void cancel();
     void clear();
-    [[nodiscard]] std::optional<PredecodedImage> findPredecodedImage(const QUrl& url) const;
+    [[nodiscard]] std::optional<PredecodedImage> findPredecodedImage(
+        const DisplayedImageLocation& location) const;
 
 private:
     void scheduleWithConfirmedCandidateSnapshot(PredecodeScheduleContext context);

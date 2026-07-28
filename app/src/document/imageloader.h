@@ -23,7 +23,8 @@ public:
     using SourcePreparedCallback = std::function<void(ImageLoadSession)>;
     using ErrorCallback = std::function<void(ImageLoadSession, ImageLoadFailure)>;
     using UnsupportedOpenedCollectionVideoCallback = std::function<void(ImageLoadSession)>;
-    using FindPredecodedImageCallback = std::function<std::optional<PredecodedImage>(const QUrl&)>;
+    using FindPredecodedImageCallback
+        = std::function<std::optional<PredecodedImage>(const DisplayedImageLocation&)>;
     using EnsurePageCandidateSnapshotCallback = std::function<void(
         ImageDocumentPageCandidateListContext, ImageDocumentPageCandidateListSnapshotCallback)>;
     using TargetStartedCallback = std::function<void(ImageLoadSession)>;

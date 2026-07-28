@@ -24,7 +24,8 @@ class ImageSecondaryPageController final
 public:
     using LoadFinishedCallback = std::function<void(
         ImageSecondaryPageLoadResult, const DisplayedImageLocation&, const QSize&)>;
-    using FindPredecodedImageCallback = std::function<std::optional<PredecodedImage>(const QUrl&)>;
+    using FindPredecodedImageCallback
+        = std::function<std::optional<PredecodedImage>(const DisplayedImageLocation&)>;
     using PreparedImageCallback
         = std::function<void(ImageLoadSession, std::optional<PredecodedImage>)>;
 
