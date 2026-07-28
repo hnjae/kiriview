@@ -58,9 +58,12 @@ void ImageViewportHostBoundaryTest::hostsExposeNarrowFactBoundaries()
     using ProviderEventSink = std::function<void(ViewportProviderHostEvent)>;
     using ProviderDiagnosticSink
         = std::function<void(ImageViewportInternal::ProviderTransportDiagnostic)>;
+    using ProviderDeferredTransportSink = std::function<void(ViewportProviderTransportCommand)>;
     using PlaybackElapsedSink = std::function<void(ViewportPlaybackTimeoutFact)>;
 
     QVERIFY((std::is_constructible_v<ImageViewportProviderHost, QObject&, ProviderEventSink,
+        ProviderDiagnosticSink, ProviderDeferredTransportSink>));
+    QVERIFY((!std::is_constructible_v<ImageViewportProviderHost, QObject&, ProviderEventSink,
         ProviderDiagnosticSink>));
     QVERIFY((!std::is_constructible_v<ImageViewportProviderHost, ImageViewportPrivate&>));
     QVERIFY((std::is_constructible_v<ImageViewportPlaybackScheduler, QObject&,
