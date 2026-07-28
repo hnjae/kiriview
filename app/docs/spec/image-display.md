@@ -6,9 +6,9 @@ The UI remains responsive while a selected image is being opened.
 
 When an image target is selected, KiriView accepts that selected target immediately. A previous complete image may remain visible as a non-interactive fallback while the matching replacement presentation is pending.
 
-If the matching replacement presentation becomes display-ready within 150 milliseconds, it replaces the fallback without an intervening blank viewport, loading state, or transient disabled-toolbar flash. Otherwise a loading surface covers the image viewport until the target is display-ready.
+If the matching replacement presentation becomes display-ready within 150 milliseconds, it replaces the fallback without an intervening blank viewport or loading state. Otherwise a loading surface covers the image viewport until the target is display-ready. Loading feedback does not change the presentation of toolbar controls.
 
-While the selected image target is loading or showing its target-specific error, the window title identifies that selected file or collection. Collection-specific toolbar controls remain placed when the selected target remains in that collection, but controls that require a ready displayed image stay non-interactive until the matching target is ready. During the 150-millisecond replacement grace period, those controls retain their last complete visual appearance when their placement remains valid; if the grace period expires, they show their disabled appearance with the loading surface.
+While the selected image target is loading or showing its target-specific error, the window title identifies that selected file or collection. Collection-specific toolbar controls remain placed when the selected target remains in that collection, but controls that require a ready displayed image stay non-interactive until the matching target is ready. While a previous complete image remains as the replacement fallback, valid toolbar controls retain their last complete visual appearance for that fallback's entire lifetime, including while loading feedback is visible, and transition directly to the matching target's presentation when it becomes ready. If no complete fallback exists or the fallback is discarded without a ready replacement, those controls show their current unavailable appearance.
 
 If no media item is selected, the empty state says that no file is selected and offers Open.
 
@@ -92,7 +92,7 @@ The toolbar keeps its normal application styling.
 
 When an image is ready, the image viewing viewport does not add page padding around the image area.
 
-Readiness-dependent controls, overlays, panning affordances, zoom controls, and image-only actions all use the same current media readiness state. Except for the non-interactive toolbar appearance retained during the defined replacement grace period, empty, loading, pending-navigation, replacement, error, video, and unsupported-placeholder intervals must not expose stale ready-image affordances from the previously displayed image.
+Readiness-dependent controls, overlays, panning affordances, zoom controls, and image-only actions all use the same current media readiness state. Except for the non-interactive toolbar appearance retained while a previous complete image remains the replacement fallback, empty, loading, pending-navigation, replacement, error, video, and unsupported-placeholder intervals must not expose stale ready-image affordances from the previously displayed image.
 
 ## Fit and Zoom State
 
