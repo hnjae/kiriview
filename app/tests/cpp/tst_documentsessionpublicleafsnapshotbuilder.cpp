@@ -40,6 +40,7 @@ void TestDocumentSessionPublicLeafSnapshotBuilder::buildsImageLeafSnapshotFromCo
     leaf.fitModeSelected = true;
     leaf.fitHeightModeSelected = true;
     leaf.fitWidthModeSelected = true;
+    leaf.fitModeSelection = kiriview::ImageFitModeSelection::FitWidth;
     leaf.viewportPannable = true;
     leaf.zoomPercentKnown = true;
     leaf.zoomPercent = 125.0;
@@ -75,6 +76,7 @@ void TestDocumentSessionPublicLeafSnapshotBuilder::buildsImageLeafSnapshotFromCo
     QVERIFY(snapshot.fitModeSelected);
     QVERIFY(snapshot.fitHeightModeSelected);
     QVERIFY(snapshot.fitWidthModeSelected);
+    QCOMPARE(snapshot.fitModeSelection, kiriview::ImageFitModeSelection::FitWidth);
     QVERIFY(snapshot.viewportPannable);
     QVERIFY(snapshot.zoomPercentKnown);
     QCOMPARE(snapshot.zoomPercent, 125.0);

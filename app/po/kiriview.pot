@@ -1016,6 +1016,11 @@ msgctxt "@info:tooltip"
 msgid "Open menu"
 msgstr ""
 
+#: src/qml/ImageToolBar.qml
+msgctxt "@info:tooltip"
+msgid "More toolbar actions"
+msgstr ""
+
 #: src/qml/InfoPanel.qml
 msgctxt "@title:window"
 msgid "Information"

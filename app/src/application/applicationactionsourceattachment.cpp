@@ -10,15 +10,22 @@ ApplicationActionSourceAttachment::ApplicationActionSourceAttachment(
     ApplicationActionRuntime& runtime, QObject& context)
     : m_runtime(runtime)
     , m_context(&context)
+    , m_callbackContext(std::make_unique<QObject>())
 {
 }
 
-ApplicationActionSourceAttachment::~ApplicationActionSourceAttachment() { disconnectSource(); }
+ApplicationActionSourceAttachment::~ApplicationActionSourceAttachment()
+{
+    disconnectSource();
+    m_callbackContext.reset();
+}
 
 void ApplicationActionSourceAttachment::setDocumentSessionSnapshotPort(
     DocumentSessionActionStateSnapshotPort source)
 {
+    ++m_sourceGeneration;
     disconnectSource();
+    m_runtime.resetImageToolbarPresentationHistory();
     m_source = std::move(source);
     connectSource();
     refresh();
@@ -44,11 +51,16 @@ void ApplicationActionSourceAttachment::refresh()
 
 void ApplicationActionSourceAttachment::connectSource()
 {
-    if (!m_source.snapshotChanged || m_context == nullptr) {
+    if (!m_source.snapshotChanged || m_context == nullptr || m_callbackContext == nullptr) {
         return;
     }
 
-    m_connections = m_source.snapshotChanged(m_context, [this]() { refresh(); });
+    const quint64 sourceGeneration = m_sourceGeneration;
+    m_connections = m_source.snapshotChanged(m_callbackContext.get(), [this, sourceGeneration]() {
+        if (m_context != nullptr && sourceGeneration == m_sourceGeneration) {
+            refresh();
+        }
+    });
 }
 
 void ApplicationActionSourceAttachment::disconnectSource()

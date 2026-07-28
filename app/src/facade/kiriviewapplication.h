@@ -46,6 +46,13 @@ public:
     };
     Q_ENUM(MenuPresentation)
 
+    enum ImageToolbarPresentationPhase {
+        ImageToolbarPresentationUnavailable = 0,
+        ImageToolbarPresentationCurrent,
+        ImageToolbarPresentationRetainedPrevious,
+    };
+    Q_ENUM(ImageToolbarPresentationPhase)
+
     enum ActionId {
         FileOpenAction = 0,
         FileOpenWithAction,
@@ -135,6 +142,25 @@ public:
         KiriViewApplication::ActionId actionId) const;
     Q_INVOKABLE [[nodiscard]] QString actionToolbarTooltipTextForId(
         KiriViewApplication::ActionId actionId) const;
+    Q_INVOKABLE [[nodiscard]] KiriViewApplication::ImageToolbarPresentationPhase
+    imageToolbarPresentationPhase() const;
+    Q_INVOKABLE [[nodiscard]] bool imageToolbarCollectionControlsVisible() const;
+    Q_INVOKABLE [[nodiscard]] bool imageToolbarActionAppearanceEnabled(
+        KiriViewApplication::ActionId actionId) const;
+    Q_INVOKABLE [[nodiscard]] bool imageToolbarActionAppearanceChecked(
+        KiriViewApplication::ActionId actionId) const;
+    Q_INVOKABLE [[nodiscard]] bool imageToolbarActionInteractionEnabled(
+        KiriViewApplication::ActionId actionId) const;
+    Q_INVOKABLE [[nodiscard]] KiriViewApplication::ActionId
+    imageToolbarPresentedFitActionId() const;
+    Q_INVOKABLE [[nodiscard]] bool imageToolbarZoomAppearanceEnabled() const;
+    Q_INVOKABLE [[nodiscard]] bool imageToolbarZoomInteractionEnabled() const;
+    Q_INVOKABLE [[nodiscard]] bool imageToolbarZoomPercentAvailable() const;
+    Q_INVOKABLE [[nodiscard]] bool imageToolbarZoomPercentKnown() const;
+    Q_INVOKABLE [[nodiscard]] bool imageToolbarZoomPercentEditable() const;
+    Q_INVOKABLE [[nodiscard]] qreal imageToolbarZoomPercent() const;
+    Q_INVOKABLE [[nodiscard]] int imageToolbarZoomMinimumManualPercent() const;
+    Q_INVOKABLE [[nodiscard]] int imageToolbarZoomMaximumManualPercent() const;
     Q_INVOKABLE [[nodiscard]] KiriViewApplication::ActionId navigationPresentationActionId(
         KiriViewApplication::NavigationPresentationSlot slot) const;
     Q_INVOKABLE [[nodiscard]] KiriViewApplication::ActionId navigationPresentationIconActionId(

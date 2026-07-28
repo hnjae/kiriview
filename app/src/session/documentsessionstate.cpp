@@ -60,7 +60,9 @@ bool sameActiveZoomSnapshot(
     const kiriview::ActiveZoomSnapshot& left, const kiriview::ActiveZoomSnapshot& right)
 {
     return left.available == right.available && left.known == right.known
-        && qAbs(left.percent - right.percent) < 0.000001 && left.editable == right.editable;
+        && qAbs(left.percent - right.percent) < 0.000001 && left.editable == right.editable
+        && left.minimumManualPercent == right.minimumManualPercent
+        && left.maximumManualPercent == right.maximumManualPercent;
 }
 
 bool sameActionAvailabilityFacts(kiriview::DocumentSessionActionAvailabilityFacts left,
@@ -88,7 +90,11 @@ bool sameDocumentSessionActionStateSnapshot(
         && sameActiveNavigationSnapshot(left.activeNavigation, right.activeNavigation)
         && left.activeNavigationBoundaryScope == right.activeNavigationBoundaryScope
         && left.imagePannable == right.imagePannable && left.videoMode == right.videoMode
-        && left.videoSeekable == right.videoSeekable && left.videoDuration == right.videoDuration;
+        && left.videoSeekable == right.videoSeekable && left.videoDuration == right.videoDuration
+        && left.imagePresentationPhase == right.imagePresentationPhase
+        && left.imageFitModeSelection == right.imageFitModeSelection
+        && sameActiveZoomSnapshot(left.activeZoom, right.activeZoom)
+        && left.imageCollectionControlsVisible == right.imageCollectionControlsVisible;
 }
 
 bool samePublicProjection(const kiriview::DocumentSessionPublicProjection& left,

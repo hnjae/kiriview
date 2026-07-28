@@ -23,6 +23,11 @@
 #include <utility>
 
 namespace {
+struct DocumentSessionActionStateSnapshotPortState
+{
+    QPointer<KiriDocumentSession> session;
+};
+
 KiriDocumentSession::DocumentKind fromRuntimeKind(kiriview::DocumentSessionKind kind)
 {
     switch (kind) {
@@ -47,6 +52,22 @@ kiriview::FileDeletionMode toFileDeletionMode(KiriDocumentSession::DeletionMode 
     }
 
     return kiriview::FileDeletionMode::MoveToTrash;
+}
+
+kiriview::ImageFitModeSelection imageFitModeSelection(KiriImageDocument::ZoomMode mode)
+{
+    switch (mode) {
+    case KiriImageDocument::ZoomMode::Fit:
+        return kiriview::ImageFitModeSelection::Fit;
+    case KiriImageDocument::ZoomMode::FitHeight:
+        return kiriview::ImageFitModeSelection::FitHeight;
+    case KiriImageDocument::ZoomMode::FitWidth:
+        return kiriview::ImageFitModeSelection::FitWidth;
+    case KiriImageDocument::ZoomMode::Manual:
+        return kiriview::ImageFitModeSelection::Fit;
+    }
+
+    return kiriview::ImageFitModeSelection::Fit;
 }
 
 std::vector<kiriview::DocumentSessionPublicSignal> mergePublicSignals(
@@ -105,9 +126,12 @@ kiriview::DocumentSessionImageDocumentSnapshot imageDocumentSessionSnapshot(
         document.zoomMode() == KiriImageDocument::ZoomMode::Fit,
         document.zoomMode() == KiriImageDocument::ZoomMode::FitHeight,
         document.zoomMode() == KiriImageDocument::ZoomMode::FitWidth,
+        imageFitModeSelection(document.fitModeSelection()),
         document.viewportPannable(),
         document.zoomPercentKnown(),
         document.zoomPercent(),
+        document.minimumManualZoomPercent(),
+        document.maximumManualZoomPercent(),
         document.embeddedMetadata(),
         document.pageNavigationSnapshot(),
         document.confirmedPageCandidateSnapshot(),
@@ -660,20 +684,29 @@ const kiriview::DocumentSessionActionStateSnapshot& KiriDocumentSession::actionS
 
 kiriview::DocumentSessionActionStateSnapshotPort KiriDocumentSession::actionStateSnapshotPort()
 {
-    QPointer<KiriDocumentSession> session(this);
+    auto state = std::make_shared<DocumentSessionActionStateSnapshotPortState>();
+    state->session = this;
     return kiriview::DocumentSessionActionStateSnapshotPort {
-        [session]() {
-            return session == nullptr ? kiriview::DocumentSessionActionStateSnapshot {}
-                                      : session->actionStateSnapshot();
+        [state]() {
+            return state->session == nullptr ? kiriview::DocumentSessionActionStateSnapshot {}
+                                             : state->session->actionStateSnapshot();
         },
-        [session](QObject* context, kiriview::DocumentSessionSnapshotChangeHandler refresh) {
-            if (session == nullptr) {
+        [state](QObject* context, kiriview::DocumentSessionSnapshotChangeHandler refresh) {
+            KiriDocumentSession* const session = state->session.data();
+            if (session == nullptr || context == nullptr) {
                 return std::vector<QMetaObject::Connection> {};
             }
 
-            return std::vector<QMetaObject::Connection> { QObject::connect(session,
-                &KiriDocumentSession::publicProjectionRevisionChanged, context,
-                [refresh = std::move(refresh)]() { refresh(); }) };
+            kiriview::DocumentSessionSnapshotChangeHandler destroyedRefresh = refresh;
+            return std::vector<QMetaObject::Connection> {
+                QObject::connect(session, &KiriDocumentSession::publicProjectionRevisionChanged,
+                    context, [refresh = std::move(refresh)]() { refresh(); }),
+                QObject::connect(session, &QObject::destroyed, context,
+                    [state, refresh = std::move(destroyedRefresh)]() {
+                        state->session = nullptr;
+                        refresh();
+                    }),
+            };
         },
     };
 }

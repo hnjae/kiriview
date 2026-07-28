@@ -28,6 +28,7 @@ bool affectsSessionSnapshot(kiriview::ImageDocumentPublicSignal signal)
     case Signal::ZoomPercentKnown:
     case Signal::ZoomPercent:
     case Signal::ZoomMode:
+    case Signal::MaximumManualZoomPercent:
     case Signal::PageNavigation:
     case Signal::ContainerNavigation:
     case Signal::FileDeletionInProgress:
@@ -40,7 +41,6 @@ bool affectsSessionSnapshot(kiriview::ImageDocumentPublicSignal signal)
     case Signal::Loading:
     case Signal::PresentationLifecycle:
     case Signal::DisplayedUrl:
-    case Signal::MaximumManualZoomPercent:
         return false;
     }
 

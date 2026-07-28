@@ -23,6 +23,7 @@ private Q_SLOTS:
     void videoDeletionAvailabilityRequiresSourceWithoutError();
     void deletionProgressSuppressesDeletionAvailability();
     void pendingImageNavigationKeepsVisibleImageInformationWithoutReadyAffordances();
+    void readyLeafWithoutMatchedAuthoritativeDisplayIsNotActive();
     void loadingImageProjectsAuthoritativeReplacementFallback();
     void publicSnapshotProjectsRevisionedMixedMediaState();
     void actionStateSnapshotCommitsSessionImageAndVideoFacts();
@@ -168,6 +169,7 @@ void TestDocumentSessionPublicProjection::
     input.image.rightToLeftReadingEnabled = true;
     input.image.rightToLeftReadingAvailable = true;
     input.image.fitModeSelected = true;
+    input.image.fitModeSelection = kiriview::ImageFitModeSelection::FitHeight;
     input.video.sourceUrl = input.session.sourceUrl;
     input.video.windowTitleFileName = QStringLiteral("02.mp4");
     input.video.sourcePresent = true;
@@ -188,6 +190,8 @@ void TestDocumentSessionPublicProjection::
     QVERIFY(snapshot.actionAvailability.rightToLeftReadingActive);
     QVERIFY(snapshot.actionAvailability.rightToLeftReadingAvailable);
     QVERIFY(snapshot.actionAvailability.fitModeSelected);
+    QCOMPARE(
+        snapshot.actionState.imageFitModeSelection, kiriview::ImageFitModeSelection::FitHeight);
     QVERIFY(!snapshot.actionAvailability.imageReady);
     QVERIFY(snapshot.activeZoom.available);
     QVERIFY(snapshot.activeZoom.known);
@@ -301,6 +305,9 @@ void TestDocumentSessionPublicProjection::
     input.image.directMediaSize = QSize(640, 480);
     input.image.zoomPercentKnown = true;
     input.image.zoomPercent = 125.0;
+    input.image.fitModeSelection = kiriview::ImageFitModeSelection::FitWidth;
+    input.image.minimumManualZoomPercent = 10;
+    input.image.maximumManualZoomPercent = 2'000;
     input.image.pageNavigation = kiriview::ImageDocumentPageActiveNavigationSnapshot {
         true,
         true,
@@ -319,12 +326,44 @@ void TestDocumentSessionPublicProjection::
     QVERIFY(!snapshot.activeZoom.available);
     QVERIFY(!snapshot.activeZoom.known);
     QVERIFY(!snapshot.activeZoom.editable);
+    QCOMPARE(snapshot.activeZoom.minimumManualPercent, 0);
+    QCOMPARE(snapshot.activeZoom.maximumManualPercent, 0);
+    QCOMPARE(
+        snapshot.actionState.imagePresentationPhase, kiriview::ImagePresentationPhase::Unavailable);
+    QCOMPARE(snapshot.actionState.imageFitModeSelection, kiriview::ImageFitModeSelection::FitWidth);
     QVERIFY(snapshot.mediaInformation.available);
     QCOMPARE(snapshot.mediaInformation.kind, kiriview::MediaInformationKind::Image);
     QCOMPARE(snapshot.mediaInformation.targetUrl, visibleUrl);
     QCOMPARE(snapshot.mediaInformation.summary, QStringLiteral("Image, 640×480 px"));
     QCOMPARE(snapshot.projection.activeNavigation.currentNumber, 2);
     QCOMPARE(snapshot.projection.activeNavigation.count, 5);
+}
+
+void TestDocumentSessionPublicProjection::readyLeafWithoutMatchedAuthoritativeDisplayIsNotActive()
+{
+    kiriview::DocumentSessionPublicSnapshotInput input;
+    input.session.documentKind = kiriview::DocumentSessionKind::Image;
+    input.image.readyForInformation = true;
+    input.image.zoomPercentKnown = true;
+    input.image.zoomPercent = 125.0;
+
+    kiriview::DocumentSessionPublicSnapshot snapshot
+        = kiriview::projectDocumentSessionPublicSnapshot(input, 1);
+
+    QVERIFY(!snapshot.activeImageReady);
+    QVERIFY(!snapshot.actionAvailability.imageReady);
+    QVERIFY(!snapshot.activeZoom.available);
+    QCOMPARE(
+        snapshot.actionState.imagePresentationPhase, kiriview::ImagePresentationPhase::Unavailable);
+
+    input.image.completeAuthoritativeDisplayAvailable = true;
+    snapshot = kiriview::projectDocumentSessionPublicSnapshot(input, 2);
+
+    QVERIFY(snapshot.activeImageReady);
+    QVERIFY(snapshot.actionAvailability.imageReady);
+    QVERIFY(snapshot.activeZoom.available);
+    QCOMPARE(snapshot.actionState.imagePresentationPhase,
+        kiriview::ImagePresentationPhase::CurrentAuthoritative);
 }
 
 void TestDocumentSessionPublicProjection::loadingImageProjectsAuthoritativeReplacementFallback()
@@ -338,25 +377,43 @@ void TestDocumentSessionPublicProjection::loadingImageProjectsAuthoritativeRepla
         = kiriview::projectDocumentSessionPublicSnapshot(input, 1);
     QVERIFY(snapshot.activeImageReplacementFallbackAvailable);
     QVERIFY(!snapshot.activeImageReady);
+    QCOMPARE(snapshot.actionState.imagePresentationPhase,
+        kiriview::ImagePresentationPhase::RetainedPreviousAuthoritative);
 
     input.image.completeAuthoritativeDisplayAvailable = false;
     snapshot = kiriview::projectDocumentSessionPublicSnapshot(input, 2);
     QVERIFY(!snapshot.activeImageReplacementFallbackAvailable);
+    QCOMPARE(
+        snapshot.actionState.imagePresentationPhase, kiriview::ImagePresentationPhase::Unavailable);
 
     input.image.completeAuthoritativeDisplayAvailable = true;
     input.image.loading = false;
     snapshot = kiriview::projectDocumentSessionPublicSnapshot(input, 3);
     QVERIFY(!snapshot.activeImageReplacementFallbackAvailable);
+    QCOMPARE(
+        snapshot.actionState.imagePresentationPhase, kiriview::ImagePresentationPhase::Unavailable);
 
     input.image.loading = true;
     input.session.documentKind = kiriview::DocumentSessionKind::Video;
     snapshot = kiriview::projectDocumentSessionPublicSnapshot(input, 4);
     QVERIFY(!snapshot.activeImageReplacementFallbackAvailable);
+    QCOMPARE(
+        snapshot.actionState.imagePresentationPhase, kiriview::ImagePresentationPhase::Unavailable);
 
     input.session.documentKind = kiriview::DocumentSessionKind::Image;
     input.image.unsupportedOpenedCollectionVideo = true;
     snapshot = kiriview::projectDocumentSessionPublicSnapshot(input, 5);
     QVERIFY(!snapshot.activeImageReplacementFallbackAvailable);
+    QCOMPARE(
+        snapshot.actionState.imagePresentationPhase, kiriview::ImagePresentationPhase::Unavailable);
+
+    input.image.unsupportedOpenedCollectionVideo = false;
+    input.image.readyForInformation = true;
+    snapshot = kiriview::projectDocumentSessionPublicSnapshot(input, 6);
+    QVERIFY(snapshot.activeImageReady);
+    QVERIFY(snapshot.activeImageReplacementFallbackAvailable);
+    QCOMPARE(snapshot.actionState.imagePresentationPhase,
+        kiriview::ImagePresentationPhase::CurrentAuthoritative);
 }
 
 void TestDocumentSessionPublicProjection::publicSnapshotProjectsRevisionedMixedMediaState()
@@ -372,6 +429,8 @@ void TestDocumentSessionPublicProjection::publicSnapshotProjectsRevisionedMixedM
     input.video.windowTitleFileName = QStringLiteral("clip.mp4");
     input.video.directMediaSize = QSize(1920, 1080);
     input.video.sourcePresent = true;
+    input.video.ready = true;
+    input.video.hasVideo = true;
     input.video.zoomPercentKnown = true;
     input.video.zoomPercent = 75;
     input.video.errorString = QStringLiteral("decode details");
@@ -404,7 +463,13 @@ void TestDocumentSessionPublicProjection::actionStateSnapshotCommitsSessionImage
     input.session.documentKind = kiriview::DocumentSessionKind::Image;
     input.session.fileDeletionInProgress = true;
     input.image.readyForInformation = true;
+    input.image.completeAuthoritativeDisplayAvailable = true;
+    input.image.zoomPercentKnown = true;
+    input.image.zoomPercent = 125.0;
+    input.image.minimumManualZoomPercent = 10;
+    input.image.maximumManualZoomPercent = 2'000;
     input.image.viewportPannable = true;
+    input.image.openedCollectionScopeActive = true;
     input.image.pageNavigation = kiriview::ImageDocumentPageActiveNavigationSnapshot {
         true,
         true,
@@ -422,6 +487,15 @@ void TestDocumentSessionPublicProjection::actionStateSnapshotCommitsSessionImage
     QVERIFY(snapshot.actionState.fileDeletionInProgress);
     QVERIFY(snapshot.actionState.imagePannable);
     QVERIFY(!snapshot.actionState.videoMode);
+    QCOMPARE(snapshot.actionState.imagePresentationPhase,
+        kiriview::ImagePresentationPhase::CurrentAuthoritative);
+    QVERIFY(snapshot.actionState.activeZoom.available);
+    QVERIFY(snapshot.actionState.activeZoom.known);
+    QVERIFY(snapshot.actionState.activeZoom.editable);
+    QCOMPARE(snapshot.actionState.activeZoom.percent, 125.0);
+    QCOMPARE(snapshot.actionState.activeZoom.minimumManualPercent, 10);
+    QCOMPARE(snapshot.actionState.activeZoom.maximumManualPercent, 2'000);
+    QVERIFY(snapshot.actionState.imageCollectionControlsVisible);
     QCOMPARE(snapshot.actionState.activeNavigation.currentNumber, 1);
     QCOMPARE(snapshot.actionState.activeNavigationBoundaryScope,
         kiriview::ActiveNavigationBoundaryScope::ImageDocumentPage);
@@ -436,6 +510,8 @@ void TestDocumentSessionPublicProjection::actionStateSnapshotCommitsSessionImage
     QVERIFY(snapshot.actionState.videoMode);
     QVERIFY(snapshot.actionState.videoSeekable);
     QCOMPARE(snapshot.actionState.videoDuration, qint64(42'000));
+    QCOMPARE(
+        snapshot.actionState.imagePresentationPhase, kiriview::ImagePresentationPhase::Unavailable);
 }
 
 QTEST_GUILESS_MAIN(TestDocumentSessionPublicProjection)

@@ -48,12 +48,13 @@ private Q_SLOTS:
     void mnemonicRoutingStillTriggersMenuAction();
     void toolbarReadingControlsUseTextButtons();
     void toolbarReadingControlMnemonicsTriggerActions();
-    void replacementGraceRetainsNonInteractiveToolbarPresentation();
+    void replacementFallbackRetainsNonInteractiveToolbarPresentation();
     void fitMenuButtonClickOnlyOpensMenu();
     void fitMenuButtonMenuSelectionUpdatesRuntimeSelection();
     void fitMenuButtonRejectedSelectionKeepsRuntimeSelection();
     void fitMenuButtonKeepsLastFitSelectionAfterManualZoom();
     void fitMenuButtonCollapsesLabelWhenConstrained();
+    void responsiveDelegateTransitionReleasesZoomFocus();
     void unusableApplicationMenuButtonMappingLeavesDiagnosticWarning();
     void toolbarActionOrderKeepsReadingDirectionBesideSpread();
     void emptyToolbarHidesReadingControls();
@@ -254,14 +255,37 @@ Item {
     property int fitTriggerCount: 0
     property int fitHeightTriggerCount: 0
     property int fitWidthTriggerCount: 0
+    property int textInputFocusReturnCount: 0
     property bool navigationActionsEnabled: %3
     property alias rightToLeftPresentationActive: navigationPresentationProvider.rightToLeftReadingActive
     property bool imageControlsReady: true
+    property bool imagePresentationRetained: false
+    property bool loadingFeedbackVisible: false
+    property bool retainedFitEnabled: false
+    property int retainedFitActionId: KiriViewApplication.ViewFitAction
+    property bool retainedRightToLeftChecked: false
+    property bool retainedRightToLeftEnabled: false
+    property bool retainedTwoPageChecked: false
+    property bool retainedTwoPageEnabled: false
+    property bool retainedZoomEditable: false
+    property int retainedZoomMaximumManualPercent: 0
+    property int retainedZoomMinimumManualPercent: 0
+    property bool retainedZoomPercentAvailable: false
+    property bool retainedZoomPercentKnown: false
+    property real retainedZoomPercent: 0
     property bool videoMode: false
     readonly property bool readingControlsVisible: %4
 
     function documentReady() {
         return sessionImageDocument.status === KiriImageDocument.Ready;
+    }
+
+    function imageZoomPercent() {
+        return sessionImageDocument.zoomPercent;
+    }
+
+    function toolbarTextInputFocused() {
+        return toolbar.textInputFocused();
     }
 
     function applicationMenuButton() {
@@ -309,7 +333,20 @@ Item {
     }
 
     function toolbarControlEnabledStates() {
+        return toolbar.toolbarControls.map(action => action.presentationEnabled ?? action.enabled);
+    }
+
+    function toolbarControlInteractionEnabledStates() {
         return toolbar.toolbarControls.map(action => action.enabled);
+    }
+
+    function toolbarDisplayInteractionEnabledStates() {
+        return [
+            toolbarItemByObjectName("rightToLeftToolbarButton").interactionEnabled,
+            toolbarItemByObjectName("twoPageToolbarButton").interactionEnabled,
+            toolbarItemByObjectName("fitModeMenuButton").interactionEnabled,
+            toolbarItemByObjectName("imageZoomControls").interactionEnabled
+        ];
     }
 
     function sourceImageControlEnabledStates() {
@@ -329,8 +366,8 @@ Item {
 
     function toolbarReadingControlCheckedStates() {
         return [
-            toolbar.rightToLeftToolbarAction.checked,
-            toolbar.twoPageToolbarAction.checked
+            toolbar.rightToLeftToolbarAction.presentationChecked,
+            toolbar.twoPageToolbarAction.presentationChecked
         ];
     }
 
@@ -339,19 +376,35 @@ Item {
         twoPageModeKirigamiAction.checked = true;
     }
 
-    function beginImageReplacementGrace() {
-        toolbar["replacementGraceActive"] = true;
+    function beginImageReplacementFallback() {
+        retainedRightToLeftChecked = rightToLeftReadingKirigamiAction.checked;
+        retainedRightToLeftEnabled = rightToLeftReadingKirigamiAction.enabled;
+        retainedTwoPageChecked = twoPageModeKirigamiAction.checked;
+        retainedTwoPageEnabled = twoPageModeKirigamiAction.enabled;
+        retainedFitActionId = toolbar.fitModeActionId(sessionImageDocument.fitModeSelection);
+        retainedFitEnabled = toolbar.fitModeAction(sessionImageDocument.fitModeSelection).enabled;
+        retainedZoomEditable = toolbar.zoomEditable;
+        retainedZoomMaximumManualPercent = toolbar.maximumManualZoomPercent;
+        retainedZoomMinimumManualPercent = toolbar.minimumManualZoomPercent;
+        retainedZoomPercentAvailable = toolbar.zoomPercentAvailable;
+        retainedZoomPercentKnown = toolbar.zoomPercentKnown;
+        retainedZoomPercent = toolbar.zoomPercent;
+        imagePresentationRetained = true;
         imageControlsReady = false;
         rightToLeftReadingKirigamiAction.checked = false;
         twoPageModeKirigamiAction.checked = false;
     }
 
-    function endImageReplacementGrace() {
-        toolbar["replacementGraceActive"] = false;
+    function showImageReplacementLoadingFeedback() {
+        loadingFeedbackVisible = true;
     }
 
     function finishImageReplacement() {
+        sessionImageDocument.requestFitMode(KiriImageDocument.FitWidth);
+        sessionImageDocument.requestManualZoomPercent(150);
         imageControlsReady = true;
+        imagePresentationRetained = false;
+        loadingFeedbackVisible = false;
     }
 
     function toolbarItemByObjectName(objectName) {
@@ -380,7 +433,9 @@ Item {
             if (!item) {
                 return null;
             }
-            if ("action" in item && item.action === action) {
+            const representsAction = ("action" in item && item.action === action)
+                || ("representedAction" in item && item.representedAction === action);
+            if (representsAction) {
                 if (item.visible && item.width > 0 && item.height > 0) {
                     return item;
                 }
@@ -428,8 +483,16 @@ Item {
         return sessionImageDocument.fitModeSelection;
     }
 
+    function toolbarPresentedFitModeSelection() {
+        return toolbar.presentedFitModeSelection;
+    }
+
     function triggerToolbarFitWidth() {
         toolbar.triggerFitMode(KiriImageDocument.FitWidth);
+    }
+
+    function triggerToolbarZoomIncrease() {
+        toolbarItemByObjectName("zoomSpinBox").increase();
     }
 
     function setImageFitWidth() {
@@ -468,7 +531,104 @@ Item {
         id: navigationPresentationProvider
 
         property bool rightToLeftReadingActive: false
-        property int actionStateRevision: rightToLeftReadingActive ? 1 : 0
+        property int actionStateRevision: (rightToLeftReadingActive ? 1 : 0) + (root.imageControlsReady ? 2 : 0) + (root.imagePresentationRetained ? 4 : 0) + (root.loadingFeedbackVisible ? 8 : 0)
+
+        function actionForId(actionId) {
+            switch (actionId) {
+            case KiriViewApplication.ViewToggleRightToLeftReadingAction:
+                return rightToLeftReadingKirigamiAction;
+            case KiriViewApplication.ViewToggleTwoPageModeAction:
+                return twoPageModeKirigamiAction;
+            case KiriViewApplication.ViewFitHeightAction:
+                return fitHeightKirigamiAction;
+            case KiriViewApplication.ViewFitWidthAction:
+                return fitWidthKirigamiAction;
+            case KiriViewApplication.ViewFitAction:
+                return fitKirigamiAction;
+            default:
+                return null;
+            }
+        }
+
+        function imageToolbarPresentationPhase() {
+            if (root.imageControlsReady) {
+                return KiriViewApplication.ImageToolbarPresentationCurrent;
+            }
+            return root.imagePresentationRetained ? KiriViewApplication.ImageToolbarPresentationRetainedPrevious : KiriViewApplication.ImageToolbarPresentationUnavailable;
+        }
+
+        function imageToolbarCollectionControlsVisible() {
+            return root.readingControlsVisible;
+        }
+
+        function imageToolbarActionAppearanceEnabled(actionId) {
+            if (root.imagePresentationRetained) {
+                if (actionId === KiriViewApplication.ViewToggleRightToLeftReadingAction) {
+                    return root.retainedRightToLeftEnabled;
+                }
+                if (actionId === KiriViewApplication.ViewToggleTwoPageModeAction) {
+                    return root.retainedTwoPageEnabled;
+                }
+                return root.retainedFitEnabled;
+            }
+            return actionForId(actionId)?.enabled ?? false;
+        }
+
+        function imageToolbarActionAppearanceChecked(actionId) {
+            if (root.imagePresentationRetained) {
+                if (actionId === KiriViewApplication.ViewToggleRightToLeftReadingAction) {
+                    return root.retainedRightToLeftChecked;
+                }
+                if (actionId === KiriViewApplication.ViewToggleTwoPageModeAction) {
+                    return root.retainedTwoPageChecked;
+                }
+                return actionId === root.retainedFitActionId;
+            }
+            return actionForId(actionId)?.checked ?? false;
+        }
+
+        function imageToolbarActionInteractionEnabled(actionId) {
+            return actionForId(actionId)?.enabled ?? false;
+        }
+
+        function imageToolbarPresentedFitActionId() {
+            if (root.imagePresentationRetained) {
+                return root.retainedFitActionId;
+            }
+            return toolbar.fitModeActionId(root.sessionImageDocument.fitModeSelection);
+        }
+
+        function imageToolbarZoomAppearanceEnabled() {
+            return root.imagePresentationRetained ? root.retainedZoomEditable : toolbar.zoomEditable;
+        }
+
+        function imageToolbarZoomInteractionEnabled() {
+            return toolbar.zoomEditable;
+        }
+
+        function imageToolbarZoomPercentAvailable() {
+            return root.imagePresentationRetained ? root.retainedZoomPercentAvailable : toolbar.zoomPercentAvailable;
+        }
+
+        function imageToolbarZoomPercentKnown() {
+            return root.imagePresentationRetained ? root.retainedZoomPercentKnown : toolbar.zoomPercentKnown;
+        }
+
+        function imageToolbarZoomPercentEditable() {
+            return root.imagePresentationRetained ? root.retainedZoomEditable : toolbar.zoomEditable;
+        }
+
+        function imageToolbarZoomPercent() {
+            return root.imagePresentationRetained ? root.retainedZoomPercent : toolbar.zoomPercent;
+        }
+
+        function imageToolbarZoomMinimumManualPercent() {
+            return root.imagePresentationRetained ? root.retainedZoomMinimumManualPercent : toolbar.minimumManualZoomPercent;
+        }
+
+        function imageToolbarZoomMaximumManualPercent() {
+            return root.imagePresentationRetained ? root.retainedZoomMaximumManualPercent : toolbar.maximumManualZoomPercent;
+        }
 
         function navigationPresentationActionId(slot) {
             switch (slot) {
@@ -671,6 +831,8 @@ Item {
         zoomPercentAvailable: root.videoMode || (root.imageControlsReady && root.sessionImageDocument.zoomPercentKnown)
         zoomPercentKnown: root.videoMode ? true : (root.imageControlsReady && root.sessionImageDocument.zoomPercentKnown)
         zoomStepFactor: root.sessionImageDocument.zoomStepFactor
+
+        onTextInputFocusReturnRequested: root.textInputFocusReturnCount += 1
     }
 }
 )")
@@ -1105,7 +1267,14 @@ QPoint invokePoint(QObject* root, const char* method, bool* ok = nullptr)
 
 QQuickItem* findQuickItem(QObject* root, const QString& objectName)
 {
-    return root->findChild<QQuickItem*>(objectName, Qt::FindChildrenRecursively);
+    const QList<QQuickItem*> matches
+        = root->findChildren<QQuickItem*>(objectName, Qt::FindChildrenRecursively);
+    for (QQuickItem* item : matches) {
+        if (item->isVisible() && item->width() > 0 && item->height() > 0) {
+            return item;
+        }
+    }
+    return matches.isEmpty() ? nullptr : matches.constFirst();
 }
 
 QPoint quickItemCenter(QObject* root, QQuickItem* item)
@@ -1287,7 +1456,7 @@ void TestToolBarApplicationMenu::toolbarReadingControlMnemonicsTriggerActions()
     QCOMPARE(fixture.root->property("rightToLeftTriggerCount").toInt(), 1);
 }
 
-void TestToolBarApplicationMenu::replacementGraceRetainsNonInteractiveToolbarPresentation()
+void TestToolBarApplicationMenu::replacementFallbackRetainsNonInteractiveToolbarPresentation()
 {
     QString sourcePath;
     QString errorString;
@@ -1302,21 +1471,39 @@ void TestToolBarApplicationMenu::replacementGraceRetainsNonInteractiveToolbarPre
     QTRY_VERIFY(invokeBool(fixture.root, "documentReady"));
 
     QQuickItem* zoomSpinBox = findQuickItem(fixture.root, QStringLiteral("zoomSpinBox"));
+    QQuickItem* zoomPresentationSurface
+        = findQuickItem(fixture.root, QStringLiteral("zoomPresentationSurface"));
     QQuickItem* zoomTextInput = findQuickItem(fixture.root, QStringLiteral("zoomTextInput"));
     QQuickItem* fitButton = findQuickItem(fixture.root, QStringLiteral("fitModeMenuButton"));
+    QQuickItem* rightToLeftButton
+        = findQuickItem(fixture.root, QStringLiteral("rightToLeftToolbarButton"));
+    QQuickItem* twoPageButton = findQuickItem(fixture.root, QStringLiteral("twoPageToolbarButton"));
     QVERIFY(zoomSpinBox != nullptr);
+    QVERIFY(zoomPresentationSurface != nullptr);
     QVERIFY(zoomTextInput != nullptr);
     QVERIFY(fitButton != nullptr);
+    QVERIFY(rightToLeftButton != nullptr);
+    QVERIFY(twoPageButton != nullptr);
     QTRY_VERIFY(zoomSpinBox->isEnabled());
     QTRY_VERIFY(zoomTextInput->property("text").toString() != QStringLiteral("    -"));
     const QString readyZoomText = zoomTextInput->property("text").toString();
 
     const QVariantList enabledPresentation { true, true, true, true };
+    const QVariantList enabledInteraction { true, true, true, true };
+    const QVariantList disabledInteraction { false, false, false, false };
     const QVariantList checkedReadingControls { true, true };
     const QVariantList uncheckedReadingControls { false, false };
     bool invoked = false;
     QTRY_COMPARE(invokeVariant(fixture.root, "toolbarControlEnabledStates", &invoked).toList(),
         enabledPresentation);
+    QVERIFY(invoked);
+    QTRY_COMPARE(
+        invokeVariant(fixture.root, "toolbarControlInteractionEnabledStates", &invoked).toList(),
+        enabledInteraction);
+    QVERIFY(invoked);
+    QTRY_COMPARE(
+        invokeVariant(fixture.root, "toolbarDisplayInteractionEnabledStates", &invoked).toList(),
+        enabledInteraction);
     QVERIFY(invoked);
     invokeVoid(fixture.root, "prepareCheckedImageControlPresentation");
     QCoreApplication::processEvents();
@@ -1325,7 +1512,7 @@ void TestToolBarApplicationMenu::replacementGraceRetainsNonInteractiveToolbarPre
         checkedReadingControls);
     QVERIFY(invoked);
 
-    invokeVoid(fixture.root, "beginImageReplacementGrace");
+    invokeVoid(fixture.root, "beginImageReplacementFallback");
     const QVariantList disabledSources { false, false, false };
     QTRY_COMPARE(invokeVariant(fixture.root, "sourceImageControlEnabledStates", &invoked).toList(),
         disabledSources);
@@ -1334,6 +1521,18 @@ void TestToolBarApplicationMenu::replacementGraceRetainsNonInteractiveToolbarPre
         enabledPresentation);
     QVERIFY(invoked);
     QTRY_COMPARE(
+        invokeVariant(fixture.root, "toolbarControlInteractionEnabledStates", &invoked).toList(),
+        disabledInteraction);
+    QVERIFY(invoked);
+    QTRY_COMPARE(
+        invokeVariant(fixture.root, "toolbarDisplayInteractionEnabledStates", &invoked).toList(),
+        disabledInteraction);
+    QVERIFY(invoked);
+    QTRY_VERIFY(rightToLeftButton->isEnabled());
+    QTRY_VERIFY(twoPageButton->isEnabled());
+    QTRY_VERIFY(fitButton->isEnabled());
+    QTRY_VERIFY(zoomPresentationSurface->isEnabled());
+    QTRY_COMPARE(
         invokeVariant(fixture.root, "sourceReadingControlCheckedStates", &invoked).toList(),
         uncheckedReadingControls);
     QVERIFY(invoked);
@@ -1341,12 +1540,15 @@ void TestToolBarApplicationMenu::replacementGraceRetainsNonInteractiveToolbarPre
         invokeVariant(fixture.root, "toolbarReadingControlCheckedStates", &invoked).toList(),
         checkedReadingControls);
     QVERIFY(invoked);
-    QTRY_VERIFY(zoomSpinBox->isEnabled());
+    QTRY_VERIFY(!zoomSpinBox->isEnabled());
     QTRY_COMPARE(zoomTextInput->property("text").toString(), readyZoomText);
 
+    clickItem(fixture, rightToLeftButton);
+    clickItem(fixture, twoPageButton);
     QTest::keyClick(fixture.view.get(), Qt::Key_R, Qt::AltModifier);
     QCoreApplication::processEvents();
     QCOMPARE(fixture.root->property("rightToLeftTriggerCount").toInt(), 0);
+    QCOMPARE(fixture.root->property("twoPageTriggerCount").toInt(), 0);
     QTRY_COMPARE(
         invokeVariant(fixture.root, "toolbarReadingControlCheckedStates", &invoked).toList(),
         checkedReadingControls);
@@ -1357,25 +1559,47 @@ void TestToolBarApplicationMenu::replacementGraceRetainsNonInteractiveToolbarPre
     QQuickItem* fitWidthMenuItem = findQuickItem(fixture.root, QStringLiteral("fitWidthMenuItem"));
     QVERIFY(fitWidthMenuItem != nullptr);
     QVERIFY(!fitWidthMenuItem->isVisible());
+    const qreal retainedZoomPercent = invokeVariant(fixture.root, "imageZoomPercent").toReal();
+    invokeVoid(fixture.root, "triggerToolbarZoomIncrease");
+    QCOMPARE(invokeVariant(fixture.root, "imageZoomPercent").toReal(), retainedZoomPercent);
+    QCOMPARE(zoomTextInput->property("text").toString(), readyZoomText);
 
-    invokeVoid(fixture.root, "endImageReplacementGrace");
-    const QVariantList disabledPresentation { false, false, false, false };
+    invokeVoid(fixture.root, "showImageReplacementLoadingFeedback");
     QTRY_COMPARE(invokeVariant(fixture.root, "toolbarControlEnabledStates", &invoked).toList(),
-        disabledPresentation);
+        enabledPresentation);
     QVERIFY(invoked);
     QTRY_COMPARE(
         invokeVariant(fixture.root, "toolbarReadingControlCheckedStates", &invoked).toList(),
-        uncheckedReadingControls);
+        checkedReadingControls);
     QVERIFY(invoked);
+    QTRY_COMPARE(
+        invokeVariant(fixture.root, "toolbarControlInteractionEnabledStates", &invoked).toList(),
+        disabledInteraction);
+    QVERIFY(invoked);
+    QTRY_VERIFY(rightToLeftButton->isEnabled());
+    QTRY_VERIFY(twoPageButton->isEnabled());
+    QTRY_VERIFY(fitButton->isEnabled());
+    QTRY_VERIFY(zoomPresentationSurface->isEnabled());
     QTRY_VERIFY(!zoomSpinBox->isEnabled());
-    QTRY_COMPARE(zoomTextInput->property("text").toString(), QStringLiteral("    -"));
+    QTRY_COMPARE(zoomTextInput->property("text").toString(), readyZoomText);
 
     invokeVoid(fixture.root, "finishImageReplacement");
     QTRY_COMPARE(invokeVariant(fixture.root, "toolbarControlEnabledStates", &invoked).toList(),
         enabledPresentation);
     QVERIFY(invoked);
     QTRY_VERIFY(zoomSpinBox->isEnabled());
-    QTRY_COMPARE(zoomTextInput->property("text").toString(), readyZoomText);
+    QTRY_COMPARE(
+        invokeVariant(fixture.root, "toolbarControlInteractionEnabledStates", &invoked).toList(),
+        enabledInteraction);
+    QVERIFY(invoked);
+    QTRY_COMPARE(
+        invokeVariant(fixture.root, "toolbarReadingControlCheckedStates", &invoked).toList(),
+        uncheckedReadingControls);
+    QVERIFY(invoked);
+    QTRY_COMPARE(invokeInt(fixture.root, "toolbarPresentedFitModeSelection"),
+        static_cast<int>(KiriImageDocument::ZoomMode::FitWidth));
+    QTRY_VERIFY(zoomTextInput->property("text").toString() != readyZoomText);
+    QTRY_VERIFY(zoomTextInput->property("text").toString().contains(QStringLiteral("150")));
 }
 
 void TestToolBarApplicationMenu::fitMenuButtonClickOnlyOpensMenu()
@@ -1492,6 +1716,35 @@ void TestToolBarApplicationMenu::fitMenuButtonCollapsesLabelWhenConstrained()
     QVERIFY(ok);
     QVERIFY(fitState.value(QStringLiteral("iconOnly")).toBool());
     QCOMPARE(fitState.value(QStringLiteral("label")).toString(), QStringLiteral("Fit to Window"));
+}
+
+void TestToolBarApplicationMenu::responsiveDelegateTransitionReleasesZoomFocus()
+{
+    QString sourcePath;
+    QString errorString;
+    std::unique_ptr<QTemporaryDir> imageDirectory = createImageDirectory(&sourcePath, &errorString);
+    QVERIFY2(imageDirectory != nullptr, qPrintable(errorString));
+    ToolBarMenuFixture fixture
+        = createOpenedCollectionScopeFixture(QUrl::fromLocalFile(sourcePath).toString());
+    fixture.temporaryDirectory = std::move(imageDirectory);
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    QTRY_VERIFY(invokeBool(fixture.root, "documentReady"));
+
+    QQuickItem* zoomTextInput = findQuickItem(fixture.root, QStringLiteral("zoomTextInput"));
+    QVERIFY(zoomTextInput != nullptr);
+    QTRY_VERIFY(zoomTextInput->isVisible());
+    QTRY_VERIFY(zoomTextInput->isEnabled());
+    zoomTextInput->forceActiveFocus(Qt::TabFocusReason);
+    QTRY_VERIFY(zoomTextInput->hasActiveFocus());
+    QTRY_VERIFY(invokeBool(fixture.root, "toolbarTextInputFocused"));
+    const int focusReturnCount = fixture.root->property("textInputFocusReturnCount").toInt();
+
+    fixture.view->resize(160, 420);
+
+    QTRY_VERIFY(!zoomTextInput->isVisible());
+    QTRY_VERIFY(!zoomTextInput->hasActiveFocus());
+    QTRY_VERIFY(!invokeBool(fixture.root, "toolbarTextInputFocused"));
+    QTRY_COMPARE(fixture.root->property("textInputFocusReturnCount").toInt(), focusReturnCount + 1);
 }
 
 void TestToolBarApplicationMenu::unusableApplicationMenuButtonMappingLeavesDiagnosticWarning()

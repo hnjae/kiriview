@@ -172,8 +172,11 @@ namespace {
                 || leftImage.fitModeSelected != rightImage.fitModeSelected
                 || leftImage.fitHeightModeSelected != rightImage.fitHeightModeSelected
                 || leftImage.fitWidthModeSelected != rightImage.fitWidthModeSelected
+                || leftImage.fitModeSelection != rightImage.fitModeSelection
                 || leftImage.zoomPercentKnown != rightImage.zoomPercentKnown
                 || leftImage.zoomPercent != rightImage.zoomPercent
+                || leftImage.minimumManualZoomPercent != rightImage.minimumManualZoomPercent
+                || leftImage.maximumManualZoomPercent != rightImage.maximumManualZoomPercent
                 || leftImage.viewportPannable != rightImage.viewportPannable
                 || leftImage.errorString != rightImage.errorString)) {
             return false;

@@ -316,14 +316,9 @@ StatefulApp.StatefulWindow {
             imageReady: page.imageReady
             navigationPresentationProvider: kiriApplication
             applicationMenuActions: imageActions.applicationMenuActions
-            collectionControlsVisible: documentSession.activeImageOpenedCollectionScopeActive
             openActiveNavigationAtNumber: function (number) {
                 documentSession.openActiveNavigationAtNumber(number);
             }
-            retainImageControlPresentation: function () {
-                return mediaWorkspaceHost.imageRetainedPresentationAvailable && documentSession.documentKind === KiriDocumentSession.Image && (documentSession.activeImageReplacementFallbackAvailable || (documentSession.activeImageReady && !mainImageToolBar.imageReady));
-            }
-            replacementGraceActive: mediaWorkspaceHost.imageReplacementGraceActive
             showApplicationMenuActions: !root.menuBarMode && !root.fullscreen
             transientOverlay: root.fullscreen
             videoMode: page.videoMode

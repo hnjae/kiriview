@@ -81,9 +81,12 @@ struct DocumentSessionPublicImageLeafSnapshot
     bool fitModeSelected = false;
     bool fitHeightModeSelected = false;
     bool fitWidthModeSelected = false;
+    ImageFitModeSelection fitModeSelection = ImageFitModeSelection::Fit;
     bool viewportPannable = false;
     bool zoomPercentKnown = false;
     qreal zoomPercent = 0.0;
+    int minimumManualZoomPercent = 0;
+    int maximumManualZoomPercent = 0;
     QString errorString;
     std::optional<DisplayedPredecodeImage> primaryDisplayedPredecodeImage;
     ImageFirstDisplayDecodeContext firstDisplayDecodeContext;

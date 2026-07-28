@@ -61,6 +61,20 @@ struct ActiveZoomSnapshot
     bool known = false;
     qreal percent = 0.0;
     bool editable = false;
+    int minimumManualPercent = 0;
+    int maximumManualPercent = 0;
+};
+
+enum class ImagePresentationPhase {
+    Unavailable,
+    CurrentAuthoritative,
+    RetainedPreviousAuthoritative,
+};
+
+enum class ImageFitModeSelection {
+    Fit,
+    FitHeight,
+    FitWidth,
 };
 
 struct DocumentSessionActionAvailabilityFacts
@@ -99,6 +113,10 @@ struct DocumentSessionActionStateSnapshot
     bool videoMode = false;
     bool videoSeekable = false;
     qint64 videoDuration = 0;
+    ImagePresentationPhase imagePresentationPhase = ImagePresentationPhase::Unavailable;
+    ImageFitModeSelection imageFitModeSelection = ImageFitModeSelection::Fit;
+    ActiveZoomSnapshot activeZoom;
+    bool imageCollectionControlsVisible = false;
 };
 
 struct DocumentSessionPublicSnapshot

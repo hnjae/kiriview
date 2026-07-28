@@ -4,147 +4,138 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import org.kde.kirigami as Kirigami
+import org.hnjae.kiriview
 
 QtObject {
     id: root
 
-    required property var rightToLeftSourceAction
-    required property var twoPageSourceAction
-    required property bool imageReady
+    required property var provider
+    required property bool collectionControlsVisibleFallback
+    required property int fitActionId
+    required property bool fitEnabledFallback
+    required property int rightToLeftActionId
+    required property bool rightToLeftCheckedFallback
+    required property bool rightToLeftEnabledFallback
+    required property int twoPageActionId
+    required property bool twoPageCheckedFallback
+    required property bool twoPageEnabledFallback
     required property bool videoMode
-    required property var retainPresentation
-    required property bool fitEnabled
-    required property int fitModeSelection
-    required property bool zoomEditable
-    required property bool zoomPercentAvailable
-    required property bool zoomPercentKnown
-    required property real zoomPercent
+    required property bool zoomEditableFallback
+    required property int zoomMaximumManualPercentFallback
+    required property int zoomMinimumManualPercentFallback
+    required property bool zoomPercentAvailableFallback
+    required property bool zoomPercentKnownFallback
+    required property real zoomPercentFallback
 
-    readonly property bool presentationRetained: shouldRetainPresentation()
-    readonly property int presentedFitModeSelection: shouldRetainPresentation() ? retainedFitModeSelection : fitModeSelection
-    readonly property bool presentedImageReady: shouldRetainPresentation() || imageReady
-    readonly property bool presentedZoomEditable: shouldRetainPresentation() ? retainedZoomEditable : zoomEditable
-    readonly property bool presentedZoomPercentAvailable: shouldRetainPresentation() ? retainedZoomPercentAvailable : zoomPercentAvailable
-    readonly property bool presentedZoomPercentKnown: shouldRetainPresentation() ? retainedZoomPercentKnown : zoomPercentKnown
-    readonly property real presentedZoomPercent: shouldRetainPresentation() ? retainedZoomPercent : zoomPercent
-    readonly property RetainedPresentationAction rightToLeftAction: RetainedPresentationAction {
-        retainPresentation: root.retainPresentation
-        sourceAction: root.rightToLeftSourceAction
-        videoMode: root.videoMode
-    }
-    readonly property RetainedPresentationAction twoPageAction: RetainedPresentationAction {
-        retainPresentation: root.retainPresentation
-        sourceAction: root.twoPageSourceAction
-        videoMode: root.videoMode
-    }
-
-    property bool retainedFitEnabled: false
-    property int retainedFitModeSelection: 0
-    property bool retainedZoomActionEnabled: false
-    property bool retainedZoomEditable: false
-    property bool retainedZoomPercentAvailable: false
-    property bool retainedZoomPercentKnown: false
-    property real retainedZoomPercent: 0
-
-    component RetainedPresentationAction: Kirigami.Action {
-        required property var sourceAction
-        required property var retainPresentation
-        required property bool videoMode
-        property bool retainedChecked: false
-        property bool retainedEnabled: false
-
-        function shouldRetainPresentation() {
-            return !videoMode && typeof retainPresentation === "function" && retainPresentation();
+    readonly property int projectionRevision: provider?.actionStateRevision ?? 0
+    readonly property int phase: {
+        projectionRevision;
+        if (provider !== null && provider !== undefined && typeof provider.imageToolbarPresentationPhase === "function") {
+            return provider.imageToolbarPresentationPhase();
         }
-
-        function capturePresentation() {
-            retainedChecked = sourceAction?.checked ?? false;
-            retainedEnabled = sourceAction?.enabled ?? false;
+        return zoomEditableFallback ? KiriViewApplication.ImageToolbarPresentationCurrent : KiriViewApplication.ImageToolbarPresentationUnavailable;
+    }
+    readonly property bool collectionControlsVisible: {
+        projectionRevision;
+        if (provider !== null && provider !== undefined && typeof provider.imageToolbarCollectionControlsVisible === "function") {
+            return provider.imageToolbarCollectionControlsVisible();
         }
-
-        autoExclusive: sourceAction?.autoExclusive ?? false
-        checkable: sourceAction?.checkable ?? false
-        checked: shouldRetainPresentation() ? retainedChecked : (sourceAction?.checked ?? false)
-        displayHint: sourceAction?.displayHint ?? Kirigami.DisplayHint.KeepVisible
-        enabled: shouldRetainPresentation() ? retainedEnabled : (sourceAction?.enabled ?? false)
-        icon.name: sourceAction?.icon.name ?? ""
-        shortcut: ""
-        text: sourceAction?.text ?? ""
-        tooltip: sourceAction?.tooltip ?? text
-        visible: sourceAction?.visible ?? true
-
-        onTriggered: {
-            if (!shouldRetainPresentation() && (sourceAction?.enabled ?? false)) {
-                sourceAction.trigger();
-            }
+        return collectionControlsVisibleFallback;
+    }
+    readonly property bool rightToLeftAppearanceEnabled: actionAppearanceEnabled(rightToLeftActionId, rightToLeftEnabledFallback)
+    readonly property bool rightToLeftAppearanceChecked: actionAppearanceChecked(rightToLeftActionId, rightToLeftCheckedFallback)
+    readonly property bool rightToLeftInteractionEnabled: actionInteractionEnabled(rightToLeftActionId, rightToLeftEnabledFallback)
+    readonly property bool twoPageAppearanceEnabled: actionAppearanceEnabled(twoPageActionId, twoPageEnabledFallback)
+    readonly property bool twoPageAppearanceChecked: actionAppearanceChecked(twoPageActionId, twoPageCheckedFallback)
+    readonly property bool twoPageInteractionEnabled: actionInteractionEnabled(twoPageActionId, twoPageEnabledFallback)
+    readonly property int presentedFitActionId: {
+        projectionRevision;
+        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarPresentedFitActionId === "function") {
+            return provider.imageToolbarPresentedFitActionId();
         }
+        return fitActionId;
     }
-
-    function shouldRetainPresentation() {
-        return !videoMode && typeof retainPresentation === "function" && retainPresentation();
-    }
-
-    function capture() {
-        if (!imageReady || videoMode || shouldRetainPresentation()) {
-            return;
+    readonly property bool fitAppearanceEnabled: actionAppearanceEnabled(presentedFitActionId, fitEnabledFallback)
+    readonly property bool fitInteractionEnabled: actionInteractionEnabled(presentedFitActionId, fitEnabledFallback)
+    readonly property bool presentedImageReady: !videoMode && phase !== KiriViewApplication.ImageToolbarPresentationUnavailable
+    readonly property bool zoomAppearanceEnabled: {
+        projectionRevision;
+        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarZoomAppearanceEnabled === "function") {
+            return provider.imageToolbarZoomAppearanceEnabled();
         }
-
-        rightToLeftAction.capturePresentation();
-        twoPageAction.capturePresentation();
-        retainedFitEnabled = fitEnabled;
-        retainedFitModeSelection = fitModeSelection;
-        retainedZoomActionEnabled = !videoMode && imageReady;
-        retainedZoomEditable = zoomEditable;
-        retainedZoomPercentAvailable = zoomPercentAvailable;
-        retainedZoomPercentKnown = zoomPercentKnown;
-        retainedZoomPercent = zoomPercent;
+        return !videoMode && zoomEditableFallback;
     }
-
-    function scheduleCapture() {
-        captureTimer.restart();
+    readonly property bool zoomInteractionEnabled: {
+        projectionRevision;
+        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarZoomInteractionEnabled === "function") {
+            return provider.imageToolbarZoomInteractionEnabled();
+        }
+        return !videoMode && zoomEditableFallback;
     }
-
-    onFitEnabledChanged: scheduleCapture()
-    onFitModeSelectionChanged: scheduleCapture()
-    onImageReadyChanged: scheduleCapture()
-    onPresentationRetainedChanged: scheduleCapture()
-    onRightToLeftSourceActionChanged: scheduleCapture()
-    onTwoPageSourceActionChanged: scheduleCapture()
-    onVideoModeChanged: scheduleCapture()
-    onZoomEditableChanged: scheduleCapture()
-    onZoomPercentAvailableChanged: scheduleCapture()
-    onZoomPercentChanged: scheduleCapture()
-    onZoomPercentKnownChanged: scheduleCapture()
-
-    Component.onCompleted: scheduleCapture()
-
-    property Timer captureTimer: Timer {
-        interval: 0
-        onTriggered: root.capture()
+    readonly property bool presentedZoomEditable: {
+        projectionRevision;
+        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarZoomPercentEditable === "function") {
+            return provider.imageToolbarZoomPercentEditable();
+        }
+        return !videoMode && zoomEditableFallback;
+    }
+    readonly property bool presentedZoomPercentAvailable: {
+        projectionRevision;
+        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarZoomPercentAvailable === "function") {
+            return provider.imageToolbarZoomPercentAvailable();
+        }
+        return zoomPercentAvailableFallback;
+    }
+    readonly property bool presentedZoomPercentKnown: {
+        projectionRevision;
+        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarZoomPercentKnown === "function") {
+            return provider.imageToolbarZoomPercentKnown();
+        }
+        return zoomPercentKnownFallback;
+    }
+    readonly property real presentedZoomPercent: {
+        projectionRevision;
+        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarZoomPercent === "function") {
+            return provider.imageToolbarZoomPercent();
+        }
+        return zoomPercentFallback;
+    }
+    readonly property int presentedZoomMinimumManualPercent: {
+        projectionRevision;
+        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarZoomMinimumManualPercent === "function") {
+            return provider.imageToolbarZoomMinimumManualPercent();
+        }
+        return zoomMinimumManualPercentFallback;
+    }
+    readonly property int presentedZoomMaximumManualPercent: {
+        projectionRevision;
+        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarZoomMaximumManualPercent === "function") {
+            return provider.imageToolbarZoomMaximumManualPercent();
+        }
+        return zoomMaximumManualPercentFallback;
     }
 
-    property Connections rightToLeftSourceConnections: Connections {
-        target: root.rightToLeftSourceAction
-
-        function onCheckedChanged() {
-            root.scheduleCapture();
+    function actionAppearanceEnabled(actionId, fallback) {
+        projectionRevision;
+        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarActionAppearanceEnabled === "function") {
+            return provider.imageToolbarActionAppearanceEnabled(actionId);
         }
-
-        function onEnabledChanged() {
-            root.scheduleCapture();
-        }
+        return !videoMode && fallback;
     }
 
-    property Connections twoPageSourceConnections: Connections {
-        target: root.twoPageSourceAction
-
-        function onCheckedChanged() {
-            root.scheduleCapture();
+    function actionAppearanceChecked(actionId, fallback) {
+        projectionRevision;
+        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarActionAppearanceChecked === "function") {
+            return provider.imageToolbarActionAppearanceChecked(actionId);
         }
+        return !videoMode && fallback;
+    }
 
-        function onEnabledChanged() {
-            root.scheduleCapture();
+    function actionInteractionEnabled(actionId, fallback) {
+        projectionRevision;
+        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarActionInteractionEnabled === "function") {
+            return provider.imageToolbarActionInteractionEnabled(actionId);
         }
+        return !videoMode && fallback;
     }
 }

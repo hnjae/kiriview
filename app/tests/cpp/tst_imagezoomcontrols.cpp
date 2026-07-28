@@ -30,6 +30,7 @@ private Q_SLOTS:
     void displayTextReflectsMissingAndUnknownZoomValues();
     void displayTextIsRightAligned();
     void percentSuffixTrailingSpacingFollowsControlSpacing();
+    void retainedPresentationDisablesSemanticInput();
 };
 
 namespace {
@@ -248,6 +249,50 @@ void TestImageZoomControls::percentSuffixTrailingSpacingFollowsControlSpacing()
     const int compactSpacing = fixture.root->property("controlSpacing").toInt();
     QCOMPARE(zoomPercentSuffixLabel->property("trailingSpacing").toInt(), compactSpacing);
     QVERIFY(compactSpacing <= normalSpacing);
+}
+
+void TestImageZoomControls::retainedPresentationDisablesSemanticInput()
+{
+    ZoomControlsFixture fixture = createZoomControlsFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    QObject* zoomPresentationSurface
+        = findObject(fixture.root.get(), QStringLiteral("zoomPresentationSurface"));
+    QObject* zoomSpinBox = findObject(fixture.root.get(), QStringLiteral("zoomSpinBox"));
+    QObject* zoomTextInput = findObject(fixture.root.get(), QStringLiteral("zoomTextInput"));
+    QVERIFY(zoomPresentationSurface != nullptr);
+    QVERIFY(zoomSpinBox != nullptr);
+    QVERIFY(zoomTextInput != nullptr);
+
+    QVERIFY(fixture.root->setProperty("zoomPercent", 125.0));
+    QVERIFY(fixture.root->setProperty("zoomPercentAvailable", true));
+    QVERIFY(fixture.root->setProperty("zoomPercentKnown", true));
+    QVERIFY(fixture.root->setProperty("presentationEditable", true));
+    QVERIFY(fixture.root->setProperty("presentationEnabled", true));
+    QVERIFY(fixture.root->setProperty("interactionEnabled", true));
+    QCoreApplication::processEvents();
+    QVERIFY(zoomPresentationSurface->property("enabled").toBool());
+    QVERIFY(zoomSpinBox->property("enabled").toBool());
+    QVERIFY(zoomSpinBox->property("decreasePresentationAvailable").toBool());
+    QVERIFY(zoomSpinBox->property("increasePresentationAvailable").toBool());
+    QVERIFY(zoomSpinBox->property("semanticInputAvailable").toBool());
+    QVERIFY(zoomTextInput->property("enabled").toBool());
+    compareZoomValueText(zoomTextInput, QStringLiteral("  125"));
+
+    QVERIFY(fixture.root->setProperty("interactionEnabled", false));
+    QCoreApplication::processEvents();
+    QVERIFY(zoomPresentationSurface->property("enabled").toBool());
+    QVERIFY(!zoomSpinBox->property("enabled").toBool());
+    QVERIFY(zoomSpinBox->property("decreasePresentationAvailable").toBool());
+    QVERIFY(zoomSpinBox->property("increasePresentationAvailable").toBool());
+    QVERIFY(!zoomSpinBox->property("semanticInputAvailable").toBool());
+    QVERIFY(!zoomTextInput->property("enabled").toBool());
+    compareZoomValueText(zoomTextInput, QStringLiteral("  125"));
+
+    QVERIFY(fixture.root->setProperty("zoomPercent", 1'000'000.0));
+    QCoreApplication::processEvents();
+    QVERIFY(zoomSpinBox->property("decreasePresentationAvailable").toBool());
+    QVERIFY(!zoomSpinBox->property("increasePresentationAvailable").toBool());
+    QVERIFY(!zoomSpinBox->property("semanticInputAvailable").toBool());
 }
 
 QTEST_MAIN(TestImageZoomControls)

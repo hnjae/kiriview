@@ -57,6 +57,7 @@ private Q_SLOTS:
     void publicSnapshotOnlyNotifiesChangedProjectionOutputs();
     void publicSnapshotCommitsOneRevisionedBatch();
     void unchangedPublicSnapshotDoesNotAdvanceRevision();
+    void toolbarPresentationInputsAdvancePublicRevision();
     void publishDeduplicatesChangesInOrder();
 };
 
@@ -108,6 +109,7 @@ void TestDocumentSessionState::activeZoomReadoutPublishesThroughSnapshotCommit()
     kiriview::DocumentSessionPublicSnapshotInput input;
     input.session.documentKind = kiriview::DocumentSessionKind::Image;
     input.image.readyForInformation = true;
+    input.image.completeAuthoritativeDisplayAvailable = true;
     input.image.zoomPercentKnown = true;
     input.image.zoomPercent = 125.0;
     state.updatePublicSnapshot(input);
@@ -410,6 +412,7 @@ void TestDocumentSessionState::publicSnapshotCommitsOneRevisionedBatch()
     input.image.windowTitleFileName = QStringLiteral("01.png");
     input.image.directMediaSize = QSize(640, 480);
     input.image.readyForInformation = true;
+    input.image.completeAuthoritativeDisplayAvailable = true;
     input.image.readyForDeletion = true;
     input.image.zoomPercentKnown = true;
     input.image.zoomPercent = 125.0;
@@ -450,6 +453,47 @@ void TestDocumentSessionState::unchangedPublicSnapshotDoesNotAdvanceRevision()
     QVERIFY(!state.updatePublicSnapshot(input));
     QCOMPARE(state.publicSnapshot().revision, quint64(1));
     QCOMPARE(batches.size(), std::size_t(1));
+}
+
+void TestDocumentSessionState::toolbarPresentationInputsAdvancePublicRevision()
+{
+    std::vector<std::vector<kiriview::DocumentSessionChange>> batches;
+    kiriview::DocumentSessionState state(
+        [&batches](const std::vector<kiriview::DocumentSessionChange>& changes) {
+            batches.push_back(changes);
+        });
+    kiriview::DocumentSessionPublicSnapshotInput input;
+    input.session.documentKind = kiriview::DocumentSessionKind::Image;
+    input.image.readyForInformation = true;
+    input.image.completeAuthoritativeDisplayAvailable = true;
+    input.image.zoomPercentKnown = true;
+    input.image.zoomPercent = 100.0;
+    input.image.minimumManualZoomPercent = 10;
+    input.image.maximumManualZoomPercent = 2'000;
+
+    QVERIFY(state.updatePublicSnapshot(input));
+    QVERIFY(!state.updatePublicSnapshot(input));
+
+    input.image.maximumManualZoomPercent = 3'000;
+    QVERIFY(state.updatePublicSnapshot(input));
+    QCOMPARE(state.publicSnapshot().activeZoom.maximumManualPercent, 3'000);
+
+    input.image.fitModeSelection = kiriview::ImageFitModeSelection::FitHeight;
+    QVERIFY(state.updatePublicSnapshot(input));
+    QCOMPARE(state.publicSnapshot().actionState.imageFitModeSelection,
+        kiriview::ImageFitModeSelection::FitHeight);
+
+    QCOMPARE(state.publicSnapshot().revision, quint64(3));
+    QCOMPARE(batches.size(), std::size_t(3));
+    QCOMPARE(batches.at(1),
+        (std::vector<kiriview::DocumentSessionChange> {
+            kiriview::DocumentSessionChange::PublicProjectionRevision,
+            kiriview::DocumentSessionChange::ActiveZoomReadout,
+        }));
+    QCOMPARE(batches.at(2),
+        (std::vector<kiriview::DocumentSessionChange> {
+            kiriview::DocumentSessionChange::PublicProjectionRevision,
+        }));
 }
 
 void TestDocumentSessionState::publishDeduplicatesChangesInOrder()

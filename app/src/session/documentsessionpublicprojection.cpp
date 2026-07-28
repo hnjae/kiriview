@@ -102,7 +102,8 @@ bool displayedFileDeletionAvailableForInput(
 bool activeImageReadyForInput(const kiriview::DocumentSessionPublicSnapshotInput& input)
 {
     return input.session.documentKind == kiriview::DocumentSessionKind::Image
-        && input.image.readyForInformation && !input.image.unsupportedOpenedCollectionVideo;
+        && input.image.readyForInformation && input.image.completeAuthoritativeDisplayAvailable
+        && !input.image.unsupportedOpenedCollectionVideo;
 }
 
 bool activeImageReplacementFallbackAvailableForInput(
@@ -111,6 +112,18 @@ bool activeImageReplacementFallbackAvailableForInput(
     return input.session.documentKind == kiriview::DocumentSessionKind::Image && input.image.loading
         && input.image.completeAuthoritativeDisplayAvailable
         && !input.image.unsupportedOpenedCollectionVideo;
+}
+
+kiriview::ImagePresentationPhase imagePresentationPhaseForSnapshot(
+    const kiriview::DocumentSessionPublicSnapshot& snapshot)
+{
+    if (snapshot.activeImageReady) {
+        return kiriview::ImagePresentationPhase::CurrentAuthoritative;
+    }
+    if (snapshot.activeImageReplacementFallbackAvailable) {
+        return kiriview::ImagePresentationPhase::RetainedPreviousAuthoritative;
+    }
+    return kiriview::ImagePresentationPhase::Unavailable;
 }
 
 bool activeImageOpenedCollectionScopeActiveForInput(
@@ -255,6 +268,10 @@ kiriview::DocumentSessionActionStateSnapshot actionStateSnapshotForInput(
     snapshot.videoMode = input.session.documentKind == kiriview::DocumentSessionKind::Video;
     snapshot.videoSeekable = snapshot.videoMode && input.video.videoSeekable;
     snapshot.videoDuration = snapshot.videoMode ? input.video.videoDuration : 0;
+    snapshot.imagePresentationPhase = imagePresentationPhaseForSnapshot(publicSnapshot);
+    snapshot.imageFitModeSelection = input.image.fitModeSelection;
+    snapshot.activeZoom = publicSnapshot.activeZoom;
+    snapshot.imageCollectionControlsVisible = publicSnapshot.activeImageOpenedCollectionScopeActive;
     return snapshot;
 }
 }

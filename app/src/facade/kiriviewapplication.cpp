@@ -242,6 +242,89 @@ QString KiriViewApplication::actionToolbarTooltipTextForId(ActionId actionId) co
     return m_actionRuntime->actionToolbarTooltipText(domainActionId(actionId));
 }
 
+KiriViewApplication::ImageToolbarPresentationPhase
+KiriViewApplication::imageToolbarPresentationPhase() const
+{
+    switch (m_actionRuntime->imageToolbarPresentationSnapshot().phase) {
+    case kiriview::ImagePresentationPhase::CurrentAuthoritative:
+        return ImageToolbarPresentationCurrent;
+    case kiriview::ImagePresentationPhase::RetainedPreviousAuthoritative:
+        return ImageToolbarPresentationRetainedPrevious;
+    case kiriview::ImagePresentationPhase::Unavailable:
+        return ImageToolbarPresentationUnavailable;
+    }
+
+    return ImageToolbarPresentationUnavailable;
+}
+
+bool KiriViewApplication::imageToolbarCollectionControlsVisible() const
+{
+    return m_actionRuntime->imageToolbarPresentationSnapshot().collectionControlsVisible;
+}
+
+bool KiriViewApplication::imageToolbarActionAppearanceEnabled(ActionId actionId) const
+{
+    return m_actionRuntime->imageToolbarActionPresentation(domainActionId(actionId))
+        .appearanceEnabled;
+}
+
+bool KiriViewApplication::imageToolbarActionAppearanceChecked(ActionId actionId) const
+{
+    return m_actionRuntime->imageToolbarActionPresentation(domainActionId(actionId))
+        .appearanceChecked;
+}
+
+bool KiriViewApplication::imageToolbarActionInteractionEnabled(ActionId actionId) const
+{
+    return m_actionRuntime->imageToolbarActionPresentation(domainActionId(actionId))
+        .interactionEnabled;
+}
+
+KiriViewApplication::ActionId KiriViewApplication::imageToolbarPresentedFitActionId() const
+{
+    return facadeActionId(m_actionRuntime->imageToolbarPresentationSnapshot().presentedFitActionId);
+}
+
+bool KiriViewApplication::imageToolbarZoomAppearanceEnabled() const
+{
+    return m_actionRuntime->imageToolbarPresentationSnapshot().zoom.appearanceEnabled;
+}
+
+bool KiriViewApplication::imageToolbarZoomInteractionEnabled() const
+{
+    return m_actionRuntime->imageToolbarPresentationSnapshot().zoom.interactionEnabled;
+}
+
+bool KiriViewApplication::imageToolbarZoomPercentAvailable() const
+{
+    return m_actionRuntime->imageToolbarPresentationSnapshot().zoom.available;
+}
+
+bool KiriViewApplication::imageToolbarZoomPercentKnown() const
+{
+    return m_actionRuntime->imageToolbarPresentationSnapshot().zoom.known;
+}
+
+bool KiriViewApplication::imageToolbarZoomPercentEditable() const
+{
+    return m_actionRuntime->imageToolbarPresentationSnapshot().zoom.editable;
+}
+
+qreal KiriViewApplication::imageToolbarZoomPercent() const
+{
+    return m_actionRuntime->imageToolbarPresentationSnapshot().zoom.percent;
+}
+
+int KiriViewApplication::imageToolbarZoomMinimumManualPercent() const
+{
+    return m_actionRuntime->imageToolbarPresentationSnapshot().zoom.minimumManualPercent;
+}
+
+int KiriViewApplication::imageToolbarZoomMaximumManualPercent() const
+{
+    return m_actionRuntime->imageToolbarPresentationSnapshot().zoom.maximumManualPercent;
+}
+
 KiriViewApplication::ActionId KiriViewApplication::navigationPresentationActionId(
     NavigationPresentationSlot slot) const
 {

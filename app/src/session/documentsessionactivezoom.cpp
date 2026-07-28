@@ -12,11 +12,16 @@ ActiveZoomSnapshot documentSessionActiveZoomSnapshot(DocumentSessionKind documen
 {
     switch (documentKind) {
     case DocumentSessionKind::Image:
-        if (!image.readyForInformation || !image.zoomPercentKnown) {
+        if (!image.readyForInformation || !image.completeAuthoritativeDisplayAvailable
+            || image.unsupportedOpenedCollectionVideo || !image.zoomPercentKnown) {
             return {};
         }
-        return ActiveZoomSnapshot { true, true, image.zoomPercent, true };
+        return ActiveZoomSnapshot { true, true, image.zoomPercent, true,
+            image.minimumManualZoomPercent, image.maximumManualZoomPercent };
     case DocumentSessionKind::Video:
+        if (!video.ready || !video.hasVideo) {
+            return {};
+        }
         return ActiveZoomSnapshot {
             true,
             video.zoomPercentKnown,

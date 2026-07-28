@@ -41,9 +41,12 @@ DocumentSessionPublicImageLeafSnapshot buildDocumentSessionPublicImageLeafSnapsh
     snapshot.fitModeSelected = leafSnapshot.fitModeSelected;
     snapshot.fitHeightModeSelected = leafSnapshot.fitHeightModeSelected;
     snapshot.fitWidthModeSelected = leafSnapshot.fitWidthModeSelected;
+    snapshot.fitModeSelection = leafSnapshot.fitModeSelection;
     snapshot.viewportPannable = leafSnapshot.viewportPannable;
     snapshot.zoomPercentKnown = leafSnapshot.zoomPercentKnown;
     snapshot.zoomPercent = leafSnapshot.zoomPercent;
+    snapshot.minimumManualZoomPercent = leafSnapshot.minimumManualZoomPercent;
+    snapshot.maximumManualZoomPercent = leafSnapshot.maximumManualZoomPercent;
     snapshot.errorString = leafSnapshot.errorString;
     snapshot.primaryDisplayedPredecodeImage = leafSnapshot.primaryDisplayedPredecodeImage;
     snapshot.firstDisplayDecodeContext = leafSnapshot.firstDisplayDecodeContext;

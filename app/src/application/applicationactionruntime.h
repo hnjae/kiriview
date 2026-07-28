@@ -23,10 +23,12 @@
 #include <QtGlobal>
 #include <functional>
 #include <memory>
+#include <optional>
 
 namespace kiriview::ApplicationActions {
 struct ActionDefinition;
 class ApplicationCommandPortSource;
+class ApplicationActionSourceAttachment;
 class ApplicationShortcutRuntime;
 
 struct ApplicationActionUiGateSnapshot
@@ -45,6 +47,36 @@ struct ApplicationActionStateSnapshot
     quint64 uiGateRevision = 0;
     kiriview::DocumentSessionActionStateSnapshot documentSession;
     ApplicationActionUiGateSnapshot uiGates;
+};
+
+struct ImageToolbarActionPresentation
+{
+    bool appearanceEnabled = false;
+    bool appearanceChecked = false;
+    bool interactionEnabled = false;
+};
+
+struct ImageToolbarZoomPresentation
+{
+    bool appearanceEnabled = false;
+    bool interactionEnabled = false;
+    bool available = false;
+    bool known = false;
+    bool editable = false;
+    qreal percent = 0.0;
+    int minimumManualPercent = 0;
+    int maximumManualPercent = 0;
+};
+
+struct ImageToolbarPresentationSnapshot
+{
+    kiriview::ImagePresentationPhase phase = kiriview::ImagePresentationPhase::Unavailable;
+    bool collectionControlsVisible = false;
+    ImageToolbarActionPresentation rightToLeftReading;
+    ImageToolbarActionPresentation twoPageMode;
+    ImageToolbarActionPresentation fitMode;
+    ActionId presentedFitActionId = ActionId::ViewFitAction;
+    ImageToolbarZoomPresentation zoom;
 };
 
 class ApplicationActionRuntime final
@@ -78,8 +110,10 @@ public:
     [[nodiscard]] QString actionMenuText(ActionId actionId) const;
     [[nodiscard]] QString actionToolbarText(ActionId actionId) const;
     [[nodiscard]] QString actionToolbarTooltipText(ActionId actionId) const;
+    [[nodiscard]] const ImageToolbarPresentationSnapshot& imageToolbarPresentationSnapshot() const;
+    [[nodiscard]] ImageToolbarActionPresentation imageToolbarActionPresentation(
+        ActionId actionId) const;
     void setActionStateSnapshot(const ApplicationActionStateSnapshot& snapshot);
-    void setActionStateInput(const ApplicationActionStateInput& input);
     void setCommandPortSource(ApplicationCommandPortSource* source);
     [[nodiscard]] ApplicationCommandRouterInput commandRouterInput() const;
     [[nodiscard]] bool rightToLeftReadingActive() const;
@@ -94,6 +128,8 @@ public:
     void setupActions();
 
 private:
+    friend class ApplicationActionSourceAttachment;
+
     QAction* addRegisteredAction(const QString& name, const QString& text, const QString& iconName,
         const QList<QKeySequence>& defaultShortcuts = {});
     QAction* addStandardAction(KStandardActions::StandardAction actionType, const QString& name,
@@ -101,6 +137,9 @@ private:
     QAction* finishRegisteredAction(QAction* registeredAction, const QString& text,
         const QList<QKeySequence>& defaultShortcuts);
     void applyActionState();
+    void resetImageToolbarPresentationHistory();
+    void setActionStateInput(const ApplicationActionStateInput& input);
+    void updateImageToolbarPresentation();
     [[nodiscard]] ApplicationCommandRouterPorts commandRouterPorts() const;
     void handleActionChanged(QAction* changedAction);
     void handleActionTriggered(ActionId actionId, QAction* triggeredAction);
@@ -113,6 +152,8 @@ private:
     ImageActionAvailabilityProjection m_imageActionProjection;
     ApplicationActionStateSnapshot m_actionStateSnapshot;
     ApplicationActionStateInput m_actionStateInput;
+    ImageToolbarPresentationSnapshot m_imageToolbarPresentation;
+    std::optional<ImageToolbarPresentationSnapshot> m_lastCurrentImageToolbarPresentation;
     ApplicationCommandPortSource* m_commandPortSource = nullptr;
     int m_actionStateRevision = 0;
     bool m_applyingActionState = false;

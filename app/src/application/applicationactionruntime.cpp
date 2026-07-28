@@ -15,24 +15,21 @@
 namespace {
 namespace Actions = kiriview::ApplicationActions;
 
-bool sharedImagePannabilityActionGate(
-    kiriview::DocumentSessionActionAvailabilityFacts facts, bool viewportLocalPannable)
-{
-    return facts.imageReady && viewportLocalPannable;
-}
-
 ImageActionAvailabilityInput imageActionAvailabilityInput(
     const Actions::ApplicationActionStateSnapshot& snapshot)
 {
     const kiriview::DocumentSessionActionAvailabilityFacts& facts
         = snapshot.documentSession.availability;
     const Actions::ApplicationActionUiGateSnapshot& gates = snapshot.uiGates;
+    const bool currentAuthoritativeImage = facts.imageReady
+        && snapshot.documentSession.imagePresentationPhase
+            == kiriview::ImagePresentationPhase::CurrentAuthoritative;
     return ImageActionAvailabilityInput {
-        facts.imageReady,
+        currentAuthoritativeImage,
         snapshot.documentSession.fileDeletionInProgress,
         gates.helpDialogOpen,
         gates.textInputFocused,
-        sharedImagePannabilityActionGate(facts, snapshot.documentSession.imagePannable),
+        currentAuthoritativeImage && snapshot.documentSession.imagePannable,
         facts.containerNavigationAvailable,
         facts.twoPageModeActive,
         facts.twoPageModeAvailable,
@@ -116,6 +113,70 @@ Actions::ApplicationCommandRouterInput routerInputForSnapshot(
     input.atKnownFirstActiveNavigation = document.activeNavigation.atKnownFirst;
     input.canOpenPreviousActiveNavigation = document.activeNavigation.canOpenPrevious;
     return input;
+}
+
+Actions::ImageToolbarActionPresentation toolbarActionPresentation(
+    Actions::ActionId actionId, const Actions::ApplicationActionStateInput& input)
+{
+    const Actions::ApplicationActionState state = Actions::applicationActionState(actionId, input);
+    return Actions::ImageToolbarActionPresentation {
+        state.actionEnabled,
+        state.checked,
+        state.actionEnabled,
+    };
+}
+
+Actions::ActionId presentedFitActionId(kiriview::ImageFitModeSelection selection)
+{
+    switch (selection) {
+    case kiriview::ImageFitModeSelection::Fit:
+        return Actions::ActionId::ViewFitAction;
+    case kiriview::ImageFitModeSelection::FitHeight:
+        return Actions::ActionId::ViewFitHeightAction;
+    case kiriview::ImageFitModeSelection::FitWidth:
+        return Actions::ActionId::ViewFitWidthAction;
+    }
+
+    return Actions::ActionId::ViewFitAction;
+}
+
+Actions::ImageToolbarPresentationSnapshot currentImageToolbarPresentation(
+    const Actions::ApplicationActionStateSnapshot& snapshot,
+    const Actions::ApplicationActionStateInput& input)
+{
+    const kiriview::DocumentSessionActionStateSnapshot& document = snapshot.documentSession;
+    Actions::ImageToolbarPresentationSnapshot presentation;
+    presentation.phase = kiriview::ImagePresentationPhase::CurrentAuthoritative;
+    presentation.collectionControlsVisible = document.imageCollectionControlsVisible;
+    presentation.rightToLeftReading
+        = toolbarActionPresentation(Actions::ActionId::ViewToggleRightToLeftReadingAction, input);
+    presentation.twoPageMode
+        = toolbarActionPresentation(Actions::ActionId::ViewToggleTwoPageModeAction, input);
+    presentation.presentedFitActionId = presentedFitActionId(document.imageFitModeSelection);
+    presentation.fitMode = toolbarActionPresentation(presentation.presentedFitActionId, input);
+    presentation.zoom = Actions::ImageToolbarZoomPresentation {
+        input.readyActionsEnabled,
+        input.readyActionsEnabled && document.activeZoom.editable,
+        document.activeZoom.available,
+        document.activeZoom.known,
+        document.activeZoom.editable,
+        document.activeZoom.percent,
+        document.activeZoom.minimumManualPercent,
+        document.activeZoom.maximumManualPercent,
+    };
+    return presentation;
+}
+
+void applyCurrentPlacementAndDisableInteractions(
+    Actions::ImageToolbarPresentationSnapshot& presentation,
+    const Actions::ApplicationActionStateSnapshot& snapshot)
+{
+    presentation.collectionControlsVisible
+        = snapshot.documentSession.imageCollectionControlsVisible;
+    presentation.rightToLeftReading.interactionEnabled = false;
+    presentation.twoPageMode.interactionEnabled = false;
+    presentation.fitMode.interactionEnabled = false;
+    presentation.zoom.interactionEnabled = false;
 }
 }
 
@@ -210,6 +271,33 @@ QString ApplicationActionRuntime::actionToolbarTooltipText(ActionId actionId) co
     return applicationActionToolbarTooltipText(actionId);
 }
 
+const ImageToolbarPresentationSnapshot&
+ApplicationActionRuntime::imageToolbarPresentationSnapshot() const
+{
+    return m_imageToolbarPresentation;
+}
+
+ImageToolbarActionPresentation ApplicationActionRuntime::imageToolbarActionPresentation(
+    ActionId actionId) const
+{
+    switch (actionId) {
+    case ActionId::ViewToggleRightToLeftReadingAction:
+        return m_imageToolbarPresentation.rightToLeftReading;
+    case ActionId::ViewToggleTwoPageModeAction:
+        return m_imageToolbarPresentation.twoPageMode;
+    case ActionId::ViewFitAction:
+    case ActionId::ViewFitHeightAction:
+    case ActionId::ViewFitWidthAction: {
+        ImageToolbarActionPresentation presentation = m_imageToolbarPresentation.fitMode;
+        presentation.appearanceChecked = presentation.appearanceChecked
+            && actionId == m_imageToolbarPresentation.presentedFitActionId;
+        return presentation;
+    }
+    default:
+        return {};
+    }
+}
+
 void ApplicationActionRuntime::setActionStateSnapshot(
     const ApplicationActionStateSnapshot& snapshot)
 {
@@ -224,6 +312,7 @@ void ApplicationActionRuntime::setActionStateInput(const ApplicationActionStateI
     m_actionStateInput = input;
     applyActionState();
     m_shortcutRuntime->setActionStateInput(m_actionStateInput);
+    updateImageToolbarPresentation();
     ++m_actionStateRevision;
     if (m_actionStateChanged) {
         m_actionStateChanged();
@@ -414,6 +503,46 @@ void ApplicationActionRuntime::applyActionState()
         }
     }
     m_applyingActionState = false;
+}
+
+void ApplicationActionRuntime::resetImageToolbarPresentationHistory()
+{
+    m_imageToolbarPresentation = {};
+    m_lastCurrentImageToolbarPresentation.reset();
+}
+
+void ApplicationActionRuntime::updateImageToolbarPresentation()
+{
+    switch (m_actionStateSnapshot.documentSession.imagePresentationPhase) {
+    case kiriview::ImagePresentationPhase::CurrentAuthoritative:
+        m_imageToolbarPresentation
+            = currentImageToolbarPresentation(m_actionStateSnapshot, m_actionStateInput);
+        m_lastCurrentImageToolbarPresentation = m_imageToolbarPresentation;
+        break;
+    case kiriview::ImagePresentationPhase::RetainedPreviousAuthoritative:
+        if (m_lastCurrentImageToolbarPresentation.has_value()) {
+            m_imageToolbarPresentation = *m_lastCurrentImageToolbarPresentation;
+            m_imageToolbarPresentation.phase
+                = kiriview::ImagePresentationPhase::RetainedPreviousAuthoritative;
+            applyCurrentPlacementAndDisableInteractions(
+                m_imageToolbarPresentation, m_actionStateSnapshot);
+            break;
+        }
+        m_imageToolbarPresentation = {};
+        m_imageToolbarPresentation.collectionControlsVisible
+            = m_actionStateSnapshot.documentSession.imageCollectionControlsVisible;
+        applyCurrentPlacementAndDisableInteractions(
+            m_imageToolbarPresentation, m_actionStateSnapshot);
+        break;
+    case kiriview::ImagePresentationPhase::Unavailable:
+        m_lastCurrentImageToolbarPresentation.reset();
+        m_imageToolbarPresentation = {};
+        m_imageToolbarPresentation.collectionControlsVisible
+            = m_actionStateSnapshot.documentSession.imageCollectionControlsVisible;
+        applyCurrentPlacementAndDisableInteractions(
+            m_imageToolbarPresentation, m_actionStateSnapshot);
+        break;
+    }
 }
 
 ApplicationCommandRouterPorts ApplicationActionRuntime::commandRouterPorts() const

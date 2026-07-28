@@ -235,6 +235,7 @@ void TestDocumentSessionProjectionRuntime::publicOnlyChangesSkipThumbnailProject
     kiriview::DocumentSessionPublicSnapshotInput input;
     input.session.documentKind = kiriview::DocumentSessionKind::Image;
     input.image.readyForInformation = true;
+    input.image.completeAuthoritativeDisplayAvailable = true;
     input.image.zoomPercentKnown = true;
     input.image.zoomPercent = 100.0;
 
@@ -259,7 +260,17 @@ void TestDocumentSessionProjectionRuntime::actionStateInputsInvalidatePublicDepe
     kiriview::DocumentSessionProjectionRuntime runtime(std::move(ports));
     kiriview::DocumentSessionPublicSnapshotInput input;
     input.session.documentKind = kiriview::DocumentSessionKind::Image;
+    input.image.readyForInformation = true;
+    input.image.completeAuthoritativeDisplayAvailable = true;
+    input.image.zoomPercentKnown = true;
+    input.image.zoomPercent = 100.0;
 
+    runtime.publish(input, {});
+    input.image.fitModeSelection = kiriview::ImageFitModeSelection::FitHeight;
+    runtime.publish(input, {});
+    input.image.maximumManualZoomPercent = 2'000;
+    runtime.publish(input, {});
+    input.image.minimumManualZoomPercent = 10;
     runtime.publish(input, {});
     input.image.viewportPannable = true;
     runtime.publish(input, {});
@@ -270,24 +281,31 @@ void TestDocumentSessionProjectionRuntime::actionStateInputsInvalidatePublicDepe
     input.video.videoDuration = 42'000;
     runtime.publish(input, {});
 
-    QCOMPARE(committedActionStates.size(), std::size_t(5));
+    QCOMPARE(committedActionStates.size(), std::size_t(8));
     QVERIFY(!committedActionStates.at(0).imagePannable);
-    QVERIFY(committedActionStates.at(1).imagePannable);
-    QVERIFY(committedActionStates.at(2).videoMode);
-    QVERIFY(!committedActionStates.at(2).videoSeekable);
-    QCOMPARE(committedActionStates.at(2).videoDuration, qint64(0));
-    QVERIFY(committedActionStates.at(3).videoSeekable);
-    QCOMPARE(committedActionStates.at(4).videoDuration, qint64(42'000));
+    QCOMPARE(committedActionStates.at(1).imageFitModeSelection,
+        kiriview::ImageFitModeSelection::FitHeight);
+    QCOMPARE(committedActionStates.at(2).activeZoom.maximumManualPercent, 2'000);
+    QCOMPARE(committedActionStates.at(3).activeZoom.minimumManualPercent, 10);
+    QVERIFY(committedActionStates.at(4).imagePannable);
+    QVERIFY(committedActionStates.at(5).videoMode);
+    QVERIFY(!committedActionStates.at(5).videoSeekable);
+    QCOMPARE(committedActionStates.at(5).videoDuration, qint64(0));
+    QVERIFY(committedActionStates.at(6).videoSeekable);
+    QCOMPARE(committedActionStates.at(7).videoDuration, qint64(42'000));
 }
 
 void TestDocumentSessionProjectionRuntime::replacementFallbackFactsInvalidatePublicDependency()
 {
     std::vector<bool> committedFallbackAvailability;
+    std::vector<kiriview::ImagePresentationPhase> committedPhases;
     kiriview::DocumentSessionProjectionRuntimePorts ports;
-    ports.updatePublicSnapshot = [&committedFallbackAvailability](const auto& input) {
-        committedFallbackAvailability.push_back(
-            kiriview::projectDocumentSessionPublicSnapshot(input, 0)
-                .activeImageReplacementFallbackAvailable);
+    ports.updatePublicSnapshot = [&committedFallbackAvailability, &committedPhases](
+                                     const auto& input) {
+        const kiriview::DocumentSessionPublicSnapshot snapshot
+            = kiriview::projectDocumentSessionPublicSnapshot(input, 0);
+        committedFallbackAvailability.push_back(snapshot.activeImageReplacementFallbackAvailable);
+        committedPhases.push_back(snapshot.actionState.imagePresentationPhase);
         return true;
     };
     kiriview::DocumentSessionProjectionRuntime runtime(std::move(ports));
@@ -309,6 +327,12 @@ void TestDocumentSessionProjectionRuntime::replacementFallbackFactsInvalidatePub
             true,
             false,
         }));
+    QCOMPARE(committedPhases.size(), std::size_t(4));
+    QCOMPARE(committedPhases.at(0), kiriview::ImagePresentationPhase::Unavailable);
+    QCOMPARE(committedPhases.at(1), kiriview::ImagePresentationPhase::Unavailable);
+    QCOMPARE(
+        committedPhases.at(2), kiriview::ImagePresentationPhase::RetainedPreviousAuthoritative);
+    QCOMPARE(committedPhases.at(3), kiriview::ImagePresentationPhase::Unavailable);
 }
 
 void TestDocumentSessionProjectionRuntime::
@@ -376,6 +400,7 @@ void TestDocumentSessionProjectionRuntime::
     input.inputRevision = 1;
     input.session.documentKind = kiriview::DocumentSessionKind::Image;
     input.image.readyForInformation = true;
+    input.image.completeAuthoritativeDisplayAvailable = true;
     input.image.displayedUrl = localUrl(QStringLiteral("/media/01.png"));
     input.image.directMediaSize = QSize(640, 480);
     input.image.embeddedMetadata.cameraModel = QStringLiteral("Camera");

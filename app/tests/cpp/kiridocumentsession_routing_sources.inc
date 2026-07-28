@@ -42,7 +42,6 @@ void TestKiriDocumentSessionRouting::publicProjectionRevisionCommitsBeforeScalar
             events.append(QStringLiteral("revision:%1").arg(session->sourceUrl().toString()));
             if (session->sourceUrl() == clip) {
                 QCOMPARE(session->documentKind(), KiriDocumentSession::DocumentKind::Video);
-                QVERIFY(session->activeZoomPercentAvailable());
                 QCOMPARE(session->windowTitleSubject(), QStringLiteral("clip.mp4"));
             }
         });

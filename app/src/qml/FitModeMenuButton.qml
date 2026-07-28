@@ -20,13 +20,15 @@ Controls.Control {
     required property int fitHeightMode
     required property int fitWidthMode
     required property int fitModeSelection
+    required property bool presentationEnabled
     property bool textVisible: true
-    property bool interactionEnabled: enabled
+    property bool interactionEnabled: false
 
-    property alias display: fitButton.display
-    property alias text: fitButton.text
-    property string iconName: fitButton.icon.name
-    property string tooltip: fitButton.Controls.ToolTip.text
+    readonly property int display: textVisible ? Controls.AbstractButton.TextBesideIcon : Controls.AbstractButton.IconOnly
+    readonly property string iconName: action?.icon.name ?? ""
+    readonly property string menuTooltip: KI18n.i18nc("@info:tooltip", "Choose fit mode")
+    readonly property string text: action?.text ?? ""
+    readonly property string tooltip: menuTooltip
 
     signal fitModeTriggered(int zoomMode)
 
@@ -35,44 +37,98 @@ Controls.Control {
         fitMenu.dismiss();
     }
 
-    enabled: action?.enabled ?? false
-    implicitHeight: fitButton.implicitHeight
-    implicitWidth: fitButton.implicitWidth
+    enabled: presentationEnabled
+    focusPolicy: interactionEnabled ? Qt.StrongFocus : Qt.NoFocus
+    implicitHeight: contentLayout.implicitHeight + topPadding + bottomPadding
+    implicitWidth: contentLayout.implicitWidth + leftPadding + rightPadding
     Layout.alignment: Qt.AlignVCenter
-    bottomPadding: 0
-    leftPadding: 0
-    rightPadding: 0
-    topPadding: 0
+    bottomPadding: Kirigami.Units.smallSpacing
+    leftPadding: Kirigami.Units.smallSpacing
+    rightPadding: Kirigami.Units.smallSpacing
+    topPadding: Kirigami.Units.smallSpacing
+
+    Accessible.name: menuTooltip
+    Accessible.role: Accessible.ButtonMenu
+    Accessible.ignored: !visible || !interactionEnabled
+    Accessible.onPressAction: {
+        if (interactionEnabled) {
+            fitMenu.open();
+        }
+    }
+
+    Controls.ToolTip.text: menuTooltip
+    Controls.ToolTip.visible: interactionEnabled && hoverHandler.hovered && Controls.ToolTip.text.length > 0 && !fitMenu.visible && !tapHandler.pressed && !Kirigami.Settings.hasTransientTouchInput
 
     onInteractionEnabledChanged: {
         if (!interactionEnabled) {
             fitMenu.dismiss();
+            focus = false;
+        }
+    }
+    onVisibleChanged: {
+        if (!visible) {
+            fitMenu.dismiss();
+            focus = false;
         }
     }
 
-    contentItem: Controls.ToolButton {
-        id: fitButton
-
-        readonly property string menuTooltip: KI18n.i18nc("@info:tooltip", "Choose fit mode")
-
-        Accessible.name: menuTooltip
-        Accessible.role: Accessible.ButtonMenu
-        Accessible.ignored: !visible || !root.interactionEnabled
-
-        display: root.textVisible ? Controls.AbstractButton.TextBesideIcon : Controls.AbstractButton.IconOnly
-        enabled: root.enabled
-        flat: true
-        icon.name: root.action?.icon.name ?? ""
-        text: root.action?.text ?? ""
-
-        Controls.ToolTip.text: menuTooltip
-        Controls.ToolTip.visible: hovered && Controls.ToolTip.text.length > 0 && !fitMenu.visible && !pressed && !Kirigami.Settings.hasTransientTouchInput
-
-        onClicked: {
-            if (root.interactionEnabled) {
-                fitMenu.open();
-            }
+    Keys.onPressed: event => {
+        if (root.visible && root.interactionEnabled && (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
+            fitMenu.open();
+            event.accepted = true;
         }
+    }
+
+    background: Rectangle {
+        color: {
+            if (!root.interactionEnabled) {
+                return "transparent";
+            }
+            if (tapHandler.pressed) {
+                return Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.backgroundColor, Kirigami.Theme.textColor, 0.2);
+            }
+            if (hoverHandler.hovered || root.visualFocus) {
+                return Kirigami.ColorUtils.linearInterpolation(Kirigami.Theme.backgroundColor, Kirigami.Theme.textColor, 0.1);
+            }
+            return "transparent";
+        }
+        radius: Kirigami.Units.cornerRadius
+    }
+
+    contentItem: RowLayout {
+        id: contentLayout
+
+        layoutDirection: root.mirrored ? Qt.RightToLeft : Qt.LeftToRight
+        spacing: Kirigami.Units.smallSpacing
+
+        Kirigami.Icon {
+            Layout.alignment: Qt.AlignVCenter
+            Layout.preferredHeight: Kirigami.Units.iconSizes.smallMedium
+            Layout.preferredWidth: Layout.preferredHeight
+            source: root.iconName
+        }
+
+        Controls.Label {
+            Layout.alignment: Qt.AlignVCenter
+            color: root.presentationEnabled ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
+            text: root.text
+            visible: root.textVisible
+        }
+    }
+
+    HoverHandler {
+        id: hoverHandler
+
+        enabled: root.interactionEnabled
+    }
+
+    TapHandler {
+        id: tapHandler
+
+        acceptedButtons: Qt.LeftButton
+        enabled: root.interactionEnabled
+
+        onTapped: fitMenu.open()
     }
 
     Controls.Menu {

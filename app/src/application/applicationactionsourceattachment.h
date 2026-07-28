@@ -11,6 +11,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QtGlobal>
+#include <memory>
 #include <vector>
 
 namespace kiriview::ApplicationActions {
@@ -32,8 +33,10 @@ private:
 
     ApplicationActionRuntime& m_runtime;
     QPointer<QObject> m_context;
+    std::unique_ptr<QObject> m_callbackContext;
     DocumentSessionActionStateSnapshotPort m_source;
     ApplicationActionUiGateSnapshot m_uiGateSnapshot;
+    quint64 m_sourceGeneration = 0;
     quint64 m_uiGateRevision = 0;
     std::vector<QMetaObject::Connection> m_connections;
 };

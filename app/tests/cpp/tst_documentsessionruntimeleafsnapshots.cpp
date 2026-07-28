@@ -101,6 +101,7 @@ void TestDocumentSessionRuntimeLeafSnapshots::directImageRoutePublishesImageLeaf
               imageSnapshot.windowTitleFileName = url.fileName();
               imageSnapshot.primaryImageSize = QSize(320, 200);
               imageSnapshot.ready = !url.isEmpty();
+              imageSnapshot.completeAuthoritativeDisplayAvailable = !url.isEmpty();
               imageSnapshot.ordinaryDirectMediaScopeActive = !url.isEmpty();
               imageSnapshot.zoomPercentKnown = true;
               imageSnapshot.zoomPercent = 100.0;
@@ -721,6 +722,7 @@ void TestDocumentSessionRuntimeLeafSnapshots::
               imageSnapshot.displayedUrl = source.requestedUrl();
               imageSnapshot.windowTitleFileName = source.requestedUrl().fileName();
               imageSnapshot.ready = true;
+              imageSnapshot.completeAuthoritativeDisplayAvailable = true;
               imageSnapshot.ordinaryDirectMediaScopeActive = true;
           };
 

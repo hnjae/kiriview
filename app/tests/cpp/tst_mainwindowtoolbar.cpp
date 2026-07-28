@@ -856,6 +856,7 @@ void TestMainWindowToolBar::comicPageReplacementKeepsRightToolbarPresentationSta
     };
     for (QObject* action : presentedActions) {
         QVERIFY(action != nullptr);
+        QVERIFY(action->property("presentationEnabled").toBool());
         QVERIFY(action->property("enabled").toBool());
     }
 
@@ -874,11 +875,11 @@ void TestMainWindowToolBar::comicPageReplacementKeepsRightToolbarPresentationSta
     QCOMPARE(documentSession->imageDocument()->status(), KiriImageDocument::Status::Loading);
     QVERIFY(!documentSession->activeImageReady());
     QVERIFY(documentSession->activeImageReplacementFallbackAvailable());
-    QVERIFY(toolbar->property("readyImageControlPresentationRetained").toBool());
     fixture.window->update();
     static_cast<void>(fixture.window->grabWindow());
     for (QObject* action : presentedActions) {
-        QVERIFY(action->property("enabled").toBool());
+        QVERIFY(action->property("presentationEnabled").toBool());
+        QVERIFY(!action->property("enabled").toBool());
     }
     QCOMPARE(zoomTextInput->property("text").toString(), readyZoomText);
 
@@ -910,6 +911,7 @@ void TestMainWindowToolBar::comicPageReplacementKeepsRightToolbarPresentationSta
     QVERIFY(documentSession->activeImageReady());
     QVERIFY(documentSession->imageDocument()->displayedUrl() != firstPageUrl);
     for (QObject* action : presentedActions) {
+        QVERIFY(action->property("presentationEnabled").toBool());
         QVERIFY(action->property("enabled").toBool());
     }
 }
