@@ -35,6 +35,16 @@ Run repository `just` recipes from the repository root and component `just` reci
 
 ## Repository integration gate
 
+### Scheduling
+
+Broad gates—the component completion groups and repository integration gate—validate a handoff candidate. An internal slice or green commit does not by itself trigger them. While iterating, run the smallest relevant focused tests and lints. When a material boundary between ownership groups changes, run the narrowest focused integration check that exercises that boundary as soon as the boundary is coherent. When the intended implementation and cleanup are complete, commit the candidate and obtain a passing result for every broad gate required by the applicability rules below and component instructions, against that exact commit. Do not run a broad gate merely because an internal slice ended.
+
+A required broader gate satisfies every narrower completion group that it actually executes against the same exact commit; do not run a subsumed group separately. Run only required checks that the broader gate does not cover, such as an artifact build outside the repository CI task graph. A trusted external result may substitute for the repository integration gate only as allowed below.
+
+If a required broad gate fails or any tracked content changes after it passes, use focused checks to diagnose and verify the fix, commit the new candidate, and rerun every still-required broad gate against the new exact commit. Run a broad gate before the handoff-candidate stage only when focused checks cannot provide adequate signal for a material cross-component integration risk and its result is needed to choose or safely continue implementation, or when the user explicitly requests it. This scheduling rule does not defer cheap commit hooks, the expected-failing step of a test-first boundary change, or other focused checks that provide timely signal.
+
+### Applicability
+
 At handoff, documentation-only changes require `just format-check`; skip component code checks and the complete repository gate unless the change is unusually risky or the user explicitly requests broader verification. Documentation-only changes do not require the complete gate solely because they span multiple component documentation trees.
 
 Changes to tracked `CMakeLists.txt`, `*.cmake`, or `*.cmake.in` files require `devenv tasks run --mode=single ci:repo:lint:cmake` in addition to the owning component's completion checks.
