@@ -8,13 +8,23 @@
 #include <algorithm>
 #include <utility>
 
+namespace {
+kiriview::PredecodeWorkKey workKeyForRequest(const kiriview::ImageDecodeRequest& request)
+{
+    return {
+        kiriview::PredecodeImageKey { request.location(), request.sourceRevision() },
+        request.id(),
+    };
+}
+}
+
 namespace kiriview {
 PredecodeActiveDecodeStore::~PredecodeActiveDecodeStore() { cancel(); }
 
 bool PredecodeActiveDecodeStore::add(ImageDecodeRequest request, ImageDecodeJob* decodeJob)
 {
     if (!normalizedValidImageUrl(request.imageUrl()).has_value() || decodeJob == nullptr
-        || contains(request.location())) {
+        || activeLoads().contains(workKeyForRequest(request))) {
         return false;
     }
 
@@ -24,24 +34,14 @@ bool PredecodeActiveDecodeStore::add(ImageDecodeRequest request, ImageDecodeJob*
 
 std::size_t PredecodeActiveDecodeStore::size() const { return m_entries.size(); }
 
-bool PredecodeActiveDecodeStore::contains(const DisplayedImageLocation& location) const
-{
-    if (!normalizedValidImageUrl(location.imageUrl()).has_value()) {
-        return false;
-    }
-
-    return std::ranges::any_of(m_entries,
-        [&location](const Entry& entry) { return entry.request.location() == location; });
-}
-
 PredecodeActiveLoads PredecodeActiveDecodeStore::activeLoads() const
 {
-    std::vector<DisplayedImageLocation> locations;
-    locations.reserve(m_entries.size());
+    std::vector<PredecodeWorkKey> keys;
+    keys.reserve(m_entries.size());
     for (const Entry& entry : m_entries) {
-        locations.push_back(entry.request.location());
+        keys.push_back(workKeyForRequest(entry.request));
     }
-    return PredecodeActiveLoads::fromLocations(locations);
+    return PredecodeActiveLoads::fromWorkKeys(keys);
 }
 
 std::optional<ImageDecodeRequest> PredecodeActiveDecodeStore::finish(

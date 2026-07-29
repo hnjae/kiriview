@@ -68,7 +68,8 @@ void PredecodeLoadState::startWindow(
     };
     m_cache.setWindowLocations(window.locations);
     cacheDisplayedImages(window.displayedImages);
-    m_cache.enqueueMissingWindowLoads(window.primaryDisplayedLocation, activeLoads);
+    m_cache.enqueueMissingWindowLoads(
+        window.primaryDisplayedLocation, activeLoads, window.generation);
 }
 
 bool PredecodeLoadState::canStartMoreLoads(const PredecodeActiveLoads& activeLoads) const
@@ -95,9 +96,15 @@ std::optional<PredecodeLoadStart> PredecodeLoadState::takeNextLoad(
                                   << "generation" << m_activeWindow->generation << "url"
                                   << request->location.imageUrl() << "activeLoads"
                                   << activeLoads.size();
+    std::optional<StaticDisplayImagePayload> authoritativeSeed;
+    if (std::optional<PredecodedImage> candidate = m_cache.findCandidate(request->location)) {
+        authoritativeSeed = std::move(candidate->displayImage);
+    }
     return PredecodeLoadStart {
         ImageDecodeRequest::fromLocation(
-            m_activeWindow->generation, request->location, m_activeWindow->firstDisplayContext),
+            m_activeWindow->generation, request->location, m_activeWindow->firstDisplayContext)
+            .withSourceRevision(request->sourceRevision),
+        std::move(authoritativeSeed),
     };
 }
 
@@ -131,6 +138,6 @@ void PredecodeLoadState::clear()
 std::optional<PredecodedImage> PredecodeLoadState::findPredecodedImage(
     const DisplayedImageLocation& location) const
 {
-    return m_cache.findImage(location);
+    return m_cache.findCandidate(location);
 }
 }

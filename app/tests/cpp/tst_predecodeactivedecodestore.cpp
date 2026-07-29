@@ -25,9 +25,23 @@ kiriview::ImageDecodeRequest decodeRequest(quint64 id, const QUrl& url)
     return kiriview::ImageDecodeRequest::fromUrl(id, url);
 }
 
+kiriview::ImageDecodeRequest decodeRequest(
+    quint64 id, const QUrl& url, const kiriview::ImageSourceRevision& revision)
+{
+    return decodeRequest(id, url).withSourceRevision(revision);
+}
+
 kiriview::DisplayedImageLocation displayedLocation(const QUrl& url)
 {
     return kiriview::DisplayedImageLocation::fromUrl(url);
+}
+
+kiriview::PredecodeWorkKey workKey(const kiriview::ImageDecodeRequest& request)
+{
+    return {
+        kiriview::PredecodeImageKey { request.location(), request.sourceRevision() },
+        request.id(),
+    };
 }
 
 void sendDeferredDeletes() { QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete); }
@@ -39,6 +53,8 @@ class TestPredecodeActiveDecodeStore : public QObject
 
 private Q_SLOTS:
     void addRejectsDuplicateOrInvalidRequests();
+    void activeWorkDistinguishesSourceRevision();
+    void unknownRevisionWorkDistinguishesLifecycleScope();
     void finishReturnsMatchingRequestAndDeletesJob();
     void finishRejectsStaleGenerationAndUrl();
     void finishRemovesOnlyMatchingEntry();
@@ -53,12 +69,55 @@ void TestPredecodeActiveDecodeStore::addRejectsDuplicateOrInvalidRequests()
     const QUrl url = indexedImageUrl(1);
 
     QVERIFY(store.add(decodeRequest(7, url), firstJob));
-    QVERIFY(!store.add(decodeRequest(8, url), duplicateJob));
+    QVERIFY(!store.add(decodeRequest(7, url), duplicateJob));
     QVERIFY(!store.add(kiriview::ImageDecodeRequest {}, firstJob));
     QVERIFY(!store.add(decodeRequest(9, indexedImageUrl(2)), nullptr));
     QCOMPARE(store.size(), std::size_t(1));
 
     duplicateJob->deleteLater();
+    store.cancel();
+    sendDeferredDeletes();
+}
+
+void TestPredecodeActiveDecodeStore::activeWorkDistinguishesSourceRevision()
+{
+    kiriview::PredecodeActiveDecodeStore store;
+    auto* olderJob = new kiriview::ImageDecodeJob(this);
+    auto* newerJob = new kiriview::ImageDecodeJob(this);
+    auto* duplicateJob = new kiriview::ImageDecodeJob(this);
+    const QUrl url = indexedImageUrl(1);
+    const kiriview::ImageSourceRevision olderRevision
+        = kiriview::ImageSourceRevision::fromData(QByteArrayView("older"));
+    const kiriview::ImageSourceRevision newerRevision
+        = kiriview::ImageSourceRevision::fromData(QByteArrayView("newer"));
+    const kiriview::ImageDecodeRequest older = decodeRequest(7, url, olderRevision);
+    const kiriview::ImageDecodeRequest newer = decodeRequest(8, url, newerRevision);
+
+    QVERIFY(store.add(older, olderJob));
+    QVERIFY(store.add(newer, newerJob));
+    QVERIFY(!store.add(decodeRequest(9, url, olderRevision), duplicateJob));
+    QCOMPARE(store.size(), std::size_t(2));
+
+    const kiriview::PredecodeActiveLoads active = store.activeLoads();
+    QVERIFY(active.contains(kiriview::PredecodeImageKey { older.location(), olderRevision }));
+    QVERIFY(active.contains(kiriview::PredecodeImageKey { newer.location(), newerRevision }));
+
+    duplicateJob->deleteLater();
+    store.cancel();
+    sendDeferredDeletes();
+}
+
+void TestPredecodeActiveDecodeStore::unknownRevisionWorkDistinguishesLifecycleScope()
+{
+    kiriview::PredecodeActiveDecodeStore store;
+    auto* olderJob = new kiriview::ImageDecodeJob(this);
+    auto* newerJob = new kiriview::ImageDecodeJob(this);
+    const QUrl url = indexedImageUrl(1);
+
+    QVERIFY(store.add(decodeRequest(7, url), olderJob));
+    QVERIFY(store.add(decodeRequest(8, url), newerJob));
+    QCOMPARE(store.size(), std::size_t(2));
+
     store.cancel();
     sendDeferredDeletes();
 }
@@ -70,14 +129,20 @@ void TestPredecodeActiveDecodeStore::finishReturnsMatchingRequestAndDeletesJob()
     QPointer<kiriview::ImageDecodeJob> jobGuard(job);
     const QUrl url = indexedImageUrl(1);
 
-    QVERIFY(store.add(decodeRequest(7, url), job));
+    const kiriview::ImageDecodeRequest request = decodeRequest(7, url);
+    QVERIFY(store.add(request, job));
 
     QCOMPARE(store.size(), std::size_t(1));
-    QVERIFY(store.contains(displayedLocation(url)));
     const kiriview::PredecodeActiveLoads activeLoads = store.activeLoads();
     QCOMPARE(activeLoads.size(), std::size_t(1));
-    QVERIFY(activeLoads.contains(displayedLocation(url)));
-    QVERIFY(activeLoads.contains(displayedLocation(kiriview::normalizedImageUrl(url))));
+    QVERIFY(activeLoads.contains(workKey(request)));
+    QVERIFY(activeLoads.contains(kiriview::PredecodeWorkKey {
+        kiriview::PredecodeImageKey {
+            displayedLocation(kiriview::normalizedImageUrl(url)),
+            {},
+        },
+        7,
+    }));
 
     const std::optional<kiriview::ImageDecodeRequest> finished
         = store.finish(decodeRequest(7, url));
@@ -124,8 +189,9 @@ void TestPredecodeActiveDecodeStore::finishRemovesOnlyMatchingEntry()
     QVERIFY(store.finish(decodeRequest(7, firstUrl)).has_value());
 
     QCOMPARE(store.size(), std::size_t(1));
-    QVERIFY(!store.contains(displayedLocation(firstUrl)));
-    QVERIFY(store.contains(displayedLocation(secondUrl)));
+    const kiriview::PredecodeActiveLoads active = store.activeLoads();
+    QVERIFY(!active.contains(workKey(decodeRequest(7, firstUrl))));
+    QVERIFY(active.contains(workKey(decodeRequest(7, secondUrl))));
     sendDeferredDeletes();
     QVERIFY(firstJobGuard.isNull());
     QVERIFY(!secondJobGuard.isNull());

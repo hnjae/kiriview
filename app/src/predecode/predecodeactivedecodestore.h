@@ -24,7 +24,6 @@ public:
 
     bool add(ImageDecodeRequest request, ImageDecodeJob* decodeJob);
     [[nodiscard]] std::size_t size() const;
-    [[nodiscard]] bool contains(const DisplayedImageLocation& location) const;
     [[nodiscard]] PredecodeActiveLoads activeLoads() const;
     std::optional<ImageDecodeRequest> finish(const ImageDecodeRequest& request);
     void cancel();

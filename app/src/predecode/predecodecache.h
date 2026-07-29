@@ -8,6 +8,7 @@
 #include "predecodeactiveloads.h"
 #include "predecodedimage.h"
 #include "predecodedisplayedhistory.h"
+#include "predecodeimagekey.h"
 #include "rendering/staticimage.h"
 
 #include <QtGlobal>
@@ -20,6 +21,11 @@ namespace kiriview {
 struct PredecodeRequest
 {
     DisplayedImageLocation location;
+    ImageSourceRevision sourceRevision;
+    quint64 lifecycleScope = 0;
+
+    [[nodiscard]] PredecodeImageKey key() const { return { location, sourceRevision }; }
+    [[nodiscard]] PredecodeWorkKey workKey() const { return { key(), lifecycleScope }; }
 };
 
 class PredecodeCache
@@ -30,15 +36,14 @@ public:
     void clear();
     void clearQueuedLoads();
     void setWindowLocations(const std::vector<DisplayedImageLocation>& locations);
+    void setWindowKeys(const std::vector<PredecodeImageKey>& keys);
     void setDisplayedLocations(const std::vector<DisplayedImageLocation>& locations);
-    void enqueueMissingWindowLoads(
-        const DisplayedImageLocation& displayedLocation, const PredecodeActiveLoads& activeLoads);
+    void enqueueMissingWindowLoads(const DisplayedImageLocation& displayedLocation,
+        const PredecodeActiveLoads& activeLoads, quint64 lifecycleScope = 0);
     std::optional<PredecodeRequest> takeNextRequest(const PredecodeActiveLoads& activeLoads);
-    bool windowContains(const DisplayedImageLocation& location) const;
-    bool hasImage(const DisplayedImageLocation& location) const;
-    bool isInFlight(
-        const DisplayedImageLocation& location, const PredecodeActiveLoads& activeLoads) const;
-    std::optional<PredecodedImage> findImage(const DisplayedImageLocation& location) const;
+    bool isInFlight(const PredecodeWorkKey& key, const PredecodeActiveLoads& activeLoads) const;
+    std::optional<PredecodedImage> findImage(const PredecodeImageKey& key) const;
+    std::optional<PredecodedImage> findCandidate(const DisplayedImageLocation& location) const;
     void cacheImage(const DisplayedImageLocation& location, StaticDisplayImagePayload displayImage,
         EmbeddedMetadata metadata = {});
     void cacheDisplayedImage(bool cacheable, const DisplayedImageLocation& location,
@@ -47,7 +52,7 @@ public:
 private:
     struct CachedImage
     {
-        DisplayedImageLocation location;
+        PredecodeImageKey key;
         StaticDisplayImagePayload displayImage;
         qsizetype byteCost = 0;
         mutable quint64 lastUsedSequence = 0;
@@ -55,16 +60,19 @@ private:
     using CachedImageIterator = std::vector<CachedImage>::iterator;
     using ConstCachedImageIterator = std::vector<CachedImage>::const_iterator;
 
-    static bool containsLocation(const std::vector<DisplayedImageLocation>& locations,
-        const DisplayedImageLocation& location);
-    CachedImageIterator findCachedImage(const DisplayedImageLocation& location);
+    static bool containsKey(
+        const std::vector<PredecodeImageKey>& keys, const PredecodeImageKey& key);
+    bool windowContains(const PredecodeImageKey& key) const;
+    bool hasImage(const PredecodeImageKey& key) const;
     ConstCachedImageIterator findCachedImage(const DisplayedImageLocation& location) const;
-    void removeCachedImage(const DisplayedImageLocation& location);
+    CachedImageIterator findCachedImage(const PredecodeImageKey& key);
+    ConstCachedImageIterator findCachedImage(const PredecodeImageKey& key) const;
+    void removeCachedImage(const PredecodeImageKey& key);
     std::size_t windowPriority(const DisplayedImageLocation& location) const;
     quint64 nextLastUsedSequence() const;
     void trimImagesToBudget();
 
-    std::vector<DisplayedImageLocation> m_windowLocations;
+    std::vector<PredecodeImageKey> m_windowKeys;
     PredecodeDisplayedHistory m_displayedHistory;
     std::deque<PredecodeRequest> m_queue;
     std::vector<CachedImage> m_images;

@@ -59,7 +59,12 @@ kiriview::PredecodeLoadWindow loadWindow(
 
 kiriview::PredecodeActiveLoads activeLoads(std::vector<QUrl> urls)
 {
-    return kiriview::PredecodeActiveLoads::fromLocations(displayedLocations(urls));
+    std::vector<kiriview::PredecodeWorkKey> keys;
+    for (const kiriview::DisplayedImageLocation& location : displayedLocations(urls)) {
+        keys.push_back(
+            kiriview::PredecodeWorkKey { kiriview::PredecodeImageKey { location, {} }, 7 });
+    }
+    return kiriview::PredecodeActiveLoads::fromWorkKeys(keys);
 }
 
 kiriview::PredecodeLoadState loadState() { return kiriview::PredecodeLoadState(1024 * 1024); }
@@ -75,6 +80,7 @@ private Q_SLOTS:
     void replacingWindowClearsQueuedLoadsAndUsesNextGeneration();
     void cancelBackgroundWorkKeepsDisplayedCacheButDropsQueuedLoads();
     void findPredecodedImageDoesNotConsumeCachedImage();
+    void unknownRevisionLoadCarriesCandidateSeedForValidation();
 };
 
 void TestPredecodeLoadState::activeWindowBuildsDecodeRequestsFromCanonicalContext()
@@ -171,6 +177,29 @@ void TestPredecodeLoadState::findPredecodedImageDoesNotConsumeCachedImage()
     QVERIFY(firstLookup.has_value());
     QVERIFY(secondLookup.has_value());
     QCOMPARE(secondLookup->location.imageUrl(), displayedUrl);
+}
+
+void TestPredecodeLoadState::unknownRevisionLoadCarriesCandidateSeedForValidation()
+{
+    kiriview::PredecodeLoadState state = loadState();
+    const QUrl displayedUrl = indexedImageUrl(1);
+    const QUrl adjacentUrl = indexedImageUrl(2);
+    const kiriview::ImageDecodeRequest cachedRequest
+        = kiriview::ImageDecodeRequest::fromUrl(6, adjacentUrl);
+    const kiriview::StaticDisplayImagePayload cachedPayload
+        = staticDisplayTestImagePayload(testImage());
+    const kiriview::ImageSourceRevision cachedRevision = cachedPayload.sourceRevision;
+    state.cacheDecodedImage(cachedRequest, cachedPayload);
+
+    state.startWindow(
+        loadWindow(displayedUrl, { displayedUrl, adjacentUrl }), kiriview::PredecodeActiveLoads {});
+    const std::optional<kiriview::PredecodeLoadStart> load
+        = state.takeNextLoad(kiriview::PredecodeActiveLoads {});
+
+    QVERIFY(load.has_value());
+    QCOMPARE(load->request.imageUrl(), adjacentUrl);
+    QVERIFY(load->authoritativeSeed.has_value());
+    QCOMPARE(load->authoritativeSeed->sourceRevision, cachedRevision);
 }
 
 QTEST_GUILESS_MAIN(TestPredecodeLoadState)

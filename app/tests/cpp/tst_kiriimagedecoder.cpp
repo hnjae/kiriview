@@ -199,14 +199,13 @@ QByteArray createPngData()
 
 QByteArray animatedGifData()
 {
-    return QByteArray::fromHex(
-        "47494638396101000100800000000000ffffff"
-        "21ff0b4e45545343415045322e300301000000"
-        "21f904000a000000"
-        "2c0000000001000100000202440100"
-        "21f904000a000000"
-        "2c0000000001000100000202440100"
-        "3b");
+    return QByteArray::fromHex("47494638396101000100800000000000ffffff"
+                               "21ff0b4e45545343415045322e300301000000"
+                               "21f904000a000000"
+                               "2c0000000001000100000202440100"
+                               "21f904000a000000"
+                               "2c0000000001000100000202440100"
+                               "3b");
 }
 
 void appendLittleEndian16(QByteArray* data, quint16 value)

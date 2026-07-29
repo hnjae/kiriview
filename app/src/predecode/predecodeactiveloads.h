@@ -4,7 +4,7 @@
 #ifndef KIRIVIEW_PREDECODEACTIVELOADS_H
 #define KIRIVIEW_PREDECODEACTIVELOADS_H
 
-#include "location/imagelocation.h"
+#include "predecodeimagekey.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -16,31 +16,52 @@ class PredecodeActiveLoads final
 public:
     PredecodeActiveLoads() = default;
 
-    static PredecodeActiveLoads fromLocations(const std::vector<DisplayedImageLocation>& locations)
+    static PredecodeActiveLoads fromKeys(const std::vector<PredecodeImageKey>& imageKeys)
+    {
+        std::vector<PredecodeWorkKey> keys;
+        keys.reserve(imageKeys.size());
+        for (const PredecodeImageKey& key : imageKeys) {
+            if (!key.isValid()) {
+                continue;
+            }
+            keys.push_back(PredecodeWorkKey { key, 0 });
+        }
+        return fromWorkKeys(keys);
+    }
+
+    static PredecodeActiveLoads fromWorkKeys(const std::vector<PredecodeWorkKey>& keys)
     {
         PredecodeActiveLoads loads;
-        loads.m_locations.reserve(locations.size());
-        for (const DisplayedImageLocation& location : locations) {
-            if (!normalizedValidImageUrl(location.imageUrl()).has_value()
-                || loads.contains(location)) {
+        loads.m_keys.reserve(keys.size());
+        for (const PredecodeWorkKey& key : keys) {
+            if (!normalizedValidImageUrl(key.image.location.imageUrl()).has_value()
+                || (!key.image.sourceRevision.isValid() && key.lifecycleScope == 0)
+                || loads.contains(key)) {
                 continue;
             }
 
-            loads.m_locations.push_back(location);
+            loads.m_keys.push_back(key);
         }
         return loads;
     }
 
-    [[nodiscard]] std::size_t size() const { return m_locations.size(); }
+    [[nodiscard]] std::size_t size() const { return m_keys.size(); }
 
-    [[nodiscard]] bool contains(const DisplayedImageLocation& location) const
+    [[nodiscard]] bool contains(const PredecodeImageKey& key) const
     {
-        return normalizedValidImageUrl(location.imageUrl()).has_value()
-            && std::ranges::contains(m_locations, location);
+        return key.isValid() && contains(PredecodeWorkKey { key, 0 });
+    }
+
+    [[nodiscard]] bool contains(const PredecodeWorkKey& key) const
+    {
+        return normalizedValidImageUrl(key.image.location.imageUrl()).has_value()
+            && std::ranges::any_of(m_keys, [&key](const PredecodeWorkKey& candidate) {
+                   return samePredecodeWork(candidate, key);
+               });
     }
 
 private:
-    std::vector<DisplayedImageLocation> m_locations;
+    std::vector<PredecodeWorkKey> m_keys;
 };
 }
 

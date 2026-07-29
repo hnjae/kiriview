@@ -29,6 +29,7 @@ struct PredecodeLoadWindow
 struct PredecodeLoadStart
 {
     ImageDecodeRequest request;
+    std::optional<StaticDisplayImagePayload> authoritativeSeed;
 };
 
 class PredecodeLoadState final

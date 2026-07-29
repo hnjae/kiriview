@@ -86,7 +86,7 @@ bool PredecodeLoadController::startLoad(PredecodeLoadStart load)
     qCDebug(kiriviewPredecodeLog) << "predecode decode job start"
                                   << "generation" << request.id() << "url" << request.imageUrl()
                                   << "activeLoads" << m_activeDecodes.size();
-    decodeJob->start(request);
+    decodeJob->start(request, std::move(load.authoritativeSeed));
     return true;
 }
 
