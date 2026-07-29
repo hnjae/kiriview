@@ -19,15 +19,6 @@ namespace {
     DisplayedImageLocation primaryDisplayedLocationForWindow(
         const PredecodePendingSchedule& schedule)
     {
-        if (schedule.context.immediate) {
-            if (!schedule.context.displayedImages.empty()
-                && schedule.context.displayedImages.front().hasLocation()) {
-                return schedule.context.displayedImages.front().location;
-            }
-
-            return {};
-        }
-
         return schedule.context.currentLocation;
     }
 
@@ -53,6 +44,9 @@ void ImagePredecodeCoordinator::schedule(const Context& context)
     qCDebug(kiriviewPredecodeLog) << "image predecode schedule"
                                   << "url" << context.currentLocation.imageUrl()
                                   << "displayedImages" << context.displayedImages.size();
+    if (context.immediate) {
+        m_loadController.retireBackgroundLoad(context.currentLocation);
+    }
     m_scheduleRuntime.schedule(context);
 }
 
