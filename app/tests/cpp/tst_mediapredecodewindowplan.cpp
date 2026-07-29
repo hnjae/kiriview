@@ -9,6 +9,7 @@
 #include <QTest>
 #include <QUrl>
 #include <cstddef>
+#include <optional>
 #include <vector>
 
 namespace {
@@ -28,10 +29,20 @@ kiriview::PredecodePolicyInput regularPolicyInput()
     };
 }
 
+kiriview::DirectMediaPageScopeIdentity directMediaPageScopeIdentity(const QUrl& url)
+{
+    const std::optional<kiriview::DirectMediaPageScopeIdentity> identity
+        = kiriview::directMediaPageScopeIdentityForSource(
+            kiriview::ResolvedNavigationSource(url, {}, url));
+    Q_ASSERT(identity.has_value());
+    return *identity;
+}
+
 kiriview::MediaPredecodeEligibilitySnapshot eligibilitySnapshot(
     const std::vector<kiriview::DirectMediaNavigationCandidate>& candidates, const QUrl& currentUrl)
 {
-    return kiriview::mediaPredecodeEligibilitySnapshot(candidates, currentUrl);
+    return kiriview::mediaPredecodeEligibilitySnapshot(
+        candidates, directMediaPageScopeIdentity(currentUrl));
 }
 }
 
@@ -52,8 +63,10 @@ void TestMediaPredecodeWindowPlan::mediaWindowUsesVideoCursorAndQueuesOnlyImages
     const QUrl nextImage = localUrl(QStringLiteral("/media/03.png"));
     const QUrl secondNextImage = localUrl(QStringLiteral("/media/04.png"));
     const QUrl nextVideo = localUrl(QStringLiteral("/media/05.mov"));
+    const kiriview::DirectMediaPageScopeIdentity currentIdentity
+        = directMediaPageScopeIdentity(currentVideo);
     const kiriview::PredecodeWindowPlan windowPlan = kiriview::mediaPredecodeWindowPlan(
-        eligibilitySnapshot(
+        kiriview::mediaPredecodeEligibilitySnapshot(
             {
                 directMediaNavigationCandidate(secondPreviousImage),
                 directMediaNavigationCandidate(previousImage),
@@ -62,16 +75,20 @@ void TestMediaPredecodeWindowPlan::mediaWindowUsesVideoCursorAndQueuesOnlyImages
                 directMediaNavigationCandidate(secondNextImage),
                 directMediaNavigationCandidate(nextVideo),
             },
-            currentVideo),
+            currentIdentity),
         regularPolicyInput());
 
-    QCOMPARE(windowPlan.openedCollectionScope, kiriview::OpenedCollectionScopeLocation {});
     QCOMPARE(windowPlan.parallelLimit, std::size_t(1));
-    QCOMPARE(windowPlan.urls.size(), std::size_t(4));
-    QCOMPARE(windowPlan.urls.at(0), nextImage);
-    QCOMPARE(windowPlan.urls.at(1), previousImage);
-    QCOMPARE(windowPlan.urls.at(2), secondNextImage);
-    QCOMPARE(windowPlan.urls.at(3), secondPreviousImage);
+    QCOMPARE(windowPlan.locations.size(), std::size_t(4));
+    QCOMPARE(windowPlan.locations.at(0).imageUrl(), nextImage);
+    QCOMPARE(windowPlan.locations.at(1).imageUrl(), previousImage);
+    QCOMPARE(windowPlan.locations.at(2).imageUrl(), secondNextImage);
+    QCOMPARE(windowPlan.locations.at(3).imageUrl(), secondPreviousImage);
+    for (const kiriview::DisplayedImageLocation& location : windowPlan.locations) {
+        QVERIFY(location.directMediaPageScopeIdentity().has_value());
+        QVERIFY(kiriview::sameSourceKey(
+            location.directMediaPageScopeIdentity()->parentKey(), currentIdentity.parentKey()));
+    }
 }
 
 void TestMediaPredecodeWindowPlan::missingCurrentCandidateYieldsEmptyWindow()
@@ -87,7 +104,7 @@ void TestMediaPredecodeWindowPlan::missingCurrentCandidateYieldsEmptyWindow()
         regularPolicyInput());
 
     QCOMPARE(windowPlan.parallelLimit, std::size_t(1));
-    QVERIFY(windowPlan.urls.empty());
+    QVERIFY(windowPlan.locations.empty());
 }
 
 QTEST_GUILESS_MAIN(TestMediaPredecodeWindowPlan)

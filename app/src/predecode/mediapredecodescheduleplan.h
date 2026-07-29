@@ -27,6 +27,7 @@ public:
 struct MediaPredecodeScheduleRequest
 {
     QUrl currentUrl;
+    std::optional<DirectMediaScope> activeScope;
     DirectMediaNavigationCandidateSnapshot candidateSnapshot;
     std::vector<DisplayedPredecodeImage> displayedImages;
     ImageFirstDisplayDecodeContext firstDisplayContext;

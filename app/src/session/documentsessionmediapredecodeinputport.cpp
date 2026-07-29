@@ -28,10 +28,9 @@ DocumentSessionMediaPredecodeInput DocumentSessionMediaPredecodeInputPort::curre
         m_state->documentKind(),
         m_image->ordinaryDirectMediaScopeActive,
         m_image->readyForInformation,
-        m_scope->activeCursorUrl(),
+        scope,
         m_image->primaryDisplayedPredecodeImage,
         m_image->firstDisplayDecodeContext,
-        scope.has_value() ? scope->parentKey() : SourceKey {},
     };
 }
 }

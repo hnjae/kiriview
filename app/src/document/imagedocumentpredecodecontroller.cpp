@@ -46,6 +46,24 @@ namespace {
                 target.url, currentLocation.openedCollectionScope());
         }
 
+        if (sameNormalizedUrl(target.url, currentLocation.imageUrl())) {
+            return currentLocation;
+        }
+
+        if (currentLocation.directMediaPageScopeIdentity().has_value()) {
+            if (sameSourceKey(sourceKeyForUrl(target.url),
+                    currentLocation.directMediaPageScopeIdentity()->currentKey())) {
+                return currentLocation;
+            }
+            const std::optional<DirectMediaPageScopeIdentity> targetIdentity
+                = directMediaPageScopeIdentityForOwnerCandidate(
+                    target.url, currentLocation.directMediaPageScopeIdentity()->parentKey());
+            if (!targetIdentity.has_value()) {
+                return std::nullopt;
+            }
+            return DisplayedImageLocation::fromDirectMediaPageScope(target.url, *targetIdentity);
+        }
+
         return DisplayedImageLocation::fromUrl(target.url);
     }
 

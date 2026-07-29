@@ -6,6 +6,44 @@
 #include "location/imageurl.h"
 
 namespace kiriview {
+std::optional<DirectMediaPageScopeIdentity> directMediaPageScopeIdentityForSource(
+    const ResolvedNavigationSource& source)
+{
+    if (source.isEmpty()) {
+        return std::nullopt;
+    }
+
+    SourceKey currentKey = sourceKeyForUrl(source.navigationUrl());
+    if (!currentKey.valid) {
+        return std::nullopt;
+    }
+
+    SourceKey parentKey
+        = sourceKeyForUrl(parentDirectoryUrlForFileNavigation(currentKey.normalizedUrl));
+    if (!parentKey.valid) {
+        return std::nullopt;
+    }
+
+    return DirectMediaPageScopeIdentity(std::move(currentKey), std::move(parentKey));
+}
+
+std::optional<DirectMediaPageScopeIdentity> directMediaPageScopeIdentityForOwnerCandidate(
+    const QUrl& candidateUrl, const SourceKey& ownerParentKey)
+{
+    SourceKey currentKey = sourceKeyForUrl(candidateUrl);
+    if (!currentKey.valid || !ownerParentKey.valid) {
+        return std::nullopt;
+    }
+
+    const SourceKey candidateParentKey
+        = sourceKeyForUrl(parentDirectoryUrlForFileNavigation(currentKey.normalizedUrl));
+    if (!sameSourceKey(candidateParentKey, ownerParentKey)) {
+        return std::nullopt;
+    }
+
+    return DirectMediaPageScopeIdentity(std::move(currentKey), ownerParentKey);
+}
+
 bool sameOpenedCollectionScopeLocation(
     const OpenedCollectionScopeLocation& left, const OpenedCollectionScopeLocation& right)
 {
@@ -32,7 +70,13 @@ QString displayScopeIdentityForLocation(const DisplayedImageLocation& location)
             .arg(scopeFileIdentity, scopeRootIdentity, imageIdentity);
     }
 
-    return QStringLiteral("displayed\x1f%1")
-        .arg(normalizedUrlIdentityKey(location.imageUrl(), QUrl::FullyEncoded));
+    const std::optional<DirectMediaPageScopeIdentity>& directIdentity
+        = location.directMediaPageScopeIdentity();
+    if (!directIdentity.has_value()) {
+        return {};
+    }
+
+    return QStringLiteral("direct\x1f%1\x1f%2")
+        .arg(directIdentity->currentKey().identity, directIdentity->parentKey().identity);
 }
 }

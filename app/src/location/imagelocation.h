@@ -5,39 +5,106 @@
 #define KIRIVIEW_IMAGELOCATION_H
 
 #include "location/imageurl.h"
+#include "location/sourcekey.h"
 
 #include <QString>
 #include <QUrl>
+#include <optional>
 #include <utility>
 
 namespace kiriview {
+class DirectMediaPageScopeIdentity final
+{
+public:
+    [[nodiscard]] const SourceKey& currentKey() const { return m_currentKey; }
+    [[nodiscard]] const SourceKey& parentKey() const { return m_parentKey; }
+    [[nodiscard]] QUrl parentNavigationUrl() const
+    {
+        return parentDirectoryUrlForFileNavigation(m_currentKey.normalizedUrl);
+    }
+
+    friend bool operator==(
+        const DirectMediaPageScopeIdentity& left, const DirectMediaPageScopeIdentity& right)
+    {
+        return sameSourceKey(left.m_currentKey, right.m_currentKey)
+            && sameSourceKey(left.m_parentKey, right.m_parentKey);
+    }
+
+private:
+    DirectMediaPageScopeIdentity(SourceKey currentKey, SourceKey parentKey)
+        : m_currentKey(std::move(currentKey))
+        , m_parentKey(std::move(parentKey))
+    {
+    }
+
+    SourceKey m_currentKey;
+    SourceKey m_parentKey;
+
+    friend std::optional<DirectMediaPageScopeIdentity> directMediaPageScopeIdentityForSource(
+        const ResolvedNavigationSource& source);
+    friend std::optional<DirectMediaPageScopeIdentity>
+    directMediaPageScopeIdentityForOwnerCandidate(
+        const QUrl& candidateUrl, const SourceKey& ownerParentKey);
+};
+
+std::optional<DirectMediaPageScopeIdentity> directMediaPageScopeIdentityForSource(
+    const ResolvedNavigationSource& source);
+std::optional<DirectMediaPageScopeIdentity> directMediaPageScopeIdentityForOwnerCandidate(
+    const QUrl& candidateUrl, const SourceKey& ownerParentKey);
+
 class ImageLocation
 {
 public:
     ImageLocation() = default;
     explicit ImageLocation(const QUrl& url)
-        : m_source(normalizedSource(url))
+        : ImageLocation(normalizedSource(url))
     {
     }
 
     static ImageLocation fromUrl(const QUrl& url) { return ImageLocation(url); }
     static ImageLocation fromResolvedSource(ResolvedNavigationSource source)
     {
-        ImageLocation location;
-        location.m_source = std::move(source);
+        return ImageLocation(std::move(source));
+    }
+    static ImageLocation fromDirectMediaPageScope(
+        const QUrl& requestedUrl, DirectMediaPageScopeIdentity identity)
+    {
+        ImageLocation location(
+            ResolvedNavigationSource(requestedUrl, {}, identity.currentKey().normalizedUrl));
+        location.m_directMediaPageScopeIdentity = std::move(identity);
         return location;
     }
 
     [[nodiscard]] const QUrl& url() const { return m_source.requestedUrl(); }
     [[nodiscard]] const ResolvedNavigationSource& source() const { return m_source; }
+    [[nodiscard]] const SourceKey& sourceKey() const { return m_sourceKey; }
+    [[nodiscard]] const std::optional<DirectMediaPageScopeIdentity>&
+    directMediaPageScopeIdentity() const
+    {
+        return m_directMediaPageScopeIdentity;
+    }
     [[nodiscard]] bool isEmpty() const { return m_source.isEmpty(); }
 
     friend bool operator==(const ImageLocation& left, const ImageLocation& right)
     {
-        return left.url() == right.url();
+        if (left.isEmpty() || right.isEmpty()) {
+            return left.isEmpty() && right.isEmpty();
+        }
+        const bool sameSource = left.m_sourceKey.valid || right.m_sourceKey.valid
+            ? sameSourceKey(left.m_sourceKey, right.m_sourceKey)
+            : normalizedUrlForIdentity(left.url()) == normalizedUrlForIdentity(right.url());
+        return sameSource
+            && left.m_directMediaPageScopeIdentity == right.m_directMediaPageScopeIdentity;
     }
 
 private:
+    explicit ImageLocation(ResolvedNavigationSource source)
+        : m_source(std::move(source))
+        , m_sourceKey(sourceKeyForUrl(m_source.requestedUrl()))
+        , m_directMediaPageScopeIdentity(directMediaPageScopeIdentityForSource(m_source))
+    {
+    }
+
     static ResolvedNavigationSource normalizedSource(const QUrl& url)
     {
         const QUrl normalizedUrl = normalizedUrlForIdentity(url);
@@ -46,6 +113,8 @@ private:
     }
 
     ResolvedNavigationSource m_source;
+    SourceKey m_sourceKey;
+    std::optional<DirectMediaPageScopeIdentity> m_directMediaPageScopeIdentity;
 };
 
 class ContainerLocation
@@ -168,6 +237,14 @@ public:
             std::move(openedCollectionScope) };
     }
 
+    static DisplayedImageLocation fromDirectMediaPageScope(
+        const QUrl& requestedUrl, DirectMediaPageScopeIdentity identity)
+    {
+        return DisplayedImageLocation { ImageLocation::fromDirectMediaPageScope(
+                                            requestedUrl, std::move(identity)),
+            OpenedCollectionScopeLocation::none() };
+    }
+
     static DisplayedImageLocation fromOpenedCollectionScope(
         const QUrl& imageUrl, OpenedCollectionScopeLocation openedCollectionScope)
     {
@@ -176,6 +253,12 @@ public:
 
     [[nodiscard]] const QUrl& imageUrl() const { return m_image.url(); }
     [[nodiscard]] const ResolvedNavigationSource& imageSource() const { return m_image.source(); }
+    [[nodiscard]] const SourceKey& imageSourceKey() const { return m_image.sourceKey(); }
+    [[nodiscard]] const std::optional<DirectMediaPageScopeIdentity>&
+    directMediaPageScopeIdentity() const
+    {
+        return m_image.directMediaPageScopeIdentity();
+    }
     [[nodiscard]] const OpenedCollectionScopeLocation& openedCollectionScope() const
     {
         return m_openedCollectionScope;
@@ -188,8 +271,13 @@ public:
     void setImageUrl(const QUrl& url) { m_image = ImageLocation::fromUrl(url); }
     friend bool operator==(const DisplayedImageLocation& left, const DisplayedImageLocation& right)
     {
-        return left.m_image == right.m_image
-            && left.m_openedCollectionScope == right.m_openedCollectionScope;
+        if (left.m_openedCollectionScope != right.m_openedCollectionScope) {
+            return false;
+        }
+        if (!left.m_openedCollectionScope.isEmpty()) {
+            return left.imageUrl() == right.imageUrl();
+        }
+        return left.m_image == right.m_image;
     }
 
 private:

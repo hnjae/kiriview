@@ -5,6 +5,7 @@
 #include "predecode/mediapredecodecoordinator.h"
 
 #include <QObject>
+#include <QSet>
 #include <QTest>
 #include <QUrl>
 #include <cstddef>
@@ -31,6 +32,15 @@ kiriview::DisplayedImageLocation displayedLocation(const QUrl& url)
     return kiriview::DisplayedImageLocation::fromUrl(url);
 }
 
+kiriview::DisplayedImageLocation displayedLocation(
+    const QUrl& url, const kiriview::DirectMediaScope& ownerScope)
+{
+    const std::optional<kiriview::DirectMediaPageScopeIdentity> identity
+        = kiriview::directMediaPageScopeIdentityForOwnerCandidate(url, ownerScope.parentKey());
+    Q_ASSERT(identity.has_value());
+    return kiriview::DisplayedImageLocation::fromDirectMediaPageScope(url, *identity);
+}
+
 kiriview::DirectMediaNavigationCandidate directMediaNavigationCandidate(const QUrl& url)
 {
     return kiriview::DirectMediaNavigationCandidate { url, url.fileName(QUrl::PrettyDecoded) };
@@ -47,13 +57,12 @@ std::vector<kiriview::DirectMediaNavigationCandidate> mixedDirectMediaNavigation
 }
 
 kiriview::DirectMediaNavigationCandidateSnapshot directMediaNavigationCandidateSnapshot(
+    const kiriview::ResolvedNavigationSource& source,
     std::vector<kiriview::DirectMediaNavigationCandidate> candidates)
 {
     kiriview::DirectMediaNavigationCandidateSnapshot snapshot;
     if (!candidates.empty()) {
-        snapshot.source = kiriview::DirectMediaScope::fromSource(
-            kiriview::ResolvedNavigationSource(candidates.front().url, {}, candidates.front().url),
-            4);
+        snapshot.source = kiriview::DirectMediaScope::fromSource(source, 4);
     }
     snapshot.revision = 1;
     snapshot.candidates
@@ -65,12 +74,34 @@ kiriview::DirectMediaNavigationCandidateSnapshot directMediaNavigationCandidateS
     return snapshot;
 }
 
+kiriview::DirectMediaNavigationCandidateSnapshot directMediaNavigationCandidateSnapshot(
+    std::vector<kiriview::DirectMediaNavigationCandidate> candidates)
+{
+    const QUrl sourceUrl = candidates.empty() ? QUrl() : candidates.front().url;
+    return directMediaNavigationCandidateSnapshot(
+        kiriview::ResolvedNavigationSource(sourceUrl, {}, sourceUrl), std::move(candidates));
+}
+
 kiriview::DisplayedPredecodeImage displayedImage(const QUrl& url)
 {
     return kiriview::DisplayedPredecodeImage {
         kiriview::DisplayedImageLocation::fromUrl(url),
         true,
         staticDisplayTestImagePayload(testImage()),
+    };
+}
+
+kiriview::MediaPredecodeCoordinator::Context predecodeContext(const QUrl& currentUrl,
+    kiriview::DirectMediaNavigationCandidateSnapshot candidateSnapshot,
+    std::vector<kiriview::DisplayedPredecodeImage> displayedImages = {}, bool immediate = false)
+{
+    return kiriview::MediaPredecodeCoordinator::Context {
+        currentUrl,
+        candidateSnapshot.source,
+        std::move(candidateSnapshot),
+        std::move(displayedImages),
+        {},
+        immediate,
     };
 }
 
@@ -106,6 +137,7 @@ class TestMediaPredecodeCoordinator : public QObject
 
 private Q_SLOTS:
     void videoCursorKeepsImageCacheAndLoadsAdjacentImages();
+    void differentDirectMediaScopesDoNotShareAdjacentPredecode();
     void powerSaverSuppressesLoadsButRetainsDisplayedImages();
     void powerSaverReschedulesVideoCursorWithoutDisplayedImages();
     void invalidScheduleClearsSuppressedDirectMediaNavigationCandidates();
@@ -120,14 +152,15 @@ void TestMediaPredecodeCoordinator::videoCursorKeepsImageCacheAndLoadsAdjacentIm
     const QUrl videoUrl = localUrl(QStringLiteral("/media/01.mp4"));
     const QUrl nextUrl = localUrl(QStringLiteral("/media/02.png"));
     const QUrl laterUrl = localUrl(QStringLiteral("/media/03.png"));
-    const kiriview::DirectMediaNavigationCandidateSnapshot candidates
+    const std::vector candidateRows = mixedDirectMediaNavigationCandidates();
+    const kiriview::DirectMediaNavigationCandidateSnapshot displayedCandidates
         = directMediaNavigationCandidateSnapshot(mixedDirectMediaNavigationCandidates());
+    const kiriview::DirectMediaNavigationCandidateSnapshot videoCandidates
+        = directMediaNavigationCandidateSnapshot(
+            kiriview::ResolvedNavigationSource(videoUrl, {}, videoUrl), candidateRows);
 
-    coordinator.schedule(kiriview::MediaPredecodeCoordinator::Context {
-        displayedUrl,
-        candidates,
-        { displayedImage(displayedUrl) },
-    });
+    coordinator.schedule(
+        predecodeContext(displayedUrl, displayedCandidates, { displayedImage(displayedUrl) }));
 
     QVERIFY(coordinator.findPredecodedImage(displayedLocation(displayedUrl)).has_value());
     QTRY_COMPARE(dataLoader.loadCount(), std::size_t(1));
@@ -135,17 +168,70 @@ void TestMediaPredecodeCoordinator::videoCursorKeepsImageCacheAndLoadsAdjacentIm
     QVERIFY(dataLoader.finishOldestActiveLoadForUrl(nextUrl, QByteArrayLiteral("next")));
     QTRY_VERIFY(coordinator.findPredecodedImage(displayedLocation(nextUrl)).has_value());
 
-    coordinator.schedule(kiriview::MediaPredecodeCoordinator::Context {
-        videoUrl,
-        candidates,
-        {},
-    });
+    coordinator.schedule(predecodeContext(videoUrl, videoCandidates));
 
-    QTRY_COMPARE(dataLoader.loadCount(), std::size_t(2));
-    QCOMPARE(dataLoader.backLoad().url, laterUrl);
-    QVERIFY(dataLoader.backLoad().url != videoUrl);
+    QSet<QUrl> loadedUrls;
+    for (std::size_t loadCount = 2; loadCount <= 4; ++loadCount) {
+        QTRY_COMPARE(dataLoader.loadCount(), loadCount);
+        const QUrl loadedUrl = dataLoader.backLoad().url;
+        loadedUrls.insert(loadedUrl);
+        if (loadCount < 4) {
+            QVERIFY(dataLoader.finishOldestActiveLoadForUrl(
+                loadedUrl, QByteArrayLiteral("revalidated")));
+        }
+    }
+    QCOMPARE(loadedUrls, QSet<QUrl>({ displayedUrl, nextUrl, laterUrl }));
+    QVERIFY(!loadedUrls.contains(videoUrl));
     QVERIFY(coordinator.findPredecodedImage(displayedLocation(displayedUrl)).has_value());
     QVERIFY(coordinator.findPredecodedImage(displayedLocation(nextUrl)).has_value());
+}
+
+void TestMediaPredecodeCoordinator::differentDirectMediaScopesDoNotShareAdjacentPredecode()
+{
+    ManualImageDataLoader dataLoader;
+    kiriview::MediaPredecodeCoordinator coordinator = createCoordinator(dataLoader);
+
+    const QUrl requestedCurrentUrl = localUrl(QStringLiteral("/portal/document/current.mp4"));
+    const QUrl firstAdjacentImageUrl = localUrl(QStringLiteral("/resolved/first/adjacent.png"));
+    const QUrl secondAdjacentImageUrl = localUrl(QStringLiteral("/resolved/second/adjacent.png"));
+    const QUrl firstCurrentUrl = localUrl(QStringLiteral("/resolved/first/current.mp4"));
+    const QUrl secondCurrentUrl = localUrl(QStringLiteral("/resolved/second/current.mp4"));
+    const kiriview::ResolvedNavigationSource firstSource(requestedCurrentUrl, {}, firstCurrentUrl);
+    const kiriview::ResolvedNavigationSource secondSource(
+        requestedCurrentUrl, {}, secondCurrentUrl);
+    const std::vector firstCandidates {
+        directMediaNavigationCandidate(firstCurrentUrl),
+        directMediaNavigationCandidate(firstAdjacentImageUrl),
+    };
+    const std::vector secondCandidates {
+        directMediaNavigationCandidate(secondCurrentUrl),
+        directMediaNavigationCandidate(secondAdjacentImageUrl),
+    };
+    const std::optional<kiriview::DirectMediaScope> firstScope
+        = kiriview::DirectMediaScope::fromSource(firstSource, 4);
+    const std::optional<kiriview::DirectMediaScope> secondScope
+        = kiriview::DirectMediaScope::fromSource(secondSource, 4);
+    QVERIFY(firstScope.has_value());
+    QVERIFY(secondScope.has_value());
+    const kiriview::DisplayedImageLocation firstAdjacentLocation
+        = displayedLocation(firstAdjacentImageUrl, *firstScope);
+    const kiriview::DisplayedImageLocation secondAdjacentLocation
+        = displayedLocation(secondAdjacentImageUrl, *secondScope);
+
+    coordinator.schedule(predecodeContext(
+        requestedCurrentUrl, directMediaNavigationCandidateSnapshot(firstSource, firstCandidates)));
+    QTRY_COMPARE(dataLoader.loadCount(), std::size_t(1));
+    QCOMPARE(dataLoader.frontLoad().url, firstAdjacentImageUrl);
+    QVERIFY(dataLoader.finishOldestActiveLoadForUrl(
+        firstAdjacentImageUrl, QByteArrayLiteral("first-scope")));
+    QTRY_VERIFY(coordinator.findPredecodedImage(firstAdjacentLocation).has_value());
+    QVERIFY(!coordinator.findPredecodedImage(secondAdjacentLocation).has_value());
+
+    coordinator.schedule(predecodeContext(requestedCurrentUrl,
+        directMediaNavigationCandidateSnapshot(secondSource, secondCandidates)));
+
+    QTRY_COMPARE(dataLoader.loadCount(), std::size_t(2));
+    QCOMPARE(dataLoader.backLoad().url, secondAdjacentImageUrl);
 }
 
 void TestMediaPredecodeCoordinator::powerSaverSuppressesLoadsButRetainsDisplayedImages()
@@ -160,11 +246,9 @@ void TestMediaPredecodeCoordinator::powerSaverSuppressesLoadsButRetainsDisplayed
     const QUrl displayedUrl = localUrl(QStringLiteral("/media/00.png"));
     const QUrl nextUrl = localUrl(QStringLiteral("/media/02.png"));
     timerScheduler.advanceTo(1000);
-    coordinator.schedule(kiriview::MediaPredecodeCoordinator::Context {
-        displayedUrl,
+    coordinator.schedule(predecodeContext(displayedUrl,
         directMediaNavigationCandidateSnapshot(mixedDirectMediaNavigationCandidates()),
-        { displayedImage(displayedUrl) },
-    });
+        { displayedImage(displayedUrl) }));
 
     QVERIFY(coordinator.findPredecodedImage(displayedLocation(displayedUrl)).has_value());
     QCOMPARE(dataLoader.loadCount(), std::size_t(0));
@@ -192,11 +276,10 @@ void TestMediaPredecodeCoordinator::powerSaverReschedulesVideoCursorWithoutDispl
     const QUrl videoUrl = localUrl(QStringLiteral("/media/01.mp4"));
     const QUrl nextUrl = localUrl(QStringLiteral("/media/02.png"));
     timerScheduler.advanceTo(1000);
-    coordinator.schedule(kiriview::MediaPredecodeCoordinator::Context {
-        videoUrl,
-        directMediaNavigationCandidateSnapshot(mixedDirectMediaNavigationCandidates()),
-        {},
-    });
+    const std::vector candidateRows = mixedDirectMediaNavigationCandidates();
+    coordinator.schedule(predecodeContext(videoUrl,
+        directMediaNavigationCandidateSnapshot(
+            kiriview::ResolvedNavigationSource(videoUrl, {}, videoUrl), candidateRows)));
 
     QCOMPARE(dataLoader.loadCount(), std::size_t(0));
 
@@ -220,11 +303,11 @@ void TestMediaPredecodeCoordinator::invalidScheduleClearsSuppressedDirectMediaNa
     QVERIFY(powerSaverMonitor != nullptr);
 
     timerScheduler.advanceTo(1000);
-    coordinator.schedule(kiriview::MediaPredecodeCoordinator::Context {
-        localUrl(QStringLiteral("/media/01.mp4")),
-        directMediaNavigationCandidateSnapshot(mixedDirectMediaNavigationCandidates()),
-        {},
-    });
+    const QUrl videoUrl = localUrl(QStringLiteral("/media/01.mp4"));
+    const std::vector candidateRows = mixedDirectMediaNavigationCandidates();
+    coordinator.schedule(predecodeContext(videoUrl,
+        directMediaNavigationCandidateSnapshot(
+            kiriview::ResolvedNavigationSource(videoUrl, {}, videoUrl), candidateRows)));
     coordinator.schedule(kiriview::MediaPredecodeCoordinator::Context {});
 
     powerSaverMonitor->setPowerSaverEnabled(false);

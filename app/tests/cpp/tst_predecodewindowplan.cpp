@@ -78,9 +78,8 @@ void TestPredecodeWindowPlan::regularImagePlansCandidateContextAndNeutralWindow(
     const kiriview::PredecodeWindowStartPlan startPlan = startPlanForLocation(location);
 
     QVERIFY(startPlan.shouldLoadCandidates());
-    QVERIFY(startPlan.fallbackWindow.openedCollectionScope.isEmpty());
     QCOMPARE(startPlan.fallbackWindow.parallelLimit, std::size_t(1));
-    QVERIFY(startPlan.fallbackWindow.urls.empty());
+    QVERIFY(startPlan.fallbackWindow.locations.empty());
     QVERIFY(startPlan.candidateList.has_value());
     QCOMPARE(startPlan.candidateList->context.currentUrl(), indexedImageUrl(5));
 
@@ -88,12 +87,19 @@ void TestPredecodeWindowPlan::regularImagePlansCandidateContextAndNeutralWindow(
         = kiriview::predecodeWindowPlanForCandidates(startPlan, imageDocumentPageCandidates(15));
 
     QCOMPARE(windowPlan.parallelLimit, std::size_t(1));
-    QCOMPARE(windowPlan.urls.size(), std::size_t(5));
-    QCOMPARE(windowPlan.urls.at(0), indexedImageUrl(5));
-    QCOMPARE(windowPlan.urls.at(1), indexedImageUrl(6));
-    QCOMPARE(windowPlan.urls.at(2), indexedImageUrl(4));
-    QCOMPARE(windowPlan.urls.at(3), indexedImageUrl(7));
-    QCOMPARE(windowPlan.urls.at(4), indexedImageUrl(3));
+    QCOMPARE(windowPlan.locations.size(), std::size_t(5));
+    QCOMPARE(windowPlan.locations.at(0).imageUrl(), indexedImageUrl(5));
+    QCOMPARE(windowPlan.locations.at(1).imageUrl(), indexedImageUrl(6));
+    QCOMPARE(windowPlan.locations.at(2).imageUrl(), indexedImageUrl(4));
+    QCOMPARE(windowPlan.locations.at(3).imageUrl(), indexedImageUrl(7));
+    QCOMPARE(windowPlan.locations.at(4).imageUrl(), indexedImageUrl(3));
+    QVERIFY(location.directMediaPageScopeIdentity().has_value());
+    for (const kiriview::DisplayedImageLocation& candidateLocation : windowPlan.locations) {
+        QVERIFY(candidateLocation.directMediaPageScopeIdentity().has_value());
+        QVERIFY(
+            kiriview::sameSourceKey(candidateLocation.directMediaPageScopeIdentity()->parentKey(),
+                location.directMediaPageScopeIdentity()->parentKey()));
+    }
 }
 
 void TestPredecodeWindowPlan::powerSaverSuppressesCandidateLoading()
@@ -108,7 +114,7 @@ void TestPredecodeWindowPlan::powerSaverSuppressesCandidateLoading()
 
     const kiriview::PredecodeWindowPlan windowPlan = startPlan.fallbackWindow;
     QCOMPARE(windowPlan.parallelLimit, std::size_t(0));
-    QVERIFY(windowPlan.urls.empty());
+    QVERIFY(windowPlan.locations.empty());
 }
 
 void TestPredecodeWindowPlan::missingCandidateContextStillCarriesFallbackWindow()
@@ -122,8 +128,7 @@ void TestPredecodeWindowPlan::missingCandidateContextStillCarriesFallbackWindow(
 
     const kiriview::PredecodeWindowPlan windowPlan = startPlan.fallbackWindow;
     QCOMPARE(windowPlan.parallelLimit, std::size_t(1));
-    QVERIFY(windowPlan.openedCollectionScope.isEmpty());
-    QVERIFY(windowPlan.urls.empty());
+    QVERIFY(windowPlan.locations.empty());
 }
 
 void TestPredecodeWindowPlan::directoryCollectionUsesDocumentParallelLimit()
@@ -137,21 +142,23 @@ void TestPredecodeWindowPlan::directoryCollectionUsesDocumentParallelLimit()
     const kiriview::PredecodeWindowStartPlan startPlan = startPlanForLocation(location);
 
     QVERIFY(startPlan.shouldLoadCandidates());
-    QCOMPARE(startPlan.fallbackWindow.openedCollectionScope, directoryCollection);
 
     const kiriview::PredecodeWindowPlan windowPlan
         = kiriview::predecodeWindowPlanForCandidates(startPlan, imageDocumentPageCandidates(15));
 
     QCOMPARE(windowPlan.parallelLimit, std::size_t(2));
-    QCOMPARE(windowPlan.urls.size(), std::size_t(8));
-    QCOMPARE(windowPlan.urls.at(0), indexedImageUrl(5));
-    QCOMPARE(windowPlan.urls.at(1), indexedImageUrl(6));
-    QCOMPARE(windowPlan.urls.at(2), indexedImageUrl(4));
-    QCOMPARE(windowPlan.urls.at(3), indexedImageUrl(7));
-    QCOMPARE(windowPlan.urls.at(4), indexedImageUrl(3));
-    QCOMPARE(windowPlan.urls.at(5), indexedImageUrl(8));
-    QCOMPARE(windowPlan.urls.at(6), indexedImageUrl(2));
-    QCOMPARE(windowPlan.urls.at(7), indexedImageUrl(9));
+    QCOMPARE(windowPlan.locations.size(), std::size_t(8));
+    QCOMPARE(windowPlan.locations.at(0).imageUrl(), indexedImageUrl(5));
+    QCOMPARE(windowPlan.locations.at(1).imageUrl(), indexedImageUrl(6));
+    QCOMPARE(windowPlan.locations.at(2).imageUrl(), indexedImageUrl(4));
+    QCOMPARE(windowPlan.locations.at(3).imageUrl(), indexedImageUrl(7));
+    QCOMPARE(windowPlan.locations.at(4).imageUrl(), indexedImageUrl(3));
+    QCOMPARE(windowPlan.locations.at(5).imageUrl(), indexedImageUrl(8));
+    QCOMPARE(windowPlan.locations.at(6).imageUrl(), indexedImageUrl(2));
+    QCOMPARE(windowPlan.locations.at(7).imageUrl(), indexedImageUrl(9));
+    for (const kiriview::DisplayedImageLocation& candidateLocation : windowPlan.locations) {
+        QCOMPARE(candidateLocation.openedCollectionScope(), directoryCollection);
+    }
 }
 
 void TestPredecodeWindowPlan::predecodeWindowSkipsOpenedCollectionVideoCandidates()
@@ -175,9 +182,9 @@ void TestPredecodeWindowPlan::predecodeWindowSkipsOpenedCollectionVideoCandidate
                 imageDocumentPageCandidate(nextImageUrl),
             });
 
-    QCOMPARE(windowPlan.urls.size(), std::size_t(2));
-    QCOMPARE(windowPlan.urls.at(0), displayedUrl);
-    QCOMPARE(windowPlan.urls.at(1), nextImageUrl);
+    QCOMPARE(windowPlan.locations.size(), std::size_t(2));
+    QCOMPARE(windowPlan.locations.at(0).imageUrl(), displayedUrl);
+    QCOMPARE(windowPlan.locations.at(1).imageUrl(), nextImageUrl);
 }
 
 void TestPredecodeWindowPlan::archiveWindowPreservesOpenedCollectionScopeContext()
@@ -197,7 +204,6 @@ void TestPredecodeWindowPlan::archiveWindowPreservesOpenedCollectionScopeContext
     const kiriview::PredecodeWindowStartPlan startPlan = startPlanForLocation(location);
 
     QVERIFY(startPlan.shouldLoadCandidates());
-    QCOMPARE(startPlan.fallbackWindow.openedCollectionScope, *openedCollectionScope);
 
     const kiriview::PredecodeWindowPlan windowPlan
         = kiriview::predecodeWindowPlanForCandidates(startPlan,
@@ -206,11 +212,12 @@ void TestPredecodeWindowPlan::archiveWindowPreservesOpenedCollectionScopeContext
                 imageDocumentPageCandidate(nextUrl),
             });
 
-    QCOMPARE(windowPlan.openedCollectionScope, *openedCollectionScope);
     QCOMPARE(windowPlan.parallelLimit, std::size_t(2));
-    QCOMPARE(windowPlan.urls.size(), std::size_t(2));
-    QCOMPARE(windowPlan.urls.at(0), displayedUrl);
-    QCOMPARE(windowPlan.urls.at(1), nextUrl);
+    QCOMPARE(windowPlan.locations.size(), std::size_t(2));
+    QCOMPARE(windowPlan.locations.at(0).imageUrl(), displayedUrl);
+    QCOMPARE(windowPlan.locations.at(1).imageUrl(), nextUrl);
+    QCOMPARE(windowPlan.locations.at(0).openedCollectionScope(), *openedCollectionScope);
+    QCOMPARE(windowPlan.locations.at(1).openedCollectionScope(), *openedCollectionScope);
 }
 
 void TestPredecodeWindowPlan::missingCurrentCandidateYieldsEmptyWindow()
@@ -228,7 +235,7 @@ void TestPredecodeWindowPlan::missingCurrentCandidateYieldsEmptyWindow()
             });
 
     QCOMPARE(windowPlan.parallelLimit, std::size_t(1));
-    QVERIFY(windowPlan.urls.empty());
+    QVERIFY(windowPlan.locations.empty());
 }
 
 void TestPredecodeWindowPlan::candidateListingFailureUsesPlannedFallbackWindow()
@@ -239,7 +246,7 @@ void TestPredecodeWindowPlan::candidateListingFailureUsesPlannedFallbackWindow()
 
     QVERIFY(startPlan.shouldLoadCandidates());
     QCOMPARE(startPlan.fallbackWindow.parallelLimit, std::size_t(1));
-    QVERIFY(startPlan.fallbackWindow.urls.empty());
+    QVERIFY(startPlan.fallbackWindow.locations.empty());
 
     const kiriview::PredecodeWindowPlan fallbackWindow = kiriview::predecodeWindowPlanForCandidates(
         kiriview::PredecodeWindowStartPlan {
@@ -249,7 +256,7 @@ void TestPredecodeWindowPlan::candidateListingFailureUsesPlannedFallbackWindow()
         imageDocumentPageCandidates(15));
 
     QCOMPARE(fallbackWindow.parallelLimit, startPlan.fallbackWindow.parallelLimit);
-    QVERIFY(fallbackWindow.urls.empty());
+    QVERIFY(fallbackWindow.locations.empty());
 }
 
 QTEST_GUILESS_MAIN(TestPredecodeWindowPlan)

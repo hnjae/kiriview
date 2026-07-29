@@ -120,6 +120,7 @@ private Q_SLOTS:
     void cacheStoresAndFindsWindowImages();
     void cacheFindsImagesByUrlAndOpenedCollectionScope();
     void queueAndActiveWorkDistinguishOpenedCollectionScope();
+    void directResolvedScopesKeepExactCacheAndQueueIdentity();
     void cacheReusesOnlyMatchingSourceRevision();
     void queueAndActiveWorkDistinguishSourceRevision();
     void activeLoadsRejectUnscopedUnknownIdentity();
@@ -314,6 +315,55 @@ void TestPredecodeCache::queueAndActiveWorkDistinguishOpenedCollectionScope()
         firstScopeActive));
     const std::optional<kiriview::PredecodeRequest> request
         = cache.takeNextRequest(firstScopeActive);
+    QVERIFY(request.has_value());
+    QVERIFY(request->location == secondLocation);
+}
+
+void TestPredecodeCache::directResolvedScopesKeepExactCacheAndQueueIdentity()
+{
+    const QUrl requestedUrl = QUrl::fromLocalFile(QStringLiteral("/portal/document/shared.png"));
+    const kiriview::DisplayedImageLocation firstLocation
+        = kiriview::DisplayedImageLocation::fromResolvedSource(kiriview::ResolvedNavigationSource(
+            requestedUrl, {}, QUrl::fromLocalFile(QStringLiteral("/resolved/first/shared.png"))));
+    const kiriview::DisplayedImageLocation secondLocation
+        = kiriview::DisplayedImageLocation::fromResolvedSource(kiriview::ResolvedNavigationSource(
+            requestedUrl, {}, QUrl::fromLocalFile(QStringLiteral("/resolved/second/shared.png"))));
+    QVERIFY(firstLocation != secondLocation);
+
+    kiriview::PredecodeCache cache(160);
+    QImage firstImage = cacheImage();
+    firstImage.fill(Qt::red);
+    QImage secondImage = cacheImage();
+    secondImage.fill(Qt::blue);
+    cache.cacheImage(firstLocation, cacheDisplayImage(firstImage));
+    cache.cacheImage(secondLocation, cacheDisplayImage(secondImage));
+
+    const std::optional<kiriview::PredecodedImage> first = cache.findCandidate(firstLocation);
+    const std::optional<kiriview::PredecodedImage> second = cache.findCandidate(secondLocation);
+    QVERIFY(first.has_value());
+    QVERIFY(second.has_value());
+    QCOMPARE(first->displayImage.image.pixelColor(0, 0), QColor(Qt::red));
+    QCOMPARE(second->displayImage.image.pixelColor(0, 0), QColor(Qt::blue));
+
+    kiriview::PredecodeCache queueCache(160);
+    queueCache.setWindowLocations({ secondLocation });
+    const kiriview::PredecodeActiveLoads firstScopeActive = activeLoads({ firstLocation });
+    queueCache.enqueueMissingWindowLoads({}, firstScopeActive, 7);
+
+    QVERIFY(queueCache.isInFlight(
+        kiriview::PredecodeWorkKey {
+            kiriview::PredecodeImageKey { firstLocation, {} },
+            7,
+        },
+        firstScopeActive));
+    QVERIFY(queueCache.isInFlight(
+        kiriview::PredecodeWorkKey {
+            kiriview::PredecodeImageKey { secondLocation, {} },
+            7,
+        },
+        firstScopeActive));
+    const std::optional<kiriview::PredecodeRequest> request
+        = queueCache.takeNextRequest(firstScopeActive);
     QVERIFY(request.has_value());
     QVERIFY(request->location == secondLocation);
 }

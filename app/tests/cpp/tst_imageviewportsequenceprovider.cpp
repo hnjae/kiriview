@@ -4,6 +4,7 @@
 #include "decoding/imagesourcerevision.h"
 #include "decoding/kiriimagedecoder.h"
 #include "image_test_support.h"
+#include "location/imagelocation.h"
 #include "location/imageurl.h"
 #include "location/sourcekey.h"
 #include "rendering/imageviewportdecodesource.h"
@@ -816,10 +817,11 @@ void TestImageViewportSequenceProvider::
 
 void TestImageViewportSequenceProvider::providerResourceSeparatesWorkAndDisplayReuseIdentity()
 {
-    const auto sourceWithAutomaticFrame = []() {
+    const auto sourceWithAutomaticFrame = [](QColor color = QColor(20, 40, 60, 255)) {
         auto source = std::make_shared<FakeImageViewportProviderSource>();
         source->automaticFrame = kiriview::ImageViewportProviderFrameResult::ready(
-            displayPayload(kiriview::DisplayImageQuality::Exact),
+            displayPayload(
+                kiriview::DisplayImageQuality::Exact, {}, QSize(128, 64), std::move(color)),
             ImageSequenceProviderFrameEnvelope::stillFrame(), QStringLiteral("png"));
         return source;
     };
@@ -873,6 +875,51 @@ void TestImageViewportSequenceProvider::providerResourceSeparatesWorkAndDisplayR
     QCOMPARE(sharedStore->size(), qsizetype(1));
     QCOMPARE(firstSource->frameIdentities.front().locationIdentity, QStringLiteral("work-a"));
     QCOMPARE(secondSource->frameIdentities.front().locationIdentity, QStringLiteral("work-b"));
+
+    const QUrl requestedUrl(QStringLiteral("file:///portal/document/page.png"));
+    const kiriview::DisplayedImageLocation firstDirectScope
+        = kiriview::DisplayedImageLocation::fromResolvedSource(kiriview::ResolvedNavigationSource(
+            requestedUrl, {}, QUrl(QStringLiteral("file:///resolved/first/page.png"))));
+    const kiriview::DisplayedImageLocation secondDirectScope
+        = kiriview::DisplayedImageLocation::fromResolvedSource(kiriview::ResolvedNavigationSource(
+            requestedUrl, {}, QUrl(QStringLiteral("file:///resolved/second/page.png"))));
+    auto scopedStore = std::make_shared<kiriview::DisplayImageStore>(1024 * 1024);
+    auto firstScopedResource = std::make_shared<kiriview::ImageViewportProviderResource>(
+        106, QStringLiteral("scoped-work-a"), sourceWithAutomaticFrame(Qt::red), scopedStore);
+    auto secondScopedResource = std::make_shared<kiriview::ImageViewportProviderResource>(
+        107, QStringLiteral("scoped-work-b"), sourceWithAutomaticFrame(Qt::blue), scopedStore);
+    QVERIFY(firstScopedResource->bindDisplayLocationIdentity(
+        kiriview::displayScopeIdentityForLocation(firstDirectScope)));
+    QVERIFY(secondScopedResource->bindDisplayLocationIdentity(
+        kiriview::displayScopeIdentityForLocation(secondDirectScope)));
+
+    const kiriview::ImageViewportProviderPreparedFrame firstScopedPrepared
+        = requestFrame(firstScopedResource,
+            kiriview::ImageViewportProviderWorkIdentity {
+                106,
+                ImageViewportPageRole::Primary,
+                {},
+                {},
+                QStringLiteral("scoped-work-a"),
+            });
+    const kiriview::ImageViewportProviderPreparedFrame secondScopedPrepared
+        = requestFrame(secondScopedResource,
+            kiriview::ImageViewportProviderWorkIdentity {
+                107,
+                ImageViewportPageRole::Primary,
+                {},
+                {},
+                QStringLiteral("scoped-work-b"),
+            });
+
+    QVERIFY(firstScopedPrepared.isReady());
+    QVERIFY(secondScopedPrepared.isReady());
+    QVERIFY(firstScopedPrepared.storeEntryId != secondScopedPrepared.storeEntryId);
+    QCOMPARE(scopedStore->size(), qsizetype(2));
+    QCOMPARE(scopedStore->entry(firstScopedPrepared.storeEntryId)->image.pixelColor(0, 0),
+        QColor(Qt::red));
+    QCOMPARE(scopedStore->entry(secondScopedPrepared.storeEntryId)->image.pixelColor(0, 0),
+        QColor(Qt::blue));
 
     auto legacyStore = std::make_shared<kiriview::DisplayImageStore>(1024 * 1024);
     auto firstLegacyResource = std::make_shared<kiriview::ImageViewportProviderResource>(

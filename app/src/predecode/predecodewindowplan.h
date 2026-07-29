@@ -29,8 +29,7 @@ struct PredecodeCandidateListLoadPlan
 
 struct PredecodeWindowPlan
 {
-    OpenedCollectionScopeLocation openedCollectionScope;
-    std::vector<QUrl> urls;
+    std::vector<DisplayedImageLocation> locations;
     std::size_t parallelLimit = 0;
 };
 

@@ -9,30 +9,43 @@
 
 namespace kiriview {
 MediaPredecodeEligibilitySnapshot mediaPredecodeEligibilitySnapshot(
-    const std::vector<DirectMediaNavigationCandidate>& candidates, const QUrl& currentUrl)
+    const std::vector<DirectMediaNavigationCandidate>& candidates,
+    const DirectMediaPageScopeIdentity& currentIdentity)
 {
     MediaPredecodeEligibilitySnapshot snapshot {
         candidates.size(),
-        directMediaNavigationCandidateIndex(candidates, currentUrl),
+        std::nullopt,
         {},
     };
     snapshot.images.reserve(candidates.size());
 
     for (std::size_t index = 0; index < candidates.size(); ++index) {
         const DirectMediaNavigationCandidate& candidate = candidates.at(index);
+        const std::optional<DirectMediaPageScopeIdentity> candidateIdentity
+            = directMediaPageScopeIdentityForOwnerCandidate(
+                candidate.url, currentIdentity.parentKey());
+        if (!candidateIdentity.has_value()) {
+            continue;
+        }
+        if (sameSourceKey(candidateIdentity->currentKey(), currentIdentity.currentKey())) {
+            snapshot.currentMediaIndex = index;
+        }
         if (isSupportedStillImageDirectMediaNavigationCandidate(candidate)) {
-            snapshot.images.push_back(MediaPredecodeEligibleImage { candidate.url, index });
+            snapshot.images.push_back(MediaPredecodeEligibleImage {
+                DisplayedImageLocation::fromDirectMediaPageScope(candidate.url, *candidateIdentity),
+                index,
+            });
         }
     }
 
     return snapshot;
 }
 
-std::vector<QUrl> mediaPredecodeEligibleUrlsForTargetIndices(
+std::vector<DisplayedImageLocation> mediaPredecodeEligibleLocationsForTargetIndices(
     const MediaPredecodeEligibilitySnapshot& snapshot, const std::vector<std::size_t>& indices)
 {
-    std::vector<QUrl> urls;
-    urls.reserve(indices.size());
+    std::vector<DisplayedImageLocation> locations;
+    locations.reserve(indices.size());
 
     for (std::size_t index : indices) {
         const auto eligible = std::ranges::find_if(
@@ -40,10 +53,10 @@ std::vector<QUrl> mediaPredecodeEligibleUrlsForTargetIndices(
                 return image.mediaIndex == index;
             });
         if (eligible != snapshot.images.cend()) {
-            urls.push_back(eligible->url);
+            locations.push_back(eligible->location);
         }
     }
 
-    return urls;
+    return locations;
 }
 }

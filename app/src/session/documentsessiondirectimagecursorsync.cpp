@@ -3,7 +3,15 @@
 
 #include "session/documentsessiondirectimagecursorsync.h"
 
-#include "location/imageurl.h"
+#include "location/sourcekey.h"
+
+namespace {
+bool sameRequestedSource(const QUrl& left, const QUrl& right)
+{
+    return kiriview::sameSourceKey(
+        kiriview::sourceKeyForUrl(left), kiriview::sourceKeyForUrl(right));
+}
+}
 
 namespace kiriview {
 DocumentSessionDirectImageCursorSyncPlan documentSessionDirectImageCursorSyncPlan(
@@ -17,7 +25,7 @@ DocumentSessionDirectImageCursorSyncPlan documentSessionDirectImageCursorSyncPla
     const QUrl displayedUrl = input.image.displayedUrl;
     if (!pendingUrl.isEmpty()) {
         if (input.image.ordinaryDirectMediaScopeActive
-            && sameNormalizedUrl(displayedUrl, pendingUrl)) {
+            && sameRequestedSource(displayedUrl, pendingUrl)) {
             return DocumentSessionDirectImageCursorSyncPlan {
                 DocumentSessionDirectImageCursorSyncOperation::ConfirmDirectImageCursor,
                 displayedUrl,
@@ -25,7 +33,7 @@ DocumentSessionDirectImageCursorSyncPlan documentSessionDirectImageCursorSyncPla
         }
 
         if (input.image.error) {
-            if (sameNormalizedUrl(input.image.sourceUrl, pendingUrl)) {
+            if (sameRequestedSource(input.image.sourceUrl, pendingUrl)) {
                 return DocumentSessionDirectImageCursorSyncPlan {
                     DocumentSessionDirectImageCursorSyncOperation::ConfirmDirectImageCursor,
                     pendingUrl,
@@ -37,7 +45,8 @@ DocumentSessionDirectImageCursorSyncPlan documentSessionDirectImageCursorSyncPla
             };
         }
 
-        if (!input.image.sourceUrl.isEmpty() && input.image.sourceUrl != pendingUrl) {
+        if (!input.image.sourceUrl.isEmpty()
+            && !sameRequestedSource(input.image.sourceUrl, pendingUrl)) {
             return DocumentSessionDirectImageCursorSyncPlan {
                 DocumentSessionDirectImageCursorSyncOperation::RestoreDirectImageCursorAfterFailure,
                 QUrl(),

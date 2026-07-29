@@ -4,9 +4,9 @@
 #ifndef KIRIVIEW_MEDIAPREDECODEELIGIBILITY_H
 #define KIRIVIEW_MEDIAPREDECODEELIGIBILITY_H
 
+#include "location/imagelocation.h"
 #include "navigation/directmedianavigationmodel.h"
 
-#include <QUrl>
 #include <cstddef>
 #include <optional>
 #include <vector>
@@ -14,7 +14,7 @@
 namespace kiriview {
 struct MediaPredecodeEligibleImage
 {
-    QUrl url;
+    DisplayedImageLocation location;
     std::size_t mediaIndex = 0;
 };
 
@@ -26,8 +26,9 @@ struct MediaPredecodeEligibilitySnapshot
 };
 
 MediaPredecodeEligibilitySnapshot mediaPredecodeEligibilitySnapshot(
-    const std::vector<DirectMediaNavigationCandidate>& candidates, const QUrl& currentUrl);
-std::vector<QUrl> mediaPredecodeEligibleUrlsForTargetIndices(
+    const std::vector<DirectMediaNavigationCandidate>& candidates,
+    const DirectMediaPageScopeIdentity& currentIdentity);
+std::vector<DisplayedImageLocation> mediaPredecodeEligibleLocationsForTargetIndices(
     const MediaPredecodeEligibilitySnapshot& snapshot, const std::vector<std::size_t>& indices);
 }
 

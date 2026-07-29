@@ -4,8 +4,7 @@
 #ifndef KIRIVIEW_DIRECTMEDIACURSOR_H
 #define KIRIVIEW_DIRECTMEDIACURSOR_H
 
-#include "location/imageurl.h"
-#include "location/sourcekey.h"
+#include "location/imagelocation.h"
 
 #include <QUrl>
 #include <QtGlobal>
@@ -25,30 +24,32 @@ public:
     static std::optional<DirectMediaScope> fromSource(
         const ResolvedNavigationSource& source, quint64 generation);
 
-    [[nodiscard]] const QUrl& currentUrl() const { return m_currentUrl; }
+    [[nodiscard]] const ResolvedNavigationSource& source() const { return m_source; }
+    [[nodiscard]] const DirectMediaPageScopeIdentity& pageScopeIdentity() const
+    {
+        return m_pageScopeIdentity;
+    }
+    [[nodiscard]] const QUrl& currentUrl() const { return m_source.requestedUrl(); }
     [[nodiscard]] const QUrl& parentUrl() const { return m_parentUrl; }
     [[nodiscard]] quint64 generation() const { return m_generation; }
-    [[nodiscard]] const SourceKey& currentKey() const { return m_currentKey; }
-    [[nodiscard]] const SourceKey& parentKey() const { return m_parentKey; }
-    [[nodiscard]] const QUrl& navigationUrl() const { return m_navigationUrl; }
+    [[nodiscard]] const SourceKey& currentKey() const { return m_pageScopeIdentity.currentKey(); }
+    [[nodiscard]] const SourceKey& parentKey() const { return m_pageScopeIdentity.parentKey(); }
+    [[nodiscard]] const QUrl& navigationUrl() const { return m_source.navigationUrl(); }
 
     friend bool operator==(const DirectMediaScope& left, const DirectMediaScope& right)
     {
-        return sameSourceKey(left.m_currentKey, right.m_currentKey)
-            && sameSourceKey(left.m_parentKey, right.m_parentKey)
+        return left.m_pageScopeIdentity == right.m_pageScopeIdentity
             && left.m_generation == right.m_generation;
     }
 
 private:
-    DirectMediaScope(QUrl currentUrl, QUrl parentUrl, quint64 generation, SourceKey currentKey,
-        SourceKey parentKey, QUrl navigationUrl);
+    DirectMediaScope(ResolvedNavigationSource source, QUrl parentUrl,
+        DirectMediaPageScopeIdentity pageScopeIdentity, quint64 generation);
 
-    QUrl m_currentUrl;
+    ResolvedNavigationSource m_source;
     QUrl m_parentUrl;
+    DirectMediaPageScopeIdentity m_pageScopeIdentity;
     quint64 m_generation = 0;
-    SourceKey m_currentKey;
-    SourceKey m_parentKey;
-    QUrl m_navigationUrl;
 };
 
 enum class DirectMediaConfirmation {

@@ -23,6 +23,7 @@ private Q_SLOTS:
     void navigatesMixedMediaWithoutWrapping();
     void openPlanUpdatesBoundaryStateAndSelectsTargets();
     void sortingAndMatchingNormalizePathSegmentsAndPercentEncoding();
+    void matchingPreservesQueryAndFragmentIdentity();
     void boundaryStateIsUnknownWhenCurrentMediaIsMissing();
 };
 
@@ -122,6 +123,29 @@ void TestDirectMediaNavigationModel::sortingAndMatchingNormalizePathSegmentsAndP
     kiriview::sortDirectMediaNavigationCandidates(&candidates);
     QCOMPARE(candidates.size(), std::size_t(1));
     QVERIFY(kiriview::directMediaNavigationCandidateIndex(candidates, normalized).has_value());
+}
+
+void TestDirectMediaNavigationModel::matchingPreservesQueryAndFragmentIdentity()
+{
+    const QUrl first(QStringLiteral("smb://example.test/media/current.png?token=first#entry"));
+    const QUrl second(QStringLiteral("smb://example.test/media/current.png?token=second#entry"));
+    std::vector<kiriview::DirectMediaNavigationCandidate> candidates {
+        candidate(first),
+        candidate(second),
+    };
+    kiriview::sortDirectMediaNavigationCandidates(&candidates);
+
+    QCOMPARE(candidates.size(), std::size_t(2));
+    const std::optional<std::size_t> firstIndex
+        = kiriview::directMediaNavigationCandidateIndex(candidates, first);
+    const std::optional<std::size_t> secondIndex
+        = kiriview::directMediaNavigationCandidateIndex(candidates, second);
+    QVERIFY(firstIndex.has_value());
+    QVERIFY(secondIndex.has_value());
+    QVERIFY(firstIndex != secondIndex);
+    QVERIFY(!kiriview::directMediaNavigationCandidateIndex(
+        candidates, QUrl(QStringLiteral("smb://example.test/media/current.png")))
+            .has_value());
 }
 
 void TestDirectMediaNavigationModel::boundaryStateIsUnknownWhenCurrentMediaIsMissing()

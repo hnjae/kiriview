@@ -31,15 +31,6 @@ namespace {
         return schedule.context.currentLocation;
     }
 
-    std::vector<DisplayedImageLocation> displayedLocationsForWindow(const PredecodeWindowPlan& plan)
-    {
-        std::vector<DisplayedImageLocation> locations;
-        locations.reserve(plan.urls.size());
-        for (const QUrl& url : plan.urls) {
-            locations.push_back(DisplayedImageLocation::fromUrl(url, plan.openedCollectionScope));
-        }
-        return locations;
-    }
 }
 
 ImagePredecodeCoordinator::ImagePredecodeCoordinator(ImageDecodeDependencies decodeDependencies,
@@ -90,8 +81,8 @@ void ImagePredecodeCoordinator::scheduleAdjacentImagePredecode(
     qCDebug(kiriviewPredecodeLog) << "image predecode start plan"
                                   << "generation" << schedule.generation << "url"
                                   << schedule.context.currentLocation.imageUrl() << "loadCandidates"
-                                  << plan.shouldLoadCandidates() << "fallbackUrls"
-                                  << plan.fallbackWindow.urls.size() << "parallelLimit"
+                                  << plan.shouldLoadCandidates() << "fallbackLocations"
+                                  << plan.fallbackWindow.locations.size() << "parallelLimit"
                                   << plan.fallbackWindow.parallelLimit;
     if (!plan.shouldLoadCandidates()) {
         startPredecodeImageLoads(plan.fallbackWindow, schedule);
@@ -129,11 +120,11 @@ void ImagePredecodeCoordinator::startPredecodeImageLoads(
 
     qCDebug(kiriviewPredecodeLog) << "image predecode window start"
                                   << "generation" << schedule.generation << "primaryUrl"
-                                  << schedule.context.currentLocation.imageUrl() << "urls"
-                                  << plan.urls.size() << "parallelLimit" << plan.parallelLimit;
+                                  << schedule.context.currentLocation.imageUrl() << "locations"
+                                  << plan.locations.size() << "parallelLimit" << plan.parallelLimit;
     m_loadController.startWindowLoads(PredecodeLoadWindow {
         primaryDisplayedLocationForWindow(schedule),
-        displayedLocationsForWindow(plan),
+        plan.locations,
         schedule.context.displayedImages,
         schedule.context.firstDisplayContext,
         schedule.generation,

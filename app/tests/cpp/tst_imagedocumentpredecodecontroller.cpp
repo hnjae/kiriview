@@ -14,6 +14,7 @@
 #include <QUrl>
 #include <memory>
 #include <optional>
+#include <type_traits>
 #include <utility>
 
 namespace {
@@ -114,6 +115,7 @@ private Q_SLOTS:
     void scheduleAdjacentImagePredecodeUsesPresentationSnapshot();
     void scheduleAdjacentImagePredecodeUsesCandidateSnapshotCallback();
     void selectedImageNavigationTargetPredecodeLoadsSelectedTargetImmediately();
+    void selectedImageNavigationTargetPredecodeRetainsDirectOwnerScope();
     void selectedVideoNavigationTargetDoesNotStartPredecode();
     void scheduleAdjacentImagePredecodeWithoutSnapshotCancelsActivePredecode();
     void powerSaverSuppressesBackgroundPredecodeAndReschedulesWhenDisabled();
@@ -235,6 +237,69 @@ void TestImageDocumentPredecodeController::
     QVERIFY(controller.findPredecodedImage(displayedLocation(displayedUrl)).has_value());
     QTRY_COMPARE(dataLoader.loadCount(), std::size_t(1));
     QCOMPARE(dataLoader.frontLoad().url, targetUrl);
+}
+
+void TestImageDocumentPredecodeController::
+    selectedImageNavigationTargetPredecodeRetainsDirectOwnerScope()
+{
+    ManualImageDataLoader dataLoader;
+    kiriview::ImageDocumentState state;
+    std::optional<kiriview::DisplayedPredecodeImage> primary;
+    const QUrl requestedDisplayedUrl
+        = QUrl::fromLocalFile(QStringLiteral("/portal/document/current.png"));
+    const QUrl navigationDisplayedUrl
+        = QUrl::fromLocalFile(QStringLiteral("/resolved/owner/current.png"));
+    const QUrl ownerParentUrl = QUrl::fromLocalFile(QStringLiteral("/resolved/owner/"));
+    const QUrl targetUrl = QUrl::fromLocalFile(QStringLiteral("/resolved/owner/target.png"));
+    kiriview::ImageDocumentPageCandidateListContext acceptedContext
+        = kiriview::ImageDocumentPageCandidateListContext::forDirectory(targetUrl, ownerParentUrl);
+    kiriview::ImageDocumentPredecodeController controller(
+        state, [&primary]() { return primary; }, firstDisplayContext,
+        imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget, {},
+        [&acceptedContext, targetUrl](kiriview::ImageDocumentPageCandidateListContext context,
+            kiriview::ImageDocumentPageCandidateListSnapshotCallback callback) {
+            acceptedContext = context;
+            callback(kiriview::ImageDocumentPageCandidateListSnapshotResult {
+                pageCandidateListSnapshot(
+                    context.source(), { imageDocumentPageCandidate(targetUrl) }),
+                true,
+                {},
+            });
+        });
+
+    state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromResolvedSource(
+        kiriview::ResolvedNavigationSource(requestedDisplayedUrl, {}, navigationDisplayedUrl)));
+    primary = displayedPredecodeImage(
+        state.displayedImageLocation(), displayTestImagePayload(testImage()));
+
+    controller.scheduleImageNavigationTargetPredecode(
+        kiriview::ImageDocumentPageTarget { targetUrl }, 0);
+
+    QCOMPARE(acceptedContext.currentUrl(), targetUrl);
+    QVERIFY(acceptedContext.visit([&ownerParentUrl](const auto& source) {
+        using Source = std::decay_t<decltype(source)>;
+        if constexpr (std::is_same_v<Source,
+                          kiriview::ImageDocumentPageCandidateListSource::Directory>) {
+            return kiriview::sameNormalizedUrl(source.directoryUrl, ownerParentUrl);
+        }
+        return false;
+    }));
+    QTRY_COMPARE(dataLoader.loadCount(), std::size_t(1));
+    QCOMPARE(dataLoader.frontLoad().url, targetUrl);
+    dataLoader.finishFrontLoad(QByteArrayLiteral("target"));
+
+    const std::optional<kiriview::DirectMediaPageScopeIdentity> targetIdentity
+        = kiriview::directMediaPageScopeIdentityForOwnerCandidate(
+            targetUrl, kiriview::sourceKeyForUrl(ownerParentUrl));
+    QVERIFY(targetIdentity.has_value());
+    const kiriview::DisplayedImageLocation scopedTarget
+        = kiriview::DisplayedImageLocation::fromDirectMediaPageScope(targetUrl, *targetIdentity);
+    QTRY_VERIFY(controller.findPredecodedImage(scopedTarget).has_value());
+    QVERIFY(!controller
+            .findPredecodedImage(kiriview::DisplayedImageLocation::fromResolvedSource(
+                kiriview::ResolvedNavigationSource(targetUrl, {},
+                    QUrl::fromLocalFile(QStringLiteral("/resolved/other/target.png")))))
+            .has_value());
 }
 
 void TestImageDocumentPredecodeController::selectedVideoNavigationTargetDoesNotStartPredecode()

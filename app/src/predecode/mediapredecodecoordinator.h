@@ -25,6 +25,7 @@ public:
     struct Context
     {
         QUrl currentUrl;
+        std::optional<DirectMediaScope> activeScope;
         DirectMediaNavigationCandidateSnapshot candidateSnapshot;
         std::vector<DisplayedPredecodeImage> displayedImages;
         ImageFirstDisplayDecodeContext firstDisplayContext;

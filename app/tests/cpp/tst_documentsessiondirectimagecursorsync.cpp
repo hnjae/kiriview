@@ -20,6 +20,7 @@ private Q_SLOTS:
     void confirmsPendingCursorWhenMatchingPendingLoadFails();
     void restoresStableCursorWhenPendingLoadFailsForAnotherSource();
     void restoresStableCursorWhenLoadedSourceDivergesFromPending();
+    void keepsPendingCursorWhenLoadedSourceSyntaxIsEquivalent();
     void confirmsDisplayedImageWithoutPendingCursor();
     void ignoresInactiveDocumentKind();
 };
@@ -28,7 +29,7 @@ void TestDocumentSessionDirectImageCursorSync::confirmsPendingCursorWhenDisplaye
 {
     kiriview::DocumentSessionDirectImageCursorSyncInput input;
     input.documentKind = kiriview::DocumentSessionKind::Image;
-    input.cursor.pendingSource = resolved(QUrl(QStringLiteral("file:///media/chapter/../01.png")));
+    input.cursor.pendingSource = resolved(QUrl(QStringLiteral("file:///media/chapter/../01.png/")));
     input.image.ordinaryDirectMediaScopeActive = true;
     input.image.displayedUrl = QUrl(QStringLiteral("file:///media/01.png"));
 
@@ -44,8 +45,8 @@ void TestDocumentSessionDirectImageCursorSync::confirmsPendingCursorWhenMatching
 {
     kiriview::DocumentSessionDirectImageCursorSyncInput input;
     input.documentKind = kiriview::DocumentSessionKind::Image;
-    input.cursor.pendingSource = resolved(QUrl::fromLocalFile(QStringLiteral("/media/01.png")));
-    input.image.sourceUrl = input.cursor.pendingSource.requestedUrl();
+    input.cursor.pendingSource = resolved(QUrl(QStringLiteral("file:///media/chapter/../01.png/")));
+    input.image.sourceUrl = QUrl::fromLocalFile(QStringLiteral("/media/01.png"));
     input.image.error = true;
 
     const kiriview::DocumentSessionDirectImageCursorSyncPlan plan
@@ -90,6 +91,21 @@ void TestDocumentSessionDirectImageCursorSync::
     QCOMPARE(plan.operation,
         kiriview::DocumentSessionDirectImageCursorSyncOperation::
             RestoreDirectImageCursorAfterFailure);
+    QCOMPARE(plan.url, QUrl());
+}
+
+void TestDocumentSessionDirectImageCursorSync::
+    keepsPendingCursorWhenLoadedSourceSyntaxIsEquivalent()
+{
+    kiriview::DocumentSessionDirectImageCursorSyncInput input;
+    input.documentKind = kiriview::DocumentSessionKind::Image;
+    input.cursor.pendingSource = resolved(QUrl(QStringLiteral("file:///media/chapter/../02.png/")));
+    input.image.sourceUrl = QUrl::fromLocalFile(QStringLiteral("/media/02.png"));
+
+    const kiriview::DocumentSessionDirectImageCursorSyncPlan plan
+        = kiriview::documentSessionDirectImageCursorSyncPlan(input);
+
+    QCOMPARE(plan.operation, kiriview::DocumentSessionDirectImageCursorSyncOperation::None);
     QCOMPARE(plan.url, QUrl());
 }
 

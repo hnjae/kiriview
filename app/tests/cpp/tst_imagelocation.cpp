@@ -5,8 +5,10 @@
 
 #include "candidate_test_support.h"
 
+#include <QByteArray>
 #include <QObject>
 #include <QTest>
+#include <optional>
 
 class TestImageLocation : public QObject
 {
@@ -15,6 +17,7 @@ class TestImageLocation : public QObject
 private Q_SLOTS:
     void locationValuesStoreCanonicalUrlIdentity();
     void archiveCollectionIdentityComparesNormalizedUrlsAndKind();
+    void directMediaDisplayIdentityPreservesResolvedNavigationScope();
 };
 
 void TestImageLocation::locationValuesStoreCanonicalUrlIdentity()
@@ -25,10 +28,15 @@ void TestImageLocation::locationValuesStoreCanonicalUrlIdentity()
         = kiriview::TestSupport::localUrl(QStringLiteral("/images/page.png"));
     const QUrl rawArchiveRootUrl(QStringLiteral("zip:///books/./book.cbz/"));
     const QUrl normalizedArchiveRootUrl(QStringLiteral("zip:///books/book.cbz/"));
+    const QUrl invalidImageUrl
+        = QUrl::fromEncoded(QByteArrayLiteral("http://example.test/%zz"), QUrl::StrictMode);
 
     const kiriview::ImageLocation imageLocation = kiriview::ImageLocation::fromUrl(rawImageUrl);
     QCOMPARE(imageLocation.url(), normalizedImageUrl);
     QVERIFY(imageLocation == kiriview::ImageLocation::fromUrl(normalizedImageUrl));
+    const kiriview::ImageLocation invalidImageLocation
+        = kiriview::ImageLocation::fromUrl(invalidImageUrl);
+    QVERIFY(invalidImageLocation == invalidImageLocation);
 
     const kiriview::ContainerLocation containerLocation
         = kiriview::ContainerLocation::fromUrl(rawImageUrl);
@@ -73,6 +81,60 @@ void TestImageLocation::archiveCollectionIdentityComparesNormalizedUrlsAndKind()
     QVERIFY(kiriview::sameOpenedCollectionScopeLocation(
         archiveCollection, normalizedArchiveCollection));
     QVERIFY(!kiriview::sameOpenedCollectionScopeLocation(archiveCollection, differentKind));
+}
+
+void TestImageLocation::directMediaDisplayIdentityPreservesResolvedNavigationScope()
+{
+    const QUrl requestedUrl
+        = kiriview::TestSupport::localUrl(QStringLiteral("/portal/document/page.png"));
+    const kiriview::ResolvedNavigationSource firstSource(requestedUrl, {},
+        kiriview::TestSupport::localUrl(QStringLiteral("/resolved/first/page.png")));
+    const kiriview::ResolvedNavigationSource normalizedEquivalentSource(requestedUrl, {},
+        kiriview::TestSupport::localUrl(QStringLiteral("/resolved/first/chapter/../page.png")));
+    const kiriview::ResolvedNavigationSource trailingSlashEquivalentSource(
+        requestedUrl, {}, QUrl(QStringLiteral("file:///resolved/first/chapter/../page.png/")));
+    const kiriview::ResolvedNavigationSource requestedAliasSource(
+        kiriview::TestSupport::localUrl(QStringLiteral("/portal/alias/page.png")), {},
+        kiriview::TestSupport::localUrl(QStringLiteral("/resolved/first/page.png")));
+    const kiriview::ResolvedNavigationSource otherScopeSource(requestedUrl, {},
+        kiriview::TestSupport::localUrl(QStringLiteral("/resolved/second/page.png")));
+    const std::optional<kiriview::DirectMediaPageScopeIdentity> firstScopeIdentity
+        = kiriview::directMediaPageScopeIdentityForSource(firstSource);
+    QVERIFY(firstScopeIdentity.has_value());
+    QVERIFY(kiriview::directMediaPageScopeIdentityForOwnerCandidate(
+        kiriview::TestSupport::localUrl(QStringLiteral("/resolved/first/adjacent.png")),
+        firstScopeIdentity->parentKey())
+            .has_value());
+    QVERIFY(!kiriview::directMediaPageScopeIdentityForOwnerCandidate(
+        kiriview::TestSupport::localUrl(QStringLiteral("/resolved/second/adjacent.png")),
+        firstScopeIdentity->parentKey())
+            .has_value());
+
+    const kiriview::DisplayedImageLocation first
+        = kiriview::DisplayedImageLocation::fromResolvedSource(firstSource);
+    const kiriview::DisplayedImageLocation normalizedEquivalent
+        = kiriview::DisplayedImageLocation::fromResolvedSource(normalizedEquivalentSource);
+    const kiriview::DisplayedImageLocation trailingSlashEquivalent
+        = kiriview::DisplayedImageLocation::fromResolvedSource(trailingSlashEquivalentSource);
+    const kiriview::DisplayedImageLocation requestedAlias
+        = kiriview::DisplayedImageLocation::fromResolvedSource(requestedAliasSource);
+    const kiriview::DisplayedImageLocation otherScope
+        = kiriview::DisplayedImageLocation::fromResolvedSource(otherScopeSource);
+
+    QCOMPARE(first.imageUrl(), requestedUrl);
+    QCOMPARE(otherScope.imageUrl(), requestedUrl);
+    QVERIFY(first == normalizedEquivalent);
+    QCOMPARE(kiriview::displayScopeIdentityForLocation(first),
+        kiriview::displayScopeIdentityForLocation(normalizedEquivalent));
+    QVERIFY(first == trailingSlashEquivalent);
+    QCOMPARE(kiriview::displayScopeIdentityForLocation(first),
+        kiriview::displayScopeIdentityForLocation(trailingSlashEquivalent));
+    QVERIFY(first != requestedAlias);
+    QCOMPARE(kiriview::displayScopeIdentityForLocation(first),
+        kiriview::displayScopeIdentityForLocation(requestedAlias));
+    QVERIFY(first != otherScope);
+    QVERIFY(kiriview::displayScopeIdentityForLocation(first)
+        != kiriview::displayScopeIdentityForLocation(otherScope));
 }
 
 QTEST_GUILESS_MAIN(TestImageLocation)

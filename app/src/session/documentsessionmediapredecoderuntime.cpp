@@ -3,7 +3,6 @@
 
 #include "documentsessionmediapredecoderuntime.h"
 
-#include "location/sourcekey.h"
 #include "predecode/mediapredecodecoordinator.h"
 
 #include <QObject>
@@ -20,18 +19,27 @@ namespace {
     MediaPredecodeScopeIdentity mediaPredecodeScopeIdentity(
         const DocumentSessionMediaPredecodeInput& input)
     {
-        if (!input.directMediaNavigationActive || input.currentUrl.isEmpty()) {
+        if (!input.directMediaNavigationActive || !input.directMediaScope.has_value()) {
             return {};
         }
 
-        if (!input.parentSourceKey.valid) {
+        if (!input.directMediaScope->parentKey().valid) {
             return {};
         }
 
         return MediaPredecodeScopeIdentity {
             true,
-            input.parentSourceKey.identity,
+            input.directMediaScope->parentKey().identity,
         };
+    }
+
+    bool mediaPredecodeCandidateSnapshotMatchesActiveScope(
+        const DocumentSessionMediaPredecodeInput& input,
+        const DirectMediaNavigationCandidateSnapshot& candidateSnapshot)
+    {
+        return input.directMediaNavigationActive && input.directMediaScope.has_value()
+            && candidateSnapshot.known && candidateSnapshot.source.has_value()
+            && *input.directMediaScope == *candidateSnapshot.source;
     }
 }
 
@@ -54,13 +62,15 @@ void DocumentSessionMediaPredecodeRuntime::schedule(const DocumentSessionMediaPr
     const QUrl& selectedTargetUrl, DirectMediaNavigationCandidateSnapshot candidateSnapshot)
 {
     syncScope(input);
-    if (!input.directMediaNavigationActive || input.currentUrl.isEmpty()) {
+    if (!mediaPredecodeCandidateSnapshotMatchesActiveScope(input, candidateSnapshot)) {
+        m_coordinator->cancel();
         return;
     }
 
     const bool immediate = !selectedTargetUrl.isEmpty();
     m_coordinator->schedule(MediaPredecodeCoordinator::Context {
-        immediate ? selectedTargetUrl : input.currentUrl,
+        immediate ? selectedTargetUrl : input.directMediaScope->currentUrl(),
+        input.directMediaScope,
         std::move(candidateSnapshot),
         displayedImages(input),
         input.firstDisplayDecodeContext,
@@ -90,7 +100,7 @@ void DocumentSessionMediaPredecodeRuntime::cacheDisplayedImages(
     const DocumentSessionMediaPredecodeInput& input)
 {
     syncScope(input);
-    if (!input.directMediaNavigationActive) {
+    if (!input.directMediaNavigationActive || !input.directMediaScope.has_value()) {
         return;
     }
 

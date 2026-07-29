@@ -29,15 +29,6 @@ namespace {
         return schedule.context.currentLocation;
     }
 
-    std::vector<DisplayedImageLocation> displayedLocationsForWindow(const PredecodeWindowPlan& plan)
-    {
-        std::vector<DisplayedImageLocation> locations;
-        locations.reserve(plan.urls.size());
-        for (const QUrl& url : plan.urls) {
-            locations.push_back(DisplayedImageLocation::fromUrl(url, plan.openedCollectionScope));
-        }
-        return locations;
-    }
 }
 
 MediaPredecodeCoordinator::MediaPredecodeCoordinator(MediaPredecodeDependencies dependencies)
@@ -58,6 +49,7 @@ void MediaPredecodeCoordinator::schedule(Context context)
         << context.displayedImages.size();
     MediaPredecodeSchedulePlan plan = mediaPredecodeSchedulePlan(MediaPredecodeScheduleRequest {
         context.currentUrl,
+        std::move(context.activeScope),
         std::move(context.candidateSnapshot),
         std::move(context.displayedImages),
         context.firstDisplayContext,
@@ -114,11 +106,11 @@ void MediaPredecodeCoordinator::startPredecodeWindow(const PredecodePendingSched
                                   << "generation" << schedule.generation << "primaryUrl"
                                   << schedule.context.currentLocation.imageUrl() << "candidates"
                                   << directMediaNavigationCandidateRows(*candidateSnapshot).size()
-                                  << "stillUrls" << plan.urls.size() << "parallelLimit"
+                                  << "stillLocations" << plan.locations.size() << "parallelLimit"
                                   << plan.parallelLimit;
     m_loadController.startWindowLoads(PredecodeLoadWindow {
         primaryDisplayedLocationForWindow(schedule),
-        displayedLocationsForWindow(plan),
+        plan.locations,
         schedule.context.displayedImages,
         schedule.context.firstDisplayContext,
         schedule.generation,

@@ -59,6 +59,53 @@ void TestImageDocumentPageCandidateListSource::
     QCOMPARE(directory->directoryUrl, localUrl(QStringLiteral("/images/")));
     QVERIFY(directoryContext->openedCollectionScope().isEmpty());
 
+    const QUrl requestedPortalUrl = localUrl(QStringLiteral("/portal/document/current.png"));
+    const QUrl resolvedNavigationUrl = localUrl(QStringLiteral("/resolved/media/current.png"));
+    const std::optional<kiriview::ImageDocumentPageCandidateListContext> resolvedContext
+        = kiriview::imageDocumentPageCandidateListContextForDisplayedImage(
+            kiriview::DisplayedImageLocation::fromResolvedSource(
+                kiriview::ResolvedNavigationSource(requestedPortalUrl, {}, resolvedNavigationUrl)));
+    QVERIFY(resolvedContext.has_value());
+    QCOMPARE(resolvedContext->currentUrl(), resolvedNavigationUrl);
+    const DirectoryCandidateContext* resolvedDirectory
+        = typedCandidateContext<DirectoryCandidateContext>(*resolvedContext);
+    QVERIFY(resolvedDirectory != nullptr);
+    QCOMPARE(resolvedDirectory->directoryUrl, localUrl(QStringLiteral("/resolved/media/")));
+
+    const QUrl queryScopedNavigationUrl(
+        QStringLiteral("smb://example.test/media/current.png?token=abc#entry"));
+    const kiriview::DisplayedImageLocation queryScopedLocation
+        = kiriview::DisplayedImageLocation::fromResolvedSource(
+            kiriview::ResolvedNavigationSource(requestedPortalUrl, {}, queryScopedNavigationUrl));
+    const std::optional<kiriview::ImageDocumentPageCandidateListContext> queryScopedContext
+        = kiriview::imageDocumentPageCandidateListContextForDisplayedImage(queryScopedLocation);
+    QVERIFY(queryScopedLocation.directMediaPageScopeIdentity().has_value());
+    QVERIFY(queryScopedContext.has_value());
+    const DirectoryCandidateContext* queryScopedDirectory
+        = typedCandidateContext<DirectoryCandidateContext>(*queryScopedContext);
+    QVERIFY(queryScopedDirectory != nullptr);
+    QCOMPARE(queryScopedContext->currentUrl(),
+        queryScopedLocation.directMediaPageScopeIdentity()->currentKey().normalizedUrl);
+    QCOMPARE(queryScopedDirectory->directoryUrl,
+        queryScopedLocation.directMediaPageScopeIdentity()->parentKey().normalizedUrl);
+    QCOMPARE(queryScopedDirectory->directoryUrl.query(), QStringLiteral("token=abc"));
+    QCOMPARE(queryScopedDirectory->directoryUrl.fragment(), QStringLiteral("entry"));
+    const QUrl sameScopeSibling(
+        QStringLiteral("smb://example.test/media/adjacent.png?token=abc#entry"));
+    const QUrl otherQuerySibling(
+        QStringLiteral("smb://example.test/media/adjacent.png?token=other#entry"));
+    const QUrl otherFragmentSibling(
+        QStringLiteral("smb://example.test/media/adjacent.png?token=abc#other"));
+    QVERIFY(kiriview::directMediaPageScopeIdentityForOwnerCandidate(
+        sameScopeSibling, queryScopedLocation.directMediaPageScopeIdentity()->parentKey())
+            .has_value());
+    QVERIFY(!kiriview::directMediaPageScopeIdentityForOwnerCandidate(
+        otherQuerySibling, queryScopedLocation.directMediaPageScopeIdentity()->parentKey())
+            .has_value());
+    QVERIFY(!kiriview::directMediaPageScopeIdentityForOwnerCandidate(
+        otherFragmentSibling, queryScopedLocation.directMediaPageScopeIdentity()->parentKey())
+            .has_value());
+
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> openedCollectionScope
         = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
@@ -129,6 +176,10 @@ void TestImageDocumentPageCandidateListSource::
         directoryContext.source(), normalizedDirectoryContext.source()));
     QVERIFY(!kiriview::sameImageDocumentPageCandidateListSource(
         directoryContext.source(), otherDirectoryContext.source()));
+    const ImageDocumentPageCandidateListContext invalidDirectoryContext
+        = ImageDocumentPageCandidateListContext::forDirectory({}, {});
+    QVERIFY(kiriview::sameImageDocumentPageCandidateListSource(
+        invalidDirectoryContext.source(), invalidDirectoryContext.source()));
 
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> openedCollectionScope

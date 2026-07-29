@@ -15,6 +15,11 @@ bool sameImageDocumentPageCandidateListSourcePayload(
     const kiriview::ImageDocumentPageCandidateListSource::Directory& left,
     const kiriview::ImageDocumentPageCandidateListSource::Directory& right)
 {
+    const kiriview::SourceKey leftKey = kiriview::sourceKeyForUrl(left.directoryUrl);
+    const kiriview::SourceKey rightKey = kiriview::sourceKeyForUrl(right.directoryUrl);
+    if (leftKey.valid || rightKey.valid) {
+        return kiriview::sameSourceKey(leftKey, rightKey);
+    }
     return kiriview::sameNormalizedUrl(left.directoryUrl, right.directoryUrl);
 }
 
@@ -148,6 +153,12 @@ imageDocumentPageCandidateListContextForDisplayedImage(const DisplayedImageLocat
 
         return ImageDocumentPageCandidateListContext::forOpenedCollectionScope(
             currentUrl, location.openedCollectionScope());
+    }
+
+    if (location.directMediaPageScopeIdentity().has_value()) {
+        const DirectMediaPageScopeIdentity& identity = *location.directMediaPageScopeIdentity();
+        return ImageDocumentPageCandidateListContext::forDirectory(
+            identity.currentKey().normalizedUrl, identity.parentNavigationUrl());
     }
 
     const DirectoryNavigationLocation navigationLocation

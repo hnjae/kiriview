@@ -3,11 +3,12 @@
 
 #include "directmedianavigationmodel.h"
 
-#include "location/imageurl.h"
+#include "location/sourcekey.h"
 #include "navigationcandidateordering.h"
 
 #include <algorithm>
 #include <cstddef>
+#include <iterator>
 #include <utility>
 
 namespace {
@@ -69,7 +70,19 @@ DirectMediaNavigationOpenRequest numberedDirectMediaNavigationOpenRequest(int me
 std::optional<std::size_t> directMediaNavigationCandidateIndex(
     const std::vector<DirectMediaNavigationCandidate>& candidates, const QUrl& currentUrl)
 {
-    return navigationCandidateIndex(candidates, normalizedFileContainerUrl(currentUrl));
+    const SourceKey currentKey = sourceKeyForUrl(currentUrl);
+    if (!currentKey.valid) {
+        return std::nullopt;
+    }
+
+    const auto currentCandidate = std::ranges::find_if(
+        candidates, [&currentKey](const DirectMediaNavigationCandidate& row) {
+            return sameSourceKey(sourceKeyForUrl(row.url), currentKey);
+        });
+    if (currentCandidate == candidates.cend()) {
+        return std::nullopt;
+    }
+    return static_cast<std::size_t>(std::ranges::distance(candidates.cbegin(), currentCandidate));
 }
 
 std::optional<QUrl> adjacentDirectMediaNavigationUrl(

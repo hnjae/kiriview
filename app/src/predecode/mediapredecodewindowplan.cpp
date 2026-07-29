@@ -10,8 +10,7 @@ PredecodeWindowPlan mediaPredecodeWindowPlan(
     const PredecodeSchedulePlan schedule = predecodeSchedulePlan(
         snapshot.directMediaNavigationCandidateCount, snapshot.currentMediaIndex, policyInput);
     return PredecodeWindowPlan {
-        OpenedCollectionScopeLocation {},
-        mediaPredecodeEligibleUrlsForTargetIndices(snapshot, schedule.targetIndices),
+        mediaPredecodeEligibleLocationsForTargetIndices(snapshot, schedule.targetIndices),
         schedule.parallelLimit,
     };
 }

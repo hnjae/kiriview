@@ -6,21 +6,49 @@
 #include "navigation/imagedocumentpagenavigationpolicy.h"
 
 #include <optional>
+#include <type_traits>
 #include <utility>
 
 namespace {
-std::vector<QUrl> predecodeWindowImageUrls(
-    const std::vector<kiriview::ImageDocumentPageCandidate>& candidates,
-    const std::vector<std::size_t>& indices)
+std::optional<kiriview::DisplayedImageLocation> predecodeWindowImageLocation(
+    const QUrl& url, const kiriview::ImageDocumentPageCandidateListContext& context)
 {
-    std::vector<QUrl> urls;
-    urls.reserve(indices.size());
+    return context.visit(
+        [&url](const auto& source) -> std::optional<kiriview::DisplayedImageLocation> {
+            using Source = std::decay_t<decltype(source)>;
+            if constexpr (std::is_same_v<Source,
+                              kiriview::ImageDocumentPageCandidateListSource::Directory>) {
+                const kiriview::SourceKey parentKey
+                    = kiriview::sourceKeyForUrl(source.directoryUrl);
+                const std::optional<kiriview::DirectMediaPageScopeIdentity> identity
+                    = kiriview::directMediaPageScopeIdentityForOwnerCandidate(url, parentKey);
+                if (!identity.has_value()) {
+                    return std::nullopt;
+                }
+                return kiriview::DisplayedImageLocation::fromDirectMediaPageScope(url, *identity);
+            } else {
+                return kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
+                    url, source.openedCollectionScope);
+            }
+        });
+}
+
+std::vector<kiriview::DisplayedImageLocation> predecodeWindowImageLocations(
+    const std::vector<kiriview::ImageDocumentPageCandidate>& candidates,
+    const std::vector<std::size_t>& indices,
+    const kiriview::ImageDocumentPageCandidateListContext& context)
+{
+    std::vector<kiriview::DisplayedImageLocation> locations;
+    locations.reserve(indices.size());
     for (std::size_t index : indices) {
         if (index < candidates.size() && imageDocumentPageCandidateIsImage(candidates.at(index))) {
-            urls.push_back(candidates.at(index).url);
+            if (std::optional<kiriview::DisplayedImageLocation> location
+                = predecodeWindowImageLocation(candidates.at(index).url, context)) {
+                locations.push_back(std::move(*location));
+            }
         }
     }
-    return urls;
+    return locations;
 }
 
 }
@@ -30,8 +58,6 @@ bool PredecodeWindowStartPlan::shouldLoadCandidates() const { return candidateLi
 
 PredecodeWindowStartPlan predecodeWindowStartPlan(const PredecodeWindowPlanRequest& request)
 {
-    const OpenedCollectionScopeLocation openedCollectionScope
-        = request.displayedLocation.openedCollectionScope();
     const PredecodeSchedulePlan initialSchedule
         = predecodeSchedulePlan(0, std::nullopt, request.policyInput);
     const std::optional<ImageDocumentPageCandidateListContext> candidateContext
@@ -39,7 +65,6 @@ PredecodeWindowStartPlan predecodeWindowStartPlan(const PredecodeWindowPlanReque
 
     PredecodeWindowStartPlan plan {
         PredecodeWindowPlan {
-            openedCollectionScope,
             {},
             initialSchedule.parallelLimit,
         },
@@ -64,8 +89,8 @@ PredecodeWindowPlan predecodeWindowPlanForCandidates(
         imageDocumentPageCandidateIndex(candidates, plan.candidateList->context.currentUrl()),
         plan.candidateList->policyInput);
     return PredecodeWindowPlan {
-        plan.fallbackWindow.openedCollectionScope,
-        predecodeWindowImageUrls(candidates, schedule.targetIndices),
+        predecodeWindowImageLocations(
+            candidates, schedule.targetIndices, plan.candidateList->context),
         schedule.parallelLimit,
     };
 }

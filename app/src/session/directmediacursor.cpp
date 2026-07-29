@@ -16,7 +16,7 @@ const kiriview::ResolvedNavigationSource& effectiveDirectMediaCursorSource(
     return !cursor.pendingSource.isEmpty() ? cursor.pendingSource : cursor.stableSource;
 }
 
-bool sameEffectiveDirectMediaCursorUrl(
+bool sameEffectiveDirectMediaCursorIdentity(
     const kiriview::DirectMediaCursor& left, const kiriview::DirectMediaCursor& right)
 {
     const std::optional<kiriview::DirectMediaScope> leftScope
@@ -26,24 +26,16 @@ bool sameEffectiveDirectMediaCursorUrl(
     if (!leftScope.has_value() || !rightScope.has_value()) {
         return !leftScope.has_value() && !rightScope.has_value();
     }
-    return kiriview::sameSourceKey(leftScope->currentKey(), rightScope->currentKey())
-        && kiriview::sameSourceKey(leftScope->parentKey(), rightScope->parentKey());
+    return leftScope->pageScopeIdentity() == rightScope->pageScopeIdentity();
 }
 
 bool replaceDirectMediaCursor(
     kiriview::DirectMediaCursor& current, kiriview::DirectMediaCursor next)
 {
-    if (current.stableSource.requestedUrl() == next.stableSource.requestedUrl()
-        && current.pendingSource.requestedUrl() == next.pendingSource.requestedUrl()) {
-        next.generation = current.generation;
-        current = std::move(next);
-        return false;
-    }
-
-    const bool effectiveUrlChanged = !sameEffectiveDirectMediaCursorUrl(current, next);
-    next.generation = effectiveUrlChanged ? current.generation + 1 : current.generation;
+    const bool effectiveIdentityChanged = !sameEffectiveDirectMediaCursorIdentity(current, next);
+    next.generation = effectiveIdentityChanged ? current.generation + 1 : current.generation;
     current = std::move(next);
-    return effectiveUrlChanged;
+    return effectiveIdentityChanged;
 }
 
 void logCursorOperation(
@@ -61,15 +53,12 @@ void logCursorOperation(
 }
 
 namespace kiriview {
-DirectMediaScope::DirectMediaScope(QUrl currentUrlValue, QUrl parentUrlValue,
-    quint64 generationValue, SourceKey currentKeyValue, SourceKey parentKeyValue,
-    QUrl navigationUrlValue)
-    : m_currentUrl(std::move(currentUrlValue))
+DirectMediaScope::DirectMediaScope(ResolvedNavigationSource sourceValue, QUrl parentUrlValue,
+    DirectMediaPageScopeIdentity pageScopeIdentityValue, quint64 generationValue)
+    : m_source(std::move(sourceValue))
     , m_parentUrl(std::move(parentUrlValue))
+    , m_pageScopeIdentity(std::move(pageScopeIdentityValue))
     , m_generation(generationValue)
-    , m_currentKey(std::move(currentKeyValue))
-    , m_parentKey(std::move(parentKeyValue))
-    , m_navigationUrl(std::move(navigationUrlValue))
 {
 }
 
@@ -79,14 +68,13 @@ std::optional<DirectMediaScope> DirectMediaScope::fromSource(
     if (source.isEmpty()) {
         return std::nullopt;
     }
-    const DirectoryNavigationLocation location = directoryNavigationLocationForSource(source);
-    const SourceKey currentKey = sourceKeyForUrl(location.fileUrl);
-    const SourceKey parentKey = sourceKeyForUrl(location.directoryUrl);
-    if (!location.isValid() || !currentKey.valid || !parentKey.valid) {
+    const std::optional<DirectMediaPageScopeIdentity> pageScopeIdentity
+        = directMediaPageScopeIdentityForSource(source);
+    if (!pageScopeIdentity.has_value()) {
         return std::nullopt;
     }
-    return DirectMediaScope(source.requestedUrl(), location.directoryUrl, generation, currentKey,
-        parentKey, location.fileUrl);
+    return DirectMediaScope(
+        source, pageScopeIdentity->parentNavigationUrl(), *pageScopeIdentity, generation);
 }
 
 QUrl effectiveDirectMediaCursorUrl(const DirectMediaCursor& cursor)
@@ -129,12 +117,14 @@ DirectMediaConfirmation confirmDirectImageCursor(DirectMediaCursor& cursor, cons
     if (cursor.pendingSource.isEmpty()) {
         return cursor.stableSource.isEmpty()
             ? DirectMediaConfirmation::Bypassed
-            : (sameNormalizedUrl(cursor.stableSource.requestedUrl(), url)
+            : (sameSourceKey(
+                   sourceKeyForUrl(cursor.stableSource.requestedUrl()), sourceKeyForUrl(url))
                       ? DirectMediaConfirmation::Committed
                       : DirectMediaConfirmation::Stale);
     }
     DirectMediaCursor next = cursor;
-    if (!sameNormalizedUrl(cursor.pendingSource.requestedUrl(), url)) {
+    if (!sameSourceKey(
+            sourceKeyForUrl(cursor.pendingSource.requestedUrl()), sourceKeyForUrl(url))) {
         return DirectMediaConfirmation::Stale;
     }
     next.stableSource = cursor.pendingSource;
@@ -150,7 +140,7 @@ DirectMediaConfirmation confirmDirectVideoCursor(const DirectMediaCursor& cursor
     if (cursor.stableSource.isEmpty()) {
         return DirectMediaConfirmation::Bypassed;
     }
-    return sameNormalizedUrl(cursor.stableSource.requestedUrl(), url)
+    return sameSourceKey(sourceKeyForUrl(cursor.stableSource.requestedUrl()), sourceKeyForUrl(url))
         ? DirectMediaConfirmation::Committed
         : DirectMediaConfirmation::Stale;
 }

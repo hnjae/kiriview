@@ -25,6 +25,8 @@ class TestDirectMediaCursor : public QObject
 private Q_SLOTS:
     void generationChangesOnlyWithEffectiveIdentity();
     void generationUsesNormalizedEffectiveIdentity();
+    void resealedNavigationIdentityControlsGeneration();
+    void trailingSlashSyntaxKeepsNormalizedScope();
     void scopeUsesEffectiveUrlParentAndGeneration();
     void scopeEqualityUsesSourceKeysAndGeneration();
     void scopeEqualityIncludesParentSourceKey();
@@ -161,6 +163,73 @@ void TestDirectMediaCursor::generationUsesNormalizedEffectiveIdentity()
 
     kiriview::requestDirectImageCursor(cursor, resolved(replacementImage));
     QVERIFY(cursor.generation > requestedGeneration);
+}
+
+void TestDirectMediaCursor::resealedNavigationIdentityControlsGeneration()
+{
+    kiriview::DirectMediaCursor cursor;
+    const QUrl requestedUrl(QStringLiteral("file:///portal/document/page.png"));
+    const kiriview::ResolvedNavigationSource firstSource(
+        requestedUrl, {}, QUrl(QStringLiteral("file:///resolved/first/page.png")));
+    const kiriview::ResolvedNavigationSource normalizedEquivalentSource(
+        requestedUrl, {}, QUrl(QStringLiteral("file:///resolved/first/chapter/../page.png")));
+    const kiriview::ResolvedNavigationSource otherScopeSource(
+        requestedUrl, {}, QUrl(QStringLiteral("file:///resolved/second/page.png")));
+
+    kiriview::requestDirectImageCursor(cursor, firstSource);
+    const quint64 firstGeneration = cursor.generation;
+
+    kiriview::requestDirectImageCursor(cursor, normalizedEquivalentSource);
+    QCOMPARE(cursor.generation, firstGeneration);
+    const std::optional<kiriview::DirectMediaScope> equivalentScope
+        = kiriview::directMediaScopeForCursor(cursor);
+    QVERIFY(equivalentScope.has_value());
+    QCOMPARE(equivalentScope->source().navigationUrl(), normalizedEquivalentSource.navigationUrl());
+    QVERIFY(kiriview::sameSourceKey(
+        equivalentScope->currentKey(), kiriview::sourceKeyForUrl(firstSource.navigationUrl())));
+    QVERIFY(kiriview::sameSourceKey(equivalentScope->parentKey(),
+        kiriview::sourceKeyForUrl(
+            kiriview::parentDirectoryUrlForFileNavigation(firstSource.navigationUrl()))));
+
+    kiriview::requestDirectImageCursor(cursor, otherScopeSource);
+    QVERIFY(cursor.generation > firstGeneration);
+    const std::optional<kiriview::DirectMediaScope> otherScope
+        = kiriview::directMediaScopeForCursor(cursor);
+    QVERIFY(otherScope.has_value());
+    QVERIFY(!kiriview::sameSourceKey(otherScope->currentKey(), equivalentScope->currentKey()));
+    QVERIFY(!kiriview::sameSourceKey(otherScope->parentKey(), equivalentScope->parentKey()));
+}
+
+void TestDirectMediaCursor::trailingSlashSyntaxKeepsNormalizedScope()
+{
+    kiriview::DirectMediaCursor cursor;
+    const QUrl trailingSlashUrl(QStringLiteral("file:///media/folder/../image.png/"));
+    const QUrl normalizedUrl(QStringLiteral("file:///media/image.png"));
+
+    kiriview::requestDirectImageCursor(cursor, resolved(trailingSlashUrl));
+    const quint64 trailingSlashGeneration = cursor.generation;
+    const std::optional<kiriview::DirectMediaScope> trailingSlashScope
+        = kiriview::directMediaScopeForCursor(cursor);
+    QVERIFY(trailingSlashScope.has_value());
+    QCOMPARE(trailingSlashScope->parentUrl(), QUrl(QStringLiteral("file:///media/")));
+
+    kiriview::requestDirectImageCursor(cursor, resolved(normalizedUrl));
+    const std::optional<kiriview::DirectMediaScope> normalizedScope
+        = kiriview::directMediaScopeForCursor(cursor);
+    QVERIFY(normalizedScope.has_value());
+    QCOMPARE(cursor.generation, trailingSlashGeneration);
+    QCOMPARE(*trailingSlashScope, *normalizedScope);
+    QCOMPARE(normalizedScope->parentUrl(), QUrl(QStringLiteral("file:///media/")));
+
+    kiriview::DirectMediaCursor imageConfirmationCursor;
+    kiriview::requestDirectImageCursor(imageConfirmationCursor, resolved(trailingSlashUrl));
+    QCOMPARE(kiriview::confirmDirectImageCursor(imageConfirmationCursor, normalizedUrl),
+        kiriview::DirectMediaConfirmation::Committed);
+
+    kiriview::DirectMediaCursor videoConfirmationCursor;
+    kiriview::setDirectVideoCursor(videoConfirmationCursor, resolved(trailingSlashUrl));
+    QCOMPARE(kiriview::confirmDirectVideoCursor(videoConfirmationCursor, normalizedUrl),
+        kiriview::DirectMediaConfirmation::Committed);
 }
 
 void TestDirectMediaCursor::scopeUsesEffectiveUrlParentAndGeneration()
