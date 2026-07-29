@@ -35,6 +35,7 @@ src/archive/mediaentrysourcerunner.cpp
 src/archive/archiveformat.cpp
 src/archive/archivepath.cpp
 src/decoding/bufferedimagereader.cpp
+src/rendering/animationsourceruntime.cpp
 src/rendering/displayimagestore.cpp
 src/rendering/imageviewportdecodesource.cpp
 src/rendering/imageviewportfailureregistry.cpp
