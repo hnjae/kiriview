@@ -997,16 +997,6 @@ msgid "Zoom"
 msgstr ""
 
 #: src/qml/ImageToolBar.qml
-msgctxt "@info:tooltip"
-msgid "Fitted video zoom"
-msgstr ""
-
-#: src/qml/ImageToolBar.qml
-msgctxt "@info:tooltip"
-msgid "Video zoom unavailable"
-msgstr ""
-
-#: src/qml/ImageToolBar.qml
 msgctxt "@action"
 msgid "Application Menu"
 msgstr ""
