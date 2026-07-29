@@ -1,0 +1,30 @@
+// SPDX-FileCopyrightText: 2026 KIM Hyunjae
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+#ifndef KIRIVIEW_IMAGEANIMATIONSOURCECATALOG_H
+#define KIRIVIEW_IMAGEANIMATIONSOURCECATALOG_H
+
+#include "presentation/imageanimationplaybacksource.h"
+
+#include <QSize>
+#include <QString>
+#include <QVector>
+#include <expected>
+
+namespace kiriview {
+struct ImageAnimationSourceCatalog
+{
+    QSize logicalSize;
+    QVector<int> frameDurations;
+    int repeatCount = 0;
+
+    [[nodiscard]] bool isValid() const;
+};
+
+using ImageAnimationSourceCatalogResult = std::expected<ImageAnimationSourceCatalog, QString>;
+
+ImageAnimationSourceCatalogResult readImageAnimationSourceCatalog(
+    const ImageAnimationPlaybackRequest& request);
+}
+
+#endif
