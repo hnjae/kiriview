@@ -193,7 +193,6 @@ void ImageViewportStateSnapshotTest::readyStillSnapshotMatchesFlatProperties()
     QCOMPARE(snapshot.primary().display().position(), -1);
     QCOMPARE(snapshot.primary().display().sourceLogicalSize(), QSizeF(16.0, 8.0));
     QCOMPARE(snapshot.primary().display().payloadRasterSize(), QSizeF(16.0, 8.0));
-    QCOMPARE(snapshot.primary().display().sourceToPayloadScale(), QSizeF(1.0, 1.0));
     QCOMPARE(snapshot.primary().display().quality(), ImageViewportPayloadQuality::Exact);
     QCOMPARE(
         snapshot.primary().display().exactness(), ImageViewportPayloadExactness::ExactForSource);
@@ -324,10 +323,9 @@ void ImageViewportStateSnapshotTest::displayedPayloadFactsComeFromCommittedFrame
 {
     QImage payload(8, 4, QImage::Format_ARGB32_Premultiplied);
     payload.fill(Qt::transparent);
-    ImageFrame frame(payload, QSizeF(16.0, 8.0), QSizeF(8.0, 4.0), QSizeF(0.5, 0.5),
-        payload.sizeInBytes(), ImageViewportPayloadQuality::Preview,
-        ImageViewportPayloadExactness::NotExact, true, ImageFrame::OrientationPolicy::Identity,
-        QStringLiteral("argb32"));
+    ImageFrame frame(payload, QSizeF(16.0, 8.0), payload.sizeInBytes(),
+        ImageViewportPayloadQuality::Preview, ImageViewportPayloadExactness::NotExact,
+        ImageFrame::OrientationPolicy::Identity, QStringLiteral("argb32"));
     ImageSequenceFactory factory;
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
     QVERIFY(result->sequence());
@@ -340,7 +338,6 @@ void ImageViewportStateSnapshotTest::displayedPayloadFactsComeFromCommittedFrame
     const ImageViewportRoleDisplaySnapshot display = item.state().primary().display();
     QCOMPARE(display.sourceLogicalSize(), QSizeF(16.0, 8.0));
     QCOMPARE(display.payloadRasterSize(), QSizeF(8.0, 4.0));
-    QCOMPARE(display.sourceToPayloadScale(), QSizeF(0.5, 0.5));
     QCOMPARE(display.quality(), ImageViewportPayloadQuality::Preview);
     QCOMPARE(display.exactness(), ImageViewportPayloadExactness::NotExact);
 }
@@ -350,10 +347,9 @@ void ImageViewportStateSnapshotTest::
 {
     QImage payload(8, 4, QImage::Format_ARGB32_Premultiplied);
     payload.fill(Qt::transparent);
-    ImageFrame frame(payload, QSizeF(16.0, 8.0), QSizeF(8.0, 4.0), QSizeF(0.5, 0.5),
-        payload.sizeInBytes(), ImageViewportPayloadQuality::Preview,
-        ImageViewportPayloadExactness::NotExact, true, ImageFrame::OrientationPolicy::Identity,
-        QStringLiteral("preview/argb32"));
+    ImageFrame frame(payload, QSizeF(16.0, 8.0), payload.sizeInBytes(),
+        ImageViewportPayloadQuality::Preview, ImageViewportPayloadExactness::NotExact,
+        ImageFrame::OrientationPolicy::Identity, QStringLiteral("preview/argb32"));
     ImageSequenceFactory factory;
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
     QVERIFY(result->sequence());
@@ -446,10 +442,9 @@ void ImageViewportStateSnapshotTest::mixedBuiltInUnsupportedProviderMalformedMet
 {
     QImage payload(8, 4, QImage::Format_ARGB32_Premultiplied);
     payload.fill(Qt::transparent);
-    ImageFrame frame(payload, QSizeF(16.0, 8.0), QSizeF(8.0, 4.0), QSizeF(0.5, 0.5),
-        payload.sizeInBytes(), ImageViewportPayloadQuality::Preview,
-        ImageViewportPayloadExactness::NotExact, true, ImageFrame::OrientationPolicy::Identity,
-        QStringLiteral("preview/argb32"));
+    ImageFrame frame(payload, QSizeF(16.0, 8.0), payload.sizeInBytes(),
+        ImageViewportPayloadQuality::Preview, ImageViewportPayloadExactness::NotExact,
+        ImageFrame::OrientationPolicy::Identity, QStringLiteral("preview/argb32"));
     ImageSequenceFactory factory;
     QScopedPointer<ImageSequenceFactoryResult> builtInResult(factory.fromFrame(&frame));
     QVERIFY(builtInResult->sequence());

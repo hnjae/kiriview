@@ -346,8 +346,6 @@ class ImageSequenceProviderDisplayDemand
             WRITE setCurrentPayloadExactness)
     Q_PROPERTY(QSizeF currentPayloadRasterSize READ currentPayloadRasterSize WRITE
             setCurrentPayloadRasterSize)
-    Q_PROPERTY(QSizeF currentSourceToPayloadScale READ currentSourceToPayloadScale WRITE
-            setCurrentSourceToPayloadScale)
 
 public:
     ImageSequenceProviderDisplayDemand() = default;
@@ -438,11 +436,6 @@ public:
     }
     [[nodiscard]] QSizeF currentPayloadRasterSize() const { return m_currentPayloadRasterSize; }
     void setCurrentPayloadRasterSize(QSizeF size) { m_currentPayloadRasterSize = size; }
-    [[nodiscard]] QSizeF currentSourceToPayloadScale() const
-    {
-        return m_currentSourceToPayloadScale;
-    }
-    void setCurrentSourceToPayloadScale(QSizeF scale) { m_currentSourceToPayloadScale = scale; }
 
 private:
     ImageViewportDemandRevisionToken m_demandRevision;
@@ -469,7 +462,6 @@ private:
     ImageViewportPayloadExactness m_currentPayloadExactness
         = ImageViewportPayloadExactness::Unknown;
     QSizeF m_currentPayloadRasterSize;
-    QSizeF m_currentSourceToPayloadScale;
 };
 
 class ImageSequenceProviderRequest

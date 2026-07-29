@@ -17,7 +17,6 @@ struct FramePayloadFacts
 {
     QSizeF sourceLogicalSize;
     QSizeF payloadRasterSize;
-    QSizeF sourceToPayloadScale;
     qint64 payloadByteSize = 0;
     ImageViewportPayloadQuality quality = ImageViewportPayloadQuality::Unknown;
     ImageViewportPayloadExactness exactness = ImageViewportPayloadExactness::Unknown;

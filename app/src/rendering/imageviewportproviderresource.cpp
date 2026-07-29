@@ -4,7 +4,6 @@
 #include "imageviewportproviderresource.h"
 
 #include <QImageIOHandler>
-#include <QSizeF>
 #include <QTransform>
 #include <algorithm>
 #include <ranges>
@@ -61,15 +60,6 @@ kiriview::DisplayedPageRole displayedPageRole(ImageViewportPageRole role)
 {
     return role == ImageViewportPageRole::Secondary ? kiriview::DisplayedPageRole::Secondary
                                                     : kiriview::DisplayedPageRole::Primary;
-}
-
-QSizeF sourceToPayloadScale(QSize sourceSize, QSize rasterSize)
-{
-    if (sourceSize.isEmpty() || rasterSize.isEmpty()) {
-        return {};
-    }
-    return QSizeF(qreal(rasterSize.width()) / qreal(sourceSize.width()),
-        qreal(rasterSize.height()) / qreal(sourceSize.height()));
 }
 
 std::optional<kiriview::DisplayImageRasterIdentity> rasterIdentityFor(
@@ -457,10 +447,9 @@ ImageSequenceProviderFrameHandle* ImageViewportProviderResource::acquireFrameHan
     const ImageFrame::OrientationPolicy orientation
         = orientationPolicy(entry->imageReaderTransformations);
     const QImage sourcePayload = sourcePayloadForOrientation(entry->image, orientation);
-    auto* frame = new ImageFrame(sourcePayload, entry->originalSize, entry->rasterSize,
-        sourceToPayloadScale(entry->originalSize, entry->rasterSize), entry->byteCost,
-        payloadQuality(entry->quality), payloadExactness(*entry), entry->image.hasAlphaChannel(),
-        orientation, preparedFrame.formatIdentifier);
+    auto* frame = new ImageFrame(sourcePayload, entry->originalSize, entry->byteCost,
+        payloadQuality(entry->quality), payloadExactness(*entry), orientation,
+        preparedFrame.formatIdentifier);
     const std::shared_ptr<DisplayImageStore> store = m_displayStore;
     const QString entryId = preparedFrame.storeEntryId;
     return new ImageSequenceProviderFrameHandle(frame, [store, entryId](ImageFrame* releasedFrame) {

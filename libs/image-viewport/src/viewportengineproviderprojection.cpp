@@ -87,6 +87,5 @@ ImageSequenceProviderDisplayDemand projectViewportProviderDemand(
     demand.setCurrentPayloadQuality(payload.quality);
     demand.setCurrentPayloadExactness(payload.exactness);
     demand.setCurrentPayloadRasterSize(payload.payloadRasterSize);
-    demand.setCurrentSourceToPayloadScale(payload.sourceToPayloadScale);
     return demand;
 }

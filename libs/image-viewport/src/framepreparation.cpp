@@ -119,17 +119,13 @@ CommonPayloadAdmission admitPayload(const FramePayload& payload,
     const auto& facts = payload.facts;
     const bool exactPair = (facts.quality == ImageViewportPayloadQuality::Exact)
         == (facts.exactness == ImageViewportPayloadExactness::ExactForSource);
-    const QSizeF mapped(facts.sourceLogicalSize.width() * facts.sourceToPayloadScale.width(),
-        facts.sourceLogicalSize.height() * facts.sourceToPayloadScale.height());
     if (payload.image.isNull() || !isPositiveFiniteInteger(facts.sourceLogicalSize.width())
         || !isPositiveFiniteInteger(facts.sourceLogicalSize.height())
-        || !positiveFinite(facts.payloadRasterSize) || !positiveFinite(facts.sourceToPayloadScale)
+        || !positiveFinite(facts.payloadRasterSize)
         || facts.payloadRasterSize != QSizeF(payload.image.size())
         || facts.payloadByteSize < payload.image.sizeInBytes() || !exactPair
         || facts.hasAlpha != payload.image.hasAlphaChannel()
-        || !validOrientationPolicy(facts.orientationPolicy)
-        || qAbs(mapped.width() - facts.payloadRasterSize.width()) >= 0.0001
-        || qAbs(mapped.height() - facts.payloadRasterSize.height()) >= 0.0001) {
+        || !validOrientationPolicy(facts.orientationPolicy)) {
         return { CommonPayloadCause::Invalid,
             QStringLiteral("frame payload facts are inconsistent") };
     }
@@ -160,7 +156,6 @@ CommonPayloadAdmission admitPayload(const FramePayload& payload,
     admitted.image = payload.image;
     admitted.sourceLogicalSize = facts.sourceLogicalSize;
     admitted.payloadRasterSize = facts.payloadRasterSize;
-    admitted.sourceToPayloadScale = facts.sourceToPayloadScale;
     admitted.payloadByteSize = facts.payloadByteSize;
     admitted.quality = facts.quality;
     admitted.exactness = facts.exactness;
@@ -451,9 +446,9 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
                 Cause::FrameDurationMismatch, QStringLiteral("provider frame duration mismatch"));
         }
         const FramePayload payload { ImageFramePrivateAccess::image(*frame),
-            { frame->sourceLogicalSize(), frame->payloadRasterSize(), frame->sourceToPayloadScale(),
-                frame->payloadByteSize(), frame->quality(), frame->exactness(), frame->hasAlpha(),
-                frame->orientationPolicy(), frame->formatIdentifier() } };
+            { frame->sourceLogicalSize(), frame->payloadRasterSize(), frame->payloadByteSize(),
+                frame->quality(), frame->exactness(), frame->hasAlpha(), frame->orientationPolicy(),
+                frame->formatIdentifier() } };
         const auto common = admitPayload(payload, state.preparedPayload, state.exactnessPreference,
             state.role, state.resolvedFrame, expectedFrameDuration, envelope.demandRevision());
         if (common.cause != CommonPayloadCause::Accepted) {
@@ -477,9 +472,9 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
             Cause::ResolvedFrameMismatch, QStringLiteral("provider frame resolved frame mismatch"));
     }
     const FramePayload payload { ImageFramePrivateAccess::image(*frame),
-        { frame->sourceLogicalSize(), frame->payloadRasterSize(), frame->sourceToPayloadScale(),
-            frame->payloadByteSize(), frame->quality(), frame->exactness(), frame->hasAlpha(),
-            frame->orientationPolicy(), frame->formatIdentifier() } };
+        { frame->sourceLogicalSize(), frame->payloadRasterSize(), frame->payloadByteSize(),
+            frame->quality(), frame->exactness(), frame->hasAlpha(), frame->orientationPolicy(),
+            frame->formatIdentifier() } };
     const auto common = admitPayload(payload, state.preparedPayload, state.exactnessPreference,
         state.role, state.resolvedFrame, -1, envelope.demandRevision());
     if (common.cause != CommonPayloadCause::Accepted) {

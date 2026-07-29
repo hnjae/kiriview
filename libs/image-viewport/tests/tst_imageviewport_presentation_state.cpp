@@ -1381,9 +1381,9 @@ void ImageViewportPresentationStateTest::manualZoomMaximumTracksVirtualSpreadAnd
 
     QImage preview(200, 100, QImage::Format_ARGB32_Premultiplied);
     preview.fill(Qt::transparent);
-    ImageFrame largeLogicalFrame(preview, QSizeF(200000, 100000), QSizeF(preview.size()),
-        QSizeF(0.001, 0.001), preview.sizeInBytes(), ImageViewportPayloadQuality::Preview,
-        ImageViewportPayloadExactness::NotExact, true, ImageFrame::OrientationPolicy::Identity, {});
+    ImageFrame largeLogicalFrame(preview, QSizeF(200000, 100000), preview.sizeInBytes(),
+        ImageViewportPayloadQuality::Preview, ImageViewportPayloadExactness::NotExact,
+        ImageFrame::OrientationPolicy::Identity, {});
     QScopedPointer<ImageSequenceFactoryResult> largeLogicalResult(
         factory.fromFrame(&largeLogicalFrame));
     QVERIFY(largeLogicalResult->sequence());
@@ -1452,9 +1452,9 @@ void ImageViewportPresentationStateTest::maximumDecreaseClampsZoomAndContentAtom
 
     QImage preview(200, 100, QImage::Format_ARGB32_Premultiplied);
     preview.fill(Qt::transparent);
-    ImageFrame largeLogicalFrame(preview, QSizeF(200000, 100000), QSizeF(preview.size()),
-        QSizeF(0.001, 0.001), preview.sizeInBytes(), ImageViewportPayloadQuality::Preview,
-        ImageViewportPayloadExactness::NotExact, true, ImageFrame::OrientationPolicy::Identity, {});
+    ImageFrame largeLogicalFrame(preview, QSizeF(200000, 100000), preview.sizeInBytes(),
+        ImageViewportPayloadQuality::Preview, ImageViewportPayloadExactness::NotExact,
+        ImageFrame::OrientationPolicy::Identity, {});
     QScopedPointer<ImageSequenceFactoryResult> largeResult(factory.fromFrame(&largeLogicalFrame));
     QVERIFY(largeResult->sequence());
 

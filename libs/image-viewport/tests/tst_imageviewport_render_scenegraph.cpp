@@ -10,6 +10,7 @@
 #include <QtGui/QMatrix4x4>
 #include <QtQuick/QSGSimpleTextureNode>
 
+#include <cmath>
 #include <limits>
 #include <memory>
 #include <utility>
@@ -36,6 +37,7 @@ private Q_SLOTS:
     void primaryAndSecondaryProviderFramesCommitOneSpread();
     void deviceIndependentStillImageUsesPhysicalTextureSourceRect();
     void lowerDetailStillImageUsesSourceLogicalGeometryOnFirstRender();
+    void fractionalScaleLowerDetailStillImageRendersFullPayloadBounds();
     void solidBackgroundRendersBehindImageNode();
     void qualityAndMirroringConfigureTextureNode();
     void rotatedImageTextureNodeUsesTransform_data();
@@ -49,7 +51,11 @@ private Q_SLOTS:
     void renderPlanBuildsBackgroundPrimitivesWithoutSceneGraph();
     void renderPlanRejectsNonFiniteGeometryBeforeMaterialization();
     void renderPlanBuildsRoleLayerMappingWithoutSceneGraph();
-    void renderPlanUsesExplicitPayloadScaleInsteadOfImageDevicePixelRatio();
+    void renderPlanMapsCompleteLogicalFrameToExactRasterBounds();
+    void renderPlanPreservesFractionalCropAtRasterBoundary();
+    void renderPlanCanonicalizesRepresentationalBoundaryDrift();
+    void renderPlanRejectsMateriallyOutOfBoundsSourceGeometry();
+    void renderPlanDerivesPayloadMappingInsteadOfUsingImageDevicePixelRatio();
     void renderPlanReportsPreMaterializationFailureIntent();
     void coverImageTextureNodeUsesVisibleSourceRect();
     void providerStillFrameCreatesTexturePaintNode();
@@ -63,10 +69,7 @@ ImageViewportInternal::PreparedPayload renderAdapterPayload(QImage image)
 {
     const QSizeF logicalSize = image.deviceIndependentSize();
     const QSizeF rasterSize = image.size();
-    const QSizeF scale = logicalSize.isEmpty() ? QSizeF()
-                                               : QSizeF(rasterSize.width() / logicalSize.width(),
-                                                     rasterSize.height() / logicalSize.height());
-    return { true, 1, 1, std::move(image), logicalSize, rasterSize, scale };
+    return { true, 1, 1, std::move(image), logicalSize, rasterSize };
 }
 
 RenderAdapter::Input renderAdapterInputForPayload(
@@ -610,10 +613,9 @@ void ImageViewportRenderSceneGraphTest::
     QImage image(8, 4, QImage::Format_ARGB32_Premultiplied);
     image.setDevicePixelRatio(3.0);
     image.fill(QColor(255, 0, 0, 255));
-    ImageFrame frame(image, QSizeF(16.0, 8.0), QSizeF(8.0, 4.0), QSizeF(0.5, 0.5),
-        image.sizeInBytes(), ImageViewportPayloadQuality::Preview,
-        ImageViewportPayloadExactness::NotExact, true, ImageFrame::OrientationPolicy::Identity,
-        QStringLiteral("argb32"));
+    ImageFrame frame(image, QSizeF(16.0, 8.0), image.sizeInBytes(),
+        ImageViewportPayloadQuality::Preview, ImageViewportPayloadExactness::NotExact,
+        ImageFrame::OrientationPolicy::Identity, QStringLiteral("argb32"));
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
     QVERIFY(result->sequence());
 
@@ -633,6 +635,40 @@ void ImageViewportRenderSceneGraphTest::
     QVERIFY(imageNode->texture());
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 16.0, 8.0));
     QCOMPARE(imageNode->sourceRect(), QRectF(0.0, 0.0, 8.0, 4.0));
+}
+
+void ImageViewportRenderSceneGraphTest::
+    fractionalScaleLowerDetailStillImageRendersFullPayloadBounds()
+{
+    ImageSequenceFactory factory;
+    QImage image(7, 7, QImage::Format_ARGB32_Premultiplied);
+    image.fill(QColor(255, 0, 0, 255));
+    ImageFrame frame(image, QSizeF(25.0, 25.0), image.sizeInBytes(),
+        ImageViewportPayloadQuality::BoundedDetail, ImageViewportPayloadExactness::NotExact,
+        ImageFrame::OrientationPolicy::Identity, QStringLiteral("argb32"));
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    QQuickWindow window;
+    window.resize(50, 50);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(50.0, 50.0));
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    const QMetaObject* metaObject = item.metaObject();
+
+    QScopedPointer<QSGNode> root(item.takePaintNode());
+    QVERIFY(root);
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+
+    auto* imageNode = dynamic_cast<QSGImageNode*>(root->lastChild());
+    QVERIFY(imageNode);
+    QVERIFY(imageNode->texture());
+    QCOMPARE(imageNode->sourceRect(), QRectF(0.0, 0.0, 7.0, 7.0));
 }
 
 void ImageViewportRenderSceneGraphTest::solidBackgroundRendersBehindImageNode()
@@ -968,9 +1004,13 @@ void ImageViewportRenderSceneGraphTest::renderPlanBuildsRoleLayerMappingWithoutS
     QImage primaryImage(2, 2, QImage::Format_ARGB32_Premultiplied);
     primaryImage.fill(QColor(255, 0, 0, 255));
     ImageViewportInternal::PreparedPayload secondaryPayload
-        = { true, 3, 7, secondaryImage, QSizeF(2.0, 2.0), QSizeF(4.0, 4.0), QSizeF(2.0, 2.0) };
+        = renderAdapterPayload(std::move(secondaryImage));
+    secondaryPayload.generation = 3;
+    secondaryPayload.payloadId = 7;
     ImageViewportInternal::PreparedPayload primaryPayload
-        = { true, 3, 8, primaryImage, QSizeF(2.0, 2.0), QSizeF(2.0, 2.0), QSizeF(1.0, 1.0) };
+        = renderAdapterPayload(std::move(primaryImage));
+    primaryPayload.generation = 3;
+    primaryPayload.payloadId = 8;
 
     RenderAdapter::Input input;
     input.itemSize = QSizeF(30.0, 20.0);
@@ -999,14 +1039,83 @@ void ImageViewportRenderSceneGraphTest::renderPlanBuildsRoleLayerMappingWithoutS
     QCOMPARE(plan.rolePayloads.at(0).preparedPayload.payloadId, quint64(8));
 }
 
+void ImageViewportRenderSceneGraphTest::renderPlanMapsCompleteLogicalFrameToExactRasterBounds()
+{
+    QImage image(7, 7, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::red);
+    ImageViewportInternal::PreparedPayload payload = renderAdapterPayload(std::move(image));
+    payload.sourceLogicalSize = QSizeF(25.0, 25.0);
+
+    RenderAdapter::Input input = renderAdapterInputForPayload(payload);
+    input.imageLayers.first().sourceRect = QRectF(0.0, 0.0, 25.0, 25.0);
+
+    const RenderAdapter::RenderPlan plan = RenderAdapter().createPlan(input);
+
+    QCOMPARE(plan.result, RenderAdapter::CommitResult::Committed);
+    QCOMPARE(plan.imageLayers.constFirst().physicalSourceRect, QRectF(0.0, 0.0, 7.0, 7.0));
+}
+
+void ImageViewportRenderSceneGraphTest::renderPlanPreservesFractionalCropAtRasterBoundary()
+{
+    QImage image(7, 7, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::red);
+    ImageViewportInternal::PreparedPayload payload = renderAdapterPayload(std::move(image));
+    payload.sourceLogicalSize = QSizeF(25.0, 25.0);
+
+    RenderAdapter::Input input = renderAdapterInputForPayload(payload);
+    input.imageLayers.first().sourceRect = QRectF(QPointF(6.25, 3.125), QPointF(25.0, 25.0));
+
+    const RenderAdapter::RenderPlan plan = RenderAdapter().createPlan(input);
+
+    QCOMPARE(plan.result, RenderAdapter::CommitResult::Committed);
+    QCOMPARE(plan.imageLayers.constFirst().physicalSourceRect, QRectF(1.75, 0.875, 5.25, 6.125));
+}
+
+void ImageViewportRenderSceneGraphTest::renderPlanCanonicalizesRepresentationalBoundaryDrift()
+{
+    QImage image(7, 7, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::red);
+    ImageViewportInternal::PreparedPayload payload = renderAdapterPayload(std::move(image));
+    payload.sourceLogicalSize = QSizeF(25.0, 25.0);
+
+    const double belowZero = -std::numeric_limits<double>::epsilon();
+    const double aboveExtent = std::nextafter(
+        payload.sourceLogicalSize.width(), std::numeric_limits<double>::infinity());
+    RenderAdapter::Input input = renderAdapterInputForPayload(payload);
+    input.imageLayers.first().sourceRect
+        = QRectF(QPointF(belowZero, belowZero), QPointF(aboveExtent, aboveExtent));
+
+    const RenderAdapter::RenderPlan plan = RenderAdapter().createPlan(input);
+
+    QCOMPARE(plan.result, RenderAdapter::CommitResult::Committed);
+    QCOMPARE(plan.imageLayers.constFirst().physicalSourceRect, QRectF(0.0, 0.0, 7.0, 7.0));
+}
+
+void ImageViewportRenderSceneGraphTest::renderPlanRejectsMateriallyOutOfBoundsSourceGeometry()
+{
+    QImage image(7, 7, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::red);
+    ImageViewportInternal::PreparedPayload payload = renderAdapterPayload(std::move(image));
+    payload.sourceLogicalSize = QSizeF(25.0, 25.0);
+
+    RenderAdapter::Input input = renderAdapterInputForPayload(payload);
+    input.imageLayers.first().sourceRect = QRectF(-0.1, 0.0, 25.1, 25.0);
+
+    const RenderAdapter::RenderPlan plan = RenderAdapter().createPlan(input);
+
+    QCOMPARE(plan.result, RenderAdapter::CommitResult::Failed);
+    QCOMPARE(plan.failureCause, RenderFailureCause::InvalidRenderGeometry);
+}
+
 void ImageViewportRenderSceneGraphTest::
-    renderPlanUsesExplicitPayloadScaleInsteadOfImageDevicePixelRatio()
+    renderPlanDerivesPayloadMappingInsteadOfUsingImageDevicePixelRatio()
 {
     QImage image(8, 4, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::red);
     image.setDevicePixelRatio(3.0);
-    ImageViewportInternal::PreparedPayload payload { true, 1, 3, image, QSizeF(16.0, 8.0),
-        QSizeF(8.0, 4.0), QSizeF(0.5, 0.5) };
+    ImageViewportInternal::PreparedPayload payload = renderAdapterPayload(std::move(image));
+    payload.payloadId = 3;
+    payload.sourceLogicalSize = QSizeF(16.0, 8.0);
 
     RenderAdapter::Input input;
     input.itemSize = QSizeF(100.0, 100.0);

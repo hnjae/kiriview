@@ -17,9 +17,9 @@ namespace {
 FramePayload framePayload(const ImageFrame& frame)
 {
     return { ImageFramePrivateAccess::image(frame),
-        { frame.sourceLogicalSize(), frame.payloadRasterSize(), frame.sourceToPayloadScale(),
-            frame.payloadByteSize(), frame.quality(), frame.exactness(), frame.hasAlpha(),
-            frame.orientationPolicy(), frame.formatIdentifier() } };
+        { frame.sourceLogicalSize(), frame.payloadRasterSize(), frame.payloadByteSize(),
+            frame.quality(), frame.exactness(), frame.hasAlpha(), frame.orientationPolicy(),
+            frame.formatIdentifier() } };
 }
 
 QString factoryReasonDiagnostic(

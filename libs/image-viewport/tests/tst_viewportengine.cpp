@@ -171,12 +171,8 @@ ImageViewportInternal::PreparedPayload preparedPayloadForTest(
     if (sourceLogicalSize.isEmpty())
         sourceLogicalSize = image.deviceIndependentSize();
     const QSizeF payloadRasterSize(image.size());
-    const QSizeF sourceToPayloadScale = sourceLogicalSize.isEmpty()
-        ? QSizeF {}
-        : QSizeF(payloadRasterSize.width() / sourceLogicalSize.width(),
-              payloadRasterSize.height() / sourceLogicalSize.height());
     return { false, generation, payloadId, image, sourceLogicalSize, payloadRasterSize,
-        sourceToPayloadScale, image.sizeInBytes(), ImageViewportPayloadQuality::Exact,
+        image.sizeInBytes(), ImageViewportPayloadQuality::Exact,
         ImageViewportPayloadExactness::ExactForSource };
 }
 

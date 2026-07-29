@@ -13,14 +13,11 @@ std::unique_ptr<ImageFrame> providerDetailFrame(
     const QSizeF logicalSize(16.0, 8.0);
     QImage image(rasterSize, QImage::Format_ARGB32_Premultiplied);
     image.fill(color);
-    return std::make_unique<ImageFrame>(image, logicalSize, QSizeF(rasterSize),
-        QSizeF(
-            rasterSize.width() / logicalSize.width(), rasterSize.height() / logicalSize.height()),
-        image.sizeInBytes(), quality,
+    return std::make_unique<ImageFrame>(image, logicalSize, image.sizeInBytes(), quality,
         quality == ImageViewportPayloadQuality::Exact
             ? ImageViewportPayloadExactness::ExactForSource
             : ImageViewportPayloadExactness::NotExact,
-        image.hasAlphaChannel(), ImageFrame::OrientationPolicy::Identity, QString {});
+        ImageFrame::OrientationPolicy::Identity, QString {});
 }
 
 struct PendingProvisionalReplacementFixture

@@ -29,14 +29,12 @@ public:
     {
         QImage image(payloadRasterSize, QImage::Format_ARGB32_Premultiplied);
         image.fill(color);
-        auto frame = std::make_unique<ImageFrame>(image, m_logicalSize, QSizeF(payloadRasterSize),
-            QSizeF(payloadRasterSize.width() / m_logicalSize.width(),
-                payloadRasterSize.height() / m_logicalSize.height()),
-            image.sizeInBytes(), quality,
-            quality == ImageViewportPayloadQuality::Exact
-                ? ImageViewportPayloadExactness::ExactForSource
-                : ImageViewportPayloadExactness::NotExact,
-            true, ImageFrame::OrientationPolicy::Identity, QString {});
+        auto frame
+            = std::make_unique<ImageFrame>(image, m_logicalSize, image.sizeInBytes(), quality,
+                quality == ImageViewportPayloadQuality::Exact
+                    ? ImageViewportPayloadExactness::ExactForSource
+                    : ImageViewportPayloadExactness::NotExact,
+                ImageFrame::OrientationPolicy::Identity, QString {});
         auto envelope = ImageSequenceProviderFrameEnvelope::stillFrame();
         if (echoDemandRevision)
             envelope.setDemandRevision(request.demand().demandRevision());

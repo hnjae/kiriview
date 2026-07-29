@@ -7,19 +7,11 @@
 
 #include <QtGui/QTransform>
 
-#include <cmath>
 #include <utility>
 
 using namespace ImageViewportInternal;
 
 namespace {
-bool isPositiveFiniteValue(double value) { return std::isfinite(value) && value > 0.0; }
-
-bool isPositiveFiniteSize(QSizeF size)
-{
-    return isPositiveFiniteValue(size.width()) && isPositiveFiniteValue(size.height());
-}
-
 QImage normalizedImageForOrientation(
     const QImage& image, ImageFrame::OrientationPolicy orientationPolicy)
 {
@@ -42,15 +34,6 @@ QImage normalizedImageForOrientation(
         return image.transformed(QTransform().rotate(270));
     }
     return image;
-}
-
-QSizeF scaleFor(QSizeF sourceLogicalSize, QSize payloadRasterSize)
-{
-    if (!isPositiveFiniteSize(sourceLogicalSize) || payloadRasterSize.isEmpty()) {
-        return {};
-    }
-    return QSizeF(payloadRasterSize.width() / sourceLogicalSize.width(),
-        payloadRasterSize.height() / sourceLogicalSize.height());
 }
 
 bool orientationSwapsAxes(ImageFrame::OrientationPolicy orientationPolicy)
@@ -87,29 +70,20 @@ QSizeF normalizedLogicalSize(const QImage& image, ImageFrame::OrientationPolicy 
     return size;
 }
 
-bool payloadFactsMatchRaster(QSize imageSize, qsizetype retainedImageBytes,
-    QSizeF sourceLogicalSize, QSizeF payloadRasterSize, QSizeF sourceToPayloadScale,
-    qint64 payloadByteSize)
+bool payloadFactsMatchRaster(
+    QSize imageSize, qsizetype retainedImageBytes, QSizeF sourceLogicalSize, qint64 payloadByteSize)
 {
-    if (imageSize.isEmpty() || retainedImageBytes <= 0
-        || !isPositiveFiniteInteger(sourceLogicalSize.width())
-        || !isPositiveFiniteInteger(sourceLogicalSize.height())
-        || payloadRasterSize != QSizeF(imageSize) || !isPositiveFiniteSize(sourceToPayloadScale)
-        || payloadByteSize < retainedImageBytes) {
-        return false;
-    }
-    const QSizeF mapped(sourceLogicalSize.width() * sourceToPayloadScale.width(),
-        sourceLogicalSize.height() * sourceToPayloadScale.height());
-    return qAbs(mapped.width() - payloadRasterSize.width()) < 0.0001
-        && qAbs(mapped.height() - payloadRasterSize.height()) < 0.0001;
+    return !imageSize.isEmpty() && retainedImageBytes > 0
+        && isPositiveFiniteInteger(sourceLogicalSize.width())
+        && isPositiveFiniteInteger(sourceLogicalSize.height())
+        && payloadByteSize >= retainedImageBytes;
 }
 
-bool payloadFactsMatchImage(const QImage& image, QSizeF sourceLogicalSize, QSizeF payloadRasterSize,
-    QSizeF sourceToPayloadScale, qint64 payloadByteSize)
+bool payloadFactsMatchImage(const QImage& image, QSizeF sourceLogicalSize, qint64 payloadByteSize)
 {
     return !image.isNull()
-        && payloadFactsMatchRaster(image.size(), image.sizeInBytes(), sourceLogicalSize,
-            payloadRasterSize, sourceToPayloadScale, payloadByteSize);
+        && payloadFactsMatchRaster(
+            image.size(), image.sizeInBytes(), sourceLogicalSize, payloadByteSize);
 }
 
 bool isValidOrientationPolicy(ImageFrame::OrientationPolicy policy)
@@ -135,6 +109,12 @@ bool payloadWithinPublicEnvelope(const QImage& image)
         && image.height() <= ImageSequenceLimits::maximumPayloadRasterHeight()
         && image.sizeInBytes() > 0
         && image.sizeInBytes() <= ImageSequenceLimits::maximumPayloadBytes();
+}
+
+bool payloadRasterExceedsPublicEnvelope(QSize size)
+{
+    return size.width() > ImageSequenceLimits::maximumPayloadRasterWidth()
+        || size.height() > ImageSequenceLimits::maximumPayloadRasterHeight();
 }
 
 }
@@ -490,16 +470,17 @@ ImageFrame::ImageFrame(const QImage& image, QObject* parent)
 ImageFrame::ImageFrame(const QImage& image, OrientationPolicy orientationPolicy, QObject* parent)
     : QObject(parent)
 {
-    if (!payloadWithinPublicEnvelope(image)) {
+    if (!isValidOrientationPolicy(orientationPolicy)) {
+        return;
+    }
+    const QSize rasterSize = normalizedRasterSize(image.size(), orientationPolicy);
+    if (!payloadWithinPublicEnvelope(image) || payloadRasterExceedsPublicEnvelope(rasterSize)) {
         const QSizeF logicalSize = normalizedLogicalSize(image, orientationPolicy);
-        const QSize rasterSize = normalizedRasterSize(image.size(), orientationPolicy);
-        if (!image.isNull() && isValidOrientationPolicy(orientationPolicy)
-            && isPositiveFiniteInteger(logicalSize.width())
+        if (!image.isNull() && isPositiveFiniteInteger(logicalSize.width())
             && isPositiveFiniteInteger(logicalSize.height())) {
             m_logicalSize = logicalSize;
             m_payloadByteSize = image.sizeInBytes();
             m_payloadRasterSize = QSizeF(rasterSize);
-            m_sourceToPayloadScale = scaleFor(logicalSize, rasterSize);
             m_quality = ImageViewportPayloadQuality::Exact;
             m_exactness = ImageViewportPayloadExactness::ExactForSource;
             m_hasAlpha = image.hasAlphaChannel();
@@ -514,7 +495,6 @@ ImageFrame::ImageFrame(const QImage& image, OrientationPolicy orientationPolicy,
         m_logicalSize = logicalSize;
         m_payloadByteSize = normalizedImage.sizeInBytes();
         m_payloadRasterSize = QSizeF(normalizedImage.size());
-        m_sourceToPayloadScale = scaleFor(logicalSize, normalizedImage.size());
         m_quality = ImageViewportPayloadQuality::Exact;
         m_exactness = ImageViewportPayloadExactness::ExactForSource;
         m_hasAlpha = normalizedImage.hasAlphaChannel();
@@ -527,49 +507,42 @@ ImageFrame::ImageFrame(const QImage& image, OrientationPolicy orientationPolicy,
     }
 }
 
-ImageFrame::ImageFrame(const QImage& image, QSizeF sourceLogicalSize, QSizeF payloadRasterSize,
-    QSizeF sourceToPayloadScale, qint64 payloadByteSize, ImageViewportPayloadQuality quality,
-    ImageViewportPayloadExactness exactness, bool hasAlpha, OrientationPolicy orientationPolicy,
-    QString formatIdentifier, QObject* parent)
+ImageFrame::ImageFrame(const QImage& image, QSizeF sourceLogicalSize, qint64 payloadByteSize,
+    ImageViewportPayloadQuality quality, ImageViewportPayloadExactness exactness,
+    OrientationPolicy orientationPolicy, QString formatIdentifier, QObject* parent)
     : QObject(parent)
 {
-    if (!payloadWithinPublicEnvelope(image)
-        || payloadRasterSize.width() > ImageSequenceLimits::maximumPayloadRasterWidth()
-        || payloadRasterSize.height() > ImageSequenceLimits::maximumPayloadRasterHeight()
+    if (!isValidOrientationPolicy(orientationPolicy)) {
+        return;
+    }
+    const QSize rasterSize = normalizedRasterSize(image.size(), orientationPolicy);
+    const bool exactPair = (quality == ImageViewportPayloadQuality::Exact)
+        == (exactness == ImageViewportPayloadExactness::ExactForSource);
+    if (!payloadWithinPublicEnvelope(image) || payloadRasterExceedsPublicEnvelope(rasterSize)
         || payloadByteSize > ImageSequenceLimits::maximumPayloadBytes()) {
-        const QSize rasterSize = normalizedRasterSize(image.size(), orientationPolicy);
-        const bool exactPair = (quality == ImageViewportPayloadQuality::Exact)
-            == (exactness == ImageViewportPayloadExactness::ExactForSource);
-        if (!image.isNull() && isValidOrientationPolicy(orientationPolicy)
-            && payloadFactsMatchRaster(rasterSize, image.sizeInBytes(), sourceLogicalSize,
-                payloadRasterSize, sourceToPayloadScale, payloadByteSize)
-            && exactPair && hasAlpha == image.hasAlphaChannel()) {
+        if (!image.isNull()
+            && payloadFactsMatchRaster(
+                rasterSize, image.sizeInBytes(), sourceLogicalSize, payloadByteSize)
+            && exactPair) {
             m_logicalSize = sourceLogicalSize;
             m_payloadByteSize = payloadByteSize;
-            m_payloadRasterSize = payloadRasterSize;
-            m_sourceToPayloadScale = sourceToPayloadScale;
+            m_payloadRasterSize = QSizeF(rasterSize);
             m_quality = quality;
             m_exactness = exactness;
-            m_hasAlpha = hasAlpha;
+            m_hasAlpha = image.hasAlphaChannel();
             m_orientationPolicy = orientationPolicy;
             m_formatIdentifier = std::move(formatIdentifier);
         }
         return;
     }
     const QImage normalizedImage = normalizedImageForOrientation(image, orientationPolicy);
-    const bool exactPair = (quality == ImageViewportPayloadQuality::Exact)
-        == (exactness == ImageViewportPayloadExactness::ExactForSource);
-    if (payloadFactsMatchImage(normalizedImage, sourceLogicalSize, payloadRasterSize,
-            sourceToPayloadScale, payloadByteSize)
-        && exactPair && hasAlpha == normalizedImage.hasAlphaChannel()
-        && isValidOrientationPolicy(orientationPolicy)) {
+    if (payloadFactsMatchImage(normalizedImage, sourceLogicalSize, payloadByteSize) && exactPair) {
         m_logicalSize = sourceLogicalSize;
         m_payloadByteSize = payloadByteSize;
-        m_payloadRasterSize = payloadRasterSize;
-        m_sourceToPayloadScale = sourceToPayloadScale;
+        m_payloadRasterSize = QSizeF(normalizedImage.size());
         m_quality = quality;
         m_exactness = exactness;
-        m_hasAlpha = hasAlpha;
+        m_hasAlpha = normalizedImage.hasAlphaChannel();
         m_orientationPolicy = orientationPolicy;
         m_formatIdentifier = std::move(formatIdentifier);
         if (m_payloadRasterSize.width() <= ImageSequenceLimits::maximumPayloadRasterWidth()
@@ -589,7 +562,6 @@ ImageFrame::ImageFrame(const QImage& image, qsizetype payloadByteSizeOverride, Q
         m_logicalSize = logicalSize;
         m_payloadByteSize = payloadByteSizeOverride;
         m_payloadRasterSize = QSizeF(image.size());
-        m_sourceToPayloadScale = scaleFor(logicalSize, image.size());
         m_quality = ImageViewportPayloadQuality::Exact;
         m_exactness = ImageViewportPayloadExactness::ExactForSource;
         m_hasAlpha = image.hasAlphaChannel();
@@ -607,8 +579,6 @@ QSizeF ImageFrame::sourceLogicalSize() const { return m_logicalSize; }
 qint64 ImageFrame::payloadByteSize() const { return m_payloadByteSize; }
 
 QSizeF ImageFrame::payloadRasterSize() const { return m_payloadRasterSize; }
-
-QSizeF ImageFrame::sourceToPayloadScale() const { return m_sourceToPayloadScale; }
 
 ImageViewportPayloadQuality ImageFrame::quality() const { return m_quality; }
 
@@ -632,7 +602,6 @@ TimedImageFrame::TimedImageFrame(ImageFrame* frame, int startPosition, int durat
     m_frame->m_logicalSize = frame->m_logicalSize;
     m_frame->m_payloadByteSize = frame->m_payloadByteSize;
     m_frame->m_payloadRasterSize = frame->m_payloadRasterSize;
-    m_frame->m_sourceToPayloadScale = frame->m_sourceToPayloadScale;
     m_frame->m_quality = frame->m_quality;
     m_frame->m_exactness = frame->m_exactness;
     m_frame->m_hasAlpha = frame->m_hasAlpha;

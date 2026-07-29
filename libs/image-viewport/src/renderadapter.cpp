@@ -56,6 +56,8 @@ bool finiteRect(const QRectF& rect)
         && std::isfinite(rect.bottom());
 }
 
+bool invertedRect(const QRectF& rect) { return rect.width() < 0.0 || rect.height() < 0.0; }
+
 bool sceneGraphRect(const QRectF& rect)
 {
     constexpr double maximum = std::numeric_limits<float>::max();
@@ -86,17 +88,52 @@ bool validBackground(const RenderAdapter::Input& input)
 
 bool payloadFactsValid(const ImageViewportInternal::PreparedPayload& payload)
 {
-    if (payload.image.isNull() || !positiveFinite(payload.sourceLogicalSize)
-        || !positiveFinite(payload.payloadRasterSize)
-        || !positiveFinite(payload.sourceToPayloadScale)
-        || payload.payloadRasterSize != QSizeF(payload.image.size())) {
+    return !payload.image.isNull() && positiveFinite(payload.sourceLogicalSize)
+        && positiveFinite(payload.payloadRasterSize)
+        && payload.payloadRasterSize == QSizeF(payload.image.size());
+}
+
+bool mapLogicalEdgeToRaster(
+    double logicalEdge, double logicalExtent, double rasterExtent, double& rasterEdge)
+{
+    double normalized = logicalEdge / logicalExtent;
+    if (!std::isfinite(normalized)) {
         return false;
     }
-    const QSizeF mapped(payload.sourceLogicalSize.width() * payload.sourceToPayloadScale.width(),
-        payload.sourceLogicalSize.height() * payload.sourceToPayloadScale.height());
-    return positiveFinite(mapped)
-        && qAbs(mapped.width() - payload.payloadRasterSize.width()) < 0.0001
-        && qAbs(mapped.height() - payload.payloadRasterSize.height()) < 0.0001;
+    if (normalized < 0.0) {
+        if (!qFuzzyIsNull(normalized)) {
+            return false;
+        }
+        normalized = 0.0;
+    } else if (normalized > 1.0) {
+        if (!qFuzzyCompare(normalized, 1.0)) {
+            return false;
+        }
+        normalized = 1.0;
+    }
+    rasterEdge = normalized * rasterExtent;
+    return std::isfinite(rasterEdge);
+}
+
+bool mapLogicalRectToRaster(
+    const QRectF& logicalRect, QSizeF logicalSize, QSizeF rasterSize, QRectF& rasterRect)
+{
+    double left = 0.0;
+    double top = 0.0;
+    double right = 0.0;
+    double bottom = 0.0;
+    if (!mapLogicalEdgeToRaster(logicalRect.left(), logicalSize.width(), rasterSize.width(), left)
+        || !mapLogicalEdgeToRaster(
+            logicalRect.top(), logicalSize.height(), rasterSize.height(), top)
+        || !mapLogicalEdgeToRaster(
+            logicalRect.right(), logicalSize.width(), rasterSize.width(), right)
+        || !mapLogicalEdgeToRaster(
+            logicalRect.bottom(), logicalSize.height(), rasterSize.height(), bottom)
+        || right <= left || bottom <= top) {
+        return false;
+    }
+    rasterRect = QRectF(QPointF(left, top), QPointF(right, bottom));
+    return finiteRect(rasterRect);
 }
 
 QImage checkerboardImage(const RenderAdapter::RenderPlan::BackgroundLayer& background)
@@ -180,14 +217,15 @@ RenderAdapter::RenderPlan RenderAdapter::createPlan(const Input& input) const
         const bool targetEmpty = layer.targetRect.isEmpty();
         const bool sourceEmpty = layer.sourceRect.isEmpty();
         if (index > 1 || layer.role != expectedRole || !payloadIdentity.isValid()
-            || !payloadFactsValid(payload) || !finiteRect(layer.sourceRect)
-            || targetEmpty != sourceEmpty) {
+            || !payloadFactsValid(payload)) {
             plan.result = CommitResult::Failed;
             plan.failedRole = layer.role;
             plan.failureCause = RenderFailureCause::InvalidRolePayload;
             return plan;
         }
-        if (!sceneGraphRect(layer.targetRect)) {
+        if (!finiteRect(layer.sourceRect) || !sceneGraphRect(layer.targetRect)
+            || invertedRect(layer.sourceRect) || invertedRect(layer.targetRect)
+            || targetEmpty != sourceEmpty) {
             plan.result = CommitResult::Failed;
             plan.failedRole = layer.role;
             plan.failureCause = RenderFailureCause::InvalidRenderGeometry;
@@ -195,19 +233,14 @@ RenderAdapter::RenderPlan RenderAdapter::createPlan(const Input& input) const
         }
         if (targetEmpty)
             continue;
-        const QSizeF scale = payload.sourceToPayloadScale;
-        const QRectF physicalSourceRect(layer.sourceRect.x() * scale.width(),
-            layer.sourceRect.y() * scale.height(), layer.sourceRect.width() * scale.width(),
-            layer.sourceRect.height() * scale.height());
-        const QRectF rasterBounds(QPointF(), payload.payloadRasterSize);
+        QRectF physicalSourceRect;
         const QRectF unrotated = unrotatedTargetRect(layer.targetRect, layer.rotationDegrees);
-        if (!finiteRect(physicalSourceRect) || !sceneGraphRect(unrotated)
-            || !rasterBounds.contains(physicalSourceRect)) {
+        if (!mapLogicalRectToRaster(layer.sourceRect, payload.sourceLogicalSize,
+                payload.payloadRasterSize, physicalSourceRect)
+            || !sceneGraphRect(unrotated)) {
             plan.result = CommitResult::Failed;
             plan.failedRole = layer.role;
-            plan.failureCause = !finiteRect(physicalSourceRect) || !sceneGraphRect(unrotated)
-                ? RenderFailureCause::InvalidRenderGeometry
-                : RenderFailureCause::InvalidRolePayload;
+            plan.failureCause = RenderFailureCause::InvalidRenderGeometry;
             return plan;
         }
         plan.imageLayers.append({ layer.role, payload, payloadIdentity, layer.targetRect, unrotated,

@@ -915,9 +915,8 @@ void ImageViewportStillTest::stillImageFactoryRejectsPublishedLimitViolations()
     oversized.fill(Qt::transparent);
     const double excessiveWidth
         = static_cast<double>(ImageSequenceLimits::maximumSourceLogicalWidth()) + 1.0;
-    ImageFrame frame(oversized, QSizeF(excessiveWidth, 1), QSizeF(1, 1),
-        QSizeF(1.0 / excessiveWidth, 1), oversized.sizeInBytes(),
-        ImageViewportPayloadQuality::Preview, ImageViewportPayloadExactness::NotExact, true,
+    ImageFrame frame(oversized, QSizeF(excessiveWidth, 1), oversized.sizeInBytes(),
+        ImageViewportPayloadQuality::Preview, ImageViewportPayloadExactness::NotExact,
         ImageFrame::OrientationPolicy::Identity, {});
 
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));

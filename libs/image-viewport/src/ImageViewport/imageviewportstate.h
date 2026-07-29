@@ -420,7 +420,6 @@ class ImageViewportRoleDisplaySnapshot
     Q_PROPERTY(int position READ position CONSTANT)
     Q_PROPERTY(QSizeF sourceLogicalSize READ sourceLogicalSize CONSTANT)
     Q_PROPERTY(QSizeF payloadRasterSize READ payloadRasterSize CONSTANT)
-    Q_PROPERTY(QSizeF sourceToPayloadScale READ sourceToPayloadScale CONSTANT)
     Q_PROPERTY(ImageViewportPayloadQuality quality READ quality CONSTANT)
     Q_PROPERTY(ImageViewportPayloadExactness exactness READ exactness CONSTANT)
     Q_PROPERTY(bool currentForDemand READ currentForDemand CONSTANT)
@@ -430,16 +429,14 @@ public:
     ImageViewportRoleDisplaySnapshot() = default;
     ImageViewportRoleDisplaySnapshot(bool belongsToAcceptedPresentationTarget, bool retained,
         int frame, int position, QSizeF sourceLogicalSize, QSizeF payloadRasterSize,
-        QSizeF sourceToPayloadScale, ImageViewportPayloadQuality quality,
-        ImageViewportPayloadExactness exactness, bool currentForDemand,
-        ImageViewportDemandRevisionToken demandRevision)
+        ImageViewportPayloadQuality quality, ImageViewportPayloadExactness exactness,
+        bool currentForDemand, ImageViewportDemandRevisionToken demandRevision)
         : m_belongsToAcceptedPresentationTarget(belongsToAcceptedPresentationTarget)
         , m_retained(retained)
         , m_frame(frame)
         , m_position(position)
         , m_sourceLogicalSize(sourceLogicalSize)
         , m_payloadRasterSize(payloadRasterSize)
-        , m_sourceToPayloadScale(sourceToPayloadScale)
         , m_quality(quality)
         , m_exactness(exactness)
         , m_currentForDemand(currentForDemand)
@@ -456,7 +453,6 @@ public:
     [[nodiscard]] int position() const { return m_position; }
     [[nodiscard]] QSizeF sourceLogicalSize() const { return m_sourceLogicalSize; }
     [[nodiscard]] QSizeF payloadRasterSize() const { return m_payloadRasterSize; }
-    [[nodiscard]] QSizeF sourceToPayloadScale() const { return m_sourceToPayloadScale; }
     [[nodiscard]] ImageViewportPayloadQuality quality() const { return m_quality; }
     [[nodiscard]] ImageViewportPayloadExactness exactness() const { return m_exactness; }
     [[nodiscard]] bool currentForDemand() const { return m_currentForDemand; }
@@ -473,9 +469,8 @@ public:
             && lhs.m_retained == rhs.m_retained && lhs.m_frame == rhs.m_frame
             && lhs.m_position == rhs.m_position
             && lhs.m_sourceLogicalSize == rhs.m_sourceLogicalSize
-            && lhs.m_payloadRasterSize == rhs.m_payloadRasterSize
-            && lhs.m_sourceToPayloadScale == rhs.m_sourceToPayloadScale
-            && lhs.m_quality == rhs.m_quality && lhs.m_exactness == rhs.m_exactness
+            && lhs.m_payloadRasterSize == rhs.m_payloadRasterSize && lhs.m_quality == rhs.m_quality
+            && lhs.m_exactness == rhs.m_exactness
             && lhs.m_currentForDemand == rhs.m_currentForDemand
             && lhs.m_demandRevision == rhs.m_demandRevision;
     }
@@ -487,7 +482,6 @@ private:
     int m_position = -1;
     QSizeF m_sourceLogicalSize;
     QSizeF m_payloadRasterSize;
-    QSizeF m_sourceToPayloadScale;
     ImageViewportPayloadQuality m_quality = ImageViewportPayloadQuality::Unknown;
     ImageViewportPayloadExactness m_exactness = ImageViewportPayloadExactness::Unknown;
     bool m_currentForDemand = false;

@@ -327,10 +327,9 @@ void ImageViewportTimedTest::timedFrameListRequireExactRejectsNewInexactFrame()
     ImageFrame exactFrame(exactImage);
     QImage previewImage(8, 4, QImage::Format_ARGB32_Premultiplied);
     previewImage.fill(Qt::black);
-    ImageFrame previewFrame(previewImage, QSizeF(16.0, 8.0), QSizeF(8.0, 4.0), QSizeF(0.5, 0.5),
-        previewImage.sizeInBytes(), ImageViewportPayloadQuality::Preview,
-        ImageViewportPayloadExactness::NotExact, true, ImageFrame::OrientationPolicy::Identity,
-        QStringLiteral("preview/argb32"));
+    ImageFrame previewFrame(previewImage, QSizeF(16.0, 8.0), previewImage.sizeInBytes(),
+        ImageViewportPayloadQuality::Preview, ImageViewportPayloadExactness::NotExact,
+        ImageFrame::OrientationPolicy::Identity, QStringLiteral("preview/argb32"));
     TimedImageFrameList list;
     QVERIFY(list.appendFrame(&exactFrame, 100));
     QVERIFY(list.appendFrame(&previewFrame, 250));

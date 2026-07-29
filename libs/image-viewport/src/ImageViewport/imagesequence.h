@@ -92,7 +92,6 @@ class ImageFrame : public QObject
     Q_PROPERTY(QSizeF sourceLogicalSize READ sourceLogicalSize CONSTANT)
     Q_PROPERTY(qint64 payloadByteSize READ payloadByteSize CONSTANT)
     Q_PROPERTY(QSizeF payloadRasterSize READ payloadRasterSize CONSTANT)
-    Q_PROPERTY(QSizeF sourceToPayloadScale READ sourceToPayloadScale CONSTANT)
     Q_PROPERTY(ImageViewportPayloadQuality quality READ quality CONSTANT)
     Q_PROPERTY(ImageViewportPayloadExactness exactness READ exactness CONSTANT)
     Q_PROPERTY(bool hasAlpha READ hasAlpha CONSTANT)
@@ -115,16 +114,14 @@ public:
     explicit ImageFrame(QObject* parent = nullptr);
     explicit ImageFrame(const QImage& image, QObject* parent = nullptr);
     ImageFrame(const QImage& image, OrientationPolicy orientationPolicy, QObject* parent = nullptr);
-    ImageFrame(const QImage& image, QSizeF sourceLogicalSize, QSizeF payloadRasterSize,
-        QSizeF sourceToPayloadScale, qint64 payloadByteSize, ImageViewportPayloadQuality quality,
-        ImageViewportPayloadExactness exactness, bool hasAlpha, OrientationPolicy orientationPolicy,
-        QString formatIdentifier, QObject* parent = nullptr);
+    ImageFrame(const QImage& image, QSizeF sourceLogicalSize, qint64 payloadByteSize,
+        ImageViewportPayloadQuality quality, ImageViewportPayloadExactness exactness,
+        OrientationPolicy orientationPolicy, QString formatIdentifier, QObject* parent = nullptr);
 
     [[nodiscard]] bool isValid() const;
     [[nodiscard]] QSizeF sourceLogicalSize() const;
     [[nodiscard]] qint64 payloadByteSize() const;
     [[nodiscard]] QSizeF payloadRasterSize() const;
-    [[nodiscard]] QSizeF sourceToPayloadScale() const;
     [[nodiscard]] ImageViewportPayloadQuality quality() const;
     [[nodiscard]] ImageViewportPayloadExactness exactness() const;
     [[nodiscard]] bool hasAlpha() const;
@@ -137,7 +134,6 @@ private:
     QSizeF m_logicalSize;
     qint64 m_payloadByteSize = 0;
     QSizeF m_payloadRasterSize;
-    QSizeF m_sourceToPayloadScale;
     ImageViewportPayloadQuality m_quality = ImageViewportPayloadQuality::Unknown;
     ImageViewportPayloadExactness m_exactness = ImageViewportPayloadExactness::Unknown;
     bool m_hasAlpha = false;

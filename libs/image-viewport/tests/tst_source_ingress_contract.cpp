@@ -121,26 +121,27 @@ void SourceIngressContractTest::frameOwnsReusablePayloadFacts()
     QImage image(2, 1, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
 
-    ImageFrame frame(image, QSizeF(4, 2), QSizeF(2, 1), QSizeF(0.5, 0.5), image.sizeInBytes(),
-        ImageViewportPayloadQuality::Preview, ImageViewportPayloadExactness::NotExact, true,
-        ImageFrame::OrientationPolicy::Identity, QStringLiteral("preview/argb32"));
+    ImageFrame frame(image, QSizeF(4, 2), image.sizeInBytes(), ImageViewportPayloadQuality::Preview,
+        ImageViewportPayloadExactness::NotExact, ImageFrame::OrientationPolicy::Identity,
+        QStringLiteral("preview/argb32"));
 
     QCOMPARE(frame.sourceLogicalSize(), QSizeF(4, 2));
     QCOMPARE(frame.payloadRasterSize(), QSizeF(2, 1));
-    QCOMPARE(frame.sourceToPayloadScale(), QSizeF(0.5, 0.5));
+    QCOMPARE(frame.hasAlpha(), true);
     QCOMPARE(frame.quality(), ImageViewportPayloadQuality::Preview);
     QCOMPARE(frame.exactness(), ImageViewportPayloadExactness::NotExact);
     QCOMPARE(frame.formatIdentifier(), QStringLiteral("preview/argb32"));
 
-    ImageFrame inaccurateAlpha(image, QSizeF(4, 2), QSizeF(2, 1), QSizeF(0.5, 0.5),
-        image.sizeInBytes(), ImageViewportPayloadQuality::Preview,
-        ImageViewportPayloadExactness::NotExact, false, ImageFrame::OrientationPolicy::Identity,
-        {});
-    QVERIFY(!inaccurateAlpha.isValid());
+    QImage opaqueImage(2, 1, QImage::Format_RGB32);
+    opaqueImage.fill(Qt::black);
+    ImageFrame opaqueFrame(opaqueImage, QSizeF(4, 2), opaqueImage.sizeInBytes(),
+        ImageViewportPayloadQuality::Preview, ImageViewportPayloadExactness::NotExact,
+        ImageFrame::OrientationPolicy::Identity, {});
+    QCOMPARE(opaqueFrame.hasAlpha(), false);
 
-    ImageFrame unboundedFormat(image, QSizeF(4, 2), QSizeF(2, 1), QSizeF(0.5, 0.5),
-        image.sizeInBytes(), ImageViewportPayloadQuality::Preview,
-        ImageViewportPayloadExactness::NotExact, true, ImageFrame::OrientationPolicy::Identity,
+    ImageFrame unboundedFormat(image, QSizeF(4, 2), image.sizeInBytes(),
+        ImageViewportPayloadQuality::Preview, ImageViewportPayloadExactness::NotExact,
+        ImageFrame::OrientationPolicy::Identity,
         QString(ImageSequenceLimits::maximumFormatIdentifierCharacters() + 1, QLatin1Char('x')));
     QVERIFY(unboundedFormat.isValid());
     ImageSequenceFactory factory;
@@ -150,19 +151,11 @@ void SourceIngressContractTest::frameOwnsReusablePayloadFacts()
     QImage oversizedRaster(ImageSequenceLimits::maximumPayloadRasterWidth() + 1, 1,
         QImage::Format_ARGB32_Premultiplied);
     oversizedRaster.fill(Qt::transparent);
-    ImageFrame rasterFrame(oversizedRaster, QSizeF(1, 1), QSizeF(oversizedRaster.size()),
-        QSizeF(oversizedRaster.width(), 1), oversizedRaster.sizeInBytes(),
-        ImageViewportPayloadQuality::Preview, ImageViewportPayloadExactness::NotExact, true,
+    ImageFrame rasterFrame(oversizedRaster, QSizeF(1, 1), oversizedRaster.sizeInBytes(),
+        ImageViewportPayloadQuality::Preview, ImageViewportPayloadExactness::NotExact,
         ImageFrame::OrientationPolicy::Identity, {});
     QScopedPointer<ImageSequenceFactoryResult> rasterResult(factory.fromFrame(&rasterFrame));
     QCOMPARE(rasterResult->reason(), ImageSequenceFactoryReason::LimitExceeded);
-
-    ImageFrame inconsistentOversizedRaster(oversizedRaster, QSizeF(1, 1),
-        QSizeF(oversizedRaster.size()), QSizeF(oversizedRaster.width(), 1),
-        oversizedRaster.sizeInBytes(), ImageViewportPayloadQuality::Preview,
-        ImageViewportPayloadExactness::NotExact, false, ImageFrame::OrientationPolicy::Identity,
-        {});
-    QVERIFY(!inconsistentOversizedRaster.isValid());
 
     ImageSequenceProviderFrameEnvelope envelope;
     envelope.setFrame(0);
@@ -191,9 +184,9 @@ void SourceIngressContractTest::logicalSourceAndPayloadLimitsAreIndependent()
     QImage boundedPreview(200, 100, QImage::Format_ARGB32_Premultiplied);
     boundedPreview.fill(Qt::transparent);
     ImageFrame largeLogicalPreview(boundedPreview, QSizeF(200000, 100000),
-        QSizeF(boundedPreview.size()), QSizeF(0.001, 0.001), boundedPreview.sizeInBytes(),
-        ImageViewportPayloadQuality::Preview, ImageViewportPayloadExactness::NotExact, true,
-        ImageFrame::OrientationPolicy::Identity, QStringLiteral("bounded-preview"));
+        boundedPreview.sizeInBytes(), ImageViewportPayloadQuality::Preview,
+        ImageViewportPayloadExactness::NotExact, ImageFrame::OrientationPolicy::Identity,
+        QStringLiteral("bounded-preview"));
     QScopedPointer<ImageSequenceFactoryResult> largeLogicalResult(
         factory.fromFrame(&largeLogicalPreview));
     QCOMPARE(largeLogicalResult->outcome(), ImageSequenceFactoryOutcome::Created);
@@ -201,20 +194,17 @@ void SourceIngressContractTest::logicalSourceAndPayloadLimitsAreIndependent()
 
     QImage onePixel(1, 1, QImage::Format_ARGB32_Premultiplied);
     onePixel.fill(Qt::transparent);
-    const double scale = 1.0 / static_cast<double>(maximumLogicalSide);
     ImageFrame maximumLogicalFrame(onePixel, QSizeF(maximumLogicalSide, maximumLogicalSide),
-        QSizeF(1, 1), QSizeF(scale, scale), onePixel.sizeInBytes(),
-        ImageViewportPayloadQuality::Preview, ImageViewportPayloadExactness::NotExact, true,
-        ImageFrame::OrientationPolicy::Identity, {});
+        onePixel.sizeInBytes(), ImageViewportPayloadQuality::Preview,
+        ImageViewportPayloadExactness::NotExact, ImageFrame::OrientationPolicy::Identity, {});
     QScopedPointer<ImageSequenceFactoryResult> maximumLogicalResult(
         factory.fromFrame(&maximumLogicalFrame));
     QCOMPARE(maximumLogicalResult->outcome(), ImageSequenceFactoryOutcome::Created);
 
     ImageFrame excessiveLogicalFrame(onePixel,
-        QSizeF(static_cast<double>(maximumLogicalSide) + 1.0, maximumLogicalSide), QSizeF(1, 1),
-        QSizeF(1.0 / (static_cast<double>(maximumLogicalSide) + 1.0), scale),
+        QSizeF(static_cast<double>(maximumLogicalSide) + 1.0, maximumLogicalSide),
         onePixel.sizeInBytes(), ImageViewportPayloadQuality::Preview,
-        ImageViewportPayloadExactness::NotExact, true, ImageFrame::OrientationPolicy::Identity, {});
+        ImageViewportPayloadExactness::NotExact, ImageFrame::OrientationPolicy::Identity, {});
     QScopedPointer<ImageSequenceFactoryResult> excessiveLogicalResult(
         factory.fromFrame(&excessiveLogicalFrame));
     QCOMPARE(excessiveLogicalResult->reason(), ImageSequenceFactoryReason::LimitExceeded);
@@ -235,18 +225,16 @@ void SourceIngressContractTest::logicalSourceAndPayloadLimitsAreIndependent()
         factory.fromFrame(&excessiveRasterFrame));
     QCOMPARE(excessiveRasterResult->reason(), ImageSequenceFactoryReason::LimitExceeded);
 
-    ImageFrame maximumByteFrame(onePixel, QSizeF(1, 1), QSizeF(1, 1), QSizeF(1, 1),
-        ImageSequenceLimits::maximumPayloadBytes(), ImageViewportPayloadQuality::Exact,
-        ImageViewportPayloadExactness::ExactForSource, true,
+    ImageFrame maximumByteFrame(onePixel, QSizeF(1, 1), ImageSequenceLimits::maximumPayloadBytes(),
+        ImageViewportPayloadQuality::Exact, ImageViewportPayloadExactness::ExactForSource,
         ImageFrame::OrientationPolicy::Identity, {});
     QScopedPointer<ImageSequenceFactoryResult> maximumByteResult(
         factory.fromFrame(&maximumByteFrame));
     QCOMPARE(maximumByteResult->outcome(), ImageSequenceFactoryOutcome::Created);
 
-    ImageFrame excessiveByteFrame(onePixel, QSizeF(1, 1), QSizeF(1, 1), QSizeF(1, 1),
+    ImageFrame excessiveByteFrame(onePixel, QSizeF(1, 1),
         ImageSequenceLimits::maximumPayloadBytes() + 1, ImageViewportPayloadQuality::Exact,
-        ImageViewportPayloadExactness::ExactForSource, true,
-        ImageFrame::OrientationPolicy::Identity, {});
+        ImageViewportPayloadExactness::ExactForSource, ImageFrame::OrientationPolicy::Identity, {});
     QScopedPointer<ImageSequenceFactoryResult> excessiveByteResult(
         factory.fromFrame(&excessiveByteFrame));
     QCOMPARE(excessiveByteResult->reason(), ImageSequenceFactoryReason::LimitExceeded);

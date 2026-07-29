@@ -399,7 +399,6 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
             : sourceLogicalSize(source);
         const auto& payload = displayedPayloadForRole(access.display(), role);
         const QSizeF payloadRaster = displayed ? payload.payloadRasterSize : QSizeF {};
-        const QSizeF sourceScale = displayed ? payload.sourceToPayloadScale : QSizeF {};
         const QRectF acceptedPageRect = role == ImageViewportPageRole::Primary
             ? PresentationGeometry::primaryPageRect(acceptedGeometry)
             : PresentationGeometry::secondaryPageRect(acceptedGeometry);
@@ -465,7 +464,6 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
                 displayed ? displayedRequest.request.resolvedFrame.frame : -1,
                 displayed ? displayedRequest.request.resolvedFrame.position : -1,
                 displayed ? displayedSize : QSizeF(), displayed ? payloadRaster : QSizeF(),
-                displayed ? sourceScale : QSizeF(),
                 displayed ? (payload.quality == ImageViewportPayloadQuality::Unknown
                                     ? ImageViewportPayloadQuality::Exact
                                     : payload.quality)
