@@ -41,6 +41,11 @@ void PredecodeLoadController::startWindowLoads(const PredecodeLoadWindow& window
     startNextLoads();
 }
 
+void PredecodeLoadController::retireBackgroundLoad(const DisplayedImageLocation& location)
+{
+    m_activeDecodes.cancelLocation(location);
+}
+
 void PredecodeLoadController::startNextLoads()
 {
     while (true) {

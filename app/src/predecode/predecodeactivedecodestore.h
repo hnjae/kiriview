@@ -26,6 +26,7 @@ public:
     [[nodiscard]] std::size_t size() const;
     [[nodiscard]] PredecodeActiveLoads activeLoads() const;
     std::optional<ImageDecodeRequest> finish(const ImageDecodeRequest& request);
+    void cancelLocation(const DisplayedImageLocation& location);
     void cancel();
 
 private:

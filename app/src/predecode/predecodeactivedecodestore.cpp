@@ -61,6 +61,20 @@ std::optional<ImageDecodeRequest> PredecodeActiveDecodeStore::finish(
     return finishedRequest;
 }
 
+void PredecodeActiveDecodeStore::cancelLocation(const DisplayedImageLocation& location)
+{
+    std::erase_if(m_entries, [&location](const Entry& entry) {
+        if (entry.request.location() != location) {
+            return false;
+        }
+        if (entry.decodeJob != nullptr) {
+            entry.decodeJob->cancel();
+            entry.decodeJob->deleteLater();
+        }
+        return true;
+    });
+}
+
 void PredecodeActiveDecodeStore::cancel()
 {
     for (const Entry& entry : m_entries) {
