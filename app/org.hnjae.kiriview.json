@@ -79,12 +79,8 @@
         {
           "type": "git",
           "url": "https://github.com/strukturag/libheif.git",
-          "tag": "v1.21.2",
-          "commit": "62f1b8c76ed4d8305071fdacbe74ef9717bacac5"
-        },
-        {
-          "type": "patch",
-          "path": "flatpak/patches/libheif-ffmpeg-avc-decoder.patch"
+          "tag": "v1.23.1",
+          "commit": "2c4bbb54c2738d4a5efbbe3e5fa1d5d76bb88eb0"
         }
       ]
     },
