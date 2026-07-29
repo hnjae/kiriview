@@ -8,6 +8,8 @@ The main window toolbar shows media controls without a page title.
 
 The leading side of the toolbar contains Previous, the current page number, `of`, the total item count, and Next.
 
+The current page number, `of`, and total item count use the system fixed-width font.
+
 The trailing action toolbar shows as many trailing controls as fit and moves the rest into an overflow menu. When it runs out of horizontal space, KiriView keeps the zoom percentage visible the longest, then the Fit menu button. The Fit menu button shows its selected fit label when there is enough toolbar space and collapses to icon-only when space is constrained.
 
 Visible trailing toolbar controls align to a common vertical center and use consistent outer spacing between adjacent top-level controls. The Fit menu button is rendered as one top-level toolbar control with the same vertical alignment and spacing as adjacent visible trailing toolbar controls.

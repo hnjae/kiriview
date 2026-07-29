@@ -106,6 +106,7 @@ RowLayout {
 
         Layout.preferredWidth: Math.max(Kirigami.Units.gridUnit * 3, pageNumberMetrics.advanceWidth + leftPadding + rightPadding + root.controlSpacing * 2)
         enabled: root.pageNavigationAvailable && root.activeNavigationEditable
+        font: Kirigami.Theme.fixedWidthFont
         horizontalAlignment: Text.AlignHCenter
         inputMethodHints: Qt.ImhDigitsOnly
         selectByMouse: true
@@ -201,6 +202,7 @@ RowLayout {
     }
 
     Controls.Label {
+        font: Kirigami.Theme.fixedWidthFont
         text: KI18n.i18nc("@label:page count", "of")
         textFormat: Text.PlainText
     }
@@ -211,6 +213,7 @@ RowLayout {
         objectName: "pageCountLabel"
 
         Layout.preferredWidth: pageCountMetrics.advanceWidth
+        font: Kirigami.Theme.fixedWidthFont
         horizontalAlignment: Text.AlignLeft
         text: root.pageNavigationAvailable && root.itemCount > 0 ? root.itemCount.toString() : root.unknownNavigationText
         textFormat: Text.PlainText

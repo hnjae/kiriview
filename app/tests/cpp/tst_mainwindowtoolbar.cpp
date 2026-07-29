@@ -21,6 +21,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFont>
+#include <QFontDatabase>
 #include <QImage>
 #include <QMetaEnum>
 #include <QMetaProperty>
@@ -52,6 +53,7 @@ private Q_SLOTS:
     void initTestCase();
     void init();
     void startupCreatesOneVisibleToolbarWithDisabledMediaControls();
+    void toolbarPageReadoutUsesSystemFixedWidthFont();
     void startupInitialDirectImageRendersMainViewport();
     void startupInitialComicArchiveRendersAndNavigatesMainViewport();
     void comicPageReplacementKeepsRightToolbarPresentationStable();
@@ -742,6 +744,26 @@ void TestMainWindowToolBar::startupCreatesOneVisibleToolbarWithDisabledMediaCont
         = visibleItemsByObjectName(fixture.window, QStringLiteral("toolbarApplicationMenuButton"));
     QCOMPARE(visibleApplicationMenuButtons.size(), 1);
     QVERIFY(visibleApplicationMenuButtons.constFirst()->isEnabled());
+}
+
+void TestMainWindowToolBar::toolbarPageReadoutUsesSystemFixedWidthFont()
+{
+    MainWindowFixture fixture = createMainWindowFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+
+    QQuickItem* pageNumberField = findQuickItem(fixture.window, QStringLiteral("pageNumberField"));
+    QQuickItem* pageCountLabel = findQuickItem(fixture.window, QStringLiteral("pageCountLabel"));
+    const QList<QQuickItem*> pageCountSeparatorLabels
+        = visibleItemsByText(fixture.window, QStringLiteral("of"));
+    QVERIFY(pageNumberField != nullptr);
+    QVERIFY(pageCountLabel != nullptr);
+    QCOMPARE(pageCountSeparatorLabels.size(), 1);
+
+    const QString fixedWidthFamily = QFontDatabase::systemFont(QFontDatabase::FixedFont).family();
+    QVERIFY(!fixedWidthFamily.isEmpty());
+    QCOMPARE(fontFamily(pageNumberField), fixedWidthFamily);
+    QCOMPARE(fontFamily(pageCountSeparatorLabels.constFirst()), fixedWidthFamily);
+    QCOMPARE(fontFamily(pageCountLabel), fixedWidthFamily);
 }
 
 void TestMainWindowToolBar::startupInitialDirectImageRendersMainViewport()
