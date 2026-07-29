@@ -13,7 +13,10 @@ DecodedImageResult decodeImageData(const QByteArray& data)
 
 DecodedImageResult decodeImageData(const QByteArray& data, const ImageDecodeRequest& request)
 {
-    return decodeImageDataWithDefaultRouter(data, request);
+    const ImageDecodeRequest revisionedRequest = request.sourceRevision().isValid()
+        ? request
+        : request.withSourceRevision(ImageSourceRevision::fromData(data));
+    return decodeImageDataWithDefaultRouter(data, revisionedRequest);
 }
 
 }

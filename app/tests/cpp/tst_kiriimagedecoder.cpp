@@ -197,6 +197,18 @@ QByteArray createPngData()
     return data;
 }
 
+QByteArray animatedGifData()
+{
+    return QByteArray::fromHex(
+        "47494638396101000100800000000000ffffff"
+        "21ff0b4e45545343415045322e300301000000"
+        "21f904000a000000"
+        "2c0000000001000100000202440100"
+        "21f904000a000000"
+        "2c0000000001000100000202440100"
+        "3b");
+}
+
 void appendLittleEndian16(QByteArray* data, quint16 value)
 {
     data->append(static_cast<char>(value & 0xff));
@@ -265,6 +277,8 @@ class TestKiriImageDecoder : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    void directDecodeDerivesSourceRevisionForEveryDecodedVariant_data();
+    void directDecodeDerivesSourceRevisionForEveryDecodedVariant();
     void realAnimatedFixturesDecodeAsAnimations_data();
     void realAnimatedFixturesDecodeAsAnimations();
     void jpegCompressedHeifStillImageDecodes();
@@ -274,6 +288,51 @@ private Q_SLOTS:
     void rawExtensionForcesRawDecodeBeforeQtFallback();
     void rawSamplesDecodeWhenConfigured();
 };
+
+void TestKiriImageDecoder::directDecodeDerivesSourceRevisionForEveryDecodedVariant_data()
+{
+    QTest::addColumn<QByteArray>("imageData");
+    QTest::addColumn<QString>("fileName");
+
+    QTest::newRow("static") << createPngData() << QStringLiteral("direct.png");
+    QTest::newRow("apng") << fixtureData(QStringLiteral("animated-smoke.apng"))
+                          << QStringLiteral("direct.apng");
+    QTest::newRow("reader-animation") << animatedGifData() << QStringLiteral("direct.gif");
+    QTest::newRow("webp") << fixtureData(QStringLiteral("animated-smoke.webp"))
+                          << QStringLiteral("direct.webp");
+    QTest::newRow("jxl") << fixtureData(QStringLiteral("animated-smoke.jxl"))
+                         << QStringLiteral("direct.jxl");
+    QTest::newRow("heif-sequence") << fixtureData(QStringLiteral("heif-sequence-alpha.heics"))
+                                   << QStringLiteral("direct.heics");
+}
+
+void TestKiriImageDecoder::directDecodeDerivesSourceRevisionForEveryDecodedVariant()
+{
+    QFETCH(QByteArray, imageData);
+    QFETCH(QString, fileName);
+
+    QVERIFY(!imageData.isEmpty());
+    const kiriview::ImageDecodeRequest request = kiriview::ImageDecodeRequest::fromUrl(
+        1, QUrl::fromLocalFile(QStringLiteral("/tmp/") + fileName));
+    const kiriview::DecodedImageResult result = kiriview::decodeImageData(imageData, request);
+    const kiriview::DecodedImageFailure* failure = kiriview::decodedImageResultFailure(result);
+    QVERIFY2(failure == nullptr, qPrintable(failure == nullptr ? QString() : failure->errorString));
+    const kiriview::DecodedImage* image = kiriview::decodedImageResultImage(result);
+    QVERIFY(image != nullptr);
+
+    const kiriview::ImageSourceRevision expected
+        = kiriview::ImageSourceRevision::fromData(imageData);
+    std::visit(
+        [&expected](const auto& decoded) {
+            using Image = std::decay_t<decltype(decoded)>;
+            if constexpr (std::is_same_v<Image, kiriview::StaticDecodedImage>) {
+                QCOMPARE(decoded.displayImage.sourceRevision, expected);
+            } else {
+                QCOMPARE(decoded.sourceRevision, expected);
+            }
+        },
+        *image);
+}
 
 void TestKiriImageDecoder::realAnimatedFixturesDecodeAsAnimations_data()
 {
