@@ -55,7 +55,8 @@ public:
         const DisplayedImageLocation& location) const;
 
 private:
-    void scheduleWithConfirmedCandidateSnapshot(PredecodeScheduleContext context);
+    void scheduleWithConfirmedCandidateSnapshot(
+        PredecodeScheduleContext context, quint64 requestId);
 
     ImageDocumentState& m_state;
     PrimaryDisplayedImageCallback m_primaryDisplayedImage;

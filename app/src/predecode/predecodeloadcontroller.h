@@ -27,6 +27,7 @@ public:
     void clearWindow();
     void startWindowLoads(const PredecodeLoadWindow& window);
     void retireBackgroundLoad(const DisplayedImageLocation& location);
+    void supersedeBackgroundWindow();
     void cancelBackgroundWork();
     void clear();
     std::optional<PredecodedImage> findPredecodedImage(

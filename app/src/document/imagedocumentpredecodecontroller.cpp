@@ -103,6 +103,7 @@ ImageDocumentPredecodeController::~ImageDocumentPredecodeController()
 void ImageDocumentPredecodeController::scheduleAdjacentImagePredecode(
     std::optional<DisplayedPredecodeImage> secondaryImage)
 {
+    const quint64 requestId = ++m_candidateSnapshotRequestId;
     std::optional<std::vector<DisplayedPredecodeImage>> displayedImages
         = displayedPredecodeImages(m_primaryDisplayedImage, std::move(secondaryImage));
     if (!displayedImages.has_value()) {
@@ -126,7 +127,7 @@ void ImageDocumentPredecodeController::scheduleAdjacentImagePredecode(
         false,
         ImageDocumentPageCandidateListSnapshot {},
     };
-    scheduleWithConfirmedCandidateSnapshot(std::move(context));
+    scheduleWithConfirmedCandidateSnapshot(std::move(context), requestId);
 }
 
 void ImageDocumentPredecodeController::scheduleImageNavigationTargetPredecode(
@@ -139,6 +140,7 @@ void ImageDocumentPredecodeController::scheduleImageNavigationTargetPredecode(
         return;
     }
 
+    const quint64 requestId = ++m_candidateSnapshotRequestId;
     m_coordinator->acceptForegroundSelection(*targetLocation);
 
     if (!predecodeScopeAllowed(*targetLocation, m_ordinaryDirectMediaPredecodeEnabled)) {
@@ -161,12 +163,15 @@ void ImageDocumentPredecodeController::scheduleImageNavigationTargetPredecode(
         true,
         ImageDocumentPageCandidateListSnapshot {},
     };
-    scheduleWithConfirmedCandidateSnapshot(std::move(context));
+    scheduleWithConfirmedCandidateSnapshot(std::move(context), requestId);
 }
 
 void ImageDocumentPredecodeController::scheduleWithConfirmedCandidateSnapshot(
-    PredecodeScheduleContext context)
+    PredecodeScheduleContext context, quint64 requestId)
 {
+    if (requestId != m_candidateSnapshotRequestId) {
+        return;
+    }
     const std::optional<ImageDocumentPageCandidateListContext> candidateContext
         = imageDocumentPageCandidateListContextForDisplayedImage(context.currentLocation);
     if (!candidateContext.has_value() || !m_ensurePageCandidateSnapshot) {
@@ -174,7 +179,6 @@ void ImageDocumentPredecodeController::scheduleWithConfirmedCandidateSnapshot(
         return;
     }
 
-    const quint64 requestId = ++m_candidateSnapshotRequestId;
     const std::weak_ptr<int> lifetime = m_callbackLifetime;
     m_ensurePageCandidateSnapshot(*candidateContext,
         [this, lifetime, requestId, context = std::move(context)](
@@ -195,7 +199,11 @@ void ImageDocumentPredecodeController::cancel()
     m_coordinator->cancel();
 }
 
-void ImageDocumentPredecodeController::clear() { m_coordinator->clear(); }
+void ImageDocumentPredecodeController::clear()
+{
+    ++m_candidateSnapshotRequestId;
+    m_coordinator->clear();
+}
 
 std::optional<PredecodedImage> ImageDocumentPredecodeController::findPredecodedImage(
     const DisplayedImageLocation& location) const

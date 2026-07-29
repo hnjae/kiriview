@@ -74,6 +74,7 @@ private Q_SLOTS:
     void parallelLimitStartsMultipleWindowLoads();
     void startWindowLoadsReprioritizesWithoutCancelingActiveDecode();
     void retireBackgroundLoadDropsOnlyMatchingQueuedScope();
+    void supersedeBackgroundWindowPreservesActiveWorkAndStopsQueue();
     void cancelBackgroundWorkSuppressesStaleDecode();
 };
 
@@ -197,6 +198,28 @@ void TestPredecodeLoadController::retireBackgroundLoadDropsOnlyMatchingQueuedSco
     QTRY_VERIFY(controller.findPredecodedImage(firstLocation).has_value());
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     QVERIFY(!controller.findPredecodedImage(selectedLocation).has_value());
+}
+
+void TestPredecodeLoadController::supersedeBackgroundWindowPreservesActiveWorkAndStopsQueue()
+{
+    ManualImageDataLoader dataLoader;
+    kiriview::PredecodeLoadController controller(this,
+        imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget);
+    const QUrl displayedUrl = indexedImageUrl(0);
+    const QUrl activeUrl = indexedImageUrl(1);
+    const QUrl queuedUrl = indexedImageUrl(2);
+
+    controller.startWindowLoads(loadWindow(displayedUrl, { activeUrl, queuedUrl }));
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+    QCOMPARE(dataLoader.frontLoad().url, activeUrl);
+
+    controller.supersedeBackgroundWindow();
+
+    QVERIFY(!dataLoader.frontLoad().canceled);
+    dataLoader.finishFrontLoad(QByteArrayLiteral("compatible active"));
+    QTRY_VERIFY(controller.findPredecodedImage(displayedLocation(activeUrl)).has_value());
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+    QVERIFY(!controller.findPredecodedImage(displayedLocation(queuedUrl)).has_value());
 }
 
 void TestPredecodeLoadController::cancelBackgroundWorkSuppressesStaleDecode()

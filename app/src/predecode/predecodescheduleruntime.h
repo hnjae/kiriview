@@ -33,6 +33,7 @@ public:
     [[nodiscard]] bool powerSaverEnabled() const;
     [[nodiscard]] PredecodeMomentumMode momentumMode() const;
     [[nodiscard]] bool accepts(quint64 generation) const;
+    void supersede();
     void cancel();
 
 private:

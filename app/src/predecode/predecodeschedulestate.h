@@ -95,6 +95,7 @@ public:
     PredecodeScheduleRuntimePlan settlePendingScheduleToNeutral();
     [[nodiscard]] bool accepts(quint64 generation) const;
 
+    void supersede();
     void cancel();
 
 private:

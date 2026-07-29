@@ -45,8 +45,9 @@ void PredecodeLoadController::retireBackgroundLoad(const DisplayedImageLocation&
 {
     m_loadState.retireBackgroundLoad(location);
     m_activeDecodes.cancelLocation(location);
-    startNextLoads();
 }
+
+void PredecodeLoadController::supersedeBackgroundWindow() { m_loadState.cancelBackgroundWork(); }
 
 void PredecodeLoadController::startNextLoads()
 {

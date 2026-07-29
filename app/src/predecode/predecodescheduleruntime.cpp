@@ -178,6 +178,13 @@ qint64 PredecodeScheduleRuntime::currentMonotonicMsec() const
                                                  : 0;
 }
 
+void PredecodeScheduleRuntime::supersede()
+{
+    m_scheduleState.supersede();
+    supersedeScheduleRuntime();
+    m_loadController.supersedeBackgroundWindow();
+}
+
 void PredecodeScheduleRuntime::cancel()
 {
     qCDebug(kiriviewPredecodeLog) << "predecode runtime cancel";

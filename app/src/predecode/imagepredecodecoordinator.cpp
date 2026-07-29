@@ -41,6 +41,7 @@ ImagePredecodeCoordinator::ImagePredecodeCoordinator(ImageDecodeDependencies dec
 
 void ImagePredecodeCoordinator::acceptForegroundSelection(const DisplayedImageLocation& location)
 {
+    m_scheduleRuntime.supersede();
     m_loadController.retireBackgroundLoad(location);
 }
 

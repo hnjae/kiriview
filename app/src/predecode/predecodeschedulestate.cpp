@@ -104,10 +104,15 @@ void PredecodeScheduleState::invalidatePendingSchedule()
     m_pendingSchedule.reset();
 }
 
-void PredecodeScheduleState::cancel()
+void PredecodeScheduleState::supersede()
 {
     invalidatePendingSchedule();
     m_currentContext.reset();
+}
+
+void PredecodeScheduleState::cancel()
+{
+    supersede();
     m_momentumState = {};
 }
 
