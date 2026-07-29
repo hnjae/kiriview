@@ -19,7 +19,6 @@ QtObject {
     required property int twoPageActionId
     required property bool twoPageCheckedFallback
     required property bool twoPageEnabledFallback
-    required property bool videoMode
     required property bool zoomEditableFallback
     required property int zoomMaximumManualPercentFallback
     required property int zoomMinimumManualPercentFallback
@@ -50,66 +49,66 @@ QtObject {
     readonly property bool twoPageInteractionEnabled: actionInteractionEnabled(twoPageActionId, twoPageEnabledFallback)
     readonly property int presentedFitActionId: {
         projectionRevision;
-        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarPresentedFitActionId === "function") {
+        if (provider !== null && provider !== undefined && typeof provider.imageToolbarPresentedFitActionId === "function") {
             return provider.imageToolbarPresentedFitActionId();
         }
         return fitActionId;
     }
     readonly property bool fitAppearanceEnabled: actionAppearanceEnabled(presentedFitActionId, fitEnabledFallback)
     readonly property bool fitInteractionEnabled: actionInteractionEnabled(presentedFitActionId, fitEnabledFallback)
-    readonly property bool presentedImageReady: !videoMode && phase !== KiriViewApplication.ImageToolbarPresentationUnavailable
+    readonly property bool presentedImageReady: phase !== KiriViewApplication.ImageToolbarPresentationUnavailable
     readonly property bool zoomAppearanceEnabled: {
         projectionRevision;
-        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarZoomAppearanceEnabled === "function") {
+        if (provider !== null && provider !== undefined && typeof provider.imageToolbarZoomAppearanceEnabled === "function") {
             return provider.imageToolbarZoomAppearanceEnabled();
         }
-        return !videoMode && zoomEditableFallback;
+        return zoomEditableFallback;
     }
     readonly property bool zoomInteractionEnabled: {
         projectionRevision;
-        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarZoomInteractionEnabled === "function") {
+        if (provider !== null && provider !== undefined && typeof provider.imageToolbarZoomInteractionEnabled === "function") {
             return provider.imageToolbarZoomInteractionEnabled();
         }
-        return !videoMode && zoomEditableFallback;
+        return zoomEditableFallback;
     }
     readonly property bool presentedZoomEditable: {
         projectionRevision;
-        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarZoomPercentEditable === "function") {
+        if (provider !== null && provider !== undefined && typeof provider.imageToolbarZoomPercentEditable === "function") {
             return provider.imageToolbarZoomPercentEditable();
         }
-        return !videoMode && zoomEditableFallback;
+        return zoomEditableFallback;
     }
     readonly property bool presentedZoomPercentAvailable: {
         projectionRevision;
-        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarZoomPercentAvailable === "function") {
+        if (provider !== null && provider !== undefined && typeof provider.imageToolbarZoomPercentAvailable === "function") {
             return provider.imageToolbarZoomPercentAvailable();
         }
         return zoomPercentAvailableFallback;
     }
     readonly property bool presentedZoomPercentKnown: {
         projectionRevision;
-        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarZoomPercentKnown === "function") {
+        if (provider !== null && provider !== undefined && typeof provider.imageToolbarZoomPercentKnown === "function") {
             return provider.imageToolbarZoomPercentKnown();
         }
         return zoomPercentKnownFallback;
     }
     readonly property real presentedZoomPercent: {
         projectionRevision;
-        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarZoomPercent === "function") {
+        if (provider !== null && provider !== undefined && typeof provider.imageToolbarZoomPercent === "function") {
             return provider.imageToolbarZoomPercent();
         }
         return zoomPercentFallback;
     }
     readonly property int presentedZoomMinimumManualPercent: {
         projectionRevision;
-        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarZoomMinimumManualPercent === "function") {
+        if (provider !== null && provider !== undefined && typeof provider.imageToolbarZoomMinimumManualPercent === "function") {
             return provider.imageToolbarZoomMinimumManualPercent();
         }
         return zoomMinimumManualPercentFallback;
     }
     readonly property int presentedZoomMaximumManualPercent: {
         projectionRevision;
-        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarZoomMaximumManualPercent === "function") {
+        if (provider !== null && provider !== undefined && typeof provider.imageToolbarZoomMaximumManualPercent === "function") {
             return provider.imageToolbarZoomMaximumManualPercent();
         }
         return zoomMaximumManualPercentFallback;
@@ -117,25 +116,25 @@ QtObject {
 
     function actionAppearanceEnabled(actionId, fallback) {
         projectionRevision;
-        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarActionAppearanceEnabled === "function") {
+        if (provider !== null && provider !== undefined && typeof provider.imageToolbarActionAppearanceEnabled === "function") {
             return provider.imageToolbarActionAppearanceEnabled(actionId);
         }
-        return !videoMode && fallback;
+        return fallback;
     }
 
     function actionAppearanceChecked(actionId, fallback) {
         projectionRevision;
-        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarActionAppearanceChecked === "function") {
+        if (provider !== null && provider !== undefined && typeof provider.imageToolbarActionAppearanceChecked === "function") {
             return provider.imageToolbarActionAppearanceChecked(actionId);
         }
-        return !videoMode && fallback;
+        return fallback;
     }
 
     function actionInteractionEnabled(actionId, fallback) {
         projectionRevision;
-        if (!videoMode && provider !== null && provider !== undefined && typeof provider.imageToolbarActionInteractionEnabled === "function") {
+        if (provider !== null && provider !== undefined && typeof provider.imageToolbarActionInteractionEnabled === "function") {
             return provider.imageToolbarActionInteractionEnabled(actionId);
         }
-        return !videoMode && fallback;
+        return fallback;
     }
 }

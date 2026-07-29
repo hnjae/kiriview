@@ -28,11 +28,10 @@ Controls.ToolBar {
     property bool transientOverlay: false
     property var applicationMenuActions: []
     property bool showApplicationMenuActions: false
-    property bool videoMode: false
     property bool zoomPercentAvailable: imageReady
     property bool zoomPercentKnown: imageReady
     property real zoomPercent: imageDocument.zoomPercent
-    property bool zoomEditable: !videoMode && imageReady
+    property bool zoomEditable: imageReady
     property bool activeNavigationAvailable: false
     property int activeNavigationCount: 0
     property int activeNavigationCurrentNumber: 0
@@ -190,7 +189,6 @@ Controls.ToolBar {
         twoPageActionId: KiriViewApplication.ViewToggleTwoPageModeAction
         twoPageCheckedFallback: root.actions.twoPageModeAction?.checked ?? false
         twoPageEnabledFallback: root.actions.twoPageModeAction?.enabled ?? false
-        videoMode: root.videoMode
         zoomEditableFallback: root.zoomEditable
         zoomMaximumManualPercentFallback: root.maximumManualZoomPercent
         zoomMinimumManualPercentFallback: root.minimumManualZoomPercent
@@ -493,7 +491,7 @@ Controls.ToolBar {
             maximumManualZoomPercent: root.presentedZoomMaximumManualPercent
             minimumManualZoomPercent: root.presentedZoomMinimumManualPercent
             presentationEditable: root.presentedZoomEditable
-            readOnlyDisplayMode: root.videoMode
+            readOnlyDisplayMode: root.presentedZoomPercentAvailable && !root.presentedZoomEditable
             readOnlyPercent: Math.round(root.presentedZoomPercent)
             readOnlyPercentKnown: root.presentedZoomPercentKnown
             presentationEnabled: retainedPresentation.zoomAppearanceEnabled
@@ -611,7 +609,7 @@ Controls.ToolBar {
         icon.name: "zoom-original-symbolic"
         presentationEnabled: retainedPresentation.zoomAppearanceEnabled
         text: KI18n.i18nc("@action", "Zoom")
-        tooltip: root.videoMode ? (root.zoomPercentKnown ? KI18n.i18nc("@info:tooltip", "Fitted video zoom") : KI18n.i18nc("@info:tooltip", "Video zoom unavailable")) : text
+        tooltip: text
     }
 
     readonly property ImageToolbarPlacementAction fitMenuAction: ImageToolbarPlacementAction {

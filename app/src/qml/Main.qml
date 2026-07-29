@@ -321,7 +321,6 @@ StatefulApp.StatefulWindow {
             }
             showApplicationMenuActions: !root.menuBarMode && !root.fullscreen
             transientOverlay: root.fullscreen
-            videoMode: page.videoMode
             visible: !root.fullscreen || root.windowShell.toolbarRevealed
             zoomEditable: documentSession.activeZoomEditable
             zoomPercent: documentSession.activeZoomPercent

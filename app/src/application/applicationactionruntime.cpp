@@ -178,6 +178,34 @@ void applyCurrentPlacementAndDisableInteractions(
     presentation.fitMode.interactionEnabled = false;
     presentation.zoom.interactionEnabled = false;
 }
+
+Actions::ImageToolbarPresentationSnapshot unavailableMediaToolbarPresentation(
+    const Actions::ApplicationActionStateSnapshot& snapshot,
+    const Actions::ApplicationActionStateInput& input)
+{
+    const kiriview::DocumentSessionActionStateSnapshot& document = snapshot.documentSession;
+    Actions::ImageToolbarPresentationSnapshot presentation;
+    presentation.phase = kiriview::ImagePresentationPhase::Unavailable;
+    presentation.rightToLeftReading
+        = toolbarActionPresentation(Actions::ActionId::ViewToggleRightToLeftReadingAction, input);
+    presentation.twoPageMode
+        = toolbarActionPresentation(Actions::ActionId::ViewToggleTwoPageModeAction, input);
+    presentation.fitMode = toolbarActionPresentation(presentation.presentedFitActionId, input);
+    if (document.videoMode) {
+        presentation.zoom = Actions::ImageToolbarZoomPresentation {
+            document.activeZoom.available,
+            false,
+            document.activeZoom.available,
+            document.activeZoom.known,
+            false,
+            document.activeZoom.percent,
+            document.activeZoom.minimumManualPercent,
+            document.activeZoom.maximumManualPercent,
+        };
+    }
+    applyCurrentPlacementAndDisableInteractions(presentation, snapshot);
+    return presentation;
+}
 }
 
 namespace kiriview::ApplicationActions {
@@ -528,19 +556,13 @@ void ApplicationActionRuntime::updateImageToolbarPresentation()
                 m_imageToolbarPresentation, m_actionStateSnapshot);
             break;
         }
-        m_imageToolbarPresentation = {};
-        m_imageToolbarPresentation.collectionControlsVisible
-            = m_actionStateSnapshot.documentSession.imageCollectionControlsVisible;
-        applyCurrentPlacementAndDisableInteractions(
-            m_imageToolbarPresentation, m_actionStateSnapshot);
+        m_imageToolbarPresentation
+            = unavailableMediaToolbarPresentation(m_actionStateSnapshot, m_actionStateInput);
         break;
     case kiriview::ImagePresentationPhase::Unavailable:
         m_lastCurrentImageToolbarPresentation.reset();
-        m_imageToolbarPresentation = {};
-        m_imageToolbarPresentation.collectionControlsVisible
-            = m_actionStateSnapshot.documentSession.imageCollectionControlsVisible;
-        applyCurrentPlacementAndDisableInteractions(
-            m_imageToolbarPresentation, m_actionStateSnapshot);
+        m_imageToolbarPresentation
+            = unavailableMediaToolbarPresentation(m_actionStateSnapshot, m_actionStateInput);
         break;
     }
 }

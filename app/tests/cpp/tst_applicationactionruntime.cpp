@@ -80,6 +80,20 @@ Actions::ApplicationActionStateSnapshot currentImageToolbarSnapshot()
     return snapshot;
 }
 
+Actions::ApplicationActionStateSnapshot unavailableOpenedCollectionToolbarSnapshot()
+{
+    Actions::ApplicationActionStateSnapshot snapshot;
+    kiriview::DocumentSessionActionAvailabilityFacts& availability
+        = snapshot.documentSession.availability;
+    availability.twoPageModeActive = true;
+    availability.twoPageModeAvailable = true;
+    availability.rightToLeftReadingActive = true;
+    availability.rightToLeftReadingAvailable = true;
+    snapshot.documentSession.imagePresentationPhase = kiriview::ImagePresentationPhase::Unavailable;
+    snapshot.documentSession.imageCollectionControlsVisible = true;
+    return snapshot;
+}
+
 class FakeCommandPortSource final : public Actions::ApplicationCommandPortSource
 {
 public:
@@ -117,6 +131,8 @@ private Q_SLOTS:
     void retainedImageToolbarWithoutCurrentHistoryIsUnavailable();
     void manualZoomKeepsSelectedFitPresentation();
     void currentImageToolbarMatchesCanonicalActionState();
+    void playableOpenedCollectionVideoToolbarUsesCanonicalPresentation();
+    void unsupportedOpenedCollectionVideoToolbarUsesCanonicalPresentation();
 };
 
 void TestApplicationActionRuntime::triggeredActionDispatchesThroughRuntimeOwnedRouter()
@@ -482,6 +498,84 @@ void TestApplicationActionRuntime::currentImageToolbarMatchesCanonicalActionStat
     QVERIFY(!zoomInAction->isEnabled());
     QCOMPARE(runtime.actionStateRevision(), 2);
     QCOMPARE(actionStateCommitCount, 2);
+}
+
+void TestApplicationActionRuntime::playableOpenedCollectionVideoToolbarUsesCanonicalPresentation()
+{
+    FakeApplicationActionHost host;
+    Actions::ApplicationActionRuntime runtime(host);
+    runtime.setupActions();
+    Actions::ApplicationActionStateSnapshot snapshot = unavailableOpenedCollectionToolbarSnapshot();
+    snapshot.documentSession.videoMode = true;
+    snapshot.documentSession.activeZoom = kiriview::ActiveZoomSnapshot {
+        true,
+        true,
+        71.0,
+        false,
+    };
+
+    runtime.setActionStateSnapshot(snapshot);
+
+    const Actions::ImageToolbarPresentationSnapshot presentation
+        = runtime.imageToolbarPresentationSnapshot();
+    QCOMPARE(presentation.phase, kiriview::ImagePresentationPhase::Unavailable);
+    QVERIFY(presentation.collectionControlsVisible);
+    QVERIFY(!presentation.rightToLeftReading.appearanceEnabled);
+    QVERIFY(presentation.rightToLeftReading.appearanceChecked);
+    QVERIFY(!presentation.rightToLeftReading.interactionEnabled);
+    QVERIFY(!presentation.twoPageMode.appearanceEnabled);
+    QVERIFY(presentation.twoPageMode.appearanceChecked);
+    QVERIFY(!presentation.twoPageMode.interactionEnabled);
+    QVERIFY(!presentation.fitMode.appearanceEnabled);
+    QVERIFY(!presentation.fitMode.interactionEnabled);
+    QVERIFY(presentation.zoom.appearanceEnabled);
+    QVERIFY(!presentation.zoom.interactionEnabled);
+    QVERIFY(presentation.zoom.available);
+    QVERIFY(presentation.zoom.known);
+    QVERIFY(!presentation.zoom.editable);
+    QCOMPARE(presentation.zoom.percent, 71.0);
+    QCOMPARE(presentation.zoom.minimumManualPercent, 0);
+    QCOMPARE(presentation.zoom.maximumManualPercent, 0);
+
+    QAction* rightToLeftAction = runtime.actionForId(ActionId::ViewToggleRightToLeftReadingAction);
+    QAction* twoPageAction = runtime.actionForId(ActionId::ViewToggleTwoPageModeAction);
+    QVERIFY(rightToLeftAction != nullptr);
+    QVERIFY(twoPageAction != nullptr);
+    QVERIFY(!rightToLeftAction->isEnabled());
+    QVERIFY(rightToLeftAction->isChecked());
+    QVERIFY(!twoPageAction->isEnabled());
+    QVERIFY(twoPageAction->isChecked());
+}
+
+void TestApplicationActionRuntime::
+    unsupportedOpenedCollectionVideoToolbarUsesCanonicalPresentation()
+{
+    FakeApplicationActionHost host;
+    Actions::ApplicationActionRuntime runtime(host);
+    runtime.setupActions();
+    const Actions::ApplicationActionStateSnapshot snapshot
+        = unavailableOpenedCollectionToolbarSnapshot();
+
+    runtime.setActionStateSnapshot(snapshot);
+
+    const Actions::ImageToolbarPresentationSnapshot presentation
+        = runtime.imageToolbarPresentationSnapshot();
+    QCOMPARE(presentation.phase, kiriview::ImagePresentationPhase::Unavailable);
+    QVERIFY(presentation.collectionControlsVisible);
+    QVERIFY(!presentation.rightToLeftReading.appearanceEnabled);
+    QVERIFY(presentation.rightToLeftReading.appearanceChecked);
+    QVERIFY(!presentation.rightToLeftReading.interactionEnabled);
+    QVERIFY(!presentation.twoPageMode.appearanceEnabled);
+    QVERIFY(presentation.twoPageMode.appearanceChecked);
+    QVERIFY(!presentation.twoPageMode.interactionEnabled);
+    QVERIFY(!presentation.fitMode.appearanceEnabled);
+    QVERIFY(!presentation.fitMode.interactionEnabled);
+    QVERIFY(!presentation.zoom.appearanceEnabled);
+    QVERIFY(!presentation.zoom.interactionEnabled);
+    QVERIFY(!presentation.zoom.available);
+    QVERIFY(!presentation.zoom.known);
+    QVERIFY(!presentation.zoom.editable);
+    QCOMPARE(presentation.zoom.percent, 0.0);
 }
 
 int main(int argc, char** argv)

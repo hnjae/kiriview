@@ -60,6 +60,10 @@ private Q_SLOTS:
     void emptyToolbarHidesReadingControls();
     void directImageToolbarHidesReadingControls();
     void videoToolbarHidesReadingControlsAndDisablesImageControls();
+    void playableOpenedCollectionVideoKeepsProjectedCollectionChecks();
+    void playableVideoZoomUsesProjectedReadOnlyPresentation();
+    void playableVideoUnknownZoomUsesProjectedReadOnlyPresentation();
+    void unsupportedOpenedCollectionVideoUsesProjectedUnavailablePresentation();
     void comicArchiveToolbarShowsEnabledReadingControls();
     void generalArchiveToolbarShowsDisabledReadingControls();
     void directoryCollectionToolbarShowsDisabledReadingControls();
@@ -273,6 +277,8 @@ Item {
     property bool retainedZoomPercentAvailable: false
     property bool retainedZoomPercentKnown: false
     property real retainedZoomPercent: 0
+    property bool playableVideoZoomKnown: true
+    property bool unsupportedOpenedCollectionVideo: false
     property bool videoMode: false
     readonly property bool readingControlsVisible: %4
 
@@ -371,9 +377,40 @@ Item {
         ];
     }
 
+    function toolbarZoomPresentationState() {
+        return {
+            appearanceEnabled: toolbar.zoomLevelAction.presentationEnabled,
+            interactionEnabled: toolbar.zoomLevelAction.enabled,
+            available: toolbar.presentedZoomPercentAvailable,
+            known: toolbar.presentedZoomPercentKnown,
+            editable: toolbar.presentedZoomEditable,
+            percent: toolbar.presentedZoomPercent
+        };
+    }
+
     function prepareCheckedImageControlPresentation() {
         rightToLeftReadingKirigamiAction.checked = true;
         twoPageModeKirigamiAction.checked = true;
+    }
+
+    function showPlayableOpenedCollectionVideo() {
+        playableVideoZoomKnown = true;
+        unsupportedOpenedCollectionVideo = false;
+        prepareCheckedImageControlPresentation();
+        videoMode = true;
+    }
+
+    function showPlayableOpenedCollectionVideoWithUnknownZoom() {
+        showPlayableOpenedCollectionVideo();
+        playableVideoZoomKnown = false;
+    }
+
+    function showUnsupportedOpenedCollectionVideo() {
+        videoMode = false;
+        imagePresentationRetained = false;
+        prepareCheckedImageControlPresentation();
+        unsupportedOpenedCollectionVideo = true;
+        imageControlsReady = false;
     }
 
     function beginImageReplacementFallback() {
@@ -531,7 +568,7 @@ Item {
         id: navigationPresentationProvider
 
         property bool rightToLeftReadingActive: false
-        property int actionStateRevision: (rightToLeftReadingActive ? 1 : 0) + (root.imageControlsReady ? 2 : 0) + (root.imagePresentationRetained ? 4 : 0) + (root.loadingFeedbackVisible ? 8 : 0)
+        property int actionStateRevision: (rightToLeftReadingActive ? 1 : 0) + (root.imageControlsReady ? 2 : 0) + (root.imagePresentationRetained ? 4 : 0) + (root.loadingFeedbackVisible ? 8 : 0) + (root.videoMode ? 16 : 0) + (root.unsupportedOpenedCollectionVideo ? 32 : 0) + (root.playableVideoZoomKnown ? 64 : 0)
 
         function actionForId(actionId) {
             switch (actionId) {
@@ -551,6 +588,9 @@ Item {
         }
 
         function imageToolbarPresentationPhase() {
+            if (root.videoMode || root.unsupportedOpenedCollectionVideo) {
+                return KiriViewApplication.ImageToolbarPresentationUnavailable;
+            }
             if (root.imageControlsReady) {
                 return KiriViewApplication.ImageToolbarPresentationCurrent;
             }
@@ -562,6 +602,9 @@ Item {
         }
 
         function imageToolbarActionAppearanceEnabled(actionId) {
+            if (root.videoMode || root.unsupportedOpenedCollectionVideo) {
+                return false;
+            }
             if (root.imagePresentationRetained) {
                 if (actionId === KiriViewApplication.ViewToggleRightToLeftReadingAction) {
                     return root.retainedRightToLeftEnabled;
@@ -588,6 +631,9 @@ Item {
         }
 
         function imageToolbarActionInteractionEnabled(actionId) {
+            if (root.videoMode || root.unsupportedOpenedCollectionVideo) {
+                return false;
+            }
             return actionForId(actionId)?.enabled ?? false;
         }
 
@@ -599,34 +645,70 @@ Item {
         }
 
         function imageToolbarZoomAppearanceEnabled() {
+            if (root.videoMode) {
+                return true;
+            }
+            if (root.unsupportedOpenedCollectionVideo) {
+                return false;
+            }
             return root.imagePresentationRetained ? root.retainedZoomEditable : toolbar.zoomEditable;
         }
 
         function imageToolbarZoomInteractionEnabled() {
+            if (root.videoMode || root.unsupportedOpenedCollectionVideo) {
+                return false;
+            }
             return toolbar.zoomEditable;
         }
 
         function imageToolbarZoomPercentAvailable() {
+            if (root.videoMode) {
+                return true;
+            }
+            if (root.unsupportedOpenedCollectionVideo) {
+                return false;
+            }
             return root.imagePresentationRetained ? root.retainedZoomPercentAvailable : toolbar.zoomPercentAvailable;
         }
 
         function imageToolbarZoomPercentKnown() {
+            if (root.videoMode) {
+                return root.playableVideoZoomKnown;
+            }
+            if (root.unsupportedOpenedCollectionVideo) {
+                return false;
+            }
             return root.imagePresentationRetained ? root.retainedZoomPercentKnown : toolbar.zoomPercentKnown;
         }
 
         function imageToolbarZoomPercentEditable() {
+            if (root.videoMode || root.unsupportedOpenedCollectionVideo) {
+                return false;
+            }
             return root.imagePresentationRetained ? root.retainedZoomEditable : toolbar.zoomEditable;
         }
 
         function imageToolbarZoomPercent() {
+            if (root.videoMode) {
+                return root.playableVideoZoomKnown ? 71 : 0;
+            }
+            if (root.unsupportedOpenedCollectionVideo) {
+                return 0;
+            }
             return root.imagePresentationRetained ? root.retainedZoomPercent : toolbar.zoomPercent;
         }
 
         function imageToolbarZoomMinimumManualPercent() {
+            if (root.videoMode || root.unsupportedOpenedCollectionVideo) {
+                return 0;
+            }
             return root.imagePresentationRetained ? root.retainedZoomMinimumManualPercent : toolbar.minimumManualZoomPercent;
         }
 
         function imageToolbarZoomMaximumManualPercent() {
+            if (root.videoMode || root.unsupportedOpenedCollectionVideo) {
+                return 0;
+            }
             return root.imagePresentationRetained ? root.retainedZoomMaximumManualPercent : toolbar.maximumManualZoomPercent;
         }
 
@@ -825,11 +907,10 @@ Item {
         minimumManualZoomPercent: root.sessionImageDocument.minimumManualZoomPercent
         navigationPresentationProvider: navigationPresentationProvider
         showApplicationMenuActions: true
-        videoMode: root.videoMode
         zoomEditable: !root.videoMode && root.imageControlsReady && root.sessionImageDocument.zoomPercentKnown
-        zoomPercent: root.videoMode ? 67 : (root.sessionImageDocument.zoomPercentKnown ? root.sessionImageDocument.zoomPercent : 0)
-        zoomPercentAvailable: root.videoMode || (root.imageControlsReady && root.sessionImageDocument.zoomPercentKnown)
-        zoomPercentKnown: root.videoMode ? true : (root.imageControlsReady && root.sessionImageDocument.zoomPercentKnown)
+        zoomPercent: root.videoMode ? 67 : (root.unsupportedOpenedCollectionVideo ? 99 : (root.sessionImageDocument.zoomPercentKnown ? root.sessionImageDocument.zoomPercent : 0))
+        zoomPercentAvailable: root.videoMode || root.unsupportedOpenedCollectionVideo || (root.imageControlsReady && root.sessionImageDocument.zoomPercentKnown)
+        zoomPercentKnown: (root.videoMode || root.unsupportedOpenedCollectionVideo) ? true : (root.imageControlsReady && root.sessionImageDocument.zoomPercentKnown)
         zoomStepFactor: root.sessionImageDocument.zoomStepFactor
 
         onTextInputFocusReturnRequested: root.textInputFocusReturnCount += 1
@@ -1815,13 +1896,150 @@ void TestToolBarApplicationMenu::videoToolbarHidesReadingControlsAndDisablesImag
     QCOMPARE(texts, QStringList({ QStringLiteral("Fit to Window"), QStringLiteral("Zoom") }));
 
     bool invoked = false;
-    const QVariantList enabledStates
+    const QVariantList appearanceEnabledStates
         = invokeVariant(fixture.root, "toolbarControlEnabledStates", &invoked).toList();
     QVERIFY(invoked);
-    QCOMPARE(enabledStates.size(), 2);
-    for (const QVariant& enabledState : enabledStates) {
-        QVERIFY(!enabledState.toBool());
-    }
+    QCOMPARE(appearanceEnabledStates, QVariantList({ false, true }));
+    QCOMPARE(
+        invokeVariant(fixture.root, "toolbarControlInteractionEnabledStates", &invoked).toList(),
+        QVariantList({ false, false }));
+    QVERIFY(invoked);
+}
+
+void TestToolBarApplicationMenu::playableOpenedCollectionVideoKeepsProjectedCollectionChecks()
+{
+    ToolBarMenuFixture fixture = createFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    invokeVoid(fixture.root, "showPlayableOpenedCollectionVideo");
+    QCoreApplication::processEvents();
+
+    bool invoked = false;
+    QCOMPARE(invokeStringList(fixture.root, "toolbarControlTexts", &invoked),
+        QStringList({ QStringLiteral("Right-to-Left"), QStringLiteral("Two-Page Spread"),
+            QStringLiteral("Fit to Window"), QStringLiteral("Zoom") }));
+    QVERIFY(invoked);
+    QCOMPARE(invokeVariant(fixture.root, "sourceReadingControlCheckedStates", &invoked).toList(),
+        QVariantList({ true, true }));
+    QVERIFY(invoked);
+    QCOMPARE(invokeVariant(fixture.root, "toolbarReadingControlCheckedStates", &invoked).toList(),
+        QVariantList({ true, true }));
+    QVERIFY(invoked);
+    QCOMPARE(
+        invokeVariant(fixture.root, "toolbarControlInteractionEnabledStates", &invoked).toList(),
+        QVariantList({ false, false, false, false }));
+    QVERIFY(invoked);
+}
+
+void TestToolBarApplicationMenu::playableVideoZoomUsesProjectedReadOnlyPresentation()
+{
+    ToolBarMenuFixture fixture = createFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    invokeVoid(fixture.root, "showPlayableOpenedCollectionVideo");
+    QCoreApplication::processEvents();
+
+    const QVariantMap expectedZoomPresentation {
+        { QStringLiteral("appearanceEnabled"), true },
+        { QStringLiteral("interactionEnabled"), false },
+        { QStringLiteral("available"), true },
+        { QStringLiteral("known"), true },
+        { QStringLiteral("editable"), false },
+        { QStringLiteral("percent"), 71.0 },
+    };
+    bool invoked = false;
+    QCOMPARE(invokeVariantMap(fixture.root, "toolbarZoomPresentationState", &invoked),
+        expectedZoomPresentation);
+    QVERIFY(invoked);
+
+    QQuickItem* zoomPresentationSurface
+        = findQuickItem(fixture.root, QStringLiteral("zoomPresentationSurface"));
+    QQuickItem* zoomSpinBox = findQuickItem(fixture.root, QStringLiteral("zoomSpinBox"));
+    QQuickItem* zoomTextInput = findQuickItem(fixture.root, QStringLiteral("zoomTextInput"));
+    QVERIFY(zoomPresentationSurface != nullptr);
+    QVERIFY(zoomSpinBox != nullptr);
+    QVERIFY(zoomTextInput != nullptr);
+    QVERIFY(zoomPresentationSurface->isEnabled());
+    QVERIFY(!zoomSpinBox->isEnabled());
+    QCOMPARE(zoomTextInput->property("text").toString().trimmed(), QStringLiteral("71"));
+}
+
+void TestToolBarApplicationMenu::playableVideoUnknownZoomUsesProjectedReadOnlyPresentation()
+{
+    ToolBarMenuFixture fixture = createFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    invokeVoid(fixture.root, "showPlayableOpenedCollectionVideoWithUnknownZoom");
+    QCoreApplication::processEvents();
+
+    const QVariantMap expectedZoomPresentation {
+        { QStringLiteral("appearanceEnabled"), true },
+        { QStringLiteral("interactionEnabled"), false },
+        { QStringLiteral("available"), true },
+        { QStringLiteral("known"), false },
+        { QStringLiteral("editable"), false },
+        { QStringLiteral("percent"), 0.0 },
+    };
+    bool invoked = false;
+    QCOMPARE(invokeVariantMap(fixture.root, "toolbarZoomPresentationState", &invoked),
+        expectedZoomPresentation);
+    QVERIFY(invoked);
+
+    QQuickItem* zoomPresentationSurface
+        = findQuickItem(fixture.root, QStringLiteral("zoomPresentationSurface"));
+    QQuickItem* zoomSpinBox = findQuickItem(fixture.root, QStringLiteral("zoomSpinBox"));
+    QQuickItem* zoomTextInput = findQuickItem(fixture.root, QStringLiteral("zoomTextInput"));
+    QVERIFY(zoomPresentationSurface != nullptr);
+    QVERIFY(zoomSpinBox != nullptr);
+    QVERIFY(zoomTextInput != nullptr);
+    QVERIFY(zoomPresentationSurface->isEnabled());
+    QVERIFY(!zoomSpinBox->isEnabled());
+    QCOMPARE(zoomTextInput->property("text").toString().trimmed(), QStringLiteral("?"));
+}
+
+void TestToolBarApplicationMenu::
+    unsupportedOpenedCollectionVideoUsesProjectedUnavailablePresentation()
+{
+    ToolBarMenuFixture fixture = createFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    invokeVoid(fixture.root, "showUnsupportedOpenedCollectionVideo");
+    QCoreApplication::processEvents();
+
+    bool invoked = false;
+    QCOMPARE(invokeStringList(fixture.root, "toolbarControlTexts", &invoked),
+        QStringList({ QStringLiteral("Right-to-Left"), QStringLiteral("Two-Page Spread"),
+            QStringLiteral("Fit to Window"), QStringLiteral("Zoom") }));
+    QVERIFY(invoked);
+    QCOMPARE(invokeVariant(fixture.root, "toolbarReadingControlCheckedStates", &invoked).toList(),
+        QVariantList({ true, true }));
+    QVERIFY(invoked);
+    QCOMPARE(invokeVariant(fixture.root, "toolbarControlEnabledStates", &invoked).toList(),
+        QVariantList({ false, false, false, false }));
+    QVERIFY(invoked);
+    QCOMPARE(
+        invokeVariant(fixture.root, "toolbarControlInteractionEnabledStates", &invoked).toList(),
+        QVariantList({ false, false, false, false }));
+    QVERIFY(invoked);
+
+    const QVariantMap expectedZoomPresentation {
+        { QStringLiteral("appearanceEnabled"), false },
+        { QStringLiteral("interactionEnabled"), false },
+        { QStringLiteral("available"), false },
+        { QStringLiteral("known"), false },
+        { QStringLiteral("editable"), false },
+        { QStringLiteral("percent"), 0.0 },
+    };
+    QCOMPARE(invokeVariantMap(fixture.root, "toolbarZoomPresentationState", &invoked),
+        expectedZoomPresentation);
+    QVERIFY(invoked);
+
+    QQuickItem* zoomPresentationSurface
+        = findQuickItem(fixture.root, QStringLiteral("zoomPresentationSurface"));
+    QQuickItem* zoomSpinBox = findQuickItem(fixture.root, QStringLiteral("zoomSpinBox"));
+    QQuickItem* zoomTextInput = findQuickItem(fixture.root, QStringLiteral("zoomTextInput"));
+    QVERIFY(zoomPresentationSurface != nullptr);
+    QVERIFY(zoomSpinBox != nullptr);
+    QVERIFY(zoomTextInput != nullptr);
+    QVERIFY(!zoomPresentationSurface->isEnabled());
+    QVERIFY(!zoomSpinBox->isEnabled());
+    QCOMPARE(zoomTextInput->property("text").toString().trimmed(), QStringLiteral("-"));
 }
 
 void TestToolBarApplicationMenu::comicArchiveToolbarShowsEnabledReadingControls()
