@@ -16,6 +16,7 @@
 #include <optional>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace {
 using kiriview::TestSupport::imageDecodeDependenciesFor;
@@ -114,8 +115,9 @@ class TestImageDocumentPredecodeController : public QObject
 private Q_SLOTS:
     void scheduleAdjacentImagePredecodeUsesPresentationSnapshot();
     void scheduleAdjacentImagePredecodeUsesCandidateSnapshotCallback();
-    void selectedImageNavigationTargetPredecodeLoadsSelectedTargetImmediately();
-    void selectedImageNavigationTargetPredecodeRetainsDirectOwnerScope();
+    void selectedImageNavigationTargetRemainsForegroundOwned();
+    void selectedImageNavigationTargetPreservesDirectOwnerScopeForAdjacentWork();
+    void selectedImageNavigationTargetRetiresMatchingWorkBeforeCandidateSnapshot();
     void selectedVideoNavigationTargetDoesNotStartPredecode();
     void scheduleAdjacentImagePredecodeWithoutSnapshotCancelsActivePredecode();
     void powerSaverSuppressesBackgroundPredecodeAndReschedulesWhenDisabled();
@@ -203,8 +205,7 @@ void TestImageDocumentPredecodeController::
     QCOMPARE(dataLoader.backLoad().url, previousUrl);
 }
 
-void TestImageDocumentPredecodeController::
-    selectedImageNavigationTargetPredecodeLoadsSelectedTargetImmediately()
+void TestImageDocumentPredecodeController::selectedImageNavigationTargetRemainsForegroundOwned()
 {
     FakeCandidateProvider candidateProvider;
     ManualImageDataLoader dataLoader;
@@ -236,11 +237,12 @@ void TestImageDocumentPredecodeController::
 
     QVERIFY(controller.findPredecodedImage(displayedLocation(displayedUrl)).has_value());
     QTRY_COMPARE(dataLoader.loadCount(), std::size_t(1));
-    QCOMPARE(dataLoader.frontLoad().url, targetUrl);
+    QCOMPARE(dataLoader.frontLoad().url, nextTargetUrl);
+    QVERIFY(!controller.findPredecodedImage(displayedLocation(targetUrl)).has_value());
 }
 
 void TestImageDocumentPredecodeController::
-    selectedImageNavigationTargetPredecodeRetainsDirectOwnerScope()
+    selectedImageNavigationTargetPreservesDirectOwnerScopeForAdjacentWork()
 {
     ManualImageDataLoader dataLoader;
     kiriview::ImageDocumentState state;
@@ -251,17 +253,22 @@ void TestImageDocumentPredecodeController::
         = QUrl::fromLocalFile(QStringLiteral("/resolved/owner/current.png"));
     const QUrl ownerParentUrl = QUrl::fromLocalFile(QStringLiteral("/resolved/owner/"));
     const QUrl targetUrl = QUrl::fromLocalFile(QStringLiteral("/resolved/owner/target.png"));
+    const QUrl adjacentUrl = QUrl::fromLocalFile(QStringLiteral("/resolved/owner/adjacent.png"));
     kiriview::ImageDocumentPageCandidateListContext acceptedContext
         = kiriview::ImageDocumentPageCandidateListContext::forDirectory(targetUrl, ownerParentUrl);
     kiriview::ImageDocumentPredecodeController controller(
         state, [&primary]() { return primary; }, firstDisplayContext,
         imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget, {},
-        [&acceptedContext, targetUrl](kiriview::ImageDocumentPageCandidateListContext context,
+        [&acceptedContext, targetUrl, adjacentUrl](
+            kiriview::ImageDocumentPageCandidateListContext context,
             kiriview::ImageDocumentPageCandidateListSnapshotCallback callback) {
             acceptedContext = context;
             callback(kiriview::ImageDocumentPageCandidateListSnapshotResult {
-                pageCandidateListSnapshot(
-                    context.source(), { imageDocumentPageCandidate(targetUrl) }),
+                pageCandidateListSnapshot(context.source(),
+                    {
+                        imageDocumentPageCandidate(targetUrl),
+                        imageDocumentPageCandidate(adjacentUrl),
+                    }),
                 true,
                 {},
             });
@@ -285,21 +292,92 @@ void TestImageDocumentPredecodeController::
         return false;
     }));
     QTRY_COMPARE(dataLoader.loadCount(), std::size_t(1));
-    QCOMPARE(dataLoader.frontLoad().url, targetUrl);
-    dataLoader.finishFrontLoad(QByteArrayLiteral("target"));
+    QCOMPARE(dataLoader.frontLoad().url, adjacentUrl);
+    dataLoader.finishFrontLoad(QByteArrayLiteral("adjacent"));
 
+    const std::optional<kiriview::DirectMediaPageScopeIdentity> adjacentIdentity
+        = kiriview::directMediaPageScopeIdentityForOwnerCandidate(
+            adjacentUrl, kiriview::sourceKeyForUrl(ownerParentUrl));
+    QVERIFY(adjacentIdentity.has_value());
+    const kiriview::DisplayedImageLocation scopedAdjacent
+        = kiriview::DisplayedImageLocation::fromDirectMediaPageScope(
+            adjacentUrl, *adjacentIdentity);
+    QTRY_VERIFY(controller.findPredecodedImage(scopedAdjacent).has_value());
+    QVERIFY(!controller
+            .findPredecodedImage(kiriview::DisplayedImageLocation::fromResolvedSource(
+                kiriview::ResolvedNavigationSource(adjacentUrl, {},
+                    QUrl::fromLocalFile(QStringLiteral("/resolved/other/adjacent.png")))))
+            .has_value());
     const std::optional<kiriview::DirectMediaPageScopeIdentity> targetIdentity
         = kiriview::directMediaPageScopeIdentityForOwnerCandidate(
             targetUrl, kiriview::sourceKeyForUrl(ownerParentUrl));
     QVERIFY(targetIdentity.has_value());
-    const kiriview::DisplayedImageLocation scopedTarget
-        = kiriview::DisplayedImageLocation::fromDirectMediaPageScope(targetUrl, *targetIdentity);
-    QTRY_VERIFY(controller.findPredecodedImage(scopedTarget).has_value());
     QVERIFY(!controller
-            .findPredecodedImage(kiriview::DisplayedImageLocation::fromResolvedSource(
-                kiriview::ResolvedNavigationSource(targetUrl, {},
-                    QUrl::fromLocalFile(QStringLiteral("/resolved/other/target.png")))))
+            .findPredecodedImage(kiriview::DisplayedImageLocation::fromDirectMediaPageScope(
+                targetUrl, *targetIdentity))
             .has_value());
+}
+
+void TestImageDocumentPredecodeController::
+    selectedImageNavigationTargetRetiresMatchingWorkBeforeCandidateSnapshot()
+{
+    ManualImageDataLoader dataLoader;
+    ManualTimerScheduler timerScheduler;
+    kiriview::ImageDocumentState state;
+    std::optional<kiriview::DisplayedPredecodeImage> primary;
+    std::vector<kiriview::ImageDocumentPageCandidateListContext> requestedContexts;
+    std::vector<kiriview::ImageDocumentPageCandidateListSnapshotCallback> snapshotCallbacks;
+    kiriview::ImageDocumentPredecodeController controller(
+        state, [&primary]() { return primary; }, firstDisplayContext,
+        imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget, {},
+        [&requestedContexts, &snapshotCallbacks](
+            kiriview::ImageDocumentPageCandidateListContext context,
+            kiriview::ImageDocumentPageCandidateListSnapshotCallback callback) {
+            requestedContexts.push_back(std::move(context));
+            snapshotCallbacks.push_back(std::move(callback));
+        },
+        {}, true, timerScheduler.scheduler());
+
+    const QUrl displayedUrl = indexedImageUrl(1);
+    const QUrl targetUrl = indexedImageUrl(2);
+    const QUrl adjacentUrl = indexedImageUrl(3);
+    const kiriview::ImageDocumentPageCandidateRows candidates {
+        imageDocumentPageCandidate(displayedUrl),
+        imageDocumentPageCandidate(targetUrl),
+        imageDocumentPageCandidate(adjacentUrl),
+    };
+    state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromUrl(displayedUrl));
+    primary = displayedPredecodeImage(
+        state.displayedImageLocation(), displayTestImagePayload(testImage()));
+
+    timerScheduler.advanceTo(1000);
+    controller.scheduleAdjacentImagePredecode();
+    QCOMPARE(snapshotCallbacks.size(), std::size_t(1));
+    snapshotCallbacks.front()(kiriview::ImageDocumentPageCandidateListSnapshotResult {
+        pageCandidateListSnapshot(requestedContexts.front().source(), candidates),
+        true,
+        {},
+    });
+    QVERIFY(timerScheduler.timerAt(0).active());
+    timerScheduler.timerAt(0).fire();
+    QTRY_COMPARE(dataLoader.loadCount(), std::size_t(1));
+    QCOMPARE(dataLoader.frontLoad().url, targetUrl);
+
+    controller.scheduleImageNavigationTargetPredecode(
+        kiriview::ImageDocumentPageTarget { targetUrl }, 1);
+
+    QCOMPARE(snapshotCallbacks.size(), std::size_t(2));
+    QVERIFY(dataLoader.frontLoad().canceled);
+    dataLoader.deliverFrontLoadDataIgnoringCancellation(QByteArrayLiteral("stale target"));
+    QVERIFY(!controller.findPredecodedImage(displayedLocation(targetUrl)).has_value());
+
+    snapshotCallbacks.back()(kiriview::ImageDocumentPageCandidateListSnapshotResult {
+        pageCandidateListSnapshot(requestedContexts.back().source(), candidates),
+        true,
+        {},
+    });
+    QTRY_COMPARE(dataLoader.loadCount(), std::size_t(2));
+    QCOMPARE(dataLoader.backLoad().url, adjacentUrl);
 }
 
 void TestImageDocumentPredecodeController::selectedVideoNavigationTargetDoesNotStartPredecode()

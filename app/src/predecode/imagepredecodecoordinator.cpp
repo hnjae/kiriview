@@ -16,7 +16,7 @@ namespace kiriview {
 namespace {
     int defaultPredecodeThreadCount() { return QThread::idealThreadCount(); }
 
-    DisplayedImageLocation primaryDisplayedLocationForWindow(
+    DisplayedImageLocation foregroundOwnedLocationForWindow(
         const PredecodePendingSchedule& schedule)
     {
         return schedule.context.currentLocation;
@@ -39,13 +39,18 @@ ImagePredecodeCoordinator::ImagePredecodeCoordinator(ImageDecodeDependencies dec
 {
 }
 
+void ImagePredecodeCoordinator::acceptForegroundSelection(const DisplayedImageLocation& location)
+{
+    m_loadController.retireBackgroundLoad(location);
+}
+
 void ImagePredecodeCoordinator::schedule(const Context& context)
 {
     qCDebug(kiriviewPredecodeLog) << "image predecode schedule"
                                   << "url" << context.currentLocation.imageUrl()
                                   << "displayedImages" << context.displayedImages.size();
     if (context.immediate) {
-        m_loadController.retireBackgroundLoad(context.currentLocation);
+        acceptForegroundSelection(context.currentLocation);
     }
     m_scheduleRuntime.schedule(context);
 }
@@ -113,11 +118,11 @@ void ImagePredecodeCoordinator::startPredecodeImageLoads(
     }
 
     qCDebug(kiriviewPredecodeLog) << "image predecode window start"
-                                  << "generation" << schedule.generation << "primaryUrl"
+                                  << "generation" << schedule.generation << "foregroundUrl"
                                   << schedule.context.currentLocation.imageUrl() << "locations"
                                   << plan.locations.size() << "parallelLimit" << plan.parallelLimit;
     m_loadController.startWindowLoads(PredecodeLoadWindow {
-        primaryDisplayedLocationForWindow(schedule),
+        foregroundOwnedLocationForWindow(schedule),
         plan.locations,
         schedule.context.displayedImages,
         schedule.context.firstDisplayContext,

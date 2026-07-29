@@ -31,6 +31,7 @@ public:
         PowerSaverProvider powerSaverProvider, qsizetype cacheByteBudget,
         TimerScheduler timerScheduler = {}, PredecodeThreadCountProvider threadCountProvider = {});
 
+    void acceptForegroundSelection(const DisplayedImageLocation& location);
     void schedule(const Context& context);
     void setPowerSaverEnabled(bool enabled);
     bool powerSaverEnabled() const;

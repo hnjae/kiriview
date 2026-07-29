@@ -33,8 +33,8 @@ void PredecodeLoadController::clearWindow() { m_loadState.clearWindow(); }
 void PredecodeLoadController::startWindowLoads(const PredecodeLoadWindow& window)
 {
     qCDebug(kiriviewPredecodeLog) << "predecode controller start window"
-                                  << "generation" << window.generation << "primaryUrl"
-                                  << window.primaryDisplayedLocation.imageUrl() << "locations"
+                                  << "generation" << window.generation << "foregroundUrl"
+                                  << window.foregroundOwnedLocation.imageUrl() << "locations"
                                   << window.locations.size() << "parallelLimit"
                                   << window.parallelLimit;
     m_loadState.startWindow(window, m_activeDecodes.activeLoads());
@@ -43,7 +43,9 @@ void PredecodeLoadController::startWindowLoads(const PredecodeLoadWindow& window
 
 void PredecodeLoadController::retireBackgroundLoad(const DisplayedImageLocation& location)
 {
+    m_loadState.retireBackgroundLoad(location);
     m_activeDecodes.cancelLocation(location);
+    startNextLoads();
 }
 
 void PredecodeLoadController::startNextLoads()

@@ -73,6 +73,7 @@ private Q_SLOTS:
     void windowLoadsCacheDisplayedImageAndPumpQueuedDecodes();
     void parallelLimitStartsMultipleWindowLoads();
     void startWindowLoadsReprioritizesWithoutCancelingActiveDecode();
+    void retireBackgroundLoadDropsOnlyMatchingQueuedScope();
     void cancelBackgroundWorkSuppressesStaleDecode();
 };
 
@@ -163,6 +164,39 @@ void TestPredecodeLoadController::startWindowLoadsReprioritizesWithoutCancelingA
     workerScheduler.runWork(1);
     workerScheduler.finish(1);
     QVERIFY(controller.findPredecodedImage(displayedLocation(nextUrl)).has_value());
+}
+
+void TestPredecodeLoadController::retireBackgroundLoadDropsOnlyMatchingQueuedScope()
+{
+    ManualImageDataLoader dataLoader;
+    kiriview::PredecodeLoadController controller(this,
+        imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget);
+    const QUrl requestedUrl = QUrl::fromLocalFile(QStringLiteral("/portal/document/shared.png"));
+    const kiriview::DisplayedImageLocation firstLocation
+        = kiriview::DisplayedImageLocation::fromResolvedSource(kiriview::ResolvedNavigationSource(
+            requestedUrl, {}, QUrl::fromLocalFile(QStringLiteral("/resolved/first/shared.png"))));
+    const kiriview::DisplayedImageLocation selectedLocation
+        = kiriview::DisplayedImageLocation::fromResolvedSource(kiriview::ResolvedNavigationSource(
+            requestedUrl, {}, QUrl::fromLocalFile(QStringLiteral("/resolved/second/shared.png"))));
+    QVERIFY(firstLocation != selectedLocation);
+
+    controller.startWindowLoads(kiriview::PredecodeLoadWindow {
+        {},
+        { firstLocation, selectedLocation },
+        {},
+        kiriview::ImageFirstDisplayDecodeContext { QSize(640, 480) },
+        7,
+        1,
+    });
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+
+    controller.retireBackgroundLoad(selectedLocation);
+
+    QVERIFY(!dataLoader.frontLoad().canceled);
+    dataLoader.finishFrontLoad(QByteArrayLiteral("first scope"));
+    QTRY_VERIFY(controller.findPredecodedImage(firstLocation).has_value());
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+    QVERIFY(!controller.findPredecodedImage(selectedLocation).has_value());
 }
 
 void TestPredecodeLoadController::cancelBackgroundWorkSuppressesStaleDecode()

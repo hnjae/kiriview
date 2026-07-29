@@ -35,10 +35,11 @@ public:
 
     void clear();
     void clearQueuedLoads();
+    void retireQueuedLoads(const DisplayedImageLocation& location);
     void setWindowLocations(const std::vector<DisplayedImageLocation>& locations);
     void setWindowKeys(const std::vector<PredecodeImageKey>& keys);
     void setDisplayedLocations(const std::vector<DisplayedImageLocation>& locations);
-    void enqueueMissingWindowLoads(const DisplayedImageLocation& displayedLocation,
+    void enqueueMissingWindowLoads(const DisplayedImageLocation& foregroundOwnedLocation,
         const PredecodeActiveLoads& activeLoads, quint64 lifecycleScope = 0);
     std::optional<PredecodeRequest> takeNextRequest(const PredecodeActiveLoads& activeLoads);
     bool isInFlight(const PredecodeWorkKey& key, const PredecodeActiveLoads& activeLoads) const;

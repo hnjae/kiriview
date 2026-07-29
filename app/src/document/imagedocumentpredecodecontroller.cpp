@@ -139,6 +139,8 @@ void ImageDocumentPredecodeController::scheduleImageNavigationTargetPredecode(
         return;
     }
 
+    m_coordinator->acceptForegroundSelection(*targetLocation);
+
     if (!predecodeScopeAllowed(*targetLocation, m_ordinaryDirectMediaPredecodeEnabled)) {
         return;
     }

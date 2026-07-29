@@ -14,7 +14,7 @@
 
 namespace kiriview {
 namespace {
-    DisplayedImageLocation primaryDisplayedLocationForWindow(
+    DisplayedImageLocation foregroundOwnedLocationForWindow(
         const PredecodePendingSchedule& schedule)
     {
         return schedule.context.currentLocation;
@@ -97,13 +97,13 @@ void MediaPredecodeCoordinator::startPredecodeWindow(const PredecodePendingSched
 
     const PredecodeWindowPlan plan = mediaPredecodeWindowPlan(*eligibility, policyInput());
     qCDebug(kiriviewPredecodeLog) << "media predecode window start"
-                                  << "generation" << schedule.generation << "primaryUrl"
+                                  << "generation" << schedule.generation << "foregroundUrl"
                                   << schedule.context.currentLocation.imageUrl() << "candidates"
                                   << directMediaNavigationCandidateRows(*candidateSnapshot).size()
                                   << "stillLocations" << plan.locations.size() << "parallelLimit"
                                   << plan.parallelLimit;
     m_loadController.startWindowLoads(PredecodeLoadWindow {
-        primaryDisplayedLocationForWindow(schedule),
+        foregroundOwnedLocationForWindow(schedule),
         plan.locations,
         schedule.context.displayedImages,
         schedule.context.firstDisplayContext,

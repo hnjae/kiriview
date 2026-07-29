@@ -39,6 +39,14 @@ void PredecodeCache::clearQueuedLoads()
     m_queue.clear();
 }
 
+void PredecodeCache::retireQueuedLoads(const DisplayedImageLocation& location)
+{
+    const std::size_t retired = std::erase_if(m_queue,
+        [&location](const PredecodeRequest& request) { return request.location == location; });
+    qCDebug(kiriviewPredecodeLog) << "predecode queued location retired"
+                                  << "url" << location.imageUrl() << "retired" << retired;
+}
+
 void PredecodeCache::setWindowLocations(const std::vector<DisplayedImageLocation>& locations)
 {
     std::vector<PredecodeImageKey> keys;
@@ -77,15 +85,17 @@ void PredecodeCache::setDisplayedLocations(const std::vector<DisplayedImageLocat
     trimImagesToBudget();
 }
 
-void PredecodeCache::enqueueMissingWindowLoads(const DisplayedImageLocation& displayedLocation,
-    const PredecodeActiveLoads& activeLoads, quint64 lifecycleScope)
+void PredecodeCache::enqueueMissingWindowLoads(
+    const DisplayedImageLocation& foregroundOwnedLocation, const PredecodeActiveLoads& activeLoads,
+    quint64 lifecycleScope)
 {
     std::vector<PredecodeWindowLoadState> states;
     states.reserve(m_windowKeys.size());
 
     for (const PredecodeImageKey& key : m_windowKeys) {
         states.push_back(PredecodeWindowLoadState {
-            m_displayedHistory.currentContains(key.location) || key.location == displayedLocation,
+            m_displayedHistory.currentContains(key.location)
+                || key.location == foregroundOwnedLocation,
             hasImage(key),
             isInFlight(PredecodeWorkKey { key, lifecycleScope }, activeLoads),
         });

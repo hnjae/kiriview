@@ -18,7 +18,7 @@
 namespace kiriview {
 struct PredecodeLoadWindow
 {
-    DisplayedImageLocation primaryDisplayedLocation;
+    DisplayedImageLocation foregroundOwnedLocation;
     std::vector<DisplayedImageLocation> locations;
     std::vector<DisplayedPredecodeImage> displayedImages;
     ImageFirstDisplayDecodeContext firstDisplayContext;
@@ -39,6 +39,7 @@ public:
 
     void cacheDisplayedImages(const std::vector<DisplayedPredecodeImage>& images);
     void clearWindow();
+    void retireBackgroundLoad(const DisplayedImageLocation& location);
     void startWindow(const PredecodeLoadWindow& window, const PredecodeActiveLoads& activeLoads);
     std::optional<PredecodeLoadStart> takeNextLoad(const PredecodeActiveLoads& activeLoads);
     void cacheDecodedImage(
