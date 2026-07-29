@@ -192,19 +192,6 @@ public:
                     : firstFrame.errorString);
         }
 
-        JxlReadResult secondFrame = readFrame();
-        if (secondFrame.status == JxlReadStatus::End) {
-            reset();
-            return notAnimationResult();
-        }
-        if (secondFrame.status != JxlReadStatus::Frame) {
-            reset();
-            return errorOpenResult(secondFrame.errorString.isEmpty()
-                    ? jxlAnimationDecodeErrorString()
-                    : secondFrame.errorString);
-        }
-        bufferedFrame = std::move(secondFrame.frame);
-
         JxlAnimationOpenResult result;
         result.status = JxlAnimationOpenStatus::Success;
         result.firstFrame = std::move(firstFrame.frame.image);
@@ -216,12 +203,6 @@ public:
 
     AnimationFrameReadResult readNextFrame()
     {
-        if (bufferedFrame.has_value()) {
-            AnimationFrame frame = std::move(*bufferedFrame);
-            bufferedFrame = std::nullopt;
-            return std::optional<AnimationFrame>(std::move(frame));
-        }
-
         JxlReadResult result = readFrame();
         if (result.status == JxlReadStatus::Frame) {
             return std::optional<AnimationFrame>(std::move(result.frame));
@@ -244,7 +225,6 @@ public:
         loopCount = 0;
         basicInfoAvailable = false;
         frameBuffer.clear();
-        bufferedFrame = std::nullopt;
     }
 
 private:
@@ -385,7 +365,6 @@ private:
     int loopCount = 0;
     bool basicInfoAvailable = false;
     std::vector<std::uint8_t> frameBuffer;
-    std::optional<AnimationFrame> bufferedFrame;
 };
 
 JxlAnimationReader::JxlAnimationReader()

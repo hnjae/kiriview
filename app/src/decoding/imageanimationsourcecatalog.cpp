@@ -3,9 +3,8 @@
 
 #include "imageanimationsourcecatalog.h"
 
-#include "decoding/animationtiming.h"
-#include "decoding/heifsequencereader.h"
-#include "imageanimationpolicy.h"
+#include "animationtiming.h"
+#include "heifsequencereader.h"
 
 #include <ImageViewport/imagesequence.h>
 #include <jxl/decode.h>
@@ -324,8 +323,7 @@ CatalogResult webpCatalog(const kiriview::WebPAnimationPlaybackRequest& request)
         std::move(durations),
         kiriview::animationLoopCountForPlayCount(WebPDemuxGetI(demuxer.get(), WEBP_FF_LOOP_COUNT)),
     };
-    if (std::cmp_not_equal(frameCount, catalog.frameDurations.size())
-        || !catalog.isValid()) {
+    if (std::cmp_not_equal(frameCount, catalog.frameDurations.size()) || !catalog.isValid()) {
         return failedCatalog();
     }
     return catalog;
@@ -424,40 +422,15 @@ CatalogResult heifCatalog(const kiriview::HeifSequenceAnimationPlaybackRequest& 
         return failedCatalog(opened.errorString.isEmpty() ? catalogError() : opened.errorString);
     }
 
-    QSize logicalSize;
-    QVector<int> durations;
-    while (durations.size() < maximumFrameCount()) {
-        kiriview::AnimationFrameReadResult frame = reader.readNextFrame();
-        if (!frame.has_value()) {
-            return failedCatalog(std::move(frame.error()));
-        }
-        if (!frame->has_value()) {
-            break;
-        }
-        const QImage& image = (**frame).image;
-        if (image.isNull()) {
-            return failedCatalog();
-        }
-        if (logicalSize.isEmpty()) {
-            logicalSize = image.size();
-        } else if (image.size() != logicalSize) {
-            return failedCatalog();
-        }
-        durations.append(normalizedDelay((**frame).delay));
+    kiriview::AnimationFrameReadResult firstFrame = reader.readNextFrame();
+    if (!firstFrame.has_value()) {
+        return failedCatalog(std::move(firstFrame.error()));
     }
-    if (durations.size() == maximumFrameCount()) {
-        kiriview::AnimationFrameReadResult extra = reader.readNextFrame();
-        if (!extra.has_value() || extra->has_value()) {
-            return failedCatalog(extra.has_value() ? catalogError() : std::move(extra.error()));
-        }
+    if (!firstFrame->has_value()) {
+        return failedCatalog();
     }
-
-    kiriview::ImageAnimationSourceCatalog catalog {
-        logicalSize,
-        std::move(durations),
-        opened.repeatCount,
-    };
-    return catalog.isValid() ? CatalogResult(std::move(catalog)) : failedCatalog();
+    return kiriview::readHeifSequenceAnimationSourceCatalog(
+        reader, **firstFrame, opened.repeatCount);
 }
 
 CatalogResult catalogFor(std::monostate) { return failedCatalog(); }
@@ -500,5 +473,45 @@ ImageAnimationSourceCatalogResult readImageAnimationSourceCatalog(
     const ImageAnimationPlaybackRequest& request)
 {
     return std::visit([](const auto& payload) { return catalogFor(payload); }, request.payload);
+}
+
+ImageAnimationSourceCatalogResult readHeifSequenceAnimationSourceCatalog(
+    HeifSequenceReader& reader, const AnimationFrame& firstFrame, int repeatCount)
+{
+    if (firstFrame.image.isNull()) {
+        return failedCatalog();
+    }
+
+    const QSize logicalSize = firstFrame.image.size();
+    QVector<int> durations {
+        normalizedDelay(firstFrame.delay),
+    };
+    while (durations.size() < maximumFrameCount()) {
+        AnimationFrameReadResult frame = reader.readNextFrame();
+        if (!frame.has_value()) {
+            return failedCatalog(std::move(frame.error()));
+        }
+        if (!frame->has_value()) {
+            break;
+        }
+        if ((**frame).image.isNull() || (**frame).image.size() != logicalSize) {
+            return failedCatalog();
+        }
+        durations.append(normalizedDelay((**frame).delay));
+    }
+    if (durations.size() == maximumFrameCount()) {
+        AnimationFrameReadResult extra = reader.readNextFrame();
+        if (!extra.has_value() || extra->has_value()) {
+            return failedCatalog(extra.has_value() ? catalogError() : std::move(extra.error()));
+        }
+    }
+
+    ImageAnimationSourceCatalog catalog {
+        logicalSize,
+        std::move(durations),
+        repeatCount,
+    };
+    return catalog.isValid() ? ImageAnimationSourceCatalogResult(std::move(catalog))
+                             : failedCatalog();
 }
 }

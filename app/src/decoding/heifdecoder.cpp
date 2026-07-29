@@ -16,6 +16,7 @@
 #include "heifcontainer.h"
 #include "heifsequencereader.h"
 #include "heifsupport.h"
+#include "imageanimationsourcecatalog.h"
 #include "imagedecoderequest.h"
 #include "location/sourcekey.h"
 #include "rendering/heifdisplaysource.h"
@@ -130,9 +131,19 @@ std::optional<kiriview::DecodedImageResult> decodeHeifSequenceImageDataForInfo(
             errorString, kiriview::DecodedImageFailureOperation::DecodeHeifSequenceFrame);
     }
 
+    kiriview::AnimationFrame retainedFirstFrame = std::move(**firstFrame);
+    kiriview::ImageAnimationSourceCatalogResult catalog
+        = kiriview::readHeifSequenceAnimationSourceCatalog(
+            reader, retainedFirstFrame, openResult.repeatCount);
+    if (!catalog.has_value()) {
+        return failedHeifDecodedImageResult(std::move(catalog.error()),
+            kiriview::DecodedImageFailureOperation::DecodeHeifSequenceFrame);
+    }
+
     return kiriview::successfulDecodedImageResult(kiriview::HeifSequenceAnimationImage {
-        std::move(**firstFrame).image,
+        std::move(retainedFirstFrame.image),
         data,
+        std::move(*catalog),
         {},
         kiriview::sourceKeyForUrl(request.imageUrl()).identity,
         request.sourceRevision(),

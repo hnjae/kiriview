@@ -64,6 +64,14 @@ kiriview::DisplayImageReuseKey testReuseKey(
         kiriview::DisplayedPageRole::Primary,
     };
 }
+
+kiriview::DisplayImageReuseKey testTimedFrameReuseKey(int authoredFrame)
+{
+    kiriview::DisplayImageReuseKey key
+        = testReuseKey(QStringLiteral("animated-source"), QSize(4, 4));
+    key.rasterIdentity = kiriview::DisplayImageRasterIdentity::timedFrame(authoredFrame);
+    return key;
+}
 }
 
 void TestDisplayImageStore::storesReusableFramePayload()
@@ -114,14 +122,14 @@ void TestDisplayImageStore::frameLeasePreventsEvictionUntilReleased()
 
     const QString leased = store.acquireReusable(
         testEntry(QSize(4, 4), kiriview::DisplayImageRetentionPriority::Background),
-        testReuseKey(QStringLiteral("leased"), QSize(4, 4)));
+        testTimedFrameReuseKey(0));
     QVERIFY(store.acquireFrameLease(leased));
     const QString evicted = store.acquireReusable(
         testEntry(QSize(4, 4), kiriview::DisplayImageRetentionPriority::Background),
-        testReuseKey(QStringLiteral("evicted"), QSize(4, 4)));
+        testTimedFrameReuseKey(1));
     const QString visible = store.acquireReusable(
         testEntry(QSize(4, 4), kiriview::DisplayImageRetentionPriority::Visible),
-        testReuseKey(QStringLiteral("visible"), QSize(4, 4)));
+        testTimedFrameReuseKey(2));
 
     QVERIFY(store.entry(leased).has_value());
     QVERIFY(store.entry(evicted) == std::nullopt);
@@ -130,7 +138,7 @@ void TestDisplayImageStore::frameLeasePreventsEvictionUntilReleased()
     store.releaseFrameLease(leased);
     const QString nearby = store.acquireReusable(
         testEntry(QSize(4, 4), kiriview::DisplayImageRetentionPriority::Nearby),
-        testReuseKey(QStringLiteral("nearby"), QSize(4, 4)));
+        testTimedFrameReuseKey(3));
 
     QVERIFY(store.entry(leased) == std::nullopt);
     QVERIFY(store.entry(visible).has_value());

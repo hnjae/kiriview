@@ -6,6 +6,8 @@
 #include "apnganimationreader.h"
 #include "avifcompatibility.h"
 #include "heifdecoder.h"
+#include "imageanimationrequest.h"
+#include "imageanimationsourcecatalog.h"
 #include "imagedecodelogging.h"
 #include "jxlanimationreader.h"
 #include "localization/imageerrortext.h"
@@ -273,6 +275,14 @@ kiriview::DecodedImageResult decodeSvgImageData(const kiriview::ImageDecodeRoute
 
 kiriview::DecodedImageResult decodeApngImageData(const kiriview::ImageDecodeRouterInput& input)
 {
+    kiriview::ImageAnimationSourceCatalogResult catalog = kiriview::readImageAnimationSourceCatalog(
+        kiriview::apngAnimationPlaybackRequest(input.data));
+    if (!catalog.has_value()) {
+        return failedAdapterDecodedImageResult(std::move(catalog.error()),
+            kiriview::DecodedImageFailureRoute::Apng,
+            kiriview::DecodedImageFailureOperation::DecodeAnimationOpen, QStringLiteral("APNG"));
+    }
+
     kiriview::ApngAnimationReader apngReader;
     kiriview::ApngOpenResult apngResult = apngReader.open(input.data);
     if (apngResult.status == kiriview::ApngOpenStatus::NotApng) {
@@ -286,10 +296,17 @@ kiriview::DecodedImageResult decodeApngImageData(const kiriview::ImageDecodeRout
             kiriview::DecodedImageFailureRoute::Apng,
             kiriview::DecodedImageFailureOperation::DecodeAnimationOpen, QStringLiteral("APNG"));
     }
+    if (catalog->logicalSize != apngResult.firstFrame.size()) {
+        return failedAdapterDecodedImageResult(
+            QStringLiteral("animation source catalog size mismatch"),
+            kiriview::DecodedImageFailureRoute::Apng,
+            kiriview::DecodedImageFailureOperation::DecodeAnimationOpen, QStringLiteral("APNG"));
+    }
 
     return kiriview::successfulDecodedImageResult(kiriview::ApngAnimationImage {
         std::move(apngResult.firstFrame),
         input.data,
+        std::move(*catalog),
         {},
         sourceIdentityForRequest(input.request),
         input.request.sourceRevision(),
@@ -319,14 +336,27 @@ kiriview::DecodedImageResult decodeQImageReaderRouterImageData(
         kiriview::WebPAnimationReader reader;
         kiriview::WebPAnimationOpenResult openResult = reader.open(input.data);
         switch (openResult.status) {
-        case kiriview::WebPAnimationOpenStatus::Success:
+        case kiriview::WebPAnimationOpenStatus::Success: {
+            kiriview::ImageAnimationSourceCatalogResult catalog
+                = kiriview::readImageAnimationSourceCatalog(
+                    kiriview::webpAnimationPlaybackRequest(input.data));
+            if (!catalog.has_value()) {
+                return failedAnimationOpenResult(catalog.error(), QStringLiteral("WebP"));
+            }
+            if (catalog->logicalSize != openResult.firstFrame.size()) {
+                return failedAnimationOpenResult(
+                    QStringLiteral("animation source catalog size mismatch"),
+                    QStringLiteral("WebP"));
+            }
             return kiriview::successfulDecodedImageResult(kiriview::WebPAnimationImage {
                 std::move(openResult.firstFrame),
                 input.data,
+                std::move(*catalog),
                 {},
                 sourceIdentityForRequest(input.request),
                 input.request.sourceRevision(),
             });
+        }
         case kiriview::WebPAnimationOpenStatus::Error:
             return failedAnimationOpenResult(openResult.errorString, QStringLiteral("WebP"));
         case kiriview::WebPAnimationOpenStatus::NotWebP:
@@ -339,14 +369,27 @@ kiriview::DecodedImageResult decodeQImageReaderRouterImageData(
         kiriview::JxlAnimationReader reader;
         kiriview::JxlAnimationOpenResult openResult = reader.open(input.data);
         switch (openResult.status) {
-        case kiriview::JxlAnimationOpenStatus::Success:
+        case kiriview::JxlAnimationOpenStatus::Success: {
+            kiriview::ImageAnimationSourceCatalogResult catalog
+                = kiriview::readImageAnimationSourceCatalog(
+                    kiriview::jxlAnimationPlaybackRequest(input.data));
+            if (!catalog.has_value()) {
+                return failedAnimationOpenResult(catalog.error(), QStringLiteral("JXL"));
+            }
+            if (catalog->logicalSize != openResult.firstFrame.size()) {
+                return failedAnimationOpenResult(
+                    QStringLiteral("animation source catalog size mismatch"),
+                    QStringLiteral("JXL"));
+            }
             return kiriview::successfulDecodedImageResult(kiriview::JxlAnimationImage {
                 std::move(openResult.firstFrame),
                 input.data,
+                std::move(*catalog),
                 {},
                 sourceIdentityForRequest(input.request),
                 input.request.sourceRevision(),
             });
+        }
         case kiriview::JxlAnimationOpenStatus::Error:
             return failedAnimationOpenResult(openResult.errorString, QStringLiteral("JXL"));
         case kiriview::JxlAnimationOpenStatus::NotJxl:

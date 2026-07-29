@@ -5,6 +5,7 @@
 #define KIRIVIEW_DECODEDIMAGERESULT_H
 
 #include "decodedimagefailure.h"
+#include "imageanimationsourcecatalog.h"
 #include "metadata/embeddedmetadata.h"
 #include "rendering/staticimage.h"
 
@@ -27,6 +28,7 @@ struct ApngAnimationImage
 {
     QImage firstFrame;
     QByteArray data;
+    ImageAnimationSourceCatalog catalog;
     EmbeddedMetadata embeddedMetadata;
     QString sourceIdentity;
     ImageSourceRevision sourceRevision;
@@ -37,6 +39,7 @@ struct ReaderAnimationImage
     QImage firstFrame;
     QByteArray data;
     QByteArray format;
+    ImageAnimationSourceCatalog catalog;
     EmbeddedMetadata embeddedMetadata;
     QString sourceIdentity;
     ImageSourceRevision sourceRevision;
@@ -46,6 +49,7 @@ struct WebPAnimationImage
 {
     QImage firstFrame;
     QByteArray data;
+    ImageAnimationSourceCatalog catalog;
     EmbeddedMetadata embeddedMetadata;
     QString sourceIdentity;
     ImageSourceRevision sourceRevision;
@@ -55,6 +59,7 @@ struct JxlAnimationImage
 {
     QImage firstFrame;
     QByteArray data;
+    ImageAnimationSourceCatalog catalog;
     EmbeddedMetadata embeddedMetadata;
     QString sourceIdentity;
     ImageSourceRevision sourceRevision;
@@ -64,6 +69,7 @@ struct HeifSequenceAnimationImage
 {
     QImage firstFrame;
     QByteArray data;
+    ImageAnimationSourceCatalog catalog;
     EmbeddedMetadata embeddedMetadata;
     QString sourceIdentity;
     ImageSourceRevision sourceRevision;

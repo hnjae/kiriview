@@ -328,6 +328,8 @@ void TestKiriImageDecoder::directDecodeDerivesSourceRevisionForEveryDecodedVaria
                 QCOMPARE(decoded.displayImage.sourceRevision, expected);
             } else {
                 QCOMPARE(decoded.sourceRevision, expected);
+                QVERIFY(decoded.catalog.isValid());
+                QCOMPARE(decoded.catalog.logicalSize, decoded.firstFrame.size());
             }
         },
         *image);

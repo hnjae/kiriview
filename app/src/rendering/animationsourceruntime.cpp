@@ -23,27 +23,45 @@ AnimationSourceRuntime::AnimationSourceRuntime(QImage retainedFirstFrame, int au
 {
 }
 
-AnimationSourceRuntime::~AnimationSourceRuntime() = default;
+AnimationSourceRuntime::~AnimationSourceRuntime() { close(); }
 
 AnimationSourceFrameResult AnimationSourceRuntime::frame(int authoredFrameIndex)
 {
     if (m_closed.load(std::memory_order_acquire)) {
         return failedFrame(closedSourceError());
     }
-
-    const std::scoped_lock lock(m_mutex);
-    if (m_closed.load(std::memory_order_relaxed)) {
-        return failedFrame(closedSourceError());
-    }
     if (m_firstFrame.isNull() || authoredFrameIndex < 0 || authoredFrameIndex >= m_frameCount) {
         return failedFrame(unavailableFrameError());
     }
     if (authoredFrameIndex == 0) {
-        m_source.reset();
-        m_sourceFrame = 0;
         return m_firstFrame;
     }
 
+    try {
+        FrameTask task([this, authoredFrameIndex]() { return decodeFrame(authoredFrameIndex); });
+        std::future<AnimationSourceFrameResult> result = task.get_future();
+        {
+            const std::scoped_lock lock(m_queueMutex);
+            if (m_closed.load(std::memory_order_relaxed)) {
+                return failedFrame(closedSourceError());
+            }
+            if (!m_sourceOwner.joinable()) {
+                m_sourceOwner = std::jthread([this]() { runSourceOwner(); });
+            }
+            m_frameTasks.push_back(std::move(task));
+        }
+        m_queueCondition.notify_one();
+        return result.get();
+    } catch (...) {
+        return failedFrame(unavailableFrameError());
+    }
+}
+
+AnimationSourceFrameResult AnimationSourceRuntime::decodeFrame(int authoredFrameIndex)
+{
+    if (m_closed.load(std::memory_order_acquire)) {
+        return failedFrame(closedSourceError());
+    }
     if (m_source == nullptr || authoredFrameIndex <= m_sourceFrame) {
         AnimationSourceFrameResult opened = openSource();
         if (!opened.has_value()) {
@@ -73,7 +91,14 @@ AnimationSourceFrameResult AnimationSourceRuntime::frame(int authoredFrameIndex)
     return decodedFrame;
 }
 
-void AnimationSourceRuntime::close() { m_closed.store(true, std::memory_order_release); }
+void AnimationSourceRuntime::close()
+{
+    {
+        const std::scoped_lock lock(m_queueMutex);
+        m_closed.store(true, std::memory_order_release);
+    }
+    m_queueCondition.notify_all();
+}
 
 AnimationSourceFrameResult AnimationSourceRuntime::failedFrame(QString errorString) const
 {
@@ -100,6 +125,27 @@ AnimationSourceFrameResult AnimationSourceRuntime::openSource()
             opened.errorString.isEmpty() ? unavailableFrameError() : std::move(opened.errorString));
     }
     return opened.firstFrame;
+}
+
+void AnimationSourceRuntime::runSourceOwner()
+{
+    while (true) {
+        FrameTask task;
+        {
+            std::unique_lock lock(m_queueMutex);
+            m_queueCondition.wait(lock, [this]() {
+                return m_closed.load(std::memory_order_acquire) || !m_frameTasks.empty();
+            });
+            if (m_frameTasks.empty()) {
+                break;
+            }
+            task = std::move(m_frameTasks.front());
+            m_frameTasks.pop_front();
+        }
+        task();
+    }
+    m_source.reset();
+    m_sourceFrame = 0;
 }
 
 ImageAnimationPlaybackSourceFactory imageAnimationPlaybackSourceFactory(

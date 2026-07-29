@@ -4,15 +4,17 @@
 #ifndef KIRIVIEW_IMAGEVIEWPORTDECODESOURCE_H
 #define KIRIVIEW_IMAGEVIEWPORTDECODESOURCE_H
 
+#include "animationsourceruntime.h"
 #include "async/imageasyncworker.h"
 #include "async/timerscheduler.h"
 #include "decoding/decodedimageresult.h"
+#include "decoding/imageanimationrequest.h"
+#include "decoding/imageanimationsourcecatalog.h"
 #include "decoding/imagedecodedependencies.h"
 #include "decoding/imagedecodejob.h"
 #include "document/imageloadtypes.h"
 #include "imageviewportproviderresource.h"
 #include "metadata/embeddedmetadata.h"
-#include "presentation/imageanimationplaybacksource.h"
 
 #include <QObject>
 #include <QString>
@@ -72,7 +74,7 @@ private:
 
     struct AnimationState
     {
-        ImageAnimationPlaybackRequest playbackRequest;
+        std::shared_ptr<AnimationSourceRuntime> runtime;
         ImageSequenceProviderMetadata metadata;
         QString sourceIdentity;
         ImageSourceRevision sourceRevision;
@@ -128,7 +130,8 @@ private:
     void finishThumbnail(const ImageDecodeRequest& request, StaticDisplayImagePayload displayImage);
     void finishDecodedImage(DecodedImage image);
     void finishStaticImage(StaticDecodedImage image);
-    void finishAnimationImage(ImageAnimationPlaybackRequest playbackRequest, QString sourceIdentity,
+    void finishAnimationImage(QImage firstFrame, ImageAnimationSourceCatalog catalog,
+        ImageAnimationPlaybackRequest playbackRequest, QString sourceIdentity,
         ImageSourceRevision sourceRevision, QString formatIdentifier);
     void finishFailure(ImageSequenceProviderFailureCause cause, ImageLoadFailure failure);
     void publishMetadata();
@@ -150,6 +153,8 @@ private:
         quint64 attemptId, bool retainRefinementWork);
     void discardRetainedStaticRefinementsExcept(quint64 workerUnitId);
     void publishAnimationFrame(PendingFrame pending);
+    void finishAnimationFrame(const PendingFrame& pending, const AnimationState& animation,
+        int requestedFrame, AnimationSourceFrameResult result);
     quint64 reserveWorkerUnit(
         std::optional<ImageViewportProviderWorkIdentity> identity = std::nullopt);
     void attachWorkerTask(quint64 workerUnitId, ImageWorkerTask task);

@@ -10,10 +10,14 @@
 #include <QString>
 #include <QtGlobal>
 #include <atomic>
+#include <condition_variable>
+#include <deque>
 #include <expected>
 #include <functional>
+#include <future>
 #include <memory>
 #include <mutex>
+#include <thread>
 
 namespace kiriview {
 using AnimationSourceFrameResult = std::expected<QImage, QString>;
@@ -32,8 +36,12 @@ public:
     void close();
 
 private:
-    AnimationSourceFrameResult failedFrame(QString errorString) const;
-    AnimationSourceFrameResult openSource();
+    using FrameTask = std::packaged_task<AnimationSourceFrameResult()>;
+
+    [[nodiscard]] AnimationSourceFrameResult failedFrame(QString errorString) const;
+    [[nodiscard]] AnimationSourceFrameResult decodeFrame(int authoredFrameIndex);
+    [[nodiscard]] AnimationSourceFrameResult openSource();
+    void runSourceOwner();
 
     QImage m_firstFrame;
     int m_frameCount = 0;
@@ -41,7 +49,10 @@ private:
     std::unique_ptr<ImageAnimationPlaybackSource> m_source;
     int m_sourceFrame = 0;
     std::atomic_bool m_closed = false;
-    std::mutex m_mutex;
+    std::mutex m_queueMutex;
+    std::condition_variable m_queueCondition;
+    std::deque<FrameTask> m_frameTasks;
+    std::jthread m_sourceOwner;
 };
 
 ImageAnimationPlaybackSourceFactory imageAnimationPlaybackSourceFactory(

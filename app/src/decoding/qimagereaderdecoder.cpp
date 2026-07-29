@@ -4,6 +4,8 @@
 #include "qimagereaderdecoder.h"
 
 #include "bufferedimagereader.h"
+#include "imageanimationrequest.h"
+#include "imageanimationsourcecatalog.h"
 #include "localization/imageerrortext.h"
 #include "location/sourcekey.h"
 #include "rendering/imagerendering.h"
@@ -121,10 +123,20 @@ DecodedImageResult decodeQImageReaderImageData(
 
     QImage firstFrame = displayReadyImage(image);
     if (hasMoreFrames) {
+        ImageAnimationSourceCatalogResult catalog = readImageAnimationSourceCatalog(
+            readerAnimationPlaybackRequest(data, animationFormat));
+        if (!catalog.has_value() || catalog->logicalSize != firstFrame.size()) {
+            const QString catalogFailure = catalog.has_value()
+                ? QStringLiteral("animation source catalog size mismatch")
+                : catalog.error();
+            return failedQtRasterDecodedImageResult(catalogFailure,
+                DecodedImageFailureOperation::DecodeAnimationOpen, animationFormat, catalogFailure);
+        }
         return successfulDecodedImageResult(ReaderAnimationImage {
             std::move(firstFrame),
             data,
             animationFormat,
+            std::move(*catalog),
             {},
             sourceIdentityForRequest(request),
             request.sourceRevision(),

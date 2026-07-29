@@ -4,7 +4,8 @@
 #ifndef KIRIVIEW_IMAGEANIMATIONSOURCECATALOG_H
 #define KIRIVIEW_IMAGEANIMATIONSOURCECATALOG_H
 
-#include "presentation/imageanimationplaybacksource.h"
+#include "animationframe.h"
+#include "imageanimationrequest.h"
 
 #include <QSize>
 #include <QString>
@@ -12,6 +13,8 @@
 #include <expected>
 
 namespace kiriview {
+class HeifSequenceReader;
+
 struct ImageAnimationSourceCatalog
 {
     QSize logicalSize;
@@ -25,6 +28,8 @@ using ImageAnimationSourceCatalogResult = std::expected<ImageAnimationSourceCata
 
 ImageAnimationSourceCatalogResult readImageAnimationSourceCatalog(
     const ImageAnimationPlaybackRequest& request);
+ImageAnimationSourceCatalogResult readHeifSequenceAnimationSourceCatalog(
+    HeifSequenceReader& reader, const AnimationFrame& firstFrame, int repeatCount);
 }
 
 #endif

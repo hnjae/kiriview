@@ -9,8 +9,10 @@
 #include <QObject>
 #include <QTest>
 
+#include <future>
 #include <initializer_list>
 #include <memory>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -24,6 +26,7 @@ private Q_SLOTS:
     void backwardSeekReopensAndReplaysOnlyTheRequestedPrefix();
     void invalidSourceErrorAndCloseRejectFrameRequests();
     void runtimesOwnIndependentPlaybackProgress();
+    void playbackSourceOperationsStayOnOneOwnerThread();
 };
 
 namespace {
@@ -35,6 +38,8 @@ struct FakePlaybackState
     int readCount = 0;
     int errorFrameIndex = -1;
     bool failOpen = false;
+    bool requireSingleOwnerThread = false;
+    std::thread::id ownerThread;
 };
 
 QImage solidImage(const QColor& color)
@@ -72,6 +77,9 @@ public:
     {
         ++m_state->openCount;
         m_nextFrameIndex = 1;
+        if (m_state->requireSingleOwnerThread) {
+            m_state->ownerThread = std::this_thread::get_id();
+        }
         if (m_state->failOpen || m_state->frames.empty()) {
             return {
                 kiriview::ImageAnimationPlaybackOpenStatus::Error,
@@ -96,6 +104,15 @@ public:
     kiriview::ImageAnimationPlaybackReadResult readNextFrame() override
     {
         ++m_state->readCount;
+        if (m_state->requireSingleOwnerThread
+            && m_state->ownerThread != std::this_thread::get_id()) {
+            return {
+                kiriview::ImageAnimationPlaybackReadStatus::Error,
+                {},
+                false,
+                QStringLiteral("fake source changed owner thread"),
+            };
+        }
         if (m_nextFrameIndex == m_state->errorFrameIndex) {
             return {
                 kiriview::ImageAnimationPlaybackReadStatus::Error,
@@ -257,6 +274,40 @@ void TestAnimationSourceRuntime::runtimesOwnIndependentPlaybackProgress()
     QCOMPARE(firstState->readCount, 2);
     QCOMPARE(secondState->openCount, 1);
     QCOMPARE(secondState->readCount, 2);
+}
+
+void TestAnimationSourceRuntime::playbackSourceOperationsStayOnOneOwnerThread()
+{
+    const auto state = std::make_shared<FakePlaybackState>();
+    state->frames = solidFrames({ Qt::red, Qt::green, Qt::blue });
+    state->requireSingleOwnerThread = true;
+    kiriview::AnimationSourceRuntime runtime(
+        state->frames.front(), static_cast<int>(state->frames.size()), fakeFactory(state));
+
+    kiriview::AnimationSourceFrameResult firstResult
+        = std::unexpected(QStringLiteral("first frame was not requested"));
+    kiriview::AnimationSourceFrameResult secondResult
+        = std::unexpected(QStringLiteral("second frame was not requested"));
+    std::promise<void> firstFinishedPromise;
+    std::future<void> firstFinished = firstFinishedPromise.get_future();
+    std::promise<void> releaseFirstPromise;
+    std::shared_future<void> releaseFirst = releaseFirstPromise.get_future().share();
+    std::jthread firstCaller([&]() {
+        firstResult = runtime.frame(1);
+        firstFinishedPromise.set_value();
+        releaseFirst.wait();
+    });
+    firstFinished.wait();
+
+    std::jthread secondCaller([&]() { secondResult = runtime.frame(2); });
+    secondCaller.join();
+    releaseFirstPromise.set_value();
+    firstCaller.join();
+
+    compareFrameColor(firstResult, Qt::green);
+    compareFrameColor(secondResult, Qt::blue);
+    QCOMPARE(state->openCount, 1);
+    QCOMPARE(state->readCount, 2);
 }
 
 QTEST_GUILESS_MAIN(TestAnimationSourceRuntime)

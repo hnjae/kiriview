@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "decoding/imagesourcerevision.h"
+#include "decoding/kiriimagedecoder.h"
 #include "image_test_support.h"
 #include "location/imageurl.h"
 #include "location/sourcekey.h"
@@ -13,6 +14,7 @@
 #include <ImageViewport/imageviewport.h>
 
 #include <QBuffer>
+#include <QFile>
 #include <QImageWriter>
 #include <QQuickWindow>
 #include <QSignalSpy>
@@ -108,6 +110,93 @@ QByteArray encodedPngData(const QSize& size)
         return {};
     }
     return data;
+}
+
+QByteArray animationFixtureData(const QString& fileName)
+{
+    QFile file(QStringLiteral(KIRIVIEW_TEST_SOURCE_DIR "/../fixtures/") + fileName);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    return file.readAll();
+}
+
+quint32 readBigEndian32(const QByteArray& data, qsizetype offset)
+{
+    return (static_cast<quint32>(static_cast<unsigned char>(data[offset])) << 24)
+        | (static_cast<quint32>(static_cast<unsigned char>(data[offset + 1])) << 16)
+        | (static_cast<quint32>(static_cast<unsigned char>(data[offset + 2])) << 8)
+        | static_cast<quint32>(static_cast<unsigned char>(data[offset + 3]));
+}
+
+void writeBigEndian32(QByteArray* data, qsizetype offset, quint32 value)
+{
+    (*data)[offset] = static_cast<char>((value >> 24) & 0xff);
+    (*data)[offset + 1] = static_cast<char>((value >> 16) & 0xff);
+    (*data)[offset + 2] = static_cast<char>((value >> 8) & 0xff);
+    (*data)[offset + 3] = static_cast<char>(value & 0xff);
+}
+
+quint32 crc32(const QByteArray& data)
+{
+    quint32 crc = 0xffffffffU;
+    for (const unsigned char byte : data) {
+        crc ^= byte;
+        for (int bit = 0; bit < 8; ++bit) {
+            crc = (crc >> 1) ^ (0xedb88320U & (0U - (crc & 1U)));
+        }
+    }
+    return crc ^ 0xffffffffU;
+}
+
+QByteArray apngWithUndecodableLaterRaster()
+{
+    QByteArray data = animationFixtureData(QStringLiteral("animated-smoke.apng"));
+    qsizetype offset = 8;
+    while (offset + 12 <= data.size()) {
+        const quint32 payloadSize = readBigEndian32(data, offset);
+        if (payloadSize > static_cast<quint32>(data.size() - offset - 12)) {
+            return {};
+        }
+
+        const qsizetype typeOffset = offset + 4;
+        const qsizetype payloadOffset = typeOffset + 4;
+        const qsizetype crcOffset = payloadOffset + static_cast<qsizetype>(payloadSize);
+        if (data.mid(typeOffset, 4) == QByteArrayLiteral("fdAT") && payloadSize > 4) {
+            for (qsizetype index = payloadOffset + 4; index < crcOffset; ++index) {
+                data[index] = '\0';
+            }
+            writeBigEndian32(&data, crcOffset, crc32(data.mid(typeOffset, 4 + payloadSize)));
+            return data;
+        }
+        offset = crcOffset + 4;
+    }
+    return {};
+}
+
+kiriview::ImageDecodeDependencies actualDecodeDependencies(
+    kiriview::TestSupport::ManualImageDataLoader& dataLoader,
+    kiriview::TestSupport::ManualImageWorkerScheduler& workerScheduler)
+{
+    kiriview::ImageDecodeDependencies dependencies
+        = kiriview::TestSupport::imageDecodeDependenciesFor(
+            dataLoader, [](const QByteArray& data, const kiriview::ImageDecodeRequest& request) {
+                return kiriview::decodeImageData(data, request);
+            });
+    dependencies.workerScheduler = workerScheduler.scheduler();
+    return dependencies;
+}
+
+void runOutstandingWorkerSchedules(
+    kiriview::TestSupport::ManualImageWorkerScheduler& workerScheduler, std::size_t& nextSchedule)
+{
+    while (nextSchedule < workerScheduler.scheduleCount()) {
+        if (workerScheduler.isActive(nextSchedule)) {
+            workerScheduler.runWork(nextSchedule);
+            workerScheduler.finish(nextSchedule);
+        }
+        ++nextSchedule;
+    }
 }
 
 kiriview::ThumbnailCacheLookupResult readyThumbnailLookup()
@@ -397,6 +486,10 @@ private Q_SLOTS:
     void deferredDecodeSourceSuppressesProvisionalFrameUntilAuthoritativeTerminal();
     void providerResourceSeparatesWorkAndDisplayReuseIdentity();
     void providerResourcePreservesDistinctTimedFramePixelsAndHandles();
+    void apngFirstFramePublishesBeforeLaterRasterFailure();
+    void actualApngFramesPreservePixelsThroughProviderResource();
+    void animationFrameCompletionAfterInvalidationIsDropped_data();
+    void animationFrameCompletionAfterInvalidationIsDropped();
     void foregroundThumbnailRemainsProvisionalUntilAuthoritativeTerminal_data();
     void foregroundThumbnailRemainsProvisionalUntilAuthoritativeTerminal();
     void readerOrientationProducesNormalizedFrame();
@@ -879,6 +972,235 @@ void TestImageViewportSequenceProvider::
     QVERIFY(secondHandle->frame() != nullptr);
     firstHandle->release();
     secondHandle->release();
+}
+
+void TestImageViewportSequenceProvider::apngFirstFramePublishesBeforeLaterRasterFailure()
+{
+    const QByteArray data = apngWithUndecodableLaterRaster();
+    QVERIFY(!data.isEmpty());
+
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    const QUrl url(QStringLiteral("file:///tmp/provider-first-frame.apng"));
+    const QString locationIdentity = QStringLiteral("provider-first-frame");
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::ImageLoadSession(112,
+            kiriview::ImageLoadRequest::fromExternalSource(
+                kiriview::resolvedNavigationSource(url, {})),
+            kiriview::DisplayedImageLocation::fromUrl(url)),
+        actualDecodeDependencies(dataLoader, workerScheduler));
+    auto store = std::make_shared<kiriview::DisplayImageStore>(1024 * 1024);
+    auto resource = std::make_shared<kiriview::ImageViewportProviderResource>(
+        112, locationIdentity, source, store);
+    QVERIFY(resource->bindDisplayLocationIdentity(locationIdentity));
+
+    std::vector<kiriview::ImageViewportProviderPreparedFrame> preparedFrames;
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        112,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        locationIdentity,
+    };
+    const auto requestFrame = [&resource, &identity, &preparedFrames](int frame) {
+        resource->requestFrame(identity,
+            kiriview::ImageViewportProviderFrameRequest {
+                frame,
+                {},
+            },
+            [&preparedFrames](kiriview::ImageViewportProviderWorkIdentity,
+                kiriview::ImageViewportProviderPreparedFrame prepared) {
+                preparedFrames.push_back(std::move(prepared));
+            });
+    };
+
+    requestFrame(0);
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+    dataLoader.finishFrontLoad(data);
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
+
+    QVERIFY2(preparedFrames.size() == 1,
+        "The retained APNG first frame must publish without completing later animation work");
+    QVERIFY(preparedFrames.front().isReady());
+    QVERIFY(preparedFrames.front().envelope.isTimedFrame());
+    QCOMPARE(preparedFrames.front().envelope.frame(), 0);
+    const std::optional<kiriview::DisplayImageStoreEntry> stored
+        = store->entry(preparedFrames.front().storeEntryId);
+    QVERIFY(stored.has_value());
+    QCOMPARE(stored->image.pixelColor(0, 0), QColor(Qt::red));
+
+    requestFrame(1);
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(2));
+    workerScheduler.runWork(1);
+    workerScheduler.finish(1);
+    QCOMPARE(preparedFrames.size(), std::size_t(2));
+    QVERIFY(!preparedFrames.back().isReady());
+    QCOMPARE(preparedFrames.back().failureCause, ImageSequenceProviderFailureCause::Decode);
+    QCOMPARE(store->size(), qsizetype(1));
+}
+
+void TestImageViewportSequenceProvider::actualApngFramesPreservePixelsThroughProviderResource()
+{
+    const QByteArray data = animationFixtureData(QStringLiteral("animated-smoke.apng"));
+    QVERIFY(!data.isEmpty());
+
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    const QUrl url(QStringLiteral("file:///tmp/provider-distinct-frames.apng"));
+    const QString locationIdentity = QStringLiteral("provider-distinct-frames");
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::ImageLoadSession(113,
+            kiriview::ImageLoadRequest::fromExternalSource(
+                kiriview::resolvedNavigationSource(url, {})),
+            kiriview::DisplayedImageLocation::fromUrl(url)),
+        actualDecodeDependencies(dataLoader, workerScheduler));
+    auto store = std::make_shared<kiriview::DisplayImageStore>(1024 * 1024);
+    auto resource = std::make_shared<kiriview::ImageViewportProviderResource>(
+        113, locationIdentity, source, store);
+    QVERIFY(resource->bindDisplayLocationIdentity(locationIdentity));
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        113,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        locationIdentity,
+    };
+
+    std::vector<kiriview::ImageViewportProviderPreparedFrame> preparedFrames;
+    const auto requestFrame = [&resource, &identity, &preparedFrames](int frame) {
+        resource->requestFrame(identity,
+            kiriview::ImageViewportProviderFrameRequest {
+                frame,
+                {},
+            },
+            [&preparedFrames](kiriview::ImageViewportProviderWorkIdentity,
+                kiriview::ImageViewportProviderPreparedFrame prepared) {
+                preparedFrames.push_back(std::move(prepared));
+            });
+    };
+
+    requestFrame(0);
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+    dataLoader.finishFrontLoad(data);
+    std::size_t nextSchedule = 0;
+    runOutstandingWorkerSchedules(workerScheduler, nextSchedule);
+    QCOMPARE(preparedFrames.size(), std::size_t(1));
+
+    requestFrame(1);
+    runOutstandingWorkerSchedules(workerScheduler, nextSchedule);
+    QCOMPARE(preparedFrames.size(), std::size_t(2));
+
+    const kiriview::ImageViewportProviderPreparedFrame& first = preparedFrames.at(0);
+    const kiriview::ImageViewportProviderPreparedFrame& second = preparedFrames.at(1);
+    QVERIFY(first.isReady());
+    QVERIFY(second.isReady());
+    QVERIFY(first.envelope.isTimedFrame());
+    QVERIFY(second.envelope.isTimedFrame());
+    QCOMPARE(first.envelope.frame(), 0);
+    QCOMPARE(second.envelope.frame(), 1);
+    QVERIFY(first.storeEntryId != second.storeEntryId);
+
+    ImageSequenceProviderFrameHandle* firstHandle = resource->acquireFrameHandle(first);
+    ImageSequenceProviderFrameHandle* secondHandle = resource->acquireFrameHandle(second);
+    QVERIFY(firstHandle != nullptr);
+    QVERIFY(secondHandle != nullptr);
+    QVERIFY(firstHandle->frame() != nullptr);
+    QVERIFY(secondHandle->frame() != nullptr);
+    QVERIFY(firstHandle->frame() != secondHandle->frame());
+
+    const std::optional<kiriview::DisplayImageStoreEntry> firstStored
+        = store->entry(first.storeEntryId);
+    const std::optional<kiriview::DisplayImageStoreEntry> secondStored
+        = store->entry(second.storeEntryId);
+    QVERIFY(firstStored.has_value());
+    QVERIFY(secondStored.has_value());
+    QCOMPARE(firstStored->image.pixelColor(0, 0), QColor(Qt::red));
+    QCOMPARE(secondStored->image.pixelColor(0, 0), QColor(Qt::blue));
+
+    firstHandle->release();
+    secondHandle->release();
+}
+
+void TestImageViewportSequenceProvider::animationFrameCompletionAfterInvalidationIsDropped_data()
+{
+    QTest::addColumn<bool>("closeResource");
+
+    QTest::newRow("cancel") << false;
+    QTest::newRow("close") << true;
+}
+
+void TestImageViewportSequenceProvider::animationFrameCompletionAfterInvalidationIsDropped()
+{
+    QFETCH(bool, closeResource);
+
+    ProviderFixture tokenFixture;
+    tokenFixture.source->knownMetadata = ImageSequenceProviderMetadata::still(QSizeF(32, 16));
+    tokenFixture.create();
+    ImageViewport tokenViewport;
+    tokenFixture.assign(tokenViewport);
+    QTRY_COMPARE(tokenFixture.source->frameIdentities.size(), std::size_t(1));
+    const ImageSequenceProviderRequestToken requestToken
+        = tokenFixture.source->frameIdentities.front().requestToken;
+    QVERIFY(requestToken.isValid());
+
+    const QByteArray data = animationFixtureData(QStringLiteral("animated-smoke.apng"));
+    QVERIFY(!data.isEmpty());
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    const QUrl url(QStringLiteral("file:///tmp/provider-late-animation-frame.apng"));
+    const QString locationIdentity = QStringLiteral("provider-late-animation-frame");
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::ImageLoadSession(114,
+            kiriview::ImageLoadRequest::fromExternalSource(
+                kiriview::resolvedNavigationSource(url, {})),
+            kiriview::DisplayedImageLocation::fromUrl(url)),
+        actualDecodeDependencies(dataLoader, workerScheduler));
+    auto store = std::make_shared<kiriview::DisplayImageStore>(1024 * 1024);
+    auto resource = std::make_shared<kiriview::ImageViewportProviderResource>(
+        114, locationIdentity, source, store);
+    QVERIFY(resource->bindDisplayLocationIdentity(locationIdentity));
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        114,
+        ImageViewportPageRole::Primary,
+        requestToken,
+        {},
+        locationIdentity,
+    };
+
+    std::vector<kiriview::ImageViewportProviderPreparedFrame> preparedFrames;
+    const auto requestFrame = [&resource, &identity, &preparedFrames](int frame) {
+        resource->requestFrame(identity,
+            kiriview::ImageViewportProviderFrameRequest {
+                frame,
+                {},
+            },
+            [&preparedFrames](kiriview::ImageViewportProviderWorkIdentity,
+                kiriview::ImageViewportProviderPreparedFrame prepared) {
+                preparedFrames.push_back(std::move(prepared));
+            });
+    };
+
+    requestFrame(0);
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+    dataLoader.finishFrontLoad(data);
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
+    QCOMPARE(preparedFrames.size(), std::size_t(1));
+
+    requestFrame(1);
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(2));
+    workerScheduler.runWork(1);
+    if (closeResource) {
+        resource->close();
+    } else {
+        resource->cancel({ requestToken });
+    }
+    workerScheduler.finish(1);
+
+    QCOMPARE(preparedFrames.size(), std::size_t(1));
 }
 
 void TestImageViewportSequenceProvider::

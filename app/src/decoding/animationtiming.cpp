@@ -9,6 +9,8 @@
 namespace {
 constexpr std::uint32_t apngDefaultDelayDenominator = 100;
 constexpr std::uint64_t millisecondsPerSecond = 1000;
+constexpr int defaultAnimationFrameDelayMs = 100;
+constexpr int minimumAnimationFrameDelayMs = 10;
 
 enum class DelayRounding {
     Floor,
@@ -73,6 +75,15 @@ int animationLoopCountForPlayCount(std::uint32_t playCount)
     }
     return static_cast<int>(
         std::min(playCount - 1, static_cast<std::uint32_t>(std::numeric_limits<int>::max())));
+}
+
+int normalizedAnimationFrameDelay(int delayMs)
+{
+    if (delayMs < 0) {
+        return defaultAnimationFrameDelayMs;
+    }
+
+    return std::max(delayMs, minimumAnimationFrameDelayMs);
 }
 
 }

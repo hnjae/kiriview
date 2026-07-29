@@ -5,52 +5,14 @@
 #define KIRIVIEW_IMAGEANIMATIONPLAYBACKSOURCE_H
 
 #include "decoding/animationframe.h"
+#include "decoding/imageanimationrequest.h"
 
-#include <QByteArray>
 #include <QImage>
 #include <QString>
 #include <QtGlobal>
 #include <memory>
-#include <variant>
 
 namespace kiriview {
-struct ReaderAnimationPlaybackRequest
-{
-    QByteArray data;
-    QByteArray format;
-};
-
-struct ApngAnimationPlaybackRequest
-{
-    QByteArray data;
-};
-
-struct WebPAnimationPlaybackRequest
-{
-    QByteArray data;
-};
-
-struct JxlAnimationPlaybackRequest
-{
-    QByteArray data;
-};
-
-struct HeifSequenceAnimationPlaybackRequest
-{
-    QByteArray data;
-};
-
-struct ImageAnimationPlaybackRequest
-{
-    using Payload = std::variant<std::monostate, ReaderAnimationPlaybackRequest,
-        ApngAnimationPlaybackRequest, WebPAnimationPlaybackRequest, JxlAnimationPlaybackRequest,
-        HeifSequenceAnimationPlaybackRequest>;
-
-    Payload payload;
-
-    [[nodiscard]] bool isValid() const;
-};
-
 enum class ImageAnimationPlaybackOpenStatus {
     Success,
     Error,
@@ -92,11 +54,6 @@ public:
     Q_DISABLE_COPY_MOVE(ImageAnimationPlaybackSource)
 };
 
-ImageAnimationPlaybackRequest readerAnimationPlaybackRequest(QByteArray data, QByteArray format);
-ImageAnimationPlaybackRequest apngAnimationPlaybackRequest(QByteArray data);
-ImageAnimationPlaybackRequest webpAnimationPlaybackRequest(QByteArray data);
-ImageAnimationPlaybackRequest jxlAnimationPlaybackRequest(QByteArray data);
-ImageAnimationPlaybackRequest heifSequenceAnimationPlaybackRequest(QByteArray data);
 std::unique_ptr<ImageAnimationPlaybackSource> makeImageAnimationPlaybackSource(
     ImageAnimationPlaybackRequest request);
 }
