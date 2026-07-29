@@ -224,6 +224,12 @@ public:
 
     std::size_t loadCount() const { return m_loads.size(); }
 
+    std::size_t loadCountForUrl(const QUrl& url) const
+    {
+        return static_cast<std::size_t>(std::ranges::count_if(
+            m_loads, [&url](const auto& load) { return load != nullptr && load->url == url; }));
+    }
+
     bool empty() const { return m_loads.empty(); }
 
     ManualImageDataLoad& frontLoad() { return *m_loads.front(); }

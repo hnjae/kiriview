@@ -13,7 +13,7 @@ private Q_SLOTS:
     void openWithFailureEmitsToastSignal();
     void staleOpenWithFailureAfterReplacementIsIgnored();
     void staleOpenWithFailureAfterSessionDestructionIsIgnored();
-    void videoNavigationReusesStillImageWarmCacheWhenReturning();
+    void videoNavigationValidatesAndReusesStillImageWarmCacheWhenReturning();
     void videoActiveNavigationExposesCurrentNumberAndCount();
     void initialDirectImagePredecodeUsesRequestedMediaCursor();
     void directImagePredecodeUsesSessionDependencyOverrides();

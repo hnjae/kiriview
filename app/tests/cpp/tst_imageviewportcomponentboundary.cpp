@@ -639,16 +639,20 @@ void TestImageViewportComponentBoundary::reattachedTargetRefreshesAuthoritativeP
     }));
 
     const std::size_t loadCountBeforeReattach = dataLoader.loadCount();
+    const std::size_t workerScheduleCountBeforeReattach = workerScheduler.scheduleCount();
 
     surface->setDocument(nullptr);
     surface->setDocument(session->imageDocument());
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(imageUrl));
+    QCOMPARE(dataLoader.loadCount(), loadCountBeforeReattach + 1);
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(imageUrl, imageData));
     QVERIFY(driveViewportUntil(*surface, [&]() {
         const ImageViewportStateSnapshot snapshot = surface->viewport()->state();
         return snapshot.request().status() == ImageViewportRequestStatus::Ready
             && snapshot.display().belongsToAcceptedPresentationTarget()
             && snapshot.primary().display().quality() == ImageViewportPayloadQuality::Exact;
     }));
-    QCOMPARE(dataLoader.loadCount(), loadCountBeforeReattach);
+    QCOMPARE(workerScheduler.scheduleCount(), workerScheduleCountBeforeReattach);
 }
 
 void TestImageViewportComponentBoundary::twoPageShapeChangeSuppressesProvisionalSpread()
@@ -781,8 +785,8 @@ void TestImageViewportComponentBoundary::sameUrlSecondaryReplacementRejectsSuper
     session->imageDocument()->requestToggleTwoPageMode();
     QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(thirdPageUrl));
     bool replacementStarted = false;
-    const QMetaObject::Connection reentrantConnection = QObject::connect(session->imageDocument(),
-        &KiriImageDocument::statusChanged, session->imageDocument(), [&]() {
+    const QMetaObject::Connection reentrantConnection = QObject::connect(
+        surface->viewport(), &ImageViewport::stateChanged, session->imageDocument(), [&]() {
             const ImageViewportStateSnapshot snapshot = surface->viewport()->state();
             if (replacementStarted
                 || snapshot.request().status() != ImageViewportRequestStatus::Ready
@@ -797,6 +801,8 @@ void TestImageViewportComponentBoundary::sameUrlSecondaryReplacementRejectsSuper
 
     QVERIFY(dataLoader.finishNewestActiveLoadForUrl(thirdPageUrl, imageData));
     runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(secondPageUrl));
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(secondPageUrl, imageData));
     QVERIFY(driveViewportUntil(*surface, [&]() { return replacementStarted; }));
     QObject::disconnect(reentrantConnection);
 
@@ -807,6 +813,8 @@ void TestImageViewportComponentBoundary::sameUrlSecondaryReplacementRejectsSuper
 
     QVERIFY(dataLoader.finishNewestActiveLoadForUrl(thirdPageUrl, imageData));
     runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(secondPageUrl));
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(secondPageUrl, imageData));
     QVERIFY(driveViewportUntil(*surface, [&]() {
         return session->imageDocument()->secondaryPageVisible()
             && surface->viewport()->state().request().status() == ImageViewportRequestStatus::Ready

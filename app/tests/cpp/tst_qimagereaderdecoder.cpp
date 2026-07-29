@@ -137,12 +137,18 @@ void TestQImageReaderDecoder::pngDataDecodesAsStaticDisplayPayload()
     const QByteArray data = encodedImageData(image, QByteArrayLiteral("png"), &errorString);
     QVERIFY2(!data.isEmpty(), qPrintable(errorString));
 
+    const kiriview::ImageSourceRevision revision = kiriview::ImageSourceRevision::fromData(data);
+    const kiriview::ImageDecodeRequest request = kiriview::ImageDecodeRequest::fromUrl(
+        1, QUrl::fromLocalFile(QStringLiteral("/tmp/static.png")))
+                                                     .withSourceRevision(revision);
     const kiriview::DecodedImageResult result
-        = kiriview::decodeQImageReaderImageData(data, {}, kiriview::QtRasterFormat::Png);
+        = kiriview::decodeQImageReaderImageData(data, request, kiriview::QtRasterFormat::Png);
     const kiriview::StaticDecodedImage* decoded
         = decodedImage<kiriview::StaticDecodedImage>(result);
 
     QVERIFY(decoded != nullptr);
+    QVERIFY(!decoded->displayImage.sourceIdentity.isEmpty());
+    QCOMPARE(decoded->displayImage.sourceRevision, revision);
     QVERIFY(dynamic_cast<kiriview::QImageReaderDisplaySource*>(
                 decoded->displayImage.refinementSource.get())
         != nullptr);
@@ -167,9 +173,11 @@ void TestQImageReaderDecoder::jpegDataUsesFirstDisplayRequest()
     const QByteArray data = encodedImageData(image, jpegWriterFormat(), &errorString);
     QVERIFY2(!data.isEmpty(), qPrintable(errorString));
 
-    const kiriview::ImageDecodeRequest request = kiriview::ImageDecodeRequest::fromUrl(1,
-        QUrl::fromLocalFile(QStringLiteral("/tmp/photo.jpg")),
-        kiriview::ImageFirstDisplayDecodeContext { QSize(400, 300) });
+    const kiriview::ImageDecodeRequest request
+        = kiriview::ImageDecodeRequest::fromUrl(1,
+            QUrl::fromLocalFile(QStringLiteral("/tmp/photo.jpg")),
+            kiriview::ImageFirstDisplayDecodeContext { QSize(400, 300) })
+              .withSourceRevision(kiriview::ImageSourceRevision::fromData(data));
     const kiriview::DecodedImageResult result
         = kiriview::decodeQImageReaderImageData(data, request, kiriview::QtRasterFormat::Jpeg);
     const kiriview::StaticDecodedImage* decoded
@@ -182,6 +190,7 @@ void TestQImageReaderDecoder::jpegDataUsesFirstDisplayRequest()
     QVERIFY(dynamic_cast<kiriview::QImageReaderDisplaySource*>(
                 decoded->displayImage.refinementSource.get())
         != nullptr);
+    QVERIFY(decoded->displayImage.isValid());
 }
 
 void TestQImageReaderDecoder::jpegExifOrientationProducesDisplayOrientedPayload()
@@ -200,8 +209,10 @@ void TestQImageReaderDecoder::jpegExifOrientationProducesDisplayOrientedPayload(
     data = withExifOrientation(std::move(data), 6);
     QVERIFY(!data.isEmpty());
 
-    const kiriview::ImageDecodeRequest request = kiriview::ImageDecodeRequest::fromUrl(
-        2, QUrl::fromLocalFile(QStringLiteral("/tmp/oriented.jpg")));
+    const kiriview::ImageDecodeRequest request
+        = kiriview::ImageDecodeRequest::fromUrl(
+            2, QUrl::fromLocalFile(QStringLiteral("/tmp/oriented.jpg")))
+              .withSourceRevision(kiriview::ImageSourceRevision::fromData(data));
     const kiriview::DecodedImageResult result
         = kiriview::decodeQImageReaderImageData(data, request, kiriview::QtRasterFormat::Jpeg);
     const kiriview::StaticDecodedImage* decoded
@@ -215,6 +226,7 @@ void TestQImageReaderDecoder::jpegExifOrientationProducesDisplayOrientedPayload(
     QVERIFY(decoded->displayImage.imageReaderTransform.transformations
         & QImageIOHandler::TransformationRotate90);
     QCOMPARE(decoded->displayImage.quality, kiriview::DisplayImageQuality::Exact);
+    QVERIFY(decoded->displayImage.isValid());
 }
 
 QTEST_GUILESS_MAIN(TestQImageReaderDecoder)
