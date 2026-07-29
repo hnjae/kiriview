@@ -23,6 +23,7 @@ struct HeifSequenceOpenResult
 {
     HeifSequenceOpenStatus status = HeifSequenceOpenStatus::NotHeif;
     QString errorString;
+    int repeatCount = 0;
 };
 
 class HeifSequenceReader final

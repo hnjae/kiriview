@@ -152,6 +152,7 @@ public:
     HeifDecodingOptions& operator=(HeifDecodingOptions&& other) noexcept = default;
 
     [[nodiscard]] const heif_decoding_options* get() const;
+    void setIgnoreSequenceEditList(bool ignore);
 
 private:
     Detail::HeifResource<heif_decoding_options, heif_decoding_options_free> m_options;

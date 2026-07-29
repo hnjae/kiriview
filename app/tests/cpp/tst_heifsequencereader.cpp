@@ -7,6 +7,7 @@
 #include "localization/imageerrortext.h"
 
 #include <QByteArray>
+#include <QColor>
 #include <QFile>
 #include <QObject>
 #include <QSize>
@@ -20,6 +21,7 @@ class TestHeifSequenceReader : public QObject
 private Q_SLOTS:
     void rejectsNonHeifData();
     void readsFramesFromStreamingSequence();
+    void reopensAtTheStartOfTheAuthoredCycle();
     void closeClearsTheActiveSequence();
 };
 
@@ -55,6 +57,7 @@ void TestHeifSequenceReader::readsFramesFromStreamingSequence()
     kiriview::HeifSequenceReader reader;
     const kiriview::HeifSequenceOpenResult openResult = reader.open(imageData);
     QCOMPARE(openResult.status, kiriview::HeifSequenceOpenStatus::Success);
+    QCOMPARE(openResult.repeatCount, -1);
 
     const kiriview::AnimationFrameReadResult firstFrame = reader.readNextFrame();
     QVERIFY2(firstFrame.has_value(), firstFrame ? "missing frame" : qPrintable(firstFrame.error()));
@@ -72,6 +75,27 @@ void TestHeifSequenceReader::readsFramesFromStreamingSequence()
     QVERIFY((**secondFrame).delay > 0);
     QVERIFY(qAlpha((**secondFrame).image.pixel(16, 32)) < 255);
     QVERIFY(qAlpha((**secondFrame).image.pixel(48, 32)) > 0);
+
+    const kiriview::AnimationFrameReadResult end = reader.readNextFrame();
+    QVERIFY2(end.has_value(), end ? "unexpected frame" : qPrintable(end.error()));
+    QVERIFY(!end->has_value());
+}
+
+void TestHeifSequenceReader::reopensAtTheStartOfTheAuthoredCycle()
+{
+    const QByteArray imageData = fixtureData();
+    QVERIFY(!imageData.isEmpty());
+
+    kiriview::HeifSequenceReader reader;
+    QCOMPARE(reader.open(imageData).status, kiriview::HeifSequenceOpenStatus::Success);
+    const kiriview::AnimationFrameReadResult firstPass = reader.readNextFrame();
+    QVERIFY(firstPass && firstPass->has_value());
+    const QColor firstColor = (**firstPass).image.pixelColor(16, 32);
+
+    QCOMPARE(reader.open(imageData).status, kiriview::HeifSequenceOpenStatus::Success);
+    const kiriview::AnimationFrameReadResult reopened = reader.readNextFrame();
+    QVERIFY(reopened && reopened->has_value());
+    QCOMPARE((**reopened).image.pixelColor(16, 32), firstColor);
 }
 
 void TestHeifSequenceReader::closeClearsTheActiveSequence()

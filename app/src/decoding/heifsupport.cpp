@@ -78,6 +78,13 @@ HeifDecodingOptions::HeifDecodingOptions()
 
 const heif_decoding_options* HeifDecodingOptions::get() const { return m_options.get(); }
 
+void HeifDecodingOptions::setIgnoreSequenceEditList(bool ignore)
+{
+    if (m_options.get() != nullptr) {
+        m_options.get()->ignore_sequence_editlist = ignore ? 1 : 0;
+    }
+}
+
 std::optional<HeifContext> openHeifContext(const QByteArray& data, QString* errorString)
 {
     if (std::optional<QString> initError = initializeHeifLibrary()) {

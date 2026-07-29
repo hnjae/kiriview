@@ -10,10 +10,26 @@
 
 #include <libheif/heif_sequences.h>
 
+#include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
+
+namespace {
+int animationRepeatCount(std::uint32_t repetitions)
+{
+    if (repetitions == heif_sequence_track_number_of_repetitions_infinite) {
+        return -1;
+    }
+    if (repetitions <= 1) {
+        return 0;
+    }
+    return static_cast<int>(
+        std::min(repetitions - 1, static_cast<std::uint32_t>(std::numeric_limits<int>::max())));
+}
+}
 
 namespace kiriview {
 QString heifSequenceDecodeErrorString()
@@ -94,9 +110,11 @@ HeifSequenceOpenResult HeifSequenceReader::open(QByteArray data)
         return { HeifSequenceOpenStatus::Error,
             imageErrorText(ImageErrorTextId::HeifDecodeOptionsAllocationFailed) };
     }
+    d->options->setIgnoreSequenceEditList(true);
     d->timescale = heif_track_get_timescale(d->track.get());
 
-    return { HeifSequenceOpenStatus::Success, {} };
+    return { HeifSequenceOpenStatus::Success, {},
+        animationRepeatCount(heif_track_get_number_of_repetitions(d->track.get())) };
 }
 
 AnimationFrameReadResult HeifSequenceReader::readNextFrame()
