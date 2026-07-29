@@ -30,6 +30,7 @@ using kiriview::TestSupport::powerSaverProviderFor;
 using kiriview::TestSupport::staticDisplayTestImagePayload;
 using kiriview::TestSupport::staticImageDataDecoder;
 using kiriview::TestSupport::testImage;
+using kiriview::TestSupport::videoCandidate;
 
 using FakeCandidateProvider = kiriview::TestSupport::FakeImageDocumentPageCandidateProvider;
 
@@ -118,7 +119,7 @@ private Q_SLOTS:
     void selectedImageNavigationTargetRemainsForegroundOwned();
     void selectedImageNavigationTargetPreservesDirectOwnerScopeForAdjacentWork();
     void selectedImageNavigationTargetRetiresMatchingWorkBeforeCandidateSnapshot();
-    void selectedVideoNavigationTargetDoesNotStartPredecode();
+    void selectedVideoNavigationTargetAnchorsAdjacentStillPredecode();
     void scheduleAdjacentImagePredecodeWithoutSnapshotCancelsActivePredecode();
     void powerSaverSuppressesBackgroundPredecodeAndReschedulesWhenDisabled();
 };
@@ -380,19 +381,40 @@ void TestImageDocumentPredecodeController::
     QCOMPARE(dataLoader.backLoad().url, adjacentUrl);
 }
 
-void TestImageDocumentPredecodeController::selectedVideoNavigationTargetDoesNotStartPredecode()
+void TestImageDocumentPredecodeController::
+    selectedVideoNavigationTargetAnchorsAdjacentStillPredecode()
 {
-    FakeCandidateProvider candidateProvider;
     ManualImageDataLoader dataLoader;
     kiriview::ImageDocumentState state;
     std::optional<kiriview::DisplayedPredecodeImage> primary;
-    kiriview::ImageDocumentPredecodeController controller(
-        state, [&primary]() { return primary; }, firstDisplayContext,
-        imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget);
-
+    const kiriview::OpenedCollectionScopeLocation directoryCollection
+        = kiriview::OpenedCollectionScopeLocation::fromUrls(imagesDirectoryUrl(),
+            imagesDirectoryUrl(), kiriview::OpenedCollectionScopeKind::Directory);
     const QUrl displayedUrl = indexedImageUrl(1);
     const QUrl videoUrl = QUrl::fromLocalFile(QStringLiteral("/images/02.mp4"));
-    state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromUrl(displayedUrl));
+    const QUrl adjacentUrl = indexedImageUrl(3);
+    kiriview::ImageDocumentPredecodeController controller(
+        state, [&primary]() { return primary; }, firstDisplayContext,
+        imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget, {},
+        [directoryCollection, displayedUrl, videoUrl, adjacentUrl](
+            auto, kiriview::ImageDocumentPageCandidateListSnapshotCallback callback) {
+            callback(kiriview::ImageDocumentPageCandidateListSnapshotResult {
+                pageCandidateListSnapshot(
+                    kiriview::ImageDocumentPageCandidateListSource::forOpenedCollectionScope(
+                        directoryCollection),
+                    {
+                        imageDocumentPageCandidate(displayedUrl),
+                        videoCandidate(videoUrl),
+                        imageDocumentPageCandidate(adjacentUrl),
+                    }),
+                true,
+                {},
+            });
+        },
+        {}, false);
+
+    state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
+        displayedUrl, directoryCollection));
     primary = displayedPredecodeImage(
         state.displayedImageLocation(), displayTestImagePayload(testImage()));
 
@@ -403,7 +425,14 @@ void TestImageDocumentPredecodeController::selectedVideoNavigationTargetDoesNotS
         },
         1);
 
-    QCOMPARE(dataLoader.loadCount(), std::size_t(0));
+    QTRY_COMPARE(dataLoader.loadCount(), std::size_t(1));
+    QCOMPARE(dataLoader.frontLoad().url, adjacentUrl);
+    QCOMPARE(dataLoader.loadCountForUrl(videoUrl), std::size_t(0));
+    dataLoader.finishFrontLoad(QByteArrayLiteral("adjacent"));
+    QTRY_VERIFY(controller
+            .findPredecodedImage(kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
+                adjacentUrl, directoryCollection))
+            .has_value());
 }
 
 void TestImageDocumentPredecodeController::

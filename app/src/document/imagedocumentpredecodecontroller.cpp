@@ -32,10 +32,10 @@ namespace {
         return displayedImages;
     }
 
-    std::optional<DisplayedImageLocation> predecodeLocationForTarget(
+    std::optional<DisplayedImageLocation> preparationLocationForTarget(
         const ImageDocumentPageTarget& target, const DisplayedImageLocation& currentLocation)
     {
-        if (target.kind != ImageDocumentPageKind::Image || target.url.isEmpty()) {
+        if (target.url.isEmpty()) {
             return std::nullopt;
         }
 
@@ -134,7 +134,7 @@ void ImageDocumentPredecodeController::scheduleImageNavigationTargetPredecode(
     std::optional<DisplayedPredecodeImage> secondaryImage)
 {
     const std::optional<DisplayedImageLocation> targetLocation
-        = predecodeLocationForTarget(target, m_state.displayedImageLocation());
+        = preparationLocationForTarget(target, m_state.displayedImageLocation());
     if (!targetLocation.has_value()) {
         return;
     }
