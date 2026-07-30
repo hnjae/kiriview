@@ -41,6 +41,7 @@
 #include <QVariantMap>
 #include <QWheelEvent>
 #include <QtQml/qqml.h>
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <optional>
@@ -57,6 +58,7 @@ private Q_SLOTS:
     void startupInitialDirectImageRendersMainViewport();
     void startupInitialComicArchiveRendersAndNavigatesMainViewport();
     void comicPageReplacementKeepsRightToolbarPresentationStable();
+    void spreadPageReplacementKeepsRightToolbarPresentationStable();
     void dropOpensFirstUrlOnly();
     void fileDialogUsesSingleSelectionMode();
     void directImageShowsMediaPositionAfterSiblingListing();
@@ -380,9 +382,9 @@ bool writeAdvancedMetadataJpeg(const QString& path)
     return file.write(jpegData) == jpegData.size();
 }
 
-QByteArray encodedTestPng(Qt::GlobalColor color)
+QByteArray encodedTestPng(Qt::GlobalColor color, QSize size = QSize(2, 2))
 {
-    QImage image(QSize(2, 2), QImage::Format_RGBA8888);
+    QImage image(size, QImage::Format_RGBA8888);
     image.fill(color);
 
     QByteArray data;
@@ -468,6 +470,50 @@ std::unique_ptr<QTemporaryDir> createComicBookArchive(QString* sourcePath, QStri
         || !archive.writeFile(QStringLiteral("02.png"), secondPage)) {
         *errorString = QStringLiteral("failed to write test comic archive pages");
         return nullptr;
+    }
+    archive.close();
+
+    *sourcePath = archivePath;
+    return directory;
+}
+
+std::unique_ptr<QTemporaryDir> createPortraitComicBookArchive(
+    QString* sourcePath, QString* errorString)
+{
+    auto directory = std::make_unique<QTemporaryDir>();
+    if (!directory->isValid()) {
+        *errorString = QStringLiteral("temporary portrait comic archive directory was not created");
+        return nullptr;
+    }
+
+    const QSize portraitSize(60, 80);
+    const QList<QByteArray> pages {
+        encodedTestPng(Qt::blue, portraitSize),
+        encodedTestPng(Qt::green, portraitSize),
+        encodedTestPng(Qt::red, portraitSize),
+        encodedTestPng(Qt::cyan, portraitSize),
+        encodedTestPng(Qt::magenta, portraitSize),
+    };
+    for (const QByteArray& page : pages) {
+        if (page.isEmpty()) {
+            *errorString = QStringLiteral("failed to encode portrait comic archive pages");
+            return nullptr;
+        }
+    }
+
+    const QString archivePath = directory->filePath(QStringLiteral("portrait-book.cbz"));
+    KZip archive(archivePath);
+    if (!archive.open(QIODevice::WriteOnly)) {
+        *errorString = QStringLiteral("failed to open portrait comic archive for writing");
+        return nullptr;
+    }
+    for (qsizetype index = 0; index < pages.size(); ++index) {
+        if (!archive.writeFile(QStringLiteral("%1.png").arg(index + 1, 2, 10, QLatin1Char('0')),
+                pages.at(index))) {
+            *errorString = QStringLiteral("failed to write portrait comic archive pages");
+            archive.close();
+            return nullptr;
+        }
     }
     archive.close();
 
@@ -936,6 +982,142 @@ void TestMainWindowToolBar::comicPageReplacementKeepsRightToolbarPresentationSta
         QVERIFY(action->property("presentationEnabled").toBool());
         QVERIFY(action->property("enabled").toBool());
     }
+}
+
+void TestMainWindowToolBar::spreadPageReplacementKeepsRightToolbarPresentationStable()
+{
+    QString archivePath;
+    QString errorString;
+    std::unique_ptr<QTemporaryDir> archiveDirectory
+        = createPortraitComicBookArchive(&archivePath, &errorString);
+    QVERIFY2(archiveDirectory != nullptr, qPrintable(errorString));
+
+    MainWindowFixture fixture = createMainWindowFixture(QUrl::fromLocalFile(archivePath));
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    KiriDocumentSession* documentSession = findDocumentSession(fixture.window);
+    KiriViewApplication* application = findApplication(fixture.window);
+    QVERIFY(documentSession != nullptr);
+    QVERIFY(application != nullptr);
+
+    const auto renderFrame = [&fixture]() {
+        fixture.window->update();
+        static_cast<void>(fixture.window->grabWindow());
+        QCoreApplication::processEvents();
+    };
+
+    QTRY_VERIFY2(
+        documentSession->activeImageReady(), qPrintable(imageViewportStateReport(fixture.window)));
+    QTRY_COMPARE(documentSession->imageDocument()->currentPageNumber(), 1);
+
+    documentSession->imageDocument()->openNextPage();
+    QTRY_VERIFY2(
+        documentSession->activeImageReady(), qPrintable(imageViewportStateReport(fixture.window)));
+    QTRY_COMPARE(documentSession->imageDocument()->currentPageNumber(), 2);
+
+    documentSession->imageDocument()->requestToggleTwoPageMode();
+    QTRY_VERIFY2(documentSession->activeImageReady()
+            && documentSession->imageDocument()->secondaryPageVisible()
+            && documentSession->imageDocument()->currentPageNumber() == 2
+            && documentSession->imageDocument()->currentLastPageNumber() == 3,
+        qPrintable(imageViewportStateReport(fixture.window)));
+    QTRY_COMPARE(application->imageToolbarPresentationPhase(),
+        KiriViewApplication::ImageToolbarPresentationCurrent);
+
+    QObject* toolbar = findObject(fixture.window, QStringLiteral("mainImageToolBar"));
+    QVERIFY(toolbar != nullptr);
+    const auto toolbarAction = [toolbar](const char* propertyName) {
+        return qvariant_cast<QObject*>(toolbar->property(propertyName));
+    };
+    const QList<QObject*> presentedActions {
+        toolbarAction("rightToLeftToolbarAction"),
+        toolbarAction("twoPageToolbarAction"),
+        toolbarAction("fitMenuAction"),
+        toolbarAction("zoomLevelAction"),
+    };
+    for (QObject* action : presentedActions) {
+        QVERIFY(action != nullptr);
+        QVERIFY(action->property("presentationEnabled").toBool());
+        QVERIFY(action->property("enabled").toBool());
+    }
+    QObject* twoPageAction = presentedActions.at(1);
+    QVERIFY(twoPageAction->property("presentationChecked").toBool());
+    QVERIFY(application->imageToolbarCollectionControlsVisible());
+
+    QQuickItem* zoomTextInput = findQuickItem(fixture.window, QStringLiteral("zoomTextInput"));
+    QVERIFY(zoomTextInput != nullptr);
+    const QString spreadZoomText = zoomTextInput->property("text").toString();
+    const qreal spreadZoomPercent = toolbar->property("presentedZoomPercent").toReal();
+    QVERIFY(!spreadZoomText.isEmpty());
+    QVERIFY(toolbar->property("presentedZoomPercentAvailable").toBool());
+    QVERIFY(toolbar->property("presentedZoomPercentKnown").toBool());
+
+    bool observedUnavailablePresentation = false;
+    bool observedRightActionPresentationLoss = false;
+    bool observedCollectionControlsHidden = false;
+    bool observedZoomPresentationChange = false;
+    bool observedRetainedPreviousPresentation = false;
+    const auto observePresentation = [&]() {
+        observedUnavailablePresentation = observedUnavailablePresentation
+            || application->imageToolbarPresentationPhase()
+                == KiriViewApplication::ImageToolbarPresentationUnavailable;
+        observedRetainedPreviousPresentation = observedRetainedPreviousPresentation
+            || application->imageToolbarPresentationPhase()
+                == KiriViewApplication::ImageToolbarPresentationRetainedPrevious;
+        observedRightActionPresentationLoss = observedRightActionPresentationLoss
+            || !application->imageToolbarActionAppearanceEnabled(
+                KiriViewApplication::ViewToggleRightToLeftReadingAction)
+            || !application->imageToolbarActionAppearanceEnabled(
+                KiriViewApplication::ViewToggleTwoPageModeAction)
+            || !application->imageToolbarActionAppearanceEnabled(KiriViewApplication::ViewFitAction)
+            || !application->imageToolbarZoomAppearanceEnabled()
+            || std::ranges::any_of(presentedActions,
+                [](QObject* action) { return !action->property("presentationEnabled").toBool(); });
+        observedCollectionControlsHidden = observedCollectionControlsHidden
+            || !application->imageToolbarCollectionControlsVisible();
+        observedZoomPresentationChange = observedZoomPresentationChange
+            || !toolbar->property("presentedZoomPercentAvailable").toBool()
+            || !toolbar->property("presentedZoomPercentKnown").toBool()
+            || zoomTextInput->property("text").toString() != spreadZoomText
+            || !zoomApproximatelyEqual(
+                toolbar->property("presentedZoomPercent").toReal(), spreadZoomPercent);
+    };
+    const QMetaObject::Connection presentationObservation = QObject::connect(application,
+        &KiriViewApplication::actionStateRevisionChanged, application, observePresentation);
+
+    documentSession->imageDocument()->openNextPage();
+    observePresentation();
+    for (int attempt = 0; attempt < 2'000
+        && !(documentSession->activeImageReady()
+            && documentSession->imageDocument()->secondaryPageVisible()
+            && documentSession->imageDocument()->currentPageNumber() == 4
+            && documentSession->imageDocument()->currentLastPageNumber() == 5
+            && application->imageToolbarPresentationPhase()
+                == KiriViewApplication::ImageToolbarPresentationCurrent);
+        ++attempt) {
+        renderFrame();
+        observePresentation();
+        QTest::qWait(1);
+    }
+    observePresentation();
+    QObject::disconnect(presentationObservation);
+
+    QVERIFY2(documentSession->activeImageReady()
+            && documentSession->imageDocument()->secondaryPageVisible()
+            && documentSession->imageDocument()->currentPageNumber() == 4
+            && documentSession->imageDocument()->currentLastPageNumber() == 5,
+        qPrintable(imageViewportStateReport(fixture.window)));
+    QVERIFY(!documentSession->activeImageReplacementFallbackAvailable());
+    QVERIFY(observedRetainedPreviousPresentation);
+    QVERIFY(!observedUnavailablePresentation);
+    QVERIFY(!observedRightActionPresentationLoss);
+    QVERIFY(!observedCollectionControlsHidden);
+    QVERIFY(!observedZoomPresentationChange);
+    QVERIFY(application->imageToolbarCollectionControlsVisible());
+    for (QObject* action : presentedActions) {
+        QVERIFY(action->property("presentationEnabled").toBool());
+        QVERIFY(action->property("enabled").toBool());
+    }
+    QVERIFY(twoPageAction->property("presentationChecked").toBool());
 }
 
 void TestMainWindowToolBar::dropOpensFirstUrlOnly()

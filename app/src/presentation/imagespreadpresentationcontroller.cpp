@@ -36,6 +36,26 @@ ImageSpreadPresentationController::ImageSpreadPresentationController(
                 invokeIfSet(
                     m_callbacks.secondaryImagePrepared, std::move(session), std::move(predecoded));
             },
+            [this](quint64 primarySessionId, ImageLoadSession session,
+                std::optional<PredecodedImage> predecoded) {
+                if (!m_pendingPageReplacement.has_value()
+                    || m_pendingPageReplacement->primarySession.id() != primarySessionId
+                    || m_pendingPageReplacement->phase
+                        != PageReplacementPhase::PreparingSecondary) {
+                    return;
+                }
+                invokeIfSet(m_callbacks.navigationSecondaryImagePrepared, primarySessionId,
+                    std::move(session), std::move(predecoded));
+            },
+            [this](quint64 primarySessionId, ImageLoadSession session, ImageLoadFailure failure) {
+                if (!m_pendingPageReplacement.has_value()
+                    || m_pendingPageReplacement->primarySession.id() != primarySessionId) {
+                    return;
+                }
+                m_pendingPageReplacement.reset();
+                invokeIfSet(m_callbacks.navigationSecondaryImagePreparationFailed, primarySessionId,
+                    std::move(session), std::move(failure));
+            },
         });
 }
 
@@ -72,13 +92,15 @@ void ImageSpreadPresentationController::setTwoPageModeEnabled(bool enabled)
         return;
     }
 
+    const bool pageReplacementWasPending = pageReplacementPairingPending();
+    cancelPageReplacementPairing();
     m_twoPageModeEnabled = enabled;
     m_state.advancePresentationLifecycle();
     m_pendingShapeChange = true;
-    if (enabled) {
+    if (enabled && !pageReplacementWasPending) {
         refreshSecondaryPage();
     } else {
-        discardSecondaryPage(true);
+        discardSecondaryPage(SecondaryPageDiscardIntent::PresentationShapeChange);
     }
     notifyTwoPageModeChanged();
 }
@@ -139,18 +161,163 @@ ImageSpreadPresentationController::secondaryDisplayedPredecodeImage() const
 void ImageSpreadPresentationController::commitPrimaryPageSlot(
     const DisplayedImageLocation& location, QSize imageSize)
 {
+    cancelPageReplacementPairing();
     m_committedPrimaryImageSize = imageSize;
     m_secondaryPageRefresh.cachePageSize(location.imageUrl(), imageSize);
 }
 
+ImageSpreadPageReplacementPairingResult
+ImageSpreadPresentationController::beginPageReplacementPairing(
+    const ImageLoadSession& primarySession, QSize primaryImageSize)
+{
+    cancelPageReplacementPairing();
+    if (primarySession.id() == 0 || primarySession.location().isEmpty()
+        || primarySession.kind() != ImageDocumentPageKind::Image
+        || !primarySession.request().sameScopePageNavigation() || primaryImageSize.isEmpty()) {
+        return ImageSpreadPageReplacementPairingResult::Stale;
+    }
+
+    const ImageDocumentPageNavigationSnapshot navigation = pageNavigationSnapshot();
+    if (!m_secondaryPageRefresh.primarySelectionMatchesDisplayed(
+            navigation, primarySession.imageUrl())) {
+        return ImageSpreadPageReplacementPairingResult::Stale;
+    }
+
+    m_pendingPageReplacement = PendingPageReplacement {
+        primarySession,
+        primaryImageSize,
+        PageReplacementPhase::PrimaryOnly,
+        std::nullopt,
+    };
+    m_secondaryPageController->beginPageReplacement(primarySession.id());
+
+    const ImageSpreadSecondaryPageRefreshResult plan
+        = m_secondaryPageRefresh.planRefresh(ImageSpreadSecondaryPageRefreshRequest {
+            m_twoPageModeEnabled
+                && primaryPageSupportsSpread(primarySession.location(), primaryImageSize),
+            imageSpreadPageIsWide(primaryImageSize),
+            false,
+            {},
+            navigation,
+        });
+    if (plan.action != ImageSpreadSecondaryPageRefreshAction::LoadTarget
+        || plan.targetUrl.isEmpty()) {
+        return ImageSpreadPageReplacementPairingResult::PrimaryOnly;
+    }
+
+    m_pendingPageReplacement->phase = PageReplacementPhase::PreparingSecondary;
+    if (!m_secondaryPageController->startPageReplacementLoad(
+            primarySession.id(), plan.targetUrl, primarySession.openedCollectionScope())) {
+        cancelPageReplacementPairing(primarySession.id());
+        return ImageSpreadPageReplacementPairingResult::Stale;
+    }
+    return ImageSpreadPageReplacementPairingResult::PreparingSecondary;
+}
+
+ImageSpreadPageReplacementSecondaryMetadataResult
+ImageSpreadPresentationController::finishPageReplacementSecondaryMetadata(
+    quint64 primarySessionId, const ImageLoadSession& secondarySession, QSize secondaryImageSize)
+{
+    if (!m_pendingPageReplacement.has_value() || primarySessionId == 0
+        || m_pendingPageReplacement->primarySession.id() != primarySessionId
+        || m_pendingPageReplacement->phase != PageReplacementPhase::PreparingSecondary
+        || secondaryImageSize.isEmpty()) {
+        return ImageSpreadPageReplacementSecondaryMetadataResult::Stale;
+    }
+
+    const ImageSecondaryPageReplacementMetadataResult result
+        = m_secondaryPageController->finishPageReplacementProviderLoad(
+            primarySessionId, secondarySession, secondaryImageSize);
+    if (result == ImageSecondaryPageReplacementMetadataResult::Stale) {
+        return ImageSpreadPageReplacementSecondaryMetadataResult::Stale;
+    }
+
+    m_secondaryPageRefresh.cachePageSize(secondarySession.imageUrl(), secondaryImageSize);
+    if (result == ImageSecondaryPageReplacementMetadataResult::PrimaryOnly) {
+        m_pendingPageReplacement->phase = PageReplacementPhase::PrimaryOnly;
+        m_pendingPageReplacement->secondary.reset();
+        return ImageSpreadPageReplacementSecondaryMetadataResult::PrimaryOnly;
+    }
+
+    m_pendingPageReplacement->phase = PageReplacementPhase::Secondary;
+    m_pendingPageReplacement->secondary
+        = ImageSpreadPreparedSecondaryPage { secondarySession, secondaryImageSize };
+    return ImageSpreadPageReplacementSecondaryMetadataResult::Secondary;
+}
+
+bool ImageSpreadPresentationController::commitPageReplacementPresentation(
+    const ImageLoadSession& primarySession, QSize primaryImageSize,
+    const std::optional<ImageSpreadPreparedSecondaryPage>& secondary)
+{
+    if (!m_pendingPageReplacement.has_value()
+        || !m_pendingPageReplacement->primarySession.sameSession(primarySession)
+        || m_pendingPageReplacement->primarySession.location() != primarySession.location()
+        || m_pendingPageReplacement->primaryImageSize != primaryImageSize
+        || primaryImageSize.isEmpty()
+        || m_pendingPageReplacement->phase == PageReplacementPhase::PreparingSecondary) {
+        return false;
+    }
+
+    if (m_pendingPageReplacement->phase == PageReplacementPhase::PrimaryOnly
+        && secondary.has_value()) {
+        return false;
+    }
+    if (m_pendingPageReplacement->phase == PageReplacementPhase::Secondary
+        && (!secondary.has_value() || !m_pendingPageReplacement->secondary.has_value()
+            || !m_pendingPageReplacement->secondary->session.sameSession(secondary->session)
+            || m_pendingPageReplacement->secondary->session.location()
+                != secondary->session.location()
+            || m_pendingPageReplacement->secondary->imageSize != secondary->imageSize
+            || secondary->imageSize.isEmpty())) {
+        return false;
+    }
+
+    const std::optional<ImageSecondaryPageReplacementCommit> secondaryCommit = secondary.has_value()
+        ? std::optional<ImageSecondaryPageReplacementCommit> { ImageSecondaryPageReplacementCommit {
+              secondary->session, secondary->imageSize } }
+        : std::nullopt;
+    if (!m_secondaryPageController->commitPageReplacement(primarySession.id(), secondaryCommit)) {
+        return false;
+    }
+
+    m_committedPrimaryImageSize = primaryImageSize;
+    m_secondaryPageRefresh.cachePageSize(primarySession.imageUrl(), primaryImageSize);
+    m_pendingPageReplacement.reset();
+    m_pendingShapeChange = false;
+    notifyTwoPageModeChanged();
+    scheduleAdjacentPredecode();
+    return true;
+}
+
+void ImageSpreadPresentationController::cancelPageReplacementPairing(quint64 primarySessionId)
+{
+    if (!m_pendingPageReplacement.has_value()
+        || (primarySessionId != 0
+            && m_pendingPageReplacement->primarySession.id() != primarySessionId)) {
+        return;
+    }
+    const quint64 pendingPrimarySessionId = m_pendingPageReplacement->primarySession.id();
+    m_pendingPageReplacement.reset();
+    m_secondaryPageController->cancelPageReplacement(pendingPrimarySessionId);
+}
+
+bool ImageSpreadPresentationController::pageReplacementPairingPending() const
+{
+    return m_pendingPageReplacement.has_value();
+}
+
 void ImageSpreadPresentationController::clearPrimaryPageSlot()
 {
+    cancelPageReplacementPairing();
     m_committedPrimaryImageSize = {};
-    discardSecondaryPage(false);
+    discardSecondaryPage(SecondaryPageDiscardIntent::Silent);
 }
 
 void ImageSpreadPresentationController::refreshSecondaryPage()
 {
+    if (pageReplacementPairingPending()) {
+        return;
+    }
     const ImageSpreadSecondaryPageRefreshResult result
         = m_secondaryPageRefresh.planRefresh(ImageSpreadSecondaryPageRefreshRequest {
             twoPageModeActive(),
@@ -160,7 +327,7 @@ void ImageSpreadPresentationController::refreshSecondaryPage()
             pageNavigationSnapshot(),
         });
     if (result.action == ImageSpreadSecondaryPageRefreshAction::PrimaryOnly) {
-        discardSecondaryPage(true);
+        discardSecondaryPage(SecondaryPageDiscardIntent::PresentationShapeChange);
         scheduleAdjacentPredecode();
         return;
     }
@@ -168,7 +335,7 @@ void ImageSpreadPresentationController::refreshSecondaryPage()
         return;
     }
     if (result.targetUrl.isEmpty()) {
-        discardSecondaryPage(true);
+        discardSecondaryPage(SecondaryPageDiscardIntent::PresentationShapeChange);
         return;
     }
     startSecondaryPageLoad(result.targetUrl);
@@ -179,18 +346,24 @@ void ImageSpreadPresentationController::handleDocumentChange(ImageDocumentChange
     if (change != ImageDocumentChange::PageNavigation) {
         return;
     }
-    if (m_secondaryPageRefresh.primarySelectionMatchesDisplayed(
+    if (!pageReplacementPairingPending()
+        && m_secondaryPageRefresh.primarySelectionMatchesDisplayed(
             pageNavigationSnapshot(), m_state.displayedUrl())) {
         refreshSecondaryPage();
     }
     notifyRightToLeftReadingChanged();
 }
 
-void ImageSpreadPresentationController::clearSecondaryPage() { discardSecondaryPage(true); }
+void ImageSpreadPresentationController::clearSecondaryPage()
+{
+    cancelPageReplacementPairing();
+    discardSecondaryPage(SecondaryPageDiscardIntent::PresentationTeardown);
+}
 
 void ImageSpreadPresentationController::shutdown()
 {
     if (m_secondaryPageController != nullptr) {
+        cancelPageReplacementPairing();
         m_secondaryPageController->cancel();
     }
 }
@@ -235,17 +408,21 @@ void ImageSpreadPresentationController::handleSecondaryPageLoadFinished(
     }
 }
 
-void ImageSpreadPresentationController::discardSecondaryPage(bool submitShapeChange)
+void ImageSpreadPresentationController::discardSecondaryPage(SecondaryPageDiscardIntent intent)
 {
     const bool hadSecondary = secondaryPageVisible();
     m_secondaryPageController->clear();
-    if (submitShapeChange && (hadSecondary || m_pendingShapeChange)) {
+    if (intent != SecondaryPageDiscardIntent::Silent && (hadSecondary || m_pendingShapeChange)) {
         const bool lifecycleAlreadyAdvanced = m_pendingShapeChange;
         m_pendingShapeChange = false;
         if (!lifecycleAlreadyAdvanced) {
             m_state.advancePresentationLifecycle();
         }
-        invokeIfSet(m_callbacks.secondaryImageCleared);
+        if (intent == SecondaryPageDiscardIntent::PresentationShapeChange) {
+            invokeIfSet(m_callbacks.secondaryImageCleared);
+        } else {
+            invokeIfSet(m_callbacks.secondaryPresentationTeardown);
+        }
     }
 }
 
@@ -267,14 +444,20 @@ bool ImageSpreadPresentationController::primaryPageIsWide() const
     return imageSpreadPageIsWide(m_committedPrimaryImageSize);
 }
 
-bool ImageSpreadPresentationController::readingControlsAvailable() const
+bool ImageSpreadPresentationController::primaryPageSupportsSpread(
+    const DisplayedImageLocation& location, QSize imageSize) const
 {
-    const DisplayedImageLocation& location = m_state.displayedImageLocation();
     return imageSpreadReadingControlsAvailable(ImageSpreadReadingAvailability {
-        !m_committedPrimaryImageSize.isEmpty(),
+        !imageSize.isEmpty(),
         !location.isEmpty(),
         location.openedCollectionScope().isComicBook(),
     });
+}
+
+bool ImageSpreadPresentationController::readingControlsAvailable() const
+{
+    const DisplayedImageLocation& location = m_state.displayedImageLocation();
+    return primaryPageSupportsSpread(location, m_committedPrimaryImageSize);
 }
 
 bool ImageSpreadPresentationController::secondaryPageVisibleForNavigation() const

@@ -6,6 +6,7 @@
 #include <QCoreApplication>
 #include <QEvent>
 #include <QObject>
+#include <QPointer>
 #include <QTest>
 #include <memory>
 #include <utility>
@@ -19,6 +20,7 @@ private Q_SLOTS:
     void completionClaimCompletesJobWithoutCanceling();
     void completionClaimAndRunCompletesJobOnce();
     void completionClaimAndDeleteCompletesJobOnce();
+    void completionClaimAndDeleteAllowsFinishToDestroyToken();
     void completionTokenRemainsAvailableDuringCancelCallback();
     void destroyedObjectDeactivatesJobWithoutCanceling();
     void moveAssignmentCancelsReplacedJob();
@@ -92,6 +94,21 @@ void TestImageIoJob::completionClaimAndDeleteCompletesJobOnce()
 
     QCOMPARE(finishCount, 1);
     QCOMPARE(cancelCount, 0);
+    QVERIFY(!job.isActive());
+    QVERIFY(completion.object() == nullptr);
+}
+
+void TestImageIoJob::completionClaimAndDeleteAllowsFinishToDestroyToken()
+{
+    auto owner = std::make_unique<QObject>();
+    auto* token = new QObject(owner.get());
+    const QPointer<QObject> guardedToken(token);
+    kiriview::ImageIoJob job(token, [](QObject*) { });
+    const kiriview::ImageIoJobCompletion completion = job.completion();
+
+    QVERIFY(completion.claimAndDelete([&owner]() { owner.reset(); }));
+
+    QVERIFY(guardedToken.isNull());
     QVERIFY(!job.isActive());
     QVERIFY(completion.object() == nullptr);
 }

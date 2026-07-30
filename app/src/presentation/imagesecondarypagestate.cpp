@@ -16,7 +16,32 @@ QSize ImageSecondaryPageState::imageSize() const
     return m_displayedPage.has_value() ? m_displayedPage->imageSize : QSize();
 }
 
-void ImageSecondaryPageState::clear() { m_displayedPage.reset(); }
+bool ImageSecondaryPageState::stagedPageReplacementMatches(
+    const DisplayedImageLocation& location, QSize imageSize) const
+{
+    return m_stagedPageReplacement.has_value() && m_stagedPageReplacement->location == location
+        && m_stagedPageReplacement->imageSize == imageSize;
+}
+
+void ImageSecondaryPageState::clear()
+{
+    m_displayedPage.reset();
+    m_stagedPageReplacement.reset();
+}
+
+void ImageSecondaryPageState::stagePageReplacement(
+    const DisplayedImageLocation& location, QSize imageSize)
+{
+    m_stagedPageReplacement = ImageSecondaryPageDisplayState { location, imageSize };
+}
+
+void ImageSecondaryPageState::discardStagedPageReplacement() { m_stagedPageReplacement.reset(); }
+
+void ImageSecondaryPageState::commitStagedPageReplacement(bool includeSecondary)
+{
+    m_displayedPage = includeSecondary ? m_stagedPageReplacement : std::nullopt;
+    m_stagedPageReplacement.reset();
+}
 
 ImageSecondaryPageLoadCompletion ImageSecondaryPageState::finishPresentedLoad(
     const DisplayedImageLocation& location, QSize imageSize, bool primaryOnly)

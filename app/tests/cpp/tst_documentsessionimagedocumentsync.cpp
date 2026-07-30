@@ -17,6 +17,7 @@ private Q_SLOTS:
     void skipsInactiveDirectMediaRefreshForCollectionScope();
     void refreshesDirectMediaNavigationWhenCursorChanges();
     void cachesDisplayedPredecodeWhenNavigationIsKnown();
+    void recomputesDirectMediaProjectionWhenImagePageNavigationChanges();
     void publishesImagePagesWhenPageNavigationChanges();
 };
 
@@ -129,6 +130,8 @@ void TestDocumentSessionImageDocumentSync::cachesDisplayedPredecodeWhenNavigatio
 void TestDocumentSessionImageDocumentSync::publishesImagePagesWhenPageNavigationChanges()
 {
     kiriview::DocumentSessionImageDocumentSyncInput input = activeInput();
+    input.directMediaNavigationActive = false;
+    input.image.openedCollectionScopeActive = true;
     input.previousPageNavigation.known = false;
     input.image.pageNavigation.known = true;
     input.image.pageNavigation.currentNumber = 2;
@@ -140,6 +143,21 @@ void TestDocumentSessionImageDocumentSync::publishesImagePagesWhenPageNavigation
     QCOMPARE(plan.projectionOperation,
         kiriview::DocumentSessionImageDocumentSyncProjectionOperation::
             PublishImagePageActiveNavigation);
+}
+
+void TestDocumentSessionImageDocumentSync::
+    recomputesDirectMediaProjectionWhenImagePageNavigationChanges()
+{
+    kiriview::DocumentSessionImageDocumentSyncInput input = activeInput();
+    input.previousPageNavigation.known = true;
+    input.previousPageNavigation.currentNumber = 2;
+    input.previousPageNavigation.count = 5;
+
+    const kiriview::DocumentSessionImageDocumentSyncPlan plan
+        = kiriview::documentSessionImageDocumentSyncPlan(input);
+
+    QCOMPARE(plan.projectionOperation,
+        kiriview::DocumentSessionImageDocumentSyncProjectionOperation::RecomputePublicProjection);
 }
 
 QTEST_GUILESS_MAIN(TestDocumentSessionImageDocumentSync)

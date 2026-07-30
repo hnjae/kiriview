@@ -17,6 +17,7 @@
 #include <QBuffer>
 #include <QFile>
 #include <QImageWriter>
+#include <QPointer>
 #include <QQuickWindow>
 #include <QSignalSpy>
 #include <QTest>
@@ -518,6 +519,11 @@ private Q_SLOTS:
     void authoritativeStillPayloadLookupKeepsDisplayedRevision();
     void metadataCompletionAfterInvalidationIsDropped_data();
     void metadataCompletionAfterInvalidationIsDropped();
+    void decodeSourceCompletionRetainsSourceThroughCallback_data();
+    void decodeSourceCompletionRetainsSourceThroughCallback();
+    void decodeSourceImmediateCompletionRetainsSourceThroughCallback_data();
+    void decodeSourceImmediateCompletionRetainsSourceThroughCallback();
+    void refinementCompletionRetainsSourceThroughCallback();
     void refinementWorkerCompletionAndInvalidationAreOwnedBySource();
     void workerUnitIdentitySkipsLiveIdsAfterWrap();
     void outOfOrderRefinementCannotDowngradeReusableAuthoritativeImage();
@@ -2560,6 +2566,224 @@ void TestImageViewportSequenceProvider::metadataCompletionAfterInvalidationIsDro
         ImageSequenceProviderMetadata::still(QSizeF(32, 16))));
 
     QCOMPARE(completionCount, 0);
+}
+
+void TestImageViewportSequenceProvider::decodeSourceCompletionRetainsSourceThroughCallback_data()
+{
+    QTest::addColumn<bool>("metadataCompletion");
+
+    QTest::newRow("metadata") << true;
+    QTest::newRow("frame") << false;
+}
+
+void TestImageViewportSequenceProvider::decodeSourceCompletionRetainsSourceThroughCallback()
+{
+    QFETCH(bool, metadataCompletion);
+
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImageDecodeDependencies dependencies
+        = kiriview::TestSupport::imageDecodeDependenciesFor(
+            dataLoader, kiriview::TestSupport::staticImageDataDecoder());
+    dependencies.workerScheduler = workerScheduler.scheduler();
+    const QUrl url(QStringLiteral("file:///tmp/provider-completion-lifetime.png"));
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::ImageLoadSession(82,
+            kiriview::ImageLoadRequest::fromExternalSource(
+                kiriview::resolvedNavigationSource(url, {})),
+            kiriview::DisplayedImageLocation::fromUrl(url)),
+        std::move(dependencies));
+    const QPointer<kiriview::ImageViewportDecodeProviderSource> sourceGuard(source.get());
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        82,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("provider-completion-lifetime"),
+    };
+    bool completionCalled = false;
+    bool completionSucceeded = false;
+    bool sourceAliveAfterOwnerRelease = false;
+    const auto releaseLastOwner = [&]() {
+        completionCalled = true;
+        source.reset();
+        sourceAliveAfterOwnerRelease = !sourceGuard.isNull();
+    };
+
+    if (metadataCompletion) {
+        source->requestMetadata(identity,
+            [&](kiriview::ImageViewportProviderWorkIdentity,
+                kiriview::ImageViewportProviderMetadataResult result) {
+                completionSucceeded = result.metadata.has_value();
+                releaseLastOwner();
+            });
+    } else {
+        source->requestFrame(identity,
+            kiriview::ImageViewportProviderFrameRequest {
+                0,
+                {},
+            },
+            [&](kiriview::ImageViewportProviderWorkIdentity,
+                kiriview::ImageViewportProviderFrameResult result) {
+                completionSucceeded = result.displayImage.has_value();
+                releaseLastOwner();
+            });
+    }
+
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+    dataLoader.finishFrontLoad(QByteArrayLiteral("decoded-image-data"));
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
+
+    QVERIFY(completionCalled);
+    QVERIFY(completionSucceeded);
+    QVERIFY(sourceAliveAfterOwnerRelease);
+    QVERIFY(source == nullptr);
+    QVERIFY(sourceGuard.isNull());
+}
+
+void TestImageViewportSequenceProvider::
+    decodeSourceImmediateCompletionRetainsSourceThroughCallback_data()
+{
+    QTest::addColumn<bool>("metadataCompletion");
+
+    QTest::newRow("metadata") << true;
+    QTest::newRow("frame") << false;
+}
+
+void TestImageViewportSequenceProvider::
+    decodeSourceImmediateCompletionRetainsSourceThroughCallback()
+{
+    QFETCH(bool, metadataCompletion);
+
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    const QUrl url(QStringLiteral("file:///tmp/provider-immediate-completion-lifetime.png"));
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::ImageLoadSession(83,
+            kiriview::ImageLoadRequest::fromExternalSource(
+                kiriview::resolvedNavigationSource(url, {})),
+            kiriview::DisplayedImageLocation::fromUrl(url)),
+        kiriview::TestSupport::imageDecodeDependenciesFor(
+            dataLoader, kiriview::TestSupport::staticImageDataDecoder()),
+        authoritativeSeedForUrl(
+            url, displayPayload(kiriview::DisplayImageQuality::Exact, QSize(128, 64))));
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        83,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("provider-immediate-completion-lifetime"),
+    };
+    bool metadataReady = false;
+    source->requestMetadata(identity,
+        [&metadataReady](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderMetadataResult result) {
+            metadataReady = result.metadata.has_value();
+        });
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+    dataLoader.finishFrontLoad(authoritativeSeedData());
+    QVERIFY(metadataReady);
+
+    const QPointer<kiriview::ImageViewportDecodeProviderSource> sourceGuard(source.get());
+    bool completionCalled = false;
+    bool completionSucceeded = false;
+    bool sourceAliveAfterOwnerRelease = false;
+    const auto releaseLastOwner = [&]() {
+        completionCalled = true;
+        source.reset();
+        sourceAliveAfterOwnerRelease = !sourceGuard.isNull();
+    };
+    if (metadataCompletion) {
+        source->requestMetadata(identity,
+            [&](kiriview::ImageViewportProviderWorkIdentity,
+                kiriview::ImageViewportProviderMetadataResult result) {
+                completionSucceeded = result.metadata.has_value();
+                releaseLastOwner();
+            });
+    } else {
+        source->requestFrame(identity,
+            kiriview::ImageViewportProviderFrameRequest {
+                0,
+                {},
+            },
+            [&](kiriview::ImageViewportProviderWorkIdentity,
+                kiriview::ImageViewportProviderFrameResult result) {
+                completionSucceeded = result.displayImage.has_value();
+                releaseLastOwner();
+            });
+    }
+
+    QVERIFY(completionCalled);
+    QVERIFY(completionSucceeded);
+    QVERIFY(sourceAliveAfterOwnerRelease);
+    QVERIFY(source == nullptr);
+    QVERIFY(sourceGuard.isNull());
+}
+
+void TestImageViewportSequenceProvider::refinementCompletionRetainsSourceThroughCallback()
+{
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImageDecodeDependencies dependencies
+        = kiriview::TestSupport::imageDecodeDependenciesFor(
+            dataLoader, kiriview::TestSupport::staticImageDataDecoder());
+    dependencies.workerScheduler = workerScheduler.scheduler();
+    auto refinementSource = std::make_shared<RefiningDisplaySource>();
+    const QUrl url(QStringLiteral("file:///tmp/refinement-completion-lifetime.jpg"));
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::ImageLoadSession(84,
+            kiriview::ImageLoadRequest::fromExternalSource(
+                kiriview::resolvedNavigationSource(url, {})),
+            kiriview::DisplayedImageLocation::fromUrl(url)),
+        std::move(dependencies),
+        authoritativeSeedForUrl(url, firstDisplayPayload(refinementSource)));
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        84,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("refinement-completion-lifetime"),
+    };
+    bool metadataReady = false;
+    source->requestMetadata(identity,
+        [&metadataReady](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderMetadataResult result) {
+            metadataReady = result.metadata.has_value();
+        });
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+    dataLoader.finishFrontLoad(authoritativeSeedData());
+    QVERIFY(metadataReady);
+
+    ImageSequenceProviderDisplayDemand demand;
+    demand.setTargetDisplaySizePixels(QSizeF(400, 300));
+    demand.setCurrentPayloadQuality(ImageViewportPayloadQuality::FirstDisplay);
+    demand.setCurrentPayloadExactness(ImageViewportPayloadExactness::NotExact);
+    const QPointer<kiriview::ImageViewportDecodeProviderSource> sourceGuard(source.get());
+    bool completionCalled = false;
+    bool completionSucceeded = false;
+    bool sourceAliveAfterOwnerRelease = false;
+    source->requestFrame(identity,
+        kiriview::ImageViewportProviderFrameRequest {
+            0,
+            demand,
+        },
+        [&](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderFrameResult result) {
+            completionCalled = true;
+            completionSucceeded = result.displayImage.has_value();
+            source.reset();
+            sourceAliveAfterOwnerRelease = !sourceGuard.isNull();
+        });
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
+
+    QVERIFY(completionCalled);
+    QVERIFY(completionSucceeded);
+    QVERIFY(sourceAliveAfterOwnerRelease);
+    QVERIFY(source == nullptr);
+    QVERIFY(sourceGuard.isNull());
 }
 
 void TestImageViewportSequenceProvider::refinementWorkerCompletionAndInvalidationAreOwnedBySource()

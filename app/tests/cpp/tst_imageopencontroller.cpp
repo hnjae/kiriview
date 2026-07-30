@@ -103,9 +103,13 @@ public:
                   return videoPlaybackAvailability ? videoPlaybackAvailability(scope, videoUrl)
                                                    : false;
               };
-        callbacks.commitPrimaryPageSlot
-            = [this](const kiriview::DisplayedImageLocation& location, QSize imageSize) {
-                  pageSlotCommits.push_back(PageSlotCommit { location, imageSize });
+        callbacks.commitViewportPresentation
+            = [this](const kiriview::ImageLoadSession& session, QSize imageSize) {
+                  if (!acceptViewportPresentationCommit) {
+                      return false;
+                  }
+                  pageSlotCommits.push_back(PageSlotCommit { session.location(), imageSize });
+                  return true;
               };
         callbacks.invalidatePendingViewportImageLoad = [this]() {
             ++pendingViewportInvalidationCount;
@@ -158,6 +162,7 @@ public:
         videoPlaybackAvailability;
     bool acceptViewportTargetStart = true;
     bool acceptViewportTargetResolution = true;
+    bool acceptViewportPresentationCommit = true;
     bool hasAuthoritativeDisplay = false;
     std::unique_ptr<kiriview::ImageOpenController> controller;
 };
@@ -171,6 +176,7 @@ private Q_SLOTS:
     void staleViewportTerminalCannotPublishIntoReplacementLoad_data();
     void staleViewportTerminalCannotPublishIntoReplacementLoad();
     void currentViewportTerminalPublishesExactlyOnce();
+    void rejectedViewportPresentationCommitFinishesWithError();
     void currentViewportFailureUsesClaimedSessionIdentity();
     void failedViewportTargetSubmissionClaimsTerminalSession();
     void failedViewportTargetResolutionClaimsTerminalSession();
@@ -326,6 +332,28 @@ void TestImageOpenController::currentViewportTerminalPublishesExactlyOnce()
     QVERIFY(fixture.state.errorString().isEmpty());
     QVERIFY(!fixture.state.loadFailure().has_value());
     QVERIFY(fixture.stateChanges.empty());
+}
+
+void TestImageOpenController::rejectedViewportPresentationCommitFinishesWithError()
+{
+    OpenControllerFixture fixture;
+    fixture.acceptViewportPresentationCommit = false;
+    const QUrl imageUrl = localUrl(QStringLiteral("/images/rejected-presentation.png"));
+    fixture.openSource(directImageRequest(imageUrl));
+
+    QCOMPARE(fixture.resolvedSessions.size(), std::size_t(1));
+    const kiriview::ImageLoadSession session = fixture.resolvedSessions.front();
+    fixture.controller->finishViewportImageLoadReady(
+        session, QSize(320, 200), kiriview::EmbeddedMetadata {});
+
+    QVERIFY(fixture.pageSlotCommits.empty());
+    QCOMPARE(fixture.state.status(), kiriview::ImageDocumentStatus::Error);
+    QVERIFY(!fixture.state.loading());
+    QVERIFY(fixture.state.displayedImageLocation().isEmpty());
+    QVERIFY(fixture.state.loadFailure().has_value());
+    QCOMPARE(fixture.state.loadFailure()->kind, kiriview::ImageLoadFailureKind::Presentation);
+    QCOMPARE(fixture.state.loadFailure()->sourceUrl, imageUrl);
+    QCOMPARE(fixture.state.loadFailure()->sessionId, session.id());
 }
 
 void TestImageOpenController::currentViewportFailureUsesClaimedSessionIdentity()

@@ -69,9 +69,12 @@ public:
             return false;
         }
 
+        const QPointer<QObject> guardedObject(object);
         return m_state->claimAndRun(object, [&]() {
             std::forward<Finish>(finish)();
-            object->deleteLater();
+            if (guardedObject != nullptr) {
+                guardedObject->deleteLater();
+            }
         });
     }
 

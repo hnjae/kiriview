@@ -39,8 +39,9 @@ DocumentSessionImageDocumentSyncPlan documentSessionImageDocumentSyncPlan(
             CacheDisplayedMediaPredecodeImages;
     }
 
-    plan.projectionOperation
-        = sameActiveNavigationSnapshot(input.previousPageNavigation, input.image.pageNavigation)
+    plan.projectionOperation = input.directMediaNavigationActive
+            || sameActiveNavigationSnapshot(
+                input.previousPageNavigation, input.image.pageNavigation)
         ? DocumentSessionImageDocumentSyncProjectionOperation::RecomputePublicProjection
         : DocumentSessionImageDocumentSyncProjectionOperation::PublishImagePageActiveNavigation;
 

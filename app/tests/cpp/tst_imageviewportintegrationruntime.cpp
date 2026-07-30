@@ -244,6 +244,7 @@ private Q_SLOTS:
     void reentrantAttachmentReplacementKeepsLatestAttachment();
     void secondaryTargetRequiresSessionIdentity();
     void twoRoleTargetIsSubmittedAtomically();
+    void readyTwoRoleTargetReattachesWithExactRoleSet();
     void gesturesAndScrollbarsUseMatchedComponentProjection();
     void targetAnchorAtEndAppliesThroughTransition();
     void failureReferenceResolvesOnlyForMatchingTarget();
@@ -623,6 +624,103 @@ void TestImageViewportIntegrationRuntime::twoRoleTargetIsSubmittedAtomically()
         return runtime.projection().status == kiriview::ImageDocumentStatus::Ready;
     }));
     QCOMPARE(runtime.projection().secondaryVisible, true);
+}
+
+void TestImageViewportIntegrationRuntime::readyTwoRoleTargetReattachesWithExactRoleSet()
+{
+    bool observeReattachment = false;
+    bool observedAcceptedReattachment = false;
+    bool acceptedRoleSetDegraded = false;
+    bool displayedRoleSetDegraded = false;
+    constexpr quint64 generation = 42;
+    constexpr quint64 secondarySessionId = 420;
+    const QUrl secondaryUrl(QStringLiteral("file:///tmp/reattached-secondary.png"));
+    bool projectionShapeDegraded = false;
+    kiriview::ImageViewportIntegrationRuntime runtime(
+        { [&](const kiriview::ImageViewportIntegrationProjection& projection) {
+            if (!observeReattachment || !projection.correlated
+                || projection.sourceGeneration != generation) {
+                return;
+            }
+            projectionShapeDegraded = projectionShapeDegraded
+                || projection.secondaryUrl != secondaryUrl
+                || projection.secondarySessionId != secondarySessionId;
+        } });
+    QQuickWindow window;
+    ImageViewport viewport;
+    hostViewport(window, viewport);
+    runtime.attach(&viewport);
+
+    TargetFixture fixture;
+    fixture.generation = generation;
+    fixture.primaryUrl = QUrl(QStringLiteral("file:///tmp/reattached-primary.png"));
+    fixture.secondaryUrl = secondaryUrl;
+    fixture.secondarySessionId = secondarySessionId;
+    QVERIFY(runtime.submitTarget(fixture.target()));
+    QTRY_COMPARE(fixture.primarySource->pendingFrames.size(), std::size_t(1));
+    QTRY_COMPARE(fixture.secondarySource->pendingFrames.size(), std::size_t(1));
+    fixture.primarySource->completeNext(QStringLiteral("initial-primary"));
+    fixture.secondarySource->completeNext(QStringLiteral("initial-secondary"));
+    QVERIFY(driveRenderUntil(window, [&runtime]() {
+        return runtime.projection().status == kiriview::ImageDocumentStatus::Ready;
+    }));
+    QVERIFY(runtime.projection().completeAuthoritativeDisplayAvailable);
+    QVERIFY(runtime.projection().secondaryVisible);
+
+    const QMetaObject::Connection stateConnection
+        = QObject::connect(&viewport, &ImageViewport::stateChanged, &viewport, [&]() {
+              if (!observeReattachment) {
+                  return;
+              }
+              const ImageViewportStateSnapshot snapshot = viewport.state();
+              if (!snapshot.request().acceptedPresentationTargetGeneration().isValid()) {
+                  return;
+              }
+              observedAcceptedReattachment = true;
+              const ImageViewportRoleSet acceptedRoles = snapshot.request().acceptedRoleSet();
+              acceptedRoleSetDegraded = acceptedRoleSetDegraded || !acceptedRoles.primary()
+                  || !acceptedRoles.secondary();
+              if (!snapshot.display().displayedPresentationTargetGeneration().isValid()) {
+                  return;
+              }
+              const ImageViewportRoleSet displayedRoles = snapshot.display().displayedRoleSet();
+              displayedRoleSetDegraded = displayedRoleSetDegraded || !displayedRoles.primary()
+                  || !displayedRoles.secondary();
+          });
+
+    fixture.primaryPredecodedImage = displayPayload(QStringLiteral("reattached-primary"));
+    fixture.secondarySource->authoritativeSeed
+        = displayPayload(QStringLiteral("reattached-secondary"));
+    runtime.detach(&viewport);
+    observeReattachment = true;
+    runtime.attach(&viewport);
+
+    QVERIFY(driveRenderUntil(window, [&runtime]() {
+        return runtime.projection().status == kiriview::ImageDocumentStatus::Ready
+            && runtime.projection().secondaryVisible;
+    }));
+    QObject::disconnect(stateConnection);
+
+    QVERIFY(observedAcceptedReattachment);
+    QVERIFY(!acceptedRoleSetDegraded);
+    QVERIFY(!displayedRoleSetDegraded);
+    QVERIFY(!projectionShapeDegraded);
+    const ImageViewportStateSnapshot snapshot = viewport.state();
+    QCOMPARE(snapshot.request().status(), ImageViewportRequestStatus::Ready);
+    QVERIFY(snapshot.request().acceptedRoleSet().primary());
+    QVERIFY(snapshot.request().acceptedRoleSet().secondary());
+    QVERIFY(snapshot.display().belongsToAcceptedPresentationTarget());
+    QVERIFY(snapshot.display().displayedRoleSet().primary());
+    QVERIFY(snapshot.display().displayedRoleSet().secondary());
+    QVERIFY(runtime.projection().completeAuthoritativeDisplayAvailable);
+    const std::optional<kiriview::StaticDisplayImagePayload> primary
+        = runtime.displayedImage(ImageViewportPageRole::Primary);
+    const std::optional<kiriview::StaticDisplayImagePayload> secondary
+        = runtime.displayedImage(ImageViewportPageRole::Secondary);
+    QVERIFY(primary.has_value());
+    QVERIFY(secondary.has_value());
+    QCOMPARE(primary->sourceIdentity, QStringLiteral("reattached-primary"));
+    QCOMPARE(secondary->sourceIdentity, QStringLiteral("reattached-secondary"));
 }
 
 void TestImageViewportIntegrationRuntime::gesturesAndScrollbarsUseMatchedComponentProjection()

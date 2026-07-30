@@ -13,6 +13,7 @@
 #include "metadata/embeddedmetadata.h"
 #include "predecode/predecodedimage.h"
 
+#include <QSize>
 #include <QString>
 #include <functional>
 #include <memory>
@@ -35,6 +36,7 @@ class ImageDocumentPageNavigationService;
 class ImageOpenController;
 class ImageSpreadPresentationController;
 class ImageViewportIntegrationRuntime;
+struct ImageViewportProviderMetadataResult;
 struct ImageViewportIntegrationTarget;
 struct ImageViewportIntegrationProjection;
 
@@ -74,6 +76,8 @@ public:
 
 private:
     struct PreparedViewportTargetState;
+    struct PreparedViewportRole;
+    struct PendingSpreadReplacement;
 
     struct PendingViewportImageLoad
     {
@@ -91,6 +95,23 @@ private:
     bool startViewportImageTarget(const ImageLoadSession& session);
     bool resolveViewportImageTarget(
         const ImageLoadSession& session, std::optional<PredecodedImage> predecoded);
+    void prepareSpreadReplacementSecondary(quint64 primarySessionId,
+        const ImageLoadSession& session, std::optional<PredecodedImage> predecoded);
+    void finishSpreadReplacementPrimaryMetadata(
+        const std::shared_ptr<PendingSpreadReplacement>& replacement,
+        ImageViewportProviderMetadataResult result);
+    void finishSpreadReplacementSecondaryMetadata(
+        const std::shared_ptr<PendingSpreadReplacement>& replacement,
+        const ImageLoadSession& secondarySession, ImageViewportProviderMetadataResult result);
+    [[nodiscard]] bool commitViewportPresentation(
+        const ImageLoadSession& primarySession, QSize primaryImageSize);
+    bool submitSpreadReplacementTarget(
+        const std::shared_ptr<PendingSpreadReplacement>& replacement, bool includeSecondary);
+    bool submitSpreadReplacementAdmissionTarget(
+        const std::shared_ptr<PendingSpreadReplacement>& replacement);
+    void failSpreadReplacement(const std::shared_ptr<PendingSpreadReplacement>& replacement,
+        std::optional<ImageLoadFailure> failure, const QString& diagnosticDetail);
+    void cancelPendingViewportImageLoad();
     void prepareViewportSecondaryImageTarget(
         const ImageLoadSession& session, std::optional<PredecodedImage> predecoded);
     void clearViewportSecondaryImageTarget();
@@ -112,6 +133,7 @@ private:
     std::unique_ptr<ImageDocumentRuntimeWorkflow> m_runtimeWorkflow;
     ImageDecodeDependencies m_imageDecodeDependencies;
     std::shared_ptr<PreparedViewportTargetState> m_preparedViewportTarget;
+    std::shared_ptr<PendingSpreadReplacement> m_pendingSpreadReplacement;
     std::optional<PendingViewportImageLoad> m_pendingViewportImageLoad;
     std::unique_ptr<ImageViewportIntegrationTarget> m_viewportTarget;
     std::optional<ImageLoadSession> m_viewportSecondaryLoadSession;

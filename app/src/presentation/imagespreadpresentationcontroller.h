@@ -5,6 +5,7 @@
 #define KIRIVIEW_IMAGESPREADPRESENTATIONCONTROLLER_H
 
 #include "document/imagedocumentstate.h"
+#include "document/imageloadfailure.h"
 #include "document/imageloadtypes.h"
 #include "navigation/imagedocumentpagenavigationtypes.h"
 #include "predecode/predecodedimage.h"
@@ -24,6 +25,24 @@ namespace kiriview {
 class ImageSecondaryPageController;
 enum class ImageSecondaryPageLoadResult;
 
+enum class ImageSpreadPageReplacementPairingResult {
+    Stale,
+    PrimaryOnly,
+    PreparingSecondary,
+};
+
+enum class ImageSpreadPageReplacementSecondaryMetadataResult {
+    Stale,
+    PrimaryOnly,
+    Secondary,
+};
+
+struct ImageSpreadPreparedSecondaryPage
+{
+    ImageLoadSession session;
+    QSize imageSize;
+};
+
 class ImageSpreadPresentationController final
 {
 public:
@@ -35,7 +54,12 @@ public:
     using SecondaryImagePreparedCallback
         = std::function<void(ImageLoadSession, std::optional<PredecodedImage>)>;
     using SecondaryImageClearedCallback = std::function<void()>;
+    using SecondaryPresentationTeardownCallback = std::function<void()>;
     using SecondaryDisplayImageCallback = std::function<std::optional<StaticDisplayImagePayload>()>;
+    using NavigationSecondaryImagePreparedCallback
+        = std::function<void(quint64, ImageLoadSession, std::optional<PredecodedImage>)>;
+    using NavigationSecondaryImagePreparationFailedCallback
+        = std::function<void(quint64, ImageLoadSession, ImageLoadFailure)>;
 
     struct Callbacks
     {
@@ -46,6 +70,9 @@ public:
         SecondaryImagePreparedCallback secondaryImagePrepared;
         SecondaryImageClearedCallback secondaryImageCleared;
         SecondaryDisplayImageCallback secondaryDisplayImage;
+        NavigationSecondaryImagePreparedCallback navigationSecondaryImagePrepared;
+        NavigationSecondaryImagePreparationFailedCallback navigationSecondaryImagePreparationFailed;
+        SecondaryPresentationTeardownCallback secondaryPresentationTeardown;
     };
 
     ImageSpreadPresentationController(ImageDocumentState& state, Callbacks callbacks);
@@ -70,6 +97,16 @@ public:
     [[nodiscard]] std::optional<DisplayedPredecodeImage> secondaryDisplayedPredecodeImage() const;
 
     void commitPrimaryPageSlot(const DisplayedImageLocation& location, QSize imageSize);
+    [[nodiscard]] ImageSpreadPageReplacementPairingResult beginPageReplacementPairing(
+        const ImageLoadSession& primarySession, QSize primaryImageSize);
+    [[nodiscard]] ImageSpreadPageReplacementSecondaryMetadataResult
+    finishPageReplacementSecondaryMetadata(quint64 primarySessionId,
+        const ImageLoadSession& secondarySession, QSize secondaryImageSize);
+    [[nodiscard]] bool commitPageReplacementPresentation(const ImageLoadSession& primarySession,
+        QSize primaryImageSize,
+        const std::optional<ImageSpreadPreparedSecondaryPage>& secondary = std::nullopt);
+    void cancelPageReplacementPairing(quint64 primarySessionId = 0);
+    [[nodiscard]] bool pageReplacementPairingPending() const;
     void clearPrimaryPageSlot();
     void refreshSecondaryPage();
     void handleDocumentChange(ImageDocumentChange change);
@@ -81,13 +118,35 @@ public:
     void notifyRightToLeftReadingChanged();
 
 private:
+    enum class SecondaryPageDiscardIntent {
+        Silent,
+        PresentationShapeChange,
+        PresentationTeardown,
+    };
+
+    enum class PageReplacementPhase {
+        PrimaryOnly,
+        PreparingSecondary,
+        Secondary,
+    };
+
+    struct PendingPageReplacement
+    {
+        ImageLoadSession primarySession;
+        QSize primaryImageSize;
+        PageReplacementPhase phase = PageReplacementPhase::PrimaryOnly;
+        std::optional<ImageSpreadPreparedSecondaryPage> secondary;
+    };
+
     void startSecondaryPageLoad(const QUrl& url);
     void handleSecondaryPageLoadFinished(ImageSecondaryPageLoadResult result,
         const DisplayedImageLocation& location, QSize imageSize);
-    void discardSecondaryPage(bool submitShapeChange);
+    void discardSecondaryPage(SecondaryPageDiscardIntent intent);
     void finishSecondaryPageAsPrimaryOnly();
     void finishSecondaryPageVisible();
     [[nodiscard]] bool primaryPageIsWide() const;
+    [[nodiscard]] bool primaryPageSupportsSpread(
+        const DisplayedImageLocation& location, QSize imageSize) const;
     [[nodiscard]] bool readingControlsAvailable() const;
     [[nodiscard]] bool secondaryPageVisibleForNavigation() const;
     [[nodiscard]] ImageSpreadPageNavigationContext pageNavigationContext() const;
@@ -104,6 +163,7 @@ private:
     bool m_twoPageModeEnabled = false;
     bool m_rightToLeftReadingEnabled = false;
     bool m_pendingShapeChange = false;
+    std::optional<PendingPageReplacement> m_pendingPageReplacement;
 };
 }
 

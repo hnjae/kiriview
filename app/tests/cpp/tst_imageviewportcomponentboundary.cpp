@@ -186,6 +186,30 @@ void runOutstandingWorkerSchedules(
         ++nextSchedule;
     }
 }
+
+template <typename Predicate>
+bool finishImageDataAndDriveUntil(KiriImageViewportSurface& surface,
+    kiriview::TestSupport::ManualImageDataLoader& dataLoader,
+    kiriview::TestSupport::ManualImageWorkerScheduler& workerScheduler, std::size_t& nextSchedule,
+    const std::vector<QUrl>& imageUrls, const QByteArray& imageData, Predicate predicate)
+{
+    constexpr int maximumAttempts = 100;
+    for (int attempt = 0; attempt < maximumAttempts; ++attempt) {
+        for (const QUrl& imageUrl : imageUrls) {
+            if (dataLoader.hasActiveLoadForUrl(imageUrl)
+                && !dataLoader.finishNewestActiveLoadForUrl(imageUrl, imageData)) {
+                return false;
+            }
+        }
+        runOutstandingWorkerSchedules(workerScheduler, nextSchedule);
+        if (predicate()) {
+            return true;
+        }
+        renderViewportFrame(surface);
+        QTest::qWait(5);
+    }
+    return predicate();
+}
 }
 
 class TestImageViewportComponentBoundary : public QObject
@@ -203,6 +227,10 @@ private Q_SLOTS:
     void reattachedPendingTargetUsesPreviewWithoutRetainedFallback();
     void reattachedTargetRefreshesAuthoritativePredecode();
     void twoPageShapeChangeSuppressesProvisionalSpread();
+    void spreadNavigationRetainsCompleteSpreadUntilAtomicReplacement();
+    void pendingSpreadModeReenableReplansAtomically();
+    void failedSpreadNavigationDiscardsRetainedFallback();
+    void externalSourceSupersedesPendingSpreadNavigation();
     void sameUrlSecondaryReplacementRejectsSupersededProjection();
 };
 
@@ -725,6 +753,576 @@ void TestImageViewportComponentBoundary::twoPageShapeChangeSuppressesProvisional
     QVERIFY(!session->activeImageReplacementFallbackAvailable());
     QVERIFY(!surface->viewport()->state().display().displayedRoleSet().primary());
     QVERIFY(!surface->viewport()->state().display().displayedRoleSet().secondary());
+}
+
+void TestImageViewportComponentBoundary::
+    spreadNavigationRetainsCompleteSpreadUntilAtomicReplacement()
+{
+    const QSize portraitSize(600, 800);
+    const QByteArray imageData = encodedPngData(portraitSize);
+    QVERIFY(!imageData.isEmpty());
+
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    ManualOpenedCollectionCandidateProvider pageCandidateProvider;
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    kiriview::TestSupport::ManualTimerScheduler predecodeTimerScheduler;
+    const QUrl collectionUrl(QStringLiteral("file:///books/atomic-spread-navigation.cbz"));
+    std::unique_ptr<KiriDocumentSession> session
+        = createViewportSession(directMediaNavigationProvider.provider(),
+            pageCandidateProvider.provider(), dataLoader, workerScheduler,
+            thumbnailLookupProvider(false), nullptr, &predecodeTimerScheduler, portraitSize);
+    KiriImageViewportSurface* surface = viewportSurface(*session);
+    QVERIFY(surface != nullptr);
+    std::size_t nextWorkerSchedule = 0;
+
+    session->setSourceUrl(collectionUrl);
+    QTRY_VERIFY(pageCandidateProvider.hasPendingLoad());
+    const std::optional<kiriview::OpenedCollectionScopeLocation> collectionScope
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(collectionUrl, {}));
+    QVERIFY(collectionScope.has_value());
+    const QUrl firstPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("01.png"));
+    const QUrl secondPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("02.png"));
+    const QUrl thirdPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("03.png"));
+    const QUrl fourthPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("04.png"));
+    const QUrl fifthPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("05.png"));
+    pageCandidateProvider.resolve({ kiriview::TestSupport::imageDocumentPageCandidate(firstPageUrl),
+        kiriview::TestSupport::imageDocumentPageCandidate(secondPageUrl),
+        kiriview::TestSupport::imageDocumentPageCandidate(thirdPageUrl),
+        kiriview::TestSupport::imageDocumentPageCandidate(fourthPageUrl),
+        kiriview::TestSupport::imageDocumentPageCandidate(fifthPageUrl) });
+
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(firstPageUrl));
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(firstPageUrl, imageData));
+    runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    QVERIFY(driveViewportUntil(*surface, [&]() {
+        return session->imageDocument()->status() == KiriImageDocument::Status::Ready
+            && session->imageDocument()->displayedUrl() == firstPageUrl
+            && surface->viewport()->state().request().status() == ImageViewportRequestStatus::Ready;
+    }));
+
+    session->imageDocument()->openNextPage();
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(secondPageUrl));
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(secondPageUrl, imageData));
+    runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    QVERIFY(driveViewportUntil(*surface, [&]() {
+        return session->imageDocument()->status() == KiriImageDocument::Status::Ready
+            && session->imageDocument()->displayedUrl() == secondPageUrl
+            && surface->viewport()->state().request().status() == ImageViewportRequestStatus::Ready;
+    }));
+
+    session->imageDocument()->requestToggleTwoPageMode();
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(thirdPageUrl));
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(thirdPageUrl, imageData));
+    runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(secondPageUrl));
+    QVERIFY(finishImageDataAndDriveUntil(*surface, dataLoader, workerScheduler, nextWorkerSchedule,
+        { secondPageUrl }, imageData, [&]() {
+            const ImageViewportStateSnapshot snapshot = surface->viewport()->state();
+            return session->imageDocument()->secondaryPageVisible()
+                && session->imageDocument()->currentPageNumber() == 2
+                && session->imageDocument()->currentLastPageNumber() == 3
+                && snapshot.request().status() == ImageViewportRequestStatus::Ready
+                && snapshot.display().status() == ImageViewportDisplayStatus::Ready
+                && snapshot.display().displayedRoleSet().primary()
+                && snapshot.display().displayedRoleSet().secondary();
+        }));
+    QVERIFY(session->imageDocument()->completeAuthoritativeDisplayAvailable());
+    QVERIFY(!session->activeImageReplacementFallbackAvailable());
+    const auto previousSpreadGeneration
+        = surface->viewport()->state().display().displayedPresentationTargetGeneration();
+    QVERIFY(previousSpreadGeneration.isValid());
+
+    bool observedEmptyDisplay = false;
+    bool observedIncompleteReplacementDisplay = false;
+    const QMetaObject::Connection observationConnection = QObject::connect(
+        surface->viewport(), &ImageViewport::stateChanged, session->imageDocument(), [&]() {
+            const ImageViewportStateSnapshot snapshot = surface->viewport()->state();
+            observedEmptyDisplay = observedEmptyDisplay
+                || snapshot.display().status() == ImageViewportDisplayStatus::Empty;
+            const auto acceptedGeneration
+                = snapshot.request().acceptedPresentationTargetGeneration();
+            if (acceptedGeneration.isValid() && acceptedGeneration != previousSpreadGeneration
+                && snapshot.display().belongsToAcceptedPresentationTarget()) {
+                const ImageViewportRoleSet displayedRoles = snapshot.display().displayedRoleSet();
+                observedIncompleteReplacementDisplay = observedIncompleteReplacementDisplay
+                    || !displayedRoles.primary() || !displayedRoles.secondary();
+            }
+        });
+
+    session->imageDocument()->openNextPage();
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(fourthPageUrl));
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(fourthPageUrl, imageData));
+    runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(fifthPageUrl));
+
+    const ImageViewportStateSnapshot retainedSnapshot = surface->viewport()->state();
+    QCOMPARE(session->imageDocument()->currentPageNumber(), 4);
+    QVERIFY(session->imageDocument()->completeAuthoritativeDisplayAvailable());
+    QVERIFY(session->activeImageReplacementFallbackAvailable());
+    QCOMPARE(retainedSnapshot.request().status(), ImageViewportRequestStatus::Loading);
+    QCOMPARE(retainedSnapshot.display().status(), ImageViewportDisplayStatus::Retained);
+    QCOMPARE(retainedSnapshot.display().displayedPresentationTargetGeneration(),
+        previousSpreadGeneration);
+    QVERIFY(retainedSnapshot.display().displayedRoleSet().primary());
+    QVERIFY(retainedSnapshot.display().displayedRoleSet().secondary());
+    QVERIFY(!observedEmptyDisplay);
+    QVERIFY(!observedIncompleteReplacementDisplay);
+
+    QVERIFY(finishImageDataAndDriveUntil(*surface, dataLoader, workerScheduler, nextWorkerSchedule,
+        { fourthPageUrl, fifthPageUrl }, imageData, [&]() {
+            const ImageViewportStateSnapshot snapshot = surface->viewport()->state();
+            return session->imageDocument()->status() == KiriImageDocument::Status::Ready
+                && session->imageDocument()->displayedUrl() == fourthPageUrl
+                && session->imageDocument()->secondaryPageVisible()
+                && session->imageDocument()->currentPageNumber() == 4
+                && session->imageDocument()->currentLastPageNumber() == 5
+                && snapshot.request().status() == ImageViewportRequestStatus::Ready
+                && snapshot.display().status() == ImageViewportDisplayStatus::Ready
+                && snapshot.display().belongsToAcceptedPresentationTarget()
+                && snapshot.display().displayedRoleSet().primary()
+                && snapshot.display().displayedRoleSet().secondary();
+        }));
+    QObject::disconnect(observationConnection);
+
+    const ImageViewportStateSnapshot replacementSnapshot = surface->viewport()->state();
+    QVERIFY(!observedEmptyDisplay);
+    QVERIFY(!observedIncompleteReplacementDisplay);
+    QVERIFY(session->imageDocument()->completeAuthoritativeDisplayAvailable());
+    QVERIFY(!session->activeImageReplacementFallbackAvailable());
+    QVERIFY(replacementSnapshot.display().displayedPresentationTargetGeneration()
+        != previousSpreadGeneration);
+    QCOMPARE(replacementSnapshot.display().displayedPresentationTargetGeneration(),
+        replacementSnapshot.request().acceptedPresentationTargetGeneration());
+}
+
+void TestImageViewportComponentBoundary::failedSpreadNavigationDiscardsRetainedFallback()
+{
+    const QSize portraitSize(600, 800);
+    const QByteArray imageData = encodedPngData(portraitSize);
+    QVERIFY(!imageData.isEmpty());
+
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    ManualOpenedCollectionCandidateProvider pageCandidateProvider;
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    kiriview::TestSupport::ManualTimerScheduler predecodeTimerScheduler;
+    const QUrl collectionUrl(QStringLiteral("file:///books/failed-spread-navigation.cbz"));
+    std::unique_ptr<KiriDocumentSession> session
+        = createViewportSession(directMediaNavigationProvider.provider(),
+            pageCandidateProvider.provider(), dataLoader, workerScheduler,
+            thumbnailLookupProvider(false), nullptr, &predecodeTimerScheduler, portraitSize);
+    KiriImageViewportSurface* surface = viewportSurface(*session);
+    QVERIFY(surface != nullptr);
+    std::size_t nextWorkerSchedule = 0;
+
+    session->setSourceUrl(collectionUrl);
+    QTRY_VERIFY(pageCandidateProvider.hasPendingLoad());
+    const std::optional<kiriview::OpenedCollectionScopeLocation> collectionScope
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(collectionUrl, {}));
+    QVERIFY(collectionScope.has_value());
+    const QUrl firstPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("01.png"));
+    const QUrl secondPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("02.png"));
+    const QUrl thirdPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("03.png"));
+    const QUrl fourthPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("04.png"));
+    const QUrl fifthPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("05.png"));
+    pageCandidateProvider.resolve({ kiriview::TestSupport::imageDocumentPageCandidate(firstPageUrl),
+        kiriview::TestSupport::imageDocumentPageCandidate(secondPageUrl),
+        kiriview::TestSupport::imageDocumentPageCandidate(thirdPageUrl),
+        kiriview::TestSupport::imageDocumentPageCandidate(fourthPageUrl),
+        kiriview::TestSupport::imageDocumentPageCandidate(fifthPageUrl) });
+
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(firstPageUrl));
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(firstPageUrl, imageData));
+    runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    QVERIFY(driveViewportUntil(*surface, [&]() {
+        return session->imageDocument()->status() == KiriImageDocument::Status::Ready
+            && session->imageDocument()->displayedUrl() == firstPageUrl
+            && surface->viewport()->state().request().status() == ImageViewportRequestStatus::Ready;
+    }));
+
+    session->imageDocument()->openNextPage();
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(secondPageUrl));
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(secondPageUrl, imageData));
+    runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    QVERIFY(driveViewportUntil(*surface, [&]() {
+        return session->imageDocument()->status() == KiriImageDocument::Status::Ready
+            && session->imageDocument()->displayedUrl() == secondPageUrl
+            && surface->viewport()->state().request().status() == ImageViewportRequestStatus::Ready;
+    }));
+
+    session->imageDocument()->requestToggleTwoPageMode();
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(thirdPageUrl));
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(thirdPageUrl, imageData));
+    runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(secondPageUrl));
+    QVERIFY(finishImageDataAndDriveUntil(*surface, dataLoader, workerScheduler, nextWorkerSchedule,
+        { secondPageUrl }, imageData, [&]() {
+            const ImageViewportStateSnapshot snapshot = surface->viewport()->state();
+            return session->imageDocument()->secondaryPageVisible()
+                && session->imageDocument()->currentPageNumber() == 2
+                && session->imageDocument()->currentLastPageNumber() == 3
+                && snapshot.request().status() == ImageViewportRequestStatus::Ready
+                && snapshot.display().status() == ImageViewportDisplayStatus::Ready
+                && snapshot.display().displayedRoleSet().primary()
+                && snapshot.display().displayedRoleSet().secondary();
+        }));
+
+    session->imageDocument()->openNextPage();
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(fourthPageUrl));
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(fourthPageUrl, imageData));
+    runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(fifthPageUrl));
+
+    const ImageViewportStateSnapshot retainedSnapshot = surface->viewport()->state();
+    QCOMPARE(retainedSnapshot.display().status(), ImageViewportDisplayStatus::Retained);
+    QVERIFY(session->activeImageReplacementFallbackAvailable());
+    QVERIFY(session->imageDocument()->completeAuthoritativeDisplayAvailable());
+    QCOMPARE(dataLoader.backLoad().url, fifthPageUrl);
+    QVERIFY(dataLoader.backLoad().object != nullptr);
+
+    dataLoader.failBackLoad(QStringLiteral("secondary page load failed"));
+    QVERIFY(driveViewportUntil(*surface, [&]() {
+        const ImageViewportStateSnapshot snapshot = surface->viewport()->state();
+        return session->imageDocument()->status() == KiriImageDocument::Status::Error
+            && !session->activeImageReplacementFallbackAvailable()
+            && !session->imageDocument()->completeAuthoritativeDisplayAvailable()
+            && snapshot.display().status() == ImageViewportDisplayStatus::Empty
+            && !snapshot.display().displayedRoleSet().primary()
+            && !snapshot.display().displayedRoleSet().secondary()
+            && !session->imageDocument()->secondaryPageVisible();
+    }));
+}
+
+void TestImageViewportComponentBoundary::pendingSpreadModeReenableReplansAtomically()
+{
+    const QSize portraitSize(600, 800);
+    const QByteArray imageData = encodedPngData(portraitSize);
+    QVERIFY(!imageData.isEmpty());
+
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    ManualOpenedCollectionCandidateProvider pageCandidateProvider;
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    kiriview::TestSupport::ManualTimerScheduler predecodeTimerScheduler;
+    const QUrl collectionUrl(QStringLiteral("file:///books/replanned-spread-navigation.cbz"));
+    std::unique_ptr<KiriDocumentSession> session
+        = createViewportSession(directMediaNavigationProvider.provider(),
+            pageCandidateProvider.provider(), dataLoader, workerScheduler,
+            thumbnailLookupProvider(false), nullptr, &predecodeTimerScheduler, portraitSize);
+    KiriImageViewportSurface* surface = viewportSurface(*session);
+    QVERIFY(surface != nullptr);
+    std::size_t nextWorkerSchedule = 0;
+
+    session->setSourceUrl(collectionUrl);
+    QTRY_VERIFY(pageCandidateProvider.hasPendingLoad());
+    const std::optional<kiriview::OpenedCollectionScopeLocation> collectionScope
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(collectionUrl, {}));
+    QVERIFY(collectionScope.has_value());
+    const QUrl firstPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("01.png"));
+    const QUrl secondPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("02.png"));
+    const QUrl thirdPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("03.png"));
+    const QUrl fourthPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("04.png"));
+    const QUrl fifthPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("05.png"));
+    pageCandidateProvider.resolve({ kiriview::TestSupport::imageDocumentPageCandidate(firstPageUrl),
+        kiriview::TestSupport::imageDocumentPageCandidate(secondPageUrl),
+        kiriview::TestSupport::imageDocumentPageCandidate(thirdPageUrl),
+        kiriview::TestSupport::imageDocumentPageCandidate(fourthPageUrl),
+        kiriview::TestSupport::imageDocumentPageCandidate(fifthPageUrl) });
+
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(firstPageUrl));
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(firstPageUrl, imageData));
+    runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    QVERIFY(driveViewportUntil(*surface, [&]() {
+        return session->imageDocument()->status() == KiriImageDocument::Status::Ready
+            && session->imageDocument()->displayedUrl() == firstPageUrl
+            && surface->viewport()->state().request().status() == ImageViewportRequestStatus::Ready;
+    }));
+
+    session->imageDocument()->openNextPage();
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(secondPageUrl));
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(secondPageUrl, imageData));
+    runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    QVERIFY(driveViewportUntil(*surface, [&]() {
+        return session->imageDocument()->status() == KiriImageDocument::Status::Ready
+            && session->imageDocument()->displayedUrl() == secondPageUrl
+            && surface->viewport()->state().request().status() == ImageViewportRequestStatus::Ready;
+    }));
+
+    session->imageDocument()->requestToggleTwoPageMode();
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(thirdPageUrl));
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(thirdPageUrl, imageData));
+    runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(secondPageUrl));
+    QVERIFY(finishImageDataAndDriveUntil(*surface, dataLoader, workerScheduler, nextWorkerSchedule,
+        { secondPageUrl }, imageData, [&]() {
+            const ImageViewportStateSnapshot snapshot = surface->viewport()->state();
+            return session->imageDocument()->secondaryPageVisible()
+                && session->imageDocument()->currentPageNumber() == 2
+                && session->imageDocument()->currentLastPageNumber() == 3
+                && snapshot.request().status() == ImageViewportRequestStatus::Ready
+                && snapshot.display().belongsToAcceptedPresentationTarget()
+                && snapshot.display().displayedRoleSet().primary()
+                && snapshot.display().displayedRoleSet().secondary();
+        }));
+
+    bool toggledDuringUnresolvedAdmission = false;
+    const QMetaObject::Connection admissionObservation = QObject::connect(
+        surface->viewport(), &ImageViewport::stateChanged, session->imageDocument(), [&]() {
+            if (toggledDuringUnresolvedAdmission
+                || session->imageDocument()->currentPageNumber() != 4
+                || surface->viewport()->state().request().status()
+                    != ImageViewportRequestStatus::Loading) {
+                return;
+            }
+            toggledDuringUnresolvedAdmission = true;
+            session->imageDocument()->requestToggleTwoPageMode();
+            session->imageDocument()->requestToggleTwoPageMode();
+        });
+    session->imageDocument()->openNextPage();
+    QObject::disconnect(admissionObservation);
+    QVERIFY(toggledDuringUnresolvedAdmission);
+    QCOMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Loading);
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(fourthPageUrl));
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(fourthPageUrl, imageData));
+    runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(fifthPageUrl));
+    QCOMPARE(dataLoader.backLoad().url, fifthPageUrl);
+    const kiriview::ImageDataCallback staleSecondaryData = dataLoader.backLoad().dataCallback;
+    QVERIFY(staleSecondaryData);
+
+    bool observedError = false;
+    bool observedAcceptedPrimaryOnlyReady = false;
+    const QMetaObject::Connection observationConnection = QObject::connect(
+        surface->viewport(), &ImageViewport::stateChanged, session->imageDocument(), [&]() {
+            const ImageViewportStateSnapshot snapshot = surface->viewport()->state();
+            observedError = observedError
+                || snapshot.request().status() == ImageViewportRequestStatus::Error
+                || session->imageDocument()->status() == KiriImageDocument::Status::Error;
+            observedAcceptedPrimaryOnlyReady = observedAcceptedPrimaryOnlyReady
+                || (snapshot.request().status() == ImageViewportRequestStatus::Ready
+                    && snapshot.display().belongsToAcceptedPresentationTarget()
+                    && snapshot.display().displayedRoleSet().primary()
+                    && !snapshot.display().displayedRoleSet().secondary());
+        });
+
+    session->imageDocument()->requestToggleTwoPageMode();
+    const auto disabledGeneration
+        = surface->viewport()->state().request().acceptedPresentationTargetGeneration();
+    QVERIFY(disabledGeneration.isValid());
+    session->imageDocument()->requestToggleTwoPageMode();
+    const auto replannedGeneration
+        = surface->viewport()->state().request().acceptedPresentationTargetGeneration();
+    QVERIFY(replannedGeneration.isValid());
+    QVERIFY(replannedGeneration != disabledGeneration);
+    QCOMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Loading);
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(fifthPageUrl));
+
+    staleSecondaryData(imageData);
+    runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    renderViewportFrame(*surface);
+    QCOMPARE(surface->viewport()->state().request().acceptedPresentationTargetGeneration(),
+        replannedGeneration);
+    QCOMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Loading);
+    QVERIFY(!observedError);
+    QVERIFY(!observedAcceptedPrimaryOnlyReady);
+
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(fifthPageUrl, imageData));
+    runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    QVERIFY(finishImageDataAndDriveUntil(*surface, dataLoader, workerScheduler, nextWorkerSchedule,
+        { fourthPageUrl, fifthPageUrl }, imageData, [&]() {
+            const ImageViewportStateSnapshot snapshot = surface->viewport()->state();
+            return session->imageDocument()->status() == KiriImageDocument::Status::Ready
+                && session->imageDocument()->displayedUrl() == fourthPageUrl
+                && session->imageDocument()->secondaryPageVisible()
+                && session->imageDocument()->currentPageNumber() == 4
+                && session->imageDocument()->currentLastPageNumber() == 5
+                && snapshot.request().status() == ImageViewportRequestStatus::Ready
+                && snapshot.display().belongsToAcceptedPresentationTarget()
+                && snapshot.display().displayedRoleSet().primary()
+                && snapshot.display().displayedRoleSet().secondary();
+        }));
+    QObject::disconnect(observationConnection);
+
+    QVERIFY(!observedError);
+    QVERIFY(!observedAcceptedPrimaryOnlyReady);
+    QVERIFY(session->activeImageReady());
+    QVERIFY(!session->activeImageReplacementFallbackAvailable());
+}
+
+void TestImageViewportComponentBoundary::externalSourceSupersedesPendingSpreadNavigation()
+{
+    const QSize portraitSize(600, 800);
+    const QByteArray imageData = encodedPngData(portraitSize);
+    QVERIFY(!imageData.isEmpty());
+
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    ManualOpenedCollectionCandidateProvider pageCandidateProvider;
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    kiriview::TestSupport::ManualTimerScheduler predecodeTimerScheduler;
+    const QUrl collectionUrl(QStringLiteral("file:///books/superseded-spread-navigation.cbz"));
+    const QUrl externalUrl(QStringLiteral("file:///outside/superseding-image.png"));
+    directMediaNavigationProvider.setMedia(
+        QUrl(QStringLiteral("file:///outside/")), { directMediaNavigationCandidate(externalUrl) });
+    std::unique_ptr<KiriDocumentSession> session
+        = createViewportSession(directMediaNavigationProvider.provider(),
+            pageCandidateProvider.provider(), dataLoader, workerScheduler,
+            thumbnailLookupProvider(false), nullptr, &predecodeTimerScheduler, portraitSize);
+    KiriImageViewportSurface* surface = viewportSurface(*session);
+    QVERIFY(surface != nullptr);
+    std::size_t nextWorkerSchedule = 0;
+
+    session->setSourceUrl(collectionUrl);
+    QTRY_VERIFY(pageCandidateProvider.hasPendingLoad());
+    const std::optional<kiriview::OpenedCollectionScopeLocation> collectionScope
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(collectionUrl, {}));
+    QVERIFY(collectionScope.has_value());
+    const QUrl firstPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("01.png"));
+    const QUrl secondPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("02.png"));
+    const QUrl thirdPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("03.png"));
+    const QUrl fourthPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("04.png"));
+    const QUrl fifthPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("05.png"));
+    pageCandidateProvider.resolve({ kiriview::TestSupport::imageDocumentPageCandidate(firstPageUrl),
+        kiriview::TestSupport::imageDocumentPageCandidate(secondPageUrl),
+        kiriview::TestSupport::imageDocumentPageCandidate(thirdPageUrl),
+        kiriview::TestSupport::imageDocumentPageCandidate(fourthPageUrl),
+        kiriview::TestSupport::imageDocumentPageCandidate(fifthPageUrl) });
+
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(firstPageUrl));
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(firstPageUrl, imageData));
+    runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    QVERIFY(driveViewportUntil(*surface, [&]() {
+        return session->imageDocument()->status() == KiriImageDocument::Status::Ready
+            && session->imageDocument()->displayedUrl() == firstPageUrl
+            && surface->viewport()->state().request().status() == ImageViewportRequestStatus::Ready;
+    }));
+
+    session->imageDocument()->openNextPage();
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(secondPageUrl));
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(secondPageUrl, imageData));
+    runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    QVERIFY(driveViewportUntil(*surface, [&]() {
+        return session->imageDocument()->status() == KiriImageDocument::Status::Ready
+            && session->imageDocument()->displayedUrl() == secondPageUrl
+            && surface->viewport()->state().request().status() == ImageViewportRequestStatus::Ready;
+    }));
+
+    session->imageDocument()->requestToggleTwoPageMode();
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(thirdPageUrl));
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(thirdPageUrl, imageData));
+    runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(secondPageUrl));
+    QVERIFY(finishImageDataAndDriveUntil(*surface, dataLoader, workerScheduler, nextWorkerSchedule,
+        { secondPageUrl }, imageData, [&]() {
+            const ImageViewportStateSnapshot snapshot = surface->viewport()->state();
+            return session->imageDocument()->secondaryPageVisible()
+                && session->imageDocument()->currentPageNumber() == 2
+                && session->imageDocument()->currentLastPageNumber() == 3
+                && snapshot.request().status() == ImageViewportRequestStatus::Ready
+                && snapshot.display().status() == ImageViewportDisplayStatus::Ready
+                && snapshot.display().displayedRoleSet().primary()
+                && snapshot.display().displayedRoleSet().secondary();
+        }));
+
+    session->imageDocument()->openNextPage();
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(fourthPageUrl));
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(fourthPageUrl, imageData));
+    runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(fifthPageUrl));
+    QCOMPARE(dataLoader.backLoad().url, fifthPageUrl);
+    const kiriview::ImageDataCallback staleSecondaryData = dataLoader.backLoad().dataCallback;
+    QVERIFY(staleSecondaryData);
+
+    const auto pendingSpreadGeneration
+        = surface->viewport()->state().request().acceptedPresentationTargetGeneration();
+    const auto retainedSpreadGeneration
+        = surface->viewport()->state().display().displayedPresentationTargetGeneration();
+    QVERIFY(pendingSpreadGeneration.isValid());
+    QVERIFY(retainedSpreadGeneration.isValid());
+    QCOMPARE(surface->viewport()->state().display().status(), ImageViewportDisplayStatus::Retained);
+    QVERIFY(session->activeImageReplacementFallbackAvailable());
+
+    session->setSourceUrl(externalUrl);
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(externalUrl));
+    const ImageViewportStateSnapshot supersedingSnapshot = surface->viewport()->state();
+    const auto supersedingGeneration
+        = supersedingSnapshot.request().acceptedPresentationTargetGeneration();
+    QVERIFY(supersedingGeneration.isValid());
+    QVERIFY(supersedingGeneration != pendingSpreadGeneration);
+    QCOMPARE(session->sourceUrl(), externalUrl);
+    QCOMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Loading);
+    QCOMPARE(session->imageDocument()->displayedUrl(), QUrl());
+    QVERIFY(session->activeImageReplacementFallbackAvailable());
+    QVERIFY(session->imageDocument()->completeAuthoritativeDisplayAvailable());
+    QCOMPARE(supersedingSnapshot.display().status(), ImageViewportDisplayStatus::Retained);
+    QCOMPARE(supersedingSnapshot.display().displayedPresentationTargetGeneration(),
+        retainedSpreadGeneration);
+    QVERIFY(supersedingSnapshot.display().displayedRoleSet().primary());
+    QVERIFY(supersedingSnapshot.display().displayedRoleSet().secondary());
+
+    bool observedSupersededSpread = false;
+    const QMetaObject::Connection observationConnection = QObject::connect(
+        surface->viewport(), &ImageViewport::stateChanged, session->imageDocument(), [&]() {
+            const ImageViewportStateSnapshot snapshot = surface->viewport()->state();
+            observedSupersededSpread = observedSupersededSpread
+                || (snapshot.display().belongsToAcceptedPresentationTarget()
+                    && snapshot.display().displayedRoleSet().secondary());
+        });
+
+    staleSecondaryData(imageData);
+    runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    renderViewportFrame(*surface);
+    QCOMPARE(surface->viewport()->state().request().acceptedPresentationTargetGeneration(),
+        supersedingGeneration);
+    QVERIFY(!observedSupersededSpread);
+    QVERIFY(session->activeImageReplacementFallbackAvailable());
+
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(externalUrl, imageData));
+    runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    QVERIFY(driveViewportUntil(*surface, [&]() {
+        const ImageViewportStateSnapshot snapshot = surface->viewport()->state();
+        return session->imageDocument()->status() == KiriImageDocument::Status::Ready
+            && session->imageDocument()->displayedUrl() == externalUrl
+            && snapshot.request().status() == ImageViewportRequestStatus::Ready
+            && snapshot.display().status() == ImageViewportDisplayStatus::Ready
+            && snapshot.display().belongsToAcceptedPresentationTarget()
+            && snapshot.display().displayedRoleSet().primary()
+            && !snapshot.display().displayedRoleSet().secondary();
+    }));
+    QObject::disconnect(observationConnection);
+
+    QCOMPARE(surface->viewport()->state().request().acceptedPresentationTargetGeneration(),
+        supersedingGeneration);
+    QVERIFY(!observedSupersededSpread);
+    QVERIFY(!session->imageDocument()->secondaryPageVisible());
+    QVERIFY(session->imageDocument()->completeAuthoritativeDisplayAvailable());
+    QVERIFY(session->activeImageReady());
+    QVERIFY(!session->activeImageReplacementFallbackAvailable());
 }
 
 void TestImageViewportComponentBoundary::sameUrlSecondaryReplacementRejectsSupersededProjection()

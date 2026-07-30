@@ -30,7 +30,10 @@ enum class ImageViewportProvisionalPreviewPolicy {
     Suppress,
 };
 
-class ImageViewportDecodeProviderSource final : public QObject, public ImageViewportProviderSource
+class ImageViewportDecodeProviderSource final
+    : public QObject,
+      public ImageViewportProviderSource,
+      public std::enable_shared_from_this<ImageViewportDecodeProviderSource>
 {
 public:
     explicit ImageViewportDecodeProviderSource(ImageDecodeDependencies dependencies,

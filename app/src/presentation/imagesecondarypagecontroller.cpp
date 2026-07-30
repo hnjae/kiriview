@@ -14,7 +14,14 @@ ImageSecondaryPageController::ImageSecondaryPageController(Callbacks callbacks)
     : m_callbacks(std::move(callbacks))
 {
     ImageLoader::Callbacks loaderCallbacks;
-    loaderCallbacks.error = [this](const ImageLoadSession& session, const ImageLoadFailure&) {
+    loaderCallbacks.error = [this](ImageLoadSession session, ImageLoadFailure failure) {
+        if (pageReplacementPending()) {
+            const quint64 primarySessionId = m_pageReplacementPrimarySessionId;
+            cancelPageReplacement(primarySessionId);
+            invokeIfSet(m_callbacks.pageReplacementFailed, primarySessionId, std::move(session),
+                std::move(failure));
+            return;
+        }
         finishClaimedLoadWithError(session);
     };
     loaderCallbacks.findPredecodedImage = [this](const DisplayedImageLocation& location) {
@@ -24,6 +31,16 @@ ImageSecondaryPageController::ImageSecondaryPageController(Callbacks callbacks)
     loaderCallbacks.targetStarted = [](const ImageLoadSession&) { };
     loaderCallbacks.resolvedImage
         = [this](ImageLoadSession session, std::optional<PredecodedImage> predecoded) {
+              if (pageReplacementPending()) {
+                  if (m_pageReplacementPhase != PageReplacementPhase::PreparingSecondary
+                      || session.id() == 0 || session.location().isEmpty()) {
+                      return;
+                  }
+                  m_pageReplacementPreparedSession = session;
+                  invokeIfSet(m_callbacks.pageReplacementPreparedImage,
+                      m_pageReplacementPrimarySessionId, std::move(session), std::move(predecoded));
+                  return;
+              }
               invokeIfSet(m_callbacks.preparedImage, std::move(session), std::move(predecoded));
           };
     m_imageLoader = std::make_unique<ImageLoader>(std::move(loaderCallbacks));
@@ -49,6 +66,119 @@ void ImageSecondaryPageController::startLoad(
         displayedOpenedCollectionScope));
 }
 
+void ImageSecondaryPageController::beginPageReplacement(quint64 primarySessionId)
+{
+    cancel();
+    if (primarySessionId == 0) {
+        return;
+    }
+    m_pageReplacementPrimarySessionId = primarySessionId;
+    m_pageReplacementPhase = PageReplacementPhase::PrimaryOnly;
+}
+
+bool ImageSecondaryPageController::startPageReplacementLoad(quint64 primarySessionId,
+    const QUrl& url, const OpenedCollectionScopeLocation& openedCollectionScope)
+{
+    if (primarySessionId == 0 || primarySessionId != m_pageReplacementPrimarySessionId
+        || m_pageReplacementPhase != PageReplacementPhase::PrimaryOnly || url.isEmpty()
+        || openedCollectionScope.isEmpty()) {
+        return false;
+    }
+
+    m_pageReplacementPhase = PageReplacementPhase::PreparingSecondary;
+    m_pageReplacementPreparedSession.reset();
+    m_imageLoader->start(ImageLoadRequest::fromSameScopePageTarget(
+        ImageDocumentPageTarget { url, ImageDocumentPageKind::Image }, openedCollectionScope));
+    return true;
+}
+
+ImageSecondaryPageReplacementMetadataResult
+ImageSecondaryPageController::finishPageReplacementProviderLoad(
+    quint64 primarySessionId, const ImageLoadSession& session, QSize imageSize)
+{
+    if (primarySessionId == 0 || primarySessionId != m_pageReplacementPrimarySessionId
+        || m_pageReplacementPhase != PageReplacementPhase::PreparingSecondary
+        || !m_pageReplacementPreparedSession.has_value()
+        || !m_pageReplacementPreparedSession->sameSession(session)
+        || m_pageReplacementPreparedSession->location() != session.location()
+        || imageSize.isEmpty()) {
+        return ImageSecondaryPageReplacementMetadataResult::Stale;
+    }
+
+    const std::optional<ImageLoadSession> claimedSession
+        = m_imageLoader->claimCurrentSession(session);
+    if (!claimedSession.has_value() || claimedSession->location() != session.location()) {
+        return ImageSecondaryPageReplacementMetadataResult::Stale;
+    }
+
+    m_pageReplacementSecondarySession.reset();
+    m_pageReplacementPreparedSession.reset();
+    m_pageReplacementSecondaryImageSize = {};
+    m_displayState.discardStagedPageReplacement();
+    if (imageSpreadPageIsWide(imageSize)) {
+        m_pageReplacementPhase = PageReplacementPhase::PrimaryOnly;
+        return ImageSecondaryPageReplacementMetadataResult::PrimaryOnly;
+    }
+
+    m_pageReplacementPhase = PageReplacementPhase::Secondary;
+    m_pageReplacementSecondarySession = *claimedSession;
+    m_pageReplacementSecondaryImageSize = imageSize;
+    m_displayState.stagePageReplacement(claimedSession->location(), imageSize);
+    return ImageSecondaryPageReplacementMetadataResult::Secondary;
+}
+
+bool ImageSecondaryPageController::commitPageReplacement(
+    quint64 primarySessionId, const std::optional<ImageSecondaryPageReplacementCommit>& secondary)
+{
+    if (primarySessionId == 0 || primarySessionId != m_pageReplacementPrimarySessionId
+        || m_pageReplacementPhase == PageReplacementPhase::PreparingSecondary) {
+        return false;
+    }
+
+    const bool includeSecondary = secondary.has_value();
+    if (m_pageReplacementPhase == PageReplacementPhase::PrimaryOnly && includeSecondary) {
+        return false;
+    }
+    if (m_pageReplacementPhase == PageReplacementPhase::Secondary
+        && (!includeSecondary || !m_pageReplacementSecondarySession.has_value()
+            || !m_pageReplacementSecondarySession->sameSession(secondary->session)
+            || m_pageReplacementSecondarySession->location() != secondary->session.location()
+            || m_pageReplacementSecondaryImageSize != secondary->imageSize
+            || !m_displayState.stagedPageReplacementMatches(
+                secondary->session.location(), secondary->imageSize))) {
+        return false;
+    }
+
+    m_displayState.commitStagedPageReplacement(includeSecondary);
+    m_pageReplacementPrimarySessionId = 0;
+    m_pageReplacementPhase = PageReplacementPhase::PrimaryOnly;
+    m_pageReplacementPreparedSession.reset();
+    m_pageReplacementSecondarySession.reset();
+    m_pageReplacementSecondaryImageSize = {};
+    return true;
+}
+
+void ImageSecondaryPageController::cancelPageReplacement(quint64 primarySessionId)
+{
+    if (!pageReplacementPending()
+        || (primarySessionId != 0 && primarySessionId != m_pageReplacementPrimarySessionId)) {
+        return;
+    }
+
+    m_imageLoader->cancel();
+    m_displayState.discardStagedPageReplacement();
+    m_pageReplacementPrimarySessionId = 0;
+    m_pageReplacementPhase = PageReplacementPhase::PrimaryOnly;
+    m_pageReplacementPreparedSession.reset();
+    m_pageReplacementSecondarySession.reset();
+    m_pageReplacementSecondaryImageSize = {};
+}
+
+bool ImageSecondaryPageController::pageReplacementPending() const
+{
+    return m_pageReplacementPrimarySessionId != 0;
+}
+
 void ImageSecondaryPageController::clear()
 {
     cancel();
@@ -60,11 +190,20 @@ void ImageSecondaryPageController::cancel()
     if (m_imageLoader != nullptr) {
         m_imageLoader->cancel();
     }
+    m_displayState.discardStagedPageReplacement();
+    m_pageReplacementPrimarySessionId = 0;
+    m_pageReplacementPhase = PageReplacementPhase::PrimaryOnly;
+    m_pageReplacementPreparedSession.reset();
+    m_pageReplacementSecondarySession.reset();
+    m_pageReplacementSecondaryImageSize = {};
 }
 
 void ImageSecondaryPageController::finishProviderLoad(
     const ImageLoadSession& session, QSize imageSize)
 {
+    if (pageReplacementPending()) {
+        return;
+    }
     const std::optional<ImageLoadSession> claimedSession
         = m_imageLoader->claimCurrentSession(session);
     if (!claimedSession.has_value()) {
@@ -76,6 +215,9 @@ void ImageSecondaryPageController::finishProviderLoad(
 
 void ImageSecondaryPageController::finishProviderLoadWithError(const ImageLoadSession& session)
 {
+    if (pageReplacementPending()) {
+        return;
+    }
     const std::optional<ImageLoadSession> claimedSession
         = m_imageLoader->claimCurrentSession(session);
     if (!claimedSession.has_value()) {

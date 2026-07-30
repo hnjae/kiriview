@@ -15,6 +15,7 @@
 #include "imagedocumentstate.h"
 #include "imageopencontroller.h"
 #include "imageviewportintegrationruntime.h"
+#include "localization/imageerrortext.h"
 #include "navigation/imagedocumentpagenavigationservice.h"
 #include "navigation/navigationlogging.h"
 #include "presentation/imagespreadpresentationcontroller.h"
@@ -25,6 +26,7 @@
 #include <QUrl>
 #include <QtGlobal>
 #include <QtMath>
+#include <cmath>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -65,6 +67,20 @@ namespace {
         }
         return seed;
     }
+
+    std::optional<QSize> providerLogicalSize(const ImageViewportProviderMetadataResult& result)
+    {
+        if (!result.metadata.has_value() || !result.metadata->isValid()) {
+            return std::nullopt;
+        }
+        const QSizeF logicalSize = result.metadata->sourceLogicalSize();
+        if (!std::isfinite(logicalSize.width()) || !std::isfinite(logicalSize.height())
+            || logicalSize.width() <= 0.0 || logicalSize.height() <= 0.0) {
+            return std::nullopt;
+        }
+        const QSize size = logicalSize.toSize();
+        return size.isEmpty() ? std::nullopt : std::optional<QSize>(size);
+    }
 }
 
 struct ImageDocumentRuntimeGraph::PreparedViewportTargetState
@@ -101,6 +117,97 @@ struct ImageDocumentRuntimeGraph::PreparedViewportTargetState
             predecoded = std::move(candidate);
         }
     }
+};
+
+struct ImageDocumentRuntimeGraph::PreparedViewportRole
+{
+    using FindPredecodedImageCallback
+        = std::function<std::optional<PredecodedImage>(const DisplayedImageLocation&)>;
+
+    ImageLoadSession session;
+    ImageDecodeDependencies dependencies;
+    std::optional<PredecodedImage> predecoded;
+    FindPredecodedImageCallback findPredecodedImage;
+    std::shared_ptr<ImageViewportDecodeProviderSource> stagedSource;
+    std::weak_ptr<ImageViewportDecodeProviderSource> activeSource;
+
+    void refreshPredecodedImage()
+    {
+        if (!findPredecodedImage) {
+            return;
+        }
+        std::optional<PredecodedImage> candidate = findPredecodedImage(session.location());
+        if (candidate.has_value() && candidate->location == session.location()
+            && candidate->displayImage.isAuthoritative()) {
+            predecoded = std::move(candidate);
+        }
+    }
+
+    bool prepare()
+    {
+        auto source = std::make_shared<ImageViewportDecodeProviderSource>(
+            dependencies, ImageViewportProvisionalPreviewPolicy::Suppress);
+        if (!source->resolveSession(session, authoritativeSeed(predecoded))) {
+            source->close();
+            return false;
+        }
+        stagedSource = std::move(source);
+        return true;
+    }
+
+    [[nodiscard]] EmbeddedMetadata embeddedMetadata() const
+    {
+        if (const std::shared_ptr<ImageViewportDecodeProviderSource> source = activeSource.lock()) {
+            return source->embeddedMetadata();
+        }
+        if (stagedSource != nullptr) {
+            return stagedSource->embeddedMetadata();
+        }
+        return predecoded.has_value() ? predecoded->embeddedMetadata : EmbeddedMetadata {};
+    }
+
+    std::shared_ptr<ImageViewportProviderResource> makeResource(
+        const std::shared_ptr<DisplayImageStore>& displayStore)
+    {
+        std::shared_ptr<ImageViewportDecodeProviderSource> source = std::exchange(stagedSource, {});
+        if (source == nullptr) {
+            refreshPredecodedImage();
+            source = std::make_shared<ImageViewportDecodeProviderSource>(
+                dependencies, ImageViewportProvisionalPreviewPolicy::Suppress);
+            if (!source->resolveSession(session, authoritativeSeed(predecoded))) {
+                source->close();
+                return {};
+            }
+        }
+
+        auto resource = std::make_shared<ImageViewportProviderResource>(session.id(),
+            displayScopeIdentityForLocation(session.location()), source, displayStore,
+            std::make_shared<ImageViewportFailureRegistry>());
+        activeSource = source;
+        return resource;
+    }
+};
+
+struct ImageDocumentRuntimeGraph::PendingSpreadReplacement
+{
+    enum class Phase {
+        PreparingPrimaryMetadata,
+        PlanningPairing,
+        PreparingSecondaryMetadata,
+        FinalSubmitted,
+    };
+
+    ImageLoadSession selectedSession;
+    std::shared_ptr<PreparedViewportTargetState> admissionTarget;
+    ImageViewportIntegrationTarget admissionViewportTarget;
+    std::shared_ptr<PreparedViewportRole> primary;
+    std::shared_ptr<PreparedViewportRole> secondary;
+    QSize primaryImageSize;
+    QSize secondaryImageSize;
+    Phase phase = Phase::PreparingPrimaryMetadata;
+    bool expectsSecondary = false;
+    ImageViewportTargetTransitionIntent finalTransitionIntent
+        = ImageViewportTargetTransitionIntent::SameNavigationScope;
 };
 
 ImageDocumentRuntimeGraph::ImageDocumentRuntimeGraph(QObject* documentObject,
@@ -230,6 +337,24 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
             [this]() {
                 return m_viewportIntegration->displayedImage(ImageViewportPageRole::Secondary);
             },
+            [this](quint64 primarySessionId, const ImageLoadSession& secondarySession,
+                std::optional<PredecodedImage> predecoded) {
+                prepareSpreadReplacementSecondary(
+                    primarySessionId, secondarySession, std::move(predecoded));
+            },
+            [this](quint64 primarySessionId, const ImageLoadSession&, ImageLoadFailure failure) {
+                const std::shared_ptr<PendingSpreadReplacement> replacement
+                    = m_pendingSpreadReplacement;
+                if (replacement != nullptr
+                    && replacement->selectedSession.id() == primarySessionId) {
+                    failSpreadReplacement(replacement, std::move(failure),
+                        QStringLiteral("spread secondary source preparation failed"));
+                }
+            },
+            [this]() {
+                cancelPendingViewportImageLoad();
+                clearViewportSecondaryImageTarget();
+            },
         });
     m_openController = std::make_unique<ImageOpenController>(state,
         ImageOpenController::Callbacks {
@@ -251,10 +376,10 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
                 const auto* device = kiriview::mediaEntrySourceResultValue(result);
                 return device != nullptr && device->device != nullptr;
             },
-            [this](const DisplayedImageLocation& location, QSize imageSize) {
-                m_spreadController->commitPrimaryPageSlot(location, imageSize);
+            [this](const ImageLoadSession& session, QSize imageSize) {
+                return commitViewportPresentation(session, imageSize);
             },
-            [this]() { m_pendingViewportImageLoad.reset(); },
+            [this]() { cancelPendingViewportImageLoad(); },
             [this](const ImageDocumentPageCandidateListContext& context,
                 ImageDocumentPageCandidateListSnapshotCallback callback) {
                 m_navigationService->ensurePageCandidateSnapshot(context, std::move(callback));
@@ -350,6 +475,8 @@ void ImageDocumentRuntimeGraph::requestNextViewportTargetAnchorAtEnd()
 
 bool ImageDocumentRuntimeGraph::startViewportImageTarget(const ImageLoadSession& session)
 {
+    cancelPendingViewportImageLoad();
+
     auto prepared = std::make_shared<PreparedViewportTargetState>();
     prepared->selectedSession = session;
     prepared->dependencies = m_imageDecodeDependencies;
@@ -390,13 +517,23 @@ bool ImageDocumentRuntimeGraph::startViewportImageTarget(const ImageLoadSession&
         return resource;
     };
 
-    m_pendingViewportImageLoad.reset();
     m_preparedViewportTarget = prepared;
     m_viewportTarget = std::make_unique<ImageViewportIntegrationTarget>(target);
     m_viewportSecondaryLoadSession.reset();
+    if (session.request().sameScopePageNavigation()
+        && session.kind() == ImageDocumentPageKind::Image
+        && session.openedCollectionScope().isComicBook()
+        && m_spreadController->twoPageModeActive()) {
+        auto replacement = std::make_shared<PendingSpreadReplacement>();
+        replacement->selectedSession = session;
+        replacement->admissionTarget = prepared;
+        replacement->admissionViewportTarget = target;
+        m_pendingSpreadReplacement = std::move(replacement);
+    }
     if (m_viewportIntegration->submitTarget(std::move(target))) {
         return true;
     }
+    cancelPendingViewportImageLoad();
     m_preparedViewportTarget.reset();
     m_viewportTarget.reset();
     return false;
@@ -420,6 +557,47 @@ bool ImageDocumentRuntimeGraph::resolveViewportImageTarget(
     }
 
     m_viewportTarget->resolvedPrimaryUrl = session.imageUrl();
+    const std::shared_ptr<PendingSpreadReplacement> replacement = m_pendingSpreadReplacement;
+    if (replacement != nullptr && replacement->admissionTarget == prepared
+        && replacement->selectedSession.sameSession(session)
+        && replacement->phase == PendingSpreadReplacement::Phase::PreparingPrimaryMetadata) {
+        replacement->admissionViewportTarget.resolvedPrimaryUrl = session.imageUrl();
+        auto primary = std::make_shared<PreparedViewportRole>();
+        primary->session = session;
+        primary->dependencies = m_imageDecodeDependencies;
+        primary->predecoded = std::move(predecoded);
+        primary->findPredecodedImage = [this](const DisplayedImageLocation& location) {
+            return m_predecodedImageLookup->find(location);
+        };
+        if (!primary->prepare()) {
+            cancelPendingViewportImageLoad();
+            return false;
+        }
+
+        replacement->primary = primary;
+        m_pendingViewportImageLoad = PendingViewportImageLoad {
+            session,
+            [primary]() { return primary->embeddedMetadata(); },
+        };
+        const std::weak_ptr<PendingSpreadReplacement> weakReplacement = replacement;
+        primary->stagedSource->requestMetadata(
+            ImageViewportProviderWorkIdentity {
+                session.id(),
+                ImageViewportPageRole::Primary,
+                {},
+                {},
+                displayScopeIdentityForLocation(session.location()),
+            },
+            [this, weakReplacement](const ImageViewportProviderWorkIdentity&,
+                ImageViewportProviderMetadataResult result) mutable {
+                const std::shared_ptr<PendingSpreadReplacement> current = weakReplacement.lock();
+                if (current != nullptr && m_pendingSpreadReplacement == current) {
+                    finishSpreadReplacementPrimaryMetadata(current, std::move(result));
+                }
+            });
+        return true;
+    }
+
     prepared->resolvedSession = session;
     prepared->predecoded = std::move(predecoded);
     m_pendingViewportImageLoad = PendingViewportImageLoad {
@@ -456,6 +634,264 @@ bool ImageDocumentRuntimeGraph::resolveViewportImageTarget(
             || m_viewportTarget->sourceGeneration != session.id();
     }
     return true;
+}
+
+bool ImageDocumentRuntimeGraph::submitSpreadReplacementTarget(
+    const std::shared_ptr<PendingSpreadReplacement>& replacement, bool includeSecondary)
+{
+    if (replacement == nullptr || m_pendingSpreadReplacement != replacement
+        || replacement->primary == nullptr || replacement->primaryImageSize.isEmpty()
+        || m_viewportTarget == nullptr || !m_viewportTarget->isValid()
+        || m_viewportTarget->sourceGeneration != replacement->selectedSession.id()
+        || (includeSecondary
+            && (replacement->secondary == nullptr || replacement->secondaryImageSize.isEmpty()))) {
+        return false;
+    }
+
+    ImageViewportIntegrationTarget target = *m_viewportTarget;
+    target.transitionIntent = replacement->finalTransitionIntent;
+    target.rightToLeft = m_spreadController->rightToLeftReadingEnabled();
+    const std::shared_ptr<DisplayImageStore> displayStore = m_viewportDisplayStore;
+    const std::shared_ptr<PreparedViewportRole> primary = replacement->primary;
+    target.primaryResource
+        = [primary, displayStore]() { return primary->makeResource(displayStore); };
+    if (includeSecondary) {
+        const std::shared_ptr<PreparedViewportRole> secondary = replacement->secondary;
+        target.secondaryUrl = secondary->session.imageUrl();
+        target.secondarySessionId = secondary->session.id();
+        target.secondaryResource
+            = [secondary, displayStore]() { return secondary->makeResource(displayStore); };
+    } else {
+        target.secondaryUrl = {};
+        target.secondarySessionId = 0;
+        target.secondaryResource = {};
+    }
+
+    replacement->expectsSecondary = includeSecondary;
+    replacement->phase = PendingSpreadReplacement::Phase::FinalSubmitted;
+    m_viewportTarget = std::make_unique<ImageViewportIntegrationTarget>(target);
+    const bool submitted = m_viewportIntegration->submitTarget(std::move(target));
+    return m_pendingSpreadReplacement != replacement || submitted;
+}
+
+bool ImageDocumentRuntimeGraph::submitSpreadReplacementAdmissionTarget(
+    const std::shared_ptr<PendingSpreadReplacement>& replacement)
+{
+    if (replacement == nullptr || m_pendingSpreadReplacement != replacement
+        || !replacement->admissionViewportTarget.isValid()
+        || replacement->admissionViewportTarget.sourceGeneration
+            != replacement->selectedSession.id()
+        || (!replacement->admissionViewportTarget.resolvedPrimaryUrl.isEmpty()
+            && replacement->admissionViewportTarget.resolvedPrimaryUrl
+                != replacement->selectedSession.imageUrl())) {
+        return false;
+    }
+
+    ImageViewportIntegrationTarget target = replacement->admissionViewportTarget;
+    target.rightToLeft = m_spreadController->rightToLeftReadingEnabled();
+    target.anchorAtEnd = false;
+    m_viewportTarget = std::make_unique<ImageViewportIntegrationTarget>(target);
+    const bool submitted = m_viewportIntegration->submitTarget(std::move(target));
+    return m_pendingSpreadReplacement != replacement || submitted;
+}
+
+void ImageDocumentRuntimeGraph::prepareSpreadReplacementSecondary(quint64 primarySessionId,
+    const ImageLoadSession& session, std::optional<PredecodedImage> predecoded)
+{
+    const std::shared_ptr<PendingSpreadReplacement> replacement = m_pendingSpreadReplacement;
+    if (replacement == nullptr || replacement->selectedSession.id() != primarySessionId
+        || replacement->phase != PendingSpreadReplacement::Phase::PlanningPairing
+        || session.id() == 0 || session.kind() != ImageDocumentPageKind::Image) {
+        return;
+    }
+
+    auto secondary = std::make_shared<PreparedViewportRole>();
+    secondary->session = session;
+    secondary->dependencies = m_imageDecodeDependencies;
+    secondary->predecoded = std::move(predecoded);
+    secondary->findPredecodedImage = [this](const DisplayedImageLocation& location) {
+        return m_predecodedImageLookup->find(location);
+    };
+    if (!secondary->prepare()) {
+        failSpreadReplacement(replacement, std::nullopt,
+            QStringLiteral("spread secondary provider preparation failed"));
+        return;
+    }
+
+    replacement->secondary = secondary;
+    replacement->phase = PendingSpreadReplacement::Phase::PreparingSecondaryMetadata;
+    const std::weak_ptr<PendingSpreadReplacement> weakReplacement = replacement;
+    secondary->stagedSource->requestMetadata(
+        ImageViewportProviderWorkIdentity {
+            session.id(),
+            ImageViewportPageRole::Secondary,
+            {},
+            {},
+            displayScopeIdentityForLocation(session.location()),
+        },
+        [this, weakReplacement, session](const ImageViewportProviderWorkIdentity&,
+            ImageViewportProviderMetadataResult result) mutable {
+            const std::shared_ptr<PendingSpreadReplacement> current = weakReplacement.lock();
+            if (current != nullptr && m_pendingSpreadReplacement == current) {
+                finishSpreadReplacementSecondaryMetadata(current, session, std::move(result));
+            }
+        });
+}
+
+void ImageDocumentRuntimeGraph::finishSpreadReplacementPrimaryMetadata(
+    const std::shared_ptr<PendingSpreadReplacement>& replacement,
+    ImageViewportProviderMetadataResult result)
+{
+    if (replacement == nullptr || m_pendingSpreadReplacement != replacement
+        || replacement->phase != PendingSpreadReplacement::Phase::PreparingPrimaryMetadata
+        || replacement->primary == nullptr) {
+        return;
+    }
+
+    const std::optional<QSize> imageSize = providerLogicalSize(result);
+    if (!imageSize.has_value()) {
+        failSpreadReplacement(replacement, std::move(result.failure),
+            QStringLiteral("spread primary metadata is unavailable"));
+        return;
+    }
+
+    replacement->primaryImageSize = *imageSize;
+    replacement->phase = PendingSpreadReplacement::Phase::PlanningPairing;
+    const ImageSpreadPageReplacementPairingResult pairing
+        = m_spreadController->beginPageReplacementPairing(
+            replacement->primary->session, replacement->primaryImageSize);
+    if (m_pendingSpreadReplacement != replacement) {
+        return;
+    }
+    switch (pairing) {
+    case ImageSpreadPageReplacementPairingResult::PreparingSecondary:
+        return;
+    case ImageSpreadPageReplacementPairingResult::PrimaryOnly:
+        if (submitSpreadReplacementTarget(replacement, false)) {
+            return;
+        }
+        failSpreadReplacement(replacement, std::nullopt,
+            QStringLiteral("spread primary-only target submission failed"));
+        return;
+    case ImageSpreadPageReplacementPairingResult::Stale:
+        failSpreadReplacement(
+            replacement, std::nullopt, QStringLiteral("spread primary pairing became stale"));
+        return;
+    }
+}
+
+void ImageDocumentRuntimeGraph::finishSpreadReplacementSecondaryMetadata(
+    const std::shared_ptr<PendingSpreadReplacement>& replacement,
+    const ImageLoadSession& secondarySession, ImageViewportProviderMetadataResult result)
+{
+    if (replacement == nullptr || m_pendingSpreadReplacement != replacement
+        || replacement->phase != PendingSpreadReplacement::Phase::PreparingSecondaryMetadata
+        || replacement->secondary == nullptr
+        || !replacement->secondary->session.sameSession(secondarySession)
+        || replacement->secondary->session.location() != secondarySession.location()) {
+        return;
+    }
+
+    [[maybe_unused]] const std::shared_ptr<PreparedViewportRole> preparedSecondary
+        = replacement->secondary;
+    const std::optional<QSize> imageSize = providerLogicalSize(result);
+    if (!imageSize.has_value()) {
+        failSpreadReplacement(replacement, std::move(result.failure),
+            QStringLiteral("spread secondary metadata is unavailable"));
+        return;
+    }
+
+    const ImageSpreadPageReplacementSecondaryMetadataResult pairing
+        = m_spreadController->finishPageReplacementSecondaryMetadata(
+            replacement->selectedSession.id(), secondarySession, *imageSize);
+    if (m_pendingSpreadReplacement != replacement) {
+        return;
+    }
+    switch (pairing) {
+    case ImageSpreadPageReplacementSecondaryMetadataResult::Secondary:
+        replacement->secondaryImageSize = *imageSize;
+        if (submitSpreadReplacementTarget(replacement, true)) {
+            return;
+        }
+        failSpreadReplacement(
+            replacement, std::nullopt, QStringLiteral("spread target submission failed"));
+        return;
+    case ImageSpreadPageReplacementSecondaryMetadataResult::PrimaryOnly:
+        replacement->secondary.reset();
+        replacement->secondaryImageSize = {};
+        if (submitSpreadReplacementTarget(replacement, false)) {
+            return;
+        }
+        failSpreadReplacement(replacement, std::nullopt,
+            QStringLiteral("spread primary-only target submission failed"));
+        return;
+    case ImageSpreadPageReplacementSecondaryMetadataResult::Stale:
+        failSpreadReplacement(
+            replacement, std::nullopt, QStringLiteral("spread secondary pairing became stale"));
+        return;
+    }
+}
+
+bool ImageDocumentRuntimeGraph::commitViewportPresentation(
+    const ImageLoadSession& primarySession, QSize primaryImageSize)
+{
+    const std::shared_ptr<PendingSpreadReplacement> replacement = m_pendingSpreadReplacement;
+    if (replacement == nullptr) {
+        m_spreadController->commitPrimaryPageSlot(primarySession.location(), primaryImageSize);
+        return true;
+    }
+
+    if (replacement->phase != PendingSpreadReplacement::Phase::FinalSubmitted
+        || replacement->primary == nullptr
+        || !replacement->selectedSession.sameSession(primarySession)
+        || replacement->selectedSession.location() != primarySession.location()
+        || replacement->primaryImageSize != primaryImageSize) {
+        return false;
+    }
+
+    std::optional<ImageSpreadPreparedSecondaryPage> secondary;
+    if (replacement->expectsSecondary) {
+        if (replacement->secondary == nullptr || replacement->secondaryImageSize.isEmpty()) {
+            return false;
+        }
+        secondary = ImageSpreadPreparedSecondaryPage {
+            replacement->secondary->session,
+            replacement->secondaryImageSize,
+        };
+    }
+    if (!m_spreadController->commitPageReplacementPresentation(
+            primarySession, primaryImageSize, secondary)) {
+        return false;
+    }
+    m_pendingSpreadReplacement.reset();
+    return true;
+}
+
+void ImageDocumentRuntimeGraph::failSpreadReplacement(
+    const std::shared_ptr<PendingSpreadReplacement>& replacement,
+    std::optional<ImageLoadFailure> failure, const QString& diagnosticDetail)
+{
+    if (replacement == nullptr || m_pendingSpreadReplacement != replacement) {
+        return;
+    }
+
+    const ImageLoadSession primarySession = replacement->selectedSession;
+    const QString userMessage = imageErrorText(ImageErrorTextId::DecodeImageAnimation);
+    ImageLoadFailure reportedFailure = failure.has_value()
+        ? std::move(*failure)
+        : viewportPresentationFailure(primarySession, userMessage, diagnosticDetail);
+    cancelPendingViewportImageLoad();
+    m_openController->finishViewportImageLoadWithError(primarySession, std::move(reportedFailure));
+}
+
+void ImageDocumentRuntimeGraph::cancelPendingViewportImageLoad()
+{
+    const std::shared_ptr<PendingSpreadReplacement> replacement
+        = std::exchange(m_pendingSpreadReplacement, {});
+    m_pendingViewportImageLoad.reset();
+    if (replacement != nullptr && m_spreadController != nullptr) {
+        m_spreadController->cancelPageReplacementPairing(replacement->selectedSession.id());
+    }
 }
 
 void ImageDocumentRuntimeGraph::prepareViewportSecondaryImageTarget(
@@ -518,6 +954,56 @@ void ImageDocumentRuntimeGraph::prepareViewportSecondaryImageTarget(
 
 void ImageDocumentRuntimeGraph::clearViewportSecondaryImageTarget()
 {
+    const std::shared_ptr<PendingSpreadReplacement> replacement = m_pendingSpreadReplacement;
+    if (replacement != nullptr) {
+        replacement->finalTransitionIntent
+            = ImageViewportTargetTransitionIntent::PresentationShapeChange;
+        replacement->expectsSecondary = false;
+        [[maybe_unused]] const std::shared_ptr<PreparedViewportRole> retiredSecondary
+            = std::exchange(replacement->secondary, {});
+        replacement->secondaryImageSize = {};
+        m_viewportSecondaryLoadSession.reset();
+
+        if (replacement->primary != nullptr && !replacement->primaryImageSize.isEmpty()) {
+            replacement->phase = PendingSpreadReplacement::Phase::PlanningPairing;
+            if (!submitSpreadReplacementAdmissionTarget(replacement)) {
+                failSpreadReplacement(replacement, std::nullopt,
+                    QStringLiteral("explicit spread clear could not restore target admission"));
+                return;
+            }
+            if (m_pendingSpreadReplacement != replacement) {
+                return;
+            }
+            const ImageSpreadPageReplacementPairingResult pairing
+                = m_spreadController->beginPageReplacementPairing(
+                    replacement->primary->session, replacement->primaryImageSize);
+            if (m_pendingSpreadReplacement != replacement) {
+                return;
+            }
+            if (pairing == ImageSpreadPageReplacementPairingResult::PreparingSecondary) {
+                return;
+            }
+            if (pairing == ImageSpreadPageReplacementPairingResult::PrimaryOnly) {
+                if (submitSpreadReplacementTarget(replacement, false)) {
+                    return;
+                }
+                failSpreadReplacement(replacement, std::nullopt,
+                    QStringLiteral("explicit spread clear could not submit primary-only target"));
+                return;
+            }
+            failSpreadReplacement(replacement, std::nullopt,
+                QStringLiteral("explicit spread clear pairing became stale"));
+            return;
+        }
+
+        if (!submitSpreadReplacementAdmissionTarget(replacement)
+            && m_pendingSpreadReplacement == replacement) {
+            failSpreadReplacement(replacement, std::nullopt,
+                QStringLiteral("explicit spread clear admission submission failed"));
+        }
+        return;
+    }
+
     if (m_viewportTarget == nullptr || m_viewportTarget->secondaryUrl.isEmpty()) {
         m_viewportSecondaryLoadSession.reset();
         return;
@@ -539,8 +1025,8 @@ void ImageDocumentRuntimeGraph::clearViewportSecondaryImageTarget()
 
 void ImageDocumentRuntimeGraph::clearViewportTarget()
 {
+    cancelPendingViewportImageLoad();
     m_preparedViewportTarget.reset();
-    m_pendingViewportImageLoad.reset();
     m_viewportSecondaryLoadSession.reset();
     m_viewportTarget.reset();
     m_nextViewportTargetAnchorAtEnd = false;
@@ -550,6 +1036,7 @@ void ImageDocumentRuntimeGraph::clearViewportTarget()
 void ImageDocumentRuntimeGraph::handleViewportProjection(
     const ImageViewportIntegrationProjection& projection)
 {
+    [[maybe_unused]] auto batch = m_state.beginChangeBatch();
     const std::optional<ImageLoadSession> observedSecondaryLoad = m_viewportSecondaryLoadSession;
     m_callbacks.notify(
         std::vector<ImageDocumentChange> { ImageDocumentChange::ViewportProjection });
@@ -577,6 +1064,32 @@ void ImageDocumentRuntimeGraph::handleViewportProjection(
     }
 
     if (projection.status == ImageDocumentStatus::Ready) {
+        const std::shared_ptr<PendingSpreadReplacement> replacement = m_pendingSpreadReplacement;
+        if (replacement != nullptr
+            && replacement->selectedSession.id() == projection.sourceGeneration) {
+            const bool primaryMatches
+                = replacement->phase == PendingSpreadReplacement::Phase::FinalSubmitted
+                && replacement->primary != nullptr && !projection.primaryImageSize.isEmpty()
+                && projection.primaryImageSize == replacement->primaryImageSize
+                && projection.displayedUrl == replacement->primary->session.imageUrl();
+            bool rolesMatch = primaryMatches;
+            if (rolesMatch && replacement->expectsSecondary) {
+                rolesMatch = replacement->secondary != nullptr
+                    && projection.secondarySessionId == replacement->secondary->session.id()
+                    && projection.secondaryUrl == replacement->secondary->session.imageUrl()
+                    && projection.secondaryVisible && !projection.secondaryImageSize.isEmpty()
+                    && projection.secondaryImageSize == replacement->secondaryImageSize;
+            } else if (rolesMatch) {
+                rolesMatch = projection.secondarySessionId == 0 && projection.secondaryUrl.isEmpty()
+                    && !projection.secondaryVisible && projection.secondaryImageSize.isEmpty();
+            }
+            if (!rolesMatch) {
+                failSpreadReplacement(replacement, std::nullopt,
+                    QStringLiteral("spread target committed an unexpected role set"));
+                return;
+            }
+        }
+
         PendingViewportImageLoad completedLoad = std::move(*m_pendingViewportImageLoad);
         m_pendingViewportImageLoad.reset();
         EmbeddedMetadata metadata
@@ -605,6 +1118,11 @@ void ImageDocumentRuntimeGraph::handleViewportProjection(
     }
     PendingViewportImageLoad completedLoad = std::move(*m_pendingViewportImageLoad);
     m_pendingViewportImageLoad.reset();
+    const std::shared_ptr<PendingSpreadReplacement> replacement = m_pendingSpreadReplacement;
+    if (replacement != nullptr && replacement->selectedSession.sameSession(completedLoad.session)) {
+        m_pendingSpreadReplacement.reset();
+        m_spreadController->cancelPageReplacementPairing(replacement->selectedSession.id());
+    }
     ImageLoadFailure failure = projection.failure.value_or(viewportPresentationFailure(
         completedLoad.session, projection.errorString, projection.errorString));
     m_openController->finishViewportImageLoadWithError(completedLoad.session, std::move(failure));

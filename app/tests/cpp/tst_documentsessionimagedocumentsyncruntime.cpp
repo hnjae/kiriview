@@ -18,6 +18,7 @@ private Q_SLOTS:
     void confirmsDirectImageCursorWithoutRefreshingNavigation();
     void mirrorsDeletionProgressWhenImageDocumentOwnsSourceScope();
     void syncsCollectionScopeWithoutInactiveDirectMediaRefresh();
+    void recomputesDirectMediaProjectionWhenImagePageNavigationChanges();
     void publishesImagePageNavigationWhenTheLeafNavigationChanges();
     void sourceIdentityCallbackCanDestroyRuntime();
     void nestedSyncSupersedesRemainingMutation();
@@ -179,6 +180,10 @@ void TestDocumentSessionImageDocumentSyncRuntime::
     const QUrl imageUrl = localUrl(QStringLiteral("/media/01.png"));
     kiriview::DocumentSessionImageDocumentSyncRuntimeInput input = activeInput(imageUrl);
     input.directImageLoadMayUseImageDocumentSourceScope = true;
+    input.directMediaNavigationActive = false;
+    input.directMediaNavigationKnown = false;
+    input.image.ordinaryDirectMediaScopeActive = false;
+    input.image.openedCollectionScopeActive = true;
     input.previousPageNavigation.known = false;
     input.image.pageNavigation.known = true;
     input.image.pageNavigation.currentNumber = 2;
@@ -188,10 +193,30 @@ void TestDocumentSessionImageDocumentSyncRuntime::
 
     QCOMPARE(fixture.events,
         (std::vector<ImageSyncFixture::Event> {
+            ImageSyncFixture::Event::SetSourceIdentity,
+            ImageSyncFixture::Event::PublishImagePages,
+        }));
+}
+
+void TestDocumentSessionImageDocumentSyncRuntime::
+    recomputesDirectMediaProjectionWhenImagePageNavigationChanges()
+{
+    ImageSyncFixture fixture;
+    const QUrl imageUrl = localUrl(QStringLiteral("/media/01.png"));
+    kiriview::DocumentSessionImageDocumentSyncRuntimeInput input = activeInput(imageUrl);
+    input.directImageLoadMayUseImageDocumentSourceScope = true;
+    input.previousPageNavigation.known = true;
+    input.previousPageNavigation.currentNumber = 2;
+    input.previousPageNavigation.count = 5;
+
+    fixture.runtime.sync(input);
+
+    QCOMPARE(fixture.events,
+        (std::vector<ImageSyncFixture::Event> {
             ImageSyncFixture::Event::ConfirmDirectImageCursor,
             ImageSyncFixture::Event::SetSourceIdentity,
             ImageSyncFixture::Event::CacheDisplayedPredecode,
-            ImageSyncFixture::Event::PublishImagePages,
+            ImageSyncFixture::Event::Publish,
         }));
 }
 

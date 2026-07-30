@@ -34,7 +34,7 @@ public:
     using UnsupportedOpenedCollectionVideoEnteredCallback = std::function<void(const QString&)>;
     using OpenedCollectionVideoPlaybackAvailableCallback
         = std::function<bool(const OpenedCollectionScopeLocation&, const QUrl&)>;
-    using CommitPrimaryPageSlotCallback = std::function<void(const DisplayedImageLocation&, QSize)>;
+    using CommitViewportPresentationCallback = std::function<bool(const ImageLoadSession&, QSize)>;
     using InvalidatePendingViewportImageLoadCallback = std::function<void()>;
     using EnsurePageCandidateSnapshotCallback = std::function<void(
         ImageDocumentPageCandidateListContext, ImageDocumentPageCandidateListSnapshotCallback)>;
@@ -50,7 +50,7 @@ public:
         RuntimePlanCallback runtimePlan;
         UnsupportedOpenedCollectionVideoEnteredCallback unsupportedOpenedCollectionVideoEntered;
         OpenedCollectionVideoPlaybackAvailableCallback openedCollectionVideoPlaybackAvailable;
-        CommitPrimaryPageSlotCallback commitPrimaryPageSlot;
+        CommitViewportPresentationCallback commitViewportPresentation;
         InvalidatePendingViewportImageLoadCallback invalidatePendingViewportImageLoad;
         EnsurePageCandidateSnapshotCallback ensurePageCandidateSnapshot;
         StartViewportImageTargetCallback startViewportImageTarget;

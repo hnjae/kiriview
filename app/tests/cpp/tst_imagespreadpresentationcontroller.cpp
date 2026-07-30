@@ -59,7 +59,13 @@ public:
                       controller.finishViewportSecondaryPageLoad(
                           session, predecoded->displayImage.originalSize);
                   },
-                  [this]() { ++clearCount; },
+                  [this]() {
+                      ++clearCount;
+                      if (replacementSession.has_value()) {
+                          replacementPairingResult = controller.beginPageReplacementPairing(
+                              *replacementSession, replacementPrimarySize);
+                      }
+                  },
                   {},
               })
     {
@@ -101,6 +107,10 @@ public:
     int preparedCount = 0;
     int clearCount = 0;
     int predecodeScheduleCount = 0;
+    std::optional<kiriview::ImageLoadSession> replacementSession;
+    QSize replacementPrimarySize;
+    kiriview::ImageSpreadPageReplacementPairingResult replacementPairingResult
+        = kiriview::ImageSpreadPageReplacementPairingResult::Stale;
     kiriview::ImageSpreadPresentationController controller;
 };
 }
@@ -112,6 +122,7 @@ class TestImageSpreadPresentationController : public QObject
 private Q_SLOTS:
     void pagePairingAndWidthCacheRemainApplicationOwned();
     void shapeChangeSubmitsRequestedTargets();
+    void pendingReplacementReplansWhenTwoPageModeIsReenabled();
 };
 
 void TestImageSpreadPresentationController::pagePairingAndWidthCacheRemainApplicationOwned()
@@ -153,6 +164,45 @@ void TestImageSpreadPresentationController::shapeChangeSubmitsRequestedTargets()
     QCOMPARE(fixture.clearCount, 1);
     QVERIFY(!fixture.controller.secondaryPageVisible());
     QVERIFY(fixture.state.presentationLifecycleRevision() != twoPageRevision);
+}
+
+void TestImageSpreadPresentationController::pendingReplacementReplansWhenTwoPageModeIsReenabled()
+{
+    constexpr quint64 primarySessionId = 41;
+    const QSize portraitSize(800, 1200);
+    SpreadFixture fixture;
+    fixture.predecodedSizes[fixture.pageUrls.at(2)] = portraitSize;
+    fixture.predecodedSizes[fixture.pageUrls.at(4)] = portraitSize;
+    fixture.displayPrimary(2, portraitSize);
+    fixture.controller.setTwoPageModeEnabled(true);
+    QVERIFY(fixture.controller.secondaryPageVisible());
+
+    fixture.snapshot = navigationSnapshot(fixture.pageUrls, 4);
+    const QUrl replacementUrl = fixture.pageUrls.at(3);
+    const kiriview::ImageLoadRequest request = kiriview::ImageLoadRequest::fromSameScopePageTarget(
+        kiriview::ImageDocumentPageTarget {
+            replacementUrl, kiriview::ImageDocumentPageKind::Image },
+        openedCollectionScope());
+    fixture.replacementSession
+        = kiriview::ImageLoadSession(primarySessionId, request, displayedLocation(replacementUrl));
+    fixture.replacementPrimarySize = portraitSize;
+
+    QCOMPARE(fixture.controller.beginPageReplacementPairing(
+                 *fixture.replacementSession, fixture.replacementPrimarySize),
+        kiriview::ImageSpreadPageReplacementPairingResult::PreparingSecondary);
+    QVERIFY(fixture.controller.pageReplacementPairingPending());
+
+    fixture.controller.setTwoPageModeEnabled(false);
+    QCOMPARE(fixture.clearCount, 1);
+    QCOMPARE(fixture.replacementPairingResult,
+        kiriview::ImageSpreadPageReplacementPairingResult::PrimaryOnly);
+    QVERIFY(fixture.controller.pageReplacementPairingPending());
+
+    fixture.controller.setTwoPageModeEnabled(true);
+    QCOMPARE(fixture.clearCount, 2);
+    QCOMPARE(fixture.replacementPairingResult,
+        kiriview::ImageSpreadPageReplacementPairingResult::PreparingSecondary);
+    QVERIFY(fixture.controller.pageReplacementPairingPending());
 }
 
 QTEST_GUILESS_MAIN(TestImageSpreadPresentationController)

@@ -64,7 +64,8 @@ ImageOpenController::ImageOpenController(
     , m_callbacks(std::move(callbacks))
 {
     if (!m_callbacks.findPredecodedImage || !m_callbacks.runtimePlan
-        || !m_callbacks.openedCollectionVideoPlaybackAvailable || !m_callbacks.commitPrimaryPageSlot
+        || !m_callbacks.openedCollectionVideoPlaybackAvailable
+        || !m_callbacks.commitViewportPresentation
         || !m_callbacks.invalidatePendingViewportImageLoad
         || !m_callbacks.ensurePageCandidateSnapshot || !m_callbacks.startViewportImageTarget
         || !m_callbacks.resolveViewportImageTarget || !m_callbacks.firstDisplayDecodeContext
@@ -184,7 +185,12 @@ void ImageOpenController::finishViewportImageLoadReady(
     }
 
     [[maybe_unused]] auto batch = m_state.beginChangeBatch();
-    m_callbacks.commitPrimaryPageSlot(currentSession->location(), imageSize);
+    if (!m_callbacks.commitViewportPresentation(*currentSession, imageSize)) {
+        finishLoadWithError(*currentSession,
+            imagePresentationFailure(
+                *currentSession, imageErrorText(ImageErrorTextId::DecodeImageAnimation)));
+        return;
+    }
     if (!operationIsCurrent(revision)) {
         return;
     }

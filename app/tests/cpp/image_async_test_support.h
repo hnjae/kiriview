@@ -64,12 +64,12 @@ namespace Detail {
             return;
         }
 
-        QObject* object = operation->object;
+        const QPointer<QObject> guardedObject(operation->object);
         operation->completion.claimAndRun([&]() mutable {
             operation->object = nullptr;
             std::forward<Delivery>(delivery)(*operation);
-            if (object != nullptr) {
-                object->deleteLater();
+            if (guardedObject != nullptr) {
+                guardedObject->deleteLater();
             }
         });
     }

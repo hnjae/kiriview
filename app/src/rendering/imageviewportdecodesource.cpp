@@ -370,13 +370,25 @@ ImageViewportDecodeProviderSource::ImageViewportDecodeProviderSource(
     , m_decodeJob(this, m_dependencies,
           ImageDecodeJob::Callbacks {
               [this](const ImageDecodeRequest& request, DecodedImageResult result) {
-                  finishDecode(request, std::move(result));
+                  const std::shared_ptr<ImageViewportDecodeProviderSource> lifetime
+                      = weak_from_this().lock();
+                  if (lifetime != nullptr) {
+                      lifetime->finishDecode(request, std::move(result));
+                  }
               },
               [this](const ImageDecodeRequest& request, const QString& errorString) {
-                  finishDataLoadError(request, errorString);
+                  const std::shared_ptr<ImageViewportDecodeProviderSource> lifetime
+                      = weak_from_this().lock();
+                  if (lifetime != nullptr) {
+                      lifetime->finishDataLoadError(request, errorString);
+                  }
               },
               [this](const ImageDecodeRequest& request, StaticDisplayImagePayload displayImage) {
-                  finishThumbnail(request, std::move(displayImage));
+                  const std::shared_ptr<ImageViewportDecodeProviderSource> lifetime
+                      = weak_from_this().lock();
+                  if (lifetime != nullptr) {
+                      lifetime->finishThumbnail(request, std::move(displayImage));
+                  }
               },
           })
 {
@@ -397,6 +409,8 @@ ImageViewportDecodeProviderSource::~ImageViewportDecodeProviderSource() { close(
 bool ImageViewportDecodeProviderSource::resolveSession(
     ImageLoadSession session, std::optional<StaticDisplayImagePayload> authoritativeSeed)
 {
+    [[maybe_unused]] const std::shared_ptr<ImageViewportDecodeProviderSource> lifetime
+        = weak_from_this().lock();
     if (m_closed || m_session.has_value() || session.id() == 0
         || session.decodeRequest().isEmpty()) {
         return false;
@@ -424,6 +438,8 @@ ImageSequenceProviderMetadata ImageViewportDecodeProviderSource::constructionMet
 void ImageViewportDecodeProviderSource::requestMetadata(
     const ImageViewportProviderWorkIdentity& identity, MetadataCompletion completion)
 {
+    [[maybe_unused]] const std::shared_ptr<ImageViewportDecodeProviderSource> lifetime
+        = weak_from_this().lock();
     if (m_closed || !completion) {
         return;
     }
@@ -444,6 +460,8 @@ void ImageViewportDecodeProviderSource::requestFrame(
     const ImageViewportProviderWorkIdentity& identity, ImageViewportProviderFrameRequest request,
     FrameCompletion completion)
 {
+    [[maybe_unused]] const std::shared_ptr<ImageViewportDecodeProviderSource> lifetime
+        = weak_from_this().lock();
     if (m_closed || !completion) {
         return;
     }
@@ -829,6 +847,8 @@ void ImageViewportDecodeProviderSource::publishStaticFrame(PendingFrame pending)
 void ImageViewportDecodeProviderSource::startStaticRefinement(
     PendingFrame pending, StaticFramePlan plan, bool initialDemand)
 {
+    [[maybe_unused]] const std::shared_ptr<ImageViewportDecodeProviderSource> lifetime
+        = weak_from_this().lock();
     const quint64 attemptId = reserveStaticFrameAttemptId();
     const qint64 maximumReusableBytes = admittedStaticPayloadLimits(pending.request).maximumBytes;
     m_staticFrameAttempts.push_back(StaticFrameAttempt {
@@ -871,13 +891,17 @@ void ImageViewportDecodeProviderSource::startStaticRefinement(
             attempt->refinementWorkerUnitId = workerUnitId;
         }
 
+        const std::weak_ptr<ImageViewportDecodeProviderSource> weakSelf = weak_from_this();
         ImageWorkerTask task = m_dependencies.workerScheduler.run(
             this,
             [refinementSource, targetSize = plan.targetRasterSize]() {
                 return refinementSource->decodeRasterDisplayImage(targetSize);
             },
-            [this, workerUnitId](const StaticImageDisplayDecodeResult& result) {
-                finishStaticRefinement(workerUnitId, result);
+            [weakSelf, workerUnitId](const StaticImageDisplayDecodeResult& result) {
+                if (const std::shared_ptr<ImageViewportDecodeProviderSource> self
+                    = weakSelf.lock()) {
+                    self->finishStaticRefinement(workerUnitId, result);
+                }
             });
         attachWorkerTask(workerUnitId, std::move(task));
     }
@@ -972,9 +996,13 @@ void ImageViewportDecodeProviderSource::finishStaticRefinement(
 
 void ImageViewportDecodeProviderSource::scheduleInitialDetailDeadline(quint64 attemptId)
 {
-    std::unique_ptr<RuntimeTimerHandle> timer
-        = m_initialDetailTimerScheduler.singleShotTimer(this, initialDetailWaitDuration,
-            [this, attemptId]() { markInitialDetailDeadlineExpired(attemptId); });
+    const std::weak_ptr<ImageViewportDecodeProviderSource> weakSelf = weak_from_this();
+    std::unique_ptr<RuntimeTimerHandle> timer = m_initialDetailTimerScheduler.singleShotTimer(
+        this, initialDetailWaitDuration, [weakSelf, attemptId]() {
+            if (const std::shared_ptr<ImageViewportDecodeProviderSource> self = weakSelf.lock()) {
+                self->markInitialDetailDeadlineExpired(attemptId);
+            }
+        });
     const auto attempt = std::ranges::find_if(m_staticFrameAttempts,
         [attemptId](const StaticFrameAttempt& candidate) { return candidate.id == attemptId; });
     if (attempt == m_staticFrameAttempts.end() || timer == nullptr) {
@@ -1003,8 +1031,14 @@ void ImageViewportDecodeProviderSource::markInitialDetailDeadlineExpired(quint64
         attempt->deadlineCandidate = attempt->fallbackBasis;
     }
     attempt->deadlineExpired = true;
+    const std::weak_ptr<ImageViewportDecodeProviderSource> weakSelf = weak_from_this();
     const bool queued = QMetaObject::invokeMethod(
-        this, [this, attemptId]() { finishInitialDetailDeadline(attemptId); },
+        this,
+        [weakSelf, attemptId]() {
+            if (const std::shared_ptr<ImageViewportDecodeProviderSource> self = weakSelf.lock()) {
+                self->finishInitialDetailDeadline(attemptId);
+            }
+        },
         Qt::QueuedConnection);
     if (!queued) {
         attempt->deadlineExpired = false;
@@ -1265,6 +1299,8 @@ void ImageViewportDecodeProviderSource::discardRetainedStaticRefinementsExcept(q
 
 void ImageViewportDecodeProviderSource::publishAnimationFrame(PendingFrame pending)
 {
+    [[maybe_unused]] const std::shared_ptr<ImageViewportDecodeProviderSource> lifetime
+        = weak_from_this().lock();
     if (m_closed) {
         return;
     }
@@ -1285,15 +1321,17 @@ void ImageViewportDecodeProviderSource::publishAnimationFrame(PendingFrame pendi
     }
 
     const quint64 workerUnitId = reserveWorkerUnit(pending.identity);
+    const std::weak_ptr<ImageViewportDecodeProviderSource> weakSelf = weak_from_this();
     ImageWorkerTask task = m_dependencies.workerScheduler.run(
         this,
         [runtime = animation.runtime, requestedFrame]() { return runtime->frame(requestedFrame); },
-        [this, workerUnitId, pending = std::move(pending), animation, requestedFrame](
+        [weakSelf, workerUnitId, pending = std::move(pending), animation, requestedFrame](
             AnimationSourceFrameResult result) mutable {
-            if (!detachWorkerUnit(workerUnitId) || m_closed) {
+            const std::shared_ptr<ImageViewportDecodeProviderSource> self = weakSelf.lock();
+            if (self == nullptr || !self->detachWorkerUnit(workerUnitId) || self->m_closed) {
                 return;
             }
-            finishAnimationFrame(pending, animation, requestedFrame, std::move(result));
+            self->finishAnimationFrame(pending, animation, requestedFrame, std::move(result));
         });
     attachWorkerTask(workerUnitId, std::move(task));
 }
