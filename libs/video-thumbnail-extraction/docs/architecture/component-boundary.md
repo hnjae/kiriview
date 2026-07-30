@@ -39,7 +39,7 @@ Arrows point in the allowed dependency direction. The component owns all coordin
 
 The supported include forms are defined by the [public specification](../spec/video-thumbnail-extraction.md#repository-internal-interface). The umbrella header is declaration-free and includes the canonical subject header. All supported declarations use the `kiriview` namespace and component-prefixed names.
 
-The public subject header declares only public limits, request, result, failure, job, callback, and start-operation values. It must not include private workflow, backend, timer, media-fact, candidate-selection, effect-plan, player, sink, cache, navigation, session, collection, or test-support declarations.
+The public subject header declares only the supported limits, request, result, failure, job, callback, and start-operation values. Workflow, multimedia-backend, timing, resource, candidate-selection, application-policy, and verification-support declarations remain private.
 
 Private headers remain within the component compilation boundary. They must not be exposed through supported include directories or KiriView consumer dependencies.
 

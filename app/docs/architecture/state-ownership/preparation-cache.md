@@ -10,7 +10,7 @@ The thumbnail runtime owns source adaptation, demand, scheduling, async lifecycl
 
 The preparation runtimes own prepared image objects, decode jobs, reusable provider payload entries, byte pressure, recency, lifetime, preparation-window policy, priority, and eviction decisions. Preparation policy consumes snapshots and must not acquire a second live image or async-job state.
 
-Preparation windows govern new work and priority, not immediate cache destruction. Current and recently displayed images, the active preparation window, and warm same-scope entries are retained in that order while the byte budget permits. Scope replacement and explicit clear invalidate scope-owned warm entries; selection changes inside the same scope reprioritize rather than clear compatible work.
+Preparation windows govern new work and priority, not immediate cache destruction. Retention protects the current display and may preserve compatible recent, in-window, or warm same-scope entries within the byte budget; the exact retention ordering is runtime resource policy. Scope replacement and explicit clear invalidate scope-owned warm entries, while selection changes inside the same scope reprioritize rather than clear compatible work.
 
 The document-session preparation runtime owns still-image preparation for mixed direct-media scopes. The image-document preparation runtime owns it for image-page and opened-collection scopes. Each consumes the confirmed candidate view of its owning navigation scope together with accepted selection, presentation, power-saver, resource-limit, and execution facts without acquiring navigation or system-state ownership.
 

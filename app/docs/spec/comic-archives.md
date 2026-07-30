@@ -34,7 +34,7 @@ Fit, Fit Height, Fit Width, manual zoom, scrollbars, drag panning, wheel zoom, k
 
 The spread has no added page gap.
 
-The page number, window title, deletion target, archive navigation position, and one-page movement start from the primary/current page.
+The page number, window title, archive navigation position, and one-page movement start from the primary/current page. Deletion remains the collection-level operation defined by [File Access](file-access.md#deletion) and does not target an internal spread page.
 
 In Left-to-Right Reading mode, the primary/current page is rendered on the left and the next page is rendered on the right.
 

@@ -50,7 +50,7 @@ The result makes no promise about an exact frame, timestamp, seek sequence, fram
 
 `startVideoThumbnailExtraction` accepts a live non-null `QObject` receiver, one request, and one non-empty completion callback and returns a move-only `VideoThumbnailExtractionJob`. The receiver's affinity thread must have an event dispatcher capable of queued delivery for the operation lifetime. Start, moving or replacing an active job, cancellation, and destruction of an active job occur on the receiver's affinity thread; completion is delivered on that thread while the receiver is alive. These receiver, callback, dispatcher, and thread requirements are caller preconditions rather than request values, and violating them has no supported result or callback behavior.
 
-Completion is never invoked before `startVideoThumbnailExtraction` returns. Every admitted operation that is not canceled delivers exactly one terminal `Ready` or `Failed` result. The job remains active while terminal delivery is pending and becomes inactive immediately before invoking completion, so completion may safely release the job, destroy the receiver, or start another extraction.
+Completion is never invoked before `startVideoThumbnailExtraction` returns. Every admitted operation that is neither canceled nor suppressed by receiver destruction delivers exactly one terminal `Ready` or `Failed` result. The job remains active while terminal delivery is pending and becomes inactive immediately before invoking completion, so completion may safely release the job, destroy the receiver, or start another extraction.
 
 `VideoThumbnailExtractionJob::cancel()` is idempotent. Destroying or replacing an active job cancels it. Cancellation while terminal delivery is pending suppresses that delivery. Once cancellation returns, completion is permanently suppressed even if backend, timer, queued, or reentrant events arrive later. Destroying the receiver has the same suppression guarantee.
 
@@ -63,6 +63,6 @@ The component exposes one intentional C++23 include surface to KiriView:
 - `<VideoThumbnailExtraction/VideoThumbnailExtraction>` is a declaration-free umbrella header.
 - `<VideoThumbnailExtraction/videothumbnailextraction.h>` declares `VideoThumbnailExtractionLimits`, request, result, failure, job, callback, and start operation types in the `kiriview` namespace.
 
-No workflow state, candidate-position helper, frame-interest helper, operation plan, backend factory, multimedia fact, timer port, player, video sink, or test instrumentation is part of the supported interface.
+Only the declarations listed above are part of the supported interface. No other declarations are supported.
 
 `VideoThumbnailExtraction` is not an independently consumable SDK and makes no installed-header, exported-package, stable ABI, semantic-versioning, QML URI, plugin, or source-compatibility promise. KiriView and the component evolve atomically in this repository without compatibility shims.

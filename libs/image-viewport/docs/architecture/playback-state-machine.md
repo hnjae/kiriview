@@ -1,6 +1,6 @@
 # Playback State Machine
 
-Playback state belongs to the viewport engine, not the render host, provider, scheduler, KiriView integration owner, or QML. Primary and secondary roles each own an independent instance of the same state machine, including intent, phase, selected target, elapsed frame progress, authored loop progress, pending playback request, and latest non-playback target.
+Playback state belongs to the viewport engine, not rendering, providers, scheduling, KiriView integration policy, or QML. Primary and secondary roles each own an independent instance of the same state machine, including intent, phase, selected target, elapsed frame progress, authored loop progress, pending playback request, and latest non-playback target. Public commands and phase observations are defined by [ImageViewport](../spec/image-viewport.md#requests-commands-and-playback), [ImageViewport API](../spec/image-viewport-api.md#command-values), and [ImageViewport State](../spec/image-viewport-state.md#state-enums-and-tokens).
 
 ```mermaid
 stateDiagram-v2
@@ -51,10 +51,10 @@ A provider `FrameReady` event alone does not resume playback. The payload passes
 
 ## Scheduling And Timing
 
-The engine emits independently identified scheduling effects for each playing role. The scheduler owns timer resources and monotonic elapsed capture and returns timeout facts carrying role, generation, and schedule identity. A host may coalesce physical wakeups, but it cannot merge role clocks, lose role identity, or use one role's pending work to suppress another role's deadline.
+Scheduling preserves independent role, generation, deadline, and monotonic elapsed-time correlation for each playing role. Physical wakeups may be coalesced, but they cannot merge role clocks, lose role identity, or use one role's pending work to suppress another role's deadline. The timer and timeout-delivery representation is not an architecture contract.
 
 Frame timing comes from validated sequence metadata and authored animation facts. If a role's timing metadata is unavailable, that role waits with unknown requested frame and position without inventing loop progress or accumulating catch-up time. A sibling with complete metadata continues normally.
 
 Frame intervals are half-open over sequence duration. A play-once role reaching total duration selects the final frame without publishing a beyond-final target and stops only after that target commits or matching visible final-frame pixels are promoted. A looping role wraps from total duration to position zero without exposing a transient out-of-range position.
 
-The engine may reserve a candidate loop crossing when it accepts a wrapped-frame request, but authored loop progress advances only when that role's wrapped target commits or is promoted. Completed plays are tracked per role against that role's authored play-once, finite, or infinite policy. The shared caller `looping` preference forces infinite looping independently for every role when true and otherwise leaves each role under its authored policy. Invalid seeks, unsupported seeks, provider failures, render failures, and stale results discard only the affected reservation unless aggregate terminal projection stops the complete target.
+Authored loop progress advances only when the role's wrapped target commits or matching visible content is promoted. Completed plays are tracked per role against that role's authored play-once, finite, or infinite policy. The shared caller `looping` preference forces infinite looping independently for every role when true and otherwise leaves each role under its authored policy. Invalid seeks, unsupported seeks, provider failures, render failures, and stale results do not advance loop progress; aggregate terminal projection stops the complete target under the public failure contract. Any pending-loop representation is an implementation choice.

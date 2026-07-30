@@ -13,7 +13,7 @@ QObject and QQuickItem facade classes own the public QML surface:
 - Conversion between QML-friendly types and owner-facing application APIs.
 - Thin forwarding to the responsible owners and integration surfaces.
 
-Application facade classes, including the KiriView image-viewport facade, are the only QML-facing application API boundaries. API visibility does not transfer domain ownership: KiriView QML forwards raw image interaction facts through the image-viewport integration owner and does not invoke the dependency directly. Domain behavior must live in the appropriate application runtime or policy owner instead of growing facade-owned workflow state.
+Application facade classes, including the KiriView image-viewport facade, are the only QML-facing application API boundaries. API visibility does not transfer domain ownership: KiriView QML forwards raw image interaction facts through the ImageViewport integration owner and does not invoke the dependency directly. Domain behavior must live in the appropriate application runtime or policy owner instead of growing facade-owned workflow state.
 
 Application runtime and policy responsibilities belong to named owners:
 
@@ -24,7 +24,7 @@ Application runtime and policy responsibilities belong to named owners:
 - KIO jobs, KDE settings, dialogs, notifications, file operations, and runtime integration.
 - Localized user-facing strings for dialogs, menus, actions, notifications, desktop metadata, and other UI surfaces. Localization integration consumes installed translation catalogs and KDE/Qt language settings while preserving the English fallback contract.
 - Supported-media capability modules expose canonical extension, MIME-type, and collection-kind facts consumed by routing, open-dialog filters, desktop-file advertising, adjacent navigation eligibility, thumbnail eligibility, and decoder-route selection. Image-format policy owns advertised image extension and MIME-type metadata plus decoder-family selection as defined by [Extension Contracts](extension-contracts.md#decoder-contracts). The supported-media capability boundary publishes canonical direct-video extension and MIME-type facts, and collection-access owners publish collection-kind and entry-playability capabilities. Qt/KDE adapters consume those facts and own localized file-dialog labels; no consumer may maintain a divergent supported-media list or become a second format-policy owner.
-- The image-document integration owner as the application adapter for selected source identity, page pairing, reading and scan policy, supported target and command submission, opaque correlation, failure-reference resolution, and KiriView-facing projection.
+- The ImageViewport integration owner as the image-document runtime's application adapter for selected source identity, page pairing, reading and scan policy, supported target and command submission, opaque correlation, failure-reference resolution, and KiriView-facing projection.
 - Image provider-resource owners as owners of source access, decoded payloads, application cache and display-store entries, predecode and refinement work, typed failure records, provider sessions, payload leases, and supported ownership callbacks only.
 - Image presentation through the supported `ImageViewport` boundary. KiriView enforces its own cache, display-store, and source-work budgets behind the provider boundary but must not bypass the dependency with an application-owned presentation or rendering path.
 

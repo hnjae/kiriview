@@ -44,15 +44,15 @@ The Info Panel uses the same width bounds in inline and overlay modes: minimum 1
 
 ## Thumbnail Panel Content
 
-The Thumbnail Panel is a compact, layout-reserving bottom filmstrip in the remaining media area to the left of the Info Panel. It uses the same dark viewer surface and matching foreground colors as the media viewport rather than a light page-panel surface.
+The Thumbnail Panel is a compact, layout-reserving bottom filmstrip in the media area. When the Info Panel is inline, the filmstrip uses the media area that remains to its left; when the Info Panel is an overlay drawer, the filmstrip keeps the full underlying media width and may be covered by the drawer. It uses the same dark viewer surface and matching foreground colors as the media viewport rather than a light page-panel surface.
 
-The Thumbnail Panel shows a horizontal, scrollable active-navigation strip when the active navigation list is known. Each strip item renders according to the thumbnail eligibility and fallback behavior defined in [Navigation](navigation.md#page-controls). The candidate name is rendered in a fixed-width font on one elided line. The horizontal scrollbar occupies a dedicated lane below the strip items and must not overlap or obscure candidate names.
+The Thumbnail Panel shows a horizontal, scrollable active-navigation strip when the active navigation list is known. Each strip item renders according to the thumbnail eligibility and fallback behavior defined in [Navigation](navigation.md#thumbnail-strip-eligibility). The candidate name is rendered in a fixed-width font on one elided line. The horizontal scrollbar occupies a dedicated lane below the strip items and must not overlap or obscure candidate names.
 
 The Thumbnail Panel has a subtle top separator using the viewer foreground color at reduced opacity. Strip items use compact spacing, a small corner radius, and a subtle hover fill without shadow, glow, or card treatment. The selected strip item is indicated with a 2-pixel border using the theme highlight color.
 
 The Thumbnail Panel uses image and video icons to distinguish supported still images from supported videos.
 
-The number of visible strip items matches the active navigation total count. When active navigation is unavailable or unknown, the strip is empty.
+The strip contains one item for each active-navigation candidate, so its item count matches the active navigation total count. When active navigation is unavailable or unknown, the strip is empty.
 
 ## Thumbnail Panel Selection And Scrolling
 
@@ -62,11 +62,11 @@ The Thumbnail Panel does not remap vertical mouse-wheel events to horizontal mov
 
 ## Panel Resizing, Shortcuts, And State
 
-When both panels are visible, the Info Panel occupies the right side for the full content height, and the Thumbnail Panel occupies only the bottom of the media area that remains to its left.
+When both panels are visible and the Info Panel is inline, the Info Panel occupies the right side for the full content height and the Thumbnail Panel occupies only the bottom of the media area that remains to its left. In overlay mode, the Info Panel covers the right side of the underlying media area and the Thumbnail Panel without changing either one's layout.
 
 The panels are resizable with splitters. The Thumbnail Panel minimum height is tall enough to show the media-type icon, one-line candidate name, and dedicated horizontal scrollbar lane without clipping. Its default resizable height range is compact, roughly 6 to 7.5 Kirigami grid units.
 
-I toggles the Info Panel in viewer context, and T toggles the Thumbnail Panel in viewer context.
+The default viewer-local shortcuts are I for the Info Panel and T for the Thumbnail Panel.
 
 The panel toggle shortcuts are user-configurable viewer-local shortcuts, not fixed shortcuts.
 

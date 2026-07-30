@@ -21,7 +21,7 @@ The component validates the complete request against the public contract before 
 
 An admitted operation owns its request values after start returns and does not borrow the caller's request or URL storage. The start barrier prevents callback delivery before `startVideoThumbnailExtraction` returns, including when request rejection or multimedia behavior produces a terminal outcome synchronously.
 
-Receiver validity, callback presence, event-dispatcher availability, and affinity-thread use are caller preconditions defined by the public specification rather than request admission conditions.
+Receiver validity, callback presence, event-dispatcher availability, and affinity-thread use are caller preconditions defined by the [public asynchronous-operation contract](../spec/video-thumbnail-extraction.md#asynchronous-operation) rather than request admission conditions.
 
 ## Source Access
 

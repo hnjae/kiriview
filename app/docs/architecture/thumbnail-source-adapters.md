@@ -18,7 +18,7 @@ Each demand update is one immutable snapshot correlated with the accepted naviga
 
 Admission follows the visible, nearby, selected, and optional background priorities defined by [Navigation](../spec/navigation.md). Higher-priority demand can displace lower-priority work, and a failed higher-detail request preserves an already usable lower-detail result.
 
-The thumbnail runtime bounds aggregate admitted work and resource pressure across source providers. Each provider bounds one admitted operation within its own contract. Demand that is not admitted remains pending without acquiring expensive provider resources, and optional background work yields to foreground demand. Exact capacities, queue structure, and tie-breaking among equal-priority rows are runtime resource policy.
+The thumbnail runtime bounds aggregate admitted work and resource pressure across source providers. Each provider bounds the resources acquired by its admitted operations according to its own contract. Demand that is not admitted remains pending without acquiring expensive provider resources, and optional background work yields to foreground demand. Exact capacities, queue structure, and tie-breaking among equal-priority rows are runtime resource policy.
 
 Row identity, source freshness, requested physical-size bucket, priority, and work correlation remain associated through scheduling and completion. A completion may publish only after both the backend job owner and the thumbnail runtime accept that correlation. Cancellation is best-effort; invalidated or late callbacks are no-ops.
 

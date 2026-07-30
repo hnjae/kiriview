@@ -84,7 +84,7 @@ When an image, direct video, playable collection video, or opened-collection uns
 
 The actions are available from the application menu or menubar File menu and through their shortcuts, but not from the toolbar.
 
-KiriView delegates user confirmation and the actual file operation to KDE's file operation handling, so users see and can cancel the target KDE is about to delete.
+Before the file operation begins, the desktop confirmation identifies the exact deletion target and allows the user to cancel.
 
 If the operation is canceled, the current media item remains open and no notification is shown. If it fails, the current media item remains open and the file operation error is shown as an in-app toast notification.
 
@@ -96,7 +96,7 @@ The deletion target is the original direct media URL for direct videos, includin
 
 When the displayed media item is inside a directly opened local archive collection, the deletion target is the archive file itself rather than the currently displayed internal entry.
 
-When the displayed media item is inside a local directory collection opened directly by KiriView, the deletion target is the directory itself rather than the currently displayed file. Confirming the deletion deletes the entire directly opened directory as handled by KDE.
+When the displayed media item is inside a local directory collection opened directly by KiriView, the deletion target is the directory itself rather than the currently displayed file. Confirming the deletion deletes the entire directly opened directory.
 
 After deletion succeeds, KiriView immediately clears the deleted image or stops playback for the deleted video.
 

@@ -6,7 +6,7 @@ Controls that require selected, navigable, or ready media are disabled until the
 
 Configurable application actions and their placements use one shared availability decision. If an action is unavailable for the current media, mode, or interaction context, activating its menu item, toolbar placement, context-menu placement, or shortcut has no effect.
 
-Known navigation boundaries are a dispatch outcome rather than media unavailability. Previous, Next, First, and Last placements are disabled when they have no target, but configured and fixed viewer-navigation shortcuts may still request the command so KiriView can provide the documented boundary feedback.
+Known Previous and Next navigation boundaries are dispatch outcomes rather than media unavailability. Previous and Next placements are disabled when they have no target, but configured and fixed viewer-navigation shortcuts may still request those commands so KiriView can provide the documented boundary feedback. First and Last follow the ordinary unavailable-action rule when they have no target.
 
 Configurable shortcuts have a declared activation scope. Program-wide shortcuts are active throughout the KiriView window subject to the action's normal enabled state. Viewer-local shortcuts are active only in viewer context after the viewer shortcut gates for the action are enabled.
 
@@ -38,7 +38,7 @@ Program-wide and viewer-local configurable shortcuts are both listed. Viewer-loc
 
 Shortcut help is grouped by app-menu category headers.
 
-Each listed action is shown as a compact form-card delegate with the action text on the leading side and one or more rounded, fixed-width keycap badges for its configured shortcut sequences on the trailing side.
+Each listed action is shown as a compact row with the action text on the leading side and one or more rounded, fixed-width keycap badges for its configured shortcut sequences on the trailing side.
 
 It does not list fixed shortcuts, mouse gestures, or mouse-wheel gestures.
 
@@ -60,7 +60,7 @@ Outside fullscreen, Escape does not close the main window.
 
 Ctrl+Q closes the main window as the default program-wide configurable Quit shortcut.
 
-The viewer-local configurable Quit shortcut is `q`; it closes the main window only while viewer-local shortcuts are active.
+The default viewer-local configurable Quit shortcut is `q`; it closes the main window only while viewer-local shortcuts are active.
 
 Quit shortcuts using Ctrl, Alt, or Meta remain active while those inputs are focused.
 

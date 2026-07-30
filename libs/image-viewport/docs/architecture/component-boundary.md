@@ -1,6 +1,6 @@
 # Repository Component Boundary
 
-`ImageViewport` is a repository-internal component with one consumer, KiriView. The application build compiles and links the component directly and registers the application-owned `KiriImageViewportSurface` façade as part of its QML surface; that façade owns an `ImageViewport` C++ child. The component does not directly register or expose `ImageViewport` as a production QML type. The build must not install or advertise a standalone SDK, QML URI and import version, exported package target, compatibility version, or independently consumable plugin.
+`ImageViewport` is a repository-internal component with one consumer, KiriView. The application build compiles and links the component directly and exposes it to production QML only through an application-owned facade boundary that controls component access and lifetime. The component does not directly register or expose `ImageViewport` as a production QML type. The exact facade and child-item decomposition is not an architecture contract. The build must not install or advertise a standalone SDK, QML URI and import version, exported package target, compatibility version, or independently consumable plugin.
 
 The component must remain a separately named build target so ownership and dependencies are explicit. KiriView production code depends only on the declared component interface; it must not include engine-private headers, provider-host transport internals, render-host types, scene graph resources, native texture handles, or instrumentation types.
 
@@ -16,24 +16,7 @@ KiriView and `ImageViewport` coordinate any toolchain-baseline change atomically
 
 Component declarations are partitioned into five canonical interface subjects: shared values and tokens, image sequences and factories, the provider adapter contract, the viewport item and presentation commands, and state snapshots, command results, and coordinate input and result values. The supported include forms are defined by the [component-boundary specification](../spec/image-viewport-component-boundary.md). Other declarations and all implementation definitions remain private to the component.
 
-The umbrella header is declaration-free and includes all canonical subject headers. It is a convenience entry point, not a separate declaration source. The subject headers form an acyclic dependency graph; arrows below point from a subject to a subject it may depend on.
-
-```mermaid
-flowchart TD
-    Umbrella[ImageViewport umbrella] --> Types[Shared values and tokens]
-    Umbrella --> Sequence[Image sequences and factories]
-    Umbrella --> Provider[Provider adapter contract]
-    Umbrella --> Viewport[Viewport item and presentation commands]
-    Umbrella --> State[State and operation values]
-    Sequence --> Types
-    Provider --> Types
-    Provider --> Sequence
-    Viewport --> Types
-    Viewport --> Sequence
-    Viewport --> State
-    State --> Types
-    State --> Sequence
-```
+The umbrella header is declaration-free and includes all canonical subject headers. It is a convenience entry point, not a separate declaration source. Supported subject headers remain acyclic, independently usable for their declared subjects, and free of private component declarations; their exact internal include arrangement is not an architecture contract.
 
 Shared enums, opaque tokens, roles, ranges, and value primitives needed by more than one subject belong to shared values rather than the viewport item. State and operation values do not depend on the item declaration, provider implementations do not acquire a Qt Quick item dependency merely to use protocol values, and snapshot consumers do not acquire provider-session transport merely to observe state.
 

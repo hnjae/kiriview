@@ -22,9 +22,9 @@ Adjacent navigation actions are projected in reading progression order. When Rig
 
 The menubar Go menu projects directional navigation icons to match the displayed reading progression meaning without changing the underlying action identity. When Right-to-Left Reading is active, Next uses the previous-direction icon, Previous uses the next-direction icon, First uses the last-boundary icon, and Last uses the first-boundary icon.
 
-The toolbar application menu is a single popup menu surface. Activating the toolbar application menu button and pressing F10 open a toolbar application menu with the same width, actions, access keys, and shortcut column.
+The toolbar application menu is a single popup menu surface. When Hamburger Menu presentation is active outside fullscreen, activating the toolbar application menu button or pressing F10 opens that surface with the same width, actions, access keys, and shortcut column.
 
-Activating the toolbar application menu button while that menu is open closes it. Pressing F10 opens the toolbar application menu and leaves it open when it is already open.
+In that presentation, activating the toolbar application menu button while the menu is open closes it. Pressing F10 opens the menu and leaves it open when it is already open.
 
 The menubar and toolbar application menu display one representative configured program-wide shortcut for actions with user-configurable program-wide shortcuts through the menu action's shortcut column.
 
@@ -67,8 +67,6 @@ The right-click gesture is a fixed mouse gesture. It is not listed in Keyboard S
 Ctrl+M toggles the application menu presentation between Hamburger Menu and Menubar.
 
 KiriView may show Ctrl+M as display-only shortcut text on the Show Menubar menu item or tooltip.
-
-When Hamburger Menu presentation is active outside fullscreen, F10 opens the toolbar application menu.
 
 KiriView may show F10 as display-only shortcut text on the toolbar application menu button tooltip.
 

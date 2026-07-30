@@ -36,7 +36,9 @@ When an archive collection or directly opened local directory collection is disp
 
 KiriView does not show file paths in the window title.
 
-When no image, video, archive page, or directory page is displayed, the window title is `KiriView`.
+While an accepted selected media target is loading or has a target-specific error, these title rules use that selected target and its accepted collection context; intrinsic size, page position, and other details that are not yet known are omitted.
+
+When no accepted media target or opened collection is selected, the window title is `KiriView`.
 
 ## Fullscreen
 

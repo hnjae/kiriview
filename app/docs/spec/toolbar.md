@@ -28,7 +28,7 @@ Right-to-Left Reading and Two-Page Spread visibility is determined by the active
 
 When Right-to-Left Reading or Two-Page Spread is visible for an opened collection that is not a [comic book archive](comic-archives.md#two-page-spread-and-reading-direction), the control is disabled.
 
-When full trailing toolbar controls fit and Right-to-Left Reading and Two-Page Spread are visible, they are text-beside-icon buttons with the toolbar labels `Right-to-Left` and `Two-Page Spread`. If the toolbar cannot fit the text-bearing controls, KiriView may collapse them to icon-only controls or move them into overflow according to Kirigami toolbar layout behavior.
+When full trailing toolbar controls fit and Right-to-Left Reading and Two-Page Spread are visible, they are text-beside-icon buttons with the toolbar labels `Right-to-Left` and `Two-Page Spread`. If the toolbar cannot fit the text-bearing controls, KiriView may collapse them to icon-only controls or move them into overflow.
 
 Visible text-bearing Right-to-Left Reading and Two-Page Spread toolbar buttons expose control mnemonics through the toolbar button labels. Their menu labels, tooltips, action identity, shortcut configuration, checked state, and enabled state remain unchanged.
 
@@ -42,4 +42,4 @@ When active navigation is unavailable or unknown, the toolbar page navigation re
 
 The toolbar page navigation arrow buttons keep their physical affordance. The left arrow button triggers Previous in Left-to-Right Reading mode and Next in Right-to-Left Reading mode. The right arrow button triggers Next in Left-to-Right Reading mode and Previous in Right-to-Left Reading mode. Each button's tooltip and accessible text follow the action that button triggers.
 
-The toolbar page navigation arrow buttons, page-number entry, shared Previous, Next, First, and Last actions, menus, and shortcuts all target the same active navigation scope. Visible placements share the scope's enabled state; configured and fixed viewer-navigation shortcuts may still request a command at a known boundary so KiriView can provide the documented boundary feedback.
+The toolbar page navigation arrow buttons, page-number entry, shared Previous, Next, First, and Last actions, menus, and shortcuts all target the same active navigation scope. Visible placements share the scope's enabled state; configured and fixed viewer-navigation shortcuts may still request Previous or Next at a known boundary so KiriView can provide the documented boundary feedback. First and Last follow their visible availability at the corresponding boundary.

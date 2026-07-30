@@ -8,7 +8,7 @@ The workflow owner receives UI and runtime facts, applies authoritative state, e
 
 Event loops, reducers, direct owner APIs, and other internal coordination shapes are implementation choices. Request, loading, decoding, failure, presentation, completion, and other out-of-order work must carry enough owner-held identity for the workflow owner to reject stale results.
 
-Policy may compute loading status, error recovery, navigation updates, cache policy, and follow-up decisions from coherent owned values. Runtime owners keep the actual KIO job, decoder job, KiriView viewport integration owner, image provider resource, and Qt notification. The viewport integration owner uses only the supported dependency boundary and does not model presentation internals.
+Policy may compute loading status, error recovery, navigation updates, cache policy, and follow-up decisions from coherent owned values. Runtime owners keep the actual KIO job, decoder job, ImageViewport integration owner, image provider resource, and Qt notification. The ImageViewport integration owner uses only the supported dependency boundary and does not model presentation internals.
 
 Workflows that update visible state must distinguish committed public state from pending targets. They publish the new state only after the resources required for that state are ready, unless the user-visible spec explicitly defines an intermediate placeholder or retained-display state.
 
