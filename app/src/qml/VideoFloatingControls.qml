@@ -18,10 +18,11 @@ Controls.Control {
     required property KiriVideoPlaybackControls playbackControls
     readonly property bool fixedMode: playbackControls.fixedMode
     readonly property bool interactionActive: controlsHoverHandler.hovered || playPauseButton.pressed || playPauseButton.activeFocus || timelineSlider.pressed || timelineSlider.activeFocus || muteButton.pressed || muteButton.activeFocus
-    readonly property real horizontalViewportMargin: Kirigami.Units.largeSpacing * 2
-    readonly property real availableResponsiveWidth: parent ? Math.max(0, parent.width - horizontalViewportMargin) : implicitWidth
-    readonly property real preferredResponsiveWidth: parent ? parent.width * 0.75 : implicitWidth
-    readonly property real floatingWidth: parent ? Math.min(availableResponsiveWidth, Math.max(implicitWidth, preferredResponsiveWidth)) : implicitWidth
+    readonly property real floatingNaturalWidth: leftPadding + rightPadding + controlsRow.implicitWidth
+    readonly property real floatingSideMargin: Kirigami.Units.largeSpacing
+    readonly property real availableResponsiveWidth: parent ? Math.max(0, parent.width - floatingSideMargin * 2) : floatingNaturalWidth
+    readonly property real preferredResponsiveWidth: parent ? parent.width * 0.75 : floatingNaturalWidth
+    readonly property real floatingWidth: parent ? Math.min(availableResponsiveWidth, Math.max(floatingNaturalWidth, preferredResponsiveWidth)) : floatingNaturalWidth
 
     leftPadding: Kirigami.Units.smallSpacing
     rightPadding: Kirigami.Units.smallSpacing
@@ -72,6 +73,8 @@ Controls.Control {
     }
 
     contentItem: RowLayout {
+        id: controlsRow
+
         spacing: Kirigami.Units.smallSpacing
 
         Controls.ToolButton {

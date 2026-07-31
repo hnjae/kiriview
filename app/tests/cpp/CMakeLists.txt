@@ -54,8 +54,9 @@ foreach(test_target IN ITEMS tst_heiftilingplan tst_kiriimagedecoder)
     target_link_libraries(${test_target} PRIVATE PkgConfig::LibHeif)
 endforeach()
 
-foreach(test_target IN ITEMS tst_imagestateoverlay tst_imagezoomcontrols tst_mainwindowtoolbar
-                             tst_mainwindowvideointegration tst_thumbnailpanel)
+foreach(test_target IN
+        ITEMS tst_imagestateoverlay tst_imagezoomcontrols tst_mainwindowtoolbar
+              tst_mainwindowvideointegration tst_thumbnailpanel tst_videofloatingcontrols)
     target_link_libraries(${test_target} PRIVATE Qt6::QuickControls2)
 endforeach()
 
@@ -120,6 +121,11 @@ endif()
 
 if(TARGET tst_thumbnailpanel)
     set_tests_properties(tst_thumbnailpanel PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
+
+if(TARGET tst_videofloatingcontrols)
+    set_tests_properties(tst_videofloatingcontrols PROPERTIES ENVIRONMENT
+                                                              "QT_QPA_PLATFORM=offscreen")
 endif()
 
 if(TARGET tst_toolbarapplicationmenu)

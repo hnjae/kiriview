@@ -74,17 +74,17 @@ void VideoPlaybackControlRuntime::replaceSource(quint64 sourceRevision)
     m_explicitlyRevealed = true;
     m_scrubbing = false;
     m_scrubPositionMsec = 0;
+    reevaluatePresentationMode();
     publishProjection();
 }
 
 void VideoPlaybackControlRuntime::acceptEnvironment(VideoPlaybackControlEnvironment environment)
 {
     const std::weak_ptr<void> lifetime = m_callbackLifetime;
-    const VideoPlaybackControlPresentationMode previousMode = presentationMode();
     const int previousDelay = m_environment.autoHideDelayMsec;
     m_environment = environment;
     m_environmentKnown = true;
-    if (previousMode != presentationMode()) {
+    if (!m_scrubbing && reevaluatePresentationMode()) {
         m_explicitlyRevealed = true;
     }
     if (previousDelay != m_environment.autoHideDelayMsec) {
@@ -111,12 +111,16 @@ void VideoPlaybackControlRuntime::acceptMediaSnapshot(VideoPlaybackControlMediaS
 
     const bool readinessChanged = m_media.ready != snapshot.ready;
     const bool playingChanged = m_media.playing != snapshot.playing;
+    const bool wasScrubbing = m_scrubbing;
     m_media = snapshot;
     if (!m_media.ready || timelineKind() != VideoPlaybackTimelineKind::Seekable) {
         if (seekGateWasOpen) {
             m_seekGate.invalidate();
         }
         m_scrubbing = false;
+    }
+    if (wasScrubbing && !m_scrubbing && reevaluatePresentationMode()) {
+        m_explicitlyRevealed = true;
     }
     if (readinessChanged || playingChanged) {
         m_explicitlyRevealed = true;
@@ -198,6 +202,9 @@ std::optional<VideoPlaybackSeekIntent> VideoPlaybackControlRuntime::commitScrub(
     };
     m_media.positionMsec = positionMsec;
     m_scrubbing = false;
+    if (reevaluatePresentationMode()) {
+        m_explicitlyRevealed = true;
+    }
     publishProjection();
     if (lifetime.expired() || !acceptsSeekIntent(intent)) {
         return std::nullopt;
@@ -216,6 +223,9 @@ void VideoPlaybackControlRuntime::cancelScrub()
     }
     const std::weak_ptr<void> lifetime = m_callbackLifetime;
     m_scrubbing = false;
+    if (reevaluatePresentationMode()) {
+        m_explicitlyRevealed = true;
+    }
     publishProjection();
     if (lifetime.expired()) {
         return;
@@ -301,17 +311,55 @@ VideoPlaybackControlProjection VideoPlaybackControlRuntime::projectedState() con
 
 VideoPlaybackControlPresentationMode VideoPlaybackControlRuntime::presentationMode() const
 {
-    const bool validGeometry = m_environmentKnown && std::isfinite(m_environment.viewportWidth)
-        && std::isfinite(m_environment.viewportHeight) && std::isfinite(m_environment.gridUnit)
-        && m_environment.viewportWidth > 0.0 && m_environment.viewportHeight > 0.0
-        && m_environment.gridUnit > 0.0 && m_environment.autoHideDelayMsec > 0;
-    if (!validGeometry || m_environment.mobile || m_environment.transientTouchInput
-        || m_environment.longAnimationDurationMsec <= 0
-        || m_environment.viewportWidth < m_environment.gridUnit * 32.0
-        || m_environment.viewportHeight < m_environment.gridUnit * 16.0) {
-        return VideoPlaybackControlPresentationMode::Fixed;
+    return m_presentationMode;
+}
+
+bool VideoPlaybackControlRuntime::presentationEnvironmentValid() const
+{
+    if (!m_environmentKnown || !std::isfinite(m_environment.viewportWidth)
+        || !std::isfinite(m_environment.viewportHeight) || !std::isfinite(m_environment.gridUnit)
+        || !std::isfinite(m_environment.floatingNaturalWidth)
+        || !std::isfinite(m_environment.floatingSideMargin)) {
+        return false;
     }
-    return VideoPlaybackControlPresentationMode::Floating;
+    const qreal requiredExtent
+        = m_environment.floatingNaturalWidth + m_environment.floatingSideMargin * 2.0;
+    const qreal floatingEntryExtent = requiredExtent + m_environment.gridUnit;
+    return m_environment.viewportWidth > 0.0 && m_environment.viewportHeight > 0.0
+        && m_environment.gridUnit > 0.0 && m_environment.floatingNaturalWidth > 0.0
+        && m_environment.floatingSideMargin >= 0.0 && std::isfinite(requiredExtent)
+        && std::isfinite(floatingEntryExtent) && m_environment.autoHideDelayMsec > 0;
+}
+
+bool VideoPlaybackControlRuntime::reevaluatePresentationMode()
+{
+    const VideoPlaybackControlPresentationMode previousMode = m_presentationMode;
+    const bool forcedFixed = !presentationEnvironmentValid() || m_environment.mobile
+        || m_environment.transientTouchInput || m_environment.longAnimationDurationMsec <= 0;
+    if (forcedFixed) {
+        m_presentationMode = VideoPlaybackControlPresentationMode::Fixed;
+        return previousMode != m_presentationMode;
+    }
+
+    const qreal requiredExtent
+        = m_environment.floatingNaturalWidth + m_environment.floatingSideMargin * 2.0;
+    if (m_presentationMode == VideoPlaybackControlPresentationMode::Floating) {
+        const bool remainFloating = m_environment.viewportWidth >= m_environment.gridUnit * 32.0
+            && m_environment.viewportHeight >= m_environment.gridUnit * 16.0
+            && m_environment.viewportWidth >= requiredExtent;
+        if (!remainFloating) {
+            m_presentationMode = VideoPlaybackControlPresentationMode::Fixed;
+        }
+        return previousMode != m_presentationMode;
+    }
+
+    const bool enterFloating = m_environment.viewportWidth >= m_environment.gridUnit * 33.0
+        && m_environment.viewportHeight >= m_environment.gridUnit * 17.0
+        && m_environment.viewportWidth >= requiredExtent + m_environment.gridUnit;
+    if (enterFloating) {
+        m_presentationMode = VideoPlaybackControlPresentationMode::Floating;
+    }
+    return previousMode != m_presentationMode;
 }
 
 VideoPlaybackTimelineKind VideoPlaybackControlRuntime::timelineKind() const

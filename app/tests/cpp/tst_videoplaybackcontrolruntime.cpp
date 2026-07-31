@@ -16,6 +16,8 @@ class TestVideoPlaybackControlRuntime : public QObject
 
 private Q_SLOTS:
     void environmentFactsSelectPresentationMode();
+    void presentationModeUsesStableHysteresis();
+    void presentationModeChangesWaitForActiveScrub();
     void invalidAndNonSeekableTimelinesHaveTypedProjections();
     void activeScrubRejectsBackendPositionProjection();
     void autoHideUsesInjectedTimerEvents();
@@ -30,6 +32,8 @@ kiriview::VideoPlaybackControlEnvironment floatingEnvironment()
         1280.0,
         720.0,
         18.0,
+        360.0,
+        16.0,
         false,
         false,
         200,
@@ -73,6 +77,135 @@ void TestVideoPlaybackControlRuntime::environmentFactsSelectPresentationMode()
     auto reducedMotion = floatingEnvironment();
     reducedMotion.longAnimationDurationMsec = 0;
     runtime.acceptEnvironment(reducedMotion);
+    QCOMPARE(runtime.projection().presentationMode,
+        kiriview::VideoPlaybackControlPresentationMode::Fixed);
+
+    runtime.acceptEnvironment(floatingEnvironment());
+    auto mobile = floatingEnvironment();
+    mobile.mobile = true;
+    runtime.acceptEnvironment(mobile);
+    QCOMPARE(runtime.projection().presentationMode,
+        kiriview::VideoPlaybackControlPresentationMode::Fixed);
+
+    runtime.acceptEnvironment(floatingEnvironment());
+    auto invalidLayout = floatingEnvironment();
+    invalidLayout.floatingNaturalWidth = 0.0;
+    runtime.acceptEnvironment(invalidLayout);
+    QCOMPARE(runtime.projection().presentationMode,
+        kiriview::VideoPlaybackControlPresentationMode::Fixed);
+}
+
+void TestVideoPlaybackControlRuntime::presentationModeUsesStableHysteresis()
+{
+    QObject owner;
+    kiriview::VideoPlaybackControlRuntime runtime(&owner);
+    runtime.replaceSource(1);
+
+    auto entry = floatingEnvironment();
+    entry.viewportWidth = entry.gridUnit * 33.0;
+    entry.viewportHeight = entry.gridUnit * 17.0;
+    runtime.acceptEnvironment(entry);
+    QCOMPARE(runtime.projection().presentationMode,
+        kiriview::VideoPlaybackControlPresentationMode::Floating);
+
+    auto exitBoundary = entry;
+    exitBoundary.viewportWidth = exitBoundary.gridUnit * 32.0;
+    exitBoundary.viewportHeight = exitBoundary.gridUnit * 16.0;
+    runtime.acceptEnvironment(exitBoundary);
+    QCOMPARE(runtime.projection().presentationMode,
+        kiriview::VideoPlaybackControlPresentationMode::Floating);
+
+    auto belowExit = exitBoundary;
+    belowExit.viewportWidth -= 0.001;
+    runtime.acceptEnvironment(belowExit);
+    QCOMPARE(runtime.projection().presentationMode,
+        kiriview::VideoPlaybackControlPresentationMode::Fixed);
+
+    auto hysteresisBand = exitBoundary;
+    hysteresisBand.viewportWidth = hysteresisBand.gridUnit * 32.5;
+    hysteresisBand.viewportHeight = hysteresisBand.gridUnit * 16.5;
+    runtime.acceptEnvironment(hysteresisBand);
+    QCOMPARE(runtime.projection().presentationMode,
+        kiriview::VideoPlaybackControlPresentationMode::Fixed);
+
+    runtime.acceptEnvironment(entry);
+    QCOMPARE(runtime.projection().presentationMode,
+        kiriview::VideoPlaybackControlPresentationMode::Floating);
+
+    auto belowHeightExit = exitBoundary;
+    belowHeightExit.viewportHeight -= 0.001;
+    runtime.acceptEnvironment(belowHeightExit);
+    QCOMPARE(runtime.projection().presentationMode,
+        kiriview::VideoPlaybackControlPresentationMode::Fixed);
+
+    kiriview::VideoPlaybackControlRuntime freshRuntime(&owner);
+    freshRuntime.replaceSource(2);
+    freshRuntime.acceptEnvironment(hysteresisBand);
+    QCOMPARE(freshRuntime.projection().presentationMode,
+        kiriview::VideoPlaybackControlPresentationMode::Fixed);
+
+    auto naturalWidthConstrained = floatingEnvironment();
+    naturalWidthConstrained.viewportWidth = naturalWidthConstrained.gridUnit * 40.0;
+    naturalWidthConstrained.viewportHeight = naturalWidthConstrained.gridUnit * 20.0;
+    naturalWidthConstrained.floatingNaturalWidth = naturalWidthConstrained.viewportWidth
+        - naturalWidthConstrained.floatingSideMargin * 2.0 - naturalWidthConstrained.gridUnit
+        + 0.001;
+    freshRuntime.acceptEnvironment(naturalWidthConstrained);
+    QCOMPARE(freshRuntime.projection().presentationMode,
+        kiriview::VideoPlaybackControlPresentationMode::Fixed);
+
+    naturalWidthConstrained.floatingNaturalWidth -= 0.001;
+    freshRuntime.acceptEnvironment(naturalWidthConstrained);
+    QCOMPARE(freshRuntime.projection().presentationMode,
+        kiriview::VideoPlaybackControlPresentationMode::Floating);
+
+    naturalWidthConstrained.floatingNaturalWidth += naturalWidthConstrained.gridUnit + 0.001;
+    freshRuntime.acceptEnvironment(naturalWidthConstrained);
+    QCOMPARE(freshRuntime.projection().presentationMode,
+        kiriview::VideoPlaybackControlPresentationMode::Fixed);
+}
+
+void TestVideoPlaybackControlRuntime::presentationModeChangesWaitForActiveScrub()
+{
+    QObject owner;
+    kiriview::VideoPlaybackControlRuntime runtime(&owner);
+    runtime.replaceSource(1);
+    runtime.acceptEnvironment(floatingEnvironment());
+    runtime.acceptMediaSnapshot(playableMedia());
+
+    runtime.beginScrub();
+    runtime.updateScrub(45000);
+    auto compact = floatingEnvironment();
+    compact.viewportWidth = compact.gridUnit * 31.0;
+    runtime.acceptEnvironment(compact);
+    QVERIFY(runtime.projection().scrubbing);
+    QCOMPARE(runtime.projection().sliderValueMsec, qint64(45000));
+    QCOMPARE(runtime.projection().presentationMode,
+        kiriview::VideoPlaybackControlPresentationMode::Floating);
+
+    runtime.cancelScrub();
+    QVERIFY(!runtime.projection().scrubbing);
+    QCOMPARE(runtime.projection().presentationMode,
+        kiriview::VideoPlaybackControlPresentationMode::Fixed);
+
+    runtime.acceptEnvironment(floatingEnvironment());
+    runtime.beginScrub();
+    runtime.updateScrub(60000);
+    runtime.acceptEnvironment(compact);
+    const std::optional<kiriview::VideoPlaybackSeekIntent> intent = runtime.commitScrub();
+    QVERIFY(intent.has_value());
+    QCOMPARE(intent->positionMsec, qint64(60000));
+    QVERIFY(!runtime.projection().scrubbing);
+    QCOMPARE(runtime.projection().presentationMode,
+        kiriview::VideoPlaybackControlPresentationMode::Fixed);
+
+    runtime.acceptEnvironment(floatingEnvironment());
+    runtime.beginScrub();
+    runtime.acceptEnvironment(compact);
+    auto nonSeekable = playableMedia();
+    nonSeekable.seekable = false;
+    runtime.acceptMediaSnapshot(nonSeekable);
+    QVERIFY(!runtime.projection().scrubbing);
     QCOMPARE(runtime.projection().presentationMode,
         kiriview::VideoPlaybackControlPresentationMode::Fixed);
 }
@@ -200,6 +333,11 @@ void TestVideoPlaybackControlRuntime::sourceReplacementAtomicallyResetsProjectio
     runtime.acceptMediaSnapshot(media);
     runtime.beginScrub();
     runtime.updateScrub(50000);
+    auto compact = floatingEnvironment();
+    compact.viewportWidth = compact.gridUnit * 31.0;
+    runtime.acceptEnvironment(compact);
+    QCOMPARE(runtime.projection().presentationMode,
+        kiriview::VideoPlaybackControlPresentationMode::Floating);
     projections.clear();
 
     runtime.replaceSource(2);
@@ -210,6 +348,8 @@ void TestVideoPlaybackControlRuntime::sourceReplacementAtomicallyResetsProjectio
     QVERIFY(!projections.front().scrubbing);
     QVERIFY(!projections.front().shown);
     QVERIFY(projections.front().muted);
+    QCOMPARE(projections.front().presentationMode,
+        kiriview::VideoPlaybackControlPresentationMode::Fixed);
     QCOMPARE(projections.front().timelineKind, kiriview::VideoPlaybackTimelineKind::Unavailable);
     QVERIFY(!timers.timerAt(0).active());
 }

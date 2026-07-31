@@ -60,8 +60,8 @@ public:
     [[nodiscard]] bool scrubbing() const;
 
     Q_INVOKABLE void reportEnvironment(qreal viewportWidth, qreal viewportHeight, qreal gridUnit,
-        bool mobile, bool transientTouchInput, int longAnimationDurationMsec,
-        int autoHideDelayMsec);
+        qreal floatingNaturalWidth, qreal floatingSideMargin, bool mobile, bool transientTouchInput,
+        int longAnimationDurationMsec, int autoHideDelayMsec);
     Q_INVOKABLE void reportInteractionActive(bool active);
     Q_INVOKABLE void reveal();
     Q_INVOKABLE void beginScrub();

@@ -44,9 +44,13 @@ The playback control panel includes icon-only play/pause and mute/unmute buttons
 
 Toggling mute affects the current video audio output and persists across video source changes during the app session.
 
-In regular windowed and fullscreen video mode, the default playback control style is a floating panel inside the video viewport, aligned to the bottom edge with a large-spacing bottom margin. The floating panel uses the active Kirigami background color with theme-aware translucency, the Kirigami corner radius, a weak shadow, centered content width, and a maximum width of about 75% of the viewport while preserving viewport side margins.
+In a spacious regular windowed or fullscreen video viewport, the playback controls use a floating panel aligned to the bottom edge with a large-spacing bottom margin. The floating panel uses the active Kirigami background color with theme-aware translucency, the Kirigami corner radius, a weak shadow, and centered content. Its nominal width is 75% of the viewport; it may grow to the complete control row's natural width but must preserve a large-spacing margin on each side.
 
-The playback controls switch to a fixed bottom bar inside the video viewport when the viewport is compact, touch/mobile input is active, or system animations are disabled or reduced. Compact means roughly narrower than 32 grid units or shorter than 16 grid units. The fixed bottom bar is full-width, has no floating bottom margin, has no shadow, has square outer bottom corners, and reserves its height from the video display area so the video is not covered by the controls.
+Responsive control mode is stateful. Before valid layout facts are available, the controls use fixed mode. Fixed controls enter floating mode only when the viewport is at least 33 grid units wide and 17 grid units high and the complete control row, both side margins, and one additional grid unit of horizontal headroom fit. Floating controls remain floating at widths of at least 32 grid units and heights of at least 16 grid units while the complete control row and both side margins fit. Between those entry and exit thresholds, the current mode is retained.
+
+The playback controls use fixed mode when touch/mobile input is active or system animations are disabled or reduced. The fixed bottom bar is full-width, has no floating bottom margin, has no shadow, has square outer bottom corners, and reserves its height from the video display area so the video is not covered by the controls.
+
+While the user is dragging the timeline, changes in viewport geometry, input modality, animation capability, or control-row measurements do not move the controls between floating and fixed mode. After the drag is committed, cancelled, or invalidated, KiriView applies the latest complete environment once.
 
 When video playback reaches the natural end of the media, KiriView keeps the video output as the active presentation and must not clear the video output into an empty or null-like visual state. Playback stops at the final position. Pressing Play from that ended state restarts playback from the beginning when seeking is available.
 

@@ -32,6 +32,8 @@ struct VideoPlaybackControlEnvironment
     qreal viewportWidth = 0.0;
     qreal viewportHeight = 0.0;
     qreal gridUnit = 0.0;
+    qreal floatingNaturalWidth = 0.0;
+    qreal floatingSideMargin = 0.0;
     bool mobile = false;
     bool transientTouchInput = false;
     int longAnimationDurationMsec = 0;
@@ -111,6 +113,8 @@ public:
 private:
     [[nodiscard]] VideoPlaybackControlProjection projectedState() const;
     [[nodiscard]] VideoPlaybackControlPresentationMode presentationMode() const;
+    [[nodiscard]] bool presentationEnvironmentValid() const;
+    bool reevaluatePresentationMode();
     [[nodiscard]] VideoPlaybackTimelineKind timelineKind() const;
     [[nodiscard]] qint64 normalizedPosition(qint64 positionMsec) const;
     void publishProjection();
@@ -127,6 +131,8 @@ private:
     VideoPlaybackControlEnvironment m_environment;
     VideoPlaybackControlMediaSnapshot m_media;
     VideoPlaybackControlProjection m_projection;
+    VideoPlaybackControlPresentationMode m_presentationMode
+        = VideoPlaybackControlPresentationMode::Fixed;
     ImageAsyncTicket m_seekGate;
     quint64 m_sourceRevision = 0;
     quint64 m_nextProjectionRevision = 1;

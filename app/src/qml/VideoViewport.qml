@@ -18,13 +18,19 @@ MediaViewportDelegate {
     readonly property bool controlsReserveSpace: root.playbackControls.reserveSpace
     readonly property bool controlsEffectivelyShown: floatingControls.visible && floatingControls.opacity > 0
     readonly property real controlGridUnit: Kirigami.Units.gridUnit
+    readonly property real controlFloatingNaturalWidth: floatingControls.floatingNaturalWidth
+    readonly property real controlFloatingSideMargin: floatingControls.floatingSideMargin
     readonly property bool controlMobile: Kirigami.Settings.isMobile
     readonly property bool controlTransientTouchInput: Kirigami.Settings.hasTransientTouchInput
     readonly property int controlLongAnimationDuration: Kirigami.Units.longDuration
     readonly property int controlAutoHideDelay: Kirigami.Units.humanMoment
 
     function reportPlaybackControlEnvironment() {
-        root.playbackControls.reportEnvironment(root.width, root.height, root.controlGridUnit, root.controlMobile, root.controlTransientTouchInput, root.controlLongAnimationDuration, root.controlAutoHideDelay);
+        root.playbackControls.reportEnvironment(root.width, root.height, root.controlGridUnit, root.controlFloatingNaturalWidth, root.controlFloatingSideMargin, root.controlMobile, root.controlTransientTouchInput, root.controlLongAnimationDuration, root.controlAutoHideDelay);
+    }
+
+    function schedulePlaybackControlEnvironmentReport() {
+        Qt.callLater(root.reportPlaybackControlEnvironment);
     }
 
     function shouldAttachVideoOutput() {
@@ -43,13 +49,15 @@ MediaViewportDelegate {
     onPresentationActiveChanged: updateVideoOutputAttachment()
     onVideoDocumentChanged: updateVideoOutputAttachment()
     onVisibleChanged: updateVideoOutputAttachment()
-    onWidthChanged: reportPlaybackControlEnvironment()
-    onHeightChanged: reportPlaybackControlEnvironment()
-    onControlGridUnitChanged: reportPlaybackControlEnvironment()
-    onControlMobileChanged: reportPlaybackControlEnvironment()
-    onControlTransientTouchInputChanged: reportPlaybackControlEnvironment()
-    onControlLongAnimationDurationChanged: reportPlaybackControlEnvironment()
-    onControlAutoHideDelayChanged: reportPlaybackControlEnvironment()
+    onWidthChanged: schedulePlaybackControlEnvironmentReport()
+    onHeightChanged: schedulePlaybackControlEnvironmentReport()
+    onControlGridUnitChanged: schedulePlaybackControlEnvironmentReport()
+    onControlFloatingNaturalWidthChanged: schedulePlaybackControlEnvironmentReport()
+    onControlFloatingSideMarginChanged: schedulePlaybackControlEnvironmentReport()
+    onControlMobileChanged: schedulePlaybackControlEnvironmentReport()
+    onControlTransientTouchInputChanged: schedulePlaybackControlEnvironmentReport()
+    onControlLongAnimationDurationChanged: schedulePlaybackControlEnvironmentReport()
+    onControlAutoHideDelayChanged: schedulePlaybackControlEnvironmentReport()
 
     Connections {
         target: root.documentSession
@@ -62,7 +70,7 @@ MediaViewportDelegate {
     Component.onCompleted: {
         updateVideoOutputAttachment();
         reportVideoOutputGeometry();
-        reportPlaybackControlEnvironment();
+        schedulePlaybackControlEnvironmentReport();
     }
     Component.onDestruction: {
         root.documentSession.reportVideoOutputSurfaceClaim(root.documentSession.nextVideoOutputSurfaceClaimToken(), root.documentSession.publicProjectionRevision, root, null, false, Qt.rect(0, 0, 0, 0), Qt.rect(0, 0, 0, 0));

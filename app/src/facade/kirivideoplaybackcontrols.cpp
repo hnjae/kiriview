@@ -104,13 +104,15 @@ bool KiriVideoPlaybackControls::scrubbing() const
 }
 
 void KiriVideoPlaybackControls::reportEnvironment(qreal viewportWidth, qreal viewportHeight,
-    qreal gridUnit, bool mobile, bool transientTouchInput, int longAnimationDurationMsec,
-    int autoHideDelayMsec)
+    qreal gridUnit, qreal floatingNaturalWidth, qreal floatingSideMargin, bool mobile,
+    bool transientTouchInput, int longAnimationDurationMsec, int autoHideDelayMsec)
 {
     m_document.reportPlaybackControlEnvironment(kiriview::VideoPlaybackControlEnvironment {
         viewportWidth,
         viewportHeight,
         gridUnit,
+        floatingNaturalWidth,
+        floatingSideMargin,
         mobile,
         transientTouchInput,
         longAnimationDurationMsec,

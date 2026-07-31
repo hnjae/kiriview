@@ -1796,7 +1796,7 @@ void TestVideoDocumentRuntime::environmentProjectionReentryPreservesAcceptedSeek
 
         reentered = true;
         fixture.runtime->reportPlaybackControlEnvironment(
-            { 1280.0, 720.0, 18.0, false, false, 200, 1500 });
+            { 1280.0, 720.0, 18.0, 360.0, 16.0, false, false, 200, 1500 });
     };
 
     fixture.runtime->requestPlaybackControlSeek(45000);
@@ -1895,7 +1895,7 @@ void TestVideoDocumentRuntime::playbackControlAutoHideUsesInjectedTimer()
     RuntimeFixture fixture(timers.scheduler());
     const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/home/me/clip.mp4"));
     fixture.runtime->reportPlaybackControlEnvironment(
-        { 1280.0, 720.0, 18.0, false, false, 200, 1500 });
+        { 1280.0, 720.0, 18.0, 360.0, 16.0, false, false, 200, 1500 });
     fixture.runtime->setSourceUrl(sourceUrl);
     fixture.resolveLatest(sourceUrl);
     fixture.backend->emitHasVideo(true);

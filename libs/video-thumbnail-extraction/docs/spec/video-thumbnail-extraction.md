@@ -33,8 +33,8 @@ A `Failed` result contains no image and contains one `VideoThumbnailExtractionFa
 - `UnsupportedMedia` when the component identifies that the multimedia backend cannot handle the source format or required extraction operations.
 - `BackendFailure` for a multimedia or conversion failure that the component cannot classify more specifically.
 - `TimedOut` when the extraction deadline expires without an admissible image.
-- `NoRepresentativeImage` when the source reaches a terminal state without a usable embedded image or decoded frame.
-- `ResourceLimit` when an input-derived or output resource would exceed a component limit.
+- `NoRepresentativeImage` when, without a usable embedded image or decoded frame and without another terminal failure, the source reaches a terminal state or the bounded candidate search is exhausted.
+- `ResourceLimit` when an input-derived or output resource for a present candidate would exceed a component limit. Resource rejection follows the embedded-candidate fallback rule below and is otherwise terminal.
 
 Failure cause is the stable branching contract. Diagnostic text is normalized plain text for development diagnostics, may be empty, is not stable wording, is not localization-ready user-facing text, and must not be used for branching. It must not disclose credentials, URL user information, raw backend object identity, or unbounded backend-authored text. KiriView maps a typed failure to its own user-facing error projection.
 
@@ -42,7 +42,7 @@ Cancellation is not a result status and does not invoke the completion callback.
 
 ## Representative Image
 
-The component may use an embedded cover image, an embedded thumbnail, or a decoded video frame. Within one metadata observation, a usable cover image takes precedence over an embedded thumbnail. The component may sample a bounded set of positions for seekable media and may use the first usable frame for non-seekable media.
+The component may use an embedded cover image, an embedded thumbnail, or a decoded video frame. Within one metadata observation, a usable cover image takes precedence over an embedded thumbnail. A usable embedded thumbnail is selected when the cover is absent or unusable, including because the cover violates resource admission. If no usable embedded image is available from that observation and any present embedded image violates resource admission, extraction fails with `ResourceLimit`. Outside that same-observation fallback, a candidate that violates resource admission terminates extraction with `ResourceLimit`; the component does not skip it in favor of a candidate that might become available later. The component may sample a bounded set of positions for seekable media and may use the first usable frame for non-seekable media.
 
 The result makes no promise about an exact frame, timestamp, seek sequence, frame-interest heuristic, or repeatability across multimedia backends and platform codec versions. Those choices may change without changing the public contract. A source image is not usable when it is null, cannot be converted to a bounded output, or violates component resource admission.
 
