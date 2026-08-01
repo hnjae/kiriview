@@ -11,7 +11,8 @@ ActiveNavigationThumbnailRuntime::ActiveNavigationThumbnailRuntime(
     : ActiveNavigationThumbnailRuntime(owner, std::move(dependencies.lookupProvider),
           std::move(dependencies.imageStore), std::move(dependencies.generationProvider),
           std::move(dependencies.sourceAdapter), dependencies.workerScheduler,
-          std::move(dependencies.failureDiagnosticCallback))
+          std::move(dependencies.failureDiagnosticCallback),
+          std::move(dependencies.sourceDataBudget))
 {
 }
 
@@ -19,14 +20,20 @@ ActiveNavigationThumbnailRuntime::ActiveNavigationThumbnailRuntime(QObject* owne
     ThumbnailCacheLookupProvider lookupProvider, std::shared_ptr<ThumbnailImageStore> imageStore,
     ThumbnailGenerationProvider generationProvider, ThumbnailSourceAdapter sourceAdapter,
     const ImageWorkerScheduler& workerScheduler,
-    ActiveNavigationThumbnailFailureDiagnosticCallback failureDiagnosticCallback)
+    ActiveNavigationThumbnailFailureDiagnosticCallback failureDiagnosticCallback,
+    std::shared_ptr<ImageSourceDataBudget> sourceDataBudget)
     : m_rowStore(std::make_unique<ActiveNavigationThumbnailRowStore>(std::move(imageStore)))
     , m_workCoordinator(
           std::make_unique<ActiveNavigationThumbnailWorkCoordinator>(owner, *m_rowStore,
               lookupProvider ? std::move(lookupProvider)
                              : defaultThumbnailCacheLookupProvider(workerScheduler),
               generationProvider ? std::move(generationProvider)
-                                 : defaultThumbnailGenerationProvider(workerScheduler),
+                                 : defaultThumbnailGenerationProvider(workerScheduler,
+                                       ThumbnailGenerationDependencies {
+                                           .sourceDataBudget = sourceDataBudget != nullptr
+                                               ? std::move(sourceDataBudget)
+                                               : defaultImageSourceDataBudget(),
+                                       }),
               sourceAdapter ? std::move(sourceAdapter) : defaultThumbnailSourceAdapter(),
               std::move(failureDiagnosticCallback)))
 {

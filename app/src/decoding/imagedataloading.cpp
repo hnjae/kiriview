@@ -7,19 +7,27 @@
 #include "async/imagecallback.h"
 #include "async/imageioworkerjob.h"
 #include "decoding/imagedecodelogging.h"
+#include "decoding/imagesourcedata.h"
 #include "localization/mediaentrysourceerrortext.h"
 #include "location/imagedocumentlocation.h"
 
 #include <KIO/Job>
-#include <KIO/StoredTransferJob>
+#include <KIO/TransferJob>
 #include <KJob>
 #include <QObject>
+#include <memory>
 #include <utility>
 
 namespace {
 using kiriview::ErrorCallback;
 using kiriview::MediaEntrySourceImageData;
 using kiriview::MediaEntrySourceImageDataResult;
+
+struct StreamingImageSourceData
+{
+    kiriview::ImageSourceData sourceData;
+    bool resourceLimitExceeded = false;
+};
 
 template <typename Result, typename SuccessCallback>
 void finishMediaEntrySourceWorkerResult(
@@ -58,43 +66,78 @@ ImageIoJob startStoredImageDataLoad(QObject* receiver, ImageDecodeRequest reques
     ImageDataCallback callback, ErrorCallback errorCallback)
 {
     return startStoredImageDataLoad(receiver, std::move(request), ImageWorkerScheduler(),
-        std::move(callback), std::move(errorCallback));
+        defaultImageSourceDataBudget(), std::move(callback), std::move(errorCallback));
 }
 
 ImageIoJob startStoredImageDataLoad(QObject* receiver, ImageDecodeRequest request,
     const ImageWorkerScheduler& workerScheduler, ImageDataCallback callback,
     ErrorCallback errorCallback)
 {
+    return startStoredImageDataLoad(receiver, std::move(request), workerScheduler,
+        defaultImageSourceDataBudget(), std::move(callback), std::move(errorCallback));
+}
+
+ImageIoJob startStoredImageDataLoad(QObject* receiver, ImageDecodeRequest request,
+    const ImageWorkerScheduler& workerScheduler,
+    std::shared_ptr<ImageSourceDataBudget> sourceDataBudget, ImageDataCallback callback,
+    ErrorCallback errorCallback)
+{
+    if (sourceDataBudget == nullptr) {
+        sourceDataBudget = defaultImageSourceDataBudget();
+    }
+    ImageSourceDataLease lease = sourceDataBudget->startLease();
     if (openedCollectionScopeContainsUrl(request.openedCollectionScope(), request.imageUrl())) {
         return startMediaEntrySourceWorkerJob(
             receiver, workerScheduler,
-            [request = std::move(request)]() {
+            [request = std::move(request), lease = std::move(lease)]() mutable {
                 return loadMediaEntrySourceImageData(
-                    request.openedCollectionScope(), request.imageUrl());
+                    request.openedCollectionScope(), request.imageUrl(), std::move(lease));
             },
             [callback = std::move(callback), errorCallback = std::move(errorCallback)](
                 MediaEntrySourceImageDataResult result) mutable {
                 finishMediaEntrySourceWorkerResult(std::move(result), std::move(errorCallback),
                     [callback = std::move(callback)](MediaEntrySourceImageData data) mutable {
-                        kiriview::invokeIfSet(callback, std::move(data.data));
+                        kiriview::invokeIfSet(
+                            callback, ImageSourceData(std::move(data.data), std::move(data.lease)));
                     });
             });
     }
 
-    auto* job = KIO::storedGet(request.imageUrl(), KIO::Reload, KIO::HideProgressInfo);
+    auto state = std::make_shared<StreamingImageSourceData>();
+    state->sourceData.lease = std::move(lease);
+    auto* job = KIO::get(request.imageUrl(), KIO::Reload, KIO::HideProgressInfo);
     ImageIoJob ioJob(job, cancelKJob);
     const ImageIoJobCompletion completion = ioJob.completion();
 
+    QObject::connect(
+        job, &KIO::TransferJob::data, receiver, [state, job](KIO::Job*, const QByteArray& chunk) {
+            if (state->resourceLimitExceeded || chunk.isEmpty()) {
+                return;
+            }
+            if (state->sourceData.tryAppend(QByteArrayView(chunk))) {
+                return;
+            }
+
+            state->resourceLimitExceeded = true;
+            job->kill(KJob::EmitResult);
+        });
+
     QObject::connect(job, &KJob::result, receiver,
-        [completion, job, callback = std::move(callback), errorCallback = std::move(errorCallback)](
-            KJob* finishedJob) mutable {
+        [completion, state = std::move(state), callback = std::move(callback),
+            errorCallback = std::move(errorCallback)](KJob* finishedJob) mutable {
             completion.claimAndRun([&]() {
+                if (state->resourceLimitExceeded) {
+                    state->sourceData = {};
+                    kiriview::invokeIfSet(errorCallback, imageSourceDataResourceLimitDiagnostic());
+                    return;
+                }
                 if (finishedJob->error() != KJob::NoError) {
+                    state->sourceData = {};
                     kiriview::invokeIfSet(errorCallback, finishedJob->errorString());
                     return;
                 }
 
-                kiriview::invokeIfSet(callback, job->data());
+                kiriview::invokeIfSet(callback, std::move(state->sourceData));
             });
         });
     return ioJob;

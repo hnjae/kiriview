@@ -218,7 +218,7 @@ void TestImageDocumentRuntimeDependencies::
             std::vector<kiriview::ImageDocumentPageCandidate>) { candidatesReported = true; },
         {});
     resolved.imageDecode.dataLoader(nullptr, kiriview::ImageDecodeRequest(),
-        [&loadedData](QByteArray data) { loadedData = std::move(data); }, {});
+        [&loadedData](kiriview::ImageSourceData data) { loadedData = std::move(data.data); }, {});
     resolved.fileDeletionProvider(nullptr, kiriview::FileDeletionRequest(), {});
     std::unique_ptr<kiriview::PowerSaverStateMonitor> monitor = resolved.powerSaver.monitor({});
     std::unique_ptr<kiriview::RuntimeTimerHandle> timer

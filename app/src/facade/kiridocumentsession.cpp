@@ -348,14 +348,14 @@ void inheritMissingDirectMediaPredecodeDependencies(
 kiriview::KiriDocumentSessionDependencies documentSessionDependenciesWithComposedDefaults(
     kiriview::KiriDocumentSessionDependencies dependencies)
 {
+    const kiriview::SystemMemorySnapshot systemMemory
+        = dependencies.imageDocument.systemMemorySnapshot.value_or(
+            kiriview::systemMemorySnapshot());
     kiriview::ImageCacheBudgetRequest request
         = kiriview::imageDocumentCacheBudgetRequestWithDefaults(
             dependencies.imageDocument.cacheBudgetRequest);
     if (request.predecodeCacheByteBudget <= 0 || request.displayImageCacheByteBudget <= 0
         || request.thumbnailCacheByteBudget <= 0) {
-        const kiriview::SystemMemorySnapshot systemMemory
-            = dependencies.imageDocument.systemMemorySnapshot.value_or(
-                kiriview::systemMemorySnapshot());
         const kiriview::ImageCacheBudgets cacheBudgets
             = kiriview::resolvedImageCacheBudgets(request, systemMemory);
         request.predecodeCacheByteBudget = cacheBudgets.predecodeCacheByteBudget;
@@ -364,6 +364,24 @@ kiriview::KiriDocumentSessionDependencies documentSessionDependenciesWithCompose
     }
     dependencies.imageDocument.cacheBudgetRequest = request;
     kiriview::configureSharedThumbnailImageStoreByteBudget(request.thumbnailCacheByteBudget);
+
+    std::shared_ptr<kiriview::ImageSourceDataBudget> sourceDataBudget
+        = dependencies.imageDocument.imageDecode.sourceDataBudget;
+    if (sourceDataBudget == nullptr) {
+        sourceDataBudget = dependencies.sessionRuntime.activeNavigationThumbnails.sourceDataBudget;
+    }
+    if (sourceDataBudget == nullptr) {
+        sourceDataBudget = dependencies.sessionRuntime.directMediaPredecodeDependencies.imageDecode
+                               .sourceDataBudget;
+    }
+    if (sourceDataBudget == nullptr) {
+        sourceDataBudget = kiriview::defaultImageSourceDataBudget({}, systemMemory);
+    }
+    dependencies.imageDocument.imageDecode.sourceDataBudget = sourceDataBudget;
+    dependencies.sessionRuntime.activeNavigationThumbnails.sourceDataBudget = sourceDataBudget;
+    dependencies.sessionRuntime.directMediaPredecodeDependencies.imageDecode.sourceDataBudget
+        = std::move(sourceDataBudget);
+
     inheritMissingDirectMediaPredecodeDependencies(dependencies);
     return dependencies;
 }

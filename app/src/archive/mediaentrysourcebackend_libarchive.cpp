@@ -4,6 +4,7 @@
 #include "mediaentrysourcebackend_p.h"
 
 #include "archivepath.h"
+#include "decoding/imagesourcedata.h"
 #include "scopedfiledescriptor_p.h"
 
 #include <QFile>
@@ -142,9 +143,21 @@ bool skipLibArchiveEntry(archive* reader, QString* diagnosticDetail)
 
 kiriview::MediaEntrySourceImageDataResult readLibArchiveEntryData(
     const kiriview::OpenedCollectionScopeLocation& openedCollectionScope, const QString& entryPath,
-    archive* reader, archive_entry* entry)
+    archive* reader, archive_entry* entry, kiriview::ImageSourceDataLease lease)
 {
-    QByteArray data;
+    kiriview::ImageSourceData sourceData({}, std::move(lease));
+    if (archive_entry_size_is_set(entry)) {
+        const la_int64_t expectedSize = archive_entry_size(entry);
+        if (expectedSize >= 0 && !sourceData.tryReserveExpectedByteCount(expectedSize)) {
+            return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceImageDataResult>(
+                Backend::mediaEntrySourceError(
+                    kiriview::MediaEntrySourceErrorCause::ResourceLimitExceeded,
+                    kiriview::MediaEntrySourceBackendKind::LibArchive,
+                    kiriview::MediaEntrySourceOperation::ReadImageData, openedCollectionScope,
+                    kiriview::imageSourceDataResourceLimitDiagnostic(), entryPath));
+        }
+    }
+
     char buffer[64 * 1024];
     while (true) {
         const la_ssize_t bytesRead = archive_read_data(reader, buffer, sizeof(buffer));
@@ -162,12 +175,19 @@ kiriview::MediaEntrySourceImageDataResult readLibArchiveEntryData(
                     entryPath));
         }
 
-        data.append(buffer, static_cast<qsizetype>(bytesRead));
+        if (!sourceData.tryAppend(QByteArrayView(buffer, static_cast<qsizetype>(bytesRead)))) {
+            return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceImageDataResult>(
+                Backend::mediaEntrySourceError(
+                    kiriview::MediaEntrySourceErrorCause::ResourceLimitExceeded,
+                    kiriview::MediaEntrySourceBackendKind::LibArchive,
+                    kiriview::MediaEntrySourceOperation::ReadImageData, openedCollectionScope,
+                    kiriview::imageSourceDataResourceLimitDiagnostic(), entryPath));
+        }
     }
 
     if (archive_entry_size_is_set(entry)) {
         const la_int64_t expectedSize = archive_entry_size(entry);
-        if (expectedSize >= 0 && static_cast<qint64>(data.size()) != expectedSize) {
+        if (expectedSize >= 0 && static_cast<qint64>(sourceData.data.size()) != expectedSize) {
             return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceImageDataResult>(
                 Backend::mediaEntrySourceError(
                     kiriview::MediaEntrySourceErrorCause::EntryReadFailed,
@@ -178,7 +198,7 @@ kiriview::MediaEntrySourceImageDataResult readLibArchiveEntryData(
         }
     }
 
-    return Backend::mediaEntrySourceImageDataResult(std::move(data));
+    return Backend::mediaEntrySourceImageDataResult(std::move(sourceData));
 }
 
 struct LibArchiveMediaEntrySourceMetadata
@@ -273,7 +293,8 @@ public:
 
 protected:
     kiriview::MediaEntrySourceImageDataResult loadAuthorizedImageData(
-        const kiriview::ImageDocumentPageCandidate& candidate) override
+        const kiriview::ImageDocumentPageCandidate& candidate,
+        kiriview::ImageSourceDataLease lease) override
     {
         const auto entryOrder = m_entryOrderByPath.find(candidate.name);
         if (entryOrder == m_entryOrderByPath.cend()) {
@@ -284,7 +305,7 @@ protected:
                     candidate.name));
         }
 
-        return readImageDataAtOrder(entryOrder->second, candidate.name);
+        return readImageDataAtOrder(entryOrder->second, candidate.name, std::move(lease));
     }
 
     kiriview::MediaEntrySourceVideoPlaybackDeviceResult loadAuthorizedVideoPlaybackDevice(
@@ -319,7 +340,7 @@ private:
     }
 
     kiriview::MediaEntrySourceImageDataResult readImageDataAtOrder(
-        int targetEntryOrder, const QString& targetEntryPath)
+        int targetEntryOrder, const QString& targetEntryPath, kiriview::ImageSourceDataLease lease)
     {
         QString diagnosticDetail;
         if (!prepareReaderForEntry(targetEntryOrder, &diagnosticDetail)) {
@@ -379,8 +400,8 @@ private:
                         targetEntryPath));
                 }
 
-                return readLibArchiveEntryData(
-                    openedCollectionScope(), currentEntryPath, m_reader.get(), entry);
+                return readLibArchiveEntryData(openedCollectionScope(), currentEntryPath,
+                    m_reader.get(), entry, std::move(lease));
             }
 
             if (!skipLibArchiveEntry(m_reader.get(), &diagnosticDetail)) {

@@ -8,6 +8,9 @@
 #include "async/imageiojob.h"
 #include "async/imageworkerscheduler.h"
 #include "decoding/imagedecoderequest.h"
+#include "decoding/imagesourcedata.h"
+
+#include <memory>
 
 class QObject;
 
@@ -16,6 +19,10 @@ ImageIoJob startStoredImageDataLoad(QObject* receiver, ImageDecodeRequest reques
     ImageDataCallback callback, ErrorCallback errorCallback);
 ImageIoJob startStoredImageDataLoad(QObject* receiver, ImageDecodeRequest request,
     const ImageWorkerScheduler& workerScheduler, ImageDataCallback callback,
+    ErrorCallback errorCallback);
+ImageIoJob startStoredImageDataLoad(QObject* receiver, ImageDecodeRequest request,
+    const ImageWorkerScheduler& workerScheduler,
+    std::shared_ptr<ImageSourceDataBudget> sourceDataBudget, ImageDataCallback callback,
     ErrorCallback errorCallback);
 }
 

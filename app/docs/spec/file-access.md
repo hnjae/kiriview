@@ -44,6 +44,8 @@ If a directly opened archive or directory collection contains no supported media
 
 Errors shown while opening or reading media from a directly opened archive or directory collection use collection-neutral wording such as "selected collection" unless the failed operation specifically concerns an archive file, archive URL scheme, or archive format.
 
+If the encoded bytes for an image or opened-collection image entry exceed the resources KiriView can safely admit, the load fails without publishing that image or a partial result. Foreground display reports the ordinary image-load failure state, while thumbnail generation leaves the thumbnail unavailable; any previously retained replacement content follows the normal failed-replacement behavior.
+
 ### Advertised Entry Points
 
 General archives are not advertised through the desktop file's file associations, the open dialog's default image, video, and comic book filter, or sibling archive navigation.

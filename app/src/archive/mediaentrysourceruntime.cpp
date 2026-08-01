@@ -39,7 +39,8 @@ void finishMediaEntrySourceDataResult(kiriview::MediaEntrySourceImageDataResult 
 
     auto* data = kiriview::mediaEntrySourceResultValue(result);
     if (data != nullptr) {
-        kiriview::invokeIfSet(callback, std::move(data->data));
+        kiriview::invokeIfSet(
+            callback, kiriview::ImageSourceData(std::move(data->data), std::move(data->lease)));
     }
 }
 
@@ -55,11 +56,14 @@ kiriview::MediaEntrySourceError nonCurrentOpenedCollectionScopeError(
 }
 
 namespace kiriview {
-MediaEntrySourceRuntime::MediaEntrySourceRuntime(
-    QObject* context, MediaEntrySourceFactory sourceFactory, ImageWorkerScheduler workerScheduler)
+MediaEntrySourceRuntime::MediaEntrySourceRuntime(QObject* context,
+    MediaEntrySourceFactory sourceFactory, ImageWorkerScheduler workerScheduler,
+    std::shared_ptr<ImageSourceDataBudget> sourceDataBudget)
     : m_context(context)
     , m_sourceFactory(std::move(sourceFactory))
     , m_workerScheduler(std::move(workerScheduler))
+    , m_sourceDataBudget(sourceDataBudget != nullptr ? std::move(sourceDataBudget)
+                                                     : defaultImageSourceDataBudget())
 {
 }
 
@@ -158,7 +162,8 @@ ImageIoJob MediaEntrySourceRuntime::loadOpenedCollectionImageData(QObject* recei
     }
 
     if (receiver == nullptr) {
-        finishMediaEntrySourceDataResult(m_runner->loadImageData(request.imageUrl()),
+        finishMediaEntrySourceDataResult(
+            m_runner->loadImageData(request.imageUrl(), m_sourceDataBudget->startLease()),
             std::move(callback), std::move(errorCallback));
         return ImageIoJob();
     }
@@ -166,10 +171,13 @@ ImageIoJob MediaEntrySourceRuntime::loadOpenedCollectionImageData(QObject* recei
     const quint64 generation = m_sourceGeneration.current();
     const QUrl& imageUrl = request.imageUrl();
     std::shared_ptr<MediaEntrySourceRunner> runner = m_runner;
+    ImageSourceDataLease lease = m_sourceDataBudget->startLease();
 
     return startImageIoWorkerJob(
         m_context, receiver, m_workerScheduler,
-        [runner = std::move(runner), imageUrl]() { return runner->loadImageData(imageUrl); },
+        [runner = std::move(runner), imageUrl, lease = std::move(lease)]() mutable {
+            return runner->loadImageData(imageUrl, std::move(lease));
+        },
         [generation, this, callback = std::move(callback),
             errorCallback = std::move(errorCallback)](
             MediaEntrySourceImageDataResult result) mutable {

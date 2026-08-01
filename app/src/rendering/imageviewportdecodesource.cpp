@@ -605,28 +605,32 @@ void ImageViewportDecodeProviderSource::finishDecodedImage(DecodedImage image)
             } else if constexpr (std::is_same_v<Image, ReaderAnimationImage>) {
                 const QString formatIdentifier = QString::fromLatin1(decoded.format);
                 finishAnimationImage(std::move(decoded.firstFrame), std::move(decoded.catalog),
-                    readerAnimationPlaybackRequest(
-                        std::move(decoded.data), std::move(decoded.format)),
+                    readerAnimationPlaybackRequest(std::move(decoded.data),
+                        std::move(decoded.format), std::move(decoded.sourceDataLease)),
                     std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
                     formatIdentifier);
             } else if constexpr (std::is_same_v<Image, ApngAnimationImage>) {
                 finishAnimationImage(std::move(decoded.firstFrame), std::move(decoded.catalog),
-                    apngAnimationPlaybackRequest(std::move(decoded.data)),
+                    apngAnimationPlaybackRequest(
+                        std::move(decoded.data), std::move(decoded.sourceDataLease)),
                     std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
                     QStringLiteral("apng"));
             } else if constexpr (std::is_same_v<Image, WebPAnimationImage>) {
                 finishAnimationImage(std::move(decoded.firstFrame), std::move(decoded.catalog),
-                    webpAnimationPlaybackRequest(std::move(decoded.data)),
+                    webpAnimationPlaybackRequest(
+                        std::move(decoded.data), std::move(decoded.sourceDataLease)),
                     std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
                     QStringLiteral("webp"));
             } else if constexpr (std::is_same_v<Image, JxlAnimationImage>) {
                 finishAnimationImage(std::move(decoded.firstFrame), std::move(decoded.catalog),
-                    jxlAnimationPlaybackRequest(std::move(decoded.data)),
+                    jxlAnimationPlaybackRequest(
+                        std::move(decoded.data), std::move(decoded.sourceDataLease)),
                     std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
                     QStringLiteral("jxl"));
             } else if constexpr (std::is_same_v<Image, HeifSequenceAnimationImage>) {
                 finishAnimationImage(std::move(decoded.firstFrame), std::move(decoded.catalog),
-                    heifSequenceAnimationPlaybackRequest(std::move(decoded.data)),
+                    heifSequenceAnimationPlaybackRequest(
+                        std::move(decoded.data), std::move(decoded.sourceDataLease)),
                     std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
                     QStringLiteral("heif"));
             }

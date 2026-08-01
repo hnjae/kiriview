@@ -276,7 +276,8 @@ public:
         return kiriview::MediaEntrySourceCandidates { m_candidates };
     }
 
-    kiriview::MediaEntrySourceImageDataResult loadImageData(const QUrl&) override
+    kiriview::MediaEntrySourceImageDataResult loadImageData(
+        const QUrl&, kiriview::ImageSourceDataLease lease = {}) override
     {
         QByteArray data;
         QBuffer buffer(&data);
@@ -284,7 +285,20 @@ public:
         QImage image(QSize(1, 1), QImage::Format_RGBA8888);
         image.fill(Qt::red);
         image.save(&buffer, "PNG");
-        return kiriview::MediaEntrySourceImageData { data };
+        if (!lease.isManaged()) {
+            lease = kiriview::defaultImageSourceDataBudget()->startLease();
+        }
+        if (!lease.tryReserve(data.size())) {
+            return std::unexpected(kiriview::MediaEntrySourceError {
+                kiriview::MediaEntrySourceErrorCause::ResourceLimitExceeded,
+                kiriview::MediaEntrySourceBackendKind::Unknown,
+                kiriview::MediaEntrySourceOperation::ReadImageData,
+                {},
+                {},
+                kiriview::imageSourceDataResourceLimitDiagnostic(),
+            });
+        }
+        return kiriview::MediaEntrySourceImageData { data, std::move(lease) };
     }
 
     kiriview::MediaEntrySourceVideoPlaybackDeviceResult loadVideoPlaybackDevice(

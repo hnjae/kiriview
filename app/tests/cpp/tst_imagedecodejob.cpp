@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "decoding/imagedecodejob.h"
+#include "decoding/imagesourcedata.h"
 #include "decoding/rawthumbnailpreview.h"
 #include "image_test_support.h"
 #include "thumbnail/thumbnailcachelookup.h"
@@ -298,6 +299,7 @@ private Q_SLOTS:
     void decodeErrorsAreDeliveredAsResults();
     void decodeRequestIsPassedToDecoder();
     void decodeWorkerSchedulerCanBeDrivenManually();
+    void retainedDecodedPayloadRetainsSourceDataReservation();
     void sourceReplacementCancelsQueuedDecodeWork();
     void xdgThumbnailPreviewIsDeliveredBeforeDecodeCompletes();
     void staleXdgThumbnailPreviewIsIgnored();
@@ -506,6 +508,40 @@ void TestImageDecodeJob::decodeWorkerSchedulerCanBeDrivenManually()
     QCOMPARE(decodedRequests.size(), std::size_t(1));
     QCOMPARE(decodedRequests.front().id(), quint64(16));
     QVERIFY(!decodeJob.hasActiveRequest());
+}
+
+void TestImageDecodeJob::retainedDecodedPayloadRetainsSourceDataReservation()
+{
+    ManualImageDataLoader dataLoader;
+    ManualImageWorkerScheduler workerScheduler;
+    auto budget = std::make_shared<kiriview::ImageSourceDataBudget>(16, 16);
+    std::optional<kiriview::DecodedImageResult> retainedResult;
+    kiriview::ImageDecodeDependencies dependencies
+        = imageDecodeDependenciesFor(dataLoader, kiriview::TestSupport::staticImageDataDecoder());
+    dependencies.workerScheduler = workerScheduler.scheduler();
+    kiriview::ImageDecodeJob decodeJob(this, std::move(dependencies),
+        decodeJobCallbacks(
+            [&retainedResult](kiriview::ImageDecodeRequest, kiriview::DecodedImageResult result) {
+                retainedResult = std::move(result);
+            }));
+
+    kiriview::ImageSourceDataLease lease = budget->startLease();
+    QVERIFY(lease.tryReserve(2));
+    kiriview::ImageSourceData sourceData(QByteArrayLiteral("ok"), std::move(lease));
+
+    decodeJob.start(kiriview::ImageDecodeRequest::fromUrl(17, indexedImageUrl(17)));
+    dataLoader.finishFrontLoad(std::move(sourceData));
+    QCOMPARE(budget->reservedByteCount(), qsizetype(2));
+
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
+
+    QVERIFY(retainedResult.has_value());
+    QVERIFY(retainedResult->has_value());
+    QCOMPARE(budget->reservedByteCount(), qsizetype(2));
+
+    retainedResult.reset();
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
 }
 
 void TestImageDecodeJob::sourceReplacementCancelsQueuedDecodeWork()

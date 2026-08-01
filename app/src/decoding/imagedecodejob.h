@@ -44,11 +44,12 @@ public:
     [[nodiscard]] bool hasActiveRequest() const;
 
 private:
-    void startThumbnailPreviewLookup(
-        const QByteArray& data, ImageDecodeJobTicket ticket, const ImageDecodeRequest& request);
+    void startThumbnailPreviewLookup(const QByteArray& data, ImageSourceDataLease sourceDataLease,
+        ImageDecodeJobTicket ticket, const ImageDecodeRequest& request);
     void startRawEmbeddedThumbnailPreviewValidation(
-        QByteArray data, ImageDecodeJobTicket ticket, const ImageDecodeRequest& request);
-    void startDecode(QByteArray data, ImageDecodeJobTicket ticket, ImageDecodeRequest request);
+        ImageSourceData sourceData, ImageDecodeJobTicket ticket, const ImageDecodeRequest& request);
+    void startDecode(
+        ImageSourceData sourceData, ImageDecodeJobTicket ticket, ImageDecodeRequest request);
 
     ImageDecodeDependencies m_dependencies;
     Callbacks m_callbacks;

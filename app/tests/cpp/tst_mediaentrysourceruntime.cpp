@@ -104,7 +104,7 @@ void TestMediaEntrySourceRuntime::synchronousLoadsShareLazyOpenAndCandidateCache
         kiriview::ImageDecodeRequest::fromLocation(1,
             kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
                 firstUrl, *archiveCollection)),
-        [&data](QByteArray loaded) { data = std::move(loaded); }, {});
+        [&data](kiriview::ImageSourceData loaded) { data = std::move(loaded.data); }, {});
 
     QCOMPARE(firstCandidates.size(), std::size_t(2));
     QCOMPARE(cachedCandidates.size(), std::size_t(2));
@@ -246,7 +246,7 @@ void TestMediaEntrySourceRuntime::dataCompletionAfterOpenedCollectionSwitchIsIgn
         kiriview::ImageDecodeRequest::fromLocation(1,
             kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
                 firstPageUrl, *firstArchiveCollection)),
-        [&staleCallbackCount](QByteArray) { ++staleCallbackCount; }, {});
+        [&staleCallbackCount](kiriview::ImageSourceData) { ++staleCallbackCount; }, {});
 
     QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     QCOMPARE(state->dataLoadCount.load(), 0);
@@ -301,7 +301,7 @@ void TestMediaEntrySourceRuntime::nonCurrentScopeAccessIsRejectedWithoutReplacin
         kiriview::ImageDecodeRequest::fromLocation(1,
             kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
                 foreignImageUrl, *foreignCollection)),
-        [&imageAccessSucceeded](QByteArray) { imageAccessSucceeded = true; },
+        [&imageAccessSucceeded](kiriview::ImageSourceData) { imageAccessSucceeded = true; },
         [&imageAccessError](
             kiriview::MediaEntrySourceError error) { imageAccessError = std::move(error); });
     const kiriview::MediaEntrySourceVideoPlaybackDeviceResult videoResult

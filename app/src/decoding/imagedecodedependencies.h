@@ -9,11 +9,13 @@
 #include "async/imageworkerscheduler.h"
 #include "decodedimageresult.h"
 #include "imagedecoderequest.h"
+#include "imagesourcedata.h"
 #include "rawthumbnailpreview.h"
 #include "thumbnail/thumbnailcachelookup.h"
 
 #include <QByteArray>
 #include <functional>
+#include <memory>
 
 class QObject;
 
@@ -30,6 +32,7 @@ struct ImageDecodeDependencies
     ThumbnailCacheLookupProvider thumbnailPreviewLookupProvider;
     RawEmbeddedThumbnailPreviewExtractor rawEmbeddedThumbnailPreviewExtractor;
     ImageWorkerScheduler workerScheduler;
+    std::shared_ptr<ImageSourceDataBudget> sourceDataBudget;
 };
 
 ImageDecodeDependencies defaultImageDecodeDependencies();

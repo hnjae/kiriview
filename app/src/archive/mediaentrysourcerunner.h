@@ -20,7 +20,8 @@ public:
     [[nodiscard]] const OpenedCollectionScopeLocation& openedCollectionScope() const;
 
     MediaEntrySourceCandidatesResult loadImageDocumentPageCandidates();
-    MediaEntrySourceImageDataResult loadImageData(const QUrl& imageUrl);
+    MediaEntrySourceImageDataResult loadImageData(
+        const QUrl& imageUrl, ImageSourceDataLease lease = {});
     MediaEntrySourceVideoPlaybackDeviceResult loadVideoPlaybackDevice(const QUrl& videoUrl);
     std::optional<std::vector<ImageDocumentPageCandidate>> cachedImageDocumentPageCandidates();
 

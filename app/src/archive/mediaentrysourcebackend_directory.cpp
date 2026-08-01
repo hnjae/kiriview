@@ -3,6 +3,7 @@
 
 #include "mediaentrysourcebackend_p.h"
 
+#include "decoding/imagesourcedata.h"
 #include "scopedfiledescriptor_p.h"
 
 #include <QByteArray>
@@ -473,7 +474,8 @@ public:
 
 protected:
     kiriview::MediaEntrySourceImageDataResult loadAuthorizedImageData(
-        const kiriview::ImageDocumentPageCandidate& candidate) override
+        const kiriview::ImageDocumentPageCandidate& candidate,
+        kiriview::ImageSourceDataLease lease) override
     {
         const auto authority = m_authorityByPath.find(candidate.name);
         if (authority == m_authorityByPath.cend()) {
@@ -511,17 +513,21 @@ protected:
         }
         static_cast<void>(resolved.fileDescriptor.release());
 
-        QByteArray data = file.readAll();
-        if (file.error() != QFile::NoError || data.size() != resolved.size) {
+        kiriview::ImageSourceDataReadResult readResult
+            = kiriview::readImageSourceData(file, std::move(lease), resolved.size);
+        if (readResult.status != kiriview::ImageSourceDataReadStatus::Ready) {
+            const kiriview::MediaEntrySourceErrorCause cause
+                = readResult.status == kiriview::ImageSourceDataReadStatus::ResourceLimitExceeded
+                ? kiriview::MediaEntrySourceErrorCause::ResourceLimitExceeded
+                : kiriview::MediaEntrySourceErrorCause::EntryReadFailed;
             return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceImageDataResult>(
-                Backend::mediaEntrySourceError(
-                    kiriview::MediaEntrySourceErrorCause::EntryReadFailed,
+                Backend::mediaEntrySourceError(cause,
                     kiriview::MediaEntrySourceBackendKind::Directory,
                     kiriview::MediaEntrySourceOperation::ReadImageData, openedCollectionScope(),
-                    file.errorString(), candidate.name));
+                    std::move(readResult.diagnosticDetail), candidate.name));
         }
 
-        return Backend::mediaEntrySourceImageDataResult(std::move(data));
+        return Backend::mediaEntrySourceImageDataResult(std::move(readResult.sourceData));
     }
 
     kiriview::MediaEntrySourceVideoPlaybackDeviceResult loadAuthorizedVideoPlaybackDevice(

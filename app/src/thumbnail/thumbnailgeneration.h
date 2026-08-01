@@ -6,6 +6,7 @@
 
 #include "async/imageiojob.h"
 #include "async/imageworkerscheduler.h"
+#include "decoding/imagesourcedata.h"
 #include "location/imagelocation.h"
 #include "thumbnail/thumbnailbucket.h"
 #include "thumbnail/thumbnailcachelookup.h"
@@ -51,7 +52,7 @@ struct ThumbnailGenerationResult
 };
 
 using ThumbnailGenerationBytesLoader
-    = std::function<QByteArray(const ThumbnailGenerationRequest&, QString*)>;
+    = std::function<ImageSourceData(const ThumbnailGenerationRequest&, QString*)>;
 using ThumbnailGenerationOriginalIdentityLoader
     = std::function<std::optional<ThumbnailOriginalIdentity>(
         const ThumbnailGenerationRequest&, QString*)>;
@@ -86,6 +87,7 @@ struct ThumbnailGenerationDependencies
     ThumbnailGenerationMaximumLongEdgePolicy maximumLongEdgeForBucket;
     ThumbnailGenerationOriginalIdentityLoader openedCollectionOriginalIdentityLoader;
     ThumbnailGenerationCacheRepository cacheRepository;
+    std::shared_ptr<ImageSourceDataBudget> sourceDataBudget;
 };
 
 using ThumbnailGenerationCallback = std::function<void(ThumbnailGenerationResult)>;

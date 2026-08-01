@@ -126,12 +126,12 @@ void TestMediaEntrySourceStore::candidateAndDataLoadsShareOneArchiveOpen()
         kiriview::ImageDecodeRequest::fromLocation(1,
             kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
                 firstUrl, *archiveCollection)),
-        [&firstData](QByteArray data) { firstData = std::move(data); }, {});
+        [&firstData](kiriview::ImageSourceData data) { firstData = std::move(data.data); }, {});
     store.loadOpenedCollectionImageData(nullptr,
         kiriview::ImageDecodeRequest::fromLocation(2,
             kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
                 secondUrl, *archiveCollection)),
-        [&secondData](QByteArray data) { secondData = std::move(data); }, {});
+        [&secondData](kiriview::ImageSourceData data) { secondData = std::move(data.data); }, {});
 
     QCOMPARE(candidates.size(), std::size_t(2));
     QCOMPARE(firstData, QByteArrayLiteral("image"));
@@ -192,7 +192,7 @@ void TestMediaEntrySourceStore::staleDataLoadCompletionIsIgnoredAfterArchiveSwit
         kiriview::ImageDecodeRequest::fromLocation(1,
             kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
                 firstPageUrl, *firstArchiveCollection)),
-        [&staleCallbackCount](QByteArray) { ++staleCallbackCount; }, {});
+        [&staleCallbackCount](kiriview::ImageSourceData) { ++staleCallbackCount; }, {});
     QTRY_COMPARE(state->waitingDataLoadCount.load(), 1);
 
     store.prepareForOpenedCollectionScope(*secondArchiveCollection);

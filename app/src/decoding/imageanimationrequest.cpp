@@ -11,49 +11,59 @@ bool ImageAnimationPlaybackRequest::isValid() const
     return !std::holds_alternative<std::monostate>(payload);
 }
 
-ImageAnimationPlaybackRequest readerAnimationPlaybackRequest(QByteArray data, QByteArray format)
+ImageAnimationPlaybackRequest readerAnimationPlaybackRequest(
+    QByteArray data, QByteArray format, ImageSourceDataLease sourceDataLease)
 {
     return ImageAnimationPlaybackRequest {
         ReaderAnimationPlaybackRequest {
             std::move(data),
             std::move(format),
         },
+        std::move(sourceDataLease),
     };
 }
 
-ImageAnimationPlaybackRequest apngAnimationPlaybackRequest(QByteArray data)
+ImageAnimationPlaybackRequest apngAnimationPlaybackRequest(
+    QByteArray data, ImageSourceDataLease sourceDataLease)
 {
     return ImageAnimationPlaybackRequest {
         ApngAnimationPlaybackRequest {
             std::move(data),
         },
+        std::move(sourceDataLease),
     };
 }
 
-ImageAnimationPlaybackRequest webpAnimationPlaybackRequest(QByteArray data)
+ImageAnimationPlaybackRequest webpAnimationPlaybackRequest(
+    QByteArray data, ImageSourceDataLease sourceDataLease)
 {
     return ImageAnimationPlaybackRequest {
         WebPAnimationPlaybackRequest {
             std::move(data),
         },
+        std::move(sourceDataLease),
     };
 }
 
-ImageAnimationPlaybackRequest jxlAnimationPlaybackRequest(QByteArray data)
+ImageAnimationPlaybackRequest jxlAnimationPlaybackRequest(
+    QByteArray data, ImageSourceDataLease sourceDataLease)
 {
     return ImageAnimationPlaybackRequest {
         JxlAnimationPlaybackRequest {
             std::move(data),
         },
+        std::move(sourceDataLease),
     };
 }
 
-ImageAnimationPlaybackRequest heifSequenceAnimationPlaybackRequest(QByteArray data)
+ImageAnimationPlaybackRequest heifSequenceAnimationPlaybackRequest(
+    QByteArray data, ImageSourceDataLease sourceDataLease)
 {
     return ImageAnimationPlaybackRequest {
         HeifSequenceAnimationPlaybackRequest {
             std::move(data),
         },
+        std::move(sourceDataLease),
     };
 }
 }

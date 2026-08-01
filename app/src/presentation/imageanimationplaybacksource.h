@@ -51,7 +51,11 @@ public:
     virtual ImageAnimationPlaybackOpenResult open() = 0;
     virtual ImageAnimationPlaybackReadResult readNextFrame() = 0;
     [[nodiscard]] virtual bool restartable() const = 0;
+    void retainSourceDataLease(ImageSourceDataLease sourceDataLease);
     Q_DISABLE_COPY_MOVE(ImageAnimationPlaybackSource)
+
+private:
+    ImageSourceDataLease m_sourceDataLease;
 };
 
 std::unique_ptr<ImageAnimationPlaybackSource> makeImageAnimationPlaybackSource(

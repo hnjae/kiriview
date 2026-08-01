@@ -31,7 +31,8 @@ public:
     ~MediaEntrySourceWithCandidateSnapshot() override = default;
 
     MediaEntrySourceCandidatesResult loadImageDocumentPageCandidates() final;
-    MediaEntrySourceImageDataResult loadImageData(const QUrl& imageUrl) final;
+    MediaEntrySourceImageDataResult loadImageData(
+        const QUrl& imageUrl, ImageSourceDataLease lease = {}) final;
     MediaEntrySourceVideoPlaybackDeviceResult loadVideoPlaybackDevice(const QUrl& videoUrl) final;
     MediaEntrySourceThumbnailMetadataResult loadThumbnailMetadata(const QUrl& imageUrl) final;
 
@@ -39,7 +40,7 @@ protected:
     [[nodiscard]] const OpenedCollectionScopeLocation& openedCollectionScope() const;
 
     virtual MediaEntrySourceImageDataResult loadAuthorizedImageData(
-        const ImageDocumentPageCandidate& candidate)
+        const ImageDocumentPageCandidate& candidate, ImageSourceDataLease lease)
         = 0;
     virtual MediaEntrySourceVideoPlaybackDeviceResult loadAuthorizedVideoPlaybackDevice(
         const ImageDocumentPageCandidate& candidate);
@@ -73,6 +74,7 @@ template <typename Result> Result mediaEntrySourceErrorResult(MediaEntrySourceEr
 MediaEntrySourceCandidatesResult mediaEntrySourceCandidatesResult(
     std::vector<ImageDocumentPageCandidate> candidates);
 MediaEntrySourceImageDataResult mediaEntrySourceImageDataResult(QByteArray data);
+MediaEntrySourceImageDataResult mediaEntrySourceImageDataResult(ImageSourceData sourceData);
 MediaEntrySourceVideoPlaybackDeviceResult mediaEntrySourceVideoPlaybackDeviceResult(
     std::unique_ptr<QIODevice> device, MediaEntrySourcePtr sourceOwner = {});
 MediaEntrySourceThumbnailMetadataResult mediaEntrySourceThumbnailMetadataResult(

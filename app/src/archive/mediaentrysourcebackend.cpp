@@ -39,6 +39,8 @@ QString defaultMediaEntrySourceDiagnostic(kiriview::MediaEntrySourceErrorCause c
         return QStringLiteral("collection entry thumbnail metadata is unavailable");
     case Cause::ProviderUnavailable:
         return QStringLiteral("media entry source provider is unavailable");
+    case Cause::ResourceLimitExceeded:
+        return kiriview::imageSourceDataResourceLimitDiagnostic();
     }
 
     return QStringLiteral("unknown collection access failure");
@@ -139,7 +141,7 @@ MediaEntrySourceWithCandidateSnapshot::loadImageDocumentPageCandidates()
 }
 
 MediaEntrySourceImageDataResult MediaEntrySourceWithCandidateSnapshot::loadImageData(
-    const QUrl& imageUrl)
+    const QUrl& imageUrl, ImageSourceDataLease lease)
 {
     const ImageDocumentPageCandidate* candidate
         = authorizedCandidate(imageUrl, ImageDocumentPageKind::Image);
@@ -150,7 +152,10 @@ MediaEntrySourceImageDataResult MediaEntrySourceWithCandidateSnapshot::loadImage
                 rejectedSelectorEntryPath(imageUrl)));
     }
 
-    return loadAuthorizedImageData(*candidate);
+    if (!lease.isManaged()) {
+        lease = defaultImageSourceDataBudget()->startLease();
+    }
+    return loadAuthorizedImageData(*candidate, std::move(lease));
 }
 
 MediaEntrySourceVideoPlaybackDeviceResult
@@ -269,7 +274,12 @@ MediaEntrySourceCandidatesResult mediaEntrySourceCandidatesResult(
 
 MediaEntrySourceImageDataResult mediaEntrySourceImageDataResult(QByteArray data)
 {
-    return MediaEntrySourceImageData { std::move(data) };
+    return MediaEntrySourceImageData { std::move(data), {} };
+}
+
+MediaEntrySourceImageDataResult mediaEntrySourceImageDataResult(ImageSourceData sourceData)
+{
+    return MediaEntrySourceImageData { std::move(sourceData.data), std::move(sourceData.lease) };
 }
 
 MediaEntrySourceVideoPlaybackDeviceResult mediaEntrySourceVideoPlaybackDeviceResult(
@@ -306,7 +316,8 @@ MediaEntrySourceCandidatesResult loadMediaEntrySourceCandidates(
 }
 
 MediaEntrySourceImageDataResult loadMediaEntrySourceImageData(
-    const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& imageUrl)
+    const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& imageUrl,
+    ImageSourceDataLease lease)
 {
     MediaEntrySourceOpenResult opened = openMediaEntrySource(openedCollectionScope);
     if (const auto* error = kiriview::mediaEntrySourceResultError(opened)) {
@@ -321,7 +332,7 @@ MediaEntrySourceImageDataResult loadMediaEntrySourceImageData(
                 openedCollectionScope));
     }
 
-    return (*source)->loadImageData(imageUrl);
+    return (*source)->loadImageData(imageUrl, std::move(lease));
 }
 
 MediaEntrySourceThumbnailMetadataResult loadMediaEntrySourceThumbnailMetadata(

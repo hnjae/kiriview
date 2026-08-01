@@ -68,7 +68,8 @@ public:
         };
     }
 
-    MediaEntrySourceImageDataResult loadImageData(const QUrl& imageUrl) override
+    MediaEntrySourceImageDataResult loadImageData(
+        const QUrl& imageUrl, ImageSourceDataLease lease = {}) override
     {
         ++m_state->dataLoadCount;
         waitIfBlocked(InstrumentedMediaEntrySourceLoadKind::Data);
@@ -83,7 +84,17 @@ public:
                     QStringLiteral("missing fake media entry source image data") });
         }
 
-        return MediaEntrySourceImageData { data->second };
+        if (!lease.isManaged()) {
+            lease = defaultImageSourceDataBudget()->startLease();
+        }
+        if (!lease.tryReserve(data->second.size())) {
+            return std::unexpected(
+                MediaEntrySourceError { MediaEntrySourceErrorCause::ResourceLimitExceeded,
+                    MediaEntrySourceBackendKind::Unknown, MediaEntrySourceOperation::ReadImageData,
+                    m_openedCollectionScope.fileUrl(), imageUrl.toString(),
+                    imageSourceDataResourceLimitDiagnostic() });
+        }
+        return MediaEntrySourceImageData { data->second, std::move(lease) };
     }
 
     MediaEntrySourceVideoPlaybackDeviceResult loadVideoPlaybackDevice(const QUrl& videoUrl) override

@@ -8,6 +8,7 @@
 #include "async/imageworkerscheduler.h"
 #include "async/timerscheduler.h"
 #include "decoding/imagedecodedependencies.h"
+#include "decoding/imagesourcedata.h"
 #include "system/filedeletion.h"
 #include "system/kiooperationfailure.h"
 #include "system/powersaverprovider.h"
@@ -250,6 +251,8 @@ public:
 
     void finishFrontLoad(QByteArray data) { finishDataLoad(m_loads.front(), std::move(data)); }
 
+    void finishFrontLoad(ImageSourceData data) { finishDataLoad(m_loads.front(), std::move(data)); }
+
     void finishBackLoad(QByteArray data) { finishDataLoad(m_loads.back(), std::move(data)); }
 
     bool finishOldestActiveLoadForUrl(const QUrl& url, QByteArray data)
@@ -299,6 +302,16 @@ private:
     {
         finishLoad(load, [data = std::move(data)](ManualImageDataLoad& load) mutable {
             deliverData(load, std::move(data));
+        });
+    }
+
+    static void finishDataLoad(
+        const std::shared_ptr<ManualImageDataLoad>& load, ImageSourceData data)
+    {
+        finishLoad(load, [data = std::move(data)](ManualImageDataLoad& load) mutable {
+            if (load.dataCallback) {
+                load.dataCallback(std::move(data));
+            }
         });
     }
 

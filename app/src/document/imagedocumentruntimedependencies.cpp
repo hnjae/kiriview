@@ -56,6 +56,10 @@ ImageDocumentRuntimeDependencies resolveImageDocumentRuntimeDependencies(
     const bool useMediaEntrySourceStore = shouldUseMediaEntrySourceStore(overrides);
     MediaEntrySourceFactory mediaEntrySourceFactory = std::move(overrides.mediaEntrySourceFactory);
     overrides.mediaEntrySourceFactory = {};
+    if (overrides.imageDecode.sourceDataBudget == nullptr) {
+        overrides.imageDecode.sourceDataBudget = defaultImageSourceDataBudget(
+            {}, overrides.systemMemorySnapshot.value_or(systemMemorySnapshot()));
+    }
     overrides.imageDecode = imageDecodeDependenciesWithDefaults(std::move(overrides.imageDecode));
     overrides.candidateProvider = imageDocumentPageNavigationCandidateProviderWithDefaults(
         std::move(overrides.candidateProvider), overrides.imageDecode.workerScheduler,
@@ -74,8 +78,9 @@ ImageDocumentRuntimeDependencies resolveImageDocumentRuntimeDependencies(
 
     std::unique_ptr<MediaEntrySourceStore> mediaEntrySourceStore;
     if (useMediaEntrySourceStore) {
-        mediaEntrySourceStore = std::make_unique<MediaEntrySourceStore>(
-            std::move(mediaEntrySourceFactory), overrides.imageDecode.workerScheduler);
+        mediaEntrySourceStore
+            = std::make_unique<MediaEntrySourceStore>(std::move(mediaEntrySourceFactory),
+                overrides.imageDecode.workerScheduler, overrides.imageDecode.sourceDataBudget);
         overrides.candidateProvider = mediaEntrySourceStore->wrapCandidateProvider(
             std::move(overrides.candidateProvider), projectMediaEntrySourceError);
         overrides.imageDecode = mediaEntrySourceStore->wrapDecodeDependencies(

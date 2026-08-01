@@ -331,7 +331,7 @@ void TestRuntimeProviderDefaults::decodeDependencyDefaultsBindDataLoaderToWorker
         kiriview::ImageDecodeRequest::fromLocation(17,
             kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
                 pageUrl, *archiveCollection)),
-        [&dataCallbackCount](QByteArray) { ++dataCallbackCount; },
+        [&dataCallbackCount](kiriview::ImageSourceData) { ++dataCallbackCount; },
         [&errorCallbackCount](QString) { ++errorCallbackCount; });
 
     QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));

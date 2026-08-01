@@ -20,6 +20,8 @@ Admission follows the visible, nearby, selected, and optional background priorit
 
 The thumbnail runtime bounds aggregate admitted work and resource pressure across source providers. Each provider bounds the resources acquired by its admitted operations according to its own contract. Demand that is not admitted remains pending without acquiring expensive provider resources, and optional background work yields to foreground demand. Exact capacities, queue structure, and tie-breaking among equal-priority rows are runtime resource policy.
 
+Image-thumbnail source bytes share the application source-data admission boundary with foreground and preparation work. Direct files and opened-collection entries cannot bypass its per-source or aggregate byte limits, including when an archive entry expands beyond its stored size. Source-data admission failure completes the thumbnail work as failed without decoding, cache installation, image-store publication, or a retained partial buffer.
+
 Row identity, source freshness, requested physical-size bucket, priority, and work correlation remain associated through scheduling and completion. A completion may publish only after both the backend job owner and the thumbnail runtime accept that correlation. Cancellation is best-effort; invalidated or late callbacks are no-ops.
 
 Position-only changes preserve compatible results and work. A source, row-identity, or ordering change invalidates incompatible demand and work before publication and releases entries no longer retained by the accepted row set. Equivalent refreshes may preserve compatible work when durable identity and ordering are unchanged.

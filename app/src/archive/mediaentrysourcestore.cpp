@@ -9,9 +9,10 @@
 #include <utility>
 
 namespace kiriview {
-MediaEntrySourceStore::MediaEntrySourceStore(
-    MediaEntrySourceFactory sourceFactory, ImageWorkerScheduler workerScheduler)
-    : m_runtime(this, std::move(sourceFactory), std::move(workerScheduler))
+MediaEntrySourceStore::MediaEntrySourceStore(MediaEntrySourceFactory sourceFactory,
+    ImageWorkerScheduler workerScheduler, std::shared_ptr<ImageSourceDataBudget> sourceDataBudget)
+    : m_runtime(
+          this, std::move(sourceFactory), std::move(workerScheduler), std::move(sourceDataBudget))
 {
 }
 

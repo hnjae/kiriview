@@ -4,6 +4,7 @@
 #ifndef KIRIVIEW_STATICIMAGE_H
 #define KIRIVIEW_STATICIMAGE_H
 
+#include "decoding/imagesourcedata.h"
 #include "decoding/imagesourcerevision.h"
 #include "displayimagequality.h"
 #include "metadata/embeddedmetadata.h"
@@ -106,6 +107,7 @@ struct StaticDisplayImagePayload
     StaticImageSourceDetailModel sourceDetailModel = StaticImageSourceDetailModel::FiniteRaster;
     ImageSourceRevision sourceRevision;
     DisplayImageRasterKind rasterKind = DisplayImageRasterKind::AuthoritativeStill;
+    ImageSourceDataLease sourceDataLease;
 
     [[nodiscard]] bool isValid() const;
     [[nodiscard]] bool isAuthoritative() const;

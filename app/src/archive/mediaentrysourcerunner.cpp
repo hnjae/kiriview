@@ -50,7 +50,8 @@ MediaEntrySourceCandidatesResult MediaEntrySourceRunner::loadImageDocumentPageCa
     return result;
 }
 
-MediaEntrySourceImageDataResult MediaEntrySourceRunner::loadImageData(const QUrl& imageUrl)
+MediaEntrySourceImageDataResult MediaEntrySourceRunner::loadImageData(
+    const QUrl& imageUrl, ImageSourceDataLease lease)
 {
     std::scoped_lock lock(m_mutex);
     const std::optional<MediaEntrySourceError> error = ensureSource();
@@ -58,7 +59,7 @@ MediaEntrySourceImageDataResult MediaEntrySourceRunner::loadImageData(const QUrl
         return Backend::mediaEntrySourceErrorResult<MediaEntrySourceImageDataResult>(*error);
     }
 
-    return m_source->loadImageData(imageUrl);
+    return m_source->loadImageData(imageUrl, std::move(lease));
 }
 
 MediaEntrySourceVideoPlaybackDeviceResult MediaEntrySourceRunner::loadVideoPlaybackDevice(

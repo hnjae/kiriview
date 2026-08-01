@@ -19,8 +19,9 @@ class MediaEntrySourceStore final : public QObject
 {
     Q_OBJECT
 public:
-    explicit MediaEntrySourceStore(
-        MediaEntrySourceFactory sourceFactory = {}, ImageWorkerScheduler workerScheduler = {});
+    explicit MediaEntrySourceStore(MediaEntrySourceFactory sourceFactory = {},
+        ImageWorkerScheduler workerScheduler = {},
+        std::shared_ptr<ImageSourceDataBudget> sourceDataBudget = {});
     ~MediaEntrySourceStore() override;
     Q_DISABLE_COPY_MOVE(MediaEntrySourceStore)
 

@@ -4,6 +4,7 @@
 #ifndef KIRIVIEW_MEDIAENTRYSOURCEBACKEND_H
 #define KIRIVIEW_MEDIAENTRYSOURCEBACKEND_H
 
+#include "decoding/imagesourcedata.h"
 #include "location/imagelocation.h"
 #include "navigation/imagedocumentpagenavigationtypes.h"
 
@@ -48,6 +49,7 @@ enum class MediaEntrySourceErrorCause {
     VideoPlaybackUnsupported,
     ThumbnailMetadataUnsupported,
     ProviderUnavailable,
+    ResourceLimitExceeded,
 };
 
 struct MediaEntrySourceError
@@ -72,6 +74,7 @@ struct MediaEntrySourceCandidates
 struct MediaEntrySourceImageData
 {
     QByteArray data;
+    ImageSourceDataLease lease;
 };
 
 struct MediaEntrySourceVideoPlaybackDevice
@@ -136,7 +139,9 @@ public:
     virtual ~MediaEntrySource() = default;
 
     virtual MediaEntrySourceCandidatesResult loadImageDocumentPageCandidates() = 0;
-    virtual MediaEntrySourceImageDataResult loadImageData(const QUrl& imageUrl) = 0;
+    virtual MediaEntrySourceImageDataResult loadImageData(
+        const QUrl& imageUrl, ImageSourceDataLease lease = {})
+        = 0;
     virtual MediaEntrySourceVideoPlaybackDeviceResult loadVideoPlaybackDevice(const QUrl& videoUrl);
     virtual MediaEntrySourceThumbnailMetadataResult loadThumbnailMetadata(const QUrl& imageUrl);
     Q_DISABLE_COPY_MOVE(MediaEntrySource)
@@ -149,7 +154,8 @@ using MediaEntrySourceFactory
 MediaEntrySourceCandidatesResult loadMediaEntrySourceCandidates(
     const OpenedCollectionScopeLocation& openedCollectionScope);
 MediaEntrySourceImageDataResult loadMediaEntrySourceImageData(
-    const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& imageUrl);
+    const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& imageUrl,
+    ImageSourceDataLease lease = {});
 MediaEntrySourceThumbnailMetadataResult loadMediaEntrySourceThumbnailMetadata(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& imageUrl);
 MediaEntrySourceOpenResult openMediaEntrySource(

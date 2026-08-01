@@ -3,16 +3,21 @@
 
 #include "thumbnail/thumbnailgeneration.h"
 
+#include "decoding/imagesourcedata.h"
+
 #include <QBuffer>
 #include <QColor>
 #include <QCoreApplication>
+#include <QFile>
 #include <QImage>
 #include <QImageWriter>
 #include <QObject>
 #include <QSize>
 #include <QString>
+#include <QTemporaryDir>
 #include <QTest>
 #include <QUrl>
+#include <memory>
 #include <optional>
 #include <utility>
 
@@ -66,6 +71,7 @@ private Q_SLOTS:
     void injectedCacheHitSkipsBytesLoader();
     void injectedCacheInstallPublishesInstalledPath();
     void directVideoInvalidRequestPublishesFailureWithoutLoadingBytes();
+    void defaultImageBytesLoaderRejectsSourceOverBudget();
 };
 
 void TestThumbnailGeneration::injectedBytesLoaderProvidesGenerationBytes()
@@ -87,6 +93,37 @@ void TestThumbnailGeneration::injectedBytesLoaderProvidesGenerationBytes()
     QCOMPARE(result.image.size(), QSize(4, 3));
     QCOMPARE(result.image.format(), QImage::Format_RGBA8888);
     QVERIFY(result.installedCachePath.isEmpty());
+}
+
+void TestThumbnailGeneration::defaultImageBytesLoaderRejectsSourceOverBudget()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString path = directory.filePath(QStringLiteral("oversized.png"));
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    QCOMPARE(file.write(QByteArray(32, 'x')), qint64(32));
+    file.close();
+
+    auto budget = std::make_shared<kiriview::ImageSourceDataBudget>(16, 16);
+    kiriview::ThumbnailGenerationDependencies dependencies;
+    dependencies.sourceDataBudget = budget;
+    int decodeCount = 0;
+    dependencies.imageDecoder = [&decodeCount](QByteArray, int, QString*) {
+        ++decodeCount;
+        return QImage(QSize(1, 1), QImage::Format_RGBA8888);
+    };
+    kiriview::ThumbnailGenerationRequest request = generationRequest();
+    request.localPathBytes = QFile::encodeName(path);
+    request.sourceUrl = QUrl::fromLocalFile(path);
+
+    const kiriview::ThumbnailGenerationResult result
+        = kiriview::generateThumbnail(std::move(request), std::move(dependencies));
+
+    QCOMPARE(result.status, Status::Failed);
+    QVERIFY(!result.errorString.isEmpty());
+    QCOMPARE(decodeCount, 0);
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
 }
 
 void TestThumbnailGeneration::injectedDecoderReceivesLoadedBytesAndBucketEdge()

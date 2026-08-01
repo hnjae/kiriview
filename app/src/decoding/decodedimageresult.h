@@ -32,6 +32,7 @@ struct ApngAnimationImage
     EmbeddedMetadata embeddedMetadata;
     QString sourceIdentity;
     ImageSourceRevision sourceRevision;
+    ImageSourceDataLease sourceDataLease;
 };
 
 struct ReaderAnimationImage
@@ -43,6 +44,7 @@ struct ReaderAnimationImage
     EmbeddedMetadata embeddedMetadata;
     QString sourceIdentity;
     ImageSourceRevision sourceRevision;
+    ImageSourceDataLease sourceDataLease;
 };
 
 struct WebPAnimationImage
@@ -53,6 +55,7 @@ struct WebPAnimationImage
     EmbeddedMetadata embeddedMetadata;
     QString sourceIdentity;
     ImageSourceRevision sourceRevision;
+    ImageSourceDataLease sourceDataLease;
 };
 
 struct JxlAnimationImage
@@ -63,6 +66,7 @@ struct JxlAnimationImage
     EmbeddedMetadata embeddedMetadata;
     QString sourceIdentity;
     ImageSourceRevision sourceRevision;
+    ImageSourceDataLease sourceDataLease;
 };
 
 struct HeifSequenceAnimationImage
@@ -73,6 +77,7 @@ struct HeifSequenceAnimationImage
     EmbeddedMetadata embeddedMetadata;
     QString sourceIdentity;
     ImageSourceRevision sourceRevision;
+    ImageSourceDataLease sourceDataLease;
 };
 
 using DecodedImage = std::variant<StaticDecodedImage, ApngAnimationImage, ReaderAnimationImage,

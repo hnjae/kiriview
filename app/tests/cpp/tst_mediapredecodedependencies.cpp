@@ -98,7 +98,7 @@ void TestMediaPredecodeDependencies::explicitDependenciesArePreserved()
 
     QByteArray loadedData;
     dependencies.imageDecode.dataLoader(nullptr, kiriview::ImageDecodeRequest(),
-        [&loadedData](QByteArray data) { loadedData = std::move(data); }, {});
+        [&loadedData](kiriview::ImageSourceData data) { loadedData = std::move(data.data); }, {});
     const kiriview::DecodedImageResult result
         = dependencies.imageDecode.dataDecoder(loadedData, kiriview::ImageDecodeRequest());
     std::unique_ptr<kiriview::PowerSaverStateMonitor> monitor = dependencies.powerSaver.monitor({});

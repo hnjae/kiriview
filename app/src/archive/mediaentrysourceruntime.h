@@ -22,7 +22,8 @@ class MediaEntrySourceRuntime final
 {
 public:
     explicit MediaEntrySourceRuntime(QObject* context, MediaEntrySourceFactory sourceFactory = {},
-        ImageWorkerScheduler workerScheduler = {});
+        ImageWorkerScheduler workerScheduler = {},
+        std::shared_ptr<ImageSourceDataBudget> sourceDataBudget = {});
     ~MediaEntrySourceRuntime();
     Q_DISABLE_COPY_MOVE(MediaEntrySourceRuntime)
 
@@ -50,6 +51,7 @@ private:
     QObject* m_context = nullptr;
     MediaEntrySourceFactory m_sourceFactory;
     ImageWorkerScheduler m_workerScheduler;
+    std::shared_ptr<ImageSourceDataBudget> m_sourceDataBudget;
     std::shared_ptr<MediaEntrySourceRunner> m_runner;
     MediaEntrySourceCandidateLoadState m_candidateLoadState;
     ImageWorkerTask m_candidateLoadTask;

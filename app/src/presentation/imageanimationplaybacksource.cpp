@@ -414,13 +414,23 @@ std::unique_ptr<kiriview::ImageAnimationPlaybackSource> makePlaybackSource(
 }
 
 namespace kiriview {
+void ImageAnimationPlaybackSource::retainSourceDataLease(ImageSourceDataLease sourceDataLease)
+{
+    m_sourceDataLease = std::move(sourceDataLease);
+}
+
 std::unique_ptr<ImageAnimationPlaybackSource> makeImageAnimationPlaybackSource(
     ImageAnimationPlaybackRequest request)
 {
-    return std::visit(
+    ImageSourceDataLease sourceDataLease = std::move(request.sourceDataLease);
+    std::unique_ptr<ImageAnimationPlaybackSource> source = std::visit(
         [](auto&& playbackRequest) {
             return makePlaybackSource(std::forward<decltype(playbackRequest)>(playbackRequest));
         },
         std::move(request.payload));
+    if (source != nullptr) {
+        source->retainSourceDataLease(std::move(sourceDataLease));
+    }
+    return source;
 }
 }

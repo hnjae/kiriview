@@ -42,6 +42,10 @@ The application provider retains source-specific failure detail in a KiriView-ow
 
 KiriView may answer public provider demand with a validated preview, bounded-detail payload, cache entry, or exact payload when the supported interface permits it. It may apply stricter application cache, display-store, and source-work budgets than the supplied limits.
 
+Encoded source data for foreground decode, refinement, and preparation is admitted before or while it is materialized under one application-owned source-data budget derived from the shared system-memory facts. Admission bounds both one source and aggregate concurrent source data across direct URLs and opened-collection backends. A backend must stop before exceeding admission, and a source-data resource remains charged while application work or a retained source-backed payload can still access its storage. Cancellation, stale rejection, failure, and payload retirement release that charge without permitting partial publication.
+
+Source-data admission failure is a typed source-access failure owned by the requesting workflow. It cannot fall through to a decoder, populate a cache or display store, or be reclassified as unsupported format merely because a backend reached its resource limit.
+
 Provisional preview production and authoritative still production remain separate source facts even when they overlap in time. A matching preview can improve loading presentation, but only the authoritative terminal result may establish reusable current-still state, report success, or report source failure. Preview-origin and thumbnail-quality payloads are ineligible as authoritative predecode seeds.
 
 Provisional pixels are eligible only when the accepted image transition has no retained complete authoritative display. When a complete display is retained during replacement, it remains the sole visual fallback until the accepted target commits or becomes terminal; preview availability cannot displace it.

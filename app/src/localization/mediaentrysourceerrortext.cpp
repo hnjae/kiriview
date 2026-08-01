@@ -34,6 +34,7 @@ QString mediaEntrySourceErrorText(const MediaEntrySourceError& error)
         }
         return i18nc("@info:status", "Could not find the selected image in the collection.");
     case MediaEntrySourceErrorCause::EntryReadFailed:
+    case MediaEntrySourceErrorCause::ResourceLimitExceeded:
         return i18nc("@info:status", "Could not read the selected collection image.");
     case MediaEntrySourceErrorCause::VideoPlaybackUnsupported:
         return i18nc(

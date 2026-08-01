@@ -4,6 +4,8 @@
 #ifndef KIRIVIEW_IMAGEANIMATIONREQUEST_H
 #define KIRIVIEW_IMAGEANIMATIONREQUEST_H
 
+#include "imagesourcedata.h"
+
 #include <QByteArray>
 #include <variant>
 
@@ -41,15 +43,21 @@ struct ImageAnimationPlaybackRequest
         HeifSequenceAnimationPlaybackRequest>;
 
     Payload payload;
+    ImageSourceDataLease sourceDataLease;
 
     [[nodiscard]] bool isValid() const;
 };
 
-ImageAnimationPlaybackRequest readerAnimationPlaybackRequest(QByteArray data, QByteArray format);
-ImageAnimationPlaybackRequest apngAnimationPlaybackRequest(QByteArray data);
-ImageAnimationPlaybackRequest webpAnimationPlaybackRequest(QByteArray data);
-ImageAnimationPlaybackRequest jxlAnimationPlaybackRequest(QByteArray data);
-ImageAnimationPlaybackRequest heifSequenceAnimationPlaybackRequest(QByteArray data);
+ImageAnimationPlaybackRequest readerAnimationPlaybackRequest(
+    QByteArray data, QByteArray format, ImageSourceDataLease sourceDataLease = {});
+ImageAnimationPlaybackRequest apngAnimationPlaybackRequest(
+    QByteArray data, ImageSourceDataLease sourceDataLease = {});
+ImageAnimationPlaybackRequest webpAnimationPlaybackRequest(
+    QByteArray data, ImageSourceDataLease sourceDataLease = {});
+ImageAnimationPlaybackRequest jxlAnimationPlaybackRequest(
+    QByteArray data, ImageSourceDataLease sourceDataLease = {});
+ImageAnimationPlaybackRequest heifSequenceAnimationPlaybackRequest(
+    QByteArray data, ImageSourceDataLease sourceDataLease = {});
 }
 
 #endif

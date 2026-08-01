@@ -4,6 +4,7 @@
 #include "mediaentrysourcebackend_p.h"
 
 #include "archiveformat.h"
+#include "decoding/imagesourcedata.h"
 #include "openedcollectionthumbnailpolicy.h"
 
 #include <K7Zip>
@@ -167,7 +168,7 @@ OpenKArchiveResult openKArchiveCollection(
 
 kiriview::MediaEntrySourceImageDataResult readKArchiveFileData(
     const kiriview::OpenedCollectionScopeLocation& openedCollectionScope, const QString& entryPath,
-    const KArchiveFile& file)
+    const KArchiveFile& file, kiriview::ImageSourceDataLease lease)
 {
     std::unique_ptr<QIODevice> device(file.createDevice());
     if (device == nullptr) {
@@ -178,17 +179,20 @@ kiriview::MediaEntrySourceImageDataResult readKArchiveFileData(
                 entryPath));
     }
 
-    QByteArray data = device->readAll();
-    const qint64 expectedSize = file.size();
-    if (expectedSize >= 0 && data.size() != expectedSize) {
+    kiriview::ImageSourceDataReadResult readResult
+        = kiriview::readImageSourceData(*device, std::move(lease), file.size());
+    if (readResult.status != kiriview::ImageSourceDataReadStatus::Ready) {
+        const kiriview::MediaEntrySourceErrorCause cause
+            = readResult.status == kiriview::ImageSourceDataReadStatus::ResourceLimitExceeded
+            ? kiriview::MediaEntrySourceErrorCause::ResourceLimitExceeded
+            : kiriview::MediaEntrySourceErrorCause::EntryReadFailed;
         return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceImageDataResult>(
-            Backend::mediaEntrySourceError(kiriview::MediaEntrySourceErrorCause::EntryReadFailed,
-                kiriview::MediaEntrySourceBackendKind::KArchive,
+            Backend::mediaEntrySourceError(cause, kiriview::MediaEntrySourceBackendKind::KArchive,
                 kiriview::MediaEntrySourceOperation::ReadImageData, openedCollectionScope,
-                QStringLiteral("KArchive entry size did not match the declared size"), entryPath));
+                std::move(readResult.diagnosticDetail), entryPath));
     }
 
-    return Backend::mediaEntrySourceImageDataResult(std::move(data));
+    return Backend::mediaEntrySourceImageDataResult(std::move(readResult.sourceData));
 }
 
 std::optional<kiriview::MediaEntrySourceThumbnailMetadata> thumbnailMetadataForKArchiveFile(
@@ -268,7 +272,8 @@ public:
 
 protected:
     kiriview::MediaEntrySourceImageDataResult loadAuthorizedImageData(
-        const kiriview::ImageDocumentPageCandidate& candidate) override
+        const kiriview::ImageDocumentPageCandidate& candidate,
+        kiriview::ImageSourceDataLease lease) override
     {
         const KArchiveDirectory* directory = m_archive.directory();
         const KArchiveFile* file = directory == nullptr ? nullptr : directory->file(candidate.name);
@@ -280,7 +285,8 @@ protected:
                     candidate.name));
         }
 
-        return readKArchiveFileData(openedCollectionScope(), candidate.name, *file);
+        return readKArchiveFileData(
+            openedCollectionScope(), candidate.name, *file, std::move(lease));
     }
 
     kiriview::MediaEntrySourceVideoPlaybackDeviceResult loadAuthorizedVideoPlaybackDevice(

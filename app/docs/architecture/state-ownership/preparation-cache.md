@@ -14,6 +14,8 @@ Preparation windows govern new work and priority, not immediate cache destructio
 
 The document-session preparation runtime owns still-image preparation for mixed direct-media scopes. The image-document preparation runtime owns it for image-page and opened-collection scopes. Each consumes the confirmed candidate view of its owning navigation scope together with accepted selection, presentation, power-saver, resource-limit, and execution facts without acquiring navigation or system-state ownership.
 
+Foreground loading, both preparation owners, provider refinement, and image-thumbnail work consume the same application source-data budget. Individual owners retain their own scheduling and completion authority, but none may create an unaccounted source-byte path or reserve capacity after materializing the bytes it is meant to bound.
+
 Video rows may influence the position of adjacent still-image work but never produce cached video frames. Preparation results return provider-eligible still-image payloads to the owning load and supported `ImageSequence` provider boundary and must not publish navigation, viewport readiness, errors, zoom, or page selection.
 
 Prepared payloads preserve the source and scope identity, freshness, source dimensions, available raster detail, authoritative origin, and refinement eligibility needed for the provider boundary to validate reuse against current accepted demand. The preparation owner does not decide whether a prepared payload is sufficient for initial display, should be used only as a refinement basis, or may serve as a bounded-latency fallback.

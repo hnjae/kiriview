@@ -9,13 +9,15 @@
 #include <utility>
 
 namespace {
-kiriview::ImageDataLoader imageDataLoader(kiriview::ImageWorkerScheduler workerScheduler)
+kiriview::ImageDataLoader imageDataLoader(kiriview::ImageWorkerScheduler workerScheduler,
+    std::shared_ptr<kiriview::ImageSourceDataBudget> sourceDataBudget)
 {
-    return [workerScheduler = std::move(workerScheduler)](QObject* receiver,
+    return [workerScheduler = std::move(workerScheduler),
+               sourceDataBudget = std::move(sourceDataBudget)](QObject* receiver,
                kiriview::ImageDecodeRequest request, kiriview::ImageDataCallback callback,
                kiriview::ErrorCallback errorCallback) {
         return kiriview::startStoredImageDataLoad(receiver, std::move(request), workerScheduler,
-            std::move(callback), std::move(errorCallback));
+            sourceDataBudget, std::move(callback), std::move(errorCallback));
     };
 }
 
@@ -32,12 +34,14 @@ namespace kiriview {
 ImageDecodeDependencies defaultImageDecodeDependencies()
 {
     ImageWorkerScheduler workerScheduler = defaultImageWorkerScheduler();
+    std::shared_ptr<ImageSourceDataBudget> sourceDataBudget = defaultImageSourceDataBudget();
     return ImageDecodeDependencies {
-        imageDataLoader(workerScheduler),
+        imageDataLoader(workerScheduler, sourceDataBudget),
         decodeImageDataWithDefaults,
         defaultThumbnailCacheLookupProvider(workerScheduler),
         rawEmbeddedThumbnailPreviewResult,
         std::move(workerScheduler),
+        std::move(sourceDataBudget),
     };
 }
 // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
@@ -48,8 +52,12 @@ ImageDecodeDependencies imageDecodeDependenciesWithDefaults(ImageDecodeDependenc
     if (!dependencies.workerScheduler.isValid()) {
         dependencies.workerScheduler = std::move(defaults.workerScheduler);
     }
+    if (dependencies.sourceDataBudget == nullptr) {
+        dependencies.sourceDataBudget = std::move(defaults.sourceDataBudget);
+    }
     if (!dependencies.dataLoader) {
-        dependencies.dataLoader = imageDataLoader(dependencies.workerScheduler);
+        dependencies.dataLoader
+            = imageDataLoader(dependencies.workerScheduler, dependencies.sourceDataBudget);
     }
     if (!dependencies.dataDecoder) {
         dependencies.dataDecoder = std::move(defaults.dataDecoder);

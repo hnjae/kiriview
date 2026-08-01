@@ -6,6 +6,7 @@
 #include "archive/mediaentrysourcebackend_p.h"
 #include "archive/mediaentrysourcerunner.h"
 #include "archive/openedcollectionthumbnailpolicy.h"
+#include "decoding/imagesourcedata.h"
 #include "image_test_support.h"
 #include "location/imagedocumentlocation.h"
 
@@ -173,7 +174,7 @@ public:
 
 protected:
     kiriview::MediaEntrySourceImageDataResult loadAuthorizedImageData(
-        const kiriview::ImageDocumentPageCandidate&) override
+        const kiriview::ImageDocumentPageCandidate&, kiriview::ImageSourceDataLease) override
     {
         ++m_imageBackendCallCount;
         return kiriview::MediaEntrySourceImageData {};
@@ -216,6 +217,7 @@ private Q_SLOTS:
     void readingArchiveEntryReturnsOriginalBytes();
     void readingDirectoryEntryReturnsOriginalBytes();
     void readingRarEntryReturnsOriginalBytes();
+    void imageDataReadsEnforceSourceBudget();
     void standaloneHelpersMatchMediaEntrySourceResults();
     void candidateSnapshotSourcesOwnSortedDefensiveListing();
     void candidateSnapshotRejectsUnauthorizedOrWrongKindSelectors_data();
@@ -590,6 +592,63 @@ void TestMediaEntrySourceBackend::readingRarEntryReturnsOriginalBytes()
 
     QVERIFY(success != nullptr);
     QCOMPARE(success->data, QByteArrayLiteral("two"));
+}
+
+void TestMediaEntrySourceBackend::imageDataReadsEnforceSourceBudget()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QByteArray oversizedData(32, 'x');
+
+    const QString zipPath = dir.filePath(QStringLiteral("book.zip"));
+    writeZipArchiveWithCompression(zipPath,
+        {
+            { QStringLiteral("page.png"), oversizedData },
+        },
+        KZip::DeflateCompression);
+    const auto zipCollection = archiveCollectionForPath(zipPath);
+    QVERIFY(zipCollection.has_value());
+
+    kiriview::ImageSourceDataBudget zipBudget(16, 16);
+    const kiriview::MediaEntrySourceImageDataResult zipResult
+        = kiriview::loadMediaEntrySourceImageData(*zipCollection,
+            archivePageUrl(zipCollection->rootUrl(), QStringLiteral("page.png")),
+            zipBudget.startLease());
+    const auto* zipError = mediaEntrySourceDataError(zipResult);
+    QVERIFY(zipError != nullptr);
+    QCOMPARE(zipError->cause, kiriview::MediaEntrySourceErrorCause::ResourceLimitExceeded);
+    QCOMPARE(zipBudget.reservedByteCount(), qsizetype(0));
+
+    QDir root(dir.path());
+    QVERIFY(root.mkpath(QStringLiteral("pages")));
+    writeFile(dir.filePath(QStringLiteral("pages/page.png")), oversizedData);
+    const auto directoryCollection = directoryCollectionForPath(dir.path());
+    QVERIFY(directoryCollection.has_value());
+
+    kiriview::ImageSourceDataBudget directoryBudget(16, 16);
+    const kiriview::MediaEntrySourceImageDataResult directoryResult
+        = kiriview::loadMediaEntrySourceImageData(*directoryCollection,
+            archivePageUrl(directoryCollection->rootUrl(), QStringLiteral("pages/page.png")),
+            directoryBudget.startLease());
+    const auto* directoryError = mediaEntrySourceDataError(directoryResult);
+    QVERIFY(directoryError != nullptr);
+    QCOMPARE(directoryError->cause, kiriview::MediaEntrySourceErrorCause::ResourceLimitExceeded);
+    QCOMPARE(directoryBudget.reservedByteCount(), qsizetype(0));
+
+    const QString rarPath = dir.filePath(QStringLiteral("book.rar"));
+    writeRarArchive(rarPath);
+    const auto rarCollection = archiveCollectionForPath(rarPath);
+    QVERIFY(rarCollection.has_value());
+
+    kiriview::ImageSourceDataBudget rarBudget(2, 2);
+    const kiriview::MediaEntrySourceImageDataResult rarResult
+        = kiriview::loadMediaEntrySourceImageData(*rarCollection,
+            archivePageUrl(rarCollection->rootUrl(), QStringLiteral("chapter/02.jpg")),
+            rarBudget.startLease());
+    const auto* rarError = mediaEntrySourceDataError(rarResult);
+    QVERIFY(rarError != nullptr);
+    QCOMPARE(rarError->cause, kiriview::MediaEntrySourceErrorCause::ResourceLimitExceeded);
+    QCOMPARE(rarBudget.reservedByteCount(), qsizetype(0));
 }
 
 void TestMediaEntrySourceBackend::standaloneHelpersMatchMediaEntrySourceResults()
