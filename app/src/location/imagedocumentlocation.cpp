@@ -146,12 +146,15 @@ QString windowTitleFileNameForImageLocation(
         return QString();
     }
 
-    if (openedCollectionScopeContainsUrl(openedCollectionScope, imageUrl)
-        && !openedCollectionScope.fileUrl().fileName().isEmpty()) {
-        return openedCollectionScope.fileUrl().fileName();
+    if (openedCollectionScopeContainsUrl(openedCollectionScope, imageUrl)) {
+        const QString collectionFileName
+            = userVisibleFileNameForUrl(openedCollectionScope.fileUrl());
+        if (!collectionFileName.isEmpty()) {
+            return collectionFileName;
+        }
     }
 
-    return imageUrl.fileName();
+    return userVisibleFileNameForUrl(imageUrl);
 }
 
 QUrl containerNavigationUrlForLocation(const DisplayedImageLocation& location)

@@ -38,6 +38,7 @@ class TestImageUrl : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    void userVisibleFileNameDecodesFilenameComponentExactlyOnce();
     void normalizedContainerUrlsStripQueryFragmentsAndCleanLocalPaths();
     void normalizedUrlIdentityHelpersRejectInvalidImageUrlsAndPreserveKeyFormatting();
     void directoryNavigationHelpersOwnParentAndIdentityRules();
@@ -54,6 +55,17 @@ private Q_SLOTS:
     void kioFuseArchivePathsRestoreSupportedArchiveSchemes();
     void imageLocationTypesExposeExplicitState();
 };
+
+void TestImageUrl::userVisibleFileNameDecodesFilenameComponentExactlyOnce()
+{
+    QCOMPARE(kiriview::userVisibleFileNameForUrl(
+                 QUrl::fromLocalFile(QStringLiteral("/media/[clip].mp4"))),
+        QStringLiteral("[clip].mp4"));
+    QCOMPARE(kiriview::userVisibleFileNameForUrl(
+                 QUrl::fromLocalFile(QStringLiteral("/media/%5Bclip%5D.mp4"))),
+        QStringLiteral("%5Bclip%5D.mp4"));
+    QCOMPARE(kiriview::userVisibleFileNameForUrl(QUrl()), QString());
+}
 
 void TestImageUrl::normalizedContainerUrlsStripQueryFragmentsAndCleanLocalPaths()
 {

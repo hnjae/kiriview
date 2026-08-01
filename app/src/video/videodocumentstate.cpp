@@ -3,13 +3,15 @@
 
 #include "video/videodocumentstate.h"
 
+#include "location/imageurl.h"
+
 #include <algorithm>
 #include <utility>
 
 namespace {
 QString fileNameForWindowTitle(const QUrl& sourceUrl)
 {
-    return sourceUrl.fileName(QUrl::PrettyDecoded);
+    return kiriview::userVisibleFileNameForUrl(sourceUrl);
 }
 
 QSize normalizedVideoSize(QSize size)

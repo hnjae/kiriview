@@ -3,12 +3,14 @@
 
 #include "localization/mediaentrysourceerrortext.h"
 
+#include "location/imageurl.h"
+
 #include <KLocalizedString>
 
 namespace {
 QString collectionOpenError(const QUrl& collectionUrl)
 {
-    const QString fileName = collectionUrl.fileName();
+    const QString fileName = kiriview::userVisibleFileNameForUrl(collectionUrl);
     if (fileName.isEmpty()) {
         return i18nc("@info:status", "Could not open the selected collection.");
     }

@@ -3,6 +3,8 @@
 
 #include "documentsessionmediadeletionplan.h"
 
+#include "location/imageurl.h"
+
 #include <optional>
 #include <utility>
 
@@ -10,8 +12,8 @@ namespace {
 void appendDeletedDirectMediaNavigationCandidate(
     std::vector<kiriview::DirectMediaNavigationCandidate>* candidates, const QUrl& currentUrl)
 {
-    candidates->push_back(
-        kiriview::DirectMediaNavigationCandidate { currentUrl, currentUrl.fileName() });
+    candidates->push_back(kiriview::DirectMediaNavigationCandidate {
+        currentUrl, kiriview::userVisibleFileNameForUrl(currentUrl) });
 }
 
 std::optional<QUrl> preferredMediaDeletionFallback(

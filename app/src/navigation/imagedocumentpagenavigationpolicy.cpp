@@ -206,7 +206,7 @@ PageNavigationState pageNavigationStateForTargets(
         const QUrl normalizedUrl = normalizedImageUrl(currentUrl);
         state.targets.insert(state.targets.begin(),
             ImageDocumentPageTarget { normalizedUrl, ImageDocumentPageKind::Image,
-                normalizedUrl.fileName(QUrl::PrettyDecoded) });
+                userVisibleFileNameForUrl(normalizedUrl) });
         state.currentIndex = 0;
     }
 

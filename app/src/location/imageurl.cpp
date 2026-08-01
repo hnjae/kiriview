@@ -164,6 +164,8 @@ bool DirectoryNavigationLocation::isValid() const
 
 QUrl normalizedUrlForIdentity(const QUrl& url) { return url.adjusted(QUrl::NormalizePathSegments); }
 
+QString userVisibleFileNameForUrl(const QUrl& url) { return url.fileName(QUrl::FullyDecoded); }
+
 QString normalizedUrlIdentityKey(const QUrl& url, QUrl::ComponentFormattingOptions options)
 {
     return normalizedUrlForIdentity(url).toString(options);

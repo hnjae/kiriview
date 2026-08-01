@@ -5,6 +5,7 @@
 
 #include "archive/archiveformat.h"
 #include "archive/archivepath.h"
+#include "location/imageurl.h"
 #include "session/documentsessiontypes.h"
 
 #include <KLocalizedString>
@@ -25,7 +26,7 @@ QString dimensionsText(QSize size)
 
 QString fileNameForUrl(const QUrl& url)
 {
-    QString fileName = url.fileName(QUrl::FullyDecoded);
+    QString fileName = kiriview::userVisibleFileNameForUrl(url);
     if (!fileName.isEmpty()) {
         return fileName;
     }

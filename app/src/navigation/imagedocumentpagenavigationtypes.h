@@ -4,6 +4,8 @@
 #ifndef KIRIVIEW_IMAGEDOCUMENTPAGENAVIGATIONTYPES_H
 #define KIRIVIEW_IMAGEDOCUMENTPAGENAVIGATIONTYPES_H
 
+#include "location/imageurl.h"
+
 #include <QString>
 #include <QUrl>
 #include <optional>
@@ -33,7 +35,7 @@ struct ImageDocumentPageTarget
         , name(std::move(name))
     {
         if (this->name.isEmpty()) {
-            this->name = this->url.fileName(QUrl::PrettyDecoded);
+            this->name = userVisibleFileNameForUrl(this->url);
         }
     }
 

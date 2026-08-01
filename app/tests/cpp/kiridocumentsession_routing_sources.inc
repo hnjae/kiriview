@@ -27,6 +27,35 @@ void TestKiriDocumentSessionRouting::directVideoRoutesToVideoDocumentWithOrigina
     QVERIFY(session->atKnownLastActiveNavigation());
 }
 
+void TestKiriDocumentSessionRouting::directVideoTitleDecodesFileNameExactlyOnce_data()
+{
+    QTest::addColumn<QUrl>("clip");
+    QTest::addColumn<QString>("expectedTitle");
+
+    QTest::newRow("reserved-brackets")
+        << localUrl(QStringLiteral("/media/[clip].mp4")) << QStringLiteral("[clip].mp4");
+    QTest::newRow("literal-percent-sequence")
+        << localUrl(QStringLiteral("/media/%5Bclip%5D.mp4")) << QStringLiteral("%5Bclip%5D.mp4");
+}
+
+void TestKiriDocumentSessionRouting::directVideoTitleDecodesFileNameExactlyOnce()
+{
+    QFETCH(QUrl, clip);
+    QFETCH(QString, expectedTitle);
+
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    directMediaNavigationProvider.setMedia(
+        localUrl(QStringLiteral("/media/")), { directMediaNavigationCandidate(clip) });
+    std::unique_ptr<KiriDocumentSession> session = createSession(directMediaNavigationProvider);
+
+    session->setSourceUrl(clip);
+
+    QCOMPARE(session->documentKind(), KiriDocumentSession::DocumentKind::Video);
+    QCOMPARE(session->sourceUrl(), clip);
+    QCOMPARE(session->videoDocument()->sourceUrl(), clip);
+    QCOMPARE(session->windowTitleSubject(), expectedTitle);
+}
+
 void TestKiriDocumentSessionRouting::publicProjectionRevisionCommitsBeforeScalarSignals()
 {
     FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;

@@ -99,7 +99,7 @@ kiriview::ImageRemovalFallbackPlan removalFallbackPlanForDisplayedLocation(
             const QUrl currentContainerUrl = kiriview::containerNavigationUrlForLocation(location);
             return kiriview::ComicBookRemovalFallback { currentContainerUrl,
                 kiriview::parentUrlForContainerNavigation(currentContainerUrl),
-                currentContainerUrl.fileName() };
+                kiriview::userVisibleFileNameForUrl(currentContainerUrl) };
         }
 
         return kiriview::NoImageRemovalFallback {};
@@ -128,7 +128,7 @@ ImageRemovalFallback imageRemovalFallbackForImageContext(
     const ImageDocumentPageCandidateListContext& context)
 {
     const QUrl& currentUrl = context.currentUrl();
-    return ImageRemovalFallback { context, currentUrl, currentUrl.fileName() };
+    return ImageRemovalFallback { context, currentUrl, userVisibleFileNameForUrl(currentUrl) };
 }
 
 std::optional<ImageDocumentPageTarget> imageRemovalFallbackTarget(

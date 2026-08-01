@@ -68,6 +68,7 @@ private:
 };
 
 QUrl normalizedUrlForIdentity(const QUrl& url);
+QString userVisibleFileNameForUrl(const QUrl& url);
 QString normalizedUrlIdentityKey(
     const QUrl& url, QUrl::ComponentFormattingOptions options = QUrl::PrettyDecoded);
 std::optional<QUrl> normalizedValidUrlForIdentity(const QUrl& url);

@@ -72,6 +72,7 @@ class TestActiveNavigationThumbnailProjection : public QObject
 
 private Q_SLOTS:
     void directMediaRowsUseConfirmedCandidates();
+    void directMediaRowsDecodeFallbackLabels();
     void imageDocumentRowsUsePageCandidateListSnapshot();
     void unavailableUnknownAndMismatchedNavigationProjectNoRows();
 };
@@ -102,6 +103,21 @@ void TestActiveNavigationThumbnailProjection::directMediaRowsUseConfirmedCandida
     QCOMPARE(rows.at(1).label, QStringLiteral("Clip"));
     QVERIFY(rows.at(1).kind == kiriview::ActiveNavigationThumbnailKind::Video);
     QVERIFY(rows.at(1).current);
+}
+
+void TestActiveNavigationThumbnailProjection::directMediaRowsDecodeFallbackLabels()
+{
+    const QUrl videoUrl = localUrl(QStringLiteral("/media/[clip].mp4"));
+
+    const std::vector<kiriview::ActiveNavigationThumbnailRow> rows
+        = kiriview::projectActiveNavigationThumbnailRows(
+            kiriview::ActiveNavigationSourceKind::OrdinaryDirectMedia, knownNavigation(1, 1),
+            directMediaNavigationCandidateSnapshot({ directMediaNavigationCandidate(videoUrl) }),
+            {});
+
+    QCOMPARE(rows.size(), std::size_t(1));
+    QCOMPARE(rows.at(0).url, videoUrl);
+    QCOMPARE(rows.at(0).label, QStringLiteral("[clip].mp4"));
 }
 
 void TestActiveNavigationThumbnailProjection::imageDocumentRowsUsePageCandidateListSnapshot()

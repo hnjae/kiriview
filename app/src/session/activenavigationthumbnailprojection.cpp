@@ -3,6 +3,7 @@
 
 #include "activenavigationthumbnailprojection.h"
 
+#include "location/imageurl.h"
 #include "navigation/mediaformatregistry.h"
 
 #include <cstddef>
@@ -29,7 +30,7 @@ kiriview::ActiveNavigationThumbnailKind thumbnailKindForImageDocumentPageCandida
 
 QString thumbnailLabel(const QString& candidateName, const QUrl& url)
 {
-    return candidateName.isEmpty() ? url.fileName(QUrl::PrettyDecoded) : candidateName;
+    return candidateName.isEmpty() ? kiriview::userVisibleFileNameForUrl(url) : candidateName;
 }
 
 std::vector<kiriview::ActiveNavigationThumbnailRow> thumbnailRowsForDirectMediaNavigationCandidates(

@@ -9,6 +9,8 @@ class TestKiriDocumentSessionRouting : public QObject
 
 private Q_SLOTS:
     void directVideoRoutesToVideoDocumentWithOriginalSource();
+    void directVideoTitleDecodesFileNameExactlyOnce_data();
+    void directVideoTitleDecodesFileNameExactlyOnce();
     void publicProjectionRevisionCommitsBeforeScalarSignals();
     void destroyingSessionDuringPublicSignalStopsFanOut();
     void archiveAndDirectoryInputsRouteToImageDocument();
