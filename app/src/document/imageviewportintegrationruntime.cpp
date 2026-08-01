@@ -569,12 +569,22 @@ void ImageViewportIntegrationRuntime::acceptSnapshot(const ImageViewportStateSna
         return;
     }
 
+    TargetRecord* displayed
+        = recordForGeneration(snapshot.display().displayedPresentationTargetGeneration());
+    const bool completeDisplayAvailable = ::completeAuthoritativeDisplayAvailable(snapshot);
+    const bool activeTargetHasCompleteDisplay
+        = displayed == m_activeRecord && completeDisplayAvailable;
+    const ImageViewportRequestStatus requestStatus = snapshot.request().status();
+    const bool activeTargetFrameWait
+        = requestStatus == ImageViewportRequestStatus::Loading && activeTargetHasCompleteDisplay;
+
     ImageViewportIntegrationProjection projection;
     projection.correlated = true;
     projection.sourceGeneration = m_activeRecord->target.sourceGeneration;
     projection.secondaryUrl = m_activeRecord->target.secondaryUrl;
     projection.secondarySessionId = m_activeRecord->target.secondarySessionId;
-    projection.status = documentStatus(snapshot.request().status());
+    projection.status
+        = activeTargetFrameWait ? ImageDocumentStatus::Ready : documentStatus(requestStatus);
     projection.loading = projection.status == ImageDocumentStatus::Loading;
     projection.primaryImageSize = logicalSize(snapshot.primary());
     projection.secondaryImageSize = logicalSize(snapshot.secondary());
@@ -602,16 +612,14 @@ void ImageViewportIntegrationRuntime::acceptSnapshot(const ImageViewportStateSna
         snapshot.display().contentSize().height(), projection.maximumContentPosition.y());
     projection.displayedTargetGeneration
         = snapshot.display().displayedPresentationTargetGeneration();
-    projection.completeAuthoritativeDisplayAvailable
-        = ::completeAuthoritativeDisplayAvailable(snapshot);
+    projection.completeAuthoritativeDisplayAvailable = completeDisplayAvailable;
 
-    TargetRecord* displayed
-        = recordForGeneration(snapshot.display().displayedPresentationTargetGeneration());
     if (displayed != nullptr) {
-        if (snapshot.request().status() == ImageViewportRequestStatus::Ready) {
-            if (displayed == m_activeRecord && !displayed->target.resolvedPrimaryUrl.isEmpty()) {
-                projection.displayedUrl = displayed->target.resolvedPrimaryUrl;
-            }
+        if ((requestStatus == ImageViewportRequestStatus::Ready || activeTargetFrameWait)
+            && displayed == m_activeRecord && !displayed->target.resolvedPrimaryUrl.isEmpty()) {
+            projection.displayedUrl = displayed->target.resolvedPrimaryUrl;
+        }
+        if (requestStatus == ImageViewportRequestStatus::Ready) {
             const ImageViewportRoleSet displayedRoles = snapshot.display().displayedRoleSet();
             if (displayedRoles.primary() && displayed->primaryResource != nullptr) {
                 displayed->primaryResource->acceptDisplayedStillDisplayImage(

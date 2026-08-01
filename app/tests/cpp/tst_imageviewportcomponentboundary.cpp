@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#include "decoding/kiriimagedecoder.h"
 #include "facade/kiridocumentsession.h"
 #include "facade/kiriimagedocument.h"
 #include "facade/kiriimageviewportsurface.h"
@@ -38,6 +39,17 @@ QByteArray encodedPngData(const QSize& size)
         return {};
     }
     return data;
+}
+
+QByteArray animatedGifData()
+{
+    return QByteArray::fromHex("47494638396101000100800000000000ffffff"
+                               "21ff0b4e45545343415045322e300301000000"
+                               "21f90400e8030000"
+                               "2c0000000001000100000202440100"
+                               "21f90400e8030000"
+                               "2c0000000001000100000202440100"
+                               "3b");
 }
 
 kiriview::ThumbnailCacheLookupProvider thumbnailLookupProvider(bool ready)
@@ -117,16 +129,18 @@ std::unique_ptr<KiriDocumentSession> createViewportSession(
     kiriview::ThumbnailCacheLookupProvider thumbnailPreviewLookupProvider,
     kiriview::TestSupport::ManualImageDataLoader* directMediaPredecodeDataLoader = nullptr,
     kiriview::TestSupport::ManualTimerScheduler* imagePredecodeTimerScheduler = nullptr,
-    QSize decodedImageSize = QSize(800, 600))
+    QSize decodedImageSize = QSize(800, 600), kiriview::ImageDataDecoder imageDataDecoder = {})
 {
     kiriview::KiriDocumentSessionDependencies dependencies;
     dependencies.sessionRuntime.directMediaNavigationCandidateProvider
         = std::move(directMediaNavigationCandidateProvider);
     dependencies.imageDocument.candidateProvider = std::move(imageDocumentPageCandidateProvider);
-    dependencies.imageDocument.imageDecode
-        = kiriview::TestSupport::imageDecodeDependenciesFor(dataLoader,
-            kiriview::TestSupport::staticImageDataDecoder(
-                kiriview::TestSupport::testImage(decodedImageSize)));
+    if (!imageDataDecoder) {
+        imageDataDecoder = kiriview::TestSupport::staticImageDataDecoder(
+            kiriview::TestSupport::testImage(decodedImageSize));
+    }
+    dependencies.imageDocument.imageDecode = kiriview::TestSupport::imageDecodeDependenciesFor(
+        dataLoader, std::move(imageDataDecoder));
     dependencies.imageDocument.imageDecode.workerScheduler = workerScheduler.scheduler();
     dependencies.imageDocument.imageDecode.thumbnailPreviewLookupProvider
         = std::move(thumbnailPreviewLookupProvider);
@@ -220,6 +234,7 @@ private Q_SLOTS:
     void applicationSurfaceStartsWithEmptySnapshot();
     void applicationQmlModuleCreatesSurfaceWithEmptySnapshot();
     void attachedApplicationSurfaceDisplaysDocumentSource();
+    void timedFrameWaitPreservesReadySessionProjection();
     void unresolvedCollectionReplacementRevokesPendingTarget();
     void reentrantCollectionResolutionKeepsNewestTarget();
     void detachedCollectionResolutionResumesAfterReattach();
@@ -300,6 +315,80 @@ void TestImageViewportComponentBoundary::attachedApplicationSurfaceDisplaysDocum
     QCOMPARE(surface.viewport()->state().request().status(), ImageViewportRequestStatus::Ready);
     QCOMPARE(surface.viewport()->state().display().displayedRoleSet().primary(), true);
     QCOMPARE(session.imageDocument()->displayedUrl(), QUrl::fromLocalFile(path));
+}
+
+void TestImageViewportComponentBoundary::timedFrameWaitPreservesReadySessionProjection()
+{
+    const QByteArray imageData = animatedGifData();
+    QVERIFY(!imageData.isEmpty());
+
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    const QUrl imageUrl(QStringLiteral("file:///images/animated.gif"));
+    directMediaNavigationProvider.setMedia(
+        QUrl(QStringLiteral("file:///images/")), { directMediaNavigationCandidate(imageUrl) });
+    std::unique_ptr<KiriDocumentSession> session
+        = createViewportSession(directMediaNavigationProvider.provider(), {}, dataLoader,
+            workerScheduler, thumbnailLookupProvider(false), nullptr, nullptr, QSize(1, 1),
+            [](const QByteArray& data, const kiriview::ImageDecodeRequest& request) {
+                return kiriview::decodeImageData(data, request);
+            });
+    KiriImageViewportSurface* surface = viewportSurface(*session);
+    QVERIFY(surface != nullptr);
+    ImageViewport* viewport = surface->viewport();
+    QVERIFY(viewport != nullptr);
+    std::size_t nextWorkerSchedule = 0;
+
+    session->setSourceUrl(imageUrl);
+    QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(imageUrl));
+    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(imageUrl, imageData));
+    runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
+    QVERIFY(driveViewportUntil(*surface, [&]() {
+        const ImageViewportStateSnapshot snapshot = viewport->state();
+        return snapshot.request().status() == ImageViewportRequestStatus::Ready
+            && snapshot.primary().display().frame() == 0
+            && session->imageDocument()->status() == KiriImageDocument::Status::Ready;
+    }));
+
+    const QString readyTitle = QStringLiteral("animated.gif – 1×1");
+    QCOMPARE(session->imageDocument()->displayedUrl(), imageUrl);
+    QCOMPARE(session->imageDocument()->primaryImageSize(), QSize(1, 1));
+    QCOMPARE(session->windowTitleSubject(), readyTitle);
+    QVERIFY(session->activeImageReady());
+
+    QCOMPARE(viewport->pause(ImageViewportPageRole::Primary).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(viewport->seek(ImageViewportPageRole::Primary, 1).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QTRY_COMPARE(workerScheduler.scheduleCount(), nextWorkerSchedule + 1);
+
+    const ImageViewportStateSnapshot waitingSnapshot = viewport->state();
+    QCOMPARE(waitingSnapshot.request().status(), ImageViewportRequestStatus::Loading);
+    QCOMPARE(waitingSnapshot.request().reason(), ImageViewportRequestReason::ProviderWaiting);
+    QCOMPARE(waitingSnapshot.display().phase(), ImageViewportDisplayPhase::PreviousActive);
+    QCOMPARE(waitingSnapshot.primary().display().frame(), 0);
+    QCOMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Ready);
+    QVERIFY(!session->imageDocument()->loading());
+    QCOMPARE(session->imageDocument()->displayedUrl(), imageUrl);
+    QCOMPARE(session->imageDocument()->primaryImageSize(), QSize(1, 1));
+    QCOMPARE(session->windowTitleSubject(), readyTitle);
+    QVERIFY(session->activeImageReady());
+
+    workerScheduler.runWork(nextWorkerSchedule);
+    workerScheduler.finish(nextWorkerSchedule);
+    ++nextWorkerSchedule;
+    QVERIFY(driveViewportUntil(*surface, [&]() {
+        const ImageViewportStateSnapshot snapshot = viewport->state();
+        return snapshot.request().status() == ImageViewportRequestStatus::Ready
+            && snapshot.primary().display().frame() == 1;
+    }));
+    QCOMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Ready);
+    QVERIFY(!session->imageDocument()->loading());
+    QCOMPARE(session->imageDocument()->displayedUrl(), imageUrl);
+    QCOMPARE(session->imageDocument()->primaryImageSize(), QSize(1, 1));
+    QCOMPARE(session->windowTitleSubject(), readyTitle);
+    QVERIFY(session->activeImageReady());
 }
 
 void TestImageViewportComponentBoundary::unresolvedCollectionReplacementRevokesPendingTarget()
