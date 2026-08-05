@@ -141,24 +141,78 @@ private:
 };
 
 namespace Detail {
-    struct AsyncWorkerDeliveryState final
+    struct DeleteAsyncWorkerRelayLater final
     {
-        QPointer<QObject> guardedContext;
-        std::shared_ptr<QObject> relay;
+        void operator()(QObject* relay) const
+        {
+            if (relay != nullptr && !QCoreApplication::closingDown()) {
+                relay->deleteLater();
+            }
+        }
+    };
+
+    using AsyncWorkerRelayOwner = std::unique_ptr<QObject, DeleteAsyncWorkerRelayLater>;
+
+    class AsyncWorkerDeliveryState final
+    {
+    public:
+        AsyncWorkerDeliveryState(QPointer<QObject> guardedContext, QObject* relay)
+            : m_guardedContext(std::move(guardedContext))
+            , m_relay(relay)
+        {
+        }
+
+        ~AsyncWorkerDeliveryState() { releaseRelay(); }
+
+        AsyncWorkerDeliveryState(const AsyncWorkerDeliveryState&) = delete;
+        AsyncWorkerDeliveryState& operator=(const AsyncWorkerDeliveryState&) = delete;
+        AsyncWorkerDeliveryState(AsyncWorkerDeliveryState&&) = delete;
+        AsyncWorkerDeliveryState& operator=(AsyncWorkerDeliveryState&&) = delete;
+
+        template <typename Queue> bool queue(Queue&& queue)
+        {
+            const std::scoped_lock lock(m_mutex);
+            return m_relay != nullptr && std::forward<Queue>(queue)(m_relay);
+        }
+
+        QPointer<QObject> guardedContext() const { return m_guardedContext; }
+
+        AsyncWorkerRelayOwner takeRelay()
+        {
+            const std::scoped_lock lock(m_mutex);
+            return AsyncWorkerRelayOwner(std::exchange(m_relay, nullptr));
+        }
+
+        void releaseRelay() { takeRelay().reset(); }
+
+    private:
+        mutable std::mutex m_mutex;
+        QPointer<QObject> m_guardedContext;
+        QObject* m_relay = nullptr;
     };
 
     inline std::shared_ptr<AsyncWorkerDeliveryState> createAsyncWorkerDeliveryState(
         QObject* context)
     {
-        auto relay
-            = std::shared_ptr<QObject>(new QObject, [](QObject* object) { object->deleteLater(); });
+        auto relay = AsyncWorkerRelayOwner(new QObject);
         QThread* ownerThread = context->thread();
         if (ownerThread == nullptr || !relay->moveToThread(ownerThread)) {
             return {};
         }
 
-        return std::make_shared<AsyncWorkerDeliveryState>(
-            AsyncWorkerDeliveryState { QPointer<QObject>(context), std::move(relay) });
+        QObject* relayObject = relay.get();
+        auto delivery = std::make_shared<AsyncWorkerDeliveryState>(
+            QPointer<QObject>(context), relay.release());
+        const std::weak_ptr<AsyncWorkerDeliveryState> guardedDelivery(delivery);
+        QObject::connect(
+            ownerThread, &QThread::finished, relayObject,
+            [guardedDelivery]() {
+                if (const auto activeDelivery = guardedDelivery.lock()) {
+                    activeDelivery->releaseRelay();
+                }
+            },
+            Qt::DirectConnection);
+        return delivery;
     }
 
     class AsyncWorkerQueueState final
@@ -235,18 +289,22 @@ namespace Detail {
             }
 
             const std::shared_ptr<AsyncWorkerDeliveryState> delivery = m_delivery;
-            const bool queued = QMetaObject::invokeMethod(
-                delivery->relay.get(),
-                [delivery, taskCompletion = m_taskCompletion, finish = std::move(finish),
-                    result = std::move(result)]() mutable {
-                    if (delivery->guardedContext == nullptr) {
-                        taskCompletion.cancel();
-                        return;
-                    }
-                    taskCompletion.claimAndRun([&]() mutable { finish(std::move(result)); });
-                },
-                Qt::QueuedConnection);
+            const bool queued = delivery->queue([&](QObject* relay) {
+                return QMetaObject::invokeMethod(
+                    relay,
+                    [delivery, taskCompletion = m_taskCompletion, finish = std::move(finish),
+                        result = std::move(result)]() mutable {
+                        AsyncWorkerRelayOwner relayOwner = delivery->takeRelay();
+                        if (relayOwner == nullptr || delivery->guardedContext() == nullptr) {
+                            taskCompletion.cancel();
+                            return;
+                        }
+                        taskCompletion.claimAndRun([&]() mutable { finish(std::move(result)); });
+                    },
+                    Qt::QueuedConnection);
+            });
             if (!queued) {
+                delivery->releaseRelay();
                 m_taskCompletion.cancel();
             }
             delete this;

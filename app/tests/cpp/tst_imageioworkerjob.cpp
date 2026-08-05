@@ -38,6 +38,8 @@ private Q_SLOTS:
     void moveOnlyWorkAndCompletionAreSupported();
     void workerCompletionFinishesJobOnce();
     void workerCompletionUsesGuardedContextAffinity();
+    void destroyedGuardedContextSuppressesCompletion();
+    void stoppedOwnerThreadCancelsCompletion();
     void canceledWorkerCompletionIsIgnored();
     void canceledQueuedWorkerReleasesPayloadWithoutRunning();
     void supersededThreadPoolBacklogIsWithdrawnBeforeNewestWork();
@@ -117,6 +119,69 @@ void TestImageIoWorkerJob::workerCompletionUsesGuardedContextAffinity()
 
     QCOMPARE(observedCompletionThread, &ownerThread);
     QVERIFY(!task.isActive());
+}
+
+void TestImageIoWorkerJob::destroyedGuardedContextSuppressesCompletion()
+{
+    QThread ownerThread;
+    auto* context = new QObject;
+    context->moveToThread(&ownerThread);
+    ownerThread.start();
+
+    QThreadPool pool;
+    QSemaphore workStarted;
+    QSemaphore mayFinishWork;
+    std::atomic_int finishCount = 0;
+    kiriview::ImageWorkerTask task = kiriview::runAsyncWorker(
+        &pool, context,
+        [&workStarted, &mayFinishWork]() {
+            workStarted.release();
+            mayFinishWork.acquire();
+            return 17;
+        },
+        [&finishCount](int) { ++finishCount; });
+
+    QVERIFY(workStarted.tryAcquire(1, 1000));
+    QVERIFY(QMetaObject::invokeMethod(
+        context, [context]() { delete context; }, Qt::BlockingQueuedConnection));
+    mayFinishWork.release();
+    QVERIFY(pool.waitForDone(1000));
+    QTRY_VERIFY(!task.isActive());
+
+    ownerThread.quit();
+    QVERIFY(ownerThread.wait(1000));
+    QCOMPARE(finishCount.load(), 0);
+}
+
+void TestImageIoWorkerJob::stoppedOwnerThreadCancelsCompletion()
+{
+    QThread ownerThread;
+    auto* context = new QObject;
+    context->moveToThread(&ownerThread);
+    QObject::connect(&ownerThread, &QThread::finished, context, &QObject::deleteLater);
+    ownerThread.start();
+
+    QThreadPool pool;
+    QSemaphore workStarted;
+    QSemaphore mayFinishWork;
+    std::atomic_int finishCount = 0;
+    kiriview::ImageWorkerTask task = kiriview::runAsyncWorker(
+        &pool, context,
+        [&workStarted, &mayFinishWork]() {
+            workStarted.release();
+            mayFinishWork.acquire();
+            return 19;
+        },
+        [&finishCount](int) { ++finishCount; });
+
+    QVERIFY(workStarted.tryAcquire(1, 1000));
+    ownerThread.quit();
+    QVERIFY(ownerThread.wait(1000));
+    mayFinishWork.release();
+    QVERIFY(pool.waitForDone(1000));
+
+    QVERIFY(!task.isActive());
+    QCOMPARE(finishCount.load(), 0);
 }
 
 void TestImageIoWorkerJob::canceledWorkerCompletionIsIgnored()
