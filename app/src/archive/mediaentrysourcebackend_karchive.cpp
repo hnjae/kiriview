@@ -98,28 +98,39 @@ std::unique_ptr<KArchive> createArchive(
     return nullptr;
 }
 
-void appendArchiveDirectoryImageDocumentPageCandidates(
+std::expected<void, Backend::MediaEntrySourceEnumerationFailure>
+appendArchiveDirectoryImageDocumentPageCandidates(
     std::vector<kiriview::ImageDocumentPageCandidate>* candidates,
     const KArchiveDirectory* directory,
-    const kiriview::OpenedCollectionScopeLocation& openedCollectionScope, const QString& prefix)
+    const kiriview::OpenedCollectionScopeLocation& openedCollectionScope, const QString& prefix,
+    int nestingDepth, Backend::MediaEntrySourceEnumerationBudget* budget)
 {
     if (directory == nullptr) {
-        return;
+        return {};
+    }
+    if (const auto current = budget->checkpoint(); !current) {
+        return current;
     }
 
     const QStringList entries = directory->entries();
-    candidates->reserve(candidates->size() + static_cast<std::size_t>(entries.size()));
     for (const QString& entryName : entries) {
         const QString entryPath
             = prefix.isEmpty() ? entryName : prefix + QLatin1Char('/') + entryName;
+        if (const auto admitted = budget->admitEntry(entryPath.size(), nestingDepth); !admitted) {
+            return admitted;
+        }
         const KArchiveEntry* entry = directory->entry(entryName);
         if (entry == nullptr) {
             continue;
         }
 
         if (entry->isDirectory()) {
-            appendArchiveDirectoryImageDocumentPageCandidates(candidates,
-                static_cast<const KArchiveDirectory*>(entry), openedCollectionScope, entryPath);
+            if (const auto nested = appendArchiveDirectoryImageDocumentPageCandidates(candidates,
+                    static_cast<const KArchiveDirectory*>(entry), openedCollectionScope, entryPath,
+                    nestingDepth + 1, budget);
+                !nested) {
+                return nested;
+            }
             continue;
         }
 
@@ -133,15 +144,22 @@ void appendArchiveDirectoryImageDocumentPageCandidates(
             candidates->push_back(std::move(*candidate));
         }
     }
+    return {};
 }
 
-std::vector<kiriview::ImageDocumentPageCandidate> archiveDirectoryImageDocumentPageCandidates(
-    const KArchiveDirectory* directory,
-    const kiriview::OpenedCollectionScopeLocation& openedCollectionScope)
+std::expected<std::vector<kiriview::ImageDocumentPageCandidate>,
+    Backend::MediaEntrySourceEnumerationFailure>
+archiveDirectoryImageDocumentPageCandidates(const KArchiveDirectory* directory,
+    const kiriview::OpenedCollectionScopeLocation& openedCollectionScope,
+    const kiriview::MediaEntrySourceOpenContext& context)
 {
     std::vector<kiriview::ImageDocumentPageCandidate> candidates;
-    appendArchiveDirectoryImageDocumentPageCandidates(
-        &candidates, directory, openedCollectionScope, QString());
+    Backend::MediaEntrySourceEnumerationBudget budget(context);
+    if (const auto result = appendArchiveDirectoryImageDocumentPageCandidates(
+            &candidates, directory, openedCollectionScope, QString(), 1, &budget);
+        !result) {
+        return std::unexpected(result.error());
+    }
     return candidates;
 }
 
@@ -349,8 +367,15 @@ private:
 };
 
 kiriview::MediaEntrySourceOpenResult openKArchiveMediaEntrySource(
-    const kiriview::OpenedCollectionScopeLocation& openedCollectionScope)
+    const kiriview::OpenedCollectionScopeLocation& openedCollectionScope,
+    const kiriview::MediaEntrySourceOpenContext& context)
 {
+    if (context.stopToken.stop_requested()) {
+        return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceOpenResult>(
+            Backend::mediaEntrySourceEnumerationError(
+                Backend::MediaEntrySourceEnumerationFailure::OperationCancelled,
+                kiriview::MediaEntrySourceBackendKind::KArchive, openedCollectionScope));
+    }
     OpenKArchiveResult opened = openKArchiveCollection(openedCollectionScope);
     if (!opened.archive) {
         return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceOpenResult>(
@@ -361,11 +386,15 @@ kiriview::MediaEntrySourceOpenResult openKArchiveMediaEntrySource(
                 opened.diagnosticDetail));
     }
 
-    std::vector<kiriview::ImageDocumentPageCandidate> candidates
-        = archiveDirectoryImageDocumentPageCandidates(
-            opened.archive.directory(), openedCollectionScope);
+    auto candidates = archiveDirectoryImageDocumentPageCandidates(
+        opened.archive.directory(), openedCollectionScope, context);
+    if (!candidates) {
+        return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceOpenResult>(
+            Backend::mediaEntrySourceEnumerationError(candidates.error(),
+                kiriview::MediaEntrySourceBackendKind::KArchive, openedCollectionScope));
+    }
     return kiriview::MediaEntrySourcePtr(std::make_shared<KArchiveMediaEntrySource>(
-        openedCollectionScope, std::move(opened.archive), std::move(candidates)));
+        openedCollectionScope, std::move(opened.archive), std::move(*candidates)));
 }
 
 }

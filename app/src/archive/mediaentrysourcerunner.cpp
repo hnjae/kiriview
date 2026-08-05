@@ -14,7 +14,13 @@ namespace Backend = kiriview::MediaEntrySourceBackendDetail;
 kiriview::MediaEntrySourceFactory defaultSourceFactory(
     kiriview::MediaEntrySourceFactory sourceFactory)
 {
-    return sourceFactory ? std::move(sourceFactory) : kiriview::openMediaEntrySource;
+    if (sourceFactory) {
+        return std::move(sourceFactory);
+    }
+    return [](const kiriview::OpenedCollectionScopeLocation& openedCollectionScope,
+               const kiriview::MediaEntrySourceOpenContext& context) {
+        return kiriview::openMediaEntrySource(openedCollectionScope, context);
+    };
 }
 }
 
@@ -31,14 +37,15 @@ const OpenedCollectionScopeLocation& MediaEntrySourceRunner::openedCollectionSco
     return m_openedCollectionScope;
 }
 
-MediaEntrySourceCandidatesResult MediaEntrySourceRunner::loadImageDocumentPageCandidates()
+MediaEntrySourceCandidatesResult MediaEntrySourceRunner::loadImageDocumentPageCandidates(
+    const MediaEntrySourceOpenContext& context)
 {
     std::scoped_lock lock(m_mutex);
     if (m_cachedCandidates.has_value()) {
         return MediaEntrySourceCandidates { *m_cachedCandidates };
     }
 
-    const std::optional<MediaEntrySourceError> error = ensureSource();
+    const std::optional<MediaEntrySourceError> error = ensureSource(context);
     if (error.has_value()) {
         return Backend::mediaEntrySourceErrorResult<MediaEntrySourceCandidatesResult>(*error);
     }
@@ -86,7 +93,8 @@ MediaEntrySourceRunner::cachedImageDocumentPageCandidates()
     return m_cachedCandidates;
 }
 
-std::optional<MediaEntrySourceError> MediaEntrySourceRunner::ensureSource()
+std::optional<MediaEntrySourceError> MediaEntrySourceRunner::ensureSource(
+    const MediaEntrySourceOpenContext& context)
 {
     if (m_source != nullptr) {
         return std::nullopt;
@@ -96,7 +104,7 @@ std::optional<MediaEntrySourceError> MediaEntrySourceRunner::ensureSource()
     }
 
     m_openAttempted = true;
-    MediaEntrySourceOpenResult result = m_sourceFactory(m_openedCollectionScope);
+    MediaEntrySourceOpenResult result = m_sourceFactory(m_openedCollectionScope, context);
     if (const auto* error = kiriview::mediaEntrySourceResultError(result)) {
         m_openError = *error;
         return m_openError;

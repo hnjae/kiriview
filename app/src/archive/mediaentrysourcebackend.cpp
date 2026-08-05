@@ -17,6 +17,9 @@
 
 namespace {
 namespace Backend = kiriview::MediaEntrySourceBackendDetail;
+constexpr qsizetype defaultMaximumCollectionEntryCount = 65'536;
+constexpr qsizetype defaultMaximumCollectionPathCodeUnitCount = qsizetype { 8 } * 1024 * 1024;
+constexpr int defaultMaximumCollectionNestingDepth = 256;
 
 QString defaultMediaEntrySourceDiagnostic(kiriview::MediaEntrySourceErrorCause cause)
 {
@@ -41,6 +44,8 @@ QString defaultMediaEntrySourceDiagnostic(kiriview::MediaEntrySourceErrorCause c
         return QStringLiteral("media entry source provider is unavailable");
     case Cause::ResourceLimitExceeded:
         return kiriview::imageSourceDataResourceLimitDiagnostic();
+    case Cause::OperationCancelled:
+        return QStringLiteral("collection access operation was cancelled");
     }
 
     return QStringLiteral("unknown collection access failure");
@@ -70,7 +75,8 @@ mediaEntrySourceBackendOperationsForOpenedCollection(
 }
 
 kiriview::MediaEntrySourceOpenResult openWithMediaEntrySourceBackend(
-    const kiriview::OpenedCollectionScopeLocation& openedCollectionScope)
+    const kiriview::OpenedCollectionScopeLocation& openedCollectionScope,
+    const kiriview::MediaEntrySourceOpenContext& context)
 {
     const Backend::MediaEntrySourceBackendOperations* backend
         = mediaEntrySourceBackendOperationsForOpenedCollection(openedCollectionScope);
@@ -82,12 +88,18 @@ kiriview::MediaEntrySourceOpenResult openWithMediaEntrySourceBackend(
                 kiriview::MediaEntrySourceOperation::OpenCollection, openedCollectionScope));
     }
 
-    return backend->openSource(openedCollectionScope);
+    return backend->openSource(openedCollectionScope, context);
 }
 
 }
 
 namespace kiriview {
+MediaEntrySourceEnumerationLimits defaultMediaEntrySourceEnumerationLimits()
+{
+    return MediaEntrySourceEnumerationLimits { defaultMaximumCollectionEntryCount,
+        defaultMaximumCollectionPathCodeUnitCount, defaultMaximumCollectionNestingDepth };
+}
+
 QDebug operator<<(QDebug debug, const MediaEntrySourceError& error)
 {
     QDebugStateSaver stateSaver(debug);
@@ -124,6 +136,39 @@ MediaEntrySourceThumbnailMetadataResult MediaEntrySource::loadThumbnailMetadata(
 }
 
 namespace kiriview::MediaEntrySourceBackendDetail {
+MediaEntrySourceEnumerationBudget::MediaEntrySourceEnumerationBudget(
+    const MediaEntrySourceOpenContext& context)
+    : m_stopToken(context.stopToken)
+    , m_limits(context.enumerationLimits)
+{
+}
+
+std::expected<void, MediaEntrySourceEnumerationFailure>
+MediaEntrySourceEnumerationBudget::checkpoint() const
+{
+    if (m_stopToken.stop_requested()) {
+        return std::unexpected(MediaEntrySourceEnumerationFailure::OperationCancelled);
+    }
+    return {};
+}
+
+std::expected<void, MediaEntrySourceEnumerationFailure>
+MediaEntrySourceEnumerationBudget::admitEntry(qsizetype pathCodeUnitCount, int nestingDepth)
+{
+    if (const auto current = checkpoint(); !current) {
+        return current;
+    }
+    if (pathCodeUnitCount < 0 || nestingDepth <= 0 || m_entryCount >= m_limits.maximumEntryCount
+        || nestingDepth > m_limits.maximumNestingDepth
+        || pathCodeUnitCount > m_limits.maximumPathCodeUnitCount - m_pathCodeUnitCount) {
+        return std::unexpected(MediaEntrySourceEnumerationFailure::ResourceLimitExceeded);
+    }
+
+    ++m_entryCount;
+    m_pathCodeUnitCount += pathCodeUnitCount;
+    return {};
+}
+
 MediaEntrySourceWithCandidateSnapshot::MediaEntrySourceWithCandidateSnapshot(
     OpenedCollectionScopeLocation openedCollectionScope, MediaEntrySourceBackendKind backend,
     std::vector<ImageDocumentPageCandidate> candidates)
@@ -265,6 +310,19 @@ MediaEntrySourceError mediaEntrySourceError(MediaEntrySourceErrorCause cause,
         std::move(entryPath), std::move(diagnosticDetail) };
 }
 
+MediaEntrySourceError mediaEntrySourceEnumerationError(MediaEntrySourceEnumerationFailure failure,
+    MediaEntrySourceBackendKind backend, const OpenedCollectionScopeLocation& openedCollectionScope)
+{
+    if (failure == MediaEntrySourceEnumerationFailure::OperationCancelled) {
+        return mediaEntrySourceError(MediaEntrySourceErrorCause::OperationCancelled, backend,
+            MediaEntrySourceOperation::ListCandidates, openedCollectionScope,
+            QStringLiteral("collection enumeration was cancelled"));
+    }
+    return mediaEntrySourceError(MediaEntrySourceErrorCause::ResourceLimitExceeded, backend,
+        MediaEntrySourceOperation::ListCandidates, openedCollectionScope,
+        QStringLiteral("collection enumeration exceeds the configured resource limits"));
+}
+
 MediaEntrySourceCandidatesResult mediaEntrySourceCandidatesResult(
     std::vector<ImageDocumentPageCandidate> candidates)
 {
@@ -356,7 +414,8 @@ MediaEntrySourceThumbnailMetadataResult loadMediaEntrySourceThumbnailMetadata(
 }
 
 MediaEntrySourceOpenResult openMediaEntrySource(
-    const OpenedCollectionScopeLocation& openedCollectionScope)
+    const OpenedCollectionScopeLocation& openedCollectionScope,
+    const MediaEntrySourceOpenContext& context)
 {
     if (openedCollectionScope.isEmpty()) {
         return Backend::mediaEntrySourceErrorResult<MediaEntrySourceOpenResult>(
@@ -365,6 +424,13 @@ MediaEntrySourceOpenResult openMediaEntrySource(
                 openedCollectionScope, QStringLiteral("opened collection scope is empty")));
     }
 
-    return openWithMediaEntrySourceBackend(openedCollectionScope);
+    if (context.stopToken.stop_requested()) {
+        return Backend::mediaEntrySourceErrorResult<MediaEntrySourceOpenResult>(
+            Backend::mediaEntrySourceEnumerationError(
+                Backend::MediaEntrySourceEnumerationFailure::OperationCancelled,
+                MediaEntrySourceBackendKind::Unknown, openedCollectionScope));
+    }
+
+    return openWithMediaEntrySourceBackend(openedCollectionScope, context);
 }
 }

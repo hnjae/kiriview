@@ -751,6 +751,12 @@ msgstr ""
 #: src/localization/mediaentrysourceerrortext.cpp
 #, kde-format
 msgctxt "@info:status"
+msgid "The selected collection is too large to open."
+msgstr ""
+
+#: src/localization/mediaentrysourceerrortext.cpp
+#, kde-format
+msgctxt "@info:status"
 msgid "Could not read the selected collection image."
 msgstr ""
 

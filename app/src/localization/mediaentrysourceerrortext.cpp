@@ -27,6 +27,7 @@ QString mediaEntrySourceErrorText(const MediaEntrySourceError& error)
     case MediaEntrySourceErrorCause::UnsupportedCollection:
     case MediaEntrySourceErrorCause::CandidateListingFailed:
     case MediaEntrySourceErrorCause::ProviderUnavailable:
+    case MediaEntrySourceErrorCause::OperationCancelled:
         return collectionOpenError(error.collectionUrl);
     case MediaEntrySourceErrorCause::EntryNotFound:
         if (error.operation == MediaEntrySourceOperation::OpenVideoPlaybackDevice) {
@@ -35,6 +36,9 @@ QString mediaEntrySourceErrorText(const MediaEntrySourceError& error)
         return i18nc("@info:status", "Could not find the selected image in the collection.");
     case MediaEntrySourceErrorCause::EntryReadFailed:
     case MediaEntrySourceErrorCause::ResourceLimitExceeded:
+        if (error.operation == MediaEntrySourceOperation::ListCandidates) {
+            return i18nc("@info:status", "The selected collection is too large to open.");
+        }
         return i18nc("@info:status", "Could not read the selected collection image.");
     case MediaEntrySourceErrorCause::VideoPlaybackUnsupported:
         return i18nc(

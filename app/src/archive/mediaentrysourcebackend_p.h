@@ -16,7 +16,29 @@
 #include <vector>
 
 namespace kiriview::MediaEntrySourceBackendDetail {
-using MediaEntrySourceOpener = MediaEntrySourceOpenResult (*)(const OpenedCollectionScopeLocation&);
+using MediaEntrySourceOpener = MediaEntrySourceOpenResult (*)(
+    const OpenedCollectionScopeLocation&, const MediaEntrySourceOpenContext&);
+
+enum class MediaEntrySourceEnumerationFailure {
+    ResourceLimitExceeded,
+    OperationCancelled,
+};
+
+class MediaEntrySourceEnumerationBudget final
+{
+public:
+    explicit MediaEntrySourceEnumerationBudget(const MediaEntrySourceOpenContext& context);
+
+    [[nodiscard]] std::expected<void, MediaEntrySourceEnumerationFailure> checkpoint() const;
+    std::expected<void, MediaEntrySourceEnumerationFailure> admitEntry(
+        qsizetype pathCodeUnitCount, int nestingDepth);
+
+private:
+    std::stop_token m_stopToken;
+    MediaEntrySourceEnumerationLimits m_limits;
+    qsizetype m_entryCount = 0;
+    qsizetype m_pathCodeUnitCount = 0;
+};
 
 struct MediaEntrySourceBackendOperations
 {
@@ -65,6 +87,9 @@ MediaEntrySourceError mediaEntrySourceError(MediaEntrySourceErrorCause cause,
     MediaEntrySourceBackendKind backend, MediaEntrySourceOperation operation,
     const OpenedCollectionScopeLocation& openedCollectionScope,
     QString diagnosticDetail = QString(), QString entryPath = QString());
+MediaEntrySourceError mediaEntrySourceEnumerationError(MediaEntrySourceEnumerationFailure failure,
+    MediaEntrySourceBackendKind backend,
+    const OpenedCollectionScopeLocation& openedCollectionScope);
 
 template <typename Result> Result mediaEntrySourceErrorResult(MediaEntrySourceError error)
 {

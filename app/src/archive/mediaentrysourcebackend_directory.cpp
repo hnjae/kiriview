@@ -85,6 +85,8 @@ struct DirectoryCollectionScan
     int rootFileDescriptor = -1;
     DirectoryCollectionMetadata metadata;
     std::set<std::pair<dev_t, ino_t>> activeDirectories;
+    Backend::MediaEntrySourceEnumerationBudget* enumerationBudget = nullptr;
+    std::optional<Backend::MediaEntrySourceEnumerationFailure> enumerationFailure;
     QString diagnosticDetail;
 };
 
@@ -316,8 +318,12 @@ DirectoryPathResolution resolveDirectoryRelativePath(
 }
 
 bool scanDirectoryCollection(ScopedFileDescriptor directoryFileDescriptor,
-    const QByteArray& rawRelativeDirectoryPath, DirectoryCollectionScan* scan)
+    const QByteArray& rawRelativeDirectoryPath, int nestingDepth, DirectoryCollectionScan* scan)
 {
+    if (const auto current = scan->enumerationBudget->checkpoint(); !current) {
+        scan->enumerationFailure = current.error();
+        return false;
+    }
     DIR* rawStream = ::fdopendir(directoryFileDescriptor.get());
     if (rawStream == nullptr) {
         scan->diagnosticDetail = systemErrorString(errno);
@@ -343,6 +349,13 @@ bool scanDirectoryCollection(ScopedFileDescriptor directoryFileDescriptor,
         }
         const QByteArray rawRelativePath
             = rawRelativeDirectoryPath.isEmpty() ? name : rawRelativeDirectoryPath + '/' + name;
+        const QString relativePath = QFile::decodeName(rawRelativePath);
+        if (const auto admitted
+            = scan->enumerationBudget->admitEntry(relativePath.size(), nestingDepth);
+            !admitted) {
+            scan->enumerationFailure = admitted.error();
+            return false;
+        }
         DirectoryPathResolution resolution
             = resolveDirectoryRelativePath(scan->rootFileDescriptor, rawRelativePath);
         if (!resolution.diagnosticDetail.isEmpty()) {
@@ -362,7 +375,7 @@ bool scanDirectoryCollection(ScopedFileDescriptor directoryFileDescriptor,
 
             scan->activeDirectories.insert(identity);
             const bool completed = scanDirectoryCollection(
-                std::move(resolved.fileDescriptor), rawRelativePath, scan);
+                std::move(resolved.fileDescriptor), rawRelativePath, nestingDepth + 1, scan);
             scan->activeDirectories.erase(identity);
             if (!completed) {
                 return false;
@@ -375,7 +388,7 @@ bool scanDirectoryCollection(ScopedFileDescriptor directoryFileDescriptor,
 
         std::optional<kiriview::ImageDocumentPageCandidate> candidate
             = Backend::openedCollectionImageDocumentPageCandidate(
-                scan->openedCollectionScope, QFile::decodeName(rawRelativePath));
+                scan->openedCollectionScope, relativePath);
         if (!candidate.has_value()) {
             continue;
         }
@@ -436,7 +449,9 @@ OpenDirectoryRootResult openDirectoryCollectionRoot(
 
 std::optional<DirectoryCollectionMetadata> scanDirectoryCollectionMetadata(
     const kiriview::OpenedCollectionScopeLocation& openedCollectionScope, int rootFileDescriptor,
-    const FileIdentity& rootIdentity, QString* diagnosticDetail)
+    const FileIdentity& rootIdentity, const kiriview::MediaEntrySourceOpenContext& context,
+    std::optional<Backend::MediaEntrySourceEnumerationFailure>* enumerationFailure,
+    QString* diagnosticDetail)
 {
     ScopedFileDescriptor scanRoot = duplicateFileDescriptor(rootFileDescriptor);
     if (!scanRoot) {
@@ -444,12 +459,15 @@ std::optional<DirectoryCollectionMetadata> scanDirectoryCollectionMetadata(
         return std::nullopt;
     }
 
+    Backend::MediaEntrySourceEnumerationBudget budget(context);
     DirectoryCollectionScan scan {
         openedCollectionScope,
         rootFileDescriptor,
     };
+    scan.enumerationBudget = &budget;
     scan.activeDirectories.emplace(rootIdentity.device, rootIdentity.inode);
-    if (!scanDirectoryCollection(std::move(scanRoot), {}, &scan)) {
+    if (!scanDirectoryCollection(std::move(scanRoot), {}, 1, &scan)) {
+        *enumerationFailure = scan.enumerationFailure;
         *diagnosticDetail = std::move(scan.diagnosticDetail);
         return std::nullopt;
     }
@@ -588,8 +606,15 @@ private:
 };
 
 kiriview::MediaEntrySourceOpenResult openDirectoryCollectionMediaEntrySource(
-    const kiriview::OpenedCollectionScopeLocation& openedCollectionScope)
+    const kiriview::OpenedCollectionScopeLocation& openedCollectionScope,
+    const kiriview::MediaEntrySourceOpenContext& context)
 {
+    if (context.stopToken.stop_requested()) {
+        return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceOpenResult>(
+            Backend::mediaEntrySourceEnumerationError(
+                Backend::MediaEntrySourceEnumerationFailure::OperationCancelled,
+                kiriview::MediaEntrySourceBackendKind::Directory, openedCollectionScope));
+    }
     OpenDirectoryRootResult root = openDirectoryCollectionRoot(openedCollectionScope);
     if (!root.fileDescriptor) {
         return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceOpenResult>(
@@ -600,10 +625,17 @@ kiriview::MediaEntrySourceOpenResult openDirectoryCollectionMediaEntrySource(
                 root.diagnosticDetail));
     }
 
+    std::optional<Backend::MediaEntrySourceEnumerationFailure> enumerationFailure;
     QString diagnosticDetail;
-    std::optional<DirectoryCollectionMetadata> metadata = scanDirectoryCollectionMetadata(
-        openedCollectionScope, root.fileDescriptor.get(), root.identity, &diagnosticDetail);
+    std::optional<DirectoryCollectionMetadata> metadata
+        = scanDirectoryCollectionMetadata(openedCollectionScope, root.fileDescriptor.get(),
+            root.identity, context, &enumerationFailure, &diagnosticDetail);
     if (!metadata.has_value()) {
+        if (enumerationFailure.has_value()) {
+            return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceOpenResult>(
+                Backend::mediaEntrySourceEnumerationError(*enumerationFailure,
+                    kiriview::MediaEntrySourceBackendKind::Directory, openedCollectionScope));
+        }
         return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceOpenResult>(
             Backend::mediaEntrySourceError(
                 kiriview::MediaEntrySourceErrorCause::CandidateListingFailed,

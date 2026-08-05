@@ -317,11 +317,12 @@ private:
 kiriview::MediaEntrySourceFactory mediaEntrySourceFactoryForCandidates(
     std::vector<kiriview::ImageDocumentPageCandidate> candidates)
 {
-    return [candidates = std::move(candidates)](const kiriview::OpenedCollectionScopeLocation&)
-               -> kiriview::MediaEntrySourceOpenResult {
-        return kiriview::MediaEntrySourcePtr(
-            std::make_shared<FakeOpenedCollectionMediaEntrySource>(candidates));
-    };
+    return
+        [candidates = std::move(candidates)](const kiriview::OpenedCollectionScopeLocation&,
+            const kiriview::MediaEntrySourceOpenContext&) -> kiriview::MediaEntrySourceOpenResult {
+            return kiriview::MediaEntrySourcePtr(
+                std::make_shared<FakeOpenedCollectionMediaEntrySource>(candidates));
+        };
 }
 
 struct ManualMediaOpenWithOperation

@@ -214,6 +214,9 @@ private Q_SLOTS:
     void directoryCollectionExcludesOutsideDirectorySymlinksAndCycles();
     void tarListingUsesSameOrdering();
     void rarListingUsesLibArchive();
+    void enumerationEntryLimitRejectsWholeSnapshot_data();
+    void enumerationEntryLimitRejectsWholeSnapshot();
+    void directoryEnumerationStructuralLimitsRejectWholeSnapshot();
     void readingArchiveEntryReturnsOriginalBytes();
     void readingDirectoryEntryReturnsOriginalBytes();
     void readingRarEntryReturnsOriginalBytes();
@@ -527,6 +530,83 @@ void TestMediaEntrySourceBackend::rarListingUsesLibArchive()
     QCOMPARE(success->candidates.at(0).url,
         archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("chapter/01.png")));
     QCOMPARE(success->candidates.at(1).name, QStringLiteral("chapter/02.jpg"));
+}
+
+void TestMediaEntrySourceBackend::enumerationEntryLimitRejectsWholeSnapshot_data()
+{
+    QTest::addColumn<QString>("backend");
+
+    QTest::newRow("directory") << QStringLiteral("directory");
+    QTest::newRow("karchive") << QStringLiteral("karchive");
+    QTest::newRow("libarchive") << QStringLiteral("libarchive");
+}
+
+void TestMediaEntrySourceBackend::enumerationEntryLimitRejectsWholeSnapshot()
+{
+    QFETCH(QString, backend);
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    std::optional<kiriview::OpenedCollectionScopeLocation> collection;
+    if (backend == QStringLiteral("directory")) {
+        writeFile(dir.filePath(QStringLiteral("01.png")), QByteArrayLiteral("one"));
+        writeFile(dir.filePath(QStringLiteral("02.jpg")), QByteArrayLiteral("two"));
+        collection = directoryCollectionForPath(dir.path());
+    } else if (backend == QStringLiteral("karchive")) {
+        const QString archivePath = dir.filePath(QStringLiteral("book.cbz"));
+        writeZipArchive(archivePath,
+            {
+                { QStringLiteral("01.png"), QByteArrayLiteral("one") },
+                { QStringLiteral("02.jpg"), QByteArrayLiteral("two") },
+            });
+        collection = archiveCollectionForPath(archivePath);
+    } else {
+        const QString archivePath = dir.filePath(QStringLiteral("book.cbr"));
+        writeRarArchive(archivePath);
+        collection = archiveCollectionForPath(archivePath);
+    }
+    QVERIFY(collection.has_value());
+
+    kiriview::MediaEntrySourceOpenContext context;
+    context.enumerationLimits.maximumEntryCount = 1;
+    const kiriview::MediaEntrySourceOpenResult opened
+        = kiriview::openMediaEntrySource(*collection, context);
+    const kiriview::MediaEntrySourceError* error = kiriview::mediaEntrySourceResultError(opened);
+
+    QVERIFY(error != nullptr);
+    QCOMPARE(error->cause, kiriview::MediaEntrySourceErrorCause::ResourceLimitExceeded);
+    QCOMPARE(error->operation, kiriview::MediaEntrySourceOperation::ListCandidates);
+}
+
+void TestMediaEntrySourceBackend::directoryEnumerationStructuralLimitsRejectWholeSnapshot()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QDir root(dir.path());
+    QVERIFY(root.mkpath(QStringLiteral("chapter/nested")));
+    writeFile(dir.filePath(QStringLiteral("chapter/nested/page.png")), QByteArrayLiteral("image"));
+
+    const std::optional<kiriview::OpenedCollectionScopeLocation> collection
+        = directoryCollectionForPath(dir.path());
+    QVERIFY(collection.has_value());
+
+    kiriview::MediaEntrySourceOpenContext pathContext;
+    pathContext.enumerationLimits.maximumPathCodeUnitCount = 4;
+    const kiriview::MediaEntrySourceOpenResult pathLimited
+        = kiriview::openMediaEntrySource(*collection, pathContext);
+    const kiriview::MediaEntrySourceError* pathError
+        = kiriview::mediaEntrySourceResultError(pathLimited);
+    QVERIFY(pathError != nullptr);
+    QCOMPARE(pathError->cause, kiriview::MediaEntrySourceErrorCause::ResourceLimitExceeded);
+
+    kiriview::MediaEntrySourceOpenContext depthContext;
+    depthContext.enumerationLimits.maximumNestingDepth = 1;
+    const kiriview::MediaEntrySourceOpenResult depthLimited
+        = kiriview::openMediaEntrySource(*collection, depthContext);
+    const kiriview::MediaEntrySourceError* depthError
+        = kiriview::mediaEntrySourceResultError(depthLimited);
+    QVERIFY(depthError != nullptr);
+    QCOMPARE(depthError->cause, kiriview::MediaEntrySourceErrorCause::ResourceLimitExceeded);
 }
 
 void TestMediaEntrySourceBackend::readingArchiveEntryReturnsOriginalBytes()

@@ -153,8 +153,8 @@ private:
 inline MediaEntrySourceFactory instrumentedMediaEntrySourceFactory(
     std::shared_ptr<InstrumentedMediaEntrySourceState> state)
 {
-    return [state = std::move(state)](const OpenedCollectionScopeLocation& openedCollectionScope)
-               -> MediaEntrySourceOpenResult {
+    return [state = std::move(state)](const OpenedCollectionScopeLocation& openedCollectionScope,
+               const MediaEntrySourceOpenContext&) -> MediaEntrySourceOpenResult {
         ++state->openCount;
         std::lock_guard<std::mutex> lock(state->mutex);
         if (!state->fixturesByRootUrl.count(keyForUrl(openedCollectionScope.rootUrl()))) {

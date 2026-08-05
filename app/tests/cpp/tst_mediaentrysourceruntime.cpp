@@ -8,7 +8,9 @@
 #include "media_entry_source_test_support.h"
 
 #include <QByteArray>
+#include <QSemaphore>
 #include <QTest>
+#include <atomic>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -75,6 +77,7 @@ private Q_SLOTS:
     void simultaneousCandidateLoadsSharePendingBatch();
     void candidateLoadAddedDuringActiveBatchSharesWorker();
     void candidateBatchCancellationPreventsStaleCallbacks();
+    void candidateBatchCancellationRequestsBackendStop();
     void dataCompletionAfterOpenedCollectionSwitchIsIgnored();
     void nonCurrentScopeAccessIsRejectedWithoutReplacingCurrentSnapshot();
     void errorsRemainTypedThroughRuntimeCallbacks();
@@ -219,6 +222,47 @@ void TestMediaEntrySourceRuntime::candidateBatchCancellationPreventsStaleCallbac
     QVERIFY(runtime.hasCurrentOpenedCollectionScope(*secondArchiveCollection));
 }
 
+void TestMediaEntrySourceRuntime::candidateBatchCancellationRequestsBackendStop()
+{
+    const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
+        = archiveCollectionForLocalArchiveUrl(localUrl(QStringLiteral("/books/book.cbz")));
+    QVERIFY(archiveCollection.has_value());
+
+    QSemaphore openStarted;
+    QSemaphore stopRequested;
+    std::atomic<bool> backendObservedStop = false;
+    kiriview::MediaEntrySourceFactory sourceFactory
+        = [&openStarted, &stopRequested, &backendObservedStop](
+              const kiriview::OpenedCollectionScopeLocation& scope,
+              const kiriview::MediaEntrySourceOpenContext& context)
+        -> kiriview::MediaEntrySourceOpenResult {
+        std::stop_callback callback(
+            context.stopToken, [&stopRequested]() { stopRequested.release(); });
+        openStarted.release();
+        stopRequested.acquire();
+        backendObservedStop.store(context.stopToken.stop_requested());
+        return std::unexpected(kiriview::MediaEntrySourceError {
+            kiriview::MediaEntrySourceErrorCause::OperationCancelled,
+            kiriview::MediaEntrySourceBackendKind::Unknown,
+            kiriview::MediaEntrySourceOperation::ListCandidates, scope.fileUrl(), {},
+            QStringLiteral("test collection enumeration canceled") });
+    };
+
+    kiriview::MediaEntrySourceRuntime runtime(this, std::move(sourceFactory));
+    int completionCount = 0;
+    kiriview::ImageIoJob load = runtime.loadOpenedCollectionCandidates(
+        this, *archiveCollection,
+        [&completionCount](std::vector<ImageDocumentPageCandidate>) { ++completionCount; },
+        [&completionCount](kiriview::MediaEntrySourceError) { ++completionCount; });
+
+    QTRY_VERIFY_WITH_TIMEOUT(openStarted.available() > 0, 1000);
+    runtime.clear();
+    QTRY_VERIFY_WITH_TIMEOUT(backendObservedStop.load(), 1000);
+
+    QCOMPARE(completionCount, 0);
+    QVERIFY(!load.isActive());
+}
+
 void TestMediaEntrySourceRuntime::dataCompletionAfterOpenedCollectionSwitchIsIgnored()
 {
     auto state = std::make_shared<InstrumentedMediaEntrySourceState>();
@@ -357,8 +401,8 @@ void TestMediaEntrySourceRuntime::errorsRemainTypedThroughRuntimeCallbacks()
     QVERIFY(archiveCollection.has_value());
     const QString diagnostic = QStringLiteral("libarchive header scan failed");
     kiriview::MediaEntrySourceRuntime runtime(this,
-        [diagnostic](const kiriview::OpenedCollectionScopeLocation& openedCollectionScope)
-            -> kiriview::MediaEntrySourceOpenResult {
+        [diagnostic](const kiriview::OpenedCollectionScopeLocation& openedCollectionScope,
+            const kiriview::MediaEntrySourceOpenContext&) -> kiriview::MediaEntrySourceOpenResult {
             return std::unexpected(kiriview::MediaEntrySourceError {
                 kiriview::MediaEntrySourceErrorCause::CandidateListingFailed,
                 kiriview::MediaEntrySourceBackendKind::LibArchive,

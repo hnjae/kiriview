@@ -116,9 +116,9 @@ void TestImageDocumentRuntimeDependencies::
 {
     int openCount = 0;
     kiriview::ImageDocumentRuntimeDependencyOverrides dependencies;
-    dependencies.mediaEntrySourceFactory
-        = [&openCount](const kiriview::OpenedCollectionScopeLocation& openedCollectionScope)
-        -> kiriview::MediaEntrySourceOpenResult {
+    dependencies.mediaEntrySourceFactory =
+        [&openCount](const kiriview::OpenedCollectionScopeLocation& openedCollectionScope,
+            const kiriview::MediaEntrySourceOpenContext&) -> kiriview::MediaEntrySourceOpenResult {
         ++openCount;
         return std::unexpected(kiriview::MediaEntrySourceError {
             kiriview::MediaEntrySourceErrorCause::CollectionOpenFailed,

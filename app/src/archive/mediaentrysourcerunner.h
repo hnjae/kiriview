@@ -19,14 +19,16 @@ public:
 
     [[nodiscard]] const OpenedCollectionScopeLocation& openedCollectionScope() const;
 
-    MediaEntrySourceCandidatesResult loadImageDocumentPageCandidates();
+    MediaEntrySourceCandidatesResult loadImageDocumentPageCandidates(
+        const MediaEntrySourceOpenContext& context = {});
     MediaEntrySourceImageDataResult loadImageData(
         const QUrl& imageUrl, ImageSourceDataLease lease = {});
     MediaEntrySourceVideoPlaybackDeviceResult loadVideoPlaybackDevice(const QUrl& videoUrl);
     std::optional<std::vector<ImageDocumentPageCandidate>> cachedImageDocumentPageCandidates();
 
 private:
-    std::optional<MediaEntrySourceError> ensureSource();
+    std::optional<MediaEntrySourceError> ensureSource(
+        const MediaEntrySourceOpenContext& context = {});
 
     OpenedCollectionScopeLocation m_openedCollectionScope;
     MediaEntrySourceFactory m_sourceFactory;

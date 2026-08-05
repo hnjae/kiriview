@@ -130,6 +130,17 @@ QString libArchiveEntryPath(archive_entry* entry)
     return QFile::decodeName(path);
 }
 
+int archiveEntryNestingDepth(QStringView entryPath)
+{
+    int depth = 1;
+    for (const QChar character : entryPath) {
+        if (character == QLatin1Char('/')) {
+            ++depth;
+        }
+    }
+    return depth;
+}
+
 bool skipLibArchiveEntry(archive* reader, QString* diagnosticDetail)
 {
     if (archive_read_data_skip(reader) == ARCHIVE_OK) {
@@ -209,13 +220,20 @@ struct LibArchiveMediaEntrySourceMetadata
 
 std::optional<LibArchiveMediaEntrySourceMetadata> scanLibArchiveMediaEntrySourceMetadata(
     const kiriview::OpenedCollectionScopeLocation& openedCollectionScope, archive* reader,
+    const kiriview::MediaEntrySourceOpenContext& context,
+    std::optional<Backend::MediaEntrySourceEnumerationFailure>* enumerationFailure,
     QString* diagnosticDetail)
 {
     LibArchiveMediaEntrySourceMetadata metadata;
+    Backend::MediaEntrySourceEnumerationBudget budget(context);
     archive_entry* entry = nullptr;
     int entryOrder = 0;
 
     while (true) {
+        if (const auto current = budget.checkpoint(); !current) {
+            *enumerationFailure = current.error();
+            return std::nullopt;
+        }
         const int status = archive_read_next_header(reader, &entry);
         if (status == ARCHIVE_EOF) {
             return metadata;
@@ -226,13 +244,20 @@ std::optional<LibArchiveMediaEntrySourceMetadata> scanLibArchiveMediaEntrySource
             return std::nullopt;
         }
 
+        const QString entryPath = libArchiveEntryPath(entry);
+        if (const auto admitted
+            = budget.admitEntry(entryPath.size(), archiveEntryNestingDepth(entryPath));
+            !admitted) {
+            *enumerationFailure = admitted.error();
+            return std::nullopt;
+        }
         const int currentEntryOrder = entryOrder;
         ++entryOrder;
 
         if (archive_entry_filetype(entry) == AE_IFREG) {
             std::optional<kiriview::ImageDocumentPageCandidate> candidate
                 = Backend::openedCollectionImageDocumentPageCandidate(
-                    openedCollectionScope, libArchiveEntryPath(entry));
+                    openedCollectionScope, entryPath);
             if (candidate.has_value()) {
                 metadata.entryOrderByPath[candidate->name] = currentEntryOrder;
                 metadata.candidates.push_back(std::move(*candidate));
@@ -249,8 +274,15 @@ class LibArchiveMediaEntrySource final : public Backend::MediaEntrySourceWithCan
 {
 public:
     static kiriview::MediaEntrySourceOpenResult create(
-        const kiriview::OpenedCollectionScopeLocation& openedCollectionScope)
+        const kiriview::OpenedCollectionScopeLocation& openedCollectionScope,
+        const kiriview::MediaEntrySourceOpenContext& context)
     {
+        if (context.stopToken.stop_requested()) {
+            return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceOpenResult>(
+                Backend::mediaEntrySourceEnumerationError(
+                    Backend::MediaEntrySourceEnumerationFailure::OperationCancelled,
+                    kiriview::MediaEntrySourceBackendKind::LibArchive, openedCollectionScope));
+        }
         OpenArchiveFileResult opened = openArchiveFileDescriptor(openedCollectionScope);
         if (!opened.fileDescriptor) {
             return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceOpenResult>(
@@ -261,6 +293,7 @@ public:
                     opened.diagnosticDetail));
         }
 
+        std::optional<Backend::MediaEntrySourceEnumerationFailure> enumerationFailure;
         QString diagnosticDetail;
         LibArchiveReader reader
             = openLibArchiveReaderOnFd(opened.fileDescriptor.get(), &diagnosticDetail);
@@ -274,9 +307,14 @@ public:
         }
 
         std::optional<LibArchiveMediaEntrySourceMetadata> metadata
-            = scanLibArchiveMediaEntrySourceMetadata(
-                openedCollectionScope, reader.get(), &diagnosticDetail);
+            = scanLibArchiveMediaEntrySourceMetadata(openedCollectionScope, reader.get(), context,
+                &enumerationFailure, &diagnosticDetail);
         if (!metadata.has_value()) {
+            if (enumerationFailure.has_value()) {
+                return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceOpenResult>(
+                    Backend::mediaEntrySourceEnumerationError(*enumerationFailure,
+                        kiriview::MediaEntrySourceBackendKind::LibArchive, openedCollectionScope));
+            }
             return Backend::mediaEntrySourceErrorResult<kiriview::MediaEntrySourceOpenResult>(
                 Backend::mediaEntrySourceError(
                     kiriview::MediaEntrySourceErrorCause::CandidateListingFailed,
@@ -453,9 +491,10 @@ private:
 };
 
 kiriview::MediaEntrySourceOpenResult openLibArchiveMediaEntrySource(
-    const kiriview::OpenedCollectionScopeLocation& openedCollectionScope)
+    const kiriview::OpenedCollectionScopeLocation& openedCollectionScope,
+    const kiriview::MediaEntrySourceOpenContext& context)
 {
-    return LibArchiveMediaEntrySource::create(openedCollectionScope);
+    return LibArchiveMediaEntrySource::create(openedCollectionScope, context);
 }
 }
 

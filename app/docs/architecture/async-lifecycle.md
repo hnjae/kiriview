@@ -16,6 +16,8 @@ Worker-backed owners schedule work through an owner-controlled execution boundar
 
 Cancellation invalidates publication before backend cancellation is attempted. Queued captures and obsolete work are released promptly enough to preserve declared resource bounds; an implementation may remove queued work, mark it skipped before execution, or use another mechanism with the same effect. Work that has already started may finish best-effort, but its completion cannot publish after invalidation.
 
+Application-controlled opened-collection enumeration observes cancellation within a bounded amount of traversal work and releases its accumulated candidate state instead of continuing an obsolete scan to completion. A supplier operation that cannot be interrupted remains best-effort, but it is surrounded by current-lifecycle checks and cannot become an alternate publication path or exempt subsequent application-controlled traversal from cancellation and resource admission.
+
 Providers used by a runtime must preserve that runtime's scheduling, capacity, cancellation, and delivery guarantees. Provider construction must not silently move work onto an unmanaged path that bypasses those guarantees.
 
 Reusable callback delivery, cancelable jobs, operation-state helpers, directory-listing boundaries, and worker scheduling may be shared where doing so does not create a shared authoritative state machine. Domain work remains with its owner: image decode data loading belongs to decoding, page-candidate loading belongs to navigation, opened-collection byte access belongs to collection media-entry owners, and thumbnail byte or cache work belongs to thumbnail runtime adapters.

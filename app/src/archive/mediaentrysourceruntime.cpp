@@ -210,9 +210,14 @@ void MediaEntrySourceRuntime::startCandidateLoad(MediaEntrySourceCandidateLoadBa
     }
 
     std::shared_ptr<MediaEntrySourceRunner> runner = m_runner;
+    m_candidateLoadStopSource = std::stop_source();
+    MediaEntrySourceOpenContext context;
+    context.stopToken = m_candidateLoadStopSource.get_token();
     m_candidateLoadTask = m_workerScheduler.run(
         m_context,
-        [runner = std::move(runner)]() { return runner->loadImageDocumentPageCandidates(); },
+        [runner = std::move(runner), context]() {
+            return runner->loadImageDocumentPageCandidates(context);
+        },
         [this, batch](MediaEntrySourceCandidatesResult result) mutable {
             finishCandidateLoad(batch, std::move(result));
         });
@@ -234,6 +239,7 @@ void MediaEntrySourceRuntime::finishCandidateLoad(
 void MediaEntrySourceRuntime::cancelCandidateLoadBatch()
 {
     m_candidateLoadState.cancel();
+    m_candidateLoadStopSource.request_stop();
     m_candidateLoadTask.cancel();
 }
 }

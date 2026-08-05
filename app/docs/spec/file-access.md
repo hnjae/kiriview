@@ -42,6 +42,8 @@ Recursive traversal is confined to the selected directory's resolved root. Entri
 
 If a directly opened archive or directory collection contains no supported media, KiriView clears any displayed media and shows an error state explaining that the selected collection does not contain any supported media.
 
+KiriView opens a directly selected archive or directory collection only when its complete recursive entry set fits the application's safe collection-enumeration limits. If the collection exceeds those limits, opening fails without publishing or retaining a partial page list, and the error state explains that the selected collection is too large to open. Clearing or replacing a collection while enumeration is pending does not publish candidates or an error from the superseded collection.
+
 Errors shown while opening or reading media from a directly opened archive or directory collection use collection-neutral wording such as "selected collection" unless the failed operation specifically concerns an archive file, archive URL scheme, or archive format.
 
 If the encoded bytes for an image or opened-collection image entry exceed the resources KiriView can safely admit, the load fails without publishing that image or a partial result. Foreground display reports the ordinary image-load failure state, while thumbnail generation leaves the thumbnail unavailable; any previously retained replacement content follows the normal failed-replacement behavior.

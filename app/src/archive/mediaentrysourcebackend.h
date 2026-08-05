@@ -16,6 +16,7 @@
 #include <expected>
 #include <functional>
 #include <memory>
+#include <stop_token>
 #include <vector>
 
 class QDebug;
@@ -50,6 +51,7 @@ enum class MediaEntrySourceErrorCause {
     ThumbnailMetadataUnsupported,
     ProviderUnavailable,
     ResourceLimitExceeded,
+    OperationCancelled,
 };
 
 struct MediaEntrySourceError
@@ -148,8 +150,25 @@ public:
 };
 
 using MediaEntrySourceOpenResult = MediaEntrySourceResult<MediaEntrySourcePtr>;
-using MediaEntrySourceFactory
-    = std::function<MediaEntrySourceOpenResult(const OpenedCollectionScopeLocation&)>;
+
+struct MediaEntrySourceEnumerationLimits
+{
+    qsizetype maximumEntryCount = 0;
+    qsizetype maximumPathCodeUnitCount = 0;
+    int maximumNestingDepth = 0;
+};
+
+MediaEntrySourceEnumerationLimits defaultMediaEntrySourceEnumerationLimits();
+
+struct MediaEntrySourceOpenContext
+{
+    std::stop_token stopToken;
+    MediaEntrySourceEnumerationLimits enumerationLimits
+        = defaultMediaEntrySourceEnumerationLimits();
+};
+
+using MediaEntrySourceFactory = std::function<MediaEntrySourceOpenResult(
+    const OpenedCollectionScopeLocation&, const MediaEntrySourceOpenContext&)>;
 
 MediaEntrySourceCandidatesResult loadMediaEntrySourceCandidates(
     const OpenedCollectionScopeLocation& openedCollectionScope);
@@ -159,7 +178,8 @@ MediaEntrySourceImageDataResult loadMediaEntrySourceImageData(
 MediaEntrySourceThumbnailMetadataResult loadMediaEntrySourceThumbnailMetadata(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& imageUrl);
 MediaEntrySourceOpenResult openMediaEntrySource(
-    const OpenedCollectionScopeLocation& openedCollectionScope);
+    const OpenedCollectionScopeLocation& openedCollectionScope,
+    const MediaEntrySourceOpenContext& context = {});
 }
 
 #endif

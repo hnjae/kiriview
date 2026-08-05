@@ -12,6 +12,7 @@
 #include "mediaentrysourcecandidateloadstate.h"
 
 #include <memory>
+#include <stop_token>
 
 class QObject;
 
@@ -55,6 +56,7 @@ private:
     std::shared_ptr<MediaEntrySourceRunner> m_runner;
     MediaEntrySourceCandidateLoadState m_candidateLoadState;
     ImageWorkerTask m_candidateLoadTask;
+    std::stop_source m_candidateLoadStopSource;
     ImageAsyncTicket m_sourceGeneration;
 };
 }
