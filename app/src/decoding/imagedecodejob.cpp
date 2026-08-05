@@ -10,6 +10,7 @@
 #include "thumbnailpreview.h"
 
 #include <QDebug>
+#include <QPointer>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -90,26 +91,31 @@ void ImageDecodeJob::start(
 
     m_authoritativeSeed = std::move(authoritativeSeed);
     const ImageDecodeJobTicket ticket = m_state.start(std::move(request));
+    const QPointer<ImageDecodeJob> guardedJob(this);
     m_dataLoadJob = m_dependencies.dataLoader(
         this, ticket.request,
-        [this, ticket](ImageSourceData sourceData) mutable {
+        [guardedJob, ticket](ImageSourceData sourceData) mutable {
+            ImageDecodeJob* job = guardedJob.data();
+            if (job == nullptr) {
+                return;
+            }
             if (!sourceData.lease.isManaged()) {
-                sourceData.lease = m_dependencies.sourceDataBudget->startLease();
+                sourceData.lease = job->m_dependencies.sourceDataBudget->startLease();
             }
             const qsizetype reservedByteCount = sourceData.lease.reservedByteCount();
             if (sourceData.data.size() > reservedByteCount
                 && !sourceData.lease.tryReserve(sourceData.data.size() - reservedByteCount)) {
-                ImageDecodeJobRuntimePlan errorPlan = m_state.acceptLoadError(ticket);
+                ImageDecodeJobRuntimePlan errorPlan = job->m_state.acceptLoadError(ticket);
                 const auto* errorOperation
                     = std::get_if<DeliverImageLoadErrorOperation>(&errorPlan.operation);
                 if (errorOperation != nullptr) {
-                    invokeIfSet(m_callbacks.loadError, errorOperation->request,
+                    invokeIfSet(job->m_callbacks.loadError, errorOperation->request,
                         imageSourceDataResourceLimitDiagnostic());
                 }
                 return;
             }
 
-            ImageDecodeJobRuntimePlan plan = m_state.acceptLoadedData(ticket);
+            ImageDecodeJobRuntimePlan plan = job->m_state.acceptLoadedData(ticket);
             auto* operation = std::get_if<StartImageDecodeOperation>(&plan.operation);
             if (operation == nullptr) {
                 return;
@@ -117,32 +123,36 @@ void ImageDecodeJob::start(
 
             ImageDecodeRequest currentRequest = operation->request.withSourceRevision(
                 ImageSourceRevision::fromData(sourceData.data));
-            if (m_authoritativeSeed.has_value()
-                && reusableAuthoritativeSeed(*m_authoritativeSeed, currentRequest)) {
-                StaticDisplayImagePayload seed = std::move(*m_authoritativeSeed);
-                m_authoritativeSeed.reset();
-                ImageDecodeJobRuntimePlan resultPlan = m_state.acceptDecodeResult(ticket);
+            if (job->m_authoritativeSeed.has_value()
+                && reusableAuthoritativeSeed(*job->m_authoritativeSeed, currentRequest)) {
+                StaticDisplayImagePayload seed = std::move(*job->m_authoritativeSeed);
+                job->m_authoritativeSeed.reset();
+                ImageDecodeJobRuntimePlan resultPlan = job->m_state.acceptDecodeResult(ticket);
                 if (!std::holds_alternative<DeliverImageDecodeResultOperation>(
                         resultPlan.operation)) {
                     return;
                 }
                 EmbeddedMetadata metadata = seed.embeddedMetadata;
-                invokeIfSet(m_callbacks.decoded, std::move(currentRequest),
+                invokeIfSet(job->m_callbacks.decoded, std::move(currentRequest),
                     successfulDecodedImageResult(
                         StaticDecodedImage { std::move(seed), std::move(metadata) }));
                 return;
             }
-            m_authoritativeSeed.reset();
-            startDecode(std::move(sourceData), ticket, std::move(currentRequest));
+            job->m_authoritativeSeed.reset();
+            job->startDecode(std::move(sourceData), ticket, std::move(currentRequest));
         },
-        [this, ticket](const QString& errorString) {
-            ImageDecodeJobRuntimePlan plan = m_state.acceptLoadError(ticket);
+        [guardedJob, ticket](const QString& errorString) {
+            ImageDecodeJob* job = guardedJob.data();
+            if (job == nullptr) {
+                return;
+            }
+            ImageDecodeJobRuntimePlan plan = job->m_state.acceptLoadError(ticket);
             const auto* operation = std::get_if<DeliverImageLoadErrorOperation>(&plan.operation);
             if (operation == nullptr) {
                 return;
             }
 
-            invokeIfSet(m_callbacks.loadError, operation->request, errorString);
+            invokeIfSet(job->m_callbacks.loadError, operation->request, errorString);
         });
 }
 
@@ -210,12 +220,17 @@ void ImageDecodeJob::startThumbnailPreviewLookup(const QByteArray& data,
     ImageSourceData rawPreviewData = rawPreviewEligible
         ? ImageSourceData(data, std::move(sourceDataLease))
         : ImageSourceData();
+    const QPointer<ImageDecodeJob> guardedJob(this);
     m_thumbnailPreviewLookupJob = m_dependencies.thumbnailPreviewLookupProvider(this,
         std::move(*lookupRequest),
-        [this, ticket = std::move(ticket), previewRequest = std::move(*previewRequest), request,
-            rawPreviewEligible, rawPreviewData = std::move(rawPreviewData)](
+        [guardedJob, ticket = std::move(ticket), previewRequest = std::move(*previewRequest),
+            request, rawPreviewEligible, rawPreviewData = std::move(rawPreviewData)](
             ThumbnailCacheLookupResult lookupResult) mutable {
-            ImageDecodeJobRuntimePlan plan = m_state.acceptThumbnailPreview(ticket);
+            ImageDecodeJob* job = guardedJob.data();
+            if (job == nullptr) {
+                return;
+            }
+            ImageDecodeJobRuntimePlan plan = job->m_state.acceptThumbnailPreview(ticket);
             if (!std::holds_alternative<DeliverImageThumbnailPreviewOperation>(plan.operation)) {
                 return;
             }
@@ -223,12 +238,12 @@ void ImageDecodeJob::startThumbnailPreviewLookup(const QByteArray& data,
             XdgThumbnailPreviewResult previewResult
                 = xdgThumbnailPreviewResult(previewRequest, std::move(lookupResult));
             if (previewResult.status == ThumbnailCacheLookupStatus::Missing && rawPreviewEligible) {
-                startRawEmbeddedThumbnailPreviewValidation(
+                job->startRawEmbeddedThumbnailPreviewValidation(
                     std::move(rawPreviewData), ticket, request);
                 return;
             }
             if (previewResult.status != ThumbnailCacheLookupStatus::Ready
-                || !m_callbacks.thumbnailPreview) {
+                || !job->m_callbacks.thumbnailPreview) {
                 return;
             }
 
@@ -238,7 +253,7 @@ void ImageDecodeJob::startThumbnailPreviewLookup(const QByteArray& data,
                 return;
             }
 
-            invokeIfSet(m_callbacks.thumbnailPreview, request, std::move(*payload));
+            invokeIfSet(job->m_callbacks.thumbnailPreview, request, std::move(*payload));
         });
 }
 
