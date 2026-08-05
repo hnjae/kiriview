@@ -6,7 +6,9 @@
 
 #include <QSemaphore>
 #include <QTest>
+#include <QThread>
 #include <QThreadPool>
+#include <atomic>
 #include <memory>
 #include <vector>
 
@@ -35,6 +37,7 @@ private Q_SLOTS:
     void nullReceiverRunsSynchronously();
     void moveOnlyWorkAndCompletionAreSupported();
     void workerCompletionFinishesJobOnce();
+    void workerCompletionUsesGuardedContextAffinity();
     void canceledWorkerCompletionIsIgnored();
     void canceledQueuedWorkerReleasesPayloadWithoutRunning();
     void supersededThreadPoolBacklogIsWithdrawnBeforeNewestWork();
@@ -89,6 +92,31 @@ void TestImageIoWorkerJob::workerCompletionFinishesJobOnce()
     QTRY_COMPARE(finishCount, 1);
     QCOMPARE(finishValue, 11);
     QVERIFY(!job.isActive());
+}
+
+void TestImageIoWorkerJob::workerCompletionUsesGuardedContextAffinity()
+{
+    QThread ownerThread;
+    auto* context = new QObject;
+    context->moveToThread(&ownerThread);
+    ownerThread.start();
+
+    QThreadPool pool;
+    std::atomic<QThread*> completionThread = nullptr;
+    kiriview::ImageWorkerTask task = kiriview::runAsyncWorker(
+        &pool, context, []() { return 17; },
+        [&completionThread](int) { completionThread.store(QThread::currentThread()); });
+
+    QTRY_VERIFY(completionThread.load() != nullptr);
+    QThread* observedCompletionThread = completionThread.load();
+    QVERIFY(pool.waitForDone(1000));
+    QVERIFY(QMetaObject::invokeMethod(
+        context, [context]() { delete context; }, Qt::BlockingQueuedConnection));
+    ownerThread.quit();
+    QVERIFY(ownerThread.wait(1000));
+
+    QCOMPARE(observedCompletionThread, &ownerThread);
+    QVERIFY(!task.isActive());
 }
 
 void TestImageIoWorkerJob::canceledWorkerCompletionIsIgnored()

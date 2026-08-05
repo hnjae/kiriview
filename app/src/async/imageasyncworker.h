@@ -9,6 +9,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QRunnable>
+#include <QThread>
 #include <QThreadPool>
 #include <Qt>
 #include <functional>
@@ -140,6 +141,26 @@ private:
 };
 
 namespace Detail {
+    struct AsyncWorkerDeliveryState final
+    {
+        QPointer<QObject> guardedContext;
+        std::shared_ptr<QObject> relay;
+    };
+
+    inline std::shared_ptr<AsyncWorkerDeliveryState> createAsyncWorkerDeliveryState(
+        QObject* context)
+    {
+        auto relay
+            = std::shared_ptr<QObject>(new QObject, [](QObject* object) { object->deleteLater(); });
+        QThread* ownerThread = context->thread();
+        if (ownerThread == nullptr || !relay->moveToThread(ownerThread)) {
+            return {};
+        }
+
+        return std::make_shared<AsyncWorkerDeliveryState>(
+            AsyncWorkerDeliveryState { QPointer<QObject>(context), std::move(relay) });
+    }
+
     class AsyncWorkerQueueState final
     {
     public:
@@ -187,12 +208,11 @@ namespace Detail {
         using Result = std::invoke_result_t<Work&>;
 
         AsyncWorkerRunnable(std::shared_ptr<AsyncWorkerQueueState> queueState,
-            ImageWorkerTaskCompletion taskCompletion, QObject* deliveryContext,
-            QPointer<QObject> guardedContext, Work work, Finish finish)
+            ImageWorkerTaskCompletion taskCompletion,
+            std::shared_ptr<AsyncWorkerDeliveryState> delivery, Work work, Finish finish)
             : m_queueState(std::move(queueState))
             , m_taskCompletion(std::move(taskCompletion))
-            , m_deliveryContext(deliveryContext)
-            , m_guardedContext(std::move(guardedContext))
+            , m_delivery(std::move(delivery))
             , m_work(std::move(work))
             , m_finish(std::move(finish))
         {
@@ -214,11 +234,12 @@ namespace Detail {
                 return;
             }
 
+            const std::shared_ptr<AsyncWorkerDeliveryState> delivery = m_delivery;
             const bool queued = QMetaObject::invokeMethod(
-                m_deliveryContext,
-                [guardedContext = m_guardedContext, taskCompletion = m_taskCompletion,
-                    finish = std::move(finish), result = std::move(result)]() mutable {
-                    if (guardedContext == nullptr) {
+                delivery->relay.get(),
+                [delivery, taskCompletion = m_taskCompletion, finish = std::move(finish),
+                    result = std::move(result)]() mutable {
+                    if (delivery->guardedContext == nullptr) {
                         taskCompletion.cancel();
                         return;
                     }
@@ -234,8 +255,7 @@ namespace Detail {
     private:
         std::shared_ptr<AsyncWorkerQueueState> m_queueState;
         ImageWorkerTaskCompletion m_taskCompletion;
-        QObject* m_deliveryContext = nullptr;
-        QPointer<QObject> m_guardedContext;
+        std::shared_ptr<AsyncWorkerDeliveryState> m_delivery;
         Work m_work;
         Finish m_finish;
     };
@@ -252,17 +272,21 @@ ImageWorkerTask runAsyncWorker(QThreadPool* pool, QObject* context, Work work, F
         return {};
     }
 
-    QObject* deliveryContext = QCoreApplication::instance();
-    if (deliveryContext == nullptr) {
+    if (QCoreApplication::instance() == nullptr) {
         finish(work());
         return {};
     }
 
-    const QPointer<QObject> guardedContext(context);
+    std::shared_ptr<Detail::AsyncWorkerDeliveryState> delivery
+        = Detail::createAsyncWorkerDeliveryState(context);
+    if (delivery == nullptr) {
+        return {};
+    }
+
     auto queueState = std::make_shared<Detail::AsyncWorkerQueueState>(pool);
     ImageWorkerTask task([queueState]() { queueState->withdrawQueued(); });
-    auto* runnable = new Detail::AsyncWorkerRunnable<Work, Finish>(queueState, task.completion(),
-        deliveryContext, guardedContext, std::move(work), std::move(finish));
+    auto* runnable = new Detail::AsyncWorkerRunnable<Work, Finish>(
+        queueState, task.completion(), std::move(delivery), std::move(work), std::move(finish));
     queueState->setRunnable(runnable);
     pool->start(runnable);
     return task;
