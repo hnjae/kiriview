@@ -18,7 +18,7 @@ StatefulApp.StatefulWindow {
     application: KiriViewApplication {
         id: kiriApplication
     }
-    title: documentSession.windowTitleSubject.length > 0 ? KI18n.i18nc("@title:window", "%1 — KiriView", documentSession.windowTitleSubject) : "KiriView"
+    title: windowShell.windowTitle
     visible: true
     windowName: "Main"
 

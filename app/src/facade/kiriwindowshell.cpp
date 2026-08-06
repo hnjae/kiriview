@@ -8,6 +8,7 @@
 #include "facade/kiriviewapplication.h"
 
 #include <KLocalizedString>
+#include <QGuiApplication>
 #include <QWindow>
 #include <utility>
 
@@ -30,9 +31,12 @@ KiriWindowShell::KiriWindowShell(kiriview::TimerScheduler timerScheduler, QObjec
     , m_notificationRuntime(
           this, std::move(timerScheduler), [this]() { Q_EMIT notificationSnapshotChanged(); })
 {
+    refreshWindowTitle();
 }
 
 bool KiriWindowShell::fullscreen() const { return m_chromeRuntime.snapshot().fullscreen; }
+
+QString KiriWindowShell::windowTitle() const { return m_windowTitle; }
 
 bool KiriWindowShell::pointerHidden() const { return m_chromeRuntime.snapshot().pointerHidden; }
 
@@ -105,6 +109,15 @@ void KiriWindowShell::attachDocumentSession(QObject* session)
     auto* documentSession = qobject_cast<KiriDocumentSession*>(session);
     if (documentSession == nullptr) {
         return;
+    }
+
+    if (m_documentSession != documentSession) {
+        QObject::disconnect(m_windowTitleConnection);
+        m_documentSession = documentSession;
+        m_windowTitleConnection = QObject::connect(documentSession,
+            &KiriDocumentSession::windowTitleSubjectChanged, this,
+            [this]() { refreshWindowTitle(); });
+        refreshWindowTitle();
     }
 
     KiriImageDocument* imageDocument = documentSession->imageDocument();
@@ -203,4 +216,22 @@ void KiriWindowShell::submitNotification(
 void KiriWindowShell::clearNavigationBoundaryNotification()
 {
     m_notificationRuntime.clear(kiriview::WindowNotificationScope::NavigationBoundary);
+}
+
+void KiriWindowShell::refreshWindowTitle()
+{
+    QString applicationName = QGuiApplication::applicationDisplayName();
+    if (applicationName.isEmpty()) {
+        applicationName = i18nc("@title:application", "KiriView");
+    }
+    const QString subject
+        = m_documentSession == nullptr ? QString() : m_documentSession->windowTitleSubject();
+    const QString title = subject.isEmpty()
+        ? applicationName
+        : i18nc("@title:window", "%1 — %2", subject, applicationName);
+    if (m_windowTitle == title) {
+        return;
+    }
+    m_windowTitle = title;
+    Q_EMIT windowTitleChanged();
 }

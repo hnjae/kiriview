@@ -20,6 +20,7 @@ class KiriWindowShell : public QObject
     QML_UNCREATABLE("KiriWindowShell is created by the application runtime")
 
     Q_PROPERTY(bool fullscreen READ fullscreen NOTIFY chromeSnapshotChanged)
+    Q_PROPERTY(QString windowTitle READ windowTitle NOTIFY windowTitleChanged)
     Q_PROPERTY(bool pointerHidden READ pointerHidden NOTIFY chromeSnapshotChanged)
     Q_PROPERTY(bool toolbarRevealed READ toolbarRevealed NOTIFY chromeSnapshotChanged)
     Q_PROPERTY(int chromeRevision READ chromeRevision NOTIFY chromeSnapshotChanged)
@@ -34,6 +35,7 @@ public:
     explicit KiriWindowShell(kiriview::TimerScheduler timerScheduler, QObject* parent = nullptr);
 
     bool fullscreen() const;
+    QString windowTitle() const;
     bool pointerHidden() const;
     bool toolbarRevealed() const;
     int chromeRevision() const;
@@ -52,18 +54,23 @@ public:
     Q_INVOKABLE void dismissNotification();
 
 Q_SIGNALS:
+    void windowTitleChanged();
     void chromeSnapshotChanged();
     void notificationSnapshotChanged();
 
 private:
     static kiriview::WindowVisibility runtimeVisibility(QWindow::Visibility visibility);
     static QWindow::Visibility facadeVisibility(kiriview::WindowVisibility visibility);
+    void refreshWindowTitle();
     void submitNotification(kiriview::WindowNotificationScope scope, const QString& message);
     void clearNavigationBoundaryNotification();
 
     QPointer<QWindow> m_window;
+    QPointer<class KiriDocumentSession> m_documentSession;
     QMetaObject::Connection m_visibilityConnection;
+    QMetaObject::Connection m_windowTitleConnection;
     std::vector<QMetaObject::Connection> m_notificationConnections;
+    QString m_windowTitle;
     kiriview::WindowChromeRuntime m_chromeRuntime;
     kiriview::WindowNotificationRuntime m_notificationRuntime;
 };

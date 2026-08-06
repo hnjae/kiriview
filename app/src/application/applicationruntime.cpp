@@ -9,6 +9,7 @@
 #include "localization/localization.h"
 #include "session/thumbnailimagestore.h"
 
+#include <KLocalizedString>
 #include <QApplication>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
@@ -24,6 +25,7 @@ namespace {
 void setupApplicationIdentity()
 {
     QGuiApplication::setDesktopFileName(QStringLiteral("org.hnjae.kiriview"));
+    QGuiApplication::setApplicationDisplayName(i18nc("@title:application", "KiriView"));
 }
 
 void setupDefaultQuickStyle()

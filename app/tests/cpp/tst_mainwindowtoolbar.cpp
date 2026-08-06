@@ -22,6 +22,7 @@
 #include <QFile>
 #include <QFont>
 #include <QFontDatabase>
+#include <QGuiApplication>
 #include <QImage>
 #include <QMetaEnum>
 #include <QMetaProperty>
@@ -54,6 +55,7 @@ private Q_SLOTS:
     void initTestCase();
     void init();
     void startupCreatesOneVisibleToolbarWithDisabledMediaControls();
+    void shellOwnsFinalWindowTitleProjection();
     void toolbarPageReadoutUsesSystemFixedWidthFont();
     void startupInitialDirectImageRendersMainViewport();
     void startupInitialComicArchiveRendersAndNavigatesMainViewport();
@@ -744,6 +746,7 @@ bool zoomApproximatelyEqual(double left, double right) { return std::abs(left - 
 void TestMainWindowToolBar::initTestCase()
 {
     QStandardPaths::setTestModeEnabled(true);
+    QGuiApplication::setApplicationDisplayName(QStringLiteral("KiriView"));
     resetConfig();
 
     if (!qEnvironmentVariableIsSet("QT_QUICK_CONTROLS_STYLE")) {
@@ -790,6 +793,27 @@ void TestMainWindowToolBar::startupCreatesOneVisibleToolbarWithDisabledMediaCont
         = visibleItemsByObjectName(fixture.window, QStringLiteral("toolbarApplicationMenuButton"));
     QCOMPARE(visibleApplicationMenuButtons.size(), 1);
     QVERIFY(visibleApplicationMenuButtons.constFirst()->isEnabled());
+}
+
+void TestMainWindowToolBar::shellOwnsFinalWindowTitleProjection()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString imagePath = directory.filePath(QStringLiteral("title.png"));
+    QVERIFY(writeTestPng(imagePath));
+
+    MainWindowFixture fixture = createMainWindowFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    QCOMPARE(fixture.windowShell->property("windowTitle").toString(), QStringLiteral("KiriView"));
+    QCOMPARE(fixture.window->title(), fixture.windowShell->property("windowTitle").toString());
+
+    openSourceUrl(fixture, imagePath);
+    KiriDocumentSession* documentSession = findDocumentSession(fixture.window);
+    QVERIFY(documentSession != nullptr);
+    QTRY_VERIFY(documentSession->activeImageReady());
+    QTRY_VERIFY(fixture.windowShell->property("windowTitle").toString().contains(
+        QStringLiteral("title.png")));
+    QTRY_COMPARE(fixture.window->title(), fixture.windowShell->property("windowTitle").toString());
 }
 
 void TestMainWindowToolBar::toolbarPageReadoutUsesSystemFixedWidthFont()
