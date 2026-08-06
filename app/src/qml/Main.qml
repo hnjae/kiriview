@@ -143,11 +143,11 @@ StatefulApp.StatefulWindow {
     pageStack.initialPage: Kirigami.Page {
         id: page
 
-        readonly property var imageDocument: documentSession.imageDocument
-        readonly property var videoDocument: documentSession.videoDocument
-        readonly property bool imageMode: documentSession.documentKind === KiriDocumentSession.Image
-        readonly property bool videoMode: documentSession.documentKind === KiriDocumentSession.Video
-        readonly property bool imageReady: documentSession.activeImageReady
+        readonly property var imageDocument: root.documentSession.imageDocument
+        readonly property var videoDocument: root.documentSession.videoDocument
+        readonly property bool imageMode: root.documentSession.documentKind === KiriDocumentSession.Image
+        readonly property bool videoMode: root.documentSession.documentKind === KiriDocumentSession.Video
+        readonly property bool imageReady: root.documentSession.activeImageReady
         readonly property string actionUiGateFingerprint: [root.helpDialogOpen, root.fullscreen, root.applicationMenuShortcutEnabled, root.toolbarTextInputFocused(), mediaWorkspaceHost.infoPanelVisible, mediaWorkspaceHost.thumbnailPanelVisible].join("|")
 
         background: Rectangle {
@@ -278,11 +278,11 @@ StatefulApp.StatefulWindow {
             objectName: "mainImageToolBar"
 
             actions: imageActions
-            activeNavigationAvailable: documentSession.activeNavigationAvailable
-            activeNavigationCount: documentSession.activeNavigationCount
-            activeNavigationCurrentNumber: documentSession.activeNavigationCurrentNumber
-            activeNavigationEditable: documentSession.activeNavigationEditable
-            activeNavigationKnown: documentSession.activeNavigationKnown
+            activeNavigationAvailable: root.documentSession.activeNavigationAvailable
+            activeNavigationCount: root.documentSession.activeNavigationCount
+            activeNavigationCurrentNumber: root.documentSession.activeNavigationCurrentNumber
+            activeNavigationEditable: root.documentSession.activeNavigationEditable
+            activeNavigationKnown: root.documentSession.activeNavigationKnown
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
@@ -293,15 +293,15 @@ StatefulApp.StatefulWindow {
             navigationPresentationProvider: kiriApplication
             applicationMenuActions: imageActions.applicationMenuActions
             openActiveNavigationAtNumber: function (number) {
-                documentSession.openActiveNavigationAtNumber(number);
+                root.documentSession.openActiveNavigationAtNumber(number);
             }
             showApplicationMenuActions: !root.menuBarMode && !root.fullscreen
             transientOverlay: root.fullscreen
             visible: !root.fullscreen || root.windowShell.toolbarRevealed
-            zoomEditable: documentSession.activeZoomEditable
-            zoomPercent: documentSession.activeZoomPercent
-            zoomPercentAvailable: documentSession.activeZoomPercentAvailable
-            zoomPercentKnown: documentSession.activeZoomPercentKnown
+            zoomEditable: root.documentSession.activeZoomEditable
+            zoomPercent: root.documentSession.activeZoomPercent
+            zoomPercentAvailable: root.documentSession.activeZoomPercentAvailable
+            zoomPercentKnown: root.documentSession.activeZoomPercentKnown
             z: 20
 
             onTextInputFocusReturnRequested: root.focusActiveViewport()
@@ -334,9 +334,9 @@ StatefulApp.StatefulWindow {
 
         objectName: "openFileDialog"
         fileMode: Dialogs.FileDialog.OpenFile
-        nameFilters: documentSession.openDialogNameFilters
+        nameFilters: root.documentSession.openDialogNameFilters
         title: KI18n.i18nc("@title:window", "Open Image, Video, or Comic Book")
 
-        onAccepted: documentSession.sourceUrl = selectedFile
+        onAccepted: root.documentSession.sourceUrl = selectedFile
     }
 }
