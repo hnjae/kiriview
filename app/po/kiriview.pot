@@ -219,6 +219,12 @@ msgctxt "@action"
 msgid "Right-to-Left Reading"
 msgstr ""
 
+#: src/application/applicationruntime.cpp src/facade/kiriwindowshell.cpp
+#, kde-format
+msgctxt "@title:application"
+msgid "KiriView"
+msgstr ""
+
 #: src/application/applicationshortcutruntime.cpp
 #, kde-format
 msgctxt "@info:shortcut scope"
@@ -441,18 +447,6 @@ msgctxt "@action"
 msgid "Open Application Menu"
 msgstr ""
 
-#: src/decoding/imageformatregistry.cpp
-#, kde-format
-msgctxt "@item:inlistbox"
-msgid "Image and comic book files (%1)"
-msgstr ""
-
-#: src/decoding/imageformatregistry.cpp src/facade/mediaopendialogfilters.cpp
-#, kde-format
-msgctxt "@item:inlistbox"
-msgid "All files (*)"
-msgstr ""
-
 #: src/document/imageopencontroller.cpp
 #: src/localization/mediaentrysourceerrortext.cpp
 #, kde-format
@@ -485,10 +479,22 @@ msgctxt "@info:status"
 msgid "Could not open media with another application"
 msgstr ""
 
+#: src/facade/kiriwindowshell.cpp
+#, kde-format
+msgctxt "@title:window"
+msgid "%1 — %2"
+msgstr ""
+
 #: src/facade/mediaopendialogfilters.cpp
 #, kde-format
 msgctxt "@item:inlistbox"
 msgid "Image, video, and comic book files (%1)"
+msgstr ""
+
+#: src/facade/mediaopendialogfilters.cpp
+#, kde-format
+msgctxt "@item:inlistbox"
+msgid "All files (*)"
 msgstr ""
 
 #: src/localization/activenavigationboundarytext.cpp
@@ -1050,11 +1056,6 @@ msgstr ""
 #: src/qml/InfoPanel.qml
 msgctxt "@title:group"
 msgid "Advanced Metadata"
-msgstr ""
-
-#: src/qml/Main.qml
-msgctxt "@title:window"
-msgid "%1 — KiriView"
 msgstr ""
 
 #: src/qml/Main.qml
