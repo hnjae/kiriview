@@ -40,6 +40,7 @@ public:
         std::function<bool(bool)> singlePageArrowShortcutTriggered;
         std::function<bool(bool)> verticalPanShortcutTriggered;
         std::function<bool(qint64)> videoSeekShortcutTriggered;
+        std::function<bool(FixedShortcutDispatchKind)> escapeShortcutTriggered;
     };
 
     ApplicationShortcutRuntime(ApplicationActionHost& host,

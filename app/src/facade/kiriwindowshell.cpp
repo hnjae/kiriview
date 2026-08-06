@@ -114,9 +114,9 @@ void KiriWindowShell::attachDocumentSession(QObject* session)
     if (m_documentSession != documentSession) {
         QObject::disconnect(m_windowTitleConnection);
         m_documentSession = documentSession;
-        m_windowTitleConnection = QObject::connect(documentSession,
-            &KiriDocumentSession::windowTitleSubjectChanged, this,
-            [this]() { refreshWindowTitle(); });
+        m_windowTitleConnection
+            = QObject::connect(documentSession, &KiriDocumentSession::windowTitleSubjectChanged,
+                this, [this]() { refreshWindowTitle(); });
         refreshWindowTitle();
     }
 
@@ -155,6 +155,8 @@ void KiriWindowShell::attachDocumentSession(QObject* session)
 }
 
 void KiriWindowShell::requestToggleFullscreen() { m_chromeRuntime.requestToggleFullscreen(); }
+
+void KiriWindowShell::requestLeaveFullscreen() { m_chromeRuntime.requestLeaveFullscreen(); }
 
 void KiriWindowShell::reportPointerMoved(bool inTopRevealArea)
 {

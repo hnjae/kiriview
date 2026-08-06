@@ -32,6 +32,7 @@ struct ApplicationActionStateInput
     bool fitWidthModeSelected = false;
     bool twoPageModeActive = false;
     bool rightToLeftReadingActive = false;
+    bool textInputFocused = false;
     bool infoPanelVisible = false;
     bool thumbnailPanelVisible = false;
     bool fullscreen = false;

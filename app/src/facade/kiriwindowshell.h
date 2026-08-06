@@ -47,6 +47,7 @@ public:
     Q_INVOKABLE void attachApplication(QObject* application);
     Q_INVOKABLE void attachDocumentSession(QObject* session);
     Q_INVOKABLE void requestToggleFullscreen();
+    Q_INVOKABLE void requestLeaveFullscreen();
     Q_INVOKABLE void reportPointerMoved(bool inTopRevealArea);
     Q_INVOKABLE void reportTopRevealEntered();
     Q_INVOKABLE void reportToolbarInteractionActive(bool active);

@@ -410,6 +410,9 @@ bool ApplicationShortcutRuntime::handleFixedShortcutEvent(const QKeySequence& sh
         m_shortcutWindow == nullptr || QGuiApplication::focusWindow() == m_shortcutWindow,
         m_actionStateInput.videoMode,
         m_actionStateInput.helpActionsEnabled,
+        m_actionStateInput.textInputFocused,
+        m_actionStateInput.infoPanelVisible,
+        m_actionStateInput.fullscreen,
         m_actionStateInput.viewerShortcutsEnabled,
         m_actionStateInput.readyViewerShortcutsEnabled,
         m_actionStateInput.videoFileDeletionInProgress,
@@ -432,6 +435,11 @@ bool ApplicationShortcutRuntime::handleFixedShortcutEvent(const QKeySequence& sh
     case FixedShortcutDispatchKind::VerticalPan:
         return m_triggerCallbacks.verticalPanShortcutTriggered
             && m_triggerCallbacks.verticalPanShortcutTriggered(outcome.previousOrUp);
+    case FixedShortcutDispatchKind::CancelToolbarTextInput:
+    case FixedShortcutDispatchKind::CloseInfoPanel:
+    case FixedShortcutDispatchKind::ExitFullscreen:
+        return m_triggerCallbacks.escapeShortcutTriggered
+            && m_triggerCallbacks.escapeShortcutTriggered(outcome.kind);
     case FixedShortcutDispatchKind::None:
         return false;
     }

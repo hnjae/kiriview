@@ -13,6 +13,7 @@
 #include <QApplication>
 #include <QByteArray>
 #include <QObject>
+#include <QStringList>
 #include <QTest>
 
 #include <utility>
@@ -46,6 +47,7 @@ struct CommandLog
 {
     int openDialogCount = 0;
     int previousNavigationCount = 0;
+    QStringList escapeCommands;
 };
 
 void compareNavigationSlot(
@@ -112,6 +114,30 @@ public:
         return ports;
     }
 
+    Actions::ApplicationCommandRouterToolbarPorts commandRouterToolbarPorts() override
+    {
+        Actions::ApplicationCommandRouterToolbarPorts ports;
+        ports.cancelToolbarTextInputEditing
+            = [this]() { log.escapeCommands.push_back(QStringLiteral("cancel-toolbar-edit")); };
+        return ports;
+    }
+
+    Actions::ApplicationCommandRouterPanelPorts commandRouterPanelPorts() override
+    {
+        Actions::ApplicationCommandRouterPanelPorts ports;
+        ports.closeInfoPanel
+            = [this]() { log.escapeCommands.push_back(QStringLiteral("close-info-panel")); };
+        return ports;
+    }
+
+    Actions::ApplicationCommandRouterWindowPorts commandRouterWindowPorts() override
+    {
+        Actions::ApplicationCommandRouterWindowPorts ports;
+        ports.leaveFullScreen
+            = [this]() { log.escapeCommands.push_back(QStringLiteral("leave-fullscreen")); };
+        return ports;
+    }
+
     CommandLog log;
 };
 }
@@ -123,6 +149,7 @@ class TestApplicationActionRuntime : public QObject
 private Q_SLOTS:
     void triggeredActionDispatchesThroughRuntimeOwnedRouter();
     void fixedShortcutDispatchesThroughRuntimeOwnedRouter();
+    void escapeShortcutDispatchesExactlyOneOwnerCommand();
     void actionStateSnapshotBuildsRuntimePolicyInput();
     void actionStateSnapshotBuildsCommandRouterInput();
     void navigationPresentationProjectionFollowsActionStateSnapshot();
@@ -161,6 +188,35 @@ void TestApplicationActionRuntime::fixedShortcutDispatchesThroughRuntimeOwnedRou
     QVERIFY(runtime.executeHorizontalArrowShortcut(true));
 
     QCOMPARE(portSource.log.previousNavigationCount, 1);
+}
+
+void TestApplicationActionRuntime::escapeShortcutDispatchesExactlyOneOwnerCommand()
+{
+    FakeApplicationActionHost host;
+    Actions::ApplicationActionRuntime runtime(host);
+    FakeCommandPortSource portSource;
+    runtime.setCommandPortSource(&portSource);
+
+    const auto expectSingleCommand
+        = [&runtime, &portSource](
+              Actions::FixedShortcutDispatchKind decision, const QString& expectedCommand) {
+              portSource.log.escapeCommands.clear();
+
+              QVERIFY(runtime.executeEscapeShortcut(decision));
+
+              QCOMPARE(portSource.log.escapeCommands, QStringList { expectedCommand });
+          };
+
+    expectSingleCommand(Actions::FixedShortcutDispatchKind::CancelToolbarTextInput,
+        QStringLiteral("cancel-toolbar-edit"));
+    expectSingleCommand(
+        Actions::FixedShortcutDispatchKind::CloseInfoPanel, QStringLiteral("close-info-panel"));
+    expectSingleCommand(
+        Actions::FixedShortcutDispatchKind::ExitFullscreen, QStringLiteral("leave-fullscreen"));
+
+    portSource.log.escapeCommands.clear();
+    QVERIFY(!runtime.executeEscapeShortcut(Actions::FixedShortcutDispatchKind::None));
+    QVERIFY(portSource.log.escapeCommands.isEmpty());
 }
 
 void TestApplicationActionRuntime::actionStateSnapshotBuildsRuntimePolicyInput()

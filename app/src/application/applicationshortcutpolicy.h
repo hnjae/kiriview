@@ -30,6 +30,9 @@ enum class FixedShortcutDispatchKind {
     SinglePageArrow,
     VerticalPan,
     VideoSeek,
+    CancelToolbarTextInput,
+    CloseInfoPanel,
+    ExitFullscreen,
 };
 
 struct FixedShortcutDispatchInput
@@ -37,6 +40,9 @@ struct FixedShortcutDispatchInput
     bool focusApplicable = true;
     bool videoMode = false;
     bool helpActionsEnabled = false;
+    bool textInputFocused = false;
+    bool infoPanelVisible = false;
+    bool fullscreen = false;
     bool viewerShortcutsEnabled = false;
     bool readyViewerShortcutsEnabled = false;
     bool videoFileDeletionInProgress = false;

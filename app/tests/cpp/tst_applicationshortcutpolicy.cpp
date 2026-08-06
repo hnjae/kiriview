@@ -98,6 +98,8 @@ private Q_SLOTS:
     void horizontalArrowShortcutPolicyUsesActiveMediaMode();
     void fixedShortcutDispatchPlansVideoSeek();
     void fixedShortcutDispatchPlansImageNavigationAndPan();
+    void fixedShortcutDispatchPlansEscapePrecedence();
+    void helpModalSuppressesEscapeDispatch();
     void focusInapplicableBlocksFixedShortcutDispatch();
     void genericShortcutDispatchUsesFirstEnabledBinding();
     void genericShortcutDispatchReportsUnsupportedMediaActions();
@@ -495,6 +497,51 @@ void TestApplicationShortcutPolicy::fixedShortcutDispatchPlansImageNavigationAnd
     QCOMPARE(blockedHorizontal.kind, kiriview::ApplicationActions::FixedShortcutDispatchKind::None);
 }
 
+void TestApplicationShortcutPolicy::fixedShortcutDispatchPlansEscapePrecedence()
+{
+    kiriview::ApplicationActions::FixedShortcutDispatchInput input;
+    input.helpActionsEnabled = true;
+    input.textInputFocused = true;
+    input.infoPanelVisible = true;
+    input.fullscreen = true;
+
+    kiriview::ApplicationActions::FixedShortcutDispatchOutcome outcome
+        = kiriview::ApplicationActions::fixedShortcutDispatchOutcome(
+            input, shortcut(QStringLiteral("Esc")));
+    QCOMPARE(outcome.kind,
+        kiriview::ApplicationActions::FixedShortcutDispatchKind::CancelToolbarTextInput);
+
+    input.textInputFocused = false;
+    outcome = kiriview::ApplicationActions::fixedShortcutDispatchOutcome(
+        input, shortcut(QStringLiteral("Esc")));
+    QCOMPARE(outcome.kind, kiriview::ApplicationActions::FixedShortcutDispatchKind::CloseInfoPanel);
+
+    input.infoPanelVisible = false;
+    outcome = kiriview::ApplicationActions::fixedShortcutDispatchOutcome(
+        input, shortcut(QStringLiteral("Esc")));
+    QCOMPARE(outcome.kind, kiriview::ApplicationActions::FixedShortcutDispatchKind::ExitFullscreen);
+
+    input.fullscreen = false;
+    outcome = kiriview::ApplicationActions::fixedShortcutDispatchOutcome(
+        input, shortcut(QStringLiteral("Esc")));
+    QCOMPARE(outcome.kind, kiriview::ApplicationActions::FixedShortcutDispatchKind::None);
+}
+
+void TestApplicationShortcutPolicy::helpModalSuppressesEscapeDispatch()
+{
+    kiriview::ApplicationActions::FixedShortcutDispatchInput input;
+    input.helpActionsEnabled = false;
+    input.textInputFocused = true;
+    input.infoPanelVisible = true;
+    input.fullscreen = true;
+
+    const kiriview::ApplicationActions::FixedShortcutDispatchOutcome outcome
+        = kiriview::ApplicationActions::fixedShortcutDispatchOutcome(
+            input, shortcut(QStringLiteral("Esc")));
+
+    QCOMPARE(outcome.kind, kiriview::ApplicationActions::FixedShortcutDispatchKind::None);
+}
+
 void TestApplicationShortcutPolicy::focusInapplicableBlocksFixedShortcutDispatch()
 {
     kiriview::ApplicationActions::FixedShortcutDispatchInput input;
@@ -508,6 +555,14 @@ void TestApplicationShortcutPolicy::focusInapplicableBlocksFixedShortcutDispatch
         = kiriview::ApplicationActions::fixedShortcutDispatchOutcome(
             input, shortcut(QStringLiteral("Left")));
     QCOMPARE(horizontal.kind, kiriview::ApplicationActions::FixedShortcutDispatchKind::None);
+
+    input.textInputFocused = true;
+    input.infoPanelVisible = true;
+    input.fullscreen = true;
+    const kiriview::ApplicationActions::FixedShortcutDispatchOutcome escape
+        = kiriview::ApplicationActions::fixedShortcutDispatchOutcome(
+            input, shortcut(QStringLiteral("Esc")));
+    QCOMPARE(escape.kind, kiriview::ApplicationActions::FixedShortcutDispatchKind::None);
 
     input.videoMode = true;
     const kiriview::ApplicationActions::FixedShortcutDispatchOutcome seek

@@ -50,6 +50,7 @@ public:
     [[nodiscard]] const WindowChromeSnapshot& snapshot() const;
     void observeVisibility(WindowVisibility visibility);
     void requestToggleFullscreen();
+    void requestLeaveFullscreen();
     void reportPointerMoved(bool inTopRevealArea);
     void reportTopRevealEntered();
     void reportToolbarInteractionActive(bool active);

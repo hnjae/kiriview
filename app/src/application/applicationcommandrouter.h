@@ -11,6 +11,8 @@
 #include <functional>
 
 namespace kiriview::ApplicationActions {
+enum class FixedShortcutDispatchKind;
+
 struct ApplicationCommandRouterInput
 {
     bool imagePannable = false;
@@ -72,11 +74,18 @@ struct ApplicationCommandRouterPanelPorts
 {
     std::function<void()> toggleInfoPanel;
     std::function<void()> toggleThumbnailPanel;
+    std::function<void()> closeInfoPanel;
+};
+
+struct ApplicationCommandRouterToolbarPorts
+{
+    std::function<void()> cancelToolbarTextInputEditing;
 };
 
 struct ApplicationCommandRouterWindowPorts
 {
     std::function<void()> toggleFullScreen;
+    std::function<void()> leaveFullScreen;
 };
 
 struct ApplicationCommandRouterHelpPorts
@@ -100,6 +109,7 @@ struct ApplicationCommandRouterPorts
     ApplicationCommandRouterSessionPorts session;
     ApplicationCommandRouterImageDocumentPorts imageDocument;
     ApplicationCommandRouterImagePresentationPorts imagePresentation;
+    ApplicationCommandRouterToolbarPorts toolbar;
     ApplicationCommandRouterPanelPorts panel;
     ApplicationCommandRouterWindowPorts window;
     ApplicationCommandRouterHelpPorts help;
@@ -123,6 +133,8 @@ public:
         const ApplicationCommandRouterPorts& ports, bool up) const;
     [[nodiscard]] bool executeVideoSeekShortcut(ApplicationCommandRouterInput input,
         const ApplicationCommandRouterPorts& ports, qint64 deltaMilliseconds) const;
+    [[nodiscard]] bool executeEscapeShortcut(
+        FixedShortcutDispatchKind kind, const ApplicationCommandRouterPorts& ports) const;
 
 private:
     kiriview::ImageShortcutNavigationPolicy m_navigationPolicy;

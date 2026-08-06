@@ -180,6 +180,8 @@ Q_SIGNALS:
     void openDialogRequested();
     void openApplicationMenuRequested();
     void shortcutHelpRequested();
+    void cancelToolbarTextInputEditingRequested();
+    void closeInfoPanelRequested();
     void toggleInfoPanelRequested();
     void toggleThumbnailPanelRequested();
     void imageBoundaryReached(const QString& message);

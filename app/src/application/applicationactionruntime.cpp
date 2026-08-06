@@ -72,6 +72,7 @@ Actions::ApplicationActionStateInput actionStateInput(
     input.fitWidthModeSelected = facts.fitWidthModeSelected;
     input.twoPageModeActive = projection.twoPageModeActive;
     input.rightToLeftReadingActive = projection.rightToLeftReadingActive;
+    input.textInputFocused = gates.textInputFocused;
     input.infoPanelVisible = gates.infoPanelVisible;
     input.thumbnailPanelVisible = gates.thumbnailPanelVisible;
     input.fullscreen = gates.fullscreen;
@@ -224,6 +225,7 @@ ApplicationActionRuntime::ApplicationActionRuntime(ApplicationActionHost& host, 
               [this](bool up) { return executeVerticalPanShortcut(up); },
               [this](
                   qint64 deltaMilliseconds) { return executeVideoSeekShortcut(deltaMilliseconds); },
+              [this](FixedShortcutDispatchKind kind) { return executeEscapeShortcut(kind); },
           }))
     , m_actionStateChanged(std::move(callbacks.actionStateChanged))
 {
@@ -395,6 +397,11 @@ bool ApplicationActionRuntime::executeVideoSeekShortcut(qint64 deltaMilliseconds
 {
     return m_commandRouter.executeVideoSeekShortcut(
         commandRouterInput(), commandRouterPorts(), deltaMilliseconds);
+}
+
+bool ApplicationActionRuntime::executeEscapeShortcut(FixedShortcutDispatchKind kind) const
+{
+    return m_commandRouter.executeEscapeShortcut(kind, commandRouterPorts());
 }
 
 void ApplicationActionRuntime::setShortcutHost(QObject* host)

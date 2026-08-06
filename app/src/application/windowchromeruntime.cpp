@@ -61,6 +61,13 @@ void WindowChromeRuntime::requestToggleFullscreen()
         m_snapshot.fullscreen ? m_restoreVisibility : WindowVisibility::Fullscreen);
 }
 
+void WindowChromeRuntime::requestLeaveFullscreen()
+{
+    if (m_snapshot.fullscreen && m_ports.applyVisibility) {
+        m_ports.applyVisibility(m_restoreVisibility);
+    }
+}
+
 void WindowChromeRuntime::reportPointerMoved(bool inTopRevealArea)
 {
     if (!m_snapshot.fullscreen) {

@@ -30,6 +30,11 @@ ApplicationCommandPortSource::commandRouterImagePresentationPorts()
     return {};
 }
 
+ApplicationCommandRouterToolbarPorts ApplicationCommandPortSource::commandRouterToolbarPorts()
+{
+    return {};
+}
+
 ApplicationCommandRouterPanelPorts ApplicationCommandPortSource::commandRouterPanelPorts()
 {
     return {};
@@ -57,6 +62,7 @@ ApplicationCommandRouterPorts applicationCommandRouterPorts(ApplicationCommandPo
     ports.session = source.commandRouterSessionPorts();
     ports.imageDocument = source.commandRouterImageDocumentPorts();
     ports.imagePresentation = source.commandRouterImagePresentationPorts();
+    ports.toolbar = source.commandRouterToolbarPorts();
     ports.panel = source.commandRouterPanelPorts();
     ports.window = source.commandRouterWindowPorts();
     ports.help = source.commandRouterHelpPorts();

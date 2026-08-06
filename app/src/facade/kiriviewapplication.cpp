@@ -60,6 +60,7 @@ public:
     ApplicationCommandRouterSessionPorts commandRouterSessionPorts() override;
     ApplicationCommandRouterImageDocumentPorts commandRouterImageDocumentPorts() override;
     ApplicationCommandRouterImagePresentationPorts commandRouterImagePresentationPorts() override;
+    ApplicationCommandRouterToolbarPorts commandRouterToolbarPorts() override;
     ApplicationCommandRouterPanelPorts commandRouterPanelPorts() override;
     ApplicationCommandRouterWindowPorts commandRouterWindowPorts() override;
     ApplicationCommandRouterHelpPorts commandRouterHelpPorts() override;
@@ -559,6 +560,16 @@ Actions::KiriViewApplicationCommandPortSource::commandRouterPanelPorts()
     Actions::ApplicationCommandRouterPanelPorts ports;
     ports.toggleInfoPanel = [this]() { Q_EMIT m_application.toggleInfoPanelRequested(); };
     ports.toggleThumbnailPanel = [this]() { Q_EMIT m_application.toggleThumbnailPanelRequested(); };
+    ports.closeInfoPanel = [this]() { Q_EMIT m_application.closeInfoPanelRequested(); };
+    return ports;
+}
+
+Actions::ApplicationCommandRouterToolbarPorts
+Actions::KiriViewApplicationCommandPortSource::commandRouterToolbarPorts()
+{
+    Actions::ApplicationCommandRouterToolbarPorts ports;
+    ports.cancelToolbarTextInputEditing
+        = [this]() { Q_EMIT m_application.cancelToolbarTextInputEditingRequested(); };
     return ports;
 }
 
@@ -569,6 +580,11 @@ Actions::KiriViewApplicationCommandPortSource::commandRouterWindowPorts()
     ports.toggleFullScreen = [this]() {
         if (m_application.m_windowShell != nullptr) {
             m_application.m_windowShell->requestToggleFullscreen();
+        }
+    };
+    ports.leaveFullScreen = [this]() {
+        if (m_application.m_windowShell != nullptr) {
+            m_application.m_windowShell->requestLeaveFullscreen();
         }
     };
     return ports;

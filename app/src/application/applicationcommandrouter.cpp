@@ -3,6 +3,7 @@
 
 #include "applicationcommandrouter.h"
 
+#include "applicationshortcutpolicy.h"
 #include "applicationzoompresets.h"
 
 namespace {
@@ -298,5 +299,29 @@ bool ApplicationCommandRouter::executeVideoSeekShortcut(ApplicationCommandRouter
         ports.video.seekVideoBy(deltaMilliseconds);
     }
     return true;
+}
+
+bool ApplicationCommandRouter::executeEscapeShortcut(
+    FixedShortcutDispatchKind kind, const ApplicationCommandRouterPorts& ports) const
+{
+    switch (kind) {
+    case FixedShortcutDispatchKind::CancelToolbarTextInput:
+        callVoid(ports.toolbar.cancelToolbarTextInputEditing);
+        return static_cast<bool>(ports.toolbar.cancelToolbarTextInputEditing);
+    case FixedShortcutDispatchKind::CloseInfoPanel:
+        callVoid(ports.panel.closeInfoPanel);
+        return static_cast<bool>(ports.panel.closeInfoPanel);
+    case FixedShortcutDispatchKind::ExitFullscreen:
+        callVoid(ports.window.leaveFullScreen);
+        return static_cast<bool>(ports.window.leaveFullScreen);
+    case FixedShortcutDispatchKind::None:
+    case FixedShortcutDispatchKind::HorizontalArrow:
+    case FixedShortcutDispatchKind::SinglePageArrow:
+    case FixedShortcutDispatchKind::VerticalPan:
+    case FixedShortcutDispatchKind::VideoSeek:
+        return false;
+    }
+
+    return false;
 }
 }

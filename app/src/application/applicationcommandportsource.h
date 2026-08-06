@@ -12,6 +12,7 @@ struct ApplicationCommandRouterShellPorts;
 struct ApplicationCommandRouterSessionPorts;
 struct ApplicationCommandRouterImageDocumentPorts;
 struct ApplicationCommandRouterImagePresentationPorts;
+struct ApplicationCommandRouterToolbarPorts;
 struct ApplicationCommandRouterPanelPorts;
 struct ApplicationCommandRouterWindowPorts;
 struct ApplicationCommandRouterHelpPorts;
@@ -27,6 +28,7 @@ public:
     virtual ApplicationCommandRouterSessionPorts commandRouterSessionPorts();
     virtual ApplicationCommandRouterImageDocumentPorts commandRouterImageDocumentPorts();
     virtual ApplicationCommandRouterImagePresentationPorts commandRouterImagePresentationPorts();
+    virtual ApplicationCommandRouterToolbarPorts commandRouterToolbarPorts();
     virtual ApplicationCommandRouterPanelPorts commandRouterPanelPorts();
     virtual ApplicationCommandRouterWindowPorts commandRouterWindowPorts();
     virtual ApplicationCommandRouterHelpPorts commandRouterHelpPorts();

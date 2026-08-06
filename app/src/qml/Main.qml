@@ -86,32 +86,16 @@ StatefulApp.StatefulWindow {
         root.publishActionUiState();
     }
 
-    Shortcut {
-        context: Qt.WindowShortcut
-        enabled: root.toolbarTextInputFocused() && !root.helpDialogOpen
-        sequence: "Esc"
-
-        onActivated: root.activeImageToolBar().cancelTextInputEditing(true)
-    }
-
-    Shortcut {
-        context: Qt.WindowShortcut
-        enabled: mediaWorkspaceHost.infoPanelVisible && !root.helpDialogOpen && !root.toolbarTextInputFocused()
-        sequence: "Esc"
-
-        onActivated: mediaWorkspaceHost.closeInfoPanel()
-    }
-
-    Shortcut {
-        context: Qt.WindowShortcut
-        enabled: root.fullscreen && !root.helpDialogOpen && !root.toolbarTextInputFocused() && !mediaWorkspaceHost.infoPanelVisible
-        sequence: "Esc"
-
-        onActivated: root.windowShell.requestToggleFullscreen()
-    }
-
     Connections {
         target: kiriApplication
+
+        function onCancelToolbarTextInputEditingRequested() {
+            root.activeImageToolBar().cancelTextInputEditing(true);
+        }
+
+        function onCloseInfoPanelRequested() {
+            mediaWorkspaceHost.closeInfoPanel();
+        }
 
         function onOpenApplicationMenuRequested() {
             root.openApplicationMenu();

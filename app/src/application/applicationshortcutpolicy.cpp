@@ -180,6 +180,22 @@ FixedShortcutDispatchOutcome fixedShortcutDispatchOutcome(
         return {};
     }
 
+    if (exactShortcut(shortcut, "Esc")) {
+        if (!input.helpActionsEnabled) {
+            return {};
+        }
+        if (input.textInputFocused) {
+            return { FixedShortcutDispatchKind::CancelToolbarTextInput };
+        }
+        if (input.infoPanelVisible) {
+            return { FixedShortcutDispatchKind::CloseInfoPanel };
+        }
+        if (input.fullscreen) {
+            return { FixedShortcutDispatchKind::ExitFullscreen };
+        }
+        return {};
+    }
+
     const VideoShortcutAvailabilityInput videoShortcutInput {
         input.helpActionsEnabled,
         input.viewerShortcutsEnabled,

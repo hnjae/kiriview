@@ -123,6 +123,7 @@ public:
     [[nodiscard]] bool executeSinglePageArrowShortcut(bool leftArrow) const;
     [[nodiscard]] bool executeVerticalPanShortcut(bool up) const;
     [[nodiscard]] bool executeVideoSeekShortcut(qint64 deltaMilliseconds) const;
+    [[nodiscard]] bool executeEscapeShortcut(FixedShortcutDispatchKind kind) const;
     void setShortcutHost(QObject* host);
 
     void setupActions();
