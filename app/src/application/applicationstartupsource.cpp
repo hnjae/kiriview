@@ -80,6 +80,13 @@ ApplicationStartupParseResult parseApplicationStartupSource(const QStringList& a
     }
 
     const QString& argument = positionalArguments.front();
+    const QString path = QFileInfo(QDir::current(), argument).absoluteFilePath();
+
+    if (QFileInfo::exists(path)) {
+        source.kind = ApplicationStartupSourceKind::LocalFilePath;
+        source.text = path;
+        return source;
+    }
 
     if (hasUrlScheme(argument)) {
         const QUrl url(argument);
@@ -94,12 +101,6 @@ ApplicationStartupParseResult parseApplicationStartupSource(const QStringList& a
         return source;
     }
 
-    const QString path = QFileInfo(QDir::current(), argument).absoluteFilePath();
-    if (!QFileInfo::exists(path)) {
-        return std::unexpected(localPathError(path));
-    }
-    source.kind = ApplicationStartupSourceKind::LocalFilePath;
-    source.text = path;
-    return source;
+    return std::unexpected(localPathError(path));
 }
 }

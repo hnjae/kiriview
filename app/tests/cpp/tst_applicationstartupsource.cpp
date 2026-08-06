@@ -39,6 +39,7 @@ class TestApplicationStartupSource : public QObject
 private Q_SLOTS:
     void acceptsDefaultOptions();
     void acceptsVerboseAndFirstRelativeSource();
+    void existingSchemeShapedRelativeSourceIsLocalFile();
     void rejectsUnknownOption();
     void treatsOptionAfterSeparatorAsSource();
     void rejectsMissingFileUrl();
@@ -70,6 +71,23 @@ void TestApplicationStartupSource::acceptsVerboseAndFirstRelativeSource()
     QVERIFY(result->verbose);
     QCOMPARE(result->kind, kiriview::ApplicationStartupSourceKind::LocalFilePath);
     QCOMPARE(result->text, directory.filePath(QStringLiteral("image.png")));
+}
+
+void TestApplicationStartupSource::existingSchemeShapedRelativeSourceIsLocalFile()
+{
+    CurrentDirectoryGuard guard;
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    QVERIFY(QDir::setCurrent(directory.path()));
+    QFile image(QStringLiteral("chapter:1.png"));
+    QVERIFY(image.open(QIODevice::WriteOnly));
+    image.close();
+
+    const auto result = parse({ QStringLiteral("chapter:1.png") });
+
+    QVERIFY(result.has_value());
+    QCOMPARE(result->kind, kiriview::ApplicationStartupSourceKind::LocalFilePath);
+    QCOMPARE(result->text, directory.filePath(QStringLiteral("chapter:1.png")));
 }
 
 void TestApplicationStartupSource::rejectsUnknownOption()
