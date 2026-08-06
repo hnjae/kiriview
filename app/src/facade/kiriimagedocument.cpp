@@ -265,11 +265,6 @@ double KiriImageDocument::zoomStepFactor() const
     return ImageViewportDisplayLimits::manualZoomStepFactor();
 }
 
-QStringList KiriImageDocument::openDialogNameFilters() const
-{
-    return kiriview::openDialogNameFilters();
-}
-
 int KiriImageDocument::currentPageNumber() const { return m_runtime->currentPageNumber(); }
 
 int KiriImageDocument::currentLastPageNumber() const { return m_runtime->currentLastPageNumber(); }

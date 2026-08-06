@@ -10,7 +10,6 @@
 namespace kiriview {
 QStringList supportedOpenExtensions();
 bool isSupportedImageFileName(const QString& name);
-QStringList openDialogNameFilters();
 }
 
 #endif
