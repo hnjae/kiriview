@@ -37,7 +37,6 @@ PredecodeScheduleRuntime::PredecodeScheduleRuntime(QObject* owner,
         = m_timerScheduler.singleShotTimer(owner, TimerDuration(predecodeNeutralRefreshMsec()),
             [this]() { scheduleSettledNeutralPredecode(); });
 
-    powerSaverProvider = powerSaverProviderWithDefault(std::move(powerSaverProvider));
     if (powerSaverProvider.monitor) {
         m_powerSaverMonitor
             = powerSaverProvider.monitor([this](bool enabled) { setPowerSaverEnabled(enabled); });

@@ -62,7 +62,6 @@ ImageDocumentRuntimeDependencies resolveImageDocumentRuntimeDependencies(
         std::move(overrides.directoryItemListProvider));
     overrides.fileDeletionProvider
         = fileDeletionProviderWithDefault(std::move(overrides.fileDeletionProvider));
-    overrides.powerSaver = powerSaverProviderWithDefault(std::move(overrides.powerSaver));
     overrides.predecodeTimerScheduler
         = timerSchedulerWithDefaults(std::move(overrides.predecodeTimerScheduler));
     if (!overrides.predecodeThreadCountProvider) {

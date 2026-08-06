@@ -38,7 +38,7 @@ void TestMediaPredecodeDependencies::defaultsFillRuntimeProvidersAndBudget()
 
     QVERIFY(dependencies.imageDecode.dataLoader);
     QVERIFY(dependencies.imageDecode.dataDecoder);
-    QVERIFY(dependencies.powerSaver.monitor);
+    QVERIFY(!dependencies.powerSaver.monitor);
     QVERIFY(dependencies.timerScheduler.currentMonotonicTime);
     QVERIFY(dependencies.timerScheduler.singleShotTimer);
     QVERIFY(dependencies.cacheByteBudget > 0);

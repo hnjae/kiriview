@@ -55,7 +55,7 @@ void TestImageDocumentRuntimeDependencies::defaultDependenciesUseMediaEntrySourc
     QVERIFY(resolved.imageDecode.dataLoader);
     QVERIFY(resolved.imageDecode.dataDecoder);
     QVERIFY(resolved.fileDeletionProvider);
-    QVERIFY(resolved.powerSaver.monitor);
+    QVERIFY(!resolved.powerSaver.monitor);
     QVERIFY(resolved.predecodeTimerScheduler.currentMonotonicTime);
     QVERIFY(resolved.predecodeTimerScheduler.singleShotTimer);
     QVERIFY(resolved.predecodeThreadCountProvider);

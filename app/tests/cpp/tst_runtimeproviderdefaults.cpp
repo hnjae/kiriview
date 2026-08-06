@@ -90,7 +90,6 @@ private Q_SLOTS:
     void decodeDependencyDefaultsBindDataLoaderToWorkerScheduler();
     void decodeDependencyDefaultsBindThumbnailLookupToWorkerScheduler();
     void fileDeletionDefaultFillsMissingProviderAndPreservesOverride();
-    void powerSaverDefaultFillsMissingProviderAndPreservesOverride();
 };
 
 void TestRuntimeProviderDefaults::candidateProviderDefaultsFillMissingLoadersAndPreserveOverrides()
@@ -421,24 +420,6 @@ void TestRuntimeProviderDefaults::fileDeletionDefaultFillsMissingProviderAndPres
     QCOMPARE(fileDeletionCount, 1);
 
     QVERIFY(kiriview::fileDeletionProviderWithDefault({}));
-}
-
-void TestRuntimeProviderDefaults::powerSaverDefaultFillsMissingProviderAndPreservesOverride()
-{
-    int monitorCount = 0;
-    kiriview::PowerSaverProvider provider;
-    provider.monitor = [&monitorCount](kiriview::PowerSaverChangedCallback) {
-        ++monitorCount;
-        return std::unique_ptr<kiriview::PowerSaverStateMonitor>();
-    };
-
-    kiriview::PowerSaverProvider resolved
-        = kiriview::powerSaverProviderWithDefault(std::move(provider));
-    QVERIFY(resolved.monitor);
-    resolved.monitor({});
-    QCOMPARE(monitorCount, 1);
-
-    QVERIFY(kiriview::powerSaverProviderWithDefault({}).monitor);
 }
 
 QTEST_GUILESS_MAIN(TestRuntimeProviderDefaults)

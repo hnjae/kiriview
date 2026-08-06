@@ -118,24 +118,6 @@ public:
     std::unique_ptr<PowerProfileMonitor> monitor;
 };
 
-PowerSaverProvider defaultPowerSaverProvider()
-{
-    return PowerSaverProvider {
-        [](PowerSaverChangedCallback callback) {
-            return std::make_unique<PowerProfileMonitor>(std::move(callback));
-        },
-    };
-}
-
-PowerSaverProvider powerSaverProviderWithDefault(PowerSaverProvider provider)
-{
-    if (!provider.monitor) {
-        provider = defaultPowerSaverProvider();
-    }
-
-    return provider;
-}
-
 PowerSaverRuntime::PowerSaverRuntime(QObject* parent)
     : PowerSaverRuntime(PowerProfileMonitorRuntime {}, parent)
 {

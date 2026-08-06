@@ -31,9 +31,6 @@ struct PowerSaverProvider
     PowerSaverMonitorFactory monitor;
 };
 
-PowerSaverProvider defaultPowerSaverProvider();
-PowerSaverProvider powerSaverProviderWithDefault(PowerSaverProvider provider);
-
 class PowerSaverRuntime final : public QObject
 {
 public:
