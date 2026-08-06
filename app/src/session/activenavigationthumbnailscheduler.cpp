@@ -178,16 +178,9 @@ ActiveNavigationThumbnailScheduler::replaceDemandSnapshot(
         if (!row.has_value()) {
             return std::nullopt;
         }
-        auto [iterator, inserted] = normalized.try_emplace(*row, fact);
-        if (inserted) {
-            continue;
-        }
-        ActiveNavigationThumbnailDemand& accepted = iterator->second;
-        if (static_cast<int>(fact.bucket) > static_cast<int>(accepted.bucket)) {
-            accepted.bucket = fact.bucket;
-        }
-        if (fact.priority == ActiveNavigationThumbnailDemandPriority::Visible) {
-            accepted.priority = ActiveNavigationThumbnailDemandPriority::Visible;
+        const bool inserted = normalized.try_emplace(*row, fact).second;
+        if (!inserted) {
+            return std::nullopt;
         }
     }
 

@@ -92,7 +92,7 @@ private Q_SLOTS:
     void newerWindowExpiresMissingDemandAndDemotesRetention();
     void backgroundRunsOneAtATimeAndYieldsToDemand();
     void invalidSnapshotIsRejectedWithoutReplacingCommittedDemand();
-    void duplicateSnapshotFactsMergeBeforeSourcePlanning();
+    void duplicateSnapshotFactsAreRejectedBeforeSourcePlanning();
     void emptySnapshotExpiresNonCurrentDemand();
     void backgroundScanYieldsAndResumesWithEpoch();
     void staleContinuationIsRejectedAfterReset();
@@ -295,7 +295,7 @@ void TestActiveNavigationThumbnailScheduler::
         std::size_t(1));
 }
 
-void TestActiveNavigationThumbnailScheduler::duplicateSnapshotFactsMergeBeforeSourcePlanning()
+void TestActiveNavigationThumbnailScheduler::duplicateSnapshotFactsAreRejectedBeforeSourcePlanning()
 {
     int adapterCalls = 0;
     kiriview::ActiveNavigationThumbnailScheduler scheduler(
@@ -311,15 +311,11 @@ void TestActiveNavigationThumbnailScheduler::duplicateSnapshotFactsMergeBeforeSo
         },
         2);
     QVERIFY(scheduler.reset(schedulingSnapshot(1, { key(1) })).has_value());
-    const auto accepted = scheduler.replaceDemandSnapshot(snapshot(1,
+    const auto rejected = scheduler.replaceDemandSnapshot(snapshot(1,
         { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Nearby },
             { 1, key(1).sourceUrl, Bucket::XLarge, Priority::Visible } }));
-    QVERIFY(accepted.has_value());
-    QCOMPARE(adapterCalls, 1);
-    const auto starts
-        = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*accepted);
-    QCOMPARE(starts.size(), std::size_t(1));
-    QCOMPARE(starts.front().request.bucket, Bucket::XLarge);
+    QVERIFY(!rejected.has_value());
+    QCOMPARE(adapterCalls, 0);
 }
 
 void TestActiveNavigationThumbnailScheduler::emptySnapshotExpiresNonCurrentDemand()
