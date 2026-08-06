@@ -876,7 +876,7 @@ void TestDocumentSessionRuntimeLeafSnapshots::
           };
     dependencies.directMediaPredecodeDependencies.imageDecode.dataLoader
         = [&](QObject* receiver, kiriview::ImageDecodeRequest, kiriview::ImageDataCallback,
-              kiriview::ErrorCallback) {
+              kiriview::ImageDataLoadErrorCallback) {
               ++predecodeLoadCount;
               auto* token = new QObject(receiver);
               return kiriview::ImageIoJob(token, [&](QObject* object) {

@@ -15,7 +15,7 @@ kiriview::ImageDataLoader imageDataLoader(kiriview::ImageWorkerScheduler workerS
     return [workerScheduler = std::move(workerScheduler),
                sourceDataBudget = std::move(sourceDataBudget)](QObject* receiver,
                kiriview::ImageDecodeRequest request, kiriview::ImageDataCallback callback,
-               kiriview::ErrorCallback errorCallback) {
+               kiriview::ImageDataLoadErrorCallback errorCallback) {
         return kiriview::startStoredImageDataLoad(receiver, std::move(request), workerScheduler,
             sourceDataBudget, std::move(callback), std::move(errorCallback));
     };

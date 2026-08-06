@@ -43,7 +43,8 @@ public:
                 return kiriview::ImageIoJob();
             },
             [this](QObject*, kiriview::OpenedCollectionScopeLocation openedCollectionScope,
-                kiriview::ImageDocumentPageCandidatesCallback callback, kiriview::ErrorCallback) {
+                kiriview::ImageDocumentPageCandidatesCallback callback,
+                kiriview::MediaEntrySourceErrorCallback) {
                 m_openedCollectionLoads.push_back(OpenedCollectionLoad {
                     std::move(openedCollectionScope),
                     std::move(callback),

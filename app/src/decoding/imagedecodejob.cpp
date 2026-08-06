@@ -110,7 +110,7 @@ void ImageDecodeJob::start(
                     = std::get_if<DeliverImageLoadErrorOperation>(&errorPlan.operation);
                 if (errorOperation != nullptr) {
                     invokeIfSet(job->m_callbacks.loadError, errorOperation->request,
-                        imageSourceDataResourceLimitDiagnostic());
+                        ImageDataLoadError { imageSourceDataResourceLimitDiagnostic() });
                 }
                 return;
             }
@@ -141,7 +141,7 @@ void ImageDecodeJob::start(
             job->m_authoritativeSeed.reset();
             job->startDecode(std::move(sourceData), ticket, std::move(currentRequest));
         },
-        [guardedJob, ticket](const QString& errorString) {
+        [guardedJob, ticket](ImageDataLoadError error) mutable {
             ImageDecodeJob* job = guardedJob.data();
             if (job == nullptr) {
                 return;
@@ -152,7 +152,7 @@ void ImageDecodeJob::start(
                 return;
             }
 
-            invokeIfSet(job->m_callbacks.loadError, operation->request, errorString);
+            invokeIfSet(job->m_callbacks.loadError, operation->request, std::move(error));
         });
 }
 

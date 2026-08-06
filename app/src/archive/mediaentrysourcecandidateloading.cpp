@@ -6,25 +6,20 @@
 #include "archive/mediaentrysourcebackend.h"
 #include "async/imagecallback.h"
 #include "async/imageioworkerjob.h"
-#include "localization/mediaentrysourceerrortext.h"
-#include "navigation/navigationlogging.h"
 
 #include <utility>
 
 namespace {
-using kiriview::ErrorCallback;
 using kiriview::MediaEntrySourceCandidates;
 using kiriview::MediaEntrySourceCandidatesResult;
+using kiriview::MediaEntrySourceErrorCallback;
 
 template <typename Result, typename SuccessCallback>
 void finishMediaEntrySourceWorkerResult(
-    Result result, ErrorCallback errorCallback, SuccessCallback successCallback)
+    Result result, MediaEntrySourceErrorCallback errorCallback, SuccessCallback successCallback)
 {
     if (!result) {
-        const kiriview::MediaEntrySourceError& error = result.error();
-        qCWarning(kiriviewNavigationLog).noquote()
-            << "collection candidate loading failed" << error;
-        kiriview::invokeIfSet(errorCallback, kiriview::mediaEntrySourceErrorText(error));
+        kiriview::invokeIfSet(errorCallback, std::move(result.error()));
         return;
     }
     successCallback(std::move(*result));
@@ -42,7 +37,7 @@ kiriview::ImageIoJob startMediaEntrySourceWorkerJob(QObject* receiver,
 namespace kiriview {
 ImageIoJob startOpenedCollectionCandidateList(QObject* receiver,
     OpenedCollectionScopeLocation openedCollectionScope,
-    ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback)
+    ImageDocumentPageCandidatesCallback callback, MediaEntrySourceErrorCallback errorCallback)
 {
     return startOpenedCollectionCandidateList(receiver, std::move(openedCollectionScope),
         ImageWorkerScheduler(), std::move(callback), std::move(errorCallback));
@@ -51,7 +46,7 @@ ImageIoJob startOpenedCollectionCandidateList(QObject* receiver,
 ImageIoJob startOpenedCollectionCandidateList(QObject* receiver,
     OpenedCollectionScopeLocation openedCollectionScope,
     const ImageWorkerScheduler& workerScheduler, ImageDocumentPageCandidatesCallback callback,
-    ErrorCallback errorCallback)
+    MediaEntrySourceErrorCallback errorCallback)
 {
     return startMediaEntrySourceWorkerJob(
         receiver, workerScheduler,

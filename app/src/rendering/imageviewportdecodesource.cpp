@@ -4,6 +4,8 @@
 #include "imageviewportdecodesource.h"
 
 #include "cache/imagebytecost.h"
+#include "decoding/imagedecodelogging.h"
+#include "localization/mediaentrysourceerrortext.h"
 #include "rendering/imagerendering.h"
 
 #include <ImageViewport/imagesequence.h>
@@ -45,6 +47,33 @@ kiriview::ImageLoadFailure loadFailure(
 {
     return loadFailure(session, kiriview::ImageLoadFailureKind::Decode, failure.errorString,
         failure.diagnosticDetail, failure.route, failure.operation, failure.retryable);
+}
+
+kiriview::ImageLoadFailure loadFailure(
+    const kiriview::ImageLoadSession& session, const kiriview::MediaEntrySourceError& error)
+{
+    qCWarning(kiriviewDecodeLog).noquote() << "collection image data loading failed" << error;
+    kiriview::ImageLoadFailure failure
+        = loadFailure(session, kiriview::ImageLoadFailureKind::DataLoad,
+            kiriview::mediaEntrySourceErrorText(error), error.diagnosticDetail);
+    failure.mediaEntrySourceError = error;
+    return failure;
+}
+
+kiriview::ImageLoadFailure loadFailure(
+    const kiriview::ImageLoadSession& session, const kiriview::ImageDataLoadError& error)
+{
+    return std::visit(
+        [&session](const auto& detail) {
+            using Error = std::decay_t<decltype(detail)>;
+            if constexpr (std::is_same_v<Error, QString>) {
+                return loadFailure(
+                    session, kiriview::ImageLoadFailureKind::DataLoad, detail, detail);
+            } else {
+                return loadFailure(session, detail);
+            }
+        },
+        error);
 }
 
 ImageSequenceAuthoredAnimationFacts authoredAnimationFacts(int repeatCount)
@@ -376,11 +405,11 @@ ImageViewportDecodeProviderSource::ImageViewportDecodeProviderSource(
                       lifetime->finishDecode(request, std::move(result));
                   }
               },
-              [this](const ImageDecodeRequest& request, const QString& errorString) {
+              [this](const ImageDecodeRequest& request, ImageDataLoadError error) {
                   const std::shared_ptr<ImageViewportDecodeProviderSource> lifetime
                       = weak_from_this().lock();
                   if (lifetime != nullptr) {
-                      lifetime->finishDataLoadError(request, errorString);
+                      lifetime->finishDataLoadError(request, std::move(error));
                   }
               },
               [this](const ImageDecodeRequest& request, StaticDisplayImagePayload displayImage) {
@@ -568,14 +597,14 @@ void ImageViewportDecodeProviderSource::finishDecode(
 }
 
 void ImageViewportDecodeProviderSource::finishDataLoadError(
-    const ImageDecodeRequest& request, const QString& errorString)
+    const ImageDecodeRequest& request, ImageDataLoadError error)
 {
     if (m_closed || !m_session.has_value() || !request.matches(resolvedSession().decodeRequest())) {
         return;
     }
     m_decodeComplete = true;
-    finishFailure(ImageSequenceProviderFailureCause::SourceAccess,
-        loadFailure(resolvedSession(), ImageLoadFailureKind::DataLoad, errorString, errorString));
+    finishFailure(
+        ImageSequenceProviderFailureCause::SourceAccess, loadFailure(resolvedSession(), error));
 }
 
 void ImageViewportDecodeProviderSource::finishThumbnail(

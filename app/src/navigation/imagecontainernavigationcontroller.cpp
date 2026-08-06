@@ -6,10 +6,15 @@
 #include "async/imagecallback.h"
 #include "imagedocumentpagecandidaterepository.h"
 #include "imagedocumentpagenavigationpolicy.h"
+#include "localization/mediaentrysourceerrortext.h"
 #include "location/imageurl.h"
+#include "navigationlogging.h"
 
+#include <QDebug>
 #include <QString>
+#include <type_traits>
 #include <utility>
+#include <variant>
 
 namespace {
 QUrl parentUrlForAdjacentContainerNavigation(const QUrl& currentContainerUrl)
@@ -19,6 +24,22 @@ QUrl parentUrlForAdjacentContainerNavigation(const QUrl& currentContainerUrl)
     }
 
     return kiriview::parentUrlForContainerNavigation(currentContainerUrl);
+}
+
+QString projectCandidateLoadError(const kiriview::ImageDocumentPageCandidateLoadError& error)
+{
+    return std::visit(
+        [](const auto& detail) -> QString {
+            using Error = std::decay_t<decltype(detail)>;
+            if constexpr (std::is_same_v<Error, QString>) {
+                return detail;
+            } else {
+                qCWarning(kiriviewNavigationLog).noquote()
+                    << "container image candidate loading failed" << detail;
+                return kiriview::mediaEntrySourceErrorText(detail);
+            }
+        },
+        error);
 }
 }
 
@@ -136,9 +157,17 @@ void ImageContainerNavigationController::loadFirstImageFromContainerNavigation(
             const std::vector<ImageDocumentPageCandidate>& candidates) mutable {
             finishContainerNavigationImageLoad(operationId, std::move(scope), candidates);
         },
-        [this, operationId, containerUrl = container.url](const QString& errorString) {
-            finishContainerNavigationLoadWithError(
-                operationId, containerUrl, ImageContainerOpenError::Generic, errorString);
+        [this, operationId, containerUrl = container.url](
+            const ImageDocumentPageCandidateLoadError& error) {
+            if (!m_navigationState.finishNavigation(operationId)) {
+                return;
+            }
+            reportNavigationPlan(
+                ImageDocumentPageNavigationPlan { ReportContainerNavigationErrorEffect {
+                    containerUrl,
+                    ImageContainerOpenError::Generic,
+                    projectCandidateLoadError(error),
+                } });
         });
 }
 

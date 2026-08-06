@@ -38,7 +38,11 @@ void TestImageDataLoading::directSourceStopsAtSourceDataBudget()
     kiriview::ImageIoJob job = kiriview::startStoredImageDataLoad(
         &receiver, kiriview::ImageDecodeRequest::fromUrl(1, QUrl::fromLocalFile(path)), {}, budget,
         [&deliveredData](kiriview::ImageSourceData) { deliveredData = true; },
-        [&errorString](const QString& error) { errorString = error; });
+        [&errorString](const kiriview::ImageDataLoadError& error) {
+            if (const QString* message = std::get_if<QString>(&error)) {
+                errorString = *message;
+            }
+        });
 
     QTRY_VERIFY_WITH_TIMEOUT(!job.isActive(), 5000);
     QVERIFY(!deliveredData);

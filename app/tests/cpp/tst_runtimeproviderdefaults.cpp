@@ -168,7 +168,7 @@ void TestRuntimeProviderDefaults::
     kiriview::ImageIoJob job = resolved.openedCollectionCandidates(
         this, *archiveCollection,
         [&callbackCount](std::vector<kiriview::ImageDocumentPageCandidate>) { ++callbackCount; },
-        [&errorCallbackCount](QString) { ++errorCallbackCount; });
+        [&errorCallbackCount](kiriview::MediaEntrySourceError) { ++errorCallbackCount; });
 
     QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     QCOMPARE(callbackCount, 0);
@@ -272,7 +272,7 @@ void TestRuntimeProviderDefaults::
     kiriview::ImageIoJob job = resolved.candidateProvider.openedCollectionCandidates(
         this, *archiveCollection,
         [&callbackCount](std::vector<kiriview::ImageDocumentPageCandidate>) { ++callbackCount; },
-        [&errorCallbackCount](QString) { ++errorCallbackCount; });
+        [&errorCallbackCount](kiriview::MediaEntrySourceError) { ++errorCallbackCount; });
 
     QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     QCOMPARE(callbackCount, 0);
@@ -293,7 +293,7 @@ void TestRuntimeProviderDefaults::decodeDependencyDefaultsFillMissingFunctionsAn
     int dataLoadCount = 0;
     kiriview::ImageDataLoader dataLoader
         = [&dataLoadCount](QObject*, kiriview::ImageDecodeRequest, kiriview::ImageDataCallback,
-              kiriview::ErrorCallback) {
+              kiriview::ImageDataLoadErrorCallback) {
               ++dataLoadCount;
               return kiriview::ImageIoJob();
           };
@@ -332,7 +332,7 @@ void TestRuntimeProviderDefaults::decodeDependencyDefaultsBindDataLoaderToWorker
             kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
                 pageUrl, *archiveCollection)),
         [&dataCallbackCount](kiriview::ImageSourceData) { ++dataCallbackCount; },
-        [&errorCallbackCount](QString) { ++errorCallbackCount; });
+        [&errorCallbackCount](kiriview::ImageDataLoadError) { ++errorCallbackCount; });
 
     QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     QCOMPARE(dataCallbackCount, 0);

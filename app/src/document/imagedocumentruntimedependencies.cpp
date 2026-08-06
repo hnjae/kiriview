@@ -4,8 +4,6 @@
 #include "imagedocumentruntimedependencies.h"
 
 #include "archive/mediaentrysourcestore.h"
-#include "localization/mediaentrysourceerrortext.h"
-#include "navigation/navigationlogging.h"
 
 #include <QThread>
 #include <utility>
@@ -17,12 +15,6 @@ bool shouldUseMediaEntrySourceStore(
     return overrides.mediaEntrySourceFactory
         || (!overrides.candidateProvider.openedCollectionCandidates
             && !overrides.imageDecode.dataLoader);
-}
-
-QString projectMediaEntrySourceError(const kiriview::MediaEntrySourceError& error)
-{
-    qCWarning(kiriviewNavigationLog).noquote() << "collection access failed" << error;
-    return kiriview::mediaEntrySourceErrorText(error);
 }
 
 }
@@ -81,10 +73,10 @@ ImageDocumentRuntimeDependencies resolveImageDocumentRuntimeDependencies(
         mediaEntrySourceStore
             = std::make_unique<MediaEntrySourceStore>(std::move(mediaEntrySourceFactory),
                 overrides.imageDecode.workerScheduler, overrides.imageDecode.sourceDataBudget);
-        overrides.candidateProvider = mediaEntrySourceStore->wrapCandidateProvider(
-            std::move(overrides.candidateProvider), projectMediaEntrySourceError);
-        overrides.imageDecode = mediaEntrySourceStore->wrapDecodeDependencies(
-            std::move(overrides.imageDecode), projectMediaEntrySourceError);
+        overrides.candidateProvider
+            = mediaEntrySourceStore->wrapCandidateProvider(std::move(overrides.candidateProvider));
+        overrides.imageDecode
+            = mediaEntrySourceStore->wrapDecodeDependencies(std::move(overrides.imageDecode));
     }
 
     return ImageDocumentRuntimeDependencies {

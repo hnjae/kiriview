@@ -4,7 +4,7 @@
 #ifndef KIRIVIEW_MEDIAENTRYSOURCECANDIDATELOADING_H
 #define KIRIVIEW_MEDIAENTRYSOURCECANDIDATELOADING_H
 
-#include "async/imageasynccallbacks.h"
+#include "archive/mediaentrysourceerror.h"
 #include "async/imageiojob.h"
 #include "async/imageworkerscheduler.h"
 #include "location/imagelocation.h"
@@ -15,11 +15,11 @@ class QObject;
 namespace kiriview {
 ImageIoJob startOpenedCollectionCandidateList(QObject* receiver,
     OpenedCollectionScopeLocation openedCollectionScope,
-    ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback);
+    ImageDocumentPageCandidatesCallback callback, MediaEntrySourceErrorCallback errorCallback);
 ImageIoJob startOpenedCollectionCandidateList(QObject* receiver,
     OpenedCollectionScopeLocation openedCollectionScope,
     const ImageWorkerScheduler& workerScheduler, ImageDocumentPageCandidatesCallback callback,
-    ErrorCallback errorCallback);
+    MediaEntrySourceErrorCallback errorCallback);
 }
 
 #endif

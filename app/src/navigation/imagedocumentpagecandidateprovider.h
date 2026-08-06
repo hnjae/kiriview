@@ -4,6 +4,7 @@
 #ifndef KIRIVIEW_IMAGEDOCUMENTPAGECANDIDATEPROVIDER_H
 #define KIRIVIEW_IMAGEDOCUMENTPAGECANDIDATEPROVIDER_H
 
+#include "archive/mediaentrysourceerror.h"
 #include "async/directorylistingjob.h"
 #include "async/imageasynccallbacks.h"
 #include "async/imageiojob.h"
@@ -21,8 +22,9 @@ struct ImageDocumentPageCandidateProvider
 {
     using ImageDocumentPageCandidateLoader = std::function<ImageIoJob(
         QObject*, QUrl, ImageDocumentPageCandidatesCallback, ErrorCallback)>;
-    using OpenedCollectionCandidateLoader = std::function<ImageIoJob(QObject*,
-        OpenedCollectionScopeLocation, ImageDocumentPageCandidatesCallback, ErrorCallback)>;
+    using OpenedCollectionCandidateLoader
+        = std::function<ImageIoJob(QObject*, OpenedCollectionScopeLocation,
+            ImageDocumentPageCandidatesCallback, MediaEntrySourceErrorCallback)>;
     using ContainerCandidateLoader
         = std::function<ImageIoJob(QObject*, QUrl, ContainerCandidatesCallback, ErrorCallback)>;
     using ImageDocumentPageCandidateChangeSubscriber = std::function<ImageIoJob(

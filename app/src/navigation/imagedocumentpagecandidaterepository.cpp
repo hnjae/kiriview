@@ -29,33 +29,47 @@ kiriview::ImageIoJob loadWithProvider(
 kiriview::ImageIoJob loadImagesForSource(
     const kiriview::ImageDocumentPageCandidateRepository& repository, QObject* receiver,
     const kiriview::ImageDocumentPageCandidateListSource::Directory& source,
-    kiriview::ImageDocumentPageCandidatesCallback callback, kiriview::ErrorCallback errorCallback)
+    kiriview::ImageDocumentPageCandidatesCallback callback,
+    kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback)
 {
-    return repository.loadDirectoryImages(
-        receiver, source.directoryUrl, std::move(callback), std::move(errorCallback));
+    return repository.loadDirectoryImages(receiver, source.directoryUrl, std::move(callback),
+        [errorCallback = std::move(errorCallback)](QString error) mutable {
+            kiriview::invokeIfSet(
+                errorCallback, kiriview::ImageDocumentPageCandidateLoadError { std::move(error) });
+        });
 }
 
 kiriview::ImageIoJob loadImagesForSource(
     const kiriview::ImageDocumentPageCandidateRepository& repository, QObject* receiver,
     const kiriview::ImageDocumentPageCandidateListSource::OpenedCollectionScope& source,
-    kiriview::ImageDocumentPageCandidatesCallback callback, kiriview::ErrorCallback errorCallback)
+    kiriview::ImageDocumentPageCandidatesCallback callback,
+    kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback)
 {
-    return repository.loadOpenedCollectionCandidates(
-        receiver, source.openedCollectionScope, std::move(callback), std::move(errorCallback));
+    return repository.loadOpenedCollectionCandidates(receiver, source.openedCollectionScope,
+        std::move(callback),
+        [errorCallback = std::move(errorCallback)](kiriview::MediaEntrySourceError error) mutable {
+            kiriview::invokeIfSet(
+                errorCallback, kiriview::ImageDocumentPageCandidateLoadError { std::move(error) });
+        });
 }
 
 kiriview::ImageIoJob watchChangesForSource(
     const kiriview::ImageDocumentPageCandidateRepository& repository, QObject* receiver,
     const kiriview::ImageDocumentPageCandidateListSource::Directory& source,
-    kiriview::ImageDocumentPageCandidatesCallback callback, kiriview::ErrorCallback errorCallback)
+    kiriview::ImageDocumentPageCandidatesCallback callback,
+    kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback)
 {
-    return repository.watchDirectoryImageChanges(
-        receiver, source.directoryUrl, std::move(callback), std::move(errorCallback));
+    return repository.watchDirectoryImageChanges(receiver, source.directoryUrl, std::move(callback),
+        [errorCallback = std::move(errorCallback)](QString error) mutable {
+            kiriview::invokeIfSet(
+                errorCallback, kiriview::ImageDocumentPageCandidateLoadError { std::move(error) });
+        });
 }
 
 kiriview::ImageIoJob watchChangesForSource(const kiriview::ImageDocumentPageCandidateRepository&,
     QObject*, const kiriview::ImageDocumentPageCandidateListSource::OpenedCollectionScope&,
-    const kiriview::ImageDocumentPageCandidatesCallback&, const kiriview::ErrorCallback&)
+    const kiriview::ImageDocumentPageCandidatesCallback&,
+    const kiriview::ImageDocumentPageCandidateLoadErrorCallback&)
 {
     return kiriview::ImageIoJob();
 }
@@ -71,7 +85,8 @@ ImageDocumentPageCandidateRepository::ImageDocumentPageCandidateRepository(
 
 ImageIoJob ImageDocumentPageCandidateRepository::loadImages(QObject* receiver,
     const ImageDocumentPageCandidateListSource& source,
-    ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback) const
+    ImageDocumentPageCandidatesCallback callback,
+    ImageDocumentPageCandidateLoadErrorCallback errorCallback) const
 {
     return source.visit(
         [this, receiver, callback = std::move(callback), errorCallback = std::move(errorCallback)](
@@ -83,7 +98,8 @@ ImageIoJob ImageDocumentPageCandidateRepository::loadImages(QObject* receiver,
 
 ImageIoJob ImageDocumentPageCandidateRepository::loadImages(QObject* receiver,
     const ImageDocumentPageCandidateListContext& context,
-    ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback) const
+    ImageDocumentPageCandidatesCallback callback,
+    ImageDocumentPageCandidateLoadErrorCallback errorCallback) const
 {
     return loadImages(receiver, context.source(), std::move(callback), std::move(errorCallback));
 }
@@ -98,10 +114,23 @@ ImageIoJob ImageDocumentPageCandidateRepository::loadDirectoryImages(QObject* re
 
 ImageIoJob ImageDocumentPageCandidateRepository::loadOpenedCollectionCandidates(QObject* receiver,
     OpenedCollectionScopeLocation openedCollectionScope,
-    ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback) const
+    ImageDocumentPageCandidatesCallback callback, MediaEntrySourceErrorCallback errorCallback) const
 {
-    return loadWithProvider(m_provider.openedCollectionCandidates, std::move(errorCallback),
-        receiver, std::move(openedCollectionScope), std::move(callback));
+    if (!m_provider.openedCollectionCandidates) {
+        invokeIfSet(errorCallback,
+            MediaEntrySourceError {
+                MediaEntrySourceErrorCause::ProviderUnavailable,
+                MediaEntrySourceBackendKind::Unknown,
+                MediaEntrySourceOperation::ListCandidates,
+                openedCollectionScope.fileUrl(),
+                {},
+                QStringLiteral("opened collection candidate provider is unavailable"),
+            });
+        return ImageIoJob();
+    }
+
+    return m_provider.openedCollectionCandidates(
+        receiver, std::move(openedCollectionScope), std::move(callback), std::move(errorCallback));
 }
 
 ImageIoJob ImageDocumentPageCandidateRepository::loadContainers(QObject* receiver,
@@ -114,7 +143,8 @@ ImageIoJob ImageDocumentPageCandidateRepository::loadContainers(QObject* receive
 
 ImageIoJob ImageDocumentPageCandidateRepository::watchCandidateChanges(QObject* receiver,
     const ImageDocumentPageCandidateListSource& source,
-    ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback) const
+    ImageDocumentPageCandidatesCallback callback,
+    ImageDocumentPageCandidateLoadErrorCallback errorCallback) const
 {
     return source.visit(
         [this, receiver, callback = std::move(callback), errorCallback = std::move(errorCallback)](
@@ -126,7 +156,8 @@ ImageIoJob ImageDocumentPageCandidateRepository::watchCandidateChanges(QObject* 
 
 ImageIoJob ImageDocumentPageCandidateRepository::watchCandidateChanges(QObject* receiver,
     const ImageDocumentPageCandidateListContext& context,
-    ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback) const
+    ImageDocumentPageCandidatesCallback callback,
+    ImageDocumentPageCandidateLoadErrorCallback errorCallback) const
 {
     return watchCandidateChanges(
         receiver, context.source(), std::move(callback), std::move(errorCallback));

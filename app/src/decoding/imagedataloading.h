@@ -7,6 +7,7 @@
 #include "async/imageasynccallbacks.h"
 #include "async/imageiojob.h"
 #include "async/imageworkerscheduler.h"
+#include "decoding/imagedataloaderror.h"
 #include "decoding/imagedecoderequest.h"
 #include "decoding/imagesourcedata.h"
 
@@ -16,14 +17,14 @@ class QObject;
 
 namespace kiriview {
 ImageIoJob startStoredImageDataLoad(QObject* receiver, ImageDecodeRequest request,
-    ImageDataCallback callback, ErrorCallback errorCallback);
+    ImageDataCallback callback, ImageDataLoadErrorCallback errorCallback);
 ImageIoJob startStoredImageDataLoad(QObject* receiver, ImageDecodeRequest request,
     const ImageWorkerScheduler& workerScheduler, ImageDataCallback callback,
-    ErrorCallback errorCallback);
+    ImageDataLoadErrorCallback errorCallback);
 ImageIoJob startStoredImageDataLoad(QObject* receiver, ImageDecodeRequest request,
     const ImageWorkerScheduler& workerScheduler,
     std::shared_ptr<ImageSourceDataBudget> sourceDataBudget, ImageDataCallback callback,
-    ErrorCallback errorCallback);
+    ImageDataLoadErrorCallback errorCallback);
 }
 
 #endif

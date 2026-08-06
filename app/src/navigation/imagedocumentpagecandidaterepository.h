@@ -20,22 +20,27 @@ public:
     explicit ImageDocumentPageCandidateRepository(ImageDocumentPageCandidateProvider provider);
 
     ImageIoJob loadImages(QObject* receiver, const ImageDocumentPageCandidateListSource& source,
-        ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback) const;
+        ImageDocumentPageCandidatesCallback callback,
+        ImageDocumentPageCandidateLoadErrorCallback errorCallback) const;
     ImageIoJob loadImages(QObject* receiver, const ImageDocumentPageCandidateListContext& context,
-        ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback) const;
+        ImageDocumentPageCandidatesCallback callback,
+        ImageDocumentPageCandidateLoadErrorCallback errorCallback) const;
     ImageIoJob loadDirectoryImages(QObject* receiver, const QUrl& directoryUrl,
         ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback) const;
     ImageIoJob loadOpenedCollectionCandidates(QObject* receiver,
         OpenedCollectionScopeLocation openedCollectionScope,
-        ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback) const;
+        ImageDocumentPageCandidatesCallback callback,
+        MediaEntrySourceErrorCallback errorCallback) const;
     ImageIoJob loadContainers(QObject* receiver, const QUrl& directoryUrl,
         ContainerCandidatesCallback callback, ErrorCallback errorCallback) const;
     ImageIoJob watchCandidateChanges(QObject* receiver,
         const ImageDocumentPageCandidateListSource& source,
-        ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback) const;
+        ImageDocumentPageCandidatesCallback callback,
+        ImageDocumentPageCandidateLoadErrorCallback errorCallback) const;
     ImageIoJob watchCandidateChanges(QObject* receiver,
         const ImageDocumentPageCandidateListContext& context,
-        ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback) const;
+        ImageDocumentPageCandidatesCallback callback,
+        ImageDocumentPageCandidateLoadErrorCallback errorCallback) const;
     ImageIoJob watchDirectoryImageChanges(QObject* receiver, const QUrl& directoryUrl,
         ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback) const;
 

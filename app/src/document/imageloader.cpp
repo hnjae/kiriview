@@ -4,10 +4,13 @@
 #include "imageloader.h"
 
 #include "async/imagecallback.h"
+#include "localization/mediaentrysourceerrortext.h"
+#include "navigation/navigationlogging.h"
 #include "predecode/predecodelogging.h"
 
 #include <QDebug>
 #include <utility>
+#include <variant>
 
 namespace {
 kiriview::ImageLoadFailure imageLoadFailure(const kiriview::ImageLoadSession& session,
@@ -30,6 +33,25 @@ kiriview::ImageLoadFailure imageLoadFailure(const kiriview::ImageLoadSession& se
     kiriview::ImageLoadFailureKind kind, const QString& errorString)
 {
     return imageLoadFailure(session, kind, errorString, errorString);
+}
+
+kiriview::ImageLoadFailure imageLoadFailure(const kiriview::ImageLoadSession& session,
+    kiriview::ImageLoadFailureKind kind, const kiriview::MediaEntrySourceError& error)
+{
+    qCWarning(kiriviewNavigationLog).noquote()
+        << "opened collection candidate loading failed" << error;
+    kiriview::ImageLoadFailure failure = imageLoadFailure(
+        session, kind, kiriview::mediaEntrySourceErrorText(error), error.diagnosticDetail);
+    failure.mediaEntrySourceError = error;
+    return failure;
+}
+
+kiriview::ImageLoadFailure imageLoadFailure(const kiriview::ImageLoadSession& session,
+    kiriview::ImageLoadFailureKind kind, const kiriview::ImageDocumentPageCandidateLoadError& error)
+{
+    return std::visit(
+        [&session, kind](const auto& detail) { return imageLoadFailure(session, kind, detail); },
+        error);
 }
 }
 
@@ -117,9 +139,12 @@ void ImageLoader::finishOpenedCollectionSnapshot(const ImageLoadSession& session
     if (!result.succeeded) {
         std::optional<ImageLoadSession> currentSession = m_sessionTracker.claimCurrent(session);
         if (currentSession.has_value()) {
-            invokeIfSet(m_callbacks.error, *currentSession,
-                imageLoadFailure(*currentSession, ImageLoadFailureKind::OpenedCollectionLoad,
-                    result.errorString));
+            const ImageLoadFailure failure = result.error.has_value()
+                ? imageLoadFailure(
+                      *currentSession, ImageLoadFailureKind::OpenedCollectionLoad, *result.error)
+                : imageLoadFailure(*currentSession, ImageLoadFailureKind::OpenedCollectionLoad, {},
+                      QStringLiteral("page candidate snapshot failed without an error payload"));
+            invokeIfSet(m_callbacks.error, *currentSession, failure);
         }
         return;
     }

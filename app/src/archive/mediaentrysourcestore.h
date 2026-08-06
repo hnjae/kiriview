@@ -13,8 +13,6 @@
 #include <QObject>
 
 namespace kiriview {
-using MediaEntrySourceErrorProjector = std::function<QString(const MediaEntrySourceError&)>;
-
 class MediaEntrySourceStore final : public QObject
 {
     Q_OBJECT
@@ -26,9 +24,8 @@ public:
     Q_DISABLE_COPY_MOVE(MediaEntrySourceStore)
 
     ImageDocumentPageCandidateProvider wrapCandidateProvider(
-        ImageDocumentPageCandidateProvider provider, MediaEntrySourceErrorProjector errorProjector);
-    ImageDecodeDependencies wrapDecodeDependencies(
-        ImageDecodeDependencies dependencies, MediaEntrySourceErrorProjector errorProjector);
+        ImageDocumentPageCandidateProvider provider);
+    ImageDecodeDependencies wrapDecodeDependencies(ImageDecodeDependencies dependencies);
 
     void prepareForOpenedCollectionScope(
         const OpenedCollectionScopeLocation& openedCollectionScope);

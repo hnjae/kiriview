@@ -13,6 +13,7 @@
 #include <optional>
 #include <type_traits>
 #include <utility>
+#include <variant>
 
 namespace kiriview {
 namespace {
@@ -47,6 +48,16 @@ namespace {
             return std::is_same_v<Source,
                 ImageDocumentPageCandidateListSource::OpenedCollectionScope>;
         });
+    }
+
+    void logCandidateLoadError(
+        const char* message, const ImageDocumentPageCandidateLoadError& error)
+    {
+        std::visit(
+            [message](const auto& detail) {
+                qCWarning(kiriviewNavigationLog).noquote() << message << detail;
+            },
+            error);
     }
 }
 
@@ -160,7 +171,13 @@ void ImageDocumentPageNavigationController::openAdjacentPage(
             m_activeNavigationOperationId = 0;
             finishNavigation(candidates, direction, currentUrl, std::move(candidateSource));
         },
-        [](const QString&) {});
+        [this, operationId](const ImageDocumentPageCandidateLoadError& error) {
+            if (operationId != m_activeNavigationOperationId) {
+                return;
+            }
+            m_activeNavigationOperationId = 0;
+            logCandidateLoadError("adjacent page candidate listing failed", error);
+        });
 }
 
 void ImageDocumentPageNavigationController::update(
@@ -261,13 +278,16 @@ void ImageDocumentPageNavigationController::startUpdate(
                     m_model.confirmedCandidateSnapshot(), true, {} });
         },
         [this, refreshId = refreshPlan.refreshId, candidateSource = context.source(), callback](
-            const QString& errorString) mutable {
+            ImageDocumentPageCandidateLoadError error) mutable {
             if (!m_model.failPendingRefresh(refreshId, candidateSource)) {
                 return;
             }
+            if (!callback) {
+                logCandidateLoadError("page candidate refresh failed", error);
+            }
             invokeIfSet(callback,
                 ImageDocumentPageCandidateListSnapshotResult {
-                    m_model.confirmedCandidateSnapshot(), false, errorString });
+                    m_model.confirmedCandidateSnapshot(), false, std::move(error) });
         });
 }
 
@@ -337,7 +357,12 @@ void ImageDocumentPageNavigationController::watchChanges(
         [this, source](std::vector<ImageDocumentPageCandidate> candidates) {
             updateFromChangedCandidates(std::move(candidates), source);
         },
-        [](const QString&) {});
+        [this, context](const ImageDocumentPageCandidateLoadError& error) {
+            if (!m_model.shouldKeepExistingWatcherFor(context)) {
+                return;
+            }
+            logCandidateLoadError("page candidate watch failed", error);
+        });
 }
 
 void ImageDocumentPageNavigationController::updateFromChangedCandidates(

@@ -4,7 +4,7 @@
 #ifndef KIRIVIEW_MEDIAENTRYSOURCEERRORTEXT_H
 #define KIRIVIEW_MEDIAENTRYSOURCEERRORTEXT_H
 
-#include "archive/mediaentrysourcebackend.h"
+#include "archive/mediaentrysourceerror.h"
 
 #include <QString>
 

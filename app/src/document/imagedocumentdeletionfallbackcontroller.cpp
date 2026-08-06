@@ -5,10 +5,24 @@
 
 #include "async/imagecallback.h"
 #include "navigation/imagecontaineropenplan.h"
+#include "navigation/navigationlogging.h"
 
+#include <QDebug>
 #include <utility>
 #include <variant>
 #include <vector>
+
+namespace {
+void logSuppressedCandidateLoadError(const kiriview::ImageDocumentPageCandidateLoadError& error)
+{
+    std::visit(
+        [](const auto& detail) {
+            qCWarning(kiriviewNavigationLog).noquote()
+                << "deletion fallback candidate loading failed" << detail;
+        },
+        error);
+}
+}
 
 namespace kiriview {
 ImageDocumentDeletionFallbackController::ImageDocumentDeletionFallbackController(QObject* parent,
@@ -73,10 +87,12 @@ void ImageDocumentDeletionFallbackController::openFallbackPlan(
                     *fallbackTarget, fallback.imageContext.openedCollectionScope() } });
             }
         },
-        [this, operationId, requestId](const QString&) {
-            if (claimJobRequest(operationId, requestId)) {
-                static_cast<void>(m_operation.finish(operationId));
+        [this, operationId, requestId](const ImageDocumentPageCandidateLoadError& error) {
+            if (!claimJobRequest(operationId, requestId)) {
+                return;
             }
+            logSuppressedCandidateLoadError(error);
+            static_cast<void>(m_operation.finish(operationId));
         });
     retainJobIfCurrent(operationId, requestId, std::move(startedJob));
 }
@@ -193,10 +209,13 @@ void ImageDocumentDeletionFallbackController::loadComicBookFallbackImage(quint64
             finishComicBookFallbackImageLoad(
                 operationId, requestId, scope, fallbackCandidate, candidates);
         },
-        [this, operationId, requestId, fallbackCandidate](const QString&) {
-            if (claimJobRequest(operationId, requestId)) {
-                failComicBookFallbackImageLoad(operationId, fallbackCandidate);
+        [this, operationId, requestId, fallbackCandidate](
+            const ImageDocumentPageCandidateLoadError& error) {
+            if (!claimJobRequest(operationId, requestId)) {
+                return;
             }
+            logSuppressedCandidateLoadError(error);
+            failComicBookFallbackImageLoad(operationId, fallbackCandidate);
         });
     retainJobIfCurrent(operationId, requestId, std::move(startedJob));
 }

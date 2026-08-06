@@ -68,7 +68,7 @@ void TestMediaPredecodeDependencies::explicitDependenciesArePreserved()
     kiriview::MediaPredecodeDependencyOverrides overrides;
     overrides.imageDecode.dataLoader
         = [&dataLoadCount](QObject*, kiriview::ImageDecodeRequest,
-              kiriview::ImageDataCallback callback, kiriview::ErrorCallback) {
+              kiriview::ImageDataCallback callback, kiriview::ImageDataLoadErrorCallback) {
               ++dataLoadCount;
               callback(QByteArrayLiteral("custom media predecode data"));
               return kiriview::ImageIoJob();

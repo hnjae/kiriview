@@ -136,16 +136,19 @@ void TestImageDocumentRuntimeDependencies::
     QVERIFY(resolved.mediaEntrySourceStore);
 
     bool candidatesReported = false;
-    QString errorString;
+    std::optional<kiriview::MediaEntrySourceError> sourceError;
     resolved.candidateProvider.openedCollectionCandidates(
         nullptr, testArchiveCollection(),
         [&candidatesReported](
             std::vector<kiriview::ImageDocumentPageCandidate>) { candidatesReported = true; },
-        [&errorString](const QString& error) { errorString = error; });
+        [&sourceError](kiriview::MediaEntrySourceError error) { sourceError = std::move(error); });
 
     QCOMPARE(openCount, 1);
     QVERIFY(!candidatesReported);
-    QCOMPARE(errorString, QStringLiteral("Could not open book.cbz."));
+    QVERIFY(sourceError.has_value());
+    QCOMPARE(sourceError->cause, kiriview::MediaEntrySourceErrorCause::CollectionOpenFailed);
+    QCOMPARE(sourceError->operation, kiriview::MediaEntrySourceOperation::OpenCollection);
+    QCOMPARE(sourceError->diagnosticDetail, QStringLiteral("session failed"));
 }
 
 void TestImageDocumentRuntimeDependencies::
@@ -160,14 +163,15 @@ void TestImageDocumentRuntimeDependencies::
     kiriview::ImageDocumentRuntimeDependencyOverrides dependencies;
     dependencies.candidateProvider.openedCollectionCandidates
         = [&openedCollectionLoadCount](QObject*, kiriview::OpenedCollectionScopeLocation,
-              kiriview::ImageDocumentPageCandidatesCallback callback, kiriview::ErrorCallback) {
+              kiriview::ImageDocumentPageCandidatesCallback callback,
+              kiriview::MediaEntrySourceErrorCallback) {
               ++openedCollectionLoadCount;
               callback({});
               return kiriview::ImageIoJob();
           };
     dependencies.imageDecode.dataLoader
         = [&dataLoadCount](QObject*, kiriview::ImageDecodeRequest,
-              kiriview::ImageDataCallback callback, kiriview::ErrorCallback) {
+              kiriview::ImageDataCallback callback, kiriview::ImageDataLoadErrorCallback) {
               ++dataLoadCount;
               callback(QByteArrayLiteral("custom image data"));
               return kiriview::ImageIoJob();

@@ -3,6 +3,7 @@
 
 #include "document/imageloader.h"
 
+#include "archive/mediaentrysourcebackend.h"
 #include "image_test_support.h"
 #include "location/imagedocumentlocation.h"
 
@@ -46,6 +47,7 @@ private Q_SLOTS:
     void openedCollectionStartsProviderTargetBeforeResolvingFirstPage();
     void staleOpenedCollectionSnapshotCannotPrepareAReplacedTarget();
     void reentrantReplacementCannotPublishResolvedStaleVideoTerminal();
+    void openedCollectionFailurePreservesTypedSourceDetails();
     void missingProviderTargetOwnerReportsTypedPresentationFailure();
 };
 
@@ -307,6 +309,55 @@ void TestImageLoader::reentrantReplacementCannotPublishResolvedStaleVideoTermina
     QCOMPARE(resolvedUrls.size(), std::size_t(1));
     QCOMPARE(resolvedUrls.front(), replacementUrl);
     QVERIFY(unsupportedVideoUrls.empty());
+}
+
+void TestImageLoader::openedCollectionFailurePreservesTypedSourceDetails()
+{
+    const QUrl archiveUrl = localUrl(QStringLiteral("/books/broken.cbz"));
+    const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
+    QVERIFY(archiveCollection.has_value());
+    const kiriview::MediaEntrySourceError expectedFailure {
+        kiriview::MediaEntrySourceErrorCause::CandidateListingFailed,
+        kiriview::MediaEntrySourceBackendKind::LibArchive,
+        kiriview::MediaEntrySourceOperation::ListCandidates,
+        archiveUrl,
+        QStringLiteral("nested/chapter.cbz"),
+        QStringLiteral("candidate traversal stopped at a malformed nested entry"),
+    };
+    std::optional<kiriview::ImageLoadFailure> failure;
+    kiriview::ImageLoader::Callbacks callbacks;
+    callbacks.targetStarted = [](kiriview::ImageLoadSession) { };
+    callbacks.ensurePageCandidateSnapshot
+        = [expectedFailure](
+              auto, kiriview::ImageDocumentPageCandidateListSnapshotCallback completion) {
+              completion(kiriview::ImageDocumentPageCandidateListSnapshotResult {
+                  {},
+                  false,
+                  kiriview::ImageDocumentPageCandidateLoadError { expectedFailure },
+              });
+          };
+    callbacks.error = [&failure](auto, kiriview::ImageLoadFailure loadFailure) {
+        failure = std::move(loadFailure);
+    };
+    kiriview::ImageLoader loader(std::move(callbacks));
+
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+        kiriview::resolvedNavigationSource(archiveUrl, {})));
+
+    QVERIFY(failure.has_value());
+    QCOMPARE(failure->kind, kiriview::ImageLoadFailureKind::OpenedCollectionLoad);
+    QVERIFY(!failure->userMessage.isEmpty());
+    QVERIFY(failure->userMessage != expectedFailure.diagnosticDetail);
+    QCOMPARE(failure->diagnosticDetail, expectedFailure.diagnosticDetail);
+    QVERIFY(failure->mediaEntrySourceError.has_value());
+    QCOMPARE(failure->mediaEntrySourceError->cause, expectedFailure.cause);
+    QCOMPARE(failure->mediaEntrySourceError->backend, expectedFailure.backend);
+    QCOMPARE(failure->mediaEntrySourceError->operation, expectedFailure.operation);
+    QCOMPARE(failure->mediaEntrySourceError->collectionUrl, expectedFailure.collectionUrl);
+    QCOMPARE(failure->mediaEntrySourceError->entryPath, expectedFailure.entryPath);
+    QCOMPARE(failure->mediaEntrySourceError->diagnosticDetail, expectedFailure.diagnosticDetail);
 }
 
 void TestImageLoader::missingProviderTargetOwnerReportsTypedPresentationFailure()

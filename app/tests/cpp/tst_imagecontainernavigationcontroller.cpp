@@ -134,11 +134,18 @@ public:
                 return startContainerList(receiver, std::move(directoryUrl), std::move(callback),
                     std::move(errorCallback));
             },
-            [](QObject*, kiriview::OpenedCollectionScopeLocation,
+            [](QObject*, kiriview::OpenedCollectionScopeLocation openedCollectionScope,
                 kiriview::ImageDocumentPageCandidatesCallback,
-                kiriview::ErrorCallback errorCallback) {
+                kiriview::MediaEntrySourceErrorCallback errorCallback) {
                 if (errorCallback) {
-                    errorCallback(QStringLiteral("unexpected archive image listing"));
+                    errorCallback(kiriview::MediaEntrySourceError {
+                        kiriview::MediaEntrySourceErrorCause::ProviderUnavailable,
+                        kiriview::MediaEntrySourceBackendKind::Unknown,
+                        kiriview::MediaEntrySourceOperation::ListCandidates,
+                        openedCollectionScope.fileUrl(),
+                        {},
+                        QStringLiteral("unexpected archive image listing"),
+                    });
                 }
                 return kiriview::ImageIoJob();
             },

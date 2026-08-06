@@ -56,7 +56,7 @@ public:
         provider.openedCollectionCandidates
             = [](QObject*, kiriview::OpenedCollectionScopeLocation,
                   kiriview::ImageDocumentPageCandidatesCallback,
-                  kiriview::ErrorCallback) { return kiriview::ImageIoJob(); };
+                  kiriview::MediaEntrySourceErrorCallback) { return kiriview::ImageIoJob(); };
         provider.directoryImageDocumentPageChanges
             = [](QObject*, QUrl, kiriview::ImageDocumentPageCandidatesCallback,
                   kiriview::ErrorCallback) { return kiriview::ImageIoJob(); };

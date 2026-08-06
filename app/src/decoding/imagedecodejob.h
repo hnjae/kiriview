@@ -22,7 +22,7 @@ class ImageDecodeJob final : public QObject
     Q_OBJECT
 public:
     using DecodedCallback = std::function<void(ImageDecodeRequest, DecodedImageResult)>;
-    using LoadErrorCallback = std::function<void(const ImageDecodeRequest&, const QString&)>;
+    using LoadErrorCallback = std::function<void(const ImageDecodeRequest&, ImageDataLoadError)>;
     using ThumbnailPreviewCallback
         = std::function<void(const ImageDecodeRequest&, StaticDisplayImagePayload)>;
 

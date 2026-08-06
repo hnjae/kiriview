@@ -4,11 +4,13 @@
 #ifndef KIRIVIEW_IMAGELOADFAILURE_H
 #define KIRIVIEW_IMAGELOADFAILURE_H
 
+#include "archive/mediaentrysourceerror.h"
 #include "decoding/decodedimagefailure.h"
 
 #include <QString>
 #include <QUrl>
 #include <QtGlobal>
+#include <optional>
 
 namespace kiriview {
 enum class ImageLoadFailureKind {
@@ -34,6 +36,7 @@ struct ImageLoadFailure
     QString diagnosticDetail;
     ImageLoadFailureSeverity severity = ImageLoadFailureSeverity::Error;
     bool retryable = false;
+    std::optional<MediaEntrySourceError> mediaEntrySourceError;
 };
 }
 

@@ -101,9 +101,9 @@ candidateSnapshotOwner(QObject* receiver, kiriview::ImageDocumentPageCandidatePr
                 (*sharedCallback)(kiriview::ImageDocumentPageCandidateListSnapshotResult {
                     pageCandidateListSnapshot(source, std::move(candidates)), true, {} });
             },
-            [sharedCallback](const QString& errorString) mutable {
+            [sharedCallback](kiriview::ImageDocumentPageCandidateLoadError error) mutable {
                 (*sharedCallback)(kiriview::ImageDocumentPageCandidateListSnapshotResult {
-                    {}, false, errorString });
+                    {}, false, std::move(error) });
             }));
     };
 }

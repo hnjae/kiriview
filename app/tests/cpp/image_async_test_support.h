@@ -200,7 +200,7 @@ struct ManualImageDataLoad
     OpenedCollectionScopeLocation openedCollectionScope;
     ImageFirstDisplayDecodeContext firstDisplay;
     ImageDataCallback dataCallback;
-    ErrorCallback errorCallback;
+    ImageDataLoadErrorCallback errorCallback;
     ImageIoJobCompletion completion;
     bool canceled = false;
 };
@@ -209,7 +209,7 @@ class ManualImageDataLoader
 {
 public:
     ImageIoJob start(QObject* receiver, ImageDecodeRequest request, ImageDataCallback callback,
-        ErrorCallback errorCallback)
+        ImageDataLoadErrorCallback errorCallback)
     {
         auto load = std::make_shared<ManualImageDataLoad>();
         load->url = request.imageUrl();
@@ -279,12 +279,15 @@ public:
         return false;
     }
 
-    void failFrontLoad(const QString& errorString)
+    void failFrontLoad(ImageDataLoadError error)
     {
-        finishLoadError(m_loads.front(), errorString);
+        finishLoadError(m_loads.front(), std::move(error));
     }
 
-    void failBackLoad(const QString& errorString) { finishLoadError(m_loads.back(), errorString); }
+    void failBackLoad(ImageDataLoadError error)
+    {
+        finishLoadError(m_loads.back(), std::move(error));
+    }
 
     void deliverFrontLoadDataIgnoringCancellation(QByteArray data)
     {
@@ -316,11 +319,11 @@ private:
     }
 
     static void finishLoadError(
-        const std::shared_ptr<ManualImageDataLoad>& load, const QString& errorString)
+        const std::shared_ptr<ManualImageDataLoad>& load, ImageDataLoadError error)
     {
-        finishLoad(load, [&errorString](ManualImageDataLoad& load) {
+        finishLoad(load, [error = std::move(error)](ManualImageDataLoad& load) mutable {
             if (load.errorCallback) {
-                load.errorCallback(errorString);
+                load.errorCallback(std::move(error));
             }
         });
     }
@@ -344,7 +347,7 @@ public:
     }
 
     ImageIoJob operator()(QObject* receiver, ImageDecodeRequest request, ImageDataCallback callback,
-        ErrorCallback errorCallback) const
+        ImageDataLoadErrorCallback errorCallback) const
     {
         return m_dataLoader->start(
             receiver, std::move(request), std::move(callback), std::move(errorCallback));

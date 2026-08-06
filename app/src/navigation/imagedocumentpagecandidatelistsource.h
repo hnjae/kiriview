@@ -4,10 +4,10 @@
 #ifndef KIRIVIEW_IMAGEDOCUMENTPAGECANDIDATELISTSOURCE_H
 #define KIRIVIEW_IMAGEDOCUMENTPAGECANDIDATELISTSOURCE_H
 
+#include "imagedocumentpagecandidateloaderror.h"
 #include "imagedocumentpagenavigationtypes.h"
 #include "location/imagelocation.h"
 
-#include <QString>
 #include <QUrl>
 #include <QtGlobal>
 #include <functional>
@@ -98,7 +98,7 @@ struct ImageDocumentPageCandidateListSnapshotResult
 {
     ImageDocumentPageCandidateListSnapshot snapshot;
     bool succeeded = false;
-    QString errorString;
+    std::optional<ImageDocumentPageCandidateLoadError> error;
 };
 
 using ImageDocumentPageCandidateListSnapshotCallback

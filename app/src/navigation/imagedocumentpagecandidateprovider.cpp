@@ -37,7 +37,8 @@ ImageDocumentPageCandidateProvider defaultImageDocumentPageCandidateProvider(
         },
         [workerScheduler = std::move(workerScheduler)](QObject* receiver,
             OpenedCollectionScopeLocation openedCollectionScope,
-            ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback) {
+            ImageDocumentPageCandidatesCallback callback,
+            MediaEntrySourceErrorCallback errorCallback) {
             return startOpenedCollectionCandidateList(receiver, std::move(openedCollectionScope),
                 workerScheduler, std::move(callback), std::move(errorCallback));
         },

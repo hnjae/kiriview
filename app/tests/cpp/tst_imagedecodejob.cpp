@@ -319,8 +319,8 @@ void TestImageDecodeJob::emptyRequestLeavesDiagnosticWarning()
         imageDecodeDependenciesFor(dataLoader, staticImageDataDecoderRejectingBadData()),
         decodeJobCallbacks([&decodedCount](kiriview::ImageDecodeRequest,
                                kiriview::DecodedImageResult) { ++decodedCount; },
-            [&loadErrorCount](
-                const kiriview::ImageDecodeRequest&, const QString&) { ++loadErrorCount; }));
+            [&loadErrorCount](const kiriview::ImageDecodeRequest&,
+                const kiriview::ImageDataLoadError&) { ++loadErrorCount; }));
 
     QTest::ignoreMessage(
         QtWarningMsg, QRegularExpression(".*KiriView image decode rejected empty request.*"));
@@ -414,10 +414,12 @@ void TestImageDecodeJob::loadErrorsAreDeliveredForCurrentRequest()
     kiriview::ImageDecodeJob decodeJob(this,
         imageDecodeDependenciesFor(dataLoader, staticImageDataDecoderRejectingBadData()),
         decodeJobCallbacks({},
-            [&errorRequests, &errorString](
-                const kiriview::ImageDecodeRequest& request, const QString& error) {
+            [&errorRequests, &errorString](const kiriview::ImageDecodeRequest& request,
+                const kiriview::ImageDataLoadError& error) {
                 errorRequests.push_back(request);
-                errorString = error;
+                const auto* text = std::get_if<QString>(&error);
+                QVERIFY(text != nullptr);
+                errorString = *text;
             }));
 
     decodeJob.start(kiriview::ImageDecodeRequest::fromUrl(3, indexedImageUrl(3)));

@@ -94,7 +94,7 @@ struct ManualImageDocumentPageCandidateList
     QObject* object = nullptr;
     kiriview::OpenedCollectionScopeLocation openedCollectionScope;
     kiriview::ImageDocumentPageCandidatesCallback callback;
-    kiriview::ErrorCallback errorCallback;
+    kiriview::MediaEntrySourceErrorCallback errorCallback;
     kiriview::ImageIoJobCompletion completion;
     bool canceled = false;
 };
@@ -105,7 +105,7 @@ public:
     kiriview::ImageIoJob start(QObject* receiver,
         kiriview::OpenedCollectionScopeLocation archiveCollection,
         kiriview::ImageDocumentPageCandidatesCallback callback,
-        kiriview::ErrorCallback errorCallback)
+        kiriview::MediaEntrySourceErrorCallback errorCallback)
     {
         auto load = std::make_shared<ManualImageDocumentPageCandidateList>();
         load->openedCollectionScope = std::move(archiveCollection);
@@ -151,7 +151,7 @@ public:
             },
             [this](QObject* receiver, kiriview::OpenedCollectionScopeLocation archiveCollection,
                 kiriview::ImageDocumentPageCandidatesCallback callback,
-                kiriview::ErrorCallback errorCallback) {
+                kiriview::MediaEntrySourceErrorCallback errorCallback) {
                 return start(receiver, std::move(archiveCollection), std::move(callback),
                     std::move(errorCallback));
             },

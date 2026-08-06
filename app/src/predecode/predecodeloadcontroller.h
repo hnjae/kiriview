@@ -36,7 +36,7 @@ public:
 private:
     void startNextLoads();
     bool startLoad(PredecodeLoadStart load);
-    void finishLoadError(const ImageDecodeRequest& request);
+    void finishLoadError(const ImageDecodeRequest& request, const ImageDataLoadError& error);
     void finishDecode(const ImageDecodeRequest& request, const DecodedImageResult& result);
 
     QObject* m_parent = nullptr;

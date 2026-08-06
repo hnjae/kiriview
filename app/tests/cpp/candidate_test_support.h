@@ -213,10 +213,25 @@ public:
                 return ImageIoJob();
             },
             [this](QObject*, OpenedCollectionScopeLocation openedCollectionScope,
-                ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback) {
+                ImageDocumentPageCandidatesCallback callback,
+                MediaEntrySourceErrorCallback errorCallback) {
                 ++m_openedCollectionCandidateLoadCounts[keyForUrl(openedCollectionScope.rootUrl())];
-                m_openedCollectionCandidates.load(
-                    openedCollectionScope.rootUrl(), std::move(callback), std::move(errorCallback));
+                const QUrl collectionUrl = openedCollectionScope.fileUrl();
+                m_openedCollectionCandidates.load(openedCollectionScope.rootUrl(),
+                    std::move(callback),
+                    [errorCallback = std::move(errorCallback), collectionUrl](
+                        QString error) mutable {
+                        if (errorCallback) {
+                            errorCallback(MediaEntrySourceError {
+                                MediaEntrySourceErrorCause::CandidateListingFailed,
+                                MediaEntrySourceBackendKind::Unknown,
+                                MediaEntrySourceOperation::ListCandidates,
+                                collectionUrl,
+                                {},
+                                std::move(error),
+                            });
+                        }
+                    });
                 return ImageIoJob();
             },
             [this](QObject* receiver, QUrl directoryUrl,

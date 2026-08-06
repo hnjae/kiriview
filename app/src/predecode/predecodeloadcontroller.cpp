@@ -10,6 +10,7 @@
 #include <QDebug>
 #include <optional>
 #include <utility>
+#include <variant>
 
 namespace kiriview {
 PredecodeLoadController::PredecodeLoadController(
@@ -77,7 +78,9 @@ bool PredecodeLoadController::startLoad(PredecodeLoadStart load)
             [this](const ImageDecodeRequest& request, const DecodedImageResult& result) {
                 finishDecode(request, result);
             },
-            [this](const ImageDecodeRequest& request, const QString&) { finishLoadError(request); },
+            [this](const ImageDecodeRequest& request, const ImageDataLoadError& error) {
+                finishLoadError(request, error);
+            },
             {},
         });
     const ImageDecodeRequest request = load.request;
@@ -98,7 +101,8 @@ bool PredecodeLoadController::startLoad(PredecodeLoadStart load)
     return true;
 }
 
-void PredecodeLoadController::finishLoadError(const ImageDecodeRequest& request)
+void PredecodeLoadController::finishLoadError(
+    const ImageDecodeRequest& request, const ImageDataLoadError& error)
 {
     if (!m_activeDecodes.finish(request).has_value()) {
         qCDebug(kiriviewPredecodeLog)
@@ -109,8 +113,13 @@ void PredecodeLoadController::finishLoadError(const ImageDecodeRequest& request)
         return;
     }
 
-    qCDebug(kiriviewPredecodeLog) << "predecode load error"
-                                  << "generation" << request.id() << "url" << request.imageUrl();
+    std::visit(
+        [&request](const auto& detail) {
+            qCDebug(kiriviewPredecodeLog).noquote()
+                << "predecode load error"
+                << "generation" << request.id() << "url" << request.imageUrl() << "error" << detail;
+        },
+        error);
     startNextLoads();
 }
 

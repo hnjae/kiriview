@@ -19,48 +19,35 @@ MediaEntrySourceStore::MediaEntrySourceStore(MediaEntrySourceFactory sourceFacto
 MediaEntrySourceStore::~MediaEntrySourceStore() { clear(); }
 
 ImageDocumentPageCandidateProvider MediaEntrySourceStore::wrapCandidateProvider(
-    ImageDocumentPageCandidateProvider provider, MediaEntrySourceErrorProjector errorProjector)
+    ImageDocumentPageCandidateProvider provider)
 {
-    if (!errorProjector) {
-        qFatal("MediaEntrySourceStore::wrapCandidateProvider requires an error projector");
-    }
-
     provider.openedCollectionCandidates
-        = [this, errorProjector = std::move(errorProjector)](QObject* receiver,
-              OpenedCollectionScopeLocation openedCollectionScope,
-              ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback) {
+        = [this](QObject* receiver, OpenedCollectionScopeLocation openedCollectionScope,
+              ImageDocumentPageCandidatesCallback callback,
+              MediaEntrySourceErrorCallback errorCallback) {
               return loadOpenedCollectionCandidates(receiver, std::move(openedCollectionScope),
-                  std::move(callback),
-                  [errorProjector, errorCallback = std::move(errorCallback)](
-                      const MediaEntrySourceError& error) {
-                      invokeIfSet(errorCallback, errorProjector(error));
-                  });
+                  std::move(callback), std::move(errorCallback));
           };
     return provider;
 }
 
 ImageDecodeDependencies MediaEntrySourceStore::wrapDecodeDependencies(
-    ImageDecodeDependencies dependencies, MediaEntrySourceErrorProjector errorProjector)
+    ImageDecodeDependencies dependencies)
 {
-    if (!errorProjector) {
-        qFatal("MediaEntrySourceStore::wrapDecodeDependencies requires an error projector");
-    }
-
     ImageDataLoader upstreamDataLoader = std::move(dependencies.dataLoader);
-    dependencies.dataLoader = [this, upstreamDataLoader = std::move(upstreamDataLoader),
-                                  errorProjector = std::move(errorProjector)](QObject* receiver,
-                                  ImageDecodeRequest request, ImageDataCallback callback,
-                                  ErrorCallback errorCallback) {
+    dependencies.dataLoader = [this, upstreamDataLoader = std::move(upstreamDataLoader)](
+                                  QObject* receiver, ImageDecodeRequest request,
+                                  ImageDataCallback callback,
+                                  ImageDataLoadErrorCallback errorCallback) {
         if (openedCollectionScopeContainsUrl(request.openedCollectionScope(), request.imageUrl())) {
             return loadOpenedCollectionImageData(receiver, request, std::move(callback),
-                [errorProjector, errorCallback = std::move(errorCallback)](
-                    const MediaEntrySourceError& error) {
-                    invokeIfSet(errorCallback, errorProjector(error));
+                [errorCallback = std::move(errorCallback)](MediaEntrySourceError error) mutable {
+                    invokeIfSet(errorCallback, ImageDataLoadError { std::move(error) });
                 });
         }
 
         if (!upstreamDataLoader) {
-            invokeIfSet(errorCallback, QString());
+            invokeIfSet(errorCallback, ImageDataLoadError { QString() });
             return ImageIoJob();
         }
 

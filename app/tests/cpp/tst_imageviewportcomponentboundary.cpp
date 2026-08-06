@@ -77,7 +77,7 @@ struct PendingOpenedCollectionCandidateLoad
     QObject* object = nullptr;
     kiriview::OpenedCollectionScopeLocation scope;
     kiriview::ImageDocumentPageCandidatesCallback callback;
-    kiriview::ErrorCallback errorCallback;
+    kiriview::MediaEntrySourceErrorCallback errorCallback;
     kiriview::ImageIoJobCompletion completion;
     bool canceled = false;
 };
@@ -91,7 +91,7 @@ public:
         provider.openedCollectionCandidates
             = [this](QObject* receiver, kiriview::OpenedCollectionScopeLocation scope,
                   kiriview::ImageDocumentPageCandidatesCallback callback,
-                  kiriview::ErrorCallback errorCallback) {
+                  kiriview::MediaEntrySourceErrorCallback errorCallback) {
                   auto load = std::make_shared<PendingOpenedCollectionCandidateLoad>();
                   load->scope = std::move(scope);
                   load->callback = std::move(callback);

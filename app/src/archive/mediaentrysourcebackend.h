@@ -6,6 +6,7 @@
 
 #include "decoding/imagesourcedata.h"
 #include "location/imagelocation.h"
+#include "mediaentrysourceerror.h"
 #include "navigation/imagedocumentpagenavigationtypes.h"
 
 #include <QByteArray>
@@ -19,54 +20,9 @@
 #include <stop_token>
 #include <vector>
 
-class QDebug;
-
 namespace kiriview {
 class MediaEntrySource;
 using MediaEntrySourcePtr = std::shared_ptr<MediaEntrySource>;
-
-enum class MediaEntrySourceBackendKind {
-    Unknown,
-    Unsupported,
-    Directory,
-    KArchive,
-    LibArchive,
-};
-
-enum class MediaEntrySourceOperation {
-    OpenCollection,
-    ListCandidates,
-    ReadImageData,
-    LoadThumbnailMetadata,
-    OpenVideoPlaybackDevice,
-};
-
-enum class MediaEntrySourceErrorCause {
-    CollectionOpenFailed,
-    UnsupportedCollection,
-    CandidateListingFailed,
-    EntryNotFound,
-    EntryReadFailed,
-    VideoPlaybackUnsupported,
-    ThumbnailMetadataUnsupported,
-    ProviderUnavailable,
-    ResourceLimitExceeded,
-    OperationCancelled,
-};
-
-struct MediaEntrySourceError
-{
-    MediaEntrySourceErrorCause cause = MediaEntrySourceErrorCause::CollectionOpenFailed;
-    MediaEntrySourceBackendKind backend = MediaEntrySourceBackendKind::Unknown;
-    MediaEntrySourceOperation operation = MediaEntrySourceOperation::OpenCollection;
-    QUrl collectionUrl;
-    QString entryPath;
-    QString diagnosticDetail;
-};
-
-QDebug operator<<(QDebug debug, const MediaEntrySourceError& error);
-
-using MediaEntrySourceErrorCallback = std::function<void(MediaEntrySourceError)>;
 
 struct MediaEntrySourceCandidates
 {

@@ -481,6 +481,7 @@ class TestImageViewportSequenceProvider : public QObject
 private Q_SLOTS:
     void metadataAndStillFrameFlowThroughProvider();
     void productionDecodeStartsOnlyForProviderDemand();
+    void sourceAccessFailurePreservesTypedSourceDetails();
     void deferredDecodeSourcePreservesDemandUntilResolution();
     void deferredDecodeSourceAuthoritativeSeedFlushesQueuedDemandSynchronously();
     void deferredDecodeSourceInvalidationDropsLateResolution_data();
@@ -558,6 +559,59 @@ void TestImageViewportSequenceProvider::productionDecodeStartsOnlyForProviderDem
             kiriview::ImageViewportProviderMetadataResult) { });
 
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+}
+
+void TestImageViewportSequenceProvider::sourceAccessFailurePreservesTypedSourceDetails()
+{
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    const QUrl archiveUrl(QStringLiteral("file:///tmp/broken.cbz"));
+    const QUrl imageUrl(QStringLiteral("file:///tmp/broken.cbz#/missing.png"));
+    const kiriview::MediaEntrySourceError expectedFailure {
+        kiriview::MediaEntrySourceErrorCause::EntryNotFound,
+        kiriview::MediaEntrySourceBackendKind::LibArchive,
+        kiriview::MediaEntrySourceOperation::ReadImageData,
+        archiveUrl,
+        QStringLiteral("missing.png"),
+        QStringLiteral("archive entry was not present in the accepted snapshot"),
+    };
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::ImageLoadSession(72,
+            kiriview::ImageLoadRequest::fromExternalSource(
+                kiriview::resolvedNavigationSource(imageUrl, {})),
+            kiriview::DisplayedImageLocation::fromUrl(imageUrl)),
+        kiriview::TestSupport::imageDecodeDependenciesFor(
+            dataLoader, kiriview::TestSupport::staticImageDataDecoder()));
+    std::optional<kiriview::ImageViewportProviderMetadataResult> result;
+
+    source->requestMetadata(
+        kiriview::ImageViewportProviderWorkIdentity {
+            72,
+            ImageViewportPageRole::Primary,
+            {},
+            {},
+            QStringLiteral("typed-source-failure"),
+        },
+        [&result](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderMetadataResult completed) {
+            result = std::move(completed);
+        });
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+    dataLoader.failFrontLoad(kiriview::ImageDataLoadError { expectedFailure });
+
+    QVERIFY(result.has_value());
+    QCOMPARE(result->failureCause, ImageSequenceProviderFailureCause::SourceAccess);
+    QVERIFY(result->failure.has_value());
+    QVERIFY(!result->failure->userMessage.isEmpty());
+    QVERIFY(result->failure->userMessage != expectedFailure.diagnosticDetail);
+    QCOMPARE(result->failure->diagnosticDetail, expectedFailure.diagnosticDetail);
+    QVERIFY(result->failure->mediaEntrySourceError.has_value());
+    QCOMPARE(result->failure->mediaEntrySourceError->cause, expectedFailure.cause);
+    QCOMPARE(result->failure->mediaEntrySourceError->backend, expectedFailure.backend);
+    QCOMPARE(result->failure->mediaEntrySourceError->operation, expectedFailure.operation);
+    QCOMPARE(result->failure->mediaEntrySourceError->collectionUrl, expectedFailure.collectionUrl);
+    QCOMPARE(result->failure->mediaEntrySourceError->entryPath, expectedFailure.entryPath);
+    QCOMPARE(
+        result->failure->mediaEntrySourceError->diagnosticDetail, expectedFailure.diagnosticDetail);
 }
 
 void TestImageViewportSequenceProvider::deferredDecodeSourcePreservesDemandUntilResolution()

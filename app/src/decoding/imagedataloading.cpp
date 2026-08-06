@@ -6,9 +6,7 @@
 #include "archive/mediaentrysourcebackend.h"
 #include "async/imagecallback.h"
 #include "async/imageioworkerjob.h"
-#include "decoding/imagedecodelogging.h"
 #include "decoding/imagesourcedata.h"
-#include "localization/mediaentrysourceerrortext.h"
 #include "location/imagedocumentlocation.h"
 
 #include <KIO/Job>
@@ -19,7 +17,7 @@
 #include <utility>
 
 namespace {
-using kiriview::ErrorCallback;
+using kiriview::ImageDataLoadErrorCallback;
 using kiriview::MediaEntrySourceImageData;
 using kiriview::MediaEntrySourceImageDataResult;
 
@@ -31,12 +29,11 @@ struct StreamingImageSourceData
 
 template <typename Result, typename SuccessCallback>
 void finishMediaEntrySourceWorkerResult(
-    Result result, ErrorCallback errorCallback, SuccessCallback successCallback)
+    Result result, ImageDataLoadErrorCallback errorCallback, SuccessCallback successCallback)
 {
     if (!result) {
-        const kiriview::MediaEntrySourceError& error = result.error();
-        qCWarning(kiriviewDecodeLog).noquote() << "collection image data loading failed" << error;
-        kiriview::invokeIfSet(errorCallback, kiriview::mediaEntrySourceErrorText(error));
+        kiriview::invokeIfSet(
+            errorCallback, kiriview::ImageDataLoadError { std::move(result.error()) });
         return;
     }
     successCallback(std::move(*result));
@@ -63,7 +60,7 @@ kiriview::ImageIoJob startMediaEntrySourceWorkerJob(QObject* receiver,
 
 namespace kiriview {
 ImageIoJob startStoredImageDataLoad(QObject* receiver, ImageDecodeRequest request,
-    ImageDataCallback callback, ErrorCallback errorCallback)
+    ImageDataCallback callback, ImageDataLoadErrorCallback errorCallback)
 {
     return startStoredImageDataLoad(receiver, std::move(request), ImageWorkerScheduler(),
         defaultImageSourceDataBudget(), std::move(callback), std::move(errorCallback));
@@ -71,7 +68,7 @@ ImageIoJob startStoredImageDataLoad(QObject* receiver, ImageDecodeRequest reques
 
 ImageIoJob startStoredImageDataLoad(QObject* receiver, ImageDecodeRequest request,
     const ImageWorkerScheduler& workerScheduler, ImageDataCallback callback,
-    ErrorCallback errorCallback)
+    ImageDataLoadErrorCallback errorCallback)
 {
     return startStoredImageDataLoad(receiver, std::move(request), workerScheduler,
         defaultImageSourceDataBudget(), std::move(callback), std::move(errorCallback));
@@ -80,7 +77,7 @@ ImageIoJob startStoredImageDataLoad(QObject* receiver, ImageDecodeRequest reques
 ImageIoJob startStoredImageDataLoad(QObject* receiver, ImageDecodeRequest request,
     const ImageWorkerScheduler& workerScheduler,
     std::shared_ptr<ImageSourceDataBudget> sourceDataBudget, ImageDataCallback callback,
-    ErrorCallback errorCallback)
+    ImageDataLoadErrorCallback errorCallback)
 {
     if (sourceDataBudget == nullptr) {
         sourceDataBudget = defaultImageSourceDataBudget();
@@ -128,12 +125,14 @@ ImageIoJob startStoredImageDataLoad(QObject* receiver, ImageDecodeRequest reques
             completion.claimAndRun([&]() {
                 if (state->resourceLimitExceeded) {
                     state->sourceData = {};
-                    kiriview::invokeIfSet(errorCallback, imageSourceDataResourceLimitDiagnostic());
+                    kiriview::invokeIfSet(errorCallback,
+                        ImageDataLoadError { imageSourceDataResourceLimitDiagnostic() });
                     return;
                 }
                 if (finishedJob->error() != KJob::NoError) {
                     state->sourceData = {};
-                    kiriview::invokeIfSet(errorCallback, finishedJob->errorString());
+                    kiriview::invokeIfSet(
+                        errorCallback, ImageDataLoadError { finishedJob->errorString() });
                     return;
                 }
 

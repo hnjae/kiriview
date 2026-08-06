@@ -6,9 +6,12 @@
 #include "imagedocumentstate.h"
 #include "location/imagedocumentlocation.h"
 #include "predecode/imagepredecodecoordinator.h"
+#include "predecode/predecodelogging.h"
 
+#include <QDebug>
 #include <optional>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace kiriview {
@@ -188,6 +191,13 @@ void ImageDocumentPredecodeController::scheduleWithConfirmedCandidateSnapshot(
             }
             if (result.succeeded) {
                 context.candidateSnapshot = std::move(result.snapshot);
+            } else if (result.error.has_value()) {
+                std::visit(
+                    [](const auto& detail) {
+                        qCWarning(kiriviewPredecodeLog).noquote()
+                            << "predecode candidate snapshot loading failed" << detail;
+                    },
+                    *result.error);
             }
             m_coordinator->schedule(context);
         });
