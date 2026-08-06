@@ -40,8 +40,9 @@ public:
         ImageDecodeDependencies decodeDependencies, qsizetype cacheByteBudget,
         CurrentPageNumberCallback currentPageNumber = {},
         EnsurePageCandidateSnapshotCallback ensurePageCandidateSnapshot = {},
-        PowerSaverProvider powerSaverProvider = {}, bool ordinaryDirectMediaPredecodeEnabled = true,
-        TimerScheduler timerScheduler = {}, PredecodeThreadCountProvider threadCountProvider = {});
+        const PowerSaverProvider& powerSaverProvider = {},
+        bool ordinaryDirectMediaPredecodeEnabled = true, TimerScheduler timerScheduler = {},
+        PredecodeThreadCountProvider threadCountProvider = {});
     ~ImageDocumentPredecodeController();
     Q_DISABLE_COPY_MOVE(ImageDocumentPredecodeController)
 

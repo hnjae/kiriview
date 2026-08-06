@@ -28,7 +28,7 @@ public:
     using Context = PredecodeScheduleContext;
 
     ImagePredecodeCoordinator(ImageDecodeDependencies decodeDependencies,
-        PowerSaverProvider powerSaverProvider, qsizetype cacheByteBudget,
+        const PowerSaverProvider& powerSaverProvider, qsizetype cacheByteBudget,
         TimerScheduler timerScheduler = {}, PredecodeThreadCountProvider threadCountProvider = {});
 
     void acceptForegroundSelection(const DisplayedImageLocation& location);

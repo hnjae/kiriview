@@ -313,7 +313,7 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
             ImageDocumentPageCandidateListSnapshotCallback callback) {
             m_navigationService->ensurePageCandidateSnapshot(context, std::move(callback));
         },
-        std::move(dependencies.powerSaver), dependencies.ordinaryDirectMediaPredecodeEnabled,
+        dependencies.powerSaver, dependencies.ordinaryDirectMediaPredecodeEnabled,
         std::move(dependencies.predecodeTimerScheduler),
         std::move(dependencies.predecodeThreadCountProvider));
     m_predecodedImageLookup = std::make_unique<ImageDocumentPredecodedImageLookup>(

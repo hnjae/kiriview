@@ -25,8 +25,8 @@ namespace {
 }
 
 ImagePredecodeCoordinator::ImagePredecodeCoordinator(ImageDecodeDependencies decodeDependencies,
-    PowerSaverProvider powerSaverProvider, qsizetype cacheByteBudget, TimerScheduler timerScheduler,
-    PredecodeThreadCountProvider threadCountProvider)
+    const PowerSaverProvider& powerSaverProvider, qsizetype cacheByteBudget,
+    TimerScheduler timerScheduler, PredecodeThreadCountProvider threadCountProvider)
     : m_threadCountProvider(
           threadCountProvider ? std::move(threadCountProvider) : defaultPredecodeThreadCount)
     , m_loadController(this, std::move(decodeDependencies), cacheByteBudget)
@@ -35,7 +35,7 @@ ImagePredecodeCoordinator::ImagePredecodeCoordinator(ImageDecodeDependencies dec
           [this](const PredecodePendingSchedule& schedule) {
               scheduleAdjacentImagePredecode(schedule);
           },
-          []() {}, std::move(powerSaverProvider), std::move(timerScheduler))
+          []() {}, powerSaverProvider, std::move(timerScheduler))
 {
 }
 

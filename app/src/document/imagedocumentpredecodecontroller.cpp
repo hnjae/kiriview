@@ -84,13 +84,13 @@ ImageDocumentPredecodeController::ImageDocumentPredecodeController(ImageDocument
     ImageDecodeDependencies decodeDependencies, qsizetype cacheByteBudget,
     CurrentPageNumberCallback currentPageNumber,
     EnsurePageCandidateSnapshotCallback ensurePageCandidateSnapshot,
-    PowerSaverProvider powerSaverProvider, bool ordinaryDirectMediaPredecodeEnabled,
+    const PowerSaverProvider& powerSaverProvider, bool ordinaryDirectMediaPredecodeEnabled,
     TimerScheduler timerScheduler, PredecodeThreadCountProvider threadCountProvider)
     : m_state(state)
     , m_primaryDisplayedImage(std::move(primaryDisplayedImage))
     , m_firstDisplayDecodeContext(std::move(firstDisplayDecodeContext))
     , m_coordinator(std::make_unique<ImagePredecodeCoordinator>(std::move(decodeDependencies),
-          std::move(powerSaverProvider), cacheByteBudget, std::move(timerScheduler),
+          powerSaverProvider, cacheByteBudget, std::move(timerScheduler),
           std::move(threadCountProvider)))
     , m_currentPageNumber(std::move(currentPageNumber))
     , m_ensurePageCandidateSnapshot(std::move(ensurePageCandidateSnapshot))
