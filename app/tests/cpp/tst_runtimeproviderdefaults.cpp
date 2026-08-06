@@ -6,6 +6,7 @@
 #include "async/imageworkerscheduler.h"
 #include "candidate_test_support.h"
 #include "decoding/imagedecodedependencies.h"
+#include "decoding/imagedecodeworkspace.h"
 #include "document/imagedocumentruntimedependencies.h"
 #include "location/imagedocumentlocation.h"
 #include "navigation/directmedianavigationcandidateprovider.h"
@@ -14,6 +15,7 @@
 #include "system/powersaverprovider.h"
 
 #include <QByteArray>
+#include <QFile>
 #include <QObject>
 #include <QTest>
 #include <QUrl>
@@ -25,6 +27,12 @@
 namespace {
 using kiriview::TestSupport::archivePageUrl;
 using kiriview::TestSupport::localUrl;
+
+QByteArray fixtureData(const QString& fileName)
+{
+    QFile file(QStringLiteral(KIRIVIEW_TEST_SOURCE_DIR "/../fixtures/") + fileName);
+    return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray {};
+}
 
 struct ManualImageWorkerSchedule
 {
@@ -78,6 +86,7 @@ private Q_SLOTS:
     void imageDocumentRuntimeDependenciesBindContainerLoaderToDirectoryProvider();
     void imageDocumentRuntimeDependenciesBindMediaEntryStoreToWorkerScheduler();
     void decodeDependencyDefaultsFillMissingFunctionsAndPreserveOverrides();
+    void decodeDependencyDefaultsBindDecoderToWorkspaceBudget();
     void decodeDependencyDefaultsBindDataLoaderToWorkerScheduler();
     void decodeDependencyDefaultsBindThumbnailLookupToWorkerScheduler();
     void fileDeletionDefaultFillsMissingProviderAndPreservesOverride();
@@ -306,6 +315,26 @@ void TestRuntimeProviderDefaults::decodeDependencyDefaultsFillMissingFunctionsAn
 
     resolved.dataLoader(nullptr, kiriview::ImageDecodeRequest(), {}, {});
     QCOMPARE(dataLoadCount, 1);
+}
+
+void TestRuntimeProviderDefaults::decodeDependencyDefaultsBindDecoderToWorkspaceBudget()
+{
+    const QByteArray apng = fixtureData(QStringLiteral("animated-smoke.apng"));
+    QVERIFY(!apng.isEmpty());
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(1, 1);
+    kiriview::ImageDecodeDependencies dependencies;
+    dependencies.workspaceBudget = budget;
+
+    kiriview::ImageDecodeDependencies resolved
+        = kiriview::imageDecodeDependenciesWithDefaults(std::move(dependencies));
+    const kiriview::DecodedImageResult result
+        = resolved.dataDecoder(apng, kiriview::ImageDecodeRequest {});
+    const kiriview::DecodedImageFailure* failure = kiriview::decodedImageResultFailure(result);
+
+    QVERIFY(failure != nullptr);
+    QCOMPARE(failure->route, kiriview::DecodedImageFailureRoute::Apng);
+    QCOMPARE(failure->cause, kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
 }
 
 void TestRuntimeProviderDefaults::decodeDependencyDefaultsBindDataLoaderToWorkerScheduler()

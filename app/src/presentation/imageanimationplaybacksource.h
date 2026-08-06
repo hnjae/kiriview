@@ -16,11 +16,13 @@ namespace kiriview {
 enum class ImageAnimationPlaybackOpenStatus {
     Success,
     Error,
+    ResourceLimitExceeded,
 };
 
 struct ImageAnimationPlaybackOpenResult
 {
     ImageAnimationPlaybackOpenStatus status = ImageAnimationPlaybackOpenStatus::Error;
+    ImageDecodeWorkspaceHold workspaceHold;
     QImage firstFrame;
     int firstFrameDelay = 0;
     int loopCount = 0;
@@ -32,6 +34,7 @@ enum class ImageAnimationPlaybackReadStatus {
     Frame,
     End,
     Error,
+    ResourceLimitExceeded,
 };
 
 struct ImageAnimationPlaybackReadResult

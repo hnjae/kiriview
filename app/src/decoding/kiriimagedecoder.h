@@ -6,12 +6,16 @@
 
 #include "decodedimageresult.h"
 #include "imagedecoderequest.h"
+#include "imagedecodeworkspace.h"
 
 #include <QByteArray>
+#include <memory>
 
 namespace kiriview {
 DecodedImageResult decodeImageData(const QByteArray& data);
 DecodedImageResult decodeImageData(const QByteArray& data, const ImageDecodeRequest& request);
+DecodedImageResult decodeImageData(const QByteArray& data, const ImageDecodeRequest& request,
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget);
 }
 
 #endif

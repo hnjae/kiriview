@@ -10,13 +10,17 @@
 
 #include <QByteArray>
 #include <functional>
+#include <memory>
 
 namespace kiriview {
+class ImageDecodeWorkspaceBudget;
+
 struct ImageDecodeRouterInput
 {
     const QByteArray& data;
     const ImageDecodeRequest& request;
     QtRasterFormat qtRasterFormat = QtRasterFormat::None;
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget;
 };
 
 enum class ImageDecodeHandlerKind {
@@ -60,8 +64,9 @@ public:
     explicit ImageDecodeRouterRuntime(ImageDecodeRouterHandlers handlers = {},
         ImageDecodeCompatibleDataTransform compatibleDataTransform = {});
 
-    [[nodiscard]] DecodedImageResult execute(
-        ImageDecodeRoute route, const QByteArray& data, const ImageDecodeRequest& request) const;
+    [[nodiscard]] DecodedImageResult execute(ImageDecodeRoute route, const QByteArray& data,
+        const ImageDecodeRequest& request,
+        std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {}) const;
 
 private:
     ImageDecodeRouterHandlers m_handlers;
@@ -75,16 +80,18 @@ public:
         ImageDecodeInputClassifier classifier = {},
         ImageDecodeCompatibleDataTransform compatibleDataTransform = {});
 
-    [[nodiscard]] DecodedImageResult decode(
-        const QByteArray& data, const ImageDecodeRequest& request) const;
+    [[nodiscard]] DecodedImageResult decode(const QByteArray& data,
+        const ImageDecodeRequest& request,
+        std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {}) const;
 
 private:
     ImageDecodeInputClassifier m_classifier;
     ImageDecodeRouterRuntime m_runtime;
 };
 
-DecodedImageResult decodeImageDataWithDefaultRouter(
-    const QByteArray& data, const ImageDecodeRequest& request);
+DecodedImageResult decodeImageDataWithDefaultRouter(const QByteArray& data,
+    const ImageDecodeRequest& request,
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {});
 }
 
 #endif

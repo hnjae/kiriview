@@ -62,7 +62,8 @@ void ApngRgbaBuffer::clear()
 {
     m_imageSize = QSize();
     m_rowBytes = 0;
-    m_bytes.clear();
+    std::vector<unsigned char> empty;
+    m_bytes.swap(empty);
 }
 
 bool ApngRgbaBuffer::isValid() const { return !m_imageSize.isEmpty() && !m_bytes.empty(); }
@@ -201,6 +202,9 @@ std::optional<QImage> ApngRgbaBuffer::imageCopy() const
     }
 
     QImage image = borrowedImage.copy();
+    if (image.isNull()) {
+        return std::nullopt;
+    }
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     return image;
 }

@@ -91,6 +91,12 @@ private:
         ImageWorkerTask task;
     };
 
+    struct ActiveAnimationFrameWork
+    {
+        quint64 workerUnitId = 0;
+        bool publishResult = true;
+    };
+
     struct StaticFramePlan
     {
         QSize targetRasterSize;
@@ -133,9 +139,9 @@ private:
     void finishThumbnail(const ImageDecodeRequest& request, StaticDisplayImagePayload displayImage);
     void finishDecodedImage(DecodedImage image);
     void finishStaticImage(StaticDecodedImage image);
-    void finishAnimationImage(QImage firstFrame, ImageAnimationSourceCatalog catalog,
-        ImageAnimationPlaybackRequest playbackRequest, QString sourceIdentity,
-        ImageSourceRevision sourceRevision, QString formatIdentifier);
+    void finishAnimationImage(ImageDecodeWorkspaceHold firstFrameWorkspaceHold, QImage firstFrame,
+        ImageAnimationSourceCatalog catalog, ImageAnimationPlaybackRequest playbackRequest,
+        QString sourceIdentity, ImageSourceRevision sourceRevision, QString formatIdentifier);
     void finishFailure(ImageSequenceProviderFailureCause cause, ImageLoadFailure failure);
     void publishMetadata();
     void publishFrames();
@@ -156,6 +162,7 @@ private:
         quint64 attemptId, bool retainRefinementWork);
     void discardRetainedStaticRefinementsExcept(quint64 workerUnitId);
     void publishAnimationFrame(PendingFrame pending);
+    void retireAnimationFrameWork();
     void finishAnimationFrame(const PendingFrame& pending, const AnimationState& animation,
         int requestedFrame, AnimationSourceFrameResult result);
     quint64 reserveWorkerUnit(
@@ -184,10 +191,12 @@ private:
     std::vector<WorkerUnit> m_workerUnits;
     std::vector<StaticFrameAttempt> m_staticFrameAttempts;
     std::vector<StaticRefinementWork> m_staticRefinementWorks;
+    std::optional<ActiveAnimationFrameWork> m_activeAnimationFrameWork;
     quint64 m_nextWorkerUnitId = 1;
     quint64 m_nextStaticFrameAttemptId = 1;
     bool m_decodeStarted = false;
     bool m_decodeComplete = false;
+    bool m_publishingFrames = false;
     bool m_closed = false;
 };
 }

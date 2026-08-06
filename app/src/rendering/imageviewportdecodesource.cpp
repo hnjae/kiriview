@@ -11,6 +11,7 @@
 #include <ImageViewport/imagesequence.h>
 
 #include <QMetaObject>
+#include <QScopeGuard>
 #include <QSizeF>
 #include <algorithm>
 #include <chrono>
@@ -45,8 +46,11 @@ kiriview::ImageLoadFailure loadFailure(const kiriview::ImageLoadSession& session
 kiriview::ImageLoadFailure loadFailure(
     const kiriview::ImageLoadSession& session, const kiriview::DecodedImageFailure& failure)
 {
-    return loadFailure(session, kiriview::ImageLoadFailureKind::Decode, failure.errorString,
-        failure.diagnosticDetail, failure.route, failure.operation, failure.retryable);
+    kiriview::ImageLoadFailure projected
+        = loadFailure(session, kiriview::ImageLoadFailureKind::Decode, failure.errorString,
+            failure.diagnosticDetail, failure.route, failure.operation, failure.retryable);
+    projected.decodeCause = failure.cause;
+    return projected;
 }
 
 kiriview::ImageLoadFailure loadFailure(
@@ -530,6 +534,12 @@ void ImageViewportDecodeProviderSource::cancel(
             ++unit;
             continue;
         }
+        if (m_activeAnimationFrameWork.has_value()
+            && m_activeAnimationFrameWork->workerUnitId == unit->id) {
+            m_activeAnimationFrameWork->publishResult = false;
+            ++unit;
+            continue;
+        }
         detachedTasks.push_back(std::move(unit->task));
         unit = m_workerUnits.erase(unit);
     }
@@ -546,6 +556,8 @@ void ImageViewportDecodeProviderSource::close()
     m_closed = true;
     m_pendingMetadata.clear();
     m_pendingFrames.clear();
+    m_activeAnimationFrameWork.reset();
+    m_publishingFrames = false;
     for (StaticFrameAttempt& attempt : m_staticFrameAttempts) {
         if (attempt.initialDetailTimer != nullptr) {
             attempt.initialDetailTimer->stop();
@@ -633,31 +645,32 @@ void ImageViewportDecodeProviderSource::finishDecodedImage(DecodedImage image)
                 finishStaticImage(std::move(decoded));
             } else if constexpr (std::is_same_v<Image, ReaderAnimationImage>) {
                 const QString formatIdentifier = QString::fromLatin1(decoded.format);
-                finishAnimationImage(std::move(decoded.firstFrame), std::move(decoded.catalog),
+                finishAnimationImage({}, std::move(decoded.firstFrame), std::move(decoded.catalog),
                     readerAnimationPlaybackRequest(std::move(decoded.data),
                         std::move(decoded.format), std::move(decoded.sourceDataLease)),
                     std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
                     formatIdentifier);
             } else if constexpr (std::is_same_v<Image, ApngAnimationImage>) {
-                finishAnimationImage(std::move(decoded.firstFrame), std::move(decoded.catalog),
-                    apngAnimationPlaybackRequest(
-                        std::move(decoded.data), std::move(decoded.sourceDataLease)),
+                finishAnimationImage(std::move(decoded.firstFrameWorkspaceHold),
+                    std::move(decoded.firstFrame), std::move(decoded.catalog),
+                    apngAnimationPlaybackRequest(std::move(decoded.data),
+                        std::move(decoded.sourceDataLease), m_dependencies.workspaceBudget),
                     std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
                     QStringLiteral("apng"));
             } else if constexpr (std::is_same_v<Image, WebPAnimationImage>) {
-                finishAnimationImage(std::move(decoded.firstFrame), std::move(decoded.catalog),
+                finishAnimationImage({}, std::move(decoded.firstFrame), std::move(decoded.catalog),
                     webpAnimationPlaybackRequest(
                         std::move(decoded.data), std::move(decoded.sourceDataLease)),
                     std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
                     QStringLiteral("webp"));
             } else if constexpr (std::is_same_v<Image, JxlAnimationImage>) {
-                finishAnimationImage(std::move(decoded.firstFrame), std::move(decoded.catalog),
+                finishAnimationImage({}, std::move(decoded.firstFrame), std::move(decoded.catalog),
                     jxlAnimationPlaybackRequest(
                         std::move(decoded.data), std::move(decoded.sourceDataLease)),
                     std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
                     QStringLiteral("jxl"));
             } else if constexpr (std::is_same_v<Image, HeifSequenceAnimationImage>) {
-                finishAnimationImage(std::move(decoded.firstFrame), std::move(decoded.catalog),
+                finishAnimationImage({}, std::move(decoded.firstFrame), std::move(decoded.catalog),
                     heifSequenceAnimationPlaybackRequest(
                         std::move(decoded.data), std::move(decoded.sourceDataLease)),
                     std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
@@ -686,7 +699,8 @@ void ImageViewportDecodeProviderSource::finishStaticImage(StaticDecodedImage ima
     publishFrames();
 }
 
-void ImageViewportDecodeProviderSource::finishAnimationImage(QImage firstFrame,
+void ImageViewportDecodeProviderSource::finishAnimationImage(
+    ImageDecodeWorkspaceHold firstFrameWorkspaceHold, QImage firstFrame,
     ImageAnimationSourceCatalog catalog, ImageAnimationPlaybackRequest playbackRequest,
     QString sourceIdentity, ImageSourceRevision sourceRevision, QString formatIdentifier)
 {
@@ -701,6 +715,8 @@ void ImageViewportDecodeProviderSource::finishAnimationImage(QImage firstFrame,
         = imageAnimationPlaybackSourceFactory(std::move(playbackRequest));
     if (firstFrame.isNull() || !catalog.isValid() || catalog.logicalSize != firstFrame.size()
         || !sourceFactory) {
+        firstFrame = {};
+        firstFrameWorkspaceHold = {};
         finishFailure(ImageSequenceProviderFailureCause::Decode,
             loadFailure(resolvedSession(), ImageLoadFailureKind::Decode, QString(),
                 QStringLiteral("animation timing metadata is invalid"),
@@ -712,8 +728,8 @@ void ImageViewportDecodeProviderSource::finishAnimationImage(QImage firstFrame,
     ImageSequenceProviderMetadata metadata = ImageSequenceProviderMetadata::timedFrameList(
         catalog.logicalSize, std::move(catalog.frameDurations));
     metadata.setAuthoredAnimationFacts(authoredAnimationFacts(catalog.repeatCount));
-    auto runtime = std::make_shared<AnimationSourceRuntime>(
-        std::move(firstFrame), metadata.frameCount(), std::move(sourceFactory));
+    auto runtime = std::make_shared<AnimationSourceRuntime>(std::move(firstFrame),
+        metadata.frameCount(), std::move(sourceFactory), std::move(firstFrameWorkspaceHold));
     m_metadata = metadata;
     m_animation = AnimationState {
         std::move(runtime),
@@ -768,14 +784,25 @@ void ImageViewportDecodeProviderSource::publishFrames()
         return;
     }
 
+    if (m_animation.has_value()) {
+        if (m_publishingFrames) {
+            return;
+        }
+        m_publishingFrames = true;
+        while (!m_closed && !m_pendingFrames.empty() && !m_activeAnimationFrameWork.has_value()) {
+            PendingFrame frame = std::move(m_pendingFrames.front());
+            m_pendingFrames.erase(m_pendingFrames.begin());
+            m_activeAnimationFrameWork = ActiveAnimationFrameWork {};
+            publishAnimationFrame(std::move(frame));
+        }
+        m_publishingFrames = false;
+        return;
+    }
+
     while (!m_closed && !m_pendingFrames.empty()) {
         PendingFrame frame = std::move(m_pendingFrames.front());
         m_pendingFrames.erase(m_pendingFrames.begin());
-        if (m_animation.has_value()) {
-            publishAnimationFrame(std::move(frame));
-        } else {
-            publishStaticFrame(std::move(frame));
-        }
+        publishStaticFrame(std::move(frame));
     }
 }
 
@@ -1343,6 +1370,7 @@ void ImageViewportDecodeProviderSource::publishAnimationFrame(PendingFrame pendi
             ImageViewportProviderFrameResult::failed(ImageSequenceProviderFailureCause::Decode,
                 loadFailure(resolvedSession(), ImageLoadFailureKind::Decode, QString(),
                     QStringLiteral("requested animation frame is unavailable"))));
+        retireAnimationFrameWork();
         return;
     }
     const AnimationState animation = *m_animation;
@@ -1350,10 +1378,12 @@ void ImageViewportDecodeProviderSource::publishAnimationFrame(PendingFrame pendi
     if (requestedFrame == 0) {
         finishAnimationFrame(
             pending, animation, requestedFrame, animation.runtime->frame(requestedFrame));
+        retireAnimationFrameWork();
         return;
     }
 
     const quint64 workerUnitId = reserveWorkerUnit(pending.identity);
+    m_activeAnimationFrameWork->workerUnitId = workerUnitId;
     const std::weak_ptr<ImageViewportDecodeProviderSource> weakSelf = weak_from_this();
     ImageWorkerTask task = m_dependencies.workerScheduler.run(
         this,
@@ -1361,12 +1391,32 @@ void ImageViewportDecodeProviderSource::publishAnimationFrame(PendingFrame pendi
         [weakSelf, workerUnitId, pending = std::move(pending), animation, requestedFrame](
             AnimationSourceFrameResult result) mutable {
             const std::shared_ptr<ImageViewportDecodeProviderSource> self = weakSelf.lock();
-            if (self == nullptr || !self->detachWorkerUnit(workerUnitId) || self->m_closed) {
+            if (self == nullptr || !self->detachWorkerUnit(workerUnitId)) {
                 return;
             }
-            self->finishAnimationFrame(pending, animation, requestedFrame, std::move(result));
+            const bool publishResult = !self->m_closed
+                && self->m_activeAnimationFrameWork.has_value()
+                && self->m_activeAnimationFrameWork->workerUnitId == workerUnitId
+                && self->m_activeAnimationFrameWork->publishResult;
+            if (publishResult) {
+                self->finishAnimationFrame(pending, animation, requestedFrame, std::move(result));
+            } else {
+                result = std::unexpected(AnimationSourceFrameFailure {});
+            }
+            if (self->m_activeAnimationFrameWork.has_value()
+                && self->m_activeAnimationFrameWork->workerUnitId == workerUnitId) {
+                self->retireAnimationFrameWork();
+            }
         });
     attachWorkerTask(workerUnitId, std::move(task));
+}
+
+void ImageViewportDecodeProviderSource::retireAnimationFrameWork()
+{
+    m_activeAnimationFrameWork.reset();
+    if (!m_closed && !m_publishingFrames) {
+        publishFrames();
+    }
 }
 
 void ImageViewportDecodeProviderSource::finishAnimationFrame(const PendingFrame& pending,
@@ -1375,16 +1425,26 @@ void ImageViewportDecodeProviderSource::finishAnimationFrame(const PendingFrame&
     if (m_closed) {
         return;
     }
-    if (!result.has_value() || result->isNull()
-        || result->size() != animation.metadata.sourceLogicalSize().toSize()) {
+    [[maybe_unused]] const auto releaseFirstFrameWorkspace
+        = qScopeGuard([runtime = animation.runtime, requestedFrame]() {
+              if (requestedFrame == 0 && runtime != nullptr) {
+                  runtime->releaseRetainedFirstFrameWorkspace();
+              }
+          });
+    if (!result.has_value() || result->image.isNull()
+        || result->image.size() != animation.metadata.sourceLogicalSize().toSize()) {
         QString errorString = result.has_value()
             ? QStringLiteral("requested animation frame is unavailable")
-            : std::move(result.error());
+            : std::move(result.error().errorString);
         if (errorString.isEmpty()) {
             errorString = QStringLiteral("requested animation frame is unavailable");
         }
+        const ImageSequenceProviderFailureCause failureCause = !result.has_value()
+                && result.error().cause == AnimationSourceFrameFailureCause::ResourceLimitExceeded
+            ? ImageSequenceProviderFailureCause::ResourceExhausted
+            : ImageSequenceProviderFailureCause::Decode;
         pending.completion(pending.identity,
-            ImageViewportProviderFrameResult::failed(ImageSequenceProviderFailureCause::Decode,
+            ImageViewportProviderFrameResult::failed(failureCause,
                 loadFailure(
                     resolvedSession(), ImageLoadFailureKind::Decode, errorString, errorString)));
         return;
@@ -1395,7 +1455,7 @@ void ImageViewportDecodeProviderSource::finishAnimationFrame(const PendingFrame&
         animation.sourceIdentity,
         {},
         animation.metadata.sourceLogicalSize().toSize(),
-        std::move(*result),
+        std::move(result->image),
         DisplayImageQuality::Exact,
         {},
         {},

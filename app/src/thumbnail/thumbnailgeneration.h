@@ -6,6 +6,8 @@
 
 #include "async/imageiojob.h"
 #include "async/imageworkerscheduler.h"
+#include "decoding/decodedimagefailure.h"
+#include "decoding/imagedecodeworkspace.h"
 #include "decoding/imagesourcedata.h"
 #include "location/imagelocation.h"
 #include "thumbnail/thumbnailbucket.h"
@@ -18,6 +20,7 @@
 #include <QString>
 #include <QUrl>
 #include <functional>
+#include <memory>
 #include <optional>
 
 class QObject;
@@ -25,7 +28,14 @@ class QObject;
 namespace kiriview {
 enum class ThumbnailGenerationStatus {
     Ready,
+    ResourceLimitExceeded,
     Failed,
+};
+
+struct ThumbnailGenerationWorkspaceHolds
+{
+    ImageDecodeWorkspaceHold decodedImage;
+    ImageDecodeWorkspaceHold transformation;
 };
 
 struct ThumbnailGenerationRequest
@@ -44,6 +54,7 @@ struct ThumbnailGenerationRequest
 struct ThumbnailGenerationResult
 {
     ThumbnailGenerationStatus status = ThumbnailGenerationStatus::Failed;
+    ThumbnailGenerationWorkspaceHolds workspaceHolds;
     QImage image;
     ActiveNavigationThumbnailDemandBucket requestedBucket
         = ActiveNavigationThumbnailDemandBucket::None;
@@ -56,7 +67,17 @@ using ThumbnailGenerationBytesLoader
 using ThumbnailGenerationOriginalIdentityLoader
     = std::function<std::optional<ThumbnailOriginalIdentity>(
         const ThumbnailGenerationRequest&, QString*)>;
-using ThumbnailGenerationImageDecoder = std::function<QImage(QByteArray, int, QString*)>;
+
+struct ThumbnailGenerationImageDecodeResult
+{
+    ThumbnailGenerationWorkspaceHolds workspaceHolds;
+    QImage image;
+    QString errorString;
+    DecodedImageFailureCause failureCause = DecodedImageFailureCause::Unknown;
+};
+
+using ThumbnailGenerationImageDecoder
+    = std::function<ThumbnailGenerationImageDecodeResult(QByteArray, int)>;
 using ThumbnailGenerationMaximumLongEdgePolicy
     = std::function<int(ActiveNavigationThumbnailDemandBucket)>;
 
@@ -88,6 +109,7 @@ struct ThumbnailGenerationDependencies
     ThumbnailGenerationOriginalIdentityLoader openedCollectionOriginalIdentityLoader;
     ThumbnailGenerationCacheRepository cacheRepository;
     std::shared_ptr<ImageSourceDataBudget> sourceDataBudget;
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget;
 };
 
 using ThumbnailGenerationCallback = std::function<void(ThumbnailGenerationResult)>;

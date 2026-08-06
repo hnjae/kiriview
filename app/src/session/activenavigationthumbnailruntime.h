@@ -26,6 +26,7 @@ struct ActiveNavigationThumbnailRuntimeDependencies
     ImageWorkerScheduler workerScheduler;
     ActiveNavigationThumbnailFailureDiagnosticCallback failureDiagnosticCallback;
     std::shared_ptr<ImageSourceDataBudget> sourceDataBudget;
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget;
 };
 
 class ActiveNavigationThumbnailRuntime final
@@ -39,7 +40,8 @@ public:
         ThumbnailGenerationProvider generationProvider = {},
         ThumbnailSourceAdapter sourceAdapter = {}, const ImageWorkerScheduler& workerScheduler = {},
         ActiveNavigationThumbnailFailureDiagnosticCallback failureDiagnosticCallback = {},
-        std::shared_ptr<ImageSourceDataBudget> sourceDataBudget = {});
+        std::shared_ptr<ImageSourceDataBudget> sourceDataBudget = {},
+        std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {});
     ~ActiveNavigationThumbnailRuntime();
     Q_DISABLE_COPY_MOVE(ActiveNavigationThumbnailRuntime)
 

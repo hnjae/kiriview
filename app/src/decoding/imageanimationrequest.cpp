@@ -23,12 +23,14 @@ ImageAnimationPlaybackRequest readerAnimationPlaybackRequest(
     };
 }
 
-ImageAnimationPlaybackRequest apngAnimationPlaybackRequest(
-    QByteArray data, ImageSourceDataLease sourceDataLease)
+ImageAnimationPlaybackRequest apngAnimationPlaybackRequest(QByteArray data,
+    ImageSourceDataLease sourceDataLease,
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget)
 {
     return ImageAnimationPlaybackRequest {
         ApngAnimationPlaybackRequest {
             std::move(data),
+            std::move(workspaceBudget),
         },
         std::move(sourceDataLease),
     };

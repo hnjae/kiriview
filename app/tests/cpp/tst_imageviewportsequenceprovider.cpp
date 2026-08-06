@@ -482,6 +482,7 @@ private Q_SLOTS:
     void metadataAndStillFrameFlowThroughProvider();
     void productionDecodeStartsOnlyForProviderDemand();
     void sourceAccessFailurePreservesTypedSourceDetails();
+    void decodeResourceFailurePreservesTypedCause();
     void deferredDecodeSourcePreservesDemandUntilResolution();
     void deferredDecodeSourceAuthoritativeSeedFlushesQueuedDemandSynchronously();
     void deferredDecodeSourceInvalidationDropsLateResolution_data();
@@ -491,6 +492,7 @@ private Q_SLOTS:
     void providerResourcePreservesDistinctTimedFramePixelsAndHandles();
     void apngFirstFramePublishesBeforeLaterRasterFailure();
     void actualApngFramesPreservePixelsThroughProviderResource();
+    void animationFrameDecodeIsBoundedToOneInFlightOutput();
     void animationFrameCompletionAfterInvalidationIsDropped_data();
     void animationFrameCompletionAfterInvalidationIsDropped();
     void foregroundThumbnailRemainsProvisionalUntilAuthoritativeTerminal_data();
@@ -612,6 +614,54 @@ void TestImageViewportSequenceProvider::sourceAccessFailurePreservesTypedSourceD
     QCOMPARE(result->failure->mediaEntrySourceError->entryPath, expectedFailure.entryPath);
     QCOMPARE(
         result->failure->mediaEntrySourceError->diagnosticDetail, expectedFailure.diagnosticDetail);
+}
+
+void TestImageViewportSequenceProvider::decodeResourceFailurePreservesTypedCause()
+{
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::ImageDecodeDependencies dependencies
+        = kiriview::TestSupport::imageDecodeDependenciesFor(
+            dataLoader, [](const QByteArray&, const kiriview::ImageDecodeRequest&) {
+                kiriview::DecodedImageFailure failure;
+                failure.errorString = QStringLiteral("Image workspace limit exceeded");
+                failure.diagnosticDetail
+                    = QStringLiteral("synthetic decode workspace admission failure");
+                failure.route = kiriview::DecodedImageFailureRoute::Apng;
+                failure.operation = kiriview::DecodedImageFailureOperation::DecodeAnimationOpen;
+                failure.cause = kiriview::DecodedImageFailureCause::ResourceLimitExceeded;
+                return kiriview::failedDecodedImageResult(std::move(failure));
+            });
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::ImageLoadSession(73,
+            kiriview::ImageLoadRequest::fromExternalSource(kiriview::resolvedNavigationSource(
+                QUrl(QStringLiteral("file:///tmp/oversized-animation.png")), {})),
+            kiriview::DisplayedImageLocation::fromUrl(
+                QUrl(QStringLiteral("file:///tmp/oversized-animation.png")))),
+        std::move(dependencies));
+    std::optional<kiriview::ImageViewportProviderMetadataResult> result;
+
+    source->requestMetadata(
+        kiriview::ImageViewportProviderWorkIdentity {
+            73,
+            ImageViewportPageRole::Primary,
+            {},
+            {},
+            QStringLiteral("decode-resource-failure"),
+        },
+        [&result](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderMetadataResult completed) {
+            result = std::move(completed);
+        });
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+    dataLoader.finishFrontLoad(QByteArrayLiteral("synthetic image data"));
+
+    QTRY_VERIFY(result.has_value());
+    QCOMPARE(result->failureCause, ImageSequenceProviderFailureCause::Decode);
+    QVERIFY(result->failure.has_value());
+    QCOMPARE(
+        result->failure->decodeCause, kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+    QCOMPARE(result->failure->diagnosticDetail,
+        QStringLiteral("synthetic decode workspace admission failure"));
 }
 
 void TestImageViewportSequenceProvider::deferredDecodeSourcePreservesDemandUntilResolution()
@@ -1228,6 +1278,55 @@ void TestImageViewportSequenceProvider::actualApngFramesPreservePixelsThroughPro
 
     firstHandle->release();
     secondHandle->release();
+}
+
+void TestImageViewportSequenceProvider::animationFrameDecodeIsBoundedToOneInFlightOutput()
+{
+    const QByteArray data = animationFixtureData(QStringLiteral("animated-smoke.apng"));
+    QVERIFY(!data.isEmpty());
+
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    const QUrl url(QStringLiteral("file:///tmp/provider-bounded-animation-output.apng"));
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::ImageLoadSession(115,
+            kiriview::ImageLoadRequest::fromExternalSource(
+                kiriview::resolvedNavigationSource(url, {})),
+            kiriview::DisplayedImageLocation::fromUrl(url)),
+        actualDecodeDependencies(dataLoader, workerScheduler));
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        115,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("provider-bounded-animation-output"),
+    };
+    std::vector<kiriview::ImageViewportProviderFrameResult> results;
+    const auto requestFrame = [&source, &identity, &results]() {
+        source->requestFrame(identity, kiriview::ImageViewportProviderFrameRequest { 1, {} },
+            [&results](kiriview::ImageViewportProviderWorkIdentity,
+                kiriview::ImageViewportProviderFrameResult result) {
+                results.push_back(std::move(result));
+            });
+    };
+
+    requestFrame();
+    requestFrame();
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+    dataLoader.finishFrontLoad(data);
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
+
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(2));
+    workerScheduler.runWork(1);
+    workerScheduler.finish(1);
+    QCOMPARE(results.size(), std::size_t(1));
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(3));
+
+    workerScheduler.runWork(2);
+    workerScheduler.finish(2);
+    QCOMPARE(results.size(), std::size_t(2));
 }
 
 void TestImageViewportSequenceProvider::animationFrameCompletionAfterInvalidationIsDropped_data()

@@ -3,6 +3,7 @@
 
 #include "decoding/apnganimationreader.h"
 #include "decoding/decodedimageresult.h"
+#include "decoding/imagedecodeworkspace.h"
 #include "decoding/kiriimagedecoder.h"
 
 #include <QBuffer>
@@ -18,6 +19,7 @@
 #include <cstdint>
 #include <cstring>
 #include <initializer_list>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -220,6 +222,10 @@ private Q_SLOTS:
     void disposeBackgroundClearsFrameRegion();
     void disposePreviousRestoresFrameRegion();
     void malformedApngReportsError();
+    void workspaceBudgetRejectsCanvasBeforeFrameAllocation();
+    void workspaceAdmissionPrecedesDecoderOpen();
+    void workspaceBudgetIsSharedAndReleasedWithReader();
+    void decodedResultRetainsFirstFrameWorkspaceAdmission();
     void imageDecoderReturnsStreamingApngImage();
 };
 
@@ -349,6 +355,95 @@ void TestApngAnimationReader::malformedApngReportsError()
     const kiriview::ApngOpenResult result = reader.open(apng);
     QCOMPARE(result.status, kiriview::ApngOpenStatus::Error);
     QVERIFY(result.errorString.contains(QStringLiteral("APNG")));
+}
+
+void TestApngAnimationReader::workspaceBudgetRejectsCanvasBeforeFrameAllocation()
+{
+    const FrameSpec frame = fullCanvasFrame(1, 1, pixelBytes({ { { 255, 0, 0, 255 } } }));
+    const QByteArray apng = makeApng(1, 1, 1, { frame });
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(1, 1);
+
+    kiriview::ApngAnimationReader reader(std::move(budget));
+    const kiriview::ApngOpenResult result = reader.open(apng);
+
+    QCOMPARE(result.status, kiriview::ApngOpenStatus::ResourceLimitExceeded);
+}
+
+void TestApngAnimationReader::workspaceAdmissionPrecedesDecoderOpen()
+{
+    const FrameSpec frame = fullCanvasFrame(1, 1, pixelBytes({ { { 255, 0, 0, 255 } } }));
+    QByteArray apng = makeApng(1, 1, 1, { frame });
+    const qsizetype imageDataKindOffset = apng.indexOf(QByteArrayLiteral("IDAT"));
+    QVERIFY(imageDataKindOffset >= 4);
+    apng.truncate(imageDataKindOffset - 4);
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(1, 1);
+
+    kiriview::ApngAnimationReader reader(std::move(budget));
+
+    QCOMPARE(reader.open(apng).status, kiriview::ApngOpenStatus::ResourceLimitExceeded);
+}
+
+void TestApngAnimationReader::workspaceBudgetIsSharedAndReleasedWithReader()
+{
+    const FrameSpec frame = fullCanvasFrame(1, 1, pixelBytes({ { { 255, 0, 0, 255 } } }));
+    const QByteArray apng = makeApng(1, 1, 1, { frame });
+
+    auto measurementBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        256 * 1024 * 1024, 256 * 1024 * 1024);
+    auto measuredReader = std::make_unique<kiriview::ApngAnimationReader>(measurementBudget);
+    QCOMPARE(measuredReader->open(apng).status, kiriview::ApngOpenStatus::Success);
+    const qsizetype oneOperationWorkspace = measurementBudget->reservedByteCount();
+    QVERIFY(oneOperationWorkspace > 0);
+    measuredReader.reset();
+    QCOMPARE(measurementBudget->reservedByteCount(), qsizetype(0));
+
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        oneOperationWorkspace, oneOperationWorkspace);
+
+    auto first = std::make_unique<kiriview::ApngAnimationReader>(budget);
+    QCOMPARE(first->open(apng).status, kiriview::ApngOpenStatus::Success);
+    QCOMPARE(budget->reservedByteCount(), oneOperationWorkspace);
+
+    kiriview::ApngAnimationReader second(budget);
+    QCOMPARE(second.open(apng).status, kiriview::ApngOpenStatus::ResourceLimitExceeded);
+    QCOMPARE(budget->reservedByteCount(), oneOperationWorkspace);
+
+    first.reset();
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+    QCOMPARE(second.open(apng).status, kiriview::ApngOpenStatus::Success);
+    QCOMPARE(budget->reservedByteCount(), oneOperationWorkspace);
+}
+
+void TestApngAnimationReader::decodedResultRetainsFirstFrameWorkspaceAdmission()
+{
+    const FrameSpec first = fullCanvasFrame(1, 1, pixelBytes({ { { 255, 0, 0, 255 } } }));
+    const FrameSpec second = fullCanvasFrame(1, 1, pixelBytes({ { { 0, 0, 255, 255 } } }));
+    const QByteArray apng = makeApng(1, 1, 1, { first, second });
+    auto measurementBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        256 * 1024 * 1024, 256 * 1024 * 1024);
+    auto measuredReader = std::make_unique<kiriview::ApngAnimationReader>(measurementBudget);
+    QCOMPARE(measuredReader->open(apng).status, kiriview::ApngOpenStatus::Success);
+    const qsizetype oneOperationWorkspace = measurementBudget->reservedByteCount();
+    measuredReader.reset();
+
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        oneOperationWorkspace, oneOperationWorkspace);
+
+    {
+        const kiriview::DecodedImageResult result
+            = kiriview::decodeImageData(apng, kiriview::ImageDecodeRequest {}, budget);
+        QVERIFY(
+            kiriview::decodedImageResultImageAs<kiriview::ApngAnimationImage>(result) != nullptr);
+        QVERIFY(budget->reservedByteCount() > 0);
+
+        kiriview::ApngAnimationReader concurrentReader(budget);
+        QCOMPARE(
+            concurrentReader.open(apng).status, kiriview::ApngOpenStatus::ResourceLimitExceeded);
+    }
+
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+    kiriview::ApngAnimationReader releasedReader(budget);
+    QCOMPARE(releasedReader.open(apng).status, kiriview::ApngOpenStatus::Success);
 }
 
 void TestApngAnimationReader::imageDecoderReturnsStreamingApngImage()

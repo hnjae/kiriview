@@ -382,6 +382,23 @@ kiriview::KiriDocumentSessionDependencies documentSessionDependenciesWithCompose
     dependencies.sessionRuntime.directMediaPredecodeDependencies.imageDecode.sourceDataBudget
         = std::move(sourceDataBudget);
 
+    std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> workspaceBudget
+        = dependencies.imageDocument.imageDecode.workspaceBudget;
+    if (workspaceBudget == nullptr) {
+        workspaceBudget = dependencies.sessionRuntime.activeNavigationThumbnails.workspaceBudget;
+    }
+    if (workspaceBudget == nullptr) {
+        workspaceBudget = dependencies.sessionRuntime.directMediaPredecodeDependencies.imageDecode
+                              .workspaceBudget;
+    }
+    if (workspaceBudget == nullptr) {
+        workspaceBudget = kiriview::defaultImageDecodeWorkspaceBudget({}, systemMemory);
+    }
+    dependencies.imageDocument.imageDecode.workspaceBudget = workspaceBudget;
+    dependencies.sessionRuntime.activeNavigationThumbnails.workspaceBudget = workspaceBudget;
+    dependencies.sessionRuntime.directMediaPredecodeDependencies.imageDecode.workspaceBudget
+        = std::move(workspaceBudget);
+
     inheritMissingDirectMediaPredecodeDependencies(dependencies);
     return dependencies;
 }

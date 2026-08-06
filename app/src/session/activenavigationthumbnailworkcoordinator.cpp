@@ -23,6 +23,8 @@ QString fallbackThumbnailFailureError(kiriview::ActiveNavigationThumbnailFailure
         return QStringLiteral("Thumbnail cache lookup failed.");
     case kiriview::ActiveNavigationThumbnailFailureKind::GenerationFailed:
         return QStringLiteral("Thumbnail generation failed.");
+    case kiriview::ActiveNavigationThumbnailFailureKind::ResourceLimitExceeded:
+        return QStringLiteral("Thumbnail generation exceeded the application resource limit.");
     case kiriview::ActiveNavigationThumbnailFailureKind::ImageStoreInsertFailed:
         return QStringLiteral("Thumbnail image store insertion failed.");
     case kiriview::ActiveNavigationThumbnailFailureKind::GenerationProviderUnavailable:

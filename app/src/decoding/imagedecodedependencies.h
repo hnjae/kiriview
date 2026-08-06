@@ -10,6 +10,7 @@
 #include "decodedimageresult.h"
 #include "imagedataloaderror.h"
 #include "imagedecoderequest.h"
+#include "imagedecodeworkspace.h"
 #include "imagesourcedata.h"
 #include "rawthumbnailpreview.h"
 #include "thumbnail/thumbnailcachelookup.h"
@@ -34,6 +35,7 @@ struct ImageDecodeDependencies
     RawEmbeddedThumbnailPreviewExtractor rawEmbeddedThumbnailPreviewExtractor;
     ImageWorkerScheduler workerScheduler;
     std::shared_ptr<ImageSourceDataBudget> sourceDataBudget;
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget;
 };
 
 ImageDecodeDependencies defaultImageDecodeDependencies();

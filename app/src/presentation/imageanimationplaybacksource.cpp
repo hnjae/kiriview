@@ -17,11 +17,13 @@
 #include <variant>
 
 namespace {
-kiriview::ImageAnimationPlaybackOpenResult playbackOpenResult(
-    QImage firstFrame, int firstFrameDelay, int loopCount, bool sourceHasMoreFrames)
+kiriview::ImageAnimationPlaybackOpenResult playbackOpenResult(QImage firstFrame,
+    int firstFrameDelay, int loopCount, bool sourceHasMoreFrames,
+    kiriview::ImageDecodeWorkspaceHold workspaceHold = {})
 {
     return kiriview::ImageAnimationPlaybackOpenResult {
         kiriview::ImageAnimationPlaybackOpenStatus::Success,
+        std::move(workspaceHold),
         std::move(firstFrame),
         firstFrameDelay,
         loopCount,
@@ -33,6 +35,14 @@ kiriview::ImageAnimationPlaybackOpenResult playbackOpenResult(
 kiriview::ImageAnimationPlaybackOpenResult playbackOpenError(QString errorString)
 {
     kiriview::ImageAnimationPlaybackOpenResult result;
+    result.errorString = std::move(errorString);
+    return result;
+}
+
+kiriview::ImageAnimationPlaybackOpenResult playbackOpenResourceLimit(QString errorString)
+{
+    kiriview::ImageAnimationPlaybackOpenResult result;
+    result.status = kiriview::ImageAnimationPlaybackOpenStatus::ResourceLimitExceeded;
     result.errorString = std::move(errorString);
     return result;
 }
@@ -62,6 +72,16 @@ kiriview::ImageAnimationPlaybackReadResult playbackReadError(QString errorString
 {
     return kiriview::ImageAnimationPlaybackReadResult {
         kiriview::ImageAnimationPlaybackReadStatus::Error,
+        {},
+        false,
+        std::move(errorString),
+    };
+}
+
+kiriview::ImageAnimationPlaybackReadResult playbackReadResourceLimit(QString errorString)
+{
+    return kiriview::ImageAnimationPlaybackReadResult {
+        kiriview::ImageAnimationPlaybackReadStatus::ResourceLimitExceeded,
         {},
         false,
         std::move(errorString),
@@ -134,22 +154,28 @@ private:
 class ApngAnimationPlaybackSource final : public kiriview::ImageAnimationPlaybackSource
 {
 public:
-    explicit ApngAnimationPlaybackSource(QByteArray data)
+    ApngAnimationPlaybackSource(
+        QByteArray data, std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> workspaceBudget)
         : m_data(std::move(data))
+        , m_workspaceBudget(std::move(workspaceBudget))
     {
     }
 
     kiriview::ImageAnimationPlaybackOpenResult open() override
     {
-        m_reader = std::make_unique<kiriview::ApngAnimationReader>();
+        m_reader = std::make_unique<kiriview::ApngAnimationReader>(m_workspaceBudget);
         kiriview::ApngOpenResult openResult = m_reader->open(m_data);
         switch (openResult.status) {
         case kiriview::ApngOpenStatus::Success:
             return playbackOpenResult(std::move(openResult.firstFrame), openResult.firstFrameDelay,
-                openResult.loopCount, openResult.frameCount > 1);
+                openResult.loopCount, openResult.frameCount > 1,
+                std::move(openResult.workspaceHold));
         case kiriview::ApngOpenStatus::Error:
             m_reader.reset();
             return playbackOpenError(openResult.errorString);
+        case kiriview::ApngOpenStatus::ResourceLimitExceeded:
+            m_reader.reset();
+            return playbackOpenResourceLimit(openResult.errorString);
         case kiriview::ApngOpenStatus::NotApng:
             m_reader.reset();
             return playbackOpenError(
@@ -169,7 +195,9 @@ public:
 
         kiriview::AnimationFrameReadResult frame = m_reader->readNextFrame();
         if (!frame) {
-            return playbackReadError(std::move(frame.error()));
+            return m_reader->lastReadResourceLimitExceeded()
+                ? playbackReadResourceLimit(std::move(frame.error()))
+                : playbackReadError(std::move(frame.error()));
         }
         if (frame->has_value()) {
             return playbackReadFrame(std::move(**frame), m_reader->hasMoreFrames());
@@ -181,6 +209,7 @@ public:
 
 private:
     QByteArray m_data;
+    std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> m_workspaceBudget;
     std::unique_ptr<kiriview::ApngAnimationReader> m_reader;
 };
 
@@ -356,7 +385,8 @@ std::unique_ptr<kiriview::ImageAnimationPlaybackSource> makeReaderPlaybackSource
 std::unique_ptr<kiriview::ImageAnimationPlaybackSource> makeApngPlaybackSource(
     kiriview::ApngAnimationPlaybackRequest request)
 {
-    return std::make_unique<ApngAnimationPlaybackSource>(std::move(request.data));
+    return std::make_unique<ApngAnimationPlaybackSource>(
+        std::move(request.data), std::move(request.workspaceBudget));
 }
 
 std::unique_ptr<kiriview::ImageAnimationPlaybackSource> makeWebPPlaybackSource(

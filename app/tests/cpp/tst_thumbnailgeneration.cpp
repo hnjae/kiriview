@@ -3,6 +3,7 @@
 
 #include "thumbnail/thumbnailgeneration.h"
 
+#include "decoding/imagedecodeworkspace.h"
 #include "decoding/imagesourcedata.h"
 
 #include <QBuffer>
@@ -46,6 +47,12 @@ QByteArray encodedPngData()
     return data;
 }
 
+QByteArray fixtureData(const QString& fileName)
+{
+    QFile file(QStringLiteral(KIRIVIEW_TEST_SOURCE_DIR "/../fixtures/") + fileName);
+    return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray {};
+}
+
 kiriview::ThumbnailGenerationRequest generationRequest(Bucket bucket = Bucket::Normal)
 {
     kiriview::ThumbnailGenerationRequest request;
@@ -55,6 +62,25 @@ kiriview::ThumbnailGenerationRequest generationRequest(Bucket bucket = Bucket::N
     request.requestedBucket = bucket;
     request.cacheInstallEnabled = false;
     return request;
+}
+
+struct ImageCleanupObservation
+{
+    std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> budget;
+    uchar* pixels = nullptr;
+    bool cleanupCalled = false;
+    bool reservationHeldDuringCleanup = false;
+
+    ~ImageCleanupObservation() { delete[] pixels; }
+};
+
+void observeImageCleanup(void* context)
+{
+    auto* observation = static_cast<ImageCleanupObservation*>(context);
+    observation->cleanupCalled = true;
+    observation->reservationHeldDuringCleanup = observation->budget->reservedByteCount() > 0;
+    delete[] observation->pixels;
+    observation->pixels = nullptr;
 }
 
 }
@@ -72,6 +98,9 @@ private Q_SLOTS:
     void injectedCacheInstallPublishesInstalledPath();
     void directVideoInvalidRequestPublishesFailureWithoutLoadingBytes();
     void defaultImageBytesLoaderRejectsSourceOverBudget();
+    void defaultImageDecoderRejectsApngOverWorkspaceBudget();
+    void generatedApngRetainsWorkspaceUntilResultRelease();
+    void failedApngGenerationDestroysImageBeforeWorkspaceRelease();
 };
 
 void TestThumbnailGeneration::injectedBytesLoaderProvidesGenerationBytes()
@@ -109,9 +138,12 @@ void TestThumbnailGeneration::defaultImageBytesLoaderRejectsSourceOverBudget()
     kiriview::ThumbnailGenerationDependencies dependencies;
     dependencies.sourceDataBudget = budget;
     int decodeCount = 0;
-    dependencies.imageDecoder = [&decodeCount](QByteArray, int, QString*) {
+    dependencies.imageDecoder = [&decodeCount](QByteArray, int) {
         ++decodeCount;
-        return QImage(QSize(1, 1), QImage::Format_RGBA8888);
+        return kiriview::ThumbnailGenerationImageDecodeResult {
+            {},
+            QImage(QSize(1, 1), QImage::Format_RGBA8888),
+        };
     };
     kiriview::ThumbnailGenerationRequest request = generationRequest();
     request.localPathBytes = QFile::encodeName(path);
@@ -126,6 +158,93 @@ void TestThumbnailGeneration::defaultImageBytesLoaderRejectsSourceOverBudget()
     QCOMPARE(budget->reservedByteCount(), qsizetype(0));
 }
 
+void TestThumbnailGeneration::defaultImageDecoderRejectsApngOverWorkspaceBudget()
+{
+    const QByteArray apng = fixtureData(QStringLiteral("animated-smoke.apng"));
+    QVERIFY(!apng.isEmpty());
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(1, 1);
+    kiriview::ThumbnailGenerationDependencies dependencies;
+    dependencies.bytesLoader = [apng](const kiriview::ThumbnailGenerationRequest&, QString*) {
+        return kiriview::ImageSourceData(apng);
+    };
+    dependencies.workspaceBudget = budget;
+
+    const kiriview::ThumbnailGenerationResult result
+        = kiriview::generateThumbnail(generationRequest(), std::move(dependencies));
+
+    QCOMPARE(result.status, kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded);
+    QVERIFY(!result.errorString.isEmpty());
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
+void TestThumbnailGeneration::generatedApngRetainsWorkspaceUntilResultRelease()
+{
+    const QByteArray apng = fixtureData(QStringLiteral("animated-smoke.apng"));
+    QVERIFY(!apng.isEmpty());
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        256 * 1024 * 1024, 256 * 1024 * 1024);
+    kiriview::ThumbnailGenerationDependencies dependencies;
+    dependencies.bytesLoader = [apng](const kiriview::ThumbnailGenerationRequest&, QString*) {
+        return kiriview::ImageSourceData(apng);
+    };
+    dependencies.workspaceBudget = budget;
+
+    {
+        const kiriview::ThumbnailGenerationResult result
+            = kiriview::generateThumbnail(generationRequest(), dependencies);
+        QCOMPARE(result.status, kiriview::ThumbnailGenerationStatus::Ready);
+        QVERIFY(!result.image.isNull());
+        QVERIFY(budget->reservedByteCount() > 0);
+    }
+
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
+void TestThumbnailGeneration::failedApngGenerationDestroysImageBeforeWorkspaceRelease()
+{
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(16, 16);
+    ImageCleanupObservation observation { budget, new uchar[4] { 0, 255, 0, 255 } };
+    kiriview::ThumbnailGenerationDependencies dependencies;
+    dependencies.workspaceBudget = budget;
+    dependencies.bytesLoader = [](const kiriview::ThumbnailGenerationRequest&, QString*) {
+        return kiriview::ImageSourceData(QByteArrayLiteral("synthetic"));
+    };
+    dependencies.imageDecoder = [budget, &observation](QByteArray, int) {
+        kiriview::ImageDecodeWorkspaceLease lease = budget->startLease();
+        if (!lease.tryReserve(4)) {
+            return kiriview::ThumbnailGenerationImageDecodeResult {};
+        }
+        QImage image(observation.pixels, 1, 1, 4, QImage::Format_RGBA8888, observeImageCleanup,
+            &observation);
+        return kiriview::ThumbnailGenerationImageDecodeResult {
+            { lease.retainOnly(4), {} },
+            std::move(image),
+        };
+    };
+    dependencies.cacheRepository.install
+        = [](const kiriview::ThumbnailOriginalIdentity&, Bucket bucket, const QImage&) {
+              return kiriview::ThumbnailGenerationCacheInstallResult {
+                  false,
+                  bucket,
+                  {},
+                  QStringLiteral("cache install failed"),
+              };
+          };
+    kiriview::ThumbnailGenerationRequest request = generationRequest();
+    request.cacheInstallEnabled = true;
+
+    {
+        const kiriview::ThumbnailGenerationResult result
+            = kiriview::generateThumbnail(request, std::move(dependencies));
+        QCOMPARE(result.status, Status::Failed);
+        QVERIFY(observation.cleanupCalled);
+        QVERIFY(observation.reservationHeldDuringCleanup);
+        QCOMPARE(budget->reservedByteCount(), qsizetype(4));
+    }
+
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
 void TestThumbnailGeneration::injectedDecoderReceivesLoadedBytesAndBucketEdge()
 {
     const QByteArray bytes("synthetic bytes");
@@ -136,12 +255,12 @@ void TestThumbnailGeneration::injectedDecoderReceivesLoadedBytesAndBucketEdge()
     dependencies.bytesLoader
         = [&bytes](const kiriview::ThumbnailGenerationRequest&, QString*) { return bytes; };
     dependencies.imageDecoder
-        = [&decodedBytes, &decodedMaximumLongEdge](QByteArray data, int maximumLongEdge, QString*) {
+        = [&decodedBytes, &decodedMaximumLongEdge](QByteArray data, int maximumLongEdge) {
               decodedBytes = std::move(data);
               decodedMaximumLongEdge = maximumLongEdge;
               QImage image(QSize(9, 7), QImage::Format_RGB32);
               image.fill(QColor(Qt::yellow));
-              return image;
+              return kiriview::ThumbnailGenerationImageDecodeResult { {}, std::move(image) };
           };
 
     const kiriview::ThumbnailGenerationResult result
@@ -168,13 +287,12 @@ void TestThumbnailGeneration::injectedScalingPolicySuppliesDecoderEdge()
         policyBucket = bucket;
         return 777;
     };
-    dependencies.imageDecoder
-        = [&decodedMaximumLongEdge](QByteArray, int maximumLongEdge, QString*) {
-              decodedMaximumLongEdge = maximumLongEdge;
-              QImage image(QSize(6, 5), QImage::Format_RGB32);
-              image.fill(QColor(Qt::cyan));
-              return image;
-          };
+    dependencies.imageDecoder = [&decodedMaximumLongEdge](QByteArray, int maximumLongEdge) {
+        decodedMaximumLongEdge = maximumLongEdge;
+        QImage image(QSize(6, 5), QImage::Format_RGB32);
+        image.fill(QColor(Qt::cyan));
+        return kiriview::ThumbnailGenerationImageDecodeResult { {}, std::move(image) };
+    };
 
     const kiriview::ThumbnailGenerationResult result
         = kiriview::generateThumbnail(generationRequest(Bucket::XLarge), std::move(dependencies));

@@ -214,8 +214,11 @@ public:
             completeReady(std::move(request), std::move(result.image));
             return;
         }
-        completeFailure(std::move(request), ActiveNavigationThumbnailFailureKind::GenerationFailed,
-            std::move(result.errorString));
+        const ActiveNavigationThumbnailFailureKind failureKind
+            = result.status == ThumbnailGenerationStatus::ResourceLimitExceeded
+            ? ActiveNavigationThumbnailFailureKind::ResourceLimitExceeded
+            : ActiveNavigationThumbnailFailureKind::GenerationFailed;
+        completeFailure(std::move(request), failureKind, std::move(result.errorString));
     }
 
     void completeReady(ActiveNavigationThumbnailWorkRequest request, QImage image)

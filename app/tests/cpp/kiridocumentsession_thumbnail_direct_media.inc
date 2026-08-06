@@ -240,6 +240,7 @@ void TestKiriDocumentSessionThumbnail::directImageThumbnailDemandProjectsReadyGe
     thumbnail.fill(Qt::green);
     thumbnailGeneration.result = kiriview::ThumbnailGenerationResult {
         kiriview::ThumbnailGenerationStatus::Ready,
+        {},
         thumbnail,
         kiriview::ActiveNavigationThumbnailDemandBucket::Normal,
         QStringLiteral("/cache/generated.png"),

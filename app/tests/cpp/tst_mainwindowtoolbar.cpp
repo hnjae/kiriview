@@ -91,6 +91,7 @@ kiriview::ThumbnailGenerationProvider disabledThumbnailGenerationProvider()
             callback(kiriview::ThumbnailGenerationResult {
                 kiriview::ThumbnailGenerationStatus::Failed,
                 {},
+                {},
                 request.requestedBucket,
                 {},
                 QStringLiteral("toolbar test thumbnail generation disabled"),

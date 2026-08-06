@@ -21,10 +21,13 @@ kiriview::ImageDataLoader imageDataLoader(kiriview::ImageWorkerScheduler workerS
     };
 }
 
-kiriview::DecodedImageResult decodeImageDataWithDefaults(
-    const QByteArray& data, const kiriview::ImageDecodeRequest& request)
+kiriview::ImageDataDecoder imageDataDecoder(
+    std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> workspaceBudget)
 {
-    return kiriview::decodeImageData(data, request);
+    return [workspaceBudget = std::move(workspaceBudget)](
+               const QByteArray& data, const kiriview::ImageDecodeRequest& request) {
+        return kiriview::decodeImageData(data, request, workspaceBudget);
+    };
 }
 }
 
@@ -35,40 +38,44 @@ ImageDecodeDependencies defaultImageDecodeDependencies()
 {
     ImageWorkerScheduler workerScheduler = defaultImageWorkerScheduler();
     std::shared_ptr<ImageSourceDataBudget> sourceDataBudget = defaultImageSourceDataBudget();
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget
+        = defaultImageDecodeWorkspaceBudget();
     return ImageDecodeDependencies {
         imageDataLoader(workerScheduler, sourceDataBudget),
-        decodeImageDataWithDefaults,
+        imageDataDecoder(workspaceBudget),
         defaultThumbnailCacheLookupProvider(workerScheduler),
         rawEmbeddedThumbnailPreviewResult,
         std::move(workerScheduler),
         std::move(sourceDataBudget),
+        std::move(workspaceBudget),
     };
 }
 // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 ImageDecodeDependencies imageDecodeDependenciesWithDefaults(ImageDecodeDependencies dependencies)
 {
-    ImageDecodeDependencies defaults = defaultImageDecodeDependencies();
     if (!dependencies.workerScheduler.isValid()) {
-        dependencies.workerScheduler = std::move(defaults.workerScheduler);
+        dependencies.workerScheduler = defaultImageWorkerScheduler();
     }
     if (dependencies.sourceDataBudget == nullptr) {
-        dependencies.sourceDataBudget = std::move(defaults.sourceDataBudget);
+        dependencies.sourceDataBudget = defaultImageSourceDataBudget();
+    }
+    if (dependencies.workspaceBudget == nullptr) {
+        dependencies.workspaceBudget = defaultImageDecodeWorkspaceBudget();
     }
     if (!dependencies.dataLoader) {
         dependencies.dataLoader
             = imageDataLoader(dependencies.workerScheduler, dependencies.sourceDataBudget);
     }
     if (!dependencies.dataDecoder) {
-        dependencies.dataDecoder = std::move(defaults.dataDecoder);
+        dependencies.dataDecoder = imageDataDecoder(dependencies.workspaceBudget);
     }
     if (!dependencies.thumbnailPreviewLookupProvider) {
         dependencies.thumbnailPreviewLookupProvider
             = defaultThumbnailCacheLookupProvider(dependencies.workerScheduler);
     }
     if (!dependencies.rawEmbeddedThumbnailPreviewExtractor) {
-        dependencies.rawEmbeddedThumbnailPreviewExtractor
-            = std::move(defaults.rawEmbeddedThumbnailPreviewExtractor);
+        dependencies.rawEmbeddedThumbnailPreviewExtractor = rawEmbeddedThumbnailPreviewResult;
     }
 
     return dependencies;

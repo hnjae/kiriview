@@ -9,6 +9,7 @@
 #include "imageanimationrequest.h"
 #include "imageanimationsourcecatalog.h"
 #include "imagedecodelogging.h"
+#include "imagedecodeworkspace.h"
 #include "jxlanimationreader.h"
 #include "localization/imageerrortext.h"
 #include "location/sourcekey.h"
@@ -283,7 +284,7 @@ kiriview::DecodedImageResult decodeApngImageData(const kiriview::ImageDecodeRout
             kiriview::DecodedImageFailureOperation::DecodeAnimationOpen, QStringLiteral("APNG"));
     }
 
-    kiriview::ApngAnimationReader apngReader;
+    kiriview::ApngAnimationReader apngReader(input.workspaceBudget);
     kiriview::ApngOpenResult apngResult = apngReader.open(input.data);
     if (apngResult.status == kiriview::ApngOpenStatus::NotApng) {
         return failedAdapterDecodedImageResult(
@@ -296,6 +297,18 @@ kiriview::DecodedImageResult decodeApngImageData(const kiriview::ImageDecodeRout
             kiriview::DecodedImageFailureRoute::Apng,
             kiriview::DecodedImageFailureOperation::DecodeAnimationOpen, QStringLiteral("APNG"));
     }
+    if (apngResult.status == kiriview::ApngOpenStatus::ResourceLimitExceeded) {
+        return kiriview::failedDecodedImageResult(kiriview::DecodedImageFailure {
+            kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeApngAnimation),
+            kiriview::DecodedImageFailureRoute::Apng,
+            kiriview::DecodedImageFailureOperation::DecodeAnimationOpen,
+            QStringLiteral("APNG decoder workspace admission failed: %1")
+                .arg(kiriview::imageDecodeWorkspaceResourceLimitDiagnostic()),
+            kiriview::DecodedImageFailureSeverity::Error,
+            false,
+            kiriview::DecodedImageFailureCause::ResourceLimitExceeded,
+        });
+    }
     if (catalog->logicalSize != apngResult.firstFrame.size()) {
         return failedAdapterDecodedImageResult(
             QStringLiteral("animation source catalog size mismatch"),
@@ -303,13 +316,30 @@ kiriview::DecodedImageResult decodeApngImageData(const kiriview::ImageDecodeRout
             kiriview::DecodedImageFailureOperation::DecodeAnimationOpen, QStringLiteral("APNG"));
     }
 
+    apngResult.workspaceHold = {};
+    kiriview::ImageDecodeWorkspaceHold firstFrameWorkspaceHold
+        = apngReader.takeFirstFrameWorkspaceHold();
+    if (!firstFrameWorkspaceHold.isManaged()) {
+        return kiriview::failedDecodedImageResult(kiriview::DecodedImageFailure {
+            kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeApngAnimation),
+            kiriview::DecodedImageFailureRoute::Apng,
+            kiriview::DecodedImageFailureOperation::DecodeAnimationOpen,
+            QStringLiteral("APNG first-frame workspace retention failed"),
+            kiriview::DecodedImageFailureSeverity::Error,
+            false,
+            kiriview::DecodedImageFailureCause::ResourceLimitExceeded,
+        });
+    }
+
     return kiriview::successfulDecodedImageResult(kiriview::ApngAnimationImage {
+        std::move(firstFrameWorkspaceHold),
         std::move(apngResult.firstFrame),
         input.data,
         std::move(*catalog),
         {},
         sourceIdentityForRequest(input.request),
         input.request.sourceRevision(),
+        {},
     });
 }
 
@@ -525,8 +555,9 @@ ImageDecodeRouterRuntime::ImageDecodeRouterRuntime(
 {
 }
 
-DecodedImageResult ImageDecodeRouterRuntime::execute(
-    ImageDecodeRoute route, const QByteArray& data, const ImageDecodeRequest& request) const
+DecodedImageResult ImageDecodeRouterRuntime::execute(ImageDecodeRoute route, const QByteArray& data,
+    const ImageDecodeRequest& request,
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget) const
 {
     if (!route.shouldDecode()) {
         return failedReadImageDataResult();
@@ -537,6 +568,7 @@ DecodedImageResult ImageDecodeRouterRuntime::execute(
         byteInputs.dataFor(route.dataSource),
         request,
         route.qtRasterFormat,
+        std::move(workspaceBudget),
     };
 
     return dispatchToHandler(
@@ -554,8 +586,9 @@ ImageDecodeRouter::ImageDecodeRouter(ImageDecodeRouterHandlers handlers,
     }
 }
 
-DecodedImageResult ImageDecodeRouter::decode(
-    const QByteArray& data, const ImageDecodeRequest& request) const
+DecodedImageResult ImageDecodeRouter::decode(const QByteArray& data,
+    const ImageDecodeRequest& request,
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget) const
 {
     const ImageInputClassification classification
         = m_classifier(data, request.imageUrl().fileName());
@@ -567,7 +600,7 @@ DecodedImageResult ImageDecodeRouter::decode(
                                << "dataSource" << imageDecodeDataSourceName(route.dataSource)
                                << "qtFormat" << qtRasterFormatName(route.qtRasterFormat) << "bytes"
                                << data.size();
-    DecodedImageResult result = m_runtime.execute(route, data, request);
+    DecodedImageResult result = m_runtime.execute(route, data, request, std::move(workspaceBudget));
     DecodedImage* image = decodedImageResultImage(result);
     if (image != nullptr) {
         EmbeddedMetadata metadata = parseImageEmbeddedMetadata(data);
@@ -578,10 +611,10 @@ DecodedImageResult ImageDecodeRouter::decode(
     return result;
 }
 
-DecodedImageResult decodeImageDataWithDefaultRouter(
-    const QByteArray& data, const ImageDecodeRequest& request)
+DecodedImageResult decodeImageDataWithDefaultRouter(const QByteArray& data,
+    const ImageDecodeRequest& request, std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget)
 {
     static const ImageDecodeRouter router;
-    return router.decode(data, request);
+    return router.decode(data, request, std::move(workspaceBudget));
 }
 }

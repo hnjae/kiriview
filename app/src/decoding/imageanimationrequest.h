@@ -4,9 +4,11 @@
 #ifndef KIRIVIEW_IMAGEANIMATIONREQUEST_H
 #define KIRIVIEW_IMAGEANIMATIONREQUEST_H
 
+#include "imagedecodeworkspace.h"
 #include "imagesourcedata.h"
 
 #include <QByteArray>
+#include <memory>
 #include <variant>
 
 namespace kiriview {
@@ -19,6 +21,7 @@ struct ReaderAnimationPlaybackRequest
 struct ApngAnimationPlaybackRequest
 {
     QByteArray data;
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget;
 };
 
 struct WebPAnimationPlaybackRequest
@@ -50,8 +53,9 @@ struct ImageAnimationPlaybackRequest
 
 ImageAnimationPlaybackRequest readerAnimationPlaybackRequest(
     QByteArray data, QByteArray format, ImageSourceDataLease sourceDataLease = {});
-ImageAnimationPlaybackRequest apngAnimationPlaybackRequest(
-    QByteArray data, ImageSourceDataLease sourceDataLease = {});
+ImageAnimationPlaybackRequest apngAnimationPlaybackRequest(QByteArray data,
+    ImageSourceDataLease sourceDataLease = {},
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {});
 ImageAnimationPlaybackRequest webpAnimationPlaybackRequest(
     QByteArray data, ImageSourceDataLease sourceDataLease = {});
 ImageAnimationPlaybackRequest jxlAnimationPlaybackRequest(

@@ -31,6 +31,11 @@ enum class DecodedImageFailureSeverity {
     Error,
 };
 
+enum class DecodedImageFailureCause {
+    Unknown,
+    ResourceLimitExceeded,
+};
+
 struct DecodedImageFailure
 {
     QString errorString;
@@ -39,6 +44,7 @@ struct DecodedImageFailure
     QString diagnosticDetail;
     DecodedImageFailureSeverity severity = DecodedImageFailureSeverity::Error;
     bool retryable = false;
+    DecodedImageFailureCause cause = DecodedImageFailureCause::Unknown;
 };
 }
 

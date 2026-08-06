@@ -70,8 +70,9 @@ public:
                       return;
                   }
 
-                  finish(std::move(**result));
+                  Result completed = std::move(**result);
                   (*result).reset();
+                  finish(std::move(completed));
               };
 
         return schedule(context, std::move(operation), std::move(completion));

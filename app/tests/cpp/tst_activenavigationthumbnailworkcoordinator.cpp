@@ -112,6 +112,7 @@ public:
         kiriview::ThumbnailGenerationCallback callback = generations.at(index).callback;
         callback(kiriview::ThumbnailGenerationResult {
             status,
+            {},
             std::move(readyImage),
             bucket,
             {},
@@ -161,7 +162,7 @@ public:
         const std::shared_ptr<ManualGeneration> generation = generations.at(index);
         kiriview::TestSupport::Detail::finishManualIoJob(
             generation, [](ManualGeneration& finished) {
-                finished.callback({ kiriview::ThumbnailGenerationStatus::Failed, {},
+                finished.callback({ kiriview::ThumbnailGenerationStatus::Failed, {}, {},
                     finished.request.requestedBucket, {},
                     QStringLiteral("synthetic generation failure") });
             });

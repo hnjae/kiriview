@@ -12,7 +12,7 @@ ActiveNavigationThumbnailRuntime::ActiveNavigationThumbnailRuntime(
           std::move(dependencies.imageStore), std::move(dependencies.generationProvider),
           std::move(dependencies.sourceAdapter), dependencies.workerScheduler,
           std::move(dependencies.failureDiagnosticCallback),
-          std::move(dependencies.sourceDataBudget))
+          std::move(dependencies.sourceDataBudget), std::move(dependencies.workspaceBudget))
 {
 }
 
@@ -21,7 +21,8 @@ ActiveNavigationThumbnailRuntime::ActiveNavigationThumbnailRuntime(QObject* owne
     ThumbnailGenerationProvider generationProvider, ThumbnailSourceAdapter sourceAdapter,
     const ImageWorkerScheduler& workerScheduler,
     ActiveNavigationThumbnailFailureDiagnosticCallback failureDiagnosticCallback,
-    std::shared_ptr<ImageSourceDataBudget> sourceDataBudget)
+    std::shared_ptr<ImageSourceDataBudget> sourceDataBudget,
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget)
     : m_rowStore(std::make_unique<ActiveNavigationThumbnailRowStore>(std::move(imageStore)))
     , m_workCoordinator(
           std::make_unique<ActiveNavigationThumbnailWorkCoordinator>(owner, *m_rowStore,
@@ -33,6 +34,9 @@ ActiveNavigationThumbnailRuntime::ActiveNavigationThumbnailRuntime(QObject* owne
                                            .sourceDataBudget = sourceDataBudget != nullptr
                                                ? std::move(sourceDataBudget)
                                                : defaultImageSourceDataBudget(),
+                                           .workspaceBudget = workspaceBudget != nullptr
+                                               ? std::move(workspaceBudget)
+                                               : defaultImageDecodeWorkspaceBudget(),
                                        }),
               sourceAdapter ? std::move(sourceAdapter) : defaultThumbnailSourceAdapter(),
               std::move(failureDiagnosticCallback)))

@@ -3,6 +3,8 @@
 
 #include "presentation/imageanimationplaybacksource.h"
 
+#include "decoding/imagedecodeworkspace.h"
+
 #include <QByteArray>
 #include <QFile>
 #include <QImage>
@@ -79,6 +81,8 @@ class TestImageAnimationPlaybackSources : public QObject
 private Q_SLOTS:
     void preservesDistinctAuthoredFrames_data();
     void preservesDistinctAuthoredFrames();
+    void apngPlaybackUsesWorkspaceBudget();
+    void apngLaterFrameRetainsWorkspaceUntilResultRelease();
 };
 
 void TestImageAnimationPlaybackSources::preservesDistinctAuthoredFrames_data()
@@ -122,6 +126,60 @@ void TestImageAnimationPlaybackSources::preservesDistinctAuthoredFrames()
 
     const kiriview::ImageAnimationPlaybackReadResult end = source->readNextFrame();
     QCOMPARE(end.status, kiriview::ImageAnimationPlaybackReadStatus::End);
+}
+
+void TestImageAnimationPlaybackSources::apngPlaybackUsesWorkspaceBudget()
+{
+    const QByteArray data = fixtureData(QStringLiteral("animated-smoke.apng"));
+    QVERIFY(!data.isEmpty());
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(1, 1);
+    std::unique_ptr<kiriview::ImageAnimationPlaybackSource> source
+        = kiriview::makeImageAnimationPlaybackSource(
+            kiriview::apngAnimationPlaybackRequest(data, {}, budget));
+    QVERIFY(source != nullptr);
+
+    const kiriview::ImageAnimationPlaybackOpenResult opened = source->open();
+
+    QCOMPARE(opened.status, kiriview::ImageAnimationPlaybackOpenStatus::ResourceLimitExceeded);
+    QVERIFY(opened.firstFrame.isNull());
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
+void TestImageAnimationPlaybackSources::apngLaterFrameRetainsWorkspaceUntilResultRelease()
+{
+    const QByteArray data = fixtureData(QStringLiteral("animated-smoke.apng"));
+    QVERIFY(!data.isEmpty());
+    constexpr qsizetype budgetByteCount = qsizetype { 256 } * 1024 * 1024;
+    auto budget
+        = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(budgetByteCount, budgetByteCount);
+    std::unique_ptr<kiriview::ImageAnimationPlaybackSource> source
+        = kiriview::makeImageAnimationPlaybackSource(
+            kiriview::apngAnimationPlaybackRequest(data, {}, budget));
+    QVERIFY(source != nullptr);
+
+    qsizetype reservationByteCount = 0;
+    {
+        const kiriview::ImageAnimationPlaybackOpenResult opened = source->open();
+        QCOMPARE(opened.status, kiriview::ImageAnimationPlaybackOpenStatus::Success);
+        QVERIFY2(!opened.firstFrame.isNull(), qPrintable(opened.errorString));
+        QVERIFY(opened.sourceHasMoreFrames);
+        reservationByteCount = budget->reservedByteCount();
+        QVERIFY(reservationByteCount > 0);
+    }
+    QCOMPARE(budget->reservedByteCount(), reservationByteCount);
+
+    {
+        const kiriview::ImageAnimationPlaybackReadResult laterFrame = source->readNextFrame();
+        QCOMPARE(laterFrame.status, kiriview::ImageAnimationPlaybackReadStatus::Frame);
+        QVERIFY2(!laterFrame.frame.image.isNull(), qPrintable(laterFrame.errorString));
+        QVERIFY(laterFrame.frame.workspaceHold.isManaged());
+
+        source.reset();
+
+        QVERIFY(!laterFrame.frame.image.isNull());
+        QCOMPARE(budget->reservedByteCount(), reservationByteCount);
+    }
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
 }
 
 QTEST_GUILESS_MAIN(TestImageAnimationPlaybackSources)

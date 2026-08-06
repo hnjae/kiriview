@@ -6,6 +6,7 @@
 
 #include "decodedimagefailure.h"
 #include "imageanimationsourcecatalog.h"
+#include "imagedecodeworkspace.h"
 #include "metadata/embeddedmetadata.h"
 #include "rendering/staticimage.h"
 
@@ -26,6 +27,7 @@ struct StaticDecodedImage
 
 struct ApngAnimationImage
 {
+    ImageDecodeWorkspaceHold firstFrameWorkspaceHold;
     QImage firstFrame;
     QByteArray data;
     ImageAnimationSourceCatalog catalog;

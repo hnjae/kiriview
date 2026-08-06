@@ -1113,7 +1113,8 @@ void ImageDocumentRuntimeGraph::handleViewportProjection(
             << "viewport image load failure detail"
             << "kind" << static_cast<int>(projection.failure->kind) << "decodeRoute"
             << static_cast<int>(projection.failure->decodeRoute) << "decodeOperation"
-            << static_cast<int>(projection.failure->decodeOperation) << "diagnosticDetail"
+            << static_cast<int>(projection.failure->decodeOperation) << "decodeCause"
+            << static_cast<int>(projection.failure->decodeCause) << "diagnosticDetail"
             << projection.failure->diagnosticDetail << "retryable" << projection.failure->retryable;
     }
     PendingViewportImageLoad completedLoad = std::move(*m_pendingViewportImageLoad);

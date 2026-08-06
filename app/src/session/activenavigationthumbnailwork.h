@@ -45,6 +45,7 @@ enum class ActiveNavigationThumbnailFailureKind {
     CacheLookupInvalid,
     CacheLookupFailed,
     GenerationFailed,
+    ResourceLimitExceeded,
     ImageStoreInsertFailed,
     GenerationProviderUnavailable,
 };

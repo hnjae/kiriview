@@ -27,6 +27,7 @@ private Q_SLOTS:
     void invalidSourceErrorAndCloseRejectFrameRequests();
     void runtimesOwnIndependentPlaybackProgress();
     void playbackSourceOperationsStayOnOneOwnerThread();
+    void frameResultRetainsWorkspaceUntilImageRelease();
 };
 
 namespace {
@@ -37,10 +38,30 @@ struct FakePlaybackState
     int openCount = 0;
     int readCount = 0;
     int errorFrameIndex = -1;
+    int resourceErrorFrameIndex = -1;
     bool failOpen = false;
     bool requireSingleOwnerThread = false;
     std::thread::id ownerThread;
 };
+
+struct ImageCleanupObservation
+{
+    std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> budget;
+    uchar* pixels = nullptr;
+    bool cleanupCalled = false;
+    bool reservationHeldDuringCleanup = false;
+
+    ~ImageCleanupObservation() { delete[] pixels; }
+};
+
+void observeImageCleanup(void* context)
+{
+    auto* observation = static_cast<ImageCleanupObservation*>(context);
+    observation->cleanupCalled = true;
+    observation->reservationHeldDuringCleanup = observation->budget->reservedByteCount() > 0;
+    delete[] observation->pixels;
+    observation->pixels = nullptr;
+}
 
 QImage solidImage(const QColor& color)
 {
@@ -61,8 +82,8 @@ std::vector<QImage> solidFrames(std::initializer_list<QColor> colors)
 
 void compareFrameColor(const kiriview::AnimationSourceFrameResult& result, const QColor& expected)
 {
-    QVERIFY2(result.has_value(), result ? "" : qPrintable(result.error()));
-    QCOMPARE(result->pixelColor(0, 0), expected);
+    QVERIFY2(result.has_value(), result ? "" : qPrintable(result.error().errorString));
+    QCOMPARE(result->image.pixelColor(0, 0), expected);
 }
 
 class FakePlaybackSource final : public kiriview::ImageAnimationPlaybackSource
@@ -84,6 +105,7 @@ public:
             return {
                 kiriview::ImageAnimationPlaybackOpenStatus::Error,
                 {},
+                {},
                 0,
                 0,
                 false,
@@ -93,6 +115,7 @@ public:
 
         return {
             kiriview::ImageAnimationPlaybackOpenStatus::Success,
+            {},
             m_state->frames.front(),
             10,
             0,
@@ -119,6 +142,14 @@ public:
                 {},
                 false,
                 QStringLiteral("fake read failure"),
+            };
+        }
+        if (m_nextFrameIndex == m_state->resourceErrorFrameIndex) {
+            return {
+                kiriview::ImageAnimationPlaybackReadStatus::ResourceLimitExceeded,
+                {},
+                false,
+                QStringLiteral("fake resource limit failure"),
             };
         }
         if (m_nextFrameIndex < 0 || m_nextFrameIndex >= static_cast<int>(m_state->frames.size())) {
@@ -228,7 +259,7 @@ void TestAnimationSourceRuntime::invalidSourceErrorAndCloseRejectFrameRequests()
         static_cast<int>(openErrorState->frames.size()), fakeFactory(openErrorState));
     const kiriview::AnimationSourceFrameResult openError = openErrorRuntime.frame(1);
     QVERIFY(!openError.has_value());
-    QVERIFY(!openError.error().isEmpty());
+    QVERIFY(!openError.error().errorString.isEmpty());
     QCOMPARE(openErrorState->openCount, 1);
     QCOMPARE(openErrorState->readCount, 0);
 
@@ -239,9 +270,20 @@ void TestAnimationSourceRuntime::invalidSourceErrorAndCloseRejectFrameRequests()
         static_cast<int>(readErrorState->frames.size()), fakeFactory(readErrorState));
     const kiriview::AnimationSourceFrameResult readError = readErrorRuntime.frame(2);
     QVERIFY(!readError.has_value());
-    QVERIFY(!readError.error().isEmpty());
+    QVERIFY(!readError.error().errorString.isEmpty());
     QCOMPARE(readErrorState->openCount, 1);
     QCOMPARE(readErrorState->readCount, 2);
+
+    const auto resourceErrorState = std::make_shared<FakePlaybackState>();
+    resourceErrorState->frames = solidFrames({ Qt::red, Qt::green, Qt::blue });
+    resourceErrorState->resourceErrorFrameIndex = 1;
+    kiriview::AnimationSourceRuntime resourceErrorRuntime(resourceErrorState->frames.front(),
+        static_cast<int>(resourceErrorState->frames.size()), fakeFactory(resourceErrorState));
+    const kiriview::AnimationSourceFrameResult resourceError = resourceErrorRuntime.frame(1);
+    QVERIFY(!resourceError.has_value());
+    QCOMPARE(resourceError.error().cause,
+        kiriview::AnimationSourceFrameFailureCause::ResourceLimitExceeded);
+    QCOMPARE(resourceError.error().errorString, QStringLiteral("fake resource limit failure"));
 
     compareFrameColor(validRuntime.frame(1), Qt::green);
     const int opensBeforeClose = validState->openCount;
@@ -285,9 +327,15 @@ void TestAnimationSourceRuntime::playbackSourceOperationsStayOnOneOwnerThread()
         state->frames.front(), static_cast<int>(state->frames.size()), fakeFactory(state));
 
     kiriview::AnimationSourceFrameResult firstResult
-        = std::unexpected(QStringLiteral("first frame was not requested"));
+        = std::unexpected(kiriview::AnimationSourceFrameFailure {
+            kiriview::AnimationSourceFrameFailureCause::Unavailable,
+            QStringLiteral("first frame was not requested"),
+        });
     kiriview::AnimationSourceFrameResult secondResult
-        = std::unexpected(QStringLiteral("second frame was not requested"));
+        = std::unexpected(kiriview::AnimationSourceFrameFailure {
+            kiriview::AnimationSourceFrameFailureCause::Unavailable,
+            QStringLiteral("second frame was not requested"),
+        });
     std::promise<void> firstFinishedPromise;
     std::future<void> firstFinished = firstFinishedPromise.get_future();
     std::promise<void> releaseFirstPromise;
@@ -308,6 +356,34 @@ void TestAnimationSourceRuntime::playbackSourceOperationsStayOnOneOwnerThread()
     compareFrameColor(secondResult, Qt::blue);
     QCOMPARE(state->openCount, 1);
     QCOMPARE(state->readCount, 2);
+}
+
+void TestAnimationSourceRuntime::frameResultRetainsWorkspaceUntilImageRelease()
+{
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(16, 16);
+    kiriview::ImageDecodeWorkspaceLease lease = budget->startLease();
+    QVERIFY(lease.tryReserve(4));
+    kiriview::ImageDecodeWorkspaceHold hold = lease.retainOnly(4);
+    QVERIFY(hold.isManaged());
+    ImageCleanupObservation observation { budget, new uchar[4] { 0, 255, 0, 255 } };
+    QImage retainedFrame(
+        observation.pixels, 1, 1, 4, QImage::Format_RGBA8888, observeImageCleanup, &observation);
+    kiriview::AnimationSourceFrameResult result
+        = std::unexpected(kiriview::AnimationSourceFrameFailure {});
+
+    {
+        kiriview::AnimationSourceRuntime runtime(std::move(retainedFrame), 1, {}, std::move(hold));
+        result = runtime.frame(0);
+        QVERIFY(result.has_value());
+        QVERIFY(!result->image.isNull());
+    }
+
+    QVERIFY(!observation.cleanupCalled);
+    QCOMPARE(budget->reservedByteCount(), qsizetype(4));
+    result = std::unexpected(kiriview::AnimationSourceFrameFailure {});
+    QVERIFY(observation.cleanupCalled);
+    QVERIFY(observation.reservationHeldDuringCleanup);
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
 }
 
 QTEST_GUILESS_MAIN(TestAnimationSourceRuntime)

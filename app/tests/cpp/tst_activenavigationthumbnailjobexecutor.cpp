@@ -82,6 +82,7 @@ private Q_SLOTS:
     void cacheHitCompletesWithRequestIdentity();
     void cacheMissKeepsWorkIdentityAcrossGeneration();
     void inMemoryWorkSkipsLookupAndReportsTypedFailures();
+    void resourceLimitFailurePreservesTypedKind();
     void cancellationAndPhaseChangesRejectLateCallbacks();
     void synchronousCompletionAndDestructionAreCallbackSafe();
 };
@@ -120,7 +121,7 @@ void TestActiveNavigationThumbnailJobExecutor::cacheMissKeepsWorkIdentityAcrossG
         { kiriview::ThumbnailCacheLookupStatus::Missing, {}, Bucket::Large });
     QCOMPARE(providers.generationCallbacks.size(), std::size_t(1));
     providers.generationCallbacks.front()(
-        { kiriview::ThumbnailGenerationStatus::Ready, image(Qt::blue), Bucket::Large });
+        { kiriview::ThumbnailGenerationStatus::Ready, {}, image(Qt::blue), Bucket::Large });
 
     QCOMPARE(completions.size(), std::size_t(1));
     QCOMPARE(completions.front().workId.value, quint64(9));
@@ -138,7 +139,7 @@ void TestActiveNavigationThumbnailJobExecutor::inMemoryWorkSkipsLookupAndReports
     executor.start(request(3, kiriview::ThumbnailSourceAdapterPlanKind::InMemoryOnly));
     QVERIFY(providers.lookupRequests.empty());
     QVERIFY(!providers.generationRequests.front().cacheInstallEnabled);
-    providers.generationCallbacks.front()({ kiriview::ThumbnailGenerationStatus::Failed, {},
+    providers.generationCallbacks.front()({ kiriview::ThumbnailGenerationStatus::Failed, {}, {},
         Bucket::Large, {}, QStringLiteral("decode failed") });
     QCOMPARE(completions.front().result.failureKind,
         kiriview::ActiveNavigationThumbnailFailureKind::GenerationFailed);
@@ -150,6 +151,26 @@ void TestActiveNavigationThumbnailJobExecutor::inMemoryWorkSkipsLookupAndReports
     unavailable.start(request(4, kiriview::ThumbnailSourceAdapterPlanKind::CacheableLocalFile));
     QCOMPARE(completions.front().result.failureKind,
         kiriview::ActiveNavigationThumbnailFailureKind::CacheLookupProviderUnavailable);
+}
+
+void TestActiveNavigationThumbnailJobExecutor::resourceLimitFailurePreservesTypedKind()
+{
+    ManualProviders providers;
+    std::vector<kiriview::ActiveNavigationThumbnailWorkCompletion> completions;
+    kiriview::ActiveNavigationThumbnailJobExecutor executor(this, providers.lookup(),
+        providers.generation(),
+        [&](auto completion) { completions.push_back(std::move(completion)); });
+
+    QVERIFY(executor.start(request(17, kiriview::ThumbnailSourceAdapterPlanKind::InMemoryOnly)));
+    QCOMPARE(providers.generationCallbacks.size(), std::size_t(1));
+    providers.generationCallbacks.front()(
+        { kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded, {}, {}, Bucket::Large, {},
+            QStringLiteral("workspace limit exceeded") });
+
+    QCOMPARE(completions.size(), std::size_t(1));
+    QCOMPARE(completions.front().result.failureKind,
+        kiriview::ActiveNavigationThumbnailFailureKind::ResourceLimitExceeded);
+    QCOMPARE(completions.front().result.errorString, QStringLiteral("workspace limit exceeded"));
 }
 
 void TestActiveNavigationThumbnailJobExecutor::cancellationAndPhaseChangesRejectLateCallbacks()
@@ -167,7 +188,7 @@ void TestActiveNavigationThumbnailJobExecutor::cancellationAndPhaseChangesReject
     QVERIFY(completions.empty());
     QVERIFY(executor.cancel({ 5 }));
     providers.generationCallbacks.front()(
-        { kiriview::ThumbnailGenerationStatus::Ready, image(Qt::green), Bucket::Large });
+        { kiriview::ThumbnailGenerationStatus::Ready, {}, image(Qt::green), Bucket::Large });
     QVERIFY(completions.empty());
 }
 
@@ -178,7 +199,7 @@ void TestActiveNavigationThumbnailJobExecutor::synchronousCompletionAndDestructi
     kiriview::ThumbnailGenerationProvider synchronous
         = [&](QObject*, kiriview::ThumbnailGenerationRequest request,
               kiriview::ThumbnailGenerationCallback callback) {
-              callback({ kiriview::ThumbnailGenerationStatus::Ready, image(Qt::green),
+              callback({ kiriview::ThumbnailGenerationStatus::Ready, {}, image(Qt::green),
                   request.requestedBucket });
               return kiriview::ImageIoJob(new QObject, [&](QObject* object) {
                   ++canceledReturnedJobs;

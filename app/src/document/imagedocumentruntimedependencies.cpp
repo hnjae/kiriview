@@ -46,11 +46,15 @@ ImageDocumentRuntimeDependencies resolveImageDocumentRuntimeDependencies(
     ImageDocumentRuntimeDependencyOverrides overrides)
 {
     const bool useMediaEntrySourceStore = shouldUseMediaEntrySourceStore(overrides);
+    const SystemMemorySnapshot systemMemory
+        = overrides.systemMemorySnapshot.value_or(systemMemorySnapshot());
     MediaEntrySourceFactory mediaEntrySourceFactory = std::move(overrides.mediaEntrySourceFactory);
     overrides.mediaEntrySourceFactory = {};
     if (overrides.imageDecode.sourceDataBudget == nullptr) {
-        overrides.imageDecode.sourceDataBudget = defaultImageSourceDataBudget(
-            {}, overrides.systemMemorySnapshot.value_or(systemMemorySnapshot()));
+        overrides.imageDecode.sourceDataBudget = defaultImageSourceDataBudget({}, systemMemory);
+    }
+    if (overrides.imageDecode.workspaceBudget == nullptr) {
+        overrides.imageDecode.workspaceBudget = defaultImageDecodeWorkspaceBudget({}, systemMemory);
     }
     overrides.imageDecode = imageDecodeDependenciesWithDefaults(std::move(overrides.imageDecode));
     overrides.candidateProvider = imageDocumentPageNavigationCandidateProviderWithDefaults(
@@ -65,8 +69,7 @@ ImageDocumentRuntimeDependencies resolveImageDocumentRuntimeDependencies(
         overrides.predecodeThreadCountProvider = []() { return QThread::idealThreadCount(); };
     }
     const ImageCacheBudgets cacheBudgets
-        = resolveImageDocumentCacheBudgets(overrides.cacheBudgetRequest,
-            overrides.systemMemorySnapshot.value_or(systemMemorySnapshot()));
+        = resolveImageDocumentCacheBudgets(overrides.cacheBudgetRequest, systemMemory);
 
     std::unique_ptr<MediaEntrySourceStore> mediaEntrySourceStore;
     if (useMediaEntrySourceStore) {

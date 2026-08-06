@@ -48,6 +48,8 @@ Errors shown while opening or reading media from a directly opened archive or di
 
 If the encoded bytes for an image or opened-collection image entry exceed the resources KiriView can safely admit, the load fails without publishing that image or a partial result. Foreground display reports the ordinary image-load failure state, while thumbnail generation leaves the thumbnail unavailable; any previously retained replacement content follows the normal failed-replacement behavior.
 
+If decoding or composing an APNG image would require more temporary image memory than KiriView can safely admit, the work fails without publishing new pixels or a partial animation frame. Foreground display reports the ordinary image-load failure state, thumbnail generation leaves the thumbnail unavailable, and background preparation does not replace an existing prepared result.
+
 ### Advertised Entry Points
 
 General archives are not advertised through the desktop file's file associations, the open dialog's default image, video, and comic book filter, or sibling archive navigation.

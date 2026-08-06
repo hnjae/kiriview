@@ -37,6 +37,7 @@ struct ImageLoadFailure
     ImageLoadFailureSeverity severity = ImageLoadFailureSeverity::Error;
     bool retryable = false;
     std::optional<MediaEntrySourceError> mediaEntrySourceError;
+    DecodedImageFailureCause decodeCause = DecodedImageFailureCause::Unknown;
 };
 }
 
