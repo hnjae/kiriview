@@ -43,6 +43,7 @@ struct AnimationSourceFrame
     }
     AnimationSourceFrame(const AnimationSourceFrame&) = default;
     AnimationSourceFrame(AnimationSourceFrame&&) noexcept = default;
+    ~AnimationSourceFrame() = default;
     AnimationSourceFrame& operator=(const AnimationSourceFrame& other)
     {
         if (this == &other) {

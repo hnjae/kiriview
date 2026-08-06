@@ -25,6 +25,7 @@ struct AnimationFrame
     }
     AnimationFrame(const AnimationFrame&) = default;
     AnimationFrame(AnimationFrame&&) noexcept = default;
+    ~AnimationFrame() = default;
     AnimationFrame& operator=(const AnimationFrame& other)
     {
         if (this == &other) {
