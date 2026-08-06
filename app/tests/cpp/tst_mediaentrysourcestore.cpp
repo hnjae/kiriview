@@ -228,9 +228,8 @@ void TestMediaEntrySourceStore::candidateWrapperPreservesTypedFailure()
         nullptr, *archiveCollection,
         [&candidatesReported](
             std::vector<kiriview::ImageDocumentPageCandidate>) { candidatesReported = true; },
-        [&preservedFailure](kiriview::MediaEntrySourceError failure) {
-            preservedFailure = std::move(failure);
-        });
+        [&preservedFailure](
+            kiriview::MediaEntrySourceError failure) { preservedFailure = std::move(failure); });
 
     QVERIFY(!candidatesReported);
     QVERIFY(preservedFailure.has_value());
@@ -249,8 +248,7 @@ void TestMediaEntrySourceStore::dataWrapperPreservesTypedFailure()
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
         = archiveCollectionForLocalArchiveUrl(archiveUrl);
     QVERIFY(archiveCollection.has_value());
-    const QUrl existingUrl
-        = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png"));
+    const QUrl existingUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png"));
     const QUrl missingUrl
         = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("missing.png"));
     addInstrumentedMediaEntrySourceFixture(
@@ -262,7 +260,8 @@ void TestMediaEntrySourceStore::dataWrapperPreservesTypedFailure()
     bool dataReported = false;
     std::optional<kiriview::ImageDataLoadError> loadError;
 
-    dependencies.dataLoader(nullptr,
+    dependencies.dataLoader(
+        nullptr,
         kiriview::ImageDecodeRequest::fromLocation(1,
             kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
                 missingUrl, *archiveCollection)),
@@ -271,8 +270,7 @@ void TestMediaEntrySourceStore::dataWrapperPreservesTypedFailure()
 
     QVERIFY(!dataReported);
     QVERIFY(loadError.has_value());
-    const auto* preservedFailure
-        = std::get_if<kiriview::MediaEntrySourceError>(&*loadError);
+    const auto* preservedFailure = std::get_if<kiriview::MediaEntrySourceError>(&*loadError);
     QVERIFY(preservedFailure != nullptr);
     QCOMPARE(preservedFailure->cause, kiriview::MediaEntrySourceErrorCause::EntryNotFound);
     QCOMPARE(preservedFailure->backend, kiriview::MediaEntrySourceBackendKind::Unknown);
@@ -344,8 +342,7 @@ void TestMediaEntrySourceStore::predecodeLoadsAdjacentOpenedCollectionImagesThro
 
     kiriview::MediaEntrySourceStore store(instrumentedMediaEntrySourceFactory(state));
     kiriview::ImageDocumentPageNavigationService navigationService(
-        store.wrapCandidateProvider(openedCollectionOnlyProvider()),
-        navigationCallbacks());
+        store.wrapCandidateProvider(openedCollectionOnlyProvider()), navigationCallbacks());
     kiriview::ImageDocumentPageCandidateListSnapshot candidateSnapshot;
     bool candidateSnapshotReady = false;
     const std::optional<kiriview::ImageDocumentPageCandidateListContext> candidateContext
@@ -359,11 +356,11 @@ void TestMediaEntrySourceStore::predecodeLoadsAdjacentOpenedCollectionImagesThro
         });
     QTRY_VERIFY(candidateSnapshotReady);
 
-    kiriview::ImagePredecodeCoordinator coordinator(store.wrapDecodeDependencies(
-                                                        kiriview::ImageDecodeDependencies {
-                                                            {},
-                                                            staticImageDataDecoder(),
-                                                        }),
+    kiriview::ImagePredecodeCoordinator coordinator(
+        store.wrapDecodeDependencies(kiriview::ImageDecodeDependencies {
+            {},
+            staticImageDataDecoder(),
+        }),
         kiriview::PowerSaverProvider {}, 1024 * 1024);
 
     kiriview::DisplayedPredecodeImage displayedImage {
