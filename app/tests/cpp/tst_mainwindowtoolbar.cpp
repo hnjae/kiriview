@@ -302,6 +302,11 @@ QString fontFamily(QQuickItem* item)
 
 KiriDocumentSession* findDocumentSession(QObject* root)
 {
+    KiriDocumentSession* documentSession
+        = qvariant_cast<KiriDocumentSession*>(root->property("documentSession"));
+    if (documentSession != nullptr) {
+        return documentSession;
+    }
     return root->findChild<KiriDocumentSession*>(
         QStringLiteral("documentSession"), Qt::FindChildrenRecursively);
 }
@@ -537,8 +542,12 @@ MainWindowFixture createMainWindowFixture(const QUrl& initialSourceUrl)
             .absoluteFilePath(QStringLiteral("../../src/qml")));
     KLocalization::setupLocalizedContext(fixture.engine.get());
     kiriview::registerApplicationImageProviders(*fixture.engine);
+    auto* documentSession = new ToolbarTestDocumentSession(fixture.engine.get());
+    documentSession->setObjectName(QStringLiteral("documentSession"));
     fixture.windowShell = new KiriWindowShell(fixture.engine.get());
     QVariantMap initialProperties;
+    initialProperties.insert(
+        QStringLiteral("documentSession"), QVariant::fromValue(documentSession));
     initialProperties.insert(
         QStringLiteral("windowShell"), QVariant::fromValue(fixture.windowShell));
     if (!initialSourceUrl.isEmpty()) {
@@ -811,8 +820,9 @@ void TestMainWindowToolBar::shellOwnsFinalWindowTitleProjection()
     KiriDocumentSession* documentSession = findDocumentSession(fixture.window);
     QVERIFY(documentSession != nullptr);
     QTRY_VERIFY(documentSession->activeImageReady());
-    QTRY_VERIFY(fixture.windowShell->property("windowTitle").toString().contains(
-        QStringLiteral("title.png")));
+    QTRY_VERIFY(fixture.windowShell->property("windowTitle")
+            .toString()
+            .contains(QStringLiteral("title.png")));
     QTRY_COMPARE(fixture.window->title(), fixture.windowShell->property("windowTitle").toString());
 }
 

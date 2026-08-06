@@ -5,9 +5,11 @@
 
 #include "applicationdiagnostics.h"
 #include "applicationstartupsource.h"
+#include "facade/kiridocumentsession.h"
 #include "facade/kiriwindowshell.h"
 #include "localization/localization.h"
 #include "session/thumbnailimagestore.h"
+#include "system/powersaverprovider.h"
 
 #include <KLocalizedString>
 #include <QApplication>
@@ -20,6 +22,7 @@
 #include <QVariant>
 #include <QtGlobal>
 #include <array>
+#include <utility>
 
 namespace {
 void setupApplicationIdentity()
@@ -61,8 +64,19 @@ void loadApplicationMainQml(
     setupLocalizedContext(engine);
     registerApplicationImageProviders(engine);
 
+    auto* powerSaverRuntime = new PowerSaverRuntime(&engine);
+    KiriDocumentSessionDependencies documentSessionDependencies;
+    const PowerSaverProvider powerSaverProvider = powerSaverRuntime->provider();
+    documentSessionDependencies.imageDocument.powerSaver = powerSaverProvider;
+    documentSessionDependencies.sessionRuntime.directMediaPredecodeDependencies.powerSaver
+        = powerSaverProvider;
+    auto* documentSession
+        = new KiriDocumentSession(std::move(documentSessionDependencies), &engine);
+    documentSession->setObjectName(QStringLiteral("documentSession"));
     auto* windowShell = new KiriWindowShell(&engine);
     QVariantMap initialProperties;
+    initialProperties.insert(
+        QStringLiteral("documentSession"), QVariant::fromValue(documentSession));
     initialProperties.insert(QStringLiteral("windowShell"), QVariant::fromValue(windowShell));
 
     const QUrl initialSourceUrl = initialSourceUrlFromStartupSource(startupSource);

@@ -13,6 +13,7 @@ import org.kde.kirigamiaddons.statefulapp as StatefulApp
 StatefulApp.StatefulWindow {
     id: root
 
+    required property KiriDocumentSession documentSession
     required property KiriWindowShell windowShell
 
     application: KiriViewApplication {
@@ -72,6 +73,9 @@ StatefulApp.StatefulWindow {
     onHelpDialogOpenChanged: windowShell.reportHelpDialogOpen(helpDialogOpen)
 
     Component.onCompleted: {
+        if (root.initialSourceUrl.toString().length > 0) {
+            documentSession.sourceUrl = root.initialSourceUrl;
+        }
         kiriApplication.setDocumentSession(documentSession);
         kiriApplication.setWindowShell(windowShell);
         kiriApplication.setShortcutHost(root);
@@ -127,18 +131,6 @@ StatefulApp.StatefulWindow {
 
         function onToggleThumbnailPanelRequested() {
             mediaWorkspaceHost.toggleThumbnailPanel();
-        }
-    }
-
-    KiriDocumentSession {
-        id: documentSession
-
-        objectName: "documentSession"
-
-        Component.onCompleted: {
-            if (root.initialSourceUrl.toString().length > 0) {
-                sourceUrl = root.initialSourceUrl;
-            }
         }
     }
 
@@ -202,7 +194,7 @@ StatefulApp.StatefulWindow {
             anchors.right: parent.right
             anchors.top: root.fullscreen ? parent.top : mainImageToolBar.bottom
 
-            documentSession: documentSession
+            documentSession: root.documentSession
             openAction: imageActions.openAction
             viewerForegroundColor: imageViewTheme.darkForegroundColor
             viewerSurfaceColor: imageViewTheme.darkBackgroundColor
@@ -243,7 +235,7 @@ StatefulApp.StatefulWindow {
             id: imageActions
 
             application: kiriApplication
-            documentSession: documentSession
+            documentSession: root.documentSession
             imageDocument: page.imageDocument
             videoMode: page.videoMode
         }

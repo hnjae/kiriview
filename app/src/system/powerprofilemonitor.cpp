@@ -8,6 +8,8 @@
 
 #include <QDBusConnection>
 #include <QDBusMessage>
+#include <QDBusPendingCallWatcher>
+#include <QPointer>
 #include <QVariant>
 #include <utility>
 
@@ -18,19 +20,29 @@ constexpr auto dbusPropertiesInterface = "org.freedesktop.DBus.Properties";
 constexpr auto powerProfileMonitorInterface = "org.freedesktop.portal.PowerProfileMonitor";
 constexpr auto powerSaverEnabledProperty = "power-saver-enabled";
 
-QVariantList readPortalPowerSaverEnabled()
+void readPortalPowerSaverEnabled(
+    QObject* receiver, kiriview::PowerProfilePortalReplyCallback callback)
 {
     QDBusMessage message = QDBusMessage::createMethodCall(
         portalService, portalPath, dbusPropertiesInterface, QStringLiteral("Get"));
     message << QString::fromLatin1(powerProfileMonitorInterface)
             << QString::fromLatin1(powerSaverEnabledProperty);
 
-    const QDBusMessage reply = QDBusConnection::sessionBus().call(message);
-    if (reply.type() != QDBusMessage::ReplyMessage) {
-        return {};
-    }
-
-    return reply.arguments();
+    auto* watcher
+        = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(message), receiver);
+    QObject* context = receiver != nullptr ? receiver : watcher;
+    QObject::connect(watcher, &QDBusPendingCallWatcher::finished, context,
+        [watcher, callback = std::move(callback)]() mutable {
+            QVariantList arguments;
+            const QDBusMessage reply = watcher->reply();
+            if (reply.type() == QDBusMessage::ReplyMessage) {
+                arguments = reply.arguments();
+            }
+            watcher->deleteLater();
+            if (callback) {
+                callback(std::move(arguments));
+            }
+        });
 }
 
 void subscribePortalPowerSaverChanges(QObject* receiver)
@@ -54,8 +66,8 @@ PowerProfileMonitor::PowerProfileMonitor(
     : m_callback(std::move(callback))
     , m_runtime(powerProfileMonitorRuntimeWithDefaults(std::move(runtime)))
 {
-    refreshPowerSaverEnabled();
     m_runtime.subscribePropertiesChanged(this);
+    refreshPowerSaverEnabled();
 }
 
 bool PowerProfileMonitor::powerSaverEnabled() const { return m_state.powerSaverEnabled(); }
@@ -63,6 +75,7 @@ bool PowerProfileMonitor::powerSaverEnabled() const { return m_state.powerSaverE
 void PowerProfileMonitor::handlePropertiesChanged(const QString& interfaceName,
     const QVariantMap& changedProperties, const QStringList& invalidatedProperties)
 {
+    ++m_refreshRevision;
     const PowerProfileMonitorPlan plan
         = m_state.applyEvent(powerProfileMonitorEventFromPropertiesChanged(
             interfaceName, changedProperties, invalidatedProperties));
@@ -74,8 +87,21 @@ void PowerProfileMonitor::handlePropertiesChanged(const QString& interfaceName,
 
 void PowerProfileMonitor::refreshPowerSaverEnabled()
 {
-    applyPlan(m_state.applyEvent(
-        powerProfileMonitorEventFromRefreshReply(m_runtime.readPowerSaverEnabled())));
+    const quint64 revision = ++m_refreshRevision;
+    const QPointer<PowerProfileMonitor> self(this);
+    m_runtime.readPowerSaverEnabled(this, [self, revision](QVariantList arguments) mutable {
+        if (self != nullptr) {
+            self->finishPowerSaverRefresh(revision, std::move(arguments));
+        }
+    });
+}
+
+void PowerProfileMonitor::finishPowerSaverRefresh(quint64 revision, QVariantList arguments)
+{
+    if (revision != m_refreshRevision) {
+        return;
+    }
+    applyPlan(m_state.applyEvent(powerProfileMonitorEventFromRefreshReply(arguments)));
 }
 
 void PowerProfileMonitor::applyPlan(PowerProfileMonitorPlan plan)

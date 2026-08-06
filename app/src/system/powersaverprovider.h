@@ -4,14 +4,15 @@
 #ifndef KIRIVIEW_POWERSAVERPROVIDER_H
 #define KIRIVIEW_POWERSAVERPROVIDER_H
 
+#include <QObject>
 #include <QtGlobal>
 
 #include <functional>
 #include <memory>
 
-class QObject;
-
 namespace kiriview {
+struct PowerProfileMonitorRuntime;
+
 class PowerSaverStateMonitor
 {
 public:
@@ -32,6 +33,21 @@ struct PowerSaverProvider
 
 PowerSaverProvider defaultPowerSaverProvider();
 PowerSaverProvider powerSaverProviderWithDefault(PowerSaverProvider provider);
+
+class PowerSaverRuntime final : public QObject
+{
+public:
+    explicit PowerSaverRuntime(QObject* parent = nullptr);
+    PowerSaverRuntime(PowerProfileMonitorRuntime runtime, QObject* parent = nullptr);
+    ~PowerSaverRuntime() override;
+    Q_DISABLE_COPY_MOVE(PowerSaverRuntime)
+
+    [[nodiscard]] PowerSaverProvider provider() const;
+
+private:
+    class Private;
+    std::unique_ptr<Private> d;
+};
 }
 
 #endif

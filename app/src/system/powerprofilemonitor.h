@@ -12,10 +12,12 @@
 #include <QStringList>
 #include <QVariantList>
 #include <QVariantMap>
+#include <cstdint>
 #include <functional>
 
 namespace kiriview {
-using PowerProfilePortalReader = std::function<QVariantList()>;
+using PowerProfilePortalReplyCallback = std::function<void(QVariantList)>;
+using PowerProfilePortalReader = std::function<void(QObject*, PowerProfilePortalReplyCallback)>;
 using PowerProfilePortalSubscription = std::function<void(QObject*)>;
 
 struct PowerProfileMonitorRuntime
@@ -42,11 +44,13 @@ private Q_SLOTS:
     // NOLINTNEXTLINE(readability-redundant-access-specifiers)
 private:
     void refreshPowerSaverEnabled();
+    void finishPowerSaverRefresh(quint64 revision, QVariantList arguments);
     void applyPlan(PowerProfileMonitorPlan plan);
 
     PowerSaverChangedCallback m_callback;
     PowerProfileMonitorRuntime m_runtime;
     PowerProfileMonitorState m_state;
+    quint64 m_refreshRevision = 0;
 };
 
 PowerProfileMonitorRuntime defaultPowerProfileMonitorRuntime();
