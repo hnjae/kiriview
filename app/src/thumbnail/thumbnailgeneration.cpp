@@ -493,7 +493,7 @@ kiriview::ThumbnailGenerationDependencies resolvedThumbnailGenerationDependencie
     }
     if (!dependencies.imageDecoder) {
         dependencies.imageDecoder = [workspaceBudget = dependencies.workspaceBudget](
-                                        QByteArray bytes, int maximumLongEdge) {
+                                        const QByteArray& bytes, int maximumLongEdge) {
             return defaultThumbnailGenerationImageDecoder(bytes, maximumLongEdge, workspaceBudget);
         };
     }

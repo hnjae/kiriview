@@ -44,7 +44,7 @@ private Q_SLOTS:
     // NOLINTNEXTLINE(readability-redundant-access-specifiers)
 private:
     void refreshPowerSaverEnabled();
-    void finishPowerSaverRefresh(quint64 revision, QVariantList arguments);
+    void finishPowerSaverRefresh(quint64 revision, const QVariantList& arguments);
     void applyPlan(PowerProfileMonitorPlan plan);
 
     PowerSaverChangedCallback m_callback;

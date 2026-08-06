@@ -135,7 +135,7 @@ private:
 
     void ensureDecoded();
     void finishDecode(const ImageDecodeRequest& request, DecodedImageResult result);
-    void finishDataLoadError(const ImageDecodeRequest& request, ImageDataLoadError error);
+    void finishDataLoadError(const ImageDecodeRequest& request, const ImageDataLoadError& error);
     void finishThumbnail(const ImageDecodeRequest& request, StaticDisplayImagePayload displayImage);
     void finishDecodedImage(DecodedImage image);
     void finishStaticImage(StaticDecodedImage image);

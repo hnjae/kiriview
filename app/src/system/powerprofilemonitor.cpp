@@ -89,14 +89,14 @@ void PowerProfileMonitor::refreshPowerSaverEnabled()
 {
     const quint64 revision = ++m_refreshRevision;
     const QPointer<PowerProfileMonitor> self(this);
-    m_runtime.readPowerSaverEnabled(this, [self, revision](QVariantList arguments) mutable {
+    m_runtime.readPowerSaverEnabled(this, [self, revision](const QVariantList& arguments) {
         if (self != nullptr) {
-            self->finishPowerSaverRefresh(revision, std::move(arguments));
+            self->finishPowerSaverRefresh(revision, arguments);
         }
     });
 }
 
-void PowerProfileMonitor::finishPowerSaverRefresh(quint64 revision, QVariantList arguments)
+void PowerProfileMonitor::finishPowerSaverRefresh(quint64 revision, const QVariantList& arguments)
 {
     if (revision != m_refreshRevision) {
         return;

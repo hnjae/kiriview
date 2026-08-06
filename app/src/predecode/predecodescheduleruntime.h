@@ -22,11 +22,11 @@ public:
 
     PredecodeScheduleRuntime(QObject* owner, PredecodeLoadController& loadController,
         StartAdjacentPredecodeCallback startAdjacentPredecode,
-        PowerSaverProvider powerSaverProvider = {});
+        const PowerSaverProvider& powerSaverProvider = {});
     PredecodeScheduleRuntime(QObject* owner, PredecodeLoadController& loadController,
         StartAdjacentPredecodeCallback startAdjacentPredecode,
         CancelDomainBackgroundCallback cancelDomainBackground,
-        PowerSaverProvider powerSaverProvider = {}, TimerScheduler timerScheduler = {});
+        const PowerSaverProvider& powerSaverProvider = {}, TimerScheduler timerScheduler = {});
 
     void schedule(const PredecodeScheduleContext& context);
     void setPowerSaverEnabled(bool enabled);

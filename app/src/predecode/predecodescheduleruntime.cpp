@@ -16,16 +16,16 @@ template <typename> inline constexpr bool alwaysFalse = false;
 namespace kiriview {
 PredecodeScheduleRuntime::PredecodeScheduleRuntime(QObject* owner,
     PredecodeLoadController& loadController, StartAdjacentPredecodeCallback startAdjacentPredecode,
-    PowerSaverProvider powerSaverProvider)
-    : PredecodeScheduleRuntime(owner, loadController, std::move(startAdjacentPredecode), {},
-          std::move(powerSaverProvider), {})
+    const PowerSaverProvider& powerSaverProvider)
+    : PredecodeScheduleRuntime(
+          owner, loadController, std::move(startAdjacentPredecode), {}, powerSaverProvider, {})
 {
 }
 
 PredecodeScheduleRuntime::PredecodeScheduleRuntime(QObject* owner,
     PredecodeLoadController& loadController, StartAdjacentPredecodeCallback startAdjacentPredecode,
-    CancelDomainBackgroundCallback cancelDomainBackground, PowerSaverProvider powerSaverProvider,
-    TimerScheduler timerScheduler)
+    CancelDomainBackgroundCallback cancelDomainBackground,
+    const PowerSaverProvider& powerSaverProvider, TimerScheduler timerScheduler)
     : m_loadController(loadController)
     , m_startAdjacentPredecode(std::move(startAdjacentPredecode))
     , m_cancelDomainBackground(std::move(cancelDomainBackground))

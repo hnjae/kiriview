@@ -41,8 +41,8 @@ namespace {
         void unsubscribe(quint64 id)
         {
             const QMutexLocker lock(&mutex);
-            const auto iterator = subscribers.find(id);
-            if (iterator == subscribers.end()) {
+            const auto iterator = subscribers.constFind(id);
+            if (iterator == subscribers.cend()) {
                 return;
             }
             iterator.value()->active = false;
@@ -56,7 +56,8 @@ namespace {
                 const QMutexLocker lock(&mutex);
                 enabled = value;
                 snapshot.reserve(static_cast<std::size_t>(subscribers.size()));
-                for (const std::shared_ptr<PowerSaverSubscriber>& subscriber : subscribers) {
+                for (const std::shared_ptr<PowerSaverSubscriber>& subscriber :
+                    std::as_const(subscribers)) {
                     snapshot.push_back(subscriber);
                 }
             }
@@ -92,6 +93,7 @@ namespace {
         }
 
         ~SharedPowerSaverMonitor() override { m_state->unsubscribe(m_subscriberId); }
+        Q_DISABLE_COPY_MOVE(SharedPowerSaverMonitor)
 
         [[nodiscard]] bool powerSaverEnabled() const override
         {

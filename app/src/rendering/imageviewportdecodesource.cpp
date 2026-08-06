@@ -409,11 +409,11 @@ ImageViewportDecodeProviderSource::ImageViewportDecodeProviderSource(
                       lifetime->finishDecode(request, std::move(result));
                   }
               },
-              [this](const ImageDecodeRequest& request, ImageDataLoadError error) {
+              [this](const ImageDecodeRequest& request, const ImageDataLoadError& error) {
                   const std::shared_ptr<ImageViewportDecodeProviderSource> lifetime
                       = weak_from_this().lock();
                   if (lifetime != nullptr) {
-                      lifetime->finishDataLoadError(request, std::move(error));
+                      lifetime->finishDataLoadError(request, error);
                   }
               },
               [this](const ImageDecodeRequest& request, StaticDisplayImagePayload displayImage) {
@@ -609,7 +609,7 @@ void ImageViewportDecodeProviderSource::finishDecode(
 }
 
 void ImageViewportDecodeProviderSource::finishDataLoadError(
-    const ImageDecodeRequest& request, ImageDataLoadError error)
+    const ImageDecodeRequest& request, const ImageDataLoadError& error)
 {
     if (m_closed || !m_session.has_value() || !request.matches(resolvedSession().decodeRequest())) {
         return;
