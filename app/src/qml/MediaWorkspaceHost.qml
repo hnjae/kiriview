@@ -117,7 +117,7 @@ Item {
 
         objectName: "infoPanelOverlayDrawer"
 
-        closePolicy: Controls.Popup.CloseOnEscape | Controls.Popup.CloseOnReleaseOutside
+        closePolicy: Controls.Popup.CloseOnReleaseOutside
         edge: Qt.RightEdge
         handleVisible: false
         maximumSize: Math.min(root.infoPanelMaximumWidth, root.width)
