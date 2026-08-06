@@ -97,7 +97,7 @@ void TestKiriDocumentSessionThumbnail::activeNavigationThumbnailDemandSurfaceVal
     const quint64 generation = model->data(model->index(1, 0), generationRole).toULongLong();
     QVERIFY(generation > 0);
 
-    QVERIFY(session->replaceActiveNavigationThumbnailDemandSnapshot(generation,
+    QVERIFY(!session->replaceActiveNavigationThumbnailDemandSnapshot(generation,
         { thumbnailDemand(2, videoUrl, 96,
               KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation),
             thumbnailDemand(2, videoUrl, 129,
