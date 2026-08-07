@@ -38,3 +38,9 @@ KiriView uses ISO C++23 and Qt 6 ownership facilities to minimize memory, lifeti
 - Connections that capture owner state must bind delivery to a lifetime that is invalidated automatically when the owner is destroyed. Other captured objects use value ownership, lifetime-aware observation, or the operation-identity rules from [Async Lifecycle](async-lifecycle.md); durable contextless captures of raw `this` are not allowed.
 - A QObject is accessed only from its owning thread unless its API explicitly permits otherwise. Cross-thread work returns owned plain payloads through queued delivery, and QObject destruction that must occur on its affinity thread uses the owning runtime's Qt lifecycle path.
 - Cancellation never substitutes for lifetime validation. Queued and worker completions validate both a live owner and the current operation identity before dereferencing owner state or publishing a result.
+
+## Diagnostic Boundaries
+
+- Application logs preserve typed failure category, operation, backend category or code, and bounded opaque correlation needed to distinguish equivalent failures.
+- Source URLs, local or remote paths, collection entry names, and backend-authored diagnostic text never enter logs verbatim. Their diagnostic projections exclude credentials and complete locations, neutralize unsafe control content, and enforce a fixed output bound independent of hostile input size.
+- Rich failure values may retain source and backend detail inside their owning typed workflow for branching and user-message projection, but log sinks are not trusted storage for those values.

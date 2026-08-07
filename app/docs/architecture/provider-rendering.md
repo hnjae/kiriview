@@ -58,6 +58,8 @@ Authoritative reuse requires matching source and navigation-scope identity, fres
 
 Refinement work is best-effort cancelable. A completion may populate an application-owned bounded cache under its reuse identity, but the provider may return it only for a matching current public request. KiriView does not decide whether or how the dependency incorporates a valid result into presentation.
 
+Raster refinement output remains part of aggregate application admission from producer start through physical producer retirement and result handoff or discard. Publication cancellation and stale rejection cannot release that capacity early; a replacement that would exceed the admitted aggregate waits, degrades within the accepted request contract, or returns a typed bounded-resource outcome without publishing stale or partial output.
+
 Predecoded still images seed the same supported provider source lifecycle as foreground decodes and refinements. Their availability is not a presentation-ready observation, does not independently answer a viewport request, and does not select loading feedback. Video rows may guide adjacent-image preparation but never create still-image provider payloads.
 
 ## Animation And SVG
