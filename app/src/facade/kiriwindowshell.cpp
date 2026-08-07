@@ -12,6 +12,16 @@
 #include <QWindow>
 #include <utility>
 
+namespace {
+void disconnectConnections(std::vector<QMetaObject::Connection>* connections)
+{
+    for (const QMetaObject::Connection& connection : *connections) {
+        QObject::disconnect(connection);
+    }
+    connections->clear();
+}
+}
+
 KiriWindowShell::KiriWindowShell(QObject* parent)
     : KiriWindowShell(kiriview::TimerScheduler {}, parent)
 {
@@ -82,21 +92,27 @@ void KiriWindowShell::attachWindow(QObject* window)
 void KiriWindowShell::attachApplication(QObject* application)
 {
     auto* kiriApplication = qobject_cast<KiriViewApplication*>(application);
-    if (kiriApplication == nullptr) {
+    if (m_application == kiriApplication) {
         return;
     }
 
-    m_notificationConnections.push_back(QObject::connect(kiriApplication,
+    disconnectConnections(&m_applicationConnections);
+    m_application = kiriApplication;
+    if (m_application == nullptr) {
+        return;
+    }
+
+    m_applicationConnections.push_back(QObject::connect(kiriApplication,
         &KiriViewApplication::imageBoundaryReached, this, [this](const QString& message) {
             submitNotification(kiriview::WindowNotificationScope::NavigationBoundary, message);
         }));
-    m_notificationConnections.push_back(
+    m_applicationConnections.push_back(
         QObject::connect(kiriApplication, &KiriViewApplication::unsupportedVideoActionTriggered,
             this, [this](KiriViewApplication::ActionId) {
                 submitNotification(kiriview::WindowNotificationScope::UnsupportedAction,
                     i18nc("@info:status", "This action is not available for videos"));
             }));
-    m_notificationConnections.push_back(
+    m_applicationConnections.push_back(
         QObject::connect(kiriApplication, &KiriViewApplication::unsupportedImageActionTriggered,
             this, [this](KiriViewApplication::ActionId) {
                 submitNotification(kiriview::WindowNotificationScope::UnsupportedAction,
@@ -107,28 +123,33 @@ void KiriWindowShell::attachApplication(QObject* application)
 void KiriWindowShell::attachDocumentSession(QObject* session)
 {
     auto* documentSession = qobject_cast<KiriDocumentSession*>(session);
-    if (documentSession == nullptr) {
+    if (m_documentSession == documentSession) {
         return;
     }
 
-    if (m_documentSession != documentSession) {
-        QObject::disconnect(m_windowTitleConnection);
-        m_documentSession = documentSession;
-        m_windowTitleConnection
-            = QObject::connect(documentSession, &KiriDocumentSession::windowTitleSubjectChanged,
-                this, [this]() { refreshWindowTitle(); });
+    disconnectConnections(&m_documentSessionConnections);
+    m_documentSession = documentSession;
+    if (m_documentSession == nullptr) {
         refreshWindowTitle();
+        return;
     }
 
+    m_documentSessionConnections.push_back(
+        QObject::connect(documentSession, &QObject::destroyed, this, [this]() {
+            m_documentSession.clear();
+            refreshWindowTitle();
+        }));
+    m_documentSessionConnections.push_back(QObject::connect(documentSession,
+        &KiriDocumentSession::windowTitleSubjectChanged, this, [this]() { refreshWindowTitle(); }));
     KiriImageDocument* imageDocument = documentSession->imageDocument();
-    m_notificationConnections.push_back(
+    m_documentSessionConnections.push_back(
         QObject::connect(documentSession, &KiriDocumentSession::sourceUrlChanged, this,
             [this]() { clearNavigationBoundaryNotification(); }));
-    m_notificationConnections.push_back(QObject::connect(documentSession,
+    m_documentSessionConnections.push_back(QObject::connect(documentSession,
         &KiriDocumentSession::fileDeletionFailed, this, [this](const QString& message) {
             submitNotification(kiriview::WindowNotificationScope::OperationFailure, message);
         }));
-    m_notificationConnections.push_back(QObject::connect(documentSession,
+    m_documentSessionConnections.push_back(QObject::connect(documentSession,
         &KiriDocumentSession::openWithFailed, this, [this](const QString& message) {
             submitNotification(kiriview::WindowNotificationScope::OperationFailure,
                 message.isEmpty()
@@ -136,22 +157,24 @@ void KiriWindowShell::attachDocumentSession(QObject* session)
                     : message);
         }));
     if (imageDocument == nullptr) {
+        refreshWindowTitle();
         return;
     }
 
-    m_notificationConnections.push_back(
+    m_documentSessionConnections.push_back(
         QObject::connect(imageDocument, &KiriImageDocument::displayedUrlChanged, this,
             [this]() { clearNavigationBoundaryNotification(); }));
-    m_notificationConnections.push_back(
+    m_documentSessionConnections.push_back(
         QObject::connect(imageDocument, &KiriImageDocument::containerNavigationBoundaryReached,
             this, [this](const QString& message) {
                 submitNotification(kiriview::WindowNotificationScope::NavigationBoundary, message);
             }));
-    m_notificationConnections.push_back(
+    m_documentSessionConnections.push_back(
         QObject::connect(imageDocument, &KiriImageDocument::unsupportedOpenedCollectionVideoEntered,
             this, [this](const QString& message) {
                 submitNotification(kiriview::WindowNotificationScope::UnsupportedMedia, message);
             }));
+    refreshWindowTitle();
 }
 
 void KiriWindowShell::requestToggleFullscreen() { m_chromeRuntime.requestToggleFullscreen(); }

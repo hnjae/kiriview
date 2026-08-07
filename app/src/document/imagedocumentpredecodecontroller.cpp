@@ -3,6 +3,7 @@
 
 #include "imagedocumentpredecodecontroller.h"
 
+#include "diagnostics/diagnosticlogprojection.h"
 #include "imagedocumentstate.h"
 #include "location/imagedocumentlocation.h"
 #include "predecode/imagepredecodecoordinator.h"
@@ -10,6 +11,7 @@
 
 #include <QDebug>
 #include <optional>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -194,8 +196,15 @@ void ImageDocumentPredecodeController::scheduleWithConfirmedCandidateSnapshot(
             } else if (result.error.has_value()) {
                 std::visit(
                     [](const auto& detail) {
-                        qCWarning(kiriviewPredecodeLog).noquote()
-                            << "predecode candidate snapshot loading failed" << detail;
+                        using Error = std::decay_t<decltype(detail)>;
+                        if constexpr (std::is_same_v<Error, QString>) {
+                            qCWarning(kiriviewPredecodeLog).noquote()
+                                << "predecode candidate snapshot loading failed"
+                                << kiriview::diagnosticDetailReference(detail);
+                        } else {
+                            qCWarning(kiriviewPredecodeLog).noquote()
+                                << "predecode candidate snapshot loading failed" << detail;
+                        }
                     },
                     *result.error);
             }

@@ -17,12 +17,18 @@ ImageActionAvailabilityProjection imageActionAvailabilityProjection(
         = input.imageReady && !input.fileDeletionInProgress && helpShortcutsEnabled;
     const bool readyViewerShortcutsEnabled
         = input.imageReady && !input.fileDeletionInProgress && viewerShortcutsEnabled;
+    const bool collectionReadingAvailable
+        = input.twoPageModeAvailable || input.rightToLeftReadingAvailable;
+    const bool collectionReadingShortcutsEnabled
+        = collectionReadingAvailable && !input.fileDeletionInProgress && helpShortcutsEnabled;
+    const bool collectionReadingViewerShortcutsEnabled
+        = collectionReadingAvailable && !input.fileDeletionInProgress && viewerShortcutsEnabled;
 
     return {
         canUseReadyActions,
         canUseReadyActions && !twoPageModeActive,
-        canUseReadyActions && input.twoPageModeAvailable,
-        canUseReadyActions && input.rightToLeftReadingAvailable,
+        !input.fileDeletionInProgress && !input.helpDialogOpen && input.twoPageModeAvailable,
+        !input.fileDeletionInProgress && !input.helpDialogOpen && input.rightToLeftReadingAvailable,
         rightToLeftReadingActive,
         twoPageModeActive,
         helpShortcutsEnabled,
@@ -30,8 +36,8 @@ ImageActionAvailabilityProjection imageActionAvailabilityProjection(
         readyShortcutsEnabled,
         readyViewerShortcutsEnabled,
         readyViewerShortcutsEnabled && twoPageModeActive,
-        readyShortcutsEnabled && input.rightToLeftReadingAvailable,
-        readyViewerShortcutsEnabled && input.rightToLeftReadingAvailable,
+        collectionReadingShortcutsEnabled,
+        collectionReadingViewerShortcutsEnabled,
         readyShortcutsEnabled && !twoPageModeActive,
         readyViewerShortcutsEnabled && !twoPageModeActive,
         input.imagePannable && !input.fileDeletionInProgress && helpShortcutsEnabled,
@@ -60,10 +66,10 @@ bool imageActionAvailabilityShortcutsEnabledForScope(
         return projection.readyShortcutsEnabled;
     case Scope::ReadyViewerShortcutScope:
         return projection.readyViewerShortcutsEnabled;
-    case Scope::RightToLeftReadingShortcutScope:
-        return projection.rightToLeftReadingShortcutsEnabled;
-    case Scope::RightToLeftReadingViewerShortcutScope:
-        return projection.rightToLeftReadingViewerShortcutsEnabled;
+    case Scope::CollectionReadingShortcutScope:
+        return projection.collectionReadingShortcutsEnabled;
+    case Scope::CollectionReadingViewerShortcutScope:
+        return projection.collectionReadingViewerShortcutsEnabled;
     case Scope::RotateShortcutScope:
         return projection.rotateShortcutsEnabled;
     case Scope::RotateViewerShortcutScope:
@@ -135,14 +141,14 @@ bool videoShortcutsEnabledForScope(VideoShortcutAvailabilityInput input, ImageSh
     case ImageShortcutScope::RotateShortcutScope:
     case ImageShortcutScope::PannableShortcutScope:
     case ImageShortcutScope::ContainerShortcutScope:
-    case ImageShortcutScope::RightToLeftReadingShortcutScope:
+    case ImageShortcutScope::CollectionReadingShortcutScope:
         return ready;
     case ImageShortcutScope::ReadyViewerShortcutScope:
     case ImageShortcutScope::RotateViewerShortcutScope:
     case ImageShortcutScope::PannableViewerShortcutScope:
     case ImageShortcutScope::MediaStartEndViewerShortcutScope:
     case ImageShortcutScope::ContainerViewerShortcutScope:
-    case ImageShortcutScope::RightToLeftReadingViewerShortcutScope:
+    case ImageShortcutScope::CollectionReadingViewerShortcutScope:
         return readyViewer;
     case ImageShortcutScope::ImageSelectionShortcutScope:
     case ImageShortcutScope::PageShortcutScope:

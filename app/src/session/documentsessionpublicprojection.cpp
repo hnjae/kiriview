@@ -138,7 +138,7 @@ bool activeImageOpenedCollectionScopeActiveForInput(
 bool activeImageRightToLeftReadingActiveForInput(
     const kiriview::DocumentSessionPublicSnapshotInput& input)
 {
-    return input.session.documentKind == kiriview::DocumentSessionKind::Image
+    return activeImageOpenedCollectionScopeActiveForInput(input)
         && input.image.rightToLeftReadingEnabled && input.image.rightToLeftReadingAvailable;
 }
 

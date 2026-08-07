@@ -186,6 +186,7 @@ kiriview::ImageDecodeDependencies actualDecodeDependencies(
                 return kiriview::decodeImageData(data, request);
             });
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     return dependencies;
 }
 
@@ -453,7 +454,8 @@ struct ProviderFixture
     {
         resource = std::make_shared<kiriview::ImageViewportProviderResource>(
             41, QStringLiteral("fake-location"), source, store, failures);
-        adapter = std::make_unique<kiriview::ImageViewportSequenceProvider>(resource);
+        adapter = std::make_unique<kiriview::ImageViewportSequenceProvider>(
+            resource, kiriview::ImageViewportProviderResourceFactory {});
         ImageSequenceFactory factory;
         factoryResult.reset(factory.fromProvider(adapter.get()));
         QVERIFY(factoryResult);
@@ -480,6 +482,9 @@ class TestImageViewportSequenceProvider : public QObject
 
 private Q_SLOTS:
     void metadataAndStillFrameFlowThroughProvider();
+    void concurrentViewportsUseIndependentProviderSessions();
+    void projectionAcknowledgementStaysWithInitialSession();
+    void sessionFactoryRejectsDifferentSequenceMetadata();
     void productionDecodeStartsOnlyForProviderDemand();
     void sourceAccessFailurePreservesTypedSourceDetails();
     void decodeResourceFailurePreservesTypedCause();
@@ -535,6 +540,163 @@ private Q_SLOTS:
     void componentFrameHandlePinsStoreUntilRelease();
     void failureReferenceResolvesAndRetiresWithHandle();
 };
+
+void TestImageViewportSequenceProvider::concurrentViewportsUseIndependentProviderSessions()
+{
+    auto store = std::make_shared<kiriview::DisplayImageStore>(4 * 1024 * 1024);
+    std::vector<std::shared_ptr<FakeImageViewportProviderSource>> sources;
+    const auto makeResource = [&]() {
+        auto source = std::make_shared<FakeImageViewportProviderSource>();
+        source->knownMetadata = ImageSequenceProviderMetadata::still(QSizeF(128, 64));
+        source->automaticMetadata
+            = kiriview::ImageViewportProviderMetadataResult::ready(source->knownMetadata);
+        sources.push_back(source);
+        return std::make_shared<kiriview::ImageViewportProviderResource>(41,
+            QStringLiteral("shared-sequence-location"), source, store,
+            std::make_shared<kiriview::ImageViewportFailureRegistry>());
+    };
+
+    std::shared_ptr<kiriview::ImageViewportProviderResource> initialResource = makeResource();
+    kiriview::ImageViewportSequenceProvider adapter(initialResource, makeResource);
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> factoryResult(factory.fromProvider(&adapter));
+    QVERIFY(factoryResult);
+    QCOMPARE(factoryResult->outcome(), ImageSequenceFactoryOutcome::Created);
+    QVERIFY(factoryResult->sequence());
+
+    QQuickWindow firstWindow;
+    QQuickWindow secondWindow;
+    ImageViewport firstViewport;
+    ImageViewport secondViewport;
+    hostViewport(firstWindow, firstViewport);
+    hostViewport(secondWindow, secondViewport);
+    const ImageViewportPresentationTarget sharedTarget(factoryResult->sequence());
+    QCOMPARE(firstViewport.setPresentationTarget(sharedTarget, {}).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(secondViewport.setPresentationTarget(sharedTarget, {}).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+
+    QTRY_COMPARE(sources.size(), std::size_t(2));
+    QTRY_COMPARE(sources.at(0)->pendingFrames.size(), std::size_t(1));
+    QTRY_COMPARE(sources.at(1)->pendingFrames.size(), std::size_t(1));
+    QCOMPARE(sources.at(0)->pendingFrames.front().identity.requestToken,
+        sources.at(1)->pendingFrames.front().identity.requestToken);
+
+    ImageViewportPresentationCommand changedDemand;
+    changedDemand.setExactnessPreference(ImageViewportExactnessPreference::RequireExact);
+    QCOMPARE(firstViewport.setPresentation(changedDemand).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QTRY_VERIFY(!sources.at(0)->cancelledTokenSets.empty());
+    QVERIFY(sources.at(1)->cancelledTokenSets.empty());
+
+    firstViewport.clear();
+    QTRY_COMPARE(sources.at(0)->closeCount, 1);
+    QCOMPARE(sources.at(1)->closeCount, 0);
+
+    sources.at(1)->completeNextFrame(kiriview::ImageViewportProviderFrameResult::ready(
+        displayPayload(kiriview::DisplayImageQuality::Exact, QSize(128, 64), QSize(128, 64)),
+        ImageSequenceProviderFrameEnvelope::stillFrame(), QStringLiteral("png")));
+    QVERIFY(driveRenderUntil(secondWindow, [&secondViewport]() {
+        return secondViewport.state().request().status() == ImageViewportRequestStatus::Ready;
+    }));
+    QCOMPARE(
+        secondViewport.state().primary().display().quality(), ImageViewportPayloadQuality::Exact);
+}
+
+void TestImageViewportSequenceProvider::projectionAcknowledgementStaysWithInitialSession()
+{
+    auto store = std::make_shared<kiriview::DisplayImageStore>(4 * 1024 * 1024);
+    std::vector<std::shared_ptr<FakeImageViewportProviderSource>> sources;
+    std::vector<std::shared_ptr<kiriview::ImageViewportProviderResource>> resources;
+    const auto makeResource = [&]() {
+        auto source = std::make_shared<FakeImageViewportProviderSource>();
+        source->knownMetadata = ImageSequenceProviderMetadata::still(QSizeF(128, 64));
+        source->automaticMetadata
+            = kiriview::ImageViewportProviderMetadataResult::ready(source->knownMetadata);
+        auto resource = std::make_shared<kiriview::ImageViewportProviderResource>(41,
+            QStringLiteral("shared-sequence-location"), source, store,
+            std::make_shared<kiriview::ImageViewportFailureRegistry>());
+        sources.push_back(source);
+        resources.push_back(resource);
+        return resource;
+    };
+
+    std::shared_ptr<kiriview::ImageViewportProviderResource> initialResource = makeResource();
+    kiriview::ImageViewportSequenceProvider adapter(initialResource, makeResource);
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> factoryResult(factory.fromProvider(&adapter));
+    QVERIFY(factoryResult);
+    QCOMPARE(factoryResult->outcome(), ImageSequenceFactoryOutcome::Created);
+    QVERIFY(factoryResult->sequence());
+
+    QQuickWindow firstWindow;
+    QQuickWindow secondWindow;
+    ImageViewport firstViewport;
+    ImageViewport secondViewport;
+    hostViewport(firstWindow, firstViewport);
+    hostViewport(secondWindow, secondViewport);
+    const ImageViewportPresentationTarget sharedTarget(factoryResult->sequence());
+    QCOMPARE(firstViewport.setPresentationTarget(sharedTarget, {}).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(secondViewport.setPresentationTarget(sharedTarget, {}).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QTRY_COMPARE(sources.size(), std::size_t(2));
+    QTRY_COMPARE(sources.at(0)->pendingFrames.size(), std::size_t(1));
+    QTRY_COMPARE(sources.at(1)->pendingFrames.size(), std::size_t(1));
+    const ImageViewportDemandRevisionToken demandRevision
+        = sources.at(0)->pendingFrames.front().identity.demandRevision;
+    QCOMPARE(demandRevision, sources.at(1)->pendingFrames.front().identity.demandRevision);
+
+    sources.at(1)->completeNextFrame(kiriview::ImageViewportProviderFrameResult::ready(
+        displayPayload(kiriview::DisplayImageQuality::Exact, QSize(128, 64), QSize(128, 64)),
+        ImageSequenceProviderFrameEnvelope::stillFrame(), QStringLiteral("png")));
+    QVERIFY(driveRenderUntil(secondWindow, [&secondViewport]() {
+        return secondViewport.state().request().status() == ImageViewportRequestStatus::Ready;
+    }));
+    QVERIFY(
+        !adapter.acceptDisplayedStillDisplayImage(ImageViewportPageRole::Primary, demandRevision));
+    QVERIFY(!resources.at(1)->currentStillDisplayImage(demandRevision).has_value());
+
+    sources.at(0)->completeNextFrame(kiriview::ImageViewportProviderFrameResult::ready(
+        displayPayload(kiriview::DisplayImageQuality::Exact, QSize(128, 64), QSize(128, 64)),
+        ImageSequenceProviderFrameEnvelope::stillFrame(), QStringLiteral("png")));
+    QVERIFY(driveRenderUntil(firstWindow, [&firstViewport]() {
+        return firstViewport.state().request().status() == ImageViewportRequestStatus::Ready;
+    }));
+    QVERIFY(
+        adapter.acceptDisplayedStillDisplayImage(ImageViewportPageRole::Primary, demandRevision));
+    QVERIFY(resources.at(0)->currentStillDisplayImage(demandRevision).has_value());
+    QVERIFY(!resources.at(1)->currentStillDisplayImage(demandRevision).has_value());
+}
+
+void TestImageViewportSequenceProvider::sessionFactoryRejectsDifferentSequenceMetadata()
+{
+    auto store = std::make_shared<kiriview::DisplayImageStore>(4 * 1024 * 1024);
+    auto initialSource = std::make_shared<FakeImageViewportProviderSource>();
+    initialSource->knownMetadata = ImageSequenceProviderMetadata::still(QSizeF(128, 64));
+    auto initialResource = std::make_shared<kiriview::ImageViewportProviderResource>(41,
+        QStringLiteral("one-logical-sequence"), initialSource, store,
+        std::make_shared<kiriview::ImageViewportFailureRegistry>());
+    const auto mismatchedResource = [store]() {
+        auto source = std::make_shared<FakeImageViewportProviderSource>();
+        source->knownMetadata = ImageSequenceProviderMetadata::still(QSizeF(64, 64));
+        return std::make_shared<kiriview::ImageViewportProviderResource>(41,
+            QStringLiteral("one-logical-sequence"), source, store,
+            std::make_shared<kiriview::ImageViewportFailureRegistry>());
+    };
+    kiriview::ImageViewportSequenceProvider adapter(initialResource, mismatchedResource);
+    const ImageSequenceProviderSessionFactory sessionFactory
+        = adapter.descriptor().sessionFactory();
+
+    ImageSequenceProviderSessionFactoryResult first = sessionFactory();
+    QCOMPARE(first.outcome(), ImageSequenceProviderSessionFactoryOutcome::Created);
+    QVERIFY(first.session());
+    ImageSequenceProviderSessionFactoryResult second = sessionFactory();
+    QCOMPARE(second.outcome(), ImageSequenceProviderSessionFactoryOutcome::Failed);
+    QCOMPARE(second.failure().cause(), ImageSequenceProviderFailureCause::ProviderInternal);
+
+    delete first.session();
+}
 
 void TestImageViewportSequenceProvider::productionDecodeStartsOnlyForProviderDemand()
 {
@@ -673,6 +835,7 @@ void TestImageViewportSequenceProvider::deferredDecodeSourcePreservesDemandUntil
             kiriview::TestSupport::staticImageDataDecoder(
                 kiriview::TestSupport::testImage(128, 64)));
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
         std::move(dependencies), kiriview::ImageViewportProvisionalPreviewPolicy::Allow);
     const kiriview::ImageViewportProviderWorkIdentity identity {
@@ -873,6 +1036,7 @@ void TestImageViewportSequenceProvider::
                 kiriview::TestSupport::testImage(800, 600)));
     dependencies.thumbnailPreviewLookupProvider = thumbnailLookup.provider();
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
         std::move(dependencies), kiriview::ImageViewportProvisionalPreviewPolicy::Suppress);
     const kiriview::ImageViewportProviderWorkIdentity identity {
@@ -1439,6 +1603,7 @@ void TestImageViewportSequenceProvider::
                       }));
     dependencies.thumbnailPreviewLookupProvider = thumbnailLookup.provider();
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
 
     const QUrl url(QStringLiteral("file:///tmp/provisional-photo.png"));
     auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
@@ -1451,7 +1616,8 @@ void TestImageViewportSequenceProvider::
     auto resource = std::make_shared<kiriview::ImageViewportProviderResource>(72,
         QStringLiteral("provisional-photo"), source, store,
         std::make_shared<kiriview::ImageViewportFailureRegistry>());
-    kiriview::ImageViewportSequenceProvider adapter(resource);
+    kiriview::ImageViewportSequenceProvider adapter(
+        resource, kiriview::ImageViewportProviderResourceFactory {});
     ImageSequenceFactory factory;
     QScopedPointer<ImageSequenceFactoryResult> factoryResult(factory.fromProvider(&adapter));
     QVERIFY(factoryResult);
@@ -1617,6 +1783,7 @@ void TestImageViewportSequenceProvider::staleAuthoritativeSeedLoadsAndDecodesCur
                     kiriview::StaticDecodedImage { std::move(payload), {} });
             });
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     kiriview::StaticDisplayImagePayload stale
         = displayPayload(kiriview::DisplayImageQuality::Exact, {}, QSize(128, 64), Qt::red);
     stale.sourceIdentity = kiriview::sourceKeyForUrl(url).identity;
@@ -1670,6 +1837,7 @@ void TestImageViewportSequenceProvider::
         = kiriview::TestSupport::imageDecodeDependenciesFor(
             dataLoader, kiriview::TestSupport::staticImageDataDecoder());
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     auto refinementSource = std::make_shared<RefiningDisplaySource>();
     const QUrl url(QStringLiteral("file:///tmp/seeded-first-display.jpg"));
     auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
@@ -1751,6 +1919,7 @@ void TestImageViewportSequenceProvider::seededInsufficientFirstDisplayRefinesBef
         = kiriview::TestSupport::imageDecodeDependenciesFor(
             dataLoader, kiriview::TestSupport::staticImageDataDecoder());
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     auto refinementSource = std::make_shared<RefiningDisplaySource>(sourceSize);
     const QUrl url(QStringLiteral("file:///tmp/seeded-first-display.jpg"));
     auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
@@ -1815,6 +1984,7 @@ void TestImageViewportSequenceProvider::seededRequireExactRefinesFullSourceBefor
         = kiriview::TestSupport::imageDecodeDependenciesFor(
             dataLoader, kiriview::TestSupport::staticImageDataDecoder());
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     auto refinementSource = std::make_shared<RefiningDisplaySource>();
     const QUrl url(QStringLiteral("file:///tmp/seeded-exact-detail.jpg"));
     auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
@@ -1870,6 +2040,7 @@ void TestImageViewportSequenceProvider::scalableSourceRefinesBeyondIntrinsicRast
         = kiriview::TestSupport::imageDecodeDependenciesFor(
             dataLoader, kiriview::TestSupport::staticImageDataDecoder());
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     QString errorString;
     const auto refinementSource = kiriview::SvgDisplaySource::open(
         QByteArrayLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"10\">"
@@ -1940,6 +2111,7 @@ void TestImageViewportSequenceProvider::scalableSourceRejectsRequireExact()
         = kiriview::TestSupport::imageDecodeDependenciesFor(
             dataLoader, kiriview::TestSupport::staticImageDataDecoder());
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     auto refinementSource = std::make_shared<RefiningDisplaySource>(
         QSize(20, 10), kiriview::StaticImageSourceDetailModel::ScalableRasterization);
     const QUrl url(QStringLiteral("file:///tmp/scalable-require-exact.svg"));
@@ -2004,6 +2176,7 @@ void TestImageViewportSequenceProvider::publicAndPrivatePayloadLimitsHaveDistinc
         = kiriview::TestSupport::imageDecodeDependenciesFor(
             dataLoader, kiriview::TestSupport::staticImageDataDecoder());
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     auto refinementSource = std::make_shared<RefiningDisplaySource>();
     const QUrl url(QStringLiteral("file:///tmp/distinct-payload-limits.jpg"));
     auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
@@ -2082,6 +2255,7 @@ void TestImageViewportSequenceProvider::actualRefinementByteCostPreservesLimitOu
         = kiriview::TestSupport::imageDecodeDependenciesFor(
             dataLoader, kiriview::TestSupport::staticImageDataDecoder());
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     auto refinementSource = std::make_shared<RefiningDisplaySource>();
     refinementSource->refinementBytesPerLine = 512;
     const QUrl url(QStringLiteral("file:///tmp/actual-refinement-byte-cost.jpg"));
@@ -2144,6 +2318,7 @@ void TestImageViewportSequenceProvider::refinementFailureIsNotReclassifiedAsReso
         = kiriview::TestSupport::imageDecodeDependenciesFor(
             dataLoader, kiriview::TestSupport::staticImageDataDecoder());
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     auto refinementSource = std::make_shared<RefiningDisplaySource>();
     refinementSource->failRefinement = true;
     const QUrl url(QStringLiteral("file:///tmp/refinement-failure-cause.jpg"));
@@ -2197,6 +2372,7 @@ void TestImageViewportSequenceProvider::invalidRefinementGeometryIsProviderInter
         = kiriview::TestSupport::imageDecodeDependenciesFor(
             dataLoader, kiriview::TestSupport::staticImageDataDecoder());
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     auto refinementSource = std::make_shared<RefiningDisplaySource>();
     refinementSource->refinementResultSize = QSize(800, 200);
     const QUrl url(QStringLiteral("file:///tmp/invalid-refinement-geometry.jpg"));
@@ -2248,6 +2424,7 @@ void TestImageViewportSequenceProvider::initialDetailWaitPublishesFirstDisplayFa
         = kiriview::TestSupport::imageDecodeDependenciesFor(
             dataLoader, kiriview::TestSupport::staticImageDataDecoder());
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     auto refinementSource = std::make_shared<RefiningDisplaySource>();
     const QUrl url(QStringLiteral("file:///tmp/seeded-initial-detail-timeout.jpg"));
     auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
@@ -2306,6 +2483,7 @@ void TestImageViewportSequenceProvider::initialDetailDeadlineInvalidationDropsQu
         = kiriview::TestSupport::imageDecodeDependenciesFor(
             dataLoader, kiriview::TestSupport::staticImageDataDecoder());
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     auto refinementSource = std::make_shared<RefiningDisplaySource>();
     const QUrl url(QStringLiteral("file:///tmp/invalidated-initial-detail-timeout.jpg"));
     auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
@@ -2354,6 +2532,7 @@ void TestImageViewportSequenceProvider::newerInitialRefinementBoundsTimedOutWork
         = kiriview::TestSupport::imageDecodeDependenciesFor(
             dataLoader, kiriview::TestSupport::staticImageDataDecoder());
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     auto refinementSource = std::make_shared<RefiningDisplaySource>();
     const QUrl url(QStringLiteral("file:///tmp/bounded-timed-out-refinement.jpg"));
     auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
@@ -2413,6 +2592,7 @@ void TestImageViewportSequenceProvider::synchronousInitialRefinementCompletesExa
               completion();
               return kiriview::ImageWorkerTask {};
           });
+    dependencies.refinementScheduler = dependencies.workerScheduler;
     auto refinementSource = std::make_shared<RefiningDisplaySource>();
     const QUrl url(QStringLiteral("file:///tmp/synchronous-initial-refinement.jpg"));
     auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
@@ -2460,6 +2640,7 @@ void TestImageViewportSequenceProvider::initialRefinementRespectsDisplayStoreEnt
         = kiriview::TestSupport::imageDecodeDependenciesFor(
             dataLoader, kiriview::TestSupport::staticImageDataDecoder());
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     auto refinementSource = std::make_shared<RefiningDisplaySource>();
     const QUrl url(QStringLiteral("file:///tmp/seeded-display-store-budget.jpg"));
     auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
@@ -2516,6 +2697,7 @@ void TestImageViewportSequenceProvider::concurrentRefinementUsesRequestAdmissibl
         = kiriview::TestSupport::imageDecodeDependenciesFor(
             dataLoader, kiriview::TestSupport::staticImageDataDecoder());
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     auto refinementSource = std::make_shared<RefiningDisplaySource>();
     const QUrl url(QStringLiteral("file:///tmp/concurrent-refinement-budgets.jpg"));
     auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
@@ -2739,6 +2921,7 @@ void TestImageViewportSequenceProvider::decodeSourceCompletionRetainsSourceThrou
         = kiriview::TestSupport::imageDecodeDependenciesFor(
             dataLoader, kiriview::TestSupport::staticImageDataDecoder());
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     const QUrl url(QStringLiteral("file:///tmp/provider-completion-lifetime.png"));
     auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
         kiriview::ImageLoadSession(82,
@@ -2882,6 +3065,7 @@ void TestImageViewportSequenceProvider::refinementCompletionRetainsSourceThrough
         = kiriview::TestSupport::imageDecodeDependenciesFor(
             dataLoader, kiriview::TestSupport::staticImageDataDecoder());
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     auto refinementSource = std::make_shared<RefiningDisplaySource>();
     const QUrl url(QStringLiteral("file:///tmp/refinement-completion-lifetime.jpg"));
     auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
@@ -2957,6 +3141,7 @@ void TestImageViewportSequenceProvider::refinementWorkerCompletionAndInvalidatio
         = kiriview::TestSupport::imageDecodeDependenciesFor(
             dataLoader, kiriview::TestSupport::staticImageDataDecoder());
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     auto refinementSource = std::make_shared<RefiningDisplaySource>();
     const QUrl url(QStringLiteral("file:///tmp/refinement-lifecycle.jpg"));
     auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
@@ -3025,6 +3210,7 @@ void TestImageViewportSequenceProvider::workerUnitIdentitySkipsLiveIdsAfterWrap(
         = kiriview::TestSupport::imageDecodeDependenciesFor(
             dataLoader, kiriview::TestSupport::staticImageDataDecoder());
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     auto refinementSource = std::make_shared<RefiningDisplaySource>();
     const QUrl url(QStringLiteral("file:///tmp/refinement-worker-id-wrap.jpg"));
     auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
@@ -3086,6 +3272,7 @@ void TestImageViewportSequenceProvider::
         = kiriview::TestSupport::imageDecodeDependenciesFor(
             dataLoader, kiriview::TestSupport::staticImageDataDecoder());
     dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
     auto refinementSource = std::make_shared<RefiningDisplaySource>();
     const QUrl url(QStringLiteral("file:///tmp/refinement-order.jpg"));
     auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(

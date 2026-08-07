@@ -5,6 +5,7 @@
 
 #include "archive/archiveformat.h"
 #include "archive/archivepath.h"
+#include "diagnostics/diagnosticlogprojection.h"
 #include "navigation/navigationlogging.h"
 
 #include <QByteArray>
@@ -75,8 +76,9 @@ std::optional<QString> documentPortalHostPath(const QUrl& url)
         const int sizeErrno = errno;
         if (valueSize <= 0) {
             if (valueSize < 0 && !isNegativeErrno(sizeErrno)) {
-                qCDebug(kiriviewNavigationLog) << "document portal host path probe failed"
-                                               << "url" << url << "errno" << sizeErrno;
+                qCDebug(kiriviewNavigationLog)
+                    << "document portal host path probe failed"
+                    << "url" << kiriview::diagnosticSourceReference(url) << "errno" << sizeErrno;
             }
             return std::nullopt;
         }
@@ -91,8 +93,9 @@ std::optional<QString> documentPortalHostPath(const QUrl& url)
         }
         if (bytesRead <= 0) {
             if (bytesRead < 0 && !isNegativeErrno(readErrno)) {
-                qCDebug(kiriviewNavigationLog) << "document portal host path read failed"
-                                               << "url" << url << "errno" << readErrno;
+                qCDebug(kiriviewNavigationLog)
+                    << "document portal host path read failed"
+                    << "url" << kiriview::diagnosticSourceReference(url) << "errno" << readErrno;
             }
             return std::nullopt;
         }
@@ -100,9 +103,10 @@ std::optional<QString> documentPortalHostPath(const QUrl& url)
             if (attempt == 0) {
                 continue;
             }
-            qCDebug(kiriviewNavigationLog) << "document portal host path read failed"
-                                           << "url" << url << "reason"
-                                           << "attribute-grew-during-read";
+            qCDebug(kiriviewNavigationLog)
+                << "document portal host path read failed"
+                << "url" << kiriview::diagnosticSourceReference(url) << "reason"
+                << "attribute-grew-during-read";
             return std::nullopt;
         }
 
@@ -117,7 +121,8 @@ std::optional<QString> documentPortalHostPath(const QUrl& url)
         }
 
         qCDebug(kiriviewNavigationLog) << "document portal host path resolved"
-                                       << "url" << url << "hostPath" << hostPath;
+                                       << "url" << kiriview::diagnosticSourceReference(url)
+                                       << "hostPath" << kiriview::diagnosticPathReference(hostPath);
         return hostPath;
     }
 
@@ -276,8 +281,10 @@ ResolvedNavigationSource NavigationSourceResolver::resolveExternalSource(const Q
         = m_provider ? m_provider(url) : NavigationSourceEntryFacts {};
     ResolvedNavigationSource source = resolvedNavigationSource(url, facts);
     if (!sameNormalizedUrl(url, source.navigationUrl())) {
-        qCDebug(kiriviewNavigationLog) << "navigation source url resolved"
-                                       << "url" << url << "navigationUrl" << source.navigationUrl();
+        qCDebug(kiriviewNavigationLog)
+            << "navigation source url resolved"
+            << "url" << kiriview::diagnosticSourceReference(url) << "navigationUrl"
+            << kiriview::diagnosticSourceReference(source.navigationUrl());
     }
     return source;
 }

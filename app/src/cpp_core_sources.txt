@@ -14,6 +14,7 @@ src/application/applicationactionruntime.cpp
 src/application/applicationactionsourceattachment.cpp
 src/application/applicationactionstatepolicy.cpp
 src/application/applicationdiagnostics.cpp
+src/diagnostics/diagnosticlogprojection.cpp
 src/application/applicationmenupresentationruntime.cpp
 src/application/applicationmenupresentationstate.cpp
 src/application/applicationshortcutruntime.cpp
@@ -60,6 +61,7 @@ src/async/directorylistingjob.cpp
 src/rendering/heifdisplaysource.cpp
 src/presentation/imageanimationplaybacksource.cpp
 src/async/imageasyncoperationstate.cpp
+src/async/imagerefinementscheduler.cpp
 src/application/imageactionavailabilitypolicy.cpp
 src/facade/kiriimageviewportsurface.cpp
 src/cache/imagebytecost.cpp

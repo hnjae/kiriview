@@ -3,7 +3,9 @@
 
 #include "application/applicationshortcutpolicy.h"
 #include "application/kiriviewapplicationactions.h"
+#include "facade/kiridocumentsession.h"
 #include "facade/kiriviewapplication.h"
+#include "facade/kiriwindowshell.h"
 #include "kiriviewstate.h"
 
 #include <KConfigGroup>
@@ -14,7 +16,9 @@
 #include <QApplication>
 #include <QByteArray>
 #include <QFileInfo>
+#include <QGuiApplication>
 #include <QObject>
+#include <QScopeGuard>
 #include <QSignalSpy>
 #include <QStandardPaths>
 #include <QStringList>
@@ -157,6 +161,9 @@ private Q_SLOTS:
     void menuPresentationPersists();
     void menuPresentationStateUsesGenericStateLocation();
     void showMenubarActionTogglesMenuPresentation();
+    void windowShellApplicationAttachmentIsIdentitySafe();
+    void windowShellDocumentSessionAttachmentIsIdentitySafe();
+    void windowShellRefreshesTitleWhenSessionDetachesOrIsDestroyed();
 };
 
 void TestKiriViewApplication::initTestCase()
@@ -730,6 +737,105 @@ void TestKiriViewApplication::showMenubarActionTogglesMenuPresentation()
     showMenubarAction->trigger();
     QCOMPARE(application.menuPresentation(), KiriViewApplication::HamburgerMenu);
     QVERIFY(!showMenubarAction->isChecked());
+}
+
+void TestKiriViewApplication::windowShellApplicationAttachmentIsIdentitySafe()
+{
+    KiriWindowShell shell;
+    KiriViewApplication firstApplication;
+    KiriViewApplication secondApplication;
+
+    shell.attachApplication(&firstApplication);
+    shell.attachApplication(&firstApplication);
+    const int initialRevision = shell.notificationReplayRevision();
+
+    Q_EMIT firstApplication.imageBoundaryReached(QStringLiteral("first boundary"));
+    QCOMPARE(shell.notificationReplayRevision(), initialRevision + 1);
+    QCOMPARE(shell.notificationMessage(), QStringLiteral("first boundary"));
+
+    shell.attachApplication(&secondApplication);
+    const int replacementRevision = shell.notificationReplayRevision();
+    Q_EMIT firstApplication.imageBoundaryReached(QStringLiteral("stale boundary"));
+    QCOMPARE(shell.notificationReplayRevision(), replacementRevision);
+
+    Q_EMIT secondApplication.imageBoundaryReached(QStringLiteral("second boundary"));
+    QCOMPARE(shell.notificationReplayRevision(), replacementRevision + 1);
+    QCOMPARE(shell.notificationMessage(), QStringLiteral("second boundary"));
+
+    shell.attachApplication(nullptr);
+    const int detachedRevision = shell.notificationReplayRevision();
+    Q_EMIT secondApplication.imageBoundaryReached(QStringLiteral("detached boundary"));
+    QCOMPARE(shell.notificationReplayRevision(), detachedRevision);
+}
+
+void TestKiriViewApplication::windowShellDocumentSessionAttachmentIsIdentitySafe()
+{
+    KiriWindowShell shell;
+    KiriDocumentSession firstSession;
+    KiriDocumentSession secondSession;
+
+    shell.attachDocumentSession(&firstSession);
+    shell.attachDocumentSession(&firstSession);
+    const int initialRevision = shell.notificationReplayRevision();
+
+    Q_EMIT firstSession.fileDeletionFailed(QStringLiteral("first failure"));
+    QCOMPARE(shell.notificationReplayRevision(), initialRevision + 1);
+    QCOMPARE(shell.notificationMessage(), QStringLiteral("first failure"));
+
+    Q_EMIT firstSession.imageDocument()->containerNavigationBoundaryReached(
+        QStringLiteral("first image boundary"));
+    QCOMPARE(shell.notificationReplayRevision(), initialRevision + 2);
+
+    shell.attachDocumentSession(&secondSession);
+    const int replacementRevision = shell.notificationReplayRevision();
+    Q_EMIT firstSession.fileDeletionFailed(QStringLiteral("stale failure"));
+    Q_EMIT firstSession.imageDocument()->containerNavigationBoundaryReached(
+        QStringLiteral("stale image boundary"));
+    QCOMPARE(shell.notificationReplayRevision(), replacementRevision);
+
+    Q_EMIT secondSession.imageDocument()->containerNavigationBoundaryReached(
+        QStringLiteral("current image boundary"));
+    const int currentRevision = shell.notificationReplayRevision();
+    Q_EMIT firstSession.sourceUrlChanged();
+    Q_EMIT firstSession.imageDocument()->displayedUrlChanged();
+    QCOMPARE(shell.notificationReplayRevision(), currentRevision);
+    QVERIFY(shell.notificationActive());
+    QCOMPARE(shell.notificationMessage(), QStringLiteral("current image boundary"));
+
+    Q_EMIT secondSession.fileDeletionFailed(QStringLiteral("second failure"));
+    QCOMPARE(shell.notificationReplayRevision(), currentRevision + 1);
+    QCOMPARE(shell.notificationMessage(), QStringLiteral("second failure"));
+
+    shell.attachDocumentSession(nullptr);
+    const int detachedRevision = shell.notificationReplayRevision();
+    Q_EMIT secondSession.fileDeletionFailed(QStringLiteral("detached failure"));
+    Q_EMIT secondSession.imageDocument()->containerNavigationBoundaryReached(
+        QStringLiteral("detached image boundary"));
+    QCOMPARE(shell.notificationReplayRevision(), detachedRevision);
+}
+
+void TestKiriViewApplication::windowShellRefreshesTitleWhenSessionDetachesOrIsDestroyed()
+{
+    const QString originalDisplayName = QGuiApplication::applicationDisplayName();
+    const auto restoreDisplayName = qScopeGuard([originalDisplayName]() {
+        QGuiApplication::setApplicationDisplayName(originalDisplayName);
+    });
+    Q_UNUSED(restoreDisplayName)
+
+    QGuiApplication::setApplicationDisplayName(QStringLiteral("Attached application"));
+    KiriWindowShell shell;
+    auto session = std::make_unique<KiriDocumentSession>();
+    shell.attachDocumentSession(session.get());
+    QCOMPARE(shell.windowTitle(), QStringLiteral("Attached application"));
+
+    QGuiApplication::setApplicationDisplayName(QStringLiteral("Detached application"));
+    shell.attachDocumentSession(nullptr);
+    QCOMPARE(shell.windowTitle(), QStringLiteral("Detached application"));
+
+    shell.attachDocumentSession(session.get());
+    QGuiApplication::setApplicationDisplayName(QStringLiteral("Destroyed application"));
+    session.reset();
+    QCOMPARE(shell.windowTitle(), QStringLiteral("Destroyed application"));
 }
 
 int main(int argc, char** argv)

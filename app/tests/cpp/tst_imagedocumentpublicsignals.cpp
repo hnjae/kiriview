@@ -15,6 +15,7 @@ class TestImageDocumentPublicSignals : public QObject
 private Q_SLOTS:
     void viewportProjectionPlansOneCoherentPublicBatch();
     void statusPlansReadinessDependentPresentationSignals();
+    void selectedTargetScopePlansCollectionReadingAvailabilitySignals();
     void presentationLifecyclePlansDedicatedPublicSignal();
     void publicSignalBatchPlansDeduplicateDerivedSignalsInEmissionOrder();
     void emitterCommitsTheSessionSnapshotBeforeProjectionSignals();
@@ -98,6 +99,19 @@ void TestImageDocumentPublicSignals::statusPlansReadinessDependentPresentationSi
             Signal::ZoomPercentKnown,
             Signal::ZoomPercent,
             Signal::TwoPageMode,
+        });
+}
+
+void TestImageDocumentPublicSignals::selectedTargetScopePlansCollectionReadingAvailabilitySignals()
+{
+    using Signal = kiriview::ImageDocumentPublicSignal;
+
+    comparePublicSignals(
+        kiriview::imageDocumentPublicSignals(kiriview::ImageDocumentChange::SelectedTargetScope),
+        {
+            Signal::ImageDocumentSourceScope,
+            Signal::TwoPageMode,
+            Signal::RightToLeftReading,
         });
 }
 

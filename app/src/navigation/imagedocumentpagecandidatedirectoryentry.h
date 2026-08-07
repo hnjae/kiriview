@@ -11,8 +11,10 @@
 #include "imagedocumentpagenavigationtypes.h"
 
 #include <QList>
+#include <QPointer>
 #include <QString>
 #include <QUrl>
+#include <cstdint>
 #include <functional>
 #include <vector>
 
@@ -23,7 +25,8 @@ class ImageDocumentPageCandidateDirectoryEntry final
 {
 public:
     ImageDocumentPageCandidateDirectoryEntry(QUrl directoryUrl,
-        ImageDocumentPageCandidateWatchProvider watchProvider, QObject* signalContext);
+        ImageDocumentPageCandidateWatchProvider watchProvider, QObject* signalContext,
+        std::uint64_t identity = 0, std::function<void()> idleCallback = {});
     ~ImageDocumentPageCandidateDirectoryEntry();
     Q_DISABLE_COPY_MOVE(ImageDocumentPageCandidateDirectoryEntry)
 
@@ -31,6 +34,8 @@ public:
     [[nodiscard]] bool listed() const;
     [[nodiscard]] const QString& errorString() const;
     [[nodiscard]] const std::vector<ImageDocumentPageCandidate>& candidates() const;
+    [[nodiscard]] std::uint64_t identity() const;
+    [[nodiscard]] bool hasActiveClients();
 
     bool open();
     void handleCompleted(std::vector<ImageDocumentPageCandidate> candidates);
@@ -46,9 +51,13 @@ public:
     void removeSubscriber(QObject* token);
 
 private:
+    void reportIdle();
+
     QUrl m_directoryUrl;
     ImageDocumentPageCandidateWatchProvider m_watchProvider;
-    QObject* m_signalContext = nullptr;
+    QPointer<QObject> m_signalContext;
+    std::uint64_t m_identity = 0;
+    std::function<void()> m_idleCallback;
     ImageIoJob m_watchJob;
     ImageDocumentPageCandidateStoreEntryState m_state;
 };

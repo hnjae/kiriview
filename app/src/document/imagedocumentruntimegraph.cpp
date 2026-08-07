@@ -4,6 +4,7 @@
 #include "imagedocumentruntimegraph.h"
 
 #include "archive/mediaentrysourcestore.h"
+#include "diagnostics/diagnosticlogprojection.h"
 #include "imagedocumentdeletioncontroller.h"
 #include "imagedocumentnavigationcontroller.h"
 #include "imagedocumentnavigationruntimeplan.h"
@@ -26,10 +27,12 @@
 #include <QUrl>
 #include <QtGlobal>
 #include <QtMath>
+#include <algorithm>
 #include <cmath>
 #include <optional>
 #include <utility>
 #include <variant>
+#include <vector>
 
 namespace kiriview {
 namespace {
@@ -85,6 +88,12 @@ namespace {
 
 struct ImageDocumentRuntimeGraph::PreparedViewportTargetState
 {
+    struct ActiveProvider
+    {
+        std::weak_ptr<ImageViewportProviderResource> resource;
+        std::weak_ptr<ImageViewportDecodeProviderSource> source;
+    };
+
     ImageLoadSession selectedSession;
     std::optional<ImageLoadSession> resolvedSession;
     ImageDecodeDependencies dependencies;
@@ -93,8 +102,7 @@ struct ImageDocumentRuntimeGraph::PreparedViewportTargetState
     std::function<bool()> hasAuthoritativeDisplay;
     std::function<std::optional<PredecodedImage>(const DisplayedImageLocation&)>
         findPredecodedImage;
-    std::weak_ptr<ImageViewportProviderResource> activeResource;
-    std::weak_ptr<ImageViewportDecodeProviderSource> activeSource;
+    std::vector<ActiveProvider> activeProviders;
 
     [[nodiscard]] ImageViewportProvisionalPreviewPolicy provisionalPreviewPolicy() const
     {
@@ -116,6 +124,78 @@ struct ImageDocumentRuntimeGraph::PreparedViewportTargetState
             && candidate->displayImage.isAuthoritative()) {
             predecoded = std::move(candidate);
         }
+    }
+
+    void pruneActiveProviders()
+    {
+        std::erase_if(activeProviders, [](const ActiveProvider& provider) {
+            return provider.resource.expired() || provider.source.expired();
+        });
+    }
+
+    [[nodiscard]] EmbeddedMetadata embeddedMetadata()
+    {
+        pruneActiveProviders();
+        for (const ActiveProvider& provider : activeProviders) {
+            if (const std::shared_ptr<ImageViewportDecodeProviderSource> source
+                = provider.source.lock()) {
+                const EmbeddedMetadata& metadata = source->embeddedMetadata();
+                if (!metadata.isEmpty()) {
+                    return metadata;
+                }
+            }
+        }
+        return predecoded.has_value() ? predecoded->embeddedMetadata : EmbeddedMetadata {};
+    }
+
+    bool resolveActiveProviders()
+    {
+        if (!resolvedSession.has_value()) {
+            return true;
+        }
+        pruneActiveProviders();
+        const QString displayIdentity
+            = displayScopeIdentityForLocation(resolvedSession->location());
+        const std::optional<StaticDisplayImagePayload> seed = authoritativeSeed(predecoded);
+        for (const ActiveProvider& provider : activeProviders) {
+            const std::shared_ptr<ImageViewportProviderResource> resource
+                = provider.resource.lock();
+            const std::shared_ptr<ImageViewportDecodeProviderSource> source
+                = provider.source.lock();
+            if (resource == nullptr || source == nullptr
+                || !resource->bindDisplayLocationIdentity(displayIdentity)
+                || !source->resolveSession(*resolvedSession, seed)) {
+                for (const ActiveProvider& active : activeProviders) {
+                    if (const std::shared_ptr<ImageViewportProviderResource> activeResource
+                        = active.resource.lock()) {
+                        activeResource->close();
+                    }
+                }
+                return false;
+            }
+        }
+        return true;
+    }
+
+    std::shared_ptr<ImageViewportProviderResource> makeResource(
+        const std::shared_ptr<DisplayImageStore>& displayStore)
+    {
+        refreshPredecodedImage();
+        auto source = std::make_shared<ImageViewportDecodeProviderSource>(
+            dependencies, provisionalPreviewPolicy());
+        auto resource = std::make_shared<ImageViewportProviderResource>(selectedSession.id(),
+            displayScopeIdentityForLocation(selectedSession.location()), source, displayStore,
+            std::make_shared<ImageViewportFailureRegistry>());
+        if (resolvedSession.has_value()
+            && (!resource->bindDisplayLocationIdentity(
+                    displayScopeIdentityForLocation(resolvedSession->location()))
+                || !source->resolveSession(*resolvedSession, authoritativeSeed(predecoded)))) {
+            resource->close();
+            return {};
+        }
+        pruneActiveProviders();
+        activeProviders.push_back({ resource, source });
+        return resource;
     }
 };
 
@@ -495,27 +575,8 @@ bool ImageDocumentRuntimeGraph::startViewportImageTarget(const ImageLoadSession&
     target.rightToLeft = m_spreadController->rightToLeftReadingEnabled();
     target.anchorAtEnd = std::exchange(m_nextViewportTargetAnchorAtEnd, false);
     const std::shared_ptr<DisplayImageStore> displayStore = m_viewportDisplayStore;
-    target.primaryResource = [prepared, displayStore]() {
-        prepared->refreshPredecodedImage();
-        auto source = std::make_shared<ImageViewportDecodeProviderSource>(
-            prepared->dependencies, prepared->provisionalPreviewPolicy());
-        auto resource
-            = std::make_shared<ImageViewportProviderResource>(prepared->selectedSession.id(),
-                displayScopeIdentityForLocation(prepared->selectedSession.location()), source,
-                displayStore, std::make_shared<ImageViewportFailureRegistry>());
-        prepared->activeResource = resource;
-        prepared->activeSource = source;
-        if (prepared->resolvedSession.has_value()) {
-            if (!resource->bindDisplayLocationIdentity(
-                    displayScopeIdentityForLocation(prepared->resolvedSession->location()))
-                || !source->resolveSession(
-                    *prepared->resolvedSession, authoritativeSeed(prepared->predecoded))) {
-                resource->close();
-                return std::shared_ptr<ImageViewportProviderResource> {};
-            }
-        }
-        return resource;
-    };
+    target.primaryResource
+        = [prepared, displayStore]() { return prepared->makeResource(displayStore); };
 
     m_preparedViewportTarget = prepared;
     m_viewportTarget = std::make_unique<ImageViewportIntegrationTarget>(target);
@@ -602,14 +663,7 @@ bool ImageDocumentRuntimeGraph::resolveViewportImageTarget(
     prepared->predecoded = std::move(predecoded);
     m_pendingViewportImageLoad = PendingViewportImageLoad {
         session,
-        [prepared]() {
-            if (const std::shared_ptr<ImageViewportDecodeProviderSource> source
-                = prepared->activeSource.lock()) {
-                return source->embeddedMetadata();
-            }
-            return prepared->predecoded.has_value() ? prepared->predecoded->embeddedMetadata
-                                                    : EmbeddedMetadata {};
-        },
+        [prepared]() { return prepared->embeddedMetadata(); },
     };
 
     const ImageViewportIntegrationProjection& projection = m_viewportIntegration->projection();
@@ -620,16 +674,11 @@ bool ImageDocumentRuntimeGraph::resolveViewportImageTarget(
         return false;
     }
 
-    const std::shared_ptr<ImageViewportProviderResource> resource = prepared->activeResource.lock();
-    const std::shared_ptr<ImageViewportDecodeProviderSource> source = prepared->activeSource.lock();
-    if (resource == nullptr || source == nullptr) {
+    prepared->pruneActiveProviders();
+    if (prepared->activeProviders.empty()) {
         return false;
     }
-    if (!resource->bindDisplayLocationIdentity(
-            displayScopeIdentityForLocation(session.location()))) {
-        return false;
-    }
-    if (!source->resolveSession(session, authoritativeSeed(prepared->predecoded))) {
+    if (!prepared->resolveActiveProviders()) {
         return m_preparedViewportTarget != prepared || m_viewportTarget == nullptr
             || m_viewportTarget->sourceGeneration != session.id();
     }
@@ -927,7 +976,6 @@ void ImageDocumentRuntimeGraph::prepareViewportSecondaryImageTarget(
         prepared->refreshPredecodedImage();
         auto source = std::make_shared<ImageViewportDecodeProviderSource>(
             prepared->dependencies, prepared->provisionalPreviewPolicy());
-        prepared->activeSource = source;
         auto resource
             = std::make_shared<ImageViewportProviderResource>(prepared->resolvedSession->id(),
                 displayScopeIdentityForLocation(prepared->resolvedSession->location()), source,
@@ -937,6 +985,8 @@ void ImageDocumentRuntimeGraph::prepareViewportSecondaryImageTarget(
             resource->close();
             return std::shared_ptr<ImageViewportProviderResource> {};
         }
+        prepared->pruneActiveProviders();
+        prepared->activeProviders.push_back({ resource, source });
         return resource;
     };
     m_viewportSecondaryLoadSession = session;
@@ -1104,9 +1154,10 @@ void ImageDocumentRuntimeGraph::handleViewportProjection(
 
     qCWarning(kiriviewNavigationLog)
         << "viewport image load failed"
-        << "url" << m_pendingViewportImageLoad->session.imageUrl() << "sourceGeneration"
-        << projection.sourceGeneration << "displayedUrl" << projection.displayedUrl << "errorString"
-        << projection.errorString << "applicationFailureAvailable"
+        << "url" << diagnosticSourceReference(m_pendingViewportImageLoad->session.imageUrl())
+        << "sourceGeneration" << projection.sourceGeneration << "displayedUrl"
+        << diagnosticSourceReference(projection.displayedUrl) << "errorString"
+        << diagnosticDetailReference(projection.errorString) << "applicationFailureAvailable"
         << projection.failure.has_value();
     if (projection.failure.has_value()) {
         qCWarning(kiriviewNavigationLog)
@@ -1115,7 +1166,8 @@ void ImageDocumentRuntimeGraph::handleViewportProjection(
             << static_cast<int>(projection.failure->decodeRoute) << "decodeOperation"
             << static_cast<int>(projection.failure->decodeOperation) << "decodeCause"
             << static_cast<int>(projection.failure->decodeCause) << "diagnosticDetail"
-            << projection.failure->diagnosticDetail << "retryable" << projection.failure->retryable;
+            << diagnosticDetailReference(projection.failure->diagnosticDetail) << "retryable"
+            << projection.failure->retryable;
     }
     PendingViewportImageLoad completedLoad = std::move(*m_pendingViewportImageLoad);
     m_pendingViewportImageLoad.reset();

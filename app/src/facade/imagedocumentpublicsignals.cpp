@@ -146,7 +146,8 @@ std::vector<ImageDocumentPublicSignal> imageDocumentPublicSignals(ImageDocumentC
     case ImageDocumentChange::SourceUrl:
         return { ImageDocumentPublicSignal::SourceUrl };
     case ImageDocumentChange::SelectedTargetScope:
-        return { ImageDocumentPublicSignal::ImageDocumentSourceScope };
+        return { ImageDocumentPublicSignal::ImageDocumentSourceScope,
+            ImageDocumentPublicSignal::TwoPageMode, ImageDocumentPublicSignal::RightToLeftReading };
     case ImageDocumentChange::Status:
         return {
             ImageDocumentPublicSignal::Status,

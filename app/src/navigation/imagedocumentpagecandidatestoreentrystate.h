@@ -25,7 +25,7 @@ struct ImageDocumentPageCandidateStoreEntryPendingLoad
 
 struct ImageDocumentPageCandidateStoreEntrySubscriber
 {
-    QPointer<QObject> token;
+    ImageIoJobCompletion completion;
     ImageDocumentPageCandidatesCallback callback;
     ErrorCallback errorCallback;
 };
@@ -47,11 +47,12 @@ public:
     [[nodiscard]] bool listed() const;
     [[nodiscard]] bool failed() const;
     [[nodiscard]] const QString& errorString() const;
+    [[nodiscard]] bool hasActiveClients();
 
     void addPendingLoad(ImageIoJobCompletion completion,
         ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback);
-    void addSubscriber(
-        QObject* token, ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback);
+    void addSubscriber(ImageIoJobCompletion completion,
+        ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback);
     void removePendingLoad(QObject* token);
     void removeSubscriber(QObject* token);
 

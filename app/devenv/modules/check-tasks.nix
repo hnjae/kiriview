@@ -326,6 +326,18 @@ in
         '';
     };
 
+    "ci:app:lint:identity" = {
+      description = "Validate installed application identity artifacts";
+      showOutput = true;
+      before = [ "ci:lint" ];
+      exec = # sh
+        ''
+          ${baseTaskPrelude}
+
+          ${lib.getExe pkgs.bash} scripts/check-application-identity.sh
+        '';
+    };
+
     "ci:app:lint:cpp:prepare" = {
       description = "Prepare the app C++ compilation database for linting";
       showOutput = true;

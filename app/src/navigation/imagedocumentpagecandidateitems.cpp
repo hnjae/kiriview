@@ -5,6 +5,7 @@
 
 #include "archive/archiveformat.h"
 #include "decoding/imageformatregistry.h"
+#include "diagnostics/diagnosticlogprojection.h"
 #include "imagedocumentpagenavigationpolicy.h"
 #include "location/imageurl.h"
 #include "mediaformatregistry.h"
@@ -50,9 +51,10 @@ std::vector<DirectMediaNavigationCandidate> directMediaNavigationCandidates(
         << "direct media navigation candidates projected"
         << "items" << items.size() << "supportedCandidates" << candidates.size();
     for (std::size_t index = 0; index < candidates.size() && index < 8; ++index) {
-        qCDebug(kiriviewNavigationLog) << "direct media navigation candidate"
-                                       << "index" << index << "name" << candidates.at(index).name
-                                       << "url" << candidates.at(index).url;
+        qCDebug(kiriviewNavigationLog)
+            << "direct media navigation candidate"
+            << "index" << index << "name" << diagnosticPathReference(candidates.at(index).name)
+            << "url" << diagnosticSourceReference(candidates.at(index).url);
     }
     if (candidates.size() > 8) {
         qCDebug(kiriviewNavigationLog) << "direct media navigation candidates omitted"

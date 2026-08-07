@@ -173,8 +173,8 @@ void TestDirectoryListingJob::backendErrorLeavesDiagnosticWarning()
     bool errorReceived = false;
     QString errorString;
 
-    QTest::ignoreMessage(QtWarningMsg,
-        QRegularExpression(".*KiriView directory listing job failed for URL .*missing.*"));
+    QTest::ignoreMessage(
+        QtWarningMsg, QRegularExpression(".*KiriView directory listing job failed.*"));
     kiriview::ImageIoJob job = kiriview::startDirectoryItemList(
         this, missingDirectoryUrl, [&listed](KFileItemList) { listed = true; },
         [&errorReceived, &errorString](const QString& message) {

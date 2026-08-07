@@ -4,6 +4,7 @@
 #include "async/directorylistingjob.h"
 
 #include "async/imagecallback.h"
+#include "diagnostics/diagnosticlogprojection.h"
 
 #include <KCoreDirLister>
 #include <KIO/Job>
@@ -40,11 +41,6 @@ void finishDirectoryItemListWithError(const kiriview::ImageIoJobCompletion& comp
     completion.claimAndDelete([&]() { kiriview::invokeIfSet(errorCallback, errorString); });
 }
 
-QString directoryListingDiagnosticUrl(const QUrl& directoryUrl)
-{
-    return directoryUrl.isEmpty() ? QStringLiteral("<empty>") : directoryUrl.toDisplayString();
-}
-
 void warnDirectoryListingRejectedEmptyUrl()
 {
     qWarning().noquote() << QStringLiteral("KiriView directory listing rejected empty URL");
@@ -52,16 +48,15 @@ void warnDirectoryListingRejectedEmptyUrl()
 
 void warnDirectoryListingOpenFailure(const QUrl& directoryUrl)
 {
-    qWarning().noquote() << QStringLiteral("KiriView directory listing openUrl failed for URL %1")
-                                .arg(directoryListingDiagnosticUrl(directoryUrl));
+    qWarning().noquote() << "KiriView directory listing openUrl failed"
+                         << kiriview::diagnosticSourceReference(directoryUrl);
 }
 
 void warnDirectoryListingJobFailure(const QUrl& directoryUrl, const QString& errorString)
 {
-    const QString diagnosticError
-        = errorString.isEmpty() ? QStringLiteral("<empty error>") : errorString;
-    qWarning().noquote() << QStringLiteral("KiriView directory listing job failed for URL %1: %2")
-                                .arg(directoryListingDiagnosticUrl(directoryUrl), diagnosticError);
+    qWarning().noquote() << "KiriView directory listing job failed"
+                         << kiriview::diagnosticSourceReference(directoryUrl)
+                         << kiriview::diagnosticDetailReference(errorString);
 }
 }
 

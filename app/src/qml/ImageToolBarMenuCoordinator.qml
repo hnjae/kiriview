@@ -26,7 +26,7 @@ QtObject {
             const center = button.mapToItem(actionSurface, button.width / 2, button.height / 2);
             return center.x >= 0 && center.x <= actionSurface.width && center.y >= 0 && center.y <= actionSurface.height;
         } catch (error) {
-            console.warn("KiriView ImageToolBar application menu button mapping failed:", error && error.message ? error.message : String(error));
+            console.warn("KiriView ImageToolBar application menu button mapping failed");
             return false;
         }
     }

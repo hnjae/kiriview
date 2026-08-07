@@ -70,6 +70,7 @@ private Q_SLOTS:
     void pageNavigationButtonsUseSemanticActionsForReadingDirection();
     void menubarGoMenuOrderFollowsReadingDirection();
     void menubarGoMenuIconsFollowReadingDirection();
+    void collectionVideoMenubarKeepsCollectionCommands();
     void imageActionsApplicationMenuArchiveOrderFollowsReadingDirection();
 };
 
@@ -236,7 +237,7 @@ std::unique_ptr<QTemporaryDir> createComicBookArchive(QString* sourcePath, QStri
 
 QString fixtureQml(const QString& sourceUrl = QString(), bool navigationActionsEnabled = false,
     const QString& readingControlsVisibleExpression = QStringLiteral("true"),
-    const QString& readingControlsEnabledExpression = QStringLiteral("!root.videoMode"))
+    const QString& readingControlsEnabledExpression = QStringLiteral("true"))
 {
     return QStringLiteral(R"(
 import QtQuick
@@ -602,9 +603,6 @@ Item {
         }
 
         function imageToolbarActionAppearanceEnabled(actionId) {
-            if (root.videoMode || root.unsupportedOpenedCollectionVideo) {
-                return false;
-            }
             if (root.imagePresentationRetained) {
                 if (actionId === KiriViewApplication.ViewToggleRightToLeftReadingAction) {
                     return root.retainedRightToLeftEnabled;
@@ -631,7 +629,12 @@ Item {
         }
 
         function imageToolbarActionInteractionEnabled(actionId) {
-            if (root.videoMode || root.unsupportedOpenedCollectionVideo) {
+            if (root.imagePresentationRetained) {
+                return false;
+            }
+            if ((root.videoMode || root.unsupportedOpenedCollectionVideo)
+                    && actionId !== KiriViewApplication.ViewToggleRightToLeftReadingAction
+                    && actionId !== KiriViewApplication.ViewToggleTwoPageModeAction) {
                 return false;
             }
             return actionForId(actionId)?.enabled ?? false;
@@ -797,7 +800,7 @@ Item {
         id: twoPageModeKirigamiAction
 
         checkable: true
-        enabled: (%5) && root.imageControlsReady
+        enabled: %5
         icon.name: "view-split-left-right-symbolic"
         text: "Two-Page &Spread"
         tooltip: "Two-Page Spread"
@@ -809,7 +812,7 @@ Item {
         id: rightToLeftReadingKirigamiAction
 
         checkable: true
-        enabled: (%5) && root.imageControlsReady
+        enabled: %5
         icon.name: "format-text-direction-rtl-symbolic"
         text: "&Right-to-Left"
         tooltip: "Right-to-Left Reading"
@@ -926,8 +929,8 @@ QString openedCollectionScopeFixtureQml(
     const QString& sourceUrl = QString(), bool navigationActionsEnabled = false)
 {
     return fixtureQml(sourceUrl, navigationActionsEnabled,
-        QStringLiteral("!root.videoMode && root.sessionImageDocument.openedCollectionScopeActive"),
-        QStringLiteral("!root.videoMode && root.sessionImageDocument.rightToLeftReadingAvailable"));
+        QStringLiteral("root.sessionImageDocument.openedCollectionScopeActive"),
+        QStringLiteral("root.sessionImageDocument.rightToLeftReadingAvailable"));
 }
 
 QString menuBarFixtureQml()
@@ -945,6 +948,8 @@ Item {
     height: 420
 
     property alias rightToLeftPresentationActive: navigationPresentationProvider.rightToLeftReadingActive
+    property bool collectionMode: false
+    property bool imageMode: true
 
     function sanitizedText(text) {
         return String(text).replace(/&/g, "");
@@ -964,6 +969,34 @@ Item {
 
     function goMenuActionTexts() {
         return menuActionTexts(menuBar.menuAt(1));
+    }
+
+    function visibleMenuActionTexts(menu) {
+        const texts = [];
+        for (let index = 0; index < menu.count; ++index) {
+            const item = menu.itemAt(index);
+            const text = item && item.visible && typeof item.text === "string" ? item.text : "";
+            if (text.length > 0) {
+                texts.push(sanitizedText(text));
+            }
+        }
+        return texts;
+    }
+
+    function visibleGoMenuActionTexts() {
+        return visibleMenuActionTexts(menuBar.menuAt(1));
+    }
+
+    function visibleViewMenuActionTexts() {
+        return visibleMenuActionTexts(menuBar.menuAt(2));
+    }
+
+    function openGoMenu() {
+        menuBar.menuAt(1).open();
+    }
+
+    function openViewMenu() {
+        menuBar.menuAt(2).open();
     }
 
     function menuActionIconNames(menu) {
@@ -1107,6 +1140,9 @@ Item {
         id: menuBar
 
         actions: menuActions
+        collectionMode: root.collectionMode
+        imageMode: root.imageMode
+        mediaMode: root.imageMode || root.collectionMode
         navigationPresentationProvider: navigationPresentationProvider
     }
 }
@@ -1594,9 +1630,9 @@ void TestToolBarApplicationMenu::replacementFallbackRetainsNonInteractiveToolbar
     QVERIFY(invoked);
 
     invokeVoid(fixture.root, "beginImageReplacementFallback");
-    const QVariantList disabledSources { false, false, false };
+    const QVariantList replacementSourceAvailability { true, true, false };
     QTRY_COMPARE(invokeVariant(fixture.root, "sourceImageControlEnabledStates", &invoked).toList(),
-        disabledSources);
+        replacementSourceAvailability);
     QVERIFY(invoked);
     QTRY_COMPARE(invokeVariant(fixture.root, "toolbarControlEnabledStates", &invoked).toList(),
         enabledPresentation);
@@ -1834,9 +1870,8 @@ void TestToolBarApplicationMenu::unusableApplicationMenuButtonMappingLeavesDiagn
     QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
 
     QTest::ignoreMessage(QtWarningMsg,
-        QRegularExpression(QStringLiteral(
-            ".*KiriView ImageToolBar application menu button mapping failed.*synthetic "
-            "application menu button mapping failure.*")));
+        QRegularExpression(
+            QStringLiteral(".*KiriView ImageToolBar application menu button mapping failed.*")));
     QVERIFY(!invokeBool(fixture.root, "unusableThrowingApplicationMenuButton"));
 }
 
@@ -1926,8 +1961,18 @@ void TestToolBarApplicationMenu::playableOpenedCollectionVideoKeepsProjectedColl
     QVERIFY(invoked);
     QCOMPARE(
         invokeVariant(fixture.root, "toolbarControlInteractionEnabledStates", &invoked).toList(),
-        QVariantList({ false, false, false, false }));
+        QVariantList({ true, true, false, false }));
     QVERIFY(invoked);
+
+    QQuickItem* rightToLeftButton
+        = findQuickItem(fixture.root, QStringLiteral("rightToLeftToolbarButton"));
+    QQuickItem* twoPageButton = findQuickItem(fixture.root, QStringLiteral("twoPageToolbarButton"));
+    QVERIFY(rightToLeftButton != nullptr);
+    QVERIFY(twoPageButton != nullptr);
+    clickItem(fixture, rightToLeftButton);
+    clickItem(fixture, twoPageButton);
+    QCOMPARE(fixture.root->property("rightToLeftTriggerCount").toInt(), 1);
+    QCOMPARE(fixture.root->property("twoPageTriggerCount").toInt(), 1);
 }
 
 void TestToolBarApplicationMenu::playableVideoZoomUsesProjectedReadOnlyPresentation()
@@ -2011,11 +2056,11 @@ void TestToolBarApplicationMenu::
         QVariantList({ true, true }));
     QVERIFY(invoked);
     QCOMPARE(invokeVariant(fixture.root, "toolbarControlEnabledStates", &invoked).toList(),
-        QVariantList({ false, false, false, false }));
+        QVariantList({ true, true, false, false }));
     QVERIFY(invoked);
     QCOMPARE(
         invokeVariant(fixture.root, "toolbarControlInteractionEnabledStates", &invoked).toList(),
-        QVariantList({ false, false, false, false }));
+        QVariantList({ true, true, false, false }));
     QVERIFY(invoked);
 
     const QVariantMap expectedZoomPresentation {
@@ -2248,6 +2293,39 @@ void TestToolBarApplicationMenu::menubarGoMenuIconsFollowReadingDirection()
     QCoreApplication::processEvents();
 
     QTRY_COMPARE(invokeStringList(fixture.root, "goMenuActionIconNames"), rightToLeftIcons);
+}
+
+void TestToolBarApplicationMenu::collectionVideoMenubarKeepsCollectionCommands()
+{
+    ToolBarMenuFixture fixture = createMenuBarFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+
+    QVERIFY(fixture.root->setProperty("imageMode", false));
+    QVERIFY(fixture.root->setProperty("collectionMode", true));
+    invokeVoid(fixture.root, "openGoMenu");
+    QCoreApplication::processEvents();
+
+    bool ok = false;
+    QTRY_VERIFY(invokeStringList(fixture.root, "visibleGoMenuActionTexts", &ok)
+            .contains(QStringLiteral("Previous Archive")));
+    QVERIFY(ok);
+    QTRY_VERIFY(invokeStringList(fixture.root, "visibleGoMenuActionTexts", &ok)
+            .contains(QStringLiteral("Next Archive")));
+    QVERIFY(ok);
+
+    invokeVoid(fixture.root, "openViewMenu");
+    QCoreApplication::processEvents();
+    QTRY_VERIFY(invokeStringList(fixture.root, "visibleViewMenuActionTexts", &ok)
+            .contains(QStringLiteral("Two-Page Spread")));
+    QVERIFY(ok);
+    QTRY_VERIFY(invokeStringList(fixture.root, "visibleViewMenuActionTexts", &ok)
+            .contains(QStringLiteral("Right-to-Left Reading")));
+    QVERIFY(ok);
+    const QStringList viewActions
+        = invokeStringList(fixture.root, "visibleViewMenuActionTexts", &ok);
+    QVERIFY(ok);
+    QVERIFY(!viewActions.contains(QStringLiteral("Zoom In")));
+    QVERIFY(!viewActions.contains(QStringLiteral("Rotate Clockwise")));
 }
 
 void TestToolBarApplicationMenu::imageActionsApplicationMenuArchiveOrderFollowsReadingDirection()

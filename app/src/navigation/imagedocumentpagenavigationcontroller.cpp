@@ -4,6 +4,7 @@
 #include "imagedocumentpagenavigationcontroller.h"
 
 #include "async/imagecallback.h"
+#include "diagnostics/diagnosticlogprojection.h"
 #include "imagedocumentpagenavigationpolicy.h"
 #include "imageremovalfallback.h"
 #include "navigationlogging.h"
@@ -55,7 +56,13 @@ namespace {
     {
         std::visit(
             [message](const auto& detail) {
-                qCWarning(kiriviewNavigationLog).noquote() << message << detail;
+                using Error = std::decay_t<decltype(detail)>;
+                if constexpr (std::is_same_v<Error, QString>) {
+                    qCWarning(kiriviewNavigationLog).noquote()
+                        << message << diagnosticDetailReference(detail);
+                } else {
+                    qCWarning(kiriviewNavigationLog).noquote() << message << detail;
+                }
             },
             error);
     }
@@ -125,9 +132,10 @@ void ImageDocumentPageNavigationController::openAdjacentPage(
         if (target.has_value()) {
             qCDebug(kiriviewNavigationLog)
                 << "image document page adjacent target selected from known model"
-                << "direction" << static_cast<int>(direction) << "targetUrl" << target->url
-                << "targetKind" << static_cast<int>(target->kind) << "currentPage"
-                << m_model.currentPageNumber() << "pageCount" << m_model.pageCount();
+                << "direction" << static_cast<int>(direction) << "targetUrl"
+                << diagnosticSourceReference(target->url) << "targetKind"
+                << static_cast<int>(target->kind) << "currentPage" << m_model.currentPageNumber()
+                << "pageCount" << m_model.pageCount();
             reportCommit(ImageDocumentPageNavigationCommit {
                 true,
                 ImageDocumentPageNavigationPlan { OpenImageDocumentPageUrlEffect { *target } },
@@ -153,9 +161,9 @@ void ImageDocumentPageNavigationController::openAdjacentPage(
     qCDebug(kiriviewNavigationLog)
         << "image document page adjacent navigation listing candidates"
         << "operationId" << operationId << "direction" << static_cast<int>(direction)
-        << "currentUrl" << context->currentUrl() << "sourceKind"
+        << "currentUrl" << diagnosticSourceReference(context->currentUrl()) << "sourceKind"
         << pageCandidateSourceKind(context->source()) << "sourceRoot"
-        << pageCandidateSourceRoot(context->source());
+        << diagnosticSourceReference(pageCandidateSourceRoot(context->source()));
     m_navigationListerJob = m_candidateRepository.loadImages(
         this, *context,
         [this, operationId, direction, currentUrl = context->currentUrl(),
@@ -321,19 +329,21 @@ void ImageDocumentPageNavigationController::finishNavigation(
     if (!candidate.has_value()) {
         qCDebug(kiriviewNavigationLog)
             << "image document page adjacent navigation listed candidates without target"
-            << "direction" << static_cast<int>(direction) << "currentUrl" << currentUrl
-            << "candidateCount" << static_cast<qsizetype>(candidates.size());
+            << "direction" << static_cast<int>(direction) << "currentUrl"
+            << diagnosticSourceReference(currentUrl) << "candidateCount"
+            << static_cast<qsizetype>(candidates.size());
         return;
     }
 
     const ImageDocumentPageTarget target { candidate->url, candidate->kind };
     qCDebug(kiriviewNavigationLog)
         << "image document page adjacent target selected from listed candidates"
-        << "direction" << static_cast<int>(direction) << "currentUrl" << currentUrl << "targetUrl"
-        << target.url << "targetKind" << static_cast<int>(target.kind) << "candidateCount"
-        << static_cast<qsizetype>(candidates.size()) << "sourceKind"
+        << "direction" << static_cast<int>(direction) << "currentUrl"
+        << diagnosticSourceReference(currentUrl) << "targetUrl"
+        << diagnosticSourceReference(target.url) << "targetKind" << static_cast<int>(target.kind)
+        << "candidateCount" << static_cast<qsizetype>(candidates.size()) << "sourceKind"
         << pageCandidateSourceKind(candidateSource) << "sourceRoot"
-        << pageCandidateSourceRoot(candidateSource);
+        << diagnosticSourceReference(pageCandidateSourceRoot(candidateSource));
     const bool changed
         = m_model.completeRefresh(candidates, target.url, std::move(candidateSource));
     reportCommit(ImageDocumentPageNavigationCommit {

@@ -12,6 +12,7 @@
 #include <QFile>
 #include <QImage>
 #include <QImageWriter>
+#include <QMetaObject>
 #include <QObject>
 #include <QSize>
 #include <QString>
@@ -97,6 +98,7 @@ private Q_SLOTS:
     void injectedCacheHitSkipsBytesLoader();
     void injectedCacheInstallPublishesInstalledPath();
     void directVideoInvalidRequestPublishesFailureWithoutLoadingBytes();
+    void directVideoResourceLimitPreservesTypedFailure();
     void defaultImageBytesLoaderRejectsSourceOverBudget();
     void defaultImageDecoderRejectsApngOverWorkspaceBudget();
     void generatedApngRetainsWorkspaceUntilResultRelease();
@@ -464,6 +466,83 @@ void TestThumbnailGeneration::directVideoInvalidRequestPublishesFailureWithoutLo
     QVERIFY(deliveredResult);
     QVERIFY(!job.isActive());
     QCOMPARE(delivered.status, Status::Failed);
+    QCOMPARE(delivered.requestedBucket, Bucket::Large);
+    QVERIFY(!delivered.errorString.isEmpty());
+    QCOMPARE(cacheInstallCount, 0);
+}
+
+void TestThumbnailGeneration::directVideoResourceLimitPreservesTypedFailure()
+{
+    QObject owner;
+    kiriview::ThumbnailGenerationRequest request = generationRequest(Bucket::Large);
+    request.localPathBytes = QByteArrayLiteral("/media/clip.mp4");
+    request.sourceUrl = QUrl(QStringLiteral("https://example.invalid/media/clip.mp4"));
+    request.sourceLabel = QStringLiteral("clip.mp4");
+    request.sourceKind = kiriview::ThumbnailSourceKind::DirectVideo;
+    request.cacheInstallEnabled = true;
+
+    constexpr int requestedMaximumLongEdge = 913;
+    int bytesLoadCount = 0;
+    int cacheInstallCount = 0;
+    std::optional<kiriview::VideoThumbnailExtractionRequest> deliveredExtractionRequest;
+    kiriview::ThumbnailGenerationDependencies dependencies;
+    dependencies.maximumLongEdgeForBucket = [](Bucket) { return requestedMaximumLongEdge; };
+    dependencies.bytesLoader
+        = [&bytesLoadCount](const kiriview::ThumbnailGenerationRequest&, QString*) {
+              ++bytesLoadCount;
+              return encodedPngData();
+          };
+    dependencies.cacheRepository.install
+        = [&cacheInstallCount](const kiriview::ThumbnailOriginalIdentity&, Bucket, const QImage&) {
+              ++cacheInstallCount;
+              return kiriview::ThumbnailGenerationCacheInstallResult {};
+          };
+    dependencies.videoExtractionProvider
+        = [&deliveredExtractionRequest](QObject* receiver,
+              kiriview::VideoThumbnailExtractionRequest extractionRequest,
+              kiriview::VideoThumbnailExtractionCallback callback) {
+              deliveredExtractionRequest = std::move(extractionRequest);
+              auto* token = new QObject(receiver);
+              kiriview::ImageIoJob job(token, [](QObject* object) { object->deleteLater(); });
+              const kiriview::ImageIoJobCompletion completion = job.completion();
+              const bool queued = QMetaObject::invokeMethod(
+                  token,
+                  [completion, callback = std::move(callback)]() mutable {
+                      kiriview::VideoThumbnailExtractionResult result;
+                      result.failure = kiriview::VideoThumbnailExtractionFailure {
+                          kiriview::VideoThumbnailExtractionFailureCause::ResourceLimit,
+                          QStringLiteral("provider diagnostic unrelated to the typed cause"),
+                      };
+                      completion.claimAndDelete([&callback, result = std::move(result)]() mutable {
+                          callback(std::move(result));
+                      });
+                  },
+                  Qt::QueuedConnection);
+              Q_ASSERT(queued);
+              return job;
+          };
+
+    kiriview::ThumbnailGenerationResult delivered;
+    bool deliveredResult = false;
+    kiriview::ThumbnailGenerationProvider provider
+        = kiriview::defaultThumbnailGenerationProvider({}, std::move(dependencies));
+    kiriview::ImageIoJob job = provider(&owner, request,
+        [&delivered, &deliveredResult](kiriview::ThumbnailGenerationResult result) {
+            delivered = std::move(result);
+            deliveredResult = true;
+        });
+
+    QVERIFY(job.isActive());
+    QVERIFY(deliveredExtractionRequest.has_value());
+    QCOMPARE(deliveredExtractionRequest->sourceUrl, request.sourceUrl);
+    QCOMPARE(deliveredExtractionRequest->maximumLongEdge, requestedMaximumLongEdge);
+    QCOMPARE(bytesLoadCount, 0);
+
+    drainQueuedCalls();
+
+    QVERIFY(deliveredResult);
+    QVERIFY(!job.isActive());
+    QCOMPARE(delivered.status, Status::ResourceLimitExceeded);
     QCOMPARE(delivered.requestedBucket, Bucket::Large);
     QVERIFY(!delivered.errorString.isEmpty());
     QCOMPARE(cacheInstallCount, 0);

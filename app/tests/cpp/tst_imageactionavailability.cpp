@@ -12,6 +12,7 @@ class TestImageActionAvailability : public QObject
 
 private Q_SLOTS:
     void projectionDerivesReadyAndModeAvailabilityFromSnapshot();
+    void collectionReadingCommandsDoNotRequireReadyImage();
     void projectionDerivesShortcutGatesFromSnapshot();
     void policyScopeLookupUsesApplicationScope();
     void activeImageDocumentSourceScopeLookupUsesSessionNavigationInput();
@@ -42,6 +43,27 @@ void TestImageActionAvailability::projectionDerivesReadyAndModeAvailabilityFromS
     QVERIFY(!projection.canUseRotateActions);
 }
 
+void TestImageActionAvailability::collectionReadingCommandsDoNotRequireReadyImage()
+{
+    ImageActionAvailabilityInput input;
+    input.twoPageModeEnabled = true;
+    input.twoPageModeAvailable = true;
+    input.rightToLeftReadingEnabled = true;
+    input.rightToLeftReadingAvailable = true;
+
+    const ImageActionAvailabilityProjection projection = imageActionAvailabilityProjection(input);
+
+    QVERIFY(!projection.canUseReadyActions);
+    QVERIFY(!projection.canUseRotateActions);
+    QVERIFY(projection.canUseTwoPageModeActions);
+    QVERIFY(projection.canUseRightToLeftReadingActions);
+    QVERIFY(projection.twoPageModeActive);
+    QVERIFY(projection.rightToLeftReadingActive);
+    QVERIFY(projection.collectionReadingShortcutsEnabled);
+    QVERIFY(projection.collectionReadingViewerShortcutsEnabled);
+    QVERIFY(!projection.twoPageViewerShortcutsEnabled);
+}
+
 void TestImageActionAvailability::projectionDerivesShortcutGatesFromSnapshot()
 {
     ImageActionAvailabilityInput input;
@@ -59,8 +81,8 @@ void TestImageActionAvailability::projectionDerivesShortcutGatesFromSnapshot()
     QVERIFY(projection.readyShortcutsEnabled);
     QVERIFY(projection.readyViewerShortcutsEnabled);
     QVERIFY(projection.twoPageViewerShortcutsEnabled);
-    QVERIFY(projection.rightToLeftReadingShortcutsEnabled);
-    QVERIFY(projection.rightToLeftReadingViewerShortcutsEnabled);
+    QVERIFY(projection.collectionReadingShortcutsEnabled);
+    QVERIFY(projection.collectionReadingViewerShortcutsEnabled);
     QVERIFY(projection.pannableShortcutsEnabled);
     QVERIFY(projection.pannableViewerShortcutsEnabled);
     QVERIFY(projection.containerShortcutsEnabled);
@@ -74,6 +96,7 @@ void TestImageActionAvailability::projectionDerivesShortcutGatesFromSnapshot()
     QVERIFY(!projection.viewerShortcutsEnabled);
     QVERIFY(projection.readyShortcutsEnabled);
     QVERIFY(!projection.readyViewerShortcutsEnabled);
+    QVERIFY(!projection.collectionReadingViewerShortcutsEnabled);
     QVERIFY(!projection.pannableViewerShortcutsEnabled);
     QVERIFY(!projection.containerViewerShortcutsEnabled);
 
@@ -81,6 +104,7 @@ void TestImageActionAvailability::projectionDerivesShortcutGatesFromSnapshot()
     projection = imageActionAvailabilityProjection(input);
 
     QVERIFY(!projection.readyShortcutsEnabled);
+    QVERIFY(!projection.collectionReadingShortcutsEnabled);
     QVERIFY(!projection.pannableShortcutsEnabled);
     QVERIFY(!projection.containerShortcutsEnabled);
 }
@@ -92,12 +116,15 @@ void TestImageActionAvailability::policyScopeLookupUsesApplicationScope()
     ImageActionAvailabilityProjection projection;
     projection.helpShortcutsEnabled = true;
     projection.readyViewerShortcutsEnabled = true;
+    projection.collectionReadingViewerShortcutsEnabled = true;
     projection.pannableViewerShortcutsEnabled = true;
     projection.containerShortcutsEnabled = true;
 
     QVERIFY(imageActionAvailabilityShortcutsEnabledForScope(projection, Scope::HelpShortcutScope));
     QVERIFY(imageActionAvailabilityShortcutsEnabledForScope(
         projection, Scope::ReadyViewerShortcutScope));
+    QVERIFY(imageActionAvailabilityShortcutsEnabledForScope(
+        projection, Scope::CollectionReadingViewerShortcutScope));
     QVERIFY(
         imageActionAvailabilityShortcutsEnabledForScope(projection, Scope::ContainerShortcutScope));
     QVERIFY(imageActionAvailabilityShortcutsEnabledForScope(

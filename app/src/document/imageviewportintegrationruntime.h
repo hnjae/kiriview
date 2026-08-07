@@ -26,9 +26,6 @@ enum class ImageViewportTargetTransitionIntent {
     PresentationShapeChange,
 };
 
-using ImageViewportProviderResourceFactory
-    = std::function<std::shared_ptr<ImageViewportProviderResource>()>;
-
 struct ImageViewportIntegrationTarget
 {
     quint64 sourceGeneration = 0;

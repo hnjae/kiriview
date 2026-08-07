@@ -4,6 +4,7 @@
 #include "session/documentsessiondirectmedianavigationapplicationruntime.h"
 
 #include "async/imagecallback.h"
+#include "diagnostics/diagnosticlogprojection.h"
 #include "navigation/navigationlogging.h"
 
 #include <QDebug>
@@ -78,7 +79,7 @@ void DocumentSessionDirectMediaNavigationApplicationRuntime::applyRefresh(
             sourceKind, previousSnapshot, std::move(result));
     if (!application.known) {
         qCDebug(kiriviewNavigationLog) << "direct media navigation refresh failed"
-                                       << "error" << errorString;
+                                       << "error" << diagnosticDetailReference(errorString);
     } else {
         qCDebug(kiriviewNavigationLog)
             << "direct media navigation refresh finished"
@@ -141,13 +142,14 @@ void DocumentSessionDirectMediaNavigationApplicationRuntime::applyOpen(
             activeDirectMediaCursorUrl, std::move(result));
     if (!application.known) {
         qCDebug(kiriviewNavigationLog) << "direct media navigation open failed"
-                                       << "error" << errorString;
+                                       << "error" << diagnosticDetailReference(errorString);
     } else {
         qCDebug(kiriviewNavigationLog)
             << "direct media navigation open finished"
             << "candidates" << application.candidates.size() << "currentNumber"
             << application.boundaryState.currentNumber << "count" << application.boundaryState.count
-            << "targetUrl" << application.routeTargetUrl.value_or(QUrl());
+            << "targetUrl"
+            << diagnosticSourceReference(application.routeTargetUrl.value_or(QUrl()));
     }
 
     invokeIfSet(ports.setDirectMediaNavigation, application.boundaryState, application.known,

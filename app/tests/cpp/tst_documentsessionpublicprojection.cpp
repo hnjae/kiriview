@@ -189,6 +189,7 @@ void TestDocumentSessionPublicProjection::
     QVERIFY(snapshot.actionAvailability.twoPageModeAvailable);
     QVERIFY(snapshot.actionAvailability.rightToLeftReadingActive);
     QVERIFY(snapshot.actionAvailability.rightToLeftReadingAvailable);
+    QVERIFY(snapshot.activeImageRightToLeftReadingActive);
     QVERIFY(snapshot.actionAvailability.fitModeSelected);
     QCOMPARE(
         snapshot.actionState.imageFitModeSelection, kiriview::ImageFitModeSelection::FitHeight);

@@ -8,9 +8,14 @@
 
 #include <VideoThumbnailExtraction/videothumbnailextraction.h>
 
+#include <functional>
+
 class QObject;
 
 namespace kiriview {
+using ThumbnailVideoExtractionProvider = std::function<ImageIoJob(
+    QObject*, VideoThumbnailExtractionRequest, VideoThumbnailExtractionCallback)>;
+
 ImageIoJob startThumbnailVideoExtractionJob(QObject* receiver,
     VideoThumbnailExtractionRequest request, VideoThumbnailExtractionCallback callback);
 }

@@ -5,6 +5,7 @@
 
 #include "async/directorylistingjob.h"
 #include "async/imagecallback.h"
+#include "diagnostics/diagnosticlogprojection.h"
 #include "imagedocumentpagecandidateitems.h"
 #include "navigationlogging.h"
 
@@ -19,8 +20,9 @@ kiriview::ImageIoJob startDirectoryDirectMediaNavigationCandidateList(QObject* r
     kiriview::ErrorCallback errorCallback,
     kiriview::DirectoryItemListProvider directoryItemListProvider)
 {
-    qCDebug(kiriviewNavigationLog) << "direct media navigation candidate provider listing directory"
-                                   << "directoryUrl" << directoryUrl;
+    qCDebug(kiriviewNavigationLog)
+        << "direct media navigation candidate provider listing directory"
+        << "directoryUrl" << kiriview::diagnosticSourceReference(directoryUrl);
     return kiriview::startDirectoryItemList(
         receiver, directoryUrl,
         [callback = std::move(callback), directoryUrl](const KFileItemList& items) mutable {
@@ -28,14 +30,15 @@ kiriview::ImageIoJob startDirectoryDirectMediaNavigationCandidateList(QObject* r
                 = kiriview::directMediaNavigationCandidates(items);
             qCDebug(kiriviewNavigationLog)
                 << "direct media navigation candidate provider listed directory"
-                << "directoryUrl" << directoryUrl << "items" << items.size() << "candidates"
-                << candidates.size();
+                << "directoryUrl" << kiriview::diagnosticSourceReference(directoryUrl) << "items"
+                << items.size() << "candidates" << candidates.size();
             kiriview::invokeIfSet(callback, std::move(candidates));
         },
         [errorCallback = std::move(errorCallback), directoryUrl](const QString& errorString) {
             qCDebug(kiriviewNavigationLog)
                 << "direct media navigation candidate provider listing failed"
-                << "directoryUrl" << directoryUrl << "error" << errorString;
+                << "directoryUrl" << kiriview::diagnosticSourceReference(directoryUrl) << "error"
+                << kiriview::diagnosticDetailReference(errorString);
             kiriview::invokeIfSet(errorCallback, errorString);
         },
         std::move(directoryItemListProvider));

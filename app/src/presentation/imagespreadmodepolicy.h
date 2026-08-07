@@ -5,14 +5,14 @@
 #define KIRIVIEW_IMAGESPREADMODEPOLICY_H
 
 namespace kiriview {
-struct ImageSpreadReadingAvailability
+struct ImageSpreadPrimaryPageEligibility
 {
     bool hasImage = false;
     bool hasDisplayedImage = false;
     bool displayedDocumentIsComicBook = false;
 };
 
-bool imageSpreadReadingControlsAvailable(ImageSpreadReadingAvailability availability);
+bool imageSpreadPrimaryPageEligible(ImageSpreadPrimaryPageEligibility eligibility);
 }
 
 #endif

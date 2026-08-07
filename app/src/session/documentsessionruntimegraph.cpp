@@ -3,6 +3,7 @@
 
 #include "documentsessionruntimegraph.h"
 
+#include "diagnostics/diagnosticlogprojection.h"
 #include "localization/imageerrortext.h"
 #include "navigation/navigationlogging.h"
 #include "session/documentsessionactivezoom.h"
@@ -50,9 +51,11 @@ void logDirectMediaScope(
     const char* message, const std::optional<kiriview::DirectMediaScope>& scope)
 {
     qCDebug(kiriviewNavigationLog)
-        << message << "currentUrl" << (scope.has_value() ? scope->currentUrl() : QUrl())
-        << "parentUrl" << (scope.has_value() ? scope->parentUrl() : QUrl()) << "generation"
-        << (scope.has_value() ? scope->generation() : 0);
+        << message << "currentUrl"
+        << kiriview::diagnosticSourceReference(scope.has_value() ? scope->currentUrl() : QUrl())
+        << "parentUrl"
+        << kiriview::diagnosticSourceReference(scope.has_value() ? scope->parentUrl() : QUrl())
+        << "generation" << (scope.has_value() ? scope->generation() : 0);
 }
 
 void logMediaEntrySourceError(const char* message, const kiriview::MediaEntrySourceError& error)
@@ -1205,8 +1208,9 @@ bool DocumentSessionRuntimeGraph::executeRoutePlan(
     };
     qCDebug(kiriviewNavigationLog)
         << "execute route plan"
-        << "routeKind" << routeKindName(plan.kind) << "sourceUrl" << plan.sourceUrl
-        << "documentKindBefore" << documentKindName(m_state.documentKind());
+        << "routeKind" << routeKindName(plan.kind) << "sourceUrl"
+        << diagnosticSourceReference(plan.sourceUrl) << "documentKindBefore"
+        << documentKindName(m_state.documentKind());
     const bool completed = m_routeRuntime.executeWithSourceResolver(
         plan,
         [sourceResolver](
@@ -1219,7 +1223,7 @@ bool DocumentSessionRuntimeGraph::executeRoutePlan(
         << "execute route plan complete"
         << "routeKind" << routeKindName(plan.kind) << "completed" << completed
         << "documentKindAfter" << documentKindName(m_state.documentKind()) << "sourceUrl"
-        << m_state.sourceUrl() << "activeNavigationAvailable"
+        << diagnosticSourceReference(m_state.sourceUrl()) << "activeNavigationAvailable"
         << m_state.activeNavigationSnapshot().available << "activeNavigationKnown"
         << m_state.activeNavigationSnapshot().known << "activeNavigationCurrent"
         << m_state.activeNavigationSnapshot().currentNumber << "activeNavigationCount"

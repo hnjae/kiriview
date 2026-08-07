@@ -4,10 +4,12 @@
 #include "imagedocumentdeletionfallbackcontroller.h"
 
 #include "async/imagecallback.h"
+#include "diagnostics/diagnosticlogprojection.h"
 #include "navigation/imagecontaineropenplan.h"
 #include "navigation/navigationlogging.h"
 
 #include <QDebug>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -17,8 +19,15 @@ void logSuppressedCandidateLoadError(const kiriview::ImageDocumentPageCandidateL
 {
     std::visit(
         [](const auto& detail) {
-            qCWarning(kiriviewNavigationLog).noquote()
-                << "deletion fallback candidate loading failed" << detail;
+            using Error = std::decay_t<decltype(detail)>;
+            if constexpr (std::is_same_v<Error, QString>) {
+                qCWarning(kiriviewNavigationLog).noquote()
+                    << "deletion fallback candidate loading failed"
+                    << kiriview::diagnosticDetailReference(detail);
+            } else {
+                qCWarning(kiriviewNavigationLog).noquote()
+                    << "deletion fallback candidate loading failed" << detail;
+            }
         },
         error);
 }

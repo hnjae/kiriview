@@ -29,6 +29,14 @@ let
       readonly mode=${lib.escapeShellArg mode}
       repo_root=${appRoot}
       readonly repo_root
+      mapfile -t application_id_values < <(
+          sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' "$repo_root/application-id.txt"
+      )
+      if ((''${#application_id_values[@]} != 1)); then
+          printf 'application-id.txt must declare exactly one application ID.\n' >&2
+          exit 1
+      fi
+      readonly desktop_id="''${application_id_values[0]}"
       pot_file="$repo_root/po/$domain.pot"
       readonly pot_file
 
@@ -73,14 +81,14 @@ let
 
           fixture_po="$repo_root/tests/fixtures/i18n/ko/$domain.po"
           checked_fixture_po="$check_tmp_dir/fixture-ko.po"
-          generated_desktop="$check_tmp_dir/org.hnjae.kiriview.desktop"
+          generated_desktop="$check_tmp_dir/$desktop_id.desktop"
           po_with_default_header "$fixture_po" "$checked_fixture_po" ko
           msgfmt \
               --desktop \
               --locale=ko \
               --keyword=Name \
               --keyword=GenericName \
-              --template "$repo_root/org.hnjae.kiriview.desktop" \
+              --template "$repo_root/$desktop_id.desktop" \
               --output-file "$generated_desktop" \
               "$checked_fixture_po"
           if ! grep -Fqx 'GenericName[ko]=__kiriview_test_generic_name__' "$generated_desktop"; then
@@ -159,7 +167,7 @@ let
           --keyword=GenericName \
           --output="$generated_pot" \
           --directory="$repo_root" \
-          org.hnjae.kiriview.desktop
+          "$desktop_id.desktop"
 
       sed -i \
           's/^"POT-Creation-Date: .*\\n"$/"POT-Creation-Date: 2026-01-01 00:00+0000\\n"/' \

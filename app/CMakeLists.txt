@@ -18,6 +18,32 @@ set(KIRIVIEW_QML_IMPORT_PATHS
     ""
     CACHE STRING "Additional QML import paths for development tooling")
 
+set_property(
+    DIRECTORY
+    APPEND
+    PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/application-id.txt")
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/application-id.txt" kiriview_application_id_lines)
+set(kiriview_application_id_values)
+foreach(line IN LISTS kiriview_application_id_lines)
+    if(NOT line MATCHES "^[ \t]*$" AND NOT line MATCHES "^[ \t]*#")
+        list(APPEND kiriview_application_id_values "${line}")
+    endif()
+endforeach()
+list(LENGTH kiriview_application_id_values kiriview_application_id_count)
+if(NOT kiriview_application_id_count EQUAL 1)
+    message(FATAL_ERROR "application-id.txt must declare exactly one application ID")
+endif()
+list(GET kiriview_application_id_values 0 KIRIVIEW_APPLICATION_ID)
+if(NOT KIRIVIEW_APPLICATION_ID MATCHES "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+$")
+    message(FATAL_ERROR "Invalid application ID: ${KIRIVIEW_APPLICATION_ID}")
+endif()
+string(REPLACE "." "/" KIRIVIEW_QML_MODULE_PATH "${KIRIVIEW_APPLICATION_ID}")
+set(KIRIVIEW_DESKTOP_FILE "${KIRIVIEW_APPLICATION_ID}.desktop")
+set(KIRIVIEW_ICON_FILE "${KIRIVIEW_APPLICATION_ID}.svg")
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
+configure_file(src/application/applicationidentity.h.in
+               "${CMAKE_CURRENT_BINARY_DIR}/generated/applicationidentity.h" @ONLY)
+
 find_package(
     Qt6 6.11 REQUIRED
     COMPONENTS Core
@@ -270,14 +296,14 @@ qt_add_library(KiriViewQml STATIC)
 qt_add_qml_module(
     KiriViewQml
     URI
-    org.hnjae.kiriview
+    ${KIRIVIEW_APPLICATION_ID}
     IMPORT_PATH
     ${KIRIVIEW_QML_IMPORT_PATHS}
     DEPENDENCIES
     QtQuick
     org.kde.kirigamiaddons.statefulapp
     OUTPUT_DIRECTORY
-    "${CMAKE_CURRENT_BINARY_DIR}/org/hnjae/kiriview"
+    "${CMAKE_CURRENT_BINARY_DIR}/${KIRIVIEW_QML_MODULE_PATH}"
     RESOURCE_PREFIX
     /qt/qml
     QML_FILES
@@ -296,9 +322,9 @@ target_link_libraries(kiriview PRIVATE KiriViewQml KiriViewQmlplugin)
 
 include(GNUInstallDirs)
 install(TARGETS kiriview RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
-install(FILES data/icons/hicolor/scalable/apps/org.hnjae.kiriview.svg
+install(FILES "data/icons/hicolor/scalable/apps/${KIRIVIEW_ICON_FILE}"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps")
-install(FILES org.hnjae.kiriview.desktop DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
+install(FILES "${KIRIVIEW_DESKTOP_FILE}" DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
 
 if(KIRIVIEW_BUILD_TESTS)
     enable_testing()

@@ -3,6 +3,7 @@
 
 #include "imagepredecodecoordinator.h"
 
+#include "diagnostics/diagnosticlogprojection.h"
 #include "predecodelogging.h"
 #include "predecodewindowplan.h"
 
@@ -48,7 +49,8 @@ void ImagePredecodeCoordinator::acceptForegroundSelection(const DisplayedImageLo
 void ImagePredecodeCoordinator::schedule(const Context& context)
 {
     qCDebug(kiriviewPredecodeLog) << "image predecode schedule"
-                                  << "url" << context.currentLocation.imageUrl()
+                                  << "url"
+                                  << diagnosticSourceReference(context.currentLocation.imageUrl())
                                   << "displayedImages" << context.displayedImages.size();
     if (context.immediate) {
         acceptForegroundSelection(context.currentLocation);
@@ -80,10 +82,11 @@ void ImagePredecodeCoordinator::scheduleAdjacentImagePredecode(
     });
     qCDebug(kiriviewPredecodeLog) << "image predecode start plan"
                                   << "generation" << schedule.generation << "url"
-                                  << schedule.context.currentLocation.imageUrl() << "loadCandidates"
-                                  << plan.shouldLoadCandidates() << "fallbackLocations"
-                                  << plan.fallbackWindow.locations.size() << "parallelLimit"
-                                  << plan.fallbackWindow.parallelLimit;
+                                  << diagnosticSourceReference(
+                                         schedule.context.currentLocation.imageUrl())
+                                  << "loadCandidates" << plan.shouldLoadCandidates()
+                                  << "fallbackLocations" << plan.fallbackWindow.locations.size()
+                                  << "parallelLimit" << plan.fallbackWindow.parallelLimit;
     if (!plan.shouldLoadCandidates()) {
         startPredecodeImageLoads(plan.fallbackWindow, schedule);
         return;
@@ -120,8 +123,10 @@ void ImagePredecodeCoordinator::startPredecodeImageLoads(
 
     qCDebug(kiriviewPredecodeLog) << "image predecode window start"
                                   << "generation" << schedule.generation << "foregroundUrl"
-                                  << schedule.context.currentLocation.imageUrl() << "locations"
-                                  << plan.locations.size() << "parallelLimit" << plan.parallelLimit;
+                                  << diagnosticSourceReference(
+                                         schedule.context.currentLocation.imageUrl())
+                                  << "locations" << plan.locations.size() << "parallelLimit"
+                                  << plan.parallelLimit;
     m_loadController.startWindowLoads(PredecodeLoadWindow {
         foregroundOwnedLocationForWindow(schedule),
         plan.locations,

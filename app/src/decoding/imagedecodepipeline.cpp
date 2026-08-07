@@ -5,6 +5,7 @@
 
 #include "apnganimationreader.h"
 #include "avifcompatibility.h"
+#include "diagnostics/diagnosticlogprojection.h"
 #include "heifdecoder.h"
 #include "imageanimationrequest.h"
 #include "imageanimationsourcecatalog.h"
@@ -594,7 +595,8 @@ DecodedImageResult ImageDecodeRouter::decode(const QByteArray& data,
         = m_classifier(data, request.imageUrl().fileName());
     const ImageDecodeRoute route = imageDecodeRouteForClassification(classification);
     qCDebug(kiriviewDecodeLog) << "image decode route"
-                               << "generation" << request.id() << "url" << request.imageUrl()
+                               << "generation" << request.id() << "url"
+                               << kiriview::diagnosticSourceReference(request.imageUrl())
                                << "inputKind" << imageInputKindName(classification.kind)
                                << "handler" << imageDecodeHandlerKindName(route.handlerKind)
                                << "dataSource" << imageDecodeDataSourceName(route.dataSource)

@@ -45,7 +45,8 @@ ImageDecodeDependencies defaultImageDecodeDependencies()
         imageDataDecoder(workspaceBudget),
         defaultThumbnailCacheLookupProvider(workerScheduler),
         rawEmbeddedThumbnailPreviewResult,
-        std::move(workerScheduler),
+        workerScheduler,
+        defaultImageRefinementScheduler(),
         std::move(sourceDataBudget),
         std::move(workspaceBudget),
     };
@@ -54,6 +55,9 @@ ImageDecodeDependencies defaultImageDecodeDependencies()
 
 ImageDecodeDependencies imageDecodeDependenciesWithDefaults(ImageDecodeDependencies dependencies)
 {
+    if (!dependencies.refinementScheduler.isValid()) {
+        dependencies.refinementScheduler = defaultImageRefinementScheduler();
+    }
     if (!dependencies.workerScheduler.isValid()) {
         dependencies.workerScheduler = defaultImageWorkerScheduler();
     }

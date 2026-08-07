@@ -6,6 +6,7 @@
 #include "archiveformat.h"
 #include "archivepath.h"
 #include "decoding/imageformatregistry.h"
+#include "diagnostics/diagnosticlogprojection.h"
 #include "mediaentrysourcebackend_p.h"
 #include "navigation/imagedocumentpagenavigationpolicy.h"
 #include "navigation/mediaformatregistry.h"
@@ -105,8 +106,10 @@ QDebug operator<<(QDebug debug, const MediaEntrySourceError& error)
     QDebugStateSaver stateSaver(debug);
     debug.noquote() << "cause" << static_cast<int>(error.cause) << "backend"
                     << static_cast<int>(error.backend) << "operation"
-                    << static_cast<int>(error.operation) << "collection" << error.collectionUrl
-                    << "entry" << error.entryPath << "diagnostic" << error.diagnosticDetail;
+                    << static_cast<int>(error.operation) << "collection"
+                    << diagnosticSourceReference(error.collectionUrl) << "entry"
+                    << diagnosticPathReference(error.entryPath) << "diagnostic"
+                    << diagnosticDetailReference(error.diagnosticDetail);
     return debug;
 }
 

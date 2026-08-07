@@ -55,7 +55,7 @@ kiriview::ImageIoJob addSubscriber(kiriview::ImageDocumentPageCandidateStoreEntr
         removeToken(object);
         object->deleteLater();
     });
-    state.addSubscriber(token, std::move(callback), std::move(errorCallback));
+    state.addSubscriber(job.completion(), std::move(callback), std::move(errorCallback));
     return job;
 }
 

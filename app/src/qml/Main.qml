@@ -314,6 +314,7 @@ StatefulApp.StatefulWindow {
 
     menuBar: ApplicationMenuBar {
         actions: imageActions
+        collectionMode: root.documentSession.activeImageOpenedCollectionScopeActive
         imageMode: page.imageMode
         mediaMode: page.imageMode || page.videoMode
         navigationPresentationProvider: kiriApplication

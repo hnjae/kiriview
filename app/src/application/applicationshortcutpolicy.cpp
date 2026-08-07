@@ -275,14 +275,14 @@ GenericShortcutDispatchOutcome genericShortcutDispatchOutcome(
             || !genericShortcutBindingEnabled(input.actionState, binding)) {
             continue;
         }
+        if (binding.actionEnabled) {
+            return { GenericShortcutDispatchKind::TriggerAction, binding.actionId };
+        }
         if (input.actionState.videoMode && videoActionUnsupported(binding.actionId)) {
             return { GenericShortcutDispatchKind::UnsupportedVideoAction, binding.actionId };
         }
         if (!input.actionState.videoMode && imageActionUnsupported(binding.actionId)) {
             return { GenericShortcutDispatchKind::UnsupportedImageAction, binding.actionId };
-        }
-        if (binding.actionEnabled) {
-            return { GenericShortcutDispatchKind::TriggerAction, binding.actionId };
         }
     }
 

@@ -67,10 +67,11 @@ private:
     void clearNavigationBoundaryNotification();
 
     QPointer<QWindow> m_window;
+    QPointer<class KiriViewApplication> m_application;
     QPointer<class KiriDocumentSession> m_documentSession;
     QMetaObject::Connection m_visibilityConnection;
-    QMetaObject::Connection m_windowTitleConnection;
-    std::vector<QMetaObject::Connection> m_notificationConnections;
+    std::vector<QMetaObject::Connection> m_applicationConnections;
+    std::vector<QMetaObject::Connection> m_documentSessionConnections;
     QString m_windowTitle;
     kiriview::WindowChromeRuntime m_chromeRuntime;
     kiriview::WindowNotificationRuntime m_notificationRuntime;

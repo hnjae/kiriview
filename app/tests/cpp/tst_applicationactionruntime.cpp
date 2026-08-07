@@ -375,9 +375,16 @@ void TestApplicationActionRuntime::retainedImageToolbarKeepsAppearanceUntilCurre
     QCOMPARE(retained.zoom.percent, current.zoom.percent);
     QCOMPARE(retained.zoom.minimumManualPercent, current.zoom.minimumManualPercent);
     QCOMPARE(retained.zoom.maximumManualPercent, current.zoom.maximumManualPercent);
-    const QList<ActionId> readinessDependentActions {
+    const QList<ActionId> collectionActions {
         ActionId::ViewToggleRightToLeftReadingAction,
         ActionId::ViewToggleTwoPageModeAction,
+    };
+    for (ActionId actionId : collectionActions) {
+        QAction* action = runtime.actionForId(actionId);
+        QVERIFY(action != nullptr);
+        QVERIFY(action->isEnabled());
+    }
+    const QList<ActionId> readinessDependentActions {
         ActionId::ViewFitHeightAction,
         ActionId::ViewZoomInAction,
     };
@@ -563,6 +570,7 @@ void TestApplicationActionRuntime::playableOpenedCollectionVideoToolbarUsesCanon
     runtime.setupActions();
     Actions::ApplicationActionStateSnapshot snapshot = unavailableOpenedCollectionToolbarSnapshot();
     snapshot.documentSession.videoMode = true;
+    snapshot.documentSession.availability.containerNavigationAvailable = true;
     snapshot.documentSession.activeZoom = kiriview::ActiveZoomSnapshot {
         true,
         true,
@@ -576,12 +584,12 @@ void TestApplicationActionRuntime::playableOpenedCollectionVideoToolbarUsesCanon
         = runtime.imageToolbarPresentationSnapshot();
     QCOMPARE(presentation.phase, kiriview::ImagePresentationPhase::Unavailable);
     QVERIFY(presentation.collectionControlsVisible);
-    QVERIFY(!presentation.rightToLeftReading.appearanceEnabled);
+    QVERIFY(presentation.rightToLeftReading.appearanceEnabled);
     QVERIFY(presentation.rightToLeftReading.appearanceChecked);
-    QVERIFY(!presentation.rightToLeftReading.interactionEnabled);
-    QVERIFY(!presentation.twoPageMode.appearanceEnabled);
+    QVERIFY(presentation.rightToLeftReading.interactionEnabled);
+    QVERIFY(presentation.twoPageMode.appearanceEnabled);
     QVERIFY(presentation.twoPageMode.appearanceChecked);
-    QVERIFY(!presentation.twoPageMode.interactionEnabled);
+    QVERIFY(presentation.twoPageMode.interactionEnabled);
     QVERIFY(!presentation.fitMode.appearanceEnabled);
     QVERIFY(!presentation.fitMode.interactionEnabled);
     QVERIFY(presentation.zoom.appearanceEnabled);
@@ -595,12 +603,15 @@ void TestApplicationActionRuntime::playableOpenedCollectionVideoToolbarUsesCanon
 
     QAction* rightToLeftAction = runtime.actionForId(ActionId::ViewToggleRightToLeftReadingAction);
     QAction* twoPageAction = runtime.actionForId(ActionId::ViewToggleTwoPageModeAction);
+    QAction* previousArchiveAction = runtime.actionForId(ActionId::GoPreviousArchiveAction);
     QVERIFY(rightToLeftAction != nullptr);
     QVERIFY(twoPageAction != nullptr);
-    QVERIFY(!rightToLeftAction->isEnabled());
+    QVERIFY(previousArchiveAction != nullptr);
+    QVERIFY(rightToLeftAction->isEnabled());
     QVERIFY(rightToLeftAction->isChecked());
-    QVERIFY(!twoPageAction->isEnabled());
+    QVERIFY(twoPageAction->isEnabled());
     QVERIFY(twoPageAction->isChecked());
+    QVERIFY(previousArchiveAction->isEnabled());
 }
 
 void TestApplicationActionRuntime::
@@ -618,12 +629,12 @@ void TestApplicationActionRuntime::
         = runtime.imageToolbarPresentationSnapshot();
     QCOMPARE(presentation.phase, kiriview::ImagePresentationPhase::Unavailable);
     QVERIFY(presentation.collectionControlsVisible);
-    QVERIFY(!presentation.rightToLeftReading.appearanceEnabled);
+    QVERIFY(presentation.rightToLeftReading.appearanceEnabled);
     QVERIFY(presentation.rightToLeftReading.appearanceChecked);
-    QVERIFY(!presentation.rightToLeftReading.interactionEnabled);
-    QVERIFY(!presentation.twoPageMode.appearanceEnabled);
+    QVERIFY(presentation.rightToLeftReading.interactionEnabled);
+    QVERIFY(presentation.twoPageMode.appearanceEnabled);
     QVERIFY(presentation.twoPageMode.appearanceChecked);
-    QVERIFY(!presentation.twoPageMode.interactionEnabled);
+    QVERIFY(presentation.twoPageMode.interactionEnabled);
     QVERIFY(!presentation.fitMode.appearanceEnabled);
     QVERIFY(!presentation.fitMode.interactionEnabled);
     QVERIFY(!presentation.zoom.appearanceEnabled);

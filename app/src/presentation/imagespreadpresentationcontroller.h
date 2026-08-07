@@ -147,6 +147,7 @@ private:
     [[nodiscard]] bool primaryPageIsWide() const;
     [[nodiscard]] bool primaryPageSupportsSpread(
         const DisplayedImageLocation& location, QSize imageSize) const;
+    [[nodiscard]] bool twoPagePresentationActive() const;
     [[nodiscard]] bool readingControlsAvailable() const;
     [[nodiscard]] bool secondaryPageVisibleForNavigation() const;
     [[nodiscard]] ImageSpreadPageNavigationContext pageNavigationContext() const;

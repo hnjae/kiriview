@@ -11,19 +11,19 @@ class TestImageSpreadModePolicy : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
-    void readingControlsRequireDisplayedComicArchiveImage();
+    void primaryPageSpreadEligibilityRequiresDisplayedComicArchiveImage();
 };
 
-void TestImageSpreadModePolicy::readingControlsRequireDisplayedComicArchiveImage()
+void TestImageSpreadModePolicy::primaryPageSpreadEligibilityRequiresDisplayedComicArchiveImage()
 {
-    QVERIFY(!kiriview::imageSpreadReadingControlsAvailable(
-        kiriview::ImageSpreadReadingAvailability { false, true, true }));
-    QVERIFY(!kiriview::imageSpreadReadingControlsAvailable(
-        kiriview::ImageSpreadReadingAvailability { true, false, true }));
-    QVERIFY(!kiriview::imageSpreadReadingControlsAvailable(
-        kiriview::ImageSpreadReadingAvailability { true, true, false }));
-    QVERIFY(kiriview::imageSpreadReadingControlsAvailable(
-        kiriview::ImageSpreadReadingAvailability { true, true, true }));
+    QVERIFY(!kiriview::imageSpreadPrimaryPageEligible(
+        kiriview::ImageSpreadPrimaryPageEligibility { false, true, true }));
+    QVERIFY(!kiriview::imageSpreadPrimaryPageEligible(
+        kiriview::ImageSpreadPrimaryPageEligibility { true, false, true }));
+    QVERIFY(!kiriview::imageSpreadPrimaryPageEligible(
+        kiriview::ImageSpreadPrimaryPageEligibility { true, true, false }));
+    QVERIFY(kiriview::imageSpreadPrimaryPageEligible(
+        kiriview::ImageSpreadPrimaryPageEligibility { true, true, true }));
 }
 
 QTEST_GUILESS_MAIN(TestImageSpreadModePolicy)

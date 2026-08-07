@@ -7,6 +7,7 @@
 #include "location/imageurl.h"
 
 #include <algorithm>
+#include <memory>
 #include <utility>
 
 namespace {
@@ -32,32 +33,61 @@ QObject* createEntryJobToken(QObject* receiver, QObject* fallbackParent)
     return new QObject(receiver == nullptr ? fallbackParent : receiver);
 }
 
-kiriview::ImageIoJob createEntryJob(QObject* token, std::function<void(QObject*)> removeToken)
+kiriview::ImageIoJob createEntryJob(
+    QObject* token, QObject* signalContext, std::function<void(QObject*)> removeToken)
 {
-    return kiriview::ImageIoJob(token, [removeToken = std::move(removeToken)](QObject* object) {
+    auto removalNotified = std::make_shared<bool>(false);
+    auto notifyRemoval = [removeToken = std::move(removeToken), removalNotified](QObject* object) {
+        if (*removalNotified) {
+            return;
+        }
+        *removalNotified = true;
         removeToken(object);
-        object->deleteLater();
-    });
+    };
+    QObject::connect(token, &QObject::destroyed, signalContext,
+        [notifyRemoval](QObject* object) mutable { notifyRemoval(object); });
+    return kiriview::ImageIoJob(
+        token, [notifyRemoval = std::move(notifyRemoval)](QObject* object) mutable {
+            notifyRemoval(object);
+            object->deleteLater();
+        });
 }
 
-void applyEntryNotificationPlan(kiriview::ImageDocumentPageCandidateStoreEntryNotificationPlan plan)
+void applyEntryNotificationPlan(kiriview::ImageDocumentPageCandidateStoreEntryNotificationPlan plan,
+    const QPointer<QObject>& signalContext)
 {
     for (const kiriview::ImageDocumentPageCandidateStoreEntryPendingLoad& load :
         plan.completedLoads) {
+        if (signalContext.isNull()) {
+            return;
+        }
         load.completion.claimAndDelete(
             [&]() { kiriview::invokeIfSet(load.callback, plan.candidates); });
     }
     for (const kiriview::ImageDocumentPageCandidateStoreEntrySubscriber& subscriber :
         plan.changedSubscribers) {
-        kiriview::invokeIfSet(subscriber.callback, plan.candidates);
+        if (signalContext.isNull()) {
+            return;
+        }
+        if (subscriber.completion.isActive()) {
+            kiriview::invokeIfSet(subscriber.callback, plan.candidates);
+        }
     }
     for (const kiriview::ImageDocumentPageCandidateStoreEntryPendingLoad& load : plan.failedLoads) {
+        if (signalContext.isNull()) {
+            return;
+        }
         load.completion.claimAndDelete(
             [&]() { kiriview::invokeIfSet(load.errorCallback, plan.errorString); });
     }
     for (const kiriview::ImageDocumentPageCandidateStoreEntrySubscriber& subscriber :
         plan.failedSubscribers) {
-        kiriview::invokeIfSet(subscriber.errorCallback, plan.errorString);
+        if (signalContext.isNull()) {
+            return;
+        }
+        if (subscriber.completion.isActive()) {
+            kiriview::invokeIfSet(subscriber.errorCallback, plan.errorString);
+        }
     }
 }
 }
@@ -65,10 +95,12 @@ void applyEntryNotificationPlan(kiriview::ImageDocumentPageCandidateStoreEntryNo
 namespace kiriview {
 ImageDocumentPageCandidateDirectoryEntry::ImageDocumentPageCandidateDirectoryEntry(
     QUrl directoryUrl, ImageDocumentPageCandidateWatchProvider watchProvider,
-    QObject* signalContext)
+    QObject* signalContext, std::uint64_t identity, std::function<void()> idleCallback)
     : m_directoryUrl(std::move(directoryUrl))
     , m_watchProvider(std::move(watchProvider))
     , m_signalContext(signalContext)
+    , m_identity(identity)
+    , m_idleCallback(std::move(idleCallback))
 {
     if (!m_watchProvider) {
         m_watchProvider = defaultImageDocumentPageCandidateWatchProvider();
@@ -95,6 +127,13 @@ ImageDocumentPageCandidateDirectoryEntry::candidates() const
     return m_state.candidates();
 }
 
+std::uint64_t ImageDocumentPageCandidateDirectoryEntry::identity() const { return m_identity; }
+
+bool ImageDocumentPageCandidateDirectoryEntry::hasActiveClients()
+{
+    return m_state.hasActiveClients();
+}
+
 bool ImageDocumentPageCandidateDirectoryEntry::open()
 {
     if (m_watchJob.isActive() || !m_watchProvider) {
@@ -117,24 +156,38 @@ bool ImageDocumentPageCandidateDirectoryEntry::open()
 void ImageDocumentPageCandidateDirectoryEntry::handleCompleted(
     std::vector<ImageDocumentPageCandidate> candidates)
 {
-    applyEntryNotificationPlan(m_state.completeListing(std::move(candidates)));
+    ImageDocumentPageCandidateStoreEntryNotificationPlan plan
+        = m_state.completeListing(std::move(candidates));
+    const QPointer<QObject> signalContext = m_signalContext;
+    reportIdle();
+    applyEntryNotificationPlan(std::move(plan), signalContext);
 }
 
 void ImageDocumentPageCandidateDirectoryEntry::handleChanged(
     std::vector<ImageDocumentPageCandidate> candidates)
 {
-    applyEntryNotificationPlan(m_state.updateListing(std::move(candidates)));
+    ImageDocumentPageCandidateStoreEntryNotificationPlan plan
+        = m_state.updateListing(std::move(candidates));
+    const QPointer<QObject> signalContext = m_signalContext;
+    reportIdle();
+    applyEntryNotificationPlan(std::move(plan), signalContext);
 }
 
 void ImageDocumentPageCandidateDirectoryEntry::handleDeleted(const QList<QUrl>& urls)
 {
-    applyEntryNotificationPlan(
-        m_state.updateListing(imageDocumentPageCandidatesWithoutDeletedUrls(candidates(), urls)));
+    ImageDocumentPageCandidateStoreEntryNotificationPlan plan
+        = m_state.updateListing(imageDocumentPageCandidatesWithoutDeletedUrls(candidates(), urls));
+    const QPointer<QObject> signalContext = m_signalContext;
+    reportIdle();
+    applyEntryNotificationPlan(std::move(plan), signalContext);
 }
 
 void ImageDocumentPageCandidateDirectoryEntry::handleError(const QString& errorString)
 {
-    applyEntryNotificationPlan(m_state.failListing(errorString));
+    ImageDocumentPageCandidateStoreEntryNotificationPlan plan = m_state.failListing(errorString);
+    const QPointer<QObject> signalContext = m_signalContext;
+    reportIdle();
+    applyEntryNotificationPlan(std::move(plan), signalContext);
 }
 
 ImageIoJob ImageDocumentPageCandidateDirectoryEntry::addPendingLoad(
@@ -142,7 +195,7 @@ ImageIoJob ImageDocumentPageCandidateDirectoryEntry::addPendingLoad(
     std::function<void(QObject*)> removeToken)
 {
     QObject* token = createEntryJobToken(receiver, m_signalContext);
-    ImageIoJob job = createEntryJob(token, std::move(removeToken));
+    ImageIoJob job = createEntryJob(token, m_signalContext, std::move(removeToken));
     m_state.addPendingLoad(job.completion(), std::move(callback), std::move(errorCallback));
     return job;
 }
@@ -152,19 +205,27 @@ ImageIoJob ImageDocumentPageCandidateDirectoryEntry::addSubscriber(
     std::function<void(QObject*)> removeToken)
 {
     QObject* token = createEntryJobToken(receiver, m_signalContext);
-    ImageIoJob job = createEntryJob(token, std::move(removeToken));
-    m_state.addSubscriber(token, std::move(callback), std::move(errorCallback));
+    ImageIoJob job = createEntryJob(token, m_signalContext, std::move(removeToken));
+    m_state.addSubscriber(job.completion(), std::move(callback), std::move(errorCallback));
     return job;
 }
 
 void ImageDocumentPageCandidateDirectoryEntry::removePendingLoad(QObject* token)
 {
     m_state.removePendingLoad(token);
+    reportIdle();
 }
 
 void ImageDocumentPageCandidateDirectoryEntry::removeSubscriber(QObject* token)
 {
     m_state.removeSubscriber(token);
+    reportIdle();
 }
 
+void ImageDocumentPageCandidateDirectoryEntry::reportIdle()
+{
+    if (!m_state.hasActiveClients() && m_idleCallback) {
+        m_idleCallback();
+    }
+}
 }

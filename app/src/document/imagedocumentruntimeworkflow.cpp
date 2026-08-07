@@ -5,6 +5,7 @@
 
 #include "archive/mediaentrysourcestore.h"
 #include "async/imagecallback.h"
+#include "diagnostics/diagnosticlogprojection.h"
 #include "imagedocumentdeletioncontroller.h"
 #include "imagedocumentnavigationcontroller.h"
 #include "imagedocumentpredecodecontroller.h"
@@ -79,7 +80,9 @@ void ImageDocumentRuntimeWorkflow::dispatchOperation(const ImageDocumentRuntimeO
                 qCDebug(kiriviewPredecodeLog)
                     << "runtime scheduling adjacent image predecode"
                     << "hasExplicitTarget" << payload.target.has_value() << "targetUrl"
-                    << (payload.target.has_value() ? payload.target->url : QUrl()) << "targetKind"
+                    << diagnosticSourceReference(
+                           payload.target.has_value() ? payload.target->url : QUrl())
+                    << "targetKind"
                     << (payload.target.has_value() ? static_cast<int>(payload.target->kind) : -1)
                     << "targetPageIndex" << payload.targetPageIndex << "hasSecondaryImage"
                     << (secondaryImage.has_value() && secondaryImage->hasLocation());
@@ -134,15 +137,17 @@ void ImageDocumentRuntimeWorkflow::dispatchOperation(const ImageDocumentRuntimeO
                                      ReportContainerNavigationListFailureOperation>) {
                 qCDebug(kiriviewNavigationLog)
                     << "container navigation listing failed"
-                    << "currentContainerUrl" << payload.failure.currentContainerUrl << "parentUrl"
-                    << payload.failure.parentUrl << "direction"
+                    << "currentContainerUrl"
+                    << diagnosticSourceReference(payload.failure.currentContainerUrl) << "parentUrl"
+                    << diagnosticSourceReference(payload.failure.parentUrl) << "direction"
                     << static_cast<int>(payload.failure.direction) << "kind"
                     << static_cast<int>(payload.failure.kind) << "detail"
-                    << payload.failure.diagnosticDetail;
+                    << diagnosticDetailReference(payload.failure.diagnosticDetail);
             } else if constexpr (std::is_same_v<Operation, LoadPageNavigationUrlOperation>) {
-                qCDebug(kiriviewNavigationLog) << "runtime loading page navigation target"
-                                               << "targetUrl" << payload.target.url << "targetKind"
-                                               << static_cast<int>(payload.target.kind);
+                qCDebug(kiriviewNavigationLog)
+                    << "runtime loading page navigation target"
+                    << "targetUrl" << diagnosticSourceReference(payload.target.url) << "targetKind"
+                    << static_cast<int>(payload.target.kind);
                 m_ports.loadSource(ImageDocumentSourceLoadRequest::fromSameScopePageTarget(
                     payload.target, payload.openedCollectionScope));
             } else if constexpr (std::is_same_v<Operation, CancelOpenOperation>) {

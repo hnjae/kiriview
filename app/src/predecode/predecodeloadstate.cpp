@@ -3,6 +3,7 @@
 
 #include "predecodeloadstate.h"
 
+#include "diagnostics/diagnosticlogprojection.h"
 #include "predecodelogging.h"
 
 #include <QDebug>
@@ -37,10 +38,11 @@ void PredecodeLoadState::cacheDisplayedImages(const std::vector<DisplayedPredeco
     m_cache.setDisplayedLocations(displayedPredecodeImageLocations(images));
     for (const DisplayedPredecodeImage& image : images) {
         if (!image.isCacheable()) {
-            qCDebug(kiriviewPredecodeLog) << "displayed image cache skipped"
-                                          << "reason"
-                                          << "not-cacheable"
-                                          << "url" << image.location.imageUrl();
+            qCDebug(kiriviewPredecodeLog)
+                << "displayed image cache skipped"
+                << "reason"
+                << "not-cacheable"
+                << "url" << diagnosticSourceReference(image.location.imageUrl());
             continue;
         }
 
@@ -61,8 +63,9 @@ void PredecodeLoadState::startWindow(
 {
     qCDebug(kiriviewPredecodeLog) << "predecode load window"
                                   << "generation" << window.generation << "foregroundUrl"
-                                  << window.foregroundOwnedLocation.imageUrl() << "locations"
-                                  << window.locations.size() << "displayedImages"
+                                  << diagnosticSourceReference(
+                                         window.foregroundOwnedLocation.imageUrl())
+                                  << "locations" << window.locations.size() << "displayedImages"
                                   << window.displayedImages.size() << "parallelLimit"
                                   << window.parallelLimit;
     cancelBackgroundWork();
@@ -99,8 +102,8 @@ std::optional<PredecodeLoadStart> PredecodeLoadState::takeNextLoad(
 
     qCDebug(kiriviewPredecodeLog) << "predecode next load selected"
                                   << "generation" << m_activeWindow->generation << "url"
-                                  << request->location.imageUrl() << "activeLoads"
-                                  << activeLoads.size();
+                                  << diagnosticSourceReference(request->location.imageUrl())
+                                  << "activeLoads" << activeLoads.size();
     std::optional<StaticDisplayImagePayload> authoritativeSeed;
     if (std::optional<PredecodedImage> candidate = m_cache.findCandidate(request->location)) {
         authoritativeSeed = std::move(candidate->displayImage);
@@ -123,7 +126,8 @@ void PredecodeLoadState::cacheDecodedImage(const ImageDecodeRequest& request,
     StaticDisplayImagePayload displayImage, EmbeddedMetadata metadata)
 {
     qCDebug(kiriviewPredecodeLog) << "cache decoded predecode image"
-                                  << "generation" << request.id() << "url" << request.imageUrl();
+                                  << "generation" << request.id() << "url"
+                                  << diagnosticSourceReference(request.imageUrl());
     m_cache.cacheImage(request.location(), std::move(displayImage), std::move(metadata));
 }
 

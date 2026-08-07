@@ -10,6 +10,7 @@ Controls.MenuBar {
 
     required property var actions
     required property var navigationPresentationProvider
+    property bool collectionMode: false
     property bool imageMode: true
     property bool mediaMode: imageMode
 
@@ -97,19 +98,19 @@ Controls.MenuBar {
         }
 
         Controls.MenuSeparator {
-            visible: root.imageMode
+            visible: root.imageMode || root.collectionMode
         }
 
         MenuActionItem {
             action: root.leadingArchiveMenuAction
             icon.name: root.leadingArchiveMenuIconName
-            visible: root.imageMode
+            visible: root.imageMode || root.collectionMode
         }
 
         MenuActionItem {
             action: root.trailingArchiveMenuAction
             icon.name: root.trailingArchiveMenuIconName
-            visible: root.imageMode
+            visible: root.imageMode || root.collectionMode
         }
     }
 
@@ -191,25 +192,25 @@ Controls.MenuBar {
         }
 
         Controls.MenuSeparator {
-            visible: root.imageMode
+            visible: root.imageMode || root.collectionMode
         }
 
         MenuActionItem {
             action: root.actions.twoPageModeMenuAction
             checkable: true
             checked: root.actions.twoPageModeMenuAction?.checked ?? false
-            visible: root.imageMode
+            visible: root.imageMode || root.collectionMode
         }
 
         MenuActionItem {
             action: root.actions.rightToLeftReadingMenuAction
             checkable: true
             checked: root.actions.rightToLeftReadingMenuAction?.checked ?? false
-            visible: root.imageMode
+            visible: root.imageMode || root.collectionMode
         }
 
         Controls.MenuSeparator {
-            visible: root.imageMode
+            visible: root.imageMode || root.collectionMode
         }
 
         MenuActionItem {

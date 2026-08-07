@@ -69,12 +69,16 @@ public:
                   {},
               })
     {
+        state.setSelectedTarget(kiriview::ImageDocumentSelectedTarget {
+            pageUrls.front(), kiriview::ImageDocumentPageKind::Image, openedCollectionScope() });
         state.setDisplayedImageLocation(displayedLocation(pageUrls.front()));
     }
 
     void displayPrimary(int pageNumber, QSize size)
     {
         snapshot = navigationSnapshot(pageUrls, pageNumber);
+        state.setSelectedTarget(kiriview::ImageDocumentSelectedTarget { pageUrls.at(pageNumber - 1),
+            kiriview::ImageDocumentPageKind::Image, openedCollectionScope() });
         state.setDisplayedImageLocation(displayedLocation(pageUrls.at(pageNumber - 1)));
         controller.commitPrimaryPageSlot(state.displayedImageLocation(), size);
     }
@@ -123,6 +127,7 @@ private Q_SLOTS:
     void pagePairingAndWidthCacheRemainApplicationOwned();
     void shapeChangeSubmitsRequestedTargets();
     void pendingReplacementReplansWhenTwoPageModeIsReenabled();
+    void collectionVideoKeepsReadingCommandsWithoutPairingUntilNextImage();
 };
 
 void TestImageSpreadPresentationController::pagePairingAndWidthCacheRemainApplicationOwned()
@@ -203,6 +208,47 @@ void TestImageSpreadPresentationController::pendingReplacementReplansWhenTwoPage
     QCOMPARE(fixture.replacementPairingResult,
         kiriview::ImageSpreadPageReplacementPairingResult::PreparingSecondary);
     QVERIFY(fixture.controller.pageReplacementPairingPending());
+}
+
+void TestImageSpreadPresentationController::
+    collectionVideoKeepsReadingCommandsWithoutPairingUntilNextImage()
+{
+    constexpr quint64 primarySessionId = 52;
+    const QSize portraitSize(800, 1200);
+    SpreadFixture fixture;
+    const QUrl videoUrl = localUrl(QStringLiteral("/books/004.mp4"));
+    fixture.snapshot = navigationSnapshot(
+        { fixture.pageUrls.at(0), fixture.pageUrls.at(1), fixture.pageUrls.at(2), videoUrl,
+            fixture.pageUrls.at(4), fixture.pageUrls.at(5) },
+        4);
+    fixture.state.setSelectedTarget(kiriview::ImageDocumentSelectedTarget {
+        videoUrl, kiriview::ImageDocumentPageKind::Video, openedCollectionScope() });
+    fixture.state.setDisplayedImageLocation(displayedLocation(videoUrl));
+    fixture.controller.clearPrimaryPageSlot();
+
+    QVERIFY(fixture.controller.twoPageModeAvailable());
+    QVERIFY(fixture.controller.rightToLeftReadingAvailable());
+    fixture.controller.setTwoPageModeEnabled(true);
+    fixture.controller.setRightToLeftReadingEnabled(true);
+
+    QVERIFY(fixture.controller.twoPageModeActive());
+    QVERIFY(fixture.controller.rightToLeftReadingActive());
+    QVERIFY(!fixture.controller.secondaryPageVisible());
+    QCOMPARE(fixture.preparedCount, 0);
+
+    fixture.snapshot = navigationSnapshot(fixture.pageUrls, 5);
+    fixture.predecodedSizes[fixture.pageUrls.at(5)] = portraitSize;
+    const QUrl nextImageUrl = fixture.pageUrls.at(4);
+    fixture.state.setSelectedTarget(kiriview::ImageDocumentSelectedTarget {
+        nextImageUrl, kiriview::ImageDocumentPageKind::Image, openedCollectionScope() });
+    const kiriview::ImageLoadRequest request = kiriview::ImageLoadRequest::fromSameScopePageTarget(
+        kiriview::ImageDocumentPageTarget { nextImageUrl, kiriview::ImageDocumentPageKind::Image },
+        openedCollectionScope());
+    const kiriview::ImageLoadSession nextImageSession(
+        primarySessionId, request, displayedLocation(nextImageUrl));
+
+    QCOMPARE(fixture.controller.beginPageReplacementPairing(nextImageSession, portraitSize),
+        kiriview::ImageSpreadPageReplacementPairingResult::PreparingSecondary);
 }
 
 QTEST_GUILESS_MAIN(TestImageSpreadPresentationController)

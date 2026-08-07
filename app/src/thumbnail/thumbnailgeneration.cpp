@@ -510,6 +510,9 @@ kiriview::ThumbnailGenerationDependencies resolvedThumbnailGenerationDependencie
     if (!dependencies.cacheRepository.install) {
         dependencies.cacheRepository.install = installThumbnail;
     }
+    if (!dependencies.videoExtractionProvider) {
+        dependencies.videoExtractionProvider = kiriview::startThumbnailVideoExtractionJob;
+    }
     return dependencies;
 }
 
@@ -612,7 +615,9 @@ kiriview::ImageIoJob startVideoThumbnailGenerationJob(QObject* receiver,
     extractionRequest.sourceUrl = request.sourceUrl;
     extractionRequest.maximumLongEdge = maximumLongEdge;
 
-    return kiriview::startThumbnailVideoExtractionJob(receiver, std::move(extractionRequest),
+    kiriview::ThumbnailVideoExtractionProvider extractionProvider
+        = std::move(dependencies.videoExtractionProvider);
+    return extractionProvider(receiver, std::move(extractionRequest),
         [request = std::move(request), originalIdentity = std::move(originalIdentity),
             callback = std::move(callback), dependencies = std::move(dependencies)](
             kiriview::VideoThumbnailExtractionResult extractionResult) mutable {
@@ -621,12 +626,19 @@ kiriview::ImageIoJob startVideoThumbnailGenerationJob(QObject* receiver,
             }
             if (extractionResult.status == kiriview::VideoThumbnailExtractionStatus::Failed) {
                 QString diagnostic;
+                kiriview::ThumbnailGenerationStatus failureStatus
+                    = kiriview::ThumbnailGenerationStatus::Failed;
                 if (extractionResult.failure.has_value()) {
+                    if (extractionResult.failure->cause
+                        == kiriview::VideoThumbnailExtractionFailureCause::ResourceLimit) {
+                        failureStatus = kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded;
+                    }
                     diagnostic = std::move(extractionResult.failure->diagnostic);
                 }
                 callback(failedResult(request.requestedBucket,
                     diagnostic.isEmpty() ? QStringLiteral("video thumbnail extraction failed")
-                                         : std::move(diagnostic)));
+                                         : std::move(diagnostic),
+                    failureStatus));
                 return;
             }
             if (extractionResult.image.isNull() || extractionResult.failure.has_value()) {

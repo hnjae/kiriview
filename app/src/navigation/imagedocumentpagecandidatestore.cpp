@@ -8,6 +8,7 @@
 #include "imagedocumentpagecandidateloading.h"
 #include "location/imageurl.h"
 
+#include <QMetaObject>
 #include <QPointer>
 #include <functional>
 #include <memory>
@@ -100,8 +101,14 @@ ImageDocumentPageCandidateDirectoryEntry& ImageDocumentPageCandidateStore::entry
         return *entry->second;
     }
 
+    const std::uint64_t identity = ++m_nextEntryIdentity;
+    QPointer<ImageDocumentPageCandidateStore> store(this);
     auto insertedEntry = std::make_unique<ImageDocumentPageCandidateDirectoryEntry>(
-        directoryUrl, m_watchProvider, this);
+        directoryUrl, m_watchProvider, this, identity, [store, key, identity]() {
+            if (!store.isNull()) {
+                store->scheduleIdleErase(key, identity);
+            }
+        });
     ImageDocumentPageCandidateDirectoryEntry& entryRef = *insertedEntry;
     m_entries.emplace(key, std::move(insertedEntry));
 
@@ -130,5 +137,20 @@ void ImageDocumentPageCandidateStore::removeSubscriber(const QString& key, QObje
     }
 
     entry->second->removeSubscriber(token);
+}
+
+void ImageDocumentPageCandidateStore::scheduleIdleErase(const QString& key, std::uint64_t identity)
+{
+    QMetaObject::invokeMethod(
+        this,
+        [this, key, identity]() {
+            auto entry = m_entries.find(key);
+            if (entry == m_entries.end() || entry->second->identity() != identity
+                || entry->second->hasActiveClients()) {
+                return;
+            }
+            m_entries.erase(entry);
+        },
+        Qt::QueuedConnection);
 }
 }

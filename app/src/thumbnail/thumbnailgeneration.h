@@ -14,6 +14,7 @@
 #include "thumbnail/thumbnailcachelookup.h"
 #include "thumbnail/thumbnailoriginalidentity.h"
 #include "thumbnail/thumbnailsourcekind.h"
+#include "thumbnail/videothumbnailextractionadapter.h"
 
 #include <QByteArray>
 #include <QImage>
@@ -108,6 +109,7 @@ struct ThumbnailGenerationDependencies
     ThumbnailGenerationMaximumLongEdgePolicy maximumLongEdgeForBucket;
     ThumbnailGenerationOriginalIdentityLoader openedCollectionOriginalIdentityLoader;
     ThumbnailGenerationCacheRepository cacheRepository;
+    ThumbnailVideoExtractionProvider videoExtractionProvider;
     std::shared_ptr<ImageSourceDataBudget> sourceDataBudget;
     std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget;
 };

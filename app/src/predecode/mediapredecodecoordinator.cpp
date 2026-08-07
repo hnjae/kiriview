@@ -3,6 +3,7 @@
 
 #include "mediapredecodecoordinator.h"
 
+#include "diagnostics/diagnosticlogprojection.h"
 #include "mediapredecodescheduleplan.h"
 #include "mediapredecodewindowplan.h"
 #include "predecodelogging.h"
@@ -35,7 +36,7 @@ void MediaPredecodeCoordinator::schedule(Context context)
 {
     qCDebug(kiriviewPredecodeLog)
         << "media predecode schedule"
-        << "url" << context.currentUrl << "candidates"
+        << "url" << diagnosticSourceReference(context.currentUrl) << "candidates"
         << directMediaNavigationCandidateRows(context.candidateSnapshot).size() << "displayedImages"
         << context.displayedImages.size();
     MediaPredecodeSchedulePlan plan = mediaPredecodeSchedulePlan(MediaPredecodeScheduleRequest {
@@ -98,7 +99,9 @@ void MediaPredecodeCoordinator::startPredecodeWindow(const PredecodePendingSched
     const PredecodeWindowPlan plan = mediaPredecodeWindowPlan(*eligibility, policyInput());
     qCDebug(kiriviewPredecodeLog) << "media predecode window start"
                                   << "generation" << schedule.generation << "foregroundUrl"
-                                  << schedule.context.currentLocation.imageUrl() << "candidates"
+                                  << diagnosticSourceReference(
+                                         schedule.context.currentLocation.imageUrl())
+                                  << "candidates"
                                   << directMediaNavigationCandidateRows(*candidateSnapshot).size()
                                   << "stillLocations" << plan.locations.size() << "parallelLimit"
                                   << plan.parallelLimit;

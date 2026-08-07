@@ -20,6 +20,10 @@
 #include <vector>
 
 namespace kiriview {
+class ImageViewportProviderResource;
+using ImageViewportProviderResourceFactory
+    = std::function<std::shared_ptr<ImageViewportProviderResource>()>;
+
 struct ImageViewportProviderWorkIdentity
 {
     quint64 sourceGeneration = 0;
@@ -145,6 +149,10 @@ public:
     std::shared_ptr<ImageViewportFailureRegistry> failureRegistry() const
     {
         return m_failureRegistry;
+    }
+    [[nodiscard]] std::weak_ptr<ImageViewportProviderSource> providerSource() const
+    {
+        return m_source;
     }
 
     void requestMetadata(

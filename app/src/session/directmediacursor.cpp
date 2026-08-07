@@ -3,6 +3,7 @@
 
 #include "directmediacursor.h"
 
+#include "diagnostics/diagnosticlogprojection.h"
 #include "navigation/directmedianavigationmodel.h"
 #include "navigation/navigationlogging.h"
 
@@ -46,9 +47,12 @@ void logCursorOperation(
     qCDebug(kiriviewNavigationLog)
         << "direct media cursor operation"
         << "operation" << operation << "effectiveUrlChanged" << effectiveUrlChanged << "stableUrl"
-        << cursor.stableSource.requestedUrl() << "pendingUrl" << cursor.pendingSource.requestedUrl()
-        << "currentUrl" << (scope.has_value() ? scope->currentUrl() : QUrl()) << "parentUrl"
-        << (scope.has_value() ? scope->parentUrl() : QUrl()) << "generation" << cursor.generation;
+        << kiriview::diagnosticSourceReference(cursor.stableSource.requestedUrl()) << "pendingUrl"
+        << kiriview::diagnosticSourceReference(cursor.pendingSource.requestedUrl()) << "currentUrl"
+        << kiriview::diagnosticSourceReference(scope.has_value() ? scope->currentUrl() : QUrl())
+        << "parentUrl"
+        << kiriview::diagnosticSourceReference(scope.has_value() ? scope->parentUrl() : QUrl())
+        << "generation" << cursor.generation;
 }
 }
 

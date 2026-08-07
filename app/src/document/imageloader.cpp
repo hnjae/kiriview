@@ -4,6 +4,7 @@
 #include "imageloader.h"
 
 #include "async/imagecallback.h"
+#include "diagnostics/diagnosticlogprojection.h"
 #include "localization/mediaentrysourceerrortext.h"
 #include "navigation/navigationlogging.h"
 #include "predecode/predecodelogging.h"
@@ -108,7 +109,8 @@ void ImageLoader::startOpenedCollectionLoad(const ImageLoadSession& session)
     if (!m_callbacks.ensurePageCandidateSnapshot) {
         qCWarning(kiriviewPredecodeLog)
             << "opened collection foreground load rejected without candidate snapshot owner"
-            << "sessionId" << session.id() << "imageUrl" << session.imageUrl();
+            << "sessionId" << session.id() << "imageUrl"
+            << kiriview::diagnosticSourceReference(session.imageUrl());
         std::optional<ImageLoadSession> currentSession = m_sessionTracker.claimCurrent(session);
         if (!currentSession.has_value()) {
             return;

@@ -3,6 +3,7 @@
 
 #include "documentsessiondirectmedianavigationcoordinator.h"
 
+#include "diagnostics/diagnosticlogprojection.h"
 #include "navigation/navigationlogging.h"
 
 #include <QDebug>
@@ -13,8 +14,9 @@ namespace {
     void logDirectMediaScope(const char* message, const DirectMediaScope& scope)
     {
         qCDebug(kiriviewNavigationLog)
-            << message << "currentUrl" << scope.currentUrl() << "parentUrl" << scope.parentUrl()
-            << "generation" << scope.generation();
+            << message << "currentUrl" << diagnosticSourceReference(scope.currentUrl())
+            << "parentUrl" << diagnosticSourceReference(scope.parentUrl()) << "generation"
+            << scope.generation();
     }
 
     DocumentSessionDirectMediaNavigationApplicationPorts applicationPorts(
@@ -129,7 +131,7 @@ void DocumentSessionDirectMediaNavigationCoordinator::refresh(QObject* receiver)
         qCDebug(kiriviewNavigationLog) << "direct media navigation refresh skipped"
                                        << "reason"
                                        << "inactive"
-                                       << "cursorUrl" << cursorUrl;
+                                       << "cursorUrl" << diagnosticSourceReference(cursorUrl);
         const std::function<bool()> transitionCurrent = ports.captureRefreshTransitionCurrent
             ? ports.captureRefreshTransitionCurrent()
             : std::function<bool()> {};

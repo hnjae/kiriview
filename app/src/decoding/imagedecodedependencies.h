@@ -6,6 +6,7 @@
 
 #include "async/imageasynccallbacks.h"
 #include "async/imageiojob.h"
+#include "async/imagerefinementscheduler.h"
 #include "async/imageworkerscheduler.h"
 #include "decodedimageresult.h"
 #include "imagedataloaderror.h"
@@ -34,6 +35,7 @@ struct ImageDecodeDependencies
     ThumbnailCacheLookupProvider thumbnailPreviewLookupProvider;
     RawEmbeddedThumbnailPreviewExtractor rawEmbeddedThumbnailPreviewExtractor;
     ImageWorkerScheduler workerScheduler;
+    ImageWorkerScheduler refinementScheduler;
     std::shared_ptr<ImageSourceDataBudget> sourceDataBudget;
     std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget;
 };

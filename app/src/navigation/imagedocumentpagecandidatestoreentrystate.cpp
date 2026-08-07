@@ -28,7 +28,7 @@ bool sameImageDocumentPageCandidates(const std::vector<kiriview::ImageDocumentPa
 
 template <typename Item> void pruneInactiveItems(std::vector<Item>* items)
 {
-    std::erase_if(*items, [](const Item& item) { return item.token.isNull(); });
+    std::erase_if(*items, [](const Item& item) { return !item.completion.isActive(); });
 }
 }
 
@@ -48,6 +48,15 @@ const QString& ImageDocumentPageCandidateStoreEntryState::errorString() const
     return m_errorString;
 }
 
+bool ImageDocumentPageCandidateStoreEntryState::hasActiveClients()
+{
+    std::erase_if(m_pendingLoads, [](const ImageDocumentPageCandidateStoreEntryPendingLoad& load) {
+        return !load.completion.isActive();
+    });
+    pruneInactiveItems(&m_subscribers);
+    return !m_pendingLoads.empty() || !m_subscribers.empty();
+}
+
 void ImageDocumentPageCandidateStoreEntryState::addPendingLoad(ImageIoJobCompletion completion,
     ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback)
 {
@@ -58,11 +67,11 @@ void ImageDocumentPageCandidateStoreEntryState::addPendingLoad(ImageIoJobComplet
     });
 }
 
-void ImageDocumentPageCandidateStoreEntryState::addSubscriber(
-    QObject* token, ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback)
+void ImageDocumentPageCandidateStoreEntryState::addSubscriber(ImageIoJobCompletion completion,
+    ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback)
 {
     m_subscribers.push_back(ImageDocumentPageCandidateStoreEntrySubscriber {
-        token,
+        std::move(completion),
         std::move(callback),
         std::move(errorCallback),
     });
@@ -80,7 +89,7 @@ void ImageDocumentPageCandidateStoreEntryState::removeSubscriber(QObject* token)
 {
     std::erase_if(
         m_subscribers, [token](const ImageDocumentPageCandidateStoreEntrySubscriber& subscriber) {
-            return subscriber.token.data() == token;
+            return subscriber.completion.object() == token;
         });
 }
 

@@ -4,10 +4,10 @@
 #include "presentation/imagespreadmodepolicy.h"
 
 namespace kiriview {
-bool imageSpreadReadingControlsAvailable(ImageSpreadReadingAvailability availability)
+bool imageSpreadPrimaryPageEligible(ImageSpreadPrimaryPageEligibility eligibility)
 {
-    return availability.hasImage && availability.hasDisplayedImage
-        && availability.displayedDocumentIsComicBook;
+    return eligibility.hasImage && eligibility.hasDisplayedImage
+        && eligibility.displayedDocumentIsComicBook;
 }
 
 }

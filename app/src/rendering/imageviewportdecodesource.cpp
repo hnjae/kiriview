@@ -952,7 +952,7 @@ void ImageViewportDecodeProviderSource::startStaticRefinement(
         }
 
         const std::weak_ptr<ImageViewportDecodeProviderSource> weakSelf = weak_from_this();
-        ImageWorkerTask task = m_dependencies.workerScheduler.run(
+        ImageWorkerTask task = m_dependencies.refinementScheduler.run(
             this,
             [refinementSource, targetSize = plan.targetRasterSize]() {
                 return refinementSource->decodeRasterDisplayImage(targetSize);

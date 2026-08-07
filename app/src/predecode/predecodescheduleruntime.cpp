@@ -3,6 +3,7 @@
 
 #include "predecodescheduleruntime.h"
 
+#include "diagnostics/diagnosticlogprojection.h"
 #include "predecodelogging.h"
 
 #include <QDebug>
@@ -49,8 +50,9 @@ PredecodeScheduleRuntime::PredecodeScheduleRuntime(QObject* owner,
 void PredecodeScheduleRuntime::schedule(const PredecodeScheduleContext& context)
 {
     qCDebug(kiriviewPredecodeLog) << "schedule requested"
-                                  << "url" << context.currentLocation.imageUrl() << "pageIndex"
-                                  << context.pageIndex << "displayedImages"
+                                  << "url"
+                                  << diagnosticSourceReference(context.currentLocation.imageUrl())
+                                  << "pageIndex" << context.pageIndex << "displayedImages"
                                   << context.displayedImages.size() << "powerSaver"
                                   << m_scheduleState.powerSaverEnabled();
     dispatchSchedulePlan(m_scheduleState.schedule(context, currentMonotonicMsec()));
@@ -109,7 +111,8 @@ void PredecodeScheduleRuntime::dispatchScheduleOperation(
                 qCDebug(kiriviewPredecodeLog)
                     << "start predecode debounce"
                     << "generation" << payload.schedule.generation << "url"
-                    << payload.schedule.context.currentLocation.imageUrl();
+                    << diagnosticSourceReference(
+                           payload.schedule.context.currentLocation.imageUrl());
                 if (m_debounceTimer != nullptr) {
                     m_debounceTimer->start(TimerDuration(predecodeDebounceMsec()));
                 }
@@ -120,7 +123,8 @@ void PredecodeScheduleRuntime::dispatchScheduleOperation(
                 qCDebug(kiriviewPredecodeLog)
                     << "start adjacent predecode"
                     << "generation" << payload.schedule.generation << "url"
-                    << payload.schedule.context.currentLocation.imageUrl();
+                    << diagnosticSourceReference(
+                           payload.schedule.context.currentLocation.imageUrl());
                 m_startAdjacentPredecode(payload.schedule);
             } else {
                 static_assert(alwaysFalse<Operation>, "Unhandled predecode schedule operation");
@@ -142,7 +146,8 @@ void PredecodeScheduleRuntime::startDebouncedPredecode()
 
     qCDebug(kiriviewPredecodeLog) << "debounced predecode fired"
                                   << "generation" << pendingSchedule->generation << "url"
-                                  << pendingSchedule->context.currentLocation.imageUrl();
+                                  << diagnosticSourceReference(
+                                         pendingSchedule->context.currentLocation.imageUrl());
     m_startAdjacentPredecode(*pendingSchedule);
 }
 

@@ -8,6 +8,15 @@
 }:
 let
   inherit (kiriviewApp) appRoot repoRoot;
+  applicationIdLines = lib.filter (line: line != "" && !(lib.hasPrefix "#" line)) (
+    lib.splitString "\n" (builtins.readFile "${appRoot}/application-id.txt")
+  );
+  applicationId =
+    if builtins.length applicationIdLines == 1 then
+      builtins.head applicationIdLines
+    else
+      throw "application-id.txt must declare exactly one application ID";
+  applicationQmlPath = lib.replaceStrings [ "." ] [ "/" ] applicationId;
   appQmlRoot = "${appRoot}/target/devenv/cmake";
   profileQmlRoot = "${repoRoot}/.devenv/profile/lib/qt-6/qml";
   kirigamiQmlRoot = "${pkgs.kdePackages.kirigami.unwrapped}/lib/qt-6/qml";
@@ -63,7 +72,7 @@ in
   enterShell = qtRuntimeEnvironment;
 
   qmllsGeneral = {
-    buildDir = "${appQmlRoot}/org/hnjae/kiriview";
+    buildDir = "${appQmlRoot}/${applicationQmlPath}";
     importPaths = lib.concatStringsSep ":" qmlImportPaths;
     "no-cmake-calls" = true;
   };

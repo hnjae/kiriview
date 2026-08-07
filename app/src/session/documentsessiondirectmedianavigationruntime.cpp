@@ -4,6 +4,7 @@
 #include "session/documentsessiondirectmedianavigationruntime.h"
 
 #include "async/imagecallback.h"
+#include "diagnostics/diagnosticlogprojection.h"
 #include "navigation/navigationlogging.h"
 
 #include <QDebug>
@@ -91,9 +92,9 @@ void DocumentSessionDirectMediaNavigationRuntime::startLoad(QObject* receiver,
             << "direct media navigation candidate load skipped"
             << "reason"
             << "invalid-scope"
-            << "currentUrl" << scope.currentUrl() << "parentUrl" << scope.parentUrl()
-            << "generation" << scope.generation() << "providerPresent"
-            << static_cast<bool>(provider.directoryCandidateLoader);
+            << "currentUrl" << diagnosticSourceReference(scope.currentUrl()) << "parentUrl"
+            << diagnosticSourceReference(scope.parentUrl()) << "generation" << scope.generation()
+            << "providerPresent" << static_cast<bool>(provider.directoryCandidateLoader);
         invokeIfSet(callback, DocumentSessionDirectMediaNavigationCandidatesResult {});
         return;
     }
@@ -106,8 +107,9 @@ void DocumentSessionDirectMediaNavigationRuntime::startLoad(QObject* receiver,
     }
     qCDebug(kiriviewNavigationLog)
         << "direct media navigation candidate load started"
-        << "operationId" << load.operationId << "currentUrl" << scope.currentUrl() << "parentUrl"
-        << scope.parentUrl() << "generation" << scope.generation();
+        << "operationId" << load.operationId << "currentUrl"
+        << diagnosticSourceReference(scope.currentUrl()) << "parentUrl"
+        << diagnosticSourceReference(scope.parentUrl()) << "generation" << scope.generation();
     auto sharedScopeAccepted = std::make_shared<ScopeAccepted>(std::move(scopeAccepted));
     auto sharedCallback = std::make_shared<CandidatesCallback>(std::move(callback));
 
@@ -156,8 +158,10 @@ void DocumentSessionDirectMediaNavigationRuntime::finish(
             << "direct media navigation candidate load ignored"
             << "reason"
             << "stale-load"
-            << "operationId" << load.operationId << "currentUrl" << load.scope.currentUrl()
-            << "parentUrl" << load.scope.parentUrl() << "generation" << load.scope.generation();
+            << "operationId" << load.operationId << "currentUrl"
+            << diagnosticSourceReference(load.scope.currentUrl()) << "parentUrl"
+            << diagnosticSourceReference(load.scope.parentUrl()) << "generation"
+            << load.scope.generation();
         return;
     }
 
@@ -167,8 +171,10 @@ void DocumentSessionDirectMediaNavigationRuntime::finish(
             << "direct media navigation candidate load ignored"
             << "reason"
             << "stale-after-scope-check"
-            << "operationId" << load.operationId << "currentUrl" << load.scope.currentUrl()
-            << "parentUrl" << load.scope.parentUrl() << "generation" << load.scope.generation();
+            << "operationId" << load.operationId << "currentUrl"
+            << diagnosticSourceReference(load.scope.currentUrl()) << "parentUrl"
+            << diagnosticSourceReference(load.scope.parentUrl()) << "generation"
+            << load.scope.generation();
         return;
     }
     if (!scopeIsAccepted) {
@@ -177,8 +183,10 @@ void DocumentSessionDirectMediaNavigationRuntime::finish(
             << "direct media navigation candidate load ignored"
             << "reason"
             << "scope-rejected"
-            << "operationId" << load.operationId << "currentUrl" << load.scope.currentUrl()
-            << "parentUrl" << load.scope.parentUrl() << "generation" << load.scope.generation();
+            << "operationId" << load.operationId << "currentUrl"
+            << diagnosticSourceReference(load.scope.currentUrl()) << "parentUrl"
+            << diagnosticSourceReference(load.scope.parentUrl()) << "generation"
+            << load.scope.generation();
         return;
     }
     if (!m_loadState.finish(load)) {
@@ -188,7 +196,7 @@ void DocumentSessionDirectMediaNavigationRuntime::finish(
     qCDebug(kiriviewNavigationLog)
         << "direct media navigation candidate load finished"
         << "operationId" << load.operationId << "succeeded" << result.succeeded << "candidates"
-        << result.candidates.size() << "error" << result.errorString;
+        << result.candidates.size() << "error" << diagnosticDetailReference(result.errorString);
     invokeIfSet(callback, std::move(result));
 }
 }

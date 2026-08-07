@@ -357,13 +357,13 @@ std::optional<StaticDisplayImagePayload> ImageViewportIntegrationRuntime::displa
     if (displayed == nullptr) {
         return std::nullopt;
     }
-    const std::shared_ptr<ImageViewportProviderResource>& resource
-        = role == ImageViewportPageRole::Secondary ? displayed->secondaryResource
-                                                   : displayed->primaryResource;
+    const std::unique_ptr<ImageViewportSequenceProvider>& adapter
+        = role == ImageViewportPageRole::Secondary ? displayed->secondaryAdapter
+                                                   : displayed->primaryAdapter;
     const ImageViewportDemandRevisionToken demandRevision = role == ImageViewportPageRole::Secondary
         ? snapshot.secondary().display().demandRevision()
         : snapshot.primary().display().demandRevision();
-    return resource == nullptr ? std::nullopt : resource->currentStillDisplayImage(demandRevision);
+    return adapter == nullptr ? std::nullopt : adapter->currentStillDisplayImage(demandRevision);
 }
 
 quint64 ImageViewportIntegrationRuntime::beginTargetRevision()
@@ -448,8 +448,8 @@ ImageViewportIntegrationRuntime::submitCurrentTarget()
     if (record->primaryResource == nullptr) {
         return discardFailedCurrent();
     }
-    record->primaryAdapter
-        = std::make_unique<ImageViewportSequenceProvider>(record->primaryResource);
+    record->primaryAdapter = std::make_unique<ImageViewportSequenceProvider>(
+        record->primaryResource, record->target.primaryResource);
     ImageSequenceFactory factory;
     record->primaryFactoryResult.reset(factory.fromProvider(record->primaryAdapter.get()));
     if (!submissionIsCurrent(stamp)) {
@@ -471,8 +471,8 @@ ImageViewportIntegrationRuntime::submitCurrentTarget()
         if (record->secondaryResource == nullptr) {
             return discardFailedCurrent();
         }
-        record->secondaryAdapter
-            = std::make_unique<ImageViewportSequenceProvider>(record->secondaryResource);
+        record->secondaryAdapter = std::make_unique<ImageViewportSequenceProvider>(
+            record->secondaryResource, record->target.secondaryResource);
         record->secondaryFactoryResult.reset(factory.fromProvider(record->secondaryAdapter.get()));
         if (!submissionIsCurrent(stamp)) {
             return discardSuperseded();
@@ -621,12 +621,12 @@ void ImageViewportIntegrationRuntime::acceptSnapshot(const ImageViewportStateSna
         }
         if (requestStatus == ImageViewportRequestStatus::Ready) {
             const ImageViewportRoleSet displayedRoles = snapshot.display().displayedRoleSet();
-            if (displayedRoles.primary() && displayed->primaryResource != nullptr) {
-                displayed->primaryResource->acceptDisplayedStillDisplayImage(
+            if (displayedRoles.primary() && displayed->primaryAdapter != nullptr) {
+                displayed->primaryAdapter->acceptDisplayedStillDisplayImage(
                     ImageViewportPageRole::Primary, snapshot.primary().display().demandRevision());
             }
-            if (displayedRoles.secondary() && displayed->secondaryResource != nullptr) {
-                displayed->secondaryResource->acceptDisplayedStillDisplayImage(
+            if (displayedRoles.secondary() && displayed->secondaryAdapter != nullptr) {
+                displayed->secondaryAdapter->acceptDisplayedStillDisplayImage(
                     ImageViewportPageRole::Secondary,
                     snapshot.secondary().display().demandRevision());
             }
@@ -692,11 +692,11 @@ std::optional<ImageLoadFailure> ImageViewportIntegrationRuntime::resolveFailure(
     }
     if (failure.role().isValid()
         && failure.role().value<ImageViewportPageRole>() == ImageViewportPageRole::Secondary) {
-        return record.secondaryResource == nullptr
+        return record.secondaryAdapter == nullptr
             ? std::nullopt
-            : record.secondaryResource->failureRegistry()->resolve(failure.providerReference());
+            : record.secondaryAdapter->resolveFailure(failure.providerReference());
     }
-    return record.primaryResource->failureRegistry()->resolve(failure.providerReference());
+    return record.primaryAdapter->resolveFailure(failure.providerReference());
 }
 
 void ImageViewportIntegrationRuntime::publishProjection(

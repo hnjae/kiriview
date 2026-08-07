@@ -42,6 +42,13 @@ void TestKiriDocumentSessionCollectionVideo::unsupportedOpenedCollectionVideoPro
     QVERIFY(session->activeImageUnsupportedOpenedCollectionVideo());
     QVERIFY(!session->activeImageReady());
     QVERIFY(session->activeImageOpenedCollectionScopeActive());
+    QVERIFY(session->imageDocument()->twoPageModeAvailable());
+    QVERIFY(session->imageDocument()->rightToLeftReadingAvailable());
+    session->imageDocument()->requestToggleTwoPageMode();
+    session->imageDocument()->requestToggleRightToLeftReading();
+    QVERIFY(session->imageDocument()->twoPageModeEnabled());
+    QVERIFY(session->imageDocument()->rightToLeftReadingEnabled());
+    QVERIFY(session->activeImageRightToLeftReadingActive());
     QVERIFY(!session->activeVideoReady());
     QCOMPARE(session->videoDocument()->sourceUrl(), QUrl());
     QCOMPARE(dataLoader.loadCount(), loadCountBeforeVideo);

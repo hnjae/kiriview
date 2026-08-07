@@ -10,6 +10,7 @@
 #include <QObject>
 #include <QString>
 #include <QUrl>
+#include <cstdint>
 #include <map>
 #include <memory>
 
@@ -35,9 +36,11 @@ private:
     ImageDocumentPageCandidateDirectoryEntry& entryForLocalDirectory(const QUrl& directoryUrl);
     void removePendingLoad(const QString& key, QObject* token);
     void removeSubscriber(const QString& key, QObject* token);
+    void scheduleIdleErase(const QString& key, std::uint64_t identity);
 
     std::map<QString, std::unique_ptr<ImageDocumentPageCandidateDirectoryEntry>> m_entries;
     ImageDocumentPageCandidateWatchProvider m_watchProvider;
+    std::uint64_t m_nextEntryIdentity = 0;
 };
 }
 

@@ -7,6 +7,7 @@
 #include "applicationstartupsource.h"
 #include "facade/kiridocumentsession.h"
 #include "facade/kiriwindowshell.h"
+#include "generated/applicationidentity.h"
 #include "localization/localization.h"
 #include "session/thumbnailimagestore.h"
 #include "system/powersaverprovider.h"
@@ -27,7 +28,7 @@
 namespace {
 void setupApplicationIdentity()
 {
-    QGuiApplication::setDesktopFileName(QStringLiteral("org.hnjae.kiriview"));
+    QGuiApplication::setDesktopFileName(QString::fromLatin1(kiriview::application_identity::id));
     QGuiApplication::setApplicationDisplayName(i18nc("@title:application", "KiriView"));
 }
 
@@ -85,7 +86,7 @@ void loadApplicationMainQml(
     }
     engine.setInitialProperties(initialProperties);
 
-    engine.load(QUrl(QStringLiteral("qrc:/qt/qml/org/hnjae/kiriview/Main.qml")));
+    engine.load(QUrl(QString::fromLatin1(kiriview::application_identity::mainQmlUrl)));
 }
 
 int runApplication(const ApplicationStartupSource& startupSource)

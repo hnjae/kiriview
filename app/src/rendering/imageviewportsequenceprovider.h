@@ -9,18 +9,27 @@
 #include <ImageViewport/imagesequenceprovider.h>
 
 #include <memory>
+#include <optional>
 
 namespace kiriview {
+class ImageViewportSequenceProviderPrivate;
+
 class ImageViewportSequenceProvider final : public ImageSequenceProviderAdapter
 {
 public:
-    explicit ImageViewportSequenceProvider(
-        std::shared_ptr<ImageViewportProviderResource> resource, QObject* parent = nullptr);
+    ImageViewportSequenceProvider(std::shared_ptr<ImageViewportProviderResource> initialResource,
+        ImageViewportProviderResourceFactory resourceFactory, QObject* parent = nullptr);
 
     [[nodiscard]] ImageSequenceProviderDescriptor descriptor() const override;
+    [[nodiscard]] std::optional<StaticDisplayImagePayload> currentStillDisplayImage(
+        ImageViewportDemandRevisionToken demandRevision) const;
+    bool acceptDisplayedStillDisplayImage(
+        ImageViewportPageRole role, ImageViewportDemandRevisionToken demandRevision);
+    [[nodiscard]] std::optional<ImageLoadFailure> resolveFailure(
+        ImageSequenceProviderFailureReference reference) const;
 
 private:
-    std::shared_ptr<ImageViewportProviderResource> m_resource;
+    std::shared_ptr<ImageViewportSequenceProviderPrivate> m_private;
 };
 }
 

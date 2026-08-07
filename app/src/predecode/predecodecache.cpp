@@ -3,6 +3,7 @@
 
 #include "predecodecache.h"
 
+#include "diagnostics/diagnosticlogprojection.h"
 #include "location/imageurl.h"
 #include "predecodelogging.h"
 #include "predecodepolicy.h"
@@ -44,7 +45,8 @@ void PredecodeCache::retireQueuedLoads(const DisplayedImageLocation& location)
     const std::size_t retired = std::erase_if(m_queue,
         [&location](const PredecodeRequest& request) { return request.location == location; });
     qCDebug(kiriviewPredecodeLog) << "predecode queued location retired"
-                                  << "url" << location.imageUrl() << "retired" << retired;
+                                  << "url" << diagnosticSourceReference(location.imageUrl())
+                                  << "retired" << retired;
 }
 
 void PredecodeCache::setWindowLocations(const std::vector<DisplayedImageLocation>& locations)
@@ -107,8 +109,8 @@ void PredecodeCache::enqueueMissingWindowLoads(
             const PredecodeImageKey& key = m_windowKeys.at(index);
             qCDebug(kiriviewPredecodeLog)
                 << "predecode enqueue"
-                << "url" << key.location.imageUrl() << "openedCollectionScope"
-                << !key.location.openedCollectionScope().isEmpty();
+                << "url" << diagnosticSourceReference(key.location.imageUrl())
+                << "openedCollectionScope" << !key.location.openedCollectionScope().isEmpty();
             m_queue.push_back(
                 PredecodeRequest { key.location, key.sourceRevision, lifecycleScope });
         }
@@ -147,8 +149,8 @@ std::optional<PredecodeRequest> PredecodeCache::takeNextRequest(
     auto requestEntry = m_queue.begin() + static_cast<std::ptrdiff_t>(plan.index);
     PredecodeRequest request = std::move(*requestEntry);
     qCDebug(kiriviewPredecodeLog) << "predecode dequeue"
-                                  << "url" << request.location.imageUrl() << "index" << plan.index
-                                  << "discardCount" << discardCount;
+                                  << "url" << diagnosticSourceReference(request.location.imageUrl())
+                                  << "index" << plan.index << "discardCount" << discardCount;
     m_queue.erase(m_queue.begin(), m_queue.begin() + static_cast<std::ptrdiff_t>(discardCount));
     return request;
 }
@@ -217,7 +219,7 @@ void PredecodeCache::cacheImage(const DisplayedImageLocation& location,
         qCDebug(kiriviewPredecodeLog) << "predecode cache store skipped"
                                       << "reason"
                                       << "non-authoritative-payload"
-                                      << "url" << location.imageUrl();
+                                      << "url" << diagnosticSourceReference(location.imageUrl());
         return;
     }
 
@@ -227,11 +229,12 @@ void PredecodeCache::cacheImage(const DisplayedImageLocation& location,
 
     const std::optional<qsizetype> byteCost = displayImage.byteCostWithinBudget(m_byteBudget);
     if (!byteCost.has_value()) {
-        qCDebug(kiriviewPredecodeLog) << "predecode cache store skipped"
-                                      << "reason"
-                                      << "byte-budget"
-                                      << "url" << location.imageUrl() << "byteCost"
-                                      << displayImage.byteCost() << "budget" << m_byteBudget;
+        qCDebug(kiriviewPredecodeLog)
+            << "predecode cache store skipped"
+            << "reason"
+            << "byte-budget"
+            << "url" << diagnosticSourceReference(location.imageUrl()) << "byteCost"
+            << displayImage.byteCost() << "budget" << m_byteBudget;
         return;
     }
 
@@ -247,8 +250,8 @@ void PredecodeCache::cacheImage(const DisplayedImageLocation& location,
     m_images.push_back(
         CachedImage { key, std::move(displayImage), *byteCost, nextLastUsedSequence() });
     qCDebug(kiriviewPredecodeLog) << "predecode cache stored"
-                                  << "url" << location.imageUrl() << "byteCost" << *byteCost
-                                  << "cachedImages" << m_images.size();
+                                  << "url" << diagnosticSourceReference(location.imageUrl())
+                                  << "byteCost" << *byteCost << "cachedImages" << m_images.size();
 
     trimImagesToBudget();
 }
@@ -260,7 +263,7 @@ void PredecodeCache::cacheDisplayedImage(bool cacheable, const DisplayedImageLoc
         qCDebug(kiriviewPredecodeLog)
             << "displayed predecode cache skipped"
             << "reason" << (!cacheable ? "not-cacheable" : "empty-location") << "url"
-            << location.imageUrl();
+            << diagnosticSourceReference(location.imageUrl());
         return;
     }
 

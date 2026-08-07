@@ -3,6 +3,7 @@
 
 #include "session/activenavigationthumbnailworkcoordinator.h"
 
+#include "diagnostics/diagnosticlogprojection.h"
 #include "session/thumbnaillogging.h"
 
 #include <QDebug>
@@ -213,10 +214,11 @@ void ActiveNavigationThumbnailWorkCoordinator::reportFailureDiagnostic(
     };
     qCDebug(kiriviewThumbnailLog) << "Thumbnail failure diagnostic" << workId.value << "kind"
                                   << static_cast<int>(workKind) << "number"
-                                  << sourceKey.row.rowNumber << "url" << sourceKey.sourceUrl
+                                  << sourceKey.row.rowNumber << "url"
+                                  << kiriview::diagnosticSourceReference(sourceKey.sourceUrl)
                                   << "bucket" << static_cast<int>(bucket) << "failure"
                                   << static_cast<int>(failureKind) << "error"
-                                  << resolvedErrorString;
+                                  << kiriview::diagnosticDetailReference(resolvedErrorString);
     if (m_failureDiagnosticCallback) {
         m_failureDiagnosticCallback(diagnostic);
     }

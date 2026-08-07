@@ -43,8 +43,8 @@ struct ImageActionAvailabilityProjection
     bool readyShortcutsEnabled = false;
     bool readyViewerShortcutsEnabled = false;
     bool twoPageViewerShortcutsEnabled = false;
-    bool rightToLeftReadingShortcutsEnabled = false;
-    bool rightToLeftReadingViewerShortcutsEnabled = false;
+    bool collectionReadingShortcutsEnabled = false;
+    bool collectionReadingViewerShortcutsEnabled = false;
     bool rotateShortcutsEnabled = false;
     bool rotateViewerShortcutsEnabled = false;
     bool pannableShortcutsEnabled = false;

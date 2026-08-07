@@ -225,13 +225,14 @@ constexpr std::array actionDefinitions {
     registeredAction(Actions::ActionId::ViewToggleTwoPageModeAction, "view_toggle_two_page_mode",
         Category::View, kli18nc("@action", "Two-Page Spread"), "view-split-left-right-symbolic",
         noDefaultShortcuts(), portableShortcutSpec("S"),
-        shortcutRouteSpecs(route(ActivationScope::ViewerLocal, Scope::ReadyViewerShortcutScope))),
+        shortcutRouteSpecs(
+            route(ActivationScope::ViewerLocal, Scope::CollectionReadingViewerShortcutScope))),
     registeredAction(Actions::ActionId::ViewToggleRightToLeftReadingAction,
         "view_toggle_right_to_left_reading", Category::View,
         kli18nc("@action", "Right-to-Left Reading"), "format-text-direction-rtl-symbolic",
         noDefaultShortcuts(), portableShortcutSpec("B"),
         shortcutRouteSpecs(
-            route(ActivationScope::ViewerLocal, Scope::RightToLeftReadingViewerShortcutScope))),
+            route(ActivationScope::ViewerLocal, Scope::CollectionReadingViewerShortcutScope))),
     registeredAction(Actions::ActionId::ViewToggleInfoPanelAction, "view_toggle_info_panel",
         Category::Panels, kli18nc("@action", "Show Info Panel"), "documentinfo-symbolic",
         noDefaultShortcuts(), portableShortcutSpec("I"),

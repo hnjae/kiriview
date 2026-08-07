@@ -3,6 +3,7 @@
 
 #include "video/videodocumentruntime.h"
 
+#include "diagnostics/diagnosticlogprojection.h"
 #include "localization/imageerrortext.h"
 #include "metadata/embeddedmetadata.h"
 #include "video/videodocumentstatusplan.h"
@@ -1139,9 +1140,10 @@ void VideoDocumentRuntime::updateErrorFromBackend(
     const std::weak_ptr<void> lifetime = m_callbackLifetime;
     qCDebug(kiriviewVideoLog).noquote()
         << "playback backend failure"
-        << "source=" << lifecycle.publicSourceUrl
+        << "source=" << diagnosticSourceReference(lifecycle.publicSourceUrl)
         << "category=" << videoMediaErrorCategoryName(error.category)
-        << "code=" << error.rawErrorCode << "detail=" << error.diagnosticDetail;
+        << "code=" << error.rawErrorCode
+        << "detail=" << diagnosticDetailReference(error.diagnosticDetail);
     m_state.setBackendFailure(VideoBackendFailure {
         lifecycle.publicSourceUrl,
         VideoBackendFailureKind::Playback,

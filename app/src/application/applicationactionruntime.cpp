@@ -84,9 +84,9 @@ Actions::ApplicationActionStateInput actionStateInput(
     input.readyShortcutsEnabled = projection.readyShortcutsEnabled;
     input.readyViewerShortcutsEnabled = projection.readyViewerShortcutsEnabled;
     input.twoPageViewerShortcutsEnabled = projection.twoPageViewerShortcutsEnabled;
-    input.rightToLeftReadingShortcutsEnabled = projection.rightToLeftReadingShortcutsEnabled;
-    input.rightToLeftReadingViewerShortcutsEnabled
-        = projection.rightToLeftReadingViewerShortcutsEnabled;
+    input.collectionReadingShortcutsEnabled = projection.collectionReadingShortcutsEnabled;
+    input.collectionReadingViewerShortcutsEnabled
+        = projection.collectionReadingViewerShortcutsEnabled;
     input.rotateShortcutsEnabled = projection.rotateShortcutsEnabled;
     input.rotateViewerShortcutsEnabled = projection.rotateViewerShortcutsEnabled;
     input.pannableShortcutsEnabled = projection.pannableShortcutsEnabled;
@@ -180,6 +180,16 @@ void applyCurrentPlacementAndDisableInteractions(
     presentation.zoom.interactionEnabled = false;
 }
 
+void applyCurrentPlacementAndDisableImageInteractions(
+    Actions::ImageToolbarPresentationSnapshot& presentation,
+    const Actions::ApplicationActionStateSnapshot& snapshot)
+{
+    presentation.collectionControlsVisible
+        = snapshot.documentSession.imageCollectionControlsVisible;
+    presentation.fitMode.interactionEnabled = false;
+    presentation.zoom.interactionEnabled = false;
+}
+
 Actions::ImageToolbarPresentationSnapshot unavailableMediaToolbarPresentation(
     const Actions::ApplicationActionStateSnapshot& snapshot,
     const Actions::ApplicationActionStateInput& input)
@@ -204,7 +214,7 @@ Actions::ImageToolbarPresentationSnapshot unavailableMediaToolbarPresentation(
             document.activeZoom.maximumManualPercent,
         };
     }
-    applyCurrentPlacementAndDisableInteractions(presentation, snapshot);
+    applyCurrentPlacementAndDisableImageInteractions(presentation, snapshot);
     return presentation;
 }
 }

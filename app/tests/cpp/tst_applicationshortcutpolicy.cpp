@@ -102,6 +102,7 @@ private Q_SLOTS:
     void helpModalSuppressesEscapeDispatch();
     void focusInapplicableBlocksFixedShortcutDispatch();
     void genericShortcutDispatchUsesFirstEnabledBinding();
+    void collectionVideoDispatchesCollectionCommandShortcuts();
     void genericShortcutDispatchReportsUnsupportedMediaActions();
     void focusInapplicableBlocksGenericShortcutDispatch();
 };
@@ -162,9 +163,9 @@ void TestApplicationShortcutPolicy::actionDefinitionsOwnApplicationShortcutRoute
     QVERIFY(hasRouteSpec(
         ActionId::ViewZoomInAction, ActivationScope::ViewerLocal, Scope::ReadyViewerShortcutScope));
     QVERIFY(hasRouteSpec(ActionId::ViewToggleTwoPageModeAction, ActivationScope::ViewerLocal,
-        Scope::ReadyViewerShortcutScope));
+        Scope::CollectionReadingViewerShortcutScope));
     QVERIFY(hasRouteSpec(ActionId::ViewToggleRightToLeftReadingAction, ActivationScope::ViewerLocal,
-        Scope::RightToLeftReadingViewerShortcutScope));
+        Scope::CollectionReadingViewerShortcutScope));
     QVERIFY(hasRouteSpec(ActionId::ViewToggleInfoPanelAction, ActivationScope::ViewerLocal,
         Scope::ViewerShortcutScope));
     QVERIFY(hasRouteSpec(ActionId::ViewToggleThumbnailPanelAction, ActivationScope::ViewerLocal,
@@ -252,8 +253,15 @@ void TestApplicationShortcutPolicy::shortcutRoutesGroupDefinitionOwnedSpecs()
             ActionId::ViewZoom50PercentAction, ActionId::ViewZoom100PercentAction,
             ActionId::ViewZoom200PercentAction, ActionId::ViewFitAction,
             ActionId::ViewFitHeightAction, ActionId::ViewFitWidthAction,
-            ActionId::ViewToggleTwoPageModeAction, ActionId::ViewScanForwardAction,
-            ActionId::ViewScanBackwardAction, ActionId::ViewToggleVideoPlaybackAction }));
+            ActionId::ViewScanForwardAction, ActionId::ViewScanBackwardAction,
+            ActionId::ViewToggleVideoPlaybackAction }));
+
+    const kiriview::ApplicationActions::ApplicationShortcutRoute* collectionReadingRoute
+        = routeFor(ActivationScope::ViewerLocal, Scope::CollectionReadingViewerShortcutScope);
+    QVERIFY(collectionReadingRoute != nullptr);
+    QCOMPARE(actionIdVariants(collectionReadingRoute->actionIds),
+        actionIdVariants({ ActionId::ViewToggleTwoPageModeAction,
+            ActionId::ViewToggleRightToLeftReadingAction }));
 
     const kiriview::ApplicationActions::ApplicationShortcutRoute* containerRoute
         = routeFor(ActivationScope::ViewerLocal, Scope::ContainerViewerShortcutScope);
@@ -334,6 +342,8 @@ void TestApplicationShortcutPolicy::videoShortcutScopesUseViewerDeletionAndNavig
     QVERIFY(kiriview::ApplicationActions::videoShortcutsEnabledForScope(
         input, Scope::ReadyViewerShortcutScope));
     QVERIFY(kiriview::ApplicationActions::videoShortcutsEnabledForScope(
+        input, Scope::CollectionReadingViewerShortcutScope));
+    QVERIFY(kiriview::ApplicationActions::videoShortcutsEnabledForScope(
         input, Scope::ImageSelectionShortcutScope));
     QVERIFY(kiriview::ApplicationActions::videoShortcutsEnabledForScope(
         input, Scope::ImageSelectionViewerShortcutScope));
@@ -379,6 +389,8 @@ void TestApplicationShortcutPolicy::videoUnsupportedActionPolicyRejectsImageOnly
         kiriview::ApplicationActions::videoActionUnsupported(ActionId::ViewZoom200PercentAction));
     QVERIFY(kiriview::ApplicationActions::videoActionUnsupported(
         ActionId::ViewToggleTwoPageModeAction));
+    QVERIFY(kiriview::ApplicationActions::videoActionUnsupported(
+        ActionId::ViewToggleRightToLeftReadingAction));
     QVERIFY(
         kiriview::ApplicationActions::videoActionUnsupported(ActionId::GoPreviousArchiveAction));
     QVERIFY(!kiriview::ApplicationActions::videoActionUnsupported(ActionId::ViewScanForwardAction));
@@ -613,6 +625,50 @@ void TestApplicationShortcutPolicy::genericShortcutDispatchUsesFirstEnabledBindi
     QCOMPARE(
         outcome.kind, kiriview::ApplicationActions::GenericShortcutDispatchKind::TriggerAction);
     QCOMPARE(outcome.actionId, ActionId::FileOpenAction);
+}
+
+void TestApplicationShortcutPolicy::collectionVideoDispatchesCollectionCommandShortcuts()
+{
+    kiriview::ApplicationActions::GenericShortcutDispatchInput input;
+    input.actionState.videoMode = true;
+    input.actionState.helpActionsEnabled = true;
+    input.actionState.viewerShortcutsEnabled = true;
+    input.actionState.collectionReadingViewerShortcutsEnabled = true;
+    input.actionState.containerViewerShortcutsEnabled = true;
+    input.bindings = {
+        kiriview::ApplicationActions::GenericShortcutBinding {
+            ActionId::ViewToggleTwoPageModeAction,
+            Scope::CollectionReadingViewerShortcutScope,
+            { shortcut(QStringLiteral("S")) },
+            true,
+        },
+        kiriview::ApplicationActions::GenericShortcutBinding {
+            ActionId::GoNextArchiveAction,
+            Scope::ContainerViewerShortcutScope,
+            { shortcut(QStringLiteral("]")) },
+            true,
+        },
+    };
+
+    kiriview::ApplicationActions::GenericShortcutDispatchOutcome outcome
+        = kiriview::ApplicationActions::genericShortcutDispatchOutcome(
+            input, shortcut(QStringLiteral("S")));
+    QCOMPARE(
+        outcome.kind, kiriview::ApplicationActions::GenericShortcutDispatchKind::TriggerAction);
+    QCOMPARE(outcome.actionId, ActionId::ViewToggleTwoPageModeAction);
+
+    outcome = kiriview::ApplicationActions::genericShortcutDispatchOutcome(
+        input, shortcut(QStringLiteral("]")));
+    QCOMPARE(
+        outcome.kind, kiriview::ApplicationActions::GenericShortcutDispatchKind::TriggerAction);
+    QCOMPARE(outcome.actionId, ActionId::GoNextArchiveAction);
+
+    input.bindings.front().actionEnabled = false;
+    outcome = kiriview::ApplicationActions::genericShortcutDispatchOutcome(
+        input, shortcut(QStringLiteral("S")));
+    QCOMPARE(outcome.kind,
+        kiriview::ApplicationActions::GenericShortcutDispatchKind::UnsupportedVideoAction);
+    QCOMPARE(outcome.actionId, ActionId::ViewToggleTwoPageModeAction);
 }
 
 void TestApplicationShortcutPolicy::genericShortcutDispatchReportsUnsupportedMediaActions()

@@ -320,7 +320,7 @@ void ImageSpreadPresentationController::refreshSecondaryPage()
     }
     const ImageSpreadSecondaryPageRefreshResult result
         = m_secondaryPageRefresh.planRefresh(ImageSpreadSecondaryPageRefreshRequest {
-            twoPageModeActive(),
+            twoPagePresentationActive(),
             primaryPageIsWide(),
             secondaryPageVisible(),
             m_secondaryPageController->displayedImageLocation().imageUrl(),
@@ -447,17 +447,22 @@ bool ImageSpreadPresentationController::primaryPageIsWide() const
 bool ImageSpreadPresentationController::primaryPageSupportsSpread(
     const DisplayedImageLocation& location, QSize imageSize) const
 {
-    return imageSpreadReadingControlsAvailable(ImageSpreadReadingAvailability {
+    return imageSpreadPrimaryPageEligible(ImageSpreadPrimaryPageEligibility {
         !imageSize.isEmpty(),
         !location.isEmpty(),
         location.openedCollectionScope().isComicBook(),
     });
 }
 
+bool ImageSpreadPresentationController::twoPagePresentationActive() const
+{
+    return m_twoPageModeEnabled
+        && primaryPageSupportsSpread(m_state.displayedImageLocation(), m_committedPrimaryImageSize);
+}
+
 bool ImageSpreadPresentationController::readingControlsAvailable() const
 {
-    const DisplayedImageLocation& location = m_state.displayedImageLocation();
-    return primaryPageSupportsSpread(location, m_committedPrimaryImageSize);
+    return m_state.selectedOpenedCollectionScope().isComicBook();
 }
 
 bool ImageSpreadPresentationController::secondaryPageVisibleForNavigation() const
