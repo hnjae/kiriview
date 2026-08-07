@@ -3,6 +3,7 @@
 
 #include "rawdecoder.h"
 
+#include "cache/imagebyteaccounting.h"
 #include "cache/imagebytecost.h"
 #include "localization/imageerrortext.h"
 #include "rendering/imagerendering.h"
@@ -224,6 +225,14 @@ public:
     [[nodiscard]] QSize imageSize() const override { return m_image.size(); }
     [[nodiscard]] qsizetype byteCost() const override { return kiriview::imageByteCost(m_image); }
     [[nodiscard]] bool supportsRasterDisplayRefinement() const override { return true; }
+    [[nodiscard]] std::optional<qsizetype> rasterDisplayRefinementPeakByteCost(
+        const QSize& rasterSize) const override
+    {
+        const qsizetype outputByteCost = kiriview::estimatedRgbaByteCost(rasterSize);
+        return outputByteCost > 0
+            ? std::optional<qsizetype>(kiriview::saturatedQtByteProduct(outputByteCost, 2))
+            : std::nullopt;
+    }
 
     [[nodiscard]] kiriview::StaticImageDisplayDecodeResult decodeRasterDisplayImage(
         const QSize& rasterSize) const override
@@ -232,15 +241,22 @@ public:
             return {};
         }
 
-        return { kiriview::scaledDisplayImage(m_image, rasterSize), {} };
+        QImage image = kiriview::scaledDisplayImage(m_image, rasterSize);
+        const bool resourceExhausted = image.isNull();
+        return { std::move(image), {},
+            resourceExhausted ? kiriview::StaticImageDisplayDecodeFailureCause::ResourceExhausted
+                              : kiriview::StaticImageDisplayDecodeFailureCause::Decode };
     }
 
     [[nodiscard]] kiriview::StaticImageDisplayDecodeResult decodeBlockingDisplayImage(
         int maximumLongEdge) const override
     {
-        return { kiriview::scaledDisplayImage(
-                     m_image, kiriview::boundedPreviewSize(m_image.size(), maximumLongEdge)),
-            {} };
+        const QSize rasterSize = kiriview::boundedPreviewSize(m_image.size(), maximumLongEdge);
+        QImage image = kiriview::scaledDisplayImage(m_image, rasterSize);
+        const bool resourceExhausted = image.isNull() && !rasterSize.isEmpty();
+        return { std::move(image), {},
+            resourceExhausted ? kiriview::StaticImageDisplayDecodeFailureCause::ResourceExhausted
+                              : kiriview::StaticImageDisplayDecodeFailureCause::Decode };
     }
 
 private:

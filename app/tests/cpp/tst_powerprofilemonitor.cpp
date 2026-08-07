@@ -67,6 +67,7 @@ class TestPowerProfileMonitor : public QObject
 
 private Q_SLOTS:
     void initialRefreshSubscribesThenReadsPortalAsynchronously();
+    void ignoredPropertyChangeDoesNotSupersedePendingRefresh();
     void changedPropertySupersedesPendingRefresh();
     void invalidatedPropertyRequestsAsynchronousRefresh();
     void sharedRuntimeProvidesOnePortalObserverToAllConsumers();
@@ -94,6 +95,25 @@ void TestPowerProfileMonitor::initialRefreshSubscribesThenReadsPortalAsynchronou
     QVERIFY(monitor.powerSaverEnabled());
     QCOMPARE(changes.size(), std::size_t(1));
     QCOMPARE(changes.at(0), true);
+}
+
+void TestPowerProfileMonitor::ignoredPropertyChangeDoesNotSupersedePendingRefresh()
+{
+    FakePowerProfilePortal portal;
+    std::vector<bool> changes;
+    kiriview::PowerProfileMonitor monitor(
+        [&changes](bool enabled) { changes.push_back(enabled); }, portal.runtime());
+
+    QVariantMap changedProperties;
+    changedProperties.insert(QStringLiteral("unrelated-property"), true);
+    QVERIFY(portal.emitPropertiesChanged(
+        QStringLiteral("org.freedesktop.portal.PowerProfileMonitor"), changedProperties, {}));
+
+    QCOMPARE(portal.readCount, 1);
+    portal.completeRead(0, { QVariant::fromValue(QDBusVariant(QVariant(true))) });
+
+    QVERIFY(monitor.powerSaverEnabled());
+    QCOMPARE(changes, std::vector<bool>({ true }));
 }
 
 void TestPowerProfileMonitor::changedPropertySupersedesPendingRefresh()

@@ -42,6 +42,7 @@ src/rendering/imageviewportdecodesource.cpp
 src/rendering/imageviewportfailureregistry.cpp
 src/rendering/imageviewportproviderresource.cpp
 src/rendering/imageviewportsequenceprovider.cpp
+src/session/mediainformationeffectruntime.cpp
 src/session/mediaopenwith.cpp
 src/session/documentsessionactivenavigationruntime.cpp
 src/session/documentsessionimagedocumentcommandruntime.cpp

@@ -4,6 +4,8 @@
 #include "svgdisplaysource.h"
 
 #include "bridge/rustqtconversion.h"
+#include "cache/imagebyteaccounting.h"
+#include "cache/imagebytecost.h"
 #include "imagerendering.h"
 #include "kiriview/src/support/svgrenderer.cxx.h"
 #include "localization/imageerrortext.h"
@@ -21,7 +23,7 @@
 #include <utility>
 
 namespace {
-QImage imageFromPremultipliedRgbaBytes(const QByteArray& bytes, QSize size)
+QImage imageFromPremultipliedRgbaBytes(const QByteArray& bytes, QSize size, bool* resourceExhausted)
 {
     if (bytes.isEmpty() || size.isEmpty()) {
         return {};
@@ -34,8 +36,12 @@ QImage imageFromPremultipliedRgbaBytes(const QByteArray& bytes, QSize size)
         return {};
     }
 
-    return kiriview::copiedImageFromBytes(bytes, size, static_cast<qsizetype>(size.width()) * 4,
-        QImage::Format_RGBA8888_Premultiplied);
+    QImage image = kiriview::copiedImageFromBytes(bytes, size,
+        static_cast<qsizetype>(size.width()) * 4, QImage::Format_RGBA8888_Premultiplied);
+    if (image.isNull() && resourceExhausted != nullptr) {
+        *resourceExhausted = true;
+    }
+    return image;
 }
 
 QByteArray renderSvgImageBytes(const QByteArray& data, QSize size)
@@ -48,9 +54,13 @@ QByteArray renderSvgImageBytes(const QByteArray& data, QSize size)
         kiriview::Bridge::rustBytes(data), size.width(), size.height()));
 }
 
-QImage renderSvgImage(const QByteArray& data, QSize size)
+QImage renderSvgImage(const QByteArray& data, QSize size, bool* resourceExhausted = nullptr)
 {
-    return imageFromPremultipliedRgbaBytes(renderSvgImageBytes(data, size), size);
+    if (resourceExhausted != nullptr) {
+        *resourceExhausted = false;
+    }
+    return imageFromPremultipliedRgbaBytes(
+        renderSvgImageBytes(data, size), size, resourceExhausted);
 }
 
 QSize svgFirstDisplayPreviewSize(QSize imageSize, QSize logicalViewportSize)
@@ -126,13 +136,24 @@ StaticImageFirstDisplayDecodeResult SvgDisplaySource::decodeFirstDisplayImage(
 
 bool SvgDisplaySource::supportsRasterDisplayRefinement() const { return true; }
 
+std::optional<qsizetype> SvgDisplaySource::rasterDisplayRefinementPeakByteCost(
+    const QSize& rasterSize) const
+{
+    const qsizetype outputByteCost = estimatedRgbaByteCost(rasterSize);
+    return outputByteCost > 0 ? std::optional<qsizetype>(saturatedQtByteProduct(outputByteCost, 2))
+                              : std::nullopt;
+}
+
 StaticImageDisplayDecodeResult SvgDisplaySource::decodeRasterDisplayImage(
     const QSize& rasterSize) const
 {
-    const QImage image = renderSvgImage(m_data, rasterSize);
+    bool resourceExhausted = false;
+    const QImage image = renderSvgImage(m_data, rasterSize, &resourceExhausted);
     if (image.isNull()) {
         const QString message = imageErrorText(ImageErrorTextId::RenderSvgImage);
-        return { {}, { message, message } };
+        return { {}, { message, message },
+            resourceExhausted ? StaticImageDisplayDecodeFailureCause::ResourceExhausted
+                              : StaticImageDisplayDecodeFailureCause::Decode };
     }
     return { image, {} };
 }
@@ -141,10 +162,13 @@ StaticImageDisplayDecodeResult SvgDisplaySource::decodeBlockingDisplayImage(
     int maximumLongEdge) const
 {
     const QSize previewSize = boundedPreviewSize(m_imageSize, maximumLongEdge);
-    const QImage preview = renderSvgImage(m_data, previewSize);
+    bool resourceExhausted = false;
+    const QImage preview = renderSvgImage(m_data, previewSize, &resourceExhausted);
     if (preview.isNull()) {
         const QString message = imageErrorText(ImageErrorTextId::RenderSvgImage);
-        return { {}, { message, message } };
+        return { {}, { message, message },
+            resourceExhausted ? StaticImageDisplayDecodeFailureCause::ResourceExhausted
+                              : StaticImageDisplayDecodeFailureCause::Decode };
     }
     return { preview, {} };
 }

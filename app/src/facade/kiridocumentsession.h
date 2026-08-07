@@ -9,6 +9,7 @@
 #include "facade/kirivideodocument.h"
 #include "session/documentsessiondocumentports.h"
 #include "session/documentsessionruntime.h"
+#include "session/mediainformationeffectruntime.h"
 
 #include <QAbstractListModel>
 #include <QObject>
@@ -280,6 +281,7 @@ private:
     KiriImageDocument* m_imageDocument = nullptr;
     KiriVideoDocument* m_videoDocument = nullptr;
     std::unique_ptr<kiriview::DocumentSessionRuntime> m_runtime;
+    std::unique_ptr<kiriview::MediaInformationEffectRuntime> m_mediaInformationEffectRuntime;
     KiriMediaInformation* m_mediaInformation = nullptr;
     std::vector<kiriview::DocumentSessionPublicSignal> m_pendingPublicSignals;
     bool m_publicSignalDispatchActive = false;

@@ -142,11 +142,16 @@ public:
 struct MainWindowFixture
 {
     std::unique_ptr<QQmlApplicationEngine> engine;
+    KiriViewApplication* application = nullptr;
     KiriWindowShell* windowShell = nullptr;
     QQuickWindow* window = nullptr;
     QString errorString;
 
-    bool isValid() const { return engine != nullptr && window != nullptr; }
+    bool isValid() const
+    {
+        return engine != nullptr && application != nullptr && windowShell != nullptr
+            && window != nullptr;
+    }
 };
 
 void addEnvironmentImportPaths(QQmlEngine& engine)
@@ -314,7 +319,7 @@ KiriDocumentSession* findDocumentSession(QObject* root)
 
 KiriViewApplication* findApplication(QObject* root)
 {
-    return root->findChild<KiriViewApplication*>(QString(), Qt::FindChildrenRecursively);
+    return root->property("kiriApplication").value<KiriViewApplication*>();
 }
 
 bool writeTestPng(const QString& path)
@@ -546,14 +551,16 @@ MainWindowFixture createMainWindowFixture(const QUrl& initialSourceUrl)
     auto* documentSession = new ToolbarTestDocumentSession(fixture.engine.get());
     documentSession->setObjectName(QStringLiteral("documentSession"));
     fixture.windowShell = new KiriWindowShell(fixture.engine.get());
+    fixture.application = new KiriViewApplication(fixture.engine.get());
+    kiriview::composeApplicationRuntimeGraph(
+        *fixture.application, *documentSession, *fixture.windowShell);
     QVariantMap initialProperties;
+    initialProperties.insert(
+        QStringLiteral("kiriApplication"), QVariant::fromValue(fixture.application));
     initialProperties.insert(
         QStringLiteral("documentSession"), QVariant::fromValue(documentSession));
     initialProperties.insert(
         QStringLiteral("windowShell"), QVariant::fromValue(fixture.windowShell));
-    if (!initialSourceUrl.isEmpty()) {
-        initialProperties.insert(QStringLiteral("initialSourceUrl"), initialSourceUrl);
-    }
     fixture.engine->setInitialProperties(initialProperties);
 
     fixture.engine->load(mainQmlUrl());
@@ -566,6 +573,11 @@ MainWindowFixture createMainWindowFixture(const QUrl& initialSourceUrl)
     if (fixture.window == nullptr) {
         fixture.errorString = QStringLiteral("Main.qml root object is not a QQuickWindow");
         return fixture;
+    }
+    kiriview::attachApplicationRuntimeWindow(
+        *fixture.application, *fixture.windowShell, *fixture.window);
+    if (!initialSourceUrl.isEmpty()) {
+        documentSession->setSourceUrl(initialSourceUrl);
     }
 
     if (!QTest::qWaitForWindowExposed(fixture.window)) {

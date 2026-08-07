@@ -39,6 +39,7 @@ public:
     void setWindowLocations(const std::vector<DisplayedImageLocation>& locations);
     void setWindowKeys(const std::vector<PredecodeImageKey>& keys);
     void setDisplayedLocations(const std::vector<DisplayedImageLocation>& locations);
+    void setDisplayedImages(const std::vector<DisplayedPredecodeImage>& images);
     void enqueueMissingWindowLoads(const DisplayedImageLocation& foregroundOwnedLocation,
         const PredecodeActiveLoads& activeLoads, quint64 lifecycleScope = 0);
     std::optional<PredecodeRequest> takeNextRequest(const PredecodeActiveLoads& activeLoads);
@@ -75,6 +76,7 @@ private:
 
     std::vector<PredecodeImageKey> m_windowKeys;
     PredecodeDisplayedHistory m_displayedHistory;
+    std::optional<std::vector<PredecodeImageKey>> m_currentDisplayedKeys;
     std::deque<PredecodeRequest> m_queue;
     std::vector<CachedImage> m_images;
     qsizetype m_byteBudget = 0;

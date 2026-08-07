@@ -43,9 +43,9 @@ public:
     QString notificationMessage() const;
     int notificationReplayRevision() const;
 
-    Q_INVOKABLE void attachWindow(QObject* window);
-    Q_INVOKABLE void attachApplication(QObject* application);
-    Q_INVOKABLE void attachDocumentSession(QObject* session);
+    void attachWindow(QObject* window);
+    void attachApplication(QObject* application);
+    void attachDocumentSession(QObject* session);
     Q_INVOKABLE void requestToggleFullscreen();
     Q_INVOKABLE void requestLeaveFullscreen();
     Q_INVOKABLE void reportPointerMoved(bool inTopRevealArea);

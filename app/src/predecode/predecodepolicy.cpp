@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include <tuple>
 
 namespace {
 constexpr qint64 biasedNavigationMsec = 450;
@@ -85,15 +84,21 @@ std::vector<std::size_t> predecodeRetainedCachedImageIndices(
         (states[index].currentDisplayed ? current : other).push_back({ index, states[index] });
     }
     std::ranges::sort(current, [](const RetainedImage& left, const RetainedImage& right) {
-        return std::tie(left.state.currentDisplayedPriority, left.index)
-            < std::tie(right.state.currentDisplayedPriority, right.index);
+        if (left.state.currentDisplayedPriority != right.state.currentDisplayedPriority) {
+            return left.state.currentDisplayedPriority < right.state.currentDisplayedPriority;
+        }
+        return left.index < right.index;
     });
-    qsizetype currentCost = 0;
+    std::vector<RetainedImage> retained;
+    retained.reserve(states.size());
+    qsizetype retainedCost = 0;
     for (const RetainedImage& image : current) {
-        currentCost = saturatedAdd(currentCost, image.state.byteCost);
+        if (saturatedAdd(retainedCost, image.state.byteCost) > byteBudget) {
+            continue;
+        }
+        retainedCost = saturatedAdd(retainedCost, image.state.byteCost);
+        retained.push_back(image);
     }
-    const qsizetype adjacentBudget
-        = std::max<qsizetype>(byteBudget - std::min(byteBudget, currentCost), 0);
     std::ranges::sort(other, [windowCount](const RetainedImage& left, const RetainedImage& right) {
         const std::size_t leftGroup = retentionGroup(left, windowCount);
         const std::size_t rightGroup = retentionGroup(right, windowCount);
@@ -112,17 +117,16 @@ std::vector<std::size_t> predecodeRetainedCachedImageIndices(
         }
         return left.index < right.index;
     });
-    qsizetype retainedCost = 0;
     for (const RetainedImage& image : other) {
-        if (saturatedAdd(retainedCost, image.state.byteCost) > adjacentBudget) {
+        if (saturatedAdd(retainedCost, image.state.byteCost) > byteBudget) {
             break;
         }
         retainedCost = saturatedAdd(retainedCost, image.state.byteCost);
-        current.push_back(image);
+        retained.push_back(image);
     }
     std::vector<std::size_t> indices;
-    indices.reserve(current.size());
-    for (const RetainedImage& image : current) {
+    indices.reserve(retained.size());
+    for (const RetainedImage& image : retained) {
         indices.push_back(image.index);
     }
     return indices;

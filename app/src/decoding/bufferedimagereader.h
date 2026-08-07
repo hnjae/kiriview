@@ -12,10 +12,13 @@
 #include <QSize>
 #include <QString>
 #include <memory>
+#include <optional>
 
 class QImageReader;
 
 namespace kiriview {
+std::optional<qsizetype> qImageReaderGifTransientWorkspaceByteCount(QSize logicalSize);
+
 class BufferedImageReader final
 {
 public:
@@ -27,7 +30,9 @@ public:
     explicit operator bool() const;
     [[nodiscard]] bool canRead() const;
     [[nodiscard]] bool supportsAnimation() const;
+    [[nodiscard]] bool supportsOption(QImageIOHandler::ImageOption option) const;
     [[nodiscard]] QSize size() const;
+    [[nodiscard]] QImage::Format imageFormat() const;
     [[nodiscard]] QByteArray format() const;
     [[nodiscard]] QImageIOHandler::Transformations transformation() const;
     [[nodiscard]] int nextImageDelay() const;

@@ -391,9 +391,12 @@ void TestApngAnimationReader::workspaceBudgetIsSharedAndReleasedWithReader()
     auto measurementBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
         256 * 1024 * 1024, 256 * 1024 * 1024);
     auto measuredReader = std::make_unique<kiriview::ApngAnimationReader>(measurementBudget);
-    QCOMPARE(measuredReader->open(apng).status, kiriview::ApngOpenStatus::Success);
+    kiriview::ApngOpenResult measuredOpen = measuredReader->open(apng);
+    QCOMPARE(measuredOpen.status, kiriview::ApngOpenStatus::Success);
     const qsizetype oneOperationWorkspace = measurementBudget->reservedByteCount();
     QVERIFY(oneOperationWorkspace > 0);
+    measuredOpen.firstFrame = {};
+    measuredOpen.workspaceHold = {};
     measuredReader.reset();
     QCOMPARE(measurementBudget->reservedByteCount(), qsizetype(0));
 
@@ -401,16 +404,20 @@ void TestApngAnimationReader::workspaceBudgetIsSharedAndReleasedWithReader()
         oneOperationWorkspace, oneOperationWorkspace);
 
     auto first = std::make_unique<kiriview::ApngAnimationReader>(budget);
-    QCOMPARE(first->open(apng).status, kiriview::ApngOpenStatus::Success);
+    kiriview::ApngOpenResult firstOpen = first->open(apng);
+    QCOMPARE(firstOpen.status, kiriview::ApngOpenStatus::Success);
     QCOMPARE(budget->reservedByteCount(), oneOperationWorkspace);
 
     kiriview::ApngAnimationReader second(budget);
     QCOMPARE(second.open(apng).status, kiriview::ApngOpenStatus::ResourceLimitExceeded);
     QCOMPARE(budget->reservedByteCount(), oneOperationWorkspace);
 
+    firstOpen.firstFrame = {};
+    firstOpen.workspaceHold = {};
     first.reset();
     QCOMPARE(budget->reservedByteCount(), qsizetype(0));
-    QCOMPARE(second.open(apng).status, kiriview::ApngOpenStatus::Success);
+    const kiriview::ApngOpenResult secondOpen = second.open(apng);
+    QCOMPARE(secondOpen.status, kiriview::ApngOpenStatus::Success);
     QCOMPARE(budget->reservedByteCount(), oneOperationWorkspace);
 }
 
@@ -422,8 +429,11 @@ void TestApngAnimationReader::decodedResultRetainsFirstFrameWorkspaceAdmission()
     auto measurementBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
         256 * 1024 * 1024, 256 * 1024 * 1024);
     auto measuredReader = std::make_unique<kiriview::ApngAnimationReader>(measurementBudget);
-    QCOMPARE(measuredReader->open(apng).status, kiriview::ApngOpenStatus::Success);
+    kiriview::ApngOpenResult measuredOpen = measuredReader->open(apng);
+    QCOMPARE(measuredOpen.status, kiriview::ApngOpenStatus::Success);
     const qsizetype oneOperationWorkspace = measurementBudget->reservedByteCount();
+    measuredOpen.firstFrame = {};
+    measuredOpen.workspaceHold = {};
     measuredReader.reset();
 
     auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(

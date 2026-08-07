@@ -14,17 +14,15 @@ StatefulApp.StatefulWindow {
     id: root
 
     required property KiriDocumentSession documentSession
+    required property KiriViewApplication kiriApplication
     required property KiriWindowShell windowShell
 
-    application: KiriViewApplication {
-        id: kiriApplication
-    }
+    application: kiriApplication
     title: windowShell.windowTitle
     visible: true
     windowName: "Main"
 
     property bool helpDialogOpen: false
-    property url initialSourceUrl
     readonly property bool fullscreen: windowShell.fullscreen
     readonly property bool menuBarMode: kiriApplication.menuPresentation === KiriViewApplication.MenuBar
     readonly property bool applicationMenuShortcutEnabled: !root.menuBarMode && !root.fullscreen && !root.helpDialogOpen
@@ -73,21 +71,12 @@ StatefulApp.StatefulWindow {
     onHelpDialogOpenChanged: windowShell.reportHelpDialogOpen(helpDialogOpen)
 
     Component.onCompleted: {
-        if (root.initialSourceUrl.toString().length > 0) {
-            documentSession.sourceUrl = root.initialSourceUrl;
-        }
-        kiriApplication.setDocumentSession(documentSession);
-        kiriApplication.setWindowShell(windowShell);
-        kiriApplication.setShortcutHost(root);
-        windowShell.attachWindow(root);
-        windowShell.attachApplication(kiriApplication);
-        windowShell.attachDocumentSession(documentSession);
         windowShell.reportHelpDialogOpen(root.helpDialogOpen);
         root.publishActionUiState();
     }
 
     Connections {
-        target: kiriApplication
+        target: root.kiriApplication
 
         function onCancelToolbarTextInputEditingRequested() {
             root.activeImageToolBar().cancelTextInputEditing(true);
@@ -218,7 +207,7 @@ StatefulApp.StatefulWindow {
         ImageActions {
             id: imageActions
 
-            application: kiriApplication
+            application: root.kiriApplication
             documentSession: root.documentSession
             imageDocument: page.imageDocument
             videoMode: page.videoMode
@@ -290,7 +279,7 @@ StatefulApp.StatefulWindow {
             height: implicitHeight
             imageDocument: page.imageDocument
             imageReady: page.imageReady
-            navigationPresentationProvider: kiriApplication
+            navigationPresentationProvider: root.kiriApplication
             applicationMenuActions: imageActions.applicationMenuActions
             openActiveNavigationAtNumber: function (number) {
                 root.documentSession.openActiveNavigationAtNumber(number);
@@ -317,14 +306,14 @@ StatefulApp.StatefulWindow {
         collectionMode: root.documentSession.activeImageOpenedCollectionScopeActive
         imageMode: page.imageMode
         mediaMode: page.imageMode || page.videoMode
-        navigationPresentationProvider: kiriApplication
+        navigationPresentationProvider: root.kiriApplication
         visible: root.menuBarMode && !root.fullscreen
     }
 
     ShortcutHelpDialog {
         id: shortcutHelpDialog
 
-        application: kiriApplication
+        application: root.kiriApplication
 
         onClosed: root.helpDialogOpen = false
         onOpened: root.helpDialogOpen = true

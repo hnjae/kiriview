@@ -141,6 +141,12 @@ bool hasNoAcceptedCurrentPayload(const ImageSequenceProviderDisplayDemand& deman
 
 constexpr kiriview::TimerDuration initialDetailWaitDuration = std::chrono::milliseconds(100);
 
+struct StaticRefinementProductionResult
+{
+    std::shared_ptr<kiriview::DisplayImageOutputAdmission> outputAdmission;
+    kiriview::StaticImageDisplayDecodeResult decodeResult;
+};
+
 struct StaticPayloadLimits
 {
     qint64 maximumWidth = ImageSequenceLimits::maximumPayloadRasterWidth();
@@ -321,6 +327,53 @@ StaticRasterPlan plannedStaticRasterSize(QSize sourceSize,
         ? StaticRasterPlan { StaticRasterPlanOutcome::Ready,
               sourceRasterForLongEdge(sourceSize, acceptedLongEdge) }
         : StaticRasterPlan { StaticRasterPlanOutcome::ResourceExhausted, {} };
+}
+
+enum class RefinementProducerPlanOutcome {
+    Ready,
+    ResourceExhausted,
+    ContractViolation,
+};
+
+struct RefinementProducerPlan
+{
+    RefinementProducerPlanOutcome outcome = RefinementProducerPlanOutcome::ResourceExhausted;
+    QSize rasterSize;
+    qsizetype peakByteCost = 0;
+};
+
+RefinementProducerPlan largestProducerRasterWithinBudget(
+    const kiriview::StaticImageDisplaySource& source, QSize sourceSize, QSize upperRasterSize,
+    qsizetype byteBudget)
+{
+    if (sourceSize.isEmpty() || upperRasterSize.isEmpty() || byteBudget <= 0) {
+        return {};
+    }
+
+    int lower = 1;
+    int upper = std::max(upperRasterSize.width(), upperRasterSize.height());
+    int acceptedLongEdge = 0;
+    qsizetype acceptedPeakByteCost = 0;
+    while (lower <= upper) {
+        const int candidateLongEdge = lower + ((upper - lower) / 2);
+        const QSize candidateRasterSize = sourceRasterForLongEdge(sourceSize, candidateLongEdge);
+        const std::optional<qsizetype> candidatePeakByteCost
+            = source.rasterDisplayRefinementPeakByteCost(candidateRasterSize);
+        if (!candidatePeakByteCost.has_value() || *candidatePeakByteCost <= 0) {
+            return { RefinementProducerPlanOutcome::ContractViolation, {}, 0 };
+        }
+        if (*candidatePeakByteCost <= byteBudget) {
+            acceptedLongEdge = candidateLongEdge;
+            acceptedPeakByteCost = *candidatePeakByteCost;
+            lower = candidateLongEdge + 1;
+        } else {
+            upper = candidateLongEdge - 1;
+        }
+    }
+
+    return acceptedLongEdge > 0 ? RefinementProducerPlan { RefinementProducerPlanOutcome::Ready,
+        sourceRasterForLongEdge(sourceSize, acceptedLongEdge), acceptedPeakByteCost }
+                                : RefinementProducerPlan {};
 }
 
 enum class StaticPayloadAdmission {
@@ -565,6 +618,8 @@ void ImageViewportDecodeProviderSource::close()
     }
     m_staticFrameAttempts.clear();
     m_staticRefinementWorks.clear();
+    m_authoritativeStaticImage.reset();
+    m_authoritativeStaticImageOutputAdmission.reset();
     if (m_animation.has_value() && m_animation->runtime != nullptr) {
         m_animation->runtime->close();
     }
@@ -645,9 +700,11 @@ void ImageViewportDecodeProviderSource::finishDecodedImage(DecodedImage image)
                 finishStaticImage(std::move(decoded));
             } else if constexpr (std::is_same_v<Image, ReaderAnimationImage>) {
                 const QString formatIdentifier = QString::fromLatin1(decoded.format);
-                finishAnimationImage({}, std::move(decoded.firstFrame), std::move(decoded.catalog),
+                finishAnimationImage(std::move(decoded.firstFrameWorkspaceHold),
+                    std::move(decoded.firstFrame), std::move(decoded.catalog),
                     readerAnimationPlaybackRequest(std::move(decoded.data),
-                        std::move(decoded.format), std::move(decoded.sourceDataLease)),
+                        std::move(decoded.format), std::move(decoded.sourceDataLease),
+                        m_dependencies.workspaceBudget),
                     std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
                     formatIdentifier);
             } else if constexpr (std::is_same_v<Image, ApngAnimationImage>) {
@@ -658,21 +715,24 @@ void ImageViewportDecodeProviderSource::finishDecodedImage(DecodedImage image)
                     std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
                     QStringLiteral("apng"));
             } else if constexpr (std::is_same_v<Image, WebPAnimationImage>) {
-                finishAnimationImage({}, std::move(decoded.firstFrame), std::move(decoded.catalog),
-                    webpAnimationPlaybackRequest(
-                        std::move(decoded.data), std::move(decoded.sourceDataLease)),
+                finishAnimationImage(std::move(decoded.firstFrameWorkspaceHold),
+                    std::move(decoded.firstFrame), std::move(decoded.catalog),
+                    webpAnimationPlaybackRequest(std::move(decoded.data),
+                        std::move(decoded.sourceDataLease), m_dependencies.workspaceBudget),
                     std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
                     QStringLiteral("webp"));
             } else if constexpr (std::is_same_v<Image, JxlAnimationImage>) {
-                finishAnimationImage({}, std::move(decoded.firstFrame), std::move(decoded.catalog),
-                    jxlAnimationPlaybackRequest(
-                        std::move(decoded.data), std::move(decoded.sourceDataLease)),
+                finishAnimationImage(std::move(decoded.firstFrameWorkspaceHold),
+                    std::move(decoded.firstFrame), std::move(decoded.catalog),
+                    jxlAnimationPlaybackRequest(std::move(decoded.data),
+                        std::move(decoded.sourceDataLease), m_dependencies.workspaceBudget),
                     std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
                     QStringLiteral("jxl"));
             } else if constexpr (std::is_same_v<Image, HeifSequenceAnimationImage>) {
-                finishAnimationImage({}, std::move(decoded.firstFrame), std::move(decoded.catalog),
-                    heifSequenceAnimationPlaybackRequest(
-                        std::move(decoded.data), std::move(decoded.sourceDataLease)),
+                finishAnimationImage(std::move(decoded.firstFrameWorkspaceHold),
+                    std::move(decoded.firstFrame), std::move(decoded.catalog),
+                    heifSequenceAnimationPlaybackRequest(std::move(decoded.data),
+                        std::move(decoded.sourceDataLease), m_dependencies.workspaceBudget),
                     std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
                     QStringLiteral("heif"));
             }
@@ -694,6 +754,8 @@ void ImageViewportDecodeProviderSource::finishStaticImage(StaticDecodedImage ima
     }
     m_animation.reset();
     m_metadata = ImageSequenceProviderMetadata::still(image.displayImage.originalSize);
+    m_authoritativeStaticImage.reset();
+    m_authoritativeStaticImageOutputAdmission.reset();
     m_authoritativeStaticImage = std::move(image.displayImage);
     publishMetadata();
     publishFrames();
@@ -706,6 +768,7 @@ void ImageViewportDecodeProviderSource::finishAnimationImage(
 {
     m_provisionalPreview.reset();
     m_authoritativeStaticImage.reset();
+    m_authoritativeStaticImageOutputAdmission.reset();
     if (m_animation.has_value() && m_animation->runtime != nullptr) {
         m_animation->runtime->close();
     }
@@ -746,6 +809,8 @@ void ImageViewportDecodeProviderSource::finishFailure(
     ImageSequenceProviderFailureCause cause, ImageLoadFailure failure)
 {
     m_provisionalPreview.reset();
+    m_authoritativeStaticImage.reset();
+    m_authoritativeStaticImageOutputAdmission.reset();
     m_failureCause = cause;
     m_failure = std::move(failure);
 
@@ -866,6 +931,21 @@ void ImageViewportDecodeProviderSource::publishStaticFrame(PendingFrame pending)
         return;
     }
 
+    if (m_authoritativeStaticImageOutputAdmission == nullptr
+        && pending.request.outputStore != nullptr) {
+        m_authoritativeStaticImageOutputAdmission = pending.request.outputStore->reserveOutput(
+            m_authoritativeStaticImage->image.sizeInBytes());
+        if (m_authoritativeStaticImageOutputAdmission == nullptr) {
+            pending.completion(pending.identity,
+                ImageViewportProviderFrameResult::failed(
+                    ImageSequenceProviderFailureCause::ResourceExhausted,
+                    loadFailure(resolvedSession(), ImageLoadFailureKind::Presentation, QString(),
+                        QStringLiteral(
+                            "current image exceeds the aggregate display-output limit"))));
+            return;
+        }
+    }
+
     const StaticFramePlan plan {
         rasterPlan.rasterSize,
         requireExact,
@@ -879,7 +959,8 @@ void ImageViewportDecodeProviderSource::publishStaticFrame(PendingFrame pending)
         pending.completion(pending.identity,
             ImageViewportProviderFrameResult::ready(
                 classifiedCurrentDetailPayload(*m_authoritativeStaticImage),
-                ImageSequenceProviderFrameEnvelope::stillFrame(), QString()));
+                ImageSequenceProviderFrameEnvelope::stillFrame(), QString(),
+                m_authoritativeStaticImageOutputAdmission));
         return;
     }
 
@@ -891,7 +972,9 @@ void ImageViewportDecodeProviderSource::publishStaticFrame(PendingFrame pending)
             reserveStaticFrameAttemptId(),
             std::move(pending),
             plan,
+            m_authoritativeStaticImageOutputAdmission,
             *m_authoritativeStaticImage,
+            {},
             {},
             0,
             initialDemand,
@@ -909,22 +992,120 @@ void ImageViewportDecodeProviderSource::startStaticRefinement(
 {
     [[maybe_unused]] const std::shared_ptr<ImageViewportDecodeProviderSource> lifetime
         = weak_from_this().lock();
+    const std::shared_ptr<StaticImageDisplaySource> refinementSource
+        = m_authoritativeStaticImage->refinementSource;
+    const auto existingWorkForTarget = [this](QSize targetRasterSize) {
+        return std::ranges::find_if(
+            m_staticRefinementWorks, [targetRasterSize](const StaticRefinementWork& work) {
+                return work.targetRasterSize == targetRasterSize;
+            });
+    };
+    auto existingWork = existingWorkForTarget(plan.targetRasterSize);
+    const auto finishPlanningFailure = [&](StaticFrameResolution resolution) {
+        StaticFrameAttempt attempt {
+            reserveStaticFrameAttemptId(),
+            std::move(pending),
+            plan,
+            m_authoritativeStaticImageOutputAdmission,
+            *m_authoritativeStaticImage,
+            {},
+            {},
+            0,
+            initialDemand,
+        };
+        finishStaticFrameAttempt(std::move(attempt), {}, std::nullopt, true, resolution);
+    };
+    std::shared_ptr<DisplayImageOutputAdmission> outputAdmission;
+    if (existingWork == m_staticRefinementWorks.end()) {
+        if (pending.request.outputStore == nullptr) {
+            const std::optional<qsizetype> peakByteCost
+                = refinementSource->rasterDisplayRefinementPeakByteCost(plan.targetRasterSize);
+            if (!peakByteCost.has_value() || *peakByteCost <= 0) {
+                finishPlanningFailure(StaticFrameResolution::RefinementContractViolation);
+                return;
+            }
+        } else if (plan.requireExact) {
+            const std::optional<qsizetype> peakByteCost
+                = refinementSource->rasterDisplayRefinementPeakByteCost(plan.targetRasterSize);
+            if (!peakByteCost.has_value() || *peakByteCost <= 0) {
+                finishPlanningFailure(StaticFrameResolution::RefinementContractViolation);
+                return;
+            }
+            outputAdmission = pending.request.outputStore->reserveOutput(*peakByteCost);
+            if (outputAdmission == nullptr) {
+                finishPlanningFailure(StaticFrameResolution::RefinementResourceExhausted);
+                return;
+            }
+        } else {
+            qsizetype producerByteBudget = pending.request.outputStore->byteBudget();
+            while (outputAdmission == nullptr && existingWork == m_staticRefinementWorks.end()) {
+                const RefinementProducerPlan producerPlan = largestProducerRasterWithinBudget(
+                    *refinementSource, m_authoritativeStaticImage->originalSize,
+                    plan.targetRasterSize, producerByteBudget);
+                if (producerPlan.outcome == RefinementProducerPlanOutcome::ContractViolation) {
+                    finishPlanningFailure(StaticFrameResolution::RefinementContractViolation);
+                    return;
+                }
+                if (producerPlan.outcome == RefinementProducerPlanOutcome::ResourceExhausted) {
+                    finishPlanningFailure(StaticFrameResolution::RefinementResourceExhausted);
+                    return;
+                }
+
+                plan.targetRasterSize = producerPlan.rasterSize;
+                if (staticPayloadAdmission(*m_authoritativeStaticImage,
+                        m_authoritativeStaticImage->originalSize,
+                        m_authoritativeStaticImage->sourceDetailModel, pending.request)
+                        == StaticPayloadAdmission::Admissible
+                    && staticPayloadSatisfiesPlan(
+                        *m_authoritativeStaticImage, plan.targetRasterSize, false)) {
+                    pending.completion(pending.identity,
+                        ImageViewportProviderFrameResult::ready(
+                            classifiedCurrentDetailPayload(*m_authoritativeStaticImage),
+                            ImageSequenceProviderFrameEnvelope::stillFrame(), QString(),
+                            m_authoritativeStaticImageOutputAdmission));
+                    return;
+                }
+
+                existingWork = existingWorkForTarget(plan.targetRasterSize);
+                if (existingWork != m_staticRefinementWorks.end()) {
+                    break;
+                }
+                outputAdmission
+                    = pending.request.outputStore->reserveOutput(producerPlan.peakByteCost);
+                if (outputAdmission != nullptr) {
+                    break;
+                }
+
+                const qsizetype availableOutputBytes
+                    = pending.request.outputStore->availableOutputBytes();
+                if (availableOutputBytes >= producerByteBudget) {
+                    finishPlanningFailure(StaticFrameResolution::RefinementResourceExhausted);
+                    return;
+                }
+                producerByteBudget = availableOutputBytes;
+            }
+        }
+        if (pending.request.outputStore != nullptr && outputAdmission == nullptr
+            && existingWork == m_staticRefinementWorks.end()) {
+            finishPlanningFailure(StaticFrameResolution::RefinementResourceExhausted);
+            return;
+        }
+    }
+
     const quint64 attemptId = reserveStaticFrameAttemptId();
     const qint64 maximumReusableBytes = admittedStaticPayloadLimits(pending.request).maximumBytes;
     m_staticFrameAttempts.push_back(StaticFrameAttempt {
         attemptId,
         std::move(pending),
         plan,
+        m_authoritativeStaticImageOutputAdmission,
         *m_authoritativeStaticImage,
+        {},
         {},
         0,
         initialDemand,
     });
 
-    auto existingWork
-        = std::ranges::find_if(m_staticRefinementWorks, [&plan](const StaticRefinementWork& work) {
-              return work.targetRasterSize == plan.targetRasterSize;
-          });
     if (existingWork != m_staticRefinementWorks.end()) {
         existingWork->attemptIds.push_back(attemptId);
         const auto attempt = std::ranges::find_if(m_staticFrameAttempts,
@@ -935,14 +1116,15 @@ void ImageViewportDecodeProviderSource::startStaticRefinement(
     } else {
         discardRetainedStaticRefinementsExcept(0);
         const StaticDisplayImagePayload basis = *m_authoritativeStaticImage;
-        const std::shared_ptr<StaticImageDisplaySource> refinementSource = basis.refinementSource;
         const quint64 workerUnitId = reserveWorkerUnit();
         m_staticRefinementWorks.push_back(StaticRefinementWork {
             workerUnitId,
             plan.targetRasterSize,
+            m_authoritativeStaticImageOutputAdmission,
             basis,
             { attemptId },
             maximumReusableBytes,
+            outputAdmission,
             false,
         });
         const auto attempt = std::ranges::find_if(m_staticFrameAttempts,
@@ -954,13 +1136,32 @@ void ImageViewportDecodeProviderSource::startStaticRefinement(
         const std::weak_ptr<ImageViewportDecodeProviderSource> weakSelf = weak_from_this();
         ImageWorkerTask task = m_dependencies.refinementScheduler.run(
             this,
-            [refinementSource, targetSize = plan.targetRasterSize]() {
-                return refinementSource->decodeRasterDisplayImage(targetSize);
+            [refinementSource, targetSize = plan.targetRasterSize,
+                producerAdmission = std::move(outputAdmission)]() {
+                StaticImageDisplayDecodeResult decodeResult
+                    = refinementSource->decodeRasterDisplayImage(targetSize);
+                const qsizetype retainedByteCost
+                    = decodeResult.image.isNull() ? 0 : decodeResult.image.sizeInBytes();
+                if (producerAdmission != nullptr) {
+                    const bool retained = producerAdmission->retainOnly(retainedByteCost);
+                    if (!retained) {
+                        decodeResult.image = {};
+                        static_cast<void>(producerAdmission->retainOnly(0));
+                        decodeResult.failureCause
+                            = StaticImageDisplayDecodeFailureCause::ResourceExhausted;
+                        decodeResult.diagnostics.diagnosticDetail = QStringLiteral(
+                            "static refinement output exceeded its producer admission");
+                    }
+                }
+                return StaticRefinementProductionResult {
+                    producerAdmission,
+                    std::move(decodeResult),
+                };
             },
-            [weakSelf, workerUnitId](const StaticImageDisplayDecodeResult& result) {
+            [weakSelf, workerUnitId](const StaticRefinementProductionResult& result) {
                 if (const std::shared_ptr<ImageViewportDecodeProviderSource> self
                     = weakSelf.lock()) {
-                    self->finishStaticRefinement(workerUnitId, result);
+                    self->finishStaticRefinement(workerUnitId, result.decodeResult);
                 }
             });
         attachWorkerTask(workerUnitId, std::move(task));
@@ -982,7 +1183,10 @@ void ImageViewportDecodeProviderSource::startStaticRefinement(
         std::optional<StaticFrameAttempt> fallback = takeStaticFrameAttempt(attemptId, true);
         if (fallback.has_value()) {
             std::optional<StaticDisplayImagePayload> fallbackCandidate = fallback->fallbackBasis;
-            finishStaticFrameAttempt(std::move(*fallback), {}, std::move(fallbackCandidate), false);
+            std::shared_ptr<DisplayImageOutputAdmission> fallbackOutputAdmission
+                = fallback->fallbackBasisOutputAdmission;
+            finishStaticFrameAttempt(std::move(*fallback), {}, std::move(fallbackCandidate), false,
+                StaticFrameResolution::CandidateSelection, std::move(fallbackOutputAdmission));
         }
         return;
     }
@@ -1008,10 +1212,14 @@ void ImageViewportDecodeProviderSource::finishStaticRefinement(
     std::optional<StaticDisplayImagePayload> refinementCandidate;
     StaticFrameResolution resolution = StaticFrameResolution::CandidateSelection;
     if (result.image.isNull()) {
-        resolution = StaticFrameResolution::RefinementDecodeFailure;
+        resolution = result.failureCause == StaticImageDisplayDecodeFailureCause::ResourceExhausted
+            ? StaticFrameResolution::RefinementResourceExhausted
+            : StaticFrameResolution::RefinementDecodeFailure;
     } else {
         StaticDisplayImagePayload refined = work.basis;
-        refined.image = displayReadyImage(result.image);
+        refined.image = result.image;
+        const bool resultIsDisplayReady
+            = refined.image.format() == QImage::Format_RGBA8888_Premultiplied;
         const bool resultMatchesRequest = refined.image.size() == work.targetRasterSize;
         const bool exactForSource
             = refined.sourceDetailModel == StaticImageSourceDetailModel::FiniteRaster
@@ -1020,8 +1228,13 @@ void ImageViewportDecodeProviderSource::finishStaticRefinement(
             = exactForSource ? DisplayImageQuality::Exact : DisplayImageQuality::BoundedDetail;
         refined.previewOrigin = DisplayImagePreviewOrigin::None;
         refined.rasterKind = DisplayImageRasterKind::Refinement;
-        if (resultMatchesRequest && isAuthoritativeStaticPayload(refined)) {
+        const bool resultFitsOutputAdmission = work.outputAdmission == nullptr
+            || refined.image.sizeInBytes() <= work.outputAdmission->byteCost();
+        if (resultIsDisplayReady && resultMatchesRequest && isAuthoritativeStaticPayload(refined)
+            && resultFitsOutputAdmission) {
             refinementCandidate = refined;
+        } else if (!resultFitsOutputAdmission) {
+            resolution = StaticFrameResolution::RefinementResourceExhausted;
         } else {
             resolution = StaticFrameResolution::RefinementContractViolation;
         }
@@ -1029,6 +1242,7 @@ void ImageViewportDecodeProviderSource::finishStaticRefinement(
             && refinementCandidate->image.sizeInBytes() <= work.maximumReusableBytes
             && isReusableAuthoritativeUpgrade(*refinementCandidate, *m_authoritativeStaticImage)) {
             m_authoritativeStaticImage = *refinementCandidate;
+            m_authoritativeStaticImageOutputAdmission = work.outputAdmission;
         }
     }
 
@@ -1045,8 +1259,8 @@ void ImageViewportDecodeProviderSource::finishStaticRefinement(
 
         std::optional<StaticFrameAttempt> completed = takeStaticFrameAttempt(attemptId, false);
         if (completed.has_value()) {
-            finishStaticFrameAttempt(
-                std::move(*completed), result.diagnostics, refinementCandidate, true, resolution);
+            finishStaticFrameAttempt(std::move(*completed), result.diagnostics, refinementCandidate,
+                true, resolution, work.outputAdmission);
         }
         if (m_closed) {
             return;
@@ -1087,8 +1301,10 @@ void ImageViewportDecodeProviderSource::markInitialDetailDeadlineExpired(quint64
                attempt->fallbackBasis.sourceDetailModel, attempt->pending.request)
             == StaticPayloadAdmission::Admissible) {
         attempt->deadlineCandidate = *m_authoritativeStaticImage;
+        attempt->deadlineCandidateOutputAdmission = m_authoritativeStaticImageOutputAdmission;
     } else {
         attempt->deadlineCandidate = attempt->fallbackBasis;
+        attempt->deadlineCandidateOutputAdmission = attempt->fallbackBasisOutputAdmission;
     }
     attempt->deadlineExpired = true;
     const std::weak_ptr<ImageViewportDecodeProviderSource> weakSelf = weak_from_this();
@@ -1117,14 +1333,18 @@ void ImageViewportDecodeProviderSource::finishInitialDetailDeadline(quint64 atte
     if (fallback.has_value()) {
         std::optional<StaticDisplayImagePayload> deadlineCandidate
             = std::move(fallback->deadlineCandidate);
-        finishStaticFrameAttempt(std::move(*fallback), {}, std::move(deadlineCandidate), false);
+        std::shared_ptr<DisplayImageOutputAdmission> deadlineOutputAdmission
+            = std::move(fallback->deadlineCandidateOutputAdmission);
+        finishStaticFrameAttempt(std::move(*fallback), {}, std::move(deadlineCandidate), false,
+            StaticFrameResolution::CandidateSelection, std::move(deadlineOutputAdmission));
     }
 }
 
 void ImageViewportDecodeProviderSource::finishStaticFrameAttempt(StaticFrameAttempt attempt,
     const StaticImageDisplayDecodeDiagnostics& diagnostics,
     std::optional<StaticDisplayImagePayload> preferredCandidate, bool considerCurrentCandidate,
-    StaticFrameResolution resolution)
+    StaticFrameResolution resolution,
+    std::shared_ptr<DisplayImageOutputAdmission> preferredOutputAdmission)
 {
     if (m_closed) {
         return;
@@ -1187,12 +1407,29 @@ void ImageViewportDecodeProviderSource::finishStaticFrameAttempt(StaticFrameAtte
             ? &*m_authoritativeStaticImage
             : nullptr);
     considerCandidate(&attempt.fallbackBasis);
+    const auto outputAdmissionFor = [&](const StaticDisplayImagePayload* candidate)
+        -> std::shared_ptr<DisplayImageOutputAdmission> {
+        if (candidate == nullptr) {
+            return {};
+        }
+        if (preferredCandidate.has_value() && candidate == &*preferredCandidate) {
+            return preferredOutputAdmission;
+        }
+        if (m_authoritativeStaticImage.has_value() && candidate == &*m_authoritativeStaticImage) {
+            return m_authoritativeStaticImageOutputAdmission;
+        }
+        if (candidate == &attempt.fallbackBasis) {
+            return attempt.fallbackBasisOutputAdmission;
+        }
+        return {};
+    };
 
     if (matchingCandidate != nullptr) {
         attempt.pending.completion(attempt.pending.identity,
             ImageViewportProviderFrameResult::ready(
                 classifiedCurrentDetailPayload(*matchingCandidate),
-                ImageSequenceProviderFrameEnvelope::stillFrame(), QString()));
+                ImageSequenceProviderFrameEnvelope::stillFrame(), QString(),
+                outputAdmissionFor(matchingCandidate)));
         return;
     }
 
@@ -1212,7 +1449,18 @@ void ImageViewportDecodeProviderSource::finishStaticFrameAttempt(StaticFrameAtte
         attempt.pending.completion(attempt.pending.identity,
             ImageViewportProviderFrameResult::ready(
                 classifiedFirstDisplayPayload(*admissibleCandidate),
-                ImageSequenceProviderFrameEnvelope::stillFrame(), QString()));
+                ImageSequenceProviderFrameEnvelope::stillFrame(), QString(),
+                outputAdmissionFor(admissibleCandidate)));
+        return;
+    }
+
+    if (resolution == StaticFrameResolution::RefinementResourceExhausted) {
+        attempt.pending.completion(attempt.pending.identity,
+            ImageViewportProviderFrameResult::failed(
+                ImageSequenceProviderFailureCause::ResourceExhausted,
+                loadFailure(resolvedSession(), ImageLoadFailureKind::Presentation, QString(),
+                    QStringLiteral(
+                        "current image refinement exceeds the aggregate display-output limit"))));
         return;
     }
 

@@ -8,13 +8,11 @@ struct MediaInformationEffectsRecorder
     {
         return {
             [this](const QString& text) { copiedTexts.push_back(text); },
-            [this](const QUrl& targetUrl, QPointer<QObject> owner) {
+            [this](const QUrl& targetUrl) -> QObject* {
                 openedTargets.push_back(targetUrl);
                 auto* job = new QObject();
                 jobs.push_back(job);
-                if (owner != nullptr) {
-                    job->setParent(owner.data());
-                }
+                return job;
             },
         };
     }
@@ -44,7 +42,8 @@ void TestKiriDocumentSessionMediaInformation::emptySessionProjectsUnavailableMed
     QCOMPARE(mediaInformation->cameraRows()->rowCount(), 0);
 }
 
-void TestKiriDocumentSessionMediaInformation::imageMediaInformationUsesEmbeddedMetadataAndKnownDimensions()
+void TestKiriDocumentSessionMediaInformation::
+    imageMediaInformationUsesEmbeddedMetadataAndKnownDimensions()
 {
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
@@ -108,7 +107,8 @@ void TestKiriDocumentSessionMediaInformation::imageMediaInformationUsesEmbeddedM
         *mediaInformation->cameraRows(), QStringLiteral("placeholder")));
 }
 
-void TestKiriDocumentSessionMediaInformation::imageMediaInformationClearsStaleEmbeddedMetadataOnReplacement()
+void TestKiriDocumentSessionMediaInformation::
+    imageMediaInformationClearsStaleEmbeddedMetadataOnReplacement()
 {
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
@@ -265,7 +265,8 @@ void TestKiriDocumentSessionMediaInformation::mediaInformationInvokablesDispatch
     QCOMPARE(effects.openedTargets.front(), targetUrl);
     QCOMPARE(effects.jobs.size(), std::size_t(1));
     QVERIFY(!effects.jobs.front().isNull());
-    QCOMPARE(effects.jobs.front()->parent(), mediaInformation);
+    QVERIFY(effects.jobs.front()->parent() != nullptr);
+    QVERIFY(effects.jobs.front()->parent() != mediaInformation);
     session.reset();
     QVERIFY(effects.jobs.front().isNull());
 }
@@ -298,9 +299,12 @@ void TestKiriDocumentSessionMediaInformation::
     QCOMPARE(effects.openedTargets.at(0), firstUrl);
     QCOMPARE(effects.openedTargets.at(1), replacementUrl);
     QCOMPARE(effects.jobs.size(), std::size_t(2));
+    QObject* const effectOwner = effects.jobs.front()->parent();
+    QVERIFY(effectOwner != nullptr);
+    QVERIFY(effectOwner != session->mediaInformation());
     for (const QPointer<QObject>& job : effects.jobs) {
         QVERIFY(!job.isNull());
-        QCOMPARE(job->parent(), session->mediaInformation());
+        QCOMPARE(job->parent(), effectOwner);
     }
 }
 
@@ -334,7 +338,7 @@ void TestKiriDocumentSessionMediaInformation::copyFilePathSurvivesSynchronousSes
 }
 
 void TestKiriDocumentSessionMediaInformation::
-    openContainingFolderSurvivesSynchronousSessionDestruction()
+    openContainingFolderRetiresJobAfterSynchronousSessionDestruction()
 {
     FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
     const QUrl targetUrl = localUrl(QStringLiteral("/media/current.mp4"));
@@ -345,18 +349,13 @@ void TestKiriDocumentSessionMediaInformation::
     QPointer<KiriMediaInformation> mediaInformation;
     QPointer<QObject> returnedJob;
     QUrl openedTarget;
-    bool receivedLiveOwner = false;
-    bool ownerAliveAfterReset = true;
     kiriview::MediaInformationEffects effects;
-    effects.openContainingFolder = [&](const QUrl& effectTarget, QPointer<QObject> owner) {
+    effects.openContainingFolder = [&](const QUrl& effectTarget) -> QObject* {
         openedTarget = effectTarget;
-        receivedLiveOwner = owner.data() == mediaInformation.data();
-        returnedJob = new QObject();
+        auto* job = new QObject();
+        returnedJob = job;
         session.reset();
-        ownerAliveAfterReset = owner != nullptr;
-        if (owner != nullptr) {
-            returnedJob->setParent(owner.data());
-        }
+        return job;
     };
     session = createSessionWithMediaInformationEffects(
         directMediaNavigationProvider, std::move(effects));
@@ -366,10 +365,6 @@ void TestKiriDocumentSessionMediaInformation::
     mediaInformation->openContainingFolder();
 
     QCOMPARE(openedTarget, targetUrl);
-    QVERIFY(receivedLiveOwner);
-    QVERIFY(!ownerAliveAfterReset);
     QVERIFY(mediaInformation.isNull());
-    QVERIFY(!returnedJob.isNull());
-    QVERIFY(returnedJob->parent() == nullptr);
-    delete returnedJob.data();
+    QVERIFY(returnedJob.isNull());
 }

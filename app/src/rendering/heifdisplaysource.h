@@ -24,14 +24,18 @@ public:
     [[nodiscard]] QSize imageSize() const override;
     [[nodiscard]] qsizetype byteCost() const override;
     [[nodiscard]] bool supportsRasterDisplayRefinement() const override;
+    [[nodiscard]] std::optional<qsizetype> rasterDisplayRefinementPeakByteCost(
+        const QSize& rasterSize) const override;
     [[nodiscard]] StaticImageDisplayDecodeResult decodeRasterDisplayImage(
         const QSize& rasterSize) const override;
     [[nodiscard]] StaticImageDisplayDecodeResult decodeBlockingDisplayImage(
         int maximumLongEdge) const override;
 
 private:
-    QImage decodeFullOrScaled(QSize targetSize, QString* errorString) const;
-    QImage decodeGridRasterDisplayImage(QSize rasterSize, QString* errorString) const;
+    QImage decodeFullOrScaled(
+        QSize targetSize, QString* errorString, bool* resourceExhausted = nullptr) const;
+    QImage decodeGridRasterDisplayImage(
+        QSize rasterSize, QString* errorString, bool* resourceExhausted = nullptr) const;
 
     QByteArray m_data;
     QSize m_imageSize;

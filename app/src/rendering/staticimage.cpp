@@ -21,6 +21,13 @@ StaticImageFirstDisplayDecodeResult StaticImageDisplaySource::decodeFirstDisplay
 
 bool StaticImageDisplaySource::supportsRasterDisplayRefinement() const { return false; }
 
+std::optional<qsizetype> StaticImageDisplaySource::rasterDisplayRefinementPeakByteCost(
+    const QSize& rasterSize) const
+{
+    Q_UNUSED(rasterSize);
+    return std::nullopt;
+}
+
 StaticImageDisplayDecodeResult StaticImageDisplaySource::decodeRasterDisplayImage(
     const QSize& rasterSize) const
 {

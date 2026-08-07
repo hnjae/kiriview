@@ -19,13 +19,17 @@ public:
     static std::shared_ptr<QImageReaderDisplaySource> open(
         const QByteArray& data, const QByteArray& format, QString* errorString);
 
-    QImageReaderDisplaySource(
-        QByteArray data, QByteArray format, QSize imageSize, StaticImageReaderTransform transform);
+    QImageReaderDisplaySource(QByteArray data, QByteArray format, QSize imageSize,
+        StaticImageReaderTransform transform, QSize readerImageSize = {},
+        bool readerSupportsScaledSize = true,
+        QImage::Format readerImageFormat = QImage::Format_RGBA8888_Premultiplied);
 
     [[nodiscard]] QSize imageSize() const override;
     [[nodiscard]] StaticImageFirstDisplayDecodeResult decodeFirstDisplayImage(
         const ImageFirstDisplayDecodeContext& context) const override;
     [[nodiscard]] bool supportsRasterDisplayRefinement() const override;
+    [[nodiscard]] std::optional<qsizetype> rasterDisplayRefinementPeakByteCost(
+        const QSize& rasterSize) const override;
     [[nodiscard]] StaticImageDisplayDecodeResult decodeRasterDisplayImage(
         const QSize& rasterSize) const override;
     [[nodiscard]] StaticImageDisplayDecodeResult decodeBlockingDisplayImage(
@@ -36,12 +40,16 @@ public:
 private:
     [[nodiscard]] bool supportsJpegScaledFirstDisplay() const;
     [[nodiscard]] StaticImageDisplayDecodeResult readScaledDisplayImage(QSize scaledSize) const;
-    QImage readScaledImage(QSize scaledSize, QString* errorString) const;
+    QImage readScaledImage(
+        QSize scaledSize, QString* errorString, bool* resourceExhausted = nullptr) const;
 
     QByteArray m_data;
     QByteArray m_format;
     QSize m_imageSize;
     StaticImageReaderTransform m_transform;
+    QSize m_readerImageSize;
+    bool m_readerSupportsScaledSize = true;
+    QImage::Format m_readerImageFormat = QImage::Format_RGBA8888_Premultiplied;
 };
 }
 

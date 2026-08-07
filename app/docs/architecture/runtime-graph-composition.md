@@ -2,6 +2,8 @@
 
 Top-level document runtimes expose public queries and commands around canonical state and collaborating workflow, effect, and resource responsibilities. Runtime composition owns collaborator construction, joint lifetime, dependency-safe shutdown, and the connections needed to route commands and observations without creating another domain-state authority.
 
+Production composition joins application, shell, session, and effect collaborators before commands can be dispatched, independent of their physical construction site. A visual host that exists only after UI object creation may be attached by the composition owner at that creation boundary, but QML component-completion code must not become the authority for joining domain or runtime collaborators. QML may continue to report current UI-local facts after the graph is complete.
+
 The internal composition mechanism is not an architecture contract. A runtime may use direct members, focused collaborators, coordinators, or an explicit graph when the chosen structure keeps ownership visible, avoids dependency cycles, and prevents mutation through observation-only boundaries.
 
 Document-session composition covers routing, public projection, active and direct-media navigation, displayed-media operations, still-image preparation, and video-output attachment. The document-session state owner remains authoritative for public mixed-media state regardless of how those responsibilities are grouped.

@@ -4,30 +4,19 @@
 #ifndef KIRIVIEW_KIRIMEDIAINFORMATION_H
 #define KIRIVIEW_KIRIMEDIAINFORMATION_H
 
+#include "session/mediainformationeffectruntime.h"
 #include "session/mediainformationprojection.h"
 
 #include <QAbstractListModel>
 #include <QObject>
-#include <QPointer>
 #include <QSize>
 #include <QString>
 #include <QUrl>
 #include <QtGlobal>
 #include <QtQml/qqmlregistration.h>
-#include <functional>
 #include <vector>
 
 class KiriDocumentSession;
-
-namespace kiriview {
-struct MediaInformationEffects
-{
-    std::function<void(QString)> copyText;
-    std::function<void(QUrl, QPointer<QObject>)> openContainingFolder;
-};
-
-MediaInformationEffects mediaInformationEffectsWithDefaults(MediaInformationEffects effects = {});
-}
 
 class KiriMediaInformationRowModel : public QAbstractListModel
 {
@@ -78,7 +67,7 @@ class KiriMediaInformation : public QObject
 
 public:
     explicit KiriMediaInformation(KiriDocumentSession& session,
-        kiriview::MediaInformationEffects effects = {}, QObject* parent = nullptr);
+        kiriview::MediaInformationEffectCommandPort effectCommands = {}, QObject* parent = nullptr);
 
     [[nodiscard]] bool available() const;
     [[nodiscard]] quint64 revision() const;
@@ -102,11 +91,9 @@ Q_SIGNALS:
 
 private:
     void refresh();
-    [[nodiscard]] QUrl targetUrl() const;
-    [[nodiscard]] QString copiedFilePath() const;
 
     KiriDocumentSession& m_session;
-    kiriview::MediaInformationEffects m_effects;
+    kiriview::MediaInformationEffectCommandPort m_effectCommands;
     KiriMediaInformationRowModel m_generalRows;
     KiriMediaInformationRowModel m_mediaRows;
     KiriMediaInformationRowModel m_cameraRows;
@@ -115,7 +102,6 @@ private:
     bool m_available = false;
     bool m_canCopyFilePath = false;
     bool m_canOpenContainingFolder = false;
-    QUrl m_targetUrl;
     QString m_title;
     QString m_summary;
     QString m_mediaSectionTitle;

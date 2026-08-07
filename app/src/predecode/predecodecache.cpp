@@ -28,6 +28,7 @@ void PredecodeCache::clear()
                                   << m_queue.size() << "cachedImages" << m_images.size();
     m_windowKeys.clear();
     m_displayedHistory.clear();
+    m_currentDisplayedKeys.reset();
     m_queue.clear();
     m_images.clear();
     m_lastUsedSequence = 0;
@@ -84,6 +85,34 @@ void PredecodeCache::setWindowKeys(const std::vector<PredecodeImageKey>& keys)
 void PredecodeCache::setDisplayedLocations(const std::vector<DisplayedImageLocation>& locations)
 {
     m_displayedHistory.setDisplayedLocations(locations);
+    m_currentDisplayedKeys.reset();
+    trimImagesToBudget();
+}
+
+void PredecodeCache::setDisplayedImages(const std::vector<DisplayedPredecodeImage>& images)
+{
+    std::vector<DisplayedImageLocation> locations;
+    std::vector<PredecodeImageKey> keys;
+    locations.reserve(images.size());
+    keys.reserve(images.size());
+    for (const DisplayedPredecodeImage& image : images) {
+        if (!image.hasLocation()) {
+            continue;
+        }
+        if (!std::ranges::contains(locations, image.location)) {
+            locations.push_back(image.location);
+        }
+        if (!image.isCacheable()) {
+            continue;
+        }
+        const PredecodeImageKey key { image.location, image.displayImage->sourceRevision };
+        if (key.isValid() && !containsKey(keys, key)) {
+            keys.push_back(key);
+        }
+    }
+
+    m_displayedHistory.setDisplayedLocations(locations);
+    m_currentDisplayedKeys = std::move(keys);
     trimImagesToBudget();
 }
 
@@ -202,7 +231,17 @@ std::optional<PredecodedImage> PredecodeCache::findCandidate(
         return std::nullopt;
     }
 
-    const auto cached = findCachedImage(location);
+    ConstCachedImageIterator cached = m_images.cend();
+    if (m_currentDisplayedKeys.has_value()) {
+        const auto currentKey = std::ranges::find_if(*m_currentDisplayedKeys,
+            [&location](const PredecodeImageKey& key) { return key.location == location; });
+        if (currentKey != m_currentDisplayedKeys->end()) {
+            cached = findCachedImage(*currentKey);
+        }
+    }
+    if (cached == m_images.cend()) {
+        cached = findCachedImage(location);
+    }
     if (cached == m_images.cend()) {
         return std::nullopt;
     }
@@ -336,8 +375,10 @@ void PredecodeCache::trimImagesToBudget()
     states.reserve(m_images.size());
 
     for (const CachedImage& entry : m_images) {
+        const bool exactCurrentKey = !m_currentDisplayedKeys.has_value()
+            || containsKey(*m_currentDisplayedKeys, entry.key);
         states.push_back(PredecodeCachedImageState {
-            m_displayedHistory.currentContains(entry.key.location),
+            m_displayedHistory.currentContains(entry.key.location) && exactCurrentKey,
             m_displayedHistory.recentContains(entry.key.location),
             m_displayedHistory.currentPriority(entry.key.location),
             m_displayedHistory.recentPriority(entry.key.location),

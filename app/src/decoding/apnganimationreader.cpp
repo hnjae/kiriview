@@ -52,8 +52,9 @@ std::optional<ApngWorkspacePlan> apngWorkspacePlan(quint32 width, quint32 height
     qsizetype inputByteCount, std::size_t decoderInternalByteReservation)
 {
     constexpr quint64 bytesPerPixel = kiriview::ApngRgbaBuffer::bytesPerPixel;
-    // Composer canvas and frame, Rust output, dispose-previous backup, and composed QImage.
-    constexpr quint64 worstCaseCanvasCount = 5;
+    // Composer canvas and frame, Rust output, and dispose-previous backup. The
+    // returned QImage is admitted independently for every frame.
+    constexpr quint64 worstCaseCanvasCount = 4;
     constexpr quint64 byteLimit = static_cast<quint64>(std::numeric_limits<qsizetype>::max());
 
     if (inputByteCount < 0 || width == 0 || height == 0
@@ -135,6 +136,12 @@ public:
     {
     }
 
+    ~Private() { close(); }
+    Private(const Private&) = delete;
+    Private& operator=(const Private&) = delete;
+    Private(Private&&) = delete;
+    Private& operator=(Private&&) = delete;
+
     ApngOpenResult open(const QByteArray& inputData)
     {
         close();
@@ -210,7 +217,7 @@ public:
         AnimationFrame decodedFirstFrame = std::move(**firstFrame);
         ApngOpenResult result;
         result.status = ApngOpenStatus::Success;
-        result.workspaceHold = m_workspaceLease.sharedHold();
+        result.workspaceHold = std::move(decodedFirstFrame.workspaceHold);
         result.firstFrame = std::move(decodedFirstFrame.image);
         result.firstFrameDelay = decodedFirstFrame.delay;
         result.loopCount = openResult.loop_count;
@@ -240,6 +247,17 @@ public:
         };
 
         FrameReadAttempt attempt = [this]() -> FrameReadAttempt {
+            if (!rustApngAnimationReaderHasMoreFrames(*reader)) {
+                return { std::optional<AnimationFrame>(), true, false };
+            }
+
+            ImageDecodeWorkspaceLease outputLease = m_workspaceBudget->startLeaseForOperation(
+                m_transientWorkspaceLease.reservedByteCount());
+            if (!outputLease.tryReserve(static_cast<qsizetype>(m_canvasByteCount))) {
+                return { std::unexpected(imageDecodeWorkspaceResourceLimitDiagnostic()), true,
+                    true };
+            }
+
             const RustApngFrameResult frame
                 = rustReadApngAnimationFrame(*reader, m_canvasByteCount);
             switch (frame.status) {
@@ -269,7 +287,7 @@ public:
             return { std::optional<AnimationFrame>(AnimationFrame {
                          std::move(*image),
                          apngFrameDelay(frame.delay_num, frame.delay_den),
-                         m_workspaceLease.sharedHold(),
+                         outputLease.sharedHold(),
                      }),
                 false, false };
         }();
@@ -291,32 +309,23 @@ public:
         return m_lastReadResourceLimitExceeded;
     }
 
-    ImageDecodeWorkspaceHold takeFirstFrameWorkspaceHold()
-    {
-        const qsizetype retainedByteCount = static_cast<qsizetype>(m_canvasByteCount);
-        composer.clear();
-        reader = rustNewApngAnimationReader();
-        m_canvasByteCount = 0;
-        return m_workspaceLease.retainOnly(retainedByteCount);
-    }
-
     void close()
     {
         composer.clear();
         reader = rustNewApngAnimationReader();
         m_canvasByteCount = 0;
-        m_workspaceLease = {};
+        m_transientWorkspaceLease = {};
     }
 
 private:
     bool tryReserveWorkspace(const ApngWorkspacePlan& plan)
     {
-        m_workspaceLease = m_workspaceBudget->startLease();
-        if (!m_workspaceLease.isManaged()) {
+        m_transientWorkspaceLease = m_workspaceBudget->startLease();
+        if (!m_transientWorkspaceLease.isManaged()) {
             return false;
         }
 
-        if (!m_workspaceLease.tryReserve(plan.worstCaseByteCount)) {
+        if (!m_transientWorkspaceLease.tryReserve(plan.worstCaseByteCount)) {
             return false;
         }
 
@@ -325,7 +334,7 @@ private:
     }
 
     std::shared_ptr<ImageDecodeWorkspaceBudget> m_workspaceBudget;
-    ImageDecodeWorkspaceLease m_workspaceLease;
+    ImageDecodeWorkspaceLease m_transientWorkspaceLease;
     rust::Box<RustApngAnimationReader> reader = rustNewApngAnimationReader();
     ApngFrameComposer composer;
     std::size_t m_canvasByteCount = 0;
@@ -356,8 +365,4 @@ bool ApngAnimationReader::lastReadResourceLimitExceeded() const
     return d->lastReadResourceLimitExceeded();
 }
 
-ImageDecodeWorkspaceHold ApngAnimationReader::takeFirstFrameWorkspaceHold()
-{
-    return d->takeFirstFrameWorkspaceHold();
-}
 }

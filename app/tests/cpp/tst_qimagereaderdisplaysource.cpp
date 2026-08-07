@@ -12,6 +12,7 @@
 #include <QTest>
 #include <Qt>
 #include <memory>
+#include <optional>
 
 namespace {
 QByteArray encodedImageData(const QImage& image, const QByteArray& format, QString* errorString)
@@ -65,11 +66,75 @@ class TestQImageReaderDisplaySource : public QObject
 
 private Q_SLOTS:
     void sourceDecodesBlockingAndRasterDisplayImages();
+    void refinementPreflightAccountsForCompoundTransforms();
+    void pngRefinementPreflightIncludesFullSourceFallback();
+    void grayscalePngRefinementPreflightIncludesSmoothScaleConversion();
     void failedDisplayDecodePreservesDiagnostics();
     void jpegSourceDecodesFirstDisplayToViewport();
     void jpegSourceSkipsFirstDisplayWhenImageFitsViewport();
     void pngSourceLeavesFirstDisplayNotImplemented();
 };
+
+void TestQImageReaderDisplaySource::refinementPreflightAccountsForCompoundTransforms()
+{
+    constexpr qsizetype outputByteCost = 20 * 10 * 4;
+    kiriview::QImageReaderDisplaySource untransformed(
+        {}, {}, QSize(40, 20), {}, QSize(40, 20), true, QImage::Format_Grayscale8);
+    kiriview::QImageReaderDisplaySource compound({}, {}, QSize(40, 20),
+        kiriview::StaticImageReaderTransform { QImageIOHandler::TransformationMirrorAndRotate90 },
+        QSize(20, 40), true, QImage::Format_Grayscale8);
+
+    QCOMPARE(untransformed.rasterDisplayRefinementPeakByteCost(QSize(20, 10)),
+        std::optional<qsizetype>(2 * outputByteCost));
+    QCOMPARE(compound.rasterDisplayRefinementPeakByteCost(QSize(20, 10)),
+        std::optional<qsizetype>(3 * outputByteCost));
+    QVERIFY(compound.rasterDisplayRefinementPeakByteCost(QSize(40, 20))
+        > compound.rasterDisplayRefinementPeakByteCost(QSize(20, 10)));
+    QVERIFY(!compound.rasterDisplayRefinementPeakByteCost({}).has_value());
+}
+
+void TestQImageReaderDisplaySource::pngRefinementPreflightIncludesFullSourceFallback()
+{
+    const QSize sourceSize(64, 32);
+    QImage image(sourceSize, QImage::Format_RGBA64);
+    image.fill(Qt::transparent);
+    QString errorString;
+    const QByteArray data = encodedImageData(image, QByteArrayLiteral("png"), &errorString);
+    QVERIFY2(!data.isEmpty(), qPrintable(errorString));
+
+    const std::shared_ptr<kiriview::QImageReaderDisplaySource> source
+        = kiriview::QImageReaderDisplaySource::open(data, QByteArrayLiteral("png"), &errorString);
+    QVERIFY2(source != nullptr, qPrintable(errorString));
+
+    const QSize rasterSize(8, 4);
+    const std::optional<qsizetype> peak = source->rasterDisplayRefinementPeakByteCost(rasterSize);
+    QVERIFY(peak.has_value());
+    const qsizetype fullSourceByteCost = sourceSize.width() * sourceSize.height() * 8;
+    const qsizetype scaledRasterByteCost = rasterSize.width() * rasterSize.height() * 8;
+    QVERIFY(*peak >= fullSourceByteCost + scaledRasterByteCost);
+}
+
+void TestQImageReaderDisplaySource::grayscalePngRefinementPreflightIncludesSmoothScaleConversion()
+{
+    const QSize sourceSize(64, 32);
+    QImage image(sourceSize, QImage::Format_Grayscale8);
+    image.fill(Qt::black);
+    QString errorString;
+    const QByteArray data = encodedImageData(image, QByteArrayLiteral("png"), &errorString);
+    QVERIFY2(!data.isEmpty(), qPrintable(errorString));
+
+    const std::shared_ptr<kiriview::QImageReaderDisplaySource> source
+        = kiriview::QImageReaderDisplaySource::open(data, QByteArrayLiteral("png"), &errorString);
+    QVERIFY2(source != nullptr, qPrintable(errorString));
+
+    const QSize rasterSize(8, 4);
+    const std::optional<qsizetype> peak = source->rasterDisplayRefinementPeakByteCost(rasterSize);
+    QVERIFY(peak.has_value());
+    const qsizetype decodedSourceByteCost = sourceSize.width() * sourceSize.height();
+    const qsizetype workingSourceByteCost = sourceSize.width() * sourceSize.height() * 4;
+    const qsizetype workingRasterByteCost = rasterSize.width() * rasterSize.height() * 4;
+    QVERIFY(*peak >= decodedSourceByteCost + workingSourceByteCost + workingRasterByteCost);
+}
 
 void TestQImageReaderDisplaySource::sourceDecodesBlockingAndRasterDisplayImages()
 {

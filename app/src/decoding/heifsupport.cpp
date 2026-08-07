@@ -7,6 +7,7 @@
 #include "rendering/imagerendering.h"
 
 #include <QColorSpace>
+#include <algorithm>
 #include <cstddef>
 #include <cstring>
 #include <mutex>
@@ -32,15 +33,25 @@ QString heifErrorString(const QString& action, heif_error error)
 }
 
 namespace {
-    std::optional<QString> initializeHeifLibrary()
+    struct HeifInitializationFailure
+    {
+        QString errorString;
+        bool resourceLimitExceeded = false;
+    };
+
+    std::optional<HeifInitializationFailure> initializeHeifLibrary()
     {
         static std::once_flag initFlag;
         static heif_error initError {};
         std::call_once(initFlag, [] { initError = heif_init(nullptr); });
 
         if (initError.code != heif_error_Ok) {
-            return heifErrorString(
-                imageErrorActionText(ImageErrorActionTextId::InitializeLibheif), initError);
+            return HeifInitializationFailure {
+                heifErrorString(
+                    imageErrorActionText(ImageErrorActionTextId::InitializeLibheif), initError),
+                initError.code == heif_error_Memory_allocation_error
+                    || initError.subcode == heif_suberror_Security_limit_exceeded,
+            };
         }
         return std::nullopt;
     }
@@ -85,23 +96,61 @@ void HeifDecodingOptions::setIgnoreSequenceEditList(bool ignore)
     }
 }
 
-std::optional<HeifContext> openHeifContext(const QByteArray& data, QString* errorString)
+std::optional<HeifContext> openHeifContext(const QByteArray& data, QString* errorString,
+    HeifContextOpenLimits requestedLimits, bool* resourceLimitExceeded,
+    HeifContextInheritedLimits* inheritedLimits)
 {
-    if (std::optional<QString> initError = initializeHeifLibrary()) {
-        setHeifSupportError(errorString, *initError);
+    if (resourceLimitExceeded != nullptr) {
+        *resourceLimitExceeded = false;
+    }
+    if (std::optional<HeifInitializationFailure> initFailure = initializeHeifLibrary()) {
+        if (resourceLimitExceeded != nullptr) {
+            *resourceLimitExceeded = initFailure->resourceLimitExceeded;
+        }
+        setHeifSupportError(errorString, initFailure->errorString);
         return std::nullopt;
     }
 
     HeifContext context;
     if (context.get() == nullptr) {
+        if (resourceLimitExceeded != nullptr) {
+            *resourceLimitExceeded = true;
+        }
         setHeifSupportError(
             errorString, imageErrorText(ImageErrorTextId::HeifContextAllocationFailed));
         return std::nullopt;
     }
 
+    const heif_security_limits originalLimits = *heif_context_get_security_limits(context.get());
+    if (inheritedLimits != nullptr) {
+        inheritedLimits->maximumTotalMemory = originalLimits.max_total_memory;
+    }
+
+    if (requestedLimits.maximumTotalMemory > 0) {
+        heif_security_limits limits = originalLimits;
+        limits.max_total_memory = originalLimits.max_total_memory == 0
+            ? requestedLimits.maximumTotalMemory
+            : std::min(originalLimits.max_total_memory, requestedLimits.maximumTotalMemory);
+        const heif_error limitsError = heif_context_set_security_limits(context.get(), &limits);
+        if (limitsError.code != heif_error_Ok) {
+            if (resourceLimitExceeded != nullptr) {
+                *resourceLimitExceeded = limitsError.code == heif_error_Memory_allocation_error
+                    || limitsError.subcode == heif_suberror_Security_limit_exceeded;
+            }
+            setHeifSupportError(errorString,
+                heifErrorString(
+                    imageErrorActionText(ImageErrorActionTextId::ReadHeifContainer), limitsError));
+            return std::nullopt;
+        }
+    }
+
     heif_error error = heif_context_read_from_memory_without_copy(
         context.get(), data.constData(), static_cast<size_t>(data.size()), nullptr);
     if (error.code != heif_error_Ok) {
+        if (resourceLimitExceeded != nullptr) {
+            *resourceLimitExceeded = error.code == heif_error_Memory_allocation_error
+                || error.subcode == heif_suberror_Security_limit_exceeded;
+        }
         setHeifSupportError(errorString,
             heifErrorString(
                 imageErrorActionText(ImageErrorActionTextId::ReadHeifContainer), error));
@@ -129,8 +178,12 @@ std::optional<HeifPrimaryImage> openHeifPrimaryImage(const QByteArray& data, QSt
     return HeifPrimaryImage { std::move(*context), std::move(handle) };
 }
 
-std::optional<QImage> qImageFromHeifImage(const heif_image* heifImage, QString* errorString)
+std::optional<QImage> qImageFromHeifImage(const heif_image* heifImage, QString* errorString,
+    HeifImageConversionFailureCause* failureCause)
 {
+    if (failureCause != nullptr) {
+        *failureCause = HeifImageConversionFailureCause::Invalid;
+    }
     if (heifImage == nullptr) {
         if (errorString != nullptr) {
             *errorString = imageErrorText(ImageErrorTextId::HeifDecodedImageInvalid);
@@ -161,6 +214,9 @@ std::optional<QImage> qImageFromHeifImage(const heif_image* heifImage, QString* 
 
     QImage image(imageWidth, imageHeight, QImage::Format_RGBA8888);
     if (image.isNull()) {
+        if (failureCause != nullptr) {
+            *failureCause = HeifImageConversionFailureCause::ResourceLimitExceeded;
+        }
         if (errorString != nullptr) {
             *errorString = imageErrorText(ImageErrorTextId::HeifDecodedImageAllocationFailed);
         }
@@ -172,7 +228,17 @@ std::optional<QImage> qImageFromHeifImage(const heif_image* heifImage, QString* 
     }
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
 
-    return displayReadyImage(image);
+    QImage displayImage = displayReadyImage(image);
+    if (displayImage.isNull()) {
+        if (failureCause != nullptr) {
+            *failureCause = HeifImageConversionFailureCause::ResourceLimitExceeded;
+        }
+        if (errorString != nullptr) {
+            *errorString = imageErrorText(ImageErrorTextId::HeifDecodedImageAllocationFailed);
+        }
+        return std::nullopt;
+    }
+    return displayImage;
 }
 
 }

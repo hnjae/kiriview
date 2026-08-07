@@ -15,6 +15,8 @@ QObject and QQuickItem facade classes own the public QML surface:
 
 Application facade classes, including the KiriView image-viewport facade, are the only QML-facing application API boundaries. API visibility does not transfer domain ownership: KiriView QML forwards raw image interaction facts through the ImageViewport integration owner and does not invoke the dependency directly. Domain behavior must live in the appropriate application runtime or policy owner instead of growing facade-owned workflow state.
 
+One production runtime-composition authority completes the application facade and domain-owner graph before QML can dispatch commands through it, regardless of where a facade object is physically instantiated. QML may bind composed collaborators into toolkit-required visual properties and report UI-local facts, but component-completion callbacks or other imperative UI choreography must not own the runtime attachment sequence.
+
 Application runtime and policy responsibilities belong to named owners:
 
 - `QObject` lifetime, signal delivery, thread affinity, and cancellation.

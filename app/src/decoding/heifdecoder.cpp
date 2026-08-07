@@ -58,8 +58,9 @@ QString heifFailureDiagnosticDetail(
             backendError.isEmpty() ? QStringLiteral("<empty>") : backendError);
 }
 
-kiriview::DecodedImageResult failedHeifDecodedImageResult(
-    QString errorString, kiriview::DecodedImageFailureOperation operation)
+kiriview::DecodedImageResult failedHeifDecodedImageResult(QString errorString,
+    kiriview::DecodedImageFailureOperation operation,
+    kiriview::DecodedImageFailureCause cause = kiriview::DecodedImageFailureCause::Unknown)
 {
     const QString backendError = errorString;
     return kiriview::failedDecodedImageResult(kiriview::DecodedImageFailure {
@@ -69,6 +70,7 @@ kiriview::DecodedImageResult failedHeifDecodedImageResult(
         heifFailureDiagnosticDetail(operation, backendError),
         kiriview::DecodedImageFailureSeverity::Error,
         false,
+        cause,
     });
 }
 
@@ -106,13 +108,14 @@ std::optional<kiriview::DecodedImageResult> decodeHeifStillImageDataForInfo(cons
 
 std::optional<kiriview::DecodedImageResult> decodeHeifSequenceImageDataForInfo(
     const QByteArray& data, kiriview::HeifContainerInfo info,
-    const kiriview::ImageDecodeRequest& request)
+    const kiriview::ImageDecodeRequest& request,
+    std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> workspaceBudget)
 {
     if (!info.isHeif()) {
         return std::nullopt;
     }
 
-    kiriview::HeifSequenceReader reader;
+    kiriview::HeifSequenceReader reader(std::move(workspaceBudget));
     const kiriview::HeifSequenceOpenResult openResult = reader.open(data);
     if (openResult.status == kiriview::HeifSequenceOpenStatus::NotHeif
         || openResult.status == kiriview::HeifSequenceOpenStatus::NotSequence) {
@@ -122,13 +125,21 @@ std::optional<kiriview::DecodedImageResult> decodeHeifSequenceImageDataForInfo(
         return failedHeifDecodedImageResult(
             openResult.errorString, kiriview::DecodedImageFailureOperation::DecodeHeifSequenceOpen);
     }
+    if (openResult.status == kiriview::HeifSequenceOpenStatus::ResourceLimitExceeded) {
+        return failedHeifDecodedImageResult(openResult.errorString,
+            kiriview::DecodedImageFailureOperation::DecodeHeifSequenceOpen,
+            kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+    }
 
     kiriview::AnimationFrameReadResult firstFrame = reader.readNextFrame();
     if (!firstFrame || !firstFrame->has_value()) {
         const QString errorString
             = firstFrame ? kiriview::heifSequenceDecodeErrorString() : firstFrame.error();
-        return failedHeifDecodedImageResult(
-            errorString, kiriview::DecodedImageFailureOperation::DecodeHeifSequenceFrame);
+        return failedHeifDecodedImageResult(errorString,
+            kiriview::DecodedImageFailureOperation::DecodeHeifSequenceFrame,
+            reader.lastReadResourceLimitExceeded()
+                ? kiriview::DecodedImageFailureCause::ResourceLimitExceeded
+                : kiriview::DecodedImageFailureCause::Unknown);
     }
 
     kiriview::AnimationFrame retainedFirstFrame = std::move(**firstFrame);
@@ -136,11 +147,17 @@ std::optional<kiriview::DecodedImageResult> decodeHeifSequenceImageDataForInfo(
         = kiriview::readHeifSequenceAnimationSourceCatalog(
             reader, retainedFirstFrame, openResult.repeatCount);
     if (!catalog.has_value()) {
-        return failedHeifDecodedImageResult(std::move(catalog.error()),
-            kiriview::DecodedImageFailureOperation::DecodeHeifSequenceFrame);
+        kiriview::ImageAnimationSourceCatalogFailure failure = std::move(catalog.error());
+        return failedHeifDecodedImageResult(std::move(failure.errorString),
+            kiriview::DecodedImageFailureOperation::DecodeHeifSequenceFrame,
+            failure.cause
+                    == kiriview::ImageAnimationSourceCatalogFailureCause::ResourceLimitExceeded
+                ? kiriview::DecodedImageFailureCause::ResourceLimitExceeded
+                : kiriview::DecodedImageFailureCause::Unknown);
     }
 
     return kiriview::successfulDecodedImageResult(kiriview::HeifSequenceAnimationImage {
+        std::move(retainedFirstFrame.workspaceHold),
         std::move(retainedFirstFrame.image),
         data,
         std::move(*catalog),
@@ -152,12 +169,12 @@ std::optional<kiriview::DecodedImageResult> decodeHeifSequenceImageDataForInfo(
 }
 
 namespace kiriview {
-std::optional<DecodedImageResult> decodeHeifImageData(
-    const QByteArray& data, const ImageDecodeRequest& request)
+std::optional<DecodedImageResult> decodeHeifImageData(const QByteArray& data,
+    const ImageDecodeRequest& request, std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget)
 {
     const HeifContainerInfo info = heifContainerInfo(data);
     if (std::optional<DecodedImageResult> sequenceResult
-        = decodeHeifSequenceImageDataForInfo(data, info, request)) {
+        = decodeHeifSequenceImageDataForInfo(data, info, request, std::move(workspaceBudget))) {
         return sequenceResult;
     }
 

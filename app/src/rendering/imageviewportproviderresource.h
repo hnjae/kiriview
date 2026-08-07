@@ -41,6 +41,7 @@ struct ImageViewportProviderFrameRequest
     int frame = -1;
     ImageSequenceProviderDisplayDemand demand;
     qint64 maximumStoreEntryBytes = -1;
+    std::shared_ptr<DisplayImageStore> outputStore;
 };
 
 enum class ImageViewportProviderFrameStage {
@@ -61,6 +62,14 @@ struct ImageViewportProviderMetadataResult
 
 struct ImageViewportProviderFrameResult
 {
+    ImageViewportProviderFrameResult() = default;
+    ImageViewportProviderFrameResult(const ImageViewportProviderFrameResult&) = default;
+    ImageViewportProviderFrameResult(ImageViewportProviderFrameResult&&) noexcept = default;
+    ~ImageViewportProviderFrameResult() = default;
+    ImageViewportProviderFrameResult& operator=(const ImageViewportProviderFrameResult& other);
+    ImageViewportProviderFrameResult& operator=(ImageViewportProviderFrameResult&& other) noexcept;
+
+    std::shared_ptr<DisplayImageOutputAdmission> outputAdmission;
     std::optional<StaticDisplayImagePayload> displayImage;
     ImageSequenceProviderFrameEnvelope envelope;
     QString formatIdentifier;
@@ -70,7 +79,8 @@ struct ImageViewportProviderFrameResult
     ImageViewportProviderFrameStage stage = ImageViewportProviderFrameStage::Authoritative;
 
     static ImageViewportProviderFrameResult ready(StaticDisplayImagePayload displayImage,
-        ImageSequenceProviderFrameEnvelope envelope, QString formatIdentifier);
+        ImageSequenceProviderFrameEnvelope envelope, QString formatIdentifier,
+        std::shared_ptr<DisplayImageOutputAdmission> outputAdmission = {});
     static ImageViewportProviderFrameResult provisional(StaticDisplayImagePayload displayImage,
         ImageSequenceProviderFrameEnvelope envelope, QString formatIdentifier);
     static ImageViewportProviderFrameResult unsupported(
@@ -110,6 +120,14 @@ public:
 
 struct ImageViewportProviderPreparedFrame
 {
+    ImageViewportProviderPreparedFrame() = default;
+    ImageViewportProviderPreparedFrame(const ImageViewportProviderPreparedFrame&) = default;
+    ImageViewportProviderPreparedFrame(ImageViewportProviderPreparedFrame&&) noexcept = default;
+    ~ImageViewportProviderPreparedFrame() = default;
+    ImageViewportProviderPreparedFrame& operator=(const ImageViewportProviderPreparedFrame& other);
+    ImageViewportProviderPreparedFrame& operator=(
+        ImageViewportProviderPreparedFrame&& other) noexcept;
+
     QString storeEntryId;
     ImageSequenceProviderFrameEnvelope envelope;
     QString formatIdentifier;
@@ -117,6 +135,7 @@ struct ImageViewportProviderPreparedFrame
     std::optional<ImageLoadFailure> failure;
     std::optional<ImageSequenceProviderUnsupportedCause> unsupportedCause;
     ImageViewportProviderFrameStage stage = ImageViewportProviderFrameStage::Authoritative;
+    std::shared_ptr<DisplayImageOutputAdmission> outputAdmission;
     std::optional<StaticDisplayImagePayload> authoritativeStillDisplayImage;
 
     [[nodiscard]] bool isReady() const { return !storeEntryId.isEmpty(); }

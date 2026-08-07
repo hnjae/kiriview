@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#include "application/applicationruntime.h"
 #include "application/applicationshortcutpolicy.h"
 #include "application/kiriviewapplicationactions.h"
 #include "facade/kiridocumentsession.h"
@@ -24,6 +25,7 @@
 #include <QStringList>
 #include <QTest>
 #include <QVariantList>
+#include <QWindow>
 #include <array>
 #include <cstddef>
 
@@ -232,6 +234,7 @@ private Q_SLOTS:
     void menuPresentationPersists();
     void menuPresentationStateUsesGenericStateLocation();
     void showMenubarActionTogglesMenuPresentation();
+    void runtimeCompositionConnectsApplicationSessionShellAndWindow();
     void windowShellApplicationAttachmentIsIdentitySafe();
     void windowShellDocumentSessionAttachmentIsIdentitySafe();
     void windowShellRefreshesTitleWhenSessionDetachesOrIsDestroyed();
@@ -817,6 +820,37 @@ void TestKiriViewApplication::showMenubarActionTogglesMenuPresentation()
     showMenubarAction->trigger();
     QCOMPARE(application.menuPresentation(), KiriViewApplication::HamburgerMenu);
     QVERIFY(!showMenubarAction->isChecked());
+}
+
+void TestKiriViewApplication::runtimeCompositionConnectsApplicationSessionShellAndWindow()
+{
+    KiriViewApplication application;
+    KiriDocumentSession session;
+    KiriWindowShell shell;
+
+    kiriview::composeApplicationRuntimeGraph(application, session, shell);
+
+    const int initialNotificationRevision = shell.notificationReplayRevision();
+    Q_EMIT application.imageBoundaryReached(QStringLiteral("application boundary"));
+    QCOMPARE(shell.notificationReplayRevision(), initialNotificationRevision + 1);
+    QCOMPARE(shell.notificationMessage(), QStringLiteral("application boundary"));
+
+    Q_EMIT session.fileDeletionFailed(QStringLiteral("session failure"));
+    QCOMPARE(shell.notificationReplayRevision(), initialNotificationRevision + 2);
+    QCOMPARE(shell.notificationMessage(), QStringLiteral("session failure"));
+
+    QWindow window;
+    kiriview::attachApplicationRuntimeWindow(application, shell, window);
+    application.updateActionUiGateSnapshot(false, false, false, false, false, true, true);
+    QAction* fullscreenAction
+        = application.actionForId(KiriViewApplication::WindowFullscreenAction);
+    QVERIFY(fullscreenAction != nullptr);
+    QVERIFY(fullscreenAction->isEnabled());
+
+    fullscreenAction->trigger();
+
+    QTRY_VERIFY(shell.fullscreen());
+    QCOMPARE(window.visibility(), QWindow::FullScreen);
 }
 
 void TestKiriViewApplication::windowShellApplicationAttachmentIsIdentitySafe()

@@ -12,6 +12,7 @@
 #include <QString>
 #include <memory>
 #include <optional>
+#include <utility>
 
 namespace kiriview {
 enum class ApngOpenStatus {
@@ -21,7 +22,9 @@ enum class ApngOpenStatus {
     ResourceLimitExceeded,
 };
 
-struct ApngOpenResult
+struct ApngOpenResult // NOLINT(cppcoreguidelines-special-member-functions) --
+                      // Pass-by-value assignment preserves aggregate initialization and retires
+                      // the old first frame before its workspace hold.
 {
     ApngOpenStatus status = ApngOpenStatus::NotApng;
     ImageDecodeWorkspaceHold workspaceHold;
@@ -30,6 +33,24 @@ struct ApngOpenResult
     int loopCount = 0;
     int frameCount = 0;
     QString errorString;
+
+    ApngOpenResult& operator=(ApngOpenResult other) noexcept
+    {
+        swap(*this, other);
+        return *this;
+    }
+
+    friend void swap(ApngOpenResult& left, ApngOpenResult& right) noexcept
+    {
+        using std::swap;
+        swap(left.status, right.status);
+        swap(left.workspaceHold, right.workspaceHold);
+        swap(left.firstFrame, right.firstFrame);
+        swap(left.firstFrameDelay, right.firstFrameDelay);
+        swap(left.loopCount, right.loopCount);
+        swap(left.frameCount, right.frameCount);
+        swap(left.errorString, right.errorString);
+    }
 };
 
 class ApngAnimationReader final
@@ -44,7 +65,6 @@ public:
     AnimationFrameReadResult readNextFrame();
     [[nodiscard]] bool hasMoreFrames() const;
     [[nodiscard]] bool lastReadResourceLimitExceeded() const;
-    [[nodiscard]] ImageDecodeWorkspaceHold takeFirstFrameWorkspaceHold();
 
 private:
     class Private;

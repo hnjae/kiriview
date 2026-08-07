@@ -5,11 +5,8 @@
 
 #include "facade/kiridocumentsession.h"
 
-#include <KIO/OpenFileManagerWindowJob>
-#include <QClipboard>
-#include <QCoreApplication>
-#include <QGuiApplication>
 #include <QModelIndex>
+#include <functional>
 #include <utility>
 
 KiriMediaInformationRowModel::KiriMediaInformationRowModel(QObject* parent)
@@ -61,37 +58,11 @@ void KiriMediaInformationRowModel::setRows(std::vector<Row> rows)
     endResetModel();
 }
 
-namespace kiriview {
-MediaInformationEffects mediaInformationEffectsWithDefaults(MediaInformationEffects effects)
-{
-    if (!effects.copyText) {
-        effects.copyText = [](const QString& text) {
-            if (qobject_cast<QGuiApplication*>(QCoreApplication::instance()) == nullptr) {
-                return;
-            }
-            QClipboard* clipboard = QGuiApplication::clipboard();
-            if (clipboard != nullptr) {
-                clipboard->setText(text);
-            }
-        };
-    }
-    if (!effects.openContainingFolder) {
-        effects.openContainingFolder = [](const QUrl& targetUrl, const QPointer<QObject>& owner) {
-            QObject* job = KIO::highlightInFileManager(QList<QUrl> { targetUrl });
-            if (owner != nullptr && job != nullptr) {
-                job->setParent(owner.data());
-            }
-        };
-    }
-    return effects;
-}
-}
-
-KiriMediaInformation::KiriMediaInformation(
-    KiriDocumentSession& session, kiriview::MediaInformationEffects effects, QObject* parent)
+KiriMediaInformation::KiriMediaInformation(KiriDocumentSession& session,
+    kiriview::MediaInformationEffectCommandPort effectCommands, QObject* parent)
     : QObject(parent)
     , m_session(session)
-    , m_effects(kiriview::mediaInformationEffectsWithDefaults(std::move(effects)))
+    , m_effectCommands(std::move(effectCommands))
     , m_generalRows(this)
     , m_mediaRows(this)
     , m_cameraRows(this)
@@ -131,25 +102,18 @@ bool KiriMediaInformation::canOpenContainingFolder() const { return m_canOpenCon
 
 void KiriMediaInformation::copyFilePath()
 {
-    if (!canCopyFilePath()) {
-        return;
+    const std::function<void()> command = m_effectCommands.copyFilePath;
+    if (command) {
+        command();
     }
-
-    const std::function<void(QString)> effect = m_effects.copyText;
-    const QString text = copiedFilePath();
-    effect(text);
 }
 
 void KiriMediaInformation::openContainingFolder()
 {
-    if (!canOpenContainingFolder()) {
-        return;
+    const std::function<void()> command = m_effectCommands.openContainingFolder;
+    if (command) {
+        command();
     }
-
-    const std::function<void(QUrl, QPointer<QObject>)> effect = m_effects.openContainingFolder;
-    const QUrl currentTarget = targetUrl();
-    const QPointer<QObject> owner(this);
-    effect(currentTarget, owner);
 }
 
 void KiriMediaInformation::refresh()
@@ -158,7 +122,6 @@ void KiriMediaInformation::refresh()
         = m_session.mediaInformationSnapshot();
     m_revision = snapshot.revision;
     m_available = snapshot.available;
-    m_targetUrl = snapshot.targetUrl;
     m_title = snapshot.title;
     m_summary = snapshot.summary;
     m_mediaSectionTitle = snapshot.mediaSectionTitle;
@@ -170,11 +133,4 @@ void KiriMediaInformation::refresh()
     m_advancedRows.setRows(snapshot.advancedRows);
 
     Q_EMIT changed();
-}
-
-QUrl KiriMediaInformation::targetUrl() const { return m_targetUrl; }
-
-QString KiriMediaInformation::copiedFilePath() const
-{
-    return kiriview::mediaInformationDisplayPathForUrl(m_targetUrl);
 }

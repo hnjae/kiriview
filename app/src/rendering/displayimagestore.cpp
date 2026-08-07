@@ -5,10 +5,15 @@
 
 #include "cache/imagebyteaccounting.h"
 #include "cache/imagebytecost.h"
+#include <QColorSpace>
+#include <QList>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QPoint>
+#include <QStringList>
 #include <QtGlobal>
 #include <algorithm>
+#include <atomic>
 #include <iterator>
 #include <list>
 #include <map>
@@ -17,6 +22,66 @@
 
 namespace kiriview {
 namespace {
+    struct DisplayImageOutputLedger
+    {
+        std::atomic<qsizetype> byteCost = 0;
+    };
+
+    struct AdmittedImageBacking
+    {
+        std::shared_ptr<kiriview::DisplayImageOutputAdmission> outputAdmission;
+        QImage image;
+    };
+
+    void deleteAdmittedImageBacking(void* data) { delete static_cast<AdmittedImageBacking*>(data); }
+
+    QImage imageRetainingOutputAdmission(
+        QImage image, const std::shared_ptr<kiriview::DisplayImageOutputAdmission>& outputAdmission)
+    {
+        if (image.isNull() || outputAdmission == nullptr) {
+            return {};
+        }
+
+        auto* backing = new AdmittedImageBacking { outputAdmission, std::move(image) };
+        const uchar* const pixels = backing->image.constBits();
+        const QColorSpace colorSpace = backing->image.colorSpace();
+        const QList<QRgb> colorTable = backing->image.colorTable();
+        const qreal devicePixelRatio = backing->image.devicePixelRatio();
+        const qint64 dotsPerMeterX = backing->image.dotsPerMeterX();
+        const qint64 dotsPerMeterY = backing->image.dotsPerMeterY();
+        const QPoint offset = backing->image.offset();
+        const QStringList textKeys = backing->image.textKeys();
+        std::map<QString, QString> text;
+        for (const QString& key : textKeys) {
+            text.emplace(key, backing->image.text(key));
+        }
+        // The wrapper is the sole mutable owner of its QImage header. The backing image remains
+        // immutable and keeps both the physical pixels and their admission alive until the last
+        // wrapper alias retires.
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+        QImage admitted(const_cast<uchar*>(pixels), backing->image.width(), backing->image.height(),
+            backing->image.bytesPerLine(), backing->image.format(), deleteAdmittedImageBacking,
+            backing);
+        if (admitted.isNull()) {
+            delete backing;
+            return {};
+        }
+
+        admitted.setColorSpace(colorSpace);
+        if (!colorTable.isEmpty()) {
+            admitted.setColorTable(colorTable);
+        }
+        admitted.setDevicePixelRatio(devicePixelRatio);
+        admitted.setDotsPerMeterX(dotsPerMeterX);
+        admitted.setDotsPerMeterY(dotsPerMeterY);
+        admitted.setOffset(offset);
+        for (const auto& [key, value] : text) {
+            admitted.setText(key, value);
+        }
+        Q_ASSERT(admitted.constBits() == pixels);
+        return admitted;
+    }
+
     int priorityRank(DisplayImageRetentionPriority priority)
     {
         switch (priority) {
@@ -107,6 +172,56 @@ namespace {
 
 }
 
+class DisplayImageOutputAdmission::Private
+{
+public:
+    Private(std::shared_ptr<DisplayImageOutputLedger> ledger, qsizetype byteCost)
+        : ledger(std::move(ledger))
+        , byteCost(byteCost)
+    {
+        this->ledger->byteCost.fetch_add(byteCost);
+    }
+
+    ~Private()
+    {
+        if (ledger != nullptr) {
+            ledger->byteCost.fetch_sub(byteCost.load());
+        }
+    }
+    Q_DISABLE_COPY_MOVE(Private)
+
+    std::shared_ptr<DisplayImageOutputLedger> ledger;
+    std::atomic<qsizetype> byteCost = 0;
+};
+
+DisplayImageOutputAdmission::DisplayImageOutputAdmission(std::unique_ptr<Private> data)
+    : d(std::move(data))
+{
+}
+
+DisplayImageOutputAdmission::~DisplayImageOutputAdmission() = default;
+
+qsizetype DisplayImageOutputAdmission::byteCost() const
+{
+    return d == nullptr ? 0 : d->byteCost.load();
+}
+
+bool DisplayImageOutputAdmission::retainOnly(qsizetype retainedByteCost)
+{
+    if (d == nullptr || retainedByteCost < 0) {
+        return false;
+    }
+
+    qsizetype currentByteCost = d->byteCost.load();
+    while (retainedByteCost < currentByteCost) {
+        if (d->byteCost.compare_exchange_weak(currentByteCost, retainedByteCost)) {
+            d->ledger->byteCost.fetch_sub(currentByteCost - retainedByteCost);
+            return true;
+        }
+    }
+    return retainedByteCost == currentByteCost;
+}
+
 DisplayImageRasterIdentity DisplayImageRasterIdentity::provisionalPreview()
 {
     return { DisplayImageRasterKind::ProvisionalPreview, -1 };
@@ -159,6 +274,7 @@ public:
     struct Entry
     {
         QString id;
+        std::shared_ptr<DisplayImageOutputAdmission> outputAdmission;
         QImage image;
         QSize originalSize;
         QSize rasterSize;
@@ -180,7 +296,8 @@ public:
     std::map<DisplayImageReuseKey, EntryIterator, DisplayImageReuseKeyLess> entriesByReuseKey;
     std::map<EvictionKey, EntryIterator, EvictionKeyLess> evictionEntries;
     qsizetype byteBudget = 0;
-    qsizetype byteCost = 0;
+    std::shared_ptr<DisplayImageOutputLedger> outputLedger
+        = std::make_shared<DisplayImageOutputLedger>();
     mutable quint64 useClock = 0;
     quint64 nextId = 1;
 
@@ -274,16 +391,23 @@ public:
         addEvictionIndex(entry);
     }
 
-    QString insertNewEntry(
-        DisplayImageEntry entry, qsizetype entryByteCost, DisplayImageReuseKey reuseKey)
+    QString insertNewEntry(DisplayImageEntry entry, qsizetype entryByteCost,
+        DisplayImageReuseKey reuseKey, std::shared_ptr<DisplayImageOutputAdmission> outputAdmission)
     {
+        Q_ASSERT(outputAdmission != nullptr);
         const QString id = nextEntryId();
         const QSize originalSize = normalizedOriginalSize(entry);
         const QSize rasterSize = normalizedRasterSize(entry);
+        QImage admittedImage
+            = imageRetainingOutputAdmission(std::move(entry.image), outputAdmission);
+        if (admittedImage.isNull()) {
+            return {};
+        }
 
         images.push_back(Entry {
             id,
-            std::move(entry.image),
+            std::move(outputAdmission),
+            std::move(admittedImage),
             originalSize,
             rasterSize,
             entry.quality,
@@ -295,7 +419,6 @@ public:
             std::nullopt,
         });
         auto inserted = std::prev(images.end());
-        byteCost = saturatedQtByteSum(byteCost, entryByteCost);
         indexEntry(inserted);
         trimToBudget();
         return entriesById.contains(id) ? id : QString();
@@ -306,17 +429,23 @@ public:
         removeEvictionIndex(*entry);
         entriesById.erase(entry->id);
         entriesByReuseKey.erase(entry->reuseKey);
-        byteCost -= entry->byteCost;
         images.erase(entry);
     }
 
-    void trimToBudget()
+    qsizetype aggregateByteCost() const { return outputLedger->byteCost.load(); }
+
+    void trimToBudget(qsizetype additionalByteCost = 0)
     {
-        while (byteCost > byteBudget) {
-            if (evictionEntries.empty()) {
+        while (saturatedQtByteSum(aggregateByteCost(), additionalByteCost) > byteBudget) {
+            const auto evictable = std::ranges::find_if(evictionEntries, [](const auto& indexed) {
+                const Entry& entry = *indexed.second;
+                return entry.outputAdmission != nullptr && entry.outputAdmission.use_count() == 2
+                    && entry.image.isDetached();
+            });
+            if (evictable == evictionEntries.end()) {
                 return;
             }
-            removeEntry(evictionEntries.begin()->second);
+            removeEntry(evictable->second);
         }
     }
 };
@@ -329,29 +458,83 @@ DisplayImageStore::DisplayImageStore(qsizetype byteBudget)
 
 DisplayImageStore::~DisplayImageStore() = default;
 
-QString DisplayImageStore::acquireReusable(DisplayImageEntry entry, DisplayImageReuseKey reuseKey)
+QString DisplayImageStore::acquireReusable(DisplayImageEntry entry, DisplayImageReuseKey reuseKey,
+    std::shared_ptr<DisplayImageOutputAdmission> outputAdmission)
 {
+    const auto retireUnstoredOutput = [&]() {
+        entry.image = {};
+        outputAdmission.reset();
+    };
     if (entry.image.isNull() || reuseKey.locationIdentity.isEmpty()
         || reuseKey.sourceIdentity.isEmpty() || !reuseKey.sourceRevision.isValid()
         || !reuseKey.rasterIdentity.isValid()) {
+        retireUnstoredOutput();
         return {};
     }
 
     const qsizetype byteCost = imageByteCost(entry.image);
     QMutexLocker locker(&d->mutex);
+    if (outputAdmission != nullptr) {
+        if (outputAdmission->d == nullptr
+            || outputAdmission->d->ledger.get() != d->outputLedger.get() || byteCost <= 0
+            || byteCost > outputAdmission->d->byteCost.load()) {
+            retireUnstoredOutput();
+            return {};
+        }
+        const bool retained = outputAdmission->retainOnly(byteCost);
+        Q_ASSERT(retained);
+    }
     auto reusable = d->findReusableEntry(reuseKey);
     if (reusable != d->images.end()) {
         reusable->priority = entry.priority;
         d->touchEntry(reusable);
         d->trimToBudget();
-        return reusable->id;
+        const QString id = reusable->id;
+        retireUnstoredOutput();
+        return id;
     }
 
     if (byteCost <= 0 || byteCost > d->byteBudget) {
+        retireUnstoredOutput();
         return {};
     }
 
-    return d->insertNewEntry(std::move(entry), byteCost, std::move(reuseKey));
+    if (outputAdmission == nullptr) {
+        auto data
+            = std::make_unique<DisplayImageOutputAdmission::Private>(d->outputLedger, byteCost);
+        outputAdmission = std::shared_ptr<DisplayImageOutputAdmission>(
+            new DisplayImageOutputAdmission(std::move(data)));
+    }
+
+    return d->insertNewEntry(
+        std::move(entry), byteCost, std::move(reuseKey), std::move(outputAdmission));
+}
+
+std::shared_ptr<DisplayImageOutputAdmission> DisplayImageStore::reserveOutput(qsizetype byteCost)
+{
+    if (byteCost <= 0) {
+        return {};
+    }
+
+    QMutexLocker locker(&d->mutex);
+    if (byteCost > d->byteBudget) {
+        return {};
+    }
+    d->trimToBudget(byteCost);
+    if (saturatedQtByteSum(d->aggregateByteCost(), byteCost) > d->byteBudget) {
+        return {};
+    }
+
+    auto data = std::make_unique<DisplayImageOutputAdmission::Private>(d->outputLedger, byteCost);
+    return std::shared_ptr<DisplayImageOutputAdmission>(
+        new DisplayImageOutputAdmission(std::move(data)));
+}
+
+qsizetype DisplayImageStore::availableOutputBytes() const
+{
+    QMutexLocker locker(&d->mutex);
+    const qsizetype aggregateByteCost = std::min(d->aggregateByteCost(), d->byteBudget);
+    return d->byteBudget - aggregateByteCost;
 }
 
 std::optional<DisplayImageStoreEntry> DisplayImageStore::entry(const QString& id) const
@@ -415,7 +598,7 @@ qsizetype DisplayImageStore::byteBudget() const
 qsizetype DisplayImageStore::byteCost() const
 {
     QMutexLocker locker(&d->mutex);
-    return d->byteCost;
+    return d->aggregateByteCost();
 }
 
 qsizetype DisplayImageStore::size() const

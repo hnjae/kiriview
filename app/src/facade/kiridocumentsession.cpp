@@ -526,8 +526,14 @@ KiriDocumentSession::KiriDocumentSession(kiriview::KiriDocumentSessionDependenci
             handleSessionChanges(changes);
         },
         std::move(dependencies.sessionRuntime));
+    m_mediaInformationEffectRuntime = std::make_unique<kiriview::MediaInformationEffectRuntime>(
+        [this]() {
+            return m_runtime == nullptr ? kiriview::MediaInformationProjectionSnapshot {}
+                                        : m_runtime->mediaInformationSnapshot();
+        },
+        std::move(dependencies.mediaInformationEffects));
     m_mediaInformation
-        = new KiriMediaInformation(*this, std::move(dependencies.mediaInformationEffects), this);
+        = new KiriMediaInformation(*this, m_mediaInformationEffectRuntime->commandPort(), this);
 }
 
 KiriDocumentSession::~KiriDocumentSession()
@@ -535,6 +541,7 @@ KiriDocumentSession::~KiriDocumentSession()
     const QSignalBlocker sessionSignals(this);
     const QSignalBlocker imageDocumentSignals(m_imageDocument);
     const QSignalBlocker videoDocumentSignals(m_videoDocument);
+    m_mediaInformationEffectRuntime.reset();
     m_videoDocument->runWithPublicSignalsSuppressed([this]() { m_runtime.reset(); });
 }
 

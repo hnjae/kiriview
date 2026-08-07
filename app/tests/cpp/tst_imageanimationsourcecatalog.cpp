@@ -5,7 +5,9 @@
 
 #include "decoding/animationtiming.h"
 #include "decoding/apnganimationreader.h"
+#include "decoding/heifsequencereader.h"
 #include "decoding/imageanimationrequest.h"
+#include "decoding/imagedecodeworkspace.h"
 
 #include <QByteArray>
 #include <QFile>
@@ -14,6 +16,7 @@
 #include <QString>
 #include <QTest>
 #include <QtGlobal>
+#include <memory>
 #include <utility>
 
 namespace {
@@ -41,7 +44,8 @@ QByteArray finiteLoopGifData()
                           "AAACAkQBACH5BAACAAAALAAAAAABAAEAAAICTAEAOw=="));
 }
 
-kiriview::ImageAnimationPlaybackRequest playbackRequest(PlaybackKind kind, QByteArray data)
+kiriview::ImageAnimationPlaybackRequest playbackRequest(PlaybackKind kind, QByteArray data,
+    std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> workspaceBudget = {})
 {
     switch (kind) {
     case PlaybackKind::Gif:
@@ -49,9 +53,11 @@ kiriview::ImageAnimationPlaybackRequest playbackRequest(PlaybackKind kind, QByte
     case PlaybackKind::Apng:
         return kiriview::apngAnimationPlaybackRequest(std::move(data));
     case PlaybackKind::WebP:
-        return kiriview::webpAnimationPlaybackRequest(std::move(data));
+        return kiriview::webpAnimationPlaybackRequest(
+            std::move(data), {}, std::move(workspaceBudget));
     case PlaybackKind::Jxl:
-        return kiriview::jxlAnimationPlaybackRequest(std::move(data));
+        return kiriview::jxlAnimationPlaybackRequest(
+            std::move(data), {}, std::move(workspaceBudget));
     case PlaybackKind::HeifSequence:
         return kiriview::heifSequenceAnimationPlaybackRequest(std::move(data));
     }
@@ -121,6 +127,9 @@ private Q_SLOTS:
     void realAnimationSourcesExposeNormalizedCatalogs_data();
     void realAnimationSourcesExposeNormalizedCatalogs();
     void apngCatalogDoesNotRequireLaterRasterDecode();
+    void catalogWorkspaceFailureIsTyped_data();
+    void catalogWorkspaceFailureIsTyped();
+    void heifCatalogChargesRetainedFirstFrameSeparately();
 };
 
 void TestImageAnimationSourceCatalog::realAnimationSourcesExposeNormalizedCatalogs_data()
@@ -155,7 +164,8 @@ void TestImageAnimationSourceCatalog::realAnimationSourcesExposeNormalizedCatalo
 
     kiriview::ImageAnimationSourceCatalogResult result = kiriview::readImageAnimationSourceCatalog(
         playbackRequest(static_cast<PlaybackKind>(kind), data));
-    QVERIFY2(result.has_value(), qPrintable(result.has_value() ? QString() : result.error()));
+    QVERIFY2(result.has_value(),
+        qPrintable(result.has_value() ? QString() : result.error().errorString));
     QVERIFY(result->isValid());
     QCOMPARE(result->logicalSize, logicalSize);
     QCOMPARE(result->repeatCount, repeatCount);
@@ -179,7 +189,8 @@ void TestImageAnimationSourceCatalog::apngCatalogDoesNotRequireLaterRasterDecode
 
     kiriview::ImageAnimationSourceCatalogResult result
         = kiriview::readImageAnimationSourceCatalog(kiriview::apngAnimationPlaybackRequest(data));
-    QVERIFY2(result.has_value(), qPrintable(result.has_value() ? QString() : result.error()));
+    QVERIFY2(result.has_value(),
+        qPrintable(result.has_value() ? QString() : result.error().errorString));
     QVERIFY(result->isValid());
     QCOMPARE(result->logicalSize, QSize(2, 1));
     QCOMPARE(result->repeatCount, -1);
@@ -188,6 +199,73 @@ void TestImageAnimationSourceCatalog::apngCatalogDoesNotRequireLaterRasterDecode
         QVERIFY(duration > 0);
         QCOMPARE(duration, kiriview::normalizedAnimationFrameDelay(duration));
     }
+}
+
+void TestImageAnimationSourceCatalog::catalogWorkspaceFailureIsTyped_data()
+{
+    QTest::addColumn<int>("kind");
+    QTest::addColumn<QString>("fileName");
+
+    QTest::newRow("webp") << static_cast<int>(PlaybackKind::WebP)
+                          << QStringLiteral("animated-smoke.webp");
+    QTest::newRow("jxl") << static_cast<int>(PlaybackKind::Jxl)
+                         << QStringLiteral("animated-smoke.jxl");
+}
+
+void TestImageAnimationSourceCatalog::catalogWorkspaceFailureIsTyped()
+{
+    QFETCH(int, kind);
+    QFETCH(QString, fileName);
+
+    const QByteArray data = fixtureData(fileName);
+    QVERIFY(!data.isEmpty());
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(1, 1);
+    const kiriview::ImageAnimationSourceCatalogResult catalog
+        = kiriview::readImageAnimationSourceCatalog(
+            playbackRequest(static_cast<PlaybackKind>(kind), data, budget));
+
+    QVERIFY(!catalog.has_value());
+    QCOMPARE(catalog.error().errorString, kiriview::imageDecodeWorkspaceResourceLimitDiagnostic());
+    QCOMPARE(catalog.error().cause,
+        kiriview::ImageAnimationSourceCatalogFailureCause::ResourceLimitExceeded);
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
+void TestImageAnimationSourceCatalog::heifCatalogChargesRetainedFirstFrameSeparately()
+{
+    const QByteArray data = fixtureData(QStringLiteral("heif-sequence-alpha.heics"));
+    QVERIFY(!data.isEmpty());
+    constexpr qsizetype generousByteCount = qsizetype { 256 } * 1024 * 1024;
+    auto measurementBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        generousByteCount, generousByteCount);
+    kiriview::HeifSequenceReader measuredReader(measurementBudget);
+    const kiriview::HeifSequenceOpenResult measuredOpen = measuredReader.open(data);
+    QCOMPARE(measuredOpen.status, kiriview::HeifSequenceOpenStatus::Success);
+    kiriview::AnimationFrameReadResult measuredFirst = measuredReader.readNextFrame();
+    QVERIFY(measuredFirst && measuredFirst->has_value());
+    const qsizetype firstFrameReservationByteCount = measurementBudget->reservedByteCount();
+    QVERIFY(firstFrameReservationByteCount > (**measuredFirst).image.sizeInBytes());
+    measuredFirst = std::optional<kiriview::AnimationFrame>();
+    measuredReader.close();
+    QCOMPARE(measurementBudget->reservedByteCount(), qsizetype(0));
+
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        firstFrameReservationByteCount, firstFrameReservationByteCount);
+    kiriview::HeifSequenceReader reader(budget);
+    const kiriview::HeifSequenceOpenResult opened = reader.open(data);
+    QCOMPARE(opened.status, kiriview::HeifSequenceOpenStatus::Success);
+    kiriview::AnimationFrameReadResult firstFrame = reader.readNextFrame();
+    QVERIFY(firstFrame && firstFrame->has_value());
+    QCOMPARE(budget->reservedByteCount(), firstFrameReservationByteCount);
+
+    const kiriview::ImageAnimationSourceCatalogResult catalog
+        = kiriview::readHeifSequenceAnimationSourceCatalog(
+            reader, **firstFrame, opened.repeatCount);
+    QVERIFY(!catalog.has_value());
+    QCOMPARE(catalog.error().errorString, kiriview::imageDecodeWorkspaceResourceLimitDiagnostic());
+    QCOMPARE(catalog.error().cause,
+        kiriview::ImageAnimationSourceCatalogFailureCause::ResourceLimitExceeded);
+    QVERIFY(reader.lastReadResourceLimitExceeded());
 }
 
 QTEST_GUILESS_MAIN(TestImageAnimationSourceCatalog)

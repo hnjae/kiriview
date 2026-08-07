@@ -1199,7 +1199,6 @@ Item {
     }
 
     Component.onCompleted: {
-        application.setDocumentSession(documentSession);
         publishActionUiState();
     }
 
@@ -1258,6 +1257,13 @@ ToolBarMenuFixture createFixtureFromQml(const QString& qml, const QUrl& componen
     }
 
     fixture.view->setContent(componentUrl, &component, root);
+    KiriViewApplication* const application
+        = root->findChild<KiriViewApplication*>(QString(), Qt::FindChildrenRecursively);
+    KiriDocumentSession* const documentSession
+        = root->findChild<KiriDocumentSession*>(QString(), Qt::FindChildrenRecursively);
+    if (application != nullptr && documentSession != nullptr) {
+        application->setDocumentSession(documentSession);
+    }
     fixture.view->show();
     if (!QTest::qWaitForWindowExposed(fixture.view.get())) {
         fixture.errorString = QStringLiteral("test window was not exposed");

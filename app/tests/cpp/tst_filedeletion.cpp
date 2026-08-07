@@ -16,6 +16,8 @@ class TestFileDeletion : public QObject
 
 private Q_SLOTS:
     void kioOperationFailurePreservesKJobFields();
+    void kioOperationFailureClassifiesRetryability_data();
+    void kioOperationFailureClassifiesRetryability();
     void kioOperationFailureClassifiesCanceledErrors();
     void validationFailureHasDiagnosticWithoutRawCode();
     void completionActionRoutesDeletionResults();
@@ -35,7 +37,49 @@ void TestFileDeletion::kioOperationFailurePreservesKJobFields()
     QVERIFY(!failure.canceled);
     QCOMPARE(failure.userMessage, QStringLiteral("permission denied"));
     QCOMPARE(failure.diagnosticDetail, QStringLiteral("permission denied"));
-    QVERIFY(failure.retryable);
+    QVERIFY(!failure.retryable);
+}
+
+void TestFileDeletion::kioOperationFailureClassifiesRetryability_data()
+{
+    QTest::addColumn<int>("operationKind");
+    QTest::addColumn<int>("errorCode");
+    QTest::addColumn<bool>("retryable");
+
+    using Kind = kiriview::KioOperationKind;
+    QTest::newRow("listing-connection-broken")
+        << static_cast<int>(Kind::DirectoryListing) << static_cast<int>(KIO::ERR_CONNECTION_BROKEN)
+        << true;
+    QTest::newRow("delete-server-timeout") << static_cast<int>(Kind::FileDeletion)
+                                           << static_cast<int>(KIO::ERR_SERVER_TIMEOUT) << true;
+    QTest::newRow("open-with-service-unavailable")
+        << static_cast<int>(Kind::MediaOpenWith) << static_cast<int>(KIO::ERR_SERVICE_NOT_AVAILABLE)
+        << true;
+    QTest::newRow("access-denied") << static_cast<int>(Kind::FileDeletion)
+                                   << static_cast<int>(KIO::ERR_ACCESS_DENIED) << false;
+    QTest::newRow("authentication-required")
+        << static_cast<int>(Kind::DirectoryListing)
+        << static_cast<int>(KIO::ERR_CANNOT_AUTHENTICATE) << false;
+    QTest::newRow("malformed-url") << static_cast<int>(Kind::MediaOpenWith)
+                                   << static_cast<int>(KIO::ERR_MALFORMED_URL) << false;
+    QTest::newRow("unknown-kio-error")
+        << static_cast<int>(Kind::DirectoryListing) << static_cast<int>(KIO::ERR_UNKNOWN) << false;
+    QTest::newRow("unrecognized-error-code")
+        << static_cast<int>(Kind::FileDeletion) << KJob::UserDefinedError + 4096 << false;
+}
+
+void TestFileDeletion::kioOperationFailureClassifiesRetryability()
+{
+    QFETCH(int, operationKind);
+    QFETCH(int, errorCode);
+    QFETCH(bool, retryable);
+
+    const kiriview::KioOperationFailure failure = kiriview::kioOperationFailureFromKJob(
+        static_cast<kiriview::KioOperationKind>(operationKind),
+        QUrl::fromLocalFile(QStringLiteral("/images/page.png")), errorCode,
+        QStringLiteral("backend failure"));
+
+    QCOMPARE(failure.retryable, retryable);
 }
 
 void TestFileDeletion::kioOperationFailureClassifiesCanceledErrors()

@@ -18,7 +18,7 @@ private Q_SLOTS:
     void mediaInformationInvokablesDispatchCurrentValuesOnce();
     void mediaInformationInvokablesFollowReplacementCurrentness();
     void copyFilePathSurvivesSynchronousSessionDestruction();
-    void openContainingFolderSurvivesSynchronousSessionDestruction();
+    void openContainingFolderRetiresJobAfterSynchronousSessionDestruction();
 };
 
 #include "kiridocumentsession_media_information.inc"

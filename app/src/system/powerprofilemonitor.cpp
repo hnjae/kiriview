@@ -75,10 +75,16 @@ bool PowerProfileMonitor::powerSaverEnabled() const { return m_state.powerSaverE
 void PowerProfileMonitor::handlePropertiesChanged(const QString& interfaceName,
     const QVariantMap& changedProperties, const QStringList& invalidatedProperties)
 {
-    ++m_refreshRevision;
-    const PowerProfileMonitorPlan plan
-        = m_state.applyEvent(powerProfileMonitorEventFromPropertiesChanged(
-            interfaceName, changedProperties, invalidatedProperties));
+    const PowerProfileMonitorEvent event = powerProfileMonitorEventFromPropertiesChanged(
+        interfaceName, changedProperties, invalidatedProperties);
+    if (event.kind == PowerProfileMonitorEventKind::Ignore) {
+        return;
+    }
+
+    if (event.kind == PowerProfileMonitorEventKind::PowerSaverValue) {
+        ++m_refreshRevision;
+    }
+    const PowerProfileMonitorPlan plan = m_state.applyEvent(event);
     applyPlan(plan);
     if (plan.refreshPowerSaverEnabled) {
         refreshPowerSaverEnabled();

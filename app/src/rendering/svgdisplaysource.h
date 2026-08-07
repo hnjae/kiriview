@@ -27,6 +27,8 @@ public:
     [[nodiscard]] StaticImageFirstDisplayDecodeResult decodeFirstDisplayImage(
         const ImageFirstDisplayDecodeContext& context) const override;
     [[nodiscard]] bool supportsRasterDisplayRefinement() const override;
+    [[nodiscard]] std::optional<qsizetype> rasterDisplayRefinementPeakByteCost(
+        const QSize& rasterSize) const override;
     [[nodiscard]] StaticImageDisplayDecodeResult decodeRasterDisplayImage(
         const QSize& rasterSize) const override;
     [[nodiscard]] StaticImageDisplayDecodeResult decodeBlockingDisplayImage(

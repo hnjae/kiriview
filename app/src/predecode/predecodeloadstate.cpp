@@ -9,22 +9,6 @@
 #include <QDebug>
 #include <utility>
 
-namespace {
-std::vector<kiriview::DisplayedImageLocation> displayedPredecodeImageLocations(
-    const std::vector<kiriview::DisplayedPredecodeImage>& images)
-{
-    std::vector<kiriview::DisplayedImageLocation> locations;
-    locations.reserve(images.size());
-    for (const kiriview::DisplayedPredecodeImage& image : images) {
-        if (image.hasLocation()) {
-            locations.push_back(image.location);
-        }
-    }
-
-    return locations;
-}
-}
-
 namespace kiriview {
 PredecodeLoadState::PredecodeLoadState(qsizetype cacheByteBudget)
     : m_cache(cacheByteBudget)
@@ -35,7 +19,7 @@ void PredecodeLoadState::cacheDisplayedImages(const std::vector<DisplayedPredeco
 {
     qCDebug(kiriviewPredecodeLog) << "cache displayed images"
                                   << "count" << images.size();
-    m_cache.setDisplayedLocations(displayedPredecodeImageLocations(images));
+    m_cache.setDisplayedImages(images);
     for (const DisplayedPredecodeImage& image : images) {
         if (!image.isCacheable()) {
             qCDebug(kiriviewPredecodeLog)

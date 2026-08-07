@@ -166,12 +166,12 @@ public:
     Q_INVOKABLE [[nodiscard]] KiriViewApplication::ActionId navigationPresentationIconActionId(
         KiriViewApplication::NavigationPresentationSlot slot) const;
     Q_INVOKABLE [[nodiscard]] QVariantList navigationApplicationMenuActionIds() const;
-    Q_INVOKABLE void setDocumentSession(QObject* session);
-    Q_INVOKABLE void setWindowShell(QObject* shell);
+    void setDocumentSession(QObject* session);
+    void setWindowShell(QObject* shell);
     Q_INVOKABLE void updateActionUiGateSnapshot(bool helpDialogOpen, bool textInputFocused,
         bool infoPanelVisible, bool thumbnailPanelVisible, bool fullscreen,
         bool applicationMenuShortcutEnabled, bool showMenubarActionEnabled);
-    Q_INVOKABLE void setShortcutHost(QObject* host);
+    void setShortcutHost(QObject* host);
 
 Q_SIGNALS:
     void menuPresentationChanged();

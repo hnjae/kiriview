@@ -28,6 +28,7 @@ Controls.Pane {
             thumbnailStrip.scheduleThumbnailDemandWindow();
         } else {
             thumbnailStrip.automaticScrollAnimationEnabled = false;
+            thumbnailStrip.reportHiddenThumbnailDemandWindow();
         }
     }
 
@@ -242,12 +243,10 @@ Controls.Pane {
                 return delegates;
             }
 
-            function reportThumbnailDemandWindow() {
-                demandWindowReportPending = false;
-                if (!root.visible || count <= 0) {
-                    return;
+            function thumbnailDemandWindow() {
+                if (count <= 0) {
+                    return null;
                 }
-
                 const delegates = thumbnailDelegates();
                 let navigationGeneration = 0;
                 for (let index = 0; index < delegates.length; ++index) {
@@ -257,7 +256,7 @@ Controls.Pane {
                     }
                 }
                 if (navigationGeneration <= 0) {
-                    return;
+                    return null;
                 }
 
                 const demands = [];
@@ -267,11 +266,35 @@ Controls.Pane {
                         continue;
                     }
                     if (demand.navigationGeneration !== navigationGeneration) {
-                        return;
+                        return null;
                     }
                     demands.push(demand);
                 }
-                root.documentSession.replaceActiveNavigationThumbnailDemandSnapshot(navigationGeneration, demands);
+                return {
+                    "demands": demands,
+                    "navigationGeneration": navigationGeneration
+                };
+            }
+
+            function reportHiddenThumbnailDemandWindow() {
+                const demandWindow = thumbnailDemandWindow();
+                if (demandWindow === null) {
+                    return;
+                }
+                root.documentSession.replaceActiveNavigationThumbnailDemandSnapshot(demandWindow.navigationGeneration, []);
+            }
+
+            function reportThumbnailDemandWindow() {
+                demandWindowReportPending = false;
+                if (!root.visible) {
+                    return;
+                }
+
+                const demandWindow = thumbnailDemandWindow();
+                if (demandWindow === null) {
+                    return;
+                }
+                root.documentSession.replaceActiveNavigationThumbnailDemandSnapshot(demandWindow.navigationGeneration, demandWindow.demands);
             }
 
             function scheduleThumbnailDemandWindow() {

@@ -6,6 +6,7 @@
 #include "archive/mediaentrysourcebackend.h"
 #include "async/imageioworkerjob.h"
 #include "bridge/rustqtconversion.h"
+#include "cache/imagebyteaccounting.h"
 #include "decoding/decodedimageresult.h"
 #include "decoding/kiriimagedecoder.h"
 #include "kiriview/src/support/thumbnailcache.cxx.h"
@@ -23,6 +24,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <new>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -186,14 +188,18 @@ QImage thumbnailFrame(QImage image, int maximumLongEdge)
         return image;
     }
 
-    return image.scaled(targetSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    try {
+        return image.scaled(targetSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    } catch (const std::bad_alloc&) {
+        return {};
+    }
 }
 
-QImage renderedThumbnailImage(
-    const kiriview::DecodedImage& decoded, int maximumLongEdge, QString* errorString)
+QImage renderedThumbnailImage(const kiriview::DecodedImage& decoded, int maximumLongEdge,
+    QString* errorString, kiriview::DecodedImageFailureCause* failureCause)
 {
     return std::visit(
-        [maximumLongEdge, errorString](const auto& image) -> QImage {
+        [maximumLongEdge, errorString, failureCause](const auto& image) -> QImage {
             using Image = std::decay_t<decltype(image)>;
             if constexpr (std::is_same_v<Image, kiriview::StaticDecodedImage>) {
                 if (image.displayImage.refinementSource == nullptr) {
@@ -208,12 +214,93 @@ QImage renderedThumbnailImage(
                 if (result.image.isNull() && errorString != nullptr) {
                     *errorString = result.diagnostics.userMessage;
                 }
+                if (result.image.isNull() && failureCause != nullptr
+                    && result.failureCause
+                        == kiriview::StaticImageDisplayDecodeFailureCause::ResourceExhausted) {
+                    *failureCause = kiriview::DecodedImageFailureCause::ResourceLimitExceeded;
+                }
                 return result.image;
             } else {
-                return thumbnailFrame(image.firstFrame, maximumLongEdge);
+                QImage rendered = thumbnailFrame(image.firstFrame, maximumLongEdge);
+                if (rendered.isNull() && failureCause != nullptr) {
+                    *failureCause = kiriview::DecodedImageFailureCause::ResourceLimitExceeded;
+                }
+                return rendered;
             }
         },
         decoded);
+}
+
+struct ThumbnailTransformationPlan
+{
+    qsizetype outputByteCount = 0;
+    qsizetype transientByteCount = 0;
+    bool renderCreatesOutput = false;
+};
+
+std::optional<qsizetype> thumbnailSmoothScaleTransientByteCount(QSize sourceSize, QSize targetSize)
+{
+    if (sourceSize.isEmpty() || targetSize.isEmpty() || sourceSize == targetSize) {
+        return qsizetype(0);
+    }
+
+    // Qt smooth scaling currently allocates coordinate/weight arrays and may queue one task per
+    // output row. Charge deliberately broad per-row headroom so these short-lived allocations do
+    // not hide behind the independently retained output reservation.
+    constexpr qsizetype fixedByteCount = qsizetype { 1 } * 1024 * 1024;
+    constexpr qsizetype coordinateBytesPerDimension = 16;
+    constexpr qsizetype schedulingBytesPerOutputRow = qsizetype { 64 } * 1024;
+    const qsizetype coordinateByteCount = kiriview::saturatedQtByteProduct(
+        static_cast<qsizetype>(targetSize.width()) + targetSize.height(),
+        coordinateBytesPerDimension);
+    const qsizetype schedulingByteCount
+        = kiriview::saturatedQtByteProduct(targetSize.height(), schedulingBytesPerOutputRow);
+    const qsizetype transientByteCount = kiriview::saturatedQtByteSum(
+        fixedByteCount, kiriview::saturatedQtByteSum(coordinateByteCount, schedulingByteCount));
+    return transientByteCount == std::numeric_limits<qsizetype>::max()
+        ? std::nullopt
+        : std::optional<qsizetype>(transientByteCount);
+}
+
+std::optional<ThumbnailTransformationPlan> thumbnailTransformationPlan(
+    const kiriview::DecodedImage& decoded, int maximumLongEdge)
+{
+    struct TransformationTarget
+    {
+        QSize sourceSize;
+        QSize targetSize;
+        bool renderCreatesOutput = false;
+        bool usesSmoothScale = false;
+    };
+    const TransformationTarget target = std::visit(
+        [maximumLongEdge](const auto& image) -> TransformationTarget {
+            using Image = std::decay_t<decltype(image)>;
+            if constexpr (std::is_same_v<Image, kiriview::StaticDecodedImage>) {
+                if (image.displayImage.refinementSource == nullptr) {
+                    return {};
+                }
+                const QSize sourceSize = image.displayImage.refinementSource->imageSize();
+                return { sourceSize, boundedSize(sourceSize, maximumLongEdge), true, false };
+            } else {
+                const QSize targetSize = boundedSize(image.firstFrame.size(), maximumLongEdge);
+                const bool createsOutput = targetSize != image.firstFrame.size();
+                return { image.firstFrame.size(), targetSize, createsOutput, createsOutput };
+            }
+        },
+        decoded);
+    const std::optional<qsizetype> outputByteCount
+        = kiriview::checkedImageDecodeWorkspaceByteCount(target.targetSize, 4, 1);
+    const std::optional<qsizetype> transientByteCount = target.usesSmoothScale
+        ? thumbnailSmoothScaleTransientByteCount(target.sourceSize, target.targetSize)
+        : std::optional<qsizetype>(0);
+    if (!outputByteCount.has_value() || !transientByteCount.has_value()) {
+        return std::nullopt;
+    }
+    return ThumbnailTransformationPlan {
+        *outputByteCount,
+        *transientByteCount,
+        target.renderCreatesOutput,
+    };
 }
 
 kiriview::ThumbnailGenerationImageDecodeResult defaultThumbnailGenerationImageDecoder(
@@ -227,6 +314,7 @@ kiriview::ThumbnailGenerationImageDecodeResult defaultThumbnailGenerationImageDe
         return {
             {},
             {},
+            {},
             failure->errorString,
             failure->cause,
         };
@@ -237,44 +325,71 @@ kiriview::ThumbnailGenerationImageDecodeResult defaultThumbnailGenerationImageDe
         return {
             {},
             {},
+            {},
             QStringLiteral("image decode produced no image"),
             kiriview::DecodedImageFailureCause::Unknown,
         };
     }
 
     kiriview::ThumbnailGenerationWorkspaceHolds workspaceHolds;
-    if (auto* apng = std::get_if<kiriview::ApngAnimationImage>(decoded)) {
-        const qsizetype transformationByteCount = apng->firstFrameWorkspaceHold.reservedByteCount();
-        kiriview::ImageDecodeWorkspaceLease transformationLease = workspaceBudget->startLease();
-        if (!transformationLease.tryReserve(transformationByteCount)) {
-            return {
-                {},
-                {},
-                kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
-                kiriview::DecodedImageFailureCause::ResourceLimitExceeded,
-            };
-        }
-        kiriview::ImageDecodeWorkspaceHold transformationHold
-            = transformationLease.retainOnly(transformationByteCount);
-        if (!transformationHold.isManaged()) {
-            return {
-                {},
-                {},
-                kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
-                kiriview::DecodedImageFailureCause::ResourceLimitExceeded,
-            };
-        }
-        workspaceHolds.decodedImage = std::move(apng->firstFrameWorkspaceHold);
-        workspaceHolds.transformation = std::move(transformationHold);
+    kiriview::ImageDecodeWorkspaceHold decodedImageWorkspaceHold = std::visit(
+        [](auto& image) -> kiriview::ImageDecodeWorkspaceHold {
+            if constexpr (requires { image.firstFrameWorkspaceHold; }) {
+                return image.firstFrameWorkspaceHold;
+            }
+            return {};
+        },
+        *decoded);
+    const std::optional<ThumbnailTransformationPlan> transformationPlan
+        = thumbnailTransformationPlan(*decoded, maximumLongEdge);
+    if (!transformationPlan.has_value()) {
+        return {
+            {},
+            {},
+            {},
+            kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+            kiriview::DecodedImageFailureCause::ResourceLimitExceeded,
+        };
     }
 
+    kiriview::ImageDecodeWorkspaceLease transformationLease
+        = workspaceBudget->startLeaseForOperation(decodedImageWorkspaceHold.reservedByteCount());
+    const qsizetype transformationReservationByteCount = kiriview::saturatedQtByteSum(
+        transformationPlan->outputByteCount, transformationPlan->transientByteCount);
+    if (transformationReservationByteCount == std::numeric_limits<qsizetype>::max()
+        || !transformationLease.tryReserve(transformationReservationByteCount)) {
+        return {
+            {},
+            {},
+            {},
+            kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+            kiriview::DecodedImageFailureCause::ResourceLimitExceeded,
+        };
+    }
+    workspaceHolds.decodedImage = std::move(decodedImageWorkspaceHold);
+
     QString errorString;
-    QImage image = renderedThumbnailImage(*decoded, maximumLongEdge, &errorString);
+    kiriview::DecodedImageFailureCause failureCause = kiriview::DecodedImageFailureCause::Unknown;
+    QImage image;
+    try {
+        image = renderedThumbnailImage(*decoded, maximumLongEdge, &errorString, &failureCause);
+    } catch (const std::bad_alloc&) {
+        errorString = kiriview::imageDecodeWorkspaceResourceLimitDiagnostic();
+        failureCause = kiriview::DecodedImageFailureCause::ResourceLimitExceeded;
+    }
+    if (!transformationLease.release(transformationPlan->transientByteCount)) {
+        image = {};
+        errorString = kiriview::imageDecodeWorkspaceResourceLimitDiagnostic();
+        failureCause = kiriview::DecodedImageFailureCause::ResourceLimitExceeded;
+    }
     return {
         std::move(workspaceHolds),
+        std::move(transformationLease),
         std::move(image),
         std::move(errorString),
-        kiriview::DecodedImageFailureCause::Unknown,
+        failureCause,
+        transformationPlan->outputByteCount,
+        transformationPlan->renderCreatesOutput,
     };
 }
 
@@ -434,15 +549,72 @@ kiriview::ThumbnailGenerationCacheInstallResult installThumbnail(
 kiriview::ThumbnailGenerationResult finishGeneratedThumbnailImage(
     const kiriview::ThumbnailGenerationRequest& request,
     const kiriview::ThumbnailOriginalIdentity& originalIdentity,
-    kiriview::ThumbnailGenerationWorkspaceHolds workspaceHolds, const QImage& image,
+    kiriview::ThumbnailGenerationWorkspaceHolds workspaceHolds,
+    kiriview::ImageDecodeWorkspaceLease transformationLease, QImage image,
+    qsizetype transformationOutputByteCount, bool imageUsesTransformationReservation,
     const kiriview::ThumbnailGenerationDependencies& dependencies)
 {
-    QImage rgba8 = image.convertToFormat(QImage::Format_RGBA8888);
+    if (transformationOutputByteCount <= 0) {
+        const std::optional<qsizetype> measuredOutputByteCount
+            = kiriview::checkedImageDecodeWorkspaceByteCount(image.size(), 4, 1);
+        if (!measuredOutputByteCount.has_value()) {
+            image = {};
+            workspaceHolds = {};
+            return failedResult(request.requestedBucket,
+                kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+                kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded);
+        }
+        transformationOutputByteCount = *measuredOutputByteCount;
+    }
+    if (!transformationLease.isManaged()) {
+        transformationLease = dependencies.workspaceBudget->startLeaseForOperation(
+            workspaceHolds.decodedImage.reservedByteCount());
+        if (!transformationLease.tryReserve(transformationOutputByteCount)) {
+            image = {};
+            workspaceHolds = {};
+            return failedResult(request.requestedBucket,
+                kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+                kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded);
+        }
+        imageUsesTransformationReservation = false;
+    }
+
+    const bool conversionCreatesOutput = image.format() != QImage::Format_RGBA8888;
+    if (conversionCreatesOutput && imageUsesTransformationReservation
+        && !transformationLease.tryReserve(transformationOutputByteCount)) {
+        image = {};
+        workspaceHolds = {};
+        return failedResult(request.requestedBucket,
+            kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+            kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded);
+    }
+    QImage rgba8;
+    try {
+        rgba8 = image.convertToFormat(QImage::Format_RGBA8888);
+    } catch (const std::bad_alloc&) {
+        image = {};
+        workspaceHolds = {};
+        return failedResult(request.requestedBucket,
+            kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+            kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded);
+    }
     if (rgba8.isNull()) {
-        kiriview::ThumbnailGenerationResult failure = failedResult(
-            request.requestedBucket, QStringLiteral("thumbnail image conversion failed"));
-        failure.workspaceHolds = std::move(workspaceHolds);
-        return failure;
+        image = {};
+        workspaceHolds = {};
+        return failedResult(request.requestedBucket,
+            kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+            kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded);
+    }
+
+    image = {};
+    workspaceHolds.decodedImage = {};
+    workspaceHolds.transformation = transformationLease.retainOnly(transformationOutputByteCount);
+    if (!workspaceHolds.transformation.isManaged()) {
+        rgba8 = {};
+        workspaceHolds = {};
+        return failedResult(request.requestedBucket,
+            kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+            kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded);
     }
 
     if (!request.cacheInstallEnabled) {
@@ -459,10 +631,9 @@ kiriview::ThumbnailGenerationResult finishGeneratedThumbnailImage(
     const kiriview::ThumbnailGenerationCacheInstallResult install
         = dependencies.cacheRepository.install(originalIdentity, request.requestedBucket, rgba8);
     if (!install.success) {
-        kiriview::ThumbnailGenerationResult failure
-            = failedResult(install.requestedBucket, install.errorString);
-        failure.workspaceHolds = std::move(workspaceHolds);
-        return failure;
+        rgba8 = {};
+        workspaceHolds = {};
+        return failedResult(install.requestedBucket, install.errorString);
     }
 
     return kiriview::ThumbnailGenerationResult {
@@ -584,7 +755,9 @@ kiriview::ThumbnailGenerationResult generateThumbnailWithDependencies(
     }
 
     return finishGeneratedThumbnailImage(request, originalIdentity,
-        std::move(decodeResult.workspaceHolds), decodeResult.image, dependencies);
+        std::move(decodeResult.workspaceHolds), std::move(decodeResult.transformationLease),
+        std::move(decodeResult.image), decodeResult.transformationOutputByteCount,
+        decodeResult.imageUsesTransformationReservation, dependencies);
 }
 
 kiriview::ImageIoJob startVideoThumbnailGenerationJob(QObject* receiver,
@@ -647,8 +820,8 @@ kiriview::ImageIoJob startVideoThumbnailGenerationJob(QObject* receiver,
                 return;
             }
 
-            callback(finishGeneratedThumbnailImage(
-                request, originalIdentity, {}, extractionResult.image, dependencies));
+            callback(finishGeneratedThumbnailImage(request, originalIdentity, {}, {},
+                std::move(extractionResult.image), 0, false, dependencies));
         });
 }
 }

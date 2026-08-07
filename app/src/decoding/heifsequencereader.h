@@ -5,6 +5,7 @@
 #define KIRIVIEW_HEIFSEQUENCEREADER_H
 
 #include "animationframe.h"
+#include "imagedecodeworkspace.h"
 
 #include <QByteArray>
 #include <QString>
@@ -17,6 +18,7 @@ enum class HeifSequenceOpenStatus {
     NotSequence,
     Success,
     Error,
+    ResourceLimitExceeded,
 };
 
 struct HeifSequenceOpenResult
@@ -30,6 +32,7 @@ class HeifSequenceReader final
 {
 public:
     HeifSequenceReader();
+    explicit HeifSequenceReader(std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget);
     ~HeifSequenceReader();
 
     HeifSequenceReader(const HeifSequenceReader&) = delete;
@@ -39,6 +42,7 @@ public:
 
     HeifSequenceOpenResult open(QByteArray data);
     AnimationFrameReadResult readNextFrame();
+    [[nodiscard]] bool lastReadResourceLimitExceeded() const;
     void close();
 
 private:

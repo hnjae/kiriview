@@ -6,6 +6,7 @@
 #include "bufferedimagereader.h"
 #include "imageanimationrequest.h"
 #include "imageanimationsourcecatalog.h"
+#include "imagedecodeworkspace.h"
 #include "localization/imageerrortext.h"
 #include "location/sourcekey.h"
 #include "rendering/imagerendering.h"
@@ -14,6 +15,7 @@
 
 #include <QImage>
 #include <memory>
+#include <optional>
 #include <utility>
 
 namespace {
@@ -50,7 +52,8 @@ QString qtRasterFailureDiagnosticDetail(const QByteArray& format,
 
 kiriview::DecodedImageResult failedQtRasterDecodedImageResult(QString errorString,
     kiriview::DecodedImageFailureOperation operation, const QByteArray& format,
-    const QString& backendError)
+    const QString& backendError,
+    kiriview::DecodedImageFailureCause cause = kiriview::DecodedImageFailureCause::Unknown)
 {
     return kiriview::failedDecodedImageResult(kiriview::DecodedImageFailure {
         std::move(errorString),
@@ -59,7 +62,28 @@ kiriview::DecodedImageResult failedQtRasterDecodedImageResult(QString errorStrin
         qtRasterFailureDiagnosticDetail(format, operation, backendError),
         kiriview::DecodedImageFailureSeverity::Error,
         false,
+        cause,
     });
+}
+
+kiriview::DecodedImageResult failedQtRasterWorkspaceResult(const QByteArray& format)
+{
+    const QString errorString
+        = kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeImageAnimation);
+    return failedQtRasterDecodedImageResult(errorString,
+        kiriview::DecodedImageFailureOperation::DecodeAnimationOpen, format,
+        kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+        kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+}
+
+std::optional<qsizetype> qtReaderAnimationWorkspaceByteCount(QSize imageSize)
+{
+    return kiriview::qImageReaderGifTransientWorkspaceByteCount(imageSize);
+}
+
+std::optional<qsizetype> qtReaderAnimationOutputByteCount(QSize imageSize)
+{
+    return kiriview::checkedImageDecodeWorkspaceByteCount(imageSize, 4, 1);
 }
 
 void stampQtRasterFailure(kiriview::DecodedImageResult& result, const QByteArray& format)
@@ -97,51 +121,77 @@ QString sourceIdentityForRequest(const kiriview::ImageDecodeRequest& request)
 }
 
 namespace kiriview {
-DecodedImageResult decodeQImageReaderImageData(
-    const QByteArray& data, const ImageDecodeRequest& request, QtRasterFormat format)
+DecodedImageResult decodeQImageReaderImageData(const QByteArray& data,
+    const ImageDecodeRequest& request, QtRasterFormat format,
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget)
 {
     const QByteArray readerFormat = qtImageReaderFormat(format);
+    if (format != QtRasterFormat::Gif) {
+        return openedStaticImageResult(data, request, readerFormat);
+    }
+
+    ImageAnimationSourceCatalogResult catalog = readImageAnimationSourceCatalog(
+        readerAnimationPlaybackRequest(data, readerFormat, {}, workspaceBudget));
+    if (!catalog.has_value()) {
+        if (catalog.error().cause
+            == ImageAnimationSourceCatalogFailureCause::ResourceLimitExceeded) {
+            return failedQtRasterWorkspaceResult(readerFormat);
+        }
+        return openedStaticImageResult(data, request, readerFormat);
+    }
+
+    const std::optional<qsizetype> workspaceByteCount
+        = qtReaderAnimationWorkspaceByteCount(catalog->logicalSize);
+    const std::optional<qsizetype> outputByteCount
+        = qtReaderAnimationOutputByteCount(catalog->logicalSize);
+    if (!workspaceByteCount.has_value() || !outputByteCount.has_value()) {
+        return failedQtRasterWorkspaceResult(readerFormat);
+    }
+    if (workspaceBudget == nullptr) {
+        workspaceBudget = defaultImageDecodeWorkspaceBudget();
+    }
+    ImageDecodeWorkspaceLease workspaceLease = workspaceBudget->startLease();
+    if (!workspaceLease.tryReserve(*workspaceByteCount)) {
+        return failedQtRasterWorkspaceResult(readerFormat);
+    }
+
+    ImageDecodeWorkspaceLease outputLease
+        = workspaceBudget->startLeaseForOperation(workspaceLease.reservedByteCount());
+    if (!outputLease.tryReserve(*outputByteCount)) {
+        return failedQtRasterWorkspaceResult(readerFormat);
+    }
+
     BufferedImageReader reader(data, readerFormat);
     if (!reader) {
         return failedQtRasterDecodedImageResult(imageErrorText(ImageErrorTextId::ReadImageData),
-            DecodedImageFailureOperation::OpenStaticImageSource, readerFormat,
+            DecodedImageFailureOperation::DecodeAnimationOpen, readerFormat,
             QStringLiteral("QImageReader could not be constructed"));
-    }
-
-    const bool supportsAnimation = reader.supportsAnimation();
-    if (!supportsAnimation) {
-        return openedStaticImageResult(data, request, readerFormat);
     }
 
     QImage image = reader.read();
     if (image.isNull()) {
-        return openedStaticImageResult(data, request, readerFormat);
+        return failedQtRasterDecodedImageResult(imageErrorText(ImageErrorTextId::ReadImageData),
+            DecodedImageFailureOperation::DecodeAnimationOpen, readerFormat, reader.errorString());
     }
-
-    const QByteArray animationFormat = reader.format();
-    const bool hasMoreFrames = reader.canRead();
 
     QImage firstFrame = displayReadyImage(image);
-    if (hasMoreFrames) {
-        ImageAnimationSourceCatalogResult catalog = readImageAnimationSourceCatalog(
-            readerAnimationPlaybackRequest(data, animationFormat));
-        if (!catalog.has_value() || catalog->logicalSize != firstFrame.size()) {
-            const QString catalogFailure = catalog.has_value()
-                ? QStringLiteral("animation source catalog size mismatch")
-                : catalog.error();
-            return failedQtRasterDecodedImageResult(catalogFailure,
-                DecodedImageFailureOperation::DecodeAnimationOpen, animationFormat, catalogFailure);
-        }
-        return successfulDecodedImageResult(ReaderAnimationImage {
-            std::move(firstFrame),
-            data,
-            animationFormat,
-            std::move(*catalog),
-            {},
-            sourceIdentityForRequest(request),
-            request.sourceRevision(),
-        });
+    if (firstFrame.isNull()) {
+        return failedQtRasterWorkspaceResult(readerFormat);
     }
-    return openedStaticImageResult(data, request, readerFormat);
+    if (catalog->logicalSize != firstFrame.size()) {
+        const QString catalogFailure = QStringLiteral("animation source catalog size mismatch");
+        return failedQtRasterDecodedImageResult(catalogFailure,
+            DecodedImageFailureOperation::DecodeAnimationOpen, readerFormat, catalogFailure);
+    }
+    return successfulDecodedImageResult(ReaderAnimationImage {
+        outputLease.sharedHold(),
+        std::move(firstFrame),
+        data,
+        readerFormat,
+        std::move(*catalog),
+        {},
+        sourceIdentityForRequest(request),
+        request.sourceRevision(),
+    });
 }
 }

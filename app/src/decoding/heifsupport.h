@@ -158,8 +158,20 @@ private:
     Detail::HeifResource<heif_decoding_options, heif_decoding_options_free> m_options;
 };
 
+struct HeifContextOpenLimits
+{
+    std::uint64_t maximumTotalMemory = 0;
+};
+
+struct HeifContextInheritedLimits
+{
+    std::uint64_t maximumTotalMemory = 0;
+};
+
 // The input data must outlive the returned context because libheif reads it without copying.
-std::optional<HeifContext> openHeifContext(const QByteArray& data, QString* errorString);
+std::optional<HeifContext> openHeifContext(const QByteArray& data, QString* errorString,
+    HeifContextOpenLimits limits = {}, bool* resourceLimitExceeded = nullptr,
+    HeifContextInheritedLimits* inheritedLimits = nullptr);
 
 struct HeifPrimaryImage
 {
@@ -167,9 +179,15 @@ struct HeifPrimaryImage
     HeifImageHandle handle;
 };
 
+enum class HeifImageConversionFailureCause {
+    Invalid,
+    ResourceLimitExceeded,
+};
+
 // The input data must outlive the returned context because libheif reads it without copying.
 std::optional<HeifPrimaryImage> openHeifPrimaryImage(const QByteArray& data, QString* errorString);
-std::optional<QImage> qImageFromHeifImage(const heif_image* heifImage, QString* errorString);
+std::optional<QImage> qImageFromHeifImage(const heif_image* heifImage, QString* errorString,
+    HeifImageConversionFailureCause* failureCause = nullptr);
 }
 
 #endif

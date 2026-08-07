@@ -16,6 +16,7 @@ struct ReaderAnimationPlaybackRequest
 {
     QByteArray data;
     QByteArray format;
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget;
 };
 
 struct ApngAnimationPlaybackRequest
@@ -27,16 +28,19 @@ struct ApngAnimationPlaybackRequest
 struct WebPAnimationPlaybackRequest
 {
     QByteArray data;
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget;
 };
 
 struct JxlAnimationPlaybackRequest
 {
     QByteArray data;
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget;
 };
 
 struct HeifSequenceAnimationPlaybackRequest
 {
     QByteArray data;
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget;
 };
 
 struct ImageAnimationPlaybackRequest
@@ -51,17 +55,21 @@ struct ImageAnimationPlaybackRequest
     [[nodiscard]] bool isValid() const;
 };
 
-ImageAnimationPlaybackRequest readerAnimationPlaybackRequest(
-    QByteArray data, QByteArray format, ImageSourceDataLease sourceDataLease = {});
+ImageAnimationPlaybackRequest readerAnimationPlaybackRequest(QByteArray data, QByteArray format,
+    ImageSourceDataLease sourceDataLease = {},
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {});
 ImageAnimationPlaybackRequest apngAnimationPlaybackRequest(QByteArray data,
     ImageSourceDataLease sourceDataLease = {},
     std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {});
-ImageAnimationPlaybackRequest webpAnimationPlaybackRequest(
-    QByteArray data, ImageSourceDataLease sourceDataLease = {});
-ImageAnimationPlaybackRequest jxlAnimationPlaybackRequest(
-    QByteArray data, ImageSourceDataLease sourceDataLease = {});
-ImageAnimationPlaybackRequest heifSequenceAnimationPlaybackRequest(
-    QByteArray data, ImageSourceDataLease sourceDataLease = {});
+ImageAnimationPlaybackRequest webpAnimationPlaybackRequest(QByteArray data,
+    ImageSourceDataLease sourceDataLease = {},
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {});
+ImageAnimationPlaybackRequest jxlAnimationPlaybackRequest(QByteArray data,
+    ImageSourceDataLease sourceDataLease = {},
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {});
+ImageAnimationPlaybackRequest heifSequenceAnimationPlaybackRequest(QByteArray data,
+    ImageSourceDataLease sourceDataLease = {},
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {});
 }
 
 #endif

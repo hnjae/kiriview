@@ -5,9 +5,10 @@
 
 #include "animationtiming.h"
 #include "heifsequencereader.h"
+#include "jxlanimationreader.h"
+#include "webpanimationreader.h"
 
 #include <ImageViewport/imagesequence.h>
-#include <jxl/decode.h>
 #include <webp/demux.h>
 
 #include <QByteArrayView>
@@ -26,9 +27,18 @@ using CatalogResult = kiriview::ImageAnimationSourceCatalogResult;
 
 QString catalogError() { return QStringLiteral("animation source catalog is invalid"); }
 
-CatalogResult failedCatalog(QString errorString = catalogError())
+CatalogResult failedCatalog(QString errorString = catalogError(),
+    kiriview::ImageAnimationSourceCatalogFailureCause cause
+    = kiriview::ImageAnimationSourceCatalogFailureCause::InvalidSource)
 {
-    return std::unexpected(std::move(errorString));
+    return std::unexpected(
+        kiriview::ImageAnimationSourceCatalogFailure { std::move(errorString), cause });
+}
+
+CatalogResult resourceLimitCatalog()
+{
+    return failedCatalog(kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+        kiriview::ImageAnimationSourceCatalogFailureCause::ResourceLimitExceeded);
 }
 
 bool hasBytes(const QByteArray& data, qsizetype offset, qsizetype count)
@@ -128,8 +138,11 @@ CatalogResult gifCatalog(const kiriview::ReaderAnimationPlaybackRequest& request
                 return failedCatalog();
             }
             ++offset;
-            if (!skipGifSubBlocks(data, &offset) || durations.size() >= maximumFrameCount()) {
+            if (!skipGifSubBlocks(data, &offset)) {
                 return failedCatalog();
+            }
+            if (durations.size() >= maximumFrameCount()) {
+                return resourceLimitCatalog();
             }
             durations.append(normalizedDelay(pendingDelay));
             pendingDelay = 0;
@@ -288,6 +301,31 @@ struct WebPDemuxDeleter
 
 CatalogResult webpCatalog(const kiriview::WebPAnimationPlaybackRequest& request)
 {
+    if (!kiriview::webPAnimationWorkspaceModelSupports(
+            kiriview::currentWebPAnimationLibraryVersions())) {
+        return resourceLimitCatalog();
+    }
+
+    // libwebp 1.6.0's demuxer retains only one fixed-size Frame or Chunk node
+    // per distinct RIFF chunk and borrows all payload bytes. Every such node
+    // consumes at least an eight-byte chunk header, so 32 bytes per input byte
+    // plus fixed parser state is a conservative bound for its allocation tree.
+    constexpr qsizetype fixedParserByteCount = 4096;
+    constexpr qsizetype parserBytesPerInputByte = 32;
+    constexpr qsizetype maximum = std::numeric_limits<qsizetype>::max();
+    if (request.data.size() > (maximum - fixedParserByteCount) / parserBytesPerInputByte) {
+        return resourceLimitCatalog();
+    }
+    const qsizetype parserByteCount
+        = fixedParserByteCount + (request.data.size() * parserBytesPerInputByte);
+    const std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> workspaceBudget
+        = request.workspaceBudget != nullptr ? request.workspaceBudget
+                                             : kiriview::defaultImageDecodeWorkspaceBudget();
+    kiriview::ImageDecodeWorkspaceLease workspaceLease = workspaceBudget->startLease();
+    if (!workspaceLease.tryReserve(parserByteCount)) {
+        return resourceLimitCatalog();
+    }
+
     const WebPData webpData {
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) -- WebP byte API.
         reinterpret_cast<const std::uint8_t*>(request.data.constData()),
@@ -329,102 +367,27 @@ CatalogResult webpCatalog(const kiriview::WebPAnimationPlaybackRequest& request)
     return catalog;
 }
 
-struct JxlDecoderDeleter
-{
-    void operator()(JxlDecoder* decoder) const
-    {
-        if (decoder != nullptr) {
-            JxlDecoderDestroy(decoder);
-        }
-    }
-};
-
 CatalogResult jxlCatalog(const kiriview::JxlAnimationPlaybackRequest& request)
 {
-    const std::unique_ptr<JxlDecoder, JxlDecoderDeleter> decoder(JxlDecoderCreate(nullptr));
-    if (decoder == nullptr
-        || JxlDecoderSubscribeEvents(decoder.get(), JXL_DEC_BASIC_INFO | JXL_DEC_FRAME)
-            != JXL_DEC_SUCCESS) {
-        return failedCatalog();
-    }
-    const std::span<const std::uint8_t> bytes {
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) -- JXL byte API.
-        reinterpret_cast<const std::uint8_t*>(request.data.constData()),
-        static_cast<std::size_t>(request.data.size()),
-    };
-    if (bytes.empty()
-        || JxlDecoderSetInput(decoder.get(), bytes.data(), bytes.size()) != JXL_DEC_SUCCESS) {
-        return failedCatalog();
-    }
-    JxlDecoderCloseInput(decoder.get());
-
-    JxlBasicInfo basicInfo {};
-    QSize logicalSize;
-    QVector<int> durations;
-    int repeatCount = 0;
-    bool haveBasicInfo = false;
-    bool currentFrameNeedsSkip = false;
-    while (true) {
-        const JxlDecoderStatus status = JxlDecoderProcessInput(decoder.get());
-        if (status == JXL_DEC_BASIC_INFO) {
-            if (JxlDecoderGetBasicInfo(decoder.get(), &basicInfo) != JXL_DEC_SUCCESS
-                || basicInfo.have_animation != JXL_TRUE || basicInfo.xsize == 0
-                || basicInfo.ysize == 0
-                || basicInfo.xsize > static_cast<std::uint32_t>(std::numeric_limits<int>::max())
-                || basicInfo.ysize > static_cast<std::uint32_t>(std::numeric_limits<int>::max())) {
-                return failedCatalog();
-            }
-            logicalSize
-                = QSize(static_cast<int>(basicInfo.xsize), static_cast<int>(basicInfo.ysize));
-            repeatCount = kiriview::animationLoopCountForPlayCount(basicInfo.animation.num_loops);
-            haveBasicInfo = true;
-            continue;
-        }
-        if (status == JXL_DEC_FRAME) {
-            if (!haveBasicInfo || durations.size() >= maximumFrameCount()) {
-                return failedCatalog();
-            }
-            JxlFrameHeader header {};
-            if (JxlDecoderGetFrameHeader(decoder.get(), &header) != JXL_DEC_SUCCESS) {
-                return failedCatalog();
-            }
-            durations.append(normalizedDelay(kiriview::jxlFrameDelay(header.duration,
-                basicInfo.animation.tps_numerator, basicInfo.animation.tps_denominator)));
-            currentFrameNeedsSkip = true;
-            continue;
-        }
-        if (status == JXL_DEC_NEED_IMAGE_OUT_BUFFER && currentFrameNeedsSkip) {
-            if (JxlDecoderSkipCurrentFrame(decoder.get()) != JXL_DEC_SUCCESS) {
-                return failedCatalog();
-            }
-            currentFrameNeedsSkip = false;
-            continue;
-        }
-        if (status == JXL_DEC_SUCCESS) {
-            break;
-        }
-        return failedCatalog();
-    }
-
-    kiriview::ImageAnimationSourceCatalog catalog {
-        logicalSize,
-        std::move(durations),
-        repeatCount,
-    };
-    return catalog.isValid() ? CatalogResult(std::move(catalog)) : failedCatalog();
+    kiriview::JxlAnimationReader reader(request.workspaceBudget);
+    return reader.readSourceCatalog(request.data);
 }
 
 CatalogResult heifCatalog(const kiriview::HeifSequenceAnimationPlaybackRequest& request)
 {
-    kiriview::HeifSequenceReader reader;
+    kiriview::HeifSequenceReader reader(request.workspaceBudget);
     const kiriview::HeifSequenceOpenResult opened = reader.open(request.data);
     if (opened.status != kiriview::HeifSequenceOpenStatus::Success) {
-        return failedCatalog(opened.errorString.isEmpty() ? catalogError() : opened.errorString);
+        return opened.status == kiriview::HeifSequenceOpenStatus::ResourceLimitExceeded
+            ? resourceLimitCatalog()
+            : failedCatalog(opened.errorString.isEmpty() ? catalogError() : opened.errorString);
     }
 
     kiriview::AnimationFrameReadResult firstFrame = reader.readNextFrame();
     if (!firstFrame.has_value()) {
-        return failedCatalog(std::move(firstFrame.error()));
+        return reader.lastReadResourceLimitExceeded()
+            ? resourceLimitCatalog()
+            : failedCatalog(std::move(firstFrame.error()));
     }
     if (!firstFrame->has_value()) {
         return failedCatalog();
@@ -489,7 +452,8 @@ ImageAnimationSourceCatalogResult readHeifSequenceAnimationSourceCatalog(
     while (durations.size() < maximumFrameCount()) {
         AnimationFrameReadResult frame = reader.readNextFrame();
         if (!frame.has_value()) {
-            return failedCatalog(std::move(frame.error()));
+            return reader.lastReadResourceLimitExceeded() ? resourceLimitCatalog()
+                                                          : failedCatalog(std::move(frame.error()));
         }
         if (!frame->has_value()) {
             break;
@@ -502,7 +466,9 @@ ImageAnimationSourceCatalogResult readHeifSequenceAnimationSourceCatalog(
     if (durations.size() == maximumFrameCount()) {
         AnimationFrameReadResult extra = reader.readNextFrame();
         if (!extra.has_value() || extra->has_value()) {
-            return failedCatalog(extra.has_value() ? catalogError() : std::move(extra.error()));
+            return !extra.has_value() && reader.lastReadResourceLimitExceeded()
+                ? resourceLimitCatalog()
+                : failedCatalog(extra.has_value() ? catalogError() : std::move(extra.error()));
         }
     }
 

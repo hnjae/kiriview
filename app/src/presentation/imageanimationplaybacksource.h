@@ -11,6 +11,7 @@
 #include <QString>
 #include <QtGlobal>
 #include <memory>
+#include <utility>
 
 namespace kiriview {
 enum class ImageAnimationPlaybackOpenStatus {
@@ -21,6 +22,23 @@ enum class ImageAnimationPlaybackOpenStatus {
 
 struct ImageAnimationPlaybackOpenResult
 {
+    ImageAnimationPlaybackOpenResult() = default;
+    ImageAnimationPlaybackOpenResult(ImageAnimationPlaybackOpenStatus openStatus,
+        ImageDecodeWorkspaceHold retainedWorkspace, QImage initialFrame, int initialFrameDelay,
+        int animationLoopCount, bool hasMoreFrames, QString diagnostic)
+        : status(openStatus)
+        , workspaceHold(std::move(retainedWorkspace))
+        , firstFrame(std::move(initialFrame))
+        , firstFrameDelay(initialFrameDelay)
+        , loopCount(animationLoopCount)
+        , sourceHasMoreFrames(hasMoreFrames)
+        , errorString(std::move(diagnostic))
+    {
+    }
+    ImageAnimationPlaybackOpenResult(const ImageAnimationPlaybackOpenResult&) = default;
+    ImageAnimationPlaybackOpenResult(ImageAnimationPlaybackOpenResult&&) noexcept = default;
+    ~ImageAnimationPlaybackOpenResult() = default;
+
     ImageAnimationPlaybackOpenStatus status = ImageAnimationPlaybackOpenStatus::Error;
     ImageDecodeWorkspaceHold workspaceHold;
     QImage firstFrame;
@@ -28,6 +46,39 @@ struct ImageAnimationPlaybackOpenResult
     int loopCount = 0;
     bool sourceHasMoreFrames = false;
     QString errorString;
+
+    ImageAnimationPlaybackOpenResult& operator=(const ImageAnimationPlaybackOpenResult& other)
+    {
+        if (this == &other) {
+            return *this;
+        }
+        ImageAnimationPlaybackOpenResult copy(other);
+        swap(*this, copy);
+        return *this;
+    }
+
+    ImageAnimationPlaybackOpenResult& operator=(ImageAnimationPlaybackOpenResult&& other) noexcept
+    {
+        if (this == &other) {
+            return *this;
+        }
+        ImageAnimationPlaybackOpenResult moved(std::move(other));
+        swap(*this, moved);
+        return *this;
+    }
+
+    friend void swap(
+        ImageAnimationPlaybackOpenResult& left, ImageAnimationPlaybackOpenResult& right) noexcept
+    {
+        using std::swap;
+        swap(left.status, right.status);
+        swap(left.workspaceHold, right.workspaceHold);
+        swap(left.firstFrame, right.firstFrame);
+        swap(left.firstFrameDelay, right.firstFrameDelay);
+        swap(left.loopCount, right.loopCount);
+        swap(left.sourceHasMoreFrames, right.sourceHasMoreFrames);
+        swap(left.errorString, right.errorString);
+    }
 };
 
 enum class ImageAnimationPlaybackReadStatus {

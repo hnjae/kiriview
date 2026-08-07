@@ -27,6 +27,40 @@
 #include <QtQml/qqml.h>
 #include <cmath>
 #include <memory>
+#include <vector>
+
+struct ThumbnailDemandReport
+{
+    quint64 navigationGeneration = 0;
+    qsizetype demandCount = 0;
+};
+
+class RecordingKiriDocumentSession : public KiriDocumentSession
+{
+    Q_OBJECT
+
+public:
+    explicit RecordingKiriDocumentSession(QObject* parent = nullptr)
+        : KiriDocumentSession(parent)
+    {
+    }
+
+    Q_INVOKABLE bool replaceActiveNavigationThumbnailDemandSnapshot(
+        quint64 navigationGeneration, const QVariantList& demands)
+    {
+        m_thumbnailDemandReports.push_back({ navigationGeneration, demands.size() });
+        return KiriDocumentSession::replaceActiveNavigationThumbnailDemandSnapshot(
+            navigationGeneration, demands);
+    }
+
+    [[nodiscard]] const std::vector<ThumbnailDemandReport>& thumbnailDemandReports() const
+    {
+        return m_thumbnailDemandReports;
+    }
+
+private:
+    std::vector<ThumbnailDemandReport> m_thumbnailDemandReports;
+};
 
 class TestThumbnailPanel : public QObject
 {
@@ -41,6 +75,7 @@ private Q_SLOTS:
     void visibleThumbnailClickDispatchesWithoutScrollMovement();
     void scrolledThumbnailClickDispatchesWithoutScrollMovement();
     void delegateReportsThumbnailDemandThroughSessionModel();
+    void hidingWithdrawsAndReopeningReplacesThumbnailDemandWindow();
 };
 
 namespace {
@@ -55,14 +90,17 @@ struct ThumbnailPanelFixture
     std::unique_ptr<QQuickView> view;
     std::unique_ptr<QTemporaryDir> directory;
     KiriDocumentSession* documentSession = nullptr;
+    RecordingKiriDocumentSession* recordingDocumentSession = nullptr;
     QQuickItem* root = nullptr;
+    QQuickItem* thumbnailPanel = nullptr;
     QQuickItem* thumbnailStrip = nullptr;
     QString errorString;
 
     bool isValid() const
     {
-        return view != nullptr && root != nullptr && thumbnailStrip != nullptr
-            && documentSession != nullptr;
+        return view != nullptr && root != nullptr && thumbnailPanel != nullptr
+            && thumbnailStrip != nullptr && documentSession != nullptr
+            && recordingDocumentSession != nullptr;
     }
 };
 
@@ -83,6 +121,8 @@ void registerKiriViewQmlTypes()
 
     kiriview::initializeLocalization();
     qmlRegisterType<KiriDocumentSession>("org.hnjae.kiriview", 1, 0, "KiriDocumentSession");
+    qmlRegisterType<RecordingKiriDocumentSession>(
+        "org.hnjae.kiriview.tests", 1, 0, "RecordingKiriDocumentSession");
     registered = true;
 }
 
@@ -98,6 +138,7 @@ QString fixtureQml(const QString& sourceUrl)
     return QStringLiteral(R"(
 import QtQuick
 import org.hnjae.kiriview
+import org.hnjae.kiriview.tests
 import "%1" as KiriViewQml
 
 Item {
@@ -106,7 +147,7 @@ Item {
     width: %2
     height: %3
 
-    KiriDocumentSession {
+    RecordingKiriDocumentSession {
         id: documentSession
         objectName: "documentSession"
         sourceUrl: "%4"
@@ -117,6 +158,7 @@ Item {
 
         anchors.fill: parent
         documentSession: documentSession
+        objectName: "thumbnailPanel"
         viewerForegroundColor: "white"
         viewerSurfaceColor: "black"
     }
@@ -203,6 +245,9 @@ ThumbnailPanelFixture createFixture()
 
     fixture.documentSession
         = fixture.root->findChild<KiriDocumentSession*>(QStringLiteral("documentSession"));
+    fixture.recordingDocumentSession
+        = fixture.root->findChild<RecordingKiriDocumentSession*>(QStringLiteral("documentSession"));
+    fixture.thumbnailPanel = fixture.root->findChild<QQuickItem*>(QStringLiteral("thumbnailPanel"));
     fixture.thumbnailStrip = fixture.root->findChild<QQuickItem*>(QStringLiteral("thumbnailStrip"));
     if (!fixture.isValid()) {
         fixture.errorString = QStringLiteral("fixture did not create required objects");
@@ -313,6 +358,20 @@ int roleForName(const QAbstractItemModel& model, const QByteArray& name)
 {
     return model.roleNames().key(name, -1);
 }
+
+bool hasThumbnailDemandReport(const RecordingKiriDocumentSession& documentSession,
+    std::size_t firstReport, quint64 navigationGeneration, bool requireDemands)
+{
+    const auto& reports = documentSession.thumbnailDemandReports();
+    for (std::size_t index = firstReport; index < reports.size(); ++index) {
+        const ThumbnailDemandReport& report = reports.at(index);
+        if (report.navigationGeneration == navigationGeneration
+            && (report.demandCount > 0) == requireDemands) {
+            return true;
+        }
+    }
+    return false;
+}
 }
 
 void TestThumbnailPanel::initTestCase()
@@ -367,6 +426,35 @@ void TestThumbnailPanel::delegateReportsThumbnailDemandThroughSessionModel()
     QVERIFY(previewBox != nullptr);
     QVERIFY(previewBox->width() > 0);
     QVERIFY(previewBox->height() > 0);
+}
+
+void TestThumbnailPanel::hidingWithdrawsAndReopeningReplacesThumbnailDemandWindow()
+{
+    ThumbnailPanelFixture fixture = createFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    QVERIFY2(waitForActiveNavigation(*fixture.documentSession, 1, testImageCount),
+        "active navigation did not become ready");
+
+    QTRY_VERIFY(!fixture.recordingDocumentSession->thumbnailDemandReports().empty());
+    QTRY_VERIFY(fixture.recordingDocumentSession->thumbnailDemandReports().back().demandCount > 0);
+
+    const auto& initialReport = fixture.recordingDocumentSession->thumbnailDemandReports().back();
+    const quint64 navigationGeneration = initialReport.navigationGeneration;
+    QVERIFY(navigationGeneration > 0);
+    const std::size_t firstHideReport
+        = fixture.recordingDocumentSession->thumbnailDemandReports().size();
+
+    fixture.thumbnailPanel->setVisible(false);
+
+    QTRY_VERIFY(hasThumbnailDemandReport(
+        *fixture.recordingDocumentSession, firstHideReport, navigationGeneration, false));
+    const std::size_t firstReopenReport
+        = fixture.recordingDocumentSession->thumbnailDemandReports().size();
+
+    fixture.thumbnailPanel->setVisible(true);
+
+    QTRY_VERIFY(hasThumbnailDemandReport(
+        *fixture.recordingDocumentSession, firstReopenReport, navigationGeneration, true));
 }
 
 void TestThumbnailPanel::visibleMainNavigationKeepsScrollPosition()

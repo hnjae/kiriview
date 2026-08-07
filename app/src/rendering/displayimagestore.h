@@ -16,6 +16,26 @@
 #include <optional>
 
 namespace kiriview {
+class DisplayImageStore;
+
+class DisplayImageOutputAdmission final
+{
+public:
+    ~DisplayImageOutputAdmission();
+    Q_DISABLE_COPY_MOVE(DisplayImageOutputAdmission)
+
+    [[nodiscard]] qsizetype byteCost() const;
+    [[nodiscard]] bool retainOnly(qsizetype retainedByteCost);
+
+private:
+    friend class DisplayImageStore;
+    class Private;
+
+    explicit DisplayImageOutputAdmission(std::unique_ptr<Private> data);
+
+    std::unique_ptr<Private> d;
+};
+
 enum class DisplayedPageRole {
     Primary,
     Secondary,
@@ -82,7 +102,10 @@ public:
     ~DisplayImageStore();
     Q_DISABLE_COPY_MOVE(DisplayImageStore)
 
-    QString acquireReusable(DisplayImageEntry entry, DisplayImageReuseKey reuseKey);
+    QString acquireReusable(DisplayImageEntry entry, DisplayImageReuseKey reuseKey,
+        std::shared_ptr<DisplayImageOutputAdmission> outputAdmission = {});
+    [[nodiscard]] std::shared_ptr<DisplayImageOutputAdmission> reserveOutput(qsizetype byteCost);
+    [[nodiscard]] qsizetype availableOutputBytes() const;
     [[nodiscard]] std::optional<DisplayImageStoreEntry> entry(const QString& id) const;
     bool acquireFrameLease(const QString& id);
     void releaseFrameLease(const QString& id);

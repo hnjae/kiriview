@@ -280,8 +280,6 @@ Item {
     }
 
     Component.onCompleted: {
-        application.setDocumentSession(documentSession);
-        application.setShortcutHost(root);
         publishActionUiState();
         forceActiveFocus();
     }
@@ -365,9 +363,14 @@ ImageShortcutsFixture createFixture(const QString& sourceUrl = QString())
 
     fixture.root = root;
     fixture.application = root->findChild<KiriViewApplication*>(QStringLiteral("application"));
-    if (fixture.application == nullptr) {
-        fixture.errorString = QStringLiteral("application was not created");
+    KiriDocumentSession* const documentSession
+        = root->findChild<KiriDocumentSession*>(QString(), Qt::FindChildrenRecursively);
+    if (fixture.application == nullptr || documentSession == nullptr) {
+        fixture.errorString = QStringLiteral("application runtime objects were not created");
+        return fixture;
     }
+    fixture.application->setDocumentSession(documentSession);
+    fixture.application->setShortcutHost(root);
     return fixture;
 }
 

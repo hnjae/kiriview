@@ -9,10 +9,12 @@
 #include "imageinputclassification.h"
 
 #include <QByteArray>
+#include <memory>
 
 namespace kiriview {
-DecodedImageResult decodeQImageReaderImageData(
-    const QByteArray& data, const ImageDecodeRequest& request, QtRasterFormat format);
+DecodedImageResult decodeQImageReaderImageData(const QByteArray& data,
+    const ImageDecodeRequest& request, QtRasterFormat format,
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {});
 }
 
 #endif

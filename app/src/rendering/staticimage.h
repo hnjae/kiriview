@@ -46,10 +46,17 @@ struct StaticImageDisplayDecodeDiagnostics
     QString diagnosticDetail;
 };
 
+enum class StaticImageDisplayDecodeFailureCause {
+    Decode,
+    ResourceExhausted,
+};
+
 struct StaticImageDisplayDecodeResult
 {
     QImage image;
     StaticImageDisplayDecodeDiagnostics diagnostics;
+    StaticImageDisplayDecodeFailureCause failureCause
+        = StaticImageDisplayDecodeFailureCause::Decode;
 };
 
 struct StaticImageFirstDisplayDecodeResult
@@ -84,6 +91,8 @@ public:
     [[nodiscard]] virtual StaticImageFirstDisplayDecodeResult decodeFirstDisplayImage(
         const ImageFirstDisplayDecodeContext& context) const;
     [[nodiscard]] virtual bool supportsRasterDisplayRefinement() const;
+    [[nodiscard]] virtual std::optional<qsizetype> rasterDisplayRefinementPeakByteCost(
+        const QSize& rasterSize) const;
     [[nodiscard]] virtual StaticImageDisplayDecodeResult decodeRasterDisplayImage(
         const QSize& rasterSize) const;
     [[nodiscard]] virtual StaticImageDisplayDecodeResult decodeBlockingDisplayImage(

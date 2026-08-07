@@ -27,6 +27,13 @@ QImage cacheImage()
     return image;
 }
 
+QImage mediumCacheImage()
+{
+    QImage image(20, 1, QImage::Format_RGBA8888_Premultiplied);
+    image.fill(Qt::transparent);
+    return image;
+}
+
 QImage tooLargeImage()
 {
     QImage image(30, 1, QImage::Format_RGBA8888_Premultiplied);
@@ -125,6 +132,9 @@ private Q_SLOTS:
     void queueAndActiveWorkDistinguishSourceRevision();
     void activeLoadsRejectUnscopedUnknownIdentity();
     void cacheRetainsDisplayedImagesBeforeAdjacentImages();
+    void cacheBoundsMultipleDisplayedImagesByPriority();
+    void cacheRetainsExactDisplayedRevisionOverLateStaleRevision();
+    void candidatePrefersExactDisplayedRevisionOverCompletionOrder();
     void cacheRetainsRecentDisplayedImagesBeforeAdjacentImages();
     void cacheKeepsOnlyFourRecentDisplayedImages();
     void cacheRejectsUncacheableAndOversizedImages();
@@ -466,6 +476,84 @@ void TestPredecodeCache::cacheRetainsDisplayedImagesBeforeAdjacentImages()
     QVERIFY(cache.findCandidate(primaryLocation).has_value());
     QVERIFY(cache.findCandidate(secondaryLocation).has_value());
     QVERIFY(!cache.findCandidate(adjacentLocation).has_value());
+}
+
+void TestPredecodeCache::cacheBoundsMultipleDisplayedImagesByPriority()
+{
+    kiriview::PredecodeCache cache(120);
+    const kiriview::OpenedCollectionScopeLocation openedCollectionScope
+        = comicBookArchiveCollection();
+    const auto primaryLocation = displayedLocation(indexedImageUrl(0), openedCollectionScope);
+    const auto secondaryLocation = displayedLocation(indexedImageUrl(1), openedCollectionScope);
+    const QImage image = cacheImage();
+
+    cache.setDisplayedLocations({ primaryLocation, secondaryLocation });
+    cache.cacheDisplayedImage(true, secondaryLocation, cacheDisplayImage(image));
+    cache.cacheDisplayedImage(true, primaryLocation, cacheDisplayImage(image));
+
+    QVERIFY(cache.findCandidate(primaryLocation).has_value());
+    QVERIFY(!cache.findCandidate(secondaryLocation).has_value());
+}
+
+void TestPredecodeCache::cacheRetainsExactDisplayedRevisionOverLateStaleRevision()
+{
+    kiriview::PredecodeCache cache(320);
+    const kiriview::OpenedCollectionScopeLocation openedCollectionScope
+        = comicBookArchiveCollection();
+    const auto primaryLocation = displayedLocation(indexedImageUrl(0), openedCollectionScope);
+    const auto secondaryLocation = displayedLocation(indexedImageUrl(1), openedCollectionScope);
+    const QImage image = mediumCacheImage();
+    kiriview::StaticDisplayImagePayload currentPrimary = cacheDisplayImage(image);
+    currentPrimary.sourceRevision
+        = kiriview::ImageSourceRevision::fromData(QByteArrayView("current-primary"));
+    kiriview::StaticDisplayImagePayload currentSecondary = cacheDisplayImage(image);
+    currentSecondary.sourceRevision
+        = kiriview::ImageSourceRevision::fromData(QByteArrayView("current-secondary"));
+    kiriview::StaticDisplayImagePayload stalePrimary = cacheDisplayImage(image);
+    stalePrimary.sourceRevision
+        = kiriview::ImageSourceRevision::fromData(QByteArrayView("stale-primary"));
+
+    cache.setDisplayedImages({
+        { primaryLocation, true, currentPrimary, {} },
+        { secondaryLocation, true, currentSecondary, {} },
+    });
+    cache.cacheDisplayedImage(true, primaryLocation, currentPrimary);
+    cache.cacheDisplayedImage(true, secondaryLocation, currentSecondary);
+    cache.cacheImage(primaryLocation, stalePrimary);
+
+    QVERIFY(cache.findImage({ primaryLocation, currentPrimary.sourceRevision }).has_value());
+    QVERIFY(cache.findImage({ secondaryLocation, currentSecondary.sourceRevision }).has_value());
+    QVERIFY(!cache.findImage({ primaryLocation, stalePrimary.sourceRevision }).has_value());
+}
+
+void TestPredecodeCache::candidatePrefersExactDisplayedRevisionOverCompletionOrder()
+{
+    const kiriview::OpenedCollectionScopeLocation openedCollectionScope
+        = comicBookArchiveCollection();
+    const auto location = displayedLocation(indexedImageUrl(0), openedCollectionScope);
+    const QImage image = mediumCacheImage();
+    kiriview::StaticDisplayImagePayload current = cacheDisplayImage(image);
+    current.sourceRevision = kiriview::ImageSourceRevision::fromData(QByteArrayView("current"));
+    kiriview::StaticDisplayImagePayload stale = cacheDisplayImage(image);
+    stale.sourceRevision = kiriview::ImageSourceRevision::fromData(QByteArrayView("stale"));
+
+    for (const bool staleCompletesLast : { false, true }) {
+        kiriview::PredecodeCache cache(320);
+        cache.setDisplayedImages({ { location, true, current, {} } });
+        if (staleCompletesLast) {
+            cache.cacheDisplayedImage(true, location, current);
+            cache.cacheImage(location, stale);
+        } else {
+            cache.cacheImage(location, stale);
+            cache.cacheDisplayedImage(true, location, current);
+        }
+
+        QVERIFY(cache.findImage({ location, current.sourceRevision }).has_value());
+        QVERIFY(cache.findImage({ location, stale.sourceRevision }).has_value());
+        const std::optional<kiriview::PredecodedImage> candidate = cache.findCandidate(location);
+        QVERIFY(candidate.has_value());
+        QCOMPARE(candidate->displayImage.sourceRevision, current.sourceRevision);
+    }
 }
 
 void TestPredecodeCache::cacheRetainsRecentDisplayedImagesBeforeAdjacentImages()

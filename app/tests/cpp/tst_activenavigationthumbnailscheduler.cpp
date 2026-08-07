@@ -335,6 +335,11 @@ void TestActiveNavigationThumbnailScheduler::emptySnapshotExpiresNonCurrentDeman
         std::size_t(2));
     QCOMPARE(effectsOfType<kiriview::ActiveNavigationThumbnailUpdateRetentionEffect>(*empty).size(),
         std::size_t(2));
+
+    const auto starts = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*first);
+    for (const auto& start : starts) {
+        QVERIFY(scheduler.acceptCompletion(ready(start)).empty());
+    }
 }
 
 void TestActiveNavigationThumbnailScheduler::backgroundScanYieldsAndResumesWithEpoch()

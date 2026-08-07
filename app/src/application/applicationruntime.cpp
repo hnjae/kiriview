@@ -6,6 +6,7 @@
 #include "applicationdiagnostics.h"
 #include "applicationstartupsource.h"
 #include "facade/kiridocumentsession.h"
+#include "facade/kiriviewapplication.h"
 #include "facade/kiriwindowshell.h"
 #include "generated/applicationidentity.h"
 #include "localization/localization.h"
@@ -15,6 +16,7 @@
 #include <KLocalizedString>
 #include <QApplication>
 #include <QGuiApplication>
+#include <QObject>
 #include <QQmlApplicationEngine>
 #include <QQmlEngine>
 #include <QQuickStyle>
@@ -59,6 +61,22 @@ void registerApplicationImageProviders(QQmlEngine& engine)
         new ThumbnailImageProvider(sharedThumbnailImageStore()));
 }
 
+void composeApplicationRuntimeGraph(KiriViewApplication& application,
+    KiriDocumentSession& documentSession, KiriWindowShell& windowShell)
+{
+    application.setDocumentSession(&documentSession);
+    application.setWindowShell(&windowShell);
+    windowShell.attachApplication(&application);
+    windowShell.attachDocumentSession(&documentSession);
+}
+
+void attachApplicationRuntimeWindow(
+    KiriViewApplication& application, KiriWindowShell& windowShell, QObject& window)
+{
+    application.setShortcutHost(&window);
+    windowShell.attachWindow(&window);
+}
+
 void loadApplicationMainQml(
     QQmlApplicationEngine& engine, const ApplicationStartupSource& startupSource)
 {
@@ -75,18 +93,31 @@ void loadApplicationMainQml(
         = new KiriDocumentSession(std::move(documentSessionDependencies), &engine);
     documentSession->setObjectName(QStringLiteral("documentSession"));
     auto* windowShell = new KiriWindowShell(&engine);
+    auto* application = new KiriViewApplication(&engine);
+    composeApplicationRuntimeGraph(*application, *documentSession, *windowShell);
+
+    const QUrl initialSourceUrl = initialSourceUrlFromStartupSource(startupSource);
     QVariantMap initialProperties;
+    initialProperties.insert(QStringLiteral("kiriApplication"), QVariant::fromValue(application));
     initialProperties.insert(
         QStringLiteral("documentSession"), QVariant::fromValue(documentSession));
     initialProperties.insert(QStringLiteral("windowShell"), QVariant::fromValue(windowShell));
-
-    const QUrl initialSourceUrl = initialSourceUrlFromStartupSource(startupSource);
-    if (!initialSourceUrl.isEmpty()) {
-        initialProperties.insert(QStringLiteral("initialSourceUrl"), initialSourceUrl);
-    }
     engine.setInitialProperties(initialProperties);
 
-    engine.load(QUrl(QString::fromLatin1(kiriview::application_identity::mainQmlUrl)));
+    const QUrl mainQmlUrl(QString::fromLatin1(kiriview::application_identity::mainQmlUrl));
+    QObject::connect(
+        &engine, &QQmlApplicationEngine::objectCreated, &engine,
+        [application, documentSession, windowShell, initialSourceUrl](
+            QObject* rootObject, const QUrl&) {
+            if (rootObject != nullptr) {
+                attachApplicationRuntimeWindow(*application, *windowShell, *rootObject);
+                if (!initialSourceUrl.isEmpty()) {
+                    documentSession->setSourceUrl(initialSourceUrl);
+                }
+            }
+        },
+        Qt::SingleShotConnection);
+    engine.load(mainQmlUrl);
 }
 
 int runApplication(const ApplicationStartupSource& startupSource)

@@ -18,6 +18,7 @@
 
 #include <QObject>
 #include <QString>
+#include <list>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -107,6 +108,7 @@ private:
         CandidateSelection,
         RefinementDecodeFailure,
         RefinementContractViolation,
+        RefinementResourceExhausted,
         RefinementUnsupported,
     };
 
@@ -115,7 +117,9 @@ private:
         quint64 id = 0;
         PendingFrame pending;
         StaticFramePlan plan;
+        std::shared_ptr<DisplayImageOutputAdmission> fallbackBasisOutputAdmission;
         StaticDisplayImagePayload fallbackBasis;
+        std::shared_ptr<DisplayImageOutputAdmission> deadlineCandidateOutputAdmission;
         std::optional<StaticDisplayImagePayload> deadlineCandidate;
         quint64 refinementWorkerUnitId = 0;
         bool initialDemand = false;
@@ -127,9 +131,11 @@ private:
     {
         quint64 workerUnitId = 0;
         QSize targetRasterSize;
+        std::shared_ptr<DisplayImageOutputAdmission> basisOutputAdmission;
         StaticDisplayImagePayload basis;
         std::vector<quint64> attemptIds;
         qint64 maximumReusableBytes = -1;
+        std::shared_ptr<DisplayImageOutputAdmission> outputAdmission;
         bool retainWithoutSubscribers = false;
     };
 
@@ -156,7 +162,8 @@ private:
         const StaticImageDisplayDecodeDiagnostics& diagnostics = {},
         std::optional<StaticDisplayImagePayload> preferredCandidate = std::nullopt,
         bool considerCurrentCandidate = true,
-        StaticFrameResolution resolution = StaticFrameResolution::CandidateSelection);
+        StaticFrameResolution resolution = StaticFrameResolution::CandidateSelection,
+        std::shared_ptr<DisplayImageOutputAdmission> preferredOutputAdmission = {});
     [[nodiscard]] quint64 reserveStaticFrameAttemptId();
     [[nodiscard]] std::optional<StaticFrameAttempt> takeStaticFrameAttempt(
         quint64 attemptId, bool retainRefinementWork);
@@ -180,6 +187,7 @@ private:
     EmbeddedMetadata m_embeddedMetadata;
     std::optional<ImageSequenceProviderMetadata> m_metadata;
     std::optional<StaticDisplayImagePayload> m_provisionalPreview;
+    std::shared_ptr<DisplayImageOutputAdmission> m_authoritativeStaticImageOutputAdmission;
     std::optional<StaticDisplayImagePayload> m_authoritativeStaticImage;
     std::optional<StaticDisplayImagePayload> m_authoritativeSeed;
     std::optional<AnimationState> m_animation;
@@ -189,8 +197,8 @@ private:
     std::vector<PendingMetadata> m_pendingMetadata;
     std::vector<PendingFrame> m_pendingFrames;
     std::vector<WorkerUnit> m_workerUnits;
-    std::vector<StaticFrameAttempt> m_staticFrameAttempts;
-    std::vector<StaticRefinementWork> m_staticRefinementWorks;
+    std::list<StaticFrameAttempt> m_staticFrameAttempts;
+    std::list<StaticRefinementWork> m_staticRefinementWorks;
     std::optional<ActiveAnimationFrameWork> m_activeAnimationFrameWork;
     quint64 m_nextWorkerUnitId = 1;
     quint64 m_nextStaticFrameAttemptId = 1;

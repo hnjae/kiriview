@@ -3,10 +3,14 @@
 
 #include "decoding/decodedimageresult.h"
 
+#include "decoding/imagedecodeworkspace.h"
 #include "image_test_support.h"
 
+#include <QImage>
 #include <QObject>
 #include <QTest>
+#include <array>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -20,7 +24,24 @@ private Q_SLOTS:
     void exposesImagePayload();
     void takeImageMovesImagePayloadOnly();
     void staticMetadataMirrorsIntoDisplayPayload();
+    void animationAssignmentDestroysImageBeforeWorkspaceHold();
 };
+
+namespace {
+struct ImageCleanupObservation
+{
+    std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> budget;
+    bool called = false;
+    qsizetype reservedByteCount = 0;
+};
+
+void observeImageCleanup(void* data)
+{
+    auto* observation = static_cast<ImageCleanupObservation*>(data);
+    observation->called = true;
+    observation->reservedByteCount = observation->budget->reservedByteCount();
+}
+}
 
 void TestDecodedImageResult::exposesFailurePayload()
 {
@@ -78,6 +99,31 @@ void TestDecodedImageResult::staticMetadataMirrorsIntoDisplayPayload()
     QCOMPARE(
         kiriview::decodedImageEmbeddedMetadata(image).cameraMake, QStringLiteral("Kiri Camera"));
     QCOMPARE(decoded->displayImage.embeddedMetadata.cameraMake, QStringLiteral("Kiri Camera"));
+}
+
+void TestDecodedImageResult::animationAssignmentDestroysImageBeforeWorkspaceHold()
+{
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(4, 4);
+    kiriview::ImageDecodeWorkspaceLease lease = budget->startLease();
+    QVERIFY(lease.tryReserve(4));
+    ImageCleanupObservation observation { budget };
+    std::array<uchar, 4> pixels {};
+    QImage image(
+        pixels.data(), 1, 1, 4, QImage::Format_RGBA8888, observeImageCleanup, &observation);
+    QVERIFY(!image.isNull());
+
+    kiriview::ReaderAnimationImage decoded {
+        lease.sharedHold(),
+        std::move(image),
+    };
+    lease = {};
+    QCOMPARE(budget->reservedByteCount(), qsizetype(4));
+
+    decoded = kiriview::ReaderAnimationImage {};
+
+    QVERIFY(observation.called);
+    QCOMPARE(observation.reservedByteCount, qsizetype(4));
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
 }
 
 QTEST_GUILESS_MAIN(TestDecodedImageResult)

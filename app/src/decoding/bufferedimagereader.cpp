@@ -3,11 +3,29 @@
 
 #include "bufferedimagereader.h"
 
+#include "imagedecodeworkspace.h"
+
 #include <QIODevice>
 #include <QImageReader>
+#include <limits>
 #include <memory>
 
 namespace kiriview {
+std::optional<qsizetype> qImageReaderGifTransientWorkspaceByteCount(QSize logicalSize)
+{
+    // Qt's GIF handler may retain a canvas and disposal backing while producing
+    // an output-conversion source. Keep fixed decoder state outside that pixel term.
+    constexpr qsizetype fixedDecoderHeadroomByteCount = qsizetype { 1 } * 1024 * 1024;
+    const std::optional<qsizetype> pixelByteCount
+        = checkedImageDecodeWorkspaceByteCount(logicalSize, 8, 3);
+    if (!pixelByteCount.has_value()
+        || *pixelByteCount
+            > std::numeric_limits<qsizetype>::max() - fixedDecoderHeadroomByteCount) {
+        return std::nullopt;
+    }
+    return *pixelByteCount + fixedDecoderHeadroomByteCount;
+}
+
 BufferedImageReader::BufferedImageReader(
     const QByteArray& data, const QByteArray& format, bool autoTransform)
 {
@@ -35,7 +53,17 @@ bool BufferedImageReader::supportsAnimation() const
     return m_reader != nullptr && m_reader->supportsAnimation();
 }
 
+bool BufferedImageReader::supportsOption(QImageIOHandler::ImageOption option) const
+{
+    return m_reader != nullptr && m_reader->supportsOption(option);
+}
+
 QSize BufferedImageReader::size() const { return m_reader == nullptr ? QSize() : m_reader->size(); }
+
+QImage::Format BufferedImageReader::imageFormat() const
+{
+    return m_reader == nullptr ? QImage::Format_Invalid : m_reader->imageFormat();
+}
 
 QByteArray BufferedImageReader::format() const
 {

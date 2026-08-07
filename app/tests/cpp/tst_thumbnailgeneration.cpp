@@ -48,6 +48,17 @@ QByteArray encodedPngData()
     return data;
 }
 
+QByteArray animatedTwoPixelGifData()
+{
+    return QByteArray::fromHex("47494638396102000100800000000000ffffff"
+                               "21ff0b4e45545343415045322e300301000000"
+                               "21f904000a000000"
+                               "2c0000000002000100000202040a00"
+                               "21f904000a000000"
+                               "2c0000000002000100000202040a00"
+                               "3b");
+}
+
 QByteArray fixtureData(const QString& fileName)
 {
     QFile file(QStringLiteral(KIRIVIEW_TEST_SOURCE_DIR "/../fixtures/") + fileName);
@@ -101,6 +112,7 @@ private Q_SLOTS:
     void directVideoResourceLimitPreservesTypedFailure();
     void defaultImageBytesLoaderRejectsSourceOverBudget();
     void defaultImageDecoderRejectsApngOverWorkspaceBudget();
+    void defaultImageDecoderRejectsGifScaleWorkspaceOverBudget();
     void generatedApngRetainsWorkspaceUntilResultRelease();
     void failedApngGenerationDestroysImageBeforeWorkspaceRelease();
 };
@@ -144,6 +156,7 @@ void TestThumbnailGeneration::defaultImageBytesLoaderRejectsSourceOverBudget()
         ++decodeCount;
         return kiriview::ThumbnailGenerationImageDecodeResult {
             {},
+            {},
             QImage(QSize(1, 1), QImage::Format_RGBA8888),
         };
     };
@@ -179,6 +192,25 @@ void TestThumbnailGeneration::defaultImageDecoderRejectsApngOverWorkspaceBudget(
     QCOMPARE(budget->reservedByteCount(), qsizetype(0));
 }
 
+void TestThumbnailGeneration::defaultImageDecoderRejectsGifScaleWorkspaceOverBudget()
+{
+    const QByteArray gif = animatedTwoPixelGifData();
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(1050000, 1050000);
+    kiriview::ThumbnailGenerationDependencies dependencies;
+    dependencies.bytesLoader = [gif](const kiriview::ThumbnailGenerationRequest&, QString*) {
+        return kiriview::ImageSourceData(gif);
+    };
+    dependencies.maximumLongEdgeForBucket = [](Bucket) { return 1; };
+    dependencies.workspaceBudget = budget;
+
+    const kiriview::ThumbnailGenerationResult result
+        = kiriview::generateThumbnail(generationRequest(), std::move(dependencies));
+
+    QCOMPARE(result.status, kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded);
+    QVERIFY(!result.errorString.isEmpty());
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
 void TestThumbnailGeneration::generatedApngRetainsWorkspaceUntilResultRelease()
 {
     const QByteArray apng = fixtureData(QStringLiteral("animated-smoke.apng"));
@@ -196,7 +228,7 @@ void TestThumbnailGeneration::generatedApngRetainsWorkspaceUntilResultRelease()
             = kiriview::generateThumbnail(generationRequest(), dependencies);
         QCOMPARE(result.status, kiriview::ThumbnailGenerationStatus::Ready);
         QVERIFY(!result.image.isNull());
-        QVERIFY(budget->reservedByteCount() > 0);
+        QCOMPARE(budget->reservedByteCount(), result.image.sizeInBytes());
     }
 
     QCOMPARE(budget->reservedByteCount(), qsizetype(0));
@@ -220,6 +252,7 @@ void TestThumbnailGeneration::failedApngGenerationDestroysImageBeforeWorkspaceRe
             &observation);
         return kiriview::ThumbnailGenerationImageDecodeResult {
             { lease.retainOnly(4), {} },
+            {},
             std::move(image),
         };
     };
@@ -241,7 +274,7 @@ void TestThumbnailGeneration::failedApngGenerationDestroysImageBeforeWorkspaceRe
         QCOMPARE(result.status, Status::Failed);
         QVERIFY(observation.cleanupCalled);
         QVERIFY(observation.reservationHeldDuringCleanup);
-        QCOMPARE(budget->reservedByteCount(), qsizetype(4));
+        QCOMPARE(budget->reservedByteCount(), qsizetype(0));
     }
 
     QCOMPARE(budget->reservedByteCount(), qsizetype(0));
@@ -262,7 +295,7 @@ void TestThumbnailGeneration::injectedDecoderReceivesLoadedBytesAndBucketEdge()
               decodedMaximumLongEdge = maximumLongEdge;
               QImage image(QSize(9, 7), QImage::Format_RGB32);
               image.fill(QColor(Qt::yellow));
-              return kiriview::ThumbnailGenerationImageDecodeResult { {}, std::move(image) };
+              return kiriview::ThumbnailGenerationImageDecodeResult { {}, {}, std::move(image) };
           };
 
     const kiriview::ThumbnailGenerationResult result
@@ -293,7 +326,7 @@ void TestThumbnailGeneration::injectedScalingPolicySuppliesDecoderEdge()
         decodedMaximumLongEdge = maximumLongEdge;
         QImage image(QSize(6, 5), QImage::Format_RGB32);
         image.fill(QColor(Qt::cyan));
-        return kiriview::ThumbnailGenerationImageDecodeResult { {}, std::move(image) };
+        return kiriview::ThumbnailGenerationImageDecodeResult { {}, {}, std::move(image) };
     };
 
     const kiriview::ThumbnailGenerationResult result

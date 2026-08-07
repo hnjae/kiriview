@@ -25,7 +25,9 @@ struct StaticDecodedImage
     EmbeddedMetadata embeddedMetadata;
 };
 
-struct ApngAnimationImage
+struct ApngAnimationImage // NOLINT(cppcoreguidelines-special-member-functions) --
+                          // Pass-by-value assignment preserves aggregate initialization and
+                          // retires the old image before its workspace hold.
 {
     ImageDecodeWorkspaceHold firstFrameWorkspaceHold;
     QImage firstFrame;
@@ -35,10 +37,32 @@ struct ApngAnimationImage
     QString sourceIdentity;
     ImageSourceRevision sourceRevision;
     ImageSourceDataLease sourceDataLease;
+
+    ApngAnimationImage& operator=(ApngAnimationImage other) noexcept
+    {
+        swap(*this, other);
+        return *this;
+    }
+
+    friend void swap(ApngAnimationImage& left, ApngAnimationImage& right) noexcept
+    {
+        using std::swap;
+        swap(left.firstFrameWorkspaceHold, right.firstFrameWorkspaceHold);
+        swap(left.firstFrame, right.firstFrame);
+        swap(left.data, right.data);
+        swap(left.catalog, right.catalog);
+        swap(left.embeddedMetadata, right.embeddedMetadata);
+        swap(left.sourceIdentity, right.sourceIdentity);
+        swap(left.sourceRevision, right.sourceRevision);
+        swap(left.sourceDataLease, right.sourceDataLease);
+    }
 };
 
-struct ReaderAnimationImage
+struct ReaderAnimationImage // NOLINT(cppcoreguidelines-special-member-functions) --
+                            // Pass-by-value assignment preserves aggregate initialization and
+                            // retires the old image before its workspace hold.
 {
+    ImageDecodeWorkspaceHold firstFrameWorkspaceHold;
     QImage firstFrame;
     QByteArray data;
     QByteArray format;
@@ -47,10 +71,33 @@ struct ReaderAnimationImage
     QString sourceIdentity;
     ImageSourceRevision sourceRevision;
     ImageSourceDataLease sourceDataLease;
+
+    ReaderAnimationImage& operator=(ReaderAnimationImage other) noexcept
+    {
+        swap(*this, other);
+        return *this;
+    }
+
+    friend void swap(ReaderAnimationImage& left, ReaderAnimationImage& right) noexcept
+    {
+        using std::swap;
+        swap(left.firstFrameWorkspaceHold, right.firstFrameWorkspaceHold);
+        swap(left.firstFrame, right.firstFrame);
+        swap(left.data, right.data);
+        swap(left.format, right.format);
+        swap(left.catalog, right.catalog);
+        swap(left.embeddedMetadata, right.embeddedMetadata);
+        swap(left.sourceIdentity, right.sourceIdentity);
+        swap(left.sourceRevision, right.sourceRevision);
+        swap(left.sourceDataLease, right.sourceDataLease);
+    }
 };
 
-struct WebPAnimationImage
+struct WebPAnimationImage // NOLINT(cppcoreguidelines-special-member-functions) --
+                          // Pass-by-value assignment preserves aggregate initialization and
+                          // retires the old image before its workspace hold.
 {
+    ImageDecodeWorkspaceHold firstFrameWorkspaceHold;
     QImage firstFrame;
     QByteArray data;
     ImageAnimationSourceCatalog catalog;
@@ -58,10 +105,32 @@ struct WebPAnimationImage
     QString sourceIdentity;
     ImageSourceRevision sourceRevision;
     ImageSourceDataLease sourceDataLease;
+
+    WebPAnimationImage& operator=(WebPAnimationImage other) noexcept
+    {
+        swap(*this, other);
+        return *this;
+    }
+
+    friend void swap(WebPAnimationImage& left, WebPAnimationImage& right) noexcept
+    {
+        using std::swap;
+        swap(left.firstFrameWorkspaceHold, right.firstFrameWorkspaceHold);
+        swap(left.firstFrame, right.firstFrame);
+        swap(left.data, right.data);
+        swap(left.catalog, right.catalog);
+        swap(left.embeddedMetadata, right.embeddedMetadata);
+        swap(left.sourceIdentity, right.sourceIdentity);
+        swap(left.sourceRevision, right.sourceRevision);
+        swap(left.sourceDataLease, right.sourceDataLease);
+    }
 };
 
-struct JxlAnimationImage
+struct JxlAnimationImage // NOLINT(cppcoreguidelines-special-member-functions) --
+                         // Pass-by-value assignment preserves aggregate initialization and
+                         // retires the old image before its workspace hold.
 {
+    ImageDecodeWorkspaceHold firstFrameWorkspaceHold;
     QImage firstFrame;
     QByteArray data;
     ImageAnimationSourceCatalog catalog;
@@ -69,10 +138,32 @@ struct JxlAnimationImage
     QString sourceIdentity;
     ImageSourceRevision sourceRevision;
     ImageSourceDataLease sourceDataLease;
+
+    JxlAnimationImage& operator=(JxlAnimationImage other) noexcept
+    {
+        swap(*this, other);
+        return *this;
+    }
+
+    friend void swap(JxlAnimationImage& left, JxlAnimationImage& right) noexcept
+    {
+        using std::swap;
+        swap(left.firstFrameWorkspaceHold, right.firstFrameWorkspaceHold);
+        swap(left.firstFrame, right.firstFrame);
+        swap(left.data, right.data);
+        swap(left.catalog, right.catalog);
+        swap(left.embeddedMetadata, right.embeddedMetadata);
+        swap(left.sourceIdentity, right.sourceIdentity);
+        swap(left.sourceRevision, right.sourceRevision);
+        swap(left.sourceDataLease, right.sourceDataLease);
+    }
 };
 
-struct HeifSequenceAnimationImage
+struct HeifSequenceAnimationImage // NOLINT(cppcoreguidelines-special-member-functions) --
+                                  // Pass-by-value assignment preserves aggregate initialization
+                                  // and retires the old image before its workspace hold.
 {
+    ImageDecodeWorkspaceHold firstFrameWorkspaceHold;
     QImage firstFrame;
     QByteArray data;
     ImageAnimationSourceCatalog catalog;
@@ -80,6 +171,25 @@ struct HeifSequenceAnimationImage
     QString sourceIdentity;
     ImageSourceRevision sourceRevision;
     ImageSourceDataLease sourceDataLease;
+
+    HeifSequenceAnimationImage& operator=(HeifSequenceAnimationImage other) noexcept
+    {
+        swap(*this, other);
+        return *this;
+    }
+
+    friend void swap(HeifSequenceAnimationImage& left, HeifSequenceAnimationImage& right) noexcept
+    {
+        using std::swap;
+        swap(left.firstFrameWorkspaceHold, right.firstFrameWorkspaceHold);
+        swap(left.firstFrame, right.firstFrame);
+        swap(left.data, right.data);
+        swap(left.catalog, right.catalog);
+        swap(left.embeddedMetadata, right.embeddedMetadata);
+        swap(left.sourceIdentity, right.sourceIdentity);
+        swap(left.sourceRevision, right.sourceRevision);
+        swap(left.sourceDataLease, right.sourceDataLease);
+    }
 };
 
 using DecodedImage = std::variant<StaticDecodedImage, ApngAnimationImage, ReaderAnimationImage,

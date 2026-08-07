@@ -7,13 +7,15 @@
 #include "decodedimageresult.h"
 
 #include <QByteArray>
+#include <memory>
 #include <optional>
 
 namespace kiriview {
 class ImageDecodeRequest;
 
-std::optional<DecodedImageResult> decodeHeifImageData(
-    const QByteArray& data, const ImageDecodeRequest& request);
+std::optional<DecodedImageResult> decodeHeifImageData(const QByteArray& data,
+    const ImageDecodeRequest& request,
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {});
 }
 
 #endif

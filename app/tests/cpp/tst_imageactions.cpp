@@ -192,7 +192,6 @@ Item {
     }
 
     Component.onCompleted: {
-        application.setDocumentSession(documentSession);
         publishActionUiState();
     }
 
@@ -275,7 +274,9 @@ ImageActionsFixture createFixture(const QString& sourceUrl = QString())
     fixture.application = root->findChild<KiriViewApplication*>(QStringLiteral("application"));
     if (!fixture.isValid()) {
         fixture.errorString = QStringLiteral("fixture did not create required objects");
+        return fixture;
     }
+    fixture.application->setDocumentSession(fixture.documentSession);
     return fixture;
 }
 

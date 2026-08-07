@@ -32,8 +32,10 @@ struct BudgetState
 
 struct LeaseState
 {
-    explicit LeaseState(std::shared_ptr<BudgetState> budget)
+    explicit LeaseState(
+        std::shared_ptr<BudgetState> budget, qsizetype perOperationBaselineByteCount = 0)
         : budget(std::move(budget))
+        , perOperationBaselineByteCount(perOperationBaselineByteCount)
     {
     }
 
@@ -47,6 +49,7 @@ struct LeaseState
     }
 
     std::shared_ptr<BudgetState> budget;
+    qsizetype perOperationBaselineByteCount = 0;
     qsizetype reservedByteCount = 0;
     Q_DISABLE_COPY_MOVE(LeaseState)
 };
@@ -104,13 +107,37 @@ bool ImageDecodeWorkspaceLease::tryReserve(qsizetype additionalByteCount)
         return false;
     }
     std::scoped_lock lock(budget->mutex);
-    if (additionalByteCount > budget->perOperationByteLimit - m_state->reservedByteCount
+    if (m_state->perOperationBaselineByteCount > budget->perOperationByteLimit
+        || m_state->reservedByteCount
+            > budget->perOperationByteLimit - m_state->perOperationBaselineByteCount
+        || additionalByteCount > budget->perOperationByteLimit
+                - m_state->perOperationBaselineByteCount - m_state->reservedByteCount
         || additionalByteCount > budget->aggregateByteLimit - budget->reservedByteCount) {
         return false;
     }
 
     m_state->reservedByteCount += additionalByteCount;
     budget->reservedByteCount += additionalByteCount;
+    return true;
+}
+
+bool ImageDecodeWorkspaceLease::release(qsizetype byteCount)
+{
+    if (byteCount < 0 || m_state == nullptr || m_state->budget == nullptr) {
+        return false;
+    }
+    if (byteCount == 0) {
+        return true;
+    }
+
+    const std::shared_ptr<ImageDecodeWorkspaceDetail::BudgetState>& budget = m_state->budget;
+    std::scoped_lock lock(budget->mutex);
+    if (byteCount > m_state->reservedByteCount) {
+        return false;
+    }
+
+    m_state->reservedByteCount -= byteCount;
+    budget->reservedByteCount -= byteCount;
     return true;
 }
 
@@ -161,6 +188,16 @@ ImageDecodeWorkspaceLease ImageDecodeWorkspaceBudget::startLease() const
 {
     return ImageDecodeWorkspaceLease(
         std::make_shared<ImageDecodeWorkspaceDetail::LeaseState>(m_state));
+}
+
+ImageDecodeWorkspaceLease ImageDecodeWorkspaceBudget::startLeaseForOperation(
+    qsizetype alreadyReservedByteCount) const
+{
+    if (alreadyReservedByteCount < 0) {
+        return {};
+    }
+    return ImageDecodeWorkspaceLease(std::make_shared<ImageDecodeWorkspaceDetail::LeaseState>(
+        m_state, alreadyReservedByteCount));
 }
 
 qsizetype ImageDecodeWorkspaceBudget::aggregateByteLimit() const
@@ -214,5 +251,29 @@ std::shared_ptr<ImageDecodeWorkspaceBudget> defaultImageDecodeWorkspaceBudget(
 QString imageDecodeWorkspaceResourceLimitDiagnostic()
 {
     return QStringLiteral("image decode workspace exceeds the configured resource limit");
+}
+
+std::optional<qsizetype> checkedImageDecodeWorkspaceByteCount(
+    QSize imageSize, qsizetype bytesPerPixel, qsizetype bufferCount)
+{
+    if (imageSize.isEmpty() || bytesPerPixel <= 0 || bufferCount <= 0) {
+        return std::nullopt;
+    }
+
+    constexpr qsizetype maximum = std::numeric_limits<qsizetype>::max();
+    const qsizetype width = imageSize.width();
+    const qsizetype height = imageSize.height();
+    if (width > maximum / height) {
+        return std::nullopt;
+    }
+    const qsizetype pixelCount = width * height;
+    if (pixelCount > maximum / bytesPerPixel) {
+        return std::nullopt;
+    }
+    const qsizetype frameByteCount = pixelCount * bytesPerPixel;
+    if (frameByteCount > maximum / bufferCount) {
+        return std::nullopt;
+    }
+    return frameByteCount * bufferCount;
 }
 }

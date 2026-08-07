@@ -7,12 +7,14 @@
 
 #include <QByteArrayView>
 #include <QColor>
+#include <QColorSpace>
 #include <QImage>
 #include <QObject>
 #include <QSize>
 #include <QString>
 #include <QTest>
 #include <QtGlobal>
+#include <memory>
 #include <optional>
 
 class TestDisplayImageStore : public QObject
@@ -23,6 +25,9 @@ private Q_SLOTS:
     void storesReusableFramePayload();
     void evictsLeastRecentlyUsedImagesByPriority();
     void frameLeasePreventsEvictionUntilReleased();
+    void outputAdmissionRetiresAfterStoredPixels();
+    void failedReservationPreservesExternallyAdmittedEntry();
+    void entryAliasRetainsAdmissionAndPixelsAfterStoreDestruction();
     void reusableAcquisitionRequiresExactKeyMatch();
     void reusableAcquisitionDistinguishesFreshnessAndAuthoredRasterIdentity();
 };
@@ -143,6 +148,153 @@ void TestDisplayImageStore::frameLeasePreventsEvictionUntilReleased()
     QVERIFY(store.entry(leased) == std::nullopt);
     QVERIFY(store.entry(visible).has_value());
     QVERIFY(store.entry(nearby).has_value());
+}
+
+void TestDisplayImageStore::outputAdmissionRetiresAfterStoredPixels()
+{
+    struct PixelRetirementProbe
+    {
+        std::weak_ptr<kiriview::DisplayImageOutputAdmission> outputAdmission;
+        uchar* pixels = nullptr;
+        bool* admissionAliveAtPixelRetirement = nullptr;
+    };
+
+    kiriview::DisplayImageStore store(64);
+    std::shared_ptr<kiriview::DisplayImageOutputAdmission> outputAdmission
+        = store.reserveOutput(64);
+    QVERIFY(outputAdmission != nullptr);
+    const std::weak_ptr<kiriview::DisplayImageOutputAdmission> weakAdmission = outputAdmission;
+    bool admissionAliveAtPixelRetirement = false;
+    auto* pixels = new uchar[64];
+    auto* probe = new PixelRetirementProbe {
+        weakAdmission,
+        pixels,
+        &admissionAliveAtPixelRetirement,
+    };
+    QImage producedImage(
+        pixels, 4, 4, 16, QImage::Format_RGBA8888,
+        [](void* data) {
+            auto* retired = static_cast<PixelRetirementProbe*>(data);
+            *retired->admissionAliveAtPixelRetirement = !retired->outputAdmission.expired();
+            delete[] retired->pixels;
+            delete retired;
+        },
+        probe);
+    producedImage.fill(Qt::red);
+
+    const QString produced = store.acquireReusable(
+        kiriview::DisplayImageEntry {
+            producedImage,
+            QSize(4, 4),
+            QSize(4, 4),
+            kiriview::DisplayImageQuality::Exact,
+            kiriview::DisplayImageRetentionPriority::Background,
+        },
+        testTimedFrameReuseKey(0), std::move(outputAdmission));
+    QVERIFY(!produced.isEmpty());
+    producedImage = {};
+    QCOMPARE(store.byteCost(), qsizetype(64));
+
+    const QString replacement = store.acquireReusable(
+        testEntry(QSize(4, 4), kiriview::DisplayImageRetentionPriority::Visible),
+        testTimedFrameReuseKey(1));
+
+    QVERIFY(!replacement.isEmpty());
+    QVERIFY(store.entry(produced) == std::nullopt);
+    QVERIFY(admissionAliveAtPixelRetirement);
+    QVERIFY(weakAdmission.expired());
+    QCOMPARE(store.byteCost(), qsizetype(64));
+}
+
+void TestDisplayImageStore::failedReservationPreservesExternallyAdmittedEntry()
+{
+    kiriview::DisplayImageStore store(64);
+    std::shared_ptr<kiriview::DisplayImageOutputAdmission> outputAdmission
+        = store.reserveOutput(64);
+    QVERIFY(outputAdmission != nullptr);
+
+    const QString stored = store.acquireReusable(
+        testEntry(QSize(4, 4), kiriview::DisplayImageRetentionPriority::Background),
+        testTimedFrameReuseKey(0), outputAdmission);
+    QVERIFY(!stored.isEmpty());
+
+    QVERIFY(store.reserveOutput(64) == nullptr);
+    QVERIFY(store.entry(stored).has_value());
+    QCOMPARE(store.byteCost(), qsizetype(64));
+}
+
+void TestDisplayImageStore::entryAliasRetainsAdmissionAndPixelsAfterStoreDestruction()
+{
+    struct PixelRetirementProbe
+    {
+        std::weak_ptr<kiriview::DisplayImageOutputAdmission> outputAdmission;
+        uchar* pixels = nullptr;
+        bool* pixelsRetired = nullptr;
+        bool* admissionAliveAtPixelRetirement = nullptr;
+    };
+
+    auto store = std::make_unique<kiriview::DisplayImageStore>(64);
+    std::shared_ptr<kiriview::DisplayImageOutputAdmission> outputAdmission
+        = store->reserveOutput(64);
+    QVERIFY(outputAdmission != nullptr);
+    const std::weak_ptr<kiriview::DisplayImageOutputAdmission> weakAdmission = outputAdmission;
+    bool pixelsRetired = false;
+    bool admissionAliveAtPixelRetirement = false;
+    auto* pixels = new uchar[64];
+    auto* probe = new PixelRetirementProbe {
+        weakAdmission,
+        pixels,
+        &pixelsRetired,
+        &admissionAliveAtPixelRetirement,
+    };
+    QImage producedImage(
+        pixels, 4, 4, 16, QImage::Format_RGBA8888,
+        [](void* data) {
+            auto* retired = static_cast<PixelRetirementProbe*>(data);
+            *retired->pixelsRetired = true;
+            *retired->admissionAliveAtPixelRetirement = !retired->outputAdmission.expired();
+            delete[] retired->pixels;
+            delete retired;
+        },
+        probe);
+    producedImage.fill(Qt::red);
+    producedImage.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    producedImage.setDevicePixelRatio(2.0);
+    producedImage.setOffset(QPoint(3, 5));
+    producedImage.setText(QStringLiteral("source"), QStringLiteral("retirement-probe"));
+    const uchar* const producedPixels = producedImage.constBits();
+
+    const QString id = store->acquireReusable(
+        kiriview::DisplayImageEntry {
+            producedImage,
+            QSize(4, 4),
+            QSize(4, 4),
+            kiriview::DisplayImageQuality::Exact,
+            kiriview::DisplayImageRetentionPriority::Visible,
+        },
+        testTimedFrameReuseKey(0), std::move(outputAdmission));
+    QVERIFY(!id.isEmpty());
+    std::optional<kiriview::DisplayImageStoreEntry> stored = store->entry(id);
+    QVERIFY(stored.has_value());
+    QVERIFY(stored->image.constBits() == producedPixels);
+    QCOMPARE(stored->image.colorSpace(), QColorSpace(QColorSpace::SRgb));
+    QCOMPARE(stored->image.devicePixelRatio(), 2.0);
+    QCOMPARE(stored->image.offset(), QPoint(3, 5));
+    QCOMPARE(stored->image.text(QStringLiteral("source")), QStringLiteral("retirement-probe"));
+    producedImage = {};
+
+    QVERIFY(store->reserveOutput(64) == nullptr);
+    QVERIFY(store->entry(id).has_value());
+    store.reset();
+
+    QVERIFY(!pixelsRetired);
+    QVERIFY(!weakAdmission.expired());
+    QCOMPARE(stored->image.pixelColor(0, 0), QColor(Qt::red));
+    stored.reset();
+
+    QVERIFY(pixelsRetired);
+    QVERIFY(admissionAliveAtPixelRetirement);
+    QVERIFY(weakAdmission.expired());
 }
 
 void TestDisplayImageStore::reusableAcquisitionRequiresExactKeyMatch()

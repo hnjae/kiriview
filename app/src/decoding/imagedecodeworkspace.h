@@ -6,9 +6,11 @@
 
 #include "system/systemmemory.h"
 
+#include <QSize>
 #include <QString>
 #include <QtGlobal>
 #include <memory>
+#include <optional>
 
 namespace kiriview {
 namespace ImageDecodeWorkspaceDetail {
@@ -56,6 +58,7 @@ public:
     Q_DISABLE_COPY(ImageDecodeWorkspaceLease)
 
     [[nodiscard]] bool tryReserve(qsizetype additionalByteCount);
+    [[nodiscard]] bool release(qsizetype byteCount);
     [[nodiscard]] ImageDecodeWorkspaceHold sharedHold() const;
     [[nodiscard]] ImageDecodeWorkspaceHold retainOnly(qsizetype retainedByteCount);
     [[nodiscard]] qsizetype reservedByteCount() const;
@@ -75,6 +78,8 @@ public:
     ImageDecodeWorkspaceBudget(qsizetype aggregateByteLimit, qsizetype perOperationByteLimit);
 
     [[nodiscard]] ImageDecodeWorkspaceLease startLease() const;
+    [[nodiscard]] ImageDecodeWorkspaceLease startLeaseForOperation(
+        qsizetype alreadyReservedByteCount) const;
     [[nodiscard]] qsizetype aggregateByteLimit() const;
     [[nodiscard]] qsizetype perOperationByteLimit() const;
     [[nodiscard]] qsizetype reservedByteCount() const;
@@ -88,6 +93,8 @@ ImageDecodeWorkspaceBudgetLimits resolvedImageDecodeWorkspaceBudgetLimits(
 std::shared_ptr<ImageDecodeWorkspaceBudget> defaultImageDecodeWorkspaceBudget(
     ImageDecodeWorkspaceBudgetRequest request = {}, SystemMemorySnapshot systemMemory = {});
 QString imageDecodeWorkspaceResourceLimitDiagnostic();
+std::optional<qsizetype> checkedImageDecodeWorkspaceByteCount(
+    QSize imageSize, qsizetype bytesPerPixel, qsizetype bufferCount);
 }
 
 #endif

@@ -4,10 +4,13 @@
 #include "decoding/kiriimagedecoder.h"
 
 #include "decoding/heifcontainer.h"
+#include "decoding/heifsequencereader.h"
 #include "image_test_support.h"
 #include "rendering/qimagereaderdisplaysource.h"
 
+#include <ImageViewport/imagesequence.h>
 #include <libheif/heif.h>
+#include <libheif/heif_sequences.h>
 
 #include <QBuffer>
 #include <QByteArray>
@@ -181,6 +184,109 @@ std::optional<QByteArray> createJpegCompressedHeifData(QString* errorText)
     return memoryWriter.data;
 }
 
+std::optional<QByteArray> createLargeHeifSequenceData(QString* errorText)
+{
+    HeifLibraryScope library(errorText);
+    if (!library.initialized) {
+        return std::nullopt;
+    }
+
+    std::unique_ptr<heif_context, decltype(&heif_context_free)> context(
+        heif_context_alloc(), heif_context_free);
+    if (context == nullptr) {
+        *errorText = QStringLiteral("heif_context_alloc failed");
+        return std::nullopt;
+    }
+
+    heif_encoder* rawEncoder = nullptr;
+    heif_error error
+        = heif_context_get_encoder_for_format(context.get(), heif_compression_HEVC, &rawEncoder);
+    if (error.code != heif_error_Ok) {
+        *errorText = heifErrorText("heif_context_get_encoder_for_format", error);
+        return std::nullopt;
+    }
+    std::unique_ptr<heif_encoder, decltype(&heif_encoder_release)> encoder(
+        rawEncoder, heif_encoder_release);
+    heif_encoder_set_lossy_quality(encoder.get(), 20);
+
+    std::unique_ptr<heif_sequence_encoding_options,
+        decltype(&heif_sequence_encoding_options_release)>
+        encodingOptions(
+            heif_sequence_encoding_options_alloc(), heif_sequence_encoding_options_release);
+    if (encodingOptions == nullptr) {
+        *errorText = QStringLiteral("heif_sequence_encoding_options_alloc failed");
+        return std::nullopt;
+    }
+    encodingOptions->gop_structure = heif_sequence_gop_structure_intra_only;
+
+    constexpr int width = 1536;
+    constexpr int height = 1536;
+    heif_track* rawTrack = nullptr;
+    error = heif_context_add_visual_sequence_track(context.get(), width, height,
+        heif_track_type_image_sequence, nullptr, encodingOptions.get(), &rawTrack);
+    if (error.code != heif_error_Ok) {
+        *errorText = heifErrorText("heif_context_add_visual_sequence_track", error);
+        return std::nullopt;
+    }
+    std::unique_ptr<heif_track, decltype(&heif_track_release)> track(rawTrack, heif_track_release);
+
+    for (int frameIndex = 0; frameIndex < 2; ++frameIndex) {
+        heif_image* rawImage = nullptr;
+        error = heif_image_create(
+            width, height, heif_colorspace_RGB, heif_chroma_interleaved_RGB, &rawImage);
+        if (error.code != heif_error_Ok) {
+            *errorText = heifErrorText("heif_image_create", error);
+            return std::nullopt;
+        }
+        std::unique_ptr<heif_image, decltype(&heif_image_release)> image(
+            rawImage, heif_image_release);
+
+        error = heif_image_add_plane(image.get(), heif_channel_interleaved, width, height, 8);
+        if (error.code != heif_error_Ok) {
+            *errorText = heifErrorText("heif_image_add_plane", error);
+            return std::nullopt;
+        }
+
+        int stride = 0;
+        uint8_t* plane = heif_image_get_plane(image.get(), heif_channel_interleaved, &stride);
+        constexpr int rowByteCount = width * 3;
+        if (plane == nullptr || stride < rowByteCount) {
+            *errorText = QStringLiteral("heif_image_get_plane returned invalid sequence data");
+            return std::nullopt;
+        }
+        for (int y = 0; y < height; ++y) {
+            std::memset(plane + (y * stride), 0, rowByteCount);
+            for (int x = 0; x < width; ++x) {
+                plane[(y * stride) + (x * 3) + frameIndex] = 255;
+            }
+        }
+        heif_image_set_duration(image.get(), 10);
+        error = heif_track_encode_sequence_image(
+            track.get(), image.get(), encoder.get(), encodingOptions.get());
+        if (error.code != heif_error_Ok) {
+            *errorText = heifErrorText("heif_track_encode_sequence_image", error);
+            return std::nullopt;
+        }
+    }
+
+    error = heif_track_encode_end_of_sequence(track.get(), encoder.get());
+    if (error.code != heif_error_Ok) {
+        *errorText = heifErrorText("heif_track_encode_end_of_sequence", error);
+        return std::nullopt;
+    }
+
+    MemoryWriter memoryWriter;
+    heif_writer writer {};
+    writer.writer_api_version = 1;
+    writer.write = writeHeifBytes;
+    error = heif_context_write(context.get(), &writer, &memoryWriter);
+    if (error.code != heif_error_Ok) {
+        *errorText = heifErrorText("heif_context_write", error);
+        return std::nullopt;
+    }
+    return memoryWriter.data;
+}
+
 QByteArray createPngData()
 {
     QByteArray data;
@@ -206,6 +312,18 @@ QByteArray animatedGifData()
                                "21f904000a000000"
                                "2c0000000001000100000202440100"
                                "3b");
+}
+
+QByteArray gifDataWithFrameCount(int frameCount)
+{
+    QByteArray data = QByteArray::fromHex("47494638396101000100800000000000ffffff");
+    const QByteArray frame = QByteArray::fromHex("2c0000000001000100000202440100");
+    data.reserve(data.size() + (frameCount * frame.size()) + 1);
+    for (int index = 0; index < frameCount; ++index) {
+        data.append(frame);
+    }
+    data.append('\x3b');
+    return data;
 }
 
 void appendLittleEndian16(QByteArray* data, quint16 value)
@@ -280,10 +398,15 @@ private Q_SLOTS:
     void directDecodeDerivesSourceRevisionForEveryDecodedVariant();
     void realAnimatedFixturesDecodeAsAnimations_data();
     void realAnimatedFixturesDecodeAsAnimations();
+    void animationWorkspaceBudgetRejectsUnadmittedFrames_data();
+    void animationWorkspaceBudgetRejectsUnadmittedFrames();
+    void gifFrameCountLimitIsEnforced();
+    void catalogWorkspaceFailurePreservesResourceCause();
     void jpegCompressedHeifStillImageDecodes();
     void avifStillBrandUsesHeifStaticPath();
     void avifsSequenceBrandUsesHeifSequencePath();
     void heifSequenceDecodesAsStreamingAnimation();
+    void heifSequenceCanUseMoreThanThePreparseMemoryCap();
     void rawExtensionForcesRawDecodeBeforeQtFallback();
     void rawSamplesDecodeWhenConfigured();
 };
@@ -368,6 +491,90 @@ void TestKiriImageDecoder::realAnimatedFixturesDecodeAsAnimations()
     QCOMPARE(decodedFrameSize(*image), frameSize);
 }
 
+void TestKiriImageDecoder::animationWorkspaceBudgetRejectsUnadmittedFrames_data()
+{
+    QTest::addColumn<QByteArray>("imageData");
+    QTest::addColumn<QString>("fileName");
+
+    QTest::newRow("apng") << fixtureData(QStringLiteral("animated-smoke.apng"))
+                          << QStringLiteral("direct.apng");
+    QTest::newRow("reader-animation") << animatedGifData() << QStringLiteral("direct.gif");
+    QTest::newRow("webp") << fixtureData(QStringLiteral("animated-smoke.webp"))
+                          << QStringLiteral("direct.webp");
+    QTest::newRow("jxl") << fixtureData(QStringLiteral("animated-smoke.jxl"))
+                         << QStringLiteral("direct.jxl");
+    QTest::newRow("heif-sequence") << fixtureData(QStringLiteral("heif-sequence-alpha.heics"))
+                                   << QStringLiteral("direct.heics");
+}
+
+void TestKiriImageDecoder::animationWorkspaceBudgetRejectsUnadmittedFrames()
+{
+    QFETCH(QByteArray, imageData);
+    QFETCH(QString, fileName);
+
+    QVERIFY(!imageData.isEmpty());
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(1, 1);
+    const kiriview::ImageDecodeRequest request = kiriview::ImageDecodeRequest::fromUrl(
+        1, QUrl::fromLocalFile(QStringLiteral("/tmp/") + fileName));
+    const kiriview::DecodedImageResult result
+        = kiriview::decodeImageData(imageData, request, budget);
+
+    const kiriview::DecodedImageFailure* failure = kiriview::decodedImageResultFailure(result);
+    QVERIFY(failure != nullptr);
+    QCOMPARE(failure->cause, kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+    QVERIFY(kiriview::decodedImageResultImage(result) == nullptr);
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
+void TestKiriImageDecoder::gifFrameCountLimitIsEnforced()
+{
+    const QByteArray imageData
+        = gifDataWithFrameCount(ImageSequenceLimits::maximumFrameCount() + 1);
+    QVERIFY(!imageData.isEmpty());
+    constexpr qsizetype budgetByteCount = qsizetype { 256 } * 1024 * 1024;
+    auto budget
+        = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(budgetByteCount, budgetByteCount);
+
+    const kiriview::DecodedImageResult result
+        = kiriview::decodeImageData(imageData, kiriview::ImageDecodeRequest {}, budget);
+
+    const kiriview::DecodedImageFailure* failure = kiriview::decodedImageResultFailure(result);
+    QVERIFY(failure != nullptr);
+    QCOMPARE(failure->route, kiriview::DecodedImageFailureRoute::QtRaster);
+    QCOMPARE(failure->cause, kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+    QVERIFY(kiriview::decodedImageResultImage(result) == nullptr);
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
+void TestKiriImageDecoder::catalogWorkspaceFailurePreservesResourceCause()
+{
+    const QByteArray imageData = fixtureData(QStringLiteral("heif-sequence-alpha.heics"));
+    QVERIFY(!imageData.isEmpty());
+    constexpr qsizetype generousByteCount = qsizetype { 256 } * 1024 * 1024;
+    auto measurementBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        generousByteCount, generousByteCount);
+    kiriview::HeifSequenceReader measuredReader(measurementBudget);
+    QCOMPARE(measuredReader.open(imageData).status, kiriview::HeifSequenceOpenStatus::Success);
+    kiriview::AnimationFrameReadResult measuredFirst = measuredReader.readNextFrame();
+    QVERIFY(measuredFirst && measuredFirst->has_value());
+    const qsizetype admittedOpenByteCount = measurementBudget->reservedByteCount();
+    QVERIFY(admittedOpenByteCount > (**measuredFirst).image.sizeInBytes());
+    measuredFirst = std::optional<kiriview::AnimationFrame>();
+    measuredReader.close();
+    QCOMPARE(measurementBudget->reservedByteCount(), qsizetype(0));
+
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        admittedOpenByteCount, admittedOpenByteCount);
+    const kiriview::DecodedImageResult result
+        = kiriview::decodeImageData(imageData, kiriview::ImageDecodeRequest {}, budget);
+
+    const kiriview::DecodedImageFailure* failure = kiriview::decodedImageResultFailure(result);
+    QVERIFY(failure != nullptr);
+    QCOMPARE(failure->cause, kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+    QVERIFY(kiriview::decodedImageResultImage(result) == nullptr);
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
 void TestKiriImageDecoder::jpegCompressedHeifStillImageDecodes()
 {
     QString encodeError;
@@ -432,6 +639,26 @@ void TestKiriImageDecoder::heifSequenceDecodesAsStreamingAnimation()
     QCOMPARE(decoded->firstFrame.size(), QSize(64, 64));
     QVERIFY(!decoded->data.isEmpty());
     QVERIFY(qAlpha(decoded->firstFrame.pixel(48, 32)) < 255);
+}
+
+void TestKiriImageDecoder::heifSequenceCanUseMoreThanThePreparseMemoryCap()
+{
+    QString encodeError;
+    const std::optional<QByteArray> imageData = createLargeHeifSequenceData(&encodeError);
+    QVERIFY2(imageData.has_value(), qPrintable(encodeError));
+
+    constexpr qsizetype budgetByteCount = qsizetype { 256 } * 1024 * 1024;
+    auto budget
+        = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(budgetByteCount, budgetByteCount);
+    kiriview::DecodedImageResult result
+        = kiriview::decodeImageData(*imageData, kiriview::ImageDecodeRequest {}, budget);
+
+    const auto* failure = kiriview::decodedImageResultFailure(result);
+    QVERIFY2(failure == nullptr, qPrintable(failure == nullptr ? QString() : failure->errorString));
+    const auto* decoded = decodedImage<kiriview::HeifSequenceAnimationImage>(result);
+    QVERIFY(decoded != nullptr);
+    QCOMPARE(decoded->firstFrame.size(), QSize(1536, 1536));
+    QVERIFY(decoded->firstFrame.sizeInBytes() > qsizetype { 8 } * 1024 * 1024);
 }
 
 void TestKiriImageDecoder::rawExtensionForcesRawDecodeBeforeQtFallback()

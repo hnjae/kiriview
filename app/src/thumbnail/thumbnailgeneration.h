@@ -23,6 +23,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <utility>
 
 class QObject;
 
@@ -61,6 +62,52 @@ struct ThumbnailGenerationResult
         = ActiveNavigationThumbnailDemandBucket::None;
     QString installedCachePath;
     QString errorString;
+
+    ThumbnailGenerationResult() = default;
+    ThumbnailGenerationResult(ThumbnailGenerationStatus generationStatus,
+        ThumbnailGenerationWorkspaceHolds retainedWorkspace, QImage generatedImage,
+        ActiveNavigationThumbnailDemandBucket bucket, QString cachePath = {},
+        QString diagnostic = {})
+        : status(generationStatus)
+        , workspaceHolds(std::move(retainedWorkspace))
+        , image(std::move(generatedImage))
+        , requestedBucket(bucket)
+        , installedCachePath(std::move(cachePath))
+        , errorString(std::move(diagnostic))
+    {
+    }
+    ~ThumbnailGenerationResult() = default;
+    ThumbnailGenerationResult(const ThumbnailGenerationResult&) = default;
+    ThumbnailGenerationResult(ThumbnailGenerationResult&&) noexcept = default;
+
+    ThumbnailGenerationResult& operator=(const ThumbnailGenerationResult& other)
+    {
+        if (this != &other) {
+            ThumbnailGenerationResult next(other);
+            swap(*this, next);
+        }
+        return *this;
+    }
+
+    ThumbnailGenerationResult& operator=(ThumbnailGenerationResult&& other) noexcept
+    {
+        if (this != &other) {
+            ThumbnailGenerationResult next(std::move(other));
+            swap(*this, next);
+        }
+        return *this;
+    }
+
+    friend void swap(ThumbnailGenerationResult& left, ThumbnailGenerationResult& right) noexcept
+    {
+        using std::swap;
+        swap(left.status, right.status);
+        swap(left.workspaceHolds, right.workspaceHolds);
+        swap(left.image, right.image);
+        swap(left.requestedBucket, right.requestedBucket);
+        swap(left.installedCachePath, right.installedCachePath);
+        swap(left.errorString, right.errorString);
+    }
 };
 
 using ThumbnailGenerationBytesLoader
@@ -71,10 +118,55 @@ using ThumbnailGenerationOriginalIdentityLoader
 
 struct ThumbnailGenerationImageDecodeResult
 {
+    ThumbnailGenerationImageDecodeResult() = default;
+    ThumbnailGenerationImageDecodeResult(ThumbnailGenerationWorkspaceHolds retainedWorkspace,
+        ImageDecodeWorkspaceLease pendingTransformation, QImage decodedImage,
+        QString diagnostic = {}, DecodedImageFailureCause cause = DecodedImageFailureCause::Unknown,
+        qsizetype outputByteCount = 0, bool imageUsesTransformation = false)
+        : workspaceHolds(std::move(retainedWorkspace))
+        , transformationLease(std::move(pendingTransformation))
+        , image(std::move(decodedImage))
+        , errorString(std::move(diagnostic))
+        , failureCause(cause)
+        , transformationOutputByteCount(outputByteCount)
+        , imageUsesTransformationReservation(imageUsesTransformation)
+    {
+    }
+    ThumbnailGenerationImageDecodeResult(const ThumbnailGenerationImageDecodeResult&) = delete;
+    ThumbnailGenerationImageDecodeResult& operator=(const ThumbnailGenerationImageDecodeResult&)
+        = delete;
+    ~ThumbnailGenerationImageDecodeResult() = default;
+    ThumbnailGenerationImageDecodeResult(ThumbnailGenerationImageDecodeResult&&) noexcept = default;
+    ThumbnailGenerationImageDecodeResult& operator=(
+        ThumbnailGenerationImageDecodeResult&& other) noexcept
+    {
+        if (this == &other) {
+            return *this;
+        }
+
+        ThumbnailGenerationWorkspaceHolds nextWorkspaceHolds = std::move(other.workspaceHolds);
+        ImageDecodeWorkspaceLease nextTransformationLease = std::move(other.transformationLease);
+        QImage nextImage = std::move(other.image);
+        image = {};
+        transformationLease = {};
+        workspaceHolds = {};
+        workspaceHolds = std::move(nextWorkspaceHolds);
+        transformationLease = std::move(nextTransformationLease);
+        image = std::move(nextImage);
+        errorString = std::move(other.errorString);
+        failureCause = other.failureCause;
+        transformationOutputByteCount = other.transformationOutputByteCount;
+        imageUsesTransformationReservation = other.imageUsesTransformationReservation;
+        return *this;
+    }
+
     ThumbnailGenerationWorkspaceHolds workspaceHolds;
+    ImageDecodeWorkspaceLease transformationLease;
     QImage image;
     QString errorString;
     DecodedImageFailureCause failureCause = DecodedImageFailureCause::Unknown;
+    qsizetype transformationOutputByteCount = 0;
+    bool imageUsesTransformationReservation = false;
 };
 
 using ThumbnailGenerationImageDecoder

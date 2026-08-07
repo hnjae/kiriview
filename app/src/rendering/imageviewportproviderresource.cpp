@@ -132,6 +132,84 @@ bool operator==(
         && left.locationIdentity == right.locationIdentity;
 }
 
+ImageViewportProviderFrameResult& ImageViewportProviderFrameResult::operator=(
+    const ImageViewportProviderFrameResult& other)
+{
+    if (this == &other) {
+        return *this;
+    }
+    ImageViewportProviderFrameResult copy(other);
+    return *this = std::move(copy);
+}
+
+ImageViewportProviderFrameResult& ImageViewportProviderFrameResult::operator=(
+    ImageViewportProviderFrameResult&& other) noexcept
+{
+    if (this == &other) {
+        return *this;
+    }
+
+    ImageViewportProviderFrameResult retired;
+    retired.outputAdmission = std::move(outputAdmission);
+    retired.displayImage = std::move(displayImage);
+    retired.envelope = envelope;
+    retired.formatIdentifier = std::move(formatIdentifier);
+    retired.failureCause = failureCause;
+    retired.failure = std::move(failure);
+    retired.unsupportedCause = unsupportedCause;
+    retired.stage = stage;
+
+    outputAdmission = std::move(other.outputAdmission);
+    displayImage = std::move(other.displayImage);
+    envelope = other.envelope;
+    formatIdentifier = std::move(other.formatIdentifier);
+    failureCause = other.failureCause;
+    failure = std::move(other.failure);
+    unsupportedCause = other.unsupportedCause;
+    stage = other.stage;
+    return *this;
+}
+
+ImageViewportProviderPreparedFrame& ImageViewportProviderPreparedFrame::operator=(
+    const ImageViewportProviderPreparedFrame& other)
+{
+    if (this == &other) {
+        return *this;
+    }
+    ImageViewportProviderPreparedFrame copy(other);
+    return *this = std::move(copy);
+}
+
+ImageViewportProviderPreparedFrame& ImageViewportProviderPreparedFrame::operator=(
+    ImageViewportProviderPreparedFrame&& other) noexcept
+{
+    if (this == &other) {
+        return *this;
+    }
+
+    ImageViewportProviderPreparedFrame retired;
+    retired.outputAdmission = std::move(outputAdmission);
+    retired.authoritativeStillDisplayImage = std::move(authoritativeStillDisplayImage);
+    retired.storeEntryId = std::move(storeEntryId);
+    retired.envelope = envelope;
+    retired.formatIdentifier = std::move(formatIdentifier);
+    retired.failureCause = failureCause;
+    retired.failure = std::move(failure);
+    retired.unsupportedCause = unsupportedCause;
+    retired.stage = stage;
+
+    outputAdmission = std::move(other.outputAdmission);
+    authoritativeStillDisplayImage = std::move(other.authoritativeStillDisplayImage);
+    storeEntryId = std::move(other.storeEntryId);
+    envelope = other.envelope;
+    formatIdentifier = std::move(other.formatIdentifier);
+    failureCause = other.failureCause;
+    failure = std::move(other.failure);
+    unsupportedCause = other.unsupportedCause;
+    stage = other.stage;
+    return *this;
+}
+
 ImageViewportProviderMetadataResult ImageViewportProviderMetadataResult::ready(
     ImageSequenceProviderMetadata metadata)
 {
@@ -151,12 +229,13 @@ ImageViewportProviderMetadataResult ImageViewportProviderMetadataResult::failed(
 
 ImageViewportProviderFrameResult ImageViewportProviderFrameResult::ready(
     StaticDisplayImagePayload displayImage, ImageSequenceProviderFrameEnvelope envelope,
-    QString formatIdentifier)
+    QString formatIdentifier, std::shared_ptr<DisplayImageOutputAdmission> outputAdmission)
 {
     ImageViewportProviderFrameResult result;
     result.displayImage = std::move(displayImage);
     result.envelope = envelope;
     result.formatIdentifier = std::move(formatIdentifier);
+    result.outputAdmission = std::move(outputAdmission);
     return result;
 }
 
@@ -297,6 +376,7 @@ void ImageViewportProviderResource::requestFrame(const ImageViewportProviderWork
     request.maximumStoreEntryBytes = request.maximumStoreEntryBytes < 0
         ? displayStoreEntryBudget
         : std::min(request.maximumStoreEntryBytes, displayStoreEntryBudget);
+    request.outputStore = m_displayStore;
     const std::weak_ptr<ImageViewportProviderResource> resource = weak_from_this();
     m_source->requestFrame(identity, request,
         [resource, completion = std::move(completion)](
@@ -555,6 +635,15 @@ ImageViewportProviderPreparedFrame ImageViewportProviderResource::prepareFrame(
         displayImage.previewOrigin,
         displayedPageRole(identity.role),
     };
+    if (result.outputAdmission == nullptr) {
+        result.outputAdmission = m_displayStore->reserveOutput(displayImage.image.sizeInBytes());
+        if (result.outputAdmission == nullptr) {
+            result.displayImage.reset();
+            prepared.failureCause = ImageSequenceProviderFailureCause::ResourceExhausted;
+            return prepared;
+        }
+    }
+    prepared.outputAdmission = result.outputAdmission;
     prepared.storeEntryId = m_displayStore->acquireReusable(
         DisplayImageEntry {
             displayImage.image,
@@ -563,13 +652,26 @@ ImageViewportProviderPreparedFrame ImageViewportProviderResource::prepareFrame(
             displayImage.quality,
             DisplayImageRetentionPriority::Visible,
         },
-        reuseKey);
+        reuseKey, std::move(result.outputAdmission));
     if (prepared.storeEntryId.isEmpty()) {
+        result.displayImage.reset();
+        prepared.outputAdmission.reset();
         prepared.failureCause = ImageSequenceProviderFailureCause::ResourceExhausted;
         return prepared;
     }
     if (!prepared.isProvisional() && prepared.envelope.isStillFrame()) {
-        prepared.authoritativeStillDisplayImage = displayImage;
+        const std::optional<DisplayImageStoreEntry> stored
+            = m_displayStore->entry(prepared.storeEntryId);
+        if (!stored.has_value()) {
+            result.displayImage.reset();
+            prepared.outputAdmission.reset();
+            prepared.storeEntryId.clear();
+            prepared.failureCause = ImageSequenceProviderFailureCause::ResourceExhausted;
+            return prepared;
+        }
+        StaticDisplayImagePayload storedDisplayImage = displayImage;
+        storedDisplayImage.image = stored->image;
+        prepared.authoritativeStillDisplayImage = std::move(storedDisplayImage);
     }
     return prepared;
 }

@@ -24,7 +24,20 @@ struct ImageAnimationSourceCatalog
     [[nodiscard]] bool isValid() const;
 };
 
-using ImageAnimationSourceCatalogResult = std::expected<ImageAnimationSourceCatalog, QString>;
+enum class ImageAnimationSourceCatalogFailureCause {
+    InvalidSource,
+    ResourceLimitExceeded,
+};
+
+struct ImageAnimationSourceCatalogFailure
+{
+    QString errorString;
+    ImageAnimationSourceCatalogFailureCause cause
+        = ImageAnimationSourceCatalogFailureCause::InvalidSource;
+};
+
+using ImageAnimationSourceCatalogResult
+    = std::expected<ImageAnimationSourceCatalog, ImageAnimationSourceCatalogFailure>;
 
 ImageAnimationSourceCatalogResult readImageAnimationSourceCatalog(
     const ImageAnimationPlaybackRequest& request);

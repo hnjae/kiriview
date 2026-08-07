@@ -7,6 +7,38 @@
 #include <KJob>
 
 namespace kiriview {
+namespace {
+    bool isRetryableKioOperationError(KioOperationKind operationKind, int errorCode)
+    {
+        switch (operationKind) {
+        case KioOperationKind::DirectoryListing:
+        case KioOperationKind::FileDeletion:
+        case KioOperationKind::MediaOpenWith:
+            break;
+        case KioOperationKind::Unknown:
+            return false;
+        }
+
+        switch (errorCode) {
+        case KIO::ERR_UNKNOWN_HOST:
+        case KIO::ERR_CANNOT_CREATE_SOCKET:
+        case KIO::ERR_CANNOT_CONNECT:
+        case KIO::ERR_CONNECTION_BROKEN:
+        case KIO::ERR_WORKER_DIED:
+        case KIO::ERR_UNKNOWN_PROXY_HOST:
+        case KIO::ERR_INTERNAL_SERVER:
+        case KIO::ERR_SERVER_TIMEOUT:
+        case KIO::ERR_SERVICE_NOT_AVAILABLE:
+        case KIO::ERR_UNKNOWN_INTERRUPT:
+        case KIO::ERR_CANNOT_CREATE_WORKER:
+        case KIO::ERR_OWNER_DIED:
+            return true;
+        default:
+            return false;
+        }
+    }
+}
+
 bool isKioOperationCanceledError(int errorCode)
 {
     // Qt currently exposes these cancellation names with the same value.
@@ -25,7 +57,7 @@ KioOperationFailure kioOperationFailureFromKJob(
         canceled,
         canceled ? QString() : errorText,
         errorText,
-        !canceled,
+        !canceled && isRetryableKioOperationError(operationKind, errorCode),
     };
 }
 

@@ -8,6 +8,7 @@
 #include <QTest>
 #include <Qt>
 #include <memory>
+#include <optional>
 
 namespace {
 QByteArray clippedSvgData()
@@ -82,6 +83,8 @@ void TestSvgDisplaySource::sourceRendersWholeSurfaceDisplayBucket()
         = kiriview::SvgDisplaySource::open(data, &errorString);
     QVERIFY2(source != nullptr, qPrintable(errorString));
     QVERIFY(source->supportsRasterDisplayRefinement());
+    QCOMPARE(source->rasterDisplayRefinementPeakByteCost(QSize(120, 60)),
+        std::optional<qsizetype>(2 * 120 * 60 * 4));
 
     const kiriview::StaticImageDisplayDecodeResult bucket
         = source->decodeRasterDisplayImage(QSize(120, 60));
