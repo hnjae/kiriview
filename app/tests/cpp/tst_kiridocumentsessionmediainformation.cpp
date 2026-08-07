@@ -14,6 +14,11 @@ private Q_SLOTS:
     void videoMediaInformationUsesVideoSectionAndNoCameraRows();
     void mediaInformationDerivesFilenameAndPathFromTargetUrl();
     void mediaInformationRowModelsExposeLabelAndValueRoles();
+    void unavailableMediaInformationSuppressesEffects();
+    void mediaInformationInvokablesDispatchCurrentValuesOnce();
+    void mediaInformationInvokablesFollowReplacementCurrentness();
+    void copyFilePathSurvivesSynchronousSessionDestruction();
+    void openContainingFolderSurvivesSynchronousSessionDestruction();
 };
 
 #include "kiridocumentsession_media_information.inc"

@@ -39,13 +39,18 @@ kiriview::ImageDocumentPageCandidateProvider openedCollectionOnlyProvider()
 {
     return kiriview::ImageDocumentPageCandidateProvider {
         [](QObject*, QUrl, kiriview::ImageDocumentPageCandidatesCallback,
-            kiriview::ErrorCallback errorCallback) {
-            kiriview::invokeIfSet(errorCallback, QStringLiteral("unexpected directory listing"));
+            kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback) {
+            kiriview::invokeIfSet(errorCallback,
+                kiriview::ImageDocumentPageCandidateLoadError {
+                    QStringLiteral("unexpected directory listing") });
             return kiriview::ImageIoJob();
         },
         [](QObject*, QUrl, kiriview::ContainerCandidatesCallback,
-            kiriview::ErrorCallback errorCallback) {
-            kiriview::invokeIfSet(errorCallback, QStringLiteral("unexpected container listing"));
+            kiriview::KioOperationFailureCallback errorCallback) {
+            kiriview::invokeIfSet(errorCallback,
+                kiriview::kioOperationValidationFailure(
+                    kiriview::KioOperationKind::DirectoryListing, {},
+                    QStringLiteral("unexpected container listing")));
             return kiriview::ImageIoJob();
         },
         {},

@@ -11,6 +11,7 @@
 #include <QString>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <vector>
 
 class QObject;
@@ -21,6 +22,7 @@ struct DocumentSessionDirectMediaNavigationCandidatesResult
     std::vector<DirectMediaNavigationCandidate> candidates;
     bool succeeded = false;
     QString errorString;
+    std::optional<KioOperationFailure> failure;
 };
 
 struct DocumentSessionDirectMediaNavigationRefreshResult
@@ -29,6 +31,7 @@ struct DocumentSessionDirectMediaNavigationRefreshResult
     DirectMediaNavigationBoundaryState boundaryState;
     bool succeeded = false;
     QString errorString;
+    std::optional<KioOperationFailure> failure;
 };
 
 struct DocumentSessionDirectMediaNavigationOpenResult
@@ -37,6 +40,7 @@ struct DocumentSessionDirectMediaNavigationOpenResult
     DirectMediaNavigationOpenPlan plan;
     bool succeeded = false;
     QString errorString;
+    std::optional<KioOperationFailure> failure;
 };
 
 class DocumentSessionDirectMediaNavigationRuntime final

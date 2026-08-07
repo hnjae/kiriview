@@ -41,15 +41,17 @@ void DocumentSessionDirectMediaNavigationRuntime::refresh(QObject* receiver,
             if (!result.succeeded) {
                 invokeIfSet(callback,
                     DocumentSessionDirectMediaNavigationRefreshResult {
-                        std::move(result.candidates), {}, false, result.errorString });
+                        std::move(result.candidates), {}, false, std::move(result.errorString),
+                        std::move(result.failure) });
                 return;
             }
 
             const DirectMediaNavigationBoundaryState boundaryState
                 = directMediaNavigationBoundaryState(result.candidates, currentUrl);
             invokeIfSet(callback,
-                DocumentSessionDirectMediaNavigationRefreshResult {
-                    std::move(result.candidates), boundaryState, true, result.errorString });
+                DocumentSessionDirectMediaNavigationRefreshResult { std::move(result.candidates),
+                    boundaryState, true, std::move(result.errorString),
+                    std::move(result.failure) });
         });
 }
 
@@ -64,16 +66,17 @@ void DocumentSessionDirectMediaNavigationRuntime::open(QObject* receiver,
             request](DocumentSessionDirectMediaNavigationCandidatesResult result) mutable {
             if (!result.succeeded) {
                 invokeIfSet(callback,
-                    DocumentSessionDirectMediaNavigationOpenResult {
-                        std::move(result.candidates), {}, false, result.errorString });
+                    DocumentSessionDirectMediaNavigationOpenResult { std::move(result.candidates),
+                        {}, false, std::move(result.errorString), std::move(result.failure) });
                 return;
             }
 
             DirectMediaNavigationOpenPlan plan
                 = directMediaNavigationOpenPlan(result.candidates, currentUrl, request);
             invokeIfSet(callback,
-                DocumentSessionDirectMediaNavigationOpenResult {
-                    std::move(result.candidates), std::move(plan), true, result.errorString });
+                DocumentSessionDirectMediaNavigationOpenResult { std::move(result.candidates),
+                    std::move(plan), true, std::move(result.errorString),
+                    std::move(result.failure) });
         });
 }
 
@@ -122,15 +125,17 @@ void DocumentSessionDirectMediaNavigationRuntime::startLoad(QObject* receiver,
             }
             finish(load,
                 DocumentSessionDirectMediaNavigationCandidatesResult {
-                    std::move(candidates), true, QString() },
+                    std::move(candidates), true, QString(), std::nullopt },
                 *sharedScopeAccepted, *sharedCallback);
         },
-        [this, lifetime, load, sharedScopeAccepted, sharedCallback](const QString& errorString) {
+        [this, lifetime, load, sharedScopeAccepted, sharedCallback](KioOperationFailure failure) {
             if (lifetime.expired()) {
                 return;
             }
+            QString errorString = failure.userMessage;
             finish(load,
-                DocumentSessionDirectMediaNavigationCandidatesResult { {}, false, errorString },
+                DocumentSessionDirectMediaNavigationCandidatesResult {
+                    {}, false, std::move(errorString), std::move(failure) },
                 *sharedScopeAccepted, *sharedCallback);
         });
     if (lifetime.expired() || !m_loadState.accepts(load)) {
@@ -193,10 +198,12 @@ void DocumentSessionDirectMediaNavigationRuntime::finish(
         return;
     }
 
+    const QString diagnosticDetail
+        = result.failure.has_value() ? result.failure->diagnosticDetail : result.errorString;
     qCDebug(kiriviewNavigationLog)
         << "direct media navigation candidate load finished"
         << "operationId" << load.operationId << "succeeded" << result.succeeded << "candidates"
-        << result.candidates.size() << "error" << diagnosticDetailReference(result.errorString);
+        << result.candidates.size() << "error" << diagnosticDetailReference(diagnosticDetail);
     invokeIfSet(callback, std::move(result));
 }
 }

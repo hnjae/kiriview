@@ -865,7 +865,8 @@ void TestDocumentSessionRuntimeLeafSnapshots::
     kiriview::DocumentSessionRuntimeDependencies dependencies;
     dependencies.directMediaNavigationCandidateProvider.directoryCandidateLoader
         = [imageUrl, adjacentImageUrl, staleVideoUrl, replacementVideoUrl](QObject*, const QUrl&,
-              kiriview::DirectMediaNavigationCandidatesCallback callback, kiriview::ErrorCallback) {
+              kiriview::DirectMediaNavigationCandidatesCallback callback,
+              kiriview::KioOperationFailureCallback) {
               callback({
                   { imageUrl, imageUrl.fileName() },
                   { adjacentImageUrl, adjacentImageUrl.fileName() },

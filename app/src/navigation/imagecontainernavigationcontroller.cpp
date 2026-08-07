@@ -4,6 +4,7 @@
 #include "imagecontainernavigationcontroller.h"
 
 #include "async/imagecallback.h"
+#include "diagnostics/diagnosticlogprojection.h"
 #include "imagedocumentpagecandidaterepository.h"
 #include "imagedocumentpagenavigationpolicy.h"
 #include "localization/mediaentrysourceerrortext.h"
@@ -33,6 +34,15 @@ QString projectCandidateLoadError(const kiriview::ImageDocumentPageCandidateLoad
             using Error = std::decay_t<decltype(detail)>;
             if constexpr (std::is_same_v<Error, QString>) {
                 return detail;
+            } else if constexpr (std::is_same_v<Error, kiriview::KioOperationFailure>) {
+                qCWarning(kiriviewNavigationLog).noquote()
+                    << "container image candidate loading failed"
+                    << "operationKind" << static_cast<int>(detail.operationKind) << "targetUrl"
+                    << kiriview::diagnosticSourceReference(detail.targetUrl) << "rawErrorCode"
+                    << detail.rawErrorCode.value_or(0) << "canceled" << detail.canceled << "detail"
+                    << kiriview::diagnosticDetailReference(detail.diagnosticDetail) << "retryable"
+                    << detail.retryable;
+                return detail.userMessage;
             } else {
                 qCWarning(kiriviewNavigationLog).noquote()
                     << "container image candidate loading failed" << detail;
@@ -74,9 +84,10 @@ void ImageContainerNavigationController::openAdjacentContainer(
             const std::vector<ContainerNavigationCandidate>& candidates) {
             finishContainerNavigation(operationId, candidates, direction, currentContainerUrl);
         },
-        [this, operationId, currentContainerUrl, parentUrl, direction](const QString& errorString) {
+        [this, operationId, currentContainerUrl, parentUrl, direction](
+            KioOperationFailure failure) {
             finishContainerNavigationListWithError(
-                operationId, currentContainerUrl, parentUrl, direction, errorString);
+                operationId, currentContainerUrl, parentUrl, direction, std::move(failure));
         });
 }
 
@@ -116,7 +127,7 @@ void ImageContainerNavigationController::finishContainerNavigation(quint64 opera
 
 void ImageContainerNavigationController::finishContainerNavigationListWithError(quint64 operationId,
     const QUrl& currentContainerUrl, const QUrl& parentUrl, NavigationDirection direction,
-    const QString& errorString)
+    KioOperationFailure failure)
 {
     if (!m_navigationState.finishNavigation(operationId)) {
         return;
@@ -128,9 +139,7 @@ void ImageContainerNavigationController::finishContainerNavigationListWithError(
                 currentContainerUrl,
                 parentUrl,
                 direction,
-                ContainerNavigationListFailureKind::DirectoryListing,
-                errorString,
-                ContainerNavigationListFailureSeverity::Diagnostic,
+                std::move(failure),
             },
         },
     });

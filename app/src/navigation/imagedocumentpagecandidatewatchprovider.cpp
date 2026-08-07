@@ -5,6 +5,7 @@
 
 #include "async/imagecallback.h"
 #include "imagedocumentpagecandidateitems.h"
+#include "system/kiooperationfailure.h"
 
 #include <KCoreDirLister>
 #include <KIO/Job>
@@ -83,7 +84,7 @@ kiriview::ImageIoJob startKCoreImageDocumentPageCandidateWatch(QObject* receiver
     kiriview::ImageDocumentPageCandidateWatchSnapshotCallback initialSnapshot,
     const kiriview::ImageDocumentPageCandidateWatchSnapshotCallback& changedSnapshot,
     kiriview::ImageDocumentPageCandidateWatchDeletedCallback deletedUrls,
-    kiriview::ErrorCallback errorCallback)
+    kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback)
 {
     auto* lister = createLiveImageDocumentPageCandidateLister(receiver);
     kiriview::ImageIoJob ioJob(lister, cancelLiveImageDocumentPageCandidateLister);
@@ -122,15 +123,27 @@ kiriview::ImageIoJob startKCoreImageDocumentPageCandidateWatch(QObject* receiver
         [lister, directoryUrl, changedSnapshot](
             const QUrl&) mutable { notifyChanged(lister, directoryUrl, changedSnapshot); });
     QObject::connect(lister, &KCoreDirLister::jobError, context,
-        [lister, errorCallback = std::move(errorCallback)](KIO::Job* job) {
+        [lister, directoryUrl, errorCallback](KIO::Job* job) mutable {
             if (watchCanceled(lister)) {
                 return;
             }
 
-            kiriview::invokeIfSet(errorCallback, job == nullptr ? QString() : job->errorString());
+            kiriview::KioOperationFailure failure = job == nullptr
+                ? kiriview::kioOperationValidationFailure(
+                      kiriview::KioOperationKind::DirectoryListing, directoryUrl,
+                      QStringLiteral("directory candidate watch emitted a null job"))
+                : kiriview::kioOperationFailureFromKJob(
+                      kiriview::KioOperationKind::DirectoryListing, directoryUrl, job->error(),
+                      job->errorString());
+            kiriview::invokeIfSet(errorCallback,
+                kiriview::ImageDocumentPageCandidateLoadError { std::move(failure) });
         });
 
     if (!lister->openUrl(directoryUrl, KCoreDirLister::Reload)) {
+        kiriview::invokeIfSet(errorCallback,
+            kiriview::ImageDocumentPageCandidateLoadError { kiriview::kioOperationValidationFailure(
+                kiriview::KioOperationKind::DirectoryListing, directoryUrl,
+                QStringLiteral("directory candidate watch URL was rejected")) });
         ioJob.cancel();
         return kiriview::ImageIoJob();
     }
@@ -146,7 +159,7 @@ ImageDocumentPageCandidateWatchProvider defaultImageDocumentPageCandidateWatchPr
                ImageDocumentPageCandidateWatchSnapshotCallback initialSnapshot,
                const ImageDocumentPageCandidateWatchSnapshotCallback& changedSnapshot,
                ImageDocumentPageCandidateWatchDeletedCallback deletedUrls,
-               ErrorCallback errorCallback) {
+               ImageDocumentPageCandidateLoadErrorCallback errorCallback) {
         return startKCoreImageDocumentPageCandidateWatch(receiver, directoryUrl,
             std::move(initialSnapshot), changedSnapshot, std::move(deletedUrls),
             std::move(errorCallback));

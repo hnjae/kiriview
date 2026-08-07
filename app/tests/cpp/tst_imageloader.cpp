@@ -48,6 +48,7 @@ private Q_SLOTS:
     void staleOpenedCollectionSnapshotCannotPrepareAReplacedTarget();
     void reentrantReplacementCannotPublishResolvedStaleVideoTerminal();
     void openedCollectionFailurePreservesTypedSourceDetails();
+    void candidateFailurePreservesTypedKioDetails();
     void missingProviderTargetOwnerReportsTypedPresentationFailure();
 };
 
@@ -358,6 +359,53 @@ void TestImageLoader::openedCollectionFailurePreservesTypedSourceDetails()
     QCOMPARE(failure->mediaEntrySourceError->collectionUrl, expectedFailure.collectionUrl);
     QCOMPARE(failure->mediaEntrySourceError->entryPath, expectedFailure.entryPath);
     QCOMPARE(failure->mediaEntrySourceError->diagnosticDetail, expectedFailure.diagnosticDetail);
+}
+
+void TestImageLoader::candidateFailurePreservesTypedKioDetails()
+{
+    const QUrl archiveUrl = localUrl(QStringLiteral("/books/broken.cbz"));
+    const kiriview::KioOperationFailure expectedFailure {
+        kiriview::KioOperationKind::DirectoryListing,
+        localUrl(QStringLiteral("/books/")),
+        73,
+        true,
+        QString(),
+        QStringLiteral("listing canceled"),
+        false,
+    };
+    std::optional<kiriview::ImageLoadFailure> failure;
+    kiriview::ImageLoader::Callbacks callbacks;
+    callbacks.targetStarted = [](kiriview::ImageLoadSession) { };
+    callbacks.ensurePageCandidateSnapshot
+        = [expectedFailure](
+              auto, kiriview::ImageDocumentPageCandidateListSnapshotCallback completion) {
+              completion(kiriview::ImageDocumentPageCandidateListSnapshotResult {
+                  {},
+                  false,
+                  kiriview::ImageDocumentPageCandidateLoadError { expectedFailure },
+              });
+          };
+    callbacks.error = [&failure](auto, kiriview::ImageLoadFailure loadFailure) {
+        failure = std::move(loadFailure);
+    };
+    kiriview::ImageLoader loader(std::move(callbacks));
+
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+        kiriview::resolvedNavigationSource(archiveUrl, {})));
+
+    QVERIFY(failure.has_value());
+    QCOMPARE(failure->kind, kiriview::ImageLoadFailureKind::OpenedCollectionLoad);
+    QCOMPARE(failure->userMessage, expectedFailure.userMessage);
+    QCOMPARE(failure->diagnosticDetail, expectedFailure.diagnosticDetail);
+    QCOMPARE(failure->retryable, expectedFailure.retryable);
+    QVERIFY(failure->kioOperationFailure.has_value());
+    QCOMPARE(failure->kioOperationFailure->operationKind, expectedFailure.operationKind);
+    QCOMPARE(failure->kioOperationFailure->targetUrl, expectedFailure.targetUrl);
+    QCOMPARE(failure->kioOperationFailure->rawErrorCode, expectedFailure.rawErrorCode);
+    QCOMPARE(failure->kioOperationFailure->canceled, expectedFailure.canceled);
+    QCOMPARE(failure->kioOperationFailure->userMessage, expectedFailure.userMessage);
+    QCOMPARE(failure->kioOperationFailure->diagnosticDetail, expectedFailure.diagnosticDetail);
+    QCOMPARE(failure->kioOperationFailure->retryable, expectedFailure.retryable);
 }
 
 void TestImageLoader::missingProviderTargetOwnerReportsTypedPresentationFailure()

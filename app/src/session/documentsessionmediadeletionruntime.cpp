@@ -80,18 +80,16 @@ bool DocumentSessionMediaDeletionRuntime::startForDirectMedia(QObject* receiver,
                 if (!operationState->finish(operationId)) {
                     return;
                 }
+                KioOperationFailure failure = result.failure.has_value()
+                    ? std::move(*result.failure)
+                    : kioOperationValidationFailure(KioOperationKind::DirectoryListing,
+                          candidateTargetUrl,
+                          QStringLiteral("candidate listing failed without typed failure"));
+                const bool reportFailure = !failure.canceled;
                 invokeIfSet(*sharedCallback,
                     DocumentSessionMediaDeletionCompletion {
-                        DocumentSessionMediaDeletionCompletionPlan { {}, true },
-                        KioOperationFailure {
-                            KioOperationKind::DirectoryListing,
-                            candidateTargetUrl,
-                            std::nullopt,
-                            false,
-                            result.errorString,
-                            result.errorString,
-                            false,
-                        },
+                        DocumentSessionMediaDeletionCompletionPlan { {}, reportFailure },
+                        std::move(failure),
                     });
                 return;
             }

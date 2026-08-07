@@ -13,6 +13,7 @@
 #include <QUrl>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -29,26 +30,29 @@ using kiriview::TestSupport::FakeImageDocumentPageCandidateProvider;
 using kiriview::TestSupport::imageDocumentPageCandidate;
 using kiriview::TestSupport::localUrl;
 
-template <typename Candidates, typename Callback> struct ManualCandidateLoad
+template <typename Candidates, typename Callback, typename FailureCallback>
+struct ManualCandidateLoad
 {
     QObject* object = nullptr;
     QUrl url;
     Callback callback;
-    kiriview::ErrorCallback errorCallback;
+    FailureCallback errorCallback;
     kiriview::ImageIoJobCompletion completion;
     bool canceled = false;
 };
 
 using ManualContainerList = ManualCandidateLoad<std::vector<ContainerNavigationCandidate>,
-    kiriview::ContainerCandidatesCallback>;
+    kiriview::ContainerCandidatesCallback, kiriview::KioOperationFailureCallback>;
 using ManualImageList = ManualCandidateLoad<std::vector<ImageDocumentPageCandidate>,
-    kiriview::ImageDocumentPageCandidatesCallback>;
+    kiriview::ImageDocumentPageCandidatesCallback,
+    kiriview::ImageDocumentPageCandidateLoadErrorCallback>;
 
 class ManualContainerNavigationProvider
 {
 public:
     kiriview::ImageIoJob startContainerList(QObject* receiver, QUrl directoryUrl,
-        kiriview::ContainerCandidatesCallback callback, kiriview::ErrorCallback errorCallback)
+        kiriview::ContainerCandidatesCallback callback,
+        kiriview::KioOperationFailureCallback errorCallback)
     {
         auto load = std::make_shared<ManualContainerList>();
         load->url = std::move(directoryUrl);
@@ -62,7 +66,7 @@ public:
 
     kiriview::ImageIoJob startImageList(QObject* receiver, QUrl directoryUrl,
         kiriview::ImageDocumentPageCandidatesCallback callback,
-        kiriview::ErrorCallback errorCallback)
+        kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback)
     {
         auto load = std::make_shared<ManualImageList>();
         load->url = std::move(directoryUrl);
@@ -124,13 +128,13 @@ public:
         return kiriview::ImageDocumentPageCandidateProvider {
             [this](QObject* receiver, QUrl directoryUrl,
                 kiriview::ImageDocumentPageCandidatesCallback callback,
-                kiriview::ErrorCallback errorCallback) {
+                kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback) {
                 return startImageList(receiver, std::move(directoryUrl), std::move(callback),
                     std::move(errorCallback));
             },
             [this](QObject* receiver, QUrl directoryUrl,
                 kiriview::ContainerCandidatesCallback callback,
-                kiriview::ErrorCallback errorCallback) {
+                kiriview::KioOperationFailureCallback errorCallback) {
                 return startContainerList(receiver, std::move(directoryUrl), std::move(callback),
                     std::move(errorCallback));
             },
@@ -370,7 +374,16 @@ void TestImageContainerNavigationController::forwardsAdjacentContainerListingErr
     FakeImageDocumentPageCandidateProvider fakeProvider;
     const QUrl parentUrl = localUrl(QStringLiteral("/books/"));
     const QUrl currentContainerUrl = localUrl(QStringLiteral("/books/a/"));
-    fakeProvider.setContainerError(parentUrl, QStringLiteral("No parent access"));
+    const kiriview::KioOperationFailure expected {
+        kiriview::KioOperationKind::DirectoryListing,
+        parentUrl,
+        73,
+        true,
+        QString(),
+        QStringLiteral("listing canceled"),
+        false,
+    };
+    fakeProvider.setContainerFailure(parentUrl, expected);
 
     kiriview::ImageDocumentPageCandidateRepository repository(fakeProvider.provider());
     bool openedImage = false;
@@ -378,22 +391,18 @@ void TestImageContainerNavigationController::forwardsAdjacentContainerListingErr
     QUrl reportedCurrentContainerUrl;
     QUrl reportedParentUrl;
     NavigationDirection reportedDirection = NavigationDirection::Previous;
-    QString diagnostic;
+    std::optional<kiriview::KioOperationFailure> reportedFailure;
     kiriview::ImageContainerNavigationController controller(nullptr, repository,
         controllerCallbacks([&openedImage](const QUrl&, const QUrl&) { openedImage = true; },
             [&openErrorCount](
                 const QUrl&, ImageContainerOpenError, const QString&) { ++openErrorCount; },
             {},
-            [&reportedCurrentContainerUrl, &reportedParentUrl, &reportedDirection, &diagnostic](
-                const kiriview::ContainerNavigationListFailure& failure) {
+            [&reportedCurrentContainerUrl, &reportedParentUrl, &reportedDirection,
+                &reportedFailure](const kiriview::ContainerNavigationListFailure& failure) {
                 reportedCurrentContainerUrl = failure.currentContainerUrl;
                 reportedParentUrl = failure.parentUrl;
                 reportedDirection = failure.direction;
-                diagnostic = failure.diagnosticDetail;
-                QCOMPARE(
-                    failure.kind, kiriview::ContainerNavigationListFailureKind::DirectoryListing);
-                QCOMPARE(
-                    failure.severity, kiriview::ContainerNavigationListFailureSeverity::Diagnostic);
+                reportedFailure = failure.operationFailure;
             }));
 
     controller.openAdjacentContainer(currentContainerUrl, NavigationDirection::Next);
@@ -403,7 +412,14 @@ void TestImageContainerNavigationController::forwardsAdjacentContainerListingErr
     QCOMPARE(reportedCurrentContainerUrl, currentContainerUrl);
     QCOMPARE(reportedParentUrl, parentUrl);
     QCOMPARE(reportedDirection, NavigationDirection::Next);
-    QCOMPARE(diagnostic, QStringLiteral("No parent access"));
+    QVERIFY(reportedFailure.has_value());
+    QCOMPARE(reportedFailure->operationKind, expected.operationKind);
+    QCOMPARE(reportedFailure->targetUrl, expected.targetUrl);
+    QCOMPARE(reportedFailure->rawErrorCode, expected.rawErrorCode);
+    QCOMPARE(reportedFailure->canceled, expected.canceled);
+    QCOMPARE(reportedFailure->userMessage, expected.userMessage);
+    QCOMPARE(reportedFailure->diagnosticDetail, expected.diagnosticDetail);
+    QCOMPARE(reportedFailure->retryable, expected.retryable);
 }
 
 void TestImageContainerNavigationController::reportsEmptyAdjacentContainer()

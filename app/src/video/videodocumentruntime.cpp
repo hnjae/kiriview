@@ -3,6 +3,7 @@
 
 #include "video/videodocumentruntime.h"
 
+#include "async/imageioworkerjob.h"
 #include "diagnostics/diagnosticlogprojection.h"
 #include "localization/imageerrortext.h"
 #include "metadata/embeddedmetadata.h"
@@ -74,13 +75,15 @@ namespace kiriview {
 VideoDocumentRuntime::VideoDocumentRuntime(QObject* documentObject, ChangeCallback changeCallback,
     std::unique_ptr<VideoPlaybackUrlResolver> playbackUrlResolver,
     MediaBackendFactory mediaBackendFactory, TimerScheduler playbackControlTimerScheduler,
-    VideoPlaybackControlProjectionCallback playbackControlProjectionCallback)
+    VideoPlaybackControlProjectionCallback playbackControlProjectionCallback,
+    ImageWorkerScheduler embeddedMetadataWorkerScheduler)
     : m_documentObject(documentObject)
     , m_state(std::move(changeCallback))
     , m_playbackControls(documentObject, std::move(playbackControlTimerScheduler),
           std::move(playbackControlProjectionCallback))
     , m_mediaBackendFactory(std::move(mediaBackendFactory))
     , m_playbackUrlResolver(sharedPlaybackUrlResolver(std::move(playbackUrlResolver)))
+    , m_embeddedMetadataWorkerScheduler(std::move(embeddedMetadataWorkerScheduler))
     , m_outputRuntime(documentObject,
           VideoOutputRuntimeCallbacks {
               [this, lifetime = std::weak_ptr<void>(m_callbackLifetime)](QObject* videoOutput) {
@@ -166,6 +169,7 @@ void VideoDocumentRuntime::installMediaBackendCallbacks(
 VideoDocumentRuntime::~VideoDocumentRuntime()
 {
     m_callbackLifetime.reset();
+    cancelEmbeddedMetadataParsing();
     m_sourceTransition.cancel();
     m_sourceTransitionPhase = SourceTransitionPhase::Idle;
     const std::shared_ptr<VideoPlaybackUrlResolver> resolver = std::move(m_playbackUrlResolver);
@@ -679,6 +683,7 @@ std::optional<VideoDocumentRuntime::SourceTransition> VideoDocumentRuntime::begi
 {
     const std::weak_ptr<void> lifetime = m_callbackLifetime;
     m_pendingPlaybackCommands.clear();
+    cancelEmbeddedMetadataParsing();
     SourceTransition transition = m_sourceTransition.start(sourceUrl);
     m_sourceTransitionPhase = phase;
     invalidatePlaybackCallbacks();
@@ -789,9 +794,6 @@ void VideoDocumentRuntime::retirePlaybackSource()
 void VideoDocumentRuntime::applyResolvedPlaybackUrl(
     const SourceTransition& transition, const QUrl& playbackUrl)
 {
-    const EmbeddedMetadata metadata = playbackUrl.isLocalFile()
-        ? parsePathEmbeddedMetadata(playbackUrl.toLocalFile())
-        : EmbeddedMetadata {};
     const MediaBackendFactory mediaBackendFactory = m_mediaBackendFactory;
     const std::weak_ptr<void> lifetime = m_callbackLifetime;
     std::unique_ptr<VideoMediaBackend> candidate
@@ -830,10 +832,6 @@ void VideoDocumentRuntime::applyResolvedPlaybackUrl(
         return;
     }
 
-    m_state.setEmbeddedMetadata(metadata);
-    if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
-        return;
-    }
     updateVideoSizeFromBackend(lifecycle);
     if (lifetime.expired() || !sourceBackendAccepted(transition, lifecycle, mediaBackend.get())) {
         return;
@@ -847,6 +845,48 @@ void VideoDocumentRuntime::applyResolvedPlaybackUrl(
         return;
     }
     finishSourceTransition(transition);
+    if (lifetime.expired() || !playbackCallbacksAccepted(lifecycle)
+        || m_mediaBackend.get() != mediaBackend.get()) {
+        return;
+    }
+    if (playbackUrl.isLocalFile()) {
+        startEmbeddedMetadataParsing(transition.scope, playbackUrl.toLocalFile());
+    }
+}
+
+void VideoDocumentRuntime::cancelEmbeddedMetadataParsing()
+{
+    m_embeddedMetadataOperation.cancel();
+    m_embeddedMetadataJob.cancel();
+}
+
+void VideoDocumentRuntime::startEmbeddedMetadataParsing(
+    const QUrl& sourceUrl, const QString& localPath)
+{
+    const EmbeddedMetadataOperation operation = m_embeddedMetadataOperation.start(sourceUrl);
+    const std::weak_ptr<void> lifetime = m_callbackLifetime;
+    ImageIoJob job = startImageIoWorkerJob(
+        m_documentObject.data(), m_documentObject.data(), m_embeddedMetadataWorkerScheduler,
+        [localPath]() { return parsePathEmbeddedMetadata(localPath); },
+        [this, lifetime, operation](EmbeddedMetadata metadata) mutable {
+            if (!lifetime.expired()) {
+                completeEmbeddedMetadataParsing(operation, std::move(metadata));
+            }
+        });
+    if (lifetime.expired() || !m_embeddedMetadataOperation.accepts(operation)) {
+        job.cancel();
+        return;
+    }
+    m_embeddedMetadataJob = std::move(job);
+}
+
+void VideoDocumentRuntime::completeEmbeddedMetadataParsing(
+    const EmbeddedMetadataOperation& operation, EmbeddedMetadata metadata)
+{
+    if (!m_embeddedMetadataOperation.finish(operation)) {
+        return;
+    }
+    m_state.setEmbeddedMetadata(std::move(metadata));
 }
 
 void VideoDocumentRuntime::applyPlaybackSourceDevice(

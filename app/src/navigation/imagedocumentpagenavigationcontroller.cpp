@@ -60,6 +60,14 @@ namespace {
                 if constexpr (std::is_same_v<Error, QString>) {
                     qCWarning(kiriviewNavigationLog).noquote()
                         << message << diagnosticDetailReference(detail);
+                } else if constexpr (std::is_same_v<Error, KioOperationFailure>) {
+                    qCWarning(kiriviewNavigationLog).noquote()
+                        << message << "operationKind" << static_cast<int>(detail.operationKind)
+                        << "targetUrl" << diagnosticSourceReference(detail.targetUrl)
+                        << "rawErrorCode" << detail.rawErrorCode.value_or(0) << "canceled"
+                        << detail.canceled << "detail"
+                        << diagnosticDetailReference(detail.diagnosticDetail) << "retryable"
+                        << detail.retryable;
                 } else {
                     qCWarning(kiriviewNavigationLog).noquote() << message << detail;
                 }

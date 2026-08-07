@@ -393,6 +393,8 @@ fn readable_original_identity(
 }
 
 fn virtual_archive_entry_crc32_uri(crc32: u32, uncompressed_size: u64) -> String {
+    // Deliberately location-independent and probabilistic; this identity is only authoritative for
+    // best-effort thumbnail reuse. See docs/architecture/thumbnail-source-adapters.md.
     format!("x-kiriview://thumbnail/archive-entry/v1/crc32/{crc32:08x}/{uncompressed_size}")
 }
 
@@ -677,15 +679,11 @@ mod tests {
     }
 
     #[test]
-    fn archive_entry_crc32_virtual_uri_uses_fixed_lower_hex_and_size() {
-        assert_eq!(
-            virtual_archive_entry_crc32_uri(0x0000000a, 16),
-            "x-kiriview://thumbnail/archive-entry/v1/crc32/0000000a/16"
-        );
-        assert_eq!(
-            virtual_archive_entry_crc32_uri(0x7a6c86f1, 3),
-            "x-kiriview://thumbnail/archive-entry/v1/crc32/7a6c86f1/3"
-        );
+    fn archive_entry_virtual_identity_depends_on_crc32_and_uncompressed_size() {
+        let identity = virtual_archive_entry_crc32_uri(0x7a6c86f1, 3);
+        assert_eq!(identity, virtual_archive_entry_crc32_uri(0x7a6c86f1, 3));
+        assert_ne!(identity, virtual_archive_entry_crc32_uri(0x7a6c86f2, 3));
+        assert_ne!(identity, virtual_archive_entry_crc32_uri(0x7a6c86f1, 4));
     }
 
     struct Fixture {

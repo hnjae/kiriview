@@ -151,6 +151,7 @@ private Q_SLOTS:
     void fixedShortcutDispatchesThroughRuntimeOwnedRouter();
     void escapeShortcutDispatchesExactlyOneOwnerCommand();
     void actionStateSnapshotBuildsRuntimePolicyInput();
+    void navigationBoundarySnapshotControlsFirstLastActions();
     void actionStateSnapshotBuildsCommandRouterInput();
     void navigationPresentationProjectionFollowsActionStateSnapshot();
     void retainedImageToolbarKeepsAppearanceUntilCurrentRefinement();
@@ -253,6 +254,67 @@ void TestApplicationActionRuntime::actionStateSnapshotBuildsRuntimePolicyInput()
     QVERIFY(runtime.actionPlacementEnabled(ActionId::ViewToggleRightToLeftReadingAction));
     QCOMPARE(runtime.actionMenuText(ActionId::ViewFitAction), QStringLiteral("Fit to &Window"));
     QVERIFY(runtime.rightToLeftReadingActive());
+}
+
+void TestApplicationActionRuntime::navigationBoundarySnapshotControlsFirstLastActions()
+{
+    FakeApplicationActionHost host;
+    Actions::ApplicationActionRuntime runtime(host);
+    runtime.setupActions();
+
+    QAction* firstAction = runtime.actionForId(ActionId::GoFirstImageAction);
+    QAction* lastAction = runtime.actionForId(ActionId::GoLastImageAction);
+    QAction* previousAction = runtime.actionForId(ActionId::GoPreviousImageAction);
+    QAction* nextAction = runtime.actionForId(ActionId::GoNextImageAction);
+    QVERIFY(firstAction != nullptr);
+    QVERIFY(lastAction != nullptr);
+    QVERIFY(previousAction != nullptr);
+    QVERIFY(nextAction != nullptr);
+
+    Actions::ApplicationActionStateSnapshot snapshot;
+    snapshot.documentSession.activeNavigation.available = true;
+    snapshot.documentSession.activeNavigation.known = true;
+    snapshot.documentSession.activeNavigation.editable = true;
+    snapshot.documentSession.activeNavigation.canOpenNext = true;
+    snapshot.documentSession.activeNavigation.atKnownFirst = true;
+    snapshot.documentSession.activeNavigation.currentNumber = 1;
+    snapshot.documentSession.activeNavigation.count = 3;
+
+    runtime.setActionStateSnapshot(snapshot);
+
+    QVERIFY(!firstAction->isEnabled());
+    QVERIFY(lastAction->isEnabled());
+    QVERIFY(previousAction->isEnabled());
+    QVERIFY(nextAction->isEnabled());
+    QVERIFY(!runtime.actionPlacementEnabled(ActionId::GoPreviousImageAction));
+    QVERIFY(runtime.actionPlacementEnabled(ActionId::GoNextImageAction));
+
+    snapshot.documentSession.activeNavigation.canOpenPrevious = true;
+    snapshot.documentSession.activeNavigation.canOpenNext = false;
+    snapshot.documentSession.activeNavigation.atKnownFirst = false;
+    snapshot.documentSession.activeNavigation.atKnownLast = true;
+    snapshot.documentSession.activeNavigation.currentNumber = 3;
+
+    runtime.setActionStateSnapshot(snapshot);
+
+    QVERIFY(firstAction->isEnabled());
+    QVERIFY(!lastAction->isEnabled());
+    QVERIFY(previousAction->isEnabled());
+    QVERIFY(nextAction->isEnabled());
+    QVERIFY(runtime.actionPlacementEnabled(ActionId::GoPreviousImageAction));
+    QVERIFY(!runtime.actionPlacementEnabled(ActionId::GoNextImageAction));
+
+    snapshot.documentSession.activeNavigation.canOpenPrevious = false;
+    snapshot.documentSession.activeNavigation.atKnownFirst = true;
+    snapshot.documentSession.activeNavigation.currentNumber = 1;
+    snapshot.documentSession.activeNavigation.count = 1;
+
+    runtime.setActionStateSnapshot(snapshot);
+
+    QVERIFY(!firstAction->isEnabled());
+    QVERIFY(!lastAction->isEnabled());
+    QVERIFY(previousAction->isEnabled());
+    QVERIFY(nextAction->isEnabled());
 }
 
 void TestApplicationActionRuntime::actionStateSnapshotBuildsCommandRouterInput()

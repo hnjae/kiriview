@@ -5,6 +5,7 @@
 #define KIRIVIEW_IMAGEDOCUMENTPAGENAVIGATIONTYPES_H
 
 #include "location/imageurl.h"
+#include "system/kiooperationfailure.h"
 
 #include <QString>
 #include <QUrl>
@@ -55,23 +56,12 @@ enum class NavigationDirection : int {
     Next,
 };
 
-enum class ContainerNavigationListFailureKind {
-    DirectoryListing,
-};
-
-enum class ContainerNavigationListFailureSeverity {
-    Diagnostic,
-};
-
 struct ContainerNavigationListFailure
 {
     QUrl currentContainerUrl;
     QUrl parentUrl;
     NavigationDirection direction = NavigationDirection::Next;
-    ContainerNavigationListFailureKind kind = ContainerNavigationListFailureKind::DirectoryListing;
-    QString diagnosticDetail;
-    ContainerNavigationListFailureSeverity severity
-        = ContainerNavigationListFailureSeverity::Diagnostic;
+    KioOperationFailure operationFailure;
 };
 
 enum class ContainerNavigationCandidateType {

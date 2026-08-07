@@ -14,7 +14,10 @@
 #include <algorithm>
 #include <map>
 #include <memory>
+#include <optional>
+#include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace kiriview::TestSupport {
@@ -69,7 +72,7 @@ inline ContainerNavigationCandidate comicBookContainerCandidate(const QUrl& url)
     return containerCandidate(url, ContainerNavigationCandidateType::ComicBookArchive);
 }
 
-template <typename Candidates> class FakeCandidateListing
+template <typename Candidates, typename Error = QString> class FakeCandidateListing
 {
 public:
     void setItems(const QUrl& url, Candidates candidates)
@@ -77,28 +80,43 @@ public:
         m_itemsByUrl[keyForUrl(url)] = std::move(candidates);
     }
 
-    void setError(const QUrl& url, QString errorString)
+    void setError(const QUrl& url, Error error)
     {
-        m_errorsByUrl[keyForUrl(url)] = std::move(errorString);
+        m_errorsByUrl[keyForUrl(url)] = std::move(error);
     }
 
-    template <typename Callback>
+    template <typename Callback, typename ErrorCallback>
     void load(QUrl url, Callback callback, ErrorCallback errorCallback) const
     {
         const QString key = keyForUrl(url);
         const auto error = m_errorsByUrl.find(key);
         if (error != m_errorsByUrl.cend()) {
-            if (errorCallback) {
-                errorCallback(error->second);
+            if constexpr (requires { static_cast<bool>(errorCallback); }) {
+                if (!errorCallback) {
+                    return;
+                }
             }
+            errorCallback(error->second);
             return;
         }
 
         const auto items = m_itemsByUrl.find(key);
         if (items == m_itemsByUrl.cend()) {
-            if (errorCallback) {
+            if constexpr (requires { static_cast<bool>(errorCallback); }) {
+                if (!errorCallback) {
+                    return;
+                }
+            }
+            if constexpr (std::is_same_v<Error, QString>) {
                 errorCallback(
                     QStringLiteral("missing fake candidate listing for %1").arg(url.toString()));
+            } else if constexpr (std::is_same_v<Error, KioOperationFailure>) {
+                errorCallback(kioOperationValidationFailure(KioOperationKind::DirectoryListing, url,
+                    QStringLiteral("missing fake candidate listing")));
+            } else {
+                errorCallback(
+                    Error { kioOperationValidationFailure(KioOperationKind::DirectoryListing, url,
+                        QStringLiteral("missing fake candidate listing")) });
             }
             return;
         }
@@ -110,7 +128,7 @@ public:
 
 private:
     std::map<QString, Candidates> m_itemsByUrl;
-    std::map<QString, QString> m_errorsByUrl;
+    std::map<QString, Error> m_errorsByUrl;
 };
 
 class FakeImageDocumentPageCandidateProvider
@@ -138,7 +156,22 @@ public:
 
     void setDirectoryImageError(const QUrl& directoryUrl, QString errorString)
     {
-        m_directoryImageDocumentPages.setError(directoryUrl, std::move(errorString));
+        setDirectoryImageFailure(directoryUrl,
+            KioOperationFailure {
+                KioOperationKind::DirectoryListing,
+                directoryUrl,
+                std::nullopt,
+                false,
+                errorString,
+                std::move(errorString),
+                false,
+            });
+    }
+
+    void setDirectoryImageFailure(const QUrl& directoryUrl, KioOperationFailure failure)
+    {
+        m_directoryImageDocumentPages.setError(
+            directoryUrl, ImageDocumentPageCandidateLoadError { std::move(failure) });
     }
 
     void setOpenedCollectionCandidateError(const QUrl& archiveRootUrl, QString errorString)
@@ -159,7 +192,21 @@ public:
 
     void setContainerError(const QUrl& directoryUrl, QString errorString)
     {
-        m_containerCandidates.setError(directoryUrl, std::move(errorString));
+        setContainerFailure(directoryUrl,
+            KioOperationFailure {
+                KioOperationKind::DirectoryListing,
+                directoryUrl,
+                std::nullopt,
+                false,
+                errorString,
+                std::move(errorString),
+                false,
+            });
+    }
+
+    void setContainerFailure(const QUrl& directoryUrl, KioOperationFailure failure)
+    {
+        m_containerCandidates.setError(directoryUrl, std::move(failure));
     }
 
     void emitDirectoryImageChanges(
@@ -201,13 +248,13 @@ public:
     {
         return ImageDocumentPageCandidateProvider {
             [this](QObject*, QUrl directoryUrl, ImageDocumentPageCandidatesCallback callback,
-                ErrorCallback errorCallback) {
+                ImageDocumentPageCandidateLoadErrorCallback errorCallback) {
                 m_directoryImageDocumentPages.load(
                     std::move(directoryUrl), std::move(callback), std::move(errorCallback));
                 return ImageIoJob();
             },
             [this](QObject*, QUrl directoryUrl, ContainerCandidatesCallback callback,
-                ErrorCallback errorCallback) {
+                KioOperationFailureCallback errorCallback) {
                 m_containerCandidates.load(
                     std::move(directoryUrl), std::move(callback), std::move(errorCallback));
                 return ImageIoJob();
@@ -235,7 +282,8 @@ public:
                 return ImageIoJob();
             },
             [this](QObject* receiver, QUrl directoryUrl,
-                ImageDocumentPageCandidatesCallback callback, ErrorCallback) {
+                ImageDocumentPageCandidatesCallback callback,
+                ImageDocumentPageCandidateLoadErrorCallback) {
                 return subscribeToDirectoryImageChanges(
                     receiver, std::move(directoryUrl), std::move(callback));
             },
@@ -274,9 +322,12 @@ private:
         return job;
     }
 
-    FakeCandidateListing<std::vector<ImageDocumentPageCandidate>> m_directoryImageDocumentPages;
+    FakeCandidateListing<std::vector<ImageDocumentPageCandidate>,
+        ImageDocumentPageCandidateLoadError>
+        m_directoryImageDocumentPages;
     FakeCandidateListing<std::vector<ImageDocumentPageCandidate>> m_openedCollectionCandidates;
-    FakeCandidateListing<std::vector<ContainerNavigationCandidate>> m_containerCandidates;
+    FakeCandidateListing<std::vector<ContainerNavigationCandidate>, KioOperationFailure>
+        m_containerCandidates;
     std::map<QString, int> m_openedCollectionCandidateLoadCounts;
     std::vector<std::shared_ptr<FakeCandidateChangeSubscription>>
         m_directoryImageChangeSubscriptions;

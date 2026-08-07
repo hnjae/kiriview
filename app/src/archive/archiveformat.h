@@ -32,6 +32,7 @@ struct ArchiveOpenMatch
 ArchiveStorageBackend archiveStorageBackendForRootScheme(const QString& scheme);
 bool archiveRootSchemeUsesKioFuse(const QString& scheme);
 QStringList supportedComicBookArchiveExtensions();
+QStringList supportedComicBookArchiveMimeTypes();
 bool isComicBookArchiveFileName(const QString& name);
 std::optional<ArchiveOpenMatch> comicBookArchiveMatchForFileName(const QString& fileName);
 std::optional<ArchiveOpenMatch> directArchiveOpenMatchForFileName(const QString& fileName);

@@ -5,6 +5,7 @@
 
 #include "archive/archiveformat.h"
 #include "facade/mediaopendialogfilters.h"
+#include "format/supportedmediaformats.h"
 #include "navigation/directmedianavigationmodel.h"
 
 #include <QObject>
@@ -37,6 +38,7 @@ private Q_SLOTS:
     void ordinaryMediaExtensionsIncludeImagesAndDirectVideos();
     void ordinaryMediaFileNamesIncludeImagesAndDirectVideos();
     void directVideoFileNamesStayExposedThroughMediaRegistry();
+    void advertisedOrdinaryMimeCapabilitiesAreOwnedAndUnique();
     void directMediaUrlsClassifyImagesAndVideos();
     void stillImageDirectMediaNavigationCandidatesUseCandidateNameAndUrlIdentity();
     void openDialogFilterIncludesMediaAndArchives();
@@ -83,6 +85,27 @@ void TestMediaFormatRegistry::directVideoFileNamesStayExposedThroughMediaRegistr
     QVERIFY(!kiriview::isSupportedDirectVideoFileName(QStringLiteral("photo.png")));
     QVERIFY(!kiriview::isSupportedDirectVideoFileName(QStringLiteral("archive.zip")));
     QVERIFY(!kiriview::isSupportedDirectVideoFileName(QStringLiteral(".mov")));
+}
+
+void TestMediaFormatRegistry::advertisedOrdinaryMimeCapabilitiesAreOwnedAndUnique()
+{
+    const QStringList imageMimeTypes = kiriview::SupportedMediaFormats::imageMimeTypes();
+    const QStringList videoMimeTypes = kiriview::SupportedMediaFormats::directVideoMimeTypes();
+
+    QVERIFY(imageMimeTypes.contains(QStringLiteral("image/png")));
+    QVERIFY(imageMimeTypes.contains(QStringLiteral("image/avif")));
+    QVERIFY(imageMimeTypes.contains(QStringLiteral("image/x-adobe-dng")));
+    QVERIFY(videoMimeTypes.contains(QStringLiteral("video/mp4")));
+    QVERIFY(videoMimeTypes.contains(QStringLiteral("video/quicktime")));
+
+    QCOMPARE(imageMimeTypes, sortedUnique(imageMimeTypes));
+    QCOMPARE(videoMimeTypes, sortedUnique(videoMimeTypes));
+    for (const QString& mimeType : imageMimeTypes) {
+        QVERIFY2(mimeType.startsWith(QStringLiteral("image/")), qPrintable(mimeType));
+    }
+    for (const QString& mimeType : videoMimeTypes) {
+        QVERIFY2(mimeType.startsWith(QStringLiteral("video/")), qPrintable(mimeType));
+    }
 }
 
 void TestMediaFormatRegistry::directMediaUrlsClassifyImagesAndVideos()

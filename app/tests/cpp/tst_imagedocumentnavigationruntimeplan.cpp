@@ -192,16 +192,22 @@ void TestImageDocumentNavigationRuntimePlan::containerListErrorIsDiagnosticOnly(
 {
     const QUrl currentContainerUrl = localUrl(QStringLiteral("/books/a/"));
     const QUrl parentUrl = localUrl(QStringLiteral("/books/"));
-    const QString diagnostic = QStringLiteral("provider failure");
+    const kiriview::KioOperationFailure expected {
+        kiriview::KioOperationKind::DirectoryListing,
+        parentUrl,
+        73,
+        true,
+        QString(),
+        QStringLiteral("listing canceled"),
+        false,
+    };
     const ImageDocumentRuntimePlan plan = runtimePlan({
         kiriview::ReportContainerNavigationListErrorEffect {
             kiriview::ContainerNavigationListFailure {
                 currentContainerUrl,
                 parentUrl,
                 kiriview::NavigationDirection::Next,
-                kiriview::ContainerNavigationListFailureKind::DirectoryListing,
-                diagnostic,
-                kiriview::ContainerNavigationListFailureSeverity::Diagnostic,
+                expected,
             },
         },
     });
@@ -213,9 +219,13 @@ void TestImageDocumentNavigationRuntimePlan::containerListErrorIsDiagnosticOnly(
     QCOMPARE(failure.currentContainerUrl, currentContainerUrl);
     QCOMPARE(failure.parentUrl, parentUrl);
     QCOMPARE(failure.direction, kiriview::NavigationDirection::Next);
-    QCOMPARE(failure.kind, kiriview::ContainerNavigationListFailureKind::DirectoryListing);
-    QCOMPARE(failure.diagnosticDetail, diagnostic);
-    QCOMPARE(failure.severity, kiriview::ContainerNavigationListFailureSeverity::Diagnostic);
+    QCOMPARE(failure.operationFailure.operationKind, expected.operationKind);
+    QCOMPARE(failure.operationFailure.targetUrl, expected.targetUrl);
+    QCOMPARE(failure.operationFailure.rawErrorCode, expected.rawErrorCode);
+    QCOMPARE(failure.operationFailure.canceled, expected.canceled);
+    QCOMPARE(failure.operationFailure.userMessage, expected.userMessage);
+    QCOMPARE(failure.operationFailure.diagnosticDetail, expected.diagnosticDetail);
+    QCOMPARE(failure.operationFailure.retryable, expected.retryable);
 }
 
 void TestImageDocumentNavigationRuntimePlan::

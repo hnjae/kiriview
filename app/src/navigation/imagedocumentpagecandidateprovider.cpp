@@ -12,7 +12,8 @@
 
 namespace {
 kiriview::ImageIoJob noOpImageDocumentPageCandidateChanges(QObject*, const QUrl&,
-    const kiriview::ImageDocumentPageCandidatesCallback&, const kiriview::ErrorCallback&)
+    const kiriview::ImageDocumentPageCandidatesCallback&,
+    const kiriview::ImageDocumentPageCandidateLoadErrorCallback&)
 {
     return kiriview::ImageIoJob();
 }
@@ -25,13 +26,14 @@ ImageDocumentPageCandidateProvider defaultImageDocumentPageCandidateProvider(
     auto candidateStore = std::make_shared<ImageDocumentPageCandidateStore>();
     return ImageDocumentPageCandidateProvider {
         [candidateStore](QObject* receiver, QUrl directoryUrl,
-            ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback) {
+            ImageDocumentPageCandidatesCallback callback,
+            ImageDocumentPageCandidateLoadErrorCallback errorCallback) {
             return candidateStore->loadDirectoryImages(
                 receiver, std::move(directoryUrl), std::move(callback), std::move(errorCallback));
         },
         [directoryItemListProvider = std::move(directoryItemListProvider)](QObject* receiver,
             const QUrl& directoryUrl, ContainerCandidatesCallback callback,
-            ErrorCallback errorCallback) {
+            KioOperationFailureCallback errorCallback) {
             return startDirectoryContainerCandidateList(receiver, directoryUrl, std::move(callback),
                 std::move(errorCallback), directoryItemListProvider);
         },
@@ -43,7 +45,8 @@ ImageDocumentPageCandidateProvider defaultImageDocumentPageCandidateProvider(
                 workerScheduler, std::move(callback), std::move(errorCallback));
         },
         [candidateStore](QObject* receiver, QUrl directoryUrl,
-            ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback) {
+            ImageDocumentPageCandidatesCallback callback,
+            ImageDocumentPageCandidateLoadErrorCallback errorCallback) {
             return candidateStore->watchDirectoryImages(
                 receiver, std::move(directoryUrl), std::move(callback), std::move(errorCallback));
         },

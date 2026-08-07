@@ -17,7 +17,6 @@ struct ArchiveFormat
 {
     QStringView scheme;
     QStringView comicExtension;
-    std::array<QStringView, 2> comicMimeTypes;
     QStringView archiveExtension;
     std::array<QStringView, 3> archiveMimeTypes;
     kiriview::ArchiveStorageBackend backend;
@@ -26,17 +25,37 @@ struct ArchiveFormat
 const std::array<ArchiveFormat, 4>& archiveFormats()
 {
     static const std::array formats {
-        ArchiveFormat { u"zip", u"cbz", { u"application/vnd.comicbook+zip", u"" }, u"zip",
-            { u"application/zip", u"", u"" }, kiriview::ArchiveStorageBackend::KZip },
-        ArchiveFormat { u"tar", u"cbt", { u"application/x-cbt", u"" }, u"tar",
-            { u"application/x-tar", u"", u"" }, kiriview::ArchiveStorageBackend::KTar },
-        ArchiveFormat { u"sevenz", u"cb7", { u"application/x-cb7", u"" }, u"7z",
-            { u"application/x-7z-compressed", u"", u"" }, kiriview::ArchiveStorageBackend::K7Zip },
-        ArchiveFormat { u"rar", u"cbr", { u"application/vnd.comicbook-rar", u"application/x-cbr" },
-            u"rar",
+        ArchiveFormat { u"zip", u"cbz", u"zip", { u"application/zip", u"", u"" },
+            kiriview::ArchiveStorageBackend::KZip },
+        ArchiveFormat { u"tar", u"cbt", u"tar", { u"application/x-tar", u"", u"" },
+            kiriview::ArchiveStorageBackend::KTar },
+        ArchiveFormat { u"sevenz", u"cb7", u"7z", { u"application/x-7z-compressed", u"", u"" },
+            kiriview::ArchiveStorageBackend::K7Zip },
+        ArchiveFormat { u"rar", u"cbr", u"rar",
             { u"application/vnd.rar", u"application/x-rar", u"application/x-rar-compressed" },
             kiriview::ArchiveStorageBackend::LibArchive },
     };
+    return formats;
+}
+
+struct ComicArchiveMimeFormat
+{
+    QLatin1StringView scheme;
+    QLatin1StringView mimeType;
+};
+
+const auto& comicArchiveMimeFormats()
+{
+    static const auto formats = std::to_array<ComicArchiveMimeFormat>({
+#define KIRIVIEW_IMAGE_MIME_TYPE(mimeType)
+#define KIRIVIEW_DIRECT_VIDEO_MIME_TYPE(mimeType)
+#define KIRIVIEW_COMIC_ARCHIVE_MIME_TYPE(scheme, mimeType)                                         \
+    ComicArchiveMimeFormat { QLatin1StringView(scheme), QLatin1StringView(mimeType) },
+#include "format/supportedmediamimetypes.inc"
+#undef KIRIVIEW_COMIC_ARCHIVE_MIME_TYPE
+#undef KIRIVIEW_DIRECT_VIDEO_MIME_TYPE
+#undef KIRIVIEW_IMAGE_MIME_TYPE
+    });
     return formats;
 }
 
@@ -94,6 +113,18 @@ QStringList supportedComicBookArchiveExtensions()
         QStringLiteral("cbr") };
 }
 
+QStringList supportedComicBookArchiveMimeTypes()
+{
+    QStringList mimeTypes;
+    mimeTypes.reserve(static_cast<qsizetype>(comicArchiveMimeFormats().size()));
+    for (const ComicArchiveMimeFormat& format : comicArchiveMimeFormats()) {
+        mimeTypes.append(format.mimeType.toString());
+    }
+    mimeTypes.sort();
+    mimeTypes.removeDuplicates();
+    return mimeTypes;
+}
+
 bool isComicBookArchiveFileName(const QString& name)
 {
     return comicBookArchiveMatchForFileName(name).has_value();
@@ -134,12 +165,11 @@ std::optional<ArchiveOpenMatch> directArchiveOpenMatchForFileName(const QString&
 
 std::optional<ArchiveOpenMatch> directArchiveOpenMatchForMimeTypeName(const QString& mimeTypeName)
 {
-    const auto comic
-        = std::ranges::find_if(archiveFormats(), [&mimeTypeName](const ArchiveFormat& format) {
-              return std::ranges::find(format.comicMimeTypes, mimeTypeName)
-                  != format.comicMimeTypes.end();
-          });
-    if (comic != archiveFormats().end()) {
+    const auto comic = std::ranges::find_if(
+        comicArchiveMimeFormats(), [&mimeTypeName](const ComicArchiveMimeFormat& format) {
+            return format.mimeType == mimeTypeName;
+        });
+    if (comic != comicArchiveMimeFormats().end()) {
         return ArchiveOpenMatch { comic->scheme.toString(), ArchiveOpenMatchKind::ComicBook };
     }
     const auto archive

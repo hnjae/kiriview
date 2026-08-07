@@ -27,6 +27,8 @@ struct ApplicationActionStateInput
     bool activeNavigationHasTargets = false;
     bool canOpenPreviousActiveNavigation = false;
     bool canOpenNextActiveNavigation = false;
+    bool atKnownFirstActiveNavigation = false;
+    bool atKnownLastActiveNavigation = false;
     bool fitModeSelected = false;
     bool fitHeightModeSelected = false;
     bool fitWidthModeSelected = false;

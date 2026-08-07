@@ -323,6 +323,7 @@ in
           ${baseTaskPrelude}
 
           ${lib.getExe' pkgs.desktop-file-utils "desktop-file-validate"} org.hnjae.kiriview.desktop
+          ${lib.getExe pkgs.bash} scripts/check-supported-media-capabilities.sh
         '';
     };
 

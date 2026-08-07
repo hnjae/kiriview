@@ -8,14 +8,26 @@
 
 #include <QAbstractListModel>
 #include <QObject>
+#include <QPointer>
 #include <QSize>
 #include <QString>
 #include <QUrl>
 #include <QtGlobal>
 #include <QtQml/qqmlregistration.h>
+#include <functional>
 #include <vector>
 
 class KiriDocumentSession;
+
+namespace kiriview {
+struct MediaInformationEffects
+{
+    std::function<void(QString)> copyText;
+    std::function<void(QUrl, QPointer<QObject>)> openContainingFolder;
+};
+
+MediaInformationEffects mediaInformationEffectsWithDefaults(MediaInformationEffects effects = {});
+}
 
 class KiriMediaInformationRowModel : public QAbstractListModel
 {
@@ -65,7 +77,8 @@ class KiriMediaInformation : public QObject
     Q_PROPERTY(bool canOpenContainingFolder READ canOpenContainingFolder NOTIFY changed)
 
 public:
-    explicit KiriMediaInformation(KiriDocumentSession& session, QObject* parent = nullptr);
+    explicit KiriMediaInformation(KiriDocumentSession& session,
+        kiriview::MediaInformationEffects effects = {}, QObject* parent = nullptr);
 
     [[nodiscard]] bool available() const;
     [[nodiscard]] quint64 revision() const;
@@ -93,6 +106,7 @@ private:
     [[nodiscard]] QString copiedFilePath() const;
 
     KiriDocumentSession& m_session;
+    kiriview::MediaInformationEffects m_effects;
     KiriMediaInformationRowModel m_generalRows;
     KiriMediaInformationRowModel m_mediaRows;
     KiriMediaInformationRowModel m_cameraRows;

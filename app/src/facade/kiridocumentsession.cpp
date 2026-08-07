@@ -526,7 +526,8 @@ KiriDocumentSession::KiriDocumentSession(kiriview::KiriDocumentSessionDependenci
             handleSessionChanges(changes);
         },
         std::move(dependencies.sessionRuntime));
-    m_mediaInformation = new KiriMediaInformation(*this, this);
+    m_mediaInformation
+        = new KiriMediaInformation(*this, std::move(dependencies.mediaInformationEffects), this);
 }
 
 KiriDocumentSession::~KiriDocumentSession()

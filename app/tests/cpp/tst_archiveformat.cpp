@@ -15,6 +15,7 @@ class TestArchiveFormat : public QObject
 private Q_SLOTS:
     void comicBookArchiveFileNamesAreCaseInsensitive();
     void directArchiveOpenMatchesExposeArchiveKind();
+    void advertisedComicMimeTypesAreRoutableAndExcludeGeneralArchives();
     void archiveRootSchemesReportKioFuseSupportByBackend();
 };
 
@@ -67,6 +68,31 @@ void TestArchiveFormat::directArchiveOpenMatchesExposeArchiveKind()
     QVERIFY(rarUrlMatch.has_value());
     QCOMPARE(rarUrlMatch->scheme, QStringLiteral("rar"));
     QVERIFY(rarUrlMatch->kind == kiriview::ArchiveOpenMatchKind::GeneralArchive);
+}
+
+void TestArchiveFormat::advertisedComicMimeTypesAreRoutableAndExcludeGeneralArchives()
+{
+    const QStringList mimeTypes = kiriview::supportedComicBookArchiveMimeTypes();
+    QVERIFY(mimeTypes.contains(QStringLiteral("application/vnd.comicbook+zip")));
+    QVERIFY(mimeTypes.contains(QStringLiteral("application/x-cbt")));
+    QVERIFY(mimeTypes.contains(QStringLiteral("application/x-cb7")));
+    QVERIFY(mimeTypes.contains(QStringLiteral("application/x-cbr")));
+    QVERIFY(!mimeTypes.contains(QStringLiteral("application/zip")));
+    QVERIFY(!mimeTypes.contains(QStringLiteral("application/vnd.rar")));
+
+    QStringList sortedMimeTypes = mimeTypes;
+    sortedMimeTypes.sort();
+    sortedMimeTypes.removeDuplicates();
+    QCOMPARE(mimeTypes, sortedMimeTypes);
+
+    for (const QString& mimeType : mimeTypes) {
+        const std::optional<kiriview::ArchiveOpenMatch> match
+            = kiriview::directArchiveOpenMatchForMimeTypeName(mimeType);
+        QVERIFY2(match.has_value(), qPrintable(mimeType));
+        QVERIFY(match->kind == kiriview::ArchiveOpenMatchKind::ComicBook);
+        QVERIFY(kiriview::archiveStorageBackendForRootScheme(match->scheme)
+            != kiriview::ArchiveStorageBackend::None);
+    }
 }
 
 void TestArchiveFormat::archiveRootSchemesReportKioFuseSupportByBackend()

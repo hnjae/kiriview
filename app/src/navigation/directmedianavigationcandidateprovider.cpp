@@ -17,7 +17,7 @@
 namespace {
 kiriview::ImageIoJob startDirectoryDirectMediaNavigationCandidateList(QObject* receiver,
     const QUrl& directoryUrl, kiriview::DirectMediaNavigationCandidatesCallback callback,
-    kiriview::ErrorCallback errorCallback,
+    kiriview::KioOperationFailureCallback errorCallback,
     kiriview::DirectoryItemListProvider directoryItemListProvider)
 {
     qCDebug(kiriviewNavigationLog)
@@ -34,12 +34,13 @@ kiriview::ImageIoJob startDirectoryDirectMediaNavigationCandidateList(QObject* r
                 << items.size() << "candidates" << candidates.size();
             kiriview::invokeIfSet(callback, std::move(candidates));
         },
-        [errorCallback = std::move(errorCallback), directoryUrl](const QString& errorString) {
+        [errorCallback = std::move(errorCallback), directoryUrl](
+            kiriview::KioOperationFailure failure) mutable {
             qCDebug(kiriviewNavigationLog)
                 << "direct media navigation candidate provider listing failed"
                 << "directoryUrl" << kiriview::diagnosticSourceReference(directoryUrl) << "error"
-                << kiriview::diagnosticDetailReference(errorString);
-            kiriview::invokeIfSet(errorCallback, errorString);
+                << kiriview::diagnosticDetailReference(failure.diagnosticDetail);
+            kiriview::invokeIfSet(errorCallback, std::move(failure));
         },
         std::move(directoryItemListProvider));
 }
@@ -52,7 +53,7 @@ DirectMediaNavigationCandidateProvider defaultDirectMediaNavigationCandidateProv
     return DirectMediaNavigationCandidateProvider {
         [directoryItemListProvider = std::move(directoryItemListProvider)](QObject* receiver,
             const QUrl& directoryUrl, DirectMediaNavigationCandidatesCallback callback,
-            ErrorCallback errorCallback) {
+            KioOperationFailureCallback errorCallback) {
             return startDirectoryDirectMediaNavigationCandidateList(receiver, directoryUrl,
                 std::move(callback), std::move(errorCallback), directoryItemListProvider);
         },

@@ -24,12 +24,83 @@
 #include <QStringList>
 #include <QTest>
 #include <QVariantList>
+#include <array>
 #include <cstddef>
 
 namespace {
 namespace Actions = kiriview::ApplicationActions;
 
 using DomainActionId = kiriview::ApplicationActions::ActionId;
+
+struct ActionIdMapping
+{
+    KiriViewApplication::ActionId facade;
+    DomainActionId domain;
+};
+
+constexpr std::array actionIdMappings {
+    ActionIdMapping { KiriViewApplication::FileOpenAction, DomainActionId::FileOpenAction },
+    ActionIdMapping { KiriViewApplication::FileOpenWithAction, DomainActionId::FileOpenWithAction },
+    ActionIdMapping {
+        KiriViewApplication::FileMoveToTrashAction, DomainActionId::FileMoveToTrashAction },
+    ActionIdMapping { KiriViewApplication::FileDeleteAction, DomainActionId::FileDeleteAction },
+    ActionIdMapping {
+        KiriViewApplication::GoPreviousArchiveAction, DomainActionId::GoPreviousArchiveAction },
+    ActionIdMapping {
+        KiriViewApplication::GoNextArchiveAction, DomainActionId::GoNextArchiveAction },
+    ActionIdMapping {
+        KiriViewApplication::GoPreviousImageAction, DomainActionId::GoPreviousImageAction },
+    ActionIdMapping { KiriViewApplication::GoNextImageAction, DomainActionId::GoNextImageAction },
+    ActionIdMapping { KiriViewApplication::GoFirstImageAction, DomainActionId::GoFirstImageAction },
+    ActionIdMapping { KiriViewApplication::GoLastImageAction, DomainActionId::GoLastImageAction },
+    ActionIdMapping { KiriViewApplication::ViewZoomInAction, DomainActionId::ViewZoomInAction },
+    ActionIdMapping { KiriViewApplication::ViewZoomOutAction, DomainActionId::ViewZoomOutAction },
+    ActionIdMapping {
+        KiriViewApplication::ViewZoom50PercentAction, DomainActionId::ViewZoom50PercentAction },
+    ActionIdMapping {
+        KiriViewApplication::ViewZoom100PercentAction, DomainActionId::ViewZoom100PercentAction },
+    ActionIdMapping {
+        KiriViewApplication::ViewZoom200PercentAction, DomainActionId::ViewZoom200PercentAction },
+    ActionIdMapping { KiriViewApplication::ViewFitAction, DomainActionId::ViewFitAction },
+    ActionIdMapping {
+        KiriViewApplication::ViewFitHeightAction, DomainActionId::ViewFitHeightAction },
+    ActionIdMapping { KiriViewApplication::ViewFitWidthAction, DomainActionId::ViewFitWidthAction },
+    ActionIdMapping {
+        KiriViewApplication::ViewRotateClockwiseAction, DomainActionId::ViewRotateClockwiseAction },
+    ActionIdMapping { KiriViewApplication::ViewRotateCounterclockwiseAction,
+        DomainActionId::ViewRotateCounterclockwiseAction },
+    ActionIdMapping { KiriViewApplication::ViewToggleTwoPageModeAction,
+        DomainActionId::ViewToggleTwoPageModeAction },
+    ActionIdMapping { KiriViewApplication::ViewToggleRightToLeftReadingAction,
+        DomainActionId::ViewToggleRightToLeftReadingAction },
+    ActionIdMapping {
+        KiriViewApplication::ViewToggleInfoPanelAction, DomainActionId::ViewToggleInfoPanelAction },
+    ActionIdMapping { KiriViewApplication::ViewToggleThumbnailPanelAction,
+        DomainActionId::ViewToggleThumbnailPanelAction },
+    ActionIdMapping { KiriViewApplication::ViewGoToContentStartAction,
+        DomainActionId::ViewGoToContentStartAction },
+    ActionIdMapping {
+        KiriViewApplication::ViewGoToContentEndAction, DomainActionId::ViewGoToContentEndAction },
+    ActionIdMapping {
+        KiriViewApplication::ViewScanForwardAction, DomainActionId::ViewScanForwardAction },
+    ActionIdMapping {
+        KiriViewApplication::ViewScanBackwardAction, DomainActionId::ViewScanBackwardAction },
+    ActionIdMapping { KiriViewApplication::ViewToggleVideoPlaybackAction,
+        DomainActionId::ViewToggleVideoPlaybackAction },
+    ActionIdMapping {
+        KiriViewApplication::WindowFullscreenAction, DomainActionId::WindowFullscreenAction },
+    ActionIdMapping {
+        KiriViewApplication::HelpShortcutsAction, DomainActionId::HelpShortcutsAction },
+    ActionIdMapping { KiriViewApplication::OptionsConfigureKeybindingAction,
+        DomainActionId::OptionsConfigureKeybindingAction },
+    ActionIdMapping {
+        KiriViewApplication::OptionsShowMenubarAction, DomainActionId::OptionsShowMenubarAction },
+    ActionIdMapping {
+        KiriViewApplication::OpenApplicationMenuAction, DomainActionId::OpenApplicationMenuAction },
+    ActionIdMapping { KiriViewApplication::FileQuitAction, DomainActionId::FileQuitAction },
+};
+
+static_assert(actionIdMappings.size() == Actions::actionDefinitionCount);
 
 constexpr const char* interfaceConfigGroup = "Interface";
 constexpr const char* menuPresentationConfigKey = "menuPresentation";
@@ -210,14 +281,23 @@ void TestKiriViewApplication::actionDefinitionTableIsCanonicalIdentitySource()
 
 void TestKiriViewApplication::facadeActionIdsConvertAtApplicationBoundary()
 {
-    QCOMPARE(KiriViewApplication::domainActionId(KiriViewApplication::FileOpenAction),
-        DomainActionId::FileOpenAction);
-    QCOMPARE(KiriViewApplication::facadeActionId(DomainActionId::ViewRotateClockwiseAction),
-        KiriViewApplication::ViewRotateClockwiseAction);
+    for (const ActionIdMapping& mapping : actionIdMappings) {
+        QCOMPARE(KiriViewApplication::domainActionId(mapping.facade), mapping.domain);
+        QCOMPARE(KiriViewApplication::facadeActionId(mapping.domain), mapping.facade);
+    }
+
     QCOMPARE(KiriViewApplication::domainActionId(KiriViewApplication::ActionCount),
         DomainActionId::ActionCount);
+    QCOMPARE(KiriViewApplication::domainActionId(static_cast<KiriViewApplication::ActionId>(-1)),
+        DomainActionId::ActionCount);
+    QCOMPARE(KiriViewApplication::domainActionId(static_cast<KiriViewApplication::ActionId>(999)),
+        DomainActionId::ActionCount);
+    QCOMPARE(KiriViewApplication::facadeActionId(DomainActionId::ActionCount),
+        KiriViewApplication::ActionCount);
+    QCOMPARE(KiriViewApplication::facadeActionId(static_cast<DomainActionId>(-1)),
+        KiriViewApplication::ActionCount);
     QCOMPARE(KiriViewApplication::facadeActionId(static_cast<DomainActionId>(999)),
-        static_cast<KiriViewApplication::ActionId>(999));
+        KiriViewApplication::ActionCount);
 
     QCOMPARE(KiriViewApplication::domainMenuPresentation(KiriViewApplication::MenuBar),
         Actions::MenuPresentation::MenuBar);

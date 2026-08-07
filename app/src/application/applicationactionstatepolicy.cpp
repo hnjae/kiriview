@@ -72,8 +72,9 @@ ApplicationActionState applicationActionState(
         return actionState;
     }
     case ActionId::GoFirstImageAction:
+        return state(activeNavigationActionEnabled(input) && !input.atKnownFirstActiveNavigation);
     case ActionId::GoLastImageAction:
-        return state(activeNavigationActionEnabled(input));
+        return state(activeNavigationActionEnabled(input) && !input.atKnownLastActiveNavigation);
     case ActionId::ViewZoomInAction:
     case ActionId::ViewZoomOutAction:
     case ActionId::ViewZoom50PercentAction:

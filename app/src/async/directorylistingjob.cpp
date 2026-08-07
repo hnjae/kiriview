@@ -5,6 +5,7 @@
 
 #include "async/imagecallback.h"
 #include "diagnostics/diagnosticlogprojection.h"
+#include "system/kiooperationfailure.h"
 
 #include <KCoreDirLister>
 #include <KIO/Job>
@@ -36,9 +37,10 @@ KCoreDirLister* createDirectoryItemLister(QObject* parent)
 }
 
 void finishDirectoryItemListWithError(const kiriview::ImageIoJobCompletion& completion,
-    const QString& errorString, const kiriview::ErrorCallback& errorCallback)
+    kiriview::KioOperationFailure failure,
+    const kiriview::KioOperationFailureCallback& errorCallback)
 {
-    completion.claimAndDelete([&]() { kiriview::invokeIfSet(errorCallback, errorString); });
+    completion.claimAndDelete([&]() { kiriview::invokeIfSet(errorCallback, std::move(failure)); });
 }
 
 void warnDirectoryListingRejectedEmptyUrl()
@@ -63,7 +65,7 @@ void warnDirectoryListingJobFailure(const QUrl& directoryUrl, const QString& err
 namespace kiriview {
 namespace {
     ImageIoJob startKCoreDirectoryItemList(QObject* receiver, const QUrl& directoryUrl,
-        DirectoryItemListCallback callback, const ErrorCallback& errorCallback)
+        DirectoryItemListCallback callback, const KioOperationFailureCallback& errorCallback)
     {
         auto* lister = createDirectoryItemLister(receiver);
         ImageIoJob ioJob(lister, cancelDirLister);
@@ -77,20 +79,30 @@ namespace {
             });
         QObject::connect(lister, &KCoreDirLister::jobError, receiver,
             [completion, directoryUrl, errorCallback](KIO::Job* job) {
-                const QString errorString = job == nullptr ? QString() : job->errorString();
-                warnDirectoryListingJobFailure(directoryUrl, errorString);
-                finishDirectoryItemListWithError(completion, errorString, errorCallback);
+                KioOperationFailure failure = job == nullptr
+                    ? kioOperationValidationFailure(KioOperationKind::DirectoryListing,
+                          directoryUrl, QStringLiteral("directory listing emitted a null job"))
+                    : kioOperationFailureFromKJob(KioOperationKind::DirectoryListing, directoryUrl,
+                          job->error(), job->errorString());
+                warnDirectoryListingJobFailure(directoryUrl, failure.diagnosticDetail);
+                finishDirectoryItemListWithError(completion, std::move(failure), errorCallback);
             });
 
         if (directoryUrl.isEmpty()) {
             warnDirectoryListingRejectedEmptyUrl();
-            finishDirectoryItemListWithError(completion, QString(), errorCallback);
+            finishDirectoryItemListWithError(completion,
+                kioOperationValidationFailure(KioOperationKind::DirectoryListing, directoryUrl,
+                    QStringLiteral("empty directory URL")),
+                errorCallback);
             return ioJob;
         }
 
         if (!lister->openUrl(directoryUrl, KCoreDirLister::Reload)) {
             warnDirectoryListingOpenFailure(directoryUrl);
-            finishDirectoryItemListWithError(completion, QString(), errorCallback);
+            finishDirectoryItemListWithError(completion,
+                kioOperationValidationFailure(KioOperationKind::DirectoryListing, directoryUrl,
+                    QStringLiteral("directory listing URL was rejected")),
+                errorCallback);
         }
 
         return ioJob;
@@ -98,14 +110,14 @@ namespace {
 }
 
 ImageIoJob startDirectoryItemList(QObject* receiver, QUrl directoryUrl,
-    DirectoryItemListCallback callback, ErrorCallback errorCallback)
+    DirectoryItemListCallback callback, KioOperationFailureCallback errorCallback)
 {
     return startDirectoryItemList(receiver, std::move(directoryUrl), std::move(callback),
         std::move(errorCallback), defaultDirectoryItemListProvider());
 }
 
 ImageIoJob startDirectoryItemList(QObject* receiver, QUrl directoryUrl,
-    DirectoryItemListCallback callback, ErrorCallback errorCallback,
+    DirectoryItemListCallback callback, KioOperationFailureCallback errorCallback,
     DirectoryItemListProvider provider)
 {
     if (!provider) {
@@ -118,7 +130,7 @@ ImageIoJob startDirectoryItemList(QObject* receiver, QUrl directoryUrl,
 DirectoryItemListProvider defaultDirectoryItemListProvider()
 {
     return [](QObject* receiver, const QUrl& directoryUrl, DirectoryItemListCallback callback,
-               const ErrorCallback& errorCallback) {
+               const KioOperationFailureCallback& errorCallback) {
         return startKCoreDirectoryItemList(
             receiver, directoryUrl, std::move(callback), errorCallback);
     };

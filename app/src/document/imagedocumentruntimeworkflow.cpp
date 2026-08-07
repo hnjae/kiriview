@@ -140,9 +140,14 @@ void ImageDocumentRuntimeWorkflow::dispatchOperation(const ImageDocumentRuntimeO
                     << "currentContainerUrl"
                     << diagnosticSourceReference(payload.failure.currentContainerUrl) << "parentUrl"
                     << diagnosticSourceReference(payload.failure.parentUrl) << "direction"
-                    << static_cast<int>(payload.failure.direction) << "kind"
-                    << static_cast<int>(payload.failure.kind) << "detail"
-                    << diagnosticDetailReference(payload.failure.diagnosticDetail);
+                    << static_cast<int>(payload.failure.direction) << "operationKind"
+                    << static_cast<int>(payload.failure.operationFailure.operationKind)
+                    << "operationTargetUrl"
+                    << diagnosticSourceReference(payload.failure.operationFailure.targetUrl)
+                    << "rawErrorCode" << payload.failure.operationFailure.rawErrorCode.value_or(0)
+                    << "canceled" << payload.failure.operationFailure.canceled << "detail"
+                    << diagnosticDetailReference(payload.failure.operationFailure.diagnosticDetail)
+                    << "retryable" << payload.failure.operationFailure.retryable;
             } else if constexpr (std::is_same_v<Operation, LoadPageNavigationUrlOperation>) {
                 qCDebug(kiriviewNavigationLog)
                     << "runtime loading page navigation target"

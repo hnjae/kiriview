@@ -26,6 +26,7 @@ private Q_SLOTS:
     void directMediaMultiCandidateWithoutNextUsesPrevious();
     void directMediaStartKeepsActualTargetSeparateFromNavigationIdentity();
     void directMediaCandidateFailureAbortsBeforeFileOperation();
+    void directMediaCandidateCancellationCompletesWithoutFailureReport();
     void directMediaCandidatePhaseIsOwnedByRuntime();
     void directMediaCandidateLoadCancelRejectsLateCompletion();
     void directMediaCandidateCancellationPreservesReentrantReplacement();
@@ -49,7 +50,7 @@ struct ManualDirectMediaNavigationCandidateLoad
     QObject* object = nullptr;
     QUrl parentUrl;
     kiriview::DirectMediaNavigationCandidatesCallback callback;
-    kiriview::ErrorCallback errorCallback;
+    kiriview::KioOperationFailureCallback errorCallback;
     kiriview::ImageIoJobCompletion completion;
     bool canceled = false;
 };
@@ -64,7 +65,7 @@ public:
         return kiriview::DirectMediaNavigationCandidateProvider {
             [this](QObject* receiver, QUrl parentUrl,
                 kiriview::DirectMediaNavigationCandidatesCallback callback,
-                kiriview::ErrorCallback errorCallback) {
+                kiriview::KioOperationFailureCallback errorCallback) {
                 auto load = std::make_shared<ManualDirectMediaNavigationCandidateLoad>();
                 load->parentUrl = std::move(parentUrl);
                 load->callback = std::move(callback);
@@ -94,11 +95,11 @@ public:
         }
     }
 
-    void failIgnoringCancellation(std::size_t index, const QString& errorString)
+    void failIgnoringCancellation(std::size_t index, kiriview::KioOperationFailure failure)
     {
         ManualDirectMediaNavigationCandidateLoad& load = loadAt(index);
         if (load.errorCallback) {
-            load.errorCallback(errorString);
+            load.errorCallback(std::move(failure));
         }
     }
 
@@ -314,21 +315,60 @@ void TestDocumentSessionMediaDeletionRuntime::directMediaCandidateFailureAbortsB
 
     QVERIFY(fixture.startDirectMedia(
         kiriview::FileDeletionMode::MoveToTrash, directMediaScope(currentUrl)));
-    fixture.candidateProvider.failIgnoringCancellation(
-        0, QStringLiteral("candidate listing failed"));
+    const kiriview::KioOperationFailure expected {
+        kiriview::KioOperationKind::DirectoryListing,
+        parentUrl,
+        73,
+        false,
+        QStringLiteral("candidate listing failed"),
+        QStringLiteral("backend diagnostic"),
+        true,
+    };
+    fixture.candidateProvider.failIgnoringCancellation(0, expected);
 
     QCOMPARE(fixture.fileDeletionProvider.operationCount(), std::size_t(0));
     QCOMPARE(fixture.completionCount, 1);
     QVERIFY(!fixture.completion.plan.hasRoutePlan());
     QVERIFY(fixture.completion.plan.reportFailure);
-    QCOMPARE(
-        fixture.completion.failure.operationKind, kiriview::KioOperationKind::DirectoryListing);
-    QCOMPARE(fixture.completion.failure.targetUrl, parentUrl);
-    QCOMPARE(fixture.completion.failure.rawErrorCode, std::nullopt);
-    QVERIFY(!fixture.completion.failure.canceled);
-    QCOMPARE(fixture.completion.failure.userMessage, QStringLiteral("candidate listing failed"));
-    QCOMPARE(
-        fixture.completion.failure.diagnosticDetail, QStringLiteral("candidate listing failed"));
+    QCOMPARE(fixture.completion.failure.operationKind, expected.operationKind);
+    QCOMPARE(fixture.completion.failure.targetUrl, expected.targetUrl);
+    QCOMPARE(fixture.completion.failure.rawErrorCode, expected.rawErrorCode);
+    QCOMPARE(fixture.completion.failure.canceled, expected.canceled);
+    QCOMPARE(fixture.completion.failure.userMessage, expected.userMessage);
+    QCOMPARE(fixture.completion.failure.diagnosticDetail, expected.diagnosticDetail);
+    QCOMPARE(fixture.completion.failure.retryable, expected.retryable);
+}
+
+void TestDocumentSessionMediaDeletionRuntime::
+    directMediaCandidateCancellationCompletesWithoutFailureReport()
+{
+    RuntimeFixture fixture;
+    const QUrl currentUrl = localUrl(QStringLiteral("/media/02.mp4"));
+    const QUrl parentUrl = localUrl(QStringLiteral("/media/"));
+
+    QVERIFY(fixture.startDirectMedia(
+        kiriview::FileDeletionMode::MoveToTrash, directMediaScope(currentUrl)));
+    const kiriview::KioOperationFailure expected {
+        kiriview::KioOperationKind::DirectoryListing,
+        parentUrl,
+        74,
+        true,
+        {},
+        QStringLiteral("candidate listing canceled"),
+        false,
+    };
+    fixture.candidateProvider.failIgnoringCancellation(0, expected);
+
+    QCOMPARE(fixture.fileDeletionProvider.operationCount(), std::size_t(0));
+    QCOMPARE(fixture.completionCount, 1);
+    QVERIFY(!fixture.runtime.active());
+    QVERIFY(!fixture.completion.plan.hasRoutePlan());
+    QVERIFY(!fixture.completion.plan.reportFailure);
+    QCOMPARE(fixture.completion.failure.operationKind, expected.operationKind);
+    QCOMPARE(fixture.completion.failure.targetUrl, expected.targetUrl);
+    QCOMPARE(fixture.completion.failure.rawErrorCode, expected.rawErrorCode);
+    QVERIFY(fixture.completion.failure.canceled);
+    QCOMPARE(fixture.completion.failure.diagnosticDetail, expected.diagnosticDetail);
     QVERIFY(!fixture.completion.failure.retryable);
 }
 

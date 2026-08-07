@@ -15,6 +15,8 @@
 
 #include <KLocalizedString>
 
+#include <array>
+#include <cstddef>
 #include <utility>
 
 namespace Actions = kiriview::ApplicationActions;
@@ -85,12 +87,103 @@ static_assert(static_cast<int>(Actions::MenuPresentation::HamburgerMenu)
     == static_cast<int>(KiriViewApplication::HamburgerMenu));
 static_assert(static_cast<int>(Actions::MenuPresentation::MenuBar)
     == static_cast<int>(KiriViewApplication::MenuBar));
-static_assert(static_cast<int>(Actions::ActionId::FileOpenAction)
-    == static_cast<int>(KiriViewApplication::FileOpenAction));
-static_assert(static_cast<int>(Actions::ActionId::ActionCount)
-    == static_cast<int>(KiriViewApplication::ActionCount));
 
 namespace {
+struct ActionIdMapping
+{
+    KiriViewApplication::ActionId facade;
+    Actions::ActionId domain;
+};
+
+constexpr std::array actionIdMappings {
+    ActionIdMapping { KiriViewApplication::FileOpenAction, Actions::ActionId::FileOpenAction },
+    ActionIdMapping {
+        KiriViewApplication::FileOpenWithAction, Actions::ActionId::FileOpenWithAction },
+    ActionIdMapping {
+        KiriViewApplication::FileMoveToTrashAction, Actions::ActionId::FileMoveToTrashAction },
+    ActionIdMapping { KiriViewApplication::FileDeleteAction, Actions::ActionId::FileDeleteAction },
+    ActionIdMapping {
+        KiriViewApplication::GoPreviousArchiveAction, Actions::ActionId::GoPreviousArchiveAction },
+    ActionIdMapping {
+        KiriViewApplication::GoNextArchiveAction, Actions::ActionId::GoNextArchiveAction },
+    ActionIdMapping {
+        KiriViewApplication::GoPreviousImageAction, Actions::ActionId::GoPreviousImageAction },
+    ActionIdMapping {
+        KiriViewApplication::GoNextImageAction, Actions::ActionId::GoNextImageAction },
+    ActionIdMapping {
+        KiriViewApplication::GoFirstImageAction, Actions::ActionId::GoFirstImageAction },
+    ActionIdMapping {
+        KiriViewApplication::GoLastImageAction, Actions::ActionId::GoLastImageAction },
+    ActionIdMapping { KiriViewApplication::ViewZoomInAction, Actions::ActionId::ViewZoomInAction },
+    ActionIdMapping {
+        KiriViewApplication::ViewZoomOutAction, Actions::ActionId::ViewZoomOutAction },
+    ActionIdMapping {
+        KiriViewApplication::ViewZoom50PercentAction, Actions::ActionId::ViewZoom50PercentAction },
+    ActionIdMapping { KiriViewApplication::ViewZoom100PercentAction,
+        Actions::ActionId::ViewZoom100PercentAction },
+    ActionIdMapping { KiriViewApplication::ViewZoom200PercentAction,
+        Actions::ActionId::ViewZoom200PercentAction },
+    ActionIdMapping { KiriViewApplication::ViewFitAction, Actions::ActionId::ViewFitAction },
+    ActionIdMapping {
+        KiriViewApplication::ViewFitHeightAction, Actions::ActionId::ViewFitHeightAction },
+    ActionIdMapping {
+        KiriViewApplication::ViewFitWidthAction, Actions::ActionId::ViewFitWidthAction },
+    ActionIdMapping { KiriViewApplication::ViewRotateClockwiseAction,
+        Actions::ActionId::ViewRotateClockwiseAction },
+    ActionIdMapping { KiriViewApplication::ViewRotateCounterclockwiseAction,
+        Actions::ActionId::ViewRotateCounterclockwiseAction },
+    ActionIdMapping { KiriViewApplication::ViewToggleTwoPageModeAction,
+        Actions::ActionId::ViewToggleTwoPageModeAction },
+    ActionIdMapping { KiriViewApplication::ViewToggleRightToLeftReadingAction,
+        Actions::ActionId::ViewToggleRightToLeftReadingAction },
+    ActionIdMapping { KiriViewApplication::ViewToggleInfoPanelAction,
+        Actions::ActionId::ViewToggleInfoPanelAction },
+    ActionIdMapping { KiriViewApplication::ViewToggleThumbnailPanelAction,
+        Actions::ActionId::ViewToggleThumbnailPanelAction },
+    ActionIdMapping { KiriViewApplication::ViewGoToContentStartAction,
+        Actions::ActionId::ViewGoToContentStartAction },
+    ActionIdMapping { KiriViewApplication::ViewGoToContentEndAction,
+        Actions::ActionId::ViewGoToContentEndAction },
+    ActionIdMapping {
+        KiriViewApplication::ViewScanForwardAction, Actions::ActionId::ViewScanForwardAction },
+    ActionIdMapping {
+        KiriViewApplication::ViewScanBackwardAction, Actions::ActionId::ViewScanBackwardAction },
+    ActionIdMapping { KiriViewApplication::ViewToggleVideoPlaybackAction,
+        Actions::ActionId::ViewToggleVideoPlaybackAction },
+    ActionIdMapping {
+        KiriViewApplication::WindowFullscreenAction, Actions::ActionId::WindowFullscreenAction },
+    ActionIdMapping {
+        KiriViewApplication::HelpShortcutsAction, Actions::ActionId::HelpShortcutsAction },
+    ActionIdMapping { KiriViewApplication::OptionsConfigureKeybindingAction,
+        Actions::ActionId::OptionsConfigureKeybindingAction },
+    ActionIdMapping { KiriViewApplication::OptionsShowMenubarAction,
+        Actions::ActionId::OptionsShowMenubarAction },
+    ActionIdMapping { KiriViewApplication::OpenApplicationMenuAction,
+        Actions::ActionId::OpenApplicationMenuAction },
+    ActionIdMapping { KiriViewApplication::FileQuitAction, Actions::ActionId::FileQuitAction },
+};
+
+constexpr bool actionIdMappingsAreCompleteAndUnique()
+{
+    if (actionIdMappings.size() != Actions::actionDefinitionCount
+        || actionIdMappings.size() != static_cast<std::size_t>(KiriViewApplication::ActionCount)) {
+        return false;
+    }
+
+    for (std::size_t index = 0; index < actionIdMappings.size(); ++index) {
+        for (std::size_t other = index + 1; other < actionIdMappings.size(); ++other) {
+            if (actionIdMappings[index].facade == actionIdMappings[other].facade
+                || actionIdMappings[index].domain == actionIdMappings[other].domain) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+static_assert(actionIdMappingsAreCompleteAndUnique());
+
 Actions::NavigationPresentationSlot projectedNavigationPresentationSlot(
     const Actions::NavigationPresentationProjection& projection,
     KiriViewApplication::NavigationPresentationSlot slot)
@@ -189,12 +282,24 @@ KiriViewApplication::MenuPresentation KiriViewApplication::facadeMenuPresentatio
 
 Actions::ActionId KiriViewApplication::domainActionId(ActionId actionId)
 {
-    return static_cast<Actions::ActionId>(static_cast<int>(actionId));
+    for (const ActionIdMapping& mapping : actionIdMappings) {
+        if (mapping.facade == actionId) {
+            return mapping.domain;
+        }
+    }
+
+    return Actions::ActionId::ActionCount;
 }
 
 KiriViewApplication::ActionId KiriViewApplication::facadeActionId(Actions::ActionId actionId)
 {
-    return static_cast<ActionId>(static_cast<int>(actionId));
+    for (const ActionIdMapping& mapping : actionIdMappings) {
+        if (mapping.domain == actionId) {
+            return mapping.facade;
+        }
+    }
+
+    return ActionCount;
 }
 
 QAction* KiriViewApplication::actionForId(ActionId actionId)

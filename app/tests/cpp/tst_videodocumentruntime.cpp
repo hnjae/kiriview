@@ -33,6 +33,10 @@ private Q_SLOTS:
     void settingAndClearingSourcePreservesUserFacingUrlAndTitle();
     void resolverCanReturnSeparatePlaybackUrl();
     void resolvedPlaybackPathPublishesEmbeddedMetadata();
+    void nonLocalPlaybackSkipsEmbeddedMetadataParsing();
+    void sameUrlStaleEmbeddedMetadataCompletionIsIgnored();
+    void runtimeDestructionCancelsEmbeddedMetadataParsing();
+    void synchronousMetadataCompletionReentryRetainsReplacementWork();
     void resolverFailureSurfacesErrorWithoutChangingSourceUrl();
     void resolverFailurePreservesTypedFailureMetadata();
     void backendFailurePreservesTypedFailureMetadata();
@@ -46,7 +50,7 @@ private Q_SLOTS:
     void loadingPublicationReentryAdmitsOnlyLatestResolver();
     void failurePublicationReentryKeepsLatestSourceLoading();
     void backendFactoryReentryRejectsSupersededBackend();
-    void metadataPublicationReentryRejectsSupersededBackend();
+    void metadataPublicationReentryAdmitsReplacementSource();
     void sourceDeviceLoadingPublicationReentryRejectsSupersededDevice();
     void sourceDeviceVideoSizePublicationReentryRejectsSupersededDevice();
     void initialVideoSizeGetterReplacementRejectsSupersededLoad_data();
@@ -350,10 +354,15 @@ struct RuntimeFixture
     std::function<void(const std::vector<kiriview::VideoDocumentChange>&)> changeHook;
     std::function<void()> backendFactoryHook;
     std::function<void(const kiriview::VideoPlaybackControlProjection&)> projectionHook;
+    kiriview::TestSupport::ManualImageWorkerScheduler metadataWorkerScheduler;
     std::unique_ptr<kiriview::VideoDocumentRuntime> runtime;
 
-    explicit RuntimeFixture(kiriview::TimerScheduler playbackControlTimerScheduler = {})
+    explicit RuntimeFixture(kiriview::TimerScheduler playbackControlTimerScheduler = {},
+        const kiriview::ImageWorkerScheduler* embeddedMetadataWorkerScheduler = nullptr)
     {
+        const kiriview::ImageWorkerScheduler workerScheduler
+            = embeddedMetadataWorkerScheduler == nullptr ? metadataWorkerScheduler.scheduler()
+                                                         : *embeddedMetadataWorkerScheduler;
         runtime = std::make_unique<kiriview::VideoDocumentRuntime>(
             &documentObject,
             [this](const std::vector<kiriview::VideoDocumentChange>& nextChanges) {
@@ -381,12 +390,13 @@ struct RuntimeFixture
                 if (projectionHook) {
                     projectionHook(projection);
                 }
-            });
+            },
+            workerScheduler);
     }
 
     void resolveLatest(const QUrl& playbackUrl)
     {
-        auto& request = resolverState->requests.back();
+        const auto request = resolverState->requests.back();
         request.resolvedCallback(kiriview::VideoPlaybackUrlResolution {
             request.operationId,
             request.sourceUrl,
@@ -396,7 +406,7 @@ struct RuntimeFixture
 
     void failLatest(const QString& errorString)
     {
-        auto& request = resolverState->requests.back();
+        const auto request = resolverState->requests.back();
         request.failedCallback(request.operationId, request.sourceUrl, errorString);
     }
 };
@@ -429,7 +439,8 @@ void appendBox(QByteArray& data, const char* kind, const QByteArray& payload)
     data.append(payload);
 }
 
-bool writeTinyMetadataMp4(const QString& path)
+bool writeTinyMetadataMp4(
+    const QString& path, quint32 durationMsec = 1234, quint32 width = 640, quint32 height = 360)
 {
     QByteArray ftypPayload;
     ftypPayload.append("isom", 4);
@@ -438,7 +449,7 @@ bool writeTinyMetadataMp4(const QString& path)
 
     QByteArray mvhdPayload(12, '\0');
     appendU32(mvhdPayload, 1000);
-    appendU32(mvhdPayload, 1234);
+    appendU32(mvhdPayload, durationMsec);
     mvhdPayload.append(80, '\0');
 
     QByteArray tkhdPayload;
@@ -447,10 +458,10 @@ bool writeTinyMetadataMp4(const QString& path)
     tkhdPayload.append('\0');
     tkhdPayload.append('\7');
     tkhdPayload.append(16, '\0');
-    appendU32(tkhdPayload, 1234);
+    appendU32(tkhdPayload, durationMsec);
     tkhdPayload.append(52, '\0');
-    appendU32(tkhdPayload, 640 << 16);
-    appendU32(tkhdPayload, 360 << 16);
+    appendU32(tkhdPayload, width << 16);
+    appendU32(tkhdPayload, height << 16);
 
     QByteArray trakPayload;
     appendBox(trakPayload, "tkhd", tkhdPayload);
@@ -676,9 +687,160 @@ void TestVideoDocumentRuntime::resolvedPlaybackPathPublishesEmbeddedMetadata()
     fixture.runtime->setSourceUrl(sourceUrl);
     fixture.resolveLatest(playbackUrl);
 
+    QCOMPARE(fixture.backend->sourceUrl, playbackUrl);
+    QCOMPARE(fixture.backend->playCount, 1);
+    QVERIFY(fixture.runtime->embeddedMetadata().isEmpty());
+    QCOMPARE(fixture.metadataWorkerScheduler.scheduleCount(), std::size_t(1));
+
+    fixture.metadataWorkerScheduler.runWork(0);
+    fixture.metadataWorkerScheduler.finish(0);
+
     const kiriview::EmbeddedMetadata metadata = fixture.runtime->embeddedMetadata();
     QCOMPARE(metadata.duration, QStringLiteral("00:00:01.234"));
     QCOMPARE(metadata.frameSize, QStringLiteral("640×360 px"));
+}
+
+void TestVideoDocumentRuntime::nonLocalPlaybackSkipsEmbeddedMetadataParsing()
+{
+    RuntimeFixture fixture;
+    const QUrl sourceUrl(QStringLiteral("https://example.com/video.mp4"));
+
+    fixture.runtime->setSourceUrl(sourceUrl);
+    fixture.resolveLatest(sourceUrl);
+
+    QCOMPARE(fixture.backend->sourceUrl, sourceUrl);
+    QCOMPARE(fixture.backend->playCount, 1);
+    QCOMPARE(fixture.metadataWorkerScheduler.scheduleCount(), std::size_t(0));
+    QVERIFY(fixture.runtime->embeddedMetadata().isEmpty());
+}
+
+void TestVideoDocumentRuntime::sameUrlStaleEmbeddedMetadataCompletionIsIgnored()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString firstPlaybackPath = directory.filePath(QStringLiteral("first.mp4"));
+    const QString secondPlaybackPath = directory.filePath(QStringLiteral("second.mp4"));
+    QVERIFY(writeTinyMetadataMp4(firstPlaybackPath));
+    QVERIFY(writeTinyMetadataMp4(secondPlaybackPath, 2345, 800, 450));
+
+    RuntimeFixture fixture;
+    const QUrl sourceUrl(QStringLiteral("zip:///books/book.zip!/clip.mp4"));
+    fixture.runtime->setSourceUrl(sourceUrl);
+    fixture.resolveLatest(QUrl::fromLocalFile(firstPlaybackPath));
+    QCOMPARE(fixture.metadataWorkerScheduler.scheduleCount(), std::size_t(1));
+    fixture.metadataWorkerScheduler.runWork(0);
+
+    fixture.runtime->setSourceUrl(QUrl());
+    fixture.runtime->setSourceUrl(sourceUrl);
+    fixture.resolveLatest(QUrl::fromLocalFile(secondPlaybackPath));
+    QCOMPARE(fixture.metadataWorkerScheduler.scheduleCount(), std::size_t(2));
+    QVERIFY(!fixture.metadataWorkerScheduler.isActive(0));
+    QVERIFY(fixture.metadataWorkerScheduler.isActive(1));
+
+    fixture.metadataWorkerScheduler.runWork(1);
+    fixture.metadataWorkerScheduler.finish(1);
+    QCOMPARE(fixture.runtime->embeddedMetadata().duration, QStringLiteral("00:00:02.345"));
+    QCOMPARE(fixture.runtime->embeddedMetadata().frameSize, QStringLiteral("800×450 px"));
+
+    fixture.metadataWorkerScheduler.finish(0);
+    QCOMPARE(fixture.runtime->embeddedMetadata().duration, QStringLiteral("00:00:02.345"));
+    QCOMPARE(fixture.runtime->embeddedMetadata().frameSize, QStringLiteral("800×450 px"));
+}
+
+void TestVideoDocumentRuntime::runtimeDestructionCancelsEmbeddedMetadataParsing()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString playbackPath = directory.filePath(QStringLiteral("resolved.mp4"));
+    QVERIFY(writeTinyMetadataMp4(playbackPath));
+
+    RuntimeFixture fixture;
+    const QUrl sourceUrl = QUrl::fromLocalFile(playbackPath);
+    fixture.runtime->setSourceUrl(sourceUrl);
+    fixture.resolveLatest(sourceUrl);
+
+    QCOMPARE(fixture.metadataWorkerScheduler.scheduleCount(), std::size_t(1));
+    QVERIFY(fixture.metadataWorkerScheduler.isActive(0));
+
+    fixture.runtime.reset();
+
+    QVERIFY(!fixture.metadataWorkerScheduler.isActive(0));
+    fixture.metadataWorkerScheduler.runWork(0);
+    fixture.metadataWorkerScheduler.finish(0);
+}
+
+void TestVideoDocumentRuntime::synchronousMetadataCompletionReentryRetainsReplacementWork()
+{
+    struct WorkerState
+    {
+        std::size_t scheduleCount = 0;
+        kiriview::ImageWorkerOperation pendingWork;
+        kiriview::ImageWorkerCompletion pendingCompletion;
+        kiriview::ImageWorkerTaskCompletion pendingTaskCompletion;
+    };
+
+    const auto workerState = std::make_shared<WorkerState>();
+    const kiriview::ImageWorkerScheduler workerScheduler(
+        [workerState](QObject*, kiriview::ImageWorkerOperation work,
+            kiriview::ImageWorkerCompletion completion) {
+            ++workerState->scheduleCount;
+            if (workerState->scheduleCount == 1) {
+                work();
+                completion();
+                return kiriview::ImageWorkerTask {};
+            }
+
+            workerState->pendingWork = std::move(work);
+            workerState->pendingCompletion = std::move(completion);
+            const std::weak_ptr<WorkerState> weakState = workerState;
+            kiriview::ImageWorkerTask task([weakState]() {
+                if (const auto state = weakState.lock()) {
+                    state->pendingWork = {};
+                    state->pendingCompletion = {};
+                }
+            });
+            workerState->pendingTaskCompletion = task.completion();
+            return task;
+        });
+
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString firstPlaybackPath = directory.filePath(QStringLiteral("first.mp4"));
+    const QString secondPlaybackPath = directory.filePath(QStringLiteral("second.mp4"));
+    QVERIFY(writeTinyMetadataMp4(firstPlaybackPath));
+    QVERIFY(writeTinyMetadataMp4(secondPlaybackPath, 3456, 960, 540));
+
+    RuntimeFixture fixture({}, &workerScheduler);
+    const QUrl firstSourceUrl(QStringLiteral("zip:///books/book.zip!/first.mp4"));
+    const QUrl secondSourceUrl(QStringLiteral("zip:///books/book.zip!/second.mp4"));
+    fixture.runtime->setSourceUrl(firstSourceUrl);
+    bool reentered = false;
+    fixture.changeHook = [&](const std::vector<kiriview::VideoDocumentChange>& changes) {
+        if (reentered
+            || !std::ranges::contains(changes, kiriview::VideoDocumentChange::EmbeddedMetadata)
+            || fixture.runtime->sourceUrl() != firstSourceUrl) {
+            return;
+        }
+
+        reentered = true;
+        fixture.runtime->setSourceUrl(secondSourceUrl);
+        fixture.resolveLatest(QUrl::fromLocalFile(secondPlaybackPath));
+    };
+
+    fixture.resolveLatest(QUrl::fromLocalFile(firstPlaybackPath));
+
+    QVERIFY(reentered);
+    QCOMPARE(fixture.runtime->sourceUrl(), secondSourceUrl);
+    QCOMPARE(fixture.backend->sourceUrl, QUrl::fromLocalFile(secondPlaybackPath));
+    QCOMPARE(fixture.backend->playCount, 1);
+    QCOMPARE(workerState->scheduleCount, std::size_t(2));
+    QVERIFY(workerState->pendingTaskCompletion.isActive());
+
+    workerState->pendingWork();
+    workerState->pendingTaskCompletion.claimAndRun([&]() { workerState->pendingCompletion(); });
+
+    QCOMPARE(fixture.runtime->embeddedMetadata().duration, QStringLiteral("00:00:03.456"));
+    QCOMPARE(fixture.runtime->embeddedMetadata().frameSize, QStringLiteral("960×540 px"));
 }
 
 void TestVideoDocumentRuntime::resolverFailureSurfacesErrorWithoutChangingSourceUrl()
@@ -809,6 +971,7 @@ void TestVideoDocumentRuntime::sourceDevicePlaybackBypassesResolverAndSkipsMetad
     QVERIFY(fixture.backend->sourceDevice != nullptr);
     QCOMPARE(fixture.backend->setSourceDeviceCount, 1);
     QCOMPARE(fixture.backend->playCount, 1);
+    QCOMPARE(fixture.metadataWorkerScheduler.scheduleCount(), std::size_t(0));
     QVERIFY(fixture.runtime->embeddedMetadata().isEmpty());
     QCOMPARE(destructionCount, 0);
 }
@@ -1018,7 +1181,7 @@ void TestVideoDocumentRuntime::backendFactoryReentryRejectsSupersededBackend()
     QCOMPARE(fixture.resolverState->requests.back().sourceUrl, secondSourceUrl);
 }
 
-void TestVideoDocumentRuntime::metadataPublicationReentryRejectsSupersededBackend()
+void TestVideoDocumentRuntime::metadataPublicationReentryAdmitsReplacementSource()
 {
     RuntimeFixture fixture;
     const QUrl firstSourceUrl(QStringLiteral("zip:///home/me/videos.zip!/first.mp4"));
@@ -1039,6 +1202,9 @@ void TestVideoDocumentRuntime::metadataPublicationReentryRejectsSupersededBacken
     };
 
     fixture.resolveLatest(firstPlaybackUrl);
+    QCOMPARE(fixture.metadataWorkerScheduler.scheduleCount(), std::size_t(1));
+    fixture.metadataWorkerScheduler.runWork(0);
+    fixture.metadataWorkerScheduler.finish(0);
 
     QVERIFY(reentered);
     QCOMPARE(fixture.runtime->sourceUrl(), secondSourceUrl);

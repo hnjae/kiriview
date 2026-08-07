@@ -10,6 +10,7 @@
 #include "async/imageiojob.h"
 #include "async/imageworkerscheduler.h"
 #include "imagedocumentpagecandidatecallbacks.h"
+#include "imagedocumentpagecandidateloaderror.h"
 #include "location/imagelocation.h"
 
 #include <QUrl>
@@ -20,15 +21,15 @@ class QObject;
 namespace kiriview {
 struct ImageDocumentPageCandidateProvider
 {
-    using ImageDocumentPageCandidateLoader = std::function<ImageIoJob(
-        QObject*, QUrl, ImageDocumentPageCandidatesCallback, ErrorCallback)>;
+    using ImageDocumentPageCandidateLoader = std::function<ImageIoJob(QObject*, QUrl,
+        ImageDocumentPageCandidatesCallback, ImageDocumentPageCandidateLoadErrorCallback)>;
     using OpenedCollectionCandidateLoader
         = std::function<ImageIoJob(QObject*, OpenedCollectionScopeLocation,
             ImageDocumentPageCandidatesCallback, MediaEntrySourceErrorCallback)>;
-    using ContainerCandidateLoader
-        = std::function<ImageIoJob(QObject*, QUrl, ContainerCandidatesCallback, ErrorCallback)>;
-    using ImageDocumentPageCandidateChangeSubscriber = std::function<ImageIoJob(
-        QObject*, QUrl, ImageDocumentPageCandidatesCallback, ErrorCallback)>;
+    using ContainerCandidateLoader = std::function<ImageIoJob(
+        QObject*, QUrl, ContainerCandidatesCallback, KioOperationFailureCallback)>;
+    using ImageDocumentPageCandidateChangeSubscriber = std::function<ImageIoJob(QObject*, QUrl,
+        ImageDocumentPageCandidatesCallback, ImageDocumentPageCandidateLoadErrorCallback)>;
 
     ImageDocumentPageCandidateLoader directoryImageDocumentPages;
     ContainerCandidateLoader directoryContainers;

@@ -24,6 +24,7 @@ private Q_SLOTS:
     void refreshPublishesBoundaryPlanAndCandidates();
     void openPublishesTargetPlanAndCandidates();
     void failedOpenPublishesUnknownResult();
+    void canceledFailurePreservesTypedFields();
     void cancelRejectsLateCompletion();
     void cancelRejectsLateError();
     void predicateRejectionDropsCurrentCompletion();
@@ -50,7 +51,7 @@ struct ManualDirectMediaNavigationCandidateLoad
     QObject* object = nullptr;
     QUrl parentUrl;
     kiriview::DirectMediaNavigationCandidatesCallback callback;
-    kiriview::ErrorCallback errorCallback;
+    kiriview::KioOperationFailureCallback errorCallback;
     kiriview::ImageIoJobCompletion completion;
     bool canceled = false;
 };
@@ -65,7 +66,7 @@ public:
         return kiriview::DirectMediaNavigationCandidateProvider {
             [this](QObject* receiver, QUrl parentUrl,
                 kiriview::DirectMediaNavigationCandidatesCallback callback,
-                kiriview::ErrorCallback errorCallback) {
+                kiriview::KioOperationFailureCallback errorCallback) {
                 auto load = std::make_shared<ManualDirectMediaNavigationCandidateLoad>();
                 load->parentUrl = std::move(parentUrl);
                 load->callback = std::move(callback);
@@ -102,11 +103,11 @@ public:
         }
     }
 
-    void deliverErrorIgnoringCancellation(std::size_t index, const QString& errorString)
+    void deliverErrorIgnoringCancellation(std::size_t index, kiriview::KioOperationFailure failure)
     {
         ManualDirectMediaNavigationCandidateLoad& load = loadAt(index);
         if (load.errorCallback) {
-            load.errorCallback(errorString);
+            load.errorCallback(std::move(failure));
         }
     }
 
@@ -131,7 +132,7 @@ public:
         return kiriview::DirectMediaNavigationCandidateProvider {
             [this](QObject* receiver, QUrl,
                 kiriview::DirectMediaNavigationCandidatesCallback callback,
-                kiriview::ErrorCallback) {
+                kiriview::KioOperationFailureCallback) {
                 QObject* token = new QObject(receiver);
                 return kiriview::ImageIoJob(
                     token, [this, callback = std::move(callback)](QObject* object) mutable {
@@ -259,12 +260,58 @@ void TestDocumentSessionDirectMediaNavigationRuntime::failedOpenPublishesUnknown
             ++fixture.completionCount;
             result = std::move(loadResult);
         });
-    fixture.provider.deliverErrorIgnoringCancellation(0, QStringLiteral("missing media"));
+    const kiriview::KioOperationFailure expected {
+        kiriview::KioOperationKind::DirectoryListing,
+        localUrl(QStringLiteral("/media/")),
+        73,
+        false,
+        QStringLiteral("missing media"),
+        QStringLiteral("backend diagnostic"),
+        true,
+    };
+    fixture.provider.deliverErrorIgnoringCancellation(0, expected);
 
     QCOMPARE(fixture.completionCount, 1);
     QVERIFY(!result.succeeded);
     QVERIFY(!result.plan.targetUrl.has_value());
     QCOMPARE(result.errorString, QStringLiteral("missing media"));
+    QVERIFY(result.failure.has_value());
+    QCOMPARE(result.failure->operationKind, expected.operationKind);
+    QCOMPARE(result.failure->targetUrl, expected.targetUrl);
+    QCOMPARE(result.failure->rawErrorCode, expected.rawErrorCode);
+    QCOMPARE(result.failure->canceled, expected.canceled);
+    QCOMPARE(result.failure->userMessage, expected.userMessage);
+    QCOMPARE(result.failure->diagnosticDetail, expected.diagnosticDetail);
+    QCOMPARE(result.failure->retryable, expected.retryable);
+}
+
+void TestDocumentSessionDirectMediaNavigationRuntime::canceledFailurePreservesTypedFields()
+{
+    RuntimeFixture fixture;
+    const QUrl currentUrl = localUrl(QStringLiteral("/media/01.mp4"));
+    const kiriview::KioOperationFailure expected {
+        kiriview::KioOperationKind::DirectoryListing,
+        localUrl(QStringLiteral("/media/")),
+        73,
+        true,
+        QString(),
+        QStringLiteral("listing canceled"),
+        false,
+    };
+
+    fixture.load(directMediaScope(currentUrl));
+    fixture.provider.deliverErrorIgnoringCancellation(0, expected);
+
+    QCOMPARE(fixture.completionCount, 1);
+    QVERIFY(!fixture.result.succeeded);
+    QVERIFY(fixture.result.failure.has_value());
+    QCOMPARE(fixture.result.failure->operationKind, expected.operationKind);
+    QCOMPARE(fixture.result.failure->targetUrl, expected.targetUrl);
+    QCOMPARE(fixture.result.failure->rawErrorCode, expected.rawErrorCode);
+    QCOMPARE(fixture.result.failure->canceled, expected.canceled);
+    QCOMPARE(fixture.result.failure->userMessage, expected.userMessage);
+    QCOMPARE(fixture.result.failure->diagnosticDetail, expected.diagnosticDetail);
+    QCOMPARE(fixture.result.failure->retryable, expected.retryable);
 }
 
 void TestDocumentSessionDirectMediaNavigationRuntime::cancelRejectsLateCompletion()
@@ -288,7 +335,10 @@ void TestDocumentSessionDirectMediaNavigationRuntime::cancelRejectsLateError()
     fixture.load(directMediaScope(currentUrl));
     fixture.runtime.cancel();
     QVERIFY(fixture.provider.loadAt(0).canceled);
-    fixture.provider.deliverErrorIgnoringCancellation(0, QStringLiteral("failed"));
+    fixture.provider.deliverErrorIgnoringCancellation(0,
+        kiriview::KioOperationFailure { kiriview::KioOperationKind::DirectoryListing,
+            localUrl(QStringLiteral("/media/")), 73, false, QStringLiteral("failed"),
+            QStringLiteral("late failure"), true });
 
     QCOMPARE(fixture.completionCount, 0);
 }
@@ -493,7 +543,11 @@ void TestDocumentSessionDirectMediaNavigationRuntime::destructionRejectsLateProv
         });
 
     if (deliverError) {
-        provider.deliverErrorIgnoringCancellation(0, QStringLiteral("retired load failed"));
+        provider.deliverErrorIgnoringCancellation(0,
+            kiriview::KioOperationFailure { kiriview::KioOperationKind::DirectoryListing,
+                localUrl(QStringLiteral("/media/")), 73, false,
+                QStringLiteral("retired load failed"), QStringLiteral("retired load failed"),
+                true });
     } else {
         provider.deliverIgnoringCancellation(0, { directMediaNavigationCandidate(currentUrl) });
     }

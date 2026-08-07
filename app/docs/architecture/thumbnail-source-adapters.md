@@ -28,7 +28,9 @@ Position-only changes preserve compatible results and work. A source, row-identi
 
 ## Cache And Provider Boundary
 
-Thumbnail cache identity is separate from navigation-row identity. It is derived from stable source metadata supplied by the owning source adapter and must change whenever freshness-relevant source content changes. Cache-key collisions or stale cache records may affect only the thumbnail fallback; they must never affect navigation, displayed media bytes, deletion, or session identity.
+Thumbnail cache identity is separate from navigation-row identity. Except for the opened-ZIP exception below, it is derived from stable source metadata supplied by the owning source adapter and must change whenever freshness-relevant source content changes. Cache-key collisions or stale cache records may affect only the thumbnail fallback; they must never affect navigation, displayed media bytes, deletion, or session identity.
+
+ZIP-backed opened-collection image entries intentionally use only the ZIP record CRC32 and uncompressed byte size as a probabilistic persistent cache identity. Archive location, entry path, timestamps, and a stronger payload digest do not participate, so entries with the same pair share an identity across archives and sessions. The resulting risk of reusing a stale or unrelated preview is accepted so cache lookup can precede reading and decompressing the entry. This identity is non-authoritative and must never serve as freshness evidence for navigation, displayed media bytes, deletion, or session identity.
 
 Persistent cache lookup and installation are allowed only for source kinds whose identity and freshness can be established without reimplementing archive parsing or reading unrelated content solely to manufacture a key. Non-persistent generation uses the same scheduling and stale-rejection contracts but does not install results in the desktop thumbnail cache.
 
@@ -38,4 +40,4 @@ The thumbnail image provider is cache-only and reentrant. It may return an alrea
 
 Thumbnail eligibility, representative-preview behavior, and visible fallbacks are defined by [Navigation](../spec/navigation.md). Adapters implement that contract without expanding eligibility merely because a backend could technically render another source class.
 
-Eligible persistent-cache work requires stable source identity and freshness supplied by the source owner. Opened-collection generation uses only collection-owned public metadata and byte access, direct archive-entry media does not borrow opened-collection authority, directory rows do not trigger representative-file traversal, and video thumbnail generation remains isolated from playback state.
+Eligible persistent-cache work requires source-owned identity metadata with the freshness resolution declared above. Opened-collection generation uses only collection-owned public metadata and byte access, direct archive-entry media does not borrow opened-collection authority, directory rows do not trigger representative-file traversal, and video thumbnail generation remains isolated from playback state.

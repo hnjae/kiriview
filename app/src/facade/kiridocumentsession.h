@@ -31,6 +31,7 @@ struct KiriDocumentSessionDependencies
     ImageDocumentRuntimeDependencyOverrides imageDocument;
     TimerScheduler videoPlaybackControlTimerScheduler;
     VideoMediaBackendFactory videoMediaBackendFactory;
+    MediaInformationEffects mediaInformationEffects;
 };
 }
 

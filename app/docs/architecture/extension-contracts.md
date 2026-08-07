@@ -40,7 +40,7 @@ Image-document page keys identify a page URL plus its image-document source scop
 
 Opened-collection scope keys identify the backing collection file URL, collection root URL, and collection kind. Comic-book archive, general archive, and directory scopes are distinct even if URLs match. A collection entry key adds the entry URL relative to that scope and carries the page kind needed to keep playable video source devices separate from image byte reads.
 
-Archive root keys identify the backing archive file and root URL. Archive-entry freshness is owned by the opened collection backend. Thumbnail cache writes may use archive-record virtual originals only when the backend exposes public entry metadata that satisfies the thumbnail contract.
+Archive root keys identify the backing archive file and root URL. Archive-entry freshness is owned by the opened collection backend. Thumbnail cache writes may use archive-record virtual originals only when the backend exposes public entry metadata that satisfies the thumbnail contract. ZIP record CRC32 and uncompressed size are sufficient for the deliberately probabilistic opened-collection thumbnail identity defined by [Thumbnail Source Adapters](thumbnail-source-adapters.md#cache-and-provider-boundary).
 
 Directory collection keys identify the directory scope root and selected entry. Directory traversal belongs to a collection-owned adapter or runtime, not to QML demand. Active-navigation thumbnail adapters do not use directory keys for cache writes.
 

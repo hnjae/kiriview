@@ -41,6 +41,7 @@ class TestApplicationActionStatePolicy : public QObject
 
 private Q_SLOTS:
     void visiblePreviousNextPlacementsDisableAtBoundaries();
+    void firstLastActionsDisableAtKnownBoundaries();
     void sharedActionEnabledStateUsesRuntimeGates();
     void videoPlaybackActionUsesVideoModeGates();
     void contentBoundaryActionsUseImageAndVideoGates();
@@ -67,6 +68,43 @@ void TestApplicationActionStatePolicy::visiblePreviousNextPlacementsDisableAtBou
     input.activeNavigationKnown = false;
     QCOMPARE(stateFor(ActionId::GoPreviousImageAction, input).actionEnabled, false);
     QCOMPARE(stateFor(ActionId::GoPreviousImageAction, input).placementEnabled, false);
+}
+
+void TestApplicationActionStatePolicy::firstLastActionsDisableAtKnownBoundaries()
+{
+    auto input = readyImageInput();
+
+    QVERIFY(stateFor(ActionId::GoFirstImageAction, input).actionEnabled);
+    QVERIFY(stateFor(ActionId::GoLastImageAction, input).actionEnabled);
+
+    input.atKnownFirstActiveNavigation = true;
+    input.canOpenPreviousActiveNavigation = false;
+    QVERIFY(!stateFor(ActionId::GoFirstImageAction, input).actionEnabled);
+    QVERIFY(stateFor(ActionId::GoLastImageAction, input).actionEnabled);
+    QVERIFY(stateFor(ActionId::GoPreviousImageAction, input).actionEnabled);
+    QVERIFY(!stateFor(ActionId::GoPreviousImageAction, input).placementEnabled);
+
+    input.atKnownFirstActiveNavigation = false;
+    input.atKnownLastActiveNavigation = true;
+    input.canOpenPreviousActiveNavigation = true;
+    input.canOpenNextActiveNavigation = false;
+    QVERIFY(stateFor(ActionId::GoFirstImageAction, input).actionEnabled);
+    QVERIFY(!stateFor(ActionId::GoLastImageAction, input).actionEnabled);
+    QVERIFY(stateFor(ActionId::GoNextImageAction, input).actionEnabled);
+    QVERIFY(!stateFor(ActionId::GoNextImageAction, input).placementEnabled);
+
+    input.atKnownFirstActiveNavigation = true;
+    input.canOpenPreviousActiveNavigation = false;
+    QVERIFY(!stateFor(ActionId::GoFirstImageAction, input).actionEnabled);
+    QVERIFY(!stateFor(ActionId::GoLastImageAction, input).actionEnabled);
+    QVERIFY(stateFor(ActionId::GoPreviousImageAction, input).actionEnabled);
+    QVERIFY(stateFor(ActionId::GoNextImageAction, input).actionEnabled);
+
+    input.activeNavigationKnown = false;
+    input.atKnownFirstActiveNavigation = false;
+    input.atKnownLastActiveNavigation = false;
+    QVERIFY(!stateFor(ActionId::GoFirstImageAction, input).actionEnabled);
+    QVERIFY(!stateFor(ActionId::GoLastImageAction, input).actionEnabled);
 }
 
 void TestApplicationActionStatePolicy::sharedActionEnabledStateUsesRuntimeGates()

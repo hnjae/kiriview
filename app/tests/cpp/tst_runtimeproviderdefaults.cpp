@@ -10,6 +10,7 @@
 #include "document/imagedocumentruntimedependencies.h"
 #include "location/imagedocumentlocation.h"
 #include "navigation/directmedianavigationcandidateprovider.h"
+#include "navigation/imagedocumentpagecandidateloading.h"
 #include "navigation/imagedocumentpagecandidateprovider.h"
 #include "system/filedeletion.h"
 #include "system/powersaverprovider.h"
@@ -81,8 +82,10 @@ class TestRuntimeProviderDefaults : public QObject
 private Q_SLOTS:
     void candidateProviderDefaultsFillMissingLoadersAndPreserveOverrides();
     void candidateProviderDefaultsBindContainerLoaderToDirectoryProvider();
+    void candidateLoadingPreservesTypedDirectoryFailure();
     void candidateProviderDefaultsBindOpenedCollectionLoaderToWorkerScheduler();
     void directMediaProviderDefaultBindsDirectoryProvider();
+    void directMediaProviderDefaultPreservesTypedDirectoryFailure();
     void imageDocumentRuntimeDependenciesBindContainerLoaderToDirectoryProvider();
     void imageDocumentRuntimeDependenciesBindMediaEntryStoreToWorkerScheduler();
     void decodeDependencyDefaultsFillMissingFunctionsAndPreserveOverrides();
@@ -99,13 +102,14 @@ void TestRuntimeProviderDefaults::candidateProviderDefaultsFillMissingLoadersAnd
     kiriview::ImageDocumentPageCandidateProvider provider;
     provider.directoryImageDocumentPages
         = [&directoryLoadCount](QObject*, QUrl, kiriview::ImageDocumentPageCandidatesCallback,
-              kiriview::ErrorCallback) {
+              kiriview::ImageDocumentPageCandidateLoadErrorCallback) {
               ++directoryLoadCount;
               return kiriview::ImageIoJob();
           };
     provider.directoryImageDocumentPageChanges
         = [&directoryChangeSubscriptionCount](QObject*, QUrl,
-              kiriview::ImageDocumentPageCandidatesCallback, kiriview::ErrorCallback) {
+              kiriview::ImageDocumentPageCandidatesCallback,
+              kiriview::ImageDocumentPageCandidateLoadErrorCallback) {
               ++directoryChangeSubscriptionCount;
               return kiriview::ImageIoJob();
           };
@@ -131,7 +135,7 @@ void TestRuntimeProviderDefaults::candidateProviderDefaultsBindContainerLoaderTo
     int providerCallCount = 0;
     kiriview::DirectoryItemListProvider directoryItemListProvider
         = [&providerCallCount, &providerUrl](QObject*, QUrl directoryUrl,
-              kiriview::DirectoryItemListCallback callback, kiriview::ErrorCallback) {
+              kiriview::DirectoryItemListCallback callback, kiriview::KioOperationFailureCallback) {
               ++providerCallCount;
               providerUrl = std::move(directoryUrl);
               callback({});
@@ -149,12 +153,55 @@ void TestRuntimeProviderDefaults::candidateProviderDefaultsBindContainerLoaderTo
     resolved.directoryContainers(
         this, requestedUrl,
         [&callbackCount](std::vector<kiriview::ContainerNavigationCandidate>) { ++callbackCount; },
-        [&errorCallbackCount](QString) { ++errorCallbackCount; });
+        [&errorCallbackCount](kiriview::KioOperationFailure) { ++errorCallbackCount; });
 
     QCOMPARE(providerCallCount, 1);
     QCOMPARE(providerUrl, requestedUrl);
     QCOMPARE(callbackCount, 1);
     QCOMPARE(errorCallbackCount, 0);
+}
+
+void TestRuntimeProviderDefaults::candidateLoadingPreservesTypedDirectoryFailure()
+{
+    const kiriview::KioOperationFailure expected {
+        kiriview::KioOperationKind::DirectoryListing,
+        localUrl(QStringLiteral("/containers/")),
+        73,
+        true,
+        QString(),
+        QStringLiteral("listing canceled"),
+        false,
+    };
+    kiriview::DirectoryItemListProvider directoryItemListProvider
+        = [expected](QObject*, QUrl, kiriview::DirectoryItemListCallback,
+              kiriview::KioOperationFailureCallback errorCallback) {
+              errorCallback(expected);
+              return kiriview::ImageIoJob();
+          };
+    std::optional<kiriview::KioOperationFailure> pageFailure;
+    std::optional<kiriview::KioOperationFailure> containerFailure;
+
+    kiriview::startDirectoryImageDocumentPageCandidateList(
+        this, expected.targetUrl, {},
+        [&pageFailure](kiriview::KioOperationFailure failure) { pageFailure = std::move(failure); },
+        directoryItemListProvider);
+    kiriview::startDirectoryContainerCandidateList(
+        this, expected.targetUrl, {},
+        [&containerFailure](
+            kiriview::KioOperationFailure failure) { containerFailure = std::move(failure); },
+        std::move(directoryItemListProvider));
+
+    QVERIFY(pageFailure.has_value());
+    QVERIFY(containerFailure.has_value());
+    for (const kiriview::KioOperationFailure* actual : { &*pageFailure, &*containerFailure }) {
+        QCOMPARE(actual->operationKind, expected.operationKind);
+        QCOMPARE(actual->targetUrl, expected.targetUrl);
+        QCOMPARE(actual->rawErrorCode, expected.rawErrorCode);
+        QCOMPARE(actual->canceled, expected.canceled);
+        QCOMPARE(actual->userMessage, expected.userMessage);
+        QCOMPARE(actual->diagnosticDetail, expected.diagnosticDetail);
+        QCOMPARE(actual->retryable, expected.retryable);
+    }
 }
 
 void TestRuntimeProviderDefaults::
@@ -199,7 +246,7 @@ void TestRuntimeProviderDefaults::directMediaProviderDefaultBindsDirectoryProvid
     int providerCallCount = 0;
     kiriview::DirectoryItemListProvider directoryItemListProvider
         = [&providerCallCount, &providerUrl](QObject*, QUrl directoryUrl,
-              kiriview::DirectoryItemListCallback callback, kiriview::ErrorCallback) {
+              kiriview::DirectoryItemListCallback callback, kiriview::KioOperationFailureCallback) {
               ++providerCallCount;
               providerUrl = std::move(directoryUrl);
               callback({});
@@ -218,12 +265,47 @@ void TestRuntimeProviderDefaults::directMediaProviderDefaultBindsDirectoryProvid
         this, requestedUrl,
         [&callbackCount](
             std::vector<kiriview::DirectMediaNavigationCandidate>) { ++callbackCount; },
-        [&errorCallbackCount](QString) { ++errorCallbackCount; });
+        [&errorCallbackCount](kiriview::KioOperationFailure) { ++errorCallbackCount; });
 
     QCOMPARE(providerCallCount, 1);
     QCOMPARE(providerUrl, requestedUrl);
     QCOMPARE(callbackCount, 1);
     QCOMPARE(errorCallbackCount, 0);
+}
+
+void TestRuntimeProviderDefaults::directMediaProviderDefaultPreservesTypedDirectoryFailure()
+{
+    const kiriview::KioOperationFailure expected {
+        kiriview::KioOperationKind::DirectoryListing,
+        localUrl(QStringLiteral("/media/")),
+        73,
+        false,
+        QStringLiteral("Could not list media"),
+        QStringLiteral("backend diagnostic"),
+        true,
+    };
+    kiriview::DirectoryItemListProvider directoryItemListProvider
+        = [expected](QObject*, QUrl, kiriview::DirectoryItemListCallback,
+              kiriview::KioOperationFailureCallback errorCallback) {
+              errorCallback(expected);
+              return kiriview::ImageIoJob();
+          };
+    kiriview::DirectMediaNavigationCandidateProvider resolved
+        = kiriview::defaultDirectMediaNavigationCandidateProvider(
+            std::move(directoryItemListProvider));
+    std::optional<kiriview::KioOperationFailure> actual;
+
+    resolved.directoryCandidateLoader(this, expected.targetUrl, {},
+        [&actual](kiriview::KioOperationFailure failure) { actual = std::move(failure); });
+
+    QVERIFY(actual.has_value());
+    QCOMPARE(actual->operationKind, expected.operationKind);
+    QCOMPARE(actual->targetUrl, expected.targetUrl);
+    QCOMPARE(actual->rawErrorCode, expected.rawErrorCode);
+    QCOMPARE(actual->canceled, expected.canceled);
+    QCOMPARE(actual->userMessage, expected.userMessage);
+    QCOMPARE(actual->diagnosticDetail, expected.diagnosticDetail);
+    QCOMPARE(actual->retryable, expected.retryable);
 }
 
 void TestRuntimeProviderDefaults::
@@ -235,7 +317,7 @@ void TestRuntimeProviderDefaults::
     kiriview::ImageDocumentRuntimeDependencyOverrides overrides;
     overrides.directoryItemListProvider
         = [&providerCallCount, &providerUrl](QObject*, QUrl directoryUrl,
-              kiriview::DirectoryItemListCallback callback, kiriview::ErrorCallback) {
+              kiriview::DirectoryItemListCallback callback, kiriview::KioOperationFailureCallback) {
               ++providerCallCount;
               providerUrl = std::move(directoryUrl);
               callback({});
@@ -251,7 +333,7 @@ void TestRuntimeProviderDefaults::
     resolved.candidateProvider.directoryContainers(
         this, requestedUrl,
         [&callbackCount](std::vector<kiriview::ContainerNavigationCandidate>) { ++callbackCount; },
-        [&errorCallbackCount](QString) { ++errorCallbackCount; });
+        [&errorCallbackCount](kiriview::KioOperationFailure) { ++errorCallbackCount; });
 
     QCOMPARE(providerCallCount, 1);
     QCOMPARE(providerUrl, requestedUrl);

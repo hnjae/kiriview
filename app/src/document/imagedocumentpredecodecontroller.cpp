@@ -201,6 +201,15 @@ void ImageDocumentPredecodeController::scheduleWithConfirmedCandidateSnapshot(
                             qCWarning(kiriviewPredecodeLog).noquote()
                                 << "predecode candidate snapshot loading failed"
                                 << kiriview::diagnosticDetailReference(detail);
+                        } else if constexpr (std::is_same_v<Error, KioOperationFailure>) {
+                            qCWarning(kiriviewPredecodeLog).noquote()
+                                << "predecode candidate snapshot loading failed"
+                                << "operationKind" << static_cast<int>(detail.operationKind)
+                                << "targetUrl" << diagnosticSourceReference(detail.targetUrl)
+                                << "rawErrorCode" << detail.rawErrorCode.value_or(0) << "canceled"
+                                << detail.canceled << "detail"
+                                << diagnosticDetailReference(detail.diagnosticDetail) << "retryable"
+                                << detail.retryable;
                         } else {
                             qCWarning(kiriviewPredecodeLog).noquote()
                                 << "predecode candidate snapshot loading failed" << detail;

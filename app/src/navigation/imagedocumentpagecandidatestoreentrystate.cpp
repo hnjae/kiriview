@@ -43,9 +43,9 @@ bool ImageDocumentPageCandidateStoreEntryState::listed() const { return m_listed
 
 bool ImageDocumentPageCandidateStoreEntryState::failed() const { return m_failed; }
 
-const QString& ImageDocumentPageCandidateStoreEntryState::errorString() const
+const ImageDocumentPageCandidateLoadError& ImageDocumentPageCandidateStoreEntryState::error() const
 {
-    return m_errorString;
+    return m_error;
 }
 
 bool ImageDocumentPageCandidateStoreEntryState::hasActiveClients()
@@ -58,7 +58,8 @@ bool ImageDocumentPageCandidateStoreEntryState::hasActiveClients()
 }
 
 void ImageDocumentPageCandidateStoreEntryState::addPendingLoad(ImageIoJobCompletion completion,
-    ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback)
+    ImageDocumentPageCandidatesCallback callback,
+    ImageDocumentPageCandidateLoadErrorCallback errorCallback)
 {
     m_pendingLoads.push_back(ImageDocumentPageCandidateStoreEntryPendingLoad {
         std::move(completion),
@@ -68,7 +69,8 @@ void ImageDocumentPageCandidateStoreEntryState::addPendingLoad(ImageIoJobComplet
 }
 
 void ImageDocumentPageCandidateStoreEntryState::addSubscriber(ImageIoJobCompletion completion,
-    ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback)
+    ImageDocumentPageCandidatesCallback callback,
+    ImageDocumentPageCandidateLoadErrorCallback errorCallback)
 {
     m_subscribers.push_back(ImageDocumentPageCandidateStoreEntrySubscriber {
         std::move(completion),
@@ -101,7 +103,7 @@ ImageDocumentPageCandidateStoreEntryState::completeListing(
     const bool changed = replaceCandidates(std::move(candidates));
     m_listed = true;
     m_failed = false;
-    m_errorString = QString();
+    m_error = QString();
 
     ImageDocumentPageCandidateStoreEntryNotificationPlan plan;
     plan.completedLoads = takePendingLoads();
@@ -126,15 +128,15 @@ ImageDocumentPageCandidateStoreEntryState::updateListing(
 }
 
 ImageDocumentPageCandidateStoreEntryNotificationPlan
-ImageDocumentPageCandidateStoreEntryState::failListing(QString errorString)
+ImageDocumentPageCandidateStoreEntryState::failListing(ImageDocumentPageCandidateLoadError error)
 {
     m_failed = true;
-    m_errorString = std::move(errorString);
+    m_error = std::move(error);
 
     ImageDocumentPageCandidateStoreEntryNotificationPlan plan;
     plan.failedLoads = takePendingLoads();
     plan.failedSubscribers = activeSubscribers();
-    plan.errorString = m_errorString;
+    plan.error = m_error;
     return plan;
 }
 

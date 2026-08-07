@@ -1,6 +1,30 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+namespace {
+struct MediaInformationEffectsRecorder
+{
+    kiriview::MediaInformationEffects effects()
+    {
+        return {
+            [this](const QString& text) { copiedTexts.push_back(text); },
+            [this](const QUrl& targetUrl, QPointer<QObject> owner) {
+                openedTargets.push_back(targetUrl);
+                auto* job = new QObject();
+                jobs.push_back(job);
+                if (owner != nullptr) {
+                    job->setParent(owner.data());
+                }
+            },
+        };
+    }
+
+    std::vector<QString> copiedTexts;
+    std::vector<QUrl> openedTargets;
+    std::vector<QPointer<QObject>> jobs;
+};
+}
+
 void TestKiriDocumentSessionMediaInformation::emptySessionProjectsUnavailableMediaInformation()
 {
     FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
@@ -199,4 +223,153 @@ void TestKiriDocumentSessionMediaInformation::mediaInformationRowModelsExposeLab
         QStringLiteral("Type"));
     QCOMPARE(mediaInformationRowData(*model, 0, QByteArrayLiteral("value")).toString(),
         QStringLiteral("Image"));
+}
+
+void TestKiriDocumentSessionMediaInformation::unavailableMediaInformationSuppressesEffects()
+{
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    MediaInformationEffectsRecorder effects;
+    std::unique_ptr<KiriDocumentSession> session = createSessionWithMediaInformationEffects(
+        directMediaNavigationProvider, effects.effects());
+
+    KiriMediaInformation* mediaInformation = session->mediaInformation();
+    QVERIFY(!mediaInformation->available());
+
+    mediaInformation->copyFilePath();
+    mediaInformation->openContainingFolder();
+
+    QVERIFY(effects.copiedTexts.empty());
+    QVERIFY(effects.openedTargets.empty());
+    QVERIFY(effects.jobs.empty());
+}
+
+void TestKiriDocumentSessionMediaInformation::mediaInformationInvokablesDispatchCurrentValuesOnce()
+{
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    const QUrl targetUrl = localUrl(QStringLiteral("/media/current.mp4"));
+    directMediaNavigationProvider.setMedia(
+        localUrl(QStringLiteral("/media/")), { directMediaNavigationCandidate(targetUrl) });
+    MediaInformationEffectsRecorder effects;
+    std::unique_ptr<KiriDocumentSession> session = createSessionWithMediaInformationEffects(
+        directMediaNavigationProvider, effects.effects());
+    session->setSourceUrl(targetUrl);
+
+    KiriMediaInformation* mediaInformation = session->mediaInformation();
+    QVERIFY(mediaInformation->available());
+    mediaInformation->copyFilePath();
+    mediaInformation->openContainingFolder();
+
+    QCOMPARE(effects.copiedTexts.size(), std::size_t(1));
+    QCOMPARE(effects.copiedTexts.front(), QStringLiteral("/media/current.mp4"));
+    QCOMPARE(effects.openedTargets.size(), std::size_t(1));
+    QCOMPARE(effects.openedTargets.front(), targetUrl);
+    QCOMPARE(effects.jobs.size(), std::size_t(1));
+    QVERIFY(!effects.jobs.front().isNull());
+    QCOMPARE(effects.jobs.front()->parent(), mediaInformation);
+    session.reset();
+    QVERIFY(effects.jobs.front().isNull());
+}
+
+void TestKiriDocumentSessionMediaInformation::
+    mediaInformationInvokablesFollowReplacementCurrentness()
+{
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    const QUrl firstUrl = localUrl(QStringLiteral("/media/first.mp4"));
+    const QUrl replacementUrl = localUrl(QStringLiteral("/replacement/second.mp4"));
+    directMediaNavigationProvider.setMedia(
+        localUrl(QStringLiteral("/media/")), { directMediaNavigationCandidate(firstUrl) });
+    directMediaNavigationProvider.setMedia(localUrl(QStringLiteral("/replacement/")),
+        { directMediaNavigationCandidate(replacementUrl) });
+    MediaInformationEffectsRecorder effects;
+    std::unique_ptr<KiriDocumentSession> session = createSessionWithMediaInformationEffects(
+        directMediaNavigationProvider, effects.effects());
+
+    session->setSourceUrl(firstUrl);
+    session->mediaInformation()->copyFilePath();
+    session->mediaInformation()->openContainingFolder();
+    session->setSourceUrl(replacementUrl);
+    session->mediaInformation()->copyFilePath();
+    session->mediaInformation()->openContainingFolder();
+
+    QCOMPARE(effects.copiedTexts.size(), std::size_t(2));
+    QCOMPARE(effects.copiedTexts.at(0), QStringLiteral("/media/first.mp4"));
+    QCOMPARE(effects.copiedTexts.at(1), QStringLiteral("/replacement/second.mp4"));
+    QCOMPARE(effects.openedTargets.size(), std::size_t(2));
+    QCOMPARE(effects.openedTargets.at(0), firstUrl);
+    QCOMPARE(effects.openedTargets.at(1), replacementUrl);
+    QCOMPARE(effects.jobs.size(), std::size_t(2));
+    for (const QPointer<QObject>& job : effects.jobs) {
+        QVERIFY(!job.isNull());
+        QCOMPARE(job->parent(), session->mediaInformation());
+    }
+}
+
+void TestKiriDocumentSessionMediaInformation::copyFilePathSurvivesSynchronousSessionDestruction()
+{
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    const QUrl targetUrl = localUrl(QStringLiteral("/media/current.mp4"));
+    directMediaNavigationProvider.setMedia(
+        localUrl(QStringLiteral("/media/")), { directMediaNavigationCandidate(targetUrl) });
+
+    std::unique_ptr<KiriDocumentSession> session;
+    QPointer<KiriMediaInformation> mediaInformation;
+    QString copiedText;
+    bool effectCompleted = false;
+    kiriview::MediaInformationEffects effects;
+    effects.copyText = [&](QString effectText) {
+        copiedText = std::move(effectText);
+        session.reset();
+        effectCompleted = true;
+    };
+    session = createSessionWithMediaInformationEffects(
+        directMediaNavigationProvider, std::move(effects));
+    session->setSourceUrl(targetUrl);
+    mediaInformation = session->mediaInformation();
+
+    mediaInformation->copyFilePath();
+
+    QCOMPARE(copiedText, QStringLiteral("/media/current.mp4"));
+    QVERIFY(effectCompleted);
+    QVERIFY(mediaInformation.isNull());
+}
+
+void TestKiriDocumentSessionMediaInformation::
+    openContainingFolderSurvivesSynchronousSessionDestruction()
+{
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    const QUrl targetUrl = localUrl(QStringLiteral("/media/current.mp4"));
+    directMediaNavigationProvider.setMedia(
+        localUrl(QStringLiteral("/media/")), { directMediaNavigationCandidate(targetUrl) });
+
+    std::unique_ptr<KiriDocumentSession> session;
+    QPointer<KiriMediaInformation> mediaInformation;
+    QPointer<QObject> returnedJob;
+    QUrl openedTarget;
+    bool receivedLiveOwner = false;
+    bool ownerAliveAfterReset = true;
+    kiriview::MediaInformationEffects effects;
+    effects.openContainingFolder = [&](const QUrl& effectTarget, QPointer<QObject> owner) {
+        openedTarget = effectTarget;
+        receivedLiveOwner = owner.data() == mediaInformation.data();
+        returnedJob = new QObject();
+        session.reset();
+        ownerAliveAfterReset = owner != nullptr;
+        if (owner != nullptr) {
+            returnedJob->setParent(owner.data());
+        }
+    };
+    session = createSessionWithMediaInformationEffects(
+        directMediaNavigationProvider, std::move(effects));
+    session->setSourceUrl(targetUrl);
+    mediaInformation = session->mediaInformation();
+
+    mediaInformation->openContainingFolder();
+
+    QCOMPARE(openedTarget, targetUrl);
+    QVERIFY(receivedLiveOwner);
+    QVERIFY(!ownerAliveAfterReset);
+    QVERIFY(mediaInformation.isNull());
+    QVERIFY(!returnedJob.isNull());
+    QVERIFY(returnedJob->parent() == nullptr);
+    delete returnedJob.data();
 }

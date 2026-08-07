@@ -10,6 +10,8 @@
 #include <QTest>
 #include <QUrl>
 #include <optional>
+#include <utility>
+#include <variant>
 #include <vector>
 
 namespace {
@@ -44,6 +46,7 @@ class TestImageDocumentPageCandidateRepository : public QObject
 
 private Q_SLOTS:
     void loadImagesRoutesDirectorySources();
+    void loadImagesPreservesTypedDirectoryFailure();
     void loadImagesRoutesArchiveSources();
     void loadContainersRoutesDirectoryContainerSources();
     void watchCandidateChangesRoutesDirectorySources();
@@ -65,6 +68,40 @@ void TestImageDocumentPageCandidateRepository::loadImagesRoutesDirectorySources(
         {});
 
     compareSingleImageDocumentPageCandidate(loadedCandidates, imageUrl);
+}
+
+void TestImageDocumentPageCandidateRepository::loadImagesPreservesTypedDirectoryFailure()
+{
+    FakeImageDocumentPageCandidateProvider fakeProvider;
+    const QUrl directoryUrl = localUrl(QStringLiteral("/books/a/"));
+    const kiriview::KioOperationFailure expected {
+        kiriview::KioOperationKind::DirectoryListing,
+        directoryUrl,
+        73,
+        true,
+        QString(),
+        QStringLiteral("listing canceled"),
+        false,
+    };
+    fakeProvider.setDirectoryImageFailure(directoryUrl, expected);
+
+    kiriview::ImageDocumentPageCandidateRepository repository(fakeProvider.provider());
+    std::optional<kiriview::ImageDocumentPageCandidateLoadError> actualError;
+    repository.loadImages(nullptr, ImageDocumentPageCandidateListSource::forDirectory(directoryUrl),
+        {}, [&actualError](kiriview::ImageDocumentPageCandidateLoadError error) {
+            actualError = std::move(error);
+        });
+
+    QVERIFY(actualError.has_value());
+    const auto* actual = std::get_if<kiriview::KioOperationFailure>(&*actualError);
+    QVERIFY(actual != nullptr);
+    QCOMPARE(actual->operationKind, expected.operationKind);
+    QCOMPARE(actual->targetUrl, expected.targetUrl);
+    QCOMPARE(actual->rawErrorCode, expected.rawErrorCode);
+    QCOMPARE(actual->canceled, expected.canceled);
+    QCOMPARE(actual->userMessage, expected.userMessage);
+    QCOMPARE(actual->diagnosticDetail, expected.diagnosticDetail);
+    QCOMPARE(actual->retryable, expected.retryable);
 }
 
 void TestImageDocumentPageCandidateRepository::loadImagesRoutesArchiveSources()

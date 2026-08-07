@@ -11,6 +11,8 @@ namespace kiriview::SupportedMediaFormats {
 QStringList imageExtensions();
 QStringList directVideoExtensions();
 QStringList ordinaryMediaExtensions();
+QStringList imageMimeTypes();
+QStringList directVideoMimeTypes();
 bool isSupportedImageFileName(const QString& name);
 bool isSupportedDirectVideoFileName(const QString& name);
 bool isSupportedOrdinaryMediaFileName(const QString& name);

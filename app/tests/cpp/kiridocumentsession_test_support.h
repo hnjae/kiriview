@@ -27,6 +27,7 @@
 #include <QFile>
 #include <QImage>
 #include <QObject>
+#include <QPointer>
 #include <QQuickWindow>
 #include <QSignalSpy>
 #include <QSizeF>
@@ -36,6 +37,7 @@
 #include <cstddef>
 #include <map>
 #include <memory>
+#include <optional>
 #include <utility>
 
 namespace {
@@ -142,11 +144,19 @@ public:
         return kiriview::DirectMediaNavigationCandidateProvider {
             [this](QObject*, QUrl parentUrl,
                 kiriview::DirectMediaNavigationCandidatesCallback callback,
-                kiriview::ErrorCallback errorCallback) {
+                kiriview::KioOperationFailureCallback errorCallback) {
                 const auto candidates = m_candidates.find(keyForUrl(parentUrl));
                 if (candidates == m_candidates.cend()) {
                     if (errorCallback) {
-                        errorCallback(QStringLiteral("missing direct media candidates"));
+                        errorCallback(kiriview::KioOperationFailure {
+                            kiriview::KioOperationKind::DirectoryListing,
+                            parentUrl,
+                            std::nullopt,
+                            false,
+                            QStringLiteral("missing direct media candidates"),
+                            QStringLiteral("missing direct media candidates"),
+                            false,
+                        });
                     }
                     return kiriview::ImageIoJob();
                 }
@@ -168,7 +178,7 @@ struct ManualDirectMediaNavigationCandidateLoad
     QObject* object = nullptr;
     QUrl parentUrl;
     kiriview::DirectMediaNavigationCandidatesCallback callback;
-    kiriview::ErrorCallback errorCallback;
+    kiriview::KioOperationFailureCallback errorCallback;
     kiriview::ImageIoJobCompletion completion;
     bool canceled = false;
 };
@@ -181,7 +191,7 @@ public:
         return kiriview::DirectMediaNavigationCandidateProvider {
             [this](QObject* receiver, QUrl parentUrl,
                 kiriview::DirectMediaNavigationCandidatesCallback callback,
-                kiriview::ErrorCallback errorCallback) {
+                kiriview::KioOperationFailureCallback errorCallback) {
                 auto load = std::make_shared<ManualDirectMediaNavigationCandidateLoad>();
                 load->parentUrl = std::move(parentUrl);
                 load->callback = std::move(callback);
@@ -531,6 +541,19 @@ std::unique_ptr<KiriDocumentSession> createSession(
 {
     return createSessionWithProvider(
         directMediaNavigationProvider.provider(), fileDeletion, imageDataLoader);
+}
+
+std::unique_ptr<KiriDocumentSession> createSessionWithMediaInformationEffects(
+    FakeDirectMediaNavigationCandidateProvider& directMediaNavigationProvider,
+    kiriview::MediaInformationEffects mediaInformationEffects)
+{
+    kiriview::KiriDocumentSessionDependencies dependencies;
+    dependencies.sessionRuntime.directMediaNavigationCandidateProvider
+        = directMediaNavigationProvider.provider();
+    dependencies.mediaInformationEffects = std::move(mediaInformationEffects);
+    auto session = std::make_unique<KiriDocumentSession>(std::move(dependencies));
+    attachTestViewport(*session);
+    return session;
 }
 
 void compareUnavailableActiveNavigation(const KiriDocumentSession& session)

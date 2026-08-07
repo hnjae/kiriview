@@ -67,6 +67,8 @@ Actions::ApplicationActionStateInput actionStateInput(
     input.activeNavigationHasTargets = activeNavigation.count > 0;
     input.canOpenPreviousActiveNavigation = activeNavigation.canOpenPrevious;
     input.canOpenNextActiveNavigation = activeNavigation.canOpenNext;
+    input.atKnownFirstActiveNavigation = activeNavigation.atKnownFirst;
+    input.atKnownLastActiveNavigation = activeNavigation.atKnownLast;
     input.fitModeSelected = facts.fitModeSelected;
     input.fitHeightModeSelected = facts.fitHeightModeSelected;
     input.fitWidthModeSelected = facts.fitWidthModeSelected;

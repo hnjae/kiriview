@@ -40,18 +40,23 @@ ImageDocumentPageCandidateStore::ImageDocumentPageCandidateStore(
 ImageDocumentPageCandidateStore::~ImageDocumentPageCandidateStore() = default;
 
 ImageIoJob ImageDocumentPageCandidateStore::loadDirectoryImages(QObject* receiver,
-    QUrl directoryUrl, ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback)
+    QUrl directoryUrl, ImageDocumentPageCandidatesCallback callback,
+    ImageDocumentPageCandidateLoadErrorCallback errorCallback)
 {
     if (!isLiveLocalDirectoryUrl(directoryUrl)) {
-        return startDirectoryImageDocumentPageCandidateList(
-            receiver, directoryUrl, std::move(callback), std::move(errorCallback));
+        return startDirectoryImageDocumentPageCandidateList(receiver, directoryUrl,
+            std::move(callback),
+            [errorCallback = std::move(errorCallback)](KioOperationFailure failure) mutable {
+                invokeIfSet(
+                    errorCallback, ImageDocumentPageCandidateLoadError { std::move(failure) });
+            });
     }
 
     directoryUrl = normalizedDirectoryUrlForIdentity(directoryUrl);
     const QString key = directoryUrlIdentityKey(directoryUrl);
     ImageDocumentPageCandidateDirectoryEntry& entry = entryForLocalDirectory(directoryUrl);
     if (entry.failed()) {
-        invokeIfSet(errorCallback, entry.errorString());
+        invokeIfSet(errorCallback, entry.error());
         return ImageIoJob();
     }
     if (entry.listed()) {
@@ -69,7 +74,8 @@ ImageIoJob ImageDocumentPageCandidateStore::loadDirectoryImages(QObject* receive
 }
 
 ImageIoJob ImageDocumentPageCandidateStore::watchDirectoryImages(QObject* receiver,
-    QUrl directoryUrl, ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback)
+    QUrl directoryUrl, ImageDocumentPageCandidatesCallback callback,
+    ImageDocumentPageCandidateLoadErrorCallback errorCallback)
 {
     if (!isLiveLocalDirectoryUrl(directoryUrl)) {
         return ImageIoJob();
@@ -79,7 +85,7 @@ ImageIoJob ImageDocumentPageCandidateStore::watchDirectoryImages(QObject* receiv
     const QString key = directoryUrlIdentityKey(directoryUrl);
     ImageDocumentPageCandidateDirectoryEntry& entry = entryForLocalDirectory(directoryUrl);
     if (entry.failed()) {
-        invokeIfSet(errorCallback, entry.errorString());
+        invokeIfSet(errorCallback, entry.error());
         return ImageIoJob();
     }
 
@@ -112,8 +118,10 @@ ImageDocumentPageCandidateDirectoryEntry& ImageDocumentPageCandidateStore::entry
     ImageDocumentPageCandidateDirectoryEntry& entryRef = *insertedEntry;
     m_entries.emplace(key, std::move(insertedEntry));
 
-    if (!entryRef.open()) {
-        entryRef.handleError(QString());
+    if (!entryRef.open() && !entryRef.failed()) {
+        entryRef.handleError(ImageDocumentPageCandidateLoadError {
+            kioOperationValidationFailure(KioOperationKind::DirectoryListing, directoryUrl,
+                QStringLiteral("directory candidate watch failed to start")) });
     }
 
     return entryRef;

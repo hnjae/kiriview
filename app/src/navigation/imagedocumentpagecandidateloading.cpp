@@ -12,7 +12,7 @@
 namespace {
 template <typename CandidateCallback, typename CandidateFactory>
 kiriview::ImageIoJob startDirectoryCandidateList(QObject* receiver, const QUrl& directoryUrl,
-    CandidateCallback callback, kiriview::ErrorCallback errorCallback,
+    CandidateCallback callback, kiriview::KioOperationFailureCallback errorCallback,
     kiriview::DirectoryItemListProvider directoryItemListProvider,
     CandidateFactory candidateFactory)
 {
@@ -28,14 +28,14 @@ kiriview::ImageIoJob startDirectoryCandidateList(QObject* receiver, const QUrl& 
 
 namespace kiriview {
 ImageIoJob startDirectoryImageDocumentPageCandidateList(QObject* receiver, const QUrl& directoryUrl,
-    ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback)
+    ImageDocumentPageCandidatesCallback callback, KioOperationFailureCallback errorCallback)
 {
     return startDirectoryCandidateList(receiver, directoryUrl, std::move(callback),
         std::move(errorCallback), {}, imageDocumentPageNavigationCandidates);
 }
 
 ImageIoJob startDirectoryImageDocumentPageCandidateList(QObject* receiver, const QUrl& directoryUrl,
-    ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback,
+    ImageDocumentPageCandidatesCallback callback, KioOperationFailureCallback errorCallback,
     DirectoryItemListProvider directoryItemListProvider)
 {
     return startDirectoryCandidateList(receiver, directoryUrl, std::move(callback),
@@ -44,14 +44,14 @@ ImageIoJob startDirectoryImageDocumentPageCandidateList(QObject* receiver, const
 }
 
 ImageIoJob startDirectoryContainerCandidateList(QObject* receiver, const QUrl& directoryUrl,
-    ContainerCandidatesCallback callback, ErrorCallback errorCallback)
+    ContainerCandidatesCallback callback, KioOperationFailureCallback errorCallback)
 {
     return startDirectoryCandidateList(receiver, directoryUrl, std::move(callback),
         std::move(errorCallback), {}, containerNavigationCandidates);
 }
 
 ImageIoJob startDirectoryContainerCandidateList(QObject* receiver, const QUrl& directoryUrl,
-    ContainerCandidatesCallback callback, ErrorCallback errorCallback,
+    ContainerCandidatesCallback callback, KioOperationFailureCallback errorCallback,
     DirectoryItemListProvider directoryItemListProvider)
 {
     return startDirectoryCandidateList(receiver, directoryUrl, std::move(callback),

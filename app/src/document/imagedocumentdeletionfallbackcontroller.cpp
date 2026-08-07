@@ -24,6 +24,14 @@ void logSuppressedCandidateLoadError(const kiriview::ImageDocumentPageCandidateL
                 qCWarning(kiriviewNavigationLog).noquote()
                     << "deletion fallback candidate loading failed"
                     << kiriview::diagnosticDetailReference(detail);
+            } else if constexpr (std::is_same_v<Error, kiriview::KioOperationFailure>) {
+                qCWarning(kiriviewNavigationLog).noquote()
+                    << "deletion fallback candidate loading failed"
+                    << "operationKind" << static_cast<int>(detail.operationKind) << "targetUrl"
+                    << kiriview::diagnosticSourceReference(detail.targetUrl) << "rawErrorCode"
+                    << detail.rawErrorCode.value_or(0) << "canceled" << detail.canceled << "detail"
+                    << kiriview::diagnosticDetailReference(detail.diagnosticDetail) << "retryable"
+                    << detail.retryable;
             } else {
                 qCWarning(kiriviewNavigationLog).noquote()
                     << "deletion fallback candidate loading failed" << detail;
@@ -131,7 +139,7 @@ void ImageDocumentDeletionFallbackController::openFallbackPlan(
             openComicBookFallbackCandidate(
                 operationId, fallbackCandidates.preferred, fallbackCandidates.fallback);
         },
-        [this, operationId, requestId](const QString&) {
+        [this, operationId, requestId](const KioOperationFailure&) {
             if (claimJobRequest(operationId, requestId)) {
                 static_cast<void>(m_operation.finish(operationId));
             }

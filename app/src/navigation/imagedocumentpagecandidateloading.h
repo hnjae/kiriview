@@ -15,14 +15,14 @@ class QObject;
 
 namespace kiriview {
 ImageIoJob startDirectoryImageDocumentPageCandidateList(QObject* receiver, const QUrl& directoryUrl,
-    ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback);
+    ImageDocumentPageCandidatesCallback callback, KioOperationFailureCallback errorCallback);
 ImageIoJob startDirectoryImageDocumentPageCandidateList(QObject* receiver, const QUrl& directoryUrl,
-    ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback,
+    ImageDocumentPageCandidatesCallback callback, KioOperationFailureCallback errorCallback,
     DirectoryItemListProvider directoryItemListProvider);
 ImageIoJob startDirectoryContainerCandidateList(QObject* receiver, const QUrl& directoryUrl,
-    ContainerCandidatesCallback callback, ErrorCallback errorCallback);
+    ContainerCandidatesCallback callback, KioOperationFailureCallback errorCallback);
 ImageIoJob startDirectoryContainerCandidateList(QObject* receiver, const QUrl& directoryUrl,
-    ContainerCandidatesCallback callback, ErrorCallback errorCallback,
+    ContainerCandidatesCallback callback, KioOperationFailureCallback errorCallback,
     DirectoryItemListProvider directoryItemListProvider);
 }
 

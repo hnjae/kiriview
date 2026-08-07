@@ -35,13 +35,13 @@ public:
     {
         return kiriview::ImageDocumentPageCandidateProvider {
             [this](QObject*, QUrl directoryUrl,
-                kiriview::ImageDocumentPageCandidatesCallback callback, kiriview::ErrorCallback) {
+                kiriview::ImageDocumentPageCandidatesCallback callback,
+                kiriview::ImageDocumentPageCandidateLoadErrorCallback) {
                 m_loads.push_back(Load { std::move(directoryUrl), std::move(callback) });
                 return kiriview::ImageIoJob();
             },
-            [](QObject*, QUrl, kiriview::ContainerCandidatesCallback, kiriview::ErrorCallback) {
-                return kiriview::ImageIoJob();
-            },
+            [](QObject*, QUrl, kiriview::ContainerCandidatesCallback,
+                kiriview::KioOperationFailureCallback) { return kiriview::ImageIoJob(); },
             [this](QObject*, kiriview::OpenedCollectionScopeLocation openedCollectionScope,
                 kiriview::ImageDocumentPageCandidatesCallback callback,
                 kiriview::MediaEntrySourceErrorCallback) {
@@ -52,7 +52,9 @@ public:
                 return kiriview::ImageIoJob();
             },
             [](QObject*, QUrl, kiriview::ImageDocumentPageCandidatesCallback,
-                kiriview::ErrorCallback) { return kiriview::ImageIoJob(); },
+                kiriview::ImageDocumentPageCandidateLoadErrorCallback) {
+                return kiriview::ImageIoJob();
+            },
         };
     }
 

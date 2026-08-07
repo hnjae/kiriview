@@ -6,6 +6,8 @@
 
 #include "async/imageasyncoperationstate.h"
 #include "async/imageasyncticket.h"
+#include "async/imageiojob.h"
+#include "async/imageworkerscheduler.h"
 #include "metadata/embeddedmetadata.h"
 #include "video/videodocumentstate.h"
 #include "video/videomediabackend.h"
@@ -38,7 +40,8 @@ public:
         std::unique_ptr<VideoPlaybackUrlResolver> playbackUrlResolver = {},
         MediaBackendFactory mediaBackendFactory = {},
         TimerScheduler playbackControlTimerScheduler = {},
-        VideoPlaybackControlProjectionCallback playbackControlProjectionCallback = {});
+        VideoPlaybackControlProjectionCallback playbackControlProjectionCallback = {},
+        ImageWorkerScheduler embeddedMetadataWorkerScheduler = {});
     ~VideoDocumentRuntime();
     Q_DISABLE_COPY_MOVE(VideoDocumentRuntime)
 
@@ -91,6 +94,7 @@ private:
     };
 
     using SourceTransition = ImageAsyncScopedOperation<QUrl>;
+    using EmbeddedMetadataOperation = ImageAsyncScopedOperation<QUrl>;
 
     struct PlaybackLifecycle
     {
@@ -162,6 +166,10 @@ private:
     void applyResolvedPlaybackUrl(const SourceTransition& transition, const QUrl& playbackUrl);
     void applyPlaybackSourceDevice(
         const SourceTransition& transition, VideoPlaybackSourceDevice sourceDevice);
+    void cancelEmbeddedMetadataParsing();
+    void startEmbeddedMetadataParsing(const QUrl& sourceUrl, const QString& localPath);
+    void completeEmbeddedMetadataParsing(
+        const EmbeddedMetadataOperation& operation, EmbeddedMetadata metadata);
     void publishSourceLoadFailure(
         const SourceTransition& transition, VideoSourceLoadFailure failure);
     VideoSourceLoadFailure makeSourceLoadFailure(const SourceTransition& transition,
@@ -190,6 +198,9 @@ private:
     std::shared_ptr<VideoMediaBackend> m_mediaBackend;
     MediaBackendFactory m_mediaBackendFactory;
     std::shared_ptr<VideoPlaybackUrlResolver> m_playbackUrlResolver;
+    ImageWorkerScheduler m_embeddedMetadataWorkerScheduler;
+    ImageAsyncScopedOperationState<QUrl> m_embeddedMetadataOperation;
+    ImageIoJob m_embeddedMetadataJob;
     ImageAsyncScopedOperationState<QUrl> m_sourceTransition;
     SourceTransitionPhase m_sourceTransitionPhase = SourceTransitionPhase::Idle;
     std::shared_ptr<VideoPlaybackSourceDevice> m_playbackSourceDevice;

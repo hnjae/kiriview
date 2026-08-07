@@ -61,9 +61,37 @@ void KiriMediaInformationRowModel::setRows(std::vector<Row> rows)
     endResetModel();
 }
 
-KiriMediaInformation::KiriMediaInformation(KiriDocumentSession& session, QObject* parent)
+namespace kiriview {
+MediaInformationEffects mediaInformationEffectsWithDefaults(MediaInformationEffects effects)
+{
+    if (!effects.copyText) {
+        effects.copyText = [](const QString& text) {
+            if (qobject_cast<QGuiApplication*>(QCoreApplication::instance()) == nullptr) {
+                return;
+            }
+            QClipboard* clipboard = QGuiApplication::clipboard();
+            if (clipboard != nullptr) {
+                clipboard->setText(text);
+            }
+        };
+    }
+    if (!effects.openContainingFolder) {
+        effects.openContainingFolder = [](const QUrl& targetUrl, const QPointer<QObject>& owner) {
+            QObject* job = KIO::highlightInFileManager(QList<QUrl> { targetUrl });
+            if (owner != nullptr && job != nullptr) {
+                job->setParent(owner.data());
+            }
+        };
+    }
+    return effects;
+}
+}
+
+KiriMediaInformation::KiriMediaInformation(
+    KiriDocumentSession& session, kiriview::MediaInformationEffects effects, QObject* parent)
     : QObject(parent)
     , m_session(session)
+    , m_effects(kiriview::mediaInformationEffectsWithDefaults(std::move(effects)))
     , m_generalRows(this)
     , m_mediaRows(this)
     , m_cameraRows(this)
@@ -107,14 +135,9 @@ void KiriMediaInformation::copyFilePath()
         return;
     }
 
-    if (qobject_cast<QGuiApplication*>(QCoreApplication::instance()) == nullptr) {
-        return;
-    }
-
-    QClipboard* clipboard = QGuiApplication::clipboard();
-    if (clipboard != nullptr) {
-        clipboard->setText(copiedFilePath());
-    }
+    const std::function<void(QString)> effect = m_effects.copyText;
+    const QString text = copiedFilePath();
+    effect(text);
 }
 
 void KiriMediaInformation::openContainingFolder()
@@ -123,10 +146,10 @@ void KiriMediaInformation::openContainingFolder()
         return;
     }
 
-    auto* job = KIO::highlightInFileManager(QList<QUrl> { m_targetUrl });
-    if (job != nullptr) {
-        job->setParent(this);
-    }
+    const std::function<void(QUrl, QPointer<QObject>)> effect = m_effects.openContainingFolder;
+    const QUrl currentTarget = targetUrl();
+    const QPointer<QObject> owner(this);
+    effect(currentTarget, owner);
 }
 
 void KiriMediaInformation::refresh()

@@ -136,16 +136,19 @@ public:
     {
         return kiriview::ImageDocumentPageCandidateProvider {
             [](QObject*, QUrl, kiriview::ImageDocumentPageCandidatesCallback,
-                kiriview::ErrorCallback errorCallback) {
+                kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback) {
                 if (errorCallback) {
-                    errorCallback(QStringLiteral("unexpected directory image listing"));
+                    errorCallback(kiriview::ImageDocumentPageCandidateLoadError {
+                        QStringLiteral("unexpected directory image listing") });
                 }
                 return kiriview::ImageIoJob();
             },
             [](QObject*, QUrl, kiriview::ContainerCandidatesCallback,
-                kiriview::ErrorCallback errorCallback) {
+                kiriview::KioOperationFailureCallback errorCallback) {
                 if (errorCallback) {
-                    errorCallback(QStringLiteral("unexpected container listing"));
+                    errorCallback(kiriview::kioOperationValidationFailure(
+                        kiriview::KioOperationKind::DirectoryListing, {},
+                        QStringLiteral("unexpected container listing")));
                 }
                 return kiriview::ImageIoJob();
             },

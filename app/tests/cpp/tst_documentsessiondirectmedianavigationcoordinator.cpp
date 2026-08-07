@@ -64,7 +64,7 @@ struct ManualDirectMediaNavigationCandidateLoad
     QObject* object = nullptr;
     QUrl parentUrl;
     kiriview::DirectMediaNavigationCandidatesCallback callback;
-    kiriview::ErrorCallback errorCallback;
+    kiriview::KioOperationFailureCallback errorCallback;
     kiriview::ImageIoJobCompletion completion;
     bool canceled = false;
 };
@@ -79,7 +79,7 @@ public:
         return kiriview::DirectMediaNavigationCandidateProvider {
             [this](QObject* receiver, QUrl parentUrl,
                 kiriview::DirectMediaNavigationCandidatesCallback callback,
-                kiriview::ErrorCallback errorCallback) {
+                kiriview::KioOperationFailureCallback errorCallback) {
                 auto load = std::make_shared<ManualDirectMediaNavigationCandidateLoad>();
                 load->parentUrl = std::move(parentUrl);
                 load->callback = std::move(callback);

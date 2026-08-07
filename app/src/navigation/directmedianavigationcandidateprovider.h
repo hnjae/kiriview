@@ -22,7 +22,7 @@ using DirectMediaNavigationCandidatesCallback
 struct DirectMediaNavigationCandidateProvider
 {
     using DirectMediaNavigationCandidateLoader = std::function<ImageIoJob(
-        QObject*, QUrl, DirectMediaNavigationCandidatesCallback, ErrorCallback)>;
+        QObject*, QUrl, DirectMediaNavigationCandidatesCallback, KioOperationFailureCallback)>;
 
     DirectMediaNavigationCandidateLoader directoryCandidateLoader;
 };

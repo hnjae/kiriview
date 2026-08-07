@@ -48,6 +48,23 @@ kiriview::ImageLoadFailure imageLoadFailure(const kiriview::ImageLoadSession& se
 }
 
 kiriview::ImageLoadFailure imageLoadFailure(const kiriview::ImageLoadSession& session,
+    kiriview::ImageLoadFailureKind kind, const kiriview::KioOperationFailure& error)
+{
+    qCWarning(kiriviewNavigationLog).noquote()
+        << "directory candidate loading failed"
+        << "operationKind" << static_cast<int>(error.operationKind) << "targetUrl"
+        << kiriview::diagnosticSourceReference(error.targetUrl) << "rawErrorCode"
+        << error.rawErrorCode.value_or(0) << "canceled" << error.canceled << "detail"
+        << kiriview::diagnosticDetailReference(error.diagnosticDetail) << "retryable"
+        << error.retryable;
+    kiriview::ImageLoadFailure failure
+        = imageLoadFailure(session, kind, error.userMessage, error.diagnosticDetail);
+    failure.retryable = error.retryable;
+    failure.kioOperationFailure = error;
+    return failure;
+}
+
+kiriview::ImageLoadFailure imageLoadFailure(const kiriview::ImageLoadSession& session,
     kiriview::ImageLoadFailureKind kind, const kiriview::ImageDocumentPageCandidateLoadError& error)
 {
     return std::visit(

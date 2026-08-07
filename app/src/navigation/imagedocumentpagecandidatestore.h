@@ -28,9 +28,11 @@ public:
     Q_DISABLE_COPY_MOVE(ImageDocumentPageCandidateStore)
 
     ImageIoJob loadDirectoryImages(QObject* receiver, QUrl directoryUrl,
-        ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback);
+        ImageDocumentPageCandidatesCallback callback,
+        ImageDocumentPageCandidateLoadErrorCallback errorCallback);
     ImageIoJob watchDirectoryImages(QObject* receiver, QUrl directoryUrl,
-        ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback);
+        ImageDocumentPageCandidatesCallback callback,
+        ImageDocumentPageCandidateLoadErrorCallback errorCallback);
 
 private:
     ImageDocumentPageCandidateDirectoryEntry& entryForLocalDirectory(const QUrl& directoryUrl);

@@ -67,6 +67,38 @@ QStringList ordinaryMediaExtensions()
     return extensions;
 }
 
+QStringList imageMimeTypes()
+{
+    QStringList mimeTypes {
+#define KIRIVIEW_IMAGE_MIME_TYPE(mimeType) QStringLiteral(mimeType),
+#define KIRIVIEW_DIRECT_VIDEO_MIME_TYPE(mimeType)
+#define KIRIVIEW_COMIC_ARCHIVE_MIME_TYPE(scheme, mimeType)
+#include "format/supportedmediamimetypes.inc"
+#undef KIRIVIEW_COMIC_ARCHIVE_MIME_TYPE
+#undef KIRIVIEW_DIRECT_VIDEO_MIME_TYPE
+#undef KIRIVIEW_IMAGE_MIME_TYPE
+    };
+    mimeTypes.sort();
+    mimeTypes.removeDuplicates();
+    return mimeTypes;
+}
+
+QStringList directVideoMimeTypes()
+{
+    QStringList mimeTypes {
+#define KIRIVIEW_IMAGE_MIME_TYPE(mimeType)
+#define KIRIVIEW_DIRECT_VIDEO_MIME_TYPE(mimeType) QStringLiteral(mimeType),
+#define KIRIVIEW_COMIC_ARCHIVE_MIME_TYPE(scheme, mimeType)
+#include "format/supportedmediamimetypes.inc"
+#undef KIRIVIEW_COMIC_ARCHIVE_MIME_TYPE
+#undef KIRIVIEW_DIRECT_VIDEO_MIME_TYPE
+#undef KIRIVIEW_IMAGE_MIME_TYPE
+    };
+    mimeTypes.sort();
+    mimeTypes.removeDuplicates();
+    return mimeTypes;
+}
+
 bool isSupportedImageFileName(const QString& name)
 {
     return fileNameHasExtension(name, imageExtensions());

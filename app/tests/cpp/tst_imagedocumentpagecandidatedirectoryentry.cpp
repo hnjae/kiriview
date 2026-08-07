@@ -7,7 +7,9 @@
 #include <QObject>
 #include <QTest>
 #include <QUrl>
+#include <optional>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace {
@@ -47,7 +49,7 @@ struct FakeWatchProvider
     kiriview::ImageDocumentPageCandidateWatchSnapshotCallback initialSnapshot;
     kiriview::ImageDocumentPageCandidateWatchSnapshotCallback changedSnapshot;
     kiriview::ImageDocumentPageCandidateWatchDeletedCallback deletedUrls;
-    kiriview::ErrorCallback errorCallback;
+    kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback;
     int startCount = 0;
 
     kiriview::ImageDocumentPageCandidateWatchProvider provider()
@@ -56,7 +58,7 @@ struct FakeWatchProvider
                    kiriview::ImageDocumentPageCandidateWatchSnapshotCallback initial,
                    kiriview::ImageDocumentPageCandidateWatchSnapshotCallback changed,
                    kiriview::ImageDocumentPageCandidateWatchDeletedCallback deleted,
-                   kiriview::ErrorCallback error) {
+                   kiriview::ImageDocumentPageCandidateLoadErrorCallback error) {
             ++startCount;
             watchedUrl = std::move(directory);
             initialSnapshot = std::move(initial);
@@ -89,10 +91,10 @@ struct FakeWatchProvider
         }
     }
 
-    void fail(const QString& message)
+    void fail(kiriview::ImageDocumentPageCandidateLoadError error)
     {
         if (errorCallback) {
-            errorCallback(message);
+            errorCallback(std::move(error));
         }
     }
 };
@@ -106,12 +108,13 @@ private Q_SLOTS:
     void providerCompletionPublishesPendingLoad();
     void providerChangesPublishSubscriberUpdates();
     void providerFailurePublishesPendingLoadError();
+    void nonKioWatcherFailureRemainsString();
 };
 
 void TestImageDocumentPageCandidateDirectoryEntry::providerCompletionPublishesPendingLoad()
 {
     FakeWatchProvider provider;
-    QString errorString;
+    int errorCount = 0;
     kiriview::ImageDocumentPageCandidateDirectoryEntry entry(
         directoryUrl(), provider.provider(), this);
 
@@ -122,7 +125,8 @@ void TestImageDocumentPageCandidateDirectoryEntry::providerCompletionPublishesPe
             loadedCandidates = std::move(candidates);
             loaded = true;
         },
-        [&errorString](const QString& message) { errorString = message; }, this, [](QObject*) {});
+        [&errorCount](const kiriview::ImageDocumentPageCandidateLoadError&) { ++errorCount; }, this,
+        [](QObject*) {});
 
     QVERIFY(loadJob.isActive());
     QVERIFY(entry.open());
@@ -131,7 +135,7 @@ void TestImageDocumentPageCandidateDirectoryEntry::providerCompletionPublishesPe
 
     provider.complete({ candidate(QStringLiteral("01.png")) });
     QVERIFY(loaded);
-    QVERIFY2(errorString.isEmpty(), qPrintable(errorString));
+    QCOMPARE(errorCount, 0);
     QCOMPARE(
         candidateUrls(loadedCandidates), std::vector<QUrl>({ fileUrl(QStringLiteral("01.png")) }));
     QVERIFY(entry.listed());
@@ -141,19 +145,20 @@ void TestImageDocumentPageCandidateDirectoryEntry::providerCompletionPublishesPe
 void TestImageDocumentPageCandidateDirectoryEntry::providerChangesPublishSubscriberUpdates()
 {
     FakeWatchProvider provider;
-    QString errorString;
+    int errorCount = 0;
     kiriview::ImageDocumentPageCandidateDirectoryEntry entry(
         directoryUrl(), provider.provider(), this);
 
     bool loaded = false;
     kiriview::ImageIoJob loadJob = entry.addPendingLoad(
         [&loaded](std::vector<kiriview::ImageDocumentPageCandidate>) { loaded = true; },
-        [&errorString](const QString& message) { errorString = message; }, this, [](QObject*) {});
+        [&errorCount](const kiriview::ImageDocumentPageCandidateLoadError&) { ++errorCount; }, this,
+        [](QObject*) {});
     QVERIFY(loadJob.isActive());
     QVERIFY(entry.open());
     provider.complete({ candidate(QStringLiteral("01.png")) });
     QVERIFY(loaded);
-    QVERIFY2(errorString.isEmpty(), qPrintable(errorString));
+    QCOMPARE(errorCount, 0);
 
     std::vector<kiriview::ImageDocumentPageCandidate> changedCandidates;
     int changeCount = 0;
@@ -163,7 +168,8 @@ void TestImageDocumentPageCandidateDirectoryEntry::providerChangesPublishSubscri
             changedCandidates = std::move(candidates);
             ++changeCount;
         },
-        [&errorString](const QString& message) { errorString = message; }, this, [](QObject*) {});
+        [&errorCount](const kiriview::ImageDocumentPageCandidateLoadError&) { ++errorCount; }, this,
+        [](QObject*) {});
 
     QVERIFY(watchJob.isActive());
     provider.change({ candidate(QStringLiteral("01.png")), candidate(QStringLiteral("02.png")) });
@@ -183,23 +189,73 @@ void TestImageDocumentPageCandidateDirectoryEntry::providerChangesPublishSubscri
 void TestImageDocumentPageCandidateDirectoryEntry::providerFailurePublishesPendingLoadError()
 {
     FakeWatchProvider provider;
-    QString errorString;
+    std::optional<kiriview::ImageDocumentPageCandidateLoadError> actualError;
     kiriview::ImageDocumentPageCandidateDirectoryEntry entry(
         directoryUrl(), provider.provider(), this);
 
     bool loaded = false;
     kiriview::ImageIoJob loadJob = entry.addPendingLoad(
         [&loaded](std::vector<kiriview::ImageDocumentPageCandidate>) { loaded = true; },
-        [&errorString](const QString& message) { errorString = message; }, this, [](QObject*) {});
+        [&actualError](kiriview::ImageDocumentPageCandidateLoadError error) {
+            actualError = std::move(error);
+        },
+        this, [](QObject*) {});
 
     QVERIFY(loadJob.isActive());
     QVERIFY(entry.open());
-    provider.fail(QStringLiteral("watch failed"));
+    const kiriview::KioOperationFailure expected {
+        kiriview::KioOperationKind::DirectoryListing,
+        directoryUrl(),
+        73,
+        true,
+        QString(),
+        QStringLiteral("listing canceled"),
+        false,
+    };
+    provider.fail(kiriview::ImageDocumentPageCandidateLoadError { expected });
 
     QVERIFY(!loaded);
-    QCOMPARE(errorString, QStringLiteral("watch failed"));
+    QVERIFY(actualError.has_value());
+    const auto* actual = std::get_if<kiriview::KioOperationFailure>(&*actualError);
+    QVERIFY(actual != nullptr);
+    QCOMPARE(actual->operationKind, expected.operationKind);
+    QCOMPARE(actual->targetUrl, expected.targetUrl);
+    QCOMPARE(actual->rawErrorCode, expected.rawErrorCode);
+    QCOMPARE(actual->canceled, expected.canceled);
+    QCOMPARE(actual->userMessage, expected.userMessage);
+    QCOMPARE(actual->diagnosticDetail, expected.diagnosticDetail);
+    QCOMPARE(actual->retryable, expected.retryable);
     QVERIFY(entry.failed());
-    QCOMPARE(entry.errorString(), QStringLiteral("watch failed"));
+    const auto* cached = std::get_if<kiriview::KioOperationFailure>(&entry.error());
+    QVERIFY(cached != nullptr);
+    QCOMPARE(cached->rawErrorCode, expected.rawErrorCode);
+    QVERIFY(cached->canceled);
+}
+
+void TestImageDocumentPageCandidateDirectoryEntry::nonKioWatcherFailureRemainsString()
+{
+    FakeWatchProvider provider;
+    kiriview::ImageDocumentPageCandidateDirectoryEntry entry(
+        directoryUrl(), provider.provider(), this);
+    QVERIFY(entry.open());
+    provider.complete({ candidate(QStringLiteral("01.png")) });
+
+    std::optional<kiriview::ImageDocumentPageCandidateLoadError> actualError;
+    kiriview::ImageIoJob watchJob
+        = entry.addSubscriber([](std::vector<kiriview::ImageDocumentPageCandidate>) {},
+            [&actualError](kiriview::ImageDocumentPageCandidateLoadError error) {
+                actualError = std::move(error);
+            },
+            this, [](QObject*) {});
+
+    provider.fail(kiriview::ImageDocumentPageCandidateLoadError {
+        QStringLiteral("watch bookkeeping failed") });
+
+    QVERIFY(watchJob.isActive());
+    QVERIFY(actualError.has_value());
+    const auto* errorString = std::get_if<QString>(&*actualError);
+    QVERIFY(errorString != nullptr);
+    QCOMPARE(*errorString, QStringLiteral("watch bookkeeping failed"));
 }
 
 QTEST_GUILESS_MAIN(TestImageDocumentPageCandidateDirectoryEntry)

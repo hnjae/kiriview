@@ -7,6 +7,7 @@
 #include "async/imageasynccallbacks.h"
 #include "async/imageiojob.h"
 #include "imagedocumentpagecandidatecallbacks.h"
+#include "imagedocumentpagecandidateloaderror.h"
 #include "imagedocumentpagenavigationtypes.h"
 
 #include <QPointer>
@@ -20,14 +21,14 @@ struct ImageDocumentPageCandidateStoreEntryPendingLoad
 {
     ImageIoJobCompletion completion;
     ImageDocumentPageCandidatesCallback callback;
-    ErrorCallback errorCallback;
+    ImageDocumentPageCandidateLoadErrorCallback errorCallback;
 };
 
 struct ImageDocumentPageCandidateStoreEntrySubscriber
 {
     ImageIoJobCompletion completion;
     ImageDocumentPageCandidatesCallback callback;
-    ErrorCallback errorCallback;
+    ImageDocumentPageCandidateLoadErrorCallback errorCallback;
 };
 
 struct ImageDocumentPageCandidateStoreEntryNotificationPlan
@@ -37,7 +38,7 @@ struct ImageDocumentPageCandidateStoreEntryNotificationPlan
     std::vector<ImageDocumentPageCandidateStoreEntrySubscriber> changedSubscribers;
     std::vector<ImageDocumentPageCandidateStoreEntrySubscriber> failedSubscribers;
     std::vector<ImageDocumentPageCandidate> candidates;
-    QString errorString;
+    ImageDocumentPageCandidateLoadError error = QString();
 };
 
 class ImageDocumentPageCandidateStoreEntryState final
@@ -46,13 +47,15 @@ public:
     [[nodiscard]] const std::vector<ImageDocumentPageCandidate>& candidates() const;
     [[nodiscard]] bool listed() const;
     [[nodiscard]] bool failed() const;
-    [[nodiscard]] const QString& errorString() const;
+    [[nodiscard]] const ImageDocumentPageCandidateLoadError& error() const;
     [[nodiscard]] bool hasActiveClients();
 
     void addPendingLoad(ImageIoJobCompletion completion,
-        ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback);
+        ImageDocumentPageCandidatesCallback callback,
+        ImageDocumentPageCandidateLoadErrorCallback errorCallback);
     void addSubscriber(ImageIoJobCompletion completion,
-        ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback);
+        ImageDocumentPageCandidatesCallback callback,
+        ImageDocumentPageCandidateLoadErrorCallback errorCallback);
     void removePendingLoad(QObject* token);
     void removeSubscriber(QObject* token);
 
@@ -60,7 +63,8 @@ public:
         std::vector<ImageDocumentPageCandidate> candidates);
     ImageDocumentPageCandidateStoreEntryNotificationPlan updateListing(
         std::vector<ImageDocumentPageCandidate> candidates);
-    ImageDocumentPageCandidateStoreEntryNotificationPlan failListing(QString errorString);
+    ImageDocumentPageCandidateStoreEntryNotificationPlan failListing(
+        ImageDocumentPageCandidateLoadError error);
 
 private:
     bool replaceCandidates(std::vector<ImageDocumentPageCandidate> candidates);
@@ -72,7 +76,7 @@ private:
     std::vector<ImageDocumentPageCandidateStoreEntrySubscriber> m_subscribers;
     bool m_listed = false;
     bool m_failed = false;
-    QString m_errorString;
+    ImageDocumentPageCandidateLoadError m_error = QString();
 };
 }
 

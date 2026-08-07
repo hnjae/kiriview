@@ -26,13 +26,14 @@ public:
         ImageDocumentPageCandidatesCallback callback,
         ImageDocumentPageCandidateLoadErrorCallback errorCallback) const;
     ImageIoJob loadDirectoryImages(QObject* receiver, const QUrl& directoryUrl,
-        ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback) const;
+        ImageDocumentPageCandidatesCallback callback,
+        ImageDocumentPageCandidateLoadErrorCallback errorCallback) const;
     ImageIoJob loadOpenedCollectionCandidates(QObject* receiver,
         OpenedCollectionScopeLocation openedCollectionScope,
         ImageDocumentPageCandidatesCallback callback,
         MediaEntrySourceErrorCallback errorCallback) const;
     ImageIoJob loadContainers(QObject* receiver, const QUrl& directoryUrl,
-        ContainerCandidatesCallback callback, ErrorCallback errorCallback) const;
+        ContainerCandidatesCallback callback, KioOperationFailureCallback errorCallback) const;
     ImageIoJob watchCandidateChanges(QObject* receiver,
         const ImageDocumentPageCandidateListSource& source,
         ImageDocumentPageCandidatesCallback callback,
@@ -42,7 +43,8 @@ public:
         ImageDocumentPageCandidatesCallback callback,
         ImageDocumentPageCandidateLoadErrorCallback errorCallback) const;
     ImageIoJob watchDirectoryImageChanges(QObject* receiver, const QUrl& directoryUrl,
-        ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback) const;
+        ImageDocumentPageCandidatesCallback callback,
+        ImageDocumentPageCandidateLoadErrorCallback errorCallback) const;
 
 private:
     ImageDocumentPageCandidateProvider m_provider;

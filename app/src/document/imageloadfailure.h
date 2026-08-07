@@ -6,6 +6,7 @@
 
 #include "archive/mediaentrysourceerror.h"
 #include "decoding/decodedimagefailure.h"
+#include "system/kiooperationfailure.h"
 
 #include <QString>
 #include <QUrl>
@@ -38,6 +39,7 @@ struct ImageLoadFailure
     bool retryable = false;
     std::optional<MediaEntrySourceError> mediaEntrySourceError;
     DecodedImageFailureCause decodeCause = DecodedImageFailureCause::Unknown;
+    std::optional<KioOperationFailure> kioOperationFailure;
 };
 }
 

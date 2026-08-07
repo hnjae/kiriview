@@ -27,7 +27,7 @@ struct ManualImageDocumentPageCandidateLoad
     QObject* object = nullptr;
     QUrl url;
     kiriview::ImageDocumentPageCandidatesCallback callback;
-    kiriview::ErrorCallback errorCallback;
+    kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback;
     kiriview::ImageIoJobCompletion completion;
     bool canceled = false;
 };
@@ -41,7 +41,7 @@ public:
         provider.directoryImageDocumentPages
             = [this](QObject* receiver, QUrl directoryUrl,
                   kiriview::ImageDocumentPageCandidatesCallback callback,
-                  kiriview::ErrorCallback errorCallback) {
+                  kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback) {
                   auto load = std::make_shared<ManualImageDocumentPageCandidateLoad>();
                   load->url = std::move(directoryUrl);
                   load->callback = std::move(callback);
@@ -60,16 +60,17 @@ public:
                   return job;
               };
         provider.directoryContainers
-            = [](QObject*, QUrl, kiriview::ContainerCandidatesCallback, kiriview::ErrorCallback) {
-                  return kiriview::ImageIoJob();
-              };
+            = [](QObject*, QUrl, kiriview::ContainerCandidatesCallback,
+                  kiriview::KioOperationFailureCallback) { return kiriview::ImageIoJob(); };
         provider.openedCollectionCandidates
             = [](QObject*, kiriview::OpenedCollectionScopeLocation,
                   kiriview::ImageDocumentPageCandidatesCallback,
                   kiriview::MediaEntrySourceErrorCallback) { return kiriview::ImageIoJob(); };
         provider.directoryImageDocumentPageChanges
             = [](QObject*, QUrl, kiriview::ImageDocumentPageCandidatesCallback,
-                  kiriview::ErrorCallback) { return kiriview::ImageIoJob(); };
+                  kiriview::ImageDocumentPageCandidateLoadErrorCallback) {
+                  return kiriview::ImageIoJob();
+              };
         return provider;
     }
 
@@ -114,10 +115,12 @@ public:
         kiriview::ImageDocumentPageCandidateProvider provider;
         provider.directoryImageDocumentPages
             = [](QObject*, QUrl, kiriview::ImageDocumentPageCandidatesCallback,
-                  kiriview::ErrorCallback) { return kiriview::ImageIoJob(); };
+                  kiriview::ImageDocumentPageCandidateLoadErrorCallback) {
+                  return kiriview::ImageIoJob();
+              };
         provider.directoryContainers
             = [this](QObject* receiver, QUrl, kiriview::ContainerCandidatesCallback callback,
-                  kiriview::ErrorCallback) {
+                  kiriview::KioOperationFailureCallback) {
                   auto load = std::make_shared<ManualImageDocumentPageCandidateLoad>();
                   kiriview::ImageIoJob job
                       = kiriview::TestSupport::Detail::startManualIoJob(receiver, load);
@@ -139,7 +142,9 @@ public:
               };
         provider.directoryImageDocumentPageChanges
             = [](QObject*, QUrl, kiriview::ImageDocumentPageCandidatesCallback,
-                  kiriview::ErrorCallback) { return kiriview::ImageIoJob(); };
+                  kiriview::ImageDocumentPageCandidateLoadErrorCallback) {
+                  return kiriview::ImageIoJob();
+              };
         return provider;
     }
 

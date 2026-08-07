@@ -9,14 +9,16 @@
 #include <vector>
 
 namespace {
-void reportLoadProviderMissing(const kiriview::ErrorCallback& errorCallback)
+void reportLoadProviderMissing(
+    const kiriview::ImageDocumentPageCandidateLoadErrorCallback& errorCallback)
 {
-    kiriview::invokeIfSet(errorCallback, QString());
+    kiriview::invokeIfSet(
+        errorCallback, kiriview::ImageDocumentPageCandidateLoadError { QString() });
 }
 
 template <typename Provider, typename... Args>
-kiriview::ImageIoJob loadWithProvider(
-    const Provider& provider, kiriview::ErrorCallback errorCallback, Args&&... args)
+kiriview::ImageIoJob loadWithProvider(const Provider& provider,
+    kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback, Args&&... args)
 {
     if (!provider) {
         reportLoadProviderMissing(errorCallback);
@@ -32,11 +34,8 @@ kiriview::ImageIoJob loadImagesForSource(
     kiriview::ImageDocumentPageCandidatesCallback callback,
     kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback)
 {
-    return repository.loadDirectoryImages(receiver, source.directoryUrl, std::move(callback),
-        [errorCallback = std::move(errorCallback)](QString error) mutable {
-            kiriview::invokeIfSet(
-                errorCallback, kiriview::ImageDocumentPageCandidateLoadError { std::move(error) });
-        });
+    return repository.loadDirectoryImages(
+        receiver, source.directoryUrl, std::move(callback), std::move(errorCallback));
 }
 
 kiriview::ImageIoJob loadImagesForSource(
@@ -59,11 +58,8 @@ kiriview::ImageIoJob watchChangesForSource(
     kiriview::ImageDocumentPageCandidatesCallback callback,
     kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback)
 {
-    return repository.watchDirectoryImageChanges(receiver, source.directoryUrl, std::move(callback),
-        [errorCallback = std::move(errorCallback)](QString error) mutable {
-            kiriview::invokeIfSet(
-                errorCallback, kiriview::ImageDocumentPageCandidateLoadError { std::move(error) });
-        });
+    return repository.watchDirectoryImageChanges(
+        receiver, source.directoryUrl, std::move(callback), std::move(errorCallback));
 }
 
 kiriview::ImageIoJob watchChangesForSource(const kiriview::ImageDocumentPageCandidateRepository&,
@@ -106,7 +102,7 @@ ImageIoJob ImageDocumentPageCandidateRepository::loadImages(QObject* receiver,
 
 ImageIoJob ImageDocumentPageCandidateRepository::loadDirectoryImages(QObject* receiver,
     const QUrl& directoryUrl, ImageDocumentPageCandidatesCallback callback,
-    ErrorCallback errorCallback) const
+    ImageDocumentPageCandidateLoadErrorCallback errorCallback) const
 {
     return loadWithProvider(m_provider.directoryImageDocumentPages, std::move(errorCallback),
         receiver, directoryUrl, std::move(callback));
@@ -135,10 +131,17 @@ ImageIoJob ImageDocumentPageCandidateRepository::loadOpenedCollectionCandidates(
 
 ImageIoJob ImageDocumentPageCandidateRepository::loadContainers(QObject* receiver,
     const QUrl& directoryUrl, ContainerCandidatesCallback callback,
-    ErrorCallback errorCallback) const
+    KioOperationFailureCallback errorCallback) const
 {
-    return loadWithProvider(m_provider.directoryContainers, std::move(errorCallback), receiver,
-        directoryUrl, std::move(callback));
+    if (!m_provider.directoryContainers) {
+        invokeIfSet(errorCallback,
+            kioOperationValidationFailure(KioOperationKind::DirectoryListing, directoryUrl,
+                QStringLiteral("directory container candidate provider is unavailable")));
+        return ImageIoJob();
+    }
+
+    return m_provider.directoryContainers(
+        receiver, directoryUrl, std::move(callback), std::move(errorCallback));
 }
 
 ImageIoJob ImageDocumentPageCandidateRepository::watchCandidateChanges(QObject* receiver,
@@ -165,7 +168,7 @@ ImageIoJob ImageDocumentPageCandidateRepository::watchCandidateChanges(QObject* 
 
 ImageIoJob ImageDocumentPageCandidateRepository::watchDirectoryImageChanges(QObject* receiver,
     const QUrl& directoryUrl, ImageDocumentPageCandidatesCallback callback,
-    ErrorCallback errorCallback) const
+    ImageDocumentPageCandidateLoadErrorCallback errorCallback) const
 {
     return loadWithProvider(m_provider.directoryImageDocumentPageChanges, std::move(errorCallback),
         receiver, directoryUrl, std::move(callback));

@@ -45,7 +45,7 @@ private:
         const QUrl& currentContainerUrl);
     void finishContainerNavigationListWithError(quint64 operationId,
         const QUrl& currentContainerUrl, const QUrl& parentUrl, NavigationDirection direction,
-        const QString& errorString);
+        KioOperationFailure failure);
     void loadFirstImageFromContainerNavigation(
         quint64 operationId, const ContainerNavigationCandidate& container);
     void finishContainerNavigationImageLoad(quint64 operationId,

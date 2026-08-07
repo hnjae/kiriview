@@ -6,6 +6,7 @@
 
 #include <QString>
 #include <QUrl>
+#include <functional>
 #include <optional>
 
 namespace kiriview {
@@ -26,6 +27,8 @@ struct KioOperationFailure
     QString diagnosticDetail;
     bool retryable = false;
 };
+
+using KioOperationFailureCallback = std::function<void(KioOperationFailure)>;
 
 bool isKioOperationCanceledError(int errorCode);
 KioOperationFailure kioOperationFailureFromKJob(

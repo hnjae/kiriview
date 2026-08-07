@@ -32,7 +32,7 @@ public:
 
     [[nodiscard]] bool failed() const;
     [[nodiscard]] bool listed() const;
-    [[nodiscard]] const QString& errorString() const;
+    [[nodiscard]] const ImageDocumentPageCandidateLoadError& error() const;
     [[nodiscard]] const std::vector<ImageDocumentPageCandidate>& candidates() const;
     [[nodiscard]] std::uint64_t identity() const;
     [[nodiscard]] bool hasActiveClients();
@@ -41,12 +41,14 @@ public:
     void handleCompleted(std::vector<ImageDocumentPageCandidate> candidates);
     void handleChanged(std::vector<ImageDocumentPageCandidate> candidates);
     void handleDeleted(const QList<QUrl>& urls);
-    void handleError(const QString& errorString);
+    void handleError(ImageDocumentPageCandidateLoadError error);
 
     ImageIoJob addPendingLoad(ImageDocumentPageCandidatesCallback callback,
-        ErrorCallback errorCallback, QObject* receiver, std::function<void(QObject*)> removeToken);
+        ImageDocumentPageCandidateLoadErrorCallback errorCallback, QObject* receiver,
+        std::function<void(QObject*)> removeToken);
     ImageIoJob addSubscriber(ImageDocumentPageCandidatesCallback callback,
-        ErrorCallback errorCallback, QObject* receiver, std::function<void(QObject*)> removeToken);
+        ImageDocumentPageCandidateLoadErrorCallback errorCallback, QObject* receiver,
+        std::function<void(QObject*)> removeToken);
     void removePendingLoad(QObject* token);
     void removeSubscriber(QObject* token);
 

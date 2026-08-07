@@ -7,6 +7,7 @@
 #include "async/imageasynccallbacks.h"
 #include "async/imageiojob.h"
 #include "imagedocumentpagecandidatecallbacks.h"
+#include "imagedocumentpagecandidateloaderror.h"
 #include "imagedocumentpagenavigationtypes.h"
 
 #include <QList>
@@ -20,10 +21,10 @@ namespace kiriview {
 using ImageDocumentPageCandidateWatchSnapshotCallback
     = std::function<void(std::vector<ImageDocumentPageCandidate>)>;
 using ImageDocumentPageCandidateWatchDeletedCallback = std::function<void(QList<QUrl>)>;
-using ImageDocumentPageCandidateWatchProvider
-    = std::function<ImageIoJob(QObject*, QUrl, ImageDocumentPageCandidateWatchSnapshotCallback,
-        ImageDocumentPageCandidateWatchSnapshotCallback,
-        ImageDocumentPageCandidateWatchDeletedCallback, ErrorCallback)>;
+using ImageDocumentPageCandidateWatchProvider = std::function<ImageIoJob(QObject*, QUrl,
+    ImageDocumentPageCandidateWatchSnapshotCallback,
+    ImageDocumentPageCandidateWatchSnapshotCallback, ImageDocumentPageCandidateWatchDeletedCallback,
+    ImageDocumentPageCandidateLoadErrorCallback)>;
 
 ImageDocumentPageCandidateWatchProvider defaultImageDocumentPageCandidateWatchProvider();
 }

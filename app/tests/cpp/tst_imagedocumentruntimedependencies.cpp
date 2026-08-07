@@ -87,7 +87,8 @@ void TestImageDocumentRuntimeDependencies::partialNonSourceOverridesStillUseMedi
     kiriview::ImageDocumentRuntimeDependencyOverrides dependencies;
     dependencies.candidateProvider.directoryImageDocumentPages
         = [&directoryLoadCount](QObject*, QUrl,
-              kiriview::ImageDocumentPageCandidatesCallback callback, kiriview::ErrorCallback) {
+              kiriview::ImageDocumentPageCandidatesCallback callback,
+              kiriview::ImageDocumentPageCandidateLoadErrorCallback) {
               ++directoryLoadCount;
               callback({});
               return kiriview::ImageIoJob();
