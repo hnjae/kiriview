@@ -51,6 +51,21 @@ const char* videoMediaErrorCategoryName(kiriview::VideoMediaErrorCategory catego
     return "Unknown";
 }
 
+kiriview::VideoBackendFailure videoBackendFailure(
+    const QUrl& sourceUrl, kiriview::VideoMediaError error)
+{
+    return {
+        sourceUrl,
+        kiriview::VideoBackendFailureKind::Playback,
+        error.category,
+        error.rawErrorCode,
+        kiriview::imageErrorText(kiriview::ImageErrorTextId::OpenVideo),
+        std::move(error.diagnosticDetail),
+        kiriview::VideoBackendFailureSeverity::Error,
+        false,
+    };
+}
+
 kiriview::VideoPlaybackStateDelta stateDeltaAfterBackendOperations(
     const kiriview::VideoPlaybackControlPlan& plan, bool mediaBackendAvailable)
 {
@@ -1103,8 +1118,15 @@ void VideoDocumentRuntime::updateStatusFromBackend(const PlaybackLifecycle& life
         true,
         mediaStatus,
     });
-    m_state.setStatusAndError(
-        plan.status, plan.status == VideoDocumentStatus::Error ? m_state.errorString() : QString());
+    if (plan.status == VideoDocumentStatus::Error) {
+        const std::optional<VideoBackendFailure>& failure = m_state.backendFailure();
+        if (!failure.has_value() || failure->sourceUrl != observation->lifecycle.publicSourceUrl) {
+            m_state.setBackendFailure(
+                videoBackendFailure(observation->lifecycle.publicSourceUrl, VideoMediaError {}));
+        }
+    } else {
+        m_state.setStatusAndClearFailure(plan.status);
+    }
     if (lifetime.expired() || m_mediaBackend != observation->backend
         || !playbackCallbacksAccepted(observation->lifecycle)) {
         return;
@@ -1184,16 +1206,7 @@ void VideoDocumentRuntime::updateErrorFromBackend(
         << "category=" << videoMediaErrorCategoryName(error.category)
         << "code=" << error.rawErrorCode
         << "detail=" << diagnosticDetailReference(error.diagnosticDetail);
-    m_state.setBackendFailure(VideoBackendFailure {
-        lifecycle.publicSourceUrl,
-        VideoBackendFailureKind::Playback,
-        error.category,
-        error.rawErrorCode,
-        imageErrorText(ImageErrorTextId::OpenVideo),
-        std::move(error.diagnosticDetail),
-        VideoBackendFailureSeverity::Error,
-        false,
-    });
+    m_state.setBackendFailure(videoBackendFailure(lifecycle.publicSourceUrl, std::move(error)));
     if (lifetime.expired() || m_mediaBackend != mediaBackend
         || !playbackCallbacksAccepted(lifecycle)) {
         return;

@@ -124,44 +124,18 @@ void VideoDocumentState::setBackendFailure(VideoBackendFailure failure)
     publish(changes);
 }
 
-void VideoDocumentState::setStatus(VideoDocumentStatus status)
+void VideoDocumentState::setStatusAndClearFailure(VideoDocumentStatus status)
 {
-    if (status != VideoDocumentStatus::Error) {
-        m_sourceLoadFailure.reset();
-        m_backendFailure.reset();
+    Q_ASSERT(status != VideoDocumentStatus::Error);
+    if (status == VideoDocumentStatus::Error) {
+        return;
     }
-
-    std::vector<VideoDocumentChange> changes;
-    appendIfStatusChanged(changes, status);
-    publish(changes);
-}
-
-void VideoDocumentState::setStatusAndError(VideoDocumentStatus status, const QString& errorString)
-{
-    const QString nextErrorString = status == VideoDocumentStatus::Error ? errorString : QString();
-    if (status != VideoDocumentStatus::Error
-        || (m_sourceLoadFailure.has_value()
-            && m_sourceLoadFailure->userMessage != nextErrorString)) {
-        m_sourceLoadFailure.reset();
-    }
-    if (status != VideoDocumentStatus::Error
-        || (m_backendFailure.has_value() && m_backendFailure->userMessage != nextErrorString)) {
-        m_backendFailure.reset();
-    }
-
-    std::vector<VideoDocumentChange> changes;
-    appendIfErrorStringChanged(changes, nextErrorString);
-    appendIfStatusChanged(changes, status);
-    publish(changes);
-}
-
-void VideoDocumentState::setErrorString(const QString& errorString)
-{
     m_sourceLoadFailure.reset();
     m_backendFailure.reset();
 
     std::vector<VideoDocumentChange> changes;
-    appendIfErrorStringChanged(changes, errorString);
+    appendIfErrorStringChanged(changes, QString());
+    appendIfStatusChanged(changes, status);
     publish(changes);
 }
 

@@ -28,6 +28,20 @@ private Q_SLOTS:
 namespace {
 using Change = kiriview::VideoDocumentChange;
 
+kiriview::VideoBackendFailure backendFailure(const QUrl& sourceUrl, const QString& message)
+{
+    return {
+        sourceUrl,
+        kiriview::VideoBackendFailureKind::Playback,
+        kiriview::VideoMediaErrorCategory::Unknown,
+        0,
+        message,
+        {},
+        kiriview::VideoBackendFailureSeverity::Error,
+        false,
+    };
+}
+
 std::vector<Change> flatten(const std::vector<std::vector<Change>>& batches)
 {
     std::vector<Change> changes;
@@ -55,8 +69,7 @@ void TestVideoDocumentState::sourceLoadResetsPublicPlaybackStateInOrder()
     const QUrl sourceUrl(QStringLiteral("zip:///videos/archive.zip!/new.mov"));
 
     state.resetForSourceLoad(initialUrl);
-    state.setErrorString(QStringLiteral("backend error"));
-    state.setStatus(kiriview::VideoDocumentStatus::Ready);
+    state.setBackendFailure(backendFailure(initialUrl, QStringLiteral("backend error")));
     state.setHasVideo(true);
     state.setHasAudio(true);
     state.setVideoSize(QSize(1920, 1080));
@@ -86,9 +99,9 @@ void TestVideoDocumentState::clearedSourceResetsPublicStateInOrder()
     kiriview::VideoDocumentState state(
         [&batches](const std::vector<Change>& changes) { batches.push_back(changes); });
 
-    state.resetForSourceLoad(QUrl::fromLocalFile(QStringLiteral("/videos/clip.mp4")));
-    state.setErrorString(QStringLiteral("backend error"));
-    state.setStatus(kiriview::VideoDocumentStatus::Ready);
+    const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/videos/clip.mp4"));
+    state.resetForSourceLoad(sourceUrl);
+    state.setBackendFailure(backendFailure(sourceUrl, QStringLiteral("backend error")));
     state.setHasVideo(true);
     state.setHasAudio(true);
     state.setVideoSize(QSize(1920, 1080));
@@ -189,7 +202,7 @@ void TestVideoDocumentState::backendFailureStoresTypedFailureAndPublishesUserMes
     compareChanges(batches.front(), { Change::ErrorString, Change::Status });
 
     batches.clear();
-    state.setStatusAndError(kiriview::VideoDocumentStatus::Ready);
+    state.setStatusAndClearFailure(kiriview::VideoDocumentStatus::Ready);
 
     QVERIFY(!state.backendFailure().has_value());
     QCOMPARE(state.errorString(), QString());

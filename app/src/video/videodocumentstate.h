@@ -42,9 +42,7 @@ public:
     void resetForSourceLoad(const QUrl& sourceUrl);
     void setSourceLoadFailure(VideoSourceLoadFailure failure);
     void setBackendFailure(VideoBackendFailure failure);
-    void setStatusAndError(VideoDocumentStatus status, const QString& errorString = {});
-    void setStatus(VideoDocumentStatus status);
-    void setErrorString(const QString& errorString);
+    void setStatusAndClearFailure(VideoDocumentStatus status);
     void setHasVideo(bool hasVideo);
     void setHasAudio(bool hasAudio);
     void setVideoSize(QSize size);

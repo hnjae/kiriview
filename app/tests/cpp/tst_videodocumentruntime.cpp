@@ -4,6 +4,7 @@
 #include "video/videodocumentruntime.h"
 
 #include "image_async_test_support.h"
+#include "localization/imageerrortext.h"
 #include "metadata/embeddedmetadata.h"
 
 #include <QBuffer>
@@ -41,6 +42,8 @@ private Q_SLOTS:
     void resolverFailurePreservesTypedFailureMetadata();
     void backendFailurePreservesTypedFailureMetadata();
     void backendFailureDoesNotRequireDiagnosticText();
+    void invalidStatusSynthesizesStableTypedFailure();
+    void invalidStatusPreservesEarlierDetailedFailure();
     void backendRecoveryClearsStaleErrorText();
     void sourceDevicePlaybackBypassesResolverAndSkipsMetadata();
     void sourceDeviceOwnerLivesUntilReplacementAndDestruction();
@@ -853,7 +856,8 @@ void TestVideoDocumentRuntime::resolverFailureSurfacesErrorWithoutChangingSource
 
     QCOMPARE(fixture.runtime->sourceUrl(), sourceUrl);
     QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Error);
-    QCOMPARE(fixture.runtime->errorString(), QStringLiteral("Could not open the selected video."));
+    QCOMPARE(fixture.runtime->errorString(),
+        kiriview::imageErrorText(kiriview::ImageErrorTextId::OpenVideo));
     QCOMPARE(fixture.backend, nullptr);
 }
 
@@ -907,7 +911,8 @@ void TestVideoDocumentRuntime::backendFailurePreservesTypedFailureMetadata()
         == kiriview::VideoBackendFailureSeverity::Error);
     QVERIFY(!fixture.runtime->backendFailure()->retryable);
     QVERIFY(!fixture.runtime->sourceLoadFailure().has_value());
-    QCOMPARE(fixture.runtime->errorString(), QStringLiteral("Could not open the selected video."));
+    QCOMPARE(fixture.runtime->errorString(),
+        kiriview::imageErrorText(kiriview::ImageErrorTextId::OpenVideo));
 
     fixture.runtime->setSourceUrl(QUrl::fromLocalFile(QStringLiteral("/home/me/next.mp4")));
 
@@ -929,7 +934,66 @@ void TestVideoDocumentRuntime::backendFailureDoesNotRequireDiagnosticText()
         == kiriview::VideoMediaErrorCategory::Unknown);
     QCOMPARE(fixture.runtime->backendFailure()->rawErrorCode, 77);
     QVERIFY(fixture.runtime->backendFailure()->diagnosticDetail.isEmpty());
-    QCOMPARE(fixture.runtime->errorString(), QStringLiteral("Could not open the selected video."));
+    QCOMPARE(fixture.runtime->errorString(),
+        kiriview::imageErrorText(kiriview::ImageErrorTextId::OpenVideo));
+}
+
+void TestVideoDocumentRuntime::invalidStatusSynthesizesStableTypedFailure()
+{
+    RuntimeFixture fixture;
+    const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/home/me/clip.mp4"));
+
+    fixture.runtime->setSourceUrl(sourceUrl);
+    fixture.resolveLatest(sourceUrl);
+    fixture.backend->emitStatus(kiriview::VideoMediaStatus::Invalid);
+
+    QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Error);
+    QCOMPARE(fixture.runtime->errorString(),
+        kiriview::imageErrorText(kiriview::ImageErrorTextId::OpenVideo));
+    QVERIFY(fixture.runtime->backendFailure().has_value());
+    QCOMPARE(fixture.runtime->backendFailure()->sourceUrl, sourceUrl);
+    QVERIFY(fixture.runtime->backendFailure()->kind == kiriview::VideoBackendFailureKind::Playback);
+    QVERIFY(fixture.runtime->backendFailure()->errorCategory
+        == kiriview::VideoMediaErrorCategory::Unknown);
+    QCOMPARE(fixture.runtime->backendFailure()->rawErrorCode, 0);
+    QVERIFY(fixture.runtime->backendFailure()->diagnosticDetail.isEmpty());
+
+    fixture.backend->emitError(
+        kiriview::VideoMediaErrorCategory::Format, 2, QStringLiteral("backend detail"));
+
+    QVERIFY(fixture.runtime->backendFailure().has_value());
+    QVERIFY(fixture.runtime->backendFailure()->errorCategory
+        == kiriview::VideoMediaErrorCategory::Format);
+    QCOMPARE(fixture.runtime->backendFailure()->rawErrorCode, 2);
+    QCOMPARE(fixture.runtime->backendFailure()->diagnosticDetail, QStringLiteral("backend detail"));
+
+    fixture.backend->emitStatus(kiriview::VideoMediaStatus::Buffered);
+
+    QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Ready);
+    QVERIFY(fixture.runtime->errorString().isEmpty());
+    QVERIFY(!fixture.runtime->backendFailure().has_value());
+}
+
+void TestVideoDocumentRuntime::invalidStatusPreservesEarlierDetailedFailure()
+{
+    RuntimeFixture fixture;
+    const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/home/me/clip.mp4"));
+    const QString diagnosticDetail = QStringLiteral("backend detail");
+
+    fixture.runtime->setSourceUrl(sourceUrl);
+    fixture.resolveLatest(sourceUrl);
+    fixture.backend->emitError(kiriview::VideoMediaErrorCategory::Format, 2, diagnosticDetail);
+    fixture.backend->emitStatus(kiriview::VideoMediaStatus::Invalid);
+
+    QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Error);
+    QCOMPARE(fixture.runtime->errorString(),
+        kiriview::imageErrorText(kiriview::ImageErrorTextId::OpenVideo));
+    QVERIFY(fixture.runtime->backendFailure().has_value());
+    QCOMPARE(fixture.runtime->backendFailure()->sourceUrl, sourceUrl);
+    QVERIFY(fixture.runtime->backendFailure()->errorCategory
+        == kiriview::VideoMediaErrorCategory::Format);
+    QCOMPARE(fixture.runtime->backendFailure()->rawErrorCode, 2);
+    QCOMPARE(fixture.runtime->backendFailure()->diagnosticDetail, diagnosticDetail);
 }
 
 void TestVideoDocumentRuntime::backendRecoveryClearsStaleErrorText()
@@ -943,7 +1007,8 @@ void TestVideoDocumentRuntime::backendRecoveryClearsStaleErrorText()
         kiriview::VideoMediaErrorCategory::Resource, 1, QStringLiteral("backend failed"));
 
     QCOMPARE(fixture.runtime->status(), kiriview::VideoDocumentStatus::Error);
-    QCOMPARE(fixture.runtime->errorString(), QStringLiteral("Could not open the selected video."));
+    QCOMPARE(fixture.runtime->errorString(),
+        kiriview::imageErrorText(kiriview::ImageErrorTextId::OpenVideo));
     QVERIFY(fixture.runtime->backendFailure().has_value());
 
     fixture.backend->emitStatus(kiriview::VideoMediaStatus::Buffered);
