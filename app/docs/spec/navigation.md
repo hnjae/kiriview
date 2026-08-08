@@ -34,6 +34,8 @@ The active navigation thumbnail strip may display generated preview thumbnails f
 
 The active navigation thumbnail strip chooses generated preview quality from the thumbnail's physical display size, including the current device pixel ratio. During panel resize, fractional-scale changes, or movement between screens with different scale factors, a previously ready smaller thumbnail may remain visible as an interim fallback while KiriView loads a newly required larger thumbnail, and the strip replaces it only after the newer result is ready. If the newer request fails, KiriView keeps an existing usable thumbnail visible when one is available; otherwise the row uses the normal fallback icon path.
 
+If a preview has been generated successfully, a failure that affects only whether it can be reused in a later session does not hide the usable preview in the current session or replace it with a placeholder.
+
 After thumbnails needed for visible, nearby, and user-selected navigation items have been satisfied, KiriView may progressively replace additional eligible placeholder thumbnails in the current active navigation list without user action. Visible, nearby, and user-selected navigation items take precedence over not-yet-visible thumbnail filling. Failures for not-yet-visible thumbnails do not show user-facing errors and keep the normal thumbnail fallback UI.
 
 For image-mode scopes, the thumbnail strip uses page candidate names. Directory and archive collection names may be collection-relative paths so that same-basename items in different folders remain distinguishable.

@@ -15,6 +15,8 @@
 #include <QString>
 #include <QtGlobal>
 #include <functional>
+#include <optional>
+#include <variant>
 #include <vector>
 
 namespace kiriview {
@@ -44,6 +46,7 @@ enum class ActiveNavigationThumbnailFailureKind {
     CacheLookupProviderUnavailable,
     CacheLookupInvalid,
     CacheLookupFailed,
+    CacheInstallFailed,
     GenerationFailed,
     ResourceLimitExceeded,
     ImageStoreInsertFailed,
@@ -83,19 +86,32 @@ struct ActiveNavigationThumbnailWorkRequest
     ThumbnailSourceAdapterPlan sourcePlan;
 };
 
-enum class ActiveNavigationThumbnailWorkResultKind {
-    Ready,
-    Failed,
+enum class ActiveNavigationThumbnailDiagnosticKind {
+    CacheInstallFailed,
 };
 
-struct ActiveNavigationThumbnailWorkResult
+struct ActiveNavigationThumbnailWorkDiagnostic
 {
-    ActiveNavigationThumbnailWorkResultKind kind = ActiveNavigationThumbnailWorkResultKind::Failed;
+    ActiveNavigationThumbnailDiagnosticKind kind
+        = ActiveNavigationThumbnailDiagnosticKind::CacheInstallFailed;
+    QString errorString;
+};
+
+struct ActiveNavigationThumbnailReadyWorkResult
+{
     QImage image;
+    std::optional<ActiveNavigationThumbnailWorkDiagnostic> diagnostic;
+};
+
+struct ActiveNavigationThumbnailFailedWorkResult
+{
     ActiveNavigationThumbnailFailureKind failureKind
         = ActiveNavigationThumbnailFailureKind::GenerationFailed;
     QString errorString;
 };
+
+using ActiveNavigationThumbnailWorkResult = std::variant<ActiveNavigationThumbnailFailedWorkResult,
+    ActiveNavigationThumbnailReadyWorkResult>;
 
 struct ActiveNavigationThumbnailWorkCompletion
 {

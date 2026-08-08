@@ -106,7 +106,9 @@ public:
     }
 
     void finishGeneration(std::size_t index, kiriview::ThumbnailGenerationStatus status,
-        QImage readyImage = {}, QString errorString = {})
+        QImage readyImage = {}, QString errorString = {},
+        kiriview::ThumbnailGenerationDiagnosticKind diagnosticKind
+        = kiriview::ThumbnailGenerationDiagnosticKind::None)
     {
         const Bucket bucket = generations.at(index).request.requestedBucket;
         kiriview::ThumbnailGenerationCallback callback = generations.at(index).callback;
@@ -117,6 +119,7 @@ public:
             bucket,
             {},
             std::move(errorString),
+            diagnosticKind,
         });
     }
 
@@ -224,6 +227,7 @@ class TestActiveNavigationThumbnailWorkCoordinator : public QObject
 
 private Q_SLOTS:
     void cacheMissChainsGenerationAndPublishesReadyImage();
+    void cacheInstallFailurePublishesReadyImageAndDiagnostic();
     void supersededLookupCompletionIsRejectedByJobIdentity();
     void backgroundResultAndFailedRefinementPreserveForegroundReadyImage();
     void demandWindowAdmitsVisibleBeforeNearbyRegardlessOfReportOrder();
@@ -251,6 +255,36 @@ void TestActiveNavigationThumbnailWorkCoordinator::cacheMissChainsGenerationAndP
 
     QCOMPARE(resultStatus(rows, 0), Status::Ready);
     QCOMPARE(images->image(imageId(resultSource(rows, 0))).pixelColor(0, 0), QColor(Qt::green));
+}
+
+void TestActiveNavigationThumbnailWorkCoordinator::
+    cacheInstallFailurePublishesReadyImageAndDiagnostic()
+{
+    auto images = std::make_shared<kiriview::ThumbnailImageStore>();
+    kiriview::ActiveNavigationThumbnailRowStore rows(images);
+    const auto schedulingRows = setRows(rows, { row(1, QStringLiteral("/media/one.png")) });
+    ManualProviders providers;
+    std::optional<kiriview::ActiveNavigationThumbnailFailureDiagnostic> diagnostic;
+    kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(this, rows,
+        providers.lookupProvider(), providers.generationProvider(), localAdapter(),
+        [&diagnostic](const kiriview::ActiveNavigationThumbnailFailureDiagnostic& failure) {
+            diagnostic = failure;
+        });
+    QVERIFY(coordinator.resetRows(schedulingRows));
+
+    QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(rows.navigationGeneration(),
+        { { 1, schedulingRows.rows.at(0).sourceUrl, Bucket::Large, Priority::Visible } })));
+    providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Missing);
+    providers.finishGeneration(0, kiriview::ThumbnailGenerationStatus::Ready, image(Qt::green),
+        QStringLiteral("cache install failed"),
+        kiriview::ThumbnailGenerationDiagnosticKind::CacheInstallFailed);
+
+    QCOMPARE(resultStatus(rows, 0), Status::Ready);
+    QCOMPARE(images->image(imageId(resultSource(rows, 0))).pixelColor(0, 0), QColor(Qt::green));
+    QVERIFY(diagnostic.has_value());
+    QCOMPARE(diagnostic->failureKind,
+        kiriview::ActiveNavigationThumbnailFailureKind::CacheInstallFailed);
+    QCOMPARE(diagnostic->errorString, QStringLiteral("cache install failed"));
 }
 
 void TestActiveNavigationThumbnailWorkCoordinator::

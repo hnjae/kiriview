@@ -22,6 +22,8 @@ QString fallbackThumbnailFailureError(kiriview::ActiveNavigationThumbnailFailure
         return QStringLiteral("Thumbnail cache lookup returned an invalid cache entry.");
     case kiriview::ActiveNavigationThumbnailFailureKind::CacheLookupFailed:
         return QStringLiteral("Thumbnail cache lookup failed.");
+    case kiriview::ActiveNavigationThumbnailFailureKind::CacheInstallFailed:
+        return QStringLiteral("Thumbnail cache installation failed.");
     case kiriview::ActiveNavigationThumbnailFailureKind::GenerationFailed:
         return QStringLiteral("Thumbnail generation failed.");
     case kiriview::ActiveNavigationThumbnailFailureKind::ResourceLimitExceeded:
@@ -171,12 +173,24 @@ void ActiveNavigationThumbnailWorkCoordinator::publishCompletion(
     const ActiveNavigationThumbnailAcceptCompletionEffect& effect)
 {
     const auto& completion = effect.completion;
-    if (completion.result.kind == ActiveNavigationThumbnailWorkResultKind::Ready) {
+    if (const auto* ready
+        = std::get_if<ActiveNavigationThumbnailReadyWorkResult>(&completion.result)) {
+        if (ready->diagnostic.has_value()) {
+            ActiveNavigationThumbnailFailureKind failureKind
+                = ActiveNavigationThumbnailFailureKind::CacheInstallFailed;
+            switch (ready->diagnostic->kind) {
+            case ActiveNavigationThumbnailDiagnosticKind::CacheInstallFailed:
+                failureKind = ActiveNavigationThumbnailFailureKind::CacheInstallFailed;
+                break;
+            }
+            reportFailureDiagnostic(completion.workId, completion.sourceKey, completion.workKind,
+                completion.bucket, failureKind, ready->diagnostic->errorString);
+        }
         if (completion.workKind == ActiveNavigationThumbnailWorkKind::Background
             && m_rowPort.hasUsableReadyImage(completion.sourceKey)) {
             return;
         }
-        if (!m_rowPort.installReadyImage(completion.sourceKey, completion.result.image,
+        if (!m_rowPort.installReadyImage(completion.sourceKey, ready->image,
                 imageRetentionPriority(effect.retentionClass),
                 completion.workKind == ActiveNavigationThumbnailWorkKind::Background)) {
             reportFailureDiagnostic(completion.workId, completion.sourceKey, completion.workKind,
@@ -189,8 +203,9 @@ void ActiveNavigationThumbnailWorkCoordinator::publishCompletion(
         }
         return;
     }
+    const auto& failed = std::get<ActiveNavigationThumbnailFailedWorkResult>(completion.result);
     reportFailureDiagnostic(completion.workId, completion.sourceKey, completion.workKind,
-        completion.bucket, completion.result.failureKind, completion.result.errorString);
+        completion.bucket, failed.failureKind, failed.errorString);
     if (completion.workKind != ActiveNavigationThumbnailWorkKind::Background
         && !m_rowPort.hasUsableReadyImage(completion.sourceKey)) {
         m_rowPort.applyFailed(completion.sourceKey);

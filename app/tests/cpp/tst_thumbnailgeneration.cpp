@@ -114,7 +114,7 @@ private Q_SLOTS:
     void defaultImageDecoderRejectsApngOverWorkspaceBudget();
     void defaultImageDecoderRejectsGifScaleWorkspaceOverBudget();
     void generatedApngRetainsWorkspaceUntilResultRelease();
-    void failedApngGenerationDestroysImageBeforeWorkspaceRelease();
+    void cacheInstallFailureRetainsUsableImageAndDiagnostic();
 };
 
 void TestThumbnailGeneration::injectedBytesLoaderProvidesGenerationBytes()
@@ -234,7 +234,7 @@ void TestThumbnailGeneration::generatedApngRetainsWorkspaceUntilResultRelease()
     QCOMPARE(budget->reservedByteCount(), qsizetype(0));
 }
 
-void TestThumbnailGeneration::failedApngGenerationDestroysImageBeforeWorkspaceRelease()
+void TestThumbnailGeneration::cacheInstallFailureRetainsUsableImageAndDiagnostic()
 {
     auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(16, 16);
     ImageCleanupObservation observation { budget, new uchar[4] { 0, 255, 0, 255 } };
@@ -271,12 +271,20 @@ void TestThumbnailGeneration::failedApngGenerationDestroysImageBeforeWorkspaceRe
     {
         const kiriview::ThumbnailGenerationResult result
             = kiriview::generateThumbnail(request, std::move(dependencies));
-        QCOMPARE(result.status, Status::Failed);
-        QVERIFY(observation.cleanupCalled);
-        QVERIFY(observation.reservationHeldDuringCleanup);
-        QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+        QCOMPARE(result.status, Status::Ready);
+        QVERIFY(!result.image.isNull());
+        QCOMPARE(result.image.pixelColor(0, 0), QColor(Qt::green));
+        QCOMPARE(result.requestedBucket, Bucket::Normal);
+        QVERIFY(result.installedCachePath.isEmpty());
+        QCOMPARE(result.errorString, QStringLiteral("cache install failed"));
+        QCOMPARE(
+            result.diagnosticKind, kiriview::ThumbnailGenerationDiagnosticKind::CacheInstallFailed);
+        QVERIFY(!observation.cleanupCalled);
+        QCOMPARE(budget->reservedByteCount(), result.image.sizeInBytes());
     }
 
+    QVERIFY(observation.cleanupCalled);
+    QVERIFY(observation.reservationHeldDuringCleanup);
     QCOMPARE(budget->reservedByteCount(), qsizetype(0));
 }
 

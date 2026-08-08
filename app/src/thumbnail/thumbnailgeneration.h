@@ -34,6 +34,11 @@ enum class ThumbnailGenerationStatus {
     Failed,
 };
 
+enum class ThumbnailGenerationDiagnosticKind {
+    None,
+    CacheInstallFailed,
+};
+
 struct ThumbnailGenerationWorkspaceHolds
 {
     ImageDecodeWorkspaceHold decodedImage;
@@ -62,18 +67,22 @@ struct ThumbnailGenerationResult
         = ActiveNavigationThumbnailDemandBucket::None;
     QString installedCachePath;
     QString errorString;
+    ThumbnailGenerationDiagnosticKind diagnosticKind = ThumbnailGenerationDiagnosticKind::None;
 
     ThumbnailGenerationResult() = default;
     ThumbnailGenerationResult(ThumbnailGenerationStatus generationStatus,
         ThumbnailGenerationWorkspaceHolds retainedWorkspace, QImage generatedImage,
         ActiveNavigationThumbnailDemandBucket bucket, QString cachePath = {},
-        QString diagnostic = {})
+        QString diagnostic = {},
+        ThumbnailGenerationDiagnosticKind resultDiagnosticKind
+        = ThumbnailGenerationDiagnosticKind::None)
         : status(generationStatus)
         , workspaceHolds(std::move(retainedWorkspace))
         , image(std::move(generatedImage))
         , requestedBucket(bucket)
         , installedCachePath(std::move(cachePath))
         , errorString(std::move(diagnostic))
+        , diagnosticKind(resultDiagnosticKind)
     {
     }
     ~ThumbnailGenerationResult() = default;
@@ -107,6 +116,7 @@ struct ThumbnailGenerationResult
         swap(left.requestedBucket, right.requestedBucket);
         swap(left.installedCachePath, right.installedCachePath);
         swap(left.errorString, right.errorString);
+        swap(left.diagnosticKind, right.diagnosticKind);
     }
 };
 

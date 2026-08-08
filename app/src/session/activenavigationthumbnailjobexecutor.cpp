@@ -211,7 +211,14 @@ public:
         ActiveNavigationThumbnailWorkRequest request = iterator->second.request;
         records.erase(iterator);
         if (result.status == ThumbnailGenerationStatus::Ready) {
-            completeReady(std::move(request), std::move(result.image));
+            std::optional<ActiveNavigationThumbnailWorkDiagnostic> diagnostic;
+            if (result.diagnosticKind == ThumbnailGenerationDiagnosticKind::CacheInstallFailed) {
+                diagnostic = ActiveNavigationThumbnailWorkDiagnostic {
+                    ActiveNavigationThumbnailDiagnosticKind::CacheInstallFailed,
+                    std::move(result.errorString),
+                };
+            }
+            completeReady(std::move(request), std::move(result.image), std::move(diagnostic));
             return;
         }
         const ActiveNavigationThumbnailFailureKind failureKind
@@ -221,7 +228,8 @@ public:
         completeFailure(std::move(request), failureKind, std::move(result.errorString));
     }
 
-    void completeReady(ActiveNavigationThumbnailWorkRequest request, QImage image)
+    void completeReady(ActiveNavigationThumbnailWorkRequest request, QImage image,
+        std::optional<ActiveNavigationThumbnailWorkDiagnostic> diagnostic = std::nullopt)
     {
         ActiveNavigationThumbnailWorkCallback callback = completionCallback;
         if (callback) {
@@ -230,8 +238,8 @@ public:
                 std::move(request.sourceKey),
                 request.bucket,
                 request.workKind,
-                { ActiveNavigationThumbnailWorkResultKind::Ready, std::move(image),
-                    ActiveNavigationThumbnailFailureKind::GenerationFailed, {} },
+                ActiveNavigationThumbnailReadyWorkResult {
+                    std::move(image), std::move(diagnostic) },
             });
         }
     }
@@ -246,8 +254,7 @@ public:
                 std::move(request.sourceKey),
                 request.bucket,
                 request.workKind,
-                { ActiveNavigationThumbnailWorkResultKind::Failed, {}, failureKind,
-                    std::move(errorString) },
+                ActiveNavigationThumbnailFailedWorkResult { failureKind, std::move(errorString) },
             });
         }
     }

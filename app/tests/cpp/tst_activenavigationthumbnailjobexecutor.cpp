@@ -81,6 +81,7 @@ class TestActiveNavigationThumbnailJobExecutor : public QObject
 private Q_SLOTS:
     void cacheHitCompletesWithRequestIdentity();
     void cacheMissKeepsWorkIdentityAcrossGeneration();
+    void readyGenerationPreservesCacheInstallDiagnostic();
     void inMemoryWorkSkipsLookupAndReportsTypedFailures();
     void resourceLimitFailurePreservesTypedKind();
     void cancellationAndPhaseChangesRejectLateCallbacks();
@@ -104,8 +105,8 @@ void TestActiveNavigationThumbnailJobExecutor::cacheHitCompletesWithRequestIdent
     QCOMPARE(completions.size(), std::size_t(1));
     QCOMPARE(completions.front().workId.value, quint64(41));
     QCOMPARE(completions.front().bucket, Bucket::Large);
-    QCOMPARE(
-        completions.front().result.kind, kiriview::ActiveNavigationThumbnailWorkResultKind::Ready);
+    QVERIFY(std::holds_alternative<kiriview::ActiveNavigationThumbnailReadyWorkResult>(
+        completions.front().result));
 }
 
 void TestActiveNavigationThumbnailJobExecutor::cacheMissKeepsWorkIdentityAcrossGeneration()
@@ -125,7 +126,35 @@ void TestActiveNavigationThumbnailJobExecutor::cacheMissKeepsWorkIdentityAcrossG
 
     QCOMPARE(completions.size(), std::size_t(1));
     QCOMPARE(completions.front().workId.value, quint64(9));
-    QCOMPARE(completions.front().result.image.pixelColor(0, 0), QColor(Qt::blue));
+    const auto& ready
+        = std::get<kiriview::ActiveNavigationThumbnailReadyWorkResult>(completions.front().result);
+    QCOMPARE(ready.image.pixelColor(0, 0), QColor(Qt::blue));
+    QVERIFY(!ready.diagnostic.has_value());
+}
+
+void TestActiveNavigationThumbnailJobExecutor::readyGenerationPreservesCacheInstallDiagnostic()
+{
+    ManualProviders providers;
+    std::vector<kiriview::ActiveNavigationThumbnailWorkCompletion> completions;
+    kiriview::ActiveNavigationThumbnailJobExecutor executor(this, providers.lookup(),
+        providers.generation(),
+        [&](auto completion) { completions.push_back(std::move(completion)); });
+
+    executor.start(request(10, kiriview::ThumbnailSourceAdapterPlanKind::CacheableLocalFile));
+    providers.lookupCallbacks.front()(
+        { kiriview::ThumbnailCacheLookupStatus::Missing, {}, Bucket::Large });
+    providers.generationCallbacks.front()({ kiriview::ThumbnailGenerationStatus::Ready, {},
+        image(Qt::blue), Bucket::Large, {}, QStringLiteral("cache install failed"),
+        kiriview::ThumbnailGenerationDiagnosticKind::CacheInstallFailed });
+
+    QCOMPARE(completions.size(), std::size_t(1));
+    const auto& ready
+        = std::get<kiriview::ActiveNavigationThumbnailReadyWorkResult>(completions.front().result);
+    QCOMPARE(ready.image.pixelColor(0, 0), QColor(Qt::blue));
+    QVERIFY(ready.diagnostic.has_value());
+    QCOMPARE(ready.diagnostic->kind,
+        kiriview::ActiveNavigationThumbnailDiagnosticKind::CacheInstallFailed);
+    QCOMPARE(ready.diagnostic->errorString, QStringLiteral("cache install failed"));
 }
 
 void TestActiveNavigationThumbnailJobExecutor::inMemoryWorkSkipsLookupAndReportsTypedFailures()
@@ -141,15 +170,19 @@ void TestActiveNavigationThumbnailJobExecutor::inMemoryWorkSkipsLookupAndReports
     QVERIFY(!providers.generationRequests.front().cacheInstallEnabled);
     providers.generationCallbacks.front()({ kiriview::ThumbnailGenerationStatus::Failed, {}, {},
         Bucket::Large, {}, QStringLiteral("decode failed") });
-    QCOMPARE(completions.front().result.failureKind,
+    const auto& generationFailure
+        = std::get<kiriview::ActiveNavigationThumbnailFailedWorkResult>(completions.front().result);
+    QCOMPARE(generationFailure.failureKind,
         kiriview::ActiveNavigationThumbnailFailureKind::GenerationFailed);
-    QCOMPARE(completions.front().result.errorString, QStringLiteral("decode failed"));
+    QCOMPARE(generationFailure.errorString, QStringLiteral("decode failed"));
 
     completions.clear();
     kiriview::ActiveNavigationThumbnailJobExecutor unavailable(
         this, {}, {}, [&](auto completion) { completions.push_back(std::move(completion)); });
     unavailable.start(request(4, kiriview::ThumbnailSourceAdapterPlanKind::CacheableLocalFile));
-    QCOMPARE(completions.front().result.failureKind,
+    const auto& unavailableFailure
+        = std::get<kiriview::ActiveNavigationThumbnailFailedWorkResult>(completions.front().result);
+    QCOMPARE(unavailableFailure.failureKind,
         kiriview::ActiveNavigationThumbnailFailureKind::CacheLookupProviderUnavailable);
 }
 
@@ -168,9 +201,11 @@ void TestActiveNavigationThumbnailJobExecutor::resourceLimitFailurePreservesType
             QStringLiteral("workspace limit exceeded") });
 
     QCOMPARE(completions.size(), std::size_t(1));
-    QCOMPARE(completions.front().result.failureKind,
-        kiriview::ActiveNavigationThumbnailFailureKind::ResourceLimitExceeded);
-    QCOMPARE(completions.front().result.errorString, QStringLiteral("workspace limit exceeded"));
+    const auto& failure
+        = std::get<kiriview::ActiveNavigationThumbnailFailedWorkResult>(completions.front().result);
+    QCOMPARE(
+        failure.failureKind, kiriview::ActiveNavigationThumbnailFailureKind::ResourceLimitExceeded);
+    QCOMPARE(failure.errorString, QStringLiteral("workspace limit exceeded"));
 }
 
 void TestActiveNavigationThumbnailJobExecutor::cancellationAndPhaseChangesRejectLateCallbacks()

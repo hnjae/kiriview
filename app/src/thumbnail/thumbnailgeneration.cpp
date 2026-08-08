@@ -631,9 +631,15 @@ kiriview::ThumbnailGenerationResult finishGeneratedThumbnailImage(
     const kiriview::ThumbnailGenerationCacheInstallResult install
         = dependencies.cacheRepository.install(originalIdentity, request.requestedBucket, rgba8);
     if (!install.success) {
-        rgba8 = {};
-        workspaceHolds = {};
-        return failedResult(install.requestedBucket, install.errorString);
+        return kiriview::ThumbnailGenerationResult {
+            kiriview::ThumbnailGenerationStatus::Ready,
+            std::move(workspaceHolds),
+            std::move(rgba8),
+            install.requestedBucket,
+            {},
+            install.errorString,
+            kiriview::ThumbnailGenerationDiagnosticKind::CacheInstallFailed,
+        };
     }
 
     return kiriview::ThumbnailGenerationResult {

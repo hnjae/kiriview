@@ -7,6 +7,7 @@
 #include <QTest>
 #include <QUrl>
 #include <initializer_list>
+#include <optional>
 #include <variant>
 #include <vector>
 
@@ -55,8 +56,7 @@ kiriview::ActiveNavigationThumbnailWorkCompletion ready(
 {
     return { start.request.workId, start.request.sourceKey, start.request.bucket,
         start.request.workKind,
-        { kiriview::ActiveNavigationThumbnailWorkResultKind::Ready, {},
-            kiriview::ActiveNavigationThumbnailFailureKind::GenerationFailed, {} } };
+        kiriview::ActiveNavigationThumbnailReadyWorkResult { {}, std::nullopt } };
 }
 
 kiriview::ActiveNavigationThumbnailDemandSnapshot snapshot(

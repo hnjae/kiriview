@@ -34,6 +34,8 @@ ZIP-backed opened-collection image entries intentionally use only the ZIP record
 
 Persistent cache lookup and installation are allowed only for source kinds whose identity and freshness can be established without reimplementing archive parsing or reading unrelated content solely to manufacture a key. Non-persistent generation uses the same scheduling and stale-rejection contracts but does not install results in the desktop thumbnail cache.
 
+Persistent installation is a best-effort side effect after a current usable thumbnail has been generated. Installation failure leaves that image eligible for normal acceptance and publication, retains no installed-cache path, and crosses the provider boundary as a typed non-fatal diagnostic; it must not turn the usable generation result into a failed thumbnail.
+
 The thumbnail image provider is cache-only and reentrant. It may return an already published immutable image entry and its stored size; it must not decode, resize, perform I/O, schedule work, decide freshness, or mutate active navigation.
 
 ## Source Eligibility
