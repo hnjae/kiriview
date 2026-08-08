@@ -16,6 +16,7 @@ private Q_SLOTS:
     void snapshotUsesInjectedPhysicalMemoryReader();
     void unreadablePhysicalMemoryFallsBackToZero();
     void runtimeDefaultsFillMissingProbeAndPreserveOverrides();
+    void acceptedSnapshotSuppressesFallbackProbe();
 };
 
 void TestSystemMemory::snapshotUsesInjectedPhysicalMemoryReader()
@@ -72,6 +73,28 @@ void TestSystemMemory::runtimeDefaultsFillMissingProbeAndPreserveOverrides()
 
     resolved = kiriview::systemMemoryRuntimeWithDefaults({});
     QVERIFY(resolved.readPhysicalSystemMemory);
+}
+
+void TestSystemMemory::acceptedSnapshotSuppressesFallbackProbe()
+{
+    int readCount = 0;
+    kiriview::SystemMemoryRuntime fallbackRuntime;
+    fallbackRuntime.readPhysicalSystemMemory = [&readCount]() -> std::optional<qsizetype> {
+        ++readCount;
+        return 4096;
+    };
+
+    const kiriview::SystemMemorySnapshot accepted
+        = kiriview::resolveSystemMemorySnapshot(kiriview::SystemMemorySnapshot {}, fallbackRuntime);
+
+    QCOMPARE(accepted.physicalByteSize, qsizetype(0));
+    QCOMPARE(readCount, 0);
+
+    const kiriview::SystemMemorySnapshot fallback
+        = kiriview::resolveSystemMemorySnapshot(std::nullopt, std::move(fallbackRuntime));
+
+    QCOMPARE(fallback.physicalByteSize, qsizetype(4096));
+    QCOMPARE(readCount, 1);
 }
 
 QTEST_GUILESS_MAIN(TestSystemMemory)

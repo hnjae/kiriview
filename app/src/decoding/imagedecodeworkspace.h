@@ -90,8 +90,10 @@ private:
 
 ImageDecodeWorkspaceBudgetLimits resolvedImageDecodeWorkspaceBudgetLimits(
     ImageDecodeWorkspaceBudgetRequest request, SystemMemorySnapshot systemMemory);
+std::shared_ptr<ImageDecodeWorkspaceBudget> imageDecodeWorkspaceBudgetForSystemMemory(
+    ImageDecodeWorkspaceBudgetRequest request, SystemMemorySnapshot systemMemory);
 std::shared_ptr<ImageDecodeWorkspaceBudget> defaultImageDecodeWorkspaceBudget(
-    ImageDecodeWorkspaceBudgetRequest request = {}, SystemMemorySnapshot systemMemory = {});
+    ImageDecodeWorkspaceBudgetRequest request = {}, SystemMemoryRuntime runtime = {});
 QString imageDecodeWorkspaceResourceLimitDiagnostic();
 std::optional<qsizetype> checkedImageDecodeWorkspaceByteCount(
     QSize imageSize, qsizetype bytesPerPixel, qsizetype bufferCount);

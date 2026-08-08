@@ -10,15 +10,17 @@ MediaPredecodeDependencies resolveMediaPredecodeDependencies(
     MediaPredecodeDependencyOverrides overrides)
 {
     const SystemMemorySnapshot systemMemory
-        = overrides.systemMemorySnapshot.value_or(systemMemorySnapshot());
+        = resolveSystemMemorySnapshot(overrides.systemMemorySnapshot);
     const qsizetype cacheByteBudget = overrides.cacheBudgetRequest.predecodeCacheByteBudget > 0
         ? overrides.cacheBudgetRequest.predecodeCacheByteBudget
         : predecodeCacheByteBudgetForSystemMemory(systemMemory.physicalByteSize);
     if (overrides.imageDecode.sourceDataBudget == nullptr) {
-        overrides.imageDecode.sourceDataBudget = defaultImageSourceDataBudget({}, systemMemory);
+        overrides.imageDecode.sourceDataBudget
+            = imageSourceDataBudgetForSystemMemory({}, systemMemory);
     }
     if (overrides.imageDecode.workspaceBudget == nullptr) {
-        overrides.imageDecode.workspaceBudget = defaultImageDecodeWorkspaceBudget({}, systemMemory);
+        overrides.imageDecode.workspaceBudget
+            = imageDecodeWorkspaceBudgetForSystemMemory({}, systemMemory);
     }
 
     return MediaPredecodeDependencies {

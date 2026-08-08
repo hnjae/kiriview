@@ -10,6 +10,7 @@
 #include "session/documentsessiondocumentports.h"
 #include "session/documentsessionruntime.h"
 #include "session/mediainformationeffectruntime.h"
+#include "system/systemmemory.h"
 
 #include <QAbstractListModel>
 #include <QObject>
@@ -21,6 +22,7 @@
 #include <QtGlobal>
 #include <QtQml/qqmlregistration.h>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace kiriview {
@@ -28,6 +30,7 @@ enum class DocumentSessionPublicSignal;
 
 struct KiriDocumentSessionDependencies
 {
+    std::optional<SystemMemorySnapshot> systemMemorySnapshot;
     DocumentSessionRuntimeDependencies sessionRuntime;
     ImageDocumentRuntimeDependencyOverrides imageDocument;
     TimerScheduler videoPlaybackControlTimerScheduler;

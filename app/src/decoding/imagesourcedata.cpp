@@ -166,16 +166,19 @@ ImageSourceDataBudgetLimits resolvedImageSourceDataBudgetLimits(
     return ImageSourceDataBudgetLimits { aggregateByteLimit, perSourceByteLimit };
 }
 
-std::shared_ptr<ImageSourceDataBudget> defaultImageSourceDataBudget(
+std::shared_ptr<ImageSourceDataBudget> imageSourceDataBudgetForSystemMemory(
     ImageSourceDataBudgetRequest request, SystemMemorySnapshot systemMemory)
 {
-    if (systemMemory.physicalByteSize <= 0) {
-        systemMemory = systemMemorySnapshot();
-    }
     const ImageSourceDataBudgetLimits limits
         = resolvedImageSourceDataBudgetLimits(request, systemMemory);
     return std::make_shared<ImageSourceDataBudget>(
         limits.aggregateByteLimit, limits.perSourceByteLimit);
+}
+
+std::shared_ptr<ImageSourceDataBudget> defaultImageSourceDataBudget(
+    ImageSourceDataBudgetRequest request, SystemMemoryRuntime runtime)
+{
+    return imageSourceDataBudgetForSystemMemory(request, systemMemorySnapshot(std::move(runtime)));
 }
 
 ImageSourceDataReadResult readImageSourceData(

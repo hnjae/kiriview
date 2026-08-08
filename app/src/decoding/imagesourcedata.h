@@ -89,8 +89,10 @@ struct ImageSourceDataReadResult
 
 ImageSourceDataBudgetLimits resolvedImageSourceDataBudgetLimits(
     ImageSourceDataBudgetRequest request, SystemMemorySnapshot systemMemory);
+std::shared_ptr<ImageSourceDataBudget> imageSourceDataBudgetForSystemMemory(
+    ImageSourceDataBudgetRequest request, SystemMemorySnapshot systemMemory);
 std::shared_ptr<ImageSourceDataBudget> defaultImageSourceDataBudget(
-    ImageSourceDataBudgetRequest request = {}, SystemMemorySnapshot systemMemory = {});
+    ImageSourceDataBudgetRequest request = {}, SystemMemoryRuntime runtime = {});
 ImageSourceDataReadResult readImageSourceData(
     QIODevice& device, ImageSourceDataLease lease, qint64 expectedByteCount = -1);
 QString imageSourceDataResourceLimitDiagnostic();

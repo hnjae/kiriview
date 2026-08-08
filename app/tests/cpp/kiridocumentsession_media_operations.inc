@@ -280,12 +280,91 @@ void TestKiriDocumentSessionMediaOperations::directImagePredecodeUsesSessionDepe
 }
 
 void TestKiriDocumentSessionMediaOperations::
+    sessionOwnedSystemMemorySnapshotControlsComposedMemoryConsumers()
+{
+    constexpr qsizetype physicalByteSize = 1024 * 1024 * 1024;
+    kiriview::KiriDocumentSessionDependencies dependencies;
+    dependencies.systemMemorySnapshot = kiriview::SystemMemorySnapshot { physicalByteSize };
+    dependencies.imageDocument.systemMemorySnapshot
+        = kiriview::SystemMemorySnapshot { physicalByteSize * 2 };
+    dependencies.sessionRuntime.directMediaPredecodeDependencies.systemMemorySnapshot
+        = kiriview::SystemMemorySnapshot { physicalByteSize * 4 };
+
+    kiriview::KiriDocumentSessionDependencies resolved
+        = kiriview::resolveKiriDocumentSessionDependencies(std::move(dependencies));
+    const std::shared_ptr<kiriview::ImageSourceDataBudget>& sourceDataBudget
+        = resolved.imageDocument.imageDecode.sourceDataBudget;
+    const std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget>& workspaceBudget
+        = resolved.imageDocument.imageDecode.workspaceBudget;
+    const kiriview::ImageSourceDataBudgetLimits sourceDataLimits
+        = kiriview::resolvedImageSourceDataBudgetLimits(
+            {}, kiriview::SystemMemorySnapshot { physicalByteSize });
+    const kiriview::ImageDecodeWorkspaceBudgetLimits workspaceLimits
+        = kiriview::resolvedImageDecodeWorkspaceBudgetLimits(
+            {}, kiriview::SystemMemorySnapshot { physicalByteSize });
+
+    QCOMPARE(resolved.systemMemorySnapshot->physicalByteSize, physicalByteSize);
+    QCOMPARE(resolved.imageDocument.systemMemorySnapshot->physicalByteSize, physicalByteSize);
+    QCOMPARE(resolved.sessionRuntime.directMediaPredecodeDependencies.systemMemorySnapshot
+                 ->physicalByteSize,
+        physicalByteSize);
+    QCOMPARE(resolved.imageDocument.cacheBudgetRequest.thumbnailCacheByteBudget,
+        physicalByteSize / 64);
+    QVERIFY(sourceDataBudget != nullptr);
+    QVERIFY(sourceDataBudget
+        == resolved.sessionRuntime.activeNavigationThumbnails.sourceDataBudget);
+    QVERIFY(sourceDataBudget
+        == resolved.sessionRuntime.directMediaPredecodeDependencies.imageDecode.sourceDataBudget);
+    QCOMPARE(sourceDataBudget->aggregateByteLimit(), sourceDataLimits.aggregateByteLimit);
+    QCOMPARE(sourceDataBudget->perSourceByteLimit(), sourceDataLimits.perSourceByteLimit);
+    QVERIFY(workspaceBudget != nullptr);
+    QVERIFY(workspaceBudget
+        == resolved.sessionRuntime.activeNavigationThumbnails.workspaceBudget);
+    QVERIFY(workspaceBudget
+        == resolved.sessionRuntime.directMediaPredecodeDependencies.imageDecode.workspaceBudget);
+    QCOMPARE(workspaceBudget->aggregateByteLimit(), workspaceLimits.aggregateByteLimit);
+    QCOMPARE(workspaceBudget->perOperationByteLimit(), workspaceLimits.perOperationByteLimit);
+}
+
+void TestKiriDocumentSessionMediaOperations::
+    unknownSessionMemorySnapshotRemainsAcceptedAcrossComposition()
+{
+    const kiriview::SystemMemorySnapshot unknownSystemMemory;
+    kiriview::KiriDocumentSessionDependencies dependencies;
+    dependencies.systemMemorySnapshot = unknownSystemMemory;
+    dependencies.imageDocument.systemMemorySnapshot
+        = kiriview::SystemMemorySnapshot { 1024 * 1024 * 1024 };
+    dependencies.sessionRuntime.directMediaPredecodeDependencies.systemMemorySnapshot
+        = kiriview::SystemMemorySnapshot { 2LL * 1024 * 1024 * 1024 };
+
+    kiriview::KiriDocumentSessionDependencies resolved
+        = kiriview::resolveKiriDocumentSessionDependencies(std::move(dependencies));
+    const kiriview::ImageSourceDataBudgetLimits sourceDataLimits
+        = kiriview::resolvedImageSourceDataBudgetLimits({}, unknownSystemMemory);
+    const kiriview::ImageDecodeWorkspaceBudgetLimits workspaceLimits
+        = kiriview::resolvedImageDecodeWorkspaceBudgetLimits({}, unknownSystemMemory);
+
+    QCOMPARE(resolved.systemMemorySnapshot->physicalByteSize, qsizetype(0));
+    QCOMPARE(resolved.imageDocument.systemMemorySnapshot->physicalByteSize, qsizetype(0));
+    QCOMPARE(resolved.sessionRuntime.directMediaPredecodeDependencies.systemMemorySnapshot
+                 ->physicalByteSize,
+        qsizetype(0));
+    QCOMPARE(resolved.imageDocument.imageDecode.sourceDataBudget->aggregateByteLimit(),
+        sourceDataLimits.aggregateByteLimit);
+    QCOMPARE(resolved.imageDocument.imageDecode.sourceDataBudget->perSourceByteLimit(),
+        sourceDataLimits.perSourceByteLimit);
+    QCOMPARE(resolved.imageDocument.imageDecode.workspaceBudget->aggregateByteLimit(),
+        workspaceLimits.aggregateByteLimit);
+    QCOMPARE(resolved.imageDocument.imageDecode.workspaceBudget->perOperationByteLimit(),
+        workspaceLimits.perOperationByteLimit);
+}
+
+void TestKiriDocumentSessionMediaOperations::
     composedDependenciesConfigureSharedThumbnailStoreBudgetFromSnapshot()
 {
     constexpr qsizetype physicalByteSize = 1024 * 1024 * 1024;
     kiriview::KiriDocumentSessionDependencies dependencies;
-    dependencies.imageDocument.systemMemorySnapshot
-        = kiriview::SystemMemorySnapshot { physicalByteSize };
+    dependencies.systemMemorySnapshot = kiriview::SystemMemorySnapshot { physicalByteSize };
 
     [[maybe_unused]] KiriDocumentSession session(std::move(dependencies));
 

@@ -236,16 +236,20 @@ ImageDecodeWorkspaceBudgetLimits resolvedImageDecodeWorkspaceBudgetLimits(
     return ImageDecodeWorkspaceBudgetLimits { aggregateByteLimit, perOperationByteLimit };
 }
 
-std::shared_ptr<ImageDecodeWorkspaceBudget> defaultImageDecodeWorkspaceBudget(
+std::shared_ptr<ImageDecodeWorkspaceBudget> imageDecodeWorkspaceBudgetForSystemMemory(
     ImageDecodeWorkspaceBudgetRequest request, SystemMemorySnapshot systemMemory)
 {
-    if (systemMemory.physicalByteSize <= 0) {
-        systemMemory = systemMemorySnapshot();
-    }
     const ImageDecodeWorkspaceBudgetLimits limits
         = resolvedImageDecodeWorkspaceBudgetLimits(request, systemMemory);
     return std::make_shared<ImageDecodeWorkspaceBudget>(
         limits.aggregateByteLimit, limits.perOperationByteLimit);
+}
+
+std::shared_ptr<ImageDecodeWorkspaceBudget> defaultImageDecodeWorkspaceBudget(
+    ImageDecodeWorkspaceBudgetRequest request, SystemMemoryRuntime runtime)
+{
+    return imageDecodeWorkspaceBudgetForSystemMemory(
+        request, systemMemorySnapshot(std::move(runtime)));
 }
 
 QString imageDecodeWorkspaceResourceLimitDiagnostic()

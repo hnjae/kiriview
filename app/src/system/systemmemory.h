@@ -25,6 +25,8 @@ std::optional<qsizetype> physicalSystemMemoryByteSize();
 SystemMemoryRuntime defaultSystemMemoryRuntime();
 SystemMemoryRuntime systemMemoryRuntimeWithDefaults(SystemMemoryRuntime runtime);
 SystemMemorySnapshot systemMemorySnapshot(SystemMemoryRuntime runtime = {});
+SystemMemorySnapshot resolveSystemMemorySnapshot(
+    std::optional<SystemMemorySnapshot> acceptedSnapshot, SystemMemoryRuntime fallbackRuntime = {});
 }
 
 #endif

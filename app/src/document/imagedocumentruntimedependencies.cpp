@@ -47,14 +47,16 @@ ImageDocumentRuntimeDependencies resolveImageDocumentRuntimeDependencies(
 {
     const bool useMediaEntrySourceStore = shouldUseMediaEntrySourceStore(overrides);
     const SystemMemorySnapshot systemMemory
-        = overrides.systemMemorySnapshot.value_or(systemMemorySnapshot());
+        = resolveSystemMemorySnapshot(overrides.systemMemorySnapshot);
     MediaEntrySourceFactory mediaEntrySourceFactory = std::move(overrides.mediaEntrySourceFactory);
     overrides.mediaEntrySourceFactory = {};
     if (overrides.imageDecode.sourceDataBudget == nullptr) {
-        overrides.imageDecode.sourceDataBudget = defaultImageSourceDataBudget({}, systemMemory);
+        overrides.imageDecode.sourceDataBudget
+            = imageSourceDataBudgetForSystemMemory({}, systemMemory);
     }
     if (overrides.imageDecode.workspaceBudget == nullptr) {
-        overrides.imageDecode.workspaceBudget = defaultImageDecodeWorkspaceBudget({}, systemMemory);
+        overrides.imageDecode.workspaceBudget
+            = imageDecodeWorkspaceBudgetForSystemMemory({}, systemMemory);
     }
     overrides.imageDecode = imageDecodeDependenciesWithDefaults(std::move(overrides.imageDecode));
     overrides.candidateProvider = imageDocumentPageNavigationCandidateProviderWithDefaults(

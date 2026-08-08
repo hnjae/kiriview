@@ -5,6 +5,7 @@
 
 #include "cache/imagecachepolicy.h"
 #include "facade/documentsessionpublicsignals.h"
+#include "facade/kiridocumentsessioncomposition.h"
 #include "facade/kiriimagedocument.h"
 #include "facade/kirivideodocument.h"
 #include "facade/mediaopendialogfilters.h"
@@ -340,32 +341,31 @@ void inheritMissingDirectMediaPredecodeDependencies(
         directMediaPredecode.cacheBudgetRequest.predecodeCacheByteBudget
             = imageDocument.cacheBudgetRequest.predecodeCacheByteBudget;
     }
-    if (!directMediaPredecode.systemMemorySnapshot.has_value()) {
-        directMediaPredecode.systemMemorySnapshot = imageDocument.systemMemorySnapshot;
-    }
+}
 }
 
-kiriview::KiriDocumentSessionDependencies documentSessionDependenciesWithComposedDefaults(
-    kiriview::KiriDocumentSessionDependencies dependencies)
+namespace kiriview {
+KiriDocumentSessionDependencies resolveKiriDocumentSessionDependencies(
+    KiriDocumentSessionDependencies dependencies)
 {
-    const kiriview::SystemMemorySnapshot systemMemory
-        = dependencies.imageDocument.systemMemorySnapshot.value_or(
-            kiriview::systemMemorySnapshot());
-    kiriview::ImageCacheBudgetRequest request
-        = kiriview::imageDocumentCacheBudgetRequestWithDefaults(
-            dependencies.imageDocument.cacheBudgetRequest);
+    const SystemMemorySnapshot systemMemory
+        = resolveSystemMemorySnapshot(dependencies.systemMemorySnapshot);
+    dependencies.systemMemorySnapshot = systemMemory;
+    dependencies.imageDocument.systemMemorySnapshot = systemMemory;
+    dependencies.sessionRuntime.directMediaPredecodeDependencies.systemMemorySnapshot
+        = systemMemory;
+    ImageCacheBudgetRequest request = imageDocumentCacheBudgetRequestWithDefaults(
+        dependencies.imageDocument.cacheBudgetRequest);
     if (request.predecodeCacheByteBudget <= 0 || request.displayImageCacheByteBudget <= 0
         || request.thumbnailCacheByteBudget <= 0) {
-        const kiriview::ImageCacheBudgets cacheBudgets
-            = kiriview::resolvedImageCacheBudgets(request, systemMemory);
+        const ImageCacheBudgets cacheBudgets = resolvedImageCacheBudgets(request, systemMemory);
         request.predecodeCacheByteBudget = cacheBudgets.predecodeCacheByteBudget;
         request.displayImageCacheByteBudget = cacheBudgets.displayImageCacheByteBudget;
         request.thumbnailCacheByteBudget = cacheBudgets.thumbnailCacheByteBudget;
     }
     dependencies.imageDocument.cacheBudgetRequest = request;
-    kiriview::configureSharedThumbnailImageStoreByteBudget(request.thumbnailCacheByteBudget);
 
-    std::shared_ptr<kiriview::ImageSourceDataBudget> sourceDataBudget
+    std::shared_ptr<ImageSourceDataBudget> sourceDataBudget
         = dependencies.imageDocument.imageDecode.sourceDataBudget;
     if (sourceDataBudget == nullptr) {
         sourceDataBudget = dependencies.sessionRuntime.activeNavigationThumbnails.sourceDataBudget;
@@ -375,14 +375,14 @@ kiriview::KiriDocumentSessionDependencies documentSessionDependenciesWithCompose
                                .sourceDataBudget;
     }
     if (sourceDataBudget == nullptr) {
-        sourceDataBudget = kiriview::defaultImageSourceDataBudget({}, systemMemory);
+        sourceDataBudget = imageSourceDataBudgetForSystemMemory({}, systemMemory);
     }
     dependencies.imageDocument.imageDecode.sourceDataBudget = sourceDataBudget;
     dependencies.sessionRuntime.activeNavigationThumbnails.sourceDataBudget = sourceDataBudget;
     dependencies.sessionRuntime.directMediaPredecodeDependencies.imageDecode.sourceDataBudget
         = std::move(sourceDataBudget);
 
-    std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> workspaceBudget
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget
         = dependencies.imageDocument.imageDecode.workspaceBudget;
     if (workspaceBudget == nullptr) {
         workspaceBudget = dependencies.sessionRuntime.activeNavigationThumbnails.workspaceBudget;
@@ -392,7 +392,7 @@ kiriview::KiriDocumentSessionDependencies documentSessionDependenciesWithCompose
                               .workspaceBudget;
     }
     if (workspaceBudget == nullptr) {
-        workspaceBudget = kiriview::defaultImageDecodeWorkspaceBudget({}, systemMemory);
+        workspaceBudget = imageDecodeWorkspaceBudgetForSystemMemory({}, systemMemory);
     }
     dependencies.imageDocument.imageDecode.workspaceBudget = workspaceBudget;
     dependencies.sessionRuntime.activeNavigationThumbnails.workspaceBudget = workspaceBudget;
@@ -401,6 +401,18 @@ kiriview::KiriDocumentSessionDependencies documentSessionDependenciesWithCompose
 
     inheritMissingDirectMediaPredecodeDependencies(dependencies);
     return dependencies;
+}
+}
+
+namespace {
+kiriview::KiriDocumentSessionDependencies documentSessionDependenciesWithComposedDefaults(
+    kiriview::KiriDocumentSessionDependencies dependencies)
+{
+    kiriview::KiriDocumentSessionDependencies resolved
+        = kiriview::resolveKiriDocumentSessionDependencies(std::move(dependencies));
+    kiriview::configureSharedThumbnailImageStoreByteBudget(
+        resolved.imageDocument.cacheBudgetRequest.thumbnailCacheByteBudget);
+    return resolved;
 }
 
 kiriview::DocumentSessionPublicSignalOperations publicSignalOperations(KiriDocumentSession& session)

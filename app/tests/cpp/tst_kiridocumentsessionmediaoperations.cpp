@@ -3,6 +3,8 @@
 
 #include "kiridocumentsession_test_support.h"
 
+#include "facade/kiridocumentsessioncomposition.h"
+
 class TestKiriDocumentSessionMediaOperations : public QObject
 {
     Q_OBJECT
@@ -17,6 +19,8 @@ private Q_SLOTS:
     void videoActiveNavigationExposesCurrentNumberAndCount();
     void initialDirectImagePredecodeUsesRequestedMediaCursor();
     void directImagePredecodeUsesSessionDependencyOverrides();
+    void sessionOwnedSystemMemorySnapshotControlsComposedMemoryConsumers();
+    void unknownSessionMemorySnapshotRemainsAcceptedAcrossComposition();
     void composedDependenciesConfigureSharedThumbnailStoreBudgetFromSnapshot();
     void directImagePredecodeDoesNotUseImageDocumentPageCandidates();
     void staleDirectMediaNavigationCandidateCompletionCannotPublishForNewSource();

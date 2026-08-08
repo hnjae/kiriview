@@ -54,4 +54,13 @@ SystemMemorySnapshot systemMemorySnapshot(SystemMemoryRuntime runtime)
         std::max<qsizetype>(0, physicalByteSize.value_or(0)),
     };
 }
+
+SystemMemorySnapshot resolveSystemMemorySnapshot(
+    std::optional<SystemMemorySnapshot> acceptedSnapshot, SystemMemoryRuntime fallbackRuntime)
+{
+    if (acceptedSnapshot.has_value()) {
+        return *acceptedSnapshot;
+    }
+    return systemMemorySnapshot(std::move(fallbackRuntime));
+}
 }
