@@ -3,12 +3,17 @@
 
 #include "kiridocumentsession_test_support.h"
 
+#include <algorithm>
+#include <iterator>
+
 class TestKiriDocumentSessionRouting : public QObject
 {
     Q_OBJECT
 
 private Q_SLOTS:
     void directVideoRoutesToVideoDocumentWithOriginalSource();
+    void removedDirectVideoClearsOldLeafBeforeRoutingFallback();
+    void removedOnlyDirectVideoClearsSession();
     void directVideoTitleDecodesFileNameExactlyOnce_data();
     void directVideoTitleDecodesFileNameExactlyOnce();
     void publicProjectionRevisionCommitsBeforeScalarSignals();

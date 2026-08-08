@@ -13,9 +13,11 @@ class TestDocumentSessionDirectMediaNavigationWorkflow : public QObject
 
 private Q_SLOTS:
     void failedRefreshClearsNavigationAndRequestsProgrammaticReveal();
+    void successfulRefreshWithoutCurrentRemainsUnknown();
     void refreshRequestsRevealWhenSelectionChanges();
     void successfulOpenOfNewTargetKeepsPendingRevealAndRoutes();
     void successfulOpenWithoutTargetClearsPendingReveal();
+    void successfulOpenWithoutCurrentRemainsUnknown();
 };
 
 namespace {
@@ -90,6 +92,30 @@ void TestDocumentSessionDirectMediaNavigationWorkflow::refreshRequestsRevealWhen
 }
 
 void TestDocumentSessionDirectMediaNavigationWorkflow::
+    successfulRefreshWithoutCurrentRemainsUnknown()
+{
+    const QUrl currentUrl = localUrl(QStringLiteral("/media/02.png"));
+    const QUrl nextUrl = localUrl(QStringLiteral("/media/03.png"));
+
+    const kiriview::DocumentSessionDirectMediaNavigationRefreshApplication application
+        = kiriview::documentSessionDirectMediaNavigationRefreshApplication(
+            kiriview::ActiveNavigationSourceKind::OrdinaryDirectMedia, {},
+            kiriview::DocumentSessionDirectMediaNavigationRefreshResult {
+                { directMediaNavigationCandidate(nextUrl) },
+                kiriview::directMediaNavigationBoundaryState(
+                    { directMediaNavigationCandidate(nextUrl) }, currentUrl),
+                true,
+                QString(),
+            });
+
+    QVERIFY(!application.known);
+    QVERIFY(application.candidates.empty());
+    QCOMPARE(application.revealAction,
+        kiriview::DocumentSessionDirectMediaNavigationRevealAction::ProgrammaticSync);
+    QVERIFY(!application.schedulePredecode);
+}
+
+void TestDocumentSessionDirectMediaNavigationWorkflow::
     successfulOpenOfNewTargetKeepsPendingRevealAndRoutes()
 {
     const QUrl currentUrl = localUrl(QStringLiteral("/media/01.png"));
@@ -155,6 +181,28 @@ void TestDocumentSessionDirectMediaNavigationWorkflow::
     QCOMPARE(application.revealAction,
         kiriview::DocumentSessionDirectMediaNavigationRevealAction::Clear);
     QVERIFY(application.schedulePredecode);
+}
+
+void TestDocumentSessionDirectMediaNavigationWorkflow::successfulOpenWithoutCurrentRemainsUnknown()
+{
+    const QUrl currentUrl = localUrl(QStringLiteral("/media/02.png"));
+    const QUrl nextUrl = localUrl(QStringLiteral("/media/03.png"));
+
+    const kiriview::DocumentSessionDirectMediaNavigationOpenApplication application
+        = kiriview::documentSessionDirectMediaNavigationOpenApplication(currentUrl,
+            kiriview::DocumentSessionDirectMediaNavigationOpenResult {
+                { directMediaNavigationCandidate(nextUrl) },
+                kiriview::DirectMediaNavigationOpenPlan {},
+                true,
+                QString(),
+            });
+
+    QVERIFY(!application.known);
+    QVERIFY(application.candidates.empty());
+    QVERIFY(!application.routeTargetUrl.has_value());
+    QCOMPARE(application.revealAction,
+        kiriview::DocumentSessionDirectMediaNavigationRevealAction::ProgrammaticSync);
+    QVERIFY(!application.schedulePredecode);
 }
 
 QTEST_GUILESS_MAIN(TestDocumentSessionDirectMediaNavigationWorkflow)

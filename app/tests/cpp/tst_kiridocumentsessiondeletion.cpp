@@ -24,7 +24,9 @@ private Q_SLOTS:
     void reentrantSourceSelectionDuringSuccessfulVideoDeletionKeepsLatestSelection();
     void stalePendingNavigationCompletionCannotSupersedeDeletionFallback();
     void canceledVideoDeletionKeepsCurrentVideo();
+    void canceledVideoDeletionRebindsLiveNavigation();
     void failedVideoDeletionPublishesErrorWithProgressCompletion();
+    void failedVideoDeletionRebindsLiveNavigation();
     void failedVideoDeletionCompletionAllowsImmediateRetryAndUsesGenericMessage();
     void staleVideoDeletionCompletionAfterSourceChangeIsIgnored();
 };

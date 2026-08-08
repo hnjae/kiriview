@@ -55,12 +55,12 @@ ImageIoJob ImageDocumentPageCandidateStore::loadDirectoryImages(QObject* receive
     directoryUrl = normalizedDirectoryUrlForIdentity(directoryUrl);
     const QString key = directoryUrlIdentityKey(directoryUrl);
     ImageDocumentPageCandidateDirectoryEntry& entry = entryForLocalDirectory(directoryUrl);
-    if (entry.failed()) {
-        invokeIfSet(errorCallback, entry.error());
-        return ImageIoJob();
-    }
     if (entry.listed()) {
         invokeIfSet(callback, entry.candidates());
+        return ImageIoJob();
+    }
+    if (entry.failed()) {
+        invokeIfSet(errorCallback, entry.error());
         return ImageIoJob();
     }
 
@@ -84,7 +84,7 @@ ImageIoJob ImageDocumentPageCandidateStore::watchDirectoryImages(QObject* receiv
     directoryUrl = normalizedDirectoryUrlForIdentity(directoryUrl);
     const QString key = directoryUrlIdentityKey(directoryUrl);
     ImageDocumentPageCandidateDirectoryEntry& entry = entryForLocalDirectory(directoryUrl);
-    if (entry.failed()) {
+    if (entry.failed() && !entry.listed()) {
         invokeIfSet(errorCallback, entry.error());
         return ImageIoJob();
     }

@@ -25,6 +25,10 @@ private Q_SLOTS:
     void sortingAndMatchingNormalizePathSegmentsAndPercentEncoding();
     void matchingPreservesQueryAndFragmentIdentity();
     void boundaryStateIsUnknownWhenCurrentMediaIsMissing();
+    void removalFallbackPrefersNextCandidate();
+    void removalFallbackUsesPreviousCandidateAtEnd();
+    void removalFallbackIsEmptyWithoutCandidates();
+    void removalFallbackMatchesNormalizedSourceIdentity();
 };
 
 void TestDirectMediaNavigationModel::navigatesMixedMediaWithoutWrapping()
@@ -165,6 +169,56 @@ void TestDirectMediaNavigationModel::boundaryStateIsUnknownWhenCurrentMediaIsMis
     QVERIFY(!boundary.atKnownLast);
     QCOMPARE(boundary.currentNumber, 0);
     QCOMPARE(boundary.count, 0);
+}
+
+void TestDirectMediaNavigationModel::removalFallbackPrefersNextCandidate()
+{
+    std::vector<kiriview::DirectMediaNavigationCandidate> candidates {
+        candidate(localUrl(QStringLiteral("/media/01.jpg"))),
+        candidate(localUrl(QStringLiteral("/media/03.png"))),
+    };
+    kiriview::sortDirectMediaNavigationCandidates(&candidates);
+
+    QCOMPARE(kiriview::directMediaNavigationRemovalFallbackUrl(
+                 candidates, localUrl(QStringLiteral("/media/02.mp4")))
+                 .value(),
+        localUrl(QStringLiteral("/media/03.png")));
+}
+
+void TestDirectMediaNavigationModel::removalFallbackUsesPreviousCandidateAtEnd()
+{
+    std::vector<kiriview::DirectMediaNavigationCandidate> candidates {
+        candidate(localUrl(QStringLiteral("/media/01.jpg"))),
+        candidate(localUrl(QStringLiteral("/media/02.mp4"))),
+    };
+    kiriview::sortDirectMediaNavigationCandidates(&candidates);
+
+    QCOMPARE(kiriview::directMediaNavigationRemovalFallbackUrl(
+                 candidates, localUrl(QStringLiteral("/media/03.png")))
+                 .value(),
+        localUrl(QStringLiteral("/media/02.mp4")));
+}
+
+void TestDirectMediaNavigationModel::removalFallbackIsEmptyWithoutCandidates()
+{
+    QVERIFY(!kiriview::directMediaNavigationRemovalFallbackUrl(
+        {}, localUrl(QStringLiteral("/media/current.mp4"))));
+}
+
+void TestDirectMediaNavigationModel::removalFallbackMatchesNormalizedSourceIdentity()
+{
+    const QUrl normalizedCurrent = localUrl(QStringLiteral("/media/02.mp4"));
+    std::vector<kiriview::DirectMediaNavigationCandidate> candidates {
+        candidate(localUrl(QStringLiteral("/media/01.jpg"))),
+        candidate(normalizedCurrent),
+        candidate(localUrl(QStringLiteral("/media/03.png"))),
+    };
+    kiriview::sortDirectMediaNavigationCandidates(&candidates);
+
+    QCOMPARE(kiriview::directMediaNavigationRemovalFallbackUrl(
+                 candidates, localUrl(QStringLiteral("/media/chapter/../02.mp4")))
+                 .value(),
+        localUrl(QStringLiteral("/media/03.png")));
 }
 
 QTEST_GUILESS_MAIN(TestDirectMediaNavigationModel)

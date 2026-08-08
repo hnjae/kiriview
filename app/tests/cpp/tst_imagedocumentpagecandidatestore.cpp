@@ -138,6 +138,7 @@ private Q_SLOTS:
     void completionCallbackCanDestroyStore();
     void earlierSubscriberCanCancelLaterChangedDelivery();
     void earlierSubscriberCanCancelLaterFailureDelivery();
+    void failedLiveWatchRetainsConfirmedCandidatesForNewClients();
     void liveDirectoryWatchJobCanOutliveStore();
 };
 
@@ -375,6 +376,74 @@ void TestImageDocumentPageCandidateStore::earlierSubscriberCanCancelLaterFailure
     QCOMPARE(laterFailureCount, 0);
     QVERIFY(!laterSubscriber.isActive());
     earlierSubscriber.cancel();
+}
+
+void TestImageDocumentPageCandidateStore::failedLiveWatchRetainsConfirmedCandidatesForNewClients()
+{
+    FakeWatchProvider provider;
+    kiriview::ImageDocumentPageCandidateStore store(provider.provider());
+    const QString directoryName = QStringLiteral("recovering-watch");
+    const QUrl watchedDirectory = directoryUrl(directoryName);
+    int originalFailureCount = 0;
+    kiriview::ImageIoJob originalWatch = store.watchDirectoryImages(
+        this, watchedDirectory, [](std::vector<kiriview::ImageDocumentPageCandidate>) {},
+        [&originalFailureCount](
+            const kiriview::ImageDocumentPageCandidateLoadError&) { ++originalFailureCount; });
+    std::vector<kiriview::ImageDocumentPageCandidate> initiallyLoaded;
+    kiriview::ImageIoJob initialLoad = store.loadDirectoryImages(
+        this, watchedDirectory,
+        [&initiallyLoaded](std::vector<kiriview::ImageDocumentPageCandidate> candidates) {
+            initiallyLoaded = std::move(candidates);
+        },
+        [](const kiriview::ImageDocumentPageCandidateLoadError&) {});
+    const std::vector<QUrl> initialUrls {
+        fileUrl(QStringLiteral("01.png"), directoryName),
+        fileUrl(QStringLiteral("02.png"), directoryName),
+    };
+    provider.complete(0,
+        { candidate(QStringLiteral("01.png"), directoryName),
+            candidate(QStringLiteral("02.png"), directoryName) });
+    QVERIFY(!initialLoad.isActive());
+    QCOMPARE(candidateUrls(initiallyLoaded), initialUrls);
+
+    provider.fail(0, QStringLiteral("live watch failed"));
+    QCOMPARE(originalFailureCount, 1);
+
+    std::vector<kiriview::ImageDocumentPageCandidate> cachedCandidates;
+    int cachedLoadErrorCount = 0;
+    store.loadDirectoryImages(
+        this, watchedDirectory,
+        [&cachedCandidates](std::vector<kiriview::ImageDocumentPageCandidate> candidates) {
+            cachedCandidates = std::move(candidates);
+        },
+        [&cachedLoadErrorCount](
+            const kiriview::ImageDocumentPageCandidateLoadError&) { ++cachedLoadErrorCount; });
+    QCOMPARE(candidateUrls(cachedCandidates), initialUrls);
+    QCOMPARE(cachedLoadErrorCount, 0);
+
+    std::vector<kiriview::ImageDocumentPageCandidate> recoveredCandidates;
+    int reboundFailureCount = 0;
+    kiriview::ImageIoJob reboundWatch = store.watchDirectoryImages(
+        this, watchedDirectory,
+        [&recoveredCandidates](std::vector<kiriview::ImageDocumentPageCandidate> candidates) {
+            recoveredCandidates = std::move(candidates);
+        },
+        [&reboundFailureCount](
+            const kiriview::ImageDocumentPageCandidateLoadError&) { ++reboundFailureCount; });
+    QVERIFY(reboundWatch.isActive());
+    QCOMPARE(reboundFailureCount, 0);
+
+    const std::vector<QUrl> recoveredUrls {
+        fileUrl(QStringLiteral("01.png"), directoryName),
+        fileUrl(QStringLiteral("03.png"), directoryName),
+    };
+    provider.change(0,
+        { candidate(QStringLiteral("01.png"), directoryName),
+            candidate(QStringLiteral("03.png"), directoryName) });
+    QCOMPARE(candidateUrls(recoveredCandidates), recoveredUrls);
+
+    reboundWatch.cancel();
+    originalWatch.cancel();
 }
 
 void TestImageDocumentPageCandidateStore::liveDirectoryWatchJobCanOutliveStore()

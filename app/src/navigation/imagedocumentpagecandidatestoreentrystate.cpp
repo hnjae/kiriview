@@ -119,6 +119,8 @@ ImageDocumentPageCandidateStoreEntryState::updateListing(
     std::vector<ImageDocumentPageCandidate> candidates)
 {
     const bool changed = replaceCandidates(std::move(candidates));
+    m_failed = false;
+    m_error = QString();
     ImageDocumentPageCandidateStoreEntryNotificationPlan plan;
     plan.candidates = m_candidates;
     if (m_listed && changed) {

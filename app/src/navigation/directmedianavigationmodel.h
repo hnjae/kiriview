@@ -54,6 +54,8 @@ std::optional<std::size_t> directMediaNavigationCandidateIndex(
 std::optional<QUrl> adjacentDirectMediaNavigationUrl(
     const std::vector<DirectMediaNavigationCandidate>& candidates, const QUrl& currentUrl,
     NavigationDirection direction);
+std::optional<QUrl> directMediaNavigationRemovalFallbackUrl(
+    const std::vector<DirectMediaNavigationCandidate>& candidates, const QUrl& removedCurrentUrl);
 DirectMediaNavigationBoundaryState directMediaNavigationBoundaryState(
     const std::vector<DirectMediaNavigationCandidate>& candidates, const QUrl& currentUrl);
 DirectMediaNavigationOpenPlan directMediaNavigationOpenPlan(

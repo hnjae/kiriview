@@ -85,6 +85,8 @@ private Q_SLOTS:
     void candidateLoadingPreservesTypedDirectoryFailure();
     void candidateProviderDefaultsBindOpenedCollectionLoaderToWorkerScheduler();
     void directMediaProviderDefaultBindsDirectoryProvider();
+    void directMediaProviderProductionDefaultOffersLiveChanges();
+    void directMediaProviderCustomLoaderDoesNotGainAProductionWatch();
     void directMediaProviderDefaultPreservesTypedDirectoryFailure();
     void imageDocumentRuntimeDependenciesBindContainerLoaderToDirectoryProvider();
     void imageDocumentRuntimeDependenciesBindMediaEntryStoreToWorkerScheduler();
@@ -258,6 +260,7 @@ void TestRuntimeProviderDefaults::directMediaProviderDefaultBindsDirectoryProvid
             kiriview::DirectMediaNavigationCandidateProvider {},
             std::move(directoryItemListProvider));
     QVERIFY(resolved.directoryCandidateLoader);
+    QVERIFY(!resolved.directoryCandidateChanges);
 
     int callbackCount = 0;
     int errorCallbackCount = 0;
@@ -271,6 +274,35 @@ void TestRuntimeProviderDefaults::directMediaProviderDefaultBindsDirectoryProvid
     QCOMPARE(providerUrl, requestedUrl);
     QCOMPARE(callbackCount, 1);
     QCOMPARE(errorCallbackCount, 0);
+}
+
+void TestRuntimeProviderDefaults::directMediaProviderProductionDefaultOffersLiveChanges()
+{
+    kiriview::DirectMediaNavigationCandidateProvider resolved
+        = kiriview::defaultDirectMediaNavigationCandidateProvider();
+
+    QVERIFY(resolved.directoryCandidateLoader);
+    QVERIFY(resolved.directoryCandidateChanges);
+}
+
+void TestRuntimeProviderDefaults::directMediaProviderCustomLoaderDoesNotGainAProductionWatch()
+{
+    int loadCount = 0;
+    kiriview::DirectMediaNavigationCandidateProvider provider {
+        [&loadCount](QObject*, QUrl, kiriview::DirectMediaNavigationCandidatesCallback,
+            kiriview::KioOperationFailureCallback) {
+            ++loadCount;
+            return kiriview::ImageIoJob();
+        },
+    };
+
+    kiriview::DirectMediaNavigationCandidateProvider resolved
+        = kiriview::directMediaNavigationCandidateProviderWithDefault(std::move(provider));
+
+    QVERIFY(resolved.directoryCandidateLoader);
+    QVERIFY(!resolved.directoryCandidateChanges);
+    resolved.directoryCandidateLoader(nullptr, QUrl(), {}, {});
+    QCOMPARE(loadCount, 1);
 }
 
 void TestRuntimeProviderDefaults::directMediaProviderDefaultPreservesTypedDirectoryFailure()

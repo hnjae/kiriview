@@ -22,6 +22,10 @@ class TestDocumentSessionDirectMediaNavigationRuntime : public QObject
 private Q_SLOTS:
     void successfulLoadPublishesCandidates();
     void refreshPublishesBoundaryPlanAndCandidates();
+    void refreshPublishesRepeatedCandidateChanges();
+    void candidateChangeSupersedesLateInitialSnapshot();
+    void cancelRejectsLateCandidateChange();
+    void candidateWatchFailureDoesNotPublishAReplacement();
     void openPublishesTargetPlanAndCandidates();
     void failedOpenPublishesUnknownResult();
     void canceledFailurePreservesTypedFields();
@@ -47,6 +51,16 @@ kiriview::DirectMediaNavigationCandidate directMediaNavigationCandidate(const QU
 }
 
 struct ManualDirectMediaNavigationCandidateLoad
+{
+    QObject* object = nullptr;
+    QUrl parentUrl;
+    kiriview::DirectMediaNavigationCandidatesCallback callback;
+    kiriview::KioOperationFailureCallback errorCallback;
+    kiriview::ImageIoJobCompletion completion;
+    bool canceled = false;
+};
+
+struct ManualDirectMediaNavigationCandidateSubscription
 {
     QObject* object = nullptr;
     QUrl parentUrl;
@@ -84,6 +98,19 @@ public:
                 }
                 return job;
             },
+            [this](QObject* receiver, QUrl parentUrl,
+                kiriview::DirectMediaNavigationCandidatesCallback callback,
+                kiriview::KioOperationFailureCallback errorCallback) {
+                auto subscription
+                    = std::make_shared<ManualDirectMediaNavigationCandidateSubscription>();
+                subscription->parentUrl = std::move(parentUrl);
+                subscription->callback = std::move(callback);
+                subscription->errorCallback = std::move(errorCallback);
+                kiriview::ImageIoJob job
+                    = kiriview::TestSupport::Detail::startManualIoJob(receiver, subscription);
+                m_subscriptions.push_back(subscription);
+                return job;
+            },
         };
     }
 
@@ -92,6 +119,13 @@ public:
     ManualDirectMediaNavigationCandidateLoad& loadAt(std::size_t index)
     {
         return *m_loads.at(index);
+    }
+
+    std::size_t subscriptionCount() const { return m_subscriptions.size(); }
+
+    ManualDirectMediaNavigationCandidateSubscription& subscriptionAt(std::size_t index)
+    {
+        return *m_subscriptions.at(index);
     }
 
     void deliverIgnoringCancellation(
@@ -111,6 +145,24 @@ public:
         }
     }
 
+    void deliverChangeIgnoringCancellation(
+        std::size_t index, std::vector<kiriview::DirectMediaNavigationCandidate> candidates)
+    {
+        ManualDirectMediaNavigationCandidateSubscription& subscription = subscriptionAt(index);
+        if (subscription.callback) {
+            subscription.callback(std::move(candidates));
+        }
+    }
+
+    void deliverWatchErrorIgnoringCancellation(
+        std::size_t index, kiriview::KioOperationFailure failure)
+    {
+        ManualDirectMediaNavigationCandidateSubscription& subscription = subscriptionAt(index);
+        if (subscription.errorCallback) {
+            subscription.errorCallback(std::move(failure));
+        }
+    }
+
     void synchronouslyCompleteFirstWith(
         std::vector<kiriview::DirectMediaNavigationCandidate> candidates)
     {
@@ -122,6 +174,7 @@ private:
     std::optional<std::vector<kiriview::DirectMediaNavigationCandidate>>
         m_synchronousFirstCandidates;
     std::vector<std::shared_ptr<ManualDirectMediaNavigationCandidateLoad>> m_loads;
+    std::vector<std::shared_ptr<ManualDirectMediaNavigationCandidateSubscription>> m_subscriptions;
 };
 
 class CancellationCompletingCandidateProvider
@@ -217,6 +270,106 @@ void TestDocumentSessionDirectMediaNavigationRuntime::refreshPublishesBoundaryPl
     QCOMPARE(result.boundaryState.count, 3);
     QVERIFY(result.boundaryState.canOpenPrevious);
     QVERIFY(result.boundaryState.canOpenNext);
+}
+
+void TestDocumentSessionDirectMediaNavigationRuntime::refreshPublishesRepeatedCandidateChanges()
+{
+    RuntimeFixture fixture;
+    const QUrl currentUrl = localUrl(QStringLiteral("/media/01.mp4"));
+    const QUrl firstNextUrl = localUrl(QStringLiteral("/media/02.png"));
+    const QUrl secondNextUrl = localUrl(QStringLiteral("/media/03.png"));
+    int initialCount = 0;
+    std::vector<kiriview::DocumentSessionDirectMediaNavigationRefreshResult> changes;
+
+    fixture.runtime.refresh(
+        &fixture.receiver, directMediaScope(currentUrl),
+        [](const kiriview::DirectMediaScope&) { return true; },
+        [&initialCount](
+            kiriview::DocumentSessionDirectMediaNavigationRefreshResult) { ++initialCount; },
+        [&changes](kiriview::DocumentSessionDirectMediaNavigationRefreshResult result) {
+            changes.push_back(std::move(result));
+        });
+    QCOMPARE(fixture.provider.subscriptionCount(), std::size_t(1));
+    fixture.provider.deliverIgnoringCancellation(0,
+        { directMediaNavigationCandidate(currentUrl),
+            directMediaNavigationCandidate(firstNextUrl) });
+    fixture.provider.deliverChangeIgnoringCancellation(0,
+        { directMediaNavigationCandidate(currentUrl),
+            directMediaNavigationCandidate(firstNextUrl) });
+    fixture.provider.deliverChangeIgnoringCancellation(0,
+        { directMediaNavigationCandidate(currentUrl), directMediaNavigationCandidate(firstNextUrl),
+            directMediaNavigationCandidate(secondNextUrl) });
+    fixture.provider.deliverChangeIgnoringCancellation(
+        0, { directMediaNavigationCandidate(currentUrl) });
+
+    QCOMPARE(initialCount, 1);
+    QCOMPARE(changes.size(), std::size_t(2));
+    QCOMPARE(changes.at(0).boundaryState.count, 3);
+    QCOMPARE(changes.at(1).boundaryState.count, 1);
+    QVERIFY(changes.at(1).boundaryState.atKnownFirst);
+    QVERIFY(changes.at(1).boundaryState.atKnownLast);
+}
+
+void TestDocumentSessionDirectMediaNavigationRuntime::candidateChangeSupersedesLateInitialSnapshot()
+{
+    RuntimeFixture fixture;
+    const QUrl currentUrl = localUrl(QStringLiteral("/media/01.mp4"));
+    const QUrl addedUrl = localUrl(QStringLiteral("/media/02.png"));
+    int initialCount = 0;
+    int changeCount = 0;
+
+    fixture.runtime.refresh(
+        &fixture.receiver, directMediaScope(currentUrl),
+        [](const kiriview::DirectMediaScope&) { return true; },
+        [&initialCount](
+            kiriview::DocumentSessionDirectMediaNavigationRefreshResult) { ++initialCount; },
+        [&changeCount](
+            kiriview::DocumentSessionDirectMediaNavigationRefreshResult) { ++changeCount; });
+    fixture.provider.deliverChangeIgnoringCancellation(0,
+        { directMediaNavigationCandidate(currentUrl), directMediaNavigationCandidate(addedUrl) });
+    fixture.provider.deliverIgnoringCancellation(0, { directMediaNavigationCandidate(currentUrl) });
+
+    QCOMPARE(initialCount, 0);
+    QCOMPARE(changeCount, 1);
+}
+
+void TestDocumentSessionDirectMediaNavigationRuntime::cancelRejectsLateCandidateChange()
+{
+    RuntimeFixture fixture;
+    const QUrl currentUrl = localUrl(QStringLiteral("/media/01.mp4"));
+    int changeCount = 0;
+
+    fixture.runtime.refresh(
+        &fixture.receiver, directMediaScope(currentUrl),
+        [](const kiriview::DirectMediaScope&) { return true; }, {},
+        [&changeCount](
+            kiriview::DocumentSessionDirectMediaNavigationRefreshResult) { ++changeCount; });
+    fixture.runtime.cancel();
+
+    QVERIFY(fixture.provider.subscriptionAt(0).canceled);
+    fixture.provider.deliverChangeIgnoringCancellation(
+        0, { directMediaNavigationCandidate(currentUrl) });
+    QCOMPARE(changeCount, 0);
+}
+
+void TestDocumentSessionDirectMediaNavigationRuntime::
+    candidateWatchFailureDoesNotPublishAReplacement()
+{
+    RuntimeFixture fixture;
+    const QUrl currentUrl = localUrl(QStringLiteral("/media/01.mp4"));
+    int changeCount = 0;
+
+    fixture.runtime.refresh(
+        &fixture.receiver, directMediaScope(currentUrl),
+        [](const kiriview::DirectMediaScope&) { return true; }, {},
+        [&changeCount](
+            kiriview::DocumentSessionDirectMediaNavigationRefreshResult) { ++changeCount; });
+    fixture.provider.deliverWatchErrorIgnoringCancellation(0,
+        kiriview::KioOperationFailure { kiriview::KioOperationKind::DirectoryListing,
+            localUrl(QStringLiteral("/media/")), 73, false, QStringLiteral("watch failed"),
+            QStringLiteral("watch failed"), true });
+
+    QCOMPARE(changeCount, 0);
 }
 
 void TestDocumentSessionDirectMediaNavigationRuntime::openPublishesTargetPlanAndCandidates()

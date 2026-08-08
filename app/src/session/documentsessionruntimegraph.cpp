@@ -328,6 +328,9 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
               [this](const QUrl& url, std::function<bool()> originatingCurrent) {
                   openMediaUrl(url, std::move(originatingCurrent));
               },
+              [this](std::optional<QUrl> fallbackUrl, std::function<bool()> originatingCurrent) {
+                  recoverRemovedDirectMedia(std::move(fallbackUrl), std::move(originatingCurrent));
+              },
           })
     , m_mediaDeletionRuntime(std::move(dependencies.fileDeletionProvider),
           std::move(dependencies.directMediaNavigationCandidateProvider))
@@ -785,8 +788,9 @@ void DocumentSessionRuntimeGraph::deleteDisplayedFile(FileDeletionMode mode)
                 && m_directMediaScopePort.cursorMatches(acceptedScope);
         },
         documentKind,
-        [this, operation](const DocumentSessionMediaDeletionCompletion& completion) {
-            finishMediaDeletion(operation, completion);
+        [this, operation, navigationCancellationCurrent](
+            const DocumentSessionMediaDeletionCompletion& completion) {
+            finishMediaDeletion(operation, completion, navigationCancellationCurrent);
         });
     if (lifetime.expired()) {
         return;
@@ -794,6 +798,10 @@ void DocumentSessionRuntimeGraph::deleteDisplayedFile(FileDeletionMode mode)
     if (!started && m_mediaDeletionTransaction.finish(operation)) {
         m_state.setFileDeletionInProgress(false);
         recomputePublicProjection();
+        if (lifetime.expired()) {
+            return;
+        }
+        refreshDirectMediaNavigationAfterDeletion(operation.scope, navigationCancellationCurrent);
     }
 }
 
@@ -1177,6 +1185,14 @@ void DocumentSessionRuntimeGraph::openMediaUrl(
             DocumentSessionRouteExecutionControl { std::move(originatingCurrent), {} }));
 }
 
+void DocumentSessionRuntimeGraph::recoverRemovedDirectMedia(
+    std::optional<QUrl> fallbackUrl, std::function<bool()> originatingCurrent)
+{
+    static_cast<void>(executeRoutePlan(
+        documentSessionRoutePlanAfterMediaDeletion(m_state.documentKind(), std::move(fallbackUrl)),
+        DocumentSessionRouteExecutionControl { std::move(originatingCurrent), {} }));
+}
+
 void DocumentSessionRuntimeGraph::executeRoutePlan(const DocumentSessionRoutePlan& plan)
 {
     static_cast<void>(executeRoutePlan(plan, {}));
@@ -1262,9 +1278,22 @@ void DocumentSessionRuntimeGraph::cancelMediaDeletion()
 
 void DocumentSessionRuntimeGraph::cancelMediaOpenWith() { m_mediaOpenWithRuntime.cancel(); }
 
+void DocumentSessionRuntimeGraph::refreshDirectMediaNavigationAfterDeletion(
+    const DirectMediaScope& scope, const std::function<bool()>& navigationCancellationCurrent)
+{
+    if (!navigationCancellationCurrent || !navigationCancellationCurrent()
+        || !m_directMediaActivityPort.navigationActive()
+        || !m_directMediaScopePort.cursorMatches(scope)) {
+        return;
+    }
+
+    m_directMediaNavigationCoordinator.refresh(m_owner);
+}
+
 void DocumentSessionRuntimeGraph::finishMediaDeletion(
     const ImageAsyncScopedOperation<DirectMediaScope>& operation,
-    const DocumentSessionMediaDeletionCompletion& completion)
+    const DocumentSessionMediaDeletionCompletion& completion,
+    const std::function<bool()>& navigationCancellationCurrent)
 {
     const std::weak_ptr<void> lifetime = m_callbackLifetime;
     if (!m_mediaDeletionTransaction.accepts(operation)) {
@@ -1293,6 +1322,10 @@ void DocumentSessionRuntimeGraph::finishMediaDeletion(
         if (fileDeletionFailed) {
             fileDeletionFailed(message);
         }
+        if (lifetime.expired()) {
+            return;
+        }
+        refreshDirectMediaNavigationAfterDeletion(operation.scope, navigationCancellationCurrent);
         return;
     }
 
@@ -1317,6 +1350,11 @@ void DocumentSessionRuntimeGraph::finishMediaDeletion(
         if (!committed && m_mediaDeletionTransaction.finish(operation)) {
             m_state.setFileDeletionInProgress(false);
             recomputePublicProjection();
+            if (lifetime.expired()) {
+                return;
+            }
+            refreshDirectMediaNavigationAfterDeletion(
+                operation.scope, navigationCancellationCurrent);
         }
         return;
     }
@@ -1326,6 +1364,10 @@ void DocumentSessionRuntimeGraph::finishMediaDeletion(
     }
     m_state.setFileDeletionInProgress(false);
     recomputePublicProjection();
+    if (lifetime.expired()) {
+        return;
+    }
+    refreshDirectMediaNavigationAfterDeletion(operation.scope, navigationCancellationCurrent);
 }
 
 ActiveZoomSnapshot DocumentSessionRuntimeGraph::activeZoomSnapshotForKind(

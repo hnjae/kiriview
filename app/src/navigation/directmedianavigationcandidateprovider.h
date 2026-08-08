@@ -25,6 +25,7 @@ struct DirectMediaNavigationCandidateProvider
         QObject*, QUrl, DirectMediaNavigationCandidatesCallback, KioOperationFailureCallback)>;
 
     DirectMediaNavigationCandidateLoader directoryCandidateLoader;
+    DirectMediaNavigationCandidateLoader directoryCandidateChanges;
 };
 
 DirectMediaNavigationCandidateProvider defaultDirectMediaNavigationCandidateProvider(

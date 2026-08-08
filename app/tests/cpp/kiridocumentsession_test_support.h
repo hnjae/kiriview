@@ -139,6 +139,20 @@ public:
         m_candidates[keyForUrl(parentUrl)] = std::move(candidates);
     }
 
+    void publishMediaChanges(
+        const QUrl& parentUrl, std::vector<kiriview::DirectMediaNavigationCandidate> candidates)
+    {
+        const QString key = keyForUrl(parentUrl);
+        m_candidates[key] = std::move(candidates);
+        const std::vector<std::shared_ptr<Subscription>> subscriptions = m_subscriptions;
+        for (const std::shared_ptr<Subscription>& subscription : subscriptions) {
+            if (subscription->completion.isActive() && subscription->parentKey == key
+                && subscription->callback) {
+                subscription->callback(m_candidates.at(key));
+            }
+        }
+    }
+
     kiriview::DirectMediaNavigationCandidateProvider provider()
     {
         return kiriview::DirectMediaNavigationCandidateProvider {
@@ -166,11 +180,34 @@ public:
                 }
                 return kiriview::ImageIoJob();
             },
+            [this](QObject* receiver, QUrl parentUrl,
+                kiriview::DirectMediaNavigationCandidatesCallback callback,
+                kiriview::KioOperationFailureCallback errorCallback) {
+                auto subscription = std::make_shared<Subscription>();
+                subscription->parentKey = keyForUrl(parentUrl);
+                subscription->callback = std::move(callback);
+                subscription->errorCallback = std::move(errorCallback);
+                kiriview::ImageIoJob job
+                    = kiriview::TestSupport::Detail::startManualIoJob(receiver, subscription);
+                m_subscriptions.push_back(subscription);
+                return job;
+            },
         };
     }
 
 private:
+    struct Subscription
+    {
+        QObject* object = nullptr;
+        QString parentKey;
+        kiriview::DirectMediaNavigationCandidatesCallback callback;
+        kiriview::KioOperationFailureCallback errorCallback;
+        kiriview::ImageIoJobCompletion completion;
+        bool canceled = false;
+    };
+
     std::map<QString, std::vector<kiriview::DirectMediaNavigationCandidate>> m_candidates;
+    std::vector<std::shared_ptr<Subscription>> m_subscriptions;
 };
 
 struct ManualDirectMediaNavigationCandidateLoad

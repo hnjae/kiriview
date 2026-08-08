@@ -3,6 +3,7 @@
 
 #include "directmedianavigationmodel.h"
 
+#include "location/imageurl.h"
 #include "location/sourcekey.h"
 #include "navigationcandidateordering.h"
 
@@ -96,6 +97,26 @@ std::optional<QUrl> adjacentDirectMediaNavigationUrl(
     }
 
     return candidates.at(*targetIndex).url;
+}
+
+std::optional<QUrl> directMediaNavigationRemovalFallbackUrl(
+    const std::vector<DirectMediaNavigationCandidate>& candidates, const QUrl& removedCurrentUrl)
+{
+    std::vector<DirectMediaNavigationCandidate> orderedCandidates = candidates;
+    if (!directMediaNavigationCandidateIndex(orderedCandidates, removedCurrentUrl).has_value()) {
+        orderedCandidates.push_back(DirectMediaNavigationCandidate {
+            removedCurrentUrl, userVisibleFileNameForUrl(removedCurrentUrl) });
+        sortDirectMediaNavigationCandidates(&orderedCandidates);
+    }
+
+    const std::optional<QUrl> nextUrl = adjacentDirectMediaNavigationUrl(
+        orderedCandidates, removedCurrentUrl, NavigationDirection::Next);
+    if (nextUrl.has_value()) {
+        return nextUrl;
+    }
+
+    return adjacentDirectMediaNavigationUrl(
+        orderedCandidates, removedCurrentUrl, NavigationDirection::Previous);
 }
 
 DirectMediaNavigationBoundaryState directMediaNavigationBoundaryState(

@@ -27,6 +27,58 @@ void TestKiriDocumentSessionRouting::directVideoRoutesToVideoDocumentWithOrigina
     QVERIFY(session->atKnownLastActiveNavigation());
 }
 
+void TestKiriDocumentSessionRouting::removedDirectVideoClearsOldLeafBeforeRoutingFallback()
+{
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    const QUrl previousClip = localUrl(QStringLiteral("/media/01.mp4"));
+    const QUrl removedClip = localUrl(QStringLiteral("/media/02.mp4"));
+    const QUrl fallbackClip = localUrl(QStringLiteral("/media/03.mp4"));
+    const QUrl parentUrl = localUrl(QStringLiteral("/media/"));
+    directMediaNavigationProvider.setMedia(parentUrl,
+        { directMediaNavigationCandidate(previousClip), directMediaNavigationCandidate(removedClip),
+            directMediaNavigationCandidate(fallbackClip) });
+    std::unique_ptr<KiriDocumentSession> session = createSession(directMediaNavigationProvider);
+    session->setSourceUrl(removedClip);
+    std::vector<QUrl> videoSourceChanges;
+    connect(session->videoDocument(), &KiriVideoDocument::sourceUrlChanged, session.get(), [&]() {
+        videoSourceChanges.push_back(session->videoDocument()->sourceUrl());
+    });
+
+    directMediaNavigationProvider.publishMediaChanges(parentUrl,
+        { directMediaNavigationCandidate(previousClip),
+            directMediaNavigationCandidate(fallbackClip) });
+
+    QCOMPARE(session->documentKind(), KiriDocumentSession::DocumentKind::Video);
+    QCOMPARE(session->sourceUrl(), fallbackClip);
+    QCOMPARE(session->videoDocument()->sourceUrl(), fallbackClip);
+    QVERIFY(session->activeNavigationKnown());
+    QCOMPARE(session->activeNavigationCurrentNumber(), 2);
+    QCOMPARE(session->activeNavigationCount(), 2);
+    const auto cleared = std::ranges::find(videoSourceChanges, QUrl());
+    QVERIFY(cleared != videoSourceChanges.cend());
+    const auto fallback = std::ranges::find(std::next(cleared), videoSourceChanges.cend(), fallbackClip);
+    QVERIFY(fallback != videoSourceChanges.cend());
+}
+
+void TestKiriDocumentSessionRouting::removedOnlyDirectVideoClearsSession()
+{
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    const QUrl removedClip = localUrl(QStringLiteral("/media/only.mp4"));
+    const QUrl parentUrl = localUrl(QStringLiteral("/media/"));
+    directMediaNavigationProvider.setMedia(
+        parentUrl, { directMediaNavigationCandidate(removedClip) });
+    std::unique_ptr<KiriDocumentSession> session = createSession(directMediaNavigationProvider);
+    session->setSourceUrl(removedClip);
+
+    directMediaNavigationProvider.publishMediaChanges(parentUrl, {});
+
+    QCOMPARE(session->documentKind(), KiriDocumentSession::DocumentKind::Empty);
+    QCOMPARE(session->sourceUrl(), QUrl());
+    QCOMPARE(session->videoDocument()->sourceUrl(), QUrl());
+    QVERIFY(!session->activeNavigationKnown());
+    QCOMPARE(session->activeNavigationCount(), 0);
+}
+
 void TestKiriDocumentSessionRouting::directVideoTitleDecodesFileNameExactlyOnce_data()
 {
     QTest::addColumn<QUrl>("clip");

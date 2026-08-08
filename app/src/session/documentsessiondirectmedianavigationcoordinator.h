@@ -35,6 +35,7 @@ struct DocumentSessionDirectMediaNavigationCoordinatorPorts
     std::function<void()> recomputePublicProjection;
     std::function<void(const QUrl&)> schedulePredecode;
     std::function<void(const QUrl&, std::function<bool()>)> openMediaUrl;
+    std::function<void(std::optional<QUrl>, std::function<bool()>)> recoverRemovedDirectMedia;
 };
 
 class DocumentSessionDirectMediaNavigationCoordinator final
@@ -55,8 +56,11 @@ public:
     void open(QObject* receiver, DirectMediaNavigationOpenRequest request);
 
 private:
+    class CurrentCandidateConfirmation;
+
     std::shared_ptr<void> m_callbackLifetime = std::make_shared<char>();
     std::shared_ptr<ImageAsyncTicket> m_applicationAdmission = std::make_shared<ImageAsyncTicket>();
+    std::shared_ptr<CurrentCandidateConfirmation> m_currentCandidateConfirmation;
     DocumentSessionDirectMediaNavigationCoordinatorPorts m_ports;
     DocumentSessionDirectMediaNavigationRuntime m_navigationRuntime;
     DocumentSessionDirectMediaNavigationApplicationRuntime m_applicationRuntime;

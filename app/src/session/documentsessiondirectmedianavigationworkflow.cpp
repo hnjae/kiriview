@@ -8,6 +8,12 @@
 #include <utility>
 
 namespace {
+bool confirmedBoundaryState(kiriview::DirectMediaNavigationBoundaryState boundaryState)
+{
+    return boundaryState.currentNumber > 0 && boundaryState.count > 0
+        && boundaryState.currentNumber <= boundaryState.count;
+}
+
 bool refreshSelectionChanged(kiriview::ActiveNavigationSourceKind sourceKind,
     kiriview::ActiveNavigationSnapshot previousSnapshot,
     kiriview::DirectMediaNavigationBoundaryState boundaryState)
@@ -24,7 +30,7 @@ documentSessionDirectMediaNavigationRefreshApplication(ActiveNavigationSourceKin
     ActiveNavigationSnapshot previousSnapshot,
     DocumentSessionDirectMediaNavigationRefreshResult result)
 {
-    if (!result.succeeded) {
+    if (!result.succeeded || !confirmedBoundaryState(result.boundaryState)) {
         return DocumentSessionDirectMediaNavigationRefreshApplication {
             {},
             false,
@@ -51,7 +57,7 @@ DocumentSessionDirectMediaNavigationOpenApplication
 documentSessionDirectMediaNavigationOpenApplication(
     const QUrl& activeDirectMediaCursorUrl, DocumentSessionDirectMediaNavigationOpenResult result)
 {
-    if (!result.succeeded) {
+    if (!result.succeeded || !confirmedBoundaryState(result.plan.boundaryState)) {
         return DocumentSessionDirectMediaNavigationOpenApplication {
             {},
             false,

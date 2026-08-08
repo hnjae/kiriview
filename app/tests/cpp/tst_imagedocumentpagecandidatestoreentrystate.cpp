@@ -109,6 +109,7 @@ private Q_SLOTS:
     void cancelledPendingLoadDoesNotReceiveCompletion();
     void subscribersOnlyReceivePlansAfterInitialListing();
     void failedListingReturnsErrorPlansForPendingLoadsAndSubscribers();
+    void successfulUpdateClearsPriorObservationFailure();
 };
 
 void TestImageDocumentPageCandidateStoreEntryState::
@@ -291,6 +292,23 @@ void TestImageDocumentPageCandidateStoreEntryState::
     QCOMPARE(pendingFailure->retryable, expected.retryable);
     QCOMPARE(subscriberFailure->rawErrorCode, expected.rawErrorCode);
     QCOMPARE(subscriberFailure->canceled, expected.canceled);
+}
+
+void TestImageDocumentPageCandidateStoreEntryState::successfulUpdateClearsPriorObservationFailure()
+{
+    kiriview::ImageDocumentPageCandidateStoreEntryState state;
+    static_cast<void>(state.completeListing(candidates({ QStringLiteral("01.png") })));
+    static_cast<void>(state.failListing(
+        kiriview::ImageDocumentPageCandidateLoadError { QStringLiteral("watch failed") }));
+    QVERIFY(state.listed());
+    QVERIFY(state.failed());
+
+    static_cast<void>(
+        state.updateListing(candidates({ QStringLiteral("01.png"), QStringLiteral("02.png") })));
+
+    QVERIFY(state.listed());
+    QVERIFY(!state.failed());
+    QCOMPARE(state.candidates().size(), std::size_t(2));
 }
 
 QTEST_GUILESS_MAIN(TestImageDocumentPageCandidateStoreEntryState)

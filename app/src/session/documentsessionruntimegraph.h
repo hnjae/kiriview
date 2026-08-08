@@ -167,6 +167,8 @@ private:
     void recomputePublicProjection();
     void routeSourceUrl(const QUrl& sourceUrl);
     void openMediaUrl(const QUrl& url, std::function<bool()> originatingCurrent);
+    void recoverRemovedDirectMedia(
+        std::optional<QUrl> fallbackUrl, std::function<bool()> originatingCurrent);
     void executeRoutePlan(const DocumentSessionRoutePlan& plan);
     [[nodiscard]] bool executeRoutePlan(
         const DocumentSessionRoutePlan& plan, const DocumentSessionRouteExecutionControl& control);
@@ -175,8 +177,11 @@ private:
     void cacheDisplayedMediaPredecodeImages();
     void cancelMediaDeletion();
     void cancelMediaOpenWith();
+    void refreshDirectMediaNavigationAfterDeletion(
+        const DirectMediaScope& scope, const std::function<bool()>& navigationCancellationCurrent);
     void finishMediaDeletion(const ImageAsyncScopedOperation<DirectMediaScope>& operation,
-        const DocumentSessionMediaDeletionCompletion& completion);
+        const DocumentSessionMediaDeletionCompletion& completion,
+        const std::function<bool()>& navigationCancellationCurrent);
     [[nodiscard]] ActiveZoomSnapshot activeZoomSnapshotForKind(DocumentSessionKind kind) const;
     std::shared_ptr<void> m_callbackLifetime = std::make_shared<char>();
     std::shared_ptr<CallbackState> m_callbackState = std::make_shared<CallbackState>();

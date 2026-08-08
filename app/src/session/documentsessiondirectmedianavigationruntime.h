@@ -60,7 +60,7 @@ public:
     void loadCandidates(QObject* receiver, const DirectMediaScope& scope,
         ScopeAccepted scopeAccepted, CandidatesCallback callback);
     void refresh(QObject* receiver, const DirectMediaScope& scope, ScopeAccepted scopeAccepted,
-        RefreshCallback callback);
+        RefreshCallback callback, RefreshCallback changesCallback = {});
     void open(QObject* receiver, const DirectMediaScope& scope,
         DirectMediaNavigationOpenRequest request, ScopeAccepted scopeAccepted,
         OpenCallback callback);
@@ -69,6 +69,8 @@ public:
 private:
     void startLoad(QObject* receiver, const DirectMediaScope& scope, ScopeAccepted scopeAccepted,
         CandidatesCallback callback);
+    void startCandidateChanges(QObject* receiver, const DirectMediaScope& scope,
+        ScopeAccepted scopeAccepted, CandidatesCallback callback);
     void finish(const DocumentSessionDirectMediaNavigationLoad& load,
         DocumentSessionDirectMediaNavigationCandidatesResult result,
         const ScopeAccepted& scopeAccepted, const CandidatesCallback& callback);
@@ -76,6 +78,8 @@ private:
     std::shared_ptr<void> m_callbackLifetime = std::make_shared<char>();
     DirectMediaNavigationCandidateProvider m_provider;
     ImageIoJob m_job;
+    ImageIoJob m_candidateChangesJob;
+    quint64 m_candidateChangesRevision = 0;
     DocumentSessionDirectMediaNavigationLoadState m_loadState;
 };
 }

@@ -88,6 +88,8 @@ For direct media, sibling discovery may be asynchronous. The eventual active nav
 
 After sibling discovery succeeds for the active ordinary direct media scope, the toolbar readout becomes known and shows the current supported media item number and total supported media item count for that scope. Confirming that a pending direct image request is now displayed does not make an already-started sibling discovery result stale when the effective direct media URL and parent scope are unchanged.
 
+While an ordinary direct local media scope remains active, changes to its supported sibling set update the navigation count and controls. If the current item was previously confirmed in that set and then disappears, KiriView opens the next remaining supported item in the established order, otherwise the previous item; if no supported item remains, the session becomes empty. A listing that has never confirmed the current item does not establish that it was removed.
+
 If the current media item is the first supported media item, pressing Page Up keeps the current item open and notifies the user that it is the first media item.
 
 If the current media item is the last supported media item, pressing Page Down keeps the current item open and notifies the user that it is the last media item.
@@ -102,7 +104,7 @@ When an image or video is opened from a KDE-supported archive URL such as `zip:/
 
 For a directly opened archive or directory collection, page navigation uses the complete recursively listed supported-media set defined by [File Access](file-access.md#opened-collections) and [File Access](file-access.md#directory-collections). Images, playable collection videos, and unsupported-video placeholders are navigation positions in the same collection order.
 
-If the parent URL cannot be listed, the current media item is not found, or no adjacent supported media item exists, the current media item remains open and the app remains ready for another open action.
+If the parent URL cannot be listed, an initial listing does not contain the current media item, or no adjacent supported media item exists, the current media item remains open and the app remains ready for another open action.
 
 ## Sorting and Boundary Feedback
 
