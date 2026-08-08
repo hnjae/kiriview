@@ -4,14 +4,19 @@
 #ifndef KIRIVIEW_KIRINDOWSHELL_H
 #define KIRIVIEW_KIRINDOWSHELL_H
 
+#include "application/navigationboundarycorrelation.h"
 #include "application/windowchromeruntime.h"
 #include "application/windownotificationruntime.h"
 
 #include <QObject>
 #include <QPointer>
+#include <QUrl>
 #include <QWindow>
 #include <QtQml/qqmlregistration.h>
+#include <optional>
 #include <vector>
+
+class KiriDocumentSession;
 
 class KiriWindowShell : public QObject
 {
@@ -64,7 +69,12 @@ private:
     static QWindow::Visibility facadeVisibility(kiriview::WindowVisibility visibility);
     void refreshWindowTitle();
     void submitNotification(kiriview::WindowNotificationScope scope, const QString& message);
+    void submitActiveNavigationBoundaryNotification(const QString& message,
+        const kiriview::NavigationBoundaryCorrelation& correlation,
+        const KiriDocumentSession* originSession);
     void clearNavigationBoundaryNotification();
+    void reconcileNavigationBoundaryNotification();
+    void resetNavigationBoundaryCorrelation();
 
     QPointer<QWindow> m_window;
     QPointer<class KiriViewApplication> m_application;
@@ -73,6 +83,7 @@ private:
     std::vector<QMetaObject::Connection> m_applicationConnections;
     std::vector<QMetaObject::Connection> m_documentSessionConnections;
     QString m_windowTitle;
+    std::optional<kiriview::NavigationBoundaryCorrelation> m_navigationBoundaryCorrelation;
     kiriview::WindowChromeRuntime m_chromeRuntime;
     kiriview::WindowNotificationRuntime m_notificationRuntime;
 };

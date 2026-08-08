@@ -5,6 +5,7 @@
 #define KIRIVIEW_KIRIVIEWAPPLICATION_H
 
 #include "application/applicationtypes.h"
+#include "application/navigationboundarycorrelation.h"
 
 #include <AbstractKirigamiApplication>
 #include <QAbstractListModel>
@@ -184,7 +185,8 @@ Q_SIGNALS:
     void closeInfoPanelRequested();
     void toggleInfoPanelRequested();
     void toggleThumbnailPanelRequested();
-    void imageBoundaryReached(const QString& message);
+    void imageBoundaryReached(const QString& message,
+        kiriview::NavigationBoundaryCorrelation correlation, KiriDocumentSession* originSession);
     void unsupportedVideoActionTriggered(KiriViewApplication::ActionId actionId);
     void unsupportedImageActionTriggered(KiriViewApplication::ActionId actionId);
 

@@ -4,10 +4,12 @@
 #include "application/applicationruntime.h"
 #include "application/applicationshortcutpolicy.h"
 #include "application/kiriviewapplicationactions.h"
+#include "facade/activenavigationboundaryfacts.h"
 #include "facade/kiridocumentsession.h"
 #include "facade/kiriviewapplication.h"
 #include "facade/kiriwindowshell.h"
 #include "kiriviewstate.h"
+#include "navigation/directmedianavigationcandidateprovider.h"
 
 #include <KConfigGroup>
 #include <KSharedConfig>
@@ -28,6 +30,10 @@
 #include <QWindow>
 #include <array>
 #include <cstddef>
+#include <memory>
+#include <optional>
+#include <utility>
+#include <vector>
 
 namespace {
 namespace Actions = kiriview::ApplicationActions;
@@ -138,6 +144,33 @@ bool actionDefaultShortcutsAreManagedByKiriView(const Actions::ActionDefinition&
     return definition.kind != Actions::RegistrationKind::Inherited;
 }
 
+std::unique_ptr<KiriDocumentSession> directVideoSession(
+    std::vector<kiriview::DirectMediaNavigationCandidate> candidates)
+{
+    const auto loadCandidates = [candidates = std::move(candidates)](QObject*, QUrl,
+                                    kiriview::DirectMediaNavigationCandidatesCallback callback,
+                                    kiriview::KioOperationFailureCallback) {
+        if (callback) {
+            callback(candidates);
+        }
+        return kiriview::ImageIoJob();
+    };
+    kiriview::KiriDocumentSessionDependencies dependencies;
+    dependencies.sessionRuntime.directMediaNavigationCandidateProvider
+        = kiriview::DirectMediaNavigationCandidateProvider { loadCandidates, {} };
+    return std::make_unique<KiriDocumentSession>(std::move(dependencies));
+}
+
+kiriview::NavigationBoundaryCorrelation boundaryCorrelation(
+    const KiriDocumentSession& session, kiriview::NavigationBoundaryEdge edge)
+{
+    const std::optional<kiriview::NavigationBoundaryCorrelation> correlation
+        = kiriview::correlateNavigationBoundary(
+            edge, kiriview::activeNavigationBoundaryFacts(&session));
+    Q_ASSERT(correlation.has_value());
+    return *correlation;
+}
+
 KiriViewApplication::ActionId facadeActionId(DomainActionId actionId)
 {
     return KiriViewApplication::facadeActionId(actionId);
@@ -237,6 +270,9 @@ private Q_SLOTS:
     void runtimeCompositionConnectsApplicationSessionShellAndWindow();
     void windowShellApplicationAttachmentIsIdentitySafe();
     void windowShellDocumentSessionAttachmentIsIdentitySafe();
+    void windowShellCorrelatesApplicationBoundariesToTheActiveSelection();
+    void boundaryFeedbackRejectsSessionReplacementDuringRequest();
+    void boundaryFeedbackRejectsSelectionReplacementDuringRequest();
     void windowShellRefreshesTitleWhenSessionDetachesOrIsDestroyed();
 };
 
@@ -825,17 +861,21 @@ void TestKiriViewApplication::showMenubarActionTogglesMenuPresentation()
 void TestKiriViewApplication::runtimeCompositionConnectsApplicationSessionShellAndWindow()
 {
     KiriViewApplication application;
-    KiriDocumentSession session;
+    const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/media/only.mp4"));
+    std::unique_ptr<KiriDocumentSession> session
+        = directVideoSession({ { sourceUrl, QStringLiteral("only.mp4") } });
     KiriWindowShell shell;
 
-    kiriview::composeApplicationRuntimeGraph(application, session, shell);
+    kiriview::composeApplicationRuntimeGraph(application, *session, shell);
+    session->setSourceUrl(sourceUrl);
 
     const int initialNotificationRevision = shell.notificationReplayRevision();
-    Q_EMIT application.imageBoundaryReached(QStringLiteral("application boundary"));
+    Q_EMIT application.imageBoundaryReached(QStringLiteral("application boundary"),
+        boundaryCorrelation(*session, kiriview::NavigationBoundaryEdge::First), session.get());
     QCOMPARE(shell.notificationReplayRevision(), initialNotificationRevision + 1);
     QCOMPARE(shell.notificationMessage(), QStringLiteral("application boundary"));
 
-    Q_EMIT session.fileDeletionFailed(QStringLiteral("session failure"));
+    Q_EMIT session->fileDeletionFailed(QStringLiteral("session failure"));
     QCOMPARE(shell.notificationReplayRevision(), initialNotificationRevision + 2);
     QCOMPARE(shell.notificationMessage(), QStringLiteral("session failure"));
 
@@ -858,27 +898,36 @@ void TestKiriViewApplication::windowShellApplicationAttachmentIsIdentitySafe()
     KiriWindowShell shell;
     KiriViewApplication firstApplication;
     KiriViewApplication secondApplication;
+    const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/media/only.mp4"));
+    std::unique_ptr<KiriDocumentSession> session
+        = directVideoSession({ { sourceUrl, QStringLiteral("only.mp4") } });
+    session->setSourceUrl(sourceUrl);
+    shell.attachDocumentSession(session.get());
 
     shell.attachApplication(&firstApplication);
     shell.attachApplication(&firstApplication);
     const int initialRevision = shell.notificationReplayRevision();
 
-    Q_EMIT firstApplication.imageBoundaryReached(QStringLiteral("first boundary"));
+    Q_EMIT firstApplication.imageBoundaryReached(QStringLiteral("first boundary"),
+        boundaryCorrelation(*session, kiriview::NavigationBoundaryEdge::First), session.get());
     QCOMPARE(shell.notificationReplayRevision(), initialRevision + 1);
     QCOMPARE(shell.notificationMessage(), QStringLiteral("first boundary"));
 
     shell.attachApplication(&secondApplication);
     const int replacementRevision = shell.notificationReplayRevision();
-    Q_EMIT firstApplication.imageBoundaryReached(QStringLiteral("stale boundary"));
+    Q_EMIT firstApplication.imageBoundaryReached(QStringLiteral("stale boundary"),
+        boundaryCorrelation(*session, kiriview::NavigationBoundaryEdge::First), session.get());
     QCOMPARE(shell.notificationReplayRevision(), replacementRevision);
 
-    Q_EMIT secondApplication.imageBoundaryReached(QStringLiteral("second boundary"));
+    Q_EMIT secondApplication.imageBoundaryReached(QStringLiteral("second boundary"),
+        boundaryCorrelation(*session, kiriview::NavigationBoundaryEdge::Last), session.get());
     QCOMPARE(shell.notificationReplayRevision(), replacementRevision + 1);
     QCOMPARE(shell.notificationMessage(), QStringLiteral("second boundary"));
 
     shell.attachApplication(nullptr);
     const int detachedRevision = shell.notificationReplayRevision();
-    Q_EMIT secondApplication.imageBoundaryReached(QStringLiteral("detached boundary"));
+    Q_EMIT secondApplication.imageBoundaryReached(QStringLiteral("detached boundary"),
+        boundaryCorrelation(*session, kiriview::NavigationBoundaryEdge::Last), session.get());
     QCOMPARE(shell.notificationReplayRevision(), detachedRevision);
 }
 
@@ -910,11 +959,21 @@ void TestKiriViewApplication::windowShellDocumentSessionAttachmentIsIdentitySafe
     Q_EMIT secondSession.imageDocument()->containerNavigationBoundaryReached(
         QStringLiteral("current image boundary"));
     const int currentRevision = shell.notificationReplayRevision();
+    Q_EMIT secondSession.imageDocument()->displayedUrlChanged();
+    QCOMPARE(shell.notificationReplayRevision(), currentRevision);
+    QVERIFY(shell.notificationActive());
+    QCOMPARE(shell.notificationMessage(), QStringLiteral("current image boundary"));
+
     Q_EMIT firstSession.sourceUrlChanged();
     Q_EMIT firstSession.imageDocument()->displayedUrlChanged();
     QCOMPARE(shell.notificationReplayRevision(), currentRevision);
     QVERIFY(shell.notificationActive());
     QCOMPARE(shell.notificationMessage(), QStringLiteral("current image boundary"));
+
+    Q_EMIT secondSession.sourceUrlChanged();
+    QCOMPARE(shell.notificationReplayRevision(), currentRevision);
+    QVERIFY(!shell.notificationActive());
+    QVERIFY(shell.notificationMessage().isEmpty());
 
     Q_EMIT secondSession.fileDeletionFailed(QStringLiteral("second failure"));
     QCOMPARE(shell.notificationReplayRevision(), currentRevision + 1);
@@ -926,6 +985,145 @@ void TestKiriViewApplication::windowShellDocumentSessionAttachmentIsIdentitySafe
     Q_EMIT secondSession.imageDocument()->containerNavigationBoundaryReached(
         QStringLiteral("detached image boundary"));
     QCOMPARE(shell.notificationReplayRevision(), detachedRevision);
+}
+
+void TestKiriViewApplication::windowShellCorrelatesApplicationBoundariesToTheActiveSelection()
+{
+    const QUrl firstUrl = QUrl::fromLocalFile(QStringLiteral("/media/01.mp4"));
+    const QUrl lastUrl = QUrl::fromLocalFile(QStringLiteral("/media/02.mp4"));
+    std::unique_ptr<KiriDocumentSession> session = directVideoSession({
+        { firstUrl, QStringLiteral("01.mp4") },
+        { lastUrl, QStringLiteral("02.mp4") },
+    });
+    KiriViewApplication application;
+    KiriWindowShell shell;
+    shell.attachApplication(&application);
+    shell.attachDocumentSession(session.get());
+
+    session->setSourceUrl(firstUrl);
+    QVERIFY(session->activeNavigationKnown());
+    QVERIFY(session->atKnownFirstActiveNavigation());
+    KiriDocumentSession unrelatedSession;
+    Q_EMIT application.imageBoundaryReached(QStringLiteral("unrelated boundary"),
+        boundaryCorrelation(*session, kiriview::NavigationBoundaryEdge::First), &unrelatedSession);
+    QVERIFY(!shell.notificationActive());
+
+    Q_EMIT application.imageBoundaryReached(QStringLiteral("first boundary"),
+        boundaryCorrelation(*session, kiriview::NavigationBoundaryEdge::First), session.get());
+    int revision = shell.notificationReplayRevision();
+
+    Q_EMIT session->activeNavigationChanged();
+    Q_EMIT session->imageDocument()->displayedUrlChanged();
+    QCOMPARE(shell.notificationReplayRevision(), revision);
+    QVERIFY(shell.notificationActive());
+    QCOMPARE(shell.notificationMessage(), QStringLiteral("first boundary"));
+
+    session->openNextActiveNavigation();
+    QCOMPARE(session->sourceUrl(), lastUrl);
+    QVERIFY(!shell.notificationActive());
+
+    QVERIFY(session->atKnownLastActiveNavigation());
+    Q_EMIT application.imageBoundaryReached(QStringLiteral("last boundary"),
+        boundaryCorrelation(*session, kiriview::NavigationBoundaryEdge::Last), session.get());
+    revision = shell.notificationReplayRevision();
+
+    Q_EMIT session->activeNavigationChanged();
+    Q_EMIT session->imageDocument()->displayedUrlChanged();
+    QCOMPARE(shell.notificationReplayRevision(), revision);
+    QVERIFY(shell.notificationActive());
+    QCOMPARE(shell.notificationMessage(), QStringLiteral("last boundary"));
+
+    session->openPreviousActiveNavigation();
+    QCOMPARE(session->sourceUrl(), firstUrl);
+    QVERIFY(!shell.notificationActive());
+}
+
+void TestKiriViewApplication::boundaryFeedbackRejectsSessionReplacementDuringRequest()
+{
+    const QUrl firstUrl = QUrl::fromLocalFile(QStringLiteral("/media/first.mp4"));
+    const QUrl replacementUrl = QUrl::fromLocalFile(QStringLiteral("/media/replacement.mp4"));
+    std::unique_ptr<KiriDocumentSession> firstSession
+        = directVideoSession({ { firstUrl, QStringLiteral("first.mp4") } });
+    std::unique_ptr<KiriDocumentSession> replacementSession
+        = directVideoSession({ { replacementUrl, QStringLiteral("replacement.mp4") } });
+    firstSession->setSourceUrl(firstUrl);
+    replacementSession->setSourceUrl(replacementUrl);
+    QVERIFY(firstSession->atKnownFirstActiveNavigation());
+    QVERIFY(replacementSession->atKnownFirstActiveNavigation());
+
+    KiriViewApplication application;
+    KiriWindowShell shell;
+    application.setDocumentSession(firstSession.get());
+    shell.attachApplication(&application);
+    shell.attachDocumentSession(firstSession.get());
+    int boundaryEmissionCount = 0;
+    QObject::connect(&application, &KiriViewApplication::imageBoundaryReached, &application,
+        [&boundaryEmissionCount](const QString&, const kiriview::NavigationBoundaryCorrelation&,
+            KiriDocumentSession*) { ++boundaryEmissionCount; });
+    QObject::connect(firstSession.get(), &KiriDocumentSession::publicProjectionRevisionChanged,
+        &application, [&application, &shell, &replacementSession]() {
+            application.setDocumentSession(replacementSession.get());
+            shell.attachDocumentSession(replacementSession.get());
+        });
+
+    QAction* previousAction = application.actionForId(KiriViewApplication::GoPreviousImageAction);
+    QVERIFY(previousAction != nullptr);
+    QVERIFY(previousAction->isEnabled());
+    previousAction->trigger();
+
+    QCOMPARE(boundaryEmissionCount, 0);
+    QVERIFY(!shell.notificationActive());
+}
+
+void TestKiriViewApplication::boundaryFeedbackRejectsSelectionReplacementDuringRequest()
+{
+    const QUrl firstUrl = QUrl::fromLocalFile(QStringLiteral("/first/only.mp4"));
+    const QUrl replacementUrl = QUrl::fromLocalFile(QStringLiteral("/replacement/only.mp4"));
+    const auto loadCandidates = [firstUrl, replacementUrl](QObject*, const QUrl& parentUrl,
+                                    kiriview::DirectMediaNavigationCandidatesCallback callback,
+                                    kiriview::KioOperationFailureCallback) {
+        const QUrl candidateUrl
+            = parentUrl == firstUrl.adjusted(QUrl::RemoveFilename) ? firstUrl : replacementUrl;
+        if (callback) {
+            callback({ { candidateUrl, candidateUrl.fileName() } });
+        }
+        return kiriview::ImageIoJob();
+    };
+    kiriview::KiriDocumentSessionDependencies dependencies;
+    dependencies.sessionRuntime.directMediaNavigationCandidateProvider
+        = kiriview::DirectMediaNavigationCandidateProvider { loadCandidates, {} };
+    KiriDocumentSession session(std::move(dependencies));
+    session.setSourceUrl(firstUrl);
+    QVERIFY(session.atKnownFirstActiveNavigation());
+
+    KiriViewApplication application;
+    KiriWindowShell shell;
+    application.setDocumentSession(&session);
+    shell.attachApplication(&application);
+    shell.attachDocumentSession(&session);
+    int boundaryEmissionCount = 0;
+    QObject::connect(&application, &KiriViewApplication::imageBoundaryReached, &application,
+        [&boundaryEmissionCount](const QString&, const kiriview::NavigationBoundaryCorrelation&,
+            KiriDocumentSession*) { ++boundaryEmissionCount; });
+    bool selectionReplaced = false;
+    QObject::connect(&session, &KiriDocumentSession::publicProjectionRevisionChanged, &application,
+        [&session, replacementUrl, &selectionReplaced]() {
+            if (std::exchange(selectionReplaced, true)) {
+                return;
+            }
+            session.setSourceUrl(replacementUrl);
+        });
+
+    QAction* previousAction = application.actionForId(KiriViewApplication::GoPreviousImageAction);
+    QVERIFY(previousAction != nullptr);
+    QVERIFY(previousAction->isEnabled());
+    previousAction->trigger();
+
+    QVERIFY(selectionReplaced);
+    QCOMPARE(session.sourceUrl(), replacementUrl);
+    QVERIFY(session.atKnownFirstActiveNavigation());
+    QCOMPARE(boundaryEmissionCount, 0);
+    QVERIFY(!shell.notificationActive());
 }
 
 void TestKiriViewApplication::windowShellRefreshesTitleWhenSessionDetachesOrIsDestroyed()

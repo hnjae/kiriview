@@ -8,6 +8,7 @@
 #include "application/applicationactionsourceattachment.h"
 #include "application/applicationcommandportsource.h"
 #include "application/applicationcommandrouter.h"
+#include "facade/activenavigationboundaryfacts.h"
 #include "facade/kiridocumentsession.h"
 #include "facade/kiriimagedocument.h"
 #include "facade/kirivideodocument.h"
@@ -17,6 +18,7 @@
 
 #include <array>
 #include <cstddef>
+#include <optional>
 #include <utility>
 
 namespace Actions = kiriview::ApplicationActions;
@@ -76,7 +78,10 @@ private:
     void requestImageFitMode(KiriImageDocument::ZoomMode mode);
     void requestPreviousActiveNavigationWithBoundary();
     void requestNextActiveNavigationWithBoundary();
-    void emitBoundaryText(const QString& message);
+    void emitCurrentBoundaryText(const QString& message, kiriview::NavigationBoundaryEdge edge);
+    void emitBoundaryText(const QString& message,
+        const kiriview::NavigationBoundaryCorrelation& correlation,
+        KiriDocumentSession* originSession);
 
     KiriViewApplication& m_application;
     Q_DISABLE_COPY_MOVE(KiriViewApplicationCommandPortSource)
@@ -552,8 +557,10 @@ Actions::KiriViewApplicationCommandPortSource::commandRouterSessionPorts()
             session->openLastActiveNavigation();
         }
     };
-    ports.showFirstImageBoundary
-        = [this]() { emitBoundaryText(i18nc("@info:status", "First image")); };
+    ports.showFirstImageBoundary = [this]() {
+        emitCurrentBoundaryText(
+            i18nc("@info:status", "First image"), kiriview::NavigationBoundaryEdge::First);
+    };
     return ports;
 }
 
@@ -769,21 +776,53 @@ void Actions::KiriViewApplicationCommandPortSource::requestImageFitMode(
 
 void Actions::KiriViewApplicationCommandPortSource::requestPreviousActiveNavigationWithBoundary()
 {
-    if (KiriDocumentSession* session = documentSession()) {
-        emitBoundaryText(session->requestPreviousActiveNavigationBoundaryText());
+    const QPointer<KiriDocumentSession> originSession = documentSession();
+    if (originSession == nullptr) {
+        return;
+    }
+    const std::optional<kiriview::NavigationBoundaryCorrelation> correlation
+        = kiriview::correlateNavigationBoundary(kiriview::NavigationBoundaryEdge::First,
+            kiriview::activeNavigationBoundaryFacts(originSession));
+    const QString message = originSession->requestPreviousActiveNavigationBoundaryText();
+    if (correlation.has_value() && originSession != nullptr) {
+        emitBoundaryText(message, *correlation, originSession);
     }
 }
 
 void Actions::KiriViewApplicationCommandPortSource::requestNextActiveNavigationWithBoundary()
 {
-    if (KiriDocumentSession* session = documentSession()) {
-        emitBoundaryText(session->requestNextActiveNavigationBoundaryText());
+    const QPointer<KiriDocumentSession> originSession = documentSession();
+    if (originSession == nullptr) {
+        return;
+    }
+    const std::optional<kiriview::NavigationBoundaryCorrelation> correlation
+        = kiriview::correlateNavigationBoundary(kiriview::NavigationBoundaryEdge::Last,
+            kiriview::activeNavigationBoundaryFacts(originSession));
+    const QString message = originSession->requestNextActiveNavigationBoundaryText();
+    if (correlation.has_value() && originSession != nullptr) {
+        emitBoundaryText(message, *correlation, originSession);
     }
 }
 
-void Actions::KiriViewApplicationCommandPortSource::emitBoundaryText(const QString& message)
+void Actions::KiriViewApplicationCommandPortSource::emitCurrentBoundaryText(
+    const QString& message, kiriview::NavigationBoundaryEdge edge)
 {
-    if (!message.isEmpty()) {
-        Q_EMIT m_application.imageBoundaryReached(message);
+    const QPointer<KiriDocumentSession> originSession = documentSession();
+    const std::optional<kiriview::NavigationBoundaryCorrelation> correlation
+        = kiriview::correlateNavigationBoundary(
+            edge, kiriview::activeNavigationBoundaryFacts(originSession));
+    if (correlation.has_value() && originSession != nullptr) {
+        emitBoundaryText(message, *correlation, originSession);
     }
+}
+
+void Actions::KiriViewApplicationCommandPortSource::emitBoundaryText(const QString& message,
+    const kiriview::NavigationBoundaryCorrelation& correlation, KiriDocumentSession* originSession)
+{
+    if (message.isEmpty() || originSession == nullptr || originSession != documentSession()
+        || !kiriview::navigationBoundaryCorrelationIsCurrent(
+            correlation, kiriview::activeNavigationBoundaryFacts(originSession))) {
+        return;
+    }
+    Q_EMIT m_application.imageBoundaryReached(message, correlation, originSession);
 }

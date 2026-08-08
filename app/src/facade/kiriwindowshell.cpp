@@ -3,6 +3,7 @@
 
 #include "kiriwindowshell.h"
 
+#include "facade/activenavigationboundaryfacts.h"
 #include "facade/kiridocumentsession.h"
 #include "facade/kiriimagedocument.h"
 #include "facade/kiriviewapplication.h"
@@ -38,8 +39,12 @@ KiriWindowShell::KiriWindowShell(kiriview::TimerScheduler timerScheduler, QObjec
               },
               [this]() { Q_EMIT chromeSnapshotChanged(); },
           })
-    , m_notificationRuntime(
-          this, std::move(timerScheduler), [this]() { Q_EMIT notificationSnapshotChanged(); })
+    , m_notificationRuntime(this, std::move(timerScheduler), [this]() {
+        if (!m_notificationRuntime.snapshot().active) {
+            resetNavigationBoundaryCorrelation();
+        }
+        Q_EMIT notificationSnapshotChanged();
+    })
 {
     refreshWindowTitle();
 }
@@ -103,8 +108,10 @@ void KiriWindowShell::attachApplication(QObject* application)
     }
 
     m_applicationConnections.push_back(QObject::connect(kiriApplication,
-        &KiriViewApplication::imageBoundaryReached, this, [this](const QString& message) {
-            submitNotification(kiriview::WindowNotificationScope::NavigationBoundary, message);
+        &KiriViewApplication::imageBoundaryReached, this,
+        [this](const QString& message, const kiriview::NavigationBoundaryCorrelation& correlation,
+            KiriDocumentSession* originSession) {
+            submitActiveNavigationBoundaryNotification(message, correlation, originSession);
         }));
     m_applicationConnections.push_back(
         QObject::connect(kiriApplication, &KiriViewApplication::unsupportedVideoActionTriggered,
@@ -127,6 +134,7 @@ void KiriWindowShell::attachDocumentSession(QObject* session)
         return;
     }
 
+    clearNavigationBoundaryNotification();
     disconnectConnections(&m_documentSessionConnections);
     m_documentSession = documentSession;
     if (m_documentSession == nullptr) {
@@ -137,6 +145,7 @@ void KiriWindowShell::attachDocumentSession(QObject* session)
     m_documentSessionConnections.push_back(
         QObject::connect(documentSession, &QObject::destroyed, this, [this]() {
             m_documentSession.clear();
+            clearNavigationBoundaryNotification();
             refreshWindowTitle();
         }));
     m_documentSessionConnections.push_back(QObject::connect(documentSession,
@@ -145,6 +154,9 @@ void KiriWindowShell::attachDocumentSession(QObject* session)
     m_documentSessionConnections.push_back(
         QObject::connect(documentSession, &KiriDocumentSession::sourceUrlChanged, this,
             [this]() { clearNavigationBoundaryNotification(); }));
+    m_documentSessionConnections.push_back(
+        QObject::connect(documentSession, &KiriDocumentSession::activeNavigationChanged, this,
+            [this]() { reconcileNavigationBoundaryNotification(); }));
     m_documentSessionConnections.push_back(QObject::connect(documentSession,
         &KiriDocumentSession::fileDeletionFailed, this, [this](const QString& message) {
             submitNotification(kiriview::WindowNotificationScope::OperationFailure, message);
@@ -161,9 +173,6 @@ void KiriWindowShell::attachDocumentSession(QObject* session)
         return;
     }
 
-    m_documentSessionConnections.push_back(
-        QObject::connect(imageDocument, &KiriImageDocument::displayedUrlChanged, this,
-            [this]() { clearNavigationBoundaryNotification(); }));
     m_documentSessionConnections.push_back(
         QObject::connect(imageDocument, &KiriImageDocument::containerNavigationBoundaryReached,
             this, [this](const QString& message) {
@@ -235,12 +244,51 @@ QWindow::Visibility KiriWindowShell::facadeVisibility(kiriview::WindowVisibility
 void KiriWindowShell::submitNotification(
     kiriview::WindowNotificationScope scope, const QString& message)
 {
+    resetNavigationBoundaryCorrelation();
     m_notificationRuntime.submit({ scope, message });
+}
+
+void KiriWindowShell::submitActiveNavigationBoundaryNotification(const QString& message,
+    const kiriview::NavigationBoundaryCorrelation& correlation,
+    const KiriDocumentSession* originSession)
+{
+    if (message.isEmpty() || originSession == nullptr || originSession != m_documentSession) {
+        return;
+    }
+
+    if (!kiriview::navigationBoundaryCorrelationIsCurrent(
+            correlation, kiriview::activeNavigationBoundaryFacts(m_documentSession))) {
+        return;
+    }
+    m_navigationBoundaryCorrelation = correlation;
+
+    m_notificationRuntime.submit(
+        { kiriview::WindowNotificationScope::NavigationBoundary, message });
 }
 
 void KiriWindowShell::clearNavigationBoundaryNotification()
 {
     m_notificationRuntime.clear(kiriview::WindowNotificationScope::NavigationBoundary);
+    resetNavigationBoundaryCorrelation();
+}
+
+void KiriWindowShell::reconcileNavigationBoundaryNotification()
+{
+    if (!m_navigationBoundaryCorrelation.has_value() || !m_notificationRuntime.snapshot().active
+        || m_notificationRuntime.snapshot().scope
+            != kiriview::WindowNotificationScope::NavigationBoundary) {
+        return;
+    }
+
+    if (!kiriview::navigationBoundaryCorrelationIsCurrent(*m_navigationBoundaryCorrelation,
+            kiriview::activeNavigationBoundaryFacts(m_documentSession))) {
+        clearNavigationBoundaryNotification();
+    }
+}
+
+void KiriWindowShell::resetNavigationBoundaryCorrelation()
+{
+    m_navigationBoundaryCorrelation.reset();
 }
 
 void KiriWindowShell::refreshWindowTitle()
