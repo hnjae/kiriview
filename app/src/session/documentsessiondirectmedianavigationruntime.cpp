@@ -272,7 +272,7 @@ void DocumentSessionDirectMediaNavigationRuntime::startCandidateChanges(QObject*
                 DocumentSessionDirectMediaNavigationCandidatesResult {
                     std::move(candidates), true, QString(), std::nullopt });
         },
-        [this, lifetime, revision, scope, sharedScopeAccepted](KioOperationFailure failure) {
+        [this, lifetime, revision, scope, sharedScopeAccepted](const KioOperationFailure& failure) {
             if (lifetime.expired() || m_candidateChangesRevision != revision) {
                 return;
             }

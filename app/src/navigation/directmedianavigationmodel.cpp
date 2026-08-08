@@ -109,7 +109,7 @@ std::optional<QUrl> directMediaNavigationRemovalFallbackUrl(
         sortDirectMediaNavigationCandidates(&orderedCandidates);
     }
 
-    const std::optional<QUrl> nextUrl = adjacentDirectMediaNavigationUrl(
+    std::optional<QUrl> nextUrl = adjacentDirectMediaNavigationUrl(
         orderedCandidates, removedCurrentUrl, NavigationDirection::Next);
     if (nextUrl.has_value()) {
         return nextUrl;

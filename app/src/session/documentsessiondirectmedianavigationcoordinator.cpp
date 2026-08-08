@@ -152,7 +152,7 @@ public:
         }
     }
 
-    void reset()
+    void clearAll()
     {
         const std::scoped_lock lock(m_mutex);
         m_scope.reset();
@@ -193,7 +193,7 @@ std::function<bool()> DocumentSessionDirectMediaNavigationCoordinator::cancelAnd
     const std::function<bool()> current = [lifetime, admission, applicationRevision]() {
         return !lifetime.expired() && admission->accepts(applicationRevision);
     };
-    m_currentCandidateConfirmation->reset();
+    m_currentCandidateConfirmation->clearAll();
     navigationRuntime->cancel();
     return current;
 }
@@ -221,7 +221,7 @@ void DocumentSessionDirectMediaNavigationCoordinator::refresh(QObject* receiver)
         return;
     }
     if (!active) {
-        currentCandidateConfirmation->reset();
+        currentCandidateConfirmation->clearAll();
         navigationRuntime->cancel();
         if (!current()) {
             return;
@@ -257,7 +257,7 @@ void DocumentSessionDirectMediaNavigationCoordinator::refresh(QObject* receiver)
         return;
     }
     if (!scope.has_value()) {
-        currentCandidateConfirmation->reset();
+        currentCandidateConfirmation->clearAll();
         navigationRuntime->cancel();
         if (!current()) {
             return;
