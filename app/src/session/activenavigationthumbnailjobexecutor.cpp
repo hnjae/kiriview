@@ -40,6 +40,35 @@ bool enablesCacheInstall(const kiriview::ThumbnailSourceAdapterPlan& plan)
         || (plan.kind == kiriview::ThumbnailSourceAdapterPlanKind::CacheableOpenedCollectionEntry
             && !plan.openedCollectionScope.isEmpty());
 }
+
+kiriview::ActiveNavigationThumbnailFailureKind thumbnailGenerationFailureKind(
+    kiriview::ThumbnailGenerationStatus status)
+{
+    using FailureKind = kiriview::ActiveNavigationThumbnailFailureKind;
+    using Status = kiriview::ThumbnailGenerationStatus;
+
+    switch (status) {
+    case Status::Ready:
+    case Status::Failed:
+        return FailureKind::GenerationFailed;
+    case Status::VideoExtractionInvalidRequest:
+        return FailureKind::VideoExtractionInvalidRequest;
+    case Status::VideoSourceUnavailable:
+        return FailureKind::VideoSourceUnavailable;
+    case Status::VideoUnsupportedMedia:
+        return FailureKind::VideoUnsupportedMedia;
+    case Status::VideoBackendFailure:
+        return FailureKind::VideoBackendFailure;
+    case Status::VideoExtractionTimedOut:
+        return FailureKind::VideoExtractionTimedOut;
+    case Status::VideoNoRepresentativeImage:
+        return FailureKind::VideoNoRepresentativeImage;
+    case Status::ResourceLimitExceeded:
+        return FailureKind::ResourceLimitExceeded;
+    }
+
+    return FailureKind::GenerationFailed;
+}
 }
 
 namespace kiriview {
@@ -222,9 +251,7 @@ public:
             return;
         }
         const ActiveNavigationThumbnailFailureKind failureKind
-            = result.status == ThumbnailGenerationStatus::ResourceLimitExceeded
-            ? ActiveNavigationThumbnailFailureKind::ResourceLimitExceeded
-            : ActiveNavigationThumbnailFailureKind::GenerationFailed;
+            = thumbnailGenerationFailureKind(result.status);
         completeFailure(std::move(request), failureKind, std::move(result.errorString));
     }
 

@@ -11,7 +11,6 @@
 
 #include <memory>
 #include <utility>
-#include <vector>
 
 namespace kiriview::test {
 
@@ -42,6 +41,8 @@ public:
     void emitFrame(VideoThumbnailBackendFrame frame);
     void emitMetadata(VideoThumbnailEmbeddedImages images);
     void emitError(VideoThumbnailBackendError error, QString diagnostic = {});
+    [[nodiscard]] auto errorCallback() const
+        -> std::function<void(VideoThumbnailBackendError, QString)>;
 
 private:
     std::shared_ptr<BackendProbe> probe_;
@@ -53,11 +54,8 @@ struct BackendProbe
     int creations = 0;
     int destructions = 0;
     int setSourceCalls = 0;
-    int playCalls = 0;
-    int pauseCalls = 0;
     int stopCalls = 0;
     QUrl sourceUrl;
-    std::vector<qint64> positions;
     FakeVideoThumbnailBackend* instance = nullptr;
     bool emitErrorFromStop = false;
 };
@@ -86,28 +84,26 @@ inline void FakeVideoThumbnailBackend::setSource(const QUrl& sourceUrl)
     probe_->sourceUrl = sourceUrl;
 }
 
-inline void FakeVideoThumbnailBackend::play() { ++probe_->playCalls; }
+inline void FakeVideoThumbnailBackend::play() { }
 
-inline void FakeVideoThumbnailBackend::pause() { ++probe_->pauseCalls; }
+inline void FakeVideoThumbnailBackend::pause() { }
 
 inline void FakeVideoThumbnailBackend::stop() noexcept
 {
     ++probe_->stopCalls;
-    if (probe_->emitErrorFromStop && callbacks_.errorOccurred) {
-        callbacks_.errorOccurred(
-            VideoThumbnailBackendError::Other, QStringLiteral("reentrant stop error"));
+    const auto errorOccurred = callbacks_.errorOccurred;
+    if (probe_->emitErrorFromStop && errorOccurred) {
+        errorOccurred(VideoThumbnailBackendError::Other, QStringLiteral("reentrant stop error"));
     }
 }
 
-inline void FakeVideoThumbnailBackend::setPosition(qint64 positionMsec)
-{
-    probe_->positions.push_back(positionMsec);
-}
+inline void FakeVideoThumbnailBackend::setPosition(qint64) { }
 
 inline void FakeVideoThumbnailBackend::emitMediaFacts(VideoThumbnailBackendMediaFacts facts)
 {
-    if (callbacks_.mediaFactsChanged) {
-        callbacks_.mediaFactsChanged(facts);
+    const auto mediaFactsChanged = callbacks_.mediaFactsChanged;
+    if (mediaFactsChanged) {
+        mediaFactsChanged(facts);
     }
 }
 
@@ -120,24 +116,33 @@ inline void FakeVideoThumbnailBackend::emitFrame(QImage image)
 
 inline void FakeVideoThumbnailBackend::emitFrame(VideoThumbnailBackendFrame frame)
 {
-    if (callbacks_.frameAvailable) {
-        callbacks_.frameAvailable(std::move(frame));
+    const auto frameAvailable = callbacks_.frameAvailable;
+    if (frameAvailable) {
+        frameAvailable(std::move(frame));
     }
 }
 
 inline void FakeVideoThumbnailBackend::emitMetadata(VideoThumbnailEmbeddedImages images)
 {
-    if (callbacks_.metadataAvailable) {
-        callbacks_.metadataAvailable(std::move(images));
+    const auto metadataAvailable = callbacks_.metadataAvailable;
+    if (metadataAvailable) {
+        metadataAvailable(std::move(images));
     }
 }
 
 inline void FakeVideoThumbnailBackend::emitError(
     VideoThumbnailBackendError error, QString diagnostic)
 {
-    if (callbacks_.errorOccurred) {
-        callbacks_.errorOccurred(error, std::move(diagnostic));
+    const auto errorOccurred = callbacks_.errorOccurred;
+    if (errorOccurred) {
+        errorOccurred(error, std::move(diagnostic));
     }
+}
+
+inline auto FakeVideoThumbnailBackend::errorCallback() const
+    -> std::function<void(VideoThumbnailBackendError, QString)>
+{
+    return callbacks_.errorOccurred;
 }
 
 struct DeadlineProbe;
@@ -161,13 +166,14 @@ struct DeadlineProbe
     int destructions = 0;
     int startCalls = 0;
     int stopCalls = 0;
-    std::chrono::milliseconds interval {};
     std::function<void()> expired;
+    bool expireSynchronouslyOnStart = false;
 
     void fire()
     {
-        if (expired) {
-            expired();
+        const auto expiry = expired;
+        if (expiry) {
+            expiry();
         }
     }
 };
@@ -181,11 +187,16 @@ inline FakeVideoThumbnailDeadline::FakeVideoThumbnailDeadline(std::shared_ptr<De
 inline FakeVideoThumbnailDeadline::~FakeVideoThumbnailDeadline() { ++probe_->destructions; }
 
 inline void FakeVideoThumbnailDeadline::start(
-    std::chrono::milliseconds interval, std::function<void()> expired)
+    std::chrono::milliseconds, std::function<void()> expired)
 {
     ++probe_->startCalls;
-    probe_->interval = interval;
     probe_->expired = std::move(expired);
+    if (probe_->expireSynchronouslyOnStart) {
+        const auto synchronousExpiry = probe_->expired;
+        if (synchronousExpiry) {
+            synchronousExpiry();
+        }
+    }
 }
 
 inline void FakeVideoThumbnailDeadline::stop() noexcept

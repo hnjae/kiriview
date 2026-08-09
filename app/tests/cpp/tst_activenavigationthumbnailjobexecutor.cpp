@@ -83,7 +83,8 @@ private Q_SLOTS:
     void cacheMissKeepsWorkIdentityAcrossGeneration();
     void readyGenerationPreservesCacheInstallDiagnostic();
     void inMemoryWorkSkipsLookupAndReportsTypedFailures();
-    void resourceLimitFailurePreservesTypedKind();
+    void generationFailurePreservesTypedKind_data();
+    void generationFailurePreservesTypedKind();
     void cancellationAndPhaseChangesRejectLateCallbacks();
     void synchronousCompletionAndDestructionAreCallbackSafe();
 };
@@ -186,8 +187,36 @@ void TestActiveNavigationThumbnailJobExecutor::inMemoryWorkSkipsLookupAndReports
         kiriview::ActiveNavigationThumbnailFailureKind::CacheLookupProviderUnavailable);
 }
 
-void TestActiveNavigationThumbnailJobExecutor::resourceLimitFailurePreservesTypedKind()
+void TestActiveNavigationThumbnailJobExecutor::generationFailurePreservesTypedKind_data()
 {
+    using GenerationStatus = kiriview::ThumbnailGenerationStatus;
+    using FailureKind = kiriview::ActiveNavigationThumbnailFailureKind;
+
+    QTest::addColumn<GenerationStatus>("generationStatus");
+    QTest::addColumn<FailureKind>("expectedFailureKind");
+
+    QTest::newRow("invalid-request") << GenerationStatus::VideoExtractionInvalidRequest
+                                     << FailureKind::VideoExtractionInvalidRequest;
+    QTest::newRow("source-unavailable")
+        << GenerationStatus::VideoSourceUnavailable << FailureKind::VideoSourceUnavailable;
+    QTest::newRow("unsupported-media")
+        << GenerationStatus::VideoUnsupportedMedia << FailureKind::VideoUnsupportedMedia;
+    QTest::newRow("backend-failure")
+        << GenerationStatus::VideoBackendFailure << FailureKind::VideoBackendFailure;
+    QTest::newRow("timed-out") << GenerationStatus::VideoExtractionTimedOut
+                               << FailureKind::VideoExtractionTimedOut;
+    QTest::newRow("no-representative-image")
+        << GenerationStatus::VideoNoRepresentativeImage << FailureKind::VideoNoRepresentativeImage;
+    QTest::newRow("resource-limit")
+        << GenerationStatus::ResourceLimitExceeded << FailureKind::ResourceLimitExceeded;
+    QTest::newRow("generic") << GenerationStatus::Failed << FailureKind::GenerationFailed;
+}
+
+void TestActiveNavigationThumbnailJobExecutor::generationFailurePreservesTypedKind()
+{
+    QFETCH(kiriview::ThumbnailGenerationStatus, generationStatus);
+    QFETCH(kiriview::ActiveNavigationThumbnailFailureKind, expectedFailureKind);
+
     ManualProviders providers;
     std::vector<kiriview::ActiveNavigationThumbnailWorkCompletion> completions;
     kiriview::ActiveNavigationThumbnailJobExecutor executor(this, providers.lookup(),
@@ -196,16 +225,14 @@ void TestActiveNavigationThumbnailJobExecutor::resourceLimitFailurePreservesType
 
     QVERIFY(executor.start(request(17, kiriview::ThumbnailSourceAdapterPlanKind::InMemoryOnly)));
     QCOMPARE(providers.generationCallbacks.size(), std::size_t(1));
-    providers.generationCallbacks.front()(
-        { kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded, {}, {}, Bucket::Large, {},
-            QStringLiteral("workspace limit exceeded") });
+    providers.generationCallbacks.front()({ generationStatus, {}, {}, Bucket::Large, {},
+        QStringLiteral("typed generation failure") });
 
     QCOMPARE(completions.size(), std::size_t(1));
     const auto& failure
         = std::get<kiriview::ActiveNavigationThumbnailFailedWorkResult>(completions.front().result);
-    QCOMPARE(
-        failure.failureKind, kiriview::ActiveNavigationThumbnailFailureKind::ResourceLimitExceeded);
-    QCOMPARE(failure.errorString, QStringLiteral("workspace limit exceeded"));
+    QCOMPARE(failure.failureKind, expectedFailureKind);
+    QCOMPARE(failure.errorString, QStringLiteral("typed generation failure"));
 }
 
 void TestActiveNavigationThumbnailJobExecutor::cancellationAndPhaseChangesRejectLateCallbacks()

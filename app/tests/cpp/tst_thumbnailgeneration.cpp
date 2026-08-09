@@ -109,7 +109,8 @@ private Q_SLOTS:
     void injectedCacheHitSkipsBytesLoader();
     void injectedCacheInstallPublishesInstalledPath();
     void directVideoInvalidRequestPublishesFailureWithoutLoadingBytes();
-    void directVideoResourceLimitPreservesTypedFailure();
+    void directVideoFailurePreservesTypedCategory_data();
+    void directVideoFailurePreservesTypedCategory();
     void defaultImageBytesLoaderRejectsSourceOverBudget();
     void defaultImageDecoderRejectsApngOverWorkspaceBudget();
     void defaultImageDecoderRejectsGifScaleWorkspaceOverBudget();
@@ -506,14 +507,43 @@ void TestThumbnailGeneration::directVideoInvalidRequestPublishesFailureWithoutLo
 
     QVERIFY(deliveredResult);
     QVERIFY(!job.isActive());
-    QCOMPARE(delivered.status, Status::Failed);
+    QCOMPARE(delivered.status, Status::VideoExtractionInvalidRequest);
     QCOMPARE(delivered.requestedBucket, Bucket::Large);
     QVERIFY(!delivered.errorString.isEmpty());
     QCOMPARE(cacheInstallCount, 0);
 }
 
-void TestThumbnailGeneration::directVideoResourceLimitPreservesTypedFailure()
+void TestThumbnailGeneration::directVideoFailurePreservesTypedCategory_data()
 {
+    QTest::addColumn<kiriview::VideoThumbnailExtractionFailureCause>("extractionCause");
+    QTest::addColumn<Status>("expectedStatus");
+
+    QTest::newRow("invalid-request")
+        << kiriview::VideoThumbnailExtractionFailureCause::InvalidRequest
+        << Status::VideoExtractionInvalidRequest;
+    QTest::newRow("source-unavailable")
+        << kiriview::VideoThumbnailExtractionFailureCause::SourceUnavailable
+        << Status::VideoSourceUnavailable;
+    QTest::newRow("unsupported-media")
+        << kiriview::VideoThumbnailExtractionFailureCause::UnsupportedMedia
+        << Status::VideoUnsupportedMedia;
+    QTest::newRow("backend-failure")
+        << kiriview::VideoThumbnailExtractionFailureCause::BackendFailure
+        << Status::VideoBackendFailure;
+    QTest::newRow("timed-out") << kiriview::VideoThumbnailExtractionFailureCause::TimedOut
+                               << Status::VideoExtractionTimedOut;
+    QTest::newRow("no-representative-image")
+        << kiriview::VideoThumbnailExtractionFailureCause::NoRepresentativeImage
+        << Status::VideoNoRepresentativeImage;
+    QTest::newRow("resource-limit") << kiriview::VideoThumbnailExtractionFailureCause::ResourceLimit
+                                    << Status::ResourceLimitExceeded;
+}
+
+void TestThumbnailGeneration::directVideoFailurePreservesTypedCategory()
+{
+    QFETCH(kiriview::VideoThumbnailExtractionFailureCause, extractionCause);
+    QFETCH(Status, expectedStatus);
+
     QObject owner;
     kiriview::ThumbnailGenerationRequest request = generationRequest(Bucket::Large);
     request.localPathBytes = QByteArrayLiteral("/media/clip.mp4");
@@ -539,7 +569,7 @@ void TestThumbnailGeneration::directVideoResourceLimitPreservesTypedFailure()
               return kiriview::ThumbnailGenerationCacheInstallResult {};
           };
     dependencies.videoExtractionProvider
-        = [&deliveredExtractionRequest](QObject* receiver,
+        = [&deliveredExtractionRequest, extractionCause](QObject* receiver,
               kiriview::VideoThumbnailExtractionRequest extractionRequest,
               kiriview::VideoThumbnailExtractionCallback callback) {
               deliveredExtractionRequest = std::move(extractionRequest);
@@ -548,10 +578,10 @@ void TestThumbnailGeneration::directVideoResourceLimitPreservesTypedFailure()
               const kiriview::ImageIoJobCompletion completion = job.completion();
               const bool queued = QMetaObject::invokeMethod(
                   token,
-                  [completion, callback = std::move(callback)]() mutable {
+                  [completion, callback = std::move(callback), extractionCause]() mutable {
                       kiriview::VideoThumbnailExtractionResult result;
                       result.failure = kiriview::VideoThumbnailExtractionFailure {
-                          kiriview::VideoThumbnailExtractionFailureCause::ResourceLimit,
+                          extractionCause,
                           QStringLiteral("provider diagnostic unrelated to the typed cause"),
                       };
                       completion.claimAndDelete([&callback, result = std::move(result)]() mutable {
@@ -583,7 +613,7 @@ void TestThumbnailGeneration::directVideoResourceLimitPreservesTypedFailure()
 
     QVERIFY(deliveredResult);
     QVERIFY(!job.isActive());
-    QCOMPARE(delivered.status, Status::ResourceLimitExceeded);
+    QCOMPARE(delivered.status, expectedStatus);
     QCOMPARE(delivered.requestedBucket, Bucket::Large);
     QVERIFY(!delivered.errorString.isEmpty());
     QCOMPARE(cacheInstallCount, 0);

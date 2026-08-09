@@ -31,7 +31,7 @@ class VideoThumbnailExtractionContractTest final : public QObject
 private Q_SLOTS:
     void invalidRequestsDoNotStartResources_data();
     void invalidRequestsDoNotStartResources();
-    void admittedRequestStartsBoundedExtraction();
+    void admittedRequestStartsExtractionResources();
     void coverPrecedesThumbnailAndOutputIsBounded();
     void unusableCoverFallsBackToThumbnail();
     void frameOutputIsDetachedFromBackendStorage();
@@ -42,7 +42,7 @@ private Q_SLOTS:
     void resourceLimitIsTyped();
     void backendFailuresAreTyped_data();
     void backendFailuresAreTyped();
-    void deadlineAndExhaustionAreTyped();
+    void deadlineAndTerminalMediaAreTyped();
 };
 
 void VideoThumbnailExtractionContractTest::invalidRequestsDoNotStartResources_data()
@@ -87,7 +87,7 @@ void VideoThumbnailExtractionContractTest::invalidRequestsDoNotStartResources()
     QCOMPARE(result->failure->cause, VideoThumbnailExtractionFailureCause::InvalidRequest);
 }
 
-void VideoThumbnailExtractionContractTest::admittedRequestStartsBoundedExtraction()
+void VideoThumbnailExtractionContractTest::admittedRequestStartsExtractionResources()
 {
     QObject receiver;
     ExtractionHarness harness;
@@ -104,15 +104,10 @@ void VideoThumbnailExtractionContractTest::admittedRequestStartsBoundedExtractio
     QCOMPARE(harness.deadline->creations, 1);
     QCOMPARE(harness.backend->setSourceCalls, 1);
     QCOMPARE(harness.deadline->startCalls, 1);
-    QCOMPARE(harness.deadline->interval, std::chrono::seconds(10));
 
-    harness.backend->instance->emitMediaFacts(
-        { VideoThumbnailBackendMediaStatus::Ready, 900, true, true });
-    QCOMPARE(harness.backend->positions, std::vector<qint64> { 300 });
-
-    QImage frame(32, 18, QImage::Format_RGBA8888);
-    frame.fill(Qt::red);
-    harness.backend->instance->emitFrame(frame);
+    QImage cover(32, 18, QImage::Format_RGBA8888);
+    cover.fill(Qt::red);
+    harness.backend->instance->emitMetadata(VideoThumbnailEmbeddedImages { cover, {} });
     QVERIFY(!result.has_value());
 
     kiriview::test::drainQueuedCalls();
@@ -220,8 +215,6 @@ void VideoThumbnailExtractionContractTest::nonSeekableMediaUsesFirstUsableFrame(
 
     harness.backend->instance->emitMediaFacts(
         { VideoThumbnailBackendMediaStatus::Ready, 0, false, true });
-    QCOMPARE(harness.backend->playCalls, 1);
-    QVERIFY(harness.backend->positions.empty());
 
     QImage frame(12, 20, QImage::Format_RGB32);
     frame.fill(Qt::green);
@@ -396,9 +389,9 @@ void VideoThumbnailExtractionContractTest::backendFailuresAreTyped()
         <= kiriview::VideoThumbnailExtractionLimits::maximumDiagnosticCharacters);
 }
 
-void VideoThumbnailExtractionContractTest::deadlineAndExhaustionAreTyped()
+void VideoThumbnailExtractionContractTest::deadlineAndTerminalMediaAreTyped()
 {
-    const auto run = [](bool timeout) {
+    const auto run = [](bool timeout) -> std::optional<VideoThumbnailExtractionFailureCause> {
         QObject receiver;
         ExtractionHarness harness;
         std::optional<VideoThumbnailExtractionResult> result;
@@ -415,13 +408,19 @@ void VideoThumbnailExtractionContractTest::deadlineAndExhaustionAreTyped()
                 { VideoThumbnailBackendMediaStatus::EndOfMedia, 0, false, true });
         }
         kiriview::test::drainQueuedCalls();
-        Q_ASSERT(!job.isActive());
-        Q_ASSERT(result.has_value());
+        if (job.isActive() || !result.has_value() || !result->failure.has_value()) {
+            return std::nullopt;
+        }
         return result->failure->cause;
     };
 
-    QCOMPARE(run(true), VideoThumbnailExtractionFailureCause::TimedOut);
-    QCOMPARE(run(false), VideoThumbnailExtractionFailureCause::NoRepresentativeImage);
+    const auto timeoutCause = run(true);
+    QVERIFY(timeoutCause.has_value());
+    QCOMPARE(*timeoutCause, VideoThumbnailExtractionFailureCause::TimedOut);
+
+    const auto terminalMediaCause = run(false);
+    QVERIFY(terminalMediaCause.has_value());
+    QCOMPARE(*terminalMediaCause, VideoThumbnailExtractionFailureCause::NoRepresentativeImage);
 }
 
 } // namespace

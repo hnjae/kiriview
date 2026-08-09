@@ -112,8 +112,14 @@ public:
                 enqueue(BackendErrorEvent { error });
             },
         });
+        if (phase_ != Phase::Active) {
+            return;
+        }
         deadline_->start(std::chrono::duration_cast<std::chrono::milliseconds>(extractionDeadline),
             [this]() { enqueue(DeadlineExpiredEvent {}); });
+        if (phase_ != Phase::Active) {
+            return;
+        }
         backend_->setSource(request_.sourceUrl);
     }
 
@@ -283,7 +289,6 @@ private:
     void advanceAfterUnusableFrame()
     {
         if (!candidatePositions_.empty()) {
-            backend_->pause();
             ++candidateIndex_;
             seekToNextCandidate();
         }
@@ -345,13 +350,22 @@ private:
 
     void seekToNextCandidate()
     {
+        if (phase_ != Phase::Active) {
+            return;
+        }
         if (candidateIndex_ >= candidatePositions_.size()) {
             finishNoRepresentativeImage();
             return;
         }
         awaitingFrame_ = true;
         backend_->pause();
+        if (phase_ != Phase::Active) {
+            return;
+        }
         backend_->setPosition(candidatePositions_[candidateIndex_]);
+        if (phase_ != Phase::Active) {
+            return;
+        }
         backend_->play();
     }
 

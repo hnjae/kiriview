@@ -230,6 +230,7 @@ private Q_SLOTS:
     void cacheInstallFailurePublishesReadyImageAndDiagnostic();
     void supersededLookupCompletionIsRejectedByJobIdentity();
     void backgroundResultAndFailedRefinementPreserveForegroundReadyImage();
+    void typedVideoFailureReachesDiagnosticBoundary();
     void demandWindowAdmitsVisibleBeforeNearbyRegardlessOfReportOrder();
     void videoDemandIsCapacityBoundedAndCancellationReleasesExtractor();
     void queuedContinuationFindsEligibleBackgroundRow();
@@ -368,6 +369,32 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     QCOMPARE(lastFailureDiagnostic->failureKind,
         kiriview::ActiveNavigationThumbnailFailureKind::CacheLookupFailed);
     QCOMPARE(lastFailureDiagnostic->errorString, QStringLiteral("refinement lookup failed"));
+}
+
+void TestActiveNavigationThumbnailWorkCoordinator::typedVideoFailureReachesDiagnosticBoundary()
+{
+    auto images = std::make_shared<kiriview::ThumbnailImageStore>();
+    kiriview::ActiveNavigationThumbnailRowStore rows(images);
+    const auto schedulingRows = setRows(rows, { videoRow(1, QStringLiteral("/media/one.mp4")) });
+    ManualProviders providers;
+    std::optional<kiriview::ActiveNavigationThumbnailFailureDiagnostic> diagnostic;
+    kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(this, rows,
+        providers.lookupProvider(), providers.generationProvider(), localAdapter(),
+        [&diagnostic](const kiriview::ActiveNavigationThumbnailFailureDiagnostic& failure) {
+            diagnostic = failure;
+        });
+    QVERIFY(coordinator.resetRows(schedulingRows));
+
+    QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(rows.navigationGeneration(),
+        { { 1, schedulingRows.rows.at(0).sourceUrl, Bucket::Large, Priority::Visible } })));
+    providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Missing);
+    providers.finishGeneration(0, kiriview::ThumbnailGenerationStatus::VideoExtractionTimedOut);
+
+    QCOMPARE(resultStatus(rows, 0), Status::Failed);
+    QVERIFY(diagnostic.has_value());
+    QCOMPARE(diagnostic->failureKind,
+        kiriview::ActiveNavigationThumbnailFailureKind::VideoExtractionTimedOut);
+    QVERIFY(!diagnostic->errorString.isEmpty());
 }
 
 void TestActiveNavigationThumbnailWorkCoordinator::

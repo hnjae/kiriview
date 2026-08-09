@@ -26,6 +26,18 @@ QString fallbackThumbnailFailureError(kiriview::ActiveNavigationThumbnailFailure
         return QStringLiteral("Thumbnail cache installation failed.");
     case kiriview::ActiveNavigationThumbnailFailureKind::GenerationFailed:
         return QStringLiteral("Thumbnail generation failed.");
+    case kiriview::ActiveNavigationThumbnailFailureKind::VideoExtractionInvalidRequest:
+        return QStringLiteral("Video thumbnail extraction received an invalid request.");
+    case kiriview::ActiveNavigationThumbnailFailureKind::VideoSourceUnavailable:
+        return QStringLiteral("The video thumbnail source is unavailable.");
+    case kiriview::ActiveNavigationThumbnailFailureKind::VideoUnsupportedMedia:
+        return QStringLiteral("The video source is unsupported for thumbnail extraction.");
+    case kiriview::ActiveNavigationThumbnailFailureKind::VideoBackendFailure:
+        return QStringLiteral("The video thumbnail backend failed.");
+    case kiriview::ActiveNavigationThumbnailFailureKind::VideoExtractionTimedOut:
+        return QStringLiteral("Video thumbnail extraction timed out.");
+    case kiriview::ActiveNavigationThumbnailFailureKind::VideoNoRepresentativeImage:
+        return QStringLiteral("No representative video thumbnail is available.");
     case kiriview::ActiveNavigationThumbnailFailureKind::ResourceLimitExceeded:
         return QStringLiteral("Thumbnail generation exceeded the application resource limit.");
     case kiriview::ActiveNavigationThumbnailFailureKind::ImageStoreInsertFailed:
@@ -34,6 +46,44 @@ QString fallbackThumbnailFailureError(kiriview::ActiveNavigationThumbnailFailure
         return QStringLiteral("Thumbnail generation provider is unavailable.");
     }
     return QStringLiteral("Thumbnail work failed.");
+}
+
+const char* thumbnailFailureCategory(kiriview::ActiveNavigationThumbnailFailureKind failureKind)
+{
+    using FailureKind = kiriview::ActiveNavigationThumbnailFailureKind;
+
+    switch (failureKind) {
+    case FailureKind::CacheLookupProviderUnavailable:
+        return "cache-lookup-provider-unavailable";
+    case FailureKind::CacheLookupInvalid:
+        return "cache-lookup-invalid";
+    case FailureKind::CacheLookupFailed:
+        return "cache-lookup-failed";
+    case FailureKind::CacheInstallFailed:
+        return "cache-install-failed";
+    case FailureKind::GenerationFailed:
+        return "generation-failed";
+    case FailureKind::VideoExtractionInvalidRequest:
+        return "video-extraction-invalid-request";
+    case FailureKind::VideoSourceUnavailable:
+        return "video-source-unavailable";
+    case FailureKind::VideoUnsupportedMedia:
+        return "video-unsupported-media";
+    case FailureKind::VideoBackendFailure:
+        return "video-backend-failure";
+    case FailureKind::VideoExtractionTimedOut:
+        return "video-extraction-timed-out";
+    case FailureKind::VideoNoRepresentativeImage:
+        return "video-no-representative-image";
+    case FailureKind::ResourceLimitExceeded:
+        return "resource-limit-exceeded";
+    case FailureKind::ImageStoreInsertFailed:
+        return "image-store-insert-failed";
+    case FailureKind::GenerationProviderUnavailable:
+        return "generation-provider-unavailable";
+    }
+
+    return "unknown";
 }
 }
 
@@ -232,7 +282,7 @@ void ActiveNavigationThumbnailWorkCoordinator::reportFailureDiagnostic(
                                   << sourceKey.row.rowNumber << "url"
                                   << kiriview::diagnosticSourceReference(sourceKey.sourceUrl)
                                   << "bucket" << static_cast<int>(bucket) << "failure"
-                                  << static_cast<int>(failureKind) << "error"
+                                  << thumbnailFailureCategory(failureKind) << "error"
                                   << kiriview::diagnosticDetailReference(resolvedErrorString);
     if (m_failureDiagnosticCallback) {
         m_failureDiagnosticCallback(diagnostic);

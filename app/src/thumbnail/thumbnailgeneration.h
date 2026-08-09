@@ -30,6 +30,12 @@ class QObject;
 namespace kiriview {
 enum class ThumbnailGenerationStatus {
     Ready,
+    VideoExtractionInvalidRequest,
+    VideoSourceUnavailable,
+    VideoUnsupportedMedia,
+    VideoBackendFailure,
+    VideoExtractionTimedOut,
+    VideoNoRepresentativeImage,
     ResourceLimitExceeded,
     Failed,
 };

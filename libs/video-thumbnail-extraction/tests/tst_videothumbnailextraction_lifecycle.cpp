@@ -26,9 +26,12 @@ class VideoThumbnailExtractionLifecycleTest final : public QObject
 
 private Q_SLOTS:
     void completionIsQueuedAndJobDeactivatesBeforeCallback();
+    void synchronousDeadlineExpiryStopsStartup();
+    void cancellationBeforeStartupSuppressesDelivery();
     void cancellationSuppressesPendingDelivery();
     void activeCancellationReleasesResources();
-    void receiverDestructionSuppressesDelivery();
+    void receiverDestructionWhileActiveSuppressesDelivery();
+    void receiverDestructionSuppressesPendingDelivery();
     void firstTerminalOutcomeWinsAcrossReentrantCleanup();
     void moveAssignmentCancelsReplacedOperation();
     void callbackMayReleaseJobAndReceiver();
@@ -62,7 +65,39 @@ void VideoThumbnailExtractionLifecycleTest::completionIsQueuedAndJobDeactivatesB
     QVERIFY(!job.isActive());
 }
 
-void VideoThumbnailExtractionLifecycleTest::cancellationSuppressesPendingDelivery()
+void VideoThumbnailExtractionLifecycleTest::synchronousDeadlineExpiryStopsStartup()
+{
+    QObject receiver;
+    ExtractionHarness harness;
+    harness.deadline->expireSynchronouslyOnStart = true;
+    int completionCount = 0;
+    std::optional<VideoThumbnailExtractionResult> result;
+
+    auto job = kiriview::detail::startVideoThumbnailExtractionWithDependencies(
+        &receiver, kiriview::test::validRequest(),
+        [&](VideoThumbnailExtractionResult value) {
+            ++completionCount;
+            result = std::move(value);
+        },
+        harness.dependencies());
+
+    QVERIFY(job.isActive());
+    QCOMPARE(completionCount, 0);
+    kiriview::test::drainQueuedCalls();
+
+    QCOMPARE(completionCount, 1);
+    QVERIFY(result.has_value());
+    QCOMPARE(result->status, VideoThumbnailExtractionStatus::Failed);
+    QVERIFY(result->failure.has_value());
+    QCOMPARE(result->failure->cause, VideoThumbnailExtractionFailureCause::TimedOut);
+    QVERIFY(!job.isActive());
+    QCOMPARE(harness.deadline->startCalls, 1);
+    QVERIFY(harness.deadline->stopCalls > 0);
+    QCOMPARE(harness.backend->setSourceCalls, 0);
+    QVERIFY(harness.backend->stopCalls > 0);
+}
+
+void VideoThumbnailExtractionLifecycleTest::cancellationBeforeStartupSuppressesDelivery()
 {
     QObject receiver;
     ExtractionHarness harness;
@@ -76,6 +111,40 @@ void VideoThumbnailExtractionLifecycleTest::cancellationSuppressesPendingDeliver
     job.cancel();
     job.cancel();
     QVERIFY(!job.isActive());
+    kiriview::test::drainQueuedCalls();
+
+    QCOMPARE(completionCount, 0);
+}
+
+void VideoThumbnailExtractionLifecycleTest::cancellationSuppressesPendingDelivery()
+{
+    QObject receiver;
+    ExtractionHarness harness;
+    int completionCount = 0;
+
+    auto job = kiriview::detail::startVideoThumbnailExtractionWithDependencies(
+        &receiver, kiriview::test::validRequest(),
+        [&completionCount](VideoThumbnailExtractionResult) { ++completionCount; },
+        harness.dependencies());
+    kiriview::test::drainQueuedCalls();
+
+    const auto staleBackendError = harness.backend->instance->errorCallback();
+    const auto staleDeadlineExpiry = harness.deadline->expired;
+    QVERIFY(staleBackendError);
+    QVERIFY(staleDeadlineExpiry);
+    QImage cover(8, 8, QImage::Format_RGBA8888);
+    cover.fill(Qt::yellow);
+    harness.backend->instance->emitMetadata(VideoThumbnailEmbeddedImages { cover, {} });
+
+    QVERIFY(job.isActive());
+    QCOMPARE(completionCount, 0);
+    QVERIFY(harness.backend->stopCalls > 0);
+    QVERIFY(harness.deadline->stopCalls > 0);
+
+    job.cancel();
+    QVERIFY(!job.isActive());
+    staleBackendError(VideoThumbnailBackendError::Other, {});
+    staleDeadlineExpiry();
     kiriview::test::drainQueuedCalls();
 
     QCOMPARE(completionCount, 0);
@@ -104,7 +173,7 @@ void VideoThumbnailExtractionLifecycleTest::activeCancellationReleasesResources(
     QCOMPARE(completionCount, 0);
 }
 
-void VideoThumbnailExtractionLifecycleTest::receiverDestructionSuppressesDelivery()
+void VideoThumbnailExtractionLifecycleTest::receiverDestructionWhileActiveSuppressesDelivery()
 {
     auto receiver = std::make_unique<QObject>();
     ExtractionHarness harness;
@@ -124,6 +193,40 @@ void VideoThumbnailExtractionLifecycleTest::receiverDestructionSuppressesDeliver
     QCOMPARE(completionCount, 0);
     QCOMPARE(harness.backend->stopCalls, 1);
     QCOMPARE(harness.deadline->stopCalls, 1);
+}
+
+void VideoThumbnailExtractionLifecycleTest::receiverDestructionSuppressesPendingDelivery()
+{
+    auto receiver = std::make_unique<QObject>();
+    ExtractionHarness harness;
+    int completionCount = 0;
+
+    auto job = kiriview::detail::startVideoThumbnailExtractionWithDependencies(
+        receiver.get(), kiriview::test::validRequest(),
+        [&completionCount](VideoThumbnailExtractionResult) { ++completionCount; },
+        harness.dependencies());
+    kiriview::test::drainQueuedCalls();
+
+    const auto staleBackendError = harness.backend->instance->errorCallback();
+    const auto staleDeadlineExpiry = harness.deadline->expired;
+    QVERIFY(staleBackendError);
+    QVERIFY(staleDeadlineExpiry);
+    QImage cover(8, 8, QImage::Format_RGBA8888);
+    cover.fill(Qt::yellow);
+    harness.backend->instance->emitMetadata(VideoThumbnailEmbeddedImages { cover, {} });
+
+    QVERIFY(job.isActive());
+    QCOMPARE(completionCount, 0);
+    QVERIFY(harness.backend->stopCalls > 0);
+    QVERIFY(harness.deadline->stopCalls > 0);
+
+    receiver.reset();
+    QVERIFY(!job.isActive());
+    staleBackendError(VideoThumbnailBackendError::Other, {});
+    staleDeadlineExpiry();
+    kiriview::test::drainQueuedCalls();
+
+    QCOMPARE(completionCount, 0);
 }
 
 void VideoThumbnailExtractionLifecycleTest::firstTerminalOutcomeWinsAcrossReentrantCleanup()

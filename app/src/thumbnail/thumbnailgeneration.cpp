@@ -92,6 +92,32 @@ int bucketMaxEdge(kiriview::ActiveNavigationThumbnailDemandBucket bucket)
     return 0;
 }
 
+kiriview::ThumbnailGenerationStatus generationStatusForVideoExtractionFailure(
+    kiriview::VideoThumbnailExtractionFailureCause cause)
+{
+    using Cause = kiriview::VideoThumbnailExtractionFailureCause;
+    using Status = kiriview::ThumbnailGenerationStatus;
+
+    switch (cause) {
+    case Cause::InvalidRequest:
+        return Status::VideoExtractionInvalidRequest;
+    case Cause::SourceUnavailable:
+        return Status::VideoSourceUnavailable;
+    case Cause::UnsupportedMedia:
+        return Status::VideoUnsupportedMedia;
+    case Cause::BackendFailure:
+        return Status::VideoBackendFailure;
+    case Cause::TimedOut:
+        return Status::VideoExtractionTimedOut;
+    case Cause::NoRepresentativeImage:
+        return Status::VideoNoRepresentativeImage;
+    case Cause::ResourceLimit:
+        return Status::ResourceLimitExceeded;
+    }
+
+    return Status::Failed;
+}
+
 kiriview::ThumbnailGenerationResult failedResult(
     kiriview::ActiveNavigationThumbnailDemandBucket bucket, QString errorString,
     kiriview::ThumbnailGenerationStatus status = kiriview::ThumbnailGenerationStatus::Failed)
@@ -808,10 +834,8 @@ kiriview::ImageIoJob startVideoThumbnailGenerationJob(QObject* receiver,
                 kiriview::ThumbnailGenerationStatus failureStatus
                     = kiriview::ThumbnailGenerationStatus::Failed;
                 if (extractionResult.failure.has_value()) {
-                    if (extractionResult.failure->cause
-                        == kiriview::VideoThumbnailExtractionFailureCause::ResourceLimit) {
-                        failureStatus = kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded;
-                    }
+                    failureStatus = generationStatusForVideoExtractionFailure(
+                        extractionResult.failure->cause);
                     diagnostic = std::move(extractionResult.failure->diagnostic);
                 }
                 callback(failedResult(request.requestedBucket,
