@@ -947,7 +947,7 @@ void ImageSequenceFactoryTest::imageFrameDerivesPayloadFacts()
 
 void ImageSequenceFactoryTest::imageFrameFormatIdentifierLimitCountsScalarsBeforePayloadCopy()
 {
-    const QString astralScalar = QString::fromUtf8("\xF0\x9F\x99\x82");
+    const QString astralScalar = QStringLiteral("\U0001F642");
     QString formatAtLimit;
     formatAtLimit.reserve(
         static_cast<qsizetype>(ImageSequenceLimits::maximumFormatIdentifierCharacters()) * 2);

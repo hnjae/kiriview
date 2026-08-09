@@ -1101,7 +1101,7 @@ void ImageViewportProviderFrameAdmissionTest::
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     QString overlongFormat;
-    const QString astralScalar = QString::fromUtf8("\xF0\x9F\x99\x82");
+    const QString astralScalar = QStringLiteral("\U0001F642");
     for (int index = 0; index <= ImageSequenceLimits::maximumFormatIdentifierCharacters();
         ++index) {
         overlongFormat.append(astralScalar);
