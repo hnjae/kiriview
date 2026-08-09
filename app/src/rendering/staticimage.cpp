@@ -6,6 +6,55 @@
 #include "cache/imagebyteaccounting.h"
 #include "cache/imagebytecost.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <limits>
+
+namespace {
+qsizetype stringStorageByteCost(const QString& value)
+{
+    const qsizetype retainedCodeUnits = std::max(value.size(), value.capacity());
+    if (retainedCodeUnits <= 0) {
+        return 0;
+    }
+    return kiriview::saturatedQtByteProduct(
+        kiriview::saturatedQtByteSum(retainedCodeUnits, 1), sizeof(QChar));
+}
+
+qsizetype embeddedMetadataStorageByteCost(const kiriview::EmbeddedMetadata& metadata)
+{
+    qsizetype byteCost = 0;
+    for (const QString* field : {
+             &metadata.cameraMake,
+             &metadata.cameraModel,
+             &metadata.taken,
+             &metadata.location,
+             &metadata.lens,
+             &metadata.exposure,
+             &metadata.iso,
+             &metadata.focalLength,
+             &metadata.software,
+             &metadata.duration,
+             &metadata.frameSize,
+         }) {
+        byteCost = kiriview::saturatedQtByteSum(byteCost, stringStorageByteCost(*field));
+    }
+
+    const std::size_t maximumCountedCapacity
+        = static_cast<std::size_t>(std::numeric_limits<std::int64_t>::max());
+    const std::size_t rowCapacity
+        = std::min(metadata.advancedRows.capacity(), maximumCountedCapacity);
+    byteCost = kiriview::saturatedQtByteSum(byteCost,
+        kiriview::saturatedQtByteProduct(
+            static_cast<std::int64_t>(rowCapacity), sizeof(kiriview::EmbeddedMetadataRow)));
+    for (const kiriview::EmbeddedMetadataRow& row : metadata.advancedRows) {
+        byteCost = kiriview::saturatedQtByteSum(byteCost, stringStorageByteCost(row.label));
+        byteCost = kiriview::saturatedQtByteSum(byteCost, stringStorageByteCost(row.value));
+    }
+    return byteCost;
+}
+}
+
 namespace kiriview {
 StaticImageSourceDetailModel StaticImageDisplaySource::detailModel() const
 {
@@ -92,7 +141,8 @@ qsizetype StaticDisplayImagePayload::byteCost() const
     }
 
     const qsizetype sourceCost = refinementSource == nullptr ? 0 : refinementSource->byteCost();
-    return saturatedQtByteSum(sourceCost, imageByteCost(image));
+    return saturatedQtByteSum(saturatedQtByteSum(sourceCost, imageByteCost(image)),
+        embeddedMetadataStorageByteCost(embeddedMetadata));
 }
 
 std::optional<qsizetype> StaticDisplayImagePayload::byteCostWithinBudget(qsizetype byteBudget) const

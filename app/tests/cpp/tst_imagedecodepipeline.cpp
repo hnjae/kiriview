@@ -3,6 +3,8 @@
 
 #include "decoding/imagedecodepipeline.h"
 
+#include "decoding/imagedecodeworkspace.h"
+#include "image_test_support.h"
 #include "localization/imageerrortext.h"
 
 #include <QByteArray>
@@ -13,6 +15,7 @@
 #include <QStringList>
 #include <QTest>
 #include <QUrl>
+#include <memory>
 #include <utility>
 
 namespace {
@@ -71,6 +74,22 @@ QByteArray invalidJxlContainerData()
     data.append(char(0x0a));
     return data;
 }
+
+QByteArray jpegWithCameraMakeMetadata()
+{
+    return QByteArray::fromHex(
+        "ffd8ffe1019045786966000049492a000800000007000f010200100000006200000010010200"
+        "0a000000720000000e0102000e0000007c0000003c0102000100000000000000310102000e00"
+        "00008a000000698704000100000098000000258804000100000022010000000000004b697269"
+        "2043616d65726120436f2e004b69726943616d203100416476616e636564206e6f7465004b69"
+        "72694f532043616d6572610006000390020014000000e600000034a4020010000000fa000000"
+        "9a820500010000000a0100009d82050001000000120100002788030001000000900100000a92"
+        "0500010000001a01000000000000323032363a30353a33312031323a33343a3536004b697269"
+        "205072696d652033356d6d00010000007d000000380000000a00000023000000010000000400"
+        "01000200020000004e0000000200050003000000580100000300020002000000570000000400"
+        "050003000000700100000000000025000000010000002e00000001000000940b000064000000"
+        "7a000000010000001900000001000000d803000064000000ffd9");
+}
 }
 
 class TestImageDecodePipeline : public QObject
@@ -82,6 +101,7 @@ private Q_SLOTS:
     void runtimeExecutesRoutePlansWithoutClassifier();
     void routerCallsExactlyOneDecoderForClassifiedInputs();
     void selectedDecoderFailureDoesNotFallback();
+    void metadataWorkspaceAdmissionIsOptionalAndReleased();
     void compatibleDataIsComputedOnlyWhenClassificationRequestsIt();
     void qtRasterClassificationCarriesExplicitFormat();
     void defaultSvgDecodeUsesFirstDisplayContext();
@@ -209,6 +229,68 @@ void TestImageDecodePipeline::selectedDecoderFailureDoesNotFallback()
     QCOMPARE(failure->errorString, QStringLiteral("raw failed"));
     QCOMPARE(failure->route, kiriview::DecodedImageFailureRoute::Raw);
     QCOMPARE(calls, QStringList({ QStringLiteral("raw") }));
+}
+
+void TestImageDecodePipeline::metadataWorkspaceAdmissionIsOptionalAndReleased()
+{
+    kiriview::ImageDecodeRouterHandlers handlers;
+    handlers.qtRaster = [](const kiriview::ImageDecodeRouterInput&) {
+        return kiriview::successfulDecodedImageResult(
+            kiriview::TestSupport::staticDecodedTestImage());
+    };
+    const auto classifier = [](const QByteArray&, const QString&) {
+        return classification(kiriview::ImageInputKind::QtRaster, kiriview::QtRasterFormat::Jpeg);
+    };
+    kiriview::ImageDecodeRouter router(std::move(handlers), classifier);
+    const QByteArray data = jpegWithCameraMakeMetadata();
+
+    auto admittedBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        128 * 1024 * 1024, 128 * 1024 * 1024);
+    const kiriview::DecodedImageResult admitted
+        = router.decode(data, kiriview::ImageDecodeRequest {}, admittedBudget);
+    const kiriview::DecodedImage* admittedImage = kiriview::decodedImageResultImage(admitted);
+    QVERIFY(admittedImage != nullptr);
+    QCOMPARE(kiriview::decodedImageEmbeddedMetadata(*admittedImage).cameraMake,
+        QStringLiteral("Kiri Camera Co."));
+    QCOMPARE(admittedBudget->reservedByteCount(), qsizetype(0));
+
+    auto unavailableBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(1024, 1024);
+    const kiriview::DecodedImageResult unavailable
+        = router.decode(data, kiriview::ImageDecodeRequest {}, unavailableBudget);
+    const kiriview::DecodedImage* unavailableImage = kiriview::decodedImageResultImage(unavailable);
+    QVERIFY(unavailableImage != nullptr);
+    QVERIFY(kiriview::decodedImageEmbeddedMetadata(*unavailableImage).isEmpty());
+    QCOMPARE(unavailableBudget->reservedByteCount(), qsizetype(0));
+
+    constexpr qsizetype existingWorkspaceByteCost = 1024 * 1024;
+    constexpr qsizetype metadataWorkspaceByteCost = 64 * 1024 * 1024;
+    kiriview::ImageDecodeRouterHandlers animationHandlers;
+    animationHandlers.apng = [existingWorkspaceByteCost](
+                                 const kiriview::ImageDecodeRouterInput& input) {
+        kiriview::ImageDecodeWorkspaceLease lease = input.workspaceBudget->startLease();
+        if (!lease.tryReserve(existingWorkspaceByteCost)) {
+            return kiriview::failedDecodedImageResult(QStringLiteral("workspace unavailable"));
+        }
+        kiriview::ImageDecodeWorkspaceHold hold = lease.retainOnly(existingWorkspaceByteCost);
+        return kiriview::successfulDecodedImageResult(kiriview::ApngAnimationImage {
+            std::move(hold), kiriview::TestSupport::testImage(), {}, {}, {}, {}, {}, {} });
+    };
+    kiriview::ImageDecodeRouter animationRouter(
+        std::move(animationHandlers), [](const QByteArray&, const QString&) {
+            return classification(kiriview::ImageInputKind::Apng);
+        });
+    auto operationLimitedBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        256 * 1024 * 1024, existingWorkspaceByteCost + metadataWorkspaceByteCost - 1);
+    {
+        const kiriview::DecodedImageResult operationLimited
+            = animationRouter.decode(data, kiriview::ImageDecodeRequest {}, operationLimitedBudget);
+        const kiriview::DecodedImage* operationLimitedImage
+            = kiriview::decodedImageResultImage(operationLimited);
+        QVERIFY(operationLimitedImage != nullptr);
+        QVERIFY(kiriview::decodedImageEmbeddedMetadata(*operationLimitedImage).isEmpty());
+        QCOMPARE(operationLimitedBudget->reservedByteCount(), existingWorkspaceByteCost);
+    }
+    QCOMPARE(operationLimitedBudget->reservedByteCount(), qsizetype(0));
 }
 
 void TestImageDecodePipeline::compatibleDataIsComputedOnlyWhenClassificationRequestsIt()

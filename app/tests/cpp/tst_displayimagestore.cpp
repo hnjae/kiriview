@@ -3,6 +3,7 @@
 
 #include "rendering/displayimagestore.h"
 
+#include "cache/imagebytecost.h"
 #include "decoding/imagesourcerevision.h"
 
 #include <QByteArrayView>
@@ -28,6 +29,7 @@ private Q_SLOTS:
     void outputAdmissionRetiresAfterStoredPixels();
     void failedReservationPreservesExternallyAdmittedEntry();
     void entryAliasRetainsAdmissionAndPixelsAfterStoreDestruction();
+    void ancillaryPayloadParticipatesInAdmissionAndEviction();
     void reusableAcquisitionRequiresExactKeyMatch();
     void reusableAcquisitionDistinguishesFreshnessAndAuthoredRasterIdentity();
 };
@@ -233,9 +235,14 @@ void TestDisplayImageStore::entryAliasRetainsAdmissionAndPixelsAfterStoreDestruc
         bool* admissionAliveAtPixelRetirement = nullptr;
     };
 
-    auto store = std::make_unique<kiriview::DisplayImageStore>(64);
+    QImage accountingImage = testImage(QSize(4, 4));
+    accountingImage.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    accountingImage.setText(QStringLiteral("source"), QStringLiteral("retirement-probe"));
+    const qsizetype admittedByteCost = kiriview::imageByteCost(accountingImage);
+
+    auto store = std::make_unique<kiriview::DisplayImageStore>(admittedByteCost);
     std::shared_ptr<kiriview::DisplayImageOutputAdmission> outputAdmission
-        = store->reserveOutput(64);
+        = store->reserveOutput(admittedByteCost);
     QVERIFY(outputAdmission != nullptr);
     const std::weak_ptr<kiriview::DisplayImageOutputAdmission> weakAdmission = outputAdmission;
     bool pixelsRetired = false;
@@ -280,10 +287,11 @@ void TestDisplayImageStore::entryAliasRetainsAdmissionAndPixelsAfterStoreDestruc
     QCOMPARE(stored->image.colorSpace(), QColorSpace(QColorSpace::SRgb));
     QCOMPARE(stored->image.devicePixelRatio(), 2.0);
     QCOMPARE(stored->image.offset(), QPoint(3, 5));
-    QCOMPARE(stored->image.text(QStringLiteral("source")), QStringLiteral("retirement-probe"));
+    QVERIFY(stored->image.textKeys().isEmpty());
+    QCOMPARE(stored->byteCost, admittedByteCost);
     producedImage = {};
 
-    QVERIFY(store->reserveOutput(64) == nullptr);
+    QVERIFY(store->reserveOutput(admittedByteCost) == nullptr);
     QVERIFY(store->entry(id).has_value());
     store.reset();
 
@@ -295,6 +303,37 @@ void TestDisplayImageStore::entryAliasRetainsAdmissionAndPixelsAfterStoreDestruc
     QVERIFY(pixelsRetired);
     QVERIFY(admissionAliveAtPixelRetirement);
     QVERIFY(weakAdmission.expired());
+}
+
+void TestDisplayImageStore::ancillaryPayloadParticipatesInAdmissionAndEviction()
+{
+    kiriview::DisplayImageEntry ancillaryEntry
+        = testEntry(QSize(4, 4), kiriview::DisplayImageRetentionPriority::Background);
+    ancillaryEntry.image.setText(QStringLiteral("source"), QString(4096, QLatin1Char('x')));
+    const qsizetype ancillaryByteCost = kiriview::imageByteCost(ancillaryEntry.image);
+    QVERIFY(ancillaryByteCost > ancillaryEntry.image.sizeInBytes());
+
+    kiriview::DisplayImageStore undersizedStore(ancillaryEntry.image.sizeInBytes());
+    QVERIFY(undersizedStore
+            .acquireReusable(
+                ancillaryEntry, testReuseKey(QStringLiteral("undersized"), QSize(4, 4)))
+            .isEmpty());
+    QCOMPARE(undersizedStore.byteCost(), qsizetype(0));
+
+    kiriview::DisplayImageStore store(ancillaryByteCost);
+    const QString ancillary = store.acquireReusable(
+        ancillaryEntry, testReuseKey(QStringLiteral("ancillary"), QSize(4, 4)));
+    QVERIFY(!ancillary.isEmpty());
+    QCOMPARE(store.byteCost(), ancillaryByteCost);
+    QVERIFY(store.entry(ancillary)->image.textKeys().isEmpty());
+
+    const QString replacement = store.acquireReusable(
+        testEntry(QSize(4, 4), kiriview::DisplayImageRetentionPriority::Visible),
+        testReuseKey(QStringLiteral("replacement"), QSize(4, 4)));
+    QVERIFY(!replacement.isEmpty());
+    QVERIFY(store.entry(ancillary) == std::nullopt);
+    QVERIFY(store.entry(replacement).has_value());
+    QCOMPARE(store.byteCost(), qsizetype(64));
 }
 
 void TestDisplayImageStore::reusableAcquisitionRequiresExactKeyMatch()

@@ -5,15 +5,49 @@
 
 #include "cache/imagebyteaccounting.h"
 
+#include <QByteArray>
+#include <QColorSpace>
+#include <QList>
+#include <QString>
+#include <QStringList>
+#include <algorithm>
 #include <limits>
 
 namespace kiriview {
+namespace {
+    // QImage exposes text contents but not its associative-container allocation. Keep a
+    // conservative per-entry allowance for the node, two string headers, terminators, and allocator
+    // bookkeeping.
+    constexpr qsizetype imageTextEntryAccountingOverhead = 256;
+
+    qsizetype stringStorageByteCost(const QString& value)
+    {
+        const qsizetype retainedCodeUnits = std::max(value.size(), value.capacity());
+        return saturatedQtByteSum(
+            saturatedQtByteProduct(retainedCodeUnits, sizeof(QChar)), sizeof(QChar));
+    }
+}
+
 qsizetype imageByteCost(const QImage& image)
 {
     if (image.isNull()) {
         return 0;
     }
-    return image.sizeInBytes();
+
+    qsizetype byteCost = image.sizeInBytes();
+    const QList<QRgb> colorTable = image.colorTable();
+    byteCost = saturatedQtByteSum(byteCost,
+        saturatedQtByteProduct(std::max(colorTable.size(), colorTable.capacity()), sizeof(QRgb)));
+    const QByteArray iccProfile = image.colorSpace().iccProfile();
+    byteCost = saturatedQtByteSum(byteCost, std::max(iccProfile.size(), iccProfile.capacity()));
+    const QStringList textKeys = image.textKeys();
+    byteCost = saturatedQtByteSum(
+        byteCost, saturatedQtByteProduct(textKeys.size(), imageTextEntryAccountingOverhead));
+    for (const QString& key : textKeys) {
+        byteCost = saturatedQtByteSum(byteCost, stringStorageByteCost(key));
+        byteCost = saturatedQtByteSum(byteCost, stringStorageByteCost(image.text(key)));
+    }
+    return byteCost;
 }
 
 qsizetype estimatedRgbaByteCost(QSize size)

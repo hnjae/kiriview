@@ -26,10 +26,25 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <variant>
 
 Q_LOGGING_CATEGORY(kiriviewDecodeLog, "org.hnjae.kiriview.decode", QtWarningMsg)
 
 namespace {
+constexpr qsizetype embeddedMetadataWorkspaceReservation = 64 * 1024 * 1024;
+
+qsizetype decodedImageWorkspaceByteCost(const kiriview::DecodedImage& image)
+{
+    return std::visit(
+        [](const auto& decoded) -> qsizetype {
+            if constexpr (requires { decoded.firstFrameWorkspaceHold; }) {
+                return decoded.firstFrameWorkspaceHold.reservedByteCount();
+            }
+            return 0;
+        },
+        image);
+}
+
 const char* imageInputKindName(kiriview::ImageInputKind kind)
 {
     switch (kind) {
@@ -621,6 +636,9 @@ DecodedImageResult ImageDecodeRouter::decode(const QByteArray& data,
     const ImageDecodeRequest& request,
     std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget) const
 {
+    if (workspaceBudget == nullptr) {
+        workspaceBudget = defaultImageDecodeWorkspaceBudget();
+    }
     const ImageInputClassification classification
         = m_classifier(data, request.imageUrl().fileName());
     const ImageDecodeRoute route = imageDecodeRouteForClassification(classification);
@@ -632,12 +650,16 @@ DecodedImageResult ImageDecodeRouter::decode(const QByteArray& data,
                                << "dataSource" << imageDecodeDataSourceName(route.dataSource)
                                << "qtFormat" << qtRasterFormatName(route.qtRasterFormat) << "bytes"
                                << data.size();
-    DecodedImageResult result = m_runtime.execute(route, data, request, std::move(workspaceBudget));
+    DecodedImageResult result = m_runtime.execute(route, data, request, workspaceBudget);
     DecodedImage* image = decodedImageResultImage(result);
     if (image != nullptr) {
-        EmbeddedMetadata metadata = parseImageEmbeddedMetadata(data);
-        if (!metadata.isEmpty()) {
-            setDecodedImageEmbeddedMetadata(*image, std::move(metadata));
+        ImageDecodeWorkspaceLease metadataWorkspace
+            = workspaceBudget->startLeaseForOperation(decodedImageWorkspaceByteCost(*image));
+        if (metadataWorkspace.tryReserve(embeddedMetadataWorkspaceReservation)) {
+            EmbeddedMetadata metadata = parseImageEmbeddedMetadata(data);
+            if (!metadata.isEmpty()) {
+                setDecodedImageEmbeddedMetadata(*image, std::move(metadata));
+            }
         }
     }
     return result;

@@ -551,6 +551,7 @@ private Q_SLOTS:
     void deferredDecodeSourceInvalidationDropsLateResolution();
     void deferredDecodeSourceSuppressesProvisionalFrameUntilAuthoritativeTerminal();
     void providerResourceSeparatesWorkAndDisplayReuseIdentity();
+    void providerResourceAccountsAncillaryPayload();
     void providerResourcePreservesDistinctTimedFramePixelsAndHandles();
     void apngFirstFramePublishesBeforeLaterRasterFailure();
     void actualApngFramesPreservePixelsThroughProviderResource();
@@ -1301,6 +1302,56 @@ void TestImageViewportSequenceProvider::providerResourceSeparatesWorkAndDisplayR
             });
     QVERIFY(unsupportedPrepared.isUnsupported());
     QVERIFY(!unsupportedResource->bindDisplayLocationIdentity(QStringLiteral("too-late")));
+}
+
+void TestImageViewportSequenceProvider::providerResourceAccountsAncillaryPayload()
+{
+    kiriview::StaticDisplayImagePayload payload
+        = displayPayload(kiriview::DisplayImageQuality::Exact, QSize(4, 4), QSize(4, 4));
+    payload.image.setText(QStringLiteral("source"), QString(4096, QLatin1Char('x')));
+    const qsizetype payloadByteCost = kiriview::imageByteCost(payload.image);
+    const qsizetype pixelByteCost = payload.image.sizeInBytes();
+    QVERIFY(payloadByteCost > pixelByteCost);
+
+    const auto requestFrame
+        = [](qsizetype storeBudget, kiriview::StaticDisplayImagePayload displayImage) {
+              auto source = std::make_shared<FakeImageViewportProviderSource>();
+              source->automaticFrame
+                  = kiriview::ImageViewportProviderFrameResult::ready(std::move(displayImage),
+                      ImageSequenceProviderFrameEnvelope::stillFrame(), QStringLiteral("png"));
+              auto store = std::make_shared<kiriview::DisplayImageStore>(storeBudget);
+              auto resource = std::make_shared<kiriview::ImageViewportProviderResource>(
+                  109, QStringLiteral("ancillary-work"), source, store);
+
+              kiriview::ImageViewportProviderPreparedFrame prepared;
+              resource->requestFrame(
+                  kiriview::ImageViewportProviderWorkIdentity {
+                      109,
+                      ImageViewportPageRole::Primary,
+                      {},
+                      {},
+                      QStringLiteral("ancillary-work"),
+                  },
+                  kiriview::ImageViewportProviderFrameRequest { 0, {} },
+                  [&prepared](kiriview::ImageViewportProviderWorkIdentity,
+                      kiriview::ImageViewportProviderPreparedFrame result) {
+                      prepared = std::move(result);
+                  });
+              return std::pair(std::move(store), std::move(prepared));
+          };
+
+    auto [admittedStore, admitted] = requestFrame(payloadByteCost, payload);
+    QVERIFY(admitted.isReady());
+    QCOMPARE(admittedStore->byteCost(), payloadByteCost);
+    const std::optional<kiriview::DisplayImageStoreEntry> stored
+        = admittedStore->entry(admitted.storeEntryId);
+    QVERIFY(stored.has_value());
+    QVERIFY(stored->image.textKeys().isEmpty());
+
+    auto [rejectedStore, rejected] = requestFrame(pixelByteCost, std::move(payload));
+    QVERIFY(!rejected.isReady());
+    QCOMPARE(rejected.failureCause, ImageSequenceProviderFailureCause::ResourceExhausted);
+    QCOMPARE(rejectedStore->byteCost(), qsizetype(0));
 }
 
 void TestImageViewportSequenceProvider::

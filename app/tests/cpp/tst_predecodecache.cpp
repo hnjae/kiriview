@@ -9,6 +9,7 @@
 #include <QColor>
 #include <QImage>
 #include <QObject>
+#include <QString>
 #include <QTest>
 #include <QUrl>
 #include <Qt>
@@ -125,6 +126,7 @@ private Q_SLOTS:
     void queueSkipsAllDisplayedWindowImages();
     void takeNextRequestDiscardsSkippedQueuePrefix();
     void cacheStoresAndFindsWindowImages();
+    void cacheAccountsRetainedMetadataStorage();
     void cacheFindsImagesByUrlAndOpenedCollectionScope();
     void queueAndActiveWorkDistinguishOpenedCollectionScope();
     void directResolvedScopesKeepExactCacheAndQueueIdentity();
@@ -237,7 +239,7 @@ void TestPredecodeCache::takeNextRequestDiscardsSkippedQueuePrefix()
 
 void TestPredecodeCache::cacheStoresAndFindsWindowImages()
 {
-    kiriview::PredecodeCache cache(80);
+    kiriview::PredecodeCache cache(1024);
     const QUrl url = indexedImageUrl(0);
     const kiriview::OpenedCollectionScopeLocation openedCollectionScope
         = comicBookArchiveCollection();
@@ -268,6 +270,29 @@ void TestPredecodeCache::cacheStoresAndFindsWindowImages()
     QCOMPARE(found->location.imageUrl(), url);
     QCOMPARE(found->location.openedCollectionScope().rootUrl(), openedCollectionScope.rootUrl());
     QVERIFY(found->displayImage.refinementSource != nullptr);
+}
+
+void TestPredecodeCache::cacheAccountsRetainedMetadataStorage()
+{
+    const QUrl url = indexedImageUrl(0);
+    const kiriview::OpenedCollectionScopeLocation openedCollectionScope
+        = comicBookArchiveCollection();
+    const kiriview::DisplayedImageLocation location = displayedLocation(url, openedCollectionScope);
+    kiriview::StaticDisplayImagePayload payload = cacheDisplayImage(cacheImage());
+    const qsizetype imageOnlyByteCost = payload.byteCost();
+    payload.embeddedMetadata.cameraMake = QString(4096, QLatin1Char('x'));
+    const qsizetype byteCostWithMetadata = payload.byteCost();
+    QVERIFY(byteCostWithMetadata > imageOnlyByteCost);
+
+    kiriview::PredecodeCache rejectingCache(byteCostWithMetadata - 1);
+    rejectingCache.setWindowLocations({ location });
+    rejectingCache.cacheImage(location, payload);
+    QVERIFY(!rejectingCache.findCandidate(location).has_value());
+
+    kiriview::PredecodeCache admittingCache(byteCostWithMetadata);
+    admittingCache.setWindowLocations({ location });
+    admittingCache.cacheImage(location, std::move(payload));
+    QVERIFY(admittingCache.findCandidate(location).has_value());
 }
 
 void TestPredecodeCache::cacheFindsImagesByUrlAndOpenedCollectionScope()

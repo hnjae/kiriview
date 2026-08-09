@@ -394,7 +394,7 @@ StaticPayloadAdmission staticPayloadAdmission(const kiriview::StaticDisplayImage
 
     const QSize rasterSize = payload.image.size();
     const StaticPayloadLimits publicLimits = staticPayloadLimits(request);
-    const qsizetype byteCost = payload.image.sizeInBytes();
+    const qsizetype byteCost = kiriview::imageByteCost(payload.image);
     const qint64 aspectDifference
         = std::abs(qint64(rasterSize.width()) * expectedOriginalSize.height()
             - qint64(rasterSize.height()) * expectedOriginalSize.width());
@@ -934,7 +934,7 @@ void ImageViewportDecodeProviderSource::publishStaticFrame(PendingFrame pending)
     if (m_authoritativeStaticImageOutputAdmission == nullptr
         && pending.request.outputStore != nullptr) {
         m_authoritativeStaticImageOutputAdmission = pending.request.outputStore->reserveOutput(
-            m_authoritativeStaticImage->image.sizeInBytes());
+            imageByteCost(m_authoritativeStaticImage->image));
         if (m_authoritativeStaticImageOutputAdmission == nullptr) {
             pending.completion(pending.identity,
                 ImageViewportProviderFrameResult::failed(
@@ -1140,8 +1140,7 @@ void ImageViewportDecodeProviderSource::startStaticRefinement(
                 producerAdmission = std::move(outputAdmission)]() {
                 StaticImageDisplayDecodeResult decodeResult
                     = refinementSource->decodeRasterDisplayImage(targetSize);
-                const qsizetype retainedByteCost
-                    = decodeResult.image.isNull() ? 0 : decodeResult.image.sizeInBytes();
+                const qsizetype retainedByteCost = imageByteCost(decodeResult.image);
                 if (producerAdmission != nullptr) {
                     const bool retained = producerAdmission->retainOnly(retainedByteCost);
                     if (!retained) {
@@ -1229,7 +1228,7 @@ void ImageViewportDecodeProviderSource::finishStaticRefinement(
         refined.previewOrigin = DisplayImagePreviewOrigin::None;
         refined.rasterKind = DisplayImageRasterKind::Refinement;
         const bool resultFitsOutputAdmission = work.outputAdmission == nullptr
-            || refined.image.sizeInBytes() <= work.outputAdmission->byteCost();
+            || imageByteCost(refined.image) <= work.outputAdmission->byteCost();
         if (resultIsDisplayReady && resultMatchesRequest && isAuthoritativeStaticPayload(refined)
             && resultFitsOutputAdmission) {
             refinementCandidate = refined;
@@ -1239,7 +1238,7 @@ void ImageViewportDecodeProviderSource::finishStaticRefinement(
             resolution = StaticFrameResolution::RefinementContractViolation;
         }
         if (refinementCandidate.has_value() && m_authoritativeStaticImage.has_value()
-            && refinementCandidate->image.sizeInBytes() <= work.maximumReusableBytes
+            && imageByteCost(refinementCandidate->image) <= work.maximumReusableBytes
             && isReusableAuthoritativeUpgrade(*refinementCandidate, *m_authoritativeStaticImage)) {
             m_authoritativeStaticImage = *refinementCandidate;
             m_authoritativeStaticImageOutputAdmission = work.outputAdmission;

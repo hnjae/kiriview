@@ -10,7 +10,6 @@
 #include <QMutex>
 #include <QMutexLocker>
 #include <QPoint>
-#include <QStringList>
 #include <QtGlobal>
 #include <algorithm>
 #include <atomic>
@@ -50,11 +49,6 @@ namespace {
         const qint64 dotsPerMeterX = backing->image.dotsPerMeterX();
         const qint64 dotsPerMeterY = backing->image.dotsPerMeterY();
         const QPoint offset = backing->image.offset();
-        const QStringList textKeys = backing->image.textKeys();
-        std::map<QString, QString> text;
-        for (const QString& key : textKeys) {
-            text.emplace(key, backing->image.text(key));
-        }
         // The wrapper is the sole mutable owner of its QImage header. The backing image remains
         // immutable and keeps both the physical pixels and their admission alive until the last
         // wrapper alias retires.
@@ -75,9 +69,6 @@ namespace {
         admitted.setDotsPerMeterX(dotsPerMeterX);
         admitted.setDotsPerMeterY(dotsPerMeterY);
         admitted.setOffset(offset);
-        for (const auto& [key, value] : text) {
-            admitted.setText(key, value);
-        }
         Q_ASSERT(admitted.constBits() == pixels);
         return admitted;
     }

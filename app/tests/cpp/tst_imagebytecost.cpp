@@ -5,9 +5,13 @@
 
 #include "cache/imagebyteaccounting.h"
 
+#include <QByteArray>
+#include <QColorSpace>
 #include <QImage>
+#include <QList>
 #include <QObject>
 #include <QSize>
+#include <QString>
 #include <QTest>
 #include <Qt>
 #include <cstdint>
@@ -20,6 +24,7 @@ class TestImageByteCost : public QObject
 private Q_SLOTS:
     void byteAccountingSaturatesProductsSumsAndQtSizes();
     void imageByteCostUsesQtImageStorageSize();
+    void imageByteCostIncludesSourceScaledAncillaryData();
     void estimatedRgbaByteCostHandlesEmptyAndOverflow();
 };
 
@@ -49,6 +54,40 @@ void TestImageByteCost::imageByteCostUsesQtImageStorageSize()
 
     QCOMPARE(kiriview::imageByteCost(QImage()), qsizetype(0));
     QCOMPARE(kiriview::imageByteCost(image), image.sizeInBytes());
+}
+
+void TestImageByteCost::imageByteCostIncludesSourceScaledAncillaryData()
+{
+    QImage image(1, 1, QImage::Format_Indexed8);
+    image.fill(Qt::transparent);
+    QList<QRgb> colorTable;
+    for (int component = 0; component < 256; ++component) {
+        colorTable.append(qRgb(component, component, component));
+    }
+    image.setColorTable(colorTable);
+    const QString textKey = QStringLiteral("source");
+    const QString textValue(4096, QLatin1Char('x'));
+    image.setText(textKey, textValue);
+
+    QByteArray iccProfile = QColorSpace(QColorSpace::SRgb).iccProfile();
+    QVERIFY(!iccProfile.isEmpty());
+    const QColorSpace colorSpace = QColorSpace::fromIccProfile(iccProfile);
+    QVERIFY(colorSpace.isValid());
+    QCOMPARE(colorSpace.iccProfile(), iccProfile);
+    image.setColorSpace(colorSpace);
+
+    const QList<QRgb> retainedColorTable = image.colorTable();
+    const QByteArray retainedIccProfile = image.colorSpace().iccProfile();
+    qsizetype minimumByteCost = image.sizeInBytes();
+    minimumByteCost = kiriview::saturatedQtByteSum(
+        minimumByteCost, kiriview::saturatedQtByteProduct(textKey.size(), sizeof(QChar)));
+    minimumByteCost = kiriview::saturatedQtByteSum(
+        minimumByteCost, kiriview::saturatedQtByteProduct(textValue.size(), sizeof(QChar)));
+    minimumByteCost = kiriview::saturatedQtByteSum(
+        minimumByteCost, kiriview::saturatedQtByteProduct(retainedColorTable.size(), sizeof(QRgb)));
+    minimumByteCost = kiriview::saturatedQtByteSum(minimumByteCost, retainedIccProfile.size());
+
+    QVERIFY(kiriview::imageByteCost(image) > minimumByteCost);
 }
 
 void TestImageByteCost::estimatedRgbaByteCostHandlesEmptyAndOverflow()

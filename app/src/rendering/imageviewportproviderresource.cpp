@@ -3,6 +3,8 @@
 
 #include "imageviewportproviderresource.h"
 
+#include "cache/imagebytecost.h"
+
 #include <QImageIOHandler>
 #include <QTransform>
 #include <algorithm>
@@ -636,7 +638,7 @@ ImageViewportProviderPreparedFrame ImageViewportProviderResource::prepareFrame(
         displayedPageRole(identity.role),
     };
     if (result.outputAdmission == nullptr) {
-        result.outputAdmission = m_displayStore->reserveOutput(displayImage.image.sizeInBytes());
+        result.outputAdmission = m_displayStore->reserveOutput(imageByteCost(displayImage.image));
         if (result.outputAdmission == nullptr) {
             result.displayImage.reset();
             prepared.failureCause = ImageSequenceProviderFailureCause::ResourceExhausted;
