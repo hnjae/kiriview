@@ -178,7 +178,7 @@ void ImageViewportPresentationStateTest::restorePreviousRestoresCompleteCommitte
             ImageSequenceProviderFailure(
                 ImageSequenceProviderFailureCause::ProviderInternal, failureHandle.get())));
     QCOMPARE(outcome, ImageSequenceProviderEventSubmissionOutcome::Accepted);
-    failureHandle.release();
+    [[maybe_unused]] auto* const transferredHandle = failureHandle.release();
 
     QCOMPARE(item.state().request(), committed.request());
     QCOMPARE(item.state().display().status(), ImageViewportDisplayStatus::Ready);

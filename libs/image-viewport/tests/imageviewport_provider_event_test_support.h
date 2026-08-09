@@ -26,7 +26,7 @@ void emitProviderFrameHandleReady(ImageSequenceProviderSession* session,
     const ImageSequenceProviderEvent event
         = ImageSequenceProviderEvent::frameReady(token, handle, envelope);
     if (session->submitEvent(event) == ImageSequenceProviderEventSubmissionOutcome::Accepted) {
-        owner.release();
+        [[maybe_unused]] auto* const transferredHandle = owner.release();
     }
 }
 
@@ -38,7 +38,7 @@ void emitProviderProvisionalFrameHandleReady(ImageSequenceProviderSession* sessi
     const ImageSequenceProviderEvent event
         = ImageSequenceProviderEvent::provisionalFrameReady(token, handle, envelope);
     if (session->submitEvent(event) == ImageSequenceProviderEventSubmissionOutcome::Accepted) {
-        owner.release();
+        [[maybe_unused]] auto* const transferredHandle = owner.release();
     }
 }
 

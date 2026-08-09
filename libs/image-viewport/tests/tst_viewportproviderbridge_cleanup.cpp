@@ -116,7 +116,7 @@ public:
         if (submitEvent(ImageSequenceProviderEvent::frameReady(
                 {}, owner.get(), ImageSequenceProviderFrameEnvelope::stillFrame()))
             == ImageSequenceProviderEventSubmissionOutcome::Accepted) {
-            owner.release();
+            [[maybe_unused]] auto* const transferredHandle = owner.release();
         }
     }
 
@@ -337,7 +337,7 @@ struct BridgeFixture
         QCOMPARE(session->submitEvent(ImageSequenceProviderEvent::frameReady(
                      {}, handle, ImageSequenceProviderFrameEnvelope::stillFrame())),
             ImageSequenceProviderEventSubmissionOutcome::Accepted);
-        owner.release();
+        [[maybe_unused]] auto* const transferredHandle = owner.release();
         Q_ASSERT(event.frameLeaseId != 0);
         bridge.completeFrameEventDelivery(event.frameLeaseId);
         bridge.completeProviderEventDelivery(event.deliveryId);
@@ -744,7 +744,7 @@ void ViewportProviderBridgeCleanupTest::advisoryBurstDoesNotLoseFrameOwnership()
     QCOMPARE(session->submitEvent(ImageSequenceProviderEvent::frameReady(
                  token, handle, ImageSequenceProviderFrameEnvelope::stillFrame())),
         ImageSequenceProviderEventSubmissionOutcome::Accepted);
-    owner.release();
+    [[maybe_unused]] auto* const transferredHandle = owner.release();
 
     QCoreApplication::sendPostedEvents(&callbackTarget, QEvent::MetaCall);
 
@@ -872,7 +872,7 @@ void ViewportProviderBridgeCleanupTest::nonAdvisoryBurstHasBoundedConditionalOwn
                         ImageSequenceProviderFailureCause::ProviderInternal, handle.get())));
             outcomes.append(outcome);
             if (outcome == ImageSequenceProviderEventSubmissionOutcome::Accepted) {
-                handle.release();
+                [[maybe_unused]] auto* const transferredHandle = handle.release();
             }
         }
     };
@@ -1010,9 +1010,8 @@ void ViewportProviderBridgeCleanupTest::
                     });
                     frameRequestCompletedDuringMetadataDelivery
                         = frameRequestCompleted.tryAcquire(1, 1000);
-                } else if (event.kind == ImageSequenceProviderEventKind::FrameReady) {
-                    frameLeaseIds.append(event.frameLeaseId);
-                } else if (event.kind == ImageSequenceProviderEventKind::ProvisionalFrameReady) {
+                } else if (event.kind == ImageSequenceProviderEventKind::FrameReady
+                    || event.kind == ImageSequenceProviderEventKind::ProvisionalFrameReady) {
                     frameLeaseIds.append(event.frameLeaseId);
                 }
                 bridge.completeProviderEventDelivery(event.deliveryId);
@@ -1197,7 +1196,7 @@ void ViewportProviderBridgeCleanupTest::queuedFrameIngressOwnsHandleBeforeSessio
                 if (session->submitEvent(ImageSequenceProviderEvent::frameReady(
                         {}, handle, ImageSequenceProviderFrameEnvelope::stillFrame()))
                     == ImageSequenceProviderEventSubmissionOutcome::Accepted) {
-                    owner.release();
+                    [[maybe_unused]] auto* const transferredHandle = owner.release();
                 }
             },
             Qt::BlockingQueuedConnection));

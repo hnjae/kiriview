@@ -949,7 +949,8 @@ void ImageSequenceFactoryTest::imageFrameFormatIdentifierLimitCountsScalarsBefor
 {
     const QString astralScalar = QString::fromUtf8("\xF0\x9F\x99\x82");
     QString formatAtLimit;
-    formatAtLimit.reserve(ImageSequenceLimits::maximumFormatIdentifierCharacters() * 2);
+    formatAtLimit.reserve(
+        static_cast<qsizetype>(ImageSequenceLimits::maximumFormatIdentifierCharacters()) * 2);
     for (int index = 0; index < ImageSequenceLimits::maximumFormatIdentifierCharacters(); ++index) {
         formatAtLimit.append(astralScalar);
     }

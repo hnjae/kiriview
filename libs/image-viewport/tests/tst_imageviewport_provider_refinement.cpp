@@ -42,7 +42,7 @@ public:
         if (submitEvent(
                 ImageSequenceProviderEvent::frameReady(request.token(), handle.get(), envelope))
             == ImageSequenceProviderEventSubmissionOutcome::Accepted) {
-            handle.release();
+            [[maybe_unused]] auto* const transferredHandle = handle.release();
         }
     }
 

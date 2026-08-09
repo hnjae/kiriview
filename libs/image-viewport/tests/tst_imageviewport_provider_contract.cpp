@@ -55,7 +55,7 @@ public:
             std::make_unique<ImageFrame>(image), this);
         if (submitEvent(ImageSequenceProviderEvent::frameReady(token, handle.get(), envelope))
             == ImageSequenceProviderEventSubmissionOutcome::Accepted) {
-            handle.release();
+            [[maybe_unused]] auto* const transferredHandle = handle.release();
         }
     }
 

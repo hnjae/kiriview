@@ -62,7 +62,7 @@ void submitProviderFrameEvent(ImageSequenceProviderSession& session,
         ? ImageSequenceProviderEvent::provisionalFrameReady(token, frameHandle.get(), envelope)
         : ImageSequenceProviderEvent::frameReady(token, frameHandle.get(), envelope);
     if (session.submitEvent(event) == ImageSequenceProviderEventSubmissionOutcome::Accepted) {
-        (void)frameHandle.release();
+        [[maybe_unused]] auto* const transferredHandle = frameHandle.release();
     }
 }
 
@@ -74,7 +74,7 @@ void submitProviderFailureEvent(ImageSequenceProviderSession& session,
     const ImageSequenceProviderEvent event
         = ImageSequenceProviderEvent::failed(token, std::move(failure));
     if (session.submitEvent(event) == ImageSequenceProviderEventSubmissionOutcome::Accepted) {
-        (void)failureHandle.release();
+        [[maybe_unused]] auto* const transferredHandle = failureHandle.release();
     }
 }
 

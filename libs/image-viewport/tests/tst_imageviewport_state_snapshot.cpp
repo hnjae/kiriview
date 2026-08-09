@@ -523,7 +523,7 @@ void ImageViewportStateSnapshotTest::terminalProviderFailureProjectsDiagnostics(
                 ImageSequenceProviderFailure(
                     ImageSequenceProviderFailureCause::SourceAccess, handle.get())));
         QCOMPARE(outcome, ImageSequenceProviderEventSubmissionOutcome::Accepted);
-        handle.release();
+        [[maybe_unused]] auto* const transferredHandle = handle.release();
         drainQueuedProviderResults();
 
         const ImageViewportStateSnapshot snapshot = item.state();
