@@ -1750,9 +1750,6 @@ ViewportProviderTransportResult ViewportProviderBridge::deliverRequest(
         : recordIt->threadingContract;
     result.delivered = executorAccepted(executor().invokeSessionCommand(
         session, threadingContract, [session, request]() { session->request(request); }));
-    if (canDrainSynchronously) {
-        drainProviderEventDeliveries(eventEndpoint, leaseRegistry, false);
-    }
     if (!result.delivered) {
         if (eventEndpoint) {
             eventEndpoint->observeRequestDeliveryFailure(request);

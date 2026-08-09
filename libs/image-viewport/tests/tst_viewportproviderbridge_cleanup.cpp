@@ -1098,14 +1098,17 @@ void ViewportProviderBridgeCleanupTest::synchronousResponsesDoNotAccumulateAcros
                 .delivered);
     }
 
-    QCOMPARE(deliveryCount, qsizetype(requestCount * 2));
-    QCOMPARE(frameReleaseCount.load(), int(requestCount * 2));
+    const qsizetype submittedEventCount = qsizetype(requestCount * 2);
+    QVERIFY(deliveryCount >= submittedEventCount - 2);
+    QCOMPARE(frameReleaseCount.load(), int(deliveryCount));
     QCOMPARE(reentrantReleaseCount.load(), 0);
     QCOMPARE(session->submissionOutcomes.size(), qsizetype(requestCount * 2));
     for (const auto outcome : std::as_const(session->submissionOutcomes)) {
         QCOMPARE(outcome, ImageSequenceProviderEventSubmissionOutcome::Accepted);
     }
     QCoreApplication::sendPostedEvents(&callbackTarget, QEvent::MetaCall);
+    QCOMPARE(deliveryCount, submittedEventCount);
+    QCOMPARE(frameReleaseCount.load(), int(submittedEventCount));
     QVERIFY(callbackTarget.metaCallCount <= 1);
 
     QVERIFY(bridge.closeSession({}, {}).delivered);
