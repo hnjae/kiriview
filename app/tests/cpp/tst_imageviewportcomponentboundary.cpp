@@ -1501,12 +1501,13 @@ void TestImageViewportComponentBoundary::sameUrlSecondaryReplacementRejectsSuper
     QVERIFY(dataLoader.finishNewestActiveLoadForUrl(thirdPageUrl, imageData));
     runOutstandingWorkerSchedules(workerScheduler, nextWorkerSchedule);
     QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(secondPageUrl));
-    QVERIFY(dataLoader.finishNewestActiveLoadForUrl(secondPageUrl, imageData));
-    QVERIFY(driveViewportUntil(*surface, [&]() {
-        return session->imageDocument()->secondaryPageVisible()
-            && surface->viewport()->state().request().status() == ImageViewportRequestStatus::Ready
-            && surface->viewport()->state().display().displayedRoleSet().secondary();
-    }));
+    QVERIFY(finishImageDataAndDriveUntil(*surface, dataLoader, workerScheduler, nextWorkerSchedule,
+        { secondPageUrl }, imageData, [&]() {
+            return session->imageDocument()->secondaryPageVisible()
+                && surface->viewport()->state().request().status()
+                == ImageViewportRequestStatus::Ready
+                && surface->viewport()->state().display().displayedRoleSet().secondary();
+        }));
     QCOMPARE(session->imageDocument()->currentLastPageNumber(), 3);
 }
 
