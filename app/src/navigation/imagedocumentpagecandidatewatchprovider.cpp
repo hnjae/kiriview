@@ -127,7 +127,7 @@ kiriview::ImageIoJob startKCoreImageDocumentPageCandidateWatch(QObject* receiver
     const QUrl& directoryUrl,
     kiriview::ImageDocumentPageCandidateWatchSnapshotCallback initialSnapshot,
     const kiriview::ImageDocumentPageCandidateWatchSnapshotCallback& changedSnapshot,
-    kiriview::ImageDocumentPageCandidateWatchDeletedCallback,
+    const kiriview::ImageDocumentPageCandidateWatchDeletedCallback&,
     kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback)
 {
     auto* lister = createLiveImageDocumentPageCandidateLister(receiver);
@@ -258,11 +258,10 @@ ImageDocumentPageCandidateWatchProvider defaultImageDocumentPageCandidateWatchPr
     return [](QObject* receiver, const QUrl& directoryUrl,
                ImageDocumentPageCandidateWatchSnapshotCallback initialSnapshot,
                const ImageDocumentPageCandidateWatchSnapshotCallback& changedSnapshot,
-               ImageDocumentPageCandidateWatchDeletedCallback deletedUrls,
+               const ImageDocumentPageCandidateWatchDeletedCallback& deletedUrls,
                ImageDocumentPageCandidateLoadErrorCallback errorCallback) {
         return startKCoreImageDocumentPageCandidateWatch(receiver, directoryUrl,
-            std::move(initialSnapshot), changedSnapshot, std::move(deletedUrls),
-            std::move(errorCallback));
+            std::move(initialSnapshot), changedSnapshot, deletedUrls, std::move(errorCallback));
     };
 }
 }

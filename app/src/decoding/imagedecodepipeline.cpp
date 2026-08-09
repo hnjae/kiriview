@@ -31,7 +31,7 @@
 Q_LOGGING_CATEGORY(kiriviewDecodeLog, "org.hnjae.kiriview.decode", QtWarningMsg)
 
 namespace {
-constexpr qsizetype embeddedMetadataWorkspaceReservation = 64 * 1024 * 1024;
+constexpr qsizetype embeddedMetadataWorkspaceReservation = qsizetype { 64 } * 1024 * 1024;
 
 qsizetype decodedImageWorkspaceByteCost(const kiriview::DecodedImage& image)
 {

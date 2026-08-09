@@ -79,8 +79,8 @@ void attachApplicationRuntimeWindow(
 }
 
 ApplicationMainQmlLoadResult loadApplicationQmlRoot(QQmlApplicationEngine& engine,
-    const QUrl& mainQmlUrl, ApplicationMainQmlRootCallback rootCallback,
-    ApplicationMainQmlLoader loader)
+    const QUrl& mainQmlUrl, const ApplicationMainQmlRootCallback& rootCallback,
+    const ApplicationMainQmlLoader& loader)
 {
     QPointer<QObject> rootObject;
     bool creationFailed = false;

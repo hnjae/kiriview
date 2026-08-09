@@ -46,7 +46,7 @@ std::optional<QString> validatedDocumentPortalHostPath(
         return std::nullopt;
     }
 
-    const QString hostPath = QFile::decodeName(attributeValue);
+    QString hostPath = QFile::decodeName(attributeValue);
     if (hostPath.isEmpty() || !hostPath.startsWith(QLatin1Char('/'))
         || !QDir::isAbsolutePath(hostPath) || QDir::cleanPath(hostPath) != hostPath
         || QFile::encodeName(hostPath) != attributeValue
@@ -60,7 +60,7 @@ std::optional<QString> validatedDocumentPortalHostPath(
 
 namespace {
 constexpr const char* documentPortalHostPathAttribute = "user.document-portal.host-path";
-constexpr qsizetype maximumDocumentPortalHostPathBytes = 64 * 1024;
+constexpr qsizetype maximumDocumentPortalHostPathBytes = qsizetype { 64 } * 1024;
 
 class ScopedFileDescriptor final
 {
@@ -134,7 +134,8 @@ bool isDescendantPath(const QString& localPath, const QString& rootPath)
 QStringList matchingDocumentPortalRoots(const QString& localPath, const QString& runtimeDir)
 {
     QStringList matchingRoots;
-    for (const QString& rootPath : documentPortalRoots(runtimeDir)) {
+    const QStringList roots = documentPortalRoots(runtimeDir);
+    for (const QString& rootPath : roots) {
         if (isDescendantPath(localPath, rootPath)) {
             matchingRoots.append(rootPath);
         }
@@ -303,7 +304,7 @@ std::optional<QString> documentPortalHostPath(const QUrl& url, const QString& ru
         }
 
         value.resize(bytesRead);
-        const std::optional<QString> hostPath
+        std::optional<QString> hostPath
             = kiriview::NavigationSourceDetail::validatedDocumentPortalHostPath(
                 std::move(value), localPath);
         if (!hostPath.has_value()) {

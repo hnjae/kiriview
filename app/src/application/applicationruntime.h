@@ -33,8 +33,8 @@ void composeApplicationRuntimeGraph(KiriViewApplication& application,
 void attachApplicationRuntimeWindow(
     KiriViewApplication& application, KiriWindowShell& windowShell, QObject& window);
 [[nodiscard]] ApplicationMainQmlLoadResult loadApplicationQmlRoot(QQmlApplicationEngine& engine,
-    const QUrl& mainQmlUrl, ApplicationMainQmlRootCallback rootCallback,
-    ApplicationMainQmlLoader loader = {});
+    const QUrl& mainQmlUrl, const ApplicationMainQmlRootCallback& rootCallback,
+    const ApplicationMainQmlLoader& loader = {});
 [[nodiscard]] ApplicationMainQmlLoadResult loadApplicationMainQml(
     QQmlApplicationEngine& engine, const ApplicationStartupSource& startupSource);
 int runApplication(const ApplicationStartupSource& startupSource);
