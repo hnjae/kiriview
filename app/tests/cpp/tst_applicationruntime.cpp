@@ -1,12 +1,14 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#include "application/applicationdiagnostics.h"
 #include "application/applicationruntime.h"
 #include "application/applicationstartupsource.h"
 
 #include <QByteArray>
 #include <QLoggingCategory>
 #include <QObject>
+#include <QQmlApplicationEngine>
 #include <QQmlEngine>
 #include <QString>
 #include <QStringList>
@@ -55,6 +57,10 @@ private Q_SLOTS:
     void runtimeDiagnosticsStayDisabledWithoutVerboseStartup();
     void runtimeDiagnosticsEnableVerboseStartupCategories();
     void registersThumbnailImageProviderOnly();
+    void nonNullMainQmlRootAttachesAndSucceeds();
+    void nullMainQmlRootIsTerminalAndDoesNotAttach();
+    void startupDiagnosticRecordNeutralizesControlAndFormatContent();
+    void startupDiagnosticRecordHasFixedByteBound();
 };
 
 void TestApplicationRuntime::cleanup() { QLoggingCategory::setFilterRules(QString()); }
@@ -137,6 +143,80 @@ void TestApplicationRuntime::registersThumbnailImageProviderOnly()
 
     QVERIFY(engine.imageProvider(QStringLiteral("kiriview-thumbnails")) != nullptr);
     QVERIFY(engine.imageProvider(QStringLiteral("kiriview-images")) == nullptr);
+}
+
+void TestApplicationRuntime::nonNullMainQmlRootAttachesAndSucceeds()
+{
+    QQmlApplicationEngine engine;
+    QObject* attachedRoot = nullptr;
+    int attachedCount = 0;
+    const QUrl mainQmlUrl(QStringLiteral("qrc:/test/main.qml"));
+
+    const kiriview::ApplicationMainQmlLoadResult result = kiriview::loadApplicationQmlRoot(
+        engine, mainQmlUrl,
+        [&attachedRoot, &attachedCount](QObject& root) {
+            attachedRoot = &root;
+            ++attachedCount;
+        },
+        [](QQmlApplicationEngine& target, const QUrl& url) {
+            auto* root = new QObject(&target);
+            Q_EMIT target.objectCreated(root, url);
+        });
+
+    QCOMPARE(result, kiriview::ApplicationMainQmlLoadResult::Created);
+    QCOMPARE(attachedCount, 1);
+    QVERIFY(attachedRoot != nullptr);
+    QCOMPARE(attachedRoot->parent(), &engine);
+}
+
+void TestApplicationRuntime::nullMainQmlRootIsTerminalAndDoesNotAttach()
+{
+    QQmlApplicationEngine engine;
+    int attachedCount = 0;
+    const QUrl mainQmlUrl(QStringLiteral("qrc:/test/missing-main.qml"));
+
+    const kiriview::ApplicationMainQmlLoadResult result = kiriview::loadApplicationQmlRoot(
+        engine, mainQmlUrl, [&attachedCount](QObject&) { ++attachedCount; },
+        [](QQmlApplicationEngine& target, const QUrl& url) {
+            Q_EMIT target.objectCreated(nullptr, url);
+            Q_EMIT target.objectCreationFailed(url);
+        });
+
+    QCOMPARE(result, kiriview::ApplicationMainQmlLoadResult::Failed);
+    QCOMPARE(attachedCount, 0);
+}
+
+void TestApplicationRuntime::startupDiagnosticRecordNeutralizesControlAndFormatContent()
+{
+    const QString hostile
+        = QStringLiteral("missing\\name\nnext\rline\t\x1b[31m\u202ehidden\u2028record");
+
+    const QByteArray record = kiriview::applicationStartupDiagnosticRecord(hostile);
+
+    QVERIFY(record.endsWith('\n'));
+    QCOMPARE(record.count('\n'), 1);
+    QVERIFY(!record.contains('\r'));
+    QVERIFY(!record.contains('\t'));
+    QVERIFY(!record.contains('\x1b'));
+    QVERIFY(record.contains("\\\\"));
+    QVERIFY(record.contains("\\n"));
+    QVERIFY(record.contains("\\r"));
+    QVERIFY(record.contains("\\t"));
+    QVERIFY(!record.contains(QStringLiteral("\u202e").toUtf8()));
+    QVERIFY(!record.contains(QStringLiteral("\u2028").toUtf8()));
+    QVERIFY(record.contains("\\u202E"));
+    QVERIFY(record.contains("\\u2028"));
+}
+
+void TestApplicationRuntime::startupDiagnosticRecordHasFixedByteBound()
+{
+    const QString hostile = QStringLiteral("very-long-missing-path\n").repeated(16'384);
+
+    const QByteArray record = kiriview::applicationStartupDiagnosticRecord(hostile);
+
+    QVERIFY(record.size() <= kiriview::maximumApplicationStartupDiagnosticBytes);
+    QCOMPARE(record.count('\n'), 1);
+    QVERIFY(record.contains("[truncated]"));
 }
 
 QTEST_GUILESS_MAIN(TestApplicationRuntime)

@@ -17,6 +17,7 @@
 #include <QApplication>
 #include <QGuiApplication>
 #include <QObject>
+#include <QPointer>
 #include <QQmlApplicationEngine>
 #include <QQmlEngine>
 #include <QQuickStyle>
@@ -77,7 +78,53 @@ void attachApplicationRuntimeWindow(
     windowShell.attachWindow(&window);
 }
 
-void loadApplicationMainQml(
+ApplicationMainQmlLoadResult loadApplicationQmlRoot(QQmlApplicationEngine& engine,
+    const QUrl& mainQmlUrl, ApplicationMainQmlRootCallback rootCallback,
+    ApplicationMainQmlLoader loader)
+{
+    QPointer<QObject> rootObject;
+    bool creationFailed = false;
+    const QMetaObject::Connection createdConnection = QObject::connect(
+        &engine, &QQmlApplicationEngine::objectCreated, &engine,
+        [&rootObject, &creationFailed, mainQmlUrl](QObject* createdObject, const QUrl& objectUrl) {
+            if (objectUrl != mainQmlUrl) {
+                return;
+            }
+            if (createdObject == nullptr) {
+                creationFailed = true;
+                return;
+            }
+            rootObject = createdObject;
+        },
+        Qt::DirectConnection);
+    const QMetaObject::Connection failedConnection = QObject::connect(
+        &engine, &QQmlApplicationEngine::objectCreationFailed, &engine,
+        [&creationFailed, mainQmlUrl](const QUrl& objectUrl) {
+            if (objectUrl == mainQmlUrl) {
+                creationFailed = true;
+            }
+        },
+        Qt::DirectConnection);
+
+    if (loader) {
+        loader(engine, mainQmlUrl);
+    } else {
+        engine.load(mainQmlUrl);
+    }
+
+    QObject::disconnect(createdConnection);
+    QObject::disconnect(failedConnection);
+    if (creationFailed || rootObject.isNull()) {
+        return ApplicationMainQmlLoadResult::Failed;
+    }
+
+    if (rootCallback) {
+        rootCallback(*rootObject);
+    }
+    return ApplicationMainQmlLoadResult::Created;
+}
+
+ApplicationMainQmlLoadResult loadApplicationMainQml(
     QQmlApplicationEngine& engine, const ApplicationStartupSource& startupSource)
 {
     setupLocalizedContext(engine);
@@ -105,19 +152,13 @@ void loadApplicationMainQml(
     engine.setInitialProperties(initialProperties);
 
     const QUrl mainQmlUrl(QString::fromLatin1(kiriview::application_identity::mainQmlUrl));
-    QObject::connect(
-        &engine, &QQmlApplicationEngine::objectCreated, &engine,
-        [application, documentSession, windowShell, initialSourceUrl](
-            QObject* rootObject, const QUrl&) {
-            if (rootObject != nullptr) {
-                attachApplicationRuntimeWindow(*application, *windowShell, *rootObject);
-                if (!initialSourceUrl.isEmpty()) {
-                    documentSession->setSourceUrl(initialSourceUrl);
-                }
+    return loadApplicationQmlRoot(engine, mainQmlUrl,
+        [application, documentSession, windowShell, initialSourceUrl](QObject& rootObject) {
+            attachApplicationRuntimeWindow(*application, *windowShell, rootObject);
+            if (!initialSourceUrl.isEmpty()) {
+                documentSession->setSourceUrl(initialSourceUrl);
             }
-        },
-        Qt::SingleShotConnection);
-    engine.load(mainQmlUrl);
+        });
 }
 
 int runApplication(const ApplicationStartupSource& startupSource)
@@ -131,7 +172,10 @@ int runApplication(const ApplicationStartupSource& startupSource)
     configureApplicationRuntimeDiagnostics(startupSource);
 
     QQmlApplicationEngine engine;
-    loadApplicationMainQml(engine, startupSource);
+    if (loadApplicationMainQml(engine, startupSource) != ApplicationMainQmlLoadResult::Created) {
+        writeApplicationStartupDiagnostic(QStringLiteral("failed to create the main window"));
+        return 1;
+    }
 
     return application.exec();
 }

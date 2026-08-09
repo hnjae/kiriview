@@ -11,7 +11,7 @@
 namespace {
 QString localPathError(const QString& path)
 {
-    return QStringLiteral("cannot open '%1': No such file or directory").arg(path);
+    return QStringLiteral("No such file or directory: cannot open '%1'").arg(path);
 }
 
 bool hasUrlScheme(const QString& argument)

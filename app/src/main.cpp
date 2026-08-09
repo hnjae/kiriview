@@ -1,24 +1,11 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#include "application/applicationdiagnostics.h"
 #include "application/applicationruntime.h"
 #include "application/applicationstartupsource.h"
 
-#include <QByteArray>
 #include <QStringList>
-#include <cstdio>
-#include <print>
-
-namespace {
-void printStartupError(const QByteArray& error) noexcept
-{
-    try {
-        std::println(stderr, "KiriView: {}", error.constData());
-    } catch (...) {
-        std::fputs("KiriView: startup failed\n", stderr);
-    }
-}
-}
 
 int main(int argumentCount, char* arguments[])
 {
@@ -30,8 +17,7 @@ int main(int argumentCount, char* arguments[])
 
     const auto startup = kiriview::parseApplicationStartupSource(startupArguments);
     if (!startup) {
-        const QByteArray error = startup.error().toLocal8Bit();
-        printStartupError(error);
+        kiriview::writeApplicationStartupDiagnostic(startup.error());
         return 2;
     }
 
