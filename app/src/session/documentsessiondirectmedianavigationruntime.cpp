@@ -44,8 +44,14 @@ public:
             return false;
         }
         if (!result.succeeded) {
+            if (m_failureDelivered) {
+                return false;
+            }
+            m_failureDelivered = true;
+            m_lastCandidates.reset();
             return true;
         }
+        m_failureDelivered = false;
         if (m_lastCandidates.has_value()
             && sameDirectMediaNavigationCandidates(*m_lastCandidates, result.candidates)) {
             return false;
@@ -57,6 +63,7 @@ public:
 private:
     std::mutex m_mutex;
     bool m_changeDelivered = false;
+    bool m_failureDelivered = false;
     std::optional<std::vector<kiriview::DirectMediaNavigationCandidate>> m_lastCandidates;
 };
 
@@ -272,7 +279,8 @@ void DocumentSessionDirectMediaNavigationRuntime::startCandidateChanges(QObject*
                 DocumentSessionDirectMediaNavigationCandidatesResult {
                     std::move(candidates), true, QString(), std::nullopt });
         },
-        [this, lifetime, revision, scope, sharedScopeAccepted](const KioOperationFailure& failure) {
+        [this, lifetime, revision, scope, sharedScopeAccepted, sharedCallback](
+            const KioOperationFailure& failure) {
             if (lifetime.expired() || m_candidateChangesRevision != revision) {
                 return;
             }
@@ -288,6 +296,9 @@ void DocumentSessionDirectMediaNavigationRuntime::startCandidateChanges(QObject*
                 << diagnosticSourceReference(scope.parentUrl()) << "generation"
                 << scope.generation() << "error"
                 << diagnosticDetailReference(failure.diagnosticDetail);
+            invokeIfSet(*sharedCallback,
+                DocumentSessionDirectMediaNavigationCandidatesResult {
+                    {}, false, failure.userMessage, failure });
         });
     if (lifetime.expired() || m_candidateChangesRevision != revision) {
         startedJob.cancel();

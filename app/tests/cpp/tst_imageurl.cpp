@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "document/imageloadtypes.h"
+#include "location/documentportalpathvalidation_p.h"
 #include "location/imagelocation.h"
 #include "location/imageurl.h"
 
@@ -14,6 +15,7 @@
 #include <QUrl>
 #include <QtGlobal>
 #include <cstddef>
+#include <linux/magic.h>
 #include <optional>
 #include <sys/xattr.h>
 
@@ -45,12 +47,15 @@ private Q_SLOTS:
     void normalizedUrlIdentityComparisonHandlesEmptyAndPathEquivalentUrls();
     void sameNormalizedUrlMatchesPathSegments();
     void parentUrlForContainerNavigationHandlesContainers();
-    void navigationSourceFactsResolveDocumentPortalHostWithoutXattr();
+    void documentPortalHostPathValuesRequireAbsoluteCleanPaths();
+    void documentPortalCandidatesRequireFilesystemAbsoluteRoots();
+    void documentPortalMountAuthenticationRequiresFuseMountBoundary();
+    void trustedNavigationSourceFactsResolveDocumentPortalHostWithoutXattr();
     void navigationSourceFactsRestoreKioFuseArchivesWithoutEnvironment();
     void resolvedNavigationSourceCollectsFactsOncePerSnapshot();
     void resolvedNavigationSourceRetainsNegativeFactsUntilReplacement();
     void injectedEmptyProviderDoesNotUseDefaultAdapter();
-    void documentPortalHostPathOwnsNavigationScope();
+    void ordinaryFileDocumentPortalHostPathAttributeIsIgnored();
     void fileWithoutDocumentPortalXattrProducesNegativeFacts();
     void kioFuseArchivePathsRestoreSupportedArchiveSchemes();
     void imageLocationTypesExposeExplicitState();
@@ -155,7 +160,88 @@ void TestImageUrl::parentUrlForContainerNavigationHandlesContainers()
         QUrl::fromLocalFile(QStringLiteral("/books/")));
 }
 
-void TestImageUrl::navigationSourceFactsResolveDocumentPortalHostWithoutXattr()
+void TestImageUrl::documentPortalHostPathValuesRequireAbsoluteCleanPaths()
+{
+    const QString requestedPath = QStringLiteral("/run/flatpak/doc/item/02.mp4");
+    const QString hostPath = QStringLiteral("/media/videos/02.mp4");
+    const QByteArray encodedHostPath = QFile::encodeName(hostPath);
+
+    const std::optional<QString> validatedHostPath
+        = kiriview::NavigationSourceDetail::validatedDocumentPortalHostPath(
+            encodedHostPath, requestedPath);
+    QVERIFY(validatedHostPath.has_value());
+    QCOMPARE(*validatedHostPath, hostPath);
+
+    QByteArray terminatedHostPath = encodedHostPath;
+    terminatedHostPath.append('\0');
+    const std::optional<QString> validatedTerminatedHostPath
+        = kiriview::NavigationSourceDetail::validatedDocumentPortalHostPath(
+            terminatedHostPath, requestedPath);
+    QVERIFY(validatedTerminatedHostPath.has_value());
+    QCOMPARE(*validatedTerminatedHostPath, hostPath);
+
+    QByteArray embeddedNullHostPath = encodedHostPath;
+    embeddedNullHostPath.insert(7, '\0');
+    QVERIFY(!kiriview::NavigationSourceDetail::validatedDocumentPortalHostPath(
+        embeddedNullHostPath, requestedPath)
+            .has_value());
+    QVERIFY(!kiriview::NavigationSourceDetail::validatedDocumentPortalHostPath(
+        QByteArray("media/videos/02.mp4"), requestedPath)
+            .has_value());
+    QVERIFY(!kiriview::NavigationSourceDetail::validatedDocumentPortalHostPath(
+        QByteArray(":/media/videos/02.mp4"), requestedPath)
+            .has_value());
+    QVERIFY(!kiriview::NavigationSourceDetail::validatedDocumentPortalHostPath(
+        QByteArray("/media/videos/../02.mp4"), requestedPath)
+            .has_value());
+    QVERIFY(!kiriview::NavigationSourceDetail::validatedDocumentPortalHostPath(
+        QFile::encodeName(requestedPath), requestedPath)
+            .has_value());
+}
+
+void TestImageUrl::documentPortalCandidatesRequireFilesystemAbsoluteRoots()
+{
+    QVERIFY(kiriview::NavigationSourceDetail::isDocumentPortalPathCandidate(
+        QStringLiteral("/run/user/1000/doc/item/02.mp4"), QStringLiteral("/run/user/1000")));
+    QVERIFY(kiriview::NavigationSourceDetail::isDocumentPortalPathCandidate(
+        QStringLiteral("/run/flatpak/doc/item/02.mp4"), QString()));
+    QVERIFY(!kiriview::NavigationSourceDetail::isDocumentPortalPathCandidate(
+        QStringLiteral(":/run/user/1000/doc/item/02.mp4"), QStringLiteral("/run/user/1000")));
+    QVERIFY(!kiriview::NavigationSourceDetail::isDocumentPortalPathCandidate(
+        QStringLiteral(":/runtime/doc/item/02.mp4"), QStringLiteral(":/runtime")));
+    QVERIFY(!kiriview::NavigationSourceDetail::isDocumentPortalPathCandidate(
+        QStringLiteral("/runtime/doc/item/02.mp4"), QStringLiteral(":/runtime")));
+}
+
+void TestImageUrl::documentPortalMountAuthenticationRequiresFuseMountBoundary()
+{
+    using kiriview::NavigationSourceDetail::DocumentPortalMountFacts;
+    using kiriview::NavigationSourceDetail::isAuthenticatedDocumentPortalMount;
+
+    const DocumentPortalMountFacts authenticated {
+        FUSE_SUPER_MAGIC,
+        FUSE_SUPER_MAGIC,
+        11,
+        11,
+        7,
+    };
+    QVERIFY(isAuthenticatedDocumentPortalMount(authenticated));
+
+    DocumentPortalMountFacts changed = authenticated;
+    changed.entryFileSystemType = 0;
+    QVERIFY(!isAuthenticatedDocumentPortalMount(changed));
+    changed = authenticated;
+    changed.rootFileSystemType = 0;
+    QVERIFY(!isAuthenticatedDocumentPortalMount(changed));
+    changed = authenticated;
+    changed.rootDevice = 12;
+    QVERIFY(!isAuthenticatedDocumentPortalMount(changed));
+    changed = authenticated;
+    changed.parentDevice = changed.rootDevice;
+    QVERIFY(!isAuthenticatedDocumentPortalMount(changed));
+}
+
+void TestImageUrl::trustedNavigationSourceFactsResolveDocumentPortalHostWithoutXattr()
 {
     const QUrl portalUrl = QUrl::fromLocalFile(QStringLiteral("/run/user/1000/doc/02.mp4"));
     const QUrl hostUrl = QUrl::fromLocalFile(QStringLiteral("/media/videos/02.mp4"));
@@ -273,7 +359,7 @@ void TestImageUrl::injectedEmptyProviderDoesNotUseDefaultAdapter()
     QCOMPARE(resolver.resolveExternalSource(portalUrl).navigationUrl(), portalUrl);
 }
 
-void TestImageUrl::documentPortalHostPathOwnsNavigationScope()
+void TestImageUrl::ordinaryFileDocumentPortalHostPathAttributeIsIgnored()
 {
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
@@ -294,16 +380,16 @@ void TestImageUrl::documentPortalHostPathOwnsNavigationScope()
     }
 
     const QUrl portalUrl = QUrl::fromLocalFile(portalPath);
-    const QUrl hostUrl = QUrl::fromLocalFile(hostPath);
     const kiriview::ResolvedNavigationSource source
         = kiriview::NavigationSourceResolver {}.resolveExternalSource(portalUrl);
-    QCOMPARE(source.navigationUrl(), hostUrl);
+    QVERIFY(!source.facts().documentPortalHostPath.has_value());
+    QCOMPARE(source.navigationUrl(), portalUrl);
 
     const kiriview::DirectoryNavigationLocation navigationLocation
         = kiriview::directoryNavigationLocationForSource(source);
-    QCOMPARE(navigationLocation.fileUrl, hostUrl);
+    QCOMPARE(navigationLocation.fileUrl, portalUrl);
     QCOMPARE(navigationLocation.directoryUrl,
-        QUrl::fromLocalFile(directory.filePath(QStringLiteral("host/"))));
+        QUrl::fromLocalFile(directory.filePath(QStringLiteral("portal/"))));
 }
 
 void TestImageUrl::fileWithoutDocumentPortalXattrProducesNegativeFacts()

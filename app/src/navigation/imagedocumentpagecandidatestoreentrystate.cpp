@@ -100,6 +100,7 @@ ImageDocumentPageCandidateStoreEntryState::completeListing(
     std::vector<ImageDocumentPageCandidate> candidates)
 {
     const bool wasListed = m_listed;
+    const bool wasFailed = m_failed;
     const bool changed = replaceCandidates(std::move(candidates));
     m_listed = true;
     m_failed = false;
@@ -108,7 +109,7 @@ ImageDocumentPageCandidateStoreEntryState::completeListing(
     ImageDocumentPageCandidateStoreEntryNotificationPlan plan;
     plan.completedLoads = takePendingLoads();
     plan.candidates = m_candidates;
-    if (wasListed && changed) {
+    if (wasFailed || (wasListed && changed)) {
         plan.changedSubscribers = activeSubscribers();
     }
     return plan;
@@ -118,12 +119,15 @@ ImageDocumentPageCandidateStoreEntryNotificationPlan
 ImageDocumentPageCandidateStoreEntryState::updateListing(
     std::vector<ImageDocumentPageCandidate> candidates)
 {
+    const bool wasListed = m_listed;
+    const bool wasFailed = m_failed;
     const bool changed = replaceCandidates(std::move(candidates));
+    m_listed = true;
     m_failed = false;
     m_error = QString();
     ImageDocumentPageCandidateStoreEntryNotificationPlan plan;
     plan.candidates = m_candidates;
-    if (m_listed && changed) {
+    if (!wasListed || wasFailed || changed) {
         plan.changedSubscribers = activeSubscribers();
     }
     return plan;
@@ -132,6 +136,7 @@ ImageDocumentPageCandidateStoreEntryState::updateListing(
 ImageDocumentPageCandidateStoreEntryNotificationPlan
 ImageDocumentPageCandidateStoreEntryState::failListing(ImageDocumentPageCandidateLoadError error)
 {
+    m_candidates.clear();
     m_failed = true;
     m_error = std::move(error);
 

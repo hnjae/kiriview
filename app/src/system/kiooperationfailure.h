@@ -17,6 +17,13 @@ enum class KioOperationKind {
     MediaOpenWith,
 };
 
+enum class KioOperationFailureCause {
+    Unknown,
+    Backend,
+    Validation,
+    ResourceLimitExceeded,
+};
+
 struct KioOperationFailure
 {
     KioOperationKind operationKind = KioOperationKind::Unknown;
@@ -26,6 +33,7 @@ struct KioOperationFailure
     QString userMessage;
     QString diagnosticDetail;
     bool retryable = false;
+    KioOperationFailureCause cause = KioOperationFailureCause::Unknown;
 };
 
 using KioOperationFailureCallback = std::function<void(KioOperationFailure)>;
@@ -34,6 +42,8 @@ bool isKioOperationCanceledError(int errorCode);
 KioOperationFailure kioOperationFailureFromKJob(
     KioOperationKind operationKind, const QUrl& targetUrl, int errorCode, const QString& errorText);
 KioOperationFailure kioOperationValidationFailure(
+    KioOperationKind operationKind, const QUrl& targetUrl, const QString& diagnosticDetail);
+KioOperationFailure kioOperationResourceLimitFailure(
     KioOperationKind operationKind, const QUrl& targetUrl, const QString& diagnosticDetail);
 }
 

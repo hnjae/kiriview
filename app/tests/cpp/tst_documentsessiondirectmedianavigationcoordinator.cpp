@@ -26,7 +26,7 @@ private Q_SLOTS:
     void confirmedCurrentMissingFromInitialRefreshRecovers();
     void candidateAdditionRepublishesLiveNavigation();
     void currentRemovalRecoversToNextCandidateAndStopsWatch();
-    void candidateWatchFailurePreservesConfirmedNavigation();
+    void candidateWatchFailureMakesNavigationUnavailableWithoutRecovery();
     void boundaryOpenRebindsCandidateWatchAndAcceptsChanges();
     void confirmedCurrentMissingFromOpenRecovers();
     void activeOpenRoutesTargetUsingCurrentCursor();
@@ -431,7 +431,7 @@ void TestDocumentSessionDirectMediaNavigationCoordinator::
 }
 
 void TestDocumentSessionDirectMediaNavigationCoordinator::
-    candidateWatchFailurePreservesConfirmedNavigation()
+    candidateWatchFailureMakesNavigationUnavailableWithoutRecovery()
 {
     CoordinatorFixture fixture;
     const QUrl currentUrl = localUrl(QStringLiteral("/media/02.png"));
@@ -440,18 +440,20 @@ void TestDocumentSessionDirectMediaNavigationCoordinator::
     fixture.coordinator->refresh(&fixture.receiver);
     fixture.provider.deliver(
         0, { directMediaNavigationCandidate(currentUrl), directMediaNavigationCandidate(nextUrl) });
-    const AppliedNavigation confirmed = fixture.navigation;
     fixture.events.clear();
     fixture.provider.deliverWatchError(0,
         kiriview::KioOperationFailure { kiriview::KioOperationKind::DirectoryListing,
             localUrl(QStringLiteral("/media/")), 73, false, QStringLiteral("watch failed"),
             QStringLiteral("watch failed"), true });
 
-    QCOMPARE(fixture.events.size(), std::size_t(0));
-    QCOMPARE(fixture.navigation.known, confirmed.known);
-    QCOMPARE(fixture.navigation.state.currentNumber, confirmed.state.currentNumber);
-    QCOMPARE(fixture.navigation.state.count, confirmed.state.count);
-    QCOMPARE(fixture.navigation.candidates.size(), confirmed.candidates.size());
+    QCOMPARE(fixture.events,
+        (std::vector<CoordinatorFixture::Event> { CoordinatorFixture::Event::SetNavigation,
+            CoordinatorFixture::Event::Reveal, CoordinatorFixture::Event::Publish }));
+    QVERIFY(!fixture.navigation.known);
+    QCOMPARE(fixture.navigation.state.count, 0);
+    QVERIFY(fixture.navigation.candidates.empty());
+    QVERIFY(!fixture.recoveryTargetUrl.has_value());
+    QVERIFY(fixture.routeTargetUrl.isEmpty());
 }
 
 void TestDocumentSessionDirectMediaNavigationCoordinator::

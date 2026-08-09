@@ -13,11 +13,60 @@
 
 #include <QDebug>
 #include <cstddef>
+#include <expected>
+#include <utility>
+
+namespace {
+constexpr qsizetype defaultMaximumOrdinarySiblingEntryCount = 65'536;
+constexpr qsizetype defaultMaximumOrdinarySiblingIdentityCodeUnitCount
+    = qsizetype { 8 } * 1024 * 1024;
+
+std::expected<void, kiriview::ImageDocumentPageCandidateAdmissionFailure>
+admitImageDocumentPageCandidateItems(
+    const KFileItemList& items, kiriview::ImageDocumentPageCandidateAdmissionLimits limits)
+{
+    using Failure = kiriview::ImageDocumentPageCandidateAdmissionFailure;
+
+    if (limits.maximumEntryCount < 0 || limits.maximumRetainedIdentityCodeUnitCount < 0
+        || items.size() > limits.maximumEntryCount) {
+        return std::unexpected(Failure::ResourceLimitExceeded);
+    }
+
+    qsizetype retainedIdentityCodeUnits = 0;
+    for (const KFileItem& item : items) {
+        const qsizetype nameCodeUnits = item.name().size();
+        const qsizetype urlCodeUnits = item.url().toString(QUrl::FullyEncoded).size();
+        if (nameCodeUnits < 0 || urlCodeUnits < 0
+            || nameCodeUnits
+                > limits.maximumRetainedIdentityCodeUnitCount - retainedIdentityCodeUnits) {
+            return std::unexpected(Failure::ResourceLimitExceeded);
+        }
+        retainedIdentityCodeUnits += nameCodeUnits;
+        if (urlCodeUnits
+            > limits.maximumRetainedIdentityCodeUnitCount - retainedIdentityCodeUnits) {
+            return std::unexpected(Failure::ResourceLimitExceeded);
+        }
+        retainedIdentityCodeUnits += urlCodeUnits;
+    }
+
+    return {};
+}
+}
 
 namespace kiriview {
-std::vector<ImageDocumentPageCandidate> imageDocumentPageNavigationCandidates(
-    const KFileItemList& items)
+ImageDocumentPageCandidateAdmissionLimits defaultImageDocumentPageCandidateAdmissionLimits()
 {
+    return ImageDocumentPageCandidateAdmissionLimits { defaultMaximumOrdinarySiblingEntryCount,
+        defaultMaximumOrdinarySiblingIdentityCodeUnitCount };
+}
+
+ImageDocumentPageCandidateAdmissionResult imageDocumentPageNavigationCandidates(
+    const KFileItemList& items, ImageDocumentPageCandidateAdmissionLimits limits)
+{
+    if (const auto admitted = admitImageDocumentPageCandidateItems(items, limits); !admitted) {
+        return std::unexpected(admitted.error());
+    }
+
     std::vector<ImageDocumentPageCandidate> candidates;
     candidates.reserve(static_cast<std::size_t>(items.size()));
 
@@ -36,15 +85,21 @@ std::vector<ImageDocumentPageCandidate> imageDocumentPageNavigationCandidates(
     return candidates;
 }
 
-std::vector<DirectMediaNavigationCandidate> directMediaNavigationCandidates(
-    const KFileItemList& items)
+DirectMediaNavigationCandidateAdmissionResult directMediaNavigationCandidates(
+    const KFileItemList& items, ImageDocumentPageCandidateAdmissionLimits limits)
 {
-    const std::vector<ImageDocumentPageCandidate> imageDocumentPageCandidates
-        = imageDocumentPageNavigationCandidates(items);
+    ImageDocumentPageCandidateAdmissionResult admitted
+        = imageDocumentPageNavigationCandidates(items, limits);
+    if (!admitted) {
+        return std::unexpected(admitted.error());
+    }
+
+    std::vector<ImageDocumentPageCandidate> imageDocumentPageCandidates = std::move(*admitted);
     std::vector<DirectMediaNavigationCandidate> candidates;
     candidates.reserve(imageDocumentPageCandidates.size());
-    for (const ImageDocumentPageCandidate& candidate : imageDocumentPageCandidates) {
-        candidates.push_back(DirectMediaNavigationCandidate { candidate.url, candidate.name });
+    for (ImageDocumentPageCandidate& candidate : imageDocumentPageCandidates) {
+        candidates.push_back(
+            DirectMediaNavigationCandidate { std::move(candidate.url), std::move(candidate.name) });
     }
 
     qCDebug(kiriviewNavigationLog)

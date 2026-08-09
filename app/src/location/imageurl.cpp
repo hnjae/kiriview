@@ -6,6 +6,7 @@
 #include "archive/archiveformat.h"
 #include "archive/archivepath.h"
 #include "diagnostics/diagnosticlogprojection.h"
+#include "location/documentportalpathvalidation_p.h"
 #include "navigation/navigationlogging.h"
 
 #include <QByteArray>
@@ -14,17 +15,200 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QString>
+#include <QStringList>
 #include <QtGlobal>
 #include <cerrno>
+#include <fcntl.h>
+#include <linux/magic.h>
 #include <optional>
+#include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/vfs.h>
 #include <sys/xattr.h>
+#include <unistd.h>
 #include <utility>
+
+namespace kiriview::NavigationSourceDetail {
+bool isAuthenticatedDocumentPortalMount(const DocumentPortalMountFacts& facts)
+{
+    return facts.entryFileSystemType == FUSE_SUPER_MAGIC
+        && facts.rootFileSystemType == FUSE_SUPER_MAGIC && facts.entryDevice == facts.rootDevice
+        && facts.parentDevice != facts.rootDevice;
+}
+
+std::optional<QString> validatedDocumentPortalHostPath(
+    QByteArray attributeValue, const QString& requestedLocalPath)
+{
+    if (attributeValue.endsWith('\0')) {
+        attributeValue.chop(1);
+    }
+    if (attributeValue.isEmpty() || attributeValue.contains('\0')) {
+        return std::nullopt;
+    }
+
+    const QString hostPath = QFile::decodeName(attributeValue);
+    if (hostPath.isEmpty() || !hostPath.startsWith(QLatin1Char('/'))
+        || !QDir::isAbsolutePath(hostPath) || QDir::cleanPath(hostPath) != hostPath
+        || QFile::encodeName(hostPath) != attributeValue
+        || hostPath == QDir::cleanPath(requestedLocalPath)) {
+        return std::nullopt;
+    }
+
+    return hostPath;
+}
+}
 
 namespace {
 constexpr const char* documentPortalHostPathAttribute = "user.document-portal.host-path";
+constexpr qsizetype maximumDocumentPortalHostPathBytes = 64 * 1024;
+
+class ScopedFileDescriptor final
+{
+public:
+    ScopedFileDescriptor() = default;
+
+    explicit ScopedFileDescriptor(int descriptor)
+        : m_descriptor(descriptor)
+    {
+    }
+
+    ~ScopedFileDescriptor()
+    {
+        if (m_descriptor >= 0) {
+            ::close(m_descriptor);
+        }
+    }
+
+    ScopedFileDescriptor(const ScopedFileDescriptor&) = delete;
+    ScopedFileDescriptor& operator=(const ScopedFileDescriptor&) = delete;
+
+    ScopedFileDescriptor(ScopedFileDescriptor&& other) noexcept
+        : m_descriptor(std::exchange(other.m_descriptor, -1))
+    {
+    }
+
+    ScopedFileDescriptor& operator=(ScopedFileDescriptor&& other) noexcept
+    {
+        if (this != &other) {
+            if (m_descriptor >= 0) {
+                ::close(m_descriptor);
+            }
+            m_descriptor = std::exchange(other.m_descriptor, -1);
+        }
+        return *this;
+    }
+
+    [[nodiscard]] int get() const { return m_descriptor; }
+    [[nodiscard]] explicit operator bool() const { return m_descriptor >= 0; }
+
+private:
+    int m_descriptor = -1;
+};
 
 QString runtimeDirForNavigationSource() { return QFile::decodeName(qgetenv("XDG_RUNTIME_DIR")); }
+
+QStringList documentPortalRoots(const QString& runtimeDir)
+{
+    QStringList roots;
+    if (runtimeDir.startsWith(QLatin1Char('/')) && QDir::isAbsolutePath(runtimeDir)) {
+        roots.append(QDir::cleanPath(QDir(runtimeDir).filePath(QStringLiteral("doc"))));
+    }
+    roots.append(QStringLiteral("/run/flatpak/doc"));
+    roots.removeDuplicates();
+    return roots;
+}
+
+bool isDescendantPath(const QString& localPath, const QString& rootPath)
+{
+    QString rootPrefix = QDir::cleanPath(rootPath);
+    if (!localPath.startsWith(QLatin1Char('/')) || !rootPrefix.startsWith(QLatin1Char('/'))
+        || !QDir::isAbsolutePath(localPath) || !QDir::isAbsolutePath(rootPrefix)) {
+        return false;
+    }
+    if (!rootPrefix.endsWith(QLatin1Char('/'))) {
+        rootPrefix.append(QLatin1Char('/'));
+    }
+    return QDir::cleanPath(localPath).startsWith(rootPrefix);
+}
+
+QStringList matchingDocumentPortalRoots(const QString& localPath, const QString& runtimeDir)
+{
+    QStringList matchingRoots;
+    for (const QString& rootPath : documentPortalRoots(runtimeDir)) {
+        if (isDescendantPath(localPath, rootPath)) {
+            matchingRoots.append(rootPath);
+        }
+    }
+    return matchingRoots;
+}
+
+ScopedFileDescriptor openLocalPath(const QString& localPath, int flags)
+{
+    const QByteArray encodedPath = QFile::encodeName(localPath);
+    if (encodedPath.isEmpty() || encodedPath.contains('\0')) {
+        return {};
+    }
+    return ScopedFileDescriptor(::open(encodedPath.constData(), flags));
+}
+
+bool descriptorBelongsToPortalMount(
+    const QString& rootPath, const struct stat& entryStatus, const struct statfs& entryFileSystem)
+{
+    const ScopedFileDescriptor rootDescriptor
+        = openLocalPath(rootPath, O_RDONLY | O_CLOEXEC | O_DIRECTORY | O_NONBLOCK);
+    if (!rootDescriptor) {
+        return false;
+    }
+
+    struct stat rootStatus {};
+    struct statfs rootFileSystem {};
+    if (::fstat(rootDescriptor.get(), &rootStatus) != 0
+        || ::fstatfs(rootDescriptor.get(), &rootFileSystem) != 0) {
+        return false;
+    }
+
+    const ScopedFileDescriptor parentDescriptor = ScopedFileDescriptor(
+        ::openat(rootDescriptor.get(), "..", O_RDONLY | O_CLOEXEC | O_DIRECTORY | O_NONBLOCK));
+    struct stat parentStatus {};
+    if (!parentDescriptor || ::fstat(parentDescriptor.get(), &parentStatus) != 0) {
+        return false;
+    }
+
+    return kiriview::NavigationSourceDetail::isAuthenticatedDocumentPortalMount(
+        kiriview::NavigationSourceDetail::DocumentPortalMountFacts {
+            entryFileSystem.f_type,
+            rootFileSystem.f_type,
+            entryStatus.st_dev,
+            rootStatus.st_dev,
+            parentStatus.st_dev,
+        });
+}
+
+std::optional<ScopedFileDescriptor> authenticatedDocumentPortalEntry(
+    const QString& localPath, const QString& runtimeDir)
+{
+    const QString cleanLocalPath = QDir::cleanPath(localPath);
+    const QStringList matchingRoots = matchingDocumentPortalRoots(cleanLocalPath, runtimeDir);
+    if (matchingRoots.isEmpty()) {
+        return std::nullopt;
+    }
+
+    ScopedFileDescriptor entryDescriptor
+        = openLocalPath(cleanLocalPath, O_RDONLY | O_CLOEXEC | O_NONBLOCK);
+    struct stat entryStatus {};
+    struct statfs entryFileSystem {};
+    if (!entryDescriptor || ::fstat(entryDescriptor.get(), &entryStatus) != 0
+        || ::fstatfs(entryDescriptor.get(), &entryFileSystem) != 0) {
+        return std::nullopt;
+    }
+
+    for (const QString& rootPath : matchingRoots) {
+        if (descriptorBelongsToPortalMount(rootPath, entryStatus, entryFileSystem)) {
+            return std::optional<ScopedFileDescriptor>(std::move(entryDescriptor));
+        }
+    }
+    return std::nullopt;
+}
 
 QUrl navigationUrlForLocalPath(const QString& localPath, const QString& runtimeDir)
 {
@@ -45,15 +229,16 @@ QUrl normalizedContainerBaseUrl(const QUrl& url)
     return normalizedUrl;
 }
 
-std::optional<QString> documentPortalHostPath(const QUrl& url)
+std::optional<QString> documentPortalHostPath(const QUrl& url, const QString& runtimeDir)
 {
     if (!url.isLocalFile()) {
         return std::nullopt;
     }
 
     const QString localPath = url.toLocalFile();
-    const QByteArray encodedLocalPath = QFile::encodeName(localPath);
-    if (encodedLocalPath.isEmpty()) {
+    const std::optional<ScopedFileDescriptor> entryDescriptor
+        = authenticatedDocumentPortalEntry(localPath, runtimeDir);
+    if (!entryDescriptor.has_value()) {
         return std::nullopt;
     }
 
@@ -72,7 +257,7 @@ std::optional<QString> documentPortalHostPath(const QUrl& url)
     for (int attempt = 0; attempt < 2; ++attempt) {
         // File dialogs can return document-portal URLs; navigation needs the real directory.
         const ssize_t valueSize
-            = getxattr(encodedLocalPath.constData(), documentPortalHostPathAttribute, nullptr, 0);
+            = fgetxattr(entryDescriptor->get(), documentPortalHostPathAttribute, nullptr, 0);
         const int sizeErrno = errno;
         if (valueSize <= 0) {
             if (valueSize < 0 && !isNegativeErrno(sizeErrno)) {
@@ -82,11 +267,18 @@ std::optional<QString> documentPortalHostPath(const QUrl& url)
             }
             return std::nullopt;
         }
+        if (valueSize > maximumDocumentPortalHostPathBytes) {
+            qCDebug(kiriviewNavigationLog)
+                << "document portal host path read failed"
+                << "url" << kiriview::diagnosticSourceReference(url) << "reason"
+                << "attribute-too-large";
+            return std::nullopt;
+        }
 
         QByteArray value;
-        value.resizeForOverwrite(valueSize);
-        const ssize_t bytesRead = getxattr(encodedLocalPath.constData(),
-            documentPortalHostPathAttribute, value.data(), static_cast<std::size_t>(value.size()));
+        value.resizeForOverwrite(static_cast<qsizetype>(valueSize));
+        const ssize_t bytesRead = fgetxattr(entryDescriptor->get(), documentPortalHostPathAttribute,
+            value.data(), static_cast<std::size_t>(value.size()));
         const int readErrno = errno;
         if (bytesRead < 0 && readErrno == ERANGE && attempt == 0) {
             continue;
@@ -111,18 +303,17 @@ std::optional<QString> documentPortalHostPath(const QUrl& url)
         }
 
         value.resize(bytesRead);
-        if (value.endsWith('\0')) {
-            value.chop(1);
-        }
-
-        QString hostPath = QFile::decodeName(value);
-        if (hostPath.isEmpty() || hostPath == localPath) {
+        const std::optional<QString> hostPath
+            = kiriview::NavigationSourceDetail::validatedDocumentPortalHostPath(
+                std::move(value), localPath);
+        if (!hostPath.has_value()) {
             return std::nullopt;
         }
 
-        qCDebug(kiriviewNavigationLog) << "document portal host path resolved"
-                                       << "url" << kiriview::diagnosticSourceReference(url)
-                                       << "hostPath" << kiriview::diagnosticPathReference(hostPath);
+        qCDebug(kiriviewNavigationLog)
+            << "document portal host path resolved"
+            << "url" << kiriview::diagnosticSourceReference(url) << "hostPath"
+            << kiriview::diagnosticPathReference(*hostPath);
         return hostPath;
     }
 
@@ -131,9 +322,10 @@ std::optional<QString> documentPortalHostPath(const QUrl& url)
 
 kiriview::NavigationSourceEntryFacts collectNavigationSourceEntryFacts(const QUrl& url)
 {
+    const QString runtimeDir = runtimeDirForNavigationSource();
     return kiriview::NavigationSourceEntryFacts {
-        documentPortalHostPath(url),
-        runtimeDirForNavigationSource(),
+        documentPortalHostPath(url, runtimeDir),
+        runtimeDir,
         url.isLocalFile() && QFileInfo(QDir::cleanPath(url.toLocalFile())).isDir(),
     };
 }
@@ -148,6 +340,13 @@ kiriview::NavigationSourceEntryKind navigationSourceEntryKind(
         return kiriview::NavigationSourceEntryKind::Archive;
     }
     return kiriview::NavigationSourceEntryKind::Direct;
+}
+}
+
+namespace kiriview::NavigationSourceDetail {
+bool isDocumentPortalPathCandidate(const QString& localPath, const QString& runtimeDir)
+{
+    return !matchingDocumentPortalRoots(localPath, runtimeDir).isEmpty();
 }
 }
 

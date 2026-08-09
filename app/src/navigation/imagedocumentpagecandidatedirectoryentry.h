@@ -32,6 +32,7 @@ public:
 
     [[nodiscard]] bool failed() const;
     [[nodiscard]] bool listed() const;
+    [[nodiscard]] bool watching() const;
     [[nodiscard]] const ImageDocumentPageCandidateLoadError& error() const;
     [[nodiscard]] const std::vector<ImageDocumentPageCandidate>& candidates() const;
     [[nodiscard]] std::uint64_t identity() const;

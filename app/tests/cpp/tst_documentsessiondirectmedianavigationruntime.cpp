@@ -25,7 +25,9 @@ private Q_SLOTS:
     void refreshPublishesRepeatedCandidateChanges();
     void candidateChangeSupersedesLateInitialSnapshot();
     void cancelRejectsLateCandidateChange();
-    void candidateWatchFailureDoesNotPublishAReplacement();
+    void candidateWatchFailurePublishesUnavailableResult();
+    void sharedLoadAndWatchFailurePublishesOneUnavailableResult();
+    void candidateWatchRecoveryRepublishesUnchangedCandidates();
     void openPublishesTargetPlanAndCandidates();
     void failedOpenPublishesUnknownResult();
     void canceledFailurePreservesTypedFields();
@@ -353,23 +355,93 @@ void TestDocumentSessionDirectMediaNavigationRuntime::cancelRejectsLateCandidate
 }
 
 void TestDocumentSessionDirectMediaNavigationRuntime::
-    candidateWatchFailureDoesNotPublishAReplacement()
+    candidateWatchFailurePublishesUnavailableResult()
 {
     RuntimeFixture fixture;
     const QUrl currentUrl = localUrl(QStringLiteral("/media/01.mp4"));
-    int changeCount = 0;
+    std::optional<kiriview::DocumentSessionDirectMediaNavigationRefreshResult> changed;
 
     fixture.runtime.refresh(
         &fixture.receiver, directMediaScope(currentUrl),
         [](const kiriview::DirectMediaScope&) { return true; }, {},
-        [&changeCount](
-            kiriview::DocumentSessionDirectMediaNavigationRefreshResult) { ++changeCount; });
+        [&changed](kiriview::DocumentSessionDirectMediaNavigationRefreshResult result) {
+            changed = std::move(result);
+        });
     fixture.provider.deliverWatchErrorIgnoringCancellation(0,
         kiriview::KioOperationFailure { kiriview::KioOperationKind::DirectoryListing,
             localUrl(QStringLiteral("/media/")), 73, false, QStringLiteral("watch failed"),
             QStringLiteral("watch failed"), true });
 
-    QCOMPARE(changeCount, 0);
+    QVERIFY(changed.has_value());
+    QVERIFY(!changed->succeeded);
+    QVERIFY(changed->candidates.empty());
+    QCOMPARE(changed->boundaryState.count, 0);
+    QVERIFY(changed->failure.has_value());
+}
+
+void TestDocumentSessionDirectMediaNavigationRuntime::
+    sharedLoadAndWatchFailurePublishesOneUnavailableResult()
+{
+    RuntimeFixture fixture;
+    const QUrl currentUrl = localUrl(QStringLiteral("/media/01.mp4"));
+    int initialFailureCount = 0;
+    int changedFailureCount = 0;
+
+    fixture.runtime.refresh(
+        &fixture.receiver, directMediaScope(currentUrl),
+        [](const kiriview::DirectMediaScope&) { return true; },
+        [&initialFailureCount](kiriview::DocumentSessionDirectMediaNavigationRefreshResult result) {
+            QVERIFY(!result.succeeded);
+            ++initialFailureCount;
+        },
+        [&changedFailureCount](kiriview::DocumentSessionDirectMediaNavigationRefreshResult result) {
+            QVERIFY(!result.succeeded);
+            ++changedFailureCount;
+        });
+    const kiriview::KioOperationFailure failure {
+        kiriview::KioOperationKind::DirectoryListing,
+        localUrl(QStringLiteral("/media/")),
+        73,
+        false,
+        QStringLiteral("listing failed"),
+        QStringLiteral("listing failed"),
+        true,
+    };
+    fixture.provider.deliverErrorIgnoringCancellation(0, failure);
+    fixture.provider.deliverWatchErrorIgnoringCancellation(0, failure);
+
+    QCOMPARE(initialFailureCount, 1);
+    QCOMPARE(changedFailureCount, 0);
+}
+
+void TestDocumentSessionDirectMediaNavigationRuntime::
+    candidateWatchRecoveryRepublishesUnchangedCandidates()
+{
+    RuntimeFixture fixture;
+    const QUrl currentUrl = localUrl(QStringLiteral("/media/01.mp4"));
+    const std::vector<kiriview::DirectMediaNavigationCandidate> candidates {
+        directMediaNavigationCandidate(currentUrl),
+    };
+    std::vector<kiriview::DocumentSessionDirectMediaNavigationRefreshResult> changes;
+
+    fixture.runtime.refresh(
+        &fixture.receiver, directMediaScope(currentUrl),
+        [](const kiriview::DirectMediaScope&) { return true; }, {},
+        [&changes](kiriview::DocumentSessionDirectMediaNavigationRefreshResult result) {
+            changes.push_back(std::move(result));
+        });
+    fixture.provider.deliverChangeIgnoringCancellation(0, candidates);
+    fixture.provider.deliverWatchErrorIgnoringCancellation(0,
+        kiriview::KioOperationFailure { kiriview::KioOperationKind::DirectoryListing,
+            localUrl(QStringLiteral("/media/")), 73, false, QStringLiteral("watch failed"),
+            QStringLiteral("watch failed"), true });
+    fixture.provider.deliverChangeIgnoringCancellation(0, candidates);
+
+    QCOMPARE(changes.size(), std::size_t(3));
+    QVERIFY(changes.at(0).succeeded);
+    QVERIFY(!changes.at(1).succeeded);
+    QVERIFY(changes.at(2).succeeded);
+    QCOMPARE(changes.at(2).boundaryState.count, 1);
 }
 
 void TestDocumentSessionDirectMediaNavigationRuntime::openPublishesTargetPlanAndCandidates()

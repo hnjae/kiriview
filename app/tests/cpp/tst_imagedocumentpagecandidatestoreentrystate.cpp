@@ -109,6 +109,7 @@ private Q_SLOTS:
     void cancelledPendingLoadDoesNotReceiveCompletion();
     void subscribersOnlyReceivePlansAfterInitialListing();
     void failedListingReturnsErrorPlansForPendingLoadsAndSubscribers();
+    void successfulCompleteSnapshotClearsPriorObservationFailure();
     void successfulUpdateClearsPriorObservationFailure();
 };
 
@@ -309,6 +310,27 @@ void TestImageDocumentPageCandidateStoreEntryState::successfulUpdateClearsPriorO
     QVERIFY(state.listed());
     QVERIFY(!state.failed());
     QCOMPARE(state.candidates().size(), std::size_t(2));
+}
+
+void TestImageDocumentPageCandidateStoreEntryState::
+    successfulCompleteSnapshotClearsPriorObservationFailure()
+{
+    kiriview::ImageDocumentPageCandidateStoreEntryState state;
+    kiriview::ImageIoJob subscriber = addSubscriber(
+        state, this, [](std::vector<kiriview::ImageDocumentPageCandidate>) {},
+        [](const kiriview::ImageDocumentPageCandidateLoadError&) {},
+        [&state](QObject* token) { state.removeSubscriber(token); });
+    static_cast<void>(state.failListing(
+        kiriview::ImageDocumentPageCandidateLoadError { QStringLiteral("watch failed") }));
+
+    const kiriview::ImageDocumentPageCandidateStoreEntryNotificationPlan recovery
+        = state.completeListing(candidates({ QStringLiteral("01.png") }));
+
+    QVERIFY(state.listed());
+    QVERIFY(!state.failed());
+    QCOMPARE(recovery.changedSubscribers.size(), std::size_t(1));
+    QCOMPARE(recovery.candidates.size(), std::size_t(1));
+    subscriber.cancel();
 }
 
 QTEST_GUILESS_MAIN(TestImageDocumentPageCandidateStoreEntryState)

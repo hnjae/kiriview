@@ -55,12 +55,12 @@ ImageIoJob ImageDocumentPageCandidateStore::loadDirectoryImages(QObject* receive
     directoryUrl = normalizedDirectoryUrlForIdentity(directoryUrl);
     const QString key = directoryUrlIdentityKey(directoryUrl);
     ImageDocumentPageCandidateDirectoryEntry& entry = entryForLocalDirectory(directoryUrl);
-    if (entry.listed()) {
-        invokeIfSet(callback, entry.candidates());
-        return ImageIoJob();
-    }
     if (entry.failed()) {
         invokeIfSet(errorCallback, entry.error());
+        return ImageIoJob();
+    }
+    if (entry.listed()) {
+        invokeIfSet(callback, entry.candidates());
         return ImageIoJob();
     }
 
@@ -84,18 +84,28 @@ ImageIoJob ImageDocumentPageCandidateStore::watchDirectoryImages(QObject* receiv
     directoryUrl = normalizedDirectoryUrlForIdentity(directoryUrl);
     const QString key = directoryUrlIdentityKey(directoryUrl);
     ImageDocumentPageCandidateDirectoryEntry& entry = entryForLocalDirectory(directoryUrl);
-    if (entry.failed() && !entry.listed()) {
+    if (entry.failed() && !entry.watching()) {
         invokeIfSet(errorCallback, entry.error());
         return ImageIoJob();
     }
+    const bool reportCurrentFailure = entry.failed();
+    const ImageDocumentPageCandidateLoadError currentError = entry.error();
+    ImageDocumentPageCandidateLoadErrorCallback immediateErrorCallback = errorCallback;
 
     QPointer<ImageDocumentPageCandidateStore> store(this);
-    return entry.addSubscriber(
+    ImageIoJob job = entry.addSubscriber(
         std::move(callback), std::move(errorCallback), receiver, [store, key](QObject* token) {
             if (!store.isNull()) {
                 store->removeSubscriber(key, token);
             }
         });
+    if (reportCurrentFailure) {
+        invokeIfSet(immediateErrorCallback, currentError);
+        if (store.isNull()) {
+            job.cancel();
+        }
+    }
+    return job;
 }
 
 ImageDocumentPageCandidateDirectoryEntry& ImageDocumentPageCandidateStore::entryForLocalDirectory(

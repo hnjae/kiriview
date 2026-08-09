@@ -20,6 +20,13 @@
 #include <vector>
 
 namespace {
+kiriview::KioOperationFailure directMediaCandidateAdmissionFailure(const QUrl& directoryUrl)
+{
+    return kiriview::kioOperationResourceLimitFailure(kiriview::KioOperationKind::DirectoryListing,
+        directoryUrl,
+        QStringLiteral("ordinary sibling listing exceeds the configured resource limits"));
+}
+
 kiriview::ImageIoJob startDirectoryDirectMediaNavigationCandidateList(QObject* receiver,
     const QUrl& directoryUrl, kiriview::DirectMediaNavigationCandidatesCallback callback,
     kiriview::KioOperationFailureCallback errorCallback,
@@ -28,11 +35,19 @@ kiriview::ImageIoJob startDirectoryDirectMediaNavigationCandidateList(QObject* r
     qCDebug(kiriviewNavigationLog)
         << "direct media navigation candidate provider listing directory"
         << "directoryUrl" << kiriview::diagnosticSourceReference(directoryUrl);
+    kiriview::KioOperationFailureCallback admissionErrorCallback = errorCallback;
     return kiriview::startDirectoryItemList(
         receiver, directoryUrl,
-        [callback = std::move(callback), directoryUrl](const KFileItemList& items) mutable {
-            std::vector<kiriview::DirectMediaNavigationCandidate> candidates
+        [callback = std::move(callback), errorCallback = std::move(admissionErrorCallback),
+            directoryUrl](const KFileItemList& items) mutable {
+            kiriview::DirectMediaNavigationCandidateAdmissionResult admitted
                 = kiriview::directMediaNavigationCandidates(items);
+            if (!admitted) {
+                kiriview::invokeIfSet(
+                    errorCallback, directMediaCandidateAdmissionFailure(directoryUrl));
+                return;
+            }
+            std::vector<kiriview::DirectMediaNavigationCandidate> candidates = std::move(*admitted);
             qCDebug(kiriviewNavigationLog)
                 << "direct media navigation candidate provider listed directory"
                 << "directoryUrl" << kiriview::diagnosticSourceReference(directoryUrl) << "items"

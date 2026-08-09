@@ -116,6 +116,8 @@ bool ImageDocumentPageCandidateDirectoryEntry::failed() const { return m_state.f
 
 bool ImageDocumentPageCandidateDirectoryEntry::listed() const { return m_state.listed(); }
 
+bool ImageDocumentPageCandidateDirectoryEntry::watching() const { return m_watchJob.isActive(); }
+
 const ImageDocumentPageCandidateLoadError& ImageDocumentPageCandidateDirectoryEntry::error() const
 {
     return m_state.error();
@@ -175,6 +177,10 @@ void ImageDocumentPageCandidateDirectoryEntry::handleChanged(
 
 void ImageDocumentPageCandidateDirectoryEntry::handleDeleted(const QList<QUrl>& urls)
 {
+    if (failed()) {
+        return;
+    }
+
     ImageDocumentPageCandidateStoreEntryNotificationPlan plan
         = m_state.updateListing(imageDocumentPageCandidatesWithoutDeletedUrls(candidates(), urls));
     const QPointer<QObject> signalContext = m_signalContext;

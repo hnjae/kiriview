@@ -58,6 +58,7 @@ KioOperationFailure kioOperationFailureFromKJob(
         canceled ? QString() : errorText,
         errorText,
         !canceled && isRetryableKioOperationError(operationKind, errorCode),
+        KioOperationFailureCause::Backend,
     };
 }
 
@@ -72,6 +73,22 @@ KioOperationFailure kioOperationValidationFailure(
         QString(),
         diagnosticDetail,
         false,
+        KioOperationFailureCause::Validation,
+    };
+}
+
+KioOperationFailure kioOperationResourceLimitFailure(
+    KioOperationKind operationKind, const QUrl& targetUrl, const QString& diagnosticDetail)
+{
+    return KioOperationFailure {
+        operationKind,
+        targetUrl,
+        std::nullopt,
+        false,
+        QString(),
+        diagnosticDetail,
+        false,
+        KioOperationFailureCause::ResourceLimitExceeded,
     };
 }
 }
