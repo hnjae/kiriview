@@ -82,6 +82,8 @@ In Flatpak, KiriView shares generated thumbnails with the desktop thumbnail stor
 
 Files outside those paths remain available only when explicitly provided by the XDG portal.
 
+Only a host-path mapping authenticated as belonging to the selected XDG document-portal entry may change that entry's adjacent-media navigation scope. Extended attributes or other metadata on an ordinary local file do not redirect navigation, sibling discovery, monitoring, thumbnails, or operation targets to another location.
+
 In Flatpak, KiriView can also request write access to those same locations for file deletion.
 
 ## Deletion
@@ -121,6 +123,8 @@ After deleting a directly opened directory collection, KiriView shows the empty 
 When the current navigation scope is the local `file://` parent directory of an ordinary opened direct image or video file, KiriView keeps that directory's supported-media list live.
 
 External additions and removals update the page number, total item count, and first/last boundary state.
+
+If an initial ordinary sibling listing or live refresh fails, or its complete result exceeds KiriView's safe sibling-discovery limits, the current media item remains usable but sibling navigation becomes unavailable and exposes no stale or partial item count. A later successful complete admitted refresh restores the supported-media list.
 
 If the currently displayed local image or video is removed outside KiriView, KiriView immediately clears that image or stops playback for that video, opens the next supported media item in the same sorted directory order when possible, falls back to the previous supported media item when no next media item exists, and otherwise shows the empty state.
 

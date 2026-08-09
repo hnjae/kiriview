@@ -30,6 +30,8 @@ Elapsed-time behavior uses a monotonic clock and keeps timer activity subordinat
 
 Directory listing and watching remain behind the navigation or collection-access ownership boundary. Candidate loading and live navigation consume accepted snapshots, change events, deletion events, and failures without exposing platform watcher state as navigation authority. Only scope kinds whose product contract is live subscribe to external changes; snapshot scopes consume listing results without subscribing.
 
+Live ordinary sibling refresh admission bounds queued recomputation state independently of watcher event rate. Repeated watcher events coalesce without accumulating one full-list rebuild per event, obsolete queued work cannot publish, and each accepted refresh projects the latest complete source state available to the navigation owner.
+
 QML may own UI-local timers and physical item transients, but it must not use delayed callbacks to reconcile durable domain state. If a delayed UI callback observes public session state, the session owner must already have published a coherent snapshot for that state.
 
 Delayed image-loading feedback is subordinate to the accepted application target lifecycle. A pending deadline is replaced when a newer target is accepted and cannot arm feedback for that newer target; matching ready, error, or empty publication cancels the pending deadline. Presentation readiness comes from the matching committed-display observation rather than decode completion or cache availability.

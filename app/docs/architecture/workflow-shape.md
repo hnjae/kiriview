@@ -40,7 +40,7 @@ Candidate-list owners publish confirmed snapshots before dependent workflows der
 
 Direct-media sibling discovery accepts a snapshot only when the current direct-media scope still matches the discovery request. Image-document page candidate refresh accepts a snapshot only when its candidate-list source still matches the page navigation owner.
 
-The direct-media candidate owner may observe changes for a currently supported scope. It publishes only the newest accepted candidate view. A failed live observation does not replace the last confirmed view, and later consumers of the same active scope may continue from that view while observation can recover. The owner treats a missing current item as removal only after that same scope has confirmed the item; first discovery without the current item remains an unknown navigation result rather than a removal transition.
+The direct-media candidate owner may observe changes for a currently supported scope. It publishes only the newest accepted candidate view. A failed or resource-rejected live observation makes navigation unavailable without replacing it with an empty or partial candidate view, while the current media remains usable and observation may recover. The owner treats a missing current item as removal only after a successful complete snapshot for that same scope has confirmed the item; first discovery without the current item and unavailable refresh outcomes do not establish a removal transition.
 
 A pending same-source refresh retains the last matching confirmed snapshot while work is in flight. A source-identity change clears the prior snapshot before consumers can use it. Consumers must not synthesize a partial list or use rows from a different source.
 

@@ -12,6 +12,10 @@ Dropping one or more file or URL items onto the running main window opens only t
 
 If the first startup argument is a local file path or file URL and that file does not exist, KiriView prints a clear error message naming the path and reason to standard error, does not open the main window, and exits with code 2.
 
+Startup failure output is one bounded UTF-8 record. Path and argument content that could alter terminal control or record framing is represented visibly, and any truncation is explicit.
+
+If KiriView cannot create its sole main QML root, it prints a fixed startup failure record and exits with a nonzero status instead of remaining active without a main window.
+
 Startup arguments, drop, and open dialog selection may open supported direct video files.
 
 ## Window Size and Title

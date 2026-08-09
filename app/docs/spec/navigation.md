@@ -88,6 +88,8 @@ For direct media, sibling discovery may be asynchronous. The eventual active nav
 
 After sibling discovery succeeds for the active ordinary direct media scope, the toolbar readout becomes known and shows the current supported media item number and total supported media item count for that scope. Confirming that a pending direct image request is now displayed does not make an already-started sibling discovery result stale when the effective direct media URL and parent scope are unchanged.
 
+KiriView confirms an ordinary direct media sibling list only when the complete non-recursive parent listing fits the application's safe limits for examined entries and retained item identity data. If initial discovery or a live refresh exceeds those limits, KiriView does not publish a partial sibling list: the current media item remains usable, active navigation becomes unavailable and unknown, and the thumbnail strip is empty. A later successful complete refresh may restore navigation for the same scope.
+
 While an ordinary direct local media scope remains active, changes to its supported sibling set update the navigation count and controls. If the current item was previously confirmed in that set and then disappears, KiriView opens the next remaining supported item in the established order, otherwise the previous item; if no supported item remains, the session becomes empty. A listing that has never confirmed the current item does not establish that it was removed.
 
 If the current media item is the first supported media item, pressing Page Up keeps the current item open and notifies the user that it is the first media item.
