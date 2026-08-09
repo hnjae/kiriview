@@ -3,6 +3,7 @@
 
 #include "viewportproviderbridge_p.h"
 
+#include "imageviewportprovidersubmission_p.h"
 #include "imageviewporttoken_p.h"
 
 #include <QtCore/QCoreApplication>
@@ -11,7 +12,7 @@
 #include <QtCore/QMutex>
 #include <QtCore/QMutexLocker>
 #include <QtCore/QPointer>
-#include <QtCore/QSemaphore>
+#include <QtCore/QScopeGuard>
 #include <QtCore/QSet>
 #include <QtCore/QThread>
 #include <QtCore/QTimer>
@@ -68,6 +69,17 @@ quint64 allocateProviderLeaseId()
     QMutexLocker locker(&mutex);
     if (nextId == std::numeric_limits<quint64>::max()) {
         qFatal("ImageViewport provider frame lease identity exhausted");
+    }
+    return ++nextId;
+}
+
+quint64 allocateProviderDeliveryId()
+{
+    static QMutex mutex;
+    static quint64 nextId = 0;
+    QMutexLocker locker(&mutex);
+    if (nextId == std::numeric_limits<quint64>::max()) {
+        qFatal("ImageViewport provider event delivery identity exhausted");
     }
     return ++nextId;
 }
@@ -401,47 +413,20 @@ ImageViewportInternal::ProviderTransportDiagnostic providerTransportDiagnostic(
 }
 }
 
-class ViewportProviderDeliverySlotReservation
-{
-public:
-    explicit ViewportProviderDeliverySlotReservation(std::shared_ptr<QSemaphore> slots)
-        : deliverySlots(std::move(slots))
-    {
-    }
-
-    ~ViewportProviderDeliverySlotReservation() { release(); }
-
-    void release()
-    {
-        std::shared_ptr<QSemaphore> slots;
-        {
-            QMutexLocker locker(&mutex);
-            slots = std::exchange(deliverySlots, {});
-        }
-        if (slots) {
-            slots->release();
-        }
-    }
-
-    ViewportProviderDeliverySlotReservation(const ViewportProviderDeliverySlotReservation&)
-        = delete;
-    ViewportProviderDeliverySlotReservation& operator=(
-        const ViewportProviderDeliverySlotReservation&)
-        = delete;
-    ViewportProviderDeliverySlotReservation(ViewportProviderDeliverySlotReservation&&) = delete;
-    ViewportProviderDeliverySlotReservation& operator=(ViewportProviderDeliverySlotReservation&&)
-        = delete;
-
-private:
-    QMutex mutex;
-    std::shared_ptr<QSemaphore> deliverySlots;
-};
-
 class ViewportProviderEventEndpoint
 {
 public:
-    explicit ViewportProviderEventEndpoint(std::function<void(const ViewportProviderEvent&)> sink)
-        : eventSink(std::move(sink))
+    struct AdmissionResult
+    {
+        ImageSequenceProviderEventSubmissionOutcome outcome
+            = ImageSequenceProviderEventSubmissionOutcome::Rejected;
+        bool scheduleDelivery = false;
+    };
+
+    explicit ViewportProviderEventEndpoint(std::shared_ptr<ViewportProviderSessionControl> control,
+        std::function<void(const ViewportProviderEvent&)> sink)
+        : sessionControl(std::move(control))
+        , eventSink(std::move(sink))
     {
     }
 
@@ -459,10 +444,80 @@ public:
         return true;
     }
 
-    std::shared_ptr<ViewportProviderDeliverySlotReservation> reserveNonAdvisoryDelivery()
+    AdmissionResult admit(ViewportProviderEvent event,
+        const std::function<void(ViewportProviderEvent&)>& claimOwnership)
     {
-        nonAdvisoryDeliverySlots->acquire();
-        return std::make_shared<ViewportProviderDeliverySlotReservation>(nonAdvisoryDeliverySlots);
+        QMutexLocker locker(&mutex);
+        if (closed) {
+            return { ImageSequenceProviderEventSubmissionOutcome::Closed, false };
+        }
+        const std::optional<DeliveryCredit> credit = admitCreditLocked(event);
+        if (!credit) {
+            return { ImageSequenceProviderEventSubmissionOutcome::Rejected, false };
+        }
+        event.deliveryId = allocateProviderDeliveryId();
+        claimOwnership(event);
+        sessionControl->claimEventDelivery();
+        deliveryCredits.insert(event.deliveryId, *credit);
+        pendingDeliveries.append(std::move(event));
+        if (deliveryScheduled) {
+            return { ImageSequenceProviderEventSubmissionOutcome::Accepted, false };
+        }
+        deliveryScheduled = true;
+        return { ImageSequenceProviderEventSubmissionOutcome::Accepted, true };
+    }
+
+    std::optional<ViewportProviderEvent> takeNextDelivery()
+    {
+        QMutexLocker locker(&mutex);
+        if (pendingDeliveries.isEmpty()) {
+            return std::nullopt;
+        }
+        return pendingDeliveries.takeFirst();
+    }
+
+    bool completeScheduledDeliveryDrain()
+    {
+        QMutexLocker locker(&mutex);
+        if (!pendingDeliveries.isEmpty()) {
+            return false;
+        }
+        deliveryScheduled = false;
+        return true;
+    }
+
+    bool completeDelivery(quint64 deliveryId)
+    {
+        if (deliveryId == 0) {
+            return false;
+        }
+        bool completed = false;
+        {
+            QMutexLocker locker(&mutex);
+            auto creditIt = deliveryCredits.find(deliveryId); // clazy:exclude=detaching-member
+            if (creditIt == deliveryCredits.end()) {
+                return false;
+            }
+            switch (creditIt.value()) {
+            case DeliveryCredit::Normal:
+                break;
+            case DeliveryCredit::FaultRepresentative:
+                faultRepresentativeOutstanding = false;
+                break;
+            case DeliveryCredit::StaleRepresentative:
+                staleRepresentativeOutstanding = false;
+                break;
+            case DeliveryCredit::MismatchRepresentative:
+                mismatchRepresentativeOutstanding = false;
+                break;
+            }
+            deliveryCredits.erase(creditIt);
+            completed = true;
+        }
+        if (completed) {
+            sessionControl->completeEventDelivery();
+        }
+        return completed;
     }
 
     void observeRequest(const ImageSequenceProviderRequest& request)
@@ -475,8 +530,8 @@ public:
         case ImageSequenceProviderRequestKind::Playback:
             highestIssuedToken = qMax(highestIssuedToken,
                 ImageViewportInternal::ProviderRequestTokenPrivateAccess::value(request.token()));
-            if (!activeTokens.contains(request.token())) {
-                activeTokens.append(request.token());
+            if (activeTokenIndexLocked(request.token()) < 0) {
+                activeTokens.append({ request.token(), request.kind(), false, false });
             }
             Q_ASSERT(activeTokens.size() <= 2);
             break;
@@ -510,21 +565,12 @@ public:
         }
     }
 
-    void observeTerminal(ImageSequenceProviderRequestToken token)
+    AdmissionResult enqueueAdvisory(ViewportProviderEvent event)
     {
         QMutexLocker locker(&mutex);
-        retireTokenLocked(token);
-    }
-
-    void observeClose()
-    {
-        QMutexLocker locker(&mutex);
-        retireAllTokensLocked();
-    }
-
-    bool enqueueAdvisory(ViewportProviderEvent event)
-    {
-        QMutexLocker locker(&mutex);
+        if (closed) {
+            return { ImageSequenceProviderEventSubmissionOutcome::Closed, false };
+        }
         const AdvisoryCategory category = classifyAdvisoryLocked(event.token);
         qsizetype pendingIndex = -1;
         for (qsizetype index = 0; index < pendingAdvisories.size(); ++index) {
@@ -544,10 +590,10 @@ public:
                 = std::move(event);
         }
         if (advisoryDeliveryScheduled) {
-            return false;
+            return { ImageSequenceProviderEventSubmissionOutcome::Accepted, false };
         }
         advisoryDeliveryScheduled = true;
-        return true;
+        return { ImageSequenceProviderEventSubmissionOutcome::Accepted, true };
     }
 
     QVector<ViewportProviderEvent> takePendingAdvisories()
@@ -570,16 +616,46 @@ public:
         advisoryDeliveryScheduled = false;
     }
 
-    void revoke()
+    QVector<ViewportProviderEvent> deliverySchedulingFailed()
     {
         QMutexLocker locker(&mutex);
+        deliveryScheduled = false;
+        return std::exchange(pendingDeliveries, {});
+    }
+
+    QVector<ViewportProviderEvent> revoke()
+    {
+        QMutexLocker locker(&mutex);
+        closed = true;
         eventSink = {};
         activeTokens.clear();
         pendingAdvisories.clear();
         advisoryDeliveryScheduled = false;
+        deliveryScheduled = false;
+        return std::exchange(pendingDeliveries, {});
+    }
+
+    void closeAcceptance()
+    {
+        QMutexLocker locker(&mutex);
+        closed = true;
+        retireAllTokensLocked();
+    }
+
+    QVector<quint64> outstandingDeliveryIds() const
+    {
+        QMutexLocker locker(&mutex);
+        return deliveryCredits.keys();
     }
 
 private:
+    enum class DeliveryCredit {
+        Normal,
+        FaultRepresentative,
+        StaleRepresentative,
+        MismatchRepresentative,
+    };
+
     enum class AdvisoryCategory {
         Active,
         Stale,
@@ -592,6 +668,99 @@ private:
         ViewportProviderEvent event;
     };
 
+    struct ActiveToken
+    {
+        ImageSequenceProviderRequestToken token;
+        ImageSequenceProviderRequestKind requestKind = ImageSequenceProviderRequestKind::Metadata;
+        bool provisionalAccepted = false;
+        bool terminalAccepted = false;
+    };
+
+    [[nodiscard]] static bool terminalCompatible(
+        ImageSequenceProviderEventKind eventKind, ImageSequenceProviderRequestKind requestKind)
+    {
+        switch (eventKind) {
+        case ImageSequenceProviderEventKind::MetadataReady:
+            return requestKind == ImageSequenceProviderRequestKind::Metadata;
+        case ImageSequenceProviderEventKind::FrameReady:
+            return requestKind == ImageSequenceProviderRequestKind::Frame
+                || requestKind == ImageSequenceProviderRequestKind::Position
+                || requestKind == ImageSequenceProviderRequestKind::Playback;
+        case ImageSequenceProviderEventKind::EndOfSequence:
+            return requestKind == ImageSequenceProviderRequestKind::Playback;
+        case ImageSequenceProviderEventKind::Unsupported:
+        case ImageSequenceProviderEventKind::Failed:
+        case ImageSequenceProviderEventKind::Cancelled:
+            return true;
+        case ImageSequenceProviderEventKind::ProvisionalFrameReady:
+        case ImageSequenceProviderEventKind::Waiting:
+        case ImageSequenceProviderEventKind::Progress:
+            return false;
+        }
+        return false;
+    }
+
+    [[nodiscard]] std::optional<DeliveryCredit> representativeCreditLocked(DeliveryCredit credit)
+    {
+        bool* outstanding = nullptr;
+        switch (credit) {
+        case DeliveryCredit::Normal:
+            return credit;
+        case DeliveryCredit::FaultRepresentative:
+            outstanding = &faultRepresentativeOutstanding;
+            break;
+        case DeliveryCredit::StaleRepresentative:
+            outstanding = &staleRepresentativeOutstanding;
+            break;
+        case DeliveryCredit::MismatchRepresentative:
+            outstanding = &mismatchRepresentativeOutstanding;
+            break;
+        }
+        if (*outstanding) {
+            return std::nullopt;
+        }
+        *outstanding = true;
+        return credit;
+    }
+
+    [[nodiscard]] std::optional<DeliveryCredit> admitCreditLocked(
+        const ViewportProviderEvent& event)
+    {
+        const qsizetype activeIndex = activeTokenIndexLocked(event.token);
+        if (activeIndex >= 0) {
+            auto& active = activeTokens[activeIndex]; // clazy:exclude=detaching-member
+            if (event.kind == ImageSequenceProviderEventKind::ProvisionalFrameReady
+                && active.requestKind == ImageSequenceProviderRequestKind::Frame
+                && !active.provisionalAccepted && !active.terminalAccepted) {
+                active.provisionalAccepted = true;
+                return DeliveryCredit::Normal;
+            }
+            if (terminalCompatible(event.kind, active.requestKind) && !active.terminalAccepted) {
+                active.terminalAccepted = true;
+                activeTokens.removeAt(activeIndex);
+                return DeliveryCredit::Normal;
+            }
+            return representativeCreditLocked(DeliveryCredit::FaultRepresentative);
+        }
+
+        const quint64 tokenValue
+            = ImageViewportInternal::ProviderRequestTokenPrivateAccess::value(event.token);
+        if (activeTokens.isEmpty() || (event.token.isValid() && tokenValue <= highestIssuedToken)) {
+            return representativeCreditLocked(DeliveryCredit::StaleRepresentative);
+        }
+        return representativeCreditLocked(DeliveryCredit::MismatchRepresentative);
+    }
+
+    [[nodiscard]] qsizetype activeTokenIndexLocked(ImageSequenceProviderRequestToken token) const
+    {
+        for (qsizetype index = 0; index < activeTokens.size(); ++index) {
+            if (activeTokens.at(index).token == token) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
     static bool usefulActiveAdvisory(const ViewportProviderEvent& event)
     {
         return event.kind == ImageSequenceProviderEventKind::Waiting
@@ -602,7 +771,7 @@ private:
     [[nodiscard]] AdvisoryCategory classifyAdvisoryLocked(
         ImageSequenceProviderRequestToken token) const
     {
-        if (activeTokens.contains(token)) {
+        if (activeTokenIndexLocked(token) >= 0) {
             return AdvisoryCategory::Active;
         }
         const quint64 tokenValue
@@ -615,7 +784,10 @@ private:
 
     void retireTokenLocked(ImageSequenceProviderRequestToken token)
     {
-        activeTokens.removeAll(token);
+        const qsizetype activeIndex = activeTokenIndexLocked(token);
+        if (activeIndex >= 0) {
+            activeTokens.removeAt(activeIndex);
+        }
         bool staleRepresentativeExists
             = std::ranges::any_of(pendingAdvisories, [](const PendingAdvisory& candidate) {
                   return candidate.category == AdvisoryCategory::Stale;
@@ -636,19 +808,30 @@ private:
 
     void retireAllTokensLocked()
     {
-        const QVector<ImageSequenceProviderRequestToken> tokens = activeTokens;
-        for (ImageSequenceProviderRequestToken token : tokens) {
+        QVector<ImageSequenceProviderRequestToken> tokens;
+        tokens.reserve(activeTokens.size());
+        for (const auto& active : std::as_const(activeTokens)) {
+            tokens.append(active.token);
+        }
+        for (ImageSequenceProviderRequestToken token : std::as_const(tokens)) {
             retireTokenLocked(token);
         }
     }
 
-    QMutex mutex;
+    mutable QMutex mutex;
+    std::shared_ptr<ViewportProviderSessionControl> sessionControl;
     std::function<void(const ViewportProviderEvent&)> eventSink;
-    QVector<ImageSequenceProviderRequestToken> activeTokens;
+    QVector<ActiveToken> activeTokens;
     QVector<PendingAdvisory> pendingAdvisories;
-    std::shared_ptr<QSemaphore> nonAdvisoryDeliverySlots = std::make_shared<QSemaphore>(1);
+    QVector<ViewportProviderEvent> pendingDeliveries;
+    QHash<quint64, DeliveryCredit> deliveryCredits;
     quint64 highestIssuedToken = 0;
     bool advisoryDeliveryScheduled = false;
+    bool deliveryScheduled = false;
+    bool faultRepresentativeOutstanding = false;
+    bool staleRepresentativeOutstanding = false;
+    bool mismatchRepresentativeOutstanding = false;
+    bool closed = false;
 };
 
 class ViewportProviderLeaseRegistry
@@ -901,6 +1084,31 @@ private:
     bool automaticCleanup = false;
 };
 
+namespace {
+void drainProviderEventDeliveries(
+    const std::shared_ptr<ViewportProviderEventEndpoint>& eventEndpoint,
+    const std::shared_ptr<ViewportProviderLeaseRegistry>& leaseRegistry,
+    bool completeScheduledDrain)
+{
+    if (!eventEndpoint || !leaseRegistry) {
+        return;
+    }
+    for (;;) {
+        while (const auto pendingEvent = eventEndpoint->takeNextDelivery()) {
+            if (eventEndpoint->deliver(*pendingEvent)) {
+                continue;
+            }
+            leaseRegistry->retire(pendingEvent->frameLeaseId);
+            leaseRegistry->retire(pendingEvent->failureLeaseId);
+            eventEndpoint->completeDelivery(pendingEvent->deliveryId);
+        }
+        if (!completeScheduledDrain || eventEndpoint->completeScheduledDeliveryDrain()) {
+            return;
+        }
+    }
+}
+}
+
 class ViewportProviderSessionCleanupRegistry
     : public std::enable_shared_from_this<ViewportProviderSessionCleanupRegistry>
 {
@@ -1091,6 +1299,12 @@ bool ViewportProviderSessionControl::beginEventIngress()
     return true;
 }
 
+void ViewportProviderSessionControl::claimEventDelivery()
+{
+    QMutexLocker locker(&mutex);
+    ++acceptedDeliveryCount;
+}
+
 void ViewportProviderSessionControl::claimHandleLease()
 {
     QMutexLocker locker(&mutex);
@@ -1104,7 +1318,23 @@ void ViewportProviderSessionControl::endEventIngress()
         QMutexLocker locker(&mutex);
         Q_ASSERT(activeIngressCount > 0);
         --activeIngressCount;
-        scheduleCheck = closeCompleted && activeIngressCount == 0 && handleLeaseCount == 0;
+        scheduleCheck = closeCompleted && activeIngressCount == 0 && acceptedDeliveryCount == 0
+            && handleLeaseCount == 0;
+    }
+    if (scheduleCheck) {
+        scheduleDestructionCheck();
+    }
+}
+
+void ViewportProviderSessionControl::completeEventDelivery()
+{
+    bool scheduleCheck = false;
+    {
+        QMutexLocker locker(&mutex);
+        Q_ASSERT(acceptedDeliveryCount > 0);
+        --acceptedDeliveryCount;
+        scheduleCheck = closeCompleted && acceptedDeliveryCount == 0 && activeIngressCount == 0
+            && handleLeaseCount == 0;
     }
     if (scheduleCheck) {
         scheduleDestructionCheck();
@@ -1143,7 +1373,7 @@ void ViewportProviderSessionControl::destroySessionIfReadyOnSessionAffinity()
     {
         QMutexLocker locker(&mutex);
         if (!providerSession || destructionStarted || !closeCompleted || activeIngressCount != 0
-            || handleLeaseCount != 0) {
+            || acceptedDeliveryCount != 0 || handleLeaseCount != 0) {
             return;
         }
         destructionStarted = true;
@@ -1165,7 +1395,10 @@ void ViewportProviderSessionControl::scheduleDestructionCheck()
         destroySessionIfReadyOnSessionAffinity();
         return;
     }
-    const auto self = shared_from_this();
+    const auto self = weak_from_this().lock();
+    if (!self) {
+        return;
+    }
     QMetaObject::invokeMethod(
         currentSession, [self]() { self->destroySessionIfReadyOnSessionAffinity(); },
         Qt::QueuedConnection);
@@ -1184,7 +1417,16 @@ ViewportProviderBridge::~ViewportProviderBridge()
     leaseRegistry->setExecutor(qtViewportProviderExecutor());
     for (const auto& endpoint : std::as_const(eventEndpoints)) {
         if (const auto value = endpoint.lock()) {
-            value->revoke();
+            const auto undelivered = value->revoke();
+            for (const auto& event : undelivered) {
+                leaseRegistry->retire(event.frameLeaseId);
+                leaseRegistry->retire(event.failureLeaseId);
+                value->completeDelivery(event.deliveryId);
+            }
+            const auto outstandingDeliveryIds = value->outstandingDeliveryIds();
+            for (const quint64 deliveryId : outstandingDeliveryIds) {
+                value->completeDelivery(deliveryId);
+            }
         }
     }
     leaseRegistry->retireAll();
@@ -1233,7 +1475,7 @@ ViewportProviderTransportResult ViewportProviderBridge::closeSession(quint64 gen
         << metadataToken.isValid() << "frameTokenValid" << frameToken.isValid();
     record.metadataToken = metadataToken;
     record.frameToken = frameToken;
-    record.eventEndpoint->observeClose();
+    record.eventEndpoint->closeAcceptance();
     if (activeSession == session) {
         activeSession.clear();
     }
@@ -1373,7 +1615,8 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
     }
     const auto sessionControl = std::make_shared<ViewportProviderSessionControl>(
         session, input.threadingContract, input.generation, input.sessionSerial);
-    const auto eventEndpoint = std::make_shared<ViewportProviderEventEndpoint>(input.eventSink);
+    const auto eventEndpoint
+        = std::make_shared<ViewportProviderEventEndpoint>(sessionControl, input.eventSink);
     QObject::connect(session, &QObject::destroyed, session,
         [session, sessionControl, cleanupRegistry = sessionCleanupRegistry, eventRole = role,
             generation = input.generation, sessionSerial = input.sessionSerial]() {
@@ -1388,7 +1631,8 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
     activeSession = session;
     sessions.insert(session,
         { session, input.threadingContract, input.generation, input.sessionSerial,
-            SessionLifecycle::Active, {}, {}, sessionControl, eventEndpoint });
+            SessionLifecycle::Active, {}, {}, sessionControl, eventEndpoint,
+            input.callbackTarget });
     qCDebug(imageViewportProviderLog)
         << "provider session opened"
         << "role" << static_cast<int>(role) << "generation" << input.generation << "sessionSerial"
@@ -1400,74 +1644,72 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
     constexpr bool deliverSynchronously = false;
 #endif
 
-    QObject::connect(
-        session, &ImageSequenceProviderSession::providerEvent, input.callbackTarget,
+    ImageViewportInternal::ProviderEventSubmissionPrivateAccess::install(*session,
         [sessionControl, eventEndpoint, leaseRegistry = leaseRegistry,
             callbackTarget = QPointer<QObject>(input.callbackTarget), eventRole = role,
             sessionSerial = input.sessionSerial, generation = input.generation,
             deliverSynchronously](const ImageSequenceProviderEvent& typedEvent) {
             if (!sessionControl->beginEventIngress()) {
-                return;
+                return ImageSequenceProviderEventSubmissionOutcome::Closed;
             }
+            const auto ingressGuard
+                = qScopeGuard([sessionControl]() { sessionControl->endEventIngress(); });
             ViewportProviderEvent event
                 = viewportProviderEventFromTyped(eventRole, sessionSerial, generation, typedEvent);
             const bool advisory = event.kind == ImageSequenceProviderEventKind::Waiting
                 || event.kind == ImageSequenceProviderEventKind::Progress;
-            const bool provisional
-                = event.kind == ImageSequenceProviderEventKind::ProvisionalFrameReady;
-            std::shared_ptr<ViewportProviderDeliverySlotReservation> deliverySlot;
-            if (!deliverSynchronously && !advisory && callbackTarget
-                && !hasCurrentThreadAffinity(callbackTarget.data())) {
-                deliverySlot = eventEndpoint->reserveNonAdvisoryDelivery();
-            }
-            if (event.frameHandle) {
-                event.frameLeaseId = leaseRegistry->claim(sessionControl, event.frameHandle);
-            }
-            if (event.failureHandle) {
-                event.failureLeaseId = leaseRegistry->claim(sessionControl, event.failureHandle);
-            }
-            if (!deliverSynchronously && advisory) {
-                if (eventEndpoint->enqueueAdvisory(std::move(event))) {
-                    auto deliverAdvisories = [eventEndpoint]() {
-                        const auto events = eventEndpoint->takePendingAdvisories();
-                        for (const auto& pendingEvent : events) {
-                            eventEndpoint->deliver(pendingEvent);
-                        }
-                    };
-                    if (!callbackTarget
-                        || !QMetaObject::invokeMethod(callbackTarget.data(),
-                            std::move(deliverAdvisories), Qt::QueuedConnection)) {
-                        eventEndpoint->advisoryDeliverySchedulingFailed();
-                    }
+            if (advisory) {
+                const auto admission = eventEndpoint->enqueueAdvisory(std::move(event));
+                if (!admission.scheduleDelivery) {
+                    return admission.outcome;
                 }
-                sessionControl->endEventIngress();
-                return;
+                auto deliverAdvisories = [eventEndpoint]() {
+                    const auto events = eventEndpoint->takePendingAdvisories();
+                    for (const auto& pendingEvent : events) {
+                        eventEndpoint->deliver(pendingEvent);
+                    }
+                };
+                if (deliverSynchronously) {
+                    deliverAdvisories();
+                } else if (!callbackTarget
+                    || !QMetaObject::invokeMethod(callbackTarget.data(),
+                        std::move(deliverAdvisories), Qt::QueuedConnection)) {
+                    eventEndpoint->advisoryDeliverySchedulingFailed();
+                }
+                return admission.outcome;
             }
-            if (!advisory && !provisional) {
-                eventEndpoint->observeTerminal(event.token);
+
+            const auto admission = eventEndpoint->admit(std::move(event),
+                [sessionControl, leaseRegistry](ViewportProviderEvent& acceptedEvent) {
+                    if (acceptedEvent.frameHandle) {
+                        acceptedEvent.frameLeaseId
+                            = leaseRegistry->claim(sessionControl, acceptedEvent.frameHandle);
+                    }
+                    if (acceptedEvent.failureHandle) {
+                        acceptedEvent.failureLeaseId
+                            = leaseRegistry->claim(sessionControl, acceptedEvent.failureHandle);
+                    }
+                });
+            if (!admission.scheduleDelivery) {
+                return admission.outcome;
             }
-            auto deliver
-                = [eventEndpoint, leaseRegistry, event, deliverySlot = std::move(deliverySlot)]() {
-                      if (deliverySlot) {
-                          deliverySlot->release();
-                      }
-                      if (!eventEndpoint->deliver(event)) {
-                          leaseRegistry->retire(event.frameLeaseId);
-                          leaseRegistry->retire(event.failureLeaseId);
-                      }
-                  };
+            auto deliverPending = [eventEndpoint, leaseRegistry]() {
+                drainProviderEventDeliveries(eventEndpoint, leaseRegistry, true);
+            };
             if (deliverSynchronously) {
-                deliver();
-            } else if ((!callbackTarget
-                           || !QMetaObject::invokeMethod(
-                               callbackTarget.data(), std::move(deliver), Qt::QueuedConnection))
-                && (event.frameLeaseId != 0 || event.failureLeaseId != 0)) {
-                leaseRegistry->retire(event.frameLeaseId);
-                leaseRegistry->retire(event.failureLeaseId);
+                deliverPending();
+            } else if (!callbackTarget
+                || !QMetaObject::invokeMethod(
+                    callbackTarget.data(), std::move(deliverPending), Qt::QueuedConnection)) {
+                const auto undelivered = eventEndpoint->deliverySchedulingFailed();
+                for (const auto& pendingEvent : undelivered) {
+                    leaseRegistry->retire(pendingEvent.frameLeaseId);
+                    leaseRegistry->retire(pendingEvent.failureLeaseId);
+                    eventEndpoint->completeDelivery(pendingEvent.deliveryId);
+                }
             }
-            sessionControl->endEventIngress();
-        },
-        Qt::DirectConnection);
+            return admission.outcome;
+        });
 
     ViewportProviderSessionOpenTransportResult result;
     result.outcome = ViewportProviderSessionOpenTransportOutcome::Opened;
@@ -1488,7 +1730,12 @@ ViewportProviderTransportResult ViewportProviderBridge::deliverRequest(
     const auto eventEndpoint = recordIt == sessions.cend()
         ? std::shared_ptr<ViewportProviderEventEndpoint> {}
         : recordIt->eventEndpoint;
+    const bool canDrainSynchronously
+        = recordIt != sessions.cend() && hasCurrentThreadAffinity(recordIt->callbackTarget);
     if (eventEndpoint) {
+        if (canDrainSynchronously) {
+            drainProviderEventDeliveries(eventEndpoint, leaseRegistry, false);
+        }
         eventEndpoint->observeRequest(request);
     }
     if (takeForcedDeliveryFailureForTest()) {
@@ -1503,6 +1750,9 @@ ViewportProviderTransportResult ViewportProviderBridge::deliverRequest(
         : recordIt->threadingContract;
     result.delivered = executorAccepted(executor().invokeSessionCommand(
         session, threadingContract, [session, request]() { session->request(request); }));
+    if (canDrainSynchronously) {
+        drainProviderEventDeliveries(eventEndpoint, leaseRegistry, false);
+    }
     if (!result.delivered) {
         if (eventEndpoint) {
             eventEndpoint->observeRequestDeliveryFailure(request);
@@ -1573,6 +1823,18 @@ void ViewportProviderBridge::completeFrameEventDelivery(quint64 leaseId)
 void ViewportProviderBridge::completeFailureEventDelivery(quint64 leaseId)
 {
     leaseRegistry->completeEventDelivery(leaseId);
+}
+
+void ViewportProviderBridge::completeProviderEventDelivery(quint64 deliveryId)
+{
+    if (deliveryId == 0) {
+        return;
+    }
+    for (const auto& endpoint : std::as_const(eventEndpoints)) {
+        if (const auto value = endpoint.lock(); value && value->completeDelivery(deliveryId)) {
+            return;
+        }
+    }
 }
 
 void ViewportProviderBridge::reconcileLeases(const QSet<quint64>& liveLeaseIds)

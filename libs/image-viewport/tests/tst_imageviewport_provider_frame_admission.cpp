@@ -111,6 +111,7 @@ private Q_SLOTS:
     void providerTimedFrameRejectsStillEnvelope();
     void providerTimedFrameDurationMismatchRejectsPayload();
     void providerTimedFramePayloadLimitReportsUnsupportedPayload();
+    void providerFormatIdentifierLimitReportsUnsupportedAndReleasesOnce();
     void providerPayloadLimitKeepsGenerationFrameSeekable();
     void providerFrameRejectsInvalidPayloadByteSize();
     void providerRejectedOwnedFramePayloadReleasesOnce();
@@ -1068,6 +1069,61 @@ void ImageViewportProviderFrameAdmissionTest::
     QCOMPARE(primaryDisplayedFrame(item), -1);
     QVERIFY(viewportErrorString(item).contains(
         QStringLiteral("provider frame payload exceeds maximumPayloadBytes")));
+}
+
+void ImageViewportProviderFrameAdmissionTest::
+    providerFormatIdentifierLimitReportsUnsupportedAndReleasesOnce()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    const QMetaObject* metaObject = item.metaObject();
+
+    CountingProviderSession* session = sessionFactory->lastSession();
+    QVERIFY(session);
+    emitProviderMetadataReady(session, session->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    drainQueuedProviderResults();
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    QString overlongFormat;
+    const QString astralScalar = QString::fromUtf8("\xF0\x9F\x99\x82");
+    for (int index = 0; index <= ImageSequenceLimits::maximumFormatIdentifierCharacters();
+        ++index) {
+        overlongFormat.append(astralScalar);
+    }
+    const auto releaseCount = std::make_shared<int>(0);
+    auto* payload = new ImageSequenceProviderFrameHandle(
+        new ImageFrame(image, QSizeF(16.0, 8.0), image.sizeInBytes(),
+            ImageViewportPayloadQuality::Exact, ImageViewportPayloadExactness::ExactForSource,
+            ImageFrame::OrientationPolicy::Identity, overlongFormat),
+        [releaseCount](ImageFrame* frame) {
+            ++*releaseCount;
+            delete frame;
+        });
+    emitProviderFrameHandleReady(session, session->lastFrameToken(), payload);
+    drainQueuedProviderResults();
+
+    QCOMPARE(*releaseCount, 1);
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Unsupported"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral(
+        "provider frame format identifier exceeds maximumFormatIdentifierCharacters")));
 }
 
 void ImageViewportProviderFrameAdmissionTest::providerPayloadLimitKeepsGenerationFrameSeekable()

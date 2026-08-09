@@ -170,13 +170,15 @@ void ImageViewportPresentationStateTest::restorePreviousRestoresCompleteCommitte
 
     QVERIFY(sessionFactory->lastSession());
     const auto failureReleaseCount = std::make_shared<int>(0);
-    auto* failureHandle = new ImageSequenceProviderFailureHandle(
+    auto failureHandle = std::make_unique<ImageSequenceProviderFailureHandle>(
         [failureReleaseCount]() { ++*failureReleaseCount; });
     const ImageSequenceProviderFailureReference failureReference = failureHandle->reference();
-    Q_EMIT sessionFactory->lastSession()->providerEvent(
+    const auto outcome = sessionFactory->lastSession()->submitEvent(
         ImageSequenceProviderEvent::failed(sessionFactory->lastSession()->lastFrameToken(),
             ImageSequenceProviderFailure(
-                ImageSequenceProviderFailureCause::ProviderInternal, failureHandle)));
+                ImageSequenceProviderFailureCause::ProviderInternal, failureHandle.get())));
+    QCOMPARE(outcome, ImageSequenceProviderEventSubmissionOutcome::Accepted);
+    failureHandle.release();
 
     QCOMPARE(item.state().request(), committed.request());
     QCOMPARE(item.state().display().status(), ImageViewportDisplayStatus::Ready);

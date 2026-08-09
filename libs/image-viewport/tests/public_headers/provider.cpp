@@ -46,6 +46,10 @@ struct ProviderUnsupportedAcceptsDiagnostic<Token,
 
 static_assert(std::is_base_of_v<QObject, ImageSequenceProviderSession>);
 static_assert(std::is_enum_v<ImageSequenceProviderRequestKind>);
+static_assert(std::is_enum_v<ImageSequenceProviderEventSubmissionOutcome>);
+static_assert(std::is_same_v<decltype(std::declval<ImageSequenceProviderSession&>().submitEvent(
+                                 std::declval<const ImageSequenceProviderEvent&>())),
+    ImageSequenceProviderEventSubmissionOutcome>);
 static_assert(std::is_copy_constructible_v<ImageSequenceProviderDescriptor>);
 static_assert(std::is_same_v<decltype(ImageSequenceProviderDisplayDemand().allocationGeneration()),
     ImageViewportAllocationGenerationToken>);

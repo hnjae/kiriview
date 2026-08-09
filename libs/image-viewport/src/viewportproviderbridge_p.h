@@ -37,8 +37,10 @@ public:
     quint64 generation() const;
     quint64 sessionSerial() const;
     bool beginEventIngress();
+    void claimEventDelivery();
     void claimHandleLease();
     void endEventIngress();
+    void completeEventDelivery();
     void completeCloseOnSessionAffinity();
     void completeHandleReleaseOnSessionAffinity();
     void markSessionDestroyed();
@@ -54,6 +56,7 @@ private:
     quint64 generationIdentity = 0;
     quint64 sessionIdentity = 0;
     qsizetype activeIngressCount = 0;
+    qsizetype acceptedDeliveryCount = 0;
     qsizetype handleLeaseCount = 0;
     bool closeCompleted = false;
     bool destructionStarted = false;
@@ -165,6 +168,7 @@ public:
     ViewportProviderTransportResult deliverRequest(const ImageSequenceProviderRequest& request);
     void completeFrameEventDelivery(quint64 leaseId);
     void completeFailureEventDelivery(quint64 leaseId);
+    void completeProviderEventDelivery(quint64 deliveryId);
     void reconcileLeases(const QSet<quint64>& liveLeaseIds);
     ViewportProviderCleanupResult drainCleanup(bool retryPendingSessions = true);
     [[nodiscard]] bool hasPendingCleanup() const;
@@ -207,6 +211,7 @@ private:
         ImageSequenceProviderRequestToken frameToken;
         std::shared_ptr<ViewportProviderSessionControl> control;
         std::shared_ptr<ViewportProviderEventEndpoint> eventEndpoint;
+        QPointer<QObject> callbackTarget;
     };
 
     ImageViewportPageRole role = ImageViewportPageRole::Primary;

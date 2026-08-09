@@ -71,6 +71,15 @@ void ImageViewportProviderHost::completeFailureEventDelivery(quint64 leaseId)
     secondaryProviderBridge.completeFailureEventDelivery(leaseId);
 }
 
+void ImageViewportProviderHost::completeProviderEventDelivery(quint64 deliveryId)
+{
+    if (deliveryId == 0) {
+        return;
+    }
+    providerBridge.completeProviderEventDelivery(deliveryId);
+    secondaryProviderBridge.completeProviderEventDelivery(deliveryId);
+}
+
 void ImageViewportProviderHost::reconcileProviderLeases(
     const QSet<quint64>& liveFrameLeaseIds, const QSet<quint64>& liveFailureLeaseIds)
 {

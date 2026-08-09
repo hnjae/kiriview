@@ -38,8 +38,12 @@ public:
         auto envelope = ImageSequenceProviderFrameEnvelope::stillFrame();
         if (echoDemandRevision)
             envelope.setDemandRevision(request.demand().demandRevision());
-        Q_EMIT providerEvent(ImageSequenceProviderEvent::frameReady(request.token(),
-            new ImageSequenceProviderFrameHandle(std::move(frame), this), envelope));
+        auto handle = std::make_unique<ImageSequenceProviderFrameHandle>(std::move(frame), this);
+        if (submitEvent(
+                ImageSequenceProviderEvent::frameReady(request.token(), handle.get(), envelope))
+            == ImageSequenceProviderEventSubmissionOutcome::Accepted) {
+            handle.release();
+        }
     }
 
     void emitReady(const ImageSequenceProviderRequest& request, QColor color,

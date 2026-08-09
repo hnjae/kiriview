@@ -214,6 +214,7 @@ private:
     QSizeF m_logicalSize;
     QVector<int> m_frameDurations;
     QList<TimedImageFrame> m_frames;
+    qint64 m_retainedPayloadBytes = 0;
     ImageSequenceAuthoredAnimationFacts m_authoredAnimationFacts;
     QString m_errorString;
 
@@ -309,6 +310,7 @@ class ImageSequenceLimits : public QObject
     Q_PROPERTY(int maximumPayloadRasterWidth READ getMaximumPayloadRasterWidth CONSTANT)
     Q_PROPERTY(int maximumPayloadRasterHeight READ getMaximumPayloadRasterHeight CONSTANT)
     Q_PROPERTY(qint64 maximumPayloadBytes READ getMaximumPayloadBytes CONSTANT)
+    Q_PROPERTY(qint64 maximumTimedListPayloadBytes READ getMaximumTimedListPayloadBytes CONSTANT)
     Q_PROPERTY(int maximumFrameCount READ getMaximumFrameCount CONSTANT)
     Q_PROPERTY(
         int maximumFrameDurationMilliseconds READ getMaximumFrameDurationMilliseconds CONSTANT)
@@ -327,6 +329,7 @@ public:
     [[nodiscard]] int getMaximumPayloadRasterWidth() const;
     [[nodiscard]] int getMaximumPayloadRasterHeight() const;
     [[nodiscard]] qint64 getMaximumPayloadBytes() const;
+    [[nodiscard]] qint64 getMaximumTimedListPayloadBytes() const;
     [[nodiscard]] int getMaximumFrameCount() const;
     [[nodiscard]] int getMaximumFrameDurationMilliseconds() const;
     [[nodiscard]] int getMaximumTotalDurationMilliseconds() const;
@@ -339,6 +342,7 @@ public:
     static int maximumPayloadRasterWidth();
     static int maximumPayloadRasterHeight();
     static qint64 maximumPayloadBytes();
+    static qint64 maximumTimedListPayloadBytes();
     static int maximumFrameCount();
     static int maximumFrameDurationMilliseconds();
     static int maximumTotalDurationMilliseconds();

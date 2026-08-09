@@ -299,6 +299,7 @@ ImageViewport {
         && ImageSequenceLimits.maximumPayloadRasterWidth === 16384
         && ImageSequenceLimits.maximumPayloadRasterHeight === 16384
         && ImageSequenceLimits.maximumPayloadBytes === 536870912
+        && ImageSequenceLimits.maximumTimedListPayloadBytes === 536870912
         && ImageSequenceLimits.maximumFrameCount >= 10000
         && ImageSequenceLimits.maximumFrameDurationMilliseconds >= 86400000
         && ImageSequenceLimits.maximumTotalDurationMilliseconds >= 86400000

@@ -515,12 +515,15 @@ void ImageViewportStateSnapshotTest::terminalProviderFailureProjectsDiagnostics(
         item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
             PresentationTargetTransitionPolicy {});
         QVERIFY(sessionFactory->lastSession());
-        auto* handle
-            = new ImageSequenceProviderFailureHandle([releaseCount]() { ++*releaseCount; });
+        auto handle = std::make_unique<ImageSequenceProviderFailureHandle>(
+            [releaseCount]() { ++*releaseCount; });
         const ImageSequenceProviderFailureReference reference = handle->reference();
-        Q_EMIT sessionFactory->lastSession()->providerEvent(ImageSequenceProviderEvent::failed(
-            sessionFactory->lastSession()->lastMetadataToken(),
-            ImageSequenceProviderFailure(ImageSequenceProviderFailureCause::SourceAccess, handle)));
+        const auto outcome = sessionFactory->lastSession()->submitEvent(
+            ImageSequenceProviderEvent::failed(sessionFactory->lastSession()->lastMetadataToken(),
+                ImageSequenceProviderFailure(
+                    ImageSequenceProviderFailureCause::SourceAccess, handle.get())));
+        QCOMPARE(outcome, ImageSequenceProviderEventSubmissionOutcome::Accepted);
+        handle.release();
         drainQueuedProviderResults();
 
         const ImageViewportStateSnapshot snapshot = item.state();

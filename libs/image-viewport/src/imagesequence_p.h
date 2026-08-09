@@ -31,6 +31,18 @@ struct FramePayload
     FramePayloadFacts facts;
 };
 
+struct BareImageFramePreflight
+{
+    bool semanticallyValid = false;
+    QSizeF sourceLogicalSize;
+    QSize payloadRasterSize;
+    qint64 payloadByteSize = 0;
+};
+
+BareImageFramePreflight preflightBareImageFrame(const QImage& image);
+QString bareImageFrameLimitViolation(const BareImageFramePreflight& preflight);
+bool timedListPayloadWouldExceedLimit(qint64 retainedPayloadBytes, qint64 candidatePayloadBytes);
+
 } // namespace ImageViewportInternal
 
 class ImageSequence::Data
@@ -139,6 +151,10 @@ public:
     static std::unique_ptr<ImageFrame> createWithPayloadByteSize(
         const QImage& image, qsizetype payloadByteSize);
     static QImage image(const ImageFrame& frame);
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+    static void resetPayloadCopyAttemptCountForTest();
+    static qsizetype payloadCopyAttemptCountForTest();
+#endif
 };
 
 } // namespace ImageViewportInternal

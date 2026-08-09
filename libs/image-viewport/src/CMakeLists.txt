@@ -22,6 +22,7 @@ set(imageviewport_sources
     imageviewportpresentation.cpp
     imageviewportproviderhost.cpp
     imageviewportproviderhost_p.h
+    imageviewportprovidersubmission_p.h
     imageviewportrender.cpp
     imageviewportrenderhost_p.h
     imageviewportsnapshot.cpp

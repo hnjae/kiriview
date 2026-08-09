@@ -102,13 +102,13 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromTimedFrameList(
 {
     QSizeF sourceLogicalSize;
     for (const QImage& image : images) {
-        const ImageFrame frame(image);
-        if (!frame.isValid()
-            || (!sourceLogicalSize.isEmpty() && sourceLogicalSize != frame.sourceLogicalSize())) {
+        const BareImageFramePreflight preflight = preflightBareImageFrame(image);
+        if (!preflight.semanticallyValid
+            || (!sourceLogicalSize.isEmpty() && sourceLogicalSize != preflight.sourceLogicalSize)) {
             return rejected(ImageSequenceFactoryReason::InvalidFrame,
                 QStringLiteral("timed frames must be valid and use one source logical size"));
         }
-        sourceLogicalSize = frame.sourceLogicalSize();
+        sourceLogicalSize = preflight.sourceLogicalSize;
     }
 
     if (images.size() != durationsMilliseconds.size()) {
@@ -121,6 +121,39 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromTimedFrameList(
             return rejected(ImageSequenceFactoryReason::InvalidTiming,
                 QStringLiteral("timed frame durations must be positive"));
         }
+    }
+
+    if (images.isEmpty()) {
+        return rejected(ImageSequenceFactoryReason::InvalidTiming,
+            QStringLiteral("TimedImageFrameList must contain at least one frame"));
+    }
+    if (images.size() > ImageSequenceLimits::maximumFrameCount()) {
+        return rejected(ImageSequenceFactoryReason::LimitExceeded,
+            QStringLiteral("TimedImageFrameList exceeds maximumFrameCount"));
+    }
+
+    qint64 totalDuration = 0;
+    for (int duration : durationsMilliseconds) {
+        if (duration > ImageSequenceLimits::maximumFrameDurationMilliseconds()
+            || totalDuration > ImageSequenceLimits::maximumTotalDurationMilliseconds() - duration) {
+            return rejected(ImageSequenceFactoryReason::LimitExceeded,
+                QStringLiteral("TimedImageFrameList exceeds a duration limit"));
+        }
+        totalDuration += duration;
+    }
+
+    qint64 retainedPayloadBytes = 0;
+    for (const QImage& image : images) {
+        const BareImageFramePreflight preflight = preflightBareImageFrame(image);
+        const QString limitViolation = bareImageFrameLimitViolation(preflight);
+        if (!limitViolation.isEmpty()) {
+            return rejected(ImageSequenceFactoryReason::LimitExceeded, limitViolation);
+        }
+        if (timedListPayloadWouldExceedLimit(retainedPayloadBytes, preflight.payloadByteSize)) {
+            return rejected(ImageSequenceFactoryReason::LimitExceeded,
+                QStringLiteral("TimedImageFrameList exceeds maximumTimedListPayloadBytes"));
+        }
+        retainedPayloadBytes += preflight.payloadByteSize;
     }
 
     TimedImageFrameList list;
@@ -339,6 +372,11 @@ int ImageSequenceLimits::getMaximumPayloadRasterHeight() const
 
 qint64 ImageSequenceLimits::getMaximumPayloadBytes() const { return maximumPayloadBytes(); }
 
+qint64 ImageSequenceLimits::getMaximumTimedListPayloadBytes() const
+{
+    return maximumTimedListPayloadBytes();
+}
+
 int ImageSequenceLimits::getMaximumFrameCount() const { return maximumFrameCount(); }
 
 int ImageSequenceLimits::getMaximumFrameDurationMilliseconds() const
@@ -372,6 +410,11 @@ int ImageSequenceLimits::maximumPayloadRasterWidth() { return minimumMaximumPayl
 int ImageSequenceLimits::maximumPayloadRasterHeight() { return minimumMaximumPayloadRasterSide; }
 
 qint64 ImageSequenceLimits::maximumPayloadBytes() { return minimumMaximumPayloadBytesPerFrame; }
+
+qint64 ImageSequenceLimits::maximumTimedListPayloadBytes()
+{
+    return minimumMaximumTimedListPayloadBytes;
+}
 
 int ImageSequenceLimits::maximumFrameCount() { return minimumMaximumTimedListFrameCount; }
 

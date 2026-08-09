@@ -7,11 +7,24 @@
 
 #include <QtGui/QTransform>
 
+#include <atomic>
 #include <utility>
 
 using namespace ImageViewportInternal;
 
 namespace {
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+std::atomic<qsizetype> payloadCopyAttemptsForTest = 0;
+#endif
+
+QImage copyImagePayload(const QImage& image)
+{
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+    payloadCopyAttemptsForTest.fetch_add(1, std::memory_order_relaxed);
+#endif
+    return image.copy();
+}
+
 QImage normalizedImageForOrientation(
     const QImage& image, ImageFrame::OrientationPolicy orientationPolicy)
 {
@@ -102,13 +115,14 @@ bool isValidOrientationPolicy(ImageFrame::OrientationPolicy policy)
     return false;
 }
 
-bool payloadWithinPublicEnvelope(const QImage& image)
+bool sourceLogicalSizeExceedsPublicEnvelope(QSizeF size)
 {
-    return !image.isNull() && image.width() > 0 && image.height() > 0
-        && image.width() <= ImageSequenceLimits::maximumPayloadRasterWidth()
-        && image.height() <= ImageSequenceLimits::maximumPayloadRasterHeight()
-        && image.sizeInBytes() > 0
-        && image.sizeInBytes() <= ImageSequenceLimits::maximumPayloadBytes();
+    if (size.width() > ImageSequenceLimits::maximumSourceLogicalWidth()
+        || size.height() > ImageSequenceLimits::maximumSourceLogicalHeight()) {
+        return true;
+    }
+    return logicalPixelCountExceedsLimit(
+        static_cast<qint64>(size.width()), static_cast<qint64>(size.height()));
 }
 
 bool payloadRasterExceedsPublicEnvelope(QSize size)
@@ -117,6 +131,42 @@ bool payloadRasterExceedsPublicEnvelope(QSize size)
         || size.height() > ImageSequenceLimits::maximumPayloadRasterHeight();
 }
 
+}
+
+BareImageFramePreflight ImageViewportInternal::preflightBareImageFrame(const QImage& image)
+{
+    BareImageFramePreflight preflight;
+    preflight.sourceLogicalSize = image.deviceIndependentSize();
+    preflight.payloadRasterSize = image.size();
+    preflight.payloadByteSize = image.sizeInBytes();
+    preflight.semanticallyValid = !image.isNull() && preflight.payloadByteSize > 0
+        && isPositiveFiniteInteger(preflight.sourceLogicalSize.width())
+        && isPositiveFiniteInteger(preflight.sourceLogicalSize.height());
+    return preflight;
+}
+
+QString ImageViewportInternal::bareImageFrameLimitViolation(
+    const BareImageFramePreflight& preflight)
+{
+    if (sourceLogicalSizeExceedsPublicEnvelope(preflight.sourceLogicalSize)) {
+        return QStringLiteral("ImageFrame exceeds a source logical limit");
+    }
+    if (payloadRasterExceedsPublicEnvelope(preflight.payloadRasterSize)) {
+        return QStringLiteral("ImageFrame exceeds a payload raster limit");
+    }
+    if (preflight.payloadByteSize > ImageSequenceLimits::maximumPayloadBytes()) {
+        return QStringLiteral("ImageFrame exceeds maximumPayloadBytes");
+    }
+    return {};
+}
+
+bool ImageViewportInternal::timedListPayloadWouldExceedLimit(
+    qint64 retainedPayloadBytes, qint64 candidatePayloadBytes)
+{
+    const qint64 maximumPayloadBytes = ImageSequenceLimits::maximumTimedListPayloadBytes();
+    return candidatePayloadBytes > maximumPayloadBytes || retainedPayloadBytes < 0
+        || candidatePayloadBytes <= 0
+        || retainedPayloadBytes > maximumPayloadBytes - candidatePayloadBytes;
 }
 
 ImageSequenceAuthoredAnimationFacts ImageSequenceAuthoredAnimationFacts::finiteLoop(int loopCount)
@@ -474,37 +524,39 @@ ImageFrame::ImageFrame(const QImage& image, OrientationPolicy orientationPolicy,
         return;
     }
     const QSize rasterSize = normalizedRasterSize(image.size(), orientationPolicy);
-    if (!payloadWithinPublicEnvelope(image) || payloadRasterExceedsPublicEnvelope(rasterSize)) {
-        const QSizeF logicalSize = normalizedLogicalSize(image, orientationPolicy);
-        if (!image.isNull() && isPositiveFiniteInteger(logicalSize.width())
-            && isPositiveFiniteInteger(logicalSize.height())) {
-            m_logicalSize = logicalSize;
-            m_payloadByteSize = image.sizeInBytes();
-            m_payloadRasterSize = QSizeF(rasterSize);
-            m_quality = ImageViewportPayloadQuality::Exact;
-            m_exactness = ImageViewportPayloadExactness::ExactForSource;
-            m_hasAlpha = image.hasAlphaChannel();
-            m_orientationPolicy = orientationPolicy;
-        }
+    const QSizeF logicalSize = normalizedLogicalSize(image, orientationPolicy);
+    if (image.isNull() || image.sizeInBytes() <= 0 || !isPositiveFiniteInteger(logicalSize.width())
+        || !isPositiveFiniteInteger(logicalSize.height())) {
         return;
     }
-    const QImage normalizedImage = normalizedImageForOrientation(image, orientationPolicy);
-    const QSizeF logicalSize = normalizedImage.deviceIndependentSize();
-    if (!normalizedImage.isNull() && isPositiveFiniteInteger(logicalSize.width())
-        && isPositiveFiniteInteger(logicalSize.height())) {
-        m_logicalSize = logicalSize;
-        m_payloadByteSize = normalizedImage.sizeInBytes();
-        m_payloadRasterSize = QSizeF(normalizedImage.size());
-        m_quality = ImageViewportPayloadQuality::Exact;
-        m_exactness = ImageViewportPayloadExactness::ExactForSource;
-        m_hasAlpha = normalizedImage.hasAlphaChannel();
-        m_orientationPolicy = orientationPolicy;
-        if (m_payloadRasterSize.width() <= ImageSequenceLimits::maximumPayloadRasterWidth()
-            && m_payloadRasterSize.height() <= ImageSequenceLimits::maximumPayloadRasterHeight()
-            && m_payloadByteSize <= ImageSequenceLimits::maximumPayloadBytes()) {
-            m_image = normalizedImage.copy();
-        }
+
+    const auto retainFacts
+        = [this, &image, rasterSize, logicalSize, orientationPolicy](qint64 payloadByteSize) {
+              m_logicalSize = logicalSize;
+              m_payloadByteSize = payloadByteSize;
+              m_payloadRasterSize = QSizeF(rasterSize);
+              m_quality = ImageViewportPayloadQuality::Exact;
+              m_exactness = ImageViewportPayloadExactness::ExactForSource;
+              m_hasAlpha = image.hasAlphaChannel();
+              m_orientationPolicy = orientationPolicy;
+          };
+
+    if (sourceLogicalSizeExceedsPublicEnvelope(logicalSize)
+        || payloadRasterExceedsPublicEnvelope(rasterSize)
+        || image.sizeInBytes() > ImageSequenceLimits::maximumPayloadBytes()) {
+        retainFacts(image.sizeInBytes());
+        return;
     }
+
+    const QImage normalizedImage = normalizedImageForOrientation(image, orientationPolicy);
+    if (normalizedImage.isNull() || normalizedImage.sizeInBytes() <= 0) {
+        return;
+    }
+    retainFacts(normalizedImage.sizeInBytes());
+    if (normalizedImage.sizeInBytes() > ImageSequenceLimits::maximumPayloadBytes()) {
+        return;
+    }
+    m_image = copyImagePayload(normalizedImage);
 }
 
 ImageFrame::ImageFrame(const QImage& image, QSizeF sourceLogicalSize, qint64 payloadByteSize,
@@ -518,39 +570,39 @@ ImageFrame::ImageFrame(const QImage& image, QSizeF sourceLogicalSize, qint64 pay
     const QSize rasterSize = normalizedRasterSize(image.size(), orientationPolicy);
     const bool exactPair = (quality == ImageViewportPayloadQuality::Exact)
         == (exactness == ImageViewportPayloadExactness::ExactForSource);
-    if (!payloadWithinPublicEnvelope(image) || payloadRasterExceedsPublicEnvelope(rasterSize)
-        || payloadByteSize > ImageSequenceLimits::maximumPayloadBytes()) {
-        if (!image.isNull()
-            && payloadFactsMatchRaster(
-                rasterSize, image.sizeInBytes(), sourceLogicalSize, payloadByteSize)
-            && exactPair) {
-            m_logicalSize = sourceLogicalSize;
-            m_payloadByteSize = payloadByteSize;
-            m_payloadRasterSize = QSizeF(rasterSize);
-            m_quality = quality;
-            m_exactness = exactness;
-            m_hasAlpha = image.hasAlphaChannel();
-            m_orientationPolicy = orientationPolicy;
-            m_formatIdentifier = std::move(formatIdentifier);
-        }
+    if (!payloadFactsMatchRaster(
+            rasterSize, image.sizeInBytes(), sourceLogicalSize, payloadByteSize)
+        || !exactPair) {
         return;
     }
-    const QImage normalizedImage = normalizedImageForOrientation(image, orientationPolicy);
-    if (payloadFactsMatchImage(normalizedImage, sourceLogicalSize, payloadByteSize) && exactPair) {
+
+    const auto retainFacts = [this, &image, sourceLogicalSize, payloadByteSize, rasterSize, quality,
+                                 exactness, orientationPolicy, &formatIdentifier]() {
         m_logicalSize = sourceLogicalSize;
         m_payloadByteSize = payloadByteSize;
-        m_payloadRasterSize = QSizeF(normalizedImage.size());
+        m_payloadRasterSize = QSizeF(rasterSize);
         m_quality = quality;
         m_exactness = exactness;
-        m_hasAlpha = normalizedImage.hasAlphaChannel();
+        m_hasAlpha = image.hasAlphaChannel();
         m_orientationPolicy = orientationPolicy;
         m_formatIdentifier = std::move(formatIdentifier);
-        if (m_payloadRasterSize.width() <= ImageSequenceLimits::maximumPayloadRasterWidth()
-            && m_payloadRasterSize.height() <= ImageSequenceLimits::maximumPayloadRasterHeight()
-            && m_payloadByteSize <= ImageSequenceLimits::maximumPayloadBytes()) {
-            m_image = normalizedImage.copy();
-        }
+    };
+
+    if (sourceLogicalSizeExceedsPublicEnvelope(sourceLogicalSize)
+        || payloadRasterExceedsPublicEnvelope(rasterSize)
+        || image.sizeInBytes() > ImageSequenceLimits::maximumPayloadBytes()
+        || payloadByteSize > ImageSequenceLimits::maximumPayloadBytes()
+        || formatIdentifierExceedsLimit(formatIdentifier)) {
+        retainFacts();
+        return;
     }
+
+    const QImage normalizedImage = normalizedImageForOrientation(image, orientationPolicy);
+    if (!payloadFactsMatchImage(normalizedImage, sourceLogicalSize, payloadByteSize)) {
+        return;
+    }
+    retainFacts();
+    m_image = copyImagePayload(normalizedImage);
 }
 
 ImageFrame::ImageFrame(const QImage& image, qsizetype payloadByteSizeOverride, QObject* parent)
@@ -565,7 +617,7 @@ ImageFrame::ImageFrame(const QImage& image, qsizetype payloadByteSizeOverride, Q
         m_quality = ImageViewportPayloadQuality::Exact;
         m_exactness = ImageViewportPayloadExactness::ExactForSource;
         m_hasAlpha = image.hasAlphaChannel();
-        m_image = image.copy();
+        m_image = copyImagePayload(image);
     }
 }
 
@@ -662,6 +714,18 @@ std::unique_ptr<ImageFrame> ImageFramePrivateAccess::createWithPayloadByteSize(
 
 QImage ImageFramePrivateAccess::image(const ImageFrame& frame) { return frame.m_image; }
 
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+void ImageFramePrivateAccess::resetPayloadCopyAttemptCountForTest()
+{
+    payloadCopyAttemptsForTest.store(0, std::memory_order_relaxed);
+}
+
+qsizetype ImageFramePrivateAccess::payloadCopyAttemptCountForTest()
+{
+    return payloadCopyAttemptsForTest.load(std::memory_order_relaxed);
+}
+#endif
+
 TimedImageFrameList::TimedImageFrameList(QObject* parent)
     : QObject(parent)
 {
@@ -710,6 +774,43 @@ void TimedImageFrameList::setAuthoredAnimationFacts(
 
 bool TimedImageFrameList::appendFrame(const QImage& image, int durationMilliseconds)
 {
+    const BareImageFramePreflight preflight = preflightBareImageFrame(image);
+    if (!preflight.semanticallyValid) {
+        setErrorString(QStringLiteral("ImageFrame is required"));
+        return false;
+    }
+    if (durationMilliseconds <= 0) {
+        setErrorString(QStringLiteral("frame duration must be positive"));
+        return false;
+    }
+    if (durationMilliseconds > ImageSequenceLimits::maximumFrameDurationMilliseconds()) {
+        setErrorString(QStringLiteral("frame duration exceeds maximumFrameDurationMilliseconds"));
+        return false;
+    }
+    if (m_frameDurations.size() >= ImageSequenceLimits::maximumFrameCount()) {
+        setErrorString(QStringLiteral("TimedImageFrameList exceeds maximumFrameCount"));
+        return false;
+    }
+    const QString limitViolation = bareImageFrameLimitViolation(preflight);
+    if (!limitViolation.isEmpty()) {
+        setErrorString(limitViolation);
+        return false;
+    }
+    if (m_logicalSize.isValid() && m_logicalSize != preflight.sourceLogicalSize) {
+        setErrorString(QStringLiteral("frame logical size must match the timed list logical size"));
+        return false;
+    }
+    if (static_cast<qint64>(totalDuration()) + durationMilliseconds
+        > ImageSequenceLimits::maximumTotalDurationMilliseconds()) {
+        setErrorString(
+            QStringLiteral("TimedImageFrameList exceeds maximumTotalDurationMilliseconds"));
+        return false;
+    }
+    if (timedListPayloadWouldExceedLimit(m_retainedPayloadBytes, preflight.payloadByteSize)) {
+        setErrorString(QStringLiteral("TimedImageFrameList exceeds maximumTimedListPayloadBytes"));
+        return false;
+    }
+
     ImageFrame frame(image);
     return appendFrame(&frame, durationMilliseconds);
 }
@@ -750,9 +851,7 @@ bool TimedImageFrameList::appendFrame(const TimedImageFrame& timedFrame)
         return false;
     }
 
-    if (!m_logicalSize.isValid()) {
-        m_logicalSize = frame->sourceLogicalSize();
-    } else if (m_logicalSize != frame->sourceLogicalSize()) {
+    if (m_logicalSize.isValid() && m_logicalSize != frame->sourceLogicalSize()) {
         setErrorString(QStringLiteral("frame logical size must match the timed list logical size"));
         return false;
     }
@@ -764,8 +863,18 @@ bool TimedImageFrameList::appendFrame(const TimedImageFrame& timedFrame)
         return false;
     }
 
+    const qint64 framePayloadBytes = frame->payloadByteSize();
+    if (timedListPayloadWouldExceedLimit(m_retainedPayloadBytes, framePayloadBytes)) {
+        setErrorString(QStringLiteral("TimedImageFrameList exceeds maximumTimedListPayloadBytes"));
+        return false;
+    }
+
+    if (!m_logicalSize.isValid()) {
+        m_logicalSize = frame->sourceLogicalSize();
+    }
     m_frameDurations.append(durationMilliseconds);
     m_frames.append(timedFrame);
+    m_retainedPayloadBytes += framePayloadBytes;
     if (!m_errorString.isEmpty()) {
         m_errorString.clear();
         Q_EMIT diagnosticsChanged();
@@ -785,6 +894,7 @@ void TimedImageFrameList::clear()
     m_logicalSize = {};
     m_frameDurations.clear();
     m_frames.clear();
+    m_retainedPayloadBytes = 0;
     m_errorString.clear();
     if (shouldEmitCountChanged) {
         Q_EMIT countChanged();

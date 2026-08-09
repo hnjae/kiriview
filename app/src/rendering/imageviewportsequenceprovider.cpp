@@ -47,6 +47,37 @@ bool constructionMetadataMatches(
         && expectedFacts.loopCount() == candidateFacts.loopCount();
 }
 
+void submitProviderEvent(
+    ImageSequenceProviderSession& session, const ImageSequenceProviderEvent& event)
+{
+    (void)session.submitEvent(event);
+}
+
+void submitProviderFrameEvent(ImageSequenceProviderSession& session,
+    ImageSequenceProviderRequestToken token,
+    std::unique_ptr<ImageSequenceProviderFrameHandle> frameHandle,
+    ImageSequenceProviderFrameEnvelope envelope, bool provisional)
+{
+    const ImageSequenceProviderEvent event = provisional
+        ? ImageSequenceProviderEvent::provisionalFrameReady(token, frameHandle.get(), envelope)
+        : ImageSequenceProviderEvent::frameReady(token, frameHandle.get(), envelope);
+    if (session.submitEvent(event) == ImageSequenceProviderEventSubmissionOutcome::Accepted) {
+        (void)frameHandle.release();
+    }
+}
+
+void submitProviderFailureEvent(ImageSequenceProviderSession& session,
+    ImageSequenceProviderRequestToken token, ImageSequenceProviderFailure failure)
+{
+    std::unique_ptr<ImageSequenceProviderFailureHandle> failureHandle(
+        failure.applicationFailureHandle());
+    const ImageSequenceProviderEvent event
+        = ImageSequenceProviderEvent::failed(token, std::move(failure));
+    if (session.submitEvent(event) == ImageSequenceProviderEventSubmissionOutcome::Accepted) {
+        (void)failureHandle.release();
+    }
+}
+
 class ImageViewportProviderSession final : public ImageSequenceProviderSession
 {
 public:
@@ -153,16 +184,17 @@ private:
         }
         m_metadataWork.reset();
         if (result.metadata.has_value() && result.metadata->isValid()) {
-            Q_EMIT providerEvent(ImageSequenceProviderEvent::metadataReady(
-                identity.requestToken, std::move(*result.metadata)));
+            submitProviderEvent(*this,
+                ImageSequenceProviderEvent::metadataReady(
+                    identity.requestToken, std::move(*result.metadata)));
             return;
         }
         const ImageSequenceProviderFailureCause cause
             = result.failureCause == ImageSequenceProviderFailureCause::Unavailable
             ? ImageSequenceProviderFailureCause::ProviderInternal
             : result.failureCause;
-        Q_EMIT providerEvent(ImageSequenceProviderEvent::failed(
-            identity.requestToken, m_resource->failure(cause, std::move(result.failure))));
+        submitProviderFailureEvent(
+            *this, identity.requestToken, m_resource->failure(cause, std::move(result.failure)));
     }
 
     void completeFrame(const kiriview::ImageViewportProviderWorkIdentity& identity,
@@ -173,21 +205,23 @@ private:
         }
         if (result.isUnsupported()) {
             m_frameWork.reset();
-            Q_EMIT providerEvent(ImageSequenceProviderEvent::unsupported(
-                identity.requestToken, *result.unsupportedCause));
+            submitProviderEvent(*this,
+                ImageSequenceProviderEvent::unsupported(
+                    identity.requestToken, *result.unsupportedCause));
             return;
         }
         if (result.isProvisional()) {
             if (m_frameWork->provisionalEmitted || !result.isReady()) {
                 return;
             }
-            ImageSequenceProviderFrameHandle* handle = m_resource->acquireFrameHandle(result);
-            if (handle == nullptr) {
+            std::unique_ptr<ImageSequenceProviderFrameHandle> handle(
+                m_resource->acquireFrameHandle(result));
+            if (!handle) {
                 return;
             }
             m_frameWork->provisionalEmitted = true;
-            Q_EMIT providerEvent(ImageSequenceProviderEvent::provisionalFrameReady(
-                identity.requestToken, handle, result.envelope));
+            submitProviderFrameEvent(
+                *this, identity.requestToken, std::move(handle), result.envelope, true);
             return;
         }
 
@@ -197,31 +231,31 @@ private:
                 = result.failureCause == ImageSequenceProviderFailureCause::Unavailable
                 ? ImageSequenceProviderFailureCause::ProviderInternal
                 : result.failureCause;
-            Q_EMIT providerEvent(ImageSequenceProviderEvent::failed(
-                identity.requestToken, m_resource->failure(cause, std::move(result.failure))));
+            submitProviderFailureEvent(*this, identity.requestToken,
+                m_resource->failure(cause, std::move(result.failure)));
             return;
         }
 
-        ImageSequenceProviderFrameHandle* handle = m_resource->acquireFrameHandle(result);
-        if (handle == nullptr) {
+        std::unique_ptr<ImageSequenceProviderFrameHandle> handle(
+            m_resource->acquireFrameHandle(result));
+        if (!handle) {
             m_frameWork.reset();
-            Q_EMIT providerEvent(ImageSequenceProviderEvent::failed(identity.requestToken,
+            submitProviderFailureEvent(*this, identity.requestToken,
                 m_resource->failure(
-                    ImageSequenceProviderFailureCause::ResourceExhausted, std::nullopt)));
+                    ImageSequenceProviderFailureCause::ResourceExhausted, std::nullopt));
             return;
         }
         if (result.authoritativeStillDisplayImage.has_value()
             && !m_resource->acceptAuthoritativeStillDisplayImage(identity, result)) {
-            delete handle;
             m_frameWork.reset();
-            Q_EMIT providerEvent(ImageSequenceProviderEvent::failed(identity.requestToken,
+            submitProviderFailureEvent(*this, identity.requestToken,
                 m_resource->failure(
-                    ImageSequenceProviderFailureCause::ProviderInternal, std::nullopt)));
+                    ImageSequenceProviderFailureCause::ProviderInternal, std::nullopt));
             return;
         }
         m_frameWork.reset();
-        Q_EMIT providerEvent(
-            ImageSequenceProviderEvent::frameReady(identity.requestToken, handle, result.envelope));
+        submitProviderFrameEvent(
+            *this, identity.requestToken, std::move(handle), result.envelope, false);
     }
 
     void cancel(const QVector<ImageSequenceProviderRequestToken>& tokens)
@@ -230,12 +264,12 @@ private:
         if (m_metadataWork.has_value() && containsToken(tokens, m_metadataWork->requestToken)) {
             const ImageSequenceProviderRequestToken token = m_metadataWork->requestToken;
             m_metadataWork.reset();
-            Q_EMIT providerEvent(ImageSequenceProviderEvent::cancelled(token));
+            submitProviderEvent(*this, ImageSequenceProviderEvent::cancelled(token));
         }
         if (m_frameWork.has_value() && containsToken(tokens, m_frameWork->identity.requestToken)) {
             const ImageSequenceProviderRequestToken token = m_frameWork->identity.requestToken;
             m_frameWork.reset();
-            Q_EMIT providerEvent(ImageSequenceProviderEvent::cancelled(token));
+            submitProviderEvent(*this, ImageSequenceProviderEvent::cancelled(token));
         }
     }
 

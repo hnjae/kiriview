@@ -19,6 +19,22 @@
 #include <thread>
 
 namespace {
+class MetaCallCountingObject final : public QObject
+{
+public:
+    using QObject::QObject;
+
+    bool event(QEvent* event) override
+    {
+        if (event->type() == QEvent::MetaCall) {
+            ++metaCallCount;
+        }
+        return QObject::event(event);
+    }
+
+    int metaCallCount = 0;
+};
+
 class CleanupSession final // clazy:exclude=missing-qobject-macro
     : public ImageSequenceProviderSession
 {
@@ -95,9 +111,13 @@ public:
         if (request.kind() != ImageSequenceProviderRequestKind::Close || !m_closeFrameHandle) {
             return;
         }
-        Q_EMIT providerEvent(ImageSequenceProviderEvent::frameReady(
-            {}, m_closeFrameHandle, ImageSequenceProviderFrameEnvelope::stillFrame()));
-        m_closeFrameHandle = nullptr;
+        std::unique_ptr<ImageSequenceProviderFrameHandle> owner(
+            std::exchange(m_closeFrameHandle, nullptr));
+        if (submitEvent(ImageSequenceProviderEvent::frameReady(
+                {}, owner.get(), ImageSequenceProviderFrameEnvelope::stillFrame()))
+            == ImageSequenceProviderEventSubmissionOutcome::Accepted) {
+            owner.release();
+        }
     }
 
     void setCloseFrameHandle(ImageSequenceProviderFrameHandle* frameHandle)
@@ -118,20 +138,23 @@ class SynchronousAffinitySession final // clazy:exclude=missing-qobject-macro
 public:
     SynchronousAffinitySession(std::atomic<QThread*>& metadataRequestThread,
         std::atomic<QThread*>& frameRequestThread, std::atomic<int>& frameReleaseCount,
-        QObject* parent = nullptr)
+        std::atomic<int>& reentrantReleaseCount, QObject* parent = nullptr)
         : ImageSequenceProviderSession(parent)
         , m_metadataRequestThread(metadataRequestThread)
         , m_frameRequestThread(frameRequestThread)
         , m_frameReleaseCount(frameReleaseCount)
+        , m_reentrantReleaseCount(reentrantReleaseCount)
     {
     }
 
     void request(const ImageSequenceProviderRequest& request) override
     {
+        m_requestActive.store(true);
+        const auto requestGuard = qScopeGuard([this]() { m_requestActive.store(false); });
         if (request.kind() == ImageSequenceProviderRequestKind::Metadata) {
             m_metadataRequestThread.store(QThread::currentThread());
-            Q_EMIT providerEvent(ImageSequenceProviderEvent::metadataReady(
-                request.token(), ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0))));
+            submissionOutcomes.append(submitEvent(ImageSequenceProviderEvent::metadataReady(
+                request.token(), ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)))));
             return;
         }
         if (request.kind() != ImageSequenceProviderRequestKind::Frame) {
@@ -139,21 +162,40 @@ public:
         }
 
         m_frameRequestThread.store(QThread::currentThread());
-        QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
-        image.fill(Qt::transparent);
-        auto* handle = new ImageSequenceProviderFrameHandle(
-            new ImageFrame(image), [this](ImageFrame* frame) {
-                m_frameReleaseCount.fetch_add(1);
-                delete frame;
-            });
-        Q_EMIT providerEvent(ImageSequenceProviderEvent::frameReady(
-            request.token(), handle, ImageSequenceProviderFrameEnvelope::stillFrame()));
+        const auto submitFrame = [&](bool provisional) {
+            QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+            image.fill(Qt::transparent);
+            auto* handle = new ImageSequenceProviderFrameHandle(
+                new ImageFrame(image), [this](ImageFrame* frame) {
+                    if (m_requestActive.load()) {
+                        m_reentrantReleaseCount.fetch_add(1);
+                    }
+                    m_frameReleaseCount.fetch_add(1);
+                    delete frame;
+                });
+            const ImageSequenceProviderEvent event = provisional
+                ? ImageSequenceProviderEvent::provisionalFrameReady(
+                      request.token(), handle, ImageSequenceProviderFrameEnvelope::stillFrame())
+                : ImageSequenceProviderEvent::frameReady(
+                      request.token(), handle, ImageSequenceProviderFrameEnvelope::stillFrame());
+            const auto outcome = submitEvent(event);
+            submissionOutcomes.append(outcome);
+            if (outcome != ImageSequenceProviderEventSubmissionOutcome::Accepted) {
+                delete handle;
+            }
+        };
+        submitFrame(true);
+        submitFrame(false);
     }
+
+    QVector<ImageSequenceProviderEventSubmissionOutcome> submissionOutcomes;
 
 private:
     std::atomic<QThread*>& m_metadataRequestThread;
     std::atomic<QThread*>& m_frameRequestThread;
     std::atomic<int>& m_frameReleaseCount;
+    std::atomic<int>& m_reentrantReleaseCount;
+    std::atomic<bool> m_requestActive { false };
 };
 
 class FaultInjectingExecutor final : public ViewportProviderExecutor
@@ -291,10 +333,14 @@ struct BridgeFixture
                 ++*releaseCount;
                 delete frame;
             });
-        Q_EMIT session->providerEvent(ImageSequenceProviderEvent::frameReady(
-            {}, handle, ImageSequenceProviderFrameEnvelope::stillFrame()));
+        std::unique_ptr<ImageSequenceProviderFrameHandle> owner(handle);
+        QCOMPARE(session->submitEvent(ImageSequenceProviderEvent::frameReady(
+                     {}, handle, ImageSequenceProviderFrameEnvelope::stillFrame())),
+            ImageSequenceProviderEventSubmissionOutcome::Accepted);
+        owner.release();
         Q_ASSERT(event.frameLeaseId != 0);
         bridge.completeFrameEventDelivery(event.frameLeaseId);
+        bridge.completeProviderEventDelivery(event.deliveryId);
         bridge.reconcileLeases({});
         if (!bridge.closeSession({}, {}).delivered) {
             qFatal("test provider session close failed");
@@ -331,8 +377,12 @@ private Q_SLOTS:
     void activeAdvisoryBurstIsCoalescedAheadOfTerminal();
     void staleAndMismatchAdvisoryBurstsPreserveRepresentativeIdentity();
     void advisoryBurstDoesNotLoseFrameOwnership();
-    void nonAdvisoryBurstIsBackpressuredBeforeLeaseClaim();
+    void activeCancelledSubmissionsRetireIngressTokens();
+    void nonAdvisoryBurstHasBoundedConditionalOwnership_data();
+    void nonAdvisoryBurstHasBoundedConditionalOwnership();
+    void closedSubmissionRetainsProviderOwnership();
     void affinityBoundSynchronousResponseCompletesDuringActiveDelivery();
+    void synchronousResponsesDoNotAccumulateAcrossRequests();
     void queuedFrameIngressOwnsHandleBeforeSessionClose_data();
     void queuedFrameIngressOwnsHandleBeforeSessionClose();
 };
@@ -552,7 +602,8 @@ void ViewportProviderBridgeCleanupTest::queuedEndpointRemainsRevocableAfterSessi
     QVERIFY(opened.isOpened());
     QVERIFY(session);
 
-    Q_EMIT session->providerEvent(ImageSequenceProviderEvent::waiting({}));
+    QCOMPARE(session->submitEvent(ImageSequenceProviderEvent::waiting({})),
+        ImageSequenceProviderEventSubmissionOutcome::Accepted);
     const auto closed = bridge->closeSession({}, {});
     QVERIFY(closed.delivered);
     QVERIFY(!session);
@@ -587,12 +638,14 @@ void ViewportProviderBridgeCleanupTest::activeAdvisoryBurstIsCoalescedAheadOfTer
     const auto token = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(1);
     QVERIFY(bridge.deliverRequest(ImageSequenceProviderRequest::metadata(token)).delivered);
     for (int index = 0; index < 1024; ++index) {
-        Q_EMIT session->providerEvent(index % 2 == 0
+        (void)session->submitEvent(index % 2 == 0
                 ? ImageSequenceProviderEvent::waiting(token)
                 : ImageSequenceProviderEvent::progress(token, 0.5));
     }
-    Q_EMIT session->providerEvent(ImageSequenceProviderEvent::failed(
-        token, ImageSequenceProviderFailure(ImageSequenceProviderFailureCause::ProviderInternal)));
+    QCOMPARE(
+        session->submitEvent(ImageSequenceProviderEvent::failed(token,
+            ImageSequenceProviderFailure(ImageSequenceProviderFailureCause::ProviderInternal))),
+        ImageSequenceProviderEventSubmissionOutcome::Accepted);
     QCOMPARE(deliveredEvents.size(), 0);
 
     QCoreApplication::sendPostedEvents(&callbackTarget, QEvent::MetaCall);
@@ -603,6 +656,7 @@ void ViewportProviderBridgeCleanupTest::activeAdvisoryBurstIsCoalescedAheadOfTer
     QCOMPARE(deliveredEvents.at(0).token, token);
     QCOMPARE(deliveredEvents.at(1).kind, ImageSequenceProviderEventKind::Failed);
     QCOMPARE(deliveredEvents.at(1).token, token);
+    bridge.completeProviderEventDelivery(deliveredEvents.at(1).deliveryId);
 
     QVERIFY(bridge.closeSession({}, {}).delivered);
     bridge.drainCleanup();
@@ -639,8 +693,8 @@ void ViewportProviderBridgeCleanupTest::
     QVERIFY(bridge.deliverRequest(ImageSequenceProviderRequest::metadata(activeToken)).delivered);
 
     for (int index = 0; index < 1024; ++index) {
-        Q_EMIT session->providerEvent(ImageSequenceProviderEvent::progress(retiredToken, 0.5));
-        Q_EMIT session->providerEvent(ImageSequenceProviderEvent::waiting(mismatchToken));
+        (void)session->submitEvent(ImageSequenceProviderEvent::progress(retiredToken, 0.5));
+        (void)session->submitEvent(ImageSequenceProviderEvent::waiting(mismatchToken));
     }
     QCOMPARE(deliveredEvents.size(), 0);
 
@@ -676,7 +730,7 @@ void ViewportProviderBridgeCleanupTest::advisoryBurstDoesNotLoseFrameOwnership()
     const auto token = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(1);
     QVERIFY(bridge.deliverRequest(ImageSequenceProviderRequest::metadata(token)).delivered);
     for (int index = 0; index < 1024; ++index) {
-        Q_EMIT session->providerEvent(ImageSequenceProviderEvent::progress(token, 0.5));
+        (void)session->submitEvent(ImageSequenceProviderEvent::progress(token, 0.5));
     }
     const auto releaseCount = std::make_shared<int>(0);
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -686,8 +740,11 @@ void ViewportProviderBridgeCleanupTest::advisoryBurstDoesNotLoseFrameOwnership()
             ++*releaseCount;
             delete frame;
         });
-    Q_EMIT session->providerEvent(ImageSequenceProviderEvent::frameReady(
-        token, handle, ImageSequenceProviderFrameEnvelope::stillFrame()));
+    std::unique_ptr<ImageSequenceProviderFrameHandle> owner(handle);
+    QCOMPARE(session->submitEvent(ImageSequenceProviderEvent::frameReady(
+                 token, handle, ImageSequenceProviderFrameEnvelope::stillFrame())),
+        ImageSequenceProviderEventSubmissionOutcome::Accepted);
+    owner.release();
 
     QCoreApplication::sendPostedEvents(&callbackTarget, QEvent::MetaCall);
 
@@ -695,6 +752,7 @@ void ViewportProviderBridgeCleanupTest::advisoryBurstDoesNotLoseFrameOwnership()
     QCOMPARE(deliveredEvents.at(1).kind, ImageSequenceProviderEventKind::FrameReady);
     QVERIFY(deliveredEvents.at(1).frameLeaseId != 0);
     bridge.completeFrameEventDelivery(deliveredEvents.at(1).frameLeaseId);
+    bridge.completeProviderEventDelivery(deliveredEvents.at(1).deliveryId);
     bridge.reconcileLeases({});
     QVERIFY(bridge.closeSession({}, {}).delivered);
     bridge.drainCleanup();
@@ -702,8 +760,66 @@ void ViewportProviderBridgeCleanupTest::advisoryBurstDoesNotLoseFrameOwnership()
     QVERIFY(!session);
 }
 
-void ViewportProviderBridgeCleanupTest::nonAdvisoryBurstIsBackpressuredBeforeLeaseClaim()
+void ViewportProviderBridgeCleanupTest::activeCancelledSubmissionsRetireIngressTokens()
 {
+    QObject callbackTarget;
+    QVector<ViewportProviderEvent> deliveredEvents;
+    ViewportProviderBridge bridge;
+    bridge.setExecutor(synchronousViewportProviderExecutorForTest());
+    QPointer<CleanupSession> session;
+    auto factory = std::make_shared<ImageSequenceProviderSessionFactory>([&session]() {
+        session = new CleanupSession;
+        return ImageSequenceProviderSessionFactoryResult::created(session);
+    });
+    const auto opened
+        = bridge.openSession({ factory, ImageSequenceProviderThreadingContract::ThreadSafe, 17, 23,
+            &callbackTarget, [&](const ViewportProviderEvent& event) {
+                deliveredEvents.append(event);
+                bridge.completeProviderEventDelivery(event.deliveryId);
+            } });
+    QVERIFY(opened.isOpened());
+    QVERIFY(session);
+
+    constexpr quint64 submissionCount = 64;
+    for (quint64 tokenValue = 1; tokenValue <= submissionCount; ++tokenValue) {
+        const auto token
+            = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(tokenValue);
+        QVERIFY(bridge.deliverRequest(ImageSequenceProviderRequest::metadata(token)).delivered);
+        QCOMPARE(session->submitEvent(ImageSequenceProviderEvent::cancelled(token)),
+            ImageSequenceProviderEventSubmissionOutcome::Accepted);
+
+        if (tokenValue % 2 == 0) {
+            QCoreApplication::sendPostedEvents(&callbackTarget, QEvent::MetaCall);
+            QCOMPARE(deliveredEvents.size(), qsizetype(tokenValue));
+        }
+    }
+
+    QCOMPARE(deliveredEvents.size(), qsizetype(submissionCount));
+    for (quint64 index = 0; index < submissionCount; ++index) {
+        QCOMPARE(
+            deliveredEvents.at(qsizetype(index)).kind, ImageSequenceProviderEventKind::Cancelled);
+        QCOMPARE(deliveredEvents.at(qsizetype(index)).token,
+            ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(index + 1));
+        QVERIFY(deliveredEvents.at(qsizetype(index)).deliveryId != 0);
+    }
+
+    QVERIFY(bridge.closeSession({}, {}).delivered);
+    bridge.drainCleanup();
+    QVERIFY(!session);
+}
+
+void ViewportProviderBridgeCleanupTest::nonAdvisoryBurstHasBoundedConditionalOwnership_data()
+{
+    QTest::addColumn<bool>("crossAffinity");
+
+    QTest::newRow("same-affinity") << false;
+    QTest::newRow("cross-affinity") << true;
+}
+
+void ViewportProviderBridgeCleanupTest::nonAdvisoryBurstHasBoundedConditionalOwnership()
+{
+    QFETCH(bool, crossAffinity);
+
     QObject callbackTarget;
     QVector<ViewportProviderEvent> deliveredEvents;
     ViewportProviderBridge bridge;
@@ -719,6 +835,7 @@ void ViewportProviderBridgeCleanupTest::nonAdvisoryBurstIsBackpressuredBeforeLea
                 deliveredEvents.append(event);
                 bridge.completeFrameEventDelivery(event.frameLeaseId);
                 bridge.completeFailureEventDelivery(event.failureLeaseId);
+                bridge.completeProviderEventDelivery(event.deliveryId);
                 bridge.reconcileLeases({});
                 bridge.drainCleanup();
             } });
@@ -726,82 +843,115 @@ void ViewportProviderBridgeCleanupTest::nonAdvisoryBurstIsBackpressuredBeforeLea
     QVERIFY(session);
 
     const auto activeToken = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(1);
-    const auto mismatchToken
-        = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(2);
     QVERIFY(bridge.deliverRequest(ImageSequenceProviderRequest::metadata(activeToken)).delivered);
 
     QThread workerThread;
-    workerThread.start();
+    if (crossAffinity) {
+        workerThread.start();
+    }
     const auto workerCleanup = qScopeGuard([&workerThread]() {
-        workerThread.quit();
-        workerThread.wait(1000);
+        if (workerThread.isRunning()) {
+            workerThread.quit();
+            workerThread.wait(1000);
+        }
     });
     QObject workerMarker;
-    workerMarker.moveToThread(&workerThread);
-    QSemaphore emissionEntered;
-    QSemaphore emissionReturned;
-    QSemaphore allEmissionsReturned;
-    std::atomic<int> returnedCount { 0 };
-    std::atomic<int> frameReleaseCount { 0 };
-    std::atomic<int> failureReleaseCount { 0 };
-    QVERIFY(QMetaObject::invokeMethod(
-        &workerMarker,
-        [&]() {
-            auto emitFailure = [&](ImageSequenceProviderRequestToken token) {
-                emissionEntered.release();
-                auto* handle = new ImageSequenceProviderFailureHandle(
-                    [&failureReleaseCount] { failureReleaseCount.fetch_add(1); });
-                Q_EMIT session->providerEvent(ImageSequenceProviderEvent::failed(token,
-                    ImageSequenceProviderFailure(
-                        ImageSequenceProviderFailureCause::ProviderInternal, handle)));
-                returnedCount.fetch_add(1);
-                emissionReturned.release();
-            };
-            emitFailure(activeToken);
-
-            emissionEntered.release();
-            QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
-            image.fill(Qt::transparent);
-            auto* frameHandle = new ImageSequenceProviderFrameHandle(
-                new ImageFrame(image), [&frameReleaseCount](ImageFrame* frame) {
-                    frameReleaseCount.fetch_add(1);
-                    delete frame;
-                });
-            Q_EMIT session->providerEvent(ImageSequenceProviderEvent::frameReady(
-                activeToken, frameHandle, ImageSequenceProviderFrameEnvelope::stillFrame()));
-            returnedCount.fetch_add(1);
-            emissionReturned.release();
-
-            emitFailure(mismatchToken);
-            allEmissionsReturned.release();
-        },
-        Qt::QueuedConnection));
-
-    emissionEntered.acquire();
-    emissionReturned.acquire();
-    emissionEntered.acquire();
-    const bool burstReturnedBeforeDelivery = allEmissionsReturned.tryAcquire(1, 100);
-
-    while (returnedCount.load() < 3) {
-        QCoreApplication::sendPostedEvents(&callbackTarget, QEvent::MetaCall);
-        QVERIFY(emissionReturned.tryAcquire(1, 1000));
+    if (crossAffinity) {
+        workerMarker.moveToThread(&workerThread);
     }
-    QCoreApplication::sendPostedEvents(&callbackTarget, QEvent::MetaCall);
-    QVERIFY(QMetaObject::invokeMethod(&workerMarker, []() { }, Qt::BlockingQueuedConnection));
+    std::atomic<int> failureReleaseCount { 0 };
+    QVector<ImageSequenceProviderEventSubmissionOutcome> outcomes;
+    const auto submitBurst = [&]() {
+        outcomes.reserve(1024);
+        for (int index = 0; index < 1024; ++index) {
+            auto handle = std::make_unique<ImageSequenceProviderFailureHandle>(
+                [&failureReleaseCount] { failureReleaseCount.fetch_add(1); });
+            const auto outcome
+                = session->submitEvent(ImageSequenceProviderEvent::failed(activeToken,
+                    ImageSequenceProviderFailure(
+                        ImageSequenceProviderFailureCause::ProviderInternal, handle.get())));
+            outcomes.append(outcome);
+            if (outcome == ImageSequenceProviderEventSubmissionOutcome::Accepted) {
+                handle.release();
+            }
+        }
+    };
+    if (crossAffinity) {
+        QVERIFY(
+            QMetaObject::invokeMethod(&workerMarker, submitBurst, Qt::BlockingQueuedConnection));
+    } else {
+        submitBurst();
+    }
 
-    QVERIFY(!burstReturnedBeforeDelivery);
-    QCOMPARE(deliveredEvents.size(), 3);
-    QCOMPARE(deliveredEvents.at(0).kind, ImageSequenceProviderEventKind::Failed);
-    QCOMPARE(deliveredEvents.at(0).token, activeToken);
-    QCOMPARE(deliveredEvents.at(1).kind, ImageSequenceProviderEventKind::FrameReady);
-    QCOMPARE(deliveredEvents.at(1).token, activeToken);
-    QCOMPARE(deliveredEvents.at(2).kind, ImageSequenceProviderEventKind::Failed);
-    QCOMPARE(deliveredEvents.at(2).token, mismatchToken);
-    QCOMPARE(frameReleaseCount.load(), 1);
-    QCOMPARE(failureReleaseCount.load(), 2);
+    const qsizetype acceptedCount
+        = outcomes.count(ImageSequenceProviderEventSubmissionOutcome::Accepted);
+    QCOMPARE(outcomes.count(ImageSequenceProviderEventSubmissionOutcome::Closed), qsizetype(0));
+    QVERIFY(acceptedCount >= 1);
+    QVERIFY(acceptedCount <= 2);
+    QCOMPARE(outcomes.count(ImageSequenceProviderEventSubmissionOutcome::Rejected),
+        outcomes.size() - acceptedCount);
+    QCOMPARE(failureReleaseCount.load(), int(outcomes.size() - acceptedCount));
+
+    std::atomic<int> rejectedFrameReleaseCount { 0 };
+    QImage rejectedImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    rejectedImage.fill(Qt::transparent);
+    auto rejectedFrame = std::make_unique<ImageSequenceProviderFrameHandle>(
+        new ImageFrame(rejectedImage), [&](ImageFrame* frame) {
+            rejectedFrameReleaseCount.fetch_add(1);
+            delete frame;
+        });
+    QCOMPARE(session->submitEvent(ImageSequenceProviderEvent::frameReady(activeToken,
+                 rejectedFrame.get(), ImageSequenceProviderFrameEnvelope::stillFrame())),
+        ImageSequenceProviderEventSubmissionOutcome::Rejected);
+    QCOMPARE(rejectedFrameReleaseCount.load(), 0);
+    rejectedFrame.reset();
+    QCOMPARE(rejectedFrameReleaseCount.load(), 1);
+
+    QCoreApplication::sendPostedEvents(&callbackTarget, QEvent::MetaCall);
+
+    QCOMPARE(deliveredEvents.size(), acceptedCount);
+    for (const auto& event : std::as_const(deliveredEvents)) {
+        QCOMPARE(event.kind, ImageSequenceProviderEventKind::Failed);
+        QCOMPARE(event.token, activeToken);
+        QVERIFY(event.deliveryId != 0);
+    }
+    QTRY_COMPARE(failureReleaseCount.load(), int(outcomes.size()));
 
     QVERIFY(bridge.closeSession({}, {}).delivered);
     bridge.drainCleanup();
+    QVERIFY(!session);
+}
+
+void ViewportProviderBridgeCleanupTest::closedSubmissionRetainsProviderOwnership()
+{
+    QObject callbackTarget;
+    StallingCloseExecutor executor;
+    ViewportProviderBridge bridge;
+    bridge.setExecutor(executor);
+    QPointer<CleanupSession> session;
+    auto factory = std::make_shared<ImageSequenceProviderSessionFactory>([&session]() {
+        session = new CleanupSession;
+        return ImageSequenceProviderSessionFactoryResult::created(session);
+    });
+    const auto opened
+        = bridge.openSession({ factory, ImageSequenceProviderThreadingContract::ThreadSafe, 17, 23,
+            &callbackTarget, [](const ViewportProviderEvent&) { } });
+    QVERIFY(opened.isOpened());
+
+    QVERIFY(bridge.closeSession({}, {}).delivered);
+    QVERIFY(session);
+    std::atomic<int> releaseCount { 0 };
+    auto handle = std::make_unique<ImageSequenceProviderFailureHandle>(
+        [&releaseCount]() { releaseCount.fetch_add(1); });
+    const auto outcome = session->submitEvent(ImageSequenceProviderEvent::failed({},
+        ImageSequenceProviderFailure(
+            ImageSequenceProviderFailureCause::ProviderInternal, handle.get())));
+
+    QCOMPARE(outcome, ImageSequenceProviderEventSubmissionOutcome::Closed);
+    QCOMPARE(releaseCount.load(), 0);
+    handle.reset();
+    QCOMPARE(releaseCount.load(), 1);
+    executor.completeAllCloses();
     QVERIFY(!session);
 }
 
@@ -818,10 +968,11 @@ void ViewportProviderBridgeCleanupTest::
     std::atomic<QThread*> metadataRequestThread { nullptr };
     std::atomic<QThread*> frameRequestThread { nullptr };
     std::atomic<int> frameReleaseCount { 0 };
+    std::atomic<int> reentrantReleaseCount { 0 };
     QPointer<SynchronousAffinitySession> session;
     auto factory = std::make_shared<ImageSequenceProviderSessionFactory>([&]() {
         auto* created = new SynchronousAffinitySession(
-            metadataRequestThread, frameRequestThread, frameReleaseCount);
+            metadataRequestThread, frameRequestThread, frameReleaseCount, reentrantReleaseCount);
         created->moveToThread(&workerThread);
         session = created;
         return ImageSequenceProviderSessionFactoryResult::created(created);
@@ -839,14 +990,18 @@ void ViewportProviderBridgeCleanupTest::
     QObject callbackTarget;
     ViewportProviderBridge bridge;
     QVector<ImageSequenceProviderEventKind> deliveredKinds;
-    quint64 frameLeaseId = 0;
+    QVector<quint64> frameLeaseIds;
     QSemaphore frameRequestCompleted;
     bool frameRequestCompletedDuringMetadataDelivery = false;
     std::atomic<bool> frameRequestDelivered { false };
+    std::atomic<int> offAffinityDeliveryCount { 0 };
     std::unique_ptr<std::thread> frameRequester;
     const auto opened
         = bridge.openSession({ factory, ImageSequenceProviderThreadingContract::AffinityBound, 17,
             23, &callbackTarget, [&](const ViewportProviderEvent& event) {
+                if (!callbackTarget.thread()->isCurrentThread()) {
+                    offAffinityDeliveryCount.fetch_add(1);
+                }
                 deliveredKinds.append(event.kind);
                 if (event.kind == ImageSequenceProviderEventKind::MetadataReady) {
                     frameRequester = std::make_unique<std::thread>([&]() {
@@ -856,8 +1011,11 @@ void ViewportProviderBridgeCleanupTest::
                     frameRequestCompletedDuringMetadataDelivery
                         = frameRequestCompleted.tryAcquire(1, 1000);
                 } else if (event.kind == ImageSequenceProviderEventKind::FrameReady) {
-                    frameLeaseId = event.frameLeaseId;
+                    frameLeaseIds.append(event.frameLeaseId);
+                } else if (event.kind == ImageSequenceProviderEventKind::ProvisionalFrameReady) {
+                    frameLeaseIds.append(event.frameLeaseId);
                 }
+                bridge.completeProviderEventDelivery(event.deliveryId);
             } });
     QVERIFY(opened.isOpened());
     QVERIFY(session);
@@ -873,18 +1031,86 @@ void ViewportProviderBridgeCleanupTest::
     QCOMPARE(metadataRequestThread.load(), &workerThread);
     QCOMPARE(frameRequestThread.load(), &workerThread);
     const QVector expectedKinds { ImageSequenceProviderEventKind::MetadataReady,
+        ImageSequenceProviderEventKind::ProvisionalFrameReady,
         ImageSequenceProviderEventKind::FrameReady };
     QCOMPARE(deliveredKinds, expectedKinds);
-    QVERIFY(frameLeaseId != 0);
+    QCOMPARE(frameLeaseIds.size(), 2);
+    QVERIFY(frameLeaseIds.at(0) != 0);
+    QVERIFY(frameLeaseIds.at(1) != 0);
+    QCOMPARE(session->submissionOutcomes.size(), 3);
+    for (const auto outcome : std::as_const(session->submissionOutcomes)) {
+        QCOMPARE(outcome, ImageSequenceProviderEventSubmissionOutcome::Accepted);
+    }
 
-    bridge.completeFrameEventDelivery(frameLeaseId);
+    for (const quint64 leaseId : std::as_const(frameLeaseIds)) {
+        bridge.completeFrameEventDelivery(leaseId);
+    }
     bridge.reconcileLeases({});
     bridge.drainCleanup();
-    QTRY_COMPARE(frameReleaseCount.load(), 1);
+    QTRY_COMPARE(frameReleaseCount.load(), 2);
+    QCOMPARE(reentrantReleaseCount.load(), 0);
+    QCOMPARE(offAffinityDeliveryCount.load(), 0);
 
     QVERIFY(bridge.closeSession({}, {}).delivered);
     bridge.drainCleanup();
     QTRY_VERIFY(!session);
+}
+
+void ViewportProviderBridgeCleanupTest::synchronousResponsesDoNotAccumulateAcrossRequests()
+{
+    MetaCallCountingObject callbackTarget;
+    std::atomic<QThread*> metadataRequestThread { nullptr };
+    std::atomic<QThread*> frameRequestThread { nullptr };
+    std::atomic<int> frameReleaseCount { 0 };
+    std::atomic<int> reentrantReleaseCount { 0 };
+    QPointer<SynchronousAffinitySession> session;
+    auto factory = std::make_shared<ImageSequenceProviderSessionFactory>([&]() {
+        session = new SynchronousAffinitySession(
+            metadataRequestThread, frameRequestThread, frameReleaseCount, reentrantReleaseCount);
+        return ImageSequenceProviderSessionFactoryResult::created(session);
+    });
+
+    ViewportProviderBridge bridge;
+    bridge.setExecutor(synchronousViewportProviderExecutorForTest());
+    qsizetype deliveryCount = 0;
+    const auto opened
+        = bridge.openSession({ factory, ImageSequenceProviderThreadingContract::ThreadSafe, 17, 23,
+            &callbackTarget, [&](const ViewportProviderEvent& event) {
+                ++deliveryCount;
+                bridge.completeFrameEventDelivery(event.frameLeaseId);
+                bridge.completeProviderEventDelivery(event.deliveryId);
+                bridge.reconcileLeases({});
+                bridge.drainCleanup();
+            } });
+    QVERIFY(opened.isOpened());
+    QVERIFY(session);
+
+    ImageSequenceProviderDisplayDemand demand;
+    demand.setRole(ImageViewportPageRole::Primary);
+    demand.setResolvedFrame(0);
+    constexpr quint64 requestCount = 64;
+    for (quint64 tokenValue = 1; tokenValue <= requestCount; ++tokenValue) {
+        const auto token
+            = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(tokenValue);
+        QVERIFY(bridge
+                .deliverRequest(ImageSequenceProviderRequest::frame(
+                    token, ImageViewportPageRole::Primary, 0, demand))
+                .delivered);
+    }
+
+    QCOMPARE(deliveryCount, qsizetype(requestCount * 2));
+    QCOMPARE(frameReleaseCount.load(), int(requestCount * 2));
+    QCOMPARE(reentrantReleaseCount.load(), 0);
+    QCOMPARE(session->submissionOutcomes.size(), qsizetype(requestCount * 2));
+    for (const auto outcome : std::as_const(session->submissionOutcomes)) {
+        QCOMPARE(outcome, ImageSequenceProviderEventSubmissionOutcome::Accepted);
+    }
+    QCoreApplication::sendPostedEvents(&callbackTarget, QEvent::MetaCall);
+    QVERIFY(callbackTarget.metaCallCount <= 1);
+
+    QVERIFY(bridge.closeSession({}, {}).delivered);
+    bridge.drainCleanup();
+    QVERIFY(!session);
 }
 
 void ViewportProviderBridgeCleanupTest::queuedFrameIngressOwnsHandleBeforeSessionClose_data()
@@ -964,8 +1190,12 @@ void ViewportProviderBridgeCleanupTest::queuedFrameIngressOwnsHandleBeforeSessio
         QVERIFY(QMetaObject::invokeMethod(
             session,
             [session, handle]() {
-                Q_EMIT session->providerEvent(ImageSequenceProviderEvent::frameReady(
-                    {}, handle, ImageSequenceProviderFrameEnvelope::stillFrame()));
+                std::unique_ptr<ImageSequenceProviderFrameHandle> owner(handle);
+                if (session->submitEvent(ImageSequenceProviderEvent::frameReady(
+                        {}, handle, ImageSequenceProviderFrameEnvelope::stillFrame()))
+                    == ImageSequenceProviderEventSubmissionOutcome::Accepted) {
+                    owner.release();
+                }
             },
             Qt::BlockingQueuedConnection));
     }
@@ -973,6 +1203,17 @@ void ViewportProviderBridgeCleanupTest::queuedFrameIngressOwnsHandleBeforeSessio
     const auto closed = bridge.closeSession({}, {});
     QVERIFY(closed.delivered);
     QVERIFY(QMetaObject::invokeMethod(&workerMarker, []() { }, Qt::BlockingQueuedConnection));
+
+    if (emitDuringClose) {
+        QCOMPARE(deliveredEvent.deliveryId, quint64(0));
+        QCOMPARE(releaseCount.load(), 1);
+        QVERIFY(!session);
+        QCOMPARE(releaseThread.load(), &workerThread);
+        QCOMPARE(destructionThread.load(), &workerThread);
+        QVERIFY(releaseOrder.load() > 0);
+        QVERIFY(destructionOrder.load() > releaseOrder.load());
+        return;
+    }
 
     QVERIFY2(session, "session destruction overtook queued frame ownership capture");
     QCOMPARE(releaseCount.load(), 0);
@@ -985,6 +1226,7 @@ void ViewportProviderBridgeCleanupTest::queuedFrameIngressOwnsHandleBeforeSessio
         bridge.reconcileLeases({});
         bridge.drainCleanup();
     }
+    bridge.completeProviderEventDelivery(deliveredEvent.deliveryId);
     QVERIFY(QMetaObject::invokeMethod(&workerMarker, []() { }, Qt::BlockingQueuedConnection));
 
     QCOMPARE(releaseCount.load(), 1);

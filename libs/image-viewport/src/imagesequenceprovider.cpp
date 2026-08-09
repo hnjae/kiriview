@@ -3,6 +3,10 @@
 
 #include "imageviewportlimits_p.h"
 #include "imageviewportproviderfacts_p.h"
+#include "imageviewportprovidersubmission_p.h"
+
+#include <QtCore/QMutex>
+#include <QtCore/QMutexLocker>
 
 #include <algorithm>
 #include <atomic>
@@ -11,6 +15,12 @@
 #include <utility>
 
 using namespace ImageViewportInternal;
+
+struct ImageSequenceProviderSession::EventSubmissionState
+{
+    QMutex mutex;
+    ProviderEventSubmissionPrivateAccess::Submitter submitter;
+};
 
 namespace {
 bool isPositiveFiniteValue(double value) { return std::isfinite(value) && value > 0.0; }
@@ -534,7 +544,28 @@ ImageSequenceProviderFrameEnvelope ImageSequenceProviderFrameEnvelope::timedFram
 
 ImageSequenceProviderSession::ImageSequenceProviderSession(QObject* parent)
     : QObject(parent)
+    , m_eventSubmissionState(std::make_unique<EventSubmissionState>())
 {
+}
+
+ImageSequenceProviderSession::~ImageSequenceProviderSession() = default;
+
+ImageSequenceProviderEventSubmissionOutcome ImageSequenceProviderSession::submitEvent(
+    const ImageSequenceProviderEvent& event)
+{
+    ProviderEventSubmissionPrivateAccess::Submitter submitter;
+    {
+        QMutexLocker locker(&m_eventSubmissionState->mutex);
+        submitter = m_eventSubmissionState->submitter;
+    }
+    return submitter ? submitter(event) : ImageSequenceProviderEventSubmissionOutcome::Closed;
+}
+
+void ProviderEventSubmissionPrivateAccess::install(
+    ImageSequenceProviderSession& session, Submitter submitter)
+{
+    QMutexLocker locker(&session.m_eventSubmissionState->mutex);
+    session.m_eventSubmissionState->submitter = std::move(submitter);
 }
 
 bool ImageSequenceProviderFrameEnvelope::isValid() const

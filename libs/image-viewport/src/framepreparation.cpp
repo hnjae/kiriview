@@ -141,8 +141,7 @@ CommonPayloadAdmission admitPayload(const FramePayload& payload,
         || facts.payloadRasterSize.width() > ImageSequenceLimits::maximumPayloadRasterWidth()
         || facts.payloadRasterSize.height() > ImageSequenceLimits::maximumPayloadRasterHeight()
         || facts.payloadByteSize > ImageSequenceLimits::maximumPayloadBytes()
-        || facts.formatIdentifier.toUcs4().size()
-            > ImageSequenceLimits::maximumFormatIdentifierCharacters()) {
+        || formatIdentifierExceedsLimit(facts.formatIdentifier)) {
         return { CommonPayloadCause::TooLarge,
             QStringLiteral("frame payload exceeds an admission limit") };
     }
@@ -402,8 +401,7 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
             ImageViewportRequestStatus::Unsupported,
             QStringLiteral("provider frame payload exceeds active texture cap"));
     }
-    if (frame->formatIdentifier().toUcs4().size()
-        > ImageSequenceLimits::maximumFormatIdentifierCharacters()) {
+    if (formatIdentifierExceedsLimit(frame->formatIdentifier())) {
         return providerFrameRejection(Cause::PayloadTooLarge,
             ImageViewportRequestStatus::Unsupported,
             QStringLiteral(

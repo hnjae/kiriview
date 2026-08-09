@@ -13,6 +13,7 @@ struct ViewportProviderEvent
     ImageViewportPageRole role = ImageViewportPageRole::Primary;
     quint64 sessionSerial = 0;
     quint64 generation = 0;
+    quint64 deliveryId = 0;
     ImageSequenceProviderRequestToken token;
     ImageSequenceProviderMetadata metadata;
     ImageSequenceProviderFrameHandle* frameHandle = nullptr;

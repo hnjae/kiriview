@@ -34,7 +34,7 @@ public:
     {
         requests.append(request);
         if (request.kind() == ImageSequenceProviderRequestKind::Metadata) {
-            Q_EMIT providerEvent(ImageSequenceProviderEvent::metadataReady(
+            (void)submitEvent(ImageSequenceProviderEvent::metadataReady(
                 request.token(), ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0))));
         }
     }
@@ -51,9 +51,12 @@ public:
                 break;
             }
         }
-        auto frame = std::make_unique<ImageFrame>(image);
-        Q_EMIT providerEvent(ImageSequenceProviderEvent::frameReady(
-            token, new ImageSequenceProviderFrameHandle(std::move(frame), this), envelope));
+        auto handle = std::make_unique<ImageSequenceProviderFrameHandle>(
+            std::make_unique<ImageFrame>(image), this);
+        if (submitEvent(ImageSequenceProviderEvent::frameReady(token, handle.get(), envelope))
+            == ImageSequenceProviderEventSubmissionOutcome::Accepted) {
+            handle.release();
+        }
     }
 
     QVector<ImageSequenceProviderRequest> requests;

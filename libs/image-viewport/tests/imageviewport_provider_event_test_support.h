@@ -14,7 +14,7 @@ namespace {
 void emitProviderMetadataReady(ImageSequenceProviderSession* session,
     ImageSequenceProviderRequestToken token, ImageSequenceProviderMetadata metadata)
 {
-    Q_EMIT session->providerEvent(
+    (void)session->submitEvent(
         ImageSequenceProviderEvent::metadataReady(token, std::move(metadata)));
 }
 
@@ -22,18 +22,24 @@ void emitProviderFrameHandleReady(ImageSequenceProviderSession* session,
     ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* handle,
     ImageSequenceProviderFrameEnvelope envelope)
 {
-    ImageSequenceProviderEvent event
+    std::unique_ptr<ImageSequenceProviderFrameHandle> owner(handle);
+    const ImageSequenceProviderEvent event
         = ImageSequenceProviderEvent::frameReady(token, handle, envelope);
-    Q_EMIT session->providerEvent(event);
+    if (session->submitEvent(event) == ImageSequenceProviderEventSubmissionOutcome::Accepted) {
+        owner.release();
+    }
 }
 
 void emitProviderProvisionalFrameHandleReady(ImageSequenceProviderSession* session,
     ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* handle,
     ImageSequenceProviderFrameEnvelope envelope)
 {
-    ImageSequenceProviderEvent event
+    std::unique_ptr<ImageSequenceProviderFrameHandle> owner(handle);
+    const ImageSequenceProviderEvent event
         = ImageSequenceProviderEvent::provisionalFrameReady(token, handle, envelope);
-    Q_EMIT session->providerEvent(event);
+    if (session->submitEvent(event) == ImageSequenceProviderEventSubmissionOutcome::Accepted) {
+        owner.release();
+    }
 }
 
 void emitProviderFrameReady(ImageSequenceProviderSession* session,
@@ -55,26 +61,26 @@ void emitProviderProvisionalFrameReady(ImageSequenceProviderSession* session,
 void emitProviderWaiting(
     ImageSequenceProviderSession* session, ImageSequenceProviderRequestToken token)
 {
-    Q_EMIT session->providerEvent(ImageSequenceProviderEvent::waiting(token));
+    (void)session->submitEvent(ImageSequenceProviderEvent::waiting(token));
 }
 
 void emitProviderProgress(
     ImageSequenceProviderSession* session, ImageSequenceProviderRequestToken token, double progress)
 {
-    Q_EMIT session->providerEvent(ImageSequenceProviderEvent::progress(token, progress));
+    (void)session->submitEvent(ImageSequenceProviderEvent::progress(token, progress));
 }
 
 void emitProviderEndOfSequence(
     ImageSequenceProviderSession* session, ImageSequenceProviderRequestToken token)
 {
-    Q_EMIT session->providerEvent(ImageSequenceProviderEvent::endOfSequence(token));
+    (void)session->submitEvent(ImageSequenceProviderEvent::endOfSequence(token));
 }
 
 void emitProviderFailed(ImageSequenceProviderSession* session,
     ImageSequenceProviderRequestToken token, const QString& diagnostic)
 {
     Q_UNUSED(diagnostic);
-    Q_EMIT session->providerEvent(ImageSequenceProviderEvent::failed(
+    (void)session->submitEvent(ImageSequenceProviderEvent::failed(
         token, ImageSequenceProviderFailure(ImageSequenceProviderFailureCause::ProviderInternal)));
 }
 
@@ -83,14 +89,14 @@ void emitProviderUnsupported(ImageSequenceProviderSession* session,
     const QString& diagnostic)
 {
     Q_UNUSED(diagnostic);
-    Q_EMIT session->providerEvent(ImageSequenceProviderEvent::unsupported(token, cause));
+    (void)session->submitEvent(ImageSequenceProviderEvent::unsupported(token, cause));
 }
 
 void emitProviderCancelled(ImageSequenceProviderSession* session,
     ImageSequenceProviderRequestToken token, const QString& diagnostic)
 {
     Q_UNUSED(diagnostic);
-    Q_EMIT session->providerEvent(ImageSequenceProviderEvent::cancelled(token));
+    (void)session->submitEvent(ImageSequenceProviderEvent::cancelled(token));
 }
 
 }

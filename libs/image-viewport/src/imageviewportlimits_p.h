@@ -7,6 +7,8 @@
 
 #include <ImageViewport/imagesequence.h>
 
+#include <QtCore/QStringView>
+
 #include <cmath>
 #include <limits>
 
@@ -26,6 +28,7 @@ constexpr qint64 minimumMaximumPixelsPerFrame
     = qint64(std::numeric_limits<int>::max()) * qint64(std::numeric_limits<int>::max());
 constexpr int minimumMaximumPayloadRasterSide = 16384;
 constexpr qint64 minimumMaximumPayloadBytesPerFrame = qint64(512) * 1024 * 1024;
+constexpr qint64 minimumMaximumTimedListPayloadBytes = qint64(512) * 1024 * 1024;
 constexpr int minimumMaximumTimedListFrameCount = 10000;
 constexpr int minimumMaximumDuration = 86400000;
 constexpr int minimumMaximumDiagnosticStringLength = 4096;
@@ -40,6 +43,32 @@ inline bool logicalPixelCountExceedsLimit(qint64 width, qint64 height)
 {
     const qint64 maximum = ImageSequenceLimits::maximumSourceLogicalPixels();
     return width <= 0 || height <= 0 || maximum <= 0 || width > maximum / height;
+}
+
+inline bool unicodeScalarCountExceedsLimit(QStringView value, qsizetype maximum)
+{
+    if (maximum < 0) {
+        return true;
+    }
+    qsizetype scalarCount = 0;
+    for (qsizetype index = 0; index < value.size(); ++index) {
+        const char16_t codeUnit = value.at(index).unicode();
+        if (QChar::isHighSurrogate(codeUnit) && index + 1 < value.size()
+            && QChar::isLowSurrogate(value.at(index + 1).unicode())) {
+            ++index;
+        }
+        if (scalarCount == maximum) {
+            return true;
+        }
+        ++scalarCount;
+    }
+    return false;
+}
+
+inline bool formatIdentifierExceedsLimit(QStringView value)
+{
+    return unicodeScalarCountExceedsLimit(
+        value, ImageSequenceLimits::maximumFormatIdentifierCharacters());
 }
 
 inline QString frameLimitViolation(const ImageFrame& frame)
@@ -71,8 +100,7 @@ inline QString frameLimitViolation(const ImageFrame& frame)
     if (frame.payloadByteSize() > ImageSequenceLimits::maximumPayloadBytes()) {
         return QStringLiteral("ImageFrame exceeds maximumPayloadBytes");
     }
-    if (frame.formatIdentifier().toUcs4().size()
-        > ImageSequenceLimits::maximumFormatIdentifierCharacters()) {
+    if (formatIdentifierExceedsLimit(frame.formatIdentifier())) {
         return QStringLiteral("ImageFrame exceeds maximumFormatIdentifierCharacters");
     }
 

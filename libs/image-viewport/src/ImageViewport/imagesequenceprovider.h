@@ -19,6 +19,7 @@
 #include <optional>
 
 namespace ImageViewportInternal {
+class ProviderEventSubmissionPrivateAccess;
 class ProviderRequestTokenPrivateAccess;
 }
 
@@ -83,6 +84,12 @@ private:
 enum class ImageSequenceProviderThreadingContract {
     AffinityBound,
     ThreadSafe,
+};
+
+enum class ImageSequenceProviderEventSubmissionOutcome {
+    Accepted,
+    Rejected,
+    Closed,
 };
 
 class ImageSequenceProviderFrameHandle : public QObject
@@ -203,13 +210,18 @@ class ImageSequenceProviderSession : public QObject
 
 public:
     explicit ImageSequenceProviderSession(QObject* parent = nullptr);
-    ~ImageSequenceProviderSession() override = default;
+    ~ImageSequenceProviderSession() override;
     Q_DISABLE_COPY_MOVE(ImageSequenceProviderSession)
 
     virtual void request(const ImageSequenceProviderRequest& request) = 0;
+    [[nodiscard]] ImageSequenceProviderEventSubmissionOutcome submitEvent(
+        const ImageSequenceProviderEvent& event);
 
-Q_SIGNALS:
-    void providerEvent(const ImageSequenceProviderEvent& event);
+private:
+    struct EventSubmissionState;
+    std::unique_ptr<EventSubmissionState> m_eventSubmissionState;
+
+    friend class ImageViewportInternal::ProviderEventSubmissionPrivateAccess;
 };
 
 enum class ImageSequenceProviderSessionFactoryOutcome {
@@ -611,6 +623,7 @@ Q_DECLARE_METATYPE(ImageSequenceProviderRequestToken)
 Q_DECLARE_METATYPE(ImageSequenceProviderMetadata)
 Q_DECLARE_METATYPE(ImageSequenceProviderRequestKind)
 Q_DECLARE_METATYPE(ImageSequenceProviderEventKind)
+Q_DECLARE_METATYPE(ImageSequenceProviderEventSubmissionOutcome)
 Q_DECLARE_METATYPE(ImageSequenceProviderUnsupportedCause)
 Q_DECLARE_METATYPE(ImageSequenceProviderFailure)
 Q_DECLARE_METATYPE(ImageSequenceProviderFrameEnvelope)

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "framepreparation_p.h"
+#include "imagesequence_p.h"
 #include "imagesequencesource_p.h"
 #include "imageviewport_provider_test_support.h"
 #include "imageviewport_qml_test_support.h"
@@ -26,6 +27,7 @@ private Q_SLOTS:
     void factoryRejectsNullTypedInputs();
     void timedFrameListNativeFactoryRejectsMismatchedCounts();
     void timedFrameListNativeFactoryClassifiesSemanticFailuresBeforeLimits();
+    void timedFrameListNativeFactoryRejectsCollectionLimitBeforePayloadCopy();
     void timedFrameListNativeFactoryRejectsEmptyInput();
     void qmlTimedFrameListExposesBuilderState();
     void qmlFactoryCreatesSequencesFromSuppliedTypedHelpers();
@@ -41,6 +43,7 @@ private Q_SLOTS:
     void imageFrameRetainsImmutablePayload();
     void imageFrameExposesPayloadMetadata();
     void imageFrameDerivesPayloadFacts();
+    void imageFrameFormatIdentifierLimitCountsScalarsBeforePayloadCopy();
     void imageFrameOrientationPoliciesNormalizePayload();
     void imageFrameUsesDeviceIndependentLogicalSize();
     void providerMetadataAdmissionAcceptsTimedMetadata();
@@ -150,6 +153,24 @@ void ImageSequenceFactoryTest::timedFrameListNativeFactoryClassifiesSemanticFail
     QScopedPointer<ImageSequenceFactoryResult> limitResult(
         factory.fromTimedFrameList({ oversizedImage }, { 1 }));
     QCOMPARE(limitResult->reason(), ImageSequenceFactoryReason::LimitExceeded);
+}
+
+void ImageSequenceFactoryTest::timedFrameListNativeFactoryRejectsCollectionLimitBeforePayloadCopy()
+{
+    QImage image(1, 1, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    const qsizetype count = ImageSequenceLimits::maximumFrameCount() + 1;
+    const QVector<QImage> images(count, image);
+    const QVector<int> durations(count, 1);
+    ImageSequenceFactory factory;
+
+    ImageViewportInternal::ImageFramePrivateAccess::resetPayloadCopyAttemptCountForTest();
+    QScopedPointer<ImageSequenceFactoryResult> result(
+        factory.fromTimedFrameList(images, durations));
+
+    QCOMPARE(result->outcome(), ImageSequenceFactoryOutcome::Rejected);
+    QCOMPARE(result->reason(), ImageSequenceFactoryReason::LimitExceeded);
+    QCOMPARE(ImageViewportInternal::ImageFramePrivateAccess::payloadCopyAttemptCountForTest(), 0);
 }
 
 void ImageSequenceFactoryTest::timedFrameListNativeFactoryRejectsEmptyInput()
@@ -320,6 +341,8 @@ void ImageSequenceFactoryTest::exposesImageSequenceLimits()
         { "maximumPayloadRasterWidth", ImageSequenceLimits::maximumPayloadRasterWidth(), 16384 },
         { "maximumPayloadRasterHeight", ImageSequenceLimits::maximumPayloadRasterHeight(), 16384 },
         { "maximumPayloadBytes", ImageSequenceLimits::maximumPayloadBytes(), 536870912LL },
+        { "maximumTimedListPayloadBytes", ImageSequenceLimits::maximumTimedListPayloadBytes(),
+            536870912LL },
         { "maximumFrameCount", ImageSequenceLimits::maximumFrameCount(), 10000 },
         { "maximumFrameDurationMilliseconds",
             ImageSequenceLimits::maximumFrameDurationMilliseconds(), 86400000 },
@@ -920,6 +943,44 @@ void ImageSequenceFactoryTest::imageFrameDerivesPayloadFacts()
     QVERIFY(previewResult);
     QVERIFY(previewResult->sequence());
     QCOMPARE(previewResult->outcome(), ImageSequenceFactoryOutcome::Created);
+}
+
+void ImageSequenceFactoryTest::imageFrameFormatIdentifierLimitCountsScalarsBeforePayloadCopy()
+{
+    const QString astralScalar = QString::fromUtf8("\xF0\x9F\x99\x82");
+    QString formatAtLimit;
+    formatAtLimit.reserve(ImageSequenceLimits::maximumFormatIdentifierCharacters() * 2);
+    for (int index = 0; index < ImageSequenceLimits::maximumFormatIdentifierCharacters(); ++index) {
+        formatAtLimit.append(astralScalar);
+    }
+    const QString formatAboveLimit = formatAtLimit + astralScalar;
+
+    QImage image(3, 2, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame acceptedFrame(image, QSizeF(2.0, 3.0), image.sizeInBytes(),
+        ImageViewportPayloadQuality::Preview, ImageViewportPayloadExactness::NotExact,
+        ImageFrame::OrientationPolicy::Rotate90, formatAtLimit);
+    QVERIFY(acceptedFrame.isValid());
+    QCOMPARE(imageForTest(acceptedFrame).size(), QSize(2, 3));
+
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> acceptedResult(factory.fromFrame(&acceptedFrame));
+    QCOMPARE(acceptedResult->outcome(), ImageSequenceFactoryOutcome::Created);
+
+    ImageFrame rejectedFrame(image, QSizeF(2.0, 3.0), image.sizeInBytes(),
+        ImageViewportPayloadQuality::Preview, ImageViewportPayloadExactness::NotExact,
+        ImageFrame::OrientationPolicy::Rotate90, formatAboveLimit);
+    QVERIFY(rejectedFrame.isValid());
+    QCOMPARE(rejectedFrame.formatIdentifier(), formatAboveLimit);
+    QVERIFY(imageForTest(rejectedFrame).isNull());
+
+    QScopedPointer<ImageSequenceFactoryResult> rejectedResult(factory.fromFrame(&rejectedFrame));
+    QCOMPARE(rejectedResult->outcome(), ImageSequenceFactoryOutcome::Rejected);
+    QCOMPARE(rejectedResult->reason(), ImageSequenceFactoryReason::LimitExceeded);
+
+    TimedImageFrameList list;
+    QVERIFY(!list.appendFrame(&rejectedFrame, 100));
+    QCOMPARE(list.count(), 0);
 }
 
 void ImageSequenceFactoryTest::imageFrameOrientationPoliciesNormalizePayload()

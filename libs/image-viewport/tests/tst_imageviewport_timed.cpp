@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#include "imagesequence_p.h"
 #include "imageviewport_test_support.h"
 
 class ImageViewportTimedTest : public QObject
@@ -18,7 +19,7 @@ private Q_SLOTS:
     void timedFrameListBuilderValidatesEntries();
     void timedFrameListRejectsPublishedDurationLimits();
     void timedFrameListRejectsPublishedFrameCountLimit();
-    void timedFrameListAllowsCumulativePayloadsAbovePerFrameLimit();
+    void timedFrameListEnforcesAggregatePayloadBudget();
     void timedFrameListClearDiagnosticOnlyPreservesCountNotification();
     void timedFrameListAssignmentPublishesInitialTimedState();
     void timedFrameListSeekCommandsSelectDocumentedTargets();
@@ -159,20 +160,25 @@ void ImageViewportTimedTest::timedFrameListRejectsPublishedFrameCountLimit()
     QVERIFY(list.errorString().contains(QStringLiteral("maximumFrameCount")));
 }
 
-void ImageViewportTimedTest::timedFrameListAllowsCumulativePayloadsAbovePerFrameLimit()
+void ImageViewportTimedTest::timedFrameListEnforcesAggregatePayloadBudget()
 {
-    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    QImage image(1, 1, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
-    const qsizetype admittedPayloadSize = ImageSequenceLimits::maximumPayloadBytes() / 2 + 1;
-    QVERIFY(admittedPayloadSize <= ImageSequenceLimits::maximumPayloadBytes());
-    const std::unique_ptr<ImageFrame> firstFrame
-        = makeImageFrameWithPayloadByteSizeForTest(image, admittedPayloadSize);
-    const std::unique_ptr<ImageFrame> secondFrame
-        = makeImageFrameWithPayloadByteSizeForTest(image, admittedPayloadSize);
+    const qint64 maximumPayloadBytes = ImageSequenceLimits::maximumTimedListPayloadBytes();
+    const qsizetype minimumPayloadBytes = image.sizeInBytes();
+    QVERIFY(maximumPayloadBytes - minimumPayloadBytes >= minimumPayloadBytes);
+    const std::unique_ptr<ImageFrame> exactBoundaryFirstFrame
+        = makeImageFrameWithPayloadByteSizeForTest(
+            image, maximumPayloadBytes - minimumPayloadBytes);
+    const std::unique_ptr<ImageFrame> overBoundaryFirstFrame
+        = makeImageFrameWithPayloadByteSizeForTest(
+            image, maximumPayloadBytes - minimumPayloadBytes + 1);
+    const std::unique_ptr<ImageFrame> minimumFrame
+        = makeImageFrameWithPayloadByteSizeForTest(image, minimumPayloadBytes);
 
     TimedImageFrameList list;
-    QCOMPARE(list.appendFrame(firstFrame.get(), 100), true);
-    QCOMPARE(list.appendFrame(secondFrame.get(), 100), true);
+    QCOMPARE(list.appendFrame(exactBoundaryFirstFrame.get(), 100), true);
+    QCOMPARE(list.appendFrame(minimumFrame.get(), 100), true);
     QCOMPARE(list.count(), 2);
     QCOMPARE(list.errorString(), QString());
 
@@ -180,6 +186,31 @@ void ImageViewportTimedTest::timedFrameListAllowsCumulativePayloadsAbovePerFrame
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
     QVERIFY(result->sequence());
     QCOMPARE(result->outcome(), ImageSequenceFactoryOutcome::Created);
+    QCOMPARE(result->reason(), ImageSequenceFactoryReason::NoError);
+
+    list.clear();
+    QCOMPARE(list.appendFrame(overBoundaryFirstFrame.get(), 100), true);
+    QSignalSpy countSpy(&list, &TimedImageFrameList::countChanged);
+    QCOMPARE(list.appendFrame(minimumFrame.get(), 100), false);
+    QCOMPARE(list.count(), 1);
+    QCOMPARE(countSpy.count(), 0);
+    QVERIFY(!list.errorString().isEmpty());
+
+    list.clear();
+    QCOMPARE(list.count(), 0);
+    QCOMPARE(list.errorString(), QString());
+    QCOMPARE(list.appendFrame(exactBoundaryFirstFrame.get(), 100), true);
+    QCOMPARE(list.appendFrame(minimumFrame.get(), 100), true);
+    QCOMPARE(list.count(), 2);
+
+    TimedImageFrameList qImageConvenienceList;
+    const std::unique_ptr<ImageFrame> nearlyFullFrame = makeImageFrameWithPayloadByteSizeForTest(
+        image, maximumPayloadBytes - minimumPayloadBytes + 1);
+    QCOMPARE(qImageConvenienceList.appendFrame(nearlyFullFrame.get(), 100), true);
+    ImageViewportInternal::ImageFramePrivateAccess::resetPayloadCopyAttemptCountForTest();
+    QCOMPARE(qImageConvenienceList.appendFrame(image, 100), false);
+    QCOMPARE(qImageConvenienceList.count(), 1);
+    QCOMPARE(ImageViewportInternal::ImageFramePrivateAccess::payloadCopyAttemptCountForTest(), 0);
 }
 
 void ImageViewportTimedTest::timedFrameListClearDiagnosticOnlyPreservesCountNotification()

@@ -153,6 +153,9 @@ void ImageViewportPrivate::drainProviderHostEvents()
                 ? request.event().providerEvent.failureLeaseId
                 : request.event().providerFailureLeaseId);
         applyEngineTransition(engine.handleProviderHostEvent(request));
+        if (request.event().kind == ViewportProviderHostEvent::Kind::ProviderEvent) {
+            providerHost.completeProviderEventDelivery(request.event().providerEvent.deliveryId);
+        }
     }
     drainingProviderHostEvents = false;
 }
