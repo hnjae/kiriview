@@ -8,6 +8,7 @@
 #include "media_entry_source_test_support.h"
 #include "navigation/imagedocumentpagenavigationservice.h"
 #include "predecode/imagepredecodecoordinator.h"
+#include "system/kiooperationfailure.h"
 
 #include <QByteArray>
 #include <QTest>
@@ -97,6 +98,7 @@ private Q_SLOTS:
     void staleDataLoadCompletionIsIgnoredAfterArchiveSwitch();
     void candidateWrapperPreservesTypedFailure();
     void dataWrapperPreservesTypedFailure();
+    void missingDirectDataLoaderReportsTypedValidationFailure();
     void navigationReusesCachedOpenedCollectionCandidates();
     void predecodeLoadsAdjacentOpenedCollectionImagesThroughSource();
     void videoPlaybackDeviceKeepsSourceAliveAfterStoreClear();
@@ -284,6 +286,34 @@ void TestMediaEntrySourceStore::dataWrapperPreservesTypedFailure()
     QCOMPARE(preservedFailure->entryPath, missingUrl.toString());
     QCOMPARE(preservedFailure->diagnosticDetail,
         QStringLiteral("missing fake media entry source image data"));
+}
+
+void TestMediaEntrySourceStore::missingDirectDataLoaderReportsTypedValidationFailure()
+{
+    auto state = std::make_shared<InstrumentedMediaEntrySourceState>();
+    kiriview::MediaEntrySourceStore store(instrumentedMediaEntrySourceFactory(state));
+    kiriview::ImageDecodeDependencies dependencies = store.wrapDecodeDependencies({});
+    const QUrl imageUrl = localUrl(QStringLiteral("/images/direct.png"));
+    bool dataReported = false;
+    std::optional<kiriview::ImageDataLoadError> loadError;
+
+    dependencies.dataLoader(
+        nullptr, kiriview::ImageDecodeRequest::fromUrl(1, imageUrl),
+        [&dataReported](kiriview::ImageSourceData) { dataReported = true; },
+        [&loadError](kiriview::ImageDataLoadError error) { loadError = std::move(error); });
+
+    QVERIFY(!dataReported);
+    QVERIFY(loadError.has_value());
+    const auto* failure = std::get_if<kiriview::KioOperationFailure>(&*loadError);
+    QVERIFY(failure != nullptr);
+    QCOMPARE(failure->operationKind, kiriview::KioOperationKind::ImageDataRead);
+    QCOMPARE(failure->targetUrl, imageUrl);
+    QCOMPARE(failure->cause, kiriview::KioOperationFailureCause::Validation);
+    QVERIFY(!failure->rawErrorCode.has_value());
+    QVERIFY(!failure->canceled);
+    QVERIFY(failure->userMessage.isEmpty());
+    QVERIFY(!failure->diagnosticDetail.isEmpty());
+    QVERIFY(!failure->retryable);
 }
 
 void TestMediaEntrySourceStore::navigationReusesCachedOpenedCollectionCandidates()

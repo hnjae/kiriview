@@ -188,6 +188,22 @@ kiriview::ThumbnailSourceAdapter localAdapter()
     };
 }
 
+kiriview::ThumbnailSourceAdapter foregroundOnlyAdapter()
+{
+    return [](kiriview::ThumbnailSourceAdapterRequest request) {
+        if (request.priority != Priority::Visible) {
+            return kiriview::ThumbnailSourceAdapterPlan {};
+        }
+        const QByteArray path = request.sourceKey.sourceUrl.toLocalFile().toUtf8();
+        return kiriview::ThumbnailSourceAdapterPlan {
+            kiriview::ThumbnailSourceAdapterPlanKind::CacheableLocalFile,
+            path,
+            kiriview::ThumbnailOriginalIdentity::fromLocalPathBytes(path),
+            {},
+        };
+    };
+}
+
 QString imageId(const QUrl& source) { return source.path().mid(1); }
 
 kiriview::ActiveNavigationThumbnailSchedulingSnapshot setRows(
@@ -230,6 +246,10 @@ private Q_SLOTS:
     void cacheInstallFailurePublishesReadyImageAndDiagnostic();
     void supersededLookupCompletionIsRejectedByJobIdentity();
     void backgroundResultAndFailedRefinementPreserveForegroundReadyImage();
+    void pressureEvictionWaitsForCapacityOpportunityWithoutSnapshot();
+    void sourceRefreshReconcilesQueuedLossBeforeReadmission();
+    void imageStoreInsertionFailureWaitsForBudgetIncrease();
+    void clearReentersAcceptedDemandWithoutSnapshot();
     void typedVideoFailureReachesDiagnosticBoundary();
     void demandWindowAdmitsVisibleBeforeNearbyRegardlessOfReportOrder();
     void videoDemandIsCapacityBoundedAndCancellationReleasesExtractor();
@@ -369,6 +389,135 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     QCOMPARE(lastFailureDiagnostic->failureKind,
         kiriview::ActiveNavigationThumbnailFailureKind::CacheLookupFailed);
     QCOMPARE(lastFailureDiagnostic->errorString, QStringLiteral("refinement lookup failed"));
+}
+
+void TestActiveNavigationThumbnailWorkCoordinator::
+    pressureEvictionWaitsForCapacityOpportunityWithoutSnapshot()
+{
+    const QImage readyImage = image(Qt::green);
+    auto images = std::make_shared<kiriview::ThumbnailImageStore>(readyImage.sizeInBytes());
+    kiriview::ActiveNavigationThumbnailRowStore rows(images);
+    const auto schedulingRows = setRows(rows,
+        { row(1, QStringLiteral("/media/one.png")), row(2, QStringLiteral("/media/two.png")) });
+    ManualProviders providers;
+    kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(this, rows,
+        providers.lookupProvider(), providers.generationProvider(), foregroundOnlyAdapter());
+    QVERIFY(coordinator.resetRows(schedulingRows));
+    const auto demand = demandSnapshot(rows.navigationGeneration(),
+        { { 1, schedulingRows.rows.at(0).sourceUrl, Bucket::Normal, Priority::Visible },
+            { 2, schedulingRows.rows.at(1).sourceUrl, Bucket::Normal, Priority::Visible } });
+
+    QVERIFY(coordinator.replaceDemandSnapshot(demand));
+    QCOMPARE(providers.lookups.size(), std::size_t(2));
+    providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Ready, readyImage);
+    providers.finishLookup(1, kiriview::ThumbnailCacheLookupStatus::Ready, image(Qt::blue));
+
+    QCOMPARE(providers.lookups.size(), std::size_t(2));
+    QCOMPARE(resultStatus(rows, 0), Status::Pending);
+    QVERIFY(resultSource(rows, 0).isEmpty());
+    QCOMPARE(resultStatus(rows, 1), Status::Ready);
+    QCoreApplication::processEvents();
+    QCOMPARE(providers.lookups.size(), std::size_t(2));
+
+    QVERIFY(coordinator.replaceDemandSnapshot(demand));
+    QCOMPARE(providers.lookups.size(), std::size_t(2));
+
+    images->release(imageId(resultSource(rows, 1)));
+    QCOMPARE(resultStatus(rows, 1), Status::Pending);
+    QCoreApplication::processEvents();
+
+    QCOMPARE(providers.lookups.size(), std::size_t(4));
+    QCOMPARE(providers.lookups.at(2).request.localPathBytes, QByteArray("/media/one.png"));
+    QCOMPARE(providers.lookups.at(3).request.localPathBytes, QByteArray("/media/two.png"));
+}
+
+void TestActiveNavigationThumbnailWorkCoordinator::
+    imageStoreInsertionFailureWaitsForBudgetIncrease()
+{
+    auto images = std::make_shared<kiriview::ThumbnailImageStore>(1);
+    kiriview::ActiveNavigationThumbnailRowStore rows(images);
+    const auto schedulingRows = setRows(rows, { row(1, QStringLiteral("/media/one.png")) });
+    ManualProviders providers;
+    kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(this, rows,
+        providers.lookupProvider(), providers.generationProvider(), foregroundOnlyAdapter());
+    QVERIFY(coordinator.resetRows(schedulingRows));
+    const auto demand = demandSnapshot(rows.navigationGeneration(),
+        { { 1, schedulingRows.rows.at(0).sourceUrl, Bucket::Normal, Priority::Visible } });
+
+    QVERIFY(coordinator.replaceDemandSnapshot(demand));
+    QCOMPARE(providers.lookups.size(), std::size_t(1));
+    providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Ready, image(Qt::green));
+
+    QCOMPARE(providers.lookups.size(), std::size_t(1));
+    QCOMPARE(resultStatus(rows, 0), Status::Failed);
+    QVERIFY(resultSource(rows, 0).isEmpty());
+
+    QVERIFY(coordinator.replaceDemandSnapshot(demand));
+    QCOMPARE(providers.lookups.size(), std::size_t(1));
+
+    images->setByteBudget(image(Qt::green).sizeInBytes());
+    QCoreApplication::processEvents();
+
+    QCOMPARE(providers.lookups.size(), std::size_t(2));
+    QCOMPARE(providers.lookups.back().request.localPathBytes, QByteArray("/media/one.png"));
+    QCOMPARE(resultStatus(rows, 0), Status::Pending);
+}
+
+void TestActiveNavigationThumbnailWorkCoordinator::
+    sourceRefreshReconcilesQueuedLossBeforeReadmission()
+{
+    const QImage readyImage = image(Qt::green);
+    auto images = std::make_shared<kiriview::ThumbnailImageStore>(readyImage.sizeInBytes());
+    kiriview::ActiveNavigationThumbnailRowStore rows(images);
+    const auto schedulingRows
+        = setRows(rows, { row(1, QStringLiteral("/media/chapter/../one.png")) });
+    ManualProviders providers;
+    kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(this, rows,
+        providers.lookupProvider(), providers.generationProvider(), foregroundOnlyAdapter());
+    QVERIFY(coordinator.resetRows(schedulingRows));
+    QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(rows.navigationGeneration(),
+        { { 1, schedulingRows.rows.front().sourceUrl, Bucket::Normal, Priority::Visible } })));
+    providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Ready, readyImage);
+    QCOMPARE(resultStatus(rows, 0), Status::Ready);
+
+    images->setByteBudget(1);
+    QCOMPARE(resultStatus(rows, 0), Status::Pending);
+    auto refreshPlan = rows.prepareRows({ row(1, QStringLiteral("/media/one.png")) });
+    QCOMPARE(refreshPlan.kind(), kiriview::ActiveNavigationThumbnailRowUpdateKind::SourceRefresh);
+    auto refreshCommit = rows.commitRows(std::move(refreshPlan));
+    QVERIFY(refreshCommit.schedulingSnapshot.has_value());
+
+    QVERIFY(coordinator.refreshRows(std::move(*refreshCommit.schedulingSnapshot)));
+
+    QCOMPARE(providers.lookups.size(), std::size_t(2));
+    QCOMPARE(providers.lookups.back().request.localPathBytes, QByteArray("/media/one.png"));
+    QCoreApplication::processEvents();
+    QCOMPARE(providers.lookups.size(), std::size_t(2));
+}
+
+void TestActiveNavigationThumbnailWorkCoordinator::clearReentersAcceptedDemandWithoutSnapshot()
+{
+    const QImage readyImage = image(Qt::green);
+    auto images = std::make_shared<kiriview::ThumbnailImageStore>(readyImage.sizeInBytes());
+    kiriview::ActiveNavigationThumbnailRowStore rows(images);
+    const auto schedulingRows = setRows(rows, { row(1, QStringLiteral("/media/one.png")) });
+    ManualProviders providers;
+    kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(this, rows,
+        providers.lookupProvider(), providers.generationProvider(), foregroundOnlyAdapter());
+    QVERIFY(coordinator.resetRows(schedulingRows));
+    const auto demand = demandSnapshot(rows.navigationGeneration(),
+        { { 1, schedulingRows.rows.at(0).sourceUrl, Bucket::Normal, Priority::Visible } });
+
+    QVERIFY(coordinator.replaceDemandSnapshot(demand));
+    providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Ready, readyImage);
+    QCOMPARE(resultStatus(rows, 0), Status::Ready);
+
+    images->clear();
+    QCOMPARE(resultStatus(rows, 0), Status::Pending);
+    QCoreApplication::processEvents();
+
+    QCOMPARE(providers.lookups.size(), std::size_t(2));
+    QCOMPARE(providers.lookups.back().request.localPathBytes, QByteArray("/media/one.png"));
 }
 
 void TestActiveNavigationThumbnailWorkCoordinator::typedVideoFailureReachesDiagnosticBoundary()

@@ -39,6 +39,19 @@ std::optional<qsizetype> heifDecoderByteLimit(QSize decodeSize)
     return std::max(minimumHeifDecoderByteLimit, kiriview::saturatedQtByteProduct(rgbaByteCost, 8));
 }
 
+std::optional<qsizetype> heifFullDecodePeakByteCost(QSize sourceSize, QSize targetSize)
+{
+    const qsizetype sourceByteCost = kiriview::estimatedRgbaByteCost(sourceSize);
+    const qsizetype targetByteCost = kiriview::estimatedRgbaByteCost(targetSize);
+    const std::optional<qsizetype> decoderByteLimit = heifDecoderByteLimit(sourceSize);
+    if (sourceByteCost <= 0 || targetByteCost <= 0 || !decoderByteLimit.has_value()) {
+        return std::nullopt;
+    }
+    const qsizetype applicationPeak = std::max(kiriview::saturatedQtByteProduct(sourceByteCost, 2),
+        kiriview::saturatedQtByteSum(sourceByteCost, targetByteCost));
+    return kiriview::saturatedQtByteSum(*decoderByteLimit, applicationPeak);
+}
+
 std::optional<kiriview::HeifPrimaryImage> openHeifPrimaryImageWithMemoryLimit(
     const QByteArray& data, qsizetype maximumTotalMemory, QString* errorString,
     bool* resourceExhausted)
@@ -90,6 +103,14 @@ QSize HeifDisplaySource::imageSize() const { return m_imageSize; }
 
 qsizetype HeifDisplaySource::byteCost() const { return m_data.size(); }
 
+std::optional<qsizetype> HeifDisplaySource::initialDisplayDecodePeakByteCost(
+    const ImageFirstDisplayDecodeContext& context, int blockingMaximumLongEdge) const
+{
+    Q_UNUSED(context);
+    return heifFullDecodePeakByteCost(
+        m_imageSize, boundedPreviewSize(m_imageSize, blockingMaximumLongEdge));
+}
+
 bool HeifDisplaySource::supportsRasterDisplayRefinement() const { return true; }
 
 std::optional<qsizetype> HeifDisplaySource::rasterDisplayRefinementPeakByteCost(
@@ -112,14 +133,7 @@ std::optional<qsizetype> HeifDisplaySource::rasterDisplayRefinementPeakByteCost(
         return saturatedQtByteSum(*decoderByteLimit, applicationPeak);
     }
 
-    const qsizetype sourceByteCost = estimatedRgbaByteCost(m_imageSize);
-    const std::optional<qsizetype> decoderByteLimit = heifDecoderByteLimit(m_imageSize);
-    if (sourceByteCost <= 0 || !decoderByteLimit.has_value()) {
-        return std::nullopt;
-    }
-    const qsizetype applicationPeak = std::max(saturatedQtByteProduct(sourceByteCost, 2),
-        saturatedQtByteSum(sourceByteCost, targetByteCost));
-    return saturatedQtByteSum(*decoderByteLimit, applicationPeak);
+    return heifFullDecodePeakByteCost(m_imageSize, rasterSize);
 }
 
 StaticImageDisplayDecodeResult HeifDisplaySource::decodeRasterDisplayImage(

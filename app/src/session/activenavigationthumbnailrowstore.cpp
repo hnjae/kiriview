@@ -7,6 +7,8 @@
 
 #include <QAbstractListModel>
 #include <QDebug>
+#include <QObject>
+#include <QSet>
 #include <utility>
 
 namespace {
@@ -38,9 +40,19 @@ ActiveNavigationThumbnailRowStore::ActiveNavigationThumbnailRowStore(
     if (m_imageStore == nullptr) {
         m_imageStore = sharedThumbnailImageStore();
     }
+    m_mutationReceiver = std::make_unique<QObject>();
+    m_mutationConnection = m_imageStore->subscribeToMutations(
+        m_mutationReceiver.get(), [this](const ThumbnailImageStoreMutation& mutation) {
+            handleImageStoreMutation(mutation);
+        });
 }
 
-ActiveNavigationThumbnailRowStore::~ActiveNavigationThumbnailRowStore() { releaseAllImages(); }
+ActiveNavigationThumbnailRowStore::~ActiveNavigationThumbnailRowStore()
+{
+    QObject::disconnect(m_mutationConnection);
+    m_mutationReceiver.reset();
+    releaseAllImages();
+}
 
 QAbstractListModel* ActiveNavigationThumbnailRowStore::model() const { return m_model.get(); }
 
@@ -118,7 +130,11 @@ ActiveNavigationThumbnailRowCommit ActiveNavigationThumbnailRowStore::commitRows
         for (std::size_t row = 0; row < plan.m_rows.size(); ++row) {
             m_rows.at(row).row = std::move(plan.m_rows.at(row));
             if (kind == ActiveNavigationThumbnailRowUpdateKind::SourceRefresh) {
+                const bool residencyLost = m_residencyLosses.remove(m_rows.at(row).sourceKey) != 0;
                 m_rows.at(row).sourceKey = std::move(plan.m_sourceKeys.at(row));
+                if (residencyLost) {
+                    m_residencyLosses.insert(m_rows.at(row).sourceKey);
+                }
             }
         }
         if (kind == ActiveNavigationThumbnailRowUpdateKind::SourceRefresh) {
@@ -131,6 +147,7 @@ ActiveNavigationThumbnailRowCommit ActiveNavigationThumbnailRowStore::commitRows
                 : std::nullopt };
     }
 
+    m_residencyLosses.clear();
     releaseAllImages();
     m_navigationGeneration = plan.m_navigationGeneration;
     m_rowIndexBySourceKey.clear();
@@ -211,6 +228,7 @@ void ActiveNavigationThumbnailRowStore::applyUnsupported(
     RowState& state = m_rows.at(*row);
     releaseImage(state);
     state.result = { ActiveNavigationThumbnailResultStatus::Unsupported, {} };
+    m_residencyLosses.remove(sourceKey);
     publishResultAt(*row);
 }
 
@@ -229,6 +247,7 @@ void ActiveNavigationThumbnailRowStore::applyFailed(const ThumbnailSourceRevisio
         releaseImage(state);
         state.result = { ActiveNavigationThumbnailResultStatus::Failed, {} };
     }
+    m_residencyLosses.remove(sourceKey);
     publishResultAt(*row);
 }
 
@@ -256,6 +275,7 @@ bool ActiveNavigationThumbnailRowStore::installReadyImage(
     state.imageStoreId = imageId;
     state.result
         = { ActiveNavigationThumbnailResultStatus::Ready, thumbnailImageSourceForId(imageId) };
+    m_residencyLosses.remove(sourceKey);
     publishResultAt(*row);
     return true;
 }
@@ -274,6 +294,31 @@ void ActiveNavigationThumbnailRowStore::updateRetentionPriority(
     }
 }
 
+void ActiveNavigationThumbnailRowStore::subscribeToResidencyReconciliation(
+    QObject* receiver, ActiveNavigationThumbnailResidencyReconciliationCallback callback)
+{
+    m_reconciliationReceiver = receiver;
+    m_reconciliationCallback = std::move(callback);
+    m_reconciliationPending = false;
+    if (!m_residencyLosses.isEmpty() || m_admissionOpportunity) {
+        requestResidencyReconciliation();
+    }
+}
+
+ActiveNavigationThumbnailResidencyChange ActiveNavigationThumbnailRowStore::takeResidencyChange()
+{
+    ActiveNavigationThumbnailResidencyChange change;
+    change.losses.reserve(static_cast<std::size_t>(m_residencyLosses.size()));
+    for (const ThumbnailSourceRevisionKey& sourceKey : std::as_const(m_residencyLosses)) {
+        change.losses.push_back(sourceKey);
+    }
+    change.admissionOpportunity = m_admissionOpportunity;
+    m_residencyLosses.clear();
+    m_admissionOpportunity = false;
+    m_reconciliationPending = false;
+    return change;
+}
+
 bool ActiveNavigationThumbnailRowStore::sameRowIdentity(
     const ThumbnailRowKey& left, const ThumbnailRowKey& right)
 {
@@ -287,10 +332,48 @@ bool ActiveNavigationThumbnailRowStore::hasUsableReadyImage(const RowState& stat
         && !m_imageStore->image(state.imageStoreId).isNull();
 }
 
+void ActiveNavigationThumbnailRowStore::handleImageStoreMutation(
+    const ThumbnailImageStoreMutation& mutation)
+{
+    const QSet<QString> removedIds(mutation.removedIds.cbegin(), mutation.removedIds.cend());
+    bool residencyChanged = false;
+    for (std::size_t row = 0; row < m_rows.size(); ++row) {
+        RowState& state = m_rows.at(row);
+        if (state.imageStoreId.isEmpty() || !removedIds.contains(state.imageStoreId)
+            || m_intentionalReleaseIds.contains(state.imageStoreId)) {
+            continue;
+        }
+        state.imageStoreId.clear();
+        state.result = { ActiveNavigationThumbnailResultStatus::Pending, {} };
+        m_residencyLosses.insert(state.sourceKey);
+        publishResultAt(row);
+        residencyChanged = true;
+    }
+    if (mutation.admissionOpportunity) {
+        m_admissionOpportunity = true;
+    }
+    if (residencyChanged || mutation.admissionOpportunity) {
+        requestResidencyReconciliation();
+    }
+}
+
+void ActiveNavigationThumbnailRowStore::requestResidencyReconciliation()
+{
+    if (m_reconciliationPending || m_reconciliationReceiver.isNull() || !m_reconciliationCallback) {
+        return;
+    }
+    m_reconciliationPending = true;
+    QMetaObject::invokeMethod(
+        m_reconciliationReceiver.data(), m_reconciliationCallback, Qt::QueuedConnection);
+}
+
 void ActiveNavigationThumbnailRowStore::releaseImage(RowState& state)
 {
     if (m_imageStore != nullptr && !state.imageStoreId.isEmpty()) {
-        m_imageStore->release(state.imageStoreId);
+        const QString releasedId = state.imageStoreId;
+        m_intentionalReleaseIds.insert(releasedId);
+        m_imageStore->release(releasedId);
+        m_intentionalReleaseIds.remove(releasedId);
     }
     state.imageStoreId.clear();
 }

@@ -22,10 +22,43 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <variant>
 
 namespace {
 using Bucket = kiriview::ActiveNavigationThumbnailDemandBucket;
 using Status = kiriview::ThumbnailGenerationStatus;
+
+class ThumbnailStaticDisplaySource final : public kiriview::StaticImageDisplaySource
+{
+public:
+    QSize imageSize() const override { return QSize(4, 4); }
+    qsizetype byteCost() const override { return 1; }
+    bool supportsRasterDisplayRefinement() const override { return true; }
+    std::optional<qsizetype> rasterDisplayRefinementPeakByteCost(const QSize& size) const override
+    {
+        return size == imageSize() ? std::optional<qsizetype>(80) : std::nullopt;
+    }
+    kiriview::StaticImageDisplayDecodeResult decodeRasterDisplayImage(
+        const QSize& size) const override
+    {
+        return decodeImage(size);
+    }
+    kiriview::StaticImageDisplayDecodeResult decodeBlockingDisplayImage(int) const override
+    {
+        return decodeImage(imageSize());
+    }
+
+    mutable int decodeCount = 0;
+
+private:
+    kiriview::StaticImageDisplayDecodeResult decodeImage(const QSize& size) const
+    {
+        ++decodeCount;
+        QImage image(size, QImage::Format_RGBA8888_Premultiplied);
+        image.fill(Qt::green);
+        return { std::move(image), {} };
+    }
+};
 
 void drainQueuedCalls()
 {
@@ -114,7 +147,8 @@ private Q_SLOTS:
     void defaultImageBytesLoaderRejectsSourceOverBudget();
     void defaultImageDecoderRejectsApngOverWorkspaceBudget();
     void defaultImageDecoderRejectsGifScaleWorkspaceOverBudget();
-    void generatedApngRetainsWorkspaceUntilResultRelease();
+    void staticThumbnailProducerRequiresFullPeakAdmission();
+    void generatedApngRetainsWorkspaceUntilLastImageAliasRetires();
     void cacheInstallFailureRetainsUsableImageAndDiagnostic();
 };
 
@@ -212,7 +246,48 @@ void TestThumbnailGeneration::defaultImageDecoderRejectsGifScaleWorkspaceOverBud
     QCOMPARE(budget->reservedByteCount(), qsizetype(0));
 }
 
-void TestThumbnailGeneration::generatedApngRetainsWorkspaceUntilResultRelease()
+void TestThumbnailGeneration::staticThumbnailProducerRequiresFullPeakAdmission()
+{
+    constexpr qsizetype retainedBasisByteCount = 4;
+    constexpr qsizetype producerPeakByteCount = 80;
+    auto source = std::make_shared<ThumbnailStaticDisplaySource>();
+    kiriview::StaticDisplayImagePayload payload;
+    payload.originalSize = source->imageSize();
+    payload.image = QImage(QSize(1, 1), QImage::Format_RGBA8888_Premultiplied);
+    payload.image.fill(Qt::blue);
+    payload.quality = kiriview::DisplayImageQuality::FirstDisplay;
+    payload.refinementSource = source;
+    const kiriview::DecodedImage decoded = kiriview::StaticDecodedImage { std::move(payload), {} };
+    QCOMPARE(std::get<kiriview::StaticDecodedImage>(decoded).displayImage.retainedRasterByteCost(),
+        retainedBasisByteCount);
+
+    auto insufficientBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        retainedBasisByteCount + producerPeakByteCount - 1,
+        retainedBasisByteCount + producerPeakByteCount - 1);
+    {
+        const kiriview::ThumbnailGenerationImageDecodeResult rejected
+            = kiriview::renderDecodedThumbnailImage(decoded, 4, insufficientBudget);
+        QVERIFY(rejected.image.isNull());
+        QCOMPARE(rejected.failureCause, kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+        QCOMPARE(source->decodeCount, 0);
+        QCOMPARE(insufficientBudget->reservedByteCount(), qsizetype(0));
+    }
+
+    auto exactBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        retainedBasisByteCount + producerPeakByteCount,
+        retainedBasisByteCount + producerPeakByteCount);
+    {
+        const kiriview::ThumbnailGenerationImageDecodeResult admitted
+            = kiriview::renderDecodedThumbnailImage(decoded, 4, exactBudget);
+        QVERIFY(!admitted.image.isNull());
+        QCOMPARE(source->decodeCount, 1);
+        QCOMPARE(admitted.transformationLease.reservedByteCount(), qsizetype(64));
+        QCOMPARE(exactBudget->reservedByteCount(), qsizetype(64));
+    }
+    QCOMPARE(exactBudget->reservedByteCount(), qsizetype(0));
+}
+
+void TestThumbnailGeneration::generatedApngRetainsWorkspaceUntilLastImageAliasRetires()
 {
     const QByteArray apng = fixtureData(QStringLiteral("animated-smoke.apng"));
     QVERIFY(!apng.isEmpty());
@@ -224,14 +299,18 @@ void TestThumbnailGeneration::generatedApngRetainsWorkspaceUntilResultRelease()
     };
     dependencies.workspaceBudget = budget;
 
+    QImage retainedAlias;
     {
-        const kiriview::ThumbnailGenerationResult result
+        kiriview::ThumbnailGenerationResult result
             = kiriview::generateThumbnail(generationRequest(), dependencies);
         QCOMPARE(result.status, kiriview::ThumbnailGenerationStatus::Ready);
         QVERIFY(!result.image.isNull());
         QCOMPARE(budget->reservedByteCount(), result.image.sizeInBytes());
-    }
 
+        retainedAlias = result.image;
+    }
+    QCOMPARE(budget->reservedByteCount(), retainedAlias.sizeInBytes());
+    retainedAlias = {};
     QCOMPARE(budget->reservedByteCount(), qsizetype(0));
 }
 

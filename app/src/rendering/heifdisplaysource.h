@@ -23,6 +23,8 @@ public:
 
     [[nodiscard]] QSize imageSize() const override;
     [[nodiscard]] qsizetype byteCost() const override;
+    [[nodiscard]] std::optional<qsizetype> initialDisplayDecodePeakByteCost(
+        const ImageFirstDisplayDecodeContext& context, int blockingMaximumLongEdge) const override;
     [[nodiscard]] bool supportsRasterDisplayRefinement() const override;
     [[nodiscard]] std::optional<qsizetype> rasterDisplayRefinementPeakByteCost(
         const QSize& rasterSize) const override;

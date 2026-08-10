@@ -5,6 +5,7 @@
 #include "decoding/imagesourcerevision.h"
 #include "decoding/kiriimagedecoder.h"
 #include "image_test_support.h"
+#include "localization/imageerrortext.h"
 #include "location/imagelocation.h"
 #include "location/imageurl.h"
 #include "location/sourcekey.h"
@@ -15,6 +16,7 @@
 #include <ImageViewport/imagesequence.h>
 #include <ImageViewport/imageviewport.h>
 
+#include <KIO/Global>
 #include <QBuffer>
 #include <QFile>
 #include <QImageWriter>
@@ -544,6 +546,8 @@ private Q_SLOTS:
     void sessionFactoryRejectsDifferentSequenceMetadata();
     void productionDecodeStartsOnlyForProviderDemand();
     void sourceAccessFailurePreservesTypedSourceDetails();
+    void directSourceAccessFailurePreservesTypedKioDetails_data();
+    void directSourceAccessFailurePreservesTypedKioDetails();
     void decodeResourceFailurePreservesTypedCause();
     void deferredDecodeSourcePreservesDemandUntilResolution();
     void deferredDecodeSourceAuthoritativeSeedFlushesQueuedDemandSynchronously();
@@ -584,6 +588,7 @@ private Q_SLOTS:
     void refinementOutputExceedingPreflightIsResourceExhausted();
     void refinementAllocationFailureIsResourceExhausted();
     void refinementSharesAggregateBudgetWithRetainedDisplayOutput();
+    void refinementSharesDecodedWorkspaceWithRetainedRasterOutput();
     void outputAdmissionSurvivesResultOverwriteUntilPixelsRetire();
     void concurrentRefinementUsesRequestAdmissibleWorkerResult();
     void provisionalFrameDoesNotBecomeCurrentStillDisplayImage();
@@ -839,6 +844,83 @@ void TestImageViewportSequenceProvider::sourceAccessFailurePreservesTypedSourceD
     QCOMPARE(result->failure->mediaEntrySourceError->entryPath, expectedFailure.entryPath);
     QCOMPARE(
         result->failure->mediaEntrySourceError->diagnosticDetail, expectedFailure.diagnosticDetail);
+}
+
+void TestImageViewportSequenceProvider::directSourceAccessFailurePreservesTypedKioDetails_data()
+{
+    QTest::addColumn<int>("errorCode");
+    QTest::addColumn<bool>("resourceFailure");
+    QTest::addColumn<bool>("canceled");
+    QTest::addColumn<bool>("retryable");
+
+    QTest::newRow("transient backend")
+        << static_cast<int>(KIO::ERR_CONNECTION_BROKEN) << false << false << true;
+    QTest::newRow("backend cancellation")
+        << static_cast<int>(KIO::ERR_USER_CANCELED) << false << true << false;
+    QTest::newRow("source resource limit") << 0 << true << false << false;
+}
+
+void TestImageViewportSequenceProvider::directSourceAccessFailurePreservesTypedKioDetails()
+{
+    QFETCH(int, errorCode);
+    QFETCH(bool, resourceFailure);
+    QFETCH(bool, canceled);
+    QFETCH(bool, retryable);
+
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    const QUrl imageUrl(QStringLiteral("smb://example.invalid/images/failure.png"));
+    const QString diagnosticDetail = QStringLiteral("backend-authored source access detail");
+    const kiriview::KioOperationFailure expectedFailure = resourceFailure
+        ? kiriview::kioOperationResourceLimitFailure(
+              kiriview::KioOperationKind::ImageDataRead, imageUrl, diagnosticDetail)
+        : kiriview::kioOperationFailureFromKJob(
+              kiriview::KioOperationKind::ImageDataRead, imageUrl, errorCode, diagnosticDetail);
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::ImageLoadSession(74,
+            kiriview::ImageLoadRequest::fromExternalSource(
+                kiriview::resolvedNavigationSource(imageUrl, {})),
+            kiriview::DisplayedImageLocation::fromUrl(imageUrl)),
+        kiriview::TestSupport::imageDecodeDependenciesFor(
+            dataLoader, kiriview::TestSupport::staticImageDataDecoder()));
+    std::optional<kiriview::ImageViewportProviderMetadataResult> result;
+
+    source->requestMetadata(
+        kiriview::ImageViewportProviderWorkIdentity {
+            74,
+            ImageViewportPageRole::Primary,
+            {},
+            {},
+            QStringLiteral("typed-kio-source-failure"),
+        },
+        [&result](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderMetadataResult completed) {
+            result = std::move(completed);
+        });
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+    dataLoader.failFrontLoad(kiriview::ImageDataLoadError { expectedFailure });
+
+    QVERIFY(result.has_value());
+    QCOMPARE(result->failureCause, ImageSequenceProviderFailureCause::SourceAccess);
+    QVERIFY(result->failure.has_value());
+    QCOMPARE(result->failure->sourceUrl, imageUrl);
+    QCOMPARE(result->failure->sessionId, quint64(74));
+    QCOMPARE(result->failure->kind, kiriview::ImageLoadFailureKind::DataLoad);
+    QCOMPARE(result->failure->userMessage,
+        kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData));
+    QVERIFY(result->failure->userMessage != diagnosticDetail);
+    QCOMPARE(result->failure->diagnosticDetail, diagnosticDetail);
+    QCOMPARE(result->failure->retryable, retryable);
+    QVERIFY(!result->failure->mediaEntrySourceError.has_value());
+    QVERIFY(result->failure->kioOperationFailure.has_value());
+    const kiriview::KioOperationFailure& projected = *result->failure->kioOperationFailure;
+    QCOMPARE(projected.operationKind, expectedFailure.operationKind);
+    QCOMPARE(projected.targetUrl, expectedFailure.targetUrl);
+    QCOMPARE(projected.rawErrorCode, expectedFailure.rawErrorCode);
+    QCOMPARE(projected.canceled, canceled);
+    QCOMPARE(projected.userMessage, expectedFailure.userMessage);
+    QCOMPARE(projected.diagnosticDetail, expectedFailure.diagnosticDetail);
+    QCOMPARE(projected.retryable, retryable);
+    QCOMPARE(projected.cause, expectedFailure.cause);
 }
 
 void TestImageViewportSequenceProvider::decodeResourceFailurePreservesTypedCause()
@@ -3073,6 +3155,78 @@ void TestImageViewportSequenceProvider::refinementSharesAggregateBudgetWithRetai
     QVERIFY(store->entry(retainedId).has_value());
     QVERIFY(store->byteCost() <= displayOutputBudget);
     store->releaseFrameLease(retainedId);
+}
+
+void TestImageViewportSequenceProvider::refinementSharesDecodedWorkspaceWithRetainedRasterOutput()
+{
+    constexpr qsizetype basisByteCost = 200 * 150 * 4;
+    constexpr qsizetype outputByteCost = 400 * 300 * 4;
+    constexpr qsizetype producerBufferCount = 2;
+    constexpr qsizetype producerPeakByteCost = outputByteCost * producerBufferCount;
+    constexpr qsizetype workspaceByteLimit = basisByteCost + producerPeakByteCost;
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImageDecodeDependencies dependencies
+        = kiriview::TestSupport::imageDecodeDependenciesFor(
+            dataLoader, kiriview::TestSupport::staticImageDataDecoder());
+    dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
+    auto workspaceBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        workspaceByteLimit, workspaceByteLimit);
+    dependencies.workspaceBudget = workspaceBudget;
+    kiriview::ImageDecodeWorkspaceLease retainedOutput = dependencies.workspaceBudget->startLease();
+    QVERIFY(retainedOutput.tryReserve(basisByteCost + 1));
+
+    auto refinementSource = std::make_shared<RefiningDisplaySource>();
+    refinementSource->producerBufferCount = producerBufferCount;
+    const QUrl url(QStringLiteral("file:///tmp/shared-decoded-workspace.jpg"));
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::ImageLoadSession(765,
+            kiriview::ImageLoadRequest::fromExternalSource(
+                kiriview::resolvedNavigationSource(url, {})),
+            kiriview::DisplayedImageLocation::fromUrl(url)),
+        std::move(dependencies),
+        authoritativeSeedForUrl(url, firstDisplayPayload(refinementSource)));
+    auto resource = std::make_shared<kiriview::ImageViewportProviderResource>(765,
+        QStringLiteral("shared-decoded-workspace"), source,
+        std::make_shared<kiriview::DisplayImageStore>(basisByteCost + producerPeakByteCost));
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        765,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("shared-decoded-workspace"),
+    };
+    ImageSequenceProviderDisplayDemand demand;
+    demand.setTargetDisplaySizePixels(QSizeF(400, 300));
+    demand.setCurrentPayloadQuality(ImageViewportPayloadQuality::FirstDisplay);
+    demand.setCurrentPayloadExactness(ImageViewportPayloadExactness::NotExact);
+    std::vector<kiriview::ImageViewportProviderPreparedFrame> results;
+
+    resource->requestFrame(identity,
+        kiriview::ImageViewportProviderFrameRequest {
+            0,
+            demand,
+        },
+        [&results](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderPreparedFrame result) {
+            results.push_back(std::move(result));
+        });
+    dataLoader.finishFrontLoad(authoritativeSeedData());
+
+    QCOMPARE(results.size(), std::size_t(1));
+    QCOMPARE(results.front().failureCause, ImageSequenceProviderFailureCause::ResourceExhausted);
+    QVERIFY(results.front().failure.has_value());
+    QVERIFY(!results.front().failure->userMessage.isEmpty());
+    QVERIFY(!results.front().failure->diagnosticDetail.isEmpty());
+    QVERIFY(results.front().failure->userMessage != results.front().failure->diagnosticDetail);
+    QCOMPARE(results.front().failure->decodeCause,
+        kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(0));
+    QCOMPARE(refinementSource->refinementCount, 0);
+    QCOMPARE(retainedOutput.reservedByteCount(), basisByteCost + 1);
+    QVERIFY(retainedOutput.release(basisByteCost + 1));
+    QCOMPARE(workspaceBudget->reservedByteCount(), qsizetype(0));
 }
 
 void TestImageViewportSequenceProvider::outputAdmissionSurvivesResultOverwriteUntilPixelsRetire()

@@ -9,12 +9,15 @@
 #include <functional>
 #include <optional>
 
+class QDebug;
+
 namespace kiriview {
 enum class KioOperationKind {
     Unknown,
     DirectoryListing,
     FileDeletion,
     MediaOpenWith,
+    ImageDataRead,
 };
 
 enum class KioOperationFailureCause {
@@ -35,6 +38,8 @@ struct KioOperationFailure
     bool retryable = false;
     KioOperationFailureCause cause = KioOperationFailureCause::Unknown;
 };
+
+QDebug operator<<(QDebug debug, const KioOperationFailure& failure);
 
 using KioOperationFailureCallback = std::function<void(KioOperationFailure)>;
 

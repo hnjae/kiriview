@@ -3,6 +3,7 @@
 
 #include "decoding/qimagereaderdecoder.h"
 
+#include "decoding/imagedecodeworkspace.h"
 #include "rendering/qimagereaderdisplaysource.h"
 
 #include <QBuffer>
@@ -109,6 +110,7 @@ class TestQImageReaderDecoder : public QObject
 private Q_SLOTS:
     void invalidDataReturnsFailure();
     void pngDataDecodesAsStaticDisplayPayload();
+    void pngRasterProductionRequiresWorkspaceAdmission();
     void jpegDataUsesFirstDisplayRequest();
     void jpegExifOrientationProducesDisplayOrientedPayload();
 };
@@ -157,6 +159,30 @@ void TestQImageReaderDecoder::pngDataDecodesAsStaticDisplayPayload()
     QCOMPARE(decoded->displayImage.quality, kiriview::DisplayImageQuality::Exact);
     QCOMPARE(decoded->displayImage.previewOrigin, kiriview::DisplayImagePreviewOrigin::None);
     QVERIFY(decoded->displayImage.isValid());
+}
+
+void TestQImageReaderDecoder::pngRasterProductionRequiresWorkspaceAdmission()
+{
+    QImage image(4, 4, QImage::Format_RGBA8888);
+    image.fill(Qt::red);
+
+    QString errorString;
+    const QByteArray data = encodedImageData(image, QByteArrayLiteral("png"), &errorString);
+    QVERIFY2(!data.isEmpty(), qPrintable(errorString));
+
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(1, 1);
+    const kiriview::ImageDecodeRequest request
+        = kiriview::ImageDecodeRequest::fromUrl(
+            1, QUrl::fromLocalFile(QStringLiteral("/tmp/static.png")))
+              .withSourceRevision(kiriview::ImageSourceRevision::fromData(data));
+    const kiriview::DecodedImageResult result = kiriview::decodeQImageReaderImageData(
+        data, request, kiriview::QtRasterFormat::Png, budget);
+
+    const kiriview::DecodedImageFailure* failure = kiriview::decodedImageResultFailure(result);
+    QVERIFY(failure != nullptr);
+    QCOMPARE(failure->cause, kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+    QVERIFY(decodedImage<kiriview::StaticDecodedImage>(result) == nullptr);
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
 }
 
 void TestQImageReaderDecoder::jpegDataUsesFirstDisplayRequest()

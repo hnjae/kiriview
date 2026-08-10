@@ -69,6 +69,7 @@ private Q_SLOTS:
     void refinementPreflightAccountsForCompoundTransforms();
     void pngRefinementPreflightIncludesFullSourceFallback();
     void grayscalePngRefinementPreflightIncludesSmoothScaleConversion();
+    void initialPreflightAccountsOnlyForSelectedDisplayPath();
     void failedDisplayDecodePreservesDiagnostics();
     void jpegSourceDecodesFirstDisplayToViewport();
     void jpegSourceSkipsFirstDisplayWhenImageFitsViewport();
@@ -134,6 +135,26 @@ void TestQImageReaderDisplaySource::grayscalePngRefinementPreflightIncludesSmoot
     const qsizetype workingSourceByteCost = sourceSize.width() * sourceSize.height() * 4;
     const qsizetype workingRasterByteCost = rasterSize.width() * rasterSize.height() * 4;
     QVERIFY(*peak >= decodedSourceByteCost + workingSourceByteCost + workingRasterByteCost);
+}
+
+void TestQImageReaderDisplaySource::initialPreflightAccountsOnlyForSelectedDisplayPath()
+{
+    kiriview::QImageReaderDisplaySource source({}, QByteArrayLiteral("jpeg"), QSize(4000, 3000), {},
+        QSize(4000, 3000), true, QImage::Format_RGB32);
+    const auto firstDisplayPeak = source.rasterDisplayRefinementPeakByteCost(QSize(400, 300));
+    const auto blockingPeak = source.rasterDisplayRefinementPeakByteCost(QSize(2048, 1536));
+    QVERIFY(firstDisplayPeak.has_value());
+    QVERIFY(blockingPeak.has_value());
+    QVERIFY(*firstDisplayPeak < *blockingPeak);
+
+    const auto selectedPeak = source.initialDisplayDecodePeakByteCost(
+        kiriview::ImageFirstDisplayDecodeContext { QSize(400, 300) }, 2048);
+    const auto fallbackPeak = source.initialDisplayDecodePeakByteCost({}, 2048);
+    QVERIFY(selectedPeak.has_value());
+    QVERIFY(fallbackPeak.has_value());
+    QVERIFY(*selectedPeak >= *firstDisplayPeak);
+    QVERIFY(*selectedPeak < *blockingPeak);
+    QVERIFY(*fallbackPeak >= *blockingPeak);
 }
 
 void TestQImageReaderDisplaySource::sourceDecodesBlockingAndRasterDisplayImages()

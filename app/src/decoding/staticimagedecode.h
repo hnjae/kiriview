@@ -13,7 +13,9 @@ namespace kiriview {
 class ImageDecodeRequest;
 
 DecodedImageResult staticDecodedImageResult(std::shared_ptr<StaticImageDisplaySource> source,
-    const ImageDecodeRequest& request, QString* errorString);
+    const ImageDecodeRequest& request, QString* errorString,
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {},
+    ImageDecodeWorkspaceLease producerLease = {});
 }
 
 #endif

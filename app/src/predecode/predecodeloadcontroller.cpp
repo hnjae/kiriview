@@ -10,7 +10,6 @@
 
 #include <QDebug>
 #include <optional>
-#include <type_traits>
 #include <utility>
 #include <variant>
 
@@ -119,19 +118,10 @@ void PredecodeLoadController::finishLoadError(
 
     std::visit(
         [&request](const auto& detail) {
-            using Error = std::decay_t<decltype(detail)>;
-            if constexpr (std::is_same_v<Error, QString>) {
-                qCDebug(kiriviewPredecodeLog).noquote()
-                    << "predecode load error"
-                    << "generation" << request.id() << "url"
-                    << diagnosticSourceReference(request.imageUrl()) << "error"
-                    << diagnosticDetailReference(detail);
-            } else {
-                qCDebug(kiriviewPredecodeLog).noquote()
-                    << "predecode load error"
-                    << "generation" << request.id() << "url"
-                    << diagnosticSourceReference(request.imageUrl()) << "error" << detail;
-            }
+            qCDebug(kiriviewPredecodeLog).noquote()
+                << "predecode load error"
+                << "generation" << request.id() << "url"
+                << diagnosticSourceReference(request.imageUrl()) << "error" << detail;
         },
         error);
     startNextLoads();

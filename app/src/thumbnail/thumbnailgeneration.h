@@ -6,7 +6,7 @@
 
 #include "async/imageiojob.h"
 #include "async/imageworkerscheduler.h"
-#include "decoding/decodedimagefailure.h"
+#include "decoding/decodedimageresult.h"
 #include "decoding/imagedecodeworkspace.h"
 #include "decoding/imagesourcedata.h"
 #include "location/imagelocation.h"
@@ -184,6 +184,9 @@ struct ThumbnailGenerationImageDecodeResult
     qsizetype transformationOutputByteCount = 0;
     bool imageUsesTransformationReservation = false;
 };
+
+ThumbnailGenerationImageDecodeResult renderDecodedThumbnailImage(const DecodedImage& decoded,
+    int maximumLongEdge, const std::shared_ptr<ImageDecodeWorkspaceBudget>& workspaceBudget);
 
 using ThumbnailGenerationImageDecoder
     = std::function<ThumbnailGenerationImageDecodeResult(QByteArray, int)>;

@@ -5,6 +5,7 @@
 
 #include "async/imagecallback.h"
 #include "location/imagedocumentlocation.h"
+#include "system/kiooperationfailure.h"
 
 #include <utility>
 
@@ -47,7 +48,10 @@ ImageDecodeDependencies MediaEntrySourceStore::wrapDecodeDependencies(
         }
 
         if (!upstreamDataLoader) {
-            invokeIfSet(errorCallback, ImageDataLoadError { QString() });
+            invokeIfSet(errorCallback,
+                ImageDataLoadError { kioOperationValidationFailure(KioOperationKind::ImageDataRead,
+                    request.imageUrl(),
+                    QStringLiteral("direct image data loader is unavailable")) });
             return ImageIoJob();
         }
 

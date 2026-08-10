@@ -7,6 +7,7 @@
 #include "imageinputclassification.h"
 #include "location/sourcekey.h"
 #include "rawthumbnailpreview.h"
+#include "system/kiooperationfailure.h"
 #include "thumbnailpreview.h"
 
 #include <QDebug>
@@ -110,7 +111,9 @@ void ImageDecodeJob::start(
                     = std::get_if<DeliverImageLoadErrorOperation>(&errorPlan.operation);
                 if (errorOperation != nullptr) {
                     invokeIfSet(job->m_callbacks.loadError, errorOperation->request,
-                        ImageDataLoadError { imageSourceDataResourceLimitDiagnostic() });
+                        ImageDataLoadError { kioOperationResourceLimitFailure(
+                            KioOperationKind::ImageDataRead, errorOperation->request.imageUrl(),
+                            imageSourceDataResourceLimitDiagnostic()) });
                 }
                 return;
             }

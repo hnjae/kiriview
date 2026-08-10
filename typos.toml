@@ -8,3 +8,6 @@ extend-ignore-re = ["Commit: [0-9a-f]{7,40}", "`[0-9a-f]{7,40}`"]
 INVOKABLE = "INVOKABLE"
 optin = "optin"
 trak = "trak"
+
+[default.extend-identifiers]
+LIBRAW_UNSUFFICIENT_MEMORY = "LIBRAW_UNSUFFICIENT_MEMORY"

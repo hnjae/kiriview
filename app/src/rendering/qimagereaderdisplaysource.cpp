@@ -185,6 +185,23 @@ QImageReaderDisplaySource::QImageReaderDisplaySource(QByteArray data, QByteArray
 
 QSize QImageReaderDisplaySource::imageSize() const { return m_imageSize; }
 
+std::optional<qsizetype> QImageReaderDisplaySource::initialDisplayDecodePeakByteCost(
+    const ImageFirstDisplayDecodeContext& context, int blockingMaximumLongEdge) const
+{
+    if (!context.isValid() || !supportsJpegScaledFirstDisplay()) {
+        return rasterDisplayRefinementPeakByteCost(
+            boundedPreviewSize(m_imageSize, blockingMaximumLongEdge));
+    }
+
+    const QSize firstDisplaySize
+        = firstDisplayScaledImageSize(m_imageSize, context.logicalViewportSize);
+    if (firstDisplaySize.isEmpty()) {
+        return rasterDisplayRefinementPeakByteCost(
+            boundedPreviewSize(m_imageSize, blockingMaximumLongEdge));
+    }
+    return rasterDisplayRefinementPeakByteCost(firstDisplaySize);
+}
+
 StaticImageFirstDisplayDecodeResult QImageReaderDisplaySource::decodeFirstDisplayImage(
     const ImageFirstDisplayDecodeContext& context) const
 {

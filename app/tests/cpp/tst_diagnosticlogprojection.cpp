@@ -3,6 +3,7 @@
 
 #include "archive/mediaentrysourceerror.h"
 #include "diagnostics/diagnosticlogprojection.h"
+#include "system/kiooperationfailure.h"
 
 #include <QDebug>
 #include <QString>
@@ -31,6 +32,16 @@ QString renderMediaEntrySourceError(const kiriview::MediaEntrySourceError& error
     return rendered;
 }
 
+QString renderKioOperationFailure(const kiriview::KioOperationFailure& failure)
+{
+    QString rendered;
+    {
+        QDebug debug(&rendered);
+        debug << failure;
+    }
+    return rendered;
+}
+
 bool hasOnlySafeAscii(const QString& value)
 {
     for (const QChar character : value) {
@@ -55,6 +66,7 @@ class TestDiagnosticLogProjection : public QObject
 private Q_SLOTS:
     void projectionsAreOpaqueBoundedAndCorrelatable();
     void mediaEntrySourceErrorStreamExcludesRawPayloads();
+    void kioOperationFailureStreamPreservesTypedSafeFields();
 };
 
 void TestDiagnosticLogProjection::projectionsAreOpaqueBoundedAndCorrelatable()
@@ -128,6 +140,52 @@ void TestDiagnosticLogProjection::mediaEntrySourceErrorStreamExcludesRawPayloads
     QVERIFY(!rendered.contains(QStringLiteral("example.invalid")));
     QVERIFY(!rendered.contains(QStringLiteral("private/entry-secret.png")));
     QVERIFY(!rendered.contains(QStringLiteral("backend-password-secret")));
+    QVERIFY(!rendered.contains(QLatin1Char('\n')));
+}
+
+void TestDiagnosticLogProjection::kioOperationFailureStreamPreservesTypedSafeFields()
+{
+    const QUrl targetUrl(QStringLiteral(
+        "smb://alice:password@example.invalid/private/secret.png?token=sekret#fragment"));
+    const QString backendDetail
+        = QStringLiteral("backend password=/private/secret.png\ntoken=sekret");
+    const kiriview::KioOperationFailure failure {
+        kiriview::KioOperationKind::ImageDataRead,
+        targetUrl,
+        73,
+        false,
+        backendDetail,
+        backendDetail,
+        true,
+        kiriview::KioOperationFailureCause::Backend,
+    };
+
+    const QString rendered = renderKioOperationFailure(failure);
+    kiriview::KioOperationFailure differentCause = failure;
+    differentCause.cause = kiriview::KioOperationFailureCause::ResourceLimitExceeded;
+    kiriview::KioOperationFailure differentOperation = failure;
+    differentOperation.operationKind = kiriview::KioOperationKind::DirectoryListing;
+    kiriview::KioOperationFailure differentCode = failure;
+    differentCode.rawErrorCode = 74;
+    kiriview::KioOperationFailure canceled = failure;
+    canceled.canceled = true;
+    kiriview::KioOperationFailure permanent = failure;
+    permanent.retryable = false;
+
+    QVERIFY(!rendered.isEmpty());
+    QVERIFY(rendered.size() <= kiriview::maximumDiagnosticLogProjectionCharacters * 2 + 256);
+    QVERIFY(hasOnlySafeAscii(rendered));
+    QVERIFY(rendered != renderKioOperationFailure(differentCause));
+    QVERIFY(rendered != renderKioOperationFailure(differentOperation));
+    QVERIFY(rendered != renderKioOperationFailure(differentCode));
+    QVERIFY(rendered != renderKioOperationFailure(canceled));
+    QVERIFY(rendered != renderKioOperationFailure(permanent));
+    QVERIFY(!rendered.contains(QStringLiteral("alice")));
+    QVERIFY(!rendered.contains(QStringLiteral("password")));
+    QVERIFY(!rendered.contains(QStringLiteral("example.invalid")));
+    QVERIFY(!rendered.contains(QStringLiteral("private/secret.png")));
+    QVERIFY(!rendered.contains(QStringLiteral("token")));
+    QVERIFY(!rendered.contains(QStringLiteral("sekret")));
     QVERIFY(!rendered.contains(QLatin1Char('\n')));
 }
 

@@ -1082,7 +1082,8 @@ void TestImageViewportComponentBoundary::failedSpreadNavigationDiscardsRetainedF
     QCOMPARE(dataLoader.backLoad().url, fifthPageUrl);
     QVERIFY(dataLoader.backLoad().object != nullptr);
 
-    dataLoader.failBackLoad(QStringLiteral("secondary page load failed"));
+    dataLoader.failBackLoad(kiriview::TestSupport::backendImageDataLoadFailure(
+        fifthPageUrl, QStringLiteral("secondary page load failed")));
     QVERIFY(driveViewportUntil(*surface, [&]() {
         const ImageViewportStateSnapshot snapshot = surface->viewport()->state();
         return session->imageDocument()->status() == KiriImageDocument::Status::Error

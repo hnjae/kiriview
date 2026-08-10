@@ -113,6 +113,23 @@ StaticImageSourceDetailModel SvgDisplaySource::detailModel() const
     return StaticImageSourceDetailModel::ScalableRasterization;
 }
 
+std::optional<qsizetype> SvgDisplaySource::initialDisplayDecodePeakByteCost(
+    const ImageFirstDisplayDecodeContext& context, int blockingMaximumLongEdge) const
+{
+    if (!context.isValid()) {
+        return rasterDisplayRefinementPeakByteCost(
+            boundedPreviewSize(m_imageSize, blockingMaximumLongEdge));
+    }
+
+    const QSize firstDisplaySize
+        = svgFirstDisplayPreviewSize(m_imageSize, context.logicalViewportSize);
+    if (firstDisplaySize.isEmpty()) {
+        return rasterDisplayRefinementPeakByteCost(
+            boundedPreviewSize(m_imageSize, blockingMaximumLongEdge));
+    }
+    return rasterDisplayRefinementPeakByteCost(firstDisplaySize);
+}
+
 StaticImageFirstDisplayDecodeResult SvgDisplaySource::decodeFirstDisplayImage(
     const ImageFirstDisplayDecodeContext& context) const
 {

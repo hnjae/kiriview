@@ -5,9 +5,13 @@
 #define KIRIVIEW_THUMBNAILIMAGESTORE_H
 
 #include <QImage>
+#include <QMetaObject>
+#include <QObject>
 #include <QQuickImageProvider>
+#include <QStringList>
 #include <QUrl>
 #include <QtGlobal>
+#include <functional>
 #include <memory>
 
 namespace kiriview {
@@ -17,11 +21,21 @@ enum class ThumbnailImageRetentionPriority {
     Visible,
 };
 
-class ThumbnailImageStore final
+struct ThumbnailImageStoreMutation
 {
+    QStringList removedIds;
+    bool pressureConstrained = false;
+    bool admissionOpportunity = false;
+};
+
+using ThumbnailImageStoreMutationCallback = std::function<void(ThumbnailImageStoreMutation)>;
+
+class ThumbnailImageStore final : public QObject
+{
+    Q_OBJECT
 public:
     explicit ThumbnailImageStore(qsizetype byteBudget = 0);
-    ~ThumbnailImageStore();
+    ~ThumbnailImageStore() override;
     Q_DISABLE_COPY_MOVE(ThumbnailImageStore)
 
     QString insert(QImage image,
@@ -34,6 +48,12 @@ public:
     [[nodiscard]] qsizetype byteBudget() const;
     [[nodiscard]] qsizetype byteCost() const;
     [[nodiscard]] qsizetype size() const;
+    [[nodiscard]] QMetaObject::Connection subscribeToMutations(
+        QObject* receiver, ThumbnailImageStoreMutationCallback callback);
+
+Q_SIGNALS:
+    void mutated(
+        const QStringList& removedIds, bool pressureConstrained, bool admissionOpportunity);
 
 private:
     class Private;

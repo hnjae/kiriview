@@ -97,8 +97,9 @@ void stampQtRasterFailure(kiriview::DecodedImageResult& result, const QByteArray
         = qtRasterFailureDiagnosticDetail(format, failure->operation, failure->diagnosticDetail);
 }
 
-kiriview::DecodedImageResult openedStaticImageResult(
-    const QByteArray& data, const kiriview::ImageDecodeRequest& request, const QByteArray& format)
+kiriview::DecodedImageResult openedStaticImageResult(const QByteArray& data,
+    const kiriview::ImageDecodeRequest& request, const QByteArray& format,
+    std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> workspaceBudget)
 {
     QString errorString;
     std::shared_ptr<kiriview::StaticImageDisplaySource> source
@@ -108,8 +109,8 @@ kiriview::DecodedImageResult openedStaticImageResult(
             kiriview::DecodedImageFailureOperation::OpenStaticImageSource, format, errorString);
     }
 
-    kiriview::DecodedImageResult result
-        = kiriview::staticDecodedImageResult(std::move(source), request, &errorString);
+    kiriview::DecodedImageResult result = kiriview::staticDecodedImageResult(
+        std::move(source), request, &errorString, std::move(workspaceBudget));
     stampQtRasterFailure(result, format);
     return result;
 }
@@ -127,7 +128,7 @@ DecodedImageResult decodeQImageReaderImageData(const QByteArray& data,
 {
     const QByteArray readerFormat = qtImageReaderFormat(format);
     if (format != QtRasterFormat::Gif) {
-        return openedStaticImageResult(data, request, readerFormat);
+        return openedStaticImageResult(data, request, readerFormat, std::move(workspaceBudget));
     }
 
     ImageAnimationSourceCatalogResult catalog = readImageAnimationSourceCatalog(
@@ -137,7 +138,7 @@ DecodedImageResult decodeQImageReaderImageData(const QByteArray& data,
             == ImageAnimationSourceCatalogFailureCause::ResourceLimitExceeded) {
             return failedQtRasterWorkspaceResult(readerFormat);
         }
-        return openedStaticImageResult(data, request, readerFormat);
+        return openedStaticImageResult(data, request, readerFormat, std::move(workspaceBudget));
     }
 
     const std::optional<qsizetype> workspaceByteCount

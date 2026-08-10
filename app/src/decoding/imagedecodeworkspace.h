@@ -60,6 +60,7 @@ public:
     [[nodiscard]] bool tryReserve(qsizetype additionalByteCount);
     [[nodiscard]] bool release(qsizetype byteCount);
     [[nodiscard]] ImageDecodeWorkspaceHold sharedHold() const;
+    [[nodiscard]] ImageDecodeWorkspaceHold splitRetained(qsizetype retainedByteCount);
     [[nodiscard]] ImageDecodeWorkspaceHold retainOnly(qsizetype retainedByteCount);
     [[nodiscard]] qsizetype reservedByteCount() const;
     [[nodiscard]] bool isManaged() const;

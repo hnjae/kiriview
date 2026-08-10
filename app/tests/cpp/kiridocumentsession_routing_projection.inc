@@ -160,7 +160,8 @@ void TestKiriDocumentSessionRouting::directImageReplacementFailureKeepsTargetMed
     QCOMPARE(session->activeNavigationCurrentNumber(), 2);
     QCOMPARE(session->activeNavigationCount(), 2);
 
-    imageDataLoader.failBackLoad(QStringLiteral("replacement failed"));
+    imageDataLoader.failBackLoad(kiriview::TestSupport::backendImageDataLoadFailure(
+        secondImage, QStringLiteral("replacement failed")));
 
     QTRY_COMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Error);
     QCOMPARE(session->sourceUrl(), secondImage);
@@ -233,7 +234,8 @@ void TestKiriDocumentSessionRouting::freshDirectImageFailureKeepsTargetMediaCurs
     QCOMPARE(session->activeNavigationCurrentNumber(), 1);
     QCOMPARE(session->activeNavigationCount(), 2);
 
-    imageDataLoader.failBackLoad(QStringLiteral("initial load failed"));
+    imageDataLoader.failBackLoad(kiriview::TestSupport::backendImageDataLoadFailure(
+        imageUrl, QStringLiteral("initial load failed")));
 
     QTRY_COMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Error);
     QVERIFY(session->activeNavigationKnown());

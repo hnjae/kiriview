@@ -38,6 +38,22 @@ kiriview::ThumbnailSourceAdapter adapter()
     };
 }
 
+kiriview::ThumbnailSourceAdapter foregroundOnlyAdapter()
+{
+    return [](kiriview::ThumbnailSourceAdapterRequest request) {
+        if (request.priority != Priority::Visible) {
+            return kiriview::ThumbnailSourceAdapterPlan {};
+        }
+        const QByteArray path = request.sourceKey.sourceUrl.toLocalFile().toUtf8();
+        return kiriview::ThumbnailSourceAdapterPlan {
+            kiriview::ThumbnailSourceAdapterPlanKind::CacheableLocalFile,
+            path,
+            kiriview::ThumbnailOriginalIdentity::fromLocalPathBytes(path),
+            {},
+        };
+    };
+}
+
 template <typename Effect>
 std::vector<Effect> effectsOfType(
     const std::vector<kiriview::ActiveNavigationThumbnailScheduleEffect>& effects)
@@ -98,6 +114,12 @@ private Q_SLOTS:
     void staleContinuationIsRejectedAfterReset();
     void foregroundDoesNotWaitForBackgroundContinuation();
     void movingCurrentExpiresUnreportedPinnedDemand();
+    void residencyLossWaitsForAdmissionOpportunity();
+    void meaningfulDemandChangeReleasesResidencyBlock();
+    void priorityAndCurrentChangesReleaseResidencyBlock();
+    void sourceRefreshReleasesResidencyBlockWithRefreshedPlan();
+    void residencyLossIgnoresStaleAndUnsupportedRows();
+    void residencyLossDoesNotClearBackgroundCompletion();
     void malformedSchedulingSnapshotIsRejectedAtomically();
 };
 
@@ -469,6 +491,186 @@ void TestActiveNavigationThumbnailScheduler::movingCurrentExpiresUnreportedPinne
     QCOMPARE(retention.front().sourceKey.row.rowNumber, 1);
     QCOMPARE(retention.front().retentionClass,
         kiriview::ActiveNavigationThumbnailRetentionClass::Background);
+}
+
+void TestActiveNavigationThumbnailScheduler::residencyLossWaitsForAdmissionOpportunity()
+{
+    kiriview::ActiveNavigationThumbnailScheduler scheduler(foregroundOnlyAdapter(), 2);
+    QVERIFY(scheduler.reset(schedulingSnapshot(1, { key(1) })).has_value());
+    const auto demand = snapshot(1, { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Visible } });
+    const auto accepted = scheduler.replaceDemandSnapshot(demand);
+    QVERIFY(accepted.has_value());
+    const auto firstStart
+        = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*accepted).front();
+    scheduler.acceptCompletion(ready(firstStart));
+
+    const auto blocked = scheduler.reconcileImageResidency({ key(1) }, false);
+    QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(blocked).empty());
+
+    const auto repeated = scheduler.replaceDemandSnapshot(demand);
+    QVERIFY(repeated.has_value());
+    QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*repeated).empty());
+
+    const auto retried = scheduler.reconcileImageResidency({}, true);
+    QCOMPARE(effectsOfType<kiriview::ActiveNavigationThumbnailApplyPendingEffect>(retried).size(),
+        std::size_t(1));
+    const auto retryStarts
+        = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(retried);
+    QCOMPARE(retryStarts.size(), std::size_t(1));
+    QCOMPARE(retryStarts.front().request.sourceKey, key(1));
+}
+
+void TestActiveNavigationThumbnailScheduler::meaningfulDemandChangeReleasesResidencyBlock()
+{
+    kiriview::ActiveNavigationThumbnailScheduler scheduler(foregroundOnlyAdapter(), 2);
+    QVERIFY(scheduler.reset(schedulingSnapshot(1, { key(1) })).has_value());
+    const auto normalDemand
+        = snapshot(1, { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Visible } });
+    auto effects = scheduler.replaceDemandSnapshot(normalDemand);
+    QVERIFY(effects.has_value());
+    scheduler.acceptCompletion(
+        ready(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*effects).front()));
+    scheduler.reconcileImageResidency({ key(1) }, false);
+
+    const auto largerDemand
+        = snapshot(1, { { 1, key(1).sourceUrl, Bucket::Large, Priority::Visible } });
+    effects = scheduler.replaceDemandSnapshot(largerDemand);
+
+    QVERIFY(effects.has_value());
+    QCOMPARE(effectsOfType<kiriview::ActiveNavigationThumbnailApplyPendingEffect>(*effects).size(),
+        std::size_t(1));
+    const auto starts = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*effects);
+    QCOMPARE(starts.size(), std::size_t(1));
+    QCOMPARE(starts.front().request.bucket, Bucket::Large);
+}
+
+void TestActiveNavigationThumbnailScheduler::priorityAndCurrentChangesReleaseResidencyBlock()
+{
+    kiriview::ActiveNavigationThumbnailScheduler priorityScheduler(adapter(), 2);
+    QVERIFY(priorityScheduler.reset(schedulingSnapshot(1, { key(1) })).has_value());
+    auto effects = priorityScheduler.replaceDemandSnapshot(
+        snapshot(1, { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Nearby } }));
+    QVERIFY(effects.has_value());
+    priorityScheduler.acceptCompletion(
+        ready(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*effects).front()));
+    priorityScheduler.reconcileImageResidency({ key(1) }, false);
+
+    effects = priorityScheduler.replaceDemandSnapshot(
+        snapshot(1, { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Visible } }));
+
+    QVERIFY(effects.has_value());
+    QCOMPARE(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*effects).size(),
+        std::size_t(1));
+
+    kiriview::ActiveNavigationThumbnailScheduler currentScheduler(adapter(), 2);
+    QVERIFY(currentScheduler.reset(schedulingSnapshot(1, { key(1) })).has_value());
+    effects = currentScheduler.replaceDemandSnapshot(
+        snapshot(1, { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Nearby } }));
+    QVERIFY(effects.has_value());
+    currentScheduler.acceptCompletion(
+        ready(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*effects).front()));
+    currentScheduler.reconcileImageResidency({ key(1) }, false);
+
+    const auto promoted = currentScheduler.setCurrentNumber(1);
+
+    QCOMPARE(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(promoted).size(),
+        std::size_t(1));
+}
+
+void TestActiveNavigationThumbnailScheduler::sourceRefreshReleasesResidencyBlockWithRefreshedPlan()
+{
+    kiriview::ActiveNavigationThumbnailScheduler scheduler(adapter(), 2);
+    const auto original = kiriview::thumbnailSourceRevisionKey(1,
+        QUrl(QStringLiteral("file:///media/folder/../1.png")), QStringLiteral("1.png"),
+        QStringLiteral("image"),
+        kiriview::activeNavigationThumbnailSourceKindIdentity(
+            kiriview::ActiveNavigationThumbnailSourceKind::DirectImage),
+        1);
+    const auto refreshed
+        = kiriview::thumbnailSourceRevisionKey(1, QUrl(QStringLiteral("file:///media/1.png")),
+            QStringLiteral("1.png"), QStringLiteral("image"),
+            kiriview::activeNavigationThumbnailSourceKindIdentity(
+                kiriview::ActiveNavigationThumbnailSourceKind::DirectImage),
+            1);
+    QCOMPARE(original, refreshed);
+    QVERIFY(original.sourceUrl != refreshed.sourceUrl);
+    QVERIFY(scheduler.reset(schedulingSnapshot(1, { original, key(2) })).has_value());
+    auto effects = scheduler.replaceDemandSnapshot(snapshot(1,
+        { { 1, original.sourceUrl, Bucket::Normal, Priority::Visible },
+            { 2, key(2).sourceUrl, Bucket::Normal, Priority::Visible } }));
+    QVERIFY(effects.has_value());
+    const auto initialStarts
+        = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*effects);
+    QCOMPARE(initialStarts.size(), std::size_t(2));
+    scheduler.acceptCompletion(ready(initialStarts.at(0)));
+    scheduler.acceptCompletion(ready(initialStarts.at(1)));
+    scheduler.reconcileImageResidency({ original, key(2) }, false);
+
+    effects = scheduler.refreshRows(schedulingSnapshot(1, { refreshed, key(2) }));
+
+    QVERIFY(effects.has_value());
+    QCOMPARE(effectsOfType<kiriview::ActiveNavigationThumbnailApplyPendingEffect>(*effects).size(),
+        std::size_t(1));
+    const auto starts = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*effects);
+    QCOMPARE(starts.size(), std::size_t(1));
+    QCOMPARE(starts.front().request.sourceKey.row.rowNumber, 1);
+    QCOMPARE(starts.front().request.sourceKey.sourceUrl, refreshed.sourceUrl);
+    QCOMPARE(starts.front().request.sourcePlan.localPathBytes,
+        refreshed.sourceUrl.toLocalFile().toUtf8());
+}
+
+void TestActiveNavigationThumbnailScheduler::residencyLossIgnoresStaleAndUnsupportedRows()
+{
+    kiriview::ActiveNavigationThumbnailScheduler supported(foregroundOnlyAdapter(), 2);
+    QVERIFY(supported.reset(schedulingSnapshot(1, { key(1) })).has_value());
+    const auto demand = snapshot(1, { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Visible } });
+    auto accepted = supported.replaceDemandSnapshot(demand);
+    QVERIFY(accepted.has_value());
+
+    const auto incomplete = supported.reconcileImageResidency({ key(1) }, false);
+    QVERIFY(
+        effectsOfType<kiriview::ActiveNavigationThumbnailApplyPendingEffect>(incomplete).empty());
+    QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(incomplete).empty());
+
+    supported.acceptCompletion(ready(
+        effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*accepted).front()));
+
+    kiriview::ThumbnailSourceRevisionKey staleKey = key(1);
+    ++staleKey.navigationGeneration;
+    const auto stale = supported.reconcileImageResidency({ staleKey }, false);
+    QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(stale).empty());
+
+    kiriview::ActiveNavigationThumbnailScheduler unsupported(
+        [](kiriview::ThumbnailSourceAdapterRequest) {
+            return kiriview::ThumbnailSourceAdapterPlan {};
+        },
+        2);
+    QVERIFY(unsupported.reset(schedulingSnapshot(1, { key(1) })).has_value());
+    accepted = unsupported.replaceDemandSnapshot(demand);
+    QVERIFY(accepted.has_value());
+    const auto repeated = unsupported.reconcileImageResidency({ key(1) }, true);
+    QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailApplyPendingEffect>(repeated).empty());
+    QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(repeated).empty());
+}
+
+void TestActiveNavigationThumbnailScheduler::residencyLossDoesNotClearBackgroundCompletion()
+{
+    kiriview::ActiveNavigationThumbnailScheduler scheduler(adapter(), 2);
+    QVERIFY(scheduler.reset(schedulingSnapshot(1, { key(1) })).has_value());
+    auto effects = scheduler.replaceDemandSnapshot(snapshot(1, {}));
+    QVERIFY(effects.has_value());
+    for (int completed = 0; completed < 4; ++completed) {
+        const auto starts
+            = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*effects);
+        QCOMPARE(starts.size(), std::size_t(1));
+        QCOMPARE(starts.front().request.workKind,
+            kiriview::ActiveNavigationThumbnailWorkKind::Background);
+        effects = scheduler.acceptCompletion(ready(starts.front()));
+    }
+    QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*effects).empty());
+
+    const auto repeated = scheduler.reconcileImageResidency({ key(1) }, true);
+    QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(repeated).empty());
 }
 
 void TestActiveNavigationThumbnailScheduler::malformedSchedulingSnapshotIsRejectedAtomically()

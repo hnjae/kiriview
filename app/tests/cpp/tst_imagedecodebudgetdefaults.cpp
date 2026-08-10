@@ -12,6 +12,7 @@ class TestImageDecodeBudgetDefaults : public QObject
 
 private Q_SLOTS:
     void acceptedUnknownSystemMemorySnapshotIsNotReplaced();
+    void retainedSplitPreservesAggregateUntilEachPhysicalOwnerRetires();
 };
 
 void TestImageDecodeBudgetDefaults::acceptedUnknownSystemMemorySnapshotIsNotReplaced()
@@ -31,6 +32,27 @@ void TestImageDecodeBudgetDefaults::acceptedUnknownSystemMemorySnapshotIsNotRepl
     QCOMPARE(sourceDataBudget->perSourceByteLimit(), sourceDataLimits.perSourceByteLimit);
     QCOMPARE(workspaceBudget->aggregateByteLimit(), workspaceLimits.aggregateByteLimit);
     QCOMPARE(workspaceBudget->perOperationByteLimit(), workspaceLimits.perOperationByteLimit);
+}
+
+void TestImageDecodeBudgetDefaults::retainedSplitPreservesAggregateUntilEachPhysicalOwnerRetires()
+{
+    kiriview::ImageDecodeWorkspaceBudget budget(100, 100);
+    kiriview::ImageDecodeWorkspaceLease producer = budget.startLease();
+    QVERIFY(producer.tryReserve(80));
+
+    kiriview::ImageDecodeWorkspaceHold retained = producer.splitRetained(30);
+    QVERIFY(retained.isManaged());
+    QCOMPARE(retained.reservedByteCount(), qsizetype(30));
+    QCOMPARE(producer.reservedByteCount(), qsizetype(50));
+    QCOMPARE(budget.reservedByteCount(), qsizetype(80));
+
+    kiriview::ImageDecodeWorkspaceHold retainedAlias = retained;
+    retained = {};
+    QVERIFY(producer.release(50));
+    QCOMPARE(budget.reservedByteCount(), qsizetype(30));
+
+    retainedAlias = {};
+    QCOMPARE(budget.reservedByteCount(), qsizetype(0));
 }
 
 QTEST_GUILESS_MAIN(TestImageDecodeBudgetDefaults)

@@ -13,6 +13,7 @@
 #include "system/kiooperationfailure.h"
 #include "system/powersaverprovider.h"
 
+#include <KIO/Global>
 #include <QByteArray>
 #include <QObject>
 #include <QPointer>
@@ -26,6 +27,12 @@
 #include <vector>
 
 namespace kiriview::TestSupport {
+inline ImageDataLoadError backendImageDataLoadFailure(const QUrl& targetUrl, QString detail)
+{
+    return ImageDataLoadError { kioOperationFailureFromKJob(KioOperationKind::ImageDataRead,
+        targetUrl, KIO::ERR_CONNECTION_BROKEN, std::move(detail)) };
+}
+
 namespace Detail {
     template <typename Operation>
     ImageIoJob startManualIoJob(QObject* receiver, const std::shared_ptr<Operation>& operation,

@@ -5,8 +5,10 @@
 #include "decoding/imagesourcedata.h"
 #include "decoding/rawthumbnailpreview.h"
 #include "image_test_support.h"
+#include "system/kiooperationfailure.h"
 #include "thumbnail/thumbnailcachelookup.h"
 
+#include <KIO/Global>
 #include <QBuffer>
 #include <QByteArray>
 #include <QColor>
@@ -294,8 +296,10 @@ private Q_SLOTS:
     void emptyRequestLeavesDiagnosticWarning();
     void cancelSuppressesPendingLoad();
     void staleLoadResultIsIgnored();
+    void staleTypedLoadErrorIsIgnored();
     void restartedSameRequestIgnoresStaleLoadResult();
     void loadErrorsAreDeliveredForCurrentRequest();
+    void unmanagedLoadedDataOverBudgetReturnsTypedResourceFailure();
     void decodeErrorsAreDeliveredAsResults();
     void decodeRequestIsPassedToDecoder();
     void decodeWorkerSchedulerCanBeDrivenManually();
@@ -375,6 +379,51 @@ void TestImageDecodeJob::staleLoadResultIsIgnored()
     QCOMPARE(decodedRequests.front().imageUrl(), indexedImageUrl(2));
 }
 
+void TestImageDecodeJob::staleTypedLoadErrorIsIgnored()
+{
+    ManualImageDataLoader dataLoader;
+    std::vector<kiriview::ImageDecodeRequest> errorRequests;
+    std::vector<kiriview::ImageDataLoadError> deliveredErrors;
+    kiriview::ImageDecodeJob decodeJob(this,
+        imageDecodeDependenciesFor(dataLoader, staticImageDataDecoderRejectingBadData()),
+        decodeJobCallbacks({},
+            [&errorRequests, &deliveredErrors](const kiriview::ImageDecodeRequest& request,
+                const kiriview::ImageDataLoadError& error) {
+                errorRequests.push_back(request);
+                deliveredErrors.push_back(error);
+            }));
+    const QUrl staleUrl = indexedImageUrl(1);
+    const QUrl currentUrl = indexedImageUrl(2);
+
+    decodeJob.start(kiriview::ImageDecodeRequest::fromUrl(1, staleUrl));
+    const kiriview::ImageDataLoadErrorCallback staleErrorCallback
+        = dataLoader.frontLoad().errorCallback;
+    decodeJob.start(kiriview::ImageDecodeRequest::fromUrl(2, currentUrl));
+    QVERIFY(dataLoader.frontLoad().canceled);
+
+    staleErrorCallback(kiriview::ImageDataLoadError {
+        kiriview::kioOperationFailureFromKJob(kiriview::KioOperationKind::ImageDataRead, staleUrl,
+            KIO::ERR_CONNECTION_BROKEN, QStringLiteral("stale backend failure")) });
+    QCOMPARE(errorRequests.size(), std::size_t(0));
+    QVERIFY(decodeJob.hasActiveRequest());
+
+    const kiriview::KioOperationFailure expectedFailure
+        = kiriview::kioOperationResourceLimitFailure(kiriview::KioOperationKind::ImageDataRead,
+            currentUrl, QStringLiteral("current resource failure"));
+    dataLoader.failBackLoad(kiriview::ImageDataLoadError { expectedFailure });
+
+    QCOMPARE(errorRequests.size(), std::size_t(1));
+    QCOMPARE(errorRequests.front().id(), quint64(2));
+    QCOMPARE(errorRequests.front().imageUrl(), currentUrl);
+    QCOMPARE(deliveredErrors.size(), std::size_t(1));
+    const auto* failure = std::get_if<kiriview::KioOperationFailure>(&deliveredErrors.front());
+    QVERIFY(failure != nullptr);
+    QCOMPARE(failure->operationKind, expectedFailure.operationKind);
+    QCOMPARE(failure->targetUrl, expectedFailure.targetUrl);
+    QCOMPARE(failure->cause, expectedFailure.cause);
+    QVERIFY(!decodeJob.hasActiveRequest());
+}
+
 void TestImageDecodeJob::restartedSameRequestIgnoresStaleLoadResult()
 {
     ManualImageDataLoader dataLoader;
@@ -410,24 +459,77 @@ void TestImageDecodeJob::loadErrorsAreDeliveredForCurrentRequest()
 {
     ManualImageDataLoader dataLoader;
     std::vector<kiriview::ImageDecodeRequest> errorRequests;
-    QString errorString;
+    std::optional<kiriview::ImageDataLoadError> deliveredError;
+    const QUrl imageUrl = indexedImageUrl(3);
+    const kiriview::KioOperationFailure expectedFailure {
+        kiriview::KioOperationKind::ImageDataRead,
+        imageUrl,
+        73,
+        false,
+        QStringLiteral("missing"),
+        QStringLiteral("missing"),
+        false,
+        kiriview::KioOperationFailureCause::Backend,
+    };
     kiriview::ImageDecodeJob decodeJob(this,
         imageDecodeDependenciesFor(dataLoader, staticImageDataDecoderRejectingBadData()),
         decodeJobCallbacks({},
-            [&errorRequests, &errorString](const kiriview::ImageDecodeRequest& request,
+            [&errorRequests, &deliveredError](const kiriview::ImageDecodeRequest& request,
                 const kiriview::ImageDataLoadError& error) {
                 errorRequests.push_back(request);
-                const auto* text = std::get_if<QString>(&error);
-                QVERIFY(text != nullptr);
-                errorString = *text;
+                deliveredError = error;
             }));
 
-    decodeJob.start(kiriview::ImageDecodeRequest::fromUrl(3, indexedImageUrl(3)));
-    dataLoader.failFrontLoad(QStringLiteral("missing"));
+    decodeJob.start(kiriview::ImageDecodeRequest::fromUrl(3, imageUrl));
+    dataLoader.failFrontLoad(kiriview::ImageDataLoadError { expectedFailure });
 
     QCOMPARE(errorRequests.size(), std::size_t(1));
     QCOMPARE(errorRequests.front().id(), quint64(3));
-    QCOMPARE(errorString, QStringLiteral("missing"));
+    QVERIFY(deliveredError.has_value());
+    const auto* failure = std::get_if<kiriview::KioOperationFailure>(&*deliveredError);
+    QVERIFY(failure != nullptr);
+    QCOMPARE(failure->operationKind, expectedFailure.operationKind);
+    QCOMPARE(failure->targetUrl, expectedFailure.targetUrl);
+    QCOMPARE(failure->rawErrorCode, expectedFailure.rawErrorCode);
+    QCOMPARE(failure->canceled, expectedFailure.canceled);
+    QCOMPARE(failure->userMessage, expectedFailure.userMessage);
+    QCOMPARE(failure->diagnosticDetail, expectedFailure.diagnosticDetail);
+    QCOMPARE(failure->retryable, expectedFailure.retryable);
+    QCOMPARE(failure->cause, expectedFailure.cause);
+    QVERIFY(!decodeJob.hasActiveRequest());
+}
+
+void TestImageDecodeJob::unmanagedLoadedDataOverBudgetReturnsTypedResourceFailure()
+{
+    ManualImageDataLoader dataLoader;
+    auto budget = std::make_shared<kiriview::ImageSourceDataBudget>(16, 16);
+    kiriview::ImageDecodeDependencies dependencies
+        = imageDecodeDependenciesFor(dataLoader, staticImageDataDecoderRejectingBadData());
+    dependencies.sourceDataBudget = budget;
+    std::optional<kiriview::ImageDataLoadError> deliveredError;
+    int decodedCount = 0;
+    const QUrl imageUrl = indexedImageUrl(4);
+    kiriview::ImageDecodeJob decodeJob(this, std::move(dependencies),
+        decodeJobCallbacks([&decodedCount](kiriview::ImageDecodeRequest,
+                               kiriview::DecodedImageResult) { ++decodedCount; },
+            [&deliveredError](const kiriview::ImageDecodeRequest&,
+                const kiriview::ImageDataLoadError& error) { deliveredError = error; }));
+
+    decodeJob.start(kiriview::ImageDecodeRequest::fromUrl(4, imageUrl));
+    dataLoader.finishFrontLoad(kiriview::ImageSourceData(QByteArray(32, 'x')));
+
+    QCOMPARE(decodedCount, 0);
+    QVERIFY(deliveredError.has_value());
+    const auto* failure = std::get_if<kiriview::KioOperationFailure>(&*deliveredError);
+    QVERIFY(failure != nullptr);
+    QCOMPARE(failure->operationKind, kiriview::KioOperationKind::ImageDataRead);
+    QCOMPARE(failure->targetUrl, imageUrl);
+    QCOMPARE(failure->cause, kiriview::KioOperationFailureCause::ResourceLimitExceeded);
+    QVERIFY(!failure->rawErrorCode.has_value());
+    QVERIFY(!failure->canceled);
+    QVERIFY(!failure->diagnosticDetail.isEmpty());
+    QVERIFY(!failure->retryable);
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
     QVERIFY(!decodeJob.hasActiveRequest());
 }
 

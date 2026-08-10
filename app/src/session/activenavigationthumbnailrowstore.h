@@ -12,9 +12,14 @@
 
 #include <QHash>
 #include <QImage>
+#include <QMetaObject>
+#include <QPointer>
+#include <QSet>
+#include <QStringList>
 #include <QUrl>
 #include <QtGlobal>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -82,6 +87,16 @@ struct ActiveNavigationThumbnailRowCommit
     std::optional<ActiveNavigationThumbnailSchedulingSnapshot> schedulingSnapshot;
 };
 
+struct ActiveNavigationThumbnailResidencyChange
+{
+    std::vector<ThumbnailSourceRevisionKey> losses;
+    bool admissionOpportunity = false;
+
+    [[nodiscard]] bool empty() const { return losses.empty() && !admissionOpportunity; }
+};
+
+using ActiveNavigationThumbnailResidencyReconciliationCallback = std::function<void()>;
+
 class ActiveNavigationThumbnailRowPort
 {
 public:
@@ -100,6 +115,10 @@ public:
     virtual void updateRetentionPriority(
         const ThumbnailSourceRevisionKey& sourceKey, ThumbnailImageRetentionPriority priority)
         = 0;
+    virtual void subscribeToResidencyReconciliation(
+        QObject* receiver, ActiveNavigationThumbnailResidencyReconciliationCallback callback)
+        = 0;
+    [[nodiscard]] virtual ActiveNavigationThumbnailResidencyChange takeResidencyChange() = 0;
 
 protected:
     ActiveNavigationThumbnailRowPort() = default;
@@ -129,6 +148,9 @@ public:
         ThumbnailImageRetentionPriority priority, bool preserveExistingReadyImage) override;
     void updateRetentionPriority(const ThumbnailSourceRevisionKey& sourceKey,
         ThumbnailImageRetentionPriority priority) override;
+    void subscribeToResidencyReconciliation(QObject* receiver,
+        ActiveNavigationThumbnailResidencyReconciliationCallback callback) override;
+    [[nodiscard]] ActiveNavigationThumbnailResidencyChange takeResidencyChange() override;
 
 private:
     struct RowState
@@ -143,6 +165,8 @@ private:
     [[nodiscard]] std::optional<std::size_t> rowIndexForSourceKey(
         const ThumbnailSourceRevisionKey& sourceKey) const;
     [[nodiscard]] bool hasUsableReadyImage(const RowState& state) const;
+    void handleImageStoreMutation(const ThumbnailImageStoreMutation& mutation);
+    void requestResidencyReconciliation();
     void releaseImage(RowState& state);
     void releaseAllImages();
     void rebuildRowIndexes();
@@ -151,9 +175,17 @@ private:
 
     std::unique_ptr<ActiveNavigationThumbnailModel> m_model;
     std::shared_ptr<ThumbnailImageStore> m_imageStore;
+    std::unique_ptr<QObject> m_mutationReceiver;
+    QMetaObject::Connection m_mutationConnection;
+    QPointer<QObject> m_reconciliationReceiver;
+    ActiveNavigationThumbnailResidencyReconciliationCallback m_reconciliationCallback;
+    bool m_reconciliationPending = false;
     std::vector<RowState> m_rows;
     quint64 m_navigationGeneration = 0;
     QHash<ThumbnailSourceRevisionKey, std::size_t> m_rowIndexBySourceKey;
+    QSet<ThumbnailSourceRevisionKey> m_residencyLosses;
+    QSet<QString> m_intentionalReleaseIds;
+    bool m_admissionOpportunity = false;
 };
 }
 

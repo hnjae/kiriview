@@ -39,6 +39,8 @@ qsizetype decodedImageWorkspaceByteCost(const kiriview::DecodedImage& image)
         [](const auto& decoded) -> qsizetype {
             if constexpr (requires { decoded.firstFrameWorkspaceHold; }) {
                 return decoded.firstFrameWorkspaceHold.reservedByteCount();
+            } else if constexpr (requires { decoded.displayImage.retainedRasterByteCost(); }) {
+                return decoded.displayImage.retainedRasterByteCost();
             }
             return 0;
         },
@@ -298,8 +300,8 @@ kiriview::DecodedImageResult decodeSvgImageData(const kiriview::ImageDecodeRoute
             kiriview::DecodedImageFailureOperation::OpenStaticImageSource, QStringLiteral("SVG"));
     }
 
-    kiriview::DecodedImageResult result
-        = kiriview::staticDecodedImageResult(std::move(source), input.request, &errorString);
+    kiriview::DecodedImageResult result = kiriview::staticDecodedImageResult(
+        std::move(source), input.request, &errorString, input.workspaceBudget);
     stampAdapterFailure(result, kiriview::DecodedImageFailureRoute::Svg, QStringLiteral("SVG"));
     return result;
 }
@@ -385,7 +387,7 @@ kiriview::DecodedImageResult decodeHeifRouterImageData(
 
 kiriview::DecodedImageResult decodeRawRouterImageData(const kiriview::ImageDecodeRouterInput& input)
 {
-    return kiriview::decodeRawImageData(input.data, input.request);
+    return kiriview::decodeRawImageData(input.data, input.request, input.workspaceBudget);
 }
 
 kiriview::DecodedImageResult decodeQImageReaderRouterImageData(

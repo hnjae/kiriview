@@ -57,6 +57,7 @@ private:
     void applyEffect(const ActiveNavigationThumbnailAcceptCompletionEffect& effect);
     void applyEffect(ActiveNavigationThumbnailScheduleContinuationEffect effect);
     void publishCompletion(const ActiveNavigationThumbnailAcceptCompletionEffect& effect);
+    void reconcileResidencyChange();
     void reportFailureDiagnostic(ActiveNavigationThumbnailWorkId workId,
         const ThumbnailSourceRevisionKey& sourceKey, ActiveNavigationThumbnailWorkKind workKind,
         ActiveNavigationThumbnailDemandBucket bucket,

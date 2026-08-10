@@ -73,11 +73,14 @@ public:
 
     std::optional<std::vector<ActiveNavigationThumbnailScheduleEffect>> reset(
         ActiveNavigationThumbnailSchedulingSnapshot snapshot);
-    bool refreshRows(ActiveNavigationThumbnailSchedulingSnapshot snapshot);
+    std::optional<std::vector<ActiveNavigationThumbnailScheduleEffect>> refreshRows(
+        ActiveNavigationThumbnailSchedulingSnapshot snapshot);
     std::vector<ActiveNavigationThumbnailScheduleEffect> invalidate();
     std::vector<ActiveNavigationThumbnailScheduleEffect> setCurrentNumber(int currentNumber);
     std::optional<std::vector<ActiveNavigationThumbnailScheduleEffect>> replaceDemandSnapshot(
         const ActiveNavigationThumbnailDemandSnapshot& snapshot);
+    std::vector<ActiveNavigationThumbnailScheduleEffect> reconcileImageResidency(
+        const std::vector<ThumbnailSourceRevisionKey>& residencyLosses, bool admissionOpportunity);
     std::vector<ActiveNavigationThumbnailScheduleEffect> acceptCompletion(
         ActiveNavigationThumbnailWorkCompletion completion);
     std::vector<ActiveNavigationThumbnailScheduleEffect> continueAdmission(quint64 admissionEpoch);
@@ -115,6 +118,7 @@ private:
         std::optional<ActiveNavigationThumbnailDemandBucket> completedDemandBucket;
         std::vector<ActiveNavigationThumbnailDemandBucket> completedBackgroundBuckets;
         quint64 demandSnapshotEpoch = 0;
+        bool residencyBlocked = false;
     };
 
     static bool sameDemand(const Demand& left, const Demand& right);
@@ -131,6 +135,10 @@ private:
     [[nodiscard]] bool demandComplete(const RowState& state) const;
     [[nodiscard]] bool backgroundComplete(
         const RowState& state, ActiveNavigationThumbnailDemandBucket bucket) const;
+    bool invalidateImageBackedCompletion(const ThumbnailSourceRevisionKey& sourceKey,
+        std::vector<ActiveNavigationThumbnailScheduleEffect>& effects);
+    bool releaseResidencyBlock(
+        std::size_t row, std::vector<ActiveNavigationThumbnailScheduleEffect>& effects);
     void advanceAdmissionEpoch();
     void armBackgroundSweep();
     void refreshDemandTier(std::size_t row);

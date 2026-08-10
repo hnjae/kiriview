@@ -5,6 +5,8 @@
 
 #include "cache/imagebytecost.h"
 #include "decoding/imagedecodelogging.h"
+#include "decoding/imagedecodeworkspace.h"
+#include "localization/imageerrortext.h"
 #include "localization/mediaentrysourceerrortext.h"
 #include "rendering/imagerendering.h"
 
@@ -65,19 +67,24 @@ kiriview::ImageLoadFailure loadFailure(
 }
 
 kiriview::ImageLoadFailure loadFailure(
+    const kiriview::ImageLoadSession& session, const kiriview::KioOperationFailure& error)
+{
+    qCWarning(kiriviewDecodeLog).noquote() << "direct image data loading failed"
+                                           << "sessionId" << session.id() << error;
+    kiriview::ImageLoadFailure failure
+        = loadFailure(session, kiriview::ImageLoadFailureKind::DataLoad,
+            kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData),
+            error.diagnosticDetail, kiriview::DecodedImageFailureRoute::Unknown,
+            kiriview::DecodedImageFailureOperation::Unknown, error.retryable);
+    failure.kioOperationFailure = error;
+    return failure;
+}
+
+kiriview::ImageLoadFailure loadFailure(
     const kiriview::ImageLoadSession& session, const kiriview::ImageDataLoadError& error)
 {
     return std::visit(
-        [&session](const auto& detail) {
-            using Error = std::decay_t<decltype(detail)>;
-            if constexpr (std::is_same_v<Error, QString>) {
-                return loadFailure(
-                    session, kiriview::ImageLoadFailureKind::DataLoad, detail, detail);
-            } else {
-                return loadFailure(session, detail);
-            }
-        },
-        error);
+        [&session](const auto& detail) { return loadFailure(session, detail); }, error);
 }
 
 ImageSequenceAuthoredAnimationFacts authoredAnimationFacts(int repeatCount)
@@ -1001,7 +1008,9 @@ void ImageViewportDecodeProviderSource::startStaticRefinement(
             });
     };
     auto existingWork = existingWorkForTarget(plan.targetRasterSize);
-    const auto finishPlanningFailure = [&](StaticFrameResolution resolution) {
+    const auto finishPlanningFailure = [&](StaticFrameResolution resolution,
+                                           const StaticImageDisplayDecodeDiagnostics& diagnostics
+                                           = {}) {
         StaticFrameAttempt attempt {
             reserveStaticFrameAttemptId(),
             std::move(pending),
@@ -1013,25 +1022,26 @@ void ImageViewportDecodeProviderSource::startStaticRefinement(
             0,
             initialDemand,
         };
-        finishStaticFrameAttempt(std::move(attempt), {}, std::nullopt, true, resolution);
+        finishStaticFrameAttempt(std::move(attempt), diagnostics, std::nullopt, true, resolution);
     };
     std::shared_ptr<DisplayImageOutputAdmission> outputAdmission;
+    std::optional<qsizetype> producerPeakByteCost;
     if (existingWork == m_staticRefinementWorks.end()) {
         if (pending.request.outputStore == nullptr) {
-            const std::optional<qsizetype> peakByteCost
+            producerPeakByteCost
                 = refinementSource->rasterDisplayRefinementPeakByteCost(plan.targetRasterSize);
-            if (!peakByteCost.has_value() || *peakByteCost <= 0) {
+            if (!producerPeakByteCost.has_value() || *producerPeakByteCost <= 0) {
                 finishPlanningFailure(StaticFrameResolution::RefinementContractViolation);
                 return;
             }
         } else if (plan.requireExact) {
-            const std::optional<qsizetype> peakByteCost
+            producerPeakByteCost
                 = refinementSource->rasterDisplayRefinementPeakByteCost(plan.targetRasterSize);
-            if (!peakByteCost.has_value() || *peakByteCost <= 0) {
+            if (!producerPeakByteCost.has_value() || *producerPeakByteCost <= 0) {
                 finishPlanningFailure(StaticFrameResolution::RefinementContractViolation);
                 return;
             }
-            outputAdmission = pending.request.outputStore->reserveOutput(*peakByteCost);
+            outputAdmission = pending.request.outputStore->reserveOutput(*producerPeakByteCost);
             if (outputAdmission == nullptr) {
                 finishPlanningFailure(StaticFrameResolution::RefinementResourceExhausted);
                 return;
@@ -1052,6 +1062,7 @@ void ImageViewportDecodeProviderSource::startStaticRefinement(
                 }
 
                 plan.targetRasterSize = producerPlan.rasterSize;
+                producerPeakByteCost = producerPlan.peakByteCost;
                 if (staticPayloadAdmission(*m_authoritativeStaticImage,
                         m_authoritativeStaticImage->originalSize,
                         m_authoritativeStaticImage->sourceDetailModel, pending.request)
@@ -1088,6 +1099,23 @@ void ImageViewportDecodeProviderSource::startStaticRefinement(
         if (pending.request.outputStore != nullptr && outputAdmission == nullptr
             && existingWork == m_staticRefinementWorks.end()) {
             finishPlanningFailure(StaticFrameResolution::RefinementResourceExhausted);
+            return;
+        }
+        if (!producerPeakByteCost.has_value() || *producerPeakByteCost <= 0) {
+            finishPlanningFailure(StaticFrameResolution::RefinementContractViolation);
+            return;
+        }
+    }
+
+    ImageDecodeWorkspaceLease rasterWorkspaceLease;
+    if (existingWork == m_staticRefinementWorks.end()) {
+        rasterWorkspaceLease = m_dependencies.workspaceBudget->startLeaseForOperation(
+            m_authoritativeStaticImage->retainedRasterByteCost());
+        if (!rasterWorkspaceLease.tryReserve(*producerPeakByteCost)) {
+            outputAdmission.reset();
+            finishPlanningFailure(StaticFrameResolution::RefinementResourceExhausted,
+                { imageErrorText(ImageErrorTextId::ReadImageData),
+                    imageDecodeWorkspaceResourceLimitDiagnostic() });
             return;
         }
     }
@@ -1137,7 +1165,8 @@ void ImageViewportDecodeProviderSource::startStaticRefinement(
         ImageWorkerTask task = m_dependencies.refinementScheduler.run(
             this,
             [refinementSource, targetSize = plan.targetRasterSize,
-                producerAdmission = std::move(outputAdmission)]() {
+                producerAdmission = std::move(outputAdmission),
+                rasterWorkspaceLease = std::move(rasterWorkspaceLease)]() mutable {
                 StaticImageDisplayDecodeResult decodeResult
                     = refinementSource->decodeRasterDisplayImage(targetSize);
                 const qsizetype retainedByteCost = imageByteCost(decodeResult.image);
@@ -1150,6 +1179,26 @@ void ImageViewportDecodeProviderSource::startStaticRefinement(
                             = StaticImageDisplayDecodeFailureCause::ResourceExhausted;
                         decodeResult.diagnostics.diagnosticDetail = QStringLiteral(
                             "static refinement output exceeded its producer admission");
+                    }
+                }
+                if (!decodeResult.image.isNull()) {
+                    ImageDecodeWorkspaceHold workspaceHold
+                        = rasterWorkspaceLease.retainOnly(retainedByteCost);
+                    QImage admittedImage = imageRetainingDecodeWorkspace(
+                        std::move(decodeResult.image), workspaceHold);
+                    if (!workspaceHold.isManaged() || admittedImage.isNull()) {
+                        decodeResult.image = {};
+                        if (producerAdmission != nullptr) {
+                            static_cast<void>(producerAdmission->retainOnly(0));
+                        }
+                        decodeResult.failureCause
+                            = StaticImageDisplayDecodeFailureCause::ResourceExhausted;
+                        decodeResult.diagnostics.userMessage
+                            = imageErrorText(ImageErrorTextId::ReadImageData);
+                        decodeResult.diagnostics.diagnosticDetail = QStringLiteral(
+                            "static refinement output exceeded decoded-memory admission");
+                    } else {
+                        decodeResult.image = std::move(admittedImage);
                     }
                 }
                 return StaticRefinementProductionResult {
@@ -1454,12 +1503,18 @@ void ImageViewportDecodeProviderSource::finishStaticFrameAttempt(StaticFrameAtte
     }
 
     if (resolution == StaticFrameResolution::RefinementResourceExhausted) {
+        const QString userMessage = diagnostics.userMessage.isEmpty()
+            ? imageErrorText(ImageErrorTextId::ReadImageData)
+            : diagnostics.userMessage;
+        const QString diagnosticDetail = diagnostics.diagnosticDetail.isEmpty()
+            ? QStringLiteral("current image refinement exceeds the aggregate display-output limit")
+            : diagnostics.diagnosticDetail;
+        ImageLoadFailure failure = loadFailure(
+            resolvedSession(), ImageLoadFailureKind::Presentation, userMessage, diagnosticDetail);
+        failure.decodeCause = DecodedImageFailureCause::ResourceLimitExceeded;
         attempt.pending.completion(attempt.pending.identity,
             ImageViewportProviderFrameResult::failed(
-                ImageSequenceProviderFailureCause::ResourceExhausted,
-                loadFailure(resolvedSession(), ImageLoadFailureKind::Presentation, QString(),
-                    QStringLiteral(
-                        "current image refinement exceeds the aggregate display-output limit"))));
+                ImageSequenceProviderFailureCause::ResourceExhausted, std::move(failure)));
         return;
     }
 

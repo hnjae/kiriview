@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <limits>
 #include <mutex>
+#include <new>
 #include <utility>
 
 namespace {
@@ -144,6 +145,30 @@ bool ImageDecodeWorkspaceLease::release(qsizetype byteCount)
 ImageDecodeWorkspaceHold ImageDecodeWorkspaceLease::sharedHold() const
 {
     return m_state == nullptr ? ImageDecodeWorkspaceHold {} : ImageDecodeWorkspaceHold(m_state);
+}
+
+ImageDecodeWorkspaceHold ImageDecodeWorkspaceLease::splitRetained(qsizetype retainedByteCount)
+{
+    if (retainedByteCount <= 0 || m_state == nullptr || m_state->budget == nullptr
+        || m_state.use_count() != 1) {
+        return {};
+    }
+
+    const std::shared_ptr<ImageDecodeWorkspaceDetail::BudgetState>& budget = m_state->budget;
+    std::shared_ptr<ImageDecodeWorkspaceDetail::LeaseState> retainedState;
+    try {
+        retainedState = std::make_shared<ImageDecodeWorkspaceDetail::LeaseState>(budget);
+    } catch (const std::bad_alloc&) {
+        return {};
+    }
+    std::scoped_lock lock(budget->mutex);
+    if (retainedByteCount > m_state->reservedByteCount) {
+        return {};
+    }
+
+    m_state->reservedByteCount -= retainedByteCount;
+    retainedState->reservedByteCount = retainedByteCount;
+    return ImageDecodeWorkspaceHold(std::move(retainedState));
 }
 
 ImageDecodeWorkspaceHold ImageDecodeWorkspaceLease::retainOnly(qsizetype retainedByteCount)

@@ -12,7 +12,7 @@ While the selected image target is loading or showing its target-specific error,
 
 If no media item is selected, the empty state says that no file is selected and offers Open.
 
-If the selected image cannot be opened while no media item is displayed, the error state explains that the selected file or URL could not be opened, shows the underlying error when available, and offers Open. Initial video failures use the stable video error behavior defined in [Video Playback](video-playback.md#source-url-identity) and also offer Open.
+If the selected image cannot be opened while no media item is displayed, the error state explains that the selected file or URL could not be opened, shows a stable localized load error when available, and offers Open. Backend-authored diagnostic text is not user-visible. Initial video failures use the stable video error behavior defined in [Video Playback](video-playback.md#source-url-identity) and also offer Open.
 
 If a media item is already displayed and users select a different image, the requested image becomes the selected target immediately, whether or not it belongs to the current active navigation scope. Any retained fallback pixels continue to identify the previous committed presentation and are not treated as a ready presentation of the selected target.
 

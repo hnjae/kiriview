@@ -3,8 +3,11 @@
 
 #include "system/kiooperationfailure.h"
 
+#include "diagnostics/diagnosticlogprojection.h"
+
 #include <KIO/Global>
 #include <KJob>
+#include <QDebug>
 
 namespace kiriview {
 namespace {
@@ -14,6 +17,7 @@ namespace {
         case KioOperationKind::DirectoryListing:
         case KioOperationKind::FileDeletion:
         case KioOperationKind::MediaOpenWith:
+        case KioOperationKind::ImageDataRead:
             break;
         case KioOperationKind::Unknown:
             return false;
@@ -37,6 +41,19 @@ namespace {
             return false;
         }
     }
+}
+
+QDebug operator<<(QDebug debug, const KioOperationFailure& failure)
+{
+    QDebugStateSaver stateSaver(debug);
+    debug.noquote() << "cause" << static_cast<int>(failure.cause) << "operation"
+                    << static_cast<int>(failure.operationKind) << "target"
+                    << diagnosticSourceReference(failure.targetUrl) << "rawErrorCodeAvailable"
+                    << failure.rawErrorCode.has_value() << "rawErrorCode"
+                    << failure.rawErrorCode.value_or(0) << "canceled" << failure.canceled
+                    << "diagnostic" << diagnosticDetailReference(failure.diagnosticDetail)
+                    << "retryable" << failure.retryable;
+    return debug;
 }
 
 bool isKioOperationCanceledError(int errorCode)

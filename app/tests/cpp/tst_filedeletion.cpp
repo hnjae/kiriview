@@ -55,11 +55,14 @@ void TestFileDeletion::kioOperationFailureClassifiesRetryability_data()
     QTest::newRow("open-with-service-unavailable")
         << static_cast<int>(Kind::MediaOpenWith) << static_cast<int>(KIO::ERR_SERVICE_NOT_AVAILABLE)
         << true;
+    QTest::newRow("image-read-connection-broken")
+        << static_cast<int>(Kind::ImageDataRead) << static_cast<int>(KIO::ERR_CONNECTION_BROKEN)
+        << true;
     QTest::newRow("access-denied") << static_cast<int>(Kind::FileDeletion)
                                    << static_cast<int>(KIO::ERR_ACCESS_DENIED) << false;
     QTest::newRow("authentication-required")
-        << static_cast<int>(Kind::DirectoryListing)
-        << static_cast<int>(KIO::ERR_CANNOT_AUTHENTICATE) << false;
+        << static_cast<int>(Kind::ImageDataRead) << static_cast<int>(KIO::ERR_CANNOT_AUTHENTICATE)
+        << false;
     QTest::newRow("malformed-url") << static_cast<int>(Kind::MediaOpenWith)
                                    << static_cast<int>(KIO::ERR_MALFORMED_URL) << false;
     QTest::newRow("unknown-kio-error")

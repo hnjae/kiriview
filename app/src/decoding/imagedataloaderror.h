@@ -5,13 +5,13 @@
 #define KIRIVIEW_IMAGEDATALOADERROR_H
 
 #include "archive/mediaentrysourceerror.h"
+#include "system/kiooperationfailure.h"
 
-#include <QString>
 #include <functional>
 #include <variant>
 
 namespace kiriview {
-using ImageDataLoadError = std::variant<QString, MediaEntrySourceError>;
+using ImageDataLoadError = std::variant<KioOperationFailure, MediaEntrySourceError>;
 using ImageDataLoadErrorCallback = std::function<void(ImageDataLoadError)>;
 }
 

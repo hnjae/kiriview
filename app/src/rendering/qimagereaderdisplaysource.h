@@ -25,6 +25,8 @@ public:
         QImage::Format readerImageFormat = QImage::Format_RGBA8888_Premultiplied);
 
     [[nodiscard]] QSize imageSize() const override;
+    [[nodiscard]] std::optional<qsizetype> initialDisplayDecodePeakByteCost(
+        const ImageFirstDisplayDecodeContext& context, int blockingMaximumLongEdge) const override;
     [[nodiscard]] StaticImageFirstDisplayDecodeResult decodeFirstDisplayImage(
         const ImageFirstDisplayDecodeContext& context) const override;
     [[nodiscard]] bool supportsRasterDisplayRefinement() const override;

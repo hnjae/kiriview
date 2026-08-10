@@ -8,6 +8,7 @@
 #include "async/imageioworkerjob.h"
 #include "decoding/imagesourcedata.h"
 #include "location/imagedocumentlocation.h"
+#include "system/kiooperationfailure.h"
 
 #include <KIO/Job>
 #include <KIO/TransferJob>
@@ -102,7 +103,8 @@ ImageIoJob startStoredImageDataLoad(QObject* receiver, ImageDecodeRequest reques
 
     auto state = std::make_shared<StreamingImageSourceData>();
     state->sourceData.lease = std::move(lease);
-    auto* job = KIO::get(request.imageUrl(), KIO::Reload, KIO::HideProgressInfo);
+    const QUrl imageUrl = request.imageUrl();
+    auto* job = KIO::get(imageUrl, KIO::Reload, KIO::HideProgressInfo);
     ImageIoJob ioJob(job, cancelKJob);
     const ImageIoJobCompletion completion = ioJob.completion();
 
@@ -120,19 +122,23 @@ ImageIoJob startStoredImageDataLoad(QObject* receiver, ImageDecodeRequest reques
         });
 
     QObject::connect(job, &KJob::result, receiver,
-        [completion, state = std::move(state), callback = std::move(callback),
+        [completion, imageUrl, state = std::move(state), callback = std::move(callback),
             errorCallback = std::move(errorCallback)](KJob* finishedJob) mutable {
             completion.claimAndRun([&]() {
                 if (state->resourceLimitExceeded) {
                     state->sourceData = {};
                     kiriview::invokeIfSet(errorCallback,
-                        ImageDataLoadError { imageSourceDataResourceLimitDiagnostic() });
+                        ImageDataLoadError {
+                            kioOperationResourceLimitFailure(KioOperationKind::ImageDataRead,
+                                imageUrl, imageSourceDataResourceLimitDiagnostic()) });
                     return;
                 }
                 if (finishedJob->error() != KJob::NoError) {
                     state->sourceData = {};
-                    kiriview::invokeIfSet(
-                        errorCallback, ImageDataLoadError { finishedJob->errorString() });
+                    kiriview::invokeIfSet(errorCallback,
+                        ImageDataLoadError {
+                            kioOperationFailureFromKJob(KioOperationKind::ImageDataRead, imageUrl,
+                                finishedJob->error(), finishedJob->errorString()) });
                     return;
                 }
 

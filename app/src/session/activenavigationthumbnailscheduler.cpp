@@ -74,31 +74,48 @@ ActiveNavigationThumbnailScheduler::reset(ActiveNavigationThumbnailSchedulingSna
     return std::optional<std::vector<ActiveNavigationThumbnailScheduleEffect>>(std::move(effects));
 }
 
-bool ActiveNavigationThumbnailScheduler::refreshRows(
+std::optional<std::vector<ActiveNavigationThumbnailScheduleEffect>>
+ActiveNavigationThumbnailScheduler::refreshRows(
     ActiveNavigationThumbnailSchedulingSnapshot snapshot)
 {
     if (snapshot.navigationGeneration == 0
         || snapshot.navigationGeneration != m_navigationGeneration
         || snapshot.rows.size() != m_rows.size()) {
-        return false;
+        return std::nullopt;
     }
     for (std::size_t row = 0; row < snapshot.rows.size(); ++row) {
         if (!isValidThumbnailSourceRevisionKey(snapshot.rows.at(row))
             || snapshot.rows.at(row) != m_rows.at(row).sourceKey) {
-            return false;
+            return std::nullopt;
         }
     }
+    std::vector<ActiveNavigationThumbnailScheduleEffect> effects;
+    bool releasedResidencyBlock = false;
     for (std::size_t row = 0; row < snapshot.rows.size(); ++row) {
         RowState& state = m_rows.at(row);
+        const bool sourceChanged = state.sourceKey.sourceUrl != snapshot.rows.at(row).sourceUrl;
         state.sourceKey = std::move(snapshot.rows.at(row));
         if (state.acceptedDemand.has_value()) {
             state.acceptedDemand->sourceKey = state.sourceKey;
+            if (sourceChanged) {
+                if (m_sourceAdapter) {
+                    state.acceptedDemand->sourcePlan = m_sourceAdapter({ state.sourceKey,
+                        state.acceptedDemand->bucket, state.acceptedDemand->priority });
+                } else {
+                    state.acceptedDemand->sourcePlan = {};
+                }
+                releasedResidencyBlock
+                    = releaseResidencyBlock(row, effects) || releasedResidencyBlock;
+            }
         }
         if (state.activeWork.has_value()) {
             state.activeWork->demand.sourceKey = state.sourceKey;
         }
     }
-    return true;
+    if (releasedResidencyBlock) {
+        admit(effects);
+    }
+    return std::optional<std::vector<ActiveNavigationThumbnailScheduleEffect>>(std::move(effects));
 }
 
 std::vector<ActiveNavigationThumbnailScheduleEffect>
@@ -152,6 +169,7 @@ ActiveNavigationThumbnailScheduler::setCurrentNumber(int currentNumber)
         }
     }
     if (m_currentRow.has_value()) {
+        releaseResidencyBlock(*m_currentRow, effects);
         reclassifyCurrentRow(*m_currentRow, effects);
     }
     admit(effects);
@@ -215,12 +233,14 @@ ActiveNavigationThumbnailScheduler::replaceDemandSnapshot(
             if (state.activeWork.has_value()) {
                 state.activeWork->demand = demand;
             }
+            releaseResidencyBlock(row, effects);
             reclassifyCurrentRow(row, effects);
             continue;
         }
         cancel(row, effects);
         state.acceptedDemand = demand;
         state.completedDemandBucket.reset();
+        state.residencyBlocked = false;
         if (supportsGeneratedThumbnail(demand.sourcePlan)) {
             effects.emplace_back(ActiveNavigationThumbnailApplyPendingEffect { state.sourceKey });
         } else {
@@ -239,6 +259,23 @@ ActiveNavigationThumbnailScheduler::replaceDemandSnapshot(
     armBackgroundSweep();
     admit(effects);
     return std::optional<std::vector<ActiveNavigationThumbnailScheduleEffect>>(std::move(effects));
+}
+
+std::vector<ActiveNavigationThumbnailScheduleEffect>
+ActiveNavigationThumbnailScheduler::reconcileImageResidency(
+    const std::vector<ThumbnailSourceRevisionKey>& residencyLosses, bool admissionOpportunity)
+{
+    std::vector<ActiveNavigationThumbnailScheduleEffect> effects;
+    for (const ThumbnailSourceRevisionKey& sourceKey : residencyLosses) {
+        invalidateImageBackedCompletion(sourceKey, effects);
+    }
+    if (admissionOpportunity) {
+        for (std::size_t row = 0; row < m_rows.size(); ++row) {
+            releaseResidencyBlock(row, effects);
+        }
+        admit(effects);
+    }
+    return effects;
 }
 
 std::vector<ActiveNavigationThumbnailScheduleEffect>
@@ -263,6 +300,7 @@ ActiveNavigationThumbnailScheduler::acceptCompletion(
         m_activeBackgroundRow.reset();
     }
     state.activeWork.reset();
+    state.residencyBlocked = false;
     if (claim.kind == ActiveNavigationThumbnailWorkKind::Background) {
         if (!std::ranges::contains(state.completedBackgroundBuckets, completion.bucket)) {
             state.completedBackgroundBuckets.push_back(completion.bucket);
@@ -373,11 +411,50 @@ bool ActiveNavigationThumbnailScheduler::demandComplete(const RowState& state) c
 bool ActiveNavigationThumbnailScheduler::backgroundComplete(
     const RowState& state, ActiveNavigationThumbnailDemandBucket bucket) const
 {
+    if (state.residencyBlocked) {
+        return true;
+    }
     if (state.acceptedDemand.has_value()
         && static_cast<int>(state.acceptedDemand->bucket) >= static_cast<int>(bucket)) {
         return true;
     }
     return std::ranges::contains(state.completedBackgroundBuckets, bucket);
+}
+
+bool ActiveNavigationThumbnailScheduler::invalidateImageBackedCompletion(
+    const ThumbnailSourceRevisionKey& sourceKey,
+    std::vector<ActiveNavigationThumbnailScheduleEffect>& effects)
+{
+    const std::optional<std::size_t> row = rowForSourceKey(sourceKey);
+    if (!row.has_value()) {
+        return false;
+    }
+    RowState& state = m_rows.at(*row);
+    if (!state.acceptedDemand.has_value() || !state.completedDemandBucket.has_value()
+        || !supportsGeneratedThumbnail(state.acceptedDemand->sourcePlan)) {
+        return false;
+    }
+    cancel(*row, effects);
+    state.completedDemandBucket.reset();
+    state.residencyBlocked = true;
+    refreshDemandTier(*row);
+    return true;
+}
+
+bool ActiveNavigationThumbnailScheduler::releaseResidencyBlock(
+    std::size_t row, std::vector<ActiveNavigationThumbnailScheduleEffect>& effects)
+{
+    RowState& state = m_rows.at(row);
+    if (!state.residencyBlocked) {
+        return false;
+    }
+    state.residencyBlocked = false;
+    if (state.acceptedDemand.has_value()
+        && supportsGeneratedThumbnail(state.acceptedDemand->sourcePlan)) {
+        effects.emplace_back(ActiveNavigationThumbnailApplyPendingEffect { state.sourceKey });
+    }
+    refreshDemandTier(row);
+    return true;
 }
 
 void ActiveNavigationThumbnailScheduler::advanceAdmissionEpoch()
@@ -410,7 +487,7 @@ void ActiveNavigationThumbnailScheduler::refreshDemandTier(std::size_t row)
     m_highDemandRows.erase(row);
     m_nearbyDemandRows.erase(row);
     const RowState& state = m_rows.at(row);
-    if (!state.acceptedDemand.has_value() || demandComplete(state)) {
+    if (!state.acceptedDemand.has_value() || state.residencyBlocked || demandComplete(state)) {
         return;
     }
     const Tier tier = tierFor(row, *state.acceptedDemand);
@@ -431,6 +508,7 @@ void ActiveNavigationThumbnailScheduler::expireDemand(
     cancel(row, effects);
     state.acceptedDemand.reset();
     state.completedDemandBucket.reset();
+    state.residencyBlocked = false;
     state.demandSnapshotEpoch = 0;
     m_acceptedDemandRows.erase(row);
     refreshDemandTier(row);

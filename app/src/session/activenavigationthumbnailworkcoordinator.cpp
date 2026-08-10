@@ -85,6 +85,15 @@ const char* thumbnailFailureCategory(kiriview::ActiveNavigationThumbnailFailureK
 
     return "unknown";
 }
+
+void appendScheduleEffects(
+    std::vector<kiriview::ActiveNavigationThumbnailScheduleEffect>& destination,
+    std::vector<kiriview::ActiveNavigationThumbnailScheduleEffect> source)
+{
+    for (auto& effect : source) {
+        destination.push_back(std::move(effect));
+    }
+}
 }
 
 namespace kiriview {
@@ -100,6 +109,7 @@ ActiveNavigationThumbnailWorkCoordinator::ActiveNavigationThumbnailWorkCoordinat
           })
     , m_failureDiagnosticCallback(std::move(failureDiagnosticCallback))
 {
+    m_rowPort.subscribeToResidencyReconciliation(this, [this]() { reconcileResidencyChange(); });
 }
 
 ActiveNavigationThumbnailWorkCoordinator::~ActiveNavigationThumbnailWorkCoordinator()
@@ -124,7 +134,23 @@ bool ActiveNavigationThumbnailWorkCoordinator::resetRows(
 bool ActiveNavigationThumbnailWorkCoordinator::refreshRows(
     ActiveNavigationThumbnailSchedulingSnapshot snapshot)
 {
-    return m_scheduler.refreshRows(std::move(snapshot));
+    ActiveNavigationThumbnailResidencyChange residencyChange = m_rowPort.takeResidencyChange();
+    std::vector<ActiveNavigationThumbnailScheduleEffect> effects
+        = m_scheduler.reconcileImageResidency(residencyChange.losses, false);
+    auto refreshed = m_scheduler.refreshRows(std::move(snapshot));
+    if (!refreshed.has_value()) {
+        if (residencyChange.admissionOpportunity) {
+            appendScheduleEffects(effects, m_scheduler.reconcileImageResidency({}, true));
+        }
+        applyEffects(std::move(effects));
+        return false;
+    }
+    appendScheduleEffects(effects, std::move(*refreshed));
+    if (residencyChange.admissionOpportunity) {
+        appendScheduleEffects(effects, m_scheduler.reconcileImageResidency({}, true));
+    }
+    applyEffects(std::move(effects));
+    return true;
 }
 
 void ActiveNavigationThumbnailWorkCoordinator::invalidateRows()
@@ -134,17 +160,34 @@ void ActiveNavigationThumbnailWorkCoordinator::invalidateRows()
 
 void ActiveNavigationThumbnailWorkCoordinator::setCurrentNumber(int currentNumber)
 {
-    applyEffects(m_scheduler.setCurrentNumber(currentNumber));
+    ActiveNavigationThumbnailResidencyChange residencyChange = m_rowPort.takeResidencyChange();
+    auto effects = m_scheduler.reconcileImageResidency(residencyChange.losses, false);
+    appendScheduleEffects(effects, m_scheduler.setCurrentNumber(currentNumber));
+    if (residencyChange.admissionOpportunity) {
+        appendScheduleEffects(effects, m_scheduler.reconcileImageResidency({}, true));
+    }
+    applyEffects(std::move(effects));
 }
 
 bool ActiveNavigationThumbnailWorkCoordinator::replaceDemandSnapshot(
     const ActiveNavigationThumbnailDemandSnapshot& snapshot)
 {
-    auto effects = m_scheduler.replaceDemandSnapshot(snapshot);
-    if (!effects.has_value()) {
+    ActiveNavigationThumbnailResidencyChange residencyChange = m_rowPort.takeResidencyChange();
+    std::vector<ActiveNavigationThumbnailScheduleEffect> effects
+        = m_scheduler.reconcileImageResidency(residencyChange.losses, false);
+    auto replaced = m_scheduler.replaceDemandSnapshot(snapshot);
+    if (!replaced.has_value()) {
+        if (residencyChange.admissionOpportunity) {
+            appendScheduleEffects(effects, m_scheduler.reconcileImageResidency({}, true));
+        }
+        applyEffects(std::move(effects));
         return false;
     }
-    applyEffects(std::move(*effects));
+    appendScheduleEffects(effects, std::move(*replaced));
+    if (residencyChange.admissionOpportunity) {
+        appendScheduleEffects(effects, m_scheduler.reconcileImageResidency({}, true));
+    }
+    applyEffects(std::move(effects));
     return true;
 }
 
@@ -250,6 +293,7 @@ void ActiveNavigationThumbnailWorkCoordinator::publishCompletion(
                 && !m_rowPort.hasUsableReadyImage(completion.sourceKey)) {
                 m_rowPort.applyFailed(completion.sourceKey);
             }
+            applyEffects(m_scheduler.reconcileImageResidency({ completion.sourceKey }, false));
         }
         return;
     }
@@ -260,6 +304,15 @@ void ActiveNavigationThumbnailWorkCoordinator::publishCompletion(
         && !m_rowPort.hasUsableReadyImage(completion.sourceKey)) {
         m_rowPort.applyFailed(completion.sourceKey);
     }
+}
+
+void ActiveNavigationThumbnailWorkCoordinator::reconcileResidencyChange()
+{
+    ActiveNavigationThumbnailResidencyChange change = m_rowPort.takeResidencyChange();
+    if (change.empty()) {
+        return;
+    }
+    applyEffects(m_scheduler.reconcileImageResidency(change.losses, change.admissionOpportunity));
 }
 
 void ActiveNavigationThumbnailWorkCoordinator::reportFailureDiagnostic(

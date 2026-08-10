@@ -18,6 +18,7 @@ QRectF imageTargetRect(QSize imageSize, QSizeF boundsSize);
 QSize scaledImageSizeToFit(QSizeF imageSize, QSize boundsSize);
 QSize firstDisplayScaledImageSize(QSize imageSize, QSize logicalViewportSize);
 QImage displayReadyImage(const QImage& image);
+QImage imageRetainingDecodeWorkspace(QImage image, ImageDecodeWorkspaceHold workspaceHold);
 QImage copiedImageFromBytes(
     const QByteArray& bytes, QSize size, qsizetype bytesPerLine, QImage::Format format);
 }

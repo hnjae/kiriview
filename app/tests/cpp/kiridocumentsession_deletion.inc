@@ -307,7 +307,8 @@ void TestKiriDocumentSessionDeletion::pendingDirectImageReplacementDoesNotExpose
     session->deleteDisplayedFile(KiriDocumentSession::DeletionMode::MoveToTrash);
     QCOMPARE(fileDeletionProvider.operationCount(), std::size_t(0));
 
-    imageDataLoader.failBackLoad(QStringLiteral("replacement failed"));
+    imageDataLoader.failBackLoad(kiriview::TestSupport::backendImageDataLoadFailure(
+        secondImage, QStringLiteral("replacement failed")));
     QTRY_COMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Error);
     QCOMPARE(session->sourceUrl(), secondImage);
     QCOMPARE(session->imageDocument()->displayedUrl(), QUrl());

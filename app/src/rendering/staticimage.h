@@ -4,6 +4,7 @@
 #ifndef KIRIVIEW_STATICIMAGE_H
 #define KIRIVIEW_STATICIMAGE_H
 
+#include "decoding/imagedecodeworkspace.h"
 #include "decoding/imagesourcedata.h"
 #include "decoding/imagesourcerevision.h"
 #include "displayimagequality.h"
@@ -88,6 +89,8 @@ public:
 
     [[nodiscard]] virtual QSize imageSize() const = 0;
     [[nodiscard]] virtual StaticImageSourceDetailModel detailModel() const;
+    [[nodiscard]] virtual std::optional<qsizetype> initialDisplayDecodePeakByteCost(
+        const ImageFirstDisplayDecodeContext& context, int blockingMaximumLongEdge) const;
     [[nodiscard]] virtual StaticImageFirstDisplayDecodeResult decodeFirstDisplayImage(
         const ImageFirstDisplayDecodeContext& context) const;
     [[nodiscard]] virtual bool supportsRasterDisplayRefinement() const;
@@ -99,8 +102,14 @@ public:
         int maximumLongEdge) const
         = 0;
     [[nodiscard]] virtual qsizetype byteCost() const = 0;
+    [[nodiscard]] virtual qsizetype retainedRasterByteCost() const;
     [[nodiscard]] virtual StaticImageReaderTransform imageReaderTransform() const;
+    void retainRasterOutputWorkspace(ImageDecodeWorkspaceHold hold);
+    [[nodiscard]] bool hasRetainedRasterOutputWorkspace() const;
     Q_DISABLE_COPY_MOVE(StaticImageDisplaySource)
+
+private:
+    ImageDecodeWorkspaceHold m_rasterOutputWorkspaceHold;
 };
 
 struct StaticDisplayImagePayload
@@ -121,6 +130,7 @@ struct StaticDisplayImagePayload
     [[nodiscard]] bool isValid() const;
     [[nodiscard]] bool isAuthoritative() const;
     [[nodiscard]] bool isProvisionalPreview() const;
+    [[nodiscard]] qsizetype retainedRasterByteCost() const;
     [[nodiscard]] qsizetype byteCost() const;
     [[nodiscard]] std::optional<qsizetype> byteCostWithinBudget(qsizetype byteBudget) const;
 };

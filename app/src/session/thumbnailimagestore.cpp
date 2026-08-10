@@ -120,11 +120,12 @@ public:
         evictionOrder.insert(evictionRecord(*entry));
     }
 
-    void trimToBudget()
+    QStringList trimToBudget()
     {
+        QStringList evictedIds;
         while (byteCost > byteBudget && !images.empty()) {
             if (evictionOrder.empty()) {
-                return;
+                return evictedIds;
             }
 
             const QString removableId = evictionOrder.cbegin()->id;
@@ -137,8 +138,10 @@ public:
             qCDebug(kiriviewThumbnailLog)
                 << "Evicting thumbnail image from store" << removable->id << "priority"
                 << priorityRank(removable->priority) << "bytes" << removable->byteCost;
+            evictedIds.push_back(removable->id);
             eraseEntry(removable);
         }
+        return evictedIds;
     }
 };
 
@@ -157,30 +160,42 @@ QString ThumbnailImageStore::insert(QImage image, ThumbnailImageRetentionPriorit
     }
 
     const qsizetype byteCost = imageByteCost(image);
-    QMutexLocker locker(&d->mutex);
-    if (byteCost <= 0 || byteCost > d->byteBudget) {
-        return {};
-    }
-
     QString id;
-    do {
-        id = QStringLiteral("thumbnail-%1").arg(d->nextId++);
-        if (d->nextId == 0) {
-            ++d->nextId;
+    QStringList evictedIds;
+    bool admissionOpportunity = false;
+    {
+        QMutexLocker locker(&d->mutex);
+        if (byteCost <= 0 || byteCost > d->byteBudget) {
+            return {};
         }
-    } while (d->entriesById.contains(id));
 
-    d->images.push_back(Private::Entry {
-        id,
-        std::move(image),
-        byteCost,
-        ++d->useClock,
-        priority,
-    });
-    d->insertIndexes(std::prev(d->images.end()));
-    d->byteCost = saturatedQtByteSum(d->byteCost, byteCost);
-    d->trimToBudget();
-    return d->entriesById.contains(id) ? id : QString();
+        const qsizetype freeBytesBefore = d->byteBudget - d->byteCost;
+        do {
+            id = QStringLiteral("thumbnail-%1").arg(d->nextId++);
+            if (d->nextId == 0) {
+                ++d->nextId;
+            }
+        } while (d->entriesById.contains(id));
+
+        d->images.push_back(Private::Entry {
+            id,
+            std::move(image),
+            byteCost,
+            ++d->useClock,
+            priority,
+        });
+        d->insertIndexes(std::prev(d->images.end()));
+        d->byteCost = saturatedQtByteSum(d->byteCost, byteCost);
+        evictedIds = d->trimToBudget();
+        if (!d->entriesById.contains(id)) {
+            id.clear();
+        }
+        admissionOpportunity = d->byteBudget - d->byteCost > freeBytesBefore;
+    }
+    if (!evictedIds.isEmpty() || admissionOpportunity) {
+        Q_EMIT mutated(evictedIds, !evictedIds.isEmpty(), admissionOpportunity);
+    }
+    return id;
 }
 
 void ThumbnailImageStore::updatePriority(
@@ -190,14 +205,22 @@ void ThumbnailImageStore::updatePriority(
         return;
     }
 
-    QMutexLocker locker(&d->mutex);
-    Private::EntryIterator entry = d->findEntry(id);
-    if (entry == d->images.end()) {
-        return;
-    }
+    QStringList evictedIds;
+    bool admissionOpportunity = false;
+    {
+        QMutexLocker locker(&d->mutex);
+        Private::EntryIterator entry = d->findEntry(id);
+        if (entry == d->images.end()) {
+            return;
+        }
 
-    d->refreshEntry(entry, priority);
-    d->trimToBudget();
+        admissionOpportunity = priorityRank(priority) < priorityRank(entry->priority);
+        d->refreshEntry(entry, priority);
+        evictedIds = d->trimToBudget();
+    }
+    if (!evictedIds.isEmpty() || admissionOpportunity) {
+        Q_EMIT mutated(evictedIds, !evictedIds.isEmpty(), admissionOpportunity);
+    }
 }
 
 void ThumbnailImageStore::release(const QString& id)
@@ -206,29 +229,52 @@ void ThumbnailImageStore::release(const QString& id)
         return;
     }
 
-    QMutexLocker locker(&d->mutex);
-    Private::EntryIterator entry = d->findEntry(id);
-    if (entry == d->images.end()) {
-        return;
-    }
+    {
+        QMutexLocker locker(&d->mutex);
+        Private::EntryIterator entry = d->findEntry(id);
+        if (entry == d->images.end()) {
+            return;
+        }
 
-    d->eraseEntry(entry);
+        d->eraseEntry(entry);
+    }
+    Q_EMIT mutated(QStringList { id }, false, true);
 }
 
 void ThumbnailImageStore::clear()
 {
-    QMutexLocker locker(&d->mutex);
-    d->images.clear();
-    d->entriesById.clear();
-    d->evictionOrder.clear();
-    d->byteCost = 0;
+    QStringList evictedIds;
+    {
+        QMutexLocker locker(&d->mutex);
+        evictedIds.reserve(static_cast<qsizetype>(d->images.size()));
+        for (const Private::Entry& entry : d->images) {
+            evictedIds.push_back(entry.id);
+        }
+        d->images.clear();
+        d->entriesById.clear();
+        d->evictionOrder.clear();
+        d->byteCost = 0;
+    }
+    if (!evictedIds.isEmpty()) {
+        Q_EMIT mutated(evictedIds, false, true);
+    }
 }
 
 void ThumbnailImageStore::setByteBudget(qsizetype byteBudget)
 {
-    QMutexLocker locker(&d->mutex);
-    d->byteBudget = byteBudget > 0 ? byteBudget : defaultThumbnailStoreByteBudget();
-    d->trimToBudget();
+    QStringList evictedIds;
+    bool admissionOpportunity = false;
+    {
+        QMutexLocker locker(&d->mutex);
+        const qsizetype resolvedBudget
+            = byteBudget > 0 ? byteBudget : defaultThumbnailStoreByteBudget();
+        admissionOpportunity = resolvedBudget > d->byteBudget;
+        d->byteBudget = resolvedBudget;
+        evictedIds = d->trimToBudget();
+    }
+    if (!evictedIds.isEmpty() || admissionOpportunity) {
+        Q_EMIT mutated(evictedIds, !evictedIds.isEmpty(), admissionOpportunity);
+    }
 }
 
 QImage ThumbnailImageStore::image(const QString& id) const
@@ -259,6 +305,20 @@ qsizetype ThumbnailImageStore::size() const
 {
     QMutexLocker locker(&d->mutex);
     return static_cast<qsizetype>(d->images.size());
+}
+
+QMetaObject::Connection ThumbnailImageStore::subscribeToMutations(
+    QObject* receiver, ThumbnailImageStoreMutationCallback callback)
+{
+    if (receiver == nullptr || !callback) {
+        return {};
+    }
+    return QObject::connect(this, &ThumbnailImageStore::mutated, receiver,
+        [callback = std::move(callback)](
+            const QStringList& removedIds, bool pressureConstrained, bool admissionOpportunity) {
+            callback(ThumbnailImageStoreMutation {
+                removedIds, pressureConstrained, admissionOpportunity });
+        });
 }
 
 ThumbnailImageProvider::ThumbnailImageProvider(std::shared_ptr<ThumbnailImageStore> store)

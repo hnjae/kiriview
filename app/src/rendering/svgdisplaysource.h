@@ -24,6 +24,8 @@ public:
 
     [[nodiscard]] QSize imageSize() const override;
     [[nodiscard]] StaticImageSourceDetailModel detailModel() const override;
+    [[nodiscard]] std::optional<qsizetype> initialDisplayDecodePeakByteCost(
+        const ImageFirstDisplayDecodeContext& context, int blockingMaximumLongEdge) const override;
     [[nodiscard]] StaticImageFirstDisplayDecodeResult decodeFirstDisplayImage(
         const ImageFirstDisplayDecodeContext& context) const override;
     [[nodiscard]] bool supportsRasterDisplayRefinement() const override;

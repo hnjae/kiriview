@@ -86,7 +86,8 @@ void stampHeifFailure(kiriview::DecodedImageResult& result)
 }
 
 std::optional<kiriview::DecodedImageResult> decodeHeifStillImageDataForInfo(const QByteArray& data,
-    kiriview::HeifContainerInfo info, const kiriview::ImageDecodeRequest& request)
+    kiriview::HeifContainerInfo info, const kiriview::ImageDecodeRequest& request,
+    std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> workspaceBudget)
 {
     if (!info.stillImage) {
         return std::nullopt;
@@ -100,8 +101,8 @@ std::optional<kiriview::DecodedImageResult> decodeHeifStillImageDataForInfo(cons
             errorString, kiriview::DecodedImageFailureOperation::OpenStaticImageSource);
     }
 
-    kiriview::DecodedImageResult result
-        = kiriview::staticDecodedImageResult(std::move(source), request, &errorString);
+    kiriview::DecodedImageResult result = kiriview::staticDecodedImageResult(
+        std::move(source), request, &errorString, std::move(workspaceBudget));
     stampHeifFailure(result);
     return result;
 }
@@ -174,10 +175,10 @@ std::optional<DecodedImageResult> decodeHeifImageData(const QByteArray& data,
 {
     const HeifContainerInfo info = heifContainerInfo(data);
     if (std::optional<DecodedImageResult> sequenceResult
-        = decodeHeifSequenceImageDataForInfo(data, info, request, std::move(workspaceBudget))) {
+        = decodeHeifSequenceImageDataForInfo(data, info, request, workspaceBudget)) {
         return sequenceResult;
     }
 
-    return decodeHeifStillImageDataForInfo(data, info, request);
+    return decodeHeifStillImageDataForInfo(data, info, request, std::move(workspaceBudget));
 }
 }

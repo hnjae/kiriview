@@ -34,6 +34,7 @@ private Q_SLOTS:
     void sourceRendersWholeSurfaceDisplayBucket();
     void sourceRendersUpscaledFirstDisplayPreview();
     void sourceSkipsFirstDisplayPreviewWithoutValidViewport();
+    void initialPreflightAccountsOnlyForSelectedDisplayPath();
     void sourceReportsFirstDisplayRenderFailure();
     void sourceReportsWholeSurfaceRenderFailure();
     void sourceAppliesClipPathToBlockingAndBucketDisplay();
@@ -133,6 +134,25 @@ void TestSvgDisplaySource::sourceSkipsFirstDisplayPreviewWithoutValidViewport()
 
     QCOMPARE(firstDisplay.status, kiriview::FirstDisplayImageDecodeStatus::NotImplemented);
     QVERIFY(firstDisplay.image.isNull());
+}
+
+void TestSvgDisplaySource::initialPreflightAccountsOnlyForSelectedDisplayPath()
+{
+    kiriview::SvgDisplaySource source({}, QSize(4000, 2000));
+    const auto firstDisplayPeak = source.rasterDisplayRefinementPeakByteCost(QSize(400, 200));
+    const auto blockingPeak = source.rasterDisplayRefinementPeakByteCost(QSize(2048, 1024));
+    QVERIFY(firstDisplayPeak.has_value());
+    QVERIFY(blockingPeak.has_value());
+    QVERIFY(*firstDisplayPeak < *blockingPeak);
+
+    const auto selectedPeak = source.initialDisplayDecodePeakByteCost(
+        kiriview::ImageFirstDisplayDecodeContext { QSize(400, 300) }, 2048);
+    const auto fallbackPeak = source.initialDisplayDecodePeakByteCost({}, 2048);
+    QVERIFY(selectedPeak.has_value());
+    QVERIFY(fallbackPeak.has_value());
+    QVERIFY(*selectedPeak >= *firstDisplayPeak);
+    QVERIFY(*selectedPeak < *blockingPeak);
+    QVERIFY(*fallbackPeak >= *blockingPeak);
 }
 
 void TestSvgDisplaySource::sourceReportsFirstDisplayRenderFailure()

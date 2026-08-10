@@ -5,6 +5,7 @@
 
 #include "cache/imagebyteaccounting.h"
 #include "cache/imagebytecost.h"
+#include "imagedecodeworkspace.h"
 #include "localization/imageerrortext.h"
 #include "rendering/imagerendering.h"
 #include "rendering/staticimagedisplaysourcehelpers_p.h"
@@ -12,9 +13,12 @@
 
 #include <QColorSpace>
 #include <QtGlobal>
+#include <algorithm>
 #include <cstddef>
 #include <libraw/libraw.h>
+#include <limits>
 #include <memory>
+#include <new>
 #include <optional>
 #include <utility>
 
@@ -92,8 +96,47 @@ bool validateRawImageSize(QSize size, QString* errorString, QString* diagnosticD
     return true;
 }
 
-std::optional<QImage> qImageFromRawProcessedImage(
-    const libraw_processed_image_t* processedImage, QString* errorString, QString* diagnosticDetail)
+std::optional<qsizetype> rawInitialRasterPeakByteCost(QSize imageSize)
+{
+    const qsizetype fullRasterByteCost = kiriview::estimatedRgbaByteCost(imageSize);
+    const qsizetype previewByteCost = kiriview::estimatedRgbaByteCost(
+        kiriview::boundedPreviewSize(imageSize, kiriview::imageBlockingDisplayLongEdgeMax));
+    if (fullRasterByteCost <= 0 || previewByteCost <= 0) {
+        return std::nullopt;
+    }
+
+    // The processed LibRaw bitmap, the application RGBA copy, and display-format conversion may
+    // overlap. Once LibRaw retires, the retained full raster overlaps the scale output and its
+    // working raster. Codec-private storage remains subject to LibRaw's independent cap.
+    const qsizetype rawConversionPeak = kiriview::saturatedQtByteProduct(fullRasterByteCost, 3);
+    const qsizetype previewProductionPeak = kiriview::saturatedQtByteSum(
+        fullRasterByteCost, kiriview::saturatedQtByteProduct(previewByteCost, 2));
+    const qsizetype peakByteCost = std::max(rawConversionPeak, previewProductionPeak);
+    return peakByteCost == std::numeric_limits<qsizetype>::max()
+        ? std::nullopt
+        : std::optional<qsizetype>(peakByteCost);
+}
+
+QImage rawDisplayImage(const QImage& source, QSize rasterSize)
+{
+    if (source.size() == rasterSize) {
+        // Keep the source raster and the published raster as distinct physical allocations so
+        // their independently retained admission charges never describe the same pixels.
+        return source.copy();
+    }
+    return kiriview::scaledDisplayImage(source, rasterSize);
+}
+
+void setRawWorkspaceFailure(QString* errorString, QString* diagnosticDetail)
+{
+    const QString userMessage = kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData);
+    setRawDecodeFailure(errorString, diagnosticDetail, userMessage,
+        rawDecodeDiagnosticDetail(QStringLiteral("decoded-memory admission"),
+            kiriview::imageDecodeWorkspaceResourceLimitDiagnostic()));
+}
+
+std::optional<QImage> qImageFromRawProcessedImage(const libraw_processed_image_t* processedImage,
+    QString* errorString, QString* diagnosticDetail, bool* resourceExhausted)
 {
     if (processedImage == nullptr) {
         const QString message
@@ -131,6 +174,9 @@ std::optional<QImage> qImageFromRawProcessedImage(
 
     QImage image(imageSize, QImage::Format_RGBA8888);
     if (image.isNull()) {
+        if (resourceExhausted != nullptr) {
+            *resourceExhausted = true;
+        }
         const QString message
             = kiriview::imageErrorText(kiriview::ImageErrorTextId::RawDecodedImageAllocationFailed);
         setRawDecodeFailure(errorString, diagnosticDetail, message,
@@ -158,9 +204,18 @@ std::optional<QImage> qImageFromRawProcessedImage(
     return kiriview::displayReadyImage(image);
 }
 
-std::optional<QImage> decodeRawImage(
-    const QByteArray& data, QString* errorString, QString* diagnosticDetail)
+struct RawImageProduction
 {
+    std::optional<QImage> image;
+    kiriview::ImageDecodeWorkspaceLease producerLease;
+    bool resourceExhausted = false;
+};
+
+RawImageProduction decodeRawImage(const QByteArray& data,
+    const std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget>& workspaceBudget,
+    QString* errorString, QString* diagnosticDetail)
+{
+    RawImageProduction result;
     LibRaw processor;
     int errorCode = processor.open_buffer(data.constData(), static_cast<std::size_t>(data.size()));
     if (errorCode != LIBRAW_SUCCESS) {
@@ -168,16 +223,32 @@ std::optional<QImage> decodeRawImage(
             = kiriview::imageErrorActionText(kiriview::ImageErrorActionTextId::ReadRawImage);
         setRawDecodeFailure(errorString, diagnosticDetail, rawDecodeErrorString(action, errorCode),
             rawDecodeDiagnosticDetail(action, errorCode));
-        return std::nullopt;
+        result.resourceExhausted = errorCode == LIBRAW_UNSUFFICIENT_MEMORY;
+        return result;
     }
 
-    if (!validateRawImageSize(libRawImageSize(processor), errorString, diagnosticDetail)) {
-        return std::nullopt;
+    const QSize imageSize = libRawImageSize(processor);
+    if (!validateRawImageSize(imageSize, errorString, diagnosticDetail)) {
+        return result;
+    }
+    const std::optional<qsizetype> peakByteCost = rawInitialRasterPeakByteCost(imageSize);
+    if (!peakByteCost.has_value()) {
+        setRawWorkspaceFailure(errorString, diagnosticDetail);
+        result.resourceExhausted = true;
+        return result;
+    }
+    result.producerLease = workspaceBudget->startLease();
+    if (!result.producerLease.tryReserve(*peakByteCost)) {
+        setRawWorkspaceFailure(errorString, diagnosticDetail);
+        result.resourceExhausted = true;
+        return result;
     }
 
     processor.imgdata.params.use_camera_wb = 1;
     processor.imgdata.params.output_color = 1;
     processor.imgdata.params.output_bps = 8;
+    processor.imgdata.rawparams.max_raw_memory_mb = static_cast<unsigned>(
+        kiriview::imageFullDecodeFallbackByteLimit / (qsizetype { 1 } * 1024 * 1024));
 
     errorCode = processor.unpack();
     if (errorCode != LIBRAW_SUCCESS) {
@@ -185,7 +256,8 @@ std::optional<QImage> decodeRawImage(
             = kiriview::imageErrorActionText(kiriview::ImageErrorActionTextId::UnpackRawImage);
         setRawDecodeFailure(errorString, diagnosticDetail, rawDecodeErrorString(action, errorCode),
             rawDecodeDiagnosticDetail(action, errorCode));
-        return std::nullopt;
+        result.resourceExhausted = errorCode == LIBRAW_UNSUFFICIENT_MEMORY;
+        return result;
     }
 
     errorCode = processor.dcraw_process();
@@ -194,7 +266,8 @@ std::optional<QImage> decodeRawImage(
             = kiriview::imageErrorActionText(kiriview::ImageErrorActionTextId::ProcessRawImage);
         setRawDecodeFailure(errorString, diagnosticDetail, rawDecodeErrorString(action, errorCode),
             rawDecodeDiagnosticDetail(action, errorCode));
-        return std::nullopt;
+        result.resourceExhausted = errorCode == LIBRAW_UNSUFFICIENT_MEMORY;
+        return result;
     }
 
     int memImageErrorCode = LIBRAW_SUCCESS;
@@ -206,10 +279,13 @@ std::optional<QImage> decodeRawImage(
         setRawDecodeFailure(errorString, diagnosticDetail,
             rawDecodeErrorString(action, memImageErrorCode),
             rawDecodeDiagnosticDetail(action, memImageErrorCode));
-        return std::nullopt;
+        result.resourceExhausted = memImageErrorCode == LIBRAW_UNSUFFICIENT_MEMORY;
+        return result;
     }
 
-    return qImageFromRawProcessedImage(processedImage.get(), errorString, diagnosticDetail);
+    result.image = qImageFromRawProcessedImage(
+        processedImage.get(), errorString, diagnosticDetail, &result.resourceExhausted);
+    return result;
 }
 
 class RawStaticImageDisplaySource final : public kiriview::StaticImageDisplaySource
@@ -224,6 +300,20 @@ public:
 
     [[nodiscard]] QSize imageSize() const override { return m_image.size(); }
     [[nodiscard]] qsizetype byteCost() const override { return kiriview::imageByteCost(m_image); }
+    [[nodiscard]] qsizetype retainedRasterByteCost() const override
+    {
+        return kiriview::imageByteCost(m_image);
+    }
+    [[nodiscard]] std::optional<qsizetype> initialDisplayDecodePeakByteCost(
+        const kiriview::ImageFirstDisplayDecodeContext&, int) const override
+    {
+        const std::optional<qsizetype> totalPeakByteCost
+            = rawInitialRasterPeakByteCost(m_image.size());
+        const qsizetype retainedByteCost = retainedRasterByteCost();
+        return totalPeakByteCost.has_value() && *totalPeakByteCost > retainedByteCost
+            ? std::optional<qsizetype>(*totalPeakByteCost - retainedByteCost)
+            : std::nullopt;
+    }
     [[nodiscard]] bool supportsRasterDisplayRefinement() const override { return true; }
     [[nodiscard]] std::optional<qsizetype> rasterDisplayRefinementPeakByteCost(
         const QSize& rasterSize) const override
@@ -241,7 +331,7 @@ public:
             return {};
         }
 
-        QImage image = kiriview::scaledDisplayImage(m_image, rasterSize);
+        QImage image = rawDisplayImage(m_image, rasterSize);
         const bool resourceExhausted = image.isNull();
         return { std::move(image), {},
             resourceExhausted ? kiriview::StaticImageDisplayDecodeFailureCause::ResourceExhausted
@@ -252,7 +342,7 @@ public:
         int maximumLongEdge) const override
     {
         const QSize rasterSize = kiriview::boundedPreviewSize(m_image.size(), maximumLongEdge);
-        QImage image = kiriview::scaledDisplayImage(m_image, rasterSize);
+        QImage image = rawDisplayImage(m_image, rasterSize);
         const bool resourceExhausted = image.isNull() && !rasterSize.isEmpty();
         return { std::move(image), {},
             resourceExhausted ? kiriview::StaticImageDisplayDecodeFailureCause::ResourceExhausted
@@ -266,12 +356,22 @@ private:
 }
 
 namespace kiriview {
-DecodedImageResult decodeRawImageData(const QByteArray& data, const ImageDecodeRequest& request)
+DecodedImageResult decodeRawImageData(const QByteArray& data, const ImageDecodeRequest& request,
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget)
 {
+    if (workspaceBudget == nullptr) {
+        workspaceBudget = defaultImageDecodeWorkspaceBudget();
+    }
     QString errorString;
     QString diagnosticDetail;
-    std::optional<QImage> image = decodeRawImage(data, &errorString, &diagnosticDetail);
-    if (!image.has_value()) {
+    RawImageProduction production;
+    try {
+        production = decodeRawImage(data, workspaceBudget, &errorString, &diagnosticDetail);
+    } catch (const std::bad_alloc&) {
+        setRawWorkspaceFailure(&errorString, &diagnosticDetail);
+        production.resourceExhausted = true;
+    }
+    if (!production.image.has_value()) {
         return failedDecodedImageResult(DecodedImageFailure {
             std::move(errorString),
             DecodedImageFailureRoute::Raw,
@@ -279,11 +379,28 @@ DecodedImageResult decodeRawImageData(const QByteArray& data, const ImageDecodeR
             std::move(diagnosticDetail),
             DecodedImageFailureSeverity::Error,
             false,
+            production.resourceExhausted ? DecodedImageFailureCause::ResourceLimitExceeded
+                                         : DecodedImageFailureCause::Unknown,
         });
     }
 
     std::shared_ptr<StaticImageDisplaySource> source
-        = std::make_shared<RawStaticImageDisplaySource>(std::move(*image));
-    return staticDecodedImageResult(std::move(source), request, &errorString);
+        = std::make_shared<RawStaticImageDisplaySource>(std::move(*production.image));
+    ImageDecodeWorkspaceHold retainedSourceWorkspace
+        = production.producerLease.splitRetained(source->retainedRasterByteCost());
+    if (!retainedSourceWorkspace.isManaged()) {
+        return failedDecodedImageResult(DecodedImageFailure {
+            imageErrorText(ImageErrorTextId::ReadImageData),
+            DecodedImageFailureRoute::Raw,
+            DecodedImageFailureOperation::DecodeRawImage,
+            QStringLiteral("RAW retained raster admission split failed"),
+            DecodedImageFailureSeverity::Error,
+            false,
+            DecodedImageFailureCause::ResourceLimitExceeded,
+        });
+    }
+    source->retainRasterOutputWorkspace(std::move(retainedSourceWorkspace));
+    return staticDecodedImageResult(std::move(source), request, &errorString,
+        std::move(workspaceBudget), std::move(production.producerLease));
 }
 }

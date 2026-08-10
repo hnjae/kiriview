@@ -6,6 +6,7 @@
 #include "decoding/heifcontainer.h"
 #include "decoding/heifsequencereader.h"
 #include "image_test_support.h"
+#include "rendering/heifdisplaysource.h"
 #include "rendering/qimagereaderdisplaysource.h"
 
 #include <ImageViewport/imagesequence.h>
@@ -402,6 +403,7 @@ private Q_SLOTS:
     void animationWorkspaceBudgetRejectsUnadmittedFrames();
     void gifFrameCountLimitIsEnforced();
     void catalogWorkspaceFailurePreservesResourceCause();
+    void tiledHeifInitialPreflightAccountsForFullBlockingPath();
     void jpegCompressedHeifStillImageDecodes();
     void avifStillBrandUsesHeifStaticPath();
     void avifsSequenceBrandUsesHeifSequencePath();
@@ -573,6 +575,29 @@ void TestKiriImageDecoder::catalogWorkspaceFailurePreservesResourceCause()
     QCOMPARE(failure->cause, kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
     QVERIFY(kiriview::decodedImageResultImage(result) == nullptr);
     QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
+void TestKiriImageDecoder::tiledHeifInitialPreflightAccountsForFullBlockingPath()
+{
+    constexpr QSize sourceSize(4096, 2048);
+    constexpr QSize blockingSize(2048, 1024);
+    const kiriview::HeifTileGrid tileGrid {
+        16,
+        8,
+        256,
+        256,
+    };
+    const kiriview::HeifDisplaySource tiledSource({}, sourceSize, tileGrid);
+    const kiriview::HeifDisplaySource fullSource({}, sourceSize, std::nullopt);
+
+    const auto initialPeak = tiledSource.initialDisplayDecodePeakByteCost({}, 2048);
+    const auto gridRefinementPeak = tiledSource.rasterDisplayRefinementPeakByteCost(blockingSize);
+    const auto fullBlockingPeak = fullSource.rasterDisplayRefinementPeakByteCost(blockingSize);
+    QVERIFY(initialPeak.has_value());
+    QVERIFY(gridRefinementPeak.has_value());
+    QVERIFY(fullBlockingPeak.has_value());
+    QVERIFY(*initialPeak > *gridRefinementPeak);
+    QVERIFY(*initialPeak >= *fullBlockingPeak);
 }
 
 void TestKiriImageDecoder::jpegCompressedHeifStillImageDecodes()

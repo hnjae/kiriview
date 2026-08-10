@@ -5,10 +5,12 @@
 
 #include "cache/imagebyteaccounting.h"
 #include "cache/imagebytecost.h"
+#include "staticimagedisplaysourcehelpers_p.h"
 
 #include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <utility>
 
 namespace {
 qsizetype stringStorageByteCost(const QString& value)
@@ -61,6 +63,14 @@ StaticImageSourceDetailModel StaticImageDisplaySource::detailModel() const
     return StaticImageSourceDetailModel::FiniteRaster;
 }
 
+std::optional<qsizetype> StaticImageDisplaySource::initialDisplayDecodePeakByteCost(
+    const ImageFirstDisplayDecodeContext& context, int blockingMaximumLongEdge) const
+{
+    Q_UNUSED(context);
+    return rasterDisplayRefinementPeakByteCost(
+        boundedPreviewSize(imageSize(), blockingMaximumLongEdge));
+}
+
 StaticImageFirstDisplayDecodeResult StaticImageDisplaySource::decodeFirstDisplayImage(
     const ImageFirstDisplayDecodeContext& context) const
 {
@@ -88,6 +98,18 @@ StaticImageDisplayDecodeResult StaticImageDisplaySource::decodeRasterDisplayImag
 }
 
 StaticImageReaderTransform StaticImageDisplaySource::imageReaderTransform() const { return {}; }
+
+qsizetype StaticImageDisplaySource::retainedRasterByteCost() const { return 0; }
+
+void StaticImageDisplaySource::retainRasterOutputWorkspace(ImageDecodeWorkspaceHold hold)
+{
+    m_rasterOutputWorkspaceHold = std::move(hold);
+}
+
+bool StaticImageDisplaySource::hasRetainedRasterOutputWorkspace() const
+{
+    return m_rasterOutputWorkspaceHold.isManaged();
+}
 
 bool StaticDisplayImagePayload::isValid() const
 {
@@ -132,6 +154,13 @@ bool StaticDisplayImagePayload::isProvisionalPreview() const
     return isValid() && rasterKind == DisplayImageRasterKind::ProvisionalPreview
         && quality == DisplayImageQuality::ThumbnailPreview
         && previewOrigin != DisplayImagePreviewOrigin::None;
+}
+
+qsizetype StaticDisplayImagePayload::retainedRasterByteCost() const
+{
+    const qsizetype sourceRasterByteCost
+        = refinementSource == nullptr ? 0 : refinementSource->retainedRasterByteCost();
+    return saturatedQtByteSum(sourceRasterByteCost, imageByteCost(image));
 }
 
 qsizetype StaticDisplayImagePayload::byteCost() const

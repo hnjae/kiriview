@@ -234,9 +234,10 @@ QImage renderedThumbnailImage(const kiriview::DecodedImage& decoded, int maximum
                     }
                     return {};
                 }
+                const QSize targetSize = boundedSize(
+                    image.displayImage.refinementSource->imageSize(), maximumLongEdge);
                 kiriview::StaticImageDisplayDecodeResult result
-                    = image.displayImage.refinementSource->decodeBlockingDisplayImage(
-                        maximumLongEdge);
+                    = image.displayImage.refinementSource->decodeRasterDisplayImage(targetSize);
                 if (result.image.isNull() && errorString != nullptr) {
                     *errorString = result.diagnostics.userMessage;
                 }
@@ -291,41 +292,123 @@ std::optional<qsizetype> thumbnailSmoothScaleTransientByteCount(QSize sourceSize
 std::optional<ThumbnailTransformationPlan> thumbnailTransformationPlan(
     const kiriview::DecodedImage& decoded, int maximumLongEdge)
 {
-    struct TransformationTarget
-    {
-        QSize sourceSize;
-        QSize targetSize;
-        bool renderCreatesOutput = false;
-        bool usesSmoothScale = false;
-    };
-    const TransformationTarget target = std::visit(
-        [maximumLongEdge](const auto& image) -> TransformationTarget {
+    return std::visit(
+        [maximumLongEdge](const auto& image) -> std::optional<ThumbnailTransformationPlan> {
             using Image = std::decay_t<decltype(image)>;
             if constexpr (std::is_same_v<Image, kiriview::StaticDecodedImage>) {
                 if (image.displayImage.refinementSource == nullptr) {
-                    return {};
+                    return std::nullopt;
                 }
                 const QSize sourceSize = image.displayImage.refinementSource->imageSize();
-                return { sourceSize, boundedSize(sourceSize, maximumLongEdge), true, false };
+                const QSize targetSize = boundedSize(sourceSize, maximumLongEdge);
+                const std::optional<qsizetype> outputByteCount
+                    = kiriview::checkedImageDecodeWorkspaceByteCount(targetSize, 4, 1);
+                const std::optional<qsizetype> producerPeakByteCount
+                    = image.displayImage.refinementSource->rasterDisplayRefinementPeakByteCost(
+                        targetSize);
+                if (!outputByteCount.has_value() || !producerPeakByteCount.has_value()
+                    || *producerPeakByteCount < *outputByteCount) {
+                    return std::nullopt;
+                }
+                return ThumbnailTransformationPlan {
+                    *outputByteCount,
+                    *producerPeakByteCount - *outputByteCount,
+                    true,
+                };
             } else {
                 const QSize targetSize = boundedSize(image.firstFrame.size(), maximumLongEdge);
                 const bool createsOutput = targetSize != image.firstFrame.size();
-                return { image.firstFrame.size(), targetSize, createsOutput, createsOutput };
+                const std::optional<qsizetype> outputByteCount
+                    = kiriview::checkedImageDecodeWorkspaceByteCount(targetSize, 4, 1);
+                const std::optional<qsizetype> transientByteCount = createsOutput
+                    ? thumbnailSmoothScaleTransientByteCount(image.firstFrame.size(), targetSize)
+                    : std::optional<qsizetype>(0);
+                if (!outputByteCount.has_value() || !transientByteCount.has_value()) {
+                    return std::nullopt;
+                }
+                return ThumbnailTransformationPlan {
+                    *outputByteCount,
+                    *transientByteCount,
+                    createsOutput,
+                };
             }
         },
         decoded);
-    const std::optional<qsizetype> outputByteCount
-        = kiriview::checkedImageDecodeWorkspaceByteCount(target.targetSize, 4, 1);
-    const std::optional<qsizetype> transientByteCount = target.usesSmoothScale
-        ? thumbnailSmoothScaleTransientByteCount(target.sourceSize, target.targetSize)
-        : std::optional<qsizetype>(0);
-    if (!outputByteCount.has_value() || !transientByteCount.has_value()) {
-        return std::nullopt;
+}
+
+kiriview::ThumbnailGenerationImageDecodeResult renderDecodedThumbnailImageImpl(
+    const kiriview::DecodedImage& decoded, int maximumLongEdge,
+    const std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget>& workspaceBudget)
+{
+    kiriview::ThumbnailGenerationWorkspaceHolds workspaceHolds;
+    kiriview::ImageDecodeWorkspaceHold decodedImageWorkspaceHold = std::visit(
+        [](const auto& image) -> kiriview::ImageDecodeWorkspaceHold {
+            if constexpr (requires { image.firstFrameWorkspaceHold; }) {
+                return image.firstFrameWorkspaceHold;
+            }
+            return {};
+        },
+        decoded);
+    const qsizetype decodedImageWorkspaceByteCount = std::visit(
+        [](const auto& image) -> qsizetype {
+            if constexpr (requires { image.firstFrameWorkspaceHold; }) {
+                return image.firstFrameWorkspaceHold.reservedByteCount();
+            } else if constexpr (requires { image.displayImage.retainedRasterByteCost(); }) {
+                return image.displayImage.retainedRasterByteCost();
+            }
+            return 0;
+        },
+        decoded);
+    const std::optional<ThumbnailTransformationPlan> transformationPlan
+        = thumbnailTransformationPlan(decoded, maximumLongEdge);
+    if (!transformationPlan.has_value()) {
+        return {
+            {},
+            {},
+            {},
+            kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+            kiriview::DecodedImageFailureCause::ResourceLimitExceeded,
+        };
     }
-    return ThumbnailTransformationPlan {
-        *outputByteCount,
-        *transientByteCount,
-        target.renderCreatesOutput,
+
+    kiriview::ImageDecodeWorkspaceLease transformationLease
+        = workspaceBudget->startLeaseForOperation(decodedImageWorkspaceByteCount);
+    const qsizetype transformationReservationByteCount = kiriview::saturatedQtByteSum(
+        transformationPlan->outputByteCount, transformationPlan->transientByteCount);
+    if (transformationReservationByteCount == std::numeric_limits<qsizetype>::max()
+        || !transformationLease.tryReserve(transformationReservationByteCount)) {
+        return {
+            {},
+            {},
+            {},
+            kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+            kiriview::DecodedImageFailureCause::ResourceLimitExceeded,
+        };
+    }
+    workspaceHolds.decodedImage = std::move(decodedImageWorkspaceHold);
+
+    QString errorString;
+    kiriview::DecodedImageFailureCause failureCause = kiriview::DecodedImageFailureCause::Unknown;
+    QImage image;
+    try {
+        image = renderedThumbnailImage(decoded, maximumLongEdge, &errorString, &failureCause);
+    } catch (const std::bad_alloc&) {
+        errorString = kiriview::imageDecodeWorkspaceResourceLimitDiagnostic();
+        failureCause = kiriview::DecodedImageFailureCause::ResourceLimitExceeded;
+    }
+    if (!transformationLease.release(transformationPlan->transientByteCount)) {
+        image = {};
+        errorString = kiriview::imageDecodeWorkspaceResourceLimitDiagnostic();
+        failureCause = kiriview::DecodedImageFailureCause::ResourceLimitExceeded;
+    }
+    return {
+        std::move(workspaceHolds),
+        std::move(transformationLease),
+        std::move(image),
+        std::move(errorString),
+        failureCause,
+        transformationPlan->outputByteCount,
+        transformationPlan->renderCreatesOutput,
     };
 }
 
@@ -357,66 +440,7 @@ kiriview::ThumbnailGenerationImageDecodeResult defaultThumbnailGenerationImageDe
         };
     }
 
-    kiriview::ThumbnailGenerationWorkspaceHolds workspaceHolds;
-    kiriview::ImageDecodeWorkspaceHold decodedImageWorkspaceHold = std::visit(
-        [](auto& image) -> kiriview::ImageDecodeWorkspaceHold {
-            if constexpr (requires { image.firstFrameWorkspaceHold; }) {
-                return image.firstFrameWorkspaceHold;
-            }
-            return {};
-        },
-        *decoded);
-    const std::optional<ThumbnailTransformationPlan> transformationPlan
-        = thumbnailTransformationPlan(*decoded, maximumLongEdge);
-    if (!transformationPlan.has_value()) {
-        return {
-            {},
-            {},
-            {},
-            kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
-            kiriview::DecodedImageFailureCause::ResourceLimitExceeded,
-        };
-    }
-
-    kiriview::ImageDecodeWorkspaceLease transformationLease
-        = workspaceBudget->startLeaseForOperation(decodedImageWorkspaceHold.reservedByteCount());
-    const qsizetype transformationReservationByteCount = kiriview::saturatedQtByteSum(
-        transformationPlan->outputByteCount, transformationPlan->transientByteCount);
-    if (transformationReservationByteCount == std::numeric_limits<qsizetype>::max()
-        || !transformationLease.tryReserve(transformationReservationByteCount)) {
-        return {
-            {},
-            {},
-            {},
-            kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
-            kiriview::DecodedImageFailureCause::ResourceLimitExceeded,
-        };
-    }
-    workspaceHolds.decodedImage = std::move(decodedImageWorkspaceHold);
-
-    QString errorString;
-    kiriview::DecodedImageFailureCause failureCause = kiriview::DecodedImageFailureCause::Unknown;
-    QImage image;
-    try {
-        image = renderedThumbnailImage(*decoded, maximumLongEdge, &errorString, &failureCause);
-    } catch (const std::bad_alloc&) {
-        errorString = kiriview::imageDecodeWorkspaceResourceLimitDiagnostic();
-        failureCause = kiriview::DecodedImageFailureCause::ResourceLimitExceeded;
-    }
-    if (!transformationLease.release(transformationPlan->transientByteCount)) {
-        image = {};
-        errorString = kiriview::imageDecodeWorkspaceResourceLimitDiagnostic();
-        failureCause = kiriview::DecodedImageFailureCause::ResourceLimitExceeded;
-    }
-    return {
-        std::move(workspaceHolds),
-        std::move(transformationLease),
-        std::move(image),
-        std::move(errorString),
-        failureCause,
-        transformationPlan->outputByteCount,
-        transformationPlan->renderCreatesOutput,
-    };
+    return renderDecodedThumbnailImageImpl(*decoded, maximumLongEdge, workspaceBudget);
 }
 
 kiriview::MediaEntrySourceImageDataResult loadOpenedCollectionThumbnailBytes(
@@ -634,14 +658,25 @@ kiriview::ThumbnailGenerationResult finishGeneratedThumbnailImage(
 
     image = {};
     workspaceHolds.decodedImage = {};
-    workspaceHolds.transformation = transformationLease.retainOnly(transformationOutputByteCount);
-    if (!workspaceHolds.transformation.isManaged()) {
+    kiriview::ImageDecodeWorkspaceHold retainedOutputWorkspace
+        = transformationLease.retainOnly(transformationOutputByteCount);
+    if (!retainedOutputWorkspace.isManaged()) {
         rgba8 = {};
         workspaceHolds = {};
         return failedResult(request.requestedBucket,
             kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
             kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded);
     }
+    QImage admittedImage = kiriview::imageRetainingDecodeWorkspace(
+        std::move(rgba8), std::move(retainedOutputWorkspace));
+    if (admittedImage.isNull()) {
+        workspaceHolds = {};
+        return failedResult(request.requestedBucket,
+            kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+            kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded);
+    }
+    workspaceHolds = {};
+    rgba8 = std::move(admittedImage);
 
     if (!request.cacheInstallEnabled) {
         return kiriview::ThumbnailGenerationResult {
@@ -857,6 +892,21 @@ kiriview::ImageIoJob startVideoThumbnailGenerationJob(QObject* receiver,
 }
 
 namespace kiriview {
+ThumbnailGenerationImageDecodeResult renderDecodedThumbnailImage(const DecodedImage& decoded,
+    int maximumLongEdge, const std::shared_ptr<ImageDecodeWorkspaceBudget>& workspaceBudget)
+{
+    if (workspaceBudget == nullptr) {
+        return {
+            {},
+            {},
+            {},
+            imageDecodeWorkspaceResourceLimitDiagnostic(),
+            DecodedImageFailureCause::ResourceLimitExceeded,
+        };
+    }
+    return renderDecodedThumbnailImageImpl(decoded, maximumLongEdge, workspaceBudget);
+}
+
 ThumbnailGenerationResult generateThumbnail(
     const ThumbnailGenerationRequest& request, ThumbnailGenerationDependencies dependencies)
 {

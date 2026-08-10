@@ -38,6 +38,8 @@ Persistent installation is a best-effort side effect after a current usable thum
 
 The thumbnail image provider is cache-only and reentrant. It may return an already published immutable image entry and its stored size; it must not decode, resize, perform I/O, schedule work, decide freshness, or mutate active navigation.
 
+A thumbnail row may remain ready only while its immutable image-provider entry remains resident. Residency loss invalidates the ready projection and its image-backed scheduling completion without requiring a renewed demand report. Pressure alone does not drive repeated production under an unchanged infeasible capacity condition; accepted demand remains eligible for bounded readmission when capacity becomes available or its material source, priority, or output requirement changes.
+
 ## Source Eligibility
 
 Thumbnail eligibility, representative-preview behavior, and visible fallbacks are defined by [Navigation](../spec/navigation.md). Adapters implement that contract without expanding eligibility merely because a backend could technically render another source class.
