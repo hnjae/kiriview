@@ -30,8 +30,9 @@ ImageViewportPrivate::~ImageViewportPrivate()
 {
     for (auto& scheduler : playbackSchedulers)
         scheduler->stop();
-    providerHost.releaseAllProviderLeases();
-    providerHost.applyTransportEffects(engine.shutdown());
+    ViewportProviderTransportBatch shutdownEffects = engine.shutdown();
+    discardPendingRenderMailbox();
+    providerHost.applyTransportEffects(shutdownEffects);
     providerHost.shutdown();
 }
 

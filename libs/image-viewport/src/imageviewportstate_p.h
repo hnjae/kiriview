@@ -672,6 +672,7 @@ struct RequestState
 struct ProviderSessionState
 {
     bool sessionActive = false;
+    bool sessionOpened = false;
     quint64 sessionSerial = 0;
 };
 

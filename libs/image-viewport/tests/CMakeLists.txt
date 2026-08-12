@@ -19,27 +19,64 @@ target_link_libraries(
 target_compile_definitions(imageviewport_test_support
                            INTERFACE IMAGEVIEWPORT_QML_IMPORT_PATH="${CMAKE_BINARY_DIR}/src")
 
+# Reject dependencies that would violate a supported subject target's runtime boundary.
+function(assert_imageviewport_dependencies_absent target)
+    foreach(property LINK_LIBRARIES INTERFACE_LINK_LIBRARIES)
+        get_target_property(dependencies ${target} ${property})
+        if(NOT dependencies)
+            continue()
+        endif()
+        foreach(dependency IN LISTS dependencies)
+            foreach(forbidden_dependency IN LISTS ARGN)
+                if(dependency MATCHES "(^|[^A-Za-z0-9_])${forbidden_dependency}([^A-Za-z0-9_]|$)")
+                    message(
+                        FATAL_ERROR
+                            "${target} ${property} must not include forbidden dependency ${dependency}"
+                    )
+                endif()
+            endforeach()
+        endforeach()
+    endforeach()
+endfunction()
+
+assert_imageviewport_dependencies_absent(ImageViewportStateSubjects Qt6::Qml Qt6::Quick
+                                         ImageViewportNonItemSubjects ImageViewport)
+assert_imageviewport_dependencies_absent(ImageViewportNonItemSubjects Qt6::Qml Qt6::Quick
+                                         ImageViewport)
+
 # Add a public-header isolation compile target.
 function(add_imageviewport_public_header_compile_test target source)
     add_library(${target} OBJECT ${source})
-    target_link_libraries(${target} PRIVATE ImageViewport)
+    target_link_libraries(${target} PRIVATE ${ARGN})
 endfunction()
 
 add_imageviewport_public_header_compile_test(imageviewport_types_header_compile
-                                             public_headers/types.cpp)
-add_imageviewport_public_header_compile_test(imageviewport_sequence_header_compile
-                                             public_headers/sequence.cpp)
-add_imageviewport_public_header_compile_test(imageviewport_provider_header_compile
-                                             public_headers/provider.cpp)
+                                             public_headers/types.cpp ImageViewportStateSubjects)
+add_imageviewport_public_header_compile_test(
+    imageviewport_sequence_header_compile public_headers/sequence.cpp ImageViewportNonItemSubjects)
+add_imageviewport_public_header_compile_test(
+    imageviewport_provider_header_compile public_headers/provider.cpp ImageViewportNonItemSubjects)
 add_imageviewport_public_header_compile_test(imageviewport_state_header_compile
-                                             public_headers/state.cpp)
+                                             public_headers/state.cpp ImageViewportStateSubjects)
 add_imageviewport_public_header_compile_test(imageviewport_umbrella_header_compile
-                                             public_headers/umbrella.cpp)
+                                             public_headers/umbrella.cpp ImageViewport Qt6::Quick)
 add_library(imageviewport_private_header_unreachable_compile OBJECT
             public_headers/private_unreachable.cpp)
 target_link_libraries(imageviewport_private_header_unreachable_compile PRIVATE ImageViewport)
 add_library(imageviewport_viewport_header_compile OBJECT public_headers/viewport.cpp)
-target_link_libraries(imageviewport_viewport_header_compile PRIVATE ImageViewport)
+target_link_libraries(imageviewport_viewport_header_compile PRIVATE ImageViewport Qt6::Quick)
+
+add_executable(imageviewport_provider_subject_link public_headers/provider_link.cpp)
+target_link_libraries(imageviewport_provider_subject_link PRIVATE ImageViewportNonItemSubjects)
+add_test(NAME imageviewport_provider_subject_link COMMAND imageviewport_provider_subject_link)
+add_executable(imageviewport_state_subject_link public_headers/state_link.cpp)
+target_link_libraries(imageviewport_state_subject_link PRIVATE ImageViewportStateSubjects)
+add_test(NAME imageviewport_state_subject_link COMMAND imageviewport_state_subject_link)
+add_test(
+    NAME imageviewport_state_subject_boundary
+    COMMAND
+        ${CMAKE_COMMAND} -DNM=${CMAKE_NM} -DBINARY=$<TARGET_FILE:imageviewport_state_subject_link>
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/check_state_subject_boundary.cmake)
 
 add_library(imageviewport_core_contract_header_compile OBJECT private_headers/core_contracts.cpp)
 target_include_directories(imageviewport_core_contract_header_compile

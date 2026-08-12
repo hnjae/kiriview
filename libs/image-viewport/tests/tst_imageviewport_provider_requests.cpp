@@ -861,16 +861,29 @@ void ImageViewportProviderRequestsTest::waitProjectionRevisionChangesOnlyWhenPub
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QVERIFY(primarySessionFactory->lastSession());
     QVERIFY(secondarySessionFactory->lastSession());
-    const ImageSequenceProviderRequestToken primaryFrameToken
-        = primarySessionFactory->lastSession()->lastFrameToken();
     const ImageSequenceProviderRequestToken secondaryMetadataToken
         = secondarySessionFactory->lastSession()->lastMetadataToken();
-    QVERIFY(primaryFrameToken.isValid());
+    QCOMPARE(*primaryFrameRequestCount, 0);
     QVERIFY(secondaryMetadataToken.isValid());
 
     const ImageViewportRevisionToken providerWaitingRevision
         = revisionTokenProperty(item, "requestRevision");
 
+    emitProviderMetadataReady(secondarySessionFactory->lastSession(), secondaryMetadataToken,
+        ImageSequenceProviderMetadata::still(QSizeF(8.0, 16.0)));
+    drainQueuedProviderResults();
+    const ImageSequenceProviderRequestToken primaryFrameToken
+        = primarySessionFactory->lastSession()->lastFrameToken();
+    const ImageSequenceProviderRequestToken secondaryFrameToken
+        = secondarySessionFactory->lastSession()->lastFrameToken();
+    QVERIFY(primaryFrameToken.isValid());
+    QVERIFY(secondaryFrameToken.isValid());
+    QCOMPARE(*primaryFrameRequestCount, 1);
+    QCOMPARE(*secondaryFrameRequestCount, 1);
+
+    const ImageViewportRevisionToken secondaryProviderWaitingRevision
+        = revisionTokenProperty(item, "requestRevision");
+    QVERIFY(secondaryProviderWaitingRevision != providerWaitingRevision);
     QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
     primaryImage.fill(Qt::transparent);
     ImageFrame primaryFrame(primaryImage);
@@ -879,17 +892,8 @@ void ImageViewportProviderRequestsTest::waitProjectionRevisionChangesOnlyWhenPub
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(revisionTokenProperty(item, "requestRevision"), providerWaitingRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), secondaryProviderWaitingRevision);
 
-    emitProviderMetadataReady(secondarySessionFactory->lastSession(), secondaryMetadataToken,
-        ImageSequenceProviderMetadata::still(QSizeF(8.0, 16.0)));
-    drainQueuedProviderResults();
-    const ImageSequenceProviderRequestToken secondaryFrameToken
-        = secondarySessionFactory->lastSession()->lastFrameToken();
-    QVERIFY(secondaryFrameToken.isValid());
-
-    const ImageViewportRevisionToken secondaryProviderWaitingRevision
-        = revisionTokenProperty(item, "requestRevision");
     QImage secondaryImage(8, 16, QImage::Format_ARGB32_Premultiplied);
     secondaryImage.fill(Qt::transparent);
     ImageFrame secondaryFrame(secondaryImage);

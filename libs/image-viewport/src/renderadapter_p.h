@@ -78,8 +78,8 @@ public:
             QRectF sourceRect;
             QRectF physicalSourceRect;
             int rotationDegrees = 0;
-            bool mirrorHorizontally = false;
-            bool mirrorVertically = false;
+            bool mirrorTextureHorizontally = false;
+            bool mirrorTextureVertically = false;
         };
 
         CommitResult result = CommitResult::Empty;

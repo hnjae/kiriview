@@ -102,6 +102,7 @@ private Q_SLOTS:
     void helpModalSuppressesEscapeDispatch();
     void focusInapplicableBlocksFixedShortcutDispatch();
     void genericShortcutDispatchUsesFirstEnabledBinding();
+    void modifierBearingViewerLocalQuitBypassesTextInputGate();
     void collectionVideoDispatchesCollectionCommandShortcuts();
     void genericShortcutDispatchReportsUnsupportedMediaActions();
     void focusInapplicableBlocksGenericShortcutDispatch();
@@ -625,6 +626,54 @@ void TestApplicationShortcutPolicy::genericShortcutDispatchUsesFirstEnabledBindi
     QCOMPARE(
         outcome.kind, kiriview::ApplicationActions::GenericShortcutDispatchKind::TriggerAction);
     QCOMPARE(outcome.actionId, ActionId::FileOpenAction);
+}
+
+void TestApplicationShortcutPolicy::modifierBearingViewerLocalQuitBypassesTextInputGate()
+{
+    kiriview::ApplicationActions::GenericShortcutDispatchInput input;
+    input.actionState.helpActionsEnabled = true;
+    input.actionState.textInputFocused = true;
+    input.actionState.viewerShortcutsEnabled = false;
+    input.bindings = {
+        kiriview::ApplicationActions::GenericShortcutBinding {
+            ActionId::FileQuitAction,
+            Scope::ViewerShortcutScope,
+            { shortcut(QStringLiteral("Alt+Q")), shortcut(QStringLiteral("Ctrl+Q")),
+                shortcut(QStringLiteral("Meta+Q")), shortcut(QStringLiteral("Shift+Q")),
+                shortcut(QStringLiteral("Q")) },
+            true,
+            ActivationScope::ViewerLocal,
+        },
+    };
+
+    for (const QString& sequence :
+        { QStringLiteral("Alt+Q"), QStringLiteral("Ctrl+Q"), QStringLiteral("Meta+Q") }) {
+        const kiriview::ApplicationActions::GenericShortcutDispatchOutcome outcome
+            = kiriview::ApplicationActions::genericShortcutDispatchOutcome(
+                input, shortcut(sequence));
+        QCOMPARE(
+            outcome.kind, kiriview::ApplicationActions::GenericShortcutDispatchKind::TriggerAction);
+        QCOMPARE(outcome.actionId, ActionId::FileQuitAction);
+    }
+
+    for (const QString& sequence : { QStringLiteral("Q"), QStringLiteral("Shift+Q") }) {
+        const kiriview::ApplicationActions::GenericShortcutDispatchOutcome outcome
+            = kiriview::ApplicationActions::genericShortcutDispatchOutcome(
+                input, shortcut(sequence));
+        QCOMPARE(outcome.kind, kiriview::ApplicationActions::GenericShortcutDispatchKind::None);
+    }
+
+    input.actionState.helpActionsEnabled = false;
+    kiriview::ApplicationActions::GenericShortcutDispatchOutcome outcome
+        = kiriview::ApplicationActions::genericShortcutDispatchOutcome(
+            input, shortcut(QStringLiteral("Alt+Q")));
+    QCOMPARE(outcome.kind, kiriview::ApplicationActions::GenericShortcutDispatchKind::None);
+
+    input.actionState.helpActionsEnabled = true;
+    input.bindings.front().activationScope = ActivationScope::ProgramWide;
+    outcome = kiriview::ApplicationActions::genericShortcutDispatchOutcome(
+        input, shortcut(QStringLiteral("Alt+Q")));
+    QCOMPARE(outcome.kind, kiriview::ApplicationActions::GenericShortcutDispatchKind::None);
 }
 
 void TestApplicationShortcutPolicy::collectionVideoDispatchesCollectionCommandShortcuts()

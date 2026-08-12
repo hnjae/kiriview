@@ -116,6 +116,8 @@ private Q_SLOTS:
     void providerTypedProtocolValuesValidateShape();
     void typedDescriptorFactoryAndSessionBridgeDeliversTypedRequests();
     void dynamicMaximumClampRestagesCoherentProviderDemand();
+    void providerDemandUsesCenteredSpreadGeometry_data();
+    void providerDemandUsesCenteredSpreadGeometry();
     void providerSpreadBudgetAccountsForRetainedPayloadAndResourcePressure();
     void providerSpreadCommitReissuesDemandWhenBudgetIncreases();
     void providerRoleBudgetRejectsPayloadBeforeSpreadOversubscription();
@@ -551,6 +553,133 @@ void ImageViewportProviderContractTest::dynamicMaximumClampRestagesCoherentProvi
     QCOMPARE(demand.demandRevision(), after.primary().request().demandRevision());
     QCOMPARE(
         demand.targetDisplaySizePixels(), after.primary().geometry().acceptedItemRect().size());
+}
+
+void ImageViewportProviderContractTest::providerDemandUsesCenteredSpreadGeometry_data()
+{
+    QTest::addColumn<bool>("primaryMetadataFirst");
+    QTest::addColumn<bool>("primaryConstructionMetadataKnown");
+    QTest::addColumn<bool>("secondaryConstructionMetadataKnown");
+
+    QTest::newRow("primary-first") << true << false << false;
+    QTest::newRow("secondary-first") << false << false << false;
+    QTest::newRow("construction-known") << true << true << true;
+    QTest::newRow("primary-construction-known") << true << true << false;
+    QTest::newRow("secondary-construction-known") << false << false << true;
+}
+
+void ImageViewportProviderContractTest::providerDemandUsesCenteredSpreadGeometry()
+{
+    QFETCH(bool, primaryMetadataFirst);
+    QFETCH(bool, primaryConstructionMetadataKnown);
+    QFETCH(bool, secondaryConstructionMetadataKnown);
+
+    const auto primaryMetadataRequestCount = std::make_shared<int>(0);
+    const auto secondaryMetadataRequestCount = std::make_shared<int>(0);
+    const auto primaryFrameRequestCount = std::make_shared<int>(0);
+    const auto secondaryFrameRequestCount = std::make_shared<int>(0);
+    const auto makeProviderFactory = [](const std::shared_ptr<int>& metadataRequestCount,
+                                         const std::shared_ptr<int>& frameRequestCount) {
+        return std::make_shared<CountingProviderSessionFactory>(std::make_shared<int>(0),
+            metadataRequestCount, frameRequestCount, std::make_shared<int>(-1),
+            std::make_shared<int>(0));
+    };
+    auto primaryFactory
+        = makeProviderFactory(primaryMetadataRequestCount, primaryFrameRequestCount);
+    auto secondaryFactory
+        = makeProviderFactory(secondaryMetadataRequestCount, secondaryFrameRequestCount);
+    CountingProviderAdapter primaryAdapter(primaryFactory,
+        primaryConstructionMetadataKnown ? ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0))
+                                         : ImageSequenceProviderMetadata {});
+    CountingProviderAdapter secondaryAdapter(secondaryFactory,
+        secondaryConstructionMetadataKnown
+            ? ImageSequenceProviderMetadata::still(QSizeF(10.0, 20.0))
+            : ImageSequenceProviderMetadata {});
+    ImageSequenceFactory sequenceFactory;
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(
+        sequenceFactory.fromProvider(&primaryAdapter));
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
+        sequenceFactory.fromProvider(&secondaryAdapter));
+    QVERIFY(primaryResult->sequence());
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    useSynchronousProviderEventDeliveryForTest(item);
+    item.setSize(QSizeF(26.0, 8.0));
+    ImageViewportPresentationCommand manual;
+    manual.setFitMode(ImageViewportFitMode::Manual);
+    QCOMPARE(item.setPresentation(manual).outcome(), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(
+                                            primaryResult->sequence(), secondaryResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    QVERIFY(primaryFactory->lastSession());
+    QVERIFY(secondaryFactory->lastSession());
+    if (primaryConstructionMetadataKnown && secondaryConstructionMetadataKnown) {
+        QCOMPARE(*primaryMetadataRequestCount, 0);
+        QCOMPARE(*secondaryMetadataRequestCount, 0);
+        QCOMPARE(*primaryFrameRequestCount, 1);
+        QCOMPARE(*secondaryFrameRequestCount, 1);
+    } else {
+        QCOMPARE(*primaryMetadataRequestCount, primaryConstructionMetadataKnown ? 0 : 1);
+        QCOMPARE(*secondaryMetadataRequestCount, secondaryConstructionMetadataKnown ? 0 : 1);
+        QCOMPARE(*primaryFrameRequestCount, 0);
+        QCOMPARE(*secondaryFrameRequestCount, 0);
+        QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Loading);
+        QCOMPARE(item.state().request().reason(), ImageViewportRequestReason::ProviderWaiting);
+    }
+    const auto emitPrimaryMetadata = [&primaryFactory] {
+        emitProviderMetadataReady(primaryFactory->lastSession(),
+            primaryFactory->lastSession()->lastMetadataToken(),
+            ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    };
+    const auto emitSecondaryMetadata = [&secondaryFactory] {
+        emitProviderMetadataReady(secondaryFactory->lastSession(),
+            secondaryFactory->lastSession()->lastMetadataToken(),
+            ImageSequenceProviderMetadata::still(QSizeF(10.0, 20.0)));
+    };
+    if (!primaryConstructionMetadataKnown && !secondaryConstructionMetadataKnown) {
+        if (primaryMetadataFirst) {
+            emitPrimaryMetadata();
+        } else {
+            emitSecondaryMetadata();
+        }
+        QCOMPARE(*primaryFrameRequestCount, 0);
+        QCOMPARE(*secondaryFrameRequestCount, 0);
+        QCOMPARE(item.state().request().status(), ImageViewportRequestStatus::Loading);
+        QCOMPARE(item.state().request().reason(), ImageViewportRequestReason::ProviderWaiting);
+        if (primaryMetadataFirst) {
+            emitSecondaryMetadata();
+        } else {
+            emitPrimaryMetadata();
+        }
+    } else if (!primaryConstructionMetadataKnown) {
+        emitPrimaryMetadata();
+    } else if (!secondaryConstructionMetadataKnown) {
+        emitSecondaryMetadata();
+    }
+    QCOMPARE(*primaryFrameRequestCount, 1);
+    QCOMPARE(*secondaryFrameRequestCount, 1);
+
+    const ImageSequenceProviderDisplayDemand primaryDemand
+        = primaryFactory->lastSession()->lastFrameDemand();
+    const ImageSequenceProviderDisplayDemand secondaryDemand
+        = secondaryFactory->lastSession()->lastFrameDemand();
+    QCOMPARE(item.state().primary().geometry().acceptedPageRect(), QRectF(0.0, 6.0, 16.0, 8.0));
+    QCOMPARE(primaryDemand.visibleSourceRect(), QRectF(0.0, 0.0, 16.0, 2.0));
+    QCOMPARE(primaryDemand.targetDisplaySizePixels(), QSizeF(16.0, 8.0));
+    QCOMPARE(secondaryDemand.visibleSourceRect(), QRectF(0.0, 0.0, 10.0, 8.0));
+    QCOMPARE(secondaryDemand.targetDisplaySizePixels(), QSizeF(10.0, 20.0));
+    if (!primaryMetadataFirst && !primaryConstructionMetadataKnown
+        && !secondaryConstructionMetadataKnown) {
+        QCOMPARE(item.play(ImageViewportPageRole::Secondary).outcome(),
+            ImageViewportCommandOutcome::Unsupported);
+        QCOMPARE(item.stop(ImageViewportPageRole::Secondary).outcome(),
+            ImageViewportCommandOutcome::Accepted);
+        QCOMPARE(*primaryFrameRequestCount, 1);
+        QCOMPARE(*secondaryFrameRequestCount, 1);
+    }
 }
 
 void ImageViewportProviderContractTest::

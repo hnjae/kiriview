@@ -447,6 +447,7 @@ bool ApplicationShortcutRuntime::handleShortcutEvent(const QKeySequence& shortcu
             binding.shortcutScope,
             binding.shortcuts,
             actionEnabledForShortcut(binding.actionId),
+            binding.activationScope,
         });
     }
 
@@ -533,6 +534,7 @@ void ApplicationShortcutRuntime::updateShortcutEnabledStates()
                 binding.shortcutScope,
                 binding.shortcuts,
                 actionEnabledForShortcut(binding.actionId),
+                binding.activationScope,
             });
     }
 }

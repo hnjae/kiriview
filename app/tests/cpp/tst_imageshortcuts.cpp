@@ -21,6 +21,7 @@
 #include <QCoreApplication>
 #include <QFile>
 #include <QImage>
+#include <QKeySequence>
 #include <QObject>
 #include <QPointF>
 #include <QQmlComponent>
@@ -706,8 +707,17 @@ void TestImageShortcuts::quitViewerLocalShortcutTriggersQuitAction()
     pressKey(fixture.view.get(), Qt::Key_Q);
     QCOMPARE(triggeredSpy.count(), 1);
 
-    pressKey(fixture.view.get(), Qt::Key_Q, Qt::ControlModifier);
+    QVERIFY(fixture.application->setViewerLocalShortcutsForId(KiriViewApplication::FileQuitAction,
+        { QKeySequence::fromString(QStringLiteral("Alt+Q"), QKeySequence::PortableText) }));
+    pressKey(fixture.view.get(), Qt::Key_Q, Qt::AltModifier);
     QTRY_COMPARE(triggeredSpy.count(), 2);
+
+    pressKey(fixture.view.get(), Qt::Key_Q, Qt::ControlModifier);
+    QTRY_COMPARE(triggeredSpy.count(), 3);
+
+    fixture.root->setProperty("helpDialogOpen", true);
+    pressKey(fixture.view.get(), Qt::Key_Q, Qt::AltModifier);
+    QCOMPARE(triggeredSpy.count(), 3);
 }
 
 void TestImageShortcuts::windowCommandShortcutsWorkWithoutQmlShortcutInstallers()

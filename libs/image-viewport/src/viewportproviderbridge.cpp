@@ -3,10 +3,12 @@
 
 #include "viewportproviderbridge_p.h"
 
+#include "imagesequence_p.h"
 #include "imageviewportprovidersubmission_p.h"
 #include "imageviewporttoken_p.h"
 
 #include <QtCore/QCoreApplication>
+#include <QtCore/QEvent>
 #include <QtCore/QLoggingCategory>
 #include <QtCore/QMetaObject>
 #include <QtCore/QMutex>
@@ -16,6 +18,7 @@
 #include <QtCore/QSet>
 #include <QtCore/QThread>
 #include <QtCore/QTimer>
+#include <QtGui/QColorSpace>
 
 #include <algorithm>
 #include <array>
@@ -50,6 +53,22 @@ bool hasCurrentThreadAffinity(const QObject* object)
 {
     const QThread* thread = object == nullptr ? nullptr : object->thread();
     return thread != nullptr && thread->isCurrentThread();
+}
+
+bool synchronizeProviderAffinity(QObject* object)
+{
+    if (!object) {
+        return true;
+    }
+    if (hasCurrentThreadAffinity(object)) {
+        QCoreApplication::sendPostedEvents(object, QEvent::MetaCall);
+        return true;
+    }
+    QThread* thread = object->thread();
+    if (!thread || !thread->isRunning()) {
+        return false;
+    }
+    return QMetaObject::invokeMethod(object, [] { }, Qt::BlockingQueuedConnection);
 }
 
 QMutex& providerSessionOwnershipMutex()
@@ -854,6 +873,12 @@ class ViewportProviderLeaseRegistry
     : public std::enable_shared_from_this<ViewportProviderLeaseRegistry>
 {
 public:
+    struct FrameClaim
+    {
+        quint64 leaseId = 0;
+        QImage anchoredImage;
+    };
+
     struct LeaseSnapshot
     {
         std::shared_ptr<ViewportProviderSessionControl> sessionControl;
@@ -876,21 +901,30 @@ public:
         providerExecutor = &executor;
     }
 
-    quint64 claim(const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
+    FrameClaim claim(const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
         ImageSequenceProviderFrameHandle* frameHandle)
     {
         if (!sessionControl || !frameHandle) {
-            return 0;
+            return {};
         }
         sessionControl->claimHandleLease();
         const quint64 leaseId = allocateProviderLeaseId();
+        const QImage owner = frameHandle->frame()
+            ? ImageViewportInternal::ImageFramePrivateAccess::image(*frameHandle->frame())
+            : QImage {};
+        const bool pixelOwnershipPending = !owner.isNull();
         bool releaseAutomatically = false;
         {
             QMutexLocker locker(&mutex);
-            leases.insert(leaseId,
-                { sessionControl, frameHandle, nullptr, false, sessionControl->generation(),
-                    sessionControl->sessionSerial(), true, false });
-            if (automaticCleanup) {
+            LeaseRecord lease;
+            lease.sessionControl = sessionControl;
+            lease.frameHandle = frameHandle;
+            lease.generation = sessionControl->generation();
+            lease.sessionSerial = sessionControl->sessionSerial();
+            lease.pixelOwnershipPending = pixelOwnershipPending;
+            lease.logicalRetired = automaticCleanup;
+            leases.insert(leaseId, std::move(lease));
+            if (automaticCleanup && !pixelOwnershipPending) {
                 retiredLeases.insert(leaseId);
                 releaseAutomatically = true;
             }
@@ -898,7 +932,8 @@ public:
         if (releaseAutomatically) {
             scheduleAutomaticRelease(leaseId);
         }
-        return leaseId;
+        return { leaseId,
+            pixelOwnershipPending ? createAnchoredFrameImage(leaseId, owner) : QImage {} };
     }
 
     quint64 claim(const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
@@ -917,9 +952,14 @@ public:
         bool releaseAutomatically = false;
         {
             QMutexLocker locker(&mutex);
-            leases.insert(leaseId,
-                { sessionControl, nullptr, failureHandle, true, generation, sessionSerial, true,
-                    false });
+            LeaseRecord lease;
+            lease.sessionControl = sessionControl;
+            lease.failureHandle = failureHandle;
+            lease.failureLease = true;
+            lease.generation = generation;
+            lease.sessionSerial = sessionSerial;
+            lease.logicalRetired = automaticCleanup;
+            leases.insert(leaseId, std::move(lease));
             if (automaticCleanup) {
                 retiredLeases.insert(leaseId);
                 releaseAutomatically = true;
@@ -944,9 +984,13 @@ public:
     void reconcile(const QSet<quint64>& liveLeaseIds)
     {
         QMutexLocker locker(&mutex);
-        for (const auto& [leaseId, lease] : std::as_const(leases).asKeyValueRange()) {
+        leases.detach();
+        for (auto&& [leaseId, lease] : leases.asKeyValueRange()) {
             if (!lease.pendingEngineDelivery && !liveLeaseIds.contains(leaseId)) {
-                retiredLeases.insert(leaseId);
+                lease.logicalRetired = true;
+                if (!lease.pixelOwnershipPending) {
+                    retiredLeases.insert(leaseId);
+                }
             }
         }
     }
@@ -959,9 +1003,14 @@ public:
         bool releaseAutomatically = false;
         {
             QMutexLocker locker(&mutex);
-            if (leases.contains(leaseId)) {
-                retiredLeases.insert(leaseId);
-                releaseAutomatically = automaticCleanup;
+            leases.detach();
+            auto it = leases.find(leaseId); // clazy:exclude=detaching-member
+            if (it != leases.end()) {
+                it->logicalRetired = true;
+                if (!it->pixelOwnershipPending) {
+                    retiredLeases.insert(leaseId);
+                    releaseAutomatically = automaticCleanup;
+                }
             }
         }
         if (releaseAutomatically) {
@@ -976,9 +1025,13 @@ public:
             QMutexLocker locker(&mutex);
             automaticCleanup = true;
             leaseIds.reserve(leases.size());
-            for (auto it = leases.cbegin(); it != leases.cend(); ++it) {
-                retiredLeases.insert(it.key());
-                leaseIds.append(it.key());
+            leases.detach();
+            for (auto&& [leaseId, lease] : leases.asKeyValueRange()) {
+                lease.logicalRetired = true;
+                if (!lease.pixelOwnershipPending) {
+                    retiredLeases.insert(leaseId);
+                    leaseIds.append(leaseId);
+                }
             }
         }
         for (quint64 leaseId : leaseIds) {
@@ -1005,7 +1058,8 @@ public:
         QMutexLocker locker(&mutex);
         leases.detach();
         auto it = leases.find(leaseId); // clazy:exclude=detaching-member
-        if (it == leases.end() || it->releaseScheduling) {
+        if (it == leases.end() || it->releaseScheduling || !it->logicalRetired
+            || it->pixelOwnershipPending || !retiredLeases.contains(leaseId)) {
             return std::nullopt;
         }
         it->releaseScheduling = true;
@@ -1036,6 +1090,57 @@ public:
         return !retiredLeases.isEmpty();
     }
 
+    bool completeForApplicationShutdown()
+    {
+        for (;;) {
+            QVector<quint64> releasableLeaseIds;
+            QVector<QPointer<ImageSequenceProviderSession>> affinityTargets;
+            qsizetype leaseCountBefore = 0;
+            {
+                QMutexLocker locker(&mutex);
+                leaseCountBefore = leases.size();
+                if (leaseCountBefore == 0) {
+                    return true;
+                }
+                releasableLeaseIds.reserve(leaseCountBefore);
+                affinityTargets.reserve(leaseCountBefore);
+                for (const auto& [leaseId, lease] : std::as_const(leases).asKeyValueRange()) {
+                    if (lease.sessionControl) {
+                        affinityTargets.append(lease.sessionControl->session());
+                    }
+                    if (lease.logicalRetired && !lease.pixelOwnershipPending
+                        && !lease.releaseScheduling && retiredLeases.contains(leaseId)) {
+                        releasableLeaseIds.append(leaseId);
+                    }
+                }
+            }
+
+            for (quint64 leaseId : std::as_const(releasableLeaseIds)) {
+                releaseAutomatically(leaseId);
+            }
+            for (const QPointer<ImageSequenceProviderSession>& target :
+                std::as_const(affinityTargets)) {
+                if (target && !synchronizeProviderAffinity(target)) {
+                    return false;
+                }
+            }
+
+            QMutexLocker locker(&mutex);
+            if (leases.isEmpty()) {
+                return true;
+            }
+            if (leases.size() >= leaseCountBefore) {
+                return false;
+            }
+        }
+    }
+
+    bool isComplete() const
+    {
+        QMutexLocker locker(&mutex);
+        return leases.isEmpty();
+    }
+
 private:
     struct LeaseRecord
     {
@@ -1046,8 +1151,70 @@ private:
         quint64 generation = 0;
         quint64 sessionSerial = 0;
         bool pendingEngineDelivery = true;
+        bool logicalRetired = false;
+        bool pixelOwnershipPending = false;
         bool releaseScheduling = false;
     };
+
+    struct FrameImageAnchor
+    {
+        std::shared_ptr<ViewportProviderLeaseRegistry> leaseRegistry;
+        quint64 leaseId = 0;
+        QImage owner;
+    };
+
+    static void releaseFrameImageAnchor(void* opaqueAnchor)
+    {
+        std::unique_ptr<FrameImageAnchor> anchor(static_cast<FrameImageAnchor*>(opaqueAnchor));
+        const auto registry = std::move(anchor->leaseRegistry);
+        const quint64 leaseId = anchor->leaseId;
+        anchor->owner = {};
+        anchor.reset();
+        if (registry) {
+            registry->completeFramePixelOwnership(leaseId);
+        }
+    }
+
+    QImage createAnchoredFrameImage(quint64 leaseId, const QImage& owner)
+    {
+        auto anchor = std::make_unique<FrameImageAnchor>();
+        anchor->leaseRegistry = shared_from_this();
+        anchor->leaseId = leaseId;
+        anchor->owner = owner;
+        QImage image(owner.constBits(), owner.width(), owner.height(), owner.bytesPerLine(),
+            owner.format(), releaseFrameImageAnchor, anchor.get());
+        if (image.isNull()) {
+            releaseFrameImageAnchor(anchor.release());
+            return {};
+        }
+        [[maybe_unused]] FrameImageAnchor* releasedAnchor = anchor.release();
+
+        image.setColorTable(owner.colorTable());
+        image.setDevicePixelRatio(owner.devicePixelRatio());
+        image.setColorSpace(owner.colorSpace());
+        return image;
+    }
+
+    void completeFramePixelOwnership(quint64 leaseId)
+    {
+        bool releaseAutomatically = false;
+        {
+            QMutexLocker locker(&mutex);
+            leases.detach();
+            auto it = leases.find(leaseId); // clazy:exclude=detaching-member
+            if (it == leases.end() || !it->pixelOwnershipPending) {
+                return;
+            }
+            it->pixelOwnershipPending = false;
+            if (it->logicalRetired) {
+                retiredLeases.insert(leaseId);
+                releaseAutomatically = true;
+            }
+        }
+        if (releaseAutomatically) {
+            scheduleAutomaticRelease(leaseId);
+        }
+    }
 
     void scheduleAutomaticRelease(quint64 leaseId)
     {
@@ -1184,6 +1351,35 @@ public:
     }
 #endif
 
+    bool completeForApplicationShutdown()
+    {
+        retryPending();
+
+        QVector<QPointer<ImageSequenceProviderSession>> affinityTargets;
+        {
+            QMutexLocker locker(&mutex);
+            affinityTargets.reserve(sessions.size());
+            for (const SessionSnapshot& snapshot : std::as_const(sessions)) {
+                affinityTargets.append(snapshot.session);
+            }
+        }
+        for (const QPointer<ImageSequenceProviderSession>& target :
+            std::as_const(affinityTargets)) {
+            if (target && !synchronizeProviderAffinity(target)) {
+                return false;
+            }
+        }
+
+        QMutexLocker locker(&mutex);
+        return sessions.isEmpty();
+    }
+
+    bool isComplete() const
+    {
+        QMutexLocker locker(&mutex);
+        return sessions.isEmpty();
+    }
+
 private:
     static constexpr std::array retryDelays { 0ms, 10ms, 50ms, 250ms, 1000ms };
 
@@ -1276,6 +1472,107 @@ private:
     qsizetype forcedCloseFailuresRemaining = 0;
 #endif
 };
+
+namespace {
+class ViewportProviderCleanupCoordinator
+{
+public:
+    void registerBridge(const std::shared_ptr<ViewportProviderLeaseRegistry>& leaseRegistry,
+        const std::shared_ptr<ViewportProviderSessionCleanupRegistry>& sessionRegistry)
+    {
+        QMutexLocker locker(&mutex);
+        leaseRegistries.removeIf([](const auto& registry) { return registry.expired(); });
+        sessionRegistries.removeIf([](const auto& registry) { return registry.expired(); });
+        leaseRegistries.append(leaseRegistry);
+        sessionRegistries.append(sessionRegistry);
+        ++activeBridgeCount;
+    }
+
+    void bridgeDestroyed()
+    {
+        QMutexLocker locker(&mutex);
+        Q_ASSERT(activeBridgeCount > 0);
+        --activeBridgeCount;
+    }
+
+    bool completeForApplicationShutdown()
+    {
+        {
+            QMutexLocker locker(&mutex);
+            if (activeBridgeCount != 0) {
+                return false;
+            }
+        }
+        const auto leaseSnapshot = liveLeaseRegistries();
+        const auto sessionSnapshot = liveSessionRegistries();
+
+        for (const auto& registry : sessionSnapshot) {
+            static_cast<void>(registry->completeForApplicationShutdown());
+        }
+        for (const auto& registry : leaseSnapshot) {
+            static_cast<void>(registry->completeForApplicationShutdown());
+        }
+
+        const bool leasesComplete = std::ranges::all_of(
+            leaseSnapshot, [](const auto& registry) { return registry->isComplete(); });
+        const bool sessionsComplete = std::ranges::all_of(
+            sessionSnapshot, [](const auto& registry) { return registry->isComplete(); });
+        QMutexLocker locker(&mutex);
+        return activeBridgeCount == 0 && leasesComplete && sessionsComplete;
+    }
+
+private:
+    QVector<std::shared_ptr<ViewportProviderLeaseRegistry>> liveLeaseRegistries()
+    {
+        QMutexLocker locker(&mutex);
+        QVector<std::shared_ptr<ViewportProviderLeaseRegistry>> result;
+        leaseRegistries.removeIf(
+            [&result](const std::weak_ptr<ViewportProviderLeaseRegistry>& registry) {
+                if (const auto value = registry.lock()) {
+                    result.append(value);
+                    return false;
+                }
+                return true;
+            });
+        return result;
+    }
+
+    QVector<std::shared_ptr<ViewportProviderSessionCleanupRegistry>> liveSessionRegistries()
+    {
+        QMutexLocker locker(&mutex);
+        QVector<std::shared_ptr<ViewportProviderSessionCleanupRegistry>> result;
+        sessionRegistries.removeIf(
+            [&result](const std::weak_ptr<ViewportProviderSessionCleanupRegistry>& registry) {
+                if (const auto value = registry.lock()) {
+                    result.append(value);
+                    return false;
+                }
+                return true;
+            });
+        return result;
+    }
+
+    QMutex mutex;
+    QVector<std::weak_ptr<ViewportProviderLeaseRegistry>> leaseRegistries;
+    QVector<std::weak_ptr<ViewportProviderSessionCleanupRegistry>> sessionRegistries;
+    qsizetype activeBridgeCount = 0;
+};
+
+ViewportProviderCleanupCoordinator& viewportProviderCleanupCoordinator()
+{
+    static ViewportProviderCleanupCoordinator coordinator;
+    return coordinator;
+}
+}
+
+bool completeViewportProviderCleanupForApplicationShutdown()
+{
+    QCoreApplication* application = QCoreApplication::instance();
+    if (!application || !hasCurrentThreadAffinity(application)) {
+        return false;
+    }
+    return viewportProviderCleanupCoordinator().completeForApplicationShutdown();
+}
 
 ViewportProviderSessionControl::ViewportProviderSessionControl(
     ImageSequenceProviderSession* session, ImageSequenceProviderThreadingContract threadingContract,
@@ -1441,6 +1738,7 @@ ViewportProviderBridge::ViewportProviderBridge(ImageViewportPageRole role)
     , leaseRegistry(std::make_shared<ViewportProviderLeaseRegistry>(providerExecutor))
     , sessionCleanupRegistry(std::make_shared<ViewportProviderSessionCleanupRegistry>())
 {
+    viewportProviderCleanupCoordinator().registerBridge(leaseRegistry, sessionCleanupRegistry);
 }
 
 ViewportProviderBridge::~ViewportProviderBridge()
@@ -1461,10 +1759,12 @@ ViewportProviderBridge::~ViewportProviderBridge()
         }
     }
     leaseRegistry->retireAll();
+    drainCleanup(false);
     for (const SessionRecord& record : std::as_const(sessions)) {
         sessionCleanupRegistry->adopt(
             { record.session, record.control, record.metadataToken, record.frameToken });
     }
+    viewportProviderCleanupCoordinator().bridgeDestroyed();
 }
 
 ViewportProviderTransportResult ViewportProviderBridge::closeSession(
@@ -1713,8 +2013,10 @@ ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
             const auto admission = eventEndpoint->admit(std::move(event),
                 [sessionControl, leaseRegistry](ViewportProviderEvent& acceptedEvent) {
                     if (acceptedEvent.frameHandle) {
-                        acceptedEvent.frameLeaseId
+                        auto claim
                             = leaseRegistry->claim(sessionControl, acceptedEvent.frameHandle);
+                        acceptedEvent.frameLeaseId = claim.leaseId;
+                        acceptedEvent.anchoredFrameImage = std::move(claim.anchoredImage);
                     }
                     if (acceptedEvent.failureHandle) {
                         acceptedEvent.failureLeaseId

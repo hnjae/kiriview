@@ -7,6 +7,8 @@
 
 #include <ImageViewport/imagesequenceprovider.h>
 
+#include <QtGui/QImage>
+
 struct ViewportProviderEvent
 {
     ImageSequenceProviderEventKind kind = ImageSequenceProviderEventKind::Waiting;
@@ -18,6 +20,7 @@ struct ViewportProviderEvent
     ImageSequenceProviderMetadata metadata;
     ImageSequenceProviderFrameHandle* frameHandle = nullptr;
     quint64 frameLeaseId = 0;
+    QImage anchoredFrameImage;
     ImageSequenceProviderFrameEnvelope frameEnvelope;
     double progress = 0.0;
     ImageSequenceProviderUnsupportedCause unsupportedCause

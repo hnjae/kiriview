@@ -8,6 +8,10 @@
 #include <type_traits>
 #include <utility>
 
+#if defined(QT_QML_LIB) || defined(QT_QUICK_LIB)
+#error "Provider-only consumers must not inherit Qt QML or Qt Quick usage requirements"
+#endif
+
 template <typename Token, typename = void> struct ProviderFailureAcceptsDiagnostic : std::false_type
 {
 };

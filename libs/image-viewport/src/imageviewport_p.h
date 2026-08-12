@@ -119,6 +119,7 @@ public:
     void prepareRenderSynchronization();
     std::optional<ViewportRenderAttempt> renderAttemptForHost() const;
     void applyRenderHostFact(ViewportRenderHostFact fact);
+    void discardPendingRenderMailbox(quint64 attempt = 0);
 
     ImageViewport* q = nullptr;
     ViewportEngine engine;

@@ -90,6 +90,8 @@ Sibling archive candidates are comic book archives in the current archive's pare
 
 Candidates are sorted with the same user locale-aware file name order used for image navigation.
 
+If sibling archive discovery fails or its complete parent-directory result exceeds KiriView's safe sibling-discovery limits, KiriView keeps the current archive unchanged and does not navigate using a partial candidate list. A later Previous Archive or Next Archive request retries discovery.
+
 Navigation does not wrap. Pressing Previous Archive on the first candidate keeps the current view unchanged and shows `No previous collection`; pressing Next Archive on the last candidate keeps the current view unchanged and shows `No next collection`.
 
 `[` opens the previous sibling archive and `]` opens the next sibling archive when archive navigation is available.

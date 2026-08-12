@@ -189,6 +189,7 @@ ViewportProviderSessionOpenResult reduceViewportEngineProviderSessionOpened(
     }
     auto& provider
         = access.m_roles[input.role == ImageViewportPageRole::Secondary ? 1U : 0U].provider;
+    provider.session.sessionOpened = true;
     if (!provider.facts.metadataReady) {
         const auto allocation = access.allocate(input.role);
         result.providerMetadataTransport.closeSession = allocation.closeSession;
@@ -203,6 +204,14 @@ ViewportProviderSessionOpenResult reduceViewportEngineProviderSessionOpened(
                     access.m_request.sequenceGeneration, active.identity.id,
                     ProviderRequestOwnership::Metadata });
         }
+        return result;
+    }
+    const auto positiveSize
+        = [](QSizeF size) { return size.isValid() && size.width() > 0.0 && size.height() > 0.0; };
+    const bool completeTargetGeometry = input.geometry.primaryPresent
+        && positiveSize(input.geometry.primarySize)
+        && (!access.m_request.roles[1].sequence || positiveSize(input.geometry.secondarySize));
+    if (!completeTargetGeometry) {
         return result;
     }
     invalidateViewportEngineTargetSpreadRole(access.m_request, access.m_display, input.role);
@@ -269,6 +278,14 @@ std::array<ViewportProviderFrameTransportEffect, 2> reduceViewportEngineProvider
     ViewportEngineProviderDemandRestageAccess& access)
 {
     std::array<ViewportProviderFrameTransportEffect, 2> effects;
+    const auto positiveSize
+        = [](QSizeF size) { return size.isValid() && size.width() > 0.0 && size.height() > 0.0; };
+    const bool completeTargetGeometry = input.geometry.primaryPresent
+        && positiveSize(input.geometry.primarySize)
+        && (!access.m_request.roles[1].sequence || positiveSize(input.geometry.secondarySize));
+    if (!completeTargetGeometry) {
+        return effects;
+    }
     for (const auto role : { ImageViewportPageRole::Primary, ImageViewportPageRole::Secondary }) {
         const std::size_t index = role == ImageViewportPageRole::Secondary ? 1U : 0U;
         auto& provider = access.m_roles[index].provider;
@@ -287,8 +304,9 @@ std::array<ViewportProviderFrameTransportEffect, 2> reduceViewportEngineProvider
         const bool present = role == ImageViewportPageRole::Primary
             ? access.m_request.roles[0].source.facts.provider
             : access.m_request.roles[1].sequence && access.m_request.roles[1].provider;
-        if (!present || !provider.session.sessionActive || !provider.facts.metadataReady
-            || request.identity.id == 0 || request.resolvedFrame.frame < 0) {
+        if (!present || !provider.session.sessionActive || !provider.session.sessionOpened
+            || !provider.facts.metadataReady || request.identity.id == 0
+            || request.resolvedFrame.frame < 0) {
             continue;
         }
         const auto previousRevision = request.demandRevision;
@@ -299,8 +317,12 @@ std::array<ViewportProviderFrameTransportEffect, 2> reduceViewportEngineProvider
             continue;
         }
         const auto* activeFrame = provider.requests.frameRequest();
+        const bool frameDemandNeverIssued = !provider.requests.lastIssuedFrameDemand;
+        const bool initialProviderWait
+            = access.m_request.status == ImageViewportRequestStatus::Loading
+            && access.m_request.reason == ImageViewportRequestReason::ProviderWaiting;
         if (!activeFrame && access.m_request.status != ImageViewportRequestStatus::Ready
-            && !forceRefinement) {
+            && !forceRefinement && !(frameDemandNeverIssued && initialProviderWait)) {
             request.demandRevision = previousRevision;
             continue;
         }

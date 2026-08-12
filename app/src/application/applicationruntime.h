@@ -5,6 +5,7 @@
 #define KIRIVIEW_APPLICATIONRUNTIME_H
 
 #include <functional>
+#include <memory>
 
 class QQmlApplicationEngine;
 class QQmlEngine;
@@ -37,6 +38,8 @@ void attachApplicationRuntimeWindow(
     const ApplicationMainQmlLoader& loader = {});
 [[nodiscard]] ApplicationMainQmlLoadResult loadApplicationMainQml(
     QQmlApplicationEngine& engine, const ApplicationStartupSource& startupSource);
+[[nodiscard]] bool shutdownApplicationQmlRuntime(std::unique_ptr<QQmlApplicationEngine> engine,
+    const std::function<bool()>& providerCleanupCompletion = {});
 int runApplication(const ApplicationStartupSource& startupSource);
 }
 

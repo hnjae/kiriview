@@ -21,7 +21,7 @@ The component exposes one intentional C++ include surface to KiriView. `<ImageVi
 - `<ImageViewport/imageviewporttypes.h>` provides shared public values, roles, ranges, and opaque tokens.
 - `<ImageViewport/imagesequence.h>` provides image sequences, frames, typed factory results, factories, and sequence source limits.
 - `<ImageViewport/imagesequenceprovider.h>` provides the application-owned provider extension contract and its protocol values.
-- `<ImageViewport/imageviewport.h>` provides the viewport item, presentation command surface, and display-demand limits.
+- `<ImageViewport/imageviewport.h>` provides the viewport item, presentation command surface, display-demand limits, and application-shutdown provider-cleanup completion boundary.
 - `<ImageViewport/imageviewportstate.h>` provides state snapshots, command results, and coordinate input and result values.
 
 The umbrella and subject-specific include forms are the supported repository-internal component interface. KiriView and `ImageViewport` evolve atomically in the same repository, so an intentional contract change updates both sides without compatibility shims or parallel legacy APIs. The interface excludes private engine controllers, provider transport internals, render adapters, scene graph resources, native texture handles, and instrumentation types.

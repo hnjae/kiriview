@@ -123,6 +123,13 @@ enum class VideoThumbnailImageAdmissionStatus : std::uint8_t {
     ConversionFailure,
 };
 
+struct VideoThumbnailImageResources
+{
+    QSize pixelSize;
+    QImage::Format format = QImage::Format_Invalid;
+    qsizetype sourceBytes = 0;
+};
+
 struct VideoThumbnailImageAdmission
 {
     VideoThumbnailImageAdmissionStatus status = VideoThumbnailImageAdmissionStatus::Missing;
@@ -142,8 +149,10 @@ struct VideoThumbnailExtractionJobControl
     const VideoThumbnailExtractionRequest& request) -> bool;
 [[nodiscard]] auto admitVideoThumbnailFrameSize(const QSize& size)
     -> VideoThumbnailImageAdmissionStatus;
-[[nodiscard]] auto admitVideoThumbnailImage(const QImage& source, int maximumLongEdge)
-    -> VideoThumbnailImageAdmission;
+[[nodiscard]] auto admitVideoThumbnailImageResources(const VideoThumbnailImageResources& resources,
+    int maximumLongEdge, qsizetype retainedSourceBytes) -> VideoThumbnailImageAdmissionStatus;
+[[nodiscard]] auto admitVideoThumbnailImage(const QImage& source, int maximumLongEdge,
+    qsizetype retainedSourceBytes) -> VideoThumbnailImageAdmission;
 [[nodiscard]] auto makeVideoThumbnailReadyResult(QImage image) -> VideoThumbnailExtractionResult;
 [[nodiscard]] auto makeVideoThumbnailFailureResult(VideoThumbnailExtractionFailureCause cause)
     -> VideoThumbnailExtractionResult;

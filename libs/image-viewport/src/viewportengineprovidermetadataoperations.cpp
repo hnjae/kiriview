@@ -332,8 +332,7 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
         const bool carrySecondary = access.m_request.roles[1].sequence
             && access.m_request.roles[1].provider
             && access.m_request.roles[1].activeRequest.identity.id == request.identity.id
-            && unknownMetadataInitialRequest(request)
-            && unknownMetadataInitialRequest(access.m_request.roles[1].activeRequest);
+            && unknownMetadataInitialRequest(request);
         if (terminalContinuation) {
             auto& active = access.m_request.roles[0].activeRequest;
             active.target = target;
@@ -347,10 +346,12 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
                 target.providerTargetKind != ProviderRequestTargetKind::Playback);
         }
         if (carrySecondary) {
-            access.m_request.roles[1].activeRequest.identity
-                = access.m_request.roles[0].activeRequest.identity;
-            access.m_request.roles[1].activeRequest.preparedPayloadId
-                = access.m_request.roles[0].activeRequest.preparedPayloadId;
+            auto& secondary = access.m_request.roles[1].activeRequest;
+            secondary.identity = access.m_request.roles[0].activeRequest.identity;
+            secondary.preparedPayloadId = access.m_request.roles[0].activeRequest.preparedPayloadId;
+            if (secondary.target.providerTargetKind != ProviderRequestTargetKind::Playback) {
+                access.m_request.roles[1].latestNonPlaybackRequest = secondary;
+            }
         }
         rolePlayback.position = target.position;
         rolePlayback.providerStartPending = false;
@@ -400,6 +401,13 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
         auto& rolePlayback = access.m_playback.forRole(input.role);
         rolePlayback.position = target.position;
         rolePlayback.providerStartPending = false;
+        auto& active = access.m_request.roles[1].activeRequest;
+        active.target = target;
+        active.resolvedFrame = { target.frame,
+            facts.timedMetadata ? facts.timingIntervals.frameStartPosition(target.frame) : -1 };
+        if (target.providerTargetKind != ProviderRequestTargetKind::Playback) {
+            access.m_request.roles[1].latestNonPlaybackRequest = active;
+        }
     }
 
     if (input.role == ImageViewportPageRole::Primary) {
@@ -437,13 +445,21 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
                 access.m_presentationTarget, access.m_presentation,
                 access.m_display.hasReadyDisplay(access.m_request.roles[0].source.facts.present)));
     }
+    result.changes.requestState = true;
+    result.changes.requestRevision = true;
+    if (!completeTargetGeometry) {
+        if (terminalContinuation) {
+            result.changes = projectViewportEngineCurrentTerminal(result.changes, access.m_request);
+        } else {
+            result.changes.playbackPhase = result.changes.playbackPhase || access.applyAutoplay();
+        }
+        return result;
+    }
     const auto start = access.startFrameRequest(input.role, target, acceptedGeometry);
     result.providerFrameTransport.closeSession = start.closeSession;
     result.providerFrameTransport.sessionClose = start.sessionClose;
     result.providerFrameTransport.sendCommand = start.sendCommand;
     result.providerFrameTransport.command = start.command;
-    result.changes.requestState = true;
-    result.changes.requestRevision = true;
     if (!start.accepted) {
         result.changes.diagnostics = true;
         return result;

@@ -7,8 +7,6 @@
 #include "imageviewportproviderfacts_p.h"
 #include "publicdiagnostic_p.h"
 
-#include <ImageViewport/imageviewport.h>
-
 #include <utility>
 
 using namespace ImageViewportInternal;
@@ -430,56 +428,4 @@ int ImageSequenceLimits::maximumDiagnosticCharacters()
 int ImageSequenceLimits::maximumFormatIdentifierCharacters()
 {
     return minimumMaximumFormatIdentifierLength;
-}
-
-ImageViewportDisplayLimits::ImageViewportDisplayLimits(QObject* parent)
-    : QObject(parent)
-{
-}
-
-double ImageViewportDisplayLimits::getMinimumManualZoomPercent() const
-{
-    return minimumManualZoomPercent();
-}
-
-double ImageViewportDisplayLimits::getManualZoomStepFactor() const
-{
-    return manualZoomStepFactor();
-}
-
-double ImageViewportDisplayLimits::getMaximumPageGap() const { return maximumPageGap(); }
-
-double ImageViewportDisplayLimits::getMinimumCheckerboardCellSize() const
-{
-    return minimumCheckerboardCellSize();
-}
-
-double ImageViewportDisplayLimits::getMaximumCheckerboardCellSize() const
-{
-    return maximumCheckerboardCellSize();
-}
-
-double ImageViewportDisplayLimits::minimumManualZoomPercent()
-{
-    return ViewportDisplayLimits::minimumManualZoomPercent();
-}
-
-double ImageViewportDisplayLimits::manualZoomStepFactor()
-{
-    return ViewportDisplayLimits::manualZoomStepFactor();
-}
-
-double ImageViewportDisplayLimits::maximumPageGap()
-{
-    return ViewportDisplayLimits::maximumPageGap();
-}
-
-double ImageViewportDisplayLimits::minimumCheckerboardCellSize()
-{
-    return ViewportDisplayLimits::minimumCheckerboardCellSize();
-}
-
-double ImageViewportDisplayLimits::maximumCheckerboardCellSize()
-{
-    return ViewportDisplayLimits::maximumCheckerboardCellSize();
 }

@@ -13,9 +13,11 @@
 #include "session/thumbnailimagestore.h"
 #include "system/powersaverprovider.h"
 
+#include <ImageViewport/imageviewport.h>
 #include <KLocalizedString>
 #include <QApplication>
 #include <QGuiApplication>
+#include <QLoggingCategory>
 #include <QObject>
 #include <QPointer>
 #include <QQmlApplicationEngine>
@@ -26,6 +28,7 @@
 #include <QVariant>
 #include <QtGlobal>
 #include <array>
+#include <memory>
 #include <utility>
 
 namespace {
@@ -161,6 +164,15 @@ ApplicationMainQmlLoadResult loadApplicationMainQml(
         });
 }
 
+bool shutdownApplicationQmlRuntime(std::unique_ptr<QQmlApplicationEngine> engine,
+    const std::function<bool()>& providerCleanupCompletion)
+{
+    engine.reset();
+    return providerCleanupCompletion
+        ? providerCleanupCompletion()
+        : ImageViewport::completeProviderCleanupForApplicationShutdown();
+}
+
 int runApplication(const ApplicationStartupSource& startupSource)
 {
     std::array<char, 9> applicationName { 'k', 'i', 'r', 'i', 'v', 'i', 'e', 'w', '\0' };
@@ -171,12 +183,20 @@ int runApplication(const ApplicationStartupSource& startupSource)
     initializeApplicationRuntime();
     configureApplicationRuntimeDiagnostics(startupSource);
 
-    QQmlApplicationEngine engine;
-    if (loadApplicationMainQml(engine, startupSource) != ApplicationMainQmlLoadResult::Created) {
+    auto engine = std::make_unique<QQmlApplicationEngine>();
+    if (loadApplicationMainQml(*engine, startupSource) != ApplicationMainQmlLoadResult::Created) {
         writeApplicationStartupDiagnostic(QStringLiteral("failed to create the main window"));
+        if (!shutdownApplicationQmlRuntime(std::move(engine))) {
+            qCritical("KiriView provider cleanup did not complete during startup rollback");
+        }
         return 1;
     }
 
-    return application.exec();
+    const int exitCode = application.exec();
+    if (!shutdownApplicationQmlRuntime(std::move(engine))) {
+        qCritical("KiriView provider cleanup did not complete during application shutdown");
+        return exitCode == 0 ? 1 : exitCode;
+    }
+    return exitCode;
 }
 }

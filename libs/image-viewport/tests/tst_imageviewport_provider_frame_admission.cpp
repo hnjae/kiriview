@@ -5,6 +5,8 @@
 #include "imageviewport_provider_test_support.h"
 
 #include <QtCore/QElapsedTimer>
+#include <QtCore/QEventLoop>
+#include <QtCore/QTimer>
 
 namespace {
 std::unique_ptr<ImageFrame> providerDetailFrame(
@@ -94,6 +96,7 @@ public:
 
 private Q_SLOTS:
     void providerStillFrameReadyCommitsDisplay();
+    void providerIndexedFramePreservesPaletteSemantics();
     void providerProvisionalFrameRemainsLoadingUntilAuthoritativeCommit();
     void providerAuthoritativeFrameRejectsDelayedProvisionalCommit();
     void providerAuthoritativeFrameRejectsDelayedProvisionalFailure();
@@ -118,6 +121,9 @@ private Q_SLOTS:
     void providerStaleOwnedFramePayloadReleasesOnce();
     void providerClosedGenerationOwnedFramePayloadReleasesOnce();
     void providerAcceptedOwnedFramePayloadReleasesOnce();
+    void providerRenderFailureReleasesHandleAfterPayloadAliasesRetire();
+    void providerClearAndViewportDestructionWaitForPaintNodePayloadAlias();
+    void providerApplicationShutdownCompletesAfterSceneGraphDestruction();
     void secondaryProviderAcceptedOwnedFramePayloadCompletesSpreadAndReleasesOnce();
     void providerRetainedOwnedFramePayloadOutlivesClosingSessionUntilReplacementCommit();
     void providerResourcePressureDiscardsOnlyRetainedOwnedFramePayload();
@@ -168,6 +174,43 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameReadyCommitsDisp
     QCOMPARE(primaryDisplayedPosition(item), -1);
     QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
     QCOMPARE(contentRect(item), QRectF(0.0, 25.0, 100.0, 50.0));
+}
+
+void ImageViewportProviderFrameAdmissionTest::providerIndexedFramePreservesPaletteSemantics()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    useSynchronousProviderEventDeliveryForTest(item);
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    const QMetaObject* metaObject = item.metaObject();
+
+    CountingProviderSession* session = sessionFactory->lastSession();
+    QVERIFY(session);
+    emitProviderMetadataReady(session, session->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+
+    QImage image(16, 8, QImage::Format_Indexed8);
+    image.setColorTable({ qRgba(255, 0, 0, 128) });
+    image.fill(0);
+    ImageFrame frame(image);
+    emitProviderFrameReady(session, session->lastFrameToken(), &frame);
+    acknowledgePendingRenderCommitForTest(item);
+
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
 }
 
 void ImageViewportProviderFrameAdmissionTest::
@@ -1438,6 +1481,198 @@ void ImageViewportProviderFrameAdmissionTest::providerAcceptedOwnedFramePayloadR
     QCOMPARE(item.clear().outcome(), ImageViewportCommandOutcome::Accepted);
     drainQueuedProviderResults();
     QCOMPARE(*releaseCount, 1);
+}
+
+void ImageViewportProviderFrameAdmissionTest::
+    providerRenderFailureReleasesHandleAfterPayloadAliasesRetire()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    useSynchronousProviderEventDeliveryForTest(item);
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+
+    CountingProviderSession* session = sessionFactory->lastSession();
+    QVERIFY(session);
+    emitProviderMetadataReady(session, session->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    const auto releaseCount = std::make_shared<int>(0);
+    const auto payloadDetachedAtRelease = std::make_shared<bool>(false);
+    auto* handle = new ImageSequenceProviderFrameHandle(
+        new ImageFrame(image), [releaseCount, payloadDetachedAtRelease](ImageFrame* frame) {
+            *payloadDetachedAtRelease = imagePayloadIsDetachedForTest(*frame);
+            ++*releaseCount;
+            delete frame;
+        });
+    emitProviderFrameHandleReady(session, session->lastFrameToken(), handle);
+    QCOMPARE(*releaseCount, 0);
+    QVERIFY(hasPendingRenderCommitForTest(item));
+
+    acknowledgePendingPrimaryRenderFailureForTest(item);
+
+    QCOMPARE(*releaseCount, 1);
+    QVERIFY(*payloadDetachedAtRelease);
+}
+
+void ImageViewportProviderFrameAdmissionTest::
+    providerClearAndViewportDestructionWaitForPaintNodePayloadAlias()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    QQuickWindow window;
+    window.resize(100, 100);
+    QScopedPointer<PaintProbeViewport> item(new PaintProbeViewport);
+    item->setParentItem(window.contentItem());
+    useSynchronousProviderExecutorForTest(*item);
+    useSynchronousProviderEventDeliveryForTest(*item);
+    item->setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item->setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+
+    CountingProviderSession* session = sessionFactory->lastSession();
+    QVERIFY(session);
+    emitProviderMetadataReady(session, session->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    const auto releaseCount = std::make_shared<int>(0);
+    const auto payloadDetachedAtRelease = std::make_shared<bool>(false);
+    const auto itemDestroyedAtRelease = std::make_shared<bool>(false);
+    QPointer<PaintProbeViewport> itemGuard(item.data());
+    auto* handle = new ImageSequenceProviderFrameHandle(new ImageFrame(image),
+        [releaseCount, payloadDetachedAtRelease, itemDestroyedAtRelease, itemGuard](
+            ImageFrame* frame) {
+            *payloadDetachedAtRelease = imagePayloadIsDetachedForTest(*frame);
+            *itemDestroyedAtRelease = itemGuard.isNull();
+            ++*releaseCount;
+            delete frame;
+        });
+    emitProviderFrameHandleReady(session, session->lastFrameToken(), handle);
+
+    QScopedPointer<QSGNode> root(item->takePaintNode());
+    QVERIFY(root);
+    auto* imageNode = dynamic_cast<QSGImageNode*>(root->lastChild());
+    QVERIFY(imageNode);
+    QVERIFY(imageNode->texture());
+    QCOMPARE(*releaseCount, 0);
+
+    QCOMPARE(item->clear().outcome(), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(*releaseCount, 0);
+
+    item.reset();
+    QCOMPARE(*releaseCount, 0);
+
+    root.reset();
+    QTRY_COMPARE(*releaseCount, 1);
+    QVERIFY(*payloadDetachedAtRelease);
+    QVERIFY(*itemDestroyedAtRelease);
+}
+
+void ImageViewportProviderFrameAdmissionTest::
+    providerApplicationShutdownCompletesAfterSceneGraphDestruction()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    QScopedPointer<QQuickWindow> window(new QQuickWindow);
+    window->resize(100, 100);
+    QScopedPointer<PaintProbeViewport> item(new PaintProbeViewport);
+    item->setParentItem(window->contentItem());
+    useSynchronousProviderEventDeliveryForTest(*item);
+    item->setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item->setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+
+    CountingProviderSession* session = sessionFactory->lastSession();
+    QVERIFY(session);
+    QPointer<CountingProviderSession> sessionGuard(session);
+    emitProviderMetadataReady(session, session->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    const auto releaseCount = std::make_shared<int>(0);
+    const auto payloadDetachedAtRelease = std::make_shared<bool>(false);
+    auto* handle = new ImageSequenceProviderFrameHandle(
+        new ImageFrame(image), [releaseCount, payloadDetachedAtRelease](ImageFrame* frame) {
+            *payloadDetachedAtRelease = imagePayloadIsDetachedForTest(*frame);
+            ++*releaseCount;
+            delete frame;
+        });
+    emitProviderFrameHandleReady(session, session->lastFrameToken(), handle);
+
+    QScopedPointer<QSGNode> root(item->takePaintNode());
+    QVERIFY(root);
+    QVERIFY(dynamic_cast<QSGImageNode*>(root->lastChild()));
+    QCOMPARE(*releaseCount, 0);
+
+    QEventLoop applicationLoop;
+    QTimer::singleShot(0, &applicationLoop, &QEventLoop::quit);
+    QCOMPARE(applicationLoop.exec(), 0);
+
+    QVERIFY(!ImageViewport::completeProviderCleanupForApplicationShutdown());
+    item.reset();
+    QCOMPARE(*releaseCount, 0);
+    window.reset();
+    QCOMPARE(*releaseCount, 0);
+    QCOMPARE(*closeCount, 0);
+    QVERIFY(sessionGuard);
+
+    QVERIFY(!ImageViewport::completeProviderCleanupForApplicationShutdown());
+    QCOMPARE(*releaseCount, 0);
+    QCOMPARE(*closeCount, 1);
+    QVERIFY(sessionGuard);
+
+    root.reset();
+    QCOMPARE(*releaseCount, 0);
+    QVERIFY(ImageViewport::completeProviderCleanupForApplicationShutdown());
+
+    QCOMPARE(*releaseCount, 1);
+    QVERIFY(*payloadDetachedAtRelease);
+    QCOMPARE(*closeCount, 1);
+    QVERIFY(sessionGuard.isNull());
+    QVERIFY(ImageViewport::completeProviderCleanupForApplicationShutdown());
 }
 
 void ImageViewportProviderFrameAdmissionTest::

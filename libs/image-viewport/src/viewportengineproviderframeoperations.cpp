@@ -145,7 +145,8 @@ ImageViewportInternal::ViewportChangeSet ViewportEngineProviderFrameReadyAccess:
 }
 
 ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady(
-    ViewportEngineProviderFrameReadyInput input, ViewportEngineProviderFrameReadyAccess& access)
+    const ViewportEngineProviderFrameReadyInput& input,
+    ViewportEngineProviderFrameReadyAccess& access)
 {
     using namespace ImageViewportInternal;
     ViewportEngineProviderFrameReadyReduction result;
@@ -182,8 +183,8 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
 
     const auto frameState = preparationState(access.m_request, access.m_display, access.m_provider,
         providerRequest, access.m_presentation, input.role);
-    const auto admission
-        = FramePreparation::admitProviderFrame(input.frame, input.envelope, frameState);
+    const auto admission = FramePreparation::admitProviderFrame(
+        input.frame, input.anchoredFrameImage, input.envelope, frameState);
     if (!admission.accepted()) {
         InternalObservation observation;
         observation.subsystem = InternalObservationSubsystem::Preparation;

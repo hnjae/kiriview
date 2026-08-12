@@ -13,10 +13,10 @@
 #include <vector>
 
 namespace kiriview {
-struct ImageDocumentPageCandidateAdmissionLimits
+struct SiblingCandidateAdmissionLimits
 {
     qsizetype maximumEntryCount = 0;
-    qsizetype maximumRetainedIdentityCodeUnitCount = 0;
+    qsizetype maximumIdentityCodeUnitCount = 0;
 };
 
 enum class ImageDocumentPageCandidateAdmissionFailure {
@@ -34,18 +34,16 @@ using ContainerNavigationCandidateAdmissionResult
     = std::expected<std::vector<ContainerNavigationCandidate>,
         ImageDocumentPageCandidateAdmissionFailure>;
 
-[[nodiscard]] ImageDocumentPageCandidateAdmissionLimits
-defaultImageDocumentPageCandidateAdmissionLimits();
+[[nodiscard]] SiblingCandidateAdmissionLimits defaultSiblingCandidateAdmissionLimits();
 [[nodiscard]] ImageDocumentPageCandidateAdmissionResult imageDocumentPageNavigationCandidates(
     const QUrl& directoryUrl, const KFileItemList& items,
-    ImageDocumentPageCandidateAdmissionLimits limits
-    = defaultImageDocumentPageCandidateAdmissionLimits());
+    SiblingCandidateAdmissionLimits limits = defaultSiblingCandidateAdmissionLimits());
 [[nodiscard]] DirectMediaNavigationCandidateAdmissionResult directMediaNavigationCandidates(
     const QUrl& directoryUrl, const KFileItemList& items,
-    ImageDocumentPageCandidateAdmissionLimits limits
-    = defaultImageDocumentPageCandidateAdmissionLimits());
+    SiblingCandidateAdmissionLimits limits = defaultSiblingCandidateAdmissionLimits());
 [[nodiscard]] ContainerNavigationCandidateAdmissionResult containerNavigationCandidates(
-    const QUrl& directoryUrl, const KFileItemList& items);
+    const QUrl& directoryUrl, const KFileItemList& items,
+    SiblingCandidateAdmissionLimits limits = defaultSiblingCandidateAdmissionLimits());
 bool imageDocumentPageCandidatesBelongToDirectoryScope(
     const std::vector<ImageDocumentPageCandidate>& candidates, const QUrl& directoryUrl);
 bool containerNavigationCandidatesBelongToDirectoryScope(

@@ -34,11 +34,13 @@ private Q_SLOTS:
     void admittedRequestStartsExtractionResources();
     void coverPrecedesThumbnailAndOutputIsBounded();
     void unusableCoverFallsBackToThumbnail();
+    void aggregateMetadataCoverFallsBackToThumbnail();
     void frameOutputIsDetachedFromBackendStorage();
     void nonSeekableMediaUsesFirstUsableFrame();
     void oversizedFrameDoesNotMaterialize();
     void admissibleFrameMaterializesOnce();
     void frameConversionFailureIsTyped();
+    void aggregateMetadataSourcesAreAdmittedBeforeTransformation();
     void resourceLimitIsTyped();
     void backendFailuresAreTyped_data();
     void backendFailuresAreTyped();
@@ -171,6 +173,53 @@ void VideoThumbnailExtractionContractTest::unusableCoverFallsBackToThumbnail()
     QVERIFY(result.has_value());
     QCOMPARE(result->status, VideoThumbnailExtractionStatus::Ready);
     QCOMPARE(result->image.size(), QSize(8, 4));
+    QCOMPARE(result->image.pixelColor(0, 0), QColor(Qt::blue));
+}
+
+void VideoThumbnailExtractionContractTest::aggregateMetadataCoverFallsBackToThumbnail()
+{
+    QObject receiver;
+    ExtractionHarness harness;
+    std::optional<VideoThumbnailExtractionResult> result;
+
+    auto job = kiriview::detail::startVideoThumbnailExtractionWithDependencies(
+        &receiver,
+        kiriview::test::validRequest(
+            kiriview::VideoThumbnailExtractionLimits::maximumOutputLongEdge),
+        [&result](VideoThumbnailExtractionResult value) { result = std::move(value); },
+        harness.dependencies());
+    kiriview::test::drainQueuedCalls();
+
+    constexpr int width = kiriview::VideoThumbnailExtractionLimits::maximumOutputLongEdge;
+    constexpr qsizetype maximumSourceBytes
+        = kiriview::VideoThumbnailExtractionLimits::maximumOutputBytes * 4;
+    std::array<uchar, width * 4> coverStorage;
+    std::array<uchar, width * 4> thumbnailStorage;
+    for (int offset = 0; offset < width * 4; offset += 4) {
+        coverStorage[static_cast<std::size_t>(offset)] = 255;
+        coverStorage[static_cast<std::size_t>(offset + 1)] = 0;
+        coverStorage[static_cast<std::size_t>(offset + 2)] = 0;
+        coverStorage[static_cast<std::size_t>(offset + 3)] = 255;
+        thumbnailStorage[static_cast<std::size_t>(offset)] = 0;
+        thumbnailStorage[static_cast<std::size_t>(offset + 1)] = 0;
+        thumbnailStorage[static_cast<std::size_t>(offset + 2)] = 255;
+        thumbnailStorage[static_cast<std::size_t>(offset + 3)] = 255;
+    }
+
+    QImage cover(coverStorage.data(), width, 1, maximumSourceBytes, QImage::Format_RGBA8888);
+    QImage thumbnail(
+        thumbnailStorage.data(), width, 1, maximumSourceBytes, QImage::Format_RGBA8888);
+    QCOMPARE(cover.sizeInBytes(), maximumSourceBytes);
+    QCOMPARE(thumbnail.sizeInBytes(), maximumSourceBytes);
+
+    harness.backend->instance->emitMetadata(
+        VideoThumbnailEmbeddedImages { std::move(cover), std::move(thumbnail) });
+    kiriview::test::drainQueuedCalls();
+
+    QVERIFY(!job.isActive());
+    QVERIFY(result.has_value());
+    QCOMPARE(result->status, VideoThumbnailExtractionStatus::Ready);
+    QCOMPARE(result->image.size(), QSize(width, 1));
     QCOMPARE(result->image.pixelColor(0, 0), QColor(Qt::blue));
 }
 
@@ -312,6 +361,27 @@ void VideoThumbnailExtractionContractTest::frameConversionFailureIsTyped()
     QCOMPARE(result->status, VideoThumbnailExtractionStatus::Failed);
     QVERIFY(result->failure.has_value());
     QCOMPARE(result->failure->cause, VideoThumbnailExtractionFailureCause::BackendFailure);
+}
+
+void VideoThumbnailExtractionContractTest::aggregateMetadataSourcesAreAdmittedBeforeTransformation()
+{
+    constexpr qsizetype maximumSourceBytes
+        = kiriview::VideoThumbnailExtractionLimits::maximumOutputBytes * 4;
+    const kiriview::detail::VideoThumbnailImageResources maximumEnvelope {
+        QSize(kiriview::VideoThumbnailExtractionLimits::maximumOutputLongEdge,
+            kiriview::VideoThumbnailExtractionLimits::maximumOutputLongEdge),
+        QImage::Format_RGBA32FPx4,
+        maximumSourceBytes,
+    };
+
+    QCOMPARE(kiriview::detail::admitVideoThumbnailImageResources(maximumEnvelope,
+                 kiriview::VideoThumbnailExtractionLimits::maximumOutputLongEdge,
+                 maximumSourceBytes * 2),
+        kiriview::detail::VideoThumbnailImageAdmissionStatus::ResourceLimit);
+    QCOMPARE(
+        kiriview::detail::admitVideoThumbnailImageResources(maximumEnvelope,
+            kiriview::VideoThumbnailExtractionLimits::maximumOutputLongEdge, maximumSourceBytes),
+        kiriview::detail::VideoThumbnailImageAdmissionStatus::Ready);
 }
 
 void VideoThumbnailExtractionContractTest::resourceLimitIsTyped()

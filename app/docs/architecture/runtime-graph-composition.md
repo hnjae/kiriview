@@ -6,6 +6,8 @@ Production composition joins application, shell, session, and effect collaborato
 
 Creation of the sole application QML root is a startup composition boundary. A failed or null root is terminal, cannot enter the steady-state application event loop, and produces an owned nonzero startup outcome without attaching the visual host or dispatching the initial source.
 
+Application event-loop exit begins dependency-ordered runtime shutdown rather than ending ownership immediately. The composition owner destroys the QML roots, windows, viewport items, and scene-graph resources while the application dispatcher remains alive, then waits at the image-viewport provider cleanup boundary before provider affinities or the application dispatcher can be torn down. Shutdown completion does not depend on broadly delivering unrelated queued application work.
+
 The internal composition mechanism is not an architecture contract. A runtime may use direct members, focused collaborators, coordinators, or an explicit graph when the chosen structure keeps ownership visible, avoids dependency cycles, and prevents mutation through observation-only boundaries.
 
 Document-session composition covers routing, public projection, active and direct-media navigation, displayed-media operations, still-image preparation, and video-output attachment. The document-session state owner remains authoritative for public mixed-media state regardless of how those responsibilities are grouped.

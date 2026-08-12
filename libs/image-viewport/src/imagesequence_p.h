@@ -154,6 +154,7 @@ public:
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     static void resetPayloadCopyAttemptCountForTest();
     static qsizetype payloadCopyAttemptCountForTest();
+    static bool imagePayloadIsDetachedForTest(const ImageFrame& frame);
 #endif
 };
 

@@ -53,6 +53,8 @@ private Q_SLOTS:
     void invalidZoomAnchorsDoNotPartiallyMutatePresentation();
     void geometryToleranceIsSharedByPanAndContentAnchor();
     void mirrorPresentationCommandsPreserveItemCenterAnchor();
+    void quarterTurnMirroringUsesItemAxes_data();
+    void quarterTurnMirroringUsesItemAxes();
     void rotationAffectsSpreadMapping();
 };
 
@@ -1926,6 +1928,71 @@ void ImageViewportPresentationStateTest::rotationAffectsSpreadMapping()
     QCOMPARE(imageCenter.point().x(), 5.0);
     QCOMPARE(imageCenter.point().y(), 10.0);
     verifyInvalidCoordinateResult(mapSpreadToItem(item, 10.0, 10.0));
+}
+
+void ImageViewportPresentationStateTest::quarterTurnMirroringUsesItemAxes_data()
+{
+    QTest::addColumn<int>("rotationDegrees");
+    QTest::addColumn<bool>("mirrorHorizontally");
+    QTest::addColumn<bool>("mirrorVertically");
+    QTest::addColumn<QSizeF>("itemSize");
+    QTest::addColumn<QPointF>("expectedItemPoint");
+
+    QTest::addRow("rotate-0-mirror-item-x")
+        << 0 << true << false << QSizeF(10.0, 20.0) << QPointF(8.0, 3.0);
+    QTest::addRow("rotate-0-mirror-item-y")
+        << 0 << false << true << QSizeF(10.0, 20.0) << QPointF(2.0, 17.0);
+    QTest::addRow("rotate-90-mirror-item-x")
+        << 90 << true << false << QSizeF(20.0, 10.0) << QPointF(3.0, 2.0);
+    QTest::addRow("rotate-90-mirror-item-y")
+        << 90 << false << true << QSizeF(20.0, 10.0) << QPointF(17.0, 8.0);
+    QTest::addRow("rotate-180-mirror-item-x")
+        << 180 << true << false << QSizeF(10.0, 20.0) << QPointF(2.0, 17.0);
+    QTest::addRow("rotate-180-mirror-item-y")
+        << 180 << false << true << QSizeF(10.0, 20.0) << QPointF(8.0, 3.0);
+    QTest::addRow("rotate-270-mirror-item-x")
+        << 270 << true << false << QSizeF(20.0, 10.0) << QPointF(17.0, 8.0);
+    QTest::addRow("rotate-270-mirror-item-y")
+        << 270 << false << true << QSizeF(20.0, 10.0) << QPointF(3.0, 2.0);
+}
+
+void ImageViewportPresentationStateTest::quarterTurnMirroringUsesItemAxes()
+{
+    QFETCH(int, rotationDegrees);
+    QFETCH(bool, mirrorHorizontally);
+    QFETCH(bool, mirrorVertically);
+    QFETCH(QSizeF, itemSize);
+    QFETCH(QPointF, expectedItemPoint);
+
+    ImageSequenceFactory factory;
+    QImage image(10, 20, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(itemSize);
+    ImageViewportPresentationCommand transform;
+    transform.setRotationDegrees(rotationDegrees);
+    transform.setMirrorHorizontally(mirrorHorizontally);
+    transform.setMirrorVertically(mirrorVertically);
+    QCOMPARE(item.setPresentation(transform).outcome(), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    acknowledgePendingRenderCommitForTest(item);
+
+    const QPointF pagePoint(2.0, 3.0);
+    const ImageViewportCoordinateResult mapped
+        = mapPrimaryPageToItem(item, pagePoint.x(), pagePoint.y());
+    QVERIFY(mapped.isValid());
+    QCOMPARE(mapped.point(), expectedItemPoint);
+    const ImageViewportCoordinateResult roundTrip
+        = mapItemToPrimaryPage(item, mapped.point().x(), mapped.point().y());
+    QVERIFY(roundTrip.isValid());
+    QCOMPARE(roundTrip.point(), pagePoint);
 }
 
 QTEST_MAIN(ImageViewportPresentationStateTest)

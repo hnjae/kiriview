@@ -190,10 +190,39 @@ void resetProvider(ProviderRoleState& p, ImageSequenceAuthoredAnimationFacts a =
     p.facts.timingIntervals = {};
     p.requests.clearWork();
 }
+
+void applyConstructionMetadata(ProviderRoleState& provider, const ImageSequenceSource& source)
+{
+    const auto& facts = source.facts;
+    if (!facts.provider || !facts.hasCompleteProviderKnownMetadata) {
+        return;
+    }
+    provider.facts.metadataReady = true;
+    provider.facts.timedMetadata = facts.providerKnownFacts.isTimedFrameList();
+    provider.facts.timedPlaybackSupport = providerResolvedCapability(
+        facts.providerTimedPlaybackCapability, provider.facts.timedMetadata);
+    provider.facts.frameSeekSupport
+        = providerResolvedCapability(facts.providerFrameSeekCapability, true);
+    provider.facts.positionSeekSupport = providerResolvedCapability(
+        facts.providerPositionSeekCapability, provider.facts.timedMetadata);
+    provider.facts.logicalSize = facts.providerKnownLogicalSize;
+    provider.facts.timingIntervals = facts.providerKnownTimingIntervals;
+}
+
 DisplayRequestTarget initial(const ImageSequenceSource& s)
 {
-    if (!s.facts.present || s.facts.provider || s.facts.frameCount <= 0)
+    if (!s.facts.present) {
         return {};
+    }
+    if (s.facts.provider) {
+        return s.facts.hasCompleteProviderKnownMetadata
+            ? DisplayRequestTarget { 0, s.facts.providerKnownFacts.isTimedFrameList() ? 0 : -1,
+                  ProviderRequestTargetKind::Frame }
+            : DisplayRequestTarget {};
+    }
+    if (s.facts.frameCount <= 0) {
+        return {};
+    }
     return { 0, s.facts.timed ? sourceFrameStartPosition(s, 0) : -1,
         ProviderRequestTargetKind::Unknown };
 }
@@ -364,6 +393,7 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
     if (pinPrevious) {
         for (auto& role : a.m_mutation.roles) {
             role.provider.session.sessionActive = false;
+            role.provider.session.sessionOpened = false;
             role.provider.requests.resetSession();
         }
     } else {
@@ -419,6 +449,8 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
             : ImageSequenceAuthoredAnimationFacts {},
         a.m_mutation.request.roles[1].source.facts.provider
             && a.m_mutation.request.roles[1].source.facts.authoredAnimationFactsAvailable);
+    applyConstructionMetadata(a.m_mutation.roles[0].provider, a.m_mutation.request.roles[0].source);
+    applyConstructionMetadata(a.m_mutation.roles[1].provider, a.m_mutation.request.roles[1].source);
     if (out.clear) {
         for (auto& rolePlayback : a.m_mutation.playback.roles) {
             rolePlayback.authoredAutoplayArbitration = AuthoredAutoplayArbitrationState::Resolved;
@@ -439,24 +471,7 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
             ? previousSecondaryRequest.resolvedFrame
             : ResolvedFrameIdentity { secondaryTarget.frame, secondaryTarget.position };
         if (a.m_mutation.request.roles[0].source.facts.provider) {
-            auto& p = a.m_mutation.roles[0].provider;
-            auto& f = a.m_mutation.request.roles[0].source.facts;
             DisplayRequestTarget t = primaryTarget;
-            if (f.hasCompleteProviderKnownMetadata) {
-                p.facts.metadataReady = true;
-                p.facts.timedMetadata = f.providerKnownFacts.isTimedFrameList();
-                p.facts.timedPlaybackSupport = providerResolvedCapability(
-                    f.providerTimedPlaybackCapability, p.facts.timedMetadata);
-                p.facts.frameSeekSupport
-                    = providerResolvedCapability(f.providerFrameSeekCapability, true);
-                p.facts.positionSeekSupport = providerResolvedCapability(
-                    f.providerPositionSeekCapability, p.facts.timedMetadata);
-                p.facts.logicalSize = f.providerKnownLogicalSize;
-                p.facts.timingIntervals = f.providerKnownTimingIntervals;
-                if (!refinement) {
-                    t = { 0, p.facts.timedMetadata ? 0 : -1, ProviderRequestTargetKind::Frame };
-                }
-            }
             a.m_mutation.request.beginDisplayRequest(DisplayRequestOrigin::Initial, t,
                 refinement ? primaryResolved : ResolvedFrameIdentity { t.frame, t.position }, true);
             a.m_mutation.playback.roles[0].position

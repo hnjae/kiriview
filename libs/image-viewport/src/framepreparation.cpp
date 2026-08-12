@@ -355,8 +355,8 @@ FramePreparation::ProviderKnownFactsAdmissionResult FramePreparation::admitProvi
 }
 
 FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFrame(
-    ImageFrame* frame, const ImageSequenceProviderFrameEnvelope& envelope,
-    const ProviderFrameState& state)
+    ImageFrame* frame, const QImage& anchoredFrameImage,
+    const ImageSequenceProviderFrameEnvelope& envelope, const ProviderFrameState& state)
 {
     using Cause = ProviderFrameAdmissionResult::Cause;
 
@@ -443,7 +443,7 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
             return providerFrameError(
                 Cause::FrameDurationMismatch, QStringLiteral("provider frame duration mismatch"));
         }
-        const FramePayload payload { ImageFramePrivateAccess::image(*frame),
+        const FramePayload payload { anchoredFrameImage,
             { frame->sourceLogicalSize(), frame->payloadRasterSize(), frame->payloadByteSize(),
                 frame->quality(), frame->exactness(), frame->hasAlpha(), frame->orientationPolicy(),
                 frame->formatIdentifier() } };
@@ -469,7 +469,7 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
         return providerFrameError(
             Cause::ResolvedFrameMismatch, QStringLiteral("provider frame resolved frame mismatch"));
     }
-    const FramePayload payload { ImageFramePrivateAccess::image(*frame),
+    const FramePayload payload { anchoredFrameImage,
         { frame->sourceLogicalSize(), frame->payloadRasterSize(), frame->payloadByteSize(),
             frame->quality(), frame->exactness(), frame->hasAlpha(), frame->orientationPolicy(),
             frame->formatIdentifier() } };

@@ -35,7 +35,6 @@ public:
     void reconcileProviderLeases(
         const QSet<quint64>& liveFrameLeaseIds, const QSet<quint64>& liveFailureLeaseIds);
     void drainCleanup();
-    void releaseAllProviderLeases();
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void failNextCommandDeliveryForTest(PageRole role);

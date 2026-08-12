@@ -5,6 +5,7 @@
 #include "application/applicationruntime.h"
 #include "application/applicationstartupsource.h"
 
+#include <ImageViewport/imageviewport.h>
 #include <QByteArray>
 #include <QLoggingCategory>
 #include <QObject>
@@ -14,6 +15,8 @@
 #include <QStringList>
 #include <QTest>
 #include <QUrl>
+
+#include <memory>
 
 namespace {
 kiriview::ApplicationStartupSource startupSource(
@@ -59,6 +62,7 @@ private Q_SLOTS:
     void registersThumbnailImageProviderOnly();
     void nonNullMainQmlRootAttachesAndSucceeds();
     void nullMainQmlRootIsTerminalAndDoesNotAttach();
+    void qmlRuntimeShutdownDestroysViewportBeforeProviderCleanup();
     void startupDiagnosticRecordNeutralizesControlAndFormatContent();
     void startupDiagnosticRecordHasFixedByteBound();
 };
@@ -184,6 +188,22 @@ void TestApplicationRuntime::nullMainQmlRootIsTerminalAndDoesNotAttach()
 
     QCOMPARE(result, kiriview::ApplicationMainQmlLoadResult::Failed);
     QCOMPARE(attachedCount, 0);
+}
+
+void TestApplicationRuntime::qmlRuntimeShutdownDestroysViewportBeforeProviderCleanup()
+{
+    auto engine = std::make_unique<QQmlApplicationEngine>();
+    QPointer<ImageViewport> viewport(new ImageViewport);
+    viewport->setParent(engine.get());
+    bool viewportDestroyedBeforeCleanup = false;
+
+    QVERIFY(kiriview::shutdownApplicationQmlRuntime(std::move(engine), [&]() {
+        viewportDestroyedBeforeCleanup = viewport.isNull();
+        return true;
+    }));
+
+    QVERIFY(viewportDestroyedBeforeCleanup);
+    QVERIFY(viewport.isNull());
 }
 
 void TestApplicationRuntime::startupDiagnosticRecordNeutralizesControlAndFormatContent()

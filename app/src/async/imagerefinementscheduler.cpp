@@ -15,6 +15,7 @@
 namespace kiriview {
 namespace {
     class RefinementExecutionQueue;
+    class RefinementDeliveryRetirement;
 
     struct RefinementExecution
     {
@@ -23,6 +24,27 @@ namespace {
         ImageWorkerCompletion completion;
         ImageWorkerTaskCompletion taskCompletion;
         std::shared_ptr<Detail::AsyncWorkerDeliveryState> delivery;
+    };
+
+    class RefinementDeliveryRetirement final
+    {
+    public:
+        RefinementDeliveryRetirement(std::shared_ptr<RefinementExecutionQueue> queue,
+            std::shared_ptr<RefinementExecution> execution)
+            : m_queue(std::move(queue))
+            , m_execution(std::move(execution))
+        {
+        }
+
+        ~RefinementDeliveryRetirement();
+
+        Q_DISABLE_COPY_MOVE(RefinementDeliveryRetirement)
+
+        void deliver();
+
+    private:
+        std::shared_ptr<RefinementExecutionQueue> m_queue;
+        std::shared_ptr<RefinementExecution> m_execution;
     };
 
     class RefinementRunnable final : public QRunnable
@@ -91,31 +113,38 @@ namespace {
             execution->operation = {};
             const std::shared_ptr<RefinementExecutionQueue> queue = shared_from_this();
             const std::shared_ptr<Detail::AsyncWorkerDeliveryState> delivery = execution->delivery;
+            const auto retirement
+                = std::make_shared<RefinementDeliveryRetirement>(queue, execution);
             const bool queued = delivery->queue([&](QObject* relay) {
                 return QMetaObject::invokeMethod(
-                    relay,
-                    [queue, execution, delivery]() mutable {
-                        Detail::AsyncWorkerRelayOwner relayOwner = delivery->takeRelay();
-                        if (relayOwner != nullptr && delivery->guardedContext() != nullptr) {
-                            execution->taskCompletion.claimAndRun([&]() mutable {
-                                if (execution->completion) {
-                                    execution->completion();
-                                }
-                            });
-                        } else {
-                            execution->taskCompletion.cancel();
-                        }
-                        execution->completion = {};
-                        queue->retire(execution);
-                    },
-                    Qt::QueuedConnection);
+                    relay, [retirement]() { retirement->deliver(); }, Qt::QueuedConnection);
             });
             if (!queued) {
                 delivery->releaseRelay();
                 execution->taskCompletion.cancel();
                 execution->completion = {};
-                retire(execution);
             }
+        }
+
+        void retire(const std::shared_ptr<RefinementExecution>& execution)
+        {
+            execution->operation = {};
+            execution->completion = {};
+            execution->delivery.reset();
+            execution->taskCompletion.cancel();
+
+            std::shared_ptr<RefinementExecution> next;
+            {
+                const std::scoped_lock lock(m_mutex);
+                if (m_active != execution) {
+                    return;
+                }
+                m_active.reset();
+                next = takeNextLocked();
+            }
+
+            execution->taskCompletion.retire();
+            start(std::move(next));
         }
 
     private:
@@ -142,12 +171,24 @@ namespace {
 
         void cancel(quint64 id)
         {
-            const std::scoped_lock lock(m_mutex);
-            const auto queued = std::ranges::find_if(
-                m_queued, [id](const auto& execution) { return execution->id == id; });
-            if (queued != m_queued.end()) {
-                m_queued.erase(queued);
+            std::shared_ptr<RefinementExecution> canceled;
+            {
+                const std::scoped_lock lock(m_mutex);
+                const auto queued = std::ranges::find_if(
+                    m_queued, [id](const auto& execution) { return execution->id == id; });
+                if (queued != m_queued.end()) {
+                    canceled = std::move(*queued);
+                    m_queued.erase(queued);
+                }
             }
+
+            if (canceled == nullptr) {
+                return;
+            }
+            canceled->operation = {};
+            canceled->completion = {};
+            canceled->delivery.reset();
+            canceled->taskCompletion.retire();
         }
 
         std::shared_ptr<RefinementExecution> takeNextLocked()
@@ -167,26 +208,31 @@ namespace {
             }
         }
 
-        void retire(const std::shared_ptr<RefinementExecution>& execution)
-        {
-            std::shared_ptr<RefinementExecution> next;
-            {
-                const std::scoped_lock lock(m_mutex);
-                if (m_active != execution) {
-                    return;
-                }
-                m_active.reset();
-                next = takeNextLocked();
-            }
-            start(std::move(next));
-        }
-
         std::mutex m_mutex;
         QThreadPool m_pool;
         std::deque<std::shared_ptr<RefinementExecution>> m_queued;
         std::shared_ptr<RefinementExecution> m_active;
         quint64 m_nextId = 1;
     };
+
+    RefinementDeliveryRetirement::~RefinementDeliveryRetirement() { m_queue->retire(m_execution); }
+
+    void RefinementDeliveryRetirement::deliver()
+    {
+        const std::shared_ptr<Detail::AsyncWorkerDeliveryState> delivery = m_execution->delivery;
+        Detail::AsyncWorkerRelayOwner relayOwner = delivery->takeRelay();
+        if (relayOwner != nullptr && delivery->guardedContext() != nullptr) {
+            m_execution->taskCompletion.claimAndRun([&]() mutable {
+                if (m_execution->completion) {
+                    m_execution->completion();
+                }
+            });
+        } else {
+            m_execution->taskCompletion.cancel();
+        }
+        m_execution->completion = {};
+        m_execution->delivery.reset();
+    }
 
     void RefinementRunnable::run()
     {

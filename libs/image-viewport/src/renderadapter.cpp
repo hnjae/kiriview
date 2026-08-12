@@ -243,9 +243,12 @@ RenderAdapter::RenderPlan RenderAdapter::createPlan(const Input& input) const
             plan.failureCause = RenderFailureCause::InvalidRenderGeometry;
             return plan;
         }
+        const int rotationDegrees = normalizedRotation(layer.rotationDegrees);
+        const bool swapsAxes = rotationDegrees == 90 || rotationDegrees == 270;
         plan.imageLayers.append({ layer.role, payload, payloadIdentity, layer.targetRect, unrotated,
-            layer.sourceRect, physicalSourceRect, normalizedRotation(layer.rotationDegrees),
-            layer.mirrorHorizontally, layer.mirrorVertically });
+            layer.sourceRect, physicalSourceRect, rotationDegrees,
+            swapsAxes ? layer.mirrorVertically : layer.mirrorHorizontally,
+            swapsAxes ? layer.mirrorHorizontally : layer.mirrorVertically });
     }
 
     plan.result = imageLayers.isEmpty() ? CommitResult::Empty : CommitResult::Committed;
@@ -357,10 +360,10 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
         imageNode->setMipmapFiltering(
             plan.mipmap && texture->hasMipmaps() ? QSGTexture::Linear : QSGTexture::None);
         QSGImageNode::TextureCoordinatesTransformMode transform = {};
-        if (layer.mirrorHorizontally) {
+        if (layer.mirrorTextureHorizontally) {
             transform |= QSGImageNode::MirrorHorizontally;
         }
-        if (layer.mirrorVertically) {
+        if (layer.mirrorTextureVertically) {
             transform |= QSGImageNode::MirrorVertically;
         }
         imageNode->setTextureCoordinatesTransform(transform);

@@ -1,16 +1,57 @@
 # SPDX-FileCopyrightText: 2026 KIM Hyunjae
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-qt_add_library(ImageViewport STATIC)
+qt_add_library(ImageViewportStateSubjects STATIC)
 
-set(imageviewport_sources
+set(imageviewport_state_sources
+    imagesequenceidentity.cpp ${PROJECT_SOURCE_DIR}/include/ImageViewport/imagesequenceidentity.h
+    ${PROJECT_SOURCE_DIR}/include/ImageViewport/imageviewportstate.h
+    ${PROJECT_SOURCE_DIR}/include/ImageViewport/imageviewporttypes.h)
+
+target_sources(ImageViewportStateSubjects PRIVATE ${imageviewport_state_sources})
+target_include_directories(ImageViewportStateSubjects
+                           PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>")
+target_link_libraries(ImageViewportStateSubjects PUBLIC Qt6::Core Qt6::Gui Qt6::QmlIntegration)
+target_compile_features(ImageViewportStateSubjects PUBLIC cxx_std_23)
+set_target_properties(ImageViewportStateSubjects PROPERTIES CXX_EXTENSIONS OFF)
+
+qt_add_library(ImageViewportNonItemSubjects STATIC)
+
+set(imageviewport_non_item_sources
     imagesequence.cpp
+    imagesequence_p.h
     imagesequencefactory.cpp
     imagesequencesource.cpp
     imagesequencesource_p.h
     imagesequenceprovider.cpp
     framepreparation.cpp
     framepreparation_p.h
+    imageviewportlimits_p.h
+    imageviewportproviderfacts_p.h
+    imageviewportprovidersubmission_p.h
+    publicdiagnostic.cpp
+    publicdiagnostic_p.h
+    timingintervals.cpp
+    timingintervals_p.h
+    ${PROJECT_SOURCE_DIR}/include/ImageViewport/imagesequence.h
+    ${PROJECT_SOURCE_DIR}/include/ImageViewport/imagesequenceprovider.h)
+
+target_sources(ImageViewportNonItemSubjects PRIVATE ${imageviewport_non_item_sources})
+target_include_directories(
+    ImageViewportNonItemSubjects
+    PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/include/ImageViewport")
+target_link_libraries(ImageViewportNonItemSubjects PUBLIC ImageViewportStateSubjects Qt6::Core
+                                                          Qt6::Gui Qt6::QmlIntegration)
+target_compile_features(ImageViewportNonItemSubjects PUBLIC cxx_std_23)
+set_target_properties(ImageViewportNonItemSubjects PROPERTIES CXX_EXTENSIONS OFF)
+target_compile_definitions(
+    ImageViewportNonItemSubjects
+    PRIVATE $<$<BOOL:${IMAGEVIEWPORT_BUILD_TESTS}>:IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1>)
+
+qt_add_library(ImageViewport STATIC)
+
+set(imageviewport_sources
     imageviewportdiagnostics.cpp
     imageviewportdiagnostics_p.h
     internalobservation_p.h
@@ -27,11 +68,8 @@ set(imageviewport_sources
     imageviewportrenderhost_p.h
     imageviewportsnapshot.cpp
     imageviewport.cpp
+    imageviewportqmlforeign_p.h
     ${PROJECT_SOURCE_DIR}/include/ImageViewport/ImageViewport
-    ${PROJECT_SOURCE_DIR}/include/ImageViewport/imageviewporttypes.h
-    ${PROJECT_SOURCE_DIR}/include/ImageViewport/imagesequence.h
-    ${PROJECT_SOURCE_DIR}/include/ImageViewport/imagesequenceprovider.h
-    ${PROJECT_SOURCE_DIR}/include/ImageViewport/imageviewportstate.h
     ${PROJECT_SOURCE_DIR}/include/ImageViewport/imageviewport.h
     imageviewport_p.h
     imageviewportstate_p.h
@@ -39,14 +77,10 @@ set(imageviewport_sources
     playbacktimeline_p.h
     presentationgeometry.cpp
     presentationgeometry_p.h
-    publicdiagnostic.cpp
-    publicdiagnostic_p.h
     renderadapter.cpp
     renderadapter_p.h
     renderadapter_scenegraph_p.h
     renderfailurecause_p.h
-    timingintervals.cpp
-    timingintervals_p.h
     viewportengine.cpp
     viewportenginecoordinate.cpp
     viewportengineallocationoperations.cpp
@@ -108,6 +142,8 @@ if(IMAGEVIEWPORT_BUILD_TESTS)
         ImageViewportTestPlugin
         SOURCES
         ${imageviewport_sources})
+    qt_generate_foreign_qml_types(ImageViewportStateSubjects ImageViewport)
+    qt_generate_foreign_qml_types(ImageViewportNonItemSubjects ImageViewport)
 else()
     target_sources(ImageViewport PRIVATE ${imageviewport_sources})
 endif()
@@ -115,9 +151,11 @@ endif()
 target_include_directories(
     ImageViewport
     PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/include/ImageViewport")
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
+            "${PROJECT_SOURCE_DIR}/include/ImageViewport")
 
-target_link_libraries(ImageViewport PUBLIC Qt6::Qml Qt6::Quick)
+target_link_libraries(ImageViewport PUBLIC ImageViewportNonItemSubjects ImageViewportStateSubjects
+                                           Qt6::Qml Qt6::Quick)
 target_compile_features(ImageViewport PUBLIC cxx_std_23)
 set_target_properties(ImageViewport PROPERTIES CXX_EXTENSIONS OFF)
 

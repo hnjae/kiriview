@@ -8,6 +8,7 @@ ViewportEngineProviderSessionOpenEffect beginViewportEngineProviderSession(
 {
     ViewportEngineProviderSessionOpenEffect result;
     access.m_session.sessionActive = true;
+    access.m_session.sessionOpened = false;
     ++access.m_session.sessionSerial;
     result.openSession = true;
     result.command.kind = ViewportProviderTransportCommand::Kind::OpenSession;
@@ -24,6 +25,7 @@ ViewportProviderFrameTransportEffect closeViewportEngineProviderSession(
 {
     ViewportProviderFrameTransportEffect effect;
     effect.closeSession = access.m_session.sessionActive;
+    access.m_session.sessionOpened = false;
     access.m_requests.clearQueue();
     if (!access.m_session.sessionActive) {
         return effect;

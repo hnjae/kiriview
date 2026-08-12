@@ -71,6 +71,8 @@ struct GenericShortcutBinding
     std::optional<ImageShortcutScope> shortcutScope;
     QList<QKeySequence> shortcuts;
     bool actionEnabled = false;
+    ApplicationShortcutActivationScope activationScope
+        = ApplicationShortcutActivationScope::ProgramWide;
 };
 
 struct GenericShortcutDispatchInput

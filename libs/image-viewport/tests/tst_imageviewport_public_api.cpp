@@ -41,6 +41,8 @@ private Q_SLOTS:
     void typedPublicValueDefaultsExposeDocumentedFields();
     void roleMetadataSurfaceMatchesContract();
     void roleGeometrySnapshotFields();
+    void unequalSpreadPagesStayCrossAxisCentered_data();
+    void unequalSpreadPagesStayCrossAxisCentered();
     void revisionTokensExposeValidityAndEquality();
     void typedPresentationTargetTransitionPolicyPreservesStateWhenInvalid();
     void targetlessGeometryChangeIsRevisionNeutral();
@@ -531,8 +533,8 @@ void ImageViewportPublicApiTest::roleGeometrySnapshotFields()
     acknowledgePendingRenderCommitForTest(item);
 
     const ImageViewportRoleGeometrySnapshot primaryGeometry = item.state().primary().geometry();
-    QCOMPARE(primaryGeometry.acceptedPageRect(), QRectF(0.0, 0.0, 16.0, 8.0));
-    QCOMPARE(primaryGeometry.acceptedItemRect(), QRectF(0.0, 0.0, 16.0, 8.0));
+    QCOMPARE(primaryGeometry.acceptedPageRect(), QRectF(0.0, 6.0, 16.0, 8.0));
+    QCOMPARE(primaryGeometry.acceptedItemRect(), QRectF(0.0, 6.0, 16.0, 8.0));
     QCOMPARE(primaryGeometry.acceptedVisiblePageRect(), QRectF(0.0, 0.0, 16.0, 8.0));
     QCOMPARE(primaryGeometry.displayedPageRect(), primaryGeometry.acceptedPageRect());
     QCOMPARE(primaryGeometry.displayedItemRect(), primaryGeometry.acceptedItemRect());
@@ -561,6 +563,112 @@ void ImageViewportPublicApiTest::roleGeometrySnapshotFields()
     QCOMPARE(unavailableSecondary.displayedPageRect(), QRectF());
     QCOMPARE(unavailableSecondary.displayedItemRect(), QRectF());
     QCOMPARE(unavailableSecondary.displayedVisiblePageRect(), QRectF());
+}
+
+void ImageViewportPublicApiTest::unequalSpreadPagesStayCrossAxisCentered_data()
+{
+    QTest::addColumn<ImageViewportSpreadDirection>("spreadDirection");
+    QTest::addColumn<int>("rotationDegrees");
+    QTest::addColumn<QSizeF>("itemSize");
+    QTest::addColumn<QRectF>("primaryPageRect");
+    QTest::addColumn<QRectF>("secondaryPageRect");
+    QTest::addColumn<QRectF>("primaryItemRect");
+    QTest::addColumn<QRectF>("secondaryItemRect");
+
+    const auto addDirectionRows
+        = [](const char* directionName, ImageViewportSpreadDirection direction,
+              const QRectF& primaryPage, const QRectF& secondaryPage) {
+              const auto rotatedRect = [](const QRectF& rect, int rotationDegrees) {
+                  switch (rotationDegrees) {
+                  case 90:
+                      return QRectF(20.0 - rect.bottom(), rect.left(), rect.height(), rect.width());
+                  case 180:
+                      return QRectF(
+                          26.0 - rect.right(), 20.0 - rect.bottom(), rect.width(), rect.height());
+                  case 270:
+                      return QRectF(rect.top(), 26.0 - rect.right(), rect.height(), rect.width());
+                  case 0:
+                  default:
+                      return rect;
+                  }
+              };
+
+              for (const int rotationDegrees : { 0, 90, 180, 270 }) {
+                  const QSizeF itemSize = rotationDegrees == 90 || rotationDegrees == 270
+                      ? QSizeF(20.0, 26.0)
+                      : QSizeF(26.0, 20.0);
+                  QTest::addRow("%s-rotate-%d", directionName, rotationDegrees)
+                      << direction << rotationDegrees << itemSize << primaryPage << secondaryPage
+                      << rotatedRect(primaryPage, rotationDegrees)
+                      << rotatedRect(secondaryPage, rotationDegrees);
+              }
+          };
+
+    addDirectionRows("ltr", ImageViewportSpreadDirection::LeftToRight, QRectF(0.0, 6.0, 16.0, 8.0),
+        QRectF(16.0, 0.0, 10.0, 20.0));
+    addDirectionRows("rtl", ImageViewportSpreadDirection::RightToLeft, QRectF(10.0, 6.0, 16.0, 8.0),
+        QRectF(0.0, 0.0, 10.0, 20.0));
+}
+
+void ImageViewportPublicApiTest::unequalSpreadPagesStayCrossAxisCentered()
+{
+    QFETCH(ImageViewportSpreadDirection, spreadDirection);
+    QFETCH(int, rotationDegrees);
+    QFETCH(QSizeF, itemSize);
+    QFETCH(QRectF, primaryPageRect);
+    QFETCH(QRectF, secondaryPageRect);
+    QFETCH(QRectF, primaryItemRect);
+    QFETCH(QRectF, secondaryItemRect);
+
+    ImageSequenceFactory factory;
+    QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    primaryImage.fill(Qt::transparent);
+    QImage secondaryImage(10, 20, QImage::Format_ARGB32_Premultiplied);
+    secondaryImage.fill(Qt::transparent);
+    ImageFrame primaryFrame(primaryImage);
+    ImageFrame secondaryFrame(secondaryImage);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromFrame(&primaryFrame));
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(factory.fromFrame(&secondaryFrame));
+    QVERIFY(primaryResult->sequence());
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(itemSize);
+    ImageViewportPresentationCommand presentation;
+    presentation.setSpreadDirection(spreadDirection);
+    presentation.setRotationDegrees(rotationDegrees);
+    QCOMPARE(item.setPresentation(presentation).outcome(), ImageViewportCommandOutcome::Accepted);
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(
+                                            primaryResult->sequence(), secondaryResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    acknowledgePendingRenderCommitForTest(item);
+
+    const auto primary = item.state().primary().geometry();
+    const auto secondary = item.state().secondary().geometry();
+    QCOMPARE(primary.acceptedPageRect(), primaryPageRect);
+    QCOMPARE(primary.displayedPageRect(), primaryPageRect);
+    QCOMPARE(primary.acceptedItemRect(), primaryItemRect);
+    QCOMPARE(primary.displayedItemRect(), primaryItemRect);
+    QCOMPARE(primary.acceptedVisiblePageRect(), QRectF(0.0, 0.0, 16.0, 8.0));
+    QCOMPARE(primary.displayedVisiblePageRect(), QRectF(0.0, 0.0, 16.0, 8.0));
+    QCOMPARE(secondary.acceptedPageRect(), secondaryPageRect);
+    QCOMPARE(secondary.displayedPageRect(), secondaryPageRect);
+    QCOMPARE(secondary.acceptedItemRect(), secondaryItemRect);
+    QCOMPARE(secondary.displayedItemRect(), secondaryItemRect);
+    QCOMPARE(secondary.acceptedVisiblePageRect(), QRectF(0.0, 0.0, 10.0, 20.0));
+    QCOMPARE(secondary.displayedVisiblePageRect(), QRectF(0.0, 0.0, 10.0, 20.0));
+
+    const QPointF primaryPagePoint(3.0, 2.0);
+    const ImageViewportCoordinateResult mapped = mapPageToItem(
+        item, ImageViewportPageRole::Primary, primaryPagePoint.x(), primaryPagePoint.y());
+    QVERIFY(mapped.isValid());
+    QVERIFY(primaryItemRect.contains(mapped.point()));
+    const ImageViewportCoordinateResult roundTrip = mapItemToPage(
+        item, ImageViewportPageRole::Primary, mapped.point().x(), mapped.point().y());
+    QVERIFY(roundTrip.isValid());
+    QCOMPARE(roundTrip.point(), primaryPagePoint);
 }
 
 void ImageViewportPublicApiTest::revisionTokensExposeValidityAndEquality()

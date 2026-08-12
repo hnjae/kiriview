@@ -98,12 +98,6 @@ void ImageViewportProviderHost::drainCleanup()
     resumeDeferredSessionOpen(PageRole::Secondary);
 }
 
-void ImageViewportProviderHost::releaseAllProviderLeases()
-{
-    recordCleanupResult(mergedCleanupResult(providerBridge.releaseAllProviderLeases(),
-        secondaryProviderBridge.releaseAllProviderLeases()));
-}
-
 void ImageViewportProviderHost::applyTransportEffects(const ViewportProviderTransportBatch& effects)
 {
     for (const auto& effect : effects) {

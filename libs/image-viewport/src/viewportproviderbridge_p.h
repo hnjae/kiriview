@@ -235,6 +235,8 @@ private:
 #endif
 };
 
+[[nodiscard]] bool completeViewportProviderCleanupForApplicationShutdown();
+
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 ViewportProviderExecutor& synchronousViewportProviderExecutorForTest();
 #endif

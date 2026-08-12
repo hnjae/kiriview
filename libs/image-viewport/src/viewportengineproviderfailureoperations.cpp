@@ -298,6 +298,7 @@ ViewportEngineProviderSessionOpenFailureReduction reduceViewportEngineProviderSe
 {
     ViewportEngineProviderSessionOpenFailureReduction result;
     access.m_session.sessionActive = false;
+    access.m_session.sessionOpened = false;
     access.m_requests.resetSession();
     result.changes = access.recordGenerationTerminal({ input.role,
         ImageViewportRequestStatus::Error, ImageViewportRequestReason::ProviderFailure,

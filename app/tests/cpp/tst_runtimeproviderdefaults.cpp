@@ -85,7 +85,7 @@ private Q_SLOTS:
     void candidateProviderDefaultsFillMissingLoadersAndPreserveOverrides();
     void candidateProviderDefaultsBindContainerLoaderToDirectoryProvider();
     void candidateLoadingPreservesTypedDirectoryFailure();
-    void ordinarySiblingProvidersRejectOverLimitListingsWithTypedFailure();
+    void siblingProvidersRejectOverLimitListingsWithTypedFailure();
     void candidateProviderDefaultsBindOpenedCollectionLoaderToWorkerScheduler();
     void directMediaProviderDefaultBindsDirectoryProvider();
     void directMediaProviderProductionDefaultOffersLiveChanges();
@@ -209,12 +209,12 @@ void TestRuntimeProviderDefaults::candidateLoadingPreservesTypedDirectoryFailure
     }
 }
 
-void TestRuntimeProviderDefaults::ordinarySiblingProvidersRejectOverLimitListingsWithTypedFailure()
+void TestRuntimeProviderDefaults::siblingProvidersRejectOverLimitListingsWithTypedFailure()
 {
     const QUrl directoryUrl = localUrl(QStringLiteral("/media/"));
     const KFileItem repeatedItem(localUrl(QStringLiteral("/media/01.png")), QString(), S_IFREG);
     const qsizetype itemCount
-        = kiriview::defaultImageDocumentPageCandidateAdmissionLimits().maximumEntryCount + 1;
+        = kiriview::defaultSiblingCandidateAdmissionLimits().maximumEntryCount + 1;
     kiriview::DirectoryItemListProvider directoryItemListProvider
         = [repeatedItem, itemCount](QObject*, QUrl, kiriview::DirectoryItemListCallback callback,
               kiriview::KioOperationFailureCallback) {
@@ -228,14 +228,23 @@ void TestRuntimeProviderDefaults::ordinarySiblingProvidersRejectOverLimitListing
           };
     int pageCandidateCount = 0;
     int directCandidateCount = 0;
+    int containerCandidateCount = 0;
     std::optional<kiriview::KioOperationFailure> pageFailure;
     std::optional<kiriview::KioOperationFailure> directFailure;
+    std::optional<kiriview::KioOperationFailure> containerFailure;
 
     kiriview::startDirectoryImageDocumentPageCandidateList(
         this, directoryUrl,
         [&pageCandidateCount](
             std::vector<kiriview::ImageDocumentPageCandidate>) { ++pageCandidateCount; },
         [&pageFailure](kiriview::KioOperationFailure failure) { pageFailure = std::move(failure); },
+        directoryItemListProvider);
+    kiriview::startDirectoryContainerCandidateList(
+        this, directoryUrl,
+        [&containerCandidateCount](
+            std::vector<kiriview::ContainerNavigationCandidate>) { ++containerCandidateCount; },
+        [&containerFailure](
+            kiriview::KioOperationFailure failure) { containerFailure = std::move(failure); },
         directoryItemListProvider);
     kiriview::DirectMediaNavigationCandidateProvider directProvider
         = kiriview::defaultDirectMediaNavigationCandidateProvider(
@@ -249,9 +258,12 @@ void TestRuntimeProviderDefaults::ordinarySiblingProvidersRejectOverLimitListing
 
     QCOMPARE(pageCandidateCount, 0);
     QCOMPARE(directCandidateCount, 0);
+    QCOMPARE(containerCandidateCount, 0);
     QVERIFY(pageFailure.has_value());
     QVERIFY(directFailure.has_value());
-    for (const kiriview::KioOperationFailure* failure : { &*pageFailure, &*directFailure }) {
+    QVERIFY(containerFailure.has_value());
+    for (const kiriview::KioOperationFailure* failure :
+        { &*pageFailure, &*directFailure, &*containerFailure }) {
         QCOMPARE(failure->operationKind, kiriview::KioOperationKind::DirectoryListing);
         QCOMPARE(failure->targetUrl, directoryUrl);
         QCOMPARE(failure->cause, kiriview::KioOperationFailureCause::ResourceLimitExceeded);

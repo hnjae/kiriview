@@ -92,6 +92,7 @@ ProviderFrameQueueSetup setUpCurrentProviderFrameQueueRequest(
     auto& providerRequests
         = ViewportEngineTestAccess::providerRequests(engine, ImageViewportPageRole::Primary);
     sessionState.sessionActive = true;
+    sessionState.sessionOpened = true;
     activateProviderRequestForTest(providerRequests, request, providerRequestTokenForTest(4),
         ImageSequenceProviderRequestKind::Playback);
 
@@ -904,8 +905,7 @@ void ViewportEngineTest::providerDemandRestagingCancelsAndReissuesCurrentTarget(
     request.sequenceGeneration = 7;
     request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek,
         { 2, 120, ImageViewportInternal::ProviderRequestTargetKind::Position }, { 2, 100 }, false);
-    ViewportEngineTestAccess::providerSession(engine, ImageViewportPageRole::Primary).sessionActive
-        = true;
+    ViewportEngineTestAccess::activateProviderSession(engine, ImageViewportPageRole::Primary);
     auto& facts = ViewportEngineTestAccess::providerFacts(engine, ImageViewportPageRole::Primary);
     facts.metadataReady = true;
     facts.logicalSize = QSizeF(16.0, 8.0);
@@ -941,8 +941,7 @@ void ViewportEngineTest::providerDemandInvalidatesOverflowedPhysicalSize()
     request.sequenceGeneration = 7;
     request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Initial,
         { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Frame }, { 0, -1 }, false);
-    ViewportEngineTestAccess::providerSession(engine, ImageViewportPageRole::Primary).sessionActive
-        = true;
+    ViewportEngineTestAccess::activateProviderSession(engine, ImageViewportPageRole::Primary);
     auto& facts = ViewportEngineTestAccess::providerFacts(engine, ImageViewportPageRole::Primary);
     facts.metadataReady = true;
     facts.logicalSize = QSizeF(16.0, 8.0);

@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <ImageViewport/imagesequence.h>
+#include <ImageViewport/imagesequenceidentity.h>
 #include <ImageViewport/imageviewporttypes.h>
 
 #include <QtCore/QMetaType>

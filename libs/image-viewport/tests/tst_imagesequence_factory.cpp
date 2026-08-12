@@ -507,7 +507,8 @@ void ImageSequenceFactoryTest::providerFrameAdmissionUsesResolvedFrameIdentity()
     envelope.setFrameStartPosition(100);
     envelope.setFrameDuration(250);
     envelope.setDemandRevision(state.demandRevision);
-    const auto admission = FramePreparation::admitProviderFrame(&frame, envelope, state);
+    const auto admission = FramePreparation::admitProviderFrame(
+        &frame, ImageViewportInternal::ImageFramePrivateAccess::image(frame), envelope, state);
 
     QVERIFY(admission.accepted());
     QCOMPARE(admission.cause, FramePreparation::ProviderFrameAdmissionResult::Cause::Accepted);
@@ -543,13 +544,15 @@ void ImageSequenceFactoryTest::providerFrameAdmissionRejectsStaleDemandAndRequir
     state.resolvedFrame = { 0, -1 };
     state.demandRevision = ImageViewportInternal::DemandRevisionTokenPrivateAccess::fromValue(5);
 
-    const auto stale = FramePreparation::admitProviderFrame(&frame, envelope, state);
+    const auto stale = FramePreparation::admitProviderFrame(
+        &frame, ImageViewportInternal::ImageFramePrivateAccess::image(frame), envelope, state);
     QCOMPARE(
         stale.cause, FramePreparation::ProviderFrameAdmissionResult::Cause::DemandRevisionMismatch);
 
     state.demandRevision = envelope.demandRevision();
     state.exactnessPreference = ImageViewportExactnessPreference::RequireExact;
-    const auto inexact = FramePreparation::admitProviderFrame(&frame, envelope, state);
+    const auto inexact = FramePreparation::admitProviderFrame(
+        &frame, ImageViewportInternal::ImageFramePrivateAccess::image(frame), envelope, state);
     QCOMPARE(
         inexact.cause, FramePreparation::ProviderFrameAdmissionResult::Cause::ExactnessMismatch);
     QCOMPARE(inexact.status, ImageViewportRequestStatus::Unsupported);

@@ -103,6 +103,7 @@ public:
     ~ImageViewport() override;
     Q_DISABLE_COPY_MOVE(ImageViewport)
 
+    [[nodiscard]] static bool completeProviderCleanupForApplicationShutdown();
     [[nodiscard]] ImageViewportStateSnapshot state() const;
 
     Q_INVOKABLE ImageViewportCommandResult clear();

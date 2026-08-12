@@ -24,6 +24,8 @@ private Q_SLOTS:
     void candidateAdmissionRejectsForeignScopeWithoutPublishingPartialRows_data();
     void candidateAdmissionRejectsForeignScopeWithoutPublishingPartialRows();
     void containerCandidatesOnlyIncludeComicBookArchives();
+    void containerCandidateAdmissionEnforcesExactSharedLimits();
+    void containerCandidateAdmissionCountsUnsupportedEntries();
     void containerCandidateAdmissionRejectsForeignScope();
 };
 
@@ -84,7 +86,7 @@ void TestImageDocumentPageCandidateItems::candidateAdmissionAcceptsExactEntryAnd
     const kiriview::ImageDocumentPageCandidateAdmissionResult admitted
         = kiriview::imageDocumentPageNavigationCandidates(
             QUrl::fromLocalFile(QStringLiteral("/images/")), items,
-            kiriview::ImageDocumentPageCandidateAdmissionLimits { 1, identityCost });
+            kiriview::SiblingCandidateAdmissionLimits { 1, identityCost });
 
     QVERIFY(admitted.has_value());
     QCOMPARE(admitted->size(), std::size_t(1));
@@ -102,7 +104,7 @@ void TestImageDocumentPageCandidateItems::
     const kiriview::ImageDocumentPageCandidateAdmissionResult admitted
         = kiriview::imageDocumentPageNavigationCandidates(
             QUrl::fromLocalFile(QStringLiteral("/images/")), items,
-            kiriview::ImageDocumentPageCandidateAdmissionLimits { 1, 1'024 });
+            kiriview::SiblingCandidateAdmissionLimits { 1, 1'024 });
 
     QVERIFY(!admitted.has_value());
     QCOMPARE(admitted.error(),
@@ -120,7 +122,7 @@ void TestImageDocumentPageCandidateItems::
     const kiriview::ImageDocumentPageCandidateAdmissionResult admitted
         = kiriview::imageDocumentPageNavigationCandidates(
             QUrl::fromLocalFile(QStringLiteral("/images/")), items,
-            kiriview::ImageDocumentPageCandidateAdmissionLimits { 1, identityCost - 1 });
+            kiriview::SiblingCandidateAdmissionLimits { 1, identityCost - 1 });
 
     QVERIFY(!admitted.has_value());
     QCOMPARE(admitted.error(),
@@ -138,7 +140,7 @@ void TestImageDocumentPageCandidateItems::candidateAdmissionCountsUnsupportedEnt
     const kiriview::ImageDocumentPageCandidateAdmissionResult admitted
         = kiriview::imageDocumentPageNavigationCandidates(
             QUrl::fromLocalFile(QStringLiteral("/images/")), items,
-            kiriview::ImageDocumentPageCandidateAdmissionLimits { 1, 1'024 });
+            kiriview::SiblingCandidateAdmissionLimits { 1, 1'024 });
 
     QVERIFY(!admitted.has_value());
     QCOMPARE(admitted.error(),
@@ -217,6 +219,54 @@ void TestImageDocumentPageCandidateItems::containerCandidatesOnlyIncludeComicBoo
     QCOMPARE(candidates.front().type, kiriview::ContainerNavigationCandidateType::ComicBookArchive);
     QCOMPARE(candidates.back().url, QUrl::fromLocalFile(QStringLiteral("/books/b.cbr")));
     QCOMPARE(candidates.back().type, kiriview::ContainerNavigationCandidateType::ComicBookArchive);
+}
+
+void TestImageDocumentPageCandidateItems::containerCandidateAdmissionEnforcesExactSharedLimits()
+{
+    const KFileItem supported(
+        QUrl::fromLocalFile(QStringLiteral("/books/a.cbz")), QString(), S_IFREG);
+    const KFileItem unsupported(
+        QUrl::fromLocalFile(QStringLiteral("/books/notes.txt")), QString(), S_IFREG);
+    const KFileItemList items { supported, unsupported };
+    const qsizetype identityCost = supported.name().size()
+        + supported.url().toString(QUrl::FullyEncoded).size() + unsupported.name().size()
+        + unsupported.url().toString(QUrl::FullyEncoded).size();
+
+    const kiriview::ContainerNavigationCandidateAdmissionResult admitted
+        = kiriview::containerNavigationCandidates(QUrl::fromLocalFile(QStringLiteral("/books/")),
+            items, kiriview::SiblingCandidateAdmissionLimits { items.size(), identityCost });
+
+    QVERIFY(admitted.has_value());
+    QCOMPARE(admitted->size(), std::size_t(1));
+    QCOMPARE(admitted->front().url, supported.url());
+
+    const kiriview::ContainerNavigationCandidateAdmissionResult overLimit
+        = kiriview::containerNavigationCandidates(QUrl::fromLocalFile(QStringLiteral("/books/")),
+            items, kiriview::SiblingCandidateAdmissionLimits { items.size(), identityCost - 1 });
+    QVERIFY(!overLimit.has_value());
+    QCOMPARE(overLimit.error(),
+        kiriview::ImageDocumentPageCandidateAdmissionFailure::ResourceLimitExceeded);
+}
+
+void TestImageDocumentPageCandidateItems::containerCandidateAdmissionCountsUnsupportedEntries()
+{
+    const kiriview::SiblingCandidateAdmissionLimits limits
+        = kiriview::defaultSiblingCandidateAdmissionLimits();
+    KFileItemList items;
+    items.reserve(limits.maximumEntryCount + 1);
+    for (qsizetype index = 0; index <= limits.maximumEntryCount; ++index) {
+        items.append(
+            KFileItem(QUrl::fromLocalFile(QStringLiteral("/books/unsupported-%1.txt").arg(index)),
+                QString(), S_IFREG));
+    }
+
+    const kiriview::ContainerNavigationCandidateAdmissionResult admitted
+        = kiriview::containerNavigationCandidates(
+            QUrl::fromLocalFile(QStringLiteral("/books/")), items);
+
+    QVERIFY(!admitted.has_value());
+    QCOMPARE(admitted.error(),
+        kiriview::ImageDocumentPageCandidateAdmissionFailure::ResourceLimitExceeded);
 }
 
 void TestImageDocumentPageCandidateItems::containerCandidateAdmissionRejectsForeignScope()

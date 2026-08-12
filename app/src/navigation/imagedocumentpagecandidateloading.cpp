@@ -10,18 +10,17 @@
 #include <utility>
 
 namespace {
-kiriview::KioOperationFailure candidateAdmissionFailure(
-    const QUrl& directoryUrl, kiriview::ImageDocumentPageCandidateAdmissionFailure failure)
+kiriview::KioOperationFailure candidateAdmissionFailure(const QUrl& directoryUrl,
+    kiriview::ImageDocumentPageCandidateAdmissionFailure failure, const QString& listingKind)
 {
     if (failure == kiriview::ImageDocumentPageCandidateAdmissionFailure::ResourceLimitExceeded) {
         return kiriview::kioOperationResourceLimitFailure(
             kiriview::KioOperationKind::DirectoryListing, directoryUrl,
-            QStringLiteral("ordinary sibling listing exceeds the configured resource limits"));
+            listingKind + QStringLiteral(" exceeds the configured resource limits"));
     }
     return kiriview::kioOperationValidationFailure(kiriview::KioOperationKind::DirectoryListing,
         directoryUrl,
-        QStringLiteral(
-            "ordinary sibling listing returned a candidate outside the requested scope"));
+        listingKind + QStringLiteral(" returned a candidate outside the requested scope"));
 }
 }
 
@@ -45,8 +44,9 @@ ImageIoJob startDirectoryImageDocumentPageCandidateList(QObject* receiver, const
             ImageDocumentPageCandidateAdmissionResult admitted
                 = imageDocumentPageNavigationCandidates(directoryUrl, items);
             if (!admitted) {
-                invokeIfSet(
-                    errorCallback, candidateAdmissionFailure(directoryUrl, admitted.error()));
+                invokeIfSet(errorCallback,
+                    candidateAdmissionFailure(directoryUrl, admitted.error(),
+                        QStringLiteral("ordinary sibling listing")));
                 return;
             }
             invokeIfSet(callback, std::move(*admitted));
@@ -73,8 +73,9 @@ ImageIoJob startDirectoryContainerCandidateList(QObject* receiver, const QUrl& d
             ContainerNavigationCandidateAdmissionResult admitted
                 = containerNavigationCandidates(directoryUrl, items);
             if (!admitted) {
-                invokeIfSet(
-                    errorCallback, candidateAdmissionFailure(directoryUrl, admitted.error()));
+                invokeIfSet(errorCallback,
+                    candidateAdmissionFailure(
+                        directoryUrl, admitted.error(), QStringLiteral("sibling archive listing")));
                 return;
             }
             invokeIfSet(callback, std::move(*admitted));

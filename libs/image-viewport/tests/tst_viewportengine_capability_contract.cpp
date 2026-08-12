@@ -313,7 +313,7 @@ static_assert(!HasProviderSessionAccess<ViewportEngineProviderFrameReadyAccess>:
 static_assert(!HasProviderRequestAccess<ViewportEngineProviderFrameReadyAccess>::value);
 static_assert(std::is_same_v<decltype(&reduceViewportEngineProviderFrameReady),
     ViewportEngineProviderFrameReadyReduction (*)(
-        ViewportEngineProviderFrameReadyInput, ViewportEngineProviderFrameReadyAccess&)>);
+        const ViewportEngineProviderFrameReadyInput&, ViewportEngineProviderFrameReadyAccess&)>);
 static_assert(!std::is_default_constructible_v<ViewportEngineProviderTerminalEventAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEngineProviderTerminalEventAccess>);
 static_assert(!std::is_reference_v<decltype(ViewportEngineProviderFailureMutation::request)>);

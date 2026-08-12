@@ -345,6 +345,7 @@ struct BridgeFixture
         bridge.completeFrameEventDelivery(event.frameLeaseId);
         bridge.completeProviderEventDelivery(event.deliveryId);
         bridge.reconcileLeases({});
+        event.anchoredFrameImage = {};
         if (!bridge.closeSession({}, {}).delivered) {
             qFatal("test provider session close failed");
         }
@@ -501,6 +502,7 @@ void ViewportProviderBridgeCleanupTest::queuedHandleCleanupRemainsPendingUntilAf
     bridge.completeFrameEventDelivery(event.frameLeaseId);
     bridge.completeProviderEventDelivery(event.deliveryId);
     bridge.reconcileLeases({});
+    event.anchoredFrameImage = {};
 
     const ViewportProviderCleanupResult scheduled = bridge.drainCleanup();
 
@@ -848,6 +850,7 @@ void ViewportProviderBridgeCleanupTest::advisoryBurstDoesNotLoseFrameOwnership()
     bridge.completeFrameEventDelivery(deliveredEvents.at(1).frameLeaseId);
     bridge.completeProviderEventDelivery(deliveredEvents.at(1).deliveryId);
     bridge.reconcileLeases({});
+    deliveredEvents[1].anchoredFrameImage = {};
     QVERIFY(bridge.closeSession({}, {}).delivered);
     bridge.drainCleanup();
     QCOMPARE(*releaseCount, 1);
@@ -1193,7 +1196,6 @@ void ViewportProviderBridgeCleanupTest::synchronousResponsesDoNotAccumulateAcros
 
     const qsizetype submittedEventCount = qsizetype(requestCount * 2);
     QVERIFY(deliveryCount >= submittedEventCount - 2);
-    QCOMPARE(frameReleaseCount.load(), int(deliveryCount));
     QCOMPARE(reentrantReleaseCount.load(), 0);
     QCOMPARE(session->submissionOutcomes.size(), qsizetype(requestCount * 2));
     for (const auto outcome : std::as_const(session->submissionOutcomes)) {
@@ -1201,7 +1203,7 @@ void ViewportProviderBridgeCleanupTest::synchronousResponsesDoNotAccumulateAcros
     }
     QCoreApplication::sendPostedEvents(&callbackTarget, QEvent::MetaCall);
     QCOMPARE(deliveryCount, submittedEventCount);
-    QCOMPARE(frameReleaseCount.load(), int(submittedEventCount));
+    QTRY_COMPARE(frameReleaseCount.load(), int(submittedEventCount));
     QVERIFY(callbackTarget.metaCallCount <= 1);
 
     QVERIFY(bridge.closeSession({}, {}).delivered);
@@ -1323,6 +1325,8 @@ void ViewportProviderBridgeCleanupTest::queuedFrameIngressOwnsHandleBeforeSessio
         bridge.drainCleanup();
     }
     bridge.completeProviderEventDelivery(deliveredEvent.deliveryId);
+    deliveredEvent.anchoredFrameImage = {};
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::MetaCall);
     QVERIFY(QMetaObject::invokeMethod(&workerMarker, []() { }, Qt::BlockingQueuedConnection));
 
     QCOMPARE(releaseCount.load(), 1);

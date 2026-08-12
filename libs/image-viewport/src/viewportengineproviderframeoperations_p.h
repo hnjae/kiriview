@@ -15,6 +15,7 @@ struct ViewportEngineProviderFrameReadyInput
     ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ImageSequenceProviderRequestToken token;
     ImageFrame* frame = nullptr;
+    QImage anchoredFrameImage;
     quint64 providerFrameLeaseId = 0;
     ImageSequenceProviderFrameEnvelope envelope;
     bool provisional = false;
@@ -39,7 +40,7 @@ class ViewportEngineProviderFrameReadyAccess // NOLINT(cppcoreguidelines-special
 {
     friend class ViewportEngine;
     friend ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady(
-        ViewportEngineProviderFrameReadyInput, ViewportEngineProviderFrameReadyAccess&);
+        const ViewportEngineProviderFrameReadyInput&, ViewportEngineProviderFrameReadyAccess&);
 
     ViewportEngineProviderFrameReadyAccess(const ImageViewportInternal::RequestState& request,
         const ImageViewportInternal::PlaybackState& playback,
@@ -75,4 +76,4 @@ private:
 };
 
 ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady(
-    ViewportEngineProviderFrameReadyInput, ViewportEngineProviderFrameReadyAccess&);
+    const ViewportEngineProviderFrameReadyInput&, ViewportEngineProviderFrameReadyAccess&);

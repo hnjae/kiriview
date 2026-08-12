@@ -156,6 +156,11 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
             result.providerTransport, opened.providerMetadataTransport, event.role);
         appendProviderTransport(
             result.providerTransport, opened.providerFrameTransport, event.role);
+        const auto demandEffects = restageProviderDemands(acceptedGeometry());
+        appendProviderTransport(
+            result.providerTransport, demandEffects[0], ImageViewportPageRole::Primary);
+        appendProviderTransport(
+            result.providerTransport, demandEffects[1], ImageViewportPageRole::Secondary);
         restorePreviousIfTerminal(result);
         return finalizeTransition(std::move(result));
     }
@@ -175,6 +180,14 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
         result.observations = reduced.observations;
         appendProviderTransport(
             result.providerTransport, reduced.providerFrameTransport, event.role);
+        if (event.providerEvent.kind == ImageSequenceProviderEventKind::MetadataReady
+            && result.changes.geometryState) {
+            const auto demandEffects = restageProviderDemands(acceptedGeometry());
+            appendProviderTransport(
+                result.providerTransport, demandEffects[0], ImageViewportPageRole::Primary);
+            appendProviderTransport(
+                result.providerTransport, demandEffects[1], ImageViewportPageRole::Secondary);
+        }
         if (result.changes.playbackPhase) {
             result.playbackSchedules = reduced.schedules;
         }
@@ -477,7 +490,7 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(const ViewportPr
             m_state->presentationState.presentation);
         const auto frame = reduceViewportEngineProviderFrameReady(
             { event.role, event.token, event.frameHandle ? event.frameHandle->frame() : nullptr,
-                event.frameLeaseId, event.frameEnvelope,
+                event.anchoredFrameImage, event.frameLeaseId, event.frameEnvelope,
                 event.kind == ImageSequenceProviderEventKind::ProvisionalFrameReady, geometry },
             access);
         auto mutation = access.takeMutation();

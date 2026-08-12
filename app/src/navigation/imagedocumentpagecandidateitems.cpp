@@ -19,17 +19,16 @@
 #include <utility>
 
 namespace {
-constexpr qsizetype defaultMaximumOrdinarySiblingEntryCount = 65'536;
-constexpr qsizetype defaultMaximumOrdinarySiblingIdentityCodeUnitCount
-    = qsizetype { 8 } * 1024 * 1024;
+constexpr qsizetype defaultMaximumSiblingEntryCount = 65'536;
+constexpr qsizetype defaultMaximumSiblingIdentityCodeUnitCount = qsizetype { 8 } * 1024 * 1024;
 
 std::expected<void, kiriview::ImageDocumentPageCandidateAdmissionFailure>
-admitImageDocumentPageCandidateItems(
-    const KFileItemList& items, kiriview::ImageDocumentPageCandidateAdmissionLimits limits)
+admitSiblingCandidateItems(
+    const KFileItemList& items, kiriview::SiblingCandidateAdmissionLimits limits)
 {
     using Failure = kiriview::ImageDocumentPageCandidateAdmissionFailure;
 
-    if (limits.maximumEntryCount < 0 || limits.maximumRetainedIdentityCodeUnitCount < 0
+    if (limits.maximumEntryCount < 0 || limits.maximumIdentityCodeUnitCount < 0
         || items.size() > limits.maximumEntryCount) {
         return std::unexpected(Failure::ResourceLimitExceeded);
     }
@@ -39,13 +38,11 @@ admitImageDocumentPageCandidateItems(
         const qsizetype nameCodeUnits = item.name().size();
         const qsizetype urlCodeUnits = item.url().toString(QUrl::FullyEncoded).size();
         if (nameCodeUnits < 0 || urlCodeUnits < 0
-            || nameCodeUnits
-                > limits.maximumRetainedIdentityCodeUnitCount - retainedIdentityCodeUnits) {
+            || nameCodeUnits > limits.maximumIdentityCodeUnitCount - retainedIdentityCodeUnits) {
             return std::unexpected(Failure::ResourceLimitExceeded);
         }
         retainedIdentityCodeUnits += nameCodeUnits;
-        if (urlCodeUnits
-            > limits.maximumRetainedIdentityCodeUnitCount - retainedIdentityCodeUnits) {
+        if (urlCodeUnits > limits.maximumIdentityCodeUnitCount - retainedIdentityCodeUnits) {
             return std::unexpected(Failure::ResourceLimitExceeded);
         }
         retainedIdentityCodeUnits += urlCodeUnits;
@@ -56,17 +53,16 @@ admitImageDocumentPageCandidateItems(
 }
 
 namespace kiriview {
-ImageDocumentPageCandidateAdmissionLimits defaultImageDocumentPageCandidateAdmissionLimits()
+SiblingCandidateAdmissionLimits defaultSiblingCandidateAdmissionLimits()
 {
-    return ImageDocumentPageCandidateAdmissionLimits { defaultMaximumOrdinarySiblingEntryCount,
-        defaultMaximumOrdinarySiblingIdentityCodeUnitCount };
+    return SiblingCandidateAdmissionLimits { defaultMaximumSiblingEntryCount,
+        defaultMaximumSiblingIdentityCodeUnitCount };
 }
 
 ImageDocumentPageCandidateAdmissionResult imageDocumentPageNavigationCandidates(
-    const QUrl& directoryUrl, const KFileItemList& items,
-    ImageDocumentPageCandidateAdmissionLimits limits)
+    const QUrl& directoryUrl, const KFileItemList& items, SiblingCandidateAdmissionLimits limits)
 {
-    if (const auto admitted = admitImageDocumentPageCandidateItems(items, limits); !admitted) {
+    if (const auto admitted = admitSiblingCandidateItems(items, limits); !admitted) {
         return std::unexpected(admitted.error());
     }
 
@@ -92,8 +88,7 @@ ImageDocumentPageCandidateAdmissionResult imageDocumentPageNavigationCandidates(
 }
 
 DirectMediaNavigationCandidateAdmissionResult directMediaNavigationCandidates(
-    const QUrl& directoryUrl, const KFileItemList& items,
-    ImageDocumentPageCandidateAdmissionLimits limits)
+    const QUrl& directoryUrl, const KFileItemList& items, SiblingCandidateAdmissionLimits limits)
 {
     ImageDocumentPageCandidateAdmissionResult admitted
         = imageDocumentPageNavigationCandidates(directoryUrl, items, limits);
@@ -127,8 +122,12 @@ DirectMediaNavigationCandidateAdmissionResult directMediaNavigationCandidates(
 }
 
 ContainerNavigationCandidateAdmissionResult containerNavigationCandidates(
-    const QUrl& directoryUrl, const KFileItemList& items)
+    const QUrl& directoryUrl, const KFileItemList& items, SiblingCandidateAdmissionLimits limits)
 {
+    if (const auto admitted = admitSiblingCandidateItems(items, limits); !admitted) {
+        return std::unexpected(admitted.error());
+    }
+
     std::vector<ContainerNavigationCandidate> candidates;
     candidates.reserve(static_cast<std::size_t>(items.size()));
 

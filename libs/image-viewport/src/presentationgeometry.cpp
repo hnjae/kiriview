@@ -96,13 +96,19 @@ QRectF primaryPageRectForState(const PresentationGeometry::State& state)
     if (!isPositiveSize(state.primaryImageSize)) {
         return {};
     }
-    if (!isPositiveSize(state.secondaryImageSize)
-        || state.spreadDirection == ImageViewportSpreadDirection::LeftToRight) {
+    if (!isPositiveSize(state.secondaryImageSize)) {
         return QRectF(QPointF(0.0, 0.0), state.primaryImageSize);
     }
 
-    return positiveRectOrEmpty(QRectF(
-        QPointF(state.secondaryImageSize.width() + state.pageGap, 0.0), state.primaryImageSize));
+    const QSizeF spreadSize = spreadSizeForState(state);
+    if (!isPositiveSize(spreadSize)) {
+        return {};
+    }
+    const double x = state.spreadDirection == ImageViewportSpreadDirection::LeftToRight
+        ? 0.0
+        : state.secondaryImageSize.width() + state.pageGap;
+    const double y = (spreadSize.height() - state.primaryImageSize.height()) / 2.0;
+    return positiveRectOrEmpty(QRectF(QPointF(x, y), state.primaryImageSize));
 }
 
 QRectF secondaryPageRectForState(const PresentationGeometry::State& state)
@@ -110,12 +116,15 @@ QRectF secondaryPageRectForState(const PresentationGeometry::State& state)
     if (!isPositiveSize(state.primaryImageSize) || !isPositiveSize(state.secondaryImageSize)) {
         return {};
     }
-    if (state.spreadDirection == ImageViewportSpreadDirection::RightToLeft) {
-        return QRectF(QPointF(0.0, 0.0), state.secondaryImageSize);
+    const QSizeF spreadSize = spreadSizeForState(state);
+    if (!isPositiveSize(spreadSize)) {
+        return {};
     }
-
-    return positiveRectOrEmpty(QRectF(
-        QPointF(state.primaryImageSize.width() + state.pageGap, 0.0), state.secondaryImageSize));
+    const double x = state.spreadDirection == ImageViewportSpreadDirection::RightToLeft
+        ? 0.0
+        : state.primaryImageSize.width() + state.pageGap;
+    const double y = (spreadSize.height() - state.secondaryImageSize.height()) / 2.0;
+    return positiveRectOrEmpty(QRectF(QPointF(x, y), state.secondaryImageSize));
 }
 
 QRectF pageRectForRole(const PresentationGeometry::State& state, ImageViewportPageRole role)
@@ -135,21 +144,21 @@ bool hasPresentableGeometry(const PresentationGeometry::State& state)
         && isPositiveSize(spreadSizeForState(state));
 }
 
-QPointF mirrorSpreadPoint(const PresentationGeometry::State& state, QPointF point)
+QPointF mirrorOrientedPoint(const PresentationGeometry::State& state, QPointF point)
 {
-    const QSizeF spreadSize = spreadSizeForState(state);
+    const QSizeF orientedSize = rotatedSize(spreadSizeForState(state), state.rotationDegrees);
     if (state.mirrorHorizontally) {
-        point.setX(spreadSize.width() - point.x());
+        point.setX(orientedSize.width() - point.x());
     }
     if (state.mirrorVertically) {
-        point.setY(spreadSize.height() - point.y());
+        point.setY(orientedSize.height() - point.y());
     }
     return point;
 }
 
-QPointF unmirrorSpreadPoint(const PresentationGeometry::State& state, QPointF point)
+QPointF unmirrorOrientedPoint(const PresentationGeometry::State& state, QPointF point)
 {
-    return mirrorSpreadPoint(state, point);
+    return mirrorOrientedPoint(state, point);
 }
 
 QPointF rotateSpreadPointToOriented(const PresentationGeometry::State& state, QPointF point)
@@ -186,12 +195,12 @@ QPointF unrotateOrientedPointToSpread(const PresentationGeometry::State& state, 
 
 QPointF spreadToOrientedPoint(const PresentationGeometry::State& state, QPointF point)
 {
-    return rotateSpreadPointToOriented(state, mirrorSpreadPoint(state, point));
+    return mirrorOrientedPoint(state, rotateSpreadPointToOriented(state, point));
 }
 
 QPointF orientedToSpreadPoint(const PresentationGeometry::State& state, QPointF point)
 {
-    return unmirrorSpreadPoint(state, unrotateOrientedPointToSpread(state, point));
+    return unrotateOrientedPointToSpread(state, unmirrorOrientedPoint(state, point));
 }
 
 QRectF spreadRectToOrientedRect(const PresentationGeometry::State& state, const QRectF& rect)

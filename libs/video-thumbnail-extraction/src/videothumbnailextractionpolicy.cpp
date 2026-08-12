@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -24,6 +25,30 @@ constexpr int maximumInputLongEdge
 constexpr qsizetype maximumInputBytes
     = kiriview::VideoThumbnailExtractionLimits::maximumOutputBytes * 4;
 constexpr qsizetype maximumMaterializedBytesPerPixel = 16;
+
+auto rgbaBytesForSize(const QSize& size) -> std::optional<qsizetype>
+{
+    if (size.isEmpty() || size.width() <= 0 || size.height() <= 0) {
+        return std::nullopt;
+    }
+
+    constexpr qsizetype bytesPerPixel = 4;
+    const qsizetype width = size.width();
+    const qsizetype height = size.height();
+    const qsizetype maximum = std::numeric_limits<qsizetype>::max();
+    if (width > maximum / bytesPerPixel || height > maximum / (width * bytesPerPixel)) {
+        return std::nullopt;
+    }
+    return width * height * bytesPerPixel;
+}
+
+auto sumWithin(qsizetype left, qsizetype right, qsizetype maximum) -> std::optional<qsizetype>
+{
+    if (left < 0 || right < 0 || left > maximum || right > maximum - left) {
+        return std::nullopt;
+    }
+    return left + right;
+}
 
 auto normalizedDiagnostic(const QString& diagnostic) -> QString
 {
@@ -128,46 +153,99 @@ auto admitVideoThumbnailFrameSize(const QSize& size) -> VideoThumbnailImageAdmis
     return VideoThumbnailImageAdmissionStatus::Ready;
 }
 
-auto admitVideoThumbnailImage(const QImage& source, int maximumLongEdge)
-    -> VideoThumbnailImageAdmission
+auto admitVideoThumbnailImageResources(const VideoThumbnailImageResources& resources,
+    int maximumLongEdge, qsizetype retainedSourceBytes) -> VideoThumbnailImageAdmissionStatus
+{
+    const VideoThumbnailImageAdmissionStatus sizeStatus
+        = admitVideoThumbnailFrameSize(resources.pixelSize);
+    if (sizeStatus != VideoThumbnailImageAdmissionStatus::Ready) {
+        return sizeStatus;
+    }
+
+    const int sourceLongEdge = std::max(resources.pixelSize.width(), resources.pixelSize.height());
+    if (resources.sourceBytes <= 0 || resources.sourceBytes > maximumInputBytes
+        || retainedSourceBytes < resources.sourceBytes) {
+        return VideoThumbnailImageAdmissionStatus::ResourceLimit;
+    }
+
+    QSize outputSize = resources.pixelSize;
+    if (sourceLongEdge > maximumLongEdge) {
+        outputSize = resources.pixelSize.scaled(
+            QSize(maximumLongEdge, maximumLongEdge), Qt::KeepAspectRatio);
+    }
+    if (outputSize.isEmpty() || outputSize.width() <= 0 || outputSize.height() <= 0) {
+        return VideoThumbnailImageAdmissionStatus::ConversionFailure;
+    }
+
+    const std::optional<qsizetype> convertedBytes = rgbaBytesForSize(resources.pixelSize);
+    const std::optional<qsizetype> outputBytes = rgbaBytesForSize(outputSize);
+    if (!convertedBytes.has_value() || !outputBytes.has_value()
+        || *outputBytes > VideoThumbnailExtractionLimits::maximumOutputBytes) {
+        return VideoThumbnailImageAdmissionStatus::ResourceLimit;
+    }
+
+    qsizetype additionalPeak = 0;
+    const bool requiresConversion = resources.format != QImage::Format_RGBA8888;
+    const bool requiresScaling = outputSize != resources.pixelSize;
+    if (requiresConversion) {
+        additionalPeak = *convertedBytes;
+    }
+    if (requiresScaling || !requiresConversion) {
+        const auto peak = sumWithin(
+            additionalPeak, *outputBytes, VideoThumbnailExtractionLimits::maximumWorkingBytes);
+        if (!peak.has_value()) {
+            return VideoThumbnailImageAdmissionStatus::ResourceLimit;
+        }
+        additionalPeak = *peak;
+    }
+
+    if (!sumWithin(retainedSourceBytes, additionalPeak,
+            VideoThumbnailExtractionLimits::maximumWorkingBytes)
+            .has_value()) {
+        return VideoThumbnailImageAdmissionStatus::ResourceLimit;
+    }
+    return VideoThumbnailImageAdmissionStatus::Ready;
+}
+
+auto admitVideoThumbnailImage(const QImage& source, int maximumLongEdge,
+    qsizetype retainedSourceBytes) -> VideoThumbnailImageAdmission
 {
     if (source.isNull()) {
         return {};
     }
 
-    const VideoThumbnailImageAdmissionStatus sizeStatus
-        = admitVideoThumbnailFrameSize(source.size());
-    if (sizeStatus != VideoThumbnailImageAdmissionStatus::Ready) {
-        return { sizeStatus, {} };
+    const VideoThumbnailImageResources resources { source.size(), source.format(),
+        source.sizeInBytes() };
+    const VideoThumbnailImageAdmissionStatus resourceStatus
+        = admitVideoThumbnailImageResources(resources, maximumLongEdge, retainedSourceBytes);
+    if (resourceStatus != VideoThumbnailImageAdmissionStatus::Ready) {
+        return { resourceStatus, {} };
     }
 
     const int sourceLongEdge = std::max(source.width(), source.height());
-    const qsizetype sourceBytes = source.sizeInBytes();
-    if (sourceBytes <= 0 || sourceBytes > maximumInputBytes) {
-        return { VideoThumbnailImageAdmissionStatus::ResourceLimit, {} };
-    }
-
     QSize outputSize = source.size();
     if (sourceLongEdge > maximumLongEdge) {
         outputSize
             = source.size().scaled(QSize(maximumLongEdge, maximumLongEdge), Qt::KeepAspectRatio);
     }
-    if (outputSize.isEmpty() || outputSize.width() <= 0 || outputSize.height() <= 0) {
-        return { VideoThumbnailImageAdmissionStatus::ConversionFailure, {} };
-    }
 
-    QImage scaled = outputSize == source.size()
-        ? source
-        : source.scaled(outputSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-    if (scaled.isNull()) {
-        return { VideoThumbnailImageAdmissionStatus::ConversionFailure, {} };
-    }
-
-    QImage converted = scaled.convertToFormat(QImage::Format_RGBA8888);
+    const bool requiresConversion = source.format() != QImage::Format_RGBA8888;
+    const bool requiresScaling = outputSize != source.size();
+    QImage converted
+        = requiresConversion ? source.convertToFormat(QImage::Format_RGBA8888) : source;
     if (converted.isNull()) {
         return { VideoThumbnailImageAdmissionStatus::ConversionFailure, {} };
     }
-    QImage owned = converted.copy();
+
+    QImage owned;
+    if (requiresScaling) {
+        owned = converted.scaled(outputSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        converted = {};
+    } else if (requiresConversion) {
+        owned = std::move(converted);
+    } else {
+        owned = source.copy();
+    }
     if (owned.isNull()) {
         return { VideoThumbnailImageAdmissionStatus::ConversionFailure, {} };
     }

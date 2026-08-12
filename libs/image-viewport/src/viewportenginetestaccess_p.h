@@ -115,6 +115,7 @@ public:
     {
         auto& session = providerSession(engine, role);
         session.sessionActive = true;
+        session.sessionOpened = true;
         ++session.sessionSerial;
     }
     static ImageViewportInternal::ProviderRequestLedger& providerRequests(

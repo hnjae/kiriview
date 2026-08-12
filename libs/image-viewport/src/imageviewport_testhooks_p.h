@@ -72,5 +72,6 @@ QVector<InternalObservationForTest> internalObservationsForTest(const ImageViewp
 std::unique_ptr<ImageFrame> makeImageFrameWithPayloadByteSizeForTest(
     const QImage& image, qsizetype payloadByteSize);
 QImage imageForTest(const ImageFrame& frame);
+bool imagePayloadIsDetachedForTest(const ImageFrame& frame);
 
 } // namespace ImageViewportTestHooks

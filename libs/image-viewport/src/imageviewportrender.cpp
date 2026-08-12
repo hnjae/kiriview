@@ -56,25 +56,33 @@ ImageViewportRenderHostResult ImageViewportRenderHost::synchronize(
 
 QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
 {
-    const auto attemptValue = renderAttemptForHost();
-    if (!attemptValue) {
-        return oldNode;
-    }
-    const ViewportRenderAttempt& attempt = *attemptValue;
-    if (!window() && attempt.snapshot.requiredRoleSet.primary()) {
-        return oldNode;
-    }
-    ImageViewportRenderHostResult render = renderHost.synchronize(oldNode, window(), attempt);
-    if (render.fact.outcome == ViewportRenderHostFact::Outcome::Failed) {
-        QSGNode* fallbackNode = render.node;
-        applyRenderHostFact(std::move(render.fact));
-        if (fallbackNode) {
-            return fallbackNode;
+    QSGNode* renderedNode = oldNode;
+    ViewportRenderHostFact fact;
+    bool hasFact = false;
+    bool renderUnavailable = false;
+    {
+        const auto attemptValue = renderAttemptForHost();
+        if (!attemptValue) {
+            return oldNode;
         }
-        return nullptr;
+        const ViewportRenderAttempt& attempt = *attemptValue;
+        if (!window() && attempt.snapshot.requiredRoleSet.primary()) {
+            renderUnavailable = true;
+        } else {
+            ImageViewportRenderHostResult render
+                = renderHost.synchronize(oldNode, window(), attempt);
+            renderedNode = render.node;
+            fact = std::move(render.fact);
+            hasFact = true;
+        }
     }
-    applyRenderHostFact(std::move(render.fact));
-    return render.node;
+    if (renderUnavailable) {
+        return oldNode;
+    }
+    if (hasFact) {
+        applyRenderHostFact(std::move(fact));
+    }
+    return renderedNode;
 }
 
 void ImageViewportPrivate::prepareRenderSynchronization()
@@ -96,7 +104,9 @@ std::optional<ViewportRenderAttempt> ImageViewportPrivate::renderAttemptForHost(
 
 void ImageViewportPrivate::applyRenderHostFact(ViewportRenderHostFact fact)
 {
-    auto apply = [this, fact = std::move(fact)]() mutable {
+    const quint64 attempt = fact.acknowledgement.attempt;
+    auto apply = [this, attempt, fact = std::move(fact)]() mutable {
+        discardPendingRenderMailbox(attempt);
         applyEngineTransition(engine.handleRenderHostFact({ std::move(fact) }));
     };
     const QThread* renderThread = q->thread();
@@ -105,4 +115,14 @@ void ImageViewportPrivate::applyRenderHostFact(ViewportRenderHostFact fact)
         return;
     }
     QMetaObject::invokeMethod(q, std::move(apply), Qt::QueuedConnection);
+}
+
+void ImageViewportPrivate::discardPendingRenderMailbox(quint64 attempt)
+{
+    const QMutexLocker lock(&renderMailboxMutex);
+    if (attempt != 0 && (!renderMailboxValid || renderMailbox.attempt != attempt)) {
+        return;
+    }
+    renderMailbox = {};
+    renderMailboxValid = false;
 }

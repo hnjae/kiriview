@@ -125,7 +125,8 @@ public:
     static ProviderKnownFactsAdmissionResult admitProviderKnownFacts(
         const ImageViewportInternal::ImageSequenceProviderKnownFacts& facts);
     static ProviderFrameAdmissionResult admitProviderFrame(ImageFrame* frame,
-        const ImageSequenceProviderFrameEnvelope& envelope, const ProviderFrameState& state);
+        const QImage& anchoredFrameImage, const ImageSequenceProviderFrameEnvelope& envelope,
+        const ProviderFrameState& state);
     static BuiltInFrameAdmissionResult admitBuiltInFrame(
         const ImageViewportInternal::ImageSequenceSource& source, int frame,
         const ImageViewportInternal::PreparedPayload& preparedPayload,

@@ -3,12 +3,65 @@
 
 #include "imagesequencesource_p.h"
 #include "imageviewport_p.h"
+#include "imageviewportlimits_p.h"
 
 #include <algorithm>
 #include <cmath>
 #include <utility>
 
 using namespace ImageViewportInternal;
+
+ImageViewportDisplayLimits::ImageViewportDisplayLimits(QObject* parent)
+    : QObject(parent)
+{
+}
+
+double ImageViewportDisplayLimits::getMinimumManualZoomPercent() const
+{
+    return minimumManualZoomPercent();
+}
+
+double ImageViewportDisplayLimits::getManualZoomStepFactor() const
+{
+    return manualZoomStepFactor();
+}
+
+double ImageViewportDisplayLimits::getMaximumPageGap() const { return maximumPageGap(); }
+
+double ImageViewportDisplayLimits::getMinimumCheckerboardCellSize() const
+{
+    return minimumCheckerboardCellSize();
+}
+
+double ImageViewportDisplayLimits::getMaximumCheckerboardCellSize() const
+{
+    return maximumCheckerboardCellSize();
+}
+
+double ImageViewportDisplayLimits::minimumManualZoomPercent()
+{
+    return ViewportDisplayLimits::minimumManualZoomPercent();
+}
+
+double ImageViewportDisplayLimits::manualZoomStepFactor()
+{
+    return ViewportDisplayLimits::manualZoomStepFactor();
+}
+
+double ImageViewportDisplayLimits::maximumPageGap()
+{
+    return ViewportDisplayLimits::maximumPageGap();
+}
+
+double ImageViewportDisplayLimits::minimumCheckerboardCellSize()
+{
+    return ViewportDisplayLimits::minimumCheckerboardCellSize();
+}
+
+double ImageViewportDisplayLimits::maximumCheckerboardCellSize()
+{
+    return ViewportDisplayLimits::maximumCheckerboardCellSize();
+}
 
 bool PresentationTargetTransitionPolicy::isValid() const
 {

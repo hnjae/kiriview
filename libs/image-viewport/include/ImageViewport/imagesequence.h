@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <ImageViewport/imagesequenceidentity.h>
 #include <ImageViewport/imageviewporttypes.h>
 
 #include <QtCore/QList>
@@ -20,68 +21,7 @@ class ImageSequenceProviderAdapter;
 Q_DECLARE_OPAQUE_POINTER(ImageSequenceProviderAdapter*)
 namespace ImageViewportInternal {
 class ImageFramePrivateAccess;
-class ImageSequencePrivateAccess;
 }
-
-namespace ImageSequenceEnums {
-Q_NAMESPACE
-
-enum class AuthoredAnimationLoopMode {
-    Unavailable,
-    PlayOnce,
-    Finite,
-    Infinite,
-};
-Q_ENUM_NS(AuthoredAnimationLoopMode)
-}
-
-using ImageSequenceAuthoredAnimationLoopMode = ImageSequenceEnums::AuthoredAnimationLoopMode;
-
-class ImageSequenceAuthoredAnimationFacts
-{
-    Q_GADGET
-    QML_VALUE_TYPE(imageSequenceAuthoredAnimationFacts)
-    Q_PROPERTY(bool autoplay READ autoplay CONSTANT)
-    Q_PROPERTY(ImageSequenceAuthoredAnimationLoopMode loopMode READ loopMode CONSTANT)
-    Q_PROPERTY(int loopCount READ loopCount CONSTANT)
-
-public:
-    ImageSequenceAuthoredAnimationFacts() = default;
-    static ImageSequenceAuthoredAnimationFacts finiteLoop(int loopCount);
-    static ImageSequenceAuthoredAnimationFacts infiniteLoop();
-
-    [[nodiscard]] bool autoplay() const;
-    void setAutoplay(bool autoplay);
-    [[nodiscard]] ImageSequenceAuthoredAnimationLoopMode loopMode() const;
-    [[nodiscard]] int loopCount() const;
-    bool setFiniteLoopCount(int loopCount);
-    [[nodiscard]] bool isValid() const;
-
-private:
-    bool m_autoplay = false;
-    ImageSequenceAuthoredAnimationLoopMode m_loopMode
-        = ImageSequenceAuthoredAnimationLoopMode::PlayOnce;
-    int m_loopCount = 1;
-};
-
-class ImageSequence : public QObject
-{
-    Q_OBJECT
-    QML_ELEMENT
-    QML_UNCREATABLE("Use ImageSequenceFactory to create sequence handles")
-
-public:
-    ~ImageSequence() override;
-    Q_DISABLE_COPY_MOVE(ImageSequence)
-
-private:
-    class Data;
-    explicit ImageSequence(std::unique_ptr<Data> data, QObject* parent = nullptr);
-
-    std::unique_ptr<Data> d;
-
-    friend class ImageViewportInternal::ImageSequencePrivateAccess;
-};
 
 class ImageFrame : public QObject
 {
@@ -247,9 +187,6 @@ using ImageSequenceFactoryReason = ImageSequenceFactoryEnums::FactoryReason;
 class ImageSequenceFactoryResult : public QObject
 {
     Q_OBJECT
-    QML_ELEMENT
-    QML_UNCREATABLE("ImageSequenceFactoryResult objects are returned by ImageSequenceFactory")
-    QML_EXTENDED_NAMESPACE(ImageSequenceFactoryEnums)
     Q_PROPERTY(ImageSequence* sequence READ sequence CONSTANT)
     Q_PROPERTY(ImageSequenceFactoryOutcome outcome READ outcome CONSTANT)
     Q_PROPERTY(ImageSequenceFactoryReason reason READ reason CONSTANT)
@@ -349,5 +286,3 @@ public:
     static int maximumDiagnosticCharacters();
     static int maximumFormatIdentifierCharacters();
 };
-
-Q_DECLARE_METATYPE(ImageSequenceAuthoredAnimationFacts)

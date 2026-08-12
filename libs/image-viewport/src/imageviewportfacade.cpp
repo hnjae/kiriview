@@ -5,6 +5,7 @@
 #include "imageviewport_p.h"
 #include "imageviewport_testhooks_p.h"
 #include "imageviewporttoken_p.h"
+#include "viewportproviderbridge_p.h"
 
 #include <QtQuick/QSGNode>
 
@@ -16,6 +17,11 @@ ImageViewport::ImageViewport(QQuickItem* parent)
 }
 
 ImageViewport::~ImageViewport() = default;
+
+bool ImageViewport::completeProviderCleanupForApplicationShutdown()
+{
+    return completeViewportProviderCleanupForApplicationShutdown();
+}
 
 ImageViewportStateSnapshot ImageViewport::state() const { return d->state(); }
 ImageViewportCommandResult ImageViewport::clear() { return d->clear(); }
@@ -268,6 +274,11 @@ std::unique_ptr<ImageFrame> makeImageFrameWithPayloadByteSizeForTest(
 QImage imageForTest(const ImageFrame& frame)
 {
     return ImageViewportInternal::ImageFramePrivateAccess::image(frame);
+}
+
+bool imagePayloadIsDetachedForTest(const ImageFrame& frame)
+{
+    return ImageViewportInternal::ImageFramePrivateAccess::imagePayloadIsDetachedForTest(frame);
 }
 
 } // namespace ImageViewportTestHooks

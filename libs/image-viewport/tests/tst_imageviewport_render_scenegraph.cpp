@@ -294,7 +294,7 @@ void ImageViewportRenderSceneGraphTest::stillImageCreatesTexturePaintNode()
 void ImageViewportRenderSceneGraphTest::twoPageStillSpreadCreatesRoleTextureNodes()
 {
     ImageSequenceFactory factory;
-    QImage primaryImage(10, 20, QImage::Format_ARGB32_Premultiplied);
+    QImage primaryImage(10, 8, QImage::Format_ARGB32_Premultiplied);
     primaryImage.fill(QColor(255, 0, 0, 255));
     QImage secondaryImage(30, 20, QImage::Format_ARGB32_Premultiplied);
     secondaryImage.fill(QColor(0, 255, 0, 255));
@@ -325,12 +325,14 @@ void ImageViewportRenderSceneGraphTest::twoPageStillSpreadCreatesRoleTextureNode
     QVERIFY(primaryNode);
     QVERIFY(primaryNode->texture());
     QCOMPARE(primaryNode->rect(), primaryItemRect(item));
+    QCOMPARE(primaryNode->rect(), QRectF(0.0, 14.0, 20.0, 16.0));
     QCOMPARE(primaryNode->sourceRect(), visiblePrimaryPageRect(item));
 
     auto* secondaryNode = dynamic_cast<QSGImageNode*>(root->firstChild()->nextSibling());
     QVERIFY(secondaryNode);
     QVERIFY(secondaryNode->texture());
     QCOMPARE(secondaryNode->rect(), secondaryItemRect(item));
+    QCOMPARE(secondaryNode->rect(), QRectF(28.0, 2.0, 60.0, 40.0));
     QCOMPARE(secondaryNode->sourceRect(), visibleSecondaryPageRect(item));
 }
 
@@ -535,8 +537,18 @@ void ImageViewportRenderSceneGraphTest::primaryAndSecondaryProviderFramesCommitO
         ImageSequenceProviderMetadata::still(QSizeF(10.0, 20.0)));
     drainQueuedProviderResults();
 
+    QCOMPARE(*primaryFrameRequestCount, 0);
+    QCOMPARE(*secondaryFrameRequestCount, 0);
+
+    emitProviderMetadataReady(secondarySessionFactory->lastSession(),
+        secondarySessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(30.0, 20.0)));
+    drainQueuedProviderResults();
+
     QCOMPARE(*primaryFrameRequestCount, 1);
     QCOMPARE(*primaryLastRequestedFrame, 0);
+    QCOMPARE(*secondaryFrameRequestCount, 1);
+    QCOMPARE(*secondaryLastRequestedFrame, 0);
 
     QImage primaryImage(10, 20, QImage::Format_ARGB32_Premultiplied);
     primaryImage.fill(QColor(255, 0, 0, 255));
@@ -547,19 +559,11 @@ void ImageViewportRenderSceneGraphTest::primaryAndSecondaryProviderFramesCommitO
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QVERIFY(hasPendingRenderCommitForTest(item));
+    QVERIFY(!hasPendingRenderCommitForTest(item));
     QScopedPointer<QSGNode> partialRoot(item.takePaintNode());
     QVERIFY(partialRoot.isNull());
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-
-    emitProviderMetadataReady(secondarySessionFactory->lastSession(),
-        secondarySessionFactory->lastSession()->lastMetadataToken(),
-        ImageSequenceProviderMetadata::still(QSizeF(30.0, 20.0)));
-    drainQueuedProviderResults();
-
-    QCOMPARE(*secondaryFrameRequestCount, 1);
-    QCOMPARE(*secondaryLastRequestedFrame, 0);
 
     QImage secondaryImage(30, 20, QImage::Format_ARGB32_Premultiplied);
     secondaryImage.fill(QColor(0, 255, 0, 255));
@@ -766,6 +770,7 @@ void ImageViewportRenderSceneGraphTest::rotatedImageTextureNodeUsesTransform()
     ImageSequenceFactory factory;
     QImage image(10, 20, QImage::Format_ARGB32_Premultiplied);
     image.fill(QColor(255, 0, 0, 255));
+    image.setPixelColor(2, 3, Qt::magenta);
     ImageFrame frame(image);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
     QVERIFY(result->sequence());
@@ -805,10 +810,13 @@ void ImageViewportRenderSceneGraphTest::rotatedImageTextureNodeUsesTransform()
         unrotatedSize.height());
     QCOMPARE(imageNode->rect(), unrotatedRect);
     QCOMPARE(imageNode->sourceRect(), visibleImageRect(item));
+    const bool expectedTextureMirrorHorizontally
+        = swapsAxes ? mirrorVertically : mirrorHorizontally;
+    const bool expectedTextureMirrorVertically = swapsAxes ? mirrorHorizontally : mirrorVertically;
     QCOMPARE(bool(imageNode->textureCoordinatesTransform() & QSGImageNode::MirrorHorizontally),
-        mirrorHorizontally);
+        expectedTextureMirrorHorizontally);
     QCOMPARE(bool(imageNode->textureCoordinatesTransform() & QSGImageNode::MirrorVertically),
-        mirrorVertically);
+        expectedTextureMirrorVertically);
 
     QMatrix4x4 expectedTransform;
     expectedTransform.translate(targetRect.center().x(), targetRect.center().y());
@@ -821,6 +829,26 @@ void ImageViewportRenderSceneGraphTest::rotatedImageTextureNodeUsesTransform()
                 actualTransform(row, column) + 1.0f, expectedTransform(row, column) + 1.0f));
         }
     }
+
+    QCOMPARE(image.pixelColor(2, 3), QColor(Qt::magenta));
+    const QPointF sourcePixelCenter(2.5, 3.5);
+    QPointF normalizedPixel(
+        sourcePixelCenter.x() / image.width(), sourcePixelCenter.y() / image.height());
+    if (expectedTextureMirrorHorizontally) {
+        normalizedPixel.setX(1.0 - normalizedPixel.x());
+    }
+    if (expectedTextureMirrorVertically) {
+        normalizedPixel.setY(1.0 - normalizedPixel.y());
+    }
+    const QPointF nodePixelCenter(
+        imageNode->rect().x() + normalizedPixel.x() * imageNode->rect().width(),
+        imageNode->rect().y() + normalizedPixel.y() * imageNode->rect().height());
+    const QPointF sceneGraphPixelCenter = actualTransform.map(nodePixelCenter);
+    const ImageViewportCoordinateResult publicPixelCenter
+        = mapPrimaryPageToItem(item, sourcePixelCenter.x(), sourcePixelCenter.y());
+    QVERIFY(publicPixelCenter.isValid());
+    QVERIFY(qAbs(sceneGraphPixelCenter.x() - publicPixelCenter.point().x()) < 0.000001);
+    QVERIFY(qAbs(sceneGraphPixelCenter.y() - publicPixelCenter.point().y()) < 0.000001);
 }
 
 void ImageViewportRenderSceneGraphTest::renderAdapterDefersMissingWindow()
@@ -1032,8 +1060,8 @@ void ImageViewportRenderSceneGraphTest::renderPlanBuildsRoleLayerMappingWithoutS
     QCOMPARE(plan.imageLayers.at(1).unrotatedTargetRect, QRectF(5.0, 5.0, 20.0, 10.0));
     QCOMPARE(plan.imageLayers.at(1).physicalSourceRect, QRectF(1.0, 0.0, 3.0, 4.0));
     QCOMPARE(plan.imageLayers.at(1).rotationDegrees, 90);
-    QCOMPARE(plan.imageLayers.at(1).mirrorHorizontally, true);
-    QCOMPARE(plan.imageLayers.at(1).mirrorVertically, false);
+    QCOMPARE(plan.imageLayers.at(1).mirrorTextureHorizontally, false);
+    QCOMPARE(plan.imageLayers.at(1).mirrorTextureVertically, true);
     QCOMPARE(plan.rolePayloads.size(), 2);
     QCOMPARE(plan.rolePayloads.at(0).role, ImageViewportPageRole::Primary);
     QCOMPARE(plan.rolePayloads.at(0).preparedPayload.payloadId, quint64(8));
@@ -1271,13 +1299,11 @@ void ImageViewportRenderSceneGraphTest::
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RenderWaiting"));
-    QVERIFY(commitPaintNode(item));
+    QScopedPointer<QSGNode> root(item.takePaintNode());
+    QVERIFY(root);
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
-
-    QScopedPointer<QSGNode> root(item.takePaintNode());
-    QVERIFY(root);
 
     auto* imageNode = dynamic_cast<QSGImageNode*>(root->lastChild());
     QVERIFY(imageNode);

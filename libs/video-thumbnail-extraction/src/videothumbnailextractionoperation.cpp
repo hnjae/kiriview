@@ -39,6 +39,33 @@ using kiriview::detail::VideoThumbnailRuntimeDependencies;
 
 constexpr auto extractionDeadline = 10s;
 
+auto sourcePixelBytes(const QImage& image) -> qsizetype
+{
+    if (image.isNull()) {
+        return 0;
+    }
+    const qsizetype bytes = image.sizeInBytes();
+    if (bytes <= 0 || bytes > kiriview::VideoThumbnailExtractionLimits::maximumWorkingBytes) {
+        return kiriview::VideoThumbnailExtractionLimits::maximumWorkingBytes + 1;
+    }
+    return bytes;
+}
+
+auto combinedSourcePixelBytes(const VideoThumbnailEmbeddedImages& images) -> qsizetype
+{
+    const qsizetype coverBytes = sourcePixelBytes(images.coverArt);
+    const qsizetype thumbnailBytes = sourcePixelBytes(images.thumbnail);
+    if (!images.coverArt.isNull() && !images.thumbnail.isNull()
+        && images.coverArt.cacheKey() == images.thumbnail.cacheKey()) {
+        return std::max(coverBytes, thumbnailBytes);
+    }
+    const qsizetype maximum = kiriview::VideoThumbnailExtractionLimits::maximumWorkingBytes;
+    if (coverBytes > maximum || thumbnailBytes > maximum - coverBytes) {
+        return maximum + 1;
+    }
+    return coverBytes + thumbnailBytes;
+}
+
 struct BackendErrorEvent
 {
     VideoThumbnailBackendError error = VideoThumbnailBackendError::Other;
@@ -265,8 +292,8 @@ private:
             return;
         }
 
-        VideoThumbnailImageAdmission admitted
-            = kiriview::detail::admitVideoThumbnailImage(image, request_.maximumLongEdge);
+        VideoThumbnailImageAdmission admitted = kiriview::detail::admitVideoThumbnailImage(
+            image, request_.maximumLongEdge, sourcePixelBytes(image));
         switch (admitted.status) {
         case VideoThumbnailImageAdmissionStatus::Ready:
             finish(kiriview::detail::makeVideoThumbnailReadyResult(std::move(admitted.image)));
@@ -294,24 +321,26 @@ private:
         }
     }
 
-    void handleMetadata(const VideoThumbnailEmbeddedImages& images)
+    void handleMetadata(VideoThumbnailEmbeddedImages images)
     {
         const bool hasCover = !images.coverArt.isNull();
         const bool hasThumbnail = !images.thumbnail.isNull();
-        VideoThumbnailImageAdmission cover
-            = kiriview::detail::admitVideoThumbnailImage(images.coverArt, request_.maximumLongEdge);
+        VideoThumbnailImageAdmission cover = kiriview::detail::admitVideoThumbnailImage(
+            images.coverArt, request_.maximumLongEdge, combinedSourcePixelBytes(images));
         if (cover.status == VideoThumbnailImageAdmissionStatus::Ready) {
             finish(kiriview::detail::makeVideoThumbnailReadyResult(std::move(cover.image)));
             return;
         }
 
+        images.coverArt = {};
         VideoThumbnailImageAdmission thumbnail = kiriview::detail::admitVideoThumbnailImage(
-            images.thumbnail, request_.maximumLongEdge);
+            images.thumbnail, request_.maximumLongEdge, sourcePixelBytes(images.thumbnail));
         if (thumbnail.status == VideoThumbnailImageAdmissionStatus::Ready) {
             finish(kiriview::detail::makeVideoThumbnailReadyResult(std::move(thumbnail.image)));
             return;
         }
 
+        images.thumbnail = {};
         if ((hasCover && cover.status == VideoThumbnailImageAdmissionStatus::ResourceLimit)
             || (hasThumbnail
                 && thumbnail.status == VideoThumbnailImageAdmissionStatus::ResourceLimit)) {

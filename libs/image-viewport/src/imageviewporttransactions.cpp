@@ -285,6 +285,7 @@ void ImageViewportPrivate::useSynchronousProviderQueueFlushSchedulerForTest()
 
 ViewportRenderAttempt ImageViewportPrivate::beginRenderSynchronizationForTest()
 {
+    discardPendingRenderMailbox();
     const ViewportEngineViewportState original = viewportState();
     ViewportEngineViewportState available = original;
     available.renderAvailable = true;
@@ -333,20 +334,23 @@ void ImageViewportPrivate::reportRenderQualityFallbackForTest(
     quint64 renderAttempt, bool smoothingUnavailable, bool mipmapUnavailable)
 {
     const quint64 previousAttempt = currentRenderAttemptForTest();
-    const ViewportRenderAttempt attempt = beginRenderSynchronizationForTest();
-    QVector<ViewportRenderRolePayload> rolePayloads;
-    rolePayloads.reserve(attempt.snapshot.imageLayers.size());
-    for (const auto& layer : attempt.snapshot.imageLayers) {
-        rolePayloads.append({ layer.role, layer.preparedPayload.identity() });
-    }
-    const quint64 reportedAttempt
-        = renderAttempt == previousAttempt ? attempt.attempt : renderAttempt;
-    applyEngineTransition(
-        engine.handleRenderHostFact({ { ViewportRenderHostFact::Outcome::Committed,
+    ViewportRenderHostFact fact;
+    {
+        const ViewportRenderAttempt attempt = beginRenderSynchronizationForTest();
+        QVector<ViewportRenderRolePayload> rolePayloads;
+        rolePayloads.reserve(attempt.snapshot.imageLayers.size());
+        for (const auto& layer : attempt.snapshot.imageLayers) {
+            rolePayloads.append({ layer.role, layer.preparedPayload.identity() });
+        }
+        const quint64 reportedAttempt
+            = renderAttempt == previousAttempt ? attempt.attempt : renderAttempt;
+        fact = { ViewportRenderHostFact::Outcome::Committed,
             { attempt.snapshot.targetSpread, attempt.snapshot.presentation, std::move(rolePayloads),
                 PageRole::Primary, RenderFailureCause::None, reportedAttempt },
-            { smoothingUnavailable, mipmapUnavailable },
-            !attempt.snapshot.imageLayers.isEmpty() } }));
+            { smoothingUnavailable, mipmapUnavailable }, !attempt.snapshot.imageLayers.isEmpty() };
+    }
+    discardPendingRenderMailbox(fact.acknowledgement.attempt);
+    applyEngineTransition(engine.handleRenderHostFact({ std::move(fact) }));
 }
 
 void ImageViewportPrivate::discardRetainedDisplayForResourcePressureForTest()
@@ -381,36 +385,44 @@ ImageViewportPrivate::internalObservationsForTest() const
 void ImageViewportPrivate::acknowledgeRenderCommitForTest(
     quint64 generation, quint64 requestId, quint64 preparedPayloadId)
 {
-    const ViewportRenderAttempt attempt = beginRenderSynchronizationForTest();
-    applyEngineTransition(
-        engine.handleRenderHostFact({ { ViewportRenderHostFact::Outcome::Committed,
+    ViewportRenderHostFact fact;
+    {
+        const ViewportRenderAttempt attempt = beginRenderSynchronizationForTest();
+        fact = { ViewportRenderHostFact::Outcome::Committed,
             { { generation, requestId }, attempt.snapshot.presentation,
                 { { PageRole::Primary, { generation, preparedPayloadId } } }, PageRole::Primary,
                 RenderFailureCause::None, attempt.attempt },
-            {}, true } }));
+            {}, true };
+    }
+    discardPendingRenderMailbox(fact.acknowledgement.attempt);
+    applyEngineTransition(engine.handleRenderHostFact({ std::move(fact) }));
 }
 
 void ImageViewportPrivate::acknowledgeRenderCommitForTest(quint64 generation, quint64 requestId,
     quint64 primaryPreparedPayloadId, quint64 secondaryPreparedPayloadId)
 {
-    const ViewportRenderAttempt attempt = beginRenderSynchronizationForTest();
-    const ImageViewportInternal::PreparedPayloadIdentity primaryPayload {
-        generation,
-        primaryPreparedPayloadId,
-    };
-    const ImageViewportInternal::PreparedPayloadIdentity secondaryPayload {
-        generation,
-        secondaryPreparedPayloadId,
-    };
-    applyEngineTransition(
-        engine.handleRenderHostFact({ { ViewportRenderHostFact::Outcome::Committed,
+    ViewportRenderHostFact fact;
+    {
+        const ViewportRenderAttempt attempt = beginRenderSynchronizationForTest();
+        const ImageViewportInternal::PreparedPayloadIdentity primaryPayload {
+            generation,
+            primaryPreparedPayloadId,
+        };
+        const ImageViewportInternal::PreparedPayloadIdentity secondaryPayload {
+            generation,
+            secondaryPreparedPayloadId,
+        };
+        fact = { ViewportRenderHostFact::Outcome::Committed,
             { { generation, requestId }, attempt.snapshot.presentation,
                 {
                     { ImageViewportPageRole::Primary, primaryPayload },
                     { ImageViewportPageRole::Secondary, secondaryPayload },
                 },
                 PageRole::Primary, RenderFailureCause::None, attempt.attempt },
-            {}, true } }));
+            {}, true };
+    }
+    discardPendingRenderMailbox(fact.acknowledgement.attempt);
+    applyEngineTransition(engine.handleRenderHostFact({ std::move(fact) }));
 }
 
 void ImageViewportPrivate::acknowledgeRenderFailureForTest(
@@ -430,26 +442,31 @@ void ImageViewportPrivate::acknowledgeRenderFailureForTest(
 void ImageViewportPrivate::acknowledgeRenderFailureForTest(PageRole failedRole, quint64 generation,
     quint64 requestId, quint64 preparedPayloadId, RenderFailureCause cause)
 {
-    const ViewportRenderAttempt attempt = beginRenderSynchronizationForTest();
-    QVector<ViewportRenderRolePayload> rolePayloads;
-    rolePayloads.reserve(attempt.snapshot.imageLayers.size());
-    for (const auto& layer : attempt.snapshot.imageLayers) {
-        auto identity = layer.preparedPayload.identity();
-        if (layer.role == failedRole) {
-            identity = { generation, preparedPayloadId };
+    ViewportRenderHostFact fact;
+    {
+        const ViewportRenderAttempt attempt = beginRenderSynchronizationForTest();
+        QVector<ViewportRenderRolePayload> rolePayloads;
+        rolePayloads.reserve(attempt.snapshot.imageLayers.size());
+        for (const auto& layer : attempt.snapshot.imageLayers) {
+            auto identity = layer.preparedPayload.identity();
+            if (layer.role == failedRole) {
+                identity = { generation, preparedPayloadId };
+            }
+            rolePayloads.append({ layer.role, identity });
         }
-        rolePayloads.append({ layer.role, identity });
+        const ImageViewportInternal::PreparedPayloadIdentity failedPayload {
+            generation,
+            preparedPayloadId,
+        };
+        if (rolePayloads.isEmpty()) {
+            rolePayloads.append({ failedRole, failedPayload });
+        }
+        fact = { ViewportRenderHostFact::Outcome::Failed,
+            { { generation, requestId }, attempt.snapshot.presentation, std::move(rolePayloads),
+                failedRole, cause, attempt.attempt },
+            {}, true };
     }
-    const ImageViewportInternal::PreparedPayloadIdentity failedPayload {
-        generation,
-        preparedPayloadId,
-    };
-    if (rolePayloads.isEmpty()) {
-        rolePayloads.append({ failedRole, failedPayload });
-    }
-    applyEngineTransition(engine.handleRenderHostFact({ { ViewportRenderHostFact::Outcome::Failed,
-        { { generation, requestId }, attempt.snapshot.presentation, std::move(rolePayloads),
-            failedRole, cause, attempt.attempt },
-        {}, true } }));
+    discardPendingRenderMailbox(fact.acknowledgement.attempt);
+    applyEngineTransition(engine.handleRenderHostFact({ std::move(fact) }));
 }
 #endif

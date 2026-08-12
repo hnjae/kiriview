@@ -77,6 +77,19 @@ bool shortcutIsUnmodifiedAsciiPrintable(const QKeySequence& shortcut)
     return shortcut.count() == 1 && shortcutCombinationIsUnmodifiedAsciiPrintable(shortcut[0]);
 }
 
+bool shortcutHasCommandModifier(const QKeySequence& shortcut)
+{
+    const Qt::KeyboardModifiers commandModifiers
+        = Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier;
+    for (int index = 0; index < shortcut.count(); ++index) {
+        if ((shortcut[static_cast<uint>(index)].keyboardModifiers() & commandModifiers)
+            != Qt::NoModifier) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool exactShortcut(const QKeySequence& shortcut, const char* portableText)
 {
     return shortcut.matches(QKeySequence::fromString(
@@ -263,6 +276,15 @@ bool genericShortcutBindingEnabled(
     }
 }
 
+bool focusedInputQuitShortcutEnabled(const ApplicationActionStateInput& actionState,
+    const GenericShortcutBinding& binding, const QKeySequence& shortcut)
+{
+    return actionState.textInputFocused && actionState.helpActionsEnabled
+        && binding.actionId == ActionId::FileQuitAction && binding.actionEnabled
+        && binding.activationScope == ApplicationShortcutActivationScope::ViewerLocal
+        && shortcutHasCommandModifier(shortcut);
+}
+
 GenericShortcutDispatchOutcome genericShortcutDispatchOutcome(
     const GenericShortcutDispatchInput& input, const QKeySequence& shortcut)
 {
@@ -272,7 +294,8 @@ GenericShortcutDispatchOutcome genericShortcutDispatchOutcome(
 
     for (const GenericShortcutBinding& binding : input.bindings) {
         if (!binding.shortcuts.contains(shortcut)
-            || !genericShortcutBindingEnabled(input.actionState, binding)) {
+            || (!genericShortcutBindingEnabled(input.actionState, binding)
+                && !focusedInputQuitShortcutEnabled(input.actionState, binding, shortcut))) {
             continue;
         }
         if (binding.actionEnabled) {
