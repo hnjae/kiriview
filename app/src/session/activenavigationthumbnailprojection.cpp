@@ -52,6 +52,7 @@ std::vector<kiriview::ActiveNavigationThumbnailRow> thumbnailRowsForDirectMediaN
                 ? kiriview::ActiveNavigationThumbnailSourceKind::DirectVideo
                 : kiriview::ActiveNavigationThumbnailSourceKind::DirectImage,
             number == currentNumber,
+            candidate.sourceFreshness,
         });
         ++number;
     }
@@ -81,6 +82,7 @@ thumbnailRowsForImageDocumentPageCandidateListSnapshot(
                 ? kiriview::ActiveNavigationThumbnailSourceKind::ImageDocumentPageVideo
                 : kiriview::ActiveNavigationThumbnailSourceKind::ImageDocumentPageImage,
             number == currentNumber,
+            candidate.sourceFreshness,
         });
         ++number;
     }

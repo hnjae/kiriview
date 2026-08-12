@@ -99,10 +99,12 @@ class TestActiveNavigationThumbnailScheduler : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    void defaultAdapterBypassesPersistentCacheForOwnerFreshness();
     void demandWindowIsAtomicAndRejectsOutsideReports();
     void visibleRunsBeforeNearbyRegardlessOfReportOrder();
     void foregroundAdmissionIsBoundedAndPrioritizesCurrentThenVisible();
     void currentPreemptsVisibleWhenForegroundCapacityIsFull();
+    void resetKeepsCanceledWorkCapacityUntilPhysicalRetirement();
     void currentPromotesCommittedNearbyWithoutRestart();
     void newerForegroundCancelsActiveNearby();
     void newerWindowExpiresMissingDemandAndDemotesRetention();
@@ -122,6 +124,34 @@ private Q_SLOTS:
     void residencyLossDoesNotClearBackgroundCompletion();
     void malformedSchedulingSnapshotIsRejectedAtomically();
 };
+
+void TestActiveNavigationThumbnailScheduler::
+    defaultAdapterBypassesPersistentCacheForOwnerFreshness()
+{
+    const QUrl url = QUrl::fromLocalFile(QStringLiteral("/media/1.png"));
+    const auto unchanged = kiriview::thumbnailSourceRevisionKey(1, url, QStringLiteral("1.png"),
+        QStringLiteral("image"),
+        kiriview::activeNavigationThumbnailSourceKindIdentity(
+            kiriview::ActiveNavigationThumbnailSourceKind::DirectImage),
+        1);
+    const auto refreshed = kiriview::thumbnailSourceRevisionKey(1, url, QStringLiteral("1.png"),
+        QStringLiteral("image"),
+        kiriview::activeNavigationThumbnailSourceKindIdentity(
+            kiriview::ActiveNavigationThumbnailSourceKind::DirectImage),
+        1, 7);
+    const auto adapter = kiriview::defaultThumbnailSourceAdapter();
+
+    const kiriview::ThumbnailSourceAdapterPlan unchangedPlan
+        = adapter({ unchanged, Bucket::Normal, Priority::Visible });
+    QCOMPARE(unchangedPlan.kind, kiriview::ThumbnailSourceAdapterPlanKind::CacheableLocalFile);
+
+    const kiriview::ThumbnailSourceAdapterPlan refreshedPlan
+        = adapter({ refreshed, Bucket::Normal, Priority::Visible });
+    QCOMPARE(refreshedPlan.kind, kiriview::ThumbnailSourceAdapterPlanKind::InMemoryOnly);
+    QCOMPARE(refreshedPlan.localPathBytes, unchangedPlan.localPathBytes);
+    QCOMPARE(refreshedPlan.originalIdentity.localPathBytes,
+        unchangedPlan.originalIdentity.localPathBytes);
+}
 
 void TestActiveNavigationThumbnailScheduler::demandWindowIsAtomicAndRejectsOutsideReports()
 {
@@ -196,11 +226,44 @@ void TestActiveNavigationThumbnailScheduler::currentPreemptsVisibleWhenForegroun
         std::size_t(2));
 
     const auto effects = scheduler.setCurrentNumber(3);
-    QCOMPARE(effectsOfType<kiriview::ActiveNavigationThumbnailCancelWorkEffect>(effects).size(),
-        std::size_t(1));
-    const auto starts = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(effects);
+    const auto cancels
+        = effectsOfType<kiriview::ActiveNavigationThumbnailCancelWorkEffect>(effects);
+    QCOMPARE(cancels.size(), std::size_t(1));
+    QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(effects).empty());
+
+    const auto starts = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(
+        scheduler.acceptRetirement(cancels.front().workId));
     QCOMPARE(starts.size(), std::size_t(1));
     QCOMPARE(starts.front().request.sourceKey.row.rowNumber, 3);
+}
+
+void TestActiveNavigationThumbnailScheduler::resetKeepsCanceledWorkCapacityUntilPhysicalRetirement()
+{
+    kiriview::ActiveNavigationThumbnailScheduler scheduler(adapter(), 1);
+    QVERIFY(scheduler.reset(schedulingSnapshot(1, { key(1) })).has_value());
+    const auto first = scheduler.replaceDemandSnapshot(
+        snapshot(1, { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Visible } }));
+    QVERIFY(first.has_value());
+    const auto firstStart
+        = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*first).front();
+
+    const auto reset = scheduler.reset(schedulingSnapshot(2, { key(2, 2) }));
+    QVERIFY(reset.has_value());
+    const auto cancels = effectsOfType<kiriview::ActiveNavigationThumbnailCancelWorkEffect>(*reset);
+    QCOMPARE(cancels.size(), std::size_t(1));
+    QCOMPARE(cancels.front().workId, firstStart.request.workId);
+    const auto replacement = scheduler.replaceDemandSnapshot(
+        snapshot(2, { { 2, key(2, 2).sourceUrl, Bucket::Normal, Priority::Visible } }));
+    QVERIFY(replacement.has_value());
+    QVERIFY(
+        effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*replacement).empty());
+
+    const auto replacementStarts
+        = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(
+            scheduler.acceptRetirement(firstStart.request.workId));
+    QCOMPARE(replacementStarts.size(), std::size_t(1));
+    QCOMPARE(replacementStarts.front().request.sourceKey, key(2, 2));
+    QVERIFY(scheduler.acceptRetirement(firstStart.request.workId).empty());
 }
 
 void TestActiveNavigationThumbnailScheduler::currentPromotesCommittedNearbyWithoutRestart()

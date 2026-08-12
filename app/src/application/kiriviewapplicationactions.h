@@ -83,6 +83,7 @@ QString shortcutHelpCategoryKey(ShortcutHelpCategory category);
 QString shortcutHelpCategoryText(ShortcutHelpCategory category);
 int shortcutHelpCategoryOrder(ShortcutHelpCategory category);
 QList<QKeySequence> defaultShortcuts(const DefaultShortcutSpec& spec);
+bool hasDeclaredShortcutSlot(ActionId actionId, ApplicationShortcutActivationScope scope);
 }
 
 #endif

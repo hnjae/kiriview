@@ -16,6 +16,7 @@ struct DirectMediaNavigationCandidate
 {
     QUrl url;
     QString name;
+    quint64 sourceFreshness = 0;
 };
 
 struct DirectMediaNavigationBoundaryState
@@ -61,6 +62,8 @@ DirectMediaNavigationBoundaryState directMediaNavigationBoundaryState(
 DirectMediaNavigationOpenPlan directMediaNavigationOpenPlan(
     const std::vector<DirectMediaNavigationCandidate>& candidates, const QUrl& currentUrl,
     DirectMediaNavigationOpenRequest request);
+bool directMediaNavigationCandidatesBelongToScope(
+    const std::vector<DirectMediaNavigationCandidate>& candidates, const QUrl& directoryUrl);
 void sortDirectMediaNavigationCandidates(std::vector<DirectMediaNavigationCandidate>* candidates);
 }
 

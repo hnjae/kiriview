@@ -27,7 +27,8 @@ struct ImageDocumentSelectedTarget
         const ImageDocumentSelectedTarget& left, const ImageDocumentSelectedTarget& right)
     {
         return left.url == right.url && left.kind == right.kind
-            && left.openedCollectionScope == right.openedCollectionScope;
+            && sameOpenedCollectionScopeSnapshot(
+                left.openedCollectionScope, right.openedCollectionScope);
     }
 };
 

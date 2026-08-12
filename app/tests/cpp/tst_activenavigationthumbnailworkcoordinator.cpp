@@ -175,6 +175,43 @@ public:
     std::size_t maximumActiveCount = 0;
 };
 
+struct DeferredRetirementLookup
+{
+    kiriview::ThumbnailCacheLookupRequest request;
+    kiriview::ThumbnailCacheLookupCallback callback;
+    kiriview::ImageIoJobCompletion completion;
+    bool canceled = false;
+};
+
+class DeferredRetirementLookups
+{
+public:
+    kiriview::ThumbnailCacheLookupProvider provider()
+    {
+        return [this](QObject* receiver, kiriview::ThumbnailCacheLookupRequest request,
+                   kiriview::ThumbnailCacheLookupCallback callback) {
+            auto lookup = std::make_shared<DeferredRetirementLookup>();
+            lookup->request = std::move(request);
+            lookup->callback = std::move(callback);
+            auto* token = new QObject(receiver);
+            kiriview::ImageIoJob job(
+                token,
+                [lookup](QObject* object) {
+                    lookup->canceled = true;
+                    object->deleteLater();
+                },
+                kiriview::ImageIoJobCancellationRetirement::Explicit);
+            lookup->completion = job.completion();
+            lookups.push_back(std::move(lookup));
+            return job;
+        };
+    }
+
+    void retire(std::size_t index) { lookups.at(index)->completion.retire(); }
+
+    std::vector<std::shared_ptr<DeferredRetirementLookup>> lookups;
+};
+
 kiriview::ThumbnailSourceAdapter localAdapter()
 {
     return [](kiriview::ThumbnailSourceAdapterRequest request) {
@@ -253,6 +290,7 @@ private Q_SLOTS:
     void typedVideoFailureReachesDiagnosticBoundary();
     void demandWindowAdmitsVisibleBeforeNearbyRegardlessOfReportOrder();
     void videoDemandIsCapacityBoundedAndCancellationReleasesExtractor();
+    void canceledLookupKeepsCapacityUntilProviderRetires();
     void queuedContinuationFindsEligibleBackgroundRow();
     void invalidationRejectsQueuedContinuation();
 };
@@ -640,6 +678,36 @@ void TestActiveNavigationThumbnailWorkCoordinator::
         QUrl::fromLocalFile(QStringLiteral("/media/five.mp4")));
     QCOMPARE(generations.activeCount(), std::size_t(1));
     QCOMPARE(generations.maximumActiveCount, std::size_t(2));
+}
+
+void TestActiveNavigationThumbnailWorkCoordinator::canceledLookupKeepsCapacityUntilProviderRetires()
+{
+    auto images = std::make_shared<kiriview::ThumbnailImageStore>();
+    kiriview::ActiveNavigationThumbnailRowStore rows(images);
+    const auto schedulingRows = setRows(rows,
+        { row(1, QStringLiteral("/media/one.png")), row(2, QStringLiteral("/media/two.png")),
+            row(3, QStringLiteral("/media/three.png")) });
+    DeferredRetirementLookups lookups;
+    kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(
+        this, rows, lookups.provider(), {}, foregroundOnlyAdapter());
+    QVERIFY(coordinator.resetRows(schedulingRows));
+    const quint64 generation = rows.navigationGeneration();
+
+    QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(generation,
+        { { 1, schedulingRows.rows.at(0).sourceUrl, Bucket::Normal, Priority::Visible },
+            { 2, schedulingRows.rows.at(1).sourceUrl, Bucket::Normal, Priority::Visible },
+            { 3, schedulingRows.rows.at(2).sourceUrl, Bucket::Normal, Priority::Visible } })));
+    QCOMPARE(lookups.lookups.size(), std::size_t(2));
+
+    QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(generation,
+        { { 2, schedulingRows.rows.at(1).sourceUrl, Bucket::Normal, Priority::Visible },
+            { 3, schedulingRows.rows.at(2).sourceUrl, Bucket::Normal, Priority::Visible } })));
+    QVERIFY(lookups.lookups.at(0)->canceled);
+    QCOMPARE(lookups.lookups.size(), std::size_t(2));
+
+    lookups.retire(0);
+    QCOMPARE(lookups.lookups.size(), std::size_t(3));
+    QCOMPARE(lookups.lookups.back()->request.localPathBytes, QByteArray("/media/three.png"));
 }
 
 void TestActiveNavigationThumbnailWorkCoordinator::queuedContinuationFindsEligibleBackgroundRow()

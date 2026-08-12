@@ -38,8 +38,10 @@ private Q_SLOTS:
     void imageFallbackPrefersNextImage();
     void imageFallbackFallsBackToPreviousImage();
     void imageFallbackReturnsNoUrlWithoutSiblingImages();
+    void imageFallbackRejectsForeignDirectoryCandidatesAtomically();
     void comicBookFallbackKeepsNextAndPreviousCandidates();
     void comicBookFallbackReturnsNoCandidatesWithoutSiblingContainers();
+    void comicBookFallbackRejectsForeignDirectoryCandidatesAtomically();
 };
 
 void TestImageRemovalFallback::emptyLocationHasNoRemovalPlanTarget()
@@ -236,6 +238,27 @@ void TestImageRemovalFallback::imageFallbackReturnsNoUrlWithoutSiblingImages()
     QVERIFY(!fallbackTarget.has_value());
 }
 
+void TestImageRemovalFallback::imageFallbackRejectsForeignDirectoryCandidatesAtomically()
+{
+    const QUrl currentUrl = localUrl(QStringLiteral("/images/02.png"));
+    const kiriview::ImageRemovalFallback fallback {
+        kiriview::ImageDocumentPageCandidateListContext::forDirectory(
+            currentUrl, localUrl(QStringLiteral("/images/"))),
+        currentUrl,
+        QStringLiteral("02.png"),
+    };
+
+    const std::optional<kiriview::ImageDocumentPageTarget> fallbackTarget
+        = kiriview::imageRemovalFallbackTarget(
+            {
+                imageDocumentPageCandidate(localUrl(QStringLiteral("/images/01.png"))),
+                imageDocumentPageCandidate(localUrl(QStringLiteral("/foreign/03.png"))),
+            },
+            fallback);
+
+    QVERIFY(!fallbackTarget.has_value());
+}
+
 void TestImageRemovalFallback::comicBookFallbackKeepsNextAndPreviousCandidates()
 {
     const kiriview::ComicBookRemovalFallback fallback {
@@ -268,6 +291,26 @@ void TestImageRemovalFallback::comicBookFallbackReturnsNoCandidatesWithoutSiblin
 
     const kiriview::ComicBookRemovalFallbackCandidates candidates
         = kiriview::comicBookRemovalFallbackCandidates({}, fallback);
+
+    QVERIFY(!candidates.preferred.has_value());
+    QVERIFY(!candidates.fallback.has_value());
+}
+
+void TestImageRemovalFallback::comicBookFallbackRejectsForeignDirectoryCandidatesAtomically()
+{
+    const kiriview::ComicBookRemovalFallback fallback {
+        localUrl(QStringLiteral("/books/b.cbz")),
+        localUrl(QStringLiteral("/books/")),
+        QStringLiteral("b.cbz"),
+    };
+
+    const kiriview::ComicBookRemovalFallbackCandidates candidates
+        = kiriview::comicBookRemovalFallbackCandidates(
+            {
+                comicBookContainerCandidate(localUrl(QStringLiteral("/books/a.cbz"))),
+                comicBookContainerCandidate(localUrl(QStringLiteral("/foreign/c.cbz"))),
+            },
+            fallback);
 
     QVERIFY(!candidates.preferred.has_value());
     QVERIFY(!candidates.fallback.has_value());

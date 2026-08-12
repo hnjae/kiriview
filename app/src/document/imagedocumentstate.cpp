@@ -115,7 +115,7 @@ void ImageDocumentState::setSelectedTarget(const ImageDocumentSelectedTarget& ta
     if (previousSourceUrl != sourceUrl()) {
         notify(ImageDocumentChange::SourceUrl);
     }
-    if (previousScope != selectedOpenedCollectionScope()) {
+    if (!sameOpenedCollectionScopeSnapshot(previousScope, selectedOpenedCollectionScope())) {
         notify(ImageDocumentChange::SelectedTargetScope);
     }
     if (previousWindowTitle != windowTitleFileName()) {

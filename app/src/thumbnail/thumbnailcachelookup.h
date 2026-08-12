@@ -6,6 +6,7 @@
 
 #include "async/imageiojob.h"
 #include "async/imageworkerscheduler.h"
+#include "decoding/imagedecodeworkspace.h"
 #include "thumbnail/thumbnailbucket.h"
 #include "thumbnail/thumbnailoriginalidentity.h"
 
@@ -21,6 +22,7 @@ enum class ThumbnailCacheLookupStatus {
     Ready,
     Missing,
     Invalid,
+    ResourceLimitExceeded,
     Failed,
 };
 
@@ -49,7 +51,10 @@ using ThumbnailCacheLookupProvider = std::function<ImageIoJob(
     QObject*, ThumbnailCacheLookupRequest, ThumbnailCacheLookupCallback)>;
 
 ThumbnailCacheLookupProvider defaultThumbnailCacheLookupProvider(
-    ImageWorkerScheduler workerScheduler = {});
+    ImageWorkerScheduler workerScheduler = {},
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {});
+ThumbnailCacheLookupResult lookupThumbnailCache(const ThumbnailCacheLookupRequest& request,
+    const std::shared_ptr<ImageDecodeWorkspaceBudget>& workspaceBudget);
 }
 
 #endif

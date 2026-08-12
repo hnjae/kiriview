@@ -43,7 +43,7 @@ ImageDecodeDependencies defaultImageDecodeDependencies()
     return ImageDecodeDependencies {
         imageDataLoader(workerScheduler, sourceDataBudget),
         imageDataDecoder(workspaceBudget),
-        defaultThumbnailCacheLookupProvider(workerScheduler),
+        defaultThumbnailCacheLookupProvider(workerScheduler, workspaceBudget),
         rawEmbeddedThumbnailPreviewResult,
         workerScheduler,
         defaultImageRefinementScheduler(),
@@ -75,8 +75,8 @@ ImageDecodeDependencies imageDecodeDependenciesWithDefaults(ImageDecodeDependenc
         dependencies.dataDecoder = imageDataDecoder(dependencies.workspaceBudget);
     }
     if (!dependencies.thumbnailPreviewLookupProvider) {
-        dependencies.thumbnailPreviewLookupProvider
-            = defaultThumbnailCacheLookupProvider(dependencies.workerScheduler);
+        dependencies.thumbnailPreviewLookupProvider = defaultThumbnailCacheLookupProvider(
+            dependencies.workerScheduler, dependencies.workspaceBudget);
     }
     if (!dependencies.rawEmbeddedThumbnailPreviewExtractor) {
         dependencies.rawEmbeddedThumbnailPreviewExtractor = rawEmbeddedThumbnailPreviewResult;

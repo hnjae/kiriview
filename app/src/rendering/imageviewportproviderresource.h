@@ -4,6 +4,7 @@
 #ifndef KIRIVIEW_IMAGEVIEWPORTPROVIDERRESOURCE_H
 #define KIRIVIEW_IMAGEVIEWPORTPROVIDERRESOURCE_H
 
+#include "decoding/imagedecodeworkspace.h"
 #include "document/imageloadfailure.h"
 #include "imageviewportfailureregistry.h"
 #include "rendering/displayimagestore.h"
@@ -157,7 +158,8 @@ public:
     ImageViewportProviderResource(quint64 sourceGeneration, QString locationIdentity,
         std::shared_ptr<ImageViewportProviderSource> source,
         std::shared_ptr<DisplayImageStore> displayStore,
-        std::shared_ptr<ImageViewportFailureRegistry> failureRegistry = {});
+        std::shared_ptr<ImageViewportFailureRegistry> failureRegistry = {},
+        std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {});
     ~ImageViewportProviderResource();
     Q_DISABLE_COPY_MOVE(ImageViewportProviderResource)
 
@@ -220,6 +222,7 @@ private:
     std::shared_ptr<ImageViewportProviderSource> m_source;
     std::shared_ptr<DisplayImageStore> m_displayStore;
     std::shared_ptr<ImageViewportFailureRegistry> m_failureRegistry;
+    std::shared_ptr<ImageDecodeWorkspaceBudget> m_workspaceBudget;
     mutable QMutex m_stateMutex;
     std::vector<ImageViewportProviderWorkIdentity> m_activeMetadataWork;
     std::vector<ImageViewportProviderWorkIdentity> m_activeFrameWork;

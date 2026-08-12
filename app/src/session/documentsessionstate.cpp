@@ -37,8 +37,8 @@ bool sameDirectMediaNavigationCandidates(
     }
 
     for (std::size_t index = 0; index < left.size(); ++index) {
-        if (left.at(index).url != right.at(index).url
-            || left.at(index).name != right.at(index).name) {
+        if (left.at(index).url != right.at(index).url || left.at(index).name != right.at(index).name
+            || left.at(index).sourceFreshness != right.at(index).sourceFreshness) {
             return false;
         }
     }

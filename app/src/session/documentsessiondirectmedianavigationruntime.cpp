@@ -7,6 +7,7 @@
 #include "diagnostics/diagnosticlogprojection.h"
 #include "location/imageurl.h"
 #include "navigation/navigationlogging.h"
+#include "system/kiooperationfailure.h"
 
 #include <QDebug>
 #include <memory>
@@ -24,7 +25,8 @@ bool sameDirectMediaNavigationCandidates(
     }
     for (std::size_t index = 0; index < left.size(); ++index) {
         if (!kiriview::sameNormalizedUrl(left[index].url, right[index].url)
-            || left[index].name != right[index].name) {
+            || left[index].name != right[index].name
+            || left[index].sourceFreshness != right[index].sourceFreshness) {
             return false;
         }
     }
@@ -81,6 +83,25 @@ kiriview::DocumentSessionDirectMediaNavigationRefreshResult directMediaNavigatio
     return kiriview::DocumentSessionDirectMediaNavigationRefreshResult { std::move(
                                                                              result.candidates),
         boundaryState, true, std::move(result.errorString), std::move(result.failure) };
+}
+
+kiriview::DocumentSessionDirectMediaNavigationCandidatesResult
+validatedDirectMediaNavigationCandidatesResult(
+    kiriview::DocumentSessionDirectMediaNavigationCandidatesResult result,
+    const kiriview::DirectMediaScope& scope)
+{
+    if (!result.succeeded
+        || kiriview::directMediaNavigationCandidatesBelongToScope(
+            result.candidates, scope.parentUrl())) {
+        return result;
+    }
+
+    kiriview::KioOperationFailure failure = kiriview::kioOperationValidationFailure(
+        kiriview::KioOperationKind::DirectoryListing, scope.parentUrl(),
+        QStringLiteral(
+            "directory candidate provider returned a candidate outside the requested scope"));
+    return kiriview::DocumentSessionDirectMediaNavigationCandidatesResult { {}, false,
+        failure.userMessage, std::move(failure) };
 }
 }
 
@@ -276,8 +297,10 @@ void DocumentSessionDirectMediaNavigationRuntime::startCandidateChanges(QObject*
                 << diagnosticSourceReference(scope.parentUrl()) << "generation"
                 << scope.generation() << "candidates" << candidates.size();
             invokeIfSet(*sharedCallback,
-                DocumentSessionDirectMediaNavigationCandidatesResult {
-                    std::move(candidates), true, QString(), std::nullopt });
+                validatedDirectMediaNavigationCandidatesResult(
+                    DocumentSessionDirectMediaNavigationCandidatesResult {
+                        std::move(candidates), true, QString(), std::nullopt },
+                    scope));
         },
         [this, lifetime, revision, scope, sharedScopeAccepted, sharedCallback](
             const KioOperationFailure& failure) {
@@ -362,6 +385,8 @@ void DocumentSessionDirectMediaNavigationRuntime::finish(
     if (!m_loadState.finish(load)) {
         return;
     }
+
+    result = validatedDirectMediaNavigationCandidatesResult(std::move(result), load.scope);
 
     const QString diagnosticDetail
         = result.failure.has_value() ? result.failure->diagnosticDetail : result.errorString;

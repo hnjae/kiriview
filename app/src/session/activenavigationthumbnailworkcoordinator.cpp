@@ -103,9 +103,13 @@ ActiveNavigationThumbnailWorkCoordinator::ActiveNavigationThumbnailWorkCoordinat
     ActiveNavigationThumbnailFailureDiagnosticCallback failureDiagnosticCallback)
     : m_rowPort(rowPort)
     , m_scheduler(std::move(sourceAdapter), foregroundThumbnailCapacity)
-    , m_executor(owner, std::move(lookupProvider), std::move(generationProvider),
+    , m_executor(
+          owner, std::move(lookupProvider), std::move(generationProvider),
           [this](ActiveNavigationThumbnailWorkCompletion completion) {
               applyEffects(m_scheduler.acceptCompletion(std::move(completion)));
+          },
+          [this](ActiveNavigationThumbnailWorkId workId) {
+              applyEffects(m_scheduler.acceptRetirement(workId));
           })
     , m_failureDiagnosticCallback(std::move(failureDiagnosticCallback))
 {

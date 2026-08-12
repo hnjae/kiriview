@@ -30,6 +30,11 @@ std::optional<QUrl> directMediaNavigationTargetUrlForRequest(
     const std::vector<kiriview::DirectMediaNavigationCandidate>& candidates, const QUrl& currentUrl,
     kiriview::DirectMediaNavigationOpenRequest request)
 {
+    if (!kiriview::directMediaNavigationCandidatesBelongToScope(
+            candidates, kiriview::parentDirectoryUrlForFileNavigation(currentUrl))) {
+        return std::nullopt;
+    }
+
     switch (request.kind) {
     case kiriview::DirectMediaNavigationOpenKind::Previous:
         return kiriview::adjacentDirectMediaNavigationUrl(
@@ -90,6 +95,11 @@ std::optional<QUrl> adjacentDirectMediaNavigationUrl(
     const std::vector<DirectMediaNavigationCandidate>& candidates, const QUrl& currentUrl,
     NavigationDirection direction)
 {
+    if (!directMediaNavigationCandidatesBelongToScope(
+            candidates, parentDirectoryUrlForFileNavigation(currentUrl))) {
+        return std::nullopt;
+    }
+
     const std::optional<std::size_t> targetIndex = adjacentNavigationIndex(
         candidates.size(), directMediaNavigationCandidateIndex(candidates, currentUrl), direction);
     if (!targetIndex.has_value()) {
@@ -142,10 +152,24 @@ DirectMediaNavigationOpenPlan directMediaNavigationOpenPlan(
     const std::vector<DirectMediaNavigationCandidate>& candidates, const QUrl& currentUrl,
     DirectMediaNavigationOpenRequest request)
 {
+    if (!directMediaNavigationCandidatesBelongToScope(
+            candidates, parentDirectoryUrlForFileNavigation(currentUrl))) {
+        return {};
+    }
+
     return DirectMediaNavigationOpenPlan {
         directMediaNavigationBoundaryState(candidates, currentUrl),
         directMediaNavigationTargetUrlForRequest(candidates, currentUrl, request),
     };
+}
+
+bool directMediaNavigationCandidatesBelongToScope(
+    const std::vector<DirectMediaNavigationCandidate>& candidates, const QUrl& directoryUrl)
+{
+    return std::ranges::all_of(
+        candidates, [&directoryUrl](const DirectMediaNavigationCandidate& candidate) {
+            return sourceBelongsToDirectoryScope(candidate.url, directoryUrl);
+        });
 }
 
 void sortDirectMediaNavigationCandidates(std::vector<DirectMediaNavigationCandidate>* candidates)

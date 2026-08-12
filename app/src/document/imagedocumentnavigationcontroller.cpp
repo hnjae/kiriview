@@ -25,7 +25,7 @@ bool imageDocumentPageNavigationScopeActive(const kiriview::ImageDocumentState& 
     const kiriview::OpenedCollectionScopeLocation& selectedScope
         = state.selectedOpenedCollectionScope();
     return !state.sourceUrl().isEmpty() && !selectedScope.isEmpty()
-        && kiriview::sameOpenedCollectionScopeLocation(
+        && kiriview::sameOpenedCollectionScopeSnapshot(
             location.openedCollectionScope(), selectedScope);
 }
 
@@ -37,7 +37,7 @@ bool pageNavigationContextMatchesSelection(
     const kiriview::OpenedCollectionScopeLocation& selectedScope
         = state.selectedOpenedCollectionScope();
     if (contextScope.isEmpty() || selectedScope.isEmpty()
-        || !kiriview::sameOpenedCollectionScopeLocation(contextScope, selectedScope)) {
+        || !kiriview::sameOpenedCollectionScopeSnapshot(contextScope, selectedScope)) {
         return false;
     }
 

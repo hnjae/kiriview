@@ -185,7 +185,7 @@ struct ImageDocumentRuntimeGraph::PreparedViewportTargetState
             dependencies, provisionalPreviewPolicy());
         auto resource = std::make_shared<ImageViewportProviderResource>(selectedSession.id(),
             displayScopeIdentityForLocation(selectedSession.location()), source, displayStore,
-            std::make_shared<ImageViewportFailureRegistry>());
+            std::make_shared<ImageViewportFailureRegistry>(), dependencies.workspaceBudget);
         if (resolvedSession.has_value()
             && (!resource->bindDisplayLocationIdentity(
                     displayScopeIdentityForLocation(resolvedSession->location()))
@@ -262,7 +262,7 @@ struct ImageDocumentRuntimeGraph::PreparedViewportRole
 
         auto resource = std::make_shared<ImageViewportProviderResource>(session.id(),
             displayScopeIdentityForLocation(session.location()), source, displayStore,
-            std::make_shared<ImageViewportFailureRegistry>());
+            std::make_shared<ImageViewportFailureRegistry>(), dependencies.workspaceBudget);
         activeSource = source;
         return resource;
     }
@@ -979,7 +979,8 @@ void ImageDocumentRuntimeGraph::prepareViewportSecondaryImageTarget(
         auto resource
             = std::make_shared<ImageViewportProviderResource>(prepared->resolvedSession->id(),
                 displayScopeIdentityForLocation(prepared->resolvedSession->location()), source,
-                displayStore, std::make_shared<ImageViewportFailureRegistry>());
+                displayStore, std::make_shared<ImageViewportFailureRegistry>(),
+                prepared->dependencies.workspaceBudget);
         if (!source->resolveSession(
                 *prepared->resolvedSession, authoritativeSeed(prepared->predecoded))) {
             resource->close();

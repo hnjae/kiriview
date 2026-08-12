@@ -128,6 +128,34 @@ void observeImageCleanup(void* context)
     observation->pixels = nullptr;
 }
 
+class ScopedEnvironmentVariable final
+{
+public:
+    ScopedEnvironmentVariable(const char* name, QByteArray value)
+        : m_name(name)
+        , m_wasSet(qEnvironmentVariableIsSet(name))
+        , m_original(qgetenv(name))
+    {
+        qputenv(m_name, std::move(value));
+    }
+
+    ~ScopedEnvironmentVariable()
+    {
+        if (m_wasSet) {
+            qputenv(m_name, m_original);
+        } else {
+            qunsetenv(m_name);
+        }
+    }
+
+    Q_DISABLE_COPY_MOVE(ScopedEnvironmentVariable)
+
+private:
+    const char* m_name;
+    bool m_wasSet = false;
+    QByteArray m_original;
+};
+
 }
 
 class TestThumbnailGeneration : public QObject
@@ -144,11 +172,14 @@ private Q_SLOTS:
     void directVideoInvalidRequestPublishesFailureWithoutLoadingBytes();
     void directVideoFailurePreservesTypedCategory_data();
     void directVideoFailurePreservesTypedCategory();
+    void directVideoRequiresWorkspaceAdmissionBeforeProviderStart();
+    void directVideoRetainsOutputWorkspaceUntilLastAliasRetires();
     void defaultImageBytesLoaderRejectsSourceOverBudget();
     void defaultImageDecoderRejectsApngOverWorkspaceBudget();
     void defaultImageDecoderRejectsGifScaleWorkspaceOverBudget();
     void staticThumbnailProducerRequiresFullPeakAdmission();
     void generatedApngRetainsWorkspaceUntilLastImageAliasRetires();
+    void defaultCacheHitRequiresWorkspaceAndRetainsItThroughAliases();
     void cacheInstallFailureRetainsUsableImageAndDiagnostic();
 };
 
@@ -312,6 +343,71 @@ void TestThumbnailGeneration::generatedApngRetainsWorkspaceUntilLastImageAliasRe
     QCOMPARE(budget->reservedByteCount(), retainedAlias.sizeInBytes());
     retainedAlias = {};
     QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
+void TestThumbnailGeneration::defaultCacheHitRequiresWorkspaceAndRetainsItThroughAliases()
+{
+    QTemporaryDir cacheDirectory;
+    QVERIFY(cacheDirectory.isValid());
+    const ScopedEnvironmentVariable cacheRoot(
+        "XDG_CACHE_HOME", QFile::encodeName(cacheDirectory.path()));
+
+    kiriview::ThumbnailGenerationRequest request = generationRequest();
+    request.openedCollectionScope = kiriview::OpenedCollectionScopeLocation::fromUrls(
+        QUrl::fromLocalFile(QStringLiteral("/books/book.cbz")),
+        QUrl(QStringLiteral("zip:///books/book.cbz")),
+        kiriview::OpenedCollectionScopeKind::ComicBookArchive);
+    request.sourceUrl = QUrl(QStringLiteral("zip:///books/book.cbz/page.png"));
+    request.cacheInstallEnabled = true;
+
+    const kiriview::ThumbnailOriginalIdentity identity
+        = kiriview::ThumbnailOriginalIdentity::fromNonFileUri(
+            QStringLiteral("x-kiriview-test://cache/workspace"), 7, 48,
+            QStringLiteral("image/png"));
+    int bytesLoadCount = 0;
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        64 * 1024 * 1024, 64 * 1024 * 1024);
+    kiriview::ThumbnailGenerationDependencies dependencies;
+    dependencies.workspaceBudget = budget;
+    dependencies.bytesLoader
+        = [&bytesLoadCount](const kiriview::ThumbnailGenerationRequest&, QString*) {
+              ++bytesLoadCount;
+              return kiriview::ImageSourceData(encodedPngData());
+          };
+    dependencies.openedCollectionOriginalIdentityLoader
+        = [identity](const kiriview::ThumbnailGenerationRequest&, QString*) {
+              return std::optional<kiriview::ThumbnailOriginalIdentity>(identity);
+          };
+
+    {
+        const kiriview::ThumbnailGenerationResult installed
+            = kiriview::generateThumbnail(request, dependencies);
+        QCOMPARE(installed.status, Status::Ready);
+        QVERIFY(!installed.installedCachePath.isEmpty());
+        QCOMPARE(bytesLoadCount, 1);
+    }
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+
+    QImage retainedAlias;
+    {
+        kiriview::ThumbnailGenerationResult cached
+            = kiriview::generateThumbnail(request, dependencies);
+        QCOMPARE(cached.status, Status::Ready);
+        QCOMPARE(bytesLoadCount, 1);
+        QCOMPARE(budget->reservedByteCount(), cached.image.sizeInBytes());
+        retainedAlias = cached.image;
+    }
+    QCOMPARE(budget->reservedByteCount(), retainedAlias.sizeInBytes());
+    retainedAlias = {};
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+
+    auto insufficientBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(1, 1);
+    dependencies.workspaceBudget = insufficientBudget;
+    const kiriview::ThumbnailGenerationResult rejected
+        = kiriview::generateThumbnail(request, dependencies);
+    QCOMPARE(rejected.status, Status::ResourceLimitExceeded);
+    QCOMPARE(bytesLoadCount, 1);
+    QCOMPARE(insufficientBudget->reservedByteCount(), qsizetype(0));
 }
 
 void TestThumbnailGeneration::cacheInstallFailureRetainsUsableImageAndDiagnostic()
@@ -696,6 +792,104 @@ void TestThumbnailGeneration::directVideoFailurePreservesTypedCategory()
     QCOMPARE(delivered.requestedBucket, Bucket::Large);
     QVERIFY(!delivered.errorString.isEmpty());
     QCOMPARE(cacheInstallCount, 0);
+}
+
+void TestThumbnailGeneration::directVideoRequiresWorkspaceAdmissionBeforeProviderStart()
+{
+    QObject owner;
+    kiriview::ThumbnailGenerationRequest request = generationRequest(Bucket::Normal);
+    request.localPathBytes = QByteArrayLiteral("/media/clip.mp4");
+    request.sourceUrl = QUrl::fromLocalFile(QStringLiteral("/media/clip.mp4"));
+    request.sourceKind = kiriview::ThumbnailSourceKind::DirectVideo;
+
+    const qsizetype required = kiriview::VideoThumbnailExtractionLimits::maximumWorkingBytes;
+    auto budget
+        = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(required - 1, required - 1);
+    int providerStartCount = 0;
+    kiriview::ThumbnailGenerationDependencies dependencies;
+    dependencies.workspaceBudget = budget;
+    dependencies.videoExtractionProvider
+        = [&providerStartCount](QObject*, kiriview::VideoThumbnailExtractionRequest,
+              kiriview::VideoThumbnailExtractionCallback) {
+              ++providerStartCount;
+              return kiriview::ImageIoJob {};
+          };
+
+    kiriview::ThumbnailGenerationResult delivered;
+    bool deliveredResult = false;
+    kiriview::ThumbnailGenerationProvider provider
+        = kiriview::defaultThumbnailGenerationProvider({}, std::move(dependencies));
+    const kiriview::ImageIoJob job = provider(&owner, std::move(request),
+        [&delivered, &deliveredResult](kiriview::ThumbnailGenerationResult result) {
+            delivered = std::move(result);
+            deliveredResult = true;
+        });
+
+    QVERIFY(deliveredResult);
+    QVERIFY(!job.isActive());
+    QCOMPARE(providerStartCount, 0);
+    QCOMPARE(delivered.status, Status::ResourceLimitExceeded);
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
+void TestThumbnailGeneration::directVideoRetainsOutputWorkspaceUntilLastAliasRetires()
+{
+    QObject owner;
+    kiriview::ThumbnailGenerationRequest request = generationRequest(Bucket::Normal);
+    request.localPathBytes = QByteArrayLiteral("/media/clip.mp4");
+    request.sourceUrl = QUrl::fromLocalFile(QStringLiteral("/media/clip.mp4"));
+    request.sourceKind = kiriview::ThumbnailSourceKind::DirectVideo;
+
+    const qsizetype required = kiriview::VideoThumbnailExtractionLimits::maximumWorkingBytes;
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(required, required);
+    int providerStartCount = 0;
+    kiriview::ThumbnailGenerationDependencies dependencies;
+    dependencies.workspaceBudget = budget;
+    dependencies.videoExtractionProvider
+        = [&providerStartCount](QObject* receiver, kiriview::VideoThumbnailExtractionRequest,
+              kiriview::VideoThumbnailExtractionCallback callback) {
+              ++providerStartCount;
+              auto* token = new QObject(receiver);
+              kiriview::ImageIoJob job(token, [](QObject* object) { object->deleteLater(); });
+              const kiriview::ImageIoJobCompletion completion = job.completion();
+              const bool queued = QMetaObject::invokeMethod(
+                  token,
+                  [completion, callback = std::move(callback)]() mutable {
+                      QImage image(QSize(2, 1), QImage::Format_RGB32);
+                      image.fill(Qt::green);
+                      completion.claimAndDelete([&callback, image = std::move(image)]() mutable {
+                          callback({ kiriview::VideoThumbnailExtractionStatus::Ready,
+                              std::move(image), std::nullopt });
+                      });
+                  },
+                  Qt::QueuedConnection);
+              Q_ASSERT(queued);
+              return job;
+          };
+
+    kiriview::ThumbnailGenerationResult delivered;
+    bool deliveredResult = false;
+    kiriview::ThumbnailGenerationProvider provider
+        = kiriview::defaultThumbnailGenerationProvider({}, std::move(dependencies));
+    kiriview::ImageIoJob job = provider(&owner, std::move(request),
+        [&delivered, &deliveredResult](kiriview::ThumbnailGenerationResult result) {
+            delivered = std::move(result);
+            deliveredResult = true;
+        });
+
+    QCOMPARE(providerStartCount, 1);
+    QCOMPARE(budget->reservedByteCount(), required);
+    drainQueuedCalls();
+
+    QVERIFY(deliveredResult);
+    QVERIFY(!job.isActive());
+    QCOMPARE(delivered.status, Status::Ready);
+    QCOMPARE(budget->reservedByteCount(), delivered.image.sizeInBytes());
+    QImage retainedAlias = delivered.image;
+    delivered = {};
+    QCOMPARE(budget->reservedByteCount(), retainedAlias.sizeInBytes());
+    retainedAlias = {};
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
 }
 
 QTEST_GUILESS_MAIN(TestThumbnailGeneration)

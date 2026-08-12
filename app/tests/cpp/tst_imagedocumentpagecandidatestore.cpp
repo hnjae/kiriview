@@ -3,12 +3,14 @@
 
 #include "navigation/imagedocumentpagecandidatestore.h"
 
+#include <KFileItem>
 #include <QList>
 #include <QObject>
 #include <QTest>
 #include <QUrl>
 #include <algorithm>
 #include <memory>
+#include <sys/stat.h>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -137,6 +139,7 @@ private Q_SLOTS:
     void revisitingReleasedDirectoryStartsFreshListing();
     void completionCallbackCanDestroyStore();
     void refreshAdmissionCoalescesBurstAndOneFollowUp();
+    void freshnessStateMarksStableIdentityRefreshAndPreservesUnchangedRows();
     void earlierSubscriberCanCancelLaterChangedDelivery();
     void earlierSubscriberCanCancelLaterFailureDelivery();
     void terminalWatchStartFailureDoesNotOfferRecoverySubscription();
@@ -341,6 +344,33 @@ void TestImageDocumentPageCandidateStore::refreshAdmissionCoalescesBurstAndOneFo
     QVERIFY(!admission.acceptsEpoch(staleEpoch));
     QVERIFY(admission.requestRefresh());
     QVERIFY(admission.acceptsEpoch(admission.epoch()));
+}
+
+void TestImageDocumentPageCandidateStore::
+    freshnessStateMarksStableIdentityRefreshAndPreservesUnchangedRows()
+{
+    kiriview::ImageDocumentPageCandidateFreshnessState freshness;
+    const KFileItem refreshedItem(fileUrl(QStringLiteral("01.png")), QString(), S_IFREG);
+    const QList<QPair<KFileItem, KFileItem>> changes {
+        qMakePair(refreshedItem, refreshedItem),
+    };
+    std::vector<kiriview::ImageDocumentPageCandidate> rows {
+        candidate(QStringLiteral("01.png")),
+        candidate(QStringLiteral("02.png")),
+    };
+
+    freshness.noteRefreshedItems(changes);
+    freshness.apply(&rows);
+    const quint64 firstFreshness = rows.at(0).sourceFreshness;
+    QVERIFY(firstFreshness != 0);
+    QCOMPARE(rows.at(1).sourceFreshness, quint64(0));
+
+    freshness.apply(&rows);
+    QCOMPARE(rows.at(0).sourceFreshness, firstFreshness);
+
+    freshness.noteRefreshedItems(changes);
+    freshness.apply(&rows);
+    QVERIFY(rows.at(0).sourceFreshness != firstFreshness);
 }
 
 void TestImageDocumentPageCandidateStore::earlierSubscriberCanCancelLaterChangedDelivery()

@@ -51,6 +51,13 @@ bool sameOpenedCollectionScopeLocation(
         && sameNormalizedUrl(left.rootUrl(), right.rootUrl()) && left.kind() == right.kind();
 }
 
+bool sameOpenedCollectionScopeSnapshot(
+    const OpenedCollectionScopeLocation& left, const OpenedCollectionScopeLocation& right)
+{
+    return sameOpenedCollectionScopeLocation(left, right)
+        && sameResolvedNavigationSourceSnapshot(left.source(), right.source());
+}
+
 QString displayScopeIdentityForLocation(const DisplayedImageLocation& location)
 {
     if (location.isEmpty()) {

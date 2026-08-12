@@ -277,6 +277,7 @@ set(kiriview_qml_files
     src/qml/MediaWorkspaceHost.qml
     src/qml/MenuActionItem.qml
     src/qml/NavigationPresentationOrder.qml
+    src/qml/ShortcutConfigurationDialog.qml
     src/qml/ShortcutDelegate.qml
     src/qml/ShortcutHelpDialog.qml
     src/qml/ThumbnailPanel.qml

@@ -273,8 +273,10 @@ constexpr std::array actionDefinitions {
         portableShortcutSpec("Ctrl+?", "F1"), portableShortcutSpec("?"),
         shortcutRouteSpecs(route(ActivationScope::ProgramWide, Scope::HelpShortcutScope),
             route(ActivationScope::ViewerLocal, Scope::ViewerShortcutScope))),
-    inheritedAction(Actions::ActionId::OptionsConfigureKeybindingAction,
-        "options_configure_keybinding", Category::Settings,
+    standardAction(Actions::ActionId::OptionsConfigureKeybindingAction,
+        "options_configure_keybinding", Category::Settings, KStandardActions::KeyBindings,
+        kli18nc("@action", "Configure Keyboard Shortcuts..."), noDefaultShortcuts(),
+        noDefaultShortcuts(),
         shortcutRouteSpecs(route(ActivationScope::ProgramWide, Scope::HelpShortcutScope))),
     showMenubarAction(Actions::ActionId::OptionsShowMenubarAction, "options_show_menubar",
         Category::Settings, KStandardActions::ShowMenubar, kli18nc("@action", "Show Menubar"),
@@ -395,5 +397,27 @@ QList<QKeySequence> defaultShortcuts(const DefaultShortcutSpec& spec)
     }
 
     return {};
+}
+
+bool hasDeclaredShortcutSlot(ActionId actionId, ApplicationShortcutActivationScope scope)
+{
+    const ActionDefinition* definition = definitionForId(actionId);
+    if (definition == nullptr
+        || definition->shortcutConfigurability == ShortcutConfigurability::NonConfigurable) {
+        return false;
+    }
+
+    bool viewerLocalSlot = false;
+    for (std::size_t index = 0; index < definition->shortcutRoutes.count; ++index) {
+        const ApplicationShortcutActivationScope routeScope
+            = definition->shortcutRoutes.specs[index].activationScope;
+        if (routeScope == scope) {
+            return true;
+        }
+        viewerLocalSlot
+            = viewerLocalSlot || routeScope == ApplicationShortcutActivationScope::ViewerLocal;
+    }
+
+    return scope == ApplicationShortcutActivationScope::ProgramWide && !viewerLocalSlot;
 }
 }

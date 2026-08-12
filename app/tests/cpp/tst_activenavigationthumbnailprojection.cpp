@@ -14,9 +14,9 @@ namespace {
 QUrl localUrl(const QString& path) { return QUrl::fromLocalFile(path); }
 
 kiriview::DirectMediaNavigationCandidate directMediaNavigationCandidate(
-    const QUrl& url, const QString& name = {})
+    const QUrl& url, const QString& name = {}, quint64 sourceFreshness = 0)
 {
-    return kiriview::DirectMediaNavigationCandidate { url, name };
+    return kiriview::DirectMediaNavigationCandidate { url, name, sourceFreshness };
 }
 
 kiriview::DirectMediaNavigationCandidateSnapshot directMediaNavigationCandidateSnapshot(
@@ -87,7 +87,7 @@ void TestActiveNavigationThumbnailProjection::directMediaRowsUseConfirmedCandida
             kiriview::ActiveNavigationSourceKind::OrdinaryDirectMedia, knownNavigation(2, 2),
             directMediaNavigationCandidateSnapshot({
                 directMediaNavigationCandidate(imageUrl),
-                directMediaNavigationCandidate(videoUrl, QStringLiteral("Clip")),
+                directMediaNavigationCandidate(videoUrl, QStringLiteral("Clip"), 27),
             }),
             {});
 
@@ -103,6 +103,7 @@ void TestActiveNavigationThumbnailProjection::directMediaRowsUseConfirmedCandida
     QCOMPARE(rows.at(1).label, QStringLiteral("Clip"));
     QVERIFY(rows.at(1).kind == kiriview::ActiveNavigationThumbnailKind::Video);
     QVERIFY(rows.at(1).current);
+    QCOMPARE(rows.at(1).sourceFreshness, quint64(27));
 }
 
 void TestActiveNavigationThumbnailProjection::directMediaRowsDecodeFallbackLabels()
@@ -130,6 +131,7 @@ void TestActiveNavigationThumbnailProjection::imageDocumentRowsUsePageCandidateL
                 firstPage,
                 QStringLiteral("chapter/01.png"),
                 kiriview::ImageDocumentPageKind::Image,
+                31,
             },
             kiriview::ImageDocumentPageCandidate {
                 secondPage,
@@ -149,6 +151,7 @@ void TestActiveNavigationThumbnailProjection::imageDocumentRowsUsePageCandidateL
     QCOMPARE(rows.at(0).label, QStringLiteral("chapter/01.png"));
     QVERIFY(rows.at(0).kind == kiriview::ActiveNavigationThumbnailKind::Image);
     QVERIFY(rows.at(0).current);
+    QCOMPARE(rows.at(0).sourceFreshness, quint64(31));
 
     QCOMPARE(rows.at(1).number, 2);
     QCOMPARE(rows.at(1).url, secondPage);

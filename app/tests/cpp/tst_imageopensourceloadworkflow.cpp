@@ -35,6 +35,7 @@ private Q_SLOTS:
     void displayedComicBookScopeSuppressesRightToLeftReadingReset();
     void sameScopeImageNavigationStartsOpenWithoutReplacementReset();
     void replacementSourceLoadStartsFreshRuntimeWork();
+    void sameRequestedCollectionWithFreshResolvedSourceStartsReplacement();
     void sourceLoadPlanResolvesRequestedRuntimePayloads();
 };
 
@@ -155,6 +156,38 @@ void TestImageOpenSourceLoadWorkflow::replacementSourceLoadStartsFreshRuntimeWor
             kiriview::SetLoadingContainerNavigationUrlOperation,
             kiriview::PrepareSourceLoadOperation, kiriview::SelectImageTargetOperation,
             kiriview::BeginOpenOperation, kiriview::NotifyRightToLeftReadingChangedOperation>()));
+}
+
+void TestImageOpenSourceLoadWorkflow::
+    sameRequestedCollectionWithFreshResolvedSourceStartsReplacement()
+{
+    const QUrl requestedUrl = localUrl(QStringLiteral("/portal/book.cbz"));
+    const kiriview::ResolvedNavigationSource firstSource(requestedUrl, {},
+        localUrl(QStringLiteral("/resolved/first/book.cbz")),
+        kiriview::NavigationSourceEntryKind::Archive);
+    const kiriview::ResolvedNavigationSource reassignedSource(requestedUrl, {},
+        localUrl(QStringLiteral("/resolved/second/book.cbz")),
+        kiriview::NavigationSourceEntryKind::Archive);
+    const std::optional<kiriview::OpenedCollectionScopeLocation> firstScope
+        = kiriview::openedCollectionScopeLocationForResolvedExternalSource(firstSource);
+    QVERIFY(firstScope.has_value());
+    const kiriview::ImageDocumentSourceLoadRequest request
+        = kiriview::ImageDocumentSourceLoadRequest::fromExternalSource(reassignedSource);
+    const kiriview::ImageDocumentSourceLoadSnapshot snapshot {
+        requestedUrl,
+        *firstScope,
+        false,
+    };
+
+    const kiriview::ImageDocumentRuntimePlan plan
+        = kiriview::ImageOpenWorkflow::sourceLoadPlan(snapshot, request);
+    QVERIFY(hasOperationTypes(plan,
+        operationTypes<kiriview::CancelOpenOperation, kiriview::CancelFileDeletionOperation,
+            kiriview::CancelAllNavigationOperation, kiriview::CancelPredecodeOperation,
+            kiriview::ClearSecondaryPageOperation,
+            kiriview::SetLoadingContainerNavigationUrlOperation,
+            kiriview::PrepareSourceLoadOperation, kiriview::SelectImageTargetOperation,
+            kiriview::BeginOpenOperation>()));
 }
 
 void TestImageOpenSourceLoadWorkflow::sourceLoadPlanResolvesRequestedRuntimePayloads()

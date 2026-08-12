@@ -265,6 +265,11 @@ QAbstractListModel* ApplicationActionRuntime::shortcutHelpModel() const
     return m_shortcutRuntime->shortcutHelpModel();
 }
 
+QAbstractListModel* ApplicationActionRuntime::shortcutConfigurationModel() const
+{
+    return m_shortcutRuntime->shortcutConfigurationModel();
+}
+
 QAction* ApplicationActionRuntime::actionForId(ActionId actionId)
 {
     return m_actionRegistry.actionForId(actionId);
@@ -280,10 +285,22 @@ QList<QKeySequence> ApplicationActionRuntime::viewerLocalShortcutsForId(ActionId
     return m_shortcutRuntime->viewerLocalShortcutsForId(actionId);
 }
 
+bool ApplicationActionRuntime::setProgramWideShortcutsForId(
+    ActionId actionId, const QList<QKeySequence>& shortcuts)
+{
+    return m_shortcutRuntime->setProgramWideShortcutsForId(actionId, shortcuts);
+}
+
 bool ApplicationActionRuntime::setViewerLocalShortcutsForId(
     ActionId actionId, const QList<QKeySequence>& shortcuts)
 {
     return m_shortcutRuntime->setViewerLocalShortcutsForId(actionId, shortcuts);
+}
+
+bool ApplicationActionRuntime::setShortcutTextsForId(
+    ActionId actionId, ApplicationShortcutActivationScope scope, const QStringList& portableTexts)
+{
+    return m_shortcutRuntime->setShortcutTextsForId(actionId, scope, portableTexts);
 }
 
 QString ApplicationActionRuntime::menuShortcutTextForId(ActionId actionId) const

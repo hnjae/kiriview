@@ -22,6 +22,7 @@ struct VideoThumbnailExtractionLimits
 {
     static constexpr int maximumOutputLongEdge = 4096;
     static constexpr qsizetype maximumOutputBytes = 67'108'864;
+    static constexpr qsizetype maximumWorkingBytes = 536'870'912;
     static constexpr qsizetype maximumDiagnosticCharacters = 1024;
 };
 

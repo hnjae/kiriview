@@ -85,7 +85,12 @@ ImageDocumentRuntimePlan sourceLoadPlan(
     const ImageDocumentSourceLoadSnapshot& snapshot, const ImageDocumentSourceLoadRequest& request)
 {
     ImageDocumentRuntimePlan plan;
-    const bool currentSourceLoad = snapshot.currentSourceUrl == request.sourceUrl();
+    const OpenedCollectionScopeLocation requestedOpenedCollectionScope
+        = openedCollectionScopeForImageDocumentSourceLoad(request);
+    const bool currentSourceLoad = snapshot.currentSourceUrl == request.sourceUrl()
+        && (request.externalSource() == nullptr || requestedOpenedCollectionScope.isEmpty()
+            || sameOpenedCollectionScopeSnapshot(
+                snapshot.displayedOpenedCollectionScope, requestedOpenedCollectionScope));
     if (!currentSourceLoad) {
         plan.emplace_back(CancelOpenOperation {});
     }

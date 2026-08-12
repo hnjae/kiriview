@@ -4,28 +4,25 @@
 #include "imagedocumentpagecandidaterepository.h"
 
 #include "async/imagecallback.h"
+#include "imagedocumentpagecandidateitems.h"
 
 #include <utility>
 #include <vector>
 
 namespace {
+kiriview::KioOperationFailure candidateScopeFailure(const QUrl& directoryUrl)
+{
+    return kiriview::kioOperationValidationFailure(kiriview::KioOperationKind::DirectoryListing,
+        directoryUrl,
+        QStringLiteral(
+            "directory candidate provider returned a candidate outside the requested scope"));
+}
+
 void reportLoadProviderMissing(
     const kiriview::ImageDocumentPageCandidateLoadErrorCallback& errorCallback)
 {
     kiriview::invokeIfSet(
         errorCallback, kiriview::ImageDocumentPageCandidateLoadError { QString() });
-}
-
-template <typename Provider, typename... Args>
-kiriview::ImageIoJob loadWithProvider(const Provider& provider,
-    kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback, Args&&... args)
-{
-    if (!provider) {
-        reportLoadProviderMissing(errorCallback);
-        return kiriview::ImageIoJob();
-    }
-
-    return provider(std::forward<Args>(args)..., std::move(errorCallback));
 }
 
 kiriview::ImageIoJob loadImagesForSource(
@@ -104,8 +101,24 @@ ImageIoJob ImageDocumentPageCandidateRepository::loadDirectoryImages(QObject* re
     const QUrl& directoryUrl, ImageDocumentPageCandidatesCallback callback,
     ImageDocumentPageCandidateLoadErrorCallback errorCallback) const
 {
-    return loadWithProvider(m_provider.directoryImageDocumentPages, std::move(errorCallback),
-        receiver, directoryUrl, std::move(callback));
+    if (!m_provider.directoryImageDocumentPages) {
+        reportLoadProviderMissing(errorCallback);
+        return ImageIoJob();
+    }
+
+    ImageDocumentPageCandidateLoadErrorCallback scopeErrorCallback = errorCallback;
+    return m_provider.directoryImageDocumentPages(
+        receiver, directoryUrl,
+        [callback = std::move(callback), errorCallback = std::move(scopeErrorCallback),
+            directoryUrl](std::vector<ImageDocumentPageCandidate> candidates) mutable {
+            if (!imageDocumentPageCandidatesBelongToDirectoryScope(candidates, directoryUrl)) {
+                invokeIfSet(errorCallback,
+                    ImageDocumentPageCandidateLoadError { candidateScopeFailure(directoryUrl) });
+                return;
+            }
+            invokeIfSet(callback, std::move(candidates));
+        },
+        std::move(errorCallback));
 }
 
 ImageIoJob ImageDocumentPageCandidateRepository::loadOpenedCollectionCandidates(QObject* receiver,
@@ -140,8 +153,18 @@ ImageIoJob ImageDocumentPageCandidateRepository::loadContainers(QObject* receive
         return ImageIoJob();
     }
 
+    KioOperationFailureCallback scopeErrorCallback = errorCallback;
     return m_provider.directoryContainers(
-        receiver, directoryUrl, std::move(callback), std::move(errorCallback));
+        receiver, directoryUrl,
+        [callback = std::move(callback), errorCallback = std::move(scopeErrorCallback),
+            directoryUrl](std::vector<ContainerNavigationCandidate> candidates) mutable {
+            if (!containerNavigationCandidatesBelongToDirectoryScope(candidates, directoryUrl)) {
+                invokeIfSet(errorCallback, candidateScopeFailure(directoryUrl));
+                return;
+            }
+            invokeIfSet(callback, std::move(candidates));
+        },
+        std::move(errorCallback));
 }
 
 ImageIoJob ImageDocumentPageCandidateRepository::watchCandidateChanges(QObject* receiver,
@@ -170,7 +193,23 @@ ImageIoJob ImageDocumentPageCandidateRepository::watchDirectoryImageChanges(QObj
     const QUrl& directoryUrl, ImageDocumentPageCandidatesCallback callback,
     ImageDocumentPageCandidateLoadErrorCallback errorCallback) const
 {
-    return loadWithProvider(m_provider.directoryImageDocumentPageChanges, std::move(errorCallback),
-        receiver, directoryUrl, std::move(callback));
+    if (!m_provider.directoryImageDocumentPageChanges) {
+        reportLoadProviderMissing(errorCallback);
+        return ImageIoJob();
+    }
+
+    ImageDocumentPageCandidateLoadErrorCallback scopeErrorCallback = errorCallback;
+    return m_provider.directoryImageDocumentPageChanges(
+        receiver, directoryUrl,
+        [callback = std::move(callback), errorCallback = std::move(scopeErrorCallback),
+            directoryUrl](std::vector<ImageDocumentPageCandidate> candidates) mutable {
+            if (!imageDocumentPageCandidatesBelongToDirectoryScope(candidates, directoryUrl)) {
+                invokeIfSet(errorCallback,
+                    ImageDocumentPageCandidateLoadError { candidateScopeFailure(directoryUrl) });
+                return;
+            }
+            invokeIfSet(callback, std::move(candidates));
+        },
+        std::move(errorCallback));
 }
 }

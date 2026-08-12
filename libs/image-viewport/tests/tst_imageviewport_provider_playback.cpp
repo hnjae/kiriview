@@ -50,6 +50,7 @@ private Q_SLOTS:
     void secondaryProviderTimedPlaybackWaitingStopsOnUnsupportedMetadata();
     void secondaryProviderTimedPlaybackWaitingStopsOnConstructionFactContradiction();
     void secondaryProviderTimedPlaybackUsesRoleLocalEntryPoint();
+    void secondaryProviderTimedPlaybackVisibleFinalStopsWithoutProviderWork();
     void secondaryProviderTimedPlaybackEndOfSequenceStopsAfterFinalFrameCommits();
     void secondaryProviderTimedStopCancelsPlaybackRequest();
     void providerTimedStopAfterPausedMetadataWaitRestoresInitialRequest();
@@ -2177,6 +2178,75 @@ void ImageViewportProviderPlaybackTest::secondaryProviderTimedPlaybackUsesRoleLo
     QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(secondaryRequestedFrame(item), 1);
     QCOMPARE(secondaryRequestedPosition(item), 100);
+}
+
+void ImageViewportProviderPlaybackTest::
+    secondaryProviderTimedPlaybackVisibleFinalStopsWithoutProviderWork()
+{
+    ImageSequenceFactory factory;
+    QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    primaryImage.fill(Qt::transparent);
+    ImageFrame primaryFrame(primaryImage);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromFrame(&primaryFrame));
+    QVERIFY(primaryResult->sequence());
+
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    const auto playbackRequestCount = std::make_shared<int>(0);
+    const auto lastPlaybackFrame = std::make_shared<int>(-1);
+    const auto lastPlaybackPosition = std::make_shared<int>(-1);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
+        playbackRequestCount, lastPlaybackFrame, lastPlaybackPosition);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(factory.fromProvider(&adapter));
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(
+                                            primaryResult->sequence(), secondaryResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewportCommandOutcome::Accepted);
+
+    QVERIFY(sessionFactory->lastSession());
+    emitProviderMetadataReady(sessionFactory->lastSession(),
+        sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
+    drainQueuedProviderResults();
+
+    QImage secondaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondaryImage.fill(Qt::black);
+    ImageFrame secondaryFrame(secondaryImage);
+    emitTimedProviderFrameReady(sessionFactory->lastSession(), &secondaryFrame, 0, 0);
+    acknowledgePendingRenderCommitForTest(item);
+
+    QCOMPARE(item.seek(ImageViewportPageRole::Secondary, 1).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    emitTimedProviderFrameReady(sessionFactory->lastSession(), &secondaryFrame, 1, 100);
+    acknowledgePendingRenderCommitForTest(item);
+    QCOMPARE(primaryDisplayedFrame(item), 0);
+    QCOMPARE(secondaryDisplayedFrame(item), 1);
+    QCOMPARE(secondaryDisplayedPosition(item), 100);
+    const int frameRequestsBeforePlayback = *frameRequestCount;
+
+    QCOMPARE(item.play(ImageViewportPageRole::Secondary).outcome(),
+        ImageViewportCommandOutcome::Accepted);
+    advancePlaybackForTest(item, 250, ImageViewportPageRole::Secondary);
+
+    QCOMPARE(playbackPhaseValue(item, ImageViewportPageRole::Secondary),
+        static_cast<int>(ImageViewportPlaybackPhase::Stopped));
+    QCOMPARE(*playbackRequestCount, 0);
+    QCOMPARE(*frameRequestCount, frameRequestsBeforePlayback);
+    QCOMPARE(*lastPlaybackFrame, -1);
+    QCOMPARE(*lastPlaybackPosition, -1);
+    QCOMPARE(primaryDisplayedFrame(item), 0);
+    QCOMPARE(secondaryDisplayedFrame(item), 1);
+    QCOMPARE(secondaryDisplayedPosition(item), 100);
 }
 
 void ImageViewportProviderPlaybackTest::

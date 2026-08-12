@@ -92,6 +92,10 @@ static_assert(static_cast<int>(Actions::MenuPresentation::HamburgerMenu)
     == static_cast<int>(KiriViewApplication::HamburgerMenu));
 static_assert(static_cast<int>(Actions::MenuPresentation::MenuBar)
     == static_cast<int>(KiriViewApplication::MenuBar));
+static_assert(static_cast<int>(Actions::ApplicationShortcutActivationScope::ProgramWide)
+    == static_cast<int>(KiriViewApplication::ProgramWideShortcutScope));
+static_assert(static_cast<int>(Actions::ApplicationShortcutActivationScope::ViewerLocal)
+    == static_cast<int>(KiriViewApplication::ViewerLocalShortcutScope));
 
 namespace {
 struct ActionIdMapping
@@ -266,6 +270,11 @@ QAbstractListModel* KiriViewApplication::shortcutHelpModel() const
     return m_actionRuntime->shortcutHelpModel();
 }
 
+QAbstractListModel* KiriViewApplication::shortcutConfigurationModel() const
+{
+    return m_actionRuntime->shortcutConfigurationModel();
+}
+
 Actions::MenuPresentation KiriViewApplication::domainMenuPresentation(MenuPresentation presentation)
 {
     if (presentation == MenuBar) {
@@ -322,10 +331,23 @@ QList<QKeySequence> KiriViewApplication::viewerLocalShortcutsForId(ActionId acti
     return m_actionRuntime->viewerLocalShortcutsForId(domainActionId(actionId));
 }
 
+bool KiriViewApplication::setProgramWideShortcutsForId(
+    ActionId actionId, const QList<QKeySequence>& shortcuts)
+{
+    return m_actionRuntime->setProgramWideShortcutsForId(domainActionId(actionId), shortcuts);
+}
+
 bool KiriViewApplication::setViewerLocalShortcutsForId(
     ActionId actionId, const QList<QKeySequence>& shortcuts)
 {
     return m_actionRuntime->setViewerLocalShortcutsForId(domainActionId(actionId), shortcuts);
+}
+
+bool KiriViewApplication::setShortcutTextsForId(
+    ActionId actionId, ShortcutScope scope, const QStringList& portableTexts)
+{
+    return m_actionRuntime->setShortcutTextsForId(domainActionId(actionId),
+        static_cast<Actions::ApplicationShortcutActivationScope>(scope), portableTexts);
 }
 
 QString KiriViewApplication::menuShortcutTextForId(ActionId actionId) const
@@ -707,6 +729,8 @@ Actions::KiriViewApplicationCommandPortSource::commandRouterHelpPorts()
 {
     Actions::ApplicationCommandRouterHelpPorts ports;
     ports.requestShortcutHelp = [this]() { Q_EMIT m_application.shortcutHelpRequested(); };
+    ports.requestShortcutConfiguration
+        = [this]() { Q_EMIT m_application.shortcutConfigurationRequested(); };
     return ports;
 }
 

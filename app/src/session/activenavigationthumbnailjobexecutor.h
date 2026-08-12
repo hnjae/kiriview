@@ -16,13 +16,16 @@ class QObject;
 namespace kiriview {
 using ActiveNavigationThumbnailWorkCallback
     = std::function<void(ActiveNavigationThumbnailWorkCompletion)>;
+using ActiveNavigationThumbnailWorkRetirementCallback
+    = std::function<void(ActiveNavigationThumbnailWorkId)>;
 
 class ActiveNavigationThumbnailJobExecutor final
 {
 public:
     ActiveNavigationThumbnailJobExecutor(QObject* owner,
         ThumbnailCacheLookupProvider lookupProvider, ThumbnailGenerationProvider generationProvider,
-        ActiveNavigationThumbnailWorkCallback completionCallback);
+        ActiveNavigationThumbnailWorkCallback completionCallback,
+        ActiveNavigationThumbnailWorkRetirementCallback retirementCallback = {});
     ~ActiveNavigationThumbnailJobExecutor();
     Q_DISABLE_COPY_MOVE(ActiveNavigationThumbnailJobExecutor)
 

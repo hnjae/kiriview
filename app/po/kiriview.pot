@@ -439,6 +439,11 @@ msgstr ""
 
 #: src/application/kiriviewapplicationactions.cpp
 msgctxt "@action"
+msgid "Configure Keyboard Shortcuts..."
+msgstr ""
+
+#: src/application/kiriviewapplicationactions.cpp
+msgctxt "@action"
 msgid "Show Menubar"
 msgstr ""
 
@@ -1063,6 +1068,43 @@ msgctxt "@title:window"
 msgid "Open Image, Video, or Comic Book"
 msgstr ""
 
+#: src/qml/ShortcutConfigurationDialog.qml
+msgctxt "@title:window"
+msgid "Configure Keyboard Shortcuts"
+msgstr ""
+
+#: src/qml/ShortcutConfigurationDialog.qml src/qml/ShortcutHelpDialog.qml
+msgctxt "@action:button"
+msgid "Close"
+msgstr ""
+
+#: src/qml/ShortcutConfigurationDialog.qml
+msgctxt "@action:button"
+msgid "Edit Shortcut"
+msgstr ""
+
+#: src/qml/ShortcutConfigurationDialog.qml
+msgctxt "@info"
+msgid ""
+"Enter one shortcut per line using portable key names, for example Ctrl+O. "
+"Leave the field empty to unassign this slot."
+msgstr ""
+
+#: src/qml/ShortcutConfigurationDialog.qml
+msgctxt "@info:placeholder"
+msgid "Ctrl+O"
+msgstr ""
+
+#: src/qml/ShortcutConfigurationDialog.qml
+msgctxt "@info"
+msgid "One or more shortcuts are invalid for this scope."
+msgstr ""
+
+#: src/qml/ShortcutConfigurationDialog.qml
+msgctxt "@action:button"
+msgid "Apply"
+msgstr ""
+
 #: src/qml/ShortcutDelegate.qml
 msgctxt "@info:accessible"
 msgid "%1, %2 shortcut %3"
@@ -1076,11 +1118,6 @@ msgstr ""
 #: src/qml/ShortcutHelpDialog.qml
 msgctxt "@title:window"
 msgid "Keyboard Shortcuts"
-msgstr ""
-
-#: src/qml/ShortcutHelpDialog.qml
-msgctxt "@action:button"
-msgid "Close"
 msgstr ""
 
 #: src/qml/VideoFloatingControls.qml

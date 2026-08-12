@@ -8,6 +8,8 @@
 #include <QImageIOHandler>
 #include <QTransform>
 #include <algorithm>
+#include <limits>
+#include <new>
 #include <ranges>
 #include <utility>
 
@@ -122,6 +124,23 @@ QImage sourcePayloadForOrientation(
         return normalizedImage.transformed(QTransform().rotate(90));
     }
     return normalizedImage;
+}
+
+qsizetype frameConstructionBufferCount(ImageFrame::OrientationPolicy orientation)
+{
+    return orientation == ImageFrame::OrientationPolicy::Identity ? 1 : 3;
+}
+
+std::optional<qsizetype> frameConstructionPeakByteCount(
+    const QImage& image, ImageFrame::OrientationPolicy orientation)
+{
+    const qsizetype retainedByteCount = image.sizeInBytes();
+    const qsizetype bufferCount = frameConstructionBufferCount(orientation);
+    if (retainedByteCount <= 0 || bufferCount <= 0
+        || retainedByteCount > std::numeric_limits<qsizetype>::max() / bufferCount) {
+        return std::nullopt;
+    }
+    return retainedByteCount * bufferCount;
 }
 }
 
@@ -273,7 +292,8 @@ ImageViewportProviderFrameResult ImageViewportProviderFrameResult::failed(
 ImageViewportProviderResource::ImageViewportProviderResource(quint64 sourceGeneration,
     QString locationIdentity, std::shared_ptr<ImageViewportProviderSource> source,
     std::shared_ptr<DisplayImageStore> displayStore,
-    std::shared_ptr<ImageViewportFailureRegistry> failureRegistry)
+    std::shared_ptr<ImageViewportFailureRegistry> failureRegistry,
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget)
     : m_sourceGeneration(sourceGeneration)
     , m_locationIdentity(std::move(locationIdentity))
     , m_displayLocationIdentity(m_locationIdentity)
@@ -282,6 +302,8 @@ ImageViewportProviderResource::ImageViewportProviderResource(quint64 sourceGener
     , m_failureRegistry(failureRegistry == nullptr
               ? std::make_shared<ImageViewportFailureRegistry>()
               : std::move(failureRegistry))
+    , m_workspaceBudget(workspaceBudget == nullptr ? defaultImageDecodeWorkspaceBudget()
+                                                   : std::move(workspaceBudget))
 {
     Q_ASSERT(m_displayStore != nullptr);
 }
@@ -528,16 +550,57 @@ ImageSequenceProviderFrameHandle* ImageViewportProviderResource::acquireFrameHan
 
     const ImageFrame::OrientationPolicy orientation
         = orientationPolicy(entry->imageReaderTransformations);
-    const QImage sourcePayload = sourcePayloadForOrientation(entry->image, orientation);
-    auto* frame = new ImageFrame(sourcePayload, entry->originalSize, entry->byteCost,
-        payloadQuality(entry->quality), payloadExactness(*entry), orientation,
-        preparedFrame.formatIdentifier);
+    const qsizetype frameRasterByteCount = entry->image.sizeInBytes();
+    const std::optional<qsizetype> constructionPeak
+        = frameConstructionPeakByteCount(entry->image, orientation);
+    ImageDecodeWorkspaceLease workspaceLease = m_workspaceBudget->startLease();
+    if (!constructionPeak.has_value() || !workspaceLease.tryReserve(*constructionPeak)) {
+        m_displayStore->releaseFrameLease(preparedFrame.storeEntryId);
+        return nullptr;
+    }
+
+    std::unique_ptr<ImageFrame> frame;
+    try {
+        const QImage sourcePayload = sourcePayloadForOrientation(entry->image, orientation);
+        if (sourcePayload.isNull()) {
+            m_displayStore->releaseFrameLease(preparedFrame.storeEntryId);
+            return nullptr;
+        }
+        frame = std::make_unique<ImageFrame>(sourcePayload, entry->originalSize, entry->byteCost,
+            payloadQuality(entry->quality), payloadExactness(*entry), orientation,
+            preparedFrame.formatIdentifier);
+    } catch (const std::bad_alloc&) {
+        m_displayStore->releaseFrameLease(preparedFrame.storeEntryId);
+        return nullptr;
+    }
+    ImageDecodeWorkspaceHold retainedWorkspace = workspaceLease.retainOnly(frameRasterByteCount);
+    if (!retainedWorkspace.isManaged()) {
+        m_displayStore->releaseFrameLease(preparedFrame.storeEntryId);
+        return nullptr;
+    }
     const std::shared_ptr<DisplayImageStore> store = m_displayStore;
     const QString entryId = preparedFrame.storeEntryId;
-    return new ImageSequenceProviderFrameHandle(frame, [store, entryId](ImageFrame* releasedFrame) {
-        delete releasedFrame;
+    try {
+        std::function<void(ImageFrame*)> releaseFrame
+            = [store, entryId, retainedWorkspace = std::move(retainedWorkspace)](
+                  ImageFrame* releasedFrame) mutable {
+                  delete releasedFrame;
+                  store->releaseFrameLease(entryId);
+                  retainedWorkspace = {};
+              };
+        auto* handle = new (std::nothrow)
+            ImageSequenceProviderFrameHandle(frame.get(), std::move(releaseFrame));
+        if (handle == nullptr) {
+            store->releaseFrameLease(entryId);
+            return nullptr;
+        }
+        [[maybe_unused]] ImageFrame* const transferredFrame = frame.release();
+        Q_ASSERT(transferredFrame == handle->frame());
+        return handle;
+    } catch (const std::bad_alloc&) {
         store->releaseFrameLease(entryId);
-    });
+        return nullptr;
+    }
 }
 
 ImageSequenceProviderFailure ImageViewportProviderResource::failure(

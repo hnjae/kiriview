@@ -544,7 +544,7 @@ ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
     rolePlayback.position = target.playbackPosition;
     const bool sameReadyProviderFrame = providerTiming && target.displayTarget.frame == currentFrame
         && request.status == ImageViewportRequestStatus::Ready;
-    if (sameReadyProviderFrame && role == ImageViewportPageRole::Primary) {
+    if (sameReadyProviderFrame) {
         if (rolePlayback.stopWhenRequestReady || target.reachedEnd) {
             rolePlayback.stopWhenRequestReady = false;
             rolePlayback.phase = ImageViewportPlaybackPhase::Stopped;

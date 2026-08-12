@@ -24,6 +24,10 @@ ThumbnailSourceAdapter defaultThumbnailSourceAdapter()
             return ThumbnailSourceAdapterPlan {};
         }
         const QByteArray path = QFile::encodeName(request.sourceKey.sourceUrl.toLocalFile());
+        if (request.sourceKey.sourceFreshness != 0) {
+            return ThumbnailSourceAdapterPlan { ThumbnailSourceAdapterPlanKind::InMemoryOnly, path,
+                ThumbnailOriginalIdentity::fromLocalPathBytes(path), {} };
+        }
         return ThumbnailSourceAdapterPlan { ThumbnailSourceAdapterPlanKind::CacheableLocalFile,
             path, ThumbnailOriginalIdentity::fromLocalPathBytes(path), {} };
     };
@@ -319,6 +323,17 @@ ActiveNavigationThumbnailScheduler::acceptCompletion(
 }
 
 std::vector<ActiveNavigationThumbnailScheduleEffect>
+ActiveNavigationThumbnailScheduler::acceptRetirement(ActiveNavigationThumbnailWorkId workId)
+{
+    if (!workId.isValid() || m_retiringWork.remove(workId.value) == 0) {
+        return {};
+    }
+    std::vector<ActiveNavigationThumbnailScheduleEffect> effects;
+    admit(effects);
+    return effects;
+}
+
+std::vector<ActiveNavigationThumbnailScheduleEffect>
 ActiveNavigationThumbnailScheduler::continueAdmission(quint64 admissionEpoch)
 {
     if (admissionEpoch == 0 || admissionEpoch != m_admissionEpoch || !m_continuationOutstanding) {
@@ -344,7 +359,7 @@ bool ActiveNavigationThumbnailScheduler::sameDemandExceptPriority(
         && left.sourcePlan.originalIdentity.uri == right.sourcePlan.originalIdentity.uri
         && left.sourcePlan.originalIdentity.localPathBytes
         == right.sourcePlan.originalIdentity.localPathBytes
-        && sameOpenedCollectionScopeLocation(
+        && sameOpenedCollectionScopeSnapshot(
             left.sourcePlan.openedCollectionScope, right.sourcePlan.openedCollectionScope);
 }
 
@@ -540,10 +555,25 @@ void ActiveNavigationThumbnailScheduler::reclassifyCurrentRow(
 
 ActiveNavigationThumbnailWorkId ActiveNavigationThumbnailScheduler::nextWorkId()
 {
-    if (m_nextWorkId == 0) {
-        ++m_nextWorkId;
+    for (;;) {
+        if (m_nextWorkId == 0) {
+            ++m_nextWorkId;
+        }
+        const ActiveNavigationThumbnailWorkId candidate { m_nextWorkId++ };
+        if (!workIdInUse(candidate)) {
+            return candidate;
+        }
     }
-    return { m_nextWorkId++ };
+}
+
+bool ActiveNavigationThumbnailScheduler::workIdInUse(ActiveNavigationThumbnailWorkId workId) const
+{
+    if (!workId.isValid() || m_retiringWork.contains(workId.value)) {
+        return true;
+    }
+    return std::ranges::any_of(m_rows, [workId](const RowState& state) {
+        return state.activeWork.has_value() && state.activeWork->id == workId;
+    });
 }
 
 void ActiveNavigationThumbnailScheduler::cancel(
@@ -553,13 +583,15 @@ void ActiveNavigationThumbnailScheduler::cancel(
     if (!state.activeWork.has_value()) {
         return;
     }
-    effects.emplace_back(ActiveNavigationThumbnailCancelWorkEffect { state.activeWork->id });
+    const Claim retiring = *state.activeWork;
+    effects.emplace_back(ActiveNavigationThumbnailCancelWorkEffect { retiring.id });
     if (state.activeWork->tier == Tier::Nearby) {
         m_activeNearbyRows.erase(row);
     } else if (state.activeWork->tier == Tier::Background) {
         m_activeBackgroundRow.reset();
     }
     state.activeWork.reset();
+    m_retiringWork.insert(retiring.id.value, retiring);
 }
 
 void ActiveNavigationThumbnailScheduler::start(std::size_t row,
@@ -580,10 +612,11 @@ void ActiveNavigationThumbnailScheduler::start(std::size_t row,
 
 std::size_t ActiveNavigationThumbnailScheduler::activeForegroundCount() const
 {
-    return static_cast<std::size_t>(std::ranges::count_if(m_rows, [](const RowState& state) {
-        return state.activeWork.has_value()
-            && state.activeWork->kind == ActiveNavigationThumbnailWorkKind::Foreground;
-    }));
+    return static_cast<std::size_t>(m_retiringWork.size())
+        + static_cast<std::size_t>(std::ranges::count_if(m_rows, [](const RowState& state) {
+              return state.activeWork.has_value()
+                  && state.activeWork->kind == ActiveNavigationThumbnailWorkKind::Foreground;
+          }));
 }
 
 void ActiveNavigationThumbnailScheduler::admit(
@@ -604,7 +637,7 @@ void ActiveNavigationThumbnailScheduler::admit(
             if (!currentState.activeWork.has_value() && currentState.acceptedDemand.has_value()
                 && supportsGeneratedThumbnail(currentState.acceptedDemand->sourcePlan)
                 && m_foregroundCapacity != 0) {
-                while (activeForeground >= m_foregroundCapacity) {
+                if (activeForeground >= m_foregroundCapacity) {
                     const auto activeVisible = std::ranges::find_if(m_highDemandRows.crbegin(),
                         m_highDemandRows.crend(), [this](std::size_t row) {
                             const RowState& state = m_rows.at(row);
@@ -612,11 +645,10 @@ void ActiveNavigationThumbnailScheduler::admit(
                                 && state.activeWork.has_value()
                                 && state.activeWork->tier == Tier::Visible;
                         });
-                    if (activeVisible == m_highDemandRows.crend()) {
-                        break;
+                    if (activeVisible != m_highDemandRows.crend()) {
+                        cancel(*activeVisible, effects);
+                        activeForeground = activeForegroundCount();
                     }
-                    cancel(*activeVisible, effects);
-                    --activeForeground;
                 }
                 if (activeForeground < m_foregroundCapacity) {
                     start(*m_currentRow, ActiveNavigationThumbnailWorkKind::Foreground,

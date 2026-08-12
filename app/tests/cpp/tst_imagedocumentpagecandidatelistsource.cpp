@@ -190,9 +190,20 @@ void TestImageDocumentPageCandidateListSource::
     const ImageDocumentPageCandidateListContext archiveContext
         = ImageDocumentPageCandidateListContext::forOpenedCollectionScope(
             pageUrl, *openedCollectionScope);
+    const kiriview::OpenedCollectionScopeLocation reassignedScope
+        = kiriview::OpenedCollectionScopeLocation::fromResolvedSource(
+            kiriview::ResolvedNavigationSource(openedCollectionScope->fileUrl(),
+                openedCollectionScope->source().facts(),
+                localUrl(QStringLiteral("/resolved/reassigned/book.cbz")),
+                openedCollectionScope->source().entryKind()),
+            openedCollectionScope->rootUrl(), openedCollectionScope->kind());
+    const ImageDocumentPageCandidateListContext reassignedArchiveContext
+        = ImageDocumentPageCandidateListContext::forOpenedCollectionScope(pageUrl, reassignedScope);
 
     QVERIFY(!kiriview::sameImageDocumentPageCandidateListSource(
         directoryContext.source(), archiveContext.source()));
+    QVERIFY(!kiriview::sameImageDocumentPageCandidateListSource(
+        archiveContext.source(), reassignedArchiveContext.source()));
 }
 
 QTEST_GUILESS_MAIN(TestImageDocumentPageCandidateListSource)

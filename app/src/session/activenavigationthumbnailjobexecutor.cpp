@@ -5,6 +5,7 @@
 
 #include "thumbnail/thumbnailsourcekind.h"
 
+#include <QMetaObject>
 #include <QPointer>
 #include <unordered_map>
 #include <utility>
@@ -87,15 +88,19 @@ public:
         quint64 phaseToken = 0;
         PhaseKind phaseKind = PhaseKind::Lookup;
         ImageIoJob job;
+        bool publicationCanceled = false;
+        bool physicallyRetired = false;
     };
 
     State(QObject* owner, ThumbnailCacheLookupProvider lookupProvider,
         ThumbnailGenerationProvider generationProvider,
-        ActiveNavigationThumbnailWorkCallback completionCallback)
+        ActiveNavigationThumbnailWorkCallback completionCallback,
+        ActiveNavigationThumbnailWorkRetirementCallback retirementCallback)
         : owner(owner)
         , lookupProvider(std::move(lookupProvider))
         , generationProvider(std::move(generationProvider))
         , completionCallback(std::move(completionCallback))
+        , retirementCallback(std::move(retirementCallback))
     {
     }
 
@@ -116,18 +121,24 @@ public:
         if (iterator == records.end()) {
             return false;
         }
-        ImageIoJob job = std::move(iterator->second.job);
-        records.erase(iterator);
-        job.cancel();
+        iterator->second.publicationCanceled = true;
+        iterator->second.job.cancel();
+        iterator = records.find(workId.value);
+        if (iterator != records.end() && iterator->second.physicallyRetired) {
+            retirePhase(workId.value, iterator->second.phaseToken);
+        }
         return true;
     }
 
     void cancelAll()
     {
-        auto activeRecords = std::move(records);
-        records.clear();
-        for (auto& [unused, record] : activeRecords) {
-            record.job.cancel();
+        std::vector<ActiveNavigationThumbnailWorkId> workIds;
+        workIds.reserve(records.size());
+        for (const auto& entry : records) {
+            workIds.push_back({ entry.first });
+        }
+        for (ActiveNavigationThumbnailWorkId workId : workIds) {
+            cancel(workId);
         }
     }
 
@@ -198,14 +209,59 @@ public:
             job.cancel();
             return;
         }
+        const std::weak_ptr<State> weakState = weak_from_this();
+        const QPointer<QObject> guardedOwner = owner;
+        job.setRetirementCallback([weakState, guardedOwner, workValue, phaseToken]() {
+            QObject* target = guardedOwner.data();
+            if (target == nullptr) {
+                return;
+            }
+            QMetaObject::invokeMethod(
+                target,
+                [weakState, workValue, phaseToken]() {
+                    if (const std::shared_ptr<State> state = weakState.lock()) {
+                        state->retirePhase(workValue, phaseToken);
+                    }
+                },
+                Qt::AutoConnection);
+        });
+        iterator = records.find(workValue);
+        if (iterator == records.end() || iterator->second.phaseToken != phaseToken
+            || iterator->second.phaseKind != phaseKind) {
+            job.cancel();
+            return;
+        }
+        if (iterator->second.publicationCanceled) {
+            job.cancel();
+            return;
+        }
         iterator->second.job = std::move(job);
+    }
+
+    void retirePhase(quint64 workValue, quint64 phaseToken)
+    {
+        auto iterator = records.find(workValue);
+        if (iterator == records.end() || iterator->second.phaseToken != phaseToken) {
+            return;
+        }
+        iterator->second.physicallyRetired = true;
+        if (!iterator->second.publicationCanceled) {
+            return;
+        }
+        const ActiveNavigationThumbnailWorkId workId = iterator->second.request.workId;
+        records.erase(iterator);
+        ActiveNavigationThumbnailWorkRetirementCallback callback = retirementCallback;
+        if (callback) {
+            callback(workId);
+        }
     }
 
     void finishLookup(quint64 workValue, quint64 phaseToken, ThumbnailCacheLookupResult result)
     {
         auto iterator = records.find(workValue);
         if (iterator == records.end() || iterator->second.phaseToken != phaseToken
-            || iterator->second.phaseKind != PhaseKind::Lookup) {
+            || iterator->second.phaseKind != PhaseKind::Lookup
+            || iterator->second.publicationCanceled) {
             return;
         }
         ActiveNavigationThumbnailWorkRequest request = iterator->second.request;
@@ -222,6 +278,11 @@ public:
                 ActiveNavigationThumbnailFailureKind::CacheLookupInvalid,
                 std::move(result.errorString));
             return;
+        case ThumbnailCacheLookupStatus::ResourceLimitExceeded:
+            completeFailure(std::move(request),
+                ActiveNavigationThumbnailFailureKind::ResourceLimitExceeded,
+                std::move(result.errorString));
+            return;
         case ThumbnailCacheLookupStatus::Failed:
             completeFailure(std::move(request),
                 ActiveNavigationThumbnailFailureKind::CacheLookupFailed,
@@ -234,7 +295,8 @@ public:
     {
         auto iterator = records.find(workValue);
         if (iterator == records.end() || iterator->second.phaseToken != phaseToken
-            || iterator->second.phaseKind != PhaseKind::Generation) {
+            || iterator->second.phaseKind != PhaseKind::Generation
+            || iterator->second.publicationCanceled) {
             return;
         }
         ActiveNavigationThumbnailWorkRequest request = iterator->second.request;
@@ -290,15 +352,18 @@ public:
     ThumbnailCacheLookupProvider lookupProvider;
     ThumbnailGenerationProvider generationProvider;
     ActiveNavigationThumbnailWorkCallback completionCallback;
+    ActiveNavigationThumbnailWorkRetirementCallback retirementCallback;
     std::unordered_map<quint64, Record> records;
     quint64 nextPhaseToken = 1;
 };
 
 ActiveNavigationThumbnailJobExecutor::ActiveNavigationThumbnailJobExecutor(QObject* owner,
     ThumbnailCacheLookupProvider lookupProvider, ThumbnailGenerationProvider generationProvider,
-    ActiveNavigationThumbnailWorkCallback completionCallback)
-    : m_state(std::make_shared<State>(owner, std::move(lookupProvider),
-          std::move(generationProvider), std::move(completionCallback)))
+    ActiveNavigationThumbnailWorkCallback completionCallback,
+    ActiveNavigationThumbnailWorkRetirementCallback retirementCallback)
+    : m_state(
+          std::make_shared<State>(owner, std::move(lookupProvider), std::move(generationProvider),
+              std::move(completionCallback), std::move(retirementCallback)))
 {
 }
 

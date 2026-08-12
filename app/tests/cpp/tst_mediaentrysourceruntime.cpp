@@ -10,6 +10,7 @@
 #include <QByteArray>
 #include <QSemaphore>
 #include <QTest>
+#include <array>
 #include <atomic>
 #include <memory>
 #include <optional>
@@ -27,6 +28,15 @@ using kiriview::TestSupport::InstrumentedMediaEntrySourceState;
 using kiriview::TestSupport::localUrl;
 using kiriview::TestSupport::releaseInstrumentedMediaEntrySourceLoads;
 using kiriview::TestSupport::videoCandidate;
+
+kiriview::OpenedCollectionScopeLocation reassignedScope(
+    const kiriview::OpenedCollectionScopeLocation& scope, const QUrl& resolvedUrl)
+{
+    return kiriview::OpenedCollectionScopeLocation::fromResolvedSource(
+        kiriview::ResolvedNavigationSource(
+            scope.fileUrl(), scope.source().facts(), resolvedUrl, scope.source().entryKind()),
+        scope.rootUrl(), scope.kind());
+}
 
 struct ManualImageWorkerSchedule
 {
@@ -79,6 +89,7 @@ private Q_SLOTS:
     void candidateBatchCancellationPreventsStaleCallbacks();
     void candidateBatchCancellationRequestsBackendStop();
     void dataCompletionAfterOpenedCollectionSwitchIsIgnored();
+    void sameRequestedCollectionWithFreshResolvedSourceReplacesRuntime();
     void nonCurrentScopeAccessIsRejectedWithoutReplacingCurrentSnapshot();
     void errorsRemainTypedThroughRuntimeCallbacks();
 };
@@ -307,6 +318,77 @@ void TestMediaEntrySourceRuntime::dataCompletionAfterOpenedCollectionSwitchIsIgn
     QVERIFY(!staleJob.isActive());
     QCOMPARE(staleCallbackCount, 0);
     QVERIFY(runtime.hasCurrentOpenedCollectionScope(*secondArchiveCollection));
+}
+
+void TestMediaEntrySourceRuntime::sameRequestedCollectionWithFreshResolvedSourceReplacesRuntime()
+{
+    const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
+        = archiveCollectionForLocalArchiveUrl(localUrl(QStringLiteral("/portal/book.cbz")));
+    QVERIFY(archiveCollection.has_value());
+
+    const QUrl requestedDirectoryUrl = localUrl(QStringLiteral("/portal/photos"));
+    const kiriview::OpenedCollectionScopeLocation directoryCollection
+        = kiriview::OpenedCollectionScopeLocation::fromResolvedSource(
+            kiriview::ResolvedNavigationSource(requestedDirectoryUrl, {}, requestedDirectoryUrl,
+                kiriview::NavigationSourceEntryKind::Directory),
+            localUrl(QStringLiteral("/portal/photos/")),
+            kiriview::OpenedCollectionScopeKind::Directory);
+
+    struct ReassignmentCase
+    {
+        kiriview::OpenedCollectionScopeLocation baseCollection;
+        QUrl firstResolvedUrl;
+        QUrl reassignedResolvedUrl;
+        QUrl pageUrl;
+    };
+    const std::array cases {
+        ReassignmentCase { *archiveCollection, localUrl(QStringLiteral("/resolved/first/book.cbz")),
+            localUrl(QStringLiteral("/resolved/second/book.cbz")),
+            archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png")) },
+        ReassignmentCase { directoryCollection, localUrl(QStringLiteral("/resolved/first/photos")),
+            localUrl(QStringLiteral("/resolved/second/photos")),
+            localUrl(QStringLiteral("/portal/photos/01.png")) },
+    };
+
+    for (const ReassignmentCase& reassignment : cases) {
+        auto state = std::make_shared<InstrumentedMediaEntrySourceState>();
+        const kiriview::OpenedCollectionScopeLocation firstCollection
+            = reassignedScope(reassignment.baseCollection, reassignment.firstResolvedUrl);
+        const kiriview::OpenedCollectionScopeLocation reassignedCollection
+            = reassignedScope(reassignment.baseCollection, reassignment.reassignedResolvedUrl);
+        addInstrumentedMediaEntrySourceFixture(
+            state, firstCollection, { imageDocumentPageCandidate(reassignment.pageUrl) });
+
+        ManualImageWorkerScheduler workerScheduler;
+        kiriview::MediaEntrySourceRuntime runtime(
+            this, instrumentedMediaEntrySourceFactory(state), workerScheduler.scheduler());
+        runtime.switchToOpenedCollectionScope(firstCollection);
+        int staleCallbackCount = 0;
+        kiriview::ImageIoJob staleJob = runtime.loadOpenedCollectionImageData(this,
+            kiriview::ImageDecodeRequest::fromLocation(1,
+                kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
+                    reassignment.pageUrl, firstCollection)),
+            [&staleCallbackCount](kiriview::ImageSourceData) { ++staleCallbackCount; }, {});
+        QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+        QVERIFY(staleJob.isActive());
+
+        runtime.switchToOpenedCollectionScope(reassignedCollection);
+        QVERIFY(!runtime.hasCurrentOpenedCollectionScope(firstCollection));
+        QVERIFY(runtime.hasCurrentOpenedCollectionScope(reassignedCollection));
+
+        workerScheduler.runWork(0);
+        workerScheduler.finish(0);
+        QCOMPARE(staleCallbackCount, 0);
+        QVERIFY(!staleJob.isActive());
+
+        std::vector<ImageDocumentPageCandidate> reassignedCandidates;
+        runtime.loadOpenedCollectionCandidates(nullptr, reassignedCollection,
+            [&reassignedCandidates](
+                auto candidates) { reassignedCandidates = std::move(candidates); },
+            {});
+        QCOMPARE(reassignedCandidates.size(), std::size_t(1));
+        QCOMPARE(state->openCount.load(), 2);
+    }
 }
 
 void TestMediaEntrySourceRuntime::nonCurrentScopeAccessIsRejectedWithoutReplacingCurrentSnapshot()

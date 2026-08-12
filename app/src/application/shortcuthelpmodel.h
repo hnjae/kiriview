@@ -26,6 +26,8 @@ struct ShortcutHelpRow
     QStringList shortcutKeyTexts;
     bool categoryFirst = false;
     bool categoryLast = false;
+    int activationScope = 0;
+    QStringList portableShortcutTexts;
 };
 
 using ShortcutHelpRowsProvider = std::function<QList<ShortcutHelpRow>()>;
@@ -45,6 +47,8 @@ public:
         CategoryLastRole,
         ShortcutKeyTextsRole,
         ScopeTextRole,
+        ActivationScopeRole,
+        PortableShortcutTextsRole,
     };
 
     explicit ShortcutHelpModel(ShortcutHelpRowsProvider rowsProvider);

@@ -20,11 +20,18 @@
 #include <vector>
 
 namespace {
-kiriview::KioOperationFailure directMediaCandidateAdmissionFailure(const QUrl& directoryUrl)
+kiriview::KioOperationFailure directMediaCandidateAdmissionFailure(
+    const QUrl& directoryUrl, kiriview::ImageDocumentPageCandidateAdmissionFailure failure)
 {
-    return kiriview::kioOperationResourceLimitFailure(kiriview::KioOperationKind::DirectoryListing,
+    if (failure == kiriview::ImageDocumentPageCandidateAdmissionFailure::ResourceLimitExceeded) {
+        return kiriview::kioOperationResourceLimitFailure(
+            kiriview::KioOperationKind::DirectoryListing, directoryUrl,
+            QStringLiteral("ordinary sibling listing exceeds the configured resource limits"));
+    }
+    return kiriview::kioOperationValidationFailure(kiriview::KioOperationKind::DirectoryListing,
         directoryUrl,
-        QStringLiteral("ordinary sibling listing exceeds the configured resource limits"));
+        QStringLiteral(
+            "ordinary sibling listing returned a candidate outside the requested scope"));
 }
 
 kiriview::ImageIoJob startDirectoryDirectMediaNavigationCandidateList(QObject* receiver,
@@ -41,10 +48,10 @@ kiriview::ImageIoJob startDirectoryDirectMediaNavigationCandidateList(QObject* r
         [callback = std::move(callback), errorCallback = std::move(admissionErrorCallback),
             directoryUrl](const KFileItemList& items) mutable {
             kiriview::DirectMediaNavigationCandidateAdmissionResult admitted
-                = kiriview::directMediaNavigationCandidates(items);
+                = kiriview::directMediaNavigationCandidates(directoryUrl, items);
             if (!admitted) {
-                kiriview::invokeIfSet(
-                    errorCallback, directMediaCandidateAdmissionFailure(directoryUrl));
+                kiriview::invokeIfSet(errorCallback,
+                    directMediaCandidateAdmissionFailure(directoryUrl, admitted.error()));
                 return;
             }
             std::vector<kiriview::DirectMediaNavigationCandidate> candidates = std::move(*admitted);
@@ -72,7 +79,7 @@ std::vector<kiriview::DirectMediaNavigationCandidate> directMediaNavigationCandi
     candidates.reserve(pageCandidates.size());
     for (kiriview::ImageDocumentPageCandidate& candidate : pageCandidates) {
         candidates.push_back(kiriview::DirectMediaNavigationCandidate {
-            std::move(candidate.url), std::move(candidate.name) });
+            std::move(candidate.url), std::move(candidate.name), candidate.sourceFreshness });
     }
     return candidates;
 }

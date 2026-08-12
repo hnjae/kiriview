@@ -43,6 +43,10 @@ QVariant ShortcutHelpModel::data(const QModelIndex& index, int role) const
         return row.categoryText;
     case ScopeTextRole:
         return row.scopeText;
+    case ActivationScopeRole:
+        return row.activationScope;
+    case PortableShortcutTextsRole:
+        return row.portableShortcutTexts;
     case CategoryFirstRole:
         return row.categoryFirst;
     case CategoryLastRole:
@@ -67,6 +71,8 @@ QHash<int, QByteArray> ShortcutHelpModel::roleNames() const
         { CategoryLastRole, QByteArrayLiteral("categoryLast") },
         { ShortcutKeyTextsRole, QByteArrayLiteral("shortcutKeyTexts") },
         { ScopeTextRole, QByteArrayLiteral("scopeText") },
+        { ActivationScopeRole, QByteArrayLiteral("activationScope") },
+        { PortableShortcutTextsRole, QByteArrayLiteral("portableShortcutTexts") },
     };
 }
 
@@ -91,7 +97,8 @@ void ShortcutHelpModel::handleRowsChanged()
     for (int row : changedRows) {
         Q_EMIT dataChanged(index(row, 0), index(row, 0),
             { ActionTextRole, ShortcutTextRole, CategoryKeyRole, CategoryTextRole, ScopeTextRole,
-                CategoryFirstRole, CategoryLastRole, ShortcutKeyTextsRole });
+                CategoryFirstRole, CategoryLastRole, ShortcutKeyTextsRole, ActivationScopeRole,
+                PortableShortcutTextsRole });
     }
 }
 
@@ -110,7 +117,7 @@ bool ShortcutHelpModel::sameRowIdentities(
     for (int index = 0; index < left.size(); ++index) {
         if (left.at(index).actionId != right.at(index).actionId
             || left.at(index).actionName != right.at(index).actionName
-            || left.at(index).scopeText != right.at(index).scopeText) {
+            || left.at(index).activationScope != right.at(index).activationScope) {
             return false;
         }
     }
@@ -123,6 +130,8 @@ bool ShortcutHelpModel::sameRowData(const ShortcutHelpRow& left, const ShortcutH
     return left.actionText == right.actionText && left.shortcutText == right.shortcutText
         && left.categoryKey == right.categoryKey && left.categoryText == right.categoryText
         && left.scopeText == right.scopeText && left.shortcutKeyTexts == right.shortcutKeyTexts
-        && left.categoryFirst == right.categoryFirst && left.categoryLast == right.categoryLast;
+        && left.categoryFirst == right.categoryFirst && left.categoryLast == right.categoryLast
+        && left.activationScope == right.activationScope
+        && left.portableShortcutTexts == right.portableShortcutTexts;
 }
 }

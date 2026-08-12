@@ -21,6 +21,7 @@ class TestDocumentSessionDirectMediaNavigationRuntime : public QObject
 
 private Q_SLOTS:
     void successfulLoadPublishesCandidates();
+    void foreignCandidateSnapshotPublishesTypedValidationFailure();
     void refreshPublishesBoundaryPlanAndCandidates();
     void refreshPublishesRepeatedCandidateChanges();
     void candidateChangeSupersedesLateInitialSnapshot();
@@ -227,6 +228,25 @@ kiriview::DirectMediaScope directMediaScope(const QUrl& currentUrl)
     return *kiriview::DirectMediaScope::fromSource(
         kiriview::ResolvedNavigationSource(currentUrl, {}, currentUrl), 7);
 }
+}
+
+void TestDocumentSessionDirectMediaNavigationRuntime::
+    foreignCandidateSnapshotPublishesTypedValidationFailure()
+{
+    RuntimeFixture fixture;
+    const QUrl currentUrl = localUrl(QStringLiteral("/media/01.mp4"));
+
+    fixture.load(directMediaScope(currentUrl));
+    fixture.provider.deliverIgnoringCancellation(0,
+        { directMediaNavigationCandidate(currentUrl),
+            directMediaNavigationCandidate(localUrl(QStringLiteral("/foreign/02.png"))) });
+
+    QCOMPARE(fixture.completionCount, 1);
+    QVERIFY(!fixture.result.succeeded);
+    QVERIFY(fixture.result.candidates.empty());
+    QVERIFY(fixture.result.failure.has_value());
+    QCOMPARE(fixture.result.failure->cause, kiriview::KioOperationFailureCause::Validation);
+    QCOMPARE(fixture.result.failure->targetUrl, localUrl(QStringLiteral("/media/")));
 }
 
 void TestDocumentSessionDirectMediaNavigationRuntime::successfulLoadPublishesCandidates()

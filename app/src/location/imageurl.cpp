@@ -461,6 +461,18 @@ ResolvedNavigationSource resolvedNavigationSource(
         requestedUrl, facts, navigationUrl, navigationSourceEntryKind(requestedUrl, facts));
 }
 
+bool sameResolvedNavigationSourceSnapshot(
+    const ResolvedNavigationSource& left, const ResolvedNavigationSource& right)
+{
+    return sameNormalizedUrl(left.requestedUrl(), right.requestedUrl())
+        && sameNormalizedUrl(left.navigationUrl(), right.navigationUrl())
+        && left.entryKind() == right.entryKind()
+        && left.facts().documentPortalHostPath == right.facts().documentPortalHostPath
+        && left.facts().runtimeDir == right.facts().runtimeDir
+        && left.facts().requestedLocalSourceIsDirectory
+        == right.facts().requestedLocalSourceIsDirectory;
+}
+
 NavigationSourceResolver::NavigationSourceResolver()
     : m_provider(collectNavigationSourceEntryFacts)
 {

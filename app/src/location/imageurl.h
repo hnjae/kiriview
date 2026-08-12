@@ -83,6 +83,8 @@ QUrl parentDirectoryUrlForFileNavigation(const QUrl& url);
 QUrl parentUrlForContainerNavigation(const QUrl& containerUrl);
 ResolvedNavigationSource resolvedNavigationSource(
     const QUrl& requestedUrl, const NavigationSourceEntryFacts& facts);
+bool sameResolvedNavigationSourceSnapshot(
+    const ResolvedNavigationSource& left, const ResolvedNavigationSource& right);
 DirectoryNavigationLocation directoryNavigationLocationForSource(
     const ResolvedNavigationSource& source);
 bool sameNormalizedUrl(const QUrl& left, const QUrl& right);

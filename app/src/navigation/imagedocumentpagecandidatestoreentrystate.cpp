@@ -18,7 +18,8 @@ bool sameImageDocumentPageCandidates(const std::vector<kiriview::ImageDocumentPa
 
     for (std::size_t index = 0; index < left.size(); ++index) {
         if (!kiriview::sameNormalizedUrl(left[index].url, right[index].url)
-            || left[index].name != right[index].name) {
+            || left[index].name != right[index].name
+            || left[index].sourceFreshness != right[index].sourceFreshness) {
             return false;
         }
     }

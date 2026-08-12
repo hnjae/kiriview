@@ -43,6 +43,7 @@ struct ActiveNavigationThumbnailRow
     ActiveNavigationThumbnailSourceKind sourceKind
         = ActiveNavigationThumbnailSourceKind::DirectImage;
     bool current = false;
+    quint64 sourceFreshness = 0;
 };
 
 struct ActiveNavigationThumbnailRowSetIdentity

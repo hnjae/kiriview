@@ -17,6 +17,7 @@ class TestImageLocation : public QObject
 private Q_SLOTS:
     void locationValuesStoreCanonicalUrlIdentity();
     void archiveCollectionIdentityComparesNormalizedUrlsAndKind();
+    void openedCollectionSnapshotIdentityIncludesSealedResolvedSource();
     void directMediaDisplayIdentityPreservesResolvedNavigationScope();
 };
 
@@ -81,6 +82,68 @@ void TestImageLocation::archiveCollectionIdentityComparesNormalizedUrlsAndKind()
     QVERIFY(kiriview::sameOpenedCollectionScopeLocation(
         archiveCollection, normalizedArchiveCollection));
     QVERIFY(!kiriview::sameOpenedCollectionScopeLocation(archiveCollection, differentKind));
+}
+
+void TestImageLocation::openedCollectionSnapshotIdentityIncludesSealedResolvedSource()
+{
+    const QUrl requestedUrl
+        = kiriview::TestSupport::localUrl(QStringLiteral("/portal/document/book.cbz"));
+    const QUrl rootUrl(QStringLiteral("zip:///collection/book.cbz/"));
+    const auto scopeForResolvedUrl = [&](const QUrl& resolvedUrl) {
+        return kiriview::OpenedCollectionScopeLocation::fromResolvedSource(
+            kiriview::ResolvedNavigationSource(
+                requestedUrl, {}, resolvedUrl, kiriview::NavigationSourceEntryKind::Archive),
+            rootUrl, kiriview::OpenedCollectionScopeKind::ComicBookArchive);
+    };
+    const kiriview::OpenedCollectionScopeLocation firstScope = scopeForResolvedUrl(
+        kiriview::TestSupport::localUrl(QStringLiteral("/resolved/first/book.cbz")));
+    const kiriview::OpenedCollectionScopeLocation normalizedFirstScope = scopeForResolvedUrl(
+        kiriview::TestSupport::localUrl(QStringLiteral("/resolved/first/./book.cbz")));
+    const kiriview::OpenedCollectionScopeLocation reassignedScope = scopeForResolvedUrl(
+        kiriview::TestSupport::localUrl(QStringLiteral("/resolved/second/book.cbz")));
+
+    kiriview::NavigationSourceEntryFacts reassignedFacts;
+    reassignedFacts.documentPortalHostPath = QStringLiteral("/host/reassigned/book.cbz");
+    const kiriview::OpenedCollectionScopeLocation reassignedFactsScope
+        = kiriview::OpenedCollectionScopeLocation::fromResolvedSource(
+            kiriview::ResolvedNavigationSource(requestedUrl, reassignedFacts,
+                firstScope.navigationSourceUrl(), kiriview::NavigationSourceEntryKind::Archive),
+            rootUrl, kiriview::OpenedCollectionScopeKind::ComicBookArchive);
+
+    QVERIFY(kiriview::sameOpenedCollectionScopeLocation(firstScope, reassignedScope));
+    QVERIFY(kiriview::sameOpenedCollectionScopeSnapshot(firstScope, normalizedFirstScope));
+    QVERIFY(!kiriview::sameOpenedCollectionScopeSnapshot(firstScope, reassignedScope));
+    QVERIFY(!kiriview::sameOpenedCollectionScopeSnapshot(firstScope, reassignedFactsScope));
+
+    const QUrl pageUrl(QStringLiteral("zip:///collection/book.cbz/01.png"));
+    const kiriview::DisplayedImageLocation firstDisplay
+        = kiriview::DisplayedImageLocation::fromOpenedCollectionScope(pageUrl, firstScope);
+    const kiriview::DisplayedImageLocation reassignedDisplay
+        = kiriview::DisplayedImageLocation::fromOpenedCollectionScope(pageUrl, reassignedScope);
+    QVERIFY(firstDisplay != reassignedDisplay);
+    QCOMPARE(kiriview::displayScopeIdentityForLocation(firstDisplay),
+        kiriview::displayScopeIdentityForLocation(reassignedDisplay));
+
+    const QUrl requestedDirectoryUrl
+        = kiriview::TestSupport::localUrl(QStringLiteral("/portal/document/photos"));
+    const QUrl directoryRootUrl
+        = kiriview::TestSupport::localUrl(QStringLiteral("/portal/document/photos/"));
+    const auto directoryScopeForResolvedUrl = [&](const QUrl& resolvedUrl) {
+        return kiriview::OpenedCollectionScopeLocation::fromResolvedSource(
+            kiriview::ResolvedNavigationSource(requestedDirectoryUrl, {}, resolvedUrl,
+                kiriview::NavigationSourceEntryKind::Directory),
+            directoryRootUrl, kiriview::OpenedCollectionScopeKind::Directory);
+    };
+    const kiriview::OpenedCollectionScopeLocation firstDirectoryScope
+        = directoryScopeForResolvedUrl(
+            kiriview::TestSupport::localUrl(QStringLiteral("/resolved/first/photos")));
+    const kiriview::OpenedCollectionScopeLocation reassignedDirectoryScope
+        = directoryScopeForResolvedUrl(
+            kiriview::TestSupport::localUrl(QStringLiteral("/resolved/second/photos")));
+    QVERIFY(
+        kiriview::sameOpenedCollectionScopeLocation(firstDirectoryScope, reassignedDirectoryScope));
+    QVERIFY(!kiriview::sameOpenedCollectionScopeSnapshot(
+        firstDirectoryScope, reassignedDirectoryScope));
 }
 
 void TestImageLocation::directMediaDisplayIdentityPreservesResolvedNavigationScope()

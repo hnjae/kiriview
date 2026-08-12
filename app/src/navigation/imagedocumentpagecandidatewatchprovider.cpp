@@ -5,11 +5,14 @@
 
 #include "async/imagecallback.h"
 #include "imagedocumentpagecandidateitems.h"
+#include "location/sourcekey.h"
+#include "mediaformatregistry.h"
 #include "system/kiooperationfailure.h"
 
 #include <KCoreDirLister>
 #include <KIO/Job>
 #include <QPointer>
+#include <QSet>
 #include <QTimer>
 #include <chrono>
 #include <memory>
@@ -47,7 +50,7 @@ kiriview::ImageDocumentPageCandidateAdmissionResult imageDocumentPageCandidatesF
     KCoreDirLister* lister, const QUrl& directoryUrl)
 {
     return kiriview::imageDocumentPageNavigationCandidates(
-        lister->itemsForDir(directoryUrl, KCoreDirLister::AllItems));
+        directoryUrl, lister->itemsForDir(directoryUrl, KCoreDirLister::AllItems));
 }
 
 bool watchCanceled(const KCoreDirLister* lister)
@@ -55,8 +58,17 @@ bool watchCanceled(const KCoreDirLister* lister)
     return lister == nullptr || lister->property(CanceledProperty).toBool();
 }
 
-kiriview::ImageDocumentPageCandidateLoadError candidateAdmissionFailure(const QUrl& directoryUrl)
+kiriview::ImageDocumentPageCandidateLoadError candidateAdmissionFailure(
+    const QUrl& directoryUrl, kiriview::ImageDocumentPageCandidateAdmissionFailure failure)
 {
+    if (failure == kiriview::ImageDocumentPageCandidateAdmissionFailure::ScopeViolation) {
+        return kiriview::ImageDocumentPageCandidateLoadError {
+            kiriview::kioOperationValidationFailure(kiriview::KioOperationKind::DirectoryListing,
+                directoryUrl,
+                QStringLiteral(
+                    "ordinary sibling listing returned a candidate outside the requested scope"))
+        };
+    }
     return kiriview::ImageDocumentPageCandidateLoadError {
         kiriview::kioOperationResourceLimitFailure(kiriview::KioOperationKind::DirectoryListing,
             directoryUrl,
@@ -72,6 +84,7 @@ struct CandidateWatchRefreshState
     kiriview::ImageDocumentPageCandidateWatchSnapshotCallback changedSnapshot;
     kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback;
     kiriview::ImageDocumentPageCandidateRefreshAdmission admission;
+    kiriview::ImageDocumentPageCandidateFreshnessState freshness;
     quint64 scheduledEpoch = 0;
     bool initialSnapshotHandled = false;
 };
@@ -91,9 +104,11 @@ void runChangedSnapshotRefresh(const std::shared_ptr<CandidateWatchRefreshState>
     kiriview::ImageDocumentPageCandidateAdmissionResult candidates
         = imageDocumentPageCandidatesForLister(state->lister.data(), state->directoryUrl);
     if (candidates) {
+        state->freshness.apply(&*candidates);
         kiriview::invokeIfSet(state->changedSnapshot, std::move(*candidates));
     } else {
-        kiriview::invokeIfSet(state->errorCallback, candidateAdmissionFailure(state->directoryUrl));
+        kiriview::invokeIfSet(state->errorCallback,
+            candidateAdmissionFailure(state->directoryUrl, candidates.error()));
     }
 
     if (state->admission.finishRefresh()) {
@@ -155,25 +170,36 @@ kiriview::ImageIoJob startKCoreImageDocumentPageCandidateWatch(QObject* receiver
                 = imageDocumentPageCandidatesForLister(
                     refreshState->lister.data(), refreshState->directoryUrl);
             if (candidates) {
+                refreshState->freshness.apply(&*candidates);
                 kiriview::invokeIfSet(initialSnapshot, std::move(*candidates));
             } else {
                 kiriview::invokeIfSet(refreshState->errorCallback,
-                    candidateAdmissionFailure(refreshState->directoryUrl));
+                    candidateAdmissionFailure(refreshState->directoryUrl, candidates.error()));
             }
         });
     QObject::connect(lister, &KCoreDirLister::itemsAdded, context,
-        [refreshState](
-            const QUrl&, const KFileItemList&) { requestChangedSnapshotRefresh(refreshState); });
+        [refreshState](const QUrl&, const KFileItemList& items) {
+            if (refreshState->initialSnapshotHandled) {
+                refreshState->freshness.noteAddedItems(items);
+            }
+            requestChangedSnapshotRefresh(refreshState);
+        });
     QObject::connect(
-        lister, &KCoreDirLister::itemsDeleted, context, [refreshState](const KFileItemList&) {
+        lister, &KCoreDirLister::itemsDeleted, context, [refreshState](const KFileItemList& items) {
             if (refreshState->lister.isNull() || watchCanceled(refreshState->lister.data())) {
                 return;
             }
 
+            if (refreshState->initialSnapshotHandled) {
+                refreshState->freshness.noteDeletedItems(items);
+            }
             requestChangedSnapshotRefresh(refreshState);
         });
     QObject::connect(lister, &KCoreDirLister::refreshItems, context,
-        [refreshState](const QList<QPair<KFileItem, KFileItem>>&) {
+        [refreshState](const QList<QPair<KFileItem, KFileItem>>& items) {
+            if (refreshState->initialSnapshotHandled) {
+                refreshState->freshness.noteRefreshedItems(items);
+            }
             requestChangedSnapshotRefresh(refreshState);
         });
     QObject::connect(lister, &KCoreDirLister::clear, context,
@@ -216,6 +242,67 @@ kiriview::ImageIoJob startKCoreImageDocumentPageCandidateWatch(QObject* receiver
 }
 
 namespace kiriview {
+void ImageDocumentPageCandidateFreshnessState::noteAddedItems(const KFileItemList& items)
+{
+    for (const KFileItem& item : items) {
+        noteItem(item);
+    }
+}
+
+void ImageDocumentPageCandidateFreshnessState::noteDeletedItems(const KFileItemList& items)
+{
+    for (const KFileItem& item : items) {
+        noteItem(item);
+    }
+}
+
+void ImageDocumentPageCandidateFreshnessState::noteRefreshedItems(
+    const QList<QPair<KFileItem, KFileItem>>& items)
+{
+    for (const auto& [oldItem, newItem] : items) {
+        noteItem(oldItem);
+        noteItem(newItem);
+    }
+}
+
+void ImageDocumentPageCandidateFreshnessState::apply(
+    std::vector<ImageDocumentPageCandidate>* candidates)
+{
+    if (candidates == nullptr) {
+        return;
+    }
+
+    QSet<QString> retainedSources;
+    for (ImageDocumentPageCandidate& candidate : *candidates) {
+        const SourceKey sourceKey = sourceKeyForUrl(candidate.url);
+        candidate.sourceFreshness
+            = sourceKey.valid ? m_freshnessBySource.value(sourceKey.identity, 0) : 0;
+        if (sourceKey.valid) {
+            retainedSources.insert(sourceKey.identity);
+        }
+    }
+    m_freshnessBySource.removeIf([&retainedSources](const auto& freshness) {
+        return !retainedSources.contains(freshness.key());
+    });
+}
+
+void ImageDocumentPageCandidateFreshnessState::noteItem(const KFileItem& item)
+{
+    if (!isSupportedOrdinaryMediaFileName(item.name())) {
+        return;
+    }
+    const SourceKey sourceKey = sourceKeyForUrl(item.url());
+    if (!sourceKey.valid) {
+        return;
+    }
+
+    ++m_nextFreshness;
+    if (m_nextFreshness == 0) {
+        ++m_nextFreshness;
+    }
+    m_freshnessBySource.insert(sourceKey.identity, m_nextFreshness);
+}
+
 bool ImageDocumentPageCandidateRefreshAdmission::requestRefresh()
 {
     m_refreshRequested = true;

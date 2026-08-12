@@ -102,7 +102,7 @@ bool MediaEntrySourceRuntime::hasCurrentOpenedCollectionScope(
     const OpenedCollectionScopeLocation& openedCollectionScope) const
 {
     return hasCurrentOpenedCollectionScope()
-        && sameOpenedCollectionScopeLocation(
+        && sameOpenedCollectionScopeSnapshot(
             m_runner->openedCollectionScope(), openedCollectionScope);
 }
 

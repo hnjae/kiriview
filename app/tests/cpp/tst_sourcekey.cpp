@@ -25,8 +25,25 @@ private Q_SLOTS:
     void pathIdentityIsCaseSensitive();
     void localFileKeysDoNotResolveSymlinks();
     void thumbnailKeysKeepIdentityAndFreshnessSeparate();
+    void thumbnailKeysIncludeOwnerSourceFreshness();
     void thumbnailKeysDoNotCollideOnDelimiterContent();
 };
+
+void TestSourceKey::thumbnailKeysIncludeOwnerSourceFreshness()
+{
+    const QUrl url(QStringLiteral("file:///media/01.png"));
+    const auto first = kiriview::thumbnailSourceRevisionKey(1, url, QStringLiteral("01.png"),
+        QStringLiteral("image"), QStringLiteral("direct-image"), 7, 41);
+    const auto refreshed = kiriview::thumbnailSourceRevisionKey(1, url, QStringLiteral("01.png"),
+        QStringLiteral("image"), QStringLiteral("direct-image"), 7, 42);
+
+    QVERIFY(kiriview::sameThumbnailRowKey(first.row, refreshed.row));
+    QVERIFY(first != refreshed);
+    QHash<kiriview::ThumbnailSourceRevisionKey, int> revisions;
+    revisions.insert(first, 1);
+    revisions.insert(refreshed, 2);
+    QCOMPARE(revisions.size(), 2);
+}
 
 void TestSourceKey::emptyAndInvalidUrlsHaveInvalidKeys()
 {

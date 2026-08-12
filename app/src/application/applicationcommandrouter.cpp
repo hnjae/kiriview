@@ -155,10 +155,12 @@ void ApplicationCommandRouter::handleActionTriggered(ActionId actionId,
     case ActionId::HelpShortcutsAction:
         callVoid(ports.help.requestShortcutHelp);
         return;
+    case ActionId::OptionsConfigureKeybindingAction:
+        callVoid(ports.help.requestShortcutConfiguration);
+        return;
     case ActionId::OpenApplicationMenuAction:
         callVoid(ports.shell.openApplicationMenu);
         return;
-    case ActionId::OptionsConfigureKeybindingAction:
     case ActionId::OptionsShowMenubarAction:
     case ActionId::FileQuitAction:
     case ActionId::ActionCount:

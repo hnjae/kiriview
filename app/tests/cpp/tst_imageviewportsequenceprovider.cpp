@@ -605,6 +605,9 @@ private Q_SLOTS:
     void outOfOrderRefinementCannotDowngradeReusableAuthoritativeImage();
     void animationDemandRequestsOnlyTheSelectedFrame();
     void staleCompletionMayCacheButCannotPublish();
+    void providerFrameConstructionRequiresWorkspacePeak();
+    void providerFrameHandleRetainsWorkspaceThroughRelease_data();
+    void providerFrameHandleRetainsWorkspaceThroughRelease();
     void componentFrameHandlePinsStoreUntilRelease();
     void failureReferenceResolvesAndRetiresWithHandle();
 };
@@ -3968,6 +3971,94 @@ void TestImageViewportSequenceProvider::staleCompletionMayCacheButCannotPublish(
     QTRY_COMPARE(fixture.store->size(), qsizetype(1));
     QCOMPARE(viewport.state().request().status(), ImageViewportRequestStatus::NoRequest);
     QCOMPARE(viewport.state().display().status(), ImageViewportDisplayStatus::Empty);
+}
+
+void TestImageViewportSequenceProvider::providerFrameConstructionRequiresWorkspacePeak()
+{
+    constexpr qsizetype frameByteCount = 16 * 32 * 4;
+    auto source = std::make_shared<FakeImageViewportProviderSource>();
+    kiriview::StaticDisplayImagePayload payload
+        = displayPayload(kiriview::DisplayImageQuality::Exact, QSize(16, 32), QSize(16, 32));
+    payload.imageReaderTransform.transformations = QImageIOHandler::TransformationRotate90;
+    source->automaticFrame = kiriview::ImageViewportProviderFrameResult::ready(std::move(payload),
+        ImageSequenceProviderFrameEnvelope::stillFrame(), QStringLiteral("jpg"));
+    auto store = std::make_shared<kiriview::DisplayImageStore>(frameByteCount);
+    auto workspace = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        frameByteCount * 3 - 1, frameByteCount * 3 - 1);
+    auto resource = std::make_shared<kiriview::ImageViewportProviderResource>(91,
+        QStringLiteral("frame-workspace-rejection"), source, store,
+        std::make_shared<kiriview::ImageViewportFailureRegistry>(), workspace);
+    kiriview::ImageViewportProviderPreparedFrame prepared;
+
+    resource->requestFrame(
+        kiriview::ImageViewportProviderWorkIdentity {
+            91,
+            ImageViewportPageRole::Primary,
+            {},
+            {},
+            QStringLiteral("frame-workspace-rejection"),
+        },
+        {},
+        [&prepared](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderPreparedFrame result) { prepared = std::move(result); });
+
+    QVERIFY(prepared.isReady());
+    QScopedPointer<ImageSequenceProviderFrameHandle> handle(resource->acquireFrameHandle(prepared));
+    QVERIFY(handle.isNull());
+    QCOMPARE(workspace->reservedByteCount(), qsizetype(0));
+}
+
+void TestImageViewportSequenceProvider::providerFrameHandleRetainsWorkspaceThroughRelease_data()
+{
+    QTest::addColumn<int>("transformation");
+    QTest::addColumn<qsizetype>("constructionPeak");
+
+    constexpr qsizetype frameByteCount = 16 * 32 * 4;
+    QTest::newRow("identity") << int(QImageIOHandler::TransformationNone) << frameByteCount;
+    QTest::newRow("rotate-90") << int(QImageIOHandler::TransformationRotate90)
+                               << frameByteCount * 3;
+}
+
+void TestImageViewportSequenceProvider::providerFrameHandleRetainsWorkspaceThroughRelease()
+{
+    QFETCH(int, transformation);
+    QFETCH(qsizetype, constructionPeak);
+
+    constexpr qsizetype frameByteCount = 16 * 32 * 4;
+    auto source = std::make_shared<FakeImageViewportProviderSource>();
+    kiriview::StaticDisplayImagePayload payload
+        = displayPayload(kiriview::DisplayImageQuality::Exact, QSize(16, 32), QSize(16, 32));
+    payload.imageReaderTransform.transformations = QImageIOHandler::Transformations(
+        static_cast<QImageIOHandler::Transformation>(transformation));
+    source->automaticFrame = kiriview::ImageViewportProviderFrameResult::ready(std::move(payload),
+        ImageSequenceProviderFrameEnvelope::stillFrame(), QStringLiteral("jpg"));
+    auto workspace = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        constructionPeak, constructionPeak);
+    auto resource = std::make_shared<kiriview::ImageViewportProviderResource>(92,
+        QStringLiteral("frame-workspace-retention"), source,
+        std::make_shared<kiriview::DisplayImageStore>(frameByteCount),
+        std::make_shared<kiriview::ImageViewportFailureRegistry>(), workspace);
+    kiriview::ImageViewportProviderPreparedFrame prepared;
+    resource->requestFrame(
+        kiriview::ImageViewportProviderWorkIdentity {
+            92,
+            ImageViewportPageRole::Primary,
+            {},
+            {},
+            QStringLiteral("frame-workspace-retention"),
+        },
+        {},
+        [&prepared](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderPreparedFrame result) { prepared = std::move(result); });
+
+    QVERIFY(prepared.isReady());
+    QScopedPointer<ImageSequenceProviderFrameHandle> handle(resource->acquireFrameHandle(prepared));
+    QVERIFY(handle);
+    QVERIFY(handle->frame());
+    QVERIFY(handle->frame()->isValid());
+    QCOMPARE(workspace->reservedByteCount(), frameByteCount);
+    handle->release();
+    QCOMPARE(workspace->reservedByteCount(), qsizetype(0));
 }
 
 void TestImageViewportSequenceProvider::componentFrameHandlePinsStoreUntilRelease()

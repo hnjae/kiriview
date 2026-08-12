@@ -17,8 +17,8 @@ kiriview::ThumbnailSourceRevisionKey sourceKeyForRow(
 {
     return kiriview::thumbnailSourceRevisionKey(row.number, row.url, row.label,
         kiriview::activeNavigationThumbnailPageKindIdentity(row.kind),
-        kiriview::activeNavigationThumbnailSourceKindIdentity(row.sourceKind),
-        navigationGeneration);
+        kiriview::activeNavigationThumbnailSourceKindIdentity(row.sourceKind), navigationGeneration,
+        row.sourceFreshness);
 }
 
 quint64 nextNavigationGeneration(quint64 generation)
@@ -100,6 +100,12 @@ ActiveNavigationThumbnailRowUpdatePlan ActiveNavigationThumbnailRowStore::prepar
         if (kind != ActiveNavigationThumbnailRowUpdateKind::IdentityReplacement) {
             const RowState& existing = m_rows.at(row);
             if (!sameRowIdentity(existing.sourceKey.row, sourceKey.row)) {
+                kind = ActiveNavigationThumbnailRowUpdateKind::IdentityReplacement;
+                targetGeneration = nextNavigationGeneration(m_navigationGeneration);
+                sourceKeys.clear();
+                break;
+            }
+            if (existing.sourceKey.sourceFreshness != sourceKey.sourceFreshness) {
                 kind = ActiveNavigationThumbnailRowUpdateKind::IdentityReplacement;
                 targetGeneration = nextNavigationGeneration(m_navigationGeneration);
                 sourceKeys.clear();

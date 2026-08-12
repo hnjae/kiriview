@@ -76,6 +76,33 @@ QList<QKeySequence> shortcutsFromPortableTexts(const QStringList& texts)
     return shortcuts;
 }
 
+std::optional<QList<QKeySequence>> validatedShortcutsFromPortableTexts(const QStringList& texts)
+{
+    QList<QKeySequence> shortcuts;
+    shortcuts.reserve(texts.size());
+    for (const QString& text : texts) {
+        const QString trimmedText = text.trimmed();
+        if (trimmedText.isEmpty()) {
+            continue;
+        }
+        const QKeySequence shortcut
+            = QKeySequence::fromString(trimmedText, QKeySequence::PortableText);
+        if (shortcut.isEmpty() || shortcut.toString(QKeySequence::PortableText).isEmpty()) {
+            return std::nullopt;
+        }
+        for (int index = 0; index < shortcut.count(); ++index) {
+            if (shortcut[static_cast<uint>(index)].key() == Qt::Key_unknown) {
+                return std::nullopt;
+            }
+        }
+        if (!shortcuts.contains(shortcut)) {
+            shortcuts.push_back(shortcut);
+        }
+    }
+
+    return shortcuts;
+}
+
 QWindow* shortcutWindow(QObject* host)
 {
     auto* window = qobject_cast<QWindow*>(host);
@@ -186,6 +213,11 @@ QAbstractListModel* ApplicationShortcutRuntime::shortcutHelpModel() const
     return m_shortcutHelpModel.get();
 }
 
+QAbstractListModel* ApplicationShortcutRuntime::shortcutConfigurationModel() const
+{
+    return m_shortcutHelpModel.get();
+}
+
 void ApplicationShortcutRuntime::loadViewerLocalShortcuts()
 {
     KConfigGroup group(KSharedConfig::openConfig(), viewerLocalShortcutsGroup);
@@ -196,10 +228,9 @@ void ApplicationShortcutRuntime::loadViewerLocalShortcuts()
         }
 
         const QString actionKey = QString::fromLatin1(definition.name);
-        const QStringList storedTexts = group.readEntry(actionKey, QStringList());
-        m_viewerLocalShortcuts[*index] = storedTexts.isEmpty()
-            ? defaultShortcuts(definition.defaultViewerLocalShortcuts)
-            : shortcutsFromPortableTexts(storedTexts);
+        m_viewerLocalShortcuts[*index] = group.hasKey(actionKey)
+            ? shortcutsFromPortableTexts(group.readEntry(actionKey, QStringList()))
+            : defaultShortcuts(definition.defaultViewerLocalShortcuts);
     }
 }
 
@@ -267,11 +298,32 @@ QList<QKeySequence> ApplicationShortcutRuntime::viewerLocalShortcutsForId(Action
     return index.has_value() ? m_viewerLocalShortcuts[*index] : QList<QKeySequence>();
 }
 
+bool ApplicationShortcutRuntime::setProgramWideShortcutsForId(
+    ActionId actionId, const QList<QKeySequence>& shortcuts)
+{
+    if (!hasDeclaredShortcutSlot(actionId, ApplicationShortcutActivationScope::ProgramWide)) {
+        return false;
+    }
+
+    QAction* action = m_actionRegistry.actionForId(actionId);
+    if (action == nullptr || !KirigamiActionCollection::isShortcutsConfigurable(action)
+        || sanitizeProgramWideShortcuts(shortcuts) != shortcuts) {
+        return false;
+    }
+
+    action->setShortcuts(shortcuts);
+    m_host.mainActionCollection()->writeSettings(nullptr, false, action);
+    return true;
+}
+
 bool ApplicationShortcutRuntime::setViewerLocalShortcutsForId(
     ActionId actionId, const QList<QKeySequence>& shortcuts)
 {
     const std::optional<std::size_t> index = actionIndex(actionId);
-    if (!index.has_value()) {
+    QAction* action = m_actionRegistry.actionForId(actionId);
+    if (!index.has_value()
+        || !hasDeclaredShortcutSlot(actionId, ApplicationShortcutActivationScope::ViewerLocal)
+        || action == nullptr || !KirigamiActionCollection::isShortcutsConfigurable(action)) {
         return false;
     }
 
@@ -279,6 +331,25 @@ bool ApplicationShortcutRuntime::setViewerLocalShortcutsForId(
     persistViewerLocalShortcuts(actionId);
     notifyShortcutRowsChanged();
     return true;
+}
+
+bool ApplicationShortcutRuntime::setShortcutTextsForId(
+    ActionId actionId, ApplicationShortcutActivationScope scope, const QStringList& portableTexts)
+{
+    const std::optional<QList<QKeySequence>> shortcuts
+        = validatedShortcutsFromPortableTexts(portableTexts);
+    if (!shortcuts.has_value()) {
+        return false;
+    }
+
+    switch (scope) {
+    case ApplicationShortcutActivationScope::ProgramWide:
+        return setProgramWideShortcutsForId(actionId, *shortcuts);
+    case ApplicationShortcutActivationScope::ViewerLocal:
+        return setViewerLocalShortcutsForId(actionId, *shortcuts);
+    }
+
+    return false;
 }
 
 QString ApplicationShortcutRuntime::menuShortcutTextForId(ActionId actionId) const
@@ -522,7 +593,7 @@ QStringList shortcutKeyDisplayTextsForList(const QList<QKeySequence>& shortcuts)
 QList<ShortcutHelpRow> ApplicationShortcutRuntime::shortcutHelpRows() const
 {
     QList<ShortcutHelpRow> rows;
-    rows.reserve(static_cast<qsizetype>(definitions().size()));
+    rows.reserve(static_cast<qsizetype>(definitions().size()) * 2);
 
     const QList<RegisteredApplicationAction> registeredActions
         = m_actionRegistry.registeredActions();
@@ -540,7 +611,7 @@ QList<ShortcutHelpRow> ApplicationShortcutRuntime::shortcutHelpRows() const
         }
         const auto appendRow
             = [&](ApplicationShortcutActivationScope scope, const QList<QKeySequence>& shortcuts) {
-                  if (shortcuts.isEmpty()) {
+                  if (!hasDeclaredShortcutSlot(registeredAction.actionId, scope)) {
                       return;
                   }
                   const QStringList keyTexts = shortcutKeyDisplayTextsForList(shortcuts);
@@ -553,6 +624,10 @@ QList<ShortcutHelpRow> ApplicationShortcutRuntime::shortcutHelpRows() const
                       shortcutHelpCategoryText(category),
                       shortcutScopeText(scope),
                       keyTexts,
+                      false,
+                      false,
+                      static_cast<int>(scope),
+                      portableShortcutTexts(shortcuts),
                   });
               };
 
@@ -574,7 +649,7 @@ QList<ShortcutHelpRow> ApplicationShortcutRuntime::shortcutHelpRows() const
         if (left.actionId != right.actionId) {
             return left.actionId < right.actionId;
         }
-        return left.scopeText < right.scopeText;
+        return left.activationScope < right.activationScope;
     });
 
     for (qsizetype index = 0; index < rows.size(); ++index) {

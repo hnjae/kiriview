@@ -15,6 +15,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -23,6 +24,7 @@ class ImageWorkerTaskState final
 {
 public:
     using CancelCallback = std::move_only_function<void()>;
+    using RetirementCallback = std::function<void()>;
 
     explicit ImageWorkerTaskState(CancelCallback cancelCallback)
         : m_cancelCallback(std::move(cancelCallback))
@@ -66,10 +68,44 @@ public:
         return true;
     }
 
+    void setRetirementCallback(RetirementCallback callback)
+    {
+        RetirementCallback immediateCallback;
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (m_retired) {
+                immediateCallback = std::move(callback);
+            } else {
+                m_retirementCallback = std::move(callback);
+            }
+        }
+        if (immediateCallback) {
+            immediateCallback();
+        }
+    }
+
+    void retire()
+    {
+        RetirementCallback callback;
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (m_retired) {
+                return;
+            }
+            m_retired = true;
+            callback = std::move(m_retirementCallback);
+        }
+        if (callback) {
+            callback();
+        }
+    }
+
 private:
     mutable std::mutex m_mutex;
     CancelCallback m_cancelCallback;
+    RetirementCallback m_retirementCallback;
     bool m_active = false;
+    bool m_retired = false;
 };
 
 class ImageWorkerTaskCompletion final
@@ -93,6 +129,13 @@ public:
     template <typename Finish> bool claimAndRun(Finish&& finish) const
     {
         return m_state != nullptr && m_state->claimAndRun(std::forward<Finish>(finish));
+    }
+
+    void retire() const
+    {
+        if (m_state != nullptr) {
+            m_state->retire();
+        }
     }
 
 private:
@@ -134,6 +177,17 @@ public:
     [[nodiscard]] ImageWorkerTaskCompletion completion() const
     {
         return ImageWorkerTaskCompletion(m_state);
+    }
+
+    void setRetirementCallback(ImageWorkerTaskState::RetirementCallback callback)
+    {
+        if (m_state == nullptr) {
+            if (callback) {
+                callback();
+            }
+            return;
+        }
+        m_state->setRetirementCallback(std::move(callback));
     }
 
 private:
@@ -256,7 +310,68 @@ namespace Detail {
         QRunnable* m_runnable = nullptr;
     };
 
-    template <typename Work, typename Finish> class AsyncWorkerRunnable final : public QRunnable
+    class AsyncWorkerRetirement
+    {
+    public:
+        explicit AsyncWorkerRetirement(ImageWorkerTaskCompletion completion)
+            : m_completion(std::move(completion))
+        {
+        }
+
+        ~AsyncWorkerRetirement() { m_completion.retire(); }
+
+        AsyncWorkerRetirement(const AsyncWorkerRetirement&) = delete;
+        AsyncWorkerRetirement& operator=(const AsyncWorkerRetirement&) = delete;
+        AsyncWorkerRetirement(AsyncWorkerRetirement&&) = delete;
+        AsyncWorkerRetirement& operator=(AsyncWorkerRetirement&&) = delete;
+
+    protected:
+        void disarm() { m_completion = {}; }
+
+    private:
+        ImageWorkerTaskCompletion m_completion;
+    };
+
+    template <typename Result, typename Finish> class AsyncWorkerDeliveryPayload final
+    {
+    public:
+        AsyncWorkerDeliveryPayload(
+            ImageWorkerTaskCompletion completion, Result resultValue, Finish finishValue)
+            : m_completion(std::move(completion))
+            , m_result(std::move(resultValue))
+            , m_finish(std::move(finishValue))
+        {
+        }
+
+        ~AsyncWorkerDeliveryPayload()
+        {
+            m_finish.reset();
+            m_result.reset();
+            m_completion.retire();
+        }
+
+        Q_DISABLE_COPY_MOVE(AsyncWorkerDeliveryPayload)
+
+        void deliver()
+        {
+            if (!m_result.has_value() || !m_finish.has_value()) {
+                return;
+            }
+            Finish finish = std::move(*m_finish);
+            Result result = std::move(*m_result);
+            m_finish.reset();
+            m_result.reset();
+            finish(std::move(result));
+        }
+
+    private:
+        ImageWorkerTaskCompletion m_completion;
+        std::optional<Result> m_result;
+        std::optional<Finish> m_finish;
+    };
+
+    template <typename Work, typename Finish>
+    class AsyncWorkerRunnable final : public QRunnable, private AsyncWorkerRetirement
     {
     public:
         using Result = std::invoke_result_t<Work&>;
@@ -264,7 +379,8 @@ namespace Detail {
         AsyncWorkerRunnable(std::shared_ptr<AsyncWorkerQueueState> queueState,
             ImageWorkerTaskCompletion taskCompletion,
             std::shared_ptr<AsyncWorkerDeliveryState> delivery, Work work, Finish finish)
-            : m_queueState(std::move(queueState))
+            : AsyncWorkerRetirement(taskCompletion)
+            , m_queueState(std::move(queueState))
             , m_taskCompletion(std::move(taskCompletion))
             , m_delivery(std::move(delivery))
             , m_work(std::move(work))
@@ -272,6 +388,9 @@ namespace Detail {
         {
             setAutoDelete(false);
         }
+
+        ~AsyncWorkerRunnable() override = default;
+        Q_DISABLE_COPY_MOVE(AsyncWorkerRunnable)
 
         void run() override
         {
@@ -281,31 +400,36 @@ namespace Detail {
                 return;
             }
 
-            Result result = m_work();
-            Finish finish = std::move(m_finish);
-            if (!m_taskCompletion.isActive()) {
-                delete this;
-                return;
-            }
+            {
+                Result result = m_work();
+                if (m_taskCompletion.isActive()) {
+                    using DeliveryPayload
+                        = AsyncWorkerDeliveryPayload<std::decay_t<Result>, std::decay_t<Finish>>;
+                    auto payload = std::make_shared<DeliveryPayload>(
+                        m_taskCompletion, std::move(result), std::move(m_finish));
+                    disarm();
 
-            const std::shared_ptr<AsyncWorkerDeliveryState> delivery = m_delivery;
-            const bool queued = delivery->queue([&](QObject* relay) {
-                return QMetaObject::invokeMethod(
-                    relay,
-                    [delivery, taskCompletion = m_taskCompletion, finish = std::move(finish),
-                        result = std::move(result)]() mutable {
-                        AsyncWorkerRelayOwner relayOwner = delivery->takeRelay();
-                        if (relayOwner == nullptr || delivery->guardedContext() == nullptr) {
-                            taskCompletion.cancel();
-                            return;
-                        }
-                        taskCompletion.claimAndRun([&]() mutable { finish(std::move(result)); });
-                    },
-                    Qt::QueuedConnection);
-            });
-            if (!queued) {
-                delivery->releaseRelay();
-                m_taskCompletion.cancel();
+                    const std::shared_ptr<AsyncWorkerDeliveryState> delivery = m_delivery;
+                    ImageWorkerTaskCompletion taskCompletion = m_taskCompletion;
+                    const bool queued = delivery->queue([&](QObject* relay) {
+                        return QMetaObject::invokeMethod(
+                            relay,
+                            [delivery, taskCompletion, payload]() mutable {
+                                AsyncWorkerRelayOwner relayOwner = delivery->takeRelay();
+                                if (relayOwner == nullptr
+                                    || delivery->guardedContext() == nullptr) {
+                                    taskCompletion.cancel();
+                                    return;
+                                }
+                                taskCompletion.claimAndRun([&]() mutable { payload->deliver(); });
+                            },
+                            Qt::QueuedConnection);
+                    });
+                    if (!queued) {
+                        delivery->releaseRelay();
+                        m_taskCompletion.cancel();
+                    }
+                }
             }
             delete this;
         }

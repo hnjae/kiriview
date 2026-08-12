@@ -14,6 +14,7 @@
 #include <QList>
 #include <QPointer>
 #include <QString>
+#include <QStringList>
 #include <QVariantList>
 #include <QtQml/qqmlregistration.h>
 #include <memory>
@@ -39,6 +40,8 @@ class KiriViewApplication : public AbstractKirigamiApplication
     Q_PROPERTY(int shortcutRevision READ shortcutRevision NOTIFY shortcutRevisionChanged)
     Q_PROPERTY(int actionStateRevision READ actionStateRevision NOTIFY actionStateRevisionChanged)
     Q_PROPERTY(QAbstractListModel* shortcutHelpModel READ shortcutHelpModel CONSTANT)
+    Q_PROPERTY(
+        QAbstractListModel* shortcutConfigurationModel READ shortcutConfigurationModel CONSTANT)
 
 public:
     enum MenuPresentation {
@@ -94,6 +97,12 @@ public:
     };
     Q_ENUM(ActionId)
 
+    enum ShortcutScope {
+        ProgramWideShortcutScope = 0,
+        ViewerLocalShortcutScope,
+    };
+    Q_ENUM(ShortcutScope)
+
     enum NavigationPresentationSlot {
         LeadingImageActionSlot = 0,
         TrailingImageActionSlot,
@@ -116,6 +125,7 @@ public:
     [[nodiscard]] int shortcutRevision() const;
     [[nodiscard]] int actionStateRevision() const;
     [[nodiscard]] QAbstractListModel* shortcutHelpModel() const;
+    [[nodiscard]] QAbstractListModel* shortcutConfigurationModel() const;
 
     static kiriview::ApplicationActions::MenuPresentation domainMenuPresentation(
         KiriViewApplication::MenuPresentation presentation);
@@ -131,8 +141,12 @@ public:
         KiriViewApplication::ActionId actionId) const;
     Q_INVOKABLE [[nodiscard]] QList<QKeySequence> viewerLocalShortcutsForId(
         KiriViewApplication::ActionId actionId) const;
+    Q_INVOKABLE bool setProgramWideShortcutsForId(
+        KiriViewApplication::ActionId actionId, const QList<QKeySequence>& shortcuts);
     Q_INVOKABLE bool setViewerLocalShortcutsForId(
         KiriViewApplication::ActionId actionId, const QList<QKeySequence>& shortcuts);
+    Q_INVOKABLE bool setShortcutTextsForId(KiriViewApplication::ActionId actionId,
+        KiriViewApplication::ShortcutScope scope, const QStringList& portableTexts);
     Q_INVOKABLE [[nodiscard]] QString menuShortcutTextForId(
         KiriViewApplication::ActionId actionId) const;
     Q_INVOKABLE [[nodiscard]] bool actionPlacementEnabled(
@@ -181,6 +195,7 @@ Q_SIGNALS:
     void openDialogRequested();
     void openApplicationMenuRequested();
     void shortcutHelpRequested();
+    void shortcutConfigurationRequested();
     void cancelToolbarTextInputEditingRequested();
     void closeInfoPanelRequested();
     void toggleInfoPanelRequested();

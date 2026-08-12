@@ -73,6 +73,7 @@ private Q_SLOTS:
     void escapeClosesInfoPanelBeforeLeavingFullscreen();
     void panelShortcutsToggleResizablePanels();
     void commandFixedShortcutsUseApplicationActions();
+    void configureShortcutActionOpensApplicationOwnedDialog();
     void viewerRightClickOpensContextMenuOnlyFromMediaViewport();
     void toolbarZoomWheelAppliesFineManualStep();
     void rightButtonWheelSuppressesContextMenuTap();
@@ -1567,6 +1568,25 @@ void TestMainWindowToolBar::commandFixedShortcutsUseApplicationActions()
     QTest::keyClick(fixture.window, Qt::Key_F10);
     QTRY_COMPARE(openApplicationMenuSpy.count(), 1);
     QTRY_VERIFY(invokeBool(toolbar, "applicationMenuOpen"));
+}
+
+void TestMainWindowToolBar::configureShortcutActionOpensApplicationOwnedDialog()
+{
+    MainWindowFixture fixture = createMainWindowFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+
+    QObject* dialog = fixture.window->findChild<QObject*>(
+        QStringLiteral("shortcutConfigurationDialog"), Qt::FindChildrenRecursively);
+    QVERIFY(dialog != nullptr);
+    QVERIFY(!popupOpen(dialog));
+
+    QAction* configureAction
+        = fixture.application->actionForId(KiriViewApplication::OptionsConfigureKeybindingAction);
+    QVERIFY(configureAction != nullptr);
+    configureAction->trigger();
+
+    QTRY_VERIFY(popupOpen(dialog));
+    QTRY_VERIFY(fixture.window->property("helpDialogOpen").toBool());
 }
 
 void TestMainWindowToolBar::viewerRightClickOpensContextMenuOnlyFromMediaViewport()

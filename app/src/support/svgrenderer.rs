@@ -57,6 +57,10 @@ fn render_svg_image(data: &[u8], width: i32, height: i32) -> Option<Vec<u8>> {
 }
 
 fn parse_svg_tree(data: &[u8]) -> Option<Tree> {
+    if data.starts_with(&[0x1f, 0x8b]) {
+        return None;
+    }
+
     let options = svg_options();
     Tree::from_data(data, &options).ok()
 }
@@ -145,6 +149,19 @@ mod tests {
         assert!(render_svg_image(SVG, 12, 0).is_none());
         assert!(render_svg_image(SVG, -1, 8).is_none());
         assert!(render_svg_image(SVG, 12, -1).is_none());
+    }
+
+    #[test]
+    fn rejects_gzip_compressed_svg_input() {
+        const GZIP_COMPRESSED_SVG: &[u8] = &[
+            31, 139, 8, 0, 0, 0, 0, 0, 0, 3, 179, 41, 46, 75, 87, 168, 200, 205, 201, 43, 182, 85,
+            202, 40, 41, 41, 176, 210, 215, 47, 47, 47, 215, 43, 55, 214, 203, 47, 74, 215, 55, 50,
+            48, 48, 208, 7, 170, 80, 82, 40, 207, 76, 41, 201, 176, 85, 50, 52, 82, 82, 200, 72,
+            205, 76, 207, 40, 177, 85, 178, 80, 210, 183, 3, 0, 223, 158, 164, 196, 63, 0, 0, 0,
+        ];
+
+        assert!(!svg_intrinsic_size(GZIP_COMPRESSED_SVG).valid);
+        assert!(render_svg_image(GZIP_COMPRESSED_SVG, 12, 8).is_none());
     }
 
     #[test]

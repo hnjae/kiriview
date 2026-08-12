@@ -8,15 +8,23 @@
 #include <QPointer>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <utility>
 
 namespace kiriview {
+enum class ImageIoJobCancellationRetirement {
+    Synchronous,
+    Explicit,
+};
+
 class ImageIoJobState final
 {
 public:
     using CancelCallback = std::function<void(QObject*)>;
+    using RetirementCallback = std::function<void()>;
 
-    ImageIoJobState(QObject* object, CancelCallback cancelCallback);
+    ImageIoJobState(QObject* object, CancelCallback cancelCallback,
+        ImageIoJobCancellationRetirement cancellationRetirement);
 
     bool claim(QObject* object);
     template <typename Finish> bool claimAndRun(QObject* object, Finish&& finish)
@@ -29,6 +37,8 @@ public:
         return true;
     }
     void cancel();
+    void retire();
+    void setRetirementCallback(RetirementCallback callback);
     [[nodiscard]] bool isActive() const;
 
 private:
@@ -40,6 +50,11 @@ private:
     QPointer<QObject> m_token;
     QPointer<QObject> m_activeObject;
     CancelCallback m_cancelCallback;
+    ImageIoJobCancellationRetirement m_cancellationRetirement
+        = ImageIoJobCancellationRetirement::Synchronous;
+    mutable std::mutex m_retirementMutex;
+    RetirementCallback m_retirementCallback;
+    bool m_retired = false;
 };
 
 class ImageIoJobCompletion final
@@ -51,6 +66,7 @@ public:
     [[nodiscard]] QObject* object() const;
     [[nodiscard]] bool isActive() const;
     void cancel() const;
+    void retire() const;
 
     template <typename Finish> bool claimAndRun(Finish&& finish) const
     {
@@ -86,9 +102,12 @@ class ImageIoJob final
 {
 public:
     using CancelCallback = ImageIoJobState::CancelCallback;
+    using RetirementCallback = ImageIoJobState::RetirementCallback;
 
     ImageIoJob() = default;
-    ImageIoJob(QObject* object, CancelCallback cancelCallback);
+    ImageIoJob(QObject* object, CancelCallback cancelCallback,
+        ImageIoJobCancellationRetirement cancellationRetirement
+        = ImageIoJobCancellationRetirement::Synchronous);
     ~ImageIoJob();
 
     ImageIoJob(const ImageIoJob&) = delete;
@@ -97,6 +116,7 @@ public:
     ImageIoJob& operator=(ImageIoJob&& other) noexcept;
 
     void cancel();
+    void setRetirementCallback(RetirementCallback callback);
     [[nodiscard]] bool isActive() const;
     [[nodiscard]] ImageIoJobCompletion completion() const;
 

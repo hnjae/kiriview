@@ -10,6 +10,7 @@
 
 #include <QImage>
 #include <cstdint>
+#include <new>
 #include <utility>
 
 namespace {
@@ -68,7 +69,7 @@ kiriview::ThumbnailCacheLookupStatus thumbnailStatus(
     return kiriview::ThumbnailCacheLookupStatus::Failed;
 }
 
-kiriview::ThumbnailCacheLookupResult lookupThumbnailCache(
+kiriview::ThumbnailCacheLookupResult unadmittedThumbnailCacheLookup(
     const kiriview::ThumbnailCacheLookupRequest& request)
 {
     kiriview::RustThumbnailCacheLookupResult rustResult;
@@ -114,14 +115,82 @@ kiriview::ThumbnailCacheLookupResult lookupThumbnailCache(
 }
 
 namespace kiriview {
-ThumbnailCacheLookupProvider defaultThumbnailCacheLookupProvider(
-    ImageWorkerScheduler workerScheduler)
+ThumbnailCacheLookupResult lookupThumbnailCache(const ThumbnailCacheLookupRequest& request,
+    const std::shared_ptr<ImageDecodeWorkspaceBudget>& workspaceBudget)
 {
-    return [workerScheduler = std::move(workerScheduler)](QObject* receiver,
+    if (workspaceBudget == nullptr) {
+        return ThumbnailCacheLookupResult {
+            ThumbnailCacheLookupStatus::ResourceLimitExceeded,
+            {},
+            request.requestedBucket,
+            {},
+            {},
+            imageDecodeWorkspaceResourceLimitDiagnostic(),
+        };
+    }
+
+    constexpr QSize maximumCacheRasterSize(1024, 1024);
+    // Six full-size RGBA buffers conservatively cover the validated decoder canvas, normalized
+    // pixels, downscaler input/output and floating-point workspace, and the Rust-to-Qt copies.
+    const std::optional<qsizetype> peakByteCount
+        = checkedImageDecodeWorkspaceByteCount(maximumCacheRasterSize, 4, 6);
+    ImageDecodeWorkspaceLease workspaceLease = workspaceBudget->startLease();
+    if (!peakByteCount.has_value() || !workspaceLease.tryReserve(*peakByteCount)) {
+        return ThumbnailCacheLookupResult {
+            ThumbnailCacheLookupStatus::ResourceLimitExceeded,
+            {},
+            request.requestedBucket,
+            {},
+            {},
+            imageDecodeWorkspaceResourceLimitDiagnostic(),
+        };
+    }
+
+    ThumbnailCacheLookupResult result;
+    try {
+        result = unadmittedThumbnailCacheLookup(request);
+    } catch (const std::bad_alloc&) {
+        result.status = ThumbnailCacheLookupStatus::ResourceLimitExceeded;
+        result.requestedBucket = request.requestedBucket;
+        result.errorString = imageDecodeWorkspaceResourceLimitDiagnostic();
+        return result;
+    }
+    if (result.status != ThumbnailCacheLookupStatus::Ready) {
+        return result;
+    }
+
+    const qsizetype retainedByteCount = result.image.sizeInBytes();
+    ImageDecodeWorkspaceHold retainedWorkspace = workspaceLease.retainOnly(retainedByteCount);
+    if (!retainedWorkspace.isManaged()) {
+        result.status = ThumbnailCacheLookupStatus::ResourceLimitExceeded;
+        result.image = {};
+        result.errorString = imageDecodeWorkspaceResourceLimitDiagnostic();
+        return result;
+    }
+    result.image
+        = imageRetainingDecodeWorkspace(std::move(result.image), std::move(retainedWorkspace));
+    if (result.image.isNull()) {
+        result.status = ThumbnailCacheLookupStatus::ResourceLimitExceeded;
+        result.errorString = imageDecodeWorkspaceResourceLimitDiagnostic();
+    }
+    return result;
+}
+
+ThumbnailCacheLookupProvider defaultThumbnailCacheLookupProvider(
+    ImageWorkerScheduler workerScheduler,
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget)
+{
+    if (workspaceBudget == nullptr) {
+        workspaceBudget = defaultImageDecodeWorkspaceBudget();
+    }
+    return [workerScheduler = std::move(workerScheduler),
+               workspaceBudget = std::move(workspaceBudget)](QObject* receiver,
                ThumbnailCacheLookupRequest request, ThumbnailCacheLookupCallback callback) {
         return startImageIoWorkerJob(
             receiver, workerScheduler,
-            [request = std::move(request)]() { return lookupThumbnailCache(request); },
+            [request = std::move(request), workspaceBudget]() {
+                return lookupThumbnailCache(request, workspaceBudget);
+            },
             [callback = std::move(callback)](ThumbnailCacheLookupResult result) mutable {
                 if (callback) {
                     callback(std::move(result));

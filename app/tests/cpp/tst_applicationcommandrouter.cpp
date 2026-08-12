@@ -137,6 +137,8 @@ ApplicationCommandRouterPorts commandPorts(CommandLog& log)
         = [&log]() { log.actionCalls.push_back(QStringLiteral("toggle-fullscreen")); };
     ports.help.requestShortcutHelp
         = [&log]() { log.actionCalls.push_back(QStringLiteral("shortcut-help")); };
+    ports.help.requestShortcutConfiguration
+        = [&log]() { log.actionCalls.push_back(QStringLiteral("shortcut-configuration")); };
     ports.shell.openApplicationMenu
         = [&log]() { log.actionCalls.push_back(QStringLiteral("open-application-menu")); };
     ports.video.videoAvailable = [&log]() { return log.videoAvailable; };
@@ -257,6 +259,7 @@ void TestApplicationCommandRouter::actionDispatchRoutesToPorts()
     router.handleActionTriggered(ActionId::ViewScanBackwardAction, input, ports);
     router.handleActionTriggered(ActionId::WindowFullscreenAction, input, ports);
     router.handleActionTriggered(ActionId::HelpShortcutsAction, input, ports);
+    router.handleActionTriggered(ActionId::OptionsConfigureKeybindingAction, input, ports);
     router.handleActionTriggered(ActionId::OpenApplicationMenuAction, input, ports);
     router.handleActionTriggered(ActionId::ActionCount, input, ports);
 
@@ -293,6 +296,7 @@ void TestApplicationCommandRouter::actionDispatchRoutesToPorts()
         QStringLiteral("previous-navigation"),
         QStringLiteral("toggle-fullscreen"),
         QStringLiteral("shortcut-help"),
+        QStringLiteral("shortcut-configuration"),
         QStringLiteral("open-application-menu"),
     };
     QCOMPARE(log.actionCalls, expectedCalls);

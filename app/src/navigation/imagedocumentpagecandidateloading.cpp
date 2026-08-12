@@ -10,26 +10,18 @@
 #include <utility>
 
 namespace {
-kiriview::KioOperationFailure candidateAdmissionFailure(const QUrl& directoryUrl)
+kiriview::KioOperationFailure candidateAdmissionFailure(
+    const QUrl& directoryUrl, kiriview::ImageDocumentPageCandidateAdmissionFailure failure)
 {
-    return kiriview::kioOperationResourceLimitFailure(kiriview::KioOperationKind::DirectoryListing,
+    if (failure == kiriview::ImageDocumentPageCandidateAdmissionFailure::ResourceLimitExceeded) {
+        return kiriview::kioOperationResourceLimitFailure(
+            kiriview::KioOperationKind::DirectoryListing, directoryUrl,
+            QStringLiteral("ordinary sibling listing exceeds the configured resource limits"));
+    }
+    return kiriview::kioOperationValidationFailure(kiriview::KioOperationKind::DirectoryListing,
         directoryUrl,
-        QStringLiteral("ordinary sibling listing exceeds the configured resource limits"));
-}
-
-template <typename CandidateCallback, typename CandidateFactory>
-kiriview::ImageIoJob startDirectoryCandidateList(QObject* receiver, const QUrl& directoryUrl,
-    CandidateCallback callback, kiriview::KioOperationFailureCallback errorCallback,
-    kiriview::DirectoryItemListProvider directoryItemListProvider,
-    CandidateFactory candidateFactory)
-{
-    return kiriview::startDirectoryItemList(
-        receiver, directoryUrl,
-        [callback = std::move(callback), candidateFactory = std::move(candidateFactory)](
-            const KFileItemList& items) mutable {
-            kiriview::invokeIfSet(callback, candidateFactory(items));
-        },
-        std::move(errorCallback), std::move(directoryItemListProvider));
+        QStringLiteral(
+            "ordinary sibling listing returned a candidate outside the requested scope"));
 }
 }
 
@@ -51,9 +43,10 @@ ImageIoJob startDirectoryImageDocumentPageCandidateList(QObject* receiver, const
         [callback = std::move(callback), errorCallback = std::move(admissionErrorCallback),
             directoryUrl](const KFileItemList& items) mutable {
             ImageDocumentPageCandidateAdmissionResult admitted
-                = imageDocumentPageNavigationCandidates(items);
+                = imageDocumentPageNavigationCandidates(directoryUrl, items);
             if (!admitted) {
-                invokeIfSet(errorCallback, candidateAdmissionFailure(directoryUrl));
+                invokeIfSet(
+                    errorCallback, candidateAdmissionFailure(directoryUrl, admitted.error()));
                 return;
             }
             invokeIfSet(callback, std::move(*admitted));
@@ -64,16 +57,28 @@ ImageIoJob startDirectoryImageDocumentPageCandidateList(QObject* receiver, const
 ImageIoJob startDirectoryContainerCandidateList(QObject* receiver, const QUrl& directoryUrl,
     ContainerCandidatesCallback callback, KioOperationFailureCallback errorCallback)
 {
-    return startDirectoryCandidateList(receiver, directoryUrl, std::move(callback),
-        std::move(errorCallback), {}, containerNavigationCandidates);
+    return startDirectoryContainerCandidateList(
+        receiver, directoryUrl, std::move(callback), std::move(errorCallback), {});
 }
 
 ImageIoJob startDirectoryContainerCandidateList(QObject* receiver, const QUrl& directoryUrl,
     ContainerCandidatesCallback callback, KioOperationFailureCallback errorCallback,
     DirectoryItemListProvider directoryItemListProvider)
 {
-    return startDirectoryCandidateList(receiver, directoryUrl, std::move(callback),
-        std::move(errorCallback), std::move(directoryItemListProvider),
-        containerNavigationCandidates);
+    KioOperationFailureCallback admissionErrorCallback = errorCallback;
+    return startDirectoryItemList(
+        receiver, directoryUrl,
+        [callback = std::move(callback), errorCallback = std::move(admissionErrorCallback),
+            directoryUrl](const KFileItemList& items) mutable {
+            ContainerNavigationCandidateAdmissionResult admitted
+                = containerNavigationCandidates(directoryUrl, items);
+            if (!admitted) {
+                invokeIfSet(
+                    errorCallback, candidateAdmissionFailure(directoryUrl, admitted.error()));
+                return;
+            }
+            invokeIfSet(callback, std::move(*admitted));
+        },
+        std::move(errorCallback), std::move(directoryItemListProvider));
 }
 }

@@ -98,6 +98,10 @@ StatefulApp.StatefulWindow {
             shortcutHelpDialog.open();
         }
 
+        function onShortcutConfigurationRequested() {
+            shortcutConfigurationDialog.open();
+        }
+
         function onToggleInfoPanelRequested() {
             mediaWorkspaceHost.toggleInfoPanel();
         }
@@ -313,6 +317,16 @@ StatefulApp.StatefulWindow {
     ShortcutHelpDialog {
         id: shortcutHelpDialog
 
+        application: root.kiriApplication
+
+        onClosed: root.helpDialogOpen = false
+        onOpened: root.helpDialogOpen = true
+    }
+
+    ShortcutConfigurationDialog {
+        id: shortcutConfigurationDialog
+
+        objectName: "shortcutConfigurationDialog"
         application: root.kiriApplication
 
         onClosed: root.helpDialogOpen = false

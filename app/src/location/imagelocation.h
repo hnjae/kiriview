@@ -206,6 +206,8 @@ private:
 
 bool sameOpenedCollectionScopeLocation(
     const OpenedCollectionScopeLocation& left, const OpenedCollectionScopeLocation& right);
+bool sameOpenedCollectionScopeSnapshot(
+    const OpenedCollectionScopeLocation& left, const OpenedCollectionScopeLocation& right);
 
 class DisplayedImageLocation
 {
@@ -271,7 +273,8 @@ public:
     void setImageUrl(const QUrl& url) { m_image = ImageLocation::fromUrl(url); }
     friend bool operator==(const DisplayedImageLocation& left, const DisplayedImageLocation& right)
     {
-        if (left.m_openedCollectionScope != right.m_openedCollectionScope) {
+        if (!sameOpenedCollectionScopeSnapshot(
+                left.m_openedCollectionScope, right.m_openedCollectionScope)) {
             return false;
         }
         if (!left.m_openedCollectionScope.isEmpty()) {

@@ -10,7 +10,10 @@
 #include "imagedocumentpagecandidateloaderror.h"
 #include "imagedocumentpagenavigationtypes.h"
 
+#include <KFileItem>
+#include <QHash>
 #include <QList>
+#include <QString>
 #include <QUrl>
 #include <QtGlobal>
 #include <functional>
@@ -19,6 +22,20 @@
 class QObject;
 
 namespace kiriview {
+class ImageDocumentPageCandidateFreshnessState final
+{
+public:
+    void noteAddedItems(const KFileItemList& items);
+    void noteDeletedItems(const KFileItemList& items);
+    void noteRefreshedItems(const QList<QPair<KFileItem, KFileItem>>& items);
+    void apply(std::vector<ImageDocumentPageCandidate>* candidates);
+
+private:
+    void noteItem(const KFileItem& item);
+    QHash<QString, quint64> m_freshnessBySource;
+    quint64 m_nextFreshness = 0;
+};
+
 class ImageDocumentPageCandidateRefreshAdmission final
 {
 public:

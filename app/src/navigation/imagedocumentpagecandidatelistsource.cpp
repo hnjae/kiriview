@@ -27,7 +27,7 @@ bool sameImageDocumentPageCandidateListSourcePayload(
     const kiriview::ImageDocumentPageCandidateListSource::OpenedCollectionScope& left,
     const kiriview::ImageDocumentPageCandidateListSource::OpenedCollectionScope& right)
 {
-    return kiriview::sameOpenedCollectionScopeLocation(
+    return kiriview::sameOpenedCollectionScopeSnapshot(
         left.openedCollectionScope, right.openedCollectionScope);
 }
 

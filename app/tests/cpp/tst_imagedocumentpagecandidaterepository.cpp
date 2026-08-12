@@ -47,10 +47,38 @@ class TestImageDocumentPageCandidateRepository : public QObject
 private Q_SLOTS:
     void loadImagesRoutesDirectorySources();
     void loadImagesPreservesTypedDirectoryFailure();
+    void loadImagesRejectsForeignProviderCandidatesAtomically();
     void loadImagesRoutesArchiveSources();
     void loadContainersRoutesDirectoryContainerSources();
     void watchCandidateChangesRoutesDirectorySources();
 };
+
+void TestImageDocumentPageCandidateRepository::
+    loadImagesRejectsForeignProviderCandidatesAtomically()
+{
+    FakeImageDocumentPageCandidateProvider fakeProvider;
+    const QUrl directoryUrl = localUrl(QStringLiteral("/books/a/"));
+    fakeProvider.setDirectoryImages(directoryUrl,
+        { imageDocumentPageCandidate(localUrl(QStringLiteral("/books/a/01.png"))),
+            imageDocumentPageCandidate(localUrl(QStringLiteral("/foreign/02.png"))) });
+
+    kiriview::ImageDocumentPageCandidateRepository repository(fakeProvider.provider());
+    int successCount = 0;
+    std::optional<kiriview::ImageDocumentPageCandidateLoadError> actualError;
+    repository.loadImages(
+        nullptr, ImageDocumentPageCandidateListSource::forDirectory(directoryUrl),
+        [&successCount](std::vector<ImageDocumentPageCandidate>) { ++successCount; },
+        [&actualError](kiriview::ImageDocumentPageCandidateLoadError error) {
+            actualError = std::move(error);
+        });
+
+    QCOMPARE(successCount, 0);
+    QVERIFY(actualError.has_value());
+    const auto* failure = std::get_if<kiriview::KioOperationFailure>(&*actualError);
+    QVERIFY(failure != nullptr);
+    QCOMPARE(failure->cause, kiriview::KioOperationFailureCause::Validation);
+    QCOMPARE(failure->targetUrl, directoryUrl);
+}
 
 void TestImageDocumentPageCandidateRepository::loadImagesRoutesDirectorySources()
 {

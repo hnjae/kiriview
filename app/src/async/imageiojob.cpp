@@ -9,10 +9,12 @@
 #include <utility>
 
 namespace kiriview {
-ImageIoJobState::ImageIoJobState(QObject* object, CancelCallback cancelCallback)
+ImageIoJobState::ImageIoJobState(QObject* object, CancelCallback cancelCallback,
+    ImageIoJobCancellationRetirement cancellationRetirement)
     : m_token(object)
     , m_activeObject(object)
     , m_cancelCallback(std::move(cancelCallback))
+    , m_cancellationRetirement(cancellationRetirement)
 {
 }
 
@@ -24,6 +26,7 @@ bool ImageIoJobState::claim(QObject* object)
 
     m_activeObject.clear();
     m_cancelCallback = {};
+    retire();
     return true;
 }
 
@@ -31,6 +34,9 @@ void ImageIoJobState::cancel()
 {
     if (m_activeObject.isNull()) {
         m_cancelCallback = {};
+        if (m_cancellationRetirement == ImageIoJobCancellationRetirement::Synchronous) {
+            retire();
+        }
         return;
     }
 
@@ -38,6 +44,39 @@ void ImageIoJobState::cancel()
     CancelCallback cancelCallback = std::move(m_cancelCallback);
     m_activeObject.clear();
     invokeIfSet(cancelCallback, object);
+    if (m_cancellationRetirement == ImageIoJobCancellationRetirement::Synchronous) {
+        retire();
+    }
+}
+
+void ImageIoJobState::retire()
+{
+    RetirementCallback callback;
+    {
+        const std::scoped_lock lock(m_retirementMutex);
+        if (m_retired) {
+            return;
+        }
+        m_retired = true;
+        callback = std::move(m_retirementCallback);
+    }
+    invokeIfSet(callback);
+}
+
+void ImageIoJobState::setRetirementCallback(RetirementCallback callback)
+{
+    bool invokeNow = false;
+    {
+        const std::scoped_lock lock(m_retirementMutex);
+        if (m_retired) {
+            invokeNow = true;
+        } else {
+            m_retirementCallback = std::move(callback);
+        }
+    }
+    if (invokeNow) {
+        invokeIfSet(callback);
+    }
 }
 
 bool ImageIoJobState::isActive() const { return !m_activeObject.isNull(); }
@@ -65,8 +104,17 @@ void ImageIoJobCompletion::cancel() const
     m_state->cancel();
 }
 
-ImageIoJob::ImageIoJob(QObject* object, CancelCallback cancelCallback)
-    : m_state(std::make_shared<ImageIoJobState>(object, std::move(cancelCallback)))
+void ImageIoJobCompletion::retire() const
+{
+    if (m_state != nullptr) {
+        m_state->retire();
+    }
+}
+
+ImageIoJob::ImageIoJob(QObject* object, CancelCallback cancelCallback,
+    ImageIoJobCancellationRetirement cancellationRetirement)
+    : m_state(std::make_shared<ImageIoJobState>(
+          object, std::move(cancelCallback), cancellationRetirement))
 {
 }
 
@@ -90,6 +138,15 @@ void ImageIoJob::cancel()
     }
 
     m_state->cancel();
+}
+
+void ImageIoJob::setRetirementCallback(RetirementCallback callback)
+{
+    if (m_state == nullptr) {
+        invokeIfSet(callback);
+        return;
+    }
+    m_state->setRetirementCallback(std::move(callback));
 }
 
 bool ImageIoJob::isActive() const { return m_state != nullptr && m_state->isActive(); }

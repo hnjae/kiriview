@@ -147,25 +147,12 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
     rolePlayback.position = loop ? 0 : p.facts.timingIntervals.totalDuration();
     rolePlayback.stopWhenRequestReady = !loop;
     DisplayRequestTarget target { frame, pos, ProviderRequestTargetKind::Playback };
-    if (in.role == ImageViewportPageRole::Secondary) {
-        auto primary = a.m_request.roles[0].activeRequest;
-        a.m_request.beginDisplayRequest(
-            DisplayRequestOrigin::Playback, primary.target, primary.resolvedFrame, false);
-        auto& s = a.m_request.roles[1].activeRequest;
-        s.identity = a.m_request.roles[0].activeRequest.identity;
-        s.target = target;
-        s.resolvedFrame = { frame, pos };
-        s.preparedPayloadId = a.m_request.roles[0].activeRequest.preparedPayloadId;
-    } else {
-        a.m_request.roles[0].activeRequest.target = target;
-        a.m_request.roles[0].activeRequest.resolvedFrame = { frame, pos };
-    }
-    bool same = in.role == ImageViewportPageRole::Primary && !loop
-        && a.m_display.hasReadyDisplay(a.m_request.roles[0].source.facts.present)
-        && a.m_display.roles[0].displayedRequest.generation == a.m_request.sequenceGeneration
-        && a.m_display.roles[0].displayedRequest.request.resolvedFrame.frame == frame
-        && a.m_display.roles[0].displayedRequest.request.resolvedFrame.position == pos;
+    r.target = target;
+    r.resolvedFrame = { frame, pos };
+    const bool same
+        = !loop && viewportEngineVisibleTargetSpreadMatchesActiveTargets(a.m_request, a.m_display);
     if (same) {
+        promoteViewportEngineVisibleTargetSpread(a.m_request, a.m_display);
         a.m_request.status = ImageViewportRequestStatus::Ready;
         a.m_request.reason = ImageViewportRequestReason::Ready;
         a.m_display.status = ImageViewportDisplayStatus::Ready;

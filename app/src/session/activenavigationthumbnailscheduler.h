@@ -83,6 +83,8 @@ public:
         const std::vector<ThumbnailSourceRevisionKey>& residencyLosses, bool admissionOpportunity);
     std::vector<ActiveNavigationThumbnailScheduleEffect> acceptCompletion(
         ActiveNavigationThumbnailWorkCompletion completion);
+    std::vector<ActiveNavigationThumbnailScheduleEffect> acceptRetirement(
+        ActiveNavigationThumbnailWorkId workId);
     std::vector<ActiveNavigationThumbnailScheduleEffect> continueAdmission(quint64 admissionEpoch);
 
 private:
@@ -147,6 +149,7 @@ private:
     void reclassifyCurrentRow(
         std::size_t row, std::vector<ActiveNavigationThumbnailScheduleEffect>& effects);
     ActiveNavigationThumbnailWorkId nextWorkId();
+    [[nodiscard]] bool workIdInUse(ActiveNavigationThumbnailWorkId workId) const;
     void cancel(std::size_t row, std::vector<ActiveNavigationThumbnailScheduleEffect>& effects);
     void start(std::size_t row, ActiveNavigationThumbnailWorkKind kind, Tier tier,
         const Demand& demand, std::vector<ActiveNavigationThumbnailScheduleEffect>& effects);
@@ -174,6 +177,7 @@ private:
     QHash<ThumbnailDemandKey, std::size_t> m_rowByDemandIdentity;
     QHash<ThumbnailSourceRevisionKey, std::size_t> m_rowBySourceIdentity;
     QHash<int, std::size_t> m_rowByNumber;
+    QHash<quint64, Claim> m_retiringWork;
 };
 }
 

@@ -38,13 +38,15 @@ struct ThumbnailSourceRevisionKey
     ThumbnailRowKey row;
     QUrl sourceUrl;
     quint64 navigationGeneration = 0;
+    quint64 sourceFreshness = 0;
 };
 
 SourceKey sourceKeyForUrl(const QUrl& url);
 ThumbnailDemandKey thumbnailDemandKey(int rowNumber, const QUrl& url, quint64 navigationGeneration);
 ThumbnailSourceRevisionKey thumbnailSourceRevisionKey(int rowNumber, const QUrl& url,
     const QString& label, const QString& pageKind, const QString& sourceKind,
-    quint64 navigationGeneration);
+    quint64 navigationGeneration, quint64 sourceFreshness = 0);
+bool sourceBelongsToDirectoryScope(const QUrl& sourceUrl, const QUrl& directoryUrl);
 bool sameSourceKey(const SourceKey& left, const SourceKey& right);
 bool isValidThumbnailRowKey(const ThumbnailRowKey& key);
 bool isValidThumbnailDemandKey(const ThumbnailDemandKey& key);

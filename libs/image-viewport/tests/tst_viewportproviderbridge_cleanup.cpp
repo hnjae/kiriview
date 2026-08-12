@@ -227,8 +227,9 @@ public:
 
     ViewportProviderExecutorOutcome releaseFrameHandle(
         const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
-        ImageSequenceProviderFrameHandle* frameHandle) override
+        ImageSequenceProviderFrameHandle* frameHandle, std::function<void()>&& completion) override
     {
+        auto ownedCompletion = std::move(completion);
         ++releaseAttempts;
         if (releaseFailuresRemaining > 0) {
             --releaseFailuresRemaining;
@@ -236,6 +237,7 @@ public:
         }
         delete frameHandle;
         sessionControl->completeHandleReleaseOnSessionAffinity();
+        ownedCompletion();
         return ViewportProviderExecutorOutcome::Completed;
     }
 
@@ -275,9 +277,10 @@ public:
     }
 
     ViewportProviderExecutorOutcome releaseFrameHandle(
-        const std::shared_ptr<ViewportProviderSessionControl>&,
-        ImageSequenceProviderFrameHandle*) override
+        const std::shared_ptr<ViewportProviderSessionControl>&, ImageSequenceProviderFrameHandle*,
+        std::function<void()>&& completion) override
     {
+        [[maybe_unused]] auto rejectedCompletion = std::move(completion);
         return ViewportProviderExecutorOutcome::RetryableFailure;
     }
 
@@ -369,6 +372,8 @@ public:
 
 private Q_SLOTS:
     void releaseFailureRetainsLeaseUntilRetrySucceeds();
+    void queuedHandleCleanupRemainsPendingUntilAffinityExecution_data();
+    void queuedHandleCleanupRemainsPendingUntilAffinityExecution();
     void pendingSessionCleanupSurvivesBridgeDestruction();
     void scheduledCloseIsNotDuplicatedAfterBridgeDestruction();
     void completedSessionsDoNotAccumulateEventEndpoints();
@@ -425,6 +430,95 @@ void ViewportProviderBridgeCleanupTest::releaseFailureRetainsLeaseUntilRetrySucc
     QVERIFY(!fixture.handle);
     QVERIFY(!fixture.session);
     QVERIFY(!fixture.bridge.hasPendingCleanup());
+}
+
+void ViewportProviderBridgeCleanupTest::
+    queuedHandleCleanupRemainsPendingUntilAffinityExecution_data()
+{
+    QTest::addColumn<ImageSequenceProviderThreadingContract>("threadingContract");
+
+    QTest::newRow("affinity-bound") << ImageSequenceProviderThreadingContract::AffinityBound;
+    QTest::newRow("thread-safe") << ImageSequenceProviderThreadingContract::ThreadSafe;
+}
+
+void ViewportProviderBridgeCleanupTest::queuedHandleCleanupRemainsPendingUntilAffinityExecution()
+{
+    QFETCH(ImageSequenceProviderThreadingContract, threadingContract);
+
+    QThread workerThread;
+    workerThread.start();
+    QSemaphore workerBlocked;
+    QSemaphore releaseWorker;
+    bool workerReleased = false;
+    const auto workerCleanup = qScopeGuard([&]() {
+        if (!workerReleased) {
+            releaseWorker.release();
+        }
+        workerThread.quit();
+        workerThread.wait(1000);
+    });
+    QObject workerMarker;
+    workerMarker.moveToThread(&workerThread);
+    QVERIFY(QMetaObject::invokeMethod(
+        &workerMarker,
+        [&]() {
+            workerBlocked.release();
+            releaseWorker.acquire();
+        },
+        Qt::QueuedConnection));
+    workerBlocked.acquire();
+
+    QObject callbackTarget;
+    ViewportProviderBridge bridge;
+    bridge.useSynchronousEventDeliveryForTest();
+    QPointer<CleanupSession> session;
+    auto factory = std::make_shared<ImageSequenceProviderSessionFactory>([&]() {
+        auto* created = new CleanupSession;
+        created->moveToThread(&workerThread);
+        session = created;
+        return ImageSequenceProviderSessionFactoryResult::created(created);
+    });
+    ViewportProviderEvent event;
+    const auto opened = bridge.openSession({ factory, threadingContract, 17, 23, &callbackTarget,
+        [&](const ViewportProviderEvent& value) { event = value; } });
+    QVERIFY(opened.isOpened());
+    QVERIFY(session);
+
+    std::atomic<int> releaseCount { 0 };
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    QPointer<ImageSequenceProviderFrameHandle> handle
+        = new ImageSequenceProviderFrameHandle(new ImageFrame(image), [&](ImageFrame* frame) {
+              releaseCount.fetch_add(1);
+              delete frame;
+          });
+    std::unique_ptr<ImageSequenceProviderFrameHandle> owner(handle);
+    QCOMPARE(session->submitEvent(ImageSequenceProviderEvent::frameReady(
+                 {}, handle, ImageSequenceProviderFrameEnvelope::stillFrame())),
+        ImageSequenceProviderEventSubmissionOutcome::Accepted);
+    [[maybe_unused]] auto* const transferredHandle = owner.release();
+    QVERIFY(event.frameLeaseId != 0);
+    bridge.completeFrameEventDelivery(event.frameLeaseId);
+    bridge.completeProviderEventDelivery(event.deliveryId);
+    bridge.reconcileLeases({});
+
+    const ViewportProviderCleanupResult scheduled = bridge.drainCleanup();
+
+    QVERIFY(scheduled.progress);
+    QVERIFY(scheduled.pending);
+    QVERIFY(bridge.hasPendingCleanup());
+    QVERIFY(handle);
+    QCOMPARE(releaseCount.load(),
+        threadingContract == ImageSequenceProviderThreadingContract::ThreadSafe ? 1 : 0);
+
+    releaseWorker.release();
+    workerReleased = true;
+    QTRY_VERIFY(!handle);
+    QTRY_COMPARE(releaseCount.load(), 1);
+    QTRY_VERIFY(!bridge.hasPendingCleanup());
+
+    QVERIFY(bridge.closeSession({}, {}).delivered);
+    QTRY_VERIFY(!session);
 }
 
 void ViewportProviderBridgeCleanupTest::pendingSessionCleanupSurvivesBridgeDestruction()

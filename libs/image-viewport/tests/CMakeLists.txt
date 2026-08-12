@@ -5,7 +5,8 @@ add_library(imageviewport_core_test_support INTERFACE)
 
 target_link_libraries(imageviewport_core_test_support INTERFACE ImageViewport Qt6::Test)
 
-target_include_directories(imageviewport_core_test_support INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(imageviewport_core_test_support INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}
+                                                                     ${PROJECT_SOURCE_DIR}/src)
 target_compile_definitions(imageviewport_core_test_support
                            INTERFACE IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1)
 
@@ -21,8 +22,7 @@ target_compile_definitions(imageviewport_test_support
 # Add a public-header isolation compile target.
 function(add_imageviewport_public_header_compile_test target source)
     add_library(${target} OBJECT ${source})
-    target_include_directories(${target} PRIVATE ${PROJECT_SOURCE_DIR}/src)
-    target_link_libraries(${target} PRIVATE Qt6::Core Qt6::Gui Qt6::Qml)
+    target_link_libraries(${target} PRIVATE ImageViewport)
 endfunction()
 
 add_imageviewport_public_header_compile_test(imageviewport_types_header_compile
@@ -35,9 +35,11 @@ add_imageviewport_public_header_compile_test(imageviewport_state_header_compile
                                              public_headers/state.cpp)
 add_imageviewport_public_header_compile_test(imageviewport_umbrella_header_compile
                                              public_headers/umbrella.cpp)
+add_library(imageviewport_private_header_unreachable_compile OBJECT
+            public_headers/private_unreachable.cpp)
+target_link_libraries(imageviewport_private_header_unreachable_compile PRIVATE ImageViewport)
 add_library(imageviewport_viewport_header_compile OBJECT public_headers/viewport.cpp)
-target_include_directories(imageviewport_viewport_header_compile PRIVATE ${PROJECT_SOURCE_DIR}/src)
-target_link_libraries(imageviewport_viewport_header_compile PRIVATE Qt6::Qml Qt6::Quick)
+target_link_libraries(imageviewport_viewport_header_compile PRIVATE ImageViewport)
 
 add_library(imageviewport_core_contract_header_compile OBJECT private_headers/core_contracts.cpp)
 target_include_directories(imageviewport_core_contract_header_compile
@@ -77,6 +79,7 @@ add_imageviewport_core_qt_test(viewportproviderbridge_cleanup
                                tst_viewportproviderbridge_cleanup.cpp)
 add_executable(viewportengine_capability_contract tst_viewportengine_capability_contract.cpp)
 target_link_libraries(viewportengine_capability_contract PRIVATE ImageViewport)
+target_include_directories(viewportengine_capability_contract PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_compile_definitions(viewportengine_capability_contract
                            PRIVATE IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1)
 add_test(NAME viewportengine_capability_contract COMMAND viewportengine_capability_contract)

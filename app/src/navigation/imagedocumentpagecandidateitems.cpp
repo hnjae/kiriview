@@ -8,10 +8,12 @@
 #include "diagnostics/diagnosticlogprojection.h"
 #include "imagedocumentpagenavigationpolicy.h"
 #include "location/imageurl.h"
+#include "location/sourcekey.h"
 #include "mediaformatregistry.h"
 #include "navigationlogging.h"
 
 #include <QDebug>
+#include <algorithm>
 #include <cstddef>
 #include <expected>
 #include <utility>
@@ -61,7 +63,8 @@ ImageDocumentPageCandidateAdmissionLimits defaultImageDocumentPageCandidateAdmis
 }
 
 ImageDocumentPageCandidateAdmissionResult imageDocumentPageNavigationCandidates(
-    const KFileItemList& items, ImageDocumentPageCandidateAdmissionLimits limits)
+    const QUrl& directoryUrl, const KFileItemList& items,
+    ImageDocumentPageCandidateAdmissionLimits limits)
 {
     if (const auto admitted = admitImageDocumentPageCandidateItems(items, limits); !admitted) {
         return std::unexpected(admitted.error());
@@ -75,6 +78,9 @@ ImageDocumentPageCandidateAdmissionResult imageDocumentPageNavigationCandidates(
         if (!item.isFile() || !kiriview::isSupportedOrdinaryMediaFileName(name)) {
             continue;
         }
+        if (!sourceBelongsToDirectoryScope(item.url(), directoryUrl)) {
+            return std::unexpected(ImageDocumentPageCandidateAdmissionFailure::ScopeViolation);
+        }
 
         candidates.push_back(ImageDocumentPageCandidate { item.url(), name,
             kiriview::isSupportedDirectVideoFileName(name) ? ImageDocumentPageKind::Video
@@ -86,10 +92,11 @@ ImageDocumentPageCandidateAdmissionResult imageDocumentPageNavigationCandidates(
 }
 
 DirectMediaNavigationCandidateAdmissionResult directMediaNavigationCandidates(
-    const KFileItemList& items, ImageDocumentPageCandidateAdmissionLimits limits)
+    const QUrl& directoryUrl, const KFileItemList& items,
+    ImageDocumentPageCandidateAdmissionLimits limits)
 {
     ImageDocumentPageCandidateAdmissionResult admitted
-        = imageDocumentPageNavigationCandidates(items, limits);
+        = imageDocumentPageNavigationCandidates(directoryUrl, items, limits);
     if (!admitted) {
         return std::unexpected(admitted.error());
     }
@@ -98,8 +105,8 @@ DirectMediaNavigationCandidateAdmissionResult directMediaNavigationCandidates(
     std::vector<DirectMediaNavigationCandidate> candidates;
     candidates.reserve(imageDocumentPageCandidates.size());
     for (ImageDocumentPageCandidate& candidate : imageDocumentPageCandidates) {
-        candidates.push_back(
-            DirectMediaNavigationCandidate { std::move(candidate.url), std::move(candidate.name) });
+        candidates.push_back(DirectMediaNavigationCandidate {
+            std::move(candidate.url), std::move(candidate.name), candidate.sourceFreshness });
     }
 
     qCDebug(kiriviewNavigationLog)
@@ -119,7 +126,8 @@ DirectMediaNavigationCandidateAdmissionResult directMediaNavigationCandidates(
     return candidates;
 }
 
-std::vector<ContainerNavigationCandidate> containerNavigationCandidates(const KFileItemList& items)
+ContainerNavigationCandidateAdmissionResult containerNavigationCandidates(
+    const QUrl& directoryUrl, const KFileItemList& items)
 {
     std::vector<ContainerNavigationCandidate> candidates;
     candidates.reserve(static_cast<std::size_t>(items.size()));
@@ -128,6 +136,9 @@ std::vector<ContainerNavigationCandidate> containerNavigationCandidates(const KF
         const QString name = item.name();
         if (item.isFile() && item.url().isLocalFile()
             && kiriview::isComicBookArchiveFileName(name)) {
+            if (!sourceBelongsToDirectoryScope(item.url(), directoryUrl)) {
+                return std::unexpected(ImageDocumentPageCandidateAdmissionFailure::ScopeViolation);
+            }
             candidates.push_back(
                 ContainerNavigationCandidate { normalizedFileContainerUrl(item.url()), name,
                     ContainerNavigationCandidateType::ComicBookArchive });
@@ -136,5 +147,31 @@ std::vector<ContainerNavigationCandidate> containerNavigationCandidates(const KF
 
     sortContainerNavigationCandidates(&candidates);
     return candidates;
+}
+
+bool imageDocumentPageCandidatesBelongToDirectoryScope(
+    const std::vector<ImageDocumentPageCandidate>& candidates, const QUrl& directoryUrl)
+{
+    return std::ranges::all_of(
+        candidates, [&directoryUrl](const ImageDocumentPageCandidate& candidate) {
+            return sourceBelongsToDirectoryScope(candidate.url, directoryUrl);
+        });
+}
+
+bool containerNavigationCandidatesBelongToDirectoryScope(
+    const std::vector<ContainerNavigationCandidate>& candidates, const QUrl& directoryUrl)
+{
+    return std::ranges::all_of(
+        candidates, [&directoryUrl](const ContainerNavigationCandidate& candidate) {
+            QUrl candidateUrl = candidate.url;
+            if (candidate.type == ContainerNavigationCandidateType::Directory) {
+                QString path = candidateUrl.path();
+                while (path.size() > 1 && path.endsWith(QLatin1Char('/'))) {
+                    path.chop(1);
+                }
+                candidateUrl.setPath(path);
+            }
+            return sourceBelongsToDirectoryScope(candidateUrl, directoryUrl);
+        });
 }
 }

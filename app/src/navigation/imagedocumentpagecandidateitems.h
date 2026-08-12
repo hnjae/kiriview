@@ -21,6 +21,7 @@ struct ImageDocumentPageCandidateAdmissionLimits
 
 enum class ImageDocumentPageCandidateAdmissionFailure {
     ResourceLimitExceeded,
+    ScopeViolation,
 };
 
 using ImageDocumentPageCandidateAdmissionResult
@@ -29,18 +30,26 @@ using ImageDocumentPageCandidateAdmissionResult
 using DirectMediaNavigationCandidateAdmissionResult
     = std::expected<std::vector<DirectMediaNavigationCandidate>,
         ImageDocumentPageCandidateAdmissionFailure>;
+using ContainerNavigationCandidateAdmissionResult
+    = std::expected<std::vector<ContainerNavigationCandidate>,
+        ImageDocumentPageCandidateAdmissionFailure>;
 
 [[nodiscard]] ImageDocumentPageCandidateAdmissionLimits
 defaultImageDocumentPageCandidateAdmissionLimits();
 [[nodiscard]] ImageDocumentPageCandidateAdmissionResult imageDocumentPageNavigationCandidates(
-    const KFileItemList& items,
+    const QUrl& directoryUrl, const KFileItemList& items,
     ImageDocumentPageCandidateAdmissionLimits limits
     = defaultImageDocumentPageCandidateAdmissionLimits());
 [[nodiscard]] DirectMediaNavigationCandidateAdmissionResult directMediaNavigationCandidates(
-    const KFileItemList& items,
+    const QUrl& directoryUrl, const KFileItemList& items,
     ImageDocumentPageCandidateAdmissionLimits limits
     = defaultImageDocumentPageCandidateAdmissionLimits());
-std::vector<ContainerNavigationCandidate> containerNavigationCandidates(const KFileItemList& items);
+[[nodiscard]] ContainerNavigationCandidateAdmissionResult containerNavigationCandidates(
+    const QUrl& directoryUrl, const KFileItemList& items);
+bool imageDocumentPageCandidatesBelongToDirectoryScope(
+    const std::vector<ImageDocumentPageCandidate>& candidates, const QUrl& directoryUrl);
+bool containerNavigationCandidatesBelongToDirectoryScope(
+    const std::vector<ContainerNavigationCandidate>& candidates, const QUrl& directoryUrl);
 }
 
 #endif

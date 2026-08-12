@@ -24,6 +24,18 @@ class ViewportProviderEventEndpoint;
 class ViewportProviderLeaseRegistry;
 class ViewportProviderSessionCleanupRegistry;
 
+enum class ViewportProviderExecutorOutcome {
+    Completed,
+    Scheduled,
+    RetryableFailure,
+};
+
+enum class ViewportProviderCloseDispatchState {
+    Pending,
+    Queued,
+    Completed,
+};
+
 class ViewportProviderSessionControl
     : public std::enable_shared_from_this<ViewportProviderSessionControl>
 {
@@ -43,6 +55,8 @@ public:
     void completeEventDelivery();
     void completeCloseOnSessionAffinity();
     void completeHandleReleaseOnSessionAffinity();
+    void recordCloseDispatch(ViewportProviderExecutorOutcome outcome);
+    [[nodiscard]] ViewportProviderCloseDispatchState closeDispatchState() const;
     void markSessionDestroyed();
 
 private:
@@ -58,14 +72,8 @@ private:
     qsizetype activeIngressCount = 0;
     qsizetype acceptedDeliveryCount = 0;
     qsizetype handleLeaseCount = 0;
-    bool closeCompleted = false;
+    ViewportProviderCloseDispatchState closeState = ViewportProviderCloseDispatchState::Pending;
     bool destructionStarted = false;
-};
-
-enum class ViewportProviderExecutorOutcome {
-    Completed,
-    Scheduled,
-    RetryableFailure,
 };
 
 struct ViewportProviderSessionOpenInput
@@ -100,11 +108,11 @@ public:
         = 0;
     virtual ViewportProviderExecutorOutcome releaseFrameHandle(
         const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
-        ImageSequenceProviderFrameHandle* frameHandle)
+        ImageSequenceProviderFrameHandle* frameHandle, std::function<void()>&& completion)
         = 0;
     virtual ViewportProviderExecutorOutcome releaseFailureHandle(
         const std::shared_ptr<ViewportProviderSessionControl>& sessionControl,
-        ImageSequenceProviderFailureHandle* failureHandle);
+        ImageSequenceProviderFailureHandle* failureHandle, std::function<void()>&& completion);
 };
 
 struct ViewportProviderTransportResult

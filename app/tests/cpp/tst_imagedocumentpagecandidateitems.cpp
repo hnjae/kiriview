@@ -20,7 +20,11 @@ private Q_SLOTS:
     void candidateAdmissionRejectsEntryCountWithoutPublishingPartialRows();
     void candidateAdmissionRejectsIdentityCostWithoutPublishingPartialRows();
     void candidateAdmissionCountsUnsupportedEntries();
+    void candidateAdmissionAcceptsNormalizedSiblingScope();
+    void candidateAdmissionRejectsForeignScopeWithoutPublishingPartialRows_data();
+    void candidateAdmissionRejectsForeignScopeWithoutPublishingPartialRows();
     void containerCandidatesOnlyIncludeComicBookArchives();
+    void containerCandidateAdmissionRejectsForeignScope();
 };
 
 void TestImageDocumentPageCandidateItems::
@@ -38,7 +42,8 @@ void TestImageDocumentPageCandidateItems::
         KFileItem(QUrl::fromLocalFile(QStringLiteral("/images/01.jpg")), QString(), S_IFREG));
 
     const kiriview::ImageDocumentPageCandidateAdmissionResult admitted
-        = kiriview::imageDocumentPageNavigationCandidates(items);
+        = kiriview::imageDocumentPageNavigationCandidates(
+            QUrl::fromLocalFile(QStringLiteral("/images/")), items);
     QVERIFY(admitted.has_value());
     const std::vector<kiriview::ImageDocumentPageCandidate>& candidates = *admitted;
 
@@ -54,7 +59,8 @@ void TestImageDocumentPageCandidateItems::
     QCOMPARE(candidates.back().kind, kiriview::ImageDocumentPageKind::Video);
 
     const kiriview::DirectMediaNavigationCandidateAdmissionResult directMediaAdmission
-        = kiriview::directMediaNavigationCandidates(items);
+        = kiriview::directMediaNavigationCandidates(
+            QUrl::fromLocalFile(QStringLiteral("/images/")), items);
     QVERIFY(directMediaAdmission.has_value());
     const std::vector<kiriview::DirectMediaNavigationCandidate>& directMediaNavigationCandidates
         = *directMediaAdmission;
@@ -77,7 +83,8 @@ void TestImageDocumentPageCandidateItems::candidateAdmissionAcceptsExactEntryAnd
 
     const kiriview::ImageDocumentPageCandidateAdmissionResult admitted
         = kiriview::imageDocumentPageNavigationCandidates(
-            items, kiriview::ImageDocumentPageCandidateAdmissionLimits { 1, identityCost });
+            QUrl::fromLocalFile(QStringLiteral("/images/")), items,
+            kiriview::ImageDocumentPageCandidateAdmissionLimits { 1, identityCost });
 
     QVERIFY(admitted.has_value());
     QCOMPARE(admitted->size(), std::size_t(1));
@@ -94,7 +101,8 @@ void TestImageDocumentPageCandidateItems::
 
     const kiriview::ImageDocumentPageCandidateAdmissionResult admitted
         = kiriview::imageDocumentPageNavigationCandidates(
-            items, kiriview::ImageDocumentPageCandidateAdmissionLimits { 1, 1'024 });
+            QUrl::fromLocalFile(QStringLiteral("/images/")), items,
+            kiriview::ImageDocumentPageCandidateAdmissionLimits { 1, 1'024 });
 
     QVERIFY(!admitted.has_value());
     QCOMPARE(admitted.error(),
@@ -111,7 +119,8 @@ void TestImageDocumentPageCandidateItems::
 
     const kiriview::ImageDocumentPageCandidateAdmissionResult admitted
         = kiriview::imageDocumentPageNavigationCandidates(
-            items, kiriview::ImageDocumentPageCandidateAdmissionLimits { 1, identityCost - 1 });
+            QUrl::fromLocalFile(QStringLiteral("/images/")), items,
+            kiriview::ImageDocumentPageCandidateAdmissionLimits { 1, identityCost - 1 });
 
     QVERIFY(!admitted.has_value());
     QCOMPARE(admitted.error(),
@@ -128,11 +137,61 @@ void TestImageDocumentPageCandidateItems::candidateAdmissionCountsUnsupportedEnt
 
     const kiriview::ImageDocumentPageCandidateAdmissionResult admitted
         = kiriview::imageDocumentPageNavigationCandidates(
-            items, kiriview::ImageDocumentPageCandidateAdmissionLimits { 1, 1'024 });
+            QUrl::fromLocalFile(QStringLiteral("/images/")), items,
+            kiriview::ImageDocumentPageCandidateAdmissionLimits { 1, 1'024 });
 
     QVERIFY(!admitted.has_value());
     QCOMPARE(admitted.error(),
         kiriview::ImageDocumentPageCandidateAdmissionFailure::ResourceLimitExceeded);
+}
+
+void TestImageDocumentPageCandidateItems::candidateAdmissionAcceptsNormalizedSiblingScope()
+{
+    const QUrl requestedDirectory(
+        QStringLiteral("smb://user@example.test/images/?listing=recent#selection"));
+    KFileItemList items {
+        KFileItem(QUrl(QStringLiteral(
+                      "smb://user@example.test/images/chapter/../01.png?version=2#preview")),
+            QString(), S_IFREG),
+    };
+
+    const kiriview::ImageDocumentPageCandidateAdmissionResult admitted
+        = kiriview::imageDocumentPageNavigationCandidates(requestedDirectory, items);
+
+    QVERIFY(admitted.has_value());
+    QCOMPARE(admitted->size(), std::size_t(1));
+}
+
+void TestImageDocumentPageCandidateItems::
+    candidateAdmissionRejectsForeignScopeWithoutPublishingPartialRows_data()
+{
+    QTest::addColumn<QUrl>("requestedDirectory");
+    QTest::addColumn<QUrl>("foreignCandidate");
+
+    QTest::newRow("foreign-parent") << QUrl::fromLocalFile(QStringLiteral("/images/"))
+                                    << QUrl::fromLocalFile(QStringLiteral("/other/02.png"));
+    QTest::newRow("changed-scheme") << QUrl(QStringLiteral("smb://example.test/images/"))
+                                    << QUrl(QStringLiteral("https://example.test/images/02.png"));
+    QTest::newRow("changed-authority") << QUrl(QStringLiteral("smb://example.test/images/"))
+                                       << QUrl(QStringLiteral("smb://other.test/images/02.png"));
+}
+
+void TestImageDocumentPageCandidateItems::
+    candidateAdmissionRejectsForeignScopeWithoutPublishingPartialRows()
+{
+    QFETCH(QUrl, requestedDirectory);
+    QFETCH(QUrl, foreignCandidate);
+    KFileItemList items {
+        KFileItem(requestedDirectory.resolved(QUrl(QStringLiteral("01.png"))), QString(), S_IFREG),
+        KFileItem(foreignCandidate, QString(), S_IFREG),
+    };
+
+    const kiriview::ImageDocumentPageCandidateAdmissionResult admitted
+        = kiriview::imageDocumentPageNavigationCandidates(requestedDirectory, items);
+
+    QVERIFY(!admitted.has_value());
+    QCOMPARE(
+        admitted.error(), kiriview::ImageDocumentPageCandidateAdmissionFailure::ScopeViolation);
 }
 
 void TestImageDocumentPageCandidateItems::containerCandidatesOnlyIncludeComicBookArchives()
@@ -148,13 +207,32 @@ void TestImageDocumentPageCandidateItems::containerCandidatesOnlyIncludeComicBoo
     items.append(
         KFileItem(QUrl::fromLocalFile(QStringLiteral("/books/book.rar")), QString(), S_IFREG));
 
-    const std::vector<kiriview::ContainerNavigationCandidate> candidates
-        = kiriview::containerNavigationCandidates(items);
+    const kiriview::ContainerNavigationCandidateAdmissionResult admitted
+        = kiriview::containerNavigationCandidates(
+            QUrl::fromLocalFile(QStringLiteral("/books/")), items);
+    QVERIFY(admitted.has_value());
+    const std::vector<kiriview::ContainerNavigationCandidate>& candidates = *admitted;
     QCOMPARE(candidates.size(), std::size_t(2));
     QCOMPARE(candidates.front().url, QUrl::fromLocalFile(QStringLiteral("/books/a.cbz")));
     QCOMPARE(candidates.front().type, kiriview::ContainerNavigationCandidateType::ComicBookArchive);
     QCOMPARE(candidates.back().url, QUrl::fromLocalFile(QStringLiteral("/books/b.cbr")));
     QCOMPARE(candidates.back().type, kiriview::ContainerNavigationCandidateType::ComicBookArchive);
+}
+
+void TestImageDocumentPageCandidateItems::containerCandidateAdmissionRejectsForeignScope()
+{
+    const QUrl requestedDirectory = QUrl::fromLocalFile(QStringLiteral("/books/"));
+    KFileItemList items {
+        KFileItem(QUrl::fromLocalFile(QStringLiteral("/books/a.cbz")), QString(), S_IFREG),
+        KFileItem(QUrl::fromLocalFile(QStringLiteral("/other/b.cbr")), QString(), S_IFREG),
+    };
+
+    const kiriview::ContainerNavigationCandidateAdmissionResult admitted
+        = kiriview::containerNavigationCandidates(requestedDirectory, items);
+
+    QVERIFY(!admitted.has_value());
+    QCOMPARE(
+        admitted.error(), kiriview::ImageDocumentPageCandidateAdmissionFailure::ScopeViolation);
 }
 
 QTEST_GUILESS_MAIN(TestImageDocumentPageCandidateItems)

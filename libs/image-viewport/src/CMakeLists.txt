@@ -27,12 +27,12 @@ set(imageviewport_sources
     imageviewportrenderhost_p.h
     imageviewportsnapshot.cpp
     imageviewport.cpp
-    ImageViewport/ImageViewport
-    ImageViewport/imageviewporttypes.h
-    ImageViewport/imagesequence.h
-    ImageViewport/imagesequenceprovider.h
-    ImageViewport/imageviewportstate.h
-    ImageViewport/imageviewport.h
+    ${PROJECT_SOURCE_DIR}/include/ImageViewport/ImageViewport
+    ${PROJECT_SOURCE_DIR}/include/ImageViewport/imageviewporttypes.h
+    ${PROJECT_SOURCE_DIR}/include/ImageViewport/imagesequence.h
+    ${PROJECT_SOURCE_DIR}/include/ImageViewport/imagesequenceprovider.h
+    ${PROJECT_SOURCE_DIR}/include/ImageViewport/imageviewportstate.h
+    ${PROJECT_SOURCE_DIR}/include/ImageViewport/imageviewport.h
     imageviewport_p.h
     imageviewportstate_p.h
     playbackclock_p.h
@@ -114,8 +114,8 @@ endif()
 
 target_include_directories(
     ImageViewport
-    PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/ImageViewport")
+    PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/include/ImageViewport")
 
 target_link_libraries(ImageViewport PUBLIC Qt6::Qml Qt6::Quick)
 target_compile_features(ImageViewport PUBLIC cxx_std_23)

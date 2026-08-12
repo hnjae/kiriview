@@ -165,6 +165,7 @@ public:
                         if (const auto activeSchedule = weakSchedule.lock()) {
                             activeSchedule->work = {};
                             activeSchedule->completion = {};
+                            activeSchedule->taskCompletion.retire();
                         }
                     });
                 schedule->taskCompletion = task.completion();
@@ -188,12 +189,13 @@ public:
 
     void finish(std::size_t index)
     {
-        const auto& schedule = m_schedules.at(index);
+        const auto schedule = m_schedules.at(index);
         schedule->taskCompletion.claimAndRun([&]() {
             if (schedule->completion) {
                 schedule->completion();
             }
         });
+        schedule->taskCompletion.retire();
     }
 
 private:

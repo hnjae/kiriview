@@ -12,9 +12,11 @@
 #include <vector>
 
 namespace {
-kiriview::DirectMediaNavigationCandidate directMediaNavigationCandidate(const QUrl& url)
+kiriview::DirectMediaNavigationCandidate directMediaNavigationCandidate(
+    const QUrl& url, quint64 sourceFreshness = 0)
 {
-    return kiriview::DirectMediaNavigationCandidate { url, url.fileName(QUrl::PrettyDecoded) };
+    return kiriview::DirectMediaNavigationCandidate { url, url.fileName(QUrl::PrettyDecoded),
+        sourceFreshness };
 }
 
 kiriview::DocumentSessionPublicSnapshotInput snapshotInputForProjection(
@@ -256,6 +258,16 @@ void TestDocumentSessionState::directMediaCandidateSnapshotReusesRowsWhenOnlyCur
     QVERIFY(currentFactsSnapshot.candidates == firstSnapshot.candidates);
     QCOMPARE(currentFactsSnapshot.boundaryState.currentNumber, 2);
 
+    state.setDirectMediaNavigation(boundary, true,
+        {
+            directMediaNavigationCandidate(firstUrl, 9),
+            directMediaNavigationCandidate(secondUrl),
+        });
+    const kiriview::DirectMediaNavigationCandidateSnapshot freshnessSnapshot
+        = state.directMediaNavigationCandidateSnapshot();
+    QCOMPARE(freshnessSnapshot.revision, firstSnapshot.revision + 1);
+    QVERIFY(freshnessSnapshot.candidates != firstSnapshot.candidates);
+
     const QUrl thirdUrl = QUrl::fromLocalFile(QStringLiteral("/media/03.png"));
     state.setDirectMediaNavigation(boundary, true,
         {
@@ -265,7 +277,7 @@ void TestDocumentSessionState::directMediaCandidateSnapshotReusesRowsWhenOnlyCur
 
     const kiriview::DirectMediaNavigationCandidateSnapshot changedRowsSnapshot
         = state.directMediaNavigationCandidateSnapshot();
-    QCOMPARE(changedRowsSnapshot.revision, firstSnapshot.revision + 1);
+    QCOMPARE(changedRowsSnapshot.revision, firstSnapshot.revision + 2);
     QVERIFY(changedRowsSnapshot.candidates != firstSnapshot.candidates);
     QCOMPARE(changedRowsSnapshot.candidates->at(1).url, thirdUrl);
 }

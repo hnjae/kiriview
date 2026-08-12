@@ -5,6 +5,7 @@
 
 #include "location/imagedocumentlocation.h"
 #include "location/imageurl.h"
+#include "navigation/imagedocumentpagecandidateitems.h"
 #include "navigation/imagedocumentpagenavigationpolicy.h"
 
 #include <optional>
@@ -73,6 +74,20 @@ std::optional<kiriview::ContainerNavigationCandidate> previousFallbackCandidate(
         candidates, currentUrl, kiriview::NavigationDirection::Previous);
 }
 
+bool imageFallbackCandidatesBelongToSource(
+    const std::vector<kiriview::ImageDocumentPageCandidate>& candidates,
+    const kiriview::ImageDocumentPageCandidateListSource::Directory& source)
+{
+    return kiriview::imageDocumentPageCandidatesBelongToDirectoryScope(
+        candidates, source.directoryUrl);
+}
+
+bool imageFallbackCandidatesBelongToSource(const std::vector<kiriview::ImageDocumentPageCandidate>&,
+    const kiriview::ImageDocumentPageCandidateListSource::OpenedCollectionScope&)
+{
+    return true;
+}
+
 QUrl removalTargetUrlForDisplayedLocation(const kiriview::DisplayedImageLocation& location)
 {
     if (location.imageUrl().isEmpty()) {
@@ -138,6 +153,14 @@ std::optional<ImageDocumentPageTarget> imageRemovalFallbackTarget(
         return std::nullopt;
     }
 
+    const bool candidatesAuthorized
+        = fallback.imageContext.visit([&candidates](const auto& source) {
+              return imageFallbackCandidatesBelongToSource(candidates, source);
+          });
+    if (!candidatesAuthorized) {
+        return std::nullopt;
+    }
+
     const std::vector<ImageDocumentPageCandidate> fallbackCandidates = removalFallbackCandidates(
         std::move(candidates), fallback.currentUrl, fallback.currentName);
 
@@ -159,7 +182,9 @@ std::optional<ImageDocumentPageTarget> imageRemovalFallbackTarget(
 ComicBookRemovalFallbackCandidates comicBookRemovalFallbackCandidates(
     std::vector<ContainerNavigationCandidate> candidates, const ComicBookRemovalFallback& fallback)
 {
-    if (fallback.currentContainerUrl.isEmpty()) {
+    if (fallback.currentContainerUrl.isEmpty()
+        || !containerNavigationCandidatesBelongToDirectoryScope(
+            candidates, fallback.candidateDirectoryUrl)) {
         return {};
     }
 

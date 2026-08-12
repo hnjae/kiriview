@@ -132,51 +132,6 @@ kiriview::ThumbnailGenerationResult failedResult(
     };
 }
 
-kiriview::ThumbnailCacheLookupStatus thumbnailCacheStatus(
-    kiriview::RustThumbnailCacheLookupStatus status)
-{
-    switch (status) {
-    case kiriview::RustThumbnailCacheLookupStatus::Ready:
-        return kiriview::ThumbnailCacheLookupStatus::Ready;
-    case kiriview::RustThumbnailCacheLookupStatus::Missing:
-        return kiriview::ThumbnailCacheLookupStatus::Missing;
-    case kiriview::RustThumbnailCacheLookupStatus::Invalid:
-        return kiriview::ThumbnailCacheLookupStatus::Invalid;
-    case kiriview::RustThumbnailCacheLookupStatus::Failed:
-        return kiriview::ThumbnailCacheLookupStatus::Failed;
-    }
-
-    return kiriview::ThumbnailCacheLookupStatus::Failed;
-}
-
-kiriview::ThumbnailCacheLookupResult lookupResultFromRust(
-    const kiriview::RustThumbnailCacheLookupResult& rustResult)
-{
-    kiriview::ThumbnailCacheLookupResult result;
-    result.status = thumbnailCacheStatus(rustResult.status);
-    result.requestedBucket = thumbnailBucket(rustResult.requested_bucket);
-    result.sourceBucket = thumbnailBucket(rustResult.source_bucket);
-    result.sourceCachePath = kiriview::Bridge::qtString(rustResult.source_cache_path);
-    result.errorString = kiriview::Bridge::qtString(rustResult.error);
-
-    if (result.status != kiriview::ThumbnailCacheLookupStatus::Ready || rustResult.width <= 0
-        || rustResult.height <= 0 || rustResult.stride <= 0) {
-        return result;
-    }
-
-    const QByteArray pixels = kiriview::Bridge::qtByteArray(rustResult.pixels);
-    const QImage image = kiriview::copiedImageFromBytes(pixels,
-        QSize(rustResult.width, rustResult.height), rustResult.stride, QImage::Format_RGBA8888);
-    if (image.isNull()) {
-        result.status = kiriview::ThumbnailCacheLookupStatus::Failed;
-        result.errorString = QStringLiteral("thumbnail cache RGBA8 result could not form a QImage");
-        return result;
-    }
-
-    result.image = image;
-    return result;
-}
-
 kiriview::ThumbnailGenerationResult readyResultFromCache(
     const kiriview::ThumbnailCacheLookupResult& lookup)
 {
@@ -552,20 +507,14 @@ std::optional<kiriview::ThumbnailOriginalIdentity> defaultOpenedCollectionOrigin
 
 std::optional<kiriview::ThumbnailCacheLookupResult> defaultThumbnailGenerationCacheLookup(
     const kiriview::ThumbnailOriginalIdentity& identity,
-    kiriview::ActiveNavigationThumbnailDemandBucket requestedBucket)
+    kiriview::ActiveNavigationThumbnailDemandBucket requestedBucket,
+    const std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget>& workspaceBudget)
 {
-    kiriview::RustThumbnailCacheLookupResult rustResult;
-    if (identity.isNonFileUri()) {
-        const QByteArray uri = identity.uri.toUtf8();
-        const QByteArray mimeType = identity.mimeType.toUtf8();
-        rustResult = kiriview::rustLookupDisplayThumbnailNonFileUriRgba8(
-            kiriview::Bridge::rustStr(uri), identity.mtimeSeconds, identity.originalByteSize,
-            kiriview::Bridge::rustStr(mimeType), rustBucket(requestedBucket));
-    } else {
-        rustResult = kiriview::rustLookupDisplayThumbnailRgba8(
-            kiriview::Bridge::rustBytes(identity.localPathBytes), rustBucket(requestedBucket));
-    }
-    return lookupResultFromRust(rustResult);
+    kiriview::ThumbnailCacheLookupRequest request;
+    request.localPathBytes = identity.localPathBytes;
+    request.originalIdentity = identity;
+    request.requestedBucket = requestedBucket;
+    return kiriview::lookupThumbnailCache(request, workspaceBudget);
 }
 
 kiriview::ThumbnailGenerationCacheInstallResult installThumbnail(
@@ -743,7 +692,13 @@ kiriview::ThumbnailGenerationDependencies resolvedThumbnailGenerationDependencie
             = defaultOpenedCollectionOriginalIdentityLoader;
     }
     if (!dependencies.cacheRepository.lookup) {
-        dependencies.cacheRepository.lookup = defaultThumbnailGenerationCacheLookup;
+        dependencies.cacheRepository.lookup
+            = [workspaceBudget = dependencies.workspaceBudget](
+                  const kiriview::ThumbnailOriginalIdentity& identity,
+                  kiriview::ActiveNavigationThumbnailDemandBucket requestedBucket) {
+                  return defaultThumbnailGenerationCacheLookup(
+                      identity, requestedBucket, workspaceBudget);
+              };
     }
     if (!dependencies.cacheRepository.install) {
         dependencies.cacheRepository.install = installThumbnail;
@@ -788,6 +743,11 @@ kiriview::ThumbnailGenerationResult generateThumbnailWithDependencies(
                 && (lookup->status == kiriview::ThumbnailCacheLookupStatus::Invalid
                     || lookup->status == kiriview::ThumbnailCacheLookupStatus::Failed)) {
                 return failedResult(request.requestedBucket, lookup->errorString);
+            }
+            if (lookup.has_value()
+                && lookup->status == kiriview::ThumbnailCacheLookupStatus::ResourceLimitExceeded) {
+                return failedResult(request.requestedBucket, lookup->errorString,
+                    kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded);
             }
         }
     }
@@ -855,11 +815,33 @@ kiriview::ImageIoJob startVideoThumbnailGenerationJob(QObject* receiver,
     extractionRequest.sourceUrl = request.sourceUrl;
     extractionRequest.maximumLongEdge = maximumLongEdge;
 
+    std::shared_ptr<kiriview::ImageDecodeWorkspaceLease> workingLease;
+    try {
+        workingLease = std::make_shared<kiriview::ImageDecodeWorkspaceLease>(
+            dependencies.workspaceBudget->startLease());
+    } catch (const std::bad_alloc&) {
+        if (callback) {
+            callback(failedResult(request.requestedBucket,
+                kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+                kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded));
+        }
+        return {};
+    }
+    if (!workingLease->tryReserve(kiriview::VideoThumbnailExtractionLimits::maximumWorkingBytes)) {
+        if (callback) {
+            callback(failedResult(request.requestedBucket,
+                kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+                kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded));
+        }
+        return {};
+    }
+
     kiriview::ThumbnailVideoExtractionProvider extractionProvider
         = std::move(dependencies.videoExtractionProvider);
     return extractionProvider(receiver, std::move(extractionRequest),
         [request = std::move(request), originalIdentity = std::move(originalIdentity),
-            callback = std::move(callback), dependencies = std::move(dependencies)](
+            callback = std::move(callback), dependencies = std::move(dependencies),
+            workingLease = std::move(workingLease)](
             kiriview::VideoThumbnailExtractionResult extractionResult) mutable {
             if (!callback) {
                 return;
@@ -885,8 +867,19 @@ kiriview::ImageIoJob startVideoThumbnailGenerationJob(QObject* receiver,
                 return;
             }
 
-            callback(finishGeneratedThumbnailImage(request, originalIdentity, {}, {},
-                std::move(extractionResult.image), 0, false, dependencies));
+            const qsizetype outputByteCount = extractionResult.image.sizeInBytes();
+            kiriview::ImageDecodeWorkspaceLease admittedWorkingLease = std::move(*workingLease);
+            const qsizetype workingByteCount = admittedWorkingLease.reservedByteCount();
+            if (outputByteCount <= 0 || outputByteCount > workingByteCount
+                || !admittedWorkingLease.release(workingByteCount - outputByteCount)) {
+                callback(failedResult(request.requestedBucket,
+                    kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+                    kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded));
+                return;
+            }
+            callback(finishGeneratedThumbnailImage(request, originalIdentity, {},
+                std::move(admittedWorkingLease), std::move(extractionResult.image), outputByteCount,
+                true, dependencies));
         });
 }
 }

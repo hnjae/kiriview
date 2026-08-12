@@ -41,6 +41,8 @@ private Q_SLOTS:
     void destroyedGuardedContextSuppressesCompletion();
     void stoppedOwnerThreadCancelsCompletion();
     void canceledWorkerCompletionIsIgnored();
+    void canceledRunningWorkerRetiresOnlyAfterWorkReturns();
+    void canceledCompletedWorkerRetiresOnlyAfterQueuedPayloadReleases();
     void canceledQueuedWorkerReleasesPayloadWithoutRunning();
     void supersededThreadPoolBacklogIsWithdrawnBeforeNewestWork();
 };
@@ -203,6 +205,69 @@ void TestImageIoWorkerJob::canceledWorkerCompletionIsIgnored()
 
     workerScheduler.runWork(0);
     workerScheduler.finish(0);
+    QCOMPARE(finishCount, 0);
+}
+
+void TestImageIoWorkerJob::canceledRunningWorkerRetiresOnlyAfterWorkReturns()
+{
+    QThreadPool pool;
+    pool.setMaxThreadCount(1);
+    QObject context;
+    QObject receiver;
+    QSemaphore workStarted;
+    QSemaphore releaseWork;
+    int finishCount = 0;
+    std::atomic_int retirementCount = 0;
+
+    kiriview::ImageIoJob job = kiriview::startImageIoWorkerJob(
+        &context, &receiver, workerSchedulerForPool(&pool),
+        [&workStarted, &releaseWork]() {
+            workStarted.release();
+            releaseWork.acquire();
+            return 23;
+        },
+        [&finishCount](int) { ++finishCount; });
+    job.setRetirementCallback([&retirementCount]() { ++retirementCount; });
+
+    QVERIFY(workStarted.tryAcquire(1, 1000));
+    job.cancel();
+    QCOMPARE(retirementCount.load(), 0);
+    QCOMPARE(finishCount, 0);
+
+    releaseWork.release();
+    QVERIFY(pool.waitForDone(1000));
+    QTRY_COMPARE(retirementCount.load(), 1);
+    QCOMPARE(finishCount, 0);
+}
+
+void TestImageIoWorkerJob::canceledCompletedWorkerRetiresOnlyAfterQueuedPayloadReleases()
+{
+    QThreadPool pool;
+    pool.setMaxThreadCount(1);
+    QObject context;
+    QObject receiver;
+    QSemaphore workFinished;
+    int finishCount = 0;
+    std::atomic_int retirementCount = 0;
+
+    kiriview::ImageIoJob job = kiriview::startImageIoWorkerJob(
+        &context, &receiver, workerSchedulerForPool(&pool),
+        [&workFinished]() {
+            workFinished.release();
+            return QByteArray(1024, 'x');
+        },
+        [&finishCount](QByteArray) { ++finishCount; });
+    job.setRetirementCallback([&retirementCount]() { ++retirementCount; });
+
+    QVERIFY(workFinished.tryAcquire(1, 1000));
+    QVERIFY(pool.waitForDone(1000));
+    QCOMPARE(retirementCount.load(), 0);
+
+    job.cancel();
+    QCOMPARE(retirementCount.load(), 0);
+    QCOMPARE(finishCount, 0);
+
+    QTRY_COMPARE(retirementCount.load(), 1);
     QCOMPARE(finishCount, 0);
 }
 

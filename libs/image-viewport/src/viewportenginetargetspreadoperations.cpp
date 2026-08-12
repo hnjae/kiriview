@@ -71,6 +71,43 @@ void coalesceViewportEngineTargetSpreadCandidates(
     }
 }
 
+bool viewportEngineVisibleTargetSpreadMatchesActiveTargets(
+    const ImageViewportInternal::RequestState& request,
+    const ImageViewportInternal::DisplayState& display)
+{
+    if (!display.hasReadyDisplay(request.roles[0].source.facts.present)) {
+        return false;
+    }
+    for (std::size_t index = 0; index < request.roles.size(); ++index) {
+        if (request.roles[index].source.facts.present
+            && !matchesActiveTarget(request, display.roles[index], index)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void promoteViewportEngineVisibleTargetSpread(
+    ImageViewportInternal::RequestState& request, ImageViewportInternal::DisplayState& display)
+{
+    Q_ASSERT(viewportEngineVisibleTargetSpreadMatchesActiveTargets(request, display));
+    for (std::size_t index = 0; index < request.roles.size(); ++index) {
+        if (!request.roles[index].source.facts.present) {
+            continue;
+        }
+        auto& active = request.roles[index].activeRequest;
+        auto& shown = display.roles[index];
+        const auto displayedTarget = shown.displayedRequest.request.target;
+        const auto displayedResolvedFrame = shown.displayedRequest.request.resolvedFrame;
+        active.preparedPayloadId = shown.displayedPayload.payloadId;
+        shown.displayedRequest.generation = request.sequenceGeneration;
+        shown.displayedRequest.request = active;
+        shown.displayedRequest.request.target = displayedTarget;
+        shown.displayedRequest.request.resolvedFrame = displayedResolvedFrame;
+        shown.displayedRequest.request.preparedPayloadId = shown.displayedPayload.payloadId;
+    }
+}
+
 ViewportEngineProviderRoleMaterializationResult materializeViewportEngineProviderRole(
     ViewportEngineProviderRoleMaterializationInput input,
     ViewportEngineProviderRoleMaterializationAccess& access)

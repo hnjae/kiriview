@@ -17,11 +17,14 @@
 namespace {
 QUrl localUrl(const QString& path) { return QUrl::fromLocalFile(path); }
 
-kiriview::ImageDocumentPageCandidate candidate(const QString& path, const QString& name)
+kiriview::ImageDocumentPageCandidate candidate(
+    const QString& path, const QString& name, quint64 sourceFreshness = 0)
 {
     return kiriview::ImageDocumentPageCandidate {
         localUrl(path),
         name,
+        kiriview::ImageDocumentPageKind::Image,
+        sourceFreshness,
     };
 }
 
@@ -111,7 +114,26 @@ private Q_SLOTS:
     void failedListingReturnsErrorPlansForPendingLoadsAndSubscribers();
     void successfulCompleteSnapshotClearsPriorObservationFailure();
     void successfulUpdateClearsPriorObservationFailure();
+    void freshnessOnlyUpdateNotifiesSubscribers();
 };
+
+void TestImageDocumentPageCandidateStoreEntryState::freshnessOnlyUpdateNotifiesSubscribers()
+{
+    kiriview::ImageDocumentPageCandidateStoreEntryState state;
+    kiriview::ImageIoJob subscriber = addSubscriber(
+        state, this, [](std::vector<kiriview::ImageDocumentPageCandidate>) {},
+        [](const kiriview::ImageDocumentPageCandidateLoadError&) {},
+        [&state](QObject* token) { state.removeSubscriber(token); });
+    state.completeListing(
+        { candidate(QStringLiteral("/images/01.png"), QStringLiteral("01.png"), 1) });
+
+    const kiriview::ImageDocumentPageCandidateStoreEntryNotificationPlan plan = state.updateListing(
+        { candidate(QStringLiteral("/images/01.png"), QStringLiteral("01.png"), 2) });
+
+    QCOMPARE(plan.changedSubscribers.size(), std::size_t(1));
+    QCOMPARE(plan.candidates.front().sourceFreshness, quint64(2));
+    subscriber.cancel();
+}
 
 void TestImageDocumentPageCandidateStoreEntryState::
     completedListingReturnsPendingLoadPlanAndCachesCandidates()

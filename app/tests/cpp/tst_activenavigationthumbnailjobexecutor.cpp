@@ -86,6 +86,7 @@ private Q_SLOTS:
     void generationFailurePreservesTypedKind_data();
     void generationFailurePreservesTypedKind();
     void cancellationAndPhaseChangesRejectLateCallbacks();
+    void cancellationReportsRetirementOnlyAfterProviderFact();
     void synchronousCompletionAndDestructionAreCallbackSafe();
 };
 
@@ -250,6 +251,50 @@ void TestActiveNavigationThumbnailJobExecutor::cancellationAndPhaseChangesReject
     QVERIFY(completions.empty());
     QVERIFY(executor.cancel({ 5 }));
     providers.generationCallbacks.front()(
+        { kiriview::ThumbnailGenerationStatus::Ready, {}, image(Qt::green), Bucket::Large });
+    QVERIFY(completions.empty());
+}
+
+void TestActiveNavigationThumbnailJobExecutor::cancellationReportsRetirementOnlyAfterProviderFact()
+{
+    kiriview::ThumbnailGenerationCallback providerCallback;
+    kiriview::ImageIoJobCompletion providerCompletion;
+    bool providerCanceled = false;
+    kiriview::ThumbnailGenerationProvider provider
+        = [&](QObject* receiver, kiriview::ThumbnailGenerationRequest,
+              kiriview::ThumbnailGenerationCallback callback) {
+              providerCallback = std::move(callback);
+              auto* token = new QObject(receiver);
+              kiriview::ImageIoJob job(
+                  token,
+                  [&providerCanceled](QObject* object) {
+                      providerCanceled = true;
+                      object->deleteLater();
+                  },
+                  kiriview::ImageIoJobCancellationRetirement::Explicit);
+              providerCompletion = job.completion();
+              return job;
+          };
+    std::vector<kiriview::ActiveNavigationThumbnailWorkCompletion> completions;
+    std::vector<kiriview::ActiveNavigationThumbnailWorkId> retirements;
+    kiriview::ActiveNavigationThumbnailJobExecutor executor(
+        this, {}, std::move(provider),
+        [&](auto completion) { completions.push_back(std::move(completion)); },
+        [&](kiriview::ActiveNavigationThumbnailWorkId workId) { retirements.push_back(workId); });
+
+    QVERIFY(executor.start(request(19, kiriview::ThumbnailSourceAdapterPlanKind::InMemoryOnly)));
+    QVERIFY(executor.cancel({ 19 }));
+    QVERIFY(providerCanceled);
+    QVERIFY(completions.empty());
+    QVERIFY(retirements.empty());
+
+    providerCompletion.retire();
+    QCOMPARE(retirements.size(), std::size_t(1));
+    QCOMPARE(retirements.front().value, quint64(19));
+    providerCompletion.retire();
+    QCOMPARE(retirements.size(), std::size_t(1));
+
+    providerCallback(
         { kiriview::ThumbnailGenerationStatus::Ready, {}, image(Qt::green), Bucket::Large });
     QVERIFY(completions.empty());
 }

@@ -56,9 +56,13 @@ public:
 
     [[nodiscard]] int shortcutRevision() const;
     [[nodiscard]] QAbstractListModel* shortcutHelpModel() const;
+    [[nodiscard]] QAbstractListModel* shortcutConfigurationModel() const;
     [[nodiscard]] QList<QKeySequence> programWideShortcutsForId(ActionId actionId) const;
     [[nodiscard]] QList<QKeySequence> viewerLocalShortcutsForId(ActionId actionId) const;
+    bool setProgramWideShortcutsForId(ActionId actionId, const QList<QKeySequence>& shortcuts);
     bool setViewerLocalShortcutsForId(ActionId actionId, const QList<QKeySequence>& shortcuts);
+    bool setShortcutTextsForId(ActionId actionId, ApplicationShortcutActivationScope scope,
+        const QStringList& portableTexts);
     [[nodiscard]] QString menuShortcutTextForId(ActionId actionId) const;
 
 private:

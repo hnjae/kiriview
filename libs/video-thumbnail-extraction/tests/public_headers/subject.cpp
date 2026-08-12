@@ -7,6 +7,7 @@
 
 static_assert(kiriview::VideoThumbnailExtractionLimits::maximumOutputLongEdge == 4096);
 static_assert(kiriview::VideoThumbnailExtractionLimits::maximumOutputBytes == 67'108'864);
+static_assert(kiriview::VideoThumbnailExtractionLimits::maximumWorkingBytes == 536'870'912);
 static_assert(kiriview::VideoThumbnailExtractionLimits::maximumDiagnosticCharacters == 1024);
 static_assert(!std::is_copy_constructible_v<kiriview::VideoThumbnailExtractionJob>);
 static_assert(!std::is_copy_assignable_v<kiriview::VideoThumbnailExtractionJob>);

@@ -91,6 +91,7 @@ struct ApplicationCommandRouterWindowPorts
 struct ApplicationCommandRouterHelpPorts
 {
     std::function<void()> requestShortcutHelp;
+    std::function<void()> requestShortcutConfiguration;
 };
 
 struct ApplicationCommandRouterVideoPorts

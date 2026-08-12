@@ -24,23 +24,27 @@ ActiveNavigationThumbnailRuntime::ActiveNavigationThumbnailRuntime(QObject* owne
     std::shared_ptr<ImageSourceDataBudget> sourceDataBudget,
     std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget)
     : m_rowStore(std::make_unique<ActiveNavigationThumbnailRowStore>(std::move(imageStore)))
-    , m_workCoordinator(
-          std::make_unique<ActiveNavigationThumbnailWorkCoordinator>(owner, *m_rowStore,
-              lookupProvider ? std::move(lookupProvider)
-                             : defaultThumbnailCacheLookupProvider(workerScheduler),
-              generationProvider ? std::move(generationProvider)
-                                 : defaultThumbnailGenerationProvider(workerScheduler,
-                                       ThumbnailGenerationDependencies {
-                                           .sourceDataBudget = sourceDataBudget != nullptr
-                                               ? std::move(sourceDataBudget)
-                                               : defaultImageSourceDataBudget(),
-                                           .workspaceBudget = workspaceBudget != nullptr
-                                               ? std::move(workspaceBudget)
-                                               : defaultImageDecodeWorkspaceBudget(),
-                                       }),
-              sourceAdapter ? std::move(sourceAdapter) : defaultThumbnailSourceAdapter(),
-              std::move(failureDiagnosticCallback)))
 {
+    if (sourceDataBudget == nullptr) {
+        sourceDataBudget = defaultImageSourceDataBudget();
+    }
+    if (workspaceBudget == nullptr) {
+        workspaceBudget = defaultImageDecodeWorkspaceBudget();
+    }
+    if (!lookupProvider) {
+        lookupProvider = defaultThumbnailCacheLookupProvider(workerScheduler, workspaceBudget);
+    }
+    if (!generationProvider) {
+        generationProvider = defaultThumbnailGenerationProvider(workerScheduler,
+            ThumbnailGenerationDependencies {
+                .sourceDataBudget = std::move(sourceDataBudget),
+                .workspaceBudget = std::move(workspaceBudget),
+            });
+    }
+    m_workCoordinator = std::make_unique<ActiveNavigationThumbnailWorkCoordinator>(owner,
+        *m_rowStore, std::move(lookupProvider), std::move(generationProvider),
+        sourceAdapter ? std::move(sourceAdapter) : defaultThumbnailSourceAdapter(),
+        std::move(failureDiagnosticCallback));
 }
 
 ActiveNavigationThumbnailRuntime::~ActiveNavigationThumbnailRuntime()

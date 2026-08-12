@@ -10,9 +10,10 @@
 
 - `maximumOutputLongEdge` is `4096`.
 - `maximumOutputBytes` is `67108864`.
+- `maximumWorkingBytes` is `536870912` and bounds the caller-accounted peak of component-controlled materialized source, transformation, and result pixel storage for one operation.
 - `maximumDiagnosticCharacters` is `1024`, counted as Unicode scalar values.
 
-These limits apply to one extraction operation and its result. They are not an aggregate concurrency or memory budget; the caller bounds the number and priority of operations it admits.
+These limits apply to one extraction operation and its result. Before starting an operation, the caller must admit `maximumWorkingBytes` against its aggregate decoded-memory policy and keep that admission until completion or cancellation; after a ready completion it may replace the working admission with a charge for the returned image that lasts through the final pixel alias. Multimedia-backend-private buffers remain outside this host-accounted bound and under the backend's own policy. These limits are not an aggregate concurrency or memory budget; the caller bounds the number and priority of operations it admits.
 
 The caller authorizes the source, keeps any caller-owned access grant, mount, lease, or equivalent prerequisite valid while the job is active, and decides whether the source class is eligible for thumbnail work. Accepting a `QUrl` does not promise support for any URL scheme, container, codec, network location, credential form, or protected media. The component must not expand caller eligibility or use the source URL as navigation, cache, session, or freshness identity.
 

@@ -123,6 +123,8 @@ constexpr int shortcutHelpCategoryFirstRole = Qt::UserRole + 7;
 constexpr int shortcutHelpCategoryLastRole = Qt::UserRole + 8;
 constexpr int shortcutHelpShortcutKeyTextsRole = Qt::UserRole + 9;
 constexpr int shortcutHelpScopeTextRole = Qt::UserRole + 10;
+constexpr int shortcutHelpActivationScopeRole = Qt::UserRole + 11;
+constexpr int shortcutHelpPortableShortcutTextsRole = Qt::UserRole + 12;
 
 QKeySequence shortcut(const QString& sequence)
 {
@@ -262,6 +264,10 @@ private Q_SLOTS:
     void shortcutHelpModelListsConfigurableActions();
     void shortcutHelpModelUpdatesShortcutText();
     void shortcutHelpModelResetsWhenConfigurableRowsChange();
+    void shortcutConfigurationModelExposesDeclaredScopedSlots();
+    void shortcutConfigurationEditsScopesIndependently();
+    void emptyViewerLocalShortcutAssignmentPersistsAcrossReconstruction();
+    void configureActionUsesApplicationOwnedEditorBoundary();
     void menuPresentationDefaultsToHamburgerMenu();
     void invalidStoredMenuPresentationFallsBackToHamburgerMenu();
     void menuPresentationPersists();
@@ -778,6 +784,130 @@ void TestKiriViewApplication::shortcutHelpModelResetsWhenConfigurableRowsChange(
 
     QTRY_COMPARE(resetSpy.count(), 1);
     QVERIFY(!shortcutHelpIndexForAction(model, QStringLiteral("view_rotate_clockwise")).isValid());
+}
+
+void TestKiriViewApplication::shortcutConfigurationModelExposesDeclaredScopedSlots()
+{
+    KiriViewApplication application;
+
+    QAbstractItemModel* model = application.shortcutConfigurationModel();
+    QVERIFY(model != nullptr);
+
+    const QModelIndex openProgramWideIndex = shortcutHelpIndexForActionAndScope(
+        model, QStringLiteral("file_open"), QStringLiteral("Program-wide"));
+    QVERIFY(openProgramWideIndex.isValid());
+    QCOMPARE(model->data(openProgramWideIndex, shortcutHelpActivationScopeRole).toInt(),
+        static_cast<int>(KiriViewApplication::ProgramWideShortcutScope));
+    QVERIFY(model->data(openProgramWideIndex, shortcutHelpPortableShortcutTextsRole)
+            .toStringList()
+            .contains(shortcut(QStringLiteral("Ctrl+O")).toString(QKeySequence::PortableText)));
+
+    const QModelIndex rotateViewerLocalIndex = shortcutHelpIndexForActionAndScope(
+        model, QStringLiteral("view_rotate_clockwise"), QStringLiteral("Viewer-local"));
+    QVERIFY(rotateViewerLocalIndex.isValid());
+    QCOMPARE(model->data(rotateViewerLocalIndex, shortcutHelpActivationScopeRole).toInt(),
+        static_cast<int>(KiriViewApplication::ViewerLocalShortcutScope));
+    QVERIFY(!shortcutHelpIndexForActionAndScope(
+        model, QStringLiteral("view_rotate_clockwise"), QStringLiteral("Program-wide"))
+            .isValid());
+    QVERIFY(!shortcutHelpIndexForActionAndScope(
+        model, QStringLiteral("file_open"), QStringLiteral("Viewer-local"))
+            .isValid());
+
+    QVERIFY(shortcutHelpIndexForActionAndScope(
+        model, QStringLiteral("file_quit"), QStringLiteral("Program-wide"))
+            .isValid());
+    QVERIFY(shortcutHelpIndexForActionAndScope(
+        model, QStringLiteral("file_quit"), QStringLiteral("Viewer-local"))
+            .isValid());
+}
+
+void TestKiriViewApplication::shortcutConfigurationEditsScopesIndependently()
+{
+    {
+        KiriViewApplication application;
+
+        QVERIFY(application.setShortcutTextsForId(KiriViewApplication::FileQuitAction,
+            KiriViewApplication::ProgramWideShortcutScope, { QStringLiteral("Alt+Q") }));
+        QCOMPARE(application.programWideShortcutsForId(KiriViewApplication::FileQuitAction),
+            QList<QKeySequence>({ shortcut(QStringLiteral("Alt+Q")) }));
+        QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::FileQuitAction),
+            QList<QKeySequence>({ shortcut(QStringLiteral("Q")) }));
+
+        QVERIFY(application.setShortcutTextsForId(KiriViewApplication::FileQuitAction,
+            KiriViewApplication::ViewerLocalShortcutScope, { QStringLiteral("Shift+Q") }));
+        QCOMPARE(application.programWideShortcutsForId(KiriViewApplication::FileQuitAction),
+            QList<QKeySequence>({ shortcut(QStringLiteral("Alt+Q")) }));
+        QCOMPARE(application.viewerLocalShortcutsForId(KiriViewApplication::FileQuitAction),
+            QList<QKeySequence>({ shortcut(QStringLiteral("Shift+Q")) }));
+
+        QVERIFY(!application.setShortcutTextsForId(KiriViewApplication::ViewRotateClockwiseAction,
+            KiriViewApplication::ProgramWideShortcutScope, { QStringLiteral("Ctrl+R") }));
+        QCOMPARE(
+            application.programWideShortcutsForId(KiriViewApplication::ViewRotateClockwiseAction),
+            QList<QKeySequence>());
+
+        QVERIFY(!application.setShortcutTextsForId(KiriViewApplication::FileQuitAction,
+            KiriViewApplication::ProgramWideShortcutScope, { QStringLiteral("Ctrl+") }));
+        QVERIFY(!application.setShortcutTextsForId(KiriViewApplication::FileQuitAction,
+            KiriViewApplication::ProgramWideShortcutScope, { QStringLiteral("Q") }));
+        QCOMPARE(application.programWideShortcutsForId(KiriViewApplication::FileQuitAction),
+            QList<QKeySequence>({ shortcut(QStringLiteral("Alt+Q")) }));
+    }
+
+    KSharedConfig::openConfig()->reparseConfiguration();
+    KiriViewApplication reconstructedApplication;
+    QCOMPARE(
+        reconstructedApplication.programWideShortcutsForId(KiriViewApplication::FileQuitAction),
+        QList<QKeySequence>({ shortcut(QStringLiteral("Alt+Q")) }));
+    QCOMPARE(
+        reconstructedApplication.viewerLocalShortcutsForId(KiriViewApplication::FileQuitAction),
+        QList<QKeySequence>({ shortcut(QStringLiteral("Shift+Q")) }));
+}
+
+void TestKiriViewApplication::emptyViewerLocalShortcutAssignmentPersistsAcrossReconstruction()
+{
+    {
+        KiriViewApplication application;
+        QVERIFY(application.setShortcutTextsForId(KiriViewApplication::ViewRotateClockwiseAction,
+            KiriViewApplication::ViewerLocalShortcutScope, {}));
+        QCOMPARE(
+            application.viewerLocalShortcutsForId(KiriViewApplication::ViewRotateClockwiseAction),
+            QList<QKeySequence>());
+    }
+
+    KSharedConfig::openConfig()->reparseConfiguration();
+    KiriViewApplication reconstructedApplication;
+    QCOMPARE(reconstructedApplication.viewerLocalShortcutsForId(
+                 KiriViewApplication::ViewRotateClockwiseAction),
+        QList<QKeySequence>());
+
+    QAbstractItemModel* model = reconstructedApplication.shortcutConfigurationModel();
+    const QModelIndex rotateViewerLocalIndex = shortcutHelpIndexForActionAndScope(
+        model, QStringLiteral("view_rotate_clockwise"), QStringLiteral("Viewer-local"));
+    QVERIFY(rotateViewerLocalIndex.isValid());
+    QCOMPARE(model->data(rotateViewerLocalIndex, shortcutHelpShortcutKeyTextsRole).toStringList(),
+        QStringList({ QStringLiteral("Unassigned") }));
+    QCOMPARE(
+        model->data(rotateViewerLocalIndex, shortcutHelpPortableShortcutTextsRole).toStringList(),
+        QStringList());
+}
+
+void TestKiriViewApplication::configureActionUsesApplicationOwnedEditorBoundary()
+{
+    KiriViewApplication application;
+    QSignalSpy applicationEditorSpy(
+        &application, &KiriViewApplication::shortcutConfigurationRequested);
+    QSignalSpy inheritedEditorSpy(
+        &application, &AbstractKirigamiApplication::shortcutsEditorAction);
+
+    QAction* configureAction
+        = application.actionForId(KiriViewApplication::OptionsConfigureKeybindingAction);
+    QVERIFY(configureAction != nullptr);
+    configureAction->trigger();
+
+    QCOMPARE(applicationEditorSpy.count(), 1);
+    QCOMPARE(inheritedEditorSpy.count(), 0);
 }
 
 void TestKiriViewApplication::menuPresentationDefaultsToHamburgerMenu()

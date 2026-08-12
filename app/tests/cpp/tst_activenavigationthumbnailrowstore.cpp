@@ -12,7 +12,8 @@
 #include <memory>
 
 namespace {
-kiriview::ActiveNavigationThumbnailRow row(int number, const QString& path, bool current = false)
+kiriview::ActiveNavigationThumbnailRow row(
+    int number, const QString& path, bool current = false, quint64 sourceFreshness = 0)
 {
     return kiriview::ActiveNavigationThumbnailRow {
         number,
@@ -21,6 +22,7 @@ kiriview::ActiveNavigationThumbnailRow row(int number, const QString& path, bool
         kiriview::ActiveNavigationThumbnailKind::Image,
         kiriview::ActiveNavigationThumbnailSourceKind::DirectImage,
         current,
+        sourceFreshness,
     };
 }
 
@@ -63,6 +65,7 @@ class TestActiveNavigationThumbnailRowStore : public QObject
 
 private Q_SLOTS:
     void identityReplacementAdvancesGenerationAndReleasesEntry();
+    void sourceFreshnessReplacementAdvancesGenerationAndRejectsStaleKey();
     void currentOnlyChangePreservesGenerationAndReadyResult();
     void readyReplacementReleasesPreviousEntryAndPublishesRoles();
     void pressureEvictionInvalidatesReadyResult();
@@ -73,6 +76,31 @@ private Q_SLOTS:
     void preparedIdentityReplacementDoesNotMutateBeforeCommit();
     void normalizedEquivalentUrlRefreshPreservesGenerationAndEntry();
 };
+
+void TestActiveNavigationThumbnailRowStore::
+    sourceFreshnessReplacementAdvancesGenerationAndRejectsStaleKey()
+{
+    auto images = std::make_shared<kiriview::ThumbnailImageStore>();
+    kiriview::ActiveNavigationThumbnailRowStore store(images);
+    setRows(store, { row(1, QStringLiteral("/media/one.png"), true, 11) });
+    const kiriview::ThumbnailSourceRevisionKey staleKey = store.schedulingSnapshot().rows.front();
+    QVERIFY(store.installReadyImage(
+        staleKey, image(Qt::red), kiriview::ThumbnailImageRetentionPriority::Visible, false));
+
+    const kiriview::ActiveNavigationThumbnailRowCommit commit
+        = setRows(store, { row(1, QStringLiteral("/media/one.png"), true, 12) });
+    const kiriview::ThumbnailSourceRevisionKey currentKey = store.schedulingSnapshot().rows.front();
+
+    QCOMPARE(commit.kind, kiriview::ActiveNavigationThumbnailRowUpdateKind::IdentityReplacement);
+    QCOMPARE(store.navigationGeneration(), quint64(2));
+    QCOMPARE(currentKey.sourceFreshness, quint64(12));
+    QVERIFY(staleKey != currentKey);
+    QCOMPARE(images->size(), qsizetype(0));
+    QVERIFY(!store.installReadyImage(
+        staleKey, image(Qt::blue), kiriview::ThumbnailImageRetentionPriority::Visible, false));
+    QCOMPARE(modelData(*store.model(), 0, QByteArrayLiteral("thumbnailStatus")).toInt(),
+        static_cast<int>(kiriview::ActiveNavigationThumbnailResultStatus::NoResult));
+}
 
 void TestActiveNavigationThumbnailRowStore::identityReplacementAdvancesGenerationAndReleasesEntry()
 {

@@ -9,6 +9,7 @@
 
 #include <QString>
 #include <QUrl>
+#include <QtGlobal>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -24,6 +25,7 @@ struct ImageDocumentPageCandidate
     QUrl url;
     QString name;
     ImageDocumentPageKind kind = ImageDocumentPageKind::Image;
+    quint64 sourceFreshness = 0;
 };
 
 struct ImageDocumentPageTarget

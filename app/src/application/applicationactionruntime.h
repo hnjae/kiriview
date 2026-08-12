@@ -20,6 +20,7 @@
 #include <QList>
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QtGlobal>
 #include <functional>
 #include <memory>
@@ -99,11 +100,15 @@ public:
     void setMenuPresentation(MenuPresentation presentation);
     [[nodiscard]] int shortcutRevision() const;
     [[nodiscard]] QAbstractListModel* shortcutHelpModel() const;
+    [[nodiscard]] QAbstractListModel* shortcutConfigurationModel() const;
 
     QAction* actionForId(ActionId actionId);
     [[nodiscard]] QList<QKeySequence> programWideShortcutsForId(ActionId actionId) const;
     [[nodiscard]] QList<QKeySequence> viewerLocalShortcutsForId(ActionId actionId) const;
+    bool setProgramWideShortcutsForId(ActionId actionId, const QList<QKeySequence>& shortcuts);
     bool setViewerLocalShortcutsForId(ActionId actionId, const QList<QKeySequence>& shortcuts);
+    bool setShortcutTextsForId(ActionId actionId, ApplicationShortcutActivationScope scope,
+        const QStringList& portableTexts);
     [[nodiscard]] QString menuShortcutTextForId(ActionId actionId) const;
     [[nodiscard]] int actionStateRevision() const;
     [[nodiscard]] bool actionPlacementEnabled(ActionId actionId) const;

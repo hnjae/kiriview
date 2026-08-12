@@ -29,7 +29,26 @@ private Q_SLOTS:
     void removalFallbackUsesPreviousCandidateAtEnd();
     void removalFallbackIsEmptyWithoutCandidates();
     void removalFallbackMatchesNormalizedSourceIdentity();
+    void foreignCandidateSnapshotCannotAuthorizeOpenOrRemovalFallback();
 };
+
+void TestDirectMediaNavigationModel::foreignCandidateSnapshotCannotAuthorizeOpenOrRemovalFallback()
+{
+    const QUrl currentUrl = localUrl(QStringLiteral("/media/01.jpg"));
+    std::vector<kiriview::DirectMediaNavigationCandidate> candidates {
+        candidate(currentUrl),
+        candidate(localUrl(QStringLiteral("/foreign/02.png"))),
+    };
+    kiriview::sortDirectMediaNavigationCandidates(&candidates);
+
+    const kiriview::DirectMediaNavigationOpenPlan openPlan
+        = kiriview::directMediaNavigationOpenPlan(
+            candidates, currentUrl, kiriview::nextDirectMediaNavigationOpenRequest());
+
+    QVERIFY(!openPlan.targetUrl.has_value());
+    QCOMPARE(openPlan.boundaryState.count, 0);
+    QVERIFY(!kiriview::directMediaNavigationRemovalFallbackUrl(candidates, currentUrl).has_value());
+}
 
 void TestDirectMediaNavigationModel::navigatesMixedMediaWithoutWrapping()
 {

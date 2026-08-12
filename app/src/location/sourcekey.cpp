@@ -36,6 +36,24 @@ QUrl normalizedSourceIdentityUrl(const QUrl& url)
 
     return normalizedUrl;
 }
+
+kiriview::SourceKey directoryScopeKey(const QUrl& url)
+{
+    kiriview::SourceKey key = kiriview::sourceKeyForUrl(url);
+    if (!key.valid) {
+        return {};
+    }
+
+    QUrl normalizedUrl = key.normalizedUrl;
+    QString path = normalizedUrl.path();
+    while (path.size() > 1 && path.endsWith(QLatin1Char('/'))) {
+        path.chop(1);
+    }
+    normalizedUrl.setPath(path);
+    normalizedUrl.setQuery(QString());
+    normalizedUrl.setFragment(QString());
+    return kiriview::sourceKeyForUrl(normalizedUrl);
+}
 }
 
 namespace kiriview {
@@ -65,10 +83,23 @@ ThumbnailDemandKey thumbnailDemandKey(int rowNumber, const QUrl& url, quint64 na
 
 ThumbnailSourceRevisionKey thumbnailSourceRevisionKey(int rowNumber, const QUrl& url,
     const QString& label, const QString& pageKind, const QString& sourceKind,
-    quint64 navigationGeneration)
+    quint64 navigationGeneration, quint64 sourceFreshness)
 {
     return { { rowNumber, sourceKeyForUrl(url), label, pageKind, sourceKind }, url,
-        navigationGeneration };
+        navigationGeneration, sourceFreshness };
+}
+
+bool sourceBelongsToDirectoryScope(const QUrl& sourceUrl, const QUrl& directoryUrl)
+{
+    const SourceKey sourceKey = sourceKeyForUrl(sourceUrl);
+    const SourceKey requestedDirectoryKey = directoryScopeKey(directoryUrl);
+    if (!sourceKey.valid || !requestedDirectoryKey.valid) {
+        return false;
+    }
+
+    const SourceKey sourceParentKey
+        = directoryScopeKey(parentDirectoryUrlForFileNavigation(sourceKey.normalizedUrl));
+    return sameSourceKey(sourceParentKey, requestedDirectoryKey);
 }
 
 bool sameSourceKey(const SourceKey& left, const SourceKey& right)
@@ -113,7 +144,8 @@ bool operator==(const ThumbnailDemandKey& left, const ThumbnailDemandKey& right)
 
 bool operator==(const ThumbnailSourceRevisionKey& left, const ThumbnailSourceRevisionKey& right)
 {
-    return left.row == right.row && left.navigationGeneration == right.navigationGeneration;
+    return left.row == right.row && left.navigationGeneration == right.navigationGeneration
+        && left.sourceFreshness == right.sourceFreshness;
 }
 
 uint qHash(const SourceKey& key, uint seed) { return qHash(key.identity, seed); }
@@ -132,7 +164,7 @@ uint qHash(const ThumbnailDemandKey& key, uint seed)
 
 uint qHash(const ThumbnailSourceRevisionKey& key, uint seed)
 {
-    return qHashMulti(seed, key.row, key.navigationGeneration);
+    return qHashMulti(seed, key.row, key.navigationGeneration, key.sourceFreshness);
 }
 
 }

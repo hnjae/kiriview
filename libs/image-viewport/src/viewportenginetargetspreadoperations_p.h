@@ -44,6 +44,13 @@ void invalidateViewportEngineTargetSpreadRole(ImageViewportInternal::RequestStat
 void coalesceViewportEngineTargetSpreadCandidates(
     ImageViewportInternal::RequestState& request, ImageViewportInternal::DisplayState& display);
 
+[[nodiscard]] bool viewportEngineVisibleTargetSpreadMatchesActiveTargets(
+    const ImageViewportInternal::RequestState& request,
+    const ImageViewportInternal::DisplayState& display);
+
+void promoteViewportEngineVisibleTargetSpread(
+    ImageViewportInternal::RequestState& request, ImageViewportInternal::DisplayState& display);
+
 ViewportEngineProviderRoleMaterializationResult materializeViewportEngineProviderRole(
     ViewportEngineProviderRoleMaterializationInput,
     ViewportEngineProviderRoleMaterializationAccess&);

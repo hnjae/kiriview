@@ -928,7 +928,8 @@ bool DocumentSessionRuntimeGraph::tryEnterOpenedCollectionVideoFromImageSnapshot
         || !result.has_value() || m_imagePublicSnapshot.sourceKind != requestedSourceKind
         || m_imagePublicSnapshot.sourceUrl != requestedSourceUrl
         || m_imagePublicSnapshot.displayedUrl != requestedDisplayedUrl
-        || m_imagePublicSnapshot.displayedOpenedCollectionScope != requestedScope
+        || !sameOpenedCollectionScopeSnapshot(
+            m_imagePublicSnapshot.displayedOpenedCollectionScope, requestedScope)
         || m_imagePublicSnapshot.unsupportedOpenedCollectionVideo
         || !m_imagePublicSnapshot.readyForInformation) {
         return false;

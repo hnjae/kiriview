@@ -8,6 +8,8 @@ KiriView opens user-selected direct image URLs, including local files and KDE-su
 
 Supported image extensions are AVIF (`.avif` and `.avifs`), BMP, camera RAW (`.3fr`, `.arw`, `.bay`, `.bmq`, `.cr2`, `.cr3`, `.crw`, `.cs1`, `.cs2`, `.dcr`, `.dng`, `.erf`, `.fff`, `.iiq`, `.k25`, `.kdc`, `.mdc`, `.mef`, `.mos`, `.mrw`, `.nef`, `.nrw`, `.orf`, `.pef`, `.raf`, `.raw`, `.rdc`, `.rwl`, `.rw2`, `.sr2`, `.srf`, `.srw`, and `.x3f`), GIF, HEIF (`.heic`, `.heics`, `.heif`, `.heifs`, `.hif`, `.avci`, and `.hej2`), JPEG, JPEG 2000 (`.jp2`), JPEG XL (`.jxl`), PNG, SVG, TIFF (`.tif` and `.tiff`), and WebP, case-insensitively.
 
+SVG support is limited to plain, uncompressed SVG content. Gzip-compressed SVG or SVGZ content is unsupported even when it has a `.svg` file name and fails with the ordinary image-load failure state.
+
 JPEG-compressed HEIF files use the generic HEIF extensions because they do not have a dedicated extension.
 
 KiriView opens direct video URLs as direct media items for MP4, M4V, and MOV files, case-insensitively.
