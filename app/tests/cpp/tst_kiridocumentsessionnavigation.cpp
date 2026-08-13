@@ -22,6 +22,8 @@ private Q_SLOTS:
     void activeNavigationAvailabilityUsesSameSnapshotAsCurrentAndCount();
     void activeNavigationBoundaryScopeFollowsSessionSource();
     void routeProjectionReentrantNavigationPreservesNewerRequest();
+    void siblingArchiveNavigationContinuesPastEmptyArchive_data();
+    void siblingArchiveNavigationContinuesPastEmptyArchive();
 };
 
 #include "kiridocumentsession_navigation.inc"

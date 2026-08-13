@@ -475,3 +475,111 @@ void TestKiriDocumentSessionNavigation::routeProjectionReentrantNavigationPreser
 
     QCOMPARE(session->sourceUrl(), third);
 }
+
+void TestKiriDocumentSessionNavigation::siblingArchiveNavigationContinuesPastEmptyArchive_data()
+{
+    QTest::addColumn<bool>("navigateForward");
+
+    QTest::newRow("next") << true;
+    QTest::newRow("previous") << false;
+}
+
+void TestKiriDocumentSessionNavigation::siblingArchiveNavigationContinuesPastEmptyArchive()
+{
+    QFETCH(bool, navigateForward);
+
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    kiriview::TestSupport::FakeImageDocumentPageCandidateProvider pageCandidateProvider;
+    const QUrl booksUrl = localUrl(QStringLiteral("/books/"));
+    const QUrl firstArchiveUrl = localUrl(QStringLiteral("/books/a.cbz"));
+    const QUrl emptyArchiveUrl = localUrl(QStringLiteral("/books/b.cbz"));
+    const QUrl lastArchiveUrl = localUrl(QStringLiteral("/books/c.cbz"));
+    const std::optional<kiriview::OpenedCollectionScopeLocation> firstArchiveScope
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(firstArchiveUrl, {}));
+    const std::optional<kiriview::OpenedCollectionScopeLocation> emptyArchiveScope
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(emptyArchiveUrl, {}));
+    const std::optional<kiriview::OpenedCollectionScopeLocation> lastArchiveScope
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(lastArchiveUrl, {}));
+    QVERIFY(firstArchiveScope.has_value());
+    QVERIFY(emptyArchiveScope.has_value());
+    QVERIFY(lastArchiveScope.has_value());
+
+    const QUrl firstPageUrl = kiriview::TestSupport::archivePageUrl(
+        firstArchiveScope->rootUrl(), QStringLiteral("01.png"));
+    const QUrl lastPageUrl = kiriview::TestSupport::archivePageUrl(
+        lastArchiveScope->rootUrl(), QStringLiteral("01.png"));
+    pageCandidateProvider.setContainerCandidates(booksUrl,
+        { kiriview::TestSupport::comicBookContainerCandidate(firstArchiveUrl),
+            kiriview::TestSupport::comicBookContainerCandidate(emptyArchiveUrl),
+            kiriview::TestSupport::comicBookContainerCandidate(lastArchiveUrl) });
+
+    std::map<QString, std::vector<kiriview::ImageDocumentPageCandidate>> candidatesByScope {
+        { keyForUrl(firstArchiveScope->rootUrl()),
+            { kiriview::TestSupport::imageDocumentPageCandidate(firstPageUrl) } },
+        { keyForUrl(emptyArchiveScope->rootUrl()), {} },
+        { keyForUrl(lastArchiveScope->rootUrl()),
+            { kiriview::TestSupport::imageDocumentPageCandidate(lastPageUrl) } },
+    };
+    kiriview::MediaEntrySourceFactory mediaEntrySourceFactory
+        = [candidatesByScope = std::move(candidatesByScope)](
+              const kiriview::OpenedCollectionScopeLocation& scope,
+              const kiriview::MediaEntrySourceOpenContext&)
+        -> kiriview::MediaEntrySourceOpenResult {
+        const auto candidates = candidatesByScope.find(keyForUrl(scope.rootUrl()));
+        if (candidates == candidatesByScope.cend()) {
+            return std::unexpected(kiriview::MediaEntrySourceError {
+                kiriview::MediaEntrySourceErrorCause::CollectionOpenFailed,
+                kiriview::MediaEntrySourceBackendKind::Unknown,
+                kiriview::MediaEntrySourceOperation::OpenCollection,
+                scope.fileUrl(),
+                {},
+                QStringLiteral("missing fake collection scope"),
+            });
+        }
+        return kiriview::MediaEntrySourcePtr(
+            std::make_shared<FakeOpenedCollectionMediaEntrySource>(candidates->second));
+    };
+    std::unique_ptr<KiriDocumentSession> session
+        = createSessionWithProvider(directMediaNavigationProvider.provider(), nullptr, nullptr,
+            pageCandidateProvider.provider(), kiriview::TestSupport::staticImageDataDecoder(), {},
+            {}, {}, {}, std::move(mediaEntrySourceFactory));
+
+    const QUrl initialArchiveUrl = navigateForward ? firstArchiveUrl : lastArchiveUrl;
+    const kiriview::OpenedCollectionScopeLocation& initialArchiveScope
+        = navigateForward ? *firstArchiveScope : *lastArchiveScope;
+    const QUrl initialPageUrl = navigateForward ? firstPageUrl : lastPageUrl;
+    const kiriview::OpenedCollectionScopeLocation& finalArchiveScope
+        = navigateForward ? *lastArchiveScope : *firstArchiveScope;
+    const QUrl finalPageUrl = navigateForward ? lastPageUrl : firstPageUrl;
+    const auto navigate = [&]() {
+        if (navigateForward) {
+            session->imageDocument()->openNextContainer();
+        } else {
+            session->imageDocument()->openPreviousContainer();
+        }
+    };
+
+    session->setSourceUrl(initialArchiveUrl);
+    QTRY_VERIFY2(session->imageDocument()->status() == KiriImageDocument::Status::Ready,
+        qPrintable(session->imageDocument()->errorString()));
+    QCOMPARE(session->imageDocument()->displayedUrl(), initialPageUrl);
+    QCOMPARE(session->imageDocument()->displayedOpenedCollectionScope(), initialArchiveScope);
+
+    navigate();
+
+    QTRY_COMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Error);
+    QCOMPARE(session->imageDocument()->sourceUrl(), emptyArchiveUrl);
+    QCOMPARE(session->imageDocument()->displayedUrl(), QUrl());
+    QVERIFY(!session->imageDocument()->errorString().isEmpty());
+
+    navigate();
+
+    QTRY_VERIFY2(session->imageDocument()->status() == KiriImageDocument::Status::Ready,
+        qPrintable(session->imageDocument()->errorString()));
+    QCOMPARE(session->imageDocument()->displayedUrl(), finalPageUrl);
+    QCOMPARE(session->imageDocument()->displayedOpenedCollectionScope(), finalArchiveScope);
+    QVERIFY(session->imageDocument()->errorString().isEmpty());
+}

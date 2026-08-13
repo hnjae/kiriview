@@ -28,6 +28,13 @@ void appendClearImage(ImageDocumentRuntimePlan& plan)
         std::make_move_iterator(clearPlan.end()));
 }
 
+void appendClearPresentation(ImageDocumentRuntimePlan& plan)
+{
+    ImageDocumentRuntimePlan clearPlan = imageDocumentClearPresentationPlan();
+    plan.insert(plan.end(), std::make_move_iterator(clearPlan.begin()),
+        std::make_move_iterator(clearPlan.end()));
+}
+
 ImageDocumentSelectedTarget selectedTargetForSession(const ImageLoadSession& session)
 {
     return {
@@ -173,7 +180,7 @@ ImageOpenApplicationPlan beginSourceLoadPlan(ImageOpenBeginSourceLoadSnapshot sn
     if (snapshot.hasImage || snapshot.sameScopePageNavigation) {
         plan.runtimePlan.emplace_back(StopPresentationPlaybackOperation {});
     } else {
-        appendClearImage(plan.runtimePlan);
+        appendClearPresentation(plan.runtimePlan);
     }
     return plan;
 }

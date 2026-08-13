@@ -162,6 +162,7 @@ struct ImageDocumentRuntimeTransaction
 };
 
 ImageDocumentRuntimePlan imageDocumentClearImagePlan();
+ImageDocumentRuntimePlan imageDocumentClearPresentationPlan();
 ImageDocumentRuntimePlan imageDocumentClearDeletedImagePlan();
 ImageDocumentRuntimePlan imageDocumentShutdownPlan();
 }

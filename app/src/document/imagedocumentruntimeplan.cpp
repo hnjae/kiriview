@@ -3,11 +3,12 @@
 
 #include "imagedocumentruntimeplan.h"
 
+#include <iterator>
+
 namespace kiriview {
-ImageDocumentRuntimePlan imageDocumentClearImagePlan()
+ImageDocumentRuntimePlan imageDocumentClearPresentationPlan()
 {
     return {
-        ClearMediaEntrySourceOperation {},
         ClearPredecodeOperation {},
         ClearSecondaryPageOperation {},
         CancelPageNavigationUpdateOperation {},
@@ -15,6 +16,15 @@ ImageDocumentRuntimePlan imageDocumentClearImagePlan()
         ClearPageNavigationOperation {},
         NotifyRightToLeftReadingChangedOperation {},
     };
+}
+
+ImageDocumentRuntimePlan imageDocumentClearImagePlan()
+{
+    ImageDocumentRuntimePlan plan { ClearMediaEntrySourceOperation {} };
+    ImageDocumentRuntimePlan presentationPlan = imageDocumentClearPresentationPlan();
+    plan.insert(plan.end(), std::make_move_iterator(presentationPlan.begin()),
+        std::make_move_iterator(presentationPlan.end()));
+    return plan;
 }
 
 ImageDocumentRuntimePlan imageDocumentClearDeletedImagePlan()

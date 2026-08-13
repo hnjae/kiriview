@@ -13,6 +13,17 @@ using kiriview::ImageDocumentRuntimePlan;
 using kiriview::TestSupport::hasOperationTypes;
 using kiriview::TestSupport::operationAt;
 using kiriview::TestSupport::operationTypes;
+
+template <typename Operation> bool hasOperation(const ImageDocumentRuntimePlan& plan)
+{
+    for (const kiriview::ImageDocumentRuntimeOperation& operation : plan) {
+        if (std::holds_alternative<Operation>(operation)) {
+            return true;
+        }
+    }
+
+    return false;
+}
 }
 
 class TestImageDocumentRuntimePlan : public QObject
@@ -20,10 +31,21 @@ class TestImageDocumentRuntimePlan : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    void clearPresentationPlansOrderedSourcePreservingRuntimeOperations();
     void clearImagePlansOrderedRuntimeOperations();
     void clearDeletedImagePlansDeletionClearAndEmptySourceCompletion();
     void shutdownPlansOrderedRuntimeOperations();
 };
+
+void TestImageDocumentRuntimePlan::clearPresentationPlansOrderedSourcePreservingRuntimeOperations()
+{
+    const ImageDocumentRuntimePlan plan = kiriview::imageDocumentClearPresentationPlan();
+
+    QVERIFY(!hasOperation<kiriview::ClearMediaEntrySourceOperation>(plan));
+    QVERIFY(hasOperation<kiriview::ClearPredecodeOperation>(plan));
+    QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(plan));
+    QVERIFY(hasOperation<kiriview::ClearPageNavigationOperation>(plan));
+}
 
 void TestImageDocumentRuntimePlan::clearImagePlansOrderedRuntimeOperations()
 {

@@ -10,6 +10,7 @@ class TestKiriDocumentSessionDeletion : public QObject
 private Q_SLOTS:
     void nonMediaImageDeletionProgressIsMirroredThroughSessionState();
     void nonMediaImageDeletionFailureUsesSettledSessionEvent();
+    void successfulComicBookDeletionDisplaysFirstImageFromNextSibling();
     void directMediaDeletionInProgressDisablesActiveNavigationDispatch();
     void directImageDeletionCanOpenVideoFallback();
     void directImageDeletionWithoutFallbackPublishesCoherentCompletion();

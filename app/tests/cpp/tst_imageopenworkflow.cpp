@@ -192,12 +192,17 @@ void TestImageOpenWorkflow::applicationPlansUseExplicitInputs()
     QCOMPARE(initialLoad.stateDelta.status,
         std::optional<kiriview::ImageDocumentStatus>(kiriview::ImageDocumentStatus::Loading));
     QVERIFY(initialLoad.stateDelta.advancePresentationLifecycle);
+    QVERIFY(!hasOperation<kiriview::ClearMediaEntrySourceOperation>(initialLoad.runtimePlan));
     QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(initialLoad.runtimePlan));
+    QVERIFY(hasOperation<kiriview::ClearPageNavigationOperation>(initialLoad.runtimePlan));
 
     const kiriview::ImageOpenApplicationPlan routedLoad
         = kiriview::ImageOpenWorkflow::beginSourceLoadPlan(
             kiriview::ImageOpenBeginSourceLoadSnapshot { false, true });
     QVERIFY(!routedLoad.stateDelta.containerNavigationUrl.has_value());
+    QVERIFY(!hasOperation<kiriview::ClearMediaEntrySourceOperation>(routedLoad.runtimePlan));
+    QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(routedLoad.runtimePlan));
+    QVERIFY(hasOperation<kiriview::ClearPageNavigationOperation>(routedLoad.runtimePlan));
 
     const kiriview::ImageOpenApplicationPlan replacementLoad
         = kiriview::ImageOpenWorkflow::beginSourceLoadPlan(
@@ -416,7 +421,7 @@ void TestImageOpenWorkflow::firstImageLoadSuccessTransitionsToReady()
     selectDirectTarget(state, imageUrl);
 
     const kiriview::ImageDocumentRuntimePlan beginPlan = beginSourceLoad(state, false);
-    QVERIFY(hasOperation<kiriview::ClearMediaEntrySourceOperation>(beginPlan));
+    QVERIFY(!hasOperation<kiriview::ClearMediaEntrySourceOperation>(beginPlan));
     QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(beginPlan));
     QVERIFY(state.loading());
     QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Loading);
@@ -505,6 +510,7 @@ void TestImageOpenWorkflow::emptyContainerFailureSelectsFailedContainer()
 
     const kiriview::ImageDocumentRuntimePlan plan
         = finishContainerNavigationLoadWithError(state, containerUrl, QStringLiteral("empty"));
+    QVERIFY(hasOperation<kiriview::ClearMediaEntrySourceOperation>(plan));
     QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(plan));
     QCOMPARE(state.sourceUrl(), containerUrl);
     QCOMPARE(state.containerNavigationUrl(), containerUrl);
@@ -530,6 +536,7 @@ void TestImageOpenWorkflow::routedLoadFailureAppliesErrorTransitions()
         state.setLoading(true);
         const kiriview::ImageDocumentRuntimePlan plan
             = finishLoadWithError(state, containerNavigationSession, QStringLiteral("empty"));
+        QVERIFY(hasOperation<kiriview::ClearMediaEntrySourceOperation>(plan));
         QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(plan));
         QCOMPARE(state.sourceUrl(), containerUrl);
         QCOMPARE(state.containerNavigationUrl(), containerUrl);
@@ -572,8 +579,9 @@ void TestImageOpenWorkflow::trackedLoadCompletionsClearLoadingContainerNavigatio
         state.setLoading(true);
         state.setLoadingContainerNavigationUrl(loadingContainerUrl);
 
-        finishEmptySourceLoad(state);
+        const kiriview::ImageDocumentRuntimePlan plan = finishEmptySourceLoad(state);
 
+        QVERIFY(hasOperation<kiriview::ClearMediaEntrySourceOperation>(plan));
         QVERIFY(state.loadingContainerNavigationUrl().isEmpty());
     }
 

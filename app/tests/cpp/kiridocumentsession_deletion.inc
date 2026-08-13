@@ -130,6 +130,66 @@ void TestKiriDocumentSessionDeletion::nonMediaImageDeletionFailureUsesSettledSes
 }
 
 void TestKiriDocumentSessionDeletion::
+    successfulComicBookDeletionDisplaysFirstImageFromNextSibling()
+{
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    kiriview::TestSupport::FakeImageDocumentPageCandidateProvider pageCandidateProvider;
+    kiriview::TestSupport::ManualFileDeletionProvider fileDeletionProvider;
+    const QUrl firstArchiveUrl = localUrl(QStringLiteral("/books/A.cbz"));
+    const QUrl secondArchiveUrl = localUrl(QStringLiteral("/books/B.cbz"));
+    const std::optional<kiriview::OpenedCollectionScopeLocation> firstArchive
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(firstArchiveUrl, {}));
+    const std::optional<kiriview::OpenedCollectionScopeLocation> secondArchive
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(secondArchiveUrl, {}));
+    QVERIFY(firstArchive.has_value());
+    QVERIFY(secondArchive.has_value());
+    const QUrl firstPage = kiriview::TestSupport::archivePageUrl(
+        firstArchive->rootUrl(), QStringLiteral("01.png"));
+    const QUrl secondPage = kiriview::TestSupport::archivePageUrl(
+        secondArchive->rootUrl(), QStringLiteral("01.png"));
+    pageCandidateProvider.setContainerCandidates(localUrl(QStringLiteral("/books/")),
+        { kiriview::TestSupport::comicBookContainerCandidate(secondArchiveUrl) });
+    kiriview::MediaEntrySourceFactory mediaEntrySourceFactory
+        = [firstArchiveRoot = firstArchive->rootUrl(), secondArchiveRoot = secondArchive->rootUrl(),
+              firstPage,
+              secondPage](const kiriview::OpenedCollectionScopeLocation& openedCollectionScope,
+              const kiriview::MediaEntrySourceOpenContext&)
+        -> kiriview::MediaEntrySourceOpenResult {
+        std::vector<kiriview::ImageDocumentPageCandidate> candidates;
+        if (keyForUrl(openedCollectionScope.rootUrl()) == keyForUrl(firstArchiveRoot)) {
+            candidates.push_back(kiriview::TestSupport::imageDocumentPageCandidate(firstPage));
+        } else if (keyForUrl(openedCollectionScope.rootUrl()) == keyForUrl(secondArchiveRoot)) {
+            candidates.push_back(kiriview::TestSupport::imageDocumentPageCandidate(secondPage));
+        }
+        return kiriview::MediaEntrySourcePtr(
+            std::make_shared<FakeOpenedCollectionMediaEntrySource>(std::move(candidates)));
+    };
+    std::unique_ptr<KiriDocumentSession> session = createSessionWithProvider(
+        directMediaNavigationProvider.provider(), &fileDeletionProvider, nullptr,
+        pageCandidateProvider.provider(), kiriview::TestSupport::staticImageDataDecoder(), {}, {},
+        {}, {}, std::move(mediaEntrySourceFactory));
+
+    session->setSourceUrl(firstArchiveUrl);
+    QTRY_VERIFY2(session->imageDocument()->status() == KiriImageDocument::Status::Ready,
+        qPrintable(session->imageDocument()->errorString()));
+    QCOMPARE(session->imageDocument()->displayedUrl(), firstPage);
+
+    session->deleteDisplayedFile(KiriDocumentSession::DeletionMode::MoveToTrash);
+    QTRY_COMPARE(fileDeletionProvider.operationCount(), std::size_t(1));
+    QCOMPARE(fileDeletionProvider.backOperation().request.targetUrl, firstArchiveUrl);
+    fileDeletionProvider.finishBackOperation(kiriview::FileDeletionResult::Succeeded);
+
+    QTRY_VERIFY2(session->imageDocument()->status() == KiriImageDocument::Status::Ready,
+        qPrintable(session->imageDocument()->errorString()));
+    QCOMPARE(session->documentKind(), KiriDocumentSession::DocumentKind::Image);
+    QCOMPARE(session->imageDocument()->displayedUrl(), secondPage);
+    QCOMPARE(session->imageDocument()->displayedOpenedCollectionScope(), *secondArchive);
+    QVERIFY(session->imageDocument()->errorString().isEmpty());
+}
+
+void TestKiriDocumentSessionDeletion::
     directMediaDeletionInProgressDisablesActiveNavigationDispatch()
 {
     FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
