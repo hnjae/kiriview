@@ -201,7 +201,7 @@ std::optional<QByteArray> createLargeHeifSequenceData(QString* errorText)
 
     heif_encoder* rawEncoder = nullptr;
     heif_error error
-        = heif_context_get_encoder_for_format(context.get(), heif_compression_HEVC, &rawEncoder);
+        = heif_context_get_encoder_for_format(context.get(), heif_compression_JPEG, &rawEncoder);
     if (error.code != heif_error_Ok) {
         *errorText = heifErrorText("heif_context_get_encoder_for_format", error);
         return std::nullopt;
@@ -408,7 +408,7 @@ private Q_SLOTS:
     void avifStillBrandUsesHeifStaticPath();
     void avifsSequenceBrandUsesHeifSequencePath();
     void heifSequenceDecodesAsStreamingAnimation();
-    void heifSequenceCanUseMoreThanThePreparseMemoryCap();
+    void largeHeifSequenceDecodesWithinAdmittedWorkspace();
     void rawExtensionForcesRawDecodeBeforeQtFallback();
     void rawSamplesDecodeWhenConfigured();
 };
@@ -666,7 +666,7 @@ void TestKiriImageDecoder::heifSequenceDecodesAsStreamingAnimation()
     QVERIFY(qAlpha(decoded->firstFrame.pixel(48, 32)) < 255);
 }
 
-void TestKiriImageDecoder::heifSequenceCanUseMoreThanThePreparseMemoryCap()
+void TestKiriImageDecoder::largeHeifSequenceDecodesWithinAdmittedWorkspace()
 {
     QString encodeError;
     const std::optional<QByteArray> imageData = createLargeHeifSequenceData(&encodeError);
