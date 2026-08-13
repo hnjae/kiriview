@@ -98,6 +98,8 @@ Before the file operation begins, the desktop confirmation identifies the exact 
 
 If the operation is canceled, the current media item remains open and no notification is shown. If it fails, the current media item remains open and the file operation error is shown as an in-app toast notification.
 
+In Flatpak, moving a local target to trash uses the host desktop trash namespace: the host `$XDG_DATA_HOME/Trash` for targets on that filesystem and a secure filesystem-local trash when available for targets on other filesystems. If the host-visible trash is unavailable, the operation fails with the target unchanged instead of using the sandbox-private trash or permanently deleting the target.
+
 While an accepted deletion request is awaiting confirmation or completion, Move to Trash and Delete Permanently are disabled and additional deletion activation does not start another operation.
 
 The deletion target is the displayed image URL for ordinary images, remote URLs, and images opened directly from KDE-supported archive URLs such as `zip://`.
