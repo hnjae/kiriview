@@ -72,6 +72,7 @@ public:
     ~VideoThumbnailExtractionJob();
 
     void cancel() noexcept;
+    void setRetirementCallback(std::function<void()> callback);
     [[nodiscard]] auto isActive() const noexcept -> bool;
 
 private:

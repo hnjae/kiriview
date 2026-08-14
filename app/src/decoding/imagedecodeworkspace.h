@@ -89,7 +89,6 @@ public:
     ImageDecodeWorkspaceLease& operator=(ImageDecodeWorkspaceLease&& other) noexcept;
     Q_DISABLE_COPY(ImageDecodeWorkspaceLease)
 
-    [[nodiscard]] bool tryReserve(qsizetype additionalByteCount);
     [[nodiscard]] bool release(qsizetype byteCount);
     [[nodiscard]] ImageDecodeWorkspaceHold sharedHold() const;
     [[nodiscard]] ImageDecodeWorkspaceHold splitRetained(qsizetype retainedByteCount);
@@ -98,6 +97,7 @@ public:
     [[nodiscard]] bool isManaged() const;
 
 private:
+    [[nodiscard]] bool tryReserve(qsizetype additionalByteCount);
     explicit ImageDecodeWorkspaceLease(
         std::shared_ptr<ImageDecodeWorkspaceDetail::LeaseState> state);
 
@@ -139,9 +139,6 @@ class ImageDecodeWorkspaceBudget final
 public:
     ImageDecodeWorkspaceBudget(qsizetype aggregateByteLimit, qsizetype perOperationByteLimit);
 
-    [[nodiscard]] ImageDecodeWorkspaceLease startLease() const;
-    [[nodiscard]] ImageDecodeWorkspaceLease startLeaseForOperation(
-        qsizetype alreadyReservedByteCount) const;
     [[nodiscard]] std::expected<ImageDecodeWorkspaceAdmission, ImageDecodeWorkspaceAdmissionFailure>
     requestAdmission(QObject* receiver, ImageDecodeWorkspaceAdmissionRequest request,
         ImageDecodeWorkspaceGranted granted) const;
@@ -151,6 +148,9 @@ public:
     [[nodiscard]] qsizetype reservedByteCount() const;
 
 private:
+    [[nodiscard]] ImageDecodeWorkspaceLease startLease() const;
+    [[nodiscard]] ImageDecodeWorkspaceLease startLeaseForOperation(
+        qsizetype alreadyReservedByteCount) const;
     [[nodiscard]] std::optional<ImageDecodeWorkspaceLease> tryBestEffortAdmission(
         ImageDecodeWorkspaceAdmissionRequest request) const;
     explicit ImageDecodeWorkspaceBudget(

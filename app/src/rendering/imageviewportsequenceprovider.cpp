@@ -118,6 +118,7 @@ private:
     {
         kiriview::ImageViewportProviderWorkIdentity identity;
         bool provisionalEmitted = false;
+        bool provisionalPending = false;
     };
 
     [[nodiscard]] kiriview::ImageViewportProviderWorkIdentity identity(
@@ -157,6 +158,7 @@ private:
         const kiriview::ImageViewportProviderWorkIdentity work = identity(request);
         m_frameWork = ActiveFrameWork {
             work,
+            false,
             false,
         };
         const int resolvedFrame = request.kind() == ImageSequenceProviderRequestKind::Frame
@@ -211,17 +213,12 @@ private:
             return;
         }
         if (result.isProvisional()) {
-            if (m_frameWork->provisionalEmitted || !result.isReady()) {
+            if (m_frameWork->provisionalEmitted || m_frameWork->provisionalPending
+                || !result.isReady()) {
                 return;
             }
-            std::unique_ptr<ImageSequenceProviderFrameHandle> handle(
-                m_resource->acquireFrameHandle(result));
-            if (!handle) {
-                return;
-            }
-            m_frameWork->provisionalEmitted = true;
-            submitProviderFrameEvent(
-                *this, identity.requestToken, std::move(handle), result.envelope, true);
+            m_frameWork->provisionalPending = true;
+            requestFrameHandle(identity, std::move(result));
             return;
         }
 
@@ -236,8 +233,42 @@ private:
             return;
         }
 
-        std::unique_ptr<ImageSequenceProviderFrameHandle> handle(
-            m_resource->acquireFrameHandle(result));
+        requestFrameHandle(identity, std::move(result));
+    }
+
+    void requestFrameHandle(const kiriview::ImageViewportProviderWorkIdentity& identity,
+        kiriview::ImageViewportProviderPreparedFrame result)
+    {
+        const QPointer<ImageViewportProviderSession> guard(this);
+        const kiriview::ImageViewportProviderPreparedFrame handleRequest = result;
+        m_resource->requestFrameHandle(this, identity, handleRequest,
+            [guard, result = std::move(result)](
+                const kiriview::ImageViewportProviderWorkIdentity& completed,
+                std::unique_ptr<ImageSequenceProviderFrameHandle> handle) mutable {
+                if (guard) {
+                    guard->completeFrameHandle(completed, result, std::move(handle));
+                }
+            });
+    }
+
+    void completeFrameHandle(const kiriview::ImageViewportProviderWorkIdentity& identity,
+        const kiriview::ImageViewportProviderPreparedFrame& result,
+        std::unique_ptr<ImageSequenceProviderFrameHandle> handle)
+    {
+        if (m_closed || !m_frameWork.has_value() || identity != m_frameWork->identity) {
+            return;
+        }
+        if (result.isProvisional()) {
+            m_frameWork->provisionalPending = false;
+            if (!handle || m_frameWork->provisionalEmitted) {
+                return;
+            }
+            m_frameWork->provisionalEmitted = true;
+            submitProviderFrameEvent(
+                *this, identity.requestToken, std::move(handle), result.envelope, true);
+            return;
+        }
+
         if (!handle) {
             m_frameWork.reset();
             submitProviderFailureEvent(*this, identity.requestToken,

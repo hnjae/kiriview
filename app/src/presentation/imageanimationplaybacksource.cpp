@@ -13,12 +13,109 @@
 #include "rendering/imagerendering.h"
 
 #include <QImage>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
 #include <variant>
 
 namespace {
+std::optional<qsizetype> checkedByteSum(qsizetype left, qsizetype right)
+{
+    if (left < 0 || right < 0 || left > std::numeric_limits<qsizetype>::max() - right) {
+        return std::nullopt;
+    }
+    return left + right;
+}
+
+std::optional<kiriview::ImageAnimationPlaybackWorkspacePlan> readerWorkspacePlan(
+    const kiriview::ReaderAnimationPlaybackRequest&, QSize logicalSize)
+{
+    const std::optional<qsizetype> transientByteCount
+        = kiriview::qImageReaderGifTransientWorkspaceByteCount(logicalSize);
+    const std::optional<qsizetype> outputByteCount
+        = kiriview::checkedImageDecodeWorkspaceByteCount(logicalSize, 4, 1);
+    if (!transientByteCount.has_value() || !outputByteCount.has_value()) {
+        return std::nullopt;
+    }
+    return kiriview::ImageAnimationPlaybackWorkspacePlan {
+        0,
+        *transientByteCount,
+        *outputByteCount,
+    };
+}
+
+std::optional<kiriview::ImageAnimationPlaybackWorkspacePlan> apngWorkspacePlan(
+    const kiriview::ApngAnimationPlaybackRequest& request, QSize logicalSize)
+{
+    const kiriview::ApngAnimationWorkspacePlanResult planning
+        = kiriview::planApngAnimationOpen(request.data);
+    if (planning.status != kiriview::ApngOpenStatus::Success
+        || planning.plan.canvasSize != logicalSize) {
+        return std::nullopt;
+    }
+    return kiriview::ImageAnimationPlaybackWorkspacePlan {
+        0,
+        planning.plan.transientByteCount,
+        planning.plan.firstFrameOutputByteCount,
+    };
+}
+
+std::optional<kiriview::ImageAnimationPlaybackWorkspacePlan> webPWorkspacePlan(
+    const kiriview::WebPAnimationPlaybackRequest& request, QSize logicalSize)
+{
+    const kiriview::WebPAnimationWorkspacePlanResult planning
+        = kiriview::planWebPAnimationOpen(request.data);
+    if (planning.status != kiriview::WebPAnimationOpenStatus::Success
+        || planning.plan.canvasSize != logicalSize) {
+        return std::nullopt;
+    }
+    return kiriview::ImageAnimationPlaybackWorkspacePlan {
+        0,
+        planning.plan.transientByteCount,
+        planning.plan.firstFrameOutputByteCount,
+    };
+}
+
+std::optional<kiriview::ImageAnimationPlaybackWorkspacePlan> jxlWorkspacePlan(
+    const kiriview::JxlAnimationPlaybackRequest&, QSize logicalSize)
+{
+    const std::optional<qsizetype> outputByteCount
+        = kiriview::checkedImageDecodeWorkspaceByteCount(logicalSize, 4, 1);
+    const std::optional<qsizetype> openPeakByteCount
+        = kiriview::jxlAnimationOpenWorkspaceByteCount(logicalSize);
+    if (!outputByteCount.has_value() || !openPeakByteCount.has_value()
+        || *openPeakByteCount <= *outputByteCount) {
+        return std::nullopt;
+    }
+    return kiriview::ImageAnimationPlaybackWorkspacePlan {
+        0,
+        *openPeakByteCount - *outputByteCount,
+        *outputByteCount,
+    };
+}
+
+std::optional<kiriview::ImageAnimationPlaybackWorkspacePlan> heifWorkspacePlan(
+    const kiriview::HeifSequenceAnimationPlaybackRequest&, QSize logicalSize)
+{
+    const std::optional<kiriview::HeifSequenceWorkspacePlan> planning
+        = kiriview::heifSequenceWorkspacePlan(logicalSize);
+    if (!planning.has_value()) {
+        return std::nullopt;
+    }
+    return kiriview::ImageAnimationPlaybackWorkspacePlan {
+        0,
+        planning->transientByteCount,
+        planning->outputByteCount,
+    };
+}
+
+std::optional<kiriview::ImageAnimationPlaybackWorkspacePlan> emptyWorkspacePlan(
+    std::monostate, QSize)
+{
+    return std::nullopt;
+}
+
 kiriview::ImageAnimationPlaybackOpenResult playbackOpenResult(QImage firstFrame,
     int firstFrameDelay, int loopCount, bool sourceHasMoreFrames,
     kiriview::ImageDecodeWorkspaceHold workspaceHold = {})
@@ -107,11 +204,43 @@ public:
 
     kiriview::ImageAnimationPlaybackOpenResult open() override
     {
+        return openWithBudget(m_workspaceBudget);
+    }
+
+    kiriview::ImageAnimationPlaybackOpenResult openAdmitted(
+        std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> operationBudget) override
+    {
+        return openWithBudget(std::move(operationBudget));
+    }
+
+    kiriview::ImageAnimationPlaybackReadResult readNextFrame() override
+    {
+        return readNextFrameWithBudget(m_workspaceBudget);
+    }
+
+    kiriview::ImageAnimationPlaybackReadResult readNextFrameAdmitted(
+        std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> operationBudget) override
+    {
+        return readNextFrameWithBudget(operationBudget);
+    }
+
+    [[nodiscard]] bool restartable() const override { return true; }
+
+private:
+    kiriview::ImageAnimationPlaybackOpenResult openWithBudget(
+        std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> operationBudget)
+    {
         reset();
 
+        if (operationBudget == nullptr) {
+            return playbackOpenResourceLimit(
+                kiriview::imageDecodeWorkspaceResourceLimitDiagnostic());
+        }
+        m_readerWorkspaceBudget = std::move(operationBudget);
+
         kiriview::ImageAnimationSourceCatalogResult catalog
-            = kiriview::readImageAnimationSourceCatalog(
-                kiriview::readerAnimationPlaybackRequest(m_data, m_format, {}, m_workspaceBudget));
+            = kiriview::readImageAnimationSourceCatalog(kiriview::readerAnimationPlaybackRequest(
+                m_data, m_format, {}, m_readerWorkspaceBudget));
         if (!catalog.has_value()) {
             return catalog.error().cause
                     == kiriview::ImageAnimationSourceCatalogFailureCause::ResourceLimitExceeded
@@ -123,9 +252,11 @@ public:
             = kiriview::checkedImageDecodeWorkspaceByteCount(catalog->logicalSize, 4, 1);
         const std::optional<qsizetype> workspaceByteCount
             = kiriview::qImageReaderGifTransientWorkspaceByteCount(catalog->logicalSize);
-        m_transientWorkspaceLease = m_workspaceBudget->startLease();
+        m_transientWorkspaceLease
+            = kiriview::ImageDecodeWorkspaceDetail::startLease(*m_readerWorkspaceBudget);
         if (!outputByteCount.has_value() || !workspaceByteCount.has_value()
-            || !m_transientWorkspaceLease.tryReserve(*workspaceByteCount)) {
+            || !kiriview::ImageDecodeWorkspaceDetail::tryReserve(
+                m_transientWorkspaceLease, *workspaceByteCount)) {
             m_transientWorkspaceLease = {};
             return playbackOpenResourceLimit(
                 kiriview::imageDecodeWorkspaceResourceLimitDiagnostic());
@@ -139,8 +270,9 @@ public:
                 kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData));
         }
 
-        kiriview::ImageDecodeWorkspaceLease outputLease = outputWorkspaceLease();
-        if (!outputLease.tryReserve(m_outputByteCount)) {
+        kiriview::ImageDecodeWorkspaceLease outputLease
+            = outputWorkspaceLease(m_readerWorkspaceBudget);
+        if (!kiriview::ImageDecodeWorkspaceDetail::tryReserve(outputLease, m_outputByteCount)) {
             resetWorkspaceAfterReaderRelease(std::move(reader));
             return playbackOpenResourceLimit(
                 kiriview::imageDecodeWorkspaceResourceLimitDiagnostic());
@@ -176,14 +308,21 @@ public:
             m_nextFrameIndex < m_frameDurations.size(), outputLease.sharedHold());
     }
 
-    kiriview::ImageAnimationPlaybackReadResult readNextFrame() override
+    kiriview::ImageAnimationPlaybackReadResult readNextFrameWithBudget(
+        const std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget>& operationBudget)
     {
         if (m_reader == nullptr || m_nextFrameIndex >= m_frameDurations.size()) {
             return playbackReadEnd();
         }
 
-        kiriview::ImageDecodeWorkspaceLease outputLease = outputWorkspaceLease();
-        if (!outputLease.tryReserve(m_outputByteCount)) {
+        if (operationBudget == nullptr) {
+            reset();
+            return playbackReadResourceLimit(
+                kiriview::imageDecodeWorkspaceResourceLimitDiagnostic());
+        }
+
+        kiriview::ImageDecodeWorkspaceLease outputLease = outputWorkspaceLease(operationBudget);
+        if (!kiriview::ImageDecodeWorkspaceDetail::tryReserve(outputLease, m_outputByteCount)) {
             reset();
             return playbackReadResourceLimit(
                 kiriview::imageDecodeWorkspaceResourceLimitDiagnostic());
@@ -220,13 +359,11 @@ public:
             m_nextFrameIndex < m_frameDurations.size());
     }
 
-    [[nodiscard]] bool restartable() const override { return true; }
-
-private:
-    [[nodiscard]] kiriview::ImageDecodeWorkspaceLease outputWorkspaceLease() const
+    [[nodiscard]] kiriview::ImageDecodeWorkspaceLease outputWorkspaceLease(
+        const std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget>& operationBudget) const
     {
-        return m_workspaceBudget->startLeaseForOperation(
-            m_transientWorkspaceLease.reservedByteCount());
+        return kiriview::ImageDecodeWorkspaceDetail::startLeaseForOperation(
+            *operationBudget, m_transientWorkspaceLease.reservedByteCount());
     }
 
     void resetWorkspaceAfterReaderRelease(
@@ -239,6 +376,7 @@ private:
         m_nextFrameIndex = 0;
         m_outputByteCount = 0;
         m_transientWorkspaceLease = {};
+        m_readerWorkspaceBudget.reset();
     }
 
     void reset() { resetWorkspaceAfterReaderRelease(); }
@@ -246,6 +384,7 @@ private:
     QByteArray m_data;
     QByteArray m_format;
     std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> m_workspaceBudget;
+    std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> m_readerWorkspaceBudget;
     kiriview::ImageDecodeWorkspaceLease m_transientWorkspaceLease;
     QSize m_logicalSize;
     QVector<int> m_frameDurations;
@@ -266,7 +405,36 @@ public:
 
     kiriview::ImageAnimationPlaybackOpenResult open() override
     {
-        m_reader = std::make_unique<kiriview::ApngAnimationReader>(m_workspaceBudget);
+        return openWithBudget(m_workspaceBudget);
+    }
+
+    kiriview::ImageAnimationPlaybackOpenResult openAdmitted(
+        std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> operationBudget) override
+    {
+        return openWithBudget(std::move(operationBudget));
+    }
+
+    kiriview::ImageAnimationPlaybackReadResult readNextFrame() override
+    {
+        return readNextFrameWithBudget({});
+    }
+
+    kiriview::ImageAnimationPlaybackReadResult readNextFrameAdmitted(
+        std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> operationBudget) override
+    {
+        return readNextFrameWithBudget(std::move(operationBudget));
+    }
+
+    [[nodiscard]] bool restartable() const override { return true; }
+
+private:
+    kiriview::ImageAnimationPlaybackOpenResult openWithBudget(
+        std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> operationBudget)
+    {
+        if (operationBudget == nullptr) {
+            operationBudget = m_workspaceBudget;
+        }
+        m_reader = std::make_unique<kiriview::ApngAnimationReader>(operationBudget);
         kiriview::ApngOpenResult openResult = m_reader->open(m_data);
         switch (openResult.status) {
         case kiriview::ApngOpenStatus::Success:
@@ -290,13 +458,16 @@ public:
             kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeApngAnimation));
     }
 
-    kiriview::ImageAnimationPlaybackReadResult readNextFrame() override
+    kiriview::ImageAnimationPlaybackReadResult readNextFrameWithBudget(
+        std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> operationBudget)
     {
         if (m_reader == nullptr) {
             return playbackReadEnd();
         }
 
-        kiriview::AnimationFrameReadResult frame = m_reader->readNextFrame();
+        kiriview::AnimationFrameReadResult frame = operationBudget == nullptr
+            ? m_reader->readNextFrame()
+            : m_reader->readNextFrame(std::move(operationBudget));
         if (!frame) {
             return m_reader->lastReadResourceLimitExceeded()
                 ? playbackReadResourceLimit(std::move(frame.error()))
@@ -308,9 +479,6 @@ public:
         return playbackReadEnd();
     }
 
-    [[nodiscard]] bool restartable() const override { return true; }
-
-private:
     QByteArray m_data;
     std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> m_workspaceBudget;
     std::unique_ptr<kiriview::ApngAnimationReader> m_reader;
@@ -328,7 +496,36 @@ public:
 
     kiriview::ImageAnimationPlaybackOpenResult open() override
     {
-        m_reader = std::make_unique<kiriview::WebPAnimationReader>(m_workspaceBudget);
+        return openWithBudget(m_workspaceBudget);
+    }
+
+    kiriview::ImageAnimationPlaybackOpenResult openAdmitted(
+        std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> operationBudget) override
+    {
+        return openWithBudget(std::move(operationBudget));
+    }
+
+    kiriview::ImageAnimationPlaybackReadResult readNextFrame() override
+    {
+        return readNextFrameWithBudget({});
+    }
+
+    kiriview::ImageAnimationPlaybackReadResult readNextFrameAdmitted(
+        std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> operationBudget) override
+    {
+        return readNextFrameWithBudget(operationBudget);
+    }
+
+    [[nodiscard]] bool restartable() const override { return true; }
+
+private:
+    kiriview::ImageAnimationPlaybackOpenResult openWithBudget(
+        std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> operationBudget)
+    {
+        if (operationBudget == nullptr) {
+            operationBudget = m_workspaceBudget;
+        }
+        m_reader = std::make_unique<kiriview::WebPAnimationReader>(operationBudget);
         kiriview::WebPAnimationOpenResult openResult = m_reader->open(m_data);
         switch (openResult.status) {
         case kiriview::WebPAnimationOpenStatus::Success:
@@ -353,13 +550,16 @@ public:
             kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeImageAnimation));
     }
 
-    kiriview::ImageAnimationPlaybackReadResult readNextFrame() override
+    kiriview::ImageAnimationPlaybackReadResult readNextFrameWithBudget(
+        const std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget>& operationBudget)
     {
         if (m_reader == nullptr) {
             return playbackReadEnd();
         }
 
-        kiriview::AnimationFrameReadResult frame = m_reader->readNextFrame();
+        kiriview::AnimationFrameReadResult frame = operationBudget == nullptr
+            ? m_reader->readNextFrame()
+            : m_reader->readNextFrame(operationBudget);
         if (!frame) {
             return m_reader->lastReadResourceLimitExceeded()
                 ? playbackReadResourceLimit(std::move(frame.error()))
@@ -371,9 +571,6 @@ public:
         return playbackReadEnd();
     }
 
-    [[nodiscard]] bool restartable() const override { return true; }
-
-private:
     QByteArray m_data;
     std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> m_workspaceBudget;
     std::unique_ptr<kiriview::WebPAnimationReader> m_reader;
@@ -391,7 +588,36 @@ public:
 
     kiriview::ImageAnimationPlaybackOpenResult open() override
     {
-        m_reader = std::make_unique<kiriview::JxlAnimationReader>(m_workspaceBudget);
+        return openWithBudget(m_workspaceBudget);
+    }
+
+    kiriview::ImageAnimationPlaybackOpenResult openAdmitted(
+        std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> operationBudget) override
+    {
+        return openWithBudget(std::move(operationBudget));
+    }
+
+    kiriview::ImageAnimationPlaybackReadResult readNextFrame() override
+    {
+        return readNextFrameWithBudget({});
+    }
+
+    kiriview::ImageAnimationPlaybackReadResult readNextFrameAdmitted(
+        std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> operationBudget) override
+    {
+        return readNextFrameWithBudget(operationBudget);
+    }
+
+    [[nodiscard]] bool restartable() const override { return true; }
+
+private:
+    kiriview::ImageAnimationPlaybackOpenResult openWithBudget(
+        std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> operationBudget)
+    {
+        if (operationBudget == nullptr) {
+            operationBudget = m_workspaceBudget;
+        }
+        m_reader = std::make_unique<kiriview::JxlAnimationReader>(operationBudget);
         kiriview::JxlAnimationOpenResult openResult = m_reader->open(m_data);
         switch (openResult.status) {
         case kiriview::JxlAnimationOpenStatus::Success:
@@ -416,13 +642,16 @@ public:
             kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeImageAnimation));
     }
 
-    kiriview::ImageAnimationPlaybackReadResult readNextFrame() override
+    kiriview::ImageAnimationPlaybackReadResult readNextFrameWithBudget(
+        const std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget>& operationBudget)
     {
         if (m_reader == nullptr) {
             return playbackReadEnd();
         }
 
-        kiriview::AnimationFrameReadResult frame = m_reader->readNextFrame();
+        kiriview::AnimationFrameReadResult frame = operationBudget == nullptr
+            ? m_reader->readNextFrame()
+            : m_reader->readNextFrame(operationBudget);
         if (!frame) {
             return m_reader->lastReadResourceLimitExceeded()
                 ? playbackReadResourceLimit(std::move(frame.error()))
@@ -434,9 +663,6 @@ public:
         return playbackReadEnd();
     }
 
-    [[nodiscard]] bool restartable() const override { return true; }
-
-private:
     QByteArray m_data;
     std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> m_workspaceBudget;
     std::unique_ptr<kiriview::JxlAnimationReader> m_reader;
@@ -456,8 +682,37 @@ public:
 
     kiriview::ImageAnimationPlaybackOpenResult open() override
     {
+        return openWithBudget(m_workspaceBudget);
+    }
+
+    kiriview::ImageAnimationPlaybackOpenResult openAdmitted(
+        std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> operationBudget) override
+    {
+        return openWithBudget(std::move(operationBudget));
+    }
+
+    kiriview::ImageAnimationPlaybackReadResult readNextFrame() override
+    {
+        return readNextFrameWithBudget({});
+    }
+
+    kiriview::ImageAnimationPlaybackReadResult readNextFrameAdmitted(
+        std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> operationBudget) override
+    {
+        return readNextFrameWithBudget(operationBudget);
+    }
+
+    [[nodiscard]] bool restartable() const override { return false; }
+
+private:
+    kiriview::ImageAnimationPlaybackOpenResult openWithBudget(
+        std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> operationBudget)
+    {
+        if (operationBudget == nullptr) {
+            operationBudget = m_workspaceBudget;
+        }
         m_reader = std::make_unique<kiriview::HeifSequenceReader>(
-            m_workspaceBudget, m_retainedInputWorkspaceByteCount);
+            operationBudget, m_retainedInputWorkspaceByteCount);
         const kiriview::HeifSequenceOpenResult openResult = m_reader->open(m_data);
         if (openResult.status != kiriview::HeifSequenceOpenStatus::Success) {
             m_reader.reset();
@@ -484,13 +739,16 @@ public:
             true, std::move(decodedFirstFrame.workspaceHold));
     }
 
-    kiriview::ImageAnimationPlaybackReadResult readNextFrame() override
+    kiriview::ImageAnimationPlaybackReadResult readNextFrameWithBudget(
+        const std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget>& operationBudget)
     {
         if (m_reader == nullptr) {
             return playbackReadEnd();
         }
 
-        kiriview::AnimationFrameReadResult frame = m_reader->readNextFrame();
+        kiriview::AnimationFrameReadResult frame = operationBudget == nullptr
+            ? m_reader->readNextFrame()
+            : m_reader->readNextFrame(operationBudget);
         if (!frame) {
             return m_reader->lastReadResourceLimitExceeded()
                 ? playbackReadResourceLimit(std::move(frame.error()))
@@ -502,9 +760,6 @@ public:
         return playbackReadEnd();
     }
 
-    [[nodiscard]] bool restartable() const override { return false; }
-
-private:
     QByteArray m_data;
     std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> m_workspaceBudget;
     qsizetype m_retainedInputWorkspaceByteCount = 0;
@@ -583,6 +838,30 @@ std::unique_ptr<kiriview::ImageAnimationPlaybackSource> makePlaybackSource(
 }
 
 namespace kiriview {
+bool ImageAnimationPlaybackWorkspacePlan::isValid() const
+{
+    const std::optional<qsizetype> openPeak = openPeakByteCount();
+    return retainedInputByteCount >= 0 && persistentDecoderByteCount > 0 && frameOutputByteCount > 0
+        && openPeak.has_value() && checkedByteSum(retainedInputByteCount, *openPeak).has_value();
+}
+
+std::optional<qsizetype> ImageAnimationPlaybackWorkspacePlan::openPeakByteCount() const
+{
+    return checkedByteSum(persistentDecoderByteCount, frameOutputByteCount);
+}
+
+ImageAnimationPlaybackOpenResult ImageAnimationPlaybackSource::openAdmitted(
+    std::shared_ptr<ImageDecodeWorkspaceBudget>) // NOLINT(performance-unnecessary-value-param)
+{
+    return open();
+}
+
+ImageAnimationPlaybackReadResult ImageAnimationPlaybackSource::readNextFrameAdmitted(
+    std::shared_ptr<ImageDecodeWorkspaceBudget>) // NOLINT(performance-unnecessary-value-param)
+{
+    return readNextFrame();
+}
+
 void ImageAnimationPlaybackSource::retainSourceDataLease(ImageSourceDataLease sourceDataLease)
 {
     m_sourceDataLease = std::move(sourceDataLease);
@@ -608,5 +887,39 @@ std::unique_ptr<ImageAnimationPlaybackSource> makeImageAnimationPlaybackSource(
         source->retainInputWorkspace(std::move(inputWorkspaceHold));
     }
     return source;
+}
+
+std::optional<ImageAnimationPlaybackWorkspacePlan> imageAnimationPlaybackWorkspacePlan(
+    const ImageAnimationPlaybackRequest& request, QSize logicalSize)
+{
+    if (!request.isValid() || logicalSize.isEmpty()) {
+        return std::nullopt;
+    }
+    std::optional<ImageAnimationPlaybackWorkspacePlan> plan = std::visit(
+        [logicalSize](const auto& playbackRequest) {
+            if constexpr (std::is_same_v<std::decay_t<decltype(playbackRequest)>, std::monostate>) {
+                return emptyWorkspacePlan(playbackRequest, logicalSize);
+            } else if constexpr (std::is_same_v<std::decay_t<decltype(playbackRequest)>,
+                                     ReaderAnimationPlaybackRequest>) {
+                return readerWorkspacePlan(playbackRequest, logicalSize);
+            } else if constexpr (std::is_same_v<std::decay_t<decltype(playbackRequest)>,
+                                     ApngAnimationPlaybackRequest>) {
+                return apngWorkspacePlan(playbackRequest, logicalSize);
+            } else if constexpr (std::is_same_v<std::decay_t<decltype(playbackRequest)>,
+                                     WebPAnimationPlaybackRequest>) {
+                return webPWorkspacePlan(playbackRequest, logicalSize);
+            } else if constexpr (std::is_same_v<std::decay_t<decltype(playbackRequest)>,
+                                     JxlAnimationPlaybackRequest>) {
+                return jxlWorkspacePlan(playbackRequest, logicalSize);
+            } else {
+                return heifWorkspacePlan(playbackRequest, logicalSize);
+            }
+        },
+        request.payload);
+    if (!plan.has_value()) {
+        return std::nullopt;
+    }
+    plan->retainedInputByteCount = request.inputWorkspaceHold.reservedByteCount();
+    return plan->isValid() ? plan : std::nullopt;
 }
 }

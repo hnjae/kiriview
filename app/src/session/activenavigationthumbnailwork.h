@@ -4,6 +4,7 @@
 #ifndef KIRIVIEW_ACTIVENAVIGATIONTHUMBNAILWORK_H
 #define KIRIVIEW_ACTIVENAVIGATIONTHUMBNAILWORK_H
 
+#include "decoding/imagedecodeworkspace.h"
 #include "location/imagelocation.h"
 #include "location/sourcekey.h"
 #include "session/activenavigationthumbnaildemand.h"
@@ -90,6 +91,7 @@ struct ActiveNavigationThumbnailWorkRequest
     ActiveNavigationThumbnailDemandBucket bucket = ActiveNavigationThumbnailDemandBucket::None;
     ActiveNavigationThumbnailWorkKind workKind = ActiveNavigationThumbnailWorkKind::Foreground;
     ThumbnailSourceAdapterPlan sourcePlan;
+    ImageDecodeWorkspacePriority workspacePriority = ImageDecodeWorkspacePriority::Demanded;
 };
 
 enum class ActiveNavigationThumbnailDiagnosticKind {

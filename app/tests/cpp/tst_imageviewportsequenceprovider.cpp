@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "cache/imagebytecost.h"
+#include "decoding/apnganimationreader.h"
 #include "decoding/imagesourcerevision.h"
 #include "decoding/kiriimagedecoder.h"
 #include "image_test_support.h"
@@ -198,14 +199,76 @@ kiriview::ImageDecodeDependencies actualDecodeDependencies(
 void runOutstandingWorkerSchedules(
     kiriview::TestSupport::ManualImageWorkerScheduler& workerScheduler, std::size_t& nextSchedule)
 {
-    while (nextSchedule < workerScheduler.scheduleCount()) {
-        if (workerScheduler.isActive(nextSchedule)) {
-            workerScheduler.runWork(nextSchedule);
-            workerScheduler.finish(nextSchedule);
+    int idlePasses = 0;
+    while (idlePasses < 2) {
+        QCoreApplication::processEvents();
+        bool ranWork = false;
+        while (nextSchedule < workerScheduler.scheduleCount()) {
+            if (workerScheduler.isActive(nextSchedule)) {
+                workerScheduler.runWork(nextSchedule);
+                workerScheduler.finish(nextSchedule);
+                ranWork = true;
+            }
+            ++nextSchedule;
         }
-        ++nextSchedule;
+        idlePasses = ranWork ? 0 : idlePasses + 1;
     }
 }
+
+struct RetiringFrameConstructionSchedule
+{
+    kiriview::ImageWorkerOperation work;
+    kiriview::ImageWorkerCompletion completion;
+    kiriview::ImageWorkerTaskCompletion taskCompletion;
+};
+
+class RetiringFrameConstructionScheduler
+{
+public:
+    kiriview::ImageWorkerScheduler scheduler()
+    {
+        return kiriview::ImageWorkerScheduler([this](QObject*, kiriview::ImageWorkerOperation work,
+                                                  kiriview::ImageWorkerCompletion completion) {
+            auto schedule = std::make_shared<RetiringFrameConstructionSchedule>();
+            schedule->work = std::move(work);
+            schedule->completion = std::move(completion);
+            kiriview::ImageWorkerTask task([]() { });
+            schedule->taskCompletion = task.completion();
+            m_schedules.push_back(std::move(schedule));
+            return task;
+        });
+    }
+
+    [[nodiscard]] std::size_t scheduleCount() const { return m_schedules.size(); }
+
+    void runWork(std::size_t index)
+    {
+        if (m_schedules.at(index)->work) {
+            m_schedules.at(index)->work();
+        }
+    }
+
+    void finish(std::size_t index)
+    {
+        const std::shared_ptr<RetiringFrameConstructionSchedule> schedule = m_schedules.at(index);
+        schedule->taskCompletion.claimAndRun([&]() {
+            if (schedule->completion) {
+                schedule->completion();
+            }
+        });
+    }
+
+    void retire(std::size_t index)
+    {
+        const std::shared_ptr<RetiringFrameConstructionSchedule> schedule = m_schedules.at(index);
+        schedule->work = {};
+        schedule->completion = {};
+        schedule->taskCompletion.retire();
+    }
+
+private:
+    std::vector<std::shared_ptr<RetiringFrameConstructionSchedule>> m_schedules;
+};
 
 kiriview::ThumbnailCacheLookupResult readyThumbnailLookup()
 {
@@ -563,6 +626,8 @@ private Q_SLOTS:
     void providerResourcePreservesDistinctTimedFramePixelsAndHandles();
     void apngFirstFramePublishesBeforeLaterRasterFailure();
     void actualApngFramesPreservePixelsThroughProviderResource();
+    void animationFrameWaitsForWorkspaceAdmission();
+    void cancelingPendingAnimationFrameSuppressesWork();
     void animationFrameDecodeIsBoundedToOneInFlightOutput();
     void animationFrameCompletionAfterInvalidationIsDropped_data();
     void animationFrameCompletionAfterInvalidationIsDropped();
@@ -593,6 +658,10 @@ private Q_SLOTS:
     void refinementAllocationFailureIsResourceExhausted();
     void refinementSharesAggregateBudgetWithRetainedDisplayOutput();
     void refinementSharesDecodedWorkspaceWithRetainedRasterOutput();
+    void cancelingPendingRefinementSuppressesWork();
+    void failedOutputAdmissionDoesNotRetainStaticWorkIdentity();
+    void cancelingRunningRefinementDefersSameTargetUntilRetirement();
+    void intrinsicRefinementWorkspaceLimitFailsWithoutWork();
     void outputAdmissionSurvivesResultOverwriteUntilPixelsRetire();
     void concurrentRefinementUsesRequestAdmissibleWorkerResult();
     void provisionalFrameDoesNotBecomeCurrentStillDisplayImage();
@@ -611,6 +680,10 @@ private Q_SLOTS:
     void animationDemandRequestsOnlyTheSelectedFrame();
     void staleCompletionMayCacheButCannotPublish();
     void providerFrameConstructionRequiresWorkspacePeak();
+    void providerFrameConstructionWaitsForWorkspace();
+    void cancelingPendingFrameConstructionSuppressesWork();
+    void destroyingPendingFrameConstructionReceiverSuppressesWork();
+    void cancelingRunningFrameConstructionRetainsWorkspaceUntilRetirement();
     void providerFrameHandleRetainsWorkspaceThroughRelease_data();
     void providerFrameHandleRetainsWorkspaceThroughRelease();
     void componentFrameHandlePinsStoreUntilRelease();
@@ -1044,8 +1117,8 @@ void TestImageViewportSequenceProvider::deferredDecodeSourcePreservesDemandUntil
 
     dataLoader.finishFrontLoad(QByteArrayLiteral("decoded-image-data"));
     QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
-    workerScheduler.runWork(0);
-    workerScheduler.finish(0);
+    std::size_t nextSchedule = 0;
+    runOutstandingWorkerSchedules(workerScheduler, nextSchedule);
 
     QCOMPARE(metadataResults.size(), std::size_t(1));
     QCOMPARE(metadataIdentities.size(), std::size_t(1));
@@ -1235,7 +1308,9 @@ void TestImageViewportSequenceProvider::
 
     workerScheduler.runWork(0);
     workerScheduler.finish(0);
-    QCOMPARE(frameResults.size(), std::size_t(1));
+    std::size_t nextSchedule = 1;
+    runOutstandingWorkerSchedules(workerScheduler, nextSchedule);
+    QTRY_COMPARE(frameResults.size(), std::size_t(1));
     QCOMPARE(frameIdentities.size(), std::size_t(1));
     QVERIFY(frameIdentities.front() == identity);
     QVERIFY(frameResults.front().displayImage.has_value());
@@ -1488,10 +1563,20 @@ void TestImageViewportSequenceProvider::
     QVERIFY(first.storeEntryId != second.storeEntryId);
     QCOMPARE(store->entry(first.storeEntryId)->image.pixelColor(0, 0), QColor(Qt::red));
     QCOMPARE(store->entry(second.storeEntryId)->image.pixelColor(0, 0), QColor(Qt::blue));
-    ImageSequenceProviderFrameHandle* firstHandle = resource->acquireFrameHandle(first);
-    ImageSequenceProviderFrameHandle* secondHandle = resource->acquireFrameHandle(second);
-    QVERIFY(firstHandle != nullptr);
-    QVERIFY(secondHandle != nullptr);
+    std::unique_ptr<ImageSequenceProviderFrameHandle> firstHandle;
+    std::unique_ptr<ImageSequenceProviderFrameHandle> secondHandle;
+    resource->requestFrameHandle(this, identity, first,
+        [&firstHandle](kiriview::ImageViewportProviderWorkIdentity,
+            std::unique_ptr<ImageSequenceProviderFrameHandle> handle) {
+            firstHandle = std::move(handle);
+        });
+    resource->requestFrameHandle(this, identity, second,
+        [&secondHandle](kiriview::ImageViewportProviderWorkIdentity,
+            std::unique_ptr<ImageSequenceProviderFrameHandle> handle) {
+            secondHandle = std::move(handle);
+        });
+    QTRY_VERIFY(firstHandle != nullptr);
+    QTRY_VERIFY(secondHandle != nullptr);
     QVERIFY(firstHandle->frame() != nullptr);
     QVERIFY(secondHandle->frame() != nullptr);
     firstHandle->release();
@@ -1541,9 +1626,8 @@ void TestImageViewportSequenceProvider::apngFirstFramePublishesBeforeLaterRaster
     requestFrame(0);
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     dataLoader.finishFrontLoad(data);
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
-    workerScheduler.runWork(0);
-    workerScheduler.finish(0);
+    std::size_t nextSchedule = 0;
+    runOutstandingWorkerSchedules(workerScheduler, nextSchedule);
 
     QVERIFY2(preparedFrames.size() == 1,
         "The retained APNG first frame must publish without completing later animation work");
@@ -1556,9 +1640,7 @@ void TestImageViewportSequenceProvider::apngFirstFramePublishesBeforeLaterRaster
     QCOMPARE(stored->image.pixelColor(0, 0), QColor(Qt::red));
 
     requestFrame(1);
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(2));
-    workerScheduler.runWork(1);
-    workerScheduler.finish(1);
+    runOutstandingWorkerSchedules(workerScheduler, nextSchedule);
     QCOMPARE(preparedFrames.size(), std::size_t(2));
     QVERIFY(!preparedFrames.back().isReady());
     QCOMPARE(preparedFrames.back().failureCause, ImageSequenceProviderFailureCause::Decode);
@@ -1626,10 +1708,20 @@ void TestImageViewportSequenceProvider::actualApngFramesPreservePixelsThroughPro
     QCOMPARE(second.envelope.frame(), 1);
     QVERIFY(first.storeEntryId != second.storeEntryId);
 
-    ImageSequenceProviderFrameHandle* firstHandle = resource->acquireFrameHandle(first);
-    ImageSequenceProviderFrameHandle* secondHandle = resource->acquireFrameHandle(second);
-    QVERIFY(firstHandle != nullptr);
-    QVERIFY(secondHandle != nullptr);
+    std::unique_ptr<ImageSequenceProviderFrameHandle> firstHandle;
+    std::unique_ptr<ImageSequenceProviderFrameHandle> secondHandle;
+    resource->requestFrameHandle(this, identity, first,
+        [&firstHandle](kiriview::ImageViewportProviderWorkIdentity,
+            std::unique_ptr<ImageSequenceProviderFrameHandle> handle) {
+            firstHandle = std::move(handle);
+        });
+    resource->requestFrameHandle(this, identity, second,
+        [&secondHandle](kiriview::ImageViewportProviderWorkIdentity,
+            std::unique_ptr<ImageSequenceProviderFrameHandle> handle) {
+            secondHandle = std::move(handle);
+        });
+    QTRY_VERIFY(firstHandle != nullptr);
+    QTRY_VERIFY(secondHandle != nullptr);
     QVERIFY(firstHandle->frame() != nullptr);
     QVERIFY(secondHandle->frame() != nullptr);
     QVERIFY(firstHandle->frame() != secondHandle->frame());
@@ -1645,6 +1737,136 @@ void TestImageViewportSequenceProvider::actualApngFramesPreservePixelsThroughPro
 
     firstHandle->release();
     secondHandle->release();
+}
+
+void TestImageViewportSequenceProvider::animationFrameWaitsForWorkspaceAdmission()
+{
+    const QByteArray data = animationFixtureData(QStringLiteral("animated-smoke.apng"));
+    const kiriview::ApngAnimationWorkspacePlanResult planning
+        = kiriview::planApngAnimationOpen(data);
+    QCOMPARE(planning.status, kiriview::ApngOpenStatus::Success);
+    const qsizetype openPeakByteCount
+        = planning.plan.transientByteCount + planning.plan.firstFrameOutputByteCount;
+    QVERIFY(openPeakByteCount > 0);
+
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImageDecodeDependencies dependencies
+        = actualDecodeDependencies(dataLoader, workerScheduler);
+    auto workspaceBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        openPeakByteCount, openPeakByteCount);
+    dependencies.workspaceBudget = workspaceBudget;
+    const QUrl url(QStringLiteral("file:///tmp/pending-animation-frame.apng"));
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::ImageLoadSession(116,
+            kiriview::ImageLoadRequest::fromExternalSource(
+                kiriview::resolvedNavigationSource(url, {})),
+            kiriview::DisplayedImageLocation::fromUrl(url)),
+        std::move(dependencies));
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        116,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("pending-animation-frame"),
+    };
+    std::vector<kiriview::ImageViewportProviderFrameResult> results;
+    const auto requestFrame = [&source, &identity, &results](int frame) {
+        source->requestFrame(identity, kiriview::ImageViewportProviderFrameRequest { frame, {} },
+            [&results](kiriview::ImageViewportProviderWorkIdentity,
+                kiriview::ImageViewportProviderFrameResult result) {
+                results.push_back(std::move(result));
+            });
+    };
+
+    requestFrame(0);
+    dataLoader.finishFrontLoad(data);
+    std::size_t nextSchedule = 0;
+    runOutstandingWorkerSchedules(workerScheduler, nextSchedule);
+    QCOMPARE(results.size(), std::size_t(1));
+    QVERIFY(results.front().displayImage.has_value());
+    QVERIFY(!results.front().displayImage->sourceIdentity.isEmpty());
+    QVERIFY(results.front().displayImage->sourceRevision.isValid());
+    QCOMPARE(
+        results.front().displayImage->image.size(), results.front().displayImage->originalSize);
+    QVERIFY(results.front().displayImage->isValid());
+    QCOMPARE(
+        results.front().displayImage->rasterKind, kiriview::DisplayImageRasterKind::TimedFrame);
+    QVERIFY(results.front().envelope.isTimedFrame());
+    QCOMPARE(results.front().envelope.frame(), 0);
+
+    kiriview::ImageDecodeWorkspaceLease occupancy
+        = kiriview::ImageDecodeWorkspaceDetail::startLease(*workspaceBudget);
+    QVERIFY(kiriview::ImageDecodeWorkspaceDetail::tryReserve(occupancy, openPeakByteCount));
+    requestFrame(1);
+    QCoreApplication::processEvents();
+    QCOMPARE(workerScheduler.scheduleCount(), nextSchedule);
+    QCOMPARE(results.size(), std::size_t(1));
+
+    QVERIFY(occupancy.release(openPeakByteCount));
+    QTRY_VERIFY(workerScheduler.scheduleCount() > nextSchedule);
+    runOutstandingWorkerSchedules(workerScheduler, nextSchedule);
+    QCOMPARE(results.size(), std::size_t(2));
+    QVERIFY(results.back().displayImage.has_value());
+}
+
+void TestImageViewportSequenceProvider::cancelingPendingAnimationFrameSuppressesWork()
+{
+    const QByteArray data = animationFixtureData(QStringLiteral("animated-smoke.apng"));
+    const kiriview::ApngAnimationWorkspacePlanResult planning
+        = kiriview::planApngAnimationOpen(data);
+    QCOMPARE(planning.status, kiriview::ApngOpenStatus::Success);
+    const qsizetype openPeakByteCount
+        = planning.plan.transientByteCount + planning.plan.firstFrameOutputByteCount;
+
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImageDecodeDependencies dependencies
+        = actualDecodeDependencies(dataLoader, workerScheduler);
+    auto workspaceBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        openPeakByteCount, openPeakByteCount);
+    dependencies.workspaceBudget = workspaceBudget;
+    const QUrl url(QStringLiteral("file:///tmp/canceled-pending-animation-frame.apng"));
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::ImageLoadSession(117,
+            kiriview::ImageLoadRequest::fromExternalSource(
+                kiriview::resolvedNavigationSource(url, {})),
+            kiriview::DisplayedImageLocation::fromUrl(url)),
+        std::move(dependencies));
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        117,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("canceled-pending-animation-frame"),
+    };
+    std::vector<kiriview::ImageViewportProviderFrameResult> results;
+    const auto requestFrame = [&source, &identity, &results](int frame) {
+        source->requestFrame(identity, kiriview::ImageViewportProviderFrameRequest { frame, {} },
+            [&results](kiriview::ImageViewportProviderWorkIdentity,
+                kiriview::ImageViewportProviderFrameResult result) {
+                results.push_back(std::move(result));
+            });
+    };
+
+    requestFrame(0);
+    dataLoader.finishFrontLoad(data);
+    std::size_t nextSchedule = 0;
+    runOutstandingWorkerSchedules(workerScheduler, nextSchedule);
+    QCOMPARE(results.size(), std::size_t(1));
+
+    kiriview::ImageDecodeWorkspaceLease occupancy
+        = kiriview::ImageDecodeWorkspaceDetail::startLease(*workspaceBudget);
+    QVERIFY(kiriview::ImageDecodeWorkspaceDetail::tryReserve(occupancy, openPeakByteCount));
+    requestFrame(1);
+    QCoreApplication::processEvents();
+    QCOMPARE(workerScheduler.scheduleCount(), nextSchedule);
+    source->cancel({ identity.requestToken });
+    QVERIFY(occupancy.release(openPeakByteCount));
+    QCoreApplication::processEvents();
+
+    QCOMPARE(workerScheduler.scheduleCount(), nextSchedule);
+    QCOMPARE(results.size(), std::size_t(1));
 }
 
 void TestImageViewportSequenceProvider::animationFrameDecodeIsBoundedToOneInFlightOutput()
@@ -1685,15 +1907,20 @@ void TestImageViewportSequenceProvider::animationFrameDecodeIsBoundedToOneInFlig
     workerScheduler.runWork(0);
     workerScheduler.finish(0);
 
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(2));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(2));
     workerScheduler.runWork(1);
     workerScheduler.finish(1);
-    QCOMPARE(results.size(), std::size_t(1));
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(3));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(3));
+    QCOMPARE(results.size(), std::size_t(0));
 
     workerScheduler.runWork(2);
     workerScheduler.finish(2);
-    QCOMPARE(results.size(), std::size_t(2));
+    QTRY_COMPARE(results.size(), std::size_t(1));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(4));
+
+    workerScheduler.runWork(3);
+    workerScheduler.finish(3);
+    QTRY_COMPARE(results.size(), std::size_t(2));
 }
 
 void TestImageViewportSequenceProvider::animationFrameCompletionAfterInvalidationIsDropped_data()
@@ -1758,20 +1985,19 @@ void TestImageViewportSequenceProvider::animationFrameCompletionAfterInvalidatio
     requestFrame(0);
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     dataLoader.finishFrontLoad(data);
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
-    workerScheduler.runWork(0);
-    workerScheduler.finish(0);
+    std::size_t nextSchedule = 0;
+    runOutstandingWorkerSchedules(workerScheduler, nextSchedule);
     QCOMPARE(preparedFrames.size(), std::size_t(1));
 
     requestFrame(1);
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(2));
-    workerScheduler.runWork(1);
+    QTRY_VERIFY(workerScheduler.scheduleCount() > nextSchedule);
+    workerScheduler.runWork(nextSchedule);
     if (closeResource) {
         resource->close();
     } else {
         resource->cancel({ requestToken });
     }
-    workerScheduler.finish(1);
+    workerScheduler.finish(nextSchedule);
 
     QCOMPARE(preparedFrames.size(), std::size_t(1));
 }
@@ -1852,8 +2078,8 @@ void TestImageViewportSequenceProvider::
         !resource->currentStillDisplayImage(viewport.state().primary().display().demandRevision())
             .has_value());
 
-    workerScheduler.runWork(0);
-    workerScheduler.finish(0);
+    std::size_t nextSchedule = 0;
+    runOutstandingWorkerSchedules(workerScheduler, nextSchedule);
     if (authoritativeSuccess) {
         QVERIFY(driveRenderUntil(window, [&viewport]() {
             return viewport.state().request().status() == ImageViewportRequestStatus::Ready;
@@ -1889,19 +2115,23 @@ void TestImageViewportSequenceProvider::readerOrientationProducesNormalizedFrame
     fixture.create();
 
     kiriview::ImageViewportProviderPreparedFrame prepared;
-    fixture.resource->requestFrame(
-        kiriview::ImageViewportProviderWorkIdentity {
-            41,
-            ImageViewportPageRole::Primary,
-            {},
-            {},
-            QStringLiteral("fake-location"),
-        },
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        41,
+        ImageViewportPageRole::Primary,
         {},
+        {},
+        QStringLiteral("fake-location"),
+    };
+    fixture.resource->requestFrame(identity, {},
         [&prepared](kiriview::ImageViewportProviderWorkIdentity,
             kiriview::ImageViewportProviderPreparedFrame result) { prepared = std::move(result); });
-    QScopedPointer<ImageSequenceProviderFrameHandle> handle(
-        fixture.resource->acquireFrameHandle(prepared));
+    std::unique_ptr<ImageSequenceProviderFrameHandle> handle;
+    fixture.resource->requestFrameHandle(this, identity, prepared,
+        [&handle](kiriview::ImageViewportProviderWorkIdentity,
+            std::unique_ptr<ImageSequenceProviderFrameHandle> completed) {
+            handle = std::move(completed);
+        });
+    QTRY_VERIFY(handle != nullptr);
     QVERIFY(handle);
     QVERIFY(handle->frame());
     QVERIFY(handle->frame()->isValid());
@@ -2021,8 +2251,8 @@ void TestImageViewportSequenceProvider::staleAuthoritativeSeedLoadsAndDecodesCur
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     dataLoader.finishFrontLoad(QByteArrayLiteral("current-source-bytes"));
     QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
-    workerScheduler.runWork(0);
-    workerScheduler.finish(0);
+    std::size_t nextSchedule = 0;
+    runOutstandingWorkerSchedules(workerScheduler, nextSchedule);
     QCOMPARE(decoderCalls, 1);
     QCOMPARE(results.size(), std::size_t(1));
     QVERIFY(results.front().displayImage.has_value());
@@ -2160,7 +2390,7 @@ void TestImageViewportSequenceProvider::seededInsufficientFirstDisplayRefinesBef
     dataLoader.finishFrontLoad(authoritativeSeedData());
     QCOMPARE(results.size(), std::size_t(0));
     QVERIFY(!completedIdentity.has_value());
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(1));
 
     workerScheduler.runWork(0);
     QCOMPARE(refinementSource->refinementCount, 1);
@@ -2221,7 +2451,7 @@ void TestImageViewportSequenceProvider::seededRequireExactRefinesFullSourceBefor
         });
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     dataLoader.finishFrontLoad(authoritativeSeedData());
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     QCOMPARE(results.size(), std::size_t(0));
 
     workerScheduler.runWork(0);
@@ -2298,7 +2528,7 @@ void TestImageViewportSequenceProvider::scalableSourceRefinesBeyondIntrinsicRast
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     dataLoader.finishFrontLoad(authoritativeSeedData());
     QCOMPARE(results.size(), std::size_t(0));
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     workerScheduler.runWork(0);
     workerScheduler.finish(0);
 
@@ -2500,7 +2730,7 @@ void TestImageViewportSequenceProvider::actualRefinementByteCostPreservesLimitOu
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     dataLoader.finishFrontLoad(authoritativeSeedData());
     QCOMPARE(results.size(), std::size_t(0));
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     workerScheduler.runWork(0);
     workerScheduler.finish(0);
 
@@ -2558,7 +2788,7 @@ void TestImageViewportSequenceProvider::refinementFailureIsNotReclassifiedAsReso
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     dataLoader.finishFrontLoad(authoritativeSeedData());
     QCOMPARE(results.size(), std::size_t(0));
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     workerScheduler.runWork(0);
     workerScheduler.finish(0);
 
@@ -2611,6 +2841,7 @@ void TestImageViewportSequenceProvider::invalidRefinementGeometryIsProviderInter
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     dataLoader.finishFrontLoad(authoritativeSeedData());
     QCOMPARE(results.size(), std::size_t(0));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     workerScheduler.runWork(0);
     workerScheduler.finish(0);
 
@@ -2663,7 +2894,7 @@ void TestImageViewportSequenceProvider::initialDetailWaitPublishesFirstDisplayFa
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     dataLoader.finishFrontLoad(authoritativeSeedData());
     QCOMPARE(results.size(), std::size_t(0));
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     QCOMPARE(timerScheduler.timerCount(), std::size_t(1));
     QVERIFY(timerScheduler.timerAt(0).active());
 
@@ -2725,7 +2956,7 @@ void TestImageViewportSequenceProvider::initialDetailDeadlineInvalidationDropsQu
     QCoreApplication::processEvents();
 
     QCOMPARE(completionCount, 0);
-    QVERIFY(!workerScheduler.isActive(0));
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(0));
 }
 
 void TestImageViewportSequenceProvider::newerInitialRefinementBoundsTimedOutWork()
@@ -2771,14 +3002,14 @@ void TestImageViewportSequenceProvider::newerInitialRefinementBoundsTimedOutWork
     request(QSize(300, 225), completionCount);
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     dataLoader.finishFrontLoad(authoritativeSeedData());
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     timerScheduler.timerAt(0).fire();
     QCoreApplication::processEvents();
     QCOMPARE(completionCount, 1);
     QVERIFY(workerScheduler.isActive(0));
 
     request(QSize(400, 300), completionCount);
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(2));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(2));
     QVERIFY(!workerScheduler.isActive(0));
     QCOMPARE(completionCount, 1);
     source->close();
@@ -2830,7 +3061,7 @@ void TestImageViewportSequenceProvider::synchronousInitialRefinementCompletesExa
 
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     dataLoader.finishFrontLoad(authoritativeSeedData());
-    QCOMPARE(results.size(), std::size_t(1));
+    QTRY_COMPARE(results.size(), std::size_t(1));
     QVERIFY(results.front().displayImage.has_value());
     QCOMPARE(results.front().displayImage->quality, kiriview::DisplayImageQuality::BoundedDetail);
     QCOMPARE(results.front().displayImage->image.size(), QSize(400, 300));
@@ -2886,10 +3117,9 @@ void TestImageViewportSequenceProvider::initialRefinementUsesProducerPeakBudget(
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     dataLoader.finishFrontLoad(authoritativeSeedData());
     QCOMPARE(results.size(), std::size_t(0));
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     QVERIFY(refinementSource->preflightCount > 0);
     QCOMPARE(refinementSource->refinementCount, 0);
-    QCOMPARE(refinementSource->lastPreflightSize, QSize(300, 225));
     QCOMPARE(refinementSource->lastRefinementSize, QSize());
     QCOMPARE(displayStore->byteCost(), displayStoreEntryBudget);
     workerScheduler.runWork(0);
@@ -2959,7 +3189,7 @@ void TestImageViewportSequenceProvider::exactRefinementProducerBudgetFailsBefore
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     dataLoader.finishFrontLoad(authoritativeSeedData());
 
-    QCOMPARE(results.size(), std::size_t(1));
+    QTRY_COMPARE(results.size(), std::size_t(1));
     QCOMPARE(results.front().failureCause, ImageSequenceProviderFailureCause::ResourceExhausted);
     QCOMPARE(workerScheduler.scheduleCount(), std::size_t(0));
     QVERIFY(refinementSource->preflightCount > 0);
@@ -3015,7 +3245,7 @@ void TestImageViewportSequenceProvider::refinementOutputExceedingPreflightIsReso
             results.push_back(std::move(result));
         });
     dataLoader.finishFrontLoad(authoritativeSeedData());
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     workerScheduler.runWork(0);
     workerScheduler.finish(0);
 
@@ -3066,7 +3296,7 @@ void TestImageViewportSequenceProvider::refinementAllocationFailureIsResourceExh
             results.push_back(std::move(result));
         });
     dataLoader.finishFrontLoad(authoritativeSeedData());
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     workerScheduler.runWork(0);
     workerScheduler.finish(0);
 
@@ -3146,7 +3376,7 @@ void TestImageViewportSequenceProvider::refinementSharesAggregateBudgetWithRetai
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     dataLoader.finishFrontLoad(authoritativeSeedData());
 
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     QVERIFY(refinementSource->preflightCount > 0);
     QCOMPARE(refinementSource->refinementCount, 0);
     QVERIFY(store->byteCost() > retainedByteCost);
@@ -3184,8 +3414,9 @@ void TestImageViewportSequenceProvider::refinementSharesDecodedWorkspaceWithReta
     auto workspaceBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
         workspaceByteLimit, workspaceByteLimit);
     dependencies.workspaceBudget = workspaceBudget;
-    kiriview::ImageDecodeWorkspaceLease retainedOutput = dependencies.workspaceBudget->startLease();
-    QVERIFY(retainedOutput.tryReserve(basisByteCost + 1));
+    kiriview::ImageDecodeWorkspaceLease retainedOutput
+        = kiriview::ImageDecodeWorkspaceDetail::startLease(*dependencies.workspaceBudget);
+    QVERIFY(kiriview::ImageDecodeWorkspaceDetail::tryReserve(retainedOutput, basisByteCost + 1));
 
     auto refinementSource = std::make_shared<RefiningDisplaySource>();
     refinementSource->producerBufferCount = producerBufferCount;
@@ -3224,18 +3455,305 @@ void TestImageViewportSequenceProvider::refinementSharesDecodedWorkspaceWithReta
         });
     dataLoader.finishFrontLoad(authoritativeSeedData());
 
-    QCOMPARE(results.size(), std::size_t(1));
-    QCOMPARE(results.front().failureCause, ImageSequenceProviderFailureCause::ResourceExhausted);
-    QVERIFY(results.front().failure.has_value());
-    QVERIFY(!results.front().failure->userMessage.isEmpty());
-    QVERIFY(!results.front().failure->diagnosticDetail.isEmpty());
-    QVERIFY(results.front().failure->userMessage != results.front().failure->diagnosticDetail);
-    QCOMPARE(results.front().failure->decodeCause,
-        kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+    QCOMPARE(results.size(), std::size_t(0));
     QCOMPARE(workerScheduler.scheduleCount(), std::size_t(0));
     QCOMPARE(refinementSource->refinementCount, 0);
     QCOMPARE(retainedOutput.reservedByteCount(), basisByteCost + 1);
     QVERIFY(retainedOutput.release(basisByteCost + 1));
+
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    QCOMPARE(results.size(), std::size_t(0));
+    QCOMPARE(refinementSource->refinementCount, 0);
+    workerScheduler.runWork(0);
+    QCOMPARE(refinementSource->refinementCount, 1);
+    workerScheduler.finish(0);
+
+    QCOMPARE(results.size(), std::size_t(1));
+    QVERIFY(results.front().isReady());
+    QVERIFY(results.front().authoritativeStillDisplayImage.has_value());
+    QCOMPARE(results.front().authoritativeStillDisplayImage->image.size(), QSize(400, 300));
+}
+
+void TestImageViewportSequenceProvider::cancelingPendingRefinementSuppressesWork()
+{
+    constexpr qsizetype basisByteCost = 200 * 150 * 4;
+    constexpr qsizetype outputByteCost = 400 * 300 * 4;
+    constexpr qsizetype producerPeakByteCost = outputByteCost * 2;
+    constexpr qsizetype workspaceByteLimit = basisByteCost + producerPeakByteCost;
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImageDecodeDependencies dependencies
+        = kiriview::TestSupport::imageDecodeDependenciesFor(
+            dataLoader, kiriview::TestSupport::staticImageDataDecoder());
+    dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
+    auto workspaceBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        workspaceByteLimit, workspaceByteLimit);
+    dependencies.workspaceBudget = workspaceBudget;
+    kiriview::ImageDecodeWorkspaceLease aggregateOccupancy
+        = kiriview::ImageDecodeWorkspaceDetail::startLease(*workspaceBudget);
+    QVERIFY(
+        kiriview::ImageDecodeWorkspaceDetail::tryReserve(aggregateOccupancy, basisByteCost + 1));
+
+    auto refinementSource = std::make_shared<RefiningDisplaySource>();
+    const QUrl url(QStringLiteral("file:///tmp/canceled-pending-refinement.jpg"));
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::ImageLoadSession(766,
+            kiriview::ImageLoadRequest::fromExternalSource(
+                kiriview::resolvedNavigationSource(url, {})),
+            kiriview::DisplayedImageLocation::fromUrl(url)),
+        std::move(dependencies),
+        authoritativeSeedForUrl(url, firstDisplayPayload(refinementSource)));
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        766,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("canceled-pending-refinement"),
+    };
+    ImageSequenceProviderDisplayDemand demand;
+    demand.setTargetDisplaySizePixels(QSizeF(400, 300));
+    demand.setCurrentPayloadQuality(ImageViewportPayloadQuality::FirstDisplay);
+    demand.setCurrentPayloadExactness(ImageViewportPayloadExactness::NotExact);
+    std::vector<kiriview::ImageViewportProviderFrameResult> results;
+
+    source->requestFrame(identity,
+        kiriview::ImageViewportProviderFrameRequest {
+            0,
+            demand,
+        },
+        [&results](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderFrameResult result) {
+            results.push_back(std::move(result));
+        });
+    dataLoader.finishFrontLoad(authoritativeSeedData());
+
+    QCOMPARE(results.size(), std::size_t(0));
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(0));
+    source->cancel({ identity.requestToken });
+    QVERIFY(aggregateOccupancy.release(basisByteCost + 1));
+    QCoreApplication::processEvents();
+
+    QCOMPARE(results.size(), std::size_t(0));
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(0));
+    QCOMPARE(refinementSource->refinementCount, 0);
+    QCOMPARE(workspaceBudget->reservedByteCount(), qsizetype(0));
+}
+
+void TestImageViewportSequenceProvider::failedOutputAdmissionDoesNotRetainStaticWorkIdentity()
+{
+    constexpr qsizetype basisByteCost = 200 * 150 * 4;
+    constexpr qsizetype outputByteCost = 800 * 600 * 4;
+    constexpr qsizetype producerPeakByteCost = outputByteCost * 2;
+    constexpr qsizetype workspaceByteLimit = basisByteCost + producerPeakByteCost;
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler decodeScheduler;
+    kiriview::TestSupport::ManualImageWorkerScheduler refinementScheduler;
+    kiriview::ImageDecodeDependencies dependencies
+        = kiriview::TestSupport::imageDecodeDependenciesFor(
+            dataLoader, kiriview::TestSupport::staticImageDataDecoder());
+    dependencies.workerScheduler = decodeScheduler.scheduler();
+    dependencies.refinementScheduler = refinementScheduler.scheduler();
+    auto workspaceBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        workspaceByteLimit, workspaceByteLimit);
+    dependencies.workspaceBudget = workspaceBudget;
+    kiriview::ImageDecodeWorkspaceLease aggregateOccupancy
+        = kiriview::ImageDecodeWorkspaceDetail::startLease(*workspaceBudget);
+    QVERIFY(
+        kiriview::ImageDecodeWorkspaceDetail::tryReserve(aggregateOccupancy, basisByteCost + 1));
+
+    auto refinementSource = std::make_shared<RefiningDisplaySource>();
+    const QUrl url(QStringLiteral("file:///tmp/failed-output-admission.jpg"));
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::ImageLoadSession(768,
+            kiriview::ImageLoadRequest::fromExternalSource(
+                kiriview::resolvedNavigationSource(url, {})),
+            kiriview::DisplayedImageLocation::fromUrl(url)),
+        std::move(dependencies),
+        authoritativeSeedForUrl(url, firstDisplayPayload(refinementSource)));
+    auto outputStore = std::make_shared<kiriview::DisplayImageStore>(producerPeakByteCost * 2);
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        768,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("failed-output-admission"),
+    };
+    ImageSequenceProviderDisplayDemand demand;
+    demand.setTargetDisplaySizePixels(QSizeF(800, 600));
+    demand.setExactnessPreference(ImageViewportExactnessPreference::RequireExact);
+    demand.setCurrentPayloadQuality(ImageViewportPayloadQuality::FirstDisplay);
+    demand.setCurrentPayloadExactness(ImageViewportPayloadExactness::NotExact);
+    std::vector<kiriview::ImageViewportProviderFrameResult> results;
+    const auto request = [&source, &identity, &demand, &results, &outputStore]() {
+        source->requestFrame(identity,
+            kiriview::ImageViewportProviderFrameRequest {
+                0,
+                demand,
+                -1,
+                outputStore,
+            },
+            [&results](kiriview::ImageViewportProviderWorkIdentity,
+                kiriview::ImageViewportProviderFrameResult result) {
+                results.push_back(std::move(result));
+            });
+    };
+
+    request();
+    dataLoader.finishFrontLoad(authoritativeSeedData());
+    QCOMPARE(results.size(), std::size_t(0));
+    QCOMPARE(refinementScheduler.scheduleCount(), std::size_t(0));
+
+    const qsizetype availableOutputByteCount = outputStore->availableOutputBytes();
+    QVERIFY(availableOutputByteCount > 0);
+    std::shared_ptr<kiriview::DisplayImageOutputAdmission> outputOccupancy
+        = outputStore->reserveOutput(availableOutputByteCount);
+    QVERIFY(outputOccupancy != nullptr);
+    QVERIFY(aggregateOccupancy.release(basisByteCost + 1));
+    QTRY_COMPARE(results.size(), std::size_t(1));
+    QCOMPARE(results.front().failureCause, ImageSequenceProviderFailureCause::ResourceExhausted);
+    QCOMPARE(refinementScheduler.scheduleCount(), std::size_t(0));
+    QCOMPARE(workspaceBudget->reservedByteCount(), qsizetype(0));
+
+    outputOccupancy.reset();
+    request();
+    QTRY_COMPARE(refinementScheduler.scheduleCount(), std::size_t(1));
+    refinementScheduler.runWork(0);
+    refinementScheduler.finish(0);
+    QCOMPARE(refinementSource->refinementCount, 1);
+    QCOMPARE(results.size(), std::size_t(2));
+    QVERIFY(results.back().displayImage.has_value());
+}
+
+void TestImageViewportSequenceProvider::cancelingRunningRefinementDefersSameTargetUntilRetirement()
+{
+    constexpr qsizetype basisByteCost = 200 * 150 * 4;
+    constexpr qsizetype outputByteCost = 400 * 300 * 4;
+    constexpr qsizetype producerPeakByteCost = outputByteCost * 2;
+    constexpr qsizetype workspaceByteLimit = basisByteCost + producerPeakByteCost;
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler decodeScheduler;
+    RetiringFrameConstructionScheduler refinementScheduler;
+    kiriview::ImageDecodeDependencies dependencies
+        = kiriview::TestSupport::imageDecodeDependenciesFor(
+            dataLoader, kiriview::TestSupport::staticImageDataDecoder());
+    dependencies.workerScheduler = decodeScheduler.scheduler();
+    dependencies.refinementScheduler = refinementScheduler.scheduler();
+    dependencies.workspaceBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        workspaceByteLimit, workspaceByteLimit);
+
+    auto refinementSource = std::make_shared<RefiningDisplaySource>();
+    const QUrl url(QStringLiteral("file:///tmp/retiring-refinement.jpg"));
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::ImageLoadSession(767,
+            kiriview::ImageLoadRequest::fromExternalSource(
+                kiriview::resolvedNavigationSource(url, {})),
+            kiriview::DisplayedImageLocation::fromUrl(url)),
+        std::move(dependencies),
+        authoritativeSeedForUrl(url, firstDisplayPayload(refinementSource)));
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        767,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("retiring-refinement"),
+    };
+    ImageSequenceProviderDisplayDemand demand;
+    demand.setTargetDisplaySizePixels(QSizeF(400, 300));
+    demand.setCurrentPayloadQuality(ImageViewportPayloadQuality::FirstDisplay);
+    demand.setCurrentPayloadExactness(ImageViewportPayloadExactness::NotExact);
+    std::vector<kiriview::ImageViewportProviderFrameResult> results;
+    const auto request = [&source, &identity, &demand, &results]() {
+        source->requestFrame(identity,
+            kiriview::ImageViewportProviderFrameRequest {
+                0,
+                demand,
+            },
+            [&results](kiriview::ImageViewportProviderWorkIdentity,
+                kiriview::ImageViewportProviderFrameResult result) {
+                results.push_back(std::move(result));
+            });
+    };
+
+    request();
+    dataLoader.finishFrontLoad(authoritativeSeedData());
+    QTRY_COMPARE(refinementScheduler.scheduleCount(), std::size_t(1));
+    refinementScheduler.runWork(0);
+    QCOMPARE(refinementSource->refinementCount, 1);
+    source->cancel({ identity.requestToken });
+    QCOMPARE(results.size(), std::size_t(0));
+
+    request();
+    QCoreApplication::processEvents();
+    QCOMPARE(refinementScheduler.scheduleCount(), std::size_t(1));
+    QCOMPARE(refinementSource->refinementCount, 1);
+
+    refinementScheduler.retire(0);
+    QTRY_COMPARE(refinementScheduler.scheduleCount(), std::size_t(2));
+    refinementScheduler.runWork(1);
+    refinementScheduler.finish(1);
+    QCOMPARE(refinementSource->refinementCount, 2);
+    QCOMPARE(results.size(), std::size_t(1));
+    QVERIFY(results.front().displayImage.has_value());
+    refinementScheduler.retire(1);
+}
+
+void TestImageViewportSequenceProvider::intrinsicRefinementWorkspaceLimitFailsWithoutWork()
+{
+    constexpr qsizetype outputByteCost = 400 * 300 * 4;
+    constexpr qsizetype producerPeakByteCost = outputByteCost * 2;
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImageDecodeDependencies dependencies
+        = kiriview::TestSupport::imageDecodeDependenciesFor(
+            dataLoader, kiriview::TestSupport::staticImageDataDecoder());
+    dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
+    auto workspaceBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        producerPeakByteCost - 1, producerPeakByteCost - 1);
+    dependencies.workspaceBudget = workspaceBudget;
+
+    auto refinementSource = std::make_shared<RefiningDisplaySource>();
+    const QUrl url(QStringLiteral("file:///tmp/intrinsic-refinement-workspace-limit.jpg"));
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::ImageLoadSession(767,
+            kiriview::ImageLoadRequest::fromExternalSource(
+                kiriview::resolvedNavigationSource(url, {})),
+            kiriview::DisplayedImageLocation::fromUrl(url)),
+        std::move(dependencies),
+        authoritativeSeedForUrl(url, firstDisplayPayload(refinementSource)));
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        767,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("intrinsic-refinement-workspace-limit"),
+    };
+    ImageSequenceProviderDisplayDemand demand;
+    demand.setTargetDisplaySizePixels(QSizeF(400, 300));
+    demand.setCurrentPayloadQuality(ImageViewportPayloadQuality::FirstDisplay);
+    demand.setCurrentPayloadExactness(ImageViewportPayloadExactness::NotExact);
+    std::vector<kiriview::ImageViewportProviderFrameResult> results;
+
+    source->requestFrame(identity,
+        kiriview::ImageViewportProviderFrameRequest {
+            0,
+            demand,
+        },
+        [&results](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderFrameResult result) {
+            results.push_back(std::move(result));
+        });
+    dataLoader.finishFrontLoad(authoritativeSeedData());
+
+    QCOMPARE(results.size(), std::size_t(1));
+    QCOMPARE(results.front().failureCause, ImageSequenceProviderFailureCause::ResourceExhausted);
+    QVERIFY(results.front().failure.has_value());
+    QCOMPARE(results.front().failure->decodeCause,
+        kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+    QVERIFY(!results.front().failure->retryable);
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(0));
+    QCOMPARE(refinementSource->refinementCount, 0);
     QCOMPARE(workspaceBudget->reservedByteCount(), qsizetype(0));
 }
 
@@ -3337,7 +3855,7 @@ void TestImageViewportSequenceProvider::concurrentRefinementUsesRequestAdmissibl
     request(QSize(300, 225), 300 * 225 * 4, smallerResults);
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     dataLoader.finishFrontLoad(authoritativeSeedData());
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(2));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(2));
     workerScheduler.runWork(0);
     workerScheduler.runWork(1);
     workerScheduler.finish(0);
@@ -3568,8 +4086,8 @@ void TestImageViewportSequenceProvider::decodeSourceCompletionRetainsSourceThrou
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     dataLoader.finishFrontLoad(QByteArrayLiteral("decoded-image-data"));
     QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
-    workerScheduler.runWork(0);
-    workerScheduler.finish(0);
+    std::size_t nextSchedule = 0;
+    runOutstandingWorkerSchedules(workerScheduler, nextSchedule);
 
     QVERIFY(completionCalled);
     QVERIFY(completionSucceeded);
@@ -3711,7 +4229,7 @@ void TestImageViewportSequenceProvider::refinementCompletionRetainsSourceThrough
             source.reset();
             sourceAliveAfterOwnerRelease = !sourceGuard.isNull();
         });
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     workerScheduler.runWork(0);
     workerScheduler.finish(0);
 
@@ -3774,7 +4292,7 @@ void TestImageViewportSequenceProvider::refinementWorkerCompletionAndInvalidatio
             kiriview::ImageViewportProviderFrameResult) { ++completionCount; });
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     dataLoader.finishFrontLoad(authoritativeSeedData());
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     workerScheduler.runWork(0);
     workerScheduler.finish(0);
     QCOMPARE(completionCount, 1);
@@ -3783,7 +4301,7 @@ void TestImageViewportSequenceProvider::refinementWorkerCompletionAndInvalidatio
     source->requestFrame(identity, request(QSize(400, 300)),
         [&completionCount](kiriview::ImageViewportProviderWorkIdentity,
             kiriview::ImageViewportProviderFrameResult) { ++completionCount; });
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(2));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(2));
     workerScheduler.runWork(1);
     source->cancel({ identity.requestToken });
     QVERIFY(!workerScheduler.isActive(1));
@@ -3793,7 +4311,7 @@ void TestImageViewportSequenceProvider::refinementWorkerCompletionAndInvalidatio
     source->requestFrame(identity, request(QSize(500, 375)),
         [&completionCount](kiriview::ImageViewportProviderWorkIdentity,
             kiriview::ImageViewportProviderFrameResult) { ++completionCount; });
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(3));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(3));
     workerScheduler.runWork(2);
     source->close();
     QVERIFY(!workerScheduler.isActive(2));
@@ -3816,8 +4334,10 @@ void TestImageViewportSequenceProvider::activeRefinementRetainsInputAdmissionsUn
 
     kiriview::ImageSourceDataLease sourceDataLease = sourceDataBudget->startLease();
     QVERIFY(sourceDataLease.tryReserve(sourceByteCost));
-    kiriview::ImageDecodeWorkspaceLease inputWorkspaceLease = workspaceBudget->startLease();
-    QVERIFY(inputWorkspaceLease.tryReserve(inputWorkspaceByteCost));
+    kiriview::ImageDecodeWorkspaceLease inputWorkspaceLease
+        = kiriview::ImageDecodeWorkspaceDetail::startLease(*workspaceBudget);
+    QVERIFY(kiriview::ImageDecodeWorkspaceDetail::tryReserve(
+        inputWorkspaceLease, inputWorkspaceByteCost));
 
     auto refinementSource = std::make_shared<RefiningDisplaySource>();
     kiriview::StaticDisplayImagePayload seed = firstDisplayPayload(refinementSource);
@@ -3870,7 +4390,7 @@ void TestImageViewportSequenceProvider::activeRefinementRetainsInputAdmissionsUn
             kiriview::ImageViewportProviderFrameResult) { });
     dataLoader.finishFrontLoad(authoritativeSeedData());
 
-    QVERIFY(activeRefinementOperation);
+    QTRY_VERIFY(activeRefinementOperation);
     QCOMPARE(sourceDataBudget->reservedByteCount(), sourceByteCost);
     QCOMPARE(workspaceBudget->reservedByteCount(), inputWorkspaceByteCost + producerPeakByteCost);
 
@@ -3933,7 +4453,7 @@ void TestImageViewportSequenceProvider::workerUnitIdentitySkipsLiveIdsAfterWrap(
 
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     dataLoader.finishFrontLoad(authoritativeSeedData());
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(3));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(3));
     QVERIFY(workerScheduler.isActive(0));
     QVERIFY(workerScheduler.isActive(1));
     QVERIFY(workerScheduler.isActive(2));
@@ -3994,7 +4514,7 @@ void TestImageViewportSequenceProvider::
     requestRefinement(QSize(400, 300), completions);
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     dataLoader.finishFrontLoad(authoritativeSeedData());
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(2));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(2));
     workerScheduler.runWork(0);
     workerScheduler.runWork(1);
     workerScheduler.finish(0);
@@ -4079,22 +4599,248 @@ void TestImageViewportSequenceProvider::providerFrameConstructionRequiresWorkspa
         QStringLiteral("frame-workspace-rejection"), source, store,
         std::make_shared<kiriview::ImageViewportFailureRegistry>(), workspace);
     kiriview::ImageViewportProviderPreparedFrame prepared;
-
-    resource->requestFrame(
-        kiriview::ImageViewportProviderWorkIdentity {
-            91,
-            ImageViewportPageRole::Primary,
-            {},
-            {},
-            QStringLiteral("frame-workspace-rejection"),
-        },
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        91,
+        ImageViewportPageRole::Primary,
         {},
+        {},
+        QStringLiteral("frame-workspace-rejection"),
+    };
+    resource->requestFrame(identity, {},
         [&prepared](kiriview::ImageViewportProviderWorkIdentity,
             kiriview::ImageViewportProviderPreparedFrame result) { prepared = std::move(result); });
 
     QVERIFY(prepared.isReady());
-    QScopedPointer<ImageSequenceProviderFrameHandle> handle(resource->acquireFrameHandle(prepared));
-    QVERIFY(handle.isNull());
+    int completionCount = 0;
+    std::unique_ptr<ImageSequenceProviderFrameHandle> handle;
+    resource->requestFrameHandle(this, identity, prepared,
+        [&completionCount, &handle](kiriview::ImageViewportProviderWorkIdentity,
+            std::unique_ptr<ImageSequenceProviderFrameHandle> completed) {
+            ++completionCount;
+            handle = std::move(completed);
+        });
+    QCOMPARE(completionCount, 1);
+    QVERIFY(handle == nullptr);
+    QCOMPARE(workspace->reservedByteCount(), qsizetype(0));
+}
+
+void TestImageViewportSequenceProvider::providerFrameConstructionWaitsForWorkspace()
+{
+    constexpr qsizetype frameByteCount = 16 * 32 * 4;
+    auto source = std::make_shared<FakeImageViewportProviderSource>();
+    source->automaticFrame = kiriview::ImageViewportProviderFrameResult::ready(
+        displayPayload(kiriview::DisplayImageQuality::Exact, QSize(16, 32), QSize(16, 32)),
+        ImageSequenceProviderFrameEnvelope::stillFrame(), QStringLiteral("png"));
+    auto workspace
+        = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(frameByteCount, frameByteCount);
+    kiriview::ImageDecodeWorkspaceLease occupancy
+        = kiriview::ImageDecodeWorkspaceDetail::startLease(*workspace);
+    QVERIFY(kiriview::ImageDecodeWorkspaceDetail::tryReserve(occupancy, 1));
+    kiriview::TestSupport::ManualImageWorkerScheduler frameScheduler;
+    auto resource = std::make_shared<kiriview::ImageViewportProviderResource>(911,
+        QStringLiteral("pending-frame-construction"), source,
+        std::make_shared<kiriview::DisplayImageStore>(frameByteCount),
+        std::make_shared<kiriview::ImageViewportFailureRegistry>(), workspace,
+        frameScheduler.scheduler());
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        911,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("pending-frame-construction"),
+    };
+    kiriview::ImageViewportProviderPreparedFrame prepared;
+    resource->requestFrame(identity, {},
+        [&prepared](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderPreparedFrame result) { prepared = std::move(result); });
+    QVERIFY(prepared.isReady());
+
+    int completionCount = 0;
+    std::unique_ptr<ImageSequenceProviderFrameHandle> handle;
+    resource->requestFrameHandle(this, identity, prepared,
+        [&completionCount, &handle](kiriview::ImageViewportProviderWorkIdentity,
+            std::unique_ptr<ImageSequenceProviderFrameHandle> completed) {
+            ++completionCount;
+            handle = std::move(completed);
+        });
+    QCOMPARE(completionCount, 0);
+    QCOMPARE(frameScheduler.scheduleCount(), std::size_t(0));
+
+    QVERIFY(occupancy.release(1));
+    QTRY_COMPARE(frameScheduler.scheduleCount(), std::size_t(1));
+    QCOMPARE(completionCount, 0);
+    frameScheduler.runWork(0);
+    QCOMPARE(completionCount, 0);
+    frameScheduler.finish(0);
+    QCOMPARE(completionCount, 1);
+    QVERIFY(handle != nullptr);
+    QCOMPARE(workspace->reservedByteCount(), frameByteCount);
+    handle->release();
+    QCOMPARE(workspace->reservedByteCount(), qsizetype(0));
+}
+
+void TestImageViewportSequenceProvider::cancelingPendingFrameConstructionSuppressesWork()
+{
+    constexpr qsizetype frameByteCount = 16 * 32 * 4;
+    auto source = std::make_shared<FakeImageViewportProviderSource>();
+    source->automaticFrame = kiriview::ImageViewportProviderFrameResult::ready(
+        displayPayload(kiriview::DisplayImageQuality::Exact, QSize(16, 32), QSize(16, 32)),
+        ImageSequenceProviderFrameEnvelope::stillFrame(), QStringLiteral("png"));
+    auto workspace
+        = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(frameByteCount, frameByteCount);
+    kiriview::ImageDecodeWorkspaceLease occupancy
+        = kiriview::ImageDecodeWorkspaceDetail::startLease(*workspace);
+    QVERIFY(kiriview::ImageDecodeWorkspaceDetail::tryReserve(occupancy, 1));
+    kiriview::TestSupport::ManualImageWorkerScheduler frameScheduler;
+    auto resource = std::make_shared<kiriview::ImageViewportProviderResource>(912,
+        QStringLiteral("canceled-frame-construction"), source,
+        std::make_shared<kiriview::DisplayImageStore>(frameByteCount),
+        std::make_shared<kiriview::ImageViewportFailureRegistry>(), workspace,
+        frameScheduler.scheduler());
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        912,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("canceled-frame-construction"),
+    };
+    kiriview::ImageViewportProviderPreparedFrame prepared;
+    resource->requestFrame(identity, {},
+        [&prepared](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderPreparedFrame result) { prepared = std::move(result); });
+    QVERIFY(prepared.isReady());
+
+    int completionCount = 0;
+    resource->requestFrameHandle(this, identity, prepared,
+        [&completionCount](kiriview::ImageViewportProviderWorkIdentity,
+            std::unique_ptr<ImageSequenceProviderFrameHandle>) { ++completionCount; });
+    QCOMPARE(completionCount, 0);
+    QCOMPARE(frameScheduler.scheduleCount(), std::size_t(0));
+
+    resource->cancel({ identity.requestToken });
+    QVERIFY(occupancy.release(1));
+    QCoreApplication::processEvents();
+    QCOMPARE(frameScheduler.scheduleCount(), std::size_t(0));
+    QCOMPARE(completionCount, 0);
+    QCOMPARE(workspace->reservedByteCount(), qsizetype(0));
+}
+
+void TestImageViewportSequenceProvider::destroyingPendingFrameConstructionReceiverSuppressesWork()
+{
+    constexpr qsizetype frameByteCount = 16 * 32 * 4;
+    auto source = std::make_shared<FakeImageViewportProviderSource>();
+    source->automaticFrame = kiriview::ImageViewportProviderFrameResult::ready(
+        displayPayload(kiriview::DisplayImageQuality::Exact, QSize(16, 32), QSize(16, 32)),
+        ImageSequenceProviderFrameEnvelope::stillFrame(), QStringLiteral("png"));
+    auto workspace
+        = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(frameByteCount, frameByteCount);
+    kiriview::ImageDecodeWorkspaceLease occupancy
+        = kiriview::ImageDecodeWorkspaceDetail::startLease(*workspace);
+    QVERIFY(kiriview::ImageDecodeWorkspaceDetail::tryReserve(occupancy, 1));
+    kiriview::TestSupport::ManualImageWorkerScheduler frameScheduler;
+    auto resource = std::make_shared<kiriview::ImageViewportProviderResource>(914,
+        QStringLiteral("destroyed-frame-construction-receiver"), source,
+        std::make_shared<kiriview::DisplayImageStore>(frameByteCount),
+        std::make_shared<kiriview::ImageViewportFailureRegistry>(), workspace,
+        frameScheduler.scheduler());
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        914,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("destroyed-frame-construction-receiver"),
+    };
+    kiriview::ImageViewportProviderPreparedFrame prepared;
+    resource->requestFrame(identity, {},
+        [&prepared](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderPreparedFrame result) { prepared = std::move(result); });
+    QVERIFY(prepared.isReady());
+
+    int completionCount = 0;
+    auto receiver = std::make_unique<QObject>();
+    resource->requestFrameHandle(receiver.get(), identity, prepared,
+        [&completionCount](kiriview::ImageViewportProviderWorkIdentity,
+            std::unique_ptr<ImageSequenceProviderFrameHandle>) { ++completionCount; });
+    QCOMPARE(completionCount, 0);
+    QCOMPARE(frameScheduler.scheduleCount(), std::size_t(0));
+
+    receiver.reset();
+    QVERIFY(occupancy.release(1));
+    QCoreApplication::processEvents();
+    QCOMPARE(frameScheduler.scheduleCount(), std::size_t(0));
+    QCOMPARE(completionCount, 0);
+    QCOMPARE(workspace->reservedByteCount(), qsizetype(0));
+}
+
+void TestImageViewportSequenceProvider::
+    cancelingRunningFrameConstructionRetainsWorkspaceUntilRetirement()
+{
+    constexpr qsizetype frameByteCount = 16 * 32 * 4;
+    auto source = std::make_shared<FakeImageViewportProviderSource>();
+    source->automaticFrame = kiriview::ImageViewportProviderFrameResult::ready(
+        displayPayload(kiriview::DisplayImageQuality::Exact, QSize(16, 32), QSize(16, 32)),
+        ImageSequenceProviderFrameEnvelope::stillFrame(), QStringLiteral("png"));
+    auto workspace
+        = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(frameByteCount, frameByteCount);
+    RetiringFrameConstructionScheduler frameScheduler;
+    auto resource = std::make_shared<kiriview::ImageViewportProviderResource>(913,
+        QStringLiteral("retiring-frame-construction"), source,
+        std::make_shared<kiriview::DisplayImageStore>(frameByteCount),
+        std::make_shared<kiriview::ImageViewportFailureRegistry>(), workspace,
+        frameScheduler.scheduler());
+    const kiriview::ImageViewportProviderWorkIdentity firstIdentity {
+        913,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("retiring-frame-construction"),
+    };
+    kiriview::ImageViewportProviderPreparedFrame prepared;
+    resource->requestFrame(firstIdentity, {},
+        [&prepared](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderPreparedFrame result) { prepared = std::move(result); });
+    QVERIFY(prepared.isReady());
+
+    int firstCompletionCount = 0;
+    resource->requestFrameHandle(this, firstIdentity, prepared,
+        [&firstCompletionCount](kiriview::ImageViewportProviderWorkIdentity,
+            std::unique_ptr<ImageSequenceProviderFrameHandle>) { ++firstCompletionCount; });
+    QTRY_COMPARE(frameScheduler.scheduleCount(), std::size_t(1));
+    frameScheduler.runWork(0);
+    QCOMPARE(workspace->reservedByteCount(), frameByteCount);
+
+    resource->cancel({ firstIdentity.requestToken });
+    QCOMPARE(firstCompletionCount, 0);
+    QCOMPARE(workspace->reservedByteCount(), frameByteCount);
+
+    const kiriview::ImageViewportProviderWorkIdentity secondIdentity {
+        913,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("retiring-frame-construction"),
+    };
+    int secondCompletionCount = 0;
+    std::unique_ptr<ImageSequenceProviderFrameHandle> secondHandle;
+    resource->requestFrameHandle(this, secondIdentity, prepared,
+        [&secondCompletionCount, &secondHandle](kiriview::ImageViewportProviderWorkIdentity,
+            std::unique_ptr<ImageSequenceProviderFrameHandle> completed) {
+            ++secondCompletionCount;
+            secondHandle = std::move(completed);
+        });
+    QCoreApplication::processEvents();
+    QCOMPARE(frameScheduler.scheduleCount(), std::size_t(1));
+
+    frameScheduler.retire(0);
+    QTRY_COMPARE(frameScheduler.scheduleCount(), std::size_t(2));
+    frameScheduler.runWork(1);
+    frameScheduler.finish(1);
+    QCOMPARE(firstCompletionCount, 0);
+    QCOMPARE(secondCompletionCount, 1);
+    QVERIFY(secondHandle != nullptr);
+    frameScheduler.retire(1);
+    QCOMPARE(workspace->reservedByteCount(), frameByteCount);
+    secondHandle->release();
     QCOMPARE(workspace->reservedByteCount(), qsizetype(0));
 }
 
@@ -4129,21 +4875,25 @@ void TestImageViewportSequenceProvider::providerFrameHandleRetainsWorkspaceThrou
         std::make_shared<kiriview::DisplayImageStore>(frameByteCount),
         std::make_shared<kiriview::ImageViewportFailureRegistry>(), workspace);
     kiriview::ImageViewportProviderPreparedFrame prepared;
-    resource->requestFrame(
-        kiriview::ImageViewportProviderWorkIdentity {
-            92,
-            ImageViewportPageRole::Primary,
-            {},
-            {},
-            QStringLiteral("frame-workspace-retention"),
-        },
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        92,
+        ImageViewportPageRole::Primary,
         {},
+        {},
+        QStringLiteral("frame-workspace-retention"),
+    };
+    resource->requestFrame(identity, {},
         [&prepared](kiriview::ImageViewportProviderWorkIdentity,
             kiriview::ImageViewportProviderPreparedFrame result) { prepared = std::move(result); });
 
     QVERIFY(prepared.isReady());
-    QScopedPointer<ImageSequenceProviderFrameHandle> handle(resource->acquireFrameHandle(prepared));
-    QVERIFY(handle);
+    std::unique_ptr<ImageSequenceProviderFrameHandle> handle;
+    resource->requestFrameHandle(this, identity, prepared,
+        [&handle](kiriview::ImageViewportProviderWorkIdentity,
+            std::unique_ptr<ImageSequenceProviderFrameHandle> completed) {
+            handle = std::move(completed);
+        });
+    QTRY_VERIFY(handle != nullptr);
     QVERIFY(handle->frame());
     QVERIFY(handle->frame()->isValid());
     QCOMPARE(workspace->reservedByteCount(), frameByteCount);

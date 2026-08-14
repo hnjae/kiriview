@@ -40,8 +40,9 @@ void TestKiriDocumentSessionDeletion::nonMediaImageDeletionProgressIsMirroredThr
     QCOMPARE(imageDataLoader.frontLoad().url, imageUrl);
     imageDataLoader.finishBackLoad(QByteArrayLiteral("image"));
     QCOMPARE(imageWorkerScheduler.scheduleCount(), std::size_t(1));
-    imageWorkerScheduler.runWork(0);
-    imageWorkerScheduler.finish(0);
+    std::size_t nextWorkerSchedule = 0;
+    kiriview::TestSupport::runOutstandingImageWorkerSchedules(
+        imageWorkerScheduler, nextWorkerSchedule);
     QTRY_COMPARE(session->documentKind(), KiriDocumentSession::DocumentKind::Image);
     QVERIFY(driveTestViewportUntil(*session,
         [&]() { return session->imageDocument()->status() == KiriImageDocument::Status::Ready; }));
@@ -99,8 +100,9 @@ void TestKiriDocumentSessionDeletion::nonMediaImageDeletionFailureUsesSettledSes
     QCOMPARE(imageDataLoader.frontLoad().url, imageUrl);
     imageDataLoader.finishBackLoad(QByteArrayLiteral("image"));
     QCOMPARE(imageWorkerScheduler.scheduleCount(), std::size_t(1));
-    imageWorkerScheduler.runWork(0);
-    imageWorkerScheduler.finish(0);
+    std::size_t nextWorkerSchedule = 0;
+    kiriview::TestSupport::runOutstandingImageWorkerSchedules(
+        imageWorkerScheduler, nextWorkerSchedule);
     QTRY_COMPARE(session->documentKind(), KiriDocumentSession::DocumentKind::Image);
     QVERIFY(driveTestViewportUntil(*session,
         [&]() { return session->imageDocument()->status() == KiriImageDocument::Status::Ready; }));

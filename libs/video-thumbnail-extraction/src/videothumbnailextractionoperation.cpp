@@ -106,8 +106,11 @@ public:
 
     ~VideoThumbnailExtractionOperation() override
     {
-        retireControl();
+        deactivateControl();
         cleanup();
+        retiredDeadline_.reset();
+        retiredBackend_.reset();
+        retireControl();
     }
 
     void start()
@@ -159,7 +162,7 @@ public:
         pendingEvents_.clear();
         terminalResult_.reset();
         completion_ = {};
-        retireControl();
+        deactivateControl();
         cleanup();
         deleteLater();
     }
@@ -429,20 +432,32 @@ private:
         auto result = std::move(*terminalResult_);
         terminalResult_.reset();
         phase_ = Phase::Inactive;
-        retireControl();
+        deactivateControl();
         QObject::disconnect(receiverDestroyed_);
         receiver_.clear();
         deleteLater();
         completion(std::move(result));
     }
 
+    void deactivateControl() noexcept
+    {
+        if (control_) {
+            control_->active = false;
+            control_->cancel = {};
+        }
+    }
+
     void retireControl() noexcept
     {
-        if (const auto control = control_.lock()) {
-            control->active = false;
-            control->cancel = {};
+        const std::shared_ptr<VideoThumbnailExtractionJobControl> control = std::move(control_);
+        if (!control || control->retired) {
+            return;
         }
-        control_.reset();
+        control->retired = true;
+        auto callback = std::move(control->retirementCallback);
+        if (callback) {
+            callback();
+        }
     }
 
     void cleanup() noexcept
@@ -464,7 +479,7 @@ private:
     kiriview::VideoThumbnailExtractionRequest request_;
     kiriview::VideoThumbnailExtractionCallback completion_;
     VideoThumbnailRuntimeDependencies dependencies_;
-    std::weak_ptr<VideoThumbnailExtractionJobControl> control_;
+    std::shared_ptr<VideoThumbnailExtractionJobControl> control_;
     QMetaObject::Connection receiverDestroyed_;
     std::unique_ptr<VideoThumbnailBackend> backend_;
     std::unique_ptr<VideoThumbnailDeadline> deadline_;

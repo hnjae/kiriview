@@ -18,8 +18,10 @@
 #include <future>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <utility>
+#include <variant>
 
 namespace kiriview {
 enum class AnimationSourceFrameFailureCause {
@@ -79,27 +81,51 @@ using AnimationSourceFrameResult = std::expected<AnimationSourceFrame, Animation
 using ImageAnimationPlaybackSourceFactory
     = std::function<std::unique_ptr<ImageAnimationPlaybackSource>()>;
 
+struct AnimationSourceFramePreparation
+{
+    std::optional<ImageDecodeWorkspaceAdmissionRequest> workspaceAdmission;
+    qsizetype outputByteCount = 0;
+    bool retirePlaybackSourceBeforeProduction = false;
+};
+
+using AnimationSourceFramePreparationResult
+    = std::expected<AnimationSourceFramePreparation, AnimationSourceFrameFailure>;
+
 class AnimationSourceRuntime final
 {
 public:
     AnimationSourceRuntime(QImage retainedFirstFrame, int authoredFrameCount,
         ImageAnimationPlaybackSourceFactory sourceFactory,
-        ImageDecodeWorkspaceHold firstFrameWorkspaceHold = {});
+        ImageDecodeWorkspaceHold firstFrameWorkspaceHold = {},
+        ImageAnimationPlaybackWorkspacePlan workspacePlan = {});
     ~AnimationSourceRuntime();
     Q_DISABLE_COPY_MOVE(AnimationSourceRuntime)
 
     AnimationSourceFrameResult frame(int authoredFrameIndex);
+    AnimationSourceFrameResult frame(int authoredFrameIndex, ImageDecodeWorkspaceLease grant,
+        qsizetype perOperationBaselineByteCount);
+    [[nodiscard]] AnimationSourceFramePreparationResult prepareFrame(int authoredFrameIndex);
+    bool retirePreparedPlaybackSource();
     void releaseRetainedFirstFrameWorkspace();
     void close();
 
 private:
     using FrameTask = std::packaged_task<AnimationSourceFrameResult()>;
+    using PreparationTask = std::packaged_task<AnimationSourceFramePreparationResult()>;
+    using RetirementTask = std::packaged_task<bool()>;
+    using SourceTask = std::variant<FrameTask, PreparationTask, RetirementTask>;
 
     [[nodiscard]] AnimationSourceFrameResult failedFrame(QString errorString,
         AnimationSourceFrameFailureCause cause
         = AnimationSourceFrameFailureCause::Unavailable) const;
     [[nodiscard]] AnimationSourceFrameResult decodeFrame(int authoredFrameIndex);
-    [[nodiscard]] AnimationSourceFrameResult openSource();
+    [[nodiscard]] AnimationSourceFrameResult decodeFrame(
+        int authoredFrameIndex, const std::shared_ptr<ImageDecodeWorkspaceBudget>& operationBudget);
+    [[nodiscard]] AnimationSourceFrameResult openSource(
+        const std::shared_ptr<ImageDecodeWorkspaceBudget>& operationBudget = {});
+    [[nodiscard]] AnimationSourceFramePreparationResult prepareFrameOnSourceOwner(
+        int authoredFrameIndex) const;
+    bool enqueueSourceTask(SourceTask task);
     void runSourceOwner();
 
     ImageDecodeWorkspaceHold m_firstFrameWorkspaceHold;
@@ -108,12 +134,13 @@ private:
     QSize m_frameSize;
     int m_frameCount = 0;
     ImageAnimationPlaybackSourceFactory m_sourceFactory;
+    ImageAnimationPlaybackWorkspacePlan m_workspacePlan;
     std::unique_ptr<ImageAnimationPlaybackSource> m_source;
     int m_sourceFrame = 0;
     std::atomic_bool m_closed = false;
     std::mutex m_queueMutex;
     std::condition_variable m_queueCondition;
-    std::deque<FrameTask> m_frameTasks;
+    std::deque<SourceTask> m_sourceTasks;
     std::jthread m_sourceOwner;
 };
 

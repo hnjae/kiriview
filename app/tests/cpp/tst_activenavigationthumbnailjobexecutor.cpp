@@ -22,8 +22,10 @@ QImage image(QColor color)
     return result;
 }
 
-kiriview::ActiveNavigationThumbnailWorkRequest request(
-    quint64 id, kiriview::ThumbnailSourceAdapterPlanKind planKind)
+kiriview::ActiveNavigationThumbnailWorkRequest request(quint64 id,
+    kiriview::ThumbnailSourceAdapterPlanKind planKind,
+    kiriview::ImageDecodeWorkspacePriority workspacePriority
+    = kiriview::ImageDecodeWorkspacePriority::Demanded)
 {
     const QByteArray path("/media/one.png");
     kiriview::ThumbnailSourceAdapterPlan plan;
@@ -36,13 +38,15 @@ kiriview::ActiveNavigationThumbnailWorkRequest request(
             kiriview::activeNavigationThumbnailSourceKindIdentity(
                 kiriview::ActiveNavigationThumbnailSourceKind::DirectImage),
             7);
-    return {
+    kiriview::ActiveNavigationThumbnailWorkRequest result {
         { id },
         std::move(sourceKey),
         Bucket::Large,
         kiriview::ActiveNavigationThumbnailWorkKind::Foreground,
         std::move(plan),
     };
+    result.workspacePriority = workspacePriority;
+    return result;
 }
 
 struct ManualProviders
@@ -87,6 +91,9 @@ private Q_SLOTS:
     void generationFailurePreservesTypedKind();
     void cancellationAndPhaseChangesRejectLateCallbacks();
     void cancellationReportsRetirementOnlyAfterProviderFact();
+    void cacheHitWaitsForLookupRetirement();
+    void cacheMissWaitsForLookupRetirementBeforeGeneration();
+    void generationSuccessWaitsForProviderRetirement();
     void synchronousCompletionAndDestructionAreCallbackSafe();
 };
 
@@ -119,10 +126,15 @@ void TestActiveNavigationThumbnailJobExecutor::cacheMissKeepsWorkIdentityAcrossG
         providers.generation(),
         [&](auto completion) { completions.push_back(std::move(completion)); });
 
-    executor.start(request(9, kiriview::ThumbnailSourceAdapterPlanKind::CacheableLocalFile));
+    executor.start(request(9, kiriview::ThumbnailSourceAdapterPlanKind::CacheableLocalFile,
+        kiriview::ImageDecodeWorkspacePriority::Speculative));
+    QCOMPARE(providers.lookupRequests.front().workspacePriority,
+        kiriview::ImageDecodeWorkspacePriority::Speculative);
     providers.lookupCallbacks.front()(
         { kiriview::ThumbnailCacheLookupStatus::Missing, {}, Bucket::Large });
     QCOMPARE(providers.generationCallbacks.size(), std::size_t(1));
+    QCOMPARE(providers.generationRequests.front().workspacePriority,
+        kiriview::ImageDecodeWorkspacePriority::Speculative);
     providers.generationCallbacks.front()(
         { kiriview::ThumbnailGenerationStatus::Ready, {}, image(Qt::blue), Bucket::Large });
 
@@ -297,6 +309,103 @@ void TestActiveNavigationThumbnailJobExecutor::cancellationReportsRetirementOnly
     providerCallback(
         { kiriview::ThumbnailGenerationStatus::Ready, {}, image(Qt::green), Bucket::Large });
     QVERIFY(completions.empty());
+}
+
+void TestActiveNavigationThumbnailJobExecutor::cacheHitWaitsForLookupRetirement()
+{
+    kiriview::ThumbnailCacheLookupCallback providerCallback;
+    kiriview::ImageIoJobCompletion providerCompletion;
+    kiriview::ThumbnailCacheLookupProvider provider
+        = [&](QObject* receiver, kiriview::ThumbnailCacheLookupRequest,
+              kiriview::ThumbnailCacheLookupCallback callback) {
+              providerCallback = std::move(callback);
+              auto* token = new QObject(receiver);
+              kiriview::ImageIoJob job(
+                  token, [](QObject* object) { object->deleteLater(); },
+                  kiriview::ImageIoJobCancellationRetirement::Explicit);
+              providerCompletion = job.completion();
+              return job;
+          };
+    std::vector<kiriview::ActiveNavigationThumbnailWorkCompletion> completions;
+    kiriview::ActiveNavigationThumbnailJobExecutor executor(this, std::move(provider), {},
+        [&](auto completion) { completions.push_back(std::move(completion)); });
+
+    QVERIFY(
+        executor.start(request(20, kiriview::ThumbnailSourceAdapterPlanKind::CacheableLocalFile)));
+    QVERIFY(providerCompletion.claimAndRun([&]() {
+        providerCallback({ kiriview::ThumbnailCacheLookupStatus::Ready, image(Qt::green),
+            Bucket::Large, Bucket::Large, {}, {} });
+    }));
+    QVERIFY(completions.empty());
+
+    providerCompletion.retire();
+    QCOMPARE(completions.size(), std::size_t(1));
+    QCOMPARE(completions.front().workId.value, quint64(20));
+    providerCompletion.retire();
+    QCOMPARE(completions.size(), std::size_t(1));
+}
+
+void TestActiveNavigationThumbnailJobExecutor::cacheMissWaitsForLookupRetirementBeforeGeneration()
+{
+    kiriview::ThumbnailCacheLookupCallback lookupCallback;
+    kiriview::ImageIoJobCompletion lookupCompletion;
+    kiriview::ThumbnailCacheLookupProvider lookupProvider
+        = [&](QObject* receiver, kiriview::ThumbnailCacheLookupRequest,
+              kiriview::ThumbnailCacheLookupCallback callback) {
+              lookupCallback = std::move(callback);
+              auto* token = new QObject(receiver);
+              kiriview::ImageIoJob job(
+                  token, [](QObject* object) { object->deleteLater(); },
+                  kiriview::ImageIoJobCancellationRetirement::Explicit);
+              lookupCompletion = job.completion();
+              return job;
+          };
+    ManualProviders generationProvider;
+    kiriview::ActiveNavigationThumbnailJobExecutor executor(
+        this, std::move(lookupProvider), generationProvider.generation(), [](auto) { });
+
+    QVERIFY(
+        executor.start(request(21, kiriview::ThumbnailSourceAdapterPlanKind::CacheableLocalFile)));
+    QVERIFY(lookupCompletion.claimAndRun([&]() {
+        lookupCallback({ kiriview::ThumbnailCacheLookupStatus::Missing, {}, Bucket::Large });
+    }));
+    QVERIFY(generationProvider.generationRequests.empty());
+
+    lookupCompletion.retire();
+    QCOMPARE(generationProvider.generationRequests.size(), std::size_t(1));
+}
+
+void TestActiveNavigationThumbnailJobExecutor::generationSuccessWaitsForProviderRetirement()
+{
+    kiriview::ThumbnailGenerationCallback providerCallback;
+    kiriview::ImageIoJobCompletion providerCompletion;
+    kiriview::ThumbnailGenerationProvider provider
+        = [&](QObject* receiver, kiriview::ThumbnailGenerationRequest,
+              kiriview::ThumbnailGenerationCallback callback) {
+              providerCallback = std::move(callback);
+              auto* token = new QObject(receiver);
+              kiriview::ImageIoJob job(
+                  token, [](QObject* object) { object->deleteLater(); },
+                  kiriview::ImageIoJobCancellationRetirement::Explicit);
+              providerCompletion = job.completion();
+              return job;
+          };
+    std::vector<kiriview::ActiveNavigationThumbnailWorkCompletion> completions;
+    kiriview::ActiveNavigationThumbnailJobExecutor executor(this, {}, std::move(provider),
+        [&](auto completion) { completions.push_back(std::move(completion)); });
+
+    QVERIFY(executor.start(request(22, kiriview::ThumbnailSourceAdapterPlanKind::InMemoryOnly)));
+    QVERIFY(providerCompletion.claimAndRun([&]() {
+        providerCallback(
+            { kiriview::ThumbnailGenerationStatus::Ready, {}, image(Qt::blue), Bucket::Large });
+    }));
+    QVERIFY(completions.empty());
+
+    providerCompletion.retire();
+    QCOMPARE(completions.size(), std::size_t(1));
+    QCOMPARE(completions.front().workId.value, quint64(22));
+    providerCompletion.retire();
+    QCOMPARE(completions.size(), std::size_t(1));
 }
 
 void TestActiveNavigationThumbnailJobExecutor::synchronousCompletionAndDestructionAreCallbackSafe()

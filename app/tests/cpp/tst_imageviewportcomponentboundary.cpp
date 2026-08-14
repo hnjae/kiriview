@@ -194,13 +194,7 @@ bool driveViewportUntil(KiriImageViewportSurface& surface, Predicate predicate)
 void runOutstandingWorkerSchedules(
     kiriview::TestSupport::ManualImageWorkerScheduler& workerScheduler, std::size_t& nextSchedule)
 {
-    while (nextSchedule < workerScheduler.scheduleCount()) {
-        if (workerScheduler.isActive(nextSchedule)) {
-            workerScheduler.runWork(nextSchedule);
-            workerScheduler.finish(nextSchedule);
-        }
-        ++nextSchedule;
-    }
+    kiriview::TestSupport::runOutstandingImageWorkerSchedules(workerScheduler, nextSchedule);
 }
 
 template <typename Predicate>

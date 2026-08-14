@@ -83,6 +83,7 @@ private:
         QString sourceIdentity;
         ImageSourceRevision sourceRevision;
         QString formatIdentifier;
+        qsizetype frameDisplayByteCount = 0;
     };
 
     struct WorkerUnit
@@ -95,6 +96,8 @@ private:
     struct ActiveAnimationFrameWork
     {
         quint64 workerUnitId = 0;
+        ImageViewportProviderWorkIdentity identity;
+        ImageDecodeWorkspaceAdmission workspaceAdmission;
         bool publishResult = true;
     };
 
@@ -131,12 +134,17 @@ private:
     {
         quint64 workerUnitId = 0;
         QSize targetRasterSize;
+        qsizetype producerPeakByteCost = 0;
         std::shared_ptr<DisplayImageOutputAdmission> basisOutputAdmission;
         StaticDisplayImagePayload basis;
         std::vector<quint64> attemptIds;
         qint64 maximumReusableBytes = -1;
+        std::shared_ptr<DisplayImageStore> outputStore;
         std::shared_ptr<DisplayImageOutputAdmission> outputAdmission;
+        ImageDecodeWorkspaceAdmission workspaceAdmission;
         bool retainWithoutSubscribers = false;
+        bool productionStarted = false;
+        bool retiring = false;
     };
 
     void ensureDecoded();
@@ -154,6 +162,8 @@ private:
     void publishProvisionalFrames();
     void publishStaticFrame(PendingFrame pending);
     void startStaticRefinement(PendingFrame pending, StaticFramePlan plan, bool initialDemand);
+    void startGrantedStaticRefinement(
+        quint64 workerUnitId, ImageDecodeWorkspaceLease rasterWorkspaceLease);
     void finishStaticRefinement(quint64 workerUnitId, const StaticImageDisplayDecodeResult& result);
     void scheduleInitialDetailDeadline(quint64 attemptId);
     void markInitialDetailDeadlineExpired(quint64 attemptId);
@@ -169,12 +179,19 @@ private:
         quint64 attemptId, bool retainRefinementWork);
     void discardRetainedStaticRefinementsExcept(quint64 workerUnitId);
     void publishAnimationFrame(PendingFrame pending);
+    void startGrantedAnimationFrame(PendingFrame pending, AnimationState animation,
+        int requestedFrame, qsizetype perOperationBaselineByteCount, qsizetype outputByteCount,
+        ImageDecodeWorkspaceLease workspaceLease);
     void retireAnimationFrameWork();
     void finishAnimationFrame(const PendingFrame& pending, const AnimationState& animation,
-        int requestedFrame, AnimationSourceFrameResult result);
+        int requestedFrame, AnimationSourceFrameResult result,
+        std::shared_ptr<DisplayImageOutputAdmission> outputAdmission = {});
     quint64 reserveWorkerUnit(
         std::optional<ImageViewportProviderWorkIdentity> identity = std::nullopt);
     void attachWorkerTask(quint64 workerUnitId, ImageWorkerTask task);
+    void cancelWorkerUnit(quint64 workerUnitId);
+    void physicallyRetireWorkerUnit(quint64 workerUnitId);
+    [[nodiscard]] bool hasWorkerUnit(quint64 workerUnitId) const;
     [[nodiscard]] bool detachWorkerUnit(quint64 workerUnitId);
     [[nodiscard]] const ImageLoadSession& resolvedSession() const;
 
@@ -196,6 +213,7 @@ private:
         = ImageSequenceProviderFailureCause::Unavailable;
     std::vector<PendingMetadata> m_pendingMetadata;
     std::vector<PendingFrame> m_pendingFrames;
+    std::vector<PendingFrame> m_deferredStaticFrames;
     std::vector<WorkerUnit> m_workerUnits;
     std::list<StaticFrameAttempt> m_staticFrameAttempts;
     std::list<StaticRefinementWork> m_staticRefinementWorks;

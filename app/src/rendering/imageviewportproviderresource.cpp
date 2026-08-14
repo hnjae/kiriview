@@ -6,6 +6,7 @@
 #include "cache/imagebytecost.h"
 
 #include <QImageIOHandler>
+#include <QPointer>
 #include <QTransform>
 #include <algorithm>
 #include <limits>
@@ -142,9 +143,61 @@ std::optional<qsizetype> frameConstructionPeakByteCount(
     }
     return retainedByteCount * bufferCount;
 }
+
+class DisplayImageFrameLease final
+{
+public:
+    DisplayImageFrameLease(std::shared_ptr<kiriview::DisplayImageStore> store, QString storeEntryId)
+        : m_store(std::move(store))
+        , m_storeEntryId(std::move(storeEntryId))
+    {
+    }
+
+    ~DisplayImageFrameLease()
+    {
+        if (m_store != nullptr && !m_storeEntryId.isEmpty()) {
+            m_store->releaseFrameLease(m_storeEntryId);
+        }
+    }
+
+    Q_DISABLE_COPY_MOVE(DisplayImageFrameLease)
+
+private:
+    std::shared_ptr<kiriview::DisplayImageStore> m_store;
+    QString m_storeEntryId;
+};
+
+struct FrameConstructionResult
+{
+    std::unique_ptr<ImageFrame> frame;
+    kiriview::ImageDecodeWorkspaceHold retainedWorkspace;
+    std::shared_ptr<DisplayImageFrameLease> displayStoreLease;
+};
 }
 
 namespace kiriview {
+enum class FrameConstructionState : quint8 {
+    WaitingForAdmission,
+    StartingWorker,
+    Running,
+    Retiring,
+};
+
+struct ImageViewportProviderResource::ActiveFrameConstruction
+{
+    ActiveFrameConstruction() = default;
+    ~ActiveFrameConstruction() { QObject::disconnect(receiverDestroyedConnection); }
+    Q_DISABLE_COPY_MOVE(ActiveFrameConstruction)
+
+    quint64 id = 0;
+    ImageViewportProviderWorkIdentity identity;
+    ImageDecodeWorkspaceAdmission admission;
+    ImageWorkerTask task;
+    QMetaObject::Connection receiverDestroyedConnection;
+    FrameConstructionState state = FrameConstructionState::WaitingForAdmission;
+    bool publishResult = true;
+};
+
 bool operator==(
     const ImageViewportProviderWorkIdentity& left, const ImageViewportProviderWorkIdentity& right)
 {
@@ -293,7 +346,8 @@ ImageViewportProviderResource::ImageViewportProviderResource(quint64 sourceGener
     QString locationIdentity, std::shared_ptr<ImageViewportProviderSource> source,
     std::shared_ptr<DisplayImageStore> displayStore,
     std::shared_ptr<ImageViewportFailureRegistry> failureRegistry,
-    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget)
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget,
+    ImageWorkerScheduler frameConstructionScheduler)
     : m_sourceGeneration(sourceGeneration)
     , m_locationIdentity(std::move(locationIdentity))
     , m_displayLocationIdentity(m_locationIdentity)
@@ -304,6 +358,9 @@ ImageViewportProviderResource::ImageViewportProviderResource(quint64 sourceGener
               : std::move(failureRegistry))
     , m_workspaceBudget(workspaceBudget == nullptr ? defaultImageDecodeWorkspaceBudget()
                                                    : std::move(workspaceBudget))
+    , m_frameConstructionScheduler(frameConstructionScheduler.isValid()
+              ? std::move(frameConstructionScheduler)
+              : defaultImageWorkerScheduler())
 {
     Q_ASSERT(m_displayStore != nullptr);
 }
@@ -420,6 +477,8 @@ void ImageViewportProviderResource::requestFrame(const ImageViewportProviderWork
 
 void ImageViewportProviderResource::cancel(const QVector<ImageSequenceProviderRequestToken>& tokens)
 {
+    std::vector<std::unique_ptr<ActiveFrameConstruction>> canceledConstructions;
+    std::vector<ImageWorkerTask> canceledTasks;
     {
         const QMutexLocker lock(&m_stateMutex);
         std::erase_if(
@@ -439,6 +498,26 @@ void ImageViewportProviderResource::cancel(const QVector<ImageSequenceProviderRe
                 tokens, m_authoritativeStillDisplayImageCandidate->identity.requestToken)) {
             m_authoritativeStillDisplayImageCandidate.reset();
         }
+        auto construction = m_activeFrameConstructions.begin();
+        while (construction != m_activeFrameConstructions.end()) {
+            if (*construction == nullptr
+                || !std::ranges::contains(tokens, (*construction)->identity.requestToken)) {
+                ++construction;
+                continue;
+            }
+            (*construction)->publishResult = false;
+            if ((*construction)->state == FrameConstructionState::WaitingForAdmission) {
+                canceledConstructions.push_back(std::move(*construction));
+                construction = m_activeFrameConstructions.erase(construction);
+            } else {
+                canceledTasks.push_back(std::move((*construction)->task));
+                ++construction;
+            }
+        }
+    }
+    canceledConstructions.clear();
+    for (ImageWorkerTask& task : canceledTasks) {
+        task.cancel();
     }
     if (m_source != nullptr) {
         m_source->cancel(tokens);
@@ -447,6 +526,8 @@ void ImageViewportProviderResource::cancel(const QVector<ImageSequenceProviderRe
 
 void ImageViewportProviderResource::close()
 {
+    std::vector<std::unique_ptr<ActiveFrameConstruction>> canceledConstructions;
+    std::vector<ImageWorkerTask> canceledTasks;
     {
         const QMutexLocker lock(&m_stateMutex);
         if (m_closed) {
@@ -457,6 +538,22 @@ void ImageViewportProviderResource::close()
         m_activeFrameWork.clear();
         m_authoritativeFrameCandidates.clear();
         m_authoritativeStillDisplayImageCandidate.reset();
+        auto construction = m_activeFrameConstructions.begin();
+        while (construction != m_activeFrameConstructions.end()) {
+            if (*construction == nullptr
+                || (*construction)->state == FrameConstructionState::WaitingForAdmission) {
+                canceledConstructions.push_back(std::move(*construction));
+                construction = m_activeFrameConstructions.erase(construction);
+                continue;
+            }
+            (*construction)->publishResult = false;
+            canceledTasks.push_back(std::move((*construction)->task));
+            ++construction;
+        }
+    }
+    canceledConstructions.clear();
+    for (ImageWorkerTask& task : canceledTasks) {
+        task.cancel();
     }
     if (m_source != nullptr) {
         m_source->close();
@@ -533,73 +630,213 @@ bool ImageViewportProviderResource::acceptDisplayedStillDisplayImage(
     return true;
 }
 
-ImageSequenceProviderFrameHandle* ImageViewportProviderResource::acquireFrameHandle(
-    const ImageViewportProviderPreparedFrame& preparedFrame)
+void ImageViewportProviderResource::requestFrameHandle(QObject* receiver,
+    const ImageViewportProviderWorkIdentity& identity,
+    const ImageViewportProviderPreparedFrame& preparedFrame, FrameHandleCompletion completion)
 {
-    if (!preparedFrame.isReady()
-        || !m_displayStore->acquireFrameLease(preparedFrame.storeEntryId)) {
-        return nullptr;
+    if (receiver == nullptr || !completion || !matchesResource(identity)
+        || !preparedFrame.isReady()) {
+        return;
     }
 
-    const std::optional<DisplayImageStoreEntry> entry
+    const std::optional<DisplayImageStoreEntry> plannedEntry
         = m_displayStore->entry(preparedFrame.storeEntryId);
-    if (!entry.has_value()) {
-        m_displayStore->releaseFrameLease(preparedFrame.storeEntryId);
-        return nullptr;
+    if (!plannedEntry.has_value()) {
+        completion(identity, {});
+        return;
     }
-
-    const ImageFrame::OrientationPolicy orientation
-        = orientationPolicy(entry->imageReaderTransformations);
-    const qsizetype frameRasterByteCount = entry->image.sizeInBytes();
+    const ImageFrame::OrientationPolicy plannedOrientation
+        = orientationPolicy(plannedEntry->imageReaderTransformations);
     const std::optional<qsizetype> constructionPeak
-        = frameConstructionPeakByteCount(entry->image, orientation);
-    ImageDecodeWorkspaceLease workspaceLease = m_workspaceBudget->startLease();
-    if (!constructionPeak.has_value() || !workspaceLease.tryReserve(*constructionPeak)) {
-        m_displayStore->releaseFrameLease(preparedFrame.storeEntryId);
-        return nullptr;
+        = frameConstructionPeakByteCount(plannedEntry->image, plannedOrientation);
+    if (!constructionPeak.has_value() || *constructionPeak > m_workspaceBudget->aggregateByteLimit()
+        || *constructionPeak > m_workspaceBudget->perOperationByteLimit()) {
+        completion(identity, {});
+        return;
     }
 
-    std::unique_ptr<ImageFrame> frame;
-    try {
-        const QImage sourcePayload = sourcePayloadForOrientation(entry->image, orientation);
-        if (sourcePayload.isNull()) {
-            m_displayStore->releaseFrameLease(preparedFrame.storeEntryId);
-            return nullptr;
+    quint64 constructionId = 0;
+    {
+        const QMutexLocker lock(&m_stateMutex);
+        if (m_closed) {
+            return;
         }
-        frame = std::make_unique<ImageFrame>(sourcePayload, entry->originalSize, entry->byteCost,
-            payloadQuality(entry->quality), payloadExactness(*entry), orientation,
-            preparedFrame.formatIdentifier);
-    } catch (const std::bad_alloc&) {
-        m_displayStore->releaseFrameLease(preparedFrame.storeEntryId);
-        return nullptr;
+        do {
+            constructionId = m_nextFrameConstructionId++;
+        } while (constructionId == 0
+            || std::ranges::any_of(m_activeFrameConstructions,
+                [constructionId](const std::unique_ptr<ActiveFrameConstruction>& active) {
+                    return active != nullptr && active->id == constructionId;
+                }));
+        auto active = std::make_unique<ActiveFrameConstruction>();
+        active->id = constructionId;
+        active->identity = identity;
+        m_activeFrameConstructions.push_back(std::move(active));
     }
-    ImageDecodeWorkspaceHold retainedWorkspace = workspaceLease.retainOnly(frameRasterByteCount);
-    if (!retainedWorkspace.isManaged()) {
-        m_displayStore->releaseFrameLease(preparedFrame.storeEntryId);
-        return nullptr;
-    }
-    const std::shared_ptr<DisplayImageStore> store = m_displayStore;
-    const QString entryId = preparedFrame.storeEntryId;
-    try {
-        std::function<void(ImageFrame*)> releaseFrame
-            = [store, entryId, retainedWorkspace = std::move(retainedWorkspace)](
-                  ImageFrame* releasedFrame) mutable {
-                  delete releasedFrame;
-                  store->releaseFrameLease(entryId);
-                  retainedWorkspace = {};
-              };
-        auto* handle = new (std::nothrow)
-            ImageSequenceProviderFrameHandle(frame.get(), std::move(releaseFrame));
-        if (handle == nullptr) {
-            store->releaseFrameLease(entryId);
-            return nullptr;
+
+    const std::weak_ptr<ImageViewportProviderResource> resource = weak_from_this();
+    const QMetaObject::Connection receiverDestroyed
+        = QObject::connect(receiver, &QObject::destroyed, receiver, [resource, constructionId]() {
+              if (const std::shared_ptr<ImageViewportProviderResource> owner = resource.lock()) {
+                  owner->cancelFrameConstruction(constructionId);
+              }
+          });
+    {
+        const QMutexLocker lock(&m_stateMutex);
+        const auto active = std::ranges::find_if(m_activeFrameConstructions,
+            [constructionId](const std::unique_ptr<ActiveFrameConstruction>& current) {
+                return current != nullptr && current->id == constructionId;
+            });
+        if (active != m_activeFrameConstructions.end()) {
+            (*active)->receiverDestroyedConnection = receiverDestroyed;
+        } else {
+            QObject::disconnect(receiverDestroyed);
         }
-        [[maybe_unused]] ImageFrame* const transferredFrame = frame.release();
-        Q_ASSERT(transferredFrame == handle->frame());
-        return handle;
-    } catch (const std::bad_alloc&) {
-        store->releaseFrameLease(entryId);
-        return nullptr;
+    }
+    auto admission = m_workspaceBudget->requestAdmission(receiver,
+        ImageDecodeWorkspaceAdmissionRequest {
+            *constructionPeak,
+            0,
+            ImageDecodeWorkspacePriority::Interactive,
+        },
+        [resource, receiver, constructionId, identity, storeEntryId = preparedFrame.storeEntryId,
+            formatIdentifier = preparedFrame.formatIdentifier,
+            completion](ImageDecodeWorkspaceLease workspaceLease) mutable {
+            const std::shared_ptr<ImageViewportProviderResource> owner = resource.lock();
+            if (owner == nullptr || !owner->frameConstructionIsActive(constructionId)) {
+                return;
+            }
+            if (!owner->m_displayStore->acquireFrameLease(storeEntryId)) {
+                workspaceLease = {};
+                if (owner->claimFrameConstruction(constructionId)) {
+                    completion(identity, {});
+                }
+                return;
+            }
+
+            std::shared_ptr<DisplayImageFrameLease> displayStoreLease;
+            try {
+                displayStoreLease
+                    = std::make_shared<DisplayImageFrameLease>(owner->m_displayStore, storeEntryId);
+            } catch (const std::bad_alloc&) {
+                owner->m_displayStore->releaseFrameLease(storeEntryId);
+                workspaceLease = {};
+                if (owner->claimFrameConstruction(constructionId)) {
+                    completion(identity, {});
+                }
+                return;
+            }
+
+            std::optional<DisplayImageStoreEntry> entry
+                = owner->m_displayStore->entry(storeEntryId);
+            if (!entry.has_value()) {
+                displayStoreLease.reset();
+                workspaceLease = {};
+                if (owner->claimFrameConstruction(constructionId)) {
+                    completion(identity, {});
+                }
+                return;
+            }
+            const ImageFrame::OrientationPolicy orientation
+                = orientationPolicy(entry->imageReaderTransformations);
+            const std::optional<qsizetype> actualPeak
+                = frameConstructionPeakByteCount(entry->image, orientation);
+            if (!actualPeak.has_value() || *actualPeak > workspaceLease.reservedByteCount()) {
+                displayStoreLease.reset();
+                workspaceLease = {};
+                if (owner->claimFrameConstruction(constructionId)) {
+                    completion(identity, {});
+                }
+                return;
+            }
+            const qsizetype frameRasterByteCount = entry->image.sizeInBytes();
+            if (!owner->beginFrameConstructionWorker(constructionId)) {
+                return;
+            }
+
+            ImageWorkerTask task = owner->m_frameConstructionScheduler.run(
+                receiver,
+                [entry = std::move(*entry), orientation, frameRasterByteCount,
+                    workspaceLease = std::move(workspaceLease),
+                    displayStoreLease = std::move(displayStoreLease),
+                    formatIdentifier = std::move(formatIdentifier)]() mutable {
+                    FrameConstructionResult result;
+                    result.displayStoreLease = std::move(displayStoreLease);
+                    try {
+                        QImage sourcePayload
+                            = sourcePayloadForOrientation(entry.image, orientation);
+                        if (sourcePayload.isNull()) {
+                            return result;
+                        }
+                        result.frame = std::make_unique<ImageFrame>(sourcePayload,
+                            entry.originalSize, entry.byteCost, payloadQuality(entry.quality),
+                            payloadExactness(entry), orientation, std::move(formatIdentifier));
+                    } catch (const std::bad_alloc&) {
+                        return result;
+                    }
+                    result.retainedWorkspace = workspaceLease.retainOnly(frameRasterByteCount);
+                    if (!result.retainedWorkspace.isManaged()) {
+                        result.frame.reset();
+                    }
+                    return result;
+                },
+                [resource, constructionId, identity, completion = std::move(completion)](
+                    FrameConstructionResult result) mutable {
+                    const std::shared_ptr<ImageViewportProviderResource> completedOwner
+                        = resource.lock();
+                    if (completedOwner == nullptr
+                        || !completedOwner->completeFrameConstruction(constructionId)) {
+                        return;
+                    }
+
+                    std::unique_ptr<ImageSequenceProviderFrameHandle> handle;
+                    if (result.frame != nullptr && result.retainedWorkspace.isManaged()
+                        && result.displayStoreLease != nullptr) {
+                        try {
+                            std::function<void(ImageFrame*)> releaseFrame
+                                = [displayStoreLease = std::move(result.displayStoreLease),
+                                      retainedWorkspace = std::move(result.retainedWorkspace)](
+                                      ImageFrame* releasedFrame) mutable {
+                                      delete releasedFrame;
+                                      displayStoreLease.reset();
+                                      retainedWorkspace = {};
+                                  };
+                            auto* rawHandle = new (std::nothrow) ImageSequenceProviderFrameHandle(
+                                result.frame.get(), std::move(releaseFrame));
+                            if (rawHandle != nullptr) {
+                                handle.reset(rawHandle);
+                                [[maybe_unused]] ImageFrame* const transferredFrame
+                                    = result.frame.release();
+                                Q_ASSERT(transferredFrame == handle->frame());
+                            }
+                        } catch (const std::bad_alloc&) {
+                        }
+                    }
+                    completion(identity, std::move(handle));
+                });
+            task.setRetirementCallback([resource, constructionId]() {
+                if (const std::shared_ptr<ImageViewportProviderResource> active = resource.lock()) {
+                    active->retireFrameConstruction(constructionId);
+                }
+            });
+            owner->installFrameConstructionTask(constructionId, std::move(task));
+        });
+
+    if (!admission.has_value()) {
+        if (claimFrameConstruction(constructionId)) {
+            completion(identity, {});
+        }
+        return;
+    }
+    {
+        const QMutexLocker lock(&m_stateMutex);
+        const auto active = std::ranges::find_if(m_activeFrameConstructions,
+            [constructionId](const std::unique_ptr<ActiveFrameConstruction>& current) {
+                return current != nullptr && current->id == constructionId;
+            });
+        if (active != m_activeFrameConstructions.end()) {
+            (*active)->admission = std::move(*admission);
+        }
     }
 }
 
@@ -656,6 +893,135 @@ bool ImageViewportProviderResource::finalizePreparedFrame(
             AuthoritativeFrameCandidate { identity, preparedFrame.storeEntryId });
     }
     return true;
+}
+
+bool ImageViewportProviderResource::frameConstructionIsActive(quint64 constructionId) const
+{
+    const QMutexLocker lock(&m_stateMutex);
+    return !m_closed
+        && std::ranges::any_of(m_activeFrameConstructions,
+            [constructionId](const std::unique_ptr<ActiveFrameConstruction>& active) {
+                return active != nullptr && active->id == constructionId;
+            });
+}
+
+bool ImageViewportProviderResource::claimFrameConstruction(quint64 constructionId)
+{
+    std::unique_ptr<ActiveFrameConstruction> completed;
+    {
+        const QMutexLocker lock(&m_stateMutex);
+        const auto active = std::ranges::find_if(m_activeFrameConstructions,
+            [constructionId](const std::unique_ptr<ActiveFrameConstruction>& current) {
+                return current != nullptr && current->id == constructionId;
+            });
+        if (m_closed || active == m_activeFrameConstructions.end()
+            || (*active)->state != FrameConstructionState::WaitingForAdmission) {
+            return false;
+        }
+        completed = std::move(*active);
+        m_activeFrameConstructions.erase(active);
+    }
+    completed.reset();
+    return true;
+}
+
+bool ImageViewportProviderResource::beginFrameConstructionWorker(quint64 constructionId)
+{
+    const QMutexLocker lock(&m_stateMutex);
+    const auto active = std::ranges::find_if(m_activeFrameConstructions,
+        [constructionId](const std::unique_ptr<ActiveFrameConstruction>& current) {
+            return current != nullptr && current->id == constructionId;
+        });
+    if (m_closed || active == m_activeFrameConstructions.end() || !(*active)->publishResult
+        || (*active)->state != FrameConstructionState::WaitingForAdmission) {
+        return false;
+    }
+    (*active)->state = FrameConstructionState::StartingWorker;
+    return true;
+}
+
+bool ImageViewportProviderResource::completeFrameConstruction(quint64 constructionId)
+{
+    const QMutexLocker lock(&m_stateMutex);
+    const auto active = std::ranges::find_if(m_activeFrameConstructions,
+        [constructionId](const std::unique_ptr<ActiveFrameConstruction>& current) {
+            return current != nullptr && current->id == constructionId;
+        });
+    if (active == m_activeFrameConstructions.end()
+        || ((*active)->state != FrameConstructionState::StartingWorker
+            && (*active)->state != FrameConstructionState::Running)) {
+        return false;
+    }
+    (*active)->state = FrameConstructionState::Retiring;
+    return !m_closed && (*active)->publishResult;
+}
+
+void ImageViewportProviderResource::cancelFrameConstruction(quint64 constructionId)
+{
+    std::unique_ptr<ActiveFrameConstruction> canceledPending;
+    ImageWorkerTask canceledTask;
+    {
+        const QMutexLocker lock(&m_stateMutex);
+        const auto active = std::ranges::find_if(m_activeFrameConstructions,
+            [constructionId](const std::unique_ptr<ActiveFrameConstruction>& current) {
+                return current != nullptr && current->id == constructionId;
+            });
+        if (active == m_activeFrameConstructions.end()) {
+            return;
+        }
+        (*active)->publishResult = false;
+        if ((*active)->state == FrameConstructionState::WaitingForAdmission) {
+            canceledPending = std::move(*active);
+            m_activeFrameConstructions.erase(active);
+        } else {
+            canceledTask = std::move((*active)->task);
+        }
+    }
+    canceledPending.reset();
+    canceledTask.cancel();
+}
+
+void ImageViewportProviderResource::installFrameConstructionTask(
+    quint64 constructionId, ImageWorkerTask task)
+{
+    ImageWorkerTask canceledTask;
+    {
+        const QMutexLocker lock(&m_stateMutex);
+        const auto active = std::ranges::find_if(m_activeFrameConstructions,
+            [constructionId](const std::unique_ptr<ActiveFrameConstruction>& current) {
+                return current != nullptr && current->id == constructionId;
+            });
+        if (active == m_activeFrameConstructions.end()) {
+            canceledTask = std::move(task);
+        } else {
+            (*active)->task = std::move(task);
+            if ((*active)->state == FrameConstructionState::StartingWorker) {
+                (*active)->state = FrameConstructionState::Running;
+            }
+            if (m_closed || !(*active)->publishResult) {
+                canceledTask = std::move((*active)->task);
+            }
+        }
+    }
+    canceledTask.cancel();
+}
+
+void ImageViewportProviderResource::retireFrameConstruction(quint64 constructionId)
+{
+    std::unique_ptr<ActiveFrameConstruction> retired;
+    {
+        const QMutexLocker lock(&m_stateMutex);
+        const auto active = std::ranges::find_if(m_activeFrameConstructions,
+            [constructionId](const std::unique_ptr<ActiveFrameConstruction>& current) {
+                return current != nullptr && current->id == constructionId;
+            });
+        if (active == m_activeFrameConstructions.end()) {
+            return;
+        }
+        retired = std::move(*active);
+        m_activeFrameConstructions.erase(active);
+    }
+    retired.reset();
 }
 
 ImageViewportProviderPreparedFrame ImageViewportProviderResource::prepareFrame(

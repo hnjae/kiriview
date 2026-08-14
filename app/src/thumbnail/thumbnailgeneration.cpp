@@ -4,10 +4,11 @@
 #include "thumbnailgeneration.h"
 
 #include "archive/mediaentrysourcebackend.h"
-#include "async/imageioworkerjob.h"
 #include "bridge/rustqtconversion.h"
 #include "cache/imagebyteaccounting.h"
 #include "decoding/decodedimageresult.h"
+#include "decoding/imagedecodedependencies.h"
+#include "decoding/imagedecodejob.h"
 #include "decoding/kiriimagedecoder.h"
 #include "kiriview/src/support/thumbnailcache.cxx.h"
 #include "localization/mediaentrysourceerrortext.h"
@@ -19,15 +20,18 @@
 
 #include <QFile>
 #include <QImage>
+#include <QPointer>
 #include <QSize>
 #include <Qt>
 #include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <mutex>
 #include <new>
 #include <optional>
 #include <utility>
 #include <variant>
+#include <vector>
 
 namespace {
 QString projectThumbnailMediaEntrySourceError(const kiriview::MediaEntrySourceError& error)
@@ -291,6 +295,34 @@ std::optional<ThumbnailTransformationPlan> thumbnailTransformationPlan(
         decoded);
 }
 
+qsizetype decodedThumbnailWorkspaceByteCount(const kiriview::DecodedImage& decoded)
+{
+    return std::visit(
+        [](const auto& image) -> qsizetype {
+            if constexpr (requires { image.firstFrameWorkspaceHold; }) {
+                return kiriview::saturatedQtByteSum(image.inputWorkspaceHold.reservedByteCount(),
+                    image.firstFrameWorkspaceHold.reservedByteCount());
+            } else if constexpr (requires { image.displayImage.retainedRasterByteCost(); }) {
+                return image.displayImage.retainedRasterByteCost();
+            }
+            return 0;
+        },
+        decoded);
+}
+
+std::optional<qsizetype> thumbnailTransformationAdditionalPeakByteCount(
+    const ThumbnailTransformationPlan& plan)
+{
+    qsizetype peakByteCount
+        = kiriview::saturatedQtByteSum(plan.outputByteCount, plan.transientByteCount);
+    if (plan.renderCreatesOutput) {
+        peakByteCount = kiriview::saturatedQtByteSum(peakByteCount, plan.outputByteCount);
+    }
+    return peakByteCount == std::numeric_limits<qsizetype>::max()
+        ? std::nullopt
+        : std::optional<qsizetype>(peakByteCount);
+}
+
 kiriview::ThumbnailGenerationImageDecodeResult renderDecodedThumbnailImageImpl(
     const kiriview::DecodedImage& decoded, int maximumLongEdge,
     const std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget>& workspaceBudget)
@@ -304,17 +336,7 @@ kiriview::ThumbnailGenerationImageDecodeResult renderDecodedThumbnailImageImpl(
             return {};
         },
         decoded);
-    const qsizetype decodedImageWorkspaceByteCount = std::visit(
-        [](const auto& image) -> qsizetype {
-            if constexpr (requires { image.firstFrameWorkspaceHold; }) {
-                return kiriview::saturatedQtByteSum(image.inputWorkspaceHold.reservedByteCount(),
-                    image.firstFrameWorkspaceHold.reservedByteCount());
-            } else if constexpr (requires { image.displayImage.retainedRasterByteCost(); }) {
-                return image.displayImage.retainedRasterByteCost();
-            }
-            return 0;
-        },
-        decoded);
+    const qsizetype decodedImageWorkspaceByteCount = decodedThumbnailWorkspaceByteCount(decoded);
     const std::optional<ThumbnailTransformationPlan> transformationPlan
         = thumbnailTransformationPlan(decoded, maximumLongEdge);
     if (!transformationPlan.has_value()) {
@@ -328,11 +350,13 @@ kiriview::ThumbnailGenerationImageDecodeResult renderDecodedThumbnailImageImpl(
     }
 
     kiriview::ImageDecodeWorkspaceLease transformationLease
-        = workspaceBudget->startLeaseForOperation(decodedImageWorkspaceByteCount);
+        = kiriview::ImageDecodeWorkspaceDetail::startLeaseForOperation(
+            *workspaceBudget, decodedImageWorkspaceByteCount);
     const qsizetype transformationReservationByteCount = kiriview::saturatedQtByteSum(
         transformationPlan->outputByteCount, transformationPlan->transientByteCount);
     if (transformationReservationByteCount == std::numeric_limits<qsizetype>::max()
-        || !transformationLease.tryReserve(transformationReservationByteCount)) {
+        || !kiriview::ImageDecodeWorkspaceDetail::tryReserve(
+            transformationLease, transformationReservationByteCount)) {
         return {
             {},
             {},
@@ -567,9 +591,10 @@ kiriview::ThumbnailGenerationResult finishGeneratedThumbnailImage(
         transformationOutputByteCount = *measuredOutputByteCount;
     }
     if (!transformationLease.isManaged()) {
-        transformationLease = dependencies.workspaceBudget->startLeaseForOperation(
-            workspaceHolds.decodedImage.reservedByteCount());
-        if (!transformationLease.tryReserve(transformationOutputByteCount)) {
+        transformationLease = kiriview::ImageDecodeWorkspaceDetail::startLeaseForOperation(
+            *dependencies.workspaceBudget, workspaceHolds.decodedImage.reservedByteCount());
+        if (!kiriview::ImageDecodeWorkspaceDetail::tryReserve(
+                transformationLease, transformationOutputByteCount)) {
             image = {};
             workspaceHolds = {};
             return failedResult(request.requestedBucket,
@@ -581,7 +606,8 @@ kiriview::ThumbnailGenerationResult finishGeneratedThumbnailImage(
 
     const bool conversionCreatesOutput = image.format() != QImage::Format_RGBA8888;
     if (conversionCreatesOutput && imageUsesTransformationReservation
-        && !transformationLease.tryReserve(transformationOutputByteCount)) {
+        && !kiriview::ImageDecodeWorkspaceDetail::tryReserve(
+            transformationLease, transformationOutputByteCount)) {
         image = {};
         workspaceHolds = {};
         return failedResult(request.requestedBucket,
@@ -664,7 +690,8 @@ kiriview::ThumbnailGenerationResult finishGeneratedThumbnailImage(
 }
 
 kiriview::ThumbnailGenerationDependencies resolvedThumbnailGenerationDependencies(
-    kiriview::ThumbnailGenerationDependencies dependencies)
+    kiriview::ThumbnailGenerationDependencies dependencies,
+    kiriview::ImageWorkerScheduler workerScheduler = {})
 {
     if (dependencies.sourceDataBudget == nullptr) {
         dependencies.sourceDataBudget = kiriview::defaultImageSourceDataBudget();
@@ -685,6 +712,10 @@ kiriview::ThumbnailGenerationDependencies resolvedThumbnailGenerationDependencie
             return defaultThumbnailGenerationImageDecoder(bytes, maximumLongEdge, workspaceBudget);
         };
     }
+    if (!dependencies.imagePlanner) {
+        dependencies.imagePlanner
+            = kiriview::defaultImageDataDecodePlanner(dependencies.workspaceBudget);
+    }
     if (!dependencies.maximumLongEdgeForBucket) {
         dependencies.maximumLongEdgeForBucket = bucketMaxEdge;
     }
@@ -703,6 +734,10 @@ kiriview::ThumbnailGenerationDependencies resolvedThumbnailGenerationDependencie
     }
     if (!dependencies.cacheRepository.install) {
         dependencies.cacheRepository.install = installThumbnail;
+    }
+    if (!dependencies.cacheLookupProvider) {
+        dependencies.cacheLookupProvider = kiriview::defaultThumbnailCacheLookupProvider(
+            std::move(workerScheduler), dependencies.workspaceBudget);
     }
     if (!dependencies.videoExtractionProvider) {
         dependencies.videoExtractionProvider = kiriview::startThumbnailVideoExtractionJob;
@@ -788,9 +823,1015 @@ kiriview::ThumbnailGenerationResult generateThumbnailWithDependencies(
         decodeResult.imageUsesTransformationReservation, dependencies);
 }
 
+struct ThumbnailIdentityPreparationResult
+{
+    std::optional<kiriview::ThumbnailOriginalIdentity> identity;
+    QString errorString;
+};
+
+struct ThumbnailSourcePreparationResult
+{
+    kiriview::ImageSourceData sourceData;
+    QString errorString;
+};
+
+class ThumbnailGenerationAdmissionJobState final
+    : public std::enable_shared_from_this<ThumbnailGenerationAdmissionJobState>
+{
+public:
+    ThumbnailGenerationAdmissionJobState(QObject* token,
+        kiriview::ImageWorkerScheduler workerScheduler,
+        kiriview::ThumbnailGenerationRequest request,
+        kiriview::ThumbnailGenerationDependencies dependencies,
+        kiriview::ThumbnailGenerationCallback callback, bool useLegacyDecoder)
+        : m_token(token)
+        , m_workerScheduler(std::move(workerScheduler))
+        , m_request(std::move(request))
+        , m_dependencies(std::move(dependencies))
+        , m_callback(std::move(callback))
+        , m_useLegacyDecoder(useLegacyDecoder)
+    {
+    }
+
+    void setCompletion(kiriview::ImageIoJobCompletion completion)
+    {
+        const std::scoped_lock lock(m_mutex);
+        m_completion = std::move(completion);
+    }
+
+    void start()
+    {
+        {
+            const std::scoped_lock lock(m_mutex);
+            m_self = shared_from_this();
+        }
+        m_maximumLongEdge = m_dependencies.maximumLongEdgeForBucket(m_request.requestedBucket);
+        if (m_maximumLongEdge <= 0) {
+            publish(failedResult(m_request.requestedBucket,
+                QStringLiteral("thumbnail generation requires a size bucket")));
+            return;
+        }
+        if (m_useLegacyDecoder) {
+            startLegacyAdmission();
+            return;
+        }
+
+        if (m_request.openedCollectionScope.isEmpty()) {
+            m_originalIdentity = m_request.originalIdentity.isValid()
+                ? m_request.originalIdentity
+                : kiriview::ThumbnailOriginalIdentity::fromLocalPathBytes(m_request.localPathBytes);
+            startSourceLoad();
+            return;
+        }
+        startIdentityPreparation();
+    }
+
+    void cancel()
+    {
+        kiriview::ImageDecodeWorkspaceAdmission admission;
+        std::vector<kiriview::ImageWorkerTask> workers;
+        std::vector<kiriview::ImageIoJob> ioJobs;
+        QPointer<kiriview::ImageDecodeJob> decodeJob;
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (m_logicalFinished) {
+                return;
+            }
+            m_logicalFinished = true;
+            m_callback = {};
+            admission = std::move(m_admission);
+            workers = std::move(m_workers);
+            ioJobs = std::move(m_ioJobs);
+            decodeJob = m_decodeJob;
+        }
+
+        admission.cancel();
+        for (kiriview::ImageWorkerTask& worker : workers) {
+            worker.cancel();
+        }
+        for (kiriview::ImageIoJob& ioJob : ioJobs) {
+            ioJob.cancel();
+        }
+        if (decodeJob != nullptr) {
+            decodeJob->cancel();
+        }
+        maybeRetire();
+    }
+
+private:
+    [[nodiscard]] bool beginChild()
+    {
+        const std::scoped_lock lock(m_mutex);
+        if (m_logicalFinished || m_token == nullptr) {
+            return false;
+        }
+        ++m_childCount;
+        return true;
+    }
+
+    void retireChild()
+    {
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (m_childCount > 0) {
+                --m_childCount;
+            }
+        }
+        maybeRetire();
+    }
+
+    void maybeRetire()
+    {
+        kiriview::ImageIoJobCompletion completion;
+        std::shared_ptr<ThumbnailGenerationAdmissionJobState> lifetime;
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (!m_logicalFinished || m_childCount != 0 || m_retired) {
+                return;
+            }
+            m_retired = true;
+            completion = m_completion;
+            lifetime = std::move(m_self);
+        }
+        completion.retire();
+        Q_UNUSED(lifetime)
+    }
+
+    [[nodiscard]] bool acceptsCallbacks() const
+    {
+        const std::scoped_lock lock(m_mutex);
+        return !m_logicalFinished && m_token != nullptr;
+    }
+
+    void publish(kiriview::ThumbnailGenerationResult result)
+    {
+        kiriview::ThumbnailGenerationCallback callback;
+        QPointer<QObject> token;
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (m_logicalFinished) {
+                return;
+            }
+            m_logicalFinished = true;
+            callback = std::move(m_callback);
+            token = m_token;
+        }
+
+        if (callback) {
+            callback(std::move(result));
+        }
+        if (token != nullptr) {
+            delete token.data();
+        }
+        maybeRetire();
+    }
+
+    void storeWorker(kiriview::ImageWorkerTask worker)
+    {
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (!m_logicalFinished) {
+                m_workers.push_back(std::move(worker));
+                return;
+            }
+        }
+        worker.cancel();
+    }
+
+    void storeIoJob(kiriview::ImageIoJob ioJob)
+    {
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (!m_logicalFinished) {
+                m_ioJobs.push_back(std::move(ioJob));
+                return;
+            }
+        }
+        ioJob.cancel();
+    }
+
+    void storeAdmission(kiriview::ImageDecodeWorkspaceAdmission admission)
+    {
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (!m_logicalFinished) {
+                m_admission = std::move(admission);
+                return;
+            }
+        }
+        admission.cancel();
+    }
+
+    void startIdentityPreparation()
+    {
+        if (!beginChild()) {
+            return;
+        }
+        const kiriview::ThumbnailGenerationRequest request = m_request;
+        const kiriview::ThumbnailGenerationOriginalIdentityLoader loader
+            = m_dependencies.openedCollectionOriginalIdentityLoader;
+        const std::weak_ptr<ThumbnailGenerationAdmissionJobState> weakState(shared_from_this());
+        kiriview::ImageWorkerTask worker = m_workerScheduler.run(
+            m_token,
+            [request, loader]() {
+                ThumbnailIdentityPreparationResult result;
+                result.identity = loader(request, &result.errorString);
+                return result;
+            },
+            [weakState](ThumbnailIdentityPreparationResult result) mutable {
+                if (const auto state = weakState.lock()) {
+                    state->identityPrepared(std::move(result));
+                }
+            });
+        worker.setRetirementCallback([weakState]() {
+            if (const auto state = weakState.lock()) {
+                state->retireChild();
+            }
+        });
+        storeWorker(std::move(worker));
+    }
+
+    void identityPrepared(ThumbnailIdentityPreparationResult result)
+    {
+        if (!acceptsCallbacks()) {
+            return;
+        }
+        if (!result.identity.has_value()) {
+            publish(failedResult(m_request.requestedBucket,
+                result.errorString.isEmpty()
+                    ? QStringLiteral("collection thumbnail identity failed")
+                    : std::move(result.errorString)));
+            return;
+        }
+        m_originalIdentity = std::move(*result.identity);
+        if (!m_request.cacheInstallEnabled) {
+            startSourceLoad();
+            return;
+        }
+        startCacheLookup();
+    }
+
+    void startCacheLookup()
+    {
+        if (!beginChild()) {
+            return;
+        }
+        kiriview::ThumbnailCacheLookupRequest lookupRequest;
+        lookupRequest.localPathBytes = m_originalIdentity.localPathBytes;
+        lookupRequest.originalIdentity = m_originalIdentity;
+        lookupRequest.requestedBucket = m_request.requestedBucket;
+        lookupRequest.workspacePriority = m_request.workspacePriority;
+        const std::weak_ptr<ThumbnailGenerationAdmissionJobState> weakState(shared_from_this());
+        kiriview::ImageIoJob ioJob
+            = m_dependencies.cacheLookupProvider(m_token, std::move(lookupRequest),
+                [weakState](kiriview::ThumbnailCacheLookupResult result) mutable {
+                    if (const auto state = weakState.lock()) {
+                        state->cacheLookupFinished(std::move(result));
+                    }
+                });
+        ioJob.setRetirementCallback([weakState]() {
+            if (const auto state = weakState.lock()) {
+                state->retireChild();
+            }
+        });
+        storeIoJob(std::move(ioJob));
+    }
+
+    void cacheLookupFinished(kiriview::ThumbnailCacheLookupResult lookup)
+    {
+        if (!acceptsCallbacks()) {
+            return;
+        }
+        switch (lookup.status) {
+        case kiriview::ThumbnailCacheLookupStatus::Ready:
+            publish(readyResultFromCache(lookup));
+            return;
+        case kiriview::ThumbnailCacheLookupStatus::Missing:
+            startSourceLoad();
+            return;
+        case kiriview::ThumbnailCacheLookupStatus::ResourceLimitExceeded:
+            publish(failedResult(m_request.requestedBucket, std::move(lookup.errorString),
+                kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded));
+            return;
+        case kiriview::ThumbnailCacheLookupStatus::Invalid:
+        case kiriview::ThumbnailCacheLookupStatus::Failed:
+            publish(failedResult(m_request.requestedBucket, std::move(lookup.errorString)));
+            return;
+        }
+    }
+
+    void startSourceLoad()
+    {
+        if (!beginChild()) {
+            return;
+        }
+        const kiriview::ThumbnailGenerationRequest request = m_request;
+        const kiriview::ThumbnailGenerationBytesLoader loader = m_dependencies.bytesLoader;
+        const std::shared_ptr<kiriview::ImageSourceDataBudget> sourceDataBudget
+            = m_dependencies.sourceDataBudget;
+        const std::weak_ptr<ThumbnailGenerationAdmissionJobState> weakState(shared_from_this());
+        kiriview::ImageWorkerTask worker = m_workerScheduler.run(
+            m_token,
+            [request, loader, sourceDataBudget]() mutable {
+                ThumbnailSourcePreparationResult result;
+                result.sourceData = loader(request, &result.errorString);
+                if (result.sourceData.data.isEmpty() && !result.errorString.isEmpty()) {
+                    return result;
+                }
+                if (!result.sourceData.lease.isManaged()) {
+                    result.sourceData.lease = sourceDataBudget->startLease();
+                }
+                const qsizetype reservedByteCount = result.sourceData.lease.reservedByteCount();
+                if (result.sourceData.data.size() > reservedByteCount
+                    && !result.sourceData.lease.tryReserve(
+                        result.sourceData.data.size() - reservedByteCount)) {
+                    result.sourceData = {};
+                    result.errorString = kiriview::imageSourceDataResourceLimitDiagnostic();
+                }
+                return result;
+            },
+            [weakState](ThumbnailSourcePreparationResult result) mutable {
+                if (const auto state = weakState.lock()) {
+                    state->sourceLoaded(std::move(result));
+                }
+            });
+        worker.setRetirementCallback([weakState]() {
+            if (const auto state = weakState.lock()) {
+                state->retireChild();
+            }
+        });
+        storeWorker(std::move(worker));
+    }
+
+    void sourceLoaded(ThumbnailSourcePreparationResult result)
+    {
+        if (!acceptsCallbacks()) {
+            return;
+        }
+        if (!result.errorString.isEmpty()) {
+            publish(failedResult(m_request.requestedBucket, std::move(result.errorString)));
+            return;
+        }
+
+        auto sourceData = std::make_shared<std::optional<kiriview::ImageSourceData>>(
+            std::move(result.sourceData));
+        kiriview::ImageDecodeDependencies decodeDependencies;
+        decodeDependencies.dataLoader = [sourceData](QObject*, const kiriview::ImageDecodeRequest&,
+                                            const kiriview::ImageDataCallback& loaded,
+                                            const kiriview::ImageDataLoadErrorCallback&) mutable {
+            if (sourceData->has_value() && loaded) {
+                loaded(std::move(**sourceData));
+                (*sourceData).reset();
+            }
+            return kiriview::ImageIoJob {};
+        };
+        decodeDependencies.dataPlanner = m_dependencies.imagePlanner;
+        decodeDependencies.thumbnailPreviewLookupProvider =
+            [](QObject*, const kiriview::ThumbnailCacheLookupRequest&,
+                const kiriview::ThumbnailCacheLookupCallback&) { return kiriview::ImageIoJob {}; };
+        decodeDependencies.workerScheduler = m_workerScheduler;
+        decodeDependencies.sourceDataBudget = m_dependencies.sourceDataBudget;
+        decodeDependencies.workspaceBudget = m_dependencies.workspaceBudget;
+
+        QUrl sourceUrl = m_request.sourceUrl;
+        if (sourceUrl.isEmpty() && !m_request.localPathBytes.isEmpty()) {
+            sourceUrl = QUrl::fromLocalFile(QFile::decodeName(m_request.localPathBytes));
+        }
+        kiriview::DisplayedImageLocation location = m_request.openedCollectionScope.isEmpty()
+            ? kiriview::DisplayedImageLocation::fromUrl(sourceUrl)
+            : kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
+                  sourceUrl, m_request.openedCollectionScope);
+        kiriview::ImageDecodeRequest decodeRequest
+            = kiriview::ImageDecodeRequest::fromLocation(1, std::move(location),
+                kiriview::ImageFirstDisplayDecodeContext {
+                    QSize(m_maximumLongEdge, m_maximumLongEdge),
+                });
+
+        if (!beginChild()) {
+            return;
+        }
+        const std::weak_ptr<ThumbnailGenerationAdmissionJobState> weakState(shared_from_this());
+        auto* decodeJob = new kiriview::ImageDecodeJob(m_token, std::move(decodeDependencies),
+            kiriview::ImageDecodeJob::Callbacks {
+                [weakState](const kiriview::ImageDecodeRequest&,
+                    kiriview::DecodedImageResult decoded) mutable {
+                    if (const auto state = weakState.lock()) {
+                        state->decodeFinished(std::move(decoded));
+                    }
+                },
+                [weakState](const kiriview::ImageDecodeRequest&,
+                    kiriview::ImageDataLoadError error) mutable {
+                    if (const auto state = weakState.lock()) {
+                        QString errorString = std::visit(
+                            [](const auto& failure) {
+                                if constexpr (requires { failure.userMessage; }) {
+                                    return failure.userMessage;
+                                } else {
+                                    return kiriview::mediaEntrySourceErrorText(failure);
+                                }
+                            },
+                            error);
+                        state->publish(
+                            failedResult(state->m_request.requestedBucket, std::move(errorString)));
+                    }
+                },
+                {},
+                [weakState](const kiriview::ImageDecodeRequest&) {
+                    if (const auto state = weakState.lock()) {
+                        state->retireChild();
+                    }
+                },
+            });
+        bool abandonDecode = false;
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (m_logicalFinished) {
+                abandonDecode = true;
+            } else {
+                m_decodeJob = decodeJob;
+            }
+        }
+        if (abandonDecode) {
+            delete decodeJob;
+            retireChild();
+            return;
+        }
+        decodeJob->start(std::move(decodeRequest), std::nullopt, m_request.workspacePriority);
+    }
+
+    void decodeFinished(kiriview::DecodedImageResult result)
+    {
+        if (!acceptsCallbacks()) {
+            return;
+        }
+        if (const kiriview::DecodedImageFailure* failure
+            = kiriview::decodedImageResultFailure(result)) {
+            const kiriview::ThumbnailGenerationStatus status
+                = failure->cause == kiriview::DecodedImageFailureCause::ResourceLimitExceeded
+                ? kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded
+                : kiriview::ThumbnailGenerationStatus::Failed;
+            publish(failedResult(m_request.requestedBucket, failure->errorString, status));
+            return;
+        }
+        kiriview::DecodedImage* decoded = kiriview::decodedImageResultImage(result);
+        if (decoded == nullptr) {
+            publish(failedResult(
+                m_request.requestedBucket, QStringLiteral("image decode produced no image")));
+            return;
+        }
+
+        const std::optional<ThumbnailTransformationPlan> plan
+            = thumbnailTransformationPlan(*decoded, m_maximumLongEdge);
+        const std::optional<qsizetype> additionalPeakByteCount = plan.has_value()
+            ? thumbnailTransformationAdditionalPeakByteCount(*plan)
+            : std::nullopt;
+        if (!plan.has_value() || !additionalPeakByteCount.has_value()) {
+            publish(failedResult(m_request.requestedBucket,
+                kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+                kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded));
+            return;
+        }
+
+        const qsizetype baselineByteCount = decodedThumbnailWorkspaceByteCount(*decoded);
+        auto retainedResult
+            = std::make_shared<std::optional<kiriview::DecodedImageResult>>(std::move(result));
+        const kiriview::ImageDecodeWorkspaceAdmissionRequest admissionRequest {
+            *additionalPeakByteCount,
+            baselineByteCount,
+            m_request.workspacePriority,
+        };
+        const std::weak_ptr<ThumbnailGenerationAdmissionJobState> weakState(shared_from_this());
+        auto admission = m_dependencies.workspaceBudget->requestAdmission(m_token, admissionRequest,
+            [weakState, retainedResult, baselineByteCount](
+                kiriview::ImageDecodeWorkspaceLease lease) mutable {
+                if (const auto state = weakState.lock()) {
+                    state->transformationGranted(
+                        std::move(*retainedResult), std::move(lease), baselineByteCount);
+                    (*retainedResult).reset();
+                }
+            });
+        if (!admission.has_value()) {
+            publish(failedResult(m_request.requestedBucket,
+                kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+                kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded));
+            return;
+        }
+        storeAdmission(std::move(*admission));
+    }
+
+    void transformationGranted(std::optional<kiriview::DecodedImageResult> retainedResult,
+        kiriview::ImageDecodeWorkspaceLease lease, qsizetype baselineByteCount)
+    {
+        if (!acceptsCallbacks() || !retainedResult.has_value()) {
+            return;
+        }
+        if (!beginChild()) {
+            return;
+        }
+        const kiriview::ThumbnailGenerationRequest request = m_request;
+        const kiriview::ThumbnailOriginalIdentity originalIdentity = m_originalIdentity;
+        const int maximumLongEdge = m_maximumLongEdge;
+        kiriview::ThumbnailGenerationDependencies dependencies = m_dependencies;
+        const std::weak_ptr<ThumbnailGenerationAdmissionJobState> weakState(shared_from_this());
+        kiriview::ImageWorkerTask worker = m_workerScheduler.run(
+            m_token,
+            [request, originalIdentity, maximumLongEdge, dependencies = std::move(dependencies),
+                result = std::move(*retainedResult), lease = std::move(lease),
+                baselineByteCount]() mutable {
+                std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> localBudget
+                    = kiriview::prechargedImageDecodeWorkspaceBudget(
+                        std::move(lease), baselineByteCount);
+                if (localBudget == nullptr) {
+                    return failedResult(request.requestedBucket,
+                        kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+                        kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded);
+                }
+                dependencies.workspaceBudget = localBudget;
+                kiriview::DecodedImage* decoded = kiriview::decodedImageResultImage(result);
+                if (decoded == nullptr) {
+                    localBudget->finalizePrechargedAdmission();
+                    return failedResult(
+                        request.requestedBucket, QStringLiteral("image decode produced no image"));
+                }
+                kiriview::ThumbnailGenerationImageDecodeResult rendered
+                    = renderDecodedThumbnailImageImpl(*decoded, maximumLongEdge, localBudget);
+                kiriview::ThumbnailGenerationResult generated;
+                if (rendered.image.isNull()) {
+                    const kiriview::ThumbnailGenerationStatus status = rendered.failureCause
+                            == kiriview::DecodedImageFailureCause::ResourceLimitExceeded
+                        ? kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded
+                        : kiriview::ThumbnailGenerationStatus::Failed;
+                    generated = failedResult(request.requestedBucket,
+                        rendered.errorString.isEmpty()
+                            ? QStringLiteral("thumbnail render produced no image")
+                            : std::move(rendered.errorString),
+                        status);
+                } else {
+                    generated = finishGeneratedThumbnailImage(request, originalIdentity,
+                        std::move(rendered.workspaceHolds), std::move(rendered.transformationLease),
+                        std::move(rendered.image), rendered.transformationOutputByteCount,
+                        rendered.imageUsesTransformationReservation, dependencies);
+                }
+                localBudget->finalizePrechargedAdmission();
+                return generated;
+            },
+            [weakState](kiriview::ThumbnailGenerationResult result) mutable {
+                if (const auto state = weakState.lock()) {
+                    state->publish(std::move(result));
+                }
+            });
+        worker.setRetirementCallback([weakState]() {
+            if (const auto state = weakState.lock()) {
+                state->retireChild();
+            }
+        });
+        storeWorker(std::move(worker));
+    }
+
+    void startLegacyAdmission()
+    {
+        const qsizetype peakByteCount = m_dependencies.workspaceBudget->perOperationByteLimit();
+        const kiriview::ImageDecodeWorkspaceAdmissionRequest request {
+            peakByteCount,
+            0,
+            m_request.workspacePriority,
+        };
+        const std::weak_ptr<ThumbnailGenerationAdmissionJobState> weakState(shared_from_this());
+        auto admission = m_dependencies.workspaceBudget->requestAdmission(
+            m_token, request, [weakState](kiriview::ImageDecodeWorkspaceLease lease) mutable {
+                if (const auto state = weakState.lock()) {
+                    state->legacyAdmissionGranted(std::move(lease));
+                }
+            });
+        if (!admission.has_value()) {
+            publish(failedResult(m_request.requestedBucket,
+                kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+                kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded));
+            return;
+        }
+        storeAdmission(std::move(*admission));
+    }
+
+    void legacyAdmissionGranted(kiriview::ImageDecodeWorkspaceLease lease)
+    {
+        if (!acceptsCallbacks() || !beginChild()) {
+            return;
+        }
+        const kiriview::ThumbnailGenerationRequest request = m_request;
+        kiriview::ThumbnailGenerationDependencies dependencies = m_dependencies;
+        const std::weak_ptr<ThumbnailGenerationAdmissionJobState> weakState(shared_from_this());
+        kiriview::ImageWorkerTask worker = m_workerScheduler.run(
+            m_token,
+            [request, dependencies = std::move(dependencies), lease = std::move(lease)]() mutable {
+                std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> localBudget
+                    = kiriview::prechargedImageDecodeWorkspaceBudget(std::move(lease));
+                if (localBudget == nullptr) {
+                    return failedResult(request.requestedBucket,
+                        kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+                        kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded);
+                }
+                dependencies.workspaceBudget = localBudget;
+                dependencies.cacheRepository.lookup = {};
+                kiriview::ThumbnailGenerationResult result = generateThumbnailWithDependencies(
+                    request, resolvedThumbnailGenerationDependencies(std::move(dependencies)));
+                localBudget->finalizePrechargedAdmission();
+                return result;
+            },
+            [weakState](kiriview::ThumbnailGenerationResult result) mutable {
+                if (const auto state = weakState.lock()) {
+                    state->publish(std::move(result));
+                }
+            });
+        worker.setRetirementCallback([weakState]() {
+            if (const auto state = weakState.lock()) {
+                state->retireChild();
+            }
+        });
+        storeWorker(std::move(worker));
+    }
+
+    QPointer<QObject> m_token;
+    kiriview::ImageWorkerScheduler m_workerScheduler;
+    kiriview::ThumbnailGenerationRequest m_request;
+    kiriview::ThumbnailGenerationDependencies m_dependencies;
+    kiriview::ThumbnailGenerationCallback m_callback;
+    kiriview::ThumbnailOriginalIdentity m_originalIdentity;
+    kiriview::ImageIoJobCompletion m_completion;
+    kiriview::ImageDecodeWorkspaceAdmission m_admission;
+    std::vector<kiriview::ImageWorkerTask> m_workers;
+    std::vector<kiriview::ImageIoJob> m_ioJobs;
+    QPointer<kiriview::ImageDecodeJob> m_decodeJob;
+    std::shared_ptr<ThumbnailGenerationAdmissionJobState> m_self;
+    int m_maximumLongEdge = 0;
+    qsizetype m_childCount = 0;
+    bool m_useLegacyDecoder = false;
+    bool m_logicalFinished = false;
+    bool m_retired = false;
+    mutable std::mutex m_mutex;
+};
+
+class VideoThumbnailGenerationAdmissionJobState final
+    : public std::enable_shared_from_this<VideoThumbnailGenerationAdmissionJobState>
+{
+public:
+    VideoThumbnailGenerationAdmissionJobState(QObject* token,
+        kiriview::ImageWorkerScheduler workerScheduler,
+        kiriview::ThumbnailGenerationRequest request,
+        kiriview::ThumbnailOriginalIdentity originalIdentity, int maximumLongEdge,
+        kiriview::ThumbnailGenerationCallback callback,
+        kiriview::ThumbnailGenerationDependencies dependencies)
+        : m_token(token)
+        , m_workerScheduler(std::move(workerScheduler))
+        , m_request(std::move(request))
+        , m_originalIdentity(std::move(originalIdentity))
+        , m_maximumLongEdge(maximumLongEdge)
+        , m_callback(std::move(callback))
+        , m_dependencies(std::move(dependencies))
+    {
+    }
+
+    void setCompletion(kiriview::ImageIoJobCompletion completion)
+    {
+        const std::scoped_lock lock(m_mutex);
+        m_completion = std::move(completion);
+    }
+
+    void start()
+    {
+        {
+            const std::scoped_lock lock(m_mutex);
+            m_self = shared_from_this();
+        }
+        const kiriview::ImageDecodeWorkspaceAdmissionRequest request {
+            kiriview::VideoThumbnailExtractionLimits::maximumWorkingBytes,
+            0,
+            m_request.workspacePriority,
+        };
+        const std::weak_ptr<VideoThumbnailGenerationAdmissionJobState> weakState(
+            shared_from_this());
+        auto admission = m_dependencies.workspaceBudget->requestAdmission(
+            m_token, request, [weakState](kiriview::ImageDecodeWorkspaceLease lease) mutable {
+                if (const auto state = weakState.lock()) {
+                    state->admissionGranted(std::move(lease));
+                }
+            });
+        if (!admission.has_value()) {
+            publish(failedResult(m_request.requestedBucket,
+                kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+                kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded));
+            return;
+        }
+        bool cancelAdmission = false;
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (m_logicalFinished) {
+                cancelAdmission = true;
+            } else {
+                m_admission = std::move(*admission);
+            }
+        }
+        if (cancelAdmission) {
+            admission->cancel();
+        }
+    }
+
+    void cancel()
+    {
+        kiriview::ImageDecodeWorkspaceAdmission admission;
+        kiriview::ImageIoJob providerJob;
+        kiriview::ImageWorkerTask worker;
+        std::optional<kiriview::ImageDecodeWorkspaceLease> unusedWorkingLease;
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (m_logicalFinished) {
+                return;
+            }
+            m_logicalFinished = true;
+            m_callback = {};
+            admission = std::move(m_admission);
+            providerJob = std::move(m_providerJob);
+            worker = std::move(m_worker);
+            if (m_providerRetired) {
+                unusedWorkingLease = std::move(m_workingLease);
+                m_workingLease.reset();
+            }
+        }
+        admission.cancel();
+        providerJob.cancel();
+        worker.cancel();
+        unusedWorkingLease.reset();
+        maybeRetire();
+    }
+
+private:
+    [[nodiscard]] bool beginChild()
+    {
+        const std::scoped_lock lock(m_mutex);
+        if (m_logicalFinished || m_token == nullptr) {
+            return false;
+        }
+        ++m_childCount;
+        return true;
+    }
+
+    void retireChild()
+    {
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (m_childCount > 0) {
+                --m_childCount;
+            }
+        }
+        maybeRetire();
+    }
+
+    void maybeRetire()
+    {
+        kiriview::ImageIoJobCompletion completion;
+        std::shared_ptr<VideoThumbnailGenerationAdmissionJobState> lifetime;
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (!m_logicalFinished || m_childCount != 0 || m_retired) {
+                return;
+            }
+            m_retired = true;
+            completion = m_completion;
+            lifetime = std::move(m_self);
+        }
+        completion.retire();
+        Q_UNUSED(lifetime)
+    }
+
+    [[nodiscard]] bool acceptsCallbacks() const
+    {
+        const std::scoped_lock lock(m_mutex);
+        return !m_logicalFinished && m_token != nullptr;
+    }
+
+    void publish(kiriview::ThumbnailGenerationResult result)
+    {
+        kiriview::ThumbnailGenerationCallback callback;
+        std::optional<kiriview::ImageDecodeWorkspaceLease> unusedWorkingLease;
+        QPointer<QObject> token;
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (m_logicalFinished) {
+                return;
+            }
+            m_logicalFinished = true;
+            callback = std::move(m_callback);
+            if (m_providerRetired) {
+                unusedWorkingLease = std::move(m_workingLease);
+                m_workingLease.reset();
+            }
+            token = m_token;
+        }
+        unusedWorkingLease.reset();
+        if (callback) {
+            callback(std::move(result));
+        }
+        if (token != nullptr) {
+            delete token.data();
+        }
+        maybeRetire();
+    }
+
+    void admissionGranted(kiriview::ImageDecodeWorkspaceLease lease)
+    {
+        if (!acceptsCallbacks() || !beginChild()) {
+            return;
+        }
+        {
+            const std::scoped_lock lock(m_mutex);
+            m_workingLease.emplace(std::move(lease));
+        }
+
+        kiriview::VideoThumbnailExtractionRequest extractionRequest;
+        extractionRequest.sourceUrl = m_request.sourceUrl;
+        extractionRequest.maximumLongEdge = m_maximumLongEdge;
+        const std::weak_ptr<VideoThumbnailGenerationAdmissionJobState> weakState(
+            shared_from_this());
+        kiriview::ImageIoJob providerJob
+            = m_dependencies.videoExtractionProvider(m_token, std::move(extractionRequest),
+                [weakState](kiriview::VideoThumbnailExtractionResult result) mutable {
+                    if (const auto state = weakState.lock()) {
+                        state->extractionFinished(std::move(result));
+                    }
+                });
+        providerJob.setRetirementCallback([weakState]() {
+            if (const auto state = weakState.lock()) {
+                state->providerRetired();
+            }
+        });
+
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (!m_logicalFinished) {
+                m_providerJob = std::move(providerJob);
+                return;
+            }
+        }
+        providerJob.cancel();
+    }
+
+    void providerRetired()
+    {
+        std::optional<kiriview::ImageDecodeWorkspaceLease> unusedWorkingLease;
+        QImage readyImage;
+        QImage unusedReadyImage;
+        {
+            const std::scoped_lock lock(m_mutex);
+            m_providerRetired = true;
+            if (m_logicalFinished) {
+                unusedWorkingLease = std::move(m_workingLease);
+                m_workingLease.reset();
+                unusedReadyImage = std::move(m_pendingReadyImage);
+            } else {
+                readyImage = std::move(m_pendingReadyImage);
+            }
+        }
+        unusedReadyImage = {};
+        unusedWorkingLease.reset();
+        if (!readyImage.isNull()) {
+            startReadyPostprocess(std::move(readyImage));
+        }
+        retireChild();
+    }
+
+    void extractionFinished(kiriview::VideoThumbnailExtractionResult result)
+    {
+        if (!acceptsCallbacks()) {
+            return;
+        }
+        if (result.status == kiriview::VideoThumbnailExtractionStatus::Failed) {
+            QString diagnostic;
+            kiriview::ThumbnailGenerationStatus failureStatus
+                = kiriview::ThumbnailGenerationStatus::Failed;
+            if (result.failure.has_value()) {
+                failureStatus = generationStatusForVideoExtractionFailure(result.failure->cause);
+                diagnostic = std::move(result.failure->diagnostic);
+            }
+            publish(failedResult(m_request.requestedBucket,
+                diagnostic.isEmpty() ? QStringLiteral("video thumbnail extraction failed")
+                                     : std::move(diagnostic),
+                failureStatus));
+            return;
+        }
+        if (result.image.isNull() || result.failure.has_value()) {
+            publish(failedResult(
+                m_request.requestedBucket, QStringLiteral("video thumbnail produced no image")));
+            return;
+        }
+
+        bool providerRetired = false;
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (m_logicalFinished) {
+                return;
+            }
+            providerRetired = m_providerRetired;
+            if (!providerRetired) {
+                m_pendingReadyImage = std::move(result.image);
+            }
+        }
+        if (providerRetired) {
+            startReadyPostprocess(std::move(result.image));
+        }
+    }
+
+    void startReadyPostprocess(QImage image)
+    {
+        std::optional<kiriview::ImageDecodeWorkspaceLease> workingLease;
+        {
+            const std::scoped_lock lock(m_mutex);
+            workingLease = std::move(m_workingLease);
+            m_workingLease.reset();
+        }
+        if (!workingLease.has_value() || !beginChild()) {
+            return;
+        }
+        const kiriview::ThumbnailGenerationRequest request = m_request;
+        const kiriview::ThumbnailOriginalIdentity originalIdentity = m_originalIdentity;
+        kiriview::ThumbnailGenerationDependencies dependencies = m_dependencies;
+        const std::weak_ptr<VideoThumbnailGenerationAdmissionJobState> weakState(
+            shared_from_this());
+        kiriview::ImageWorkerTask worker = m_workerScheduler.run(
+            m_token,
+            [request, originalIdentity, dependencies = std::move(dependencies),
+                image = std::move(image), lease = std::move(*workingLease)]() mutable {
+                std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> localBudget
+                    = kiriview::prechargedImageDecodeWorkspaceBudget(std::move(lease));
+                if (localBudget == nullptr) {
+                    return failedResult(request.requestedBucket,
+                        kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+                        kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded);
+                }
+                dependencies.workspaceBudget = localBudget;
+                kiriview::ImageDecodeWorkspaceLease localLease
+                    = kiriview::ImageDecodeWorkspaceDetail::startLease(*localBudget);
+                constexpr qsizetype workingByteCount
+                    = kiriview::VideoThumbnailExtractionLimits::maximumWorkingBytes;
+                const qsizetype outputByteCount = image.sizeInBytes();
+                if (!kiriview::ImageDecodeWorkspaceDetail::tryReserve(localLease, workingByteCount)
+                    || outputByteCount <= 0 || outputByteCount > workingByteCount
+                    || !localLease.release(workingByteCount - outputByteCount)) {
+                    localBudget->finalizePrechargedAdmission();
+                    return failedResult(request.requestedBucket,
+                        kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+                        kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded);
+                }
+                kiriview::ThumbnailGenerationResult generated = finishGeneratedThumbnailImage(
+                    request, originalIdentity, {}, std::move(localLease), std::move(image),
+                    outputByteCount, true, dependencies);
+                localBudget->finalizePrechargedAdmission();
+                return generated;
+            },
+            [weakState](kiriview::ThumbnailGenerationResult generated) mutable {
+                if (const auto state = weakState.lock()) {
+                    state->publish(std::move(generated));
+                }
+            });
+        worker.setRetirementCallback([weakState]() {
+            if (const auto state = weakState.lock()) {
+                state->retireChild();
+            }
+        });
+
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (!m_logicalFinished) {
+                m_worker = std::move(worker);
+                return;
+            }
+        }
+        worker.cancel();
+    }
+
+    QPointer<QObject> m_token;
+    kiriview::ImageWorkerScheduler m_workerScheduler;
+    kiriview::ThumbnailGenerationRequest m_request;
+    kiriview::ThumbnailOriginalIdentity m_originalIdentity;
+    int m_maximumLongEdge = 0;
+    kiriview::ThumbnailGenerationCallback m_callback;
+    kiriview::ThumbnailGenerationDependencies m_dependencies;
+    kiriview::ImageIoJobCompletion m_completion;
+    kiriview::ImageDecodeWorkspaceAdmission m_admission;
+    kiriview::ImageIoJob m_providerJob;
+    kiriview::ImageWorkerTask m_worker;
+    std::optional<kiriview::ImageDecodeWorkspaceLease> m_workingLease;
+    QImage m_pendingReadyImage;
+    std::shared_ptr<VideoThumbnailGenerationAdmissionJobState> m_self;
+    qsizetype m_childCount = 0;
+    bool m_providerRetired = false;
+    bool m_logicalFinished = false;
+    bool m_retired = false;
+    mutable std::mutex m_mutex;
+};
+
 kiriview::ImageIoJob startVideoThumbnailGenerationJob(QObject* receiver,
     kiriview::ThumbnailGenerationRequest request, kiriview::ThumbnailGenerationCallback callback,
-    kiriview::ThumbnailGenerationDependencies dependencies)
+    kiriview::ThumbnailGenerationDependencies dependencies,
+    kiriview::ImageWorkerScheduler workerScheduler)
 {
     const int maximumLongEdge = dependencies.maximumLongEdgeForBucket(request.requestedBucket);
     if (maximumLongEdge <= 0) {
@@ -812,76 +1853,37 @@ kiriview::ImageIoJob startVideoThumbnailGenerationJob(QObject* receiver,
         return {};
     }
 
-    kiriview::VideoThumbnailExtractionRequest extractionRequest;
-    extractionRequest.sourceUrl = request.sourceUrl;
-    extractionRequest.maximumLongEdge = maximumLongEdge;
-
-    std::shared_ptr<kiriview::ImageDecodeWorkspaceLease> workingLease;
-    try {
-        workingLease = std::make_shared<kiriview::ImageDecodeWorkspaceLease>(
-            dependencies.workspaceBudget->startLease());
-    } catch (const std::bad_alloc&) {
+    if (receiver == nullptr) {
         if (callback) {
             callback(failedResult(request.requestedBucket,
-                kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
-                kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded));
-        }
-        return {};
-    }
-    if (!workingLease->tryReserve(kiriview::VideoThumbnailExtractionLimits::maximumWorkingBytes)) {
-        if (callback) {
-            callback(failedResult(request.requestedBucket,
-                kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
-                kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded));
+                QStringLiteral("video thumbnail receiver is unavailable")));
         }
         return {};
     }
 
-    kiriview::ThumbnailVideoExtractionProvider extractionProvider
-        = std::move(dependencies.videoExtractionProvider);
-    return extractionProvider(receiver, std::move(extractionRequest),
-        [request = std::move(request), originalIdentity = std::move(originalIdentity),
-            callback = std::move(callback), dependencies = std::move(dependencies),
-            workingLease = std::move(workingLease)](
-            kiriview::VideoThumbnailExtractionResult extractionResult) mutable {
-            if (!callback) {
-                return;
+    auto* token = new QObject(receiver);
+    auto state = std::make_shared<VideoThumbnailGenerationAdmissionJobState>(token,
+        std::move(workerScheduler), std::move(request), std::move(originalIdentity),
+        maximumLongEdge, std::move(callback), std::move(dependencies));
+    kiriview::ImageIoJob job(
+        token,
+        [state](QObject* object) {
+            state->cancel();
+            object->deleteLater();
+        },
+        kiriview::ImageIoJobCancellationRetirement::Explicit);
+    state->setCompletion(job.completion());
+    const std::weak_ptr<VideoThumbnailGenerationAdmissionJobState> weakState(state);
+    QObject::connect(
+        token, &QObject::destroyed, token,
+        [weakState](QObject*) {
+            if (const auto activeState = weakState.lock()) {
+                activeState->cancel();
             }
-            if (extractionResult.status == kiriview::VideoThumbnailExtractionStatus::Failed) {
-                QString diagnostic;
-                kiriview::ThumbnailGenerationStatus failureStatus
-                    = kiriview::ThumbnailGenerationStatus::Failed;
-                if (extractionResult.failure.has_value()) {
-                    failureStatus = generationStatusForVideoExtractionFailure(
-                        extractionResult.failure->cause);
-                    diagnostic = std::move(extractionResult.failure->diagnostic);
-                }
-                callback(failedResult(request.requestedBucket,
-                    diagnostic.isEmpty() ? QStringLiteral("video thumbnail extraction failed")
-                                         : std::move(diagnostic),
-                    failureStatus));
-                return;
-            }
-            if (extractionResult.image.isNull() || extractionResult.failure.has_value()) {
-                callback(failedResult(
-                    request.requestedBucket, QStringLiteral("video thumbnail produced no image")));
-                return;
-            }
-
-            const qsizetype outputByteCount = extractionResult.image.sizeInBytes();
-            kiriview::ImageDecodeWorkspaceLease admittedWorkingLease = std::move(*workingLease);
-            const qsizetype workingByteCount = admittedWorkingLease.reservedByteCount();
-            if (outputByteCount <= 0 || outputByteCount > workingByteCount
-                || !admittedWorkingLease.release(workingByteCount - outputByteCount)) {
-                callback(failedResult(request.requestedBucket,
-                    kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
-                    kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded));
-                return;
-            }
-            callback(finishGeneratedThumbnailImage(request, originalIdentity, {},
-                std::move(admittedWorkingLease), std::move(extractionResult.image), outputByteCount,
-                true, dependencies));
-        });
+        },
+        Qt::DirectConnection);
+    state->start();
+    return job;
 }
 }
 
@@ -914,23 +1916,44 @@ ThumbnailGenerationProvider defaultThumbnailGenerationProvider(
     return [workerScheduler = std::move(workerScheduler), dependencies = std::move(dependencies)](
                QObject* receiver, ThumbnailGenerationRequest request,
                ThumbnailGenerationCallback callback) {
+        const bool useLegacyDecoder
+            = static_cast<bool>(dependencies.imageDecoder) && !dependencies.imagePlanner;
         ThumbnailGenerationDependencies resolvedDependencies
-            = resolvedThumbnailGenerationDependencies(dependencies);
+            = resolvedThumbnailGenerationDependencies(dependencies, workerScheduler);
         if (request.sourceKind == ThumbnailSourceKind::DirectVideo) {
-            return startVideoThumbnailGenerationJob(
-                receiver, std::move(request), std::move(callback), std::move(resolvedDependencies));
+            return startVideoThumbnailGenerationJob(receiver, std::move(request),
+                std::move(callback), std::move(resolvedDependencies), workerScheduler);
+        }
+        if (receiver == nullptr) {
+            if (callback) {
+                callback(generateThumbnail(request, std::move(resolvedDependencies)));
+            }
+            return ImageIoJob {};
         }
 
-        return startImageIoWorkerJob(
-            receiver, workerScheduler,
-            [request = std::move(request), dependencies = std::move(resolvedDependencies)]() {
-                return generateThumbnail(request, dependencies);
+        auto* token = new QObject(receiver);
+        auto state = std::make_shared<ThumbnailGenerationAdmissionJobState>(token, workerScheduler,
+            std::move(request), std::move(resolvedDependencies), std::move(callback),
+            useLegacyDecoder);
+        ImageIoJob job(
+            token,
+            [state](QObject* object) {
+                state->cancel();
+                object->deleteLater();
             },
-            [callback = std::move(callback)](ThumbnailGenerationResult result) mutable {
-                if (callback) {
-                    callback(std::move(result));
+            ImageIoJobCancellationRetirement::Explicit);
+        state->setCompletion(job.completion());
+        const std::weak_ptr<ThumbnailGenerationAdmissionJobState> weakState(state);
+        QObject::connect(
+            token, &QObject::destroyed, token,
+            [weakState](QObject*) {
+                if (const auto activeState = weakState.lock()) {
+                    activeState->cancel();
                 }
-            });
+            },
+            Qt::DirectConnection);
+        state->start();
+        return job;
     };
 }
 }

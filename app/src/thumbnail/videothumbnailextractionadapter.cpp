@@ -16,6 +16,7 @@ public:
         kiriview::VideoThumbnailExtractionCallback callback,
         kiriview::ImageIoJobCompletion completion)
     {
+        const kiriview::ImageIoJobCompletion retirementCompletion = completion;
         m_job = kiriview::startVideoThumbnailExtraction(this, std::move(request),
             [callback = std::move(callback), completion = std::move(completion)](
                 kiriview::VideoThumbnailExtractionResult result) mutable {
@@ -26,6 +27,7 @@ public:
                         callback(std::move(result));
                     });
             });
+        m_job.setRetirementCallback([retirementCompletion]() { retirementCompletion.retire(); });
     }
 
     void cancel() { m_job.cancel(); }
@@ -44,14 +46,17 @@ ImageIoJob startThumbnailVideoExtractionJob(QObject* receiver,
     }
 
     auto* adapter = new VideoThumbnailExtractionAdapter(receiver);
-    ImageIoJob job(adapter, [](QObject* object) {
-        if (object == nullptr) {
-            return;
-        }
-        auto* adapter = static_cast<VideoThumbnailExtractionAdapter*>(object);
-        adapter->cancel();
-        adapter->deleteLater();
-    });
+    ImageIoJob job(
+        adapter,
+        [](QObject* object) {
+            if (object == nullptr) {
+                return;
+            }
+            auto* adapter = static_cast<VideoThumbnailExtractionAdapter*>(object);
+            adapter->cancel();
+            adapter->deleteLater();
+        },
+        ImageIoJobCancellationRetirement::Explicit);
     adapter->start(std::move(request), std::move(callback), job.completion());
     return job;
 }

@@ -30,6 +30,7 @@ private Q_SLOTS:
     void cancellationBeforeStartupSuppressesDelivery();
     void cancellationSuppressesPendingDelivery();
     void activeCancellationReleasesResources();
+    void physicalRetirementFollowsBackendDestruction();
     void receiverDestructionWhileActiveSuppressesDelivery();
     void receiverDestructionSuppressesPendingDelivery();
     void firstTerminalOutcomeWinsAcrossReentrantCleanup();
@@ -171,6 +172,39 @@ void VideoThumbnailExtractionLifecycleTest::activeCancellationReleasesResources(
     kiriview::test::drainQueuedCalls();
 
     QCOMPARE(completionCount, 0);
+}
+
+void VideoThumbnailExtractionLifecycleTest::physicalRetirementFollowsBackendDestruction()
+{
+    QObject receiver;
+    ExtractionHarness harness;
+    int retirementCount = 0;
+    bool backendDestroyedAtRetirement = false;
+
+    auto job = kiriview::detail::startVideoThumbnailExtractionWithDependencies(
+        &receiver, kiriview::test::validRequest(), [](VideoThumbnailExtractionResult) { },
+        harness.dependencies());
+    job.setRetirementCallback([&]() {
+        ++retirementCount;
+        backendDestroyedAtRetirement = harness.backend->destructions == 1;
+    });
+    kiriview::test::drainQueuedCalls();
+
+    QVERIFY(job.isActive());
+    QCOMPARE(harness.backend->creations, 1);
+    job.cancel();
+
+    QVERIFY(!job.isActive());
+    QCOMPARE(harness.backend->stopCalls, 1);
+    QCOMPARE(harness.backend->destructions, 0);
+    QCOMPARE(retirementCount, 0);
+
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+
+    QCOMPARE(harness.backend->destructions, 1);
+    QCOMPARE(harness.deadline->destructions, 1);
+    QCOMPARE(retirementCount, 1);
+    QVERIFY(backendDestroyedAtRetirement);
 }
 
 void VideoThumbnailExtractionLifecycleTest::receiverDestructionWhileActiveSuppressesDelivery()

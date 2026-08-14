@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <iterator>
 #include <limits>
 #include <ranges>
 #include <type_traits>
@@ -583,6 +584,9 @@ void ImageViewportDecodeProviderSource::cancel(
     std::erase_if(m_pendingFrames, [&tokens](const PendingFrame& pending) {
         return containsToken(tokens, pending.identity.requestToken);
     });
+    std::erase_if(m_deferredStaticFrames, [&tokens](const PendingFrame& pending) {
+        return containsToken(tokens, pending.identity.requestToken);
+    });
 
     std::vector<quint64> staticAttemptIds;
     for (const StaticFrameAttempt& attempt : m_staticFrameAttempts) {
@@ -592,6 +596,15 @@ void ImageViewportDecodeProviderSource::cancel(
     }
     for (quint64 attemptId : staticAttemptIds) {
         static_cast<void>(takeStaticFrameAttempt(attemptId, false));
+    }
+
+    if (m_activeAnimationFrameWork.has_value()
+        && containsToken(tokens, m_activeAnimationFrameWork->identity.requestToken)) {
+        m_activeAnimationFrameWork->publishResult = false;
+        if (m_activeAnimationFrameWork->workerUnitId == 0) {
+            m_activeAnimationFrameWork->workspaceAdmission.cancel();
+            retireAnimationFrameWork();
+        }
     }
 
     std::vector<ImageWorkerTask> detachedTasks;
@@ -623,6 +636,7 @@ void ImageViewportDecodeProviderSource::close()
     m_closed = true;
     m_pendingMetadata.clear();
     m_pendingFrames.clear();
+    m_deferredStaticFrames.clear();
     m_activeAnimationFrameWork.reset();
     m_publishingFrames = false;
     for (StaticFrameAttempt& attempt : m_staticFrameAttempts) {
@@ -792,25 +806,41 @@ void ImageViewportDecodeProviderSource::finishAnimationImage(
     }
     m_animation.reset();
 
+    const std::optional<ImageAnimationPlaybackWorkspacePlan> workspacePlan
+        = imageAnimationPlaybackWorkspacePlan(playbackRequest, catalog.logicalSize);
+    const qsizetype frameDisplayByteCount = imageByteCost(firstFrame);
     ImageAnimationPlaybackSourceFactory sourceFactory
         = imageAnimationPlaybackSourceFactory(std::move(playbackRequest));
-    if (firstFrame.isNull() || !catalog.isValid() || catalog.logicalSize != firstFrame.size()
-        || !sourceFactory) {
+    const bool animationContractValid = !firstFrame.isNull() && catalog.isValid()
+        && catalog.logicalSize == firstFrame.size() && static_cast<bool>(sourceFactory)
+        && frameDisplayByteCount > 0;
+    if (!animationContractValid || !workspacePlan.has_value()) {
         firstFrame = {};
         firstFrameWorkspaceHold = {};
-        finishFailure(ImageSequenceProviderFailureCause::Decode,
-            loadFailure(resolvedSession(), ImageLoadFailureKind::Decode, QString(),
-                QStringLiteral("animation timing metadata is invalid"),
-                DecodedImageFailureRoute::Unknown,
-                DecodedImageFailureOperation::DecodeAnimationOpen));
+        const bool resourceLimitExceeded = animationContractValid && !workspacePlan.has_value();
+        DecodedImageFailure failure {
+            QString(),
+            DecodedImageFailureRoute::Unknown,
+            DecodedImageFailureOperation::DecodeAnimationOpen,
+            resourceLimitExceeded ? imageDecodeWorkspaceResourceLimitDiagnostic()
+                                  : QStringLiteral("animation timing metadata is invalid"),
+            DecodedImageFailureSeverity::Error,
+            false,
+            resourceLimitExceeded ? DecodedImageFailureCause::ResourceLimitExceeded
+                                  : DecodedImageFailureCause::Unknown,
+        };
+        finishFailure(resourceLimitExceeded ? ImageSequenceProviderFailureCause::ResourceExhausted
+                                            : ImageSequenceProviderFailureCause::Decode,
+            loadFailure(resolvedSession(), failure));
         return;
     }
 
     ImageSequenceProviderMetadata metadata = ImageSequenceProviderMetadata::timedFrameList(
         catalog.logicalSize, std::move(catalog.frameDurations));
     metadata.setAuthoredAnimationFacts(authoredAnimationFacts(catalog.repeatCount));
-    auto runtime = std::make_shared<AnimationSourceRuntime>(std::move(firstFrame),
-        metadata.frameCount(), std::move(sourceFactory), std::move(firstFrameWorkspaceHold));
+    auto runtime
+        = std::make_shared<AnimationSourceRuntime>(std::move(firstFrame), metadata.frameCount(),
+            std::move(sourceFactory), std::move(firstFrameWorkspaceHold), *workspacePlan);
     m_metadata = metadata;
     m_animation = AnimationState {
         std::move(runtime),
@@ -818,6 +848,7 @@ void ImageViewportDecodeProviderSource::finishAnimationImage(
         std::move(sourceIdentity),
         std::move(sourceRevision),
         std::move(formatIdentifier),
+        frameDisplayByteCount,
     };
     publishMetadata();
     publishFrames();
@@ -875,7 +906,12 @@ void ImageViewportDecodeProviderSource::publishFrames()
         while (!m_closed && !m_pendingFrames.empty() && !m_activeAnimationFrameWork.has_value()) {
             PendingFrame frame = std::move(m_pendingFrames.front());
             m_pendingFrames.erase(m_pendingFrames.begin());
-            m_activeAnimationFrameWork = ActiveAnimationFrameWork {};
+            m_activeAnimationFrameWork = ActiveAnimationFrameWork {
+                0,
+                frame.identity,
+                {},
+                true,
+            };
             publishAnimationFrame(std::move(frame));
         }
         m_publishingFrames = false;
@@ -1035,82 +1071,45 @@ void ImageViewportDecodeProviderSource::startStaticRefinement(
         };
         finishStaticFrameAttempt(std::move(attempt), diagnostics, std::nullopt, true, resolution);
     };
-    std::shared_ptr<DisplayImageOutputAdmission> outputAdmission;
     std::optional<qsizetype> producerPeakByteCost;
     if (existingWork == m_staticRefinementWorks.end()) {
-        if (pending.request.outputStore == nullptr) {
+        if (pending.request.outputStore == nullptr || plan.requireExact) {
             producerPeakByteCost
                 = refinementSource->rasterDisplayRefinementPeakByteCost(plan.targetRasterSize);
             if (!producerPeakByteCost.has_value() || *producerPeakByteCost <= 0) {
                 finishPlanningFailure(StaticFrameResolution::RefinementContractViolation);
-                return;
-            }
-        } else if (plan.requireExact) {
-            producerPeakByteCost
-                = refinementSource->rasterDisplayRefinementPeakByteCost(plan.targetRasterSize);
-            if (!producerPeakByteCost.has_value() || *producerPeakByteCost <= 0) {
-                finishPlanningFailure(StaticFrameResolution::RefinementContractViolation);
-                return;
-            }
-            outputAdmission = pending.request.outputStore->reserveOutput(*producerPeakByteCost);
-            if (outputAdmission == nullptr) {
-                finishPlanningFailure(StaticFrameResolution::RefinementResourceExhausted);
                 return;
             }
         } else {
-            qsizetype producerByteBudget = pending.request.outputStore->byteBudget();
-            while (outputAdmission == nullptr && existingWork == m_staticRefinementWorks.end()) {
-                const RefinementProducerPlan producerPlan = largestProducerRasterWithinBudget(
-                    *refinementSource, m_authoritativeStaticImage->originalSize,
-                    plan.targetRasterSize, producerByteBudget);
-                if (producerPlan.outcome == RefinementProducerPlanOutcome::ContractViolation) {
-                    finishPlanningFailure(StaticFrameResolution::RefinementContractViolation);
-                    return;
-                }
-                if (producerPlan.outcome == RefinementProducerPlanOutcome::ResourceExhausted) {
-                    finishPlanningFailure(StaticFrameResolution::RefinementResourceExhausted);
-                    return;
-                }
-
-                plan.targetRasterSize = producerPlan.rasterSize;
-                producerPeakByteCost = producerPlan.peakByteCost;
-                if (staticPayloadAdmission(*m_authoritativeStaticImage,
-                        m_authoritativeStaticImage->originalSize,
-                        m_authoritativeStaticImage->sourceDetailModel, pending.request)
-                        == StaticPayloadAdmission::Admissible
-                    && staticPayloadSatisfiesPlan(
-                        *m_authoritativeStaticImage, plan.targetRasterSize, false)) {
-                    pending.completion(pending.identity,
-                        ImageViewportProviderFrameResult::ready(
-                            classifiedCurrentDetailPayload(*m_authoritativeStaticImage),
-                            ImageSequenceProviderFrameEnvelope::stillFrame(), QString(),
-                            m_authoritativeStaticImageOutputAdmission));
-                    return;
-                }
-
-                existingWork = existingWorkForTarget(plan.targetRasterSize);
-                if (existingWork != m_staticRefinementWorks.end()) {
-                    break;
-                }
-                outputAdmission
-                    = pending.request.outputStore->reserveOutput(producerPlan.peakByteCost);
-                if (outputAdmission != nullptr) {
-                    break;
-                }
-
-                const qsizetype availableOutputBytes
-                    = pending.request.outputStore->availableOutputBytes();
-                if (availableOutputBytes >= producerByteBudget) {
-                    finishPlanningFailure(StaticFrameResolution::RefinementResourceExhausted);
-                    return;
-                }
-                producerByteBudget = availableOutputBytes;
+            const RefinementProducerPlan producerPlan = largestProducerRasterWithinBudget(
+                *refinementSource, m_authoritativeStaticImage->originalSize, plan.targetRasterSize,
+                pending.request.outputStore->availableOutputBytes());
+            if (producerPlan.outcome == RefinementProducerPlanOutcome::ContractViolation) {
+                finishPlanningFailure(StaticFrameResolution::RefinementContractViolation);
+                return;
             }
-        }
-        if (pending.request.outputStore != nullptr && outputAdmission == nullptr
-            && existingWork == m_staticRefinementWorks.end()) {
-            finishPlanningFailure(StaticFrameResolution::RefinementResourceExhausted);
-            return;
+            if (producerPlan.outcome == RefinementProducerPlanOutcome::ResourceExhausted) {
+                finishPlanningFailure(StaticFrameResolution::RefinementResourceExhausted);
+                return;
+            }
+
+            plan.targetRasterSize = producerPlan.rasterSize;
+            producerPeakByteCost = producerPlan.peakByteCost;
+            if (staticPayloadAdmission(*m_authoritativeStaticImage,
+                    m_authoritativeStaticImage->originalSize,
+                    m_authoritativeStaticImage->sourceDetailModel, pending.request)
+                    == StaticPayloadAdmission::Admissible
+                && staticPayloadSatisfiesPlan(
+                    *m_authoritativeStaticImage, plan.targetRasterSize, false)) {
+                pending.completion(pending.identity,
+                    ImageViewportProviderFrameResult::ready(
+                        classifiedCurrentDetailPayload(*m_authoritativeStaticImage),
+                        ImageSequenceProviderFrameEnvelope::stillFrame(), QString(),
+                        m_authoritativeStaticImageOutputAdmission));
+                return;
+            }
+
+            existingWork = existingWorkForTarget(plan.targetRasterSize);
         }
         if (!producerPeakByteCost.has_value() || *producerPeakByteCost <= 0) {
             finishPlanningFailure(StaticFrameResolution::RefinementContractViolation);
@@ -1118,34 +1117,26 @@ void ImageViewportDecodeProviderSource::startStaticRefinement(
         }
     }
 
-    ImageDecodeWorkspaceLease rasterWorkspaceLease;
-    if (existingWork == m_staticRefinementWorks.end()) {
-        rasterWorkspaceLease = m_dependencies.workspaceBudget->startLeaseForOperation(
-            m_authoritativeStaticImage->retainedRasterByteCost());
-        if (!rasterWorkspaceLease.tryReserve(*producerPeakByteCost)) {
-            outputAdmission.reset();
-            finishPlanningFailure(StaticFrameResolution::RefinementResourceExhausted,
-                { imageErrorText(ImageErrorTextId::ReadImageData),
-                    imageDecodeWorkspaceResourceLimitDiagnostic() });
-            return;
-        }
+    if (existingWork != m_staticRefinementWorks.end() && existingWork->retiring) {
+        m_deferredStaticFrames.push_back(std::move(pending));
+        return;
     }
 
     const quint64 attemptId = reserveStaticFrameAttemptId();
     const qint64 maximumReusableBytes = admittedStaticPayloadLimits(pending.request).maximumBytes;
-    m_staticFrameAttempts.push_back(StaticFrameAttempt {
-        attemptId,
-        std::move(pending),
-        plan,
-        m_authoritativeStaticImageOutputAdmission,
-        *m_authoritativeStaticImage,
-        {},
-        {},
-        0,
-        initialDemand,
-    });
 
     if (existingWork != m_staticRefinementWorks.end()) {
+        m_staticFrameAttempts.push_back(StaticFrameAttempt {
+            attemptId,
+            std::move(pending),
+            plan,
+            m_authoritativeStaticImageOutputAdmission,
+            *m_authoritativeStaticImage,
+            {},
+            {},
+            0,
+            initialDemand,
+        });
         existingWork->attemptIds.push_back(attemptId);
         const auto attempt = std::ranges::find_if(m_staticFrameAttempts,
             [attemptId](const StaticFrameAttempt& candidate) { return candidate.id == attemptId; });
@@ -1155,80 +1146,55 @@ void ImageViewportDecodeProviderSource::startStaticRefinement(
     } else {
         discardRetainedStaticRefinementsExcept(0);
         const StaticDisplayImagePayload basis = *m_authoritativeStaticImage;
-        StaticRefinementSourceLifetime sourceLifetime {
-            basis.sourceDataLease,
-            basis.inputWorkspaceHold,
-            refinementSource,
-        };
+        const std::shared_ptr<DisplayImageStore> outputStore = pending.request.outputStore;
         const quint64 workerUnitId = reserveWorkerUnit();
+        const std::weak_ptr<ImageViewportDecodeProviderSource> weakSelf = weak_from_this();
+        std::expected<ImageDecodeWorkspaceAdmission, ImageDecodeWorkspaceAdmissionFailure> admission
+            = m_dependencies.workspaceBudget->requestAdmission(this,
+                ImageDecodeWorkspaceAdmissionRequest {
+                    *producerPeakByteCost,
+                    basis.retainedRasterByteCost(),
+                    ImageDecodeWorkspacePriority::Interactive,
+                },
+                [weakSelf, workerUnitId](ImageDecodeWorkspaceLease rasterWorkspaceLease) mutable {
+                    if (const std::shared_ptr<ImageViewportDecodeProviderSource> self
+                        = weakSelf.lock()) {
+                        self->startGrantedStaticRefinement(
+                            workerUnitId, std::move(rasterWorkspaceLease));
+                    }
+                });
+        if (!admission.has_value()) {
+            static_cast<void>(detachWorkerUnit(workerUnitId));
+            finishPlanningFailure(StaticFrameResolution::RefinementResourceExhausted,
+                { imageErrorText(ImageErrorTextId::ReadImageData),
+                    imageDecodeWorkspaceResourceLimitDiagnostic() });
+            return;
+        }
+
+        m_staticFrameAttempts.push_back(StaticFrameAttempt {
+            attemptId,
+            std::move(pending),
+            plan,
+            m_authoritativeStaticImageOutputAdmission,
+            basis,
+            {},
+            {},
+            workerUnitId,
+            initialDemand,
+        });
         m_staticRefinementWorks.push_back(StaticRefinementWork {
             workerUnitId,
             plan.targetRasterSize,
+            *producerPeakByteCost,
             m_authoritativeStaticImageOutputAdmission,
             basis,
             { attemptId },
             maximumReusableBytes,
-            outputAdmission,
+            outputStore,
+            {},
+            std::move(*admission),
             false,
         });
-        const auto attempt = std::ranges::find_if(m_staticFrameAttempts,
-            [attemptId](const StaticFrameAttempt& candidate) { return candidate.id == attemptId; });
-        if (attempt != m_staticFrameAttempts.end()) {
-            attempt->refinementWorkerUnitId = workerUnitId;
-        }
-
-        const std::weak_ptr<ImageViewportDecodeProviderSource> weakSelf = weak_from_this();
-        ImageWorkerTask task = m_dependencies.refinementScheduler.run(
-            this,
-            [sourceLifetime = std::move(sourceLifetime), targetSize = plan.targetRasterSize,
-                producerAdmission = std::move(outputAdmission),
-                rasterWorkspaceLease = std::move(rasterWorkspaceLease)]() mutable {
-                StaticImageDisplayDecodeResult decodeResult
-                    = sourceLifetime.source->decodeRasterDisplayImage(targetSize);
-                const qsizetype retainedByteCost = imageByteCost(decodeResult.image);
-                if (producerAdmission != nullptr) {
-                    const bool retained = producerAdmission->retainOnly(retainedByteCost);
-                    if (!retained) {
-                        decodeResult.image = {};
-                        static_cast<void>(producerAdmission->retainOnly(0));
-                        decodeResult.failureCause
-                            = StaticImageDisplayDecodeFailureCause::ResourceExhausted;
-                        decodeResult.diagnostics.diagnosticDetail = QStringLiteral(
-                            "static refinement output exceeded its producer admission");
-                    }
-                }
-                if (!decodeResult.image.isNull()) {
-                    ImageDecodeWorkspaceHold workspaceHold
-                        = rasterWorkspaceLease.retainOnly(retainedByteCost);
-                    QImage admittedImage = imageRetainingDecodeWorkspace(
-                        std::move(decodeResult.image), workspaceHold);
-                    if (!workspaceHold.isManaged() || admittedImage.isNull()) {
-                        decodeResult.image = {};
-                        if (producerAdmission != nullptr) {
-                            static_cast<void>(producerAdmission->retainOnly(0));
-                        }
-                        decodeResult.failureCause
-                            = StaticImageDisplayDecodeFailureCause::ResourceExhausted;
-                        decodeResult.diagnostics.userMessage
-                            = imageErrorText(ImageErrorTextId::ReadImageData);
-                        decodeResult.diagnostics.diagnosticDetail = QStringLiteral(
-                            "static refinement output exceeded decoded-memory admission");
-                    } else {
-                        decodeResult.image = std::move(admittedImage);
-                    }
-                }
-                return StaticRefinementProductionResult {
-                    producerAdmission,
-                    std::move(decodeResult),
-                };
-            },
-            [weakSelf, workerUnitId](const StaticRefinementProductionResult& result) {
-                if (const std::shared_ptr<ImageViewportDecodeProviderSource> self
-                    = weakSelf.lock()) {
-                    self->finishStaticRefinement(workerUnitId, result.decodeResult);
-                }
-            });
-        attachWorkerTask(workerUnitId, std::move(task));
     }
 
     const auto attempt = std::ranges::find_if(m_staticFrameAttempts,
@@ -1257,10 +1223,99 @@ void ImageViewportDecodeProviderSource::startStaticRefinement(
     scheduleInitialDetailDeadline(attemptId);
 }
 
+void ImageViewportDecodeProviderSource::startGrantedStaticRefinement(
+    quint64 workerUnitId, ImageDecodeWorkspaceLease rasterWorkspaceLease)
+{
+    [[maybe_unused]] const std::shared_ptr<ImageViewportDecodeProviderSource> lifetime
+        = weak_from_this().lock();
+    const auto currentWork = std::ranges::find_if(
+        m_staticRefinementWorks, [workerUnitId](const StaticRefinementWork& work) {
+            return work.workerUnitId == workerUnitId;
+        });
+    if (m_closed || currentWork == m_staticRefinementWorks.end()) {
+        static_cast<void>(detachWorkerUnit(workerUnitId));
+        return;
+    }
+
+    currentWork->workspaceAdmission = {};
+    std::shared_ptr<DisplayImageOutputAdmission> outputAdmission;
+    if (currentWork->outputStore != nullptr) {
+        outputAdmission
+            = currentWork->outputStore->reserveOutput(currentWork->producerPeakByteCost);
+        if (outputAdmission == nullptr) {
+            rasterWorkspaceLease = {};
+            StaticImageDisplayDecodeResult failure;
+            failure.failureCause = StaticImageDisplayDecodeFailureCause::ResourceExhausted;
+            finishStaticRefinement(workerUnitId, failure);
+            return;
+        }
+    }
+    currentWork->outputAdmission = outputAdmission;
+
+    StaticRefinementSourceLifetime sourceLifetime {
+        currentWork->basis.sourceDataLease,
+        currentWork->basis.inputWorkspaceHold,
+        currentWork->basis.refinementSource,
+    };
+    const QSize targetSize = currentWork->targetRasterSize;
+    currentWork->productionStarted = true;
+    const std::weak_ptr<ImageViewportDecodeProviderSource> weakSelf = weak_from_this();
+    ImageWorkerTask task = m_dependencies.refinementScheduler.run(
+        this,
+        [sourceLifetime = std::move(sourceLifetime), targetSize,
+            producerAdmission = std::move(outputAdmission),
+            rasterWorkspaceLease = std::move(rasterWorkspaceLease)]() mutable {
+            StaticImageDisplayDecodeResult decodeResult
+                = sourceLifetime.source->decodeRasterDisplayImage(targetSize);
+            const qsizetype retainedByteCost = imageByteCost(decodeResult.image);
+            if (producerAdmission != nullptr) {
+                const bool retained = producerAdmission->retainOnly(retainedByteCost);
+                if (!retained) {
+                    decodeResult.image = {};
+                    static_cast<void>(producerAdmission->retainOnly(0));
+                    decodeResult.failureCause
+                        = StaticImageDisplayDecodeFailureCause::ResourceExhausted;
+                    decodeResult.diagnostics.diagnosticDetail = QStringLiteral(
+                        "static refinement output exceeded its producer admission");
+                }
+            }
+            if (!decodeResult.image.isNull()) {
+                ImageDecodeWorkspaceHold workspaceHold
+                    = rasterWorkspaceLease.retainOnly(retainedByteCost);
+                QImage admittedImage
+                    = imageRetainingDecodeWorkspace(std::move(decodeResult.image), workspaceHold);
+                if (!workspaceHold.isManaged() || admittedImage.isNull()) {
+                    decodeResult.image = {};
+                    if (producerAdmission != nullptr) {
+                        static_cast<void>(producerAdmission->retainOnly(0));
+                    }
+                    decodeResult.failureCause
+                        = StaticImageDisplayDecodeFailureCause::ResourceExhausted;
+                    decodeResult.diagnostics.userMessage
+                        = imageErrorText(ImageErrorTextId::ReadImageData);
+                    decodeResult.diagnostics.diagnosticDetail = QStringLiteral(
+                        "static refinement output exceeded decoded-memory admission");
+                } else {
+                    decodeResult.image = std::move(admittedImage);
+                }
+            }
+            return StaticRefinementProductionResult {
+                producerAdmission,
+                std::move(decodeResult),
+            };
+        },
+        [weakSelf, workerUnitId](const StaticRefinementProductionResult& result) {
+            if (const std::shared_ptr<ImageViewportDecodeProviderSource> self = weakSelf.lock()) {
+                self->finishStaticRefinement(workerUnitId, result.decodeResult);
+            }
+        });
+    attachWorkerTask(workerUnitId, std::move(task));
+}
+
 void ImageViewportDecodeProviderSource::finishStaticRefinement(
     quint64 workerUnitId, const StaticImageDisplayDecodeResult& result)
 {
-    if (!detachWorkerUnit(workerUnitId) || m_closed) {
+    if (!hasWorkerUnit(workerUnitId) || m_closed) {
         return;
     }
     const auto currentWork = std::ranges::find_if(
@@ -1271,8 +1326,9 @@ void ImageViewportDecodeProviderSource::finishStaticRefinement(
         return;
     }
 
-    StaticRefinementWork work = std::move(*currentWork);
-    m_staticRefinementWorks.erase(currentWork);
+    StaticRefinementWork& work = *currentWork;
+    work.retiring = true;
+    work.retainWithoutSubscribers = true;
     std::optional<StaticDisplayImagePayload> refinementCandidate;
     StaticFrameResolution resolution = StaticFrameResolution::CandidateSelection;
     if (result.image.isNull()) {
@@ -1310,7 +1366,8 @@ void ImageViewportDecodeProviderSource::finishStaticRefinement(
         }
     }
 
-    for (quint64 attemptId : work.attemptIds) {
+    const std::vector<quint64> attemptIds = work.attemptIds;
+    for (quint64 attemptId : attemptIds) {
         const auto active = std::ranges::find_if(m_staticFrameAttempts,
             [attemptId](const StaticFrameAttempt& attempt) { return attempt.id == attemptId; });
         if (active == m_staticFrameAttempts.end()) {
@@ -1329,6 +1386,12 @@ void ImageViewportDecodeProviderSource::finishStaticRefinement(
         if (m_closed) {
             return;
         }
+    }
+    work.attemptIds.clear();
+    work.retainWithoutSubscribers = false;
+    if (!work.productionStarted) {
+        m_staticRefinementWorks.erase(currentWork);
+        static_cast<void>(detachWorkerUnit(workerUnitId));
     }
 }
 
@@ -1641,16 +1704,25 @@ ImageViewportDecodeProviderSource::takeStaticFrameAttempt(
             return candidate.workerUnitId == taken.refinementWorkerUnitId;
         });
     quint64 retainedWorkerUnitId = 0;
+    quint64 canceledRunningWorkerUnitId = 0;
     if (work != m_staticRefinementWorks.end()) {
         std::erase(work->attemptIds, attemptId);
         work->retainWithoutSubscribers = work->retainWithoutSubscribers || retainRefinementWork;
         if (work->attemptIds.empty() && !work->retainWithoutSubscribers) {
             const quint64 workerUnitId = work->workerUnitId;
-            m_staticRefinementWorks.erase(work);
-            static_cast<void>(detachWorkerUnit(workerUnitId));
+            if (work->productionStarted) {
+                work->retiring = true;
+                canceledRunningWorkerUnitId = workerUnitId;
+            } else {
+                m_staticRefinementWorks.erase(work);
+                static_cast<void>(detachWorkerUnit(workerUnitId));
+            }
         } else if (work->attemptIds.empty()) {
             retainedWorkerUnitId = work->workerUnitId;
         }
+    }
+    if (canceledRunningWorkerUnitId != 0) {
+        cancelWorkerUnit(canceledRunningWorkerUnitId);
     }
     if (retainedWorkerUnitId != 0) {
         discardRetainedStaticRefinementsExcept(retainedWorkerUnitId);
@@ -1661,10 +1733,18 @@ ImageViewportDecodeProviderSource::takeStaticFrameAttempt(
 void ImageViewportDecodeProviderSource::discardRetainedStaticRefinementsExcept(quint64 workerUnitId)
 {
     std::vector<quint64> discardedWorkerUnitIds;
+    std::vector<quint64> canceledRunningWorkerUnitIds;
     std::erase_if(m_staticRefinementWorks,
-        [workerUnitId, &discardedWorkerUnitIds](const StaticRefinementWork& work) {
+        [workerUnitId, &discardedWorkerUnitIds, &canceledRunningWorkerUnitIds](
+            StaticRefinementWork& work) {
             if (work.workerUnitId == workerUnitId || !work.retainWithoutSubscribers
-                || !work.attemptIds.empty()) {
+                || !work.attemptIds.empty() || work.retiring) {
+                return false;
+            }
+            if (work.productionStarted) {
+                work.retiring = true;
+                work.retainWithoutSubscribers = false;
+                canceledRunningWorkerUnitIds.push_back(work.workerUnitId);
                 return false;
             }
             discardedWorkerUnitIds.push_back(work.workerUnitId);
@@ -1672,6 +1752,9 @@ void ImageViewportDecodeProviderSource::discardRetainedStaticRefinementsExcept(q
         });
     for (quint64 discardedWorkerUnitId : discardedWorkerUnitIds) {
         static_cast<void>(detachWorkerUnit(discardedWorkerUnitId));
+    }
+    for (quint64 canceledRunningWorkerUnitId : canceledRunningWorkerUnitIds) {
+        cancelWorkerUnit(canceledRunningWorkerUnitId);
     }
 }
 
@@ -1691,25 +1774,110 @@ void ImageViewportDecodeProviderSource::publishAnimationFrame(PendingFrame pendi
         retireAnimationFrameWork();
         return;
     }
-    const AnimationState animation = *m_animation;
+    AnimationState animation = *m_animation;
     const int requestedFrame = pending.request.frame;
-    if (requestedFrame == 0) {
+    AnimationSourceFramePreparationResult preparation
+        = animation.runtime->prepareFrame(requestedFrame);
+    if (!preparation.has_value()) {
+        finishAnimationFrame(
+            pending, animation, requestedFrame, std::unexpected(std::move(preparation.error())));
+        retireAnimationFrameWork();
+        return;
+    }
+    if (!preparation->workspaceAdmission.has_value()) {
         finishAnimationFrame(
             pending, animation, requestedFrame, animation.runtime->frame(requestedFrame));
         retireAnimationFrameWork();
         return;
     }
 
+    const ImageDecodeWorkspaceAdmissionRequest admissionRequest = *preparation->workspaceAdmission;
+    if (m_dependencies.workspaceBudget == nullptr) {
+        finishAnimationFrame(pending, animation, requestedFrame,
+            std::unexpected(AnimationSourceFrameFailure {
+                AnimationSourceFrameFailureCause::ResourceLimitExceeded,
+                imageDecodeWorkspaceResourceLimitDiagnostic(),
+            }));
+        retireAnimationFrameWork();
+        return;
+    }
+    const std::weak_ptr<ImageViewportDecodeProviderSource> weakSelf = weak_from_this();
+    std::expected<ImageDecodeWorkspaceAdmission, ImageDecodeWorkspaceAdmissionFailure> admission
+        = m_dependencies.workspaceBudget->requestAdmission(this, admissionRequest,
+            [weakSelf, pending, animation, requestedFrame,
+                baselineByteCount = admissionRequest.perOperationBaselineByteCount,
+                outputByteCount = animation.frameDisplayByteCount](
+                ImageDecodeWorkspaceLease workspaceLease) mutable {
+                const std::shared_ptr<ImageViewportDecodeProviderSource> self = weakSelf.lock();
+                if (self == nullptr || self->m_closed
+                    || !self->m_activeAnimationFrameWork.has_value()
+                    || self->m_activeAnimationFrameWork->identity != pending.identity
+                    || !self->m_activeAnimationFrameWork->publishResult) {
+                    return;
+                }
+                self->startGrantedAnimationFrame(std::move(pending), std::move(animation),
+                    requestedFrame, baselineByteCount, outputByteCount, std::move(workspaceLease));
+            });
+    if (!admission.has_value()) {
+        finishAnimationFrame(pending, animation, requestedFrame,
+            std::unexpected(AnimationSourceFrameFailure {
+                AnimationSourceFrameFailureCause::ResourceLimitExceeded,
+                imageDecodeWorkspaceResourceLimitDiagnostic(),
+            }));
+        retireAnimationFrameWork();
+        return;
+    }
+    m_activeAnimationFrameWork->workspaceAdmission = std::move(*admission);
+    if (preparation->retirePlaybackSourceBeforeProduction
+        && !animation.runtime->retirePreparedPlaybackSource()) {
+        m_activeAnimationFrameWork->workspaceAdmission.cancel();
+        finishAnimationFrame(pending, animation, requestedFrame,
+            std::unexpected(AnimationSourceFrameFailure {
+                AnimationSourceFrameFailureCause::Unavailable,
+                QStringLiteral("requested animation frame is unavailable"),
+            }));
+        retireAnimationFrameWork();
+    }
+}
+
+void ImageViewportDecodeProviderSource::startGrantedAnimationFrame(PendingFrame pending,
+    AnimationState animation, int requestedFrame, qsizetype perOperationBaselineByteCount,
+    qsizetype outputByteCount, ImageDecodeWorkspaceLease workspaceLease)
+{
+    if (m_closed || !m_activeAnimationFrameWork.has_value()
+        || !m_activeAnimationFrameWork->publishResult) {
+        return;
+    }
+    std::shared_ptr<DisplayImageOutputAdmission> outputAdmission;
+    if (pending.request.outputStore != nullptr) {
+        outputAdmission = pending.request.outputStore->reserveOutput(outputByteCount);
+        if (outputAdmission == nullptr) {
+            workspaceLease = {};
+            finishAnimationFrame(pending, animation, requestedFrame,
+                std::unexpected(AnimationSourceFrameFailure {
+                    AnimationSourceFrameFailureCause::ResourceLimitExceeded,
+                    imageDecodeWorkspaceResourceLimitDiagnostic(),
+                }));
+            retireAnimationFrameWork();
+            return;
+        }
+    }
     const quint64 workerUnitId = reserveWorkerUnit(pending.identity);
     m_activeAnimationFrameWork->workerUnitId = workerUnitId;
     const std::weak_ptr<ImageViewportDecodeProviderSource> weakSelf = weak_from_this();
+    std::shared_ptr<AnimationSourceRuntime> frameRuntime = animation.runtime;
     ImageWorkerTask task = m_dependencies.workerScheduler.run(
         this,
-        [runtime = animation.runtime, requestedFrame]() { return runtime->frame(requestedFrame); },
-        [weakSelf, workerUnitId, pending = std::move(pending), animation, requestedFrame](
+        [runtime = std::move(frameRuntime), requestedFrame, perOperationBaselineByteCount,
+            workspaceLease = std::move(workspaceLease)]() mutable {
+            return runtime->frame(
+                requestedFrame, std::move(workspaceLease), perOperationBaselineByteCount);
+        },
+        [weakSelf, workerUnitId, pending = std::move(pending), animation = std::move(animation),
+            requestedFrame, outputAdmission = std::move(outputAdmission)](
             AnimationSourceFrameResult result) mutable {
             const std::shared_ptr<ImageViewportDecodeProviderSource> self = weakSelf.lock();
-            if (self == nullptr || !self->detachWorkerUnit(workerUnitId)) {
+            if (self == nullptr || !self->hasWorkerUnit(workerUnitId)) {
                 return;
             }
             const bool publishResult = !self->m_closed
@@ -1717,13 +1885,10 @@ void ImageViewportDecodeProviderSource::publishAnimationFrame(PendingFrame pendi
                 && self->m_activeAnimationFrameWork->workerUnitId == workerUnitId
                 && self->m_activeAnimationFrameWork->publishResult;
             if (publishResult) {
-                self->finishAnimationFrame(pending, animation, requestedFrame, std::move(result));
+                self->finishAnimationFrame(pending, animation, requestedFrame, std::move(result),
+                    std::move(outputAdmission));
             } else {
                 result = std::unexpected(AnimationSourceFrameFailure {});
-            }
-            if (self->m_activeAnimationFrameWork.has_value()
-                && self->m_activeAnimationFrameWork->workerUnitId == workerUnitId) {
-                self->retireAnimationFrameWork();
             }
         });
     attachWorkerTask(workerUnitId, std::move(task));
@@ -1738,7 +1903,8 @@ void ImageViewportDecodeProviderSource::retireAnimationFrameWork()
 }
 
 void ImageViewportDecodeProviderSource::finishAnimationFrame(const PendingFrame& pending,
-    const AnimationState& animation, int requestedFrame, AnimationSourceFrameResult result)
+    const AnimationState& animation, int requestedFrame, AnimationSourceFrameResult result,
+    std::shared_ptr<DisplayImageOutputAdmission> outputAdmission)
 {
     if (m_closed) {
         return;
@@ -1768,12 +1934,34 @@ void ImageViewportDecodeProviderSource::finishAnimationFrame(const PendingFrame&
         return;
     }
 
+    QImage retainedImage
+        = imageRetainingDecodeWorkspace(std::move(result->image), std::move(result->workspaceHold));
+    if (retainedImage.isNull()) {
+        const QString errorString = imageDecodeWorkspaceResourceLimitDiagnostic();
+        pending.completion(pending.identity,
+            ImageViewportProviderFrameResult::failed(
+                ImageSequenceProviderFailureCause::ResourceExhausted,
+                loadFailure(
+                    resolvedSession(), ImageLoadFailureKind::Decode, errorString, errorString)));
+        return;
+    }
+    if (outputAdmission != nullptr && !outputAdmission->retainOnly(imageByteCost(retainedImage))) {
+        const QString errorString
+            = QStringLiteral("animation frame output exceeded its display-output admission");
+        pending.completion(pending.identity,
+            ImageViewportProviderFrameResult::failed(
+                ImageSequenceProviderFailureCause::ResourceExhausted,
+                loadFailure(
+                    resolvedSession(), ImageLoadFailureKind::Presentation, {}, errorString)));
+        return;
+    }
+
     const QVector<int> durations = animation.metadata.frameDurations();
     StaticDisplayImagePayload payload {
         animation.sourceIdentity,
         {},
         animation.metadata.sourceLogicalSize().toSize(),
-        std::move(result->image),
+        std::move(retainedImage),
         DisplayImageQuality::Exact,
         {},
         {},
@@ -1788,7 +1976,7 @@ void ImageViewportDecodeProviderSource::finishAnimationFrame(const PendingFrame&
         ImageViewportProviderFrameResult::ready(std::move(payload),
             ImageSequenceProviderFrameEnvelope::timedFrame(requestedFrame,
                 frameStartPosition(durations, requestedFrame), durations.at(requestedFrame)),
-            animation.formatIdentifier));
+            animation.formatIdentifier, std::move(outputAdmission)));
 }
 
 quint64 ImageViewportDecodeProviderSource::reserveWorkerUnit(
@@ -1823,7 +2011,69 @@ void ImageViewportDecodeProviderSource::attachWorkerTask(quint64 workerUnitId, I
         task.cancel();
         return;
     }
+    const std::weak_ptr<ImageViewportDecodeProviderSource> weakSelf = weak_from_this();
+    task.setRetirementCallback([weakSelf, workerUnitId]() {
+        const std::shared_ptr<ImageViewportDecodeProviderSource> self = weakSelf.lock();
+        if (self == nullptr) {
+            return;
+        }
+        QMetaObject::invokeMethod(
+            self.get(),
+            [weakSelf, workerUnitId]() {
+                if (const std::shared_ptr<ImageViewportDecodeProviderSource> retainedSelf
+                    = weakSelf.lock()) {
+                    retainedSelf->physicallyRetireWorkerUnit(workerUnitId);
+                }
+            },
+            Qt::QueuedConnection);
+    });
     unit->task = std::move(task);
+}
+
+void ImageViewportDecodeProviderSource::cancelWorkerUnit(quint64 workerUnitId)
+{
+    const auto unit = std::ranges::find_if(m_workerUnits,
+        [workerUnitId](const WorkerUnit& candidate) { return candidate.id == workerUnitId; });
+    if (unit != m_workerUnits.end()) {
+        unit->task.cancel();
+    }
+}
+
+void ImageViewportDecodeProviderSource::physicallyRetireWorkerUnit(quint64 workerUnitId)
+{
+    const auto unit = std::ranges::find_if(m_workerUnits,
+        [workerUnitId](const WorkerUnit& candidate) { return candidate.id == workerUnitId; });
+    if (unit == m_workerUnits.end()) {
+        return;
+    }
+    m_workerUnits.erase(unit);
+
+    bool retryDeferredStaticFrames = false;
+    const auto staticWork = std::ranges::find_if(
+        m_staticRefinementWorks, [workerUnitId](const StaticRefinementWork& work) {
+            return work.workerUnitId == workerUnitId;
+        });
+    if (staticWork != m_staticRefinementWorks.end() && staticWork->retiring) {
+        m_staticRefinementWorks.erase(staticWork);
+        retryDeferredStaticFrames = !m_deferredStaticFrames.empty();
+    }
+
+    if (m_activeAnimationFrameWork.has_value()
+        && m_activeAnimationFrameWork->workerUnitId == workerUnitId) {
+        retireAnimationFrameWork();
+    }
+
+    if (!m_closed && retryDeferredStaticFrames) {
+        std::ranges::move(m_deferredStaticFrames, std::back_inserter(m_pendingFrames));
+        m_deferredStaticFrames.clear();
+        publishFrames();
+    }
+}
+
+bool ImageViewportDecodeProviderSource::hasWorkerUnit(quint64 workerUnitId) const
+{
+    return std::ranges::any_of(m_workerUnits,
+        [workerUnitId](const WorkerUnit& candidate) { return candidate.id == workerUnitId; });
 }
 
 bool ImageViewportDecodeProviderSource::detachWorkerUnit(quint64 workerUnitId)

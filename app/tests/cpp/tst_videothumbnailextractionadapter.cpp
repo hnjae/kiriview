@@ -4,6 +4,7 @@
 #include "thumbnail/videothumbnailextractionadapter.h"
 
 #include <QCoreApplication>
+#include <QEvent>
 #include <QObject>
 #include <QTest>
 
@@ -56,17 +57,23 @@ void TestVideoThumbnailExtractionAdapter::cancellationSuppressesPendingLibraryDe
 {
     QObject receiver;
     int completionCount = 0;
+    int retirementCount = 0;
 
     kiriview::ImageIoJob job = kiriview::startThumbnailVideoExtractionJob(
         &receiver, {}, [&](kiriview::VideoThumbnailExtractionResult) { ++completionCount; });
+    job.setRetirementCallback([&retirementCount]() { ++retirementCount; });
 
     QVERIFY(job.isActive());
     job.cancel();
     QVERIFY(!job.isActive());
+    QCOMPARE(retirementCount, 0);
+
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
 
     drainQueuedCalls();
 
     QCOMPARE(completionCount, 0);
+    QCOMPARE(retirementCount, 1);
 }
 
 void TestVideoThumbnailExtractionAdapter::receiverDestructionSuppressesPendingLibraryDelivery()

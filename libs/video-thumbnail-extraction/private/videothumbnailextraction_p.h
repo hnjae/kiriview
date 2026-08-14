@@ -139,7 +139,9 @@ struct VideoThumbnailImageAdmission
 struct VideoThumbnailExtractionJobControl
 {
     bool active = true;
+    bool retired = false;
     std::function<void()> cancel;
+    std::function<void()> retirementCallback;
 };
 
 [[nodiscard]] auto createQtVideoThumbnailBackend() -> std::unique_ptr<VideoThumbnailBackend>;

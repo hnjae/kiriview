@@ -4,6 +4,7 @@
 #ifndef KIRIVIEW_IMAGEVIEWPORTPROVIDERRESOURCE_H
 #define KIRIVIEW_IMAGEVIEWPORTPROVIDERRESOURCE_H
 
+#include "async/imageworkerscheduler.h"
 #include "decoding/imagedecodeworkspace.h"
 #include "document/imageloadfailure.h"
 #include "imageviewportfailureregistry.h"
@@ -154,12 +155,15 @@ public:
     using MetadataCompletion = ImageViewportProviderSource::MetadataCompletion;
     using FrameCompletion = std::function<void(
         ImageViewportProviderWorkIdentity, ImageViewportProviderPreparedFrame)>;
+    using FrameHandleCompletion = std::function<void(
+        ImageViewportProviderWorkIdentity, std::unique_ptr<ImageSequenceProviderFrameHandle>)>;
 
     ImageViewportProviderResource(quint64 sourceGeneration, QString locationIdentity,
         std::shared_ptr<ImageViewportProviderSource> source,
         std::shared_ptr<DisplayImageStore> displayStore,
         std::shared_ptr<ImageViewportFailureRegistry> failureRegistry = {},
-        std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {});
+        std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {},
+        ImageWorkerScheduler frameConstructionScheduler = {});
     ~ImageViewportProviderResource();
     Q_DISABLE_COPY_MOVE(ImageViewportProviderResource)
 
@@ -189,8 +193,8 @@ public:
         const ImageViewportProviderPreparedFrame& preparedFrame);
     bool acceptDisplayedStillDisplayImage(
         ImageViewportPageRole role, ImageViewportDemandRevisionToken demandRevision);
-    ImageSequenceProviderFrameHandle* acquireFrameHandle(
-        const ImageViewportProviderPreparedFrame& preparedFrame);
+    void requestFrameHandle(QObject* receiver, const ImageViewportProviderWorkIdentity& identity,
+        const ImageViewportProviderPreparedFrame& preparedFrame, FrameHandleCompletion completion);
     ImageSequenceProviderFailure failure(
         ImageSequenceProviderFailureCause cause, std::optional<ImageLoadFailure> failure);
 
@@ -202,6 +206,13 @@ private:
     ImageViewportProviderPreparedFrame prepareFrame(
         const ImageViewportProviderWorkIdentity& identity, ImageViewportProviderFrameResult result);
     [[nodiscard]] QString displayLocationIdentityForPayloadPreparation();
+    [[nodiscard]] bool frameConstructionIsActive(quint64 constructionId) const;
+    [[nodiscard]] bool claimFrameConstruction(quint64 constructionId);
+    [[nodiscard]] bool beginFrameConstructionWorker(quint64 constructionId);
+    [[nodiscard]] bool completeFrameConstruction(quint64 constructionId);
+    void cancelFrameConstruction(quint64 constructionId);
+    void installFrameConstructionTask(quint64 constructionId, ImageWorkerTask task);
+    void retireFrameConstruction(quint64 constructionId);
 
     struct AuthoritativeStillDisplayImage
     {
@@ -216,6 +227,8 @@ private:
         QString storeEntryId;
     };
 
+    struct ActiveFrameConstruction;
+
     quint64 m_sourceGeneration = 0;
     QString m_locationIdentity;
     QString m_displayLocationIdentity;
@@ -223,12 +236,15 @@ private:
     std::shared_ptr<DisplayImageStore> m_displayStore;
     std::shared_ptr<ImageViewportFailureRegistry> m_failureRegistry;
     std::shared_ptr<ImageDecodeWorkspaceBudget> m_workspaceBudget;
+    ImageWorkerScheduler m_frameConstructionScheduler;
     mutable QMutex m_stateMutex;
     std::vector<ImageViewportProviderWorkIdentity> m_activeMetadataWork;
     std::vector<ImageViewportProviderWorkIdentity> m_activeFrameWork;
     std::vector<AuthoritativeFrameCandidate> m_authoritativeFrameCandidates;
     std::optional<AuthoritativeStillDisplayImage> m_authoritativeStillDisplayImageCandidate;
     std::optional<AuthoritativeStillDisplayImage> m_currentStillDisplayImage;
+    std::vector<std::unique_ptr<ActiveFrameConstruction>> m_activeFrameConstructions;
+    quint64 m_nextFrameConstructionId = 1;
     bool m_displayLocationIdentityBound = false;
     bool m_payloadPreparationStarted = false;
     bool m_closed = false;

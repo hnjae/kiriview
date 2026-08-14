@@ -3,6 +3,8 @@
 
 #include "session/activenavigationthumbnailscheduler.h"
 
+#include "decoding/imagedecodeworkspace.h"
+
 #include <QObject>
 #include <QTest>
 #include <QUrl>
@@ -105,7 +107,10 @@ private Q_SLOTS:
     void foregroundAdmissionIsBoundedAndPrioritizesCurrentThenVisible();
     void currentPreemptsVisibleWhenForegroundCapacityIsFull();
     void resetKeepsCanceledWorkCapacityUntilPhysicalRetirement();
-    void currentPromotesCommittedNearbyWithoutRestart();
+    void currentPromotionRestartsWithDemandedPriorityAfterRetirement();
+    void visiblePromotionRestartsWithDemandedPriorityAfterRetirement();
+    void currentPromotionKeepsAlreadyDemandedWork();
+    void nearbyDemotionRestartsWithSpeculativePriorityAfterRetirement();
     void newerForegroundCancelsActiveNearby();
     void newerWindowExpiresMissingDemandAndDemotesRetention();
     void backgroundRunsOneAtATimeAndYieldsToDemand();
@@ -180,11 +185,15 @@ void TestActiveNavigationThumbnailScheduler::visibleRunsBeforeNearbyRegardlessOf
     auto starts = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(effects);
     QCOMPARE(starts.size(), std::size_t(1));
     QCOMPARE(starts.front().request.sourceKey.row.rowNumber, 1);
+    QCOMPARE(
+        starts.front().request.workspacePriority, kiriview::ImageDecodeWorkspacePriority::Demanded);
 
     effects = scheduler.acceptCompletion(ready(starts.front()));
     starts = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(effects);
     QCOMPARE(starts.size(), std::size_t(1));
     QCOMPARE(starts.front().request.sourceKey.row.rowNumber, 2);
+    QCOMPARE(starts.front().request.workspacePriority,
+        kiriview::ImageDecodeWorkspacePriority::Speculative);
 }
 
 void TestActiveNavigationThumbnailScheduler::
@@ -266,7 +275,8 @@ void TestActiveNavigationThumbnailScheduler::resetKeepsCanceledWorkCapacityUntil
     QVERIFY(scheduler.acceptRetirement(firstStart.request.workId).empty());
 }
 
-void TestActiveNavigationThumbnailScheduler::currentPromotesCommittedNearbyWithoutRestart()
+void TestActiveNavigationThumbnailScheduler::
+    currentPromotionRestartsWithDemandedPriorityAfterRetirement()
 {
     kiriview::ActiveNavigationThumbnailScheduler scheduler(adapter(), 2);
     QVERIFY(scheduler.reset(schedulingSnapshot(1, { key(1) })).has_value());
@@ -276,10 +286,92 @@ void TestActiveNavigationThumbnailScheduler::currentPromotesCommittedNearbyWitho
     const auto starts
         = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*committed);
     QCOMPARE(starts.size(), std::size_t(1));
+    QCOMPARE(starts.front().request.workspacePriority,
+        kiriview::ImageDecodeWorkspacePriority::Speculative);
 
     const auto effects = scheduler.setCurrentNumber(1);
-    QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailCancelWorkEffect>(effects).empty());
+    const auto cancels
+        = effectsOfType<kiriview::ActiveNavigationThumbnailCancelWorkEffect>(effects);
+    QCOMPARE(cancels.size(), std::size_t(1));
+    QCOMPARE(cancels.front().workId, starts.front().request.workId);
     QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(effects).empty());
+
+    const auto replacements = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(
+        scheduler.acceptRetirement(cancels.front().workId));
+    QCOMPARE(replacements.size(), std::size_t(1));
+    QCOMPARE(replacements.front().request.sourceKey, starts.front().request.sourceKey);
+    QCOMPARE(replacements.front().request.workspacePriority,
+        kiriview::ImageDecodeWorkspacePriority::Demanded);
+}
+
+void TestActiveNavigationThumbnailScheduler::
+    visiblePromotionRestartsWithDemandedPriorityAfterRetirement()
+{
+    kiriview::ActiveNavigationThumbnailScheduler scheduler(adapter(), 2);
+    QVERIFY(scheduler.reset(schedulingSnapshot(1, { key(1) })).has_value());
+    auto committed = scheduler.replaceDemandSnapshot(
+        snapshot(1, { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Nearby } }));
+    QVERIFY(committed.has_value());
+    const auto speculative
+        = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*committed).front();
+
+    committed = scheduler.replaceDemandSnapshot(
+        snapshot(1, { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Visible } }));
+    QVERIFY(committed.has_value());
+    const auto cancels
+        = effectsOfType<kiriview::ActiveNavigationThumbnailCancelWorkEffect>(*committed);
+    QCOMPARE(cancels.size(), std::size_t(1));
+    QCOMPARE(cancels.front().workId, speculative.request.workId);
+    QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*committed).empty());
+
+    const auto replacements = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(
+        scheduler.acceptRetirement(cancels.front().workId));
+    QCOMPARE(replacements.size(), std::size_t(1));
+    QCOMPARE(replacements.front().request.workspacePriority,
+        kiriview::ImageDecodeWorkspacePriority::Demanded);
+}
+
+void TestActiveNavigationThumbnailScheduler::currentPromotionKeepsAlreadyDemandedWork()
+{
+    kiriview::ActiveNavigationThumbnailScheduler scheduler(adapter(), 2);
+    QVERIFY(scheduler.reset(schedulingSnapshot(1, { key(1) })).has_value());
+    const auto committed = scheduler.replaceDemandSnapshot(
+        snapshot(1, { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Visible } }));
+    QVERIFY(committed.has_value());
+    const auto demanded
+        = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*committed).front();
+    QCOMPARE(demanded.request.workspacePriority, kiriview::ImageDecodeWorkspacePriority::Demanded);
+
+    const auto promoted = scheduler.setCurrentNumber(1);
+    QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailCancelWorkEffect>(promoted).empty());
+    QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(promoted).empty());
+}
+
+void TestActiveNavigationThumbnailScheduler::
+    nearbyDemotionRestartsWithSpeculativePriorityAfterRetirement()
+{
+    kiriview::ActiveNavigationThumbnailScheduler scheduler(adapter(), 2);
+    QVERIFY(scheduler.reset(schedulingSnapshot(1, { key(1) })).has_value());
+    auto committed = scheduler.replaceDemandSnapshot(
+        snapshot(1, { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Visible } }));
+    QVERIFY(committed.has_value());
+    const auto demanded
+        = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*committed).front();
+
+    committed = scheduler.replaceDemandSnapshot(
+        snapshot(1, { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Nearby } }));
+    QVERIFY(committed.has_value());
+    const auto cancels
+        = effectsOfType<kiriview::ActiveNavigationThumbnailCancelWorkEffect>(*committed);
+    QCOMPARE(cancels.size(), std::size_t(1));
+    QCOMPARE(cancels.front().workId, demanded.request.workId);
+    QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*committed).empty());
+
+    const auto replacements = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(
+        scheduler.acceptRetirement(cancels.front().workId));
+    QCOMPARE(replacements.size(), std::size_t(1));
+    QCOMPARE(replacements.front().request.workspacePriority,
+        kiriview::ImageDecodeWorkspacePriority::Speculative);
 }
 
 void TestActiveNavigationThumbnailScheduler::newerForegroundCancelsActiveNearby()
@@ -347,14 +439,20 @@ void TestActiveNavigationThumbnailScheduler::backgroundRunsOneAtATimeAndYieldsTo
     QCOMPARE(background.front().request.workKind,
         kiriview::ActiveNavigationThumbnailWorkKind::Background);
     QCOMPARE(background.front().request.bucket, Bucket::Large);
+    QCOMPARE(background.front().request.workspacePriority,
+        kiriview::ImageDecodeWorkspacePriority::Speculative);
 
     committed = scheduler.replaceDemandSnapshot(
         snapshot(1, { { 1, key(1).sourceUrl, Bucket::XLarge, Priority::Visible } }));
     QVERIFY(committed.has_value());
     effects = std::move(*committed);
-    QCOMPARE(effectsOfType<kiriview::ActiveNavigationThumbnailCancelWorkEffect>(effects).size(),
-        std::size_t(1));
-    const auto starts = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(effects);
+    const auto cancels
+        = effectsOfType<kiriview::ActiveNavigationThumbnailCancelWorkEffect>(effects);
+    QCOMPARE(cancels.size(), std::size_t(1));
+    QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(effects).empty());
+
+    const auto starts = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(
+        scheduler.acceptRetirement(cancels.front().workId));
     QCOMPARE(starts.size(), std::size_t(1));
     QCOMPARE(
         starts.front().request.workKind, kiriview::ActiveNavigationThumbnailWorkKind::Foreground);
@@ -616,13 +714,19 @@ void TestActiveNavigationThumbnailScheduler::priorityAndCurrentChangesReleaseRes
     QVERIFY(effects.has_value());
     priorityScheduler.acceptCompletion(
         ready(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*effects).front()));
-    priorityScheduler.reconcileImageResidency({ key(1) }, false);
+    const auto priorityBlocked = priorityScheduler.reconcileImageResidency({ key(1) }, false);
+    const auto priorityCancellations
+        = effectsOfType<kiriview::ActiveNavigationThumbnailCancelWorkEffect>(priorityBlocked);
+    QCOMPARE(priorityCancellations.size(), std::size_t(1));
 
     effects = priorityScheduler.replaceDemandSnapshot(
         snapshot(1, { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Visible } }));
 
     QVERIFY(effects.has_value());
-    QCOMPARE(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*effects).size(),
+    QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*effects).empty());
+    QCOMPARE(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(
+                 priorityScheduler.acceptRetirement(priorityCancellations.front().workId))
+                 .size(),
         std::size_t(1));
 
     kiriview::ActiveNavigationThumbnailScheduler currentScheduler(adapter(), 2);
@@ -632,11 +736,17 @@ void TestActiveNavigationThumbnailScheduler::priorityAndCurrentChangesReleaseRes
     QVERIFY(effects.has_value());
     currentScheduler.acceptCompletion(
         ready(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*effects).front()));
-    currentScheduler.reconcileImageResidency({ key(1) }, false);
+    const auto currentBlocked = currentScheduler.reconcileImageResidency({ key(1) }, false);
+    const auto currentCancellations
+        = effectsOfType<kiriview::ActiveNavigationThumbnailCancelWorkEffect>(currentBlocked);
+    QCOMPARE(currentCancellations.size(), std::size_t(1));
 
     const auto promoted = currentScheduler.setCurrentNumber(1);
 
-    QCOMPARE(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(promoted).size(),
+    QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(promoted).empty());
+    QCOMPARE(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(
+                 currentScheduler.acceptRetirement(currentCancellations.front().workId))
+                 .size(),
         std::size_t(1));
 }
 
@@ -667,14 +777,19 @@ void TestActiveNavigationThumbnailScheduler::sourceRefreshReleasesResidencyBlock
     QCOMPARE(initialStarts.size(), std::size_t(2));
     scheduler.acceptCompletion(ready(initialStarts.at(0)));
     scheduler.acceptCompletion(ready(initialStarts.at(1)));
-    scheduler.reconcileImageResidency({ original, key(2) }, false);
+    const auto blocked = scheduler.reconcileImageResidency({ original, key(2) }, false);
+    const auto cancellations
+        = effectsOfType<kiriview::ActiveNavigationThumbnailCancelWorkEffect>(blocked);
+    QCOMPARE(cancellations.size(), std::size_t(1));
 
     effects = scheduler.refreshRows(schedulingSnapshot(1, { refreshed, key(2) }));
 
     QVERIFY(effects.has_value());
     QCOMPARE(effectsOfType<kiriview::ActiveNavigationThumbnailApplyPendingEffect>(*effects).size(),
         std::size_t(1));
-    const auto starts = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*effects);
+    QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*effects).empty());
+    const auto starts = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(
+        scheduler.acceptRetirement(cancellations.front().workId));
     QCOMPARE(starts.size(), std::size_t(1));
     QCOMPARE(starts.front().request.sourceKey.row.rowNumber, 1);
     QCOMPARE(starts.front().request.sourceKey.sourceUrl, refreshed.sourceUrl);

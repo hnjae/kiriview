@@ -332,6 +332,7 @@ ActiveNavigationThumbnailScheduler::acceptRetirement(ActiveNavigationThumbnailWo
     if (!workId.isValid() || m_retiringWork.remove(workId.value) == 0) {
         return {};
     }
+    armBackgroundSweep();
     std::vector<ActiveNavigationThumbnailScheduleEffect> effects;
     admit(effects);
     return effects;
@@ -383,6 +384,13 @@ ActiveNavigationThumbnailRetentionClass ActiveNavigationThumbnailScheduler::rete
     return priority == ActiveNavigationThumbnailDemandPriority::Visible
         ? ActiveNavigationThumbnailRetentionClass::Visible
         : ActiveNavigationThumbnailRetentionClass::Nearby;
+}
+
+ImageDecodeWorkspacePriority ActiveNavigationThumbnailScheduler::workspacePriority(Tier tier)
+{
+    return tier == Tier::Current || tier == Tier::Visible
+        ? ImageDecodeWorkspacePriority::Demanded
+        : ImageDecodeWorkspacePriority::Speculative;
 }
 
 std::vector<ActiveNavigationThumbnailDemandBucket>
@@ -555,10 +563,14 @@ void ActiveNavigationThumbnailScheduler::reclassifyCurrentRow(
     const Tier tier = tierFor(row, *state.acceptedDemand);
     if (state.activeWork.has_value()
         && state.activeWork->kind == ActiveNavigationThumbnailWorkKind::Foreground) {
-        m_activeNearbyRows.erase(row);
-        state.activeWork->tier = tier;
-        if (tier == Tier::Nearby) {
-            m_activeNearbyRows.insert(row);
+        if (workspacePriority(state.activeWork->tier) != workspacePriority(tier)) {
+            cancel(row, effects);
+        } else {
+            m_activeNearbyRows.erase(row);
+            state.activeWork->tier = tier;
+            if (tier == Tier::Nearby) {
+                m_activeNearbyRows.insert(row);
+            }
         }
     }
     refreshDemandTier(row);
@@ -588,6 +600,17 @@ bool ActiveNavigationThumbnailScheduler::workIdInUse(ActiveNavigationThumbnailWo
     return std::ranges::any_of(m_rows, [workId](const RowState& state) {
         return state.activeWork.has_value() && state.activeWork->id == workId;
     });
+}
+
+bool ActiveNavigationThumbnailScheduler::workRetiringFor(
+    const ThumbnailSourceRevisionKey& sourceKey) const
+{
+    for (auto iterator = m_retiringWork.cbegin(); iterator != m_retiringWork.cend(); ++iterator) {
+        if (iterator.value().demand.sourceKey == sourceKey) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void ActiveNavigationThumbnailScheduler::cancel(
@@ -620,8 +643,8 @@ void ActiveNavigationThumbnailScheduler::start(std::size_t row,
     } else if (tier == Tier::Background) {
         m_activeBackgroundRow = row;
     }
-    effects.emplace_back(ActiveNavigationThumbnailStartWorkEffect {
-        { claim.id, demand.sourceKey, demand.bucket, kind, demand.sourcePlan } });
+    effects.emplace_back(ActiveNavigationThumbnailStartWorkEffect { { claim.id, demand.sourceKey,
+        demand.bucket, kind, demand.sourcePlan, workspacePriority(tier) } });
 }
 
 std::size_t ActiveNavigationThumbnailScheduler::activeForegroundCount() const
@@ -650,7 +673,7 @@ void ActiveNavigationThumbnailScheduler::admit(
             RowState& currentState = m_rows.at(*m_currentRow);
             if (!currentState.activeWork.has_value() && currentState.acceptedDemand.has_value()
                 && supportsGeneratedThumbnail(currentState.acceptedDemand->sourcePlan)
-                && m_foregroundCapacity != 0) {
+                && !workRetiringFor(currentState.sourceKey) && m_foregroundCapacity != 0) {
                 if (activeForeground >= m_foregroundCapacity) {
                     const auto activeVisible = std::ranges::find_if(m_highDemandRows.crbegin(),
                         m_highDemandRows.crend(), [this](std::size_t row) {
@@ -680,7 +703,8 @@ void ActiveNavigationThumbnailScheduler::admit(
             }
             RowState& state = m_rows.at(row);
             if (!state.activeWork.has_value() && state.acceptedDemand.has_value()
-                && supportsGeneratedThumbnail(state.acceptedDemand->sourcePlan)) {
+                && supportsGeneratedThumbnail(state.acceptedDemand->sourcePlan)
+                && !workRetiringFor(state.sourceKey)) {
                 start(row, ActiveNavigationThumbnailWorkKind::Foreground,
                     tierFor(row, *state.acceptedDemand), *state.acceptedDemand, effects);
                 ++activeForeground;
@@ -699,7 +723,8 @@ void ActiveNavigationThumbnailScheduler::admit(
             }
             RowState& state = m_rows.at(row);
             if (!state.activeWork.has_value() && state.acceptedDemand.has_value()
-                && supportsGeneratedThumbnail(state.acceptedDemand->sourcePlan)) {
+                && supportsGeneratedThumbnail(state.acceptedDemand->sourcePlan)
+                && !workRetiringFor(state.sourceKey)) {
                 start(row, ActiveNavigationThumbnailWorkKind::Foreground, Tier::Nearby,
                     *state.acceptedDemand, effects);
                 ++activeForeground;
@@ -722,7 +747,7 @@ void ActiveNavigationThumbnailScheduler::admit(
         const std::size_t row = candidate % m_rows.size();
         const auto bucket = buckets.at(candidate / m_rows.size());
         RowState& state = m_rows.at(row);
-        if (backgroundComplete(state, bucket)) {
+        if (backgroundComplete(state, bucket) || workRetiringFor(state.sourceKey)) {
             continue;
         }
         ThumbnailSourceAdapterPlan plan;

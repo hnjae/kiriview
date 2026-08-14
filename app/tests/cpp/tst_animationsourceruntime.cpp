@@ -28,6 +28,7 @@ private Q_SLOTS:
     void runtimesOwnIndependentPlaybackProgress();
     void playbackSourceOperationsStayOnOneOwnerThread();
     void frameResultRetainsWorkspaceUntilImageRelease();
+    void preparedFramesDeclareOpenAndPersistentDecoderEnvelopes();
 };
 
 namespace {
@@ -361,8 +362,9 @@ void TestAnimationSourceRuntime::playbackSourceOperationsStayOnOneOwnerThread()
 void TestAnimationSourceRuntime::frameResultRetainsWorkspaceUntilImageRelease()
 {
     auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(16, 16);
-    kiriview::ImageDecodeWorkspaceLease lease = budget->startLease();
-    QVERIFY(lease.tryReserve(4));
+    kiriview::ImageDecodeWorkspaceLease lease
+        = kiriview::ImageDecodeWorkspaceDetail::startLease(*budget);
+    QVERIFY(kiriview::ImageDecodeWorkspaceDetail::tryReserve(lease, 4));
     kiriview::ImageDecodeWorkspaceHold hold = lease.retainOnly(4);
     QVERIFY(hold.isManaged());
     ImageCleanupObservation observation { budget, new uchar[4] { 0, 255, 0, 255 } };
@@ -384,6 +386,57 @@ void TestAnimationSourceRuntime::frameResultRetainsWorkspaceUntilImageRelease()
     QVERIFY(observation.cleanupCalled);
     QVERIFY(observation.reservationHeldDuringCleanup);
     QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
+void TestAnimationSourceRuntime::preparedFramesDeclareOpenAndPersistentDecoderEnvelopes()
+{
+    const auto state = std::make_shared<FakePlaybackState>();
+    state->frames = solidFrames({ Qt::red, Qt::green, Qt::blue });
+    constexpr qsizetype retainedInputByteCount = 2;
+    constexpr qsizetype persistentDecoderByteCount = 10;
+    constexpr qsizetype frameOutputByteCount = 4;
+    kiriview::AnimationSourceRuntime runtime(state->frames.front(),
+        static_cast<int>(state->frames.size()), fakeFactory(state), {},
+        kiriview::ImageAnimationPlaybackWorkspacePlan {
+            retainedInputByteCount,
+            persistentDecoderByteCount,
+            frameOutputByteCount,
+        });
+
+    const kiriview::AnimationSourceFramePreparationResult opening = runtime.prepareFrame(1);
+    QVERIFY(opening.has_value());
+    QVERIFY(opening->workspaceAdmission.has_value());
+    QCOMPARE(
+        opening->workspaceAdmission->priority, kiriview::ImageDecodeWorkspacePriority::Interactive);
+    QCOMPARE(opening->workspaceAdmission->additionalPeakByteCount,
+        persistentDecoderByteCount + frameOutputByteCount);
+    QCOMPARE(opening->workspaceAdmission->perOperationBaselineByteCount, retainedInputByteCount);
+    QCOMPARE(opening->outputByteCount, frameOutputByteCount);
+    QVERIFY(!opening->retirePlaybackSourceBeforeProduction);
+
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(64, 64);
+    kiriview::ImageDecodeWorkspaceLease openingLease
+        = kiriview::ImageDecodeWorkspaceDetail::startLease(*budget);
+    QVERIFY(kiriview::ImageDecodeWorkspaceDetail::tryReserve(
+        openingLease, persistentDecoderByteCount + frameOutputByteCount));
+    compareFrameColor(runtime.frame(1, std::move(openingLease), retainedInputByteCount), Qt::green);
+
+    const kiriview::AnimationSourceFramePreparationResult sequential = runtime.prepareFrame(2);
+    QVERIFY(sequential.has_value());
+    QVERIFY(sequential->workspaceAdmission.has_value());
+    QCOMPARE(sequential->workspaceAdmission->additionalPeakByteCount, frameOutputByteCount);
+    QCOMPARE(sequential->workspaceAdmission->perOperationBaselineByteCount,
+        retainedInputByteCount + persistentDecoderByteCount);
+    QCOMPARE(sequential->outputByteCount, frameOutputByteCount);
+    QVERIFY(!sequential->retirePlaybackSourceBeforeProduction);
+
+    const kiriview::AnimationSourceFramePreparationResult rewind = runtime.prepareFrame(1);
+    QVERIFY(rewind.has_value());
+    QVERIFY(rewind->workspaceAdmission.has_value());
+    QCOMPARE(rewind->workspaceAdmission->additionalPeakByteCount,
+        persistentDecoderByteCount + frameOutputByteCount);
+    QCOMPARE(rewind->workspaceAdmission->perOperationBaselineByteCount, retainedInputByteCount);
+    QVERIFY(rewind->retirePlaybackSourceBeforeProduction);
 }
 
 QTEST_GUILESS_MAIN(TestAnimationSourceRuntime)

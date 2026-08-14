@@ -7,6 +7,7 @@
 #include "async/imageiojob.h"
 #include "async/imageworkerscheduler.h"
 #include "decoding/decodedimageresult.h"
+#include "decoding/imagedecodepipeline.h"
 #include "decoding/imagedecodeworkspace.h"
 #include "decoding/imagesourcedata.h"
 #include "location/imagelocation.h"
@@ -62,6 +63,7 @@ struct ThumbnailGenerationRequest
     ActiveNavigationThumbnailDemandBucket requestedBucket
         = ActiveNavigationThumbnailDemandBucket::None;
     bool cacheInstallEnabled = true;
+    ImageDecodeWorkspacePriority workspacePriority = ImageDecodeWorkspacePriority::Demanded;
 };
 
 struct ThumbnailGenerationResult
@@ -217,9 +219,11 @@ struct ThumbnailGenerationDependencies
 {
     ThumbnailGenerationBytesLoader bytesLoader;
     ThumbnailGenerationImageDecoder imageDecoder;
+    ImageDataDecodePlanner imagePlanner;
     ThumbnailGenerationMaximumLongEdgePolicy maximumLongEdgeForBucket;
     ThumbnailGenerationOriginalIdentityLoader openedCollectionOriginalIdentityLoader;
     ThumbnailGenerationCacheRepository cacheRepository;
+    ThumbnailCacheLookupProvider cacheLookupProvider;
     ThumbnailVideoExtractionProvider videoExtractionProvider;
     std::shared_ptr<ImageSourceDataBudget> sourceDataBudget;
     std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget;

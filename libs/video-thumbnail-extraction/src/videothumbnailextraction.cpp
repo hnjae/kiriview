@@ -62,6 +62,17 @@ public:
         }
     }
 
+    void setRetirementCallback(std::function<void()> callback)
+    {
+        if (control_->retired) {
+            if (callback) {
+                callback();
+            }
+            return;
+        }
+        control_->retirementCallback = std::move(callback);
+    }
+
     [[nodiscard]] auto isActive() const noexcept -> bool { return control_ && control_->active; }
 
 private:
@@ -93,7 +104,15 @@ void VideoThumbnailExtractionJob::cancel() noexcept
 {
     if (state_) {
         state_->cancel();
-        state_.reset();
+    }
+}
+
+void VideoThumbnailExtractionJob::setRetirementCallback(std::function<void()> callback)
+{
+    if (state_) {
+        state_->setRetirementCallback(std::move(callback));
+    } else if (callback) {
+        callback();
     }
 }
 

@@ -3,13 +3,16 @@
 
 #include "thumbnailcachelookup.h"
 
-#include "async/imageioworkerjob.h"
 #include "bridge/rustqtconversion.h"
 #include "kiriview/src/support/thumbnailcache.cxx.h"
 #include "rendering/imagerendering.h"
 
 #include <QImage>
+#include <QObject>
+#include <QPointer>
+#include <Qt>
 #include <cstdint>
+#include <mutex>
 #include <new>
 #include <utility>
 
@@ -112,6 +115,234 @@ kiriview::ThumbnailCacheLookupResult unadmittedThumbnailCacheLookup(
     result.image = image;
     return result;
 }
+
+std::optional<qsizetype> thumbnailCacheLookupPeakByteCount()
+{
+    constexpr QSize maximumCacheRasterSize(1024, 1024);
+    // Six full-size RGBA buffers conservatively cover the validated decoder canvas, normalized
+    // pixels, downscaler input/output and floating-point workspace, and the Rust-to-Qt copies.
+    return kiriview::checkedImageDecodeWorkspaceByteCount(maximumCacheRasterSize, 4, 6);
+}
+
+kiriview::ThumbnailCacheLookupResult thumbnailCacheLookupResourceLimitResult(
+    const kiriview::ThumbnailCacheLookupRequest& request)
+{
+    return {
+        kiriview::ThumbnailCacheLookupStatus::ResourceLimitExceeded,
+        {},
+        request.requestedBucket,
+        {},
+        {},
+        kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+    };
+}
+
+kiriview::ThumbnailCacheLookupResult admittedThumbnailCacheLookup(
+    const kiriview::ThumbnailCacheLookupRequest& request,
+    kiriview::ImageDecodeWorkspaceLease workspaceLease)
+{
+    const std::optional<qsizetype> peakByteCount = thumbnailCacheLookupPeakByteCount();
+    if (!peakByteCount.has_value() || !workspaceLease.isManaged()
+        || workspaceLease.reservedByteCount() < *peakByteCount) {
+        return thumbnailCacheLookupResourceLimitResult(request);
+    }
+
+    kiriview::ThumbnailCacheLookupResult result;
+    try {
+        result = unadmittedThumbnailCacheLookup(request);
+    } catch (const std::bad_alloc&) {
+        return thumbnailCacheLookupResourceLimitResult(request);
+    }
+    if (result.status != kiriview::ThumbnailCacheLookupStatus::Ready) {
+        return result;
+    }
+
+    const qsizetype retainedByteCount = result.image.sizeInBytes();
+    kiriview::ImageDecodeWorkspaceHold retainedWorkspace
+        = workspaceLease.retainOnly(retainedByteCount);
+    if (!retainedWorkspace.isManaged()) {
+        result = thumbnailCacheLookupResourceLimitResult(request);
+        return result;
+    }
+    result.image = kiriview::imageRetainingDecodeWorkspace(
+        std::move(result.image), std::move(retainedWorkspace));
+    if (result.image.isNull()) {
+        result = thumbnailCacheLookupResourceLimitResult(request);
+    }
+    return result;
+}
+
+class ThumbnailCacheLookupAdmissionJobState final
+{
+public:
+    ThumbnailCacheLookupAdmissionJobState(QObject* token,
+        kiriview::ImageWorkerScheduler workerScheduler,
+        kiriview::ThumbnailCacheLookupRequest request,
+        kiriview::ThumbnailCacheLookupCallback callback)
+        : m_token(token)
+        , m_workerScheduler(std::move(workerScheduler))
+        , m_request(std::move(request))
+        , m_callback(std::move(callback))
+    {
+    }
+
+    void setCompletion(kiriview::ImageIoJobCompletion completion)
+    {
+        const std::scoped_lock lock(m_mutex);
+        m_completion = std::move(completion);
+    }
+
+    [[nodiscard]] kiriview::ImageDecodeWorkspacePriority workspacePriority() const
+    {
+        const std::scoped_lock lock(m_mutex);
+        return m_request.workspacePriority;
+    }
+
+    void setAdmission(kiriview::ImageDecodeWorkspaceAdmission admission)
+    {
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (m_phase == Phase::WaitingForAdmission) {
+                m_admission = std::move(admission);
+                return;
+            }
+        }
+        admission.cancel();
+    }
+
+    void rejectAdmission()
+    {
+        kiriview::ImageIoJobCompletion completion;
+        kiriview::ThumbnailCacheLookupCallback callback;
+        kiriview::ThumbnailCacheLookupResult result;
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (m_phase != Phase::WaitingForAdmission) {
+                return;
+            }
+            m_phase = Phase::Finished;
+            completion = m_completion;
+            callback = std::move(m_callback);
+            result = thumbnailCacheLookupResourceLimitResult(m_request);
+        }
+        completion.claimAndDelete(
+            [callback = std::move(callback), result = std::move(result)]() mutable {
+                if (callback) {
+                    callback(std::move(result));
+                }
+            });
+        completion.retire();
+    }
+
+    void grant(kiriview::ImageDecodeWorkspaceLease workspaceLease)
+    {
+        kiriview::ImageWorkerScheduler workerScheduler;
+        kiriview::ThumbnailCacheLookupRequest request;
+        kiriview::ThumbnailCacheLookupCallback callback;
+        kiriview::ImageIoJobCompletion completion;
+        QObject* token = nullptr;
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (m_phase != Phase::WaitingForAdmission) {
+                return;
+            }
+            m_phase = Phase::StartingWorker;
+            m_admission = {};
+            workerScheduler = m_workerScheduler;
+            request = std::move(m_request);
+            callback = std::move(m_callback);
+            completion = m_completion;
+            token = m_token.data();
+        }
+
+        if (token == nullptr || !completion.isActive()) {
+            {
+                const std::scoped_lock lock(m_mutex);
+                m_phase = Phase::Finished;
+            }
+            completion.retire();
+            return;
+        }
+
+        kiriview::ImageWorkerTask worker = workerScheduler.run(
+            token,
+            [request = std::move(request), workspaceLease = std::move(workspaceLease)]() mutable {
+                return admittedThumbnailCacheLookup(request, std::move(workspaceLease));
+            },
+            [completion, callback = std::move(callback)](
+                kiriview::ThumbnailCacheLookupResult result) mutable {
+                completion.claimAndDelete([&callback, result = std::move(result)]() mutable {
+                    if (callback) {
+                        callback(std::move(result));
+                    }
+                });
+            });
+        worker.setRetirementCallback([completion]() { completion.retire(); });
+
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (m_phase == Phase::StartingWorker) {
+                m_phase = Phase::WorkerSubmitted;
+                m_worker = std::move(worker);
+                return;
+            }
+        }
+        worker.cancel();
+    }
+
+    void cancel()
+    {
+        kiriview::ImageDecodeWorkspaceAdmission admission;
+        kiriview::ImageWorkerTask worker;
+        kiriview::ImageIoJobCompletion completion;
+        bool retireNow = false;
+        {
+            const std::scoped_lock lock(m_mutex);
+            completion = m_completion;
+            switch (m_phase) {
+            case Phase::WaitingForAdmission:
+                admission = std::move(m_admission);
+                retireNow = true;
+                break;
+            case Phase::StartingWorker:
+                break;
+            case Phase::WorkerSubmitted:
+                worker = std::move(m_worker);
+                break;
+            case Phase::Finished:
+            case Phase::Canceled:
+                return;
+            }
+            m_phase = Phase::Canceled;
+            m_callback = {};
+        }
+
+        admission.cancel();
+        worker.cancel();
+        if (retireNow) {
+            completion.retire();
+        }
+    }
+
+private:
+    enum class Phase {
+        WaitingForAdmission,
+        StartingWorker,
+        WorkerSubmitted,
+        Finished,
+        Canceled,
+    };
+
+    QPointer<QObject> m_token;
+    kiriview::ImageWorkerScheduler m_workerScheduler;
+    kiriview::ThumbnailCacheLookupRequest m_request;
+    kiriview::ThumbnailCacheLookupCallback m_callback;
+    kiriview::ImageIoJobCompletion m_completion;
+    kiriview::ImageDecodeWorkspaceAdmission m_admission;
+    kiriview::ImageWorkerTask m_worker;
+    Phase m_phase = Phase::WaitingForAdmission;
+    mutable std::mutex m_mutex;
+};
 }
 
 namespace kiriview {
@@ -129,51 +360,14 @@ ThumbnailCacheLookupResult lookupThumbnailCache(const ThumbnailCacheLookupReques
         };
     }
 
-    constexpr QSize maximumCacheRasterSize(1024, 1024);
-    // Six full-size RGBA buffers conservatively cover the validated decoder canvas, normalized
-    // pixels, downscaler input/output and floating-point workspace, and the Rust-to-Qt copies.
-    const std::optional<qsizetype> peakByteCount
-        = checkedImageDecodeWorkspaceByteCount(maximumCacheRasterSize, 4, 6);
-    ImageDecodeWorkspaceLease workspaceLease = workspaceBudget->startLease();
-    if (!peakByteCount.has_value() || !workspaceLease.tryReserve(*peakByteCount)) {
-        return ThumbnailCacheLookupResult {
-            ThumbnailCacheLookupStatus::ResourceLimitExceeded,
-            {},
-            request.requestedBucket,
-            {},
-            {},
-            imageDecodeWorkspaceResourceLimitDiagnostic(),
-        };
+    const std::optional<qsizetype> peakByteCount = thumbnailCacheLookupPeakByteCount();
+    ImageDecodeWorkspaceLease workspaceLease
+        = ImageDecodeWorkspaceDetail::startLease(*workspaceBudget);
+    if (!peakByteCount.has_value()
+        || !ImageDecodeWorkspaceDetail::tryReserve(workspaceLease, *peakByteCount)) {
+        return thumbnailCacheLookupResourceLimitResult(request);
     }
-
-    ThumbnailCacheLookupResult result;
-    try {
-        result = unadmittedThumbnailCacheLookup(request);
-    } catch (const std::bad_alloc&) {
-        result.status = ThumbnailCacheLookupStatus::ResourceLimitExceeded;
-        result.requestedBucket = request.requestedBucket;
-        result.errorString = imageDecodeWorkspaceResourceLimitDiagnostic();
-        return result;
-    }
-    if (result.status != ThumbnailCacheLookupStatus::Ready) {
-        return result;
-    }
-
-    const qsizetype retainedByteCount = result.image.sizeInBytes();
-    ImageDecodeWorkspaceHold retainedWorkspace = workspaceLease.retainOnly(retainedByteCount);
-    if (!retainedWorkspace.isManaged()) {
-        result.status = ThumbnailCacheLookupStatus::ResourceLimitExceeded;
-        result.image = {};
-        result.errorString = imageDecodeWorkspaceResourceLimitDiagnostic();
-        return result;
-    }
-    result.image
-        = imageRetainingDecodeWorkspace(std::move(result.image), std::move(retainedWorkspace));
-    if (result.image.isNull()) {
-        result.status = ThumbnailCacheLookupStatus::ResourceLimitExceeded;
-        result.errorString = imageDecodeWorkspaceResourceLimitDiagnostic();
-    }
-    return result;
+    return admittedThumbnailCacheLookup(request, std::move(workspaceLease));
 }
 
 ThumbnailCacheLookupProvider defaultThumbnailCacheLookupProvider(
@@ -186,16 +380,56 @@ ThumbnailCacheLookupProvider defaultThumbnailCacheLookupProvider(
     return [workerScheduler = std::move(workerScheduler),
                workspaceBudget = std::move(workspaceBudget)](QObject* receiver,
                ThumbnailCacheLookupRequest request, ThumbnailCacheLookupCallback callback) {
-        return startImageIoWorkerJob(
-            receiver, workerScheduler,
-            [request = std::move(request), workspaceBudget]() {
-                return lookupThumbnailCache(request, workspaceBudget);
+        if (receiver == nullptr) {
+            if (callback) {
+                callback(lookupThumbnailCache(request, workspaceBudget));
+            }
+            return ImageIoJob {};
+        }
+
+        auto* token = new QObject(receiver);
+        auto state = std::make_shared<ThumbnailCacheLookupAdmissionJobState>(
+            token, workerScheduler, std::move(request), std::move(callback));
+        ImageIoJob job(
+            token,
+            [state](QObject* object) {
+                state->cancel();
+                object->deleteLater();
             },
-            [callback = std::move(callback)](ThumbnailCacheLookupResult result) mutable {
-                if (callback) {
-                    callback(std::move(result));
+            ImageIoJobCancellationRetirement::Explicit);
+        state->setCompletion(job.completion());
+        const std::weak_ptr<ThumbnailCacheLookupAdmissionJobState> weakState(state);
+        QObject::connect(
+            token, &QObject::destroyed, token,
+            [weakState](QObject*) {
+                if (const auto activeState = weakState.lock()) {
+                    activeState->cancel();
+                }
+            },
+            Qt::DirectConnection);
+
+        const std::optional<qsizetype> peakByteCount = thumbnailCacheLookupPeakByteCount();
+        if (!peakByteCount.has_value()) {
+            state->rejectAdmission();
+            return job;
+        }
+        const ImageDecodeWorkspaceAdmissionRequest admissionRequest {
+            *peakByteCount,
+            0,
+            state->workspacePriority(),
+        };
+        auto admission = workspaceBudget->requestAdmission(
+            token, admissionRequest, [weakState](ImageDecodeWorkspaceLease workspaceLease) mutable {
+                if (const auto activeState = weakState.lock()) {
+                    activeState->grant(std::move(workspaceLease));
                 }
             });
+        if (!admission.has_value()) {
+            state->rejectAdmission();
+            return job;
+        }
+        state->setAdmission(std::move(*admission));
+        return job;
     };
 }
 }

@@ -128,6 +128,7 @@ private:
     static bool supportsGeneratedThumbnail(const ThumbnailSourceAdapterPlan& plan);
     static ActiveNavigationThumbnailRetentionClass retentionClass(
         ActiveNavigationThumbnailDemandPriority priority);
+    static ImageDecodeWorkspacePriority workspacePriority(Tier tier);
     static std::vector<ActiveNavigationThumbnailDemandBucket> backgroundBuckets();
     [[nodiscard]] std::optional<std::size_t> rowForIdentity(
         int number, const QUrl& url, quint64 generation) const;
@@ -152,6 +153,7 @@ private:
         std::size_t row, std::vector<ActiveNavigationThumbnailScheduleEffect>& effects);
     ActiveNavigationThumbnailWorkId nextWorkId();
     [[nodiscard]] bool workIdInUse(ActiveNavigationThumbnailWorkId workId) const;
+    [[nodiscard]] bool workRetiringFor(const ThumbnailSourceRevisionKey& sourceKey) const;
     void cancel(std::size_t row, std::vector<ActiveNavigationThumbnailScheduleEffect>& effects);
     void start(std::size_t row, ActiveNavigationThumbnailWorkKind kind, Tier tier,
         const Demand& demand, std::vector<ActiveNavigationThumbnailScheduleEffect>& effects);

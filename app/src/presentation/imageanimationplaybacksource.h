@@ -8,9 +8,11 @@
 #include "decoding/imageanimationrequest.h"
 
 #include <QImage>
+#include <QSize>
 #include <QString>
 #include <QtGlobal>
 #include <memory>
+#include <optional>
 #include <utility>
 
 namespace kiriview {
@@ -96,6 +98,16 @@ struct ImageAnimationPlaybackReadResult
     QString errorString;
 };
 
+struct ImageAnimationPlaybackWorkspacePlan
+{
+    qsizetype retainedInputByteCount = 0;
+    qsizetype persistentDecoderByteCount = 0;
+    qsizetype frameOutputByteCount = 0;
+
+    [[nodiscard]] bool isValid() const;
+    [[nodiscard]] std::optional<qsizetype> openPeakByteCount() const;
+};
+
 class ImageAnimationPlaybackSource
 {
 public:
@@ -104,6 +116,10 @@ public:
 
     virtual ImageAnimationPlaybackOpenResult open() = 0;
     virtual ImageAnimationPlaybackReadResult readNextFrame() = 0;
+    virtual ImageAnimationPlaybackOpenResult openAdmitted(
+        std::shared_ptr<ImageDecodeWorkspaceBudget> operationBudget);
+    virtual ImageAnimationPlaybackReadResult readNextFrameAdmitted(
+        std::shared_ptr<ImageDecodeWorkspaceBudget> operationBudget);
     [[nodiscard]] virtual bool restartable() const = 0;
     void retainSourceDataLease(ImageSourceDataLease sourceDataLease);
     void retainInputWorkspace(ImageDecodeWorkspaceHold inputWorkspaceHold);
@@ -116,6 +132,9 @@ private:
 
 std::unique_ptr<ImageAnimationPlaybackSource> makeImageAnimationPlaybackSource(
     ImageAnimationPlaybackRequest request);
+[[nodiscard]] std::optional<ImageAnimationPlaybackWorkspacePlan>
+imageAnimationPlaybackWorkspacePlan(
+    const ImageAnimationPlaybackRequest& request, QSize logicalSize);
 }
 
 #endif

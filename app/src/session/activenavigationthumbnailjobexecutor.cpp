@@ -88,8 +88,10 @@ public:
         quint64 phaseToken = 0;
         PhaseKind phaseKind = PhaseKind::Lookup;
         ImageIoJob job;
+        std::optional<ActiveNavigationThumbnailWorkCompletion> pendingCompletion;
         bool publicationCanceled = false;
         bool physicallyRetired = false;
+        bool lookupMissing = false;
     };
 
     State(QObject* owner, ThumbnailCacheLookupProvider lookupProvider,
@@ -122,10 +124,14 @@ public:
             return false;
         }
         iterator->second.publicationCanceled = true;
-        iterator->second.job.cancel();
+        iterator->second.pendingCompletion.reset();
+        const bool physicallyRetired = iterator->second.physicallyRetired;
+        const quint64 phaseToken = iterator->second.phaseToken;
+        ImageIoJob job = std::move(iterator->second.job);
+        job.cancel();
         iterator = records.find(workId.value);
-        if (iterator != records.end() && iterator->second.physicallyRetired) {
-            retirePhase(workId.value, iterator->second.phaseToken);
+        if (physicallyRetired && iterator != records.end()) {
+            retirePhase(workId.value, phaseToken);
         }
         return true;
     }
@@ -144,20 +150,23 @@ public:
 
     bool startLookup(ActiveNavigationThumbnailWorkRequest request)
     {
-        if (!lookupProvider) {
-            completeFailure(std::move(request),
-                ActiveNavigationThumbnailFailureKind::CacheLookupProviderUnavailable, {});
-            return true;
-        }
-
         const quint64 phaseToken = nextPhaseToken++;
         const quint64 workValue = request.workId.value;
-        records.emplace(workValue, Record { request, phaseToken, PhaseKind::Lookup, {} });
         ThumbnailCacheLookupRequest providerRequest {
             request.sourcePlan.localPathBytes,
             request.sourcePlan.originalIdentity,
             request.bucket,
+            request.workspacePriority,
         };
+        records.emplace(
+            workValue, Record { std::move(request), phaseToken, PhaseKind::Lookup, {} });
+        if (!lookupProvider) {
+            stageFailure(workValue, phaseToken,
+                ActiveNavigationThumbnailFailureKind::CacheLookupProviderUnavailable, {});
+            retirePhase(workValue, phaseToken);
+            return true;
+        }
+
         const std::weak_ptr<State> weakState = weak_from_this();
         ImageIoJob job = lookupProvider(owner.data(), std::move(providerRequest),
             [weakState, workValue, phaseToken](ThumbnailCacheLookupResult result) mutable {
@@ -171,15 +180,30 @@ public:
 
     bool startGeneration(ActiveNavigationThumbnailWorkRequest request)
     {
-        if (!generationProvider) {
-            completeFailure(std::move(request),
-                ActiveNavigationThumbnailFailureKind::GenerationProviderUnavailable, {});
-            return true;
-        }
-
         const quint64 phaseToken = nextPhaseToken++;
         const quint64 workValue = request.workId.value;
-        records.emplace(workValue, Record { request, phaseToken, PhaseKind::Generation, {} });
+        records.emplace(
+            workValue, Record { std::move(request), phaseToken, PhaseKind::Generation, {} });
+        startGenerationPhase(workValue, phaseToken);
+        return true;
+    }
+
+    void startGenerationPhase(quint64 workValue, quint64 phaseToken)
+    {
+        auto iterator = records.find(workValue);
+        if (iterator == records.end() || iterator->second.phaseToken != phaseToken
+            || iterator->second.phaseKind != PhaseKind::Generation
+            || iterator->second.publicationCanceled) {
+            return;
+        }
+        if (!generationProvider) {
+            stageFailure(workValue, phaseToken,
+                ActiveNavigationThumbnailFailureKind::GenerationProviderUnavailable, {});
+            retirePhase(workValue, phaseToken);
+            return;
+        }
+
+        const ActiveNavigationThumbnailWorkRequest request = iterator->second.request;
         ThumbnailGenerationRequest providerRequest;
         providerRequest.localPathBytes = request.sourcePlan.localPathBytes;
         providerRequest.originalIdentity = request.sourcePlan.originalIdentity;
@@ -189,6 +213,7 @@ public:
         providerRequest.sourceKind = thumbnailSourceKind(request.sourceKey.row.sourceKind);
         providerRequest.requestedBucket = request.bucket;
         providerRequest.cacheInstallEnabled = enablesCacheInstall(request.sourcePlan);
+        providerRequest.workspacePriority = request.workspacePriority;
         const std::weak_ptr<State> weakState = weak_from_this();
         ImageIoJob job = generationProvider(owner.data(), std::move(providerRequest),
             [weakState, workValue, phaseToken](ThumbnailGenerationResult result) mutable {
@@ -197,7 +222,6 @@ public:
                 }
             });
         retainReturnedJob(workValue, phaseToken, PhaseKind::Generation, std::move(job));
-        return true;
     }
 
     void retainReturnedJob(
@@ -231,7 +255,8 @@ public:
             job.cancel();
             return;
         }
-        if (iterator->second.publicationCanceled) {
+        if (iterator->second.publicationCanceled || iterator->second.lookupMissing
+            || iterator->second.pendingCompletion.has_value()) {
             job.cancel();
             return;
         }
@@ -240,19 +265,46 @@ public:
 
     void retirePhase(quint64 workValue, quint64 phaseToken)
     {
+        std::optional<ActiveNavigationThumbnailWorkCompletion> completion;
+        std::optional<ActiveNavigationThumbnailWorkId> canceledWorkId;
+        std::optional<quint64> generationPhaseToken;
         auto iterator = records.find(workValue);
         if (iterator == records.end() || iterator->second.phaseToken != phaseToken) {
             return;
         }
         iterator->second.physicallyRetired = true;
-        if (!iterator->second.publicationCanceled) {
+        if (iterator->second.publicationCanceled) {
+            canceledWorkId = iterator->second.request.workId;
+            records.erase(iterator);
+        } else if (iterator->second.pendingCompletion.has_value()) {
+            completion = std::move(iterator->second.pendingCompletion);
+            records.erase(iterator);
+        } else if (iterator->second.phaseKind == PhaseKind::Lookup
+            && iterator->second.lookupMissing) {
+            iterator->second.phaseToken = nextPhaseToken++;
+            iterator->second.phaseKind = PhaseKind::Generation;
+            iterator->second.job = {};
+            iterator->second.physicallyRetired = false;
+            iterator->second.lookupMissing = false;
+            generationPhaseToken = iterator->second.phaseToken;
+        } else {
             return;
         }
-        const ActiveNavigationThumbnailWorkId workId = iterator->second.request.workId;
-        records.erase(iterator);
-        ActiveNavigationThumbnailWorkRetirementCallback callback = retirementCallback;
-        if (callback) {
-            callback(workId);
+
+        if (completion.has_value()) {
+            ActiveNavigationThumbnailWorkCallback callback = completionCallback;
+            if (callback) {
+                callback(std::move(*completion));
+            }
+        }
+        if (canceledWorkId.has_value()) {
+            ActiveNavigationThumbnailWorkRetirementCallback callback = retirementCallback;
+            if (callback) {
+                callback(*canceledWorkId);
+            }
+        }
+        if (generationPhaseToken.has_value()) {
+            startGenerationPhase(workValue, *generationPhaseToken);
         }
     }
 
@@ -261,30 +313,29 @@ public:
         auto iterator = records.find(workValue);
         if (iterator == records.end() || iterator->second.phaseToken != phaseToken
             || iterator->second.phaseKind != PhaseKind::Lookup
-            || iterator->second.publicationCanceled) {
+            || iterator->second.publicationCanceled || iterator->second.lookupMissing
+            || iterator->second.pendingCompletion.has_value()) {
             return;
         }
-        ActiveNavigationThumbnailWorkRequest request = iterator->second.request;
-        records.erase(iterator);
         switch (result.status) {
         case ThumbnailCacheLookupStatus::Ready:
-            completeReady(std::move(request), std::move(result.image));
+            stageReady(workValue, phaseToken, std::move(result.image));
             return;
         case ThumbnailCacheLookupStatus::Missing:
-            startGeneration(std::move(request));
+            stageLookupMissing(workValue, phaseToken);
             return;
         case ThumbnailCacheLookupStatus::Invalid:
-            completeFailure(std::move(request),
+            stageFailure(workValue, phaseToken,
                 ActiveNavigationThumbnailFailureKind::CacheLookupInvalid,
                 std::move(result.errorString));
             return;
         case ThumbnailCacheLookupStatus::ResourceLimitExceeded:
-            completeFailure(std::move(request),
+            stageFailure(workValue, phaseToken,
                 ActiveNavigationThumbnailFailureKind::ResourceLimitExceeded,
                 std::move(result.errorString));
             return;
         case ThumbnailCacheLookupStatus::Failed:
-            completeFailure(std::move(request),
+            stageFailure(workValue, phaseToken,
                 ActiveNavigationThumbnailFailureKind::CacheLookupFailed,
                 std::move(result.errorString));
             return;
@@ -296,11 +347,10 @@ public:
         auto iterator = records.find(workValue);
         if (iterator == records.end() || iterator->second.phaseToken != phaseToken
             || iterator->second.phaseKind != PhaseKind::Generation
-            || iterator->second.publicationCanceled) {
+            || iterator->second.publicationCanceled
+            || iterator->second.pendingCompletion.has_value()) {
             return;
         }
-        ActiveNavigationThumbnailWorkRequest request = iterator->second.request;
-        records.erase(iterator);
         if (result.status == ThumbnailGenerationStatus::Ready) {
             std::optional<ActiveNavigationThumbnailWorkDiagnostic> diagnostic;
             if (result.diagnosticKind == ThumbnailGenerationDiagnosticKind::CacheInstallFailed) {
@@ -309,20 +359,44 @@ public:
                     std::move(result.errorString),
                 };
             }
-            completeReady(std::move(request), std::move(result.image), std::move(diagnostic));
+            stageReady(workValue, phaseToken, std::move(result.image), std::move(diagnostic));
             return;
         }
         const ActiveNavigationThumbnailFailureKind failureKind
             = thumbnailGenerationFailureKind(result.status);
-        completeFailure(std::move(request), failureKind, std::move(result.errorString));
+        stageFailure(workValue, phaseToken, failureKind, std::move(result.errorString));
     }
 
-    void completeReady(ActiveNavigationThumbnailWorkRequest request, QImage image,
+    void stageLookupMissing(quint64 workValue, quint64 phaseToken)
+    {
+        auto iterator = records.find(workValue);
+        if (iterator == records.end() || iterator->second.phaseToken != phaseToken
+            || iterator->second.phaseKind != PhaseKind::Lookup
+            || iterator->second.publicationCanceled || iterator->second.lookupMissing
+            || iterator->second.pendingCompletion.has_value()) {
+            return;
+        }
+        iterator->second.lookupMissing = true;
+        const bool physicallyRetired = iterator->second.physicallyRetired;
+        ImageIoJob job = std::move(iterator->second.job);
+        job.cancel();
+        if (physicallyRetired) {
+            retirePhase(workValue, phaseToken);
+        }
+    }
+
+    void stageReady(quint64 workValue, quint64 phaseToken, QImage image,
         std::optional<ActiveNavigationThumbnailWorkDiagnostic> diagnostic = std::nullopt)
     {
-        ActiveNavigationThumbnailWorkCallback callback = completionCallback;
-        if (callback) {
-            callback(ActiveNavigationThumbnailWorkCompletion {
+        auto iterator = records.find(workValue);
+        if (iterator == records.end() || iterator->second.phaseToken != phaseToken
+            || iterator->second.publicationCanceled || iterator->second.lookupMissing
+            || iterator->second.pendingCompletion.has_value()) {
+            return;
+        }
+        ActiveNavigationThumbnailWorkRequest request = iterator->second.request;
+        stageCompletion(workValue, phaseToken,
+            ActiveNavigationThumbnailWorkCompletion {
                 request.workId,
                 std::move(request.sourceKey),
                 request.bucket,
@@ -330,21 +404,43 @@ public:
                 ActiveNavigationThumbnailReadyWorkResult {
                     std::move(image), std::move(diagnostic) },
             });
-        }
     }
 
-    void completeFailure(ActiveNavigationThumbnailWorkRequest request,
+    void stageFailure(quint64 workValue, quint64 phaseToken,
         ActiveNavigationThumbnailFailureKind failureKind, QString errorString)
     {
-        ActiveNavigationThumbnailWorkCallback callback = completionCallback;
-        if (callback) {
-            callback(ActiveNavigationThumbnailWorkCompletion {
+        auto iterator = records.find(workValue);
+        if (iterator == records.end() || iterator->second.phaseToken != phaseToken
+            || iterator->second.publicationCanceled || iterator->second.lookupMissing
+            || iterator->second.pendingCompletion.has_value()) {
+            return;
+        }
+        ActiveNavigationThumbnailWorkRequest request = iterator->second.request;
+        stageCompletion(workValue, phaseToken,
+            ActiveNavigationThumbnailWorkCompletion {
                 request.workId,
                 std::move(request.sourceKey),
                 request.bucket,
                 request.workKind,
                 ActiveNavigationThumbnailFailedWorkResult { failureKind, std::move(errorString) },
             });
+    }
+
+    void stageCompletion(
+        quint64 workValue, quint64 phaseToken, ActiveNavigationThumbnailWorkCompletion completion)
+    {
+        auto iterator = records.find(workValue);
+        if (iterator == records.end() || iterator->second.phaseToken != phaseToken
+            || iterator->second.publicationCanceled || iterator->second.lookupMissing
+            || iterator->second.pendingCompletion.has_value()) {
+            return;
+        }
+        iterator->second.pendingCompletion.emplace(std::move(completion));
+        const bool physicallyRetired = iterator->second.physicallyRetired;
+        ImageIoJob job = std::move(iterator->second.job);
+        job.cancel();
+        if (physicallyRetired) {
+            retirePhase(workValue, phaseToken);
         }
     }
 
