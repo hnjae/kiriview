@@ -5,7 +5,6 @@
 #define KIRIVIEW_KIRIIMAGEDOCUMENT_H
 
 #include "archive/mediaentrysourcebackend.h"
-#include "document/imagedocumentruntimedependencies.h"
 #include "document/imagedocumenttypes.h"
 #include "metadata/embeddedmetadata.h"
 #include "navigation/imagedocumentpagecandidatelistsource.h"
@@ -21,7 +20,6 @@
 #include <QStringList>
 #include <QUrl>
 #include <QtQml/qqmlregistration.h>
-#include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -29,6 +27,7 @@
 namespace kiriview {
 class OpenedCollectionScopeLocation;
 class ImageDocumentRuntime;
+struct KiriImageDocumentComposition;
 }
 
 class KiriDocumentSession;
@@ -120,8 +119,6 @@ public:
     Q_ENUM(DeletionMode)
 
     explicit KiriImageDocument(QObject* parent = nullptr);
-    explicit KiriImageDocument(
-        kiriview::ImageDocumentRuntimeDependencyOverrides dependencies, QObject* parent = nullptr);
     ~KiriImageDocument() override;
     Q_DISABLE_COPY_MOVE(KiriImageDocument)
 
@@ -236,8 +233,7 @@ Q_SIGNALS:
 private:
     friend class KiriDocumentSession;
 
-    KiriImageDocument(kiriview::ImageDocumentRuntimeDependencyOverrides dependencies,
-        std::function<void(const QString&)> fileDeletionFailed, QObject* parent);
+    explicit KiriImageDocument(kiriview::KiriImageDocumentComposition composition, QObject* parent);
 
     Q_SIGNAL void documentSessionSnapshotChanged();
 

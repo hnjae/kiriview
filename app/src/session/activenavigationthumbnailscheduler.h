@@ -142,6 +142,8 @@ private:
     bool releaseResidencyBlock(
         std::size_t row, std::vector<ActiveNavigationThumbnailScheduleEffect>& effects);
     void advanceAdmissionEpoch();
+    void scheduleAdmissionContinuation(
+        std::vector<ActiveNavigationThumbnailScheduleEffect>& effects);
     void armBackgroundSweep();
     void refreshDemandTier(std::size_t row);
     void expireDemand(

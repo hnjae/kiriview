@@ -4,6 +4,7 @@
 #include "facade/kirivideodocument.h"
 
 #include "facade/kiridocumentsession.h"
+#include "facade/kiridocumentsessioncomposition.h"
 #include "video/videomediabackend.h"
 #include <QMetaMethod>
 #include <QMetaProperty>
@@ -612,7 +613,8 @@ void TestKiriVideoDocument::sessionDestructionDuringVideoSignalSilentlySettlesPl
 
     QObject surfaceOwner;
     QObject videoOutput;
-    auto session = std::make_unique<KiriDocumentSession>(std::move(dependencies));
+    std::unique_ptr<KiriDocumentSession> session(
+        kiriview::KiriDocumentSessionFactory::create(std::move(dependencies)));
     QPointer<KiriDocumentSession> sessionGuard(session.get());
     KiriVideoDocument* document = session->videoDocument();
     session->setSourceUrl(QUrl::fromLocalFile(QStringLiteral("/tmp/movie.mp4")));

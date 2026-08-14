@@ -18,7 +18,6 @@
 
 #include <memory>
 
-class ImageViewportPrivate;
 class ImageViewportPresentationCommand;
 class PresentationTargetTransitionPolicy;
 
@@ -137,9 +136,10 @@ protected:
     void itemChange(ItemChange change, const ItemChangeData& data) override;
 
 private:
-    friend ImageViewportPrivate;
+    class Private;
+    friend class ImageViewportPrivateAccess;
 
-    std::unique_ptr<ImageViewportPrivate> d;
+    std::unique_ptr<Private> d;
 };
 
 class ImageViewportPresentationCommand

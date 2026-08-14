@@ -4,6 +4,7 @@
 #include "facade/kirimediainformation.h"
 
 #include "facade/kiridocumentsession.h"
+#include "facade/kiridocumentsessioncomposition.h"
 
 #include <QModelIndex>
 #include <functional>
@@ -59,10 +60,11 @@ void KiriMediaInformationRowModel::setRows(std::vector<Row> rows)
 }
 
 KiriMediaInformation::KiriMediaInformation(KiriDocumentSession& session,
-    kiriview::MediaInformationEffectCommandPort effectCommands, QObject* parent)
+    kiriview::KiriMediaInformationComposition composition, QObject* parent)
     : QObject(parent)
     , m_session(session)
-    , m_effectCommands(std::move(effectCommands))
+    , m_copyFilePath(std::move(composition.effectCommands.copyFilePath))
+    , m_openContainingFolder(std::move(composition.effectCommands.openContainingFolder))
     , m_generalRows(this)
     , m_mediaRows(this)
     , m_cameraRows(this)
@@ -102,7 +104,7 @@ bool KiriMediaInformation::canOpenContainingFolder() const { return m_canOpenCon
 
 void KiriMediaInformation::copyFilePath()
 {
-    const std::function<void()> command = m_effectCommands.copyFilePath;
+    const std::function<void()> command = m_copyFilePath;
     if (command) {
         command();
     }
@@ -110,7 +112,7 @@ void KiriMediaInformation::copyFilePath()
 
 void KiriMediaInformation::openContainingFolder()
 {
-    const std::function<void()> command = m_effectCommands.openContainingFolder;
+    const std::function<void()> command = m_openContainingFolder;
     if (command) {
         command();
     }

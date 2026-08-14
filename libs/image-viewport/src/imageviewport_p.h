@@ -19,24 +19,21 @@
 #include <memory>
 #include <optional>
 
-class ImageViewportPrivate
+class ImageViewport::Private
 {
 public:
     using CommandOutcome = ImageViewportCommandOutcome;
     using PageRole = ImageViewportPageRole;
     using ProviderRequestTargetKind = ImageViewportInternal::ProviderRequestTargetKind;
 
-    explicit ImageViewportPrivate(ImageViewport* viewport);
-    ~ImageViewportPrivate();
-    ImageViewportPrivate(const ImageViewportPrivate&) = delete;
-    ImageViewportPrivate& operator=(const ImageViewportPrivate&) = delete;
-    ImageViewportPrivate(ImageViewportPrivate&&) = delete;
-    ImageViewportPrivate& operator=(ImageViewportPrivate&&) = delete;
-    static ImageViewportPrivate* get(ImageViewport& viewport) { return viewport.d.get(); }
-    static const ImageViewportPrivate* get(const ImageViewport& viewport)
-    {
-        return viewport.d.get();
-    }
+    explicit Private(ImageViewport* viewport);
+    ~Private();
+    Private(const Private&) = delete;
+    Private& operator=(const Private&) = delete;
+    Private(Private&&) = delete;
+    Private& operator=(Private&&) = delete;
+    static Private* get(ImageViewport& viewport) { return viewport.d.get(); }
+    static const Private* get(const ImageViewport& viewport) { return viewport.d.get(); }
 
     ImageViewportStateSnapshot state() const;
 
@@ -139,3 +136,11 @@ public:
     ViewportRenderAttempt renderMailbox;
     bool renderMailboxValid = false;
 };
+
+class ImageViewportPrivateAccess
+{
+public:
+    using Private = ImageViewport::Private;
+};
+
+using ImageViewportPrivate = ImageViewportPrivateAccess::Private;

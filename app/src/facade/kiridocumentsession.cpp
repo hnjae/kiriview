@@ -12,6 +12,9 @@
 #include "localization/activenavigationboundarytext.h"
 #include "rendering/displayimagestore.h"
 #include "session/activenavigationthumbnaildemand.h"
+#include "session/documentsessiondocumentports.h"
+#include "session/documentsessionruntime.h"
+#include "session/mediainformationeffectruntime.h"
 #include "session/thumbnailimagestore.h"
 
 #include <QPointer>
@@ -518,15 +521,21 @@ KiriDocumentSession::KiriDocumentSession(kiriview::KiriDocumentSessionDependenci
     ResolvedDependenciesTag, QObject* parent)
     : QObject(parent)
     , m_imageDocument(new KiriImageDocument(
-          imageDocumentDependenciesWithPredecodeFinder(dependencies.imageDocument,
-              [this](const kiriview::DisplayedImageLocation& location) {
-                  return m_runtime != nullptr ? m_runtime->findPredecodedImage(location)
-                                              : std::optional<kiriview::PredecodedImage>();
-              }),
-          [this](const QString& message) { Q_EMIT fileDeletionFailed(message); }, this))
-    , m_videoDocument(
-          new KiriVideoDocument(std::move(dependencies.videoPlaybackControlTimerScheduler),
-              std::move(dependencies.videoMediaBackendFactory), this))
+          kiriview::KiriImageDocumentComposition {
+              imageDocumentDependenciesWithPredecodeFinder(dependencies.imageDocument,
+                  [this](const kiriview::DisplayedImageLocation& location) {
+                      return m_runtime != nullptr ? m_runtime->findPredecodedImage(location)
+                                                  : std::optional<kiriview::PredecodedImage>();
+                  }),
+              [this](const QString& message) { Q_EMIT fileDeletionFailed(message); },
+          },
+          this))
+    , m_videoDocument(new KiriVideoDocument(
+          kiriview::KiriVideoDocumentComposition {
+              std::move(dependencies.videoPlaybackControlTimerScheduler),
+              std::move(dependencies.videoMediaBackendFactory),
+          },
+          this))
 {
     dependencies.sessionRuntime.fileDeletionFailed
         = [this](const QString& message) { Q_EMIT fileDeletionFailed(message); };
@@ -544,8 +553,17 @@ KiriDocumentSession::KiriDocumentSession(kiriview::KiriDocumentSessionDependenci
                                         : m_runtime->mediaInformationSnapshot();
         },
         std::move(dependencies.mediaInformationEffects));
-    m_mediaInformation
-        = new KiriMediaInformation(*this, m_mediaInformationEffectRuntime->commandPort(), this);
+    m_mediaInformation = new KiriMediaInformation(*this,
+        kiriview::KiriMediaInformationComposition {
+            m_mediaInformationEffectRuntime->commandPort(),
+        },
+        this);
+}
+
+KiriDocumentSession* kiriview::KiriDocumentSessionFactory::create(
+    KiriDocumentSessionDependencies dependencies, QObject* parent)
+{
+    return new KiriDocumentSession(std::move(dependencies), parent);
 }
 
 KiriDocumentSession::~KiriDocumentSession()

@@ -3,6 +3,7 @@
 
 #include "facade/kirivideodocument.h"
 
+#include "facade/kiridocumentsessioncomposition.h"
 #include "video/videodocumentruntime.h"
 
 #include <QPointer>
@@ -71,19 +72,12 @@ std::vector<kiriview::VideoDocumentPublicSignal> mergePublicSignals(
 }
 
 KiriVideoDocument::KiriVideoDocument(QObject* parent)
-    : KiriVideoDocument(kiriview::TimerScheduler {}, kiriview::VideoMediaBackendFactory {}, parent)
+    : KiriVideoDocument(kiriview::KiriVideoDocumentComposition {}, parent)
 {
 }
 
 KiriVideoDocument::KiriVideoDocument(
-    kiriview::TimerScheduler playbackControlTimerScheduler, QObject* parent)
-    : KiriVideoDocument(
-          std::move(playbackControlTimerScheduler), kiriview::VideoMediaBackendFactory {}, parent)
-{
-}
-
-KiriVideoDocument::KiriVideoDocument(kiriview::TimerScheduler playbackControlTimerScheduler,
-    kiriview::VideoMediaBackendFactory videoMediaBackendFactory, QObject* parent)
+    kiriview::KiriVideoDocumentComposition composition, QObject* parent)
     : QObject(parent)
 {
     m_playbackControls = new KiriVideoPlaybackControls(*this);
@@ -92,8 +86,9 @@ KiriVideoDocument::KiriVideoDocument(kiriview::TimerScheduler playbackControlTim
         [this](const std::vector<kiriview::VideoDocumentChange>& changes) {
             handleDocumentChanges(changes);
         },
-        std::unique_ptr<kiriview::VideoPlaybackUrlResolver>(), std::move(videoMediaBackendFactory),
-        std::move(playbackControlTimerScheduler),
+        std::unique_ptr<kiriview::VideoPlaybackUrlResolver>(),
+        std::move(composition.mediaBackendFactory),
+        std::move(composition.playbackControlTimerScheduler),
         [this](const kiriview::VideoPlaybackControlProjection& projection) {
             const qint64 videoDuration = static_cast<qint64>(projection.sliderMaximumMsec);
             const bool actionStateChanged = !m_playbackControlActionStateKnown

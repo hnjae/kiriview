@@ -3,6 +3,7 @@
 
 #include "application/applicationruntime.h"
 #include "facade/kiridocumentsession.h"
+#include "facade/kiridocumentsessioncomposition.h"
 #include "facade/kiriimagedocument.h"
 #include "facade/kiriimageviewportsurface.h"
 #include "facade/kirimediainformation.h"

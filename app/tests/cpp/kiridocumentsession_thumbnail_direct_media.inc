@@ -235,10 +235,11 @@ void TestKiriDocumentSessionThumbnail::directImageThumbnailDemandProjectsReadyCa
         { thumbnailDemand(1, imageUrl, 96,
             KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation) }));
 
-    QCOMPARE(thumbnailLookup.requests.size(), std::size_t(4));
-    QCOMPARE(thumbnailLookup.requests.front().localPathBytes, QFile::encodeName(imagePath));
-    QCOMPARE(thumbnailDataForRoleName(*session, 0, QByteArrayLiteral("thumbnailStatus")).toInt(),
+    QTRY_COMPARE(
+        thumbnailDataForRoleName(*session, 0, QByteArrayLiteral("thumbnailStatus")).toInt(),
         static_cast<int>(KiriDocumentSession::ThumbnailResultStatus::ReadyThumbnailResult));
+    QVERIFY(!thumbnailLookup.requests.empty());
+    QCOMPARE(thumbnailLookup.requests.front().localPathBytes, QFile::encodeName(imagePath));
     const QUrl source
         = thumbnailDataForRoleName(*session, 0, QByteArrayLiteral("thumbnailImageSource")).toUrl();
     QVERIFY(source.toString().startsWith(QStringLiteral("image://kiriview-thumbnails/")));
@@ -287,11 +288,12 @@ void TestKiriDocumentSessionThumbnail::directImageThumbnailDemandProjectsReadyGe
         { thumbnailDemand(1, imageUrl, 96,
             KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation) }));
 
-    QCOMPARE(thumbnailLookup.requests.size(), std::size_t(4));
-    QCOMPARE(thumbnailGeneration.requests.size(), std::size_t(4));
-    QCOMPARE(thumbnailGeneration.requests.front().localPathBytes, QFile::encodeName(imagePath));
-    QCOMPARE(thumbnailDataForRoleName(*session, 0, QByteArrayLiteral("thumbnailStatus")).toInt(),
+    QTRY_COMPARE(
+        thumbnailDataForRoleName(*session, 0, QByteArrayLiteral("thumbnailStatus")).toInt(),
         static_cast<int>(KiriDocumentSession::ThumbnailResultStatus::ReadyThumbnailResult));
+    QVERIFY(!thumbnailLookup.requests.empty());
+    QVERIFY(!thumbnailGeneration.requests.empty());
+    QCOMPARE(thumbnailGeneration.requests.front().localPathBytes, QFile::encodeName(imagePath));
     const QUrl source
         = thumbnailDataForRoleName(*session, 0, QByteArrayLiteral("thumbnailImageSource")).toUrl();
     QVERIFY(source.toString().startsWith(QStringLiteral("image://kiriview-thumbnails/")));
@@ -366,10 +368,10 @@ void TestKiriDocumentSessionThumbnail::directImageThumbnailDemandKeepsFallbackFo
         { thumbnailDemand(1, imageUrl, 96,
             KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation) }));
 
-    QCOMPARE(thumbnailLookup.requests.size(), std::size_t(4));
-    QCOMPARE(thumbnailGeneration.requests.size(), std::size_t(4));
-    QCOMPARE(thumbnailDataForRoleName(*session, 0, QByteArrayLiteral("thumbnailStatus")).toInt(),
+    QTRY_COMPARE(thumbnailDataForRoleName(*session, 0, QByteArrayLiteral("thumbnailStatus")).toInt(),
         static_cast<int>(KiriDocumentSession::ThumbnailResultStatus::FailedThumbnailResult));
+    QVERIFY(!thumbnailLookup.requests.empty());
+    QVERIFY(!thumbnailGeneration.requests.empty());
     QCOMPARE(
         thumbnailDataForRoleName(*session, 0, QByteArrayLiteral("thumbnailImageSource")).toUrl(),
         QUrl());

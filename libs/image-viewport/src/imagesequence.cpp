@@ -656,26 +656,26 @@ void ImageSequenceProviderFrameHandle::release()
     }
 }
 
-std::unique_ptr<ImageFrame> ImageFramePrivateAccess::createWithPayloadByteSize(
+std::unique_ptr<ImageFrame> ImageSequencePrivateAccess::createWithPayloadByteSize(
     const QImage& image, qsizetype payloadByteSize)
 {
     return std::unique_ptr<ImageFrame>(new ImageFrame(image, payloadByteSize));
 }
 
-QImage ImageFramePrivateAccess::image(const ImageFrame& frame) { return frame.m_image; }
+QImage ImageSequencePrivateAccess::image(const ImageFrame& frame) { return frame.m_image; }
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-void ImageFramePrivateAccess::resetPayloadCopyAttemptCountForTest()
+void ImageSequencePrivateAccess::resetPayloadCopyAttemptCountForTest()
 {
     payloadCopyAttemptsForTest.store(0, std::memory_order_relaxed);
 }
 
-qsizetype ImageFramePrivateAccess::payloadCopyAttemptCountForTest()
+qsizetype ImageSequencePrivateAccess::payloadCopyAttemptCountForTest()
 {
     return payloadCopyAttemptsForTest.load(std::memory_order_relaxed);
 }
 
-bool ImageFramePrivateAccess::imagePayloadIsDetachedForTest(const ImageFrame& frame)
+bool ImageSequencePrivateAccess::imagePayloadIsDetachedForTest(const ImageFrame& frame)
 {
     return frame.m_image.isDetached();
 }

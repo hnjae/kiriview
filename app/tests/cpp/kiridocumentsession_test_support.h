@@ -4,6 +4,7 @@
 #pragma once
 
 #include "facade/kiridocumentsession.h"
+#include "facade/kiridocumentsessioncomposition.h"
 
 #include "archive/mediaentrysourcebackend.h"
 #include "candidate_test_support.h"
@@ -566,7 +567,8 @@ std::unique_ptr<KiriDocumentSession> createSessionWithProvider(
             *imageDataLoader, std::move(imageDataDecoder));
         dependencies.imageDocument.imageDecode.workerScheduler = std::move(imageWorkerScheduler);
     }
-    auto session = std::make_unique<KiriDocumentSession>(std::move(dependencies));
+    std::unique_ptr<KiriDocumentSession> session(
+        kiriview::KiriDocumentSessionFactory::create(std::move(dependencies)));
     attachTestViewport(*session);
     return session;
 }
@@ -588,7 +590,8 @@ std::unique_ptr<KiriDocumentSession> createSessionWithMediaInformationEffects(
     dependencies.sessionRuntime.directMediaNavigationCandidateProvider
         = directMediaNavigationProvider.provider();
     dependencies.mediaInformationEffects = std::move(mediaInformationEffects);
-    auto session = std::make_unique<KiriDocumentSession>(std::move(dependencies));
+    std::unique_ptr<KiriDocumentSession> session(
+        kiriview::KiriDocumentSessionFactory::create(std::move(dependencies)));
     attachTestViewport(*session);
     return session;
 }

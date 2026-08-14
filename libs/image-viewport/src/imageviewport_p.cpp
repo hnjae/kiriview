@@ -6,7 +6,7 @@
 
 #include <QtQuick/QQuickWindow>
 
-ImageViewportPrivate::ImageViewportPrivate(ImageViewport* viewport)
+ImageViewport::Private::Private(ImageViewport* viewport)
     : q(viewport)
     , providerHost(
           *viewport,
@@ -26,7 +26,7 @@ ImageViewportPrivate::ImageViewportPrivate(ImageViewport* viewport)
     lastStateSnapshot = state();
 }
 
-ImageViewportPrivate::~ImageViewportPrivate()
+ImageViewport::Private::~Private()
 {
     for (auto& scheduler : playbackSchedulers)
         scheduler->stop();

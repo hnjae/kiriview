@@ -7,10 +7,6 @@
 #include "facade/kiriimagedocument.h"
 #include "facade/kirimediainformation.h"
 #include "facade/kirivideodocument.h"
-#include "session/documentsessiondocumentports.h"
-#include "session/documentsessionruntime.h"
-#include "session/mediainformationeffectruntime.h"
-#include "system/systemmemory.h"
 
 #include <QAbstractListModel>
 #include <QObject>
@@ -22,21 +18,23 @@
 #include <QtGlobal>
 #include <QtQml/qqmlregistration.h>
 #include <memory>
-#include <optional>
 #include <vector>
 
 namespace kiriview {
+class DocumentSessionRuntime;
+class KiriDocumentSessionFactory;
+class MediaInformationEffectRuntime;
+enum class DocumentSessionChange;
 enum class DocumentSessionPublicSignal;
-
-struct KiriDocumentSessionDependencies
-{
-    std::optional<SystemMemorySnapshot> systemMemorySnapshot;
-    DocumentSessionRuntimeDependencies sessionRuntime;
-    ImageDocumentRuntimeDependencyOverrides imageDocument;
-    TimerScheduler videoPlaybackControlTimerScheduler;
-    VideoMediaBackendFactory videoMediaBackendFactory;
-    MediaInformationEffects mediaInformationEffects;
-};
+struct DocumentSessionActionAvailabilityFacts;
+struct DocumentSessionActionStateSnapshot;
+struct DocumentSessionActionStateSnapshotPort;
+struct DocumentSessionImageDocumentCommandPort;
+struct DocumentSessionImageDocumentSnapshotPort;
+struct DocumentSessionVideoDocumentCommandPort;
+struct DocumentSessionVideoDocumentSnapshotPort;
+struct KiriDocumentSessionDependencies;
+struct MediaInformationProjectionSnapshot;
 }
 
 class KiriDocumentSession : public QObject
@@ -171,8 +169,6 @@ public:
     Q_ENUM(ThumbnailResultStatus)
 
     explicit KiriDocumentSession(QObject* parent = nullptr);
-    explicit KiriDocumentSession(
-        kiriview::KiriDocumentSessionDependencies dependencies, QObject* parent = nullptr);
     ~KiriDocumentSession() override;
     Q_DISABLE_COPY_MOVE(KiriDocumentSession)
 
@@ -260,7 +256,13 @@ Q_SIGNALS:
     void openWithFailed(const QString& errorString);
     void fileDeletionFailed(const QString& errorString);
 
+protected:
+    explicit KiriDocumentSession(
+        kiriview::KiriDocumentSessionDependencies dependencies, QObject* parent = nullptr);
+
 private:
+    friend class kiriview::KiriDocumentSessionFactory;
+
     struct ResolvedDependenciesTag
     {
     };

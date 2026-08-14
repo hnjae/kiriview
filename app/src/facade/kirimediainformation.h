@@ -4,7 +4,6 @@
 #ifndef KIRIVIEW_KIRIMEDIAINFORMATION_H
 #define KIRIVIEW_KIRIMEDIAINFORMATION_H
 
-#include "session/mediainformationeffectruntime.h"
 #include "session/mediainformationprojection.h"
 
 #include <QAbstractListModel>
@@ -14,9 +13,14 @@
 #include <QUrl>
 #include <QtGlobal>
 #include <QtQml/qqmlregistration.h>
+#include <functional>
 #include <vector>
 
 class KiriDocumentSession;
+
+namespace kiriview {
+struct KiriMediaInformationComposition;
+}
 
 class KiriMediaInformationRowModel : public QAbstractListModel
 {
@@ -66,9 +70,6 @@ class KiriMediaInformation : public QObject
     Q_PROPERTY(bool canOpenContainingFolder READ canOpenContainingFolder NOTIFY changed)
 
 public:
-    explicit KiriMediaInformation(KiriDocumentSession& session,
-        kiriview::MediaInformationEffectCommandPort effectCommands = {}, QObject* parent = nullptr);
-
     [[nodiscard]] bool available() const;
     [[nodiscard]] quint64 revision() const;
     [[nodiscard]] QString title() const;
@@ -90,10 +91,16 @@ Q_SIGNALS:
     void changed();
 
 private:
+    friend class KiriDocumentSession;
+
+    explicit KiriMediaInformation(KiriDocumentSession& session,
+        kiriview::KiriMediaInformationComposition composition, QObject* parent = nullptr);
+
     void refresh();
 
     KiriDocumentSession& m_session;
-    kiriview::MediaInformationEffectCommandPort m_effectCommands;
+    std::function<void()> m_copyFilePath;
+    std::function<void()> m_openContainingFolder;
     KiriMediaInformationRowModel m_generalRows;
     KiriMediaInformationRowModel m_mediaRows;
     KiriMediaInformationRowModel m_cameraRows;

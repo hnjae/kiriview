@@ -93,21 +93,21 @@ public:
         = ImageSequenceProviderThreadingContract::AffinityBound;
 };
 
-namespace ImageViewportInternal {
-
 class ImageSequencePrivateAccess
 {
 public:
-    static std::shared_ptr<ImageSequence> createStill(QSizeF logicalSize, FramePayload payload);
+    static std::shared_ptr<ImageSequence> createStill(
+        QSizeF logicalSize, ImageViewportInternal::FramePayload payload);
     static std::shared_ptr<ImageSequence> createTimedList(QSizeF logicalSize,
-        const QVector<int>& frameDurations, QVector<FramePayload> framePayloads,
+        const QVector<int>& frameDurations,
+        QVector<ImageViewportInternal::FramePayload> framePayloads,
         ImageSequenceAuthoredAnimationFacts authoredAnimationFacts);
     static std::shared_ptr<ImageSequence> createProvider(
         std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,
-        ImageSequenceProviderKnownFacts providerKnownFacts,
-        ImageSequenceProviderCapabilitySupport timedPlaybackCapability,
-        ImageSequenceProviderCapabilitySupport frameSeekCapability,
-        ImageSequenceProviderCapabilitySupport positionSeekCapability,
+        ImageViewportInternal::ImageSequenceProviderKnownFacts providerKnownFacts,
+        ImageViewportInternal::ImageSequenceProviderCapabilitySupport timedPlaybackCapability,
+        ImageViewportInternal::ImageSequenceProviderCapabilitySupport frameSeekCapability,
+        ImageViewportInternal::ImageSequenceProviderCapabilitySupport positionSeekCapability,
         ImageSequenceAuthoredAnimationFacts authoredAnimationFacts,
         bool authoredAnimationFactsAvailable,
         ImageSequenceProviderThreadingContract providerThreadingContract);
@@ -122,32 +122,31 @@ public:
     static int frameStartPosition(const ImageSequence* sequence, int frame);
     static int frameIndexForPosition(const ImageSequence* sequence, int position);
     static QImage frameImage(const ImageSequence* sequence, int frame);
-    static FramePayload framePayload(const ImageSequence* sequence, int frame);
-    static FramePayloadFacts framePayloadFacts(const ImageSequence* sequence, int frame);
+    static ImageViewportInternal::FramePayload framePayload(
+        const ImageSequence* sequence, int frame);
+    static ImageViewportInternal::FramePayloadFacts framePayloadFacts(
+        const ImageSequence* sequence, int frame);
     static TimingIntervals timingIntervals(const ImageSequence* sequence);
     static ImageSequenceAuthoredAnimationFacts authoredAnimationFacts(
         const ImageSequence* sequence);
     static bool authoredAnimationFactsAvailable(const ImageSequence* sequence);
     static bool hasCompleteProviderKnownMetadata(const ImageSequence* sequence);
-    static ImageSequenceProviderKnownFacts providerKnownFacts(const ImageSequence* sequence);
+    static ImageViewportInternal::ImageSequenceProviderKnownFacts providerKnownFacts(
+        const ImageSequence* sequence);
     static QSizeF providerKnownLogicalSize(const ImageSequence* sequence);
     static TimingIntervals providerKnownTimingIntervals(const ImageSequence* sequence);
-    static ImageSequenceProviderCapabilitySupport providerTimedPlaybackCapability(
-        const ImageSequence* sequence);
-    static ImageSequenceProviderCapabilitySupport providerFrameSeekCapability(
-        const ImageSequence* sequence);
-    static ImageSequenceProviderCapabilitySupport providerPositionSeekCapability(
-        const ImageSequence* sequence);
+    static ImageViewportInternal::ImageSequenceProviderCapabilitySupport
+    providerTimedPlaybackCapability(const ImageSequence* sequence);
+    static ImageViewportInternal::ImageSequenceProviderCapabilitySupport
+    providerFrameSeekCapability(const ImageSequence* sequence);
+    static ImageViewportInternal::ImageSequenceProviderCapabilitySupport
+    providerPositionSeekCapability(const ImageSequence* sequence);
     static std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory(
         const ImageSequence* sequence);
     static ImageSequenceProviderThreadingContract providerThreadingContract(
         const ImageSequence* sequence);
     static std::shared_ptr<ImageSequence> owner(const ImageSequence* sequence);
-};
 
-class ImageFramePrivateAccess
-{
-public:
     static std::unique_ptr<ImageFrame> createWithPayloadByteSize(
         const QImage& image, qsizetype payloadByteSize);
     static QImage image(const ImageFrame& frame);
@@ -155,6 +154,36 @@ public:
     static void resetPayloadCopyAttemptCountForTest();
     static qsizetype payloadCopyAttemptCountForTest();
     static bool imagePayloadIsDetachedForTest(const ImageFrame& frame);
+#endif
+};
+
+namespace ImageViewportInternal {
+
+class ImageFramePrivateAccess
+{
+public:
+    static std::unique_ptr<ImageFrame> createWithPayloadByteSize(
+        const QImage& image, qsizetype payloadByteSize)
+    {
+        return ImageSequencePrivateAccess::createWithPayloadByteSize(image, payloadByteSize);
+    }
+    static QImage image(const ImageFrame& frame)
+    {
+        return ImageSequencePrivateAccess::image(frame);
+    }
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+    static void resetPayloadCopyAttemptCountForTest()
+    {
+        ImageSequencePrivateAccess::resetPayloadCopyAttemptCountForTest();
+    }
+    static qsizetype payloadCopyAttemptCountForTest()
+    {
+        return ImageSequencePrivateAccess::payloadCopyAttemptCountForTest();
+    }
+    static bool imagePayloadIsDetachedForTest(const ImageFrame& frame)
+    {
+        return ImageSequencePrivateAccess::imagePayloadIsDetachedForTest(frame);
+    }
 #endif
 };
 

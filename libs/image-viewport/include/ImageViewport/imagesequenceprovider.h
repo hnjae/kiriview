@@ -18,11 +18,6 @@
 #include <memory>
 #include <optional>
 
-namespace ImageViewportInternal {
-class ProviderEventSubmissionPrivateAccess;
-class ProviderRequestTokenPrivateAccess;
-}
-
 class ImageSequenceProviderDescriptor;
 class ImageSequenceProviderEvent;
 class ImageSequenceProviderRequest;
@@ -146,7 +141,7 @@ private:
 
     quint64 m_id = 0;
 
-    friend class ImageViewportInternal::ProviderRequestTokenPrivateAccess;
+    friend class ImageSequenceProviderPrivateAccess;
 };
 
 class ImageSequenceProviderMetadata
@@ -221,7 +216,7 @@ private:
     struct EventSubmissionState;
     std::unique_ptr<EventSubmissionState> m_eventSubmissionState;
 
-    friend class ImageViewportInternal::ProviderEventSubmissionPrivateAccess;
+    friend class ImageSequenceProviderPrivateAccess;
 };
 
 enum class ImageSequenceProviderSessionFactoryOutcome {

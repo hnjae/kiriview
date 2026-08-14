@@ -3,6 +3,7 @@
 
 #include "decoding/kiriimagedecoder.h"
 #include "facade/kiridocumentsession.h"
+#include "facade/kiridocumentsessioncomposition.h"
 #include "facade/kiriimagedocument.h"
 #include "facade/kiriimageviewportsurface.h"
 #include "kiridocumentsession_test_support.h"
@@ -156,7 +157,8 @@ std::unique_ptr<KiriDocumentSession> createViewportSession(
                     kiriview::TestSupport::testImage(decodedImageSize)));
     }
 
-    auto session = std::make_unique<KiriDocumentSession>(std::move(dependencies));
+    std::unique_ptr<KiriDocumentSession> session(
+        kiriview::KiriDocumentSessionFactory::create(std::move(dependencies)));
     attachTestViewport(*session);
     return session;
 }

@@ -18,10 +18,6 @@
 
 class ImageSequenceProviderAdapter;
 Q_DECLARE_OPAQUE_POINTER(ImageSequenceProviderAdapter*)
-namespace ImageViewportInternal {
-class ImageFramePrivateAccess;
-class ImageSequencePrivateAccess;
-}
 
 class ImageSequence : public QObject
 {
@@ -40,7 +36,7 @@ private:
 
     std::unique_ptr<Data, void (*)(Data*)> d;
 
-    friend class ImageViewportInternal::ImageSequencePrivateAccess;
+    friend class ImageSequencePrivateAccess;
 };
 
 class ImageFrame : public QObject
@@ -104,7 +100,7 @@ private:
     friend class TimedImageFrame;
     friend class TimedImageFrameList;
     friend class ImageViewport;
-    friend class ImageViewportInternal::ImageFramePrivateAccess;
+    friend class ImageSequencePrivateAccess;
 };
 
 class TimedImageFrame

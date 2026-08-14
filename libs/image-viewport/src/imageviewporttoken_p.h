@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <ImageViewport/imagesequenceprovider.h>
+#include "imageviewportprovidersubmission_p.h"
 
 class RevisionToken
 {
@@ -27,32 +27,56 @@ private:
 
     quint64 m_value = 0;
 
-    friend class ImageViewportInternal::RevisionTokenPrivateAccess;
+    friend class ImageViewportTypesPrivateAccess;
 };
 
-namespace ImageViewportInternal {
-
-class ProviderRequestTokenPrivateAccess
+class ImageViewportTypesPrivateAccess
 {
 public:
-    static ImageSequenceProviderRequestToken fromValue(quint64 value)
-    {
-        return ImageSequenceProviderRequestToken(value);
-    }
-
-    static quint64 value(ImageSequenceProviderRequestToken token) { return token.m_id; }
-};
-
-class RevisionTokenPrivateAccess
-{
-public:
-    static RevisionToken fromValue(quint64 value) { return RevisionToken(value); }
+    static RevisionToken revisionTokenFromValue(quint64 value) { return RevisionToken(value); }
     static ImageViewportRevisionToken publicRevisionFromValue(quint64 value)
     {
         return ImageViewportRevisionToken(value);
     }
     static quint64 value(RevisionToken token) { return token.m_value; }
     static quint64 value(ImageViewportRevisionToken token) { return token.m_value; }
+    static ImageViewportPresentationTargetGenerationToken fromValue(quint64 value)
+    {
+        return ImageViewportPresentationTargetGenerationToken(value);
+    }
+    static ImageViewportDemandRevisionToken demandRevisionFromValue(quint64 value)
+    {
+        return ImageViewportDemandRevisionToken(value);
+    }
+
+    static quint64 value(ImageViewportDemandRevisionToken token) { return token.m_value; }
+    static ImageViewportAllocationGenerationToken allocationGenerationFromValue(quint64 value)
+    {
+        return ImageViewportAllocationGenerationToken(value);
+    }
+};
+
+namespace ImageViewportInternal {
+
+class RevisionTokenPrivateAccess
+{
+public:
+    static RevisionToken fromValue(quint64 value)
+    {
+        return ImageViewportTypesPrivateAccess::revisionTokenFromValue(value);
+    }
+    static ImageViewportRevisionToken publicRevisionFromValue(quint64 value)
+    {
+        return ImageViewportTypesPrivateAccess::publicRevisionFromValue(value);
+    }
+    static quint64 value(RevisionToken token)
+    {
+        return ImageViewportTypesPrivateAccess::value(token);
+    }
+    static quint64 value(ImageViewportRevisionToken token)
+    {
+        return ImageViewportTypesPrivateAccess::value(token);
+    }
 };
 
 class PresentationTargetGenerationTokenPrivateAccess
@@ -60,7 +84,7 @@ class PresentationTargetGenerationTokenPrivateAccess
 public:
     static ImageViewportPresentationTargetGenerationToken fromValue(quint64 value)
     {
-        return ImageViewportPresentationTargetGenerationToken(value);
+        return ImageViewportTypesPrivateAccess::fromValue(value);
     }
 };
 
@@ -69,10 +93,13 @@ class DemandRevisionTokenPrivateAccess
 public:
     static ImageViewportDemandRevisionToken fromValue(quint64 value)
     {
-        return ImageViewportDemandRevisionToken(value);
+        return ImageViewportTypesPrivateAccess::demandRevisionFromValue(value);
     }
 
-    static quint64 value(ImageViewportDemandRevisionToken token) { return token.m_value; }
+    static quint64 value(ImageViewportDemandRevisionToken token)
+    {
+        return ImageViewportTypesPrivateAccess::value(token);
+    }
 };
 
 class AllocationGenerationTokenPrivateAccess
@@ -80,7 +107,7 @@ class AllocationGenerationTokenPrivateAccess
 public:
     static ImageViewportAllocationGenerationToken fromValue(quint64 value)
     {
-        return ImageViewportAllocationGenerationToken(value);
+        return ImageViewportTypesPrivateAccess::allocationGenerationFromValue(value);
     }
 };
 

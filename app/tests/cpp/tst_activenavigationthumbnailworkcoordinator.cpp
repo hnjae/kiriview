@@ -291,6 +291,7 @@ private Q_SLOTS:
     void demandWindowAdmitsVisibleBeforeNearbyRegardlessOfReportOrder();
     void videoDemandIsCapacityBoundedAndCancellationReleasesExtractor();
     void canceledLookupKeepsCapacityUntilProviderRetires();
+    void synchronousBackgroundFailuresYieldBeforeReadmission();
     void queuedContinuationFindsEligibleBackgroundRow();
     void invalidationRejectsQueuedContinuation();
 };
@@ -708,6 +709,56 @@ void TestActiveNavigationThumbnailWorkCoordinator::canceledLookupKeepsCapacityUn
     lookups.retire(0);
     QCOMPARE(lookups.lookups.size(), std::size_t(3));
     QCOMPARE(lookups.lookups.back()->request.localPathBytes, QByteArray("/media/three.png"));
+}
+
+void TestActiveNavigationThumbnailWorkCoordinator::
+    synchronousBackgroundFailuresYieldBeforeReadmission()
+{
+    auto images = std::make_shared<kiriview::ThumbnailImageStore>();
+    kiriview::ActiveNavigationThumbnailRowStore rows(images);
+    constexpr int sourceRowCount = 20;
+    std::vector<kiriview::ActiveNavigationThumbnailRow> sourceRows;
+    for (int number = 1; number <= sourceRowCount; ++number) {
+        sourceRows.push_back(videoRow(number, QStringLiteral("/media/%1.mp4").arg(number)));
+    }
+    const auto schedulingRows = setRows(rows, std::move(sourceRows));
+    int generationCalls = 0;
+    int generationCallDepth = 0;
+    int maximumGenerationCallDepth = 0;
+    int callsObservedBeforeContinuation = -1;
+    kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(
+        this, rows, {},
+        [&generationCalls, &generationCallDepth, &maximumGenerationCallDepth](QObject*,
+            kiriview::ThumbnailGenerationRequest request,
+            kiriview::ThumbnailGenerationCallback callback) {
+            ++generationCalls;
+            ++generationCallDepth;
+            maximumGenerationCallDepth = std::max(maximumGenerationCallDepth, generationCallDepth);
+            callback({ kiriview::ThumbnailGenerationStatus::ResourceLimitExceeded, {}, {},
+                request.requestedBucket, {}, QStringLiteral("synthetic resource pressure") });
+            --generationCallDepth;
+            return kiriview::ImageIoJob {};
+        },
+        [](kiriview::ThumbnailSourceAdapterRequest request) {
+            const QByteArray path = request.sourceKey.sourceUrl.toLocalFile().toUtf8();
+            return kiriview::ThumbnailSourceAdapterPlan {
+                kiriview::ThumbnailSourceAdapterPlanKind::InMemoryOnly,
+                path,
+                kiriview::ThumbnailOriginalIdentity::fromLocalPathBytes(path),
+                {},
+            };
+        });
+    QVERIFY(coordinator.resetRows(schedulingRows));
+    QMetaObject::invokeMethod(
+        this, [&]() { callsObservedBeforeContinuation = generationCalls; }, Qt::QueuedConnection);
+
+    QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(rows.navigationGeneration(), {})));
+
+    QCOMPARE(generationCalls, 1);
+    QCOMPARE(maximumGenerationCallDepth, 1);
+    QTRY_COMPARE(callsObservedBeforeContinuation, 1);
+    QTRY_VERIFY(generationCalls >= sourceRowCount);
+    QCOMPARE(maximumGenerationCallDepth, 1);
 }
 
 void TestActiveNavigationThumbnailWorkCoordinator::queuedContinuationFindsEligibleBackgroundRow()

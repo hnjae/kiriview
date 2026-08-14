@@ -6,6 +6,7 @@
 #include "application/kiriviewapplicationactions.h"
 #include "facade/activenavigationboundaryfacts.h"
 #include "facade/kiridocumentsession.h"
+#include "facade/kiridocumentsessioncomposition.h"
 #include "facade/kiriviewapplication.h"
 #include "facade/kiriwindowshell.h"
 #include "kiriviewstate.h"
@@ -160,7 +161,8 @@ std::unique_ptr<KiriDocumentSession> directVideoSession(
     kiriview::KiriDocumentSessionDependencies dependencies;
     dependencies.sessionRuntime.directMediaNavigationCandidateProvider
         = kiriview::DirectMediaNavigationCandidateProvider { loadCandidates, {} };
-    return std::make_unique<KiriDocumentSession>(std::move(dependencies));
+    return std::unique_ptr<KiriDocumentSession>(
+        kiriview::KiriDocumentSessionFactory::create(std::move(dependencies)));
 }
 
 kiriview::NavigationBoundaryCorrelation boundaryCorrelation(
@@ -1222,26 +1224,27 @@ void TestKiriViewApplication::boundaryFeedbackRejectsSelectionReplacementDuringR
     kiriview::KiriDocumentSessionDependencies dependencies;
     dependencies.sessionRuntime.directMediaNavigationCandidateProvider
         = kiriview::DirectMediaNavigationCandidateProvider { loadCandidates, {} };
-    KiriDocumentSession session(std::move(dependencies));
-    session.setSourceUrl(firstUrl);
-    QVERIFY(session.atKnownFirstActiveNavigation());
+    std::unique_ptr<KiriDocumentSession> session(
+        kiriview::KiriDocumentSessionFactory::create(std::move(dependencies)));
+    session->setSourceUrl(firstUrl);
+    QVERIFY(session->atKnownFirstActiveNavigation());
 
     KiriViewApplication application;
     KiriWindowShell shell;
-    application.setDocumentSession(&session);
+    application.setDocumentSession(session.get());
     shell.attachApplication(&application);
-    shell.attachDocumentSession(&session);
+    shell.attachDocumentSession(session.get());
     int boundaryEmissionCount = 0;
     QObject::connect(&application, &KiriViewApplication::imageBoundaryReached, &application,
         [&boundaryEmissionCount](const QString&, const kiriview::NavigationBoundaryCorrelation&,
             KiriDocumentSession*) { ++boundaryEmissionCount; });
     bool selectionReplaced = false;
-    QObject::connect(&session, &KiriDocumentSession::publicProjectionRevisionChanged, &application,
-        [&session, replacementUrl, &selectionReplaced]() {
+    QObject::connect(session.get(), &KiriDocumentSession::publicProjectionRevisionChanged,
+        &application, [&session, replacementUrl, &selectionReplaced]() {
             if (std::exchange(selectionReplaced, true)) {
                 return;
             }
-            session.setSourceUrl(replacementUrl);
+            session->setSourceUrl(replacementUrl);
         });
 
     QAction* previousAction = application.actionForId(KiriViewApplication::GoPreviousImageAction);
@@ -1250,8 +1253,8 @@ void TestKiriViewApplication::boundaryFeedbackRejectsSelectionReplacementDuringR
     previousAction->trigger();
 
     QVERIFY(selectionReplaced);
-    QCOMPARE(session.sourceUrl(), replacementUrl);
-    QVERIFY(session.atKnownFirstActiveNavigation());
+    QCOMPARE(session->sourceUrl(), replacementUrl);
+    QVERIFY(session->atKnownFirstActiveNavigation());
     QCOMPARE(boundaryEmissionCount, 0);
     QVERIFY(!shell.notificationActive());
 }

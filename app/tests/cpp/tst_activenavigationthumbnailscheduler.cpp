@@ -728,7 +728,12 @@ void TestActiveNavigationThumbnailScheduler::residencyLossDoesNotClearBackground
         QCOMPARE(starts.size(), std::size_t(1));
         QCOMPARE(starts.front().request.workKind,
             kiriview::ActiveNavigationThumbnailWorkKind::Background);
-        effects = scheduler.acceptCompletion(ready(starts.front()));
+        const auto completionEffects = scheduler.acceptCompletion(ready(starts.front()));
+        const auto continuations
+            = effectsOfType<kiriview::ActiveNavigationThumbnailScheduleContinuationEffect>(
+                completionEffects);
+        QCOMPARE(continuations.size(), std::size_t(1));
+        effects = scheduler.continueAdmission(continuations.front().admissionEpoch);
     }
     QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*effects).empty());
 

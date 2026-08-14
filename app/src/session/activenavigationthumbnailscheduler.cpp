@@ -318,7 +318,11 @@ ActiveNavigationThumbnailScheduler::acceptCompletion(
         : retentionClass(claim.demand.priority);
     effects.emplace_back(
         ActiveNavigationThumbnailAcceptCompletionEffect { std::move(completion), retention });
-    admit(effects);
+    if (claim.kind == ActiveNavigationThumbnailWorkKind::Background) {
+        scheduleAdmissionContinuation(effects);
+    } else {
+        admit(effects);
+    }
     return effects;
 }
 
@@ -478,6 +482,16 @@ void ActiveNavigationThumbnailScheduler::advanceAdmissionEpoch()
     if (m_admissionEpoch == 0) {
         ++m_admissionEpoch;
     }
+}
+
+void ActiveNavigationThumbnailScheduler::scheduleAdmissionContinuation(
+    std::vector<ActiveNavigationThumbnailScheduleEffect>& effects)
+{
+    if (m_continuationOutstanding) {
+        return;
+    }
+    m_continuationOutstanding = true;
+    effects.emplace_back(ActiveNavigationThumbnailScheduleContinuationEffect { m_admissionEpoch });
 }
 
 void ActiveNavigationThumbnailScheduler::armBackgroundSweep()
@@ -729,10 +743,6 @@ void ActiveNavigationThumbnailScheduler::admit(
         m_backgroundArmed = false;
         return;
     }
-    if (!m_continuationOutstanding) {
-        m_continuationOutstanding = true;
-        effects.emplace_back(
-            ActiveNavigationThumbnailScheduleContinuationEffect { m_admissionEpoch });
-    }
+    scheduleAdmissionContinuation(effects);
 }
 }

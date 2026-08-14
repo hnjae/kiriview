@@ -4,11 +4,9 @@
 #ifndef KIRIVIEW_KIRIVIDEODOCUMENT_H
 #define KIRIVIEW_KIRIVIDEODOCUMENT_H
 
-#include "async/timerscheduler.h"
 #include "facade/kirivideoplaybackcontrols.h"
 #include "facade/videodocumentpublicsignals.h"
 #include "metadata/embeddedmetadata.h"
-#include "video/videomediabackend.h"
 #include "video/videoplaybackcontrolruntime.h"
 #include "video/videoplaybacksource.h"
 
@@ -24,6 +22,7 @@
 #include <vector>
 
 namespace kiriview {
+struct KiriVideoDocumentComposition;
 class VideoDocumentRuntime;
 }
 
@@ -58,10 +57,6 @@ public:
     Q_ENUM(Status)
 
     explicit KiriVideoDocument(QObject* parent = nullptr);
-    explicit KiriVideoDocument(
-        kiriview::TimerScheduler playbackControlTimerScheduler, QObject* parent = nullptr);
-    KiriVideoDocument(kiriview::TimerScheduler playbackControlTimerScheduler,
-        kiriview::VideoMediaBackendFactory videoMediaBackendFactory, QObject* parent = nullptr);
     ~KiriVideoDocument() override;
     Q_DISABLE_COPY_MOVE(KiriVideoDocument)
 
@@ -107,6 +102,8 @@ Q_SIGNALS:
 private:
     friend class KiriDocumentSession;
     friend class KiriVideoPlaybackControls;
+
+    explicit KiriVideoDocument(kiriview::KiriVideoDocumentComposition composition, QObject* parent);
 
     Q_SIGNAL void documentSessionSnapshotChanged();
 

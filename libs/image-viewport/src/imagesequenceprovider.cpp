@@ -561,7 +561,7 @@ ImageSequenceProviderEventSubmissionOutcome ImageSequenceProviderSession::submit
     return submitter ? submitter(event) : ImageSequenceProviderEventSubmissionOutcome::Closed;
 }
 
-void ProviderEventSubmissionPrivateAccess::install(
+void ImageSequenceProviderPrivateAccess::install(
     ImageSequenceProviderSession& session, Submitter submitter)
 {
     QMutexLocker locker(&session.m_eventSubmissionState->mutex);

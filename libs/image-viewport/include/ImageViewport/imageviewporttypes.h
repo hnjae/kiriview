@@ -11,20 +11,12 @@
 #include <QtCore/QSizeF>
 #include <QtQmlIntegration/qqmlintegration.h>
 
-class ImageViewportPrivate;
 class ImageViewportRevisionsSnapshot;
 class ImageViewportDisplaySnapshot;
 class ImageViewportRequestSnapshot;
 class ImageViewportRoleRequestSnapshot;
 class ImageViewportRoleDisplaySnapshot;
 class ImageSequenceProviderFailureHandle;
-
-namespace ImageViewportInternal {
-class RevisionTokenPrivateAccess;
-class PresentationTargetGenerationTokenPrivateAccess;
-class DemandRevisionTokenPrivateAccess;
-class AllocationGenerationTokenPrivateAccess;
-}
 
 namespace ImageSequenceEnums {
 Q_NAMESPACE
@@ -345,10 +337,9 @@ private:
 
     quint64 m_value = 0;
 
-    friend ImageViewportPrivate;
     friend class ImageViewportRevisionsSnapshot;
     friend class ImageViewportDisplaySnapshot;
-    friend class ImageViewportInternal::RevisionTokenPrivateAccess;
+    friend class ImageViewportTypesPrivateAccess;
 };
 
 class ImageViewportPresentationTargetGenerationToken
@@ -381,11 +372,10 @@ private:
 
     quint64 m_value = 0;
 
-    friend ImageViewportPrivate;
     friend class ImageViewportRequestSnapshot;
     friend class ImageViewportDisplaySnapshot;
     friend class ImageViewportRoleRequestSnapshot;
-    friend class ImageViewportInternal::PresentationTargetGenerationTokenPrivateAccess;
+    friend class ImageViewportTypesPrivateAccess;
 };
 
 class ImageViewportDemandRevisionToken
@@ -417,10 +407,9 @@ private:
 
     quint64 m_value = 0;
 
-    friend ImageViewportPrivate;
     friend class ImageViewportRoleRequestSnapshot;
     friend class ImageViewportRoleDisplaySnapshot;
-    friend class ImageViewportInternal::DemandRevisionTokenPrivateAccess;
+    friend class ImageViewportTypesPrivateAccess;
 };
 
 class ImageViewportAllocationGenerationToken
@@ -452,7 +441,7 @@ private:
 
     quint64 m_value = 0;
 
-    friend class ImageViewportInternal::AllocationGenerationTokenPrivateAccess;
+    friend class ImageViewportTypesPrivateAccess;
 };
 
 class ImageViewportRoleSet

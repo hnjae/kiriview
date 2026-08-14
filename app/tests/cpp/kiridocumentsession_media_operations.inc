@@ -266,8 +266,8 @@ void TestKiriDocumentSessionMediaOperations::directImagePredecodeUsesSessionDepe
     dependencies.sessionRuntime.directMediaPredecodeDependencies.imageDecode
         = kiriview::TestSupport::imageDecodeDependenciesFor(
             directMediaPredecodeDataLoader, kiriview::TestSupport::staticImageDataDecoder());
-    std::unique_ptr<KiriDocumentSession> session
-        = std::make_unique<KiriDocumentSession>(std::move(dependencies));
+    std::unique_ptr<KiriDocumentSession> session(
+        kiriview::KiriDocumentSessionFactory::create(std::move(dependencies)));
     attachTestViewport(*session);
 
     session->setSourceUrl(currentImage);
@@ -366,7 +366,8 @@ void TestKiriDocumentSessionMediaOperations::
     kiriview::KiriDocumentSessionDependencies dependencies;
     dependencies.systemMemorySnapshot = kiriview::SystemMemorySnapshot { physicalByteSize };
 
-    [[maybe_unused]] KiriDocumentSession session(std::move(dependencies));
+    [[maybe_unused]] std::unique_ptr<KiriDocumentSession> session(
+        kiriview::KiriDocumentSessionFactory::create(std::move(dependencies)));
 
     QCOMPARE(kiriview::sharedThumbnailImageStore()->byteBudget(), physicalByteSize / 64);
 }
@@ -405,8 +406,8 @@ void TestKiriDocumentSessionMediaOperations::
         = directMediaPredecodeWorkerScheduler.scheduler();
     dependencies.sessionRuntime.directMediaPredecodeDependencies.timerScheduler
         = directMediaPredecodeTimerScheduler.scheduler();
-    std::unique_ptr<KiriDocumentSession> session
-        = std::make_unique<KiriDocumentSession>(std::move(dependencies));
+    std::unique_ptr<KiriDocumentSession> session(
+        kiriview::KiriDocumentSessionFactory::create(std::move(dependencies)));
     attachTestViewport(*session);
 
     session->setSourceUrl(currentImage);

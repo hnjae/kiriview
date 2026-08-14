@@ -6,6 +6,7 @@
 #include "decoding/imageformatregistry.h"
 #include "document/imagedocumentruntime.h"
 #include "facade/imagedocumentpublicsignals.h"
+#include "facade/kiridocumentsessioncomposition.h"
 #include "location/imagelocation.h"
 #include "system/filedeletion.h"
 
@@ -123,24 +124,18 @@ kiriview::ImageDocumentPublicSignalOperations publicSignalOperations(KiriImageDo
 }
 
 KiriImageDocument::KiriImageDocument(QObject* parent)
-    : KiriImageDocument(kiriview::ImageDocumentRuntimeDependencyOverrides {}, parent)
+    : KiriImageDocument(kiriview::KiriImageDocumentComposition {}, parent)
 {
 }
 
 KiriImageDocument::KiriImageDocument(
-    kiriview::ImageDocumentRuntimeDependencyOverrides dependencies, QObject* parent)
-    : KiriImageDocument(std::move(dependencies), {}, parent)
-{
-}
-
-KiriImageDocument::KiriImageDocument(kiriview::ImageDocumentRuntimeDependencyOverrides dependencies,
-    std::function<void(const QString&)> fileDeletionFailed, QObject* parent)
+    kiriview::KiriImageDocumentComposition composition, QObject* parent)
     : QObject(parent)
 {
     m_runtime = std::make_unique<kiriview::ImageDocumentRuntime>(
         this,
         [this](const std::vector<ImageDocumentChange>& changes) { handleDocumentChanges(changes); },
-        std::move(dependencies), std::move(fileDeletionFailed),
+        std::move(composition.runtimeDependencies), std::move(composition.fileDeletionFailed),
         [this](const QString& message) { Q_EMIT unsupportedOpenedCollectionVideoEntered(message); },
         [this](const QString& message) { Q_EMIT containerNavigationBoundaryReached(message); });
 }

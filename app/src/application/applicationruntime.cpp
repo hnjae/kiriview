@@ -6,6 +6,7 @@
 #include "applicationdiagnostics.h"
 #include "applicationstartupsource.h"
 #include "facade/kiridocumentsession.h"
+#include "facade/kiridocumentsessioncomposition.h"
 #include "facade/kiriviewapplication.h"
 #include "facade/kiriwindowshell.h"
 #include "generated/applicationidentity.h"
@@ -140,7 +141,7 @@ ApplicationMainQmlLoadResult loadApplicationMainQml(
     documentSessionDependencies.sessionRuntime.directMediaPredecodeDependencies.powerSaver
         = powerSaverProvider;
     auto* documentSession
-        = new KiriDocumentSession(std::move(documentSessionDependencies), &engine);
+        = KiriDocumentSessionFactory::create(std::move(documentSessionDependencies), &engine);
     documentSession->setObjectName(QStringLiteral("documentSession"));
     auto* windowShell = new KiriWindowShell(&engine);
     auto* application = new KiriViewApplication(&engine);
