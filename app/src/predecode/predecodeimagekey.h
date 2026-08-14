@@ -10,6 +10,32 @@
 #include <QtGlobal>
 
 namespace kiriview {
+enum class PredecodeWorkScopeKind : quint8 {
+    Invalid,
+    CandidateSnapshot,
+    ScheduleFallback,
+};
+
+struct PredecodeWorkScope
+{
+    PredecodeWorkScopeKind kind = PredecodeWorkScopeKind::Invalid;
+    quint64 revision = 0;
+
+    static PredecodeWorkScope candidateSnapshot(quint64 revision)
+    {
+        return { PredecodeWorkScopeKind::CandidateSnapshot, revision };
+    }
+
+    static PredecodeWorkScope scheduleFallback(quint64 generation)
+    {
+        return { PredecodeWorkScopeKind::ScheduleFallback, generation };
+    }
+
+    [[nodiscard]] bool isValid() const { return kind != PredecodeWorkScopeKind::Invalid; }
+
+    friend bool operator==(const PredecodeWorkScope&, const PredecodeWorkScope&) = default;
+};
+
 struct PredecodeImageKey
 {
     DisplayedImageLocation location;
@@ -23,7 +49,7 @@ struct PredecodeImageKey
 struct PredecodeWorkKey
 {
     PredecodeImageKey image;
-    quint64 lifecycleScope = 0;
+    PredecodeWorkScope scope;
 };
 
 inline bool samePredecodeWork(const PredecodeWorkKey& left, const PredecodeWorkKey& right)
@@ -36,8 +62,7 @@ inline bool samePredecodeWork(const PredecodeWorkKey& left, const PredecodeWorkK
             && left.image.sourceRevision == right.image.sourceRevision;
     }
 
-    return left.lifecycleScope != 0 && right.lifecycleScope != 0
-        && left.lifecycleScope == right.lifecycleScope;
+    return left.scope.isValid() && right.scope.isValid() && left.scope == right.scope;
 }
 }
 

@@ -8,27 +8,23 @@
 #include <algorithm>
 #include <utility>
 
-namespace {
-kiriview::PredecodeWorkKey workKeyForRequest(const kiriview::ImageDecodeRequest& request)
-{
-    return {
-        kiriview::PredecodeImageKey { request.location(), request.sourceRevision() },
-        request.id(),
-    };
-}
-}
-
 namespace kiriview {
-PredecodeActiveDecodeStore::~PredecodeActiveDecodeStore() { cancel(); }
+PredecodeActiveDecodeStore::~PredecodeActiveDecodeStore() { shutdown(); }
 
-bool PredecodeActiveDecodeStore::add(ImageDecodeRequest request, ImageDecodeJob* decodeJob)
+bool PredecodeActiveDecodeStore::add(
+    ImageDecodeRequest request, PredecodeWorkKey workKey, ImageDecodeJob* decodeJob)
 {
     if (!normalizedValidImageUrl(request.imageUrl()).has_value() || decodeJob == nullptr
-        || activeLoads().contains(workKeyForRequest(request))) {
+        || request.location() != workKey.image.location
+        || (!workKey.image.sourceRevision.isValid() && !workKey.scope.isValid())
+        || std::ranges::any_of(
+            m_entries, [&request](const Entry& entry) { return entry.request.matches(request); })
+        || activeLoads().contains(workKey)) {
         return false;
     }
 
-    m_entries.push_back(Entry { std::move(request), decodeJob });
+    m_entries.push_back(Entry { std::move(request), std::move(workKey), decodeJob,
+        PredecodeActiveDecodeState::Publishing });
     return true;
 }
 
@@ -36,54 +32,81 @@ std::size_t PredecodeActiveDecodeStore::size() const { return m_entries.size(); 
 
 PredecodeActiveLoads PredecodeActiveDecodeStore::activeLoads() const
 {
-    std::vector<PredecodeWorkKey> keys;
-    keys.reserve(m_entries.size());
+    std::vector<PredecodeActiveLoads::Entry> entries;
+    entries.reserve(m_entries.size());
     for (const Entry& entry : m_entries) {
-        keys.push_back(workKeyForRequest(entry.request));
+        entries.push_back(PredecodeActiveLoads::Entry {
+            entry.workKey,
+            entry.state == PredecodeActiveDecodeState::Retiring,
+        });
     }
-    return PredecodeActiveLoads::fromWorkKeys(keys);
+    return PredecodeActiveLoads::fromEntries(entries);
 }
 
-std::optional<ImageDecodeRequest> PredecodeActiveDecodeStore::finish(
+std::optional<PredecodeRetiringDecode> PredecodeActiveDecodeStore::beginRetirement(
     const ImageDecodeRequest& request)
 {
     const auto entry = std::ranges::find_if(m_entries,
         [&request](const Entry& candidate) { return candidate.request.matches(request); });
-    if (entry == m_entries.end()) {
+    if (entry == m_entries.end() || entry->state != PredecodeActiveDecodeState::Publishing) {
         return std::nullopt;
     }
 
-    ImageDecodeRequest finishedRequest = entry->request;
+    entry->state = PredecodeActiveDecodeState::Retiring;
+    return PredecodeRetiringDecode { entry->request, entry->workKey };
+}
+
+bool PredecodeActiveDecodeStore::retire(const ImageDecodeRequest& request)
+{
+    const auto entry = std::ranges::find_if(m_entries,
+        [&request](const Entry& candidate) { return candidate.request.matches(request); });
+    if (entry == m_entries.end() || entry->state != PredecodeActiveDecodeState::Retiring) {
+        return false;
+    }
+
     if (entry->decodeJob != nullptr) {
         entry->decodeJob->deleteLater();
     }
     m_entries.erase(entry);
-    return finishedRequest;
+    return true;
 }
 
 void PredecodeActiveDecodeStore::cancelLocation(const DisplayedImageLocation& location)
 {
-    std::erase_if(m_entries, [&location](const Entry& entry) {
+    for (Entry& entry : m_entries) {
         if (entry.request.location() != location) {
-            return false;
+            continue;
         }
+        if (entry.state == PredecodeActiveDecodeState::Retiring) {
+            continue;
+        }
+        entry.state = PredecodeActiveDecodeState::Retiring;
         if (entry.decodeJob != nullptr) {
             entry.decodeJob->cancel();
-            entry.decodeJob->deleteLater();
         }
-        return true;
-    });
+    }
 }
 
 void PredecodeActiveDecodeStore::cancel()
 {
-    for (const Entry& entry : m_entries) {
-        if (entry.decodeJob == nullptr) {
+    for (Entry& entry : m_entries) {
+        if (entry.state == PredecodeActiveDecodeState::Retiring) {
             continue;
         }
+        entry.state = PredecodeActiveDecodeState::Retiring;
+        if (entry.decodeJob != nullptr) {
+            entry.decodeJob->cancel();
+        }
+    }
+}
 
-        entry.decodeJob->cancel();
-        entry.decodeJob->deleteLater();
+void PredecodeActiveDecodeStore::shutdown()
+{
+    cancel();
+    for (const Entry& entry : m_entries) {
+        if (entry.decodeJob != nullptr) {
+            entry.decodeJob->deleteLater();
+        }
     }
     m_entries.clear();
 }

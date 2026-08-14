@@ -112,6 +112,7 @@ void MediaPredecodeCoordinator::startPredecodeWindow(const PredecodePendingSched
         schedule.context.firstDisplayContext,
         schedule.generation,
         plan.parallelLimit,
+        PredecodeWorkScope::candidateSnapshot(candidateSnapshot->revision),
     });
 }
 

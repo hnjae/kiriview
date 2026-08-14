@@ -15,6 +15,17 @@
 namespace kiriview {
 class ImageDecodeJob;
 
+enum class PredecodeActiveDecodeState : quint8 {
+    Publishing,
+    Retiring,
+};
+
+struct PredecodeRetiringDecode
+{
+    ImageDecodeRequest request;
+    PredecodeWorkKey workKey;
+};
+
 class PredecodeActiveDecodeStore final
 {
 public:
@@ -22,10 +33,11 @@ public:
     ~PredecodeActiveDecodeStore();
     Q_DISABLE_COPY_MOVE(PredecodeActiveDecodeStore)
 
-    bool add(ImageDecodeRequest request, ImageDecodeJob* decodeJob);
+    bool add(ImageDecodeRequest request, PredecodeWorkKey workKey, ImageDecodeJob* decodeJob);
     [[nodiscard]] std::size_t size() const;
     [[nodiscard]] PredecodeActiveLoads activeLoads() const;
-    std::optional<ImageDecodeRequest> finish(const ImageDecodeRequest& request);
+    std::optional<PredecodeRetiringDecode> beginRetirement(const ImageDecodeRequest& request);
+    bool retire(const ImageDecodeRequest& request);
     void cancelLocation(const DisplayedImageLocation& location);
     void cancel();
 
@@ -33,9 +45,12 @@ private:
     struct Entry
     {
         ImageDecodeRequest request;
+        PredecodeWorkKey workKey;
         QPointer<ImageDecodeJob> decodeJob;
+        PredecodeActiveDecodeState state = PredecodeActiveDecodeState::Publishing;
     };
 
+    void shutdown();
     std::vector<Entry> m_entries;
 };
 }

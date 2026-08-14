@@ -91,13 +91,13 @@ std::vector<kiriview::DisplayedImageLocation> displayedLocations(const std::vect
 }
 
 kiriview::PredecodeActiveLoads activeLoads(
-    std::vector<kiriview::DisplayedImageLocation> locations, quint64 lifecycleScope = 7)
+    std::vector<kiriview::DisplayedImageLocation> locations, quint64 generation = 7)
 {
     std::vector<kiriview::PredecodeWorkKey> keys;
     keys.reserve(locations.size());
     for (const kiriview::DisplayedImageLocation& location : locations) {
-        keys.push_back(kiriview::PredecodeWorkKey {
-            kiriview::PredecodeImageKey { location, {} }, lifecycleScope });
+        keys.push_back(kiriview::PredecodeWorkKey { kiriview::PredecodeImageKey { location, {} },
+            kiriview::PredecodeWorkScope::scheduleFallback(generation) });
     }
     return kiriview::PredecodeActiveLoads::fromWorkKeys(keys);
 }
@@ -132,6 +132,7 @@ private Q_SLOTS:
     void directResolvedScopesKeepExactCacheAndQueueIdentity();
     void cacheReusesOnlyMatchingSourceRevision();
     void queueAndActiveWorkDistinguishSourceRevision();
+    void completedWorkIsNotRequeuedUntilIdentityChanges();
     void activeLoadsRejectUnscopedUnknownIdentity();
     void cacheRetainsDisplayedImagesBeforeAdjacentImages();
     void cacheBoundsMultipleDisplayedImagesByPriority();
@@ -162,13 +163,13 @@ void TestPredecodeCache::queueContainsOnlyMissingWindowImages()
     cache.cacheImage(
         displayedLocation(firstQueuedUrl, openedCollectionScope), cacheDisplayImage(firstImage));
     cache.enqueueMissingWindowLoads(displayedLocation(displayedUrl, openedCollectionScope),
-        kiriview::PredecodeActiveLoads {}, 7);
+        kiriview::PredecodeActiveLoads {}, kiriview::PredecodeWorkScope::scheduleFallback(7));
 
     QVERIFY(cache.isInFlight(
         kiriview::PredecodeWorkKey {
             kiriview::PredecodeImageKey {
                 displayedLocation(secondQueuedUrl, openedCollectionScope), {} },
-            7,
+            kiriview::PredecodeWorkScope::scheduleFallback(7),
         },
         kiriview::PredecodeActiveLoads {}));
 
@@ -200,7 +201,7 @@ void TestPredecodeCache::queueSkipsAllDisplayedWindowImages()
     cache.setWindowLocations(displayedLocations(
         { primaryDisplayedUrl, secondaryDisplayedUrl, queuedUrl }, openedCollectionScope));
     cache.enqueueMissingWindowLoads(displayedLocation(primaryDisplayedUrl, openedCollectionScope),
-        kiriview::PredecodeActiveLoads {});
+        kiriview::PredecodeActiveLoads {}, kiriview::PredecodeWorkScope::scheduleFallback(7));
 
     const std::optional<kiriview::PredecodeRequest> request
         = cache.takeNextRequest(kiriview::PredecodeActiveLoads {});
@@ -221,7 +222,7 @@ void TestPredecodeCache::takeNextRequestDiscardsSkippedQueuePrefix()
     cache.setWindowKeys(predecodeKeys(displayedLocations(
         { cachedQueuedUrl, firstRequestUrl, secondRequestUrl }, openedCollectionScope)));
     cache.enqueueMissingWindowLoads(displayedLocation(indexedImageUrl(9), openedCollectionScope),
-        kiriview::PredecodeActiveLoads {});
+        kiriview::PredecodeActiveLoads {}, kiriview::PredecodeWorkScope::scheduleFallback(7));
     cache.cacheImage(
         displayedLocation(cachedQueuedUrl, openedCollectionScope), cacheDisplayImage(cacheImage()));
 
@@ -338,15 +339,18 @@ void TestPredecodeCache::queueAndActiveWorkDistinguishOpenedCollectionScope()
     cache.setWindowLocations({ secondLocation });
     cache.cacheImage(firstLocation, cacheDisplayImage(cacheImage(), true));
     const kiriview::PredecodeActiveLoads firstScopeActive = activeLoads({ firstLocation });
-    cache.enqueueMissingWindowLoads(kiriview::DisplayedImageLocation {}, firstScopeActive, 7);
+    cache.enqueueMissingWindowLoads(kiriview::DisplayedImageLocation {}, firstScopeActive,
+        kiriview::PredecodeWorkScope::scheduleFallback(7));
 
     QVERIFY(cache.findCandidate(firstLocation).has_value());
     QVERIFY(!cache.findCandidate(secondLocation).has_value());
     QVERIFY(cache.isInFlight(
-        kiriview::PredecodeWorkKey { kiriview::PredecodeImageKey { firstLocation, {} }, 7 },
+        kiriview::PredecodeWorkKey { kiriview::PredecodeImageKey { firstLocation, {} },
+            kiriview::PredecodeWorkScope::scheduleFallback(7) },
         firstScopeActive));
     QVERIFY(cache.isInFlight(
-        kiriview::PredecodeWorkKey { kiriview::PredecodeImageKey { secondLocation, {} }, 7 },
+        kiriview::PredecodeWorkKey { kiriview::PredecodeImageKey { secondLocation, {} },
+            kiriview::PredecodeWorkScope::scheduleFallback(7) },
         firstScopeActive));
     const std::optional<kiriview::PredecodeRequest> request
         = cache.takeNextRequest(firstScopeActive);
@@ -383,18 +387,19 @@ void TestPredecodeCache::directResolvedScopesKeepExactCacheAndQueueIdentity()
     kiriview::PredecodeCache queueCache(160);
     queueCache.setWindowLocations({ secondLocation });
     const kiriview::PredecodeActiveLoads firstScopeActive = activeLoads({ firstLocation });
-    queueCache.enqueueMissingWindowLoads({}, firstScopeActive, 7);
+    queueCache.enqueueMissingWindowLoads(
+        {}, firstScopeActive, kiriview::PredecodeWorkScope::scheduleFallback(7));
 
     QVERIFY(queueCache.isInFlight(
         kiriview::PredecodeWorkKey {
             kiriview::PredecodeImageKey { firstLocation, {} },
-            7,
+            kiriview::PredecodeWorkScope::scheduleFallback(7),
         },
         firstScopeActive));
     QVERIFY(queueCache.isInFlight(
         kiriview::PredecodeWorkKey {
             kiriview::PredecodeImageKey { secondLocation, {} },
-            7,
+            kiriview::PredecodeWorkScope::scheduleFallback(7),
         },
         firstScopeActive));
     const std::optional<kiriview::PredecodeRequest> request
@@ -454,11 +459,39 @@ void TestPredecodeCache::queueAndActiveWorkDistinguishSourceRevision()
         = kiriview::PredecodeActiveLoads::fromKeys({ older });
 
     cache.setWindowKeys({ newer });
-    cache.enqueueMissingWindowLoads(kiriview::DisplayedImageLocation {}, active);
+    cache.enqueueMissingWindowLoads(kiriview::DisplayedImageLocation {}, active,
+        kiriview::PredecodeWorkScope::scheduleFallback(7));
 
     const std::optional<kiriview::PredecodeRequest> request = cache.takeNextRequest(active);
     QVERIFY(request.has_value());
     QVERIFY(request->key() == newer);
+}
+
+void TestPredecodeCache::completedWorkIsNotRequeuedUntilIdentityChanges()
+{
+    kiriview::PredecodeCache cache(160);
+    const kiriview::DisplayedImageLocation location
+        = displayedLocation(indexedImageUrl(0), comicBookArchiveCollection());
+    const kiriview::PredecodeWorkScope firstScope
+        = kiriview::PredecodeWorkScope::candidateSnapshot(41);
+    const kiriview::PredecodeWorkScope changedScope
+        = kiriview::PredecodeWorkScope::candidateSnapshot(42);
+
+    cache.setWindowLocations({ location });
+    cache.enqueueMissingWindowLoads({}, kiriview::PredecodeActiveLoads {}, firstScope);
+    const std::optional<kiriview::PredecodeRequest> completed
+        = cache.takeNextRequest(kiriview::PredecodeActiveLoads {});
+    QVERIFY(completed.has_value());
+    cache.completeWork(completed->workKey());
+
+    cache.enqueueMissingWindowLoads({}, kiriview::PredecodeActiveLoads {}, firstScope);
+    QVERIFY(!cache.takeNextRequest(kiriview::PredecodeActiveLoads {}).has_value());
+
+    cache.enqueueMissingWindowLoads({}, kiriview::PredecodeActiveLoads {}, changedScope);
+    const std::optional<kiriview::PredecodeRequest> replacement
+        = cache.takeNextRequest(kiriview::PredecodeActiveLoads {});
+    QVERIFY(replacement.has_value());
+    QCOMPARE(replacement->workScope, changedScope);
 }
 
 void TestPredecodeCache::activeLoadsRejectUnscopedUnknownIdentity()
@@ -473,7 +506,7 @@ void TestPredecodeCache::activeLoadsRejectUnscopedUnknownIdentity()
     QCOMPARE(kiriview::PredecodeActiveLoads::fromWorkKeys(
                  { kiriview::PredecodeWorkKey {
                      kiriview::PredecodeImageKey { location, {} },
-                     0,
+                     {},
                  } })
                  .size(),
         std::size_t(0));
@@ -721,7 +754,8 @@ void TestPredecodeCache::cacheRetainsWarmImagesAcrossWindowReprioritization()
     QVERIFY(cache.findCandidate(locations.back()).has_value());
 
     cache.setWindowKeys(predecodeKeys(locations));
-    cache.enqueueMissingWindowLoads(locations.front(), kiriview::PredecodeActiveLoads {});
+    cache.enqueueMissingWindowLoads(locations.front(), kiriview::PredecodeActiveLoads {},
+        kiriview::PredecodeWorkScope::scheduleFallback(7));
     while (const std::optional<kiriview::PredecodeRequest> request
         = cache.takeNextRequest(kiriview::PredecodeActiveLoads {})) {
         QVERIFY(request->location != locations.back());

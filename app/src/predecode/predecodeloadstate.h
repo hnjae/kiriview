@@ -24,11 +24,13 @@ struct PredecodeLoadWindow
     ImageFirstDisplayDecodeContext firstDisplayContext;
     quint64 generation = 0;
     std::size_t parallelLimit = 0;
+    PredecodeWorkScope workScope;
 };
 
 struct PredecodeLoadStart
 {
     ImageDecodeRequest request;
+    PredecodeWorkKey workKey;
     std::optional<StaticDisplayImagePayload> authoritativeSeed;
 };
 
@@ -41,7 +43,9 @@ public:
     void clearWindow();
     void retireBackgroundLoad(const DisplayedImageLocation& location);
     void startWindow(const PredecodeLoadWindow& window, const PredecodeActiveLoads& activeLoads);
+    void reconcileWindow(const PredecodeActiveLoads& activeLoads);
     std::optional<PredecodeLoadStart> takeNextLoad(const PredecodeActiveLoads& activeLoads);
+    void completeWork(const PredecodeWorkKey& workKey);
     void cacheDecodedImage(
         const ImageDecodeRequest& request, StaticDisplayImagePayload displayImage);
     void cacheDecodedImage(const ImageDecodeRequest& request,
@@ -54,7 +58,9 @@ public:
 private:
     struct ActiveWindow
     {
+        DisplayedImageLocation foregroundOwnedLocation;
         ImageFirstDisplayDecodeContext firstDisplayContext;
+        PredecodeWorkScope workScope;
         quint64 generation = 0;
         std::size_t parallelLimit = 0;
     };

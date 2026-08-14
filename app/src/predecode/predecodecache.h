@@ -22,10 +22,10 @@ struct PredecodeRequest
 {
     DisplayedImageLocation location;
     ImageSourceRevision sourceRevision;
-    quint64 lifecycleScope = 0;
+    PredecodeWorkScope workScope;
 
     [[nodiscard]] PredecodeImageKey key() const { return { location, sourceRevision }; }
-    [[nodiscard]] PredecodeWorkKey workKey() const { return { key(), lifecycleScope }; }
+    [[nodiscard]] PredecodeWorkKey workKey() const { return { key(), workScope }; }
 };
 
 class PredecodeCache
@@ -40,8 +40,9 @@ public:
     void setWindowKeys(const std::vector<PredecodeImageKey>& keys);
     void setDisplayedLocations(const std::vector<DisplayedImageLocation>& locations);
     void setDisplayedImages(const std::vector<DisplayedPredecodeImage>& images);
+    void completeWork(const PredecodeWorkKey& workKey);
     void enqueueMissingWindowLoads(const DisplayedImageLocation& foregroundOwnedLocation,
-        const PredecodeActiveLoads& activeLoads, quint64 lifecycleScope = 0);
+        const PredecodeActiveLoads& activeLoads, PredecodeWorkScope workScope);
     std::optional<PredecodeRequest> takeNextRequest(const PredecodeActiveLoads& activeLoads);
     bool isInFlight(const PredecodeWorkKey& key, const PredecodeActiveLoads& activeLoads) const;
     std::optional<PredecodedImage> findImage(const PredecodeImageKey& key) const;
@@ -66,6 +67,8 @@ private:
         const std::vector<PredecodeImageKey>& keys, const PredecodeImageKey& key);
     bool windowContains(const PredecodeImageKey& key) const;
     bool hasImage(const PredecodeImageKey& key) const;
+    bool hasCompletedWork(const PredecodeWorkKey& workKey) const;
+    void retainCompletedWorkForCurrentWindow(PredecodeWorkScope workScope);
     ConstCachedImageIterator findCachedImage(const DisplayedImageLocation& location) const;
     CachedImageIterator findCachedImage(const PredecodeImageKey& key);
     ConstCachedImageIterator findCachedImage(const PredecodeImageKey& key) const;
@@ -78,6 +81,7 @@ private:
     PredecodeDisplayedHistory m_displayedHistory;
     std::optional<std::vector<PredecodeImageKey>> m_currentDisplayedKeys;
     std::deque<PredecodeRequest> m_queue;
+    std::vector<PredecodeWorkKey> m_completedWork;
     std::vector<CachedImage> m_images;
     qsizetype m_byteBudget = 0;
     mutable quint64 m_lastUsedSequence = 0;

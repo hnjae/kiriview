@@ -171,16 +171,17 @@ void TestMediaPredecodeCoordinator::videoCursorKeepsImageCacheAndLoadsAdjacentIm
     coordinator.schedule(predecodeContext(videoUrl, videoCandidates));
 
     QSet<QUrl> loadedUrls;
-    for (std::size_t loadCount = 2; loadCount <= 4; ++loadCount) {
+    for (std::size_t loadCount = 2; loadCount <= 3; ++loadCount) {
         QTRY_COMPARE(dataLoader.loadCount(), loadCount);
         const QUrl loadedUrl = dataLoader.backLoad().url;
         loadedUrls.insert(loadedUrl);
-        if (loadCount < 4) {
+        if (loadCount < 3) {
             QVERIFY(dataLoader.finishOldestActiveLoadForUrl(
                 loadedUrl, QByteArrayLiteral("revalidated")));
         }
     }
-    QCOMPARE(loadedUrls, QSet<QUrl>({ displayedUrl, nextUrl, laterUrl }));
+    QCOMPARE(loadedUrls, QSet<QUrl>({ displayedUrl, laterUrl }));
+    QCOMPARE(dataLoader.loadCountForUrl(nextUrl), std::size_t(1));
     QVERIFY(!loadedUrls.contains(videoUrl));
     QVERIFY(coordinator.findPredecodedImage(displayedLocation(displayedUrl)).has_value());
     QVERIFY(coordinator.findPredecodedImage(displayedLocation(nextUrl)).has_value());

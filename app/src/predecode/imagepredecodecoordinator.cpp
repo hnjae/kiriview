@@ -88,7 +88,8 @@ void ImagePredecodeCoordinator::scheduleAdjacentImagePredecode(
                                   << "fallbackLocations" << plan.fallbackWindow.locations.size()
                                   << "parallelLimit" << plan.fallbackWindow.parallelLimit;
     if (!plan.shouldLoadCandidates()) {
-        startPredecodeImageLoads(plan.fallbackWindow, schedule);
+        startPredecodeImageLoads(plan.fallbackWindow, schedule,
+            PredecodeWorkScope::scheduleFallback(schedule.generation));
         return;
     }
 
@@ -99,7 +100,8 @@ void ImagePredecodeCoordinator::scheduleAdjacentImagePredecode(
         qCDebug(kiriviewPredecodeLog)
             << "image predecode candidates reused"
             << "generation" << schedule.generation << "count" << candidates.size();
-        startPredecodeImageLoads(predecodeWindowPlanForCandidates(plan, candidates), schedule);
+        startPredecodeImageLoads(predecodeWindowPlanForCandidates(plan, candidates), schedule,
+            PredecodeWorkScope::candidateSnapshot(schedule.context.candidateSnapshot.revision));
         return;
     }
 
@@ -107,11 +109,12 @@ void ImagePredecodeCoordinator::scheduleAdjacentImagePredecode(
                                   << "reason"
                                   << "owner-snapshot-unavailable"
                                   << "generation" << schedule.generation;
-    startPredecodeImageLoads(plan.fallbackWindow, schedule);
+    startPredecodeImageLoads(
+        plan.fallbackWindow, schedule, PredecodeWorkScope::scheduleFallback(schedule.generation));
 }
 
-void ImagePredecodeCoordinator::startPredecodeImageLoads(
-    const PredecodeWindowPlan& plan, const PredecodePendingSchedule& schedule)
+void ImagePredecodeCoordinator::startPredecodeImageLoads(const PredecodeWindowPlan& plan,
+    const PredecodePendingSchedule& schedule, PredecodeWorkScope workScope)
 {
     if (!m_scheduleRuntime.accepts(schedule.generation)) {
         qCDebug(kiriviewPredecodeLog) << "image predecode window ignored"
@@ -134,6 +137,7 @@ void ImagePredecodeCoordinator::startPredecodeImageLoads(
         schedule.context.firstDisplayContext,
         schedule.generation,
         plan.parallelLimit,
+        workScope,
     });
 }
 

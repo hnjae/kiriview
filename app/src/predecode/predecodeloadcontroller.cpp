@@ -9,6 +9,8 @@
 #include "predecodelogging.h"
 
 #include <QDebug>
+#include <QMetaObject>
+#include <QPointer>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -22,7 +24,7 @@ PredecodeLoadController::PredecodeLoadController(
 {
 }
 
-PredecodeLoadController::~PredecodeLoadController() = default;
+PredecodeLoadController::~PredecodeLoadController() { m_lifetime.reset(); }
 
 void PredecodeLoadController::cacheDisplayedImages(
     const std::vector<DisplayedPredecodeImage>& images)
@@ -84,9 +86,24 @@ bool PredecodeLoadController::startLoad(PredecodeLoadStart load)
                 finishLoadError(request, error);
             },
             {},
+            [owner = QPointer<QObject>(m_parent), lifetime = std::weak_ptr(m_lifetime), this](
+                const ImageDecodeRequest& request) {
+                if (owner == nullptr || lifetime.expired()) {
+                    return;
+                }
+                QMetaObject::invokeMethod(
+                    owner,
+                    [lifetime, this, request]() {
+                        if (lifetime.expired()) {
+                            return;
+                        }
+                        finishRetirement(request);
+                    },
+                    Qt::QueuedConnection);
+            },
         });
     const ImageDecodeRequest request = load.request;
-    if (!m_activeDecodes.add(std::move(load.request), decodeJob)) {
+    if (!m_activeDecodes.add(std::move(load.request), std::move(load.workKey), decodeJob)) {
         qCDebug(kiriviewPredecodeLog) << "predecode decode job skipped"
                                       << "reason"
                                       << "active-store-rejected"
@@ -100,14 +117,16 @@ bool PredecodeLoadController::startLoad(PredecodeLoadStart load)
                                   << "generation" << request.id() << "url"
                                   << diagnosticSourceReference(request.imageUrl()) << "activeLoads"
                                   << m_activeDecodes.size();
-    decodeJob->start(request, std::move(load.authoritativeSeed));
+    decodeJob->start(
+        request, std::move(load.authoritativeSeed), ImageDecodeWorkspacePriority::Speculative);
     return true;
 }
 
 void PredecodeLoadController::finishLoadError(
     const ImageDecodeRequest& request, const ImageDataLoadError& error)
 {
-    if (!m_activeDecodes.finish(request).has_value()) {
+    std::optional<PredecodeRetiringDecode> active = m_activeDecodes.beginRetirement(request);
+    if (!active.has_value()) {
         qCDebug(kiriviewPredecodeLog) << "predecode load error ignored"
                                       << "reason"
                                       << "inactive-request"
@@ -115,6 +134,7 @@ void PredecodeLoadController::finishLoadError(
                                       << diagnosticSourceReference(request.imageUrl());
         return;
     }
+    m_loadState.completeWork(active->workKey);
 
     std::visit(
         [&request](const auto& detail) {
@@ -124,14 +144,13 @@ void PredecodeLoadController::finishLoadError(
                 << diagnosticSourceReference(request.imageUrl()) << "error" << detail;
         },
         error);
-    startNextLoads();
 }
 
 void PredecodeLoadController::finishDecode(
     const ImageDecodeRequest& request, const DecodedImageResult& result)
 {
-    std::optional<ImageDecodeRequest> activeRequest = m_activeDecodes.finish(request);
-    if (!activeRequest.has_value()) {
+    std::optional<PredecodeRetiringDecode> active = m_activeDecodes.beginRetirement(request);
+    if (!active.has_value()) {
         qCDebug(kiriviewPredecodeLog) << "predecode decode result ignored"
                                       << "reason"
                                       << "inactive-request"
@@ -139,14 +158,15 @@ void PredecodeLoadController::finishDecode(
                                       << diagnosticSourceReference(request.imageUrl());
         return;
     }
+    m_loadState.completeWork(active->workKey);
+    const ImageDecodeRequest& activeRequest = active->request;
 
     const auto* failure = decodedImageResultFailure(result);
     if (failure != nullptr) {
         qCDebug(kiriviewPredecodeLog) << "predecode decode failed"
-                                      << "generation" << activeRequest->id() << "url"
-                                      << diagnosticSourceReference(activeRequest->imageUrl())
+                                      << "generation" << activeRequest.id() << "url"
+                                      << diagnosticSourceReference(activeRequest.imageUrl())
                                       << "error" << diagnosticDetailReference(failure->errorString);
-        startNextLoads();
         return;
     }
 
@@ -155,18 +175,31 @@ void PredecodeLoadController::finishDecode(
         StaticDisplayImagePayload displayImage = staticImage->displayImage;
         qCDebug(kiriviewPredecodeLog)
             << "predecode decode finished"
-            << "generation" << activeRequest->id() << "url"
-            << diagnosticSourceReference(activeRequest->imageUrl()) << "originalSize"
+            << "generation" << activeRequest.id() << "url"
+            << diagnosticSourceReference(activeRequest.imageUrl()) << "originalSize"
             << displayImage.originalSize << "rasterSize" << displayImage.image.size() << "byteCost"
             << displayImage.byteCost();
         m_loadState.cacheDecodedImage(
-            *activeRequest, std::move(displayImage), staticImage->embeddedMetadata);
+            activeRequest, std::move(displayImage), staticImage->embeddedMetadata);
     } else {
         qCDebug(kiriviewPredecodeLog) << "predecode decoded non-static image ignored"
-                                      << "generation" << activeRequest->id() << "url"
-                                      << diagnosticSourceReference(activeRequest->imageUrl());
+                                      << "generation" << activeRequest.id() << "url"
+                                      << diagnosticSourceReference(activeRequest.imageUrl());
+    }
+}
+
+void PredecodeLoadController::finishRetirement(const ImageDecodeRequest& request)
+{
+    if (!m_activeDecodes.retire(request)) {
+        qCDebug(kiriviewPredecodeLog) << "predecode retirement ignored"
+                                      << "reason"
+                                      << "inactive-request"
+                                      << "generation" << request.id() << "url"
+                                      << diagnosticSourceReference(request.imageUrl());
+        return;
     }
 
+    m_loadState.reconcileWindow(m_activeDecodes.activeLoads());
     startNextLoads();
 }
 

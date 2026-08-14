@@ -30,6 +30,7 @@ void PredecodeCache::clear()
     m_displayedHistory.clear();
     m_currentDisplayedKeys.reset();
     m_queue.clear();
+    m_completedWork.clear();
     m_images.clear();
     m_lastUsedSequence = 0;
 }
@@ -116,10 +117,25 @@ void PredecodeCache::setDisplayedImages(const std::vector<DisplayedPredecodeImag
     trimImagesToBudget();
 }
 
+void PredecodeCache::completeWork(const PredecodeWorkKey& workKey)
+{
+    if (!normalizedValidImageUrl(workKey.image.location.imageUrl()).has_value()
+        || (!workKey.image.sourceRevision.isValid() && !workKey.scope.isValid())) {
+        return;
+    }
+    std::erase_if(m_queue, [&workKey](const PredecodeRequest& request) {
+        return samePredecodeWork(request.workKey(), workKey);
+    });
+    if (!hasCompletedWork(workKey)) {
+        m_completedWork.push_back(workKey);
+    }
+}
+
 void PredecodeCache::enqueueMissingWindowLoads(
     const DisplayedImageLocation& foregroundOwnedLocation, const PredecodeActiveLoads& activeLoads,
-    quint64 lifecycleScope)
+    PredecodeWorkScope workScope)
 {
+    retainCompletedWorkForCurrentWindow(workScope);
     std::vector<PredecodeWindowLoadState> states;
     states.reserve(m_windowKeys.size());
 
@@ -128,7 +144,8 @@ void PredecodeCache::enqueueMissingWindowLoads(
             m_displayedHistory.currentContains(key.location)
                 || key.location == foregroundOwnedLocation,
             hasImage(key),
-            isInFlight(PredecodeWorkKey { key, lifecycleScope }, activeLoads),
+            isInFlight(PredecodeWorkKey { key, workScope }, activeLoads)
+                || hasCompletedWork(PredecodeWorkKey { key, workScope }),
         });
     }
 
@@ -140,8 +157,7 @@ void PredecodeCache::enqueueMissingWindowLoads(
                 << "predecode enqueue"
                 << "url" << diagnosticSourceReference(key.location.imageUrl())
                 << "openedCollectionScope" << !key.location.openedCollectionScope().isEmpty();
-            m_queue.push_back(
-                PredecodeRequest { key.location, key.sourceRevision, lifecycleScope });
+            m_queue.push_back(PredecodeRequest { key.location, key.sourceRevision, workScope });
         }
     }
     qCDebug(kiriviewPredecodeLog) << "predecode enqueue missing complete"
@@ -160,7 +176,7 @@ std::optional<PredecodeRequest> PredecodeCache::takeNextRequest(
             !request.location.isEmpty(),
             windowContains(request.key()),
             hasImage(request.key()),
-            activeLoads.contains(request.workKey()),
+            activeLoads.contains(request.workKey()) || hasCompletedWork(request.workKey()),
         });
     }
 
@@ -193,6 +209,25 @@ bool PredecodeCache::windowContains(const PredecodeImageKey& key) const
 bool PredecodeCache::hasImage(const PredecodeImageKey& key) const
 {
     return key.isValid() && findCachedImage(key) != m_images.cend();
+}
+
+bool PredecodeCache::hasCompletedWork(const PredecodeWorkKey& workKey) const
+{
+    return std::ranges::any_of(m_completedWork, [&workKey](const PredecodeWorkKey& completed) {
+        return samePredecodeWork(completed, workKey);
+    });
+}
+
+void PredecodeCache::retainCompletedWorkForCurrentWindow(PredecodeWorkScope workScope)
+{
+    std::erase_if(m_completedWork, [this, workScope](const PredecodeWorkKey& completed) {
+        const auto windowKey
+            = std::ranges::find_if(m_windowKeys, [&completed](const PredecodeImageKey& key) {
+                  return key.location == completed.image.location;
+              });
+        return windowKey == m_windowKeys.end()
+            || !samePredecodeWork(completed, PredecodeWorkKey { *windowKey, workScope });
+    });
 }
 
 bool PredecodeCache::isInFlight(

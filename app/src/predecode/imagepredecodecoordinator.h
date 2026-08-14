@@ -42,8 +42,8 @@ public:
 
 private:
     void scheduleAdjacentImagePredecode(const PredecodePendingSchedule& schedule);
-    void startPredecodeImageLoads(
-        const PredecodeWindowPlan& plan, const PredecodePendingSchedule& schedule);
+    void startPredecodeImageLoads(const PredecodeWindowPlan& plan,
+        const PredecodePendingSchedule& schedule, PredecodeWorkScope workScope);
 
     PredecodeThreadCountProvider m_threadCountProvider;
     PredecodeLoadController m_loadController;

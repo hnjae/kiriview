@@ -40,6 +40,9 @@ void PredecodeLoadState::clearWindow() { m_cache.setWindowLocations({}); }
 void PredecodeLoadState::retireBackgroundLoad(const DisplayedImageLocation& location)
 {
     m_cache.retireQueuedLoads(location);
+    if (m_activeWindow.has_value()) {
+        m_activeWindow->foregroundOwnedLocation = location;
+    }
 }
 
 void PredecodeLoadState::startWindow(
@@ -53,15 +56,29 @@ void PredecodeLoadState::startWindow(
                                   << window.displayedImages.size() << "parallelLimit"
                                   << window.parallelLimit;
     cancelBackgroundWork();
+    const PredecodeWorkScope workScope = window.workScope.isValid()
+        ? window.workScope
+        : PredecodeWorkScope::scheduleFallback(window.generation);
     m_activeWindow = ActiveWindow {
+        window.foregroundOwnedLocation,
         window.firstDisplayContext,
+        workScope,
         window.generation,
         window.parallelLimit,
     };
     m_cache.setWindowLocations(window.locations);
     cacheDisplayedImages(window.displayedImages);
+    m_cache.enqueueMissingWindowLoads(window.foregroundOwnedLocation, activeLoads, workScope);
+}
+
+void PredecodeLoadState::reconcileWindow(const PredecodeActiveLoads& activeLoads)
+{
+    if (!m_activeWindow.has_value()) {
+        return;
+    }
+
     m_cache.enqueueMissingWindowLoads(
-        window.foregroundOwnedLocation, activeLoads, window.generation);
+        m_activeWindow->foregroundOwnedLocation, activeLoads, m_activeWindow->workScope);
 }
 
 bool PredecodeLoadState::canStartMoreLoads(const PredecodeActiveLoads& activeLoads) const
@@ -96,8 +113,14 @@ std::optional<PredecodeLoadStart> PredecodeLoadState::takeNextLoad(
         ImageDecodeRequest::fromLocation(
             m_activeWindow->generation, request->location, m_activeWindow->firstDisplayContext)
             .withSourceRevision(request->sourceRevision),
+        request->workKey(),
         std::move(authoritativeSeed),
     };
+}
+
+void PredecodeLoadState::completeWork(const PredecodeWorkKey& workKey)
+{
+    m_cache.completeWork(workKey);
 }
 
 void PredecodeLoadState::cacheDecodedImage(

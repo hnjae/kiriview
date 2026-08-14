@@ -7,6 +7,7 @@
 #include "navigation/imagedocumentpagecandidatelistsource.h"
 #include "predecode/imagepredecodecoordinator.h"
 
+#include <QCoreApplication>
 #include <QFile>
 #include <QObject>
 #include <QSize>
@@ -36,6 +37,65 @@ using kiriview::TestSupport::testImage;
 using FakeCandidateProvider = kiriview::TestSupport::FakeImageDocumentPageCandidateProvider;
 
 constexpr qsizetype testCacheByteBudget = 1024 * 1024;
+
+struct RetirementControlledWorkerSchedule
+{
+    kiriview::ImageWorkerOperation work;
+    kiriview::ImageWorkerCompletion completion;
+    kiriview::ImageWorkerTaskCompletion taskCompletion;
+    bool canceled = false;
+};
+
+class RetirementControlledWorkerScheduler final
+{
+public:
+    kiriview::ImageWorkerScheduler scheduler()
+    {
+        return kiriview::ImageWorkerScheduler([this](QObject*, kiriview::ImageWorkerOperation work,
+                                                  kiriview::ImageWorkerCompletion completion) {
+            auto schedule = std::make_shared<RetirementControlledWorkerSchedule>();
+            schedule->work = std::move(work);
+            schedule->completion = std::move(completion);
+            kiriview::ImageWorkerTask task([weakSchedule = std::weak_ptr(schedule)]() {
+                if (const auto active = weakSchedule.lock()) {
+                    active->canceled = true;
+                }
+            });
+            schedule->taskCompletion = task.completion();
+            m_schedules.push_back(std::move(schedule));
+            return task;
+        });
+    }
+
+    [[nodiscard]] std::size_t scheduleCount() const { return m_schedules.size(); }
+    [[nodiscard]] bool canceled(std::size_t index) const { return m_schedules.at(index)->canceled; }
+    void runWork(std::size_t index)
+    {
+        if (m_schedules.at(index)->work) {
+            m_schedules.at(index)->work();
+        }
+    }
+    void finish(std::size_t index)
+    {
+        const auto& schedule = m_schedules.at(index);
+        schedule->taskCompletion.claimAndRun([&]() {
+            if (schedule->completion) {
+                schedule->completion();
+            }
+        });
+        schedule->taskCompletion.retire();
+    }
+    void retire(std::size_t index)
+    {
+        const auto& schedule = m_schedules.at(index);
+        schedule->work = {};
+        schedule->completion = {};
+        schedule->taskCompletion.retire();
+    }
+
+private:
+    std::vector<std::shared_ptr<RetirementControlledWorkerSchedule>> m_schedules;
+};
 
 kiriview::DisplayedImageLocation displayedLocation(const QUrl& url,
     const kiriview::OpenedCollectionScopeLocation& openedCollectionScope
@@ -115,11 +175,11 @@ std::vector<kiriview::ImageDocumentPageCandidate> imageDocumentPageCandidates(in
 
 kiriview::ImageDocumentPageCandidateListSnapshot pageCandidateListSnapshot(
     kiriview::ImageDocumentPageCandidateListSource source,
-    kiriview::ImageDocumentPageCandidateRows candidates, bool known = true)
+    kiriview::ImageDocumentPageCandidateRows candidates, bool known = true, quint64 revision = 1)
 {
     kiriview::ImageDocumentPageCandidateListSnapshot snapshot;
     snapshot.source = std::move(source);
-    snapshot.revision = 1;
+    snapshot.revision = revision;
     snapshot.candidates
         = std::make_shared<const kiriview::ImageDocumentPageCandidateRows>(std::move(candidates));
     snapshot.known = known;
@@ -199,6 +259,7 @@ private Q_SLOTS:
     void animatedBackgroundDecodeIsNotCachedAsStaticPredecodedImage_data();
     void animatedBackgroundDecodeIsNotCachedAsStaticPredecodedImage();
     void sameScopeGenerationChangeRetainsActiveDecodeCompletion();
+    void candidateSnapshotIdentityRemainsUntilConflictingWorkPhysicallyRetires();
     void rapidNavigationDebouncesSkippedPagePredecode();
     void powerSaverMonitorSuppressesAndReschedulesPredecode();
     void cancelSuppressesPendingDecode();
@@ -661,7 +722,69 @@ void TestImagePredecodeCoordinator::sameScopeGenerationChangeRetainsActiveDecode
             imageDocumentPageCandidates(5)));
 
     dataLoader.finishFrontLoad(QByteArrayLiteral("warm"));
-    QVERIFY(coordinator.findPredecodedImage(displayedLocation(indexedImageUrl(1))).has_value());
+    QTRY_VERIFY(coordinator.findPredecodedImage(displayedLocation(indexedImageUrl(1))).has_value());
+}
+
+void TestImagePredecodeCoordinator::
+    candidateSnapshotIdentityRemainsUntilConflictingWorkPhysicallyRetires()
+{
+    ManualImageDataLoader dataLoader;
+    ManualTimerScheduler timerScheduler;
+    RetirementControlledWorkerScheduler workerScheduler;
+    kiriview::ImageDecodeDependencies dependencies
+        = imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder());
+    dependencies.workerScheduler = workerScheduler.scheduler();
+    kiriview::ImagePredecodeCoordinator coordinator(std::move(dependencies),
+        noOpPowerSaverProvider(), testCacheByteBudget, timerScheduler.scheduler());
+    const QUrl displayedUrl = indexedImageUrl(0);
+    const QUrl targetUrl = indexedImageUrl(1);
+    const kiriview::DisplayedImageLocation targetLocation = displayedLocation(targetUrl);
+    const kiriview::ImageDocumentPageCandidateListSource source
+        = kiriview::ImageDocumentPageCandidateListSource::forDirectory(imagesDirectoryUrl());
+    const std::vector candidates {
+        imageDocumentPageCandidate(displayedUrl),
+        imageDocumentPageCandidate(targetUrl),
+    };
+    const auto contextForRevision = [&](quint64 revision) {
+        kiriview::ImagePredecodeCoordinator::Context context
+            = predecodeContext(kiriview::DisplayedPredecodeImage {
+                displayedLocation(displayedUrl),
+                true,
+                displayTestImagePayload(testImage()),
+            });
+        context.candidateSnapshot = pageCandidateListSnapshot(source, candidates, true, revision);
+        return context;
+    };
+
+    timerScheduler.advanceTo(1000);
+    coordinator.schedule(contextForRevision(41));
+    timerScheduler.timerAt(0).fire();
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+    dataLoader.finishFrontLoad(QByteArrayLiteral("candidate snapshot"));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(2));
+    workerScheduler.runWork(1);
+
+    timerScheduler.advanceTo(1200);
+    coordinator.schedule(contextForRevision(41));
+    timerScheduler.timerAt(0).fire();
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+
+    coordinator.acceptForegroundSelection(targetLocation);
+    QVERIFY(workerScheduler.canceled(1));
+    timerScheduler.advanceTo(1400);
+    coordinator.schedule(contextForRevision(42));
+    timerScheduler.timerAt(0).fire();
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+
+    workerScheduler.retire(1);
+
+    QTRY_COMPARE(dataLoader.loadCount(), std::size_t(2));
+    QCOMPARE(dataLoader.backLoad().url, targetUrl);
+    QCoreApplication::processEvents();
+    QCOMPARE(dataLoader.loadCount(), std::size_t(2));
 }
 
 void TestImagePredecodeCoordinator::rapidNavigationDebouncesSkippedPagePredecode()

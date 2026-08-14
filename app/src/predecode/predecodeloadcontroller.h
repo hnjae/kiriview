@@ -10,6 +10,7 @@
 #include "predecodeloadstate.h"
 
 #include <QtGlobal>
+#include <memory>
 #include <optional>
 
 class QObject;
@@ -34,12 +35,18 @@ public:
         const DisplayedImageLocation& location) const;
 
 private:
+    struct Lifetime final
+    {
+    };
+
     void startNextLoads();
     bool startLoad(PredecodeLoadStart load);
     void finishLoadError(const ImageDecodeRequest& request, const ImageDataLoadError& error);
     void finishDecode(const ImageDecodeRequest& request, const DecodedImageResult& result);
+    void finishRetirement(const ImageDecodeRequest& request);
 
     QObject* m_parent = nullptr;
+    std::shared_ptr<Lifetime> m_lifetime = std::make_shared<Lifetime>();
     ImageDecodeDependencies m_decodeDependencies;
     PredecodeLoadState m_loadState;
     PredecodeActiveDecodeStore m_activeDecodes;

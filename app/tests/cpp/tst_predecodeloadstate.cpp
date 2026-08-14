@@ -61,8 +61,8 @@ kiriview::PredecodeActiveLoads activeLoads(std::vector<QUrl> urls)
 {
     std::vector<kiriview::PredecodeWorkKey> keys;
     for (const kiriview::DisplayedImageLocation& location : displayedLocations(urls)) {
-        keys.push_back(
-            kiriview::PredecodeWorkKey { kiriview::PredecodeImageKey { location, {} }, 7 });
+        keys.push_back(kiriview::PredecodeWorkKey { kiriview::PredecodeImageKey { location, {} },
+            kiriview::PredecodeWorkScope::scheduleFallback(7) });
     }
     return kiriview::PredecodeActiveLoads::fromWorkKeys(keys);
 }
