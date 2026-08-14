@@ -106,10 +106,12 @@ public:
     virtual ImageAnimationPlaybackReadResult readNextFrame() = 0;
     [[nodiscard]] virtual bool restartable() const = 0;
     void retainSourceDataLease(ImageSourceDataLease sourceDataLease);
+    void retainInputWorkspace(ImageDecodeWorkspaceHold inputWorkspaceHold);
     Q_DISABLE_COPY_MOVE(ImageAnimationPlaybackSource)
 
 private:
     ImageSourceDataLease m_sourceDataLease;
+    ImageDecodeWorkspaceHold m_inputWorkspaceHold;
 };
 
 std::unique_ptr<ImageAnimationPlaybackSource> makeImageAnimationPlaybackSource(

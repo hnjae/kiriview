@@ -116,6 +116,8 @@ std::optional<kiriview::StaticDisplayImagePayload> staticDisplayPayload(
         std::move(admittedImage),
         quality,
         {},
+        {},
+        {},
         std::move(source),
         kiriview::DisplayImagePreviewOrigin::None,
         detailModel,
@@ -178,7 +180,11 @@ DecodedImageResult staticDecodedImageResult(std::shared_ptr<StaticImageDisplaySo
         break;
     case FirstDisplayImageDecodeStatus::Error:
         return failedStaticDecodedImageResult(DecodedImageFailureOperation::DecodeFirstDisplayImage,
-            errorString, &firstDisplayResult.diagnostics);
+            errorString, &firstDisplayResult.diagnostics,
+            firstDisplayResult.failureCause
+                    == StaticImageDisplayDecodeFailureCause::ResourceExhausted
+                ? DecodedImageFailureCause::ResourceLimitExceeded
+                : DecodedImageFailureCause::Unknown);
     }
 
     StaticImageDisplayDecodeResult previewResult

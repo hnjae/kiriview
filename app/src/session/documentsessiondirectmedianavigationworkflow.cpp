@@ -3,7 +3,7 @@
 
 #include "documentsessiondirectmedianavigationworkflow.h"
 
-#include "location/imageurl.h"
+#include "location/sourcekey.h"
 
 #include <utility>
 
@@ -69,7 +69,8 @@ documentSessionDirectMediaNavigationOpenApplication(
     }
 
     const bool targetChangesMedia = result.plan.targetUrl.has_value()
-        && !sameNormalizedUrl(*result.plan.targetUrl, activeDirectMediaCursorUrl);
+        && !sameSourceKey(
+            sourceKeyForUrl(*result.plan.targetUrl), sourceKeyForUrl(activeDirectMediaCursorUrl));
     return DocumentSessionDirectMediaNavigationOpenApplication {
         result.plan.boundaryState,
         true,

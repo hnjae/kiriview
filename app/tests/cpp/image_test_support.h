@@ -98,6 +98,8 @@ inline StaticDisplayImagePayload staticDisplayTestImagePayload(const QImage& sou
         displayImage,
         quality,
         {},
+        {},
+        {},
         std::make_shared<TestStaticImageDisplaySource>(sourceImage, transform),
         DisplayImagePreviewOrigin::None,
         StaticImageSourceDetailModel::FiniteRaster,

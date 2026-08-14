@@ -10,7 +10,6 @@
 #include "imagedocumentpagecandidatewatchprovider.h"
 #include "imagedocumentpagenavigationtypes.h"
 
-#include <QList>
 #include <QPointer>
 #include <QString>
 #include <QUrl>
@@ -41,7 +40,6 @@ public:
     bool open();
     void handleCompleted(std::vector<ImageDocumentPageCandidate> candidates);
     void handleChanged(std::vector<ImageDocumentPageCandidate> candidates);
-    void handleDeleted(const QList<QUrl>& urls);
     void handleError(ImageDocumentPageCandidateLoadError error);
 
     ImageIoJob addPendingLoad(ImageDocumentPageCandidatesCallback callback,

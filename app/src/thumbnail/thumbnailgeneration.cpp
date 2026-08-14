@@ -307,7 +307,8 @@ kiriview::ThumbnailGenerationImageDecodeResult renderDecodedThumbnailImageImpl(
     const qsizetype decodedImageWorkspaceByteCount = std::visit(
         [](const auto& image) -> qsizetype {
             if constexpr (requires { image.firstFrameWorkspaceHold; }) {
-                return image.firstFrameWorkspaceHold.reservedByteCount();
+                return kiriview::saturatedQtByteSum(image.inputWorkspaceHold.reservedByteCount(),
+                    image.firstFrameWorkspaceHold.reservedByteCount());
             } else if constexpr (requires { image.displayImage.retainedRasterByteCost(); }) {
                 return image.displayImage.retainedRasterByteCost();
             }

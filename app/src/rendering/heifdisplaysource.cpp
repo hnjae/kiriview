@@ -7,6 +7,7 @@
 #include "cache/imagebytecost.h"
 #include "decoding/heifcontainer.h"
 #include "decoding/heifsupport.h"
+#include "decoding/imagedecodeworkspace.h"
 #include "localization/imageerrortext.h"
 #include "staticimagedisplaysourcehelpers_p.h"
 
@@ -311,14 +312,32 @@ QImage HeifDisplaySource::decodeGridRasterDisplayImage(
     return image;
 }
 
-std::shared_ptr<HeifDisplaySource> openHeifDisplaySource(
-    const QByteArray& data, QString* errorString)
+std::shared_ptr<HeifDisplaySource> openHeifDisplaySource(const QByteArray& data,
+    QString* errorString, std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget,
+    qsizetype perOperationBaselineByteCount, bool* resourceExhausted)
 {
+    if (resourceExhausted != nullptr) {
+        *resourceExhausted = false;
+    }
     if (!isLikelyHeifStillImageContainer(data)) {
         return {};
     }
+    if (workspaceBudget == nullptr) {
+        workspaceBudget = defaultImageDecodeWorkspaceBudget();
+    }
+    ImageDecodeWorkspaceLease openWorkspace
+        = workspaceBudget->startLeaseForOperation(perOperationBaselineByteCount);
+    if (!openWorkspace.tryReserve(minimumHeifDecoderByteLimit)) {
+        if (resourceExhausted != nullptr) {
+            *resourceExhausted = true;
+        }
+        setStaticImageDisplaySourceError(
+            errorString, imageErrorText(ImageErrorTextId::ReadImageData));
+        return {};
+    }
 
-    std::optional<HeifPrimaryImage> opened = openHeifPrimaryImage(data, errorString);
+    std::optional<HeifPrimaryImage> opened = openHeifPrimaryImageWithMemoryLimit(
+        data, minimumHeifDecoderByteLimit, errorString, resourceExhausted);
     if (!opened.has_value()) {
         return {};
     }

@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include <ImageViewport/imagesequenceidentity.h>
 #include <ImageViewport/imageviewporttypes.h>
 
 #include <QtCore/QList>
@@ -21,7 +20,28 @@ class ImageSequenceProviderAdapter;
 Q_DECLARE_OPAQUE_POINTER(ImageSequenceProviderAdapter*)
 namespace ImageViewportInternal {
 class ImageFramePrivateAccess;
+class ImageSequencePrivateAccess;
 }
+
+class ImageSequence : public QObject
+{
+    Q_OBJECT
+    QML_ELEMENT
+    QML_UNCREATABLE("Use ImageSequenceFactory to create sequence handles")
+
+public:
+    ~ImageSequence() override;
+    Q_DISABLE_COPY_MOVE(ImageSequence)
+
+private:
+    class Data;
+    explicit ImageSequence(std::unique_ptr<Data> data, QObject* parent = nullptr);
+    static void deleteData(Data* data);
+
+    std::unique_ptr<Data, void (*)(Data*)> d;
+
+    friend class ImageViewportInternal::ImageSequencePrivateAccess;
+};
 
 class ImageFrame : public QObject
 {

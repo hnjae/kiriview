@@ -3,35 +3,142 @@
 
 #include "svgdisplaysource.h"
 
-#include "bridge/rustqtconversion.h"
 #include "cache/imagebyteaccounting.h"
 #include "cache/imagebytecost.h"
+#include "decoding/imagedecodeworkspace.h"
 #include "imagerendering.h"
-#include "kiriview/src/support/svgrenderer.cxx.h"
 #include "localization/imageerrortext.h"
 #include "staticimagedisplaysourcehelpers_p.h"
+#include "svgworkerlimits.h"
 
 #include <QByteArray>
+#include <QCoreApplication>
+#include <QDir>
+#include <QFileInfo>
 #include <QImage>
+#include <QProcess>
 #include <QRectF>
 #include <QSize>
+#include <QStringList>
+#include <QtEndian>
 #include <QtMath>
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <limits>
 #include <memory>
+#include <sys/resource.h>
+#include <unistd.h>
 #include <utility>
 
 namespace {
+constexpr int svgWorkerStartTimeoutMilliseconds = 5'000;
+constexpr int svgWorkerFinishTimeoutMilliseconds = 30'000;
+constexpr int svgWorkerLimitSetupFailureExitCode = 125;
+
+enum class SvgWorkerStatus {
+    Success,
+    DecodeError,
+    ResourceExhausted,
+    InternalError,
+};
+
+struct SvgWorkerResult
+{
+    SvgWorkerStatus status = SvgWorkerStatus::InternalError;
+    QByteArray output;
+};
+
+QString svgWorkerExecutablePath()
+{
+    QString installedPath = QDir(QCoreApplication::applicationDirPath())
+                                .filePath(QStringLiteral("kiriview-svg-worker"));
+    if (QFileInfo::exists(installedPath)) {
+        return installedPath;
+    }
+#ifdef KIRIVIEW_SVG_WORKER_BUILD_PATH
+    return QStringLiteral(KIRIVIEW_SVG_WORKER_BUILD_PATH);
+#else
+    return installedPath;
+#endif
+}
+
+SvgWorkerResult runSvgWorker(const QStringList& arguments, const QByteArray& data)
+{
+    QProcess process;
+    process.setProgram(svgWorkerExecutablePath());
+    process.setArguments(arguments);
+    process.setProcessChannelMode(QProcess::SeparateChannels);
+    process.setChildProcessModifier([] {
+        const auto limit = static_cast<rlim_t>(kiriview::svgWorkerAddressSpaceByteLimit);
+        const rlimit limits { limit, limit };
+        if (::setrlimit(RLIMIT_AS, &limits) != 0) {
+            ::_exit(svgWorkerLimitSetupFailureExitCode);
+        }
+    });
+    process.start(QIODevice::ReadWrite);
+    if (!process.waitForStarted(svgWorkerStartTimeoutMilliseconds)) {
+        return {};
+    }
+    if (process.write(data) != static_cast<qint64>(data.size())) {
+        process.kill();
+        process.waitForFinished();
+        return {};
+    }
+    process.closeWriteChannel();
+    if (!process.waitForFinished(svgWorkerFinishTimeoutMilliseconds)) {
+        process.kill();
+        process.waitForFinished();
+        return { SvgWorkerStatus::ResourceExhausted, {} };
+    }
+    if (process.exitStatus() != QProcess::NormalExit) {
+        return { SvgWorkerStatus::ResourceExhausted, {} };
+    }
+    if (process.exitCode() == kiriview::svgWorkerDecodeErrorExitCode) {
+        return { SvgWorkerStatus::DecodeError, {} };
+    }
+    if (process.exitCode() == kiriview::svgWorkerResourceExhaustedExitCode) {
+        return { SvgWorkerStatus::ResourceExhausted, {} };
+    }
+    if (process.exitCode() != EXIT_SUCCESS) {
+        return {};
+    }
+    return { SvgWorkerStatus::Success, process.readAllStandardOutput() };
+}
+
+std::optional<QSize> svgIntrinsicSize(const QByteArray& data, bool* resourceExhausted)
+{
+    const SvgWorkerResult result = runSvgWorker({ QStringLiteral("intrinsic") }, data);
+    if (result.status == SvgWorkerStatus::ResourceExhausted) {
+        if (resourceExhausted != nullptr) {
+            *resourceExhausted = true;
+        }
+        return std::nullopt;
+    }
+    if (result.status != SvgWorkerStatus::Success || result.output.size() != 8) {
+        return std::nullopt;
+    }
+
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) -- fixed worker protocol.
+    const auto* encoded = reinterpret_cast<const uchar*>(result.output.constData());
+    const int width = qFromBigEndian<qint32>(encoded);
+    const int height = qFromBigEndian<qint32>(encoded + 4);
+    const QSize size(width, height);
+    if (size.isEmpty()) {
+        return std::nullopt;
+    }
+    return size;
+}
+
 QImage imageFromPremultipliedRgbaBytes(const QByteArray& bytes, QSize size, bool* resourceExhausted)
 {
     if (bytes.isEmpty() || size.isEmpty()) {
         return {};
     }
 
-    const std::int64_t expectedSize
-        = static_cast<std::int64_t>(size.width()) * static_cast<std::int64_t>(size.height()) * 4;
-    if (expectedSize <= 0 || expectedSize > std::numeric_limits<qsizetype>::max()
+    const std::uint64_t expectedSize
+        = static_cast<std::uint64_t>(size.width()) * static_cast<std::uint64_t>(size.height()) * 4;
+    if (expectedSize > static_cast<std::uint64_t>(std::numeric_limits<qsizetype>::max())
         || bytes.size() != static_cast<qsizetype>(expectedSize)) {
         return {};
     }
@@ -44,14 +151,20 @@ QImage imageFromPremultipliedRgbaBytes(const QByteArray& bytes, QSize size, bool
     return image;
 }
 
-QByteArray renderSvgImageBytes(const QByteArray& data, QSize size)
+QByteArray renderSvgImageBytes(
+    const QByteArray& data, QSize size, bool* resourceExhausted = nullptr)
 {
     if (size.isEmpty()) {
         return {};
     }
 
-    return kiriview::Bridge::qtByteArray(kiriview::rustRenderSvgImage(
-        kiriview::Bridge::rustBytes(data), size.width(), size.height()));
+    const SvgWorkerResult result = runSvgWorker(
+        { QStringLiteral("render"), QString::number(size.width()), QString::number(size.height()) },
+        data);
+    if (result.status == SvgWorkerStatus::ResourceExhausted && resourceExhausted != nullptr) {
+        *resourceExhausted = true;
+    }
+    return result.status == SvgWorkerStatus::Success ? result.output : QByteArray {};
 }
 
 QImage renderSvgImage(const QByteArray& data, QSize size, bool* resourceExhausted = nullptr)
@@ -60,7 +173,7 @@ QImage renderSvgImage(const QByteArray& data, QSize size, bool* resourceExhauste
         *resourceExhausted = false;
     }
     return imageFromPremultipliedRgbaBytes(
-        renderSvgImageBytes(data, size), size, resourceExhausted);
+        renderSvgImageBytes(data, size, resourceExhausted), size, resourceExhausted);
 }
 
 QSize svgFirstDisplayPreviewSize(QSize imageSize, QSize logicalViewportSize)
@@ -82,22 +195,49 @@ QSize svgFirstDisplayPreviewSize(QSize imageSize, QSize logicalViewportSize)
 }
 
 namespace kiriview {
-std::shared_ptr<SvgDisplaySource> SvgDisplaySource::open(
-    const QByteArray& data, QString* errorString)
+std::optional<qsizetype> svgParserWorkspaceByteCost(qsizetype sourceByteCount)
 {
-    const RustSvgImageSize intrinsicSize = rustSvgIntrinsicSize(Bridge::rustBytes(data));
-    if (!intrinsicSize.valid) {
-        return {};
+    if (sourceByteCount < 0) {
+        return std::nullopt;
     }
+    const qsizetype peakByteCost
+        = saturatedQtByteSum(svgWorkerAddressSpaceByteLimit, sourceByteCount);
+    return peakByteCost == std::numeric_limits<qsizetype>::max()
+        ? std::nullopt
+        : std::optional<qsizetype>(peakByteCost);
+}
 
-    const QSize imageSize(intrinsicSize.width, intrinsicSize.height);
-    if (imageSize.isEmpty()) {
+std::shared_ptr<SvgDisplaySource> SvgDisplaySource::open(const QByteArray& data,
+    QString* errorString, std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget,
+    bool* resourceExhausted)
+{
+    if (resourceExhausted != nullptr) {
+        *resourceExhausted = false;
+    }
+    if (workspaceBudget == nullptr) {
+        workspaceBudget = defaultImageDecodeWorkspaceBudget();
+    }
+    const std::optional<qsizetype> parserByteCost = svgParserWorkspaceByteCost(data.size());
+    ImageDecodeWorkspaceLease parserWorkspace = workspaceBudget->startLease();
+    if (!parserByteCost.has_value() || !parserWorkspace.tryReserve(*parserByteCost)) {
+        if (resourceExhausted != nullptr) {
+            *resourceExhausted = true;
+        }
         setStaticImageDisplaySourceError(
-            errorString, imageErrorText(ImageErrorTextId::DetermineSvgImageSize));
+            errorString, imageErrorText(ImageErrorTextId::ReadImageData));
         return {};
     }
 
-    return std::make_shared<SvgDisplaySource>(data, imageSize);
+    const std::optional<QSize> intrinsicSize = svgIntrinsicSize(data, resourceExhausted);
+    if (!intrinsicSize.has_value()) {
+        if (resourceExhausted != nullptr && *resourceExhausted) {
+            setStaticImageDisplaySourceError(
+                errorString, imageErrorText(ImageErrorTextId::ReadImageData));
+        }
+        return {};
+    }
+
+    return std::make_shared<SvgDisplaySource>(data, *intrinsicSize);
 }
 
 SvgDisplaySource::SvgDisplaySource(QByteArray data, QSize imageSize)
@@ -142,10 +282,13 @@ StaticImageFirstDisplayDecodeResult SvgDisplaySource::decodeFirstDisplayImage(
         return {};
     }
 
-    QImage preview = renderSvgImage(m_data, previewSize);
+    bool resourceExhausted = false;
+    QImage preview = renderSvgImage(m_data, previewSize, &resourceExhausted);
     if (preview.isNull()) {
         const QString message = imageErrorText(ImageErrorTextId::RenderSvgImage);
-        return { { FirstDisplayImageDecodeStatus::Error, {} }, { message, message } };
+        return { { FirstDisplayImageDecodeStatus::Error, {} }, { message, message },
+            resourceExhausted ? StaticImageDisplayDecodeFailureCause::ResourceExhausted
+                              : StaticImageDisplayDecodeFailureCause::Decode };
     }
 
     return { { FirstDisplayImageDecodeStatus::Ready, std::move(preview) }, {} };
@@ -157,8 +300,15 @@ std::optional<qsizetype> SvgDisplaySource::rasterDisplayRefinementPeakByteCost(
     const QSize& rasterSize) const
 {
     const qsizetype outputByteCost = estimatedRgbaByteCost(rasterSize);
-    return outputByteCost > 0 ? std::optional<qsizetype>(saturatedQtByteProduct(outputByteCost, 2))
-                              : std::nullopt;
+    const std::optional<qsizetype> parserByteCost = svgParserWorkspaceByteCost(m_data.size());
+    if (outputByteCost <= 0 || !parserByteCost.has_value()) {
+        return std::nullopt;
+    }
+    const qsizetype peakByteCost
+        = saturatedQtByteSum(*parserByteCost, saturatedQtByteProduct(outputByteCost, 2));
+    return peakByteCost == std::numeric_limits<qsizetype>::max()
+        ? std::nullopt
+        : std::optional<qsizetype>(peakByteCost);
 }
 
 StaticImageDisplayDecodeResult SvgDisplaySource::decodeRasterDisplayImage(

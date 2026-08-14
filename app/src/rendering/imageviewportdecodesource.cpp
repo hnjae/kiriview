@@ -154,6 +154,13 @@ struct StaticRefinementProductionResult
     kiriview::StaticImageDisplayDecodeResult decodeResult;
 };
 
+struct StaticRefinementSourceLifetime
+{
+    kiriview::ImageSourceDataLease sourceDataLease;
+    kiriview::ImageDecodeWorkspaceHold inputWorkspaceHold;
+    std::shared_ptr<kiriview::StaticImageDisplaySource> source;
+};
+
 struct StaticPayloadLimits
 {
     qint64 maximumWidth = ImageSequenceLimits::maximumPayloadRasterWidth();
@@ -711,35 +718,39 @@ void ImageViewportDecodeProviderSource::finishDecodedImage(DecodedImage image)
                     std::move(decoded.firstFrame), std::move(decoded.catalog),
                     readerAnimationPlaybackRequest(std::move(decoded.data),
                         std::move(decoded.format), std::move(decoded.sourceDataLease),
-                        m_dependencies.workspaceBudget),
+                        m_dependencies.workspaceBudget, std::move(decoded.inputWorkspaceHold)),
                     std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
                     formatIdentifier);
             } else if constexpr (std::is_same_v<Image, ApngAnimationImage>) {
                 finishAnimationImage(std::move(decoded.firstFrameWorkspaceHold),
                     std::move(decoded.firstFrame), std::move(decoded.catalog),
                     apngAnimationPlaybackRequest(std::move(decoded.data),
-                        std::move(decoded.sourceDataLease), m_dependencies.workspaceBudget),
+                        std::move(decoded.sourceDataLease), m_dependencies.workspaceBudget,
+                        std::move(decoded.inputWorkspaceHold)),
                     std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
                     QStringLiteral("apng"));
             } else if constexpr (std::is_same_v<Image, WebPAnimationImage>) {
                 finishAnimationImage(std::move(decoded.firstFrameWorkspaceHold),
                     std::move(decoded.firstFrame), std::move(decoded.catalog),
                     webpAnimationPlaybackRequest(std::move(decoded.data),
-                        std::move(decoded.sourceDataLease), m_dependencies.workspaceBudget),
+                        std::move(decoded.sourceDataLease), m_dependencies.workspaceBudget,
+                        std::move(decoded.inputWorkspaceHold)),
                     std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
                     QStringLiteral("webp"));
             } else if constexpr (std::is_same_v<Image, JxlAnimationImage>) {
                 finishAnimationImage(std::move(decoded.firstFrameWorkspaceHold),
                     std::move(decoded.firstFrame), std::move(decoded.catalog),
                     jxlAnimationPlaybackRequest(std::move(decoded.data),
-                        std::move(decoded.sourceDataLease), m_dependencies.workspaceBudget),
+                        std::move(decoded.sourceDataLease), m_dependencies.workspaceBudget,
+                        std::move(decoded.inputWorkspaceHold)),
                     std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
                     QStringLiteral("jxl"));
             } else if constexpr (std::is_same_v<Image, HeifSequenceAnimationImage>) {
                 finishAnimationImage(std::move(decoded.firstFrameWorkspaceHold),
                     std::move(decoded.firstFrame), std::move(decoded.catalog),
                     heifSequenceAnimationPlaybackRequest(std::move(decoded.data),
-                        std::move(decoded.sourceDataLease), m_dependencies.workspaceBudget),
+                        std::move(decoded.sourceDataLease), m_dependencies.workspaceBudget,
+                        std::move(decoded.inputWorkspaceHold)),
                     std::move(decoded.sourceIdentity), std::move(decoded.sourceRevision),
                     QStringLiteral("heif"));
             }
@@ -1144,6 +1155,11 @@ void ImageViewportDecodeProviderSource::startStaticRefinement(
     } else {
         discardRetainedStaticRefinementsExcept(0);
         const StaticDisplayImagePayload basis = *m_authoritativeStaticImage;
+        StaticRefinementSourceLifetime sourceLifetime {
+            basis.sourceDataLease,
+            basis.inputWorkspaceHold,
+            refinementSource,
+        };
         const quint64 workerUnitId = reserveWorkerUnit();
         m_staticRefinementWorks.push_back(StaticRefinementWork {
             workerUnitId,
@@ -1164,11 +1180,11 @@ void ImageViewportDecodeProviderSource::startStaticRefinement(
         const std::weak_ptr<ImageViewportDecodeProviderSource> weakSelf = weak_from_this();
         ImageWorkerTask task = m_dependencies.refinementScheduler.run(
             this,
-            [refinementSource, targetSize = plan.targetRasterSize,
+            [sourceLifetime = std::move(sourceLifetime), targetSize = plan.targetRasterSize,
                 producerAdmission = std::move(outputAdmission),
                 rasterWorkspaceLease = std::move(rasterWorkspaceLease)]() mutable {
                 StaticImageDisplayDecodeResult decodeResult
-                    = refinementSource->decodeRasterDisplayImage(targetSize);
+                    = sourceLifetime.source->decodeRasterDisplayImage(targetSize);
                 const qsizetype retainedByteCost = imageByteCost(decodeResult.image);
                 if (producerAdmission != nullptr) {
                     const bool retained = producerAdmission->retainOnly(retainedByteCost);
@@ -1759,6 +1775,8 @@ void ImageViewportDecodeProviderSource::finishAnimationFrame(const PendingFrame&
         animation.metadata.sourceLogicalSize().toSize(),
         std::move(result->image),
         DisplayImageQuality::Exact,
+        {},
+        {},
         {},
         {},
         DisplayImagePreviewOrigin::None,

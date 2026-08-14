@@ -7,6 +7,7 @@
 #include "decodedimageresult.h"
 
 #include <QByteArray>
+#include <QtGlobal>
 #include <memory>
 #include <optional>
 
@@ -15,7 +16,8 @@ class ImageDecodeRequest;
 
 std::optional<DecodedImageResult> decodeHeifImageData(const QByteArray& data,
     const ImageDecodeRequest& request,
-    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {});
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {},
+    qsizetype retainedInputWorkspaceByteCount = 0);
 }
 
 #endif

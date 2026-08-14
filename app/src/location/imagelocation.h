@@ -208,6 +208,8 @@ bool sameOpenedCollectionScopeLocation(
     const OpenedCollectionScopeLocation& left, const OpenedCollectionScopeLocation& right);
 bool sameOpenedCollectionScopeSnapshot(
     const OpenedCollectionScopeLocation& left, const OpenedCollectionScopeLocation& right);
+bool sameOpenedCollectionEntryLocation(const OpenedCollectionScopeLocation& leftScope,
+    const QUrl& leftUrl, const OpenedCollectionScopeLocation& rightScope, const QUrl& rightUrl);
 
 class DisplayedImageLocation
 {
@@ -278,7 +280,8 @@ public:
             return false;
         }
         if (!left.m_openedCollectionScope.isEmpty()) {
-            return left.imageUrl() == right.imageUrl();
+            return sameOpenedCollectionEntryLocation(left.m_openedCollectionScope, left.imageUrl(),
+                right.m_openedCollectionScope, right.imageUrl());
         }
         return left.m_image == right.m_image;
     }

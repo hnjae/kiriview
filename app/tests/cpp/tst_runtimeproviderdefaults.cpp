@@ -23,7 +23,6 @@
 #include <QUrl>
 #include <memory>
 #include <optional>
-#include <sys/stat.h>
 #include <utility>
 #include <vector>
 
@@ -212,16 +211,17 @@ void TestRuntimeProviderDefaults::candidateLoadingPreservesTypedDirectoryFailure
 void TestRuntimeProviderDefaults::siblingProvidersRejectOverLimitListingsWithTypedFailure()
 {
     const QUrl directoryUrl = localUrl(QStringLiteral("/media/"));
-    const KFileItem repeatedItem(localUrl(QStringLiteral("/media/01.png")), QString(), S_IFREG);
+    const kiriview::DirectoryItem repeatedItem { localUrl(QStringLiteral("/media/01.png")),
+        QStringLiteral("01.png"), true };
     const qsizetype itemCount
         = kiriview::defaultSiblingCandidateAdmissionLimits().maximumEntryCount + 1;
     kiriview::DirectoryItemListProvider directoryItemListProvider
         = [repeatedItem, itemCount](QObject*, QUrl, kiriview::DirectoryItemListCallback callback,
               kiriview::KioOperationFailureCallback) {
-              KFileItemList items;
+              kiriview::DirectoryItemList items;
               items.reserve(itemCount);
               for (qsizetype index = 0; index < itemCount; ++index) {
-                  items.append(repeatedItem);
+                  items.push_back(repeatedItem);
               }
               callback(std::move(items));
               return kiriview::ImageIoJob();

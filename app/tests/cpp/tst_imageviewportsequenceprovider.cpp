@@ -76,6 +76,8 @@ kiriview::StaticDisplayImagePayload displayPayload(kiriview::DisplayImageQuality
         quality,
         {},
         {},
+        {},
+        {},
         quality == kiriview::DisplayImageQuality::ThumbnailPreview
             ? kiriview::DisplayImagePreviewOrigin::XdgThumbnail
             : kiriview::DisplayImagePreviewOrigin::None,
@@ -343,6 +345,8 @@ kiriview::StaticDisplayImagePayload firstDisplayPayload(
         std::move(image),
         kiriview::DisplayImageQuality::FirstDisplay,
         {},
+        {},
+        {},
         refinementSource,
         kiriview::DisplayImagePreviewOrigin::None,
         refinementSource->detailModel(),
@@ -601,6 +605,7 @@ private Q_SLOTS:
     void decodeSourceImmediateCompletionRetainsSourceThroughCallback();
     void refinementCompletionRetainsSourceThroughCallback();
     void refinementWorkerCompletionAndInvalidationAreOwnedBySource();
+    void activeRefinementRetainsInputAdmissionsUntilWorkRetires();
     void workerUnitIdentitySkipsLiveIdsAfterWrap();
     void outOfOrderRefinementCannotDowngradeReusableAuthoritativeImage();
     void animationDemandRequestsOnlyTheSelectedFrame();
@@ -2255,6 +2260,8 @@ void TestImageViewportSequenceProvider::scalableSourceRefinesBeyondIntrinsicRast
         intrinsic.image,
         kiriview::DisplayImageQuality::FirstDisplay,
         {},
+        {},
+        {},
         refinementSource,
         kiriview::DisplayImagePreviewOrigin::None,
         refinementSource->detailModel(),
@@ -3792,6 +3799,89 @@ void TestImageViewportSequenceProvider::refinementWorkerCompletionAndInvalidatio
     QVERIFY(!workerScheduler.isActive(2));
     workerScheduler.finish(2);
     QCOMPARE(completionCount, 1);
+}
+
+void TestImageViewportSequenceProvider::activeRefinementRetainsInputAdmissionsUntilWorkRetires()
+{
+    constexpr qsizetype sourceByteCost = 1'024;
+    constexpr qsizetype inputWorkspaceByteCost = 2'048;
+    constexpr qsizetype basisImageByteCost = 200 * 150 * 4;
+    constexpr QSize targetSize(400, 300);
+    constexpr qsizetype producerPeakByteCost = targetSize.width() * targetSize.height() * 4 * 2;
+    auto sourceDataBudget
+        = std::make_shared<kiriview::ImageSourceDataBudget>(sourceByteCost, sourceByteCost);
+    auto workspaceBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        basisImageByteCost + inputWorkspaceByteCost + producerPeakByteCost,
+        basisImageByteCost + inputWorkspaceByteCost + producerPeakByteCost);
+
+    kiriview::ImageSourceDataLease sourceDataLease = sourceDataBudget->startLease();
+    QVERIFY(sourceDataLease.tryReserve(sourceByteCost));
+    kiriview::ImageDecodeWorkspaceLease inputWorkspaceLease = workspaceBudget->startLease();
+    QVERIFY(inputWorkspaceLease.tryReserve(inputWorkspaceByteCost));
+
+    auto refinementSource = std::make_shared<RefiningDisplaySource>();
+    kiriview::StaticDisplayImagePayload seed = firstDisplayPayload(refinementSource);
+    seed.sourceDataLease = std::move(sourceDataLease);
+    seed.inputWorkspaceHold = inputWorkspaceLease.sharedHold();
+    inputWorkspaceLease = {};
+
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImageWorkerOperation activeRefinementOperation;
+    kiriview::ImageDecodeDependencies dependencies
+        = kiriview::TestSupport::imageDecodeDependenciesFor(
+            dataLoader, kiriview::TestSupport::staticImageDataDecoder());
+    dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = kiriview::ImageWorkerScheduler(
+        [&activeRefinementOperation](
+            QObject*, kiriview::ImageWorkerOperation operation, kiriview::ImageWorkerCompletion) {
+            activeRefinementOperation = std::move(operation);
+            return kiriview::ImageWorkerTask([] { });
+        });
+    dependencies.workspaceBudget = workspaceBudget;
+
+    const QUrl url(QStringLiteral("file:///tmp/active-refinement-input-lifetime.avif"));
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::ImageLoadSession(85,
+            kiriview::ImageLoadRequest::fromExternalSource(
+                kiriview::resolvedNavigationSource(url, {})),
+            kiriview::DisplayedImageLocation::fromUrl(url)),
+        std::move(dependencies), authoritativeSeedForUrl(url, std::move(seed)));
+    seed = {};
+    refinementSource.reset();
+
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        85,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("active-refinement-input-lifetime"),
+    };
+    ImageSequenceProviderDisplayDemand demand;
+    demand.setTargetDisplaySizePixels(QSizeF(targetSize));
+    demand.setCurrentPayloadQuality(ImageViewportPayloadQuality::FirstDisplay);
+    demand.setCurrentPayloadExactness(ImageViewportPayloadExactness::NotExact);
+    source->requestFrame(identity,
+        kiriview::ImageViewportProviderFrameRequest {
+            0,
+            demand,
+        },
+        [](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderFrameResult) { });
+    dataLoader.finishFrontLoad(authoritativeSeedData());
+
+    QVERIFY(activeRefinementOperation);
+    QCOMPARE(sourceDataBudget->reservedByteCount(), sourceByteCost);
+    QCOMPARE(workspaceBudget->reservedByteCount(), inputWorkspaceByteCost + producerPeakByteCost);
+
+    source->close();
+    source.reset();
+    QCOMPARE(sourceDataBudget->reservedByteCount(), sourceByteCost);
+    QCOMPARE(workspaceBudget->reservedByteCount(), inputWorkspaceByteCost + producerPeakByteCost);
+
+    activeRefinementOperation = {};
+    QCOMPARE(sourceDataBudget->reservedByteCount(), qsizetype(0));
+    QCOMPARE(workspaceBudget->reservedByteCount(), qsizetype(0));
 }
 
 void TestImageViewportSequenceProvider::workerUnitIdentitySkipsLiveIdsAfterWrap()

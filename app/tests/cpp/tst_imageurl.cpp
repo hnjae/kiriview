@@ -51,13 +51,13 @@ private Q_SLOTS:
     void documentPortalCandidatesRequireFilesystemAbsoluteRoots();
     void documentPortalMountAuthenticationRequiresFuseMountBoundary();
     void trustedNavigationSourceFactsResolveDocumentPortalHostWithoutXattr();
-    void navigationSourceFactsRestoreKioFuseArchivesWithoutEnvironment();
+    void navigationSourceFactsRequireConfirmedKioFuseArchiveMapping();
     void resolvedNavigationSourceCollectsFactsOncePerSnapshot();
     void resolvedNavigationSourceRetainsNegativeFactsUntilReplacement();
     void injectedEmptyProviderDoesNotUseDefaultAdapter();
     void ordinaryFileDocumentPortalHostPathAttributeIsIgnored();
     void fileWithoutDocumentPortalXattrProducesNegativeFacts();
-    void kioFuseArchivePathsRestoreSupportedArchiveSchemes();
+    void kioFuseShapedLocalPathsRemainLocalWithoutServiceConfirmation();
     void imageLocationTypesExposeExplicitState();
 };
 
@@ -254,7 +254,7 @@ void TestImageUrl::trustedNavigationSourceFactsResolveDocumentPortalHostWithoutX
     QCOMPARE(kiriview::resolvedNavigationSource(portalUrl, facts).navigationUrl(), portalUrl);
 }
 
-void TestImageUrl::navigationSourceFactsRestoreKioFuseArchivesWithoutEnvironment()
+void TestImageUrl::navigationSourceFactsRequireConfirmedKioFuseArchiveMapping()
 {
     kiriview::NavigationSourceEntryFacts facts;
     facts.runtimeDir = QStringLiteral("/run/user/1000");
@@ -266,15 +266,30 @@ void TestImageUrl::navigationSourceFactsRestoreKioFuseArchivesWithoutEnvironment
     const QString cb7FusePath
         = QStringLiteral("/run/user/1000/kio-fuse-test/sevenz/books/book.cb7/page.png");
 
-    QCOMPARE(
-        kiriview::resolvedNavigationSource(QUrl::fromLocalFile(cbzFusePath), facts).navigationUrl(),
-        archiveUrl(QStringLiteral("zip"), QStringLiteral("/books/book.cbz/page.png")));
-    QCOMPARE(
-        kiriview::resolvedNavigationSource(QUrl::fromLocalFile(cbtFusePath), facts).navigationUrl(),
-        archiveUrl(QStringLiteral("tar"), QStringLiteral("/books/book.cbt/page.png")));
-    QCOMPARE(
-        kiriview::resolvedNavigationSource(QUrl::fromLocalFile(cb7FusePath), facts).navigationUrl(),
-        archiveUrl(QStringLiteral("sevenz"), QStringLiteral("/books/book.cb7/page.png")));
+    const QUrl cbzLocalUrl = QUrl::fromLocalFile(cbzFusePath);
+    const QUrl cbtLocalUrl = QUrl::fromLocalFile(cbtFusePath);
+    const QUrl cb7LocalUrl = QUrl::fromLocalFile(cb7FusePath);
+    const kiriview::ResolvedNavigationSource unconfirmed
+        = kiriview::resolvedNavigationSource(cbzLocalUrl, facts);
+    QCOMPARE(unconfirmed.requestedUrl(), cbzLocalUrl);
+    QCOMPARE(unconfirmed.navigationUrl(), cbzLocalUrl);
+    QCOMPARE(kiriview::directoryNavigationLocationForSource(unconfirmed).directoryUrl,
+        QUrl::fromLocalFile(QStringLiteral("/run/user/1000/kio-fuse-test/zip/books/book.cbz/")));
+    QCOMPARE(kiriview::resolvedNavigationSource(cbtLocalUrl, facts).navigationUrl(), cbtLocalUrl);
+    QCOMPARE(kiriview::resolvedNavigationSource(cb7LocalUrl, facts).navigationUrl(), cb7LocalUrl);
+
+    const QUrl confirmedArchiveUrl
+        = archiveUrl(QStringLiteral("zip"), QStringLiteral("/books/book.cbz/page.png"));
+    facts.kioFuseArchiveUrl = confirmedArchiveUrl;
+    const kiriview::ResolvedNavigationSource confirmed
+        = kiriview::resolvedNavigationSource(cbzLocalUrl, facts);
+    QCOMPARE(confirmed.requestedUrl(), cbzLocalUrl);
+    QCOMPARE(confirmed.navigationUrl(), confirmedArchiveUrl);
+    QCOMPARE(kiriview::directoryNavigationLocationForSource(confirmed).directoryUrl,
+        archiveUrl(QStringLiteral("zip"), QStringLiteral("/books/book.cbz/")));
+
+    facts.kioFuseArchiveUrl = QUrl(QStringLiteral("https://example.test/books/book.cbz/page.png"));
+    QCOMPARE(kiriview::resolvedNavigationSource(cbzLocalUrl, facts).navigationUrl(), cbzLocalUrl);
 }
 
 void TestImageUrl::resolvedNavigationSourceCollectsFactsOncePerSnapshot()
@@ -325,6 +340,7 @@ void TestImageUrl::resolvedNavigationSourceRetainsNegativeFactsUntilReplacement(
     const kiriview::ResolvedNavigationSource first
         = kiriview::NavigationSourceResolver(provider).resolveExternalSource(sourceUrl);
     QVERIFY(!first.facts().documentPortalHostPath.has_value());
+    QVERIFY(!first.facts().kioFuseArchiveUrl.has_value());
     QCOMPARE(kiriview::directoryNavigationLocationForSource(first).fileUrl, sourceUrl);
     QCOMPARE(kiriview::directoryNavigationLocationForSource(first).fileUrl, sourceUrl);
     QCOMPARE(probeCount, 1);
@@ -406,7 +422,7 @@ void TestImageUrl::fileWithoutDocumentPortalXattrProducesNegativeFacts()
     QCOMPARE(source.navigationUrl(), QUrl::fromLocalFile(path));
 }
 
-void TestImageUrl::kioFuseArchivePathsRestoreSupportedArchiveSchemes()
+void TestImageUrl::kioFuseShapedLocalPathsRemainLocalWithoutServiceConfirmation()
 {
     const bool hadRuntimeDir = qEnvironmentVariableIsSet("XDG_RUNTIME_DIR");
     const QByteArray originalRuntimeDir = qgetenv("XDG_RUNTIME_DIR");
@@ -419,18 +435,20 @@ void TestImageUrl::kioFuseArchivePathsRestoreSupportedArchiveSchemes()
     const QString cb7FusePath
         = QStringLiteral("/run/user/1000/kio-fuse-test/sevenz/books/book.cb7/page.png");
 
+    for (const QString& localPath : { cbzFusePath, cbtFusePath, cb7FusePath }) {
+        const QUrl localUrl = QUrl::fromLocalFile(localPath);
+        QCOMPARE(
+            kiriview::NavigationSourceResolver {}.resolveExternalSource(localUrl).navigationUrl(),
+            localUrl);
+    }
+
+    qunsetenv("XDG_RUNTIME_DIR");
+    const QUrl unscopedLookalike
+        = QUrl::fromLocalFile(QStringLiteral("/tmp/kio-fuse-test/zip/books/book.cbz/page.png"));
     QCOMPARE(kiriview::NavigationSourceResolver {}
-                 .resolveExternalSource(QUrl::fromLocalFile(cbzFusePath))
+                 .resolveExternalSource(unscopedLookalike)
                  .navigationUrl(),
-        archiveUrl(QStringLiteral("zip"), QStringLiteral("/books/book.cbz/page.png")));
-    QCOMPARE(kiriview::NavigationSourceResolver {}
-                 .resolveExternalSource(QUrl::fromLocalFile(cbtFusePath))
-                 .navigationUrl(),
-        archiveUrl(QStringLiteral("tar"), QStringLiteral("/books/book.cbt/page.png")));
-    QCOMPARE(kiriview::NavigationSourceResolver {}
-                 .resolveExternalSource(QUrl::fromLocalFile(cb7FusePath))
-                 .navigationUrl(),
-        archiveUrl(QStringLiteral("sevenz"), QStringLiteral("/books/book.cb7/page.png")));
+        unscopedLookalike);
 
     if (hadRuntimeDir) {
         qputenv("XDG_RUNTIME_DIR", originalRuntimeDir);

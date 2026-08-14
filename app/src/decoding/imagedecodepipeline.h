@@ -9,8 +9,10 @@
 #include "imageinputclassification.h"
 
 #include <QByteArray>
+#include <QtGlobal>
 #include <functional>
 #include <memory>
+#include <optional>
 
 namespace kiriview {
 class ImageDecodeWorkspaceBudget;
@@ -21,6 +23,7 @@ struct ImageDecodeRouterInput
     const ImageDecodeRequest& request;
     QtRasterFormat qtRasterFormat = QtRasterFormat::None;
     std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget;
+    qsizetype retainedInputWorkspaceByteCount = 0;
 };
 
 enum class ImageDecodeHandlerKind {
@@ -54,7 +57,25 @@ struct ImageDecodeRouterHandlers
 
 using ImageDecodeInputClassifier
     = std::function<ImageInputClassification(const QByteArray&, const QString&)>;
-using ImageDecodeCompatibleDataTransform = std::function<QByteArray(const QByteArray&)>;
+struct ImageDecodeCompatibleDataTransform
+{
+    enum class Storage {
+        Original,
+        OwnedReplacement,
+    };
+
+    struct Result
+    {
+        QByteArray data;
+        Storage storage = Storage::Original;
+    };
+
+    // The plan must bound both peak transform allocation and retained replacement capacity.
+    std::function<std::optional<qsizetype>(qsizetype)> workspaceByteCost;
+    std::function<Result(const QByteArray&)> apply;
+
+    [[nodiscard]] explicit operator bool() const { return static_cast<bool>(apply); }
+};
 
 ImageDecodeRoute imageDecodeRouteForClassification(ImageInputClassification classification);
 

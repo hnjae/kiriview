@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 KIM Hyunjae
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.25)
 
 project(VideoThumbnailExtraction LANGUAGES CXX)
 

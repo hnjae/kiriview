@@ -14,10 +14,16 @@
 #include <memory>
 
 namespace kiriview {
+class ImageDecodeWorkspaceBudget;
+
+std::optional<qsizetype> svgParserWorkspaceByteCost(qsizetype sourceByteCount);
+
 class SvgDisplaySource final : public StaticImageDisplaySource
 {
 public:
-    static std::shared_ptr<SvgDisplaySource> open(const QByteArray& data, QString* errorString);
+    static std::shared_ptr<SvgDisplaySource> open(const QByteArray& data, QString* errorString,
+        std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {},
+        bool* resourceExhausted = nullptr);
 
     SvgDisplaySource(QByteArray data, QSize imageSize);
     ~SvgDisplaySource() override = default;

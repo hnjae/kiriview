@@ -213,13 +213,24 @@ set_target_properties(KiriViewRustSupportBridge PROPERTIES CXX_EXTENSIONS OFF)
 target_include_directories(KiriViewRustSupportBridge PUBLIC "${KIRIVIEW_CXXBRIDGE_OUTPUT_DIR}")
 target_link_libraries(KiriViewRustSupportBridge PUBLIC KiriViewRustSupportArchive)
 
+add_executable(KiriViewSvgWorker src/rendering/svgworker.cpp)
+target_compile_features(KiriViewSvgWorker PRIVATE cxx_std_23)
+set_target_properties(KiriViewSvgWorker PROPERTIES CXX_EXTENSIONS OFF)
+set_target_properties(KiriViewSvgWorker PROPERTIES OUTPUT_NAME kiriview-svg-worker)
+target_include_directories(KiriViewSvgWorker PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"
+                                                     "${KIRIVIEW_CXXBRIDGE_OUTPUT_DIR}")
+target_link_libraries(KiriViewSvgWorker PRIVATE KiriViewRustSupportBridge Qt6::Core)
+
 add_library(KiriViewCore STATIC ${kiriview_core_sources} ${kiriview_qml_cpp_sources})
+add_dependencies(KiriViewCore KiriViewSvgWorker)
 target_compile_features(KiriViewCore PUBLIC cxx_std_23)
 set_target_properties(KiriViewCore PROPERTIES CXX_EXTENSIONS OFF)
 target_include_directories(
     KiriViewCore PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src" "${KIRIVIEW_CXXBRIDGE_OUTPUT_DIR}"
                         "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(KiriViewCore PUBLIC TRANSLATION_DOMAIN="kiriview")
+target_compile_definitions(
+    KiriViewCore PRIVATE KIRIVIEW_SVG_WORKER_BUILD_PATH="$<TARGET_FILE:KiriViewSvgWorker>")
 target_link_libraries(
     KiriViewCore
     PUBLIC ImageViewport
@@ -322,7 +333,7 @@ set_target_properties(kiriview PROPERTIES CXX_EXTENSIONS OFF QT_QML_MODULE_NO_IM
 target_link_libraries(kiriview PRIVATE KiriViewQml KiriViewQmlplugin)
 
 include(GNUInstallDirs)
-install(TARGETS kiriview RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+install(TARGETS kiriview KiriViewSvgWorker RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 install(FILES "data/icons/hicolor/scalable/apps/${KIRIVIEW_ICON_FILE}"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps")
 install(FILES "${KIRIVIEW_DESKTOP_FILE}" DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")

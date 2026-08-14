@@ -113,9 +113,27 @@ qsizetype ImageSourceDataBudget::reservedByteCount() const
 }
 
 ImageSourceData::ImageSourceData(QByteArray sourceData, ImageSourceDataLease sourceLease)
-    : data(std::move(sourceData))
-    , lease(std::move(sourceLease))
+    : lease(std::move(sourceLease))
+    , data(std::move(sourceData))
 {
+}
+
+ImageSourceData& ImageSourceData::operator=(const ImageSourceData& other)
+{
+    if (this != &other) {
+        ImageSourceData replacement(other);
+        swap(*this, replacement);
+    }
+    return *this;
+}
+
+ImageSourceData& ImageSourceData::operator=(ImageSourceData&& other) noexcept
+{
+    if (this != &other) {
+        ImageSourceData replacement(std::move(other));
+        swap(*this, replacement);
+    }
+    return *this;
 }
 
 bool ImageSourceData::tryReserveExpectedByteCount(qint64 expectedByteCount)

@@ -445,16 +445,19 @@ private:
 class HeifSequenceAnimationPlaybackSource final : public kiriview::ImageAnimationPlaybackSource
 {
 public:
-    HeifSequenceAnimationPlaybackSource(
-        QByteArray data, std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> workspaceBudget)
+    HeifSequenceAnimationPlaybackSource(QByteArray data,
+        std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> workspaceBudget,
+        qsizetype retainedInputWorkspaceByteCount)
         : m_data(std::move(data))
         , m_workspaceBudget(std::move(workspaceBudget))
+        , m_retainedInputWorkspaceByteCount(retainedInputWorkspaceByteCount)
     {
     }
 
     kiriview::ImageAnimationPlaybackOpenResult open() override
     {
-        m_reader = std::make_unique<kiriview::HeifSequenceReader>(m_workspaceBudget);
+        m_reader = std::make_unique<kiriview::HeifSequenceReader>(
+            m_workspaceBudget, m_retainedInputWorkspaceByteCount);
         const kiriview::HeifSequenceOpenResult openResult = m_reader->open(m_data);
         if (openResult.status != kiriview::HeifSequenceOpenStatus::Success) {
             m_reader.reset();
@@ -504,6 +507,7 @@ public:
 private:
     QByteArray m_data;
     std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> m_workspaceBudget;
+    qsizetype m_retainedInputWorkspaceByteCount = 0;
     std::unique_ptr<kiriview::HeifSequenceReader> m_reader;
 };
 
@@ -538,8 +542,8 @@ std::unique_ptr<kiriview::ImageAnimationPlaybackSource> makeJxlPlaybackSource(
 std::unique_ptr<kiriview::ImageAnimationPlaybackSource> makeHeifSequencePlaybackSource(
     kiriview::HeifSequenceAnimationPlaybackRequest request)
 {
-    return std::make_unique<HeifSequenceAnimationPlaybackSource>(
-        std::move(request.data), std::move(request.workspaceBudget));
+    return std::make_unique<HeifSequenceAnimationPlaybackSource>(std::move(request.data),
+        std::move(request.workspaceBudget), request.retainedInputWorkspaceByteCount);
 }
 
 std::unique_ptr<kiriview::ImageAnimationPlaybackSource> makePlaybackSource(std::monostate)
@@ -584,10 +588,16 @@ void ImageAnimationPlaybackSource::retainSourceDataLease(ImageSourceDataLease so
     m_sourceDataLease = std::move(sourceDataLease);
 }
 
+void ImageAnimationPlaybackSource::retainInputWorkspace(ImageDecodeWorkspaceHold inputWorkspaceHold)
+{
+    m_inputWorkspaceHold = std::move(inputWorkspaceHold);
+}
+
 std::unique_ptr<ImageAnimationPlaybackSource> makeImageAnimationPlaybackSource(
     ImageAnimationPlaybackRequest request)
 {
     ImageSourceDataLease sourceDataLease = std::move(request.sourceDataLease);
+    ImageDecodeWorkspaceHold inputWorkspaceHold = std::move(request.inputWorkspaceHold);
     std::unique_ptr<ImageAnimationPlaybackSource> source = std::visit(
         [](auto&& playbackRequest) {
             return makePlaybackSource(std::forward<decltype(playbackRequest)>(playbackRequest));
@@ -595,6 +605,7 @@ std::unique_ptr<ImageAnimationPlaybackSource> makeImageAnimationPlaybackSource(
         std::move(request.payload));
     if (source != nullptr) {
         source->retainSourceDataLease(std::move(sourceDataLease));
+        source->retainInputWorkspace(std::move(inputWorkspaceHold));
     }
     return source;
 }

@@ -29,6 +29,7 @@ struct NavigationSourceEntryFacts
     std::optional<QString> documentPortalHostPath;
     QString runtimeDir;
     bool requestedLocalSourceIsDirectory = false;
+    std::optional<QUrl> kioFuseArchiveUrl;
 };
 
 using NavigationSourceEntryFactProvider = std::function<NavigationSourceEntryFacts(const QUrl&)>;

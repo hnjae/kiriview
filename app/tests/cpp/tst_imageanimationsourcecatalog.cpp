@@ -130,6 +130,7 @@ private Q_SLOTS:
     void catalogWorkspaceFailureIsTyped_data();
     void catalogWorkspaceFailureIsTyped();
     void heifCatalogChargesRetainedFirstFrameSeparately();
+    void heifCatalogIncludesRetainedInputInOperationAdmission();
 };
 
 void TestImageAnimationSourceCatalog::realAnimationSourcesExposeNormalizedCatalogs_data()
@@ -266,6 +267,34 @@ void TestImageAnimationSourceCatalog::heifCatalogChargesRetainedFirstFrameSepara
     QCOMPARE(catalog.error().cause,
         kiriview::ImageAnimationSourceCatalogFailureCause::ResourceLimitExceeded);
     QVERIFY(reader.lastReadResourceLimitExceeded());
+}
+
+void TestImageAnimationSourceCatalog::heifCatalogIncludesRetainedInputInOperationAdmission()
+{
+    const QByteArray data = fixtureData(QStringLiteral("heif-sequence-alpha.heics"));
+    QVERIFY(!data.isEmpty());
+    constexpr qsizetype perOperationByteLimit = qsizetype { 256 } * 1024 * 1024;
+    constexpr qsizetype retainedInputByteCount = perOperationByteLimit - 1;
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        perOperationByteLimit * 2, perOperationByteLimit);
+    kiriview::ImageDecodeWorkspaceLease retainedInput = budget->startLease();
+    QVERIFY(retainedInput.tryReserve(retainedInputByteCount));
+    kiriview::ImageAnimationPlaybackRequest request
+        = kiriview::heifSequenceAnimationPlaybackRequest(
+            data, {}, budget, retainedInput.sharedHold());
+    retainedInput = {};
+
+    const kiriview::ImageAnimationSourceCatalogResult catalog
+        = kiriview::readImageAnimationSourceCatalog(request);
+
+    QVERIFY(!catalog.has_value());
+    QCOMPARE(catalog.error().cause,
+        kiriview::ImageAnimationSourceCatalogFailureCause::ResourceLimitExceeded);
+    QCOMPARE(catalog.error().errorString, kiriview::imageDecodeWorkspaceResourceLimitDiagnostic());
+    QCOMPARE(budget->reservedByteCount(), retainedInputByteCount);
+
+    request = {};
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
 }
 
 QTEST_GUILESS_MAIN(TestImageAnimationSourceCatalog)

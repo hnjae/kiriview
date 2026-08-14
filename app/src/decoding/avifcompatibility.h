@@ -5,10 +5,23 @@
 #define KIRIVIEW_AVIFCOMPATIBILITY_H
 
 #include <QByteArray>
-#include <QByteArrayView>
+#include <QtGlobal>
+#include <optional>
 
 namespace kiriview {
-QByteArray avifDataWithCompatibilityFixes(QByteArrayView data);
+enum class AvifCompatibleDataStorage {
+    Original,
+    OwnedReplacement,
+};
+
+struct AvifCompatibleData
+{
+    QByteArray data;
+    AvifCompatibleDataStorage storage = AvifCompatibleDataStorage::Original;
+};
+
+std::optional<qsizetype> avifCompatibilityWorkspaceByteCost(qsizetype sourceByteCount);
+AvifCompatibleData avifDataWithCompatibilityFixes(const QByteArray& data);
 }
 
 #endif

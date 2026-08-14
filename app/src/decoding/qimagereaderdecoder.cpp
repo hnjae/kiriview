@@ -187,6 +187,8 @@ DecodedImageResult decodeQImageReaderImageData(const QByteArray& data,
     return successfulDecodedImageResult(ReaderAnimationImage {
         outputLease.sharedHold(),
         std::move(firstFrame),
+        {},
+        {},
         data,
         readerFormat,
         std::move(*catalog),

@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include <ImageViewport/imagesequenceidentity.h>
 #include <ImageViewport/imageviewporttypes.h>
 
 #include <QtCore/QMetaType>
@@ -19,6 +18,8 @@
 
 #include <optional>
 #include <utility>
+
+class ImageSequence;
 
 class ImageViewportRequestSnapshot
 {
@@ -642,7 +643,7 @@ class ImageViewportRoleSnapshot
     Q_GADGET
     QML_VALUE_TYPE(imageViewportRoleSnapshot)
     Q_PROPERTY(bool present READ present CONSTANT)
-    Q_PROPERTY(ImageSequence* sequence READ sequence CONSTANT)
+    Q_PROPERTY(QObject* sequence READ sequenceObject CONSTANT)
     Q_PROPERTY(ImageViewportRoleRequestSnapshot request READ request CONSTANT)
     Q_PROPERTY(ImageViewportRoleDisplaySnapshot display READ display CONSTANT)
     Q_PROPERTY(ImageViewportRoleMetadataSnapshot metadata READ metadata CONSTANT)
@@ -652,18 +653,10 @@ public:
     ImageViewportRoleSnapshot() = default;
     ImageViewportRoleSnapshot(bool present, ImageSequence* sequence,
         ImageViewportRoleRequestSnapshot request, ImageViewportRoleDisplaySnapshot display,
-        ImageViewportRoleMetadataSnapshot metadata, ImageViewportRoleGeometrySnapshot geometry)
-        : m_present(present)
-        , m_sequence(sequence)
-        , m_request(request)
-        , m_display(display)
-        , m_metadata(metadata)
-        , m_geometry(geometry)
-    {
-    }
+        ImageViewportRoleMetadataSnapshot metadata, ImageViewportRoleGeometrySnapshot geometry);
 
     [[nodiscard]] bool present() const { return m_present; }
-    [[nodiscard]] ImageSequence* sequence() const { return m_sequence; }
+    [[nodiscard]] ImageSequence* sequence() const;
     [[nodiscard]] ImageViewportRoleRequestSnapshot request() const { return m_request; }
     [[nodiscard]] ImageViewportRoleDisplaySnapshot display() const { return m_display; }
     [[nodiscard]] ImageViewportRoleMetadataSnapshot metadata() const { return m_metadata; }
@@ -678,8 +671,10 @@ public:
     }
 
 private:
+    [[nodiscard]] QObject* sequenceObject() const { return m_sequence.data(); }
+
     bool m_present = false;
-    QPointer<ImageSequence> m_sequence;
+    QPointer<QObject> m_sequence;
     ImageViewportRoleRequestSnapshot m_request;
     ImageViewportRoleDisplaySnapshot m_display;
     ImageViewportRoleMetadataSnapshot m_metadata;

@@ -40,7 +40,7 @@ ImageIoJob startDirectoryImageDocumentPageCandidateList(QObject* receiver, const
     return startDirectoryItemList(
         receiver, directoryUrl,
         [callback = std::move(callback), errorCallback = std::move(admissionErrorCallback),
-            directoryUrl](const KFileItemList& items) mutable {
+            directoryUrl](const DirectoryItemList& items) mutable {
             ImageDocumentPageCandidateAdmissionResult admitted
                 = imageDocumentPageNavigationCandidates(directoryUrl, items);
             if (!admitted) {
@@ -69,7 +69,7 @@ ImageIoJob startDirectoryContainerCandidateList(QObject* receiver, const QUrl& d
     return startDirectoryItemList(
         receiver, directoryUrl,
         [callback = std::move(callback), errorCallback = std::move(admissionErrorCallback),
-            directoryUrl](const KFileItemList& items) mutable {
+            directoryUrl](const DirectoryItemList& items) mutable {
             ContainerNavigationCandidateAdmissionResult admitted
                 = containerNavigationCandidates(directoryUrl, items);
             if (!admitted) {

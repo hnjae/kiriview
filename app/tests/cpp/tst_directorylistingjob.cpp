@@ -3,7 +3,6 @@
 
 #include "async/directorylistingjob.h"
 
-#include <KFileItem>
 #include <QFile>
 #include <QRegularExpression>
 #include <QStringList>
@@ -25,11 +24,11 @@ bool createFile(const QTemporaryDir& directory, const QString& fileName)
     return file.open(QIODevice::WriteOnly);
 }
 
-QStringList itemNames(const KFileItemList& items)
+QStringList itemNames(const kiriview::DirectoryItemList& items)
 {
     QStringList names;
-    for (const KFileItem& item : items) {
-        names.push_back(item.name());
+    for (const kiriview::DirectoryItem& item : items) {
+        names.push_back(item.name);
     }
     names.sort();
     return names;
@@ -44,7 +43,9 @@ private Q_SLOTS:
     void injectedProviderCompletesWithoutFilesystem();
     void injectedProviderPreservesTypedFailure();
     void injectedProviderCancellationSuppressesCompletion();
+    void incrementalAdmissionReleasesPartialSnapshotOnLimit();
     void localDirectoryReturnsItemSnapshot();
+    void localDirectoryLimitReturnsTypedResourceFailure();
     void cancelDeactivatesDefaultProviderJob();
     void openUrlFailureLeavesDiagnosticWarning();
     void backendErrorLeavesDiagnosticWarning();
@@ -67,7 +68,7 @@ void TestDirectoryListingJob::injectedProviderCompletesWithoutFilesystem()
     bool listed = false;
     std::optional<kiriview::KioOperationFailure> failure;
     kiriview::ImageIoJob job = kiriview::startDirectoryItemList(
-        this, requestedUrl, [&listed](KFileItemList) { listed = true; },
+        this, requestedUrl, [&listed](kiriview::DirectoryItemList) { listed = true; },
         [&failure](kiriview::KioOperationFailure error) { failure = std::move(error); },
         std::move(provider));
 
@@ -129,13 +130,29 @@ void TestDirectoryListingJob::injectedProviderCancellationSuppressesCompletion()
     bool listed = false;
     kiriview::ImageIoJob job = kiriview::startDirectoryItemList(
         this, QUrl::fromLocalFile(QStringLiteral("/synthetic/")),
-        [&listed](KFileItemList) { listed = true; }, {}, std::move(provider));
+        [&listed](kiriview::DirectoryItemList) { listed = true; }, {}, std::move(provider));
 
     QVERIFY(job.isActive());
     job.cancel();
 
     QVERIFY(!completion.claimAndDelete([&capturedCallback]() { capturedCallback({}); }));
     QVERIFY(!listed);
+}
+
+void TestDirectoryListingJob::incrementalAdmissionReleasesPartialSnapshotOnLimit()
+{
+    kiriview::DirectoryItemListAdmission admission(
+        kiriview::SiblingCandidateAdmissionLimits { 1, 1'024 });
+
+    QVERIFY(admission.admit(kiriview::DirectoryItem {
+        QUrl::fromLocalFile(QStringLiteral("/images/01.png")), QStringLiteral("01.png"), true }));
+    QCOMPARE(admission.retainedEntryCount(), qsizetype(1));
+
+    QVERIFY(!admission.admit(kiriview::DirectoryItem {
+        QUrl::fromLocalFile(QStringLiteral("/images/02.png")), QStringLiteral("02.png"), true }));
+    QVERIFY(admission.rejected());
+    QCOMPARE(admission.retainedEntryCount(), qsizetype(0));
+    QVERIFY(admission.takeItems().empty());
 }
 
 void TestDirectoryListingJob::localDirectoryReturnsItemSnapshot()
@@ -145,12 +162,12 @@ void TestDirectoryListingJob::localDirectoryReturnsItemSnapshot()
     QVERIFY(createFile(directory, QStringLiteral("01.png")));
     QVERIFY(createFile(directory, QStringLiteral("clip.mp4")));
 
-    KFileItemList listedItems;
+    kiriview::DirectoryItemList listedItems;
     std::optional<kiriview::KioOperationFailure> failure;
     bool listed = false;
     kiriview::ImageIoJob job = kiriview::startDirectoryItemList(
         this, directoryUrl(directory),
-        [&listedItems, &listed](KFileItemList items) {
+        [&listedItems, &listed](kiriview::DirectoryItemList items) {
             listedItems = std::move(items);
             listed = true;
         },
@@ -163,6 +180,26 @@ void TestDirectoryListingJob::localDirectoryReturnsItemSnapshot()
         QStringList({ QStringLiteral("01.png"), QStringLiteral("clip.mp4") }));
 }
 
+void TestDirectoryListingJob::localDirectoryLimitReturnsTypedResourceFailure()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    QVERIFY(createFile(directory, QStringLiteral("01.png")));
+    QVERIFY(createFile(directory, QStringLiteral("02.png")));
+
+    bool listed = false;
+    std::optional<kiriview::KioOperationFailure> failure;
+    kiriview::ImageIoJob job = kiriview::startDirectoryItemList(
+        this, directoryUrl(directory), [&listed](kiriview::DirectoryItemList) { listed = true; },
+        [&failure](kiriview::KioOperationFailure error) { failure = std::move(error); },
+        kiriview::SiblingCandidateAdmissionLimits { 1, 1'024 });
+
+    QTRY_VERIFY_WITH_TIMEOUT(failure.has_value(), 10000);
+    QVERIFY(!listed);
+    QVERIFY(!job.isActive());
+    QCOMPARE(failure->cause, kiriview::KioOperationFailureCause::ResourceLimitExceeded);
+}
+
 void TestDirectoryListingJob::cancelDeactivatesDefaultProviderJob()
 {
     QTemporaryDir directory;
@@ -172,7 +209,7 @@ void TestDirectoryListingJob::cancelDeactivatesDefaultProviderJob()
     bool listed = false;
     std::optional<kiriview::KioOperationFailure> failure;
     kiriview::ImageIoJob job = kiriview::startDirectoryItemList(
-        this, directoryUrl(directory), [&listed](KFileItemList) { listed = true; },
+        this, directoryUrl(directory), [&listed](kiriview::DirectoryItemList) { listed = true; },
         [&failure](kiriview::KioOperationFailure error) { failure = std::move(error); });
 
     QVERIFY(job.isActive());
@@ -191,7 +228,7 @@ void TestDirectoryListingJob::openUrlFailureLeavesDiagnosticWarning()
     QTest::ignoreMessage(QtWarningMsg,
         QRegularExpression(QStringLiteral("KiriView directory listing rejected empty URL")));
     kiriview::ImageIoJob job = kiriview::startDirectoryItemList(
-        this, QUrl(), [&listed](KFileItemList) { listed = true; },
+        this, QUrl(), [&listed](kiriview::DirectoryItemList) { listed = true; },
         [&failure](kiriview::KioOperationFailure error) { failure = std::move(error); });
 
     QVERIFY(!job.isActive());
@@ -216,7 +253,7 @@ void TestDirectoryListingJob::backendErrorLeavesDiagnosticWarning()
     QTest::ignoreMessage(
         QtWarningMsg, QRegularExpression(".*KiriView directory listing job failed.*"));
     kiriview::ImageIoJob job = kiriview::startDirectoryItemList(
-        this, missingDirectoryUrl, [&listed](KFileItemList) { listed = true; },
+        this, missingDirectoryUrl, [&listed](kiriview::DirectoryItemList) { listed = true; },
         [&errorReceived, &failure](kiriview::KioOperationFailure error) {
             errorReceived = true;
             failure = std::move(error);

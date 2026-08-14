@@ -391,6 +391,8 @@ std::optional<StaticDisplayImagePayload> rawEmbeddedThumbnailPreviewDisplayPaylo
         std::move(image),
         DisplayImageQuality::ThumbnailPreview,
         {},
+        {},
+        {},
         nullptr,
         DisplayImagePreviewOrigin::RawEmbeddedThumbnail,
         StaticImageSourceDetailModel::FiniteRaster,

@@ -4,7 +4,7 @@
 qt_add_library(ImageViewportStateSubjects STATIC)
 
 set(imageviewport_state_sources
-    imagesequenceidentity.cpp ${PROJECT_SOURCE_DIR}/include/ImageViewport/imagesequenceidentity.h
+    imagesequenceidentity.cpp imageviewportrolesnapshot.cpp
     ${PROJECT_SOURCE_DIR}/include/ImageViewport/imageviewportstate.h
     ${PROJECT_SOURCE_DIR}/include/ImageViewport/imageviewporttypes.h)
 

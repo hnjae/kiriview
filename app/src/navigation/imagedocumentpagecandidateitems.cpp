@@ -19,24 +19,21 @@
 #include <utility>
 
 namespace {
-constexpr qsizetype defaultMaximumSiblingEntryCount = 65'536;
-constexpr qsizetype defaultMaximumSiblingIdentityCodeUnitCount = qsizetype { 8 } * 1024 * 1024;
-
 std::expected<void, kiriview::ImageDocumentPageCandidateAdmissionFailure>
 admitSiblingCandidateItems(
-    const KFileItemList& items, kiriview::SiblingCandidateAdmissionLimits limits)
+    const kiriview::DirectoryItemList& items, kiriview::SiblingCandidateAdmissionLimits limits)
 {
     using Failure = kiriview::ImageDocumentPageCandidateAdmissionFailure;
 
     if (limits.maximumEntryCount < 0 || limits.maximumIdentityCodeUnitCount < 0
-        || items.size() > limits.maximumEntryCount) {
+        || std::cmp_greater(items.size(), limits.maximumEntryCount)) {
         return std::unexpected(Failure::ResourceLimitExceeded);
     }
 
     qsizetype retainedIdentityCodeUnits = 0;
-    for (const KFileItem& item : items) {
-        const qsizetype nameCodeUnits = item.name().size();
-        const qsizetype urlCodeUnits = item.url().toString(QUrl::FullyEncoded).size();
+    for (const kiriview::DirectoryItem& item : items) {
+        const qsizetype nameCodeUnits = item.name.size();
+        const qsizetype urlCodeUnits = item.url.toString(QUrl::FullyEncoded).size();
         if (nameCodeUnits < 0 || urlCodeUnits < 0
             || nameCodeUnits > limits.maximumIdentityCodeUnitCount - retainedIdentityCodeUnits) {
             return std::unexpected(Failure::ResourceLimitExceeded);
@@ -53,14 +50,9 @@ admitSiblingCandidateItems(
 }
 
 namespace kiriview {
-SiblingCandidateAdmissionLimits defaultSiblingCandidateAdmissionLimits()
-{
-    return SiblingCandidateAdmissionLimits { defaultMaximumSiblingEntryCount,
-        defaultMaximumSiblingIdentityCodeUnitCount };
-}
-
 ImageDocumentPageCandidateAdmissionResult imageDocumentPageNavigationCandidates(
-    const QUrl& directoryUrl, const KFileItemList& items, SiblingCandidateAdmissionLimits limits)
+    const QUrl& directoryUrl, const DirectoryItemList& items,
+    SiblingCandidateAdmissionLimits limits)
 {
     if (const auto admitted = admitSiblingCandidateItems(items, limits); !admitted) {
         return std::unexpected(admitted.error());
@@ -69,16 +61,16 @@ ImageDocumentPageCandidateAdmissionResult imageDocumentPageNavigationCandidates(
     std::vector<ImageDocumentPageCandidate> candidates;
     candidates.reserve(static_cast<std::size_t>(items.size()));
 
-    for (const KFileItem& item : items) {
-        const QString name = item.name();
-        if (!item.isFile() || !kiriview::isSupportedOrdinaryMediaFileName(name)) {
+    for (const DirectoryItem& item : items) {
+        const QString& name = item.name;
+        if (!item.isFile || !kiriview::isSupportedOrdinaryMediaFileName(name)) {
             continue;
         }
-        if (!sourceBelongsToDirectoryScope(item.url(), directoryUrl)) {
+        if (!sourceBelongsToDirectoryScope(item.url, directoryUrl)) {
             return std::unexpected(ImageDocumentPageCandidateAdmissionFailure::ScopeViolation);
         }
 
-        candidates.push_back(ImageDocumentPageCandidate { item.url(), name,
+        candidates.push_back(ImageDocumentPageCandidate { item.url, name,
             kiriview::isSupportedDirectVideoFileName(name) ? ImageDocumentPageKind::Video
                                                            : ImageDocumentPageKind::Image });
     }
@@ -88,7 +80,8 @@ ImageDocumentPageCandidateAdmissionResult imageDocumentPageNavigationCandidates(
 }
 
 DirectMediaNavigationCandidateAdmissionResult directMediaNavigationCandidates(
-    const QUrl& directoryUrl, const KFileItemList& items, SiblingCandidateAdmissionLimits limits)
+    const QUrl& directoryUrl, const DirectoryItemList& items,
+    SiblingCandidateAdmissionLimits limits)
 {
     ImageDocumentPageCandidateAdmissionResult admitted
         = imageDocumentPageNavigationCandidates(directoryUrl, items, limits);
@@ -121,8 +114,8 @@ DirectMediaNavigationCandidateAdmissionResult directMediaNavigationCandidates(
     return candidates;
 }
 
-ContainerNavigationCandidateAdmissionResult containerNavigationCandidates(
-    const QUrl& directoryUrl, const KFileItemList& items, SiblingCandidateAdmissionLimits limits)
+ContainerNavigationCandidateAdmissionResult containerNavigationCandidates(const QUrl& directoryUrl,
+    const DirectoryItemList& items, SiblingCandidateAdmissionLimits limits)
 {
     if (const auto admitted = admitSiblingCandidateItems(items, limits); !admitted) {
         return std::unexpected(admitted.error());
@@ -131,15 +124,14 @@ ContainerNavigationCandidateAdmissionResult containerNavigationCandidates(
     std::vector<ContainerNavigationCandidate> candidates;
     candidates.reserve(static_cast<std::size_t>(items.size()));
 
-    for (const KFileItem& item : items) {
-        const QString name = item.name();
-        if (item.isFile() && item.url().isLocalFile()
-            && kiriview::isComicBookArchiveFileName(name)) {
-            if (!sourceBelongsToDirectoryScope(item.url(), directoryUrl)) {
+    for (const DirectoryItem& item : items) {
+        const QString& name = item.name;
+        if (item.isFile && item.url.isLocalFile() && kiriview::isComicBookArchiveFileName(name)) {
+            if (!sourceBelongsToDirectoryScope(item.url, directoryUrl)) {
                 return std::unexpected(ImageDocumentPageCandidateAdmissionFailure::ScopeViolation);
             }
             candidates.push_back(
-                ContainerNavigationCandidate { normalizedFileContainerUrl(item.url()), name,
+                ContainerNavigationCandidate { normalizedFileContainerUrl(item.url), name,
                     ContainerNavigationCandidateType::ComicBookArchive });
         }
     }

@@ -93,18 +93,20 @@ std::optional<QSize> qtRasterTrustedOriginalSize(
     return size;
 }
 
-std::optional<QSize> svgTrustedOriginalSize(const QByteArray& data)
+std::optional<QSize> svgTrustedOriginalSize(const QByteArray& data,
+    const std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget>& workspaceBudget)
 {
     QString errorString;
     const std::shared_ptr<kiriview::SvgDisplaySource> source
-        = kiriview::SvgDisplaySource::open(data, &errorString);
+        = kiriview::SvgDisplaySource::open(data, &errorString, workspaceBudget);
     if (source == nullptr || !validImageSize(source->imageSize())) {
         return std::nullopt;
     }
     return source->imageSize();
 }
 
-std::optional<QSize> heifTrustedOriginalSize(const QByteArray& data)
+std::optional<QSize> heifTrustedOriginalSize(const QByteArray& data,
+    const std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget>& workspaceBudget)
 {
     const kiriview::HeifContainerInfo container = kiriview::heifContainerInfo(data);
     if (!container.stillImage || container.imageSequence) {
@@ -113,23 +115,24 @@ std::optional<QSize> heifTrustedOriginalSize(const QByteArray& data)
 
     QString errorString;
     const std::shared_ptr<kiriview::StaticImageDisplaySource> source
-        = kiriview::openHeifDisplaySource(data, &errorString);
+        = kiriview::openHeifDisplaySource(data, &errorString, workspaceBudget);
     if (source == nullptr || !validImageSize(source->imageSize())) {
         return std::nullopt;
     }
     return source->imageSize();
 }
 
-std::optional<QSize> trustedOriginalSizeForDecodeData(
-    const QByteArray& data, const kiriview::ImageDecodeRequest& request)
+std::optional<QSize> trustedOriginalSizeForDecodeData(const QByteArray& data,
+    const kiriview::ImageDecodeRequest& request,
+    const std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget>& workspaceBudget)
 {
     const kiriview::ImageInputClassification classification
         = kiriview::classifyImageInput(data, request.imageUrl().fileName());
     switch (classification.kind) {
     case kiriview::ImageInputKind::Svg:
-        return svgTrustedOriginalSize(data);
+        return svgTrustedOriginalSize(data, workspaceBudget);
     case kiriview::ImageInputKind::HeifFamily:
-        return heifTrustedOriginalSize(data);
+        return heifTrustedOriginalSize(data, workspaceBudget);
     case kiriview::ImageInputKind::QtRaster:
         return qtRasterTrustedOriginalSize(data, classification.qtFormat);
     case kiriview::ImageInputKind::Raw:
@@ -225,13 +228,15 @@ XdgThumbnailPreviewResult xdgThumbnailPreviewResult(
 }
 
 std::optional<XdgThumbnailPreviewRequest> xdgThumbnailPreviewRequestForDecodeData(
-    const QByteArray& data, const ImageDecodeRequest& request)
+    const QByteArray& data, const ImageDecodeRequest& request,
+    const std::shared_ptr<ImageDecodeWorkspaceBudget>& workspaceBudget)
 {
     if (request.isEmpty()) {
         return std::nullopt;
     }
 
-    std::optional<QSize> trustedOriginalSize = trustedOriginalSizeForDecodeData(data, request);
+    std::optional<QSize> trustedOriginalSize
+        = trustedOriginalSizeForDecodeData(data, request, workspaceBudget);
     if (!trustedOriginalSize.has_value()) {
         return std::nullopt;
     }
@@ -259,6 +264,8 @@ std::optional<StaticDisplayImagePayload> xdgThumbnailPreviewDisplayPayload(
         result.originalSize,
         std::move(image),
         DisplayImageQuality::ThumbnailPreview,
+        {},
+        {},
         {},
         nullptr,
         DisplayImagePreviewOrigin::XdgThumbnail,

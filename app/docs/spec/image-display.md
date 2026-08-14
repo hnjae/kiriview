@@ -64,7 +64,7 @@ When a sharper replacement becomes available for the current image, it replaces 
 
 For SVG files, 100% uses the SVG's intrinsic size. SVGs remain sharp instead of pixelated when Fit mode, manual zoom, window resizing, or display scale changes the displayed size.
 
-Static SVG rendering applies ordinary static SVG features such as clip paths. KiriView does not execute SVG scripts, play SVG animation, or load external network or file resources referenced from SVG content.
+Static SVG rendering applies ordinary static SVG features such as clip paths. KiriView does not execute SVG scripts, play SVG animation, or load external network, file, or embedded data resources referenced from SVG content.
 
 SVG preview images are placeholders. KiriView may prepare an SVG preview capped to the current physical viewport size so adjacent SVG images can appear immediately. That preview may be visible while current-detail rendering is missing, but stale low-resolution SVG output does not substitute for the current-detail image after zoom, viewport, rotation, pan position, or device-pixel-ratio changes.
 

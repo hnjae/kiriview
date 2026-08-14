@@ -3,7 +3,6 @@
 
 #include "navigation/imagedocumentpagecandidatedirectoryentry.h"
 
-#include <QList>
 #include <QObject>
 #include <QTest>
 #include <QUrl>
@@ -48,7 +47,6 @@ struct FakeWatchProvider
     QUrl watchedUrl;
     kiriview::ImageDocumentPageCandidateWatchSnapshotCallback initialSnapshot;
     kiriview::ImageDocumentPageCandidateWatchSnapshotCallback changedSnapshot;
-    kiriview::ImageDocumentPageCandidateWatchDeletedCallback deletedUrls;
     kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback;
     int startCount = 0;
 
@@ -57,13 +55,11 @@ struct FakeWatchProvider
         return [this](QObject* receiver, QUrl directory,
                    kiriview::ImageDocumentPageCandidateWatchSnapshotCallback initial,
                    kiriview::ImageDocumentPageCandidateWatchSnapshotCallback changed,
-                   kiriview::ImageDocumentPageCandidateWatchDeletedCallback deleted,
                    kiriview::ImageDocumentPageCandidateLoadErrorCallback error) {
             ++startCount;
             watchedUrl = std::move(directory);
             initialSnapshot = std::move(initial);
             changedSnapshot = std::move(changed);
-            deletedUrls = std::move(deleted);
             errorCallback = std::move(error);
             auto* token = new QObject(receiver);
             return kiriview::ImageIoJob(token, [](QObject* object) { object->deleteLater(); });
@@ -81,13 +77,6 @@ struct FakeWatchProvider
     {
         if (changedSnapshot) {
             changedSnapshot(std::move(candidates));
-        }
-    }
-
-    void remove(QList<QUrl> urls)
-    {
-        if (deletedUrls) {
-            deletedUrls(std::move(urls));
         }
     }
 
@@ -180,7 +169,7 @@ void TestImageDocumentPageCandidateDirectoryEntry::providerChangesPublishSubscri
     QCOMPARE(candidateUrls(changedCandidates), expectedAddedUrls);
     QCOMPARE(changeCount, 1);
 
-    provider.remove(QList<QUrl> { fileUrl(QStringLiteral("01.png")) });
+    provider.change({ candidate(QStringLiteral("02.png")) });
     const std::vector<QUrl> expectedDeletedUrls { fileUrl(QStringLiteral("02.png")) };
     QCOMPARE(candidateUrls(changedCandidates), expectedDeletedUrls);
     QCOMPARE(changeCount, 2);

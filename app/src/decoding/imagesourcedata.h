@@ -11,6 +11,7 @@
 #include <QString>
 #include <QtGlobal>
 #include <memory>
+#include <utility>
 
 class QIODevice;
 
@@ -66,12 +67,24 @@ struct ImageSourceData
 {
     ImageSourceData() = default;
     ImageSourceData(QByteArray data, ImageSourceDataLease lease = {});
+    ImageSourceData(const ImageSourceData&) = default;
+    ImageSourceData(ImageSourceData&&) noexcept = default;
+    ~ImageSourceData() = default;
+    ImageSourceData& operator=(const ImageSourceData& other);
+    ImageSourceData& operator=(ImageSourceData&& other) noexcept;
+
+    friend void swap(ImageSourceData& left, ImageSourceData& right) noexcept
+    {
+        using std::swap;
+        swap(left.lease, right.lease);
+        swap(left.data, right.data);
+    }
 
     [[nodiscard]] bool tryReserveExpectedByteCount(qint64 expectedByteCount);
     [[nodiscard]] bool tryAppend(QByteArrayView chunk);
 
-    QByteArray data;
     ImageSourceDataLease lease;
+    QByteArray data;
 };
 
 enum class ImageSourceDataReadStatus {

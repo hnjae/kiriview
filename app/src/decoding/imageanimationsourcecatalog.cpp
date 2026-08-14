@@ -375,7 +375,8 @@ CatalogResult jxlCatalog(const kiriview::JxlAnimationPlaybackRequest& request)
 
 CatalogResult heifCatalog(const kiriview::HeifSequenceAnimationPlaybackRequest& request)
 {
-    kiriview::HeifSequenceReader reader(request.workspaceBudget);
+    kiriview::HeifSequenceReader reader(
+        request.workspaceBudget, request.retainedInputWorkspaceByteCount);
     const kiriview::HeifSequenceOpenResult opened = reader.open(request.data);
     if (opened.status != kiriview::HeifSequenceOpenStatus::Success) {
         return opened.status == kiriview::HeifSequenceOpenStatus::ResourceLimitExceeded

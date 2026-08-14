@@ -22,6 +22,8 @@ Direct image and video source identity follows [Direct Media Source Identity](#d
 
 KiriView opens KDE-supported archive-entry URLs such as `zip://`, `tar://`, and `sevenz://` as single direct media URLs when those URLs point at supported image or direct video files.
 
+When KDE supplies a local KIOFuse path for an archive entry, KiriView restores the corresponding archive-entry URL only when the active KIOFuse service confirms the exact local-path mapping. A local path that merely resembles a KIOFuse layout remains an ordinary local direct media URL and keeps its local containing directory as its adjacent-media scope.
+
 Opening a KDE-supported archive-entry URL does not open the whole archive as an archive collection. Opening the backing archive file itself uses the opened-collection rules.
 
 ### Opened Collections

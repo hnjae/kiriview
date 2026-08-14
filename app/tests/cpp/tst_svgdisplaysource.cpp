@@ -3,6 +3,8 @@
 
 #include "rendering/svgdisplaysource.h"
 
+#include "decoding/imagedecodeworkspace.h"
+
 #include <QColor>
 #include <QObject>
 #include <QTest>
@@ -31,15 +33,46 @@ class TestSvgDisplaySource : public QObject
 
 private Q_SLOTS:
     void sourceRendersIntrinsicPreviewAndBlockingDisplay();
+    void sourceOpenRequiresParserWorkspaceAdmission();
     void sourceRendersWholeSurfaceDisplayBucket();
     void sourceRendersUpscaledFirstDisplayPreview();
     void sourceSkipsFirstDisplayPreviewWithoutValidViewport();
     void initialPreflightAccountsOnlyForSelectedDisplayPath();
     void sourceReportsFirstDisplayRenderFailure();
     void sourceReportsWholeSurfaceRenderFailure();
+    void workerLimitFailureIsTypedAndDoesNotPoisonLaterRendering();
     void sourceAppliesClipPathToBlockingAndBucketDisplay();
     void sourceRendersOversampledDisplayBucket();
 };
+
+void TestSvgDisplaySource::sourceOpenRequiresParserWorkspaceAdmission()
+{
+    const QByteArray data = QByteArrayLiteral(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"80\" height=\"40\"/>");
+    const std::optional<qsizetype> parserByteCost
+        = kiriview::svgParserWorkspaceByteCost(data.size());
+    QVERIFY(parserByteCost.has_value());
+    QVERIFY(*parserByteCost > 1);
+
+    auto insufficientBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        *parserByteCost - 1, *parserByteCost - 1);
+    QString errorString;
+    bool resourceExhausted = false;
+    const std::shared_ptr<kiriview::SvgDisplaySource> rejected = kiriview::SvgDisplaySource::open(
+        data, &errorString, insufficientBudget, &resourceExhausted);
+    QVERIFY(rejected == nullptr);
+    QVERIFY(resourceExhausted);
+    QCOMPARE(insufficientBudget->reservedByteCount(), qsizetype(0));
+
+    auto exactBudget
+        = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(*parserByteCost, *parserByteCost);
+    resourceExhausted = false;
+    const std::shared_ptr<kiriview::SvgDisplaySource> admitted
+        = kiriview::SvgDisplaySource::open(data, &errorString, exactBudget, &resourceExhausted);
+    QVERIFY2(admitted != nullptr, qPrintable(errorString));
+    QVERIFY(!resourceExhausted);
+    QCOMPARE(exactBudget->reservedByteCount(), qsizetype(0));
+}
 
 void TestSvgDisplaySource::sourceRendersIntrinsicPreviewAndBlockingDisplay()
 {
@@ -84,8 +117,11 @@ void TestSvgDisplaySource::sourceRendersWholeSurfaceDisplayBucket()
         = kiriview::SvgDisplaySource::open(data, &errorString);
     QVERIFY2(source != nullptr, qPrintable(errorString));
     QVERIFY(source->supportsRasterDisplayRefinement());
+    const std::optional<qsizetype> parserByteCost
+        = kiriview::svgParserWorkspaceByteCost(data.size());
+    QVERIFY(parserByteCost.has_value());
     QCOMPARE(source->rasterDisplayRefinementPeakByteCost(QSize(120, 60)),
-        std::optional<qsizetype>(2 * 120 * 60 * 4));
+        std::optional<qsizetype>(*parserByteCost + 2 * 120 * 60 * 4));
 
     const kiriview::StaticImageDisplayDecodeResult bucket
         = source->decodeRasterDisplayImage(QSize(120, 60));
@@ -178,6 +214,29 @@ void TestSvgDisplaySource::sourceReportsWholeSurfaceRenderFailure()
     QVERIFY(source.supportsRasterDisplayRefinement());
     QVERIFY(bucket.image.isNull());
     QVERIFY(!bucket.diagnostics.userMessage.isEmpty());
+}
+
+void TestSvgDisplaySource::workerLimitFailureIsTypedAndDoesNotPoisonLaterRendering()
+{
+    const QByteArray data
+        = QByteArrayLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"80\" height=\"40\">"
+                            "<rect width=\"80\" height=\"40\" fill=\"red\"/>"
+                            "</svg>");
+    QString errorString;
+    const std::shared_ptr<kiriview::SvgDisplaySource> source
+        = kiriview::SvgDisplaySource::open(data, &errorString);
+    QVERIFY2(source != nullptr, qPrintable(errorString));
+
+    const kiriview::StaticImageDisplayDecodeResult rejected
+        = source->decodeRasterDisplayImage(QSize(32'768, 32'768));
+    QVERIFY(rejected.image.isNull());
+    QCOMPARE(
+        rejected.failureCause, kiriview::StaticImageDisplayDecodeFailureCause::ResourceExhausted);
+
+    const kiriview::StaticImageDisplayDecodeResult recovered
+        = source->decodeRasterDisplayImage(QSize(80, 40));
+    QVERIFY2(!recovered.image.isNull(), qPrintable(recovered.diagnostics.userMessage));
+    QCOMPARE(recovered.image.size(), QSize(80, 40));
 }
 
 void TestSvgDisplaySource::sourceAppliesClipPathToBlockingAndBucketDisplay()

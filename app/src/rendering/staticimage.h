@@ -64,6 +64,8 @@ struct StaticImageFirstDisplayDecodeResult
 {
     FirstDisplayImageDecodeResult firstDisplay;
     StaticImageDisplayDecodeDiagnostics diagnostics;
+    StaticImageDisplayDecodeFailureCause failureCause
+        = StaticImageDisplayDecodeFailureCause::Decode;
 };
 
 struct StaticImageReaderTransform
@@ -120,12 +122,29 @@ struct StaticDisplayImagePayload
     QImage image;
     DisplayImageQuality quality = DisplayImageQuality::Exact;
     EmbeddedMetadata embeddedMetadata;
+    ImageSourceDataLease sourceDataLease;
+    ImageDecodeWorkspaceHold inputWorkspaceHold;
     std::shared_ptr<StaticImageDisplaySource> refinementSource;
     DisplayImagePreviewOrigin previewOrigin = DisplayImagePreviewOrigin::None;
     StaticImageSourceDetailModel sourceDetailModel = StaticImageSourceDetailModel::FiniteRaster;
     ImageSourceRevision sourceRevision;
     DisplayImageRasterKind rasterKind = DisplayImageRasterKind::AuthoritativeStill;
-    ImageSourceDataLease sourceDataLease;
+
+    StaticDisplayImagePayload() = default;
+    StaticDisplayImagePayload(QString sourceIdentity,
+        StaticImageReaderTransform imageReaderTransform, QSize originalSize, QImage image,
+        DisplayImageQuality quality, EmbeddedMetadata embeddedMetadata,
+        ImageSourceDataLease sourceDataLease, ImageDecodeWorkspaceHold inputWorkspaceHold,
+        std::shared_ptr<StaticImageDisplaySource> refinementSource,
+        DisplayImagePreviewOrigin previewOrigin, StaticImageSourceDetailModel sourceDetailModel,
+        ImageSourceRevision sourceRevision = {},
+        DisplayImageRasterKind rasterKind = DisplayImageRasterKind::AuthoritativeStill);
+    StaticDisplayImagePayload(const StaticDisplayImagePayload&) = default;
+    StaticDisplayImagePayload(StaticDisplayImagePayload&&) noexcept = default;
+    ~StaticDisplayImagePayload() = default;
+    StaticDisplayImagePayload& operator=(const StaticDisplayImagePayload& other);
+    StaticDisplayImagePayload& operator=(StaticDisplayImagePayload&& other) noexcept;
+    friend void swap(StaticDisplayImagePayload& left, StaticDisplayImagePayload& right) noexcept;
 
     [[nodiscard]] bool isValid() const;
     [[nodiscard]] bool isAuthoritative() const;

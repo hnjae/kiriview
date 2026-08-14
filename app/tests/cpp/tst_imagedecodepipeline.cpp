@@ -15,7 +15,9 @@
 #include <QStringList>
 #include <QTest>
 #include <QUrl>
+#include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 
 namespace {
@@ -103,6 +105,12 @@ private Q_SLOTS:
     void selectedDecoderFailureDoesNotFallback();
     void metadataWorkspaceAdmissionIsOptionalAndReleased();
     void compatibleDataIsComputedOnlyWhenClassificationRequestsIt();
+    void compatibleDataRequiresWorkspaceAdmissionBeforeTransform();
+    void compatibleDataCapacityCannotExceedPreflight();
+    void compatibleDataOwnedStorageRejectsNonOwningView();
+    void compatibleDataSharingOriginalStorageReleasesWorkspaceBeforeDecode();
+    void compatibleDataWorkspaceRemainsReservedUntilDecodedImageRelease();
+    void compatibleDataAdmissionIsSharedAcrossLiveResults();
     void qtRasterClassificationCarriesExplicitFormat();
     void defaultSvgDecodeUsesFirstDisplayContext();
     void defaultSvgOpenFailurePreservesAdapterDiagnostics();
@@ -161,9 +169,15 @@ void TestImageDecodePipeline::runtimeExecutesRoutePlansWithoutClassifier()
     QByteArrayList inputData;
     QList<kiriview::QtRasterFormat> qtFormats;
     kiriview::ImageDecodeRouterRuntime runtime(recordingHandlers(&calls, &inputData, &qtFormats),
-        [&compatibleTransformCount, compatibleData](const QByteArray&) {
-            ++compatibleTransformCount;
-            return compatibleData;
+        kiriview::ImageDecodeCompatibleDataTransform {
+            [compatibleData](qsizetype) { return std::optional(compatibleData.size()); },
+            [&compatibleTransformCount, compatibleData](const QByteArray&) {
+                ++compatibleTransformCount;
+                return kiriview::ImageDecodeCompatibleDataTransform::Result {
+                    QByteArray(compatibleData.constData(), compatibleData.size()),
+                    kiriview::ImageDecodeCompatibleDataTransform::Storage::OwnedReplacement,
+                };
+            },
         });
 
     const kiriview::ImageDecodeRoute route {
@@ -273,7 +287,7 @@ void TestImageDecodePipeline::metadataWorkspaceAdmissionIsOptionalAndReleased()
         }
         kiriview::ImageDecodeWorkspaceHold hold = lease.retainOnly(existingWorkspaceByteCost);
         return kiriview::successfulDecodedImageResult(kiriview::ApngAnimationImage {
-            std::move(hold), kiriview::TestSupport::testImage(), {}, {}, {}, {}, {}, {} });
+            std::move(hold), kiriview::TestSupport::testImage(), {}, {}, {}, {}, {}, {}, {} });
     };
     kiriview::ImageDecodeRouter animationRouter(
         std::move(animationHandlers), [](const QByteArray&, const QString&) {
@@ -307,9 +321,15 @@ void TestImageDecodePipeline::compatibleDataIsComputedOnlyWhenClassificationRequ
             return classification(
                 kiriview::ImageInputKind::QtRaster, kiriview::QtRasterFormat::Png);
         },
-        [&qtCompatibleTransformCount, compatibleData](const QByteArray&) {
-            ++qtCompatibleTransformCount;
-            return compatibleData;
+        kiriview::ImageDecodeCompatibleDataTransform {
+            [compatibleData](qsizetype) { return std::optional(compatibleData.size()); },
+            [&qtCompatibleTransformCount, compatibleData](const QByteArray&) {
+                ++qtCompatibleTransformCount;
+                return kiriview::ImageDecodeCompatibleDataTransform::Result {
+                    QByteArray(compatibleData.constData(), compatibleData.size()),
+                    kiriview::ImageDecodeCompatibleDataTransform::Storage::OwnedReplacement,
+                };
+            },
         });
 
     (void)qtRouter.decode(originalData, kiriview::ImageDecodeRequest {});
@@ -327,9 +347,15 @@ void TestImageDecodePipeline::compatibleDataIsComputedOnlyWhenClassificationRequ
             return classification(kiriview::ImageInputKind::HeifFamily,
                 kiriview::QtRasterFormat::None, kiriview::ImageDecodeDataSource::AvifCompatible);
         },
-        [&heifCompatibleTransformCount, compatibleData](const QByteArray&) {
-            ++heifCompatibleTransformCount;
-            return compatibleData;
+        kiriview::ImageDecodeCompatibleDataTransform {
+            [compatibleData](qsizetype) { return std::optional(compatibleData.size()); },
+            [&heifCompatibleTransformCount, compatibleData](const QByteArray&) {
+                ++heifCompatibleTransformCount;
+                return kiriview::ImageDecodeCompatibleDataTransform::Result {
+                    QByteArray(compatibleData.constData(), compatibleData.size()),
+                    kiriview::ImageDecodeCompatibleDataTransform::Storage::OwnedReplacement,
+                };
+            },
         });
 
     (void)heifRouter.decode(originalData, kiriview::ImageDecodeRequest {});
@@ -337,6 +363,259 @@ void TestImageDecodePipeline::compatibleDataIsComputedOnlyWhenClassificationRequ
     QCOMPARE(heifCompatibleTransformCount, 1);
     QCOMPARE(heifCalls, QStringList({ QStringLiteral("heif") }));
     QCOMPARE(heifInputData, QByteArrayList({ compatibleData }));
+}
+
+void TestImageDecodePipeline::compatibleDataRequiresWorkspaceAdmissionBeforeTransform()
+{
+    const QByteArray originalData = QByteArrayLiteral("original image bytes");
+    int compatibleTransformCount = 0;
+    QStringList calls;
+    kiriview::ImageDecodeRouterRuntime runtime(recordingHandlers(&calls),
+        kiriview::ImageDecodeCompatibleDataTransform {
+            [](qsizetype sourceByteCount) -> std::optional<qsizetype> {
+                if (sourceByteCount > std::numeric_limits<qsizetype>::max() / 2) {
+                    return std::nullopt;
+                }
+                return sourceByteCount * 2;
+            },
+            [&compatibleTransformCount](const QByteArray& data) {
+                ++compatibleTransformCount;
+                return kiriview::ImageDecodeCompatibleDataTransform::Result {
+                    data + data,
+                    kiriview::ImageDecodeCompatibleDataTransform::Storage::OwnedReplacement,
+                };
+            },
+        });
+    const kiriview::ImageDecodeRoute route {
+        kiriview::ImageDecodeHandlerKind::HeifFamily,
+        kiriview::ImageDecodeDataSource::AvifCompatible,
+        kiriview::QtRasterFormat::None,
+    };
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        originalData.size(), originalData.size());
+
+    const kiriview::DecodedImageResult result
+        = runtime.execute(route, originalData, kiriview::ImageDecodeRequest {}, budget);
+
+    const kiriview::DecodedImageFailure* failure = kiriview::decodedImageResultFailure(result);
+    QVERIFY(failure != nullptr);
+    QCOMPARE(failure->cause, kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+    QCOMPARE(failure->route, kiriview::DecodedImageFailureRoute::HeifFamily);
+    QCOMPARE(compatibleTransformCount, 0);
+    QVERIFY(calls.isEmpty());
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
+void TestImageDecodePipeline::compatibleDataCapacityCannotExceedPreflight()
+{
+    const QByteArray originalData = QByteArrayLiteral("original image bytes");
+    int compatibleTransformCount = 0;
+    QStringList calls;
+    kiriview::ImageDecodeRouterRuntime runtime(recordingHandlers(&calls),
+        kiriview::ImageDecodeCompatibleDataTransform {
+            [](qsizetype sourceByteCount) { return std::optional(sourceByteCount); },
+            [&compatibleTransformCount](const QByteArray& data) {
+                ++compatibleTransformCount;
+                QByteArray replacement(data.constData(), data.size());
+                replacement.reserve(data.size() * 2);
+                return kiriview::ImageDecodeCompatibleDataTransform::Result {
+                    std::move(replacement),
+                    kiriview::ImageDecodeCompatibleDataTransform::Storage::OwnedReplacement,
+                };
+            },
+        });
+    const kiriview::ImageDecodeRoute route {
+        kiriview::ImageDecodeHandlerKind::HeifFamily,
+        kiriview::ImageDecodeDataSource::AvifCompatible,
+        kiriview::QtRasterFormat::None,
+    };
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        originalData.size(), originalData.size());
+
+    const kiriview::DecodedImageResult result
+        = runtime.execute(route, originalData, kiriview::ImageDecodeRequest {}, budget);
+
+    const kiriview::DecodedImageFailure* failure = kiriview::decodedImageResultFailure(result);
+    QVERIFY(failure != nullptr);
+    QCOMPARE(failure->cause, kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+    QCOMPARE(compatibleTransformCount, 1);
+    QVERIFY(calls.isEmpty());
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
+void TestImageDecodePipeline::compatibleDataOwnedStorageRejectsNonOwningView()
+{
+    const QByteArray originalData = QByteArrayLiteral("original image bytes");
+    QStringList calls;
+    kiriview::ImageDecodeRouterRuntime runtime(recordingHandlers(&calls),
+        kiriview::ImageDecodeCompatibleDataTransform {
+            [](qsizetype sourceByteCount) { return std::optional(sourceByteCount); },
+            [](const QByteArray& data) {
+                return kiriview::ImageDecodeCompatibleDataTransform::Result {
+                    QByteArray::fromRawData(data.constData(), data.size()),
+                    kiriview::ImageDecodeCompatibleDataTransform::Storage::OwnedReplacement,
+                };
+            },
+        });
+    const kiriview::ImageDecodeRoute route {
+        kiriview::ImageDecodeHandlerKind::HeifFamily,
+        kiriview::ImageDecodeDataSource::AvifCompatible,
+        kiriview::QtRasterFormat::None,
+    };
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        originalData.size(), originalData.size());
+
+    const kiriview::DecodedImageResult result
+        = runtime.execute(route, originalData, kiriview::ImageDecodeRequest {}, budget);
+
+    const kiriview::DecodedImageFailure* failure = kiriview::decodedImageResultFailure(result);
+    QVERIFY(failure != nullptr);
+    QCOMPARE(failure->cause, kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+    QVERIFY(calls.isEmpty());
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
+void TestImageDecodePipeline::compatibleDataSharingOriginalStorageReleasesWorkspaceBeforeDecode()
+{
+    const QByteArray originalData = QByteArrayLiteral("unchanged image bytes");
+    bool workspaceReleasedBeforeDecode = false;
+    kiriview::ImageDecodeRouterHandlers handlers;
+    handlers.heifFamily
+        = [&workspaceReleasedBeforeDecode](const kiriview::ImageDecodeRouterInput& input) {
+              workspaceReleasedBeforeDecode = input.workspaceBudget->reservedByteCount() == 0;
+              return kiriview::successfulDecodedImageResult(
+                  kiriview::TestSupport::staticDecodedTestImage());
+          };
+    kiriview::ImageDecodeRouterRuntime runtime(std::move(handlers),
+        kiriview::ImageDecodeCompatibleDataTransform {
+            [](qsizetype sourceByteCount) { return std::optional(sourceByteCount); },
+            [](const QByteArray& data) {
+                return kiriview::ImageDecodeCompatibleDataTransform::Result {
+                    data,
+                    kiriview::ImageDecodeCompatibleDataTransform::Storage::Original,
+                };
+            },
+        });
+    const kiriview::ImageDecodeRoute route {
+        kiriview::ImageDecodeHandlerKind::HeifFamily,
+        kiriview::ImageDecodeDataSource::AvifCompatible,
+        kiriview::QtRasterFormat::None,
+    };
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        originalData.size(), originalData.size());
+
+    const kiriview::DecodedImageResult result
+        = runtime.execute(route, originalData, kiriview::ImageDecodeRequest {}, budget);
+
+    QVERIFY(kiriview::decodedImageResultImage(result) != nullptr);
+    QVERIFY(workspaceReleasedBeforeDecode);
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
+void TestImageDecodePipeline::compatibleDataWorkspaceRemainsReservedUntilDecodedImageRelease()
+{
+    const QByteArray originalData = QByteArrayLiteral("original image bytes");
+    bool retainedInputBaselineReported = false;
+    qsizetype retainedInputByteCount = 0;
+    kiriview::ImageDecodeRouterHandlers handlers;
+    handlers.heifFamily = [&retainedInputBaselineReported, &retainedInputByteCount](
+                              const kiriview::ImageDecodeRouterInput& input) {
+        retainedInputByteCount = input.data.capacity();
+        retainedInputBaselineReported
+            = input.retainedInputWorkspaceByteCount == retainedInputByteCount;
+        return kiriview::successfulDecodedImageResult(kiriview::HeifSequenceAnimationImage {
+            {}, kiriview::TestSupport::testImage(), {}, {}, input.data, {}, {}, {}, {} });
+    };
+    kiriview::ImageDecodeRouterRuntime runtime(std::move(handlers),
+        kiriview::ImageDecodeCompatibleDataTransform {
+            [](qsizetype sourceByteCount) { return std::optional(sourceByteCount * 2); },
+            [](const QByteArray& data) {
+                QByteArray replacement(data.constData(), data.size());
+                replacement.reserve(data.size() * 2);
+                return kiriview::ImageDecodeCompatibleDataTransform::Result {
+                    std::move(replacement),
+                    kiriview::ImageDecodeCompatibleDataTransform::Storage::OwnedReplacement,
+                };
+            },
+        });
+    const kiriview::ImageDecodeRoute route {
+        kiriview::ImageDecodeHandlerKind::HeifFamily,
+        kiriview::ImageDecodeDataSource::AvifCompatible,
+        kiriview::QtRasterFormat::None,
+    };
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        originalData.size() * 2, originalData.size() * 2);
+
+    {
+        const kiriview::DecodedImageResult result
+            = runtime.execute(route, originalData, kiriview::ImageDecodeRequest {}, budget);
+
+        const auto* image
+            = kiriview::decodedImageResultImageAs<kiriview::HeifSequenceAnimationImage>(result);
+        QVERIFY(image != nullptr);
+        QCOMPARE(image->data, originalData);
+        QVERIFY(image->data.constData() != originalData.constData());
+        QVERIFY(retainedInputBaselineReported);
+        QVERIFY(retainedInputByteCount > originalData.size());
+        QCOMPARE(budget->reservedByteCount(), retainedInputByteCount);
+    }
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
+void TestImageDecodePipeline::compatibleDataAdmissionIsSharedAcrossLiveResults()
+{
+    const QByteArray originalData = QByteArrayLiteral("aggregate compatible image bytes");
+    int compatibleTransformCount = 0;
+    kiriview::ImageDecodeRouterHandlers handlers;
+    handlers.heifFamily = [](const kiriview::ImageDecodeRouterInput& input) {
+        return kiriview::successfulDecodedImageResult(kiriview::HeifSequenceAnimationImage {
+            {}, kiriview::TestSupport::testImage(), {}, {}, input.data, {}, {}, {}, {} });
+    };
+    kiriview::ImageDecodeRouterRuntime runtime(std::move(handlers),
+        kiriview::ImageDecodeCompatibleDataTransform {
+            [](qsizetype sourceByteCount) { return std::optional(sourceByteCount); },
+            [&compatibleTransformCount](const QByteArray& data) {
+                ++compatibleTransformCount;
+                return kiriview::ImageDecodeCompatibleDataTransform::Result {
+                    QByteArray(data.constData(), data.size()),
+                    kiriview::ImageDecodeCompatibleDataTransform::Storage::OwnedReplacement,
+                };
+            },
+        });
+    const kiriview::ImageDecodeRoute route {
+        kiriview::ImageDecodeHandlerKind::HeifFamily,
+        kiriview::ImageDecodeDataSource::AvifCompatible,
+        kiriview::QtRasterFormat::None,
+    };
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        originalData.size(), originalData.size());
+
+    {
+        const kiriview::DecodedImageResult first
+            = runtime.execute(route, originalData, kiriview::ImageDecodeRequest {}, budget);
+        QVERIFY(kiriview::decodedImageResultImage(first) != nullptr);
+        QCOMPARE(compatibleTransformCount, 1);
+        QCOMPARE(budget->reservedByteCount(), originalData.size());
+
+        const kiriview::DecodedImageResult concurrent
+            = runtime.execute(route, originalData, kiriview::ImageDecodeRequest {}, budget);
+        const kiriview::DecodedImageFailure* failure
+            = kiriview::decodedImageResultFailure(concurrent);
+        QVERIFY(failure != nullptr);
+        QCOMPARE(failure->cause, kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+        QCOMPARE(compatibleTransformCount, 1);
+        QCOMPARE(budget->reservedByteCount(), originalData.size());
+    }
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+
+    {
+        const kiriview::DecodedImageResult admittedAfterRelease
+            = runtime.execute(route, originalData, kiriview::ImageDecodeRequest {}, budget);
+        QVERIFY(kiriview::decodedImageResultImage(admittedAfterRelease) != nullptr);
+        QCOMPARE(compatibleTransformCount, 2);
+        QCOMPARE(budget->reservedByteCount(), originalData.size());
+    }
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
 }
 
 void TestImageDecodePipeline::qtRasterClassificationCarriesExplicitFormat()
@@ -458,9 +737,20 @@ void TestImageDecodePipeline::unknownClassificationFailsWithoutDecoder()
             return classification(kiriview::ImageInputKind::Unknown, kiriview::QtRasterFormat::None,
                 kiriview::ImageDecodeDataSource::AvifCompatible);
         },
-        [&compatibleTransformCount](const QByteArray& data) {
-            ++compatibleTransformCount;
-            return data + QByteArrayLiteral("-compatible");
+        kiriview::ImageDecodeCompatibleDataTransform {
+            [](qsizetype sourceByteCount) {
+                constexpr qsizetype suffixSize = 11;
+                return sourceByteCount <= std::numeric_limits<qsizetype>::max() - suffixSize
+                    ? std::optional(sourceByteCount + suffixSize)
+                    : std::nullopt;
+            },
+            [&compatibleTransformCount](const QByteArray& data) {
+                ++compatibleTransformCount;
+                return kiriview::ImageDecodeCompatibleDataTransform::Result {
+                    data + QByteArrayLiteral("-compatible"),
+                    kiriview::ImageDecodeCompatibleDataTransform::Storage::OwnedReplacement,
+                };
+            },
         });
 
     const kiriview::DecodedImageResult result

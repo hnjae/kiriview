@@ -15,6 +15,8 @@
 #include <optional>
 
 namespace kiriview {
+class ImageDecodeWorkspaceBudget;
+
 class HeifDisplaySource final : public StaticImageDisplaySource
 {
 public:
@@ -45,8 +47,9 @@ private:
     Q_DISABLE_COPY_MOVE(HeifDisplaySource)
 };
 
-std::shared_ptr<HeifDisplaySource> openHeifDisplaySource(
-    const QByteArray& data, QString* errorString);
+std::shared_ptr<HeifDisplaySource> openHeifDisplaySource(const QByteArray& data,
+    QString* errorString, std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {},
+    qsizetype perOperationBaselineByteCount = 0, bool* resourceExhausted = nullptr);
 }
 
 #endif

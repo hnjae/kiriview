@@ -10,7 +10,7 @@
 #include <limits>
 #include <optional>
 #include <string_view>
-#include <vector>
+#include <utility>
 
 namespace {
 constexpr qsizetype boxHeaderSize = 8;
@@ -44,7 +44,7 @@ struct IpmaBox
     BoxHeader box;
     std::array<char, 4> versionAndFlags {};
     quint32 entryCount = 0;
-    QByteArray entries;
+    QByteArrayView entries;
 };
 
 template <typename T> std::optional<T> readBigEndian(QByteArrayView data, qsizetype offset)
@@ -95,19 +95,23 @@ std::optional<BoxHeader> readBox(QByteArrayView data, qsizetype offset, qsizetyp
     return box;
 }
 
-std::optional<std::vector<BoxHeader>> childBoxes(
-    QByteArrayView data, qsizetype offset, qsizetype end)
+template <typename Visitor>
+bool forEachChildBox(QByteArrayView data, qsizetype offset, qsizetype end, const Visitor& visitor)
 {
-    std::vector<BoxHeader> boxes;
     while (offset < end) {
         const std::optional<BoxHeader> box = readBox(data, offset, end);
         if (!box.has_value()) {
-            return std::nullopt;
+            return false;
         }
-        boxes.push_back(*box);
+        visitor(*box);
         offset = box->endOffset();
     }
-    return boxes;
+    return offset == end;
+}
+
+bool validChildBoxes(QByteArrayView data, qsizetype offset, qsizetype end)
+{
+    return forEachChildBox(data, offset, end, [](BoxHeader) { });
 }
 
 std::optional<FullBox> readFullBox(
@@ -124,67 +128,63 @@ std::optional<FullBox> readFullBox(
     return full;
 }
 
-bool hasAvifBrand(QByteArrayView data, const std::vector<BoxHeader>& boxes)
+bool hasAvifBrand(QByteArrayView data)
 {
-    for (const BoxHeader& box : boxes) {
+    bool found = false;
+    const bool valid = forEachChildBox(data, 0, data.size(), [&](const BoxHeader& box) {
         if (!box.isType("ftyp") || box.size < box.headerSize + 8) {
-            continue;
+            return;
         }
         for (qsizetype offset = box.bodyOffset(); offset <= box.endOffset() - 4; offset += 4) {
             const QByteArrayView brand = data.sliced(offset, 4);
             if (brand == QByteArrayView("avif", 4) || brand == QByteArrayView("avis", 4)) {
-                return true;
+                found = true;
             }
         }
-    }
-    return false;
+    });
+    return valid && found;
 }
 
-std::optional<std::vector<BoxHeader>> metaChildren(QByteArrayView data, BoxHeader meta)
+std::optional<FullBox> metaFullBox(QByteArrayView data, BoxHeader meta)
 {
     const std::optional<FullBox> full = readFullBox(data, meta, "meta", 0);
-    return full.has_value() ? childBoxes(data, full->payloadOffset, meta.endOffset())
-                            : std::nullopt;
+    if (!full.has_value() || !validChildBoxes(data, full->payloadOffset, meta.endOffset())) {
+        return std::nullopt;
+    }
+    return full;
 }
 
-std::vector<std::vector<BoxHeader>> iprpGroups(
-    QByteArrayView data, const std::vector<BoxHeader>& meta)
+template <typename Visitor>
+void forEachIprpGroup(QByteArrayView data, const FullBox& meta, const Visitor& visitor)
 {
-    std::vector<std::vector<BoxHeader>> groups;
-    for (const BoxHeader& box : meta) {
-        if (box.isType("iprp")) {
-            if (std::optional<std::vector<BoxHeader>> children
-                = childBoxes(data, box.bodyOffset(), box.endOffset())) {
-                groups.push_back(std::move(*children));
+    (void)forEachChildBox(
+        data, meta.payloadOffset, meta.box.endOffset(), [&](const BoxHeader& box) {
+            if (box.isType("iprp") && validChildBoxes(data, box.bodyOffset(), box.endOffset())) {
+                visitor(box);
             }
-        }
-    }
-    return groups;
+        });
 }
 
-bool hasAlphaProperty(QByteArrayView data, const std::vector<BoxHeader>& meta)
+bool hasAlphaProperty(QByteArrayView data, const FullBox& meta)
 {
-    for (const std::vector<BoxHeader>& iprp : iprpGroups(data, meta)) {
-        for (const BoxHeader& box : iprp) {
-            if (!box.isType("ipco")) {
-                continue;
+    bool found = false;
+    forEachIprpGroup(data, meta, [&](const BoxHeader& iprp) {
+        (void)forEachChildBox(data, iprp.bodyOffset(), iprp.endOffset(), [&](const BoxHeader& box) {
+            if (!box.isType("ipco") || !validChildBoxes(data, box.bodyOffset(), box.endOffset())) {
+                return;
             }
-            const std::optional<std::vector<BoxHeader>> properties
-                = childBoxes(data, box.bodyOffset(), box.endOffset());
-            if (!properties.has_value()) {
-                continue;
-            }
-            for (const BoxHeader& property : *properties) {
-                if (property.isType("auxC")
-                    && data.sliced(property.bodyOffset(), property.size - property.headerSize)
-                            .indexOf(QByteArrayView("alpha", 5))
-                        >= 0) {
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
+            (void)forEachChildBox(
+                data, box.bodyOffset(), box.endOffset(), [&](const BoxHeader& property) {
+                    if (property.isType("auxC")
+                        && data.sliced(property.bodyOffset(), property.size - property.headerSize)
+                                .indexOf(QByteArrayView("alpha", 5))
+                            >= 0) {
+                        found = true;
+                    }
+                });
+        });
+    });
+    return found;
 }
 
 std::optional<quint32> readItemId(QByteArrayView data, qsizetype offset, qsizetype size)
@@ -205,61 +205,68 @@ bool writeItemId(QByteArray& data, qsizetype offset, qsizetype size, quint32 val
     return size == 4 && writeBigEndian<quint32>(data, offset, value);
 }
 
-std::optional<quint32> primaryItemId(QByteArrayView data, const std::vector<BoxHeader>& meta)
+std::optional<quint32> primaryItemId(QByteArrayView data, const FullBox& meta)
 {
-    for (const BoxHeader& box : meta) {
-        const std::optional<FullBox> pitm = readFullBox(data, box, "pitm", 0);
-        if (!pitm.has_value()) {
-            continue;
-        }
-        const qsizetype size = pitm->versionAndFlags[0] == 0 ? 2
-            : pitm->versionAndFlags[0] == 1                  ? 4
-                                                             : 0;
-        if (size != 0 && pitm->payloadOffset <= box.endOffset() - size) {
-            return readItemId(data, pitm->payloadOffset, size);
-        }
-    }
-    return std::nullopt;
+    std::optional<quint32> primary;
+    (void)forEachChildBox(
+        data, meta.payloadOffset, meta.box.endOffset(), [&](const BoxHeader& box) {
+            if (primary.has_value()) {
+                return;
+            }
+            const std::optional<FullBox> pitm = readFullBox(data, box, "pitm", 0);
+            if (!pitm.has_value()) {
+                return;
+            }
+            const qsizetype size = pitm->versionAndFlags[0] == 0 ? 2
+                : pitm->versionAndFlags[0] == 1                  ? 4
+                                                                 : 0;
+            if (size != 0 && pitm->payloadOffset <= box.endOffset() - size) {
+                primary = readItemId(data, pitm->payloadOffset, size);
+            }
+        });
+    return primary;
 }
 
 bool patchAuxiliaryReferences(
-    QByteArray& data, const std::vector<BoxHeader>& meta, quint32 primaryId)
+    QByteArray& target, QByteArrayView source, const FullBox& meta, quint32 primaryId)
 {
     bool changed = false;
-    for (const BoxHeader& box : meta) {
-        const std::optional<FullBox> iref = readFullBox(data, box, "iref", 0);
-        if (!iref.has_value()) {
-            continue;
-        }
-        const qsizetype idSize = iref->versionAndFlags[0] == 1 ? 4 : 2;
-        qsizetype offset = iref->payloadOffset;
-        while (offset < box.endOffset()) {
-            const std::optional<BoxHeader> reference = readBox(data, offset, box.endOffset());
-            if (!reference.has_value()) {
-                break;
+    (void)forEachChildBox(
+        source, meta.payloadOffset, meta.box.endOffset(), [&](const BoxHeader& box) {
+            const std::optional<FullBox> iref = readFullBox(source, box, "iref", 0);
+            if (!iref.has_value()) {
+                return;
             }
-            qsizetype cursor = reference->bodyOffset();
-            if (cursor > reference->endOffset() - idSize - 2) {
-                break;
-            }
-            cursor += idSize;
-            const std::optional<quint16> count = readBigEndian<quint16>(data, cursor);
-            if (!count.has_value()) {
-                break;
-            }
-            cursor += 2;
-            if (reference->isType("auxl")) {
-                for (quint16 index = 0; index < *count && cursor <= reference->endOffset() - idSize;
-                    ++index, cursor += idSize) {
-                    if (readItemId(data, cursor, idSize) == 0
-                        && writeItemId(data, cursor, idSize, primaryId)) {
-                        changed = true;
+            const qsizetype idSize = iref->versionAndFlags[0] == 1 ? 4 : 2;
+            qsizetype offset = iref->payloadOffset;
+            while (offset < box.endOffset()) {
+                const std::optional<BoxHeader> reference = readBox(source, offset, box.endOffset());
+                if (!reference.has_value()) {
+                    break;
+                }
+                qsizetype cursor = reference->bodyOffset();
+                if (cursor > reference->endOffset() - idSize - 2) {
+                    break;
+                }
+                cursor += idSize;
+                const std::optional<quint16> count = readBigEndian<quint16>(source, cursor);
+                if (!count.has_value()) {
+                    break;
+                }
+                cursor += 2;
+                if (reference->isType("auxl")) {
+                    for (quint16 index = 0;
+                        index < *count && cursor <= reference->endOffset() - idSize;
+                        ++index, cursor += idSize) {
+                        if (readItemId(source, cursor, idSize) == 0
+                            && writeItemId(target, cursor, idSize, primaryId)) {
+                            changed = true;
+                        }
                     }
                 }
+                offset = reference->endOffset();
             }
-            offset = reference->endOffset();
-        }
-    }
+        });
     return changed;
 }
 
@@ -274,102 +281,107 @@ std::optional<IpmaBox> readIpma(QByteArrayView data, BoxHeader box)
         return std::nullopt;
     }
     return IpmaBox { box, full->versionAndFlags, *count,
-        data.sliced(full->payloadOffset + 4, box.endOffset() - full->payloadOffset - 4)
-            .toByteArray() };
+        data.sliced(full->payloadOffset + 4, box.endOffset() - full->payloadOffset - 4) };
 }
 
-bool writeIpma(QByteArray& target, std::array<char, 4> flags, quint32 count, QByteArrayView entries)
+bool writeIpmaHeader(QByteArray& target, qsizetype offset, qsizetype size,
+    const std::array<char, 4>& flags, quint32 count)
 {
-    if (target.size() != ipmaEntriesOffset + entries.size()
-        || target.size() > std::numeric_limits<quint32>::max()
-        || !writeBigEndian<quint32>(target, 0, static_cast<quint32>(target.size()))) {
+    if (size < ipmaEntriesOffset || std::cmp_greater(size, std::numeric_limits<quint32>::max())
+        || offset < 0 || offset > target.size() - size
+        || !writeBigEndian<quint32>(target, offset, static_cast<quint32>(size))) {
         return false;
     }
-    std::memcpy(target.data() + 4, "ipma", 4);
-    std::ranges::copy(flags, target.data() + boxHeaderSize);
-    if (!writeBigEndian<quint32>(target, boxHeaderSize + fullBoxFieldsSize, count)) {
-        return false;
-    }
-    std::ranges::copy(entries, target.data() + ipmaEntriesOffset);
-    return true;
+    std::memcpy(target.data() + offset + 4, "ipma", 4);
+    std::ranges::copy(flags, target.data() + offset + boxHeaderSize);
+    return writeBigEndian<quint32>(target, offset + boxHeaderSize + fullBoxFieldsSize, count);
 }
 
-bool mergeIpma(QByteArray& data, const IpmaBox& first, const IpmaBox& second)
+bool mergeIpma(QByteArray& target, const IpmaBox& first, const IpmaBox& second)
 {
     if (first.versionAndFlags != second.versionAndFlags
         || first.box.endOffset() != second.box.offset
-        || first.entryCount > std::numeric_limits<quint32>::max() - second.entryCount) {
+        || first.entryCount > std::numeric_limits<quint32>::max() - second.entryCount
+        || first.entries.size() > std::numeric_limits<qsizetype>::max() - second.entries.size()) {
         return false;
     }
-    const QByteArray entries = first.entries + second.entries;
-    const qsizetype mergedSize = ipmaEntriesOffset + entries.size();
+    const qsizetype entriesSize = first.entries.size() + second.entries.size();
+    const qsizetype mergedSize = ipmaEntriesOffset + entriesSize;
     const qsizetype available = first.box.size + second.box.size;
-    if (available - mergedSize != ipmaEntriesOffset) {
+    if (available - mergedSize != ipmaEntriesOffset
+        || first.box.offset > target.size() - available) {
         return false;
     }
-    QByteArray replacement(mergedSize, '\0');
-    if (!writeIpma(
-            replacement, first.versionAndFlags, first.entryCount + second.entryCount, entries)) {
+
+    const qsizetype secondEntriesTarget
+        = first.box.offset + ipmaEntriesOffset + first.entries.size();
+    std::memmove(target.data() + secondEntriesTarget, second.entries.data(),
+        static_cast<std::size_t>(second.entries.size()));
+    if (!writeIpmaHeader(target, first.box.offset, mergedSize, first.versionAndFlags,
+            first.entryCount + second.entryCount)) {
         return false;
     }
     std::array<char, 4> alternate = first.versionAndFlags;
     alternate[0] = alternate[0] == 0 ? 1 : 0;
-    QByteArray empty(ipmaEntriesOffset, '\0');
-    if (!writeIpma(empty, alternate, 0, {})) {
-        return false;
-    }
-    replacement += empty;
-    if (replacement.size() != available || first.box.offset > data.size() - available) {
-        return false;
-    }
-    std::ranges::copy(replacement, data.begin() + first.box.offset);
-    return true;
+    return writeIpmaHeader(target, first.box.offset + mergedSize, ipmaEntriesOffset, alternate, 0);
 }
 
-bool patchDuplicateIpma(QByteArray& data, const std::vector<BoxHeader>& meta)
+bool patchDuplicateIpma(QByteArray& target, QByteArrayView source, const FullBox& meta)
 {
     bool changed = false;
-    for (const std::vector<BoxHeader>& iprp : iprpGroups(data, meta)) {
+    forEachIprpGroup(source, meta, [&](const BoxHeader& iprp) {
         std::optional<IpmaBox> previous;
-        for (const BoxHeader& box : iprp) {
-            const std::optional<IpmaBox> current = readIpma(data, box);
-            if (!current.has_value()) {
-                previous.reset();
-            } else if (previous.has_value() && mergeIpma(data, *previous, *current)) {
-                changed = true;
-                previous.reset();
-            } else {
-                previous = current;
-            }
-        }
-    }
+        (void)forEachChildBox(
+            source, iprp.bodyOffset(), iprp.endOffset(), [&](const BoxHeader& box) {
+                const std::optional<IpmaBox> current = readIpma(source, box);
+                if (!current.has_value()) {
+                    previous.reset();
+                } else if (previous.has_value() && mergeIpma(target, *previous, *current)) {
+                    changed = true;
+                    previous.reset();
+                } else {
+                    previous = current;
+                }
+            });
+    });
     return changed;
 }
 }
 
 namespace kiriview {
-QByteArray avifDataWithCompatibilityFixes(QByteArrayView data)
+std::optional<qsizetype> avifCompatibilityWorkspaceByteCost(qsizetype sourceByteCount)
 {
-    const std::optional<std::vector<BoxHeader>> top = childBoxes(data, 0, data.size());
-    if (!top.has_value() || !hasAvifBrand(data, *top)) {
-        return data.toByteArray();
+    return sourceByteCount < 0 ? std::nullopt : std::optional<qsizetype>(sourceByteCount);
+}
+
+AvifCompatibleData avifDataWithCompatibilityFixes(const QByteArray& data)
+{
+    const QByteArrayView source(data);
+    if (!validChildBoxes(source, 0, source.size()) || !hasAvifBrand(source)) {
+        return { data, AvifCompatibleDataStorage::Original };
     }
-    QByteArray fixed = data.toByteArray();
+
+    QByteArray fixed(data.size(), Qt::Uninitialized);
+    if (!data.isEmpty()) {
+        std::memcpy(fixed.data(), data.constData(), static_cast<std::size_t>(data.size()));
+    }
     bool changed = false;
-    for (const BoxHeader& box : *top) {
+    (void)forEachChildBox(source, 0, source.size(), [&](const BoxHeader& box) {
         if (!box.isType("meta")) {
-            continue;
+            return;
         }
-        const std::optional<std::vector<BoxHeader>> meta = metaChildren(data, box);
-        if (!meta.has_value() || !hasAlphaProperty(data, *meta)) {
-            continue;
+        const std::optional<FullBox> meta = metaFullBox(source, box);
+        if (!meta.has_value() || !hasAlphaProperty(source, *meta)) {
+            return;
         }
-        const std::optional<quint32> primary = primaryItemId(data, *meta);
+        const std::optional<quint32> primary = primaryItemId(source, *meta);
         if (primary.has_value() && *primary != 0) {
-            changed = patchAuxiliaryReferences(fixed, *meta, *primary) || changed;
+            changed = patchAuxiliaryReferences(fixed, source, *meta, *primary) || changed;
         }
-        changed = patchDuplicateIpma(fixed, *meta) || changed;
-    }
-    return changed ? fixed : data.toByteArray();
+        changed = patchDuplicateIpma(fixed, source, *meta) || changed;
+    });
+    return changed
+        ? AvifCompatibleData { std::move(fixed), AvifCompatibleDataStorage::OwnedReplacement }
+        : AvifCompatibleData { data, AvifCompatibleDataStorage::Original };
 }
 }

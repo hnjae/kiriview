@@ -6,16 +6,9 @@
 
 #include <QString>
 #include <QUrl>
-#include <optional>
 
 namespace kiriview {
 class OpenedCollectionScopeLocation;
-
-struct KioFuseArchivePath
-{
-    QString scheme;
-    QString path;
-};
 
 QString normalizedArchiveRootPath(const QUrl& archiveRootUrl);
 QString normalizedArchiveEntryPath(const QString& entryPath);
@@ -24,10 +17,6 @@ QString openedCollectionEntryPathForUrl(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& imageUrl);
 QUrl openedCollectionEntryUrl(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QString& entryPath);
-std::optional<KioFuseArchivePath> kioFuseArchivePath(
-    const QString& localPath, const QString& runtimeDir);
-std::optional<QUrl> kioFuseArchiveUrlForLocalPath(
-    const QString& localPath, const QString& runtimeDir);
 }
 
 #endif

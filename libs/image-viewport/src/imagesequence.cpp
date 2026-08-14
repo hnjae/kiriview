@@ -12,6 +12,8 @@
 
 using namespace ImageViewportInternal;
 
+ImageSequence::~ImageSequence() = default;
+
 namespace {
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 std::atomic<qsizetype> payloadCopyAttemptsForTest = 0;

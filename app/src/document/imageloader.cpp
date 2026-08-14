@@ -10,6 +10,7 @@
 #include "predecode/predecodelogging.h"
 
 #include <QDebug>
+#include <QPointer>
 #include <utility>
 #include <variant>
 
@@ -140,10 +141,13 @@ void ImageLoader::startOpenedCollectionLoad(const ImageLoadSession& session)
 
     const auto candidateContext
         = ImageDocumentPageCandidateListContext::forSource(session.imageUrl(), candidateSource);
+    const QPointer<ImageLoader> owner(this);
     m_callbacks.ensurePageCandidateSnapshot(candidateContext,
-        [this, session, candidateSource = std::move(candidateSource)](
+        [owner, session, candidateSource = std::move(candidateSource)](
             const ImageDocumentPageCandidateListSnapshotResult& result) mutable {
-            finishOpenedCollectionSnapshot(session, candidateSource, result);
+            if (owner != nullptr) {
+                owner->finishOpenedCollectionSnapshot(session, candidateSource, result);
+            }
         });
 }
 

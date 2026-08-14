@@ -46,7 +46,8 @@ std::optional<ThumbnailCacheLookupRequest> xdgThumbnailPreviewCacheLookupRequest
 XdgThumbnailPreviewResult xdgThumbnailPreviewResult(
     const XdgThumbnailPreviewRequest& request, ThumbnailCacheLookupResult lookupResult);
 std::optional<XdgThumbnailPreviewRequest> xdgThumbnailPreviewRequestForDecodeData(
-    const QByteArray& data, const ImageDecodeRequest& request);
+    const QByteArray& data, const ImageDecodeRequest& request,
+    const std::shared_ptr<ImageDecodeWorkspaceBudget>& workspaceBudget = {});
 std::optional<StaticDisplayImagePayload> xdgThumbnailPreviewDisplayPayload(
     const ImageDecodeRequest& request, const XdgThumbnailPreviewResult& result);
 }

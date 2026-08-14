@@ -29,6 +29,8 @@ kiriview::StaticDisplayImagePayload displayPayload(QString sourceIdentity,
         quality,
         {},
         {},
+        {},
+        {},
         quality == kiriview::DisplayImageQuality::ThumbnailPreview
             ? kiriview::DisplayImagePreviewOrigin::XdgThumbnail
             : kiriview::DisplayImagePreviewOrigin::None,

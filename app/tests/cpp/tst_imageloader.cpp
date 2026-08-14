@@ -46,6 +46,7 @@ private Q_SLOTS:
     void openedCollectionPredecodeLookupPreservesExactScope();
     void openedCollectionStartsProviderTargetBeforeResolvingFirstPage();
     void staleOpenedCollectionSnapshotCannotPrepareAReplacedTarget();
+    void retainedOpenedCollectionSnapshotCompletionIgnoresDestroyedLoader();
     void reentrantReplacementCannotPublishResolvedStaleVideoTerminal();
     void openedCollectionFailurePreservesTypedSourceDetails();
     void candidateFailurePreservesTypedKioDetails();
@@ -257,6 +258,49 @@ void TestImageLoader::staleOpenedCollectionSnapshotCannotPrepareAReplacedTarget(
     QCOMPARE(startedUrls.back(), replacementUrl);
     QCOMPARE(resolvedUrls.size(), std::size_t(1));
     QCOMPARE(resolvedUrls.front(), replacementUrl);
+}
+
+void TestImageLoader::retainedOpenedCollectionSnapshotCompletionIgnoresDestroyedLoader()
+{
+    const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
+    const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
+    QVERIFY(archiveCollection.has_value());
+    const QUrl firstImageUrl
+        = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png"));
+    std::optional<kiriview::ImageDocumentPageCandidateListSnapshotCallback> pendingSnapshot;
+    int ownerCallbackCount = 0;
+    {
+        kiriview::ImageLoader::Callbacks callbacks;
+        callbacks.targetStarted = [](kiriview::ImageLoadSession) { };
+        callbacks.ensurePageCandidateSnapshot
+            = [&pendingSnapshot](
+                  auto, kiriview::ImageDocumentPageCandidateListSnapshotCallback completion) {
+                  pendingSnapshot = std::move(completion);
+              };
+        callbacks.error = [&ownerCallbackCount](auto, auto) { ++ownerCallbackCount; };
+        callbacks.unsupportedOpenedCollectionVideo
+            = [&ownerCallbackCount](auto) { ++ownerCallbackCount; };
+        callbacks.sourcePrepared = [&ownerCallbackCount](auto) { ++ownerCallbackCount; };
+        callbacks.resolvedImage = [&ownerCallbackCount](auto, auto) { ++ownerCallbackCount; };
+        auto loader = std::make_unique<kiriview::ImageLoader>(std::move(callbacks));
+
+        loader->start(kiriview::ImageLoadRequest::fromExternalSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {})));
+        QVERIFY(pendingSnapshot.has_value());
+    }
+
+    (*pendingSnapshot)(kiriview::ImageDocumentPageCandidateListSnapshotResult {
+        pageCandidateListSnapshot(
+            kiriview::ImageDocumentPageCandidateListSource::forOpenedCollectionScope(
+                *archiveCollection),
+            { imageDocumentPageCandidate(firstImageUrl) }),
+        true,
+        {},
+    });
+
+    QCOMPARE(ownerCallbackCount, 0);
 }
 
 void TestImageLoader::reentrantReplacementCannotPublishResolvedStaleVideoTerminal()

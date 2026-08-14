@@ -3,6 +3,7 @@
 
 #include "session/documentsessiondirectmedianavigationworkflow.h"
 
+#include <QDir>
 #include <QObject>
 #include <QTest>
 #include <QUrl>
@@ -16,6 +17,7 @@ private Q_SLOTS:
     void successfulRefreshWithoutCurrentRemainsUnknown();
     void refreshRequestsRevealWhenSelectionChanges();
     void successfulOpenOfNewTargetKeepsPendingRevealAndRoutes();
+    void equivalentSourceKeysDoNotKeepPendingReveal();
     void successfulOpenWithoutTargetClearsPendingReveal();
     void successfulOpenWithoutCurrentRemainsUnknown();
 };
@@ -150,6 +152,46 @@ void TestDocumentSessionDirectMediaNavigationWorkflow::
         kiriview::DocumentSessionDirectMediaNavigationRevealAction::
             UsePendingOrProgrammaticSyncAndKeepPending);
     QVERIFY(application.schedulePredecode);
+}
+
+void TestDocumentSessionDirectMediaNavigationWorkflow::equivalentSourceKeysDoNotKeepPendingReveal()
+{
+    const QString relativePath = QStringLiteral("relative/media/01.png");
+    const QUrl relativeUrl = QUrl::fromLocalFile(relativePath);
+    const QUrl absoluteUrl = QUrl::fromLocalFile(QDir::current().absoluteFilePath(relativePath));
+    const auto applicationForTarget = [&absoluteUrl](QUrl targetUrl) {
+        return kiriview::documentSessionDirectMediaNavigationOpenApplication(absoluteUrl,
+            kiriview::DocumentSessionDirectMediaNavigationOpenResult {
+                { directMediaNavigationCandidate(targetUrl) },
+                kiriview::DirectMediaNavigationOpenPlan {
+                    kiriview::DirectMediaNavigationBoundaryState {
+                        false,
+                        false,
+                        true,
+                        true,
+                        1,
+                        1,
+                    },
+                    std::move(targetUrl),
+                },
+                true,
+                QString(),
+            });
+    };
+
+    const kiriview::DocumentSessionDirectMediaNavigationOpenApplication equivalentApplication
+        = applicationForTarget(relativeUrl);
+    QCOMPARE(equivalentApplication.routeTargetUrl.value_or(QUrl()), relativeUrl);
+    QCOMPARE(equivalentApplication.revealAction,
+        kiriview::DocumentSessionDirectMediaNavigationRevealAction::Clear);
+
+    QUrl distinctUrl = relativeUrl;
+    distinctUrl.setFragment(QStringLiteral("alternate"));
+    const kiriview::DocumentSessionDirectMediaNavigationOpenApplication distinctApplication
+        = applicationForTarget(distinctUrl);
+    QCOMPARE(distinctApplication.revealAction,
+        kiriview::DocumentSessionDirectMediaNavigationRevealAction::
+            UsePendingOrProgrammaticSyncAndKeepPending);
 }
 
 void TestDocumentSessionDirectMediaNavigationWorkflow::

@@ -31,12 +31,13 @@ struct ApngAnimationImage // NOLINT(cppcoreguidelines-special-member-functions) 
 {
     ImageDecodeWorkspaceHold firstFrameWorkspaceHold;
     QImage firstFrame;
+    ImageSourceDataLease sourceDataLease;
+    ImageDecodeWorkspaceHold inputWorkspaceHold;
     QByteArray data;
     ImageAnimationSourceCatalog catalog;
     EmbeddedMetadata embeddedMetadata;
     QString sourceIdentity;
     ImageSourceRevision sourceRevision;
-    ImageSourceDataLease sourceDataLease;
 
     ApngAnimationImage& operator=(ApngAnimationImage other) noexcept
     {
@@ -49,12 +50,13 @@ struct ApngAnimationImage // NOLINT(cppcoreguidelines-special-member-functions) 
         using std::swap;
         swap(left.firstFrameWorkspaceHold, right.firstFrameWorkspaceHold);
         swap(left.firstFrame, right.firstFrame);
+        swap(left.sourceDataLease, right.sourceDataLease);
+        swap(left.inputWorkspaceHold, right.inputWorkspaceHold);
         swap(left.data, right.data);
         swap(left.catalog, right.catalog);
         swap(left.embeddedMetadata, right.embeddedMetadata);
         swap(left.sourceIdentity, right.sourceIdentity);
         swap(left.sourceRevision, right.sourceRevision);
-        swap(left.sourceDataLease, right.sourceDataLease);
     }
 };
 
@@ -64,13 +66,14 @@ struct ReaderAnimationImage // NOLINT(cppcoreguidelines-special-member-functions
 {
     ImageDecodeWorkspaceHold firstFrameWorkspaceHold;
     QImage firstFrame;
+    ImageSourceDataLease sourceDataLease;
+    ImageDecodeWorkspaceHold inputWorkspaceHold;
     QByteArray data;
     QByteArray format;
     ImageAnimationSourceCatalog catalog;
     EmbeddedMetadata embeddedMetadata;
     QString sourceIdentity;
     ImageSourceRevision sourceRevision;
-    ImageSourceDataLease sourceDataLease;
 
     ReaderAnimationImage& operator=(ReaderAnimationImage other) noexcept
     {
@@ -83,13 +86,14 @@ struct ReaderAnimationImage // NOLINT(cppcoreguidelines-special-member-functions
         using std::swap;
         swap(left.firstFrameWorkspaceHold, right.firstFrameWorkspaceHold);
         swap(left.firstFrame, right.firstFrame);
+        swap(left.sourceDataLease, right.sourceDataLease);
+        swap(left.inputWorkspaceHold, right.inputWorkspaceHold);
         swap(left.data, right.data);
         swap(left.format, right.format);
         swap(left.catalog, right.catalog);
         swap(left.embeddedMetadata, right.embeddedMetadata);
         swap(left.sourceIdentity, right.sourceIdentity);
         swap(left.sourceRevision, right.sourceRevision);
-        swap(left.sourceDataLease, right.sourceDataLease);
     }
 };
 
@@ -99,12 +103,13 @@ struct WebPAnimationImage // NOLINT(cppcoreguidelines-special-member-functions) 
 {
     ImageDecodeWorkspaceHold firstFrameWorkspaceHold;
     QImage firstFrame;
+    ImageSourceDataLease sourceDataLease;
+    ImageDecodeWorkspaceHold inputWorkspaceHold;
     QByteArray data;
     ImageAnimationSourceCatalog catalog;
     EmbeddedMetadata embeddedMetadata;
     QString sourceIdentity;
     ImageSourceRevision sourceRevision;
-    ImageSourceDataLease sourceDataLease;
 
     WebPAnimationImage& operator=(WebPAnimationImage other) noexcept
     {
@@ -117,12 +122,13 @@ struct WebPAnimationImage // NOLINT(cppcoreguidelines-special-member-functions) 
         using std::swap;
         swap(left.firstFrameWorkspaceHold, right.firstFrameWorkspaceHold);
         swap(left.firstFrame, right.firstFrame);
+        swap(left.sourceDataLease, right.sourceDataLease);
+        swap(left.inputWorkspaceHold, right.inputWorkspaceHold);
         swap(left.data, right.data);
         swap(left.catalog, right.catalog);
         swap(left.embeddedMetadata, right.embeddedMetadata);
         swap(left.sourceIdentity, right.sourceIdentity);
         swap(left.sourceRevision, right.sourceRevision);
-        swap(left.sourceDataLease, right.sourceDataLease);
     }
 };
 
@@ -132,12 +138,13 @@ struct JxlAnimationImage // NOLINT(cppcoreguidelines-special-member-functions) -
 {
     ImageDecodeWorkspaceHold firstFrameWorkspaceHold;
     QImage firstFrame;
+    ImageSourceDataLease sourceDataLease;
+    ImageDecodeWorkspaceHold inputWorkspaceHold;
     QByteArray data;
     ImageAnimationSourceCatalog catalog;
     EmbeddedMetadata embeddedMetadata;
     QString sourceIdentity;
     ImageSourceRevision sourceRevision;
-    ImageSourceDataLease sourceDataLease;
 
     JxlAnimationImage& operator=(JxlAnimationImage other) noexcept
     {
@@ -150,12 +157,13 @@ struct JxlAnimationImage // NOLINT(cppcoreguidelines-special-member-functions) -
         using std::swap;
         swap(left.firstFrameWorkspaceHold, right.firstFrameWorkspaceHold);
         swap(left.firstFrame, right.firstFrame);
+        swap(left.sourceDataLease, right.sourceDataLease);
+        swap(left.inputWorkspaceHold, right.inputWorkspaceHold);
         swap(left.data, right.data);
         swap(left.catalog, right.catalog);
         swap(left.embeddedMetadata, right.embeddedMetadata);
         swap(left.sourceIdentity, right.sourceIdentity);
         swap(left.sourceRevision, right.sourceRevision);
-        swap(left.sourceDataLease, right.sourceDataLease);
     }
 };
 
@@ -165,12 +173,13 @@ struct HeifSequenceAnimationImage // NOLINT(cppcoreguidelines-special-member-fun
 {
     ImageDecodeWorkspaceHold firstFrameWorkspaceHold;
     QImage firstFrame;
+    ImageSourceDataLease sourceDataLease;
+    ImageDecodeWorkspaceHold inputWorkspaceHold;
     QByteArray data;
     ImageAnimationSourceCatalog catalog;
     EmbeddedMetadata embeddedMetadata;
     QString sourceIdentity;
     ImageSourceRevision sourceRevision;
-    ImageSourceDataLease sourceDataLease;
 
     HeifSequenceAnimationImage& operator=(HeifSequenceAnimationImage other) noexcept
     {
@@ -183,12 +192,13 @@ struct HeifSequenceAnimationImage // NOLINT(cppcoreguidelines-special-member-fun
         using std::swap;
         swap(left.firstFrameWorkspaceHold, right.firstFrameWorkspaceHold);
         swap(left.firstFrame, right.firstFrame);
+        swap(left.sourceDataLease, right.sourceDataLease);
+        swap(left.inputWorkspaceHold, right.inputWorkspaceHold);
         swap(left.data, right.data);
         swap(left.catalog, right.catalog);
         swap(left.embeddedMetadata, right.embeddedMetadata);
         swap(left.sourceIdentity, right.sourceIdentity);
         swap(left.sourceRevision, right.sourceRevision);
-        swap(left.sourceDataLease, right.sourceDataLease);
     }
 };
 

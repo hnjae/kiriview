@@ -26,6 +26,18 @@ class DemandRevisionTokenPrivateAccess;
 class AllocationGenerationTokenPrivateAccess;
 }
 
+namespace ImageSequenceEnums {
+Q_NAMESPACE
+
+enum class AuthoredAnimationLoopMode {
+    Unavailable,
+    PlayOnce,
+    Finite,
+    Infinite,
+};
+Q_ENUM_NS(AuthoredAnimationLoopMode)
+}
+
 namespace ImageViewportEnums {
 Q_NAMESPACE
 
@@ -216,6 +228,34 @@ using ImageViewportCoordinateSpace = ImageViewportEnums::CoordinateSpace;
 using ImageSequenceProviderFailureCause = ImageViewportEnums::SequenceProviderFailureCause;
 using ImageViewportFailureContext = ImageViewportEnums::FailureContext;
 using ImageViewportFailureScope = ImageViewportEnums::FailureScope;
+using ImageSequenceAuthoredAnimationLoopMode = ImageSequenceEnums::AuthoredAnimationLoopMode;
+
+class ImageSequenceAuthoredAnimationFacts
+{
+    Q_GADGET
+    QML_VALUE_TYPE(imageSequenceAuthoredAnimationFacts)
+    Q_PROPERTY(bool autoplay READ autoplay CONSTANT)
+    Q_PROPERTY(ImageSequenceAuthoredAnimationLoopMode loopMode READ loopMode CONSTANT)
+    Q_PROPERTY(int loopCount READ loopCount CONSTANT)
+
+public:
+    ImageSequenceAuthoredAnimationFacts() = default;
+    static ImageSequenceAuthoredAnimationFacts finiteLoop(int loopCount);
+    static ImageSequenceAuthoredAnimationFacts infiniteLoop();
+
+    [[nodiscard]] bool autoplay() const;
+    void setAutoplay(bool autoplay);
+    [[nodiscard]] ImageSequenceAuthoredAnimationLoopMode loopMode() const;
+    [[nodiscard]] int loopCount() const;
+    bool setFiniteLoopCount(int loopCount);
+    [[nodiscard]] bool isValid() const;
+
+private:
+    bool m_autoplay = false;
+    ImageSequenceAuthoredAnimationLoopMode m_loopMode
+        = ImageSequenceAuthoredAnimationLoopMode::PlayOnce;
+    int m_loopCount = 1;
+};
 
 class ImageSequenceProviderFailureReference
 {
@@ -458,3 +498,4 @@ Q_DECLARE_METATYPE(ImageViewportDemandRevisionToken)
 Q_DECLARE_METATYPE(ImageViewportAllocationGenerationToken)
 Q_DECLARE_METATYPE(ImageViewportRoleSet)
 Q_DECLARE_METATYPE(ImageSequenceProviderFailureReference)
+Q_DECLARE_METATYPE(ImageSequenceAuthoredAnimationFacts)

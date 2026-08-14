@@ -3,9 +3,11 @@
 
 #include "document/imageopenworkflow.h"
 
+#include "archive/archivepath.h"
 #include "image_document_plan_test_support.h"
 #include "location/imagedocumentlocation.h"
 
+#include <QDir>
 #include <QObject>
 #include <QTest>
 #include <QUrl>
@@ -32,12 +34,94 @@ class TestImageOpenSourceLoadWorkflow : public QObject
 
 private Q_SLOTS:
     void currentSourceLoadUsesRuntimeSnapshotAndRequestedContainer();
+    void equivalentSourceKeysReuseCurrentSourceLoad();
+    void equivalentOpenedCollectionSourceKeysReuseCurrentSourceLoad();
     void displayedComicBookScopeSuppressesRightToLeftReadingReset();
     void sameScopeImageNavigationStartsOpenWithoutReplacementReset();
     void replacementSourceLoadStartsFreshRuntimeWork();
     void sameRequestedCollectionWithFreshResolvedSourceStartsReplacement();
     void sourceLoadPlanResolvesRequestedRuntimePayloads();
 };
+
+void TestImageOpenSourceLoadWorkflow::equivalentSourceKeysReuseCurrentSourceLoad()
+{
+    const QString relativePath = QStringLiteral("relative/images/page.png");
+    const QUrl relativeUrl = QUrl::fromLocalFile(relativePath);
+    const QUrl absoluteUrl = QUrl::fromLocalFile(QDir::current().absoluteFilePath(relativePath));
+    const kiriview::ImageDocumentSourceLoadSnapshot snapshot {
+        absoluteUrl,
+        {},
+        false,
+    };
+    const kiriview::ImageDocumentSourceLoadRequest equivalentRequest
+        = kiriview::ImageDocumentSourceLoadRequest::fromExternalSource(
+            kiriview::resolvedNavigationSource(relativeUrl, {}));
+
+    const kiriview::ImageDocumentRuntimePlan equivalentPlan
+        = kiriview::ImageOpenWorkflow::sourceLoadPlan(snapshot, equivalentRequest);
+
+    QVERIFY(hasOperationTypes(equivalentPlan,
+        operationTypes<kiriview::CancelFileDeletionOperation,
+            kiriview::ClearLoadingContainerNavigationUrlOperation,
+            kiriview::SelectImageTargetOperation>()));
+    QCOMPARE(operationAt<kiriview::SelectImageTargetOperation>(equivalentPlan, 2).target.url,
+        relativeUrl);
+
+    QUrl distinctUrl = relativeUrl;
+    distinctUrl.setQuery(QStringLiteral("revision=2"));
+    const kiriview::ImageDocumentSourceLoadRequest distinctRequest
+        = kiriview::ImageDocumentSourceLoadRequest::fromExternalSource(
+            kiriview::resolvedNavigationSource(distinctUrl, {}));
+    const kiriview::ImageDocumentRuntimePlan distinctPlan
+        = kiriview::ImageOpenWorkflow::sourceLoadPlan(snapshot, distinctRequest);
+
+    QVERIFY(!distinctPlan.empty());
+    QVERIFY(std::holds_alternative<kiriview::CancelOpenOperation>(distinctPlan.front()));
+}
+
+void TestImageOpenSourceLoadWorkflow::equivalentOpenedCollectionSourceKeysReuseCurrentSourceLoad()
+{
+    const QString relativePath = QStringLiteral("relative/books/book.cbz");
+    const QUrl relativeUrl = QUrl::fromLocalFile(relativePath);
+    const QUrl absoluteUrl = QUrl::fromLocalFile(QDir::current().absoluteFilePath(relativePath));
+    const std::optional<kiriview::OpenedCollectionScopeLocation> relativeScope
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(relativeUrl, {}));
+    const std::optional<kiriview::OpenedCollectionScopeLocation> absoluteScope
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(absoluteUrl, {}));
+    QVERIFY(relativeScope.has_value());
+    QVERIFY(absoluteScope.has_value());
+
+    const kiriview::ImageDocumentSourceLoadSnapshot snapshot {
+        absoluteUrl,
+        *absoluteScope,
+        false,
+    };
+    const kiriview::ImageDocumentSourceLoadRequest equivalentRequest
+        = kiriview::ImageDocumentSourceLoadRequest::fromExternalSource(
+            kiriview::resolvedNavigationSource(relativeUrl, {}));
+
+    const kiriview::ImageDocumentRuntimePlan equivalentPlan
+        = kiriview::ImageOpenWorkflow::sourceLoadPlan(snapshot, equivalentRequest);
+
+    QVERIFY(hasOperationTypes(equivalentPlan,
+        operationTypes<kiriview::CancelFileDeletionOperation,
+            kiriview::ClearLoadingContainerNavigationUrlOperation,
+            kiriview::SelectImageTargetOperation>()));
+
+    const QUrl relativePage
+        = kiriview::openedCollectionEntryUrl(*relativeScope, QStringLiteral("page.png"));
+    const QUrl absolutePage
+        = kiriview::openedCollectionEntryUrl(*absoluteScope, QStringLiteral("page.png"));
+    const kiriview::DisplayedImageLocation relativeDisplay
+        = kiriview::DisplayedImageLocation::fromOpenedCollectionScope(relativePage, *relativeScope);
+    const kiriview::DisplayedImageLocation absoluteDisplay
+        = kiriview::DisplayedImageLocation::fromOpenedCollectionScope(absolutePage, *absoluteScope);
+    QVERIFY(relativeDisplay == absoluteDisplay);
+    QCOMPARE(kiriview::displayScopeIdentityForLocation(relativeDisplay),
+        kiriview::displayScopeIdentityForLocation(absoluteDisplay));
+}
 
 void TestImageOpenSourceLoadWorkflow::currentSourceLoadUsesRuntimeSnapshotAndRequestedContainer()
 {

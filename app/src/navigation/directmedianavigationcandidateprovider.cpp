@@ -46,7 +46,7 @@ kiriview::ImageIoJob startDirectoryDirectMediaNavigationCandidateList(QObject* r
     return kiriview::startDirectoryItemList(
         receiver, directoryUrl,
         [callback = std::move(callback), errorCallback = std::move(admissionErrorCallback),
-            directoryUrl](const KFileItemList& items) mutable {
+            directoryUrl](const kiriview::DirectoryItemList& items) mutable {
             kiriview::DirectMediaNavigationCandidateAdmissionResult admitted
                 = kiriview::directMediaNavigationCandidates(directoryUrl, items);
             if (!admitted) {

@@ -9,6 +9,7 @@
 
 #include <QByteArray>
 #include <QString>
+#include <QtGlobal>
 #include <memory>
 #include <optional>
 
@@ -32,7 +33,8 @@ class HeifSequenceReader final
 {
 public:
     HeifSequenceReader();
-    explicit HeifSequenceReader(std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget);
+    explicit HeifSequenceReader(std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget,
+        qsizetype perOperationBaselineByteCount = 0);
     ~HeifSequenceReader();
 
     HeifSequenceReader(const HeifSequenceReader&) = delete;

@@ -3,14 +3,11 @@
 
 #include "navigation/imagedocumentpagecandidatestore.h"
 
-#include <KFileItem>
-#include <QList>
 #include <QObject>
 #include <QTest>
 #include <QUrl>
 #include <algorithm>
 #include <memory>
-#include <sys/stat.h>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -55,7 +52,6 @@ struct FakeWatchProvider
         QUrl watchedUrl;
         kiriview::ImageDocumentPageCandidateWatchSnapshotCallback initialSnapshot;
         kiriview::ImageDocumentPageCandidateWatchSnapshotCallback changedSnapshot;
-        kiriview::ImageDocumentPageCandidateWatchDeletedCallback deletedUrls;
         kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback;
         bool active = true;
     };
@@ -70,7 +66,6 @@ struct FakeWatchProvider
         return [this](QObject* receiver, QUrl directory,
                    kiriview::ImageDocumentPageCandidateWatchSnapshotCallback initial,
                    kiriview::ImageDocumentPageCandidateWatchSnapshotCallback changed,
-                   kiriview::ImageDocumentPageCandidateWatchDeletedCallback deleted,
                    kiriview::ImageDocumentPageCandidateLoadErrorCallback error) {
             auto watch = std::make_shared<Watch>();
             ++startCount;
@@ -79,7 +74,6 @@ struct FakeWatchProvider
             watch->watchedUrl = std::move(directory);
             watch->initialSnapshot = std::move(initial);
             watch->changedSnapshot = std::move(changed);
-            watch->deletedUrls = std::move(deleted);
             watch->errorCallback = std::move(error);
             watches.push_back(watch);
             auto* token = new QObject(receiver);
@@ -88,7 +82,6 @@ struct FakeWatchProvider
                     watch->active = false;
                     watch->initialSnapshot = {};
                     watch->changedSnapshot = {};
-                    watch->deletedUrls = {};
                     watch->errorCallback = {};
                     --liveCount;
                 }
@@ -350,16 +343,22 @@ void TestImageDocumentPageCandidateStore::
     freshnessStateMarksStableIdentityRefreshAndPreservesUnchangedRows()
 {
     kiriview::ImageDocumentPageCandidateFreshnessState freshness;
-    const KFileItem refreshedItem(fileUrl(QStringLiteral("01.png")), QString(), S_IFREG);
-    const QList<QPair<KFileItem, KFileItem>> changes {
-        qMakePair(refreshedItem, refreshedItem),
-    };
+    kiriview::DirectoryItem refreshedItem { fileUrl(QStringLiteral("01.png")),
+        QStringLiteral("01.png"), true, 100, 1 };
+    const kiriview::DirectoryItem unchangedItem { fileUrl(QStringLiteral("02.png")),
+        QStringLiteral("02.png"), true, 200, 1 };
     std::vector<kiriview::ImageDocumentPageCandidate> rows {
         candidate(QStringLiteral("01.png")),
         candidate(QStringLiteral("02.png")),
     };
 
-    freshness.noteRefreshedItems(changes);
+    freshness.noteSnapshot({ refreshedItem, unchangedItem });
+    freshness.apply(&rows);
+    QCOMPARE(rows.at(0).sourceFreshness, quint64(0));
+    QCOMPARE(rows.at(1).sourceFreshness, quint64(0));
+
+    refreshedItem.modificationTimeSeconds = 2;
+    freshness.noteSnapshot({ refreshedItem, unchangedItem });
     freshness.apply(&rows);
     const quint64 firstFreshness = rows.at(0).sourceFreshness;
     QVERIFY(firstFreshness != 0);
@@ -368,7 +367,12 @@ void TestImageDocumentPageCandidateStore::
     freshness.apply(&rows);
     QCOMPARE(rows.at(0).sourceFreshness, firstFreshness);
 
-    freshness.noteRefreshedItems(changes);
+    freshness.noteSnapshot({ refreshedItem, unchangedItem });
+    freshness.apply(&rows);
+    QCOMPARE(rows.at(0).sourceFreshness, firstFreshness);
+
+    refreshedItem.byteSize = 101;
+    freshness.noteSnapshot({ refreshedItem, unchangedItem });
     freshness.apply(&rows);
     QVERIFY(rows.at(0).sourceFreshness != firstFreshness);
 }
@@ -441,7 +445,6 @@ void TestImageDocumentPageCandidateStore::
     kiriview::ImageDocumentPageCandidateWatchProvider provider
         = [](QObject*, QUrl, kiriview::ImageDocumentPageCandidateWatchSnapshotCallback,
               kiriview::ImageDocumentPageCandidateWatchSnapshotCallback,
-              kiriview::ImageDocumentPageCandidateWatchDeletedCallback,
               kiriview::ImageDocumentPageCandidateLoadErrorCallback errorCallback) {
               errorCallback(kiriview::ImageDocumentPageCandidateLoadError {
                   QStringLiteral("watch failed to start") });

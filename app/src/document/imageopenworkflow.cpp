@@ -5,6 +5,7 @@
 
 #include "imagedocumentsourceloadscope.h"
 #include "location/imagedocumentlocation.h"
+#include "location/sourcekey.h"
 
 #include <iterator>
 #include <utility>
@@ -94,7 +95,8 @@ ImageDocumentRuntimePlan sourceLoadPlan(
     ImageDocumentRuntimePlan plan;
     const OpenedCollectionScopeLocation requestedOpenedCollectionScope
         = openedCollectionScopeForImageDocumentSourceLoad(request);
-    const bool currentSourceLoad = snapshot.currentSourceUrl == request.sourceUrl()
+    const bool currentSourceLoad = sameSourceKey(sourceKeyForUrl(snapshot.currentSourceUrl),
+                                       sourceKeyForUrl(request.sourceUrl()))
         && (request.externalSource() == nullptr || requestedOpenedCollectionScope.isEmpty()
             || sameOpenedCollectionScopeSnapshot(
                 snapshot.displayedOpenedCollectionScope, requestedOpenedCollectionScope));

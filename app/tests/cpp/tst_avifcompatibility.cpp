@@ -57,6 +57,7 @@ class TestAvifCompatibility : public QObject
 private Q_SLOTS:
     void patchesZeroAuxiliaryReference();
     void mergesAdjacentAssociationBoxesWithoutChangingSize();
+    void unchangedHighCardinalityInputSharesOriginalStorage();
 };
 
 void TestAvifCompatibility::patchesZeroAuxiliaryReference()
@@ -67,9 +68,11 @@ void TestAvifCompatibility::patchesZeroAuxiliaryReference()
     const QByteArray data
         = avif({ fullBox("pitm", 0, itemId), alphaIprp(), fullBox("iref", 0, reference) });
 
-    const QByteArray fixed = kiriview::avifDataWithCompatibilityFixes(data);
-    QVERIFY(fixed.contains(QByteArray::fromHex("000200010007")));
-    QCOMPARE(fixed.size(), data.size());
+    const kiriview::AvifCompatibleData fixed = kiriview::avifDataWithCompatibilityFixes(data);
+    QCOMPARE(fixed.storage, kiriview::AvifCompatibleDataStorage::OwnedReplacement);
+    QVERIFY(fixed.data.contains(QByteArray::fromHex("000200010007")));
+    QCOMPARE(fixed.data.size(), data.size());
+    QCOMPARE(fixed.data.capacity(), fixed.data.size());
 }
 
 void TestAvifCompatibility::mergesAdjacentAssociationBoxesWithoutChangingSize()
@@ -78,9 +81,27 @@ void TestAvifCompatibility::mergesAdjacentAssociationBoxesWithoutChangingSize()
     const QByteArray second = fullBox("ipma", 0, QByteArray::fromHex("000000010405"));
     const QByteArray data = avif({ alphaIprp({ first, second }) });
 
-    const QByteArray fixed = kiriview::avifDataWithCompatibilityFixes(data);
-    QCOMPARE(fixed.size(), data.size());
-    QVERIFY(fixed.contains(QByteArray::fromHex("000000020102030405")));
+    const kiriview::AvifCompatibleData fixed = kiriview::avifDataWithCompatibilityFixes(data);
+    QCOMPARE(fixed.storage, kiriview::AvifCompatibleDataStorage::OwnedReplacement);
+    QCOMPARE(fixed.data.size(), data.size());
+    QCOMPARE(fixed.data.capacity(), fixed.data.size());
+    QVERIFY(fixed.data.contains(QByteArray::fromHex("000000020102030405")));
+}
+
+void TestAvifCompatibility::unchangedHighCardinalityInputSharesOriginalStorage()
+{
+    QByteArray data;
+    constexpr int boxCount = 100'000;
+    data.reserve(boxCount * 8);
+    for (int index = 0; index < boxCount; ++index) {
+        data += box("free", {});
+    }
+
+    const kiriview::AvifCompatibleData fixed = kiriview::avifDataWithCompatibilityFixes(data);
+
+    QCOMPARE(fixed.storage, kiriview::AvifCompatibleDataStorage::Original);
+    QCOMPARE(fixed.data, data);
+    QCOMPARE(fixed.data.constData(), data.constData());
 }
 
 QTEST_GUILESS_MAIN(TestAvifCompatibility)

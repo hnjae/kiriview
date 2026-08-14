@@ -4,12 +4,14 @@
 #include "location/imageurl.h"
 
 #include "archive/archiveformat.h"
-#include "archive/archivepath.h"
 #include "diagnostics/diagnosticlogprojection.h"
 #include "location/documentportalpathvalidation_p.h"
+#include "location/sourcekey.h"
 #include "navigation/navigationlogging.h"
 
 #include <QByteArray>
+#include <QDBusConnection>
+#include <QDBusMessage>
 #include <QDebug>
 #include <QDir>
 #include <QFile>
@@ -61,6 +63,10 @@ std::optional<QString> validatedDocumentPortalHostPath(
 namespace {
 constexpr const char* documentPortalHostPathAttribute = "user.document-portal.host-path";
 constexpr qsizetype maximumDocumentPortalHostPathBytes = qsizetype { 64 } * 1024;
+constexpr auto kioFuseService = "org.kde.KIOFuse";
+constexpr auto kioFusePath = "/org/kde/KIOFuse";
+constexpr auto kioFuseInterface = "org.kde.KIOFuse.VFS";
+constexpr auto kioFuseReverseMappingTimeoutMilliseconds = 250;
 
 class ScopedFileDescriptor final
 {
@@ -211,15 +217,43 @@ std::optional<ScopedFileDescriptor> authenticatedDocumentPortalEntry(
     return std::nullopt;
 }
 
-QUrl navigationUrlForLocalPath(const QString& localPath, const QString& runtimeDir)
+std::optional<QUrl> validatedKioFuseArchiveUrl(const std::optional<QUrl>& candidate)
 {
-    const std::optional<QUrl> kioUrl
-        = kiriview::kioFuseArchiveUrlForLocalPath(localPath, runtimeDir);
-    if (kioUrl.has_value()) {
-        return kioUrl.value();
+    if (!candidate.has_value() || !candidate->isValid() || candidate->isEmpty()
+        || candidate->path().isEmpty()
+        || !kiriview::archiveRootSchemeUsesKioFuse(candidate->scheme())) {
+        return std::nullopt;
+    }
+    return candidate;
+}
+
+std::optional<QUrl> serviceConfirmedKioFuseArchiveUrl(const QString& localPath)
+{
+    if (localPath.isEmpty() || !QDir::isAbsolutePath(localPath)) {
+        return std::nullopt;
     }
 
-    return QUrl::fromLocalFile(localPath);
+    const QDBusConnection connection = QDBusConnection::sessionBus();
+    if (!connection.isConnected()) {
+        return std::nullopt;
+    }
+
+    QDBusMessage request = QDBusMessage::createMethodCall(QString::fromLatin1(kioFuseService),
+        QString::fromLatin1(kioFusePath), QString::fromLatin1(kioFuseInterface),
+        QStringLiteral("remoteUrl"));
+    request.setAutoStartService(false);
+    request << QDir::cleanPath(localPath);
+    const QDBusMessage reply
+        = connection.call(request, QDBus::Block, kioFuseReverseMappingTimeoutMilliseconds);
+    if (reply.type() != QDBusMessage::ReplyMessage || reply.arguments().size() != 1) {
+        return std::nullopt;
+    }
+
+    const QString remoteUrlText = reply.arguments().constFirst().toString();
+    if (remoteUrlText.isEmpty()) {
+        return std::nullopt;
+    }
+    return validatedKioFuseArchiveUrl(QUrl::fromEncoded(remoteUrlText.toUtf8(), QUrl::StrictMode));
 }
 
 QUrl normalizedContainerBaseUrl(const QUrl& url)
@@ -324,10 +358,16 @@ std::optional<QString> documentPortalHostPath(const QUrl& url, const QString& ru
 kiriview::NavigationSourceEntryFacts collectNavigationSourceEntryFacts(const QUrl& url)
 {
     const QString runtimeDir = runtimeDirForNavigationSource();
+    const std::optional<QString> portalHostPath = documentPortalHostPath(url, runtimeDir);
+    QString effectiveLocalPath;
+    if (url.isLocalFile()) {
+        effectiveLocalPath = portalHostPath.value_or(url.toLocalFile());
+    }
     return kiriview::NavigationSourceEntryFacts {
-        documentPortalHostPath(url, runtimeDir),
+        portalHostPath,
         runtimeDir,
         url.isLocalFile() && QFileInfo(QDir::cleanPath(url.toLocalFile())).isDir(),
+        serviceConfirmedKioFuseArchiveUrl(effectiveLocalPath),
     };
 }
 
@@ -447,13 +487,13 @@ ResolvedNavigationSource resolvedNavigationSource(
         const QString localPath = requestedUrl.toLocalFile();
         const QString& hostPath = facts.documentPortalHostPath.value();
         if (!hostPath.isEmpty() && hostPath != localPath) {
-            navigationUrl = navigationUrlForLocalPath(hostPath, facts.runtimeDir);
+            navigationUrl = QUrl::fromLocalFile(hostPath);
         }
-    } else if (requestedUrl.isLocalFile()) {
-        const std::optional<QUrl> kioUrl
-            = kioFuseArchiveUrlForLocalPath(requestedUrl.toLocalFile(), facts.runtimeDir);
-        if (kioUrl.has_value()) {
-            navigationUrl = *kioUrl;
+    }
+    if (requestedUrl.isLocalFile()) {
+        const std::optional<QUrl> archiveUrl = validatedKioFuseArchiveUrl(facts.kioFuseArchiveUrl);
+        if (archiveUrl.has_value()) {
+            navigationUrl = *archiveUrl;
         }
     }
 
@@ -464,13 +504,21 @@ ResolvedNavigationSource resolvedNavigationSource(
 bool sameResolvedNavigationSourceSnapshot(
     const ResolvedNavigationSource& left, const ResolvedNavigationSource& right)
 {
-    return sameNormalizedUrl(left.requestedUrl(), right.requestedUrl())
-        && sameNormalizedUrl(left.navigationUrl(), right.navigationUrl())
+    const auto sameSourceIdentity = [](const QUrl& first, const QUrl& second) {
+        if (first.isEmpty() || second.isEmpty()) {
+            return first.isEmpty() && second.isEmpty();
+        }
+        return sameSourceKey(sourceKeyForUrl(first), sourceKeyForUrl(second));
+    };
+
+    return sameSourceIdentity(left.requestedUrl(), right.requestedUrl())
+        && sameSourceIdentity(left.navigationUrl(), right.navigationUrl())
         && left.entryKind() == right.entryKind()
         && left.facts().documentPortalHostPath == right.facts().documentPortalHostPath
         && left.facts().runtimeDir == right.facts().runtimeDir
         && left.facts().requestedLocalSourceIsDirectory
-        == right.facts().requestedLocalSourceIsDirectory;
+        == right.facts().requestedLocalSourceIsDirectory
+        && left.facts().kioFuseArchiveUrl == right.facts().kioFuseArchiveUrl;
 }
 
 NavigationSourceResolver::NavigationSourceResolver()

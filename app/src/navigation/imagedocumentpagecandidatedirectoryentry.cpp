@@ -4,30 +4,10 @@
 #include "imagedocumentpagecandidatedirectoryentry.h"
 
 #include "async/imagecallback.h"
-#include "location/imageurl.h"
-
-#include <algorithm>
 #include <memory>
 #include <utility>
 
 namespace {
-std::vector<kiriview::ImageDocumentPageCandidate> imageDocumentPageCandidatesWithoutDeletedUrls(
-    const std::vector<kiriview::ImageDocumentPageCandidate>& candidates,
-    const QList<QUrl>& deletedUrls)
-{
-    std::vector<kiriview::ImageDocumentPageCandidate> filteredCandidates;
-    filteredCandidates.reserve(candidates.size());
-    for (const kiriview::ImageDocumentPageCandidate& candidate : candidates) {
-        const bool removed = std::ranges::any_of(deletedUrls, [&candidate](const QUrl& url) {
-            return kiriview::sameNormalizedUrl(candidate.url, url);
-        });
-        if (!removed) {
-            filteredCandidates.push_back(candidate);
-        }
-    }
-    return filteredCandidates;
-}
-
 QObject* createEntryJobToken(QObject* receiver, QObject* fallbackParent)
 {
     return new QObject(receiver == nullptr ? fallbackParent : receiver);
@@ -150,7 +130,6 @@ bool ImageDocumentPageCandidateDirectoryEntry::open()
         [this](std::vector<ImageDocumentPageCandidate> candidates) {
             handleChanged(std::move(candidates));
         },
-        [this](const QList<QUrl>& urls) { handleDeleted(urls); },
         [this](ImageDocumentPageCandidateLoadError error) { handleError(std::move(error)); });
     return m_watchJob.isActive();
 }
@@ -170,19 +149,6 @@ void ImageDocumentPageCandidateDirectoryEntry::handleChanged(
 {
     ImageDocumentPageCandidateStoreEntryNotificationPlan plan
         = m_state.updateListing(std::move(candidates));
-    const QPointer<QObject> signalContext = m_signalContext;
-    reportIdle();
-    applyEntryNotificationPlan(std::move(plan), signalContext);
-}
-
-void ImageDocumentPageCandidateDirectoryEntry::handleDeleted(const QList<QUrl>& urls)
-{
-    if (failed()) {
-        return;
-    }
-
-    ImageDocumentPageCandidateStoreEntryNotificationPlan plan
-        = m_state.updateListing(imageDocumentPageCandidatesWithoutDeletedUrls(candidates(), urls));
     const QPointer<QObject> signalContext = m_signalContext;
     reportIdle();
     applyEntryNotificationPlan(std::move(plan), signalContext);

@@ -207,7 +207,7 @@ void ImageDecodeJob::startThumbnailPreviewLookup(const QByteArray& data,
     }
 
     std::optional<XdgThumbnailPreviewRequest> previewRequest
-        = xdgThumbnailPreviewRequestForDecodeData(data, request);
+        = xdgThumbnailPreviewRequestForDecodeData(data, request, m_dependencies.workspaceBudget);
     if (!previewRequest.has_value()) {
         return;
     }

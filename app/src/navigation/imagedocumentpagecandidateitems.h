@@ -4,21 +4,14 @@
 #ifndef KIRIVIEW_IMAGEDOCUMENTPAGECANDIDATEITEMS_H
 #define KIRIVIEW_IMAGEDOCUMENTPAGECANDIDATEITEMS_H
 
+#include "async/directorylistingjob.h"
 #include "directmedianavigationmodel.h"
 #include "imagedocumentpagenavigationtypes.h"
 
-#include <KFileItem>
-#include <QtGlobal>
 #include <expected>
 #include <vector>
 
 namespace kiriview {
-struct SiblingCandidateAdmissionLimits
-{
-    qsizetype maximumEntryCount = 0;
-    qsizetype maximumIdentityCodeUnitCount = 0;
-};
-
 enum class ImageDocumentPageCandidateAdmissionFailure {
     ResourceLimitExceeded,
     ScopeViolation,
@@ -34,15 +27,14 @@ using ContainerNavigationCandidateAdmissionResult
     = std::expected<std::vector<ContainerNavigationCandidate>,
         ImageDocumentPageCandidateAdmissionFailure>;
 
-[[nodiscard]] SiblingCandidateAdmissionLimits defaultSiblingCandidateAdmissionLimits();
 [[nodiscard]] ImageDocumentPageCandidateAdmissionResult imageDocumentPageNavigationCandidates(
-    const QUrl& directoryUrl, const KFileItemList& items,
+    const QUrl& directoryUrl, const DirectoryItemList& items,
     SiblingCandidateAdmissionLimits limits = defaultSiblingCandidateAdmissionLimits());
 [[nodiscard]] DirectMediaNavigationCandidateAdmissionResult directMediaNavigationCandidates(
-    const QUrl& directoryUrl, const KFileItemList& items,
+    const QUrl& directoryUrl, const DirectoryItemList& items,
     SiblingCandidateAdmissionLimits limits = defaultSiblingCandidateAdmissionLimits());
 [[nodiscard]] ContainerNavigationCandidateAdmissionResult containerNavigationCandidates(
-    const QUrl& directoryUrl, const KFileItemList& items,
+    const QUrl& directoryUrl, const DirectoryItemList& items,
     SiblingCandidateAdmissionLimits limits = defaultSiblingCandidateAdmissionLimits());
 bool imageDocumentPageCandidatesBelongToDirectoryScope(
     const std::vector<ImageDocumentPageCandidate>& candidates, const QUrl& directoryUrl);

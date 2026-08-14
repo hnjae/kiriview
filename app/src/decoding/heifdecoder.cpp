@@ -87,22 +87,28 @@ void stampHeifFailure(kiriview::DecodedImageResult& result)
 
 std::optional<kiriview::DecodedImageResult> decodeHeifStillImageDataForInfo(const QByteArray& data,
     kiriview::HeifContainerInfo info, const kiriview::ImageDecodeRequest& request,
-    std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> workspaceBudget)
+    std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> workspaceBudget,
+    qsizetype retainedInputWorkspaceByteCount)
 {
     if (!info.stillImage) {
         return std::nullopt;
     }
 
     QString errorString;
-    std::shared_ptr<kiriview::StaticImageDisplaySource> source
-        = kiriview::openHeifDisplaySource(data, &errorString);
+    bool resourceExhausted = false;
+    std::shared_ptr<kiriview::StaticImageDisplaySource> source = kiriview::openHeifDisplaySource(
+        data, &errorString, workspaceBudget, retainedInputWorkspaceByteCount, &resourceExhausted);
     if (source == nullptr) {
-        return failedHeifDecodedImageResult(
-            errorString, kiriview::DecodedImageFailureOperation::OpenStaticImageSource);
+        return failedHeifDecodedImageResult(errorString,
+            kiriview::DecodedImageFailureOperation::OpenStaticImageSource,
+            resourceExhausted ? kiriview::DecodedImageFailureCause::ResourceLimitExceeded
+                              : kiriview::DecodedImageFailureCause::Unknown);
     }
 
-    kiriview::DecodedImageResult result = kiriview::staticDecodedImageResult(
-        std::move(source), request, &errorString, std::move(workspaceBudget));
+    kiriview::ImageDecodeWorkspaceLease producerLease
+        = workspaceBudget->startLeaseForOperation(retainedInputWorkspaceByteCount);
+    kiriview::DecodedImageResult result = kiriview::staticDecodedImageResult(std::move(source),
+        request, &errorString, std::move(workspaceBudget), std::move(producerLease));
     stampHeifFailure(result);
     return result;
 }
@@ -110,13 +116,15 @@ std::optional<kiriview::DecodedImageResult> decodeHeifStillImageDataForInfo(cons
 std::optional<kiriview::DecodedImageResult> decodeHeifSequenceImageDataForInfo(
     const QByteArray& data, kiriview::HeifContainerInfo info,
     const kiriview::ImageDecodeRequest& request,
-    std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> workspaceBudget)
+    std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> workspaceBudget,
+    qsizetype retainedInputWorkspaceByteCount)
 {
     if (!info.isHeif()) {
         return std::nullopt;
     }
 
-    kiriview::HeifSequenceReader reader(std::move(workspaceBudget));
+    kiriview::HeifSequenceReader reader(
+        std::move(workspaceBudget), retainedInputWorkspaceByteCount);
     const kiriview::HeifSequenceOpenResult openResult = reader.open(data);
     if (openResult.status == kiriview::HeifSequenceOpenStatus::NotHeif
         || openResult.status == kiriview::HeifSequenceOpenStatus::NotSequence) {
@@ -160,6 +168,8 @@ std::optional<kiriview::DecodedImageResult> decodeHeifSequenceImageDataForInfo(
     return kiriview::successfulDecodedImageResult(kiriview::HeifSequenceAnimationImage {
         std::move(retainedFirstFrame.workspaceHold),
         std::move(retainedFirstFrame.image),
+        {},
+        {},
         data,
         std::move(*catalog),
         {},
@@ -171,14 +181,19 @@ std::optional<kiriview::DecodedImageResult> decodeHeifSequenceImageDataForInfo(
 
 namespace kiriview {
 std::optional<DecodedImageResult> decodeHeifImageData(const QByteArray& data,
-    const ImageDecodeRequest& request, std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget)
+    const ImageDecodeRequest& request, std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget,
+    qsizetype retainedInputWorkspaceByteCount)
 {
+    if (workspaceBudget == nullptr) {
+        workspaceBudget = defaultImageDecodeWorkspaceBudget();
+    }
     const HeifContainerInfo info = heifContainerInfo(data);
-    if (std::optional<DecodedImageResult> sequenceResult
-        = decodeHeifSequenceImageDataForInfo(data, info, request, workspaceBudget)) {
+    if (std::optional<DecodedImageResult> sequenceResult = decodeHeifSequenceImageDataForInfo(
+            data, info, request, workspaceBudget, retainedInputWorkspaceByteCount)) {
         return sequenceResult;
     }
 
-    return decodeHeifStillImageDataForInfo(data, info, request, std::move(workspaceBudget));
+    return decodeHeifStillImageDataForInfo(
+        data, info, request, std::move(workspaceBudget), retainedInputWorkspaceByteCount);
 }
 }

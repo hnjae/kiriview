@@ -4,15 +4,14 @@
 #ifndef KIRIVIEW_IMAGEDOCUMENTPAGECANDIDATEWATCHPROVIDER_H
 #define KIRIVIEW_IMAGEDOCUMENTPAGECANDIDATEWATCHPROVIDER_H
 
+#include "async/directorylistingjob.h"
 #include "async/imageasynccallbacks.h"
 #include "async/imageiojob.h"
 #include "imagedocumentpagecandidatecallbacks.h"
 #include "imagedocumentpagecandidateloaderror.h"
 #include "imagedocumentpagenavigationtypes.h"
 
-#include <KFileItem>
 #include <QHash>
-#include <QList>
 #include <QString>
 #include <QUrl>
 #include <QtGlobal>
@@ -25,15 +24,23 @@ namespace kiriview {
 class ImageDocumentPageCandidateFreshnessState final
 {
 public:
-    void noteAddedItems(const KFileItemList& items);
-    void noteDeletedItems(const KFileItemList& items);
-    void noteRefreshedItems(const QList<QPair<KFileItem, KFileItem>>& items);
+    void noteSnapshot(const DirectoryItemList& items);
     void apply(std::vector<ImageDocumentPageCandidate>* candidates);
 
 private:
-    void noteItem(const KFileItem& item);
+    struct SourceVersion
+    {
+        std::optional<qint64> byteSize;
+        std::optional<qint64> modificationTimeSeconds;
+
+        friend bool operator==(const SourceVersion&, const SourceVersion&) = default;
+    };
+
+    void noteItem(const DirectoryItem& item);
+    QHash<QString, SourceVersion> m_lastVersionBySource;
     QHash<QString, quint64> m_freshnessBySource;
     quint64 m_nextFreshness = 0;
+    bool m_snapshotRecorded = false;
 };
 
 class ImageDocumentPageCandidateRefreshAdmission final
@@ -54,13 +61,13 @@ private:
 
 using ImageDocumentPageCandidateWatchSnapshotCallback
     = std::function<void(std::vector<ImageDocumentPageCandidate>)>;
-using ImageDocumentPageCandidateWatchDeletedCallback = std::function<void(QList<QUrl>)>;
 using ImageDocumentPageCandidateWatchProvider = std::function<ImageIoJob(QObject*, QUrl,
     ImageDocumentPageCandidateWatchSnapshotCallback,
-    ImageDocumentPageCandidateWatchSnapshotCallback, ImageDocumentPageCandidateWatchDeletedCallback,
-    ImageDocumentPageCandidateLoadErrorCallback)>;
+    ImageDocumentPageCandidateWatchSnapshotCallback, ImageDocumentPageCandidateLoadErrorCallback)>;
 
-ImageDocumentPageCandidateWatchProvider defaultImageDocumentPageCandidateWatchProvider();
+ImageDocumentPageCandidateWatchProvider defaultImageDocumentPageCandidateWatchProvider(
+    DirectoryItemListProvider directoryItemListProvider = {},
+    SiblingCandidateAdmissionLimits limits = defaultSiblingCandidateAdmissionLimits());
 }
 
 #endif

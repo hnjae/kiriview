@@ -12,6 +12,7 @@
 #include <QObject>
 #include <QSize>
 #include <QTest>
+#include <memory>
 #include <optional>
 
 class TestHeifSequenceReader : public QObject
@@ -21,6 +22,7 @@ class TestHeifSequenceReader : public QObject
 private Q_SLOTS:
     void rejectsNonHeifData();
     void readsFramesFromStreamingSequence();
+    void retainedInputBaselineParticipatesInOpenAdmission();
     void reopensAtTheStartOfTheAuthoredCycle();
     void closeClearsTheActiveSequence();
 };
@@ -79,6 +81,28 @@ void TestHeifSequenceReader::readsFramesFromStreamingSequence()
     const kiriview::AnimationFrameReadResult end = reader.readNextFrame();
     QVERIFY2(end.has_value(), end ? "unexpected frame" : qPrintable(end.error()));
     QVERIFY(!end->has_value());
+}
+
+void TestHeifSequenceReader::retainedInputBaselineParticipatesInOpenAdmission()
+{
+    const QByteArray imageData = fixtureData();
+    QVERIFY(!imageData.isEmpty());
+    constexpr qsizetype generousByteCount = qsizetype { 256 } * 1024 * 1024;
+    auto measurementBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        generousByteCount, generousByteCount);
+    kiriview::HeifSequenceReader measuredReader(measurementBudget);
+    QCOMPARE(measuredReader.open(imageData).status, kiriview::HeifSequenceOpenStatus::Success);
+    const qsizetype openByteCount = measurementBudget->reservedByteCount();
+    QVERIFY(openByteCount > 0);
+    measuredReader.close();
+
+    auto limitedBudget
+        = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(openByteCount + 1, openByteCount);
+    kiriview::HeifSequenceReader reader(limitedBudget, 1);
+
+    QCOMPARE(
+        reader.open(imageData).status, kiriview::HeifSequenceOpenStatus::ResourceLimitExceeded);
+    QCOMPARE(limitedBudget->reservedByteCount(), qsizetype(0));
 }
 
 void TestHeifSequenceReader::reopensAtTheStartOfTheAuthoredCycle()

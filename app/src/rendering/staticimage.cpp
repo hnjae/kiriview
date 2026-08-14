@@ -58,6 +58,67 @@ qsizetype embeddedMetadataStorageByteCost(const kiriview::EmbeddedMetadata& meta
 }
 
 namespace kiriview {
+StaticDisplayImagePayload::StaticDisplayImagePayload(QString sourceIdentity,
+    StaticImageReaderTransform imageReaderTransform, QSize originalSize, QImage image,
+    DisplayImageQuality quality, EmbeddedMetadata embeddedMetadata,
+    ImageSourceDataLease sourceDataLease, ImageDecodeWorkspaceHold inputWorkspaceHold,
+    std::shared_ptr<StaticImageDisplaySource> refinementSource,
+    DisplayImagePreviewOrigin previewOrigin, StaticImageSourceDetailModel sourceDetailModel,
+    ImageSourceRevision sourceRevision, DisplayImageRasterKind rasterKind)
+    : sourceIdentity(std::move(sourceIdentity))
+    , imageReaderTransform(imageReaderTransform)
+    , originalSize(originalSize)
+    , image(std::move(image))
+    , quality(quality)
+    , embeddedMetadata(std::move(embeddedMetadata))
+    , sourceDataLease(std::move(sourceDataLease))
+    , inputWorkspaceHold(std::move(inputWorkspaceHold))
+    , refinementSource(std::move(refinementSource))
+    , previewOrigin(previewOrigin)
+    , sourceDetailModel(sourceDetailModel)
+    , sourceRevision(std::move(sourceRevision))
+    , rasterKind(rasterKind)
+{
+}
+
+StaticDisplayImagePayload& StaticDisplayImagePayload::operator=(
+    const StaticDisplayImagePayload& other)
+{
+    if (this != &other) {
+        StaticDisplayImagePayload replacement(other);
+        swap(*this, replacement);
+    }
+    return *this;
+}
+
+StaticDisplayImagePayload& StaticDisplayImagePayload::operator=(
+    StaticDisplayImagePayload&& other) noexcept
+{
+    if (this != &other) {
+        StaticDisplayImagePayload replacement(std::move(other));
+        swap(*this, replacement);
+    }
+    return *this;
+}
+
+void swap(StaticDisplayImagePayload& left, StaticDisplayImagePayload& right) noexcept
+{
+    using std::swap;
+    swap(left.sourceIdentity, right.sourceIdentity);
+    swap(left.imageReaderTransform, right.imageReaderTransform);
+    swap(left.originalSize, right.originalSize);
+    swap(left.image, right.image);
+    swap(left.quality, right.quality);
+    swap(left.embeddedMetadata, right.embeddedMetadata);
+    swap(left.sourceDataLease, right.sourceDataLease);
+    swap(left.inputWorkspaceHold, right.inputWorkspaceHold);
+    swap(left.refinementSource, right.refinementSource);
+    swap(left.previewOrigin, right.previewOrigin);
+    swap(left.sourceDetailModel, right.sourceDetailModel);
+    swap(left.sourceRevision, right.sourceRevision);
+    swap(left.rasterKind, right.rasterKind);
+}
+
 StaticImageSourceDetailModel StaticImageDisplaySource::detailModel() const
 {
     return StaticImageSourceDetailModel::FiniteRaster;
@@ -160,7 +221,8 @@ qsizetype StaticDisplayImagePayload::retainedRasterByteCost() const
 {
     const qsizetype sourceRasterByteCost
         = refinementSource == nullptr ? 0 : refinementSource->retainedRasterByteCost();
-    return saturatedQtByteSum(sourceRasterByteCost, imageByteCost(image));
+    return saturatedQtByteSum(inputWorkspaceHold.reservedByteCount(),
+        saturatedQtByteSum(sourceRasterByteCost, imageByteCost(image)));
 }
 
 qsizetype StaticDisplayImagePayload::byteCost() const

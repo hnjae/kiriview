@@ -8,7 +8,7 @@ The support library provides only:
 
 - Image and direct-video embedded metadata parsing.
 - Streaming APNG byte decoding and raw subframe metadata.
-- Self-contained static SVG parsing and rasterization that satisfies the product's SVG behavior and resource-isolation requirements.
+- Self-contained static SVG parsing and rasterization that satisfies the product's SVG behavior and resource-isolation requirements. The capability does not resolve nested image resources. Each parse or raster operation runs inside a disposable process with a hard address-space ceiling, and the calling runtime reserves that full ceiling plus input and output transfer storage in the shared decoded-memory budget before input-derived work begins. Limit termination is projected as a resource-limit failure rather than crossing the bridge or terminating the application process.
 - Desktop thumbnail-cache lookup and installation compatible with the required desktop cache contract.
 
 Rust code may contain validation, byte conversion, capability-local adapter logic, and opaque state needed to expose those capabilities safely. Concrete libraries and their replacement rationale belong to build metadata and ADRs. A supplier change that preserves capability behavior, security constraints, payload ownership, and failure semantics does not change this boundary.

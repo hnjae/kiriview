@@ -4,6 +4,7 @@
 #include "heifsequencereader.h"
 
 #include "animationtiming.h"
+#include "cache/imagebyteaccounting.h"
 #include "heifcontainer.h"
 #include "heifsupport.h"
 #include "localization/imageerrortext.h"
@@ -81,9 +82,11 @@ QString heifSequenceDecodeErrorString()
 class HeifSequenceReader::Private
 {
 public:
-    explicit Private(std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget)
+    explicit Private(std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget,
+        qsizetype perOperationBaselineByteCount)
         : workspaceBudget(workspaceBudget != nullptr ? std::move(workspaceBudget)
                                                      : defaultImageDecodeWorkspaceBudget())
+        , perOperationBaselineByteCount(perOperationBaselineByteCount)
     {
     }
     ~Private() { reset(); }
@@ -102,6 +105,7 @@ public:
     }
 
     std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget;
+    qsizetype perOperationBaselineByteCount = 0;
     ImageDecodeWorkspaceLease transientWorkspaceLease;
     qsizetype outputByteCount = 0;
     std::uint64_t inheritedMaximumTotalMemory = 0;
@@ -114,12 +118,13 @@ public:
 };
 
 HeifSequenceReader::HeifSequenceReader()
-    : HeifSequenceReader(defaultImageDecodeWorkspaceBudget())
+    : HeifSequenceReader(defaultImageDecodeWorkspaceBudget(), 0)
 {
 }
 
-HeifSequenceReader::HeifSequenceReader(std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget)
-    : d(std::make_unique<Private>(std::move(workspaceBudget)))
+HeifSequenceReader::HeifSequenceReader(std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget,
+    qsizetype perOperationBaselineByteCount)
+    : d(std::make_unique<Private>(std::move(workspaceBudget), perOperationBaselineByteCount))
 {
 }
 
@@ -138,7 +143,8 @@ HeifSequenceOpenResult HeifSequenceReader::open(QByteArray data)
         return { HeifSequenceOpenStatus::NotHeif, {} };
     }
 
-    d->transientWorkspaceLease = d->workspaceBudget->startLease();
+    d->transientWorkspaceLease
+        = d->workspaceBudget->startLeaseForOperation(d->perOperationBaselineByteCount);
     if (!d->transientWorkspaceLease.tryReserve(minimumHeifDecoderByteLimit)) {
         close();
         d->lastResourceLimitExceeded = true;
@@ -244,8 +250,10 @@ AnimationFrameReadResult HeifSequenceReader::readNextFrame()
         return std::unexpected(imageErrorText(ImageErrorTextId::HeifSequenceTrackMissing));
     }
 
-    ImageDecodeWorkspaceLease outputLease = d->workspaceBudget->startLeaseForOperation(
-        d->transientWorkspaceLease.reservedByteCount());
+    const qsizetype outputBaselineByteCount = saturatedQtByteSum(
+        d->perOperationBaselineByteCount, d->transientWorkspaceLease.reservedByteCount());
+    ImageDecodeWorkspaceLease outputLease
+        = d->workspaceBudget->startLeaseForOperation(outputBaselineByteCount);
     if (!outputLease.tryReserve(d->outputByteCount)) {
         close();
         d->lastResourceLimitExceeded = true;

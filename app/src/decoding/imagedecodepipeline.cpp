@@ -5,6 +5,7 @@
 
 #include "apnganimationreader.h"
 #include "avifcompatibility.h"
+#include "cache/imagebyteaccounting.h"
 #include "diagnostics/diagnosticlogprojection.h"
 #include "heifdecoder.h"
 #include "imageanimationrequest.h"
@@ -24,6 +25,7 @@
 #include <QDebug>
 #include <QString>
 #include <memory>
+#include <new>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -37,12 +39,21 @@ qsizetype decodedImageWorkspaceByteCost(const kiriview::DecodedImage& image)
 {
     return std::visit(
         [](const auto& decoded) -> qsizetype {
+            const qsizetype inputByteCost = [&decoded]() -> qsizetype {
+                if constexpr (requires { decoded.inputWorkspaceHold; }) {
+                    return decoded.inputWorkspaceHold.reservedByteCount();
+                } else if constexpr (requires { decoded.displayImage.inputWorkspaceHold; }) {
+                    return decoded.displayImage.inputWorkspaceHold.reservedByteCount();
+                }
+                return 0;
+            }();
             if constexpr (requires { decoded.firstFrameWorkspaceHold; }) {
-                return decoded.firstFrameWorkspaceHold.reservedByteCount();
+                return kiriview::saturatedQtByteSum(
+                    inputByteCost, decoded.firstFrameWorkspaceHold.reservedByteCount());
             } else if constexpr (requires { decoded.displayImage.retainedRasterByteCost(); }) {
                 return decoded.displayImage.retainedRasterByteCost();
             }
-            return 0;
+            return inputByteCost;
         },
         image);
 }
@@ -146,52 +157,159 @@ const char* qtRasterFormatName(kiriview::QtRasterFormat format)
     return "None";
 }
 
-QByteArray avifCompatibleImageData(const QByteArray& data)
+kiriview::ImageDecodeCompatibleDataTransform::Result avifCompatibleImageData(const QByteArray& data)
 {
-    return kiriview::avifDataWithCompatibilityFixes(data);
+    kiriview::AvifCompatibleData compatibleData = kiriview::avifDataWithCompatibilityFixes(data);
+    return {
+        std::move(compatibleData.data),
+        compatibleData.storage == kiriview::AvifCompatibleDataStorage::OwnedReplacement
+            ? kiriview::ImageDecodeCompatibleDataTransform::Storage::OwnedReplacement
+            : kiriview::ImageDecodeCompatibleDataTransform::Storage::Original,
+    };
 }
 
 class ImageDecodeRouterByteInputs
 {
 public:
     ImageDecodeRouterByteInputs(const QByteArray& originalData,
-        const kiriview::ImageDecodeCompatibleDataTransform& compatibleDataTransform)
+        const kiriview::ImageDecodeCompatibleDataTransform& compatibleDataTransform,
+        std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> workspaceBudget)
         : m_originalData(originalData)
         , m_compatibleDataTransform(compatibleDataTransform)
+        , m_workspaceBudget(std::move(workspaceBudget))
     {
     }
 
-    const QByteArray& dataFor(kiriview::ImageDecodeDataSource dataSource)
+    const QByteArray* dataFor(kiriview::ImageDecodeDataSource dataSource)
     {
         switch (dataSource) {
         case kiriview::ImageDecodeDataSource::Original:
-            return m_originalData;
+            return &m_originalData;
         case kiriview::ImageDecodeDataSource::AvifCompatible:
             return compatibleData();
         }
 
-        return m_originalData;
+        return &m_originalData;
+    }
+
+    [[nodiscard]] bool resourceExhausted() const { return m_resourceExhausted; }
+
+    [[nodiscard]] bool compatibleDataRequiresRetention() const
+    {
+        return m_compatibleData.has_value()
+            && m_compatibleData->storage
+            == kiriview::ImageDecodeCompatibleDataTransform::Storage::OwnedReplacement;
+    }
+
+    [[nodiscard]] qsizetype retainedInputWorkspaceByteCount() const
+    {
+        return compatibleDataRetainedByteCount();
+    }
+
+    kiriview::ImageDecodeWorkspaceHold takeRetainedWorkspace()
+    {
+        return compatibleDataRequiresRetention()
+            ? m_workspaceLease.retainOnly(compatibleDataRetainedByteCount())
+            : kiriview::ImageDecodeWorkspaceHold {};
     }
 
 private:
-    const QByteArray& compatibleData()
+    [[nodiscard]] qsizetype compatibleDataRetainedByteCount() const
+    {
+        return compatibleDataRequiresRetention() ? m_compatibleData->data.capacity() : 0;
+    }
+
+    const QByteArray* compatibleData()
     {
         if (!m_compatibleData.has_value()) {
-            m_compatibleData = m_compatibleDataTransform ? m_compatibleDataTransform(m_originalData)
-                                                         : avifCompatibleImageData(m_originalData);
+            const std::optional<qsizetype> workspaceByteCost = m_compatibleDataTransform
+                ? (m_compatibleDataTransform.workspaceByteCost
+                          ? m_compatibleDataTransform.workspaceByteCost(m_originalData.size())
+                          : std::nullopt)
+                : kiriview::avifCompatibilityWorkspaceByteCost(m_originalData.size());
+            if (!workspaceByteCost.has_value() || m_workspaceBudget == nullptr) {
+                m_resourceExhausted = true;
+                return nullptr;
+            }
+            m_workspaceLease = m_workspaceBudget->startLease();
+            if (!m_workspaceLease.tryReserve(*workspaceByteCost)) {
+                m_workspaceLease = {};
+                m_resourceExhausted = true;
+                return nullptr;
+            }
+            try {
+                m_compatibleData = m_compatibleDataTransform
+                    ? m_compatibleDataTransform.apply(m_originalData)
+                    : avifCompatibleImageData(m_originalData);
+            } catch (const std::bad_alloc&) {
+                m_workspaceLease = {};
+                m_resourceExhausted = true;
+                return nullptr;
+            }
+            if (m_compatibleData->storage
+                == kiriview::ImageDecodeCompatibleDataTransform::Storage::Original) {
+                m_compatibleData->data = m_originalData;
+            }
+            if (compatibleDataRequiresRetention()
+                && (m_compatibleData->data.capacity() < m_compatibleData->data.size()
+                    || compatibleDataRetainedByteCount() > m_workspaceLease.reservedByteCount())) {
+                m_compatibleData.reset();
+                m_workspaceLease = {};
+                m_resourceExhausted = true;
+                return nullptr;
+            }
+            if (!compatibleDataRequiresRetention()) {
+                m_workspaceLease = {};
+            }
         }
-        return *m_compatibleData;
+        return &m_compatibleData->data;
     }
 
     const QByteArray& m_originalData;
     const kiriview::ImageDecodeCompatibleDataTransform& m_compatibleDataTransform;
-    std::optional<QByteArray> m_compatibleData;
+    std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> m_workspaceBudget;
+    kiriview::ImageDecodeWorkspaceLease m_workspaceLease;
+    std::optional<kiriview::ImageDecodeCompatibleDataTransform::Result> m_compatibleData;
+    bool m_resourceExhausted = false;
 };
 
 kiriview::DecodedImageResult failedReadImageDataResult()
 {
     return kiriview::failedDecodedImageResult(
         kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData));
+}
+
+kiriview::DecodedImageResult failedCompatibleDataWorkspaceResult(
+    kiriview::ImageDecodeHandlerKind handlerKind)
+{
+    return kiriview::failedDecodedImageResult(kiriview::DecodedImageFailure {
+        kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData),
+        decodedFailureRouteForHandlerKind(handlerKind),
+        kiriview::DecodedImageFailureOperation::OpenStaticImageSource,
+        kiriview::imageDecodeWorkspaceResourceLimitDiagnostic(),
+        kiriview::DecodedImageFailureSeverity::Error,
+        false,
+        kiriview::DecodedImageFailureCause::ResourceLimitExceeded,
+    });
+}
+
+bool retainCompatibleDataWorkspace(
+    kiriview::DecodedImageResult& result, kiriview::ImageDecodeWorkspaceHold workspaceHold)
+{
+    kiriview::DecodedImage* image = kiriview::decodedImageResultImage(result);
+    if (image == nullptr || !workspaceHold.isManaged()) {
+        return false;
+    }
+    std::visit(
+        [workspaceHold = std::move(workspaceHold)](auto& decoded) mutable {
+            if constexpr (requires { decoded.inputWorkspaceHold; }) {
+                decoded.inputWorkspaceHold = std::move(workspaceHold);
+            } else {
+                decoded.displayImage.inputWorkspaceHold = std::move(workspaceHold);
+            }
+        },
+        *image);
+    return true;
 }
 
 QString decodedFailureOperationName(kiriview::DecodedImageFailureOperation operation)
@@ -227,7 +345,8 @@ QString adapterFailureDiagnosticDetail(const QString& adapterName,
 
 kiriview::DecodedImageResult failedAdapterDecodedImageResult(QString errorString,
     kiriview::DecodedImageFailureRoute route, kiriview::DecodedImageFailureOperation operation,
-    const QString& adapterName)
+    const QString& adapterName,
+    kiriview::DecodedImageFailureCause cause = kiriview::DecodedImageFailureCause::Unknown)
 {
     const QString backendError = errorString;
     return kiriview::failedDecodedImageResult(kiriview::DecodedImageFailure {
@@ -237,6 +356,7 @@ kiriview::DecodedImageResult failedAdapterDecodedImageResult(QString errorString
         adapterFailureDiagnosticDetail(adapterName, operation, backendError),
         kiriview::DecodedImageFailureSeverity::Error,
         false,
+        cause,
     });
 }
 
@@ -289,15 +409,18 @@ QString sourceIdentityForRequest(const kiriview::ImageDecodeRequest& request)
 kiriview::DecodedImageResult decodeSvgImageData(const kiriview::ImageDecodeRouterInput& input)
 {
     QString errorString;
-    std::shared_ptr<kiriview::SvgDisplaySource> source
-        = kiriview::SvgDisplaySource::open(input.data, &errorString);
+    bool resourceExhausted = false;
+    std::shared_ptr<kiriview::SvgDisplaySource> source = kiriview::SvgDisplaySource::open(
+        input.data, &errorString, input.workspaceBudget, &resourceExhausted);
     if (source == nullptr) {
         if (errorString.isEmpty()) {
             errorString = kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData);
         }
         return failedAdapterDecodedImageResult(std::move(errorString),
             kiriview::DecodedImageFailureRoute::Svg,
-            kiriview::DecodedImageFailureOperation::OpenStaticImageSource, QStringLiteral("SVG"));
+            kiriview::DecodedImageFailureOperation::OpenStaticImageSource, QStringLiteral("SVG"),
+            resourceExhausted ? kiriview::DecodedImageFailureCause::ResourceLimitExceeded
+                              : kiriview::DecodedImageFailureCause::Unknown);
     }
 
     kiriview::DecodedImageResult result = kiriview::staticDecodedImageResult(
@@ -365,20 +488,21 @@ kiriview::DecodedImageResult decodeApngImageData(const kiriview::ImageDecodeRout
     return kiriview::successfulDecodedImageResult(kiriview::ApngAnimationImage {
         std::move(firstFrameWorkspaceHold),
         std::move(apngResult.firstFrame),
+        {},
+        {},
         input.data,
         std::move(*catalog),
         {},
         sourceIdentityForRequest(input.request),
         input.request.sourceRevision(),
-        {},
     });
 }
 
 kiriview::DecodedImageResult decodeHeifRouterImageData(
     const kiriview::ImageDecodeRouterInput& input)
 {
-    std::optional<kiriview::DecodedImageResult> result
-        = kiriview::decodeHeifImageData(input.data, input.request, input.workspaceBudget);
+    std::optional<kiriview::DecodedImageResult> result = kiriview::decodeHeifImageData(
+        input.data, input.request, input.workspaceBudget, input.retainedInputWorkspaceByteCount);
     if (!result.has_value()) {
         return failedReadImageDataResult();
     }
@@ -417,6 +541,8 @@ kiriview::DecodedImageResult decodeQImageReaderRouterImageData(
             return kiriview::successfulDecodedImageResult(kiriview::WebPAnimationImage {
                 std::move(openResult.workspaceHold),
                 std::move(openResult.firstFrame),
+                {},
+                {},
                 input.data,
                 std::move(*catalog),
                 {},
@@ -458,6 +584,8 @@ kiriview::DecodedImageResult decodeQImageReaderRouterImageData(
             return kiriview::successfulDecodedImageResult(kiriview::JxlAnimationImage {
                 std::move(openResult.workspaceHold),
                 std::move(openResult.firstFrame),
+                {},
+                {},
                 input.data,
                 std::move(*catalog),
                 {},
@@ -610,17 +738,30 @@ DecodedImageResult ImageDecodeRouterRuntime::execute(ImageDecodeRoute route, con
     if (!route.shouldDecode()) {
         return failedReadImageDataResult();
     }
+    if (workspaceBudget == nullptr) {
+        workspaceBudget = defaultImageDecodeWorkspaceBudget();
+    }
 
-    ImageDecodeRouterByteInputs byteInputs(data, m_compatibleDataTransform);
+    ImageDecodeRouterByteInputs byteInputs(data, m_compatibleDataTransform, workspaceBudget);
+    const QByteArray* routedData = byteInputs.dataFor(route.dataSource);
+    if (routedData == nullptr || byteInputs.resourceExhausted()) {
+        return failedCompatibleDataWorkspaceResult(route.handlerKind);
+    }
     const ImageDecodeRouterInput input {
-        byteInputs.dataFor(route.dataSource),
+        *routedData,
         request,
         route.qtRasterFormat,
-        std::move(workspaceBudget),
+        workspaceBudget,
+        byteInputs.retainedInputWorkspaceByteCount(),
     };
 
-    return dispatchToHandler(
+    DecodedImageResult result = dispatchToHandler(
         handlerForRoute(m_handlers, route.handlerKind), input, route.handlerKind);
+    if (decodedImageResultImage(result) != nullptr && byteInputs.compatibleDataRequiresRetention()
+        && !retainCompatibleDataWorkspace(result, byteInputs.takeRetainedWorkspace())) {
+        return failedCompatibleDataWorkspaceResult(route.handlerKind);
+    }
+    return result;
 }
 
 ImageDecodeRouter::ImageDecodeRouter(ImageDecodeRouterHandlers handlers,
