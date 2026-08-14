@@ -12,6 +12,7 @@
 #include <QTest>
 #include <memory>
 #include <utility>
+#include <variant>
 
 namespace {
 class FakePowerSaverMonitor final : public kiriview::PowerSaverStateMonitor
@@ -37,7 +38,7 @@ void TestMediaPredecodeDependencies::defaultsFillRuntimeProvidersAndBudget()
         = kiriview::resolveMediaPredecodeDependencies({});
 
     QVERIFY(dependencies.imageDecode.dataLoader);
-    QVERIFY(dependencies.imageDecode.dataDecoder);
+    QVERIFY(dependencies.imageDecode.dataPlanner);
     QVERIFY(!dependencies.powerSaver.monitor);
     QVERIFY(dependencies.timerScheduler.currentMonotonicTime);
     QVERIFY(dependencies.timerScheduler.singleShotTimer);
@@ -73,12 +74,14 @@ void TestMediaPredecodeDependencies::explicitDependenciesArePreserved()
               callback(QByteArrayLiteral("custom media predecode data"));
               return kiriview::ImageIoJob();
           };
-    overrides.imageDecode.dataDecoder = [&dataDecodeCount, &decodedData](const QByteArray& data,
-                                            const kiriview::ImageDecodeRequest&) {
-        ++dataDecodeCount;
-        decodedData = data;
-        return kiriview::failedDecodedImageResult(QStringLiteral("decoded by override"));
-    };
+    overrides.imageDecode.dataPlanner
+        = [&dataDecodeCount, &decodedData](kiriview::ImageSourceData sourceData,
+              const kiriview::ImageDecodeRequest&, kiriview::ImageDecodeWorkspacePriority) {
+              ++dataDecodeCount;
+              decodedData = sourceData.data;
+              return kiriview::PreparedImageDecodeResult(
+                  kiriview::failedDecodedImageResult(QStringLiteral("decoded by override")));
+          };
     overrides.powerSaver.monitor = [&powerSaverMonitorCount](kiriview::PowerSaverChangedCallback) {
         ++powerSaverMonitorCount;
         return std::make_unique<FakePowerSaverMonitor>();
@@ -99,8 +102,10 @@ void TestMediaPredecodeDependencies::explicitDependenciesArePreserved()
     QByteArray loadedData;
     dependencies.imageDecode.dataLoader(nullptr, kiriview::ImageDecodeRequest(),
         [&loadedData](kiriview::ImageSourceData data) { loadedData = std::move(data.data); }, {});
-    const kiriview::DecodedImageResult result
-        = dependencies.imageDecode.dataDecoder(loadedData, kiriview::ImageDecodeRequest());
+    kiriview::PreparedImageDecodeResult prepared
+        = dependencies.imageDecode.dataPlanner(kiriview::ImageSourceData(loadedData),
+            kiriview::ImageDecodeRequest(), kiriview::ImageDecodeWorkspacePriority::Speculative);
+    const auto* result = std::get_if<kiriview::DecodedImageResult>(&prepared);
     std::unique_ptr<kiriview::PowerSaverStateMonitor> monitor = dependencies.powerSaver.monitor({});
     std::unique_ptr<kiriview::RuntimeTimerHandle> timer
         = dependencies.timerScheduler.singleShotTimer(nullptr, kiriview::TimerDuration(25), {});
@@ -108,7 +113,8 @@ void TestMediaPredecodeDependencies::explicitDependenciesArePreserved()
     QCOMPARE(dataLoadCount, 1);
     QCOMPARE(dataDecodeCount, 1);
     QCOMPARE(decodedData, QByteArrayLiteral("custom media predecode data"));
-    QVERIFY(kiriview::decodedImageResultFailure(result) != nullptr);
+    QVERIFY(result != nullptr);
+    QVERIFY(kiriview::decodedImageResultFailure(*result) != nullptr);
     QCOMPARE(powerSaverMonitorCount, 1);
     QVERIFY(monitor);
     QVERIFY(monitor->powerSaverEnabled());

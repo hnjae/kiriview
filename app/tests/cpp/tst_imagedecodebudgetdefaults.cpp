@@ -37,8 +37,9 @@ void TestImageDecodeBudgetDefaults::acceptedUnknownSystemMemorySnapshotIsNotRepl
 void TestImageDecodeBudgetDefaults::retainedSplitPreservesAggregateUntilEachPhysicalOwnerRetires()
 {
     kiriview::ImageDecodeWorkspaceBudget budget(100, 100);
-    kiriview::ImageDecodeWorkspaceLease producer = budget.startLease();
-    QVERIFY(producer.tryReserve(80));
+    kiriview::ImageDecodeWorkspaceLease producer
+        = kiriview::ImageDecodeWorkspaceDetail::startLease(budget);
+    QVERIFY(kiriview::ImageDecodeWorkspaceDetail::tryReserve(producer, 80));
 
     kiriview::ImageDecodeWorkspaceHold retained = producer.splitRetained(30);
     QVERIFY(retained.isManaged());

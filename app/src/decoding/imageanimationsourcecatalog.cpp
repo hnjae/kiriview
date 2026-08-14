@@ -22,6 +22,20 @@
 #include <utility>
 #include <variant>
 
+namespace kiriview {
+std::optional<qsizetype> webpAnimationCatalogWorkspaceByteCount(qsizetype inputByteCount)
+{
+    constexpr qsizetype fixedParserByteCount = 4096;
+    constexpr qsizetype parserBytesPerInputByte = 32;
+    constexpr qsizetype maximum = std::numeric_limits<qsizetype>::max();
+    if (inputByteCount < 0
+        || inputByteCount > (maximum - fixedParserByteCount) / parserBytesPerInputByte) {
+        return std::nullopt;
+    }
+    return fixedParserByteCount + (inputByteCount * parserBytesPerInputByte);
+}
+}
+
 namespace {
 using CatalogResult = kiriview::ImageAnimationSourceCatalogResult;
 
@@ -310,19 +324,17 @@ CatalogResult webpCatalog(const kiriview::WebPAnimationPlaybackRequest& request)
     // per distinct RIFF chunk and borrows all payload bytes. Every such node
     // consumes at least an eight-byte chunk header, so 32 bytes per input byte
     // plus fixed parser state is a conservative bound for its allocation tree.
-    constexpr qsizetype fixedParserByteCount = 4096;
-    constexpr qsizetype parserBytesPerInputByte = 32;
-    constexpr qsizetype maximum = std::numeric_limits<qsizetype>::max();
-    if (request.data.size() > (maximum - fixedParserByteCount) / parserBytesPerInputByte) {
+    const std::optional<qsizetype> parserByteCount
+        = kiriview::webpAnimationCatalogWorkspaceByteCount(request.data.size());
+    if (!parserByteCount.has_value()) {
         return resourceLimitCatalog();
     }
-    const qsizetype parserByteCount
-        = fixedParserByteCount + (request.data.size() * parserBytesPerInputByte);
     const std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> workspaceBudget
         = request.workspaceBudget != nullptr ? request.workspaceBudget
                                              : kiriview::defaultImageDecodeWorkspaceBudget();
-    kiriview::ImageDecodeWorkspaceLease workspaceLease = workspaceBudget->startLease();
-    if (!workspaceLease.tryReserve(parserByteCount)) {
+    kiriview::ImageDecodeWorkspaceLease workspaceLease
+        = kiriview::ImageDecodeWorkspaceDetail::startLease(*workspaceBudget);
+    if (!kiriview::ImageDecodeWorkspaceDetail::tryReserve(workspaceLease, *parserByteCount)) {
         return resourceLimitCatalog();
     }
 

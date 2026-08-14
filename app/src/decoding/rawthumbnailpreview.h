@@ -5,6 +5,7 @@
 #define KIRIVIEW_RAWTHUMBNAILPREVIEW_H
 
 #include "decoding/imagedecoderequest.h"
+#include "decoding/imagedecodeworkspace.h"
 #include "rendering/staticimage.h"
 
 #include <QByteArray>
@@ -31,12 +32,17 @@ struct RawEmbeddedThumbnailPreviewResult
 };
 
 using RawEmbeddedThumbnailPreviewExtractor = std::function<RawEmbeddedThumbnailPreviewResult(
-    const QByteArray&, const ImageDecodeRequest&)>;
+    const QByteArray&, const ImageDecodeRequest&, ImageDecodeWorkspaceLease)>;
 
+qsizetype rawEmbeddedThumbnailPreviewWorkspaceByteCount();
 std::optional<QSize> rawEmbeddedThumbnailPreviewTrustedOriginalSize(
     const QByteArray& data, const ImageDecodeRequest& request);
+std::optional<QSize> admittedRawEmbeddedThumbnailPreviewTrustedOriginalSize(const QByteArray& data,
+    const ImageDecodeRequest& request, ImageDecodeWorkspaceLease workspaceLease);
 RawEmbeddedThumbnailPreviewResult rawEmbeddedThumbnailPreviewResult(
     const QByteArray& data, const ImageDecodeRequest& request);
+RawEmbeddedThumbnailPreviewResult admittedRawEmbeddedThumbnailPreviewResult(const QByteArray& data,
+    const ImageDecodeRequest& request, ImageDecodeWorkspaceLease workspaceLease);
 std::optional<StaticDisplayImagePayload> rawEmbeddedThumbnailPreviewDisplayPayload(
     const ImageDecodeRequest& request, const RawEmbeddedThumbnailPreviewResult& result);
 }

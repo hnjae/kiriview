@@ -41,8 +41,10 @@ void TestHeifDisplaySource::staticOpenIncludesRetainedInputInOperationAdmission(
     constexpr qsizetype retainedInputByteCount = generousByteCount - 1;
     auto limitedBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
         generousByteCount * 2, generousByteCount);
-    kiriview::ImageDecodeWorkspaceLease retainedInput = limitedBudget->startLease();
-    QVERIFY(retainedInput.tryReserve(retainedInputByteCount));
+    kiriview::ImageDecodeWorkspaceLease retainedInput
+        = kiriview::ImageDecodeWorkspaceDetail::startLease(*limitedBudget);
+    QVERIFY(
+        kiriview::ImageDecodeWorkspaceDetail::tryReserve(retainedInput, retainedInputByteCount));
     resourceExhausted = false;
     errorString.clear();
 

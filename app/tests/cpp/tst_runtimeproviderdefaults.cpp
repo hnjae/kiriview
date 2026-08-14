@@ -24,6 +24,7 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace {
@@ -93,7 +94,7 @@ private Q_SLOTS:
     void imageDocumentRuntimeDependenciesBindContainerLoaderToDirectoryProvider();
     void imageDocumentRuntimeDependenciesBindMediaEntryStoreToWorkerScheduler();
     void decodeDependencyDefaultsFillMissingFunctionsAndPreserveOverrides();
-    void decodeDependencyDefaultsBindDecoderToWorkspaceBudget();
+    void decodeDependencyDefaultsBindPlannerToWorkspaceBudget();
     void decodeDependencyDefaultsBindDataLoaderToWorkerScheduler();
     void decodeDependencyDefaultsBindThumbnailLookupToWorkerScheduler();
     void fileDeletionDefaultFillsMissingProviderAndPreservesOverride();
@@ -489,13 +490,13 @@ void TestRuntimeProviderDefaults::decodeDependencyDefaultsFillMissingFunctionsAn
         = kiriview::imageDecodeDependenciesWithDefaults({ std::move(dataLoader), {} });
 
     QVERIFY(resolved.dataLoader);
-    QVERIFY(resolved.dataDecoder);
+    QVERIFY(resolved.dataPlanner);
 
     resolved.dataLoader(nullptr, kiriview::ImageDecodeRequest(), {}, {});
     QCOMPARE(dataLoadCount, 1);
 }
 
-void TestRuntimeProviderDefaults::decodeDependencyDefaultsBindDecoderToWorkspaceBudget()
+void TestRuntimeProviderDefaults::decodeDependencyDefaultsBindPlannerToWorkspaceBudget()
 {
     const QByteArray apng = fixtureData(QStringLiteral("animated-smoke.apng"));
     QVERIFY(!apng.isEmpty());
@@ -505,13 +506,18 @@ void TestRuntimeProviderDefaults::decodeDependencyDefaultsBindDecoderToWorkspace
 
     kiriview::ImageDecodeDependencies resolved
         = kiriview::imageDecodeDependenciesWithDefaults(std::move(dependencies));
-    const kiriview::DecodedImageResult result
-        = resolved.dataDecoder(apng, kiriview::ImageDecodeRequest {});
-    const kiriview::DecodedImageFailure* failure = kiriview::decodedImageResultFailure(result);
+    kiriview::PreparedImageDecodeResult plan = resolved.dataPlanner(kiriview::ImageSourceData(apng),
+        kiriview::ImageDecodeRequest::fromUrl(
+            1, QUrl::fromLocalFile(QStringLiteral("/tmp/animated-smoke.apng"))),
+        kiriview::ImageDecodeWorkspacePriority::Interactive);
+    const auto* work = std::get_if<std::unique_ptr<kiriview::PreparedImageDecodeWork>>(&plan);
 
-    QVERIFY(failure != nullptr);
-    QCOMPARE(failure->route, kiriview::DecodedImageFailureRoute::Apng);
-    QCOMPARE(failure->cause, kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+    QVERIFY(work != nullptr);
+    QVERIFY(*work != nullptr);
+    QVERIFY(work->get()->admissionRequest().additionalPeakByteCount > budget->aggregateByteLimit());
+    QCOMPARE(work->get()->hardLimitFailure().route, kiriview::DecodedImageFailureRoute::Apng);
+    QCOMPARE(work->get()->hardLimitFailure().cause,
+        kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
     QCOMPARE(budget->reservedByteCount(), qsizetype(0));
 }
 
@@ -570,7 +576,7 @@ void TestRuntimeProviderDefaults::decodeDependencyDefaultsBindThumbnailLookupToW
         = resolved.thumbnailPreviewLookupProvider(this, kiriview::ThumbnailCacheLookupRequest {},
             [&callbackCount](kiriview::ThumbnailCacheLookupResult) { ++callbackCount; });
 
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     QCOMPARE(callbackCount, 0);
     QVERIFY(job.isActive());
 

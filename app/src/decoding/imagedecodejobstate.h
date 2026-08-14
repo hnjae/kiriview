@@ -63,6 +63,7 @@ public:
     ImageDecodeJobTicket start(ImageDecodeRequest request);
     void cancel();
     [[nodiscard]] bool hasActiveRequest() const;
+    [[nodiscard]] bool acceptsDecodeWork(const ImageDecodeJobTicket& ticket) const;
 
     ImageDecodeJobRuntimePlan acceptLoadedData(const ImageDecodeJobTicket& ticket);
     ImageDecodeJobRuntimePlan acceptLoadError(const ImageDecodeJobTicket& ticket);

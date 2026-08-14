@@ -104,8 +104,9 @@ void TestDecodedImageResult::staticMetadataMirrorsIntoDisplayPayload()
 void TestDecodedImageResult::animationAssignmentDestroysImageBeforeWorkspaceHold()
 {
     auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(4, 4);
-    kiriview::ImageDecodeWorkspaceLease lease = budget->startLease();
-    QVERIFY(lease.tryReserve(4));
+    kiriview::ImageDecodeWorkspaceLease lease
+        = kiriview::ImageDecodeWorkspaceDetail::startLease(*budget);
+    QVERIFY(kiriview::ImageDecodeWorkspaceDetail::tryReserve(lease, 4));
     ImageCleanupObservation observation { budget };
     std::array<uchar, 4> pixels {};
     QImage image(

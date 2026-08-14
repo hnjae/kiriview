@@ -39,16 +39,9 @@ kiriview::ApngOpenResult resourceLimitResult()
     return result;
 }
 
-struct ApngWorkspacePlan
-{
-    qsizetype canvasByteCount = 0;
-    std::size_t decoderInternalByteLimit = 0;
-    qsizetype worstCaseByteCount = 0;
-};
-
 constexpr std::size_t apngDecoderInternalByteLimit = std::size_t { 64 } * 1024 * 1024;
 
-std::optional<ApngWorkspacePlan> apngWorkspacePlan(quint32 width, quint32 height,
+std::optional<kiriview::ApngAnimationWorkspacePlan> apngWorkspacePlan(quint32 width, quint32 height,
     qsizetype inputByteCount, std::size_t decoderInternalByteReservation)
 {
     constexpr quint64 bytesPerPixel = kiriview::ApngRgbaBuffer::bytesPerPixel;
@@ -81,10 +74,11 @@ std::optional<ApngWorkspacePlan> apngWorkspacePlan(quint32 width, quint32 height
     }
     worstCaseByteCount += decoderInternalBytes;
 
-    return ApngWorkspacePlan {
+    return kiriview::ApngAnimationWorkspacePlan {
+        QSize(static_cast<int>(width), static_cast<int>(height)),
+        static_cast<qsizetype>(worstCaseByteCount),
         static_cast<qsizetype>(canvasByteCount),
         apngDecoderInternalByteLimit,
-        static_cast<qsizetype>(worstCaseByteCount),
     };
 }
 
@@ -127,6 +121,36 @@ bool canRepresentCanvas(quint32 width, quint32 height)
 }
 
 namespace kiriview {
+ApngAnimationWorkspacePlanResult planApngAnimationOpen(const QByteArray& data)
+{
+    const RustApngProbeResult probeResult
+        = rustProbeApngAnimation(Bridge::rustBytes(data), apngDecoderInternalByteLimit);
+    switch (probeResult.status) {
+    case RustApngProbeStatus::NotApng:
+        return {};
+    case RustApngProbeStatus::Error:
+        return { ApngOpenStatus::Error, {}, apngDecodeErrorString() };
+    case RustApngProbeStatus::ResourceLimitExceeded:
+        return { ApngOpenStatus::ResourceLimitExceeded, {},
+            imageDecodeWorkspaceResourceLimitDiagnostic() };
+    case RustApngProbeStatus::Success:
+        break;
+    }
+
+    if (!canRepresentCanvas(probeResult.canvas_width, probeResult.canvas_height)) {
+        return { ApngOpenStatus::ResourceLimitExceeded, {},
+            imageDecodeWorkspaceResourceLimitDiagnostic() };
+    }
+    const std::optional<ApngAnimationWorkspacePlan> plan
+        = apngWorkspacePlan(probeResult.canvas_width, probeResult.canvas_height, data.size(),
+            probeResult.decoder_workspace_byte_count);
+    if (!plan.has_value()) {
+        return { ApngOpenStatus::ResourceLimitExceeded, {},
+            imageDecodeWorkspaceResourceLimitDiagnostic() };
+    }
+    return { ApngOpenStatus::Success, *plan, {} };
+}
+
 class ApngAnimationReader::Private
 {
 public:
@@ -144,35 +168,34 @@ public:
 
     ApngOpenResult open(const QByteArray& inputData)
     {
+        const ApngAnimationWorkspacePlanResult planning = planApngAnimationOpen(inputData);
+        if (planning.status != ApngOpenStatus::Success) {
+            close();
+            m_lastReadResourceLimitExceeded
+                = planning.status == ApngOpenStatus::ResourceLimitExceeded;
+            ApngOpenResult result;
+            result.status = planning.status;
+            result.errorString = planning.errorString;
+            return result;
+        }
+        return open(inputData, planning.plan);
+    }
+
+    ApngOpenResult open(
+        const QByteArray& inputData, const ApngAnimationWorkspacePlan& workspacePlan)
+    {
         close();
         m_lastReadResourceLimitExceeded = false;
 
-        const RustApngProbeResult probeResult
-            = rustProbeApngAnimation(Bridge::rustBytes(inputData), apngDecoderInternalByteLimit);
-        switch (probeResult.status) {
-        case RustApngProbeStatus::NotApng:
-            return {};
-        case RustApngProbeStatus::Error:
-            close();
-            return errorResult(apngDecodeErrorString());
-        case RustApngProbeStatus::ResourceLimitExceeded:
-            close();
-            return resourceLimitResult();
-        case RustApngProbeStatus::Success:
-            break;
-        }
-
-        const std::optional<ApngWorkspacePlan> workspacePlan
-            = apngWorkspacePlan(probeResult.canvas_width, probeResult.canvas_height,
-                inputData.size(), probeResult.decoder_workspace_byte_count);
-        if (!canRepresentCanvas(probeResult.canvas_width, probeResult.canvas_height)
-            || !workspacePlan.has_value() || !tryReserveWorkspace(*workspacePlan)) {
+        if (workspacePlan.canvasSize.isEmpty() || workspacePlan.transientByteCount <= 0
+            || workspacePlan.firstFrameOutputByteCount <= 0
+            || workspacePlan.decoderInternalByteLimit == 0 || !tryReserveWorkspace(workspacePlan)) {
             close();
             return resourceLimitResult();
         }
 
         const RustApngOpenResult openResult = rustOpenApngAnimationReader(
-            *reader, Bridge::rustBytes(inputData), workspacePlan->decoderInternalByteLimit);
+            *reader, Bridge::rustBytes(inputData), workspacePlan.decoderInternalByteLimit);
         switch (openResult.status) {
         case RustApngOpenStatus::NotApng:
         case RustApngOpenStatus::Error:
@@ -184,8 +207,8 @@ public:
         case RustApngOpenStatus::Success:
             break;
         }
-        if (openResult.canvas_width != probeResult.canvas_width
-            || openResult.canvas_height != probeResult.canvas_height) {
+        if (std::cmp_not_equal(openResult.canvas_width, workspacePlan.canvasSize.width())
+            || std::cmp_not_equal(openResult.canvas_height, workspacePlan.canvasSize.height())) {
             close();
             return errorResult(apngDecodeErrorString());
         }
@@ -194,7 +217,7 @@ public:
         try {
             initialized = composer.initialize(QSize(static_cast<int>(openResult.canvas_width),
                                                   static_cast<int>(openResult.canvas_height)),
-                static_cast<std::size_t>(workspacePlan->canvasByteCount)
+                static_cast<std::size_t>(workspacePlan.firstFrameOutputByteCount)
                     / static_cast<std::size_t>(openResult.canvas_height));
         } catch (const std::bad_alloc&) {
             close();
@@ -225,11 +248,14 @@ public:
         return result;
     }
 
-    AnimationFrameReadResult readNextFrame()
+    AnimationFrameReadResult readNextFrame() { return readNextFrame({}); }
+
+    AnimationFrameReadResult readNextFrame(
+        std::shared_ptr<ImageDecodeWorkspaceBudget> outputWorkspaceBudget)
     {
         m_lastReadResourceLimitExceeded = false;
         try {
-            return readNextFrameImpl();
+            return readNextFrameImpl(std::move(outputWorkspaceBudget));
         } catch (const std::bad_alloc&) {
             m_lastReadResourceLimitExceeded = true;
             close();
@@ -237,7 +263,8 @@ public:
         }
     }
 
-    AnimationFrameReadResult readNextFrameImpl()
+    AnimationFrameReadResult readNextFrameImpl(
+        std::shared_ptr<ImageDecodeWorkspaceBudget> outputWorkspaceBudget)
     {
         struct FrameReadAttempt
         {
@@ -246,14 +273,18 @@ public:
             bool resourceLimitExceeded = false;
         };
 
-        FrameReadAttempt attempt = [this]() -> FrameReadAttempt {
+        FrameReadAttempt attempt = [this, &outputWorkspaceBudget]() -> FrameReadAttempt {
             if (!rustApngAnimationReaderHasMoreFrames(*reader)) {
                 return { std::optional<AnimationFrame>(), true, false };
             }
 
-            ImageDecodeWorkspaceLease outputLease = m_workspaceBudget->startLeaseForOperation(
-                m_transientWorkspaceLease.reservedByteCount());
-            if (!outputLease.tryReserve(static_cast<qsizetype>(m_canvasByteCount))) {
+            const std::shared_ptr<ImageDecodeWorkspaceBudget>& budget
+                = outputWorkspaceBudget != nullptr ? outputWorkspaceBudget : m_workspaceBudget;
+            ImageDecodeWorkspaceLease outputLease
+                = ImageDecodeWorkspaceDetail::startLeaseForOperation(
+                    *budget, m_transientWorkspaceLease.reservedByteCount());
+            if (!ImageDecodeWorkspaceDetail::tryReserve(
+                    outputLease, static_cast<qsizetype>(m_canvasByteCount))) {
                 return { std::unexpected(imageDecodeWorkspaceResourceLimitDiagnostic()), true,
                     true };
             }
@@ -318,18 +349,19 @@ public:
     }
 
 private:
-    bool tryReserveWorkspace(const ApngWorkspacePlan& plan)
+    bool tryReserveWorkspace(const ApngAnimationWorkspacePlan& plan)
     {
-        m_transientWorkspaceLease = m_workspaceBudget->startLease();
+        m_transientWorkspaceLease = ImageDecodeWorkspaceDetail::startLease(*m_workspaceBudget);
         if (!m_transientWorkspaceLease.isManaged()) {
             return false;
         }
 
-        if (!m_transientWorkspaceLease.tryReserve(plan.worstCaseByteCount)) {
+        if (!ImageDecodeWorkspaceDetail::tryReserve(
+                m_transientWorkspaceLease, plan.transientByteCount)) {
             return false;
         }
 
-        m_canvasByteCount = static_cast<std::size_t>(plan.canvasByteCount);
+        m_canvasByteCount = static_cast<std::size_t>(plan.firstFrameOutputByteCount);
         return true;
     }
 
@@ -356,7 +388,19 @@ ApngAnimationReader::~ApngAnimationReader() = default;
 
 ApngOpenResult ApngAnimationReader::open(const QByteArray& data) { return d->open(data); }
 
+ApngOpenResult ApngAnimationReader::open(
+    const QByteArray& data, const ApngAnimationWorkspacePlan& plan)
+{
+    return d->open(data, plan);
+}
+
 AnimationFrameReadResult ApngAnimationReader::readNextFrame() { return d->readNextFrame(); }
+
+AnimationFrameReadResult ApngAnimationReader::readNextFrame(
+    std::shared_ptr<ImageDecodeWorkspaceBudget> outputWorkspaceBudget)
+{
+    return d->readNextFrame(std::move(outputWorkspaceBudget));
+}
 
 bool ApngAnimationReader::hasMoreFrames() const { return d->hasMoreFrames(); }
 

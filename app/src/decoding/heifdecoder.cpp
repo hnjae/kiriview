@@ -106,7 +106,8 @@ std::optional<kiriview::DecodedImageResult> decodeHeifStillImageDataForInfo(cons
     }
 
     kiriview::ImageDecodeWorkspaceLease producerLease
-        = workspaceBudget->startLeaseForOperation(retainedInputWorkspaceByteCount);
+        = kiriview::ImageDecodeWorkspaceDetail::startLeaseForOperation(
+            *workspaceBudget, retainedInputWorkspaceByteCount);
     kiriview::DecodedImageResult result = kiriview::staticDecodedImageResult(std::move(source),
         request, &errorString, std::move(workspaceBudget), std::move(producerLease));
     stampHeifFailure(result);
@@ -117,7 +118,8 @@ std::optional<kiriview::DecodedImageResult> decodeHeifSequenceImageDataForInfo(
     const QByteArray& data, kiriview::HeifContainerInfo info,
     const kiriview::ImageDecodeRequest& request,
     std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> workspaceBudget,
-    qsizetype retainedInputWorkspaceByteCount)
+    qsizetype retainedInputWorkspaceByteCount,
+    const kiriview::HeifSequenceWorkspacePlan* workspacePlan = nullptr)
 {
     if (!info.isHeif()) {
         return std::nullopt;
@@ -125,7 +127,8 @@ std::optional<kiriview::DecodedImageResult> decodeHeifSequenceImageDataForInfo(
 
     kiriview::HeifSequenceReader reader(
         std::move(workspaceBudget), retainedInputWorkspaceByteCount);
-    const kiriview::HeifSequenceOpenResult openResult = reader.open(data);
+    const kiriview::HeifSequenceOpenResult openResult
+        = workspacePlan == nullptr ? reader.open(data) : reader.open(data, *workspacePlan);
     if (openResult.status == kiriview::HeifSequenceOpenStatus::NotHeif
         || openResult.status == kiriview::HeifSequenceOpenStatus::NotSequence) {
         return std::nullopt;
@@ -195,5 +198,17 @@ std::optional<DecodedImageResult> decodeHeifImageData(const QByteArray& data,
 
     return decodeHeifStillImageDataForInfo(
         data, info, request, std::move(workspaceBudget), retainedInputWorkspaceByteCount);
+}
+
+std::optional<DecodedImageResult> decodePlannedHeifSequenceImageData(const QByteArray& data,
+    const ImageDecodeRequest& request, const HeifSequenceWorkspacePlan& plan,
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget,
+    qsizetype retainedInputWorkspaceByteCount)
+{
+    if (workspaceBudget == nullptr) {
+        workspaceBudget = defaultImageDecodeWorkspaceBudget();
+    }
+    return decodeHeifSequenceImageDataForInfo(data, heifContainerInfo(data), request,
+        std::move(workspaceBudget), retainedInputWorkspaceByteCount, &plan);
 }
 }

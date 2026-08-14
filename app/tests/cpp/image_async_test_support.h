@@ -15,6 +15,7 @@
 
 #include <KIO/Global>
 #include <QByteArray>
+#include <QCoreApplication>
 #include <QObject>
 #include <QPointer>
 #include <QString>
@@ -201,6 +202,19 @@ public:
 private:
     std::vector<std::shared_ptr<ManualImageWorkerSchedule>> m_schedules;
 };
+
+inline void runOutstandingImageWorkerSchedules(
+    ManualImageWorkerScheduler& workerScheduler, std::size_t& nextSchedule)
+{
+    while (nextSchedule < workerScheduler.scheduleCount()) {
+        if (workerScheduler.isActive(nextSchedule)) {
+            workerScheduler.runWork(nextSchedule);
+            workerScheduler.finish(nextSchedule);
+        }
+        ++nextSchedule;
+        QCoreApplication::processEvents();
+    }
+}
 
 struct ManualImageDataLoad
 {

@@ -9,6 +9,7 @@
 
 #include <QByteArray>
 #include <QImage>
+#include <QSize>
 #include <QString>
 #include <memory>
 #include <optional>
@@ -33,6 +34,23 @@ enum class WebPAnimationOpenStatus {
     Error,
     ResourceLimitExceeded,
 };
+
+struct WebPAnimationWorkspacePlan
+{
+    QSize canvasSize;
+    qsizetype transientByteCount = 0;
+    qsizetype firstFrameOutputByteCount = 0;
+};
+
+struct WebPAnimationWorkspacePlanResult
+{
+    WebPAnimationOpenStatus status = WebPAnimationOpenStatus::NotWebP;
+    WebPAnimationWorkspacePlan plan;
+    QString errorString;
+};
+
+[[nodiscard]] WebPAnimationWorkspacePlanResult planWebPAnimationOpen(const QByteArray& data,
+    WebPAnimationLibraryVersions versions = currentWebPAnimationLibraryVersions());
 
 struct WebPAnimationOpenResult // NOLINT(cppcoreguidelines-special-member-functions) --
                                // Pass-by-value assignment preserves aggregate initialization and
@@ -80,7 +98,10 @@ public:
     WebPAnimationReader& operator=(WebPAnimationReader&&) noexcept;
 
     WebPAnimationOpenResult open(QByteArray data);
+    WebPAnimationOpenResult open(QByteArray data, const WebPAnimationWorkspacePlan& plan);
     AnimationFrameReadResult readNextFrame();
+    AnimationFrameReadResult readNextFrame(
+        const std::shared_ptr<ImageDecodeWorkspaceBudget>& outputWorkspaceBudget);
     [[nodiscard]] bool hasMoreFrames() const;
     [[nodiscard]] bool lastReadResourceLimitExceeded() const;
     void close();

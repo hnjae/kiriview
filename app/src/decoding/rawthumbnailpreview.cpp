@@ -8,6 +8,7 @@
 #include "imageinputclassification.h"
 #include "localization/imageerrortext.h"
 #include "location/sourcekey.h"
+#include "rawdecoder.h"
 #include "rendering/imagerendering.h"
 
 #include <QColorSpace>
@@ -24,6 +25,9 @@
 namespace {
 using ProcessedRawImage
     = std::unique_ptr<libraw_processed_image_t, decltype(&LibRaw::dcraw_clear_mem)>;
+constexpr qsizetype rawEmbeddedThumbnailPreviewRasterByteLimit = qsizetype { 64 } * 1024 * 1024;
+constexpr qsizetype rawEmbeddedThumbnailPreviewPeakByteCount
+    = kiriview::rawImageOpenWorkspaceByteCount + rawEmbeddedThumbnailPreviewRasterByteLimit * 3;
 
 bool validImageSize(QSize size)
 {
@@ -88,14 +92,42 @@ bool rawPreviewByteCostFitsBudget(QSize size)
     return byteCost > 0 && byteCost <= kiriview::imageFullDecodeFallbackByteLimit;
 }
 
+bool rawEmbeddedThumbnailRasterFitsAdmission(QSize size)
+{
+    const qsizetype byteCost = kiriview::estimatedRgbaByteCost(size);
+    return byteCost > 0 && byteCost <= rawEmbeddedThumbnailPreviewRasterByteLimit;
+}
+
 bool validateTrustedOriginalSize(QSize size)
 {
     return validImageSize(size) && rawPreviewByteCostFitsBudget(size);
 }
 
-std::optional<QSize> trustedOriginalSizeFromRawData(const QByteArray& data, QString* errorString)
+unsigned rawMemoryLimitMiB(qsizetype byteLimit)
 {
+    constexpr qsizetype bytesPerMiB = qsizetype { 1024 } * 1024;
+    const qsizetype roundedMiB = (byteLimit + bytesPerMiB - 1) / bytesPerMiB;
+    return static_cast<unsigned>(std::min<quint64>(static_cast<quint64>(roundedMiB),
+        static_cast<quint64>(std::numeric_limits<unsigned>::max())));
+}
+
+void configureRawPreviewMemoryLimit(LibRaw& processor)
+{
+    processor.imgdata.rawparams.max_raw_memory_mb
+        = rawMemoryLimitMiB(kiriview::rawImageOpenWorkspaceByteCount);
+}
+
+std::optional<QSize> trustedOriginalSizeFromRawData(const QByteArray& data,
+    kiriview::ImageDecodeWorkspaceLease workspaceLease, QString* errorString)
+{
+    if (!workspaceLease.isManaged()
+        || workspaceLease.reservedByteCount() < kiriview::rawImageOpenWorkspaceByteCount) {
+        setError(errorString, kiriview::imageDecodeWorkspaceResourceLimitDiagnostic());
+        return std::nullopt;
+    }
+
     LibRaw processor;
+    configureRawPreviewMemoryLimit(processor);
     const int errorCode
         = processor.open_buffer(data.constData(), static_cast<std::size_t>(data.size()));
     if (errorCode != LIBRAW_SUCCESS) {
@@ -161,7 +193,7 @@ bool validateRawPreviewImage(const QImage& image, QSize originalSize, QString* e
         return false;
     }
     const qsizetype byteCost = kiriview::imageByteCost(image);
-    if (byteCost <= 0 || byteCost > kiriview::imageFullDecodeFallbackByteLimit) {
+    if (byteCost <= 0 || byteCost > rawEmbeddedThumbnailPreviewRasterByteLimit) {
         setError(errorString,
             kiriview::imageErrorText(kiriview::ImageErrorTextId::RawFullDecodeTooLarge));
         return false;
@@ -172,7 +204,7 @@ bool validateRawPreviewImage(const QImage& image, QSize originalSize, QString* e
 
 bool rawProcessedDataSizeFitsQByteArray(decltype(libraw_processed_image_t::data_size) dataSize)
 {
-    if (dataSize == 0) {
+    if (dataSize == 0 || std::cmp_greater(dataSize, kiriview::rawImageOpenWorkspaceByteCount)) {
         return false;
     }
 
@@ -196,7 +228,7 @@ std::optional<QImage> jpegThumbnailImage(
         return std::nullopt;
     }
 
-    const QByteArray jpegData(
+    const QByteArray jpegData = QByteArray::fromRawData(
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) -- LibRaw byte API.
         reinterpret_cast<const char*>(processedImage->data),
         static_cast<qsizetype>(processedImage->data_size));
@@ -206,6 +238,16 @@ std::optional<QImage> jpegThumbnailImage(
             reader.errorString().isEmpty()
                 ? kiriview::imageErrorText(kiriview::ImageErrorTextId::RawDecodedImageInvalid)
                 : reader.errorString());
+        return std::nullopt;
+    }
+
+    const QSize decodedSize
+        = reader.transformation().toInt() & QImageIOHandler::TransformationRotate90
+        ? reader.size().transposed()
+        : reader.size();
+    if (!rawEmbeddedThumbnailRasterFitsAdmission(decodedSize)) {
+        setError(errorString,
+            kiriview::imageErrorText(kiriview::ImageErrorTextId::RawDecodedImageSizeInvalid));
         return std::nullopt;
     }
 
@@ -230,7 +272,7 @@ std::optional<QImage> bitmapThumbnailImage(
     }
 
     const QSize imageSize(processedImage->width, processedImage->height);
-    if (!validImageSize(imageSize) || !rawPreviewByteCostFitsBudget(imageSize)) {
+    if (!validImageSize(imageSize) || !rawEmbeddedThumbnailRasterFitsAdmission(imageSize)) {
         setError(errorString,
             kiriview::imageErrorText(kiriview::ImageErrorTextId::RawDecodedImageSizeInvalid));
         return std::nullopt;
@@ -299,25 +341,63 @@ std::optional<QImage> thumbnailImageFromProcessedRaw(
 }
 
 namespace kiriview {
+qsizetype rawEmbeddedThumbnailPreviewWorkspaceByteCount()
+{
+    return rawEmbeddedThumbnailPreviewPeakByteCount;
+}
+
 std::optional<QSize> rawEmbeddedThumbnailPreviewTrustedOriginalSize(
     const QByteArray& data, const ImageDecodeRequest& request)
+{
+    ImageDecodeWorkspaceBudget workspaceBudget(
+        rawImageOpenWorkspaceByteCount, rawImageOpenWorkspaceByteCount);
+    ImageDecodeWorkspaceLease workspaceLease
+        = ImageDecodeWorkspaceDetail::startLease(workspaceBudget);
+    if (!ImageDecodeWorkspaceDetail::tryReserve(workspaceLease, rawImageOpenWorkspaceByteCount)) {
+        return std::nullopt;
+    }
+    return admittedRawEmbeddedThumbnailPreviewTrustedOriginalSize(
+        data, request, std::move(workspaceLease));
+}
+
+std::optional<QSize> admittedRawEmbeddedThumbnailPreviewTrustedOriginalSize(const QByteArray& data,
+    const ImageDecodeRequest& request, ImageDecodeWorkspaceLease workspaceLease)
 {
     if (!rawInputIsEligibleForEmbeddedThumbnail(data, request)) {
         return std::nullopt;
     }
 
-    return trustedOriginalSizeFromRawData(data, nullptr);
+    return trustedOriginalSizeFromRawData(data, std::move(workspaceLease), nullptr);
 }
 
 RawEmbeddedThumbnailPreviewResult rawEmbeddedThumbnailPreviewResult(
     const QByteArray& data, const ImageDecodeRequest& request)
 {
+    ImageDecodeWorkspaceBudget workspaceBudget(
+        rawEmbeddedThumbnailPreviewPeakByteCount, rawEmbeddedThumbnailPreviewPeakByteCount);
+    ImageDecodeWorkspaceLease workspaceLease
+        = ImageDecodeWorkspaceDetail::startLease(workspaceBudget);
+    if (!ImageDecodeWorkspaceDetail::tryReserve(
+            workspaceLease, rawEmbeddedThumbnailPreviewPeakByteCount)) {
+        return rawResult(RawEmbeddedThumbnailPreviewStatus::Missing);
+    }
+    return admittedRawEmbeddedThumbnailPreviewResult(data, request, std::move(workspaceLease));
+}
+
+RawEmbeddedThumbnailPreviewResult admittedRawEmbeddedThumbnailPreviewResult(const QByteArray& data,
+    const ImageDecodeRequest& request, ImageDecodeWorkspaceLease workspaceLease)
+{
     if (!rawInputIsEligibleForEmbeddedThumbnail(data, request)) {
+        return rawResult(RawEmbeddedThumbnailPreviewStatus::Missing);
+    }
+    if (!workspaceLease.isManaged()
+        || workspaceLease.reservedByteCount() < rawEmbeddedThumbnailPreviewPeakByteCount) {
         return rawResult(RawEmbeddedThumbnailPreviewStatus::Missing);
     }
 
     QString errorString;
     LibRaw processor;
+    configureRawPreviewMemoryLimit(processor);
     int errorCode = processor.open_buffer(data.constData(), static_cast<std::size_t>(data.size()));
     if (errorCode != LIBRAW_SUCCESS) {
         return rawResult(RawEmbeddedThumbnailPreviewStatus::Failed, {}, {},
@@ -366,6 +446,16 @@ RawEmbeddedThumbnailPreviewResult rawEmbeddedThumbnailPreviewResult(
     if (!validateRawPreviewImage(*image, originalSize, &errorString)) {
         return rawResult(RawEmbeddedThumbnailPreviewStatus::Invalid, std::move(*image),
             originalSize, std::move(errorString));
+    }
+
+    const qsizetype retainedByteCount = imageByteCost(*image);
+    ImageDecodeWorkspaceHold retainedWorkspace = workspaceLease.retainOnly(retainedByteCount);
+    if (!retainedWorkspace.isManaged()) {
+        return rawResult(RawEmbeddedThumbnailPreviewStatus::Missing, {}, originalSize);
+    }
+    *image = imageRetainingDecodeWorkspace(std::move(*image), std::move(retainedWorkspace));
+    if (image->isNull()) {
+        return rawResult(RawEmbeddedThumbnailPreviewStatus::Missing, {}, originalSize);
     }
 
     return rawResult(RawEmbeddedThumbnailPreviewStatus::Ready, std::move(*image), originalSize);

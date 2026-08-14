@@ -10,6 +10,7 @@
 #include "async/imageworkerscheduler.h"
 #include "decodedimageresult.h"
 #include "imagedataloaderror.h"
+#include "imagedecodepipeline.h"
 #include "imagedecoderequest.h"
 #include "imagedecodeworkspace.h"
 #include "imagesourcedata.h"
@@ -25,13 +26,11 @@ class QObject;
 namespace kiriview {
 using ImageDataLoader = std::function<ImageIoJob(
     QObject*, ImageDecodeRequest, ImageDataCallback, ImageDataLoadErrorCallback)>;
-using ImageDataDecoder
-    = std::function<DecodedImageResult(const QByteArray&, const ImageDecodeRequest&)>;
 
 struct ImageDecodeDependencies
 {
     ImageDataLoader dataLoader;
-    ImageDataDecoder dataDecoder;
+    ImageDataDecodePlanner dataPlanner;
     ThumbnailCacheLookupProvider thumbnailPreviewLookupProvider;
     RawEmbeddedThumbnailPreviewExtractor rawEmbeddedThumbnailPreviewExtractor;
     ImageWorkerScheduler workerScheduler;

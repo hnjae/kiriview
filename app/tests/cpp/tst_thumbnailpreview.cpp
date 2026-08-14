@@ -1,8 +1,11 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#include "cache/imagebytecost.h"
+#include "decoding/rawdecoder.h"
 #include "decoding/rawthumbnailpreview.h"
 #include "decoding/thumbnailpreview.h"
+#include "rendering/svgdisplaysource.h"
 
 #include <QBuffer>
 #include <QColor>
@@ -113,6 +116,8 @@ private Q_SLOTS:
     void rejectsMissingMismatchedOrOversizedOriginalSize();
     void rawEmbeddedPreviewPayloadUsesPreviewQualityAndOrigin();
     void rawEmbeddedPreviewPayloadRejectsInvalidImageOrOriginalSize();
+    void complexTrustedSizePlanningDeclaresDemandedEnvelope();
+    void admittedRawPreviewRetainsOutputWorkspaceUntilFinalAlias();
     void nonRawDataDoesNotExtractRawEmbeddedPreview();
     void rawFixtureEmbeddedPreviewReturnsReadyOrMissingWithoutFailure();
 };
@@ -292,6 +297,65 @@ void TestThumbnailPreview::rawEmbeddedPreviewPayloadRejectsInvalidImageOrOrigina
     QVERIFY(!kiriview::rawEmbeddedThumbnailPreviewDisplayPayload(
         request, rawReadyResult(previewImage(QSize(300, 300)), QSize(640, 480)))
             .has_value());
+}
+
+void TestThumbnailPreview::complexTrustedSizePlanningDeclaresDemandedEnvelope()
+{
+    const QByteArray svgData
+        = QByteArrayLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"4\" height=\"3\"/>");
+    const kiriview::ImageDecodeRequest svgRequest = kiriview::ImageDecodeRequest::fromUrl(
+        17, QUrl::fromLocalFile(QStringLiteral("/tmp/source.svg")));
+    const std::optional<kiriview::ImageDecodeWorkspaceAdmissionRequest> svgAdmission
+        = kiriview::xdgThumbnailPreviewPlanningAdmissionRequest(
+            svgData, svgRequest, kiriview::ImageDecodeWorkspacePriority::Demanded);
+
+    QVERIFY(svgAdmission.has_value());
+    QCOMPARE(svgAdmission->additionalPeakByteCount,
+        *kiriview::svgParserWorkspaceByteCost(svgData.size()));
+    QCOMPARE(svgAdmission->perOperationBaselineByteCount, qsizetype(0));
+    QCOMPARE(svgAdmission->priority, kiriview::ImageDecodeWorkspacePriority::Demanded);
+
+    const QByteArray rawData = rawFixtureData();
+    QVERIFY(!rawData.isEmpty());
+    const kiriview::ImageDecodeRequest rawRequest = kiriview::ImageDecodeRequest::fromUrl(
+        18, QUrl::fromLocalFile(QStringLiteral("/tmp/source.dng")));
+    const std::optional<kiriview::ImageDecodeWorkspaceAdmissionRequest> rawAdmission
+        = kiriview::xdgThumbnailPreviewPlanningAdmissionRequest(
+            rawData, rawRequest, kiriview::ImageDecodeWorkspacePriority::Demanded);
+
+    QVERIFY(rawAdmission.has_value());
+    QCOMPARE(rawAdmission->additionalPeakByteCount, kiriview::rawImageOpenWorkspaceByteCount);
+    QCOMPARE(rawAdmission->priority, kiriview::ImageDecodeWorkspacePriority::Demanded);
+}
+
+void TestThumbnailPreview::admittedRawPreviewRetainsOutputWorkspaceUntilFinalAlias()
+{
+    const QByteArray data = rawFixtureData();
+    QVERIFY(!data.isEmpty());
+    const kiriview::ImageDecodeRequest request = kiriview::ImageDecodeRequest::fromUrl(
+        19, QUrl::fromLocalFile(QStringLiteral("/tmp/raw-cfa-smoke.dng")));
+    const qsizetype workspaceByteCount = kiriview::rawEmbeddedThumbnailPreviewWorkspaceByteCount();
+    auto workspaceBudget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        workspaceByteCount, workspaceByteCount);
+    kiriview::ImageDecodeWorkspaceLease workspaceLease
+        = kiriview::ImageDecodeWorkspaceDetail::startLease(*workspaceBudget);
+    QVERIFY(kiriview::ImageDecodeWorkspaceDetail::tryReserve(workspaceLease, workspaceByteCount));
+
+    kiriview::RawEmbeddedThumbnailPreviewResult result
+        = kiriview::admittedRawEmbeddedThumbnailPreviewResult(
+            data, request, std::move(workspaceLease));
+    if (result.status == kiriview::RawEmbeddedThumbnailPreviewStatus::Missing) {
+        QSKIP("fixture has no supported embedded RAW thumbnail in this LibRaw build");
+    }
+
+    QCOMPARE(result.status, kiriview::RawEmbeddedThumbnailPreviewStatus::Ready);
+    const qsizetype retainedByteCount = kiriview::imageByteCost(result.image);
+    QCOMPARE(workspaceBudget->reservedByteCount(), retainedByteCount);
+    QImage finalAlias = result.image;
+    result.image = {};
+    QCOMPARE(workspaceBudget->reservedByteCount(), retainedByteCount);
+    finalAlias = {};
+    QCOMPARE(workspaceBudget->reservedByteCount(), qsizetype(0));
 }
 
 void TestThumbnailPreview::nonRawDataDoesNotExtractRawEmbeddedPreview()

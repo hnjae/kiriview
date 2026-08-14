@@ -218,8 +218,10 @@ std::shared_ptr<SvgDisplaySource> SvgDisplaySource::open(const QByteArray& data,
         workspaceBudget = defaultImageDecodeWorkspaceBudget();
     }
     const std::optional<qsizetype> parserByteCost = svgParserWorkspaceByteCost(data.size());
-    ImageDecodeWorkspaceLease parserWorkspace = workspaceBudget->startLease();
-    if (!parserByteCost.has_value() || !parserWorkspace.tryReserve(*parserByteCost)) {
+    ImageDecodeWorkspaceLease parserWorkspace
+        = ImageDecodeWorkspaceDetail::startLease(*workspaceBudget);
+    if (!parserByteCost.has_value()
+        || !ImageDecodeWorkspaceDetail::tryReserve(parserWorkspace, *parserByteCost)) {
         if (resourceExhausted != nullptr) {
             *resourceExhausted = true;
         }

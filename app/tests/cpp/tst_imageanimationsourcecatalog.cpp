@@ -277,8 +277,10 @@ void TestImageAnimationSourceCatalog::heifCatalogIncludesRetainedInputInOperatio
     constexpr qsizetype retainedInputByteCount = perOperationByteLimit - 1;
     auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
         perOperationByteLimit * 2, perOperationByteLimit);
-    kiriview::ImageDecodeWorkspaceLease retainedInput = budget->startLease();
-    QVERIFY(retainedInput.tryReserve(retainedInputByteCount));
+    kiriview::ImageDecodeWorkspaceLease retainedInput
+        = kiriview::ImageDecodeWorkspaceDetail::startLease(*budget);
+    QVERIFY(
+        kiriview::ImageDecodeWorkspaceDetail::tryReserve(retainedInput, retainedInputByteCount));
     kiriview::ImageAnimationPlaybackRequest request
         = kiriview::heifSequenceAnimationPlaybackRequest(
             data, {}, budget, retainedInput.sharedHold());

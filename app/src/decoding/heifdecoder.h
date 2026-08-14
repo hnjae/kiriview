@@ -5,6 +5,7 @@
 #define KIRIVIEW_HEIFDECODER_H
 
 #include "decodedimageresult.h"
+#include "heifsequencereader.h"
 
 #include <QByteArray>
 #include <QtGlobal>
@@ -17,6 +18,10 @@ class ImageDecodeRequest;
 std::optional<DecodedImageResult> decodeHeifImageData(const QByteArray& data,
     const ImageDecodeRequest& request,
     std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {},
+    qsizetype retainedInputWorkspaceByteCount = 0);
+std::optional<DecodedImageResult> decodePlannedHeifSequenceImageData(const QByteArray& data,
+    const ImageDecodeRequest& request, const HeifSequenceWorkspacePlan& plan,
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget,
     qsizetype retainedInputWorkspaceByteCount = 0);
 }
 

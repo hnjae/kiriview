@@ -32,6 +32,7 @@ struct ThumbnailCacheLookupRequest
     ThumbnailOriginalIdentity originalIdentity;
     ActiveNavigationThumbnailDemandBucket requestedBucket
         = ActiveNavigationThumbnailDemandBucket::None;
+    ImageDecodeWorkspacePriority workspacePriority = ImageDecodeWorkspacePriority::Demanded;
 };
 
 struct ThumbnailCacheLookupResult

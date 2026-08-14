@@ -137,7 +137,9 @@ QByteArray encodeRgbaPng(quint32 width, quint32 height, const QByteArray& pixels
     QByteArray png;
     QBuffer buffer(&png);
     buffer.open(QIODevice::WriteOnly);
-    Q_ASSERT(image.save(&buffer, "PNG"));
+    if (!image.save(&buffer, "PNG")) {
+        return {};
+    }
     return png;
 }
 

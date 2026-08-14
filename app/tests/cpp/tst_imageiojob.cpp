@@ -21,6 +21,7 @@ private Q_SLOTS:
     void completionClaimAndRunCompletesJobOnce();
     void completionClaimAndDeleteCompletesJobOnce();
     void completionClaimAndDeleteAllowsFinishToDestroyToken();
+    void explicitRetirementStaysPendingAfterCompletionClaim();
     void completionTokenRemainsAvailableDuringCancelCallback();
     void destroyedObjectDeactivatesJobWithoutCanceling();
     void moveAssignmentCancelsReplacedJob();
@@ -111,6 +112,24 @@ void TestImageIoJob::completionClaimAndDeleteAllowsFinishToDestroyToken()
     QVERIFY(guardedToken.isNull());
     QVERIFY(!job.isActive());
     QVERIFY(completion.object() == nullptr);
+}
+
+void TestImageIoJob::explicitRetirementStaysPendingAfterCompletionClaim()
+{
+    QObject object;
+    int retirementCount = 0;
+    kiriview::ImageIoJob job(
+        &object, [](QObject*) { }, kiriview::ImageIoJobCancellationRetirement::Explicit);
+    job.setRetirementCallback([&retirementCount]() { ++retirementCount; });
+    const kiriview::ImageIoJobCompletion completion = job.completion();
+
+    QVERIFY(completion.claimAndRun([]() { }));
+    QCOMPARE(retirementCount, 0);
+
+    completion.retire();
+    QCOMPARE(retirementCount, 1);
+    completion.retire();
+    QCOMPARE(retirementCount, 1);
 }
 
 void TestImageIoJob::completionTokenRemainsAvailableDuringCancelCallback()

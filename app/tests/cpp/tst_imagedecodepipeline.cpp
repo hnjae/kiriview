@@ -3,12 +3,21 @@
 
 #include "decoding/imagedecodepipeline.h"
 
+#include "decoding/heifsequencereader.h"
 #include "decoding/imagedecodeworkspace.h"
+#include "decoding/jxlanimationreader.h"
+#include "decoding/rawdecoder.h"
 #include "image_test_support.h"
 #include "localization/imageerrortext.h"
+#include "rendering/heifdisplaysource.h"
+#include "rendering/svgdisplaysource.h"
 
+#include <QBuffer>
 #include <QByteArray>
 #include <QByteArrayList>
+#include <QFile>
+#include <QImage>
+#include <QImageWriter>
 #include <QList>
 #include <QObject>
 #include <QSize>
@@ -77,6 +86,22 @@ QByteArray invalidJxlContainerData()
     return data;
 }
 
+QByteArray fixtureData(const QString& fileName)
+{
+    QFile file(QStringLiteral(KIRIVIEW_TEST_SOURCE_DIR "/../fixtures/") + fileName);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    return file.readAll();
+}
+
+QByteArray animatedGifData()
+{
+    return QByteArray::fromBase64(
+        QByteArrayLiteral("R0lGODlhAQABAIAAAP8AAAAA/yH/C05FVFNDQVBFMi4wAwECAAAh+QQAAQAAACwAAAAAAQAB"
+                          "AAACAkQBACH5BAACAAAALAAAAAABAAEAAAICTAEAOw=="));
+}
+
 QByteArray jpegWithCameraMakeMetadata()
 {
     return QByteArray::fromHex(
@@ -91,6 +116,38 @@ QByteArray jpegWithCameraMakeMetadata()
         "01000200020000004e0000000200050003000000580100000300020002000000570000000400"
         "050003000000700100000000000025000000010000002e00000001000000940b000064000000"
         "7a000000010000001900000001000000d803000064000000ffd9");
+}
+
+QByteArray encodedImageData(const QImage& image, const QByteArray& format, QString* errorString)
+{
+    QByteArray data;
+    QBuffer buffer(&data);
+    buffer.open(QIODevice::WriteOnly);
+    QImageWriter writer(&buffer, format);
+    if (!writer.write(image)) {
+        if (errorString != nullptr) {
+            *errorString = writer.errorString();
+        }
+        return {};
+    }
+    return data;
+}
+
+std::optional<kiriview::PreparedImageDecodeResult> executePreparedWork(
+    std::unique_ptr<kiriview::PreparedImageDecodeWork> work,
+    const std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget>& budget)
+{
+    if (work == nullptr) {
+        return std::nullopt;
+    }
+    const kiriview::ImageDecodeWorkspaceAdmissionRequest request = work->admissionRequest();
+    kiriview::ImageDecodeWorkspaceLease lease
+        = kiriview::ImageDecodeWorkspaceDetail::startLeaseForOperation(
+            *budget, request.perOperationBaselineByteCount);
+    if (!kiriview::ImageDecodeWorkspaceDetail::tryReserve(lease, request.additionalPeakByteCount)) {
+        return std::nullopt;
+    }
+    return std::move(*work).execute(std::move(lease));
 }
 }
 
@@ -111,8 +168,19 @@ private Q_SLOTS:
     void compatibleDataSharingOriginalStorageReleasesWorkspaceBeforeDecode();
     void compatibleDataWorkspaceRemainsReservedUntilDecodedImageRelease();
     void compatibleDataAdmissionIsSharedAcrossLiveResults();
+    void preparedCompatibleDataCarriesRetainedBaselineIntoExactRasterStage();
     void qtRasterClassificationCarriesExplicitFormat();
+    void preparedQtRasterStillDeclaresExactProducerEnvelope();
     void defaultSvgDecodeUsesFirstDisplayContext();
+    void preparedSvgSeparatesParserAndRasterEnvelopes();
+    void preparedRawCarriesOpenHoldIntoExactProduction();
+    void preparedRawCompatibleInputBaselineIncludesLiveOpenHold();
+    void preparedHeifSequenceSeparatesProbeAndProduction();
+    void preparedRawAndHeifHardLimitsPreserveTypedRoutes_data();
+    void preparedRawAndHeifHardLimitsPreserveTypedRoutes();
+    void preparedDefaultAnimationDeclaresBoundedEnvelope_data();
+    void preparedDefaultAnimationDeclaresBoundedEnvelope();
+    void preparedJxlAnimationUsesPrechargedAllocatorEnvelope();
     void defaultSvgOpenFailurePreservesAdapterDiagnostics();
     void defaultApngOpenFailurePreservesAdapterDiagnostics();
     void defaultJxlAnimationOpenFailurePreservesAdapterDiagnostics();
@@ -281,8 +349,9 @@ void TestImageDecodePipeline::metadataWorkspaceAdmissionIsOptionalAndReleased()
     kiriview::ImageDecodeRouterHandlers animationHandlers;
     animationHandlers.apng = [existingWorkspaceByteCost](
                                  const kiriview::ImageDecodeRouterInput& input) {
-        kiriview::ImageDecodeWorkspaceLease lease = input.workspaceBudget->startLease();
-        if (!lease.tryReserve(existingWorkspaceByteCost)) {
+        kiriview::ImageDecodeWorkspaceLease lease
+            = kiriview::ImageDecodeWorkspaceDetail::startLease(*input.workspaceBudget);
+        if (!kiriview::ImageDecodeWorkspaceDetail::tryReserve(lease, existingWorkspaceByteCost)) {
             return kiriview::failedDecodedImageResult(QStringLiteral("workspace unavailable"));
         }
         kiriview::ImageDecodeWorkspaceHold hold = lease.retainOnly(existingWorkspaceByteCost);
@@ -618,6 +687,99 @@ void TestImageDecodePipeline::compatibleDataAdmissionIsSharedAcrossLiveResults()
     QCOMPARE(budget->reservedByteCount(), qsizetype(0));
 }
 
+void TestImageDecodePipeline::preparedCompatibleDataCarriesRetainedBaselineIntoExactRasterStage()
+{
+    QImage sourceImage(QSize(4, 3), QImage::Format_RGBA8888);
+    sourceImage.fill(Qt::red);
+    QString errorString;
+    const QByteArray originalData
+        = encodedImageData(sourceImage, QByteArrayLiteral("png"), &errorString);
+    QVERIFY2(!originalData.isEmpty(), qPrintable(errorString));
+
+    constexpr qsizetype transformHeadroom = 4096;
+    int transformCount = 0;
+    qsizetype retainedInputByteCount = 0;
+    kiriview::ImageDecodeRouter router(
+        {},
+        [](const QByteArray&, const QString&) {
+            return classification(kiriview::ImageInputKind::QtRaster, kiriview::QtRasterFormat::Png,
+                kiriview::ImageDecodeDataSource::AvifCompatible);
+        },
+        kiriview::ImageDecodeCompatibleDataTransform {
+            [](qsizetype sourceByteCount) {
+                return std::optional(sourceByteCount + transformHeadroom);
+            },
+            [&transformCount, &retainedInputByteCount](const QByteArray& data) {
+                ++transformCount;
+                QByteArray replacement(data.constData(), data.size());
+                replacement.reserve(data.size() + 1024);
+                retainedInputByteCount = replacement.capacity();
+                return kiriview::ImageDecodeCompatibleDataTransform::Result {
+                    std::move(replacement),
+                    kiriview::ImageDecodeCompatibleDataTransform::Storage::OwnedReplacement,
+                };
+            },
+        });
+    constexpr qsizetype workspaceLimit = 1024 * 1024;
+    auto workspaceBudget
+        = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(workspaceLimit, workspaceLimit);
+    auto sourceBudget = std::make_shared<kiriview::ImageSourceDataBudget>(
+        originalData.size(), originalData.size());
+    kiriview::ImageSourceDataLease sourceLease = sourceBudget->startLease();
+    QVERIFY(sourceLease.tryReserve(originalData.size()));
+    const kiriview::ImageDecodeRequest request = kiriview::ImageDecodeRequest::fromUrl(
+        8, QUrl::fromLocalFile(QStringLiteral("/tmp/prepared-compatible.png")));
+
+    kiriview::PreparedImageDecodeResult transformPlan
+        = router.prepare(kiriview::ImageSourceData(originalData, std::move(sourceLease)), request,
+            kiriview::ImageDecodeWorkspacePriority::Demanded, workspaceBudget);
+    auto* transformWork
+        = std::get_if<std::unique_ptr<kiriview::PreparedImageDecodeWork>>(&transformPlan);
+    QVERIFY(transformWork != nullptr);
+    QVERIFY(*transformWork != nullptr);
+    QCOMPARE(transformCount, 0);
+    QCOMPARE(transformWork->get()->admissionRequest().additionalPeakByteCount,
+        originalData.size() + transformHeadroom);
+    QCOMPARE(transformWork->get()->admissionRequest().perOperationBaselineByteCount, qsizetype(0));
+    QCOMPARE(transformWork->get()->admissionRequest().priority,
+        kiriview::ImageDecodeWorkspacePriority::Demanded);
+    QCOMPARE(workspaceBudget->reservedByteCount(), qsizetype(0));
+
+    std::optional<kiriview::PreparedImageDecodeResult> rasterPlan
+        = executePreparedWork(std::move(*transformWork), workspaceBudget);
+    QVERIFY(rasterPlan.has_value());
+    QCOMPARE(transformCount, 1);
+    QVERIFY(retainedInputByteCount > 0);
+    QCOMPARE(workspaceBudget->reservedByteCount(), retainedInputByteCount);
+    auto* rasterWork
+        = std::get_if<std::unique_ptr<kiriview::PreparedImageDecodeWork>>(&*rasterPlan);
+    QVERIFY(rasterWork != nullptr);
+    QVERIFY(*rasterWork != nullptr);
+    const kiriview::ImageDecodeWorkspaceAdmissionRequest rasterAdmission
+        = rasterWork->get()->admissionRequest();
+    QCOMPARE(rasterAdmission.perOperationBaselineByteCount, retainedInputByteCount);
+    QVERIFY(rasterAdmission.additionalPeakByteCount > 0);
+    QVERIFY(rasterAdmission.additionalPeakByteCount < workspaceLimit - retainedInputByteCount);
+    QCOMPARE(rasterAdmission.priority, kiriview::ImageDecodeWorkspacePriority::Demanded);
+
+    {
+        std::optional<kiriview::PreparedImageDecodeResult> terminal
+            = executePreparedWork(std::move(*rasterWork), workspaceBudget);
+        QVERIFY(terminal.has_value());
+        const auto* result = std::get_if<kiriview::DecodedImageResult>(&*terminal);
+        QVERIFY(result != nullptr);
+        const auto* decoded
+            = kiriview::decodedImageResultImageAs<kiriview::StaticDecodedImage>(*result);
+        QVERIFY(decoded != nullptr);
+        QCOMPARE(decoded->displayImage.image.size(), sourceImage.size());
+        QCOMPARE(
+            decoded->displayImage.inputWorkspaceHold.reservedByteCount(), retainedInputByteCount);
+        QCOMPARE(sourceBudget->reservedByteCount(), originalData.size());
+    }
+    QCOMPARE(workspaceBudget->reservedByteCount(), qsizetype(0));
+    QCOMPARE(sourceBudget->reservedByteCount(), qsizetype(0));
+}
+
 void TestImageDecodePipeline::qtRasterClassificationCarriesExplicitFormat()
 {
     const QList<kiriview::QtRasterFormat> formats {
@@ -646,6 +808,52 @@ void TestImageDecodePipeline::qtRasterClassificationCarriesExplicitFormat()
     }
 }
 
+void TestImageDecodePipeline::preparedQtRasterStillDeclaresExactProducerEnvelope()
+{
+    QImage sourceImage(QSize(6, 4), QImage::Format_RGBA8888);
+    sourceImage.fill(Qt::blue);
+    QString errorString;
+    const QByteArray data = encodedImageData(sourceImage, QByteArrayLiteral("png"), &errorString);
+    QVERIFY2(!data.isEmpty(), qPrintable(errorString));
+
+    kiriview::ImageDecodeRouter router({}, [](const QByteArray&, const QString&) {
+        return classification(kiriview::ImageInputKind::QtRaster, kiriview::QtRasterFormat::Png);
+    });
+    constexpr qsizetype workspaceLimit = 1024 * 1024;
+    auto budget
+        = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(workspaceLimit, workspaceLimit);
+    const kiriview::ImageDecodeRequest request = kiriview::ImageDecodeRequest::fromUrl(
+        9, QUrl::fromLocalFile(QStringLiteral("/tmp/prepared-static.png")));
+
+    kiriview::PreparedImageDecodeResult plan = router.prepare(kiriview::ImageSourceData(data),
+        request, kiriview::ImageDecodeWorkspacePriority::Interactive, budget);
+    auto* work = std::get_if<std::unique_ptr<kiriview::PreparedImageDecodeWork>>(&plan);
+    QVERIFY(work != nullptr);
+    QVERIFY(*work != nullptr);
+    const kiriview::ImageDecodeWorkspaceAdmissionRequest admission
+        = work->get()->admissionRequest();
+    QVERIFY(admission.additionalPeakByteCount > 0);
+    QVERIFY(admission.additionalPeakByteCount < workspaceLimit);
+    QCOMPARE(admission.perOperationBaselineByteCount, qsizetype(0));
+    QCOMPARE(admission.priority, kiriview::ImageDecodeWorkspacePriority::Interactive);
+    QCOMPARE(work->get()->hardLimitFailure().route, kiriview::DecodedImageFailureRoute::QtRaster);
+    QCOMPARE(work->get()->hardLimitFailure().operation,
+        kiriview::DecodedImageFailureOperation::DecodeBlockingDisplayImage);
+    QCOMPARE(work->get()->hardLimitFailure().cause,
+        kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+
+    std::optional<kiriview::PreparedImageDecodeResult> terminal
+        = executePreparedWork(std::move(*work), budget);
+    QVERIFY(terminal.has_value());
+    const auto* result = std::get_if<kiriview::DecodedImageResult>(&*terminal);
+    QVERIFY(result != nullptr);
+    const auto* decoded
+        = kiriview::decodedImageResultImageAs<kiriview::StaticDecodedImage>(*result);
+    QVERIFY(decoded != nullptr);
+    QCOMPARE(decoded->displayImage.image.size(), sourceImage.size());
+}
+
 void TestImageDecodePipeline::defaultSvgDecodeUsesFirstDisplayContext()
 {
     const QByteArray data
@@ -662,6 +870,420 @@ void TestImageDecodePipeline::defaultSvgDecodeUsesFirstDisplayContext()
     QCOMPARE(image->displayImage.quality, kiriview::DisplayImageQuality::FirstDisplay);
     QCOMPARE(image->displayImage.sourceDetailModel,
         kiriview::StaticImageSourceDetailModel::ScalableRasterization);
+}
+
+void TestImageDecodePipeline::preparedSvgSeparatesParserAndRasterEnvelopes()
+{
+    const QByteArray data
+        = QByteArrayLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"80\" height=\"40\">"
+                            "<rect width=\"80\" height=\"40\" fill=\"red\"/>"
+                            "</svg>");
+    kiriview::ImageDecodeRouter router({}, [](const QByteArray&, const QString&) {
+        return classification(kiriview::ImageInputKind::Svg);
+    });
+    constexpr qsizetype workspaceLimit = qsizetype { 768 } * 1024 * 1024;
+    auto budget
+        = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(workspaceLimit, workspaceLimit);
+    const kiriview::ImageDecodeRequest request = kiriview::ImageDecodeRequest::fromUrl(10,
+        QUrl::fromLocalFile(QStringLiteral("/tmp/prepared-vector.svg")),
+        kiriview::ImageFirstDisplayDecodeContext { QSize(200, 200) });
+
+    kiriview::PreparedImageDecodeResult parserPlan = router.prepare(kiriview::ImageSourceData(data),
+        request, kiriview::ImageDecodeWorkspacePriority::Interactive, budget);
+    auto* parserWork = std::get_if<std::unique_ptr<kiriview::PreparedImageDecodeWork>>(&parserPlan);
+    QVERIFY(parserWork != nullptr);
+    QVERIFY(*parserWork != nullptr);
+    QCOMPARE(parserWork->get()->admissionRequest().additionalPeakByteCount,
+        *kiriview::svgParserWorkspaceByteCost(data.size()));
+    QCOMPARE(parserWork->get()->hardLimitFailure().route, kiriview::DecodedImageFailureRoute::Svg);
+    QCOMPARE(parserWork->get()->hardLimitFailure().operation,
+        kiriview::DecodedImageFailureOperation::OpenStaticImageSource);
+    const qsizetype parserPeakByteCount
+        = parserWork->get()->admissionRequest().additionalPeakByteCount;
+
+    std::optional<kiriview::PreparedImageDecodeResult> rasterPlan
+        = executePreparedWork(std::move(*parserWork), budget);
+    QVERIFY(rasterPlan.has_value());
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+    auto* rasterWork
+        = std::get_if<std::unique_ptr<kiriview::PreparedImageDecodeWork>>(&*rasterPlan);
+    QVERIFY(rasterWork != nullptr);
+    QVERIFY(*rasterWork != nullptr);
+    QVERIFY(rasterWork->get()->admissionRequest().additionalPeakByteCount > parserPeakByteCount);
+    QVERIFY(rasterWork->get()->admissionRequest().additionalPeakByteCount < workspaceLimit);
+    QCOMPARE(rasterWork->get()->admissionRequest().perOperationBaselineByteCount, qsizetype(0));
+    QCOMPARE(rasterWork->get()->hardLimitFailure().route, kiriview::DecodedImageFailureRoute::Svg);
+    QCOMPARE(rasterWork->get()->hardLimitFailure().operation,
+        kiriview::DecodedImageFailureOperation::DecodeBlockingDisplayImage);
+
+    std::optional<kiriview::PreparedImageDecodeResult> terminal
+        = executePreparedWork(std::move(*rasterWork), budget);
+    QVERIFY(terminal.has_value());
+    const auto* result = std::get_if<kiriview::DecodedImageResult>(&*terminal);
+    QVERIFY(result != nullptr);
+    const auto* decoded
+        = kiriview::decodedImageResultImageAs<kiriview::StaticDecodedImage>(*result);
+    QVERIFY(decoded != nullptr);
+    QCOMPARE(decoded->displayImage.image.size(), QSize(200, 100));
+}
+
+void TestImageDecodePipeline::preparedRawCarriesOpenHoldIntoExactProduction()
+{
+    const QByteArray data = fixtureData(QStringLiteral("raw-cfa-smoke.dng"));
+    QVERIFY(!data.isEmpty());
+    kiriview::ImageDecodeRouter router({}, [](const QByteArray&, const QString&) {
+        return classification(kiriview::ImageInputKind::Raw);
+    });
+    constexpr qsizetype workspaceLimit = qsizetype { 1024 } * 1024 * 1024;
+    auto budget
+        = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(workspaceLimit, workspaceLimit);
+    const kiriview::ImageDecodeRequest request = kiriview::ImageDecodeRequest::fromUrl(
+        13, QUrl::fromLocalFile(QStringLiteral("/tmp/prepared-raw.dng")));
+
+    kiriview::PreparedImageDecodeResult openPlan = router.prepare(kiriview::ImageSourceData(data),
+        request, kiriview::ImageDecodeWorkspacePriority::Demanded, budget);
+    auto* openWork = std::get_if<std::unique_ptr<kiriview::PreparedImageDecodeWork>>(&openPlan);
+    QVERIFY(openWork != nullptr);
+    QVERIFY(*openWork != nullptr);
+    QCOMPARE(openWork->get()->admissionRequest().additionalPeakByteCount,
+        kiriview::rawImageOpenWorkspaceByteCount);
+    QCOMPARE(openWork->get()->admissionRequest().perOperationBaselineByteCount, qsizetype(0));
+    QCOMPARE(openWork->get()->admissionRequest().priority,
+        kiriview::ImageDecodeWorkspacePriority::Demanded);
+    QCOMPARE(openWork->get()->hardLimitFailure().route, kiriview::DecodedImageFailureRoute::Raw);
+    QCOMPARE(openWork->get()->hardLimitFailure().operation,
+        kiriview::DecodedImageFailureOperation::DecodeRawImage);
+
+    std::optional<kiriview::PreparedImageDecodeResult> productionPlan
+        = executePreparedWork(std::move(*openWork), budget);
+    QVERIFY(productionPlan.has_value());
+    QCOMPARE(budget->reservedByteCount(), kiriview::rawImageOpenWorkspaceByteCount);
+    auto* productionWork
+        = std::get_if<std::unique_ptr<kiriview::PreparedImageDecodeWork>>(&*productionPlan);
+    QVERIFY(productionWork != nullptr);
+    QVERIFY(*productionWork != nullptr);
+    QCOMPARE(productionWork->get()->admissionRequest().perOperationBaselineByteCount,
+        kiriview::rawImageOpenWorkspaceByteCount);
+    QVERIFY(productionWork->get()->admissionRequest().additionalPeakByteCount > 0);
+    QVERIFY(productionWork->get()->admissionRequest().additionalPeakByteCount
+        < workspaceLimit - kiriview::rawImageOpenWorkspaceByteCount);
+    QCOMPARE(productionWork->get()->admissionRequest().priority,
+        kiriview::ImageDecodeWorkspacePriority::Demanded);
+
+    {
+        std::optional<kiriview::PreparedImageDecodeResult> terminal
+            = executePreparedWork(std::move(*productionWork), budget);
+        QVERIFY(terminal.has_value());
+        const auto* result = std::get_if<kiriview::DecodedImageResult>(&*terminal);
+        QVERIFY(result != nullptr);
+        const auto* decoded
+            = kiriview::decodedImageResultImageAs<kiriview::StaticDecodedImage>(*result);
+        const auto* failure = kiriview::decodedImageResultFailure(*result);
+        QVERIFY2(decoded != nullptr,
+            qPrintable(failure != nullptr ? failure->diagnosticDetail
+                                          : QStringLiteral("RAW fixture did not decode.")));
+        QCOMPARE(decoded->displayImage.originalSize, QSize(32, 32));
+        QVERIFY(budget->reservedByteCount() > 0);
+        QVERIFY(budget->reservedByteCount() < kiriview::rawImageOpenWorkspaceByteCount);
+    }
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
+void TestImageDecodePipeline::preparedRawCompatibleInputBaselineIncludesLiveOpenHold()
+{
+    const QByteArray data = fixtureData(QStringLiteral("raw-cfa-smoke.dng"));
+    QVERIFY(!data.isEmpty());
+    qsizetype retainedInputByteCount = 0;
+    kiriview::ImageDecodeRouter router(
+        {},
+        [](const QByteArray&, const QString&) {
+            return classification(kiriview::ImageInputKind::Raw, kiriview::QtRasterFormat::None,
+                kiriview::ImageDecodeDataSource::AvifCompatible);
+        },
+        kiriview::ImageDecodeCompatibleDataTransform {
+            [](qsizetype sourceByteCount) { return std::optional(sourceByteCount + 4096); },
+            [&retainedInputByteCount](const QByteArray& source) {
+                QByteArray replacement(source.constData(), source.size());
+                replacement.reserve(source.size() + 1024);
+                retainedInputByteCount = replacement.capacity();
+                return kiriview::ImageDecodeCompatibleDataTransform::Result {
+                    std::move(replacement),
+                    kiriview::ImageDecodeCompatibleDataTransform::Storage::OwnedReplacement,
+                };
+            },
+        });
+    constexpr qsizetype workspaceLimit = qsizetype { 1024 } * 1024 * 1024;
+    auto budget
+        = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(workspaceLimit, workspaceLimit);
+
+    kiriview::PreparedImageDecodeResult transformPlan
+        = router.prepare(kiriview::ImageSourceData(data), kiriview::ImageDecodeRequest {},
+            kiriview::ImageDecodeWorkspacePriority::Speculative, budget);
+    auto* transformWork
+        = std::get_if<std::unique_ptr<kiriview::PreparedImageDecodeWork>>(&transformPlan);
+    QVERIFY(transformWork != nullptr);
+    QVERIFY(*transformWork != nullptr);
+    std::optional<kiriview::PreparedImageDecodeResult> openPlan
+        = executePreparedWork(std::move(*transformWork), budget);
+    QVERIFY(openPlan.has_value());
+    QVERIFY(retainedInputByteCount > data.size());
+    QCOMPARE(budget->reservedByteCount(), retainedInputByteCount);
+
+    auto* openWork = std::get_if<std::unique_ptr<kiriview::PreparedImageDecodeWork>>(&*openPlan);
+    QVERIFY(openWork != nullptr);
+    QVERIFY(*openWork != nullptr);
+    QCOMPARE(openWork->get()->admissionRequest().additionalPeakByteCount,
+        kiriview::rawImageOpenWorkspaceByteCount);
+    QCOMPARE(
+        openWork->get()->admissionRequest().perOperationBaselineByteCount, retainedInputByteCount);
+    QCOMPARE(openWork->get()->admissionRequest().priority,
+        kiriview::ImageDecodeWorkspacePriority::Speculative);
+
+    std::optional<kiriview::PreparedImageDecodeResult> productionPlan
+        = executePreparedWork(std::move(*openWork), budget);
+    QVERIFY(productionPlan.has_value());
+    QCOMPARE(budget->reservedByteCount(),
+        retainedInputByteCount + kiriview::rawImageOpenWorkspaceByteCount);
+    auto* productionWork
+        = std::get_if<std::unique_ptr<kiriview::PreparedImageDecodeWork>>(&*productionPlan);
+    QVERIFY(productionWork != nullptr);
+    QVERIFY(*productionWork != nullptr);
+    QCOMPARE(productionWork->get()->admissionRequest().perOperationBaselineByteCount,
+        retainedInputByteCount + kiriview::rawImageOpenWorkspaceByteCount);
+
+    productionPlan.reset();
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
+void TestImageDecodePipeline::preparedHeifSequenceSeparatesProbeAndProduction()
+{
+    const QByteArray data = fixtureData(QStringLiteral("heif-sequence-alpha.heics"));
+    QVERIFY(!data.isEmpty());
+    kiriview::ImageDecodeRouter router({}, [](const QByteArray&, const QString&) {
+        return classification(kiriview::ImageInputKind::HeifFamily);
+    });
+    constexpr qsizetype workspaceLimit = qsizetype { 256 } * 1024 * 1024;
+    auto budget
+        = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(workspaceLimit, workspaceLimit);
+    const kiriview::ImageDecodeRequest request = kiriview::ImageDecodeRequest::fromUrl(
+        14, QUrl::fromLocalFile(QStringLiteral("/tmp/prepared-sequence.heics")));
+
+    kiriview::PreparedImageDecodeResult probePlan = router.prepare(kiriview::ImageSourceData(data),
+        request, kiriview::ImageDecodeWorkspacePriority::Interactive, budget);
+    auto* probeWork = std::get_if<std::unique_ptr<kiriview::PreparedImageDecodeWork>>(&probePlan);
+    QVERIFY(probeWork != nullptr);
+    QVERIFY(*probeWork != nullptr);
+    QCOMPARE(probeWork->get()->admissionRequest().additionalPeakByteCount,
+        kiriview::heifSequenceProbeWorkspaceByteCount);
+    QCOMPARE(probeWork->get()->admissionRequest().perOperationBaselineByteCount, qsizetype(0));
+    QCOMPARE(
+        probeWork->get()->hardLimitFailure().route, kiriview::DecodedImageFailureRoute::HeifFamily);
+    QCOMPARE(probeWork->get()->hardLimitFailure().operation,
+        kiriview::DecodedImageFailureOperation::DecodeHeifSequenceOpen);
+
+    std::optional<kiriview::PreparedImageDecodeResult> productionPlan
+        = executePreparedWork(std::move(*probeWork), budget);
+    QVERIFY(productionPlan.has_value());
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+    auto* productionWork
+        = std::get_if<std::unique_ptr<kiriview::PreparedImageDecodeWork>>(&*productionPlan);
+    QVERIFY(productionWork != nullptr);
+    QVERIFY(*productionWork != nullptr);
+    const kiriview::HeifSequenceWorkspacePlanResult expected
+        = kiriview::planHeifSequenceOpen(data, budget);
+    QCOMPARE(expected.status, kiriview::HeifSequenceOpenStatus::Success);
+    QCOMPARE(productionWork->get()->admissionRequest().additionalPeakByteCount,
+        expected.plan.transientByteCount + (2 * expected.plan.outputByteCount));
+    QCOMPARE(productionWork->get()->admissionRequest().perOperationBaselineByteCount, qsizetype(0));
+    QCOMPARE(productionWork->get()->admissionRequest().priority,
+        kiriview::ImageDecodeWorkspacePriority::Interactive);
+    QCOMPARE(productionWork->get()->hardLimitFailure().operation,
+        kiriview::DecodedImageFailureOperation::DecodeHeifSequenceFrame);
+
+    {
+        std::optional<kiriview::PreparedImageDecodeResult> terminal
+            = executePreparedWork(std::move(*productionWork), budget);
+        QVERIFY(terminal.has_value());
+        const auto* result = std::get_if<kiriview::DecodedImageResult>(&*terminal);
+        QVERIFY(result != nullptr);
+        const auto* decoded
+            = kiriview::decodedImageResultImageAs<kiriview::HeifSequenceAnimationImage>(*result);
+        const auto* failure = kiriview::decodedImageResultFailure(*result);
+        QVERIFY2(decoded != nullptr,
+            qPrintable(failure != nullptr ? failure->diagnosticDetail
+                                          : QStringLiteral("HEIF sequence did not decode.")));
+        QCOMPARE(decoded->firstFrame.size(), QSize(64, 64));
+        QVERIFY(decoded->firstFrameWorkspaceHold.isManaged());
+        QCOMPARE(budget->reservedByteCount(), decoded->firstFrameWorkspaceHold.reservedByteCount());
+    }
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
+void TestImageDecodePipeline::preparedRawAndHeifHardLimitsPreserveTypedRoutes_data()
+{
+    QTest::addColumn<int>("inputKind");
+    QTest::addColumn<QString>("fixtureName");
+    QTest::addColumn<qsizetype>("requiredOpenByteCount");
+    QTest::addColumn<int>("expectedRoute");
+    QTest::addColumn<int>("expectedOperation");
+
+    QTest::newRow("raw") << static_cast<int>(kiriview::ImageInputKind::Raw)
+                         << QStringLiteral("raw-cfa-smoke.dng")
+                         << kiriview::rawImageOpenWorkspaceByteCount
+                         << static_cast<int>(kiriview::DecodedImageFailureRoute::Raw)
+                         << static_cast<int>(
+                                kiriview::DecodedImageFailureOperation::DecodeRawImage);
+    QTest::newRow("heif-sequence")
+        << static_cast<int>(kiriview::ImageInputKind::HeifFamily)
+        << QStringLiteral("heif-sequence-alpha.heics")
+        << kiriview::heifSequenceProbeWorkspaceByteCount
+        << static_cast<int>(kiriview::DecodedImageFailureRoute::HeifFamily)
+        << static_cast<int>(kiriview::DecodedImageFailureOperation::DecodeHeifSequenceOpen);
+}
+
+void TestImageDecodePipeline::preparedRawAndHeifHardLimitsPreserveTypedRoutes()
+{
+    QFETCH(int, inputKind);
+    QFETCH(QString, fixtureName);
+    QFETCH(qsizetype, requiredOpenByteCount);
+    QFETCH(int, expectedRoute);
+    QFETCH(int, expectedOperation);
+
+    const QByteArray data = fixtureData(fixtureName);
+    QVERIFY(!data.isEmpty());
+    const auto kind = static_cast<kiriview::ImageInputKind>(inputKind);
+    kiriview::ImageDecodeRouter router(
+        {}, [kind](const QByteArray&, const QString&) { return classification(kind); });
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        requiredOpenByteCount - 1, requiredOpenByteCount - 1);
+
+    kiriview::PreparedImageDecodeResult plan
+        = router.prepare(kiriview::ImageSourceData(data), kiriview::ImageDecodeRequest {},
+            kiriview::ImageDecodeWorkspacePriority::Interactive, budget);
+    auto* work = std::get_if<std::unique_ptr<kiriview::PreparedImageDecodeWork>>(&plan);
+    QVERIFY(work != nullptr);
+    QVERIFY(*work != nullptr);
+    QCOMPARE(work->get()->admissionRequest().additionalPeakByteCount, requiredOpenByteCount);
+    QVERIFY(
+        work->get()->admissionRequest().additionalPeakByteCount > budget->perOperationByteLimit());
+    QCOMPARE(static_cast<int>(work->get()->hardLimitFailure().route), expectedRoute);
+    QCOMPARE(static_cast<int>(work->get()->hardLimitFailure().operation), expectedOperation);
+    QCOMPARE(work->get()->hardLimitFailure().cause,
+        kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
+    QVERIFY(!work->get()->hardLimitFailure().retryable);
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+}
+
+void TestImageDecodePipeline::preparedDefaultAnimationDeclaresBoundedEnvelope_data()
+{
+    QTest::addColumn<int>("inputKind");
+    QTest::addColumn<int>("qtFormat");
+    QTest::addColumn<QString>("fixtureName");
+
+    QTest::newRow("apng") << static_cast<int>(kiriview::ImageInputKind::Apng)
+                          << static_cast<int>(kiriview::QtRasterFormat::None)
+                          << QStringLiteral("animated-smoke.apng");
+    QTest::newRow("gif") << static_cast<int>(kiriview::ImageInputKind::QtRaster)
+                         << static_cast<int>(kiriview::QtRasterFormat::Gif) << QString();
+    QTest::newRow("webp") << static_cast<int>(kiriview::ImageInputKind::QtRaster)
+                          << static_cast<int>(kiriview::QtRasterFormat::Webp)
+                          << QStringLiteral("animated-smoke.webp");
+}
+
+void TestImageDecodePipeline::preparedDefaultAnimationDeclaresBoundedEnvelope()
+{
+    QFETCH(int, inputKind);
+    QFETCH(int, qtFormat);
+    QFETCH(QString, fixtureName);
+
+    const QByteArray data = fixtureName.isEmpty() ? animatedGifData() : fixtureData(fixtureName);
+    QVERIFY2(!data.isEmpty(), qPrintable(fixtureName));
+    const auto kind = static_cast<kiriview::ImageInputKind>(inputKind);
+    const auto format = static_cast<kiriview::QtRasterFormat>(qtFormat);
+    kiriview::ImageDecodeRouter router({},
+        [kind, format](const QByteArray&, const QString&) { return classification(kind, format); });
+    constexpr qsizetype workspaceLimit = qsizetype { 256 } * 1024 * 1024;
+    auto budget
+        = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(workspaceLimit, workspaceLimit);
+    const kiriview::ImageDecodeRequest request = kiriview::ImageDecodeRequest::fromUrl(
+        12, QUrl::fromLocalFile(QStringLiteral("/tmp/prepared-animation")));
+
+    kiriview::PreparedImageDecodeResult plan = router.prepare(kiriview::ImageSourceData(data),
+        request, kiriview::ImageDecodeWorkspacePriority::Demanded, budget);
+    auto* work = std::get_if<std::unique_ptr<kiriview::PreparedImageDecodeWork>>(&plan);
+    QVERIFY(work != nullptr);
+    QVERIFY(*work != nullptr);
+    const kiriview::ImageDecodeWorkspaceAdmissionRequest admission
+        = work->get()->admissionRequest();
+    QVERIFY(admission.additionalPeakByteCount > 0);
+    QVERIFY(admission.additionalPeakByteCount < workspaceLimit);
+    QCOMPARE(admission.perOperationBaselineByteCount, qsizetype(0));
+    QCOMPARE(admission.priority, kiriview::ImageDecodeWorkspacePriority::Demanded);
+    QCOMPARE(work->get()->hardLimitFailure().operation,
+        kiriview::DecodedImageFailureOperation::DecodeAnimationOpen);
+
+    std::optional<kiriview::PreparedImageDecodeResult> terminal
+        = executePreparedWork(std::move(*work), budget);
+    QVERIFY(terminal.has_value());
+    const auto* result = std::get_if<kiriview::DecodedImageResult>(&*terminal);
+    QVERIFY(result != nullptr);
+    QVERIFY(kiriview::decodedImageResultImage(*result) != nullptr);
+}
+
+void TestImageDecodePipeline::preparedJxlAnimationUsesPrechargedAllocatorEnvelope()
+{
+    const QByteArray data = fixtureData(QStringLiteral("animated-smoke.jxl"));
+    QVERIFY(!data.isEmpty());
+    kiriview::ImageDecodeRouter router({}, [](const QByteArray&, const QString&) {
+        return classification(kiriview::ImageInputKind::QtRaster, kiriview::QtRasterFormat::Jxl);
+    });
+    constexpr qsizetype workspaceLimit = qsizetype { 1024 } * 1024 * 1024;
+    auto budget
+        = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(workspaceLimit, workspaceLimit);
+    const kiriview::ImageDecodeRequest request = kiriview::ImageDecodeRequest::fromUrl(
+        11, QUrl::fromLocalFile(QStringLiteral("/tmp/prepared-animation.jxl")));
+
+    kiriview::PreparedImageDecodeResult catalogPlan
+        = router.prepare(kiriview::ImageSourceData(data), request,
+            kiriview::ImageDecodeWorkspacePriority::Interactive, budget);
+    auto* catalogWork
+        = std::get_if<std::unique_ptr<kiriview::PreparedImageDecodeWork>>(&catalogPlan);
+    QVERIFY(catalogWork != nullptr);
+    QVERIFY(*catalogWork != nullptr);
+    QCOMPARE(catalogWork->get()->admissionRequest().additionalPeakByteCount,
+        kiriview::jxlAnimationDecoderAllocationByteLimit);
+    QCOMPARE(catalogWork->get()->admissionRequest().perOperationBaselineByteCount, qsizetype(0));
+    QCOMPARE(catalogWork->get()->hardLimitFailure().operation,
+        kiriview::DecodedImageFailureOperation::DecodeAnimationOpen);
+
+    std::optional<kiriview::PreparedImageDecodeResult> openPlan
+        = executePreparedWork(std::move(*catalogWork), budget);
+    QVERIFY(openPlan.has_value());
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+    auto* openWork = std::get_if<std::unique_ptr<kiriview::PreparedImageDecodeWork>>(&*openPlan);
+    QVERIFY(openWork != nullptr);
+    QVERIFY(*openWork != nullptr);
+    const std::optional<qsizetype> expectedPeak
+        = kiriview::jxlAnimationOpenWorkspaceByteCount(QSize(2, 1));
+    QVERIFY(expectedPeak.has_value());
+    QCOMPARE(openWork->get()->admissionRequest().additionalPeakByteCount, *expectedPeak);
+    QVERIFY(*expectedPeak > kiriview::jxlAnimationDecoderAllocationByteLimit);
+    QVERIFY(*expectedPeak < workspaceLimit);
+
+    {
+        std::optional<kiriview::PreparedImageDecodeResult> terminal
+            = executePreparedWork(std::move(*openWork), budget);
+        QVERIFY(terminal.has_value());
+        const auto* result = std::get_if<kiriview::DecodedImageResult>(&*terminal);
+        QVERIFY(result != nullptr);
+        const auto* decoded
+            = kiriview::decodedImageResultImageAs<kiriview::JxlAnimationImage>(*result);
+        QVERIFY(decoded != nullptr);
+        QCOMPARE(decoded->firstFrame.size(), QSize(2, 1));
+        QCOMPARE(decoded->firstFrameWorkspaceHold.reservedByteCount(), qsizetype(8));
+        QCOMPARE(budget->reservedByteCount(), qsizetype(8));
+    }
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
 }
 
 void TestImageDecodePipeline::defaultSvgOpenFailurePreservesAdapterDiagnostics()

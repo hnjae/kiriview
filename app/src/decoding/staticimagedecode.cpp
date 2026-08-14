@@ -150,11 +150,12 @@ DecodedImageResult staticDecodedImageResult(std::shared_ptr<StaticImageDisplaySo
         if (workspaceBudget == nullptr) {
             workspaceBudget = defaultImageDecodeWorkspaceBudget();
         }
-        producerLease = workspaceBudget->startLease();
+        producerLease = ImageDecodeWorkspaceDetail::startLease(*workspaceBudget);
     }
     const qsizetype alreadyReservedByteCount = producerLease.reservedByteCount();
     if (alreadyReservedByteCount < *peakByteCost
-        && !producerLease.tryReserve(*peakByteCost - alreadyReservedByteCount)) {
+        && !ImageDecodeWorkspaceDetail::tryReserve(
+            producerLease, *peakByteCost - alreadyReservedByteCount)) {
         return failedStaticWorkspaceResult(
             DecodedImageFailureOperation::DecodeBlockingDisplayImage, errorString);
     }

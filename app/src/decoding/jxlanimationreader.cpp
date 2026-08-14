@@ -194,6 +194,18 @@ std::optional<QImage> imageFromRgbaBuffer(const std::vector<std::uint8_t>& buffe
 }
 
 namespace kiriview {
+std::optional<qsizetype> jxlAnimationOpenWorkspaceByteCount(QSize imageSize)
+{
+    const std::optional<qsizetype> applicationAndOutputByteCount
+        = checkedImageDecodeWorkspaceByteCount(imageSize, 4, 3);
+    if (!applicationAndOutputByteCount.has_value()
+        || *applicationAndOutputByteCount
+            > std::numeric_limits<qsizetype>::max() - jxlAnimationDecoderAllocationByteLimit) {
+        return std::nullopt;
+    }
+    return jxlAnimationDecoderAllocationByteLimit + *applicationAndOutputByteCount;
+}
+
 class JxlAnimationReader::Private
 {
 public:
@@ -338,9 +350,12 @@ public:
         }
     }
 
-    AnimationFrameReadResult readNextFrame()
+    AnimationFrameReadResult readNextFrame() { return readNextFrame({}); }
+
+    AnimationFrameReadResult readNextFrame(
+        const std::shared_ptr<ImageDecodeWorkspaceBudget>& outputWorkspaceBudget)
     {
-        JxlReadResult result = readFrame();
+        JxlReadResult result = readFrame(outputWorkspaceBudget);
         if (result.status == JxlReadStatus::Frame) {
             return std::optional<AnimationFrame>(std::move(result.frame));
         }
@@ -376,7 +391,6 @@ public:
         frameBuffer = std::vector<std::uint8_t> {};
         {
             const std::scoped_lock lock(allocatorMutex);
-            reservedDecoderByteCount = 0;
             freeDecoderByteCount = 0;
         }
         applicationWorkspaceByteCount = 0;
@@ -405,18 +419,14 @@ private:
 
         const std::size_t allocationByteCount = sizeof(AllocationHeader) + byteCount;
         std::size_t reusedByteCount = 0;
-        qsizetype additionalByteCount = 0;
         {
             const std::scoped_lock lock(self->allocatorMutex);
-            reusedByteCount = std::min(allocationByteCount, self->freeDecoderByteCount);
-            self->freeDecoderByteCount -= reusedByteCount;
-            additionalByteCount = static_cast<qsizetype>(allocationByteCount - reusedByteCount);
-            if (!self->transientWorkspaceLease.tryReserve(additionalByteCount)) {
-                self->freeDecoderByteCount += reusedByteCount;
+            if (allocationByteCount > self->freeDecoderByteCount) {
                 self->allocationLimitExceeded.store(true, std::memory_order_relaxed);
                 return nullptr;
             }
-            self->reservedDecoderByteCount += additionalByteCount;
+            reusedByteCount = std::min(allocationByteCount, self->freeDecoderByteCount);
+            self->freeDecoderByteCount -= reusedByteCount;
         }
 
         // NOLINTNEXTLINE(cppcoreguidelines-no-malloc) -- libjxl requires a C allocator callback.
@@ -424,9 +434,6 @@ private:
         if (allocation == nullptr) {
             const std::scoped_lock lock(self->allocatorMutex);
             self->freeDecoderByteCount += reusedByteCount;
-            self->reservedDecoderByteCount -= additionalByteCount;
-            const bool released = self->transientWorkspaceLease.release(additionalByteCount);
-            Q_ASSERT(released);
             self->allocationLimitExceeded.store(true, std::memory_order_relaxed);
             return nullptr;
         }
@@ -453,7 +460,16 @@ private:
 
     bool initializeDecoder(int events = JXL_DEC_BASIC_INFO | JXL_DEC_FRAME | JXL_DEC_FULL_IMAGE)
     {
-        transientWorkspaceLease = m_workspaceBudget->startLease();
+        transientWorkspaceLease = ImageDecodeWorkspaceDetail::startLease(*m_workspaceBudget);
+        if (!ImageDecodeWorkspaceDetail::tryReserve(
+                transientWorkspaceLease, jxlAnimationDecoderAllocationByteLimit)) {
+            allocationLimitExceeded.store(true, std::memory_order_relaxed);
+            return false;
+        }
+        {
+            const std::scoped_lock lock(allocatorMutex);
+            freeDecoderByteCount = static_cast<std::size_t>(jxlAnimationDecoderAllocationByteLimit);
+        }
         const JxlMemoryManager memoryManager {
             this,
             &Private::allocateDecoderMemory,
@@ -484,7 +500,8 @@ private:
         return true;
     }
 
-    JxlReadResult readFrame()
+    JxlReadResult readFrame(
+        const std::shared_ptr<ImageDecodeWorkspaceBudget>& outputWorkspaceBudget = {})
     {
         if (decoder == nullptr) {
             return errorReadResult(jxlAnimationDecodeErrorString());
@@ -511,11 +528,13 @@ private:
                     return errorReadResult(jxlAnimationDecodeErrorString());
                 }
                 break;
-            case JXL_DEC_FULL_IMAGE:
-                if (ImageDecodeWorkspaceLease outputLease
-                    = m_workspaceBudget->startLeaseForOperation(
-                        transientWorkspaceLease.reservedByteCount());
-                    outputLease.tryReserve(outputByteCount)) {
+            case JXL_DEC_FULL_IMAGE: {
+                const std::shared_ptr<ImageDecodeWorkspaceBudget>& budget
+                    = outputWorkspaceBudget != nullptr ? outputWorkspaceBudget : m_workspaceBudget;
+                ImageDecodeWorkspaceLease outputLease
+                    = ImageDecodeWorkspaceDetail::startLeaseForOperation(
+                        *budget, transientWorkspaceLease.reservedByteCount());
+                if (ImageDecodeWorkspaceDetail::tryReserve(outputLease, outputByteCount)) {
                     std::optional<QImage> image = imageFromRgbaBuffer(frameBuffer, imageSize);
                     if (!image.has_value()) {
                         allocationLimitExceeded.store(true, std::memory_order_relaxed);
@@ -530,6 +549,7 @@ private:
                 }
                 allocationLimitExceeded.store(true, std::memory_order_relaxed);
                 return errorReadResult(imageDecodeWorkspaceResourceLimitDiagnostic());
+            }
             case JXL_DEC_SUCCESS:
                 return JxlReadResult { JxlReadStatus::End, {}, {} };
             case JXL_DEC_ERROR:
@@ -597,7 +617,8 @@ private:
             return false;
         }
         if (applicationWorkspaceByteCount == 0) {
-            if (!transientWorkspaceLease.tryReserve(*workspaceByteCount)) {
+            if (!ImageDecodeWorkspaceDetail::tryReserve(
+                    transientWorkspaceLease, *workspaceByteCount)) {
                 allocationLimitExceeded.store(true, std::memory_order_relaxed);
                 return false;
             }
@@ -625,7 +646,6 @@ private:
     qsizetype outputByteCount = 0;
     std::atomic_bool allocationLimitExceeded = false;
     std::mutex allocatorMutex;
-    qsizetype reservedDecoderByteCount = 0;
     std::size_t freeDecoderByteCount = 0;
     QByteArray data;
     JxlDecoderPtr decoder;
@@ -665,6 +685,12 @@ ImageAnimationSourceCatalogResult JxlAnimationReader::readSourceCatalog(QByteArr
 }
 
 AnimationFrameReadResult JxlAnimationReader::readNextFrame() { return d->readNextFrame(); }
+
+AnimationFrameReadResult JxlAnimationReader::readNextFrame(
+    const std::shared_ptr<ImageDecodeWorkspaceBudget>& outputWorkspaceBudget)
+{
+    return d->readNextFrame(outputWorkspaceBudget);
+}
 
 bool JxlAnimationReader::lastReadResourceLimitExceeded() const
 {

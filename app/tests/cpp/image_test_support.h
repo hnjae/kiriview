@@ -15,11 +15,19 @@
 #include <QSize>
 #include <QString>
 #include <QtGlobal>
+#include <functional>
 #include <initializer_list>
 #include <memory>
 #include <optional>
 #include <string_view>
+#include <type_traits>
 #include <utility>
+#include <variant>
+
+namespace kiriview {
+using ImageDataDecoder
+    = std::function<DecodedImageResult(const QByteArray&, const ImageDecodeRequest&)>;
+}
 
 namespace kiriview::TestSupport {
 namespace Detail {
@@ -170,13 +178,57 @@ inline ImageDataDecoder staticImageDataDecoderRejectingBadData(QImage image = te
     };
 }
 
+inline void retainDecodedSourceDataLease(DecodedImageResult& result, ImageSourceDataLease lease)
+{
+    DecodedImage* image = decodedImageResultImage(result);
+    if (image == nullptr) {
+        return;
+    }
+    std::visit(
+        [lease = std::move(lease)](auto& decoded) mutable {
+            using Image = std::decay_t<decltype(decoded)>;
+            if constexpr (std::is_same_v<Image, StaticDecodedImage>) {
+                decoded.displayImage.sourceDataLease = std::move(lease);
+            } else {
+                decoded.sourceDataLease = std::move(lease);
+            }
+        },
+        *image);
+}
+
+inline ImageDataDecodePlanner imageDataDecodePlanner(ImageDataDecoder decoder)
+{
+    return [decoder = std::move(decoder)](ImageSourceData sourceData,
+               const ImageDecodeRequest& request,
+               ImageDecodeWorkspacePriority priority) -> PreparedImageDecodeResult {
+        auto execute = [decoder, sourceData = std::move(sourceData), request](
+                           ImageDecodeWorkspaceLease) mutable -> PreparedImageDecodeResult {
+            DecodedImageResult result = decoder(sourceData.data, request);
+            retainDecodedSourceDataLease(result, std::move(sourceData.lease));
+            return result;
+        };
+        return std::make_unique<PreparedImageDecodeWork>(
+            ImageDecodeWorkspaceAdmissionRequest { 0, 0, priority },
+            DecodedImageFailure {
+                testImageDecodeFailureString(),
+                DecodedImageFailureRoute::Unknown,
+                DecodedImageFailureOperation::Unknown,
+                imageDecodeWorkspaceResourceLimitDiagnostic(),
+                DecodedImageFailureSeverity::Error,
+                false,
+                DecodedImageFailureCause::ResourceLimitExceeded,
+            },
+            std::move(execute));
+    };
+}
+
 inline ImageDecodeDependencies imageDecodeDependenciesFor(
     ManualImageDataLoader& dataLoader, ImageDataDecoder dataDecoder)
 {
-    return ImageDecodeDependencies {
-        dataLoaderFor(dataLoader),
-        std::move(dataDecoder),
-    };
+    ImageDecodeDependencies dependencies;
+    dependencies.dataLoader = dataLoaderFor(dataLoader);
+    dependencies.dataPlanner = imageDataDecodePlanner(std::move(dataDecoder));
+    return dependencies;
 }
 
 inline ImageDocumentRuntimeDependencyOverrides imageDocumentRuntimeDependencyOverridesFor(

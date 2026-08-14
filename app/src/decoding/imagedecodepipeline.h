@@ -6,16 +6,46 @@
 
 #include "decodedimageresult.h"
 #include "imagedecoderequest.h"
+#include "imagedecodeworkspace.h"
 #include "imageinputclassification.h"
+#include "imagesourcedata.h"
 
 #include <QByteArray>
 #include <QtGlobal>
 #include <functional>
 #include <memory>
 #include <optional>
+#include <variant>
 
 namespace kiriview {
-class ImageDecodeWorkspaceBudget;
+class PreparedImageDecodeWork;
+
+using PreparedImageDecodeResult
+    = std::variant<DecodedImageResult, std::unique_ptr<PreparedImageDecodeWork>>;
+using PreparedImageDecodeExecutor
+    = std::move_only_function<PreparedImageDecodeResult(ImageDecodeWorkspaceLease)>;
+
+class PreparedImageDecodeWork final
+{
+public:
+    PreparedImageDecodeWork(ImageDecodeWorkspaceAdmissionRequest admissionRequest,
+        DecodedImageFailure hardLimitFailure, PreparedImageDecodeExecutor execute);
+    ~PreparedImageDecodeWork();
+    PreparedImageDecodeWork(PreparedImageDecodeWork&& other) noexcept;
+    PreparedImageDecodeWork& operator=(PreparedImageDecodeWork&& other) noexcept;
+    Q_DISABLE_COPY(PreparedImageDecodeWork)
+
+    [[nodiscard]] const ImageDecodeWorkspaceAdmissionRequest& admissionRequest() const;
+    [[nodiscard]] const DecodedImageFailure& hardLimitFailure() const;
+    PreparedImageDecodeResult execute(ImageDecodeWorkspaceLease lease) &&;
+
+private:
+    class Private;
+    std::unique_ptr<Private> d;
+};
+
+using ImageDataDecodePlanner = std::function<PreparedImageDecodeResult(ImageSourceData sourceData,
+    const ImageDecodeRequest& request, ImageDecodeWorkspacePriority priority)>;
 
 struct ImageDecodeRouterInput
 {
@@ -88,8 +118,19 @@ public:
     [[nodiscard]] DecodedImageResult execute(ImageDecodeRoute route, const QByteArray& data,
         const ImageDecodeRequest& request,
         std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {}) const;
+    [[nodiscard]] DecodedImageResult executeRoutedData(ImageDecodeRoute route,
+        const QByteArray& data, const ImageDecodeRequest& request,
+        std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget,
+        qsizetype retainedInputWorkspaceByteCount = 0) const;
+    [[nodiscard]] bool hasInjectedHandler(ImageDecodeHandlerKind handlerKind) const;
+    [[nodiscard]] const ImageDecodeCompatibleDataTransform& compatibleDataTransform() const;
 
 private:
+    bool m_hasInjectedSvgHandler = false;
+    bool m_hasInjectedApngHandler = false;
+    bool m_hasInjectedHeifFamilyHandler = false;
+    bool m_hasInjectedRawHandler = false;
+    bool m_hasInjectedQtRasterHandler = false;
     ImageDecodeRouterHandlers m_handlers;
     ImageDecodeCompatibleDataTransform m_compatibleDataTransform;
 };
@@ -104,6 +145,9 @@ public:
     [[nodiscard]] DecodedImageResult decode(const QByteArray& data,
         const ImageDecodeRequest& request,
         std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {}) const;
+    [[nodiscard]] PreparedImageDecodeResult prepare(ImageSourceData sourceData,
+        const ImageDecodeRequest& request, ImageDecodeWorkspacePriority priority,
+        std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {}) const;
 
 private:
     ImageDecodeInputClassifier m_classifier;
@@ -112,6 +156,8 @@ private:
 
 DecodedImageResult decodeImageDataWithDefaultRouter(const QByteArray& data,
     const ImageDecodeRequest& request,
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {});
+ImageDataDecodePlanner defaultImageDataDecodePlanner(
     std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget = {});
 }
 

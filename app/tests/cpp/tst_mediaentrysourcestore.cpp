@@ -391,11 +391,11 @@ void TestMediaEntrySourceStore::predecodeLoadsAdjacentOpenedCollectionImagesThro
         });
     QTRY_VERIFY(candidateSnapshotReady);
 
+    kiriview::ImageDecodeDependencies imageDecodeDependencies;
+    imageDecodeDependencies.dataPlanner
+        = kiriview::TestSupport::imageDataDecodePlanner(staticImageDataDecoder());
     kiriview::ImagePredecodeCoordinator coordinator(
-        store.wrapDecodeDependencies(kiriview::ImageDecodeDependencies {
-            {},
-            staticImageDataDecoder(),
-        }),
+        store.wrapDecodeDependencies(std::move(imageDecodeDependencies)),
         kiriview::PowerSaverProvider {}, 1024 * 1024);
 
     kiriview::DisplayedPredecodeImage displayedImage {

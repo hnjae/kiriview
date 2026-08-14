@@ -7,6 +7,7 @@
 #include "heifcontainer.h"
 #include "imageinputclassification.h"
 #include "location/sourcekey.h"
+#include "rawdecoder.h"
 #include "rawthumbnailpreview.h"
 #include "rendering/heifdisplaysource.h"
 #include "rendering/imagerendering.h"
@@ -93,55 +94,94 @@ std::optional<QSize> qtRasterTrustedOriginalSize(
     return size;
 }
 
-std::optional<QSize> svgTrustedOriginalSize(const QByteArray& data,
-    const std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget>& workspaceBudget)
+std::optional<QSize> svgTrustedOriginalSize(
+    const QByteArray& data, kiriview::ImageDecodeWorkspaceLease workspaceLease)
 {
+    std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> workspaceBudget
+        = kiriview::prechargedImageDecodeWorkspaceBudget(std::move(workspaceLease));
+    if (workspaceBudget == nullptr) {
+        return std::nullopt;
+    }
     QString errorString;
     const std::shared_ptr<kiriview::SvgDisplaySource> source
         = kiriview::SvgDisplaySource::open(data, &errorString, workspaceBudget);
-    if (source == nullptr || !validImageSize(source->imageSize())) {
+    const std::optional<QSize> size = source != nullptr && validImageSize(source->imageSize())
+        ? std::optional<QSize>(source->imageSize())
+        : std::nullopt;
+    workspaceBudget->finalizePrechargedAdmission();
+    if (!size.has_value()) {
         return std::nullopt;
     }
-    return source->imageSize();
+    return size;
 }
 
-std::optional<QSize> heifTrustedOriginalSize(const QByteArray& data,
-    const std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget>& workspaceBudget)
+std::optional<QSize> heifTrustedOriginalSize(
+    const QByteArray& data, kiriview::ImageDecodeWorkspaceLease workspaceLease)
 {
     const kiriview::HeifContainerInfo container = kiriview::heifContainerInfo(data);
     if (!container.stillImage || container.imageSequence) {
         return std::nullopt;
     }
 
+    std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget> workspaceBudget
+        = kiriview::prechargedImageDecodeWorkspaceBudget(std::move(workspaceLease));
+    if (workspaceBudget == nullptr) {
+        return std::nullopt;
+    }
     QString errorString;
     const std::shared_ptr<kiriview::StaticImageDisplaySource> source
         = kiriview::openHeifDisplaySource(data, &errorString, workspaceBudget);
-    if (source == nullptr || !validImageSize(source->imageSize())) {
+    const std::optional<QSize> size = source != nullptr && validImageSize(source->imageSize())
+        ? std::optional<QSize>(source->imageSize())
+        : std::nullopt;
+    workspaceBudget->finalizePrechargedAdmission();
+    if (!size.has_value()) {
         return std::nullopt;
     }
-    return source->imageSize();
+    return size;
 }
 
 std::optional<QSize> trustedOriginalSizeForDecodeData(const QByteArray& data,
-    const kiriview::ImageDecodeRequest& request,
-    const std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget>& workspaceBudget)
+    const kiriview::ImageDecodeRequest& request, kiriview::ImageDecodeWorkspaceLease workspaceLease)
 {
     const kiriview::ImageInputClassification classification
         = kiriview::classifyImageInput(data, request.imageUrl().fileName());
     switch (classification.kind) {
     case kiriview::ImageInputKind::Svg:
-        return svgTrustedOriginalSize(data, workspaceBudget);
+        return svgTrustedOriginalSize(data, std::move(workspaceLease));
     case kiriview::ImageInputKind::HeifFamily:
-        return heifTrustedOriginalSize(data, workspaceBudget);
+        return heifTrustedOriginalSize(data, std::move(workspaceLease));
     case kiriview::ImageInputKind::QtRaster:
         return qtRasterTrustedOriginalSize(data, classification.qtFormat);
     case kiriview::ImageInputKind::Raw:
-        return kiriview::rawEmbeddedThumbnailPreviewTrustedOriginalSize(data, request);
+        return kiriview::admittedRawEmbeddedThumbnailPreviewTrustedOriginalSize(
+            data, request, std::move(workspaceLease));
     case kiriview::ImageInputKind::Apng:
     case kiriview::ImageInputKind::Unknown:
         break;
     }
 
+    return std::nullopt;
+}
+
+std::optional<qsizetype> thumbnailPreviewPlanningPeakByteCount(
+    const QByteArray& data, const kiriview::ImageDecodeRequest& request)
+{
+    const kiriview::ImageInputClassification classification
+        = kiriview::classifyImageInput(data, request.imageUrl().fileName());
+    switch (classification.kind) {
+    case kiriview::ImageInputKind::Svg:
+        return kiriview::svgParserWorkspaceByteCost(data.size());
+    case kiriview::ImageInputKind::HeifFamily:
+        return kiriview::heifDisplaySourceOpenWorkspaceByteCount;
+    case kiriview::ImageInputKind::Raw:
+        return kiriview::rawImageOpenWorkspaceByteCount;
+    case kiriview::ImageInputKind::QtRaster:
+        return 0;
+    case kiriview::ImageInputKind::Apng:
+    case kiriview::ImageInputKind::Unknown:
+        break;
+    }
     return std::nullopt;
 }
 
@@ -227,16 +267,39 @@ XdgThumbnailPreviewResult xdgThumbnailPreviewResult(
     return result;
 }
 
-std::optional<XdgThumbnailPreviewRequest> xdgThumbnailPreviewRequestForDecodeData(
+std::optional<ImageDecodeWorkspaceAdmissionRequest> xdgThumbnailPreviewPlanningAdmissionRequest(
     const QByteArray& data, const ImageDecodeRequest& request,
-    const std::shared_ptr<ImageDecodeWorkspaceBudget>& workspaceBudget)
+    ImageDecodeWorkspacePriority priority)
 {
     if (request.isEmpty()) {
         return std::nullopt;
     }
+    const std::optional<qsizetype> peakByteCount
+        = thumbnailPreviewPlanningPeakByteCount(data, request);
+    if (!peakByteCount.has_value()) {
+        return std::nullopt;
+    }
+    return ImageDecodeWorkspaceAdmissionRequest { *peakByteCount, 0, priority };
+}
+
+std::optional<XdgThumbnailPreviewRequest> admittedXdgThumbnailPreviewRequestForDecodeData(
+    const QByteArray& data, const ImageDecodeRequest& request,
+    ImageDecodeWorkspaceLease workspaceLease)
+{
+    if (request.isEmpty()) {
+        return std::nullopt;
+    }
+    const std::optional<qsizetype> peakByteCount
+        = thumbnailPreviewPlanningPeakByteCount(data, request);
+    if (!peakByteCount.has_value()
+        || (*peakByteCount > 0
+            && (!workspaceLease.isManaged()
+                || workspaceLease.reservedByteCount() < *peakByteCount))) {
+        return std::nullopt;
+    }
 
     std::optional<QSize> trustedOriginalSize
-        = trustedOriginalSizeForDecodeData(data, request, workspaceBudget);
+        = trustedOriginalSizeForDecodeData(data, request, std::move(workspaceLease));
     if (!trustedOriginalSize.has_value()) {
         return std::nullopt;
     }
@@ -247,6 +310,32 @@ std::optional<XdgThumbnailPreviewRequest> xdgThumbnailPreviewRequestForDecodeDat
         ActiveNavigationThumbnailDemandBucket::XXLarge,
         true,
     };
+}
+
+std::optional<XdgThumbnailPreviewRequest> xdgThumbnailPreviewRequestForDecodeData(
+    const QByteArray& data, const ImageDecodeRequest& request,
+    const std::shared_ptr<ImageDecodeWorkspaceBudget>& workspaceBudget)
+{
+    const std::optional<ImageDecodeWorkspaceAdmissionRequest> admissionRequest
+        = xdgThumbnailPreviewPlanningAdmissionRequest(
+            data, request, ImageDecodeWorkspacePriority::Demanded);
+    if (!admissionRequest.has_value()) {
+        return std::nullopt;
+    }
+    if (admissionRequest->additionalPeakByteCount == 0) {
+        return admittedXdgThumbnailPreviewRequestForDecodeData(data, request, {});
+    }
+
+    const std::shared_ptr<ImageDecodeWorkspaceBudget> activeBudget
+        = workspaceBudget != nullptr ? workspaceBudget : defaultImageDecodeWorkspaceBudget();
+    ImageDecodeWorkspaceLease workspaceLease
+        = ImageDecodeWorkspaceDetail::startLease(*activeBudget);
+    if (!ImageDecodeWorkspaceDetail::tryReserve(
+            workspaceLease, admissionRequest->additionalPeakByteCount)) {
+        return std::nullopt;
+    }
+    return admittedXdgThumbnailPreviewRequestForDecodeData(
+        data, request, std::move(workspaceLease));
 }
 
 std::optional<StaticDisplayImagePayload> xdgThumbnailPreviewDisplayPayload(

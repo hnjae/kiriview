@@ -151,14 +151,15 @@ DecodedImageResult decodeQImageReaderImageData(const QByteArray& data,
     if (workspaceBudget == nullptr) {
         workspaceBudget = defaultImageDecodeWorkspaceBudget();
     }
-    ImageDecodeWorkspaceLease workspaceLease = workspaceBudget->startLease();
-    if (!workspaceLease.tryReserve(*workspaceByteCount)) {
+    ImageDecodeWorkspaceLease workspaceLease
+        = ImageDecodeWorkspaceDetail::startLease(*workspaceBudget);
+    if (!ImageDecodeWorkspaceDetail::tryReserve(workspaceLease, *workspaceByteCount)) {
         return failedQtRasterWorkspaceResult(readerFormat);
     }
 
-    ImageDecodeWorkspaceLease outputLease
-        = workspaceBudget->startLeaseForOperation(workspaceLease.reservedByteCount());
-    if (!outputLease.tryReserve(*outputByteCount)) {
+    ImageDecodeWorkspaceLease outputLease = ImageDecodeWorkspaceDetail::startLeaseForOperation(
+        *workspaceBudget, workspaceLease.reservedByteCount());
+    if (!ImageDecodeWorkspaceDetail::tryReserve(outputLease, *outputByteCount)) {
         return failedQtRasterWorkspaceResult(readerFormat);
     }
 

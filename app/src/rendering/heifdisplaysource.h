@@ -17,6 +17,8 @@
 namespace kiriview {
 class ImageDecodeWorkspaceBudget;
 
+inline constexpr qsizetype heifDisplaySourceOpenWorkspaceByteCount = qsizetype { 8 } * 1024 * 1024;
+
 class HeifDisplaySource final : public StaticImageDisplaySource
 {
 public:

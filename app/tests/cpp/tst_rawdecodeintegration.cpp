@@ -23,6 +23,7 @@ private Q_SLOTS:
     void smallDngFixtureDecodesThroughPublicDecodePath();
     void smallDngFixtureDecodesWhenRequestUrlLacksRawExtension();
     void smallDngFixtureRequiresAdmissionBeforeRawProduction();
+    void openedRawStateRetainsProbeAdmissionUntilProduction();
     void retainedRawFixtureConsumesAggregateAdmission();
     void invalidRawDataPreservesBackendFailureDiagnostics();
 };
@@ -110,6 +111,47 @@ void TestRawDecodeIntegration::smallDngFixtureRequiresAdmissionBeforeRawProducti
     QCOMPARE(budget->reservedByteCount(), qsizetype(0));
 }
 
+void TestRawDecodeIntegration::openedRawStateRetainsProbeAdmissionUntilProduction()
+{
+    QFileInfo fixtureInfo;
+    const QByteArray imageData = rawFixtureData(&fixtureInfo);
+    QVERIFY2(fixtureInfo.exists(), qPrintable(fixtureInfo.filePath()));
+    QVERIFY(!imageData.isEmpty());
+
+    constexpr qsizetype generousByteCount = qsizetype { 1024 } * 1024 * 1024;
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        generousByteCount, generousByteCount);
+    kiriview::ImageDecodeWorkspaceLease probeLease
+        = kiriview::ImageDecodeWorkspaceDetail::startLease(*budget);
+    QVERIFY(kiriview::ImageDecodeWorkspaceDetail::tryReserve(
+        probeLease, kiriview::rawImageOpenWorkspaceByteCount));
+    kiriview::OpenedRawImageResult opened
+        = kiriview::openRawImageData(imageData, std::move(probeLease));
+    QVERIFY2(opened.has_value(),
+        qPrintable(opened.has_value() ? QString() : opened.error().diagnosticDetail));
+    QCOMPARE((*opened)->retainedWorkspaceByteCount(), kiriview::rawImageOpenWorkspaceByteCount);
+    QCOMPARE(budget->reservedByteCount(), kiriview::rawImageOpenWorkspaceByteCount);
+    QVERIFY((*opened)->productionAdditionalPeakByteCount() > 0);
+
+    const qsizetype additionalPeakByteCount = (*opened)->productionAdditionalPeakByteCount();
+    kiriview::ImageDecodeWorkspaceLease producerLease
+        = kiriview::ImageDecodeWorkspaceDetail::startLeaseForOperation(
+            *budget, (*opened)->retainedWorkspaceByteCount());
+    QVERIFY(
+        kiriview::ImageDecodeWorkspaceDetail::tryReserve(producerLease, additionalPeakByteCount));
+    const kiriview::ImageDecodeRequest request
+        = kiriview::ImageDecodeRequest::fromUrl(1, QUrl::fromLocalFile(fixtureInfo.filePath()));
+    const kiriview::DecodedImageResult result
+        = std::move(**opened).decode(request, std::move(producerLease));
+
+    const auto* decoded = kiriview::decodedImageResultImageAs<kiriview::StaticDecodedImage>(result);
+    const auto* failure = kiriview::decodedImageResultFailure(result);
+    QVERIFY2(decoded != nullptr,
+        qPrintable(failure != nullptr ? failure->diagnosticDetail
+                                      : QStringLiteral("RAW fixture did not decode.")));
+    QCOMPARE(budget->reservedByteCount(), decoded->displayImage.retainedRasterByteCost());
+}
+
 void TestRawDecodeIntegration::retainedRawFixtureConsumesAggregateAdmission()
 {
     QFileInfo fixtureInfo;
@@ -119,7 +161,7 @@ void TestRawDecodeIntegration::retainedRawFixtureConsumesAggregateAdmission()
 
     // This admits one fixture decode and its retained pixels, but not another producer peak while
     // the first result remains physically live.
-    constexpr qsizetype aggregateByteLimit = 16 * 1024;
+    constexpr qsizetype aggregateByteLimit = kiriview::rawImageOpenWorkspaceByteCount + 12 * 1024;
     auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
         aggregateByteLimit, aggregateByteLimit);
     {

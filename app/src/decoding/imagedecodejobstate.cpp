@@ -27,6 +27,11 @@ void ImageDecodeJobState::cancel()
 
 bool ImageDecodeJobState::hasActiveRequest() const { return m_request.has_value(); }
 
+bool ImageDecodeJobState::acceptsDecodeWork(const ImageDecodeJobTicket& ticket) const
+{
+    return accepts(ticket) && m_phase == Phase::Decoding;
+}
+
 ImageDecodeJobRuntimePlan ImageDecodeJobState::acceptLoadedData(const ImageDecodeJobTicket& ticket)
 {
     if (!accepts(ticket) || m_phase != Phase::LoadingData) {

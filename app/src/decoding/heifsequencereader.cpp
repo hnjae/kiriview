@@ -31,17 +31,7 @@ int animationRepeatCount(std::uint32_t repetitions)
         std::min(repetitions - 1, static_cast<std::uint32_t>(std::numeric_limits<int>::max())));
 }
 
-struct HeifSequenceWorkspacePlan
-{
-    qsizetype transientByteCount = 0;
-    qsizetype outputByteCount = 0;
-    std::uint64_t decoderByteLimit = 0;
-    std::uint64_t pixelLimit = 0;
-};
-
-constexpr qsizetype minimumHeifDecoderByteLimit = qsizetype { 8 } * 1024 * 1024;
-
-std::optional<HeifSequenceWorkspacePlan> heifSequenceWorkspacePlan(QSize imageSize)
+std::optional<kiriview::HeifSequenceWorkspacePlan> heifSequenceWorkspacePlanForSize(QSize imageSize)
 {
     const std::optional<qsizetype> outputByteCount
         = kiriview::checkedImageDecodeWorkspaceByteCount(imageSize, 4, 1);
@@ -52,12 +42,13 @@ std::optional<HeifSequenceWorkspacePlan> heifSequenceWorkspacePlan(QSize imageSi
     }
 
     const qsizetype decoderByteLimit
-        = std::max(minimumHeifDecoderByteLimit, *decoderCanvasByteCount);
+        = std::max(kiriview::heifSequenceProbeWorkspaceByteCount, *decoderCanvasByteCount);
     constexpr qsizetype maximum = std::numeric_limits<qsizetype>::max();
     if (*outputByteCount > maximum - decoderByteLimit) {
         return std::nullopt;
     }
-    return HeifSequenceWorkspacePlan {
+    return kiriview::HeifSequenceWorkspacePlan {
+        imageSize,
         decoderByteLimit + *outputByteCount,
         *outputByteCount,
         static_cast<std::uint64_t>(decoderByteLimit),
@@ -71,9 +62,68 @@ bool isHeifResourceFailure(heif_error error)
     return error.code == heif_error_Memory_allocation_error
         || error.subcode == heif_suberror_Security_limit_exceeded;
 }
+
+kiriview::HeifSequenceWorkspacePlanResult inspectHeifSequence(const QByteArray& data)
+{
+    if (!kiriview::isLikelyHeifContainer(data)) {
+        return { kiriview::HeifSequenceOpenStatus::NotHeif, {}, {} };
+    }
+
+    QString errorString;
+    bool contextResourceLimitExceeded = false;
+    std::optional<kiriview::HeifContext> context = kiriview::openHeifContext(data, &errorString,
+        kiriview::HeifContextOpenLimits {
+            static_cast<std::uint64_t>(kiriview::heifSequenceProbeWorkspaceByteCount),
+        },
+        &contextResourceLimitExceeded);
+    if (!context.has_value()) {
+        return { contextResourceLimitExceeded
+                ? kiriview::HeifSequenceOpenStatus::ResourceLimitExceeded
+                : kiriview::HeifSequenceOpenStatus::Error,
+            {},
+            contextResourceLimitExceeded ? kiriview::imageDecodeWorkspaceResourceLimitDiagnostic()
+                                         : std::move(errorString) };
+    }
+    if (!heif_context_has_sequence(context->get())) {
+        return { kiriview::HeifSequenceOpenStatus::NotSequence, {}, {} };
+    }
+
+    kiriview::HeifTrack track(heif_context_get_track(context->get(), 0));
+    if (track.get() == nullptr) {
+        return { kiriview::HeifSequenceOpenStatus::Error, {},
+            kiriview::imageErrorText(kiriview::ImageErrorTextId::HeifSequenceTrackMissing) };
+    }
+    if (heif_track_get_track_handler_type(track.get()) != heif_track_type_image_sequence) {
+        return { kiriview::HeifSequenceOpenStatus::NotSequence, {}, {} };
+    }
+
+    std::uint16_t width = 0;
+    std::uint16_t height = 0;
+    const heif_error resolutionError
+        = heif_track_get_image_resolution(track.get(), &width, &height);
+    if (resolutionError.code != heif_error_Ok) {
+        return { kiriview::HeifSequenceOpenStatus::Error, {},
+            kiriview::heifErrorString(kiriview::imageErrorActionText(
+                                          kiriview::ImageErrorActionTextId::DecodeHeifSequence),
+                resolutionError) };
+    }
+
+    const std::optional<kiriview::HeifSequenceWorkspacePlan> plan
+        = heifSequenceWorkspacePlanForSize(QSize(width, height));
+    if (!plan.has_value()) {
+        return { kiriview::HeifSequenceOpenStatus::ResourceLimitExceeded, {},
+            kiriview::imageDecodeWorkspaceResourceLimitDiagnostic() };
+    }
+    return { kiriview::HeifSequenceOpenStatus::Success, *plan, {} };
+}
 }
 
 namespace kiriview {
+std::optional<HeifSequenceWorkspacePlan> heifSequenceWorkspacePlan(QSize imageSize)
+{
+    return heifSequenceWorkspacePlanForSize(imageSize);
+}
+
 QString heifSequenceDecodeErrorString()
 {
     return imageErrorText(ImageErrorTextId::DecodeHeifSequence);
@@ -134,18 +184,56 @@ HeifSequenceReader::HeifSequenceReader(HeifSequenceReader&&) noexcept = default;
 
 HeifSequenceReader& HeifSequenceReader::operator=(HeifSequenceReader&&) noexcept = default;
 
+HeifSequenceWorkspacePlanResult planHeifSequenceOpen(const QByteArray& data,
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget,
+    qsizetype perOperationBaselineByteCount)
+{
+    if (workspaceBudget == nullptr) {
+        workspaceBudget = defaultImageDecodeWorkspaceBudget();
+    }
+    ImageDecodeWorkspaceLease probeWorkspace = ImageDecodeWorkspaceDetail::startLeaseForOperation(
+        *workspaceBudget, perOperationBaselineByteCount);
+    if (!ImageDecodeWorkspaceDetail::tryReserve(
+            probeWorkspace, heifSequenceProbeWorkspaceByteCount)) {
+        return { HeifSequenceOpenStatus::ResourceLimitExceeded, {},
+            imageDecodeWorkspaceResourceLimitDiagnostic() };
+    }
+    return inspectHeifSequence(data);
+}
+
 HeifSequenceOpenResult HeifSequenceReader::open(QByteArray data)
+{
+    const HeifSequenceWorkspacePlanResult planning
+        = planHeifSequenceOpen(data, d->workspaceBudget, d->perOperationBaselineByteCount);
+    if (planning.status != HeifSequenceOpenStatus::Success) {
+        close();
+        d->lastResourceLimitExceeded
+            = planning.status == HeifSequenceOpenStatus::ResourceLimitExceeded;
+        return { planning.status, planning.errorString };
+    }
+    return open(std::move(data), planning.plan);
+}
+
+HeifSequenceOpenResult HeifSequenceReader::open(
+    QByteArray data, const HeifSequenceWorkspacePlan& plan)
 {
     close();
     d->lastResourceLimitExceeded = false;
-
-    if (!isLikelyHeifContainer(data)) {
-        return { HeifSequenceOpenStatus::NotHeif, {} };
+    const std::optional<HeifSequenceWorkspacePlan> validatedPlan
+        = heifSequenceWorkspacePlan(plan.imageSize);
+    if (!validatedPlan.has_value() || validatedPlan->transientByteCount != plan.transientByteCount
+        || validatedPlan->outputByteCount != plan.outputByteCount
+        || validatedPlan->decoderByteLimit != plan.decoderByteLimit
+        || validatedPlan->pixelLimit != plan.pixelLimit) {
+        d->lastResourceLimitExceeded = true;
+        return { HeifSequenceOpenStatus::ResourceLimitExceeded,
+            imageDecodeWorkspaceResourceLimitDiagnostic() };
     }
 
-    d->transientWorkspaceLease
-        = d->workspaceBudget->startLeaseForOperation(d->perOperationBaselineByteCount);
-    if (!d->transientWorkspaceLease.tryReserve(minimumHeifDecoderByteLimit)) {
+    d->transientWorkspaceLease = ImageDecodeWorkspaceDetail::startLeaseForOperation(
+        *d->workspaceBudget, d->perOperationBaselineByteCount);
+    if (!ImageDecodeWorkspaceDetail::tryReserve(
+            d->transientWorkspaceLease, plan.transientByteCount)) {
         close();
         d->lastResourceLimitExceeded = true;
         return { HeifSequenceOpenStatus::ResourceLimitExceeded,
@@ -156,9 +244,9 @@ HeifSequenceOpenResult HeifSequenceReader::open(QByteArray data)
     QString errorString;
     bool contextResourceLimitExceeded = false;
     HeifContextInheritedLimits inheritedLimits;
-    d->context = openHeifContext(d->data, &errorString,
-        HeifContextOpenLimits { static_cast<std::uint64_t>(minimumHeifDecoderByteLimit) },
-        &contextResourceLimitExceeded, &inheritedLimits);
+    d->context
+        = openHeifContext(d->data, &errorString, HeifContextOpenLimits { plan.decoderByteLimit },
+            &contextResourceLimitExceeded, &inheritedLimits);
     if (!d->context.has_value()) {
         close();
         d->lastResourceLimitExceeded = contextResourceLimitExceeded;
@@ -196,26 +284,21 @@ HeifSequenceOpenResult HeifSequenceReader::open(QByteArray data)
             heifErrorString(imageErrorActionText(ImageErrorActionTextId::DecodeHeifSequence),
                 resolutionError) };
     }
-    const std::optional<HeifSequenceWorkspacePlan> workspacePlan
-        = heifSequenceWorkspacePlan(QSize(width, height));
-    if (!workspacePlan.has_value()
-        || workspacePlan->transientByteCount < minimumHeifDecoderByteLimit
-        || !d->transientWorkspaceLease.tryReserve(
-            workspacePlan->transientByteCount - minimumHeifDecoderByteLimit)) {
+    if (QSize(width, height) != plan.imageSize) {
         close();
         d->lastResourceLimitExceeded = true;
         return { HeifSequenceOpenStatus::ResourceLimitExceeded,
             imageDecodeWorkspaceResourceLimitDiagnostic() };
     }
-    d->outputByteCount = workspacePlan->outputByteCount;
+    d->outputByteCount = plan.outputByteCount;
 
     heif_security_limits limits = *heif_context_get_security_limits(d->context->get());
     limits.max_image_size_pixels = limits.max_image_size_pixels == 0
-        ? workspacePlan->pixelLimit
-        : std::min(limits.max_image_size_pixels, workspacePlan->pixelLimit);
+        ? plan.pixelLimit
+        : std::min(limits.max_image_size_pixels, plan.pixelLimit);
     limits.max_total_memory = d->inheritedMaximumTotalMemory == 0
-        ? workspacePlan->decoderByteLimit
-        : std::min(d->inheritedMaximumTotalMemory, workspacePlan->decoderByteLimit);
+        ? plan.decoderByteLimit
+        : std::min(d->inheritedMaximumTotalMemory, plan.decoderByteLimit);
     const heif_error limitsError = heif_context_set_security_limits(d->context->get(), &limits);
     if (limitsError.code != heif_error_Ok) {
         const bool resourceLimitExceeded = isHeifResourceFailure(limitsError);
@@ -243,7 +326,10 @@ HeifSequenceOpenResult HeifSequenceReader::open(QByteArray data)
         animationRepeatCount(heif_track_get_number_of_repetitions(d->track.get())) };
 }
 
-AnimationFrameReadResult HeifSequenceReader::readNextFrame()
+AnimationFrameReadResult HeifSequenceReader::readNextFrame() { return readNextFrame({}); }
+
+AnimationFrameReadResult HeifSequenceReader::readNextFrame(
+    const std::shared_ptr<ImageDecodeWorkspaceBudget>& outputWorkspaceBudget)
 {
     d->lastResourceLimitExceeded = false;
     if (d->track.get() == nullptr) {
@@ -252,9 +338,11 @@ AnimationFrameReadResult HeifSequenceReader::readNextFrame()
 
     const qsizetype outputBaselineByteCount = saturatedQtByteSum(
         d->perOperationBaselineByteCount, d->transientWorkspaceLease.reservedByteCount());
+    const std::shared_ptr<ImageDecodeWorkspaceBudget>& budget
+        = outputWorkspaceBudget != nullptr ? outputWorkspaceBudget : d->workspaceBudget;
     ImageDecodeWorkspaceLease outputLease
-        = d->workspaceBudget->startLeaseForOperation(outputBaselineByteCount);
-    if (!outputLease.tryReserve(d->outputByteCount)) {
+        = ImageDecodeWorkspaceDetail::startLeaseForOperation(*budget, outputBaselineByteCount);
+    if (!ImageDecodeWorkspaceDetail::tryReserve(outputLease, d->outputByteCount)) {
         close();
         d->lastResourceLimitExceeded = true;
         return std::unexpected(imageDecodeWorkspaceResourceLimitDiagnostic());

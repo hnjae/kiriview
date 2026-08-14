@@ -75,7 +75,8 @@ QSize libRawImageSize(const LibRaw& processor)
     return QSize(sizes.width, sizes.height);
 }
 
-bool validateRawImageSize(QSize size, QString* errorString, QString* diagnosticDetail)
+bool validateRawImageSize(
+    QSize size, QString* errorString, QString* diagnosticDetail, bool* resourceExhausted = nullptr)
 {
     if (size.isEmpty()) {
         const QString message
@@ -86,6 +87,9 @@ bool validateRawImageSize(QSize size, QString* errorString, QString* diagnosticD
     }
 
     if (kiriview::estimatedRgbaByteCost(size) > kiriview::imageFullDecodeFallbackByteLimit) {
+        if (resourceExhausted != nullptr) {
+            *resourceExhausted = true;
+        }
         const QString message
             = kiriview::imageErrorText(kiriview::ImageErrorTextId::RawFullDecodeTooLarge);
         setRawDecodeFailure(errorString, diagnosticDetail, message,
@@ -115,6 +119,47 @@ std::optional<qsizetype> rawInitialRasterPeakByteCost(QSize imageSize)
     return peakByteCost == std::numeric_limits<qsizetype>::max()
         ? std::nullopt
         : std::optional<qsizetype>(peakByteCost);
+}
+
+std::optional<qsizetype> rawDecoderByteLimit(QSize imageSize)
+{
+    const qsizetype fullRasterByteCost = kiriview::estimatedRgbaByteCost(imageSize);
+    if (fullRasterByteCost <= 0) {
+        return std::nullopt;
+    }
+
+    // Opening is bounded by a fixed cap before the dimensions are trusted. The same live LibRaw
+    // state then grows only within this size-derived cap during unpack and processing.
+    const qsizetype sizeDerivedLimit = kiriview::saturatedQtByteProduct(fullRasterByteCost, 2);
+    if (sizeDerivedLimit == std::numeric_limits<qsizetype>::max()) {
+        return std::nullopt;
+    }
+    return std::clamp(sizeDerivedLimit, kiriview::rawImageOpenWorkspaceByteCount,
+        kiriview::imageFullDecodeFallbackByteLimit);
+}
+
+std::optional<qsizetype> rawProductionAdditionalPeakByteCost(QSize imageSize)
+{
+    const std::optional<qsizetype> decoderByteLimit = rawDecoderByteLimit(imageSize);
+    const std::optional<qsizetype> rasterPeakByteCost = rawInitialRasterPeakByteCost(imageSize);
+    if (!decoderByteLimit.has_value() || !rasterPeakByteCost.has_value()
+        || *decoderByteLimit < kiriview::rawImageOpenWorkspaceByteCount) {
+        return std::nullopt;
+    }
+
+    const qsizetype decoderGrowth = *decoderByteLimit - kiriview::rawImageOpenWorkspaceByteCount;
+    const qsizetype peakByteCost = kiriview::saturatedQtByteSum(decoderGrowth, *rasterPeakByteCost);
+    return peakByteCost == std::numeric_limits<qsizetype>::max()
+        ? std::nullopt
+        : std::optional<qsizetype>(peakByteCost);
+}
+
+unsigned rawDecoderMemoryLimitMiB(qsizetype byteLimit)
+{
+    constexpr qsizetype bytesPerMiB = qsizetype { 1024 } * 1024;
+    const qsizetype roundedMiB = (byteLimit + bytesPerMiB - 1) / bytesPerMiB;
+    return static_cast<unsigned>(std::min<quint64>(static_cast<quint64>(roundedMiB),
+        static_cast<quint64>(std::numeric_limits<unsigned>::max())));
 }
 
 QImage rawDisplayImage(const QImage& source, QSize rasterSize)
@@ -157,7 +202,7 @@ std::optional<QImage> qImageFromRawProcessedImage(const libraw_processed_image_t
     }
 
     const QSize imageSize(processedImage->width, processedImage->height);
-    if (!validateRawImageSize(imageSize, errorString, diagnosticDetail)) {
+    if (!validateRawImageSize(imageSize, errorString, diagnosticDetail, resourceExhausted)) {
         return std::nullopt;
     }
 
@@ -207,50 +252,15 @@ std::optional<QImage> qImageFromRawProcessedImage(const libraw_processed_image_t
 struct RawImageProduction
 {
     std::optional<QImage> image;
-    kiriview::ImageDecodeWorkspaceLease producerLease;
     bool resourceExhausted = false;
 };
 
-RawImageProduction decodeRawImage(const QByteArray& data,
-    const std::shared_ptr<kiriview::ImageDecodeWorkspaceBudget>& workspaceBudget,
-    QString* errorString, QString* diagnosticDetail)
+RawImageProduction produceRawImage(
+    LibRaw& processor, QString* errorString, QString* diagnosticDetail)
 {
     RawImageProduction result;
-    LibRaw processor;
-    int errorCode = processor.open_buffer(data.constData(), static_cast<std::size_t>(data.size()));
-    if (errorCode != LIBRAW_SUCCESS) {
-        const QString action
-            = kiriview::imageErrorActionText(kiriview::ImageErrorActionTextId::ReadRawImage);
-        setRawDecodeFailure(errorString, diagnosticDetail, rawDecodeErrorString(action, errorCode),
-            rawDecodeDiagnosticDetail(action, errorCode));
-        result.resourceExhausted = errorCode == LIBRAW_UNSUFFICIENT_MEMORY;
-        return result;
-    }
 
-    const QSize imageSize = libRawImageSize(processor);
-    if (!validateRawImageSize(imageSize, errorString, diagnosticDetail)) {
-        return result;
-    }
-    const std::optional<qsizetype> peakByteCost = rawInitialRasterPeakByteCost(imageSize);
-    if (!peakByteCost.has_value()) {
-        setRawWorkspaceFailure(errorString, diagnosticDetail);
-        result.resourceExhausted = true;
-        return result;
-    }
-    result.producerLease = workspaceBudget->startLease();
-    if (!result.producerLease.tryReserve(*peakByteCost)) {
-        setRawWorkspaceFailure(errorString, diagnosticDetail);
-        result.resourceExhausted = true;
-        return result;
-    }
-
-    processor.imgdata.params.use_camera_wb = 1;
-    processor.imgdata.params.output_color = 1;
-    processor.imgdata.params.output_bps = 8;
-    processor.imgdata.rawparams.max_raw_memory_mb = static_cast<unsigned>(
-        kiriview::imageFullDecodeFallbackByteLimit / (qsizetype { 1 } * 1024 * 1024));
-
-    errorCode = processor.unpack();
+    int errorCode = processor.unpack();
     if (errorCode != LIBRAW_SUCCESS) {
         const QString action
             = kiriview::imageErrorActionText(kiriview::ImageErrorActionTextId::UnpackRawImage);
@@ -286,6 +296,29 @@ RawImageProduction decodeRawImage(const QByteArray& data,
     result.image = qImageFromRawProcessedImage(
         processedImage.get(), errorString, diagnosticDetail, &result.resourceExhausted);
     return result;
+}
+
+kiriview::DecodedImageFailure rawDecodedImageFailure(
+    QString errorString, QString diagnosticDetail, kiriview::DecodedImageFailureCause cause)
+{
+    return kiriview::DecodedImageFailure {
+        std::move(errorString),
+        kiriview::DecodedImageFailureRoute::Raw,
+        kiriview::DecodedImageFailureOperation::DecodeRawImage,
+        std::move(diagnosticDetail),
+        kiriview::DecodedImageFailureSeverity::Error,
+        false,
+        cause,
+    };
+}
+
+kiriview::DecodedImageFailure rawWorkspaceFailure()
+{
+    QString errorString;
+    QString diagnosticDetail;
+    setRawWorkspaceFailure(&errorString, &diagnosticDetail);
+    return rawDecodedImageFailure(std::move(errorString), std::move(diagnosticDetail),
+        kiriview::DecodedImageFailureCause::ResourceLimitExceeded);
 }
 
 class RawStaticImageDisplaySource final : public kiriview::StaticImageDisplaySource
@@ -356,38 +389,80 @@ private:
 }
 
 namespace kiriview {
-DecodedImageResult decodeRawImageData(const QByteArray& data, const ImageDecodeRequest& request,
-    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget)
+class OpenedRawImage::Private final
 {
-    if (workspaceBudget == nullptr) {
-        workspaceBudget = defaultImageDecodeWorkspaceBudget();
+public:
+    Private(ImageDecodeWorkspaceHold openWorkspaceHold, std::unique_ptr<LibRaw> processor,
+        qsizetype decoderByteLimit, qsizetype productionAdditionalPeakByteCount)
+        : openWorkspaceHold(std::move(openWorkspaceHold))
+        , processor(std::move(processor))
+        , decoderByteLimit(decoderByteLimit)
+        , productionAdditionalPeakByteCount(productionAdditionalPeakByteCount)
+    {
     }
+
+    ImageDecodeWorkspaceHold openWorkspaceHold;
+    std::unique_ptr<LibRaw> processor;
+    qsizetype decoderByteLimit = 0;
+    qsizetype productionAdditionalPeakByteCount = 0;
+};
+
+OpenedRawImage::OpenedRawImage(std::unique_ptr<Private> state)
+    : d(std::move(state))
+{
+}
+
+OpenedRawImage::~OpenedRawImage() = default;
+
+OpenedRawImage::OpenedRawImage(OpenedRawImage&& other) noexcept = default;
+
+OpenedRawImage& OpenedRawImage::operator=(OpenedRawImage&& other) noexcept = default;
+
+qsizetype OpenedRawImage::retainedWorkspaceByteCount() const
+{
+    return d == nullptr ? 0 : d->openWorkspaceHold.reservedByteCount();
+}
+
+qsizetype OpenedRawImage::productionAdditionalPeakByteCount() const
+{
+    return d == nullptr ? 0 : d->productionAdditionalPeakByteCount;
+}
+
+DecodedImageResult OpenedRawImage::decode(
+    const ImageDecodeRequest& request, ImageDecodeWorkspaceLease producerLease) &&
+{
+    if (d == nullptr || d->processor == nullptr || !producerLease.isManaged()
+        || producerLease.reservedByteCount() < d->productionAdditionalPeakByteCount) {
+        return failedDecodedImageResult(rawWorkspaceFailure());
+    }
+
+    d->processor->imgdata.params.use_camera_wb = 1;
+    d->processor->imgdata.params.output_color = 1;
+    d->processor->imgdata.params.output_bps = 8;
+    d->processor->imgdata.rawparams.max_raw_memory_mb
+        = rawDecoderMemoryLimitMiB(d->decoderByteLimit);
+
     QString errorString;
     QString diagnosticDetail;
     RawImageProduction production;
     try {
-        production = decodeRawImage(data, workspaceBudget, &errorString, &diagnosticDetail);
+        production = produceRawImage(*d->processor, &errorString, &diagnosticDetail);
     } catch (const std::bad_alloc&) {
         setRawWorkspaceFailure(&errorString, &diagnosticDetail);
         production.resourceExhausted = true;
     }
+    d.reset();
     if (!production.image.has_value()) {
-        return failedDecodedImageResult(DecodedImageFailure {
-            std::move(errorString),
-            DecodedImageFailureRoute::Raw,
-            DecodedImageFailureOperation::DecodeRawImage,
-            std::move(diagnosticDetail),
-            DecodedImageFailureSeverity::Error,
-            false,
-            production.resourceExhausted ? DecodedImageFailureCause::ResourceLimitExceeded
-                                         : DecodedImageFailureCause::Unknown,
-        });
+        return failedDecodedImageResult(
+            rawDecodedImageFailure(std::move(errorString), std::move(diagnosticDetail),
+                production.resourceExhausted ? DecodedImageFailureCause::ResourceLimitExceeded
+                                             : DecodedImageFailureCause::Unknown));
     }
 
     std::shared_ptr<StaticImageDisplaySource> source
         = std::make_shared<RawStaticImageDisplaySource>(std::move(*production.image));
     ImageDecodeWorkspaceHold retainedSourceWorkspace
-        = production.producerLease.splitRetained(source->retainedRasterByteCost());
+        = producerLease.splitRetained(source->retainedRasterByteCost());
     if (!retainedSourceWorkspace.isManaged()) {
         return failedDecodedImageResult(DecodedImageFailure {
             imageErrorText(ImageErrorTextId::ReadImageData),
@@ -400,7 +475,90 @@ DecodedImageResult decodeRawImageData(const QByteArray& data, const ImageDecodeR
         });
     }
     source->retainRasterOutputWorkspace(std::move(retainedSourceWorkspace));
-    return staticDecodedImageResult(std::move(source), request, &errorString,
-        std::move(workspaceBudget), std::move(production.producerLease));
+    return staticDecodedImageResult(
+        std::move(source), request, &errorString, {}, std::move(producerLease));
+}
+
+OpenedRawImageResult openRawImageData(
+    const QByteArray& data, ImageDecodeWorkspaceLease openWorkspaceLease)
+{
+    if (!openWorkspaceLease.isManaged()
+        || openWorkspaceLease.reservedByteCount() < rawImageOpenWorkspaceByteCount) {
+        return std::unexpected(rawWorkspaceFailure());
+    }
+
+    auto processor = std::make_unique<LibRaw>();
+    processor->imgdata.rawparams.max_raw_memory_mb
+        = rawDecoderMemoryLimitMiB(rawImageOpenWorkspaceByteCount);
+    const int errorCode
+        = processor->open_buffer(data.constData(), static_cast<std::size_t>(data.size()));
+    if (errorCode != LIBRAW_SUCCESS) {
+        const QString action = imageErrorActionText(ImageErrorActionTextId::ReadRawImage);
+        return std::unexpected(rawDecodedImageFailure(rawDecodeErrorString(action, errorCode),
+            rawDecodeDiagnosticDetail(action, errorCode),
+            errorCode == LIBRAW_UNSUFFICIENT_MEMORY
+                ? DecodedImageFailureCause::ResourceLimitExceeded
+                : DecodedImageFailureCause::Unknown));
+    }
+
+    QString errorString;
+    QString diagnosticDetail;
+    const QSize imageSize = libRawImageSize(*processor);
+    bool resourceExhausted = false;
+    if (!validateRawImageSize(imageSize, &errorString, &diagnosticDetail, &resourceExhausted)) {
+        return std::unexpected(
+            rawDecodedImageFailure(std::move(errorString), std::move(diagnosticDetail),
+                resourceExhausted ? DecodedImageFailureCause::ResourceLimitExceeded
+                                  : DecodedImageFailureCause::Unknown));
+    }
+    const std::optional<qsizetype> decoderByteLimit = rawDecoderByteLimit(imageSize);
+    const std::optional<qsizetype> additionalPeakByteCount
+        = rawProductionAdditionalPeakByteCost(imageSize);
+    if (!decoderByteLimit.has_value() || !additionalPeakByteCount.has_value()) {
+        return std::unexpected(rawWorkspaceFailure());
+    }
+
+    ImageDecodeWorkspaceHold openWorkspaceHold
+        = openWorkspaceLease.retainOnly(rawImageOpenWorkspaceByteCount);
+    if (!openWorkspaceHold.isManaged()) {
+        return std::unexpected(rawWorkspaceFailure());
+    }
+    return std::unique_ptr<OpenedRawImage>(
+        new OpenedRawImage(std::make_unique<OpenedRawImage::Private>(std::move(openWorkspaceHold),
+            std::move(processor), *decoderByteLimit, *additionalPeakByteCount)));
+}
+
+DecodedImageResult decodeRawImageData(const QByteArray& data, const ImageDecodeRequest& request,
+    std::shared_ptr<ImageDecodeWorkspaceBudget> workspaceBudget)
+{
+    if (workspaceBudget == nullptr) {
+        workspaceBudget = defaultImageDecodeWorkspaceBudget();
+    }
+
+    ImageDecodeWorkspaceLease openWorkspaceLease
+        = ImageDecodeWorkspaceDetail::startLease(*workspaceBudget);
+    if (!ImageDecodeWorkspaceDetail::tryReserve(
+            openWorkspaceLease, rawImageOpenWorkspaceByteCount)) {
+        return failedDecodedImageResult(rawWorkspaceFailure());
+    }
+
+    OpenedRawImageResult opened = std::unexpected(rawWorkspaceFailure());
+    try {
+        opened = openRawImageData(data, std::move(openWorkspaceLease));
+    } catch (const std::bad_alloc&) {
+        return failedDecodedImageResult(rawWorkspaceFailure());
+    }
+    if (!opened.has_value()) {
+        return failedDecodedImageResult(std::move(opened.error()));
+    }
+
+    const qsizetype retainedWorkspaceByteCount = (*opened)->retainedWorkspaceByteCount();
+    const qsizetype additionalPeakByteCount = (*opened)->productionAdditionalPeakByteCount();
+    ImageDecodeWorkspaceLease producerLease = ImageDecodeWorkspaceDetail::startLeaseForOperation(
+        *workspaceBudget, retainedWorkspaceByteCount);
+    if (!ImageDecodeWorkspaceDetail::tryReserve(producerLease, additionalPeakByteCount)) {
+        return failedDecodedImageResult(rawWorkspaceFailure());
+    }
+    return std::move(**opened).decode(request, std::move(producerLease));
 }
 }

@@ -890,8 +890,8 @@ void TestDocumentSessionRuntimeLeafSnapshots::
                   }
               });
           };
-    dependencies.directMediaPredecodeDependencies.imageDecode.dataDecoder
-        = staticImageDataDecoder();
+    dependencies.directMediaPredecodeDependencies.imageDecode.dataPlanner
+        = kiriview::TestSupport::imageDataDecodePlanner(staticImageDataDecoder());
     dependencies.directMediaPredecodeDependencies.timerScheduler = timerScheduler.scheduler();
     dependencies.directMediaPredecodeDependencies.cacheBudgetRequest.predecodeCacheByteBudget
         = 1024 * 1024;

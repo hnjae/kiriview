@@ -26,7 +26,9 @@ bool ImageIoJobState::claim(QObject* object)
 
     m_activeObject.clear();
     m_cancelCallback = {};
-    retire();
+    if (m_cancellationRetirement == ImageIoJobCancellationRetirement::Synchronous) {
+        retire();
+    }
     return true;
 }
 

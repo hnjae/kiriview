@@ -9,7 +9,9 @@
 
 #include <QByteArray>
 #include <QImage>
+#include <QSize>
 #include <QString>
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -21,6 +23,23 @@ enum class ApngOpenStatus {
     Error,
     ResourceLimitExceeded,
 };
+
+struct ApngAnimationWorkspacePlan
+{
+    QSize canvasSize;
+    qsizetype transientByteCount = 0;
+    qsizetype firstFrameOutputByteCount = 0;
+    std::size_t decoderInternalByteLimit = 0;
+};
+
+struct ApngAnimationWorkspacePlanResult
+{
+    ApngOpenStatus status = ApngOpenStatus::NotApng;
+    ApngAnimationWorkspacePlan plan;
+    QString errorString;
+};
+
+[[nodiscard]] ApngAnimationWorkspacePlanResult planApngAnimationOpen(const QByteArray& data);
 
 struct ApngOpenResult // NOLINT(cppcoreguidelines-special-member-functions) --
                       // Pass-by-value assignment preserves aggregate initialization and retires
@@ -62,7 +81,10 @@ public:
     Q_DISABLE_COPY_MOVE(ApngAnimationReader)
 
     ApngOpenResult open(const QByteArray& data);
+    ApngOpenResult open(const QByteArray& data, const ApngAnimationWorkspacePlan& plan);
     AnimationFrameReadResult readNextFrame();
+    AnimationFrameReadResult readNextFrame(
+        std::shared_ptr<ImageDecodeWorkspaceBudget> outputWorkspaceBudget);
     [[nodiscard]] bool hasMoreFrames() const;
     [[nodiscard]] bool lastReadResourceLimitExceeded() const;
 

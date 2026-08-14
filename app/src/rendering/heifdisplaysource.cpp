@@ -29,15 +29,14 @@ bool heifResourceFailure(heif_error error)
         || error.subcode == heif_suberror_Security_limit_exceeded;
 }
 
-constexpr qsizetype minimumHeifDecoderByteLimit = qsizetype { 8 } * 1024 * 1024;
-
 std::optional<qsizetype> heifDecoderByteLimit(QSize decodeSize)
 {
     const qsizetype rgbaByteCost = kiriview::estimatedRgbaByteCost(decodeSize);
     if (rgbaByteCost <= 0) {
         return std::nullopt;
     }
-    return std::max(minimumHeifDecoderByteLimit, kiriview::saturatedQtByteProduct(rgbaByteCost, 8));
+    return std::max(kiriview::heifDisplaySourceOpenWorkspaceByteCount,
+        kiriview::saturatedQtByteProduct(rgbaByteCost, 8));
 }
 
 std::optional<qsizetype> heifFullDecodePeakByteCost(QSize sourceSize, QSize targetSize)
@@ -325,9 +324,10 @@ std::shared_ptr<HeifDisplaySource> openHeifDisplaySource(const QByteArray& data,
     if (workspaceBudget == nullptr) {
         workspaceBudget = defaultImageDecodeWorkspaceBudget();
     }
-    ImageDecodeWorkspaceLease openWorkspace
-        = workspaceBudget->startLeaseForOperation(perOperationBaselineByteCount);
-    if (!openWorkspace.tryReserve(minimumHeifDecoderByteLimit)) {
+    ImageDecodeWorkspaceLease openWorkspace = ImageDecodeWorkspaceDetail::startLeaseForOperation(
+        *workspaceBudget, perOperationBaselineByteCount);
+    if (!ImageDecodeWorkspaceDetail::tryReserve(
+            openWorkspace, heifDisplaySourceOpenWorkspaceByteCount)) {
         if (resourceExhausted != nullptr) {
             *resourceExhausted = true;
         }
@@ -337,7 +337,7 @@ std::shared_ptr<HeifDisplaySource> openHeifDisplaySource(const QByteArray& data,
     }
 
     std::optional<HeifPrimaryImage> opened = openHeifPrimaryImageWithMemoryLimit(
-        data, minimumHeifDecoderByteLimit, errorString, resourceExhausted);
+        data, heifDisplaySourceOpenWorkspaceByteCount, errorString, resourceExhausted);
     if (!opened.has_value()) {
         return {};
     }

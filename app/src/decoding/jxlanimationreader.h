@@ -16,6 +16,12 @@
 #include <utility>
 
 namespace kiriview {
+// libjxl allocations are constrained to this precharged local-credit envelope. The custom
+// allocator never expands its lease while executing inside a codec callback.
+inline constexpr qsizetype jxlAnimationDecoderAllocationByteLimit = qsizetype { 128 } * 1024 * 1024;
+
+[[nodiscard]] std::optional<qsizetype> jxlAnimationOpenWorkspaceByteCount(QSize imageSize);
+
 enum class JxlAnimationOpenStatus {
     NotJxl,
     NotAnimation,
@@ -70,6 +76,8 @@ public:
     JxlAnimationOpenResult open(QByteArray data);
     ImageAnimationSourceCatalogResult readSourceCatalog(QByteArray data);
     AnimationFrameReadResult readNextFrame();
+    AnimationFrameReadResult readNextFrame(
+        const std::shared_ptr<ImageDecodeWorkspaceBudget>& outputWorkspaceBudget);
     [[nodiscard]] bool lastReadResourceLimitExceeded() const;
     void close();
 

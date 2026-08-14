@@ -35,8 +35,6 @@ QString webpAnimationDecodeErrorString()
     return kiriview::imageErrorText(kiriview::ImageErrorTextId::DecodeImageAnimation);
 }
 
-kiriview::WebPAnimationOpenResult notWebPResult() { return {}; }
-
 kiriview::WebPAnimationOpenResult notAnimationResult()
 {
     kiriview::WebPAnimationOpenResult result;
@@ -166,6 +164,42 @@ WebPAnimationLibraryVersions currentWebPAnimationLibraryVersions()
     };
 }
 
+WebPAnimationWorkspacePlanResult planWebPAnimationOpen(
+    const QByteArray& data, WebPAnimationLibraryVersions versions)
+{
+    if (data.isEmpty()) {
+        return {};
+    }
+    if (!webPAnimationWorkspaceModelSupports(versions)) {
+        return { WebPAnimationOpenStatus::ResourceLimitExceeded, {},
+            imageDecodeWorkspaceResourceLimitDiagnostic() };
+    }
+
+    const WebPData input = webpDataFor(data);
+    WebPBitstreamFeatures features {};
+    if (WebPGetFeatures(input.bytes, input.size, &features) != VP8_STATUS_OK) {
+        return {};
+    }
+    if (features.has_animation == 0) {
+        return { WebPAnimationOpenStatus::NotAnimation, {}, {} };
+    }
+    if (features.width <= 0 || features.height <= 0) {
+        return { WebPAnimationOpenStatus::Error, {}, webpAnimationDecodeErrorString() };
+    }
+
+    const QSize canvasSize(features.width, features.height);
+    const std::optional<qsizetype> outputByteCount
+        = checkedImageDecodeWorkspaceByteCount(canvasSize, 4, 1);
+    const std::optional<qsizetype> transientByteCount
+        = webpAnimationTransientWorkspaceByteCount(canvasSize, data.size());
+    if (!outputByteCount.has_value() || !transientByteCount.has_value()) {
+        return { WebPAnimationOpenStatus::ResourceLimitExceeded, {},
+            imageDecodeWorkspaceResourceLimitDiagnostic() };
+    }
+    return { WebPAnimationOpenStatus::Success,
+        WebPAnimationWorkspacePlan { canvasSize, *transientByteCount, *outputByteCount }, {} };
+}
+
 class WebPAnimationReader::Private
 {
 public:
@@ -185,40 +219,34 @@ public:
 
     WebPAnimationOpenResult open(QByteArray inputData)
     {
+        const WebPAnimationWorkspacePlanResult planning
+            = planWebPAnimationOpen(inputData, m_libraryVersions);
+        if (planning.status != WebPAnimationOpenStatus::Success) {
+            reset();
+            lastResourceLimitExceeded
+                = planning.status == WebPAnimationOpenStatus::ResourceLimitExceeded;
+            WebPAnimationOpenResult result;
+            result.status = planning.status;
+            result.errorString = planning.errorString;
+            return result;
+        }
+        return open(std::move(inputData), planning.plan);
+    }
+
+    WebPAnimationOpenResult open(
+        QByteArray inputData, const WebPAnimationWorkspacePlan& workspacePlan)
+    {
         reset();
         lastResourceLimitExceeded = false;
-        if (inputData.isEmpty()) {
-            return notWebPResult();
-        }
-        if (!webPAnimationWorkspaceModelSupports(m_libraryVersions)) {
-            lastResourceLimitExceeded = true;
-            return resourceLimitOpenResult();
-        }
-
-        const WebPData input = webpDataFor(inputData);
-        WebPBitstreamFeatures features {};
-        if (WebPGetFeatures(input.bytes, input.size, &features) != VP8_STATUS_OK) {
-            return notWebPResult();
-        }
-        if (features.has_animation == 0) {
-            return notAnimationResult();
-        }
-        if (features.width <= 0 || features.height <= 0) {
-            return errorOpenResult(webpAnimationDecodeErrorString());
-        }
-
-        canvasSize = QSize(features.width, features.height);
-        const std::optional<qsizetype> frameOutputByteCount
-            = checkedImageDecodeWorkspaceByteCount(canvasSize, 4, 1);
-        const std::optional<qsizetype> workspaceByteCount
-            = webpAnimationTransientWorkspaceByteCount(canvasSize, inputData.size());
-        if (!frameOutputByteCount.has_value() || !workspaceByteCount.has_value()
-            || !tryReserveWorkspace(*workspaceByteCount)) {
+        if (workspacePlan.canvasSize.isEmpty() || workspacePlan.transientByteCount <= 0
+            || workspacePlan.firstFrameOutputByteCount <= 0
+            || !tryReserveWorkspace(workspacePlan.transientByteCount)) {
             reset();
             lastResourceLimitExceeded = true;
             return resourceLimitOpenResult();
         }
-        outputByteCount = *frameOutputByteCount;
+        canvasSize = workspacePlan.canvasSize;
+        outputByteCount = workspacePlan.firstFrameOutputByteCount;
 
         data = std::move(inputData);
         WebPData webpData = webpDataFor(data);
@@ -283,15 +311,20 @@ public:
         return result;
     }
 
-    AnimationFrameReadResult readNextFrame()
+    AnimationFrameReadResult readNextFrame() { return readNextFrame({}); }
+
+    AnimationFrameReadResult readNextFrame(
+        const std::shared_ptr<ImageDecodeWorkspaceBudget>& outputWorkspaceBudget)
     {
         if (decoder == nullptr || !hasMoreFrames()) {
             return std::optional<AnimationFrame>();
         }
 
-        ImageDecodeWorkspaceLease outputLease = m_workspaceBudget->startLeaseForOperation(
-            transientWorkspaceLease.reservedByteCount());
-        if (!outputLease.tryReserve(outputByteCount)) {
+        const std::shared_ptr<ImageDecodeWorkspaceBudget>& budget
+            = outputWorkspaceBudget != nullptr ? outputWorkspaceBudget : m_workspaceBudget;
+        ImageDecodeWorkspaceLease outputLease = ImageDecodeWorkspaceDetail::startLeaseForOperation(
+            *budget, transientWorkspaceLease.reservedByteCount());
+        if (!ImageDecodeWorkspaceDetail::tryReserve(outputLease, outputByteCount)) {
             reset();
             lastResourceLimitExceeded = true;
             return std::unexpected(imageDecodeWorkspaceResourceLimitDiagnostic());
@@ -337,8 +370,8 @@ public:
 private:
     bool tryReserveWorkspace(qsizetype byteCount)
     {
-        transientWorkspaceLease = m_workspaceBudget->startLease();
-        return transientWorkspaceLease.tryReserve(byteCount);
+        transientWorkspaceLease = ImageDecodeWorkspaceDetail::startLease(*m_workspaceBudget);
+        return ImageDecodeWorkspaceDetail::tryReserve(transientWorkspaceLease, byteCount);
     }
 
     std::shared_ptr<ImageDecodeWorkspaceBudget> m_workspaceBudget;
@@ -382,7 +415,19 @@ WebPAnimationOpenResult WebPAnimationReader::open(QByteArray data)
     return d->open(std::move(data));
 }
 
+WebPAnimationOpenResult WebPAnimationReader::open(
+    QByteArray data, const WebPAnimationWorkspacePlan& plan)
+{
+    return d->open(std::move(data), plan);
+}
+
 AnimationFrameReadResult WebPAnimationReader::readNextFrame() { return d->readNextFrame(); }
+
+AnimationFrameReadResult WebPAnimationReader::readNextFrame(
+    const std::shared_ptr<ImageDecodeWorkspaceBudget>& outputWorkspaceBudget)
+{
+    return d->readNextFrame(outputWorkspaceBudget);
+}
 
 bool WebPAnimationReader::hasMoreFrames() const { return d->hasMoreFrames(); }
 

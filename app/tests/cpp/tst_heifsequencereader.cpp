@@ -21,6 +21,7 @@ class TestHeifSequenceReader : public QObject
 
 private Q_SLOTS:
     void rejectsNonHeifData();
+    void boundedProbeDeclaresCompleteSequenceEnvelope();
     void readsFramesFromStreamingSequence();
     void retainedInputBaselineParticipatesInOpenAdmission();
     void reopensAtTheStartOfTheAuthoredCycle();
@@ -49,6 +50,34 @@ void TestHeifSequenceReader::rejectsNonHeifData()
 
     const kiriview::HeifSequenceOpenResult nonHeifResult = reader.open(heifFtypBox("png ", {}));
     QCOMPARE(nonHeifResult.status, kiriview::HeifSequenceOpenStatus::NotHeif);
+}
+
+void TestHeifSequenceReader::boundedProbeDeclaresCompleteSequenceEnvelope()
+{
+    const QByteArray imageData = fixtureData();
+    QVERIFY(!imageData.isEmpty());
+    constexpr qsizetype generousByteCount = qsizetype { 256 } * 1024 * 1024;
+    auto budget = std::make_shared<kiriview::ImageDecodeWorkspaceBudget>(
+        generousByteCount, generousByteCount);
+
+    const kiriview::HeifSequenceWorkspacePlanResult planning
+        = kiriview::planHeifSequenceOpen(imageData, budget);
+
+    QCOMPARE(planning.status, kiriview::HeifSequenceOpenStatus::Success);
+    QCOMPARE(planning.plan.imageSize, QSize(64, 64));
+    QVERIFY(planning.plan.transientByteCount >= kiriview::heifSequenceProbeWorkspaceByteCount);
+    QVERIFY(planning.plan.outputByteCount > 0);
+    QVERIFY(planning.plan.transientByteCount + planning.plan.outputByteCount <= generousByteCount);
+    QCOMPARE(budget->reservedByteCount(), qsizetype(0));
+
+    kiriview::HeifSequenceReader reader(budget);
+    const kiriview::HeifSequenceOpenResult opened = reader.open(imageData, planning.plan);
+    QCOMPARE(opened.status, kiriview::HeifSequenceOpenStatus::Success);
+    QCOMPARE(budget->reservedByteCount(), planning.plan.transientByteCount);
+    const kiriview::AnimationFrameReadResult firstFrame = reader.readNextFrame();
+    QVERIFY(firstFrame && firstFrame->has_value());
+    QCOMPARE(budget->reservedByteCount(),
+        planning.plan.transientByteCount + planning.plan.outputByteCount);
 }
 
 void TestHeifSequenceReader::readsFramesFromStreamingSequence()

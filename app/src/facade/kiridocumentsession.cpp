@@ -326,8 +326,8 @@ void inheritMissingDirectMediaPredecodeDependencies(
     if (!directMediaPredecode.imageDecode.dataLoader) {
         directMediaPredecode.imageDecode.dataLoader = imageDocument.imageDecode.dataLoader;
     }
-    if (!directMediaPredecode.imageDecode.dataDecoder) {
-        directMediaPredecode.imageDecode.dataDecoder = imageDocument.imageDecode.dataDecoder;
+    if (!directMediaPredecode.imageDecode.dataPlanner) {
+        directMediaPredecode.imageDecode.dataPlanner = imageDocument.imageDecode.dataPlanner;
     }
     if (!directMediaPredecode.powerSaver.monitor) {
         directMediaPredecode.powerSaver.monitor = imageDocument.powerSaver.monitor;

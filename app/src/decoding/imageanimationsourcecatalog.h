@@ -11,6 +11,7 @@
 #include <QString>
 #include <QVector>
 #include <expected>
+#include <optional>
 
 namespace kiriview {
 class HeifSequenceReader;
@@ -39,6 +40,8 @@ struct ImageAnimationSourceCatalogFailure
 using ImageAnimationSourceCatalogResult
     = std::expected<ImageAnimationSourceCatalog, ImageAnimationSourceCatalogFailure>;
 
+[[nodiscard]] std::optional<qsizetype> webpAnimationCatalogWorkspaceByteCount(
+    qsizetype inputByteCount);
 ImageAnimationSourceCatalogResult readImageAnimationSourceCatalog(
     const ImageAnimationPlaybackRequest& request);
 ImageAnimationSourceCatalogResult readHeifSequenceAnimationSourceCatalog(

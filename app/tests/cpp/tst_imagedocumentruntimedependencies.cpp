@@ -53,7 +53,7 @@ void TestImageDocumentRuntimeDependencies::defaultDependenciesUseMediaEntrySourc
     QVERIFY(resolved.candidateProvider.openedCollectionCandidates);
     QVERIFY(resolved.candidateProvider.directoryImageDocumentPageChanges);
     QVERIFY(resolved.imageDecode.dataLoader);
-    QVERIFY(resolved.imageDecode.dataDecoder);
+    QVERIFY(resolved.imageDecode.dataPlanner);
     QVERIFY(resolved.fileDeletionProvider);
     QVERIFY(!resolved.powerSaver.monitor);
     QVERIFY(resolved.predecodeTimerScheduler.currentMonotonicTime);
@@ -210,7 +210,7 @@ void TestImageDocumentRuntimeDependencies::
     QVERIFY(resolved.candidateProvider.openedCollectionCandidates);
     QVERIFY(resolved.candidateProvider.directoryImageDocumentPageChanges);
     QVERIFY(resolved.imageDecode.dataLoader);
-    QVERIFY(resolved.imageDecode.dataDecoder);
+    QVERIFY(resolved.imageDecode.dataPlanner);
     QVERIFY(resolved.fileDeletionProvider);
     QVERIFY(resolved.powerSaver.monitor);
     QCOMPARE(resolved.cacheBudgets.predecodeCacheByteBudget, qsizetype(4096));
