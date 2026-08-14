@@ -51,6 +51,8 @@ The receiver's affinity thread owns public job state and callback delivery rathe
 
 The callback runs after the job becomes inactive, enforcing the public guarantee that callback code may release the job, destroy the receiver, or start another extraction without reentering an active instance.
 
+Logical inactivity and physical retirement are distinct lifecycle facts. Component-created multimedia and deadline resources remain owned until their teardown completes, and physical retirement is reported only after those resources are destroyed. Callers may therefore suppress publication immediately while retaining aggregate resource admission and duplicate or concurrency identity through physical retirement.
+
 ## Deadline, Failure, And Resource Admission
 
 Each admitted operation has a bounded monotonic deadline under component resource policy. Deadline behavior does not depend on wall-clock changes or application scheduling state.

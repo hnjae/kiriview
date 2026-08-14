@@ -55,6 +55,8 @@ Completion is never invoked before `startVideoThumbnailExtraction` returns. Ever
 
 `VideoThumbnailExtractionJob::cancel()` is idempotent. Destroying or replacing an active job cancels it. Cancellation while terminal delivery is pending suppresses that delivery. Once cancellation returns, completion is permanently suppressed even if backend, timer, queued, or reentrant events arrive later. Destroying the receiver has the same suppression guarantee.
 
+`VideoThumbnailExtractionJob::setRetirementCallback()` registers a callback for physical retirement. Logical completion, cancellation, or receiver destruction may make the job inactive before retirement; the retirement callback runs only after the operation's component-owned multimedia and deadline resources have been destroyed. This lets the caller keep aggregate admission and concurrency identity charged until physical work has retired without delaying publication suppression.
+
 The extraction deadline is bounded and measured with monotonic time. Its exact duration is component resource policy rather than a caller scheduling guarantee; callers must not infer progress or failure timing from wall-clock delay.
 
 ## Repository-Internal Interface

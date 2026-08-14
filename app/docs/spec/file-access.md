@@ -54,6 +54,8 @@ If the encoded bytes for an image or opened-collection image entry exceed the re
 
 If decoding or composing a supported animated image would require more temporary decoded workspace than KiriView can safely admit, the work fails without publishing new pixels or a partial animation frame. Foreground display reports the ordinary image-load failure state, thumbnail generation leaves the thumbnail unavailable, and background preparation does not replace an existing prepared result.
 
+Background work for other images yields decoded-memory capacity to selected-image loading and visible-detail work. When a selected image fits the hard safety limits but decoded memory is temporarily occupied, it remains loading until capacity becomes available instead of reporting a resource-limit failure. An image whose own production exceeds a hard safety limit still follows the ordinary image-load failure behavior.
+
 ### Advertised Entry Points
 
 General archives are not advertised through the desktop file's file associations, the open dialog's default image, video, and comic book filter, or sibling archive navigation.
