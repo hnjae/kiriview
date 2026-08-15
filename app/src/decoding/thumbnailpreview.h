@@ -4,9 +4,9 @@
 #ifndef KIRIVIEW_THUMBNAILPREVIEW_H
 #define KIRIVIEW_THUMBNAILPREVIEW_H
 
+#include "decoding/displayimagequality.h"
 #include "decoding/imagedecoderequest.h"
-#include "rendering/displayimagequality.h"
-#include "rendering/staticimage.h"
+#include "decoding/staticimage.h"
 #include "thumbnail/thumbnailbucket.h"
 #include "thumbnail/thumbnailcachelookup.h"
 

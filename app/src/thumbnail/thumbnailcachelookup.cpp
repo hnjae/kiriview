@@ -4,8 +4,8 @@
 #include "thumbnailcachelookup.h"
 
 #include "bridge/rustqtconversion.h"
+#include "decoding/imagerendering.h"
 #include "kiriview/src/support/thumbnailcache.cxx.h"
-#include "rendering/imagerendering.h"
 
 #include <QImage>
 #include <QObject>

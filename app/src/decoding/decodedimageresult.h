@@ -5,10 +5,10 @@
 #define KIRIVIEW_DECODEDIMAGERESULT_H
 
 #include "decodedimagefailure.h"
+#include "decoding/staticimage.h"
 #include "imageanimationsourcecatalog.h"
 #include "imagedecodeworkspace.h"
 #include "metadata/embeddedmetadata.h"
-#include "rendering/staticimage.h"
 
 #include <QByteArray>
 #include <QImage>

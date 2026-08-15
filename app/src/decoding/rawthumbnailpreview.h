@@ -6,7 +6,7 @@
 
 #include "decoding/imagedecoderequest.h"
 #include "decoding/imagedecodeworkspace.h"
-#include "rendering/staticimage.h"
+#include "decoding/staticimage.h"
 
 #include <QByteArray>
 #include <QImage>

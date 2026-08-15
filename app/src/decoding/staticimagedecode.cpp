@@ -7,9 +7,9 @@
 #include "cache/imagebytecost.h"
 #include "decoding/imagedecoderequest.h"
 #include "decoding/imagedecodeworkspace.h"
+#include "decoding/imagerendering.h"
 #include "localization/imageerrortext.h"
 #include "location/sourcekey.h"
-#include "rendering/imagerendering.h"
 
 #include <QImage>
 #include <limits>

@@ -242,6 +242,24 @@ QModelIndex shortcutHelpIndexForActionAndScope(
 
     return {};
 }
+
+QModelIndex shortcutHelpIndexForActionAndScopeValue(
+    QAbstractItemModel* model, const QString& actionName, int activationScope)
+{
+    if (model == nullptr) {
+        return {};
+    }
+
+    for (int row = 0; row < model->rowCount(); ++row) {
+        const QModelIndex index = model->index(row, 0);
+        if (model->data(index, shortcutHelpActionNameRole).toString() == actionName
+            && model->data(index, shortcutHelpActivationScopeRole).toInt() == activationScope) {
+            return index;
+        }
+    }
+
+    return {};
+}
 }
 
 class TestKiriViewApplication : public QObject
@@ -268,6 +286,8 @@ private Q_SLOTS:
     void shortcutHelpModelResetsWhenConfigurableRowsChange();
     void shortcutConfigurationModelExposesDeclaredScopedSlots();
     void shortcutConfigurationEditsScopesIndependently();
+    void viewerLocalShortcutEditsUseBoundedCanonicalAdmission();
+    void persistedViewerLocalShortcutsUseBoundedCanonicalRecovery();
     void emptyViewerLocalShortcutAssignmentPersistsAcrossReconstruction();
     void configureActionUsesApplicationOwnedEditorBoundary();
     void menuPresentationDefaultsToHamburgerMenu();
@@ -865,6 +885,101 @@ void TestKiriViewApplication::shortcutConfigurationEditsScopesIndependently()
     QCOMPARE(
         reconstructedApplication.viewerLocalShortcutsForId(KiriViewApplication::FileQuitAction),
         QList<QKeySequence>({ shortcut(QStringLiteral("Shift+Q")) }));
+}
+
+void TestKiriViewApplication::viewerLocalShortcutEditsUseBoundedCanonicalAdmission()
+{
+    KiriViewApplication application;
+    const auto actionId = KiriViewApplication::ViewRotateClockwiseAction;
+
+    QVERIFY(application.setShortcutTextsForId(actionId,
+        KiriViewApplication::ViewerLocalShortcutScope,
+        { QStringLiteral(" Ctrl+L "), {}, QStringLiteral("Ctrl+L"), QStringLiteral("Shift+L") }));
+    QCOMPARE(application.viewerLocalShortcutsForId(actionId),
+        QList<QKeySequence>(
+            { shortcut(QStringLiteral("Ctrl+L")), shortcut(QStringLiteral("Shift+L")) }));
+
+    QVERIFY(
+        application.setShortcutTextsForId(actionId, KiriViewApplication::ViewerLocalShortcutScope,
+            { QStringLiteral("Ctrl+1"), QStringLiteral("Ctrl+2"), QStringLiteral("Ctrl+3"),
+                QStringLiteral("Ctrl+4"), {} }));
+    const QList<QKeySequence> fullShortcuts { shortcut(QStringLiteral("Ctrl+1")),
+        shortcut(QStringLiteral("Ctrl+2")), shortcut(QStringLiteral("Ctrl+3")),
+        shortcut(QStringLiteral("Ctrl+4")) };
+    QCOMPARE(application.viewerLocalShortcutsForId(actionId), fullShortcuts);
+
+    const QStringList excessiveTexts { QStringLiteral("Ctrl+1"), QStringLiteral("Ctrl+2"),
+        QStringLiteral("Ctrl+3"), QStringLiteral("Ctrl+4"), QStringLiteral("Ctrl+5") };
+    QVERIFY(!application.setShortcutTextsForId(
+        actionId, KiriViewApplication::ViewerLocalShortcutScope, excessiveTexts));
+    QCOMPARE(application.viewerLocalShortcutsForId(actionId), fullShortcuts);
+
+    const QList<QKeySequence> excessiveShortcuts { shortcut(QStringLiteral("Alt+1")),
+        shortcut(QStringLiteral("Alt+2")), shortcut(QStringLiteral("Alt+3")),
+        shortcut(QStringLiteral("Alt+4")), shortcut(QStringLiteral("Alt+5")) };
+    QVERIFY(!application.setViewerLocalShortcutsForId(actionId, excessiveShortcuts));
+    QCOMPARE(application.viewerLocalShortcutsForId(actionId), fullShortcuts);
+}
+
+void TestKiriViewApplication::persistedViewerLocalShortcutsUseBoundedCanonicalRecovery()
+{
+    constexpr auto actionId = KiriViewApplication::ViewRotateClockwiseAction;
+    const QString actionKey = QStringLiteral("view_rotate_clockwise");
+    KSharedConfig::Ptr config = KSharedConfig::openConfig();
+
+    {
+        KConfigGroup group(config, QStringLiteral("ViewerLocalShortcuts"));
+        group.writeEntry(actionKey,
+            QStringList { QStringLiteral(" Ctrl+L "), {}, QStringLiteral("Ctrl+L"),
+                QStringLiteral("Shift+L"), {} });
+        group.sync();
+        config->reparseConfiguration();
+    }
+    {
+        KiriViewApplication application;
+        QCOMPARE(application.viewerLocalShortcutsForId(actionId),
+            QList<QKeySequence>(
+                { shortcut(QStringLiteral("Ctrl+L")), shortcut(QStringLiteral("Shift+L")) }));
+        QAbstractItemModel* model = application.shortcutConfigurationModel();
+        const QModelIndex index = shortcutHelpIndexForActionAndScopeValue(
+            model, actionKey, KiriViewApplication::ViewerLocalShortcutScope);
+        QVERIFY(index.isValid());
+        QCOMPARE(model->data(index, shortcutHelpPortableShortcutTextsRole).toStringList(),
+            QStringList({ QStringLiteral("Ctrl+L"), QStringLiteral("Shift+L") }));
+    }
+    config->reparseConfiguration();
+    QCOMPARE(KConfigGroup(config, QStringLiteral("ViewerLocalShortcuts"))
+                 .readEntry(actionKey, QStringList()),
+        QStringList({ QStringLiteral("Ctrl+L"), QStringLiteral("Shift+L") }));
+
+    const auto verifyRecoveredToUnassigned = [&](const QStringList& storedTexts) {
+        KConfigGroup group(config, QStringLiteral("ViewerLocalShortcuts"));
+        group.writeEntry(actionKey, storedTexts);
+        group.sync();
+        config->reparseConfiguration();
+
+        {
+            KiriViewApplication application;
+            QCOMPARE(application.viewerLocalShortcutsForId(actionId), QList<QKeySequence>());
+            QAbstractItemModel* model = application.shortcutConfigurationModel();
+            const QModelIndex index = shortcutHelpIndexForActionAndScopeValue(
+                model, actionKey, KiriViewApplication::ViewerLocalShortcutScope);
+            QVERIFY(index.isValid());
+            QCOMPARE(model->data(index, shortcutHelpPortableShortcutTextsRole).toStringList(),
+                QStringList());
+        }
+        config->reparseConfiguration();
+        QCOMPARE(KConfigGroup(config, QStringLiteral("ViewerLocalShortcuts"))
+                     .readEntry(actionKey, QStringList()),
+            QStringList());
+    };
+
+    verifyRecoveredToUnassigned({ QStringLiteral("R"), QStringLiteral("Ctrl+") });
+    verifyRecoveredToUnassigned({ QStringLiteral("Ctrl+1"), QStringLiteral("Ctrl+2"),
+        QStringLiteral("Ctrl+3"), QStringLiteral("Ctrl+4"), QStringLiteral("Ctrl+5") });
+    QStringList excessiveRawInput;
+    excessiveRawInput.fill(QString(), 17);
+    verifyRecoveredToUnassigned(excessiveRawInput);
 }
 
 void TestKiriViewApplication::emptyViewerLocalShortcutAssignmentPersistsAcrossReconstruction()

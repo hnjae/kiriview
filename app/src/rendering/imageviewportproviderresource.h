@@ -6,10 +6,10 @@
 
 #include "async/imageworkerscheduler.h"
 #include "decoding/imagedecodeworkspace.h"
+#include "decoding/staticimage.h"
 #include "document/imageloadfailure.h"
 #include "imageviewportfailureregistry.h"
 #include "rendering/displayimagestore.h"
-#include "rendering/staticimage.h"
 
 #include <ImageViewport/imagesequenceprovider.h>
 

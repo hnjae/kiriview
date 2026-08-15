@@ -4,9 +4,9 @@
 #ifndef KIRIVIEW_IMAGEVIEWPORTDECODESOURCE_H
 #define KIRIVIEW_IMAGEVIEWPORTDECODESOURCE_H
 
-#include "animationsourceruntime.h"
 #include "async/imageasyncworker.h"
 #include "async/timerscheduler.h"
+#include "decoding/animationsourceruntime.h"
 #include "decoding/decodedimageresult.h"
 #include "decoding/imageanimationrequest.h"
 #include "decoding/imageanimationsourcecatalog.h"

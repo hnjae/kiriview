@@ -4,14 +4,14 @@
 #include "thumbnailpreview.h"
 
 #include "bufferedimagereader.h"
+#include "decoding/heifdisplaysource.h"
+#include "decoding/imagerendering.h"
+#include "decoding/svgdisplaysource.h"
 #include "heifcontainer.h"
 #include "imageinputclassification.h"
 #include "location/sourcekey.h"
 #include "rawdecoder.h"
 #include "rawthumbnailpreview.h"
-#include "rendering/heifdisplaysource.h"
-#include "rendering/imagerendering.h"
-#include "rendering/svgdisplaysource.h"
 
 #include <QFile>
 #include <QImageIOHandler>

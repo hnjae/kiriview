@@ -3,14 +3,14 @@
 
 #include "decoding/imagedecodepipeline.h"
 
+#include "decoding/heifdisplaysource.h"
 #include "decoding/heifsequencereader.h"
 #include "decoding/imagedecodeworkspace.h"
 #include "decoding/jxlanimationreader.h"
 #include "decoding/rawdecoder.h"
+#include "decoding/svgdisplaysource.h"
 #include "image_test_support.h"
 #include "localization/imageerrortext.h"
-#include "rendering/heifdisplaysource.h"
-#include "rendering/svgdisplaysource.h"
 
 #include <QBuffer>
 #include <QByteArray>

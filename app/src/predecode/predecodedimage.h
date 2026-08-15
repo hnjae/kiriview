@@ -4,9 +4,9 @@
 #ifndef KIRIVIEW_PREDECODEDIMAGE_H
 #define KIRIVIEW_PREDECODEDIMAGE_H
 
+#include "decoding/staticimage.h"
 #include "location/imagelocation.h"
 #include "metadata/embeddedmetadata.h"
-#include "rendering/staticimage.h"
 
 #include <optional>
 

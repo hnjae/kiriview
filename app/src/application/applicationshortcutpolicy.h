@@ -12,10 +12,14 @@
 #include <QKeySequence>
 #include <QList>
 #include <QString>
+#include <QStringList>
 #include <QtGlobal>
 #include <optional>
 
 namespace kiriview::ApplicationActions {
+inline constexpr qsizetype maximumViewerLocalShortcutCount = 4;
+inline constexpr qsizetype maximumViewerLocalShortcutInputEntryCount = 16;
+
 struct ApplicationShortcutRoute
 {
     QList<ActionId> actionIds;
@@ -90,6 +94,8 @@ struct GenericShortcutDispatchOutcome
 
 QKeySequence menuShortcut(const QList<QKeySequence>& shortcuts);
 QList<QKeySequence> sanitizeProgramWideShortcuts(const QList<QKeySequence>& shortcuts);
+std::optional<QList<QKeySequence>> admitViewerLocalShortcuts(const QList<QKeySequence>& shortcuts);
+std::optional<QList<QKeySequence>> admitViewerLocalShortcutTexts(const QStringList& portableTexts);
 const QList<ApplicationShortcutRoute>& shortcutRoutes();
 FixedShortcutDispatchOutcome fixedShortcutDispatchOutcome(
     FixedShortcutDispatchInput input, const QKeySequence& shortcut);

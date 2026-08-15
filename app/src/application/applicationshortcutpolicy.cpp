@@ -90,6 +90,16 @@ bool shortcutHasCommandModifier(const QKeySequence& shortcut)
     return false;
 }
 
+bool shortcutUsesKnownKeys(const QKeySequence& shortcut)
+{
+    for (int index = 0; index < shortcut.count(); ++index) {
+        if (shortcut[static_cast<uint>(index)].key() == Qt::Key_unknown) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool exactShortcut(const QKeySequence& shortcut, const char* portableText)
 {
     return shortcut.matches(QKeySequence::fromString(
@@ -178,6 +188,56 @@ QList<QKeySequence> sanitizeProgramWideShortcuts(const QList<QKeySequence>& shor
     }
 
     return sanitizedShortcuts;
+}
+
+std::optional<QList<QKeySequence>> admitViewerLocalShortcuts(const QList<QKeySequence>& shortcuts)
+{
+    if (shortcuts.size() > maximumViewerLocalShortcutInputEntryCount) {
+        return std::nullopt;
+    }
+
+    QList<QKeySequence> admitted;
+    admitted.reserve(shortcuts.size());
+    for (const QKeySequence& shortcut : shortcuts) {
+        if (shortcut.isEmpty()) {
+            continue;
+        }
+        if (shortcut.toString(QKeySequence::PortableText).isEmpty()
+            || !shortcutUsesKnownKeys(shortcut)) {
+            return std::nullopt;
+        }
+        if (admitted.contains(shortcut)) {
+            continue;
+        }
+        if (admitted.size() == maximumViewerLocalShortcutCount) {
+            return std::nullopt;
+        }
+        admitted.push_back(shortcut);
+    }
+    return admitted;
+}
+
+std::optional<QList<QKeySequence>> admitViewerLocalShortcutTexts(const QStringList& portableTexts)
+{
+    if (portableTexts.size() > maximumViewerLocalShortcutInputEntryCount) {
+        return std::nullopt;
+    }
+
+    QList<QKeySequence> parsed;
+    parsed.reserve(portableTexts.size());
+    for (const QString& text : portableTexts) {
+        const QString trimmedText = text.trimmed();
+        if (trimmedText.isEmpty()) {
+            continue;
+        }
+        const QKeySequence shortcut
+            = QKeySequence::fromString(trimmedText, QKeySequence::PortableText);
+        if (shortcut.isEmpty()) {
+            return std::nullopt;
+        }
+        parsed.push_back(shortcut);
+    }
+    return admitViewerLocalShortcuts(parsed);
 }
 
 const QList<ApplicationShortcutRoute>& shortcutRoutes()

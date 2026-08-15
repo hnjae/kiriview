@@ -4,7 +4,7 @@
 #include "decoding/qimagereaderdecoder.h"
 
 #include "decoding/imagedecodeworkspace.h"
-#include "rendering/qimagereaderdisplaysource.h"
+#include "decoding/qimagereaderdisplaysource.h"
 
 #include <QBuffer>
 #include <QByteArrayList>

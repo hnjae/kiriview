@@ -4,8 +4,8 @@
 #include "jxlanimationreader.h"
 
 #include "animationtiming.h"
+#include "decoding/imagerendering.h"
 #include "localization/imageerrortext.h"
-#include "rendering/imagerendering.h"
 
 #include <jxl/decode.h>
 #include <jxl/thread_parallel_runner.h>

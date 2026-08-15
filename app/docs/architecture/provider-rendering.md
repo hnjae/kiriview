@@ -32,6 +32,8 @@ The KiriView provider adapter implements only the supported provider interface. 
 
 Source access, decode routing, cache lookup, predecode reuse, SVG rasterization, animation frame production, and refinement remain KiriView responsibilities. Provider results must carry the current public correlation values and valid payload facts required by the supported interface. Application extensions must not bypass that interface with an alternate image-presentation path.
 
+Decoding publishes source-neutral decoded and refinement results together with the lifetime holds required to use them safely. Provider-resource owners consume those results and adapt them into reusable application payloads and supported provider values. Dependency direction runs from those decoding-owned contracts through provider-resource adaptation to the supported viewport boundary; decoding does not depend on provider-resource or presentation-owned abstractions.
+
 Each accepted provider request has one authoritative application completion owner. A source-derived thumbnail may be emitted only through the protocol's provisional event and cannot consume, replace, or race that request's later authoritative terminal result. Decoded or predecoded authoritative payloads enter that same request owner as reusable source state rather than through a parallel presentation shortcut.
 
 The display image store owns KiriView's reusable decoded entries, byte accounting, priority, eviction, and leases. Provider ownership callbacks are the only dependency inputs that may change the application lease state; QML load status, visual-item lifetime, and polling are not application resource authorities.

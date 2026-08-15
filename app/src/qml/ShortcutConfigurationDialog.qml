@@ -202,7 +202,7 @@ FormCard.FormCardDialog {
 
             Controls.Label {
                 Layout.fillWidth: true
-                text: KI18n.i18nc("@info", "Enter one shortcut per line using portable key names, for example Ctrl+O. Leave the field empty to unassign this slot.")
+                text: root.editingActivationScope === KiriViewApplication.ViewerLocalShortcutScope ? KI18n.i18nc("@info", "Enter up to four shortcuts, one per line, using portable key names such as Ctrl+O. Leave the field empty to unassign this slot.") : KI18n.i18nc("@info", "Enter one shortcut per line using portable key names, for example Ctrl+O. Leave the field empty to unassign this slot.")
                 wrapMode: Text.Wrap
             }
 

@@ -5,10 +5,10 @@
 
 #include "cache/imagebyteaccounting.h"
 #include "cache/imagebytecost.h"
+#include "decoding/imagerendering.h"
+#include "decoding/staticimagedisplaysourcehelpers_p.h"
 #include "imagedecodeworkspace.h"
 #include "localization/imageerrortext.h"
-#include "rendering/imagerendering.h"
-#include "rendering/staticimagedisplaysourcehelpers_p.h"
 #include "staticimagedecode.h"
 
 #include <QColorSpace>

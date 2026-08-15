@@ -62,20 +62,6 @@ QStringList portableShortcutTexts(const QList<QKeySequence>& shortcuts)
     return texts;
 }
 
-QList<QKeySequence> shortcutsFromPortableTexts(const QStringList& texts)
-{
-    QList<QKeySequence> shortcuts;
-    shortcuts.reserve(texts.size());
-    for (const QString& text : texts) {
-        const QKeySequence shortcut = QKeySequence::fromString(text, QKeySequence::PortableText);
-        if (!shortcut.isEmpty()) {
-            shortcuts.push_back(shortcut);
-        }
-    }
-
-    return shortcuts;
-}
-
 std::optional<QList<QKeySequence>> validatedShortcutsFromPortableTexts(const QStringList& texts)
 {
     QList<QKeySequence> shortcuts;
@@ -221,6 +207,7 @@ QAbstractListModel* ApplicationShortcutRuntime::shortcutConfigurationModel() con
 void ApplicationShortcutRuntime::loadViewerLocalShortcuts()
 {
     KConfigGroup group(KSharedConfig::openConfig(), viewerLocalShortcutsGroup);
+    bool persistenceChanged = false;
     for (const ActionDefinition& definition : definitions()) {
         const std::optional<std::size_t> index = actionIndex(definition.actionId);
         if (!index.has_value()) {
@@ -228,9 +215,24 @@ void ApplicationShortcutRuntime::loadViewerLocalShortcuts()
         }
 
         const QString actionKey = QString::fromLatin1(definition.name);
-        m_viewerLocalShortcuts[*index] = group.hasKey(actionKey)
-            ? shortcutsFromPortableTexts(group.readEntry(actionKey, QStringList()))
-            : defaultShortcuts(definition.defaultViewerLocalShortcuts);
+        if (!group.hasKey(actionKey)) {
+            m_viewerLocalShortcuts[*index]
+                = defaultShortcuts(definition.defaultViewerLocalShortcuts);
+            continue;
+        }
+
+        const QStringList storedTexts = group.readEntry(actionKey, QStringList());
+        const std::optional<QList<QKeySequence>> admitted
+            = admitViewerLocalShortcutTexts(storedTexts);
+        m_viewerLocalShortcuts[*index] = admitted.value_or(QList<QKeySequence> {});
+        const QStringList canonicalTexts = portableShortcutTexts(m_viewerLocalShortcuts[*index]);
+        if (!admitted.has_value() || canonicalTexts != storedTexts) {
+            group.writeEntry(actionKey, canonicalTexts);
+            persistenceChanged = true;
+        }
+    }
+    if (persistenceChanged) {
+        group.sync();
     }
 }
 
@@ -327,7 +329,12 @@ bool ApplicationShortcutRuntime::setViewerLocalShortcutsForId(
         return false;
     }
 
-    m_viewerLocalShortcuts[*index] = shortcuts;
+    const std::optional<QList<QKeySequence>> admitted = admitViewerLocalShortcuts(shortcuts);
+    if (!admitted.has_value()) {
+        return false;
+    }
+
+    m_viewerLocalShortcuts[*index] = *admitted;
     persistViewerLocalShortcuts(actionId);
     notifyShortcutRowsChanged();
     return true;
@@ -336,17 +343,17 @@ bool ApplicationShortcutRuntime::setViewerLocalShortcutsForId(
 bool ApplicationShortcutRuntime::setShortcutTextsForId(
     ActionId actionId, ApplicationShortcutActivationScope scope, const QStringList& portableTexts)
 {
-    const std::optional<QList<QKeySequence>> shortcuts
-        = validatedShortcutsFromPortableTexts(portableTexts);
-    if (!shortcuts.has_value()) {
-        return false;
-    }
-
     switch (scope) {
-    case ApplicationShortcutActivationScope::ProgramWide:
-        return setProgramWideShortcutsForId(actionId, *shortcuts);
-    case ApplicationShortcutActivationScope::ViewerLocal:
-        return setViewerLocalShortcutsForId(actionId, *shortcuts);
+    case ApplicationShortcutActivationScope::ProgramWide: {
+        const std::optional<QList<QKeySequence>> shortcuts
+            = validatedShortcutsFromPortableTexts(portableTexts);
+        return shortcuts.has_value() && setProgramWideShortcutsForId(actionId, *shortcuts);
+    }
+    case ApplicationShortcutActivationScope::ViewerLocal: {
+        const std::optional<QList<QKeySequence>> shortcuts
+            = admitViewerLocalShortcutTexts(portableTexts);
+        return shortcuts.has_value() && setViewerLocalShortcutsForId(actionId, *shortcuts);
+    }
     }
 
     return false;

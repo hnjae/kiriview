@@ -6,11 +6,11 @@
 
 #include "async/timerscheduler.h"
 #include "decoding/imagedecodedependencies.h"
+#include "decoding/staticimage.h"
 #include "predecodedimage.h"
 #include "predecodeloadcontroller.h"
 #include "predecoderuntimefacts.h"
 #include "predecodescheduleruntime.h"
-#include "rendering/staticimage.h"
 #include "system/powersaverprovider.h"
 
 #include <QObject>

@@ -1079,6 +1079,13 @@ msgstr ""
 #: src/qml/ShortcutConfigurationDialog.qml
 msgctxt "@info"
 msgid ""
+"Enter up to four shortcuts, one per line, using portable key names such as "
+"Ctrl+O. Leave the field empty to unassign this slot."
+msgstr ""
+
+#: src/qml/ShortcutConfigurationDialog.qml
+msgctxt "@info"
+msgid ""
 "Enter one shortcut per line using portable key names, for example Ctrl+O. "
 "Leave the field empty to unassign this slot."
 msgstr ""

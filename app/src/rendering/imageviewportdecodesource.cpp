@@ -6,9 +6,9 @@
 #include "cache/imagebytecost.h"
 #include "decoding/imagedecodelogging.h"
 #include "decoding/imagedecodeworkspace.h"
+#include "decoding/imagerendering.h"
 #include "localization/imageerrortext.h"
 #include "localization/mediaentrysourceerrortext.h"
-#include "rendering/imagerendering.h"
 
 #include <ImageViewport/imagesequence.h>
 

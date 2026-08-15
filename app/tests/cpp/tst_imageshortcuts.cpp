@@ -55,6 +55,7 @@ private Q_SLOTS:
     void shiftArrowsAreIgnoredWhileViewerShortcutsAreSuppressed();
     void zoomPresetAndFitShortcutsUseNewMapping();
     void configuredActionShortcutsTriggerActions();
+    void invalidPersistedViewerShortcutDoesNotDispatch();
     void quitViewerLocalShortcutTriggersQuitAction();
     void windowCommandShortcutsWorkWithoutQmlShortcutInstallers();
     void videoViewerLocalShortcutTriggersFullscreenAction();
@@ -688,6 +689,30 @@ void TestImageShortcuts::configuredActionShortcutsTriggerActions()
 
     pressKey(fixture.view.get(), Qt::Key_R, Qt::ControlModifier);
     QCOMPARE(triggeredSpy.count(), 1);
+}
+
+void TestImageShortcuts::invalidPersistedViewerShortcutDoesNotDispatch()
+{
+    KConfigGroup group(KSharedConfig::openConfig(), QStringLiteral("ViewerLocalShortcuts"));
+    group.writeEntry(QStringLiteral("view_rotate_clockwise"),
+        QStringList { QStringLiteral("R"), QStringLiteral("Ctrl+") });
+    group.sync();
+    KSharedConfig::openConfig()->reparseConfiguration();
+
+    ImageShortcutsFixture fixture = createReadyFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    QTRY_VERIFY(documentReady(fixture.root));
+
+    QAction* rotateAction
+        = fixture.application->actionForId(KiriViewApplication::ViewRotateClockwiseAction);
+    QVERIFY(rotateAction != nullptr);
+    QSignalSpy triggeredSpy(rotateAction, &QAction::triggered);
+
+    pressKey(fixture.view.get(), Qt::Key_R);
+    QCOMPARE(triggeredSpy.count(), 0);
+    QCOMPARE(fixture.application->viewerLocalShortcutsForId(
+                 KiriViewApplication::ViewRotateClockwiseAction),
+        QList<QKeySequence>());
 }
 
 void TestImageShortcuts::quitViewerLocalShortcutTriggersQuitAction()

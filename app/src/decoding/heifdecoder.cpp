@@ -13,13 +13,13 @@
 
 #include "heifdecoder.h"
 
+#include "decoding/heifdisplaysource.h"
 #include "heifcontainer.h"
 #include "heifsequencereader.h"
 #include "heifsupport.h"
 #include "imageanimationsourcecatalog.h"
 #include "imagedecoderequest.h"
 #include "location/sourcekey.h"
-#include "rendering/heifdisplaysource.h"
 #include "staticimagedecode.h"
 
 #include <memory>

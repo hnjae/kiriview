@@ -4,8 +4,8 @@
 #include "cache/imagebytecost.h"
 #include "decoding/rawdecoder.h"
 #include "decoding/rawthumbnailpreview.h"
+#include "decoding/svgdisplaysource.h"
 #include "decoding/thumbnailpreview.h"
-#include "rendering/svgdisplaysource.h"
 
 #include <QBuffer>
 #include <QColor>

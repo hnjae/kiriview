@@ -5,10 +5,10 @@
 #define KIRIVIEW_TESTS_IMAGE_TEST_SUPPORT_H
 
 #include "candidate_test_support.h"
+#include "decoding/staticimage.h"
 #include "document/imagedocumentruntimedependencies.h"
 #include "image_async_test_support.h"
 #include "location/sourcekey.h"
-#include "rendering/staticimage.h"
 
 #include <QByteArray>
 #include <QImage>

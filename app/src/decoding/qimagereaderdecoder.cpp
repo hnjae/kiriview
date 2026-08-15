@@ -4,13 +4,13 @@
 #include "qimagereaderdecoder.h"
 
 #include "bufferedimagereader.h"
+#include "decoding/imagerendering.h"
+#include "decoding/qimagereaderdisplaysource.h"
 #include "imageanimationrequest.h"
 #include "imageanimationsourcecatalog.h"
 #include "imagedecodeworkspace.h"
 #include "localization/imageerrortext.h"
 #include "location/sourcekey.h"
-#include "rendering/imagerendering.h"
-#include "rendering/qimagereaderdisplaysource.h"
 #include "staticimagedecode.h"
 
 #include <QImage>

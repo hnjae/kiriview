@@ -5,9 +5,9 @@
 #define KIRIVIEW_IMAGELOADSESSIONTRACKER_H
 
 #include "async/imageasyncticket.h"
+#include "decoding/staticimage.h"
 #include "imageloadplan.h"
 #include "navigation/imagedocumentpagenavigationtypes.h"
-#include "rendering/staticimage.h"
 
 #include <QUrl>
 #include <QtGlobal>

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-#include "rendering/heifdisplaysource.h"
+#include "decoding/heifdisplaysource.h"
 
 #include "decoding/imagedecodeworkspace.h"
 

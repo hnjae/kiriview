@@ -36,7 +36,7 @@ src/archive/mediaentrysourcerunner.cpp
 src/archive/archiveformat.cpp
 src/archive/archivepath.cpp
 src/decoding/bufferedimagereader.cpp
-src/rendering/animationsourceruntime.cpp
+src/decoding/animationsourceruntime.cpp
 src/rendering/displayimagestore.cpp
 src/rendering/imageviewportdecodesource.cpp
 src/rendering/imageviewportfailureregistry.cpp
@@ -59,8 +59,8 @@ src/decoding/imageanimationrequest.cpp
 src/decoding/imageanimationsourcecatalog.cpp
 src/decoding/jxlanimationreader.cpp
 src/async/directorylistingjob.cpp
-src/rendering/heifdisplaysource.cpp
-src/presentation/imageanimationplaybacksource.cpp
+src/decoding/heifdisplaysource.cpp
+src/decoding/imageanimationplaybacksource.cpp
 src/async/imageasyncoperationstate.cpp
 src/async/imagerefinementscheduler.cpp
 src/application/imageactionavailabilitypolicy.cpp
@@ -72,7 +72,7 @@ src/navigation/imagedocumentpagecandidatelistsource.cpp
 src/navigation/imagecontainernavigationcontroller.cpp
 src/navigation/imagecontainernavigationstate.cpp
 src/location/imagedocumentlocation.cpp
-src/rendering/imagerendering.cpp
+src/decoding/imagerendering.cpp
 src/document/imagedocumentchangebatcher.cpp
 src/document/imagedocumentdeletioncontroller.cpp
 src/document/imagedocumentdeletionfallbackcontroller.cpp
@@ -116,7 +116,7 @@ src/navigation/imagecontaineropenplan.cpp
 src/async/imageiojob.cpp
 src/location/imagelocation.cpp
 src/location/sourcekey.cpp
-src/rendering/staticimagedisplaysourcehelpers.cpp
+src/decoding/staticimagedisplaysourcehelpers.cpp
 src/document/imageloader.cpp
 src/document/imageloadplan.cpp
 src/document/imageloadtypes.cpp
@@ -174,7 +174,7 @@ src/predecode/predecodescheduleruntime.cpp
 src/predecode/predecodeschedulestate.cpp
 src/predecode/predecodewindowplan.cpp
 src/decoding/qimagereaderdecoder.cpp
-src/rendering/qimagereaderdisplaysource.cpp
+src/decoding/qimagereaderdisplaysource.cpp
 src/decoding/rawdecoder.cpp
 src/decoding/rawthumbnailpreview.cpp
 src/application/shortcuthelpmodel.cpp
@@ -228,12 +228,12 @@ src/facade/documentsessionpublicsignals.cpp
 src/facade/mediaopendialogfilters.cpp
 src/session/documentsessionstate.cpp
 src/session/windowtitleprojection.cpp
-src/rendering/staticimage.cpp
+src/decoding/staticimage.cpp
 src/decoding/staticimagedecode.cpp
 src/decoding/thumbnailpreview.cpp
 src/decoding/webpanimationreader.cpp
 src/system/systemmemory.cpp
-src/rendering/svgdisplaysource.cpp
+src/decoding/svgdisplaysource.cpp
 src/video/videooutputrendercontextobserver.cpp
 src/video/videooutputruntime.cpp
 src/video/videodocumentruntime.cpp

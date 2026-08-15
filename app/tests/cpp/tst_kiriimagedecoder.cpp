@@ -4,10 +4,10 @@
 #include "decoding/kiriimagedecoder.h"
 
 #include "decoding/heifcontainer.h"
+#include "decoding/heifdisplaysource.h"
 #include "decoding/heifsequencereader.h"
+#include "decoding/qimagereaderdisplaysource.h"
 #include "image_test_support.h"
-#include "rendering/heifdisplaysource.h"
-#include "rendering/qimagereaderdisplaysource.h"
 
 #include <ImageViewport/imagesequence.h>
 #include <libheif/heif.h>

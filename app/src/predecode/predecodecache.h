@@ -4,12 +4,12 @@
 #ifndef KIRIVIEW_PREDECODECACHE_H
 #define KIRIVIEW_PREDECODECACHE_H
 
+#include "decoding/staticimage.h"
 #include "location/imagelocation.h"
 #include "predecodeactiveloads.h"
 #include "predecodedimage.h"
 #include "predecodedisplayedhistory.h"
 #include "predecodeimagekey.h"
-#include "rendering/staticimage.h"
 
 #include <QtGlobal>
 #include <cstddef>

@@ -88,6 +88,7 @@ private Q_SLOTS:
     void programWideSanitizationKeepsTextInputSafeShortcuts();
     void menuShortcutSkipsViewerLocalShortcuts();
     void sanitizeProgramWideShortcutsRemovesUnmodifiedTextInputShortcuts();
+    void viewerLocalShortcutAdmissionIsBoundedAndCanonical();
     void actionDefinitionsOwnApplicationShortcutRoutes();
     void actionDefinitionsOwnShortcutHelpCategories();
     void shortcutRoutesGroupDefinitionOwnedSpecs();
@@ -153,6 +154,42 @@ void TestApplicationShortcutPolicy::
     QCOMPARE(kiriview::ApplicationActions::sanitizeProgramWideShortcuts(shortcuts),
         QList<QKeySequence>({ shortcut(QStringLiteral("Shift+Q")),
             shortcut(QStringLiteral("Ctrl+Q")), shortcut(QStringLiteral("Delete")) }));
+}
+
+void TestApplicationShortcutPolicy::viewerLocalShortcutAdmissionIsBoundedAndCanonical()
+{
+    using kiriview::ApplicationActions::admitViewerLocalShortcuts;
+    using kiriview::ApplicationActions::admitViewerLocalShortcutTexts;
+
+    const auto canonical = admitViewerLocalShortcutTexts(
+        { QStringLiteral(" Ctrl+L "), {}, QStringLiteral("Ctrl+L"), QStringLiteral("Shift+L") });
+    QVERIFY(canonical.has_value());
+    QCOMPARE(*canonical,
+        QList<QKeySequence>(
+            { shortcut(QStringLiteral("Ctrl+L")), shortcut(QStringLiteral("Shift+L")) }));
+
+    const auto fullWithTrailingBlank = admitViewerLocalShortcutTexts({ QStringLiteral("Ctrl+1"),
+        QStringLiteral("Ctrl+2"), QStringLiteral("Ctrl+3"), QStringLiteral("Ctrl+4"), {} });
+    QVERIFY(fullWithTrailingBlank.has_value());
+    QCOMPARE(fullWithTrailingBlank->size(), 4);
+
+    QVERIFY(!admitViewerLocalShortcutTexts(
+        { QStringLiteral("Ctrl+1"), QStringLiteral("Ctrl+2"), QStringLiteral("Ctrl+3"),
+            QStringLiteral("Ctrl+4"), QStringLiteral("Ctrl+5") })
+            .has_value());
+    QVERIFY(!admitViewerLocalShortcutTexts({ QStringLiteral("Ctrl+") }).has_value());
+
+    const QKeySequence unknownKey(QKeyCombination(Qt::ControlModifier, Qt::Key_unknown));
+    QVERIFY(!admitViewerLocalShortcuts({ unknownKey }).has_value());
+
+    QStringList excessiveRawInput;
+    excessiveRawInput.fill(QString(), 17);
+    QVERIFY(!admitViewerLocalShortcutTexts(excessiveRawInput).has_value());
+
+    const QList<QKeySequence> excessive { shortcut(QStringLiteral("Alt+1")),
+        shortcut(QStringLiteral("Alt+2")), shortcut(QStringLiteral("Alt+3")),
+        shortcut(QStringLiteral("Alt+4")), shortcut(QStringLiteral("Alt+5")) };
+    QVERIFY(!admitViewerLocalShortcuts(excessive).has_value());
 }
 
 void TestApplicationShortcutPolicy::actionDefinitionsOwnApplicationShortcutRoutes()

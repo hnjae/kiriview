@@ -4,8 +4,8 @@
 #ifndef KIRIVIEW_ANIMATIONSOURCERUNTIME_H
 #define KIRIVIEW_ANIMATIONSOURCERUNTIME_H
 
+#include "decoding/imageanimationplaybacksource.h"
 #include "decoding/imagedecodeworkspace.h"
-#include "presentation/imageanimationplaybacksource.h"
 
 #include <QImage>
 #include <QString>

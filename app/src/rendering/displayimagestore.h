@@ -4,8 +4,8 @@
 #ifndef KIRIVIEW_DISPLAYIMAGESTORE_H
 #define KIRIVIEW_DISPLAYIMAGESTORE_H
 
+#include "decoding/displayimagequality.h"
 #include "decoding/imagesourcerevision.h"
-#include "rendering/displayimagequality.h"
 
 #include <QImage>
 #include <QImageIOHandler>

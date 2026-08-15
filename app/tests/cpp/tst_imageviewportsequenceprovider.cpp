@@ -5,6 +5,7 @@
 #include "decoding/apnganimationreader.h"
 #include "decoding/imagesourcerevision.h"
 #include "decoding/kiriimagedecoder.h"
+#include "decoding/svgdisplaysource.h"
 #include "image_test_support.h"
 #include "localization/imageerrortext.h"
 #include "location/imagelocation.h"
@@ -12,7 +13,6 @@
 #include "location/sourcekey.h"
 #include "rendering/imageviewportdecodesource.h"
 #include "rendering/imageviewportsequenceprovider.h"
-#include "rendering/svgdisplaysource.h"
 
 #include <ImageViewport/imagesequence.h>
 #include <ImageViewport/imageviewport.h>

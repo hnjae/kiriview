@@ -5,11 +5,11 @@
 
 #include "bufferedimagereader.h"
 #include "cache/imagebytecost.h"
+#include "decoding/imagerendering.h"
 #include "imageinputclassification.h"
 #include "localization/imageerrortext.h"
 #include "location/sourcekey.h"
 #include "rawdecoder.h"
-#include "rendering/imagerendering.h"
 
 #include <QColorSpace>
 #include <algorithm>

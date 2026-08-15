@@ -1,16 +1,16 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-#include "presentation/imageanimationplaybacksource.h"
+#include "decoding/imageanimationplaybacksource.h"
 
 #include "decoding/apnganimationreader.h"
 #include "decoding/bufferedimagereader.h"
 #include "decoding/heifsequencereader.h"
 #include "decoding/imageanimationsourcecatalog.h"
+#include "decoding/imagerendering.h"
 #include "decoding/jxlanimationreader.h"
 #include "decoding/webpanimationreader.h"
 #include "localization/imageerrortext.h"
-#include "rendering/imagerendering.h"
 
 #include <QImage>
 #include <limits>

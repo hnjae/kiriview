@@ -339,6 +339,31 @@ in
         '';
     };
 
+    "ci:app:lint:cpp:decoding-boundary" = {
+      description = "Reject decoding dependencies on rendering and presentation headers";
+      showOutput = true;
+      before = [ "ci:lint" ];
+      exec = # sh
+        ''
+          ${baseTaskPrelude}
+
+          if forbidden_includes="$(${lib.getExe pkgs.ripgrep} \
+              --line-number \
+              --glob '*.{h,cpp}' \
+              '^[[:space:]]*#[[:space:]]*include[[:space:]]*[<"][^">]*(rendering|presentation)/' \
+              src/decoding)"; then
+              printf 'Decoding sources must not include rendering or presentation headers:\n' >&2
+              printf '%s\n' "$forbidden_includes" >&2
+              exit 1
+          else
+              search_status=$?
+              if ((search_status != 1)); then
+                  exit "$search_status"
+              fi
+          fi
+        '';
+    };
+
     "ci:app:lint:cpp:prepare" = {
       description = "Prepare the app C++ compilation database for linting";
       showOutput = true;

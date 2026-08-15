@@ -5,10 +5,10 @@
 #define KIRIVIEW_PREDECODELOADSTATE_H
 
 #include "decoding/imagedecoderequest.h"
+#include "decoding/staticimage.h"
 #include "predecodeactiveloads.h"
 #include "predecodecache.h"
 #include "predecodedimage.h"
-#include "rendering/staticimage.h"
 
 #include <QtGlobal>
 #include <cstddef>

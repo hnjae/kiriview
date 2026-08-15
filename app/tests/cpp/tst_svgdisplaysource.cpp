@@ -1,18 +1,67 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-#include "rendering/svgdisplaysource.h"
+#include "decoding/svgdisplaysource.h"
 
 #include "decoding/imagedecodeworkspace.h"
+#include "decoding/svgworkerlimits.h"
 
 #include <QColor>
 #include <QObject>
 #include <QTest>
 #include <Qt>
+#include <QtEndian>
+#include <cstdlib>
 #include <memory>
 #include <optional>
+#include <utility>
+#include <vector>
 
 namespace {
+class ScriptedSvgWorkerProcessExecutor final : public kiriview::SvgWorkerProcessExecutor
+{
+public:
+    explicit ScriptedSvgWorkerProcessExecutor(std::vector<kiriview::SvgWorkerProcessResult> results)
+        : m_results(std::move(results))
+    {
+    }
+
+    [[nodiscard]] kiriview::SvgWorkerProcessResult execute(
+        const kiriview::SvgWorkerProcessRequest& request) const override
+    {
+        m_requests.push_back(request);
+        if (m_nextResult >= m_results.size()) {
+            return {};
+        }
+        return m_results[m_nextResult++];
+    }
+
+    [[nodiscard]] const std::vector<kiriview::SvgWorkerProcessRequest>& requests() const
+    {
+        return m_requests;
+    }
+
+private:
+    std::vector<kiriview::SvgWorkerProcessResult> m_results;
+    mutable std::size_t m_nextResult = 0;
+    mutable std::vector<kiriview::SvgWorkerProcessRequest> m_requests;
+};
+
+QByteArray encodedSvgSize(QSize size)
+{
+    QByteArray encoded(8, '\0');
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast) -- fixed worker protocol.
+    auto* bytes = reinterpret_cast<uchar*>(encoded.data());
+    qToBigEndian<qint32>(size.width(), bytes);
+    qToBigEndian<qint32>(size.height(), bytes + 4);
+    return encoded;
+}
+
+kiriview::SvgWorkerProcessResult exitedWorkerResult(int exitCode, QByteArray output = {})
+{
+    return { kiriview::SvgWorkerProcessOutcome::Exited, exitCode, std::move(output) };
+}
+
 QByteArray clippedSvgData()
 {
     return QByteArrayLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"12\" height=\"8\">"
@@ -40,6 +89,8 @@ private Q_SLOTS:
     void initialPreflightAccountsOnlyForSelectedDisplayPath();
     void sourceReportsFirstDisplayRenderFailure();
     void sourceReportsWholeSurfaceRenderFailure();
+    void workerFailureIsTypedAndRecovers_data();
+    void workerFailureIsTypedAndRecovers();
     void workerLimitFailureIsTypedAndDoesNotPoisonLaterRendering();
     void sourceAppliesClipPathToBlockingAndBucketDisplay();
     void sourceRendersOversampledDisplayBucket();
@@ -214,6 +265,77 @@ void TestSvgDisplaySource::sourceReportsWholeSurfaceRenderFailure()
     QVERIFY(source.supportsRasterDisplayRefinement());
     QVERIFY(bucket.image.isNull());
     QVERIFY(!bucket.diagnostics.userMessage.isEmpty());
+}
+
+void TestSvgDisplaySource::workerFailureIsTypedAndRecovers_data()
+{
+    using FailureCause = kiriview::StaticImageDisplayDecodeFailureCause;
+    using Outcome = kiriview::SvgWorkerProcessOutcome;
+
+    QTest::addColumn<Outcome>("outcome");
+    QTest::addColumn<int>("exitCode");
+    QTest::addColumn<QByteArray>("output");
+    QTest::addColumn<FailureCause>("expectedFailureCause");
+
+    QTest::newRow("start-failure")
+        << Outcome::StartFailed << -1 << QByteArray {} << FailureCause::Decode;
+    QTest::newRow("write-failure")
+        << Outcome::WriteFailed << -1 << QByteArray {} << FailureCause::Decode;
+    QTest::newRow("completion-timeout")
+        << Outcome::TimedOut << -1 << QByteArray {} << FailureCause::ResourceExhausted;
+    QTest::newRow("abnormal-exit")
+        << Outcome::Crashed << -1 << QByteArray {} << FailureCause::ResourceExhausted;
+    QTest::newRow("decode-exit") << Outcome::Exited << kiriview::svgWorkerDecodeErrorExitCode
+                                 << QByteArray {} << FailureCause::Decode;
+    QTest::newRow("resource-exit")
+        << Outcome::Exited << kiriview::svgWorkerResourceExhaustedExitCode << QByteArray {}
+        << FailureCause::ResourceExhausted;
+    QTest::newRow("arbitrary-exit")
+        << Outcome::Exited << 17 << QByteArray {} << FailureCause::Decode;
+    QTest::newRow("malformed-output")
+        << Outcome::Exited << EXIT_SUCCESS << QByteArrayLiteral("short") << FailureCause::Decode;
+}
+
+void TestSvgDisplaySource::workerFailureIsTypedAndRecovers()
+{
+    QFETCH(kiriview::SvgWorkerProcessOutcome, outcome);
+    QFETCH(int, exitCode);
+    QFETCH(QByteArray, output);
+    QFETCH(kiriview::StaticImageDisplayDecodeFailureCause, expectedFailureCause);
+
+    const QByteArray data
+        = QByteArrayLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"2\" height=\"1\"/>");
+    auto executor = std::make_shared<ScriptedSvgWorkerProcessExecutor>(
+        std::vector<kiriview::SvgWorkerProcessResult> {
+            exitedWorkerResult(EXIT_SUCCESS, encodedSvgSize(QSize(2, 1))),
+            { outcome, exitCode, std::move(output) },
+            exitedWorkerResult(EXIT_SUCCESS, QByteArray(8, '\0')),
+        });
+
+    QString errorString;
+    const std::shared_ptr<kiriview::SvgDisplaySource> source
+        = kiriview::SvgDisplaySource::open(data, &errorString, {}, nullptr, executor);
+    QVERIFY2(source != nullptr, qPrintable(errorString));
+
+    const kiriview::StaticImageDisplayDecodeResult failed
+        = source->decodeRasterDisplayImage(QSize(2, 1));
+    QVERIFY(failed.image.isNull());
+    QCOMPARE(failed.failureCause, expectedFailureCause);
+
+    const kiriview::StaticImageDisplayDecodeResult recovered
+        = source->decodeRasterDisplayImage(QSize(2, 1));
+    QVERIFY2(!recovered.image.isNull(), qPrintable(recovered.diagnostics.userMessage));
+    QCOMPARE(recovered.image.size(), QSize(2, 1));
+
+    const auto& requests = executor->requests();
+    QCOMPARE(requests.size(), std::size_t(3));
+    QCOMPARE(requests[0].arguments, QStringList { QStringLiteral("intrinsic") });
+    QCOMPARE(requests[1].arguments,
+        QStringList({ QStringLiteral("render"), QStringLiteral("2"), QStringLiteral("1") }));
+    QCOMPARE(requests[2].arguments, requests[1].arguments);
+    for (const kiriview::SvgWorkerProcessRequest& request : requests) {
+        QCOMPARE(request.input, data);
+    }
 }
 
 void TestSvgDisplaySource::workerLimitFailureIsTypedAndDoesNotPoisonLaterRendering()

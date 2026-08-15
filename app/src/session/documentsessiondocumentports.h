@@ -5,12 +5,12 @@
 #define KIRIVIEW_DOCUMENTSESSIONDOCUMENTPORTS_H
 
 #include "archive/mediaentrysourcebackend.h"
+#include "decoding/staticimage.h"
 #include "location/imagelocation.h"
 #include "metadata/embeddedmetadata.h"
 #include "navigation/imagedocumentpagecandidatelistsource.h"
 #include "navigation/imagedocumentpagenavigationtypes.h"
 #include "predecode/predecodedimage.h"
-#include "rendering/staticimage.h"
 #include "session/activenavigationprojection.h"
 #include "session/documentsessiontypes.h"
 #include "system/filedeletion.h"

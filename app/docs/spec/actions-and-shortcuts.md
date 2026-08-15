@@ -72,6 +72,10 @@ Changing a shortcut updates the toolbar, application menu, menubar, shortcut hel
 
 Shortcut changes apply immediately and persist across launches.
 
+Each viewer-local action slot accepts at most four distinct nonblank key sequences. Viewer-local shortcut input is rejected before normalization when its collection contains more than sixteen entries; within that input envelope, normalization trims surrounding whitespace, ignores blank entries, preserves the first occurrence of a duplicate sequence, and rejects an invalid or unknown key sequence or a fifth distinct sequence. A rejected edit leaves the previously accepted shortcuts unchanged.
+
+On launch, a missing viewer-local shortcut setting uses the declared default and an explicitly empty setting remains unassigned. A present setting is reconstructed with the same normalization rules as an accepted edit; malformed, unknown-key, or over-limit settings recover to an unassigned slot and are persisted in that canonical form. Recovery never changes the slot's viewer-local activation scope or creates a program-wide alias.
+
 Changing a program-wide shortcut does not create a viewer-local alias, and changing a viewer-local shortcut does not create a program-wide fallback.
 
 Unmodified ASCII printable shortcuts are not kept as program-wide user-configurable action shortcuts.

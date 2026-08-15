@@ -213,7 +213,7 @@ set_target_properties(KiriViewRustSupportBridge PROPERTIES CXX_EXTENSIONS OFF)
 target_include_directories(KiriViewRustSupportBridge PUBLIC "${KIRIVIEW_CXXBRIDGE_OUTPUT_DIR}")
 target_link_libraries(KiriViewRustSupportBridge PUBLIC KiriViewRustSupportArchive)
 
-add_executable(KiriViewSvgWorker src/rendering/svgworker.cpp)
+add_executable(KiriViewSvgWorker src/decoding/svgworker.cpp)
 target_compile_features(KiriViewSvgWorker PRIVATE cxx_std_23)
 set_target_properties(KiriViewSvgWorker PROPERTIES CXX_EXTENSIONS OFF)
 set_target_properties(KiriViewSvgWorker PROPERTIES OUTPUT_NAME kiriview-svg-worker)

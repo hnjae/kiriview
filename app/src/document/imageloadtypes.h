@@ -5,10 +5,10 @@
 #define KIRIVIEW_IMAGELOADTYPES_H
 
 #include "decoding/imagedecoderequest.h"
+#include "decoding/staticimage.h"
 #include "imagedocumentsourceloadrequest.h"
 #include "location/imagelocation.h"
 #include "navigation/imagedocumentpagenavigationtypes.h"
-#include "rendering/staticimage.h"
 
 #include <QUrl>
 #include <QtGlobal>

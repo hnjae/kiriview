@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-#include "presentation/imageanimationplaybacksource.h"
-#include "rendering/animationsourceruntime.h"
+#include "decoding/animationsourceruntime.h"
+#include "decoding/imageanimationplaybacksource.h"
 
 #include <QColor>
 #include <QImage>

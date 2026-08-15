@@ -3,8 +3,8 @@
 
 #include "heifsupport.h"
 
+#include "decoding/imagerendering.h"
 #include "localization/imageerrortext.h"
-#include "rendering/imagerendering.h"
 
 #include <QColorSpace>
 #include <algorithm>
