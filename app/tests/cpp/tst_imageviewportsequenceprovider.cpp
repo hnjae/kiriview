@@ -622,6 +622,7 @@ private Q_SLOTS:
     void deferredDecodeSourceInvalidationDropsLateResolution();
     void deferredDecodeSourceSuppressesProvisionalFrameUntilAuthoritativeTerminal();
     void providerResourceSeparatesWorkAndDisplayReuseIdentity();
+    void sharedBackingAliasesPreservePreparedFrameQualityAndExactness();
     void providerResourceAccountsAncillaryPayload();
     void providerResourcePreservesDistinctTimedFramePixelsAndHandles();
     void apngFirstFramePublishesBeforeLaterRasterFailure();
@@ -653,6 +654,7 @@ private Q_SLOTS:
     void newerInitialRefinementBoundsTimedOutWork();
     void synchronousInitialRefinementCompletesExactlyOnce();
     void initialRefinementUsesProducerPeakBudget();
+    void nonExactRefinementPlanningReclaimsDisplayOutputPressure();
     void exactRefinementProducerBudgetFailsBeforeWork();
     void refinementOutputExceedingPreflightIsResourceExhausted();
     void refinementAllocationFailureIsResourceExhausted();
@@ -1467,6 +1469,97 @@ void TestImageViewportSequenceProvider::providerResourceSeparatesWorkAndDisplayR
             });
     QVERIFY(unsupportedPrepared.isUnsupported());
     QVERIFY(!unsupportedResource->bindDisplayLocationIdentity(QStringLiteral("too-late")));
+}
+
+void TestImageViewportSequenceProvider::
+    sharedBackingAliasesPreservePreparedFrameQualityAndExactness()
+{
+    constexpr QSize rasterSize(16, 32);
+    const qsizetype frameByteCost = kiriview::estimatedRgbaByteCost(rasterSize);
+    auto source = std::make_shared<FakeImageViewportProviderSource>();
+    auto store = std::make_shared<kiriview::DisplayImageStore>(frameByteCost * 2);
+    auto resource = std::make_shared<kiriview::ImageViewportProviderResource>(
+        110, QStringLiteral("shared-backing-work"), source, store);
+    QVERIFY(resource->bindDisplayLocationIdentity(QStringLiteral("shared-backing-display")));
+
+    kiriview::StaticDisplayImagePayload sharedPayload
+        = displayPayload(kiriview::DisplayImageQuality::Exact, rasterSize, rasterSize);
+    const uchar* const sharedPixels = sharedPayload.image.constBits();
+    const auto requestFrame
+        = [&resource](const kiriview::ImageViewportProviderWorkIdentity& identity) {
+              kiriview::ImageViewportProviderPreparedFrame prepared;
+              resource->requestFrame(identity, {},
+                  [&prepared](kiriview::ImageViewportProviderWorkIdentity,
+                      kiriview::ImageViewportProviderPreparedFrame result) {
+                      prepared = std::move(result);
+                  });
+              return prepared;
+          };
+    const kiriview::ImageViewportProviderWorkIdentity primaryIdentity {
+        110,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("shared-backing-work"),
+    };
+    source->automaticFrame = kiriview::ImageViewportProviderFrameResult::ready(
+        sharedPayload, ImageSequenceProviderFrameEnvelope::stillFrame(), QStringLiteral("png"));
+    const kiriview::ImageViewportProviderPreparedFrame primaryPrepared
+        = requestFrame(primaryIdentity);
+
+    QVERIFY(primaryPrepared.isReady());
+    QVERIFY(store->entry(primaryPrepared.storeEntryId).has_value());
+    QVERIFY(store->entry(primaryPrepared.storeEntryId)->image.constBits() == sharedPixels);
+
+    kiriview::StaticDisplayImagePayload secondaryPayload = sharedPayload;
+    secondaryPayload.image = store->entry(primaryPrepared.storeEntryId)->image;
+    secondaryPayload.quality = kiriview::DisplayImageQuality::BoundedDetail;
+    source->automaticFrame
+        = kiriview::ImageViewportProviderFrameResult::ready(std::move(secondaryPayload),
+            ImageSequenceProviderFrameEnvelope::stillFrame(), QStringLiteral("png"));
+    const kiriview::ImageViewportProviderWorkIdentity secondaryIdentity {
+        110,
+        ImageViewportPageRole::Secondary,
+        {},
+        {},
+        QStringLiteral("shared-backing-work"),
+    };
+    const kiriview::ImageViewportProviderPreparedFrame secondaryPrepared
+        = requestFrame(secondaryIdentity);
+
+    QVERIFY(secondaryPrepared.isReady());
+    QCOMPARE(primaryPrepared.reuseKey.pageRole, kiriview::DisplayedPageRole::Primary);
+    QCOMPARE(secondaryPrepared.reuseKey.pageRole, kiriview::DisplayedPageRole::Secondary);
+    QCOMPARE(primaryPrepared.reuseKey.quality, kiriview::DisplayImageQuality::Exact);
+    QCOMPARE(secondaryPrepared.reuseKey.quality, kiriview::DisplayImageQuality::BoundedDetail);
+    QCOMPARE(primaryPrepared.storeEntryId, secondaryPrepared.storeEntryId);
+    QCOMPARE(store->size(), qsizetype(1));
+    QCOMPARE(store->byteCost(), frameByteCost);
+    QCOMPARE(store->availableOutputBytes(), frameByteCost);
+
+    std::unique_ptr<ImageSequenceProviderFrameHandle> primaryHandle;
+    std::unique_ptr<ImageSequenceProviderFrameHandle> secondaryHandle;
+    resource->requestFrameHandle(this, primaryIdentity, primaryPrepared,
+        [&primaryHandle](kiriview::ImageViewportProviderWorkIdentity,
+            std::unique_ptr<ImageSequenceProviderFrameHandle> handle) {
+            primaryHandle = std::move(handle);
+        });
+    resource->requestFrameHandle(this, secondaryIdentity, secondaryPrepared,
+        [&secondaryHandle](kiriview::ImageViewportProviderWorkIdentity,
+            std::unique_ptr<ImageSequenceProviderFrameHandle> handle) {
+            secondaryHandle = std::move(handle);
+        });
+    QTRY_VERIFY(primaryHandle != nullptr);
+    QTRY_VERIFY(secondaryHandle != nullptr);
+    QVERIFY(primaryHandle->frame() != nullptr);
+    QVERIFY(secondaryHandle->frame() != nullptr);
+    QCOMPARE(primaryHandle->frame()->quality(), ImageViewportPayloadQuality::Exact);
+    QCOMPARE(primaryHandle->frame()->exactness(), ImageViewportPayloadExactness::ExactForSource);
+    QCOMPARE(secondaryHandle->frame()->quality(), ImageViewportPayloadQuality::BoundedDetail);
+    QCOMPARE(secondaryHandle->frame()->exactness(), ImageViewportPayloadExactness::NotExact);
+
+    primaryHandle->release();
+    secondaryHandle->release();
 }
 
 void TestImageViewportSequenceProvider::providerResourceAccountsAncillaryPayload()
@@ -3139,6 +3232,88 @@ void TestImageViewportSequenceProvider::initialRefinementUsesProducerPeakBudget(
         kiriview::DisplayImageQuality::BoundedDetail);
     QCOMPARE(results.front().authoritativeStillDisplayImage->image.size(),
         refinementSource->lastRefinementSize);
+}
+
+void TestImageViewportSequenceProvider::nonExactRefinementPlanningReclaimsDisplayOutputPressure()
+{
+    constexpr qsizetype basisByteCost = 200 * 150 * 4;
+    constexpr qsizetype targetOutputByteCost = 400 * 300 * 4;
+    constexpr qsizetype producerBufferCount = 2;
+    constexpr qsizetype producerPeakByteCost = targetOutputByteCost * producerBufferCount;
+    constexpr qsizetype displayOutputBudget = basisByteCost + producerPeakByteCost;
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImageDecodeDependencies dependencies
+        = kiriview::TestSupport::imageDecodeDependenciesFor(
+            dataLoader, kiriview::TestSupport::staticImageDataDecoder());
+    dependencies.workerScheduler = workerScheduler.scheduler();
+    dependencies.refinementScheduler = workerScheduler.scheduler();
+    auto refinementSource = std::make_shared<RefiningDisplaySource>();
+    refinementSource->producerBufferCount = producerBufferCount;
+    auto displayStore = std::make_shared<kiriview::DisplayImageStore>(displayOutputBudget);
+    std::shared_ptr<kiriview::DisplayImageOutputAdmission> reclaimableOccupancy
+        = displayStore->reserveOutput(producerPeakByteCost);
+    QVERIFY(reclaimableOccupancy != nullptr);
+    QCOMPARE(displayStore->byteCost(), producerPeakByteCost);
+    bool pressureReclaimerInvoked = false;
+    displayStore->setOutputPressureReclaimer([&]() {
+        pressureReclaimerInvoked = true;
+        reclaimableOccupancy.reset();
+    });
+
+    const QUrl url(QStringLiteral("file:///tmp/non-exact-refinement-pressure.jpg"));
+    auto source = std::make_shared<kiriview::ImageViewportDecodeProviderSource>(
+        kiriview::ImageLoadSession(769,
+            kiriview::ImageLoadRequest::fromExternalSource(
+                kiriview::resolvedNavigationSource(url, {})),
+            kiriview::DisplayedImageLocation::fromUrl(url)),
+        std::move(dependencies),
+        authoritativeSeedForUrl(url, firstDisplayPayload(refinementSource)));
+    auto resource = std::make_shared<kiriview::ImageViewportProviderResource>(
+        769, QStringLiteral("non-exact-refinement-pressure"), source, displayStore);
+    const kiriview::ImageViewportProviderWorkIdentity identity {
+        769,
+        ImageViewportPageRole::Primary,
+        {},
+        {},
+        QStringLiteral("non-exact-refinement-pressure"),
+    };
+    ImageSequenceProviderDisplayDemand demand;
+    demand.setTargetDisplaySizePixels(QSizeF(400, 300));
+    demand.setCurrentPayloadQuality(ImageViewportPayloadQuality::FirstDisplay);
+    demand.setCurrentPayloadExactness(ImageViewportPayloadExactness::NotExact);
+    std::vector<kiriview::ImageViewportProviderPreparedFrame> results;
+
+    resource->requestFrame(identity,
+        kiriview::ImageViewportProviderFrameRequest {
+            0,
+            demand,
+        },
+        [&results](kiriview::ImageViewportProviderWorkIdentity,
+            kiriview::ImageViewportProviderPreparedFrame result) {
+            results.push_back(std::move(result));
+        });
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+    QVERIFY(!pressureReclaimerInvoked);
+    dataLoader.finishFrontLoad(authoritativeSeedData());
+
+    QVERIFY(pressureReclaimerInvoked);
+    QVERIFY(reclaimableOccupancy == nullptr);
+    QCOMPARE(results.size(), std::size_t(0));
+    QTRY_COMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    QCOMPARE(refinementSource->refinementCount, 0);
+    workerScheduler.runWork(0);
+    QCOMPARE(refinementSource->refinementCount, 1);
+    QCOMPARE(refinementSource->lastRefinementSize, QSize(400, 300));
+    workerScheduler.finish(0);
+
+    QCOMPARE(results.size(), std::size_t(1));
+    QVERIFY(results.front().isReady());
+    QVERIFY(results.front().failureCause != ImageSequenceProviderFailureCause::ResourceExhausted);
+    QVERIFY(results.front().authoritativeStillDisplayImage.has_value());
+    QCOMPARE(results.front().authoritativeStillDisplayImage->quality,
+        kiriview::DisplayImageQuality::BoundedDetail);
+    QCOMPARE(results.front().authoritativeStillDisplayImage->image.size(), QSize(400, 300));
 }
 
 void TestImageViewportSequenceProvider::exactRefinementProducerBudgetFailsBeforeWork()

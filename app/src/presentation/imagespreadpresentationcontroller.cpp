@@ -155,6 +155,7 @@ ImageSpreadPresentationController::secondaryDisplayedPredecodeImage() const
         true,
         m_callbacks.secondaryDisplayImage ? m_callbacks.secondaryDisplayImage() : std::nullopt,
         {},
+        true,
     };
 }
 

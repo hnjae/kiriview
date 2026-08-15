@@ -12,6 +12,7 @@
 #include <QSize>
 #include <QString>
 #include <QtGlobal>
+#include <functional>
 #include <memory>
 #include <optional>
 
@@ -45,6 +46,14 @@ enum class DisplayImageRetentionPriority {
     Nearby,
     Background,
     Visible,
+};
+
+enum class DisplayImageOutputReservationOrigin {
+    Unspecified,
+    InitialStaticOutput,
+    StaticRefinementOutput,
+    AnimationOutput,
+    ProviderPreparationOutput,
 };
 
 struct DisplayImageRasterIdentity
@@ -98,13 +107,22 @@ struct DisplayImageStoreEntry
 class DisplayImageStore final
 {
 public:
+    using OutputPressureReclaimer = std::function<void()>;
+
     explicit DisplayImageStore(qsizetype byteBudget);
     ~DisplayImageStore();
     Q_DISABLE_COPY_MOVE(DisplayImageStore)
 
     QString acquireReusable(DisplayImageEntry entry, DisplayImageReuseKey reuseKey,
         std::shared_ptr<DisplayImageOutputAdmission> outputAdmission = {});
-    [[nodiscard]] std::shared_ptr<DisplayImageOutputAdmission> reserveOutput(qsizetype byteCost);
+    [[nodiscard]] std::shared_ptr<DisplayImageOutputAdmission> reserveOutput(qsizetype byteCost,
+        DisplayImageOutputReservationOrigin origin
+        = DisplayImageOutputReservationOrigin::Unspecified);
+    [[nodiscard]] qsizetype availableOutputBytesForRequest(qsizetype requestedByteCost,
+        qsizetype minimumRequiredByteCost, DisplayImageOutputReservationOrigin origin);
+    void setOutputPressureReclaimer(OutputPressureReclaimer reclaimer);
+    [[nodiscard]] std::shared_ptr<DisplayImageOutputAdmission> outputAdmissionForImage(
+        const QImage& image) const;
     [[nodiscard]] qsizetype availableOutputBytes() const;
     [[nodiscard]] std::optional<DisplayImageStoreEntry> entry(const QString& id) const;
     bool acquireFrameLease(const QString& id);

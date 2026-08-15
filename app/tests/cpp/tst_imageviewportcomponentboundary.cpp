@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#include "cache/imagebytecost.h"
 #include "decoding/kiriimagedecoder.h"
 #include "facade/kiridocumentsession.h"
 #include "facade/kiridocumentsessioncomposition.h"
@@ -130,7 +131,9 @@ std::unique_ptr<KiriDocumentSession> createViewportSession(
     kiriview::ThumbnailCacheLookupProvider thumbnailPreviewLookupProvider,
     kiriview::TestSupport::ManualImageDataLoader* directMediaPredecodeDataLoader = nullptr,
     kiriview::TestSupport::ManualTimerScheduler* imagePredecodeTimerScheduler = nullptr,
-    QSize decodedImageSize = QSize(800, 600), kiriview::ImageDataDecoder imageDataDecoder = {})
+    QSize decodedImageSize = QSize(800, 600), kiriview::ImageDataDecoder imageDataDecoder = {},
+    kiriview::ImageCacheBudgetRequest cacheBudgetRequest = {},
+    kiriview::PowerSaverProvider powerSaverProvider = {})
 {
     kiriview::KiriDocumentSessionDependencies dependencies;
     dependencies.sessionRuntime.directMediaNavigationCandidateProvider
@@ -145,6 +148,8 @@ std::unique_ptr<KiriDocumentSession> createViewportSession(
     dependencies.imageDocument.imageDecode.workerScheduler = workerScheduler.scheduler();
     dependencies.imageDocument.imageDecode.thumbnailPreviewLookupProvider
         = std::move(thumbnailPreviewLookupProvider);
+    dependencies.imageDocument.cacheBudgetRequest = cacheBudgetRequest;
+    dependencies.imageDocument.powerSaver = std::move(powerSaverProvider);
     dependencies.imageDocument.ordinaryDirectMediaPredecodeEnabled = false;
     if (imagePredecodeTimerScheduler != nullptr) {
         dependencies.imageDocument.predecodeTimerScheduler
@@ -237,6 +242,8 @@ private Q_SLOTS:
     void replacementThumbnailDoesNotDisplaceAuthoritativeDisplay();
     void reattachedPendingTargetUsesPreviewWithoutRetainedFallback();
     void reattachedTargetRefreshesAuthoritativePredecode();
+    void warmPredecodeRetentionYieldsToFeasibleForegroundNavigation();
+    void directMediaWarmRetentionYieldsToFeasibleForegroundNavigation();
     void twoPageShapeChangeSuppressesProvisionalSpread();
     void spreadNavigationRetainsCompleteSpreadUntilAtomicReplacement();
     void pendingSpreadModeReenableReplansAtomically();
@@ -766,6 +773,141 @@ void TestImageViewportComponentBoundary::reattachedTargetRefreshesAuthoritativeP
             && snapshot.primary().display().quality() == ImageViewportPayloadQuality::Exact;
     }));
     QCOMPARE(workerScheduler.scheduleCount(), workerScheduleCountBeforeReattach);
+}
+
+void TestImageViewportComponentBoundary::
+    warmPredecodeRetentionYieldsToFeasibleForegroundNavigation()
+{
+    const QSize imageSize(32, 24);
+    const QImage decodedImage = kiriview::TestSupport::testImage(imageSize);
+    const qsizetype displayOutputByteCost = kiriview::imageByteCost(decodedImage);
+    const qsizetype predecodedImageByteCost
+        = kiriview::TestSupport::staticDisplayTestImagePayload(decodedImage).byteCost();
+    QVERIFY(displayOutputByteCost > 0);
+    QVERIFY(predecodedImageByteCost >= displayOutputByteCost);
+
+    const QByteArray imageData = encodedPngData(imageSize);
+    QVERIFY(!imageData.isEmpty());
+
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    ManualOpenedCollectionCandidateProvider pageCandidateProvider;
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    kiriview::TestSupport::ManualTimerScheduler predecodeTimerScheduler;
+    kiriview::TestSupport::ManualPowerSaverMonitor* powerSaverMonitor = nullptr;
+    const QUrl collectionUrl(QStringLiteral("file:///books/predecode-admission.cbz"));
+    std::unique_ptr<KiriDocumentSession> session = createViewportSession(
+        directMediaNavigationProvider.provider(), pageCandidateProvider.provider(), dataLoader,
+        workerScheduler, thumbnailLookupProvider(false), nullptr, &predecodeTimerScheduler,
+        imageSize, kiriview::TestSupport::staticImageDataDecoder(decodedImage),
+        kiriview::ImageCacheBudgetRequest {
+            .predecodeCacheByteBudget = predecodedImageByteCost * 3,
+            .displayImageCacheByteBudget = displayOutputByteCost * 2,
+            .thumbnailCacheByteBudget = displayOutputByteCost,
+        },
+        kiriview::TestSupport::powerSaverProviderFor(powerSaverMonitor, true));
+    QVERIFY(powerSaverMonitor != nullptr);
+    KiriImageViewportSurface* surface = viewportSurface(*session);
+    QVERIFY(surface != nullptr);
+    std::size_t nextWorkerSchedule = 0;
+
+    session->setSourceUrl(collectionUrl);
+    QTRY_VERIFY(pageCandidateProvider.hasPendingLoad());
+    const std::optional<kiriview::OpenedCollectionScopeLocation> collectionScope
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(collectionUrl, {}));
+    QVERIFY(collectionScope.has_value());
+    const QUrl firstPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("01.png"));
+    const QUrl secondPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("02.png"));
+    const QUrl thirdPageUrl = kiriview::TestSupport::archivePageUrl(
+        collectionScope->rootUrl(), QStringLiteral("03.png"));
+    pageCandidateProvider.resolve({ kiriview::TestSupport::imageDocumentPageCandidate(firstPageUrl),
+        kiriview::TestSupport::imageDocumentPageCandidate(secondPageUrl),
+        kiriview::TestSupport::imageDocumentPageCandidate(thirdPageUrl) });
+
+    const auto displayedPageReady = [&](const QUrl& pageUrl) {
+        return session->imageDocument()->status() == KiriImageDocument::Status::Ready
+            && session->imageDocument()->displayedUrl() == pageUrl
+            && surface->viewport()->state().request().status() == ImageViewportRequestStatus::Ready;
+    };
+
+    QVERIFY(finishImageDataAndDriveUntil(*surface, dataLoader, workerScheduler, nextWorkerSchedule,
+        { firstPageUrl }, imageData, [&]() { return displayedPageReady(firstPageUrl); }));
+    session->imageDocument()->openNextPage();
+    QVERIFY(finishImageDataAndDriveUntil(*surface, dataLoader, workerScheduler, nextWorkerSchedule,
+        { secondPageUrl }, imageData, [&]() { return displayedPageReady(secondPageUrl); }));
+    session->imageDocument()->openNextPage();
+    QVERIFY(finishImageDataAndDriveUntil(*surface, dataLoader, workerScheduler, nextWorkerSchedule,
+        { thirdPageUrl }, imageData, [&]() { return displayedPageReady(thirdPageUrl); }));
+
+    session->imageDocument()->openPreviousPage();
+    QVERIFY(finishImageDataAndDriveUntil(*surface, dataLoader, workerScheduler, nextWorkerSchedule,
+        { secondPageUrl }, imageData, [&]() { return displayedPageReady(secondPageUrl); }));
+}
+
+void TestImageViewportComponentBoundary::
+    directMediaWarmRetentionYieldsToFeasibleForegroundNavigation()
+{
+    const QSize imageSize(32, 24);
+    const QImage decodedImage = kiriview::TestSupport::testImage(imageSize);
+    const qsizetype displayOutputByteCost = kiriview::imageByteCost(decodedImage);
+    const qsizetype predecodedImageByteCost
+        = kiriview::TestSupport::staticDisplayTestImagePayload(decodedImage).byteCost();
+    QVERIFY(displayOutputByteCost > 0);
+    QVERIFY(predecodedImageByteCost >= displayOutputByteCost);
+
+    const QByteArray imageData = encodedPngData(imageSize);
+    QVERIFY(!imageData.isEmpty());
+
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    ManualOpenedCollectionCandidateProvider pageCandidateProvider;
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
+    kiriview::TestSupport::ManualTimerScheduler predecodeTimerScheduler;
+    kiriview::TestSupport::ManualPowerSaverMonitor* powerSaverMonitor = nullptr;
+    const QUrl parentUrl(QStringLiteral("file:///images/"));
+    const QUrl firstImageUrl(QStringLiteral("file:///images/01.png"));
+    const QUrl secondImageUrl(QStringLiteral("file:///images/02.png"));
+    const QUrl thirdImageUrl(QStringLiteral("file:///images/03.png"));
+    directMediaNavigationProvider.setMedia(parentUrl,
+        { directMediaNavigationCandidate(firstImageUrl),
+            directMediaNavigationCandidate(secondImageUrl),
+            directMediaNavigationCandidate(thirdImageUrl) });
+    std::unique_ptr<KiriDocumentSession> session = createViewportSession(
+        directMediaNavigationProvider.provider(), pageCandidateProvider.provider(), dataLoader,
+        workerScheduler, thumbnailLookupProvider(false), nullptr, &predecodeTimerScheduler,
+        imageSize, kiriview::TestSupport::staticImageDataDecoder(decodedImage),
+        kiriview::ImageCacheBudgetRequest {
+            .predecodeCacheByteBudget = predecodedImageByteCost * 3,
+            .displayImageCacheByteBudget = displayOutputByteCost * 2,
+            .thumbnailCacheByteBudget = displayOutputByteCost,
+        },
+        kiriview::TestSupport::powerSaverProviderFor(powerSaverMonitor, true));
+    QVERIFY(powerSaverMonitor != nullptr);
+    KiriImageViewportSurface* surface = viewportSurface(*session);
+    QVERIFY(surface != nullptr);
+    std::size_t nextWorkerSchedule = 0;
+
+    const auto displayedImageReady = [&](const QUrl& imageUrl) {
+        return session->imageDocument()->status() == KiriImageDocument::Status::Ready
+            && session->imageDocument()->displayedUrl() == imageUrl
+            && surface->viewport()->state().request().status() == ImageViewportRequestStatus::Ready;
+    };
+
+    session->setSourceUrl(firstImageUrl);
+    QVERIFY(finishImageDataAndDriveUntil(*surface, dataLoader, workerScheduler, nextWorkerSchedule,
+        { firstImageUrl }, imageData, [&]() { return displayedImageReady(firstImageUrl); }));
+    session->openNextActiveNavigation();
+    QVERIFY(finishImageDataAndDriveUntil(*surface, dataLoader, workerScheduler, nextWorkerSchedule,
+        { secondImageUrl }, imageData, [&]() { return displayedImageReady(secondImageUrl); }));
+    session->openNextActiveNavigation();
+    QVERIFY(finishImageDataAndDriveUntil(*surface, dataLoader, workerScheduler, nextWorkerSchedule,
+        { thirdImageUrl }, imageData, [&]() { return displayedImageReady(thirdImageUrl); }));
+    session->openPreviousActiveNavigation();
+    QVERIFY(finishImageDataAndDriveUntil(*surface, dataLoader, workerScheduler, nextWorkerSchedule,
+        { secondImageUrl }, imageData, [&]() { return displayedImageReady(secondImageUrl); }));
 }
 
 void TestImageViewportComponentBoundary::twoPageShapeChangeSuppressesProvisionalSpread()

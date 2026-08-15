@@ -30,10 +30,10 @@ ImageViewportPayloadQuality payloadQuality(kiriview::DisplayImageQuality quality
     return ImageViewportPayloadQuality::Unknown;
 }
 
-ImageViewportPayloadExactness payloadExactness(const kiriview::DisplayImageStoreEntry& entry)
+ImageViewportPayloadExactness payloadExactness(
+    kiriview::DisplayImageQuality quality, const QSize& originalSize, const QSize& rasterSize)
 {
-    return entry.quality == kiriview::DisplayImageQuality::Exact
-            && entry.originalSize == entry.rasterSize
+    return quality == kiriview::DisplayImageQuality::Exact && originalSize == rasterSize
         ? ImageViewportPayloadExactness::ExactForSource
         : ImageViewportPayloadExactness::NotExact;
 }
@@ -265,6 +265,7 @@ ImageViewportProviderPreparedFrame& ImageViewportProviderPreparedFrame::operator
     retired.outputAdmission = std::move(outputAdmission);
     retired.authoritativeStillDisplayImage = std::move(authoritativeStillDisplayImage);
     retired.storeEntryId = std::move(storeEntryId);
+    retired.reuseKey = std::move(reuseKey);
     retired.envelope = envelope;
     retired.formatIdentifier = std::move(formatIdentifier);
     retired.failureCause = failureCause;
@@ -275,6 +276,7 @@ ImageViewportProviderPreparedFrame& ImageViewportProviderPreparedFrame::operator
     outputAdmission = std::move(other.outputAdmission);
     authoritativeStillDisplayImage = std::move(other.authoritativeStillDisplayImage);
     storeEntryId = std::move(other.storeEntryId);
+    reuseKey = std::move(other.reuseKey);
     envelope = other.envelope;
     formatIdentifier = std::move(other.formatIdentifier);
     failureCause = other.failureCause;
@@ -641,12 +643,15 @@ void ImageViewportProviderResource::requestFrameHandle(QObject* receiver,
 
     const std::optional<DisplayImageStoreEntry> plannedEntry
         = m_displayStore->entry(preparedFrame.storeEntryId);
-    if (!plannedEntry.has_value()) {
+    const DisplayImageReuseKey& frameReuseKey = preparedFrame.reuseKey;
+    if (!plannedEntry.has_value() || frameReuseKey.locationIdentity.isEmpty()
+        || !frameReuseKey.rasterIdentity.isValid()
+        || plannedEntry->image.size() != frameReuseKey.rasterSize) {
         completion(identity, {});
         return;
     }
     const ImageFrame::OrientationPolicy plannedOrientation
-        = orientationPolicy(plannedEntry->imageReaderTransformations);
+        = orientationPolicy(frameReuseKey.imageReaderTransformations);
     const std::optional<qsizetype> constructionPeak
         = frameConstructionPeakByteCount(plannedEntry->image, plannedOrientation);
     if (!constructionPeak.has_value() || *constructionPeak > m_workspaceBudget->aggregateByteLimit()
@@ -700,6 +705,9 @@ void ImageViewportProviderResource::requestFrameHandle(QObject* receiver,
             ImageDecodeWorkspacePriority::Interactive,
         },
         [resource, receiver, constructionId, identity, storeEntryId = preparedFrame.storeEntryId,
+            frameOriginalSize = frameReuseKey.originalSize,
+            frameRasterSize = frameReuseKey.rasterSize, frameQuality = frameReuseKey.quality,
+            frameTransformations = frameReuseKey.imageReaderTransformations,
             formatIdentifier = preparedFrame.formatIdentifier,
             completion](ImageDecodeWorkspaceLease workspaceLease) mutable {
             const std::shared_ptr<ImageViewportProviderResource> owner = resource.lock();
@@ -738,10 +746,11 @@ void ImageViewportProviderResource::requestFrameHandle(QObject* receiver,
                 return;
             }
             const ImageFrame::OrientationPolicy orientation
-                = orientationPolicy(entry->imageReaderTransformations);
+                = orientationPolicy(frameTransformations);
             const std::optional<qsizetype> actualPeak
                 = frameConstructionPeakByteCount(entry->image, orientation);
-            if (!actualPeak.has_value() || *actualPeak > workspaceLease.reservedByteCount()) {
+            if (!actualPeak.has_value() || *actualPeak > workspaceLease.reservedByteCount()
+                || entry->image.size() != frameRasterSize) {
                 displayStoreLease.reset();
                 workspaceLease = {};
                 if (owner->claimFrameConstruction(constructionId)) {
@@ -756,8 +765,8 @@ void ImageViewportProviderResource::requestFrameHandle(QObject* receiver,
 
             ImageWorkerTask task = owner->m_frameConstructionScheduler.run(
                 receiver,
-                [entry = std::move(*entry), orientation, frameRasterByteCount,
-                    workspaceLease = std::move(workspaceLease),
+                [entry = std::move(*entry), orientation, frameRasterByteCount, frameOriginalSize,
+                    frameRasterSize, frameQuality, workspaceLease = std::move(workspaceLease),
                     displayStoreLease = std::move(displayStoreLease),
                     formatIdentifier = std::move(formatIdentifier)]() mutable {
                     FrameConstructionResult result;
@@ -769,8 +778,9 @@ void ImageViewportProviderResource::requestFrameHandle(QObject* receiver,
                             return result;
                         }
                         result.frame = std::make_unique<ImageFrame>(sourcePayload,
-                            entry.originalSize, entry.byteCost, payloadQuality(entry.quality),
-                            payloadExactness(entry), orientation, std::move(formatIdentifier));
+                            frameOriginalSize, entry.byteCost, payloadQuality(frameQuality),
+                            payloadExactness(frameQuality, frameOriginalSize, frameRasterSize),
+                            orientation, std::move(formatIdentifier));
                     } catch (const std::bad_alloc&) {
                         return result;
                     }
@@ -1067,7 +1077,12 @@ ImageViewportProviderPreparedFrame ImageViewportProviderResource::prepareFrame(
         displayedPageRole(identity.role),
     };
     if (result.outputAdmission == nullptr) {
-        result.outputAdmission = m_displayStore->reserveOutput(imageByteCost(displayImage.image));
+        result.outputAdmission = m_displayStore->outputAdmissionForImage(displayImage.image);
+        if (result.outputAdmission == nullptr) {
+            result.outputAdmission
+                = m_displayStore->reserveOutput(imageByteCost(displayImage.image),
+                    DisplayImageOutputReservationOrigin::ProviderPreparationOutput);
+        }
         if (result.outputAdmission == nullptr) {
             result.displayImage.reset();
             prepared.failureCause = ImageSequenceProviderFailureCause::ResourceExhausted;
@@ -1090,6 +1105,7 @@ ImageViewportProviderPreparedFrame ImageViewportProviderResource::prepareFrame(
         prepared.failureCause = ImageSequenceProviderFailureCause::ResourceExhausted;
         return prepared;
     }
+    prepared.reuseKey = reuseKey;
     if (!prepared.isProvisional() && prepared.envelope.isStillFrame()) {
         const std::optional<DisplayImageStoreEntry> stored
             = m_displayStore->entry(prepared.storeEntryId);

@@ -47,6 +47,7 @@ public:
     void cacheDisplayedImages(const DocumentSessionMediaPredecodeInput& input);
     void cancel();
     void clear();
+    void reclaimDisplayOutputAliases();
     [[nodiscard]] std::optional<PredecodedImage> findPredecodedImage(
         const DisplayedImageLocation& location) const;
 

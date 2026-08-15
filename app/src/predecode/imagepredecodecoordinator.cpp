@@ -149,6 +149,11 @@ void ImagePredecodeCoordinator::clear()
     m_loadController.clear();
 }
 
+void ImagePredecodeCoordinator::reclaimDisplayOutputAliases()
+{
+    m_loadController.reclaimDisplayOutputAliases();
+}
+
 std::optional<PredecodedImage> ImagePredecodeCoordinator::findPredecodedImage(
     const DisplayedImageLocation& location) const
 {

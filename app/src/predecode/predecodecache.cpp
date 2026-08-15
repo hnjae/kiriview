@@ -3,6 +3,7 @@
 
 #include "predecodecache.h"
 
+#include "cache/imagebyteaccounting.h"
 #include "diagnostics/diagnosticlogprojection.h"
 #include "location/imageurl.h"
 #include "predecodelogging.h"
@@ -49,6 +50,28 @@ void PredecodeCache::retireQueuedLoads(const DisplayedImageLocation& location)
     qCDebug(kiriviewPredecodeLog) << "predecode queued location retired"
                                   << "url" << diagnosticSourceReference(location.imageUrl())
                                   << "retired" << retired;
+}
+
+void PredecodeCache::reclaimDisplayOutputAliases()
+{
+    qsizetype retiredBytes = 0;
+    const std::size_t retired
+        = std::erase_if(m_images, [this, &retiredBytes](const CachedImage& entry) {
+              const bool exactCurrentKey = !m_currentDisplayedKeys.has_value()
+                  || containsKey(*m_currentDisplayedKeys, entry.key);
+              const bool currentDisplayed
+                  = m_displayedHistory.currentContains(entry.key.location) && exactCurrentKey;
+              const bool shouldRetire = entry.retainsDisplayOutputAdmission && !currentDisplayed;
+              if (shouldRetire) {
+                  retiredBytes = saturatedQtByteSum(retiredBytes, entry.byteCost);
+              }
+              return shouldRetire;
+          });
+    if (retired > 0) {
+        qCDebug(kiriviewPredecodeLog) << "predecode display-output aliases reclaimed"
+                                      << "retired" << retired << "retiredBytes" << retiredBytes
+                                      << "cachedImages" << m_images.size();
+    }
 }
 
 void PredecodeCache::setWindowLocations(const std::vector<DisplayedImageLocation>& locations)
@@ -289,6 +312,13 @@ std::optional<PredecodedImage> PredecodeCache::findCandidate(
 void PredecodeCache::cacheImage(const DisplayedImageLocation& location,
     StaticDisplayImagePayload displayImage, EmbeddedMetadata metadata)
 {
+    storeImage(location, std::move(displayImage), std::move(metadata), false);
+}
+
+void PredecodeCache::storeImage(const DisplayedImageLocation& location,
+    StaticDisplayImagePayload displayImage, EmbeddedMetadata metadata,
+    bool retainsDisplayOutputAdmission)
+{
     if (!displayImage.isAuthoritative()) {
         qCDebug(kiriviewPredecodeLog) << "predecode cache store skipped"
                                       << "reason"
@@ -321,8 +351,8 @@ void PredecodeCache::cacheImage(const DisplayedImageLocation& location,
 
     const PredecodeImageKey key { location, displayImage.sourceRevision };
     removeCachedImage(key);
-    m_images.push_back(
-        CachedImage { key, std::move(displayImage), *byteCost, nextLastUsedSequence() });
+    m_images.push_back(CachedImage { key, std::move(displayImage), *byteCost,
+        nextLastUsedSequence(), retainsDisplayOutputAdmission });
     qCDebug(kiriviewPredecodeLog) << "predecode cache stored"
                                   << "url" << diagnosticSourceReference(location.imageUrl())
                                   << "byteCost" << *byteCost << "cachedImages" << m_images.size();
@@ -331,7 +361,8 @@ void PredecodeCache::cacheImage(const DisplayedImageLocation& location,
 }
 
 void PredecodeCache::cacheDisplayedImage(bool cacheable, const DisplayedImageLocation& location,
-    StaticDisplayImagePayload displayImage, EmbeddedMetadata metadata)
+    StaticDisplayImagePayload displayImage, EmbeddedMetadata metadata,
+    bool retainsDisplayOutputAdmission)
 {
     if (!cacheable || !normalizedValidImageUrl(location.imageUrl()).has_value()) {
         qCDebug(kiriviewPredecodeLog)
@@ -341,7 +372,8 @@ void PredecodeCache::cacheDisplayedImage(bool cacheable, const DisplayedImageLoc
         return;
     }
 
-    cacheImage(location, std::move(displayImage), std::move(metadata));
+    storeImage(
+        location, std::move(displayImage), std::move(metadata), retainsDisplayOutputAdmission);
 }
 
 bool PredecodeCache::containsKey(
@@ -412,8 +444,10 @@ void PredecodeCache::trimImagesToBudget()
     for (const CachedImage& entry : m_images) {
         const bool exactCurrentKey = !m_currentDisplayedKeys.has_value()
             || containsKey(*m_currentDisplayedKeys, entry.key);
+        const bool currentDisplayed
+            = m_displayedHistory.currentContains(entry.key.location) && exactCurrentKey;
         states.push_back(PredecodeCachedImageState {
-            m_displayedHistory.currentContains(entry.key.location) && exactCurrentKey,
+            currentDisplayed,
             m_displayedHistory.recentContains(entry.key.location),
             m_displayedHistory.currentPriority(entry.key.location),
             m_displayedHistory.recentPriority(entry.key.location),

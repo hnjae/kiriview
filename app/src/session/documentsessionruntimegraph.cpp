@@ -583,6 +583,11 @@ std::optional<PredecodedImage> DocumentSessionRuntimeGraph::findPredecodedImage(
     return m_mediaPredecodeRuntime.findPredecodedImage(location);
 }
 
+void DocumentSessionRuntimeGraph::reclaimDisplayOutputAliases()
+{
+    m_mediaPredecodeRuntime.reclaimDisplayOutputAliases();
+}
+
 void DocumentSessionRuntimeGraph::applyDirectMediaNavigationRevealAction(
     DocumentSessionDirectMediaNavigationRevealAction action)
 {
@@ -1150,6 +1155,7 @@ void DocumentSessionRuntimeGraph::setDocumentKind(DocumentSessionKind kind)
     m_state.setDocumentKindAndActiveZoomSnapshot(kind, activeZoomSnapshotForKind(kind));
     if (kind == DocumentSessionKind::Video) {
         m_videoOutputRuntime.activateSurfaceClaimEpoch();
+        cacheDisplayedMediaPredecodeImages();
     } else {
         m_videoOutputRuntime.retireSurfaceClaimEpoch();
     }

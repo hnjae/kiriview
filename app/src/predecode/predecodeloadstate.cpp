@@ -30,8 +30,8 @@ void PredecodeLoadState::cacheDisplayedImages(const std::vector<DisplayedPredeco
             continue;
         }
 
-        m_cache.cacheDisplayedImage(
-            true, image.location, *image.displayImage, image.embeddedMetadata);
+        m_cache.cacheDisplayedImage(true, image.location, *image.displayImage,
+            image.embeddedMetadata, image.retainsDisplayOutputAdmission);
     }
 }
 
@@ -44,6 +44,8 @@ void PredecodeLoadState::retireBackgroundLoad(const DisplayedImageLocation& loca
         m_activeWindow->foregroundOwnedLocation = location;
     }
 }
+
+void PredecodeLoadState::reclaimDisplayOutputAliases() { m_cache.reclaimDisplayOutputAliases(); }
 
 void PredecodeLoadState::startWindow(
     const PredecodeLoadWindow& window, const PredecodeActiveLoads& activeLoads)

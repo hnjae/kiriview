@@ -131,6 +131,7 @@ struct ImageViewportProviderPreparedFrame
         ImageViewportProviderPreparedFrame&& other) noexcept;
 
     QString storeEntryId;
+    DisplayImageReuseKey reuseKey;
     ImageSequenceProviderFrameEnvelope envelope;
     QString formatIdentifier;
     ImageSequenceProviderFailureCause failureCause = ImageSequenceProviderFailureCause::Unavailable;

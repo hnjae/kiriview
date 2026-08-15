@@ -25,6 +25,7 @@ private Q_SLOTS:
     void staleCandidateGenerationCancelsPendingPredecode();
     void sameGenerationCandidateIdentityMismatchCancelsPendingPredecode();
     void cacheDisplayedImagesUsesOnlyReadyDirectImageSourceScope();
+    void videoDisplayedStateYieldsAdmissionAliasOnlyUnderPressure();
     void sameParentScopeSyncKeepsCachedDisplayedImage();
     void parentScopeChangeClearsCachedDisplayedImage();
     void leavingDirectMediaScopeClearsCachedDisplayedImage();
@@ -257,6 +258,27 @@ void TestDocumentSessionMediaPredecodeRuntime::
     runtime.cacheDisplayedImages(activeImageInput(currentUrl));
 
     QVERIFY(runtime.findPredecodedImage(displayedLocation(currentUrl)).has_value());
+}
+
+void TestDocumentSessionMediaPredecodeRuntime::
+    videoDisplayedStateYieldsAdmissionAliasOnlyUnderPressure()
+{
+    ManualImageDataLoader dataLoader;
+    kiriview::DocumentSessionMediaPredecodeRuntime runtime(predecodeDependencies(dataLoader));
+    const QUrl currentUrl = localUrl(QStringLiteral("/media/current.png"));
+    kiriview::DocumentSessionMediaPredecodeInput imageInput = activeImageInput(currentUrl);
+    imageInput.primaryDisplayedPredecodeImage->retainsDisplayOutputAdmission = true;
+    runtime.cacheDisplayedImages(imageInput);
+
+    kiriview::DocumentSessionMediaPredecodeInput videoInput = imageInput;
+    videoInput.documentKind = kiriview::DocumentSessionKind::Video;
+    videoInput.imageReady = false;
+    videoInput.primaryDisplayedPredecodeImage.reset();
+    runtime.cacheDisplayedImages(videoInput);
+
+    QVERIFY(runtime.findPredecodedImage(displayedLocation(currentUrl)).has_value());
+    runtime.reclaimDisplayOutputAliases();
+    QVERIFY(!runtime.findPredecodedImage(displayedLocation(currentUrl)).has_value());
 }
 
 void TestDocumentSessionMediaPredecodeRuntime::sameParentScopeSyncKeepsCachedDisplayedImage()

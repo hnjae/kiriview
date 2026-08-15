@@ -52,6 +52,7 @@ public:
         int targetPageIndex, std::optional<DisplayedPredecodeImage> secondaryImage = std::nullopt);
     void cancel();
     void clear();
+    void reclaimDisplayOutputAliases();
     [[nodiscard]] std::optional<PredecodedImage> findPredecodedImage(
         const DisplayedImageLocation& location) const;
 

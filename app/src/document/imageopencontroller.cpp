@@ -30,8 +30,11 @@ QString openedCollectionOpenErrorMessage(const QString& errorString)
 
 QString loadFailureUserMessage(const kiriview::ImageLoadFailure& failure)
 {
-    return failure.kind == kiriview::ImageLoadFailureKind::EmptyOpenedCollection
-        ? emptyOpenedCollectionErrorMessage()
+    if (failure.kind == kiriview::ImageLoadFailureKind::EmptyOpenedCollection) {
+        return emptyOpenedCollectionErrorMessage();
+    }
+    return failure.userMessage.isEmpty()
+        ? kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData)
         : failure.userMessage;
 }
 

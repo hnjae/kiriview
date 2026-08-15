@@ -42,6 +42,7 @@ public:
     void cacheDisplayedImages(const std::vector<DisplayedPredecodeImage>& images);
     void clearWindow();
     void retireBackgroundLoad(const DisplayedImageLocation& location);
+    void reclaimDisplayOutputAliases();
     void startWindow(const PredecodeLoadWindow& window, const PredecodeActiveLoads& activeLoads);
     void reconcileWindow(const PredecodeActiveLoads& activeLoads);
     std::optional<PredecodeLoadStart> takeNextLoad(const PredecodeActiveLoads& activeLoads);

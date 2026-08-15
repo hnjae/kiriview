@@ -46,26 +46,34 @@ struct ImageViewportIntegrationTarget
 struct ImageViewportIntegrationProjection
 {
     bool correlated = false;
+    bool completeAuthoritativeDisplayAvailable = false;
+    bool loading = false;
+    bool viewportFailureAvailable = false;
+    bool providerFailureAvailable = false;
+    bool secondaryVisible = false;
+    bool horizontallyPannable = false;
+    bool verticallyPannable = false;
     quint64 sourceGeneration = 0;
     QUrl secondaryUrl;
     quint64 secondarySessionId = 0;
     QUrl displayedUrl;
-    bool completeAuthoritativeDisplayAvailable = false;
     ImageDocumentStatus status = ImageDocumentStatus::Null;
-    bool loading = false;
+    ImageViewportFitMode fitMode = ImageViewportFitMode::Contain;
     QString errorString;
     std::optional<ImageLoadFailure> failure;
+    ImageViewportFailureContext viewportFailureContext = ImageViewportFailureContext::Unavailable;
+    ImageViewportRequestReason viewportFailureReason = ImageViewportRequestReason::NoRequest;
+    std::optional<ImageViewportPageRole> viewportFailureRole;
+    ImageViewportFailureScope viewportFailureScope = ImageViewportFailureScope::Unavailable;
+    ImageSequenceProviderFailureCause providerFailureCause
+        = ImageSequenceProviderFailureCause::Unavailable;
     QSize primaryImageSize;
     QSize secondaryImageSize;
-    bool secondaryVisible = false;
-    ImageViewportFitMode fitMode = ImageViewportFitMode::Contain;
     qreal zoomPercent = 0.0;
     qreal preferredManualZoomPercent = 100.0;
     qreal minimumManualZoomPercent = 0.0;
     qreal maximumManualZoomPercent = 0.0;
     qreal manualZoomStepFactor = 1.0;
-    bool horizontallyPannable = false;
-    bool verticallyPannable = false;
     QSizeF viewportSize;
     QRectF contentRect;
     QPointF contentPosition;

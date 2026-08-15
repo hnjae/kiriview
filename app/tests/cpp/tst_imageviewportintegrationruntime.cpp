@@ -150,14 +150,14 @@ public:
                 ImageSequenceProviderFrameEnvelope::stillFrame(), QStringLiteral("png")));
     }
 
-    void failNext(kiriview::ImageLoadFailure failure)
+    void failNext(kiriview::ImageLoadFailure failure,
+        ImageSequenceProviderFailureCause cause = ImageSequenceProviderFailureCause::Decode)
     {
         QVERIFY(!pendingFrames.empty());
         PendingFrame pending = std::move(pendingFrames.front());
         pendingFrames.pop_front();
         pending.completion(pending.identity,
-            kiriview::ImageViewportProviderFrameResult::failed(
-                ImageSequenceProviderFailureCause::Decode, std::move(failure)));
+            kiriview::ImageViewportProviderFrameResult::failed(cause, std::move(failure)));
     }
 
     std::deque<PendingFrame> pendingFrames;
@@ -250,6 +250,7 @@ private Q_SLOTS:
     void gesturesAndScrollbarsUseMatchedComponentProjection();
     void targetAnchorAtEndAppliesThroughTransition();
     void failureReferenceResolvesOnlyForMatchingTarget();
+    void emptyApplicationFailureMessageUsesProviderFallback();
     void targetTransitionsApplyIntentSpecificFallbackPolicy_data();
     void targetTransitionsApplyIntentSpecificFallbackPolicy();
     void presentationShapeChangeResetsSinglePageTransforms();
@@ -811,6 +812,33 @@ void TestImageViewportIntegrationRuntime::failureReferenceResolvesOnlyForMatchin
     QVERIFY(runtime.submitTarget(replacement.target()));
     QCOMPARE(runtime.projection().sourceGeneration, quint64(52));
     QVERIFY(!runtime.projection().failure.has_value());
+}
+
+void TestImageViewportIntegrationRuntime::emptyApplicationFailureMessageUsesProviderFallback()
+{
+    kiriview::ImageViewportIntegrationRuntime runtime;
+    ImageViewport viewport;
+    viewport.setSize(QSizeF(100, 80));
+    runtime.attach(&viewport);
+
+    TargetFixture fixture;
+    fixture.generation = 53;
+    fixture.primaryUrl = QUrl(QStringLiteral("file:///tmp/exhausted.png"));
+    QVERIFY(runtime.submitTarget(fixture.target()));
+    QTRY_COMPARE(fixture.primarySource->pendingFrames.size(), std::size_t(1));
+    kiriview::ImageLoadFailure failure = loadFailure(fixture.primaryUrl, 530);
+    failure.kind = kiriview::ImageLoadFailureKind::Presentation;
+    failure.decodeRoute = kiriview::DecodedImageFailureRoute::Unknown;
+    failure.decodeOperation = kiriview::DecodedImageFailureOperation::Unknown;
+    failure.userMessage.clear();
+    fixture.primarySource->failNext(
+        std::move(failure), ImageSequenceProviderFailureCause::ResourceExhausted);
+
+    QTRY_COMPARE(runtime.projection().status, kiriview::ImageDocumentStatus::Error);
+    QVERIFY(runtime.projection().failure.has_value());
+    QVERIFY(!runtime.projection().failure->userMessage.isEmpty());
+    QVERIFY(!runtime.projection().errorString.isEmpty());
+    QCOMPARE(runtime.projection().errorString, runtime.projection().failure->userMessage);
 }
 
 void TestImageViewportIntegrationRuntime::targetTransitionsApplyIntentSpecificFallbackPolicy_data()

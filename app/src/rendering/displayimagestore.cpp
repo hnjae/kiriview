@@ -5,6 +5,7 @@
 
 #include "cache/imagebyteaccounting.h"
 #include "cache/imagebytecost.h"
+#include "decoding/imagedecodelogging.h"
 #include <QColorSpace>
 #include <QList>
 #include <QMutex>
@@ -18,9 +19,79 @@
 #include <map>
 #include <memory>
 #include <utility>
+#include <vector>
 
 namespace kiriview {
 namespace {
+    enum class DisplayImageOutputReservationFailureReason {
+        SingleOutputLimit,
+        AggregateLimit,
+    };
+
+    struct DisplayImageOutputReservationDiagnostics
+    {
+        qsizetype chargedBytes = 0;
+        qsizetype residentEntries = 0;
+        qsizetype residentBytes = 0;
+        qsizetype evictableEntries = 0;
+        qsizetype evictableBytes = 0;
+        qsizetype nonEvictableEntries = 0;
+        qsizetype nonEvictableBytes = 0;
+        qsizetype leasedEntries = 0;
+        qsizetype leasedBytes = 0;
+        qsizetype externalAliasUnleasedEntries = 0;
+        qsizetype externalAliasUnleasedBytes = 0;
+        qsizetype outstandingAdmissionBytes = 0;
+    };
+
+    const char* reservationOriginName(DisplayImageOutputReservationOrigin origin)
+    {
+        switch (origin) {
+        case DisplayImageOutputReservationOrigin::Unspecified:
+            return "unspecified";
+        case DisplayImageOutputReservationOrigin::InitialStaticOutput:
+            return "initial-static-output";
+        case DisplayImageOutputReservationOrigin::StaticRefinementOutput:
+            return "static-refinement-output";
+        case DisplayImageOutputReservationOrigin::AnimationOutput:
+            return "animation-output";
+        case DisplayImageOutputReservationOrigin::ProviderPreparationOutput:
+            return "provider-preparation-output";
+        }
+        return "unspecified";
+    }
+
+    const char* reservationFailureReasonName(DisplayImageOutputReservationFailureReason reason)
+    {
+        switch (reason) {
+        case DisplayImageOutputReservationFailureReason::SingleOutputLimit:
+            return "single-output-limit";
+        case DisplayImageOutputReservationFailureReason::AggregateLimit:
+            return "aggregate-limit";
+        }
+        return "aggregate-limit";
+    }
+
+    void logOutputReservationFailure(DisplayImageOutputReservationOrigin origin,
+        DisplayImageOutputReservationFailureReason reason, qsizetype requestedBytes,
+        qsizetype budgetBytes, const DisplayImageOutputReservationDiagnostics& diagnostics)
+    {
+        qCWarning(kiriviewDecodeLog)
+            << "display output reservation rejected"
+            << "origin" << reservationOriginName(origin) << "reason"
+            << reservationFailureReasonName(reason) << "requestedBytes" << requestedBytes
+            << "budgetBytes" << budgetBytes << "chargedBytes" << diagnostics.chargedBytes
+            << "residentEntries" << diagnostics.residentEntries << "residentBytes"
+            << diagnostics.residentBytes << "evictableEntries" << diagnostics.evictableEntries
+            << "evictableBytes" << diagnostics.evictableBytes << "nonEvictableEntries"
+            << diagnostics.nonEvictableEntries << "nonEvictableBytes"
+            << diagnostics.nonEvictableBytes << "leasedEntries" << diagnostics.leasedEntries
+            << "leasedBytes" << diagnostics.leasedBytes << "externalAliasUnleasedEntries"
+            << diagnostics.externalAliasUnleasedEntries << "externalAliasUnleasedBytes"
+            << diagnostics.externalAliasUnleasedBytes << "outstandingAdmissionBytes"
+            << diagnostics.outstandingAdmissionBytes;
+    }
+
     struct DisplayImageOutputLedger
     {
         std::atomic<qsizetype> byteCost = 0;
@@ -71,6 +142,13 @@ namespace {
         admitted.setOffset(offset);
         Q_ASSERT(admitted.constBits() == pixels);
         return admitted;
+    }
+
+    bool imagesShareExactBacking(const QImage& left, const QImage& right)
+    {
+        return !left.isNull() && !right.isNull() && left.constBits() == right.constBits()
+            && left.size() == right.size() && left.bytesPerLine() == right.bytesPerLine()
+            && left.format() == right.format() && left.cacheKey() == right.cacheKey();
     }
 
     int priorityRank(DisplayImageRetentionPriority priority)
@@ -160,6 +238,19 @@ namespace {
             return static_cast<int>(left.pageRole) < static_cast<int>(right.pageRole);
         }
     };
+
+    bool reuseKeysDescribeSameBacking(
+        const DisplayImageReuseKey& left, const DisplayImageReuseKey& right)
+    {
+        return left.locationIdentity == right.locationIdentity
+            && left.sourceIdentity == right.sourceIdentity
+            && left.sourceRevision == right.sourceRevision
+            && left.rasterIdentity.kind == right.rasterIdentity.kind
+            && left.rasterIdentity.authoredFrame == right.rasterIdentity.authoredFrame
+            && left.imageReaderTransformations == right.imageReaderTransformations
+            && left.originalSize == right.originalSize && left.rasterSize == right.rasterSize
+            && left.previewOrigin == right.previewOrigin;
+    }
 
 }
 
@@ -275,6 +366,7 @@ public:
         quint64 lastUse = 0;
         int frameLeaseCount = 0;
         DisplayImageReuseKey reuseKey;
+        std::vector<DisplayImageReuseKey> reuseAliases;
         std::optional<EvictionKey> evictionKey;
     };
 
@@ -289,6 +381,7 @@ public:
     qsizetype byteBudget = 0;
     std::shared_ptr<DisplayImageOutputLedger> outputLedger
         = std::make_shared<DisplayImageOutputLedger>();
+    OutputPressureReclaimer outputPressureReclaimer;
     mutable quint64 useClock = 0;
     quint64 nextId = 1;
 
@@ -407,6 +500,7 @@ public:
             ++useClock,
             0,
             std::move(reuseKey),
+            {},
             std::nullopt,
         });
         auto inserted = std::prev(images.end());
@@ -420,10 +514,52 @@ public:
         removeEvictionIndex(*entry);
         entriesById.erase(entry->id);
         entriesByReuseKey.erase(entry->reuseKey);
+        for (const DisplayImageReuseKey& reuseAlias : entry->reuseAliases) {
+            entriesByReuseKey.erase(reuseAlias);
+        }
         images.erase(entry);
     }
 
     qsizetype aggregateByteCost() const { return outputLedger->byteCost.load(); }
+
+    DisplayImageOutputReservationDiagnostics reservationDiagnostics() const
+    {
+        DisplayImageOutputReservationDiagnostics diagnostics;
+        diagnostics.chargedBytes = aggregateByteCost();
+        qsizetype residentAdmissionBytes = 0;
+        for (const Entry& entry : images) {
+            ++diagnostics.residentEntries;
+            diagnostics.residentBytes
+                = saturatedQtByteSum(diagnostics.residentBytes, entry.byteCost);
+            const qsizetype admissionBytes
+                = entry.outputAdmission == nullptr ? 0 : entry.outputAdmission->byteCost();
+            residentAdmissionBytes = saturatedQtByteSum(residentAdmissionBytes, admissionBytes);
+            const bool evictable = entry.frameLeaseCount == 0 && entry.outputAdmission != nullptr
+                && entry.outputAdmission.use_count() == 2 && entry.image.isDetached();
+            if (evictable) {
+                ++diagnostics.evictableEntries;
+                diagnostics.evictableBytes
+                    = saturatedQtByteSum(diagnostics.evictableBytes, admissionBytes);
+            } else {
+                ++diagnostics.nonEvictableEntries;
+                diagnostics.nonEvictableBytes
+                    = saturatedQtByteSum(diagnostics.nonEvictableBytes, admissionBytes);
+            }
+            if (entry.frameLeaseCount > 0) {
+                ++diagnostics.leasedEntries;
+                diagnostics.leasedBytes
+                    = saturatedQtByteSum(diagnostics.leasedBytes, admissionBytes);
+            } else if (!entry.image.isDetached()) {
+                ++diagnostics.externalAliasUnleasedEntries;
+                diagnostics.externalAliasUnleasedBytes
+                    = saturatedQtByteSum(diagnostics.externalAliasUnleasedBytes, admissionBytes);
+            }
+        }
+        diagnostics.outstandingAdmissionBytes = diagnostics.chargedBytes > residentAdmissionBytes
+            ? diagnostics.chargedBytes - residentAdmissionBytes
+            : 0;
+        return diagnostics;
+    }
 
     void trimToBudget(qsizetype additionalByteCost = 0)
     {
@@ -472,8 +608,6 @@ QString DisplayImageStore::acquireReusable(DisplayImageEntry entry, DisplayImage
             retireUnstoredOutput();
             return {};
         }
-        const bool retained = outputAdmission->retainOnly(byteCost);
-        Q_ASSERT(retained);
     }
     auto reusable = d->findReusableEntry(reuseKey);
     if (reusable != d->images.end()) {
@@ -483,6 +617,30 @@ QString DisplayImageStore::acquireReusable(DisplayImageEntry entry, DisplayImage
         const QString id = reusable->id;
         retireUnstoredOutput();
         return id;
+    }
+
+    if (outputAdmission != nullptr) {
+        auto transferred
+            = std::ranges::find_if(d->images, [&outputAdmission](const Private::Entry& stored) {
+                  return stored.outputAdmission == outputAdmission;
+              });
+        if (transferred != d->images.end()) {
+            if (!imagesShareExactBacking(transferred->image, entry.image)
+                || !reuseKeysDescribeSameBacking(transferred->reuseKey, reuseKey)) {
+                retireUnstoredOutput();
+                return {};
+            }
+            transferred->reuseAliases.push_back(reuseKey);
+            d->entriesByReuseKey.emplace(std::move(reuseKey), transferred);
+            transferred->priority = entry.priority;
+            d->touchEntry(transferred);
+            d->trimToBudget();
+            const QString id = transferred->id;
+            retireUnstoredOutput();
+            return id;
+        }
+        const bool retained = outputAdmission->retainOnly(byteCost);
+        Q_ASSERT(retained);
     }
 
     if (byteCost <= 0 || byteCost > d->byteBudget) {
@@ -501,7 +659,8 @@ QString DisplayImageStore::acquireReusable(DisplayImageEntry entry, DisplayImage
         std::move(entry), byteCost, std::move(reuseKey), std::move(outputAdmission));
 }
 
-std::shared_ptr<DisplayImageOutputAdmission> DisplayImageStore::reserveOutput(qsizetype byteCost)
+std::shared_ptr<DisplayImageOutputAdmission> DisplayImageStore::reserveOutput(
+    qsizetype byteCost, DisplayImageOutputReservationOrigin origin)
 {
     if (byteCost <= 0) {
         return {};
@@ -509,16 +668,88 @@ std::shared_ptr<DisplayImageOutputAdmission> DisplayImageStore::reserveOutput(qs
 
     QMutexLocker locker(&d->mutex);
     if (byteCost > d->byteBudget) {
+        const qsizetype budgetBytes = d->byteBudget;
+        const DisplayImageOutputReservationDiagnostics diagnostics = d->reservationDiagnostics();
+        locker.unlock();
+        logOutputReservationFailure(origin,
+            DisplayImageOutputReservationFailureReason::SingleOutputLimit, byteCost, budgetBytes,
+            diagnostics);
         return {};
     }
     d->trimToBudget(byteCost);
     if (saturatedQtByteSum(d->aggregateByteCost(), byteCost) > d->byteBudget) {
+        const OutputPressureReclaimer pressureReclaimer = d->outputPressureReclaimer;
+        if (pressureReclaimer) {
+            locker.unlock();
+            pressureReclaimer();
+            locker.relock();
+            d->trimToBudget(byteCost);
+        }
+    }
+    if (saturatedQtByteSum(d->aggregateByteCost(), byteCost) > d->byteBudget) {
+        const qsizetype budgetBytes = d->byteBudget;
+        const DisplayImageOutputReservationDiagnostics diagnostics = d->reservationDiagnostics();
+        locker.unlock();
+        logOutputReservationFailure(origin,
+            DisplayImageOutputReservationFailureReason::AggregateLimit, byteCost, budgetBytes,
+            diagnostics);
         return {};
     }
 
     auto data = std::make_unique<DisplayImageOutputAdmission::Private>(d->outputLedger, byteCost);
     return std::shared_ptr<DisplayImageOutputAdmission>(
         new DisplayImageOutputAdmission(std::move(data)));
+}
+
+qsizetype DisplayImageStore::availableOutputBytesForRequest(qsizetype requestedByteCost,
+    qsizetype minimumRequiredByteCost, DisplayImageOutputReservationOrigin origin)
+{
+    QMutexLocker locker(&d->mutex);
+    const qsizetype reclaimTarget = std::clamp<qsizetype>(requestedByteCost, 0, d->byteBudget);
+    d->trimToBudget(reclaimTarget);
+    if (saturatedQtByteSum(d->aggregateByteCost(), reclaimTarget) > d->byteBudget) {
+        const OutputPressureReclaimer pressureReclaimer = d->outputPressureReclaimer;
+        if (pressureReclaimer) {
+            locker.unlock();
+            pressureReclaimer();
+            locker.relock();
+            d->trimToBudget(reclaimTarget);
+        }
+    }
+    const qsizetype aggregateByteCost = std::min(d->aggregateByteCost(), d->byteBudget);
+    const qsizetype availableBytes = d->byteBudget - aggregateByteCost;
+    if (minimumRequiredByteCost > availableBytes) {
+        const qsizetype budgetBytes = d->byteBudget;
+        const DisplayImageOutputReservationDiagnostics diagnostics = d->reservationDiagnostics();
+        const DisplayImageOutputReservationFailureReason reason
+            = minimumRequiredByteCost > budgetBytes
+            ? DisplayImageOutputReservationFailureReason::SingleOutputLimit
+            : DisplayImageOutputReservationFailureReason::AggregateLimit;
+        locker.unlock();
+        logOutputReservationFailure(
+            origin, reason, minimumRequiredByteCost, budgetBytes, diagnostics);
+    }
+    return availableBytes;
+}
+
+void DisplayImageStore::setOutputPressureReclaimer(OutputPressureReclaimer reclaimer)
+{
+    QMutexLocker locker(&d->mutex);
+    d->outputPressureReclaimer = std::move(reclaimer);
+}
+
+std::shared_ptr<DisplayImageOutputAdmission> DisplayImageStore::outputAdmissionForImage(
+    const QImage& image) const
+{
+    if (image.isNull()) {
+        return {};
+    }
+
+    QMutexLocker locker(&d->mutex);
+    const auto matching = std::ranges::find_if(d->images, [&image](const Private::Entry& entry) {
+        return imagesShareExactBacking(entry.image, image);
+    });
+    return matching == d->images.end() ? nullptr : matching->outputAdmission;
 }
 
 qsizetype DisplayImageStore::availableOutputBytes() const

@@ -242,6 +242,11 @@ std::optional<PredecodedImage> DocumentSessionRuntime::findPredecodedImage(
     return m_runtimeGraph->findPredecodedImage(location);
 }
 
+void DocumentSessionRuntime::reclaimDisplayOutputAliases()
+{
+    m_runtimeGraph->reclaimDisplayOutputAliases();
+}
+
 void DocumentSessionRuntime::openPreviousActiveNavigation()
 {
     m_runtimeGraph->openPreviousActiveNavigation();

@@ -105,10 +105,6 @@ void DocumentSessionMediaPredecodeRuntime::cacheDisplayedImages(
     }
 
     std::vector<DisplayedPredecodeImage> images = displayedImages(input);
-    if (images.empty()) {
-        return;
-    }
-
     m_coordinator->cacheDisplayedImages(images);
 }
 
@@ -120,6 +116,11 @@ void DocumentSessionMediaPredecodeRuntime::clear()
     m_scopeActive = false;
     m_scopeParentIdentity.clear();
     m_coordinator->clear();
+}
+
+void DocumentSessionMediaPredecodeRuntime::reclaimDisplayOutputAliases()
+{
+    m_coordinator->reclaimDisplayOutputAliases();
 }
 
 std::optional<PredecodedImage> DocumentSessionMediaPredecodeRuntime::findPredecodedImage(

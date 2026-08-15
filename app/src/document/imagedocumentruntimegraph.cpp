@@ -24,6 +24,8 @@
 #include "rendering/imageviewportdecodesource.h"
 
 #include <QObject>
+#include <QPointer>
+#include <QThread>
 #include <QUrl>
 #include <QtGlobal>
 #include <QtMath>
@@ -304,15 +306,24 @@ ImageDocumentRuntimeGraph::ImageDocumentRuntimeGraph(QObject* documentObject,
         = resolveImageDocumentRuntimeDependencies(std::move(dependencies));
     ExternalPredecodedImageFinder externalPredecodedImageFinder
         = std::move(runtimeDependencies.externalPredecodedImageFinder);
+    ExternalPredecodeDisplayOutputReclaimer externalPredecodeDisplayOutputReclaimer
+        = std::move(runtimeDependencies.externalPredecodeDisplayOutputReclaimer);
 
     composeSurfaceAndPresentation(runtimeDependencies);
     composeNavigationAndCandidatePorts(runtimeDependencies);
-    composeWorkflowOwners(
-        documentObject, state, runtimeDependencies, std::move(externalPredecodedImageFinder));
+    composeWorkflowOwners(documentObject, state, runtimeDependencies,
+        std::move(externalPredecodedImageFinder),
+        std::move(externalPredecodeDisplayOutputReclaimer));
     composeWorkflowDispatch();
 }
 
-ImageDocumentRuntimeGraph::~ImageDocumentRuntimeGraph() = default;
+ImageDocumentRuntimeGraph::~ImageDocumentRuntimeGraph()
+{
+    m_outputPressureReclaimerLifetime.reset();
+    if (m_viewportDisplayStore != nullptr) {
+        m_viewportDisplayStore->setOutputPressureReclaimer({});
+    }
+}
 
 void ImageDocumentRuntimeGraph::composeSurfaceAndPresentation(
     ImageDocumentRuntimeDependencies& dependencies)
@@ -364,7 +375,8 @@ OpenedCollectionScopeLocation ImageDocumentRuntimeGraph::pageNavigationOpenedCol
 
 void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
     ImageDocumentState& state, ImageDocumentRuntimeDependencies& dependencies,
-    ExternalPredecodedImageFinder externalPredecodedImageFinder)
+    ExternalPredecodedImageFinder externalPredecodedImageFinder,
+    ExternalPredecodeDisplayOutputReclaimer externalPredecodeDisplayOutputReclaimer)
 {
     m_imageDecodeDependencies = dependencies.imageDecode;
     m_mediaEntrySourceStore = std::move(dependencies.mediaEntrySourceStore);
@@ -396,6 +408,22 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
         dependencies.powerSaver, dependencies.ordinaryDirectMediaPredecodeEnabled,
         std::move(dependencies.predecodeTimerScheduler),
         std::move(dependencies.predecodeThreadCountProvider));
+    const std::weak_ptr<int> outputPressureReclaimerLifetime = m_outputPressureReclaimerLifetime;
+    const QPointer<QObject> outputPressureReclaimerOwner(documentObject);
+    m_viewportDisplayStore->setOutputPressureReclaimer(
+        [this, outputPressureReclaimerLifetime, outputPressureReclaimerOwner,
+            externalPredecodeDisplayOutputReclaimer
+            = std::move(externalPredecodeDisplayOutputReclaimer)]() {
+            const std::shared_ptr<int> lifetime = outputPressureReclaimerLifetime.lock();
+            if (lifetime == nullptr || outputPressureReclaimerOwner == nullptr
+                || outputPressureReclaimerOwner->thread() != QThread::currentThread()) {
+                return;
+            }
+            m_predecodeController->reclaimDisplayOutputAliases();
+            if (externalPredecodeDisplayOutputReclaimer) {
+                externalPredecodeDisplayOutputReclaimer();
+            }
+        });
     m_predecodedImageLookup = std::make_unique<ImageDocumentPredecodedImageLookup>(
         *m_predecodeController, std::move(externalPredecodedImageFinder));
     m_spreadController = std::make_unique<ImageSpreadPresentationController>(state,
@@ -536,6 +564,7 @@ ImageDocumentRuntimeGraph::primaryDisplayedPredecodeImage() const
         true,
         std::move(displayImage),
         m_state.embeddedMetadata(),
+        true,
     };
 }
 
@@ -1158,7 +1187,17 @@ void ImageDocumentRuntimeGraph::handleViewportProjection(
         << "url" << diagnosticSourceReference(m_pendingViewportImageLoad->session.imageUrl())
         << "sourceGeneration" << projection.sourceGeneration << "displayedUrl"
         << diagnosticSourceReference(projection.displayedUrl) << "errorString"
-        << diagnosticDetailReference(projection.errorString) << "applicationFailureAvailable"
+        << diagnosticDetailReference(projection.errorString) << "errorStringAvailable"
+        << !projection.errorString.isEmpty() << "viewportFailureAvailable"
+        << projection.viewportFailureAvailable << "failureContext"
+        << static_cast<int>(projection.viewportFailureContext) << "failureReason"
+        << static_cast<int>(projection.viewportFailureReason) << "failureRole"
+        << (projection.viewportFailureRole.has_value()
+                   ? static_cast<int>(*projection.viewportFailureRole)
+                   : -1)
+        << "failureScope" << static_cast<int>(projection.viewportFailureScope)
+        << "providerFailureAvailable" << projection.providerFailureAvailable << "providerCause"
+        << static_cast<int>(projection.providerFailureCause) << "applicationFailureAvailable"
         << projection.failure.has_value();
     if (projection.failure.has_value()) {
         qCWarning(kiriviewNavigationLog)
@@ -1167,8 +1206,10 @@ void ImageDocumentRuntimeGraph::handleViewportProjection(
             << static_cast<int>(projection.failure->decodeRoute) << "decodeOperation"
             << static_cast<int>(projection.failure->decodeOperation) << "decodeCause"
             << static_cast<int>(projection.failure->decodeCause) << "diagnosticDetail"
-            << diagnosticDetailReference(projection.failure->diagnosticDetail) << "retryable"
-            << projection.failure->retryable;
+            << diagnosticDetailReference(projection.failure->diagnosticDetail)
+            << "userMessageAvailable" << !projection.failure->userMessage.isEmpty()
+            << "diagnosticDetailAvailable" << !projection.failure->diagnosticDetail.isEmpty()
+            << "retryable" << projection.failure->retryable;
     }
     PendingViewportImageLoad completedLoad = std::move(*m_pendingViewportImageLoad);
     m_pendingViewportImageLoad.reset();

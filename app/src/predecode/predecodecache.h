@@ -36,6 +36,7 @@ public:
     void clear();
     void clearQueuedLoads();
     void retireQueuedLoads(const DisplayedImageLocation& location);
+    void reclaimDisplayOutputAliases();
     void setWindowLocations(const std::vector<DisplayedImageLocation>& locations);
     void setWindowKeys(const std::vector<PredecodeImageKey>& keys);
     void setDisplayedLocations(const std::vector<DisplayedImageLocation>& locations);
@@ -50,7 +51,8 @@ public:
     void cacheImage(const DisplayedImageLocation& location, StaticDisplayImagePayload displayImage,
         EmbeddedMetadata metadata = {});
     void cacheDisplayedImage(bool cacheable, const DisplayedImageLocation& location,
-        StaticDisplayImagePayload displayImage, EmbeddedMetadata metadata = {});
+        StaticDisplayImagePayload displayImage, EmbeddedMetadata metadata = {},
+        bool retainsDisplayOutputAdmission = false);
 
 private:
     struct CachedImage
@@ -59,6 +61,7 @@ private:
         StaticDisplayImagePayload displayImage;
         qsizetype byteCost = 0;
         mutable quint64 lastUsedSequence = 0;
+        bool retainsDisplayOutputAdmission = false;
     };
     using CachedImageIterator = std::vector<CachedImage>::iterator;
     using ConstCachedImageIterator = std::vector<CachedImage>::const_iterator;
@@ -73,6 +76,8 @@ private:
     CachedImageIterator findCachedImage(const PredecodeImageKey& key);
     ConstCachedImageIterator findCachedImage(const PredecodeImageKey& key) const;
     void removeCachedImage(const PredecodeImageKey& key);
+    void storeImage(const DisplayedImageLocation& location, StaticDisplayImagePayload displayImage,
+        EmbeddedMetadata metadata, bool retainsDisplayOutputAdmission);
     std::size_t windowPriority(const DisplayedImageLocation& location) const;
     quint64 nextLastUsedSequence() const;
     void trimImagesToBudget();

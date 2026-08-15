@@ -93,6 +93,7 @@ ImageDocumentRuntimeDependencies resolveImageDocumentRuntimeDependencies(
         cacheBudgets,
         std::move(mediaEntrySourceStore),
         std::move(overrides.externalPredecodedImageFinder),
+        std::move(overrides.externalPredecodeDisplayOutputReclaimer),
         overrides.ordinaryDirectMediaPredecodeEnabled,
     };
 }

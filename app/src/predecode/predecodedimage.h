@@ -24,6 +24,7 @@ struct DisplayedPredecodeImage
     bool cacheable = false;
     std::optional<StaticDisplayImagePayload> displayImage;
     EmbeddedMetadata embeddedMetadata;
+    bool retainsDisplayOutputAdmission = false;
 
     [[nodiscard]] bool hasLocation() const { return !location.isEmpty(); }
 

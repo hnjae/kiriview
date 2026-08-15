@@ -306,11 +306,13 @@ kiriview::DocumentSessionSnapshotConnector documentSnapshotConnector(
     };
 }
 
-kiriview::ImageDocumentRuntimeDependencyOverrides imageDocumentDependenciesWithPredecodeFinder(
+kiriview::ImageDocumentRuntimeDependencyOverrides imageDocumentDependenciesWithPredecodeRuntime(
     kiriview::ImageDocumentRuntimeDependencyOverrides dependencies,
-    kiriview::ExternalPredecodedImageFinder predecodedImageFinder)
+    kiriview::ExternalPredecodedImageFinder predecodedImageFinder,
+    kiriview::ExternalPredecodeDisplayOutputReclaimer displayOutputReclaimer)
 {
     dependencies.externalPredecodedImageFinder = std::move(predecodedImageFinder);
+    dependencies.externalPredecodeDisplayOutputReclaimer = std::move(displayOutputReclaimer);
     dependencies.ordinaryDirectMediaPredecodeEnabled = false;
     return dependencies;
 }
@@ -522,10 +524,16 @@ KiriDocumentSession::KiriDocumentSession(kiriview::KiriDocumentSessionDependenci
     : QObject(parent)
     , m_imageDocument(new KiriImageDocument(
           kiriview::KiriImageDocumentComposition {
-              imageDocumentDependenciesWithPredecodeFinder(dependencies.imageDocument,
+              imageDocumentDependenciesWithPredecodeRuntime(
+                  dependencies.imageDocument,
                   [this](const kiriview::DisplayedImageLocation& location) {
                       return m_runtime != nullptr ? m_runtime->findPredecodedImage(location)
                                                   : std::optional<kiriview::PredecodedImage>();
+                  },
+                  [this]() {
+                      if (m_runtime != nullptr) {
+                          m_runtime->reclaimDisplayOutputAliases();
+                      }
                   }),
               [this](const QString& message) { Q_EMIT fileDeletionFailed(message); },
           },

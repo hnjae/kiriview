@@ -29,6 +29,7 @@ class MediaEntrySourceStore;
 
 using ExternalPredecodedImageFinder
     = std::function<std::optional<PredecodedImage>(const DisplayedImageLocation&)>;
+using ExternalPredecodeDisplayOutputReclaimer = std::function<void()>;
 
 struct ImageDocumentRuntimeDependencyOverrides
 {
@@ -41,6 +42,7 @@ struct ImageDocumentRuntimeDependencyOverrides
     TimerScheduler predecodeTimerScheduler;
     PredecodeThreadCountProvider predecodeThreadCountProvider;
     ExternalPredecodedImageFinder externalPredecodedImageFinder;
+    ExternalPredecodeDisplayOutputReclaimer externalPredecodeDisplayOutputReclaimer;
     ImageCacheBudgetRequest cacheBudgetRequest;
     std::optional<SystemMemorySnapshot> systemMemorySnapshot;
     bool ordinaryDirectMediaPredecodeEnabled = true;
@@ -59,6 +61,7 @@ struct ImageDocumentRuntimeDependencies // NOLINT(cppcoreguidelines-special-memb
     ImageCacheBudgets cacheBudgets;
     std::unique_ptr<MediaEntrySourceStore> mediaEntrySourceStore;
     ExternalPredecodedImageFinder externalPredecodedImageFinder;
+    ExternalPredecodeDisplayOutputReclaimer externalPredecodeDisplayOutputReclaimer;
     bool ordinaryDirectMediaPredecodeEnabled = true;
 
     ~ImageDocumentRuntimeDependencies();

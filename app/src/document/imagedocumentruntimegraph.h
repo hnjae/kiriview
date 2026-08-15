@@ -89,7 +89,8 @@ private:
     void composeNavigationAndCandidatePorts(ImageDocumentRuntimeDependencies& dependencies);
     void composeWorkflowOwners(QObject* documentObject, ImageDocumentState& state,
         ImageDocumentRuntimeDependencies& dependencies,
-        ExternalPredecodedImageFinder externalPredecodedImageFinder);
+        ExternalPredecodedImageFinder externalPredecodedImageFinder,
+        ExternalPredecodeDisplayOutputReclaimer externalPredecodeDisplayOutputReclaimer);
     [[nodiscard]] OpenedCollectionScopeLocation pageNavigationOpenedCollectionScope() const;
     void composeWorkflowDispatch();
     bool startViewportImageTarget(const ImageLoadSession& session);
@@ -120,6 +121,7 @@ private:
 
     ImageDocumentRuntimeGraphCallbacks m_callbacks;
     ImageDocumentState& m_state;
+    std::shared_ptr<int> m_outputPressureReclaimerLifetime = std::make_shared<int>(0);
     std::unique_ptr<MediaEntrySourceStore> m_mediaEntrySourceStore;
     std::unique_ptr<ImageDocumentDeletionController> m_deletionController;
     std::shared_ptr<DisplayImageStore> m_viewportDisplayStore;

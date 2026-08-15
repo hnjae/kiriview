@@ -40,6 +40,7 @@ public:
     bool powerSaverEnabled() const;
     void cancel();
     void clear();
+    void reclaimDisplayOutputAliases();
     std::optional<PredecodedImage> findPredecodedImage(
         const DisplayedImageLocation& location) const;
 

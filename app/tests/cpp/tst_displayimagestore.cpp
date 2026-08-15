@@ -27,6 +27,11 @@ private Q_SLOTS:
     void evictsLeastRecentlyUsedImagesByPriority();
     void frameLeasePreventsEvictionUntilReleased();
     void outputAdmissionRetiresAfterStoredPixels();
+    void aggregateOutputPressureReclaimsAndRetriesOnce();
+    void outputPressureReclaimerRunsOnlyForAggregateFailure();
+    void persistentOutputPressureInvokesReclaimerOnlyOnce();
+    void exactImageAliasRecoversOutputAdmission();
+    void transferredAdmissionAliasesExactPayloadAcrossPageRoles();
     void failedReservationPreservesExternallyAdmittedEntry();
     void entryAliasRetainsAdmissionAndPixelsAfterStoreDestruction();
     void ancillaryPayloadParticipatesInAdmissionAndEviction();
@@ -206,6 +211,145 @@ void TestDisplayImageStore::outputAdmissionRetiresAfterStoredPixels()
     QVERIFY(admissionAliveAtPixelRetirement);
     QVERIFY(weakAdmission.expired());
     QCOMPARE(store.byteCost(), qsizetype(64));
+}
+
+void TestDisplayImageStore::aggregateOutputPressureReclaimsAndRetriesOnce()
+{
+    kiriview::DisplayImageStore store(64);
+    std::shared_ptr<kiriview::DisplayImageOutputAdmission> occupied = store.reserveOutput(64);
+    QVERIFY(occupied != nullptr);
+    int reclaimCount = 0;
+    store.setOutputPressureReclaimer([&]() {
+        ++reclaimCount;
+        store.setOutputPressureReclaimer({});
+        occupied.reset();
+    });
+
+    const std::shared_ptr<kiriview::DisplayImageOutputAdmission> replacement
+        = store.reserveOutput(64);
+
+    QVERIFY(replacement != nullptr);
+    QCOMPARE(reclaimCount, 1);
+    QCOMPARE(store.byteCost(), qsizetype(64));
+}
+
+void TestDisplayImageStore::outputPressureReclaimerRunsOnlyForAggregateFailure()
+{
+    kiriview::DisplayImageStore store(64);
+    int reclaimCount = 0;
+    store.setOutputPressureReclaimer([&reclaimCount]() { ++reclaimCount; });
+
+    std::shared_ptr<kiriview::DisplayImageOutputAdmission> normal = store.reserveOutput(32);
+    QVERIFY(normal != nullptr);
+    QCOMPARE(reclaimCount, 0);
+    normal.reset();
+
+    QVERIFY(store.reserveOutput(0) == nullptr);
+    QVERIFY(store.reserveOutput(65) == nullptr);
+    QCOMPARE(reclaimCount, 0);
+
+    const QString evictable = store.acquireReusable(
+        testEntry(QSize(4, 4)), testReuseKey(QStringLiteral("evictable"), QSize(4, 4)));
+    QVERIFY(!evictable.isEmpty());
+    const std::shared_ptr<kiriview::DisplayImageOutputAdmission> afterEviction
+        = store.reserveOutput(64);
+    QVERIFY(afterEviction != nullptr);
+    QCOMPARE(reclaimCount, 0);
+}
+
+void TestDisplayImageStore::persistentOutputPressureInvokesReclaimerOnlyOnce()
+{
+    kiriview::DisplayImageStore store(64);
+    const std::shared_ptr<kiriview::DisplayImageOutputAdmission> occupied = store.reserveOutput(64);
+    QVERIFY(occupied != nullptr);
+    int reclaimCount = 0;
+    store.setOutputPressureReclaimer([&reclaimCount]() { ++reclaimCount; });
+
+    QVERIFY(store.reserveOutput(64) == nullptr);
+    QCOMPARE(reclaimCount, 1);
+    QCOMPARE(store.byteCost(), qsizetype(64));
+}
+
+void TestDisplayImageStore::exactImageAliasRecoversOutputAdmission()
+{
+    kiriview::DisplayImageStore store(64);
+    std::shared_ptr<kiriview::DisplayImageOutputAdmission> outputAdmission
+        = store.reserveOutput(64);
+    QVERIFY(outputAdmission != nullptr);
+    const QString stored = store.acquireReusable(
+        testEntry(QSize(4, 4)), testReuseKey(QStringLiteral("warm"), QSize(4, 4)), outputAdmission);
+    QVERIFY(!stored.isEmpty());
+    const std::optional<kiriview::DisplayImageStoreEntry> storedEntry = store.entry(stored);
+    QVERIFY(storedEntry.has_value());
+    const QImage exactAlias = storedEntry->image;
+    const QImage independentImage = testImage(QSize(4, 4));
+
+    const std::shared_ptr<kiriview::DisplayImageOutputAdmission> recovered
+        = store.outputAdmissionForImage(exactAlias);
+
+    QCOMPARE(recovered.get(), outputAdmission.get());
+    QVERIFY(store.outputAdmissionForImage(independentImage) == nullptr);
+    QVERIFY(store.outputAdmissionForImage({}) == nullptr);
+}
+
+void TestDisplayImageStore::transferredAdmissionAliasesExactPayloadAcrossPageRoles()
+{
+    kiriview::DisplayImageEntry primaryEntry = testEntry(QSize(4, 4));
+    primaryEntry.image.setText(QStringLiteral("Description"), QStringLiteral("ancillary payload"));
+    const qsizetype admittedByteCost = kiriview::imageByteCost(primaryEntry.image);
+    QVERIFY(admittedByteCost > qsizetype(64));
+    kiriview::DisplayImageStore store(admittedByteCost);
+    std::shared_ptr<kiriview::DisplayImageOutputAdmission> outputAdmission
+        = store.reserveOutput(admittedByteCost);
+    QVERIFY(outputAdmission != nullptr);
+    const kiriview::DisplayImageReuseKey primaryKey
+        = testReuseKey(QStringLiteral("warm"), QSize(4, 4));
+    const QString primary
+        = store.acquireReusable(std::move(primaryEntry), primaryKey, outputAdmission);
+    QVERIFY(!primary.isEmpty());
+    const QString mismatchedTransfer = store.acquireReusable(testEntry(QSize(2, 2)),
+        testReuseKey(QStringLiteral("mismatch"), QSize(2, 2)), outputAdmission);
+    QVERIFY(mismatchedTransfer.isEmpty());
+    QCOMPARE(outputAdmission->byteCost(), admittedByteCost);
+    QCOMPARE(store.byteCost(), admittedByteCost);
+    std::optional<kiriview::DisplayImageStoreEntry> stored = store.entry(primary);
+    QVERIFY(stored.has_value());
+    QImage exactAlias = stored->image;
+    QVERIFY(stored->byteCost > kiriview::imageByteCost(exactAlias));
+    std::shared_ptr<kiriview::DisplayImageOutputAdmission> transferredAdmission
+        = store.outputAdmissionForImage(exactAlias);
+    QVERIFY(transferredAdmission != nullptr);
+    kiriview::DisplayImageReuseKey secondaryKey = primaryKey;
+    secondaryKey.pageRole = kiriview::DisplayedPageRole::Secondary;
+    secondaryKey.quality = kiriview::DisplayImageQuality::BoundedDetail;
+
+    const QString secondary = store.acquireReusable(
+        kiriview::DisplayImageEntry {
+            exactAlias,
+            stored->originalSize,
+            stored->rasterSize,
+            stored->quality,
+            kiriview::DisplayImageRetentionPriority::Visible,
+        },
+        secondaryKey, std::move(transferredAdmission));
+
+    QCOMPARE(secondary, primary);
+    QCOMPARE(store.size(), qsizetype(1));
+    QCOMPARE(store.byteCost(), admittedByteCost);
+
+    exactAlias = {};
+    stored.reset();
+    outputAdmission.reset();
+    const QString replacement = store.acquireReusable(
+        testEntry(QSize(4, 4), kiriview::DisplayImageRetentionPriority::Visible),
+        testReuseKey(QStringLiteral("replacement"), QSize(4, 4)));
+    QVERIFY(!replacement.isEmpty());
+    QVERIFY(store.entry(primary) == std::nullopt);
+
+    const QString secondaryReplacement = store.acquireReusable(
+        testEntry(QSize(4, 4), kiriview::DisplayImageRetentionPriority::Visible), secondaryKey);
+    QVERIFY(!secondaryReplacement.isEmpty());
+    QVERIFY(secondaryReplacement != primary);
 }
 
 void TestDisplayImageStore::failedReservationPreservesExternallyAdmittedEntry()

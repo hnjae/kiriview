@@ -145,6 +145,8 @@ private Q_SLOTS:
     void cacheEvictsLowestPriorityImagesWhenBudgetIsExceeded();
     void cacheRetainsWarmImagesAcrossWindowReprioritization();
     void cacheRefreshesWarmImageRecencyOnLookup();
+    void displayOutputAliasReclaimPreservesExactCurrentAndOrdinaryEntries();
+    void displayOutputAliasRemainsWarmUntilExplicitReclaim();
 };
 
 void TestPredecodeCache::queueContainsOnlyMissingWindowImages()
@@ -612,6 +614,69 @@ void TestPredecodeCache::candidatePrefersExactDisplayedRevisionOverCompletionOrd
         QVERIFY(candidate.has_value());
         QCOMPARE(candidate->displayImage.sourceRevision, current.sourceRevision);
     }
+}
+
+void TestPredecodeCache::displayOutputAliasReclaimPreservesExactCurrentAndOrdinaryEntries()
+{
+    kiriview::PredecodeCache cache(1024);
+    const auto currentLocation = displayedLocation(indexedImageUrl(0));
+    const auto targetLocation = displayedLocation(indexedImageUrl(1));
+    const auto staleLocation = displayedLocation(indexedImageUrl(2));
+    const auto ordinaryLocation = displayedLocation(indexedImageUrl(3));
+    const QImage image = cacheImage();
+    kiriview::StaticDisplayImagePayload current = cacheDisplayImage(image);
+    current.sourceRevision
+        = kiriview::ImageSourceRevision::fromData(QByteArrayView("current-revision"));
+    kiriview::StaticDisplayImagePayload oldCurrent = cacheDisplayImage(image);
+    oldCurrent.sourceRevision
+        = kiriview::ImageSourceRevision::fromData(QByteArrayView("old-current-revision"));
+    const kiriview::StaticDisplayImagePayload target = cacheDisplayImage(image);
+    const kiriview::StaticDisplayImagePayload stale = cacheDisplayImage(image);
+    const kiriview::StaticDisplayImagePayload ordinary = cacheDisplayImage(image);
+
+    cache.setDisplayedImages({ { currentLocation, true, current, {}, true } });
+    cache.cacheDisplayedImage(true, currentLocation, current, {}, true);
+    cache.cacheDisplayedImage(true, currentLocation, oldCurrent, {}, true);
+    cache.cacheDisplayedImage(true, targetLocation, target, {}, true);
+    cache.cacheDisplayedImage(true, staleLocation, stale, {}, true);
+    cache.cacheDisplayedImage(true, ordinaryLocation, ordinary);
+
+    QVERIFY(cache.findImage({ currentLocation, current.sourceRevision }).has_value());
+    QVERIFY(cache.findImage({ currentLocation, oldCurrent.sourceRevision }).has_value());
+    QVERIFY(cache.findCandidate(targetLocation).has_value());
+    QVERIFY(cache.findCandidate(staleLocation).has_value());
+    QVERIFY(cache.findCandidate(ordinaryLocation).has_value());
+
+    cache.reclaimDisplayOutputAliases();
+
+    QVERIFY(cache.findImage({ currentLocation, current.sourceRevision }).has_value());
+    QVERIFY(!cache.findImage({ currentLocation, oldCurrent.sourceRevision }).has_value());
+    QVERIFY(!cache.findCandidate(targetLocation).has_value());
+    QVERIFY(!cache.findCandidate(staleLocation).has_value());
+    QVERIFY(cache.findCandidate(ordinaryLocation).has_value());
+}
+
+void TestPredecodeCache::displayOutputAliasRemainsWarmUntilExplicitReclaim()
+{
+    kiriview::PredecodeCache cache(1024);
+    const auto warmLocation = displayedLocation(indexedImageUrl(0));
+    const auto currentLocation = displayedLocation(indexedImageUrl(1));
+    const QImage image = cacheImage();
+    const kiriview::StaticDisplayImagePayload warm = cacheDisplayImage(image);
+    const kiriview::StaticDisplayImagePayload current = cacheDisplayImage(image);
+
+    cache.setDisplayedImages({ { warmLocation, true, warm, {}, true } });
+    cache.cacheDisplayedImage(true, warmLocation, warm, {}, true);
+    cache.setDisplayedImages({ { currentLocation, true, current, {}, true } });
+    cache.cacheDisplayedImage(true, currentLocation, current, {}, true);
+
+    QVERIFY(cache.findCandidate(warmLocation).has_value());
+    QVERIFY(cache.findCandidate(currentLocation).has_value());
+
+    cache.reclaimDisplayOutputAliases();
+
+    QVERIFY(!cache.findCandidate(warmLocation).has_value());
+    QVERIFY(cache.findCandidate(currentLocation).has_value());
 }
 
 void TestPredecodeCache::cacheRetainsRecentDisplayedImagesBeforeAdjacentImages()

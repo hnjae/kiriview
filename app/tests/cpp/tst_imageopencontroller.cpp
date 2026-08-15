@@ -178,6 +178,7 @@ private Q_SLOTS:
     void currentViewportTerminalPublishesExactlyOnce();
     void rejectedViewportPresentationCommitFinishesWithError();
     void currentViewportFailureUsesClaimedSessionIdentity();
+    void emptyViewportFailureMessageUsesGenericError();
     void failedViewportTargetSubmissionClaimsTerminalSession();
     void failedViewportTargetResolutionClaimsTerminalSession();
     void cancelInvalidatesSessionBeforePendingViewportCleanup();
@@ -377,6 +378,25 @@ void TestImageOpenController::currentViewportFailureUsesClaimedSessionIdentity()
     QVERIFY(fixture.state.loadFailure().has_value());
     QCOMPARE(fixture.state.loadFailure()->sourceUrl, imageUrl);
     QCOMPARE(fixture.state.loadFailure()->sessionId, session.id());
+}
+
+void TestImageOpenController::emptyViewportFailureMessageUsesGenericError()
+{
+    OpenControllerFixture fixture;
+    const QUrl imageUrl = localUrl(QStringLiteral("/images/empty-error.png"));
+    fixture.openSource(directImageRequest(imageUrl));
+
+    QCOMPARE(fixture.resolvedSessions.size(), std::size_t(1));
+    const kiriview::ImageLoadSession session = fixture.resolvedSessions.front();
+    fixture.controller->finishViewportImageLoadWithError(
+        session, presentationFailure(session, QString()));
+
+    QCOMPARE(fixture.state.status(), kiriview::ImageDocumentStatus::Error);
+    QVERIFY(!fixture.state.loading());
+    QVERIFY(!fixture.state.errorString().isEmpty());
+    QVERIFY(fixture.state.loadFailure().has_value());
+    QVERIFY(!fixture.state.loadFailure()->userMessage.isEmpty());
+    QCOMPARE(fixture.state.errorString(), fixture.state.loadFailure()->userMessage);
 }
 
 void TestImageOpenController::failedViewportTargetSubmissionClaimsTerminalSession()

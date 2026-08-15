@@ -133,6 +133,11 @@ void MediaPredecodeCoordinator::clear()
     m_loadController.clear();
 }
 
+void MediaPredecodeCoordinator::reclaimDisplayOutputAliases()
+{
+    m_loadController.reclaimDisplayOutputAliases();
+}
+
 std::optional<PredecodedImage> MediaPredecodeCoordinator::findPredecodedImage(
     const DisplayedImageLocation& location) const
 {

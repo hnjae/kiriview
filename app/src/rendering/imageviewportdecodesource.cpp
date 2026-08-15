@@ -987,8 +987,14 @@ void ImageViewportDecodeProviderSource::publishStaticFrame(PendingFrame pending)
 
     if (m_authoritativeStaticImageOutputAdmission == nullptr
         && pending.request.outputStore != nullptr) {
-        m_authoritativeStaticImageOutputAdmission = pending.request.outputStore->reserveOutput(
-            imageByteCost(m_authoritativeStaticImage->image));
+        m_authoritativeStaticImageOutputAdmission
+            = pending.request.outputStore->outputAdmissionForImage(
+                m_authoritativeStaticImage->image);
+        if (m_authoritativeStaticImageOutputAdmission == nullptr) {
+            m_authoritativeStaticImageOutputAdmission = pending.request.outputStore->reserveOutput(
+                imageByteCost(m_authoritativeStaticImage->image),
+                DisplayImageOutputReservationOrigin::InitialStaticOutput);
+        }
         if (m_authoritativeStaticImageOutputAdmission == nullptr) {
             pending.completion(pending.identity,
                 ImageViewportProviderFrameResult::failed(
@@ -1081,9 +1087,26 @@ void ImageViewportDecodeProviderSource::startStaticRefinement(
                 return;
             }
         } else {
+            const std::optional<qsizetype> targetProducerPeakByteCost
+                = refinementSource->rasterDisplayRefinementPeakByteCost(plan.targetRasterSize);
+            if (!targetProducerPeakByteCost.has_value() || *targetProducerPeakByteCost <= 0) {
+                finishPlanningFailure(StaticFrameResolution::RefinementContractViolation);
+                return;
+            }
+            const std::optional<qsizetype> minimumProducerPeakByteCost
+                = refinementSource->rasterDisplayRefinementPeakByteCost(
+                    sourceRasterForLongEdge(m_authoritativeStaticImage->originalSize, 1));
+            if (!minimumProducerPeakByteCost.has_value() || *minimumProducerPeakByteCost <= 0) {
+                finishPlanningFailure(StaticFrameResolution::RefinementContractViolation);
+                return;
+            }
+            const qsizetype availableOutputBytes
+                = pending.request.outputStore->availableOutputBytesForRequest(
+                    *targetProducerPeakByteCost, *minimumProducerPeakByteCost,
+                    DisplayImageOutputReservationOrigin::StaticRefinementOutput);
             const RefinementProducerPlan producerPlan = largestProducerRasterWithinBudget(
                 *refinementSource, m_authoritativeStaticImage->originalSize, plan.targetRasterSize,
-                pending.request.outputStore->availableOutputBytes());
+                availableOutputBytes);
             if (producerPlan.outcome == RefinementProducerPlanOutcome::ContractViolation) {
                 finishPlanningFailure(StaticFrameResolution::RefinementContractViolation);
                 return;
@@ -1240,8 +1263,8 @@ void ImageViewportDecodeProviderSource::startGrantedStaticRefinement(
     currentWork->workspaceAdmission = {};
     std::shared_ptr<DisplayImageOutputAdmission> outputAdmission;
     if (currentWork->outputStore != nullptr) {
-        outputAdmission
-            = currentWork->outputStore->reserveOutput(currentWork->producerPeakByteCost);
+        outputAdmission = currentWork->outputStore->reserveOutput(currentWork->producerPeakByteCost,
+            DisplayImageOutputReservationOrigin::StaticRefinementOutput);
         if (outputAdmission == nullptr) {
             rasterWorkspaceLease = {};
             StaticImageDisplayDecodeResult failure;
@@ -1850,7 +1873,8 @@ void ImageViewportDecodeProviderSource::startGrantedAnimationFrame(PendingFrame 
     }
     std::shared_ptr<DisplayImageOutputAdmission> outputAdmission;
     if (pending.request.outputStore != nullptr) {
-        outputAdmission = pending.request.outputStore->reserveOutput(outputByteCount);
+        outputAdmission = pending.request.outputStore->reserveOutput(
+            outputByteCount, DisplayImageOutputReservationOrigin::AnimationOutput);
         if (outputAdmission == nullptr) {
             workspaceLease = {};
             finishAnimationFrame(pending, animation, requestedFrame,

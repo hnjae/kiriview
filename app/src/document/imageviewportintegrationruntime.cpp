@@ -583,6 +583,15 @@ void ImageViewportIntegrationRuntime::acceptSnapshot(const ImageViewportStateSna
     projection.status
         = activeTargetFrameWait ? ImageDocumentStatus::Ready : documentStatus(requestStatus);
     projection.loading = projection.status == ImageDocumentStatus::Loading;
+    projection.viewportFailureAvailable = componentFailure.available();
+    projection.viewportFailureContext = componentFailure.context();
+    projection.viewportFailureReason = componentFailure.reason();
+    if (componentFailure.role().canConvert<ImageViewportPageRole>()) {
+        projection.viewportFailureRole = componentFailure.role().value<ImageViewportPageRole>();
+    }
+    projection.viewportFailureScope = componentFailure.scope();
+    projection.providerFailureAvailable = componentFailure.providerFailureAvailable();
+    projection.providerFailureCause = componentFailure.providerCause();
     projection.primaryImageSize = logicalSize(snapshot.primary());
     projection.secondaryImageSize = logicalSize(snapshot.secondary());
     projection.secondaryVisible = snapshot.display().displayedRoleSet().secondary();
@@ -631,6 +640,9 @@ void ImageViewportIntegrationRuntime::acceptSnapshot(const ImageViewportStateSna
 
     projection.failure = resolveFailure(*m_activeRecord, componentFailure);
     if (projection.failure.has_value()) {
+        if (projection.failure->userMessage.isEmpty()) {
+            projection.failure->userMessage = snapshot.diagnostics().errorString();
+        }
         projection.errorString = projection.failure->userMessage;
     } else {
         projection.errorString = snapshot.diagnostics().errorString();

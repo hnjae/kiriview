@@ -85,6 +85,7 @@ public:
         const QRectF& sourceRect);
     [[nodiscard]] std::optional<PredecodedImage> findPredecodedImage(
         const DisplayedImageLocation& location) const;
+    void reclaimDisplayOutputAliases();
 
     void openPreviousActiveNavigation();
     void openNextActiveNavigation();
