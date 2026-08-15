@@ -33,7 +33,7 @@ public:
     static ImageSequenceProviderKnownFacts fixedDurationFrames(
         QSizeF logicalSize, int frameCount, int frameDuration);
     static ImageSequenceProviderKnownFacts timedFrameList(
-        QSizeF logicalSize, QVector<int> frameDurations);
+        QSizeF logicalSize, const QVector<int>& frameDurations);
 
     [[nodiscard]] bool isSpecified() const;
     [[nodiscard]] bool isValid() const;

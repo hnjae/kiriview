@@ -213,7 +213,7 @@ ImageSequenceProviderKnownFacts ImageSequenceProviderKnownFacts::fixedDurationFr
 }
 
 ImageSequenceProviderKnownFacts ImageSequenceProviderKnownFacts::timedFrameList(
-    QSizeF logicalSize, QVector<int> frameDurations)
+    QSizeF logicalSize, const QVector<int>& frameDurations)
 {
     ImageSequenceProviderKnownFacts facts;
     facts.m_kind = Kind::TimedFrameList;
@@ -319,7 +319,7 @@ ImageSequenceProviderMetadata ImageSequenceProviderMetadata::fixedDurationFrames
 }
 
 ImageSequenceProviderMetadata ImageSequenceProviderMetadata::timedFrameList(
-    QSizeF logicalSize, QVector<int> frameDurations)
+    QSizeF logicalSize, const QVector<int>& frameDurations)
 {
     ImageSequenceProviderMetadata metadata;
     metadata.m_kind = Kind::TimedFrameList;

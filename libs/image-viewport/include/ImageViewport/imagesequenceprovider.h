@@ -159,7 +159,7 @@ public:
     static ImageSequenceProviderMetadata fixedDurationFrames(
         QSizeF logicalSize, int frameCount, int frameDuration);
     static ImageSequenceProviderMetadata timedFrameList(
-        QSizeF logicalSize, QVector<int> frameDurations);
+        QSizeF logicalSize, const QVector<int>& frameDurations);
     static ImageSequenceProviderMetadata withSourceLogicalSize(QSizeF sourceLogicalSize);
     static ImageSequenceProviderMetadata timedFrameCount(QSizeF logicalSize, int frameCount);
 
