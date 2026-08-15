@@ -154,7 +154,7 @@ private:
     void finishDecodedImage(DecodedImage image);
     void finishStaticImage(StaticDecodedImage image);
     void finishAnimationImage(ImageDecodeWorkspaceHold firstFrameWorkspaceHold, QImage firstFrame,
-        ImageAnimationSourceCatalog catalog, ImageAnimationPlaybackRequest playbackRequest,
+        const ImageAnimationSourceCatalog& catalog, ImageAnimationPlaybackRequest playbackRequest,
         QString sourceIdentity, ImageSourceRevision sourceRevision, QString formatIdentifier);
     void finishFailure(ImageSequenceProviderFailureCause cause, ImageLoadFailure failure);
     void publishMetadata();

@@ -729,7 +729,7 @@ void ImageViewportDecodeProviderSource::finishDecodedImage(DecodedImage image)
             } else if constexpr (std::is_same_v<Image, ReaderAnimationImage>) {
                 const QString formatIdentifier = QString::fromLatin1(decoded.format);
                 finishAnimationImage(std::move(decoded.firstFrameWorkspaceHold),
-                    std::move(decoded.firstFrame), std::move(decoded.catalog),
+                    std::move(decoded.firstFrame), decoded.catalog,
                     readerAnimationPlaybackRequest(std::move(decoded.data),
                         std::move(decoded.format), std::move(decoded.sourceDataLease),
                         m_dependencies.workspaceBudget, std::move(decoded.inputWorkspaceHold)),
@@ -737,7 +737,7 @@ void ImageViewportDecodeProviderSource::finishDecodedImage(DecodedImage image)
                     formatIdentifier);
             } else if constexpr (std::is_same_v<Image, ApngAnimationImage>) {
                 finishAnimationImage(std::move(decoded.firstFrameWorkspaceHold),
-                    std::move(decoded.firstFrame), std::move(decoded.catalog),
+                    std::move(decoded.firstFrame), decoded.catalog,
                     apngAnimationPlaybackRequest(std::move(decoded.data),
                         std::move(decoded.sourceDataLease), m_dependencies.workspaceBudget,
                         std::move(decoded.inputWorkspaceHold)),
@@ -745,7 +745,7 @@ void ImageViewportDecodeProviderSource::finishDecodedImage(DecodedImage image)
                     QStringLiteral("apng"));
             } else if constexpr (std::is_same_v<Image, WebPAnimationImage>) {
                 finishAnimationImage(std::move(decoded.firstFrameWorkspaceHold),
-                    std::move(decoded.firstFrame), std::move(decoded.catalog),
+                    std::move(decoded.firstFrame), decoded.catalog,
                     webpAnimationPlaybackRequest(std::move(decoded.data),
                         std::move(decoded.sourceDataLease), m_dependencies.workspaceBudget,
                         std::move(decoded.inputWorkspaceHold)),
@@ -753,7 +753,7 @@ void ImageViewportDecodeProviderSource::finishDecodedImage(DecodedImage image)
                     QStringLiteral("webp"));
             } else if constexpr (std::is_same_v<Image, JxlAnimationImage>) {
                 finishAnimationImage(std::move(decoded.firstFrameWorkspaceHold),
-                    std::move(decoded.firstFrame), std::move(decoded.catalog),
+                    std::move(decoded.firstFrame), decoded.catalog,
                     jxlAnimationPlaybackRequest(std::move(decoded.data),
                         std::move(decoded.sourceDataLease), m_dependencies.workspaceBudget,
                         std::move(decoded.inputWorkspaceHold)),
@@ -761,7 +761,7 @@ void ImageViewportDecodeProviderSource::finishDecodedImage(DecodedImage image)
                     QStringLiteral("jxl"));
             } else if constexpr (std::is_same_v<Image, HeifSequenceAnimationImage>) {
                 finishAnimationImage(std::move(decoded.firstFrameWorkspaceHold),
-                    std::move(decoded.firstFrame), std::move(decoded.catalog),
+                    std::move(decoded.firstFrame), decoded.catalog,
                     heifSequenceAnimationPlaybackRequest(std::move(decoded.data),
                         std::move(decoded.sourceDataLease), m_dependencies.workspaceBudget,
                         std::move(decoded.inputWorkspaceHold)),
@@ -795,7 +795,7 @@ void ImageViewportDecodeProviderSource::finishStaticImage(StaticDecodedImage ima
 
 void ImageViewportDecodeProviderSource::finishAnimationImage(
     ImageDecodeWorkspaceHold firstFrameWorkspaceHold, QImage firstFrame,
-    ImageAnimationSourceCatalog catalog, ImageAnimationPlaybackRequest playbackRequest,
+    const ImageAnimationSourceCatalog& catalog, ImageAnimationPlaybackRequest playbackRequest,
     QString sourceIdentity, ImageSourceRevision sourceRevision, QString formatIdentifier)
 {
     m_provisionalPreview.reset();
@@ -836,7 +836,7 @@ void ImageViewportDecodeProviderSource::finishAnimationImage(
     }
 
     ImageSequenceProviderMetadata metadata = ImageSequenceProviderMetadata::timedFrameList(
-        catalog.logicalSize, std::move(catalog.frameDurations));
+        catalog.logicalSize, catalog.frameDurations);
     metadata.setAuthoredAnimationFacts(authoredAnimationFacts(catalog.repeatCount));
     auto runtime
         = std::make_shared<AnimationSourceRuntime>(std::move(firstFrame), metadata.frameCount(),
